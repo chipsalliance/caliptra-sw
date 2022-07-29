@@ -145,7 +145,7 @@ impl Cpu {
                 if divisor == 0 {
                     dividend as RvData
                 } else if dividend == i32::MIN && divisor == -1 {
-                    0 
+                    0
                 } else {
                     dividend.wrapping_rem(divisor) as RvData
                 }

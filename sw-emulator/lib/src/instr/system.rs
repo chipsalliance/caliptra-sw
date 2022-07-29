@@ -17,7 +17,8 @@ use crate::csr_file::Csr;
 use crate::exception::RvException;
 use crate::trace_instr;
 use crate::types::{
-    RvData, RvInstr, RvInstr32I, RvInstr32Opcode, RvInstr32SystemFunct3, RvInstr32SystemImm, RvMStatus,
+    RvData, RvInstr, RvInstr32I, RvInstr32Opcode, RvInstr32SystemFunct3, RvInstr32SystemImm,
+    RvMStatus,
 };
 
 impl Cpu {

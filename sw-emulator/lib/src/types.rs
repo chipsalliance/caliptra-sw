@@ -14,7 +14,7 @@ Abstract:
 
 use crate::emu_enum;
 use crate::xreg_file::XReg;
-use bitfield::{bitfield, BitRange};
+use bitfield::{bitfield, BitRange, BitRangeMut};
 
 /// RISCV Data width
 pub type RvData = u32;
@@ -336,7 +336,7 @@ emu_enum! {
 
         /// Break
         Ebreak = 0b0000_0000_0001,
-        
+
         /// Mret
         Mret = 0b0011_0000_0010,
     };

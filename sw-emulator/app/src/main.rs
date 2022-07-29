@@ -12,25 +12,11 @@ Abstract:
 
 --*/
 
-mod cpu;
-mod csr_file;
-mod device;
-mod emu_ctrl;
-mod exception;
-mod instr;
-mod macros;
-mod mem;
-mod ram;
-mod rom;
-mod types;
-mod uart;
-mod xreg_file;
-
-use crate::cpu::{Cpu, StepAction};
-use crate::emu_ctrl::EmuCtrl;
-use crate::ram::Ram;
-use crate::rom::Rom;
-use crate::uart::Uart;
+use caliptra_emu_lib::EmuCtrl;
+use caliptra_emu_lib::Ram;
+use caliptra_emu_lib::Rom;
+use caliptra_emu_lib::Uart;
+use caliptra_emu_lib::{Cpu, StepAction};
 use clap::Parser;
 use std::fs::File;
 use std::io;
