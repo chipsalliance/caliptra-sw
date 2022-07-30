@@ -31,3 +31,6 @@ jobs:
         run: |
           cargo test
           cargo test --release
+
+      - name: Check source-code formatting (run "cargo fmt" if this fails)
+        run: cargo fmt --check
