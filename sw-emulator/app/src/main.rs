@@ -17,38 +17,36 @@ use caliptra_emu_lib::Ram;
 use caliptra_emu_lib::Rom;
 use caliptra_emu_lib::Uart;
 use caliptra_emu_lib::{Cpu, StepAction};
-use clap::Parser;
+use clap::{arg, value_parser};
 use std::fs::File;
 use std::io;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::exit;
-
-/// Caliptra emulator
-#[derive(Parser, Debug)]
-#[clap(version, about, long_about = None)]
-struct Args {
-    /// ROM binary path
-    #[clap(short, long, value_parser)]
-    rom: String,
-
-    /// Execution trace
-    #[clap(short, long, value_parser)]
-    trace: Option<String>,
-}
 
 fn main() -> io::Result<()> {
     const ROM_SIZE: usize = 32 * 1024;
     const ICCM_SIZE: usize = 128 * 1024;
     const DCCM_SIZE: usize = 128 * 1024;
 
-    let args = Args::parse();
-    if !Path::new(&args.rom).exists() {
-        println!("ROM File '{}' does not exists", args.rom);
+    let args = clap::Command::new("caliptra-emu")
+        .about("Caliptra emulator")
+        .arg(arg!(--rom <FILE> "ROM binary path").value_parser(value_parser!(PathBuf)))
+        .arg(
+            arg!(--trace <FILE> "Execution trace file")
+                .required(false)
+                .value_parser(value_parser!(PathBuf)),
+        )
+        .get_matches();
+
+    let args_rom = args.get_one::<PathBuf>("rom").unwrap();
+
+    if !Path::new(&args_rom).exists() {
+        println!("ROM File {:?} does not exist", args_rom);
         exit(-1);
     }
 
-    let mut rom = File::open(args.rom)?;
+    let mut rom = File::open(args_rom)?;
     let mut buffer = Vec::new();
     rom.read_to_end(&mut buffer)?;
 
