@@ -2,5 +2,9 @@
 
 members = [
   "lib",
-  "app"
+  "app",
+]
+
+exclude = [
+  "example",
 ]
