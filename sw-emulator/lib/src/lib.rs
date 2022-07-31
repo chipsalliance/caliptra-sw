@@ -28,7 +28,10 @@ mod xreg_file;
 
 pub use cpu::Cpu;
 pub use cpu::StepAction;
+pub use device::Device;
 pub use emu_ctrl::EmuCtrl;
+pub use exception::{RvException, RvExceptionCause};
 pub use ram::Ram;
 pub use rom::Rom;
+pub use types::{RvAddr, RvData, RvIrq, RvSize};
 pub use uart::Uart;

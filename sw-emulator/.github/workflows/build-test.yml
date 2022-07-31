@@ -26,11 +26,18 @@ jobs:
         run: |
           (cd lib && cargo rustc -- -D warnings)
           (cd app && cargo rustc -- -D warnings)
+          (cd compliance-test && cargo rustc -- -D warnings)
 
       - name: Run unit tests
         run: |
           cargo test
           cargo test --release
+
+      - name: Run conformance tests
+        run: |
+          sudo apt-get install gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
+          (cd /tmp/ && git clone --depth 1 --branch old-framework-2.x https://github.com/riscv-non-isa/riscv-arch-test)
+          (cd compliance-test && cargo run --release  -- --test_root_path /tmp/riscv-arch-test)
 
       - name: Check source-code formatting (run "cargo fmt" if this fails)
         run: cargo fmt --check

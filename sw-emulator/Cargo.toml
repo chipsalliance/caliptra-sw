@@ -3,6 +3,7 @@
 members = [
   "lib",
   "app",
+  "compliance-test",
 ]
 
 exclude = [
