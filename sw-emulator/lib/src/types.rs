@@ -263,6 +263,34 @@ emu_enum! {
 
 emu_enum! {
     #[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Clone, Copy)]
+    pub RvInstr32OpFunct10;
+    u32;
+    {
+        // Format is YYY_YYYY_XXX, where 'YYY_YYYY' is func7 and XXX is func3
+        Add     = 0b000_0000_000,
+        Sll     = 0b000_0000_001,
+        Slt     = 0b000_0000_010,
+        Sltu    = 0b000_0000_011,
+        Xor     = 0b000_0000_100,
+        Srl     = 0b000_0000_101,
+        Or      = 0b000_0000_110,
+        And     = 0b000_0000_111,
+        Mul     = 0b000_0001_000,
+        Mulh    = 0b000_0001_001,
+        Mulhsu  = 0b000_0001_010,
+        Mulhu   = 0b000_0001_011,
+        Div     = 0b000_0001_100,
+        Divu    = 0b000_0001_101,
+        Rem     = 0b000_0001_110,
+        Remu    = 0b000_0001_111,
+        Sub     = 0b010_0000_000,
+        Sra     = 0b010_0000_101,
+    };
+    Invalid
+}
+
+emu_enum! {
+    #[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Clone, Copy)]
     pub RvInstr32OpFunct7;
     u32;
     {
@@ -456,6 +484,12 @@ bitfield! {
 
     /// Opcode function
     pub from into u32, funct7, set_funct7: 31, 25;
+}
+impl RvInstr32R {
+    pub fn set_funct10(&mut self, val: RvInstr32OpFunct10) {
+        self.set_funct3(u32::from(val) & 0b000_0000_111);
+        self.set_funct7((u32::from(val) & 0b111_1111_000) >> 3);
+    }
 }
 
 bitfield! {

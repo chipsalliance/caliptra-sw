@@ -57,6 +57,16 @@ emu_enum!(
     };
     Invalid
 );
+impl From<u16> for XReg {
+    fn from(val: u16) -> Self {
+        XReg::from(u32::from(val))
+    }
+}
+impl From<XReg> for u16 {
+    fn from(val: XReg) -> Self {
+        u16::try_from(u32::from(val)).unwrap()
+    }
+}
 
 /// RISCV General purpose register file
 pub struct XRegFile {

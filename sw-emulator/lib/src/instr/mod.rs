@@ -14,6 +14,7 @@ Abstract:
 
 mod auipc;
 mod branch;
+mod compression;
 mod jal;
 mod jalr;
 mod load;
@@ -50,7 +51,10 @@ impl Cpu {
         instr_tracer: Option<InstrTracer>,
     ) -> Result<(), RvException> {
         match self.fetch()? {
-            Instr::Compressed(instr) => return Err(RvException::illegal_instr(instr as u32)),
+            Instr::Compressed(instr) => {
+                self.set_next_pc(self.read_pc().wrapping_add(2));
+                self.exec_instr16(instr, instr_tracer)?;
+            }
             Instr::General(instr) => {
                 self.set_next_pc(self.read_pc().wrapping_add(4));
                 self.exec_instr32(instr, instr_tracer)?;
@@ -74,6 +78,20 @@ impl Cpu {
                 self.read_instr(RvSize::Word, self.read_pc())?,
             )),
         }
+    }
+
+    /// Execute a single 16-bit instruction `instr`, tracing instructions to
+    /// `instr_tracer` if it exists.
+    ///
+    /// # Error
+    ///
+    /// * `RvException` - Exception encountered during instruction execution
+    fn exec_instr16(
+        &mut self,
+        instr: u16,
+        instr_tracer: Option<InstrTracer>,
+    ) -> Result<(), RvException> {
+        self.exec_instr32(compression::decompress_instr(instr)?, instr_tracer)
     }
 
     /// Execute single 32-bit instruction
