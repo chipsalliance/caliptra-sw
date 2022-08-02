@@ -43,13 +43,12 @@ impl Cpu {
         let pc = self.read_xreg(instr.rs())? as i32;
         let pc = pc.wrapping_add(instr.imm());
         let pc = pc as u32 & !1u32;
-        let pc = pc.wrapping_sub(4);
 
         // Calculate the return address
-        let lr = self.read_pc().wrapping_add(4);
+        let lr = self.next_pc();
 
         // Update the registers
-        self.write_pc(pc);
+        self.set_next_pc(pc);
         self.write_xreg(instr.rd(), lr)
     }
 }

@@ -47,14 +47,14 @@ impl Cpu {
             // Branch on equal to
             RvInstr32BranchFunct3::Beq => {
                 if val1 == val2 {
-                    self.write_pc(pc.wrapping_add(instr.imm()).wrapping_sub(4));
+                    self.set_next_pc(pc.wrapping_add(instr.imm()));
                 }
             }
 
             // Branch on not equal to
             RvInstr32BranchFunct3::Bne => {
                 if val1 != val2 {
-                    self.write_pc(pc.wrapping_add(instr.imm()).wrapping_sub(4));
+                    self.set_next_pc(pc.wrapping_add(instr.imm()));
                 }
             }
 
@@ -63,7 +63,7 @@ impl Cpu {
                 let val1 = val1 as i32;
                 let val2 = val2 as i32;
                 if val1 < val2 {
-                    self.write_pc(pc.wrapping_add(instr.imm()).wrapping_sub(4));
+                    self.set_next_pc(pc.wrapping_add(instr.imm()));
                 }
             }
 
@@ -72,21 +72,21 @@ impl Cpu {
                 let val1 = val1 as i32;
                 let val2 = val2 as i32;
                 if val1 >= val2 {
-                    self.write_pc(pc.wrapping_add(instr.imm()).wrapping_sub(4));
+                    self.set_next_pc(pc.wrapping_add(instr.imm()));
                 }
             }
 
             // Branch on less than unsigned
             RvInstr32BranchFunct3::Bltu => {
                 if val1 < val2 {
-                    self.write_pc(pc.wrapping_add(instr.imm()).wrapping_sub(4));
+                    self.set_next_pc(pc.wrapping_add(instr.imm()));
                 }
             }
 
             // Branch on greater than unsigned
             RvInstr32BranchFunct3::Bgeu => {
                 if val1 >= val2 {
-                    self.write_pc(pc.wrapping_add(instr.imm()).wrapping_sub(4));
+                    self.set_next_pc(pc.wrapping_add(instr.imm()));
                 }
             }
 

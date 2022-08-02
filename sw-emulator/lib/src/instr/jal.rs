@@ -40,13 +40,13 @@ impl Cpu {
         trace_instr!(instr_tracer, self.read_pc(), RvInstr::JType(instr));
 
         // Calculate the new program counter
-        let pc = self.read_pc().wrapping_add(instr.imm()).wrapping_sub(4);
+        let next_pc = self.read_pc().wrapping_add(instr.imm());
 
         // Calculate the return address
-        let lr = self.read_pc().wrapping_add(4);
+        let lr = self.next_pc();
 
         // Update the registers
-        self.write_pc(pc);
+        self.set_next_pc(next_pc);
         self.write_xreg(instr.rd(), lr)
     }
 }

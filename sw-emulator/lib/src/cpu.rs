@@ -31,6 +31,9 @@ pub struct Cpu {
     // Program counter
     pc: RvData,
 
+    /// The next program counter after the current instruction is finished executing.
+    next_pc: RvData,
+
     /// Devices connected to the CPU
     devs: Vec<Box<dyn Device>>,
 }
@@ -55,6 +58,7 @@ impl Cpu {
             xregs: XRegFile::new(),
             csrs: CsrFile::new(),
             pc: Cpu::PC_RESET_VAL,
+            next_pc: Cpu::PC_RESET_VAL,
             devs: Vec::new(),
         }
     }
@@ -77,13 +81,16 @@ impl Cpu {
         self.pc = pc;
     }
 
-    /// Write the RISCV CPU Program counter
+    /// Returns the next program counter after the current instruction is finished executing.
+    pub fn next_pc(&self) -> RvData {
+        self.next_pc
+    }
+
+    /// Set the next program counter after the current instruction is finished executing.
     ///
-    /// # Arguments
-    ///
-    /// * `pc` - Program counter value
-    pub fn inc_pc(&mut self, inc: RvAddr) {
-        self.pc = self.pc.wrapping_add(inc);
+    /// Should only be set by instruction implementations.
+    pub fn set_next_pc(&mut self, next_pc: RvData) {
+        self.next_pc = next_pc;
     }
 
     /// Read the specified RISCV General Purpose Register

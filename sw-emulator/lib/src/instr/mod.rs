@@ -50,9 +50,14 @@ impl Cpu {
         instr_tracer: Option<InstrTracer>,
     ) -> Result<(), RvException> {
         match self.fetch()? {
-            Instr::Compressed(instr) => Err(RvException::illegal_instr(instr as u32)),
-            Instr::General(instr) => self.exec_instr32(instr, instr_tracer),
+            Instr::Compressed(instr) => return Err(RvException::illegal_instr(instr as u32)),
+            Instr::General(instr) => {
+                self.set_next_pc(self.read_pc().wrapping_add(4));
+                self.exec_instr32(instr, instr_tracer)?;
+            }
         }
+        self.write_pc(self.next_pc());
+        Ok(())
     }
 
     /// Fetch an instruction from current program counter
@@ -98,9 +103,6 @@ impl Cpu {
             RvInstr32Opcode::System => self.exec_system_instr(instr, instr_tracer)?,
             _ => Err(RvException::illegal_instr(instr))?,
         }
-
-        self.inc_pc(4);
-
         Ok(())
     }
 }

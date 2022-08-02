@@ -54,7 +54,7 @@ impl Cpu {
                     status.set_mie(status.mpie());
                     status.set_mpie(1);
                     self.write_csr(Csr::MSTATUS, status.0)?;
-                    self.write_pc(self.read_csr(Csr::MEPC)?.wrapping_sub(4));
+                    self.set_next_pc(self.read_csr(Csr::MEPC)?);
                     Ok(())
                 }
                 _ => Err(RvException::illegal_instr(instr.0)),
