@@ -12,6 +12,8 @@ Abstract:
 
 --*/
 
+use std::io::ErrorKind;
+
 use crate::{Device, RvAddr, RvData, RvException, RvSize};
 
 /// Represents an abstract memory bus. Used to read and write from RAM and
@@ -61,14 +63,18 @@ impl DynamicBus {
     /// # Arguments
     ///
     /// * `dev` - Device to attach
-    pub fn attach_dev(&mut self, dev: Box<dyn Device>) -> bool {
+    pub fn attach_dev(&mut self, dev: Box<dyn Device>) -> std::io::Result<()> {
         let mut index = 0;
         let dev_addr = dev.mmap_range();
         for cur_dev in self.devs.iter() {
             let cur_dev_addr = cur_dev.mmap_range();
             // Check if the device range overlaps existing device
             if dev_addr.end() >= cur_dev_addr.start() && dev_addr.start() <= cur_dev_addr.end() {
-                return false;
+                return Err(std::io::Error::new(
+                    ErrorKind::AddrInUse,
+                    format!("Address space for device {} ({:#010x}-{:#010x}) collides with device {} ({:#010x}-{:#010x})",
+                    dev.name(), dev.mmap_range().start(), dev.mmap_range().end(),
+                    cur_dev.name(), cur_dev.mmap_range().start(), cur_dev.mmap_range().end())));
             }
             // Found the position to insert the device
             if dev_addr.start() < cur_dev_addr.start() {
@@ -77,7 +83,7 @@ impl DynamicBus {
             index += 1;
         }
         self.devs.insert(index, dev);
-        true
+        Ok(())
     }
 
     /// Return the list of devices attached to the CPU
@@ -121,7 +127,7 @@ mod test {
     fn test_dynamic_bus_read() {
         let mut bus = DynamicBus::new();
         let rom = Rom::new("ROM0", 1, vec![1, 2]);
-        assert_eq!(bus.attach_dev(Box::new(rom)), true);
+        bus.attach_dev(Box::new(rom)).unwrap();
         assert_eq!(bus.read(RvSize::Byte, 1).ok(), Some(1));
         assert_eq!(bus.read(RvSize::Byte, 2).ok(), Some(2));
         assert_eq!(
@@ -134,7 +140,7 @@ mod test {
     fn test_dynamic_bus_write() {
         let mut bus = DynamicBus::new();
         let rom = Ram::new("RAM0", 1, vec![1, 2]);
-        assert_eq!(bus.attach_dev(Box::new(rom)), true);
+        bus.attach_dev(Box::new(rom)).unwrap();
         assert_eq!(bus.write(RvSize::Byte, 1, 3).ok(), Some(()));
         assert_eq!(bus.read(RvSize::Byte, 1).ok(), Some(3));
         assert_eq!(bus.write(RvSize::Byte, 2, 4).ok(), Some(()));
@@ -157,16 +163,22 @@ mod test {
         let mut bus = DynamicBus::new();
         let rom = Rom::new("ROM0", 1, vec![1, 2]);
         // Attach valid devices
-        assert_eq!(bus.attach_dev(Box::new(rom)), true);
+        bus.attach_dev(Box::new(rom)).unwrap();
         let rom = Rom::new("ROM1", 0, vec![1]);
-        assert_eq!(bus.attach_dev(Box::new(rom)), true);
+        bus.attach_dev(Box::new(rom)).unwrap();
         let rom = Rom::new("ROM2", 3, vec![1]);
-        assert_eq!(bus.attach_dev(Box::new(rom)), true);
+        bus.attach_dev(Box::new(rom)).unwrap();
+
         // Try inserting devices whose address maps overlap existing devices
-        let rom = Rom::new("ROM1", 1, vec![1]);
-        assert_eq!(bus.attach_dev(Box::new(rom)), false);
-        let rom = Rom::new("ROM1", 2, vec![1]);
-        assert_eq!(bus.attach_dev(Box::new(rom)), false);
+
+        let rom = Rom::new("ROM3", 1, vec![1]);
+        let err = bus.attach_dev(Box::new(rom)).err().unwrap();
+        assert_eq!(err.to_string(), "Address space for device ROM3 (0x00000001-0x00000001) collides with device ROM0 (0x00000001-0x00000002)");
+
+        let rom = Rom::new("ROM4", 2, vec![1]);
+        let err = bus.attach_dev(Box::new(rom)).err().unwrap();
+        assert_eq!(err.to_string(), "Address space for device ROM4 (0x00000002-0x00000002) collides with device ROM0 (0x00000001-0x00000002)");
+
         let addrs: Vec<RvAddr> = bus
             .devs()
             .iter()

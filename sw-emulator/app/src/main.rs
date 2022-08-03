@@ -63,30 +63,11 @@ fn main() -> io::Result<()> {
     let uart = Uart::new("UART0", 0x2000_0000);
     let ctrl = EmuCtrl::new("EMU_CTRL", 0x3000_0000);
 
-    if !cpu.bus.attach_dev(Box::new(rom)) {
-        println!("Failed to attach ROM.");
-        exit(-1);
-    }
-
-    if !cpu.bus.attach_dev(Box::new(iccm)) {
-        println!("Failed to attach ICCM.");
-        exit(-1);
-    }
-
-    if !cpu.bus.attach_dev(Box::new(dccm)) {
-        println!("Failed to attach DCCM.");
-        exit(-1);
-    }
-
-    if !cpu.bus.attach_dev(Box::new(uart)) {
-        println!("Failed to attach UART.");
-        exit(-1);
-    }
-
-    if !cpu.bus.attach_dev(Box::new(ctrl)) {
-        println!("Failed to attach Emulator Control.");
-        exit(-1);
-    }
+    cpu.bus.attach_dev(Box::new(rom))?;
+    cpu.bus.attach_dev(Box::new(iccm))?;
+    cpu.bus.attach_dev(Box::new(dccm))?;
+    cpu.bus.attach_dev(Box::new(uart))?;
+    cpu.bus.attach_dev(Box::new(ctrl))?;
 
     loop {
         match cpu.step(None) {

@@ -473,9 +473,9 @@ mod test {
 
             let mut cpu = Cpu::new(DynamicBus::new());
             let rom = Rom::new("ROM", $text_addr, $text.clone());
-            assert!(cpu.bus.attach_dev(Box::new(rom)));
+            cpu.bus.attach_dev(Box::new(rom)).unwrap();
             let ram = Ram::new("RAM", $data_addr, $data.clone());
-            assert!(cpu.bus.attach_dev(Box::new(ram)));
+            cpu.bus.attach_dev(Box::new(ram)).unwrap();
             cpu
         }};
     }

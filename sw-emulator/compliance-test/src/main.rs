@@ -163,7 +163,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut cpu = Cpu::new(DynamicBus::new());
 
         let ram = Box::new(Ram::new("test_ram", 0, binary));
-        assert!(cpu.bus.attach_dev(ram));
+        cpu.bus.attach_dev(ram)?;
         cpu.write_pc(0x3000);
         while !is_test_complete(&cpu.bus) {
             match cpu.step(None) {
@@ -194,7 +194,7 @@ mod tests {
         ram_bytes.extend(vec![0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
         let ram = Box::new(Ram::new("foo", 0, ram_bytes));
         let mut cpu = Cpu::new(DynamicBus::new());
-        assert!(cpu.bus.attach_dev(ram));
+        cpu.bus.attach_dev(ram).unwrap();
 
         check_reference_data("03020100\n07060504\n", &cpu.bus).unwrap();
         assert_eq!(
