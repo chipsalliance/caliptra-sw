@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use caliptra_emu_lib::DynamicBus;
 use caliptra_emu_lib::EmuCtrl;
 use caliptra_emu_lib::Ram;
 use caliptra_emu_lib::Rom;
@@ -55,34 +56,34 @@ fn main() -> io::Result<()> {
         exit(-1);
     }
 
-    let mut cpu = Cpu::new();
+    let mut cpu = Cpu::new(DynamicBus::new());
     let rom = Rom::new("ROM", 0x0000_0000, buffer);
     let iccm = Ram::new("ICCM", 0x4000_0000, vec![0; ICCM_SIZE]);
     let dccm = Ram::new("DCCM", 0x5000_0000, vec![0; DCCM_SIZE]);
     let uart = Uart::new("UART0", 0x2000_0000);
     let ctrl = EmuCtrl::new("EMU_CTRL", 0x3000_0000);
 
-    if !cpu.attach_dev(Box::new(rom)) {
+    if !cpu.bus.attach_dev(Box::new(rom)) {
         println!("Failed to attach ROM.");
         exit(-1);
     }
 
-    if !cpu.attach_dev(Box::new(iccm)) {
+    if !cpu.bus.attach_dev(Box::new(iccm)) {
         println!("Failed to attach ICCM.");
         exit(-1);
     }
 
-    if !cpu.attach_dev(Box::new(dccm)) {
+    if !cpu.bus.attach_dev(Box::new(dccm)) {
         println!("Failed to attach DCCM.");
         exit(-1);
     }
 
-    if !cpu.attach_dev(Box::new(uart)) {
+    if !cpu.bus.attach_dev(Box::new(uart)) {
         println!("Failed to attach UART.");
         exit(-1);
     }
 
-    if !cpu.attach_dev(Box::new(ctrl)) {
+    if !cpu.bus.attach_dev(Box::new(ctrl)) {
         println!("Failed to attach Emulator Control.");
         exit(-1);
     }

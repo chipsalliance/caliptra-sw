@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::test_builder::{TestBuilder, TestBuilderConfig};
-use caliptra_emu_lib::{Cpu, Ram, RvSize, StepAction};
+use caliptra_emu_lib::{Bus, Cpu, DynamicBus, Ram, RvSize, StepAction};
 use clap::{arg, value_parser};
 use std::error::Error;
 use std::io::ErrorKind;
@@ -108,11 +108,11 @@ fn into_io_error(err: impl Into<Box<dyn Error + Send + Sync>>) -> std::io::Error
     std::io::Error::new(ErrorKind::Other, err)
 }
 
-fn check_reference_data(expected_txt: &str, cpu: &Cpu) -> std::io::Result<()> {
+fn check_reference_data(expected_txt: &str, bus: &impl Bus) -> std::io::Result<()> {
     let mut addr = 0x1000;
     for line in expected_txt.lines() {
         let expected_word = u32::from_str_radix(line, 16).map_err(into_io_error)?;
-        let actual_word = match cpu.read(RvSize::Word, addr) {
+        let actual_word = match bus.read(RvSize::Word, addr) {
             Ok(val) => val,
             Err(err) => {
                 return Err(into_io_error(format!(
@@ -135,8 +135,8 @@ fn check_reference_data(expected_txt: &str, cpu: &Cpu) -> std::io::Result<()> {
     Ok(())
 }
 
-fn is_test_complete(cpu: &Cpu) -> bool {
-    cpu.read(RvSize::Word, 0x0).unwrap() != 0
+fn is_test_complete(bus: &impl Bus) -> bool {
+    bus.read(RvSize::Word, 0x0).unwrap() != 0
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -160,24 +160,24 @@ fn main() -> Result<(), Box<dyn Error>> {
         let binary: Vec<u8> = builder.build_test_binary(test)?;
         let reference_txt = builder.get_reference_data(test)?;
 
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(DynamicBus::new());
 
         let ram = Box::new(Ram::new("test_ram", 0, binary));
-        assert!(cpu.attach_dev(ram));
+        assert!(cpu.bus.attach_dev(ram));
         cpu.write_pc(0x3000);
-        while !is_test_complete(&cpu) {
+        while !is_test_complete(&cpu.bus) {
             match cpu.step(None) {
                 StepAction::Continue => continue,
                 _ => break,
             }
         }
-        if !is_test_complete(&cpu) {
+        if !is_test_complete(&cpu.bus) {
             return Err(std::io::Error::new(
                 ErrorKind::Other,
                 "test did not complete",
             ))?;
         }
-        check_reference_data(&reference_txt, &cpu)?;
+        check_reference_data(&reference_txt, &cpu.bus)?;
         println!("PASSED");
         drop(cpu);
     }
@@ -193,19 +193,19 @@ mod tests {
         let mut ram_bytes = vec![0u8; 4096];
         ram_bytes.extend(vec![0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
         let ram = Box::new(Ram::new("foo", 0, ram_bytes));
-        let mut cpu = Cpu::new();
-        assert!(cpu.attach_dev(ram));
+        let mut cpu = Cpu::new(DynamicBus::new());
+        assert!(cpu.bus.attach_dev(ram));
 
-        check_reference_data("03020100\n07060504\n", &cpu).unwrap();
+        check_reference_data("03020100\n07060504\n", &cpu.bus).unwrap();
         assert_eq!(
-            check_reference_data("03050100\n07060503\n", &cpu)
+            check_reference_data("03050100\n07060503\n", &cpu.bus)
                 .err()
                 .unwrap()
                 .to_string(),
             "At addr 0x1000, expected 0x03050100 but was 0x03020100"
         );
         assert_eq!(
-            check_reference_data("03020100\n07060502", &cpu)
+            check_reference_data("03020100\n07060502", &cpu.bus)
                 .err()
                 .unwrap()
                 .to_string(),

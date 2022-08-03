@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use crate::bus::Bus;
 use crate::cpu::{Cpu, InstrTracer};
 use crate::csr_file::Csr;
 use crate::exception::RvException;
@@ -21,7 +22,7 @@ use crate::types::{
     RvMStatus,
 };
 
-impl Cpu {
+impl<TBus: Bus> Cpu<TBus> {
     /// Execute system Instructions
     ///
     /// # Arguments

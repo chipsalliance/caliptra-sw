@@ -12,12 +12,13 @@ Abstract:
 
 --*/
 
+use crate::bus::Bus;
 use crate::cpu::{Cpu, InstrTracer};
 use crate::exception::RvException;
 use crate::trace_instr;
 use crate::types::{RvAddr, RvInstr, RvInstr32Opcode, RvInstr32S, RvInstr32StoreFunct3, RvSize};
 
-impl Cpu {
+impl<TBus: Bus> Cpu<TBus> {
     /// Execute store instructions
     ///
     /// # Arguments
@@ -45,13 +46,13 @@ impl Cpu {
 
         match instr.funct3().into() {
             // Store Byte ('sb') Instruction
-            RvInstr32StoreFunct3::Sb => self.write(RvSize::Byte, addr, val),
+            RvInstr32StoreFunct3::Sb => self.bus.write(RvSize::Byte, addr, val),
 
             // Store Half Word ('sh') Instruction
-            RvInstr32StoreFunct3::Sh => self.write(RvSize::HalfWord, addr, val),
+            RvInstr32StoreFunct3::Sh => self.bus.write(RvSize::HalfWord, addr, val),
 
             // Store Word ('sw') Instruction
-            RvInstr32StoreFunct3::Sw => self.write(RvSize::Word, addr, val),
+            RvInstr32StoreFunct3::Sw => self.bus.write(RvSize::Word, addr, val),
 
             // Illegal Instruction
             _ => Err(RvException::illegal_instr(instr.0)),

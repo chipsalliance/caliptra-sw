@@ -26,6 +26,7 @@ mod system;
 mod test_encoder;
 mod test_macros;
 
+use crate::bus::Bus;
 use crate::cpu::{Cpu, InstrTracer};
 use crate::exception::RvException;
 use crate::types::{RvInstr32, RvInstr32Opcode, RvSize};
@@ -36,7 +37,7 @@ enum Instr {
     General(u32),
 }
 
-impl Cpu {
+impl<TBus: Bus> Cpu<TBus> {
     /// Execute single instruction
     ///
     /// # Arguments

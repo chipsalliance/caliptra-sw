@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use crate::bus::Bus;
 use crate::cpu::{Cpu, InstrTracer};
 use crate::exception::RvException;
 use crate::trace_instr;
@@ -19,7 +20,7 @@ use crate::types::{
     RvData, RvInstr, RvInstr32I, RvInstr32OpImmFunct3, RvInstr32OpImmFunct7, RvInstr32Opcode,
 };
 
-impl Cpu {
+impl<TBus: Bus> Cpu<TBus> {
     /// Execute immediate instructions
     ///
     /// # Arguments

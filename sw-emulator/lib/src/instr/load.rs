@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use crate::bus::Bus;
 use crate::cpu::{Cpu, InstrTracer};
 use crate::exception::RvException;
 use crate::trace_instr;
@@ -19,7 +20,7 @@ use crate::types::{
     RvAddr, RvData, RvInstr, RvInstr32I, RvInstr32LoadFunct3, RvInstr32Opcode, RvSize,
 };
 
-impl Cpu {
+impl<TBus: Bus> Cpu<TBus> {
     /// Execute load instructions
     ///
     /// # Arguments
@@ -47,19 +48,21 @@ impl Cpu {
         // Read the data
         let data = match instr.funct3().into() {
             // Load Byte ('lb') Instruction
-            RvInstr32LoadFunct3::Lb => self.read(RvSize::Byte, addr)? as i8 as i32 as RvData,
+            RvInstr32LoadFunct3::Lb => self.bus.read(RvSize::Byte, addr)? as i8 as i32 as RvData,
 
             // Load Half Word ('lh') Instruction
-            RvInstr32LoadFunct3::Lh => self.read(RvSize::HalfWord, addr)? as i16 as i32 as RvData,
+            RvInstr32LoadFunct3::Lh => {
+                self.bus.read(RvSize::HalfWord, addr)? as i16 as i32 as RvData
+            }
 
             // Load Word ('lw') Instruction
-            RvInstr32LoadFunct3::Lw => self.read(RvSize::Word, addr)? as i32 as RvData,
+            RvInstr32LoadFunct3::Lw => self.bus.read(RvSize::Word, addr)? as i32 as RvData,
 
             // Load Byte Unsigned ('lbu') Instruction
-            RvInstr32LoadFunct3::Lbu => self.read(RvSize::Byte, addr)?,
+            RvInstr32LoadFunct3::Lbu => self.bus.read(RvSize::Byte, addr)?,
 
             // Load Half Word Unsigned ('lhu') Instruction
-            RvInstr32LoadFunct3::Lhu => self.read(RvSize::HalfWord, addr)?,
+            RvInstr32LoadFunct3::Lhu => self.bus.read(RvSize::HalfWord, addr)?,
 
             // Illegal Instruction
             _ => Err(RvException::illegal_instr(instr.0))?,

@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+mod bus;
 mod cpu;
 mod csr_file;
 mod device;
@@ -26,6 +27,7 @@ mod types;
 mod uart;
 mod xreg_file;
 
+pub use bus::{Bus, DynamicBus};
 pub use cpu::Cpu;
 pub use cpu::StepAction;
 pub use device::Device;

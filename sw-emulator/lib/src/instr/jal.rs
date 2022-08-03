@@ -12,12 +12,13 @@ Abstract:
 
 --*/
 
+use crate::bus::Bus;
 use crate::cpu::{Cpu, InstrTracer};
 use crate::exception::RvException;
 use crate::trace_instr;
 use crate::types::{RvInstr, RvInstr32J, RvInstr32Opcode};
 
-impl Cpu {
+impl<TBus: Bus> Cpu<TBus> {
     /// Execute `jal` Instructions
     ///
     /// # Arguments

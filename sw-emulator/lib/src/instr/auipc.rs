@@ -12,13 +12,14 @@ Abstract:
 
 --*/
 
+use crate::bus::Bus;
 use crate::cpu::{Cpu, InstrTracer};
 use crate::exception::RvException;
 use crate::trace_instr;
 use crate::types::{RvData, RvInstr, RvInstr32Opcode, RvInstr32U};
 use std::ops::Shl;
 
-impl Cpu {
+impl<TBus: Bus> Cpu<TBus> {
     /// Execute `auipc` Instruction
     ///
     /// # Arguments

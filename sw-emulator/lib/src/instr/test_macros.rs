@@ -466,15 +466,16 @@ mod test {
             $text_addr:expr => $text:expr,
             $data_addr:expr => $data:expr
         ) => {{
+            use crate::bus::DynamicBus;
             use crate::cpu::Cpu;
             use crate::ram::Ram;
             use crate::rom::Rom;
 
-            let mut cpu = Cpu::new();
+            let mut cpu = Cpu::new(DynamicBus::new());
             let rom = Rom::new("ROM", $text_addr, $text.clone());
-            assert!(cpu.attach_dev(Box::new(rom)));
+            assert!(cpu.bus.attach_dev(Box::new(rom)));
             let ram = Ram::new("RAM", $data_addr, $data.clone());
-            assert!(cpu.attach_dev(Box::new(ram)));
+            assert!(cpu.bus.attach_dev(Box::new(ram)));
             cpu
         }};
     }
