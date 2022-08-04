@@ -12,12 +12,12 @@ Abstract:
 
 --*/
 
-use caliptra_emu_lib::DynamicBus;
-use caliptra_emu_lib::EmuCtrl;
-use caliptra_emu_lib::Ram;
-use caliptra_emu_lib::Rom;
-use caliptra_emu_lib::Uart;
-use caliptra_emu_lib::{Cpu, StepAction};
+use caliptra_emu_cpu::DynamicBus;
+use caliptra_emu_cpu::EmuCtrl;
+use caliptra_emu_cpu::Ram;
+use caliptra_emu_cpu::Rom;
+use caliptra_emu_cpu::Uart;
+use caliptra_emu_cpu::{Cpu, StepAction};
 use clap::{arg, value_parser};
 use std::fs::File;
 use std::io;

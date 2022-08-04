@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::test_builder::{TestBuilder, TestBuilderConfig};
-use caliptra_emu_lib::{Bus, Cpu, DynamicBus, Ram, RvSize, StepAction};
+use caliptra_emu_cpu::{Bus, Cpu, DynamicBus, Ram, RvSize, StepAction};
 use clap::{arg, value_parser};
 use std::error::Error;
 use std::io::ErrorKind;

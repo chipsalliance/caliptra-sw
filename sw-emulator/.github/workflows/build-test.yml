@@ -24,7 +24,7 @@ jobs:
           
       - name: Check for compiler warnings
         run: |
-          (cd lib && cargo rustc -- -D warnings)
+          (cd lib/cpu && cargo rustc -- -D warnings)
           (cd app && cargo rustc -- -D warnings)
           (cd compliance-test && cargo rustc -- -D warnings)
 

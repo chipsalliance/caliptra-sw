@@ -1,9 +1,9 @@
 [workspace]
 
 members = [
-  "lib",
   "app",
   "compliance-test",
+  "lib/cpu",
 ]
 
 exclude = [

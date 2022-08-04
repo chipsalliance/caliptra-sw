@@ -7,4 +7,4 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "3.2.14", default-features = false, features = ["std"] }
-caliptra-emu-lib = { path = "../lib" }
+caliptra-emu-cpu = { path = "../lib/cpu" }
