@@ -12,28 +12,16 @@ Abstract:
 
 --*/
 
-mod bus;
 mod cpu;
 mod csr_file;
-mod device;
 mod emu_ctrl;
-mod exception;
 mod instr;
 mod macros;
-mod mem;
-mod ram;
-mod rom;
 mod types;
 mod uart;
 mod xreg_file;
 
-pub use bus::{Bus, DynamicBus};
 pub use cpu::Cpu;
 pub use cpu::StepAction;
-pub use device::Device;
 pub use emu_ctrl::EmuCtrl;
-pub use exception::{RvException, RvExceptionCause};
-pub use ram::Ram;
-pub use rom::Rom;
-pub use types::{RvAddr, RvData, RvIrq, RvSize};
 pub use uart::Uart;

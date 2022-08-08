@@ -12,11 +12,11 @@ Abstract:
 
 --*/
 
-use crate::bus::Bus;
 use crate::cpu::{Cpu, InstrTracer};
-use crate::exception::RvException;
 use crate::trace_instr;
-use crate::types::{RvAddr, RvInstr, RvInstr32Opcode, RvInstr32S, RvInstr32StoreFunct3, RvSize};
+use crate::types::{RvInstr, RvInstr32Opcode, RvInstr32S, RvInstr32StoreFunct3};
+use caliptra_emu_bus::Bus;
+use caliptra_emu_types::{RvAddr, RvException, RvSize};
 
 impl<TBus: Bus> Cpu<TBus> {
     /// Execute store instructions

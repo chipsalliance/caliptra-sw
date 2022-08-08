@@ -12,8 +12,7 @@ Abstract:
 
 --*/
 
-use crate::exception::RvException;
-use crate::types::{RvAddr, RvData, RvIrq, RvSize};
+use caliptra_emu_types::{RvAddr, RvData, RvException, RvIrq, RvSize};
 use std::ops::RangeInclusive;
 
 /// Device Trait

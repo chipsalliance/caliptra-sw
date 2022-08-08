@@ -13,8 +13,7 @@ Abstract:
 
 --*/
 
-use crate::exception::RvException;
-use crate::types::{RvAddr, RvData, RvSize};
+use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
 
 /// Memory Exception
 #[allow(dead_code)]

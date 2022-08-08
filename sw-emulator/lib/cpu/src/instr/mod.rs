@@ -26,10 +26,10 @@ mod system;
 mod test_encoder;
 mod test_macros;
 
-use crate::bus::Bus;
 use crate::cpu::{Cpu, InstrTracer};
-use crate::exception::RvException;
-use crate::types::{RvInstr32, RvInstr32Opcode, RvSize};
+use crate::types::{RvInstr32, RvInstr32Opcode};
+use caliptra_emu_bus::Bus;
+use caliptra_emu_types::{RvException, RvSize};
 
 /// Instruction
 enum Instr {

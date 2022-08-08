@@ -14,7 +14,6 @@ Abstract:
 
 #[cfg(test)]
 mod test {
-
     #[macro_export]
     macro_rules! test_ld_op {
         ($test:ident, $instr:ident, $result:expr, $offset:expr, $base:expr, $data:expr) => {
@@ -466,10 +465,8 @@ mod test {
             $text_addr:expr => $text:expr,
             $data_addr:expr => $data:expr
         ) => {{
-            use crate::bus::DynamicBus;
             use crate::cpu::Cpu;
-            use crate::ram::Ram;
-            use crate::rom::Rom;
+            use caliptra_emu_bus::{DynamicBus, Ram, Rom};
 
             let mut cpu = Cpu::new(DynamicBus::new());
             let rom = Rom::new("ROM", $text_addr, $text.clone());

@@ -12,8 +12,7 @@ Abstract:
 
 --*/
 
-use crate::exception::RvException;
-use crate::types::{RvAddr, RvData};
+use caliptra_emu_types::{RvAddr, RvData, RvException};
 
 /// Configuration & Status Register
 #[derive(Copy, Clone)]

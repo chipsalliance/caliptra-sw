@@ -12,15 +12,14 @@ Abstract:
 
 --*/
 
-use crate::bus::Bus;
 use crate::cpu::{Cpu, InstrTracer};
 use crate::csr_file::Csr;
-use crate::exception::RvException;
 use crate::trace_instr;
 use crate::types::{
-    RvData, RvInstr, RvInstr32I, RvInstr32Opcode, RvInstr32SystemFunct3, RvInstr32SystemImm,
-    RvMStatus,
+    RvInstr, RvInstr32I, RvInstr32Opcode, RvInstr32SystemFunct3, RvInstr32SystemImm, RvMStatus,
 };
+use caliptra_emu_bus::Bus;
+use caliptra_emu_types::{RvData, RvException};
 
 impl<TBus: Bus> Cpu<TBus> {
     /// Execute system Instructions
@@ -104,12 +103,12 @@ impl<TBus: Bus> Cpu<TBus> {
 #[cfg(test)]
 mod tests {
     use crate::csr_file::Csr;
-    use crate::exception::RvException;
     use crate::instr::test_encoder::tests::{
         csrrc, csrrci, csrrs, csrrsi, csrrw, csrrwi, ebreak, ecall,
     };
     use crate::xreg_file::XReg;
     use crate::{isa_test, isa_test_cpu, text};
+    use caliptra_emu_types::RvException;
 
     #[test]
     fn test_ecall() {

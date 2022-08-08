@@ -4,21 +4,20 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    ram.rs
+    rom.rs
 
 Abstract:
 
-    File contains implementation of RAM
+    File contains implementation of ROM
 
 --*/
 
-use crate::device::Device;
-use crate::exception::RvException;
 use crate::mem::Mem;
-use crate::types::{RvAddr, RvData, RvIrq, RvSize};
+use crate::Device;
+use caliptra_emu_types::{RvAddr, RvData, RvException, RvIrq, RvSize};
 
 /// Read Only Memory Device
-pub struct Ram {
+pub struct Rom {
     /// Name of the device
     name: String,
 
@@ -29,14 +28,14 @@ pub struct Ram {
     data: Mem,
 }
 
-impl Ram {
-    /// Create new RAM
+impl Rom {
+    /// Create new ROM
     ///
     /// # Arguments
     ///
     /// * `name` - Name of the device
-    /// * `addr` - Address of the RAM in the address map
-    /// * `data` - Data to be stored in the RAM
+    /// * `addr` - Address of the ROM in the address map
+    /// * `data` - Data to be stored in the ROM
     pub fn new(name: &str, addr: RvAddr, data: Vec<u8>) -> Self {
         Self {
             name: String::from(name),
@@ -46,7 +45,7 @@ impl Ram {
     }
 }
 
-impl Device for Ram {
+impl Device for Rom {
     /// Name of the device
     fn name(&self) -> &str {
         self.name.as_str()
@@ -97,11 +96,8 @@ impl Device for Ram {
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::StoreAccessFault`
     ///                   or `RvExceptionCause::StoreAddrMisaligned`
-    fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), RvException> {
-        match self.data.write(size, addr, val) {
-            Ok(data) => Ok(data),
-            Err(error) => Err(error.into()),
-        }
+    fn write(&mut self, _size: RvSize, addr: RvAddr, _value: RvData) -> Result<(), RvException> {
+        Err(RvException::store_access_fault(addr))
     }
 }
 
@@ -111,65 +107,59 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let _ram = Ram::new("RAM", 0, vec![1, 2, 3, 4]);
+        let _rom = Rom::new("ROM", 0, vec![1, 2, 3, 4]);
     }
 
     #[test]
     fn test_name() {
-        let ram = Ram::new("RAM", 0, vec![1, 2, 3, 4]);
-        assert_eq!(ram.name(), "RAM")
+        let rom = Rom::new("ROM", 0, vec![1, 2, 3, 4]);
+        assert_eq!(rom.name(), "ROM")
     }
 
     #[test]
     fn test_mmap_addr() {
-        let ram = Ram::new("RAM", 0, vec![1, 2, 3, 4]);
-        assert_eq!(ram.mmap_addr(), 0)
+        let rom = Rom::new("ROM", 0, vec![1, 2, 3, 4]);
+        assert_eq!(rom.mmap_addr(), 0)
     }
 
     #[test]
     fn test_mmap_size() {
-        let ram = Ram::new("RAM", 0, vec![1, 2, 3, 4]);
-        assert_eq!(ram.mmap_size(), 4)
+        let rom = Rom::new("ROM", 0, vec![1, 2, 3, 4]);
+        assert_eq!(rom.mmap_size(), 4)
     }
 
     #[test]
     fn test_pending_irq() {
-        let ram = Ram::new("RAM", 0, vec![1, 2, 3, 4]);
-        assert_eq!(ram.pending_irq(), None)
+        let rom = Rom::new("ROM", 0, vec![1, 2, 3, 4]);
+        assert_eq!(rom.pending_irq(), None)
     }
 
     #[test]
     fn test_read() {
-        let ram = Ram::new("RAM", 0, vec![1, 2, 3, 4]);
-        assert_eq!(ram.read(RvSize::Byte, 0).ok(), Some(1));
-        assert_eq!(ram.read(RvSize::HalfWord, 0).ok(), Some(1 | 2 << 8));
+        let rom = Rom::new("ROM", 0, vec![1, 2, 3, 4]);
+        assert_eq!(rom.read(RvSize::Byte, 0).ok(), Some(1));
+        assert_eq!(rom.read(RvSize::HalfWord, 0).ok(), Some(1 | 2 << 8));
         assert_eq!(
-            ram.read(RvSize::Word, 0).ok(),
+            rom.read(RvSize::Word, 0).ok(),
             Some(1 | 2 << 8 | 3 << 16 | 4 << 24)
         );
     }
 
     #[test]
     fn test_read_error() {
-        let ram = Ram::new("RAM", 0, vec![1, 2, 3, 4]);
+        let rom = Rom::new("ROM", 0, vec![1, 2, 3, 4]);
         assert_eq!(
-            ram.read(RvSize::Byte, ram.mmap_size()).err(),
-            Some(RvException::load_access_fault(ram.mmap_size() as u32))
+            rom.read(RvSize::Byte, rom.mmap_size()).err(),
+            Some(RvException::load_access_fault(rom.mmap_size() as u32))
         )
     }
 
     #[test]
     fn test_write() {
-        let mut ram = Ram::new("RAM", 0, vec![1, 2, 3, 4]);
-        assert_eq!(ram.write(RvSize::Byte, 0, u32::MAX).ok(), Some(()))
-    }
-
-    #[test]
-    fn test_write_error() {
-        let mut ram = Ram::new("RAM", 0, vec![1, 2, 3, 4]);
+        let mut rom = Rom::new("ROM", 0, vec![1, 2, 3, 4]);
         assert_eq!(
-            ram.write(RvSize::Byte, ram.mmap_size(), 0).err(),
-            Some(RvException::store_access_fault(ram.mmap_size() as u32))
+            rom.write(RvSize::Byte, 0, u32::MAX).err(),
+            Some(RvException::store_access_fault(0))
         )
     }
 }

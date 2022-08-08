@@ -12,11 +12,11 @@ Abstract:
 
 --*/
 
-use crate::bus::Bus;
 use crate::csr_file::{Csr, CsrFile};
-use crate::exception::{RvException, RvExceptionCause};
-use crate::types::{RvAddr, RvData, RvInstr, RvMStatus, RvSize};
+use crate::types::{RvInstr, RvMStatus};
 use crate::xreg_file::{XReg, XRegFile};
+use caliptra_emu_bus::Bus;
+use caliptra_emu_types::{RvAddr, RvData, RvException, RvExceptionCause, RvSize};
 
 pub type InstrTracer = fn(pc: u32, instr: RvInstr);
 
@@ -250,7 +250,7 @@ impl<TBus: Bus> Cpu<TBus> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bus::DynamicBus;
+    use caliptra_emu_bus::DynamicBus;
 
     #[test]
     fn test_new() {

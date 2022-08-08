@@ -12,9 +12,8 @@ Abstract:
 
 --*/
 
-use crate::device::Device;
-use crate::exception::RvException;
-use crate::types::{RvAddr, RvData, RvIrq, RvSize};
+use caliptra_emu_bus::Device;
+use caliptra_emu_types::{RvAddr, RvData, RvException, RvIrq, RvSize};
 use std::process::exit;
 
 /// Emulation Control

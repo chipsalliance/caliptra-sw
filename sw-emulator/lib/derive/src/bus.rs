@@ -36,34 +36,34 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
     drop(peripheral_fields);
 
     let mut result = TokenStream::new();
-    result.extend(TokenStream::from_str("impl caliptra_emu_cpu::Bus for").unwrap());
+    result.extend(TokenStream::from_str("impl caliptra_emu_bus::Bus for").unwrap());
     result.extend([TokenTree::from(struct_name)]);
 
     let mut impl_body = TokenStream::new();
     {
         impl_body.extend(
-            TokenStream::from_str("fn read(&self, size: caliptra_emu_cpu::RvSize, addr: caliptra_emu_cpu::RvAddr) -> Result<caliptra_emu_cpu::RvData, caliptra_emu_cpu::RvException>").unwrap());
+            TokenStream::from_str("fn read(&self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_types::RvException>").unwrap());
 
         let mut fn_body = TokenStream::new();
         if let Some(mask_matches) = &mask_matches {
             fn_body.extend(gen_match_tokens(mask_matches, AccessType::Read));
         }
         fn_body.extend(
-            TokenStream::from_str("Err(caliptra_emu_cpu::RvException::load_access_fault(addr))")
+            TokenStream::from_str("Err(caliptra_emu_types::RvException::load_access_fault(addr))")
                 .unwrap(),
         );
         impl_body.extend([TokenTree::from(Group::new(Delimiter::Brace, fn_body))]);
     }
     {
         impl_body.extend(
-            TokenStream::from_str("fn write(&mut self, size: caliptra_emu_cpu::RvSize, addr: caliptra_emu_cpu::RvAddr, val: caliptra_emu_cpu::RvData) -> Result<(), caliptra_emu_cpu::RvException>").unwrap());
+            TokenStream::from_str("fn write(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr, val: caliptra_emu_types::RvData) -> Result<(), caliptra_emu_types::RvException>").unwrap());
 
         let mut fn_body = TokenStream::new();
         if let Some(mask_matches) = &mask_matches {
             fn_body.extend(gen_match_tokens(mask_matches, AccessType::Write));
         }
         fn_body.extend(
-            TokenStream::from_str("Err(caliptra_emu_cpu::RvException::store_access_fault(addr))")
+            TokenStream::from_str("Err(caliptra_emu_types::RvException::store_access_fault(addr))")
                 .unwrap(),
         );
         impl_body.extend([TokenTree::from(Group::new(Delimiter::Brace, fn_body))]);
@@ -213,7 +213,7 @@ fn gen_match_tokens(mask_matches: &MaskMatchBlock, access_type: AccessType) -> T
         match m.body {
             MatchBody::Field(ref field_name) => {
                 match_body
-                    .extend(TokenStream::from_str("return caliptra_emu_cpu::Device::").unwrap());
+                    .extend(TokenStream::from_str("return caliptra_emu_bus::Device::").unwrap());
                 match access_type {
                     AccessType::Read => match_body.extend(TokenStream::from_str("read").unwrap()),
                     AccessType::Write => match_body.extend(TokenStream::from_str("write").unwrap()),
@@ -407,54 +407,54 @@ mod tests {
 
         assert_eq!(tokens.to_string(),
             TokenStream::from_str(r#"
-            impl caliptra_emu_cpu::Bus for MyBus {
-                fn read(&self, size: caliptra_emu_cpu::RvSize, addr: caliptra_emu_cpu::RvAddr) -> Result<caliptra_emu_cpu::RvData, caliptra_emu_cpu::RvException> {
+            impl caliptra_emu_bus::Bus for MyBus {
+                fn read(&self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_types::RvException> {
                     match addr & 0xf000_0000 {
-                        0x0000_0000 => return caliptra_emu_cpu::Device::read(&self.rom, size, addr & 0x0fff_ffff),
-                        0x1000_0000 => return caliptra_emu_cpu::Device::read(&self.sram, size, addr & 0x0fff_ffff),
-                        0x2000_0000 => return caliptra_emu_cpu::Device::read(&self.dram, size, addr & 0x0fff_ffff),
+                        0x0000_0000 => return caliptra_emu_bus::Device::read(&self.rom, size, addr & 0x0fff_ffff),
+                        0x1000_0000 => return caliptra_emu_bus::Device::read(&self.sram, size, addr & 0x0fff_ffff),
+                        0x2000_0000 => return caliptra_emu_bus::Device::read(&self.dram, size, addr & 0x0fff_ffff),
                         0xa000_0000 => match addr & 0xffff_0000 {
-                            0xaa00_0000 => return caliptra_emu_cpu::Device::read(&self.uart0, size, addr & 0x0000_ffff),
-                            0xaa01_0000 => return caliptra_emu_cpu::Device::read(&self.uart1, size, addr & 0x0000_ffff),
+                            0xaa00_0000 => return caliptra_emu_bus::Device::read(&self.uart0, size, addr & 0x0000_ffff),
+                            0xaa01_0000 => return caliptra_emu_bus::Device::read(&self.uart1, size, addr & 0x0000_ffff),
                             0xaa02_0000 => match addr & 0xffff_ff00 {
-                                0xaa02_0000 => return caliptra_emu_cpu::Device::read(&self.i2c0, size, addr & 0x0000_00ff),
-                                0xaa02_0400 => return caliptra_emu_cpu::Device::read(&self.i2c1, size, addr & 0x0000_00ff),
-                                0xaa02_0800 => return caliptra_emu_cpu::Device::read(&self.i2c2, size, addr & 0x0000_00ff),
+                                0xaa02_0000 => return caliptra_emu_bus::Device::read(&self.i2c0, size, addr & 0x0000_00ff),
+                                0xaa02_0400 => return caliptra_emu_bus::Device::read(&self.i2c1, size, addr & 0x0000_00ff),
+                                0xaa02_0800 => return caliptra_emu_bus::Device::read(&self.i2c2, size, addr & 0x0000_00ff),
                                 _ => {}
                             },
                             _ => {}
                         },
                         0xb000_0000 => match addr & 0xffff_0000 {
-                            0xbb42_0000 => return caliptra_emu_cpu::Device::read(&self.spi0, size, addr & 0x0000_ffff),
+                            0xbb42_0000 => return caliptra_emu_bus::Device::read(&self.spi0, size, addr & 0x0000_ffff),
                             _ => {}
                         },
                         _ => {}
                     }
-                    Err(caliptra_emu_cpu::RvException::load_access_fault(addr))
+                    Err(caliptra_emu_types::RvException::load_access_fault(addr))
                 }
-                fn write(&mut self, size: caliptra_emu_cpu::RvSize, addr: caliptra_emu_cpu::RvAddr, val: caliptra_emu_cpu::RvData) -> Result<(), caliptra_emu_cpu::RvException> {
+                fn write(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr, val: caliptra_emu_types::RvData) -> Result<(), caliptra_emu_types::RvException> {
                     match addr & 0xf000_0000 {
-                        0x0000_0000 => return caliptra_emu_cpu::Device::write(&mut self.rom, size, addr & 0x0fff_ffff, val),
-                        0x1000_0000 => return caliptra_emu_cpu::Device::write(&mut self.sram, size, addr & 0x0fff_ffff, val),
-                        0x2000_0000 => return caliptra_emu_cpu::Device::write(&mut self.dram, size, addr & 0x0fff_ffff, val),
+                        0x0000_0000 => return caliptra_emu_bus::Device::write(&mut self.rom, size, addr & 0x0fff_ffff, val),
+                        0x1000_0000 => return caliptra_emu_bus::Device::write(&mut self.sram, size, addr & 0x0fff_ffff, val),
+                        0x2000_0000 => return caliptra_emu_bus::Device::write(&mut self.dram, size, addr & 0x0fff_ffff, val),
                         0xa000_0000 => match addr & 0xffff_0000 {
-                            0xaa00_0000 => return caliptra_emu_cpu::Device::write(&mut self.uart0, size, addr & 0x0000_ffff, val),
-                            0xaa01_0000 => return caliptra_emu_cpu::Device::write(&mut self.uart1, size, addr & 0x0000_ffff, val),
+                            0xaa00_0000 => return caliptra_emu_bus::Device::write(&mut self.uart0, size, addr & 0x0000_ffff, val),
+                            0xaa01_0000 => return caliptra_emu_bus::Device::write(&mut self.uart1, size, addr & 0x0000_ffff, val),
                             0xaa02_0000 => match addr & 0xffff_ff00 {
-                                0xaa02_0000 => return caliptra_emu_cpu::Device::write(&mut self.i2c0, size, addr & 0x0000_00ff, val),
-                                0xaa02_0400 => return caliptra_emu_cpu::Device::write(&mut self.i2c1, size, addr & 0x0000_00ff, val),
-                                0xaa02_0800 => return caliptra_emu_cpu::Device::write(&mut self.i2c2, size, addr & 0x0000_00ff, val),
+                                0xaa02_0000 => return caliptra_emu_bus::Device::write(&mut self.i2c0, size, addr & 0x0000_00ff, val),
+                                0xaa02_0400 => return caliptra_emu_bus::Device::write(&mut self.i2c1, size, addr & 0x0000_00ff, val),
+                                0xaa02_0800 => return caliptra_emu_bus::Device::write(&mut self.i2c2, size, addr & 0x0000_00ff, val),
                                 _ => {}
                             },
                             _ => {}
                         },
                         0xb000_0000 => match addr & 0xffff_0000 {
-                            0xbb42_0000 => return caliptra_emu_cpu::Device::write(&mut self.spi0, size, addr & 0x0000_ffff, val),
+                            0xbb42_0000 => return caliptra_emu_bus::Device::write(&mut self.spi0, size, addr & 0x0000_ffff, val),
                             _ => {}
                         },
                         _ => {}
                     }
-                    Err(caliptra_emu_cpu::RvException::store_access_fault(addr))
+                    Err(caliptra_emu_types::RvException::store_access_fault(addr))
                 }
             }
             "#).unwrap().to_string());

@@ -12,30 +12,9 @@ Abstract:
 
 --*/
 
-use crate::emu_enum;
 use crate::xreg_file::XReg;
 use bitfield::{bitfield, BitRange, BitRangeMut};
-
-/// RISCV Data width
-pub type RvData = u32;
-
-/// RISCV Address width
-pub type RvAddr = u32;
-
-/// RISCV Interrupt Request
-pub type RvIrq = u16;
-
-emu_enum!(
-    /// RISCV IO Operation size
-    pub RvSize;
-    usize;
-    {
-        Byte = 1,
-        HalfWord = 2,
-        Word = 4,
-    };
-    Invalid
-);
+use caliptra_emu_types::emu_enum;
 
 emu_enum! {
     /// RISCV 32-bit instruction opcodes

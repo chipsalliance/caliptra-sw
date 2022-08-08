@@ -1,12 +1,9 @@
 [package]
-name = "caliptra-emu-cpu"
+name = "caliptra-emu-bus"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bitfield = "0.14.0"
-lazy_static = "1.4.0"
-caliptra-emu-bus = { path = "../bus" }
 caliptra-emu-types = { path = "../types" }

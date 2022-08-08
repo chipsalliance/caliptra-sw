@@ -12,7 +12,6 @@ Abstract:
 
 --*/
 use crate::{
-    exception::RvException,
     types::{
         RvInstr32B, RvInstr32BranchFunct3, RvInstr32I, RvInstr32J, RvInstr32LoadFunct3,
         RvInstr32OpFunct10, RvInstr32OpImmFunct3, RvInstr32OpImmFunct7, RvInstr32Opcode,
@@ -20,6 +19,7 @@ use crate::{
     },
     xreg_file::XReg,
 };
+use caliptra_emu_types::RvException;
 
 const OP_MASK_5: u16 = 0xe003;
 const OP_MASK_6: u16 = 0xf003;

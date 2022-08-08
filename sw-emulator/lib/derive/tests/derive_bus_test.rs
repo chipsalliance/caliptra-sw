@@ -1,5 +1,6 @@
-use caliptra_emu_cpu::{Bus, Ram, RvExceptionCause};
+use caliptra_emu_bus::{Bus, Device, Ram};
 use caliptra_emu_derive::Bus;
+use caliptra_emu_types::{RvExceptionCause, RvSize};
 
 #[derive(Bus)]
 struct MyBus {
@@ -33,8 +34,6 @@ struct MyBus {
 
 #[test]
 fn test_read_dispatch() {
-    use caliptra_emu_cpu::{Device, RvSize};
-
     let mut bus = MyBus {
         rom: Ram::new("rom", 0, vec![0u8; 65536]),
         sram: Ram::new("sram", 0, vec![0u8; 65536]),
@@ -100,8 +99,6 @@ fn test_read_dispatch() {
 
 #[test]
 fn test_write_dispatch() {
-    use caliptra_emu_cpu::{Device, RvSize};
-
     let mut bus = MyBus {
         rom: Ram::new("rom", 0, vec![0u8; 65536]),
         sram: Ram::new("sram", 0, vec![0u8; 65536]),

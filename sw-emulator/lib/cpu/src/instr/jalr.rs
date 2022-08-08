@@ -12,11 +12,11 @@ Abstract:
 
 --*/
 
-use crate::bus::Bus;
 use crate::cpu::{Cpu, InstrTracer};
-use crate::exception::RvException;
 use crate::trace_instr;
 use crate::types::{RvInstr, RvInstr32I, RvInstr32Opcode};
+use caliptra_emu_bus::Bus;
+use caliptra_emu_types::RvException;
 
 impl<TBus: Bus> Cpu<TBus> {
     /// Execute `jalr` Instructions

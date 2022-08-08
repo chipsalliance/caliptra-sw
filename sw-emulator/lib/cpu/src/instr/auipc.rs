@@ -12,11 +12,11 @@ Abstract:
 
 --*/
 
-use crate::bus::Bus;
 use crate::cpu::{Cpu, InstrTracer};
-use crate::exception::RvException;
 use crate::trace_instr;
-use crate::types::{RvData, RvInstr, RvInstr32Opcode, RvInstr32U};
+use crate::types::{RvInstr, RvInstr32Opcode, RvInstr32U};
+use caliptra_emu_bus::Bus;
+use caliptra_emu_types::{RvData, RvException};
 use std::ops::Shl;
 
 impl<TBus: Bus> Cpu<TBus> {
