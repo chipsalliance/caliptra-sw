@@ -14,14 +14,10 @@ Abstract:
 
 mod cpu;
 mod csr_file;
-mod emu_ctrl;
 mod instr;
 mod macros;
 mod types;
-mod uart;
 mod xreg_file;
 
 pub use cpu::Cpu;
 pub use cpu::StepAction;
-pub use emu_ctrl::EmuCtrl;
-pub use uart::Uart;

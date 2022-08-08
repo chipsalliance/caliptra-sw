@@ -5,6 +5,7 @@ members = [
   "compliance-test",
   "lib/cpu",
   "lib/derive",
+  "lib/periph",
 ]
 
 exclude = [

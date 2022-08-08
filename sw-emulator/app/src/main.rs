@@ -13,9 +13,8 @@ Abstract:
 --*/
 
 use caliptra_emu_bus::{DynamicBus, Ram, Rom};
-use caliptra_emu_cpu::EmuCtrl;
-use caliptra_emu_cpu::Uart;
 use caliptra_emu_cpu::{Cpu, StepAction};
+use caliptra_emu_periph::{EmuCtrl, Uart};
 use clap::{arg, value_parser};
 use std::fs::File;
 use std::io;
