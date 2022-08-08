@@ -4,6 +4,7 @@ members = [
   "app",
   "compliance-test",
   "lib/cpu",
+  "lib/derive",
 ]
 
 exclude = [

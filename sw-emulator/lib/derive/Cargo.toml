@@ -1,0 +1,15 @@
+[package]
+name = "caliptra-emu-derive"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+proc-macro = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+caliptra-emu-cpu = { path = "../cpu"}
+
+[dev-dependencies]
+proc-macro2 = "1.0.43"
