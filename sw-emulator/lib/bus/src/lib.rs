@@ -12,14 +12,12 @@ Abstract:
 
 --*/
 mod bus;
-mod device;
 mod dynamic_bus;
 mod mem;
 mod ram;
 mod rom;
 
 pub use crate::bus::Bus;
-pub use crate::device::Device;
 pub use crate::dynamic_bus::DynamicBus;
 pub use crate::ram::Ram;
 pub use crate::rom::Rom;

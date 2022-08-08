@@ -1,4 +1,4 @@
-use caliptra_emu_bus::{Bus, Device, Ram};
+use caliptra_emu_bus::{Bus, Ram};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvExceptionCause, RvSize};
 
@@ -35,15 +35,15 @@ struct MyBus {
 #[test]
 fn test_read_dispatch() {
     let mut bus = MyBus {
-        rom: Ram::new("rom", 0, vec![0u8; 65536]),
-        sram: Ram::new("sram", 0, vec![0u8; 65536]),
-        dram: Ram::new("dram", 0, vec![0u8; 65536]),
-        uart0: Ram::new("uart0", 0, vec![0u8; 128]),
-        uart1: Ram::new("uart1", 0, vec![0u8; 128]),
-        i2c0: Ram::new("i2c0", 0, vec![0u8; 128]),
-        i2c1: Ram::new("i2c1", 0, vec![0u8; 128]),
-        i2c2: Ram::new("i2c2", 0, vec![0u8; 128]),
-        spi0: Ram::new("spi0", 0, vec![0u8; 65536]),
+        rom: Ram::new(vec![0u8; 65536]),
+        sram: Ram::new(vec![0u8; 65536]),
+        dram: Ram::new(vec![0u8; 65536]),
+        uart0: Ram::new(vec![0u8; 128]),
+        uart1: Ram::new(vec![0u8; 128]),
+        i2c0: Ram::new(vec![0u8; 128]),
+        i2c1: Ram::new(vec![0u8; 128]),
+        i2c2: Ram::new(vec![0u8; 128]),
+        spi0: Ram::new(vec![0u8; 65536]),
     };
     bus.rom.write(RvSize::Word, 0x3430, 0x3828_abcd).unwrap();
     assert_eq!(bus.read(RvSize::Word, 0x3430).unwrap(), 0x3828_abcd);
@@ -100,15 +100,15 @@ fn test_read_dispatch() {
 #[test]
 fn test_write_dispatch() {
     let mut bus = MyBus {
-        rom: Ram::new("rom", 0, vec![0u8; 65536]),
-        sram: Ram::new("sram", 0, vec![0u8; 65536]),
-        dram: Ram::new("dram", 0, vec![0u8; 65536]),
-        uart0: Ram::new("uart0", 0, vec![0u8; 128]),
-        uart1: Ram::new("uart1", 0, vec![0u8; 128]),
-        i2c0: Ram::new("i2c0", 0, vec![0u8; 128]),
-        i2c1: Ram::new("i2c1", 0, vec![0u8; 128]),
-        i2c2: Ram::new("i2c2", 0, vec![0u8; 128]),
-        spi0: Ram::new("spi0", 0, vec![0u8; 65536]),
+        rom: Ram::new(vec![0u8; 65536]),
+        sram: Ram::new(vec![0u8; 65536]),
+        dram: Ram::new(vec![0u8; 65536]),
+        uart0: Ram::new(vec![0u8; 128]),
+        uart1: Ram::new(vec![0u8; 128]),
+        i2c0: Ram::new(vec![0u8; 128]),
+        i2c1: Ram::new(vec![0u8; 128]),
+        i2c2: Ram::new(vec![0u8; 128]),
+        spi0: Ram::new(vec![0u8; 65536]),
     };
     bus.write(RvSize::Word, 0x3430, 0x3828_abcd).unwrap();
     assert_eq!(bus.rom.read(RvSize::Word, 0x3430).unwrap(), 0x3828_abcd);

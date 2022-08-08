@@ -12,21 +12,12 @@ Abstract:
 
 --*/
 
-use caliptra_emu_bus::Device;
-use caliptra_emu_types::{RvAddr, RvData, RvException, RvIrq, RvSize};
+use caliptra_emu_bus::Bus;
+use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
 use std::process::exit;
 
 /// Emulation Control
-pub struct EmuCtrl {
-    /// Device Name
-    name: String,
-
-    /// Memory Map address
-    mmap_addr: RvAddr,
-
-    /// Memory Map Size
-    mmap_size: RvAddr,
-}
+pub struct EmuCtrl {}
 
 impl EmuCtrl {
     // Exit emulator address
@@ -37,37 +28,16 @@ impl EmuCtrl {
     /// # Arguments
     ///
     /// * `name` - Name of the device
-    /// * `addr` - Address of the device
-    pub fn new(name: &str, addr: RvAddr) -> Self {
-        Self {
-            name: String::from(name),
-            mmap_addr: addr,
-            mmap_size: 4,
-        }
+    pub fn new() -> Self {
+        Self {}
+    }
+    /// Memory map size.
+    pub fn mmap_size(&self) -> RvAddr {
+        4
     }
 }
 
-impl Device for EmuCtrl {
-    /// Name of the device
-    fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Memory mapped address of the device
-    fn mmap_addr(&self) -> RvAddr {
-        self.mmap_addr
-    }
-
-    /// Memory map size.
-    fn mmap_size(&self) -> RvAddr {
-        self.mmap_size
-    }
-
-    /// Memory map range
-    fn pending_irq(&self) -> Option<RvIrq> {
-        None
-    }
-
+impl Bus for EmuCtrl {
     /// Read data of specified size from given address
     ///
     /// # Arguments

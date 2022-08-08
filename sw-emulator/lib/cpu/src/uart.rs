@@ -12,13 +12,10 @@ Abstract:
 
 --*/
 
-use caliptra_emu_bus::Device;
-use caliptra_emu_types::{RvAddr, RvData, RvException, RvIrq, RvSize};
+use caliptra_emu_bus::Bus;
+use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
 
 pub struct Uart {
-    name: String,
-    mmap_addr: RvAddr,
-    mmap_size: RvAddr,
     bit_rate: u8,
     data_bits: u8,
     stop_bits: u8,
@@ -40,39 +37,21 @@ impl Uart {
     /// Transmit Data Register
     const ADDR_TX_DATA: RvAddr = 0x00000041;
 
-    pub fn new(name: &str, addr: RvAddr) -> Self {
+    pub fn new() -> Self {
         Self {
-            name: String::from(name),
-            mmap_addr: addr,
-            mmap_size: 256,
             bit_rate: 0,
             data_bits: 8,
             stop_bits: 1,
         }
     }
-}
-
-impl Device for Uart {
-    /// Name of the device
-    fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Memory mapped address of the device
-    fn mmap_addr(&self) -> RvAddr {
-        self.mmap_addr
-    }
 
     /// Memory map size.
-    fn mmap_size(&self) -> RvAddr {
-        self.mmap_size
+    pub fn mmap_size(&self) -> RvAddr {
+        256
     }
+}
 
-    /// Memory map range
-    fn pending_irq(&self) -> Option<RvIrq> {
-        None
-    }
-
+impl Bus for Uart {
     /// Read data of specified size from given address
     ///
     /// # Arguments

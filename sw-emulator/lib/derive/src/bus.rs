@@ -212,8 +212,7 @@ fn gen_match_tokens(mask_matches: &MaskMatchBlock, access_type: AccessType) -> T
         match_body.extend(TokenStream::from_str(" => "));
         match m.body {
             MatchBody::Field(ref field_name) => {
-                match_body
-                    .extend(TokenStream::from_str("return caliptra_emu_bus::Device::").unwrap());
+                match_body.extend(TokenStream::from_str("return caliptra_emu_bus::Bus::").unwrap());
                 match access_type {
                     AccessType::Read => match_body.extend(TokenStream::from_str("read").unwrap()),
                     AccessType::Write => match_body.extend(TokenStream::from_str("write").unwrap()),
@@ -410,22 +409,22 @@ mod tests {
             impl caliptra_emu_bus::Bus for MyBus {
                 fn read(&self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_types::RvException> {
                     match addr & 0xf000_0000 {
-                        0x0000_0000 => return caliptra_emu_bus::Device::read(&self.rom, size, addr & 0x0fff_ffff),
-                        0x1000_0000 => return caliptra_emu_bus::Device::read(&self.sram, size, addr & 0x0fff_ffff),
-                        0x2000_0000 => return caliptra_emu_bus::Device::read(&self.dram, size, addr & 0x0fff_ffff),
+                        0x0000_0000 => return caliptra_emu_bus::Bus::read(&self.rom, size, addr & 0x0fff_ffff),
+                        0x1000_0000 => return caliptra_emu_bus::Bus::read(&self.sram, size, addr & 0x0fff_ffff),
+                        0x2000_0000 => return caliptra_emu_bus::Bus::read(&self.dram, size, addr & 0x0fff_ffff),
                         0xa000_0000 => match addr & 0xffff_0000 {
-                            0xaa00_0000 => return caliptra_emu_bus::Device::read(&self.uart0, size, addr & 0x0000_ffff),
-                            0xaa01_0000 => return caliptra_emu_bus::Device::read(&self.uart1, size, addr & 0x0000_ffff),
+                            0xaa00_0000 => return caliptra_emu_bus::Bus::read(&self.uart0, size, addr & 0x0000_ffff),
+                            0xaa01_0000 => return caliptra_emu_bus::Bus::read(&self.uart1, size, addr & 0x0000_ffff),
                             0xaa02_0000 => match addr & 0xffff_ff00 {
-                                0xaa02_0000 => return caliptra_emu_bus::Device::read(&self.i2c0, size, addr & 0x0000_00ff),
-                                0xaa02_0400 => return caliptra_emu_bus::Device::read(&self.i2c1, size, addr & 0x0000_00ff),
-                                0xaa02_0800 => return caliptra_emu_bus::Device::read(&self.i2c2, size, addr & 0x0000_00ff),
+                                0xaa02_0000 => return caliptra_emu_bus::Bus::read(&self.i2c0, size, addr & 0x0000_00ff),
+                                0xaa02_0400 => return caliptra_emu_bus::Bus::read(&self.i2c1, size, addr & 0x0000_00ff),
+                                0xaa02_0800 => return caliptra_emu_bus::Bus::read(&self.i2c2, size, addr & 0x0000_00ff),
                                 _ => {}
                             },
                             _ => {}
                         },
                         0xb000_0000 => match addr & 0xffff_0000 {
-                            0xbb42_0000 => return caliptra_emu_bus::Device::read(&self.spi0, size, addr & 0x0000_ffff),
+                            0xbb42_0000 => return caliptra_emu_bus::Bus::read(&self.spi0, size, addr & 0x0000_ffff),
                             _ => {}
                         },
                         _ => {}
@@ -434,22 +433,22 @@ mod tests {
                 }
                 fn write(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr, val: caliptra_emu_types::RvData) -> Result<(), caliptra_emu_types::RvException> {
                     match addr & 0xf000_0000 {
-                        0x0000_0000 => return caliptra_emu_bus::Device::write(&mut self.rom, size, addr & 0x0fff_ffff, val),
-                        0x1000_0000 => return caliptra_emu_bus::Device::write(&mut self.sram, size, addr & 0x0fff_ffff, val),
-                        0x2000_0000 => return caliptra_emu_bus::Device::write(&mut self.dram, size, addr & 0x0fff_ffff, val),
+                        0x0000_0000 => return caliptra_emu_bus::Bus::write(&mut self.rom, size, addr & 0x0fff_ffff, val),
+                        0x1000_0000 => return caliptra_emu_bus::Bus::write(&mut self.sram, size, addr & 0x0fff_ffff, val),
+                        0x2000_0000 => return caliptra_emu_bus::Bus::write(&mut self.dram, size, addr & 0x0fff_ffff, val),
                         0xa000_0000 => match addr & 0xffff_0000 {
-                            0xaa00_0000 => return caliptra_emu_bus::Device::write(&mut self.uart0, size, addr & 0x0000_ffff, val),
-                            0xaa01_0000 => return caliptra_emu_bus::Device::write(&mut self.uart1, size, addr & 0x0000_ffff, val),
+                            0xaa00_0000 => return caliptra_emu_bus::Bus::write(&mut self.uart0, size, addr & 0x0000_ffff, val),
+                            0xaa01_0000 => return caliptra_emu_bus::Bus::write(&mut self.uart1, size, addr & 0x0000_ffff, val),
                             0xaa02_0000 => match addr & 0xffff_ff00 {
-                                0xaa02_0000 => return caliptra_emu_bus::Device::write(&mut self.i2c0, size, addr & 0x0000_00ff, val),
-                                0xaa02_0400 => return caliptra_emu_bus::Device::write(&mut self.i2c1, size, addr & 0x0000_00ff, val),
-                                0xaa02_0800 => return caliptra_emu_bus::Device::write(&mut self.i2c2, size, addr & 0x0000_00ff, val),
+                                0xaa02_0000 => return caliptra_emu_bus::Bus::write(&mut self.i2c0, size, addr & 0x0000_00ff, val),
+                                0xaa02_0400 => return caliptra_emu_bus::Bus::write(&mut self.i2c1, size, addr & 0x0000_00ff, val),
+                                0xaa02_0800 => return caliptra_emu_bus::Bus::write(&mut self.i2c2, size, addr & 0x0000_00ff, val),
                                 _ => {}
                             },
                             _ => {}
                         },
                         0xb000_0000 => match addr & 0xffff_0000 {
-                            0xbb42_0000 => return caliptra_emu_bus::Device::write(&mut self.spi0, size, addr & 0x0000_ffff, val),
+                            0xbb42_0000 => return caliptra_emu_bus::Bus::write(&mut self.spi0, size, addr & 0x0000_ffff, val),
                             _ => {}
                         },
                         _ => {}

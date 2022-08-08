@@ -55,17 +55,22 @@ fn main() -> io::Result<()> {
     }
 
     let mut cpu = Cpu::new(DynamicBus::new());
-    let rom = Rom::new("ROM", 0x0000_0000, buffer);
-    let iccm = Ram::new("ICCM", 0x4000_0000, vec![0; ICCM_SIZE]);
-    let dccm = Ram::new("DCCM", 0x5000_0000, vec![0; DCCM_SIZE]);
-    let uart = Uart::new("UART0", 0x2000_0000);
-    let ctrl = EmuCtrl::new("EMU_CTRL", 0x3000_0000);
+    let rom = Rom::new(buffer);
+    let iccm = Ram::new(vec![0; ICCM_SIZE]);
+    let dccm = Ram::new(vec![0; DCCM_SIZE]);
+    let uart = Uart::new();
+    let ctrl = EmuCtrl::new();
 
-    cpu.bus.attach_dev(Box::new(rom))?;
-    cpu.bus.attach_dev(Box::new(iccm))?;
-    cpu.bus.attach_dev(Box::new(dccm))?;
-    cpu.bus.attach_dev(Box::new(uart))?;
-    cpu.bus.attach_dev(Box::new(ctrl))?;
+    cpu.bus
+        .attach_dev("ROM", 0x0000_0000..=0x0fff_ffff, Box::new(rom))?;
+    cpu.bus
+        .attach_dev("ICCM", 0x4000_0000..=0x4fff_ffff, Box::new(iccm))?;
+    cpu.bus
+        .attach_dev("DCCM", 0x5000_0000..=0x5fff_ffff, Box::new(dccm))?;
+    cpu.bus
+        .attach_dev("UART0", 0x2000_0000..=0x2fff_ffff, Box::new(uart))?;
+    cpu.bus
+        .attach_dev("EMU_CTRL", 0x3000_0000..=0x3fff_ffff, Box::new(ctrl))?;
 
     loop {
         match cpu.step(None) {

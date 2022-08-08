@@ -468,11 +468,19 @@ mod test {
             use crate::cpu::Cpu;
             use caliptra_emu_bus::{DynamicBus, Ram, Rom};
 
+            let text_range = $text_addr..=u32::try_from($text_addr + $text.len() - 1).unwrap();
+            let data_range = $data_addr..=u32::try_from($data_addr + $data.len() - 1).unwrap();
+
             let mut cpu = Cpu::new(DynamicBus::new());
-            let rom = Rom::new("ROM", $text_addr, $text.clone());
-            cpu.bus.attach_dev(Box::new(rom)).unwrap();
-            let ram = Ram::new("RAM", $data_addr, $data.clone());
-            cpu.bus.attach_dev(Box::new(ram)).unwrap();
+            let rom = Rom::new($text.clone());
+            cpu.bus
+                .attach_dev("ROM", text_range, Box::new(rom))
+                .unwrap();
+
+            let ram = Ram::new($data.clone());
+            cpu.bus
+                .attach_dev("RAM", data_range, Box::new(ram))
+                .unwrap();
             cpu
         }};
     }
