@@ -21,15 +21,15 @@ use proc_macro2::{Delimiter, Group, Ident, Literal, Spacing, TokenTree};
 pub struct Attribute {
     #[allow(dead_code)]
     pub name: Ident,
-    pub args: HashMap<String, Literal>,
+    pub args: HashMap<String, TokenTree>,
 }
 
 pub struct FieldWithAttributes {
-    pub name: Ident,
+    pub name: Option<Ident>,
     pub attributes: Vec<Attribute>,
 }
 
-struct DisplayToken<'a>(&'a Option<TokenTree>);
+pub struct DisplayToken<'a>(pub &'a Option<TokenTree>);
 impl<'a> Display for DisplayToken<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.0 {
@@ -65,12 +65,25 @@ pub fn expect_ident(iter: &mut impl Iterator<Item = TokenTree>) -> Ident {
     panic!("Expected identifier, found {}", DisplayToken(&token))
 }
 
+#[allow(dead_code)]
 pub fn expect_literal(iter: &mut impl Iterator<Item = TokenTree>) -> Literal {
     let token = iter.next();
     if let Some(TokenTree::Literal(literal)) = token {
         return literal;
     }
     panic!("Expected literal, found {}", DisplayToken(&token))
+}
+
+pub fn expect_literal_or_ident(iter: &mut impl Iterator<Item = TokenTree>) -> TokenTree {
+    let token = iter.next();
+    match token {
+        Some(TokenTree::Literal(literal)) => TokenTree::Literal(literal),
+        Some(TokenTree::Ident(ident)) => TokenTree::Ident(ident),
+        _ => panic!(
+            "Expected literal or identifier, found {}",
+            DisplayToken(&token)
+        ),
+    }
 }
 
 pub fn expect_punct_of(iter: &mut impl Iterator<Item = TokenTree>, expected: char) {
@@ -156,6 +169,7 @@ pub fn skip_to_attribute_or_ident(iter: &mut impl Iterator<Item = TokenTree>) ->
 pub fn skip_to_field_with_attributes(
     iter: &mut impl Iterator<Item = TokenTree>,
     attribute_name: &str,
+    no_field_required_pred: impl Fn(&Attribute) -> bool,
 ) -> Option<FieldWithAttributes> {
     let mut attributes = Vec::new();
     loop {
@@ -172,7 +186,7 @@ pub fn skip_to_field_with_attributes(
                 loop {
                     let key = expect_ident(&mut iter);
                     expect_punct_of(&mut iter, '=');
-                    let value = expect_literal(&mut iter);
+                    let value = expect_literal_or_ident(&mut iter);
                     args.insert(key.to_string(), value);
                     let token = iter.next();
                     match token {
@@ -186,14 +200,21 @@ pub fn skip_to_field_with_attributes(
                     }
                     panic!("Unexpected token {:?}", token)
                 }
-                attributes.push(Attribute {
+                let attribute = Attribute {
                     name: attribute_ident,
                     args: args,
-                });
+                };
+                attributes.push(attribute);
+                if no_field_required_pred(attributes.last().unwrap()) {
+                    return Some(FieldWithAttributes {
+                        name: None,
+                        attributes: attributes,
+                    });
+                }
             }
             Some(TokenTree::Ident(ident)) => {
                 return Some(FieldWithAttributes {
-                    name: ident,
+                    name: Some(ident),
                     attributes,
                 });
             }
@@ -359,9 +380,10 @@ mod tests {
                 "#[attr1(a = 35)] #[attr2(b = 42)] #[attr1(a = 65, baz=\"hi\")] pub foo: Foo,",
             ),
             "attr1",
+            |_| false,
         )
         .unwrap();
-        assert_eq!("foo", result.name.to_string());
+        assert_eq!("foo", result.name.unwrap().to_string());
         assert_eq!("attr1", result.attributes[0].name.to_string());
         assert_eq!(
             "35",

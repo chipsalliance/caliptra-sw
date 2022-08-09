@@ -18,14 +18,18 @@ use proc_macro::{Literal, TokenTree};
 #[cfg(test)]
 use proc_macro2::{Literal, TokenTree};
 
-pub fn parse_hex_u32(literal: Literal) -> u32 {
-    let s = literal.to_string();
-    if s.starts_with("0x") {
-        if let Ok(val) = u32::from_str_radix(&s[2..].replace("_", ""), 16) {
-            return val;
+use crate::util::token_iter::DisplayToken;
+
+pub fn parse_hex_u32(literal: TokenTree) -> u32 {
+    if let TokenTree::Literal(literal) = &literal {
+        let s = literal.to_string();
+        if s.starts_with("0x") {
+            if let Ok(val) = u32::from_str_radix(&s[2..].replace("_", ""), 16) {
+                return val;
+            }
         }
     }
-    panic!("Can't parse hex literal {:?}", s)
+    panic!("Can't parse {} as hex", &DisplayToken(&Some(literal)));
 }
 
 pub fn hex_literal_u32(val: u32) -> TokenTree {
@@ -36,33 +40,40 @@ pub fn hex_literal_u32(val: u32) -> TokenTree {
 
 #[cfg(test)]
 mod tests {
+    use proc_macro2::{Ident, Span};
+
     use super::*;
 
     #[test]
     fn test_parse_hex_u32() {
-        assert_eq!(0x0, parse_hex_u32(Literal::from_str("0x0").unwrap()));
+        assert_eq!(0x0, parse_hex_u32(Literal::from_str("0x0").unwrap().into()));
         assert_eq!(
             0xabcd1234,
-            parse_hex_u32(Literal::from_str("0xabcd1234").unwrap())
+            parse_hex_u32(Literal::from_str("0xabcd1234").unwrap().into())
         );
         assert_eq!(
             0xabcd1234,
-            parse_hex_u32(Literal::from_str("0xabcd_1234").unwrap())
+            parse_hex_u32(Literal::from_str("0xabcd_1234").unwrap().into())
         );
         assert_eq!(
             0xabcd1234,
-            parse_hex_u32(Literal::from_str("0xAB_cd_12_34").unwrap())
+            parse_hex_u32(Literal::from_str("0xAB_cd_12_34").unwrap().into())
         );
     }
     #[test]
-    #[should_panic(expected = "Can't parse hex literal \"0\"")]
+    #[should_panic(expected = "Can't parse literal 0 as hex")]
     fn test_parse_hex_u32_panic1() {
-        parse_hex_u32(Literal::from_str("0").unwrap());
+        parse_hex_u32(Literal::from_str("0").unwrap().into());
     }
     #[test]
-    #[should_panic(expected = "Can't parse hex literal \"0o0\"")]
+    #[should_panic(expected = "Can't parse literal 0o0 as hex")]
     fn test_parse_hex_u32_panic2() {
-        parse_hex_u32(Literal::from_str("0o0").unwrap());
+        parse_hex_u32(Literal::from_str("0o0").unwrap().into());
+    }
+    #[test]
+    #[should_panic(expected = "Can't parse identifier foo as hex")]
+    fn test_parse_hex_u32_panic3() {
+        parse_hex_u32(Ident::new("foo", Span::call_site()).into());
     }
 
     #[test]

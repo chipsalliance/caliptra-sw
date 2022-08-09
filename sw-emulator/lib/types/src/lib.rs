@@ -28,6 +28,7 @@ pub type RvIrq = u16;
 
 emu_enum!(
     /// RISCV IO Operation size
+    #[derive(Debug)]
     pub RvSize;
     usize;
     {

@@ -19,7 +19,7 @@ use proc_macro::TokenStream;
 #[cfg(test)]
 use proc_macro2::TokenStream;
 
-#[proc_macro_derive(Bus, attributes(peripheral))]
+#[proc_macro_derive(Bus, attributes(peripheral, register))]
 pub fn derive_bus(input: TokenStream) -> TokenStream {
     crate::bus::derive_bus(input)
 }

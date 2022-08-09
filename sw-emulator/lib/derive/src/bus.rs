@@ -22,7 +22,7 @@ use proc_macro2::{Delimiter, Group, Ident, Span, TokenStream, TokenTree};
 use crate::util::literal::{self, hex_literal_u32};
 use crate::util::sort::sorted_by_key;
 use crate::util::token_iter::{
-    expect_ident, skip_to_field_with_attributes, skip_to_group, skip_to_struct,
+    expect_ident, skip_to_field_with_attributes, skip_to_group, skip_to_struct, Attribute,
 };
 
 pub fn derive_bus(input: TokenStream) -> TokenStream {
@@ -31,6 +31,7 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
     let struct_name = expect_ident(&mut iter);
     let struct_fields = skip_to_group(&mut iter, Delimiter::Brace);
     let peripheral_fields = parse_peripheral_fields(struct_fields.stream());
+    let register_fields = parse_register_fields(struct_fields.stream());
 
     let mask_matches = build_match_tree_from_fields(&peripheral_fields);
     drop(peripheral_fields);
@@ -45,8 +46,12 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
             TokenStream::from_str("fn read(&self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_types::RvException>").unwrap());
 
         let mut fn_body = TokenStream::new();
+        fn_body.extend(gen_register_match_tokens(
+            &register_fields,
+            AccessType::Read,
+        ));
         if let Some(mask_matches) = &mask_matches {
-            fn_body.extend(gen_match_tokens(mask_matches, AccessType::Read));
+            fn_body.extend(gen_bus_match_tokens(mask_matches, AccessType::Read));
         }
         fn_body.extend(
             TokenStream::from_str("Err(caliptra_emu_types::RvException::load_access_fault(addr))")
@@ -59,8 +64,12 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
             TokenStream::from_str("fn write(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr, val: caliptra_emu_types::RvData) -> Result<(), caliptra_emu_types::RvException>").unwrap());
 
         let mut fn_body = TokenStream::new();
+        fn_body.extend(gen_register_match_tokens(
+            &register_fields,
+            AccessType::Write,
+        ));
         if let Some(mask_matches) = &mask_matches {
-            fn_body.extend(gen_match_tokens(mask_matches, AccessType::Write));
+            fn_body.extend(gen_bus_match_tokens(mask_matches, AccessType::Write));
         }
         fn_body.extend(
             TokenStream::from_str("Err(caliptra_emu_types::RvException::store_access_fault(addr))")
@@ -75,6 +84,51 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+struct RegisterField {
+    // If this is None, read_fn and write_fn will be Some
+    name: Option<String>,
+    offset: u32,
+    read_fn: Option<String>,
+    write_fn: Option<String>,
+}
+fn has_read_and_write_fn(attr: &Attribute) -> bool {
+    attr.args.contains_key("read_fn") && attr.args.contains_key("write_fn")
+}
+
+fn parse_register_fields(stream: TokenStream) -> Vec<RegisterField> {
+    let mut iter = stream.into_iter();
+    let mut result = Vec::new();
+    while let Some(field) =
+        skip_to_field_with_attributes(&mut iter, "register", has_read_and_write_fn)
+    {
+        if field.attributes.is_empty() {
+            continue;
+        }
+        if field.attributes.len() > 1 {
+            panic!("More than one #[peripheral] attribute attached to field");
+        }
+        let attr = &field.attributes[0];
+        if let Some(offset) = attr.args.get("offset").cloned() {
+            result.push(RegisterField {
+                name: field.name.map(|i| i.to_string()),
+                offset: literal::parse_hex_u32(offset),
+                read_fn: attr.args.get("read_fn").map(|t| t.to_string()),
+                write_fn: attr.args.get("write_fn").map(|t| t.to_string()),
+            })
+        } else {
+            panic!(
+                "register attribute on field {} must have offset parameter",
+                field
+                    .name
+                    .map(|i| i.to_string())
+                    .unwrap_or(attr.args.get("read_fn").unwrap().to_string())
+            );
+        }
+    }
+    result
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct PeripheralField {
     name: String,
     offset: u32,
@@ -84,7 +138,7 @@ struct PeripheralField {
 fn parse_peripheral_fields(stream: TokenStream) -> Vec<PeripheralField> {
     let mut iter = stream.into_iter();
     let mut result = Vec::new();
-    while let Some(field) = skip_to_field_with_attributes(&mut iter, "peripheral") {
+    while let Some(field) = skip_to_field_with_attributes(&mut iter, "peripheral", |_| false) {
         if field.attributes.is_empty() {
             continue;
         }
@@ -97,7 +151,7 @@ fn parse_peripheral_fields(stream: TokenStream) -> Vec<PeripheralField> {
             attr.args.get("mask").cloned(),
         ) {
             result.push(PeripheralField {
-                name: field.name.to_string(),
+                name: field.name.unwrap().to_string(),
                 offset: literal::parse_hex_u32(offset),
                 mask: literal::parse_hex_u32(mask),
             })
@@ -202,7 +256,7 @@ fn lsbs_contiguous(mask: u32) -> bool {
 /// Serialize `mask_matches` into a stream of Rust tokens. `access_type`
 /// influences whether the generated code calls [`Bus::read()`] or [`Bus::write()`] on
 /// the matching peripheral field.
-fn gen_match_tokens(mask_matches: &MaskMatchBlock, access_type: AccessType) -> TokenStream {
+fn gen_bus_match_tokens(mask_matches: &MaskMatchBlock, access_type: AccessType) -> TokenStream {
     let mut result = TokenStream::new();
     result.extend(TokenStream::from_str("match addr & ").unwrap());
     result.extend([hex_literal_u32(mask_matches.mask)]);
@@ -238,10 +292,93 @@ fn gen_match_tokens(mask_matches: &MaskMatchBlock, access_type: AccessType) -> T
                 ))]);
             }
             MatchBody::SubMatchBlock(ref sub_mask_matches) => {
-                match_body.extend(gen_match_tokens(&sub_mask_matches, access_type));
+                match_body.extend(gen_bus_match_tokens(&sub_mask_matches, access_type));
             }
         }
         match_body.extend(TokenStream::from_str(",").unwrap());
+    }
+    match_body.extend(TokenStream::from_str("_ => {}").unwrap());
+    result.extend([TokenTree::from(Group::new(Delimiter::Brace, match_body))]);
+    result
+}
+
+fn gen_register_match_tokens(registers: &[RegisterField], access_type: AccessType) -> TokenStream {
+    let mut result = TokenStream::new();
+    if registers.is_empty() {
+        return result;
+    }
+    result.extend(TokenStream::from_str("match addr").unwrap());
+    let mut match_body = TokenStream::new();
+    for reg in registers {
+        match_body.extend([hex_literal_u32(reg.offset)]);
+        match_body.extend(TokenStream::from_str(" => ").unwrap());
+        if access_type == AccessType::Read {
+            if reg.read_fn.is_some() {
+                match_body.extend(TokenStream::from_str("return std::result::Result::Ok").unwrap());
+                let mut ok_params =
+                    TokenStream::from_str("std::convert::Into::<caliptra_emu_types::RvAddr>::into")
+                        .unwrap();
+                let mut from_params = TokenStream::from_str("self.").unwrap();
+                from_params.extend([TokenTree::from(Ident::new(
+                    &reg.read_fn.as_ref().unwrap(),
+                    Span::call_site(),
+                ))]);
+                from_params.extend(TokenStream::from_str("(size)?"));
+                ok_params.extend([TokenTree::from(Group::new(
+                    Delimiter::Parenthesis,
+                    from_params,
+                ))]);
+                match_body.extend([TokenTree::from(Group::new(
+                    Delimiter::Parenthesis,
+                    ok_params,
+                ))]);
+                match_body.extend(TokenStream::from_str(",").unwrap());
+            } else {
+                match_body.extend(
+                    TokenStream::from_str("return caliptra_emu_bus::Register::read").unwrap(),
+                );
+                let mut read_params = TokenStream::new();
+                read_params.extend(TokenStream::from_str("&self."));
+                read_params.extend([TokenTree::from(Ident::new(
+                    reg.name.as_ref().unwrap(),
+                    Span::call_site(),
+                ))]);
+                read_params.extend(TokenStream::from_str(", size"));
+                match_body.extend([TokenTree::from(Group::new(
+                    Delimiter::Parenthesis,
+                    read_params,
+                ))]);
+                match_body.extend(TokenStream::from_str(","))
+            }
+        }
+        if access_type == AccessType::Write {
+            if reg.write_fn.is_some() {
+                match_body.extend(TokenStream::from_str("return self.").unwrap());
+                match_body.extend([TokenTree::from(Ident::new(
+                    &reg.write_fn.as_ref().unwrap(),
+                    Span::call_site(),
+                ))]);
+                match_body.extend(TokenStream::from_str(
+                    "(size, std::convert::From::<caliptra_emu_types::RvAddr>::from(val)),",
+                ))
+            } else {
+                match_body.extend(
+                    TokenStream::from_str("return caliptra_emu_bus::Register::write").unwrap(),
+                );
+                let mut write_params = TokenStream::new();
+                write_params.extend(TokenStream::from_str("&mut self."));
+                write_params.extend([TokenTree::from(Ident::new(
+                    reg.name.as_ref().unwrap(),
+                    Span::call_site(),
+                ))]);
+                write_params.extend(TokenStream::from_str(", size, val"));
+                match_body.extend([TokenTree::from(Group::new(
+                    Delimiter::Parenthesis,
+                    write_params,
+                ))]);
+                match_body.extend(TokenStream::from_str(","))
+            }
+        }
     }
     match_body.extend(TokenStream::from_str("_ => {}").unwrap());
     result.extend([TokenTree::from(Group::new(Delimiter::Brace, match_body))]);
@@ -369,8 +506,7 @@ mod tests {
     #[test]
     fn test_derive_bus() {
         let tokens = derive_bus(
-            TokenStream::from_str(
-                r#"
+            TokenStream::from_str(r#"
             struct MyBus {
                 #[peripheral(offset = 0x0000_0000, mask = 0x0fff_ffff)]
                 pub rom: Rom,
@@ -398,64 +534,100 @@ mod tests {
 
                 #[peripheral(offset = 0xbb42_0000, mask = 0x0000_ffff)]
                 pub spi0: Spi,
+
+                #[register(offset = 0xcafe_f0d0)]
+                pub reg_u32: u32,
+
+                #[register(offset = 0xcafe_f0d4)]
+                pub reg_u16: u16,
+
+                #[register(offset = 0xcafe_f0d8)]
+                pub reg_u8: u8,
+
+                #[register(offset = 0xcafe_f0e0, read_fn = reg_action0_read)]
+                pub reg_action0: u32,
+
+                #[register(offset = 0xcafe_f0e4, write_fn = reg_action1_write)]
+                pub reg_action1: u32,
+
+                #[register(offset = 0xcafe_f0e8, read_fn = reg_action2_read, write_fn = reg_action2_write)]
+                #[register(offset = 0xcafe_f0ec, read_fn = reg_action3_read, write_fn = reg_action3_write)]
+                _fieldless_regs: (),
             }
-        "#,
-            )
-            .unwrap(),
+            "#).unwrap(),
         );
 
         assert_eq!(tokens.to_string(),
             TokenStream::from_str(r#"
-            impl caliptra_emu_bus::Bus for MyBus {
-                fn read(&self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_types::RvException> {
-                    match addr & 0xf000_0000 {
-                        0x0000_0000 => return caliptra_emu_bus::Bus::read(&self.rom, size, addr & 0x0fff_ffff),
-                        0x1000_0000 => return caliptra_emu_bus::Bus::read(&self.sram, size, addr & 0x0fff_ffff),
-                        0x2000_0000 => return caliptra_emu_bus::Bus::read(&self.dram, size, addr & 0x0fff_ffff),
-                        0xa000_0000 => match addr & 0xffff_0000 {
-                            0xaa00_0000 => return caliptra_emu_bus::Bus::read(&self.uart0, size, addr & 0x0000_ffff),
-                            0xaa01_0000 => return caliptra_emu_bus::Bus::read(&self.uart1, size, addr & 0x0000_ffff),
-                            0xaa02_0000 => match addr & 0xffff_ff00 {
-                                0xaa02_0000 => return caliptra_emu_bus::Bus::read(&self.i2c0, size, addr & 0x0000_00ff),
-                                0xaa02_0400 => return caliptra_emu_bus::Bus::read(&self.i2c1, size, addr & 0x0000_00ff),
-                                0xaa02_0800 => return caliptra_emu_bus::Bus::read(&self.i2c2, size, addr & 0x0000_00ff),
+                impl caliptra_emu_bus::Bus for MyBus {
+                    fn read(&self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_types::RvException> {
+                        match addr {
+                            0xcafe_f0d0 => return caliptra_emu_bus::Register::read(&self.reg_u32, size),
+                            0xcafe_f0d4 => return caliptra_emu_bus::Register::read(&self.reg_u16, size),
+                            0xcafe_f0d8 => return caliptra_emu_bus::Register::read(&self.reg_u8, size),
+                            0xcafe_f0e0 => return std::result::Result::Ok(std::convert::Into::<caliptra_emu_types::RvAddr>::into(self.reg_action0_read(size)?)),
+                            0xcafe_f0e4 => return caliptra_emu_bus::Register::read(&self.reg_action1, size),
+                            0xcafe_f0e8 => return std::result::Result::Ok(std::convert::Into::<caliptra_emu_types::RvAddr>::into(self.reg_action2_read(size)?)),
+                            0xcafe_f0ec => return std::result::Result::Ok(std::convert::Into::<caliptra_emu_types::RvAddr>::into(self.reg_action3_read(size)?)),
+                            _ => {}
+                        }
+                        match addr & 0xf000_0000 {
+                            0x0000_0000 => return caliptra_emu_bus::Bus::read(&self.rom, size, addr & 0x0fff_ffff),
+                            0x1000_0000 => return caliptra_emu_bus::Bus::read(&self.sram, size, addr & 0x0fff_ffff),
+                            0x2000_0000 => return caliptra_emu_bus::Bus::read(&self.dram, size, addr & 0x0fff_ffff),
+                            0xa000_0000 => match addr & 0xffff_0000 {
+                                0xaa00_0000 => return caliptra_emu_bus::Bus::read(&self.uart0, size, addr & 0x0000_ffff),
+                                0xaa01_0000 => return caliptra_emu_bus::Bus::read(&self.uart1, size, addr & 0x0000_ffff),
+                                0xaa02_0000 => match addr & 0xffff_ff00 {
+                                    0xaa02_0000 => return caliptra_emu_bus::Bus::read(&self.i2c0, size, addr & 0x0000_00ff),
+                                    0xaa02_0400 => return caliptra_emu_bus::Bus::read(&self.i2c1, size, addr & 0x0000_00ff),
+                                    0xaa02_0800 => return caliptra_emu_bus::Bus::read(&self.i2c2, size, addr & 0x0000_00ff),
+                                    _ => {}
+                                },
+                                _ => {}
+                            },
+                            0xb000_0000 => match addr & 0xffff_0000 {
+                                0xbb42_0000 => return caliptra_emu_bus::Bus::read(&self.spi0, size, addr & 0x0000_ffff),
                                 _ => {}
                             },
                             _ => {}
-                        },
-                        0xb000_0000 => match addr & 0xffff_0000 {
-                            0xbb42_0000 => return caliptra_emu_bus::Bus::read(&self.spi0, size, addr & 0x0000_ffff),
-                            _ => {}
-                        },
-                        _ => {}
+                        }
+                        Err(caliptra_emu_types::RvException::load_access_fault(addr))
                     }
-                    Err(caliptra_emu_types::RvException::load_access_fault(addr))
-                }
-                fn write(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr, val: caliptra_emu_types::RvData) -> Result<(), caliptra_emu_types::RvException> {
-                    match addr & 0xf000_0000 {
-                        0x0000_0000 => return caliptra_emu_bus::Bus::write(&mut self.rom, size, addr & 0x0fff_ffff, val),
-                        0x1000_0000 => return caliptra_emu_bus::Bus::write(&mut self.sram, size, addr & 0x0fff_ffff, val),
-                        0x2000_0000 => return caliptra_emu_bus::Bus::write(&mut self.dram, size, addr & 0x0fff_ffff, val),
-                        0xa000_0000 => match addr & 0xffff_0000 {
-                            0xaa00_0000 => return caliptra_emu_bus::Bus::write(&mut self.uart0, size, addr & 0x0000_ffff, val),
-                            0xaa01_0000 => return caliptra_emu_bus::Bus::write(&mut self.uart1, size, addr & 0x0000_ffff, val),
-                            0xaa02_0000 => match addr & 0xffff_ff00 {
-                                0xaa02_0000 => return caliptra_emu_bus::Bus::write(&mut self.i2c0, size, addr & 0x0000_00ff, val),
-                                0xaa02_0400 => return caliptra_emu_bus::Bus::write(&mut self.i2c1, size, addr & 0x0000_00ff, val),
-                                0xaa02_0800 => return caliptra_emu_bus::Bus::write(&mut self.i2c2, size, addr & 0x0000_00ff, val),
+                    fn write(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr, val: caliptra_emu_types::RvData) -> Result<(), caliptra_emu_types::RvException> {
+                        match addr {
+                            0xcafe_f0d0 => return caliptra_emu_bus::Register::write(&mut self.reg_u32, size, val),
+                            0xcafe_f0d4 => return caliptra_emu_bus::Register::write(&mut self.reg_u16, size, val),
+                            0xcafe_f0d8 => return caliptra_emu_bus::Register::write(&mut self.reg_u8, size, val),
+                            0xcafe_f0e0 => return caliptra_emu_bus::Register::write(&mut self.reg_action0, size, val),
+                            0xcafe_f0e4 => return self.reg_action1_write(size, std::convert::From::<caliptra_emu_types::RvAddr>::from(val)),
+                            0xcafe_f0e8 => return self.reg_action2_write(size, std::convert::From::<caliptra_emu_types::RvAddr>::from(val)),
+                            0xcafe_f0ec => return self.reg_action3_write(size, std::convert::From::<caliptra_emu_types::RvAddr>::from(val)),
+                            _ => {}
+                        }
+                        match addr & 0xf000_0000 {
+                            0x0000_0000 => return caliptra_emu_bus::Bus::write(&mut self.rom, size, addr & 0x0fff_ffff, val),
+                            0x1000_0000 => return caliptra_emu_bus::Bus::write(&mut self.sram, size, addr & 0x0fff_ffff, val),
+                            0x2000_0000 => return caliptra_emu_bus::Bus::write(&mut self.dram, size, addr & 0x0fff_ffff, val),
+                            0xa000_0000 => match addr & 0xffff_0000 {
+                                0xaa00_0000 => return caliptra_emu_bus::Bus::write(&mut self.uart0, size, addr & 0x0000_ffff, val),
+                                0xaa01_0000 => return caliptra_emu_bus::Bus::write(&mut self.uart1, size, addr & 0x0000_ffff, val),
+                                0xaa02_0000 => match addr & 0xffff_ff00 {
+                                    0xaa02_0000 => return caliptra_emu_bus::Bus::write(&mut self.i2c0, size, addr & 0x0000_00ff, val),
+                                    0xaa02_0400 => return caliptra_emu_bus::Bus::write(&mut self.i2c1, size, addr & 0x0000_00ff, val),
+                                    0xaa02_0800 => return caliptra_emu_bus::Bus::write(&mut self.i2c2, size, addr & 0x0000_00ff, val),
+                                    _ => {}
+                                },
+                                _ => {}
+                            },
+                            0xb000_0000 => match addr & 0xffff_0000 {
+                                0xbb42_0000 => return caliptra_emu_bus::Bus::write(&mut self.spi0, size, addr & 0x0000_ffff, val),
                                 _ => {}
                             },
                             _ => {}
-                        },
-                        0xb000_0000 => match addr & 0xffff_0000 {
-                            0xbb42_0000 => return caliptra_emu_bus::Bus::write(&mut self.spi0, size, addr & 0x0000_ffff, val),
-                            _ => {}
-                        },
-                        _ => {}
+                        }
+                        Err(caliptra_emu_types::RvException::store_access_fault(addr))
                     }
-                    Err(caliptra_emu_types::RvException::store_access_fault(addr))
-                }
-            }
-            "#).unwrap().to_string());
+                }"#).unwrap().to_string());
     }
 }
