@@ -18,9 +18,11 @@ mod ram;
 mod register;
 mod rom;
 
-pub use crate::bus::Bus;
-pub use crate::bus::BusError;
+pub use crate::bus::{Bus, BusError};
 pub use crate::dynamic_bus::DynamicBus;
 pub use crate::ram::Ram;
-pub use crate::register::Register;
+pub use crate::register::{
+    ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister, Register,
+    WriteOnlyMemory, WriteOnlyRegister,
+};
 pub use crate::rom::Rom;

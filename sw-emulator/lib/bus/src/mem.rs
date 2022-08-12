@@ -69,6 +69,16 @@ impl Mem {
         self.data.len()
     }
 
+    /// Immutable reference to data
+    pub fn data(&self) -> &[u8] {
+        &self.data
+    }
+
+    /// Mutable reference to data
+    pub fn data_mut(&mut self) -> &mut [u8] {
+        &mut self.data
+    }
+
     /// Read data of specified size from given address
     ///
     /// # Arguments

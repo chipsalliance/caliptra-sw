@@ -41,8 +41,7 @@ pub trait Bus {
     ///
     /// # Error
     ///
-    /// * `RvException` - Exception with cause `RvExceptionCause::LoadAccessFault`
-    ///                   or `RvExceptionCause::LoadAddrMisaligned`
+    /// * `BusError` - Exception with cause `BusError::LoadAccessFault` or `BusError::LoadAddrMisaligned`
     fn read(&self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError>;
 
     /// Write data of specified size to given address
@@ -55,7 +54,6 @@ pub trait Bus {
     ///
     /// # Error
     ///
-    /// * `RvException` - Exception with cause `RvExceptionCause::StoreAccessFault`
-    ///                   or `RvExceptionCause::StoreAddrMisaligned`
+    /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
     fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError>;
 }

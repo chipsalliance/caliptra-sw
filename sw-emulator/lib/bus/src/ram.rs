@@ -33,8 +33,19 @@ impl Ram {
         }
     }
 
-    pub fn mmap_size(&self) -> RvAddr {
+    /// Size of the memory in bytes
+    pub fn len(&self) -> RvAddr {
         self.data.len() as RvAddr
+    }
+
+    /// Immutable reference to data
+    pub fn data(&self) -> &[u8] {
+        self.data.data()
+    }
+
+    /// Mutable reference to data
+    pub fn data_mut(&mut self) -> &mut [u8] {
+        self.data.data_mut()
     }
 }
 
@@ -102,7 +113,7 @@ mod tests {
     fn test_read_error() {
         let ram = Ram::new(vec![1, 2, 3, 4]);
         assert_eq!(
-            ram.read(RvSize::Byte, ram.mmap_size()).err(),
+            ram.read(RvSize::Byte, ram.len()).err(),
             Some(BusError::LoadAccessFault),
         )
     }
@@ -117,7 +128,7 @@ mod tests {
     fn test_write_error() {
         let mut ram = Ram::new(vec![1, 2, 3, 4]);
         assert_eq!(
-            ram.write(RvSize::Byte, ram.mmap_size(), 0).err(),
+            ram.write(RvSize::Byte, ram.len(), 0).err(),
             Some(BusError::StoreAccessFault),
         )
     }

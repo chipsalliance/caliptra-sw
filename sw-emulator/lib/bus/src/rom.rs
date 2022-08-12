@@ -36,12 +36,19 @@ impl Rom {
         }
     }
 
-    pub fn set_data(&mut self, data: Vec<u8>) {
-        self.data = Mem::new(data)
+    /// Size of the memory in bytes
+    pub fn len(&self) -> RvAddr {
+        self.data.len() as RvAddr
     }
 
-    pub fn mmap_size(&self) -> RvAddr {
-        self.data.len() as RvAddr
+    /// Immutable reference to data
+    pub fn data(&self) -> &[u8] {
+        self.data.data()
+    }
+
+    /// Mutable reference to data
+    pub fn data_mut(&mut self) -> &mut [u8] {
+        self.data.data_mut()
     }
 }
 
@@ -93,7 +100,7 @@ mod tests {
     #[test]
     fn test_mmap_size() {
         let rom = Rom::new(vec![1, 2, 3, 4]);
-        assert_eq!(rom.mmap_size(), 4)
+        assert_eq!(rom.len(), 4)
     }
 
     #[test]
@@ -111,7 +118,7 @@ mod tests {
     fn test_read_error() {
         let rom = Rom::new(vec![1, 2, 3, 4]);
         assert_eq!(
-            rom.read(RvSize::Byte, rom.mmap_size()).err(),
+            rom.read(RvSize::Byte, rom.len()).err(),
             Some(BusError::LoadAccessFault),
         )
     }
