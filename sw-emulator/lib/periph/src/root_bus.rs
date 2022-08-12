@@ -12,8 +12,8 @@ Abstract:
 
 --*/
 
-use crate::EmuCtrl;
 use crate::Uart;
+use crate::{EmuCtrl, HmacSha384};
 use caliptra_emu_bus::{Ram, Rom};
 use caliptra_emu_derive::Bus;
 
@@ -21,6 +21,9 @@ use caliptra_emu_derive::Bus;
 pub struct CaliptraRootBus {
     #[peripheral(offset = 0x0000_0000, mask = 0x0fff_ffff)]
     pub rom: Rom,
+
+    #[peripheral(offset = 0x1001_0000, mask = 0x0000_ffff)]
+    pub hmac: HmacSha384,
 
     #[peripheral(offset = 0x4000_0000, mask = 0x0fff_ffff)]
     pub iccm: Ram,
@@ -43,6 +46,7 @@ impl CaliptraRootBus {
     pub fn new(rom: Vec<u8>) -> Self {
         Self {
             rom: Rom::new(rom),
+            hmac: HmacSha384::new(),
             iccm: Ram::new(vec![0; Self::ICCM_SIZE]),
             dccm: Ram::new(vec![0; Self::DCCM_SIZE]),
             uart: Uart::new(),

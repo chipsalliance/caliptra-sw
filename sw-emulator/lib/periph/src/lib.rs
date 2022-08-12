@@ -13,9 +13,11 @@ Abstract:
 --*/
 
 mod emu_ctrl;
+mod hmac_sha384;
 mod root_bus;
 mod uart;
 
 pub use emu_ctrl::EmuCtrl;
+pub use hmac_sha384::HmacSha384;
 pub use root_bus::CaliptraRootBus;
 pub use uart::Uart;

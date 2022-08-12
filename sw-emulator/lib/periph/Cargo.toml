@@ -8,5 +8,7 @@ edition = "2021"
 [dependencies]
 caliptra-emu-bus = { path = "../bus"}
 caliptra-emu-cpu = { path = "../cpu"}
+caliptra-emu-crypto = { path = "../crypto"}
 caliptra-emu-derive = { path = "../derive" }
 caliptra-emu-types = { path = "../types" }
+tock-registers = { git = "https://github.com/tock/tock.git"}

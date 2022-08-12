@@ -160,7 +160,7 @@ impl<const KEY_SIZE: usize> Hmac512<KEY_SIZE> {
     /// # Arguments
     ///
     /// * `tag` - Buffer to copy the tag to
-    pub fn tag(&self, tag: &mut [u8; MAX_TAG_SIZE]) {
+    pub fn tag(&self, tag: &mut [u8]) {
         self.hash2.hash(tag);
     }
 }
