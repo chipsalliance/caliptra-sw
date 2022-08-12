@@ -51,7 +51,7 @@ fn main() -> io::Result<()> {
         exit(-1);
     }
 
-    let mut cpu = Cpu::new(CaliptraRootBus::new());
+    let mut cpu = Cpu::new(CaliptraRootBus::new(buffer));
 
     loop {
         match cpu.step(None) {

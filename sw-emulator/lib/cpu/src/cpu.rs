@@ -242,7 +242,6 @@ impl<TBus: Bus> Cpu<TBus> {
 
         let next_pc = self.read_csr(Csr::MTVEC)? & !0x11;
         self.write_pc(next_pc);
-        println!("{:x}", next_pc);
         Ok(())
     }
 }

@@ -40,9 +40,9 @@ impl CaliptraRootBus {
     pub const ICCM_SIZE: usize = 128 * 1024;
     pub const DCCM_SIZE: usize = 128 * 1024;
 
-    pub fn new() -> Self {
+    pub fn new(rom: Vec<u8>) -> Self {
         Self {
-            rom: Rom::new(vec![0; Self::ROM_SIZE]),
+            rom: Rom::new(rom),
             iccm: Ram::new(vec![0; Self::ICCM_SIZE]),
             dccm: Ram::new(vec![0; Self::DCCM_SIZE]),
             uart: Uart::new(),
