@@ -15,8 +15,8 @@ Abstract:
 use crate::csr_file::{Csr, CsrFile};
 use crate::types::{RvInstr, RvMStatus};
 use crate::xreg_file::{XReg, XRegFile};
-use caliptra_emu_bus::Bus;
-use caliptra_emu_types::{RvAddr, RvData, RvException, RvExceptionCause, RvSize};
+use caliptra_emu_bus::{Bus, BusError};
+use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
 
 pub type InstrTracer = fn(pc: u32, instr: RvInstr);
 
@@ -155,6 +155,58 @@ impl<TBus: Bus> Cpu<TBus> {
         self.csrs.write(csr, val)
     }
 
+    /// Read from bus
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - Size of the read
+    /// * `addr` - Address to read from
+    ///
+    /// # Error
+    ///
+    /// * `RvException` - Exception with cause `RvExceptionCause::LoadAccessFault`
+    ///                   or `RvExceptionCause::LoadAddrMisaligned`
+    pub fn read_bus(&self, size: RvSize, addr: RvAddr) -> Result<RvData, RvException> {
+        match self.bus.read(size, addr) {
+            Ok(val) => Ok(val),
+            Err(exception) => match exception {
+                BusError::LoadAccessFault => Err(RvException::load_access_fault(addr)),
+                BusError::LoadAddrMisaligned => Err(RvException::load_addr_misaligned(addr)),
+                BusError::StoreAccessFault => Err(RvException::store_access_fault(addr)),
+                BusError::StoreAddrMisaligned => Err(RvException::store_addr_misaligned(addr)),
+            },
+        }
+    }
+
+    /// Write to bus
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - Size of the read
+    /// * `addr` - Address to read from
+    /// * `val`  - Value to write
+    ///
+    /// # Error
+    ///
+    /// * `RvException` - Exception with cause `RvExceptionCause::StoreAccessFault`
+    ///                   or `RvExceptionCause::StoreAddrMisaligned`
+    pub fn write_bus(
+        &mut self,
+        size: RvSize,
+        addr: RvAddr,
+        val: RvData,
+    ) -> Result<(), RvException> {
+        match self.bus.write(size, addr, val) {
+            Ok(val) => Ok(val),
+            Err(exception) => match exception {
+                BusError::LoadAccessFault => Err(RvException::load_access_fault(addr)),
+                BusError::LoadAddrMisaligned => Err(RvException::load_addr_misaligned(addr)),
+                BusError::StoreAccessFault => Err(RvException::store_access_fault(addr)),
+                BusError::StoreAddrMisaligned => Err(RvException::store_addr_misaligned(addr)),
+            },
+        }
+    }
+
     /// Read instruction
     ///
     /// # Arguments
@@ -171,14 +223,11 @@ impl<TBus: Bus> Cpu<TBus> {
             RvSize::Byte => Err(RvException::instr_access_fault(addr)),
             _ => match self.bus.read(size, addr) {
                 Ok(val) => Ok(val),
-                Err(exception) => match exception.cause() {
-                    RvExceptionCause::LoadAccessFault => {
-                        Err(RvException::instr_access_fault(exception.info()))
-                    }
-                    RvExceptionCause::LoadAddrMisaligned => {
-                        Err(RvException::instr_addr_misaligned(exception.info()))
-                    }
-                    _ => Err(exception),
+                Err(exception) => match exception {
+                    BusError::LoadAccessFault => Err(RvException::instr_access_fault(addr)),
+                    BusError::LoadAddrMisaligned => Err(RvException::instr_addr_misaligned(addr)),
+                    BusError::StoreAccessFault => Err(RvException::store_access_fault(addr)),
+                    BusError::StoreAddrMisaligned => Err(RvException::store_addr_misaligned(addr)),
                 },
             },
         }
@@ -242,6 +291,7 @@ impl<TBus: Bus> Cpu<TBus> {
 
         let next_pc = self.read_csr(Csr::MTVEC)? & !0x11;
         self.write_pc(next_pc);
+        println!("{:x}", next_pc);
         Ok(())
     }
 }

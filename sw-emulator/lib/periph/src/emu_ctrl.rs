@@ -12,8 +12,8 @@ Abstract:
 
 --*/
 
-use caliptra_emu_bus::Bus;
-use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
+use caliptra_emu_bus::{Bus, BusError};
+use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::process::exit;
 
 /// Emulation Control
@@ -49,10 +49,10 @@ impl Bus for EmuCtrl {
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::LoadAccessFault`
     ///                   or `RvExceptionCause::LoadAddrMisaligned`
-    fn read(&self, size: RvSize, addr: RvAddr) -> Result<RvData, RvException> {
+    fn read(&self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
         match (size, addr) {
             (RvSize::Word, EmuCtrl::ADDR_EXIT) => Ok(0),
-            _ => Err(RvException::load_access_fault(addr)),
+            _ => Err(BusError::LoadAccessFault),
         }
     }
 
@@ -68,12 +68,12 @@ impl Bus for EmuCtrl {
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::StoreAccessFault`
     ///                   or `RvExceptionCause::StoreAddrMisaligned`
-    fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), RvException> {
+    fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {
         match (size, addr) {
             (RvSize::Word, EmuCtrl::ADDR_EXIT) => {
                 exit(val as i32);
             }
-            _ => Err(RvException::store_access_fault(addr))?,
+            _ => Err(BusError::StoreAccessFault)?,
         }
         Ok(())
     }

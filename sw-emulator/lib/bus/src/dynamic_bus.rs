@@ -14,8 +14,8 @@ Abstract:
 
 use std::{io::ErrorKind, ops::RangeInclusive};
 
-use crate::Bus;
-use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
+use crate::{Bus, BusError};
+use caliptra_emu_types::{RvAddr, RvData, RvSize};
 
 struct MappedDevice {
     name: String,
@@ -74,19 +74,19 @@ impl DynamicBus {
 }
 
 impl Bus for DynamicBus {
-    fn read(&self, size: RvSize, addr: RvAddr) -> Result<RvData, RvException> {
+    fn read(&self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
         let dev = self.devs.iter().find(|d| d.mmap_range.contains(&addr));
         match dev {
             Some(dev) => dev.bus.read(size, addr - dev.mmap_range.start()),
-            None => Err(RvException::load_access_fault(addr)),
+            None => Err(BusError::LoadAccessFault),
         }
     }
 
-    fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), RvException> {
+    fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {
         let dev = self.devs.iter_mut().find(|d| d.mmap_range.contains(&addr));
         match dev {
             Some(dev) => dev.bus.write(size, addr - dev.mmap_range.start(), val),
-            None => Err(RvException::store_access_fault(addr)),
+            None => Err(BusError::StoreAccessFault),
         }
     }
 }
@@ -94,7 +94,7 @@ impl Bus for DynamicBus {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{Ram, Rom};
+    use crate::{BusError, Ram, Rom};
     use caliptra_emu_types::RvSize;
 
     #[test]
@@ -106,7 +106,7 @@ mod test {
         assert_eq!(bus.read(RvSize::Byte, 2).ok(), Some(2));
         assert_eq!(
             bus.read(RvSize::Byte, 3).err(),
-            Some(RvException::load_access_fault(3))
+            Some(BusError::LoadAccessFault),
         );
     }
 
@@ -121,7 +121,7 @@ mod test {
         assert_eq!(bus.read(RvSize::Byte, 2).ok(), Some(4));
         assert_eq!(
             bus.write(RvSize::Byte, 3, 0).err(),
-            Some(RvException::store_access_fault(3))
+            Some(BusError::StoreAccessFault),
         );
     }
 

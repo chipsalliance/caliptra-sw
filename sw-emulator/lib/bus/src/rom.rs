@@ -13,8 +13,8 @@ Abstract:
 --*/
 
 use crate::mem::Mem;
-use crate::Bus;
-use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
+use crate::{Bus, BusError};
+use caliptra_emu_types::{RvAddr, RvData, RvSize};
 
 /// Read Only Memory Device
 pub struct Rom {
@@ -36,6 +36,10 @@ impl Rom {
         }
     }
 
+    pub fn set_data(&mut self, data: Vec<u8>) {
+        self.data = Mem::new(data)
+    }
+
     pub fn mmap_size(&self) -> RvAddr {
         self.data.len() as RvAddr
     }
@@ -51,9 +55,9 @@ impl Bus for Rom {
     ///
     /// # Error
     ///
-    /// * `RvException` - Exception with cause `RvExceptionCause::LoadAccessFault`
-    ///                   or `RvExceptionCause::LoadAddrMisaligned`
-    fn read(&self, size: RvSize, addr: RvAddr) -> Result<RvData, RvException> {
+    /// * `BusException` - Exception with cause `BusExceptionCause::LoadAccessFault`
+    ///                   or `BusExceptionCause::LoadAddrMisaligned`
+    fn read(&self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
         match self.data.read(size, addr) {
             Ok(data) => Ok(data),
             Err(error) => Err(error.into()),
@@ -70,10 +74,10 @@ impl Bus for Rom {
     ///
     /// # Error
     ///
-    /// * `RvException` - Exception with cause `RvExceptionCause::StoreAccessFault`
-    ///                   or `RvExceptionCause::StoreAddrMisaligned`
-    fn write(&mut self, _size: RvSize, addr: RvAddr, _value: RvData) -> Result<(), RvException> {
-        Err(RvException::store_access_fault(addr))
+    /// * `BusException` - Exception with cause `BusExceptionCause::StoreAccessFault`
+    ///                   or `BusExceptionCause::StoreAddrMisaligned`
+    fn write(&mut self, _size: RvSize, _addr: RvAddr, _value: RvData) -> Result<(), BusError> {
+        Err(BusError::StoreAccessFault)
     }
 }
 
@@ -108,7 +112,7 @@ mod tests {
         let rom = Rom::new(vec![1, 2, 3, 4]);
         assert_eq!(
             rom.read(RvSize::Byte, rom.mmap_size()).err(),
-            Some(RvException::load_access_fault(rom.mmap_size() as u32))
+            Some(BusError::LoadAccessFault),
         )
     }
 
@@ -117,7 +121,7 @@ mod tests {
         let mut rom = Rom::new(vec![1, 2, 3, 4]);
         assert_eq!(
             rom.write(RvSize::Byte, 0, u32::MAX).err(),
-            Some(RvException::store_access_fault(0))
+            Some(BusError::StoreAccessFault),
         )
     }
 }

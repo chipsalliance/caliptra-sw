@@ -19,6 +19,7 @@ mod register;
 mod rom;
 
 pub use crate::bus::Bus;
+pub use crate::bus::BusError;
 pub use crate::dynamic_bus::DynamicBus;
 pub use crate::ram::Ram;
 pub use crate::register::Register;

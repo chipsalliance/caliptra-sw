@@ -13,33 +13,34 @@ Abstract:
 
 --*/
 
-use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
+use crate::BusError;
+use caliptra_emu_types::{RvAddr, RvData, RvSize};
 
 /// Memory Exception
 #[allow(dead_code)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum MemError {
     /// Read Address misaligned
-    ReadAddrMisaligned(u32),
+    ReadAddrMisaligned,
 
     /// Read Access fault
-    ReadAccessFault(u32),
+    ReadAccessFault,
 
     /// Write Address misaligned
-    WriteAddrMisaligned(u32),
+    WriteAddrMisaligned,
 
     /// Write access fault
-    WriteAccessFault(u32),
+    WriteAccessFault,
 }
 
-impl From<MemError> for RvException {
+impl From<MemError> for BusError {
     /// Converts to this type from the input type.
-    fn from(exception: MemError) -> RvException {
+    fn from(exception: MemError) -> BusError {
         match exception {
-            MemError::ReadAddrMisaligned(addr) => RvException::load_addr_misaligned(addr),
-            MemError::ReadAccessFault(addr) => RvException::load_access_fault(addr),
-            MemError::WriteAddrMisaligned(addr) => RvException::store_addr_misaligned(addr),
-            MemError::WriteAccessFault(addr) => RvException::store_access_fault(addr),
+            MemError::ReadAddrMisaligned => BusError::LoadAddrMisaligned,
+            MemError::ReadAccessFault => BusError::LoadAccessFault,
+            MemError::WriteAddrMisaligned => BusError::StoreAddrMisaligned,
+            MemError::WriteAccessFault => BusError::StoreAccessFault,
         }
     }
 }
@@ -84,7 +85,7 @@ impl Mem {
             RvSize::Byte => self.read_byte(addr as usize),
             RvSize::HalfWord => self.read_half_word(addr as usize),
             RvSize::Word => self.read_word(addr as usize),
-            RvSize::Invalid => Err(MemError::ReadAccessFault(addr)),
+            RvSize::Invalid => Err(MemError::ReadAccessFault),
         }
     }
 
@@ -106,7 +107,7 @@ impl Mem {
             RvSize::Byte => self.read_byte(addr as usize),
             RvSize::HalfWord => self.read_aligned_half_word(addr as usize),
             RvSize::Word => self.read_aligned_word(addr as usize),
-            RvSize::Invalid => Err(MemError::ReadAccessFault(addr)),
+            RvSize::Invalid => Err(MemError::ReadAccessFault),
         }
     }
 
@@ -127,7 +128,7 @@ impl Mem {
             RvSize::Byte => self.write_byte(addr as usize, val),
             RvSize::HalfWord => self.write_half_word(addr as usize, val),
             RvSize::Word => self.write_word(addr as usize, val),
-            RvSize::Invalid => Err(MemError::WriteAccessFault(addr)),
+            RvSize::Invalid => Err(MemError::WriteAccessFault),
         }
     }
 
@@ -155,7 +156,7 @@ impl Mem {
             RvSize::Byte => self.write_byte(addr as usize, data),
             RvSize::HalfWord => self.write_aligned_half_word(addr as usize, data),
             RvSize::Word => self.write_aligned_word(addr as usize, data),
-            RvSize::Invalid => Err(MemError::WriteAccessFault(addr)),
+            RvSize::Invalid => Err(MemError::WriteAccessFault),
         }
     }
 
@@ -173,7 +174,7 @@ impl Mem {
         if addr < self.data.len() {
             Ok(self.data[addr] as RvData)
         } else {
-            Err(MemError::ReadAccessFault(addr as u32))
+            Err(MemError::ReadAccessFault)
         }
     }
 
@@ -191,7 +192,7 @@ impl Mem {
         if addr < self.data.len() && addr + 1 < self.data.len() {
             Ok((self.data[addr] as RvData) | ((self.data[addr + 1] as RvData) << 8))
         } else {
-            Err(MemError::ReadAccessFault(addr as u32))
+            Err(MemError::ReadAccessFault)
         }
     }
 
@@ -212,7 +213,7 @@ impl Mem {
                 | ((self.data[addr + 2] as RvData) << 16)
                 | ((self.data[addr + 3] as RvData) << 24))
         } else {
-            Err(MemError::ReadAccessFault(addr as u32))
+            Err(MemError::ReadAccessFault)
         }
     }
 
@@ -232,10 +233,10 @@ impl Mem {
             if addr & 1 == 0 {
                 self.read_half_word(addr)
             } else {
-                Err(MemError::ReadAddrMisaligned(addr as u32))
+                Err(MemError::ReadAddrMisaligned)
             }
         } else {
-            Err(MemError::ReadAccessFault(addr as u32))
+            Err(MemError::ReadAccessFault)
         }
     }
 
@@ -255,10 +256,10 @@ impl Mem {
             if addr & 3 == 0 {
                 self.read_word(addr)
             } else {
-                Err(MemError::ReadAddrMisaligned(addr as u32))
+                Err(MemError::ReadAddrMisaligned)
             }
         } else {
-            Err(MemError::ReadAccessFault(addr as u32))
+            Err(MemError::ReadAccessFault)
         }
     }
 
@@ -278,7 +279,7 @@ impl Mem {
             self.data[addr] = data as u8;
             Ok(())
         } else {
-            Err(MemError::WriteAccessFault(addr as u32))
+            Err(MemError::WriteAccessFault)
         }
     }
 
@@ -299,7 +300,7 @@ impl Mem {
             self.data[addr + 1] = (data >> 8 & 0xff) as u8;
             Ok(())
         } else {
-            Err(MemError::WriteAccessFault(addr as u32))
+            Err(MemError::WriteAccessFault)
         }
     }
 
@@ -322,7 +323,7 @@ impl Mem {
             self.data[addr + 3] = (data >> 24 & 0xff) as u8;
             Ok(())
         } else {
-            Err(MemError::WriteAccessFault(addr as u32))
+            Err(MemError::WriteAccessFault)
         }
     }
 
@@ -343,10 +344,10 @@ impl Mem {
             if addr & 1 == 0 {
                 self.write_half_word(addr, data)
             } else {
-                Err(MemError::WriteAddrMisaligned(addr as u32))
+                Err(MemError::WriteAddrMisaligned)
             }
         } else {
-            Err(MemError::WriteAccessFault(addr as u32))
+            Err(MemError::WriteAccessFault)
         }
     }
 
@@ -367,10 +368,10 @@ impl Mem {
             if addr & 3 == 0 {
                 self.write_word(addr, data)
             } else {
-                Err(MemError::WriteAddrMisaligned(addr as u32))
+                Err(MemError::WriteAddrMisaligned)
             }
         } else {
-            Err(MemError::WriteAccessFault(addr as u32))
+            Err(MemError::WriteAccessFault)
         }
     }
 }
@@ -410,7 +411,7 @@ mod tests {
                     } else {
                         assert_eq!(
                             read_fn(&mem, $size, i as RvAddr).err(),
-                            Some(MemError::ReadAddrMisaligned(i as u32))
+                            Some(MemError::ReadAddrMisaligned)
                         );
                     }
                     i += 1;
@@ -420,12 +421,12 @@ mod tests {
                     if !$aligned || i & (size - 1) == 0 {
                         assert_eq!(
                             read_fn(&mem, $size, i as RvAddr).err(),
-                            Some(MemError::ReadAccessFault(i as u32))
+                            Some(MemError::ReadAccessFault)
                         );
                     } else {
                         assert_eq!(
                             read_fn(&mem, $size, i as RvAddr).err(),
-                            Some(MemError::ReadAddrMisaligned(i as u32))
+                            Some(MemError::ReadAddrMisaligned)
                         );
                     }
                     i += 1;
@@ -433,7 +434,7 @@ mod tests {
 
                 assert_eq!(
                     read_fn(&mem, $size, i as RvAddr).err(),
-                    Some(MemError::ReadAccessFault(i as u32))
+                    Some(MemError::ReadAccessFault)
                 );
             }
         };
@@ -462,7 +463,7 @@ mod tests {
                     } else {
                         assert_eq!(
                             write_fn(&mut mem, $size, i as RvAddr, data).err(),
-                            Some(MemError::WriteAddrMisaligned(i as u32))
+                            Some(MemError::WriteAddrMisaligned),
                         );
                     }
                     i += 1;
@@ -473,12 +474,12 @@ mod tests {
                     if !$aligned || i & (size - 1) == 0 {
                         assert_eq!(
                             write_fn(&mut mem, $size, i as RvAddr, data).err(),
-                            Some(MemError::WriteAccessFault(i as u32))
+                            Some(MemError::WriteAccessFault),
                         );
                     } else {
                         assert_eq!(
                             write_fn(&mut mem, $size, i as RvAddr, data).err(),
-                            Some(MemError::WriteAddrMisaligned(i as u32))
+                            Some(MemError::WriteAddrMisaligned),
                         );
                     }
                     i += 1;
@@ -486,7 +487,7 @@ mod tests {
 
                 assert_eq!(
                     write_fn(&mut mem, $size, i as RvAddr, data).err(),
-                    Some(MemError::WriteAccessFault(i as u32))
+                    Some(MemError::WriteAccessFault),
                 );
             }
         };

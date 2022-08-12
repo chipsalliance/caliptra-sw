@@ -46,21 +46,21 @@ impl<TBus: Bus> Cpu<TBus> {
         // Read the data
         let data = match instr.funct3().into() {
             // Load Byte ('lb') Instruction
-            RvInstr32LoadFunct3::Lb => self.bus.read(RvSize::Byte, addr)? as i8 as i32 as RvData,
+            RvInstr32LoadFunct3::Lb => self.read_bus(RvSize::Byte, addr)? as i8 as i32 as RvData,
 
             // Load Half Word ('lh') Instruction
             RvInstr32LoadFunct3::Lh => {
-                self.bus.read(RvSize::HalfWord, addr)? as i16 as i32 as RvData
+                self.read_bus(RvSize::HalfWord, addr)? as i16 as i32 as RvData
             }
 
             // Load Word ('lw') Instruction
-            RvInstr32LoadFunct3::Lw => self.bus.read(RvSize::Word, addr)? as i32 as RvData,
+            RvInstr32LoadFunct3::Lw => self.read_bus(RvSize::Word, addr)? as i32 as RvData,
 
             // Load Byte Unsigned ('lbu') Instruction
-            RvInstr32LoadFunct3::Lbu => self.bus.read(RvSize::Byte, addr)?,
+            RvInstr32LoadFunct3::Lbu => self.read_bus(RvSize::Byte, addr)?,
 
             // Load Half Word Unsigned ('lhu') Instruction
-            RvInstr32LoadFunct3::Lhu => self.bus.read(RvSize::HalfWord, addr)?,
+            RvInstr32LoadFunct3::Lhu => self.read_bus(RvSize::HalfWord, addr)?,
 
             // Illegal Instruction
             _ => Err(RvException::illegal_instr(instr.0))?,

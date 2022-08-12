@@ -12,8 +12,8 @@ Abstract:
 
 --*/
 
-use crate::{mem::Mem, Bus};
-use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
+use crate::{mem::Mem, Bus, BusError};
+use caliptra_emu_types::{RvAddr, RvData, RvSize};
 
 /// Read Only Memory Device
 pub struct Ram {
@@ -48,9 +48,9 @@ impl Bus for Ram {
     ///
     /// # Error
     ///
-    /// * `RvException` - Exception with cause `RvExceptionCause::LoadAccessFault`
-    ///                   or `RvExceptionCause::LoadAddrMisaligned`
-    fn read(&self, size: RvSize, addr: RvAddr) -> Result<RvData, RvException> {
+    /// * `BusException` - Exception with cause `BusExceptionCause::LoadAccessFault`
+    ///                   or `BusExceptionCause::LoadAddrMisaligned`
+    fn read(&self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
         match self.data.read(size, addr) {
             Ok(data) => Ok(data),
             Err(error) => Err(error.into()),
@@ -67,9 +67,9 @@ impl Bus for Ram {
     ///
     /// # Error
     ///
-    /// * `RvException` - Exception with cause `RvExceptionCause::StoreAccessFault`
-    ///                   or `RvExceptionCause::StoreAddrMisaligned`
-    fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), RvException> {
+    /// * `BusException` - Exception with cause `BusExceptionCause::StoreAccessFault`
+    ///                   or `BusExceptionCause::StoreAddrMisaligned`
+    fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {
         match self.data.write(size, addr, val) {
             Ok(data) => Ok(data),
             Err(error) => Err(error.into()),
@@ -80,6 +80,7 @@ impl Bus for Ram {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::BusError;
 
     #[test]
     fn test_new() {
@@ -102,7 +103,7 @@ mod tests {
         let ram = Ram::new(vec![1, 2, 3, 4]);
         assert_eq!(
             ram.read(RvSize::Byte, ram.mmap_size()).err(),
-            Some(RvException::load_access_fault(ram.mmap_size() as u32))
+            Some(BusError::LoadAccessFault),
         )
     }
 
@@ -117,7 +118,7 @@ mod tests {
         let mut ram = Ram::new(vec![1, 2, 3, 4]);
         assert_eq!(
             ram.write(RvSize::Byte, ram.mmap_size(), 0).err(),
-            Some(RvException::store_access_fault(ram.mmap_size() as u32))
+            Some(BusError::StoreAccessFault),
         )
     }
 }

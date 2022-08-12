@@ -43,7 +43,7 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
     let mut impl_body = TokenStream::new();
     {
         impl_body.extend(
-            TokenStream::from_str("fn read(&self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_types::RvException>").unwrap());
+            TokenStream::from_str("fn read(&self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError>").unwrap());
 
         let mut fn_body = TokenStream::new();
         fn_body.extend(gen_register_match_tokens(
@@ -54,14 +54,13 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
             fn_body.extend(gen_bus_match_tokens(mask_matches, AccessType::Read));
         }
         fn_body.extend(
-            TokenStream::from_str("Err(caliptra_emu_types::RvException::load_access_fault(addr))")
-                .unwrap(),
+            TokenStream::from_str("Err(caliptra_emu_bus::BusError::LoadAccessFault)").unwrap(),
         );
         impl_body.extend([TokenTree::from(Group::new(Delimiter::Brace, fn_body))]);
     }
     {
         impl_body.extend(
-            TokenStream::from_str("fn write(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr, val: caliptra_emu_types::RvData) -> Result<(), caliptra_emu_types::RvException>").unwrap());
+            TokenStream::from_str("fn write(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr, val: caliptra_emu_types::RvData) -> Result<(), caliptra_emu_bus::BusError>").unwrap());
 
         let mut fn_body = TokenStream::new();
         fn_body.extend(gen_register_match_tokens(
@@ -72,8 +71,7 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
             fn_body.extend(gen_bus_match_tokens(mask_matches, AccessType::Write));
         }
         fn_body.extend(
-            TokenStream::from_str("Err(caliptra_emu_types::RvException::store_access_fault(addr))")
-                .unwrap(),
+            TokenStream::from_str("Err(caliptra_emu_bus::BusError::StoreAccessFault)").unwrap(),
         );
         impl_body.extend([TokenTree::from(Group::new(Delimiter::Brace, fn_body))]);
     }
@@ -560,7 +558,7 @@ mod tests {
         assert_eq!(tokens.to_string(),
             TokenStream::from_str(r#"
                 impl caliptra_emu_bus::Bus for MyBus {
-                    fn read(&self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_types::RvException> {
+                    fn read(&self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
                         match addr {
                             0xcafe_f0d0 => return caliptra_emu_bus::Register::read(&self.reg_u32, size),
                             0xcafe_f0d4 => return caliptra_emu_bus::Register::read(&self.reg_u16, size),
@@ -592,9 +590,9 @@ mod tests {
                             },
                             _ => {}
                         }
-                        Err(caliptra_emu_types::RvException::load_access_fault(addr))
+                        Err(caliptra_emu_bus::BusError::LoadAccessFault)
                     }
-                    fn write(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr, val: caliptra_emu_types::RvData) -> Result<(), caliptra_emu_types::RvException> {
+                    fn write(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr, val: caliptra_emu_types::RvData) -> Result<(), caliptra_emu_bus::BusError> {
                         match addr {
                             0xcafe_f0d0 => return caliptra_emu_bus::Register::write(&mut self.reg_u32, size, val),
                             0xcafe_f0d4 => return caliptra_emu_bus::Register::write(&mut self.reg_u16, size, val),
@@ -626,7 +624,7 @@ mod tests {
                             },
                             _ => {}
                         }
-                        Err(caliptra_emu_types::RvException::store_access_fault(addr))
+                        Err(caliptra_emu_bus::BusError::StoreAccessFault)
                     }
                 }"#).unwrap().to_string());
     }

@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 
-use caliptra_emu_bus::{Bus, Ram};
+use caliptra_emu_bus::{Bus, BusError, Ram};
 use caliptra_emu_derive::Bus;
-use caliptra_emu_types::{RvData, RvException, RvExceptionCause, RvSize};
+use caliptra_emu_types::{RvData, RvSize};
 use std::fmt::Write;
 
 struct MyCustomField(RvData);
@@ -68,27 +68,27 @@ struct MyBus {
     _fieldless_regs: (),
 }
 impl MyBus {
-    fn reg_action0_read(&self, size: RvSize) -> Result<RvData, RvException> {
+    fn reg_action0_read(&self, size: RvSize) -> Result<RvData, BusError> {
         write!(self.log(), "reg_action0 read {:?}; ", size).unwrap();
         Ok(0x4de0d4f5)
     }
-    fn reg_action1_write(&self, size: RvSize, val: RvData) -> Result<(), RvException> {
+    fn reg_action1_write(&self, size: RvSize, val: RvData) -> Result<(), BusError> {
         write!(self.log(), "reg_action1 write {size:?} 0x{val:08x}; ").unwrap();
         Ok(())
     }
-    fn reg_action2_read(&self, size: RvSize) -> Result<MyCustomField, RvException> {
+    fn reg_action2_read(&self, size: RvSize) -> Result<MyCustomField, BusError> {
         write!(self.log(), "reg_action2 read {size:?}; ").unwrap();
         Ok(MyCustomField(0xba5eba11))
     }
-    fn reg_action2_write(&self, size: RvSize, val: MyCustomField) -> Result<(), RvException> {
+    fn reg_action2_write(&self, size: RvSize, val: MyCustomField) -> Result<(), BusError> {
         write!(self.log(), "reg_action2 write {size:?} 0x{:08x}; ", val.0).unwrap();
         Ok(())
     }
-    fn reg_action3_read(&self, size: RvSize) -> Result<MyCustomField, RvException> {
+    fn reg_action3_read(&self, size: RvSize) -> Result<MyCustomField, BusError> {
         write!(self.log(), "reg_action2 read {size:?}; ").unwrap();
         Ok(MyCustomField(0xba5eba11))
     }
-    fn reg_action3_write(&self, size: RvSize, val: MyCustomField) -> Result<(), RvException> {
+    fn reg_action3_write(&self, size: RvSize, val: MyCustomField) -> Result<(), BusError> {
         write!(self.log(), "reg_action2 write {size:?} 0x{:08x}; ", val.0).unwrap();
         Ok(())
     }
@@ -157,24 +157,24 @@ fn test_read_dispatch() {
     assert_eq!(bus.read(RvSize::Word, 0xbb42_d87c).unwrap(), 0x48ba_38c1);
 
     assert_eq!(
-        bus.read(RvSize::Word, 0x0001_0000).unwrap_err().cause(),
-        RvExceptionCause::LoadAccessFault
+        bus.read(RvSize::Word, 0x0001_0000).unwrap_err(),
+        BusError::LoadAccessFault
     );
     assert_eq!(
-        bus.read(RvSize::Word, 0xf000_0000).unwrap_err().cause(),
-        RvExceptionCause::LoadAccessFault
+        bus.read(RvSize::Word, 0xf000_0000).unwrap_err(),
+        BusError::LoadAccessFault
     );
     assert_eq!(
-        bus.read(RvSize::Word, 0xaa03_0000).unwrap_err().cause(),
-        RvExceptionCause::LoadAccessFault
+        bus.read(RvSize::Word, 0xaa03_0000).unwrap_err(),
+        BusError::LoadAccessFault
     );
     assert_eq!(
-        bus.read(RvSize::Word, 0xaa02_0900).unwrap_err().cause(),
-        RvExceptionCause::LoadAccessFault
+        bus.read(RvSize::Word, 0xaa02_0900).unwrap_err(),
+        BusError::LoadAccessFault
     );
     assert_eq!(
-        bus.read(RvSize::Word, 0xbb41_0000).unwrap_err().cause(),
-        RvExceptionCause::LoadAccessFault
+        bus.read(RvSize::Word, 0xbb41_0000).unwrap_err(),
+        BusError::LoadAccessFault
     );
 
     assert_eq!(bus.read(RvSize::Word, 0xcafe_f0d0).unwrap(), 0xd149_b444);
@@ -182,12 +182,12 @@ fn test_read_dispatch() {
     assert_eq!(bus.read(RvSize::Byte, 0xcafe_f0d8).unwrap(), 0xc1);
 
     assert_eq!(
-        bus.read(RvSize::HalfWord, 0xcafe_f0d0).unwrap_err().cause(),
-        RvExceptionCause::LoadAccessFault
+        bus.read(RvSize::HalfWord, 0xcafe_f0d0).unwrap_err(),
+        BusError::LoadAccessFault
     );
     assert_eq!(
-        bus.read(RvSize::Word, 0xcafe_f0d4).unwrap_err().cause(),
-        RvExceptionCause::LoadAccessFault
+        bus.read(RvSize::Word, 0xcafe_f0d4).unwrap_err(),
+        BusError::LoadAccessFault
     );
 
     assert_eq!(bus.read(RvSize::Word, 0xcafe_f0e0).unwrap(), 0x4de0d4f5);
@@ -262,24 +262,24 @@ fn test_write_dispatch() {
     assert_eq!(bus.spi0.read(RvSize::Word, 0xd87c).unwrap(), 0x48ba_38c1);
 
     assert_eq!(
-        bus.write(RvSize::Word, 0x0001_0000, 0).unwrap_err().cause(),
-        RvExceptionCause::StoreAccessFault
+        bus.write(RvSize::Word, 0x0001_0000, 0).unwrap_err(),
+        BusError::StoreAccessFault
     );
     assert_eq!(
-        bus.write(RvSize::Word, 0xf000_0000, 0).unwrap_err().cause(),
-        RvExceptionCause::StoreAccessFault
+        bus.write(RvSize::Word, 0xf000_0000, 0).unwrap_err(),
+        BusError::StoreAccessFault
     );
     assert_eq!(
-        bus.write(RvSize::Word, 0xaa03_0000, 0).unwrap_err().cause(),
-        RvExceptionCause::StoreAccessFault
+        bus.write(RvSize::Word, 0xaa03_0000, 0).unwrap_err(),
+        BusError::StoreAccessFault
     );
     assert_eq!(
-        bus.write(RvSize::Word, 0xaa02_0900, 0).unwrap_err().cause(),
-        RvExceptionCause::StoreAccessFault
+        bus.write(RvSize::Word, 0xaa02_0900, 0).unwrap_err(),
+        BusError::StoreAccessFault
     );
     assert_eq!(
-        bus.write(RvSize::Word, 0xbb41_0000, 0).unwrap_err().cause(),
-        RvExceptionCause::StoreAccessFault
+        bus.write(RvSize::Word, 0xbb41_0000, 0).unwrap_err(),
+        BusError::StoreAccessFault
     );
 
     bus.write(RvSize::Word, 0xcafe_f0d0, 0xd149_b445).unwrap();
@@ -290,14 +290,12 @@ fn test_write_dispatch() {
     assert_eq!(bus.reg_u8, 0xc1);
 
     assert_eq!(
-        bus.write(RvSize::HalfWord, 0xcafe_f0d0, 0)
-            .unwrap_err()
-            .cause(),
-        RvExceptionCause::StoreAccessFault
+        bus.write(RvSize::HalfWord, 0xcafe_f0d0, 0).unwrap_err(),
+        BusError::StoreAccessFault
     );
     assert_eq!(
-        bus.write(RvSize::Word, 0xcafe_f0d4, 0).unwrap_err().cause(),
-        RvExceptionCause::StoreAccessFault
+        bus.write(RvSize::Word, 0xcafe_f0d4, 0).unwrap_err(),
+        BusError::StoreAccessFault
     );
 
     bus.write(RvSize::Word, 0xcafe_f0e0, 0x82d1_aa14).unwrap();

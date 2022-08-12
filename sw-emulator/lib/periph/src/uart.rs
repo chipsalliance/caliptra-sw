@@ -12,8 +12,8 @@ Abstract:
 
 --*/
 
-use caliptra_emu_bus::Bus;
-use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
+use caliptra_emu_bus::{Bus, BusError};
+use caliptra_emu_types::{RvAddr, RvData, RvSize};
 
 pub struct Uart {
     bit_rate: u8,
@@ -63,13 +63,13 @@ impl Bus for Uart {
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::LoadAccessFault`
     ///                   or `RvExceptionCause::LoadAddrMisaligned`
-    fn read(&self, size: RvSize, addr: RvAddr) -> Result<RvData, RvException> {
+    fn read(&self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
         match (size, addr) {
             (RvSize::Byte, Uart::ADDR_BIT_RATE) => Ok(self.bit_rate as RvData),
             (RvSize::Byte, Uart::ADDR_DATA_BITS) => Ok(self.data_bits as RvData),
             (RvSize::Byte, Uart::ADDR_STOP_BITS) => Ok(self.stop_bits as RvData),
             (RvSize::Byte, Uart::ADDR_TX_STATUS) => Ok(1),
-            _ => Err(RvException::load_access_fault(addr)),
+            _ => Err(BusError::LoadAccessFault),
         }
     }
 
@@ -85,15 +85,14 @@ impl Bus for Uart {
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::StoreAccessFault`
     ///                   or `RvExceptionCause::StoreAddrMisaligned`
-    fn write(&mut self, size: RvSize, addr: RvAddr, value: RvData) -> Result<(), RvException> {
+    fn write(&mut self, size: RvSize, addr: RvAddr, value: RvData) -> Result<(), BusError> {
         match (size, addr) {
             (RvSize::Byte, Uart::ADDR_BIT_RATE) => self.bit_rate = value as u8,
             (RvSize::Byte, Uart::ADDR_DATA_BITS) => self.data_bits = value as u8,
             (RvSize::Byte, Uart::ADDR_STOP_BITS) => self.stop_bits = value as u8,
             (RvSize::Byte, Uart::ADDR_TX_DATA) => print!("{}", value as u8 as char),
-            _ => Err(RvException::store_access_fault(addr))?,
+            _ => Err(BusError::StoreAccessFault)?,
         }
-
         Ok(())
     }
 }

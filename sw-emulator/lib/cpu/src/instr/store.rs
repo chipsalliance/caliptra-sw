@@ -46,13 +46,13 @@ impl<TBus: Bus> Cpu<TBus> {
 
         match instr.funct3().into() {
             // Store Byte ('sb') Instruction
-            RvInstr32StoreFunct3::Sb => self.bus.write(RvSize::Byte, addr, val),
+            RvInstr32StoreFunct3::Sb => self.write_bus(RvSize::Byte, addr, val),
 
             // Store Half Word ('sh') Instruction
-            RvInstr32StoreFunct3::Sh => self.bus.write(RvSize::HalfWord, addr, val),
+            RvInstr32StoreFunct3::Sh => self.write_bus(RvSize::HalfWord, addr, val),
 
             // Store Word ('sw') Instruction
-            RvInstr32StoreFunct3::Sw => self.bus.write(RvSize::Word, addr, val),
+            RvInstr32StoreFunct3::Sw => self.write_bus(RvSize::Word, addr, val),
 
             // Illegal Instruction
             _ => Err(RvException::illegal_instr(instr.0)),
