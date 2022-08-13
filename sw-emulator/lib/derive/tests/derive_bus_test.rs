@@ -1,6 +1,9 @@
 use std::fmt::Write;
 
-use caliptra_emu_bus::{testing::Log, Bus, BusError, Ram};
+use caliptra_emu_bus::{
+    testing::{FakeBus, Log},
+    Bus, BusError, Ram,
+};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
 
@@ -17,6 +20,7 @@ impl From<MyCustomField> for RvData {
 }
 
 #[derive(Bus)]
+#[poll_fn(poll)]
 struct MyBus {
     pub log: Log,
 
@@ -46,6 +50,9 @@ struct MyBus {
 
     #[peripheral(offset = 0xbb42_0000, mask = 0x0000_ffff)]
     pub spi0: Ram,
+
+    #[peripheral(offset = 0xaa05_0000, mask = 0x0000_ffff)]
+    pub fake: FakeBus,
 
     #[register(offset = 0xcafe_f0d0)]
     pub reg_u32: u32,
@@ -91,6 +98,9 @@ impl MyBus {
         write!(self.log.w(), "reg_action2 write {size:?} 0x{:08x}; ", val.0).unwrap();
         Ok(())
     }
+    fn poll(&self) {
+        write!(self.log.w(), "poll; ").unwrap();
+    }
 }
 
 #[test]
@@ -105,6 +115,7 @@ fn test_read_dispatch() {
         i2c1: Ram::new(vec![0u8; 128]),
         i2c2: Ram::new(vec![0u8; 128]),
         spi0: Ram::new(vec![0u8; 65536]),
+        fake: FakeBus::new(),
 
         reg_u32: 0xd149_b444,
         reg_u16: 0x695c,
@@ -206,6 +217,7 @@ fn test_write_dispatch() {
         i2c1: Ram::new(vec![0u8; 128]),
         i2c2: Ram::new(vec![0u8; 128]),
         spi0: Ram::new(vec![0u8; 65536]),
+        fake: FakeBus::new(),
 
         reg_u32: 0,
         reg_u16: 0,
@@ -300,4 +312,34 @@ fn test_write_dispatch() {
 
     bus.write(RvSize::Word, 0xcafe_f0e8, 0xb01d_face).unwrap();
     assert_eq!(bus.log.take(), "reg_action2 write Word 0xb01dface; ");
+}
+
+#[test]
+fn test_poll() {
+    let mut bus = MyBus {
+        rom: Ram::new(vec![0u8; 65536]),
+        sram: Ram::new(vec![0u8; 65536]),
+        dram: Ram::new(vec![0u8; 65536]),
+        uart0: Ram::new(vec![0u8; 128]),
+        uart1: Ram::new(vec![0u8; 128]),
+        i2c0: Ram::new(vec![0u8; 128]),
+        i2c1: Ram::new(vec![0u8; 128]),
+        i2c2: Ram::new(vec![0u8; 128]),
+        spi0: Ram::new(vec![0u8; 65536]),
+        fake: FakeBus::new(),
+
+        reg_u32: 0,
+        reg_u16: 0,
+        reg_u8: 0,
+
+        reg_action0: 0,
+        reg_action1: 0,
+
+        _fieldless_regs: (),
+
+        log: Log::new(),
+    };
+    Bus::poll(&mut bus);
+    assert_eq!(bus.log.take(), "poll; ");
+    assert_eq!(bus.fake.log.take(), "poll()\n")
 }

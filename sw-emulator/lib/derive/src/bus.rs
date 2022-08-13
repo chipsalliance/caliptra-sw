@@ -22,19 +22,20 @@ use proc_macro2::{Delimiter, Group, Ident, Span, TokenStream, TokenTree};
 use crate::util::literal::{self, hex_literal_u32};
 use crate::util::sort::sorted_by_key;
 use crate::util::token_iter::{
-    expect_ident, skip_to_field_with_attributes, skip_to_group, skip_to_struct, Attribute,
+    expect_ident, skip_to_field_with_attributes, skip_to_group, skip_to_struct_with_attributes,
+    Attribute,
 };
 
 pub fn derive_bus(input: TokenStream) -> TokenStream {
     let mut iter = input.into_iter();
-    skip_to_struct(&mut iter);
+    let struct_attrs = skip_to_struct_with_attributes(&mut iter);
+    let poll_fn = get_poll_fn(&struct_attrs);
     let struct_name = expect_ident(&mut iter);
     let struct_fields = skip_to_group(&mut iter, Delimiter::Brace);
     let peripheral_fields = parse_peripheral_fields(struct_fields.stream());
     let register_fields = parse_register_fields(struct_fields.stream());
 
     let mask_matches = build_match_tree_from_fields(&peripheral_fields);
-    drop(peripheral_fields);
 
     let mut result = TokenStream::new();
     result.extend(TokenStream::from_str("impl caliptra_emu_bus::Bus for").unwrap());
@@ -75,10 +76,41 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
         );
         impl_body.extend([TokenTree::from(Group::new(Delimiter::Brace, fn_body))]);
     }
+    {
+        impl_body.extend(TokenStream::from_str("fn poll(&mut self)").unwrap());
+        let mut fn_body = TokenStream::new();
+        for field in peripheral_fields.iter() {
+            fn_body.extend(TokenStream::from_str("self."));
+            fn_body.extend([TokenTree::from(Ident::new(&field.name, Span::call_site()))]);
+            fn_body.extend(TokenStream::from_str(".poll();"));
+        }
+        if let Some(poll_fn) = poll_fn {
+            fn_body.extend(TokenStream::from_str("Self::"));
+            fn_body.extend([TokenTree::from(Ident::new(&poll_fn, Span::call_site()))]);
+            fn_body.extend(TokenStream::from_str("(self);"));
+        }
+        impl_body.extend([TokenTree::from(Group::new(Delimiter::Brace, fn_body))]);
+    }
 
     result.extend([TokenTree::from(Group::new(Delimiter::Brace, impl_body))]);
 
     result
+}
+
+fn get_poll_fn(struct_attrs: &[Group]) -> Option<String> {
+    for attr in struct_attrs {
+        let mut iter = attr.stream().into_iter();
+        if let Some(TokenTree::Ident(ident)) = iter.next() {
+            if ident.to_string() == "poll_fn" {
+                if let Some(TokenTree::Group(group)) = iter.next() {
+                    if let Some(TokenTree::Ident(ident)) = group.stream().into_iter().next() {
+                        return Some(ident.to_string());
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -505,6 +537,7 @@ mod tests {
     fn test_derive_bus() {
         let tokens = derive_bus(
             TokenStream::from_str(r#"
+            #[poll_fn(bus_poll)]
             struct MyBus {
                 #[peripheral(offset = 0x0000_0000, mask = 0x0fff_ffff)]
                 pub rom: Rom,
@@ -626,6 +659,43 @@ mod tests {
                         }
                         Err(caliptra_emu_bus::BusError::StoreAccessFault)
                     }
+                    fn poll(&mut self) {
+                        self.rom.poll();
+                        self.sram.poll();
+                        self.dram.poll();
+                        self.uart0.poll();
+                        self.uart1.poll();
+                        self.i2c0.poll();
+                        self.i2c1.poll();
+                        self.i2c2.poll();
+                        self.spi0.poll();
+                        Self::bus_poll(self);
+                    }
                 }"#).unwrap().to_string());
+    }
+
+    #[test]
+    fn test_derive_empty_bus() {
+        let tokens = derive_bus(
+            TokenStream::from_str(
+                r#"
+            pub struct MyBus {}"#,
+            )
+            .unwrap(),
+        );
+
+        assert_eq!(tokens.to_string(),
+            TokenStream::from_str(r#"
+                impl caliptra_emu_bus::Bus for MyBus {
+                    fn read(&self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
+                        Err(caliptra_emu_bus::BusError::LoadAccessFault)
+                    }
+                    fn write(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr, val: caliptra_emu_types::RvData) -> Result<(), caliptra_emu_bus::BusError> {
+                        Err(caliptra_emu_bus::BusError::StoreAccessFault)
+                    }
+                    fn poll(&mut self) {
+                    }
+                }
+                "#).unwrap().to_string());
     }
 }

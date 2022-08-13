@@ -114,17 +114,29 @@ pub fn expect_group(iter: &mut impl Iterator<Item = TokenTree>, delimiter: Delim
     )
 }
 
-pub fn skip_to_struct(iter: &mut impl Iterator<Item = TokenTree>) {
+pub fn skip_to_struct_with_attributes(iter: &mut impl Iterator<Item = TokenTree>) -> Vec<Group> {
+    let mut prev_token_was_hash = false;
+    let mut attributes = Vec::new();
     loop {
         match iter.next() {
             Some(TokenTree::Ident(ident)) => {
                 if ident.to_string() == "struct" {
-                    return;
+                    return attributes;
                 }
+            }
+            Some(TokenTree::Punct(punct)) if punct.as_char() == '#' => {
+                prev_token_was_hash = true;
+                continue;
+            }
+            Some(TokenTree::Group(group))
+                if group.delimiter() == Delimiter::Bracket && prev_token_was_hash =>
+            {
+                attributes.push(group);
             }
             None => panic!("Unexpected end of tokens while searching for struct"),
             _ => {}
         };
+        prev_token_was_hash = false;
     }
 }
 
@@ -309,15 +321,31 @@ mod tests {
     #[test]
     fn test_skip_to_struct() {
         let iter = &mut tokens("struct { foo: u32 }");
-        skip_to_struct(iter);
+        let attrs = skip_to_struct_with_attributes(iter);
+        assert!(attrs.is_empty());
         assert_eq!("{ foo : u32 }", iter.next().unwrap().to_string());
 
         let iter = &mut tokens("pub struct { foo: u32 }");
-        skip_to_struct(iter);
+        let attrs = skip_to_struct_with_attributes(iter);
+        assert!(attrs.is_empty());
         assert_eq!("{ foo : u32 }", iter.next().unwrap().to_string());
 
         let iter = &mut tokens("pub(crate) struct { foo: u32 }");
-        skip_to_struct(iter);
+        let attrs = skip_to_struct_with_attributes(iter);
+        assert!(attrs.is_empty());
+        assert_eq!("{ foo : u32 }", iter.next().unwrap().to_string());
+
+        let iter = &mut tokens("#[foobar] pub(crate) struct { foo: u32 }");
+        let attrs = skip_to_struct_with_attributes(iter);
+        assert_eq!(attrs.len(), 1);
+        assert_eq!("[foobar]", attrs[0].to_string());
+        assert_eq!("{ foo : u32 }", iter.next().unwrap().to_string());
+
+        let iter = &mut tokens("#[foo(fn = blah)] #[bar] struct { foo: u32 }");
+        let attrs = skip_to_struct_with_attributes(iter);
+        assert_eq!(attrs.len(), 2);
+        assert_eq!("[foo (fn = blah)]", attrs[0].to_string());
+        assert_eq!("[bar]", attrs[1].to_string());
         assert_eq!("{ foo : u32 }", iter.next().unwrap().to_string());
     }
 

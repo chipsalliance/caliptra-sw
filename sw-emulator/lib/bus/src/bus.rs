@@ -56,4 +56,11 @@ pub trait Bus {
     ///
     /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
     fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError>;
+
+    /// This method is used to notify peripherals of the passage of time. The
+    /// owner of this bus MAY call this function periodically, or in response to
+    /// a previously scheduled timer event.
+    fn poll(&mut self) {
+        // By default, do nothing
+    }
 }

@@ -54,6 +54,10 @@ impl Bus for FakeBus {
         writeln!(self.log.w(), "write(RvSize::{size:?}, {addr:#x}, {val:#x})").unwrap();
         self.write_result
     }
+
+    fn poll(&mut self) {
+        writeln!(self.log.w(), "poll()").unwrap();
+    }
 }
 
 #[cfg(test)]

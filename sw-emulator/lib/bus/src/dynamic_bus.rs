@@ -89,12 +89,17 @@ impl Bus for DynamicBus {
             None => Err(BusError::StoreAccessFault),
         }
     }
+    fn poll(&mut self) {
+        for dev in self.devs.iter_mut() {
+            dev.bus.poll();
+        }
+    }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{BusError, Ram, Rom};
+    use crate::{testing::FakeBus, BusError, Ram, Rom};
     use caliptra_emu_types::RvSize;
 
     #[test]
@@ -123,6 +128,28 @@ mod test {
             bus.write(RvSize::Byte, 3, 0).err(),
             Some(BusError::StoreAccessFault),
         );
+    }
+
+    #[test]
+    fn test_dynamic_bus_poll() {
+        let mut dynamic_bus = DynamicBus::new();
+        let fake_bus0 = Box::new(FakeBus::new());
+        let log0 = fake_bus0.log.clone();
+        dynamic_bus
+            .attach_dev("fake_bus0", 0..=0xffff, fake_bus0)
+            .unwrap();
+
+        let fake_bus1 = Box::new(FakeBus::new());
+        let log1 = fake_bus1.log.clone();
+        dynamic_bus
+            .attach_dev("fake_bus1", 0x1_0000..=0x1_ffff, fake_bus1)
+            .unwrap();
+
+        assert_eq!("", log0.take());
+        assert_eq!("", log1.take());
+        dynamic_bus.poll();
+        assert_eq!("poll()\n", log0.take());
+        assert_eq!("poll()\n", log1.take());
     }
 
     fn is_sorted<T>(slice: &[T]) -> bool
