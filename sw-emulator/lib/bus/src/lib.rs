@@ -17,6 +17,7 @@ mod mem;
 mod ram;
 mod register;
 mod rom;
+pub mod testing;
 
 pub use crate::bus::{Bus, BusError};
 pub use crate::dynamic_bus::DynamicBus;
