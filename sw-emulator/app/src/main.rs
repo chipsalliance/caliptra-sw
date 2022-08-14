@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use caliptra_emu_bus::Clock;
 use caliptra_emu_cpu::{Cpu, StepAction};
 use caliptra_emu_periph::CaliptraRootBus;
 use clap::{arg, value_parser};
@@ -50,8 +51,8 @@ fn main() -> io::Result<()> {
         );
         exit(-1);
     }
-
-    let mut cpu = Cpu::new(CaliptraRootBus::new(buffer));
+    let clock = Clock::new();
+    let mut cpu = Cpu::new(CaliptraRootBus::new(buffer), clock);
 
     loop {
         match cpu.step(None) {

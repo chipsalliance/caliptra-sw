@@ -15,7 +15,7 @@ Abstract:
 use crate::csr_file::{Csr, CsrFile};
 use crate::types::{RvInstr, RvMStatus};
 use crate::xreg_file::{XReg, XRegFile};
-use caliptra_emu_bus::{Bus, BusError};
+use caliptra_emu_bus::{Bus, BusError, Clock};
 use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
 
 pub type InstrTracer = fn(pc: u32, instr: RvInstr);
@@ -36,6 +36,8 @@ pub struct Cpu<TBus: Bus> {
 
     // The bus the CPU uses to talk to memory and peripherals.
     pub bus: TBus,
+
+    pub clock: Clock,
 }
 
 /// Cpu instruction step action
@@ -53,13 +55,14 @@ impl<TBus: Bus> Cpu<TBus> {
     const PC_RESET_VAL: RvData = 0;
 
     /// Create a new RISCV CPU
-    pub fn new(bus: TBus) -> Self {
+    pub fn new(bus: TBus, clock: Clock) -> Self {
         Self {
             xregs: XRegFile::new(),
             csrs: CsrFile::new(),
             pc: Self::PC_RESET_VAL,
             next_pc: Self::PC_RESET_VAL,
             bus,
+            clock,
         }
     }
 
@@ -239,6 +242,7 @@ impl<TBus: Bus> Cpu<TBus> {
     ///
     /// * `RvException` - Exception
     pub fn step(&mut self, instr_tracer: Option<InstrTracer>) -> StepAction {
+        self.clock.increment_and_poll(1, &mut self.bus);
         match self.exec_instr(instr_tracer) {
             Ok(_) => StepAction::Continue,
             Err(exception) => self.handle_exception(exception),
@@ -299,27 +303,66 @@ impl<TBus: Bus> Cpu<TBus> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use caliptra_emu_bus::DynamicBus;
+    use caliptra_emu_bus::{testing::FakeBus, DynamicBus, Rom, Timer};
 
     #[test]
     fn test_new() {
-        let cpu = Cpu::new(DynamicBus::new());
+        let cpu = Cpu::new(DynamicBus::new(), Clock::new());
         assert_eq!(cpu.read_pc(), 0);
     }
 
     #[test]
     fn test_pc() {
-        let mut cpu = Cpu::new(DynamicBus::new());
+        let mut cpu = Cpu::new(DynamicBus::new(), Clock::new());
         cpu.write_pc(0xFF);
         assert_eq!(cpu.read_pc(), 0xFF);
     }
 
     #[test]
     fn test_xreg() {
-        let mut cpu = Cpu::new(DynamicBus::new());
+        let mut cpu = Cpu::new(DynamicBus::new(), Clock::new());
         for reg in 1..32u32 {
             assert_eq!(cpu.write_xreg(reg.into(), 0xFF).ok(), Some(()));
             assert_eq!(cpu.read_xreg(reg.into()).ok(), Some(0xFF));
         }
+    }
+
+    #[test]
+    fn test_bus_poll() {
+        const RV32_NO_OP: u32 = 0x00000013;
+
+        let clock = Clock::new();
+        let timer = Timer::new(&clock);
+        let mut bus = DynamicBus::new();
+
+        let rom = Rom::new(
+            std::iter::repeat(RV32_NO_OP)
+                .take(256)
+                .map(u32::to_le_bytes)
+                .flatten()
+                .collect(),
+        );
+        bus.attach_dev("ROM", 0..=0x3ff, Box::new(rom)).unwrap();
+
+        let fake_bus = FakeBus::new();
+        let fake_bus_log = fake_bus.log.clone();
+        bus.attach_dev("FAKE", 0x2000..=0x3000, Box::new(fake_bus))
+            .unwrap();
+
+        let mut action0 = Some(timer.schedule_poll_in(31));
+
+        let mut cpu = Cpu::new(bus, clock);
+        for i in 0..30 {
+            assert_eq!(cpu.clock.now(), i);
+            assert_eq!(cpu.step(None), StepAction::Continue);
+        }
+        assert_eq!(fake_bus_log.take(), "");
+        assert!(!timer.fired(&mut action0));
+
+        assert_eq!(cpu.step(None), StepAction::Continue);
+        assert_eq!(fake_bus_log.take(), "poll()\n");
+        assert!(timer.fired(&mut action0));
+
+        assert_eq!(cpu.read_pc(), 31 * 4);
     }
 }

@@ -466,12 +466,12 @@ mod test {
             $data_addr:expr => $data:expr
         ) => {{
             use crate::cpu::Cpu;
-            use caliptra_emu_bus::{DynamicBus, Ram, Rom};
+            use caliptra_emu_bus::{Clock, DynamicBus, Ram, Rom};
 
             let text_range = $text_addr..=u32::try_from($text_addr + $text.len() - 1).unwrap();
             let data_range = $data_addr..=u32::try_from($data_addr + $data.len() - 1).unwrap();
 
-            let mut cpu = Cpu::new(DynamicBus::new());
+            let mut cpu = Cpu::new(DynamicBus::new(), Clock::new());
             let rom = Rom::new($text.clone());
             cpu.bus
                 .attach_dev("ROM", text_range, Box::new(rom))
