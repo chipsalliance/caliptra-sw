@@ -15,10 +15,14 @@ use std::{
     cell::{Ref, RefCell},
     fmt::Write,
     ops::Deref,
+    rc::Rc,
 };
 
 /// A type for logging actions without needing &mut self. Useful for logging
 /// actions that occur in "fake" Bus trait implementations in unit tests.
+///
+/// When `Log` is cloned, the clones all share the same underlying buffer. This
+/// allows tests to introspect logs that are not accessible directly.
 ///
 /// * Example
 ///
@@ -33,14 +37,15 @@ use std::{
 /// assert_eq!("Line 1\nLine 2\n", log.take());
 /// assert_eq!("", log.take());
 /// ```
+#[derive(Clone)]
 pub struct Log {
-    log: RefCell<String>,
+    log: Rc<RefCell<String>>,
 }
 impl Log {
     /// Construct an empty `Log`.
     pub fn new() -> Self {
         Self {
-            log: RefCell::new(String::new()),
+            log: Rc::new(RefCell::new(String::new())),
         }
     }
 
@@ -89,6 +94,16 @@ mod tests {
         let log = Log::new();
         writeln!(log.w(), "Line 1").unwrap();
         writeln!(log.w(), "Line 2").unwrap();
+        assert_eq!("Line 1\nLine 2\n", &*log.as_str());
+        assert_eq!("Line 1\nLine 2\n", log.take());
+        assert_eq!("", log.take());
+    }
+
+    #[test]
+    fn test_clone() {
+        let log = Log::new();
+        writeln!(log.clone().w(), "Line 1").unwrap();
+        writeln!(log.clone().w(), "Line 2").unwrap();
         assert_eq!("Line 1\nLine 2\n", &*log.as_str());
         assert_eq!("Line 1\nLine 2\n", log.take());
         assert_eq!("", log.take());
