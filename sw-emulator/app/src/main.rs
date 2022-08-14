@@ -52,7 +52,7 @@ fn main() -> io::Result<()> {
         exit(-1);
     }
     let clock = Clock::new();
-    let mut cpu = Cpu::new(CaliptraRootBus::new(buffer), clock);
+    let mut cpu = Cpu::new(CaliptraRootBus::new(&clock, buffer), clock);
 
     loop {
         match cpu.step(None) {

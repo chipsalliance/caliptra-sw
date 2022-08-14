@@ -14,7 +14,7 @@ Abstract:
 
 use crate::Uart;
 use crate::{EmuCtrl, HmacSha384};
-use caliptra_emu_bus::{Ram, Rom};
+use caliptra_emu_bus::{Clock, Ram, Rom};
 use caliptra_emu_derive::Bus;
 
 #[derive(Bus)]
@@ -43,10 +43,10 @@ impl CaliptraRootBus {
     pub const ICCM_SIZE: usize = 128 * 1024;
     pub const DCCM_SIZE: usize = 128 * 1024;
 
-    pub fn new(rom: Vec<u8>) -> Self {
+    pub fn new(clock: &Clock, rom: Vec<u8>) -> Self {
         Self {
             rom: Rom::new(rom),
-            hmac: HmacSha384::new(),
+            hmac: HmacSha384::new(clock),
             iccm: Ram::new(vec![0; Self::ICCM_SIZE]),
             dccm: Ram::new(vec![0; Self::DCCM_SIZE]),
             uart: Uart::new(),

@@ -13,7 +13,8 @@ Abstract:
 --*/
 
 use caliptra_emu_bus::{
-    BusError, ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister, WriteOnlyMemory,
+    BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister, Timer,
+    TimerAction, WriteOnlyMemory,
 };
 use caliptra_emu_crypto::{Hmac512, Hmac512Mode};
 use caliptra_emu_derive::Bus;
@@ -46,8 +47,15 @@ const HMAC_BLOCK_SIZE: usize = 128;
 /// HMAC Tag Size
 const HMAC_TAG_SIZE: usize = 48;
 
+/// The number of CPU clock cycles it takes to perform initialization action.
+const INIT_TICKS: u64 = 1000;
+
+/// The number of CPU clock cycles it takes to perform the hash update action.
+const UPDATE_TICKS: u64 = 1000;
+
 /// HMAC-SHA-384 Peripheral
 #[derive(Bus)]
+#[poll_fn(poll)]
 pub struct HmacSha384 {
     /// Name 0 register
     #[register(offset = 0x0000_0000)]
@@ -87,6 +95,10 @@ pub struct HmacSha384 {
 
     /// HMAC engine
     hmac: Hmac512<HMAC_KEY_SIZE>,
+
+    timer: Timer,
+
+    op_complete_action: Option<TimerAction>,
 }
 
 impl HmacSha384 {
@@ -103,7 +115,7 @@ impl HmacSha384 {
     const VERSION1_VAL: RvData = 0x00000000;
 
     /// Create a new instance of HMAC-SHA-384 Engine
-    pub fn new() -> Self {
+    pub fn new(clock: &Clock) -> Self {
         Self {
             hmac: Hmac512::<HMAC_KEY_SIZE>::new(Hmac512Mode::Sha384),
             name0: ReadOnlyRegister::new(Self::NAME0_VAL),
@@ -115,6 +127,8 @@ impl HmacSha384 {
             key: WriteOnlyMemory::new(),
             block: ReadWriteMemory::new(),
             tag: ReadOnlyMemory::new(),
+            timer: Timer::new(clock),
+            op_complete_action: None,
         }
     }
 
@@ -141,8 +155,22 @@ impl HmacSha384 {
             // Initialize the HMAC engine with key and initial data block
             self.hmac.init(&self.key.data(), &self.block.data());
 
-            // TODO: defer next two statements, once deferred processing engine is implemented
+            // Schedule a future call to poll() complete the operation.
+            self.op_complete_action = Some(self.timer.schedule_poll_in(INIT_TICKS));
+        } else if self.control.reg.is_set(Control::NEXT) {
+            // Update a HMAC engine with a new block
+            self.hmac.update(&self.block.data());
 
+            // Schedule a future call to poll() complete the operation.
+            self.op_complete_action = Some(self.timer.schedule_poll_in(UPDATE_TICKS));
+        }
+
+        Ok(())
+    }
+
+    /// Called by Bus::poll() to indicate that time has passed
+    fn poll(&mut self) {
+        if self.timer.fired(&mut self.op_complete_action) {
             // Retrieve the tag
             self.hmac.tag(self.tag.data_mut());
 
@@ -150,22 +178,7 @@ impl HmacSha384 {
             self.status
                 .reg
                 .modify(Status::READY::SET + Status::VALID::SET);
-        } else if self.control.reg.is_set(Control::NEXT) {
-            // Update a HMAC engine with a new block
-            self.hmac.update(&self.block.data());
-
-            // TODO: defer next two statements, once deferred processing engine is implemented
-
-            // Retrieve the current tag
-            self.hmac.tag(self.tag.data_mut());
-
-            // Update Ready and Valid status bits
-            self.status
-                .reg
-                .modify(Status::READY::SET + Status::VALID::SET);
         }
-
-        Ok(())
     }
 }
 
@@ -188,7 +201,7 @@ mod tests {
 
     #[test]
     fn test_name() {
-        let hmac = HmacSha384::new();
+        let hmac = HmacSha384::new(&Clock::new());
 
         let name0 = hmac.read(RvSize::Word, OFFSET_NAME0).unwrap();
         let name0 = String::from_utf8_lossy(&name0.to_le_bytes()).to_string();
@@ -201,7 +214,7 @@ mod tests {
 
     #[test]
     fn test_version() {
-        let hmac = HmacSha384::new();
+        let hmac = HmacSha384::new(&Clock::new());
 
         let version0 = hmac.read(RvSize::Word, OFFSET_VERSION0).unwrap();
         let version0 = String::from_utf8_lossy(&version0.to_le_bytes()).to_string();
@@ -214,19 +227,19 @@ mod tests {
 
     #[test]
     fn test_control() {
-        let hmac = HmacSha384::new();
+        let hmac = HmacSha384::new(&Clock::new());
         assert_eq!(hmac.read(RvSize::Word, OFFSET_CONTROL).unwrap(), 0);
     }
 
     #[test]
     fn test_status() {
-        let hmac = HmacSha384::new();
+        let hmac = HmacSha384::new(&Clock::new());
         assert_eq!(hmac.read(RvSize::Word, OFFSET_STATUS).unwrap(), 1);
     }
 
     #[test]
     fn test_key() {
-        let mut hmac = HmacSha384::new();
+        let mut hmac = HmacSha384::new(&Clock::new());
         for addr in (OFFSET_KEY..(OFFSET_KEY + HMAC_KEY_SIZE as u32)).step_by(4) {
             assert_eq!(hmac.write(RvSize::Word, addr, 0xFF).ok(), Some(()));
             assert_eq!(
@@ -238,7 +251,7 @@ mod tests {
 
     #[test]
     fn test_block() {
-        let mut hmac = HmacSha384::new();
+        let mut hmac = HmacSha384::new(&Clock::new());
         for addr in (OFFSET_BLOCK..(OFFSET_BLOCK + HMAC_BLOCK_SIZE as u32)).step_by(4) {
             assert_eq!(hmac.write(RvSize::Word, addr, u32::MAX).ok(), Some(()));
             assert_eq!(hmac.read(RvSize::Word, addr).ok(), Some(u32::MAX));
@@ -247,7 +260,7 @@ mod tests {
 
     #[test]
     fn test_tag() {
-        let mut hmac = HmacSha384::new();
+        let mut hmac = HmacSha384::new(&Clock::new());
         for addr in (OFFSET_TAG..(OFFSET_TAG + HMAC_TAG_SIZE as u32)).step_by(4) {
             assert_eq!(hmac.read(RvSize::Word, addr).ok(), Some(0));
             assert_eq!(
@@ -274,7 +287,8 @@ mod tests {
         let len = len * 8;
         block[HMAC_BLOCK_SIZE - 16..].copy_from_slice(&len.to_be_bytes());
 
-        let mut hmac = HmacSha384::new();
+        let clock = Clock::new();
+        let mut hmac = HmacSha384::new(&clock);
 
         for i in (0..key.len()).step_by(4) {
             assert_eq!(
@@ -309,6 +323,7 @@ mod tests {
             if status.is_set(Status::VALID) && status.is_set(Status::READY) {
                 break;
             }
+            clock.increment_and_poll(1, &mut hmac);
         }
 
         assert_eq!(hmac.tag.data(), result);
