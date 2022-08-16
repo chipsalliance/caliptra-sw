@@ -11,6 +11,5 @@ proc-macro = true
 [dependencies]
 caliptra-emu-bus = { path = "../bus"}
 caliptra-emu-types = { path = "../types"}
-
-[dev-dependencies]
+quote = "1.0"
 proc-macro2 = "1.0.43"

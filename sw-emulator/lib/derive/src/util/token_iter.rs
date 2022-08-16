@@ -13,9 +13,6 @@ Abstract:
 --*/
 use std::{collections::HashMap, fmt::Display};
 
-#[cfg(not(test))]
-use proc_macro::{Delimiter, Group, Ident, Literal, Spacing, TokenTree};
-#[cfg(test)]
 use proc_macro2::{Delimiter, Group, Ident, Literal, Spacing, TokenTree};
 
 pub struct Attribute {

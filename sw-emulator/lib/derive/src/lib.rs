@@ -14,12 +14,9 @@ Abstract:
 mod bus;
 mod util;
 
-#[cfg(not(test))]
 use proc_macro::TokenStream;
-#[cfg(test)]
-use proc_macro2::TokenStream;
 
 #[proc_macro_derive(Bus, attributes(peripheral, poll_fn, register))]
 pub fn derive_bus(input: TokenStream) -> TokenStream {
-    crate::bus::derive_bus(input)
+    crate::bus::derive_bus(input.into()).into()
 }

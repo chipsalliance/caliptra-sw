@@ -13,9 +13,6 @@ Abstract:
 --*/
 use std::str::FromStr;
 
-#[cfg(not(test))]
-use proc_macro::{Literal, TokenTree};
-#[cfg(test)]
 use proc_macro2::{Literal, TokenTree};
 
 use crate::util::token_iter::DisplayToken;

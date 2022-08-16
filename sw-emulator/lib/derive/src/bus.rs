@@ -12,12 +12,11 @@ Abstract:
     fields of a struct.
 
 --*/
-use std::{collections::HashMap, str::FromStr};
+use std::collections::HashMap;
 
-#[cfg(not(test))]
-use proc_macro::{Delimiter, Group, Ident, Span, TokenStream, TokenTree};
-#[cfg(test)]
 use proc_macro2::{Delimiter, Group, Ident, Span, TokenStream, TokenTree};
+
+use quote::quote;
 
 use crate::util::literal::{self, hex_literal_u32};
 use crate::util::sort::sorted_by_key;
@@ -37,64 +36,48 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
 
     let mask_matches = build_match_tree_from_fields(&peripheral_fields);
 
-    let mut result = TokenStream::new();
-    result.extend(TokenStream::from_str("impl caliptra_emu_bus::Bus for").unwrap());
-    result.extend([TokenTree::from(struct_name)]);
+    let read_bus_match_tokens = if let Some(mask_matches) = &mask_matches {
+        gen_bus_match_tokens(&mask_matches, AccessType::Read)
+    } else {
+        quote! {}
+    };
+    let write_bus_match_tokens = if let Some(mask_matches) = &mask_matches {
+        gen_bus_match_tokens(&mask_matches, AccessType::Write)
+    } else {
+        quote! {}
+    };
+    let read_reg_match_tokens = gen_register_match_tokens(&register_fields, AccessType::Read);
+    let write_reg_match_tokens = gen_register_match_tokens(&register_fields, AccessType::Write);
+    let self_poll_tokens = if let Some(poll_fn) = &poll_fn {
+        let poll_fn = Ident::new(poll_fn, Span::call_site());
+        quote! { Self::#poll_fn(self); }
+    } else {
+        quote! {}
+    };
 
-    let mut impl_body = TokenStream::new();
-    {
-        impl_body.extend(
-            TokenStream::from_str("fn read(&self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError>").unwrap());
+    let field_idents: Vec<_> = peripheral_fields
+        .iter()
+        .map(|f| Ident::new(&f.name, Span::call_site()))
+        .collect();
 
-        let mut fn_body = TokenStream::new();
-        fn_body.extend(gen_register_match_tokens(
-            &register_fields,
-            AccessType::Read,
-        ));
-        if let Some(mask_matches) = &mask_matches {
-            fn_body.extend(gen_bus_match_tokens(mask_matches, AccessType::Read));
+    quote! {
+        impl caliptra_emu_bus::Bus for #struct_name {
+            fn read(&self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
+                #read_reg_match_tokens
+                #read_bus_match_tokens
+                Err(caliptra_emu_bus::BusError::LoadAccessFault)
+            }
+            fn write(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr, val: caliptra_emu_types::RvData) -> Result<(), caliptra_emu_bus::BusError> {
+                #write_reg_match_tokens
+                #write_bus_match_tokens
+                Err(caliptra_emu_bus::BusError::StoreAccessFault)
+            }
+            fn poll(&mut self) {
+                #(self.#field_idents.poll();)*
+                #self_poll_tokens
+            }
         }
-        fn_body.extend(
-            TokenStream::from_str("Err(caliptra_emu_bus::BusError::LoadAccessFault)").unwrap(),
-        );
-        impl_body.extend([TokenTree::from(Group::new(Delimiter::Brace, fn_body))]);
     }
-    {
-        impl_body.extend(
-            TokenStream::from_str("fn write(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr, val: caliptra_emu_types::RvData) -> Result<(), caliptra_emu_bus::BusError>").unwrap());
-
-        let mut fn_body = TokenStream::new();
-        fn_body.extend(gen_register_match_tokens(
-            &register_fields,
-            AccessType::Write,
-        ));
-        if let Some(mask_matches) = &mask_matches {
-            fn_body.extend(gen_bus_match_tokens(mask_matches, AccessType::Write));
-        }
-        fn_body.extend(
-            TokenStream::from_str("Err(caliptra_emu_bus::BusError::StoreAccessFault)").unwrap(),
-        );
-        impl_body.extend([TokenTree::from(Group::new(Delimiter::Brace, fn_body))]);
-    }
-    {
-        impl_body.extend(TokenStream::from_str("fn poll(&mut self)").unwrap());
-        let mut fn_body = TokenStream::new();
-        for field in peripheral_fields.iter() {
-            fn_body.extend(TokenStream::from_str("self."));
-            fn_body.extend([TokenTree::from(Ident::new(&field.name, Span::call_site()))]);
-            fn_body.extend(TokenStream::from_str(".poll();"));
-        }
-        if let Some(poll_fn) = poll_fn {
-            fn_body.extend(TokenStream::from_str("Self::"));
-            fn_body.extend([TokenTree::from(Ident::new(&poll_fn, Span::call_site()))]);
-            fn_body.extend(TokenStream::from_str("(self);"));
-        }
-        impl_body.extend([TokenTree::from(Group::new(Delimiter::Brace, fn_body))]);
-    }
-
-    result.extend([TokenTree::from(Group::new(Delimiter::Brace, impl_body))]);
-
-    result
 }
 
 fn get_poll_fn(struct_attrs: &[Group]) -> Option<String> {
@@ -287,132 +270,89 @@ fn lsbs_contiguous(mask: u32) -> bool {
 /// influences whether the generated code calls [`Bus::read()`] or [`Bus::write()`] on
 /// the matching peripheral field.
 fn gen_bus_match_tokens(mask_matches: &MaskMatchBlock, access_type: AccessType) -> TokenStream {
-    let mut result = TokenStream::new();
-    result.extend(TokenStream::from_str("match addr & ").unwrap());
-    result.extend([hex_literal_u32(mask_matches.mask)]);
-    let mut match_body = TokenStream::new();
-    for m in mask_matches.match_arms.iter() {
-        match_body.extend([hex_literal_u32(m.offset)]);
-        match_body.extend(TokenStream::from_str(" => "));
-        match m.body {
-            MatchBody::Field(ref field_name) => {
-                match_body.extend(TokenStream::from_str("return caliptra_emu_bus::Bus::").unwrap());
-                match access_type {
-                    AccessType::Read => match_body.extend(TokenStream::from_str("read").unwrap()),
-                    AccessType::Write => match_body.extend(TokenStream::from_str("write").unwrap()),
+    let match_mask = hex_literal_u32(mask_matches.mask);
+    let addr_mask = hex_literal_u32(!mask_matches.mask);
+    let match_arms = mask_matches.match_arms.iter().map(|m| {
+        let offset = hex_literal_u32(m.offset);
+        match (&m.body, access_type) {
+            (MatchBody::Field(field_name), AccessType::Read) => {
+                let field_name = Ident::new(field_name, Span::call_site());
+                quote! {
+                    #offset => return caliptra_emu_bus::Bus::read(&self.#field_name, size, addr & #addr_mask),
                 }
-                let mut params_body = TokenStream::new();
-                match access_type {
-                    AccessType::Read => {
-                        params_body.extend(TokenStream::from_str("&self.").unwrap())
-                    }
-                    AccessType::Write => {
-                        params_body.extend(TokenStream::from_str("&mut self.").unwrap())
-                    }
+            },
+            (MatchBody::Field(field_name), AccessType::Write) => {
+                let field_name = Ident::new(field_name, Span::call_site());
+                quote! {
+                    #offset => return caliptra_emu_bus::Bus::write(&mut self.#field_name, size, addr & #addr_mask, val),
                 }
-                params_body.extend([TokenTree::from(Ident::new(&field_name, Span::call_site()))]);
-                params_body.extend(TokenStream::from_str(", size, addr & ").unwrap());
-                params_body.extend([hex_literal_u32(!mask_matches.mask)]);
-                if access_type == AccessType::Write {
-                    params_body.extend(TokenStream::from_str(", val").unwrap());
+            },
+            (MatchBody::SubMatchBlock(ref sub_mask_matches), _) => {
+                let submatch_tokens = gen_bus_match_tokens(sub_mask_matches, access_type);
+                quote! {
+                    #offset => #submatch_tokens,
                 }
-                match_body.extend([TokenTree::from(Group::new(
-                    Delimiter::Parenthesis,
-                    params_body,
-                ))]);
-            }
-            MatchBody::SubMatchBlock(ref sub_mask_matches) => {
-                match_body.extend(gen_bus_match_tokens(&sub_mask_matches, access_type));
-            }
+            },
         }
-        match_body.extend(TokenStream::from_str(",").unwrap());
+    });
+    quote! {
+        match addr & #match_mask {
+            #(#match_arms)*
+            _ => {}
+        }
     }
-    match_body.extend(TokenStream::from_str("_ => {}").unwrap());
-    result.extend([TokenTree::from(Group::new(Delimiter::Brace, match_body))]);
-    result
 }
 
 fn gen_register_match_tokens(registers: &[RegisterField], access_type: AccessType) -> TokenStream {
-    let mut result = TokenStream::new();
     if registers.is_empty() {
-        return result;
+        return quote! {};
     }
-    result.extend(TokenStream::from_str("match addr").unwrap());
-    let mut match_body = TokenStream::new();
-    for reg in registers {
-        match_body.extend([hex_literal_u32(reg.offset)]);
-        match_body.extend(TokenStream::from_str(" => ").unwrap());
-        if access_type == AccessType::Read {
-            if reg.read_fn.is_some() {
-                match_body.extend(TokenStream::from_str("return std::result::Result::Ok").unwrap());
-                let mut ok_params =
-                    TokenStream::from_str("std::convert::Into::<caliptra_emu_types::RvAddr>::into")
-                        .unwrap();
-                let mut from_params = TokenStream::from_str("self.").unwrap();
-                from_params.extend([TokenTree::from(Ident::new(
-                    &reg.read_fn.as_ref().unwrap(),
-                    Span::call_site(),
-                ))]);
-                from_params.extend(TokenStream::from_str("(size)?"));
-                ok_params.extend([TokenTree::from(Group::new(
-                    Delimiter::Parenthesis,
-                    from_params,
-                ))]);
-                match_body.extend([TokenTree::from(Group::new(
-                    Delimiter::Parenthesis,
-                    ok_params,
-                ))]);
-                match_body.extend(TokenStream::from_str(",").unwrap());
-            } else {
-                match_body.extend(
-                    TokenStream::from_str("return caliptra_emu_bus::Register::read").unwrap(),
-                );
-                let mut read_params = TokenStream::new();
-                read_params.extend(TokenStream::from_str("&self."));
-                read_params.extend([TokenTree::from(Ident::new(
-                    reg.name.as_ref().unwrap(),
-                    Span::call_site(),
-                ))]);
-                read_params.extend(TokenStream::from_str(", size"));
-                match_body.extend([TokenTree::from(Group::new(
-                    Delimiter::Parenthesis,
-                    read_params,
-                ))]);
-                match_body.extend(TokenStream::from_str(","))
+    let match_arms = registers.iter().map(|reg| {
+        let offset = hex_literal_u32(reg.offset);
+        match access_type {
+            AccessType::Read => {
+                if let Some(ref read_fn) = reg.read_fn {
+                    let read_fn = Ident::new(read_fn, Span::call_site());
+                    quote! {
+                        #offset => return std::result::Result::Ok(
+                            std::convert::Into::<caliptra_emu_types::RvAddr>::into(
+                                self.#read_fn(size)?
+                            )
+                        ),
+                    }
+                } else if let Some(ref reg_name) = reg.name {
+                    let reg_name = Ident::new(reg_name, Span::call_site());
+                    quote! {
+                        #offset => return caliptra_emu_bus::Register::read(&self.#reg_name, size),
+                    }
+                } else {
+                    unreachable!();
+                }
+            },
+            AccessType::Write => {
+                if let Some(ref write_fn) = reg.write_fn {
+                    let write_fn = Ident::new(write_fn, Span::call_site());
+                    quote! {
+                        #offset => return self.#write_fn(size, std::convert::From::<caliptra_emu_types::RvAddr>::from(val)),
+                    }
+                } else if let Some(ref reg_name) = reg.name {
+                    let reg_name = Ident::new(reg_name, Span::call_site());
+                    quote! {
+                        #offset => return caliptra_emu_bus::Register::write(&mut self.#reg_name, size, val),
+                    }
+                } else {
+                    unreachable!();
+                }
             }
         }
-        if access_type == AccessType::Write {
-            if reg.write_fn.is_some() {
-                match_body.extend(TokenStream::from_str("return self.").unwrap());
-                match_body.extend([TokenTree::from(Ident::new(
-                    &reg.write_fn.as_ref().unwrap(),
-                    Span::call_site(),
-                ))]);
-                match_body.extend(TokenStream::from_str(
-                    "(size, std::convert::From::<caliptra_emu_types::RvAddr>::from(val)),",
-                ))
-            } else {
-                match_body.extend(
-                    TokenStream::from_str("return caliptra_emu_bus::Register::write").unwrap(),
-                );
-                let mut write_params = TokenStream::new();
-                write_params.extend(TokenStream::from_str("&mut self."));
-                write_params.extend([TokenTree::from(Ident::new(
-                    reg.name.as_ref().unwrap(),
-                    Span::call_site(),
-                ))]);
-                write_params.extend(TokenStream::from_str(", size, val"));
-                match_body.extend([TokenTree::from(Group::new(
-                    Delimiter::Parenthesis,
-                    write_params,
-                ))]);
-                match_body.extend(TokenStream::from_str(","))
-            }
+    });
+
+    quote! {
+        match addr {
+            #(#match_arms)*
+            _ => {}
         }
     }
-    match_body.extend(TokenStream::from_str("_ => {}").unwrap());
-    result.extend([TokenTree::from(Group::new(Delimiter::Brace, match_body))]);
-    result
 }
 
 #[cfg(test)]
@@ -434,22 +374,16 @@ mod tests {
 
     #[test]
     fn test_parse_peripheral_fields() {
-        let tokens = parse_peripheral_fields(
-            TokenStream::from_str(
-                r#"
-                ignore_me: u32,
+        let tokens = parse_peripheral_fields(quote! {
+            ignore_me: u32,
 
-                #[peripheral(offset = 0x3000_0000, mask = 0x0fff_ffff)]
-                #[ignore_me(foo = bar)]
-                ram: Ram,
+            #[peripheral(offset = 0x3000_0000, mask = 0x0fff_ffff)]
+            #[ignore_me(foo = bar)]
+            ram: Ram,
 
-                #[peripheral(offset = 0x6000_0000, mask = 0x0fff_ffff)]
-                pub uart: Uart,
-
-        "#,
-            )
-            .unwrap(),
-        );
+            #[peripheral(offset = 0x6000_0000, mask = 0x0fff_ffff)]
+            pub uart: Uart,
+        });
         assert_eq!(
             tokens,
             vec![
@@ -470,17 +404,12 @@ mod tests {
     #[test]
     #[should_panic(expected = "More than one #[peripheral] attribute attached to field")]
     fn test_parse_peripheral_fields_duplicate() {
-        parse_peripheral_fields(
-            TokenStream::from_str(
-                r#"
+        parse_peripheral_fields(quote! {
 
-                #[peripheral(offset = 0x3000_0000, mask = 0x0fff_ffff)]
-                #[peripheral(offset = 0x4000_0000, mask = 0x0fff_ffff)]
-                ram: Ram,
-        "#,
-            )
-            .unwrap(),
-        );
+            #[peripheral(offset = 0x3000_0000, mask = 0x0fff_ffff)]
+            #[peripheral(offset = 0x4000_0000, mask = 0x0fff_ffff)]
+            ram: Ram,
+        });
     }
 
     #[test]
@@ -535,8 +464,7 @@ mod tests {
 
     #[test]
     fn test_derive_bus() {
-        let tokens = derive_bus(
-            TokenStream::from_str(r#"
+        let tokens = derive_bus(quote! {
             #[poll_fn(bus_poll)]
             struct MyBus {
                 #[peripheral(offset = 0x0000_0000, mask = 0x0fff_ffff)]
@@ -585,11 +513,10 @@ mod tests {
                 #[register(offset = 0xcafe_f0ec, read_fn = reg_action3_read, write_fn = reg_action3_write)]
                 _fieldless_regs: (),
             }
-            "#).unwrap(),
-        );
+        });
 
         assert_eq!(tokens.to_string(),
-            TokenStream::from_str(r#"
+            quote! {
                 impl caliptra_emu_bus::Bus for MyBus {
                     fn read(&self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
                         match addr {
@@ -671,21 +598,19 @@ mod tests {
                         self.spi0.poll();
                         Self::bus_poll(self);
                     }
-                }"#).unwrap().to_string());
+                }
+            }.to_string()
+        );
     }
 
     #[test]
     fn test_derive_empty_bus() {
-        let tokens = derive_bus(
-            TokenStream::from_str(
-                r#"
-            pub struct MyBus {}"#,
-            )
-            .unwrap(),
-        );
+        let tokens = derive_bus(quote! {
+            pub struct MyBus {}
+        });
 
         assert_eq!(tokens.to_string(),
-            TokenStream::from_str(r#"
+            quote! {
                 impl caliptra_emu_bus::Bus for MyBus {
                     fn read(&self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
                         Err(caliptra_emu_bus::BusError::LoadAccessFault)
@@ -696,6 +621,7 @@ mod tests {
                     fn poll(&mut self) {
                     }
                 }
-                "#).unwrap().to_string());
+            }.to_string()
+        );
     }
 }
