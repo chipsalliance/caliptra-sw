@@ -17,6 +17,7 @@ mod hmac_sha384;
 mod root_bus;
 mod uart;
 mod sha512_periph;
+mod sha256_periph;
 
 pub use emu_ctrl::EmuCtrl;
 pub use hmac_sha384::HmacSha384;
