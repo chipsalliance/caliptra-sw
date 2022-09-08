@@ -77,11 +77,13 @@ pub struct Sha256Periph {
     #[register(offset = 0x0000_0018)]
     status: ReadOnlyRegister<u32, Status::Register>,
 
-    /// SHA512 Block Register
+    /// SHA256 Block Memory
     #[peripheral(offset = 0x0000_0080, mask = 0x0000_007f)]
     block: ReadWriteMemory<SHA256_BLOCK_SIZE>,
 
-    hash: Vec<u8>,
+    /// SHA256 Hash Memory
+    #[peripheral(offset = 0x0000_0100, mask = 0x0000_00ff)]
+    hash: ReadOnlyMemory<SHA256_HASH_SIZE>,
 
     /// SHA256 engine
     sha256: Sha256,
@@ -115,7 +117,7 @@ impl Sha256Periph {
             control: ReadWriteRegister::new(0),
             status: ReadOnlyRegister::new(Status::READY::SET.value),
             block: ReadWriteMemory::new(),
-            hash: vec![0; SHA256_HASH_SIZE],
+            hash: ReadOnlyMemory::new(),
             timer: Timer::new(clock),
             op_complete_action: None,
         }
@@ -159,7 +161,6 @@ impl Sha256Periph {
             }
 
             self.sha256.reset(mode); 
-            self.hash = vec![0; self.sha256.hash_len()];
 
             // Update the SHA256 engine with a new block
             self.sha256.update(&self.block.data());
@@ -183,13 +184,17 @@ impl Sha256Periph {
     fn poll(&mut self) {
         if self.timer.fired(&mut self.op_complete_action) {
             // Retrieve the hash
-            self.sha256.hash(&mut self.hash);
+            self.sha256.hash(self.hash.data_mut());
 
             // Update Ready and Valid status bits
             self.status
                 .reg
                 .modify(Status::READY::SET + Status::VALID::SET);
         }
+    }
+
+    pub fn hash(&self) -> &[u8] {
+        &self.hash.data()[..self.sha256.hash_len()]
     }
 }
 
@@ -257,17 +262,17 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn test_hash_read_write() {
-    //     let mut sha256 = Sha256Periph::new(&Clock::new());
-    //     for addr in (OFFSET_HASH..(OFFSET_HASH + SHA256_HASH_SIZE as u32)).step_by(4) {
-    //         assert_eq!(sha256.read(RvSize::Word, addr).ok(), Some(0));
-    //         // assert_eq!(
-    //         //     sha512.write(RvSize::Word, addr, 0xFF).err(),
-    //         //     Some(BusError::StoreAccessFault)
-    //         // );
-    //     }
-    // }
+    #[test]
+    fn test_hash_read_write() {
+        let mut sha256 = Sha256Periph::new(&Clock::new());
+        for addr in (OFFSET_HASH..(OFFSET_HASH + SHA256_HASH_SIZE as u32)).step_by(4) {
+            assert_eq!(sha256.read(RvSize::Word, addr).ok(), Some(0));
+            assert_eq!(
+                sha256.write(RvSize::Word, addr, 0xFF).err(),
+                Some(BusError::StoreAccessFault)
+            );
+        }
+    }
 
     fn test_sha(data: &[u8], expected: &[u8], mode: Sha256Mode) {
 
@@ -315,7 +320,7 @@ mod tests {
             }
     
             if idx == 0 {
-                let mut modebits = 1; // SHA256 is default.
+                let modebits;
 
                 match mode {        
                     Sha256Mode::Sha224 => modebits = 0,
@@ -352,7 +357,7 @@ mod tests {
             }
         }        
 
-        assert_eq!(sha256.hash, expected);
+        assert_eq!(sha256.hash(), expected);
     }
 
     #[cfg_attr(rustfmt, rustfmt_skip)]

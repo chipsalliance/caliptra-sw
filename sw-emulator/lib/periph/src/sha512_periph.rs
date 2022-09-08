@@ -14,7 +14,7 @@ Abstract:
 
 use caliptra_emu_bus::{
     BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister, Timer,
-    TimerAction, WriteOnlyMemory,
+    TimerAction,
 };
 use caliptra_emu_crypto::{Sha512, Sha512Mode};
 use caliptra_emu_derive::Bus;
@@ -78,11 +78,13 @@ pub struct Sha512Periph {
     #[register(offset = 0x0000_0018)]
     status: ReadOnlyRegister<u32, Status::Register>,
 
-    /// SHA512 Block Register
+    /// SHA512 Block Memory
     #[peripheral(offset = 0x0000_0080, mask = 0x0000_007f)]
     block: ReadWriteMemory<SHA512_BLOCK_SIZE>,
 
-    hash: Vec<u8>,
+    /// SHA512 Hash Memory
+    #[peripheral(offset = 0x0000_0100, mask = 0x0000_00ff)]
+    hash: ReadOnlyMemory<SHA512_HASH_SIZE>,
 
     /// SHA512 engine
     sha512: Sha512,
@@ -116,7 +118,7 @@ impl Sha512Periph {
             control: ReadWriteRegister::new(0),
             status: ReadOnlyRegister::new(Status::READY::SET.value),
             block: ReadWriteMemory::new(),
-            hash: vec![0; SHA512_HASH_SIZE],
+            hash: ReadOnlyMemory::new(),
             timer: Timer::new(clock),
             op_complete_action: None,
         }
@@ -166,7 +168,6 @@ impl Sha512Periph {
             }
 
             self.sha512.reset(mode); 
-            self.hash = vec![0; self.sha512.hash_len()];
 
             // Update the SHA512 engine with a new block
             self.sha512.update(&self.block.data());
@@ -190,7 +191,7 @@ impl Sha512Periph {
     fn poll(&mut self) {
         if self.timer.fired(&mut self.op_complete_action) {
             // Retrieve the hash
-            self.sha512.hash(&mut self.hash);
+            self.sha512.hash(self.hash.data_mut());
 
             // Update Ready and Valid status bits
             self.status
@@ -198,6 +199,11 @@ impl Sha512Periph {
                 .modify(Status::READY::SET + Status::VALID::SET);
         }
     }
+
+    pub fn hash(&self) -> &[u8] {
+        &self.hash.data()[..self.sha512.hash_len()]
+    }
+
 }
 
 #[cfg(test)]
@@ -264,17 +270,17 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn test_hash_read_write() {
-    //     let mut sha512 = Sha512Periph::new(&Clock::new());
-    //     for addr in (OFFSET_HASH..(OFFSET_HASH + SHA512_HASH_SIZE as u32)).step_by(4) {
-    //         assert_eq!(sha512.read(RvSize::Word, addr).ok(), Some(0));
-    //         // assert_eq!(
-    //         //     sha512.write(RvSize::Word, addr, 0xFF).err(),
-    //         //     Some(BusError::StoreAccessFault)
-    //         // );
-    //     }
-    // }
+    #[test]
+    fn test_hash_read_write() {
+        let mut sha512 = Sha512Periph::new(&Clock::new());
+        for addr in (OFFSET_HASH..(OFFSET_HASH + SHA512_HASH_SIZE as u32)).step_by(4) {
+            assert_eq!(sha512.read(RvSize::Word, addr).ok(), Some(0));
+            assert_eq!(
+                sha512.write(RvSize::Word, addr, 0xFF).err(),
+                Some(BusError::StoreAccessFault)
+            );
+        }
+    }
 
     fn test_sha(data: &[u8], expected: &[u8], mode: Sha512Mode) {
 
@@ -322,7 +328,7 @@ mod tests {
             }
     
             if idx == 0 {
-                let mut modebits = 3; // SHA512 is default.
+                let modebits;
 
                 match mode {        
                     Sha512Mode::Sha224 => modebits = 0,
@@ -361,7 +367,7 @@ mod tests {
             }
         }        
 
-        assert_eq!(sha512.hash, expected);
+        assert_eq!(sha512.hash(), expected);
     }
 
     const SHA_512_TEST_BLOCK: [u8; 128] = [
