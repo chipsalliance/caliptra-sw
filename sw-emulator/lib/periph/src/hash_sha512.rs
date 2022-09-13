@@ -53,7 +53,7 @@ const UPDATE_TICKS: u64 = 1000;
 /// SHA-512 Peripheral
 #[derive(Bus)]
 #[poll_fn(poll)]
-pub struct Sha512Periph {
+pub struct HashSha512 {
     /// Name 0 register
     #[register(offset = 0x0000_0000)]
     name0: ReadOnlyRegister<u32>,
@@ -94,7 +94,7 @@ pub struct Sha512Periph {
     op_complete_action: Option<TimerAction>,
 }
 
-impl Sha512Periph {
+impl HashSha512 {
     /// NAME0 Register Value
     const NAME0_VAL: RvData = 0x323135; // 512
 
@@ -223,7 +223,7 @@ mod tests {
 
     #[test]
     fn test_name_read() {
-        let sha512 = Sha512Periph::new(&Clock::new());
+        let sha512 = HashSha512::new(&Clock::new());
 
         let name0 = sha512.read(RvSize::Word, OFFSET_NAME0).unwrap();
         let mut name0 = String::from_utf8_lossy(&name0.to_le_bytes()).to_string();
@@ -237,7 +237,7 @@ mod tests {
 
     #[test]
     fn test_version_read() {
-        let sha512 = Sha512Periph::new(&Clock::new());
+        let sha512 = HashSha512::new(&Clock::new());
 
         let version0 = sha512.read(RvSize::Word, OFFSET_VERSION0).unwrap();
         let version0 = String::from_utf8_lossy(&version0.to_le_bytes()).to_string();
@@ -250,19 +250,19 @@ mod tests {
 
     #[test]
     fn test_control_read() {
-        let sha512 = Sha512Periph::new(&Clock::new());
+        let sha512 = HashSha512::new(&Clock::new());
         assert_eq!(sha512.read(RvSize::Word, OFFSET_CONTROL).unwrap(), 0);
     }
 
     #[test]
     fn test_status_read() {
-        let sha512 = Sha512Periph::new(&Clock::new());
+        let sha512 = HashSha512::new(&Clock::new());
         assert_eq!(sha512.read(RvSize::Word, OFFSET_STATUS).unwrap(), 1);
     }
 
     #[test]
     fn test_block_read_write() {
-        let mut sha512 = Sha512Periph::new(&Clock::new());
+        let mut sha512 = HashSha512::new(&Clock::new());
         for addr in (OFFSET_BLOCK..(OFFSET_BLOCK + SHA512_BLOCK_SIZE as u32)).step_by(4) {
             assert_eq!(sha512.write(RvSize::Word, addr, u32::MAX).ok(), Some(()));
             assert_eq!(sha512.read(RvSize::Word, addr).ok(), Some(u32::MAX));
@@ -271,7 +271,7 @@ mod tests {
 
     #[test]
     fn test_hash_read_write() {
-        let mut sha512 = Sha512Periph::new(&Clock::new());
+        let mut sha512 = HashSha512::new(&Clock::new());
         for addr in (OFFSET_HASH..(OFFSET_HASH + SHA512_HASH_SIZE as u32)).step_by(4) {
             assert_eq!(sha512.read(RvSize::Word, addr).ok(), Some(0));
             assert_eq!(
@@ -307,7 +307,7 @@ mod tests {
         block_arr[totalbytes - 16..].copy_from_slice(&len.to_be_bytes());
 
         let clock = Clock::new();
-        let mut sha512 = Sha512Periph::new(&clock);
+        let mut sha512 = HashSha512::new(&clock);
 
         // Process each block via the SHA engine.
         for idx in 0..totalblocks {
