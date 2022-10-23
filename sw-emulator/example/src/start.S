@@ -57,4 +57,4 @@ end_copy_data:
     sw zero, 0(t0)
 
 .section .data
-.equ  EMU_CTRL_EXIT, 0x30000000
+.equ  EMU_CTRL_EXIT, 0x2000F000

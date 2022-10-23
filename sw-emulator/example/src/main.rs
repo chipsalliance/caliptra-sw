@@ -25,7 +25,7 @@ static mut COUNT: u8 = 0x41;
 
 #[no_mangle]
 pub extern "C" fn main() {
-    const UART0: *mut u8 = 0x2000_0041 as *mut u8;
+    const UART0: *mut u8 = 0x2000_1041 as *mut u8;
     unsafe {
         for byte in OUT_STR {
             ptr::write_volatile(UART0, COUNT);
