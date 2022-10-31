@@ -17,6 +17,7 @@ mod dynamic_bus;
 mod mem;
 mod ram;
 mod register;
+mod register_array;
 mod rom;
 pub mod testing;
 
@@ -28,4 +29,5 @@ pub use crate::register::{
     ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister, Register,
     WriteOnlyMemory, WriteOnlyRegister,
 };
+pub use crate::register_array::ReadWriteRegisterArray;
 pub use crate::rom::Rom;
