@@ -1,0 +1,25 @@
+[package]
+name = "caliptra-lib"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+test = false
+doctest = false
+
+[dependencies]
+tock-registers = { git = "https://github.com/tock/tock.git" }
+cfg-if = "1.0.0"
+
+[features]
+emu = []
+
+[profile.release]
+opt-level = "s"
+lto = true
+panic = "abort"
+
+[[test]]
+name = "sha384"
+path = "tests/sha384_tests.rs"
+harness = false

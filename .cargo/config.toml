@@ -1,0 +1,6 @@
+[build]
+target = "riscv32imc-unknown-none-elf"
+
+[target.riscv32imc-unknown-none-elf]
+runner = "tests/scripts/caliptra-test-runner.sh"
+rustflags = ["-C", "link-args=-Ttests/scripts/rom.ld"]
