@@ -12,10 +12,7 @@ Abstract:
 
 --*/
 
-use crate::hash_sha256::HashSha256;
-use crate::hash_sha512::HashSha512;
-use crate::Uart;
-use crate::{EmuCtrl, HmacSha384};
+use crate::{AsymEcc384, EmuCtrl, HashSha256, HashSha512, HmacSha384, Uart};
 use caliptra_emu_bus::{Clock, Ram, Rom};
 use caliptra_emu_derive::Bus;
 
@@ -23,6 +20,9 @@ use caliptra_emu_derive::Bus;
 pub struct CaliptraRootBus {
     #[peripheral(offset = 0x0000_0000, mask = 0x0fff_ffff)]
     pub rom: Rom,
+
+    #[peripheral(offset = 0x1000_8000, mask = 0x0000_7fff)]
+    pub ecc384: AsymEcc384,
 
     #[peripheral(offset = 0x1001_0000, mask = 0x0000_7fff)]
     pub hmac: HmacSha384,
@@ -54,6 +54,7 @@ impl CaliptraRootBus {
     pub fn new(clock: &Clock, rom: Vec<u8>) -> Self {
         Self {
             rom: Rom::new(rom),
+            ecc384: AsymEcc384::new(clock),
             hmac: HmacSha384::new(clock),
             sha512: HashSha512::new(clock),
             sha256: HashSha256::new(clock),

@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+mod ecc384;
 mod hmac512;
 mod sha256;
 mod sha512;
@@ -24,3 +25,8 @@ pub use sha512::Sha512Mode;
 
 pub use hmac512::Hmac512;
 pub use hmac512::Hmac512Mode;
+
+pub use ecc384::Ecc384;
+pub use ecc384::Ecc384PrivKey;
+pub use ecc384::Ecc384PubKey;
+pub use ecc384::Ecc384Signature;
