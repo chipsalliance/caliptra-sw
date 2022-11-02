@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+mod aes256cbc;
 mod ecc384;
 mod hmac512;
 mod sha256;
@@ -30,3 +31,5 @@ pub use ecc384::Ecc384;
 pub use ecc384::Ecc384PrivKey;
 pub use ecc384::Ecc384PubKey;
 pub use ecc384::Ecc384Signature;
+
+pub use aes256cbc::Aes256Cbc;
