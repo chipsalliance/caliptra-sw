@@ -19,6 +19,11 @@ opt-level = "s"
 lto = true
 panic = "abort"
 
+[profile.dev]
+opt-level = 2
+lto = true
+panic = "abort"
+
 [[test]]
 name = "sha384"
 path = "tests/sha384_tests.rs"
