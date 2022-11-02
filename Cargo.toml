@@ -28,3 +28,8 @@ harness = false
 name = "doe"
 path = "tests/doe_tests.rs"
 harness = false
+
+[[test]]
+name = "ecc384"
+path = "tests/ecc384_tests.rs"
+harness = false

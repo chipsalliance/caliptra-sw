@@ -15,6 +15,7 @@ Abstract:
 pub(crate) mod static_ref;
 
 pub(crate) mod doe_regs;
+pub(crate) mod ecc384_regs;
 pub(crate) mod sha512_regs;
 
 cfg_if::cfg_if! {

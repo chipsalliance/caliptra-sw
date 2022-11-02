@@ -58,3 +58,19 @@ impl CopyFromReadOnlyRegisterArray for [u8] {
         }
     }
 }
+
+pub(crate) trait CopyFromReadWriteRegisterArray {
+    fn copy_from_rw_reg(&mut self, reg: &[ReadWrite<u32>]);
+}
+
+impl CopyFromReadWriteRegisterArray for [u8] {
+    fn copy_from_rw_reg(&mut self, reg: &[ReadWrite<u32>]) {
+        for idx in (0..self.len()).step_by(4) {
+            let part = reg[idx >> 2].get();
+            self[idx] = (part & 0xFF) as u8;
+            self[idx + 1] = ((part >> 8) & 0xFF) as u8;
+            self[idx + 2] = ((part >> 16) & 0xFF) as u8;
+            self[idx + 3] = ((part >> 24) & 0xFF) as u8;
+        }
+    }
+}

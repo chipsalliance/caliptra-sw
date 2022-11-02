@@ -20,11 +20,13 @@ mod error;
 mod slice;
 
 mod doe;
+mod ecc384;
 mod key_vault;
 mod sha384;
 
 pub type CptrResult<T> = Result<T, u32>;
 pub use doe::Doe;
+pub use ecc384::{Ecc384, Ecc384PrivKey, Ecc384PubKey, Ecc384Signature};
 pub use error::CptrComponent;
 pub use key_vault::KeyId;
 pub use sha384::Sha384;
