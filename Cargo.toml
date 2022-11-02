@@ -25,6 +25,11 @@ lto = true
 panic = "abort"
 
 [[test]]
+name = "sha256"
+path = "tests/sha256_tests.rs"
+harness = false
+
+[[test]]
 name = "sha384"
 path = "tests/sha384_tests.rs"
 harness = false
