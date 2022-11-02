@@ -19,10 +19,14 @@ mod reg;
 mod error;
 mod slice;
 
+mod doe;
+mod key_vault;
 mod sha384;
 
 pub type CptrResult<T> = Result<T, u32>;
+pub use doe::Doe;
 pub use error::CptrComponent;
+pub use key_vault::KeyId;
 pub use sha384::Sha384;
 
 cfg_if::cfg_if! {
