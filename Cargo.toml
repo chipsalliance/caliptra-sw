@@ -35,6 +35,11 @@ path = "tests/sha384_tests.rs"
 harness = false
 
 [[test]]
+name = "hmac384"
+path = "tests/hmac384_tests.rs"
+harness = false
+
+[[test]]
 name = "doe"
 path = "tests/doe_tests.rs"
 harness = false

@@ -19,6 +19,8 @@ pub enum CptrComponent {
 
     /// SHA-256 Component
     Sha256 = 2,
+
+    Hmac384 = 3,
 }
 
 #[macro_export]
