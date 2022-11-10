@@ -20,6 +20,7 @@ use tock_registers::interfaces::{Readable, Writeable};
 const SHA256_BLOCK_SIZE: usize = 64;
 const SHA256_HASH_SIZE: usize = 32;
 const SHA256_MAX_DATA_SIZE: usize = 1024 * 1024;
+type Sha256Hash = [u8; SHA256_HASH_SIZE];
 
 cptr_err_def! {
     Sha256,
@@ -30,6 +31,10 @@ cptr_err_def! {
 
         // Max data limit reached
         MaxDataErr = 0x2,
+
+        //Invalid Digest Buffer
+        InvalidDigestBuffer = 0x3,
+
     }
 }
 
@@ -98,9 +103,15 @@ impl Sha256DigestOp {
     /// # Returns
     ///
     /// * `[u8; SHA256_HASH_SIZE]` - The digest of the data
-    pub fn finalize(&mut self) -> CptrResult<[u8; SHA256_HASH_SIZE]> {
+    /// * `usize`   -  The size of the digest generated
+    ///
+    pub fn finalize(&mut self, digest: &mut Sha256Hash) -> CptrResult<usize> {
         if self.state == Sha256DigestState::Final {
             raise_err!(InvalidStateErr)
+        }
+
+        if digest.len() != SHA256_HASH_SIZE {
+            raise_err!(InvalidDigestBuffer)
         }
 
         // Calculate the digest of the final block
@@ -111,10 +122,9 @@ impl Sha256DigestOp {
         self.state = Sha256DigestState::Final;
 
         // Copy the digest from the register
-        let mut digest = [0u8; SHA256_HASH_SIZE];
         digest.copy_from_ro_reg(&SHA256_REGS.digest);
 
-        Ok(digest)
+        Ok(digest.len())
     }
 
     #[inline]
@@ -160,13 +170,20 @@ impl Sha256 {
     /// # Returns
     ///
     /// * `[u8; SHA256_HASH_SIZE]` - The digest of the data
-    pub fn digest(data: &[u8]) -> CptrResult<[u8; SHA256_HASH_SIZE]> {
+    /// * `usize`   -  The size of the digest generated.
+    /// 
+    pub fn digest(data: &[u8], digest: &mut Sha256Hash) -> CptrResult<usize> {
         if data.len() > SHA256_MAX_DATA_SIZE {
             raise_err!(MaxDataErr)
         }
+
+        if digest.len() != SHA256_HASH_SIZE {
+            raise_err!(InvalidDigestBuffer)
+        }
+
         let mut init = true;
         let mut bytes_remaining = data.len();
-        let mut digest = [0u8; SHA256_HASH_SIZE];
+
         loop {
             let offset = data.len() - bytes_remaining;
             match bytes_remaining {
@@ -182,7 +199,7 @@ impl Sha256 {
             }
         }
         digest.copy_from_ro_reg(&SHA256_REGS.digest);
-        Ok(digest)
+        Ok(digest.len())
     }
 
     fn _digest_last_block(buf: &[u8], init: bool, buf_size: usize) {

@@ -15,7 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_lib::{Ecc384, Ecc384PubKey};
+use caliptra_lib::{Ecc384, Ecc384PubKey, Ecc384Signature};
 
 mod harness;
 
@@ -61,16 +61,18 @@ fn test_gen_key_pair() {
 
 fn test_sign() {
     let digest = [0u8; 48];
-    let result = Ecc384::sign(&PRIV_KEY, &digest);
+    let mut signature = Ecc384Signature::default();
+    let result = Ecc384::sign(&PRIV_KEY, &digest, &mut signature);
     assert!(result.is_ok());
-    let signature = result.unwrap();
     assert_eq!(signature.r, SIGNATURE_R);
     assert_eq!(signature.s, SIGNATURE_S);
 }
 
 fn test_verify() {
     let hash = [0u8; 48];
-    let signature = Ecc384::sign(&PRIV_KEY, &hash).unwrap();
+    let mut signature = Ecc384Signature::default();
+    let result = Ecc384::sign(&PRIV_KEY, &hash, &mut signature);
+    assert!(result.is_ok());
     let pub_key = Ecc384PubKey {
         x: PUB_KEY_X,
         y: PUB_KEY_Y,
@@ -82,7 +84,9 @@ fn test_verify() {
 
 fn test_verify_failure() {
     let hash = [0u8; 48];
-    let signature = Ecc384::sign(&PRIV_KEY, &hash).unwrap();
+    let mut signature = Ecc384Signature::default();
+    let result = Ecc384::sign(&PRIV_KEY, &hash, &mut signature);
+    assert!(result.is_ok());
     let pub_key = Ecc384PubKey {
         x: PUB_KEY_X,
         y: PUB_KEY_Y,

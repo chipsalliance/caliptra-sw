@@ -33,6 +33,9 @@ cptr_err_def! {
 
         // Max data limit reached
         MaxDataErr = 0x2,
+
+        // Tag Buffer Size Error
+        InvalidTagBuffer = 0x3,
     }
 }
 
@@ -100,10 +103,16 @@ impl Hmac384Op {
     ///
     /// # Returns
     ///
-    /// * `HmacTag` - HMAC Tag
-    pub fn finalize(&mut self) -> CptrResult<HmacTag> {
+    /// * `HmacTag` - HMAC Tag is returned in  the provided "out_tag" buffer
+    /// * usize     - is returned as a part of CptrResult indicating the size of the tag generated.
+    ///
+    pub fn finalize(&mut self, out_tag: &mut HmacTag) -> CptrResult<usize> {
         if self.state == Hmac384OpState::Final {
             raise_err!(InvalidStateErr)
+        }
+
+        if out_tag.len() != HMAC384_TAG_SIZE {
+            raise_err!(InvalidTagBuffer)
         }
 
         // Calculate the hash of the final block
@@ -114,10 +123,9 @@ impl Hmac384Op {
         self.state = Hmac384OpState::Final;
 
         // Copy the hash from the register
-        let mut hmac_tag = [0u8; HMAC384_TAG_SIZE];
-        hmac_tag.copy_from_ro_reg(&HMAC384_REGS.tag);
+        out_tag.copy_from_ro_reg(&HMAC384_REGS.tag);
 
-        Ok(hmac_tag)
+        Ok(out_tag.len())
     }
 
     #[inline]
@@ -165,15 +173,22 @@ impl Hmac384 {
     ///
     /// # Arguments
     ///
-    /// * `key` - HMAC Key
-    /// * `data` - Data to calculate the HMAC
-    ///
+    /// * `key`     - HMAC Key
+    /// * `data`    - Data to calculate the HMAC
+    /// * `tag`     - Buffer to return the hmac tag
     /// # Returns
     ///
-    /// * `Hmac384Op` - Object representing the digest operation
-    pub fn hmac(key: &HmacKey, data: &[u8]) -> CptrResult<[u8; HMAC384_TAG_SIZE]> {
+    /// * hmac_tag  - Returns the generated tag in the "hmac_tag" buffer
+    /// * usize on success which is the size of the generated tag
+    ///
+
+    pub fn hmac(key: &HmacKey, data: &[u8], hmac_tag: &mut HmacTag) -> CptrResult<usize> {
         if data.len() >= HMAC384_MAX_DATA_SIZE {
             raise_err!(MaxDataErr)
+        }
+
+        if hmac_tag.len() != HMAC384_TAG_SIZE {
+            raise_err!(InvalidTagBuffer);
         }
 
         // Write the HMAC key to the hardware
@@ -181,7 +196,6 @@ impl Hmac384 {
 
         let mut init = true;
         let mut bytes_remaining = data.len();
-        let mut hmac_tag = [0u8; HMAC384_TAG_SIZE];
 
         loop {
             let offset = data.len() - bytes_remaining;
@@ -200,7 +214,7 @@ impl Hmac384 {
         }
 
         hmac_tag.copy_from_ro_reg(&HMAC384_REGS.tag);
-        Ok(hmac_tag)
+        Ok(hmac_tag.len())
     }
 
     fn _hmac_last_block(buf: &[u8], init: bool, buf_size: usize) {

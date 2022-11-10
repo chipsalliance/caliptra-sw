@@ -36,9 +36,11 @@ fn test_hmac0() {
         0xb5, 0x82, 0xc2,
     ];
 
-    let actual = Hmac384::hmac(&key, &data);
+    let mut out_tag: [u8; 48] = [0; 48];
+    let actual = Hmac384::hmac(&key, &data, &mut out_tag);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), result);
+    assert_eq!(actual.unwrap(), 48);
+    assert_eq!(out_tag, result);
 }
 
 fn test_hmac1() {
@@ -61,9 +63,11 @@ fn test_hmac1() {
         0x33, 0x71, 0xc9,
     ];
 
-    let actual = Hmac384::hmac(&key, &data);
+    let mut out_tag: [u8; 48] = [0; 48];
+    let actual = Hmac384::hmac(&key, &data, &mut out_tag);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), result);
+    assert_eq!(actual.unwrap(), 48);
+    assert_eq!(out_tag, result);
 }
 
 fn test_hmac_multi_block() {
@@ -92,10 +96,11 @@ fn test_hmac_multi_block() {
         0xE3, 0xEA, 0xE2, 0x51, 0x4A, 0x61, 0xC1, 0x61, 0x44, 0x24, 0xE7, 0x71, 0xCC, 0x4B, 0x7C,
         0xCA, 0xC8, 0xC3,
     ];
-
-    let actual = Hmac384::hmac(&key, &data);
+    let mut out_tag: [u8; 48] = [0; 48];
+    let actual = Hmac384::hmac(&key, &data, &mut out_tag);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), result);
+    assert_eq!(actual.unwrap(), 48);
+    assert_eq!(out_tag, result);
 }
 
 fn test_hmac_exact_single_block() {
@@ -124,10 +129,11 @@ fn test_hmac_exact_single_block() {
         0xE3, 0xEA, 0xE2, 0x51, 0x4A, 0x61, 0xC1, 0x61, 0x44, 0x24, 0xE7, 0x71, 0xCC, 0x4B, 0x7C,
         0xCA, 0xC8, 0xC3,
     ];
-
-    let actual = Hmac384::hmac(&key, &data);
+    let mut out_tag: [u8; 48] = [0; 48];
+    let actual = Hmac384::hmac(&key, &data, &mut out_tag);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), result);
+    assert_eq!(actual.unwrap(), 48);
+    assert_eq!(out_tag, result);
 }
 
 fn test_hmac_multi_block_two_step() {
@@ -156,12 +162,13 @@ fn test_hmac_multi_block_two_step() {
         0xE3, 0xEA, 0xE2, 0x51, 0x4A, 0x61, 0xC1, 0x61, 0x44, 0x24, 0xE7, 0x71, 0xCC, 0x4B, 0x7C,
         0xCA, 0xC8, 0xC3,
     ];
-
+    let mut out_tag: [u8; 48] = [0; 48];
     let mut hmac = Hmac384::hmac_init(&key);
     assert!(hmac.update(&data).is_ok());
-    let actual = hmac.finalize();
+    let actual = hmac.finalize(&mut out_tag);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), result);
+    assert_eq!(actual.unwrap(), 48);
+    assert_eq!(out_tag, result);
 }
 
 test_suite! {

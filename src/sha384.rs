@@ -20,6 +20,7 @@ use tock_registers::interfaces::{Readable, Writeable};
 const SHA384_BLOCK_SIZE: usize = 128;
 const SHA384_HASH_SIZE: usize = 48;
 const SHA384_MAX_DATA_SIZE: usize = 1024 * 1024;
+type Sha384Hash = [u8; SHA384_HASH_SIZE];
 
 cptr_err_def! {
     Sha384,
@@ -30,6 +31,9 @@ cptr_err_def! {
 
         // Max data limit reached
         MaxDataErr = 0x2,
+
+        // Invalid Digest Buffer
+        InvalidDigestBuffer = 0x3,
     }
 }
 
@@ -98,9 +102,15 @@ impl Sha384DigestOp {
     /// # Returns
     ///
     /// * `[u8; SHA384_HASH_SIZE]` - The digest of the data
-    pub fn finalize(&mut self) -> CptrResult<[u8; SHA384_HASH_SIZE]> {
+    /// * `usize`   - The size of the digest generated
+    ///
+    pub fn finalize(&mut self, digest: &mut Sha384Hash) -> CptrResult<usize> {
         if self.state == Sha384DigestState::Final {
             raise_err!(InvalidStateErr)
+        }
+
+        if digest.len() != SHA384_HASH_SIZE {
+            raise_err!(InvalidDigestBuffer)
         }
 
         // Calculate the digest of the final block
@@ -111,10 +121,9 @@ impl Sha384DigestOp {
         self.state = Sha384DigestState::Final;
 
         // Copy the digest from the register
-        let mut digest = [0u8; SHA384_HASH_SIZE];
         digest.copy_from_ro_reg(&SHA512_REGS.digest);
 
-        Ok(digest)
+        Ok(digest.len())
     }
 
     #[inline]
@@ -160,13 +169,19 @@ impl Sha384 {
     /// # Returns
     ///
     /// * `[u8; SHA384_HASH_SIZE]` - The digest of the data
-    pub fn digest(data: &[u8]) -> CptrResult<[u8; SHA384_HASH_SIZE]> {
+    /// * `usize` - The size of the digest data
+    pub fn digest(data: &[u8], digest: &mut Sha384Hash) -> CptrResult<usize> {
         if data.len() > SHA384_MAX_DATA_SIZE {
             raise_err!(MaxDataErr)
         }
+
+        if digest.len() != SHA384_HASH_SIZE {
+            raise_err!(InvalidDigestBuffer)
+        }
+
         let mut init = true;
         let mut bytes_remaining = data.len();
-        let mut digest = [0u8; SHA384_HASH_SIZE];
+
         loop {
             let offset = data.len() - bytes_remaining;
             match bytes_remaining {
@@ -182,7 +197,7 @@ impl Sha384 {
             }
         }
         digest.copy_from_ro_reg(&SHA512_REGS.digest);
-        Ok(digest)
+        Ok(digest.len())
     }
 
     fn _digest_last_block(buf: &[u8], init: bool, buf_size: usize) {

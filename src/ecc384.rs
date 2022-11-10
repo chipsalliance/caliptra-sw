@@ -77,6 +77,10 @@ impl Ecc384 {
     /// # Arguments
     ///
     /// * `seed` - seed for deterministic ECC Key Pair generation
+    /// 
+    /// # Returns
+    /// A tuple of private key and public key (private_key, public_key)
+    /// 
     pub fn gen_key_pair(seed: &Ecc384Scalar) -> CptrResult<(Ecc384PrivKey, Ecc384PubKey)> {
         // Wait for hardware ready
         Self::_wait_for_hw_ready();
@@ -112,7 +116,11 @@ impl Ecc384 {
     /// # Result
     ///
     /// *  Ecc384Signature - Signature
-    pub fn sign(priv_key: &Ecc384PrivKey, digest: &Ecc384Scalar) -> CptrResult<Ecc384Signature> {
+    pub fn sign(
+        priv_key: &Ecc384PrivKey,
+        digest: &Ecc384Scalar,
+        signature: &mut Ecc384Signature,
+    ) -> CptrResult<()> {
         // Wait for hardware ready
         Self::_wait_for_hw_ready();
 
@@ -129,11 +137,10 @@ impl Ecc384 {
         Self::_wait_for_cmd();
 
         // Copy signature
-        let mut signature = Ecc384Signature::default();
         signature.r.copy_from_rw_reg(&ECC384_REGS.sig_r);
         signature.s.copy_from_rw_reg(&ECC384_REGS.sig_s);
 
-        Ok(signature)
+        Ok(())
     }
 
     /// Verify signature with specified public key and digest
