@@ -182,6 +182,63 @@ fn test_op5() {
     assert_eq!(digest, expected);
 }
 
+fn test_op6() {
+    let expected: [u8; 48] = [
+        0x9c, 0x2f, 0x48, 0x76, 0x0d, 0x13, 0xac, 0x42, 0xea, 0xd1, 0x96, 0xe5, 0x4d, 0xcb, 0xaa,
+        0x5e, 0x58, 0x72, 0x06, 0x62, 0xa9, 0x6b, 0x91, 0x94, 0xe9, 0x81, 0x33, 0x29, 0xbd, 0xb6,
+        0x27, 0xc7, 0xc1, 0xca, 0x77, 0x15, 0x31, 0x16, 0x32, 0xc1, 0x39, 0xe7, 0xa3, 0x59, 0x14,
+        0xfc, 0x1e, 0xcd
+    ];
+    let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz".as_bytes();
+    let mut digest_op = Sha384::init_digest();
+    for idx in 0..data.len() {
+        assert!(digest_op.update(&data[idx..idx + 1]).is_ok());
+    }
+    let mut digest: [u8; 48] = [0; 48];
+    let actual = digest_op.finalize(&mut digest);
+    assert!(actual.is_ok());
+    assert_eq!(actual.unwrap(), expected.len());
+    assert_eq!(digest, expected);
+}
+
+fn test_op7() {
+    let expected: [u8; 48] = [
+        0x67, 0x4b, 0x2e, 0x80, 0xff, 0x8d, 0x94, 0x00, 0x8d, 0xe7, 0x40, 0x9c, 0x7b, 0x1f, 0x87,
+        0x8f, 0x9f, 0xae, 0x3a, 0x0a, 0x6d, 0xae, 0x2f, 0x98, 0x2c, 0xca, 0x7e, 0x3a, 0xae, 0xf9,
+        0x1b, 0xf3, 0x25, 0xd3, 0xeb, 0x56, 0x82, 0x63, 0xa2, 0xe1, 0xe6, 0x85, 0x6a, 0xc7, 0x50,
+        0x70, 0x06, 0x2a,
+    ];
+    let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx".as_bytes();
+    let mut digest_op = Sha384::init_digest();
+    for idx in 0..data.len() {
+        assert!(digest_op.update(&data[idx..idx + 1]).is_ok());
+    }
+    let mut digest: [u8; 48] = [0; 48];
+    let actual = digest_op.finalize(&mut digest);
+    assert!(actual.is_ok());
+    assert_eq!(actual.unwrap(), expected.len());
+    assert_eq!(digest, expected);
+}
+
+fn test_op8() {
+    let expected: [u8; 48] = [
+        0x55, 0x23, 0xcf, 0xb7, 0x7f, 0x9c, 0x55, 0xe0, 0xcc, 0xaf, 0xec, 0x5b, 0x87, 0xd7, 0x9c,
+        0xde, 0x64, 0x30, 0x12, 0x28, 0x3b, 0x71, 0x18, 0x8e, 0x40, 0x8c, 0x5a, 0xea, 0xe9, 0x19,
+        0xa3, 0xf2, 0x93, 0x37, 0x57, 0x4d, 0x5c, 0x72, 0x9b, 0x33, 0x9d, 0x95, 0x53, 0x98, 0x4a,
+        0xb0, 0x01, 0x4e,
+    ];
+    let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefgh".as_bytes();
+    let mut digest_op = Sha384::init_digest();
+    for idx in 0..data.len() {
+        assert!(digest_op.update(&data[idx..idx + 1]).is_ok());
+    }
+    let mut digest: [u8; 48] = [0; 48];
+    let actual = digest_op.finalize(&mut digest);
+    assert!(actual.is_ok());
+    assert_eq!(actual.unwrap(), expected.len());
+    assert_eq!(digest, expected);
+}
+
 test_suite! {
     test_digest0,
     test_digest1,
@@ -193,4 +250,7 @@ test_suite! {
     test_op3,
     test_op4,
     test_op5,
+    test_op6,
+    test_op7,
+    test_op8,
 }
