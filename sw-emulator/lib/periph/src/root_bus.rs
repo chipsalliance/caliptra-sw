@@ -41,11 +41,8 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x1002_8000, mask = 0x0000_7fff)]
     pub sha256: HashSha256,
 
-    #[peripheral(offset = 0x4000_0000, mask = 0x0000_ffff)]
+    #[peripheral(offset = 0x4000_0000, mask = 0x0fff_ffff)]
     pub iccm: Ram,
-
-    #[peripheral(offset = 0x4004_0000, mask = 0x0000_ffff)]
-    pub dccm: Ram,
 
     #[peripheral(offset = 0x2000_1000, mask = 0x0000_0fff)]
     pub uart: Uart,
@@ -55,6 +52,9 @@ pub struct CaliptraRootBus {
 
     #[peripheral(offset = 0x3002_0000, mask = 0x0001_ffff)]
     pub soc_reg: SocRegisters,
+
+    #[peripheral(offset = 0x5000_0000, mask = 0x0fff_ffff)]
+    pub dccm: Ram,
 }
 
 impl CaliptraRootBus {
