@@ -39,7 +39,6 @@ fn test_hmac0() {
     let mut out_tag: [u8; 48] = [0; 48];
     let actual = Hmac384::hmac(&key, &data, &mut out_tag);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), 48);
     assert_eq!(out_tag, result);
 }
 
@@ -66,7 +65,6 @@ fn test_hmac1() {
     let mut out_tag: [u8; 48] = [0; 48];
     let actual = Hmac384::hmac(&key, &data, &mut out_tag);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), 48);
     assert_eq!(out_tag, result);
 }
 
@@ -99,7 +97,6 @@ fn test_hmac_multi_block() {
     let mut out_tag: [u8; 48] = [0; 48];
     let actual = Hmac384::hmac(&key, &data, &mut out_tag);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), 48);
     assert_eq!(out_tag, result);
 }
 
@@ -132,7 +129,6 @@ fn test_hmac_exact_single_block() {
     let mut out_tag: [u8; 48] = [0; 48];
     let actual = Hmac384::hmac(&key, &data, &mut out_tag);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), 48);
     assert_eq!(out_tag, result);
 }
 
@@ -167,7 +163,6 @@ fn test_hmac_multi_block_two_step() {
     assert!(hmac.update(&data).is_ok());
     let actual = hmac.finalize(&mut out_tag);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), 48);
     assert_eq!(out_tag, result);
 }
 

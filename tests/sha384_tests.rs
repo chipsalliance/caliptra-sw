@@ -31,7 +31,6 @@ fn test_digest0() {
     let data = [];
     let actual = Sha384::digest(&data, &mut digest);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), 48);
     assert_eq!(digest, expected);
 }
 
@@ -46,7 +45,6 @@ fn test_digest1() {
     let data = "abc".as_bytes();
     let actual = Sha384::digest(data, &mut digest);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), 48);
     assert_eq!(digest, expected);
 }
 
@@ -61,7 +59,6 @@ fn test_digest2() {
     let data = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".as_bytes();
     let actual = Sha384::digest(data, &mut digest);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), 48);
     assert_eq!(digest, expected);
 }
 
@@ -76,7 +73,6 @@ fn test_digest3() {
     let data = "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu".as_bytes();
     let actual = Sha384::digest(data, &mut digest);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), 48);
     assert_eq!(digest, expected);
 }
 
@@ -91,7 +87,6 @@ fn test_op0() {
     let mut digest: [u8; 48] = [0; 48];
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), 48);
     assert_eq!(digest, expected);
 }
 
@@ -108,7 +103,6 @@ fn test_op1() {
     let mut digest: [u8; 48] = [0; 48];
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), 48);
     assert_eq!(digest, expected);
 }
 
@@ -125,7 +119,6 @@ fn test_op2() {
     let mut digest: [u8; 48] = [0; 48];
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), 48);
     assert_eq!(digest, expected);
 }
 
@@ -142,7 +135,6 @@ fn test_op3() {
     let mut digest: [u8; 48] = [0; 48];
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), 48);
     assert_eq!(digest, expected);
 }
 
@@ -159,7 +151,6 @@ fn test_op4() {
     let mut digest: [u8; 48] = [0; 48];
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), 48);
     assert_eq!(digest, expected);
 }
 
@@ -178,7 +169,6 @@ fn test_op5() {
     let mut digest: [u8; 48] = [0; 48];
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), 48);
     assert_eq!(digest, expected);
 }
 
@@ -187,7 +177,7 @@ fn test_op6() {
         0x9c, 0x2f, 0x48, 0x76, 0x0d, 0x13, 0xac, 0x42, 0xea, 0xd1, 0x96, 0xe5, 0x4d, 0xcb, 0xaa,
         0x5e, 0x58, 0x72, 0x06, 0x62, 0xa9, 0x6b, 0x91, 0x94, 0xe9, 0x81, 0x33, 0x29, 0xbd, 0xb6,
         0x27, 0xc7, 0xc1, 0xca, 0x77, 0x15, 0x31, 0x16, 0x32, 0xc1, 0x39, 0xe7, 0xa3, 0x59, 0x14,
-        0xfc, 0x1e, 0xcd
+        0xfc, 0x1e, 0xcd,
     ];
     let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz".as_bytes();
     let mut digest_op = Sha384::init_digest();
@@ -197,7 +187,6 @@ fn test_op6() {
     let mut digest: [u8; 48] = [0; 48];
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), expected.len());
     assert_eq!(digest, expected);
 }
 
@@ -216,7 +205,6 @@ fn test_op7() {
     let mut digest: [u8; 48] = [0; 48];
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), expected.len());
     assert_eq!(digest, expected);
 }
 
@@ -235,7 +223,6 @@ fn test_op8() {
     let mut digest: [u8; 48] = [0; 48];
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), expected.len());
     assert_eq!(digest, expected);
 }
 

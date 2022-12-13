@@ -29,7 +29,6 @@ fn test_digest0() {
     let mut digest: [u8; 32] = [0; 32];
     let result = Sha256::digest(&data, &mut digest);
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), 32);
     assert_eq!(digest, expected);
 }
 
@@ -43,7 +42,6 @@ fn test_digest1() {
     let mut digest: [u8; 32] = [0; 32];
     let result = Sha256::digest(data, &mut digest);
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), 32);
     assert_eq!(digest, expected);
 }
 
@@ -57,7 +55,6 @@ fn test_digest2() {
     let mut digest: [u8; 32] = [0; 32];
     let result = Sha256::digest(data, &mut digest);
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), 32);
     assert_eq!(digest, expected);
 }
 
@@ -71,7 +68,6 @@ fn test_digest3() {
     let mut digest: [u8; 32] = [0; 32];
     let result = Sha256::digest(data, &mut digest);
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), 32);
     assert_eq!(digest, expected);
 }
 
@@ -85,7 +81,6 @@ fn test_op0() {
     let mut digest: [u8; 32] = [0; 32];
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), 32);
     assert_eq!(digest, expected);
 }
 
@@ -101,7 +96,6 @@ fn test_op1() {
     let mut digest: [u8; 32] = [0; 32];
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), 32);
     assert_eq!(digest, expected);
 }
 
@@ -117,7 +111,6 @@ fn test_op2() {
     let mut digest: [u8; 32] = [0; 32];
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), 32);
     assert_eq!(digest, expected);
 }
 
@@ -133,7 +126,6 @@ fn test_op3() {
     let mut digest: [u8; 32] = [0; 32];
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), 32);
     assert_eq!(digest, expected);
 }
 
@@ -149,7 +141,6 @@ fn test_op4() {
     let mut digest: [u8; 32] = [0; 32];
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), 32);
     assert_eq!(digest, expected);
 }
 
@@ -167,14 +158,14 @@ fn test_op5() {
     let mut digest: [u8; 32] = [0; 32];
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), 32);
     assert_eq!(digest, expected);
 }
 
 fn test_op6() {
     let expected: [u8; 32] = [
-        0x06, 0xf9, 0xb1, 0xa7, 0xac, 0x97, 0xbc, 0x8e, 0x6a, 0x83, 0x5c, 0x08, 0x98, 0x6f, 0xe5, 0x38,
-        0xf0, 0x47, 0x8b, 0x03, 0x82, 0x6e, 0xfb, 0x4e, 0xed, 0x35, 0xdc, 0x51, 0x7b, 0x43, 0x3b, 0x8a,
+        0x06, 0xf9, 0xb1, 0xa7, 0xac, 0x97, 0xbc, 0x8e, 0x6a, 0x83, 0x5c, 0x08, 0x98, 0x6f, 0xe5,
+        0x38, 0xf0, 0x47, 0x8b, 0x03, 0x82, 0x6e, 0xfb, 0x4e, 0xed, 0x35, 0xdc, 0x51, 0x7b, 0x43,
+        0x3b, 0x8a,
     ];
     let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz".as_bytes();
     let mut digest_op = Sha256::init_digest();
@@ -184,14 +175,14 @@ fn test_op6() {
     let mut digest: [u8; 32] = [0; 32];
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), expected.len());
     assert_eq!(digest, expected);
 }
 
 fn test_op7() {
     let expected: [u8; 32] = [
-        0x2f, 0xcd, 0x5a, 0x0d, 0x60, 0xe4, 0xc9, 0x41, 0x38, 0x1f, 0xcc, 0x4e, 0x00, 0xa4, 0xbf, 0x8b,
-        0xe4, 0x22, 0xc3, 0xdd, 0xfa, 0xfb, 0x93, 0xc8, 0x09, 0xe8, 0xd1, 0xe2, 0xbf, 0xff, 0xae, 0x8e,
+        0x2f, 0xcd, 0x5a, 0x0d, 0x60, 0xe4, 0xc9, 0x41, 0x38, 0x1f, 0xcc, 0x4e, 0x00, 0xa4, 0xbf,
+        0x8b, 0xe4, 0x22, 0xc3, 0xdd, 0xfa, 0xfb, 0x93, 0xc8, 0x09, 0xe8, 0xd1, 0xe2, 0xbf, 0xff,
+        0xae, 0x8e,
     ];
     let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijkl".as_bytes();
     let mut digest_op = Sha256::init_digest();
@@ -201,14 +192,14 @@ fn test_op7() {
     let mut digest: [u8; 32] = [0; 32];
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), expected.len());
     assert_eq!(digest, expected);
 }
 
 fn test_op8() {
     let expected: [u8; 32] = [
-        0x78, 0x4f, 0x62, 0x3b, 0x78, 0x74, 0x95, 0x07, 0x8e, 0x93, 0xff, 0x28, 0xa2, 0x5b, 0x58, 0x1d,
-        0xf0, 0x58, 0x40, 0x55, 0xa7, 0xe7, 0x1d, 0x8c, 0xd9, 0x0c, 0x45, 0x47, 0x16, 0xb9, 0x2f, 0x51,
+        0x78, 0x4f, 0x62, 0x3b, 0x78, 0x74, 0x95, 0x07, 0x8e, 0x93, 0xff, 0x28, 0xa2, 0x5b, 0x58,
+        0x1d, 0xf0, 0x58, 0x40, 0x55, 0xa7, 0xe7, 0x1d, 0x8c, 0xd9, 0x0c, 0x45, 0x47, 0x16, 0xb9,
+        0x2f, 0x51,
     ];
     let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcd".as_bytes(); // Exact single block
     let mut digest_op = Sha256::init_digest();
@@ -218,7 +209,6 @@ fn test_op8() {
     let mut digest: [u8; 32] = [0; 32];
     let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
-    assert_eq!(actual.unwrap(), expected.len());
     assert_eq!(digest, expected);
 }
 

@@ -105,7 +105,7 @@ impl Sha256DigestOp {
     /// * `[u8; SHA256_HASH_SIZE]` - The digest of the data
     /// * `usize`   -  The size of the digest generated
     ///
-    pub fn finalize(&mut self, digest: &mut Sha256Hash) -> CptrResult<usize> {
+    pub fn finalize(&mut self, digest: &mut Sha256Hash) -> CptrResult<()> {
         if self.state == Sha256DigestState::Final {
             raise_err!(InvalidStateErr)
         }
@@ -124,7 +124,7 @@ impl Sha256DigestOp {
         // Copy the digest from the register
         digest.copy_from_ro_reg(&SHA256_REGS.digest);
 
-        Ok(digest.len())
+        Ok(())
     }
 
     #[inline]
@@ -171,8 +171,8 @@ impl Sha256 {
     ///
     /// * `[u8; SHA256_HASH_SIZE]` - The digest of the data
     /// * `usize`   -  The size of the digest generated.
-    /// 
-    pub fn digest(data: &[u8], digest: &mut Sha256Hash) -> CptrResult<usize> {
+    ///
+    pub fn digest(data: &[u8], digest: &mut Sha256Hash) -> CptrResult<()> {
         if data.len() > SHA256_MAX_DATA_SIZE {
             raise_err!(MaxDataErr)
         }
@@ -199,7 +199,7 @@ impl Sha256 {
             }
         }
         digest.copy_from_ro_reg(&SHA256_REGS.digest);
-        Ok(digest.len())
+        Ok(())
     }
 
     fn _digest_last_block(buf: &[u8], init: bool, buf_size: usize) {

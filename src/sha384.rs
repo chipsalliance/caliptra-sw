@@ -104,7 +104,7 @@ impl Sha384DigestOp {
     /// * `[u8; SHA384_HASH_SIZE]` - The digest of the data
     /// * `usize`   - The size of the digest generated
     ///
-    pub fn finalize(&mut self, digest: &mut Sha384Hash) -> CptrResult<usize> {
+    pub fn finalize(&mut self, digest: &mut Sha384Hash) -> CptrResult<()> {
         if self.state == Sha384DigestState::Final {
             raise_err!(InvalidStateErr)
         }
@@ -123,7 +123,7 @@ impl Sha384DigestOp {
         // Copy the digest from the register
         digest.copy_from_ro_reg(&SHA512_REGS.digest);
 
-        Ok(digest.len())
+        Ok(())
     }
 
     #[inline]
@@ -170,7 +170,7 @@ impl Sha384 {
     ///
     /// * `[u8; SHA384_HASH_SIZE]` - The digest of the data
     /// * `usize` - The size of the digest data
-    pub fn digest(data: &[u8], digest: &mut Sha384Hash) -> CptrResult<usize> {
+    pub fn digest(data: &[u8], digest: &mut Sha384Hash) -> CptrResult<()> {
         if data.len() > SHA384_MAX_DATA_SIZE {
             raise_err!(MaxDataErr)
         }
@@ -197,7 +197,7 @@ impl Sha384 {
             }
         }
         digest.copy_from_ro_reg(&SHA512_REGS.digest);
-        Ok(digest.len())
+        Ok(())
     }
 
     fn _digest_last_block(buf: &[u8], init: bool, buf_size: usize) {

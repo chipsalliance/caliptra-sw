@@ -106,7 +106,7 @@ impl Hmac384Op {
     /// * `HmacTag` - HMAC Tag is returned in  the provided "out_tag" buffer
     /// * usize     - is returned as a part of CptrResult indicating the size of the tag generated.
     ///
-    pub fn finalize(&mut self, out_tag: &mut HmacTag) -> CptrResult<usize> {
+    pub fn finalize(&mut self, out_tag: &mut HmacTag) -> CptrResult<()> {
         if self.state == Hmac384OpState::Final {
             raise_err!(InvalidStateErr)
         }
@@ -125,7 +125,7 @@ impl Hmac384Op {
         // Copy the hash from the register
         out_tag.copy_from_ro_reg(&HMAC384_REGS.tag);
 
-        Ok(out_tag.len())
+        Ok(())
     }
 
     #[inline]
@@ -182,7 +182,7 @@ impl Hmac384 {
     /// * usize on success which is the size of the generated tag
     ///
 
-    pub fn hmac(key: &HmacKey, data: &[u8], hmac_tag: &mut HmacTag) -> CptrResult<usize> {
+    pub fn hmac(key: &HmacKey, data: &[u8], hmac_tag: &mut HmacTag) -> CptrResult<()> {
         if data.len() >= HMAC384_MAX_DATA_SIZE {
             raise_err!(MaxDataErr)
         }
@@ -214,7 +214,7 @@ impl Hmac384 {
         }
 
         hmac_tag.copy_from_ro_reg(&HMAC384_REGS.tag);
-        Ok(hmac_tag.len())
+        Ok(())
     }
 
     fn _hmac_last_block(buf: &[u8], init: bool, buf_size: usize) {
