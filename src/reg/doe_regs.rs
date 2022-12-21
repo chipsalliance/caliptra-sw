@@ -13,6 +13,7 @@ Abstract:
 --*/
 
 use crate::reg::static_ref::StaticRef;
+use tock_registers::registers::ReadOnly;
 use tock_registers::registers::ReadWrite;
 use tock_registers::{register_bitfields, register_structs};
 
@@ -24,7 +25,10 @@ register_structs! {
         /// Control
         (0x10 => pub(crate) control: ReadWrite<u32, CONTROL::Register>),
 
-        (0x14 => @END),
+        /// Status
+        (0x14 => pub(crate) status: ReadOnly<u32, STATUS::Register>),
+
+        (0x18 => @END),
     }
 }
 
@@ -39,8 +43,13 @@ register_bitfields! [
             DECRYPT_FIELD_ENTROPY = 0b10,
             CLEAR_SECRETS = 0b11,
         ],
-        KEY_ID OFFSET(2) NUMBITS(3) [],
-        FLOW_DONE OFFSET(5) NUMBITS(1) [],
+        DEST OFFSET(2) NUMBITS(3) [],
+    ],
+
+    /// Status Register Fields
+    pub(crate) STATUS [
+        READY OFFSET(0) NUMBITS(1) [],
+        VALID OFFSET(1) NUMBITS(1) [],
     ],
 ];
 

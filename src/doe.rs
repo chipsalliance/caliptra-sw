@@ -67,12 +67,15 @@ impl Doe {
         if let Some(key_id) = key_id {
             DOE_REGS
                 .control
-                .modify(CONTROL::CMD.val(cmd) + CONTROL::KEY_ID.val(key_id.into()))
+                .modify(CONTROL::CMD.val(cmd) + CONTROL::DEST.val(key_id.into()))
         } else {
             DOE_REGS.control.modify(CONTROL::CMD.val(cmd));
         }
 
         // Wait for operation to finish
-        while !DOE_REGS.control.is_set(CONTROL::FLOW_DONE) {}
+        // [TODO] Remove the if check once the RTL is updated to set the Valid bit for clear command.
+        if cmd != CONTROL::CMD::CLEAR_SECRETS.value {
+            while !DOE_REGS.status.is_set(STATUS::VALID) {}
+        }
     }
 }

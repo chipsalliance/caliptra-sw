@@ -14,7 +14,12 @@ Abstract:
 
 use crate::reg::ecc384_regs::*;
 use crate::slice::{
-    CopyFromByteSlice, CopyFromReadOnlyRegisterArray, CopyFromReadWriteRegisterArray,
+    //CopyFromByteSlice, CopyFromReadOnlyRegisterArray, CopyFromReadWriteRegisterArray,
+    // [TODO] Remove these and bring back CopyFromByteSlice, CopyFromReadOnlyRegisterArray, CopyFromReadWriteRegisterArray
+    // once RTL is updated.
+    CopyReverseFromByteSlice,
+    CopyReverseFromReadOnlyRegisterArray,
+    CopyReverseFromReadWriteRegisterArray,
 };
 use crate::CptrResult;
 use tock_registers::interfaces::{Readable, Writeable};
@@ -77,16 +82,17 @@ impl Ecc384 {
     /// # Arguments
     ///
     /// * `seed` - seed for deterministic ECC Key Pair generation
-    /// 
+    ///
     /// # Returns
     /// A tuple of private key and public key (private_key, public_key)
-    /// 
+    ///
     pub fn gen_key_pair(seed: &Ecc384Scalar) -> CptrResult<(Ecc384PrivKey, Ecc384PubKey)> {
         // Wait for hardware ready
         Self::_wait_for_hw_ready();
 
         // Copy the seed to register
-        ECC384_REGS.seed.copy_from_byte_slice(seed);
+        // [TODO] Replace with copy_from_byte_slice once RTL is updated.
+        ECC384_REGS.seed.copy_reverse_from_byte_slice(seed);
 
         // Program the command register
         ECC384_REGS.control.write(CONTROL::CMD::GEN_KEY);
@@ -96,12 +102,14 @@ impl Ecc384 {
 
         // Copy private key
         let mut priv_key: Ecc384PrivKey = [0u8; ECC_384_COORD_SIZE];
-        priv_key.copy_from_rw_reg(&ECC384_REGS.priv_key);
+        // [TODO] Replace with copy_from_rw_reg once RTL is updated.
+        priv_key.copy_reverse_from_rw_reg(&ECC384_REGS.priv_key);
 
         // Copy public key
         let mut pub_key = Ecc384PubKey::default();
-        pub_key.x.copy_from_rw_reg(&ECC384_REGS.pub_key_x);
-        pub_key.y.copy_from_rw_reg(&ECC384_REGS.pub_key_y);
+        // [TODO] Replace with copy_from_rw_reg once RTL is updated.
+        pub_key.x.copy_reverse_from_rw_reg(&ECC384_REGS.pub_key_x);
+        pub_key.y.copy_reverse_from_rw_reg(&ECC384_REGS.pub_key_y);
 
         Ok((priv_key, pub_key))
     }
@@ -125,10 +133,12 @@ impl Ecc384 {
         Self::_wait_for_hw_ready();
 
         // Copy private key
-        ECC384_REGS.priv_key.copy_from_byte_slice(priv_key);
+        // [TODO] Replace with copy_from_byte_slice once RTL is updated.
+        ECC384_REGS.priv_key.copy_reverse_from_byte_slice(priv_key);
 
         // Copy digest
-        ECC384_REGS.digest.copy_from_byte_slice(digest);
+        // [TODO] Replace with copy_from_byte_slice once RTL is updated.
+        ECC384_REGS.digest.copy_reverse_from_byte_slice(digest);
 
         // Program the command register
         ECC384_REGS.control.write(CONTROL::CMD::SIGN);
@@ -137,8 +147,9 @@ impl Ecc384 {
         Self::_wait_for_cmd();
 
         // Copy signature
-        signature.r.copy_from_rw_reg(&ECC384_REGS.sig_r);
-        signature.s.copy_from_rw_reg(&ECC384_REGS.sig_s);
+        // [TODO] Replace with copy_from_rw_reg once RTL is updated.
+        signature.r.copy_reverse_from_rw_reg(&ECC384_REGS.sig_r);
+        signature.s.copy_reverse_from_rw_reg(&ECC384_REGS.sig_s);
 
         Ok(())
     }
@@ -163,15 +174,22 @@ impl Ecc384 {
         Self::_wait_for_hw_ready();
 
         // Copy public key to registers
-        ECC384_REGS.pub_key_x.copy_from_byte_slice(&pub_key.x);
-        ECC384_REGS.pub_key_y.copy_from_byte_slice(&pub_key.y);
+        // [TODO] Replace with copy_from_byte_slice once RTL is updated.
+        ECC384_REGS
+            .pub_key_x
+            .copy_reverse_from_byte_slice(&pub_key.x);
+        ECC384_REGS
+            .pub_key_y
+            .copy_reverse_from_byte_slice(&pub_key.y);
 
         // Copy digest to registers
-        ECC384_REGS.digest.copy_from_byte_slice(digest);
+        // [TODO] Replace with copy_from_byte_slice once RTL is updated.
+        ECC384_REGS.digest.copy_reverse_from_byte_slice(digest);
 
         // Copy signature to registers
-        ECC384_REGS.sig_r.copy_from_byte_slice(&signature.r);
-        ECC384_REGS.sig_s.copy_from_byte_slice(&signature.s);
+        // [TODO] Replace with copy_from_byte_slice once RTL is updated.
+        ECC384_REGS.sig_r.copy_reverse_from_byte_slice(&signature.r);
+        ECC384_REGS.sig_s.copy_reverse_from_byte_slice(&signature.s);
 
         // Program the command register
         ECC384_REGS.control.write(CONTROL::CMD::VERIFY);
@@ -181,7 +199,8 @@ impl Ecc384 {
 
         // Copy the random value
         let mut verify_r = [0u8; ECC_384_COORD_SIZE];
-        verify_r.copy_from_ro_reg(&ECC384_REGS.verify_r);
+        // [TODO] Replace with copy_from_ro_reg once RTL is updated.
+        verify_r.copy_reverse_from_ro_reg(&ECC384_REGS.verify_r);
 
         // compare the hardware generate `r` with one in signature
         if verify_r == signature.r {
