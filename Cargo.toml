@@ -1,0 +1,14 @@
+[workspace]
+exclude = [
+  # Uses a custom .cargo/config
+  "drivers"
+]
+
+members = [
+  "registers",
+  "registers/bin/generator",
+  "systemrdl",
+  "ureg/lib/schema",
+  "ureg/lib/codegen",
+  "ureg/lib/systemrdl",
+]
