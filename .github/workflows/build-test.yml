@@ -22,6 +22,10 @@ jobs:
           rustup update
           rustup target add riscv32imc-unknown-none-elf
 
+      - name: Install caliptra-emu
+        run: |
+          cargo install --path sw-emulator/app
+
       - name: Install cargo binutils
         run: |
           cargo install cargo-binutils
@@ -29,6 +33,7 @@ jobs:
 
       - name: Build
         run: |
+          export RUSTFLAGS="-D warnings"
           cargo build
           cargo build --release
           (cd drivers && cargo build)
@@ -36,10 +41,20 @@ jobs:
 
       - name: Run unit tests
         run: |
+          export RUSTFLAGS="-D warnings"
           cargo test
           cargo test --release
-          # (cd drivers && cargo test)
-          # (cd drivers && cargo test --release)
+
+      - name: Run tests inside emulator
+        run: |
+          (cd drivers && cargo test --features emu)
+          (cd drivers && cargo test --release --features emu)
+
+      - name: Run emulator conformance tests
+        run: |
+          sudo apt-get install gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
+          (cd /tmp/ && git clone --depth 1 --branch old-framework-2.x https://github.com/riscv-non-isa/riscv-arch-test)
+          (cd sw-emulator/compliance-test && cargo run --release  -- --test_root_path /tmp/riscv-arch-test)
 
       - name: Check source-code formatting (run "cargo fmt" if this fails)
         run: |
