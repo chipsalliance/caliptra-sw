@@ -9,6 +9,8 @@ doctest = false
 
 [dependencies]
 tock-registers = { git = "https://github.com/tock/tock.git" }
+caliptra-registers = { path = "../registers" }
+ureg = { path = "../ureg" }
 cfg-if = "1.0.0"
 
 [features]
