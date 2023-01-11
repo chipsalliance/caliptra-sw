@@ -159,7 +159,7 @@ static ADDRMAP: ComponentMeta = ComponentMeta {
         PropertyMeta{name: "sharedextbus", ty: PropertyType::Boolean, is_dynamic: false},
         PropertyMeta{name: "errextbus", ty: PropertyType::Boolean, is_dynamic: false},
         PropertyMeta{name: "bigendian", ty: PropertyType::Boolean, is_dynamic: true},
-        PropertyMeta{name: "littlendian", ty: PropertyType::Boolean, is_dynamic: true},
+        PropertyMeta{name: "littleendian", ty: PropertyType::Boolean, is_dynamic: true},
         PropertyMeta{name: "addressing", ty: PropertyType::AddressingType, is_dynamic: false},
         PropertyMeta{name: "rsvdset", ty: PropertyType::Boolean, is_dynamic: false},
         PropertyMeta{name: "rsvdsetX", ty: PropertyType::Boolean, is_dynamic: false},
