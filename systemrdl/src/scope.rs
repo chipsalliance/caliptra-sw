@@ -353,7 +353,8 @@ impl Scope {
 
             // This is a template instantiation
             let ty_scope = lookup_typedef(self, parent, type_name)?.clone();
-            let instance = Instance::parse(ty_scope, tokens)?;
+            let mut instance = Instance::parse(ty_scope, tokens)?;
+            instance.type_name = Some(type_name.into());
             if self.instances.iter().any(|e| e.name == instance.name) {
                 return Err(RdlError::DuplicateInstanceName(instance.name));
             }
@@ -465,6 +466,9 @@ pub struct InstanceRef<'a> {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Instance {
     pub name: String,
+    // If this instance was instantiated from a common type, this is the name of
+    // that type
+    pub type_name: Option<String>,
     // [2][4] parses to vec![2, 4], which means there is an array of 2 elements,
     // where each element is an array of 4 values. In rust notation this would be [[u32; 4]; 2].
     pub dimension_sizes: Vec<u64>,
@@ -620,6 +624,7 @@ mod tests {
                 ),]),
                 instances: vec![Instance {
                     name: "my_field".into(),
+                    type_name: Some("a_field_ty".into()),
                     scope: Scope {
                         ty: ScopeType::Component(ComponentType::Field),
                         properties: HashMap::from([("desc".into(), "Hello".into())]),

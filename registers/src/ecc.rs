@@ -182,25 +182,25 @@ impl RegisterBlock {
     }
     /// Controls the Key Vault read access for this engine
     ///
-    /// Read value: [`ecc::regs::KvRdReadVal`]; Write value: [`ecc::regs::KvRdWriteVal`]
+    /// Read value: [`ecc::regs::KvReadCtrlRegReadVal`]; Write value: [`ecc::regs::KvReadCtrlRegWriteVal`]
     pub fn kv_rd_pkey_ctrl(&self) -> ureg::RegRef<crate::ecc::meta::KvRdPkeyCtrl> {
         unsafe { ureg::RegRef::new(self.0.wrapping_add(0x600 / core::mem::size_of::<u32>())) }
     }
     /// Controls the Key Vault read access for this engine
     ///
-    /// Read value: [`ecc::regs::KvRdReadVal`]; Write value: [`ecc::regs::KvRdWriteVal`]
+    /// Read value: [`ecc::regs::KvReadCtrlRegReadVal`]; Write value: [`ecc::regs::KvReadCtrlRegWriteVal`]
     pub fn kv_rd_seed_ctrl(&self) -> ureg::RegRef<crate::ecc::meta::KvRdSeedCtrl> {
         unsafe { ureg::RegRef::new(self.0.wrapping_add(0x604 / core::mem::size_of::<u32>())) }
     }
     /// Controls the Key Vault read access for this engine
     ///
-    /// Read value: [`ecc::regs::KvRdReadVal`]; Write value: [`ecc::regs::KvRdWriteVal`]
+    /// Read value: [`ecc::regs::KvReadCtrlRegReadVal`]; Write value: [`ecc::regs::KvReadCtrlRegWriteVal`]
     pub fn kv_rd_msg_ctrl(&self) -> ureg::RegRef<crate::ecc::meta::KvRdMsgCtrl> {
         unsafe { ureg::RegRef::new(self.0.wrapping_add(0x608 / core::mem::size_of::<u32>())) }
     }
     /// Controls the Key Vault write access for this engine
     ///
-    /// Read value: [`ecc::regs::KvWrPkeyCtrlReadVal`]; Write value: [`ecc::regs::KvWrPkeyCtrlWriteVal`]
+    /// Read value: [`ecc::regs::KvWriteCtrlRegReadVal`]; Write value: [`ecc::regs::KvWriteCtrlRegWriteVal`]
     pub fn kv_wr_pkey_ctrl(&self) -> ureg::RegRef<crate::ecc::meta::KvWrPkeyCtrl> {
         unsafe { ureg::RegRef::new(self.0.wrapping_add(0x60c / core::mem::size_of::<u32>())) }
     }
@@ -288,8 +288,8 @@ pub mod regs {
         }
     }
     #[derive(Clone, Copy)]
-    pub struct KvRdReadVal(u32);
-    impl KvRdReadVal {
+    pub struct KvReadCtrlRegReadVal(u32);
+    impl KvReadCtrlRegReadVal {
         /// Indicates that the read data is to come from the key vault.
         /// Setting this bit to 1 initiates copying of data from the key vault.
         #[inline(always)]
@@ -332,23 +332,23 @@ pub mod regs {
             ((self.0 >> 31) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
-        pub fn modify(self) -> KvRdWriteVal {
-            KvRdWriteVal(self.0)
+        pub fn modify(self) -> KvReadCtrlRegWriteVal {
+            KvReadCtrlRegWriteVal(self.0)
         }
     }
-    impl From<u32> for KvRdReadVal {
+    impl From<u32> for KvReadCtrlRegReadVal {
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
-    impl From<KvRdReadVal> for u32 {
-        fn from(val: KvRdReadVal) -> u32 {
+    impl From<KvReadCtrlRegReadVal> for u32 {
+        fn from(val: KvReadCtrlRegReadVal) -> u32 {
             val.0
         }
     }
     #[derive(Clone, Copy)]
-    pub struct KvRdWriteVal(u32);
-    impl KvRdWriteVal {
+    pub struct KvReadCtrlRegWriteVal(u32);
+    impl KvReadCtrlRegWriteVal {
         /// Indicates that the read data is to come from the key vault.
         /// Setting this bit to 1 initiates copying of data from the key vault.
         #[inline(always)]
@@ -386,19 +386,19 @@ pub mod regs {
             Self((self.0 & !(0x1fffff << 10)) | ((val & 0x1fffff) << 10))
         }
     }
-    impl From<u32> for KvRdWriteVal {
+    impl From<u32> for KvReadCtrlRegWriteVal {
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
-    impl From<KvRdWriteVal> for u32 {
-        fn from(val: KvRdWriteVal) -> u32 {
+    impl From<KvReadCtrlRegWriteVal> for u32 {
+        fn from(val: KvReadCtrlRegWriteVal) -> u32 {
             val.0
         }
     }
     #[derive(Clone, Copy)]
-    pub struct KvWrPkeyCtrlReadVal(u32);
-    impl KvWrPkeyCtrlReadVal {
+    pub struct KvWriteCtrlRegReadVal(u32);
+    impl KvWriteCtrlRegReadVal {
         /// Indicates that the result is to be stored in the key vault.
         /// Setting this bit to 1 will copy the result to the keyvault when it is ready.
         #[inline(always)]
@@ -456,23 +456,23 @@ pub mod regs {
             ((self.0 >> 31) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
-        pub fn modify(self) -> KvWrPkeyCtrlWriteVal {
-            KvWrPkeyCtrlWriteVal(self.0)
+        pub fn modify(self) -> KvWriteCtrlRegWriteVal {
+            KvWriteCtrlRegWriteVal(self.0)
         }
     }
-    impl From<u32> for KvWrPkeyCtrlReadVal {
+    impl From<u32> for KvWriteCtrlRegReadVal {
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
-    impl From<KvWrPkeyCtrlReadVal> for u32 {
-        fn from(val: KvWrPkeyCtrlReadVal) -> u32 {
+    impl From<KvWriteCtrlRegReadVal> for u32 {
+        fn from(val: KvWriteCtrlRegReadVal) -> u32 {
             val.0
         }
     }
     #[derive(Clone, Copy)]
-    pub struct KvWrPkeyCtrlWriteVal(u32);
-    impl KvWrPkeyCtrlWriteVal {
+    pub struct KvWriteCtrlRegWriteVal(u32);
+    impl KvWriteCtrlRegWriteVal {
         /// Indicates that the result is to be stored in the key vault.
         /// Setting this bit to 1 will copy the result to the keyvault when it is ready.
         #[inline(always)]
@@ -525,13 +525,13 @@ pub mod regs {
             Self((self.0 & !(0xfffff << 11)) | ((val & 0xfffff) << 11))
         }
     }
-    impl From<u32> for KvWrPkeyCtrlWriteVal {
+    impl From<u32> for KvWriteCtrlRegWriteVal {
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
-    impl From<KvWrPkeyCtrlWriteVal> for u32 {
-        fn from(val: KvWrPkeyCtrlWriteVal) -> u32 {
+    impl From<KvWriteCtrlRegWriteVal> for u32 {
+        fn from(val: KvWriteCtrlRegWriteVal) -> u32 {
             val.0
         }
     }
@@ -769,10 +769,10 @@ pub mod meta {
         type Raw = u32;
     }
     impl ureg::ReadableReg for KvRdPkeyCtrl {
-        type ReadVal = crate::ecc::regs::KvRdReadVal;
+        type ReadVal = crate::ecc::regs::KvReadCtrlRegReadVal;
     }
     impl ureg::WritableReg for KvRdPkeyCtrl {
-        type WriteVal = crate::ecc::regs::KvRdWriteVal;
+        type WriteVal = crate::ecc::regs::KvReadCtrlRegWriteVal;
     }
     impl ureg::ResettableReg for KvRdPkeyCtrl {
         const RESET_VAL: Self::Raw = 0;
@@ -783,10 +783,10 @@ pub mod meta {
         type Raw = u32;
     }
     impl ureg::ReadableReg for KvRdSeedCtrl {
-        type ReadVal = crate::ecc::regs::KvRdReadVal;
+        type ReadVal = crate::ecc::regs::KvReadCtrlRegReadVal;
     }
     impl ureg::WritableReg for KvRdSeedCtrl {
-        type WriteVal = crate::ecc::regs::KvRdWriteVal;
+        type WriteVal = crate::ecc::regs::KvReadCtrlRegWriteVal;
     }
     impl ureg::ResettableReg for KvRdSeedCtrl {
         const RESET_VAL: Self::Raw = 0;
@@ -797,10 +797,10 @@ pub mod meta {
         type Raw = u32;
     }
     impl ureg::ReadableReg for KvRdMsgCtrl {
-        type ReadVal = crate::ecc::regs::KvRdReadVal;
+        type ReadVal = crate::ecc::regs::KvReadCtrlRegReadVal;
     }
     impl ureg::WritableReg for KvRdMsgCtrl {
-        type WriteVal = crate::ecc::regs::KvRdWriteVal;
+        type WriteVal = crate::ecc::regs::KvReadCtrlRegWriteVal;
     }
     impl ureg::ResettableReg for KvRdMsgCtrl {
         const RESET_VAL: Self::Raw = 0;
@@ -811,10 +811,10 @@ pub mod meta {
         type Raw = u32;
     }
     impl ureg::ReadableReg for KvWrPkeyCtrl {
-        type ReadVal = crate::ecc::regs::KvWrPkeyCtrlReadVal;
+        type ReadVal = crate::ecc::regs::KvWriteCtrlRegReadVal;
     }
     impl ureg::WritableReg for KvWrPkeyCtrl {
-        type WriteVal = crate::ecc::regs::KvWrPkeyCtrlWriteVal;
+        type WriteVal = crate::ecc::regs::KvWriteCtrlRegWriteVal;
     }
     impl ureg::ResettableReg for KvWrPkeyCtrl {
         const RESET_VAL: Self::Raw = 0;

@@ -670,7 +670,9 @@ impl RegisterBlock {
             }
             let mut new_type = (*reg_type).clone();
             let reg_names: Vec<&str> = regs.iter().map(|r| r.name.as_str()).collect();
-            new_type.name = compute_common_name(&reg_names).map(Into::into);
+            if new_type.name.is_none() {
+                new_type.name = compute_common_name(&reg_names).map(Into::into);
+            }
             if new_type.name.is_none() {
                 new_type.name = Some(format!("Field{:016x}", hash_u64(&new_type)));
             }

@@ -202,7 +202,7 @@ fn translate_register(iref: systemrdl::InstanceRef) -> Result<ureg::Register, Er
         comment: unpad_description(&description),
         array_dimensions: inst.dimension_sizes.clone(),
         ty: Rc::new(ureg_schema::RegisterType {
-            name: None,
+            name: inst.type_name.clone(),
             fields,
             width: regwidth,
         }),

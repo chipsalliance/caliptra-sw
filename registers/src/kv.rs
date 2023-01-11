@@ -24,11 +24,11 @@ impl RegisterBlock {
     ) -> ureg::Array<8, ureg::Array<16, ureg::RegRef<crate::kv::meta::PcrEntry>>> {
         unsafe { ureg::Array::new(self.0.wrapping_add(0 / core::mem::size_of::<u32>())) }
     }
-    /// Read value: [`kv::regs::CtrlReadVal`]; Write value: [`kv::regs::CtrlWriteVal`]
+    /// Read value: [`kv::regs::KvctrlReadVal`]; Write value: [`kv::regs::KvctrlWriteVal`]
     pub fn key_ctrl(&self) -> ureg::Array<8, ureg::RegRef<crate::kv::meta::KeyCtrl>> {
         unsafe { ureg::Array::new(self.0.wrapping_add(0x80 / core::mem::size_of::<u32>())) }
     }
-    /// Read value: [`kv::regs::CtrlReadVal`]; Write value: [`kv::regs::CtrlWriteVal`]
+    /// Read value: [`kv::regs::KvctrlReadVal`]; Write value: [`kv::regs::KvctrlWriteVal`]
     pub fn pcr_ctrl(&self) -> ureg::Array<8, ureg::RegRef<crate::kv::meta::PcrCtrl>> {
         unsafe { ureg::Array::new(self.0.wrapping_add(0x88 / core::mem::size_of::<u32>())) }
     }
@@ -42,8 +42,8 @@ impl RegisterBlock {
 pub mod regs {
     //! Types that represent the values held by registers.
     #[derive(Clone, Copy)]
-    pub struct CtrlReadVal(u32);
-    impl CtrlReadVal {
+    pub struct KvctrlReadVal(u32);
+    impl KvctrlReadVal {
         ///
         #[inline(always)]
         pub fn lock_rd(&self) -> bool {
@@ -75,23 +75,23 @@ pub mod regs {
             (self.0 >> 15) & 0x1ffff
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
-        pub fn modify(self) -> CtrlWriteVal {
-            CtrlWriteVal(self.0)
+        pub fn modify(self) -> KvctrlWriteVal {
+            KvctrlWriteVal(self.0)
         }
     }
-    impl From<u32> for CtrlReadVal {
+    impl From<u32> for KvctrlReadVal {
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
-    impl From<CtrlReadVal> for u32 {
-        fn from(val: CtrlReadVal) -> u32 {
+    impl From<KvctrlReadVal> for u32 {
+        fn from(val: KvctrlReadVal) -> u32 {
             val.0
         }
     }
     #[derive(Clone, Copy)]
-    pub struct CtrlWriteVal(u32);
-    impl CtrlWriteVal {
+    pub struct KvctrlWriteVal(u32);
+    impl KvctrlWriteVal {
         ///
         #[inline(always)]
         pub fn lock_rd(self, val: bool) -> Self {
@@ -118,13 +118,13 @@ pub mod regs {
             Self((self.0 & !(0x1ffff << 15)) | ((val & 0x1ffff) << 15))
         }
     }
-    impl From<u32> for CtrlWriteVal {
+    impl From<u32> for KvctrlWriteVal {
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
-    impl From<CtrlWriteVal> for u32 {
-        fn from(val: CtrlWriteVal) -> u32 {
+    impl From<KvctrlWriteVal> for u32 {
+        fn from(val: KvctrlWriteVal) -> u32 {
             val.0
         }
     }
@@ -155,10 +155,10 @@ pub mod meta {
         type Raw = u32;
     }
     impl ureg::ReadableReg for KeyCtrl {
-        type ReadVal = crate::kv::regs::CtrlReadVal;
+        type ReadVal = crate::kv::regs::KvctrlReadVal;
     }
     impl ureg::WritableReg for KeyCtrl {
-        type WriteVal = crate::kv::regs::CtrlWriteVal;
+        type WriteVal = crate::kv::regs::KvctrlWriteVal;
     }
     impl ureg::ResettableReg for KeyCtrl {
         const RESET_VAL: Self::Raw = 0;
@@ -169,10 +169,10 @@ pub mod meta {
         type Raw = u32;
     }
     impl ureg::ReadableReg for PcrCtrl {
-        type ReadVal = crate::kv::regs::CtrlReadVal;
+        type ReadVal = crate::kv::regs::KvctrlReadVal;
     }
     impl ureg::WritableReg for PcrCtrl {
-        type WriteVal = crate::kv::regs::CtrlWriteVal;
+        type WriteVal = crate::kv::regs::KvctrlWriteVal;
     }
     impl ureg::ResettableReg for PcrCtrl {
         const RESET_VAL: Self::Raw = 0;

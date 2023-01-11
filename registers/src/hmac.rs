@@ -84,19 +84,19 @@ impl RegisterBlock {
     }
     /// Controls the Key Vault read access for this engine
     ///
-    /// Read value: [`hmac::regs::KvRdReadVal`]; Write value: [`hmac::regs::KvRdWriteVal`]
+    /// Read value: [`hmac::regs::KvReadCtrlRegReadVal`]; Write value: [`hmac::regs::KvReadCtrlRegWriteVal`]
     pub fn kv_rd_key_ctrl(&self) -> ureg::RegRef<crate::hmac::meta::KvRdKeyCtrl> {
         unsafe { ureg::RegRef::new(self.0.wrapping_add(0x600 / core::mem::size_of::<u32>())) }
     }
     /// Controls the Key Vault read access for this engine
     ///
-    /// Read value: [`hmac::regs::KvRdReadVal`]; Write value: [`hmac::regs::KvRdWriteVal`]
+    /// Read value: [`hmac::regs::KvReadCtrlRegReadVal`]; Write value: [`hmac::regs::KvReadCtrlRegWriteVal`]
     pub fn kv_rd_block_ctrl(&self) -> ureg::RegRef<crate::hmac::meta::KvRdBlockCtrl> {
         unsafe { ureg::RegRef::new(self.0.wrapping_add(0x604 / core::mem::size_of::<u32>())) }
     }
     /// Controls the Key Vault write access for this engine
     ///
-    /// Read value: [`hmac::regs::KvWrCtrlReadVal`]; Write value: [`hmac::regs::KvWrCtrlWriteVal`]
+    /// Read value: [`hmac::regs::KvWriteCtrlRegReadVal`]; Write value: [`hmac::regs::KvWriteCtrlRegWriteVal`]
     pub fn kv_wr_ctrl(&self) -> ureg::RegRef<crate::hmac::meta::KvWrCtrl> {
         unsafe { ureg::RegRef::new(self.0.wrapping_add(0x608 / core::mem::size_of::<u32>())) }
     }
@@ -128,8 +128,32 @@ pub mod regs {
         }
     }
     #[derive(Clone, Copy)]
-    pub struct KvRdReadVal(u32);
-    impl KvRdReadVal {
+    pub struct StatusReadVal(u32);
+    impl StatusReadVal {
+        /// Status ready bit
+        #[inline(always)]
+        pub fn ready(&self) -> bool {
+            ((self.0 >> 0) & 1) != 0
+        }
+        /// Status valid bit
+        #[inline(always)]
+        pub fn valid(&self) -> bool {
+            ((self.0 >> 1) & 1) != 0
+        }
+    }
+    impl From<u32> for StatusReadVal {
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<StatusReadVal> for u32 {
+        fn from(val: StatusReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct KvReadCtrlRegReadVal(u32);
+    impl KvReadCtrlRegReadVal {
         /// Indicates that the read data is to come from the key vault.
         /// Setting this bit to 1 initiates copying of data from the key vault.
         #[inline(always)]
@@ -172,23 +196,23 @@ pub mod regs {
             ((self.0 >> 31) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
-        pub fn modify(self) -> KvRdWriteVal {
-            KvRdWriteVal(self.0)
+        pub fn modify(self) -> KvReadCtrlRegWriteVal {
+            KvReadCtrlRegWriteVal(self.0)
         }
     }
-    impl From<u32> for KvRdReadVal {
+    impl From<u32> for KvReadCtrlRegReadVal {
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
-    impl From<KvRdReadVal> for u32 {
-        fn from(val: KvRdReadVal) -> u32 {
+    impl From<KvReadCtrlRegReadVal> for u32 {
+        fn from(val: KvReadCtrlRegReadVal) -> u32 {
             val.0
         }
     }
     #[derive(Clone, Copy)]
-    pub struct KvRdWriteVal(u32);
-    impl KvRdWriteVal {
+    pub struct KvReadCtrlRegWriteVal(u32);
+    impl KvReadCtrlRegWriteVal {
         /// Indicates that the read data is to come from the key vault.
         /// Setting this bit to 1 initiates copying of data from the key vault.
         #[inline(always)]
@@ -226,19 +250,19 @@ pub mod regs {
             Self((self.0 & !(0x1fffff << 10)) | ((val & 0x1fffff) << 10))
         }
     }
-    impl From<u32> for KvRdWriteVal {
+    impl From<u32> for KvReadCtrlRegWriteVal {
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
-    impl From<KvRdWriteVal> for u32 {
-        fn from(val: KvRdWriteVal) -> u32 {
+    impl From<KvReadCtrlRegWriteVal> for u32 {
+        fn from(val: KvReadCtrlRegWriteVal) -> u32 {
             val.0
         }
     }
     #[derive(Clone, Copy)]
-    pub struct KvWrCtrlReadVal(u32);
-    impl KvWrCtrlReadVal {
+    pub struct KvWriteCtrlRegReadVal(u32);
+    impl KvWriteCtrlRegReadVal {
         /// Indicates that the result is to be stored in the key vault.
         /// Setting this bit to 1 will copy the result to the keyvault when it is ready.
         #[inline(always)]
@@ -296,23 +320,23 @@ pub mod regs {
             ((self.0 >> 31) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
-        pub fn modify(self) -> KvWrCtrlWriteVal {
-            KvWrCtrlWriteVal(self.0)
+        pub fn modify(self) -> KvWriteCtrlRegWriteVal {
+            KvWriteCtrlRegWriteVal(self.0)
         }
     }
-    impl From<u32> for KvWrCtrlReadVal {
+    impl From<u32> for KvWriteCtrlRegReadVal {
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
-    impl From<KvWrCtrlReadVal> for u32 {
-        fn from(val: KvWrCtrlReadVal) -> u32 {
+    impl From<KvWriteCtrlRegReadVal> for u32 {
+        fn from(val: KvWriteCtrlRegReadVal) -> u32 {
             val.0
         }
     }
     #[derive(Clone, Copy)]
-    pub struct KvWrCtrlWriteVal(u32);
-    impl KvWrCtrlWriteVal {
+    pub struct KvWriteCtrlRegWriteVal(u32);
+    impl KvWriteCtrlRegWriteVal {
         /// Indicates that the result is to be stored in the key vault.
         /// Setting this bit to 1 will copy the result to the keyvault when it is ready.
         #[inline(always)]
@@ -365,37 +389,13 @@ pub mod regs {
             Self((self.0 & !(0xfffff << 11)) | ((val & 0xfffff) << 11))
         }
     }
-    impl From<u32> for KvWrCtrlWriteVal {
+    impl From<u32> for KvWriteCtrlRegWriteVal {
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
-    impl From<KvWrCtrlWriteVal> for u32 {
-        fn from(val: KvWrCtrlWriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct StatusReadVal(u32);
-    impl StatusReadVal {
-        /// Status ready bit
-        #[inline(always)]
-        pub fn ready(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-        /// Status valid bit
-        #[inline(always)]
-        pub fn valid(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
-        }
-    }
-    impl From<u32> for StatusReadVal {
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<StatusReadVal> for u32 {
-        fn from(val: StatusReadVal) -> u32 {
+    impl From<KvWriteCtrlRegWriteVal> for u32 {
+        fn from(val: KvWriteCtrlRegWriteVal) -> u32 {
             val.0
         }
     }
@@ -477,10 +477,10 @@ pub mod meta {
         type Raw = u32;
     }
     impl ureg::ReadableReg for KvRdKeyCtrl {
-        type ReadVal = crate::hmac::regs::KvRdReadVal;
+        type ReadVal = crate::hmac::regs::KvReadCtrlRegReadVal;
     }
     impl ureg::WritableReg for KvRdKeyCtrl {
-        type WriteVal = crate::hmac::regs::KvRdWriteVal;
+        type WriteVal = crate::hmac::regs::KvReadCtrlRegWriteVal;
     }
     impl ureg::ResettableReg for KvRdKeyCtrl {
         const RESET_VAL: Self::Raw = 0;
@@ -491,10 +491,10 @@ pub mod meta {
         type Raw = u32;
     }
     impl ureg::ReadableReg for KvRdBlockCtrl {
-        type ReadVal = crate::hmac::regs::KvRdReadVal;
+        type ReadVal = crate::hmac::regs::KvReadCtrlRegReadVal;
     }
     impl ureg::WritableReg for KvRdBlockCtrl {
-        type WriteVal = crate::hmac::regs::KvRdWriteVal;
+        type WriteVal = crate::hmac::regs::KvReadCtrlRegWriteVal;
     }
     impl ureg::ResettableReg for KvRdBlockCtrl {
         const RESET_VAL: Self::Raw = 0;
@@ -505,10 +505,10 @@ pub mod meta {
         type Raw = u32;
     }
     impl ureg::ReadableReg for KvWrCtrl {
-        type ReadVal = crate::hmac::regs::KvWrCtrlReadVal;
+        type ReadVal = crate::hmac::regs::KvWriteCtrlRegReadVal;
     }
     impl ureg::WritableReg for KvWrCtrl {
-        type WriteVal = crate::hmac::regs::KvWrCtrlWriteVal;
+        type WriteVal = crate::hmac::regs::KvWriteCtrlRegWriteVal;
     }
     impl ureg::ResettableReg for KvWrCtrl {
         const RESET_VAL: Self::Raw = 0;
