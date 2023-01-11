@@ -27,6 +27,7 @@ static CALIPTRA_RDL_FILES: &[&str] = &[
     "src/sha512/rtl/sha512_reg.rdl",
     "src/soc_ifc/rtl/mbox_csr.rdl",
     "src/soc_ifc/rtl/soc_ifc_reg.rdl",
+    "src/soc_ifc/rtl/sha512_acc_csr.rdl",
     "src/integration/rtl/caliptra_reg.rdl",
 ];
 
@@ -80,6 +81,7 @@ fn real_main() -> Result<(), Box<dyn Error>> {
     let rdl_files = CALIPTRA_RDL_FILES
         .iter()
         .map(|p| rtl_dir.join(p))
+        .filter(|p| p.exists())
         .try_fold(
             vec![],
             |mut acc, name| -> std::io::Result<Vec<systemrdl::InputFile>> {
