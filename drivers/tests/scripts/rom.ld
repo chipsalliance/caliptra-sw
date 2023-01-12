@@ -45,10 +45,14 @@ SECTIONS
         *(.sdata*);
         KEEP(*(.eh_frame))
         . = ALIGN(4);
-        PROVIDE( GLOBAL_POINTER = . + 0x800 );
+        PROVIDE( __global_pointer$ = . + 0x800 );
         . = ALIGN(4);
     } > DCCM
 
+    .iccm.ctl : { LONG(0x40000000); LONG(0x40020000) } > ICCM_CTL    
+
+    .data.ctl : { LONG(0x50000000); LONG(0x50020000) } > DCCM_CTL
+    
     .bss (NOLOAD) :
     {
         . = ALIGN(4);
@@ -65,10 +69,6 @@ SECTIONS
         . = ALIGN(4);
         PROVIDE(STACK_START = . );
     } > DCCM
-
-    .iccm.ctl : { LONG(0x40000000); LONG(0x40020000) } > ICCM_CTL    
-
-    .data.ctl : { LONG(0x50000000); LONG(0x50020000) } > DCCM_CTL
 
     _end = . ;
 }

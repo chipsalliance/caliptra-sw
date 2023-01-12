@@ -15,7 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_lib::Sha256;
+use caliptra_lib::{Array4x8, Sha256};
 
 mod harness;
 
@@ -26,10 +26,10 @@ fn test_digest0() {
         0xB8, 0x55,
     ];
     let data = [];
-    let mut digest: [u8; 32] = [0; 32];
-    let result = Sha256::digest(&data, &mut digest);
+    let mut digest = Array4x8::default();
+    let result = Sha256::default().digest(&data, &mut digest);
     assert!(result.is_ok());
-    assert_eq!(digest, expected);
+    assert_eq!(digest, Array4x8::from(expected));
 }
 
 fn test_digest1() {
@@ -39,10 +39,10 @@ fn test_digest1() {
         0x15, 0xAD,
     ];
     let data = "abc".as_bytes();
-    let mut digest: [u8; 32] = [0; 32];
-    let result = Sha256::digest(data, &mut digest);
+    let mut digest = Array4x8::default();
+    let result = Sha256::default().digest(data, &mut digest);
     assert!(result.is_ok());
-    assert_eq!(digest, expected);
+    assert_eq!(digest, Array4x8::from(expected));
 }
 
 fn test_digest2() {
@@ -52,10 +52,10 @@ fn test_digest2() {
         0x6, 0xC1,
     ];
     let data = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".as_bytes();
-    let mut digest: [u8; 32] = [0; 32];
-    let result = Sha256::digest(data, &mut digest);
+    let mut digest = Array4x8::default();
+    let result = Sha256::default().digest(data, &mut digest);
     assert!(result.is_ok());
-    assert_eq!(digest, expected);
+    assert_eq!(digest, Array4x8::from(expected));
 }
 
 fn test_digest3() {
@@ -65,10 +65,11 @@ fn test_digest3() {
         0xE9, 0xD1,
     ];
     let data = "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu".as_bytes();
-    let mut digest: [u8; 32] = [0; 32];
-    let result = Sha256::digest(data, &mut digest);
+    let mut digest = Array4x8::default();
+    let result = Sha256::default().digest(data, &mut digest);
+    result.unwrap();
     assert!(result.is_ok());
-    assert_eq!(digest, expected);
+    assert_eq!(digest, Array4x8::from(expected));
 }
 
 fn test_op0() {
@@ -77,11 +78,12 @@ fn test_op0() {
         0x24, 0x27, 0xAE, 0x41, 0xE4, 0x64, 0x9B, 0x93, 0x4C, 0xA4, 0x95, 0x99, 0x1B, 0x78, 0x52,
         0xB8, 0x55,
     ];
-    let mut digest_op = Sha256::init_digest();
-    let mut digest: [u8; 32] = [0; 32];
-    let actual = digest_op.finalize(&mut digest);
+    let mut digest = Array4x8::default();
+    let sha = Sha256::default();
+    let mut digest_op = sha.digest_init(&mut digest).unwrap();
+    let actual = digest_op.finalize();
     assert!(actual.is_ok());
-    assert_eq!(digest, expected);
+    assert_eq!(digest, Array4x8::from(expected));
 }
 
 fn test_op1() {
@@ -91,12 +93,13 @@ fn test_op1() {
         0xB8, 0x55,
     ];
     let data = [];
-    let mut digest_op = Sha256::init_digest();
+    let mut digest = Array4x8::default();
+    let sha = Sha256::default();
+    let mut digest_op = sha.digest_init(&mut digest).unwrap();
     assert!(digest_op.update(&data).is_ok());
-    let mut digest: [u8; 32] = [0; 32];
-    let actual = digest_op.finalize(&mut digest);
+    let actual = digest_op.finalize();
     assert!(actual.is_ok());
-    assert_eq!(digest, expected);
+    assert_eq!(digest, Array4x8::from(expected));
 }
 
 fn test_op2() {
@@ -106,12 +109,13 @@ fn test_op2() {
         0x15, 0xAD,
     ];
     let data = "abc".as_bytes();
-    let mut digest_op = Sha256::init_digest();
-    assert!(digest_op.update(&data).is_ok());
-    let mut digest: [u8; 32] = [0; 32];
-    let actual = digest_op.finalize(&mut digest);
+    let mut digest = Array4x8::default();
+    let sha = Sha256::default();
+    let mut digest_op = sha.digest_init(&mut digest).unwrap();
+    assert!(digest_op.update(data).is_ok());
+    let actual = digest_op.finalize();
     assert!(actual.is_ok());
-    assert_eq!(digest, expected);
+    assert_eq!(digest, Array4x8::from(expected));
 }
 
 fn test_op3() {
@@ -121,12 +125,13 @@ fn test_op3() {
         0x6, 0xC1,
     ];
     let data = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".as_bytes();
-    let mut digest_op = Sha256::init_digest();
-    assert!(digest_op.update(&data).is_ok());
-    let mut digest: [u8; 32] = [0; 32];
-    let actual = digest_op.finalize(&mut digest);
+    let mut digest = Array4x8::default();
+    let sha = Sha256::default();
+    let mut digest_op = sha.digest_init(&mut digest).unwrap();
+    assert!(digest_op.update(data).is_ok());
+    let actual = digest_op.finalize();
     assert!(actual.is_ok());
-    assert_eq!(digest, expected);
+    assert_eq!(digest, Array4x8::from(expected));
 }
 
 fn test_op4() {
@@ -136,12 +141,13 @@ fn test_op4() {
         0xE9, 0xD1,
     ];
     let data = "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu".as_bytes();
-    let mut digest_op = Sha256::init_digest();
-    assert!(digest_op.update(&data).is_ok());
-    let mut digest: [u8; 32] = [0; 32];
-    let actual = digest_op.finalize(&mut digest);
+    let mut digest = Array4x8::default();
+    let sha = Sha256::default();
+    let mut digest_op = sha.digest_init(&mut digest).unwrap();
+    assert!(digest_op.update(data).is_ok());
+    let actual = digest_op.finalize();
     assert!(actual.is_ok());
-    assert_eq!(digest, expected);
+    assert_eq!(digest, Array4x8::from(expected));
 }
 
 fn test_op5() {
@@ -151,14 +157,15 @@ fn test_op5() {
         0x2C, 0xD0,
     ];
     const DATA: [u8; 1000] = [0x61; 1000];
-    let mut digest_op = Sha256::init_digest();
+    let mut digest = Array4x8::default();
+    let sha = Sha256::default();
+    let mut digest_op = sha.digest_init(&mut digest).unwrap();
     for _ in 0..1_000 {
         assert!(digest_op.update(&DATA).is_ok());
     }
-    let mut digest: [u8; 32] = [0; 32];
-    let actual = digest_op.finalize(&mut digest);
+    let actual = digest_op.finalize();
     assert!(actual.is_ok());
-    assert_eq!(digest, expected);
+    assert_eq!(digest, Array4x8::from(expected));
 }
 
 fn test_op6() {
@@ -168,14 +175,15 @@ fn test_op6() {
         0x3b, 0x8a,
     ];
     let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz".as_bytes();
-    let mut digest_op = Sha256::init_digest();
+    let mut digest = Array4x8::default();
+    let sha = Sha256::default();
+    let mut digest_op = sha.digest_init(&mut digest).unwrap();
     for idx in 0..data.len() {
         assert!(digest_op.update(&data[idx..idx + 1]).is_ok());
     }
-    let mut digest: [u8; 32] = [0; 32];
-    let actual = digest_op.finalize(&mut digest);
+    let actual = digest_op.finalize();
     assert!(actual.is_ok());
-    assert_eq!(digest, expected);
+    assert_eq!(digest, Array4x8::from(expected));
 }
 
 fn test_op7() {
@@ -185,14 +193,15 @@ fn test_op7() {
         0xae, 0x8e,
     ];
     let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijkl".as_bytes();
-    let mut digest_op = Sha256::init_digest();
+    let mut digest = Array4x8::default();
+    let sha = Sha256::default();
+    let mut digest_op = sha.digest_init(&mut digest).unwrap();
     for idx in 0..data.len() {
         assert!(digest_op.update(&data[idx..idx + 1]).is_ok());
     }
-    let mut digest: [u8; 32] = [0; 32];
-    let actual = digest_op.finalize(&mut digest);
+    let actual = digest_op.finalize();
     assert!(actual.is_ok());
-    assert_eq!(digest, expected);
+    assert_eq!(digest, Array4x8::from(expected));
 }
 
 fn test_op8() {
@@ -202,14 +211,15 @@ fn test_op8() {
         0x2f, 0x51,
     ];
     let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcd".as_bytes(); // Exact single block
-    let mut digest_op = Sha256::init_digest();
+    let mut digest = Array4x8::default();
+    let sha = Sha256::default();
+    let mut digest_op = sha.digest_init(&mut digest).unwrap();
     for idx in 0..data.len() {
         assert!(digest_op.update(&data[idx..idx + 1]).is_ok());
     }
-    let mut digest: [u8; 32] = [0; 32];
-    let actual = digest_op.finalize(&mut digest);
+    let actual = digest_op.finalize();
     assert!(actual.is_ok());
-    assert_eq!(digest, expected);
+    assert_eq!(digest, Array4x8::from(expected));
 }
 
 test_suite! {

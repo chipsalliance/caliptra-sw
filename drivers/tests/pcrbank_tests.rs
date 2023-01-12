@@ -41,10 +41,7 @@ const EMPTY_PCR: [u8; 48] = [0; 48];
 fn test_read_write() {
     let pcr_bank = PcrBank::default();
     for pcr_id in PCR_IDS {
-        assert_eq!(
-            pcr_bank.write_pcr(pcr_id, &Array4x12::from(PCR)).is_ok(),
-            true
-        );
+        assert!(pcr_bank.write_pcr(pcr_id, &Array4x12::from(PCR)).is_ok());
         assert_eq!(pcr_bank.read_pcr(pcr_id), Array4x12::from(PCR));
     }
 }
@@ -52,12 +49,9 @@ fn test_read_write() {
 fn test_erase_pcr() {
     let mut pcr_bank = PcrBank::default();
     for pcr_id in PCR_IDS {
-        assert_eq!(
-            pcr_bank.write_pcr(pcr_id, &Array4x12::from(PCR)).is_ok(),
-            true
-        );
+        assert!(pcr_bank.write_pcr(pcr_id, &Array4x12::from(PCR)).is_ok());
         assert_eq!(pcr_bank.read_pcr(pcr_id), Array4x12::from(PCR));
-        assert_eq!(pcr_bank.erase_pcr(pcr_id).is_ok(), true);
+        assert!(pcr_bank.erase_pcr(pcr_id).is_ok());
         assert_eq!(pcr_bank.read_pcr(pcr_id), Array4x12::from(EMPTY_PCR));
     }
 }
@@ -65,10 +59,7 @@ fn test_erase_pcr() {
 fn test_erase_all_pcrs() {
     let mut pcr_bank = PcrBank::default();
     for pcr_id in PCR_IDS {
-        assert_eq!(
-            pcr_bank.write_pcr(pcr_id, &Array4x12::from(PCR)).is_ok(),
-            true
-        );
+        assert!(pcr_bank.write_pcr(pcr_id, &Array4x12::from(PCR)).is_ok());
         assert_eq!(pcr_bank.read_pcr(pcr_id), Array4x12::from(PCR));
     }
 
@@ -83,21 +74,15 @@ fn test_write_lock() {
     let mut pcr_bank = PcrBank::default();
 
     for pcr_id in PCR_IDS {
-        assert_eq!(pcr_bank.pcr_write_lock(pcr_id), false);
+        assert!(!pcr_bank.pcr_write_lock(pcr_id));
 
-        assert_eq!(
-            pcr_bank.write_pcr(pcr_id, &Array4x12::from(PCR)).is_ok(),
-            true
-        );
+        assert!(pcr_bank.write_pcr(pcr_id, &Array4x12::from(PCR)).is_ok());
 
         pcr_bank.set_pcr_write_lock(pcr_id);
-        assert_eq!(pcr_bank.pcr_write_lock(pcr_id), true);
+        assert!(pcr_bank.pcr_write_lock(pcr_id));
 
         // Try writing to the pcr. This should fail.
-        assert_eq!(
-            pcr_bank.write_pcr(pcr_id, &Array4x12::from(PCR)).is_ok(),
-            false
-        );
+        assert!(pcr_bank.write_pcr(pcr_id, &Array4x12::from(PCR)).is_err());
     }
 }
 
@@ -105,7 +90,7 @@ fn test_try_erase_all_write_protected_pcrs() {
     let mut pcr_bank = PcrBank::default();
     for pcr_id in PCR_IDS {
         assert_eq!(pcr_bank.read_pcr(pcr_id), Array4x12::from(PCR));
-        assert_eq!(pcr_bank.pcr_write_lock(pcr_id), true);
+        assert!(pcr_bank.pcr_write_lock(pcr_id));
     }
     pcr_bank.erase_all_pcrs(); // This should be a no-op.
     for pcr_id in PCR_IDS {
@@ -116,9 +101,9 @@ fn test_try_erase_all_write_protected_pcrs() {
 fn test_write_protection_stickiness() {
     let mut pcr_bank = PcrBank::default();
     for pcr_id in PCR_IDS {
-        assert_eq!(pcr_bank.pcr_write_lock(pcr_id), true);
+        assert!(pcr_bank.pcr_write_lock(pcr_id));
         pcr_bank.clear_pcr_write_lock(pcr_id);
-        assert_eq!(pcr_bank.pcr_write_lock(pcr_id), true);
+        assert!(pcr_bank.pcr_write_lock(pcr_id));
     }
 }
 

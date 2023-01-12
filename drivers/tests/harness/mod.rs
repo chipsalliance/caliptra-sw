@@ -16,7 +16,7 @@ use core::fmt;
 
 #[macro_export]
 macro_rules! print {
-    ($($arg:tt)*) => (crate::harness::_print(format_args!($($arg)*)));
+    ($($arg:tt)*) => ($crate::harness::_print(format_args!($($arg)*)));
 }
 
 #[macro_export]
@@ -44,7 +44,7 @@ macro_rules! test_suite {
     ($($test_case: ident,)*) => {
         use core::arch::global_asm;
         use core::panic::PanicInfo;
-        use crate::harness::Testable;
+        use $crate::harness::Testable;
 
         global_asm!(include_str!("start.S"));
 
@@ -72,7 +72,7 @@ macro_rules! test_suite {
 }
 
 pub trait Testable {
-    fn run(&self) -> ();
+    fn run(&self);
 }
 
 impl<T> Testable for T

@@ -12,10 +12,11 @@ Abstract:
 
 --*/
 
-use crate::reg::mailbox_regs::*;
-use crate::{cptr_err_def, CptrResult};
-use core::mem::size_of;
-use tock_registers::interfaces::{Readable, Writeable};
+//use crate::reg::mailbox_regs::*;
+use crate::{caliptra_err_def, CaliptraResult};
+use caliptra_registers::mbox::{self, enums::MboxStatusE};
+use core::mem;
+//use tock_registers::interfaces::{Readable, Writeable};
 
 #[derive(PartialEq)]
 pub enum Status {
@@ -25,7 +26,7 @@ pub enum Status {
     CmdFailure = 0x3,
 }
 
-cptr_err_def! {
+caliptra_err_def! {
     Mailbox,
     MailboxErr
     {
@@ -46,35 +47,35 @@ impl Mailbox {
     /// # Returns
     ///
     /// * Lock Status
-    pub fn send(cmd: u32, data: &[u32]) -> CptrResult<bool> {
+    pub fn send(cmd: u32, data: &[u32]) -> CaliptraResult<bool> {
         // Check Max Len
-        if (data.len() * size_of::<u32>()) > MAX_MAILBOX_LEN {
+        if (data.len() * mem::size_of::<u32>()) > MAX_MAILBOX_LEN {
             raise_err!(MaxDataErr)
         }
 
+        let mbox = mbox::RegisterBlock::mbox_csr();
+
         // if Locked return an error
-        if MAILBOX_REGS.lock.get() == 1 {
+        if mbox.lock().read().lock() {
             return Ok(false);
         }
 
         // Write Command
-        MAILBOX_REGS.command.set(cmd);
+        mbox.cmd().write(|_| cmd);
 
         // Write Len in Bytes
-        MAILBOX_REGS
-            .dlen
-            .set((data.len() * size_of::<u32>()) as u32);
+        mbox.dlen()
+            .write(|_| (data.len() * mem::size_of::<u32>()) as u32);
 
         // Write Data
-        for i in 0..data.len() {
-            MAILBOX_REGS.din.set(data[i]);
+        for word in data {
+            mbox.datain().write(|_| *word);
         }
-
         // Write Status
-        MAILBOX_REGS.status.write(STATUS::STATE::DATA_READY);
+        mbox.status().write(|w| w.status(|w| w.data_ready()));
 
         // Set Execute Bit
-        MAILBOX_REGS.execute.set(1);
+        mbox.execute().write(|w| w.execute(true));
 
         Ok(true)
     }
@@ -84,12 +85,12 @@ impl Mailbox {
     ///
     /// * Status Register
     fn status() -> Status {
-        match MAILBOX_REGS.status.read(STATUS::STATE) {
-            0x0 => Status::Busy,
-            0x1 => Status::DataReady,
-            0x2 => Status::CmdComplete,
-            0x3 => Status::CmdFailure,
-            4_u32..=u32::MAX => todo!(),
+        let mbox = mbox::RegisterBlock::mbox_csr();
+        match mbox.status().read().status() {
+            MboxStatusE::CmdBusy => Status::Busy,
+            MboxStatusE::DataReady => Status::DataReady,
+            MboxStatusE::CmdComplete => Status::CmdComplete,
+            MboxStatusE::CmdFailure => Status::CmdFailure,
         }
     }
 
@@ -98,7 +99,8 @@ impl Mailbox {
     ///
     /// * Data Len in Bytes
     pub fn get_data_len() -> u32 {
-        MAILBOX_REGS.dlen.get()
+        let mbox = mbox::RegisterBlock::mbox_csr();
+        mbox.dlen().read()
     }
 
     /// Receive data from SOC
@@ -115,40 +117,41 @@ impl Mailbox {
     pub fn recv(
         buffer: &mut [u32],
         mut handler: impl FnMut(u32, &mut [u32]) -> bool,
-    ) -> CptrResult<bool> {
+    ) -> CaliptraResult<bool> {
         // Check if Data Ready
         if Mailbox::status() != Status::DataReady {
             return Ok(false);
         }
 
+        let mbox = mbox::RegisterBlock::mbox_csr();
         // Set Status Busy
-        MAILBOX_REGS.status.write(STATUS::STATE::BUSY);
+        mbox.status().write(|w| w.status(|w| w.cmd_busy()));
 
         // Read len
-        let dlen = MAILBOX_REGS.dlen.get();
-        if dlen > (buffer.len() * size_of::<u32>()) as u32 {
+        let dlen = mbox.dlen().read();
+        if dlen > (buffer.len() * mem::size_of::<u32>()) as u32 {
             raise_err!(MaxDataErr);
         }
 
         // Read Command
-        let cmd = MAILBOX_REGS.command.get();
+        let cmd = mbox.cmd().read();
 
         // Read Data
         // Todo: Shall this logic go to slice ?
-        for i in 0..buffer.len() {
-            buffer[i] = MAILBOX_REGS.dout.get();
+        for word in buffer.iter_mut() {
+            *word = mbox.dataout().read();
         }
 
         // Call Handler
         let rc = handler(cmd, buffer);
-        match rc == true {
+        match rc {
             // Set Status Busy
-            true => MAILBOX_REGS.status.write(STATUS::STATE::CMD_COMPLETE),
-            false => MAILBOX_REGS.status.write(STATUS::STATE::CMD_FAILURE),
+            true => mbox.status().write(|w| w.status(|w| w.cmd_complete())),
+            false => mbox.status().write(|w| w.status(|w| w.cmd_failure())),
         }
 
         // ReSet Execute Bit
-        MAILBOX_REGS.execute.set(0);
+        mbox.execute().write(|w| w.execute(false));
 
         Ok(rc)
     }

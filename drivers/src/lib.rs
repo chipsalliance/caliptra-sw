@@ -18,27 +18,34 @@ mod reg;
 
 mod array;
 mod error;
-mod slice;
+//mod slice;
+mod wait;
 
 mod doe;
 mod ecc384;
 mod hmac384;
 mod key_vault;
+mod kv_access;
 mod mailbox;
 mod pcr_bank;
 mod sha256;
 mod sha384;
 
-pub type CptrResult<T> = Result<T, u32>;
-pub use doe::Doe;
-pub use ecc384::{Ecc384, Ecc384PrivKey, Ecc384PubKey, Ecc384Signature};
+pub type CaliptraResult<T> = Result<T, u32>;
+pub use array::{Array4x12, Array4x4, Array4x8};
+pub use doe::DeobfuscationEngine;
+pub use ecc384::{
+    Ecc384, Ecc384Data, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Scalar, Ecc384Seed,
+    Ecc384Signature,
+};
 pub use error::CptrComponent;
 pub use hmac384::Hmac384;
 pub use key_vault::{KeyId, KeyUsage, KeyVault};
+pub use kv_access::{KeyReadArgs, KeyWriteArgs};
 pub use mailbox::Mailbox;
 pub use pcr_bank::{PcrBank, PcrId};
 pub use sha256::Sha256;
-pub use sha384::Sha384;
+pub use sha384::{Sha384, Sha384Data, Sha384Digest};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "emu")] {
@@ -49,5 +56,3 @@ cfg_if::cfg_if! {
         pub use emu_ctrl::EmuCtrl;
     }
 }
-
-pub use array::{Array4x12, Array4x4, Array4x8, ARRAY_4X12_WORD_SIZE, ARRAY_4X4_WORD_SIZE};

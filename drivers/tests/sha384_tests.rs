@@ -15,7 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_lib::Sha384;
+use caliptra_lib::{Array4x12, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Sha384};
 
 mod harness;
 
@@ -26,12 +26,12 @@ fn test_digest0() {
         0xE1, 0xDA, 0x27, 0x4E, 0xDE, 0xBF, 0xE7, 0x6F, 0x65, 0xFB, 0xD5, 0x1A, 0xD2, 0xF1, 0x48,
         0x98, 0xB9, 0x5B,
     ];
-    let mut digest: [u8; 48] = [0; 48];
 
-    let data = [];
-    let actual = Sha384::digest(&data, &mut digest);
-    assert!(actual.is_ok());
-    assert_eq!(digest, expected);
+    let data = &[];
+    let mut digest = Array4x12::default();
+    let result = Sha384::default().digest(data.into(), (&mut digest).into());
+    assert!(result.is_ok());
+    assert_eq!(digest, Array4x12::from(expected));
 }
 
 fn test_digest1() {
@@ -41,11 +41,11 @@ fn test_digest1() {
         0x5B, 0xED, 0x80, 0x86, 0x07, 0x2B, 0xA1, 0xE7, 0xCC, 0x23, 0x58, 0xBA, 0xEC, 0xA1, 0x34,
         0xC8, 0x25, 0xA7,
     ];
-    let mut digest: [u8; 48] = [0; 48];
     let data = "abc".as_bytes();
-    let actual = Sha384::digest(data, &mut digest);
-    assert!(actual.is_ok());
-    assert_eq!(digest, expected);
+    let mut digest = Array4x12::default();
+    let result = Sha384::default().digest(data.into(), (&mut digest).into());
+    assert!(result.is_ok());
+    assert_eq!(digest, Array4x12::from(expected));
 }
 
 fn test_digest2() {
@@ -55,11 +55,11 @@ fn test_digest2() {
         0x6B, 0xC6, 0xB0, 0x45, 0x5A, 0x85, 0x20, 0xBC, 0x4E, 0x6F, 0x5F, 0xE9, 0x5B, 0x1F, 0xE3,
         0xC8, 0x45, 0x2B,
     ];
-    let mut digest: [u8; 48] = [0; 48];
     let data = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".as_bytes();
-    let actual = Sha384::digest(data, &mut digest);
-    assert!(actual.is_ok());
-    assert_eq!(digest, expected);
+    let mut digest = Array4x12::default();
+    let result = Sha384::default().digest(data.into(), (&mut digest).into());
+    assert!(result.is_ok());
+    assert_eq!(digest, Array4x12::from(expected));
 }
 
 fn test_digest3() {
@@ -69,11 +69,11 @@ fn test_digest3() {
         0xF7, 0x12, 0xFC, 0xC7, 0xC7, 0x1A, 0x55, 0x7E, 0x2D, 0xB9, 0x66, 0xC3, 0xE9, 0xFA, 0x91,
         0x74, 0x60, 0x39,
     ];
-    let mut digest: [u8; 48] = [0; 48];
     let data = "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu".as_bytes();
-    let actual = Sha384::digest(data, &mut digest);
-    assert!(actual.is_ok());
-    assert_eq!(digest, expected);
+    let mut digest = Array4x12::default();
+    let result = Sha384::default().digest(data.into(), (&mut digest).into());
+    assert!(result.is_ok());
+    assert_eq!(digest, Array4x12::from(expected));
 }
 
 fn test_op0() {
@@ -83,11 +83,12 @@ fn test_op0() {
         0xE1, 0xDA, 0x27, 0x4E, 0xDE, 0xBF, 0xE7, 0x6F, 0x65, 0xFB, 0xD5, 0x1A, 0xD2, 0xF1, 0x48,
         0x98, 0xB9, 0x5B,
     ];
-    let mut digest_op = Sha384::init_digest();
-    let mut digest: [u8; 48] = [0; 48];
-    let actual = digest_op.finalize(&mut digest);
+    let mut digest = Array4x12::default();
+    let sha384 = Sha384::default();
+    let mut digest_op = sha384.digest_init((&mut digest).into()).unwrap();
+    let actual = digest_op.finalize();
     assert!(actual.is_ok());
-    assert_eq!(digest, expected);
+    assert_eq!(digest, Array4x12::from(expected));
 }
 
 fn test_op1() {
@@ -97,13 +98,12 @@ fn test_op1() {
         0xE1, 0xDA, 0x27, 0x4E, 0xDE, 0xBF, 0xE7, 0x6F, 0x65, 0xFB, 0xD5, 0x1A, 0xD2, 0xF1, 0x48,
         0x98, 0xB9, 0x5B,
     ];
-    let data = [];
-    let mut digest_op = Sha384::init_digest();
-    assert!(digest_op.update(&data).is_ok());
-    let mut digest: [u8; 48] = [0; 48];
-    let actual = digest_op.finalize(&mut digest);
+    let mut digest = Array4x12::default();
+    let sha384 = Sha384::default();
+    let mut digest_op = sha384.digest_init((&mut digest).into()).unwrap();
+    let actual = digest_op.finalize();
     assert!(actual.is_ok());
-    assert_eq!(digest, expected);
+    assert_eq!(digest, Array4x12::from(expected));
 }
 
 fn test_op2() {
@@ -113,13 +113,15 @@ fn test_op2() {
         0x5B, 0xED, 0x80, 0x86, 0x07, 0x2B, 0xA1, 0xE7, 0xCC, 0x23, 0x58, 0xBA, 0xEC, 0xA1, 0x34,
         0xC8, 0x25, 0xA7,
     ];
+
     let data = "abc".as_bytes();
-    let mut digest_op = Sha384::init_digest();
-    assert!(digest_op.update(&data).is_ok());
-    let mut digest: [u8; 48] = [0; 48];
-    let actual = digest_op.finalize(&mut digest);
+    let mut digest = Array4x12::default();
+    let sha384 = Sha384::default();
+    let mut digest_op = sha384.digest_init((&mut digest).into()).unwrap();
+    assert!(digest_op.update(data).is_ok());
+    let actual = digest_op.finalize();
     assert!(actual.is_ok());
-    assert_eq!(digest, expected);
+    assert_eq!(digest, Array4x12::from(expected));
 }
 
 fn test_op3() {
@@ -130,12 +132,13 @@ fn test_op3() {
         0xC8, 0x45, 0x2B,
     ];
     let data = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".as_bytes();
-    let mut digest_op = Sha384::init_digest();
-    assert!(digest_op.update(&data).is_ok());
-    let mut digest: [u8; 48] = [0; 48];
-    let actual = digest_op.finalize(&mut digest);
+    let mut digest = Array4x12::default();
+    let sha384 = Sha384::default();
+    let mut digest_op = sha384.digest_init((&mut digest).into()).unwrap();
+    assert!(digest_op.update(data).is_ok());
+    let actual = digest_op.finalize();
     assert!(actual.is_ok());
-    assert_eq!(digest, expected);
+    assert_eq!(digest, Array4x12::from(expected));
 }
 
 fn test_op4() {
@@ -146,12 +149,13 @@ fn test_op4() {
         0x74, 0x60, 0x39,
     ];
     let data = "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu".as_bytes();
-    let mut digest_op = Sha384::init_digest();
-    assert!(digest_op.update(&data).is_ok());
-    let mut digest: [u8; 48] = [0; 48];
-    let actual = digest_op.finalize(&mut digest);
+    let mut digest = Array4x12::default();
+    let sha384 = Sha384::default();
+    let mut digest_op = sha384.digest_init((&mut digest).into()).unwrap();
+    assert!(digest_op.update(data).is_ok());
+    let actual = digest_op.finalize();
     assert!(actual.is_ok());
-    assert_eq!(digest, expected);
+    assert_eq!(digest, Array4x12::from(expected));
 }
 
 fn test_op5() {
@@ -162,14 +166,15 @@ fn test_op5() {
         0x3D, 0x89, 0x85,
     ];
     const DATA: [u8; 1000] = [0x61; 1000];
-    let mut digest_op = Sha384::init_digest();
+    let mut digest = Array4x12::default();
+    let sha384 = Sha384::default();
+    let mut digest_op = sha384.digest_init((&mut digest).into()).unwrap();
     for _ in 0..1_000 {
         assert!(digest_op.update(&DATA).is_ok());
     }
-    let mut digest: [u8; 48] = [0; 48];
-    let actual = digest_op.finalize(&mut digest);
+    let actual = digest_op.finalize();
     assert!(actual.is_ok());
-    assert_eq!(digest, expected);
+    assert_eq!(digest, Array4x12::from(expected));
 }
 
 fn test_op6() {
@@ -180,14 +185,15 @@ fn test_op6() {
         0xfc, 0x1e, 0xcd,
     ];
     let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz".as_bytes();
-    let mut digest_op = Sha384::init_digest();
+    let mut digest = Array4x12::default();
+    let sha384 = Sha384::default();
+    let mut digest_op = sha384.digest_init((&mut digest).into()).unwrap();
     for idx in 0..data.len() {
         assert!(digest_op.update(&data[idx..idx + 1]).is_ok());
     }
-    let mut digest: [u8; 48] = [0; 48];
-    let actual = digest_op.finalize(&mut digest);
+    let actual = digest_op.finalize();
     assert!(actual.is_ok());
-    assert_eq!(digest, expected);
+    assert_eq!(digest, Array4x12::from(expected));
 }
 
 fn test_op7() {
@@ -198,14 +204,15 @@ fn test_op7() {
         0x70, 0x06, 0x2a,
     ];
     let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx".as_bytes();
-    let mut digest_op = Sha384::init_digest();
+    let mut digest = Array4x12::default();
+    let sha384 = Sha384::default();
+    let mut digest_op = sha384.digest_init((&mut digest).into()).unwrap();
     for idx in 0..data.len() {
         assert!(digest_op.update(&data[idx..idx + 1]).is_ok());
     }
-    let mut digest: [u8; 48] = [0; 48];
-    let actual = digest_op.finalize(&mut digest);
+    let actual = digest_op.finalize();
     assert!(actual.is_ok());
-    assert_eq!(digest, expected);
+    assert_eq!(digest, Array4x12::from(expected));
 }
 
 fn test_op8() {
@@ -216,14 +223,114 @@ fn test_op8() {
         0xb0, 0x01, 0x4e,
     ];
     let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefgh".as_bytes();
-    let mut digest_op = Sha384::init_digest();
+    let mut digest = Array4x12::default();
+    let sha384 = Sha384::default();
+    let mut digest_op = sha384.digest_init((&mut digest).into()).unwrap();
     for idx in 0..data.len() {
         assert!(digest_op.update(&data[idx..idx + 1]).is_ok());
     }
-    let mut digest: [u8; 48] = [0; 48];
-    let actual = digest_op.finalize(&mut digest);
+    let actual = digest_op.finalize();
     assert!(actual.is_ok());
-    assert_eq!(digest, expected);
+    assert_eq!(digest, Array4x12::from(expected));
+}
+
+fn test_key_digest0() {
+    // dd if=/dev/zero bs=1 count=4 |sha384sum
+    let expected: [u8; 48] = [
+        0x39, 0x43, 0x41, 0xb7, 0x18, 0x2c, 0xd2, 0x27, 0xc5, 0xc6, 0xb0, 0x7e, 0xf8, 0x00, 0x0c,
+        0xdf, 0xd8, 0x61, 0x36, 0xc4, 0x29, 0x2b, 0x8e, 0x57, 0x65, 0x73, 0xad, 0x7e, 0xd9, 0xae,
+        0x41, 0x01, 0x9f, 0x58, 0x18, 0xb4, 0xb9, 0x71, 0xc9, 0xef, 0xfc, 0x60, 0xe1, 0xad, 0x9f,
+        0x12, 0x89, 0xf0,
+    ];
+
+    let mut digest = Array4x12::default();
+    let key = KeyReadArgs::new(KeyId::KeyId0, 1);
+    let result = Sha384::default().digest(key.into(), (&mut digest).into());
+    result.unwrap();
+    assert!(result.is_ok());
+    assert_eq!(digest, Array4x12::from(expected));
+}
+
+fn test_key_digest1() {
+    // dd if=/dev/zero bs=1 count=48 |sha384sum
+    let expected: [u8; 48] = [
+        0x8f, 0x0d, 0x14, 0x5c, 0x03, 0x68, 0xad, 0x6b, 0x70, 0xbe, 0x22, 0xe4, 0x1c, 0x40, 0x0e,
+        0xea, 0x91, 0xb9, 0x71, 0xd9, 0x6b, 0xa2, 0x20, 0xfe, 0xc9, 0xfa, 0xe2, 0x5a, 0x58, 0xdf,
+        0xfd, 0xaa, 0xf7, 0x2d, 0xbe, 0x8f, 0x67, 0x83, 0xd5, 0x51, 0x28, 0xc9, 0xdf, 0x4e, 0xfa,
+        0xf6, 0xf8, 0xa7,
+    ];
+
+    let mut digest = Array4x12::default();
+    let key = KeyReadArgs::new(KeyId::KeyId0, 12);
+    let result = Sha384::default().digest(key.into(), (&mut digest).into());
+    assert!(result.is_ok());
+    assert_eq!(digest, Array4x12::from(expected));
+}
+
+fn test_kv_hash_to_vault_buffer_from_vault() {
+    let expected: [u8; 48] = [
+        0x96, 0x95, 0x0f, 0xf4, 0x2b, 0xea, 0xd4, 0x53, 0x65, 0x7a, 0x8c, 0x70, 0x25, 0xad, 0x3f,
+        0xd7, 0xf3, 0x0e, 0xf0, 0x77, 0xd4, 0x0b, 0xdb, 0xfe, 0xfe, 0xa8, 0xee, 0x0b, 0x85, 0x19,
+        0x14, 0x22, 0x21, 0x2c, 0xda, 0x51, 0x2d, 0x8b, 0xa1, 0xbb, 0x68, 0xd6, 0xf7, 0xe0, 0xa0,
+        0x81, 0xf4, 0x89,
+    ];
+
+    //
+    // Step 1: Hash a buffer with all zeros (from key-vault slot 0) and store the hash into key-vault slot 1.
+    //
+    let key_in_1 = KeyReadArgs::new(KeyId::KeyId0, 12);
+    let key_out_1 = KeyWriteArgs {
+        id: KeyId::KeyId1,
+        usage: KeyUsage(2),
+        word_size: 12,
+    };
+    let mut result = Sha384::default().digest(key_in_1.into(), key_out_1.into());
+    assert!(result.is_ok());
+
+    //
+    // Step 2: Hash the hash generated in step 1.
+    //
+    let mut digest = Array4x12::default();
+    let key_in_2 = KeyReadArgs::new(KeyId::KeyId1, 12);
+    result = Sha384::default().digest(key_in_2.into(), (&mut digest).into());
+    assert!(result.is_ok());
+    assert_eq!(digest, Array4x12::from(expected));
+}
+
+fn test_kv_hash_to_vault_buffer_from_api() {
+    let expected: [u8; 48] = [
+        0x31, 0x15, 0x4d, 0x09, 0x2c, 0x9e, 0xf4, 0xc7, 0x23, 0x0c, 0xeb, 0x5d, 0x32, 0x65, 0x7f,
+        0x11, 0x51, 0x79, 0xdb, 0x40, 0x30, 0xc0, 0x16, 0x71, 0x1e, 0x2a, 0xd2, 0x85, 0xb3, 0x66,
+        0xaa, 0x5f, 0x78, 0x3a, 0xac, 0x7b, 0x3f, 0x71, 0xc3, 0xe0, 0x0e, 0xb9, 0x9b, 0xc5, 0x0e,
+        0x75, 0x60, 0x64,
+    ];
+
+    let data: [u8; 48] = [
+        0x9c, 0x2f, 0x48, 0x76, 0x0d, 0x13, 0xac, 0x42, 0xea, 0xd1, 0x96, 0xe5, 0x4d, 0xcb, 0xaa,
+        0x5e, 0x58, 0x72, 0x06, 0x62, 0xa9, 0x6b, 0x91, 0x94, 0xe9, 0x81, 0x33, 0x29, 0xbd, 0xb6,
+        0x27, 0xc7, 0xc1, 0xca, 0x77, 0x15, 0x31, 0x16, 0x32, 0xc1, 0x39, 0xe7, 0xa3, 0x59, 0x14,
+        0xfc, 0x1e, 0xcd,
+    ];
+
+    //
+    // Step 1: Hash a buffer from input and store the hash into key-vault slot 0.
+    //
+    let key_out_1 = KeyWriteArgs {
+        id: KeyId::KeyId0,
+        usage: KeyUsage(2),
+        word_size: 12,
+    };
+    let mut result = Sha384::default().digest((&data).into(), key_out_1.into());
+    assert!(result.is_ok());
+
+    //
+    // Step 2: Hash the hash generated in step 1.
+    //
+    let mut digest = Array4x12::default();
+    let key_in_2 = KeyReadArgs::new(KeyId::KeyId0, 12);
+    result = Sha384::default().digest(key_in_2.into(), (&mut digest).into());
+    assert!(result.is_ok());
+    assert_eq!(digest, Array4x12::from(expected));
 }
 
 test_suite! {
@@ -240,4 +347,9 @@ test_suite! {
     test_op6,
     test_op7,
     test_op8,
+    test_key_digest0,
+    test_key_digest1,
+    // Maintain the order of the tests.
+    test_kv_hash_to_vault_buffer_from_vault,
+    test_kv_hash_to_vault_buffer_from_api,
 }

@@ -12,25 +12,36 @@ Abstract:
 
 --*/
 
-use crate::reg::doe_regs::*;
-use crate::slice::CopyFromByteSlice;
-use crate::KeyId;
-use tock_registers::interfaces::{ReadWriteable, Readable};
+use crate::{wait, Array4x4, CaliptraResult, KeyId};
+use caliptra_registers::doe;
 
-/// Initialization Vector size
-const DOE_IV_SIZE: usize = 16;
+#[derive(Default)]
+pub struct DeobfuscationEngine {}
 
-pub enum Doe {}
-
-impl Doe {
+impl DeobfuscationEngine {
     /// Decrypt Unique Device Secret (UDS)
     ///
     /// # Arguments
     ///
     /// * `iv` - Initialization vector
     /// * `key_id` - Key vault key to store the decrypted UDS in
-    pub fn decrypt_uds(iv: &[u8; DOE_IV_SIZE], key_id: KeyId) {
-        Self::_execute_cmd(CONTROL::CMD::DECRYPT_UDS.value, Some(iv), Some(key_id));
+    pub fn decrypt_uds(&self, iv: &Array4x4, key_id: KeyId) -> CaliptraResult<()> {
+        let doe = doe::RegisterBlock::doe_reg();
+
+        // Wait for hardware ready
+        wait::until(|| doe.status().read().ready());
+
+        // Copy the initialization vector
+        iv.write_to_reg(doe.iv());
+
+        // Trigger the command by programming the command and destination
+        doe.ctrl()
+            .write(|w| w.cmd(|w| w.doe_uds()).dest(key_id.into()));
+
+        // Wait for command to complete
+        wait::until(|| doe.status().read().valid());
+
+        Ok(())
     }
 
     /// Decrypt Field Entropy
@@ -39,12 +50,23 @@ impl Doe {
     ///
     /// * `iv` - Initialization vector
     /// * `key_id` - Key vault key to store the decrypted field entropy in
-    pub fn decrypt_field_entropy(iv: &[u8; DOE_IV_SIZE], key_id: KeyId) {
-        Self::_execute_cmd(
-            CONTROL::CMD::DECRYPT_FIELD_ENTROPY.value,
-            Some(iv),
-            Some(key_id),
-        );
+    pub fn decrypt_field_entropy(&self, iv: &Array4x4, key_id: KeyId) -> CaliptraResult<()> {
+        let doe = doe::RegisterBlock::doe_reg();
+
+        // Wait for hardware ready
+        wait::until(|| doe.status().read().ready());
+
+        // Copy the initialization vector
+        iv.write_to_reg(doe.iv());
+
+        // Trigger the command by programming the command and destination
+        doe.ctrl()
+            .write(|w| w.cmd(|w| w.doe_fe()).dest(key_id.into()));
+
+        // Wait for command to complete
+        wait::until(|| doe.status().read().valid());
+
+        Ok(())
     }
 
     /// Clear loaded secrets
@@ -53,29 +75,22 @@ impl Doe {
     /// * Deobfuscation Key
     /// * Encrypted UDS
     /// * Encrypted Field entropy
-    pub fn clear_secrets() {
-        Self::_execute_cmd(CONTROL::CMD::CLEAR_SECRETS.value, None, None);
-    }
+    pub fn clear_secrets(&self) -> CaliptraResult<()> {
+        // Self::_execute_cmd(CONTROL::CMD::CLEAR_SECRETS.value, None, None);
+        let doe = doe::RegisterBlock::doe_reg();
 
-    fn _execute_cmd(cmd: u32, iv: Option<&[u8; DOE_IV_SIZE]>, key_id: Option<KeyId>) {
-        // Copy the initialization vector
-        if let Some(iv) = iv {
-            DOE_REGS.iv.copy_from_byte_slice(iv);
-        }
+        // Wait for hardware ready
+        wait::until(|| doe.status().read().ready());
 
-        // Program the control register
-        if let Some(key_id) = key_id {
-            DOE_REGS
-                .control
-                .modify(CONTROL::CMD.val(cmd) + CONTROL::DEST.val(key_id.into()))
-        } else {
-            DOE_REGS.control.modify(CONTROL::CMD.val(cmd));
-        }
+        // Trigger the command by programming the command and destination
+        doe.ctrl().write(|w| w.cmd(|w| w.doe_clear_obf_secrets()));
 
-        // Wait for operation to finish
-        // [TODO] Remove the if check once the RTL is updated to set the Valid bit for clear command.
-        if cmd != CONTROL::CMD::CLEAR_SECRETS.value {
-            while !DOE_REGS.status.is_set(STATUS::VALID) {}
-        }
+        // Wait for command to complete
+        //
+        // TODO: Uncomment following once the RTL is updated to set the
+        // valid bit for clear command.
+        // wait::until(|| doe.status().read().valid());
+
+        Ok(())
     }
 }

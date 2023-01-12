@@ -44,6 +44,7 @@ impl<T> StaticRef<T> {
     ///
     /// Callers must pass in a reference to statically allocated memory which
     /// does not overlap with other values.
+    #[allow(dead_code)]
     pub const unsafe fn new(ptr: *const T) -> StaticRef<T> {
         StaticRef { ptr }
     }
@@ -59,6 +60,7 @@ impl<T> Copy for StaticRef<T> {}
 
 impl<T> Deref for StaticRef<T> {
     type Target = T;
+    #[allow(implied_bounds_entailment)]
     fn deref(&self) -> &'static T {
         unsafe { &*self.ptr }
     }

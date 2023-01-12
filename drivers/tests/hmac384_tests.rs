@@ -15,7 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_lib::Hmac384;
+use caliptra_lib::{Array4x12, Hmac384, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs};
 
 mod harness;
 
@@ -36,10 +36,15 @@ fn test_hmac0() {
         0xb5, 0x82, 0xc2,
     ];
 
-    let mut out_tag: [u8; 48] = [0; 48];
-    let actual = Hmac384::hmac(&key, &data, &mut out_tag);
+    let mut out_tag = Array4x12::default();
+    let actual = Hmac384::default().hmac(
+        (&Array4x12::from(key)).into(),
+        (&data).into(),
+        (&mut out_tag).into(),
+    );
+
     assert!(actual.is_ok());
-    assert_eq!(out_tag, result);
+    assert_eq!(out_tag, Array4x12::from(result));
 }
 
 fn test_hmac1() {
@@ -62,10 +67,148 @@ fn test_hmac1() {
         0x33, 0x71, 0xc9,
     ];
 
-    let mut out_tag: [u8; 48] = [0; 48];
-    let actual = Hmac384::hmac(&key, &data, &mut out_tag);
+    let mut out_tag = Array4x12::default();
+    let actual = Hmac384::default().hmac(
+        (&Array4x12::from(key)).into(),
+        (&data).into(),
+        (&mut out_tag).into(),
+    );
+
     assert!(actual.is_ok());
-    assert_eq!(out_tag, result);
+    assert_eq!(out_tag, Array4x12::from(result));
+}
+
+fn test_hmac3() {
+    let data: [u8; 8] = [0x48, 0x69, 0x20, 0x54, 0x68, 0x65, 0x72, 0x65];
+
+    let result: [u8; 48] = [
+        0xda, 0x53, 0x93, 0xce, 0xf4, 0x24, 0xa6, 0x70, 0xd6, 0xdb, 0x42, 0xc6, 0xed, 0x6e, 0x79,
+        0x20, 0x77, 0x9d, 0xfa, 0x4c, 0xbb, 0x98, 0xbf, 0x1c, 0x2e, 0x9c, 0x12, 0xae, 0x10, 0xd1,
+        0x09, 0x05, 0xd0, 0xc9, 0xe9, 0xd5, 0x76, 0xc2, 0xa6, 0x13, 0xbe, 0x54, 0xb8, 0xda, 0xea,
+        0x24, 0x6d, 0x4b,
+    ];
+
+    let mut out_tag = Array4x12::default();
+
+    let key = KeyReadArgs::new(KeyId::KeyId0, 48);
+
+    let actual = Hmac384::default().hmac(key.into(), (&data).into(), (&mut out_tag).into());
+
+    assert!(actual.is_ok());
+    assert_eq!(out_tag, Array4x12::from(result));
+}
+
+fn test_hmac4() {
+    let data: [u8; 28] = [
+        0x77, 0x68, 0x61, 0x74, 0x20, 0x64, 0x6f, 0x20, 0x79, 0x61, 0x20, 0x77, 0x61, 0x6e, 0x74,
+        0x20, 0x66, 0x6f, 0x72, 0x20, 0x6e, 0x6f, 0x74, 0x68, 0x69, 0x6e, 0x67, 0x3f,
+    ];
+
+    let result: [u8; 48] = [
+        0xe9, 0x54, 0x51, 0x9b, 0xd1, 0x02, 0xfc, 0xe1, 0x94, 0xf3, 0xf9, 0x12, 0x60, 0xcc, 0x3d,
+        0xf4, 0x54, 0x73, 0x35, 0xb4, 0x5d, 0x82, 0x4f, 0xfb, 0x5a, 0xc4, 0x94, 0xef, 0x8f, 0x69,
+        0x97, 0xd8, 0x76, 0xd3, 0x70, 0xf4, 0x31, 0x47, 0x7c, 0xd2, 0x7b, 0x5d, 0xb6, 0xc2, 0x6f,
+        0x15, 0xc7, 0x9e,
+    ];
+
+    let mut out_tag = Array4x12::default();
+    let key = KeyReadArgs::new(KeyId::KeyId0, 48);
+
+    let actual = Hmac384::default().hmac(key.into(), (&data).into(), (&mut out_tag).into());
+
+    assert!(actual.is_ok());
+    assert_eq!(out_tag, Array4x12::from(result));
+}
+
+fn test_hmac5() {
+    let data: [u8; 48] = [
+        0xe9, 0x54, 0x51, 0x9b, 0xd1, 0x02, 0xfc, 0xe1, 0x94, 0xf3, 0xf9, 0x12, 0x60, 0xcc, 0x3d,
+        0xf4, 0x54, 0x73, 0x35, 0xb4, 0x5d, 0x82, 0x4f, 0xfb, 0x5a, 0xc4, 0x94, 0xef, 0x8f, 0x69,
+        0x97, 0xd8, 0x76, 0xd3, 0x70, 0xf4, 0x31, 0x47, 0x7c, 0xd2, 0x7b, 0x5d, 0xb6, 0xc2, 0x6f,
+        0x15, 0xc7, 0x9e,
+    ];
+
+    let result: [u8; 48] = [
+        0x9e, 0x47, 0x67, 0xae, 0x02, 0xed, 0x73, 0x77, 0x4a, 0x56, 0x51, 0x0c, 0x38, 0x95, 0x9a,
+        0x69, 0x61, 0x29, 0x25, 0xc4, 0xed, 0xf6, 0xf0, 0x87, 0x93, 0xb6, 0x0d, 0x51, 0xe0, 0xfc,
+        0x88, 0xe6, 0xd5, 0x2d, 0xb6, 0xa0, 0x5c, 0x14, 0xfd, 0x42, 0x21, 0x95, 0xba, 0x74, 0x9e,
+        0x69, 0x12, 0x4d,
+    ];
+
+    let mut out_tag = Array4x12::default();
+    let key = KeyReadArgs::new(KeyId::KeyId0, 12);
+    let actual = Hmac384::default().hmac(key.into(), (&data).into(), (&mut out_tag).into());
+
+    assert!(actual.is_ok());
+    assert_eq!(out_tag, Array4x12::from(result));
+}
+
+///
+/// Step 1:
+/// Key From Key Vault
+/// Generate the output tag in the buffer.
+/// Generate the HMAC of the output tag in the buffer - step_1 Tag
+///
+///
+/// Step 2:  
+/// Key From Key Vault
+/// Generate the output tag that goes in the KV
+/// Generate the HMAC of the tag in KV and the tag goes in specified buffer
+///
+///
+
+fn test_hmac6() {
+    // Key vault key to be used for all the operations. This is a constant
+    let key = KeyReadArgs::new(KeyId::KeyId0, 12);
+
+    let data: [u8; 28] = [
+        0x77, 0x68, 0x61, 0x74, 0x20, 0x64, 0x6f, 0x20, 0x79, 0x61, 0x20, 0x77, 0x61, 0x6e, 0x74,
+        0x20, 0x66, 0x6f, 0x72, 0x20, 0x6e, 0x6f, 0x74, 0x68, 0x69, 0x6e, 0x67, 0x3f,
+    ];
+
+    let result: [u8; 48] = [
+        0xe9, 0x54, 0x51, 0x9b, 0xd1, 0x02, 0xfc, 0xe1, 0x94, 0xf3, 0xf9, 0x12, 0x60, 0xcc, 0x3d,
+        0xf4, 0x54, 0x73, 0x35, 0xb4, 0x5d, 0x82, 0x4f, 0xfb, 0x5a, 0xc4, 0x94, 0xef, 0x8f, 0x69,
+        0x97, 0xd8, 0x76, 0xd3, 0x70, 0xf4, 0x31, 0x47, 0x7c, 0xd2, 0x7b, 0x5d, 0xb6, 0xc2, 0x6f,
+        0x15, 0xc7, 0x9e,
+    ];
+
+    // Take the Data Generate the Tag in buffer
+    let mut out_tag = Array4x12::default();
+
+    let actual = Hmac384::default().hmac(key.into(), (&data).into(), (&mut out_tag).into());
+
+    assert!(actual.is_ok());
+    assert_eq!(out_tag, Array4x12::from(result));
+
+    let step_1_result_expected: [u8; 48] = [
+        0x9e, 0x47, 0x67, 0xae, 0x02, 0xed, 0x73, 0x77, 0x4a, 0x56, 0x51, 0x0c, 0x38, 0x95, 0x9a,
+        0x69, 0x61, 0x29, 0x25, 0xc4, 0xed, 0xf6, 0xf0, 0x87, 0x93, 0xb6, 0x0d, 0x51, 0xe0, 0xfc,
+        0x88, 0xe6, 0xd5, 0x2d, 0xb6, 0xa0, 0x5c, 0x14, 0xfd, 0x42, 0x21, 0x95, 0xba, 0x74, 0x9e,
+        0x69, 0x12, 0x4d,
+    ];
+
+    // Generate the HAMC of the Tag in to a hmac_step_1
+    let mut hmac_step_1 = Array4x12::default();
+    let actual = Hmac384::default().hmac(key.into(), (&result).into(), (&mut hmac_step_1).into());
+    assert!(actual.is_ok());
+    assert_eq!(hmac_step_1, Array4x12::from(step_1_result_expected));
+
+    // Generate the Tag Of Original Data and put the tag In KV @5.  KV @5 will be used as data in the next step
+    let mut key_usage = KeyUsage::default();
+    key_usage.set_hmac_data(true);
+    let out_tag = KeyWriteArgs::new(KeyId::KeyId5, 12, key_usage);
+    let actual = Hmac384::default().hmac(key.into(), (&data).into(), out_tag.into());
+    assert!(actual.is_ok());
+
+    // Data From Key Vault generate HMAC in to output buffer
+    let mut hmac_step_2 = Array4x12::default();
+    let data_input: KeyReadArgs = KeyReadArgs::new(KeyId::KeyId5, 12);
+
+    let actual = Hmac384::default().hmac(key.into(), data_input.into(), (&mut hmac_step_2).into());
+
+    assert!(actual.is_ok());
+    assert_eq!(hmac_step_1, hmac_step_2);
 }
 
 fn test_hmac_multi_block() {
@@ -94,10 +237,16 @@ fn test_hmac_multi_block() {
         0xE3, 0xEA, 0xE2, 0x51, 0x4A, 0x61, 0xC1, 0x61, 0x44, 0x24, 0xE7, 0x71, 0xCC, 0x4B, 0x7C,
         0xCA, 0xC8, 0xC3,
     ];
-    let mut out_tag: [u8; 48] = [0; 48];
-    let actual = Hmac384::hmac(&key, &data, &mut out_tag);
+
+    let mut out_tag = Array4x12::default();
+    let actual = Hmac384::default().hmac(
+        (&Array4x12::from(key)).into(),
+        (&data).into(),
+        (&mut out_tag).into(),
+    );
+
     assert!(actual.is_ok());
-    assert_eq!(out_tag, result);
+    assert_eq!(out_tag, Array4x12::from(result));
 }
 
 fn test_hmac_exact_single_block() {
@@ -126,10 +275,16 @@ fn test_hmac_exact_single_block() {
         0xE3, 0xEA, 0xE2, 0x51, 0x4A, 0x61, 0xC1, 0x61, 0x44, 0x24, 0xE7, 0x71, 0xCC, 0x4B, 0x7C,
         0xCA, 0xC8, 0xC3,
     ];
-    let mut out_tag: [u8; 48] = [0; 48];
-    let actual = Hmac384::hmac(&key, &data, &mut out_tag);
+
+    let mut out_tag = Array4x12::default();
+    let actual = Hmac384::default().hmac(
+        (&Array4x12::from(key)).into(),
+        (&data).into(),
+        (&mut out_tag).into(),
+    );
+
     assert!(actual.is_ok());
-    assert_eq!(out_tag, result);
+    assert_eq!(out_tag, Array4x12::from(result));
 }
 
 fn test_hmac_multi_block_two_step() {
@@ -158,17 +313,25 @@ fn test_hmac_multi_block_two_step() {
         0xE3, 0xEA, 0xE2, 0x51, 0x4A, 0x61, 0xC1, 0x61, 0x44, 0x24, 0xE7, 0x71, 0xCC, 0x4B, 0x7C,
         0xCA, 0xC8, 0xC3,
     ];
-    let mut out_tag: [u8; 48] = [0; 48];
-    let mut hmac = Hmac384::hmac_init(&key);
-    assert!(hmac.update(&data).is_ok());
-    let actual = hmac.finalize(&mut out_tag);
+
+    let mut out_tag = Array4x12::default();
+    let hmac384 = Hmac384::default();
+    let mut hmac_op = hmac384
+        .hmac_init((&Array4x12::from(key)).into(), (&mut out_tag).into())
+        .unwrap();
+    assert!(hmac_op.update(&data).is_ok());
+    let actual = hmac_op.finalize();
     assert!(actual.is_ok());
-    assert_eq!(out_tag, result);
+    assert_eq!(out_tag, Array4x12::from(result));
 }
 
 test_suite! {
     test_hmac0,
     test_hmac1,
+    test_hmac3,
+    test_hmac4,
+    test_hmac5,
+    test_hmac6,
     test_hmac_multi_block,
     test_hmac_exact_single_block,
     test_hmac_multi_block_two_step,

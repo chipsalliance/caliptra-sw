@@ -18,7 +18,7 @@ _start:
 
 .option push
 .option norelax
-    la gp, GLOBAL_POINTER
+    la gp, __global_pointer$
 .option pop
 
     # Initialize the stack pointer

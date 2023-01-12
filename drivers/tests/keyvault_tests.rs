@@ -33,15 +33,15 @@ fn test_write_lock_and_erase_keys() {
     let mut vault = KeyVault::default();
 
     for key_id in KEY_IDS {
-        assert_eq!(vault.erase_key(key_id).is_ok(), true);
+        assert!(vault.erase_key(key_id).is_ok());
 
         // Set write lock.
-        assert_eq!(vault.key_write_lock(key_id), false);
+        assert!(!vault.key_write_lock(key_id));
         vault.set_key_write_lock(key_id);
-        assert_eq!(vault.key_write_lock(key_id), true);
+        assert!(vault.key_write_lock(key_id));
 
         // Test erasing key. This should fail.
-        assert_eq!(vault.erase_key(key_id).is_ok(), false);
+        assert!(vault.erase_key(key_id).is_err());
     }
 }
 
@@ -62,9 +62,9 @@ fn test_use_lock() {
     let mut vault = KeyVault::default();
 
     for key_id in KEY_IDS {
-        assert_eq!(vault.key_use_lock(key_id), false);
+        assert!(!vault.key_use_lock(key_id));
         vault.set_key_use_lock(key_id);
-        assert_eq!(vault.key_use_lock(key_id), true);
+        assert!(vault.key_use_lock(key_id));
     }
 }
 
@@ -72,9 +72,9 @@ fn test_write_protection_stickiness() {
     let mut vault = KeyVault::default();
 
     for key_id in KEY_IDS {
-        assert_eq!(vault.key_write_lock(key_id), true);
+        assert!(vault.key_write_lock(key_id));
         vault.clear_key_write_lock(key_id);
-        assert_eq!(vault.key_write_lock(key_id), true);
+        assert!(vault.key_write_lock(key_id));
     }
 }
 
@@ -82,9 +82,9 @@ fn test_use_protection_stickiness() {
     let mut vault = KeyVault::default();
 
     for key_id in KEY_IDS {
-        assert_eq!(vault.key_use_lock(key_id), true);
+        assert!(vault.key_use_lock(key_id));
         vault.clear_key_use_lock(key_id);
-        assert_eq!(vault.key_use_lock(key_id), true);
+        assert!(vault.key_use_lock(key_id));
     }
 }
 

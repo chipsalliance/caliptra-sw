@@ -21,11 +21,19 @@ emu = []
 [profile.release]
 opt-level = "s"
 lto = true
+codegen-units = 1
 panic = "abort"
 
 [profile.dev]
-opt-level = 2
+opt-level = "s"
 lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.test]
+opt-level = "s"
+lto = true
+codegen-units = 1
 panic = "abort"
 
 [[test]]

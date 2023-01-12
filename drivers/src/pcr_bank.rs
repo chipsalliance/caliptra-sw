@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{cptr_err_def, Array4x12, CptrResult, ARRAY_4X12_WORD_SIZE};
+use crate::{caliptra_err_def, Array4x12, CaliptraResult};
 use caliptra_registers::kv;
 
 /// PCR Identifier
@@ -57,7 +57,7 @@ impl From<PcrId> for usize {
     }
 }
 
-cptr_err_def! {
+caliptra_err_def! {
     PcrBank,
     PcrBankErr
     {
@@ -99,7 +99,7 @@ impl PcrBank {
     /// # Arguments
     ///
     /// * `id` - PCR ID to erase
-    pub fn erase_pcr(&mut self, id: PcrId) -> CptrResult<()> {
+    pub fn erase_pcr(&mut self, id: PcrId) -> CaliptraResult<()> {
         if self.pcr_write_lock(id) {
             raise_err!(EraseWriteLockSetFailure)
         }
@@ -157,7 +157,7 @@ impl PcrBank {
         let kv = kv::RegisterBlock::kv_reg();
 
         let mut result = Array4x12::default();
-        for i in 0..ARRAY_4X12_WORD_SIZE {
+        for i in 0..result.0.len() {
             result.0[i] = kv.pcr_entry().at(id.into()).at(i).read();
         }
 
@@ -170,13 +170,13 @@ impl PcrBank {
     ///
     /// * `id` - PCR ID
     /// * `val` - Value to write
-    pub fn write_pcr(&self, id: PcrId, val: &Array4x12) -> CptrResult<()> {
+    pub fn write_pcr(&self, id: PcrId, val: &Array4x12) -> CaliptraResult<()> {
         if self.pcr_write_lock(id) {
             raise_err!(EraseWriteLockSetFailure)
         }
 
         let kv = kv::RegisterBlock::kv_reg();
-        for i in 0..ARRAY_4X12_WORD_SIZE {
+        for i in 0..val.0.len() {
             kv.pcr_entry().at(id.into()).at(i).write(|_| val.0[i])
         }
 

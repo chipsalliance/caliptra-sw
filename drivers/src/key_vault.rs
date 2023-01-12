@@ -14,14 +14,8 @@ Abstract:
 
 use bitfield::bitfield;
 
-use crate::{cptr_err_def, CptrResult};
+use crate::{caliptra_err_def, CaliptraResult};
 use caliptra_registers::kv;
-
-// TODO - Get the timeout values from hardware engineers
-// pub const KV_KEY_READ_READY_TIMEOUT: u64 = 1;
-// pub const KV_KEY_READ_VALID_TIMEOUT: u64 = 1;
-// pub const KV_KEY_WRITE_READY_TIMEOUT: u64 = 1;
-// pub const KV_KEY_WRITE_VALID_TIMEOUT: u64 = 1;
 
 /// Key Identifier
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,7 +84,7 @@ bitfield! {
     pub ecc_data, set_ecc_data:5;
 }
 
-cptr_err_def! {
+caliptra_err_def! {
     KeyVault,
     KeyVaultErr
     {
@@ -136,7 +130,7 @@ impl KeyVault {
     /// # Arguments
     ///
     /// * `id` - Key ID to erase
-    pub fn erase_key(&mut self, id: KeyId) -> CptrResult<()> {
+    pub fn erase_key(&mut self, id: KeyId) -> CaliptraResult<()> {
         if self.key_use_lock(id) {
             raise_err!(EraseUseLockSetFailure)
         }
