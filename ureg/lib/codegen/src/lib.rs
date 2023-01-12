@@ -629,6 +629,7 @@ pub struct OptionsInternal {
     module_path: TokenStream,
 }
 
+#[derive(Default)]
 pub struct Options {
     /// If the generated code is not at the base of the crate, this should
     /// be set to the prefix.
