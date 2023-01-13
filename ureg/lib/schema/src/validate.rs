@@ -168,9 +168,7 @@ impl ValidatedRegisterBlock {
         }
     }
 
-
     fn update_enum_name_keys(&mut self) {
-
         // Clippy is wrong here; collect is required to keep the
         // the borrow checker happy (the loop cannot erase elements from
         // self.enum_types while self.enum_types is borrowed)
@@ -333,7 +331,7 @@ impl ValidatedRegisterBlockTransformer<'_> {
         }
 
         // Clippy is wrong here; collect is required to keep the
-        // the borrow checker happy (the loop cannot modify 
+        // the borrow checker happy (the loop cannot modify
         // self.enum_types while self.enum_types is borrowed)
         #[allow(clippy::needless_collect)]
         let all_enums: Vec<Rc<Enum>> = self.0.enum_types.values().cloned().collect();
@@ -381,10 +379,8 @@ fn common_with_placeholders(reg_names: &[&str]) -> (String, i64) {
         Some(l) => l,
         None => return ("".into(), 0),
     };
-    let mut common_chars: Vec<Option<char>> = reg_names[0][0..shortest_len]
-        .chars()
-        .map(Some)
-        .collect();
+    let mut common_chars: Vec<Option<char>> =
+        reg_names[0][0..shortest_len].chars().map(Some).collect();
     for reg_name in reg_names[1..].iter() {
         for (a, b) in reg_name[0..shortest_len]
             .chars()
@@ -555,11 +551,8 @@ fn all_regs_mut<'a>(
     regs: &'a mut [Rc<Register>],
     sub_arrays: &'a mut [RegisterBlockArray],
 ) -> impl Iterator<Item = &'a mut Rc<Register>> {
-    regs.iter_mut().chain(
-        sub_arrays
-            .iter_mut()
-            .flat_map(|a| a.registers.iter_mut()),
-    )
+    regs.iter_mut()
+        .chain(sub_arrays.iter_mut().flat_map(|a| a.registers.iter_mut()))
 }
 
 impl RegisterBlock {
