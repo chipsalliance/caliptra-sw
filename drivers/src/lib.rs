@@ -27,13 +27,12 @@ mod mailbox;
 mod sha256;
 mod sha384;
 
-
 pub type CptrResult<T> = Result<T, u32>;
 pub use doe::Doe;
 pub use ecc384::{Ecc384, Ecc384PrivKey, Ecc384PubKey, Ecc384Signature};
 pub use error::CptrComponent;
 pub use hmac384::Hmac384;
-pub use key_vault::KeyId;
+pub use key_vault::{KeyId, KeyUsage, KeyVault};
 pub use mailbox::Mailbox;
 pub use sha256::Sha256;
 pub use sha384::Sha384;

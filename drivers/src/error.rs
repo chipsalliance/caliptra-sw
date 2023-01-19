@@ -23,6 +23,8 @@ pub enum CptrComponent {
     Hmac384 = 3,
 
     Mailbox = 4,
+
+    KeyVault = 5,
 }
 
 #[macro_export]
