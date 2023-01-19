@@ -13,7 +13,8 @@ Abstract:
 --*/
 
 use crate::{
-    AsymEcc384, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha384, KeyVault, SocRegisters, Uart,
+    AsymEcc384, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha384, KeyVault, Mailbox, SocRegisters,
+    Uart,
 };
 use caliptra_emu_bus::{Clock, Ram, Rom};
 use caliptra_emu_derive::Bus;
@@ -50,7 +51,10 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x2000_f000, mask = 0x0000_0fff)]
     pub ctrl: EmuCtrl,
 
-    #[peripheral(offset = 0x3002_0000, mask = 0x0001_ffff)]
+    #[peripheral(offset = 0x3002_0000, mask = 0x0000_001f)]
+    pub mailbox: Mailbox,
+
+    #[peripheral(offset = 0x3002_0020, mask = 0x0001_ffff)]
     pub soc_reg: SocRegisters,
 
     #[peripheral(offset = 0x5000_0000, mask = 0x0fff_ffff)]
@@ -78,6 +82,7 @@ impl CaliptraRootBus {
             uart: Uart::new(),
             ctrl: EmuCtrl::new(),
             soc_reg: soc_reg.clone(),
+            mailbox: Mailbox::new(),
         }
     }
 }

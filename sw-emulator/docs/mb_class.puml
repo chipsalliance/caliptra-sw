@@ -1,0 +1,32 @@
+@startuml mb_class_diagram
+Bus <|-- MailboxIface
+
+class MailboxIface {
+  == Event triggers ==
+  +read_lock()
+  +write_cmd()
+  +write_data_len()
+  +write_exec()
+ }
+
+enum Events {
+  LockRead,
+  CmdWrite,
+  DataLenWrite
+  ExecWrite
+}
+
+class StateMachine <<Singleton>> {
+  +process_event()
+}
+
+class Context {
+  +enqueue()
+  +dequeue()
+  -ring_buffer
+}
+
+MailboxIface --> StateMachine
+StateMachine o-- Context
+
+@enduml
