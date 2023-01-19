@@ -72,10 +72,10 @@ impl CaliptraRootBus {
         Self {
             rom: Rom::new(rom),
             doe: Doe::new(clock, key_vault.clone(), soc_reg.clone()),
-            ecc384: AsymEcc384::new(clock),
-            hmac: HmacSha384::new(clock),
+            ecc384: AsymEcc384::new(clock, key_vault.clone()),
+            hmac: HmacSha384::new(clock, key_vault.clone()),
             key_vault: key_vault.clone(),
-            sha512: HashSha512::new(clock),
+            sha512: HashSha512::new(clock, key_vault.clone()),
             sha256: HashSha256::new(clock),
             iccm: Ram::new(vec![0; Self::ICCM_SIZE]),
             dccm: Ram::new(vec![0; Self::DCCM_SIZE]),

@@ -28,6 +28,8 @@ const DOE_IV_SIZE: usize = 16;
 /// The number of CPU clock cycles it takes to perform the hash update action.
 const DOE_OP_TICKS: u64 = 1000;
 
+const DOE_KEY_USAGE: u32 = 0x2; // hmac_block_dest_valid
+
 register_bitfields! [
     u32,
 
@@ -120,7 +122,9 @@ impl Doe {
         self.control.reg.set(val);
 
         if self.control.reg.read(Control::CMD) != Control::CMD::IDLE.value {
-            self.status.reg.modify(Status::VALID::CLEAR);
+            self.status
+                .reg
+                .modify(Status::READY::CLEAR + Status::VALID::CLEAR);
             self.op_complete_action = Some(self.timer.schedule_poll_in(DOE_OP_TICKS));
         }
 
@@ -137,7 +141,9 @@ impl Doe {
                 Some(Control::CMD::Value::CLEAR_SECRETS) => self.clear_secrets(),
                 _ => {}
             }
-            self.status.reg.write(Status::VALID::SET);
+            self.status
+                .reg
+                .modify(Status::READY::SET + Status::VALID::SET);
         }
     }
 
@@ -155,7 +161,9 @@ impl Doe {
             &cipher_uds,
             &mut plain_uds[..cipher_uds.len()],
         );
-        self.key_vault.write_key(key_id, &plain_uds)
+        self.key_vault
+            .write_key(key_id, &plain_uds, DOE_KEY_USAGE)
+            .unwrap();
     }
 
     /// Unscramble field entropy and store it in key vault
@@ -172,7 +180,9 @@ impl Doe {
             &cipher_fe[..64],
             &mut plain_fe,
         );
-        self.key_vault.write_key(key_id, &plain_fe);
+        self.key_vault
+            .write_key(key_id, &plain_fe, DOE_KEY_USAGE)
+            .unwrap();
     }
 
     /// Clear secrets
@@ -251,7 +261,7 @@ mod tests {
             clock.increment_and_poll(1, &mut doe);
         }
 
-        assert_eq!(key_vault.read_key(2)[..48], PLAIN_TEXT_UDS);
+        assert_eq!(key_vault.read_key(2).unwrap()[..48], PLAIN_TEXT_UDS);
     }
 
     #[test]
@@ -302,7 +312,7 @@ mod tests {
             clock.increment_and_poll(1, &mut doe);
         }
 
-        assert_eq!(key_vault.read_key(3), PLAIN_TEXT_FE);
+        assert_eq!(key_vault.read_key(3).unwrap(), PLAIN_TEXT_FE);
     }
 
     #[test]
