@@ -703,6 +703,7 @@ impl AsymEcc384 {
 mod tests {
     use super::*;
     use caliptra_emu_bus::Bus;
+    use caliptra_emu_crypto::EndianessTransform;
     use caliptra_emu_types::RvAddr;
     use tock_registers::registers::InMemoryRegister;
 
@@ -816,7 +817,7 @@ mod tests {
         let mut ecc = AsymEcc384::new(&clock, KeyVault::new());
 
         let mut seed = [0u8; 48];
-        seed.reverse(); // Change DWORDs to big-endian and reverse the DWORD list order.
+        seed.to_big_endian(); // Change DWORDs to big-endian.
 
         for i in (0..seed.len()).step_by(4) {
             assert_eq!(
@@ -846,15 +847,15 @@ mod tests {
 
         let mut priv_key: [u8; 48] = [0; 48];
         priv_key.clone_from(ecc.priv_key.data());
-        priv_key.reverse(); // Change DWORDs to little-endian and reverse the DWORD list order.
+        priv_key.to_little_endian(); // Change DWORDs to little-endian.
 
         let mut pub_key_x: [u8; 48] = [0; 48];
         pub_key_x.clone_from(ecc.pub_key_x.data());
-        pub_key_x.reverse(); // Change DWORDs to little-endian and reverse the DWORD list order.
+        pub_key_x.to_little_endian(); // Change DWORDs to little-endian.
 
         let mut pub_key_y: [u8; 48] = [0; 48];
         pub_key_y.clone_from(ecc.pub_key_y.data());
-        pub_key_y.reverse(); // Change DWORDs to little-endian and reverse the DWORD list order.
+        pub_key_y.to_little_endian(); // Change DWORDs to little-endian.
 
         assert_eq!(&priv_key, &PRIV_KEY);
         assert_eq!(&pub_key_x, &PUB_KEY_X);
@@ -868,7 +869,7 @@ mod tests {
             for use_pcr in 0..2 {
                 let clock = Clock::new();
                 let mut seed = [0u8; 48];
-                seed.reverse(); // Change DWORDs to big-endian and reverse the DWORD list order.
+                seed.to_big_endian(); // Change DWORDs to big-endian.
 
                 let mut key_vault = KeyVault::new();
                 let mut expanded_seed: [u8; 64] = [0; 64];
@@ -928,15 +929,15 @@ mod tests {
 
                 let mut priv_key: [u8; 48] = [0; 48];
                 priv_key.clone_from(ecc.priv_key.data());
-                priv_key.reverse(); // Change DWORDs to little-endian and reverse the DWORD list order.
+                priv_key.to_little_endian(); // Change DWORDs to little-endian.
 
                 let mut pub_key_x: [u8; 48] = [0; 48];
                 pub_key_x.clone_from(ecc.pub_key_x.data());
-                pub_key_x.reverse(); // Change DWORDs to little-endian and reverse the DWORD list order.
+                pub_key_x.to_little_endian(); // Change DWORDs to little-endian.
 
                 let mut pub_key_y: [u8; 48] = [0; 48];
                 pub_key_y.clone_from(ecc.pub_key_y.data());
-                pub_key_y.reverse(); // Change DWORDs to little-endian and reverse the DWORD list order.
+                pub_key_y.to_little_endian(); // Change DWORDs to little-endian.
 
                 assert_eq!(&priv_key, &PRIV_KEY);
                 assert_eq!(&pub_key_x, &PUB_KEY_X);
@@ -951,7 +952,7 @@ mod tests {
         for key_id in 0..8 {
             let clock = Clock::new();
             let mut seed = [0u8; 48];
-            seed.reverse(); // Change DWORDs to big-endian and reverse the DWORD list order.
+            seed.to_big_endian(); // Change DWORDs to big-endian.
 
             let mut ecc = AsymEcc384::new(&clock, KeyVault::new());
 
@@ -1007,15 +1008,15 @@ mod tests {
             let mut priv_key: [u8; 48] = [0; 48];
             priv_key
                 .clone_from_slice(&ecc.key_vault.read_key(key_id).unwrap()[..ECC384_COORD_SIZE]);
-            priv_key.reverse(); // Change DWORDs to little-endian and reverse the DWORD list order.
+            priv_key.to_little_endian(); // Change DWORDs to little-endian.
 
             let mut pub_key_x: [u8; 48] = [0; 48];
             pub_key_x.clone_from(ecc.pub_key_x.data());
-            pub_key_x.reverse(); // Change DWORDs to little-endian and reverse the DWORD list order.
+            pub_key_x.to_little_endian(); // Change DWORDs to little-endian.
 
             let mut pub_key_y: [u8; 48] = [0; 48];
             pub_key_y.clone_from(ecc.pub_key_y.data());
-            pub_key_y.reverse(); // Change DWORDs to little-endian and reverse the DWORD list order.
+            pub_key_y.to_little_endian(); // Change DWORDs to little-endian.
 
             assert_eq!(&priv_key, &PRIV_KEY);
             assert_eq!(&pub_key_x, &PUB_KEY_X);
@@ -1029,7 +1030,7 @@ mod tests {
         let mut ecc = AsymEcc384::new(&clock, KeyVault::new());
 
         let mut hash = [0u8; 48];
-        hash.reverse(); // Change DWORDs to big-endian and reverse the DWORD list order.
+        hash.to_big_endian(); // Change DWORDs to big-endian.
 
         for i in (0..hash.len()).step_by(4) {
             assert_eq!(
@@ -1040,7 +1041,7 @@ mod tests {
         }
 
         let mut priv_key = PRIV_KEY.clone();
-        priv_key.reverse(); // Change DWORDs to big-endian and reverse the DWORD list order.
+        priv_key.to_big_endian(); // Change DWORDs to big-endian.
 
         for i in (0..PRIV_KEY.len()).step_by(4) {
             assert_eq!(
@@ -1074,11 +1075,11 @@ mod tests {
 
         let mut sig_r: [u8; 48] = [0; 48];
         sig_r.clone_from(ecc.sig_r.data());
-        sig_r.reverse(); // Change DWORDs to little-endian and reverse the DWORD list order.
+        sig_r.to_little_endian(); // Change DWORDs to little-endian.
 
         let mut sig_s: [u8; 48] = [0; 48];
         sig_s.clone_from(ecc.sig_s.data());
-        sig_s.reverse(); // Change DWORDs to little-endian and reverse the DWORD list order.
+        sig_s.to_little_endian(); // Change DWORDs to little-endian.
 
         assert_eq!(&sig_r, &SIG_R);
         assert_eq!(&sig_s, &SIG_S);
@@ -1090,7 +1091,7 @@ mod tests {
         for key_id in 0..8 {
             let clock = Clock::new();
             let mut priv_key = PRIV_KEY.clone();
-            priv_key.reverse(); // Change DWORDs to big-endian and reverse the DWORD list order.
+            priv_key.to_big_endian(); // Change DWORDs to big-endian.
 
             let mut key_vault = KeyVault::new();
             let mut expanded_priv_key: [u8; 64] = [0; 64];
@@ -1102,7 +1103,7 @@ mod tests {
             let mut ecc = AsymEcc384::new(&clock, key_vault);
 
             let mut hash = [0u8; 48];
-            hash.reverse(); // Change DWORDs to big-endian and reverse the DWORD list order.
+            hash.to_big_endian(); // Change DWORDs to big-endian.
 
             for i in (0..hash.len()).step_by(4) {
                 assert_eq!(
@@ -1159,11 +1160,11 @@ mod tests {
 
             let mut sig_r: [u8; 48] = [0; 48];
             sig_r.clone_from(ecc.sig_r.data());
-            sig_r.reverse(); // Change DWORDs to little-endian and reverse the DWORD list order.
+            sig_r.to_little_endian(); // Change DWORDs to little-endian.
 
             let mut sig_s: [u8; 48] = [0; 48];
             sig_s.clone_from(ecc.sig_s.data());
-            sig_s.reverse(); // Change DWORDs to little-endian and reverse the DWORD list order.
+            sig_s.to_little_endian(); // Change DWORDs to little-endian.
 
             assert_eq!(&sig_r, &SIG_R);
             assert_eq!(&sig_s, &SIG_S);
@@ -1176,7 +1177,7 @@ mod tests {
         for key_id in 0..8 {
             let clock = Clock::new();
             let mut hash = [0u8; 48];
-            hash.reverse(); // Change DWORDs to big-endian and reverse the DWORD list order.
+            hash.to_big_endian(); // Change DWORDs to big-endian.
 
             let mut key_vault = KeyVault::new();
             let mut expanded_hash: [u8; 64] = [0; 64];
@@ -1218,7 +1219,7 @@ mod tests {
             }
 
             let mut priv_key = PRIV_KEY.clone();
-            priv_key.reverse(); // Change DWORDs to big-endian and reverse the DWORD list order.
+            priv_key.to_big_endian(); // Change DWORDs to big-endian.
 
             for i in (0..PRIV_KEY.len()).step_by(4) {
                 assert_eq!(
@@ -1250,11 +1251,11 @@ mod tests {
 
             let mut sig_r: [u8; 48] = [0; 48];
             sig_r.clone_from(ecc.sig_r.data());
-            sig_r.reverse(); // Change DWORDs to little-endian and reverse the DWORD list order.
+            sig_r.to_little_endian(); // Change DWORDs to little-endian.
 
             let mut sig_s: [u8; 48] = [0; 48];
             sig_s.clone_from(ecc.sig_s.data());
-            sig_s.reverse(); // Change DWORDs to little-endian and reverse the DWORD list order.
+            sig_s.to_little_endian(); // Change DWORDs to little-endian.
 
             assert_eq!(&sig_r, &SIG_R);
             assert_eq!(&sig_s, &SIG_S);
@@ -1276,7 +1277,7 @@ mod tests {
         }
 
         let mut pub_key_x_reverse = PUB_KEY_X.clone();
-        pub_key_x_reverse.reverse();
+        pub_key_x_reverse.to_big_endian();
 
         for i in (0..pub_key_x_reverse.len()).step_by(4) {
             assert_eq!(
@@ -1291,7 +1292,7 @@ mod tests {
         }
 
         let mut pub_key_y_reverse = PUB_KEY_Y.clone();
-        pub_key_y_reverse.reverse();
+        pub_key_y_reverse.to_big_endian();
 
         for i in (0..pub_key_y_reverse.len()).step_by(4) {
             assert_eq!(
@@ -1306,7 +1307,7 @@ mod tests {
         }
 
         let mut sig_r_reverse = SIG_R.clone();
-        sig_r_reverse.reverse();
+        sig_r_reverse.to_big_endian();
 
         for i in (0..sig_r_reverse.len()).step_by(4) {
             assert_eq!(
@@ -1321,7 +1322,7 @@ mod tests {
         }
 
         let mut sig_s_reverse = SIG_S.clone();
-        sig_s_reverse.reverse();
+        sig_s_reverse.to_big_endian();
 
         for i in (0..sig_s_reverse.len()).step_by(4) {
             assert_eq!(
@@ -1354,7 +1355,7 @@ mod tests {
         }
 
         sig_s_reverse.clone_from(ecc.verify_r.data());
-        sig_s_reverse.reverse();
+        sig_s_reverse.to_little_endian();
 
         assert_eq!(&sig_s_reverse, &SIG_R);
     }

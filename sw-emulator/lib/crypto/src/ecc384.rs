@@ -19,6 +19,8 @@ use rfc6979::HmacDrbg;
 use sha2::digest::generic_array::GenericArray;
 use sha2::Sha384;
 
+use crate::EndianessTransform;
+
 /// ECC-384 coordinate size in bytes
 pub const ECC_384_COORD_SIZE: usize = 48;
 
@@ -148,9 +150,8 @@ impl Ecc384 {
         let mut priv_key = [0u8; ECC_384_COORD_SIZE];
 
         // Seed is received as a list of big-endian DWORDs. Changing them to little-endian.
-        // The received DOWRD list is also reversed from what is expected. Un-reversing the list.
         let mut seed_reversed = seed.clone();
-        seed_reversed.reverse();
+        seed_reversed.to_little_endian();
 
         let mut drbg = HmacDrbg::<Sha384>::new(&[], &[], &seed_reversed);
         drbg.fill_bytes(&mut priv_key);
@@ -161,10 +162,9 @@ impl Ecc384 {
         let mut pub_key: Ecc384PubKey = ecc_point.into();
 
         // Changing the DWORD endianess of the private and public keys to big-endian.
-        // Also reversing the order of the DWORDs.
-        priv_key.reverse();
-        pub_key.x.reverse();
-        pub_key.y.reverse();
+        priv_key.to_big_endian();
+        pub_key.x.to_big_endian();
+        pub_key.y.to_big_endian();
 
         (priv_key, pub_key)
     }
@@ -181,11 +181,10 @@ impl Ecc384 {
     /// *  Ecc384Signature - Signature
     pub fn sign(priv_key: &Ecc384PrivKey, hash: &Ecc384Scalar) -> Ecc384Signature {
         // Private key and hash are received as a list of big-endian DWORDs. Changing them to little-endian.
-        // The received DOWRD lists are also reversed from what is expected. Un-reversing the lists.
         let mut priv_key_reversed = priv_key.clone();
         let mut hash_reversed = hash.clone();
-        priv_key_reversed.reverse();
-        hash_reversed.reverse();
+        priv_key_reversed.to_little_endian();
+        hash_reversed.to_little_endian();
 
         let signing_key = SigningKey::from_bytes(&priv_key_reversed).unwrap();
         let ecc_sig = signing_key.sign_prehash(&hash_reversed).unwrap();
@@ -193,9 +192,8 @@ impl Ecc384 {
         let mut signature: Ecc384Signature = ecc_sig.into();
 
         // Changing the DWORD endianess of the signature to big-endian.
-        // Also reversing the order of the DWORDs.
-        signature.r.reverse();
-        signature.s.reverse();
+        signature.r.to_big_endian();
+        signature.s.to_big_endian();
         signature
     }
 
@@ -216,17 +214,16 @@ impl Ecc384 {
         signature: &Ecc384Signature,
     ) -> Ecc384Scalar {
         // Public key, hash and signature are received as a list of big-endian DWORDs. Changing them to little-endian.
-        // The received DOWRD lists are also reversed from what is expected. Un-reversing the lists.
         let mut pub_key_reversed = pub_key.clone();
-        pub_key_reversed.x.reverse();
-        pub_key_reversed.y.reverse();
+        pub_key_reversed.x.to_little_endian();
+        pub_key_reversed.y.to_little_endian();
 
         let mut hash_reversed = hash.clone();
-        hash_reversed.reverse();
+        hash_reversed.to_little_endian();
 
         let mut signature_reversed = signature.clone();
-        signature_reversed.r.reverse();
-        signature_reversed.s.reverse();
+        signature_reversed.r.to_little_endian();
+        signature_reversed.s.to_little_endian();
 
         let verifying_key = VerifyingKey::from_encoded_point(&pub_key_reversed.into()).unwrap();
         let result = verifying_key.verify_prehash(&hash_reversed, &signature_reversed.into());
@@ -285,11 +282,11 @@ mod tests {
     #[test]
     fn test_gen_key_pair() {
         let mut seed = [0u8; 48];
-        seed.reverse();
+        seed.to_big_endian();
         let (mut priv_key, mut pub_key) = Ecc384::gen_key_pair(&seed);
-        priv_key.reverse();
-        pub_key.x.reverse();
-        pub_key.y.reverse();
+        priv_key.to_little_endian();
+        pub_key.x.to_little_endian();
+        pub_key.y.to_little_endian();
         assert_eq!(priv_key, PRIV_KEY);
         assert_eq!(pub_key.x, PUB_KEY_X);
         assert_eq!(pub_key.y, PUB_KEY_Y);
@@ -299,12 +296,12 @@ mod tests {
     fn test_sign() {
         let hash = [0u8; 48];
         let mut priv_key = PRIV_KEY.clone();
-        priv_key.reverse();
+        priv_key.to_big_endian();
 
         let mut signature = Ecc384::sign(&priv_key, &hash);
 
-        signature.r.reverse();
-        signature.s.reverse();
+        signature.r.to_little_endian();
+        signature.s.to_little_endian();
 
         assert_eq!(signature.r, SIGNATURE_R);
         assert_eq!(signature.s, SIGNATURE_S);
@@ -314,23 +311,23 @@ mod tests {
     fn test_verify() {
         let hash = [0u8; 48];
         let mut priv_key = PRIV_KEY.clone();
-        priv_key.reverse();
+        priv_key.to_big_endian();
 
         let mut signature = Ecc384::sign(&priv_key, &hash);
 
         let mut pub_key_x = PUB_KEY_X.clone();
         let mut pub_key_y = PUB_KEY_Y.clone();
 
-        pub_key_x.reverse();
-        pub_key_y.reverse();
+        pub_key_x.to_big_endian();
+        pub_key_y.to_big_endian();
 
         let pub_key = Ecc384PubKey {
             x: pub_key_x,
             y: pub_key_y,
         };
         let mut r = Ecc384::verify(&pub_key, &hash, &signature);
-        r.reverse();
-        signature.r.reverse();
+        r.to_little_endian();
+        signature.r.to_little_endian();
         assert_eq!(r, signature.r)
     }
 
@@ -338,15 +335,15 @@ mod tests {
     fn test_verify_fail() {
         let hash = [0u8; 48];
         let mut priv_key = PRIV_KEY.clone();
-        priv_key.reverse();
+        priv_key.to_big_endian();
 
         let mut signature = Ecc384::sign(&priv_key, &hash);
 
         let mut pub_key_x = PUB_KEY_X.clone();
         let mut pub_key_y = PUB_KEY_Y.clone();
 
-        pub_key_x.reverse();
-        pub_key_y.reverse();
+        pub_key_x.to_big_endian();
+        pub_key_y.to_big_endian();
 
         let pub_key = Ecc384PubKey {
             x: pub_key_x,
@@ -356,8 +353,8 @@ mod tests {
         let hash = [0xFFu8; 48];
         let mut r = Ecc384::verify(&pub_key, &hash, &signature);
 
-        r.reverse();
-        signature.r.reverse();
+        r.to_little_endian();
+        signature.r.to_little_endian();
         assert_ne!(r, signature.r)
     }
 }
