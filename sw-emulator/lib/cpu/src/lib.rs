@@ -17,7 +17,9 @@ mod csr_file;
 mod instr;
 mod macros;
 mod types;
-mod xreg_file;
+pub mod xreg_file;
 
 pub use cpu::Cpu;
 pub use cpu::StepAction;
+pub use cpu::WatchPtrHit;
+pub use cpu::WatchPtrKind;

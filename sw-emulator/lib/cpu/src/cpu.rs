@@ -20,6 +20,33 @@ use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
 
 pub type InstrTracer = fn(pc: u32, instr: RvInstr);
 
+#[derive(PartialEq)]
+pub enum WatchPtrKind {
+    Read,
+    Write,
+}
+
+pub struct WatchPtrHit {
+    pub addr: u32,
+    pub kind: WatchPtrKind,
+}
+
+pub struct WatchPtrCfg {
+    pub write: Vec<u32>,
+    pub read: Vec<u32>,
+    pub hit: Option<WatchPtrHit>,
+}
+
+impl WatchPtrCfg {
+    pub fn new() -> Self {
+        Self {
+            write: Vec::new(),
+            read: Vec::new(),
+            hit: None,
+        }
+    }
+}
+
 /// RISCV CPU
 pub struct Cpu<TBus: Bus> {
     /// General Purpose register file
@@ -38,6 +65,12 @@ pub struct Cpu<TBus: Bus> {
     pub bus: TBus,
 
     pub clock: Clock,
+
+    // Track if Execution is in progress
+    pub(crate) is_execute_instr: bool,
+
+    // This is used to track watchpointers
+    pub(crate) watch_ptr_cfg: WatchPtrCfg,
 }
 
 /// Cpu instruction step action
@@ -45,6 +78,9 @@ pub struct Cpu<TBus: Bus> {
 pub enum StepAction {
     /// Continue
     Continue,
+
+    /// Break
+    Break,
 
     /// Fatal
     Fatal,
@@ -63,6 +99,8 @@ impl<TBus: Bus> Cpu<TBus> {
             next_pc: Self::PC_RESET_VAL,
             bus,
             clock,
+            is_execute_instr: false,
+            watch_ptr_cfg: WatchPtrCfg::new(),
         }
     }
 
@@ -169,7 +207,18 @@ impl<TBus: Bus> Cpu<TBus> {
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::LoadAccessFault`
     ///                   or `RvExceptionCause::LoadAddrMisaligned`
-    pub fn read_bus(&self, size: RvSize, addr: RvAddr) -> Result<RvData, RvException> {
+    pub fn read_bus(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, RvException> {
+        // Check if we are in step mode
+        if self.is_execute_instr {
+            self.watch_ptr_cfg.hit = match self.watch_ptr_cfg.read.contains(&addr) {
+                true => Some(WatchPtrHit {
+                    addr,
+                    kind: WatchPtrKind::Read,
+                }),
+                false => None,
+            }
+        }
+
         match self.bus.read(size, addr) {
             Ok(val) => Ok(val),
             Err(exception) => match exception {
@@ -199,6 +248,16 @@ impl<TBus: Bus> Cpu<TBus> {
         addr: RvAddr,
         val: RvData,
     ) -> Result<(), RvException> {
+        // Check if we are in step mode
+        if self.is_execute_instr {
+            self.watch_ptr_cfg.hit = match self.watch_ptr_cfg.write.contains(&addr) {
+                true => Some(WatchPtrHit {
+                    addr,
+                    kind: WatchPtrKind::Write,
+                }),
+                false => None,
+            }
+        }
         match self.bus.write(size, addr, val) {
             Ok(val) => Ok(val),
             Err(exception) => match exception {
@@ -244,7 +303,7 @@ impl<TBus: Bus> Cpu<TBus> {
     pub fn step(&mut self, instr_tracer: Option<InstrTracer>) -> StepAction {
         self.clock.increment_and_poll(1, &mut self.bus);
         match self.exec_instr(instr_tracer) {
-            Ok(_) => StepAction::Continue,
+            Ok(result) => result,
             Err(exception) => self.handle_exception(exception),
         }
     }
@@ -297,6 +356,30 @@ impl<TBus: Bus> Cpu<TBus> {
         self.write_pc(next_pc);
         println!("{:x}", next_pc);
         Ok(())
+    }
+
+    //// Append WatchPointer
+    pub fn add_watchptr(&mut self, addr: u32, len: u32, kind: WatchPtrKind) {
+        for addr in addr..(addr + len) {
+            match kind {
+                WatchPtrKind::Read => self.watch_ptr_cfg.read.push(addr),
+                WatchPtrKind::Write => self.watch_ptr_cfg.write.push(addr),
+            }
+        }
+    }
+
+    //// Remove WatchPointer
+    pub fn remove_watchptr(&mut self, addr: u32, len: u32, kind: WatchPtrKind) {
+        let watch_ptr = match kind {
+            WatchPtrKind::Read => &mut self.watch_ptr_cfg.read,
+            WatchPtrKind::Write => &mut self.watch_ptr_cfg.write,
+        };
+        watch_ptr.retain(|&x| -> bool { (x < addr) || (x > (addr + len)) });
+    }
+
+    //// Get WatchPointer
+    pub fn get_watchptr_hit(&self) -> Option<&WatchPtrHit> {
+        self.watch_ptr_cfg.hit.as_ref()
     }
 }
 

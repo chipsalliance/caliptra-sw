@@ -11,7 +11,6 @@ Abstract:
     File contains implementation of RISCV Instruction encoding
 
 --*/
-
 #[cfg(test)]
 mod test {
     #[macro_export]
@@ -452,7 +451,7 @@ mod test {
             $(assert_eq!(cpu.write_xreg($init_reg, $init_val).ok(), Some(()));)*
 
             while (cpu.read_pc() < $text_addr + $text.len() as u32) {
-                assert_eq!(cpu.exec_instr(None).ok(), Some(()));
+                assert_eq!(cpu.exec_instr(None).ok(), Some(crate::cpu::StepAction::Continue));
             }
 
             $(assert_eq!(cpu.read_xreg($result_reg).ok(), Some($result_val));)*

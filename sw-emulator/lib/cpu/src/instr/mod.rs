@@ -26,7 +26,7 @@ mod system;
 mod test_encoder;
 mod test_macros;
 
-use crate::cpu::{Cpu, InstrTracer};
+use crate::cpu::{Cpu, InstrTracer, StepAction};
 use crate::types::{RvInstr32, RvInstr32Opcode};
 use caliptra_emu_bus::Bus;
 use caliptra_emu_types::{RvException, RvSize};
@@ -50,7 +50,11 @@ impl<TBus: Bus> Cpu<TBus> {
     pub(crate) fn exec_instr(
         &mut self,
         instr_tracer: Option<InstrTracer>,
-    ) -> Result<(), RvException> {
+    ) -> Result<StepAction, RvException> {
+        // Set In Execution Mode and remove Hit
+        self.is_execute_instr = true;
+        self.watch_ptr_cfg.hit = None;
+
         match self.fetch()? {
             Instr::Compressed(instr) => {
                 self.set_next_pc(self.read_pc().wrapping_add(2));
@@ -62,7 +66,13 @@ impl<TBus: Bus> Cpu<TBus> {
             }
         }
         self.write_pc(self.next_pc());
-        Ok(())
+
+        self.is_execute_instr = false;
+
+        match self.get_watchptr_hit() {
+            Some(_hit) => Ok(StepAction::Break),
+            None => Ok(StepAction::Continue),
+        }
     }
 
     /// Fetch an instruction from current program counter

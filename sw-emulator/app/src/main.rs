@@ -21,6 +21,19 @@ use std::io;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::exit;
+mod gdb;
+use gdb::gdb_state;
+use gdb::gdb_target::GdbTarget;
+
+// CPU Main Loop (free_run no GDB)
+fn free_run(mut cpu: Cpu<CaliptraRootBus>) {
+    loop {
+        match cpu.step(None) {
+            StepAction::Continue => continue,
+            _ => break,
+        }
+    }
+}
 
 fn main() -> io::Result<()> {
     let args = clap::Command::new("caliptra-emu")
@@ -31,6 +44,7 @@ fn main() -> io::Result<()> {
                 .required(false)
                 .value_parser(value_parser!(PathBuf)),
         )
+        .arg(arg!(--gdb_port <VALUE> "Gdb Debugger").required(false))
         .get_matches();
 
     let args_rom = args.get_one::<PathBuf>("rom").unwrap();
@@ -52,12 +66,20 @@ fn main() -> io::Result<()> {
         exit(-1);
     }
     let clock = Clock::new();
-    let mut cpu = Cpu::new(CaliptraRootBus::new(&clock, buffer), clock);
+    let cpu = Cpu::new(CaliptraRootBus::new(&clock, buffer), clock);
 
-    loop {
-        match cpu.step(None) {
-            StepAction::Continue => continue,
-            _ => break,
+    // Check if Optinal GDB Port is passed
+    match args.get_one::<String>("gdb_port") {
+        Some(port) => {
+            // Create GDB Target Instance
+            let mut gdb_target = GdbTarget::new(cpu);
+
+            // Exexute CPU through GDB State Machine
+            gdb_state::wait_for_gdb_run(&mut gdb_target, port.parse().unwrap());
+        }
+        _ => {
+            // If no GDB Port is passed, Free Run
+            free_run(cpu);
         }
     }
 
