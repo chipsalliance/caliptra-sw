@@ -557,9 +557,6 @@ fn all_regs_mut<'a>(
 
 impl RegisterBlock {
     pub fn validate_and_dedup(mut self) -> Result<ValidatedRegisterBlock, ValidationError> {
-        if self.name == "dfuse" {
-            println!("{:#?}", self)
-        }
         self.registers.sort_by_key(|reg| reg.offset);
         self.sub_arrays
             .sort_by_key(|sub_array| sub_array.start_offset);
