@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use crate::helpers::EndianessTransform;
 use sha2::digest::block_buffer::Block;
 use sha2::digest::consts::U128;
 
@@ -112,7 +113,11 @@ impl Sha512 {
     ///
     /// * `block` - Block to compress
     pub fn update(&mut self, block: &[u8; Self::BLOCK_SIZE]) {
-        let block = *Block::<U128>::from_slice(block);
+        let mut block = *Block::<U128>::from_slice(block);
+
+        // Block is received as a list of big-endian DWORDs.
+        // Changing them to little-endian.
+        block.to_little_endian();
         sha2::compress512(&mut self.hash, &[block]);
     }
 
@@ -122,7 +127,11 @@ impl Sha512 {
     ///
     /// * `hash` - Hash to copy
     pub fn hash(&self, hash: &mut [u8]) {
-        self.hash
+        // Return the hash as a list of big-endian DWORDs.
+        let mut hash_be = self.hash.clone();
+        hash_be.to_big_endian();
+
+        hash_be
             .iter()
             .flat_map(|i| i.to_be_bytes())
             .take(self.hash_len())
@@ -177,8 +186,11 @@ mod tests {
 
     #[test]
     fn test_sha512_224() {
+        let mut sha_512_test_block_var = SHA_512_TEST_BLOCK.clone();
+        sha_512_test_block_var.to_big_endian();
+
         let mut sha = Sha512::new(Sha512Mode::Sha224);
-        sha.update(&SHA_512_TEST_BLOCK);
+        sha.update(&sha_512_test_block_var);
 
         let expected: [u8; 28] = [
             0x46, 0x34, 0x27, 0x0F, 0x70, 0x7B, 0x6A, 0x54, 0xDA, 0xAE, 0x75, 0x30, 0x46, 0x08,
@@ -187,14 +199,17 @@ mod tests {
 
         let mut hash = [0u8; 28];
         sha.hash(&mut hash);
-
+        hash.to_little_endian();
         assert_eq!(&hash, &expected);
     }
 
     #[test]
     fn test_sha512_256() {
+        let mut sha_512_test_block_var = SHA_512_TEST_BLOCK.clone();
+        sha_512_test_block_var.to_big_endian();
+
         let mut sha = Sha512::new(Sha512Mode::Sha256);
-        sha.update(&SHA_512_TEST_BLOCK);
+        sha.update(&sha_512_test_block_var);
 
         let expected: [u8; 32] = [
             0x53, 0x04, 0x8E, 0x26, 0x81, 0x94, 0x1E, 0xF9, 0x9B, 0x2E, 0x29, 0xB7, 0x6B, 0x4C,
@@ -204,14 +219,18 @@ mod tests {
 
         let mut hash = [0u8; 32];
         sha.hash(&mut hash);
+        hash.to_little_endian();
 
         assert_eq!(&hash, &expected);
     }
 
     #[test]
     fn test_sha384() {
+        let mut sha_512_test_block_var = SHA_512_TEST_BLOCK.clone();
+        sha_512_test_block_var.to_big_endian();
+
         let mut sha = Sha512::new(Sha512Mode::Sha384);
-        sha.update(&SHA_512_TEST_BLOCK);
+        sha.update(&sha_512_test_block_var);
 
         let expected: [u8; 48] = [
             0xCB, 0x00, 0x75, 0x3F, 0x45, 0xA3, 0x5E, 0x8B, 0xB5, 0xA0, 0x3D, 0x69, 0x9A, 0xC6,
@@ -222,14 +241,18 @@ mod tests {
 
         let mut hash = [0u8; 48];
         sha.hash(&mut hash);
+        hash.to_little_endian();
 
         assert_eq!(&hash, &expected);
     }
 
     #[test]
     fn test_sha512() {
+        let mut sha_512_test_block_var = SHA_512_TEST_BLOCK.clone();
+        sha_512_test_block_var.to_big_endian();
+
         let mut sha = Sha512::new(Sha512Mode::Sha512);
-        sha.update(&SHA_512_TEST_BLOCK);
+        sha.update(&sha_512_test_block_var);
 
         let expected: [u8; 64] = [
             0xDD, 0xAF, 0x35, 0xA1, 0x93, 0x61, 0x7A, 0xBA, 0xCC, 0x41, 0x73, 0x49, 0xAE, 0x20,
@@ -241,6 +264,7 @@ mod tests {
 
         let mut hash = [0u8; 64];
         sha.hash(&mut hash);
+        hash.to_little_endian();
 
         assert_eq!(&hash, &expected);
     }

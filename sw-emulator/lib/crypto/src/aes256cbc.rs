@@ -14,6 +14,8 @@ Abstract:
 
 use cbc::cipher::{BlockDecryptMut, KeyIvInit};
 
+use crate::helpers::EndianessTransform;
+
 pub enum Aes256Cbc {}
 
 const AES_256_BLOCK_SIZE: usize = 16;
@@ -39,7 +41,15 @@ impl Aes256Cbc {
     ) {
         assert_eq!(cipher_txt.len(), plain_txt.len());
         assert_eq!(cipher_txt.len() % AES_256_BLOCK_SIZE, 0);
-        let mut decryptor = Aes256Decryptor::new(key.into(), iv.into());
+
+        // IV is received as a list of big-endian DWORDs.
+        // Convert them to little-endian.
+        let mut iv_be = iv.clone();
+        iv_be.to_little_endian();
+
+        // Not changing key or cipher text endianess since it is internal from the firmware crypto API perspective.
+
+        let mut decryptor = Aes256Decryptor::new(key.into(), &iv_be.into());
         for idx in (0..cipher_txt.len()).step_by(AES_256_BLOCK_SIZE) {
             let in_block = cipher_txt[idx..idx + 16].into();
             let out_block = (&mut plain_txt[idx..idx + 16]).into();
@@ -50,7 +60,7 @@ impl Aes256Cbc {
 
 #[cfg(test)]
 mod tests {
-    use crate::Aes256Cbc;
+    use crate::{helpers::EndianessTransform, Aes256Cbc};
 
     #[test]
     fn test_decrypt_1024bit() {
@@ -92,7 +102,7 @@ mod tests {
             0x14, 0xDF, 0xF4,
         ];
 
-        const IV: [u8; 16] = [
+        let mut iv: [u8; 16] = [
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
             0x0e, 0x0f,
         ];
@@ -115,7 +125,9 @@ mod tests {
 
         let mut actual_plain_text = [0u8; 64];
 
-        Aes256Cbc::decrypt(&KEY, &IV, &CIPHER_TEXT, &mut actual_plain_text);
+        iv.to_big_endian();
+        Aes256Cbc::decrypt(&KEY, &iv, &CIPHER_TEXT, &mut actual_plain_text);
+
         assert_eq!(actual_plain_text, EXPECTED_PLAIN_TEXT);
     }
 }

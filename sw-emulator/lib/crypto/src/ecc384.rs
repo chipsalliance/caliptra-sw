@@ -58,9 +58,20 @@ impl From<EncodedPoint> for Ecc384PubKey {
     }
 }
 
-impl From<&Ecc384PubKey> for EncodedPoint {
+impl From<&mut Ecc384PubKey> for EncodedPoint {
     /// Converts to this type from the input type.
-    fn from(key: &Ecc384PubKey) -> Self {
+    fn from(key: &mut Ecc384PubKey) -> Self {
+        EncodedPoint::from_affine_coordinates(
+            GenericArray::from_slice(&key.x),
+            GenericArray::from_slice(&key.y),
+            false,
+        )
+    }
+}
+
+impl From<Ecc384PubKey> for EncodedPoint {
+    /// Converts to this type from the input type.
+    fn from(key: Ecc384PubKey) -> Self {
         EncodedPoint::from_affine_coordinates(
             GenericArray::from_slice(&key.x),
             GenericArray::from_slice(&key.y),
@@ -99,9 +110,20 @@ impl From<Signature> for Ecc384Signature {
     }
 }
 
-impl From<&Ecc384Signature> for Signature {
+impl From<&mut Ecc384Signature> for Signature {
     /// Converts to this type from the input type.
-    fn from(signature: &Ecc384Signature) -> Self {
+    fn from(signature: &mut Ecc384Signature) -> Self {
+        Signature::from_scalars(
+            GenericArray::clone_from_slice(&signature.r),
+            GenericArray::clone_from_slice(&signature.s),
+        )
+        .unwrap()
+    }
+}
+
+impl From<Ecc384Signature> for Signature {
+    /// Converts to this type from the input type.
+    fn from(signature: Ecc384Signature) -> Self {
         Signature::from_scalars(
             GenericArray::clone_from_slice(&signature.r),
             GenericArray::clone_from_slice(&signature.s),
@@ -124,12 +146,27 @@ impl Ecc384 {
     /// *  (Ecc384PrivKey, Ecc384PubKey) - Private & public key pair
     pub fn gen_key_pair(seed: &Ecc384Scalar) -> (Ecc384PrivKey, Ecc384PubKey) {
         let mut priv_key = [0u8; ECC_384_COORD_SIZE];
-        let mut drbg = HmacDrbg::<Sha384>::new(&[], &[], seed);
+
+        // Seed is received as a list of big-endian DWORDs. Changing them to little-endian.
+        // The received DOWRD list is also reversed from what is expected. Un-reversing the list.
+        let mut seed_reversed = seed.clone();
+        seed_reversed.reverse();
+
+        let mut drbg = HmacDrbg::<Sha384>::new(&[], &[], &seed_reversed);
         drbg.fill_bytes(&mut priv_key);
         let signing_key = SigningKey::from_bytes(&priv_key).unwrap();
         let verifying_key = signing_key.verifying_key();
         let ecc_point = verifying_key.to_encoded_point(false);
-        (priv_key, ecc_point.into())
+
+        let mut pub_key: Ecc384PubKey = ecc_point.into();
+
+        // Changing the DWORD endianess of the private and public keys to big-endian.
+        // Also reversing the order of the DWORDs.
+        priv_key.reverse();
+        pub_key.x.reverse();
+        pub_key.y.reverse();
+
+        (priv_key, pub_key)
     }
 
     /// Sign the hash with specified private key
@@ -143,9 +180,23 @@ impl Ecc384 {
     ///
     /// *  Ecc384Signature - Signature
     pub fn sign(priv_key: &Ecc384PrivKey, hash: &Ecc384Scalar) -> Ecc384Signature {
-        let signing_key = SigningKey::from_bytes(priv_key).unwrap();
-        let ecc_sig = signing_key.sign_prehash(hash).unwrap();
-        ecc_sig.into()
+        // Private key and hash are received as a list of big-endian DWORDs. Changing them to little-endian.
+        // The received DOWRD lists are also reversed from what is expected. Un-reversing the lists.
+        let mut priv_key_reversed = priv_key.clone();
+        let mut hash_reversed = hash.clone();
+        priv_key_reversed.reverse();
+        hash_reversed.reverse();
+
+        let signing_key = SigningKey::from_bytes(&priv_key_reversed).unwrap();
+        let ecc_sig = signing_key.sign_prehash(&hash_reversed).unwrap();
+
+        let mut signature: Ecc384Signature = ecc_sig.into();
+
+        // Changing the DWORD endianess of the signature to big-endian.
+        // Also reversing the order of the DWORDs.
+        signature.r.reverse();
+        signature.s.reverse();
+        signature
     }
 
     /// Verify the signature
@@ -164,8 +215,21 @@ impl Ecc384 {
         hash: &Ecc384Scalar,
         signature: &Ecc384Signature,
     ) -> Ecc384Scalar {
-        let verifying_key = VerifyingKey::from_encoded_point(&pub_key.into()).unwrap();
-        let result = verifying_key.verify_prehash(hash, &signature.into());
+        // Public key, hash and signature are received as a list of big-endian DWORDs. Changing them to little-endian.
+        // The received DOWRD lists are also reversed from what is expected. Un-reversing the lists.
+        let mut pub_key_reversed = pub_key.clone();
+        pub_key_reversed.x.reverse();
+        pub_key_reversed.y.reverse();
+
+        let mut hash_reversed = hash.clone();
+        hash_reversed.reverse();
+
+        let mut signature_reversed = signature.clone();
+        signature_reversed.r.reverse();
+        signature_reversed.s.reverse();
+
+        let verifying_key = VerifyingKey::from_encoded_point(&pub_key_reversed.into()).unwrap();
+        let result = verifying_key.verify_prehash(&hash_reversed, &signature_reversed.into());
         if result.is_ok() {
             signature.r
         } else {
@@ -220,8 +284,12 @@ mod tests {
 
     #[test]
     fn test_gen_key_pair() {
-        let seed = [0u8; 48];
-        let (priv_key, pub_key) = Ecc384::gen_key_pair(&seed);
+        let mut seed = [0u8; 48];
+        seed.reverse();
+        let (mut priv_key, mut pub_key) = Ecc384::gen_key_pair(&seed);
+        priv_key.reverse();
+        pub_key.x.reverse();
+        pub_key.y.reverse();
         assert_eq!(priv_key, PRIV_KEY);
         assert_eq!(pub_key.x, PUB_KEY_X);
         assert_eq!(pub_key.y, PUB_KEY_Y);
@@ -230,7 +298,14 @@ mod tests {
     #[test]
     fn test_sign() {
         let hash = [0u8; 48];
-        let signature = Ecc384::sign(&PRIV_KEY, &hash);
+        let mut priv_key = PRIV_KEY.clone();
+        priv_key.reverse();
+
+        let mut signature = Ecc384::sign(&priv_key, &hash);
+
+        signature.r.reverse();
+        signature.s.reverse();
+
         assert_eq!(signature.r, SIGNATURE_R);
         assert_eq!(signature.s, SIGNATURE_S);
     }
@@ -238,25 +313,51 @@ mod tests {
     #[test]
     fn test_verify() {
         let hash = [0u8; 48];
-        let signature = Ecc384::sign(&PRIV_KEY, &hash);
+        let mut priv_key = PRIV_KEY.clone();
+        priv_key.reverse();
+
+        let mut signature = Ecc384::sign(&priv_key, &hash);
+
+        let mut pub_key_x = PUB_KEY_X.clone();
+        let mut pub_key_y = PUB_KEY_Y.clone();
+
+        pub_key_x.reverse();
+        pub_key_y.reverse();
+
         let pub_key = Ecc384PubKey {
-            x: PUB_KEY_X,
-            y: PUB_KEY_Y,
+            x: pub_key_x,
+            y: pub_key_y,
         };
-        let r = Ecc384::verify(&pub_key, &hash, &signature);
+        let mut r = Ecc384::verify(&pub_key, &hash, &signature);
+        r.reverse();
+        signature.r.reverse();
         assert_eq!(r, signature.r)
     }
 
     #[test]
     fn test_verify_fail() {
         let hash = [0u8; 48];
-        let signature = Ecc384::sign(&PRIV_KEY, &hash);
+        let mut priv_key = PRIV_KEY.clone();
+        priv_key.reverse();
+
+        let mut signature = Ecc384::sign(&priv_key, &hash);
+
+        let mut pub_key_x = PUB_KEY_X.clone();
+        let mut pub_key_y = PUB_KEY_Y.clone();
+
+        pub_key_x.reverse();
+        pub_key_y.reverse();
+
         let pub_key = Ecc384PubKey {
-            x: PUB_KEY_X,
-            y: PUB_KEY_Y,
+            x: pub_key_x,
+            y: pub_key_y,
         };
+
         let hash = [0xFFu8; 48];
-        let r = Ecc384::verify(&pub_key, &hash, &signature);
+        let mut r = Ecc384::verify(&pub_key, &hash, &signature);
+
+        r.reverse();
+        signature.r.reverse();
         assert_ne!(r, signature.r)
     }
 }

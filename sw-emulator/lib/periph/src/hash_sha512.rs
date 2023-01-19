@@ -209,6 +209,7 @@ impl HashSha512 {
 mod tests {
     use super::*;
     use caliptra_emu_bus::Bus;
+    use caliptra_emu_crypto::EndianessTransform;
     use caliptra_emu_types::RvAddr;
     use tock_registers::registers::InMemoryRegister;
 
@@ -282,8 +283,6 @@ mod tests {
     }
 
     fn test_sha(data: &[u8], expected: &[u8], mode: Sha512Mode) {
-        println!("data len: {}", data.len());
-
         fn make_word(idx: usize, arr: &[u8]) -> RvData {
             let mut res: RvData = 0;
             for i in 0..4 {
@@ -305,6 +304,7 @@ mod tests {
         let len = len * 8;
 
         block_arr[totalbytes - 16..].copy_from_slice(&len.to_be_bytes());
+        block_arr.to_big_endian();
 
         let clock = Clock::new();
         let mut sha512 = HashSha512::new(&clock);
@@ -365,7 +365,10 @@ mod tests {
             }
         }
 
-        assert_eq!(sha512.hash(), expected);
+        let mut hash_le: [u8; 64] = [0; 64];
+        hash_le[..sha512.hash().len()].clone_from_slice(&sha512.hash());
+        hash_le.to_little_endian();
+        assert_eq!(&hash_le[0..sha512.hash().len()], expected);
     }
 
     const SHA_512_TEST_BLOCK: [u8; 3] = [0x61, 0x62, 0x63];

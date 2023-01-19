@@ -356,7 +356,9 @@ mod tests {
         let clock = Clock::new();
         let mut ecc = AsymEcc384::new(&clock);
 
-        let seed = [0u8; 48];
+        let mut seed = [0u8; 48];
+        seed.reverse(); // Change DWORDs to big-endian and reverse the DWORD list order.
+
         for i in (0..seed.len()).step_by(4) {
             assert_eq!(
                 ecc.write(RvSize::Word, OFFSET_SEED + i as RvAddr, make_word(i, &seed))
@@ -383,9 +385,21 @@ mod tests {
             clock.increment_and_poll(1, &mut ecc);
         }
 
-        assert_eq!(ecc.priv_key.data(), &PRIV_KEY);
-        assert_eq!(ecc.pub_key_x.data(), &PUB_KEY_X);
-        assert_eq!(ecc.pub_key_y.data(), &PUB_KEY_Y);
+        let mut priv_key: [u8; 48] = [0; 48];
+        priv_key.clone_from(ecc.priv_key.data());
+        priv_key.reverse(); // Change DWORDs to little-endian and reverse the DWORD list order.
+
+        let mut pub_key_x: [u8; 48] = [0; 48];
+        pub_key_x.clone_from(ecc.pub_key_x.data());
+        pub_key_x.reverse(); // Change DWORDs to little-endian and reverse the DWORD list order.
+
+        let mut pub_key_y: [u8; 48] = [0; 48];
+        pub_key_y.clone_from(ecc.pub_key_y.data());
+        pub_key_y.reverse(); // Change DWORDs to little-endian and reverse the DWORD list order.
+
+        assert_eq!(&priv_key, &PRIV_KEY);
+        assert_eq!(&pub_key_x, &PUB_KEY_X);
+        assert_eq!(&pub_key_y, &PUB_KEY_Y);
     }
 
     #[test]
@@ -393,7 +407,9 @@ mod tests {
         let clock = Clock::new();
         let mut ecc = AsymEcc384::new(&clock);
 
-        let hash = [0u8; 48];
+        let mut hash = [0u8; 48];
+        hash.reverse(); // Change DWORDs to big-endian and reverse the DWORD list order.
+
         for i in (0..hash.len()).step_by(4) {
             assert_eq!(
                 ecc.write(RvSize::Word, OFFSET_HASH + i as RvAddr, make_word(i, &hash))
@@ -402,12 +418,15 @@ mod tests {
             );
         }
 
+        let mut priv_key = PRIV_KEY.clone();
+        priv_key.reverse(); // Change DWORDs to big-endian and reverse the DWORD list order.
+
         for i in (0..PRIV_KEY.len()).step_by(4) {
             assert_eq!(
                 ecc.write(
                     RvSize::Word,
                     OFFSET_PRIV_KEY + i as RvAddr,
-                    make_word(i, &PRIV_KEY)
+                    make_word(i, &priv_key)
                 )
                 .ok(),
                 Some(())
@@ -432,8 +451,16 @@ mod tests {
             clock.increment_and_poll(1, &mut ecc);
         }
 
-        assert_eq!(ecc.sig_r.data(), &SIG_R);
-        assert_eq!(ecc.sig_s.data(), &SIG_S);
+        let mut sig_r: [u8; 48] = [0; 48];
+        sig_r.clone_from(ecc.sig_r.data());
+        sig_r.reverse(); // Change DWORDs to little-endian and reverse the DWORD list order.
+
+        let mut sig_s: [u8; 48] = [0; 48];
+        sig_s.clone_from(ecc.sig_s.data());
+        sig_s.reverse(); // Change DWORDs to little-endian and reverse the DWORD list order.
+
+        assert_eq!(&sig_r, &SIG_R);
+        assert_eq!(&sig_s, &SIG_S);
     }
 
     #[test]
@@ -450,48 +477,60 @@ mod tests {
             );
         }
 
-        for i in (0..PUB_KEY_X.len()).step_by(4) {
+        let mut pub_key_x_reverse = PUB_KEY_X.clone();
+        pub_key_x_reverse.reverse();
+
+        for i in (0..pub_key_x_reverse.len()).step_by(4) {
             assert_eq!(
                 ecc.write(
                     RvSize::Word,
                     OFFSET_PUB_KEY_X + i as RvAddr,
-                    make_word(i, &PUB_KEY_X)
+                    make_word(i, &pub_key_x_reverse)
                 )
                 .ok(),
                 Some(())
             );
         }
 
-        for i in (0..PUB_KEY_Y.len()).step_by(4) {
+        let mut pub_key_y_reverse = PUB_KEY_Y.clone();
+        pub_key_y_reverse.reverse();
+
+        for i in (0..pub_key_y_reverse.len()).step_by(4) {
             assert_eq!(
                 ecc.write(
                     RvSize::Word,
                     OFFSET_PUB_KEY_Y + i as RvAddr,
-                    make_word(i, &PUB_KEY_Y)
+                    make_word(i, &pub_key_y_reverse)
                 )
                 .ok(),
                 Some(())
             );
         }
 
-        for i in (0..SIG_R.len()).step_by(4) {
+        let mut sig_r_reverse = SIG_R.clone();
+        sig_r_reverse.reverse();
+
+        for i in (0..sig_r_reverse.len()).step_by(4) {
             assert_eq!(
                 ecc.write(
                     RvSize::Word,
                     OFFSET_SIG_R + i as RvAddr,
-                    make_word(i, &SIG_R)
+                    make_word(i, &sig_r_reverse)
                 )
                 .ok(),
                 Some(())
             );
         }
 
-        for i in (0..SIG_S.len()).step_by(4) {
+        let mut sig_s_reverse = SIG_S.clone();
+        sig_s_reverse.reverse();
+
+        for i in (0..sig_s_reverse.len()).step_by(4) {
             assert_eq!(
                 ecc.write(
                     RvSize::Word,
                     OFFSET_SIG_S + i as RvAddr,
-                    make_word(i, &SIG_S)
+                    make_word(i, &sig_s_reverse)
                 )
                 .ok(),
                 Some(())
@@ -516,6 +555,9 @@ mod tests {
             clock.increment_and_poll(1, &mut ecc);
         }
 
-        assert_eq!(ecc.verify_r.data(), &SIG_R);
+        sig_s_reverse.clone_from(ecc.verify_r.data());
+        sig_s_reverse.reverse();
+
+        assert_eq!(&sig_s_reverse, &SIG_R);
     }
 }

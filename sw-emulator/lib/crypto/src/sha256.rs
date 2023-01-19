@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use crate::helpers::EndianessTransform;
 use sha2::digest::block_buffer::Block;
 use sha2::digest::consts::U64;
 
@@ -76,7 +77,11 @@ impl Sha256 {
     ///
     /// * `block` - Block to compress
     pub fn update(&mut self, block: &[u8; Self::BLOCK_SIZE]) {
-        let block = *Block::<U64>::from_slice(block);
+        let mut block = *Block::<U64>::from_slice(block);
+
+        // Block is received as a list of big-endian DWORDs.
+        // Changing them to little-endian.
+        block.to_little_endian();
         sha2::compress256(&mut self.hash, &[block]);
     }
 
@@ -86,9 +91,10 @@ impl Sha256 {
     ///
     /// * `hash` - Hash to copy
     pub fn hash(&mut self, hash: &mut [u8]) {
+        // Return the hash as a list of big-endian DWORDs.
         self.hash
             .iter()
-            .flat_map(|i| i.to_be_bytes())
+            .flat_map(|i| i.to_le_bytes())
             .take(self.hash_len())
             .zip(hash)
             .for_each(|(src, dest)| *dest = src);
@@ -133,25 +139,32 @@ mod tests {
 
     #[test]
     fn test_sha256_224() {
+        let mut sha_256_test_block = SHA_256_TEST_BLOCK.clone();
+        sha_256_test_block.to_big_endian();
+
         let mut sha = Sha256::new(Sha256Mode::Sha224);
-        sha.update(&SHA_256_TEST_BLOCK);
+        sha.update(&sha_256_test_block);
 
         #[cfg_attr(rustfmt, rustfmt_skip)]
-            let expected: [u8; 28] = [
+        let expected: [u8; 28] = [
             0x23, 0x09, 0x7d, 0x22, 0x34, 0x05, 0xd8, 0x22, 0x86, 0x42, 0xa4, 0x77, 0xbd, 0xa2, 0x55, 0xb3,
             0x2a, 0xad, 0xbc, 0xe4, 0xbd, 0xa0, 0xb3, 0xf7, 0xe3, 0x6c, 0x9d, 0xa7,
         ];
 
         let mut hash = [0u8; 28];
         sha.hash(&mut hash);
+        hash.to_little_endian();
 
         assert_eq!(&hash, &expected);
     }
 
     #[test]
     fn test_sha256_256() {
+        let mut sha_256_test_block = SHA_256_TEST_BLOCK.clone();
+        sha_256_test_block.to_big_endian();
+
         let mut sha = Sha256::new(Sha256Mode::Sha256);
-        sha.update(&SHA_256_TEST_BLOCK);
+        sha.update(&sha_256_test_block);
 
         #[cfg_attr(rustfmt, rustfmt_skip)]
             let expected: [u8; 32] = [
@@ -161,6 +174,7 @@ mod tests {
 
         let mut hash = [0u8; 32];
         sha.hash(&mut hash);
+        hash.to_little_endian();
 
         assert_eq!(&hash, &expected);
     }

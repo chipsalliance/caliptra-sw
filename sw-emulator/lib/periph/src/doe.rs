@@ -13,7 +13,9 @@ Abstract:
 --*/
 
 use crate::{KeyVault, SocRegisters};
-use caliptra_emu_bus::{BusError, Clock, ReadWriteMemory, ReadWriteRegister, Timer, TimerAction};
+use caliptra_emu_bus::{
+    BusError, Clock, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister, Timer, TimerAction,
+};
 use caliptra_emu_crypto::Aes256Cbc;
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
@@ -38,7 +40,12 @@ register_bitfields! [
             CLEAR_SECRETS = 0b11,
         ],
         DEST OFFSET(2) NUMBITS(3) [],
-        FLOW_DONE OFFSET(5) NUMBITS(1) [],
+    ],
+
+    /// Status Register Fields
+    pub(crate) Status [
+        READY OFFSET(0) NUMBITS(1) [],
+        VALID OFFSET(1) NUMBITS(1) [],
     ],
 ];
 
@@ -52,6 +59,9 @@ pub struct Doe {
     /// Control Register
     #[register(offset = 0x0000_0010, write_fn = on_write_control)]
     control: ReadWriteRegister<u32, Control::Register>,
+
+    #[register(offset = 0x0000_0014)]
+    status: ReadOnlyRegister<u32, Status::Register>,
 
     /// Timer
     timer: Timer,
@@ -82,6 +92,7 @@ impl Doe {
         Self {
             iv: ReadWriteMemory::new(),
             control: ReadWriteRegister::new(0),
+            status: ReadOnlyRegister::new(Status::READY::SET.value),
             timer: Timer::new(clock),
             key_vault,
             soc_reg,
@@ -109,7 +120,7 @@ impl Doe {
         self.control.reg.set(val);
 
         if self.control.reg.read(Control::CMD) != Control::CMD::IDLE.value {
-            self.control.reg.modify(Control::FLOW_DONE::CLEAR);
+            self.status.reg.modify(Status::VALID::CLEAR);
             self.op_complete_action = Some(self.timer.schedule_poll_in(DOE_OP_TICKS));
         }
 
@@ -126,7 +137,7 @@ impl Doe {
                 Some(Control::CMD::Value::CLEAR_SECRETS) => self.clear_secrets(),
                 _ => {}
             }
-            self.control.reg.write(Control::FLOW_DONE::SET);
+            self.status.reg.write(Status::VALID::SET);
         }
     }
 
@@ -174,11 +185,13 @@ impl Doe {
 mod tests {
     use super::*;
     use caliptra_emu_bus::Bus;
+    use caliptra_emu_crypto::EndianessTransform;
     use caliptra_emu_types::RvAddr;
     use tock_registers::registers::InMemoryRegister;
 
     const OFFSET_IV: RvAddr = 0;
     const OFFSET_CONTROL: RvAddr = 0x10;
+    const OFFSET_STATUS: RvAddr = 0x14;
 
     fn make_word(idx: usize, arr: &[u8]) -> RvData {
         let mut res: RvData = 0;
@@ -190,10 +203,11 @@ mod tests {
 
     #[test]
     fn test_deobfuscate_uds() {
-        const IV: [u8; 16] = [
+        let mut iv: [u8; 16] = [
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
             0x0e, 0x0f,
         ];
+        iv.to_big_endian();
 
         const PLAIN_TEXT_UDS: [u8; 48] = [
             0x6B, 0xC1, 0xBE, 0xE2, 0x2E, 0x40, 0x9F, 0x96, 0xE9, 0x3D, 0x7E, 0x11, 0x73, 0x93,
@@ -207,9 +221,9 @@ mod tests {
         let soc_reg = SocRegisters::new();
         let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg.clone());
 
-        for i in (0..IV.len()).step_by(4) {
+        for i in (0..iv.len()).step_by(4) {
             assert_eq!(
-                doe.write(RvSize::Word, OFFSET_IV + i as RvAddr, make_word(i, &IV))
+                doe.write(RvSize::Word, OFFSET_IV + i as RvAddr, make_word(i, &iv))
                     .ok(),
                 Some(())
             );
@@ -226,11 +240,11 @@ mod tests {
         );
 
         loop {
-            let status = InMemoryRegister::<u32, Control::Register>::new(
-                doe.read(RvSize::Word, OFFSET_CONTROL).unwrap(),
+            let status = InMemoryRegister::<u32, Status::Register>::new(
+                doe.read(RvSize::Word, OFFSET_STATUS).unwrap(),
             );
 
-            if status.is_set(Control::FLOW_DONE) {
+            if status.is_set(Status::VALID) {
                 break;
             }
 
@@ -255,7 +269,9 @@ mod tests {
         let soc_reg = SocRegisters::new();
         let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg.clone());
 
-        let iv = [0u8; DOE_IV_SIZE];
+        let mut iv = [0u8; DOE_IV_SIZE];
+        iv.to_big_endian();
+
         for i in (0..iv.len()).step_by(4) {
             assert_eq!(
                 doe.write(RvSize::Word, OFFSET_IV + i as RvAddr, make_word(i, &iv))
@@ -275,11 +291,11 @@ mod tests {
         );
 
         loop {
-            let status = InMemoryRegister::<u32, Control::Register>::new(
-                doe.read(RvSize::Word, OFFSET_CONTROL).unwrap(),
+            let status = InMemoryRegister::<u32, Status::Register>::new(
+                doe.read(RvSize::Word, OFFSET_STATUS).unwrap(),
             );
 
-            if status.is_set(Control::FLOW_DONE) {
+            if status.is_set(Status::VALID) {
                 break;
             }
 
@@ -313,11 +329,11 @@ mod tests {
         );
 
         loop {
-            let status = InMemoryRegister::<u32, Control::Register>::new(
-                doe.read(RvSize::Word, OFFSET_CONTROL).unwrap(),
+            let status = InMemoryRegister::<u32, Status::Register>::new(
+                doe.read(RvSize::Word, OFFSET_STATUS).unwrap(),
             );
 
-            if status.is_set(Control::FLOW_DONE) {
+            if status.is_set(Status::VALID) {
                 break;
             }
 

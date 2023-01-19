@@ -202,6 +202,7 @@ impl HashSha256 {
 mod tests {
     use super::*;
     use caliptra_emu_bus::Bus;
+    use caliptra_emu_crypto::EndianessTransform;
     use caliptra_emu_types::RvAddr;
     use tock_registers::registers::InMemoryRegister;
 
@@ -275,8 +276,6 @@ mod tests {
     }
 
     fn test_sha(data: &[u8], expected: &[u8], mode: Sha256Mode) {
-        println!("data len: {}", data.len());
-
         fn make_word(idx: usize, arr: &[u8]) -> RvData {
             let mut res: RvData = 0;
             for i in 0..4 {
@@ -298,6 +297,7 @@ mod tests {
         let len = len * 8;
 
         block_arr[totalbytes - 8..].copy_from_slice(&len.to_be_bytes());
+        block_arr.to_big_endian();
 
         let clock = Clock::new();
         let mut sha256 = HashSha256::new(&clock);
@@ -356,7 +356,10 @@ mod tests {
             }
         }
 
-        assert_eq!(sha256.hash(), expected);
+        let mut hash_le: [u8; 32] = [0; 32];
+        hash_le[..sha256.hash().len()].clone_from_slice(&sha256.hash());
+        hash_le.to_little_endian();
+        assert_eq!(&hash_le[0..sha256.hash().len()], expected);
     }
 
     #[cfg_attr(rustfmt, rustfmt_skip)]

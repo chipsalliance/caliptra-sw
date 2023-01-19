@@ -14,6 +14,7 @@ Abstract:
 
 mod aes256cbc;
 mod ecc384;
+mod helpers;
 mod hmac512;
 mod sha256;
 mod sha512;
@@ -33,3 +34,5 @@ pub use ecc384::Ecc384PubKey;
 pub use ecc384::Ecc384Signature;
 
 pub use aes256cbc::Aes256Cbc;
+
+pub use helpers::EndianessTransform;
