@@ -25,6 +25,8 @@ pub enum CptrComponent {
     Mailbox = 4,
 
     KeyVault = 5,
+
+    PcrBank = 6,
 }
 
 #[macro_export]

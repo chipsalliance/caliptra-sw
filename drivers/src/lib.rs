@@ -16,6 +16,7 @@ Abstract:
 
 mod reg;
 
+mod array;
 mod error;
 mod slice;
 
@@ -24,6 +25,7 @@ mod ecc384;
 mod hmac384;
 mod key_vault;
 mod mailbox;
+mod pcr_bank;
 mod sha256;
 mod sha384;
 
@@ -34,6 +36,7 @@ pub use error::CptrComponent;
 pub use hmac384::Hmac384;
 pub use key_vault::{KeyId, KeyUsage, KeyVault};
 pub use mailbox::Mailbox;
+pub use pcr_bank::{PcrBank, PcrId};
 pub use sha256::Sha256;
 pub use sha384::Sha384;
 
@@ -46,3 +49,5 @@ cfg_if::cfg_if! {
         pub use emu_ctrl::EmuCtrl;
     }
 }
+
+pub use array::{Array4x12, Array4x4, Array4x8, ARRAY_4X12_WORD_SIZE, ARRAY_4X4_WORD_SIZE};

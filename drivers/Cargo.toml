@@ -13,6 +13,7 @@ caliptra-registers = { path = "../registers" }
 ureg = { path = "../ureg" }
 cfg-if = "1.0.0"
 bitfield = "0.14.0"
+paste = "1.0.0"
 
 [features]
 emu = []
@@ -60,4 +61,9 @@ harness = false
 [[test]]
 name = "keyvault"
 path = "tests/keyvault_tests.rs"
+harness = false
+
+[[test]]
+name = "pcrbank"
+path = "tests/pcrbank_tests.rs"
 harness = false
