@@ -627,6 +627,7 @@ fn generate_block_registers(
 
 pub struct OptionsInternal {
     module_path: TokenStream,
+    is_root_module: bool,
 }
 
 #[derive(Default)]
@@ -637,13 +638,18 @@ pub struct Options {
 }
 impl Options {
     fn compile(self) -> OptionsInternal {
-        let module_path = if self.module.is_empty() {
-            quote! {crate}
+        if self.module.is_empty() {
+            OptionsInternal {
+                module_path: quote! {crate},
+                is_root_module: true,
+            }
         } else {
             let module = self.module;
-            quote! {crate::#module}
-        };
-        OptionsInternal { module_path }
+            OptionsInternal {
+                module_path: quote! {crate::#module},
+                is_root_module: false,
+            }
+        }
     }
 }
 
@@ -713,8 +719,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
             }
         });
     }
-
-    let no_std_header = if options.module_path.is_empty() {
+    let no_std_header = if options.is_root_module {
         quote! { #![no_std] }
     } else {
         // You can't set no_std in a module
