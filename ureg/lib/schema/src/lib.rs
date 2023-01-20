@@ -281,6 +281,18 @@ impl RegisterBlock {
             }
         }
     }
+    pub fn replace_field_comments(&mut self, replacements: &[(&str, &str)]) {
+        let map: HashMap<&str, &str> = replacements.iter().cloned().collect();
+        for reg in self.registers.iter_mut() {
+            let reg = Rc::make_mut(reg);
+            let reg_ty = Rc::make_mut(&mut reg.ty);
+            for field in reg_ty.fields.iter_mut() {
+                if let Some(new_comment) = map.get(field.comment.as_str()) {
+                    field.comment = new_comment.to_string();
+                }
+            }
+        }
+    }
 }
 
 pub use validate::ValidatedRegisterBlock;
