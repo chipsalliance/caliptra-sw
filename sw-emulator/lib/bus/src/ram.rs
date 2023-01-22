@@ -61,7 +61,7 @@ impl Bus for Ram {
     ///
     /// * `BusException` - Exception with cause `BusExceptionCause::LoadAccessFault`
     ///                   or `BusExceptionCause::LoadAddrMisaligned`
-    fn read(&self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
         match self.data.read(size, addr) {
             Ok(data) => Ok(data),
             Err(error) => Err(error.into()),
@@ -100,7 +100,7 @@ mod tests {
 
     #[test]
     fn test_read() {
-        let ram = Ram::new(vec![1, 2, 3, 4]);
+        let mut ram = Ram::new(vec![1, 2, 3, 4]);
         assert_eq!(ram.read(RvSize::Byte, 0).ok(), Some(1));
         assert_eq!(ram.read(RvSize::HalfWord, 0).ok(), Some(1 | 2 << 8));
         assert_eq!(
@@ -111,7 +111,7 @@ mod tests {
 
     #[test]
     fn test_read_error() {
-        let ram = Ram::new(vec![1, 2, 3, 4]);
+        let mut ram = Ram::new(vec![1, 2, 3, 4]);
         assert_eq!(
             ram.read(RvSize::Byte, ram.len()).err(),
             Some(BusError::LoadAccessFault),

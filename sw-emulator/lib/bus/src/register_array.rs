@@ -59,7 +59,7 @@ impl<T: UIntLike + Into<RvData> + TryFrom<RvData>, const SIZE: usize, R: Registe
 impl<T: UIntLike + Into<RvData> + TryFrom<RvData>, const SIZE: usize, R: RegisterLongName> Bus
     for ReadWriteRegisterArray<T, SIZE, R>
 {
-    fn read(&self, _size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+    fn read(&mut self, _size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
         if addr as usize % std::mem::size_of::<T>() != 0 {
             return Err(BusError::LoadAddrMisaligned);
         }

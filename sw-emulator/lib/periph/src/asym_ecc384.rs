@@ -774,7 +774,7 @@ mod tests {
 
     #[test]
     fn test_name() {
-        let ecc = AsymEcc384::new(&Clock::new(), KeyVault::new());
+        let mut ecc = AsymEcc384::new(&Clock::new(), KeyVault::new());
 
         let name0 = ecc.read(RvSize::Word, OFFSET_NAME0).unwrap();
         let name0 = String::from_utf8_lossy(&name0.to_be_bytes()).to_string();
@@ -787,7 +787,7 @@ mod tests {
 
     #[test]
     fn test_version() {
-        let ecc = AsymEcc384::new(&Clock::new(), KeyVault::new());
+        let mut ecc = AsymEcc384::new(&Clock::new(), KeyVault::new());
 
         let version0 = ecc.read(RvSize::Word, OFFSET_VERSION0).unwrap();
         let version0 = String::from_utf8_lossy(&version0.to_le_bytes()).to_string();
@@ -800,13 +800,13 @@ mod tests {
 
     #[test]
     fn test_control() {
-        let ecc = AsymEcc384::new(&Clock::new(), KeyVault::new());
+        let mut ecc = AsymEcc384::new(&Clock::new(), KeyVault::new());
         assert_eq!(ecc.read(RvSize::Word, OFFSET_CONTROL).unwrap(), 0);
     }
 
     #[test]
     fn test_status() {
-        let ecc = AsymEcc384::new(&Clock::new(), KeyVault::new());
+        let mut ecc = AsymEcc384::new(&Clock::new(), KeyVault::new());
         assert_eq!(ecc.read(RvSize::Word, OFFSET_STATUS).unwrap(), 1);
     }
 

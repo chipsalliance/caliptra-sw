@@ -63,7 +63,7 @@ impl Bus for Uart {
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::LoadAccessFault`
     ///                   or `RvExceptionCause::LoadAddrMisaligned`
-    fn read(&self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
         match (size, addr) {
             (RvSize::Byte, Uart::ADDR_BIT_RATE) => Ok(self.bit_rate as RvData),
             (RvSize::Byte, Uart::ADDR_DATA_BITS) => Ok(self.data_bits as RvData),

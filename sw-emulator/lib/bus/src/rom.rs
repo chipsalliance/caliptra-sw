@@ -64,7 +64,7 @@ impl Bus for Rom {
     ///
     /// * `BusException` - Exception with cause `BusExceptionCause::LoadAccessFault`
     ///                   or `BusExceptionCause::LoadAddrMisaligned`
-    fn read(&self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
         match self.data.read(size, addr) {
             Ok(data) => Ok(data),
             Err(error) => Err(error.into()),
@@ -105,7 +105,7 @@ mod tests {
 
     #[test]
     fn test_read() {
-        let rom = Rom::new(vec![1, 2, 3, 4]);
+        let mut rom = Rom::new(vec![1, 2, 3, 4]);
         assert_eq!(rom.read(RvSize::Byte, 0).ok(), Some(1));
         assert_eq!(rom.read(RvSize::HalfWord, 0).ok(), Some(1 | 2 << 8));
         assert_eq!(
@@ -116,7 +116,7 @@ mod tests {
 
     #[test]
     fn test_read_error() {
-        let rom = Rom::new(vec![1, 2, 3, 4]);
+        let mut rom = Rom::new(vec![1, 2, 3, 4]);
         assert_eq!(
             rom.read(RvSize::Byte, rom.len()).err(),
             Some(BusError::LoadAccessFault),

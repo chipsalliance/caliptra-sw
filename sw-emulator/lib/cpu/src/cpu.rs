@@ -280,7 +280,7 @@ impl<TBus: Bus> Cpu<TBus> {
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::LoadAccessFault`
     ///                   or `RvExceptionCause::LoadAddrMisaligned`
-    pub fn read_instr(&self, size: RvSize, addr: RvAddr) -> Result<RvData, RvException> {
+    pub fn read_instr(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, RvException> {
         match size {
             RvSize::Byte => Err(RvException::instr_access_fault(addr)),
             _ => match self.bus.read(size, addr) {

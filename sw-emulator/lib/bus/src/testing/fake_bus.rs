@@ -45,7 +45,7 @@ impl FakeBus {
     }
 }
 impl Bus for FakeBus {
-    fn read(&self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
         writeln!(self.log.w(), "read(RvSize::{size:?}, {addr:#x})").unwrap();
         self.read_result
     }

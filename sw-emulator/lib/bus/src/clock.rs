@@ -35,7 +35,7 @@ use crate::Bus;
 ///     action0: Option<TimerAction>,
 /// }
 /// impl Bus for MyPeriph {
-///     fn read(&self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+///     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
 ///         Ok(0)
 ///     }
 ///     fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {

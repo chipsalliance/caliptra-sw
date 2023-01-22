@@ -217,7 +217,7 @@ mod tests {
 
     #[test]
     fn test_name_read() {
-        let sha256 = HashSha256::new(&Clock::new());
+        let mut sha256 = HashSha256::new(&Clock::new());
 
         let name0 = sha256.read(RvSize::Word, OFFSET_NAME0).unwrap();
         let mut name0 = String::from_utf8_lossy(&name0.to_le_bytes()).to_string();
@@ -231,7 +231,7 @@ mod tests {
 
     #[test]
     fn test_version_read() {
-        let sha256 = HashSha256::new(&Clock::new());
+        let mut sha256 = HashSha256::new(&Clock::new());
 
         let version0 = sha256.read(RvSize::Word, OFFSET_VERSION0).unwrap();
         let version0 = String::from_utf8_lossy(&version0.to_le_bytes()).to_string();
@@ -244,13 +244,13 @@ mod tests {
 
     #[test]
     fn test_control_read() {
-        let sha256 = HashSha256::new(&Clock::new());
+        let mut sha256 = HashSha256::new(&Clock::new());
         assert_eq!(sha256.read(RvSize::Word, OFFSET_CONTROL).unwrap(), 0);
     }
 
     #[test]
     fn test_status_read() {
-        let sha256 = HashSha256::new(&Clock::new());
+        let mut sha256 = HashSha256::new(&Clock::new());
         assert_eq!(sha256.read(RvSize::Word, OFFSET_STATUS).unwrap(), 1);
     }
 

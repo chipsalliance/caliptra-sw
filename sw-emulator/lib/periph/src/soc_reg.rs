@@ -65,7 +65,7 @@ impl SocRegisters {
 
 impl Bus for SocRegisters {
     /// Read data of specified size from given address
-    fn read(&self, _size: RvSize, _addr: RvAddr) -> Result<RvData, BusError> {
+    fn read(&mut self, _size: RvSize, _addr: RvAddr) -> Result<RvData, BusError> {
         Err(LoadAccessFault)?
     }
 

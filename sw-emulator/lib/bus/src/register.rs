@@ -313,7 +313,7 @@ impl<const N: usize> ReadWriteMemory<N> {
 
 impl<const N: usize> Bus for ReadWriteMemory<N> {
     /// Read data of specified size from given address
-    fn read(&self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
         match self.data.read(size, addr) {
             Ok(data) => Ok(data),
             Err(error) => Err(error.into()),
@@ -369,7 +369,7 @@ impl<const N: usize> ReadOnlyMemory<N> {
 
 impl<const N: usize> Bus for ReadOnlyMemory<N> {
     /// Read data of specified size from given address
-    fn read(&self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
         match self.data.read(size, addr) {
             Ok(data) => Ok(data),
             Err(error) => Err(error.into()),
@@ -414,7 +414,7 @@ impl<const N: usize> WriteOnlyMemory<N> {
 
 impl<const N: usize> Bus for WriteOnlyMemory<N> {
     /// Read data of specified size from given address
-    fn read(&self, _size: RvSize, _addr: RvAddr) -> Result<RvData, BusError> {
+    fn read(&mut self, _size: RvSize, _addr: RvAddr) -> Result<RvData, BusError> {
         Err(BusError::LoadAccessFault)
     }
 

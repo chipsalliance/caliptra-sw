@@ -74,8 +74,8 @@ impl DynamicBus {
 }
 
 impl Bus for DynamicBus {
-    fn read(&self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
-        let dev = self.devs.iter().find(|d| d.mmap_range.contains(&addr));
+    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+        let dev = self.devs.iter_mut().find(|d| d.mmap_range.contains(&addr));
         match dev {
             Some(dev) => dev.bus.read(size, addr - dev.mmap_range.start()),
             None => Err(BusError::LoadAccessFault),

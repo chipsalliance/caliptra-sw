@@ -79,8 +79,8 @@ impl KeyVault {
 
 impl Bus for KeyVault {
     /// Read data of specified size from given address
-    fn read(&self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
-        self.regs.borrow().read(size, addr)
+    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+        self.regs.borrow_mut().read(size, addr)
     }
 
     /// Write data of specified size to given address
@@ -302,7 +302,7 @@ mod tests {
 
     #[test]
     fn test_key_ctrl_reset_state() {
-        let vault = KeyVault::new();
+        let mut vault = KeyVault::new();
         for idx in 0u32..8 {
             assert_eq!(
                 vault

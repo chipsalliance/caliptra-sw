@@ -42,7 +42,7 @@ pub trait Bus {
     /// # Error
     ///
     /// * `BusError` - Exception with cause `BusError::LoadAccessFault` or `BusError::LoadAddrMisaligned`
-    fn read(&self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError>;
+    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError>;
 
     /// Write data of specified size to given address
     ///

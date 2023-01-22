@@ -62,7 +62,7 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
 
     quote! {
         impl caliptra_emu_bus::Bus for #struct_name {
-            fn read(&self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
+            fn read(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
                 #read_reg_match_tokens
                 #read_bus_match_tokens
                 Err(caliptra_emu_bus::BusError::LoadAccessFault)
@@ -278,7 +278,7 @@ fn gen_bus_match_tokens(mask_matches: &MaskMatchBlock, access_type: AccessType) 
             (MatchBody::Field(field_name), AccessType::Read) => {
                 let field_name = Ident::new(field_name, Span::call_site());
                 quote! {
-                    #offset => return caliptra_emu_bus::Bus::read(&self.#field_name, size, addr & #addr_mask),
+                    #offset => return caliptra_emu_bus::Bus::read(&mut self.#field_name, size, addr & #addr_mask),
                 }
             },
             (MatchBody::Field(field_name), AccessType::Write) => {
@@ -323,7 +323,7 @@ fn gen_register_match_tokens(registers: &[RegisterField], access_type: AccessTyp
                 } else if let Some(ref reg_name) = reg.name {
                     let reg_name = Ident::new(reg_name, Span::call_site());
                     quote! {
-                        #offset => return caliptra_emu_bus::Register::read(&self.#reg_name, size),
+                        #offset => return caliptra_emu_bus::Register::read(&mut self.#reg_name, size),
                     }
                 } else {
                     unreachable!();
@@ -518,34 +518,34 @@ mod tests {
         assert_eq!(tokens.to_string(),
             quote! {
                 impl caliptra_emu_bus::Bus for MyBus {
-                    fn read(&self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
+                    fn read(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
                         match addr {
-                            0xcafe_f0d0 => return caliptra_emu_bus::Register::read(&self.reg_u32, size),
-                            0xcafe_f0d4 => return caliptra_emu_bus::Register::read(&self.reg_u16, size),
-                            0xcafe_f0d8 => return caliptra_emu_bus::Register::read(&self.reg_u8, size),
+                            0xcafe_f0d0 => return caliptra_emu_bus::Register::read(&mut self.reg_u32, size),
+                            0xcafe_f0d4 => return caliptra_emu_bus::Register::read(&mut self.reg_u16, size),
+                            0xcafe_f0d8 => return caliptra_emu_bus::Register::read(&mut self.reg_u8, size),
                             0xcafe_f0e0 => return std::result::Result::Ok(std::convert::Into::<caliptra_emu_types::RvAddr>::into(self.reg_action0_read(size)?)),
-                            0xcafe_f0e4 => return caliptra_emu_bus::Register::read(&self.reg_action1, size),
+                            0xcafe_f0e4 => return caliptra_emu_bus::Register::read(&mut self.reg_action1, size),
                             0xcafe_f0e8 => return std::result::Result::Ok(std::convert::Into::<caliptra_emu_types::RvAddr>::into(self.reg_action2_read(size)?)),
                             0xcafe_f0ec => return std::result::Result::Ok(std::convert::Into::<caliptra_emu_types::RvAddr>::into(self.reg_action3_read(size)?)),
                             _ => {}
                         }
                         match addr & 0xf000_0000 {
-                            0x0000_0000 => return caliptra_emu_bus::Bus::read(&self.rom, size, addr & 0x0fff_ffff),
-                            0x1000_0000 => return caliptra_emu_bus::Bus::read(&self.sram, size, addr & 0x0fff_ffff),
-                            0x2000_0000 => return caliptra_emu_bus::Bus::read(&self.dram, size, addr & 0x0fff_ffff),
+                            0x0000_0000 => return caliptra_emu_bus::Bus::read(&mut self.rom, size, addr & 0x0fff_ffff),
+                            0x1000_0000 => return caliptra_emu_bus::Bus::read(&mut self.sram, size, addr & 0x0fff_ffff),
+                            0x2000_0000 => return caliptra_emu_bus::Bus::read(&mut self.dram, size, addr & 0x0fff_ffff),
                             0xa000_0000 => match addr & 0xffff_0000 {
-                                0xaa00_0000 => return caliptra_emu_bus::Bus::read(&self.uart0, size, addr & 0x0000_ffff),
-                                0xaa01_0000 => return caliptra_emu_bus::Bus::read(&self.uart1, size, addr & 0x0000_ffff),
+                                0xaa00_0000 => return caliptra_emu_bus::Bus::read(&mut self.uart0, size, addr & 0x0000_ffff),
+                                0xaa01_0000 => return caliptra_emu_bus::Bus::read(&mut self.uart1, size, addr & 0x0000_ffff),
                                 0xaa02_0000 => match addr & 0xffff_ff00 {
-                                    0xaa02_0000 => return caliptra_emu_bus::Bus::read(&self.i2c0, size, addr & 0x0000_00ff),
-                                    0xaa02_0400 => return caliptra_emu_bus::Bus::read(&self.i2c1, size, addr & 0x0000_00ff),
-                                    0xaa02_0800 => return caliptra_emu_bus::Bus::read(&self.i2c2, size, addr & 0x0000_00ff),
+                                    0xaa02_0000 => return caliptra_emu_bus::Bus::read(&mut self.i2c0, size, addr & 0x0000_00ff),
+                                    0xaa02_0400 => return caliptra_emu_bus::Bus::read(&mut self.i2c1, size, addr & 0x0000_00ff),
+                                    0xaa02_0800 => return caliptra_emu_bus::Bus::read(&mut self.i2c2, size, addr & 0x0000_00ff),
                                     _ => {}
                                 },
                                 _ => {}
                             },
                             0xb000_0000 => match addr & 0xffff_0000 {
-                                0xbb42_0000 => return caliptra_emu_bus::Bus::read(&self.spi0, size, addr & 0x0000_ffff),
+                                0xbb42_0000 => return caliptra_emu_bus::Bus::read(&mut self.spi0, size, addr & 0x0000_ffff),
                                 _ => {}
                             },
                             _ => {}
@@ -612,7 +612,7 @@ mod tests {
         assert_eq!(tokens.to_string(),
             quote! {
                 impl caliptra_emu_bus::Bus for MyBus {
-                    fn read(&self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
+                    fn read(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
                         Err(caliptra_emu_bus::BusError::LoadAccessFault)
                     }
                     fn write(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr, val: caliptra_emu_types::RvData) -> Result<(), caliptra_emu_bus::BusError> {
