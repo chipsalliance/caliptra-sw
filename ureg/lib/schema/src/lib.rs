@@ -222,6 +222,9 @@ pub struct RegisterBlock {
     pub registers: Vec<Rc<Register>>,
     pub instances: Vec<RegisterBlockInstance>,
     pub sub_arrays: Vec<RegisterBlockArray>,
+
+    // Register types that are "owned" by this block (but might be used by other register blocks)
+    pub declared_register_types: Vec<Rc<RegisterType>>,
 }
 impl RegisterBlock {
     pub fn remove_enums(&mut self, register_fields: &[(&str, &str)]) {
@@ -344,4 +347,26 @@ pub struct Enum {
     pub name: Option<String>,
     pub variants: Vec<EnumVariant>,
     pub bit_width: u8,
+}
+
+fn collect_used_reg_types(block: &RegisterBlock, used_types: &mut HashSet<Rc<RegisterType>>) {
+    for reg in block.registers.iter() {
+        used_types.insert(reg.ty.clone());
+    }
+    for array in block.sub_arrays.iter() {
+        for reg in array.registers.iter() {
+            used_types.insert(reg.ty.clone());
+        }
+    }
+}
+
+pub fn filter_unused_types(blocks: &mut [&mut ValidatedRegisterBlock]) {
+    let mut used_types = HashSet::new();
+
+    for block in blocks.iter() {
+        collect_used_reg_types(block.block(), &mut used_types);
+    }
+    for block in blocks.iter_mut() {
+        block.filter_register_types(|ty| used_types.contains(ty));
+    }
 }

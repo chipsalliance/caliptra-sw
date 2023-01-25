@@ -421,6 +421,17 @@ impl<'a> ParentScope<'a> {
             },
         })
     }
+    pub fn type_iter(&'a self) -> impl Iterator<Item = (&str, ParentScope<'a>)> {
+        self.scope.types.iter().map(|(name, scope)| {
+            (
+                name.as_str(),
+                ParentScope {
+                    parent: Some(self),
+                    scope: scope,
+                },
+            )
+        })
+    }
     pub fn lookup_typedef(&'a self, name: &'_ str) -> Option<ParentScope<'a>> {
         let mut parent = self;
         loop {

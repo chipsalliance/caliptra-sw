@@ -347,9 +347,16 @@ fn hex_literal(val: u64) -> Literal {
     }
 }
 
+fn read_val_ident(reg_type: &RegisterType) -> Ident {
+    format_ident!("{}ReadVal", camel_ident(reg_type.name.as_ref().unwrap()))
+}
+fn write_val_ident(reg_type: &RegisterType) -> Ident {
+    format_ident!("{}WriteVal", camel_ident(reg_type.name.as_ref().unwrap()))
+}
+
 fn generate_register(reg: &RegisterType) -> TokenStream {
-    let read_val_ident = format_ident!("{}ReadVal", camel_ident(reg.name.as_ref().unwrap()));
-    let write_val_ident = format_ident!("{}WriteVal", camel_ident(reg.name.as_ref().unwrap()));
+    let read_val_ident = read_val_ident(reg);
+    let write_val_ident = write_val_ident(reg);
     let raw_type = format_ident!("{}", reg.width.rust_primitive_name());
 
     let mut read_val_tokens = TokenStream::new();
@@ -516,12 +523,18 @@ fn read_write_types(t: &RegisterType, options: &OptionsInternal) -> (TokenStream
     if has_single_32_bit_field(t) {
         (quote! { u32 }, quote! { u32 })
     } else {
-        let read_type = format_ident!("{}ReadVal", camel_ident(t.name.as_ref().unwrap()));
-        let write_type = format_ident!("{}WriteVal", camel_ident(t.name.as_ref().unwrap()));
+        if let Some(extern_type) = options.extern_types.get(t) {
+            return (
+                extern_type.read_val_type.clone(),
+                extern_type.write_val_type.clone(),
+            );
+        }
+        let read_type = read_val_ident(t);
+        let write_type = write_val_ident(t);
         let module_path = &options.module_path;
         (
             quote! { #module_path::regs::#read_type },
-            quote! {#module_path::regs::#write_type },
+            quote! { #module_path::regs::#write_type },
         )
     }
 }
@@ -625,9 +638,18 @@ fn generate_block_registers(
     }
 }
 
+#[derive(Clone)]
+pub struct ExternType {
+    read_val_type: TokenStream,
+    write_val_type: TokenStream,
+}
+
 pub struct OptionsInternal {
     module_path: TokenStream,
     is_root_module: bool,
+
+    // TODO: This should probably be a const reference
+    extern_types: HashMap<Rc<RegisterType>, ExternType>,
 }
 
 #[derive(Default)]
@@ -635,6 +657,8 @@ pub struct Options {
     /// If the generated code is not at the base of the crate, this should
     /// be set to the prefix.
     pub module: TokenStream,
+
+    pub extern_types: HashMap<Rc<RegisterType>, ExternType>,
 }
 impl Options {
     fn compile(self) -> OptionsInternal {
@@ -642,82 +666,136 @@ impl Options {
             OptionsInternal {
                 module_path: quote! {crate},
                 is_root_module: true,
+                extern_types: self.extern_types,
             }
         } else {
             let module = self.module;
             OptionsInternal {
                 module_path: quote! {crate::#module},
                 is_root_module: false,
+                extern_types: self.extern_types,
             }
         }
+    }
+}
+
+pub fn build_extern_types(
+    block: &ValidatedRegisterBlock,
+    module: TokenStream,
+    extern_types: &mut HashMap<Rc<RegisterType>, ExternType>,
+) {
+    for ty in block.block().declared_register_types.iter() {
+        if ty.name.is_none() {
+            continue;
+        }
+        let read_val_ident = read_val_ident(ty);
+        let write_val_ident = write_val_ident(ty);
+        extern_types.insert(
+            ty.clone(),
+            ExternType {
+                read_val_type: quote! { #module::regs::#read_val_ident },
+                write_val_type: quote! { #module::regs::#write_val_ident },
+            },
+        );
     }
 }
 
 pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenStream {
     let options = options.compile();
     let enum_tokens = generate_enums(block.enum_types().values().map(AsRef::as_ref));
-    let reg_tokens = generate_register_types(block.register_types().values().map(AsRef::as_ref));
-
-    let max_reg_width = block
-        .block()
-        .registers
-        .iter()
-        .map(|r| r.ty.width)
-        .max()
-        .unwrap();
-    let raw_ptr_type = format_ident!("{}", max_reg_width.rust_primitive_name());
+    let mut reg_tokens = generate_register_types(
+        block
+            .register_types()
+            .values()
+            .filter(|t| !options.extern_types.contains_key(*t))
+            .map(AsRef::as_ref),
+    );
+    reg_tokens.extend(generate_register_types(
+        block
+            .block()
+            .declared_register_types
+            .iter()
+            .map(AsRef::as_ref),
+    ));
 
     let mut subblock_type_tokens = TokenStream::new();
-    let mut block_tokens = TokenStream::new();
+    let mut block_inner_tokens = TokenStream::new();
     let mut meta_tokens = TokenStream::new();
+    let mut block_tokens = TokenStream::new();
 
-    for instance in block.block().instances.iter() {
-        let name = snake_ident(&instance.name);
-        let addr = hex_literal(instance.address.into());
-        // TODO: Should this be unsafe?
-        block_tokens.extend(quote! {
-            pub fn #name() -> Self { unsafe { Self::new(#addr as *mut #raw_ptr_type) } }
-        });
-    }
-    generate_block_registers(
-        &block.block().registers,
-        &raw_ptr_type,
-        &mut meta_tokens,
-        &mut block_tokens,
-        "",
-        &options,
-    );
+    if !block.block().registers.is_empty() {
+        let max_reg_width = block
+            .block()
+            .registers
+            .iter()
+            .map(|r| r.ty.width)
+            .max()
+            .unwrap();
+        let raw_ptr_type = format_ident!("{}", max_reg_width.rust_primitive_name());
 
-    for block_array in block.block().sub_arrays.iter() {
-        let mut subblock_tokens = TokenStream::new();
-        let subblock_name = format_ident!("{}Block", camel_ident(&block_array.name));
-        let subblock_fn_name = snake_ident(&block_array.name);
-        let meta_prefix = camel_ident(&block_array.name).to_string();
+        for instance in block.block().instances.iter() {
+            let name = snake_ident(&instance.name);
+            let addr = hex_literal(instance.address.into());
+            // TODO: Should this be unsafe?
+            block_inner_tokens.extend(quote! {
+                pub fn #name() -> Self { unsafe { Self::new(#addr as *mut #raw_ptr_type) } }
+            });
+        }
         generate_block_registers(
-            &block_array.registers,
+            &block.block().registers,
             &raw_ptr_type,
             &mut meta_tokens,
-            &mut subblock_tokens,
-            &meta_prefix,
+            &mut block_inner_tokens,
+            "",
             &options,
         );
 
-        subblock_type_tokens.extend(quote! {
+        for block_array in block.block().sub_arrays.iter() {
+            let mut subblock_tokens = TokenStream::new();
+            let subblock_name = format_ident!("{}Block", camel_ident(&block_array.name));
+            let subblock_fn_name = snake_ident(&block_array.name);
+            let meta_prefix = camel_ident(&block_array.name).to_string();
+            generate_block_registers(
+                &block_array.registers,
+                &raw_ptr_type,
+                &mut meta_tokens,
+                &mut subblock_tokens,
+                &meta_prefix,
+                &options,
+            );
+
+            subblock_type_tokens.extend(quote! {
+                #[derive(Clone, Copy)]
+                pub struct #subblock_name(*mut #raw_ptr_type);
+                impl #subblock_name {
+                    #subblock_tokens
+                }
+            });
+            let start_offset = hex_literal(block_array.start_offset);
+            let stride = hex_literal(block_array.stride);
+            let array_len = block_array.len;
+            block_inner_tokens.extend(quote! {
+                pub fn #subblock_fn_name(&self, index: usize) -> #subblock_name {
+                    assert!(index < #array_len);
+                    #subblock_name(unsafe { self.0.add((#start_offset + index * #stride) / core::mem::size_of::<#raw_ptr_type>()) })
+                }
+            });
+        }
+        block_tokens = quote! {
             #[derive(Clone, Copy)]
-            pub struct #subblock_name(*mut #raw_ptr_type);
-            impl #subblock_name {
-                #subblock_tokens
+            pub struct RegisterBlock(*mut #raw_ptr_type);
+            impl RegisterBlock {
+                /// # Safety
+                ///
+                /// The caller is responsible for ensuring that ptr is valid for
+                /// volatile reads and writes at any of the offsets in this register
+                /// block.
+                pub unsafe fn new(ptr: *mut #raw_ptr_type) -> Self {
+                    Self(ptr)
+                }
+                #block_inner_tokens
             }
-        });
-        let start_offset = hex_literal(block_array.start_offset);
-        let stride = hex_literal(block_array.stride);
-        let array_len = block_array.len;
-        block_tokens.extend(quote! {
-            pub fn #subblock_fn_name(&self, index: usize) -> #subblock_name {
-                assert!(index < #array_len);
-                #subblock_name(unsafe { self.0.add((#start_offset + index * #stride) / core::mem::size_of::<#raw_ptr_type>()) })
-            }
-        });
+        }
     }
     let no_std_header = if options.is_root_module {
         quote! { #![no_std] }
@@ -732,19 +810,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
         #![allow(clippy::erasing_op)]
         #![allow(clippy::identity_op)]
 
-        #[derive(Clone, Copy)]
-        pub struct RegisterBlock(*mut #raw_ptr_type);
-        impl RegisterBlock {
-            /// # Safety
-            ///
-            /// The caller is responsible for ensuring that ptr is valid for
-            /// volatile reads and writes at any of the offsets in this register
-            /// block.
-            pub unsafe fn new(ptr: *mut #raw_ptr_type) -> Self {
-                Self(ptr)
-            }
-            #block_tokens
-        }
+        #block_tokens
 
         #subblock_type_tokens
 

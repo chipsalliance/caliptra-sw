@@ -31,6 +31,10 @@ pub enum Error {
         register_name: String,
         err: Box<Error>,
     },
+    RegisterTypeError {
+        register_type_name: String,
+        err: Box<Error>,
+    },
     EnumError {
         enum_name: String,
         err: Box<Error>,
@@ -46,6 +50,7 @@ impl Error {
             Self::BlockError { err, .. } => err.root_cause(),
             Self::FieldError { err, .. } => err.root_cause(),
             Self::RegisterError { err, .. } => err.root_cause(),
+            Self::RegisterTypeError { err, .. } => err.root_cause(),
             Self::EnumError { err, .. } => err.root_cause(),
             Self::EnumVariantError { err, .. } => err.root_cause(),
             err => err,
@@ -73,6 +78,12 @@ impl Display for Error {
             Self::FieldError { field_name, err } => write!(f, "field {field_name:?} {err}"),
             Self::RegisterError { register_name, err } => {
                 write!(f, "register {register_name:?} {err}")
+            }
+            Self::RegisterTypeError {
+                register_type_name,
+                err,
+            } => {
+                write!(f, "reg_type {register_type_name:?} {err}")
             }
             Self::EnumError { enum_name, err } => write!(f, "enum {enum_name:?} {err}"),
             Self::EnumVariantError { variant_name, err } => {

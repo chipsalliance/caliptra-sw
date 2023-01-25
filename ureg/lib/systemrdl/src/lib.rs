@@ -4,12 +4,13 @@ Licensed under the Apache-2.0 license.
 mod error;
 
 pub use error::Error;
+use ureg::RegisterType;
 
 use std::rc::Rc;
 
 use caliptra_systemrdl as systemrdl;
 use caliptra_systemrdl::{ComponentType, ScopeType};
-use systemrdl::{AccessType, RdlError};
+use systemrdl::{AccessType, ParentScope, RdlError};
 use ureg_schema as ureg;
 use ureg_schema::{RegisterBlock, RegisterBlockInstance};
 
@@ -165,28 +166,6 @@ fn translate_register(iref: systemrdl::InstanceRef) -> Result<ureg::Register, Er
     expect_instance_type(iref.scope, ComponentType::Reg.into()).map_err(wrap_err)?;
     let inst = iref.instance;
 
-    let regwidth = match get_property_opt(&inst.scope, "regwidth").map_err(wrap_err)? {
-        Some(8) => ureg_schema::RegisterWidth::_8,
-        Some(16) => ureg_schema::RegisterWidth::_16,
-        Some(32) => ureg_schema::RegisterWidth::_32,
-        Some(64) => ureg_schema::RegisterWidth::_64,
-        Some(other) => return Err(wrap_err(Error::UnsupportedRegWidth(other))),
-        None => ureg_schema::RegisterWidth::_32,
-    };
-
-    let mut fields = vec![];
-    for field in iref.scope.instance_iter() {
-        match translate_field(field) {
-            Ok(field) => fields.push(field),
-            Err(err) => {
-                if matches!(err.root_cause(), Error::AccessTypeNaUnsupported) {
-                    continue;
-                } else {
-                    return Err(err);
-                }
-            }
-        }
-    }
     let description: String = inst
         .scope
         .property_val_opt("desc")
@@ -201,12 +180,62 @@ fn translate_register(iref: systemrdl::InstanceRef) -> Result<ureg::Register, Er
         default_val: inst.reset.map(|b| b.val()).unwrap_or_default(),
         comment: unpad_description(&description),
         array_dimensions: inst.dimension_sizes.clone(),
-        ty: Rc::new(ureg_schema::RegisterType {
-            name: inst.type_name.clone(),
-            fields,
-            width: regwidth,
-        }),
+        ty: translate_register_ty(inst.type_name.clone(), iref.scope)?,
     };
+
+    Ok(result)
+}
+fn translate_register_ty(
+    type_name: Option<String>,
+    scope: ParentScope,
+) -> Result<Rc<ureg_schema::RegisterType>, Error> {
+    let wrap_err = |err: Error| {
+        if let Some(ref type_name) = type_name {
+            Error::RegisterTypeError {
+                register_type_name: type_name.clone(),
+                err: Box::new(err),
+            }
+        } else {
+            err
+        }
+    };
+
+    let regwidth = match get_property_opt(scope.scope, "regwidth").map_err(wrap_err)? {
+        Some(8) => ureg_schema::RegisterWidth::_8,
+        Some(16) => ureg_schema::RegisterWidth::_16,
+        Some(32) => ureg_schema::RegisterWidth::_32,
+        Some(64) => ureg_schema::RegisterWidth::_64,
+        Some(other) => return Err(wrap_err(Error::UnsupportedRegWidth(other))),
+        None => ureg_schema::RegisterWidth::_32,
+    };
+
+    let mut fields = vec![];
+    for field in scope.instance_iter() {
+        match translate_field(field).map_err(wrap_err) {
+            Ok(field) => fields.push(field),
+            Err(err) => {
+                if matches!(err.root_cause(), Error::AccessTypeNaUnsupported) {
+                    continue;
+                } else {
+                    return Err(err);
+                }
+            }
+        }
+    }
+    Ok(Rc::new(ureg_schema::RegisterType {
+        name: type_name,
+        fields,
+        width: regwidth,
+    }))
+}
+
+pub fn translate_types(scope: systemrdl::ParentScope) -> Result<Vec<Rc<RegisterType>>, Error> {
+    let mut result = vec![];
+    for (name, subscope) in scope.type_iter() {
+        if subscope.scope.ty == ComponentType::Reg.into() {
+            result.push(translate_register_ty(Some(name.into()), subscope)?);
+        }
+    }
     Ok(result)
 }
 
@@ -228,6 +257,13 @@ pub fn translate_addrmap(addrmap: systemrdl::ParentScope) -> Result<Vec<Register
                 name: inst.name.clone(),
                 address: u32::try_from(addr).map_err(|_| wrap_err(Error::AddressTooLarge(addr)))?,
             });
+        }
+        for (name, ty) in iref.scope.type_iter() {
+            if ty.scope.ty == ComponentType::Reg.into() {
+                block
+                    .declared_register_types
+                    .push(translate_register_ty(Some(name.into()), ty).map_err(wrap_err)?);
+            }
         }
         for reg in iref.scope.instance_iter() {
             if reg.instance.scope.ty == ComponentType::Reg.into() {

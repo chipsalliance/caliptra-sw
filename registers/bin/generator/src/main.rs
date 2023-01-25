@@ -1,12 +1,14 @@
 // Licensed under the Apache-2.0 license.
 
+use std::collections::HashMap;
 use std::fmt::Write;
 use std::rc::Rc;
 use std::{error::Error, path::Path, process::Command};
 
 use caliptra_systemrdl as systemrdl;
+use quote::__private::TokenStream;
 use quote::{format_ident, quote};
-use ureg_schema::{Enum, EnumVariant, Register};
+use ureg_schema::{Enum, EnumVariant, Register, RegisterBlock};
 
 static HEADER_PREFIX: &str = r"/*
 Licensed under the Apache-2.0 license.
@@ -71,6 +73,17 @@ fn remove_reg_prefixes(registers: &mut [Rc<Register>], prefix: &str) {
     }
 }
 
+fn write_and_format(dest_file: &Path, contents: &str) -> Result<(), Box<dyn Error>> {
+    println!("Writing to {dest_file:?}");
+    std::fs::write(&dest_file, contents)?;
+    run_cmd(
+        Command::new("rustfmt")
+            .arg(dest_file)
+            .arg("--config=normalize_comments=true,normalize_doc_attributes=true"),
+    )?;
+    Ok(())
+}
+
 fn real_main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 3 {
@@ -122,7 +135,19 @@ fn real_main() -> Result<(), Box<dyn Error>> {
 
     let addrmap = scope.lookup_typedef("clp").unwrap();
 
+    // These are types like kv_read_ctrl_reg that are used by multiple crates
+    let root_block = RegisterBlock {
+        declared_register_types: ureg_systemrdl::translate_types(scope)?,
+        ..Default::default()
+    };
+    let mut root_block = root_block.validate_and_dedup()?;
+
+    let mut extern_types = HashMap::new();
+    ureg_codegen::build_extern_types(&root_block, quote! { crate }, &mut extern_types);
+
     let blocks = ureg_systemrdl::translate_addrmap(addrmap)?;
+
+    let mut validated_blocks = vec![];
     for mut block in blocks {
         if block.name.ends_with("_reg") || block.name.ends_with("_csr") {
             block.name = block.name[0..block.name.len() - 4].to_string();
@@ -135,8 +160,6 @@ fn real_main() -> Result<(), Box<dyn Error>> {
                 &format!("{}_", block.name.to_ascii_lowercase()),
             );
         }
-        let module_ident = format_ident!("{}", block.name);
-        let dest_file = dest_dir.join(format!("{}.rs", block.name));
         let mut block = block.validate_and_dedup()?;
 
         if block.block().name == "ecc" {
@@ -170,20 +193,47 @@ fn real_main() -> Result<(), Box<dyn Error>> {
                 );
             });
         }
+        let module_ident = format_ident!("{}", block.block().name);
+        ureg_codegen::build_extern_types(
+            &block,
+            quote! { crate::#module_ident },
+            &mut extern_types,
+        );
+        validated_blocks.push(block);
+    }
+    let mut root_submod_tokens = TokenStream::new();
+
+    let mut all_blocks: Vec<_> = std::iter::once(&mut root_block)
+        .chain(validated_blocks.iter_mut())
+        .collect();
+    ureg_schema::filter_unused_types(&mut all_blocks);
+
+    for block in validated_blocks {
+        let module_ident = format_ident!("{}", block.block().name);
+        let dest_file = dest_dir.join(format!("{}.rs", block.block().name));
+
         let tokens = ureg_codegen::generate_code(
             &block,
             ureg_codegen::Options {
-                module: quote! {#module_ident},
+                extern_types: extern_types.clone(),
+                module: quote! { #module_ident },
             },
         );
-        println!("Writing to {dest_file:?}");
-        std::fs::write(&dest_file, header.clone() + &tokens.to_string())?;
-        run_cmd(
-            Command::new("rustfmt")
-                .arg(dest_file)
-                .arg("--config=normalize_comments=true,normalize_doc_attributes=true"),
-        )?;
+        root_submod_tokens.extend(quote! { pub mod #module_ident; });
+        write_and_format(&dest_file, &(header.clone() + &tokens.to_string()))?;
     }
+    let root_type_tokens = ureg_codegen::generate_code(
+        &root_block,
+        ureg_codegen::Options {
+            extern_types: extern_types.clone(),
+            ..Default::default()
+        },
+    );
+    let root_tokens = quote! { #root_type_tokens #root_submod_tokens };
+    write_and_format(
+        &dest_dir.join("lib.rs"),
+        &(header.clone() + &root_tokens.to_string()),
+    )?;
     Ok(())
 }
 

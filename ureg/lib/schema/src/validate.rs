@@ -194,6 +194,20 @@ impl ValidatedRegisterBlock {
         }
     }
 
+    pub fn filter_register_types(&mut self, mut pred: impl FnMut(&Rc<RegisterType>) -> bool) {
+        self.block.declared_register_types = self
+            .block
+            .declared_register_types
+            .drain(..)
+            .filter(&mut pred)
+            .collect();
+        self.register_types = self
+            .register_types
+            .drain()
+            .filter(|(_, ty)| pred(ty))
+            .collect();
+    }
+
     pub fn extract_subblock_array(
         &mut self,
         block_name: &str,
@@ -538,6 +552,14 @@ fn determine_enum_name(reg: &Register, field: &RegisterField) -> String {
         field.name.clone()
     }
 }
+fn determine_enum_name_from_reg_ty(reg_ty: &RegisterType, field: &RegisterField) -> String {
+    if reg_ty.fields.len() == 1 && is_meaningless_field_name(&field.name) {
+        if let Some(ref reg_ty_name) = reg_ty.name {
+            return reg_ty_name.into();
+        }
+    }
+    return field.name.clone();
+}
 
 fn all_regs<'a>(
     regs: &'a [Rc<Register>],
@@ -577,6 +599,7 @@ impl RegisterBlock {
                     }
                 }
             }
+
             let mut new_enums: HashMap<Rc<Enum>, Rc<Enum>> = HashMap::new();
             for (e, names) in enum_names.into_iter() {
                 let names: Vec<&str> = names.iter().map(|n| n.as_str()).collect();
@@ -595,6 +618,25 @@ impl RegisterBlock {
                     }),
                 );
             }
+            for reg_ty in self.declared_register_types.iter() {
+                for field in reg_ty.fields.iter() {
+                    if let Some(ref e) = field.enum_type {
+                        let name = determine_enum_name_from_reg_ty(&reg_ty, field);
+                        if e.name.is_some() {
+                            new_enums.insert(e.clone(), e.clone());
+                        } else {
+                            new_enums.insert(
+                                e.clone(),
+                                Rc::new(Enum {
+                                    name: Some(name),
+                                    ..(**e).clone()
+                                }),
+                            );
+                        }
+                    }
+                }
+            }
+
             for reg in all_regs_mut(&mut self.registers, &mut self.sub_arrays) {
                 let reg = Rc::make_mut(reg);
                 let ty = Rc::make_mut(&mut reg.ty);
@@ -672,6 +714,11 @@ impl RegisterBlock {
         for reg in all_regs_mut(&mut self.registers, &mut self.sub_arrays) {
             if let Some(new_type) = new_types.get(&reg.ty) {
                 Rc::make_mut(reg).ty = new_type.clone();
+            }
+        }
+        for reg_type in self.declared_register_types.iter_mut() {
+            if let Some(new_type) = new_types.get(reg_type) {
+                *reg_type = new_type.clone();
             }
         }
         let mut register_types = HashMap::new();

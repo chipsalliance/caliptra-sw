@@ -180,49 +180,49 @@ impl RegisterBlock {
     }
     /// Controls the Key Vault read access for this engine
     ///
-    /// Read value: [`ecc::regs::KvReadCtrlRegReadVal`]; Write value: [`ecc::regs::KvReadCtrlRegWriteVal`]
+    /// Read value: [`regs::KvReadCtrlRegReadVal`]; Write value: [`regs::KvReadCtrlRegWriteVal`]
     pub fn kv_rd_pkey_ctrl(&self) -> ureg::RegRef<crate::ecc::meta::KvRdPkeyCtrl> {
         unsafe { ureg::RegRef::new(self.0.wrapping_add(0x600 / core::mem::size_of::<u32>())) }
     }
     /// Reports the Key Vault flow status for this engine
     ///
-    /// Read value: [`ecc::regs::KvStatusRegReadVal`]; Write value: [`ecc::regs::KvStatusRegWriteVal`]
+    /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
     pub fn kv_rd_pkey_status(&self) -> ureg::RegRef<crate::ecc::meta::KvRdPkeyStatus> {
         unsafe { ureg::RegRef::new(self.0.wrapping_add(0x604 / core::mem::size_of::<u32>())) }
     }
     /// Controls the Key Vault read access for this engine
     ///
-    /// Read value: [`ecc::regs::KvReadCtrlRegReadVal`]; Write value: [`ecc::regs::KvReadCtrlRegWriteVal`]
+    /// Read value: [`regs::KvReadCtrlRegReadVal`]; Write value: [`regs::KvReadCtrlRegWriteVal`]
     pub fn kv_rd_seed_ctrl(&self) -> ureg::RegRef<crate::ecc::meta::KvRdSeedCtrl> {
         unsafe { ureg::RegRef::new(self.0.wrapping_add(0x608 / core::mem::size_of::<u32>())) }
     }
     /// Reports the Key Vault flow status for this engine
     ///
-    /// Read value: [`ecc::regs::KvStatusRegReadVal`]; Write value: [`ecc::regs::KvStatusRegWriteVal`]
+    /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
     pub fn kv_rd_seed_status(&self) -> ureg::RegRef<crate::ecc::meta::KvRdSeedStatus> {
         unsafe { ureg::RegRef::new(self.0.wrapping_add(0x60c / core::mem::size_of::<u32>())) }
     }
     /// Controls the Key Vault read access for this engine
     ///
-    /// Read value: [`ecc::regs::KvReadCtrlRegReadVal`]; Write value: [`ecc::regs::KvReadCtrlRegWriteVal`]
+    /// Read value: [`regs::KvReadCtrlRegReadVal`]; Write value: [`regs::KvReadCtrlRegWriteVal`]
     pub fn kv_rd_msg_ctrl(&self) -> ureg::RegRef<crate::ecc::meta::KvRdMsgCtrl> {
         unsafe { ureg::RegRef::new(self.0.wrapping_add(0x610 / core::mem::size_of::<u32>())) }
     }
     /// Reports the Key Vault flow status for this engine
     ///
-    /// Read value: [`ecc::regs::KvStatusRegReadVal`]; Write value: [`ecc::regs::KvStatusRegWriteVal`]
+    /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
     pub fn kv_rd_msg_status(&self) -> ureg::RegRef<crate::ecc::meta::KvRdMsgStatus> {
         unsafe { ureg::RegRef::new(self.0.wrapping_add(0x614 / core::mem::size_of::<u32>())) }
     }
     /// Controls the Key Vault write access for this engine
     ///
-    /// Read value: [`ecc::regs::KvWriteCtrlRegReadVal`]; Write value: [`ecc::regs::KvWriteCtrlRegWriteVal`]
+    /// Read value: [`regs::KvWriteCtrlRegReadVal`]; Write value: [`regs::KvWriteCtrlRegWriteVal`]
     pub fn kv_wr_pkey_ctrl(&self) -> ureg::RegRef<crate::ecc::meta::KvWrPkeyCtrl> {
         unsafe { ureg::RegRef::new(self.0.wrapping_add(0x618 / core::mem::size_of::<u32>())) }
     }
     /// Reports the Key Vault flow status for this engine
     ///
-    /// Read value: [`ecc::regs::KvStatusRegReadVal`]; Write value: [`ecc::regs::KvStatusRegWriteVal`]
+    /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
     pub fn kv_wr_pkey_status(&self) -> ureg::RegRef<crate::ecc::meta::KvWrPkeyStatus> {
         unsafe { ureg::RegRef::new(self.0.wrapping_add(0x61c / core::mem::size_of::<u32>())) }
     }
@@ -301,273 +301,6 @@ pub mod regs {
     }
     impl From<StatusReadVal> for u32 {
         fn from(val: StatusReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct KvReadCtrlRegReadVal(u32);
-    impl KvReadCtrlRegReadVal {
-        /// Indicates that the read data is to come from the key vault.
-        /// Setting this bit to 1 initiates copying of data from the key vault.
-        #[inline(always)]
-        pub fn read_en(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-        /// Key Vault entry to retrieve the read data from for the engine
-        #[inline(always)]
-        pub fn read_entry(&self) -> u32 {
-            (self.0 >> 1) & 7
-        }
-        /// Entry selected is a PCR slot
-        #[inline(always)]
-        pub fn entry_is_pcr(&self) -> bool {
-            ((self.0 >> 4) & 1) != 0
-        }
-        /// Size of the source data for SHA512 and HMAC384 Block only.
-        /// This field is ignored for all other reads.
-        /// Size is encoded as N-1 dwords.
-        /// KV flow will pad the 1024 Block data and append the length for values 0-26.
-        /// All 0 data and Length must be appended in the next Block for values 27-31.
-        ///                       
-        /// 5'd7 - 256b of data
-        ///                       
-        /// 5'd11 - 384b of data
-        ///                       
-        /// 5'd15 - 512b of data
-        #[inline(always)]
-        pub fn entry_data_size(&self) -> u32 {
-            (self.0 >> 5) & 0x1f
-        }
-        /// Reserved field
-        #[inline(always)]
-        pub fn rsvd(&self) -> u32 {
-            (self.0 >> 10) & 0x3fffff
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        pub fn modify(self) -> KvReadCtrlRegWriteVal {
-            KvReadCtrlRegWriteVal(self.0)
-        }
-    }
-    impl From<u32> for KvReadCtrlRegReadVal {
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<KvReadCtrlRegReadVal> for u32 {
-        fn from(val: KvReadCtrlRegReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct KvReadCtrlRegWriteVal(u32);
-    impl KvReadCtrlRegWriteVal {
-        /// Indicates that the read data is to come from the key vault.
-        /// Setting this bit to 1 initiates copying of data from the key vault.
-        #[inline(always)]
-        pub fn read_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
-        }
-        /// Key Vault entry to retrieve the read data from for the engine
-        #[inline(always)]
-        pub fn read_entry(self, val: u32) -> Self {
-            Self((self.0 & !(7 << 1)) | ((val & 7) << 1))
-        }
-        /// Entry selected is a PCR slot
-        #[inline(always)]
-        pub fn entry_is_pcr(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
-        }
-        /// Size of the source data for SHA512 and HMAC384 Block only.
-        /// This field is ignored for all other reads.
-        /// Size is encoded as N-1 dwords.
-        /// KV flow will pad the 1024 Block data and append the length for values 0-26.
-        /// All 0 data and Length must be appended in the next Block for values 27-31.
-        ///                       
-        /// 5'd7 - 256b of data
-        ///                       
-        /// 5'd11 - 384b of data
-        ///                       
-        /// 5'd15 - 512b of data
-        #[inline(always)]
-        pub fn entry_data_size(self, val: u32) -> Self {
-            Self((self.0 & !(0x1f << 5)) | ((val & 0x1f) << 5))
-        }
-        /// Reserved field
-        #[inline(always)]
-        pub fn rsvd(self, val: u32) -> Self {
-            Self((self.0 & !(0x3fffff << 10)) | ((val & 0x3fffff) << 10))
-        }
-    }
-    impl From<u32> for KvReadCtrlRegWriteVal {
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<KvReadCtrlRegWriteVal> for u32 {
-        fn from(val: KvReadCtrlRegWriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct KvStatusRegReadVal(u32);
-    impl KvStatusRegReadVal {
-        /// Key Vault control is ready for use
-        #[inline(always)]
-        pub fn ready(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-        /// Key Vault flow is done
-        #[inline(always)]
-        pub fn valid(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
-        }
-        /// Indicates the error status of a key vault flow
-        #[inline(always)]
-        pub fn error(&self) -> super::enums::KvErrorE {
-            super::enums::KvErrorE::try_from((self.0 >> 2) & 0xff).unwrap()
-        }
-    }
-    impl From<u32> for KvStatusRegReadVal {
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<KvStatusRegReadVal> for u32 {
-        fn from(val: KvStatusRegReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct KvWriteCtrlRegReadVal(u32);
-    impl KvWriteCtrlRegReadVal {
-        /// Indicates that the result is to be stored in the key vault.
-        /// Setting this bit to 1 will copy the result to the keyvault when it is ready.
-        #[inline(always)]
-        pub fn write_en(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-        /// Key Vault entry to store the result
-        #[inline(always)]
-        pub fn write_entry(&self) -> u32 {
-            (self.0 >> 1) & 7
-        }
-        /// Destination selected is a PCR slot
-        #[inline(always)]
-        pub fn entry_is_pcr(&self) -> bool {
-            ((self.0 >> 4) & 1) != 0
-        }
-        /// HMAC KEY is a valid destination
-        #[inline(always)]
-        pub fn hmac_key_dest_valid(&self) -> bool {
-            ((self.0 >> 5) & 1) != 0
-        }
-        /// HMAC BLOCK is a valid destination
-        #[inline(always)]
-        pub fn hmac_block_dest_valid(&self) -> bool {
-            ((self.0 >> 6) & 1) != 0
-        }
-        /// SHA BLOCK is a valid destination
-        #[inline(always)]
-        pub fn sha_block_dest_valid(&self) -> bool {
-            ((self.0 >> 7) & 1) != 0
-        }
-        /// ECC PKEY is a valid destination
-        #[inline(always)]
-        pub fn ecc_pkey_dest_valid(&self) -> bool {
-            ((self.0 >> 8) & 1) != 0
-        }
-        /// ECC SEED is a valid destination
-        #[inline(always)]
-        pub fn ecc_seed_dest_valid(&self) -> bool {
-            ((self.0 >> 9) & 1) != 0
-        }
-        /// ECC MSG is a valid destination
-        #[inline(always)]
-        pub fn ecc_msg_dest_valid(&self) -> bool {
-            ((self.0 >> 10) & 1) != 0
-        }
-        /// Reserved field
-        #[inline(always)]
-        pub fn rsvd(&self) -> u32 {
-            (self.0 >> 11) & 0x1fffff
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        pub fn modify(self) -> KvWriteCtrlRegWriteVal {
-            KvWriteCtrlRegWriteVal(self.0)
-        }
-    }
-    impl From<u32> for KvWriteCtrlRegReadVal {
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<KvWriteCtrlRegReadVal> for u32 {
-        fn from(val: KvWriteCtrlRegReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct KvWriteCtrlRegWriteVal(u32);
-    impl KvWriteCtrlRegWriteVal {
-        /// Indicates that the result is to be stored in the key vault.
-        /// Setting this bit to 1 will copy the result to the keyvault when it is ready.
-        #[inline(always)]
-        pub fn write_en(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
-        }
-        /// Key Vault entry to store the result
-        #[inline(always)]
-        pub fn write_entry(self, val: u32) -> Self {
-            Self((self.0 & !(7 << 1)) | ((val & 7) << 1))
-        }
-        /// Destination selected is a PCR slot
-        #[inline(always)]
-        pub fn entry_is_pcr(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
-        }
-        /// HMAC KEY is a valid destination
-        #[inline(always)]
-        pub fn hmac_key_dest_valid(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 5)) | (u32::from(val) << 5))
-        }
-        /// HMAC BLOCK is a valid destination
-        #[inline(always)]
-        pub fn hmac_block_dest_valid(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 6)) | (u32::from(val) << 6))
-        }
-        /// SHA BLOCK is a valid destination
-        #[inline(always)]
-        pub fn sha_block_dest_valid(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 7)) | (u32::from(val) << 7))
-        }
-        /// ECC PKEY is a valid destination
-        #[inline(always)]
-        pub fn ecc_pkey_dest_valid(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 8)) | (u32::from(val) << 8))
-        }
-        /// ECC SEED is a valid destination
-        #[inline(always)]
-        pub fn ecc_seed_dest_valid(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 9)) | (u32::from(val) << 9))
-        }
-        /// ECC MSG is a valid destination
-        #[inline(always)]
-        pub fn ecc_msg_dest_valid(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 10)) | (u32::from(val) << 10))
-        }
-        /// Reserved field
-        #[inline(always)]
-        pub fn rsvd(self, val: u32) -> Self {
-            Self((self.0 & !(0x1fffff << 11)) | ((val & 0x1fffff) << 11))
-        }
-    }
-    impl From<u32> for KvWriteCtrlRegWriteVal {
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<KvWriteCtrlRegWriteVal> for u32 {
-        fn from(val: KvWriteCtrlRegWriteVal) -> u32 {
             val.0
         }
     }
@@ -1364,10 +1097,10 @@ pub mod meta {
         type Raw = u32;
     }
     impl ureg::ReadableReg for KvRdPkeyCtrl {
-        type ReadVal = crate::ecc::regs::KvReadCtrlRegReadVal;
+        type ReadVal = crate::regs::KvReadCtrlRegReadVal;
     }
     impl ureg::WritableReg for KvRdPkeyCtrl {
-        type WriteVal = crate::ecc::regs::KvReadCtrlRegWriteVal;
+        type WriteVal = crate::regs::KvReadCtrlRegWriteVal;
     }
     impl ureg::ResettableReg for KvRdPkeyCtrl {
         const RESET_VAL: Self::Raw = 0;
@@ -1378,7 +1111,7 @@ pub mod meta {
         type Raw = u32;
     }
     impl ureg::ReadableReg for KvRdPkeyStatus {
-        type ReadVal = crate::ecc::regs::KvStatusRegReadVal;
+        type ReadVal = crate::regs::KvStatusRegReadVal;
     }
     #[derive(Clone, Copy)]
     pub struct KvRdSeedCtrl();
@@ -1386,10 +1119,10 @@ pub mod meta {
         type Raw = u32;
     }
     impl ureg::ReadableReg for KvRdSeedCtrl {
-        type ReadVal = crate::ecc::regs::KvReadCtrlRegReadVal;
+        type ReadVal = crate::regs::KvReadCtrlRegReadVal;
     }
     impl ureg::WritableReg for KvRdSeedCtrl {
-        type WriteVal = crate::ecc::regs::KvReadCtrlRegWriteVal;
+        type WriteVal = crate::regs::KvReadCtrlRegWriteVal;
     }
     impl ureg::ResettableReg for KvRdSeedCtrl {
         const RESET_VAL: Self::Raw = 0;
@@ -1400,7 +1133,7 @@ pub mod meta {
         type Raw = u32;
     }
     impl ureg::ReadableReg for KvRdSeedStatus {
-        type ReadVal = crate::ecc::regs::KvStatusRegReadVal;
+        type ReadVal = crate::regs::KvStatusRegReadVal;
     }
     #[derive(Clone, Copy)]
     pub struct KvRdMsgCtrl();
@@ -1408,10 +1141,10 @@ pub mod meta {
         type Raw = u32;
     }
     impl ureg::ReadableReg for KvRdMsgCtrl {
-        type ReadVal = crate::ecc::regs::KvReadCtrlRegReadVal;
+        type ReadVal = crate::regs::KvReadCtrlRegReadVal;
     }
     impl ureg::WritableReg for KvRdMsgCtrl {
-        type WriteVal = crate::ecc::regs::KvReadCtrlRegWriteVal;
+        type WriteVal = crate::regs::KvReadCtrlRegWriteVal;
     }
     impl ureg::ResettableReg for KvRdMsgCtrl {
         const RESET_VAL: Self::Raw = 0;
@@ -1422,7 +1155,7 @@ pub mod meta {
         type Raw = u32;
     }
     impl ureg::ReadableReg for KvRdMsgStatus {
-        type ReadVal = crate::ecc::regs::KvStatusRegReadVal;
+        type ReadVal = crate::regs::KvStatusRegReadVal;
     }
     #[derive(Clone, Copy)]
     pub struct KvWrPkeyCtrl();
@@ -1430,10 +1163,10 @@ pub mod meta {
         type Raw = u32;
     }
     impl ureg::ReadableReg for KvWrPkeyCtrl {
-        type ReadVal = crate::ecc::regs::KvWriteCtrlRegReadVal;
+        type ReadVal = crate::regs::KvWriteCtrlRegReadVal;
     }
     impl ureg::WritableReg for KvWrPkeyCtrl {
-        type WriteVal = crate::ecc::regs::KvWriteCtrlRegWriteVal;
+        type WriteVal = crate::regs::KvWriteCtrlRegWriteVal;
     }
     impl ureg::ResettableReg for KvWrPkeyCtrl {
         const RESET_VAL: Self::Raw = 0;
@@ -1444,6 +1177,6 @@ pub mod meta {
         type Raw = u32;
     }
     impl ureg::ReadableReg for KvWrPkeyStatus {
-        type ReadVal = crate::ecc::regs::KvStatusRegReadVal;
+        type ReadVal = crate::regs::KvStatusRegReadVal;
     }
 }
