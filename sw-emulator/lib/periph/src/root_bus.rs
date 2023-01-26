@@ -69,6 +69,7 @@ impl CaliptraRootBus {
     pub fn new(clock: &Clock, rom: Vec<u8>) -> Self {
         let key_vault = KeyVault::new();
         let soc_reg = SocRegisters::new();
+        let mailbox = Mailbox::new();
         Self {
             rom: Rom::new(rom),
             doe: Doe::new(clock, key_vault.clone(), soc_reg.clone()),
@@ -82,7 +83,7 @@ impl CaliptraRootBus {
             uart: Uart::new(),
             ctrl: EmuCtrl::new(),
             soc_reg: soc_reg.clone(),
-            mailbox: Mailbox::new(),
+            mailbox: mailbox.clone(),
         }
     }
 }

@@ -13,18 +13,77 @@ Abstract:
 --*/
 use smlang::statemachine;
 
+use caliptra_emu_bus::Bus;
 use caliptra_emu_bus::{BusError, ReadOnlyRegister, ReadWriteRegister, WriteOnlyRegister};
 use caliptra_emu_derive::Bus;
-use caliptra_emu_types::{RvData, RvSize};
+use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use lazy_static::lazy_static;
-use std::sync::Mutex;
+use std::{cell::RefCell, rc::Rc, sync::Mutex};
 
 /// Maximum mailbox capacity in DWORDS.
 const MAX_MAILBOX_CAPACITY: usize = (128 << 10) >> 2;
 
+#[derive(Clone)]
+pub struct Mailbox {
+    regs: Rc<RefCell<MailboxRegs>>,
+}
+
+impl Mailbox {
+    pub fn new() -> Self {
+        Self {
+            regs: Rc::new(RefCell::new(MailboxRegs::new())),
+        }
+    }
+
+    // Private interface to the mailbox buffer
+    pub fn read_data(
+        &self,
+        read_word_offset: usize,
+        read_word_count: usize,
+    ) -> Result<Box<[u32]>, BusError> {
+        let mut vec = vec![0; read_word_count];
+        if read_word_offset >= MAX_MAILBOX_CAPACITY
+            || (read_word_offset + read_word_count) > MAX_MAILBOX_CAPACITY
+        {
+            Err(BusError::LoadAccessFault)?
+        }
+
+        vec.copy_from_slice(
+            &MAILBOX.lock().unwrap().context.ring_buffer.buffer
+                [read_word_offset..(read_word_offset + read_word_count)],
+        );
+
+        Ok(vec.into_boxed_slice())
+    }
+
+    pub fn write_data(&self, write_word_offset: usize, data: &[u32]) -> Result<(), BusError> {
+        if write_word_offset >= MAX_MAILBOX_CAPACITY
+            || (write_word_offset + data.len()) > MAX_MAILBOX_CAPACITY
+        {
+            Err(BusError::StoreAccessFault)?
+        }
+        MAILBOX.lock().unwrap().context.ring_buffer.buffer
+            [write_word_offset..(write_word_offset + data.len())]
+            .copy_from_slice(data);
+        Ok(())
+    }
+}
+
+impl Bus for Mailbox {
+    /// Read data of specified size from given address
+    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+        self.regs.borrow_mut().read(size, addr)
+    }
+
+    /// Write data of specified size to given address
+    fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {
+        self.regs.borrow_mut().write(size, addr, val)
+    }
+}
+
 /// Mailbox Peripheral
 #[derive(Bus)]
-pub struct Mailbox {
+pub struct MailboxRegs {
     /// MBOX_LOCK register
     #[register(offset = 0x0000_0000, read_fn = read_lock)]
     _lock: ReadOnlyRegister<u32>,
@@ -58,7 +117,7 @@ pub struct Mailbox {
     _status: ReadWriteRegister<u32>,
 }
 
-impl Mailbox {
+impl MailboxRegs {
     /// LOCK Register Value
     const LOCK_VAL: RvData = 0x0;
     const USER_VAL: RvData = 0x0;
@@ -69,7 +128,7 @@ impl Mailbox {
     const EXEC_VAL: RvData = 0x0;
     const STATUS_VAL: RvData = 0x0;
 
-    /// Create an instance of SOC register peripheral
+    /// Create a new instance of Mailbox registers
     pub fn new() -> Self {
         Self {
             _lock: ReadOnlyRegister::new(Self::LOCK_VAL),
@@ -429,5 +488,77 @@ mod tests {
         let _ = sm.process_event(Events::ExecWr);
         assert!(matches!(sm.state(), States::Idle));
         assert_eq!(sm.context().locked, 0);
+    }
+
+    #[test]
+    fn test_private_read_write() {
+        let mb = Mailbox::new();
+
+        let zero_data: [u32; MAX_MAILBOX_CAPACITY] = [0u32; MAX_MAILBOX_CAPACITY];
+        let data: [u32; 12] = [
+            0xc908585a, 0x486c3b3d, 0x8bbe50eb, 0x7d2eb8a0, 0x3aa04e3d, 0x8bde2c31, 0xa8a2a1e3,
+            0x349dc21c, 0xbbe6c90a, 0xe2f74912, 0x8884b622, 0xbb72b4c5,
+        ];
+
+        // Write to the mailbox.
+        assert_eq!(mb.write_data(0, &data[..]).ok(), Some(()));
+
+        // Read from the mailbox.
+        let read_data = mb.read_data(0, data.len()).unwrap();
+        assert_eq!(data, *read_data);
+
+        assert_eq!(mb.write_data(0, &zero_data[..]).ok(), Some(()));
+        assert_eq!(mb.read_data(0, zero_data.len()).is_ok(), true);
+    }
+
+    #[test]
+    fn test_private_read_write_fail() {
+        let mb = Mailbox::new();
+
+        let zero_size_buf: [u32; 0] = [0u32; 0];
+        let data: [u32; MAX_MAILBOX_CAPACITY + 1] = [0u32; MAX_MAILBOX_CAPACITY + 1];
+
+        // Write to the mailbox.
+        assert_eq!(
+            mb.write_data(0, &data[..]).err(),
+            Some(BusError::StoreAccessFault)
+        );
+
+        assert_eq!(
+            mb.write_data(1, &data[0..MAX_MAILBOX_CAPACITY]).err(),
+            Some(BusError::StoreAccessFault)
+        );
+
+        assert_eq!(
+            mb.write_data(MAX_MAILBOX_CAPACITY, &zero_size_buf[..])
+                .err(),
+            Some(BusError::StoreAccessFault)
+        );
+
+        assert_eq!(
+            mb.write_data(MAX_MAILBOX_CAPACITY, &data[0..1]).err(),
+            Some(BusError::StoreAccessFault)
+        );
+
+        // Read from the mailbox.
+        assert_eq!(
+            mb.read_data(0, MAX_MAILBOX_CAPACITY + 1).err(),
+            Some(BusError::LoadAccessFault)
+        );
+
+        assert_eq!(
+            mb.read_data(1, MAX_MAILBOX_CAPACITY).err(),
+            Some(BusError::LoadAccessFault)
+        );
+
+        assert_eq!(
+            mb.read_data(MAX_MAILBOX_CAPACITY, 0).err(),
+            Some(BusError::LoadAccessFault)
+        );
+
+        assert_eq!(
+            mb.read_data(MAX_MAILBOX_CAPACITY, 1).err(),
+            Some(BusError::LoadAccessFault)
+        );
     }
 }
