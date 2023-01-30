@@ -17,8 +17,7 @@ use caliptra_emu_bus::Bus;
 use caliptra_emu_bus::{BusError, ReadOnlyRegister, ReadWriteRegister, WriteOnlyRegister};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
-use lazy_static::lazy_static;
-use std::{cell::RefCell, rc::Rc, sync::Mutex};
+use std::{cell::RefCell, rc::Rc};
 
 /// Maximum mailbox capacity in DWORDS.
 const MAX_MAILBOX_CAPACITY: usize = (128 << 10) >> 2;
@@ -49,7 +48,7 @@ impl Mailbox {
         }
 
         vec.copy_from_slice(
-            &MAILBOX.lock().unwrap().context.ring_buffer.buffer
+            &self.regs.borrow().state_machine.context.ring_buffer.buffer
                 [read_word_offset..(read_word_offset + read_word_count)],
         );
 
@@ -62,9 +61,15 @@ impl Mailbox {
         {
             Err(BusError::StoreAccessFault)?
         }
-        MAILBOX.lock().unwrap().context.ring_buffer.buffer
-            [write_word_offset..(write_word_offset + data.len())]
+
+        self.regs
+            .borrow_mut()
+            .state_machine
+            .context
+            .ring_buffer
+            .buffer[write_word_offset..(write_word_offset + data.len())]
             .copy_from_slice(data);
+
         Ok(())
     }
 }
@@ -86,11 +91,11 @@ impl Bus for Mailbox {
 pub struct MailboxRegs {
     /// MBOX_LOCK register
     #[register(offset = 0x0000_0000, read_fn = read_lock)]
-    _lock: ReadOnlyRegister<u32>,
+    lock: ReadOnlyRegister<u32>,
 
     /// MBOX_USER register
     #[register(offset = 0x0000_0004, read_fn = read_user)]
-    _user: ReadOnlyRegister<u32>,
+    user: ReadOnlyRegister<u32>,
 
     /// MBOX_CMD register
     #[register(offset = 0x0000_0008, write_fn = write_cmd, read_fn = read_cmd)]
@@ -102,19 +107,22 @@ pub struct MailboxRegs {
 
     /// MBOX_DATAIN register
     #[register(offset = 0x0000_0010, write_fn = write_din)]
-    _data_in: WriteOnlyRegister<u32>,
+    data_in: WriteOnlyRegister<u32>,
 
     /// MBOX_DATAOUT register
     #[register(offset = 0x0000_0014, read_fn = read_dout)]
-    _data_out: ReadOnlyRegister<u32>,
+    data_out: ReadOnlyRegister<u32>,
 
     /// MBOX_EXECUTE register
     #[register(offset = 0x0000_0018, write_fn = write_ex)]
-    _execute: WriteOnlyRegister<u32>,
+    execute: WriteOnlyRegister<u32>,
 
     /// MBOX_STATUS register
     #[register(offset = 0x0000_001c, write_fn = write_status, read_fn = read_status)]
     _status: ReadWriteRegister<u32>,
+
+    /// State Machine
+    state_machine: StateMachine<Context>,
 }
 
 impl MailboxRegs {
@@ -131,22 +139,22 @@ impl MailboxRegs {
     /// Create a new instance of Mailbox registers
     pub fn new() -> Self {
         Self {
-            _lock: ReadOnlyRegister::new(Self::LOCK_VAL),
-            _user: ReadOnlyRegister::new(Self::USER_VAL),
+            lock: ReadOnlyRegister::new(Self::LOCK_VAL),
+            user: ReadOnlyRegister::new(Self::USER_VAL),
             _cmd: ReadWriteRegister::new(Self::CMD_VAL),
             _dlen: ReadWriteRegister::new(Self::DLEN_VAL),
-            _data_in: WriteOnlyRegister::new(Self::DATA_IN_VAL),
-            _data_out: ReadOnlyRegister::new(Self::DATA_OUT_VAL),
-            _execute: WriteOnlyRegister::new(Self::EXEC_VAL),
+            data_in: WriteOnlyRegister::new(Self::DATA_IN_VAL),
+            data_out: ReadOnlyRegister::new(Self::DATA_OUT_VAL),
+            execute: WriteOnlyRegister::new(Self::EXEC_VAL),
             _status: ReadWriteRegister::new(Self::STATUS_VAL),
+            state_machine: StateMachine::new(Context::new(MAX_MAILBOX_CAPACITY)),
         }
     }
 
     // Todo: Implement read_lock callback fn
-    pub fn read_lock(&self, _size: RvSize) -> Result<u32, BusError> {
-        if MAILBOX
-            .lock()
-            .unwrap()
+    pub fn read_lock(&mut self, _size: RvSize) -> Result<u32, BusError> {
+        if self
+            .state_machine
             .process_event(Events::RdLock(Owner(0)))
             .is_ok()
         {
@@ -158,68 +166,63 @@ impl MailboxRegs {
 
     // Todo: Implement read_user callback fn
     pub fn read_user(&self, _size: RvSize) -> Result<u32, BusError> {
-        Ok(MAILBOX.lock().unwrap().context.user)
+        Ok(self.state_machine.context.user)
     }
 
     // Todo: Implement write cmd callback fn
     pub fn write_cmd(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
-        let _ = MAILBOX
-            .lock()
-            .unwrap()
-            .process_event(Events::CmdWrite(Cmd(val)));
+        let _ = self.state_machine.process_event(Events::CmdWrite(Cmd(val)));
         Ok(())
     }
 
     // Todo: Implement read cmd callback fn
     pub fn read_cmd(&self, _size: RvSize) -> Result<u32, BusError> {
-        Ok(MAILBOX.lock().unwrap().context.cmd)
+        Ok(self.state_machine.context.cmd)
     }
 
     // Todo: Implement write dlen callback fn
     pub fn write_dlen(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
-        let _ = MAILBOX
-            .lock()
-            .unwrap()
+        let _ = self
+            .state_machine
             .process_event(Events::DlenWrite(DataLength(val)));
         Ok(())
     }
 
     // Todo: Implement read dlen callback fn
     pub fn read_dlen(&self, _size: RvSize) -> Result<u32, BusError> {
-        Ok(MAILBOX.lock().unwrap().context.dlen)
+        Ok(self.state_machine.context.dlen)
     }
 
     // Todo: Implement write din callback fn
     pub fn write_din(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
-        let _ = MAILBOX
-            .lock()
-            .unwrap()
+        let _ = self
+            .state_machine
             .process_event(Events::DataWrite(DataIn(val)));
         Ok(())
     }
 
     // Todo: Implement read dout callback fn
-    pub fn read_dout(&self, _size: RvSize) -> Result<u32, BusError> {
-        let mut mb = MAILBOX.lock().unwrap();
+    pub fn read_dout(&mut self, _size: RvSize) -> Result<u32, BusError> {
+        let mb = &mut self.state_machine;
         let _ = mb.process_event(Events::DataRead);
         Ok(mb.context.data_out)
     }
 
     // Todo: Implement write ex callback fn
     pub fn write_ex(&mut self, _size: RvSize, _val: RvData) -> Result<(), BusError> {
-        let _ = MAILBOX.lock().unwrap().process_event(Events::ExecWr);
+        let _ = self.state_machine.process_event(Events::ExecWr);
         Ok(())
     }
 
     // Todo: Implement write status callback fn
     pub fn write_status(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
-        MAILBOX.lock().unwrap().context.status = val;
+        self.state_machine.context.status = val;
         Ok(())
     }
 
     // Todo: Implement read status callback fn
     pub fn read_status(&self, _size: RvSize) -> Result<u32, BusError> {
-        Ok(MAILBOX.lock().unwrap().context.status)
+        Ok(self.state_machine.context.status)
     }
 }
 
@@ -362,12 +365,6 @@ impl RingBuffer {
     }
 }
 
-lazy_static! {
-    static ref MAILBOX: Mutex<StateMachine<Context>> = Mutex::new(StateMachine::<Context>::new(
-        Context::new(MAX_MAILBOX_CAPACITY)
-    ));
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -401,12 +398,12 @@ mod tests {
         // Write command
         assert_eq!(mb.write(RvSize::Word, OFFSET_CMD, 0x55).ok(), Some(()));
         // Confirm it is locked
-        assert_eq!(MAILBOX.lock().unwrap().context.locked, 1);
+        assert_eq!(mb.regs.borrow().state_machine.context.locked, 1);
 
         // Write dlen
         assert_eq!(mb.write(RvSize::Word, OFFSET_DLEN, 16).ok(), Some(()));
         // Confirm it is locked
-        assert_eq!(MAILBOX.lock().unwrap().context.locked, 1);
+        assert_eq!(mb.regs.borrow().state_machine.context.locked, 1);
 
         for data_in in 1..17 {
             // Write datain
@@ -415,7 +412,7 @@ mod tests {
                 Some(())
             );
             // Confirm it is locked
-            assert_eq!(MAILBOX.lock().unwrap().context.locked, 1);
+            assert_eq!(mb.regs.borrow().state_machine.context.locked, 1);
         }
         assert_eq!(
             mb.write(RvSize::Word, OFFSET_STATUS, STATUS_DATA_READY)
@@ -426,9 +423,12 @@ mod tests {
         // Write exec
         assert_eq!(mb.write(RvSize::Word, OFFSET_EXECUTE, 0x55).ok(), Some(()));
         // Confirm it is locked
-        assert_eq!(MAILBOX.lock().unwrap().context.locked, 1);
+        assert_eq!(mb.regs.borrow().state_machine.context.locked, 1);
 
-        assert!(matches!(MAILBOX.lock().unwrap().state(), States::Exec));
+        assert!(matches!(
+            mb.regs.borrow().state_machine.state(),
+            States::Exec
+        ));
 
         let status = mb.read(RvSize::Word, OFFSET_STATUS).unwrap();
         assert_eq!(status, STATUS_DATA_READY);
@@ -454,40 +454,81 @@ mod tests {
         // Receiver resets exec register
         assert_eq!(mb.write(RvSize::Word, OFFSET_EXECUTE, 0).ok(), Some(()));
         // Confirm it is unlocked
-        assert_eq!(MAILBOX.lock().unwrap().context.locked, 0);
+        assert_eq!(mb.regs.borrow().state_machine.context.locked, 0);
 
-        assert!(matches!(MAILBOX.lock().unwrap().state(), States::Idle));
+        assert!(matches!(
+            mb.regs.borrow().state_machine.state(),
+            States::Idle
+        ));
     }
 
     #[test]
     fn test_sm_init() {
-        let sm = StateMachine::<Context>::new(Context::new(MAX_MAILBOX_CAPACITY));
-        assert!(matches!(sm.state(), States::Idle));
-        assert_eq!(sm.context().locked, 0);
+        let mb = Mailbox::new();
+        assert!(matches!(
+            mb.regs.borrow().state_machine.state(),
+            States::Idle
+        ));
+        assert_eq!(mb.regs.borrow().state_machine.context().locked, 0);
     }
 
     #[test]
     fn test_sm_lock() {
-        let mut sm = StateMachine::<Context>::new(Context::new(MAX_MAILBOX_CAPACITY));
-        assert_eq!(sm.context().locked, 0);
-        assert_eq!(sm.context().dlen, 0);
+        let mb = Mailbox::new();
+        assert_eq!(mb.regs.borrow().state_machine.context().locked, 0);
+        assert_eq!(mb.regs.borrow().state_machine.context().dlen, 0);
 
-        let _ = sm.process_event(Events::RdLock(Owner(0)));
-        assert!(matches!(sm.state(), States::RdyForCmd));
-        assert_eq!(sm.context().locked, 1);
+        let _ = mb
+            .regs
+            .borrow_mut()
+            .state_machine
+            .process_event(Events::RdLock(Owner(0)));
+        assert!(matches!(
+            mb.regs.borrow().state_machine.state(),
+            States::RdyForCmd
+        ));
+        assert_eq!(mb.regs.borrow().state_machine.context().locked, 1);
 
-        let _ = sm.process_event(Events::CmdWrite(Cmd(0x55)));
-        assert!(matches!(sm.state(), States::RdyForDlen));
+        let _ = mb
+            .regs
+            .borrow_mut()
+            .state_machine
+            .process_event(Events::CmdWrite(Cmd(0x55)));
+        assert!(matches!(
+            mb.regs.borrow().state_machine.state(),
+            States::RdyForDlen
+        ));
 
-        let _ = sm.process_event(Events::DlenWrite(DataLength(0x55)));
-        assert!(matches!(sm.state(), States::RdyForData));
+        let _ = mb
+            .regs
+            .borrow_mut()
+            .state_machine
+            .process_event(Events::DlenWrite(DataLength(0x55)));
+        assert!(matches!(
+            mb.regs.borrow().state_machine.state(),
+            States::RdyForData
+        ));
 
-        let _ = sm.process_event(Events::ExecWr);
-        assert!(matches!(sm.state(), States::Exec));
+        let _ = mb
+            .regs
+            .borrow_mut()
+            .state_machine
+            .process_event(Events::ExecWr);
+        assert!(matches!(
+            mb.regs.borrow().state_machine.state(),
+            States::Exec
+        ));
 
-        let _ = sm.process_event(Events::ExecWr);
-        assert!(matches!(sm.state(), States::Idle));
-        assert_eq!(sm.context().locked, 0);
+        let _ = mb
+            .regs
+            .borrow_mut()
+            .state_machine
+            .process_event(Events::ExecWr);
+        assert!(matches!(
+            mb.regs.borrow().state_machine.state(),
+            States::Idle
+        ));
+        assert_eq!(mb.regs.borrow().state_machine.context().locked, 0);
     }
 
     #[test]
