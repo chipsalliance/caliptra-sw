@@ -11,6 +11,8 @@ Abstract:
     File contains exports for for Caliptra Emulator Peripheral library.
 
 --*/
+#[macro_use]
+extern crate arrayref;
 
 mod asym_ecc384;
 mod doe;
@@ -21,6 +23,7 @@ mod hmac_sha384;
 mod key_vault;
 mod mailbox;
 mod root_bus;
+mod sha512_acc;
 mod soc_reg;
 mod uart;
 
@@ -33,5 +36,6 @@ pub use hmac_sha384::HmacSha384;
 pub use key_vault::KeyVault;
 pub use mailbox::Mailbox;
 pub use root_bus::CaliptraRootBus;
+pub use sha512_acc::Sha512Accelerator;
 pub use soc_reg::SocRegisters;
 pub use uart::Uart;
