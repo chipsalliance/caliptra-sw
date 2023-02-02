@@ -75,3 +75,8 @@ harness = false
 name = "pcrbank"
 path = "tests/pcrbank_tests.rs"
 harness = false
+
+[[test]]
+name = "sha384acc"
+path = "tests/sha384acc_tests.rs"
+harness = false

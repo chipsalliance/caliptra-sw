@@ -30,6 +30,7 @@ mod mailbox;
 mod pcr_bank;
 mod sha256;
 mod sha384;
+mod sha384acc;
 
 pub type CaliptraResult<T> = Result<T, u32>;
 pub use array::{Array4x12, Array4x4, Array4x8};
@@ -46,6 +47,7 @@ pub use mailbox::{Mailbox, MailboxSendTxn, MailboxRecvTxn};
 pub use pcr_bank::{PcrBank, PcrId};
 pub use sha256::Sha256;
 pub use sha384::{Sha384, Sha384Data, Sha384Digest};
+pub use sha384acc::Sha384Acc;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "emu")] {

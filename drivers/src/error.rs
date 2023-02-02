@@ -37,6 +37,9 @@ pub enum CptrComponent {
 
     /// Mailbox
     Mailbox = 8,
+
+    /// SHA384 Accelerator
+    Sha384Acc = 9,
 }
 
 #[macro_export]
