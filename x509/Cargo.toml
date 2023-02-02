@@ -1,0 +1,23 @@
+[package]
+name = "caliptra-x509"
+version = "0.1.0"
+edition = "2021"
+build = "build/build.rs"
+
+[lib]
+doctest = false
+
+[dependencies]
+
+[build-dependencies]
+openssl = "0.10.45"
+hex = "0.4.3"
+bitfield = "0.14.0"
+asn1 = "0.13.0"
+syn = "1.0.107"
+convert_case = "0.6.0"
+quote = "1.0.23"
+
+[dev-dependencies]
+openssl = "0.10.45"
+hex = "0.4.3"

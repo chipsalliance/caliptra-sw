@@ -11,4 +11,5 @@ members = [
   "ureg/lib/schema",
   "ureg/lib/codegen",
   "ureg/lib/systemrdl",
+  "x509"
 ]
