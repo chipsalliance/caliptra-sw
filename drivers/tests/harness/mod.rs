@@ -54,8 +54,8 @@ macro_rules! test_suite {
             println!("Error: {}\n", info);
             cfg_if::cfg_if! {
                 if #[cfg(feature = "emu")] {
-                    use caliptra_lib::EmuCtrl;
-                    EmuCtrl::exit(u32::MAX);
+                    use caliptra_lib::ExitCtrl;
+                    ExitCtrl::exit(u32::MAX);
                 } else {
                     loop {}
                 }
