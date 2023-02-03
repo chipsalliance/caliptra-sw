@@ -42,7 +42,7 @@ pub use error::CptrComponent;
 pub use hmac384::Hmac384;
 pub use key_vault::{KeyId, KeyUsage, KeyVault};
 pub use kv_access::{KeyReadArgs, KeyWriteArgs};
-pub use mailbox::Mailbox;
+pub use mailbox::{Mailbox, MailboxSendTxn, MailboxRecvTxn};
 pub use pcr_bank::{PcrBank, PcrId};
 pub use sha256::Sha256;
 pub use sha384::{Sha384, Sha384Data, Sha384Digest};

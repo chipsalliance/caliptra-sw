@@ -16,31 +16,104 @@ Abstract:
 #![no_main]
 
 use caliptra_lib::Mailbox;
+use caliptra_registers::mbox::{self};
+use core::mem::size_of;
+use core::slice;
+
 mod harness;
 
+fn test_send_txn_drop() {
+    let mut ii = 0;
+    while ii < 2 {
+        if let Ok(txn) = Mailbox::try_start_send_txn() {
+            drop(txn);
+        } else {
+            assert!(false);
+        }
+        ii = ii + 1;
+    }
+}
+
+fn test_send_txn_error() {
+    if let Ok(mut txn) = Mailbox::try_start_send_txn() {
+        assert!(txn.write_dlen(0x01).is_err());
+        assert!(txn.execute_request().is_err());
+        assert!(txn.complete().is_err());
+        drop(txn);
+    }
+}
+
+fn test_try_start_rcv_txn_error() {
+    if let Ok(_recv_txn) = Mailbox::try_start_recv_txn() {
+        assert!(false);
+    }
+    if let Ok(_txn) = Mailbox::try_start_send_txn() {
+        if let Ok(_recv_txn) = Mailbox::try_start_recv_txn() {
+            assert!(false);
+        }    
+    } else {
+        assert!(false);
+    }
+}
+
 fn test_mailbox_loopback() {
-    // Initialize a send buffer of 4 dwords
-    let data_send: [u32; 4] = [0xAAAAAAAA, 0xBBBBBBBB, 0xCCCCCCCC, 0xDDDDDDDD];
+    // Send an u32 to ourselves.
+    #[repr(align(4))]
+    struct Aligner {
+        pub data_to_send: [u32; 4],
+    }
 
-    // Initialize an empty receive buffer of 4 dwords
-    let mut data_recv: [u32; 4] = [0; 4];
+    impl Aligner {
+        pub fn new() -> Self {
+            Self {
+                data_to_send: [
+                    0xAABBCCDD_u32,
+                    0x11223344_u32,
+                    0x55667788_u32,
+                    0x99AABBCC_u32,
+                ],
+            }
+        }
+    }
+    let aligner = Aligner::new();
+    let request = unsafe {
+        slice::from_raw_parts(
+            aligner.data_to_send.as_ptr() as *const u8,
+            4 * size_of::<u32>() - 1,
+        )
+    };
+    let mut request_received = [0u8; 128];
 
-    // Send Data to the Mailbox
-    let mut result = Mailbox::send(0xdeadbeef, &data_send);
-    assert!(result.is_ok());
 
-    // Retrieve Data Len (in Bytes) and check against the Data Buffer
-    let dlen = Mailbox::get_data_len();
-    assert_eq!(dlen, (data_send.len() as u32) * 4);
+    let mut ii = 0;
+    while ii < 2 {
+        if let Ok(mut txn) = Mailbox::try_start_send_txn() {
+            const CMD: u32 = 0x1c;
 
-    // Receive Data Back from the Mailbox
-    result = Mailbox::recv(&mut data_recv, |_x, _y| true);
-    assert!(result.is_ok());
+            assert!(txn.send_request(CMD, request).is_ok());
+            drop(txn);
 
-    // Verify Received Data against what it was sent
-    assert_eq!(data_send, data_recv);
+            let mbox = mbox::RegisterBlock::mbox_csr();
+            assert_eq!(mbox.dlen().read(), request.len() as u32);
+            // Initialize an empty receive buffer.
+            // Send a bigger buffer than needed.
+            if let Ok(mut recv_txn) = Mailbox::try_start_recv_txn() {
+                assert_eq!(mbox.dlen().read(), recv_txn.dlen());
+                assert!(recv_txn.recv_request(&mut request_received[..]).is_ok());
+                assert_eq!(request, &request_received[..request.len()]);
+                assert!(recv_txn.recv_request(&mut request_received[..]).is_err());
+                for nn in &mut request_received[0..request.len()] { *nn = 42 }
+            }
+        } else {
+            assert!(false);
+        }
+        ii = ii + 1;
+    }
 }
 
 test_suite! {
+    test_try_start_rcv_txn_error,    
+    test_send_txn_drop,
+    test_send_txn_error,
     test_mailbox_loopback,
 }

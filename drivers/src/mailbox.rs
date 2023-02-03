@@ -12,147 +12,342 @@ Abstract:
 
 --*/
 
-//use crate::reg::mailbox_regs::*;
 use crate::{caliptra_err_def, CaliptraResult};
 use caliptra_registers::mbox::{self, enums::MboxStatusE};
-use core::mem;
-//use tock_registers::interfaces::{Readable, Writeable};
-
-#[derive(PartialEq)]
-pub enum Status {
-    Busy = 0,
-    DataReady = 0x1,
-    CmdComplete = 0x2,
-    CmdFailure = 0x3,
-}
+use core::cmp::min;
+use core::mem::size_of;
 
 caliptra_err_def! {
     Mailbox,
     MailboxErr
     {
-        // Data Exceed max size
-        MaxDataErr = 0x1,
-
+        // Invalid state
+        InvalidStateErr = 0x1,
+        // Exceeds mailbox capacity
+        InvalidDlenErr = 0x2,
+        // No data avaiable.
+        NoDataAvailErr = 0x03,
     }
 }
 
-const MAX_MAILBOX_LEN: usize = 128 * 1024;
+#[derive(Copy, Clone, Default, Eq, PartialEq)]
+/// Malbox operational states
+pub enum MailboxOpState {
+    #[default]
+    RdyForCmd,
+    RdyForDlen,
+    RdyForData,
+    Execute,
+    Idle,
+}
 
-pub enum Mailbox {}
+#[derive(Default)]
+/// Caliptra mailbox abstraction
+pub struct Mailbox {}
+
+const MAX_MAILBOX_LEN: u32 = 128 * 1024;
+
 
 impl Mailbox {
-    /// Send Data to SOC
+    /// Attempt to acquire the lock to start sending data.
+    /// # Returns
+    /// * `MailboxSendTxn` - Object representing a send operation
+    pub fn try_start_send_txn() -> CaliptraResult<MailboxSendTxn> {
+        let mbox = mbox::RegisterBlock::mbox_csr();
+        if mbox.lock().read().lock() {
+            raise_err!(InvalidStateErr)
+        } else {
+            Ok(MailboxSendTxn::default())
+        }
+    }
+
+    /// Attempts to start receiving data by checking the status.
+    /// # Returns
+    /// * 'MailboxRecvTxn' - Object representing a receive operation
+    pub fn try_start_recv_txn() -> CaliptraResult<MailboxRecvTxn> {
+        let mbox = mbox::RegisterBlock::mbox_csr();
+        match mbox.status().read().status() {
+            MboxStatusE::DataReady => Ok(MailboxRecvTxn::default()),
+            _ => raise_err!(NoDataAvailErr),
+        }
+    }
+}
+
+#[derive(Default)]
+/// Mailbox send protocol abstraction
+pub struct MailboxSendTxn {
+    /// Current state.
+    state: MailboxOpState,
+}
+
+impl MailboxSendTxn {
+    ///
+    /// Transitions from RdyCmd --> RdyForDlen 
+    ///
+    pub fn write_cmd(&mut self, cmd: u32) -> CaliptraResult<()> {
+        if self.state != MailboxOpState::RdyForCmd {
+            raise_err!(InvalidStateErr)
+        }
+        let mbox = mbox::RegisterBlock::mbox_csr();
+
+        // Write Command :
+        mbox.cmd().write(|_| cmd);
+
+        self.state = MailboxOpState::RdyForDlen;
+        Ok(())
+    }
+
+    ///
+    /// Writes number of bytes to data length register.
+    /// Transitions from RdyForDlen --> RdyForData 
+    ///
+    pub fn write_dlen(&mut self, dlen: u32) -> CaliptraResult<()> {
+        if self.state != MailboxOpState::RdyForDlen {
+            raise_err!(InvalidStateErr)
+        }
+        let mbox = mbox::RegisterBlock::mbox_csr();
+
+        if dlen > MAX_MAILBOX_LEN {
+            raise_err!(InvalidDlenErr);
+        }
+
+        // Write Len in Bytes
+        mbox.dlen().write(|_| dlen);
+
+        self.state = MailboxOpState::RdyForData;
+        Ok(())
+
+    }
+    
+    /// Transitions mailbox to RdyForData state and copies data to mailbox.
     /// * 'cmd' - Command to Be Sent
     /// * 'data' - Data Bufer
-    /// # Returns
-    ///
-    /// * Lock Status
-    pub fn send(cmd: u32, data: &[u32]) -> CaliptraResult<bool> {
-        // Check Max Len
-        if (data.len() * mem::size_of::<u32>()) > MAX_MAILBOX_LEN {
-            raise_err!(MaxDataErr)
+    pub fn copy_request(&mut self, cmd: u32, data: &[u8]) -> CaliptraResult<()> {
+        if self.state != MailboxOpState::RdyForCmd {
+            raise_err!(InvalidStateErr)
         }
+
+        self.write_cmd(cmd)?;
+
+        self.write_dlen(data.len() as u32)?;
+
+        // Copy data to mailbox
+        self.enqueue(data);
+
+        // Write Status
+        let mbox = mbox::RegisterBlock::mbox_csr();
+        mbox.status().write(|w| w.status(|w| w.data_ready()));
+
+        self.state = MailboxOpState::RdyForData;
+
+        Ok(())
+    }
+
+    fn enqueue(&self, buf: &[u8]) {
+        let remainder = buf.len() % size_of::<u32>();
+        let n = buf.len() - remainder;
 
         let mbox = mbox::RegisterBlock::mbox_csr();
 
-        // if Locked return an error
-        if mbox.lock().read().lock() {
-            return Ok(false);
+        for idx in (0..n).step_by(size_of::<u32>()) {
+            mbox.datain()
+                .write(|_| u32::from_le_bytes(buf[idx..idx + 4].try_into().unwrap()));
         }
 
-        // Write Command
-        mbox.cmd().write(|_| cmd);
-
-        // Write Len in Bytes
-        mbox.dlen()
-            .write(|_| (data.len() * mem::size_of::<u32>()) as u32);
-
-        // Write Data
-        for word in data {
-            mbox.datain().write(|_| *word);
+        // Handle the remainder.
+        if remainder > 0 {
+            let mut block_part = buf[n] as u32;
+            for idx in 1..remainder {
+                block_part |= (buf[n + idx] as u32) << (idx << 3);
+            }
+            mbox.datain().write(|_| block_part);
         }
-        // Write Status
-        mbox.status().write(|w| w.status(|w| w.data_ready()));
+    }
+
+    ///
+    /// Transitions from RdyForData --> Execute 
+    ///
+    pub fn execute_request(&mut self) -> CaliptraResult<()> {
+        if self.state != MailboxOpState::RdyForData {
+            raise_err!(InvalidStateErr)
+        }
+
+        let mbox = mbox::RegisterBlock::mbox_csr();
 
         // Set Execute Bit
         mbox.execute().write(|w| w.execute(true));
 
-        Ok(true)
+        self.state = MailboxOpState::Execute;
+        
+        Ok(())
     }
 
-    /// Read Status Register
-    /// # Returns
-    ///
-    /// * Status Register
-    fn status() -> Status {
+    /// Send Data to SOC
+    /// * 'cmd' - Command to Be Sent
+    /// * 'data' - Data Bufer
+    pub fn send_request(&mut self, cmd: u32, data: &[u8]) -> CaliptraResult<()> {
+        self.copy_request(cmd, data)?;
+        self.execute_request()?;
+        Ok(())
+    }
+
+    /// Checks if receiver processed the request.
+    pub fn is_response_ready(&self) -> bool {
         let mbox = mbox::RegisterBlock::mbox_csr();
         match mbox.status().read().status() {
-            MboxStatusE::CmdBusy => Status::Busy,
-            MboxStatusE::DataReady => Status::DataReady,
-            MboxStatusE::CmdComplete => Status::CmdComplete,
-            MboxStatusE::CmdFailure => Status::CmdFailure,
+            MboxStatusE::CmdComplete | MboxStatusE::CmdFailure => true,
+            _ => false,
         }
     }
 
-    /// Read Data Len in Mailbox
-    /// # Returns
+    pub fn status(&self) -> MboxStatusE {
+        let mbox = mbox::RegisterBlock::mbox_csr();
+        mbox.status().read().status()
+    }
+
     ///
-    /// * Data Len in Bytes
-    pub fn get_data_len() -> u32 {
+    /// Transitions from Execute --> Idle (releases the lock) 
+    ///
+    pub fn complete(&mut self) -> CaliptraResult<()> {
+        if self.state != MailboxOpState::Execute {
+            raise_err!(InvalidStateErr)
+        }
+        let mbox = mbox::RegisterBlock::mbox_csr();
+        mbox.execute().write(|w| w.execute(false));
+        self.state = MailboxOpState::Idle;
+        Ok(())
+    }
+}
+
+impl Drop for MailboxSendTxn {
+    fn drop(&mut self) {
+        //
+        // Release the lock by transitioning the mailbox state machine back
+        // to Idle.
+        //
+        if self.state == MailboxOpState::RdyForCmd {
+            //
+            // Send dummy request to transition the state machine to execute state.
+            //
+            self.send_request(0, &[]).unwrap();
+            // Release the lock
+            self.complete().unwrap();
+        }
+    }
+}
+
+/// Mailbox recveive protocol abstraction
+pub struct MailboxRecvTxn {
+    /// Current state of transaction
+    state: MailboxOpState,
+}
+
+impl Default for MailboxRecvTxn {
+    fn default() -> Self {
+        Self {
+            state : MailboxOpState::Execute,
+        }
+    }
+}
+
+impl MailboxRecvTxn {
+    /// Returns the value stored in the command register
+    pub fn cmd(&self) -> u32 {
+        let mbox = mbox::RegisterBlock::mbox_csr();
+        mbox.cmd().read()
+    }
+
+    /// Returns the value stored in the data length register
+    pub fn dlen(&self) -> u32 {
         let mbox = mbox::RegisterBlock::mbox_csr();
         mbox.dlen().read()
     }
 
-    /// Receive data from SOC
-    ///
+    fn dequeue(&self, buf: &mut [u8]) {
+        let mbox = mbox::RegisterBlock::mbox_csr();
+
+        let byte_count = min(buf.len(), mbox.dlen().read() as usize);
+        let remainder = byte_count % size_of::<u32>();
+
+        let n = byte_count - remainder;
+
+        for idx in (0..n).step_by(size_of::<u32>()) {
+            buf[idx..idx + size_of::<u32>()].copy_from_slice(&mbox.dataout().read().to_le_bytes());
+        }
+
+        // Handle the remainder.    
+        if remainder > 0 {
+            let part = mbox.dataout().read();
+            for idx in 0..remainder {
+                buf[n + idx] = ((part >> (idx << 3)) & 0xFF) as u8;
+            }
+            mbox.datain().write(|_| part);
+        }
+    }
+
+    /// Retrieves data from the maibox without performing state transition.
     /// # Arguments
     ///
-    /// * `buffer` - Data to used to update the digest
-    /// * 'handler' - Process Handler
+    /// * `data` - data buffer.
     ///
     /// # Returns
     ///
     /// Status of Operation
-    ///
-    pub fn recv(
-        buffer: &mut [u32],
-        mut handler: impl FnMut(u32, &mut [u32]) -> bool,
-    ) -> CaliptraResult<bool> {
-        // Check if Data Ready
-        if Mailbox::status() != Status::DataReady {
-            return Ok(false);
+    ///   
+    pub fn copy_request(&self, offset: usize, data: &mut [u8]) -> CaliptraResult<()> {
+        if self.state != MailboxOpState::Execute {
+            raise_err!(InvalidStateErr)
         }
+        self.dequeue(&mut data[offset..]);
+        Ok(())
+    }
+
+    /// Retrieves data from the maibox.
+    /// Transitions from Execute --> Idle (releases the lock) 
+    /// # Arguments
+    ///
+    /// * `data` - data buffer.
+    ///
+    /// # Returns
+    ///
+    /// Status of Operation
+    ///   
+    pub fn recv_request(&mut self, data: &mut [u8]) -> CaliptraResult<()> {
+        self.copy_request(0, data)?;
+        self.complete(true)?;
+        Ok(())
+    }
+
+    ///
+    /// Transitions from Execute --> Idle 
+    ///
+    pub fn complete(&mut self, success: bool) -> CaliptraResult<()> {
+        if self.state != MailboxOpState::Execute {
+            raise_err!(InvalidStateErr)
+        }
+        let status = if success {
+            MboxStatusE::CmdComplete
+        } else {
+            MboxStatusE::CmdFailure
+        };
 
         let mbox = mbox::RegisterBlock::mbox_csr();
-        // Set Status Busy
-        mbox.status().write(|w| w.status(|w| w.cmd_busy()));
+        mbox.status().write(|w| w.status(|_| status));
 
-        // Read len
-        let dlen = mbox.dlen().read();
-        if dlen > (buffer.len() * mem::size_of::<u32>()) as u32 {
-            raise_err!(MaxDataErr);
-        }
-
-        // Read Command
-        let cmd = mbox.cmd().read();
-
-        // Read Data
-        // Todo: Shall this logic go to slice ?
-        for word in buffer.iter_mut() {
-            *word = mbox.dataout().read();
-        }
-
-        // Call Handler
-        let rc = handler(cmd, buffer);
-        match rc {
-            // Set Status Busy
-            true => mbox.status().write(|w| w.status(|w| w.cmd_complete())),
-            false => mbox.status().write(|w| w.status(|w| w.cmd_failure())),
-        }
-
-        // ReSet Execute Bit
+        // Release the lock
+        let mbox = mbox::RegisterBlock::mbox_csr();
         mbox.execute().write(|w| w.execute(false));
 
-        Ok(rc)
+        self.state = MailboxOpState::Idle;
+        Ok(())
+    }
+}
+
+impl Drop for MailboxRecvTxn {
+    fn drop(&mut self) {
+        if self.state != MailboxOpState::Idle {
+            // Execute -> Idle (releases lock)
+            self.complete(false).unwrap();
+        }
     }
 }
