@@ -51,13 +51,13 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x2000_f000, mask = 0x0000_0fff)]
     pub ctrl: EmuCtrl,
 
-    #[peripheral(offset = 0x3002_0000, mask = 0x0000_001f)]
+    #[peripheral(offset = 0x3002_0000, mask = 0x0000_0fff)]
     pub mailbox: Mailbox,
 
     #[peripheral(offset = 0x3002_1000, mask = 0x0000_0fff)]
     pub sha512_acc: Sha512Accelerator,
 
-    #[peripheral(offset = 0x3002_0020, mask = 0x0001_ffff)]
+    #[peripheral(offset = 0x3003_0000, mask = 0x0000_ffff)]
     pub soc_reg: SocRegisters,
 
     #[peripheral(offset = 0x5000_0000, mask = 0x0fff_ffff)]

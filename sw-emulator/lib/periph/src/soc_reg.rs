@@ -13,10 +13,13 @@ Abstract:
 --*/
 
 use caliptra_emu_bus::BusError::{LoadAccessFault, StoreAccessFault};
-use caliptra_emu_bus::{Bus, BusError, ReadOnlyMemory, ReadOnlyRegister, ReadWriteRegister};
+use caliptra_emu_bus::{
+    Bus, BusError, ReadOnlyMemory, ReadOnlyRegister, ReadWriteRegister, WriteOnlyRegister,
+};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::cell::RefCell;
+use std::process::exit;
 use std::rc::Rc;
 use tock_registers::interfaces::Readable;
 use tock_registers::register_bitfields;
@@ -309,6 +312,10 @@ struct SocRegistersImpl {
     #[register(offset = 0x0000_0098)]
     clk_gating_enable: ReadWriteRegister<u32, ClockGatingEnable::Register>,
 
+    /// Debug output and exit control
+    #[register(offset = 0x0000_00A8, write_fn = on_write_stdout)]
+    stdout: WriteOnlyRegister<u32>,
+
     /// [TODO] Generic Input Wires
     /// [TODO] Generic Output Wires
 
@@ -419,6 +426,7 @@ impl SocRegistersImpl {
                 (SecurityState::DEBUG_LOCKED::CLEAR + SecurityState::LIFE_CYCLE::UNPROVISIONED)
                     .value,
             ),
+            stdout: WriteOnlyRegister::new(0),
             timer_cfg: ReadOnlyRegister::new(Self::CLOCK_PERIOD),
             fuse_write_done: ReadWriteRegister::new((FuseWriteDone::DONE::CLEAR).value),
             boot_fsm_go: ReadWriteRegister::new((BootFsmGo::GO::CLEAR).value),
@@ -456,6 +464,30 @@ impl SocRegistersImpl {
         self.uds.data_mut().fill(0);
         self.field_entropy.data_mut().fill(0);
         self.doe_key.data_mut().fill(0);
+    }
+
+    /// On Write callback for `stdout` register
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - Size of the write
+    /// * `val` - Data to write
+    ///
+    /// # Error
+    ///
+    /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
+    pub fn on_write_stdout(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
+        if size != RvSize::Word {
+            Err(BusError::StoreAccessFault)?
+        }
+
+        let val = (val & 0xFF) as u8;
+        match val {
+            0xFF => exit(0),
+            _ => print!("{}", val as char),
+        }
+
+        Ok(())
     }
 }
 
