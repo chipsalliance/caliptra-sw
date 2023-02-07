@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use crate::key_vault::KeyUsage;
 use crate::KeyVault;
 use caliptra_emu_bus::{
     BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister, Timer,
@@ -381,6 +382,7 @@ impl HashSha512 {
     fn block_read_complete(&mut self) {
         let key_id = self.block_read_ctrl.reg.read(BlockReadControl::KEY_ID);
         let mut size = self.block_read_ctrl.reg.read(BlockReadControl::KEY_SIZE);
+
         // Max key slot size is 64 bytes
         if size > 15 {
             size = 15;
@@ -391,7 +393,10 @@ impl HashSha512 {
         // Clear the block
         self.block.data_mut().fill(0);
 
-        let result = self.key_vault.read_key(key_id);
+        let mut key_usage = KeyUsage::default();
+        key_usage.set_sha_data(true);
+
+        let result = self.key_vault.read_key(key_id, key_usage);
         let (block_read_result, data) = match result.err() {
             Some(BusError::LoadAccessFault) | Some(BusError::LoadAddrMisaligned) => {
                 (BlockReadStatus::ERROR::KV_READ_FAIL.value, None)
@@ -566,7 +571,8 @@ mod tests {
     enum KeyVaultAction {
         BlockFromVault(u32),
         HashToVault(u32),
-        BlockReadFailTest(bool),
+        BlockReadDisallowed(bool),
+        BlockDisallowedForSHA(bool),
         HashWriteFailTest(bool),
     }
 
@@ -592,8 +598,9 @@ mod tests {
         let totalblocks = ((data.len() + 16) + SHA512_BLOCK_SIZE) / SHA512_BLOCK_SIZE;
         let totalbytes = totalblocks * SHA512_BLOCK_SIZE;
         let mut block_arr = vec![0; totalbytes];
-        let mut block_read_fail_test = false;
+        let mut block_read_disallowed = false;
         let mut hash_write_fail_test = false;
+        let mut block_disallowed_for_sha = false;
 
         for (_idx, action) in keyvault_actions.iter().enumerate() {
             match action {
@@ -605,11 +612,14 @@ mod tests {
                     hash_to_kv = true;
                     hash_id = *id;
                 }
-                KeyVaultAction::BlockReadFailTest(val) => {
-                    block_read_fail_test = *val;
+                KeyVaultAction::BlockReadDisallowed(val) => {
+                    block_read_disallowed = *val;
                 }
                 KeyVaultAction::HashWriteFailTest(val) => {
                     hash_write_fail_test = *val;
+                }
+                KeyVaultAction::BlockDisallowedForSHA(val) => {
+                    block_disallowed_for_sha = *val;
                 }
             }
         }
@@ -636,13 +646,29 @@ mod tests {
             let mut expanded_block: [u8; 64] = [0; 64];
             expanded_block[..data.len()].copy_from_slice(&data);
             expanded_block.to_big_endian(); // Keys are stored in big-endian format.
+            let mut key_usage = KeyUsage::default();
+            key_usage.set_sha_data(true);
+
             key_vault
-                .write_key(block_id, &expanded_block, 0x3F)
+                .write_key(block_id, &expanded_block, u32::from(key_usage))
                 .unwrap();
 
-            if block_read_fail_test == true {
+            if block_read_disallowed == true {
                 let val_reg = InMemoryRegister::<u32, key_vault::KV_CONTROL::Register>::new(0);
                 val_reg.write(key_vault::KV_CONTROL::USE_LOCK.val(1)); // Key read disabled.
+                assert_eq!(
+                    key_vault
+                        .write(
+                            RvSize::Word,
+                            KV_OFFSET_KEY_CONTROL + (block_id * KEY_CONTROL_REG_WIDTH),
+                            val_reg.get()
+                        )
+                        .ok(),
+                    Some(())
+                );
+            } else if block_disallowed_for_sha {
+                let val_reg = InMemoryRegister::<u32, key_vault::KV_CONTROL::Register>::new(0);
+                val_reg.write(key_vault::KV_CONTROL::USAGE.val(!(u32::from(key_usage)))); // Block disallowed for SHA use.
                 assert_eq!(
                     key_vault
                         .write(
@@ -656,7 +682,7 @@ mod tests {
             }
         }
 
-        // For negative hash write test, make the key-slot unwritable.
+        // For negative hash write test, make the key-slot uneditable.
         if hash_write_fail_test == true {
             assert_eq!(hash_to_kv, true);
             let val_reg = InMemoryRegister::<u32, key_vault::KV_CONTROL::Register>::new(0);
@@ -677,9 +703,13 @@ mod tests {
 
         if hash_to_kv == true {
             // Instruct hash to be written to the key-vault.
+            let mut key_usage = KeyUsage::default();
+            key_usage.set_sha_data(true);
             let hash_ctrl = InMemoryRegister::<u32, HashWriteControl::Register>::new(0);
             hash_ctrl.modify(
-                HashWriteControl::KEY_ID.val(hash_id) + HashWriteControl::KEY_WRITE_EN.val(1),
+                HashWriteControl::KEY_ID.val(hash_id)
+                    + HashWriteControl::KEY_WRITE_EN.val(1)
+                    + HashWriteControl::USAGE.val(u32::from(key_usage)),
             );
 
             assert_eq!(
@@ -706,7 +736,7 @@ mod tests {
                     );
                 }
             } else {
-                // There will always be a single block retireved from the key-vault for sha512.
+                // There will always be a single block retrieved from the key-vault for sha512.
                 assert_eq!(totalblocks, 1);
 
                 // Instruct block to be read from key-vault.
@@ -734,7 +764,7 @@ mod tests {
                         if block_read_status.read(BlockReadStatus::ERROR)
                             != BlockReadStatus::ERROR::KV_SUCCESS.value
                         {
-                            assert_eq!(block_read_fail_test, true);
+                            assert_eq!((block_read_disallowed || block_disallowed_for_sha), true);
                             return;
                         }
 
@@ -805,7 +835,9 @@ mod tests {
 
         let mut hash_le: [u8; 64] = [0; 64];
         if hash_to_kv == true {
-            hash_le = sha512.key_vault.read_key(hash_id).unwrap();
+            let mut key_usage = KeyUsage::default();
+            key_usage.set_sha_data(true);
+            hash_le = sha512.key_vault.read_key(hash_id, key_usage).unwrap();
         } else {
             hash_le[..sha512.hash().len()].clone_from_slice(&sha512.hash());
         }
@@ -924,6 +956,7 @@ mod tests {
             0x5c, 0x36, 0x3a, 0xa3, 0xc7, 0x9b,
         ];
 
+        // [Test] Block is read-protected.
         for key_id in 0..8 {
             test_sha(
                 &test_block,
@@ -931,7 +964,20 @@ mod tests {
                 Sha512Mode::Sha384,
                 &vec![
                     KeyVaultAction::BlockFromVault(key_id),
-                    KeyVaultAction::BlockReadFailTest(true),
+                    KeyVaultAction::BlockReadDisallowed(true),
+                ],
+            );
+        }
+
+        // [Test] Key cannot be used as a SHA block.
+        for key_id in 0..8 {
+            test_sha(
+                &test_block,
+                &expected,
+                Sha512Mode::Sha384,
+                &vec![
+                    KeyVaultAction::BlockFromVault(key_id),
+                    KeyVaultAction::BlockDisallowedForSHA(true),
                 ],
             );
         }

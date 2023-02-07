@@ -194,6 +194,7 @@ impl Doe {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::KeyUsage;
     use caliptra_emu_bus::Bus;
     use caliptra_emu_crypto::EndianessTransform;
     use caliptra_emu_types::RvAddr;
@@ -261,7 +262,13 @@ mod tests {
             clock.increment_and_poll(1, &mut doe);
         }
 
-        assert_eq!(key_vault.read_key(2).unwrap()[..48], PLAIN_TEXT_UDS);
+        let mut key_usage = KeyUsage::default();
+        key_usage.set_hmac_data(true);
+
+        assert_eq!(
+            key_vault.read_key(2, key_usage).unwrap()[..48],
+            PLAIN_TEXT_UDS
+        );
     }
 
     #[test]
@@ -312,7 +319,10 @@ mod tests {
             clock.increment_and_poll(1, &mut doe);
         }
 
-        assert_eq!(key_vault.read_key(3).unwrap(), PLAIN_TEXT_FE);
+        let mut key_usage = KeyUsage::default();
+        key_usage.set_hmac_data(true);
+
+        assert_eq!(key_vault.read_key(3, key_usage).unwrap(), PLAIN_TEXT_FE);
     }
 
     #[test]

@@ -33,6 +33,7 @@ pub use emu_ctrl::EmuCtrl;
 pub use hash_sha256::HashSha256;
 pub use hash_sha512::HashSha512;
 pub use hmac_sha384::HmacSha384;
+pub use key_vault::KeyUsage;
 pub use key_vault::KeyVault;
 pub use mailbox::Mailbox;
 pub use root_bus::CaliptraRootBus;

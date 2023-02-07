@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use bitfield::bitfield;
 use caliptra_emu_bus::{Bus, BusError, ReadWriteMemory, ReadWriteRegisterArray};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
@@ -57,8 +58,12 @@ impl KeyVault {
     }
 
     /// Internal emulator interface to read key from key vault
-    pub fn read_key(&self, key_id: u32) -> Result<[u8; Self::KEY_SIZE], BusError> {
-        self.regs.borrow().read_key(key_id)
+    pub fn read_key(
+        &self,
+        key_id: u32,
+        desired_usage: KeyUsage,
+    ) -> Result<[u8; Self::KEY_SIZE], BusError> {
+        self.regs.borrow().read_key(key_id, desired_usage)
     }
 
     /// Internal emulator interface to write key to key vault
@@ -106,6 +111,38 @@ impl Bus for KeyVault {
             }
             _ => self.regs.borrow_mut().write(size, addr, val),
         }
+    }
+}
+
+bitfield! {
+    /// Key Usage
+    #[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
+    pub struct KeyUsage(u32);
+
+    /// Flag indicating if the key can be used as HMAC key
+    pub hmac_key, set_hmac_key: 0;
+
+    /// Flag indicating if the key can be used as HMAC data
+    pub hmac_data, set_hmac_data: 1;
+
+    /// Flag indicating if the key can be used as SHA data
+    pub sha_data, set_sha_data: 2;
+
+    /// Flag indicating if the key can be used aas ECC Private Key
+    pub ecc_private_key, set_ecc_private_key: 3;
+
+    /// Flag indicating if the key can be used aas ECC Key Generation Seed
+    pub ecc_key_gen_seed, set_ecc_key_gen_seed: 4;
+
+    /// Flag indicating if the key can be used aas ECC data part of signature
+    /// generation and verification process
+    pub ecc_data, set_ecc_data:5;
+}
+
+impl From<KeyUsage> for u32 {
+    /// Converts to this type from the input type.
+    fn from(key_usage: KeyUsage) -> Self {
+        key_usage.0
     }
 }
 
@@ -230,9 +267,15 @@ impl KeyVaultRegs {
         }
     }
 
-    pub fn read_key(&self, key_id: u32) -> Result<[u8; Self::KEY_SIZE], BusError> {
+    pub fn read_key(
+        &self,
+        key_id: u32,
+        desired_usage: KeyUsage,
+    ) -> Result<[u8; Self::KEY_SIZE], BusError> {
         let key_ctrl_reg = &self.key_control[key_id as usize];
-        if key_ctrl_reg.read(KV_CONTROL::USE_LOCK) != 0 {
+        if (key_ctrl_reg.read(KV_CONTROL::USE_LOCK) != 0)
+            || ((key_ctrl_reg.read(KV_CONTROL::USAGE) & u32::from(desired_usage)) == 0)
+        {
             Err(BusError::LoadAccessFault)?
         }
         let key_start = key_id as usize * Self::KEY_SIZE;
@@ -340,10 +383,14 @@ mod tests {
         ];
 
         let mut vault = KeyVault::new();
+        let mut key_usage = KeyUsage::default();
+        key_usage.set_hmac_data(true); // dummy usage.
 
         for idx in 0..8 {
-            vault.write_key(idx, &expected, 0).unwrap();
-            let returned = vault.read_key(idx).unwrap();
+            vault
+                .write_key(idx, &expected, u32::from(key_usage))
+                .unwrap();
+            let returned = vault.read_key(idx, key_usage).unwrap();
             assert_eq!(&returned, &expected);
         }
     }
@@ -359,6 +406,8 @@ mod tests {
         ];
 
         let mut vault = KeyVault::new();
+        let mut key_usage = KeyUsage::default();
+        key_usage.set_hmac_data(true); // dummy usage.
 
         for key_id in 0..8 {
             let val_reg = InMemoryRegister::<u32, KV_CONTROL::Register>::new(0);
@@ -373,7 +422,12 @@ mod tests {
                 Some(())
             );
 
-            assert_eq!(vault.write_key(key_id, &expected, 0).is_ok(), true);
+            assert_eq!(
+                vault
+                    .write_key(key_id, &expected, u32::from(key_usage))
+                    .is_ok(),
+                true
+            );
 
             // Block read access to the key.
             val_reg.write(KV_CONTROL::USE_LOCK.val(1));
@@ -389,7 +443,7 @@ mod tests {
             );
 
             assert_eq!(
-                vault.read_key(key_id).err(),
+                vault.read_key(key_id, key_usage).err(),
                 Some(BusError::LoadAccessFault)
             );
         }
@@ -406,8 +460,10 @@ mod tests {
         ];
 
         let mut vault = KeyVault::new();
+        let mut key_usage = KeyUsage::default();
+        key_usage.set_hmac_data(true); // dummy usage.
         let val_reg = InMemoryRegister::<u32, KV_CONTROL::Register>::new(0);
-        val_reg.write(KV_CONTROL::WRITE_LOCK.val(1)); // Key write disabled.
+        val_reg.write(KV_CONTROL::WRITE_LOCK.val(1) + KV_CONTROL::USAGE.val(u32::from(key_usage))); // Key write disabled.
 
         for key_id in 0..8 {
             assert_eq!(
@@ -422,7 +478,9 @@ mod tests {
             );
 
             assert_eq!(
-                vault.write_key(key_id, &expected, 0).err(),
+                vault
+                    .write_key(key_id, &expected, u32::from(key_usage))
+                    .err(),
                 Some(BusError::StoreAccessFault)
             );
         }
@@ -441,12 +499,19 @@ mod tests {
         let cleared_key: [u8; 64] = [0; 64];
 
         let mut vault = KeyVault::new();
+        let mut key_usage = KeyUsage::default();
+        key_usage.set_hmac_data(true); // dummy usage.
         let val_reg = InMemoryRegister::<u32, KV_CONTROL::Register>::new(0);
-        val_reg.write(KV_CONTROL::CLEAR.val(1)); // Clear key.
+        val_reg.write(KV_CONTROL::CLEAR.val(1) + KV_CONTROL::USAGE.val(u32::from(key_usage))); // Clear key.
 
         for key_id in 0..8 {
-            assert_eq!(vault.write_key(key_id, &expected, 0).ok(), Some(()));
-            assert_eq!(&vault.read_key(key_id).unwrap(), &expected);
+            assert_eq!(
+                vault
+                    .write_key(key_id, &expected, u32::from(key_usage))
+                    .ok(),
+                Some(())
+            );
+            assert_eq!(&vault.read_key(key_id, key_usage).unwrap(), &expected);
 
             // Clear the key.
             assert_eq!(
@@ -460,7 +525,7 @@ mod tests {
                 Some(())
             );
 
-            assert_eq!(&vault.read_key(key_id).unwrap(), &cleared_key);
+            assert_eq!(&vault.read_key(key_id, key_usage).unwrap(), &cleared_key);
         }
     }
 }

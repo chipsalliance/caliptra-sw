@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::KeyVault;
+use crate::{KeyUsage, KeyVault};
 use caliptra_emu_bus::{
     BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister, Timer,
     TimerAction,
@@ -531,7 +531,10 @@ impl AsymEcc384 {
     fn key_read_complete(&mut self) {
         let key_id = self.key_read_ctrl.reg.read(KeyReadControl::KEY_ID);
 
-        let result = self.key_vault.read_key(key_id);
+        let mut key_usage = KeyUsage::default();
+        key_usage.set_ecc_private_key(true);
+
+        let result = self.key_vault.read_key(key_id, key_usage);
         let (key_read_result, key) = match result.err() {
             Some(BusError::LoadAccessFault) | Some(BusError::LoadAddrMisaligned) => {
                 (KeyReadStatus::ERROR::KV_READ_FAIL.value, None)
@@ -561,7 +564,10 @@ impl AsymEcc384 {
     fn seed_read_complete(&mut self) {
         let key_id = self.seed_read_ctrl.reg.read(SeedReadControl::KEY_ID);
 
-        let result = self.key_vault.read_key(key_id);
+        let mut key_usage = KeyUsage::default();
+        key_usage.set_ecc_key_gen_seed(true);
+
+        let result = self.key_vault.read_key(key_id, key_usage);
         let (seed_read_result, seed) = match result.err() {
             Some(BusError::LoadAccessFault) | Some(BusError::LoadAddrMisaligned) => {
                 (SeedReadStatus::ERROR::KV_READ_FAIL.value, None)
@@ -591,7 +597,10 @@ impl AsymEcc384 {
     fn msg_read_complete(&mut self) {
         let key_id = self.msg_read_ctrl.reg.read(MsgReadControl::KEY_ID);
 
-        let result = self.key_vault.read_key(key_id);
+        let mut key_usage = KeyUsage::default();
+        key_usage.set_ecc_data(true);
+
+        let result = self.key_vault.read_key(key_id, key_usage);
         let (msg_read_result, msg) = match result.err() {
             Some(BusError::LoadAccessFault) | Some(BusError::LoadAddrMisaligned) => {
                 (MsgReadStatus::ERROR::KV_READ_FAIL.value, None)
@@ -874,9 +883,11 @@ mod tests {
                 let mut key_vault = KeyVault::new();
                 let mut expanded_seed: [u8; 64] = [0; 64];
                 expanded_seed[..seed.len()].copy_from_slice(&seed);
+                let mut key_usage = KeyUsage::default();
+                key_usage.set_ecc_key_gen_seed(true);
 
                 key_vault
-                    .write_key(key_id, &expanded_seed, 0x10 /*ecc_seed_dest_valid*/)
+                    .write_key(key_id, &expanded_seed, u32::from(key_usage))
                     .unwrap();
                 let mut ecc = AsymEcc384::new(&clock, key_vault);
 
@@ -964,10 +975,15 @@ mod tests {
                 );
             }
 
-            // Instruct private key to be storead in the key-vault.
+            // Instruct private key to be stored in the key-vault.
+            let mut key_usage = KeyUsage::default();
+            key_usage.set_ecc_private_key(true);
             let key_write_ctrl = InMemoryRegister::<u32, KeyWriteControl::Register>::new(0);
-            key_write_ctrl
-                .modify(KeyWriteControl::KEY_ID.val(key_id) + KeyWriteControl::KEY_WRITE_EN.val(1));
+            key_write_ctrl.modify(
+                KeyWriteControl::KEY_ID.val(key_id)
+                    + KeyWriteControl::KEY_WRITE_EN.val(1)
+                    + KeyWriteControl::USAGE.val(u32::from(key_usage)),
+            );
 
             assert_eq!(
                 ecc.write(RvSize::Word, OFFSET_KEY_WRITE_CONTROL, key_write_ctrl.get())
@@ -1006,8 +1022,11 @@ mod tests {
             }
 
             let mut priv_key: [u8; 48] = [0; 48];
-            priv_key
-                .clone_from_slice(&ecc.key_vault.read_key(key_id).unwrap()[..ECC384_COORD_SIZE]);
+            let mut key_usage = KeyUsage::default();
+            key_usage.set_ecc_private_key(true);
+            priv_key.clone_from_slice(
+                &ecc.key_vault.read_key(key_id, key_usage).unwrap()[..ECC384_COORD_SIZE],
+            );
             priv_key.to_little_endian(); // Change DWORDs to little-endian.
 
             let mut pub_key_x: [u8; 48] = [0; 48];
@@ -1096,8 +1115,10 @@ mod tests {
             let mut key_vault = KeyVault::new();
             let mut expanded_priv_key: [u8; 64] = [0; 64];
             expanded_priv_key[..priv_key.len()].copy_from_slice(&priv_key);
+            let mut key_usage = KeyUsage::default();
+            key_usage.set_ecc_private_key(true);
             key_vault
-                .write_key(key_id, &expanded_priv_key, 0x8 /*ecc_pkey_dest_valid*/)
+                .write_key(key_id, &expanded_priv_key, u32::from(key_usage))
                 .unwrap();
 
             let mut ecc = AsymEcc384::new(&clock, key_vault);
@@ -1172,6 +1193,67 @@ mod tests {
     }
 
     #[test]
+    fn test_sign_kv_privkey_not_allowed() {
+        // Negative test for retrieving disallowed private key from the key-vault.
+        for key_id in 0..8 {
+            let clock = Clock::new();
+            let mut priv_key = PRIV_KEY.clone();
+            priv_key.to_big_endian(); // Change DWORDs to big-endian.
+
+            let mut key_vault = KeyVault::new();
+            let mut expanded_priv_key: [u8; 64] = [0; 64];
+            expanded_priv_key[..priv_key.len()].copy_from_slice(&priv_key);
+            let mut key_usage = KeyUsage::default();
+            key_usage.set_ecc_private_key(true);
+            key_vault
+                .write_key(key_id, &expanded_priv_key, !(u32::from(key_usage)))
+                .unwrap();
+
+            let mut ecc = AsymEcc384::new(&clock, key_vault);
+
+            let mut hash = [0u8; 48];
+            hash.to_big_endian(); // Change DWORDs to big-endian.
+
+            for i in (0..hash.len()).step_by(4) {
+                assert_eq!(
+                    ecc.write(RvSize::Word, OFFSET_HASH + i as RvAddr, make_word(i, &hash))
+                        .ok(),
+                    Some(())
+                );
+            }
+
+            // Instruct private key to be read from key-vault.
+            let key_read_ctrl = InMemoryRegister::<u32, KeyReadControl::Register>::new(0);
+            key_read_ctrl.modify(
+                KeyReadControl::KEY_ID.val(key_id)
+                    + KeyReadControl::KEY_SIZE.val((priv_key.len() >> 2) as u32 - 1)
+                    + KeyReadControl::KEY_READ_EN.val(1),
+            );
+
+            assert_eq!(
+                ecc.write(RvSize::Word, OFFSET_KEY_READ_CONTROL, key_read_ctrl.get())
+                    .ok(),
+                Some(())
+            );
+
+            // Wait for ecc periph to retrieve the private key from the key-vault.
+            loop {
+                let key_read_status = InMemoryRegister::<u32, KeyReadStatus::Register>::new(
+                    ecc.read(RvSize::Word, OFFSET_KEY_READ_STATUS).unwrap(),
+                );
+                if key_read_status.is_set(KeyReadStatus::VALID) {
+                    assert_eq!(
+                        key_read_status.read(KeyReadStatus::ERROR),
+                        KeyReadStatus::ERROR::KV_READ_FAIL.value
+                    );
+                    break;
+                }
+                clock.increment_and_poll(1, &mut ecc);
+            }
+        }
+    }
+
+    #[test]
     fn test_sign_kv_msg() {
         // Test for getting the message (hash) from the key-vault.
         for key_id in 0..8 {
@@ -1182,9 +1264,11 @@ mod tests {
             let mut key_vault = KeyVault::new();
             let mut expanded_hash: [u8; 64] = [0; 64];
             expanded_hash[..hash.len()].copy_from_slice(&hash);
+            let mut key_usage = KeyUsage::default();
+            key_usage.set_ecc_data(true);
 
             key_vault
-                .write_key(key_id, &expanded_hash, 0x20 /* ecc_msg_dest_valid */)
+                .write_key(key_id, &expanded_hash, u32::from(key_usage))
                 .unwrap();
 
             let mut ecc = AsymEcc384::new(&clock, key_vault);
@@ -1259,6 +1343,57 @@ mod tests {
 
             assert_eq!(&sig_r, &SIG_R);
             assert_eq!(&sig_s, &SIG_S);
+        }
+    }
+
+    #[test]
+    fn test_sign_kv_msg_not_allowed() {
+        // Negative test for retrieving a disallowed message (hash) from the key-vault.
+        for key_id in 0..8 {
+            let clock = Clock::new();
+            let mut hash = [0u8; 48];
+            hash.to_big_endian(); // Change DWORDs to big-endian.
+
+            let mut key_vault = KeyVault::new();
+            let mut expanded_hash: [u8; 64] = [0; 64];
+            expanded_hash[..hash.len()].copy_from_slice(&hash);
+            let mut key_usage = KeyUsage::default();
+            key_usage.set_ecc_data(true);
+
+            key_vault
+                .write_key(key_id, &expanded_hash, !(u32::from(key_usage)))
+                .unwrap();
+
+            let mut ecc = AsymEcc384::new(&clock, key_vault);
+
+            // Instruct hash to be read from key-vault.
+            let msg_ctrl = InMemoryRegister::<u32, MsgReadControl::Register>::new(0);
+            msg_ctrl.modify(
+                MsgReadControl::KEY_ID.val(key_id)
+                    + MsgReadControl::KEY_SIZE.val((hash.len() >> 2) as u32 - 1)
+                    + MsgReadControl::KEY_READ_EN.val(1),
+            );
+
+            assert_eq!(
+                ecc.write(RvSize::Word, OFFSET_MSG_CONTROL, msg_ctrl.get())
+                    .ok(),
+                Some(())
+            );
+
+            // Wait for ecc periph to retrieve the private key from the key-vault.
+            loop {
+                let msg_read_status = InMemoryRegister::<u32, MsgReadStatus::Register>::new(
+                    ecc.read(RvSize::Word, OFFSET_MSG_STATUS).unwrap(),
+                );
+                if msg_read_status.is_set(MsgReadStatus::VALID) {
+                    assert_eq!(
+                        msg_read_status.read(MsgReadStatus::ERROR),
+                        MsgReadStatus::ERROR::KV_READ_FAIL.value
+                    );
+                    break;
+                }
+                clock.increment_and_poll(1, &mut ecc);
+            }
         }
     }
 

@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::KeyVault;
+use crate::{KeyUsage, KeyVault};
 use caliptra_emu_bus::{
     BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister, Timer,
     TimerAction, WriteOnlyMemory,
@@ -455,7 +455,10 @@ impl HmacSha384 {
     fn key_read_complete(&mut self) {
         let key_id = self.key_read_ctrl.reg.read(KeyReadControl::KEY_ID);
 
-        let result = self.key_vault.read_key(key_id);
+        let mut key_usage = KeyUsage::default();
+        key_usage.set_hmac_key(true);
+
+        let result = self.key_vault.read_key(key_id, key_usage);
         let (key_read_result, key) = match result.err() {
             Some(BusError::LoadAccessFault) | Some(BusError::LoadAddrMisaligned) => {
                 (KeyReadStatus::ERROR::KV_READ_FAIL.value, None)
@@ -474,6 +477,7 @@ impl HmacSha384 {
                 .data_mut()
                 .copy_from_slice(&key.unwrap()[..HMAC_KEY_SIZE]);
         }
+
         self.key_read_status.reg.modify(
             KeyReadStatus::READY::SET
                 + KeyReadStatus::VALID::SET
@@ -494,7 +498,10 @@ impl HmacSha384 {
         // Clear the block
         self.block.data_mut().fill(0);
 
-        let result = self.key_vault.read_key(key_id);
+        let mut key_usage = KeyUsage::default();
+        key_usage.set_hmac_data(true);
+
+        let result = self.key_vault.read_key(key_id, key_usage);
         let (block_read_result, data) = match result.err() {
             Some(BusError::LoadAccessFault) | Some(BusError::LoadAddrMisaligned) => {
                 (BlockReadStatus::ERROR::KV_READ_FAIL.value, None)
@@ -685,8 +692,10 @@ mod tests {
         KeyFromVault(u32),
         BlockFromVault(u32),
         TagToVault(u32),
-        KeyReadFailTest(bool),
-        BlockReadFailTest(bool),
+        KeyReadDisallowed(bool),
+        KeyDisallowedForHMAC(bool),
+        BlockReadDisallowed(bool),
+        BlockDisallowedForHMAC(bool),
         TagWriteFailTest(bool),
     }
 
@@ -714,9 +723,11 @@ mod tests {
         let mut block_id: u32 = u32::MAX;
         let mut tag_id: u32 = u32::MAX;
         let mut tag_le: [u8; 48] = [0; 48];
-        let mut key_read_fail_test = false;
-        let mut block_read_fail_test = false;
+        let mut key_read_disallowed = false;
+        let mut key_disallowed_for_hmac = false;
+        let mut block_read_disallowed = false;
         let mut tag_write_fail_test = false;
+        let mut block_disallowed_for_hmac = false;
 
         for (_idx, action) in keyvault_actions.iter().enumerate() {
             match action {
@@ -732,11 +743,17 @@ mod tests {
                     tag_to_kv = true;
                     tag_id = *id;
                 }
-                KeyVaultAction::KeyReadFailTest(val) => {
-                    key_read_fail_test = *val;
+                KeyVaultAction::KeyReadDisallowed(val) => {
+                    key_read_disallowed = *val;
                 }
-                KeyVaultAction::BlockReadFailTest(val) => {
-                    block_read_fail_test = *val;
+                KeyVaultAction::KeyDisallowedForHMAC(val) => {
+                    key_disallowed_for_hmac = *val;
+                }
+                KeyVaultAction::BlockReadDisallowed(val) => {
+                    block_read_disallowed = *val;
+                }
+                KeyVaultAction::BlockDisallowedForHMAC(val) => {
+                    block_disallowed_for_hmac = *val;
                 }
                 KeyVaultAction::TagWriteFailTest(val) => {
                     tag_write_fail_test = *val;
@@ -768,9 +785,24 @@ mod tests {
             expanded_key[..key.len()].copy_from_slice(key);
             key_vault.write_key(key_id, &expanded_key, 0x3F).unwrap();
 
-            if key_read_fail_test == true {
+            if key_read_disallowed == true {
                 let val_reg = InMemoryRegister::<u32, key_vault::KV_CONTROL::Register>::new(0);
                 val_reg.write(key_vault::KV_CONTROL::USE_LOCK.val(1)); // Key read disabled.
+                assert_eq!(
+                    key_vault
+                        .write(
+                            RvSize::Word,
+                            KV_OFFSET_KEY_CONTROL + (key_id * KEY_CONTROL_REG_WIDTH),
+                            val_reg.get()
+                        )
+                        .ok(),
+                    Some(())
+                );
+            } else if key_disallowed_for_hmac == true {
+                let mut key_usage = KeyUsage::default();
+                key_usage.set_hmac_key(true);
+                let val_reg = InMemoryRegister::<u32, key_vault::KV_CONTROL::Register>::new(0);
+                val_reg.write(key_vault::KV_CONTROL::USAGE.val(!(u32::from(key_usage)))); // Key disallowed for hmac.
                 assert_eq!(
                     key_vault
                         .write(
@@ -788,13 +820,30 @@ mod tests {
             let mut expanded_block: [u8; 64] = [0; 64];
             expanded_block[..data.len()].copy_from_slice(&data);
             expanded_block.to_big_endian(); // Keys are stored in big-endian format.
+            let mut key_usage = KeyUsage::default();
+            key_usage.set_hmac_data(true);
             key_vault
-                .write_key(block_id, &expanded_block, 0x3F)
+                .write_key(block_id, &expanded_block, u32::from(key_usage))
                 .unwrap();
 
-            if block_read_fail_test == true {
+            if block_read_disallowed == true {
                 let val_reg = InMemoryRegister::<u32, key_vault::KV_CONTROL::Register>::new(0);
                 val_reg.write(key_vault::KV_CONTROL::USE_LOCK.val(1)); // Key read disabled.
+                assert_eq!(
+                    key_vault
+                        .write(
+                            RvSize::Word,
+                            KV_OFFSET_KEY_CONTROL + (block_id * KEY_CONTROL_REG_WIDTH),
+                            val_reg.get()
+                        )
+                        .ok(),
+                    Some(())
+                );
+            } else if block_disallowed_for_hmac {
+                let mut key_usage = KeyUsage::default();
+                key_usage.set_hmac_data(true);
+                let val_reg = InMemoryRegister::<u32, key_vault::KV_CONTROL::Register>::new(0);
+                val_reg.write(key_vault::KV_CONTROL::USAGE.val(!(u32::from(key_usage)))); // Block disallowed for HMAC use.
                 assert_eq!(
                     key_vault
                         .write(
@@ -808,7 +857,7 @@ mod tests {
             }
         }
 
-        // For negative tag write test, make the key-slot unwritable.
+        // For negative tag write test, make the key-slot uneditable.
         if tag_write_fail_test == true {
             assert_eq!(tag_to_kv, true);
             let val_reg = InMemoryRegister::<u32, key_vault::KV_CONTROL::Register>::new(0);
@@ -829,9 +878,14 @@ mod tests {
 
         if tag_to_kv == true {
             // Instruct tag to be read from key-vault.
+            let mut key_usage = KeyUsage::default();
+            key_usage.set_hmac_data(true);
             let tag_ctrl = InMemoryRegister::<u32, TagWriteControl::Register>::new(0);
-            tag_ctrl
-                .modify(TagWriteControl::KEY_ID.val(tag_id) + TagWriteControl::KEY_WRITE_EN.val(1));
+            tag_ctrl.modify(
+                TagWriteControl::KEY_ID.val(tag_id)
+                    + TagWriteControl::KEY_WRITE_EN.val(1)
+                    + TagWriteControl::USAGE.val(u32::from(key_usage)),
+            );
 
             assert_eq!(
                 hmac.write(RvSize::Word, OFFSET_TAG_CONTROL, tag_ctrl.get())
@@ -873,7 +927,7 @@ mod tests {
                     if key_read_status.read(KeyReadStatus::ERROR)
                         != KeyReadStatus::ERROR::KV_SUCCESS.value
                     {
-                        assert_eq!(key_read_fail_test, true);
+                        assert_eq!((key_read_disallowed || key_disallowed_for_hmac), true);
                         return;
                     }
                     break;
@@ -897,7 +951,7 @@ mod tests {
                     );
                 }
             } else {
-                // There will always be a single block retireved from key-vault for HMAC384.
+                // There will always be a single block retrieved from key-vault for HMAC384.
                 assert_eq!(totalblocks, 1);
 
                 // Instruct block to be read from key-vault.
@@ -923,7 +977,7 @@ mod tests {
                         if block_read_status.read(BlockReadStatus::ERROR)
                             != BlockReadStatus::ERROR::KV_SUCCESS.value
                         {
-                            assert_eq!(block_read_fail_test, true);
+                            assert_eq!((block_read_disallowed || block_disallowed_for_hmac), true);
                             return;
                         }
 
@@ -977,7 +1031,11 @@ mod tests {
         }
 
         if tag_to_kv == true {
-            tag_le.clone_from_slice(&hmac.key_vault.read_key(tag_id).unwrap()[..HMAC_TAG_SIZE]);
+            let mut key_usage = KeyUsage::default();
+            key_usage.set_hmac_data(true);
+            tag_le.clone_from_slice(
+                &hmac.key_vault.read_key(tag_id, key_usage).unwrap()[..HMAC_TAG_SIZE],
+            );
         } else {
             tag_le.clone_from_slice(hmac.tag.data());
         }
@@ -1147,6 +1205,7 @@ mod tests {
             0x68, 0x6d, 0x40, 0x33, 0x71, 0xc9,
         ];
 
+        // [Test] Key is read-protected.
         for key_id in 0..8 {
             test_hmac(
                 &mut key.clone(),
@@ -1154,7 +1213,20 @@ mod tests {
                 &result,
                 &vec![
                     KeyVaultAction::KeyFromVault(key_id),
-                    KeyVaultAction::KeyReadFailTest(true),
+                    KeyVaultAction::KeyReadDisallowed(true),
+                ],
+            );
+        }
+
+        // [Test] Key cannot be used as a HMAC384 key.
+        for key_id in 0..8 {
+            test_hmac(
+                &mut key.clone(),
+                &data,
+                &result,
+                &vec![
+                    KeyVaultAction::KeyFromVault(key_id),
+                    KeyVaultAction::KeyDisallowedForHMAC(true),
                 ],
             );
         }
@@ -1216,6 +1288,7 @@ mod tests {
             0x5b, 0xc6, 0xec, 0xb6, 0xba, 0xa9,
         ];
 
+        // [Test] Block is read-protected.
         for key_id in 0..8 {
             test_hmac(
                 &mut key.clone(),
@@ -1223,7 +1296,20 @@ mod tests {
                 &result,
                 &vec![
                     KeyVaultAction::BlockFromVault(key_id),
-                    KeyVaultAction::BlockReadFailTest(true),
+                    KeyVaultAction::BlockReadDisallowed(true),
+                ],
+            );
+        }
+
+        // [Test] Key cannot be used as a HMAC384 block.
+        for key_id in 0..8 {
+            test_hmac(
+                &mut key.clone(),
+                &data,
+                &result,
+                &vec![
+                    KeyVaultAction::BlockFromVault(key_id),
+                    KeyVaultAction::BlockDisallowedForHMAC(true),
                 ],
             );
         }
