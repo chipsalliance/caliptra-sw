@@ -145,9 +145,12 @@ fn test_kv_prime_kv() {
 
     // Prime KV0
     let seed = [0u8; 48];
+    let mut key_usage = KeyUsage::default();
+    key_usage.set_ecc_key_gen_seed(true);
+    key_usage.set_ecc_data(true);
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
-        usage: KeyUsage(0x9000), // ecc_key_gen_seed | ecc_data
+        usage: key_usage,
         word_size: 12,
     };
     let result = Ecc384::default().key_pair(
@@ -161,9 +164,11 @@ fn test_kv_prime_kv() {
 
     // Prime KV1
     let key_in_2 = KeyReadArgs::new(KeyId::KeyId0, 12);
+    let mut key_usage = KeyUsage::default();
+    key_usage.set_ecc_private_key(true);
     let key_out_2 = KeyWriteArgs {
         id: KeyId::KeyId1,
-        usage: KeyUsage(0x8), // ecc_private_key
+        usage: key_usage, // ecc_private_key
         word_size: 12,
     };
 
@@ -182,9 +187,11 @@ fn test_kv_seed_from_input_msg_from_input() {
     // Step 1: Generate a key pair and store private key in kv slot 2.
     //
     let seed = [0u8; 48];
+    let mut key_usage = KeyUsage::default();
+    key_usage.set_ecc_private_key(true);
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId2,
-        usage: KeyUsage(0x8), // ecc_private_key
+        usage: key_usage, // ecc_private_key
         word_size: 12,
     };
     let result = Ecc384::default().key_pair(
@@ -246,9 +253,11 @@ fn test_kv_seed_from_input_msg_from_kv() {
     // Step 1: Generate key pair and store private key in kv slot 3.
     //
     let seed = [0u8; 48];
+    let mut key_usage = KeyUsage::default();
+    key_usage.set_ecc_private_key(true);
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId3,
-        usage: KeyUsage(0x8), // ecc_private_key
+        usage: key_usage, // ecc_private_key
         word_size: 12,
     };
 
@@ -326,9 +335,11 @@ fn test_kv_seed_from_kv_msg_from_input() {
     //
     let key_in_1 = KeyReadArgs::new(KeyId::KeyId0, 12);
 
+    let mut key_usage = KeyUsage::default();
+    key_usage.set_ecc_private_key(true);
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId4,
-        usage: KeyUsage(0x8), // ecc_private_key
+        usage: key_usage, // ecc_private_key
         word_size: 12,
     };
     let result = Ecc384::default().key_pair(

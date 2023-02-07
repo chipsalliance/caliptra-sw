@@ -74,7 +74,7 @@ bitfield! {
     pub sha_data, set_sha_data: 2;
 
     /// Flag indicating if the key can be used aas ECC Private Key
-    pub ecc_private_key, set_ecc_private_ley: 3;
+    pub ecc_private_key, set_ecc_private_key: 3;
 
     /// Flag indicating if the key can be used aas ECC Key Generation Seed
     pub ecc_key_gen_seed, set_ecc_key_gen_seed: 4;
