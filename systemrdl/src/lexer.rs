@@ -118,11 +118,14 @@ impl<'a> Iterator for Lexer<'a> {
                 Some('}') => Some(Token::BraceClose),
                 Some('[') => Some(Token::BracketOpen),
                 Some(']') => Some(Token::BracketClose),
+                Some('(') => Some(Token::ParenOpen),
+                Some(')') => Some(Token::ParenClose),
                 Some(';') => Some(Token::Semicolon),
                 Some(',') => Some(Token::Comma),
                 Some('.') => Some(Token::Period),
                 Some('=') => Some(Token::Equals),
                 Some('@') => Some(Token::At),
+                Some('#') => Some(Token::Hash),
                 Some(':') => Some(Token::Colon),
                 Some('`') => {
                     let keyword_start = iter.clone();
@@ -214,7 +217,7 @@ mod test {
 
     #[test]
     fn test_foo() {
-        let tokens: Vec<Token> = Lexer::new("field 35\tiDentifier2_ 0x24\n\r 0xf00_bad 2'b01 5'o27 4'd9 16'h1caf /* ignore comment */ %= // line comment\n += \"string 1\" \"string\\\"2\" {}[];:,.=@reg field regfile addrmap signal enum mem constraint").take(32).collect();
+        let tokens: Vec<Token> = Lexer::new("field 35\tiDentifier2_ 0x24\n\r 0xf00_bad 2'b01 5'o27 4'd9 16'h1caf /* ignore comment */ %= // line comment\n += \"string 1\" \"string\\\"2\" {}[]();:,.=@#reg field regfile addrmap signal enum mem constraint").take(35).collect();
         assert_eq!(
             tokens,
             vec![
@@ -235,12 +238,15 @@ mod test {
                 Token::BraceClose,
                 Token::BracketOpen,
                 Token::BracketClose,
+                Token::ParenOpen,
+                Token::ParenClose,
                 Token::Semicolon,
                 Token::Colon,
                 Token::Comma,
                 Token::Period,
                 Token::Equals,
                 Token::At,
+                Token::Hash,
                 Token::Reg,
                 Token::Field,
                 Token::RegFile,

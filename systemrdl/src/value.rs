@@ -2,7 +2,12 @@
 Licensed under the Apache-2.0 license.
 --*/
 
-use crate::{token::Token, token_iter::TokenIter, Bits, RdlError, Result};
+use crate::{
+    scope::{lookup_parameter_of_type, ParameterScope},
+    token::Token,
+    token_iter::TokenIter,
+    Bits, RdlError, Result,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Value {
@@ -18,6 +23,24 @@ pub enum Value {
     OnWriteType(OnWriteType),
     AddressingType(AddressingType),
     InterruptType(InterruptType),
+}
+impl Value {
+    pub fn property_type(&self) -> PropertyType {
+        match self {
+            Value::U64(_) => PropertyType::U64,
+            Value::Bool(_) => PropertyType::Boolean,
+            Value::Bits(_) => PropertyType::Bits,
+            Value::String(_) => PropertyType::String,
+            Value::EnumReference(_) => PropertyType::EnumReference,
+            Value::Reference(_) => PropertyType::Reference,
+            Value::PrecedenceType(_) => PropertyType::PrecedenceType,
+            Value::AccessType(_) => PropertyType::AccessType,
+            Value::OnReadType(_) => PropertyType::OnReadType,
+            Value::OnWriteType(_) => PropertyType::OnWriteType,
+            Value::AddressingType(_) => PropertyType::AddressingType,
+            Value::InterruptType(_) => PropertyType::FieldInterrupt,
+        }
+    }
 }
 impl From<u64> for Value {
     fn from(val: u64) -> Self {
@@ -311,15 +334,51 @@ pub enum PropertyType {
     AddressingType,
 }
 impl PropertyType {
-    pub fn parse<'a>(self, tokens: &mut TokenIter<'a>) -> Result<'a, Value> {
+    pub fn parse_type<'a>(tokens: &mut TokenIter<'a>) -> Result<'a, PropertyType> {
+        match tokens.next() {
+            Token::Identifier("boolean") => Ok(PropertyType::Boolean),
+            Token::Identifier("string") => Ok(PropertyType::String),
+            Token::Identifier("bit") => Ok(PropertyType::Bits),
+            Token::Identifier("longint") => {
+                tokens.expect(Token::Identifier("unsigned"))?;
+                Ok(PropertyType::U64)
+            }
+            Token::Identifier("accesstype") => Ok(PropertyType::AccessType),
+            Token::Identifier("addressingtype") => Ok(PropertyType::AddressingType),
+            Token::Identifier("onreadtype") => Ok(PropertyType::OnReadType),
+            Token::Identifier("onwritetype") => Ok(PropertyType::OnWriteType),
+            Token::Identifier("precedencetype") => Ok(PropertyType::PrecedenceType),
+            unexpected => Err(RdlError::UnexpectedToken(unexpected)),
+        }
+    }
+    pub fn parse_or_lookup<'a>(
+        self,
+        tokens: &mut TokenIter<'a>,
+        parameters: Option<&'_ ParameterScope<'_>>,
+    ) -> Result<'a, Value> {
         match self {
-            PropertyType::U64 => Ok(tokens.expect_number()?.into()),
-            PropertyType::Bits => Ok(tokens.expect_bits()?.into()),
+            PropertyType::U64 => match tokens.next() {
+                Token::Number(val) => Ok(val.into()),
+                Token::Identifier(ident) => {
+                    Ok(lookup_parameter_of_type(parameters, ident, self)?.clone())
+                }
+                unexpected => Err(RdlError::UnexpectedToken(unexpected)),
+            },
+            PropertyType::Bits => match tokens.next() {
+                Token::Bits(val) => Ok(val.into()),
+                Token::Identifier(ident) => {
+                    Ok(lookup_parameter_of_type(parameters, ident, self)?.clone())
+                }
+                unexpected => Err(RdlError::UnexpectedToken(unexpected)),
+            },
             PropertyType::Boolean => match tokens.next() {
                 Token::Number(0) => Ok(false.into()),
                 Token::Number(1) => Ok(true.into()),
                 Token::Identifier("false") => Ok(false.into()),
                 Token::Identifier("true") => Ok(true.into()),
+                Token::Identifier(ident) => {
+                    Ok(lookup_parameter_of_type(parameters, ident, self)?.clone())
+                }
                 unexpected => Err(RdlError::UnexpectedToken(unexpected)),
             },
             PropertyType::String => Ok(parse_str_literal(tokens.expect_string()?)?.into()),
@@ -331,12 +390,18 @@ impl PropertyType {
                 Token::Identifier("rw1") => Ok(AccessType::Rw1.into()),
                 Token::Identifier("w") => Ok(AccessType::W.into()),
                 Token::Identifier("w1") => Ok(AccessType::W1.into()),
+                Token::Identifier(ident) => {
+                    Ok(lookup_parameter_of_type(parameters, ident, self)?.clone())
+                }
                 unexpected => Err(RdlError::UnexpectedToken(unexpected)),
             },
             PropertyType::OnReadType => match tokens.next() {
                 Token::Identifier("rclr") => Ok(OnReadType::RClr.into()),
                 Token::Identifier("rset") => Ok(OnReadType::RSet.into()),
                 Token::Identifier("ruser") => Ok(OnReadType::RUser.into()),
+                Token::Identifier(ident) => {
+                    Ok(lookup_parameter_of_type(parameters, ident, self)?.clone())
+                }
                 unexpected => Err(RdlError::UnexpectedToken(unexpected)),
             },
             PropertyType::OnWriteType => match tokens.next() {
@@ -349,22 +414,28 @@ impl PropertyType {
                 Token::Identifier("wclr") => Ok(OnWriteType::WClr.into()),
                 Token::Identifier("wset") => Ok(OnWriteType::WSet.into()),
                 Token::Identifier("wuser") => Ok(OnWriteType::WUser.into()),
+                Token::Identifier(ident) => {
+                    Ok(lookup_parameter_of_type(parameters, ident, self)?.clone())
+                }
                 unexpected => Err(RdlError::UnexpectedToken(unexpected)),
             },
             PropertyType::AddressingType => match tokens.next() {
                 Token::Identifier("compact") => Ok(AddressingType::Compact.into()),
                 Token::Identifier("fullalign") => Ok(AddressingType::FullAlign.into()),
                 Token::Identifier("regalign") => Ok(AddressingType::RegAlign.into()),
+                Token::Identifier(ident) => {
+                    Ok(lookup_parameter_of_type(parameters, ident, self)?.clone())
+                }
                 unexpected => Err(RdlError::UnexpectedToken(unexpected)),
             },
             PropertyType::BooleanOrReference => match tokens.peek(0) {
-                Token::Identifier(_) => PropertyType::Reference.parse(tokens),
-                _ => PropertyType::Boolean.parse(tokens),
+                Token::Identifier(_) => PropertyType::Reference.parse_or_lookup(tokens, parameters),
+                _ => PropertyType::Boolean.parse_or_lookup(tokens, parameters),
             },
             PropertyType::BitOrReference => match tokens.peek(0) {
-                Token::Identifier(_) => PropertyType::Reference.parse(tokens),
-                Token::Number(_) => PropertyType::U64.parse(tokens),
-                _ => PropertyType::Bits.parse(tokens),
+                Token::Identifier(_) => PropertyType::Reference.parse_or_lookup(tokens, parameters),
+                Token::Number(_) => PropertyType::U64.parse_or_lookup(tokens, parameters),
+                _ => PropertyType::Bits.parse_or_lookup(tokens, parameters),
             },
             PropertyType::EnumReference => {
                 let ident = tokens.expect_identifier()?;
@@ -375,6 +446,9 @@ impl PropertyType {
             PropertyType::PrecedenceType => match tokens.next() {
                 Token::Identifier("hw") => Ok(PrecedenceType::Hw.into()),
                 Token::Identifier("sw") => Ok(PrecedenceType::Sw.into()),
+                Token::Identifier(ident) => {
+                    Ok(lookup_parameter_of_type(parameters, ident, self)?.clone())
+                }
                 unexpected => Err(RdlError::UnexpectedToken(unexpected)),
             },
         }

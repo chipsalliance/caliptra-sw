@@ -21,7 +21,11 @@ pub struct DynamicAssignment {
     value: Value,
 }
 impl DynamicAssignment {
-    fn parse<'a>(tokens: &mut TokenIter<'a>, scope: &Scope) -> Result<'a, Self> {
+    fn parse<'a>(
+        tokens: &mut TokenIter<'a>,
+        scope: &Scope,
+        parameters: Option<&'_ ParameterScope<'_>>,
+    ) -> Result<'a, Self> {
         let mut instance_path = vec![];
         loop {
             instance_path.push(tokens.expect_identifier()?);
@@ -45,13 +49,46 @@ impl DynamicAssignment {
             Value::Bool(true)
         } else {
             tokens.expect(Token::Equals)?;
-            prop_meta.ty.parse(tokens)?
+            prop_meta.ty.parse_or_lookup(tokens, parameters)?
         };
         Ok(Self {
             instance_path: instance_path.into_iter().map(|s| s.to_string()).collect(),
             prop_name: prop_name.into(),
             value,
         })
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ParameterDefinition {
+    ty: PropertyType,
+    default: Value,
+}
+impl ParameterDefinition {
+    fn parse_map<'a>(
+        tokens: &mut TokenIter<'a>,
+    ) -> Result<'a, HashMap<String, ParameterDefinition>> {
+        tokens.expect(Token::Hash)?;
+        tokens.expect(Token::ParenOpen)?;
+
+        let mut result = HashMap::new();
+        loop {
+            let ty = PropertyType::parse_type(tokens)?;
+            let name = tokens.expect_identifier()?;
+            tokens.expect(Token::Equals)?;
+            let default = ty.parse_or_lookup(tokens, None)?;
+
+            if result.contains_key(name) {
+                return Err(RdlError::DuplicateParameterName(name));
+            }
+            result.insert(name.into(), ParameterDefinition { ty, default });
+            if tokens.peek(0) == &Token::ParenClose {
+                break;
+            }
+            tokens.expect(Token::Comma)?;
+        }
+        tokens.expect(Token::ParenClose)?;
+        Ok(result)
     }
 }
 
@@ -68,11 +105,7 @@ impl Scope {
     fn new(ty: ScopeType) -> Self {
         Scope {
             ty,
-            types: Default::default(),
-            instances: Default::default(),
-            default_properties: Default::default(),
-            properties: Default::default(),
-            dynamic_assignments: Default::default(),
+            ..Default::default()
         }
     }
 
@@ -217,6 +250,7 @@ impl Scope {
         &mut self,
         tokens: &mut TokenIter<'a>,
         parent: Option<&ParentScope<'_>>,
+        parameters: Option<&ParameterScope<'_>>,
     ) -> Result<'a, ()> {
         loop {
             if self.ty == ScopeType::Root && *tokens.peek(0) == Token::EndOfFile {
@@ -233,15 +267,27 @@ impl Scope {
                 } else {
                     Some(tokens.expect_identifier()?)
                 };
-                // TODO: implement support for component parameters
-                tokens.expect(Token::BraceOpen)?;
+
+                let pscope;
+                let parameters = if type_name.is_some() && tokens.peek(0) == &Token::Hash {
+                    pscope = ParameterScope {
+                        parent: parameters,
+                        parameters: ParameterDefinition::parse_map(tokens)?,
+                    };
+                    Some(&pscope)
+                } else {
+                    parameters
+                };
+
                 let mut ty_scope = Self::new(ScopeType::Component(component_type));
+                tokens.expect(Token::BraceOpen)?;
                 ty_scope.parse(
                     tokens,
                     Some(&ParentScope {
                         parent,
                         scope: self,
                     }),
+                    parameters,
                 )?;
                 ty_scope.set_property_defaults(Some(&ParentScope {
                     parent,
@@ -257,7 +303,7 @@ impl Scope {
                 }
                 if *tokens.peek(0) != Token::Semicolon {
                     loop {
-                        let instance = Instance::parse(ty_scope.clone(), tokens)?;
+                        let instance = Instance::parse(ty_scope.clone(), tokens, parameters)?;
                         if self.instances.iter().any(|e| e.name == instance.name) {
                             return Err(RdlError::DuplicateInstanceName(instance.name));
                         }
@@ -277,7 +323,7 @@ impl Scope {
                 if !self.instances.is_empty() || !self.types.is_empty() {
                     return Err(RdlError::DefaultPropertiesMustBeDefinedBeforeComponents);
                 }
-                let prop = PropertyAssignment::parse(tokens, |prop_name| {
+                let prop = PropertyAssignment::parse(tokens, parameters, |prop_name| {
                     component_meta::default_property(self.ty, prop_name)
                 })?;
                 self.default_properties
@@ -310,6 +356,7 @@ impl Scope {
                                         parent,
                                         scope: self,
                                     }),
+                                    parameters,
                                 )?;
                                 tokens.expect(Token::BraceClose)?;
                             }
@@ -329,9 +376,10 @@ impl Scope {
                         let ScopeType::Component(ty) = self.ty else {
                             return Err(RdlError::CantSetPropertyInRootScope);
                         };
-                        let assignment = PropertyAssignment::parse(tokens, |prop_name| {
-                            component_meta::property(ty, prop_name)
-                        })?;
+                        let assignment =
+                            PropertyAssignment::parse(tokens, parameters, |prop_name| {
+                                component_meta::property(ty, prop_name)
+                            })?;
 
                         if self.properties.contains_key(assignment.prop_name) {
                             return Err(RdlError::DuplicatePropertyName(assignment.prop_name));
@@ -345,7 +393,7 @@ impl Scope {
             if tokens.peek(0).is_identifier() && *tokens.peek(1) == Token::Period
                 || *tokens.peek(1) == Token::Pointer
             {
-                let assignment = DynamicAssignment::parse(tokens, self)?;
+                let assignment = DynamicAssignment::parse(tokens, self, parameters)?;
                 tokens.expect(Token::Semicolon)?;
                 self.dynamic_assignments.push(assignment);
                 continue;
@@ -354,7 +402,7 @@ impl Scope {
 
             // This is a template instantiation
             let ty_scope = lookup_typedef(self, parent, type_name)?.clone();
-            let mut instance = Instance::parse(ty_scope, tokens)?;
+            let mut instance = Instance::parse(ty_scope, tokens, parameters)?;
             instance.type_name = Some(type_name.into());
             if self.instances.iter().any(|e| e.name == instance.name) {
                 return Err(RdlError::DuplicateInstanceName(instance.name));
@@ -383,7 +431,7 @@ impl Scope {
         let mut result = Self::new(ScopeType::Root);
         for path in input_files.iter() {
             let mut tokens = TokenIter::from_path(file_source, path).map_err(FileParseError::Io)?;
-            match result.parse(&mut tokens, None) {
+            match result.parse(&mut tokens, None, None) {
                 Ok(()) => {}
                 Err(error) => {
                     return Err(FileParseError::Parse(ParseError::new(
@@ -411,6 +459,11 @@ fn component_keyword<'a>(token: &Token<'a>) -> Result<'a, ComponentType> {
         Token::Constraint => Ok(ComponentType::Constraint),
         unexpected => Err(RdlError::UnexpectedToken(unexpected.clone())),
     }
+}
+
+pub struct ParameterScope<'a> {
+    parent: Option<&'a ParameterScope<'a>>,
+    parameters: HashMap<String, ParameterDefinition>,
 }
 
 #[derive(Copy, Clone)]
@@ -481,6 +534,51 @@ pub struct InstanceRef<'a> {
     pub scope: ParentScope<'a>,
 }
 
+pub fn lookup_parameter<'a, 'b>(
+    parameters: Option<&'b ParameterScope<'b>>,
+    name: &'a str,
+) -> Result<'a, &'b Value> {
+    if let Some(p) = parameters {
+        if let Some(val) = p.parameters.get(name) {
+            return Ok(&val.default);
+        }
+        return lookup_parameter(p.parent, name);
+    }
+    return Err(RdlError::UnknownIdentifier(name));
+}
+
+pub fn lookup_parameter_of_type<'a, 'b>(
+    parameters: Option<&'b ParameterScope<'b>>,
+    name: &'a str,
+    ty: PropertyType,
+) -> Result<'a, &'b Value> {
+    let value = lookup_parameter(parameters, name)?;
+    if value.property_type() != ty {
+        return Err(RdlError::UnexpectedPropertyType {
+            expected_type: ty,
+            value: value.clone(),
+        });
+    }
+    Ok(value)
+}
+
+fn expect_number<'a>(
+    i: &mut TokenIter<'a>,
+    parameters: Option<&ParameterScope<'_>>,
+) -> Result<'a, u64> {
+    match i.next() {
+        Token::Number(val) => Ok(val),
+        Token::Identifier(name) => match lookup_parameter(parameters, name)? {
+            Value::U64(val) => Ok(*val),
+            unexpected => Err(RdlError::UnexpectedPropertyType {
+                expected_type: PropertyType::U64,
+                value: unexpected.clone(),
+            }),
+        },
+        unexpected => Err(RdlError::UnexpectedToken(unexpected)),
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Instance {
     pub name: String,
@@ -517,7 +615,11 @@ impl Instance {
         let total_elements: u64 = self.dimension_sizes.iter().product();
         Ok(total_elements * stride)
     }
-    fn parse<'a>(scope: Scope, i: &mut TokenIter<'a>) -> Result<'a, Self> {
+    fn parse<'a>(
+        scope: Scope,
+        i: &mut TokenIter<'a>,
+        parameters: Option<&ParameterScope<'_>>,
+    ) -> Result<'a, Self> {
         let ScopeType::Component(component_type) = scope.ty else {
             return Err(RdlError::RootCantBeInstantiated);
         };
@@ -536,9 +638,9 @@ impl Instance {
             && *i.peek(2) == Token::Colon
         {
             i.next();
-            let msb = i.expect_number()?;
+            let msb = expect_number(i, parameters)?;
             i.expect(Token::Colon)?;
-            let lsb = i.expect_number()?;
+            let lsb = expect_number(i, parameters)?;
             if msb < lsb {
                 return Err(RdlError::MsbLessThanLsb);
             }
@@ -548,7 +650,7 @@ impl Instance {
         } else {
             while *i.peek(0) == Token::BracketOpen {
                 i.next();
-                result.dimension_sizes.push(i.expect_number()?);
+                result.dimension_sizes.push(expect_number(i, parameters)?);
                 i.expect(Token::BracketClose)?;
             }
         }
@@ -567,15 +669,15 @@ impl Instance {
         {
             if *i.peek(0) == Token::At {
                 i.next();
-                result.offset = Some(i.expect_number()?);
+                result.offset = Some(expect_number(i, parameters)?);
             }
             if *i.peek(0) == Token::PlusEqual {
                 i.next();
-                result.stride = Some(i.expect_number()?);
+                result.stride = Some(expect_number(i, parameters)?);
             }
             if *i.peek(0) == Token::PercentEqual {
                 i.next();
-                result.next_alignment = Some(i.expect_number()?);
+                result.next_alignment = Some(expect_number(i, parameters)?);
             }
         }
         Ok(result)
@@ -866,12 +968,13 @@ fn intr_bool_property<'a>(_name: &str) -> Result<'a, &'static PropertyMeta> {
 impl<'a> PropertyAssignment<'a> {
     fn parse(
         tokens: &mut TokenIter<'a>,
+        parameters: Option<&ParameterScope<'_>>,
         meta_lookup_fn: impl Fn(&'a str) -> Result<'a, &'static PropertyMeta>,
     ) -> Result<'a, Self> {
         if is_intr_modifier(tokens.peek(0)) && *tokens.peek(1) == Token::Identifier("intr") {
             let intr_modifier = tokens.expect_identifier()?;
             // skip the bool tokens...
-            PropertyAssignment::parse(tokens, intr_bool_property)?;
+            PropertyAssignment::parse(tokens, parameters, intr_bool_property)?;
             return Ok(Self {
                 prop_name: "intr",
                 value: match intr_modifier {
@@ -901,7 +1004,7 @@ impl<'a> PropertyAssignment<'a> {
             true.into()
         } else {
             tokens.expect(Token::Equals)?;
-            prop_meta.ty.parse(tokens)?
+            prop_meta.ty.parse_or_lookup(tokens, parameters)?
         };
         tokens.expect(Token::Semicolon)?;
         Ok(Self { prop_name, value })
