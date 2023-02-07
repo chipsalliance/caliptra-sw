@@ -124,6 +124,14 @@ impl<'a> Iterator for Lexer<'a> {
                 Some('=') => Some(Token::Equals),
                 Some('@') => Some(Token::At),
                 Some(':') => Some(Token::Colon),
+                Some('`') => {
+                    let keyword_start = iter.clone();
+                    next_while(&mut iter, |ch| ch.is_ascii_alphabetic() || ch == '_');
+                    match str_between(&keyword_start, &iter) {
+                        "include" => Some(Token::PreprocInclude),
+                        _ => Some(Token::Error),
+                    }
+                }
                 Some('+') => match iter.next() {
                     Some('=') => Some(Token::PlusEqual),
                     _ => return Some(Token::Error),

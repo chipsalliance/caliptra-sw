@@ -38,6 +38,10 @@ pub enum Token<'a> {
     EndOfFile,
     Skip,
 
+    PreprocInclude,
+    UnableToOpenFile(&'a str),
+    IncludeDepthLimitReached,
+
     Error,
 }
 

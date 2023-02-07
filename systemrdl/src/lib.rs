@@ -11,10 +11,10 @@ Licensed under the Apache-2.0 license.
 //! Examples
 //!
 //! ```no_run
-//! use caliptra_systemrdl::{ComponentType, EnumReference, InputFile, InstanceRef, Scope, ScopeType};
+//! use caliptra_systemrdl::{ComponentType, EnumReference, FileSource, FsFileSource, InstanceRef, Scope, ScopeType};
 //!
-//! let file = InputFile::read(std::path::Path::new("/tmp/foo.rdl")).unwrap();
-//! let scope = Scope::parse_root(&[file]).unwrap();
+//! let fs = FsFileSource::new();
+//! let scope = Scope::parse_root(&fs, &["/tmp/foo.rdl".into()]).unwrap();
 //! let parent = scope.as_parent();
 //!
 //! let clp = parent.lookup_typedef("clp").unwrap();
@@ -61,8 +61,10 @@ Licensed under the Apache-2.0 license.
 mod bits;
 mod component_meta;
 mod error;
+mod file_source;
 mod lexer;
 mod scope;
+mod string_arena;
 mod token;
 mod token_iter;
 mod value;
@@ -72,6 +74,7 @@ pub use scope::Scope;
 pub use value::Value;
 
 pub use error::RdlError;
+pub use file_source::{FileSource, FsFileSource};
 pub use scope::{Instance, InstanceRef, ParentScope};
 pub use value::AccessType;
 pub use value::AddressingType;
@@ -83,30 +86,9 @@ pub use crate::bits::Bits;
 
 use std::fmt::{Debug, Display};
 use std::path::Path;
+use std::path::PathBuf;
 
 pub type Result<'a, T> = std::result::Result<T, RdlError<'a>>;
-
-pub struct InputFile {
-    // The filename
-    pub name: String,
-
-    // The full contents of the file
-    pub text: String,
-}
-impl InputFile {
-    pub fn read(filename: &Path) -> std::io::Result<InputFile> {
-        Ok(InputFile {
-            name: filename.to_string_lossy().into(),
-            text: std::fs::read_to_string(filename)?,
-        })
-    }
-    pub fn fake(text: &str) -> InputFile {
-        InputFile {
-            name: "".into(),
-            text: text.into(),
-        }
-    }
-}
 
 #[derive(Debug)]
 pub struct FileLocation<'a> {
@@ -115,18 +97,25 @@ pub struct FileLocation<'a> {
     line_val: &'a str,
 }
 
-pub struct FileParseError<'a> {
-    file_id: &'a str,
+#[derive(Debug)]
+pub enum FileParseError<'a> {
+    Parse(ParseError<'a>),
+    Io(std::io::Error),
+    CouldNotCalculateOffsets,
+}
+
+pub struct ParseError<'a> {
+    file_id: PathBuf,
     file_text: &'a str,
     span: Span,
     pub error: RdlError<'a>,
 }
-impl<'a> FileParseError<'a> {
-    fn new(file_id: &'a str, file_text: &'a str, mut span: Span, error: RdlError<'a>) -> Self {
+impl<'a> ParseError<'a> {
+    fn new(file_id: &Path, file_text: &'a str, mut span: Span, error: RdlError<'a>) -> Self {
         span.start = Ord::min(file_text.len(), span.start);
         span.end = Ord::min(file_text.len(), span.end);
         Self {
-            file_id,
+            file_id: file_id.into(),
             file_text,
             span,
             error,
@@ -155,7 +144,7 @@ impl<'a> FileParseError<'a> {
         }
     }
 }
-impl Debug for FileParseError<'_> {
+impl Debug for ParseError<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FileParseError")
             .field("span", &self.span)
@@ -164,15 +153,25 @@ impl Debug for FileParseError<'_> {
             .finish()
     }
 }
-impl Display for FileParseError<'_> {
+impl Display for ParseError<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let location = self.location();
         writeln!(
             f,
-            "At {} line {} column {}, {}:",
+            "At {:?} line {} column {}, {}:",
             self.file_id, location.line, location.column, self.error
         )?;
         writeln!(f, "    {}", location.line_val)?;
         write!(f, "    {}^", " ".repeat(location.column - 1))
+    }
+}
+
+impl Display for FileParseError<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FileParseError::Parse(e) => Display::fmt(e, f),
+            FileParseError::Io(e) => Display::fmt(e, f),
+            FileParseError::CouldNotCalculateOffsets => write!(f, "Could not calculate offsets"),
+        }
     }
 }

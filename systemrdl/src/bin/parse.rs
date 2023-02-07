@@ -2,10 +2,10 @@
 Licensed under the Apache-2.0 license.
 --*/
 
-use std::error::Error;
 use std::fmt::Write;
+use std::{error::Error, path::PathBuf};
 
-use caliptra_systemrdl::{ComponentType, EnumReference, InputFile, InstanceRef, ScopeType};
+use caliptra_systemrdl::{ComponentType, EnumReference, FsFileSource, InstanceRef, ScopeType};
 
 fn dimension_suffix(dimensions: &[u64]) -> String {
     let mut result = String::new();
@@ -82,15 +82,10 @@ fn real_main() -> Result<(), Box<dyn Error>> {
     if args.len() < 2 {
         Err("Usage: parse <file.rdl>...")?;
     }
-    let files =
-        args[1..]
-            .iter()
-            .try_fold(vec![], |mut acc, name| -> std::io::Result<Vec<InputFile>> {
-                acc.push(InputFile::read(name.as_ref())?);
-                Ok(acc)
-            })?;
+    let files: Vec<PathBuf> = args[1..].iter().map(PathBuf::from).collect();
 
-    let scope = caliptra_systemrdl::Scope::parse_root(&files).map_err(|s| s.to_string())?;
+    let fs = FsFileSource::new();
+    let scope = caliptra_systemrdl::Scope::parse_root(&fs, &files).map_err(|s| s.to_string())?;
     let scope = scope.as_parent();
 
     let addrmap = scope.lookup_typedef("clp").unwrap();

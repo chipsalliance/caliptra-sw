@@ -3,11 +3,12 @@ Licensed under the Apache-2.0 license.
 --*/
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use crate::component_meta::PropertyMeta;
+use crate::file_source::FileSource;
 use crate::value::{AddressingType, ComponentType, InterruptType, PropertyType, ScopeType};
-use crate::InputFile;
-use crate::Span;
+use crate::ParseError;
 use crate::{
     component_meta, token::Token, token_iter::TokenIter, Bits, FileParseError, RdlError, Result,
     Value,
@@ -364,27 +365,33 @@ impl Scope {
         Ok(())
     }
 
-    pub fn parse_root(input_files: &[InputFile]) -> std::result::Result<Self, FileParseError> {
-        let mut result = Self::parse_root_internal(input_files)?;
+    pub fn parse_root<'a>(
+        file_source: &'a dyn FileSource,
+        input_files: &[PathBuf],
+    ) -> std::result::Result<Self, FileParseError<'a>> {
+        let mut result = Self::parse_root_internal(file_source, input_files)?;
         result
             .calculate_offsets()
-            .map_err(|e| FileParseError::new("none", "none", Span { start: 0, end: 0 }, e))?;
+            .map_err(|_| FileParseError::CouldNotCalculateOffsets)?;
         Ok(result)
     }
 
-    fn parse_root_internal(input_files: &[InputFile]) -> std::result::Result<Self, FileParseError> {
+    fn parse_root_internal<'a>(
+        file_source: &'a dyn FileSource,
+        input_files: &[PathBuf],
+    ) -> std::result::Result<Self, FileParseError<'a>> {
         let mut result = Self::new(ScopeType::Root);
-        for file in input_files.iter() {
-            let mut tokens = TokenIter::from_str(&file.text);
+        for path in input_files.iter() {
+            let mut tokens = TokenIter::from_path(file_source, path).map_err(FileParseError::Io)?;
             match result.parse(&mut tokens, None) {
                 Ok(()) => {}
                 Err(error) => {
-                    return Err(FileParseError::new(
-                        &file.name,
-                        &file.text,
+                    return Err(FileParseError::Parse(ParseError::new(
+                        tokens.current_file_path(),
+                        tokens.current_file_contents(),
                         tokens.last_span().clone(),
                         error,
-                    ))
+                    )))
                 }
             }
         }
@@ -427,7 +434,7 @@ impl<'a> ParentScope<'a> {
                 name.as_str(),
                 ParentScope {
                     parent: Some(self),
-                    scope: scope,
+                    scope,
                 },
             )
         })
@@ -577,19 +584,22 @@ impl Instance {
 
 #[cfg(test)]
 mod tests {
-    use crate::{value::AccessType, EnumReference};
+    use crate::{file_source::MemFileSource, value::AccessType, EnumReference};
 
     use super::*;
 
     #[test]
     fn test_scope_def() {
-        let root_scope = Scope::parse_root_internal(&[InputFile::fake(
+        let fs = MemFileSource::from_entries(&[(
+            "main.rdl".into(),
             r#"
             field {} some_field;
             field a_field_ty {};
-        "#,
-        )])
-        .unwrap();
+        "#
+            .into(),
+        )]);
+
+        let root_scope = Scope::parse_root_internal(&fs, &["main.rdl".into()]).unwrap();
         assert_eq!(
             Scope {
                 ty: ScopeType::Root,
@@ -615,13 +625,16 @@ mod tests {
     }
     #[test]
     fn test_type_instantiation() {
-        let root_scope = Scope::parse_root_internal(&[InputFile::fake(
+        let fs = MemFileSource::from_entries(&[(
+            "main.rdl".into(),
             r#"
             field a_field_ty {desc = "Hello";};
             a_field_ty my_field;
-        "#,
-        )])
-        .unwrap();
+        "#
+            .into(),
+        )]);
+
+        let root_scope = Scope::parse_root_internal(&fs, &["main.rdl".into()]).unwrap();
         assert_eq!(
             Scope {
                 ty: ScopeType::Root,
@@ -651,7 +664,8 @@ mod tests {
 
     #[test]
     fn test_stuff() {
-        let root_scope = Scope::parse_root_internal(&[InputFile::fake(
+        let fs = MemFileSource::from_entries(&[(
+            "main.rdl".into(),
             r#"
             addrmap {
                 addressing = compact;
@@ -678,9 +692,11 @@ mod tests {
                     field {encode=mode_t;} MODE = 4'hf;
                 } MODE @0x1000;
             } my_addrmap;
-        "#,
-        )])
-        .unwrap();
+        "#
+            .into(),
+        )]);
+
+        let root_scope = Scope::parse_root_internal(&fs, &["main.rdl".into()]).unwrap();
 
         assert_eq!(
             Scope {

@@ -2,10 +2,10 @@
 
 use std::collections::HashMap;
 use std::fmt::Write;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::{error::Error, path::Path, process::Command};
 
-use caliptra_systemrdl as systemrdl;
 use quote::__private::TokenStream;
 use quote::{format_ident, quote};
 use ureg_schema::{Enum, EnumVariant, Register, RegisterBlock};
@@ -75,7 +75,7 @@ fn remove_reg_prefixes(registers: &mut [Rc<Register>], prefix: &str) {
 
 fn write_and_format(dest_file: &Path, contents: &str) -> Result<(), Box<dyn Error>> {
     println!("Writing to {dest_file:?}");
-    std::fs::write(&dest_file, contents)?;
+    std::fs::write(dest_file, contents)?;
     run_cmd(
         Command::new("rustfmt")
             .arg(dest_file)
@@ -91,17 +91,11 @@ fn real_main() -> Result<(), Box<dyn Error>> {
     }
 
     let rtl_dir = Path::new(&args[1]);
-    let rdl_files = CALIPTRA_RDL_FILES
+    let rdl_files: Vec<PathBuf> = CALIPTRA_RDL_FILES
         .iter()
         .map(|p| rtl_dir.join(p))
         .filter(|p| p.exists())
-        .try_fold(
-            vec![],
-            |mut acc, name| -> std::io::Result<Vec<systemrdl::InputFile>> {
-                acc.push(systemrdl::InputFile::read(&name)?);
-                Ok(acc)
-            },
-        )?;
+        .collect();
 
     let rtl_commit_id = run_cmd_stdout(
         Command::new("git")
@@ -130,7 +124,9 @@ fn real_main() -> Result<(), Box<dyn Error>> {
 
     let dest_dir = Path::new(&args[args.len() - 1]);
 
-    let scope = caliptra_systemrdl::Scope::parse_root(&rdl_files).map_err(|s| s.to_string())?;
+    let file_source = caliptra_systemrdl::FsFileSource::new();
+    let scope = caliptra_systemrdl::Scope::parse_root(&file_source, &rdl_files)
+        .map_err(|s| s.to_string())?;
     let scope = scope.as_parent();
 
     let addrmap = scope.lookup_typedef("clp").unwrap();
