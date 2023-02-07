@@ -769,8 +769,8 @@ mod tests {
             key_vault.write_key(key_id, &expanded_key, 0x3F).unwrap();
 
             if key_read_fail_test == true {
-                let val_reg = InMemoryRegister::<u32, key_vault::KEY_CONTROL::Register>::new(0);
-                val_reg.write(key_vault::KEY_CONTROL::USE_LOCK.val(1)); // Key read disabled.
+                let val_reg = InMemoryRegister::<u32, key_vault::KV_CONTROL::Register>::new(0);
+                val_reg.write(key_vault::KV_CONTROL::USE_LOCK.val(1)); // Key read disabled.
                 assert_eq!(
                     key_vault
                         .write(
@@ -793,8 +793,8 @@ mod tests {
                 .unwrap();
 
             if block_read_fail_test == true {
-                let val_reg = InMemoryRegister::<u32, key_vault::KEY_CONTROL::Register>::new(0);
-                val_reg.write(key_vault::KEY_CONTROL::USE_LOCK.val(1)); // Key read disabled.
+                let val_reg = InMemoryRegister::<u32, key_vault::KV_CONTROL::Register>::new(0);
+                val_reg.write(key_vault::KV_CONTROL::USE_LOCK.val(1)); // Key read disabled.
                 assert_eq!(
                     key_vault
                         .write(
@@ -811,8 +811,8 @@ mod tests {
         // For negative tag write test, make the key-slot unwritable.
         if tag_write_fail_test == true {
             assert_eq!(tag_to_kv, true);
-            let val_reg = InMemoryRegister::<u32, key_vault::KEY_CONTROL::Register>::new(0);
-            val_reg.write(key_vault::KEY_CONTROL::WRITE_LOCK.val(1)); // Key write disabled.
+            let val_reg = InMemoryRegister::<u32, key_vault::KV_CONTROL::Register>::new(0);
+            val_reg.write(key_vault::KV_CONTROL::WRITE_LOCK.val(1)); // Key write disabled.
             assert_eq!(
                 key_vault
                     .write(

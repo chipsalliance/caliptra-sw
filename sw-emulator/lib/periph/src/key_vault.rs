@@ -112,22 +112,15 @@ impl Bus for KeyVault {
 register_bitfields! [
     u32,
 
-    /// PCR Control Register Fields
-    pub PCR_CONTROL [
-        WRITE_LOCK OFFSET(1) NUMBITS(1) [],
-        CLEAR OFFSET(3) NUMBITS(1) [],
-        USAGE OFFSET(9) NUMBITS(6) [],
-        RSVD OFFSET(15) NUMBITS(22) [],
-    ],
-
-    /// Key Control Register Fields
-    pub KEY_CONTROL [
-        READ_LOCK OFFSET(0) NUMBITS(1) [],
-        WRITE_LOCK OFFSET(1) NUMBITS(1) [],
-        USE_LOCK OFFSET(2) NUMBITS(1) [],
-        CLEAR OFFSET(3) NUMBITS(1) [],
-        USAGE OFFSET(9) NUMBITS(6) [],
-        RSVD OFFSET(15) NUMBITS(22) [],
+    /// KV Control Register Fields
+    pub KV_CONTROL [
+        WRITE_LOCK OFFSET(0) NUMBITS(1) [],
+        USE_LOCK OFFSET(1) NUMBITS(1) [],
+        CLEAR OFFSET(2) NUMBITS(1) [],
+        RSVD0 OFFSET(3) NUMBITS(1) [],
+        RSVD1 OFFSET(4) NUMBITS(4) [],
+        USAGE OFFSET(8) NUMBITS(6) [],
+        RSVD OFFSET(14) NUMBITS(18) [],
     ],
 
     /// Clear Secrets Register Fields
@@ -143,7 +136,7 @@ register_bitfields! [
 pub struct KeyVaultRegs {
     /// PCR Control Registers
     #[peripheral(offset = 0x0000_0000, mask = 0x0000_00FF)]
-    pcr_control: ReadWriteRegisterArray<u32, { Self::PCR_COUNT as usize }, PCR_CONTROL::Register>,
+    pcr_control: ReadWriteRegisterArray<u32, { Self::PCR_COUNT as usize }, KV_CONTROL::Register>,
 
     /// PCR Registers
     #[peripheral(offset = 0x0000_0200, mask = 0x0000_01FF)]
@@ -151,7 +144,7 @@ pub struct KeyVaultRegs {
 
     /// Key Control Registers
     #[peripheral(offset = 0x0000_0400, mask = 0x0000_00FF)]
-    key_control: ReadWriteRegisterArray<u32, { Self::KEY_COUNT as usize }, KEY_CONTROL::Register>,
+    key_control: ReadWriteRegisterArray<u32, { Self::KEY_COUNT as usize }, KV_CONTROL::Register>,
 
     /// Key Registers
     keys: ReadWriteMemory<{ Self::KEY_REG_SIZE }>,
@@ -195,15 +188,17 @@ impl KeyVaultRegs {
     pub fn write_pcr_ctrl(&mut self, addr: RvAddr, val: u32) {
         let pcr_id = addr as usize >> 2;
         let pcr_ctrl_reg = &mut self.pcr_control[pcr_id];
-        let val_reg = InMemoryRegister::<u32, PCR_CONTROL::Register>::new(val);
+        let val_reg = InMemoryRegister::<u32, KV_CONTROL::Register>::new(val);
 
-        pcr_ctrl_reg.modify(PCR_CONTROL::WRITE_LOCK.val(
-            pcr_ctrl_reg.read(PCR_CONTROL::WRITE_LOCK) | val_reg.read(PCR_CONTROL::WRITE_LOCK),
-        ));
+        pcr_ctrl_reg.modify(
+            KV_CONTROL::WRITE_LOCK.val(
+                pcr_ctrl_reg.read(KV_CONTROL::WRITE_LOCK) | val_reg.read(KV_CONTROL::WRITE_LOCK),
+            ),
+        );
 
-        pcr_ctrl_reg.modify(PCR_CONTROL::USAGE.val(val_reg.read(PCR_CONTROL::USAGE)));
+        pcr_ctrl_reg.modify(KV_CONTROL::USAGE.val(val_reg.read(KV_CONTROL::USAGE)));
 
-        if val_reg.is_set(PCR_CONTROL::CLEAR) {
+        if val_reg.is_set(KV_CONTROL::CLEAR) {
             let pcr_min = pcr_id * Self::PCR_SIZE;
             let pcr_max = pcr_min + Self::PCR_SIZE;
             self.pcrs.data_mut()[pcr_min..pcr_max].fill(0);
@@ -213,21 +208,22 @@ impl KeyVaultRegs {
     pub fn write_key_ctrl(&mut self, addr: RvAddr, val: u32) {
         let key_id = addr as usize >> 2;
         let key_ctrl_reg = &mut self.key_control[key_id];
-        let val_reg = InMemoryRegister::<u32, KEY_CONTROL::Register>::new(val);
-
-        key_ctrl_reg.modify(KEY_CONTROL::WRITE_LOCK.val(
-            key_ctrl_reg.read(KEY_CONTROL::WRITE_LOCK) | val_reg.read(KEY_CONTROL::WRITE_LOCK),
-        ));
+        let val_reg = InMemoryRegister::<u32, KV_CONTROL::Register>::new(val);
 
         key_ctrl_reg.modify(
-            KEY_CONTROL::USE_LOCK.val(
-                key_ctrl_reg.read(KEY_CONTROL::USE_LOCK) | val_reg.read(KEY_CONTROL::USE_LOCK),
+            KV_CONTROL::WRITE_LOCK.val(
+                key_ctrl_reg.read(KV_CONTROL::WRITE_LOCK) | val_reg.read(KV_CONTROL::WRITE_LOCK),
             ),
         );
 
-        key_ctrl_reg.modify(KEY_CONTROL::USAGE.val(val_reg.read(KEY_CONTROL::USAGE)));
+        key_ctrl_reg.modify(
+            KV_CONTROL::USE_LOCK
+                .val(key_ctrl_reg.read(KV_CONTROL::USE_LOCK) | val_reg.read(KV_CONTROL::USE_LOCK)),
+        );
 
-        if val_reg.is_set(KEY_CONTROL::CLEAR) {
+        key_ctrl_reg.modify(KV_CONTROL::USAGE.val(val_reg.read(KV_CONTROL::USAGE)));
+
+        if val_reg.is_set(KV_CONTROL::CLEAR) {
             let key_min = key_id * Self::KEY_SIZE;
             let key_max = key_min + Self::KEY_SIZE;
             self.keys.data_mut()[key_min..key_max].fill(0);
@@ -236,7 +232,7 @@ impl KeyVaultRegs {
 
     pub fn read_key(&self, key_id: u32) -> Result<[u8; Self::KEY_SIZE], BusError> {
         let key_ctrl_reg = &self.key_control[key_id as usize];
-        if key_ctrl_reg.read(KEY_CONTROL::USE_LOCK) != 0 {
+        if key_ctrl_reg.read(KV_CONTROL::USE_LOCK) != 0 {
             Err(BusError::LoadAccessFault)?
         }
         let key_start = key_id as usize * Self::KEY_SIZE;
@@ -253,8 +249,8 @@ impl KeyVaultRegs {
         key_usage: u32,
     ) -> Result<(), BusError> {
         let key_ctrl_reg = &mut self.key_control[key_id as usize];
-        if key_ctrl_reg.read(KEY_CONTROL::WRITE_LOCK) != 0
-            || key_ctrl_reg.read(KEY_CONTROL::USE_LOCK) != 0
+        if key_ctrl_reg.read(KV_CONTROL::WRITE_LOCK) != 0
+            || key_ctrl_reg.read(KV_CONTROL::USE_LOCK) != 0
         {
             Err(BusError::StoreAccessFault)?
         }
@@ -263,7 +259,7 @@ impl KeyVaultRegs {
         self.keys.data_mut()[key_start..key_end].copy_from_slice(key);
 
         // Update the key usage.
-        key_ctrl_reg.modify(KEY_CONTROL::USAGE.val(key_usage));
+        key_ctrl_reg.modify(KV_CONTROL::USAGE.val(key_usage));
 
         Ok(())
     }
@@ -279,7 +275,7 @@ impl KeyVaultRegs {
     pub fn write_pcr(&mut self, addr: RvAddr, val: u32) -> Result<(), BusError> {
         let pcr_id = addr as usize / Self::PCR_SIZE;
         let pcr_ctrl_reg = &mut self.pcr_control[pcr_id];
-        if pcr_ctrl_reg.read(PCR_CONTROL::WRITE_LOCK) != 0 {
+        if pcr_ctrl_reg.read(KV_CONTROL::WRITE_LOCK) != 0 {
             Err(BusError::StoreAccessFault)?
         }
         let pcr_word_start = addr as usize;
@@ -365,7 +361,7 @@ mod tests {
         let mut vault = KeyVault::new();
 
         for key_id in 0..8 {
-            let val_reg = InMemoryRegister::<u32, KEY_CONTROL::Register>::new(0);
+            let val_reg = InMemoryRegister::<u32, KV_CONTROL::Register>::new(0);
             assert_eq!(
                 vault
                     .write(
@@ -380,7 +376,7 @@ mod tests {
             assert_eq!(vault.write_key(key_id, &expected, 0).is_ok(), true);
 
             // Block read access to the key.
-            val_reg.write(KEY_CONTROL::USE_LOCK.val(1));
+            val_reg.write(KV_CONTROL::USE_LOCK.val(1));
             assert_eq!(
                 vault
                     .write(
@@ -410,8 +406,8 @@ mod tests {
         ];
 
         let mut vault = KeyVault::new();
-        let val_reg = InMemoryRegister::<u32, KEY_CONTROL::Register>::new(0);
-        val_reg.write(KEY_CONTROL::WRITE_LOCK.val(1)); // Key write disabled.
+        let val_reg = InMemoryRegister::<u32, KV_CONTROL::Register>::new(0);
+        val_reg.write(KV_CONTROL::WRITE_LOCK.val(1)); // Key write disabled.
 
         for key_id in 0..8 {
             assert_eq!(
@@ -445,8 +441,8 @@ mod tests {
         let cleared_key: [u8; 64] = [0; 64];
 
         let mut vault = KeyVault::new();
-        let val_reg = InMemoryRegister::<u32, KEY_CONTROL::Register>::new(0);
-        val_reg.write(KEY_CONTROL::CLEAR.val(1)); // Clear key.
+        let val_reg = InMemoryRegister::<u32, KV_CONTROL::Register>::new(0);
+        val_reg.write(KV_CONTROL::CLEAR.val(1)); // Clear key.
 
         for key_id in 0..8 {
             assert_eq!(vault.write_key(key_id, &expected, 0).ok(), Some(()));
