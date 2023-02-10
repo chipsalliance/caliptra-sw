@@ -50,7 +50,7 @@ fn test_try_start_rcv_txn_error() {
     if let Ok(_txn) = Mailbox::try_start_send_txn() {
         if let Ok(_recv_txn) = Mailbox::try_start_recv_txn() {
             assert!(false);
-        }    
+        }
     } else {
         assert!(false);
     }
@@ -84,7 +84,6 @@ fn test_mailbox_loopback() {
     };
     let mut request_received = [0u8; 128];
 
-
     let mut ii = 0;
     while ii < 2 {
         if let Ok(mut txn) = Mailbox::try_start_send_txn() {
@@ -102,7 +101,9 @@ fn test_mailbox_loopback() {
                 assert!(recv_txn.recv_request(&mut request_received[..]).is_ok());
                 assert_eq!(request, &request_received[..request.len()]);
                 assert!(recv_txn.recv_request(&mut request_received[..]).is_err());
-                for nn in &mut request_received[0..request.len()] { *nn = 42 }
+                for nn in &mut request_received[0..request.len()] {
+                    *nn = 42
+                }
             }
         } else {
             assert!(false);
@@ -112,7 +113,7 @@ fn test_mailbox_loopback() {
 }
 
 test_suite! {
-    test_try_start_rcv_txn_error,    
+    test_try_start_rcv_txn_error,
     test_send_txn_drop,
     test_send_txn_error,
     test_mailbox_loopback,

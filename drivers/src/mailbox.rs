@@ -47,7 +47,6 @@ pub struct Mailbox {}
 
 const MAX_MAILBOX_LEN: u32 = 128 * 1024;
 
-
 impl Mailbox {
     /// Attempt to acquire the lock to start sending data.
     /// # Returns
@@ -82,7 +81,7 @@ pub struct MailboxSendTxn {
 
 impl MailboxSendTxn {
     ///
-    /// Transitions from RdyCmd --> RdyForDlen 
+    /// Transitions from RdyCmd --> RdyForDlen
     ///
     pub fn write_cmd(&mut self, cmd: u32) -> CaliptraResult<()> {
         if self.state != MailboxOpState::RdyForCmd {
@@ -99,7 +98,7 @@ impl MailboxSendTxn {
 
     ///
     /// Writes number of bytes to data length register.
-    /// Transitions from RdyForDlen --> RdyForData 
+    /// Transitions from RdyForDlen --> RdyForData
     ///
     pub fn write_dlen(&mut self, dlen: u32) -> CaliptraResult<()> {
         if self.state != MailboxOpState::RdyForDlen {
@@ -116,9 +115,8 @@ impl MailboxSendTxn {
 
         self.state = MailboxOpState::RdyForData;
         Ok(())
-
     }
-    
+
     /// Transitions mailbox to RdyForData state and copies data to mailbox.
     /// * 'cmd' - Command to Be Sent
     /// * 'data' - Data Bufer
@@ -165,7 +163,7 @@ impl MailboxSendTxn {
     }
 
     ///
-    /// Transitions from RdyForData --> Execute 
+    /// Transitions from RdyForData --> Execute
     ///
     pub fn execute_request(&mut self) -> CaliptraResult<()> {
         if self.state != MailboxOpState::RdyForData {
@@ -178,7 +176,7 @@ impl MailboxSendTxn {
         mbox.execute().write(|w| w.execute(true));
 
         self.state = MailboxOpState::Execute;
-        
+
         Ok(())
     }
 
@@ -206,7 +204,7 @@ impl MailboxSendTxn {
     }
 
     ///
-    /// Transitions from Execute --> Idle (releases the lock) 
+    /// Transitions from Execute --> Idle (releases the lock)
     ///
     pub fn complete(&mut self) -> CaliptraResult<()> {
         if self.state != MailboxOpState::Execute {
@@ -245,7 +243,7 @@ pub struct MailboxRecvTxn {
 impl Default for MailboxRecvTxn {
     fn default() -> Self {
         Self {
-            state : MailboxOpState::Execute,
+            state: MailboxOpState::Execute,
         }
     }
 }
@@ -275,7 +273,7 @@ impl MailboxRecvTxn {
             buf[idx..idx + size_of::<u32>()].copy_from_slice(&mbox.dataout().read().to_le_bytes());
         }
 
-        // Handle the remainder.    
+        // Handle the remainder.
         if remainder > 0 {
             let part = mbox.dataout().read();
             for idx in 0..remainder {
@@ -303,7 +301,7 @@ impl MailboxRecvTxn {
     }
 
     /// Retrieves data from the maibox.
-    /// Transitions from Execute --> Idle (releases the lock) 
+    /// Transitions from Execute --> Idle (releases the lock)
     /// # Arguments
     ///
     /// * `data` - data buffer.
@@ -319,7 +317,7 @@ impl MailboxRecvTxn {
     }
 
     ///
-    /// Transitions from Execute --> Idle 
+    /// Transitions from Execute --> Idle
     ///
     pub fn complete(&mut self, success: bool) -> CaliptraResult<()> {
         if self.state != MailboxOpState::Execute {
