@@ -1,0 +1,47 @@
+# docs: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions
+
+name: Build and Test
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+  workflow_dispatch:
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install risv32imc target
+        run: |
+          rustup update
+          rustup target add riscv32imc-unknown-none-elf
+
+      - name: Install cargo binutils
+        run: |
+          cargo install cargo-binutils
+          rustup component add llvm-tools-preview
+
+      - name: Build
+        run: |
+          cargo build
+          cargo build --release
+          (cd drivers && cargo build)
+          (cd drivers && cargo build --release)
+
+      - name: Run unit tests
+        run: |
+          cargo test
+          cargo test --release
+          # (cd drivers && cargo test)
+          # (cd drivers && cargo test --release)
+
+      - name: Check source-code formatting (run "cargo fmt" if this fails)
+        run: |
+          cargo fmt --check
+          (cd drivers && cargo fmt --check)
