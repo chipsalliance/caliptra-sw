@@ -316,9 +316,6 @@ struct SocRegistersImpl {
     #[register(offset = 0x0000_00A8, write_fn = on_write_stdout)]
     stdout: WriteOnlyRegister<u32>,
 
-    /// [TODO] Generic Input Wires
-    /// [TODO] Generic Output Wires
-
     /// Unique device secret
     uds: ReadOnlyMemory<UDS_SIZE>,
 
@@ -483,7 +480,8 @@ impl SocRegistersImpl {
 
         let val = (val & 0xFF) as u8;
         match val {
-            0xFF => exit(0),
+            0x01 => exit(0xFF),
+            0xFF => exit(0x00),
             _ => print!("{}", val as char),
         }
 

@@ -12,8 +12,6 @@ Abstract:
 
 --*/
 
-use cfg_if::cfg_if;
-
 /// Exit control
 pub enum ExitCtrl {}
 
@@ -27,13 +25,11 @@ impl ExitCtrl {
     /// # Returns
     ///
     /// This method does not return
-    pub fn exit(_exit_code: u32) -> ! {
-        cfg_if! {
-            if #[cfg(feature = "emu")] {
-                const STDOUT: *mut u32 = 0x3003_00A8 as *mut u32;
-                unsafe {
-                    core::ptr::write_volatile(STDOUT, 0xFF_u32);
-                }
+    pub fn exit(exit_code: u32) -> ! {
+        if cfg!(feature = "emu") {
+            const STDOUT: *mut u32 = 0x3003_00A8 as *mut u32;
+            unsafe {
+                core::ptr::write_volatile(STDOUT, if exit_code == 0 { 0xff } else { 0x01 });
             }
         }
 
