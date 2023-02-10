@@ -92,6 +92,16 @@ impl ParameterDefinition {
     }
 }
 
+fn uses_property(ty: ScopeType, name: &str) -> bool {
+    if component_meta::default_property(ty, name).is_ok() {
+        return true;
+    }
+    let ScopeType::Component(ty) = ty else {
+        return false;
+    };
+    component_meta::property(ty, name).is_ok()
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Scope {
     pub ty: ScopeType,
@@ -320,12 +330,24 @@ impl Scope {
             }
             if *tokens.peek(0) == Token::Identifier("default") {
                 tokens.next();
-                if !self.instances.is_empty() || !self.types.is_empty() {
-                    return Err(RdlError::DefaultPropertiesMustBeDefinedBeforeComponents);
-                }
+
                 let prop = PropertyAssignment::parse(tokens, parameters, |prop_name| {
                     component_meta::default_property(self.ty, prop_name)
                 })?;
+
+                #[rustfmt::skip]
+                let prev_components_use_property =
+                    self.instances.iter().any(|i| uses_property(i.scope.ty, prop.prop_name)) ||
+                    self.types.values().any(|s| uses_property(s.ty, prop.prop_name));
+
+                if prev_components_use_property {
+                    // Error if this default value could have been used by
+                    // previously defined components in this scope (the spec
+                    // isn't clear whether defaults apply to previously defined
+                    // components, so discourage users from doing ambiguous
+                    // things).
+                    return Err(RdlError::DefaultPropertiesMustBeDefinedBeforeComponents);
+                }
                 self.default_properties
                     .insert(prop.prop_name.into(), prop.value);
                 continue;
