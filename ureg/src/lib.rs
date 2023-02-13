@@ -9,7 +9,7 @@ Licensed under the Apache-2.0 license.
 
 #![no_std]
 
-use core::{marker::PhantomData, mem::MaybeUninit};
+use core::{default::Default, marker::PhantomData, mem::MaybeUninit};
 
 /// The root trait for metadata describing a MMIO register.
 ///
@@ -114,7 +114,7 @@ impl<const RESET_VAL: u32, TReadVal: Copy + From<u32>, TWriteVal: Copy + From<u3
 /// A trait for performing volatile reads and writes to a pointer. On real
 /// systems, [`RealMmio`] is typically used to implement this trait, but other
 /// implementations may be used for testing or simulation.
-pub trait Mmio: Clone + Copy {
+pub trait Mmio {
     /// Performs (or simulates) a volatile read from `src` and returns the read value.
     ///
     /// # Safety
@@ -131,7 +131,7 @@ pub trait Mmio: Clone + Copy {
 }
 
 /// A zero-sized type that implements the Mmio trait with real reads and writes.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct RealMmio();
 impl Mmio for RealMmio {
     /// Performs a volatile read from `src` and returns the read value.
@@ -151,11 +151,18 @@ impl Mmio for RealMmio {
         core::ptr::write_volatile(dst, src);
     }
 }
+impl<TMmio: Mmio> Mmio for &TMmio {
+    unsafe fn read_volatile<T: Clone + Copy>(&self, src: *const T) -> T {
+        (*self).read_volatile(src)
+    }
 
+    unsafe fn write_volatile<T: Clone + Copy>(&self, dst: *mut T, src: T) {
+        (*self).write_volatile(dst, src)
+    }
+}
 pub trait FromMmioPtr {
     /// The raw type of the register (typically `u8`, `u16`, `u32`, or `u64`)
     type TRaw: Clone + Copy;
-
     /// The Mmio implementation to use; typically RealMmio.
     type TMmio: Mmio;
 
@@ -542,7 +549,7 @@ pub struct Array<const LEN: usize, TItem: FromMmioPtr> {
     mmio: TItem::TMmio,
     ptr: *mut TItem::TRaw,
 }
-impl<const LEN: usize, TItem: FromMmioPtr> Array<LEN, TItem> {
+impl<const LEN: usize, TItem: FromMmioPtr<TMmio = TMmio>, TMmio: Mmio + Copy> Array<LEN, TItem> {
     /// Returns the item at `index`.
     ///
     /// # Panics
@@ -594,6 +601,22 @@ impl<const LEN: usize, TItem: FromMmioPtr<TMmio = RealMmio>> Array<LEN, TItem> {
             mmio: RealMmio(),
             ptr,
         }
+    }
+}
+impl<const LEN: usize, TItem: FromMmioPtr> Array<LEN, TItem> {
+    /// Creates a new Array from a raw register pointer.
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe because `ptr` may be used for loads or stores at any time
+    /// during the lifetime of the array. The caller is responsible for ensuring that:
+    ///
+    /// * `ptr` is non-null
+    /// * `ptr` is valid for loads and stores of `LEN * TItem::STRIDE * mem::size_of::<TItem::Raw>`
+    ///    bytes for the entire lifetime of this array.
+    /// * `ptr` is properly aligned.
+    pub unsafe fn new_with_mmio(ptr: *mut TItem::TRaw, mmio: TItem::TMmio) -> Self {
+        Self { mmio, ptr }
     }
 }
 
@@ -806,10 +829,10 @@ mod tests {
         pub unsafe fn new(ptr: *mut u32) -> Self {
             Self(ptr)
         }
-        pub fn fifo(&self) -> RegRef<FifoReg> {
+        pub fn fifo(&self) -> RegRef<FifoReg, RealMmio> {
             unsafe { RegRef::new(self.0.wrapping_offset(0)) }
         }
-        pub fn control(&self) -> RegRef<ControlReg> {
+        pub fn control(&self) -> RegRef<ControlReg, RealMmio> {
             unsafe { RegRef::new(self.0.wrapping_offset(1)) }
         }
     }
@@ -838,7 +861,8 @@ mod tests {
     #[test]
     pub fn test_reg_array() {
         let mut fake_mem = [0, 1, 2, 3, 4, 5, 6];
-        let reg_array = unsafe { Array::<4, RegRef<ControlReg>>::new(fake_mem.as_mut_ptr()) };
+        let reg_array =
+            unsafe { Array::<4, RegRef<ControlReg, RealMmio>>::new(fake_mem.as_mut_ptr()) };
         assert_eq!(reg_array.read(), [0.into(), 1.into(), 2.into(), 3.into()]);
 
         reg_array.write(&[10.into(), 11.into(), 12.into(), 13.into()]);
@@ -861,7 +885,8 @@ mod tests {
     #[should_panic]
     pub fn test_reg_array_oob_panic() {
         let mut fake_mem = [0, 1, 2, 3, 4, 5, 6];
-        let reg_array = unsafe { Array::<4, RegRef<ControlReg>>::new(fake_mem.as_mut_ptr()) };
+        let reg_array =
+            unsafe { Array::<4, RegRef<ControlReg, RealMmio>>::new(fake_mem.as_mut_ptr()) };
         reg_array.at(4);
     }
     #[test]
@@ -876,7 +901,7 @@ mod tests {
     pub fn test_reg_array_of_arrays() {
         let mut fake_mem = [0, 1, 2, 3, 4, 5, 6];
         let reg_array =
-            unsafe { Array::<3, Array<2, RegRef<FifoReg>>>::new(fake_mem.as_mut_ptr()) };
+            unsafe { Array::<3, Array<2, RegRef<FifoReg, RealMmio>>>::new(fake_mem.as_mut_ptr()) };
         assert_eq!(reg_array.at(0).read(), [0, 1]);
         assert_eq!(reg_array.at(1).read(), [2, 3]);
         assert_eq!(reg_array.at(2).read(), [4, 5]);
@@ -894,7 +919,8 @@ mod tests {
     #[should_panic]
     pub fn test_reg_array_of_arrays_oob_panic() {
         let mut fake_mem = [0, 1, 2, 3, 4, 5, 6];
-        let reg_array = unsafe { Array::<4, RegRef<ControlReg>>::new(fake_mem.as_mut_ptr()) };
+        let reg_array =
+            unsafe { Array::<4, RegRef<ControlReg, RealMmio>>::new(fake_mem.as_mut_ptr()) };
         reg_array.at(4);
     }
 }

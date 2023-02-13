@@ -5,34 +5,57 @@
 #![allow(clippy::erasing_op)]
 #![allow(clippy::identity_op)]
 #[derive(Clone, Copy)]
-pub struct RegisterBlock(*mut u32);
-impl RegisterBlock {
+pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio> = ureg::RealMmio> {
+    ptr: *mut u32,
+    mmio: TMmio,
+}
+impl RegisterBlock<ureg::RealMmio> {
+    pub fn ecc_reg() -> Self {
+        unsafe { Self::new(0x10008000 as *mut u32) }
+    }
+}
+impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+    pub unsafe fn new(ptr: *mut u32) -> Self {
+        Self {
+            ptr,
+            mmio: core::default::Default::default(),
+        }
+    }
+}
+impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
     /// volatile reads and writes at any of the offsets in this register
     /// block.
-    pub unsafe fn new(ptr: *mut u32) -> Self {
-        Self(ptr)
-    }
-    pub fn ecc_reg() -> Self {
-        unsafe { Self::new(0x10008000 as *mut u32) }
+    pub unsafe fn new_with_mmio(ptr: *mut u32, mmio: TMmio) -> Self {
+        Self { ptr, mmio }
     }
     /// Two 32-bit read-only registers repereseting of the name
     /// of ECC component. These registers are located at
     /// ECC_base_address + 0x0000_0000 and 0x0000_0004 addresses.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn name(&self) -> ureg::Array<2, ureg::RegRef<crate::ecc::meta::Name>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0 / core::mem::size_of::<u32>())) }
+    pub fn name(&self) -> ureg::Array<2, ureg::RegRef<crate::ecc::meta::Name, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Two 32-bit read-only registers repereseting of the version
     /// of ECC component. These registers are located at
     /// ECC_base_address + 0x0000_0008 and 0x0000_000C addresses.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn version(&self) -> ureg::Array<2, ureg::RegRef<crate::ecc::meta::Version>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(8 / core::mem::size_of::<u32>())) }
+    pub fn version(&self) -> ureg::Array<2, ureg::RegRef<crate::ecc::meta::Version, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// One 3-bit register to set the type of ECC operations.
     /// bit #[1:0]: This can be:
@@ -44,8 +67,13 @@ impl RegisterBlock {
     /// This register is located at ECC_base_address + 0x0000_0010.
     ///
     /// Read value: [`ecc::regs::CtrlReadVal`]; Write value: [`ecc::regs::CtrlWriteVal`]
-    pub fn ctrl(&self) -> ureg::RegRef<crate::ecc::meta::Ctrl> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x10 / core::mem::size_of::<u32>())) }
+    pub fn ctrl(&self) -> ureg::RegRef<crate::ecc::meta::Ctrl, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// One 2-bit register including the following flags:
     /// bit #0: READY : ​Indicates if the core is ready to take
@@ -55,8 +83,13 @@ impl RegisterBlock {
     /// This register is located at ECC_base_address + 0x0000_0018.
     ///
     /// Read value: [`ecc::regs::StatusReadVal`]; Write value: [`ecc::regs::StatusWriteVal`]
-    pub fn status(&self) -> ureg::RegRef<crate::ecc::meta::Status> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x18 / core::mem::size_of::<u32>())) }
+    pub fn status(&self) -> ureg::RegRef<crate::ecc::meta::Status, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// One 3-bit register to enable/disable the ECC SCA countermeasures.
     /// bit #0: POINT_RND_EN : ​Indicates if the base point randomization
@@ -69,8 +102,13 @@ impl RegisterBlock {
     /// This register is located at ECC_base_address + 0x0000_0020.
     ///
     /// Read value: [`ecc::regs::ScaconfigReadVal`]; Write value: [`ecc::regs::ScaconfigWriteVal`]
-    pub fn scaconfig(&self) -> ureg::RegRef<crate::ecc::meta::Scaconfig> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x20 / core::mem::size_of::<u32>())) }
+    pub fn scaconfig(&self) -> ureg::RegRef<crate::ecc::meta::Scaconfig, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// 12 32-bit registers storing the 384-bit seed for keygen.
     /// The seed can be any 384-bit value in [0 : 2^384-1].
@@ -78,8 +116,13 @@ impl RegisterBlock {
     /// 0x0000_0080 to 0x0000_00AC in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn seed(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::Seed>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x80 / core::mem::size_of::<u32>())) }
+    pub fn seed(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::Seed, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x80 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// 12 32-bit registers storing the hash of the message respect
     /// to SHA384 algorithm.
@@ -88,8 +131,13 @@ impl RegisterBlock {
     /// 0x0000_0100 to 0x0000_012C in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn msg(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::Msg>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x100 / core::mem::size_of::<u32>())) }
+    pub fn msg(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::Msg, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x100 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// 12 32-bit registers storing the private key. These registers
     /// is read by ECC user after keygen operation, or be set before
@@ -100,8 +148,13 @@ impl RegisterBlock {
     /// 0x0000_0180 to 0x0000_01AC in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn privkey(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::Privkey>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x180 / core::mem::size_of::<u32>())) }
+    pub fn privkey(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::Privkey, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x180 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// 12 32-bit registers storing the x coordinate of public key.
     /// These registers is read by ECC user after keygen operation,
@@ -112,8 +165,13 @@ impl RegisterBlock {
     /// 0x0000_0200 to 0x0000_022C in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn pubkey_x(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::PubkeyX>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x200 / core::mem::size_of::<u32>())) }
+    pub fn pubkey_x(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::PubkeyX, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x200 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// 12 32-bit registers storing the y coordinate of public key.
     /// These registers is read by ECC user after keygen operation,
@@ -124,8 +182,13 @@ impl RegisterBlock {
     /// 0x0000_0280 to 0x0000_02AC in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn pubkey_y(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::PubkeyY>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x280 / core::mem::size_of::<u32>())) }
+    pub fn pubkey_y(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::PubkeyY, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x280 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// 12 32-bit registers storing the signature R of the message.
     /// These registers is read by ECC user after signing operation,
@@ -139,8 +202,13 @@ impl RegisterBlock {
     /// 0x0000_0300 to 0x0000_032C in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn sign_r(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::SignR>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x300 / core::mem::size_of::<u32>())) }
+    pub fn sign_r(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::SignR, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x300 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// 12 32-bit registers storing the signature S of the message.
     /// These registers is read by ECC user after signing operation,
@@ -151,8 +219,13 @@ impl RegisterBlock {
     /// 0x0000_0380 to 0x0000_03AC in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn sign_s(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::SignS>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x380 / core::mem::size_of::<u32>())) }
+    pub fn sign_s(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::SignS, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x380 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// 12 32-bit registers storing the result of verifying operation.
     /// Firmware is responsible for comparing the computed result with
@@ -163,8 +236,13 @@ impl RegisterBlock {
     /// 0x0000_0400 to 0x0000_042C in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn verify_r(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::VerifyR>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x400 / core::mem::size_of::<u32>())) }
+    pub fn verify_r(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::VerifyR, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x400 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// 12 32-bit registers storing the 384-bit IV required
     /// for SCA countermeasures to randomize the inputs with no change
@@ -174,56 +252,101 @@ impl RegisterBlock {
     /// 0x0000_0480 to 0x0000_04AC in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn iv(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::Iv>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x480 / core::mem::size_of::<u32>())) }
+    pub fn iv(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::Iv, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x480 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Controls the Key Vault read access for this engine
     ///
     /// Read value: [`regs::KvReadCtrlRegReadVal`]; Write value: [`regs::KvReadCtrlRegWriteVal`]
-    pub fn kv_rd_pkey_ctrl(&self) -> ureg::RegRef<crate::ecc::meta::KvRdPkeyCtrl> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x600 / core::mem::size_of::<u32>())) }
+    pub fn kv_rd_pkey_ctrl(&self) -> ureg::RegRef<crate::ecc::meta::KvRdPkeyCtrl, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x600 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Reports the Key Vault flow status for this engine
     ///
     /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
-    pub fn kv_rd_pkey_status(&self) -> ureg::RegRef<crate::ecc::meta::KvRdPkeyStatus> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x604 / core::mem::size_of::<u32>())) }
+    pub fn kv_rd_pkey_status(&self) -> ureg::RegRef<crate::ecc::meta::KvRdPkeyStatus, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x604 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Controls the Key Vault read access for this engine
     ///
     /// Read value: [`regs::KvReadCtrlRegReadVal`]; Write value: [`regs::KvReadCtrlRegWriteVal`]
-    pub fn kv_rd_seed_ctrl(&self) -> ureg::RegRef<crate::ecc::meta::KvRdSeedCtrl> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x608 / core::mem::size_of::<u32>())) }
+    pub fn kv_rd_seed_ctrl(&self) -> ureg::RegRef<crate::ecc::meta::KvRdSeedCtrl, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x608 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Reports the Key Vault flow status for this engine
     ///
     /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
-    pub fn kv_rd_seed_status(&self) -> ureg::RegRef<crate::ecc::meta::KvRdSeedStatus> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x60c / core::mem::size_of::<u32>())) }
+    pub fn kv_rd_seed_status(&self) -> ureg::RegRef<crate::ecc::meta::KvRdSeedStatus, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x60c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Controls the Key Vault read access for this engine
     ///
     /// Read value: [`regs::KvReadCtrlRegReadVal`]; Write value: [`regs::KvReadCtrlRegWriteVal`]
-    pub fn kv_rd_msg_ctrl(&self) -> ureg::RegRef<crate::ecc::meta::KvRdMsgCtrl> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x610 / core::mem::size_of::<u32>())) }
+    pub fn kv_rd_msg_ctrl(&self) -> ureg::RegRef<crate::ecc::meta::KvRdMsgCtrl, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x610 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Reports the Key Vault flow status for this engine
     ///
     /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
-    pub fn kv_rd_msg_status(&self) -> ureg::RegRef<crate::ecc::meta::KvRdMsgStatus> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x614 / core::mem::size_of::<u32>())) }
+    pub fn kv_rd_msg_status(&self) -> ureg::RegRef<crate::ecc::meta::KvRdMsgStatus, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x614 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Controls the Key Vault write access for this engine
     ///
     /// Read value: [`regs::KvWriteCtrlRegReadVal`]; Write value: [`regs::KvWriteCtrlRegWriteVal`]
-    pub fn kv_wr_pkey_ctrl(&self) -> ureg::RegRef<crate::ecc::meta::KvWrPkeyCtrl> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x618 / core::mem::size_of::<u32>())) }
+    pub fn kv_wr_pkey_ctrl(&self) -> ureg::RegRef<crate::ecc::meta::KvWrPkeyCtrl, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x618 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Reports the Key Vault flow status for this engine
     ///
     /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
-    pub fn kv_wr_pkey_status(&self) -> ureg::RegRef<crate::ecc::meta::KvWrPkeyStatus> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x61c / core::mem::size_of::<u32>())) }
+    pub fn kv_wr_pkey_status(&self) -> ureg::RegRef<crate::ecc::meta::KvWrPkeyStatus, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x61c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
 }
 pub mod regs {

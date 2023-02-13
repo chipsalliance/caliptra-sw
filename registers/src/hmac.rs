@@ -5,34 +5,57 @@
 #![allow(clippy::erasing_op)]
 #![allow(clippy::identity_op)]
 #[derive(Clone, Copy)]
-pub struct RegisterBlock(*mut u32);
-impl RegisterBlock {
+pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio> = ureg::RealMmio> {
+    ptr: *mut u32,
+    mmio: TMmio,
+}
+impl RegisterBlock<ureg::RealMmio> {
+    pub fn hmac_reg() -> Self {
+        unsafe { Self::new(0x10010000 as *mut u32) }
+    }
+}
+impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+    pub unsafe fn new(ptr: *mut u32) -> Self {
+        Self {
+            ptr,
+            mmio: core::default::Default::default(),
+        }
+    }
+}
+impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
     /// volatile reads and writes at any of the offsets in this register
     /// block.
-    pub unsafe fn new(ptr: *mut u32) -> Self {
-        Self(ptr)
-    }
-    pub fn hmac_reg() -> Self {
-        unsafe { Self::new(0x10010000 as *mut u32) }
+    pub unsafe fn new_with_mmio(ptr: *mut u32, mmio: TMmio) -> Self {
+        Self { ptr, mmio }
     }
     /// Two 32-bit read-only registers repereseting of the name
     /// of HMAC384 component. These registers are located at
     /// HMAC384_base_address + 0x0000_0000 and 0x0000_0004 addresses.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn name(&self) -> ureg::Array<2, ureg::RegRef<crate::hmac::meta::Name>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0 / core::mem::size_of::<u32>())) }
+    pub fn name(&self) -> ureg::Array<2, ureg::RegRef<crate::hmac::meta::Name, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Two 32-bit read-only registers repereseting of the version
     /// of HMAC384 component. These registers are located at
     /// HMAC384_base_address + 0x0000_0008 and 0x0000_000C addresses.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn version(&self) -> ureg::Array<2, ureg::RegRef<crate::hmac::meta::Version>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(8 / core::mem::size_of::<u32>())) }
+    pub fn version(&self) -> ureg::Array<2, ureg::RegRef<crate::hmac::meta::Version, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// One 3-bit register including the following flags:
     /// bit #0: INIT : Trigs the HMAC384 core to start the
@@ -45,8 +68,13 @@ impl RegisterBlock {
     /// After each software write, hardware will erase the register.
     ///
     /// Read value: [`hmac::regs::CtrlReadVal`]; Write value: [`hmac::regs::CtrlWriteVal`]
-    pub fn ctrl(&self) -> ureg::RegRef<crate::hmac::meta::Ctrl> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x10 / core::mem::size_of::<u32>())) }
+    pub fn ctrl(&self) -> ureg::RegRef<crate::hmac::meta::Ctrl, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// One 2-bit register including the following flags:
     /// bit #0: READY : ​Indicates if the core is ready to take
@@ -56,68 +84,118 @@ impl RegisterBlock {
     /// This register is located at HMAC384_base_address + 0x0000_0018.
     ///
     /// Read value: [`hmac::regs::StatusReadVal`]; Write value: [`hmac::regs::StatusWriteVal`]
-    pub fn status(&self) -> ureg::RegRef<crate::hmac::meta::Status> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x18 / core::mem::size_of::<u32>())) }
+    pub fn status(&self) -> ureg::RegRef<crate::hmac::meta::Status, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// 12 32-bit registers storing the 384-bit key.
     /// These registers are located at HMAC384_base_address +
     /// 0x0000_0040 to 0x0000_006C in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn key(&self) -> ureg::Array<12, ureg::RegRef<crate::hmac::meta::Key>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x40 / core::mem::size_of::<u32>())) }
+    pub fn key(&self) -> ureg::Array<12, ureg::RegRef<crate::hmac::meta::Key, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x40 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// 32 32-bit registers storing the 1024-bit padded input.
     /// These registers are located at HMAC384_base_address +
     /// 0x0000_0080 to 0x0000_00FC in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn block(&self) -> ureg::Array<32, ureg::RegRef<crate::hmac::meta::Block>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x80 / core::mem::size_of::<u32>())) }
+    pub fn block(&self) -> ureg::Array<32, ureg::RegRef<crate::hmac::meta::Block, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x80 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// 12 32-bit registers storing the 384-bit digest output.
     /// These registers are located at HMAC384_base_address +
     /// 0x0000_0100 to 0x0000_012C in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn tag(&self) -> ureg::Array<12, ureg::RegRef<crate::hmac::meta::Tag>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x100 / core::mem::size_of::<u32>())) }
+    pub fn tag(&self) -> ureg::Array<12, ureg::RegRef<crate::hmac::meta::Tag, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x100 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Controls the Key Vault read access for this engine
     ///
     /// Read value: [`regs::KvReadCtrlRegReadVal`]; Write value: [`regs::KvReadCtrlRegWriteVal`]
-    pub fn kv_rd_key_ctrl(&self) -> ureg::RegRef<crate::hmac::meta::KvRdKeyCtrl> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x600 / core::mem::size_of::<u32>())) }
+    pub fn kv_rd_key_ctrl(&self) -> ureg::RegRef<crate::hmac::meta::KvRdKeyCtrl, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x600 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Reports the Key Vault flow status for this engine
     ///
     /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
-    pub fn kv_rd_key_status(&self) -> ureg::RegRef<crate::hmac::meta::KvRdKeyStatus> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x604 / core::mem::size_of::<u32>())) }
+    pub fn kv_rd_key_status(&self) -> ureg::RegRef<crate::hmac::meta::KvRdKeyStatus, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x604 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Controls the Key Vault read access for this engine
     ///
     /// Read value: [`regs::KvReadCtrlRegReadVal`]; Write value: [`regs::KvReadCtrlRegWriteVal`]
-    pub fn kv_rd_block_ctrl(&self) -> ureg::RegRef<crate::hmac::meta::KvRdBlockCtrl> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x608 / core::mem::size_of::<u32>())) }
+    pub fn kv_rd_block_ctrl(&self) -> ureg::RegRef<crate::hmac::meta::KvRdBlockCtrl, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x608 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Reports the Key Vault flow status for this engine
     ///
     /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
-    pub fn kv_rd_block_status(&self) -> ureg::RegRef<crate::hmac::meta::KvRdBlockStatus> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x60c / core::mem::size_of::<u32>())) }
+    pub fn kv_rd_block_status(&self) -> ureg::RegRef<crate::hmac::meta::KvRdBlockStatus, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x60c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Controls the Key Vault write access for this engine
     ///
     /// Read value: [`regs::KvWriteCtrlRegReadVal`]; Write value: [`regs::KvWriteCtrlRegWriteVal`]
-    pub fn kv_wr_ctrl(&self) -> ureg::RegRef<crate::hmac::meta::KvWrCtrl> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x610 / core::mem::size_of::<u32>())) }
+    pub fn kv_wr_ctrl(&self) -> ureg::RegRef<crate::hmac::meta::KvWrCtrl, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x610 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Reports the Key Vault flow status for this engine
     ///
     /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
-    pub fn kv_wr_status(&self) -> ureg::RegRef<crate::hmac::meta::KvWrStatus> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x614 / core::mem::size_of::<u32>())) }
+    pub fn kv_wr_status(&self) -> ureg::RegRef<crate::hmac::meta::KvWrStatus, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x614 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
 }
 pub mod regs {

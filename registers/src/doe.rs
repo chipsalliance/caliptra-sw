@@ -5,36 +5,64 @@
 #![allow(clippy::erasing_op)]
 #![allow(clippy::identity_op)]
 #[derive(Clone, Copy)]
-pub struct RegisterBlock(*mut u32);
-impl RegisterBlock {
+pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio> = ureg::RealMmio> {
+    ptr: *mut u32,
+    mmio: TMmio,
+}
+impl RegisterBlock<ureg::RealMmio> {
+    pub fn doe_reg() -> Self {
+        unsafe { Self::new(0x10000000 as *mut u32) }
+    }
+}
+impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+    pub unsafe fn new(ptr: *mut u32) -> Self {
+        Self {
+            ptr,
+            mmio: core::default::Default::default(),
+        }
+    }
+}
+impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
     /// volatile reads and writes at any of the offsets in this register
     /// block.
-    pub unsafe fn new(ptr: *mut u32) -> Self {
-        Self(ptr)
-    }
-    pub fn doe_reg() -> Self {
-        unsafe { Self::new(0x10000000 as *mut u32) }
+    pub unsafe fn new_with_mmio(ptr: *mut u32, mmio: TMmio) -> Self {
+        Self { ptr, mmio }
     }
     /// 4 32-bit registers storing the 128-bit IV.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn iv(&self) -> ureg::Array<4, ureg::RegRef<crate::doe::meta::Iv>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0 / core::mem::size_of::<u32>())) }
+    pub fn iv(&self) -> ureg::Array<4, ureg::RegRef<crate::doe::meta::Iv, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Controls the de-obfuscation command to run
     ///
     /// Read value: [`doe::regs::CtrlReadVal`]; Write value: [`doe::regs::CtrlWriteVal`]
-    pub fn ctrl(&self) -> ureg::RegRef<crate::doe::meta::Ctrl> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x10 / core::mem::size_of::<u32>())) }
+    pub fn ctrl(&self) -> ureg::RegRef<crate::doe::meta::Ctrl, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Provides status of the DOE block and the status of the flows it runs
     ///
     /// Read value: [`doe::regs::StatusReadVal`]; Write value: [`doe::regs::StatusWriteVal`]
-    pub fn status(&self) -> ureg::RegRef<crate::doe::meta::Status> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x14 / core::mem::size_of::<u32>())) }
+    pub fn status(&self) -> ureg::RegRef<crate::doe::meta::Status, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
 }
 pub mod regs {

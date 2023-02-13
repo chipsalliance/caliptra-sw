@@ -5,34 +5,57 @@
 #![allow(clippy::erasing_op)]
 #![allow(clippy::identity_op)]
 #[derive(Clone, Copy)]
-pub struct RegisterBlock(*mut u32);
-impl RegisterBlock {
+pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio> = ureg::RealMmio> {
+    ptr: *mut u32,
+    mmio: TMmio,
+}
+impl RegisterBlock<ureg::RealMmio> {
+    pub fn sha512_acc_csr() -> Self {
+        unsafe { Self::new(0x30021000 as *mut u32) }
+    }
+}
+impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+    pub unsafe fn new(ptr: *mut u32) -> Self {
+        Self {
+            ptr,
+            mmio: core::default::Default::default(),
+        }
+    }
+}
+impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
     /// volatile reads and writes at any of the offsets in this register
     /// block.
-    pub unsafe fn new(ptr: *mut u32) -> Self {
-        Self(ptr)
-    }
-    pub fn sha512_acc_csr() -> Self {
-        unsafe { Self::new(0x30021000 as *mut u32) }
+    pub unsafe fn new_with_mmio(ptr: *mut u32, mmio: TMmio) -> Self {
+        Self { ptr, mmio }
     }
     /// SHA lock register for SHA access, reading 0 will set the lock, Write 1 to clear the lock
     /// [br]Caliptra Access: RW
     /// [br]SOC Access:      RW
     ///
     /// Read value: [`sha512_acc::regs::LockReadVal`]; Write value: [`sha512_acc::regs::LockWriteVal`]
-    pub fn lock(&self) -> ureg::RegRef<crate::sha512_acc::meta::Lock> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0 / core::mem::size_of::<u32>())) }
+    pub fn lock(&self) -> ureg::RegRef<crate::sha512_acc::meta::Lock, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Stores the user that locked the SHA
     /// [br]Caliptra Access: RO
     /// [br]SOC Access:      RO
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn user(&self) -> ureg::RegRef<crate::sha512_acc::meta::User> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(4 / core::mem::size_of::<u32>())) }
+    pub fn user(&self) -> ureg::RegRef<crate::sha512_acc::meta::User, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Stores the requested mode for the SHA to execute.
     /// SHA Supports both SHA384 and SHA512 modes of operation.
@@ -42,8 +65,13 @@ impl RegisterBlock {
     /// [br]SOC Access:      RW
     ///
     /// Read value: [`sha512_acc::regs::ModeReadVal`]; Write value: [`sha512_acc::regs::ModeWriteVal`]
-    pub fn mode(&self) -> ureg::RegRef<crate::sha512_acc::meta::Mode> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(8 / core::mem::size_of::<u32>())) }
+    pub fn mode(&self) -> ureg::RegRef<crate::sha512_acc::meta::Mode, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// The start address for FW controlled SHA performed on data stored in the mailbox.
     /// Start Address must be dword aligned.
@@ -51,24 +79,39 @@ impl RegisterBlock {
     /// [br]SOC Access:      RW
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn start_address(&self) -> ureg::RegRef<crate::sha512_acc::meta::StartAddress> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0xc / core::mem::size_of::<u32>())) }
+    pub fn start_address(&self) -> ureg::RegRef<crate::sha512_acc::meta::StartAddress, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// The length of data to be processed in bytes.
     /// [br]Caliptra Access: RW
     /// [br]SOC Access:      RW
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn dlen(&self) -> ureg::RegRef<crate::sha512_acc::meta::Dlen> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x10 / core::mem::size_of::<u32>())) }
+    pub fn dlen(&self) -> ureg::RegRef<crate::sha512_acc::meta::Dlen, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Data in register for SHA Streaming function
     /// [br]Caliptra Access: RW
     /// [br]SOC Access:      RW
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn datain(&self) -> ureg::RegRef<crate::sha512_acc::meta::Datain> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x14 / core::mem::size_of::<u32>())) }
+    pub fn datain(&self) -> ureg::RegRef<crate::sha512_acc::meta::Datain, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// For Streaming Function, indicates that the initiator is done streaming.
     /// For the Mailbox SHA Function, indicates that the SHA can begin execution.
@@ -76,16 +119,26 @@ impl RegisterBlock {
     /// [br]SOC Access:      RW
     ///
     /// Read value: [`sha512_acc::regs::ExecuteReadVal`]; Write value: [`sha512_acc::regs::ExecuteWriteVal`]
-    pub fn execute(&self) -> ureg::RegRef<crate::sha512_acc::meta::Execute> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x18 / core::mem::size_of::<u32>())) }
+    pub fn execute(&self) -> ureg::RegRef<crate::sha512_acc::meta::Execute, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Status register indicating when the requested function is complete
     /// [br]Caliptra Access: RO
     /// [br]SOC Access:      RO
     ///
     /// Read value: [`sha512_acc::regs::StatusReadVal`]; Write value: [`sha512_acc::regs::StatusWriteVal`]
-    pub fn status(&self) -> ureg::RegRef<crate::sha512_acc::meta::Status> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x1c / core::mem::size_of::<u32>())) }
+    pub fn status(&self) -> ureg::RegRef<crate::sha512_acc::meta::Status, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x1c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// 16 32-bit registers storing the 512-bit digest output in
     /// big-endian representation.
@@ -93,8 +146,13 @@ impl RegisterBlock {
     /// [br]SOC Access:      RO
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn digest(&self) -> ureg::Array<16, ureg::RegRef<crate::sha512_acc::meta::Digest>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x20 / core::mem::size_of::<u32>())) }
+    pub fn digest(&self) -> ureg::Array<16, ureg::RegRef<crate::sha512_acc::meta::Digest, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
 }
 pub mod regs {

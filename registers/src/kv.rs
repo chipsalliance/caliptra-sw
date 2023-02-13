@@ -5,111 +5,198 @@
 #![allow(clippy::erasing_op)]
 #![allow(clippy::identity_op)]
 #[derive(Clone, Copy)]
-pub struct RegisterBlock(*mut u32);
-impl RegisterBlock {
+pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio> = ureg::RealMmio> {
+    ptr: *mut u32,
+    mmio: TMmio,
+}
+impl RegisterBlock<ureg::RealMmio> {
+    pub fn kv_reg() -> Self {
+        unsafe { Self::new(0x10018000 as *mut u32) }
+    }
+}
+impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+    pub unsafe fn new(ptr: *mut u32) -> Self {
+        Self {
+            ptr,
+            mmio: core::default::Default::default(),
+        }
+    }
+}
+impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
     /// volatile reads and writes at any of the offsets in this register
     /// block.
-    pub unsafe fn new(ptr: *mut u32) -> Self {
-        Self(ptr)
-    }
-    pub fn kv_reg() -> Self {
-        unsafe { Self::new(0x10018000 as *mut u32) }
+    pub unsafe fn new_with_mmio(ptr: *mut u32, mmio: TMmio) -> Self {
+        Self { ptr, mmio }
     }
     /// Controls for each keyvault and pcr entry
     ///
     /// Read value: [`kv::regs::KvctrlReadVal`]; Write value: [`kv::regs::KvctrlWriteVal`]
-    pub fn pcr_ctrl(&self) -> ureg::Array<8, ureg::RegRef<crate::kv::meta::PcrCtrl>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0 / core::mem::size_of::<u32>())) }
+    pub fn pcr_ctrl(&self) -> ureg::Array<8, ureg::RegRef<crate::kv::meta::PcrCtrl, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     pub fn pcr_entry(
         &self,
-    ) -> ureg::Array<8, ureg::Array<16, ureg::RegRef<crate::kv::meta::PcrEntry>>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x200 / core::mem::size_of::<u32>())) }
+    ) -> ureg::Array<8, ureg::Array<16, ureg::RegRef<crate::kv::meta::PcrEntry, &TMmio>>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x200 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Controls for each keyvault and pcr entry
     ///
     /// Read value: [`kv::regs::KvctrlReadVal`]; Write value: [`kv::regs::KvctrlWriteVal`]
-    pub fn key_ctrl(&self) -> ureg::Array<8, ureg::RegRef<crate::kv::meta::KeyCtrl>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x400 / core::mem::size_of::<u32>())) }
+    pub fn key_ctrl(&self) -> ureg::Array<8, ureg::RegRef<crate::kv::meta::KeyCtrl, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x400 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Key Entries are not readable or writeable by software
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     pub fn key_entry(
         &self,
-    ) -> ureg::Array<8, ureg::Array<16, ureg::RegRef<crate::kv::meta::KeyEntry>>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x600 / core::mem::size_of::<u32>())) }
+    ) -> ureg::Array<8, ureg::Array<16, ureg::RegRef<crate::kv::meta::KeyEntry, &TMmio>>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x600 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Read value: [`kv::regs::ClearSecretsReadVal`]; Write value: [`kv::regs::ClearSecretsWriteVal`]
-    pub fn clear_secrets(&self) -> ureg::RegRef<crate::kv::meta::ClearSecrets> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x800 / core::mem::size_of::<u32>())) }
+    pub fn clear_secrets(&self) -> ureg::RegRef<crate::kv::meta::ClearSecrets, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x800 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Controls for the Sticky Data Vault Entries
     ///
     /// Read value: [`kv::regs::StickydatavaultctrlReadVal`]; Write value: [`kv::regs::StickydatavaultctrlWriteVal`]
     pub fn sticky_data_vault_ctrl(
         &self,
-    ) -> ureg::Array<10, ureg::RegRef<crate::kv::meta::Stickydatavaultctrl>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x804 / core::mem::size_of::<u32>())) }
+    ) -> ureg::Array<10, ureg::RegRef<crate::kv::meta::Stickydatavaultctrl, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x804 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Controls for the Non-Sticky Data Vault Entries
     ///
     /// Read value: [`kv::regs::StickydatavaultctrlReadVal`]; Write value: [`kv::regs::StickydatavaultctrlWriteVal`]
     pub fn non_sticky_data_vault_ctrl(
         &self,
-    ) -> ureg::Array<10, ureg::RegRef<crate::kv::meta::Nonstickydatavaultctrl>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x82c / core::mem::size_of::<u32>())) }
+    ) -> ureg::Array<10, ureg::RegRef<crate::kv::meta::Nonstickydatavaultctrl, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x82c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Non-Sticky Scratch Register Controls
     ///
     /// Read value: [`kv::regs::StickylockablescratchregctrlReadVal`]; Write value: [`kv::regs::StickylockablescratchregctrlWriteVal`]
     pub fn non_sticky_lockable_scratch_reg_ctrl(
         &self,
-    ) -> ureg::Array<10, ureg::RegRef<crate::kv::meta::Nonstickylockablescratchregctrl>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x854 / core::mem::size_of::<u32>())) }
+    ) -> ureg::Array<10, ureg::RegRef<crate::kv::meta::Nonstickylockablescratchregctrl, &TMmio>>
+    {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x854 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     pub fn sticky_data_vault_entry(
         &self,
-    ) -> ureg::Array<10, ureg::Array<12, ureg::RegRef<crate::kv::meta::StickyDataVaultEntry>>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x900 / core::mem::size_of::<u32>())) }
+    ) -> ureg::Array<10, ureg::Array<12, ureg::RegRef<crate::kv::meta::StickyDataVaultEntry, &TMmio>>>
+    {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x900 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     pub fn nonsticky_data_vault_entry(
         &self,
-    ) -> ureg::Array<10, ureg::Array<12, ureg::RegRef<crate::kv::meta::NonstickyDataVaultEntry>>>
-    {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0xc00 / core::mem::size_of::<u32>())) }
+    ) -> ureg::Array<
+        10,
+        ureg::Array<12, ureg::RegRef<crate::kv::meta::NonstickyDataVaultEntry, &TMmio>>,
+    > {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0xc00 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     pub fn non_sticky_lockable_scratch_reg(
         &self,
-    ) -> ureg::Array<10, ureg::RegRef<crate::kv::meta::Nonstickylockablescratchreg>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0xf00 / core::mem::size_of::<u32>())) }
+    ) -> ureg::Array<10, ureg::RegRef<crate::kv::meta::Nonstickylockablescratchreg, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0xf00 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     pub fn non_sticky_generic_scratch_reg(
         &self,
-    ) -> ureg::Array<8, ureg::RegRef<crate::kv::meta::Nonstickygenericscratchreg>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0xf28 / core::mem::size_of::<u32>())) }
+    ) -> ureg::Array<8, ureg::RegRef<crate::kv::meta::Nonstickygenericscratchreg, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0xf28 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Sticky Scratch Register Controls
     ///
     /// Read value: [`kv::regs::StickylockablescratchregctrlReadVal`]; Write value: [`kv::regs::StickylockablescratchregctrlWriteVal`]
     pub fn sticky_lockable_scratch_reg_ctrl(
         &self,
-    ) -> ureg::Array<8, ureg::RegRef<crate::kv::meta::Stickylockablescratchregctrl>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0xf48 / core::mem::size_of::<u32>())) }
+    ) -> ureg::Array<8, ureg::RegRef<crate::kv::meta::Stickylockablescratchregctrl, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0xf48 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Read value: [`u32`]; Write value: [`u32`]
     pub fn sticky_lockable_scratch_reg(
         &self,
-    ) -> ureg::Array<8, ureg::RegRef<crate::kv::meta::Stickylockablescratchreg>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0xf68 / core::mem::size_of::<u32>())) }
+    ) -> ureg::Array<8, ureg::RegRef<crate::kv::meta::Stickylockablescratchreg, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0xf68 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
 }
 pub mod regs {

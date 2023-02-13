@@ -5,34 +5,57 @@
 #![allow(clippy::erasing_op)]
 #![allow(clippy::identity_op)]
 #[derive(Clone, Copy)]
-pub struct RegisterBlock(*mut u32);
-impl RegisterBlock {
+pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio> = ureg::RealMmio> {
+    ptr: *mut u32,
+    mmio: TMmio,
+}
+impl RegisterBlock<ureg::RealMmio> {
+    pub fn sha512_reg() -> Self {
+        unsafe { Self::new(0x10020000 as *mut u32) }
+    }
+}
+impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+    pub unsafe fn new(ptr: *mut u32) -> Self {
+        Self {
+            ptr,
+            mmio: core::default::Default::default(),
+        }
+    }
+}
+impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
     /// volatile reads and writes at any of the offsets in this register
     /// block.
-    pub unsafe fn new(ptr: *mut u32) -> Self {
-        Self(ptr)
-    }
-    pub fn sha512_reg() -> Self {
-        unsafe { Self::new(0x10020000 as *mut u32) }
+    pub unsafe fn new_with_mmio(ptr: *mut u32, mmio: TMmio) -> Self {
+        Self { ptr, mmio }
     }
     /// Two 32-bit read-only registers repereseting of the name
     /// of SHA512 component. These registers are located at
     /// SHA512_base_address + 0x0000_0000 and 0x0000_0004 addresses.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn name(&self) -> ureg::Array<2, ureg::RegRef<crate::sha512::meta::Name>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0 / core::mem::size_of::<u32>())) }
+    pub fn name(&self) -> ureg::Array<2, ureg::RegRef<crate::sha512::meta::Name, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Two 32-bit read-only registers repereseting of the version
     /// of SHA512 component. These registers are located at
     /// SHA512_base_address + 0x0000_0008 and 0x0000_000C addresses.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn version(&self) -> ureg::Array<2, ureg::RegRef<crate::sha512::meta::Version>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(8 / core::mem::size_of::<u32>())) }
+    pub fn version(&self) -> ureg::Array<2, ureg::RegRef<crate::sha512::meta::Version, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// One 5-bit register including the following flags:
     /// bit #0: INIT : Trigs the SHA512 core to start the
@@ -50,8 +73,13 @@ impl RegisterBlock {
     /// After each software write, hardware will erase the register.
     ///
     /// Read value: [`sha512::regs::CtrlReadVal`]; Write value: [`sha512::regs::CtrlWriteVal`]
-    pub fn ctrl(&self) -> ureg::RegRef<crate::sha512::meta::Ctrl> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x10 / core::mem::size_of::<u32>())) }
+    pub fn ctrl(&self) -> ureg::RegRef<crate::sha512::meta::Ctrl, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// One 2-bit register including the following flags:
     /// bit #0: READY : ​Indicates if the core is ready to take
@@ -61,48 +89,83 @@ impl RegisterBlock {
     /// This register is located at SHA512_base_address + 0x0000_0018.
     ///
     /// Read value: [`sha512::regs::StatusReadVal`]; Write value: [`sha512::regs::StatusWriteVal`]
-    pub fn status(&self) -> ureg::RegRef<crate::sha512::meta::Status> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x18 / core::mem::size_of::<u32>())) }
+    pub fn status(&self) -> ureg::RegRef<crate::sha512::meta::Status, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// 32 32-bit registers storing the 1024-bit padded input.
     /// These registers are located at SHA512_base_address +
     /// 0x0000_0080 to 0x0000_00FC in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn block(&self) -> ureg::Array<32, ureg::RegRef<crate::sha512::meta::Block>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x80 / core::mem::size_of::<u32>())) }
+    pub fn block(&self) -> ureg::Array<32, ureg::RegRef<crate::sha512::meta::Block, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x80 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// 16 32-bit registers storing the 512-bit digest output.
     /// These registers are located at SHA512_base_address +
     /// 0x0000_0100 to 0x0000_013C in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn digest(&self) -> ureg::Array<16, ureg::RegRef<crate::sha512::meta::Digest>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x100 / core::mem::size_of::<u32>())) }
+    pub fn digest(&self) -> ureg::Array<16, ureg::RegRef<crate::sha512::meta::Digest, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x100 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Controls the Key Vault read access for this engine
     ///
     /// Read value: [`regs::KvReadCtrlRegReadVal`]; Write value: [`regs::KvReadCtrlRegWriteVal`]
-    pub fn kv_rd_ctrl(&self) -> ureg::RegRef<crate::sha512::meta::KvRdCtrl> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x600 / core::mem::size_of::<u32>())) }
+    pub fn kv_rd_ctrl(&self) -> ureg::RegRef<crate::sha512::meta::KvRdCtrl, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x600 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Reports the Key Vault flow status for this engine
     ///
     /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
-    pub fn kv_rd_status(&self) -> ureg::RegRef<crate::sha512::meta::KvRdStatus> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x604 / core::mem::size_of::<u32>())) }
+    pub fn kv_rd_status(&self) -> ureg::RegRef<crate::sha512::meta::KvRdStatus, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x604 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Controls the Key Vault write access for this engine
     ///
     /// Read value: [`regs::KvWriteCtrlRegReadVal`]; Write value: [`regs::KvWriteCtrlRegWriteVal`]
-    pub fn kv_wr_ctrl(&self) -> ureg::RegRef<crate::sha512::meta::KvWrCtrl> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x608 / core::mem::size_of::<u32>())) }
+    pub fn kv_wr_ctrl(&self) -> ureg::RegRef<crate::sha512::meta::KvWrCtrl, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x608 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Reports the Key Vault flow status for this engine
     ///
     /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
-    pub fn kv_wr_status(&self) -> ureg::RegRef<crate::sha512::meta::KvWrStatus> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x60c / core::mem::size_of::<u32>())) }
+    pub fn kv_wr_status(&self) -> ureg::RegRef<crate::sha512::meta::KvWrStatus, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x60c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
 }
 pub mod regs {

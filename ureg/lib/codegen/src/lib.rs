@@ -640,18 +640,20 @@ fn generate_block_registers(
         let result_type = generate_array_type(
             reg.array_dimensions.iter().cloned(),
             quote! {
-                ureg::RegRef<#module_path::meta::#reg_meta_name>
+                ureg::RegRef<#module_path::meta::#reg_meta_name, &TMmio>
             },
         );
         let constructor = if reg.array_dimensions.is_empty() {
-            quote! { ureg::RegRef::new }
+            quote! { ureg::RegRef::new_with_mmio }
         } else {
-            quote! { ureg::Array::new }
+            quote! { ureg::Array::new_with_mmio }
         };
+
         block_tokens.extend(quote!{
             #[doc = #comment]
             pub fn #reg_name(&self) -> #result_type {
-                unsafe { #constructor(self.0.wrapping_add(#ptr_offset / core::mem::size_of::<#raw_ptr_type>())) }
+                unsafe { #constructor(self.ptr.wrapping_add(#ptr_offset / core::mem::size_of::<#raw_ptr_type>()),
+                                      core::borrow::Borrow::borrow(&self.mmio)) }
             }
         });
     }
@@ -742,6 +744,8 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
     let mut meta_tokens = TokenStream::new();
     let mut block_tokens = TokenStream::new();
 
+    let mut block_instance_tokens = TokenStream::new();
+
     if !block.block().registers.is_empty() {
         let max_reg_width = block
             .block()
@@ -756,7 +760,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
             let name = snake_ident(&instance.name);
             let addr = hex_literal(instance.address.into());
             // TODO: Should this be unsafe?
-            block_inner_tokens.extend(quote! {
+            block_instance_tokens.extend(quote! {
                 pub fn #name() -> Self { unsafe { Self::new(#addr as *mut #raw_ptr_type) } }
             });
         }
@@ -802,15 +806,32 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
         }
         block_tokens = quote! {
             #[derive(Clone, Copy)]
-            pub struct RegisterBlock(*mut #raw_ptr_type);
-            impl RegisterBlock {
+            pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio> = ureg::RealMmio>{
+                ptr: *mut #raw_ptr_type,
+                mmio: TMmio,
+            }
+            impl RegisterBlock<ureg::RealMmio> {
+                #block_instance_tokens
+            }
+            impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+                pub unsafe fn new(ptr: *mut #raw_ptr_type) -> Self {
+                    Self{
+                        ptr,
+                        mmio: core::default::Default::default(),
+                    }
+                }
+            }
+            impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
                 /// # Safety
                 ///
                 /// The caller is responsible for ensuring that ptr is valid for
                 /// volatile reads and writes at any of the offsets in this register
                 /// block.
-                pub unsafe fn new(ptr: *mut #raw_ptr_type) -> Self {
-                    Self(ptr)
+                pub unsafe fn new_with_mmio(ptr: *mut #raw_ptr_type, mmio: TMmio) -> Self {
+                    Self{
+                        ptr,
+                        mmio,
+                    }
                 }
                 #block_inner_tokens
             }

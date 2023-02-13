@@ -5,42 +5,70 @@
 #![allow(clippy::erasing_op)]
 #![allow(clippy::identity_op)]
 #[derive(Clone, Copy)]
-pub struct RegisterBlock(*mut u32);
-impl RegisterBlock {
+pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio> = ureg::RealMmio> {
+    ptr: *mut u32,
+    mmio: TMmio,
+}
+impl RegisterBlock<ureg::RealMmio> {
+    pub fn mbox_csr() -> Self {
+        unsafe { Self::new(0x30020000 as *mut u32) }
+    }
+}
+impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+    pub unsafe fn new(ptr: *mut u32) -> Self {
+        Self {
+            ptr,
+            mmio: core::default::Default::default(),
+        }
+    }
+}
+impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// # Safety
     ///
     /// The caller is responsible for ensuring that ptr is valid for
     /// volatile reads and writes at any of the offsets in this register
     /// block.
-    pub unsafe fn new(ptr: *mut u32) -> Self {
-        Self(ptr)
-    }
-    pub fn mbox_csr() -> Self {
-        unsafe { Self::new(0x30020000 as *mut u32) }
+    pub unsafe fn new_with_mmio(ptr: *mut u32, mmio: TMmio) -> Self {
+        Self { ptr, mmio }
     }
     /// Mailbox lock register for mailbox access, reading 0 will set the lock
     /// [br]Caliptra Access: RO
     /// [br]SOC Access:      RO
     ///
     /// Read value: [`mbox::regs::LockReadVal`]; Write value: [`mbox::regs::LockWriteVal`]
-    pub fn lock(&self) -> ureg::RegRef<crate::mbox::meta::Lock> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0 / core::mem::size_of::<u32>())) }
+    pub fn lock(&self) -> ureg::RegRef<crate::mbox::meta::Lock, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Stores the user that locked the mailbox
     /// [br]Caliptra Access: RO
     /// [br]SOC Access:      RO
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn user(&self) -> ureg::RegRef<crate::mbox::meta::User> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(4 / core::mem::size_of::<u32>())) }
+    pub fn user(&self) -> ureg::RegRef<crate::mbox::meta::User, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Command requested for data in mailbox
     /// [br]Caliptra Access: RW
     /// [br]SOC Access:      RW
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn cmd(&self) -> ureg::RegRef<crate::mbox::meta::Cmd> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(8 / core::mem::size_of::<u32>())) }
+    pub fn cmd(&self) -> ureg::RegRef<crate::mbox::meta::Cmd, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Data length for mailbox access in bytes
     /// [br]Caliptra Access: RW
@@ -48,16 +76,26 @@ impl RegisterBlock {
     /// [br]TAP Access [in debug/manuf mode]: RO
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn dlen(&self) -> ureg::RegRef<crate::mbox::meta::Dlen> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0xc / core::mem::size_of::<u32>())) }
+    pub fn dlen(&self) -> ureg::RegRef<crate::mbox::meta::Dlen, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Data in register, write the next data to mailbox
     /// [br]Caliptra Access: RW
     /// [br]SOC Access:      RW
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn datain(&self) -> ureg::RegRef<crate::mbox::meta::Datain> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x10 / core::mem::size_of::<u32>())) }
+    pub fn datain(&self) -> ureg::RegRef<crate::mbox::meta::Datain, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Data out register, read the next data from mailbox
     /// [br]Caliptra Access: RO
@@ -65,30 +103,50 @@ impl RegisterBlock {
     /// [br]TAP Access [in debug/manuf mode]: RO
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
-    pub fn dataout(&self) -> ureg::RegRef<crate::mbox::meta::Dataout> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x14 / core::mem::size_of::<u32>())) }
+    pub fn dataout(&self) -> ureg::RegRef<crate::mbox::meta::Dataout, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Mailbox execute register indicates to receiver that the sender is done
     /// [br]Caliptra Access: RW
     /// [br]SOC Access:      RW
     ///
     /// Read value: [`mbox::regs::ExecuteReadVal`]; Write value: [`mbox::regs::ExecuteWriteVal`]
-    pub fn execute(&self) -> ureg::RegRef<crate::mbox::meta::Execute> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x18 / core::mem::size_of::<u32>())) }
+    pub fn execute(&self) -> ureg::RegRef<crate::mbox::meta::Execute, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Status of the mailbox command
     ///
     /// Read value: [`mbox::regs::StatusReadVal`]; Write value: [`mbox::regs::StatusWriteVal`]
-    pub fn status(&self) -> ureg::RegRef<crate::mbox::meta::Status> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x1c / core::mem::size_of::<u32>())) }
+    pub fn status(&self) -> ureg::RegRef<crate::mbox::meta::Status, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x1c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
     /// Capability for uC only to force unlock the mailbox.
     /// [br]Caliptra Access: RW
     /// [br]SOC Access:      RO
     ///
     /// Read value: [`mbox::regs::UnlockReadVal`]; Write value: [`mbox::regs::UnlockWriteVal`]
-    pub fn unlock(&self) -> ureg::RegRef<crate::mbox::meta::Unlock> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x20 / core::mem::size_of::<u32>())) }
+    pub fn unlock(&self) -> ureg::RegRef<crate::mbox::meta::Unlock, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
     }
 }
 pub mod regs {

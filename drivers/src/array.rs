@@ -25,7 +25,7 @@ impl<const W: usize, const B: usize> Default for Array4xN<W, B> {
 impl<const W: usize, const B: usize> Array4xN<W, B> {
     #[inline(never)]
     #[allow(unused)]
-    pub fn read_from_reg<TReg: ureg::ReadableReg<ReadVal = u32>, TMmio: ureg::Mmio>(
+    pub fn read_from_reg<TReg: ureg::ReadableReg<ReadVal = u32>, TMmio: ureg::Mmio + Copy>(
         reg_array: ureg::Array<W, ureg::RegRef<TReg, TMmio>>,
     ) -> Self {
         reg_array.read().into()
@@ -35,7 +35,7 @@ impl<const W: usize, const B: usize> Array4xN<W, B> {
     #[allow(unused)]
     pub fn write_to_reg<
         TReg: ureg::ResettableReg + ureg::WritableReg<WriteVal = u32>,
-        TMmio: ureg::Mmio,
+        TMmio: ureg::Mmio + Copy,
     >(
         &self,
         reg_array: ureg::Array<W, ureg::RegRef<TReg, TMmio>>,
