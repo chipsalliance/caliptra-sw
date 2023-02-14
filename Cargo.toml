@@ -1,7 +1,8 @@
 [workspace]
 exclude = [
   # Uses a custom .cargo/config
-  "drivers"
+  "drivers",
+  "sw-emulator/example",
 ]
 
 members = [
@@ -18,5 +19,5 @@ members = [
   "ureg/lib/schema",
   "ureg/lib/codegen",
   "ureg/lib/systemrdl",
-  "x509"
+  "x509",
 ]

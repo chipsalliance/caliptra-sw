@@ -18,7 +18,7 @@ use crate::xreg_file::{XReg, XRegFile};
 use caliptra_emu_bus::{Bus, BusError, Clock};
 use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
 
-pub type InstrTracer = fn(pc: u32, instr: RvInstr);
+pub type InstrTracer<'a> = &'a mut dyn FnMut(u32, RvInstr);
 
 #[derive(PartialEq)]
 pub enum WatchPtrKind {

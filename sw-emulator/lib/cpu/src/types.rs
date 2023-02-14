@@ -566,23 +566,11 @@ impl RvInstr32J {
 
 /// RISCV Instruction
 pub enum RvInstr {
-    /// R-Type Instruction
-    RType(RvInstr32R),
+    // 32-bit Instruction
+    Instr32(u32),
 
-    /// I-Type Instruction
-    IType(RvInstr32I),
-
-    /// S-Type Instruction
-    SType(RvInstr32S),
-
-    /// B-Type Instruction
-    BType(RvInstr32B),
-
-    /// U-Type Instruction
-    UType(RvInstr32U),
-
-    /// J-Type Instruction
-    JType(RvInstr32J),
+    // 16-bit Instruction
+    Instr16(u16),
 }
 
 bitfield! {

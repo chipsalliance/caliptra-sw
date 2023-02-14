@@ -12,11 +12,8 @@ Abstract:
 
 --*/
 
-use crate::cpu::{Cpu, InstrTracer};
-use crate::trace_instr;
-use crate::types::{
-    RvInstr, RvInstr32I, RvInstr32OpImmFunct3, RvInstr32OpImmFunct7, RvInstr32Opcode,
-};
+use crate::cpu::Cpu;
+use crate::types::{RvInstr32I, RvInstr32OpImmFunct3, RvInstr32OpImmFunct7, RvInstr32Opcode};
 use caliptra_emu_bus::Bus;
 use caliptra_emu_types::{RvData, RvException};
 
@@ -30,17 +27,10 @@ impl<TBus: Bus> Cpu<TBus> {
     /// # Error
     ///
     /// * `RvException` - Exception encountered during instruction execution
-    pub fn exec_op_imm_instr(
-        &mut self,
-        instr: u32,
-        instr_tracer: Option<InstrTracer>,
-    ) -> Result<(), RvException> {
+    pub fn exec_op_imm_instr(&mut self, instr: u32) -> Result<(), RvException> {
         // Decode the instruction
         let instr = RvInstr32I(instr);
         assert_eq!(instr.opcode(), RvInstr32Opcode::OpImm);
-
-        // Trace the instruction
-        trace_instr!(instr_tracer, self.read_pc(), RvInstr::IType(instr));
 
         // Read the content of source register
         let reg = self.read_xreg(instr.rs())?;

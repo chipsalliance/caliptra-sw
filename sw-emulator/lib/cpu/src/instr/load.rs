@@ -12,9 +12,8 @@ Abstract:
 
 --*/
 
-use crate::cpu::{Cpu, InstrTracer};
-use crate::trace_instr;
-use crate::types::{RvInstr, RvInstr32I, RvInstr32LoadFunct3, RvInstr32Opcode};
+use crate::cpu::Cpu;
+use crate::types::{RvInstr32I, RvInstr32LoadFunct3, RvInstr32Opcode};
 use caliptra_emu_bus::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
 
@@ -28,17 +27,10 @@ impl<TBus: Bus> Cpu<TBus> {
     /// # Error
     ///
     /// * `RvException` - Exception encountered during instruction execution
-    pub fn exec_load_instr(
-        &mut self,
-        instr: u32,
-        instr_tracer: Option<InstrTracer>,
-    ) -> Result<(), RvException> {
+    pub fn exec_load_instr(&mut self, instr: u32) -> Result<(), RvException> {
         // Decode the instruction
         let instr = RvInstr32I(instr);
         assert_eq!(instr.opcode(), RvInstr32Opcode::Load);
-
-        // Trace the instruction
-        trace_instr!(instr_tracer, self.read_pc(), RvInstr::IType(instr));
 
         // Calculate the address to load the data from
         let addr = (self.read_xreg(instr.rs())? as RvAddr).wrapping_add(instr.imm() as RvAddr);

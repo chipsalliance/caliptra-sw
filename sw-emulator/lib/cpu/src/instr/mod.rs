@@ -27,7 +27,7 @@ mod test_encoder;
 mod test_macros;
 
 use crate::cpu::{Cpu, InstrTracer, StepAction};
-use crate::types::{RvInstr32, RvInstr32Opcode};
+use crate::types::{RvInstr, RvInstr32, RvInstr32Opcode};
 use caliptra_emu_bus::Bus;
 use caliptra_emu_types::{RvException, RvSize};
 
@@ -102,7 +102,10 @@ impl<TBus: Bus> Cpu<TBus> {
         instr: u16,
         instr_tracer: Option<InstrTracer>,
     ) -> Result<(), RvException> {
-        self.exec_instr32(compression::decompress_instr(instr)?, instr_tracer)
+        if let Some(instr_tracer) = instr_tracer {
+            instr_tracer(self.read_pc(), RvInstr::Instr16(instr))
+        }
+        self.exec_instr32(compression::decompress_instr(instr)?, None)
     }
 
     /// Execute single 32-bit instruction
@@ -119,17 +122,21 @@ impl<TBus: Bus> Cpu<TBus> {
         instr: u32,
         instr_tracer: Option<InstrTracer>,
     ) -> Result<(), RvException> {
+        if let Some(instr_tracer) = instr_tracer {
+            instr_tracer(self.read_pc(), RvInstr::Instr32(instr))
+        }
+
         match RvInstr32(instr).opcode() {
-            RvInstr32Opcode::Load => self.exec_load_instr(instr, instr_tracer)?,
-            RvInstr32Opcode::OpImm => self.exec_op_imm_instr(instr, instr_tracer)?,
-            RvInstr32Opcode::Auipc => self.exec_auipc_instr(instr, instr_tracer)?,
-            RvInstr32Opcode::Store => self.exec_store_instr(instr, instr_tracer)?,
-            RvInstr32Opcode::Op => self.exec_op_instr(instr, instr_tracer)?,
-            RvInstr32Opcode::Lui => self.exec_lui_instr(instr, instr_tracer)?,
-            RvInstr32Opcode::Branch => self.exec_branch_instr(instr, instr_tracer)?,
-            RvInstr32Opcode::Jalr => self.exec_jalr_instr(instr, instr_tracer)?,
-            RvInstr32Opcode::Jal => self.exec_jal_instr(instr, instr_tracer)?,
-            RvInstr32Opcode::System => self.exec_system_instr(instr, instr_tracer)?,
+            RvInstr32Opcode::Load => self.exec_load_instr(instr)?,
+            RvInstr32Opcode::OpImm => self.exec_op_imm_instr(instr)?,
+            RvInstr32Opcode::Auipc => self.exec_auipc_instr(instr)?,
+            RvInstr32Opcode::Store => self.exec_store_instr(instr)?,
+            RvInstr32Opcode::Op => self.exec_op_instr(instr)?,
+            RvInstr32Opcode::Lui => self.exec_lui_instr(instr)?,
+            RvInstr32Opcode::Branch => self.exec_branch_instr(instr)?,
+            RvInstr32Opcode::Jalr => self.exec_jalr_instr(instr)?,
+            RvInstr32Opcode::Jal => self.exec_jal_instr(instr)?,
+            RvInstr32Opcode::System => self.exec_system_instr(instr)?,
             _ => Err(RvException::illegal_instr(instr))?,
         }
         Ok(())

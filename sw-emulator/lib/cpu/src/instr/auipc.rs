@@ -12,9 +12,8 @@ Abstract:
 
 --*/
 
-use crate::cpu::{Cpu, InstrTracer};
-use crate::trace_instr;
-use crate::types::{RvInstr, RvInstr32Opcode, RvInstr32U};
+use crate::cpu::Cpu;
+use crate::types::{RvInstr32Opcode, RvInstr32U};
 use caliptra_emu_bus::Bus;
 use caliptra_emu_types::{RvData, RvException};
 use std::ops::Shl;
@@ -29,17 +28,10 @@ impl<TBus: Bus> Cpu<TBus> {
     /// # Error
     ///
     /// * `RvException` - Exception encountered during instruction execution
-    pub fn exec_auipc_instr(
-        &mut self,
-        instr: u32,
-        instr_tracer: Option<InstrTracer>,
-    ) -> Result<(), RvException> {
+    pub fn exec_auipc_instr(&mut self, instr: u32) -> Result<(), RvException> {
         // Decode the instruction
         let instr = RvInstr32U(instr);
         assert_eq!(instr.opcode(), RvInstr32Opcode::Auipc);
-
-        // Trace the instruction
-        trace_instr!(instr_tracer, self.read_pc(), RvInstr::UType(instr));
 
         // Calculate value
         let imm = instr.imm().shl(12) as RvData;
