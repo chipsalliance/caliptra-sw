@@ -11,7 +11,7 @@ use crate::{Bus, BusError};
 pub struct ReadWriteRegisterArray<
     T: Copy + UIntLike + Into<RvData> + TryFrom<RvData>,
     const SIZE: usize,
-    R: RegisterLongName,
+    R: RegisterLongName = (),
 > {
     regs: [LocalRegisterCopy<T, R>; SIZE],
     associated_register: PhantomData<R>,
