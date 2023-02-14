@@ -78,3 +78,13 @@ harness = false
 name = "sha384acc"
 path = "tests/sha384acc_tests.rs"
 harness = false
+
+[[test]]
+name = "error_reporter"
+path = "tests/error_reporter_tests.rs"
+harness = false
+
+[[test]]
+name = "status_reporter"
+path = "tests/status_reporter_tests.rs"
+harness = false
