@@ -41,6 +41,9 @@ pub enum CaliptraComponent {
 
     /// SHA384 Accelerator
     Sha384Acc = 9,
+
+    /// SHA1
+    Sha1 = 10,
 }
 
 #[macro_export]

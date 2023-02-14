@@ -35,6 +35,11 @@ codegen-units = 1
 panic = "abort"
 
 [[test]]
+name = "sha1"
+path = "tests/sha1_tests.rs"
+harness = false
+
+[[test]]
 name = "sha256"
 path = "tests/sha256_tests.rs"
 harness = false

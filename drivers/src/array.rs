@@ -90,6 +90,17 @@ impl<'a, const W: usize, const B: usize> From<&'a [u8; B]> for Array4xN<W, B> {
     }
 }
 
+impl<'a, const W: usize, const B: usize> From<&'a [u32; W]> for Array4xN<W, B> {
+    #[inline(never)]
+    fn from(value: &'a [u32; W]) -> Self {
+        let mut result = Self([0u32; W]);
+        for i in 0..W {
+            result.0[i] = value[i];
+        }
+        result
+    }
+}
+
 impl<const W: usize, const B: usize> From<[u32; W]> for Array4xN<W, B> {
     #[inline(never)]
     fn from(value: [u32; W]) -> Self {
@@ -105,6 +116,7 @@ impl<const W: usize, const B: usize> From<Array4xN<W, B>> for [u32; W] {
 }
 
 pub type Array4x4 = Array4xN<4, 16>;
+pub type Array4x5 = Array4xN<5, 20>;
 pub type Array4x8 = Array4xN<8, 32>;
 pub type Array4x12 = Array4xN<12, 48>;
 pub type Array4x16 = Array4xN<16, 64>;
