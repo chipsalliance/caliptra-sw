@@ -127,7 +127,7 @@ impl RegisterBlock {
     pub fn cptra_pauser_lock(
         &self,
     ) -> ureg::Array<5, ureg::RegRef<crate::soc_ifc::meta::CptraPauserLock>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x30 / core::mem::size_of::<u32>())) }
+        unsafe { ureg::Array::new(self.0.wrapping_add(0x3c / core::mem::size_of::<u32>())) }
     }
     /// Valid PAUSER attributes for TRNG on SoC APB Interface.
     /// [br]Caliptra Access: RW
@@ -138,7 +138,7 @@ impl RegisterBlock {
     pub fn cptra_trng_valid_pauser(
         &self,
     ) -> ureg::RegRef<crate::soc_ifc::meta::CptraTrngValidPauser> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x38 / core::mem::size_of::<u32>())) }
+        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x50 / core::mem::size_of::<u32>())) }
     }
     /// Valid PAUSER attributes for requests from SoC APB Interface.
     /// Each bit corresponds to locking the associated VALID_PAUSER register.
@@ -151,7 +151,7 @@ impl RegisterBlock {
     pub fn cptra_trng_pauser_lock(
         &self,
     ) -> ureg::RegRef<crate::soc_ifc::meta::CptraTrngPauserLock> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x3c / core::mem::size_of::<u32>())) }
+        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x54 / core::mem::size_of::<u32>())) }
     }
     /// Storage for the requested TRNG Data.
     /// [br]Caliptra Access: RO
@@ -161,13 +161,13 @@ impl RegisterBlock {
     pub fn cptra_trng_data(
         &self,
     ) -> ureg::Array<12, ureg::RegRef<crate::soc_ifc::meta::CptraTrngData>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x40 / core::mem::size_of::<u32>())) }
+        unsafe { ureg::Array::new(self.0.wrapping_add(0x58 / core::mem::size_of::<u32>())) }
     }
     /// TRNG Status register to indicate request and done
     ///
     /// Read value: [`soc_ifc::regs::CptraTrngStatusReadVal`]; Write value: [`soc_ifc::regs::CptraTrngStatusWriteVal`]
     pub fn cptra_trng_status(&self) -> ureg::RegRef<crate::soc_ifc::meta::CptraTrngStatus> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x4c / core::mem::size_of::<u32>())) }
+        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x88 / core::mem::size_of::<u32>())) }
     }
     /// Writes to fuse registers are completed. After the done bit is set, any subsequent writes to a fuse register will be dropped unless there is a power cycle or a warm reset or caliptra FW allows a write (negotiated through a mailbox command).
     /// [br]Caliptra Access: RO
@@ -175,7 +175,7 @@ impl RegisterBlock {
     ///
     /// Read value: [`soc_ifc::regs::CptraFuseWrDoneReadVal`]; Write value: [`soc_ifc::regs::CptraFuseWrDoneWriteVal`]
     pub fn cptra_fuse_wr_done(&self) -> ureg::RegRef<crate::soc_ifc::meta::CptraFuseWrDone> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x50 / core::mem::size_of::<u32>())) }
+        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x8c / core::mem::size_of::<u32>())) }
     }
     /// Provides the clock period of the system clock.
     /// Used to standardize the RISC-V Standard MTIME count register.
@@ -185,7 +185,7 @@ impl RegisterBlock {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     pub fn cptra_timer_config(&self) -> ureg::RegRef<crate::soc_ifc::meta::CptraTimerConfig> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x54 / core::mem::size_of::<u32>())) }
+        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x90 / core::mem::size_of::<u32>())) }
     }
     /// Indicates that the BootFSM can continue to execute to bring the uController out of reset
     /// [br]Caliptra Access: RO
@@ -194,7 +194,7 @@ impl RegisterBlock {
     ///
     /// Read value: [`soc_ifc::regs::CptraBootfsmGoReadVal`]; Write value: [`soc_ifc::regs::CptraBootfsmGoWriteVal`]
     pub fn cptra_bootfsm_go(&self) -> ureg::RegRef<crate::soc_ifc::meta::CptraBootfsmGo> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x58 / core::mem::size_of::<u32>())) }
+        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x94 / core::mem::size_of::<u32>())) }
     }
     /// JTAG in debug/manuf mode or SOC can write to this register for ROM/FW defined skips or services; ROM/FW maintains the defintion of these bits.
     /// [br]Caliptra Access: RW
@@ -205,7 +205,7 @@ impl RegisterBlock {
     pub fn cptra_dbg_manuf_service_reg(
         &self,
     ) -> ureg::RegRef<crate::soc_ifc::meta::CptraDbgManufServiceReg> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x5c / core::mem::size_of::<u32>())) }
+        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x98 / core::mem::size_of::<u32>())) }
     }
     /// Control register to enable or disable all of the caliptra clk gating. Default is 0 (disabled).
     /// [br]Caliptra Access: RO
@@ -213,7 +213,7 @@ impl RegisterBlock {
     ///
     /// Read value: [`soc_ifc::regs::CptraClkGatingEnReadVal`]; Write value: [`soc_ifc::regs::CptraClkGatingEnWriteVal`]
     pub fn cptra_clk_gating_en(&self) -> ureg::RegRef<crate::soc_ifc::meta::CptraClkGatingEn> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x60 / core::mem::size_of::<u32>())) }
+        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x9c / core::mem::size_of::<u32>())) }
     }
     /// Generic input wires connected to SoC interface.
     /// [br]Caliptra Access: RO
@@ -223,7 +223,7 @@ impl RegisterBlock {
     pub fn cptra_generic_input_wires(
         &self,
     ) -> ureg::Array<2, ureg::RegRef<crate::soc_ifc::meta::CptraGenericInputWires>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x64 / core::mem::size_of::<u32>())) }
+        unsafe { ureg::Array::new(self.0.wrapping_add(0xa0 / core::mem::size_of::<u32>())) }
     }
     /// Generic output wires connected to SoC interface.
     /// [br]Caliptra Access: RW
@@ -233,7 +233,7 @@ impl RegisterBlock {
     pub fn cptra_generic_output_wires(
         &self,
     ) -> ureg::Array<2, ureg::RegRef<crate::soc_ifc::meta::CptraGenericOutputWires>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x68 / core::mem::size_of::<u32>())) }
+        unsafe { ureg::Array::new(self.0.wrapping_add(0xa8 / core::mem::size_of::<u32>())) }
     }
     /// Obfuscated UDS.
     /// [br]Caliptra Access: -
@@ -253,7 +253,7 @@ impl RegisterBlock {
     pub fn fuse_field_entropy(
         &self,
     ) -> ureg::Array<8, ureg::RegRef<crate::soc_ifc::meta::FuseFieldEntropy>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x20c / core::mem::size_of::<u32>())) }
+        unsafe { ureg::Array::new(self.0.wrapping_add(0x230 / core::mem::size_of::<u32>())) }
     }
     /// Key Manifest PK hash Fuse.
     /// [br]Caliptra Access: RO
@@ -263,7 +263,7 @@ impl RegisterBlock {
     pub fn fuse_key_manifest_pk_hash(
         &self,
     ) -> ureg::Array<12, ureg::RegRef<crate::soc_ifc::meta::FuseKeyManifestPkHash>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x214 / core::mem::size_of::<u32>())) }
+        unsafe { ureg::Array::new(self.0.wrapping_add(0x250 / core::mem::size_of::<u32>())) }
     }
     /// Key Manifest Mask Fuse.
     /// [br]Caliptra Access: RO
@@ -273,7 +273,7 @@ impl RegisterBlock {
     pub fn fuse_key_manifest_pk_hash_mask(
         &self,
     ) -> ureg::RegRef<crate::soc_ifc::meta::FuseKeyManifestPkHashMask> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x220 / core::mem::size_of::<u32>())) }
+        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x280 / core::mem::size_of::<u32>())) }
     }
     /// Owner PK hash Fuse.
     /// [br]Caliptra Access: RO
@@ -283,7 +283,7 @@ impl RegisterBlock {
     pub fn fuse_owner_pk_hash(
         &self,
     ) -> ureg::Array<12, ureg::RegRef<crate::soc_ifc::meta::FuseOwnerPkHash>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x224 / core::mem::size_of::<u32>())) }
+        unsafe { ureg::Array::new(self.0.wrapping_add(0x284 / core::mem::size_of::<u32>())) }
     }
     /// FMC Security Version Number.
     /// [br]Caliptra Access: RO
@@ -291,7 +291,7 @@ impl RegisterBlock {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     pub fn fuse_key_manifest_svn(&self) -> ureg::RegRef<crate::soc_ifc::meta::FuseKeyManifestSvn> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x230 / core::mem::size_of::<u32>())) }
+        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x2b4 / core::mem::size_of::<u32>())) }
     }
     /// Runtime SVN Fuse.
     /// [br]Caliptra Access: RO
@@ -301,7 +301,7 @@ impl RegisterBlock {
     pub fn fuse_runtime_svn(
         &self,
     ) -> ureg::Array<4, ureg::RegRef<crate::soc_ifc::meta::FuseRuntimeSvn>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x234 / core::mem::size_of::<u32>())) }
+        unsafe { ureg::Array::new(self.0.wrapping_add(0x2b8 / core::mem::size_of::<u32>())) }
     }
     /// Anti Rollback Disable Fuse.
     /// [br]Caliptra Access: RO
@@ -311,7 +311,7 @@ impl RegisterBlock {
     pub fn fuse_anti_rollback_disable(
         &self,
     ) -> ureg::RegRef<crate::soc_ifc::meta::FuseAntiRollbackDisable> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x238 / core::mem::size_of::<u32>())) }
+        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x2c8 / core::mem::size_of::<u32>())) }
     }
     /// Manufacturer IEEE IDevID Certificate Gen Attributes.
     /// [br]Caliptra Access: RO
@@ -321,7 +321,7 @@ impl RegisterBlock {
     pub fn fuse_idevid_cert_attr(
         &self,
     ) -> ureg::Array<24, ureg::RegRef<crate::soc_ifc::meta::FuseIdevidCertAttr>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x23c / core::mem::size_of::<u32>())) }
+        unsafe { ureg::Array::new(self.0.wrapping_add(0x2cc / core::mem::size_of::<u32>())) }
     }
     /// Manufacturer IDEVID Manufacturer’s HSM identifier (this is used to find the certificate chain from the boot media)
     /// [br]Caliptra Access: RO
@@ -331,7 +331,7 @@ impl RegisterBlock {
     pub fn fuse_idevid_manuf_hsm_id(
         &self,
     ) -> ureg::Array<4, ureg::RegRef<crate::soc_ifc::meta::FuseIdevidManufHsmId>> {
-        unsafe { ureg::Array::new(self.0.wrapping_add(0x254 / core::mem::size_of::<u32>())) }
+        unsafe { ureg::Array::new(self.0.wrapping_add(0x32c / core::mem::size_of::<u32>())) }
     }
     /// Caliptra Boot Media Integrated mode usage only. SOCs that build with a Boot Media Independent profile don’t have to account for these fuses.
     /// [br]Caliptra Access: RO
@@ -339,7 +339,7 @@ impl RegisterBlock {
     ///
     /// Read value: [`soc_ifc::regs::FuseLifeCycleReadVal`]; Write value: [`soc_ifc::regs::FuseLifeCycleWriteVal`]
     pub fn fuse_life_cycle(&self) -> ureg::RegRef<crate::soc_ifc::meta::FuseLifeCycle> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x258 / core::mem::size_of::<u32>())) }
+        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x33c / core::mem::size_of::<u32>())) }
     }
     /// Stored De-Obfuscation key, not accessible by software.
     /// [br]Caliptra Access: -
@@ -359,7 +359,7 @@ impl RegisterBlock {
     ///
     /// Read value: [`soc_ifc::regs::InternalIccmLockReadVal`]; Write value: [`soc_ifc::regs::InternalIccmLockWriteVal`]
     pub fn internal_iccm_lock(&self) -> ureg::RegRef<crate::soc_ifc::meta::InternalIccmLock> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x608 / core::mem::size_of::<u32>())) }
+        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x620 / core::mem::size_of::<u32>())) }
     }
     /// Control register to assert FW update reset. When cleared to
     /// 0, no reset is triggered. When set to 1, uc-only reset is asserted.
@@ -371,7 +371,7 @@ impl RegisterBlock {
     pub fn internal_fw_update_reset(
         &self,
     ) -> ureg::RegRef<crate::soc_ifc::meta::InternalFwUpdateReset> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x60c / core::mem::size_of::<u32>())) }
+        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x624 / core::mem::size_of::<u32>())) }
     }
     /// Control register to set the number of cycles for which FW update reset must be asserted. Default is 5. Max value is 255 (8 bit).
     /// [br]Caliptra Access: RW
@@ -381,7 +381,7 @@ impl RegisterBlock {
     pub fn internal_fw_update_reset_wait_cycles(
         &self,
     ) -> ureg::RegRef<crate::soc_ifc::meta::InternalFwUpdateResetWaitCycles> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x610 / core::mem::size_of::<u32>())) }
+        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x628 / core::mem::size_of::<u32>())) }
     }
     /// 32-bit register providing the jump vector for RISC-V to transition for NMI handling code.
     /// Default is the base address of ROM, but may be updated for enhanced handling by runtime images.
@@ -391,7 +391,7 @@ impl RegisterBlock {
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
     pub fn internal_nmi_vector(&self) -> ureg::RegRef<crate::soc_ifc::meta::InternalNmiVector> {
-        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x614 / core::mem::size_of::<u32>())) }
+        unsafe { ureg::RegRef::new(self.0.wrapping_add(0x62c / core::mem::size_of::<u32>())) }
     }
 }
 pub mod regs {

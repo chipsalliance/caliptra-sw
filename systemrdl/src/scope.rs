@@ -621,7 +621,8 @@ impl Instance {
         let width = if let Ok(Some(w)) = self.scope.property_val_opt::<u64>("regwidth") {
             w / 8
         } else {
-            1
+            // According to section 10.1 of the SystemRDL 2.0 spec, the default regwidth is 32-bits
+            4
         };
         width
     }
