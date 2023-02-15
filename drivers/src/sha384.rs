@@ -58,6 +58,7 @@ caliptra_err_def! {
 }
 
 /// SHA-384 Data
+#[derive(Debug, Copy, Clone)]
 pub enum Sha384Data<'a> {
     /// Array
     Slice(&'a [u8]),
@@ -88,6 +89,7 @@ impl From<KeyReadArgs> for Sha384Data<'_> {
 }
 
 /// SHA-384 Digest
+#[derive(Debug)]
 pub enum Sha384Digest<'a> {
     /// Array
     Array4x12(&'a mut Array4x12),
@@ -110,7 +112,7 @@ impl<'a> From<KeyWriteArgs> for Sha384Digest<'a> {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Sha384 {}
 
 impl Sha384 {

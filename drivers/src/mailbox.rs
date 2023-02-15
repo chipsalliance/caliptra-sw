@@ -41,7 +41,7 @@ pub enum MailboxOpState {
     Idle,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 /// Caliptra mailbox abstraction
 pub struct Mailbox {}
 

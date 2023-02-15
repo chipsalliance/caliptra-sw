@@ -62,6 +62,7 @@ caliptra_err_def! {
 }
 
 /// HMAC-384 Data
+#[derive(Debug, Copy, Clone)]
 pub enum Hmac384Data<'a> {
     /// Slice
     Slice(&'a [u8]),
@@ -93,6 +94,7 @@ impl From<KeyReadArgs> for Hmac384Data<'_> {
 }
 
 /// Hmac-384 Tag
+#[derive(Debug)]
 pub enum Hmac384Tag<'a> {
     /// Array
     Array4x12(&'a mut Array4x12),
@@ -118,6 +120,7 @@ impl<'a> From<KeyWriteArgs> for Hmac384Tag<'a> {
 ///
 /// Hmac-384 Key
 ///
+#[derive(Debug, Copy, Clone)]
 pub enum Hmac384Key<'a> {
     /// Array
     Array4x12(&'a Array4x12),
@@ -142,7 +145,7 @@ impl From<KeyReadArgs> for Hmac384Key<'_> {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Hmac384 {}
 
 impl Hmac384 {

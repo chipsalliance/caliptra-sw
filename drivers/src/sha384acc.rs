@@ -38,7 +38,7 @@ caliptra_err_def! {
 
 pub type Sha384Digest<'a> = &'a mut Array4x12;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Sha384Acc {}
 
 impl Sha384Acc {
@@ -63,7 +63,7 @@ impl Sha384Acc {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Sha384AccOp {}
 
 impl Drop for Sha384AccOp {

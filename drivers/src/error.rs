@@ -13,7 +13,8 @@ Abstract:
 --*/
 
 /// Caliptra Component
-pub enum CptrComponent {
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum CaliptraComponent {
     /// Deobfuscation Engine Component
     DeobfuscationEngine = 1,
 
@@ -53,7 +54,7 @@ macro_rules! caliptra_err_def {
 
         impl From<$enum_name> for u32 {
             fn from(val: $enum_name) -> Self {
-                ((($crate::error::CptrComponent::$comp_name) as Self) << 24) | (val as Self)
+                ((($crate::error::CaliptraComponent::$comp_name) as Self) << 24) | (val as Self)
             }
         }
 
@@ -69,17 +70,17 @@ macro_rules! caliptra_err_def {
 
         #[allow(unused_macros)]
         macro_rules! raise_err { ($comp_err: ident) => {
-            Err(((($crate::error::CptrComponent::$comp_name) as u32) << 24) | ($enum_name::$comp_err as u32))?
+            Err(((($crate::error::CaliptraComponent::$comp_name) as u32) << 24) | ($enum_name::$comp_err as u32))?
         } }
 
         #[allow(unused_macros)]
         macro_rules! err { ($comp_err: ident) => {
-            Result::<(), u32>::Err(((($crate::error::CptrComponent::$comp_name) as u32) << 24) | ($enum_name::$comp_err as u32))
+            Result::<(), u32>::Err(((($crate::error::CaliptraComponent::$comp_name) as u32) << 24) | ($enum_name::$comp_err as u32))
         } }
 
         #[allow(unused_macros)]
         macro_rules! err_u32 { ($comp_err: ident) => {
-            ((($crate::error::CptrComponent::$comp_name) as u32) << 24) | ($enum_name::$comp_err as u32)
+            ((($crate::error::CalptraComponent::$comp_name) as u32) << 24) | ($enum_name::$comp_err as u32)
         } }
     };
 }

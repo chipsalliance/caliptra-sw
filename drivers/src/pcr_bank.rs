@@ -67,7 +67,7 @@ caliptra_err_def! {
 }
 
 /// Platform Configuration Register (PCR) Bank
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct PcrBank {}
 
 impl PcrBank {

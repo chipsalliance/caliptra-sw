@@ -15,7 +15,7 @@ Abstract:
 use crate::{wait, Array4x4, CaliptraResult, KeyId};
 use caliptra_registers::doe;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct DeobfuscationEngine {}
 
 impl DeobfuscationEngine {

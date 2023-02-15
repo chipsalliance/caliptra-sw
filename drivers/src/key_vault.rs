@@ -97,7 +97,7 @@ caliptra_err_def! {
 }
 
 /// Caliptra Key Vault
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct KeyVault {}
 
 impl KeyVault {

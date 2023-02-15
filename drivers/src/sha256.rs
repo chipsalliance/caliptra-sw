@@ -41,7 +41,7 @@ caliptra_err_def! {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Sha256 {}
 
 impl Sha256 {

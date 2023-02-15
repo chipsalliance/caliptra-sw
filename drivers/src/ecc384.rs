@@ -46,6 +46,7 @@ caliptra_err_def! {
 }
 
 /// ECC-384 Seed
+#[derive(Debug, Copy, Clone)]
 pub enum Ecc384Seed<'a> {
     /// Array
     Array4x12(&'a Ecc384Scalar),
@@ -60,6 +61,7 @@ impl<'a> From<&'a Array4x12> for Ecc384Seed<'a> {
         Self::Array4x12(value)
     }
 }
+
 impl From<KeyReadArgs> for Ecc384Seed<'_> {
     /// Converts to this type from the input type.
     fn from(value: KeyReadArgs) -> Self {
@@ -68,6 +70,7 @@ impl From<KeyReadArgs> for Ecc384Seed<'_> {
 }
 
 /// ECC-384 Public Key output
+#[derive(Debug)]
 pub enum Ecc384PrivKeyOut<'a> {
     /// Array
     Array4x12(&'a mut Ecc384Scalar),
@@ -91,6 +94,7 @@ impl<'a> From<KeyWriteArgs> for Ecc384PrivKeyOut<'a> {
 }
 
 /// ECC-384 Public Key input
+#[derive(Debug, Copy, Clone)]
 pub enum Ecc384PrivKeyIn<'a> {
     /// Array
     Array4x12(&'a Ecc384Scalar),
@@ -113,6 +117,7 @@ impl From<KeyReadArgs> for Ecc384PrivKeyIn<'_> {
 }
 
 /// ECC-384 Data
+#[derive(Debug, Copy, Clone)]
 pub enum Ecc384Data<'a> {
     /// Array
     Array4x12(&'a Ecc384Scalar),
@@ -168,7 +173,7 @@ pub struct Ecc384Signature {
 }
 
 /// Elliptic Curve P-384 API
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Ecc384 {}
 
 impl Ecc384 {

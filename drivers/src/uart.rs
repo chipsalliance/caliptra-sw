@@ -15,7 +15,7 @@ Abstract:
 use core::{fmt, ptr};
 
 /// Caliptra UART
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Uart {}
 
 impl Uart {

@@ -39,7 +39,7 @@ pub use ecc384::{
     Ecc384, Ecc384Data, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Scalar, Ecc384Seed,
     Ecc384Signature,
 };
-pub use error::CptrComponent;
+pub use error::CaliptraComponent;
 pub use error_reporter::{
     report_fw_error_fatal, report_fw_error_non_fatal, report_hw_error_fatal,
     report_hw_error_non_fatal,
