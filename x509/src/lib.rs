@@ -12,6 +12,8 @@ Abstract:
 
 --*/
 
+#![cfg_attr(feature = "no_std", no_std)]
+
 mod idevid_csr;
 mod ldevid_cert;
 mod test_util;
