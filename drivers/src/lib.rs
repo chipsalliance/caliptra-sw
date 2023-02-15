@@ -33,7 +33,7 @@ mod sha384acc;
 mod status_reporter;
 
 pub type CaliptraResult<T> = Result<T, u32>;
-pub use array::{Array4x12, Array4x4, Array4x8};
+pub use array::{Array4x12, Array4x4, Array4x8, Array4xN};
 pub use doe::DeobfuscationEngine;
 pub use ecc384::{
     Ecc384, Ecc384Data, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Scalar, Ecc384Seed,
@@ -45,14 +45,14 @@ pub use error_reporter::{
     report_hw_error_non_fatal,
 };
 pub use exit_ctrl::ExitCtrl;
-pub use hmac384::Hmac384;
+pub use hmac384::{Hmac384, Hmac384Data, Hmac384Key, Hmac384Op, Hmac384Tag};
 pub use key_vault::{KeyId, KeyUsage, KeyVault};
 pub use kv_access::{KeyReadArgs, KeyWriteArgs};
 pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
 pub use pcr_bank::{PcrBank, PcrId};
-pub use sha256::Sha256;
-pub use sha384::{Sha384, Sha384Data, Sha384Digest};
-pub use sha384acc::Sha384Acc;
+pub use sha256::{Sha256, Sha256DigestOp};
+pub use sha384::{Sha384, Sha384Data, Sha384Digest, Sha384DigestOp};
+pub use sha384acc::{Sha384Acc, Sha384AccOp};
 pub use status_reporter::{report_boot_status, report_flow_status};
 
 cfg_if::cfg_if! {
