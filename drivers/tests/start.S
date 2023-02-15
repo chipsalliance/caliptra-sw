@@ -23,6 +23,10 @@ _start:
 
     # Initialize the stack pointer
     la sp, STACK_START
+    
+    # Setup trap handler
+    la t0, trap_vec
+    csrw MTVEC, t0
 
     # Copy BSS
     la t0, BSS_START
@@ -54,9 +58,20 @@ end_copy_data:
     # call main entry point
     call main
     
-    # exit the emulator
+    # exit the emulator with success
     la t0, EMU_CTRL_EXIT
-    sw zero, 0(t0)
+    li t1, 0xFF
+    sw t1, 0(t0)
+1:
+    j 1b
+
+trap_vec:
+    # exit the emulator with error
+    la t0, EMU_CTRL_EXIT
+    li t1, 0x01
+    sw t1, 0(t0)
+1:
+    j 1b
 
 .section .data
-.equ  EMU_CTRL_EXIT, 0x2000F000
+.equ  EMU_CTRL_EXIT, 0x300300C8

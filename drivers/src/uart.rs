@@ -45,7 +45,7 @@ impl Uart {
     /// `byte` - Byte to write to UART
     pub fn write_byte(&mut self, byte: u8) {
         // TODO: cleanup after final UART RTL definition is in place
-        const STDOUT: *mut u32 = 0x3003_00A8 as *mut u32;
+        const STDOUT: *mut u32 = 0x3003_00C8 as *mut u32;
         unsafe {
             ptr::write_volatile(STDOUT, byte as u32);
         }

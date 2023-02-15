@@ -281,39 +281,39 @@ struct SocRegistersImpl {
     fw_err_enc: ReadWriteRegister<u32>,
 
     /// Boot Status
-    #[register(offset = 0x0000_0018)]
+    #[register(offset = 0x0000_0038)]
     boot_status: ReadWriteRegister<u32>,
 
     /// Flow Status
-    #[register(offset = 0x0000_001C)]
+    #[register(offset = 0x0000_003C)]
     flow_status: ReadWriteRegister<u32, FlowStatus::Register>,
 
     /// Reset Reason
-    #[register(offset = 0x0000_0020)]
+    #[register(offset = 0x0000_0040)]
     reset_reason: ReadOnlyRegister<u32>,
 
     /// Security State
-    #[register(offset = 0x0000_0024)]
+    #[register(offset = 0x0000_0044)]
     security_state: ReadOnlyRegister<u32, SecurityState::Register>,
 
     /// Fuse Write Done
-    #[register(offset = 0x0000_008c)]
+    #[register(offset = 0x0000_00ac)]
     fuse_write_done: ReadWriteRegister<u32, FuseWriteDone::Register>,
 
     /// Timer Config
-    #[register(offset = 0x0000_0090)]
+    #[register(offset = 0x0000_00b0)]
     timer_cfg: ReadOnlyRegister<u32>,
 
     /// Boot FSM Go
-    #[register(offset = 0x0000_0094)]
+    #[register(offset = 0x0000_00B4)]
     boot_fsm_go: ReadWriteRegister<u32, BootFsmGo::Register>,
 
     /// Clock Gating Enable
-    #[register(offset = 0x0000_0098)]
+    #[register(offset = 0x0000_00BC)]
     clk_gating_enable: ReadWriteRegister<u32, ClockGatingEnable::Register>,
 
     /// Debug output and exit control
-    #[register(offset = 0x0000_00A8, write_fn = on_write_stdout)]
+    #[register(offset = 0x0000_00C8, write_fn = on_write_stdout)]
     stdout: WriteOnlyRegister<u32>,
 
     /// Unique device secret
@@ -504,17 +504,15 @@ mod tests {
     const FW_ERR_NON_FATAL_REG_OFFSET: RvAddr = 0xc;
     const HW_ERR_ENC_REG_OFFSET: RvAddr = 0x10;
     const FW_ERR_ENC_REG_OFFSET: RvAddr = 0x14;
-    const BOOT_STATUS_REG_OFFSET: RvAddr = 0x18;
-    const FLOW_STATUS_REG_OFFSET: RvAddr = 0x1c;
-    const RESET_REASON_REG_OFFSET: RvAddr = 0x20;
-    const SECURITY_STATE_REG_OFFSET: RvAddr = 0x24;
-    const PAUSER_LOCK_REG_START_OFFSET: RvAddr = 0x3c;
-    const TRNG_DATA_REG_START_OFFSET: RvAddr = 0x58;
-    const FUSE_WRITE_DONE_REG_OFFSET: RvAddr = 0x8c;
-    const TIMER_CFG_REG_OFFSET: RvAddr = 0x90;
+    const BOOT_STATUS_REG_OFFSET: RvAddr = 0x38;
+    const FLOW_STATUS_REG_OFFSET: RvAddr = 0x3c;
+    const RESET_REASON_REG_OFFSET: RvAddr = 0x40;
+    const SECURITY_STATE_REG_OFFSET: RvAddr = 0x44;
+    const FUSE_WRITE_DONE_REG_OFFSET: RvAddr = 0xAc;
+    const TIMER_CFG_REG_OFFSET: RvAddr = 0xB0;
     const CLOCK_PERIOD: u32 = 2222000;
-    const BOOT_FSM_GO_REG_OFFSET: RvAddr = 0x94;
-    const CLK_GATING_ENABLE_REG_OFFSET: RvAddr = 0x98;
+    const BOOT_FSM_GO_REG_OFFSET: RvAddr = 0xB4;
+    const CLK_GATING_ENABLE_REG_OFFSET: RvAddr = 0xBC;
     const KEY_MANIFEST_PK_HASH_MASK_REG_OFFSET: RvAddr = 0x280;
     const OWNER_KEY_MANIFEST_PK_HASH_MASK_REG_OFFSET: RvAddr = 0x2b4;
     const KEY_MANIFEST_SVN_REG_OFFSET: RvAddr = 0x2b8;
@@ -685,56 +683,6 @@ mod tests {
             soc_reg.read(RvSize::Word, SECURITY_STATE_REG_OFFSET).ok(),
             Some(0)
         );
-    }
-
-    #[test]
-    fn test_read_write_pauser_lock_regs() {
-        let mut soc_reg = SocRegisters::new();
-
-        for idx in 0u32..5 {
-            assert_eq!(
-                soc_reg
-                    .write(
-                        RvSize::Word,
-                        PAUSER_LOCK_REG_START_OFFSET + (idx << 2),
-                        0xDEADBEEF
-                    )
-                    .ok(),
-                None
-            );
-
-            assert_eq!(
-                soc_reg
-                    .read(RvSize::Word, PAUSER_LOCK_REG_START_OFFSET + (idx << 2))
-                    .ok(),
-                None
-            );
-        }
-    }
-
-    #[test]
-    fn test_read_write_trng_data_regs() {
-        let mut soc_reg = SocRegisters::new();
-
-        for idx in 0u32..12 {
-            assert_eq!(
-                soc_reg
-                    .write(
-                        RvSize::Word,
-                        TRNG_DATA_REG_START_OFFSET + (idx << 2),
-                        0xDEADBEEF
-                    )
-                    .ok(),
-                None
-            );
-
-            assert_eq!(
-                soc_reg
-                    .read(RvSize::Word, TRNG_DATA_REG_START_OFFSET + (idx << 2))
-                    .ok(),
-                None
-            );
-        }
     }
 
     #[test]
