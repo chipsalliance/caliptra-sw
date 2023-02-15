@@ -64,6 +64,12 @@ fn test_gen_key_pair() {
     assert_eq!(priv_key, Ecc384Scalar::from(PRIV_KEY));
     assert_eq!(pub_key.x, Ecc384Scalar::from(PUB_KEY_X));
     assert_eq!(pub_key.y, Ecc384Scalar::from(PUB_KEY_Y));
+
+    let mut der = [0u8; 97];
+    der[0] = 0x04;
+    der[01..49].copy_from_slice(&PUB_KEY_X);
+    der[49..97].copy_from_slice(&PUB_KEY_X);
+    assert_eq!(pub_key.to_der(), der);
 }
 
 fn test_sign() {

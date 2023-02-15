@@ -144,6 +144,19 @@ pub struct Ecc384PubKey {
     pub y: Ecc384Scalar,
 }
 
+impl Ecc384PubKey {
+    /// Return DER formatted public key in uncompressed form
+    pub fn to_der(&self) -> [u8; 97] {
+        let mut der = [0u8; 97];
+        der[0] = 0x04;
+        let x: [u8; 48] = self.x.into();
+        let y: [u8; 48] = self.x.into();
+        der[01..49].copy_from_slice(&x);
+        der[49..97].copy_from_slice(&y);
+        der
+    }
+}
+
 /// ECC-384 Signature
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
 pub struct Ecc384Signature {
