@@ -31,6 +31,7 @@ mod reset;
 mod sha256;
 mod sha384;
 mod sha384acc;
+mod state;
 mod status_reporter;
 
 pub type CaliptraResult<T> = Result<T, u32>;
@@ -55,6 +56,7 @@ pub use reset::{ResetReason, ResetService};
 pub use sha256::{Sha256, Sha256DigestOp};
 pub use sha384::{Sha384, Sha384Data, Sha384Digest, Sha384DigestOp};
 pub use sha384acc::{Sha384Acc, Sha384AccOp};
+pub use state::{DeviceState, Lifecycle};
 pub use status_reporter::{report_boot_status, report_flow_status};
 
 cfg_if::cfg_if! {

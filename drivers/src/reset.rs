@@ -20,7 +20,7 @@ pub enum ResetReason {
     /// Cold Reset
     ColdReset,
 
-    /// Wram Reset
+    /// Warm Reset
     WarmReset,
 
     /// Update Reset
@@ -42,8 +42,8 @@ impl ResetService {
         let bit1 = soc_ifc_regs.cptra_reset_reason().read().warm_reset();
         match (bit0, bit1) {
             (true, true) => ResetReason::Unknown,
-            (true, false) => ResetReason::WarmReset,
-            (false, true) => ResetReason::UpdateReset,
+            (false, true) => ResetReason::WarmReset,
+            (true, false) => ResetReason::UpdateReset,
             (false, false) => ResetReason::ColdReset,
         }
     }
