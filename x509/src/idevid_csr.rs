@@ -17,7 +17,8 @@ include!(concat!(env!("OUT_DIR"), "/init_dev_id_csr.rs"));
 
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
-    use openssl::ecdsa::EcdsaSig;
+    use openssl::sha::Sha384;
+    use openssl::{ecdsa::EcdsaSig, x509::X509Req};
 
     use super::*;
     use crate::test_util::tests::*;
@@ -39,9 +40,15 @@ mod tests {
 
         let csr = InitDevIdCsr::new(&params);
 
-        let x = csr.sign(|b| EcdsaSig::sign(b, &ec_key)).unwrap();
-        assert_eq!(x.r().to_hex_str().unwrap().len(), 96);
-        assert_eq!(x.s().to_hex_str().unwrap().len(), 96);
+        let sig: EcdsaSig = csr
+            .sign(|b| {
+                let mut sha = Sha384::new();
+                sha.update(b);
+                EcdsaSig::sign(&sha.finish(), &ec_key)
+            })
+            .unwrap();
+        assert_eq!(sig.r().to_hex_str().unwrap().len(), 96);
+        assert_eq!(sig.s().to_hex_str().unwrap().len(), 96);
 
         assert_ne!(csr.tbs(), InitDevIdCsr::TBS_TEMPLATE);
         assert_eq!(
@@ -60,6 +67,18 @@ mod tests {
                     + InitDevIdCsr::DEVICE_SERIAL_NUMBER_LEN],
             &params.device_serial_number,
         );
-        assert_eq!(x.verify(csr.tbs(), &ec_key).unwrap(), true);
+
+        let ecdsa_sig = crate::Ecdsa384Signature {
+            r: TryInto::<[u8; 48]>::try_into(sig.r().to_vec()).unwrap(),
+            s: TryInto::<[u8; 48]>::try_into(sig.s().to_vec()).unwrap(),
+        };
+
+        let builder = crate::Ecdsa384CsrBuilder::new(csr.tbs(), &ecdsa_sig).unwrap();
+        let mut buf = vec![0u8; builder.len()];
+        builder.build(&mut buf).unwrap();
+
+        let req: X509Req = X509Req::from_der(&buf).unwrap();
+        assert!(req.verify(&req.public_key().unwrap()).unwrap());
+        assert!(req.verify(key.priv_key()).unwrap());
     }
 }
