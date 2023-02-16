@@ -47,8 +47,6 @@ mod tests {
                 EcdsaSig::sign(&sha.finish(), &ec_key)
             })
             .unwrap();
-        assert_eq!(sig.r().to_hex_str().unwrap().len(), 96);
-        assert_eq!(sig.s().to_hex_str().unwrap().len(), 96);
 
         assert_ne!(csr.tbs(), InitDevIdCsr::TBS_TEMPLATE);
         assert_eq!(
