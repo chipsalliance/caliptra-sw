@@ -352,7 +352,7 @@ impl<TBus: Bus> Cpu<TBus> {
         status.set_mie(0);
         self.write_csr(Csr::MSTATUS, status.0)?;
 
-        let next_pc = self.read_csr(Csr::MTVEC)? & !0x11;
+        let next_pc = self.read_csr(Csr::MTVEC)? & !0b11;
         self.write_pc(next_pc);
         println!("{:x}", next_pc);
         Ok(())
