@@ -23,4 +23,5 @@ openssl = "0.10.45"
 hex = "0.4.3"
 
 [features]
-no_std = []
+default = ["std"]
+std = []

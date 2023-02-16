@@ -51,29 +51,82 @@ impl Ecdsa384Signature {
     /// ECDSA Coordinate length
     const ECDSA_COORD_LEN: usize = 48;
 
+    /// Get the length of DER encoded unsigned integer
+    fn der_uint_len(&self, val: &[u8; Self::ECDSA_COORD_LEN]) -> usize {
+        //
+        // len = TAG (1 byte) + LEN (1 byte) + Coordinate Len
+        //
+        for idx in 0..val.len() {
+            if val[idx] != 0x00 {
+                return 2 + val.len() - idx + if val[idx] > 127 { 1 } else { 0 };
+            }
+        }
+        return 2 + 1;
+    }
+
+    // DER Encode unsigned integer
+    fn der_encode_uint(
+        &self,
+        val: &[u8; Self::ECDSA_COORD_LEN],
+        buf: &mut [u8],
+        pos: usize,
+    ) -> usize {
+        let mut cur_pos = pos;
+
+        // Count the leading zeros
+        let mut clz = 0_usize;
+        for byte in val {
+            if *byte != 0 {
+                break;
+            }
+            clz += 1;
+        }
+
+        buf[cur_pos] = DER_INTEGER_TAG;
+        cur_pos += 1;
+
+        if clz == val.len() {
+            // Encode length
+            buf[cur_pos] = 1;
+            cur_pos += 1;
+
+            // Encode Value
+            buf[cur_pos] = 0;
+            cur_pos += 1;
+        } else {
+            // Check if the most significant bit is set
+            let msb_set = val[clz] > 127_u8;
+
+            // Encode length
+            let val_size = val.len() - clz + if msb_set { 1 } else { 0 };
+            buf[cur_pos] = val_size as u8;
+            cur_pos += 1;
+
+            // Encode the value
+
+            // If MSB is set encode extra zero to indicate it is positive unsigned integer
+            if msb_set {
+                buf[cur_pos] = 0;
+                cur_pos += 1;
+            }
+
+            // Encode the integer
+            for byte in &val[clz..] {
+                buf[cur_pos] = *byte;
+                cur_pos += 1;
+            }
+        };
+
+        cur_pos - pos
+    }
+
     /// Convert the signature to DER format
     fn to_der(&self) -> ([u8; MAX_ECDSA384_SIG_LEN], usize) {
-        //
         // Encode Signature R Coordinate
-        //
-        // r_uint_len = TAG (1 byte) + LEN (1 byte) + R-Coordinate Len (48 bytes)
-        //
-        // R is unsigned so in DER encoding if the msb of first byte is set we
-        // need to add a leading zero
-        // if r[0] > 127 -> r_uint_len +1
-        //
-        let r_uint_len = 2 + self.r.len() + if self.r[0] > 127 { 1 } else { 0 };
+        let r_uint_len = self.der_uint_len(&self.r);
 
-        //
         // Encode Signature S Coordinate
-        //
-        // s_uint_len = TAG (1 byte) + LEN (1 byte) + S-Coordinate Len (48 bytes)
-        //
-        // S is unsigned so in DER encoding if the msb of first byte is set we
-        // need to add a leading zero
-        // if s[0] > 127 -> s_uint_len +1
-        //
-        let s_uint_len = 2 + self.s.len() + if self.s[0] > 127 { 1 } else { 0 };
+        let s_uint_len = self.der_uint_len(&self.s);
 
         //
         // Signature DER Sequence encoding
@@ -81,12 +134,6 @@ impl Ecdsa384Signature {
         // sig_seq_len = TAG (1 byte) + LEN (1 byte) + r_uint_len + s_uint_len
         //
         let sig_seq_len = 2 + r_uint_len + s_uint_len;
-
-        //
-        // Signature BIT String len encoding
-        //
-        // len = TAG (1 byte) + LEN (1 byte) + UNUSED_BITS(1 byte) + sig_seq_len
-        let _ = 3 + sig_seq_len;
 
         let mut buf = [0u8; MAX_ECDSA384_SIG_LEN];
         let mut pos = 0;
@@ -106,35 +153,10 @@ impl Ecdsa384Signature {
         pos += 1;
 
         // Encode R-Coordinate
-        buf[pos] = DER_INTEGER_TAG;
-        pos += 1;
-
-        if self.r[0] > 127 {
-            buf[pos] = (self.r.len() + 1) as u8;
-            // Add leading zero
-            buf[pos + 1] = 0x00;
-            pos += 2;
-        } else {
-            buf[pos] = self.r.len() as u8;
-            pos += 1;
-        }
-        buf[pos..pos + self.r.len()].copy_from_slice(&self.r);
-        pos += self.r.len();
+        pos += self.der_encode_uint(&self.r, &mut buf, pos);
 
         // Encode S-Coordinate
-        buf[pos] = DER_INTEGER_TAG;
-        pos += 1;
-        if self.s[0] > 127 {
-            buf[pos] = (self.s.len() + 1) as u8;
-            // Add leading zero
-            buf[pos + 1] = 0x00;
-            pos += 2;
-        } else {
-            buf[pos] = self.s.len() as u8;
-            pos += 1;
-        }
-        buf[pos..pos + self.s.len()].copy_from_slice(&self.s);
-        pos += self.s.len();
+        pos += self.der_encode_uint(&self.s, &mut buf, pos);
 
         (buf, pos)
     }

@@ -67,8 +67,8 @@ mod tests {
         );
 
         let ecdsa_sig = crate::Ecdsa384Signature {
-            r: TryInto::<[u8; 48]>::try_into(sig.r().to_vec()).unwrap(),
-            s: TryInto::<[u8; 48]>::try_into(sig.s().to_vec()).unwrap(),
+            r: TryInto::<[u8; 48]>::try_into(sig.r().to_vec_padded(48).unwrap()).unwrap(),
+            s: TryInto::<[u8; 48]>::try_into(sig.s().to_vec_padded(48).unwrap()).unwrap(),
         };
 
         let builder = crate::Ecdsa384CsrBuilder::new(csr.tbs(), &ecdsa_sig).unwrap();
