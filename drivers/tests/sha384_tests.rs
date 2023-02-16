@@ -19,6 +19,17 @@ use caliptra_lib::{Array4x12, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Sha384
 
 mod harness;
 
+const KEY_IDS: [KeyId; 8] = [
+    KeyId::KeyId0,
+    KeyId::KeyId1,
+    KeyId::KeyId2,
+    KeyId::KeyId3,
+    KeyId::KeyId4,
+    KeyId::KeyId5,
+    KeyId::KeyId6,
+    KeyId::KeyId7,
+];
+
 fn test_digest0() {
     let expected: [u8; 48] = [
         0x38, 0xB0, 0x60, 0xA7, 0x51, 0xAC, 0x96, 0x38, 0x4C, 0xD9, 0x32, 0x7E, 0xB1, 0xB1, 0xE3,
@@ -234,73 +245,7 @@ fn test_op8() {
     assert_eq!(digest, Array4x12::from(expected));
 }
 
-fn test_key_digest0() {
-    // dd if=/dev/zero bs=1 count=4 |sha384sum
-    let expected: [u8; 48] = [
-        0x39, 0x43, 0x41, 0xb7, 0x18, 0x2c, 0xd2, 0x27, 0xc5, 0xc6, 0xb0, 0x7e, 0xf8, 0x00, 0x0c,
-        0xdf, 0xd8, 0x61, 0x36, 0xc4, 0x29, 0x2b, 0x8e, 0x57, 0x65, 0x73, 0xad, 0x7e, 0xd9, 0xae,
-        0x41, 0x01, 0x9f, 0x58, 0x18, 0xb4, 0xb9, 0x71, 0xc9, 0xef, 0xfc, 0x60, 0xe1, 0xad, 0x9f,
-        0x12, 0x89, 0xf0,
-    ];
-
-    let mut digest = Array4x12::default();
-    let key = KeyReadArgs::new(KeyId::KeyId0, 1);
-    let result = Sha384::default().digest(key.into(), (&mut digest).into());
-    result.unwrap();
-    assert!(result.is_ok());
-    assert_eq!(digest, Array4x12::from(expected));
-}
-
-fn test_key_digest1() {
-    // dd if=/dev/zero bs=1 count=48 |sha384sum
-    let expected: [u8; 48] = [
-        0x8f, 0x0d, 0x14, 0x5c, 0x03, 0x68, 0xad, 0x6b, 0x70, 0xbe, 0x22, 0xe4, 0x1c, 0x40, 0x0e,
-        0xea, 0x91, 0xb9, 0x71, 0xd9, 0x6b, 0xa2, 0x20, 0xfe, 0xc9, 0xfa, 0xe2, 0x5a, 0x58, 0xdf,
-        0xfd, 0xaa, 0xf7, 0x2d, 0xbe, 0x8f, 0x67, 0x83, 0xd5, 0x51, 0x28, 0xc9, 0xdf, 0x4e, 0xfa,
-        0xf6, 0xf8, 0xa7,
-    ];
-
-    let mut digest = Array4x12::default();
-    let key = KeyReadArgs::new(KeyId::KeyId0, 12);
-    let result = Sha384::default().digest(key.into(), (&mut digest).into());
-    assert!(result.is_ok());
-    assert_eq!(digest, Array4x12::from(expected));
-}
-
-fn test_kv_hash_to_vault_buffer_from_vault() {
-    let data: [u8; 48] = [0u8; 48];
-
-    let expected: [u8; 48] = [
-        0x96, 0x95, 0x0f, 0xf4, 0x2b, 0xea, 0xd4, 0x53, 0x65, 0x7a, 0x8c, 0x70, 0x25, 0xad, 0x3f,
-        0xd7, 0xf3, 0x0e, 0xf0, 0x77, 0xd4, 0x0b, 0xdb, 0xfe, 0xfe, 0xa8, 0xee, 0x0b, 0x85, 0x19,
-        0x14, 0x22, 0x21, 0x2c, 0xda, 0x51, 0x2d, 0x8b, 0xa1, 0xbb, 0x68, 0xd6, 0xf7, 0xe0, 0xa0,
-        0x81, 0xf4, 0x89,
-    ];
-
-    //
-    // Step 1: Hash a buffer with all zeros and store the hash into key-vault slot 0.
-    //
-    let mut key_usage = KeyUsage::default();
-    key_usage.set_sha_data(true);
-    let key_out_1 = KeyWriteArgs {
-        id: KeyId::KeyId0,
-        usage: key_usage,
-        word_size: 12,
-    };
-    let mut result = Sha384::default().digest((&data).into(), key_out_1.into());
-    assert!(result.is_ok());
-
-    //
-    // Step 2: Hash the hash generated in step 1.
-    //
-    let mut digest = Array4x12::default();
-    let key_in_2 = KeyReadArgs::new(KeyId::KeyId0, 12);
-    result = Sha384::default().digest(key_in_2.into(), (&mut digest).into());
-    assert!(result.is_ok());
-    assert_eq!(digest, Array4x12::from(expected));
-}
-
-fn test_kv_hash_to_vault_buffer_from_api() {
+fn test_kv() {
     let expected: [u8; 48] = [
         0x31, 0x15, 0x4d, 0x09, 0x2c, 0x9e, 0xf4, 0xc7, 0x23, 0x0c, 0xeb, 0x5d, 0x32, 0x65, 0x7f,
         0x11, 0x51, 0x79, 0xdb, 0x40, 0x30, 0xc0, 0x16, 0x71, 0x1e, 0x2a, 0xd2, 0x85, 0xb3, 0x66,
@@ -318,11 +263,11 @@ fn test_kv_hash_to_vault_buffer_from_api() {
     //
     // Step 1: Hash a buffer from input and store the hash into key-vault slot 0.
     //
-    let mut key_usage = KeyUsage::default();
-    key_usage.set_sha_data(true);
+    let mut usage = KeyUsage(0);
+    usage.set_sha_data(true);
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
-        usage: key_usage,
+        usage,
         word_size: 12,
     };
     let mut result = Sha384::default().digest((&data).into(), key_out_1.into());
@@ -330,12 +275,43 @@ fn test_kv_hash_to_vault_buffer_from_api() {
 
     //
     // Step 2: Hash the hash generated in step 1.
+    // Success indicates hash was correctly stored in the key-vault in step 1.
+    // Success also indicates buffer was correctly retrieved from the key-vault.
     //
     let mut digest = Array4x12::default();
     let key_in_2 = KeyReadArgs::new(KeyId::KeyId0, 12);
     result = Sha384::default().digest(key_in_2.into(), (&mut digest).into());
     assert!(result.is_ok());
     assert_eq!(digest, Array4x12::from(expected));
+}
+
+fn test_kv_incorrect_key_acl() {
+    let data = &[];
+    let mut usage = KeyUsage(0);
+    usage.set_sha_data(false);
+
+    for key_id in KEY_IDS {
+        //
+        // Step 1: Hash a buffer from input and store the hash into key-vault slot 0.
+        // Prevent the key to be used as sha data.
+        //
+        let key_out_1 = KeyWriteArgs {
+            id: key_id,
+            usage,
+            word_size: 12,
+        };
+        let mut result = Sha384::default().digest((data).into(), key_out_1.into());
+        assert!(result.is_ok());
+
+        //
+        // Step 2: Use the key generated in step 1 as SHA data.
+        // This should fail since acl set on key should prevent it's usage as SHA data.
+        //
+        let mut digest = Array4x12::default();
+        let key_in_2 = KeyReadArgs::new(key_id, 12);
+        result = Sha384::default().digest(key_in_2.into(), (&mut digest).into());
+        assert!(result.is_err());
+    }
 }
 
 test_suite! {
@@ -352,9 +328,6 @@ test_suite! {
     test_op6,
     test_op7,
     test_op8,
-    test_key_digest0,
-    test_key_digest1,
-    // Maintain the order of the tests.
-    test_kv_hash_to_vault_buffer_from_vault,
-    test_kv_hash_to_vault_buffer_from_api,
+    test_kv,
+    test_kv_incorrect_key_acl,
 }

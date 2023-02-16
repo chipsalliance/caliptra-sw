@@ -478,7 +478,7 @@ impl KeyVaultRegs {
     const PCR_REG_SIZE: usize = 0x200;
 
     /// PCR Control register reset value
-    const PCR_CONTROL_REG_RESET_VAL: u32 = 0x0000_7E00;
+    const PCR_CONTROL_REG_RESET_VAL: u32 = 0;
 
     /// Key Count
     const KEY_COUNT: u32 = 8;
@@ -490,7 +490,7 @@ impl KeyVaultRegs {
     const KEY_REG_SIZE: usize = 0x200;
 
     /// Key control register reset value
-    const KEY_CONTROL_REG_RESET_VAL: u32 = 0x0000_7E00;
+    const KEY_CONTROL_REG_RESET_VAL: u32 = 0;
 
     /// Sticky DataVault Control Register Rest Value.
     const STICKY_DATAVAULT_CTRL_REG_RESET_VAL: u32 = 0x0;
@@ -831,11 +831,7 @@ mod tests {
     use super::*;
     use tock_registers::interfaces::Writeable;
 
-    const OFFSET_KEY_CONTROL: RvAddr = 0x400;
     const OFFSET_KEYS: RvAddr = 0x600;
-    const KEY_CONTROL_RESET_VAL: u32 = 0x0000_7E00;
-    const KEY_SIZE: u32 = 64;
-    const KEY_CONTROL_REG_WIDTH: u32 = 0x4;
 
     #[test]
     fn test_key_ctrl_reset_state() {
@@ -843,9 +839,9 @@ mod tests {
         for idx in 0u32..8 {
             assert_eq!(
                 vault
-                    .read(RvSize::Word, OFFSET_KEY_CONTROL + (idx << 2))
+                    .read(RvSize::Word, KeyVault::KEY_CONTROL_REG_OFFSET + (idx << 2))
                     .ok(),
-                Some(KEY_CONTROL_RESET_VAL)
+                Some(KeyVaultRegs::KEY_CONTROL_REG_RESET_VAL)
             );
         }
     }
@@ -854,19 +850,10 @@ mod tests {
     fn test_key_read_write() {
         let mut vault = KeyVault::new();
         for idx in 0u32..8 {
-            assert_eq!(
-                vault
-                    .write(RvSize::Word, OFFSET_KEYS + (idx * KEY_SIZE), u32::MAX)
-                    .ok(),
-                None
-            );
+            let addr = OFFSET_KEYS + (idx * KeyVault::KEY_SIZE as u32);
+            assert_eq!(vault.write(RvSize::Word, addr, u32::MAX).ok(), None);
 
-            assert_eq!(
-                vault
-                    .read(RvSize::Word, OFFSET_KEYS + (idx * KEY_SIZE))
-                    .ok(),
-                None
-            );
+            assert_eq!(vault.read(RvSize::Word, addr).ok(), None);
         }
     }
 
@@ -909,13 +896,11 @@ mod tests {
 
         for key_id in 0..8 {
             let val_reg = InMemoryRegister::<u32, KV_CONTROL::Register>::new(0);
+            let key_control_addr =
+                KeyVault::KEY_CONTROL_REG_OFFSET + (key_id * KeyVault::KEY_CONTROL_REG_WIDTH);
             assert_eq!(
                 vault
-                    .write(
-                        RvSize::Word,
-                        OFFSET_KEY_CONTROL + (key_id * KEY_CONTROL_REG_WIDTH),
-                        val_reg.get()
-                    )
+                    .write(RvSize::Word, key_control_addr, val_reg.get())
                     .ok(),
                 Some(())
             );
@@ -931,11 +916,7 @@ mod tests {
             val_reg.write(KV_CONTROL::USE_LOCK.val(1));
             assert_eq!(
                 vault
-                    .write(
-                        RvSize::Word,
-                        OFFSET_KEY_CONTROL + (key_id * KEY_CONTROL_REG_WIDTH),
-                        val_reg.get()
-                    )
+                    .write(RvSize::Word, key_control_addr, val_reg.get())
                     .ok(),
                 Some(())
             );
@@ -968,7 +949,8 @@ mod tests {
                 vault
                     .write(
                         RvSize::Word,
-                        OFFSET_KEY_CONTROL + (key_id * KEY_CONTROL_REG_WIDTH),
+                        KeyVault::KEY_CONTROL_REG_OFFSET
+                            + (key_id * KeyVault::KEY_CONTROL_REG_WIDTH),
                         val_reg.get()
                     )
                     .ok(),
@@ -1016,7 +998,8 @@ mod tests {
                 vault
                     .write(
                         RvSize::Word,
-                        OFFSET_KEY_CONTROL + (key_id * KEY_CONTROL_REG_WIDTH),
+                        KeyVault::KEY_CONTROL_REG_OFFSET
+                            + (key_id * KeyVault::KEY_CONTROL_REG_WIDTH),
                         val_reg.get()
                     )
                     .ok(),
