@@ -11,9 +11,9 @@ Abstract:
     File contains SHA accelerator implementation.
 
 --*/
-use crate::Mailbox;
+use crate::MailboxRam;
 use caliptra_emu_bus::{
-    BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteRegister, Timer, TimerAction,
+    Bus, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteRegister, Timer, TimerAction,
 };
 use caliptra_emu_crypto::{EndianessTransform, Sha512, Sha512Mode};
 use caliptra_emu_derive::Bus;
@@ -113,8 +113,8 @@ pub struct Sha512Accelerator {
     #[peripheral(offset = 0x0000_0040, mask = 0x0000_001F)]
     hash_upper: ReadOnlyMemory<SHA512_HASH_HALF_SIZE>,
 
-    /// Mailbox
-    mailbox: Mailbox,
+    /// Mailbox Memory
+    mailbox_ram: MailboxRam,
 
     /// Timer
     timer: Timer,
@@ -128,12 +128,12 @@ pub struct Sha512Accelerator {
 
 impl Sha512Accelerator {
     /// Create a new instance of SHA-512 Accelerator
-    pub fn new(clock: &Clock, mailbox: Mailbox) -> Self {
+    pub fn new(clock: &Clock, mailbox_ram: MailboxRam) -> Self {
         Self {
             status: ReadOnlyRegister::new(Status::VALID::CLEAR.value),
             hash_lower: ReadOnlyMemory::new(),
             hash_upper: ReadOnlyMemory::new(),
-            mailbox,
+            mailbox_ram,
             timer: Timer::new(clock),
             _lock: ReadWriteRegister::new(0),
             user: ReadOnlyRegister::new(0),
@@ -347,25 +347,23 @@ impl Sha512Accelerator {
         let totaldwords = (data_len + (RvSize::Word as usize - 1)) / (RvSize::Word as usize);
         let totalblocks = ((data_len + 16) + SHA512_BLOCK_SIZE) / SHA512_BLOCK_SIZE;
         let totalbytes = totalblocks * SHA512_BLOCK_SIZE;
+        let mut block_arr: Vec<u8> = vec![0; totalbytes];
 
-        // Read data from mailbox.
-        let mut data: Vec<u8> = self
-            .mailbox
-            .read_data(self.start_address.reg.get() as usize, totaldwords)
-            .unwrap()
-            .into_vec()
-            .iter()
-            .flat_map(|val| val.to_le_bytes())
-            .collect();
+        // Read data from mailbox ram.
+        for idx in 0..totaldwords {
+            let byte_offset = idx << 2;
+            let word = self
+                .mailbox_ram
+                .read(RvSize::Word, byte_offset as u32)
+                .unwrap();
+            block_arr[byte_offset..byte_offset + 4].copy_from_slice(&word.to_le_bytes());
+        }
 
         // Check ENDIAN_TOGGLE bit. If set to 1, data from the mailbox is in big-endian format.
         // Convert it to little-endian for padding operation.
         if self.mode.reg.read(ShaMode::ENDIAN_TOGGLE) == 1 {
-            data.to_little_endian();
+            block_arr.to_little_endian();
         }
-
-        let mut block_arr: Vec<u8> = vec![0; totalbytes];
-        block_arr[..data_len].copy_from_slice(&data[..data_len]);
 
         // Add block padding.
         block_arr[data_len] = 0b1000_0000;
@@ -489,7 +487,7 @@ impl StateMachineContext for Context {
 
 #[cfg(test)]
 mod tests {
-    use crate::sha512_acc::*;
+    use crate::{sha512_acc::*, MailboxRam};
     use caliptra_emu_bus::Bus;
     use caliptra_emu_types::RvAddr;
     use tock_registers::registers::InMemoryRegister;
@@ -503,12 +501,11 @@ mod tests {
 
     fn test_sha_accelerator(data: &[u8], expected: &[u8]) {
         // Write to the mailbox.
-        let mb = Mailbox::new();
+        let mut mb_ram = MailboxRam::new();
         if data.len() > 0 {
             let mut data_word_multiples = vec![0u8; ((data.len() + 3) / 4) * 4];
             data_word_multiples[..data.len()].copy_from_slice(&data[..]);
 
-            let mut data_be = Vec::new();
             for idx in (0..data_word_multiples.len()).step_by(4) {
                 // Convert to big-endian.
                 let dword = ((data_word_multiples[idx] as u32) << 24)
@@ -516,13 +513,12 @@ mod tests {
                     | ((data_word_multiples[idx + 2] as u32) << 8)
                     | (data_word_multiples[idx + 3] as u32);
 
-                data_be.push(dword);
+                mb_ram.write(RvSize::Word, idx as u32, dword).unwrap();
             }
-            assert_eq!(mb.write_data(0, &data_be[..]).ok(), Some(()));
         }
 
         let clock = Clock::new();
-        let mut sha_accl = Sha512Accelerator::new(&clock, mb.clone());
+        let mut sha_accl = Sha512Accelerator::new(&clock, mb_ram.clone());
 
         // Acquire the accelerator lock.
         loop {
@@ -682,7 +678,7 @@ mod tests {
     #[test]
     fn test_sm_lock() {
         let clock = Clock::new();
-        let mut sha_accl = Sha512Accelerator::new(&clock, Mailbox::new());
+        let mut sha_accl = Sha512Accelerator::new(&clock, MailboxRam::new());
         assert_eq!(sha_accl.state_machine.context.locked, 0);
 
         let _ = sha_accl
@@ -701,7 +697,7 @@ mod tests {
     #[test]
     fn test_sha_acc_check_state() {
         let clock = Clock::new();
-        let mut sha_accl = Sha512Accelerator::new(&clock, Mailbox::new());
+        let mut sha_accl = Sha512Accelerator::new(&clock, MailboxRam::new());
 
         // Check init state.
         assert_eq!(

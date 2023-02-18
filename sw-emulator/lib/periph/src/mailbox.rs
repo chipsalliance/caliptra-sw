@@ -13,14 +13,43 @@ Abstract:
 --*/
 use smlang::statemachine;
 
-use caliptra_emu_bus::Bus;
+use caliptra_emu_bus::{Bus, Ram};
 use caliptra_emu_bus::{BusError, ReadOnlyRegister, ReadWriteRegister, WriteOnlyRegister};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::{cell::RefCell, rc::Rc};
 
-/// Maximum mailbox capacity in DWORDS.
-const MAX_MAILBOX_CAPACITY: usize = (128 << 10) >> 2;
+/// Maximum mailbox capacity.
+const MAX_MAILBOX_CAPACITY_BYTES: usize = 128 << 10;
+
+#[derive(Clone)]
+pub struct MailboxRam {
+    ram: Rc<RefCell<Ram>>,
+}
+
+impl MailboxRam {
+    pub fn new() -> Self {
+        Self {
+            ram: Rc::new(RefCell::new(Ram::new(vec![
+                0u8;
+                MAX_MAILBOX_CAPACITY_BYTES
+            ]))),
+        }
+    }
+}
+
+impl Bus for MailboxRam {
+    /// Read data of specified size from given address
+    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+        self.ram.borrow_mut().read(size, addr)
+    }
+
+    /// Write data of specified size to given address
+    fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {
+        self.ram.borrow_mut().write(size, addr, val)?;
+        Ok(())
+    }
+}
 
 #[derive(Clone)]
 pub struct Mailbox {
@@ -28,49 +57,10 @@ pub struct Mailbox {
 }
 
 impl Mailbox {
-    pub fn new() -> Self {
+    pub fn new(ram: MailboxRam) -> Self {
         Self {
-            regs: Rc::new(RefCell::new(MailboxRegs::new())),
+            regs: Rc::new(RefCell::new(MailboxRegs::new(ram))),
         }
-    }
-
-    // Private interface to the mailbox buffer
-    pub fn read_data(
-        &self,
-        read_word_offset: usize,
-        read_word_count: usize,
-    ) -> Result<Box<[u32]>, BusError> {
-        let mut vec = vec![0; read_word_count];
-        if read_word_offset >= MAX_MAILBOX_CAPACITY
-            || (read_word_offset + read_word_count) > MAX_MAILBOX_CAPACITY
-        {
-            Err(BusError::LoadAccessFault)?
-        }
-
-        vec.copy_from_slice(
-            &self.regs.borrow().state_machine.context.ring_buffer.buffer
-                [read_word_offset..(read_word_offset + read_word_count)],
-        );
-
-        Ok(vec.into_boxed_slice())
-    }
-
-    pub fn write_data(&self, write_word_offset: usize, data: &[u32]) -> Result<(), BusError> {
-        if write_word_offset >= MAX_MAILBOX_CAPACITY
-            || (write_word_offset + data.len()) > MAX_MAILBOX_CAPACITY
-        {
-            Err(BusError::StoreAccessFault)?
-        }
-
-        self.regs
-            .borrow_mut()
-            .state_machine
-            .context
-            .ring_buffer
-            .buffer[write_word_offset..(write_word_offset + data.len())]
-            .copy_from_slice(data);
-
-        Ok(())
     }
 }
 
@@ -137,7 +127,7 @@ impl MailboxRegs {
     const STATUS_VAL: RvData = 0x0;
 
     /// Create a new instance of Mailbox registers
-    pub fn new() -> Self {
+    pub fn new(ram: MailboxRam) -> Self {
         Self {
             lock: ReadOnlyRegister::new(Self::LOCK_VAL),
             user: ReadOnlyRegister::new(Self::USER_VAL),
@@ -147,7 +137,7 @@ impl MailboxRegs {
             data_out: ReadOnlyRegister::new(Self::DATA_OUT_VAL),
             execute: WriteOnlyRegister::new(Self::EXEC_VAL),
             _status: ReadWriteRegister::new(Self::STATUS_VAL),
-            state_machine: StateMachine::new(Context::new(MAX_MAILBOX_CAPACITY)),
+            state_machine: StateMachine::new(Context::new(ram)),
         }
     }
 
@@ -263,8 +253,6 @@ pub struct Context {
     pub user: u32,
     /// Execute flag
     pub exec: bool,
-    /// mailbox memory capacity
-    pub mem_size: usize,
     /// number of data elements
     pub dlen: u32,
     /// Fifo storage
@@ -278,15 +266,14 @@ pub struct Context {
 }
 
 impl Context {
-    fn new(mem_size: usize) -> Self {
+    fn new(ram: MailboxRam) -> Self {
         Self {
             locked: 0,
             user: 0,
             exec: false,
             dlen: 0,
-            mem_size: mem_size,
             status: 0,
-            ring_buffer: RingBuffer::new(mem_size),
+            ring_buffer: RingBuffer::new(ram),
             cmd: 0,
             data_out: 0,
         }
@@ -337,30 +324,37 @@ impl StateMachineContext for Context {
 }
 
 pub struct RingBuffer {
-    buffer: Vec<u32>,
     capacity: usize,
     read_index: usize,
     write_index: usize,
+    mailbox_ram: MailboxRam,
 }
 
 impl RingBuffer {
-    pub fn new(capacity: usize) -> Self {
+    pub fn new(ram: MailboxRam) -> Self {
+        let ram_size = ram.ram.borrow().data().len();
         RingBuffer {
-            buffer: vec![0; capacity],
-            capacity,
+            capacity: ram_size,
             read_index: 0,
             write_index: 0,
+            mailbox_ram: ram,
         }
     }
     pub fn enqueue(&mut self, element: u32) {
         // there is no buffer full condition in mailbox h/w
-        self.buffer[self.write_index] = element;
-        self.write_index = (self.write_index + 1) & (self.capacity - 1);
+        self.mailbox_ram
+            .write(RvSize::Word, self.write_index as u32, element)
+            .unwrap();
+        self.write_index = (self.write_index + RvSize::Word as usize) & (self.capacity - 1);
     }
     pub fn dequeue(&mut self) -> u32 {
         // there is no buffer empty condition in mailbox h/w
-        let element = self.buffer[self.read_index];
-        self.read_index = (self.read_index + 1) & (self.capacity - 1);
+        let element = self
+            .mailbox_ram
+            .read(RvSize::Word, self.read_index as u32)
+            .unwrap();
+
+        self.read_index = (self.read_index + RvSize::Word as usize) & (self.capacity - 1);
         element
     }
 }
@@ -386,7 +380,7 @@ mod tests {
     #[test]
     fn test_send_receive() {
         // Acquire lock
-        let mut mb = Mailbox::new();
+        let mut mb = Mailbox::new(MailboxRam::new());
         assert_eq!(mb.read(RvSize::Word, OFFSET_LOCK).unwrap(), 0);
         // Confirm it is locked
         let lock = mb.read(RvSize::Word, OFFSET_LOCK).unwrap();
@@ -464,7 +458,7 @@ mod tests {
 
     #[test]
     fn test_sm_init() {
-        let mb = Mailbox::new();
+        let mb = Mailbox::new(MailboxRam::new());
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
             States::Idle
@@ -474,7 +468,7 @@ mod tests {
 
     #[test]
     fn test_sm_lock() {
-        let mb = Mailbox::new();
+        let mb = Mailbox::new(MailboxRam::new());
         assert_eq!(mb.regs.borrow().state_machine.context().locked, 0);
         assert_eq!(mb.regs.borrow().state_machine.context().dlen, 0);
 
@@ -529,77 +523,5 @@ mod tests {
             States::Idle
         ));
         assert_eq!(mb.regs.borrow().state_machine.context().locked, 0);
-    }
-
-    #[test]
-    fn test_private_read_write() {
-        let mb = Mailbox::new();
-
-        let zero_data: [u32; MAX_MAILBOX_CAPACITY] = [0u32; MAX_MAILBOX_CAPACITY];
-        let data: [u32; 12] = [
-            0xc908585a, 0x486c3b3d, 0x8bbe50eb, 0x7d2eb8a0, 0x3aa04e3d, 0x8bde2c31, 0xa8a2a1e3,
-            0x349dc21c, 0xbbe6c90a, 0xe2f74912, 0x8884b622, 0xbb72b4c5,
-        ];
-
-        // Write to the mailbox.
-        assert_eq!(mb.write_data(0, &data[..]).ok(), Some(()));
-
-        // Read from the mailbox.
-        let read_data = mb.read_data(0, data.len()).unwrap();
-        assert_eq!(data, *read_data);
-
-        assert_eq!(mb.write_data(0, &zero_data[..]).ok(), Some(()));
-        assert_eq!(mb.read_data(0, zero_data.len()).is_ok(), true);
-    }
-
-    #[test]
-    fn test_private_read_write_fail() {
-        let mb = Mailbox::new();
-
-        let zero_size_buf: [u32; 0] = [0u32; 0];
-        let data: [u32; MAX_MAILBOX_CAPACITY + 1] = [0u32; MAX_MAILBOX_CAPACITY + 1];
-
-        // Write to the mailbox.
-        assert_eq!(
-            mb.write_data(0, &data[..]).err(),
-            Some(BusError::StoreAccessFault)
-        );
-
-        assert_eq!(
-            mb.write_data(1, &data[0..MAX_MAILBOX_CAPACITY]).err(),
-            Some(BusError::StoreAccessFault)
-        );
-
-        assert_eq!(
-            mb.write_data(MAX_MAILBOX_CAPACITY, &zero_size_buf[..])
-                .err(),
-            Some(BusError::StoreAccessFault)
-        );
-
-        assert_eq!(
-            mb.write_data(MAX_MAILBOX_CAPACITY, &data[0..1]).err(),
-            Some(BusError::StoreAccessFault)
-        );
-
-        // Read from the mailbox.
-        assert_eq!(
-            mb.read_data(0, MAX_MAILBOX_CAPACITY + 1).err(),
-            Some(BusError::LoadAccessFault)
-        );
-
-        assert_eq!(
-            mb.read_data(1, MAX_MAILBOX_CAPACITY).err(),
-            Some(BusError::LoadAccessFault)
-        );
-
-        assert_eq!(
-            mb.read_data(MAX_MAILBOX_CAPACITY, 0).err(),
-            Some(BusError::LoadAccessFault)
-        );
-
-        assert_eq!(
-            mb.read_data(MAX_MAILBOX_CAPACITY, 1).err(),
-            Some(BusError::LoadAccessFault)
-        );
     }
 }

@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::{
-    AsymEcc384, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha384, KeyVault, Mailbox,
+    AsymEcc384, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha384, KeyVault, Mailbox, MailboxRam,
     Sha512Accelerator, SocRegisters, Uart,
 };
 use caliptra_emu_bus::{Clock, Ram, Rom};
@@ -51,6 +51,9 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x2000_f000, mask = 0x0000_0fff)]
     pub ctrl: EmuCtrl,
 
+    #[peripheral(offset = 0x3000_0000, mask = 0x0001_ffff)]
+    pub mailbox_sram: MailboxRam,
+
     #[peripheral(offset = 0x3002_0000, mask = 0x0000_0fff)]
     pub mailbox: Mailbox,
 
@@ -72,7 +75,8 @@ impl CaliptraRootBus {
     pub fn new(clock: &Clock, rom: Vec<u8>) -> Self {
         let key_vault = KeyVault::new();
         let soc_reg = SocRegisters::new();
-        let mailbox = Mailbox::new();
+        let mailbox_ram = MailboxRam::new();
+        let mailbox = Mailbox::new(mailbox_ram.clone());
         Self {
             rom: Rom::new(rom),
             doe: Doe::new(clock, key_vault.clone(), soc_reg.clone()),
@@ -86,8 +90,9 @@ impl CaliptraRootBus {
             uart: Uart::new(),
             ctrl: EmuCtrl::new(),
             soc_reg: soc_reg.clone(),
+            mailbox_sram: mailbox_ram.clone(),
             mailbox: mailbox.clone(),
-            sha512_acc: Sha512Accelerator::new(clock, mailbox.clone()),
+            sha512_acc: Sha512Accelerator::new(clock, mailbox_ram.clone()),
         }
     }
 }
