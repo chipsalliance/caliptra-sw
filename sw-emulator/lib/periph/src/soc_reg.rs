@@ -14,15 +14,18 @@ Abstract:
 
 use caliptra_emu_bus::BusError::{LoadAccessFault, StoreAccessFault};
 use caliptra_emu_bus::{
-    Bus, BusError, ReadOnlyMemory, ReadOnlyRegister, ReadWriteRegister, WriteOnlyRegister,
+    Bus, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteRegister, Timer, TimerAction,
+    WriteOnlyRegister,
 };
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::cell::RefCell;
 use std::process::exit;
 use std::rc::Rc;
-use tock_registers::interfaces::Readable;
+use tock_registers::interfaces::{Readable, Writeable};
 use tock_registers::register_bitfields;
+
+use crate::Mailbox;
 
 /// Unique device secret size
 const UDS_SIZE: usize = 48;
@@ -47,6 +50,9 @@ const IDEVID_CERT_ATTR_SIZE: usize = 96;
 
 /// Idevid manufacturer hsm id size
 const IDEVID_MANUF_HSM_ID_SIZE: usize = 16;
+
+/// The number of CPU clock cycles it takes to read the firmware from the mailbox.
+const FW_READ_TICKS: u64 = 1000;
 
 register_bitfields! [
     u32,
@@ -156,9 +162,9 @@ impl SocRegisters {
     const CALIPTRA_REG_END_ADDR: u32 = 0x62C;
 
     /// Create an instance of SOC register peripheral
-    pub fn new() -> Self {
+    pub fn new(clock: &Clock, mailbox: Mailbox, fw_img: Vec<u8>) -> Self {
         Self {
-            regs: Rc::new(RefCell::new(SocRegistersImpl::new())),
+            regs: Rc::new(RefCell::new(SocRegistersImpl::new(clock, mailbox, fw_img))),
         }
     }
 
@@ -251,10 +257,15 @@ impl Bus for SocRegisters {
             _ => Err(StoreAccessFault),
         }
     }
+
+    fn poll(&mut self) {
+        self.regs.borrow_mut().poll();
+    }
 }
 
 /// SOC Register implementation
 #[derive(Bus)]
+#[poll_fn(poll)]
 struct SocRegistersImpl {
     /// Hardware Error Fatal
     #[register(offset = 0x0000_0000)]
@@ -285,7 +296,7 @@ struct SocRegistersImpl {
     boot_status: ReadWriteRegister<u32>,
 
     /// Flow Status
-    #[register(offset = 0x0000_003C)]
+    #[register(offset = 0x0000_003C, write_fn = on_write_flow_status)]
     flow_status: ReadWriteRegister<u32, FlowStatus::Register>,
 
     /// Reset Reason
@@ -380,6 +391,18 @@ struct SocRegistersImpl {
     /// NMI Vector
     #[register(offset = 0x0000_062c)]
     nmi_vector: ReadWriteRegister<u32>,
+
+    /// Mailbox
+    mailbox: Mailbox,
+
+    /// Firmware image
+    fw_img: Vec<u8>,
+
+    /// Timer
+    timer: Timer,
+
+    /// Firmware Read Complete action
+    op_fw_read_complete_action: Option<TimerAction>,
 }
 
 impl SocRegistersImpl {
@@ -404,8 +427,10 @@ impl SocRegistersImpl {
         0x23, 0x14, 0x61,
     ];
 
+    const CALIPTRA_FW_LOAD_CMD: u32 = 0x4657_4C44;
+
     /// Create an instance of SOC register implementation
-    pub fn new() -> Self {
+    pub fn new(clock: &Clock, mailbox: Mailbox, fw_img: Vec<u8>) -> Self {
         let mut regs = Self {
             uds: ReadOnlyMemory::new(),
             field_entropy: ReadOnlyMemory::new(),
@@ -448,6 +473,10 @@ impl SocRegistersImpl {
                 (FwUpdateResetWaitCycles::WAIT_CYCLES.val(Self::RESET_WAIT_CYCLES as u32)).value,
             ),
             nmi_vector: ReadWriteRegister::new(0),
+            mailbox,
+            fw_img,
+            timer: Timer::new(clock),
+            op_fw_read_complete_action: None,
         };
 
         regs.uds.data_mut().copy_from_slice(&Self::UDS);
@@ -487,14 +516,95 @@ impl SocRegistersImpl {
 
         Ok(())
     }
+
+    /// On Write callback for `flow_status` register
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - Size of the write
+    /// * `val` - Data to write
+    ///
+    /// # Error
+    ///
+    /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
+    pub fn on_write_flow_status(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
+        // Writes have to be Word aligned.
+        if size != RvSize::Word {
+            Err(BusError::StoreAccessFault)?
+        }
+
+        // Set the flow status register.
+        self.flow_status.reg.set(val);
+
+        // If ready_for_fw bit is set, upload the firmware image to the mailbox.
+        if self.flow_status.reg.is_set(FlowStatus::READY_FOR_FW) && self.fw_img.len() != 0 {
+            self.upload_fw_to_mailbox()?;
+        }
+
+        Ok(())
+    }
+
+    pub fn upload_fw_to_mailbox(&mut self) -> Result<(), BusError> {
+        while self.mailbox.try_acquire_lock() == false {}
+
+        // Write the cmd to mailbox.
+        self.mailbox.write_cmd(Self::CALIPTRA_FW_LOAD_CMD)?;
+
+        // Write dlen.
+        self.mailbox.write_dlen(self.fw_img.len() as u32)?;
+
+        //
+        // Write firmware image.
+        //
+        let word_size = RvSize::Word as usize;
+        let remainder = self.fw_img.len() % word_size;
+        let n = self.fw_img.len() - remainder;
+
+        for idx in (0..n).step_by(word_size) {
+            self.mailbox.write_datain(u32::from_le_bytes(
+                self.fw_img[idx..idx + word_size].try_into().unwrap(),
+            ))?;
+        }
+
+        // Handle the remainder bytes.
+        if remainder > 0 {
+            let mut last_word = self.fw_img[n] as u32;
+            for idx in 1..remainder {
+                last_word |= (self.fw_img[n + idx] as u32) << (idx << 3);
+            }
+            self.mailbox.write_datain(last_word)?;
+        }
+
+        // Set the status as DATA_READY.
+        self.mailbox.set_status_data_ready()?;
+
+        // Set the execute register.
+        self.mailbox.write_execute(1)?;
+
+        // Schedule a future call to poll() to check on the fw read operation completion.
+        self.op_fw_read_complete_action = Some(self.timer.schedule_poll_in(FW_READ_TICKS));
+        Ok(())
+    }
+
+    /// Called by Bus::poll() to indicate that time has passed
+    fn poll(&mut self) {
+        if self.timer.fired(&mut self.op_fw_read_complete_action) {
+            // Receiver sets status as CMD_COMPLETE after reading the mailbox data.
+            if self.mailbox.is_status_cmd_complete() == true {
+                // Reset the execute bit
+                self.mailbox.write_execute(0).unwrap();
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use caliptra_emu_bus::{Bus, BusError};
     use caliptra_emu_types::{RvAddr, RvSize};
+    use tock_registers::registers::InMemoryRegister;
 
-    use crate::SocRegisters;
+    use crate::{MailboxRam, SocRegisters};
 
     use super::*;
 
@@ -527,7 +637,8 @@ mod tests {
 
     #[test]
     fn test_read_write_hw_err_fatal_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(RvSize::Word, HW_ERR_FATAL_REG_OFFSET, 0xDEADBEEF)
@@ -543,7 +654,8 @@ mod tests {
 
     #[test]
     fn test_read_write_hw_err_non_fatal_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(RvSize::Word, HW_ERR_NON_FATAL_REG_OFFSET, 0xDEADBEEF)
@@ -559,7 +671,8 @@ mod tests {
 
     #[test]
     fn test_read_write_fw_err_fatal_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(RvSize::Word, FW_ERR_FATAL_REG_OFFSET, 0xDEADBEEF)
@@ -575,7 +688,8 @@ mod tests {
 
     #[test]
     fn test_read_write_fw_err_non_fatal_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(RvSize::Word, FW_ERR_NON_FATAL_REG_OFFSET, 0xDEADBEEF)
@@ -591,7 +705,8 @@ mod tests {
 
     #[test]
     fn test_read_write_hw_err_enc_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(RvSize::Word, HW_ERR_ENC_REG_OFFSET, 0xDEADBEEF)
@@ -607,7 +722,8 @@ mod tests {
 
     #[test]
     fn test_read_write_fw_err_enc_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(RvSize::Word, FW_ERR_ENC_REG_OFFSET, 0xDEADBEEF)
@@ -623,7 +739,8 @@ mod tests {
 
     #[test]
     fn test_read_write_boot_status_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(RvSize::Word, BOOT_STATUS_REG_OFFSET, 0xDEADBEEF)
@@ -639,7 +756,8 @@ mod tests {
 
     #[test]
     fn test_read_write_flow_status_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(RvSize::Word, FLOW_STATUS_REG_OFFSET, 0xDEADBEEF)
@@ -655,7 +773,8 @@ mod tests {
 
     #[test]
     fn test_read_write_reset_reason_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(RvSize::Word, RESET_REASON_REG_OFFSET, 0xDEADBEEF)
@@ -671,7 +790,8 @@ mod tests {
 
     #[test]
     fn test_read_write_security_state_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(RvSize::Word, SECURITY_STATE_REG_OFFSET, 0xDEADBEEF)
@@ -687,7 +807,8 @@ mod tests {
 
     #[test]
     fn test_read_write_fuse_write_done_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(RvSize::Word, FUSE_WRITE_DONE_REG_OFFSET, 0xDEADBEEF)
@@ -703,7 +824,8 @@ mod tests {
 
     #[test]
     fn test_read_write_timer_cfg_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(RvSize::Word, TIMER_CFG_REG_OFFSET, 0xDEADBEEF)
@@ -719,7 +841,8 @@ mod tests {
 
     #[test]
     fn test_read_write_boot_fsm_go_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(RvSize::Word, BOOT_FSM_GO_REG_OFFSET, 0xDEADBEEF)
@@ -735,7 +858,8 @@ mod tests {
 
     #[test]
     fn test_read_write_clk_gating_enable_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(RvSize::Word, CLK_GATING_ENABLE_REG_OFFSET, 0xDEADBEEF)
@@ -753,7 +877,8 @@ mod tests {
 
     #[test]
     fn test_read_write_key_manifest_pk_hash_mask_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(
@@ -775,7 +900,8 @@ mod tests {
 
     #[test]
     fn test_read_write_owner_key_manifest_pk_hash_mask_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(
@@ -797,7 +923,8 @@ mod tests {
 
     #[test]
     fn test_read_write_owner_key_manifest_svn_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(RvSize::Word, KEY_MANIFEST_SVN_REG_OFFSET, 0xDEADBEEF)
@@ -813,7 +940,8 @@ mod tests {
 
     #[test]
     fn test_read_write_boot_loader_svn_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(RvSize::Word, BOOT_LOADER_SVN_REG_OFFSET, 0xDEADBEEF)
@@ -829,7 +957,8 @@ mod tests {
 
     #[test]
     fn test_read_write_anti_rollback_disable_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(RvSize::Word, ANTI_ROLLBACK_DISABLE_REG_OFFSET, 0xDEADBEEF)
@@ -847,8 +976,8 @@ mod tests {
 
     #[test]
     fn test_read_write_idevid_cert_attr() {
-        let mut soc_reg = SocRegisters::new();
-
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         for idx in 0u32..((IDEVID_CERT_ATTR_SIZE / 4) as u32) {
             assert_eq!(
                 soc_reg
@@ -872,8 +1001,8 @@ mod tests {
 
     #[test]
     fn test_read_write_idevid_manuf_hsm_id() {
-        let mut soc_reg = SocRegisters::new();
-
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         for idx in 0u32..((IDEVID_MANUF_HSM_ID_SIZE / 4) as u32) {
             assert_eq!(
                 soc_reg
@@ -897,7 +1026,8 @@ mod tests {
 
     #[test]
     fn test_read_write_iccm_lock_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(
@@ -917,7 +1047,8 @@ mod tests {
 
     #[test]
     fn test_read_write_fw_update_reset_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(
@@ -937,7 +1068,8 @@ mod tests {
 
     #[test]
     fn test_read_write_fw_update_reset_wait_cycles_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(
@@ -959,7 +1091,8 @@ mod tests {
 
     #[test]
     fn test_read_write_nmi_vector_reg() {
-        let mut soc_reg = SocRegisters::new();
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
         assert_eq!(
             soc_reg
                 .write(RvSize::Word, NMI_VECTOR_REG_OFFSET, 0xDEADBEEF)
@@ -971,5 +1104,79 @@ mod tests {
             soc_reg.read(RvSize::Word, NMI_VECTOR_REG_OFFSET).ok(),
             Some(0xDEADBEEF)
         );
+    }
+
+    #[test]
+    fn test_fw_upload_download() {
+        let fw_img: Vec<u8> = [
+            0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
+            0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
+            0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
+            0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
+        ]
+        .into();
+
+        let clock = Clock::new();
+        let mailbox_ram = MailboxRam::new();
+        let mut mailbox = Mailbox::new(mailbox_ram.clone());
+        let mut soc_reg: SocRegisters = SocRegisters::new(&clock, mailbox.clone(), fw_img.clone());
+
+        //
+        // [Sender Side]
+        //
+
+        // Trigger firmware download in the mailbox.
+        let flow_status = InMemoryRegister::<u32, FlowStatus::Register>::new(0);
+        flow_status.write(FlowStatus::READY_FOR_FW.val(1));
+        assert_eq!(
+            soc_reg
+                .write(RvSize::Word, FLOW_STATUS_REG_OFFSET, flow_status.get())
+                .ok(),
+            Some(())
+        );
+
+        // Check if mailbox is locked.
+        assert_eq!(mailbox.is_locked(), true);
+
+        //
+        // [Receiver Side]
+        //
+
+        // Wait till data is available in the mailbox.
+        loop {
+            if mailbox.read_execute().unwrap() == 1 {
+                break;
+            }
+        }
+        assert_eq!(mailbox.read_dlen().unwrap(), fw_img.len() as u32);
+        assert_eq!(
+            mailbox.read_cmd().unwrap(),
+            SocRegistersImpl::CALIPTRA_FW_LOAD_CMD
+        );
+        assert_eq!(mailbox.is_status_data_ready(), true);
+
+        // Read the data out of the mailbox.
+        let mut temp: Vec<u32> = Vec::new();
+        let mut word_count = (fw_img.len() + 3) >> 2;
+        while word_count > 0 {
+            let word = mailbox.read_dataout().unwrap();
+            temp.push(word);
+            word_count -= 1;
+        }
+        let fw_img_from_mb: Vec<u8> = temp.iter().flat_map(|val| val.to_le_bytes()).collect();
+        assert_eq!(fw_img, fw_img_from_mb[..fw_img.len()]);
+
+        // Set the status to CMD_COMPLETE.
+        assert_eq!(mailbox.set_status_cmd_complete().ok(), Some(()));
+
+        // Wait till receiver resets the execute register.
+        loop {
+            if mailbox.read_execute().unwrap() == 0 {
+                break;
+            }
+            clock.increment_and_poll(1, &mut soc_reg);
+        }
+        // Check if the mailbox lock is released.
+        assert_eq!(mailbox.is_locked(), false);
     }
 }

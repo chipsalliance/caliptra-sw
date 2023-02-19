@@ -72,11 +72,12 @@ impl CaliptraRootBus {
     pub const ICCM_SIZE: usize = 128 * 1024;
     pub const DCCM_SIZE: usize = 128 * 1024;
 
-    pub fn new(clock: &Clock, rom: Vec<u8>) -> Self {
+    pub fn new(clock: &Clock, rom: Vec<u8>, fw_img: Vec<u8>) -> Self {
         let key_vault = KeyVault::new();
-        let soc_reg = SocRegisters::new();
         let mailbox_ram = MailboxRam::new();
         let mailbox = Mailbox::new(mailbox_ram.clone());
+        let soc_reg = SocRegisters::new(clock, mailbox.clone(), fw_img);
+
         Self {
             rom: Rom::new(rom),
             doe: Doe::new(clock, key_vault.clone(), soc_reg.clone()),

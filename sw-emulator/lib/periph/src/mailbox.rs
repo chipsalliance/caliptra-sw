@@ -18,9 +18,39 @@ use caliptra_emu_bus::{BusError, ReadOnlyRegister, ReadWriteRegister, WriteOnlyR
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::{cell::RefCell, rc::Rc};
+use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers::register_bitfields;
+use tock_registers::registers::InMemoryRegister;
 
 /// Maximum mailbox capacity.
 const MAX_MAILBOX_CAPACITY_BYTES: usize = 128 << 10;
+
+register_bitfields! [
+    u32,
+
+    /// Control Register Fields
+    Status [
+        STATUS OFFSET(0) NUMBITS(4) [
+            CMD_BUSY = 0x0,
+            DATA_READY = 0x1,
+            CMD_COMPLETE = 0x2,
+            CMD_FAILURE = 0x3,
+        ],
+        ECC_SINGLE_ERROR OFFSET(4) NUMBITS(1) [],
+        ECC_DOUBLE_ERROR OFFSET(5) NUMBITS(1) [],
+        MBOX_FSM_PS OFFSET(6) NUMBITS(3) [
+            MBOX_IDLE = 0x0,
+            MBOX_RDY_FOR_CMD = 0x1,
+            MBOX_RDY_FOR_DLEN = 0x3,
+            MBOX_RDY_FOR_DATA = 0x2,
+            MBOX_EXECUTE_UC = 0x6,
+            MBOX_EXECUTE_SOC = 0x4,
+        ],
+        SOC_HAS_LOCK OFFSET(9) NUMBITS(1) [],
+        RSVD OFFSET(10) NUMBITS(22) [],
+    ],
+
+];
 
 #[derive(Clone)]
 pub struct MailboxRam {
@@ -57,10 +87,134 @@ pub struct Mailbox {
 }
 
 impl Mailbox {
+    const OFFSET_LOCK: RvAddr = 0x00;
+    const OFFSET_CMD: RvAddr = 0x08;
+    const OFFSET_DLEN: RvAddr = 0x0C;
+    const OFFSET_DATAIN: RvAddr = 0x10;
+    const OFFSET_DATAOUT: RvAddr = 0x14;
+    const OFFSET_EXECUTE: RvAddr = 0x18;
+    const OFFSET_STATUS: RvAddr = 0x1C;
+
     pub fn new(ram: MailboxRam) -> Self {
         Self {
             regs: Rc::new(RefCell::new(MailboxRegs::new(ram))),
         }
+    }
+
+    pub fn read_dlen(&mut self) -> Result<u32, BusError> {
+        self.regs.borrow_mut().read(RvSize::Word, Self::OFFSET_DLEN)
+    }
+
+    pub fn write_dlen(&mut self, dlen: u32) -> Result<(), BusError> {
+        self.regs
+            .borrow_mut()
+            .write(RvSize::Word, Self::OFFSET_DLEN, dlen)
+    }
+
+    pub fn read_cmd(&mut self) -> Result<u32, BusError> {
+        self.regs.borrow_mut().read(RvSize::Word, Self::OFFSET_CMD)
+    }
+
+    pub fn write_cmd(&mut self, cmd: u32) -> Result<(), BusError> {
+        self.regs
+            .borrow_mut()
+            .write(RvSize::Word, Self::OFFSET_CMD, cmd)
+    }
+
+    pub fn read_datain(&mut self) -> Result<u32, BusError> {
+        self.regs
+            .borrow_mut()
+            .read(RvSize::Word, Self::OFFSET_DATAIN)
+    }
+
+    pub fn write_datain(&mut self, val: u32) -> Result<(), BusError> {
+        self.regs
+            .borrow_mut()
+            .write(RvSize::Word, Self::OFFSET_DATAIN, val)
+    }
+
+    pub fn read_dataout(&mut self) -> Result<u32, BusError> {
+        self.regs
+            .borrow_mut()
+            .read(RvSize::Word, Self::OFFSET_DATAOUT)
+    }
+
+    pub fn write_dataout(&mut self, val: u32) -> Result<(), BusError> {
+        self.regs
+            .borrow_mut()
+            .write(RvSize::Word, Self::OFFSET_DATAOUT, val)
+    }
+
+    pub fn try_acquire_lock(&mut self) -> bool {
+        let result = self.regs.borrow_mut().read(RvSize::Word, Self::OFFSET_LOCK);
+        if result.is_ok() && result.unwrap() == 0 {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn is_locked(&mut self) -> bool {
+        self.regs.borrow().state_machine.context().locked == 1
+    }
+
+    pub fn read_execute(&mut self) -> Result<u32, BusError> {
+        self.regs
+            .borrow_mut()
+            .read(RvSize::Word, Self::OFFSET_EXECUTE)
+    }
+
+    pub fn write_execute(&mut self, val: u32) -> Result<(), BusError> {
+        self.regs
+            .borrow_mut()
+            .write(RvSize::Word, Self::OFFSET_EXECUTE, val)?;
+        Ok(())
+    }
+
+    pub fn is_status_data_ready(&mut self) -> bool {
+        self.match_status(Status::STATUS::DATA_READY.value)
+    }
+
+    pub fn is_status_cmd_complete(&mut self) -> bool {
+        self.match_status(Status::STATUS::CMD_COMPLETE.value)
+    }
+
+    fn match_status(&mut self, status: u32) -> bool {
+        let val = self
+            .regs
+            .borrow_mut()
+            .read(RvSize::Word, Self::OFFSET_STATUS)
+            .unwrap();
+        let reg = InMemoryRegister::<u32, Status::Register>::new(val);
+        if reg.read(Status::STATUS) == status {
+            true
+        } else {
+            false
+        }
+    }
+
+    fn set_status(&mut self, status_in: u32) -> Result<(), BusError> {
+        let status = self
+            .regs
+            .borrow_mut()
+            .read(RvSize::Word, Self::OFFSET_STATUS)
+            .unwrap();
+
+        let status_reg: ReadWriteRegister<u32, Status::Register> = ReadWriteRegister::new(status);
+        status_reg.reg.modify(Status::STATUS.val(status_in));
+
+        self.regs
+            .borrow_mut()
+            .write(RvSize::Word, Self::OFFSET_STATUS, status_reg.reg.get())?;
+        Ok(())
+    }
+
+    pub fn set_status_cmd_complete(&mut self) -> Result<(), BusError> {
+        self.set_status(Status::STATUS::CMD_COMPLETE.value)
+    }
+
+    pub fn set_status_data_ready(&mut self) -> Result<(), BusError> {
+        self.set_status(Status::STATUS::DATA_READY.value)
     }
 }
 
@@ -105,7 +259,7 @@ pub struct MailboxRegs {
 
     /// MBOX_EXECUTE register
     #[register(offset = 0x0000_0018, write_fn = write_ex)]
-    execute: WriteOnlyRegister<u32>,
+    execute: ReadWriteRegister<u32>,
 
     /// MBOX_STATUS register
     #[register(offset = 0x0000_001c, write_fn = write_status, read_fn = read_status)]
@@ -135,7 +289,7 @@ impl MailboxRegs {
             _dlen: ReadWriteRegister::new(Self::DLEN_VAL),
             data_in: WriteOnlyRegister::new(Self::DATA_IN_VAL),
             data_out: ReadOnlyRegister::new(Self::DATA_OUT_VAL),
-            execute: WriteOnlyRegister::new(Self::EXEC_VAL),
+            execute: ReadWriteRegister::new(Self::EXEC_VAL),
             _status: ReadWriteRegister::new(Self::STATUS_VAL),
             state_machine: StateMachine::new(Context::new(ram)),
         }
@@ -199,8 +353,9 @@ impl MailboxRegs {
     }
 
     // Todo: Implement write ex callback fn
-    pub fn write_ex(&mut self, _size: RvSize, _val: RvData) -> Result<(), BusError> {
+    pub fn write_ex(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
         let _ = self.state_machine.process_event(Events::ExecWr);
+        self.execute.reg.set(val);
         Ok(())
     }
 
@@ -365,57 +520,60 @@ mod tests {
     use caliptra_emu_bus::Bus;
     use caliptra_emu_types::RvAddr;
 
-    const OFFSET_LOCK: RvAddr = 0x00;
     const OFFSET_USER: RvAddr = 0x04;
-    const OFFSET_CMD: RvAddr = 0x08;
-    const OFFSET_DLEN: RvAddr = 0x0C;
-    const OFFSET_DATAIN: RvAddr = 0x10;
-    const OFFSET_DATAOUT: RvAddr = 0x14;
-    const OFFSET_EXECUTE: RvAddr = 0x18;
-    const OFFSET_STATUS: RvAddr = 0x1C;
-
-    const STATUS_DATA_READY: u32 = 0x01;
-    const STATUS_CMD_COMPLETE: u32 = 0x02;
 
     #[test]
     fn test_send_receive() {
         // Acquire lock
         let mut mb = Mailbox::new(MailboxRam::new());
-        assert_eq!(mb.read(RvSize::Word, OFFSET_LOCK).unwrap(), 0);
+        assert_eq!(mb.read(RvSize::Word, Mailbox::OFFSET_LOCK).unwrap(), 0);
         // Confirm it is locked
-        let lock = mb.read(RvSize::Word, OFFSET_LOCK).unwrap();
+        let lock = mb.read(RvSize::Word, Mailbox::OFFSET_LOCK).unwrap();
         assert_eq!(lock, 1);
 
         let user = mb.read(RvSize::Word, OFFSET_USER).unwrap();
         assert_eq!(user, 0);
 
         // Write command
-        assert_eq!(mb.write(RvSize::Word, OFFSET_CMD, 0x55).ok(), Some(()));
+        assert_eq!(
+            mb.write(RvSize::Word, Mailbox::OFFSET_CMD, 0x55).ok(),
+            Some(())
+        );
         // Confirm it is locked
         assert_eq!(mb.regs.borrow().state_machine.context.locked, 1);
 
         // Write dlen
-        assert_eq!(mb.write(RvSize::Word, OFFSET_DLEN, 16).ok(), Some(()));
+        assert_eq!(
+            mb.write(RvSize::Word, Mailbox::OFFSET_DLEN, 16).ok(),
+            Some(())
+        );
         // Confirm it is locked
         assert_eq!(mb.regs.borrow().state_machine.context.locked, 1);
 
         for data_in in 1..17 {
             // Write datain
             assert_eq!(
-                mb.write(RvSize::Word, OFFSET_DATAIN, data_in).ok(),
+                mb.write(RvSize::Word, Mailbox::OFFSET_DATAIN, data_in).ok(),
                 Some(())
             );
             // Confirm it is locked
             assert_eq!(mb.regs.borrow().state_machine.context.locked, 1);
         }
         assert_eq!(
-            mb.write(RvSize::Word, OFFSET_STATUS, STATUS_DATA_READY)
-                .ok(),
+            mb.write(
+                RvSize::Word,
+                Mailbox::OFFSET_STATUS,
+                Status::STATUS::DATA_READY.value
+            )
+            .ok(),
             Some(())
         );
 
         // Write exec
-        assert_eq!(mb.write(RvSize::Word, OFFSET_EXECUTE, 0x55).ok(), Some(()));
+        assert_eq!(
+            mb.write(RvSize::Word, Mailbox::OFFSET_EXECUTE, 0x55).ok(),
+            Some(())
+        );
         // Confirm it is locked
         assert_eq!(mb.regs.borrow().state_machine.context.locked, 1);
 
@@ -424,29 +582,36 @@ mod tests {
             States::Exec
         ));
 
-        let status = mb.read(RvSize::Word, OFFSET_STATUS).unwrap();
-        assert_eq!(status, STATUS_DATA_READY);
+        let status = mb.read(RvSize::Word, Mailbox::OFFSET_STATUS).unwrap();
+        assert_eq!(status, Status::STATUS::DATA_READY.value);
 
-        let cmd = mb.read(RvSize::Word, OFFSET_CMD).unwrap();
+        let cmd = mb.read(RvSize::Word, Mailbox::OFFSET_CMD).unwrap();
         assert_eq!(cmd, 0x55);
 
-        let dlen = mb.read(RvSize::Word, OFFSET_DLEN).unwrap();
+        let dlen = mb.read(RvSize::Word, Mailbox::OFFSET_DLEN).unwrap();
         assert_eq!(dlen, 16);
 
         for data_in in 1..17 {
             // Read dataout
-            let data_out = mb.read(RvSize::Word, OFFSET_DATAOUT).unwrap();
+            let data_out = mb.read(RvSize::Word, Mailbox::OFFSET_DATAOUT).unwrap();
             // compare with queued data.
             assert_eq!(data_in, data_out);
         }
         assert_eq!(
-            mb.write(RvSize::Word, OFFSET_STATUS, STATUS_CMD_COMPLETE)
-                .ok(),
+            mb.write(
+                RvSize::Word,
+                Mailbox::OFFSET_STATUS,
+                Status::STATUS::CMD_COMPLETE.value
+            )
+            .ok(),
             Some(())
         );
 
         // Receiver resets exec register
-        assert_eq!(mb.write(RvSize::Word, OFFSET_EXECUTE, 0).ok(), Some(()));
+        assert_eq!(
+            mb.write(RvSize::Word, Mailbox::OFFSET_EXECUTE, 0).ok(),
+            Some(())
+        );
         // Confirm it is unlocked
         assert_eq!(mb.regs.borrow().state_machine.context.locked, 0);
 

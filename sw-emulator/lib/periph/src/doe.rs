@@ -194,7 +194,7 @@ impl Doe {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::KeyUsage;
+    use crate::{KeyUsage, Mailbox, MailboxRam};
     use caliptra_emu_bus::Bus;
     use caliptra_emu_crypto::EndianessTransform;
     use caliptra_emu_types::RvAddr;
@@ -229,7 +229,7 @@ mod tests {
 
         let clock = Clock::new();
         let key_vault = KeyVault::new();
-        let soc_reg = SocRegisters::new();
+        let soc_reg = SocRegisters::new(&clock, Mailbox::new(MailboxRam::new()), vec![]);
         let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg.clone());
 
         for i in (0..iv.len()).step_by(4) {
@@ -283,7 +283,7 @@ mod tests {
 
         let clock = Clock::new();
         let key_vault = KeyVault::new();
-        let soc_reg = SocRegisters::new();
+        let soc_reg = SocRegisters::new(&clock, Mailbox::new(MailboxRam::new()), vec![]);
         let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg.clone());
 
         let mut iv = [0u8; DOE_IV_SIZE];
@@ -332,7 +332,7 @@ mod tests {
         let expected_fe = [0u8; 128];
         let clock = Clock::new();
         let key_vault = KeyVault::new();
-        let soc_reg = SocRegisters::new();
+        let soc_reg = SocRegisters::new(&clock, Mailbox::new(MailboxRam::new()), vec![]);
         let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg.clone());
         assert_ne!(soc_reg.uds(), expected_uds);
         assert_ne!(soc_reg.doe_key(), expected_doe_key);
