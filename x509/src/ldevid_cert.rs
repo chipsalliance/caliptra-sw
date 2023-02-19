@@ -36,11 +36,11 @@ mod tests {
                 subject_key.pub_key(),
             )
             .unwrap(),
-            subject_name: TryInto::<[u8; LocalDevIdCertParams::SUBJECT_NAME_LEN]>::try_into(
+            subject_sn: TryInto::<[u8; LocalDevIdCertParams::SUBJECT_SN_LEN]>::try_into(
                 subject_key.hex_str().into_bytes(),
             )
             .unwrap(),
-            issuer_name: TryInto::<[u8; LocalDevIdCertParams::SUBJECT_NAME_LEN]>::try_into(
+            issuer_sn: TryInto::<[u8; LocalDevIdCertParams::ISSUER_SN_LEN]>::try_into(
                 issuer_key.hex_str().into_bytes(),
             )
             .unwrap(),
@@ -72,14 +72,14 @@ mod tests {
             &params.public_key,
         );
         assert_eq!(
-            &cert.tbs()[LocalDevIdCert::SUBJECT_NAME_OFFSET
-                ..LocalDevIdCert::SUBJECT_NAME_OFFSET + LocalDevIdCert::SUBJECT_NAME_LEN],
-            &params.subject_name,
+            &cert.tbs()[LocalDevIdCert::SUBJECT_SN_OFFSET
+                ..LocalDevIdCert::SUBJECT_SN_OFFSET + LocalDevIdCert::SUBJECT_SN_LEN],
+            &params.subject_sn,
         );
         assert_eq!(
-            &cert.tbs()[LocalDevIdCert::ISSUER_NAME_OFFSET
-                ..LocalDevIdCert::ISSUER_NAME_OFFSET + LocalDevIdCert::ISSUER_NAME_LEN],
-            &params.issuer_name,
+            &cert.tbs()[LocalDevIdCert::ISSUER_SN_OFFSET
+                ..LocalDevIdCert::ISSUER_SN_OFFSET + LocalDevIdCert::ISSUER_SN_LEN],
+            &params.issuer_sn,
         );
         assert_eq!(
             &cert.tbs()[LocalDevIdCert::DEVICE_SERIAL_NUMBER_OFFSET

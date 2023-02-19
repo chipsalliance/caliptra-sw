@@ -120,7 +120,7 @@ impl<Algo: SigningAlgorithm> CertTemplateBuilder<Algo> {
     }
 
     /// Generate To Be Signed (TBS) Template
-    pub fn tbs_template(mut self) -> TbsTemplate {
+    pub fn tbs_template(mut self, subject_cn: &str, issuer_cn: &str) -> TbsTemplate {
         // Generate key pair
         let subject_key = self.algo.gen_key();
         let issuer_key = self.algo.gen_key();
@@ -157,26 +157,28 @@ impl<Algo: SigningAlgorithm> CertTemplateBuilder<Algo> {
 
         // Set the subject name
         let mut subject_name = X509NameBuilder::new().unwrap();
+        subject_name.append_entry_by_text("CN", subject_cn).unwrap();
         subject_name
-            .append_entry_by_text("CN", &subject_key.hex_str())
+            .append_entry_by_text("serialNumber", &subject_key.hex_str())
             .unwrap();
         let subject_name = subject_name.build();
         self.builder.set_subject_name(&subject_name).unwrap();
         let param = CertTemplateParam {
-            tbs_param: TbsParam::new("SUBJECT_NAME", 0, subject_key.hex_str().len()),
+            tbs_param: TbsParam::new("SUBJECT_SN", 0, subject_key.hex_str().len()),
             needle: subject_key.hex_str().into_bytes(),
         };
         self.params.push(param);
 
         // Set the issuer name
         let mut issuer_name = X509NameBuilder::new().unwrap();
+        issuer_name.append_entry_by_text("CN", issuer_cn).unwrap();
         issuer_name
-            .append_entry_by_text("CN", &issuer_key.hex_str())
+            .append_entry_by_text("serialNumber", &issuer_key.hex_str())
             .unwrap();
         let issuer_name = issuer_name.build();
         self.builder.set_issuer_name(&issuer_name).unwrap();
         let param = CertTemplateParam {
-            tbs_param: TbsParam::new("ISSUER_NAME", 0, issuer_key.hex_str().len()),
+            tbs_param: TbsParam::new("ISSUER_SN", 0, issuer_key.hex_str().len()),
             needle: issuer_key.hex_str().into_bytes(),
         };
         self.params.push(param);

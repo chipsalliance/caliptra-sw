@@ -31,7 +31,7 @@ mod tests {
         let params = InitDevIdCsrParams {
             public_key: *TryInto::<&[u8; InitDevIdCsr::PUBLIC_KEY_LEN]>::try_into(key.pub_key())
                 .unwrap(),
-            subject_name: TryInto::<[u8; InitDevIdCsr::SUBJECT_NAME_LEN]>::try_into(
+            subject_sn: TryInto::<[u8; InitDevIdCsr::SUBJECT_SN_LEN]>::try_into(
                 key.hex_str().into_bytes(),
             )
             .unwrap(),
@@ -55,9 +55,9 @@ mod tests {
             &params.public_key,
         );
         assert_eq!(
-            &csr.tbs()[InitDevIdCsr::SUBJECT_NAME_OFFSET
-                ..InitDevIdCsr::SUBJECT_NAME_OFFSET + InitDevIdCsr::SUBJECT_NAME_LEN],
-            &params.subject_name,
+            &csr.tbs()[InitDevIdCsr::SUBJECT_SN_OFFSET
+                ..InitDevIdCsr::SUBJECT_SN_OFFSET + InitDevIdCsr::SUBJECT_SN_LEN],
+            &params.subject_sn,
         );
         assert_eq!(
             &csr.tbs()[InitDevIdCsr::DEVICE_SERIAL_NUMBER_OFFSET

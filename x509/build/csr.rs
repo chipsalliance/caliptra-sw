@@ -84,7 +84,7 @@ impl<Algo: SigningAlgorithm> CsrTemplateBuilder<Algo> {
     }
 
     /// Generate To Be Signed (TBS) Template
-    pub fn tbs_template(mut self) -> TbsTemplate {
+    pub fn tbs_template(mut self, subject_cn: &str) -> TbsTemplate {
         // Generate key pair
         let key = self.algo.gen_key();
 
@@ -101,13 +101,14 @@ impl<Algo: SigningAlgorithm> CsrTemplateBuilder<Algo> {
 
         // Set the subject name
         let mut subject_name = X509NameBuilder::new().unwrap();
+        subject_name.append_entry_by_text("CN", subject_cn).unwrap();
         subject_name
-            .append_entry_by_text("CN", &key.hex_str())
+            .append_entry_by_text("serialNumber", &key.hex_str())
             .unwrap();
         let subject_name = subject_name.build();
         self.builder.set_subject_name(&subject_name).unwrap();
         let param = CsrTemplateParam {
-            tbs_param: TbsParam::new("SUBJECT_NAME", 0, key.hex_str().len()),
+            tbs_param: TbsParam::new("SUBJECT_SN", 0, key.hex_str().len()),
             needle: key.hex_str().into_bytes(),
         };
         self.params.push(param);

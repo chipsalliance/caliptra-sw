@@ -41,7 +41,7 @@ fn gen_init_devid_csr(out_dir: &str) {
         .add_basic_constraints_ext(true, 0)
         .add_key_usage_ext(usage)
         .add_dev_sn_ext(&[0xFF; 8]);
-    let template = bldr.tbs_template();
+    let template = bldr.tbs_template("Caliptra IDevID");
     CodeGen::gen_code("InitDevIdCsr", template, out_dir);
 }
 
@@ -53,6 +53,6 @@ fn gen_local_devid_cert(out_dir: &str) {
         .add_basic_constraints_ext(true, 0)
         .add_key_usage_ext(usage)
         .add_dev_sn_ext(&[0xFF; 8]);
-    let template = bldr.tbs_template();
+    let template = bldr.tbs_template("Caliptra LDevID", "Caliptra IDevID");
     CodeGen::gen_code("LocalDevIdCert", template, out_dir);
 }
