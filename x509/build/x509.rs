@@ -246,6 +246,63 @@ pub fn make_auth_key_id_ext(key_id: &[u8]) -> X509Extension {
     X509Extension::new(None, None, "2.5.29.35", &der_str).unwrap()
 }
 
+#[derive(asn1::Asn1Read, asn1::Asn1Write)]
+pub struct Fwid<'a> {
+    pub(crate) hash_alg: asn1::ObjectIdentifier,
+    pub(crate) digest: &'a [u8],
+}
+
+pub struct FwidParam<'a> {
+    pub(crate) name: &'static str,
+    pub(crate) fwid: Fwid<'a>,
+}
+
+// Make a tcg-dice-TcbInfo extension
+pub fn make_dice_tcb_info_ext(svn: u64, fwids: &[FwidParam]) -> X509Extension {
+    #[derive(asn1::Asn1Write)]
+    struct TcbInfo<'a> {
+        #[implicit(0)]
+        vendor: Option<asn1::Utf8String<'a>>,
+        #[implicit(1)]
+        model: Option<asn1::Utf8String<'a>>,
+        #[implicit(2)]
+        version: Option<asn1::Utf8String<'a>>,
+        #[implicit(3)]
+        svn: Option<u64>,
+        #[implicit(4)]
+        layer: Option<u64>,
+        #[implicit(5)]
+        index: Option<u64>,
+        #[implicit(6)]
+        fwids: Option<asn1::SequenceOfWriter<'a, &'a Fwid<'a>>>,
+        #[implicit(7)]
+        flags: Option<asn1::BitString<'a>>,
+        #[implicit(8)]
+        vendor_info: Option<&'a [u8]>,
+        #[implicit(9)]
+        tcb_type: Option<&'a [u8]>,
+    }
+
+    let asn1_fwids: Vec<&Fwid> = fwids.iter().map(|f| &f.fwid).collect();
+
+    let tcb_info = TcbInfo {
+        vendor: Some(asn1::Utf8String::new("Caliptra")),
+        model: None,
+        version: None,
+        svn: Some(svn),
+        layer: None,
+        index: None,
+        fwids: Some(asn1::SequenceOfWriter::new(&asn1_fwids)),
+        flags: None,
+        vendor_info: None,
+        tcb_type: None,
+    };
+
+    let der = asn1::write_single(&tcb_info).unwrap();
+    let der_str = format!("DER:{}", hex::encode(der).to_uppercase());
+    X509Extension::new(None, None, "2.23.133.5.4.1", &der_str).unwrap()
+}
+
 /// Retrieve the TBS from DER encoded vector
 ///
 /// Note: Rust OpenSSL binding is missing the extensions to retrieve TBS portion of the X509

@@ -14,7 +14,7 @@ Abstract:
 --*/
 
 use crate::tbs::{TbsParam, TbsTemplate};
-use crate::x509::{self, AsymKey, KeyUsage, SigningAlgorithm};
+use crate::x509::{self, AsymKey, FwidParam, KeyUsage, SigningAlgorithm};
 use openssl::asn1::Asn1Time;
 use openssl::bn::BigNum;
 use openssl::stack::Stack;
@@ -81,6 +81,22 @@ impl<Algo: SigningAlgorithm> CertTemplateBuilder<Algo> {
             needle: sn.to_vec(),
         };
         self.params.push(param);
+
+        self
+    }
+
+    pub fn add_dice_tcb_info_ext(mut self, svn: u64, fwids: &[FwidParam]) -> Self {
+        self.exts
+            .push(x509::make_dice_tcb_info_ext(svn, fwids))
+            .unwrap();
+
+        for fwid in fwids.iter() {
+            let param = CertTemplateParam {
+                tbs_param: TbsParam::new(fwid.name, 0, fwid.fwid.digest.len()),
+                needle: fwid.fwid.digest.to_vec(),
+            };
+            self.params.push(param);
+        }
 
         self
     }
