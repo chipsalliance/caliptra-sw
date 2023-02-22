@@ -153,6 +153,7 @@ impl PcrBank {
     /// # Returns
     ///
     /// * `Array4x12` - PCR Value
+    #[inline(never)]
     pub fn read_pcr(&self, id: PcrId) -> Array4x12 {
         let kv = kv::RegisterBlock::kv_reg();
 
@@ -170,6 +171,7 @@ impl PcrBank {
     ///
     /// * `id` - PCR ID
     /// * `val` - Value to write
+    #[inline(never)]
     pub fn write_pcr(&self, id: PcrId, val: &Array4x12) -> CaliptraResult<()> {
         if self.pcr_write_lock(id) {
             raise_err!(EraseWriteLockSetFailure)

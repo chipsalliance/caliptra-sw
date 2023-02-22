@@ -216,6 +216,7 @@ impl<TReg: RegType, TMmio: Mmio> RegRef<TReg, TMmio> {
     /// # Safety
     ///
     /// The caller must fulfill the same requirements as `RegRef::new`
+    #[inline(always)]
     pub unsafe fn new_with_mmio(ptr: *mut TReg::Raw, mmio: TMmio) -> Self {
         Self { mmio, ptr }
     }
@@ -233,6 +234,7 @@ impl<TReg: RegType> RegRef<TReg, RealMmio> {
     /// * `ptr` is valid for loads and stores of `mem::size_of::<TReg::Raw>`
     ///    bytes for the entire lifetime of this RegRef.
     /// * `ptr` is properly aligned.
+    #[inline(always)]
     pub unsafe fn new(ptr: *mut TReg::Raw) -> Self {
         Self {
             mmio: RealMmio(),
@@ -257,6 +259,7 @@ impl<TReg: RegType, TMmio: Mmio> FromMmioPtr for RegRef<TReg, TMmio> {
     type TMmio = TMmio;
     const STRIDE: usize = 1;
 
+    #[inline(always)]
     unsafe fn from_ptr(ptr: *mut Self::TRaw, mmio: Self::TMmio) -> Self {
         Self { ptr, mmio }
     }
@@ -555,6 +558,7 @@ impl<const LEN: usize, TItem: FromMmioPtr<TMmio = TMmio>, TMmio: Mmio + Copy> Ar
     /// # Panics
     ///
     /// Panics if `index` is out of bounds.
+    #[inline(always)]
     pub fn at(&self, index: usize) -> TItem {
         if index >= LEN {
             panic!("register index out of bounds");
@@ -563,6 +567,7 @@ impl<const LEN: usize, TItem: FromMmioPtr<TMmio = TMmio>, TMmio: Mmio + Copy> Ar
     }
 
     /// Returns the item at `index`, or None if `index` is out of bounds.
+    #[inline(always)]
     pub fn get(&self, index: usize) -> Option<TItem> {
         if index >= LEN {
             None
@@ -576,6 +581,7 @@ impl<const LEN: usize, TItem: FromMmioPtr<TMmio = TMmio>, TMmio: Mmio + Copy> Ar
         }
     }
 
+    #[inline(always)]
     pub fn truncate<const NEW_LEN: usize>(&self) -> Array<NEW_LEN, TItem> {
         assert!(NEW_LEN <= LEN);
         Array {
@@ -596,6 +602,7 @@ impl<const LEN: usize, TItem: FromMmioPtr<TMmio = RealMmio>> Array<LEN, TItem> {
     /// * `ptr` is valid for loads and stores of `LEN * TItem::STRIDE * mem::size_of::<TItem::Raw>`
     ///    bytes for the entire lifetime of this array.
     /// * `ptr` is properly aligned.
+    #[inline(always)]
     pub unsafe fn new(ptr: *mut TItem::TRaw) -> Self {
         Self {
             mmio: RealMmio(),
@@ -615,6 +622,7 @@ impl<const LEN: usize, TItem: FromMmioPtr> Array<LEN, TItem> {
     /// * `ptr` is valid for loads and stores of `LEN * TItem::STRIDE * mem::size_of::<TItem::Raw>`
     ///    bytes for the entire lifetime of this array.
     /// * `ptr` is properly aligned.
+    #[inline(always)]
     pub unsafe fn new_with_mmio(ptr: *mut TItem::TRaw, mmio: TItem::TMmio) -> Self {
         Self { mmio, ptr }
     }
@@ -657,6 +665,7 @@ impl<const LEN: usize, TReg: ReadableReg, TMmio: Mmio> Array<LEN, RegRef<TReg, T
         }
     }
 
+    #[inline(always)]
     pub fn ptr(self) -> *mut TReg::Raw {
         self.ptr
     }
@@ -703,6 +712,7 @@ impl<const LEN: usize, TItem: FromMmioPtr> FromMmioPtr for Array<LEN, TItem> {
     type TMmio = TItem::TMmio;
     const STRIDE: usize = LEN * TItem::STRIDE;
 
+    #[inline(always)]
     unsafe fn from_ptr(ptr: *mut Self::TRaw, mmio: Self::TMmio) -> Self {
         Self { ptr, mmio }
     }
