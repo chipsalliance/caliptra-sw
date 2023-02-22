@@ -119,12 +119,11 @@ impl KvAccess {
     /// * `reg` - Source register to copy from
     /// * `arr` - Destination arry to copy the contents of reguster to
     pub(crate) fn end_copy_to_arr<
-        const REG_WORD_LEN: usize,
         const ARR_WORD_LEN: usize,
         const ARR_BYTE_LEN: usize,
         TReg: ureg::ReadableReg<ReadVal = u32>,
     >(
-        reg: ureg::Array<REG_WORD_LEN, ureg::RegRef<TReg, RealMmio>>,
+        reg: ureg::Array<ARR_WORD_LEN, ureg::RegRef<TReg, RealMmio>>,
         arr: &mut Array4xN<ARR_WORD_LEN, ARR_BYTE_LEN>,
     ) -> CaliptraResult<()> {
         *arr = Array4xN::<ARR_WORD_LEN, ARR_BYTE_LEN>::read_from_reg(reg);

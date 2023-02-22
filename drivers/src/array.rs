@@ -25,20 +25,10 @@ impl<const W: usize, const B: usize> Default for Array4xN<W, B> {
 impl<const W: usize, const B: usize> Array4xN<W, B> {
     #[inline(never)]
     #[allow(unused)]
-    pub fn read_from_reg<
-        const W2: usize,
-        TReg: ureg::ReadableReg<ReadVal = u32>,
-        TMmio: ureg::Mmio,
-    >(
-        reg_array: ureg::Array<W2, ureg::RegRef<TReg, TMmio>>,
+    pub fn read_from_reg<TReg: ureg::ReadableReg<ReadVal = u32>, TMmio: ureg::Mmio>(
+        reg_array: ureg::Array<W, ureg::RegRef<TReg, TMmio>>,
     ) -> Self {
-        let mut result = [0u32; W];
-
-        for (i, part) in result.iter_mut().enumerate().take(W) {
-            *part = reg_array.at(i).read();
-        }
-
-        result.into()
+        reg_array.read().into()
     }
 
     #[inline(never)]
@@ -50,9 +40,7 @@ impl<const W: usize, const B: usize> Array4xN<W, B> {
         &self,
         reg_array: ureg::Array<W, ureg::RegRef<TReg, TMmio>>,
     ) {
-        for i in 0..W {
-            reg_array.at(i).write(|_| self.0[i]);
-        }
+        reg_array.write(&self.0);
     }
 }
 

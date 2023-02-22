@@ -176,7 +176,9 @@ impl Sha384 {
 
         // Copy the digest to specified destination
         match &mut digest {
-            Sha384Digest::Array4x12(arr) => KvAccess::end_copy_to_arr(sha.digest(), *arr),
+            Sha384Digest::Array4x12(arr) => {
+                KvAccess::end_copy_to_arr(sha.digest().truncate::<12>(), *arr)
+            }
             Sha384Digest::Key(key) => KvAccess::end_copy_to_kv(sha.kv_wr_status(), *key)
                 .map_err(|err| err.into_write_digest_err().into()),
         }
@@ -433,7 +435,9 @@ impl<'a> Sha384DigestOp<'a> {
 
         // Copy the digest to specified destination
         match &mut self.digest {
-            Sha384Digest::Array4x12(arr) => KvAccess::end_copy_to_arr(sha.digest(), *arr),
+            Sha384Digest::Array4x12(arr) => {
+                KvAccess::end_copy_to_arr(sha.digest().truncate::<12>(), *arr)
+            }
             Sha384Digest::Key(key) => KvAccess::end_copy_to_kv(sha.kv_wr_status(), *key)
                 .map_err(|err| err.into_write_digest_err().into()),
         }

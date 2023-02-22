@@ -125,7 +125,11 @@ impl Sha384AccOp {
     ///
     /// * `buf` - Digest buffer
     fn copy_digest_to_buf(&self, buf: &mut Array4x12) -> CaliptraResult<()> {
-        *buf = Array4x12::read_from_reg(sha512_acc::RegisterBlock::sha512_acc_csr().digest());
+        *buf = Array4x12::read_from_reg(
+            sha512_acc::RegisterBlock::sha512_acc_csr()
+                .digest()
+                .truncate::<12>(),
+        );
         Ok(())
     }
 }
