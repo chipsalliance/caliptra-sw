@@ -36,7 +36,7 @@ pub use hmac_sha384::HmacSha384;
 pub use key_vault::KeyUsage;
 pub use key_vault::KeyVault;
 pub use mailbox::{Mailbox, MailboxRam};
-pub use root_bus::{CaliptraRootBus, CaliptraRootBusArgs};
+pub use root_bus::{CaliptraRootBus, CaliptraRootBusArgs, TbServicesCb};
 pub use sha512_acc::Sha512Accelerator;
 pub use soc_reg::SocRegisters;
 pub use uart::Uart;

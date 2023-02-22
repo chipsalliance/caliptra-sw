@@ -20,6 +20,33 @@ use caliptra_emu_bus::{Clock, Ram, Rom};
 use caliptra_emu_derive::Bus;
 use std::path::PathBuf;
 
+pub struct TbServicesCb(pub Box<dyn FnMut(u8)>);
+impl TbServicesCb {
+    pub fn new(f: impl FnMut(u8) + 'static) -> Self {
+        Self(Box::new(f))
+    }
+    pub(crate) fn take(&mut self) -> Box<dyn FnMut(u8)> {
+        std::mem::replace(self, Default::default()).0
+    }
+}
+impl Default for TbServicesCb {
+    fn default() -> Self {
+        Self(Box::new(|_| {}))
+    }
+}
+impl std::fmt::Debug for TbServicesCb {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("TbServicesCb")
+            .field(&"<unknown closure>")
+            .finish()
+    }
+}
+impl From<Box<dyn FnMut(u8) + 'static>> for TbServicesCb {
+    fn from(value: Box<dyn FnMut(u8)>) -> Self {
+        Self(value)
+    }
+}
+
 /// Caliptra Root Bus Arguments
 #[derive(Default, Debug)]
 pub struct CaliptraRootBusArgs {
@@ -30,6 +57,9 @@ pub struct CaliptraRootBusArgs {
     pub idev_key_id_algo: String,
     pub req_idevid_csr: bool,
     pub req_ldevid_cert: bool,
+    /// Callback to customize application behavior when
+    /// a write to the tb-services register write is performed.
+    pub tb_services_cb: TbServicesCb,
 }
 
 #[derive(Bus)]
@@ -85,14 +115,15 @@ impl CaliptraRootBus {
     pub const ICCM_SIZE: usize = 128 * 1024;
     pub const DCCM_SIZE: usize = 128 * 1024;
 
-    pub fn new(clock: &Clock, args: CaliptraRootBusArgs) -> Self {
+    pub fn new(clock: &Clock, mut args: CaliptraRootBusArgs) -> Self {
         let key_vault = KeyVault::new();
         let mailbox_ram = MailboxRam::new();
         let mailbox = Mailbox::new(mailbox_ram.clone());
-        let soc_reg = SocRegisters::new(clock, mailbox.clone(), &args);
+        let rom = Rom::new(std::mem::replace(&mut args.rom, vec![]));
+        let soc_reg = SocRegisters::new(clock, mailbox.clone(), args);
 
         Self {
-            rom: Rom::new(args.rom),
+            rom,
             doe: Doe::new(clock, key_vault.clone(), soc_reg.clone()),
             ecc384: AsymEcc384::new(clock, key_vault.clone()),
             hmac: HmacSha384::new(clock, key_vault.clone()),

@@ -22,7 +22,6 @@ use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::cell::RefCell;
 use std::io::Write;
 use std::path::PathBuf;
-use std::process::exit;
 use std::rc::Rc;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
@@ -371,7 +370,7 @@ impl SocRegisters {
     const CALIPTRA_REG_END_ADDR: u32 = 0x62C;
 
     /// Create an instance of SOC register peripheral
-    pub fn new(clock: &Clock, mailbox: Mailbox, args: &CaliptraRootBusArgs) -> Self {
+    pub fn new(clock: &Clock, mailbox: Mailbox, args: CaliptraRootBusArgs) -> Self {
         Self {
             regs: Rc::new(RefCell::new(SocRegistersImpl::new(clock, mailbox, args))),
         }
@@ -570,6 +569,7 @@ struct SocRegistersImpl {
 
     /// LDEVID Cert Read Complete action
     op_ldevid_cert_read_complete_action: Option<TimerAction>,
+    tb_services_cb: Box<dyn FnMut(u8)>,
 }
 
 impl SocRegistersImpl {
@@ -600,7 +600,7 @@ impl SocRegistersImpl {
     /// The number of CPU clock cycles it takes to read the LDEVID Cert from the mailbox.
     const LDEVID_CERT_READ_TICKS: u64 = 300;
 
-    pub fn new(clock: &Clock, mailbox: Mailbox, args: &CaliptraRootBusArgs) -> Self {
+    pub fn new(clock: &Clock, mailbox: Mailbox, mut args: CaliptraRootBusArgs) -> Self {
         let mut regs = Self {
             cptra_hw_error_fatal: ReadWriteRegister::new(0),
             cptra_hw_error_non_fatal: ReadWriteRegister::new(0),
@@ -650,10 +650,11 @@ impl SocRegistersImpl {
             op_fw_read_complete_action: None,
             op_idevid_csr_read_complete_action: None,
             op_ldevid_cert_read_complete_action: None,
+            tb_services_cb: args.tb_services_cb.take(),
         };
 
-        regs.set_cptra_dbg_manuf_service_reg(args);
-        regs.set_idevid_cert_attr(args);
+        regs.set_cptra_dbg_manuf_service_reg(&args);
+        regs.set_idevid_cert_attr(&args);
 
         regs
     }
@@ -734,17 +735,14 @@ impl SocRegistersImpl {
     /// # Error
     ///
     /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
-    fn on_write_stdout(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
+    fn on_write_tb_services(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
         if size != RvSize::Word {
             Err(BusError::StoreAccessFault)?
         }
 
         let val = (val & 0xFF) as u8;
-        match val {
-            0x01 => exit(0xFF),
-            0xFF => exit(0x00),
-            _ => print!("{}", val as char),
-        }
+
+        (self.tb_services_cb)(val);
 
         Ok(())
     }
@@ -1109,7 +1107,7 @@ impl Bus for SocRegistersImpl {
 
             CPTRA_GENERIC_OUTPUT_WIRES_START..=CPTRA_GENERIC_OUTPUT_WIRES_END => {
                 if addr == CPTRA_GENERIC_OUTPUT_WIRES_START {
-                    self.on_write_stdout(size, val)
+                    self.on_write_tb_services(size, val)
                 } else {
                     self.cptra_generic_output_wires.write(
                         size,
@@ -1177,7 +1175,7 @@ mod tests {
     use std::{fs::File, io::Read, path::Path};
 
     use super::*;
-    use crate::MailboxRam;
+    use crate::{root_bus::TbServicesCb, MailboxRam};
     use tock_registers::registers::InMemoryRegister;
 
     #[test]
@@ -1194,8 +1192,11 @@ mod tests {
         let mailbox_ram = MailboxRam::new();
         let mut mailbox = Mailbox::new(mailbox_ram.clone());
         let args = CaliptraRootBusArgs::default();
-        let args = CaliptraRootBusArgs { firmware, ..args };
-        let mut soc_reg: SocRegisters = SocRegisters::new(&clock, mailbox.clone(), &args);
+        let args = CaliptraRootBusArgs {
+            firmware: firmware.clone(),
+            ..args
+        };
+        let mut soc_reg: SocRegisters = SocRegisters::new(&clock, mailbox.clone(), args);
 
         //
         // [Sender Side]
@@ -1225,20 +1226,20 @@ mod tests {
                 break;
             }
         }
-        assert_eq!(mailbox.read_dlen().unwrap(), args.firmware.len() as u32);
+        assert_eq!(mailbox.read_dlen().unwrap(), firmware.len() as u32);
         assert_eq!(mailbox.read_cmd().unwrap(), FW_LOAD_CMD_OPCODE);
         assert_eq!(mailbox.is_status_data_ready(), true);
 
         // Read the data out of the mailbox.
         let mut temp: Vec<u32> = Vec::new();
-        let mut word_count = (args.firmware.len() + 3) >> 2;
+        let mut word_count = (firmware.len() + 3) >> 2;
         while word_count > 0 {
             let word = mailbox.read_dataout().unwrap();
             temp.push(word);
             word_count -= 1;
         }
         let fw_img_from_mb: Vec<u8> = temp.iter().flat_map(|val| val.to_le_bytes()).collect();
-        assert_eq!(args.firmware, fw_img_from_mb[..args.firmware.len()]);
+        assert_eq!(firmware, fw_img_from_mb[..firmware.len()]);
 
         // Set the status to CMD_COMPLETE.
         assert_eq!(mailbox.set_status_cmd_complete().ok(), Some(()));
@@ -1302,7 +1303,7 @@ mod tests {
             log_dir,
             ..args
         };
-        let mut soc_reg: SocRegisters = SocRegisters::new(&clock, mailbox.clone(), &args);
+        let mut soc_reg: SocRegisters = SocRegisters::new(&clock, mailbox.clone(), args);
 
         //
         // [Sender Side]
@@ -1369,7 +1370,7 @@ mod tests {
             log_dir,
             ..args
         };
-        let mut soc_reg: SocRegisters = SocRegisters::new(&clock, mailbox.clone(), &args);
+        let mut soc_reg: SocRegisters = SocRegisters::new(&clock, mailbox.clone(), args);
 
         //
         // [Sender Side]
@@ -1416,5 +1417,28 @@ mod tests {
             .read_to_end(&mut ldevid_cert_buffer)
             .unwrap();
         assert_eq!(data, ldevid_cert_buffer[..]);
+    }
+
+    #[test]
+    fn test_tb_services_cb() {
+        let output = Rc::new(RefCell::new(vec![]));
+        let output2 = output.clone();
+
+        let clock = Clock::new();
+        let mailbox_ram = MailboxRam::new();
+        let mailbox = Mailbox::new(mailbox_ram.clone());
+        let args = CaliptraRootBusArgs {
+            tb_services_cb: TbServicesCb::new(move |ch| output2.borrow_mut().push(ch)),
+            ..Default::default()
+        };
+        let mut soc_reg: SocRegisters = SocRegisters::new(&clock, mailbox.clone(), args);
+
+        let _ = soc_reg.write(RvSize::Word, CPTRA_GENERIC_OUTPUT_WIRES_START, b'h'.into());
+
+        let _ = soc_reg.write(RvSize::Word, CPTRA_GENERIC_OUTPUT_WIRES_START, b'i'.into());
+
+        let _ = soc_reg.write(RvSize::Word, CPTRA_GENERIC_OUTPUT_WIRES_START, 0xff);
+
+        assert_eq!(&*output.borrow(), &vec![b'h', b'i', 0xff]);
     }
 }

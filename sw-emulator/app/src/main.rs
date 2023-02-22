@@ -14,7 +14,7 @@ Abstract:
 
 use caliptra_emu_bus::Clock;
 use caliptra_emu_cpu::{Cpu, RvInstr, StepAction};
-use caliptra_emu_periph::{CaliptraRootBus, CaliptraRootBusArgs};
+use caliptra_emu_periph::{CaliptraRootBus, CaliptraRootBusArgs, TbServicesCb};
 use clap::{arg, value_parser, ArgAction};
 use std::fs::File;
 use std::io;
@@ -150,6 +150,11 @@ fn main() -> io::Result<()> {
         idev_key_id_algo: args_idevid_key_id_algo.clone(),
         req_idevid_csr: args.get_flag("req-idevid-csr"),
         req_ldevid_cert: args.get_flag("req-ldevid-cert"),
+        tb_services_cb: TbServicesCb::new(move |val| match val {
+            0x01 => exit(0xFF),
+            0xFF => exit(0x00),
+            _ => print!("{}", val as char),
+        }),
     };
     let cpu = Cpu::new(CaliptraRootBus::new(&clock, bus_args), clock);
 

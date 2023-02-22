@@ -232,7 +232,7 @@ mod tests {
         let soc_reg = SocRegisters::new(
             &clock,
             Mailbox::new(MailboxRam::new()),
-            &CaliptraRootBusArgs::default(),
+            CaliptraRootBusArgs::default(),
         );
         let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg.clone());
 
@@ -290,7 +290,7 @@ mod tests {
         let soc_reg = SocRegisters::new(
             &clock,
             Mailbox::new(MailboxRam::new()),
-            &CaliptraRootBusArgs::default(),
+            CaliptraRootBusArgs::default(),
         );
         let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg.clone());
 
@@ -343,7 +343,7 @@ mod tests {
         let soc_reg = SocRegisters::new(
             &clock,
             Mailbox::new(MailboxRam::new()),
-            &CaliptraRootBusArgs::default(),
+            CaliptraRootBusArgs::default(),
         );
         let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg.clone());
         assert_ne!(soc_reg.uds(), expected_uds);
