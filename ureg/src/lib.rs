@@ -497,6 +497,14 @@ impl<const LEN: usize, TItem: FromMmioPtr> Array<LEN, TItem> {
             }
         }
     }
+
+    pub fn truncate<const NEW_LEN: usize>(&self) -> Array<NEW_LEN, TItem> {
+        assert!(NEW_LEN <= LEN);
+        Array {
+            mmio: self.mmio,
+            ptr: self.ptr,
+        }
+    }
 }
 impl<const LEN: usize, TItem: FromMmioPtr<TMmio = RealMmio>> Array<LEN, TItem> {
     /// Creates a new Array from a raw register pointer.
@@ -769,12 +777,28 @@ mod tests {
 
         assert_eq!(&fake_mem[3] as *const _, reg_array.at(3).ptr);
     }
+
+    #[test]
+    pub fn test_reg_array_truncate() {
+        let mut fake_mem = [0, 1, 2, 3, 4, 5, 6];
+        let reg_array = unsafe { Array::<4, RegRef<ControlReg>>::new(fake_mem.as_mut_ptr()) };
+        let truncated = reg_array.truncate::<3>();
+        assert_eq!(truncated.read(), [0.into(), 1.into(), 2.into()]);
+    }
+
     #[test]
     #[should_panic]
     pub fn test_reg_array_oob_panic() {
         let mut fake_mem = [0, 1, 2, 3, 4, 5, 6];
         let reg_array = unsafe { Array::<4, RegRef<ControlReg>>::new(fake_mem.as_mut_ptr()) };
         reg_array.at(4);
+    }
+    #[test]
+    #[should_panic]
+    pub fn test_reg_array_truncate_panic() {
+        let mut fake_mem = [0, 1, 2, 3, 4, 5, 6];
+        let reg_array = unsafe { Array::<4, RegRef<ControlReg>>::new(fake_mem.as_mut_ptr()) };
+        reg_array.truncate::<5>();
     }
 
     #[test]
