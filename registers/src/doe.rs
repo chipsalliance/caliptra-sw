@@ -207,40 +207,8 @@ pub mod enums {
 }
 pub mod meta {
     //! Additional metadata needed by ureg.
-    #[derive(Clone, Copy)]
-    pub struct Iv();
-    impl ureg::RegType for Iv {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Iv {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for Iv {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for Iv {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Ctrl();
-    impl ureg::RegType for Ctrl {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Ctrl {
-        type ReadVal = crate::doe::regs::CtrlReadVal;
-    }
-    impl ureg::WritableReg for Ctrl {
-        type WriteVal = crate::doe::regs::CtrlWriteVal;
-    }
-    impl ureg::ResettableReg for Ctrl {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Status();
-    impl ureg::RegType for Status {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Status {
-        type ReadVal = crate::doe::regs::StatusReadVal;
-    }
+    pub type Iv = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Ctrl =
+        ureg::ReadWriteReg32<0, crate::doe::regs::CtrlReadVal, crate::doe::regs::CtrlWriteVal>;
+    pub type Status = ureg::ReadOnlyReg32<crate::doe::regs::StatusReadVal>;
 }

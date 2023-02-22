@@ -938,249 +938,42 @@ pub mod enums {
 }
 pub mod meta {
     //! Additional metadata needed by ureg.
-    #[derive(Clone, Copy)]
-    pub struct Name();
-    impl ureg::RegType for Name {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Name {
-        type ReadVal = u32;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Version();
-    impl ureg::RegType for Version {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Version {
-        type ReadVal = u32;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Ctrl();
-    impl ureg::RegType for Ctrl {
-        type Raw = u32;
-    }
-    impl ureg::WritableReg for Ctrl {
-        type WriteVal = crate::ecc::regs::CtrlWriteVal;
-    }
-    impl ureg::ResettableReg for Ctrl {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Status();
-    impl ureg::RegType for Status {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Status {
-        type ReadVal = crate::ecc::regs::StatusReadVal;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Scaconfig();
-    impl ureg::RegType for Scaconfig {
-        type Raw = u32;
-    }
-    impl ureg::WritableReg for Scaconfig {
-        type WriteVal = crate::ecc::regs::ScaconfigWriteVal;
-    }
-    impl ureg::ResettableReg for Scaconfig {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Seed();
-    impl ureg::RegType for Seed {
-        type Raw = u32;
-    }
-    impl ureg::WritableReg for Seed {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for Seed {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Msg();
-    impl ureg::RegType for Msg {
-        type Raw = u32;
-    }
-    impl ureg::WritableReg for Msg {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for Msg {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Privkey();
-    impl ureg::RegType for Privkey {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Privkey {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for Privkey {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for Privkey {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct PubkeyX();
-    impl ureg::RegType for PubkeyX {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for PubkeyX {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for PubkeyX {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for PubkeyX {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct PubkeyY();
-    impl ureg::RegType for PubkeyY {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for PubkeyY {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for PubkeyY {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for PubkeyY {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct SignR();
-    impl ureg::RegType for SignR {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for SignR {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for SignR {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for SignR {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct SignS();
-    impl ureg::RegType for SignS {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for SignS {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for SignS {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for SignS {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct VerifyR();
-    impl ureg::RegType for VerifyR {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for VerifyR {
-        type ReadVal = u32;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Iv();
-    impl ureg::RegType for Iv {
-        type Raw = u32;
-    }
-    impl ureg::WritableReg for Iv {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for Iv {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct KvRdPkeyCtrl();
-    impl ureg::RegType for KvRdPkeyCtrl {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for KvRdPkeyCtrl {
-        type ReadVal = crate::regs::KvReadCtrlRegReadVal;
-    }
-    impl ureg::WritableReg for KvRdPkeyCtrl {
-        type WriteVal = crate::regs::KvReadCtrlRegWriteVal;
-    }
-    impl ureg::ResettableReg for KvRdPkeyCtrl {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct KvRdPkeyStatus();
-    impl ureg::RegType for KvRdPkeyStatus {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for KvRdPkeyStatus {
-        type ReadVal = crate::regs::KvStatusRegReadVal;
-    }
-    #[derive(Clone, Copy)]
-    pub struct KvRdSeedCtrl();
-    impl ureg::RegType for KvRdSeedCtrl {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for KvRdSeedCtrl {
-        type ReadVal = crate::regs::KvReadCtrlRegReadVal;
-    }
-    impl ureg::WritableReg for KvRdSeedCtrl {
-        type WriteVal = crate::regs::KvReadCtrlRegWriteVal;
-    }
-    impl ureg::ResettableReg for KvRdSeedCtrl {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct KvRdSeedStatus();
-    impl ureg::RegType for KvRdSeedStatus {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for KvRdSeedStatus {
-        type ReadVal = crate::regs::KvStatusRegReadVal;
-    }
-    #[derive(Clone, Copy)]
-    pub struct KvRdMsgCtrl();
-    impl ureg::RegType for KvRdMsgCtrl {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for KvRdMsgCtrl {
-        type ReadVal = crate::regs::KvReadCtrlRegReadVal;
-    }
-    impl ureg::WritableReg for KvRdMsgCtrl {
-        type WriteVal = crate::regs::KvReadCtrlRegWriteVal;
-    }
-    impl ureg::ResettableReg for KvRdMsgCtrl {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct KvRdMsgStatus();
-    impl ureg::RegType for KvRdMsgStatus {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for KvRdMsgStatus {
-        type ReadVal = crate::regs::KvStatusRegReadVal;
-    }
-    #[derive(Clone, Copy)]
-    pub struct KvWrPkeyCtrl();
-    impl ureg::RegType for KvWrPkeyCtrl {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for KvWrPkeyCtrl {
-        type ReadVal = crate::regs::KvWriteCtrlRegReadVal;
-    }
-    impl ureg::WritableReg for KvWrPkeyCtrl {
-        type WriteVal = crate::regs::KvWriteCtrlRegWriteVal;
-    }
-    impl ureg::ResettableReg for KvWrPkeyCtrl {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct KvWrPkeyStatus();
-    impl ureg::RegType for KvWrPkeyStatus {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for KvWrPkeyStatus {
-        type ReadVal = crate::regs::KvStatusRegReadVal;
-    }
+    pub type Name = ureg::ReadOnlyReg32<u32>;
+    pub type Version = ureg::ReadOnlyReg32<u32>;
+    pub type Ctrl = ureg::WriteOnlyReg32<0, crate::ecc::regs::CtrlWriteVal>;
+    pub type Status = ureg::ReadOnlyReg32<crate::ecc::regs::StatusReadVal>;
+    pub type Scaconfig = ureg::WriteOnlyReg32<0, crate::ecc::regs::ScaconfigWriteVal>;
+    pub type Seed = ureg::WriteOnlyReg32<0, u32>;
+    pub type Msg = ureg::WriteOnlyReg32<0, u32>;
+    pub type Privkey = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type PubkeyX = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type PubkeyY = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SignR = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type SignS = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type VerifyR = ureg::ReadOnlyReg32<u32>;
+    pub type Iv = ureg::WriteOnlyReg32<0, u32>;
+    pub type KvRdPkeyCtrl = ureg::ReadWriteReg32<
+        0,
+        crate::regs::KvReadCtrlRegReadVal,
+        crate::regs::KvReadCtrlRegWriteVal,
+    >;
+    pub type KvRdPkeyStatus = ureg::ReadOnlyReg32<crate::regs::KvStatusRegReadVal>;
+    pub type KvRdSeedCtrl = ureg::ReadWriteReg32<
+        0,
+        crate::regs::KvReadCtrlRegReadVal,
+        crate::regs::KvReadCtrlRegWriteVal,
+    >;
+    pub type KvRdSeedStatus = ureg::ReadOnlyReg32<crate::regs::KvStatusRegReadVal>;
+    pub type KvRdMsgCtrl = ureg::ReadWriteReg32<
+        0,
+        crate::regs::KvReadCtrlRegReadVal,
+        crate::regs::KvReadCtrlRegWriteVal,
+    >;
+    pub type KvRdMsgStatus = ureg::ReadOnlyReg32<crate::regs::KvStatusRegReadVal>;
+    pub type KvWrPkeyCtrl = ureg::ReadWriteReg32<
+        0,
+        crate::regs::KvWriteCtrlRegReadVal,
+        crate::regs::KvWriteCtrlRegWriteVal,
+    >;
+    pub type KvWrPkeyStatus = ureg::ReadOnlyReg32<crate::regs::KvStatusRegReadVal>;
 }

@@ -732,102 +732,22 @@ pub mod enums {
 }
 pub mod meta {
     //! Additional metadata needed by ureg.
-    #[derive(Clone, Copy)]
-    pub struct Name();
-    impl ureg::RegType for Name {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Name {
-        type ReadVal = u32;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Version();
-    impl ureg::RegType for Version {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Version {
-        type ReadVal = u32;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Ctrl();
-    impl ureg::RegType for Ctrl {
-        type Raw = u32;
-    }
-    impl ureg::WritableReg for Ctrl {
-        type WriteVal = crate::sha512::regs::CtrlWriteVal;
-    }
-    impl ureg::ResettableReg for Ctrl {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Status();
-    impl ureg::RegType for Status {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Status {
-        type ReadVal = crate::sha512::regs::StatusReadVal;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Block();
-    impl ureg::RegType for Block {
-        type Raw = u32;
-    }
-    impl ureg::WritableReg for Block {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for Block {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Digest();
-    impl ureg::RegType for Digest {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Digest {
-        type ReadVal = u32;
-    }
-    #[derive(Clone, Copy)]
-    pub struct KvRdCtrl();
-    impl ureg::RegType for KvRdCtrl {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for KvRdCtrl {
-        type ReadVal = crate::regs::KvReadCtrlRegReadVal;
-    }
-    impl ureg::WritableReg for KvRdCtrl {
-        type WriteVal = crate::regs::KvReadCtrlRegWriteVal;
-    }
-    impl ureg::ResettableReg for KvRdCtrl {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct KvRdStatus();
-    impl ureg::RegType for KvRdStatus {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for KvRdStatus {
-        type ReadVal = crate::regs::KvStatusRegReadVal;
-    }
-    #[derive(Clone, Copy)]
-    pub struct KvWrCtrl();
-    impl ureg::RegType for KvWrCtrl {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for KvWrCtrl {
-        type ReadVal = crate::regs::KvWriteCtrlRegReadVal;
-    }
-    impl ureg::WritableReg for KvWrCtrl {
-        type WriteVal = crate::regs::KvWriteCtrlRegWriteVal;
-    }
-    impl ureg::ResettableReg for KvWrCtrl {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct KvWrStatus();
-    impl ureg::RegType for KvWrStatus {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for KvWrStatus {
-        type ReadVal = crate::regs::KvStatusRegReadVal;
-    }
+    pub type Name = ureg::ReadOnlyReg32<u32>;
+    pub type Version = ureg::ReadOnlyReg32<u32>;
+    pub type Ctrl = ureg::WriteOnlyReg32<0, crate::sha512::regs::CtrlWriteVal>;
+    pub type Status = ureg::ReadOnlyReg32<crate::sha512::regs::StatusReadVal>;
+    pub type Block = ureg::WriteOnlyReg32<0, u32>;
+    pub type Digest = ureg::ReadOnlyReg32<u32>;
+    pub type KvRdCtrl = ureg::ReadWriteReg32<
+        0,
+        crate::regs::KvReadCtrlRegReadVal,
+        crate::regs::KvReadCtrlRegWriteVal,
+    >;
+    pub type KvRdStatus = ureg::ReadOnlyReg32<crate::regs::KvStatusRegReadVal>;
+    pub type KvWrCtrl = ureg::ReadWriteReg32<
+        0,
+        crate::regs::KvWriteCtrlRegReadVal,
+        crate::regs::KvWriteCtrlRegWriteVal,
+    >;
+    pub type KvWrStatus = ureg::ReadOnlyReg32<crate::regs::KvStatusRegReadVal>;
 }

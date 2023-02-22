@@ -366,197 +366,40 @@ pub mod enums {
 }
 pub mod meta {
     //! Additional metadata needed by ureg.
-    #[derive(Clone, Copy)]
-    pub struct PcrCtrl();
-    impl ureg::RegType for PcrCtrl {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for PcrCtrl {
-        type ReadVal = crate::kv::regs::KvctrlReadVal;
-    }
-    impl ureg::WritableReg for PcrCtrl {
-        type WriteVal = crate::kv::regs::KvctrlWriteVal;
-    }
-    impl ureg::ResettableReg for PcrCtrl {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct PcrEntry();
-    impl ureg::RegType for PcrEntry {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for PcrEntry {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for PcrEntry {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for PcrEntry {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct KeyCtrl();
-    impl ureg::RegType for KeyCtrl {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for KeyCtrl {
-        type ReadVal = crate::kv::regs::KvctrlReadVal;
-    }
-    impl ureg::WritableReg for KeyCtrl {
-        type WriteVal = crate::kv::regs::KvctrlWriteVal;
-    }
-    impl ureg::ResettableReg for KeyCtrl {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct KeyEntry();
-    impl ureg::RegType for KeyEntry {
-        type Raw = u32;
-    }
-    impl ureg::WritableReg for KeyEntry {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for KeyEntry {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct ClearSecrets();
-    impl ureg::RegType for ClearSecrets {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for ClearSecrets {
-        type ReadVal = crate::kv::regs::ClearSecretsReadVal;
-    }
-    impl ureg::WritableReg for ClearSecrets {
-        type WriteVal = crate::kv::regs::ClearSecretsWriteVal;
-    }
-    impl ureg::ResettableReg for ClearSecrets {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Stickydatavaultctrl();
-    impl ureg::RegType for Stickydatavaultctrl {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Stickydatavaultctrl {
-        type ReadVal = crate::kv::regs::StickydatavaultctrlReadVal;
-    }
-    impl ureg::WritableReg for Stickydatavaultctrl {
-        type WriteVal = crate::kv::regs::StickydatavaultctrlWriteVal;
-    }
-    impl ureg::ResettableReg for Stickydatavaultctrl {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Nonstickydatavaultctrl();
-    impl ureg::RegType for Nonstickydatavaultctrl {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Nonstickydatavaultctrl {
-        type ReadVal = crate::kv::regs::StickydatavaultctrlReadVal;
-    }
-    impl ureg::WritableReg for Nonstickydatavaultctrl {
-        type WriteVal = crate::kv::regs::StickydatavaultctrlWriteVal;
-    }
-    impl ureg::ResettableReg for Nonstickydatavaultctrl {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Nonstickylockablescratchregctrl();
-    impl ureg::RegType for Nonstickylockablescratchregctrl {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Nonstickylockablescratchregctrl {
-        type ReadVal = crate::kv::regs::StickylockablescratchregctrlReadVal;
-    }
-    impl ureg::WritableReg for Nonstickylockablescratchregctrl {
-        type WriteVal = crate::kv::regs::StickylockablescratchregctrlWriteVal;
-    }
-    impl ureg::ResettableReg for Nonstickylockablescratchregctrl {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct StickyDataVaultEntry();
-    impl ureg::RegType for StickyDataVaultEntry {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for StickyDataVaultEntry {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for StickyDataVaultEntry {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for StickyDataVaultEntry {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct NonstickyDataVaultEntry();
-    impl ureg::RegType for NonstickyDataVaultEntry {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for NonstickyDataVaultEntry {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for NonstickyDataVaultEntry {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for NonstickyDataVaultEntry {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Nonstickylockablescratchreg();
-    impl ureg::RegType for Nonstickylockablescratchreg {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Nonstickylockablescratchreg {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for Nonstickylockablescratchreg {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for Nonstickylockablescratchreg {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Nonstickygenericscratchreg();
-    impl ureg::RegType for Nonstickygenericscratchreg {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Nonstickygenericscratchreg {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for Nonstickygenericscratchreg {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for Nonstickygenericscratchreg {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Stickylockablescratchregctrl();
-    impl ureg::RegType for Stickylockablescratchregctrl {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Stickylockablescratchregctrl {
-        type ReadVal = crate::kv::regs::StickylockablescratchregctrlReadVal;
-    }
-    impl ureg::WritableReg for Stickylockablescratchregctrl {
-        type WriteVal = crate::kv::regs::StickylockablescratchregctrlWriteVal;
-    }
-    impl ureg::ResettableReg for Stickylockablescratchregctrl {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Stickylockablescratchreg();
-    impl ureg::RegType for Stickylockablescratchreg {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Stickylockablescratchreg {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for Stickylockablescratchreg {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for Stickylockablescratchreg {
-        const RESET_VAL: Self::Raw = 0;
-    }
+    pub type PcrCtrl =
+        ureg::ReadWriteReg32<0, crate::kv::regs::KvctrlReadVal, crate::kv::regs::KvctrlWriteVal>;
+    pub type PcrEntry = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type KeyCtrl =
+        ureg::ReadWriteReg32<0, crate::kv::regs::KvctrlReadVal, crate::kv::regs::KvctrlWriteVal>;
+    pub type KeyEntry = ureg::WriteOnlyReg32<0, u32>;
+    pub type ClearSecrets = ureg::ReadWriteReg32<
+        0,
+        crate::kv::regs::ClearSecretsReadVal,
+        crate::kv::regs::ClearSecretsWriteVal,
+    >;
+    pub type Stickydatavaultctrl = ureg::ReadWriteReg32<
+        0,
+        crate::kv::regs::StickydatavaultctrlReadVal,
+        crate::kv::regs::StickydatavaultctrlWriteVal,
+    >;
+    pub type Nonstickydatavaultctrl = ureg::ReadWriteReg32<
+        0,
+        crate::kv::regs::StickydatavaultctrlReadVal,
+        crate::kv::regs::StickydatavaultctrlWriteVal,
+    >;
+    pub type Nonstickylockablescratchregctrl = ureg::ReadWriteReg32<
+        0,
+        crate::kv::regs::StickylockablescratchregctrlReadVal,
+        crate::kv::regs::StickylockablescratchregctrlWriteVal,
+    >;
+    pub type StickyDataVaultEntry = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type NonstickyDataVaultEntry = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Nonstickylockablescratchreg = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Nonstickygenericscratchreg = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Stickylockablescratchregctrl = ureg::ReadWriteReg32<
+        0,
+        crate::kv::regs::StickylockablescratchregctrlReadVal,
+        crate::kv::regs::StickylockablescratchregctrlWriteVal,
+    >;
+    pub type Stickylockablescratchreg = ureg::ReadWriteReg32<0, u32, u32>;
 }

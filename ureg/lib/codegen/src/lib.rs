@@ -6,7 +6,9 @@ use std::{collections::HashMap, rc::Rc, str::FromStr};
 
 use proc_macro2::{Ident, Literal, TokenStream};
 use quote::{format_ident, quote};
-use ureg_schema::{Enum, EnumVariant, FieldType, Register, RegisterType, ValidatedRegisterBlock};
+use ureg_schema::{
+    Enum, EnumVariant, FieldType, Register, RegisterType, RegisterWidth, ValidatedRegisterBlock,
+};
 
 fn tweak_keywords(s: &str) -> &str {
     match s {
@@ -578,31 +580,48 @@ fn generate_block_registers(
         let can_write = reg.ty.fields.iter().any(|f| f.ty.can_write());
         let can_clear = reg.ty.fields.iter().any(|f| f.ty.can_clear());
         let can_set = reg.ty.fields.iter().any(|f| f.ty.can_set());
-        meta_tokens.extend(quote! {
-            #[derive(Clone, Copy)]
-            pub struct #reg_meta_name();
-            impl ureg::RegType for #reg_meta_name {
-                type Raw = #reg_raw_type;
+
+        let needs_write = can_write || can_clear || can_set;
+
+        if reg.ty.width == RegisterWidth::_32 && can_read && !needs_write {
+            meta_tokens.extend(quote! {
+                pub type #reg_meta_name = ureg::ReadOnlyReg32<#read_type>;
+            });
+        } else if reg.ty.width == RegisterWidth::_32 && !can_read && needs_write {
+            meta_tokens.extend(quote! {
+                pub type #reg_meta_name = ureg::WriteOnlyReg32<#default_val, #write_type>;
+            });
+        } else if reg.ty.width == RegisterWidth::_32 && can_read && needs_write {
+            meta_tokens.extend(quote! {
+                pub type #reg_meta_name = ureg::ReadWriteReg32<#default_val, #read_type, #write_type>;
+            });
+        } else {
+            meta_tokens.extend(quote! {
+                #[derive(Clone, Copy)]
+                pub struct #reg_meta_name();
+                impl ureg::RegType for #reg_meta_name {
+                    type Raw = #reg_raw_type;
+                }
+            });
+            if can_read {
+                meta_tokens.extend(quote! {
+                    impl ureg::ReadableReg for #reg_meta_name {
+                        type ReadVal = #read_type;
+                    }
+                });
             }
-        });
-        if can_read {
-            meta_tokens.extend(quote! {
-                impl ureg::ReadableReg for #reg_meta_name {
-                    type ReadVal = #read_type;
-                }
-            });
-        }
-        if can_write || can_clear || can_set {
-            meta_tokens.extend(quote! {
-                impl ureg::WritableReg for #reg_meta_name {
-                    type WriteVal = #write_type;
-                }
-            });
-            meta_tokens.extend(quote! {
-                impl ureg::ResettableReg for #reg_meta_name {
-                    const RESET_VAL: Self::Raw = #default_val;
-                }
-            });
+            if can_write || can_clear || can_set {
+                meta_tokens.extend(quote! {
+                    impl ureg::WritableReg for #reg_meta_name {
+                        type WriteVal = #write_type;
+                    }
+                });
+                meta_tokens.extend(quote! {
+                    impl ureg::ResettableReg for #reg_meta_name {
+                        const RESET_VAL: Self::Raw = #default_val;
+                    }
+                });
+            }
         }
         let module_path = &options.module_path;
         let read_type_str = read_type

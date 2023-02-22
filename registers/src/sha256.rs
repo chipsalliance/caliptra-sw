@@ -140,58 +140,10 @@ pub mod enums {
 }
 pub mod meta {
     //! Additional metadata needed by ureg.
-    #[derive(Clone, Copy)]
-    pub struct Name();
-    impl ureg::RegType for Name {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Name {
-        type ReadVal = u32;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Version();
-    impl ureg::RegType for Version {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Version {
-        type ReadVal = u32;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Ctrl();
-    impl ureg::RegType for Ctrl {
-        type Raw = u32;
-    }
-    impl ureg::WritableReg for Ctrl {
-        type WriteVal = crate::sha256::regs::CtrlWriteVal;
-    }
-    impl ureg::ResettableReg for Ctrl {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Status();
-    impl ureg::RegType for Status {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Status {
-        type ReadVal = crate::sha256::regs::StatusReadVal;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Block();
-    impl ureg::RegType for Block {
-        type Raw = u32;
-    }
-    impl ureg::WritableReg for Block {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for Block {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Digest();
-    impl ureg::RegType for Digest {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Digest {
-        type ReadVal = u32;
-    }
+    pub type Name = ureg::ReadOnlyReg32<u32>;
+    pub type Version = ureg::ReadOnlyReg32<u32>;
+    pub type Ctrl = ureg::WriteOnlyReg32<0, crate::sha256::regs::CtrlWriteVal>;
+    pub type Status = ureg::ReadOnlyReg32<crate::sha256::regs::StatusReadVal>;
+    pub type Block = ureg::WriteOnlyReg32<0, u32>;
+    pub type Digest = ureg::ReadOnlyReg32<u32>;
 }

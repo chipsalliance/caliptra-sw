@@ -1082,537 +1082,97 @@ pub mod enums {
 }
 pub mod meta {
     //! Additional metadata needed by ureg.
-    #[derive(Clone, Copy)]
-    pub struct CptraHwErrorFatal();
-    impl ureg::RegType for CptraHwErrorFatal {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraHwErrorFatal {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for CptraHwErrorFatal {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for CptraHwErrorFatal {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraHwErrorNonFatal();
-    impl ureg::RegType for CptraHwErrorNonFatal {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraHwErrorNonFatal {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for CptraHwErrorNonFatal {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for CptraHwErrorNonFatal {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraFwErrorFatal();
-    impl ureg::RegType for CptraFwErrorFatal {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraFwErrorFatal {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for CptraFwErrorFatal {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for CptraFwErrorFatal {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraFwErrorNonFatal();
-    impl ureg::RegType for CptraFwErrorNonFatal {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraFwErrorNonFatal {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for CptraFwErrorNonFatal {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for CptraFwErrorNonFatal {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraHwErrorEnc();
-    impl ureg::RegType for CptraHwErrorEnc {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraHwErrorEnc {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for CptraHwErrorEnc {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for CptraHwErrorEnc {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraFwErrorEnc();
-    impl ureg::RegType for CptraFwErrorEnc {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraFwErrorEnc {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for CptraFwErrorEnc {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for CptraFwErrorEnc {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraFwExtendedErrorInfo();
-    impl ureg::RegType for CptraFwExtendedErrorInfo {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraFwExtendedErrorInfo {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for CptraFwExtendedErrorInfo {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for CptraFwExtendedErrorInfo {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraBootStatus();
-    impl ureg::RegType for CptraBootStatus {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraBootStatus {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for CptraBootStatus {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for CptraBootStatus {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraFlowStatus();
-    impl ureg::RegType for CptraFlowStatus {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraFlowStatus {
-        type ReadVal = crate::soc_ifc::regs::CptraFlowStatusReadVal;
-    }
-    impl ureg::WritableReg for CptraFlowStatus {
-        type WriteVal = crate::soc_ifc::regs::CptraFlowStatusWriteVal;
-    }
-    impl ureg::ResettableReg for CptraFlowStatus {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraResetReason();
-    impl ureg::RegType for CptraResetReason {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraResetReason {
-        type ReadVal = crate::soc_ifc::regs::CptraResetReasonReadVal;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraSecurityState();
-    impl ureg::RegType for CptraSecurityState {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraSecurityState {
-        type ReadVal = crate::soc_ifc::regs::CptraSecurityStateReadVal;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraValidPauser();
-    impl ureg::RegType for CptraValidPauser {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraValidPauser {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for CptraValidPauser {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for CptraValidPauser {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraPauserLock();
-    impl ureg::RegType for CptraPauserLock {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraPauserLock {
-        type ReadVal = crate::soc_ifc::regs::PauserLockReadVal;
-    }
-    impl ureg::WritableReg for CptraPauserLock {
-        type WriteVal = crate::soc_ifc::regs::PauserLockWriteVal;
-    }
-    impl ureg::ResettableReg for CptraPauserLock {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraTrngValidPauser();
-    impl ureg::RegType for CptraTrngValidPauser {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraTrngValidPauser {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for CptraTrngValidPauser {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for CptraTrngValidPauser {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraTrngPauserLock();
-    impl ureg::RegType for CptraTrngPauserLock {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraTrngPauserLock {
-        type ReadVal = crate::soc_ifc::regs::PauserLockReadVal;
-    }
-    impl ureg::WritableReg for CptraTrngPauserLock {
-        type WriteVal = crate::soc_ifc::regs::PauserLockWriteVal;
-    }
-    impl ureg::ResettableReg for CptraTrngPauserLock {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraTrngData();
-    impl ureg::RegType for CptraTrngData {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraTrngData {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for CptraTrngData {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for CptraTrngData {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraTrngStatus();
-    impl ureg::RegType for CptraTrngStatus {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraTrngStatus {
-        type ReadVal = crate::soc_ifc::regs::CptraTrngStatusReadVal;
-    }
-    impl ureg::WritableReg for CptraTrngStatus {
-        type WriteVal = crate::soc_ifc::regs::CptraTrngStatusWriteVal;
-    }
-    impl ureg::ResettableReg for CptraTrngStatus {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraFuseWrDone();
-    impl ureg::RegType for CptraFuseWrDone {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraFuseWrDone {
-        type ReadVal = crate::soc_ifc::regs::CptraFuseWrDoneReadVal;
-    }
-    impl ureg::WritableReg for CptraFuseWrDone {
-        type WriteVal = crate::soc_ifc::regs::CptraFuseWrDoneWriteVal;
-    }
-    impl ureg::ResettableReg for CptraFuseWrDone {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraTimerConfig();
-    impl ureg::RegType for CptraTimerConfig {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraTimerConfig {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for CptraTimerConfig {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for CptraTimerConfig {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraBootfsmGo();
-    impl ureg::RegType for CptraBootfsmGo {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraBootfsmGo {
-        type ReadVal = crate::soc_ifc::regs::CptraBootfsmGoReadVal;
-    }
-    impl ureg::WritableReg for CptraBootfsmGo {
-        type WriteVal = crate::soc_ifc::regs::CptraBootfsmGoWriteVal;
-    }
-    impl ureg::ResettableReg for CptraBootfsmGo {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraDbgManufServiceReg();
-    impl ureg::RegType for CptraDbgManufServiceReg {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraDbgManufServiceReg {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for CptraDbgManufServiceReg {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for CptraDbgManufServiceReg {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraClkGatingEn();
-    impl ureg::RegType for CptraClkGatingEn {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraClkGatingEn {
-        type ReadVal = crate::soc_ifc::regs::CptraClkGatingEnReadVal;
-    }
-    impl ureg::WritableReg for CptraClkGatingEn {
-        type WriteVal = crate::soc_ifc::regs::CptraClkGatingEnWriteVal;
-    }
-    impl ureg::ResettableReg for CptraClkGatingEn {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraGenericInputWires();
-    impl ureg::RegType for CptraGenericInputWires {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraGenericInputWires {
-        type ReadVal = u32;
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraGenericOutputWires();
-    impl ureg::RegType for CptraGenericOutputWires {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for CptraGenericOutputWires {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for CptraGenericOutputWires {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for CptraGenericOutputWires {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct FuseUdsSeed();
-    impl ureg::RegType for FuseUdsSeed {
-        type Raw = u32;
-    }
-    impl ureg::WritableReg for FuseUdsSeed {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for FuseUdsSeed {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct FuseFieldEntropy();
-    impl ureg::RegType for FuseFieldEntropy {
-        type Raw = u32;
-    }
-    impl ureg::WritableReg for FuseFieldEntropy {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for FuseFieldEntropy {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct FuseKeyManifestPkHash();
-    impl ureg::RegType for FuseKeyManifestPkHash {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for FuseKeyManifestPkHash {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for FuseKeyManifestPkHash {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for FuseKeyManifestPkHash {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct FuseKeyManifestPkHashMask();
-    impl ureg::RegType for FuseKeyManifestPkHashMask {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for FuseKeyManifestPkHashMask {
-        type ReadVal = crate::soc_ifc::regs::FuseKeyManifestPkHashMaskReadVal;
-    }
-    impl ureg::WritableReg for FuseKeyManifestPkHashMask {
-        type WriteVal = crate::soc_ifc::regs::FuseKeyManifestPkHashMaskWriteVal;
-    }
-    impl ureg::ResettableReg for FuseKeyManifestPkHashMask {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct FuseOwnerPkHash();
-    impl ureg::RegType for FuseOwnerPkHash {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for FuseOwnerPkHash {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for FuseOwnerPkHash {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for FuseOwnerPkHash {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct FuseFmcKeyManifestSvn();
-    impl ureg::RegType for FuseFmcKeyManifestSvn {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for FuseFmcKeyManifestSvn {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for FuseFmcKeyManifestSvn {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for FuseFmcKeyManifestSvn {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct FuseRuntimeSvn();
-    impl ureg::RegType for FuseRuntimeSvn {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for FuseRuntimeSvn {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for FuseRuntimeSvn {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for FuseRuntimeSvn {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct FuseAntiRollbackDisable();
-    impl ureg::RegType for FuseAntiRollbackDisable {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for FuseAntiRollbackDisable {
-        type ReadVal = crate::soc_ifc::regs::FuseAntiRollbackDisableReadVal;
-    }
-    impl ureg::WritableReg for FuseAntiRollbackDisable {
-        type WriteVal = crate::soc_ifc::regs::FuseAntiRollbackDisableWriteVal;
-    }
-    impl ureg::ResettableReg for FuseAntiRollbackDisable {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct FuseIdevidCertAttr();
-    impl ureg::RegType for FuseIdevidCertAttr {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for FuseIdevidCertAttr {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for FuseIdevidCertAttr {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for FuseIdevidCertAttr {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct FuseIdevidManufHsmId();
-    impl ureg::RegType for FuseIdevidManufHsmId {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for FuseIdevidManufHsmId {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for FuseIdevidManufHsmId {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for FuseIdevidManufHsmId {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct FuseLifeCycle();
-    impl ureg::RegType for FuseLifeCycle {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for FuseLifeCycle {
-        type ReadVal = crate::soc_ifc::regs::FuseLifeCycleReadVal;
-    }
-    impl ureg::WritableReg for FuseLifeCycle {
-        type WriteVal = crate::soc_ifc::regs::FuseLifeCycleWriteVal;
-    }
-    impl ureg::ResettableReg for FuseLifeCycle {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct InternalObfKey();
-    impl ureg::RegType for InternalObfKey {
-        type Raw = u32;
-    }
-    impl ureg::WritableReg for InternalObfKey {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for InternalObfKey {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct InternalIccmLock();
-    impl ureg::RegType for InternalIccmLock {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for InternalIccmLock {
-        type ReadVal = crate::soc_ifc::regs::InternalIccmLockReadVal;
-    }
-    impl ureg::WritableReg for InternalIccmLock {
-        type WriteVal = crate::soc_ifc::regs::InternalIccmLockWriteVal;
-    }
-    impl ureg::ResettableReg for InternalIccmLock {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct InternalFwUpdateReset();
-    impl ureg::RegType for InternalFwUpdateReset {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for InternalFwUpdateReset {
-        type ReadVal = crate::soc_ifc::regs::InternalFwUpdateResetReadVal;
-    }
-    impl ureg::WritableReg for InternalFwUpdateReset {
-        type WriteVal = crate::soc_ifc::regs::InternalFwUpdateResetWriteVal;
-    }
-    impl ureg::ResettableReg for InternalFwUpdateReset {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct InternalFwUpdateResetWaitCycles();
-    impl ureg::RegType for InternalFwUpdateResetWaitCycles {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for InternalFwUpdateResetWaitCycles {
-        type ReadVal = crate::soc_ifc::regs::InternalFwUpdateResetWaitCyclesReadVal;
-    }
-    impl ureg::WritableReg for InternalFwUpdateResetWaitCycles {
-        type WriteVal = crate::soc_ifc::regs::InternalFwUpdateResetWaitCyclesWriteVal;
-    }
-    impl ureg::ResettableReg for InternalFwUpdateResetWaitCycles {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct InternalNmiVector();
-    impl ureg::RegType for InternalNmiVector {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for InternalNmiVector {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for InternalNmiVector {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for InternalNmiVector {
-        const RESET_VAL: Self::Raw = 0;
-    }
+    pub type CptraHwErrorFatal = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraHwErrorNonFatal = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraFwErrorFatal = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraFwErrorNonFatal = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraHwErrorEnc = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraFwErrorEnc = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraFwExtendedErrorInfo = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraBootStatus = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraFlowStatus = ureg::ReadWriteReg32<
+        0,
+        crate::soc_ifc::regs::CptraFlowStatusReadVal,
+        crate::soc_ifc::regs::CptraFlowStatusWriteVal,
+    >;
+    pub type CptraResetReason = ureg::ReadOnlyReg32<crate::soc_ifc::regs::CptraResetReasonReadVal>;
+    pub type CptraSecurityState =
+        ureg::ReadOnlyReg32<crate::soc_ifc::regs::CptraSecurityStateReadVal>;
+    pub type CptraValidPauser = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraPauserLock = ureg::ReadWriteReg32<
+        0,
+        crate::soc_ifc::regs::PauserLockReadVal,
+        crate::soc_ifc::regs::PauserLockWriteVal,
+    >;
+    pub type CptraTrngValidPauser = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraTrngPauserLock = ureg::ReadWriteReg32<
+        0,
+        crate::soc_ifc::regs::PauserLockReadVal,
+        crate::soc_ifc::regs::PauserLockWriteVal,
+    >;
+    pub type CptraTrngData = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraTrngStatus = ureg::ReadWriteReg32<
+        0,
+        crate::soc_ifc::regs::CptraTrngStatusReadVal,
+        crate::soc_ifc::regs::CptraTrngStatusWriteVal,
+    >;
+    pub type CptraFuseWrDone = ureg::ReadWriteReg32<
+        0,
+        crate::soc_ifc::regs::CptraFuseWrDoneReadVal,
+        crate::soc_ifc::regs::CptraFuseWrDoneWriteVal,
+    >;
+    pub type CptraTimerConfig = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraBootfsmGo = ureg::ReadWriteReg32<
+        0,
+        crate::soc_ifc::regs::CptraBootfsmGoReadVal,
+        crate::soc_ifc::regs::CptraBootfsmGoWriteVal,
+    >;
+    pub type CptraDbgManufServiceReg = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraClkGatingEn = ureg::ReadWriteReg32<
+        0,
+        crate::soc_ifc::regs::CptraClkGatingEnReadVal,
+        crate::soc_ifc::regs::CptraClkGatingEnWriteVal,
+    >;
+    pub type CptraGenericInputWires = ureg::ReadOnlyReg32<u32>;
+    pub type CptraGenericOutputWires = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type FuseUdsSeed = ureg::WriteOnlyReg32<0, u32>;
+    pub type FuseFieldEntropy = ureg::WriteOnlyReg32<0, u32>;
+    pub type FuseKeyManifestPkHash = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type FuseKeyManifestPkHashMask = ureg::ReadWriteReg32<
+        0,
+        crate::soc_ifc::regs::FuseKeyManifestPkHashMaskReadVal,
+        crate::soc_ifc::regs::FuseKeyManifestPkHashMaskWriteVal,
+    >;
+    pub type FuseOwnerPkHash = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type FuseFmcKeyManifestSvn = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type FuseRuntimeSvn = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type FuseAntiRollbackDisable = ureg::ReadWriteReg32<
+        0,
+        crate::soc_ifc::regs::FuseAntiRollbackDisableReadVal,
+        crate::soc_ifc::regs::FuseAntiRollbackDisableWriteVal,
+    >;
+    pub type FuseIdevidCertAttr = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type FuseIdevidManufHsmId = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type FuseLifeCycle = ureg::ReadWriteReg32<
+        0,
+        crate::soc_ifc::regs::FuseLifeCycleReadVal,
+        crate::soc_ifc::regs::FuseLifeCycleWriteVal,
+    >;
+    pub type InternalObfKey = ureg::WriteOnlyReg32<0, u32>;
+    pub type InternalIccmLock = ureg::ReadWriteReg32<
+        0,
+        crate::soc_ifc::regs::InternalIccmLockReadVal,
+        crate::soc_ifc::regs::InternalIccmLockWriteVal,
+    >;
+    pub type InternalFwUpdateReset = ureg::ReadWriteReg32<
+        0,
+        crate::soc_ifc::regs::InternalFwUpdateResetReadVal,
+        crate::soc_ifc::regs::InternalFwUpdateResetWriteVal,
+    >;
+    pub type InternalFwUpdateResetWaitCycles = ureg::ReadWriteReg32<
+        0,
+        crate::soc_ifc::regs::InternalFwUpdateResetWaitCyclesReadVal,
+        crate::soc_ifc::regs::InternalFwUpdateResetWaitCyclesWriteVal,
+    >;
+    pub type InternalNmiVector = ureg::ReadWriteReg32<0, u32, u32>;
 }

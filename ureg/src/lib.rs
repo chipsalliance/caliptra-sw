@@ -9,7 +9,7 @@ Licensed under the Apache-2.0 license.
 
 #![no_std]
 
-use core::mem::MaybeUninit;
+use core::{marker::PhantomData, mem::MaybeUninit};
 
 /// The root trait for metadata describing a MMIO register.
 ///
@@ -40,6 +40,77 @@ pub trait WritableReg: RegType {
     type WriteVal: Copy + From<Self::Raw> + Into<Self::Raw>;
 }
 
+/// A convenient RegType implementation intended for read-only 32-bit fields.
+///
+/// The code-generator may use this type to cut down on the number of RegType
+/// implementations created, making it easier for the compiler to deduplicate
+/// generic functions that act on registers with the same field layout.
+pub struct ReadOnlyReg32<TReadVal: Copy + From<u32>> {
+    phantom: PhantomData<TReadVal>,
+}
+impl<TReadVal: Copy + From<u32>> RegType for ReadOnlyReg32<TReadVal> {
+    type Raw = u32;
+}
+impl<TReadVal: Copy + From<u32>> ReadableReg for ReadOnlyReg32<TReadVal> {
+    type ReadVal = TReadVal;
+}
+
+/// A convenient RegType implementation intended for write-only 32-bit fields.
+///
+/// The code-generator may use this type to cut down on the number of RegType
+/// implementations created, making it easier for the compiler to deduplicate
+/// generic functions that act on registers with the same field layout.
+pub struct WriteOnlyReg32<const RESET_VAL: u32, TWriteVal: Copy + From<u32> + Into<u32>> {
+    phantom: PhantomData<TWriteVal>,
+}
+impl<const RESET_VAL: u32, TWriteVal: Copy + From<u32> + Into<u32>> RegType
+    for WriteOnlyReg32<RESET_VAL, TWriteVal>
+{
+    type Raw = u32;
+}
+impl<const RESET_VAL: u32, TWriteVal: Copy + From<u32> + Into<u32>> ResettableReg
+    for WriteOnlyReg32<RESET_VAL, TWriteVal>
+{
+    const RESET_VAL: Self::Raw = RESET_VAL;
+}
+impl<const RESET_VAL: u32, TWriteVal: Copy + From<u32> + Into<u32>> WritableReg
+    for WriteOnlyReg32<RESET_VAL, TWriteVal>
+{
+    type WriteVal = TWriteVal;
+}
+
+/// A convenient RegType implementation intended for read-write 32-bit fields.
+///
+/// The code-generator may use this type to cut down on the number of RegType
+/// implementations created, making it easier for the compiler to deduplicate
+/// generic functions that act on registers with the same field layout.
+pub struct ReadWriteReg32<
+    const RESET_VAL: u32,
+    TReadVal: Copy + From<u32>,
+    TWriteVal: Copy + From<u32> + Into<u32>,
+> {
+    phantom: PhantomData<(TReadVal, TWriteVal)>,
+}
+impl<const RESET_VAL: u32, TReadVal: Copy + From<u32>, TWriteVal: Copy + From<u32> + Into<u32>>
+    RegType for ReadWriteReg32<RESET_VAL, TReadVal, TWriteVal>
+{
+    type Raw = u32;
+}
+impl<const RESET_VAL: u32, TReadVal: Copy + From<u32>, TWriteVal: Copy + From<u32> + Into<u32>>
+    ReadableReg for ReadWriteReg32<RESET_VAL, TReadVal, TWriteVal>
+{
+    type ReadVal = TReadVal;
+}
+impl<const RESET_VAL: u32, TReadVal: Copy + From<u32>, TWriteVal: Copy + From<u32> + Into<u32>>
+    ResettableReg for ReadWriteReg32<RESET_VAL, TReadVal, TWriteVal>
+{
+    const RESET_VAL: Self::Raw = RESET_VAL;
+}
+impl<const RESET_VAL: u32, TReadVal: Copy + From<u32>, TWriteVal: Copy + From<u32> + Into<u32>>
+    WritableReg for ReadWriteReg32<RESET_VAL, TReadVal, TWriteVal>
+{
+    type WriteVal = TWriteVal;
+}
 /// A trait for performing volatile reads and writes to a pointer. On real
 /// systems, [`RealMmio`] is typically used to implement this trait, but other
 /// implementations may be used for testing or simulation.

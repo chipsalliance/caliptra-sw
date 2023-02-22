@@ -478,118 +478,25 @@ pub mod enums {
 }
 pub mod meta {
     //! Additional metadata needed by ureg.
-    #[derive(Clone, Copy)]
-    pub struct Lock();
-    impl ureg::RegType for Lock {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Lock {
-        type ReadVal = crate::mbox::regs::LockReadVal;
-    }
-    #[derive(Clone, Copy)]
-    pub struct User();
-    impl ureg::RegType for User {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for User {
-        type ReadVal = u32;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Cmd();
-    impl ureg::RegType for Cmd {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Cmd {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for Cmd {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for Cmd {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Dlen();
-    impl ureg::RegType for Dlen {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Dlen {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for Dlen {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for Dlen {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Datain();
-    impl ureg::RegType for Datain {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Datain {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for Datain {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for Datain {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Dataout();
-    impl ureg::RegType for Dataout {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Dataout {
-        type ReadVal = u32;
-    }
-    impl ureg::WritableReg for Dataout {
-        type WriteVal = u32;
-    }
-    impl ureg::ResettableReg for Dataout {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Execute();
-    impl ureg::RegType for Execute {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Execute {
-        type ReadVal = crate::mbox::regs::ExecuteReadVal;
-    }
-    impl ureg::WritableReg for Execute {
-        type WriteVal = crate::mbox::regs::ExecuteWriteVal;
-    }
-    impl ureg::ResettableReg for Execute {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Status();
-    impl ureg::RegType for Status {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Status {
-        type ReadVal = crate::mbox::regs::StatusReadVal;
-    }
-    impl ureg::WritableReg for Status {
-        type WriteVal = crate::mbox::regs::StatusWriteVal;
-    }
-    impl ureg::ResettableReg for Status {
-        const RESET_VAL: Self::Raw = 0;
-    }
-    #[derive(Clone, Copy)]
-    pub struct Unlock();
-    impl ureg::RegType for Unlock {
-        type Raw = u32;
-    }
-    impl ureg::ReadableReg for Unlock {
-        type ReadVal = crate::mbox::regs::UnlockReadVal;
-    }
-    impl ureg::WritableReg for Unlock {
-        type WriteVal = crate::mbox::regs::UnlockWriteVal;
-    }
-    impl ureg::ResettableReg for Unlock {
-        const RESET_VAL: Self::Raw = 0;
-    }
+    pub type Lock = ureg::ReadOnlyReg32<crate::mbox::regs::LockReadVal>;
+    pub type User = ureg::ReadOnlyReg32<u32>;
+    pub type Cmd = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Dlen = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Datain = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Dataout = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type Execute = ureg::ReadWriteReg32<
+        0,
+        crate::mbox::regs::ExecuteReadVal,
+        crate::mbox::regs::ExecuteWriteVal,
+    >;
+    pub type Status = ureg::ReadWriteReg32<
+        0,
+        crate::mbox::regs::StatusReadVal,
+        crate::mbox::regs::StatusWriteVal,
+    >;
+    pub type Unlock = ureg::ReadWriteReg32<
+        0,
+        crate::mbox::regs::UnlockReadVal,
+        crate::mbox::regs::UnlockWriteVal,
+    >;
 }
