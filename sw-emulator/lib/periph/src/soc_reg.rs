@@ -12,121 +12,322 @@ Abstract:
 
 --*/
 
+use crate::{CaliptraRootBusArgs, Mailbox};
 use caliptra_emu_bus::BusError::{LoadAccessFault, StoreAccessFault};
 use caliptra_emu_bus::{
-    Bus, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteRegister, Timer, TimerAction,
-    WriteOnlyRegister,
+    Bus, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister,
+    Register, Timer, TimerAction,
 };
-use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::cell::RefCell;
+use std::io::Write;
+use std::path::PathBuf;
 use std::process::exit;
 use std::rc::Rc;
-use tock_registers::interfaces::{Readable, Writeable};
+use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
+use tock_registers::registers::InMemoryRegister;
 
-use crate::Mailbox;
+/// Firmware Load Command Opcode
+const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
 
-/// Unique device secret size
-const UDS_SIZE: usize = 48;
+/// CPTRA_HW_ERROR_FATAL Register Start Address
+const CPTRA_HW_ERROR_FATAL_START: u32 = 0x0;
 
-/// Field entropy size
-const FIELD_ENTROPY_SIZE: usize = 128;
+/// CPTRA_HW_ERROR_FATAL Register End Address
+const CPTRA_HW_ERROR_FATAL_END: u32 = 0x3;
 
-/// Deobfuscation engine key size
-const DOE_KEY_SIZE: usize = 32;
+/// CPTRA_HW_ERROR_NON_FATAL Register Start Address
+const CPTRA_HW_ERROR_NON_FATAL_START: u32 = 0x4;
 
-/// Key manigest private key hash size
-const KEY_MANIFEST_PK_HASH_SIZE: usize = 48;
+/// CPTRA_HW_ERROR_NON_FATAL Register End Address
+const CPTRA_HW_ERROR_NON_FATAL_END: u32 = 0x7;
 
-/// Owner key manigest private key hash size
-const OWNER_KEY_MANIFEST_PK_HASH_SIZE: usize = 48;
+/// CPTRA_FW_ERROR_FATAL Register Start Address
+const CPTRA_FW_ERROR_FATAL_START: u32 = 0x8;
 
-/// Runtime SVN size
-const RUNTIME_SVN_SIZE: usize = 16;
+/// CPTRA_FW_ERROR_FATAL Register End Address
+const CPTRA_FW_ERROR_FATAL_END: u32 = 0xb;
 
-/// Idevid certificate attribute size
-const IDEVID_CERT_ATTR_SIZE: usize = 96;
+/// CPTRA_FW_ERROR_NON_FATAL Register Start Address
+const CPTRA_FW_ERROR_NON_FATAL_START: u32 = 0xc;
 
-/// Idevid manufacturer hsm id size
-const IDEVID_MANUF_HSM_ID_SIZE: usize = 16;
+/// CPTRA_FW_ERROR_NON_FATAL Register End Address
+const CPTRA_FW_ERROR_NON_FATAL_END: u32 = 0xf;
 
-/// The number of CPU clock cycles it takes to read the firmware from the mailbox.
-const FW_READ_TICKS: u64 = 1000;
+/// CPTRA_HW_ERROR_ENC Register Start Address
+const CPTRA_HW_ERROR_ENC_START: u32 = 0x10;
+
+/// CPTRA_HW_ERROR_ENC Register End Address
+const CPTRA_HW_ERROR_ENC_END: u32 = 0x13;
+
+/// CPTRA_FW_ERROR_ENC Register Start Address
+const CPTRA_FW_ERROR_ENC_START: u32 = 0x14;
+
+/// CPTRA_FW_ERROR_ENC Register End Address
+const CPTRA_FW_ERROR_ENC_END: u32 = 0x17;
+
+/// CPTRA_FW_EXTENDED_ERROR_INFO Register Start Address
+const CPTRA_FW_EXTENDED_ERROR_INFO_START: u32 = 0x18;
+
+/// CPTRA_FW_EXTENDED_ERROR_INFO Register End Address
+const CPTRA_FW_EXTENDED_ERROR_INFO_END: u32 = 0x37;
+
+/// CPTRA_FW_EXTENDED_ERROR_INFO Register Size
+const CPTRA_FW_EXTENDED_ERROR_INFO_SIZE: usize = 32;
+
+/// CPTRA_BOOT_STATUS Register Start Address
+const CPTRA_BOOT_STATUS_START: u32 = 0x38;
+
+/// CPTRA_BOOT_STATUS Register End Address
+const CPTRA_BOOT_STATUS_END: u32 = 0x3b;
+
+/// CPTRA_FLOW_STATUS Register Start Address
+const CPTRA_FLOW_STATUS_START: u32 = 0x3c;
+
+/// CPTRA_FLOW_STATUS Register End Address
+const CPTRA_FLOW_STATUS_END: u32 = 0x3f;
+
+/// CPTRA_RESET_REASON Register Start Address
+const CPTRA_RESET_REASON_START: u32 = 0x40;
+
+/// CPTRA_RESET_REASON Register End Address
+const CPTRA_RESET_REASON_END: u32 = 0x43;
+
+/// CPTRA_SECURITY_STATE Register Start Address
+const CPTRA_SECURITY_STATE_START: u32 = 0x44;
+
+/// CPTRA_SECURITY_STATE Register End Address
+const CPTRA_SECURITY_STATE_END: u32 = 0x47;
+
+/// CPTRA_VALID_PAUSER Register Start Address
+const CPTRA_VALID_PAUSER_START: u32 = 0x48;
+
+/// CPTRA_VALID_PAUSER Register End Address
+const CPTRA_VALID_PAUSER_END: u32 = 0x5b;
+
+/// CPTRA_VALID_PAUSER Register Size
+const CPTRA_VALID_PAUSER_SIZE: usize = 20;
+
+/// CPTRA_PAUSER_LOCK Register Start Address
+const CPTRA_PAUSER_LOCK_START: u32 = 0x5c;
+
+/// CPTRA_PAUSER_LOCK Register End Address
+const CPTRA_PAUSER_LOCK_END: u32 = 0x6f;
+
+/// CPTRA_PAUSER_LOCK Register Size
+const CPTRA_PAUSER_LOCK_SIZE: usize = 20;
+
+/// CPTRA_TRNG_VALID_PAUSER Register Start Address
+const CPTRA_TRNG_VALID_PAUSER_START: u32 = 0x70;
+
+/// CPTRA_TRNG_VALID_PAUSER Register End Address
+const CPTRA_TRNG_VALID_PAUSER_END: u32 = 0x73;
+
+/// CPTRA_TRNG_PAUSER_LOCK Register Start Address
+const CPTRA_TRNG_PAUSER_LOCK_START: u32 = 0x74;
+
+/// CPTRA_TRNG_PAUSER_LOCK Register End Address
+const CPTRA_TRNG_PAUSER_LOCK_END: u32 = 0x77;
+
+/// CPTRA_TRNG_DATA Register Start Address
+const CPTRA_TRNG_DATA_START: u32 = 0x78;
+
+/// CPTRA_TRNG_DATA Register End Address
+const CPTRA_TRNG_DATA_END: u32 = 0xa7;
+
+/// CPTRA_TRNG_DATA Register Size
+const CPTRA_TRNG_DATA_SIZE: usize = 48;
+
+/// CPTRA_TRNG_STATUS Register Start Address
+const CPTRA_TRNG_STATUS_START: u32 = 0xa8;
+
+/// CPTRA_TRNG_STATUS Register End Address
+const CPTRA_TRNG_STATUS_END: u32 = 0xab;
+
+/// CPTRA_FUSE_WR_DONE Register Start Address
+const CPTRA_FUSE_WR_DONE_START: u32 = 0xac;
+
+/// CPTRA_FUSE_WR_DONE Register End Address
+const CPTRA_FUSE_WR_DONE_END: u32 = 0xaf;
+
+/// CPTRA_TIMER_CONFIG Register Start Address
+const CPTRA_TIMER_CONFIG_START: u32 = 0xb0;
+
+/// CPTRA_TIMER_CONFIG Register End Address
+const CPTRA_TIMER_CONFIG_END: u32 = 0xb3;
+
+/// CPTRA_BOOTFSM_GO Register Start Address
+const CPTRA_BOOTFSM_GO_START: u32 = 0xb4;
+
+/// CPTRA_BOOTFSM_GO Register End Address
+const CPTRA_BOOTFSM_GO_END: u32 = 0xb7;
+
+/// CPTRA_DBG_MANUF_SERVICE_REG Register Start Address
+const CPTRA_DBG_MANUF_SERVICE_REG_START: u32 = 0xb8;
+
+/// CPTRA_DBG_MANUF_SERVICE_REG Register End Address
+const CPTRA_DBG_MANUF_SERVICE_REG_END: u32 = 0xbb;
+
+/// CPTRA_CLK_GATING_EN Register Start Address
+const CPTRA_CLK_GATING_EN_START: u32 = 0xbc;
+
+/// CPTRA_CLK_GATING_EN Register End Address
+const CPTRA_CLK_GATING_EN_END: u32 = 0xbf;
+
+/// CPTRA_GENERIC_INPUT_WIRES Register Start Address
+const CPTRA_GENERIC_INPUT_WIRES_START: u32 = 0xc0;
+
+/// CPTRA_GENERIC_INPUT_WIRES Register End Address
+const CPTRA_GENERIC_INPUT_WIRES_END: u32 = 0xc7;
+
+/// CPTRA_GENERIC_INPUT_WIRES Register Size
+const CPTRA_GENERIC_INPUT_WIRES_SIZE: usize = 8;
+
+/// CPTRA_GENERIC_OUTPUT_WIRES Register Start Address
+const CPTRA_GENERIC_OUTPUT_WIRES_START: u32 = 0xc8;
+
+/// CPTRA_GENERIC_OUTPUT_WIRES Register End Address
+const CPTRA_GENERIC_OUTPUT_WIRES_END: u32 = 0xcf;
+
+/// CPTRA_GENERIC_OUTPUT_WIRES Register Size
+const CPTRA_GENERIC_OUTPUT_WIRES_SIZE: usize = 8;
+
+/// FUSE_UDS_SEED Register Size
+const FUSE_UDS_SEED_SIZE: usize = 48;
+
+/// FUSE_FIELD_ENTROPY Register Size
+const FUSE_FIELD_ENTROPY_SIZE: usize = 32;
+
+/// FUSE_VENDOR_PK_HASH Register Start Address
+const FUSE_VENDOR_PK_HASH_START: u32 = 0x250;
+
+/// FUSE_VENDOR_PK_HASH Register End Address
+const FUSE_VENDOR_PK_HASH_END: u32 = 0x27f;
+
+/// FUSE_VENDOR_PK_HASH Register Size
+const FUSE_VENDOR_PK_HASH_SIZE: usize = 48;
+
+/// FUSE_VENDOR_PK_MASK Register Start Address
+const FUSE_VENDOR_PK_MASK_START: u32 = 0x280;
+
+/// FUSE_VENDOR_PK_MASK Register End Address
+const FUSE_VENDOR_PK_MASK_END: u32 = 0x283;
+
+/// FUSE_OWNER_PK_HASH Register Start Address
+const FUSE_OWNER_PK_HASH_START: u32 = 0x284;
+
+/// FUSE_OWNER_PK_HASH Register End Address
+const FUSE_OWNER_PK_HASH_END: u32 = 0x2b3;
+
+/// FUSE_OWNER_PK_HASH Register Size
+const FUSE_OWNER_PK_HASH_SIZE: usize = 48;
+
+/// FUSE_FMC_SVN Register Start Address
+const FUSE_FMC_SVN_START: u32 = 0x2b4;
+
+/// FUSE_FMC_SVN Register End Address
+const FUSE_FMC_SVN_END: u32 = 0x2b7;
+
+/// FUSE_RUNTIME_SVN Register Start Address
+const FUSE_RUNTIME_SVN_START: u32 = 0x2b8;
+
+/// FUSE_RUNTIME_SVN Register End Address
+const FUSE_RUNTIME_SVN_END: u32 = 0x2c7;
+
+/// FUSE_RUNTIME_SVN Register Size
+const FUSE_RUNTIME_SVN_SIZE: usize = 16;
+
+/// FUSE_ANTI_ROLLBACK_DISABLE Register Start Address
+const FUSE_ANTI_ROLLBACK_DISABLE_START: u32 = 0x2c8;
+
+/// FUSE_ANTI_ROLLBACK_DISABLE Register End Address
+const FUSE_ANTI_ROLLBACK_DISABLE_END: u32 = 0x2cb;
+
+/// FUSE_IDEVID_CERT_ATTR Register Start Address
+const FUSE_IDEVID_CERT_ATTR_START: u32 = 0x2cc;
+
+/// FUSE_IDEVID_CERT_ATTR Register End Address
+const FUSE_IDEVID_CERT_ATTR_END: u32 = 0x32b;
+
+/// FUSE_IDEVID_CERT_ATTR Register Size
+const FUSE_IDEVID_CERT_ATTR_SIZE: usize = 96;
+
+/// FUSE_IDEVID_MANUF_HSM_ID Register Start Address
+const FUSE_IDEVID_MANUF_HSM_ID_START: u32 = 0x32c;
+
+/// FUSE_IDEVID_MANUF_HSM_ID Register End Address
+const FUSE_IDEVID_MANUF_HSM_ID_END: u32 = 0x33b;
+
+/// FUSE_IDEVID_MANUF_HSM_ID Register Size
+const FUSE_IDEVID_MANUF_HSM_ID_SIZE: usize = 16;
+
+/// FUSE_LIFE_CYCLE Register Start Address
+const FUSE_LIFE_CYCLE_START: u32 = 0x33c;
+
+/// FUSE_LIFE_CYCLE Register End Address
+const FUSE_LIFE_CYCLE_END: u32 = 0x33f;
+
+/// INTERNAL_OBF_KEY Register Size
+const INTERNAL_OBF_KEY_SIZE: usize = 32;
+
+/// INTERNAL_ICCM_LOCK Register Start Address
+const INTERNAL_ICCM_LOCK_START: u32 = 0x620;
+
+/// INTERNAL_ICCM_LOCK Register End Address
+const INTERNAL_ICCM_LOCK_END: u32 = 0x623;
+
+/// INTERNAL_FW_UPDATE_RESET Register Start Address
+const INTERNAL_FW_UPDATE_RESET_START: u32 = 0x624;
+
+/// INTERNAL_FW_UPDATE_RESET Register End Address
+const INTERNAL_FW_UPDATE_RESET_END: u32 = 0x627;
+
+/// INTERNAL_FW_UPDATE_RESET_WAIT_CYCLES Register Start Address
+const INTERNAL_FW_UPDATE_RESET_WAIT_CYCLES_START: u32 = 0x628;
+
+/// INTERNAL_FW_UPDATE_RESET_WAIT_CYCLES Register End Address
+const INTERNAL_FW_UPDATE_RESET_WAIT_CYCLES_END: u32 = 0x62b;
+
+/// INTERNAL_NMI_VECTOR Register Start Address
+const INTERNAL_NMI_VECTOR_START: u32 = 0x62c;
+
+/// INTERNAL_NMI_VECTOR Register End Address
+const INTERNAL_NMI_VECTOR_END: u32 = 0x62f;
 
 register_bitfields! [
     u32,
 
     /// Flow Status
     FlowStatus [
-        STATUS OFFSET(0) NUMBITS(28) [],
+        STATUS OFFSET(0) NUMBITS(26) [],
+        LDEVID_CERT_READY OFFSET(26) NUMBITS(1) [],
+        IDEVID_CSR_READY OFFSET(27) NUMBITS(1) [],
         READY_FOR_FW OFFSET(28) NUMBITS(1) [],
         READY_FOR_RT OFFSET(29) NUMBITS(1) [],
         READY_FOR_FUSES OFFSET(30) NUMBITS(1) [],
         MBOX_FLOW_DONE OFFSET(31) NUMBITS(1) [],
    ],
 
-   /// Security State
-   SecurityState [
-       LIFE_CYCLE OFFSET(0) NUMBITS(2) [
+    /// Security State
+    SecurityState [
+        LIFE_CYCLE OFFSET(0) NUMBITS(2) [
            UNPROVISIONED = 0b00,
            MANUFACTURING = 0b01,
            PRODUCTION = 011,
-       ],
-       DEBUG_LOCKED OFFSET(2) NUMBITS(1) [],
-   ],
-
-    /// Valid User Lock
-    ValiPAUserLock [
-        LOCK OFFSET(0) NUMBITS(1) [],
-        RSVD OFFSET(1) NUMBITS(31) [],
-   ],
-
-    /// User Lock TRNG
-    TrngPauserLock [
-            LOCK OFFSET(0) NUMBITS(1) [],
-            RSVD OFFSET(1) NUMBITS(31) [],
+        ],
+        DEBUG_LOCKED OFFSET(2) NUMBITS(1) [],
     ],
 
-    /// TRNG Done
-    TrngDone [
-        DONE OFFSET(0) NUMBITS(1) [],
-        RSVD OFFSET(1) NUMBITS(31) [],
-    ],
-
-    /// Fuse Write Done
-    FuseWriteDone [
-        DONE OFFSET(0) NUMBITS(1) [],
-        RSVD OFFSET(1) NUMBITS(31) [],
-    ],
-
-    /// Boot FSM Go
-    BootFsmGo [
-        GO OFFSET(0) NUMBITS(1) [],
-        RSVD OFFSET(1) NUMBITS(31) [],
-    ],
-
-    /// Clock Gating Enable
-    ClockGatingEnable [
-        EN OFFSET(0) NUMBITS(1) [],
-        RSVD OFFSET(1) NUMBITS(31) [],
-    ],
-
-    /// Key Manifest Private Key Hash Mask
-    KeyManifestPkHashMask [
-        MASK OFFSET(0) NUMBITS(4) [],
-        RSVD OFFSET(4) NUMBITS(28) [],
-    ],
-
-    /// Owner Key Manifest Private Key Hash Mask
-    OwnerKeyManifestPkHashMask [
+    /// Key Manifest Public Key Mask
+    VendorPubKeyMask [
         MASK OFFSET(0) NUMBITS(4) [],
         RSVD OFFSET(4) NUMBITS(28) [],
     ],
 
     /// Anti Rollback Disable
     AntiRollbackDisable [
-        DIS OFFSET(0) NUMBITS(1) [],
+        DISABLE OFFSET(0) NUMBITS(1) [],
         RSVD OFFSET(1) NUMBITS(31) [],
     ],
 
@@ -147,6 +348,13 @@ register_bitfields! [
         WAIT_CYCLES OFFSET(0) NUMBITS(8) [],
         RSVD OFFSET(8) NUMBITS(24) [],
     ],
+
+    /// Debug Manufacturing Service Register
+    DebugManufService [
+        REQ_IDEVID_CSR OFFSET(0) NUMBITS(1) [],
+        REQ_LDEVID_CERT OFFSET(1) NUMBITS(1) [],
+        RSVD OFFSET(2) NUMBITS(30) [],
+    ],
 ];
 
 /// SOC Register peripheral
@@ -158,77 +366,30 @@ pub struct SocRegisters {
 impl SocRegisters {
     /// Caliptra Register Start Address
     const CALIPTRA_REG_START_ADDR: u32 = 0x00;
+
     /// Caliptra Register End Address
     const CALIPTRA_REG_END_ADDR: u32 = 0x62C;
 
     /// Create an instance of SOC register peripheral
-    pub fn new(clock: &Clock, mailbox: Mailbox, fw_img: Vec<u8>) -> Self {
+    pub fn new(clock: &Clock, mailbox: Mailbox, args: &CaliptraRootBusArgs) -> Self {
         Self {
-            regs: Rc::new(RefCell::new(SocRegistersImpl::new(clock, mailbox, fw_img))),
+            regs: Rc::new(RefCell::new(SocRegistersImpl::new(clock, mailbox, args))),
         }
     }
 
     /// Get Unique device secret
-    pub fn uds(&self) -> [u8; UDS_SIZE] {
-        self.regs.borrow().uds.data().clone()
+    pub fn uds(&self) -> [u8; FUSE_UDS_SEED_SIZE] {
+        self.regs.borrow().fuse_uds_seed.data().clone()
     }
 
     // Get field entropy
-    pub fn field_entropy(&self) -> [u8; FIELD_ENTROPY_SIZE] {
-        self.regs.borrow().field_entropy.data().clone()
+    pub fn field_entropy(&self) -> [u8; FUSE_FIELD_ENTROPY_SIZE] {
+        self.regs.borrow().fuse_field_entropy.data().clone()
     }
 
     /// Get deobfuscation engine key
-    pub fn doe_key(&self) -> [u8; DOE_KEY_SIZE] {
-        self.regs.borrow().doe_key.data().clone()
-    }
-
-    pub fn key_manifest_pk_hash(&self) -> [u8; KEY_MANIFEST_PK_HASH_SIZE] {
-        self.regs.borrow().key_manifest_pk_hash.data().clone()
-    }
-
-    pub fn owner_key_manifest_pk_hash(&self) -> [u8; OWNER_KEY_MANIFEST_PK_HASH_SIZE] {
-        self.regs.borrow().owner_key_manifest_pk_hash.data().clone()
-    }
-
-    pub fn key_manifest_svn(&self) -> u32 {
-        self.regs.borrow().key_manifest_svn.reg.get()
-    }
-
-    pub fn boot_loader_svn(&self) -> u32 {
-        self.regs.borrow().boot_loader_svn.reg.get()
-    }
-
-    pub fn runtime_svn(&self) -> [u8; RUNTIME_SVN_SIZE] {
-        self.regs.borrow().runtime_svn.data().clone()
-    }
-
-    pub fn anti_rollback_disable(&self) -> u32 {
-        self.regs.borrow().anti_rollback_disable.reg.get()
-    }
-
-    pub fn idevid_cert_attr(&self) -> [u8; IDEVID_CERT_ATTR_SIZE] {
-        self.regs.borrow().idevid_cert_attr.data().clone()
-    }
-
-    pub fn idevid_manuf_hsm_id(&self) -> [u8; IDEVID_MANUF_HSM_ID_SIZE] {
-        self.regs.borrow().idevid_manuf_hsm_id.data().clone()
-    }
-
-    pub fn iccm_lock(&self) -> u32 {
-        self.regs.borrow().iccm_lock.reg.get()
-    }
-
-    pub fn fw_update_reset(&self) -> u32 {
-        self.regs.borrow().fw_update_reset.reg.get()
-    }
-
-    pub fn fw_update_reset_wait_cycles(&self) -> u32 {
-        self.regs.borrow().fw_update_reset_wait_cycles.reg.get()
-    }
-
-    pub fn nmi_vector(&self) -> u32 {
-        self.regs.borrow().nmi_vector.reg.get()
+    pub fn doe_key(&self) -> [u8; INTERNAL_OBF_KEY_SIZE] {
+        self.regs.borrow().internal_obf_key.data().clone()
     }
 
     /// Clear secrets
@@ -264,232 +425,303 @@ impl Bus for SocRegisters {
 }
 
 /// SOC Register implementation
-#[derive(Bus)]
-#[poll_fn(poll)]
+
 struct SocRegistersImpl {
-    /// Hardware Error Fatal
-    #[register(offset = 0x0000_0000)]
-    hw_err_fatal: ReadWriteRegister<u32>,
+    /// CPTRA_HW_ERROR_FATAL Register
+    cptra_hw_error_fatal: ReadWriteRegister<u32>,
 
-    /// Hardware Error Non Fatal
-    #[register(offset = 0x0000_0004)]
-    hw_err_non_fatal: ReadWriteRegister<u32>,
+    /// CPTRA_HW_ERROR_NON_FATAL Register
+    cptra_hw_error_non_fatal: ReadWriteRegister<u32>,
 
-    /// Firmware Error Fatal
-    #[register(offset = 0x0000_0008)]
-    fw_err_fatal: ReadWriteRegister<u32>,
+    /// CPTRA_FW_ERROR_FATAL Register
+    cptra_fw_error_fatal: ReadWriteRegister<u32>,
 
-    /// Firmware Error Non Fatal
-    #[register(offset = 0x0000_000C)]
-    fw_err_non_fatal: ReadWriteRegister<u32>,
+    /// CPTRA_FW_ERROR_NON_FATAL Register
+    cptra_fw_error_non_fatal: ReadWriteRegister<u32>,
 
-    /// Hardware Error Encoding
-    #[register(offset = 0x0000_0010)]
-    hw_err_enc: ReadWriteRegister<u32>,
+    /// CPTRA_HW_ERROR_ENC Register
+    cptra_hw_error_enc: ReadWriteRegister<u32>,
 
-    /// Firmware Error Encoding
-    #[register(offset = 0x0000_0014)]
-    fw_err_enc: ReadWriteRegister<u32>,
+    /// CPTRA_FW_ERROR_ENC Register
+    cptra_fw_error_enc: ReadWriteRegister<u32>,
 
-    /// Boot Status
-    #[register(offset = 0x0000_0038)]
-    boot_status: ReadWriteRegister<u32>,
+    /// CPTRA_FW_EXTENDED_ERROR_INFO Register
+    cptra_fw_extended_error_info: ReadWriteMemory<CPTRA_FW_EXTENDED_ERROR_INFO_SIZE>,
 
-    /// Flow Status
-    #[register(offset = 0x0000_003C, write_fn = on_write_flow_status)]
-    flow_status: ReadWriteRegister<u32, FlowStatus::Register>,
+    /// CPTRA_BOOT_STATUS Register
+    cptra_boot_status: ReadWriteRegister<u32>,
 
-    /// Reset Reason
-    #[register(offset = 0x0000_0040)]
-    reset_reason: ReadOnlyRegister<u32>,
+    /// CPTRA_FLOW_STATUS Register
+    cptra_flow_status: ReadWriteRegister<u32, FlowStatus::Register>,
 
-    /// Security State
-    #[register(offset = 0x0000_0044)]
-    security_state: ReadOnlyRegister<u32, SecurityState::Register>,
+    /// CPTRA_RESET_REASON Register
+    cptra_reset_reason: ReadOnlyRegister<u32>,
 
-    /// Fuse Write Done
-    #[register(offset = 0x0000_00ac)]
-    fuse_write_done: ReadWriteRegister<u32, FuseWriteDone::Register>,
+    /// CPTRA_SECURITY_STATE Register
+    cptra_security_state: ReadOnlyRegister<u32, SecurityState::Register>,
 
-    /// Timer Config
-    #[register(offset = 0x0000_00b0)]
-    timer_cfg: ReadOnlyRegister<u32>,
+    /// CPTRA_VALID_PAUSER Register
+    cptra_valid_pauser: ReadWriteMemory<CPTRA_VALID_PAUSER_SIZE>,
 
-    /// Boot FSM Go
-    #[register(offset = 0x0000_00B4)]
-    boot_fsm_go: ReadWriteRegister<u32, BootFsmGo::Register>,
+    /// CPTRA_PAUSER_LOCK Register
+    cptra_pauser_lock: ReadWriteMemory<CPTRA_PAUSER_LOCK_SIZE>,
 
-    /// Clock Gating Enable
-    #[register(offset = 0x0000_00BC)]
-    clk_gating_enable: ReadWriteRegister<u32, ClockGatingEnable::Register>,
+    /// CPTRA_TRNG_VALID_PAUSER Register
+    cptra_trng_valid_pauser: ReadWriteRegister<u32>,
 
-    /// Debug output and exit control
-    #[register(offset = 0x0000_00C8, write_fn = on_write_stdout)]
-    stdout: WriteOnlyRegister<u32>,
+    /// CPTRA_TRNG_PAUSER_LOCK Register
+    cptra_trng_pauser_lock: ReadWriteRegister<u32>,
 
-    /// Unique device secret
-    uds: ReadOnlyMemory<UDS_SIZE>,
+    /// CPTRA_TRNG_DATA Register
+    cptra_trng_data: ReadOnlyMemory<CPTRA_TRNG_DATA_SIZE>,
 
-    /// Field entropy
-    field_entropy: ReadOnlyMemory<FIELD_ENTROPY_SIZE>,
+    /// CPTRA_TRNG_STATUS Register
+    cptra_trng_status: ReadOnlyRegister<u32>,
 
-    /// Key Manifest Private
-    #[peripheral(offset = 0x0000_0250, mask = 0x0000_003F)]
-    key_manifest_pk_hash: ReadOnlyMemory<KEY_MANIFEST_PK_HASH_SIZE>,
+    /// CPTRA_FUSE_WR_DONE Register
+    cptra_fuse_wr_done: ReadOnlyRegister<u32>,
 
-    /// Key Manifest Private Key Hash Mask
-    #[register(offset = 0x0000_0280)]
-    key_manifest_pk_hash_mask: ReadOnlyRegister<u32, KeyManifestPkHashMask::Register>,
+    /// CPTRA_TIMER_CONFIG Register
+    cptra_timer_config: ReadWriteRegister<u32>,
 
-    /// Owner Key Manifest Private Key Hash
-    #[peripheral(offset = 0x0000_0284, mask = 0x0000_003F)]
-    owner_key_manifest_pk_hash: ReadOnlyMemory<OWNER_KEY_MANIFEST_PK_HASH_SIZE>,
+    /// CPTRA_BOOTFSM_GO Register
+    cptra_bootfsm_go: ReadOnlyRegister<u32>,
 
-    /// Owner Key Manifest Private Key Hash Mask
-    #[register(offset = 0x0000_02b4)]
-    owner_key_manifest_pk_hash_mask: ReadOnlyRegister<u32, OwnerKeyManifestPkHashMask::Register>,
+    /// CPTRA_DBG_MANUF_SERVICE_REG Register
+    cptra_dbg_manuf_service_reg: ReadWriteRegister<u32, DebugManufService::Register>,
 
-    /// Key Manifest SVN
-    #[register(offset = 0x0000_02b8)]
-    key_manifest_svn: ReadOnlyRegister<u32>,
+    /// CPTRA_CLK_GATING_EN Register
+    cptra_clk_gating_en: ReadOnlyRegister<u32>,
 
-    /// Boot Loader SVN
-    #[register(offset = 0x0000_02bc)]
-    boot_loader_svn: ReadOnlyRegister<u32>,
+    /// CPTRA_GENERIC_INPUT_WIRES Register
+    cptra_generic_input_wires: ReadOnlyMemory<CPTRA_GENERIC_INPUT_WIRES_SIZE>,
 
-    /// Runtime SVN
-    #[peripheral(offset = 0x0000_02c0, mask = 0x0000_000F)]
-    runtime_svn: ReadOnlyMemory<RUNTIME_SVN_SIZE>,
+    /// CPTRA_GENERIC_OUTPUT_WIRES Register
+    cptra_generic_output_wires: ReadWriteMemory<CPTRA_GENERIC_OUTPUT_WIRES_SIZE>,
 
-    /// Anti-Rollback Disable
-    #[register(offset = 0x0000_02d0)]
-    anti_rollback_disable: ReadOnlyRegister<u32, AntiRollbackDisable::Register>,
+    /// FUSE_UDS_SEED Register
+    fuse_uds_seed: ReadOnlyMemory<FUSE_UDS_SEED_SIZE>,
 
-    /// idevid Cert Attribute
-    #[peripheral(offset = 0x0000_02d4, mask = 0x0000_007F)]
-    idevid_cert_attr: ReadOnlyMemory<IDEVID_CERT_ATTR_SIZE>,
+    /// FUSE_FIELD_ENTROPY Register
+    fuse_field_entropy: ReadOnlyMemory<FUSE_FIELD_ENTROPY_SIZE>,
 
-    /// idevid manufacturer HSM id
-    #[peripheral(offset = 0x0000_0334, mask = 0x0000_000F)]
-    idevid_manuf_hsm_id: ReadOnlyMemory<IDEVID_MANUF_HSM_ID_SIZE>,
+    /// FUSE_VENDOR_PK_HASH Register
+    fuse_vendor_pk_hash: ReadOnlyMemory<FUSE_VENDOR_PK_HASH_SIZE>,
 
-    /// Deobfuscation engine key
-    doe_key: ReadOnlyMemory<DOE_KEY_SIZE>,
+    /// FUSE_VENDOR_PK_MASK Register
+    fuse_vendor_pk_hash_mask: ReadOnlyRegister<u32, VendorPubKeyMask::Register>,
 
-    /// ICCM lock
-    #[register(offset = 0x0000_0620)]
-    iccm_lock: ReadWriteRegister<u32, IccmLock::Register>,
+    /// FUSE_OWNER_PK_HASH Register
+    fuse_owner_pk_hash: ReadOnlyMemory<FUSE_OWNER_PK_HASH_SIZE>,
 
-    /// Firmware update reset
-    #[register(offset = 0x0000_0624)]
-    fw_update_reset: ReadWriteRegister<u32, FwUpdateReset::Register>,
+    /// FUSE_FMC_SVN Register
+    fuse_fmc_svn: ReadOnlyRegister<u32>,
 
-    /// Firmware update reset wait cycles
-    #[register(offset = 0x0000_0628)]
-    fw_update_reset_wait_cycles: ReadWriteRegister<u32, FwUpdateResetWaitCycles::Register>,
+    /// FUSE_RUNTIME_SVN Register
+    fuse_runtime_svn: ReadOnlyMemory<FUSE_RUNTIME_SVN_SIZE>,
 
-    /// NMI Vector
-    #[register(offset = 0x0000_062c)]
-    nmi_vector: ReadWriteRegister<u32>,
+    /// FUSE_ANTI_ROLLBACK_DISABLE Register
+    fuse_anti_rollback_disable: ReadOnlyRegister<u32>,
+
+    /// FUSE_IDEVID_CERT_ATTR Register
+    fuse_idevid_cert_attr: ReadOnlyMemory<FUSE_IDEVID_CERT_ATTR_SIZE>,
+
+    /// FUSE_IDEVID_MANUF_HSM_ID Register
+    fuse_idevid_manuf_hsm_id: ReadOnlyMemory<FUSE_IDEVID_MANUF_HSM_ID_SIZE>,
+
+    /// FUSE_LIFE_CYCLE Register
+    fuse_life_cycle: ReadOnlyRegister<u32>,
+
+    /// INTERNAL_OBF_KEY Register
+    internal_obf_key: ReadOnlyMemory<INTERNAL_OBF_KEY_SIZE>,
+
+    /// INTERNAL_ICCM_LOCK Register
+    internal_iccm_lock: ReadWriteRegister<u32, IccmLock::Register>,
+
+    /// INTERNAL_FW_UPDATE_RESET Register
+    internal_fw_update_reset: ReadWriteRegister<u32, FwUpdateReset::Register>,
+
+    /// INTERNAL_FW_UPDATE_RESET_WAIT_CYCLES Register
+    internal_fw_update_reset_wait_cycles: ReadWriteRegister<u32, FwUpdateResetWaitCycles::Register>,
+
+    /// INTERNAL_NMI_VECTOR Register
+    internal_nmi_vector: ReadWriteRegister<u32>,
 
     /// Mailbox
     mailbox: Mailbox,
 
-    /// Firmware image
-    fw_img: Vec<u8>,
+    /// Firmware
+    firmware: Vec<u8>,
+
+    /// Log Directory
+    log_dir: PathBuf,
 
     /// Timer
     timer: Timer,
 
+    /// Firmware Write Complete action
+    op_fw_write_complete_action: Option<TimerAction>,
+
     /// Firmware Read Complete action
     op_fw_read_complete_action: Option<TimerAction>,
+
+    /// IDEVID CSR Read Complete action
+    op_idevid_csr_read_complete_action: Option<TimerAction>,
+
+    /// LDEVID Cert Read Complete action
+    op_ldevid_cert_read_complete_action: Option<TimerAction>,
 }
 
 impl SocRegistersImpl {
-    /// Clock period for 450 MHz Clock in pico seconds
-    const CLOCK_PERIOD: u32 = 2222000;
-
-    /// Wait cycles period for firmware update reset.
-    const RESET_WAIT_CYCLES: u8 = 5;
-
     /// Default Deobfuscation engine key
-    const DOE_KEY: [u8; DOE_KEY_SIZE] = [
+    const DOE_KEY: [u8; INTERNAL_OBF_KEY_SIZE] = [
         0x60, 0x3D, 0xEB, 0x10, 0x15, 0xCA, 0x71, 0xBE, 0x2B, 0x73, 0xAE, 0xF0, 0x85, 0x7D, 0x77,
         0x81, 0x1F, 0x35, 0x2C, 0x7, 0x3B, 0x61, 0x8, 0xD7, 0x2D, 0x98, 0x10, 0xA3, 0x9, 0x14,
         0xDF, 0xF4,
     ];
 
     /// Default unique device secret
-    const UDS: [u8; UDS_SIZE] = [
+    const UDS: [u8; FUSE_UDS_SEED_SIZE] = [
         0xF5, 0x8C, 0x4C, 0x4, 0xD6, 0xE5, 0xF1, 0xBA, 0x77, 0x9E, 0xAB, 0xFB, 0x5F, 0x7B, 0xFB,
         0xD6, 0x9C, 0xFC, 0x4E, 0x96, 0x7E, 0xDB, 0x80, 0x8D, 0x67, 0x9F, 0x77, 0x7B, 0xC6, 0x70,
         0x2C, 0x7D, 0x39, 0xF2, 0x33, 0x69, 0xA9, 0xD9, 0xBA, 0xCF, 0xA5, 0x30, 0xE2, 0x63, 0x4,
         0x23, 0x14, 0x61,
     ];
 
-    const CALIPTRA_FW_LOAD_CMD: u32 = 0x4657_4C44;
+    /// The number of CPU clock cycles it takes to write the firmware to the mailbox.
+    const FW_WRITE_TICKS: u64 = 1000;
 
-    /// Create an instance of SOC register implementation
-    pub fn new(clock: &Clock, mailbox: Mailbox, fw_img: Vec<u8>) -> Self {
+    /// The number of CPU clock cycles it takes to read the firmware from the mailbox.
+    const FW_READ_TICKS: u64 = 0;
+
+    /// The number of CPU clock cycles it takes to read the IDEVID CSR from the mailbox.
+    const IDEVID_CSR_READ_TICKS: u64 = 100;
+
+    /// The number of CPU clock cycles it takes to read the LDEVID Cert from the mailbox.
+    const LDEVID_CERT_READ_TICKS: u64 = 300;
+
+    pub fn new(clock: &Clock, mailbox: Mailbox, args: &CaliptraRootBusArgs) -> Self {
         let mut regs = Self {
-            uds: ReadOnlyMemory::new(),
-            field_entropy: ReadOnlyMemory::new(),
-            doe_key: ReadOnlyMemory::new(),
-            hw_err_fatal: ReadWriteRegister::new(0),
-            hw_err_non_fatal: ReadWriteRegister::new(0),
-            fw_err_fatal: ReadWriteRegister::new(0),
-            fw_err_non_fatal: ReadWriteRegister::new(0),
-            hw_err_enc: ReadWriteRegister::new(0),
-            fw_err_enc: ReadWriteRegister::new(0),
-            boot_status: ReadWriteRegister::new(0),
-            flow_status: ReadWriteRegister::new(0),
-            reset_reason: ReadOnlyRegister::new(0),
-            security_state: ReadOnlyRegister::new(
-                (SecurityState::DEBUG_LOCKED::CLEAR + SecurityState::LIFE_CYCLE::UNPROVISIONED)
-                    .value,
-            ),
-            stdout: WriteOnlyRegister::new(0),
-            timer_cfg: ReadOnlyRegister::new(Self::CLOCK_PERIOD),
-            fuse_write_done: ReadWriteRegister::new((FuseWriteDone::DONE::CLEAR).value),
-            boot_fsm_go: ReadWriteRegister::new((BootFsmGo::GO::CLEAR).value),
-            clk_gating_enable: ReadWriteRegister::new((ClockGatingEnable::EN::CLEAR).value),
-            key_manifest_pk_hash: ReadOnlyMemory::new(),
-            key_manifest_pk_hash_mask: ReadOnlyRegister::new(
-                (KeyManifestPkHashMask::MASK::CLEAR).value,
-            ),
-            owner_key_manifest_pk_hash: ReadOnlyMemory::new(),
-            owner_key_manifest_pk_hash_mask: ReadOnlyRegister::new(
-                (OwnerKeyManifestPkHashMask::MASK::CLEAR).value,
-            ),
-            key_manifest_svn: ReadOnlyRegister::new(0),
-            boot_loader_svn: ReadOnlyRegister::new(0),
-            runtime_svn: ReadOnlyMemory::new(),
-            anti_rollback_disable: ReadOnlyRegister::new((AntiRollbackDisable::DIS::CLEAR).value),
-            idevid_cert_attr: ReadOnlyMemory::new(),
-            idevid_manuf_hsm_id: ReadOnlyMemory::new(),
-            iccm_lock: ReadWriteRegister::new((IccmLock::LOCK::CLEAR).value),
-            fw_update_reset: ReadWriteRegister::new((FwUpdateReset::CORE_RST::CLEAR).value),
-            fw_update_reset_wait_cycles: ReadWriteRegister::new(
-                (FwUpdateResetWaitCycles::WAIT_CYCLES.val(Self::RESET_WAIT_CYCLES as u32)).value,
-            ),
-            nmi_vector: ReadWriteRegister::new(0),
+            cptra_hw_error_fatal: ReadWriteRegister::new(0),
+            cptra_hw_error_non_fatal: ReadWriteRegister::new(0),
+            cptra_fw_error_fatal: ReadWriteRegister::new(0),
+            cptra_fw_error_non_fatal: ReadWriteRegister::new(0),
+            cptra_hw_error_enc: ReadWriteRegister::new(0),
+            cptra_fw_error_enc: ReadWriteRegister::new(0),
+            cptra_fw_extended_error_info: ReadWriteMemory::new(),
+            cptra_boot_status: ReadWriteRegister::new(0),
+            cptra_flow_status: ReadWriteRegister::new(0),
+            cptra_reset_reason: ReadOnlyRegister::new(0),
+            cptra_security_state: ReadOnlyRegister::new(0),
+            cptra_valid_pauser: ReadWriteMemory::new(),
+            cptra_pauser_lock: ReadWriteMemory::new(),
+            cptra_trng_valid_pauser: ReadWriteRegister::new(0),
+            cptra_trng_pauser_lock: ReadWriteRegister::new(0),
+            cptra_trng_data: ReadOnlyMemory::new(),
+            cptra_trng_status: ReadOnlyRegister::new(0),
+            cptra_fuse_wr_done: ReadOnlyRegister::new(0),
+            cptra_timer_config: ReadWriteRegister::new(0),
+            cptra_bootfsm_go: ReadOnlyRegister::new(0),
+            cptra_dbg_manuf_service_reg: ReadWriteRegister::new(0),
+            cptra_clk_gating_en: ReadOnlyRegister::new(0),
+            cptra_generic_input_wires: ReadOnlyMemory::new(),
+            cptra_generic_output_wires: ReadWriteMemory::new(),
+            fuse_uds_seed: ReadOnlyMemory::new_with_data(Self::UDS),
+            fuse_field_entropy: ReadOnlyMemory::new_with_data([0xFF; 32]),
+            fuse_vendor_pk_hash: ReadOnlyMemory::new(),
+            fuse_vendor_pk_hash_mask: ReadOnlyRegister::new(0),
+            fuse_owner_pk_hash: ReadOnlyMemory::new(),
+            fuse_fmc_svn: ReadOnlyRegister::new(0),
+            fuse_runtime_svn: ReadOnlyMemory::new(),
+            fuse_anti_rollback_disable: ReadOnlyRegister::new(0),
+            fuse_idevid_cert_attr: ReadOnlyMemory::new(),
+            fuse_idevid_manuf_hsm_id: ReadOnlyMemory::new(),
+            fuse_life_cycle: ReadOnlyRegister::new(0),
+            internal_obf_key: ReadOnlyMemory::new_with_data(Self::DOE_KEY),
+            internal_iccm_lock: ReadWriteRegister::new(0),
+            internal_fw_update_reset: ReadWriteRegister::new(0),
+            internal_fw_update_reset_wait_cycles: ReadWriteRegister::new(0),
+            internal_nmi_vector: ReadWriteRegister::new(0),
             mailbox,
-            fw_img,
+            firmware: args.firmware.clone(),
+            log_dir: args.log_dir.clone(),
             timer: Timer::new(clock),
+            op_fw_write_complete_action: None,
             op_fw_read_complete_action: None,
+            op_idevid_csr_read_complete_action: None,
+            op_ldevid_cert_read_complete_action: None,
         };
 
-        regs.uds.data_mut().copy_from_slice(&Self::UDS);
-        regs.doe_key.data_mut().copy_from_slice(&Self::DOE_KEY);
-        regs.field_entropy.data_mut().fill(0xFF);
+        regs.set_cptra_dbg_manuf_service_reg(args);
+        regs.set_idevid_cert_attr(args);
+
         regs
     }
 
+    fn set_cptra_dbg_manuf_service_reg(&mut self, args: &CaliptraRootBusArgs) {
+        register_bitfields! [
+            u32,
+            DebugManufService [
+                GEN_IDEVID_CSR OFFSET(0) NUMBITS(1) [],
+                GEN_LDEVID_CERT OFFSET(1) NUMBITS(1) [],
+                RESERVED OFFSET(2) NUMBITS(30) [],
+            ],
+        ];
+        let reg: InMemoryRegister<u32, DebugManufService::Register> = InMemoryRegister::new(0);
+
+        if args.req_idevid_csr {
+            reg.modify(DebugManufService::GEN_IDEVID_CSR::SET);
+        }
+
+        if args.req_ldevid_cert {
+            reg.modify(DebugManufService::GEN_LDEVID_CERT::SET);
+        }
+
+        self.cptra_dbg_manuf_service_reg.reg.set(reg.get());
+    }
+
+    fn set_idevid_cert_attr(&mut self, args: &CaliptraRootBusArgs) {
+        register_bitfields! [
+            u32,
+            IDevIdCertAttrFlags [
+                KEY_ID_ALGO OFFSET(0) NUMBITS(2) [
+                    SHA1 = 0b00,
+                    SHA256 = 0b10,
+                    FUSE = 0b11,
+                ],
+                RESERVED OFFSET(2) NUMBITS(30) [],
+            ],
+        ];
+
+        // Determine the Algorithm used for IDEVID Certificate Subject Key Identifier
+        let reg: InMemoryRegister<u32, IDevIdCertAttrFlags::Register> = InMemoryRegister::new(0);
+        if args.idev_key_id_algo.eq_ignore_ascii_case("sha1") {
+            reg.write(IDevIdCertAttrFlags::KEY_ID_ALGO::SHA1)
+        } else if args.idev_key_id_algo.eq_ignore_ascii_case("sha2") {
+            reg.write(IDevIdCertAttrFlags::KEY_ID_ALGO::SHA256)
+        } else if args.idev_key_id_algo.eq_ignore_ascii_case("fuse") {
+            reg.write(IDevIdCertAttrFlags::KEY_ID_ALGO::FUSE)
+        } else {
+            reg.write(IDevIdCertAttrFlags::KEY_ID_ALGO::SHA1)
+        }
+
+        // DWORD 00      - Flags
+        self.fuse_idevid_cert_attr.data_mut()[00..04].copy_from_slice(&reg.get().to_le_bytes());
+
+        // DWORD 01 - 05 - IDEVID Subject Key Identifier
+        self.fuse_idevid_cert_attr.data_mut()[04..24].copy_from_slice(&[0x00; 20]);
+
+        // DWORD 06 - 07 - UEID / Manufacturer Serial Number
+        let ueid = args.ueid.to_le_bytes();
+        self.fuse_idevid_cert_attr.data_mut()[24..28].copy_from_slice(&ueid[..4]);
+        self.fuse_idevid_cert_attr.data_mut()[28..32].copy_from_slice(&ueid[4..]);
+    }
+
     /// Clear secrets
-    pub fn clear_secrets(&mut self) {
-        self.uds.data_mut().fill(0);
-        self.field_entropy.data_mut().fill(0);
-        self.doe_key.data_mut().fill(0);
+    fn clear_secrets(&mut self) {
+        self.fuse_uds_seed.data_mut().fill(0);
+        self.fuse_field_entropy.data_mut().fill(0);
+        self.internal_obf_key.data_mut().fill(0);
     }
 
     /// On Write callback for `stdout` register
@@ -502,7 +734,7 @@ impl SocRegistersImpl {
     /// # Error
     ///
     /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
-    pub fn on_write_stdout(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
+    fn on_write_stdout(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
         if size != RvSize::Word {
             Err(BusError::StoreAccessFault)?
         }
@@ -527,50 +759,64 @@ impl SocRegistersImpl {
     /// # Error
     ///
     /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
-    pub fn on_write_flow_status(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
+    fn on_write_flow_status(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
         // Writes have to be Word aligned.
         if size != RvSize::Word {
             Err(BusError::StoreAccessFault)?
         }
 
         // Set the flow status register.
-        self.flow_status.reg.set(val);
+        self.cptra_flow_status.reg.set(val);
 
         // If ready_for_fw bit is set, upload the firmware image to the mailbox.
-        if self.flow_status.reg.is_set(FlowStatus::READY_FOR_FW) && self.fw_img.len() != 0 {
-            self.upload_fw_to_mailbox()?;
+        if self.cptra_flow_status.reg.is_set(FlowStatus::READY_FOR_FW) {
+            while self.mailbox.try_acquire_lock() == false {}
+            self.op_fw_write_complete_action =
+                Some(self.timer.schedule_poll_in(Self::FW_WRITE_TICKS));
+        } else if self
+            .cptra_flow_status
+            .reg
+            .is_set(FlowStatus::IDEVID_CSR_READY)
+        {
+            self.op_idevid_csr_read_complete_action =
+                Some(self.timer.schedule_poll_in(Self::IDEVID_CSR_READ_TICKS));
+        } else if self
+            .cptra_flow_status
+            .reg
+            .is_set(FlowStatus::LDEVID_CERT_READY)
+        {
+            self.op_ldevid_cert_read_complete_action =
+                Some(self.timer.schedule_poll_in(Self::LDEVID_CERT_READ_TICKS));
         }
 
         Ok(())
     }
 
-    pub fn upload_fw_to_mailbox(&mut self) -> Result<(), BusError> {
-        while self.mailbox.try_acquire_lock() == false {}
-
+    fn upload_firmware(&mut self) -> Result<(), BusError> {
         // Write the cmd to mailbox.
-        self.mailbox.write_cmd(Self::CALIPTRA_FW_LOAD_CMD)?;
+        self.mailbox.write_cmd(FW_LOAD_CMD_OPCODE)?;
 
         // Write dlen.
-        self.mailbox.write_dlen(self.fw_img.len() as u32)?;
+        self.mailbox.write_dlen(self.firmware.len() as u32)?;
 
         //
         // Write firmware image.
         //
         let word_size = RvSize::Word as usize;
-        let remainder = self.fw_img.len() % word_size;
-        let n = self.fw_img.len() - remainder;
+        let remainder = self.firmware.len() % word_size;
+        let n = self.firmware.len() - remainder;
 
         for idx in (0..n).step_by(word_size) {
             self.mailbox.write_datain(u32::from_le_bytes(
-                self.fw_img[idx..idx + word_size].try_into().unwrap(),
+                self.firmware[idx..idx + word_size].try_into().unwrap(),
             ))?;
         }
 
         // Handle the remainder bytes.
         if remainder > 0 {
-            let mut last_word = self.fw_img[n] as u32;
+            let mut last_word = self.firmware[n] as u32;
             for idx in 1..remainder {
-                last_word |= (self.fw_img[n + idx] as u32) << (idx << 3);
+                last_word |= (self.firmware[n + idx] as u32) << (idx << 3);
             }
             self.mailbox.write_datain(last_word)?;
         }
@@ -582,533 +828,361 @@ impl SocRegistersImpl {
         self.mailbox.write_execute(1)?;
 
         // Schedule a future call to poll() to check on the fw read operation completion.
-        self.op_fw_read_complete_action = Some(self.timer.schedule_poll_in(FW_READ_TICKS));
+        self.op_fw_read_complete_action = Some(self.timer.schedule_poll_in(Self::FW_READ_TICKS));
         Ok(())
+    }
+
+    fn download_idev_id_csr(&mut self) {
+        if !self.mailbox.is_status_data_ready() {
+            return;
+        }
+
+        println!("\nDownloading csr to file...");
+        self.download_to_file("caliptra_idevid_csr.der");
+        println!("Downloaded csr to file...");
+
+        self.cptra_dbg_manuf_service_reg
+            .reg
+            .modify(DebugManufService::REQ_IDEVID_CSR::CLEAR);
+        println!("Set DebugManufService::REQ_IDEVID_CSR::CLEAR...");
+    }
+
+    fn download_ldev_id_cert(&mut self) {
+        if !self.mailbox.is_status_data_ready() {
+            return;
+        }
+
+        self.download_to_file("caliptra_ldevid_cert.der");
+
+        self.cptra_dbg_manuf_service_reg
+            .reg
+            .modify(DebugManufService::REQ_LDEVID_CERT::CLEAR);
+    }
+
+    fn download_to_file(&mut self, file: &str) {
+        let mut path = self.log_dir.clone();
+        path.push(file);
+        let mut file = std::fs::File::create(path).unwrap();
+
+        let byte_count = self.mailbox.read_dlen().unwrap() as usize;
+        let remainder = byte_count % core::mem::size_of::<u32>();
+        let n = byte_count - remainder;
+
+        for _ in (0..n).step_by(core::mem::size_of::<u32>()) {
+            let buf = self.mailbox.read_dataout().unwrap();
+            file.write(&buf.to_le_bytes()).unwrap();
+        }
+
+        if remainder > 0 {
+            let part = self.mailbox.read_dataout().unwrap();
+            for idx in 0..remainder {
+                let byte = ((part >> (idx << 3)) & 0xFF) as u8;
+                file.write(&[byte]).unwrap();
+            }
+        }
+    }
+}
+
+impl Bus for SocRegistersImpl {
+    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+        match addr {
+            CPTRA_HW_ERROR_FATAL_START..=CPTRA_HW_ERROR_FATAL_END => {
+                self.cptra_hw_error_fatal.read(size)
+            }
+
+            CPTRA_HW_ERROR_NON_FATAL_START..=CPTRA_HW_ERROR_NON_FATAL_END => {
+                self.cptra_hw_error_non_fatal.read(size)
+            }
+
+            CPTRA_FW_ERROR_FATAL_START..=CPTRA_FW_ERROR_FATAL_END => {
+                self.cptra_fw_error_fatal.read(size)
+            }
+
+            CPTRA_FW_ERROR_NON_FATAL_START..=CPTRA_FW_ERROR_NON_FATAL_END => {
+                self.cptra_fw_error_non_fatal.read(size)
+            }
+
+            CPTRA_HW_ERROR_ENC_START..=CPTRA_HW_ERROR_ENC_END => self.cptra_hw_error_enc.read(size),
+
+            CPTRA_FW_ERROR_ENC_START..=CPTRA_FW_ERROR_ENC_END => self.cptra_fw_error_enc.read(size),
+
+            CPTRA_FW_EXTENDED_ERROR_INFO_START..=CPTRA_FW_EXTENDED_ERROR_INFO_END => self
+                .cptra_fw_extended_error_info
+                .read(size, addr - CPTRA_FW_EXTENDED_ERROR_INFO_START),
+
+            CPTRA_BOOT_STATUS_START..=CPTRA_BOOT_STATUS_END => self.cptra_boot_status.read(size),
+
+            CPTRA_FLOW_STATUS_START..=CPTRA_FLOW_STATUS_END => self.cptra_flow_status.read(size),
+
+            CPTRA_RESET_REASON_START..=CPTRA_RESET_REASON_END => self.cptra_reset_reason.read(size),
+
+            CPTRA_SECURITY_STATE_START..=CPTRA_SECURITY_STATE_END => {
+                self.cptra_security_state.read(size)
+            }
+
+            CPTRA_VALID_PAUSER_START..=CPTRA_VALID_PAUSER_END => self
+                .cptra_valid_pauser
+                .read(size, addr - CPTRA_VALID_PAUSER_START),
+
+            CPTRA_PAUSER_LOCK_START..=CPTRA_PAUSER_LOCK_END => self
+                .cptra_pauser_lock
+                .read(size, addr - CPTRA_PAUSER_LOCK_START),
+
+            CPTRA_TRNG_VALID_PAUSER_START..=CPTRA_TRNG_VALID_PAUSER_END => {
+                self.cptra_trng_valid_pauser.read(size)
+            }
+
+            CPTRA_TRNG_PAUSER_LOCK_START..=CPTRA_TRNG_PAUSER_LOCK_END => {
+                self.cptra_trng_pauser_lock.read(size)
+            }
+
+            CPTRA_TRNG_DATA_START..=CPTRA_TRNG_DATA_END => self
+                .cptra_trng_data
+                .read(size, addr - CPTRA_TRNG_DATA_START),
+
+            CPTRA_TRNG_STATUS_START..=CPTRA_TRNG_STATUS_END => self.cptra_trng_status.read(size),
+
+            CPTRA_FUSE_WR_DONE_START..=CPTRA_FUSE_WR_DONE_END => self.cptra_fuse_wr_done.read(size),
+
+            CPTRA_TIMER_CONFIG_START..=CPTRA_TIMER_CONFIG_END => self.cptra_timer_config.read(size),
+
+            CPTRA_BOOTFSM_GO_START..=CPTRA_BOOTFSM_GO_END => self.cptra_bootfsm_go.read(size),
+
+            CPTRA_DBG_MANUF_SERVICE_REG_START..=CPTRA_DBG_MANUF_SERVICE_REG_END => {
+                self.cptra_dbg_manuf_service_reg.read(size)
+            }
+
+            CPTRA_CLK_GATING_EN_START..=CPTRA_CLK_GATING_EN_END => {
+                self.cptra_clk_gating_en.read(size)
+            }
+
+            CPTRA_GENERIC_INPUT_WIRES_START..=CPTRA_GENERIC_INPUT_WIRES_END => self
+                .cptra_generic_input_wires
+                .read(size, addr - CPTRA_GENERIC_INPUT_WIRES_START),
+
+            CPTRA_GENERIC_OUTPUT_WIRES_START..=CPTRA_GENERIC_OUTPUT_WIRES_END => self
+                .cptra_generic_output_wires
+                .read(size, addr - CPTRA_GENERIC_OUTPUT_WIRES_START),
+
+            FUSE_VENDOR_PK_HASH_START..=FUSE_VENDOR_PK_HASH_END => self
+                .fuse_vendor_pk_hash
+                .read(size, addr - FUSE_VENDOR_PK_HASH_START),
+
+            FUSE_VENDOR_PK_MASK_START..=FUSE_VENDOR_PK_MASK_END => {
+                self.fuse_vendor_pk_hash_mask.read(size)
+            }
+
+            FUSE_OWNER_PK_HASH_START..=FUSE_OWNER_PK_HASH_END => self
+                .fuse_owner_pk_hash
+                .read(size, addr - FUSE_OWNER_PK_HASH_START),
+
+            FUSE_FMC_SVN_START..=FUSE_FMC_SVN_END => self.fuse_fmc_svn.read(size),
+
+            FUSE_RUNTIME_SVN_START..=FUSE_RUNTIME_SVN_END => self
+                .fuse_runtime_svn
+                .read(size, addr - FUSE_RUNTIME_SVN_START),
+
+            FUSE_ANTI_ROLLBACK_DISABLE_START..=FUSE_ANTI_ROLLBACK_DISABLE_END => {
+                self.fuse_anti_rollback_disable.read(size)
+            }
+
+            FUSE_IDEVID_CERT_ATTR_START..=FUSE_IDEVID_CERT_ATTR_END => self
+                .fuse_idevid_cert_attr
+                .read(size, addr - FUSE_IDEVID_CERT_ATTR_START),
+
+            FUSE_IDEVID_MANUF_HSM_ID_START..=FUSE_IDEVID_MANUF_HSM_ID_END => self
+                .fuse_idevid_manuf_hsm_id
+                .read(size, addr - FUSE_IDEVID_MANUF_HSM_ID_START),
+
+            FUSE_LIFE_CYCLE_START..=FUSE_LIFE_CYCLE_END => self.fuse_life_cycle.read(size),
+
+            INTERNAL_ICCM_LOCK_START..=INTERNAL_ICCM_LOCK_END => self.internal_iccm_lock.read(size),
+
+            INTERNAL_FW_UPDATE_RESET_START..=INTERNAL_FW_UPDATE_RESET_END => {
+                self.internal_fw_update_reset.read(size)
+            }
+
+            INTERNAL_FW_UPDATE_RESET_WAIT_CYCLES_START
+                ..=INTERNAL_FW_UPDATE_RESET_WAIT_CYCLES_END => {
+                self.internal_fw_update_reset_wait_cycles.read(size)
+            }
+
+            INTERNAL_NMI_VECTOR_START..=INTERNAL_NMI_VECTOR_END => {
+                self.internal_nmi_vector.read(size)
+            }
+            _ => Err(BusError::LoadAccessFault),
+        }
+    }
+
+    fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {
+        match addr {
+            CPTRA_HW_ERROR_FATAL_START..=CPTRA_HW_ERROR_FATAL_END => {
+                self.cptra_hw_error_fatal.write(size, val)
+            }
+
+            CPTRA_HW_ERROR_NON_FATAL_START..=CPTRA_HW_ERROR_NON_FATAL_END => {
+                self.cptra_hw_error_non_fatal.write(size, val)
+            }
+
+            CPTRA_FW_ERROR_FATAL_START..=CPTRA_FW_ERROR_FATAL_END => {
+                self.cptra_fw_error_fatal.write(size, val)
+            }
+
+            CPTRA_FW_ERROR_NON_FATAL_START..=CPTRA_FW_ERROR_NON_FATAL_END => {
+                self.cptra_fw_error_non_fatal.write(size, val)
+            }
+
+            CPTRA_HW_ERROR_ENC_START..=CPTRA_HW_ERROR_ENC_END => {
+                self.cptra_hw_error_enc.write(size, val)
+            }
+
+            CPTRA_FW_ERROR_ENC_START..=CPTRA_FW_ERROR_ENC_END => {
+                self.cptra_fw_error_enc.write(size, val)
+            }
+
+            CPTRA_FW_EXTENDED_ERROR_INFO_START..=CPTRA_FW_EXTENDED_ERROR_INFO_END => self
+                .cptra_fw_extended_error_info
+                .write(size, addr - CPTRA_FW_EXTENDED_ERROR_INFO_START, val),
+
+            CPTRA_BOOT_STATUS_START..=CPTRA_BOOT_STATUS_END => {
+                self.cptra_boot_status.write(size, val)
+            }
+
+            CPTRA_FLOW_STATUS_START..=CPTRA_FLOW_STATUS_END => self.on_write_flow_status(size, val),
+
+            CPTRA_RESET_REASON_START..=CPTRA_RESET_REASON_END => {
+                self.cptra_reset_reason.write(size, val)
+            }
+
+            CPTRA_SECURITY_STATE_START..=CPTRA_SECURITY_STATE_END => {
+                self.cptra_security_state.write(size, val)
+            }
+
+            CPTRA_VALID_PAUSER_START..=CPTRA_VALID_PAUSER_END => {
+                self.cptra_valid_pauser
+                    .write(size, addr - CPTRA_VALID_PAUSER_START, val)
+            }
+
+            CPTRA_PAUSER_LOCK_START..=CPTRA_PAUSER_LOCK_END => {
+                self.cptra_pauser_lock
+                    .write(size, addr - CPTRA_PAUSER_LOCK_START, val)
+            }
+
+            CPTRA_TRNG_VALID_PAUSER_START..=CPTRA_TRNG_VALID_PAUSER_END => {
+                self.cptra_trng_valid_pauser.write(size, val)
+            }
+
+            CPTRA_TRNG_PAUSER_LOCK_START..=CPTRA_TRNG_PAUSER_LOCK_END => {
+                self.cptra_trng_pauser_lock.write(size, val)
+            }
+
+            CPTRA_TRNG_DATA_START..=CPTRA_TRNG_DATA_END => {
+                self.cptra_trng_data
+                    .write(size, addr - CPTRA_TRNG_DATA_START, val)
+            }
+
+            CPTRA_TRNG_STATUS_START..=CPTRA_TRNG_STATUS_END => {
+                self.cptra_trng_status.write(size, val)
+            }
+
+            CPTRA_FUSE_WR_DONE_START..=CPTRA_FUSE_WR_DONE_END => {
+                self.cptra_fuse_wr_done.write(size, val)
+            }
+
+            CPTRA_TIMER_CONFIG_START..=CPTRA_TIMER_CONFIG_END => {
+                self.cptra_timer_config.write(size, val)
+            }
+
+            CPTRA_BOOTFSM_GO_START..=CPTRA_BOOTFSM_GO_END => self.cptra_bootfsm_go.write(size, val),
+
+            CPTRA_DBG_MANUF_SERVICE_REG_START..=CPTRA_DBG_MANUF_SERVICE_REG_END => {
+                self.cptra_dbg_manuf_service_reg.write(size, val)
+            }
+
+            CPTRA_CLK_GATING_EN_START..=CPTRA_CLK_GATING_EN_END => {
+                self.cptra_clk_gating_en.write(size, val)
+            }
+
+            CPTRA_GENERIC_INPUT_WIRES_START..=CPTRA_GENERIC_INPUT_WIRES_END => self
+                .cptra_generic_input_wires
+                .write(size, addr - CPTRA_GENERIC_INPUT_WIRES_START, val),
+
+            CPTRA_GENERIC_OUTPUT_WIRES_START..=CPTRA_GENERIC_OUTPUT_WIRES_END => {
+                if addr == CPTRA_GENERIC_OUTPUT_WIRES_START {
+                    self.on_write_stdout(size, val)
+                } else {
+                    self.cptra_generic_output_wires.write(
+                        size,
+                        addr - CPTRA_GENERIC_OUTPUT_WIRES_START,
+                        val,
+                    )
+                }
+            }
+
+            INTERNAL_ICCM_LOCK_START..=INTERNAL_ICCM_LOCK_END => {
+                self.internal_iccm_lock.write(size, val)
+            }
+
+            INTERNAL_FW_UPDATE_RESET_START..=INTERNAL_FW_UPDATE_RESET_END => {
+                self.internal_fw_update_reset.write(size, val)
+            }
+
+            INTERNAL_FW_UPDATE_RESET_WAIT_CYCLES_START
+                ..=INTERNAL_FW_UPDATE_RESET_WAIT_CYCLES_END => {
+                self.internal_fw_update_reset_wait_cycles.write(size, val)
+            }
+
+            INTERNAL_NMI_VECTOR_START..=INTERNAL_NMI_VECTOR_END => {
+                self.internal_nmi_vector.write(size, val)
+            }
+            _ => Err(BusError::LoadAccessFault),
+        }
     }
 
     /// Called by Bus::poll() to indicate that time has passed
     fn poll(&mut self) {
+        if self.timer.fired(&mut self.op_fw_write_complete_action) {
+            self.upload_firmware().unwrap();
+        }
+
         if self.timer.fired(&mut self.op_fw_read_complete_action) {
             // Receiver sets status as CMD_COMPLETE after reading the mailbox data.
             if self.mailbox.is_status_cmd_complete() == true {
                 // Reset the execute bit
                 self.mailbox.write_execute(0).unwrap();
+            } else {
+                self.op_fw_read_complete_action =
+                    Some(self.timer.schedule_poll_in(Self::FW_READ_TICKS));
             }
+        }
+
+        if self
+            .timer
+            .fired(&mut self.op_idevid_csr_read_complete_action)
+        {
+            self.download_idev_id_csr();
+        }
+
+        if self
+            .timer
+            .fired(&mut self.op_ldevid_cert_read_complete_action)
+        {
+            self.download_ldev_id_cert()
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use caliptra_emu_bus::{Bus, BusError};
-    use caliptra_emu_types::{RvAddr, RvSize};
-    use tock_registers::registers::InMemoryRegister;
-
-    use crate::{MailboxRam, SocRegisters};
+    use std::{fs::File, io::Read, path::Path};
 
     use super::*;
-
-    const HW_ERR_FATAL_REG_OFFSET: RvAddr = 0x0;
-    const HW_ERR_NON_FATAL_REG_OFFSET: RvAddr = 0x4;
-    const FW_ERR_FATAL_REG_OFFSET: RvAddr = 0x8;
-    const FW_ERR_NON_FATAL_REG_OFFSET: RvAddr = 0xc;
-    const HW_ERR_ENC_REG_OFFSET: RvAddr = 0x10;
-    const FW_ERR_ENC_REG_OFFSET: RvAddr = 0x14;
-    const BOOT_STATUS_REG_OFFSET: RvAddr = 0x38;
-    const FLOW_STATUS_REG_OFFSET: RvAddr = 0x3c;
-    const RESET_REASON_REG_OFFSET: RvAddr = 0x40;
-    const SECURITY_STATE_REG_OFFSET: RvAddr = 0x44;
-    const FUSE_WRITE_DONE_REG_OFFSET: RvAddr = 0xAc;
-    const TIMER_CFG_REG_OFFSET: RvAddr = 0xB0;
-    const CLOCK_PERIOD: u32 = 2222000;
-    const BOOT_FSM_GO_REG_OFFSET: RvAddr = 0xB4;
-    const CLK_GATING_ENABLE_REG_OFFSET: RvAddr = 0xBC;
-    const KEY_MANIFEST_PK_HASH_MASK_REG_OFFSET: RvAddr = 0x280;
-    const OWNER_KEY_MANIFEST_PK_HASH_MASK_REG_OFFSET: RvAddr = 0x2b4;
-    const KEY_MANIFEST_SVN_REG_OFFSET: RvAddr = 0x2b8;
-    const BOOT_LOADER_SVN_REG_OFFSET: RvAddr = 0x2bc;
-    const ANTI_ROLLBACK_DISABLE_REG_OFFSET: RvAddr = 0x2d0;
-    const IDEVID_CERT_ATTR_START_OFFSET: RvAddr = 0x2d4;
-    const IDEVID_MANUF_HSM_ID_START_OFFSET: RvAddr = 0x334;
-    const ICCM_LOCK_REG_OFFSET: RvAddr = 0x620;
-    const FW_UPDATE_RESET_REG_OFFSET: RvAddr = 0x624;
-    const FW_UPDATE_RESET_WAIT_CYCLES_REG_OFFSET: RvAddr = 0x628;
-    const NMI_VECTOR_REG_OFFSET: RvAddr = 0x62c;
-
-    #[test]
-    fn test_read_write_hw_err_fatal_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(RvSize::Word, HW_ERR_FATAL_REG_OFFSET, 0xDEADBEEF)
-                .ok(),
-            Some(())
-        );
-
-        assert_eq!(
-            soc_reg.read(RvSize::Word, HW_ERR_FATAL_REG_OFFSET).ok(),
-            Some(0xDEADBEEF)
-        );
-    }
-
-    #[test]
-    fn test_read_write_hw_err_non_fatal_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(RvSize::Word, HW_ERR_NON_FATAL_REG_OFFSET, 0xDEADBEEF)
-                .ok(),
-            Some(())
-        );
-
-        assert_eq!(
-            soc_reg.read(RvSize::Word, HW_ERR_NON_FATAL_REG_OFFSET).ok(),
-            Some(0xDEADBEEF)
-        );
-    }
-
-    #[test]
-    fn test_read_write_fw_err_fatal_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(RvSize::Word, FW_ERR_FATAL_REG_OFFSET, 0xDEADBEEF)
-                .ok(),
-            Some(())
-        );
-
-        assert_eq!(
-            soc_reg.read(RvSize::Word, FW_ERR_FATAL_REG_OFFSET).ok(),
-            Some(0xDEADBEEF)
-        );
-    }
-
-    #[test]
-    fn test_read_write_fw_err_non_fatal_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(RvSize::Word, FW_ERR_NON_FATAL_REG_OFFSET, 0xDEADBEEF)
-                .ok(),
-            Some(())
-        );
-
-        assert_eq!(
-            soc_reg.read(RvSize::Word, FW_ERR_NON_FATAL_REG_OFFSET).ok(),
-            Some(0xDEADBEEF)
-        );
-    }
-
-    #[test]
-    fn test_read_write_hw_err_enc_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(RvSize::Word, HW_ERR_ENC_REG_OFFSET, 0xDEADBEEF)
-                .ok(),
-            Some(())
-        );
-
-        assert_eq!(
-            soc_reg.read(RvSize::Word, HW_ERR_ENC_REG_OFFSET).ok(),
-            Some(0xDEADBEEF)
-        );
-    }
-
-    #[test]
-    fn test_read_write_fw_err_enc_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(RvSize::Word, FW_ERR_ENC_REG_OFFSET, 0xDEADBEEF)
-                .ok(),
-            Some(())
-        );
-
-        assert_eq!(
-            soc_reg.read(RvSize::Word, FW_ERR_ENC_REG_OFFSET).ok(),
-            Some(0xDEADBEEF)
-        );
-    }
-
-    #[test]
-    fn test_read_write_boot_status_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(RvSize::Word, BOOT_STATUS_REG_OFFSET, 0xDEADBEEF)
-                .ok(),
-            Some(())
-        );
-
-        assert_eq!(
-            soc_reg.read(RvSize::Word, BOOT_STATUS_REG_OFFSET).ok(),
-            Some(0xDEADBEEF)
-        );
-    }
-
-    #[test]
-    fn test_read_write_flow_status_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(RvSize::Word, FLOW_STATUS_REG_OFFSET, 0xDEADBEEF)
-                .ok(),
-            Some(())
-        );
-
-        assert_eq!(
-            soc_reg.read(RvSize::Word, FLOW_STATUS_REG_OFFSET).ok(),
-            Some(0xDEADBEEF)
-        );
-    }
-
-    #[test]
-    fn test_read_write_reset_reason_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(RvSize::Word, RESET_REASON_REG_OFFSET, 0xDEADBEEF)
-                .err(),
-            Some(BusError::StoreAccessFault)
-        );
-
-        assert_eq!(
-            soc_reg.read(RvSize::Word, RESET_REASON_REG_OFFSET).ok(),
-            Some(0)
-        );
-    }
-
-    #[test]
-    fn test_read_write_security_state_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(RvSize::Word, SECURITY_STATE_REG_OFFSET, 0xDEADBEEF)
-                .err(),
-            Some(BusError::StoreAccessFault)
-        );
-
-        assert_eq!(
-            soc_reg.read(RvSize::Word, SECURITY_STATE_REG_OFFSET).ok(),
-            Some(0)
-        );
-    }
-
-    #[test]
-    fn test_read_write_fuse_write_done_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(RvSize::Word, FUSE_WRITE_DONE_REG_OFFSET, 0xDEADBEEF)
-                .ok(),
-            Some(())
-        );
-
-        assert_eq!(
-            soc_reg.read(RvSize::Word, FUSE_WRITE_DONE_REG_OFFSET).ok(),
-            Some(0xDEADBEEF)
-        );
-    }
-
-    #[test]
-    fn test_read_write_timer_cfg_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(RvSize::Word, TIMER_CFG_REG_OFFSET, 0xDEADBEEF)
-                .err(),
-            Some(BusError::StoreAccessFault)
-        );
-
-        assert_eq!(
-            soc_reg.read(RvSize::Word, TIMER_CFG_REG_OFFSET).ok(),
-            Some(CLOCK_PERIOD)
-        );
-    }
-
-    #[test]
-    fn test_read_write_boot_fsm_go_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(RvSize::Word, BOOT_FSM_GO_REG_OFFSET, 0xDEADBEEF)
-                .ok(),
-            Some(())
-        );
-
-        assert_eq!(
-            soc_reg.read(RvSize::Word, BOOT_FSM_GO_REG_OFFSET).ok(),
-            Some(0xDEADBEEF)
-        );
-    }
-
-    #[test]
-    fn test_read_write_clk_gating_enable_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(RvSize::Word, CLK_GATING_ENABLE_REG_OFFSET, 0xDEADBEEF)
-                .ok(),
-            Some(())
-        );
-
-        assert_eq!(
-            soc_reg
-                .read(RvSize::Word, CLK_GATING_ENABLE_REG_OFFSET)
-                .ok(),
-            Some(0xDEADBEEF)
-        );
-    }
-
-    #[test]
-    fn test_read_write_key_manifest_pk_hash_mask_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(
-                    RvSize::Word,
-                    KEY_MANIFEST_PK_HASH_MASK_REG_OFFSET,
-                    0xDEADBEEF
-                )
-                .err(),
-            Some(BusError::StoreAccessFault)
-        );
-
-        assert_eq!(
-            soc_reg
-                .read(RvSize::Word, KEY_MANIFEST_PK_HASH_MASK_REG_OFFSET)
-                .ok(),
-            Some(0)
-        );
-    }
-
-    #[test]
-    fn test_read_write_owner_key_manifest_pk_hash_mask_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(
-                    RvSize::Word,
-                    OWNER_KEY_MANIFEST_PK_HASH_MASK_REG_OFFSET,
-                    0xDEADBEEF
-                )
-                .err(),
-            Some(BusError::StoreAccessFault)
-        );
-
-        assert_eq!(
-            soc_reg
-                .read(RvSize::Word, OWNER_KEY_MANIFEST_PK_HASH_MASK_REG_OFFSET)
-                .ok(),
-            Some(0)
-        );
-    }
-
-    #[test]
-    fn test_read_write_owner_key_manifest_svn_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(RvSize::Word, KEY_MANIFEST_SVN_REG_OFFSET, 0xDEADBEEF)
-                .err(),
-            Some(BusError::StoreAccessFault)
-        );
-
-        assert_eq!(
-            soc_reg.read(RvSize::Word, KEY_MANIFEST_SVN_REG_OFFSET).ok(),
-            Some(0)
-        );
-    }
-
-    #[test]
-    fn test_read_write_boot_loader_svn_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(RvSize::Word, BOOT_LOADER_SVN_REG_OFFSET, 0xDEADBEEF)
-                .err(),
-            Some(BusError::StoreAccessFault)
-        );
-
-        assert_eq!(
-            soc_reg.read(RvSize::Word, BOOT_LOADER_SVN_REG_OFFSET).ok(),
-            Some(0)
-        );
-    }
-
-    #[test]
-    fn test_read_write_anti_rollback_disable_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(RvSize::Word, ANTI_ROLLBACK_DISABLE_REG_OFFSET, 0xDEADBEEF)
-                .err(),
-            Some(BusError::StoreAccessFault)
-        );
-
-        assert_eq!(
-            soc_reg
-                .read(RvSize::Word, ANTI_ROLLBACK_DISABLE_REG_OFFSET)
-                .ok(),
-            Some(0)
-        );
-    }
-
-    #[test]
-    fn test_read_write_idevid_cert_attr() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        for idx in 0u32..((IDEVID_CERT_ATTR_SIZE / 4) as u32) {
-            assert_eq!(
-                soc_reg
-                    .write(
-                        RvSize::Word,
-                        IDEVID_CERT_ATTR_START_OFFSET + (idx << 2),
-                        0xDEADBEEF
-                    )
-                    .err(),
-                Some(BusError::StoreAccessFault)
-            );
-
-            assert_eq!(
-                soc_reg
-                    .read(RvSize::Word, IDEVID_CERT_ATTR_START_OFFSET + (idx << 2))
-                    .ok(),
-                None
-            );
-        }
-    }
-
-    #[test]
-    fn test_read_write_idevid_manuf_hsm_id() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        for idx in 0u32..((IDEVID_MANUF_HSM_ID_SIZE / 4) as u32) {
-            assert_eq!(
-                soc_reg
-                    .write(
-                        RvSize::Word,
-                        IDEVID_MANUF_HSM_ID_START_OFFSET + (idx << 2),
-                        0xDEADBEEF
-                    )
-                    .err(),
-                Some(BusError::StoreAccessFault)
-            );
-
-            assert_eq!(
-                soc_reg
-                    .read(RvSize::Word, IDEVID_MANUF_HSM_ID_START_OFFSET + (idx << 2))
-                    .ok(),
-                None
-            );
-        }
-    }
-
-    #[test]
-    fn test_read_write_iccm_lock_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(
-                    RvSize::Word,
-                    ICCM_LOCK_REG_OFFSET,
-                    IccmLock::LOCK.val(1).value
-                )
-                .ok(),
-            Some(())
-        );
-
-        assert_eq!(
-            soc_reg.read(RvSize::Word, ICCM_LOCK_REG_OFFSET).ok(),
-            Some(IccmLock::LOCK.val(1).value)
-        );
-    }
-
-    #[test]
-    fn test_read_write_fw_update_reset_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(
-                    RvSize::Word,
-                    FW_UPDATE_RESET_REG_OFFSET,
-                    FwUpdateReset::CORE_RST.val(1).value
-                )
-                .ok(),
-            Some(())
-        );
-
-        assert_eq!(
-            soc_reg.read(RvSize::Word, FW_UPDATE_RESET_REG_OFFSET).ok(),
-            Some(FwUpdateReset::CORE_RST.val(1).value)
-        );
-    }
-
-    #[test]
-    fn test_read_write_fw_update_reset_wait_cycles_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(
-                    RvSize::Word,
-                    FW_UPDATE_RESET_WAIT_CYCLES_REG_OFFSET,
-                    FwUpdateResetWaitCycles::WAIT_CYCLES.val(2).value
-                )
-                .ok(),
-            Some(())
-        );
-
-        assert_eq!(
-            soc_reg
-                .read(RvSize::Word, FW_UPDATE_RESET_WAIT_CYCLES_REG_OFFSET)
-                .ok(),
-            Some(FwUpdateResetWaitCycles::WAIT_CYCLES.val(2).value)
-        );
-    }
-
-    #[test]
-    fn test_read_write_nmi_vector_reg() {
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&Clock::new(), Mailbox::new(MailboxRam::new()), vec![]);
-        assert_eq!(
-            soc_reg
-                .write(RvSize::Word, NMI_VECTOR_REG_OFFSET, 0xDEADBEEF)
-                .ok(),
-            Some(())
-        );
-
-        assert_eq!(
-            soc_reg.read(RvSize::Word, NMI_VECTOR_REG_OFFSET).ok(),
-            Some(0xDEADBEEF)
-        );
-    }
+    use crate::MailboxRam;
+    use tock_registers::registers::InMemoryRegister;
 
     #[test]
     fn test_fw_upload_download() {
-        let fw_img: Vec<u8> = [
+        let firmware: Vec<u8> = [
             0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
             0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
             0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
@@ -1119,7 +1193,9 @@ mod tests {
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
         let mut mailbox = Mailbox::new(mailbox_ram.clone());
-        let mut soc_reg: SocRegisters = SocRegisters::new(&clock, mailbox.clone(), fw_img.clone());
+        let args = CaliptraRootBusArgs::default();
+        let args = CaliptraRootBusArgs { firmware, ..args };
+        let mut soc_reg: SocRegisters = SocRegisters::new(&clock, mailbox.clone(), &args);
 
         //
         // [Sender Side]
@@ -1130,7 +1206,7 @@ mod tests {
         flow_status.write(FlowStatus::READY_FOR_FW.val(1));
         assert_eq!(
             soc_reg
-                .write(RvSize::Word, FLOW_STATUS_REG_OFFSET, flow_status.get())
+                .write(RvSize::Word, CPTRA_FLOW_STATUS_START, flow_status.get())
                 .ok(),
             Some(())
         );
@@ -1144,39 +1220,201 @@ mod tests {
 
         // Wait till data is available in the mailbox.
         loop {
+            clock.increment_and_poll(1, &mut soc_reg);
             if mailbox.read_execute().unwrap() == 1 {
                 break;
             }
         }
-        assert_eq!(mailbox.read_dlen().unwrap(), fw_img.len() as u32);
-        assert_eq!(
-            mailbox.read_cmd().unwrap(),
-            SocRegistersImpl::CALIPTRA_FW_LOAD_CMD
-        );
+        assert_eq!(mailbox.read_dlen().unwrap(), args.firmware.len() as u32);
+        assert_eq!(mailbox.read_cmd().unwrap(), FW_LOAD_CMD_OPCODE);
         assert_eq!(mailbox.is_status_data_ready(), true);
 
         // Read the data out of the mailbox.
         let mut temp: Vec<u32> = Vec::new();
-        let mut word_count = (fw_img.len() + 3) >> 2;
+        let mut word_count = (args.firmware.len() + 3) >> 2;
         while word_count > 0 {
             let word = mailbox.read_dataout().unwrap();
             temp.push(word);
             word_count -= 1;
         }
         let fw_img_from_mb: Vec<u8> = temp.iter().flat_map(|val| val.to_le_bytes()).collect();
-        assert_eq!(fw_img, fw_img_from_mb[..fw_img.len()]);
+        assert_eq!(args.firmware, fw_img_from_mb[..args.firmware.len()]);
 
         // Set the status to CMD_COMPLETE.
         assert_eq!(mailbox.set_status_cmd_complete().ok(), Some(()));
 
         // Wait till receiver resets the execute register.
         loop {
+            clock.increment_and_poll(1, &mut soc_reg);
             if mailbox.read_execute().unwrap() == 0 {
                 break;
             }
-            clock.increment_and_poll(1, &mut soc_reg);
         }
         // Check if the mailbox lock is released.
         assert_eq!(mailbox.is_locked(), false);
+    }
+
+    fn send_data_to_mailbox(mailbox: &mut Mailbox, cmd: u32, data: &[u8]) {
+        while mailbox.try_acquire_lock() == false {}
+
+        mailbox.write_cmd(cmd).unwrap();
+        mailbox.write_dlen(data.len() as u32).unwrap();
+
+        let word_size = RvSize::Word as usize;
+        let remainder = data.len() % word_size;
+        let n = data.len() - remainder;
+
+        for idx in (0..n).step_by(word_size) {
+            mailbox
+                .write_datain(u32::from_le_bytes(
+                    data[idx..idx + word_size].try_into().unwrap(),
+                ))
+                .unwrap();
+        }
+
+        // Handle the remainder bytes.
+        if remainder > 0 {
+            let mut last_word = data[n] as u32;
+            for idx in 1..remainder {
+                last_word |= (data[n + idx] as u32) << (idx << 3);
+            }
+            mailbox.write_datain(last_word).unwrap();
+        }
+    }
+
+    #[test]
+    fn test_idev_id_csr_download() {
+        let data: [u8; 48] = [
+            0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
+            0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
+            0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
+            0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
+        ];
+        let clock = Clock::new();
+        let mailbox_ram = MailboxRam::new();
+        let mut mailbox = Mailbox::new(mailbox_ram.clone());
+        let req_idevid_csr = true;
+        let mut log_dir = PathBuf::new();
+        log_dir.push("/tmp");
+        let args = CaliptraRootBusArgs::default();
+        let args = CaliptraRootBusArgs {
+            req_idevid_csr,
+            log_dir,
+            ..args
+        };
+        let mut soc_reg: SocRegisters = SocRegisters::new(&clock, mailbox.clone(), &args);
+
+        //
+        // [Sender Side]
+        //
+
+        // Add csr data to the mailbox.
+        send_data_to_mailbox(&mut mailbox, 0xDEADBEEF, &data);
+        mailbox.set_status_data_ready().unwrap();
+        mailbox.write_execute(1).unwrap();
+
+        // Trigger csr download.
+        let flow_status = InMemoryRegister::<u32, FlowStatus::Register>::new(0);
+        flow_status.write(FlowStatus::IDEVID_CSR_READY.val(1));
+        assert_eq!(
+            soc_reg
+                .write(RvSize::Word, CPTRA_FLOW_STATUS_START, flow_status.get())
+                .ok(),
+            Some(())
+        );
+
+        //
+        // [Receiver Side]
+        //
+
+        // Wait till the idevid csr is downloaded.
+        loop {
+            clock.increment_and_poll(1, &mut soc_reg);
+            let dbg_manuf_service_reg = InMemoryRegister::<u32, DebugManufService::Register>::new(
+                soc_reg
+                    .read(RvSize::Word, CPTRA_DBG_MANUF_SERVICE_REG_START)
+                    .unwrap(),
+            );
+            if dbg_manuf_service_reg.is_set(DebugManufService::REQ_IDEVID_CSR) == false {
+                break;
+            }
+        }
+
+        // Check if the downloaded csr matches.
+        let path = "/tmp/caliptra_idevid_csr.der";
+        assert_eq!(Path::new(path).exists(), true);
+        let mut idevid_csr_buffer = Vec::new();
+        let mut idevid_csr_file = File::open(path).unwrap();
+        idevid_csr_file.read_to_end(&mut idevid_csr_buffer).unwrap();
+        assert_eq!(data, idevid_csr_buffer[..]);
+    }
+
+    #[test]
+    fn test_ldev_id_cert_download() {
+        let data: [u8; 48] = [
+            0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
+            0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
+            0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
+            0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
+        ];
+        let clock = Clock::new();
+        let mailbox_ram = MailboxRam::new();
+        let mut mailbox = Mailbox::new(mailbox_ram.clone());
+        let req_ldevid_cert = true;
+        let mut log_dir = PathBuf::new();
+        log_dir.push("/tmp");
+        let args = CaliptraRootBusArgs::default();
+        let args = CaliptraRootBusArgs {
+            req_ldevid_cert,
+            log_dir,
+            ..args
+        };
+        let mut soc_reg: SocRegisters = SocRegisters::new(&clock, mailbox.clone(), &args);
+
+        //
+        // [Sender Side]
+        //
+
+        // Add cert data to the mailbox.
+        send_data_to_mailbox(&mut mailbox, 0xDEADBEEF, &data);
+        mailbox.set_status_data_ready().unwrap();
+        mailbox.write_execute(1).unwrap();
+
+        // Trigger cert download.
+        let flow_status = InMemoryRegister::<u32, FlowStatus::Register>::new(0);
+        flow_status.write(FlowStatus::LDEVID_CERT_READY.val(1));
+        assert_eq!(
+            soc_reg
+                .write(RvSize::Word, CPTRA_FLOW_STATUS_START, flow_status.get())
+                .ok(),
+            Some(())
+        );
+
+        //
+        // [Receiver Side]
+        //
+
+        // Wait till the ldevid cert is downloaded.
+        loop {
+            clock.increment_and_poll(1, &mut soc_reg);
+            let dbg_manuf_service_reg = InMemoryRegister::<u32, DebugManufService::Register>::new(
+                soc_reg
+                    .read(RvSize::Word, CPTRA_DBG_MANUF_SERVICE_REG_START)
+                    .unwrap(),
+            );
+            if dbg_manuf_service_reg.is_set(DebugManufService::REQ_LDEVID_CERT) == false {
+                break;
+            }
+        }
+
+        // Check if the downloaded cert matches.
+        let path = "/tmp/caliptra_ldevid_cert.der";
+        assert_eq!(Path::new(path).exists(), true);
+        let mut ldevid_cert_buffer = Vec::new();
+        let mut idevid_csr_file = File::open(path).unwrap();
+        idevid_csr_file
+            .read_to_end(&mut ldevid_cert_buffer)
+            .unwrap();
+        assert_eq!(data, ldevid_cert_buffer[..]);
     }
 }

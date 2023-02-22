@@ -177,8 +177,8 @@ impl Doe {
         Aes256Cbc::decrypt(
             &self.soc_reg.doe_key(),
             self.iv.data(),
-            &cipher_fe[..64],
-            &mut plain_fe,
+            &cipher_fe,
+            &mut plain_fe[..cipher_fe.len()],
         );
         self.key_vault
             .write_key(key_id, &plain_fe, DOE_KEY_USAGE)
@@ -194,7 +194,7 @@ impl Doe {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{KeyUsage, Mailbox, MailboxRam};
+    use crate::{CaliptraRootBusArgs, KeyUsage, Mailbox, MailboxRam};
     use caliptra_emu_bus::Bus;
     use caliptra_emu_crypto::EndianessTransform;
     use caliptra_emu_types::RvAddr;
@@ -229,7 +229,11 @@ mod tests {
 
         let clock = Clock::new();
         let key_vault = KeyVault::new();
-        let soc_reg = SocRegisters::new(&clock, Mailbox::new(MailboxRam::new()), vec![]);
+        let soc_reg = SocRegisters::new(
+            &clock,
+            Mailbox::new(MailboxRam::new()),
+            &CaliptraRootBusArgs::default(),
+        );
         let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg.clone());
 
         for i in (0..iv.len()).step_by(4) {
@@ -276,14 +280,18 @@ mod tests {
         const PLAIN_TEXT_FE: [u8; 64] = [
             0xC6, 0x10, 0x65, 0x4D, 0xB4, 0xED, 0xA8, 0x53, 0xCF, 0x54, 0x6D, 0xEF, 0x52, 0x4E,
             0xC1, 0x5F, 0x39, 0xEF, 0x9A, 0xB2, 0x4B, 0x12, 0x57, 0xAC, 0x30, 0xAB, 0x92, 0x10,
-            0xAD, 0xB1, 0x3E, 0xA0, 0x39, 0xEF, 0x9A, 0xB2, 0x4B, 0x12, 0x57, 0xAC, 0x30, 0xAB,
-            0x92, 0x10, 0xAD, 0xB1, 0x3E, 0xA0, 0x39, 0xEF, 0x9A, 0xB2, 0x4B, 0x12, 0x57, 0xAC,
-            0x30, 0xAB, 0x92, 0x10, 0xAD, 0xB1, 0x3E, 0xA0,
+            0xAD, 0xB1, 0x3E, 0xA0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
 
         let clock = Clock::new();
         let key_vault = KeyVault::new();
-        let soc_reg = SocRegisters::new(&clock, Mailbox::new(MailboxRam::new()), vec![]);
+        let soc_reg = SocRegisters::new(
+            &clock,
+            Mailbox::new(MailboxRam::new()),
+            &CaliptraRootBusArgs::default(),
+        );
         let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg.clone());
 
         let mut iv = [0u8; DOE_IV_SIZE];
@@ -329,10 +337,14 @@ mod tests {
     fn test_clear_secrets() {
         let expected_uds = [0u8; 48];
         let expected_doe_key = [0u8; 32];
-        let expected_fe = [0u8; 128];
+        let expected_fe = [0u8; 32];
         let clock = Clock::new();
         let key_vault = KeyVault::new();
-        let soc_reg = SocRegisters::new(&clock, Mailbox::new(MailboxRam::new()), vec![]);
+        let soc_reg = SocRegisters::new(
+            &clock,
+            Mailbox::new(MailboxRam::new()),
+            &CaliptraRootBusArgs::default(),
+        );
         let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg.clone());
         assert_ne!(soc_reg.uds(), expected_uds);
         assert_ne!(soc_reg.doe_key(), expected_doe_key);

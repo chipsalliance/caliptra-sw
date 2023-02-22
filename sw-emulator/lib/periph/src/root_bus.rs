@@ -18,6 +18,19 @@ use crate::{
 };
 use caliptra_emu_bus::{Clock, Ram, Rom};
 use caliptra_emu_derive::Bus;
+use std::path::PathBuf;
+
+/// Caliptra Root Bus Arguments
+#[derive(Default, Debug)]
+pub struct CaliptraRootBusArgs {
+    pub rom: Vec<u8>,
+    pub firmware: Vec<u8>,
+    pub log_dir: PathBuf,
+    pub ueid: u64,
+    pub idev_key_id_algo: String,
+    pub req_idevid_csr: bool,
+    pub req_ldevid_cert: bool,
+}
 
 #[derive(Bus)]
 pub struct CaliptraRootBus {
@@ -72,14 +85,14 @@ impl CaliptraRootBus {
     pub const ICCM_SIZE: usize = 128 * 1024;
     pub const DCCM_SIZE: usize = 128 * 1024;
 
-    pub fn new(clock: &Clock, rom: Vec<u8>, fw_img: Vec<u8>) -> Self {
+    pub fn new(clock: &Clock, args: CaliptraRootBusArgs) -> Self {
         let key_vault = KeyVault::new();
         let mailbox_ram = MailboxRam::new();
         let mailbox = Mailbox::new(mailbox_ram.clone());
-        let soc_reg = SocRegisters::new(clock, mailbox.clone(), fw_img);
+        let soc_reg = SocRegisters::new(clock, mailbox.clone(), &args);
 
         Self {
-            rom: Rom::new(rom),
+            rom: Rom::new(args.rom),
             doe: Doe::new(clock, key_vault.clone(), soc_reg.clone()),
             ecc384: AsymEcc384::new(clock, key_vault.clone()),
             hmac: HmacSha384::new(clock, key_vault.clone()),
