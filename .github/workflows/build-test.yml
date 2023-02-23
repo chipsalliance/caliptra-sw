@@ -38,6 +38,7 @@ jobs:
           cargo build --release
           (cd drivers && cargo build)
           (cd drivers && cargo build --release)
+          drivers/test-fw/build.sh
 
       - name: Run unit tests
         run: |
@@ -47,8 +48,7 @@ jobs:
 
       - name: Run tests inside emulator
         run: |
-          (cd drivers && cargo test --features emu)
-          (cd drivers && cargo test --release --features emu)
+          drivers/test-fw/test.sh
 
       - name: Run emulator conformance tests
         run: |

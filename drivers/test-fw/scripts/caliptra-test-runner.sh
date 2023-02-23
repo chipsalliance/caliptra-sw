@@ -20,4 +20,4 @@ ROM_FILE="$1.rom"
 rust-objcopy -O binary $1 $ROM_FILE
 
 # Execute the ROM file
-caliptra-emu --rom $ROM_FILE
+caliptra-emu --rom $ROM_FILE 

@@ -1,11 +1,12 @@
 [workspace]
 exclude = [
   # Uses a custom .cargo/config
-  "drivers",
   "sw-emulator/example",
 ]
 
 members = [
+  "drivers",
+  "drivers/test-fw",
   "hw-model",
   "registers",
   "registers/bin/generator",
@@ -22,3 +23,10 @@ members = [
   "ureg/lib/systemrdl",
   "x509",
 ]
+
+[profile.firmware]
+inherits = "release"
+panic = "abort"
+lto = true
+opt-level = "s"
+codegen-units = 1

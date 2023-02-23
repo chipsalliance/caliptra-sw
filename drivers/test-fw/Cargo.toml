@@ -1,0 +1,81 @@
+
+
+[package]
+name = "caliptra-drivers-test-bin"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+caliptra-lib = { path = "..", features=["emu"] }
+caliptra-registers = { path = "../../registers" }
+cfg-if = "1.0.0"
+
+[features]
+emu = []
+
+# This feature is used to filter all these binary targets during normal builds
+# (targets must be built with cargo arguments:
+#     --target riscv32imc-unknown-none-elf \
+#     --profile=firmware \
+#     --features riscv
+riscv = []
+
+[[bin]]
+name = "sha1"
+path = "src/bin/sha1_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "sha256"
+path = "src/bin/sha256_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "sha384"
+path = "src/bin/sha384_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "hmac384"
+path = "src/bin/hmac384_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "doe"
+path = "src/bin/doe_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "ecc384"
+path = "src/bin/ecc384_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "mailbox"
+path = "src/bin/mailbox_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "keyvault"
+path = "src/bin/keyvault_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "pcrbank"
+path = "src/bin/pcrbank_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "sha384acc"
+path = "src/bin/sha384acc_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "error_reporter"
+path = "src/bin/error_reporter_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "status_reporter"
+path = "src/bin/status_reporter_tests.rs"
+required-features = ["riscv"]
