@@ -5,10 +5,14 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+verilator = ["dep:caliptra-verilated"]
+
 [dependencies]
 caliptra-emu-bus = { path = "../sw-emulator/lib/bus" }
 caliptra-emu-cpu = { path = "../sw-emulator/lib/cpu" }
 caliptra-emu-periph = { path = "../sw-emulator/lib/periph" }
 caliptra-emu-types = { path = "../sw-emulator/lib/types" }
 caliptra-registers = { path = "../registers" }
+caliptra-verilated = { path = "../hw-latest/caliptra-rtl/src/integration/verilated", optional = true }
 ureg = { path = "../ureg" }

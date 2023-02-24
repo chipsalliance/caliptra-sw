@@ -1,0 +1,40 @@
+# docs: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions
+
+name: Build and Test with verilator
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+  workflow_dispatch:
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+          token: ${{secrets.CALIPTRA_PAT_READ}}
+
+      - name: Install risv32imc target
+        run: |
+          rustup update
+          rustup target add riscv32imc-unknown-none-elf
+
+      - name: Build
+        run: |
+          export RUSTFLAGS="-D warnings"
+          (cd hw-model && cargo build --release --features verilator)
+
+      - name: Run unit tests
+        run: |
+          export RUSTFLAGS="-D warnings"
+          (cd hw-model && cargo test --release --features verilator)
+
+      - name: Check source-code formatting (run "cargo fmt" if this fails)
+        run: |
+          cargo fmt --check --features verilator
