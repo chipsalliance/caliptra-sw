@@ -4,11 +4,14 @@ use caliptra_emu_bus::Bus;
 
 pub mod mmio;
 mod model_emulated;
+
+#[cfg(feature = "verilator")]
+mod model_verilated;
 mod output;
+mod rv32_builder;
 
 use mmio::BusMmio;
 pub use output::Output;
-mod rv32_builder;
 
 #[derive(Default)]
 pub struct InitParams<'a> {

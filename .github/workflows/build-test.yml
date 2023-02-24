@@ -6,7 +6,6 @@ on:
   push:
     branches: ["main"]
   pull_request:
-    branches: ["main"]
 
   workflow_dispatch:
 
@@ -22,7 +21,8 @@ jobs:
 
       - name: Print submodule contents
         run: |
-          (cd hw-latest && find)
+          git rev-parse HEAD
+          (cd hw-latest/caliptra-rtl && git rev-parse HEAD)
 
       - name: Install risv32imc target
         run: |
