@@ -7,6 +7,7 @@ mod output;
 
 use mmio::BusMmio;
 pub use output::Output;
+mod rv32_builder;
 
 #[derive(Default)]
 pub struct InitParams<'a> {
