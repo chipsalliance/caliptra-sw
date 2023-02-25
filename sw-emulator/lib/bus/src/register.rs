@@ -176,7 +176,7 @@ impl Register for u32 {
     }
 }
 
-impl<T: UIntLike + Register> Register for LocalRegisterCopy<T> {
+impl<T: UIntLike + Register, R: RegisterLongName> Register for LocalRegisterCopy<T, R> {
     const SIZE: usize = T::SIZE;
 
     fn read(&self, size: RvSize) -> Result<RvData, BusError> {
