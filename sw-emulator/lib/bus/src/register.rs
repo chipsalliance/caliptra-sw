@@ -17,9 +17,12 @@ use crate::{Bus, BusError};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use tock_registers::interfaces::{Readable, Writeable};
 use tock_registers::registers::InMemoryRegister;
-use tock_registers::{RegisterLongName, UIntLike};
+use tock_registers::{LocalRegisterCopy, RegisterLongName, UIntLike};
 
 pub trait Register {
+    /// Size of the register in bytes.
+    const SIZE: usize;
+
     /// Read data of specified size from given address
     ///
     /// # Arguments
@@ -106,6 +109,8 @@ impl RvDataConverter<u32> for u32 {
 }
 
 impl Register for u8 {
+    const SIZE: usize = std::mem::size_of::<Self>();
+
     /// Read data of specified size from given address
     fn read(&self, size: RvSize) -> Result<RvData, BusError> {
         match size {
@@ -126,6 +131,8 @@ impl Register for u8 {
     }
 }
 impl Register for u16 {
+    const SIZE: usize = std::mem::size_of::<Self>();
+
     /// Read data of specified size from given address
     fn read(&self, size: RvSize) -> Result<RvData, BusError> {
         match size {
@@ -147,6 +154,8 @@ impl Register for u16 {
 }
 
 impl Register for u32 {
+    const SIZE: usize = std::mem::size_of::<Self>();
+
     /// Read data of specified size from given address
     fn read(&self, size: RvSize) -> Result<RvData, BusError> {
         match size {
@@ -167,6 +176,21 @@ impl Register for u32 {
     }
 }
 
+impl<T: UIntLike + Register> Register for LocalRegisterCopy<T> {
+    const SIZE: usize = T::SIZE;
+
+    fn read(&self, size: RvSize) -> Result<RvData, BusError> {
+        Register::read(&self.get(), size)
+    }
+
+    fn write(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
+        let mut tmp = T::zero();
+        Register::write(&mut tmp, size, val)?;
+        self.set(tmp);
+        Ok(())
+    }
+}
+
 /// Read Write Register
 pub struct ReadWriteRegister<T: UIntLike, R: RegisterLongName = ()> {
     /// Register
@@ -183,6 +207,8 @@ impl<T: UIntLike, R: RegisterLongName> ReadWriteRegister<T, R> {
 }
 
 impl<T: UIntLike + RvDataConverter<T>, R: RegisterLongName> Register for ReadWriteRegister<T, R> {
+    const SIZE: usize = std::mem::size_of::<T>();
+
     /// Read data of specified size from given address
     fn read(&self, size: RvSize) -> Result<RvData, BusError> {
         if std::mem::size_of::<T>() != size.into() {
@@ -223,6 +249,8 @@ impl<T: UIntLike + RvDataConverter<T>, R: RegisterLongName> Register for ReadOnl
 where
     RvData: From<T>,
 {
+    const SIZE: usize = std::mem::size_of::<T>();
+
     /// Read data of specified size from given address
     fn read(&self, size: RvSize) -> Result<RvData, BusError> {
         if std::mem::size_of::<T>() != size.into() {
@@ -256,6 +284,8 @@ impl<T: UIntLike + RvDataConverter<T>, R: RegisterLongName> Register for WriteOn
 where
     RvData: From<T>,
 {
+    const SIZE: usize = std::mem::size_of::<T>();
+
     /// Read data of specified size from given address
     fn read(&self, _size: RvSize) -> Result<RvData, BusError> {
         Err(BusError::LoadAccessFault)?

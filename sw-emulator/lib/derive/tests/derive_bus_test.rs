@@ -63,6 +63,15 @@ struct MyBus {
     #[register(offset = 0xcafe_f0d8)]
     pub reg_u8: u8,
 
+    #[register_array(offset = 0xcafe_f0f4)]
+    pub reg_array: [u32; 5],
+
+    #[register_array(offset = 0xcafe_f114, read_fn = reg_array_action0_read)]
+    pub reg_array_action0: [u32; 2],
+
+    #[register_array(offset = 0xcafe_f11c, write_fn = reg_array_action1_write)]
+    pub reg_array_action1: [u32; 2],
+
     #[register(offset = 0xcafe_f0e0, read_fn = reg_action0_read)]
     pub reg_action0: u32,
 
@@ -71,6 +80,7 @@ struct MyBus {
 
     #[register(offset = 0xcafe_f0e8, read_fn = reg_action2_read, write_fn = reg_action2_write)]
     #[register(offset = 0xcafe_f0ec, read_fn = reg_action3_read, write_fn = reg_action3_write)]
+    #[register_array(offset = 0xcafe_f134, item_size = 4, len = 5, read_fn = reg_array_action2_read, write_fn = reg_array_action2_write)]
     _fieldless_regs: (),
 }
 impl MyBus {
@@ -98,6 +108,53 @@ impl MyBus {
         write!(self.log.w(), "reg_action2 write {size:?} 0x{:08x}; ", val.0).unwrap();
         Ok(())
     }
+    fn reg_array_action0_read(&self, size: RvSize, index: usize) -> Result<RvData, BusError> {
+        write!(
+            self.log.w(),
+            "reg_array_action0[{:x}] read {size:?}; ",
+            index
+        )
+        .unwrap();
+        Ok(0xf00d_0000 + index as u32)
+    }
+    fn reg_array_action1_write(
+        &self,
+        size: RvSize,
+        index: usize,
+        val: MyCustomField,
+    ) -> Result<(), BusError> {
+        write!(
+            self.log.w(),
+            "reg_array_action1[{index}] write {size:?} 0x{:08x}; ",
+            val.0
+        )
+        .unwrap();
+        Ok(())
+    }
+    fn reg_array_action2_read(&self, size: RvSize, index: usize) -> Result<RvData, BusError> {
+        write!(
+            self.log.w(),
+            "reg_array_action2[{:x}] read {size:?}; ",
+            index
+        )
+        .unwrap();
+        Ok(0xd00d_0000 + index as u32)
+    }
+    fn reg_array_action2_write(
+        &self,
+        size: RvSize,
+        index: usize,
+        val: MyCustomField,
+    ) -> Result<(), BusError> {
+        write!(
+            self.log.w(),
+            "reg_array_action2[{index}] write {size:?} 0x{:08x}; ",
+            val.0
+        )
+        .unwrap();
+        Ok(())
+    }
+
     fn poll(&self) {
         write!(self.log.w(), "poll; ").unwrap();
     }
@@ -123,6 +180,17 @@ fn test_read_dispatch() {
 
         reg_action0: 0,
         reg_action1: 0xa813_c333,
+
+        reg_array: [
+            0x1043_0000,
+            0x1043_1000,
+            0x1043_2000,
+            0x1043_3000,
+            0x1043_4000,
+        ],
+
+        reg_array_action0: [0x1001_1000, 0x1001_2000],
+        reg_array_action1: [0x2001_1000, 0x2001_2000],
 
         _fieldless_regs: (),
 
@@ -192,6 +260,24 @@ fn test_read_dispatch() {
         BusError::LoadAccessFault
     );
 
+    assert_eq!(
+        bus.read(RvSize::HalfWord, 0xcafe_f0f0).unwrap_err(),
+        BusError::LoadAccessFault
+    );
+    assert_eq!(bus.read(RvSize::Word, 0xcafe_f0f4).unwrap(), 0x1043_0000);
+    assert_eq!(bus.read(RvSize::Word, 0xcafe_f0f8).unwrap(), 0x1043_1000);
+    assert_eq!(bus.read(RvSize::Word, 0xcafe_f0fc).unwrap(), 0x1043_2000);
+    assert_eq!(bus.read(RvSize::Word, 0xcafe_f100).unwrap(), 0x1043_3000);
+    assert_eq!(bus.read(RvSize::Word, 0xcafe_f104).unwrap(), 0x1043_4000);
+    assert_eq!(
+        bus.read(RvSize::Word, 0xcafe_f108).unwrap_err(),
+        BusError::LoadAccessFault
+    );
+    assert_eq!(
+        bus.read(RvSize::HalfWord, 0xcafe_f0f6).unwrap_err(),
+        BusError::LoadAccessFault
+    );
+
     assert_eq!(bus.read(RvSize::Word, 0xcafe_f0e0).unwrap(), 0x4de0d4f5);
     assert_eq!(bus.read(RvSize::HalfWord, 0xcafe_f0e0).unwrap(), 0x4de0d4f5);
     assert_eq!(
@@ -203,6 +289,37 @@ fn test_read_dispatch() {
 
     assert_eq!(bus.read(RvSize::Word, 0xcafe_f0e8).unwrap(), 0xba5e_ba11);
     assert_eq!(bus.log.take(), "reg_action2 read Word; ");
+
+    assert_eq!(bus.read(RvSize::Word, 0xcafe_f114).unwrap(), 0xf00d_0000);
+    assert_eq!(bus.log.take(), "reg_array_action0[0] read Word; ");
+
+    assert_eq!(bus.read(RvSize::Word, 0xcafe_f118).unwrap(), 0xf00d_0001);
+    assert_eq!(bus.log.take(), "reg_array_action0[1] read Word; ");
+
+    assert_eq!(bus.read(RvSize::Word, 0xcafe_f11c).unwrap(), 0x2001_1000);
+    assert_eq!(bus.log.take(), "");
+
+    assert_eq!(bus.read(RvSize::Word, 0xcafe_f120).unwrap(), 0x2001_2000);
+    assert_eq!(bus.log.take(), "");
+
+    assert_eq!(
+        bus.read(RvSize::Word, 0xcafe_f130).unwrap_err(),
+        BusError::LoadAccessFault
+    );
+    assert_eq!(bus.read(RvSize::Word, 0xcafe_f134).unwrap(), 0xd00d_0000);
+    assert_eq!(bus.log.take(), "reg_array_action2[0] read Word; ");
+    assert_eq!(bus.read(RvSize::Word, 0xcafe_f138).unwrap(), 0xd00d_0001);
+    assert_eq!(bus.log.take(), "reg_array_action2[1] read Word; ");
+    assert_eq!(bus.read(RvSize::Word, 0xcafe_f144).unwrap(), 0xd00d_0004);
+    assert_eq!(bus.log.take(), "reg_array_action2[4] read Word; ");
+    assert_eq!(
+        bus.read(RvSize::Word, 0xcafe_f148).unwrap_err(),
+        BusError::LoadAccessFault
+    );
+    assert_eq!(
+        bus.read(RvSize::Byte, 0xcafe_f131).unwrap_err(),
+        BusError::LoadAccessFault
+    );
 }
 
 #[test]
@@ -222,6 +339,10 @@ fn test_write_dispatch() {
         reg_u32: 0,
         reg_u16: 0,
         reg_u8: 0,
+
+        reg_array: [0; 5],
+        reg_array_action0: [0; 2],
+        reg_array_action1: [0; 2],
 
         reg_action0: 0,
         reg_action1: 0,
@@ -304,6 +425,37 @@ fn test_write_dispatch() {
     bus.write(RvSize::Word, 0xcafe_f0e0, 0x82d1_aa14).unwrap();
     assert_eq!(bus.reg_action0, 0x82d1_aa14);
 
+    assert_eq!(
+        bus.write(RvSize::Word, 0xcafe_f0f0, 0xface_ff00)
+            .unwrap_err(),
+        BusError::StoreAccessFault
+    );
+    bus.write(RvSize::Word, 0xcafe_f0f4, 0xface_0000).unwrap();
+    bus.write(RvSize::Word, 0xcafe_f0f8, 0xface_0100).unwrap();
+    bus.write(RvSize::Word, 0xcafe_f0fc, 0xface_0200).unwrap();
+    bus.write(RvSize::Word, 0xcafe_f100, 0xface_0300).unwrap();
+    bus.write(RvSize::Word, 0xcafe_f104, 0xface_0400).unwrap();
+    assert_eq!(
+        bus.reg_array,
+        [
+            0xface_0000,
+            0xface_0100,
+            0xface_0200,
+            0xface_0300,
+            0xface_0400
+        ]
+    );
+    assert_eq!(
+        bus.write(RvSize::Word, 0xcafe_f108, 0xface_f000)
+            .unwrap_err(),
+        BusError::StoreAccessFault
+    );
+    assert_eq!(
+        bus.write(RvSize::HalfWord, 0xcafe_f0f6, 0xface_f000)
+            .unwrap_err(),
+        BusError::StoreAccessFault
+    );
+
     bus.write(RvSize::Word, 0xcafe_f0e4, 0xbaf3_e991).unwrap();
     bus.write(RvSize::Word, 0xcafe_f0e4, 0x6965_617f).unwrap();
     bus.write(RvSize::HalfWord, 0xcafe_f0e4, 0xc8aa).unwrap();
@@ -312,6 +464,53 @@ fn test_write_dispatch() {
 
     bus.write(RvSize::Word, 0xcafe_f0e8, 0xb01d_face).unwrap();
     assert_eq!(bus.log.take(), "reg_action2 write Word 0xb01dface; ");
+
+    bus.write(RvSize::Word, 0xcafe_f114, 0x1255).unwrap();
+    assert_eq!(bus.log.take(), "");
+    bus.write(RvSize::Word, 0xcafe_f118, 0x1255).unwrap();
+    assert_eq!(bus.log.take(), "");
+
+    bus.write(RvSize::Word, 0xcafe_f11c, 0xface_b01d).unwrap();
+    assert_eq!(
+        bus.log.take(),
+        "reg_array_action1[0] write Word 0xfaceb01d; "
+    );
+    bus.write(RvSize::Word, 0xcafe_f120, 0xface_b01e).unwrap();
+    assert_eq!(
+        bus.log.take(),
+        "reg_array_action1[1] write Word 0xfaceb01e; "
+    );
+
+    assert_eq!(
+        bus.write(RvSize::Word, 0xcafe_f130, 0xface_f000)
+            .unwrap_err(),
+        BusError::StoreAccessFault
+    );
+    bus.write(RvSize::Word, 0xcafe_f134, 0xface_b0dd).unwrap();
+    assert_eq!(
+        bus.log.take(),
+        "reg_array_action2[0] write Word 0xfaceb0dd; "
+    );
+    bus.write(RvSize::Word, 0xcafe_f138, 0xface_b0de).unwrap();
+    assert_eq!(
+        bus.log.take(),
+        "reg_array_action2[1] write Word 0xfaceb0de; "
+    );
+    bus.write(RvSize::Word, 0xcafe_f144, 0xface_b0df).unwrap();
+    assert_eq!(
+        bus.log.take(),
+        "reg_array_action2[4] write Word 0xfaceb0df; "
+    );
+    assert_eq!(
+        bus.write(RvSize::Word, 0xcafe_f148, 0xface_f000)
+            .unwrap_err(),
+        BusError::StoreAccessFault
+    );
+    assert_eq!(
+        bus.write(RvSize::Byte, 0xcafe_f133, 0xface_f000)
+            .unwrap_err(),
+        BusError::StoreAccessFault
+    );
 }
 
 #[test]
@@ -331,6 +530,10 @@ fn test_poll() {
         reg_u32: 0,
         reg_u16: 0,
         reg_u8: 0,
+
+        reg_array: [0; 5],
+        reg_array_action0: [0; 2],
+        reg_array_action1: [0; 2],
 
         reg_action0: 0,
         reg_action1: 0,

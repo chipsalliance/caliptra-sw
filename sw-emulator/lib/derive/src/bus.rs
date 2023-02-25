@@ -16,7 +16,7 @@ use std::collections::HashMap;
 
 use proc_macro2::{Delimiter, Group, Ident, Span, TokenStream, TokenTree};
 
-use quote::quote;
+use quote::{format_ident, quote};
 
 use crate::util::literal::{self, hex_literal_u32};
 use crate::util::sort::sorted_by_key;
@@ -96,13 +96,21 @@ fn get_poll_fn(struct_attrs: &[Group]) -> Option<String> {
     None
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 struct RegisterField {
     // If this is None, read_fn and write_fn will be Some
     name: Option<String>,
+    ty_tokens: TokenStream,
     offset: u32,
     read_fn: Option<String>,
     write_fn: Option<String>,
+    is_array: bool,
+
+    // Only used if ty_tokens is empty
+    array_item_size: Option<usize>,
+
+    // Only used if ty_tokens is empty
+    array_len: Option<usize>,
 }
 fn has_read_and_write_fn(attr: &Attribute) -> bool {
     attr.args.contains_key("read_fn") && attr.args.contains_key("write_fn")
@@ -111,9 +119,11 @@ fn has_read_and_write_fn(attr: &Attribute) -> bool {
 fn parse_register_fields(stream: TokenStream) -> Vec<RegisterField> {
     let mut iter = stream.into_iter();
     let mut result = Vec::new();
-    while let Some(field) =
-        skip_to_field_with_attributes(&mut iter, "register", has_read_and_write_fn)
-    {
+    while let Some(field) = skip_to_field_with_attributes(
+        &mut iter,
+        |name| name == "register" || name == "register_array",
+        has_read_and_write_fn,
+    ) {
         if field.attributes.is_empty() {
             continue;
         }
@@ -123,16 +133,20 @@ fn parse_register_fields(stream: TokenStream) -> Vec<RegisterField> {
         let attr = &field.attributes[0];
         if let Some(offset) = attr.args.get("offset").cloned() {
             result.push(RegisterField {
-                name: field.name.map(|i| i.to_string()),
+                name: field.field_name.map(|i| i.to_string()),
+                ty_tokens: field.field_type,
                 offset: literal::parse_hex_u32(offset),
                 read_fn: attr.args.get("read_fn").map(|t| t.to_string()),
                 write_fn: attr.args.get("write_fn").map(|t| t.to_string()),
+                is_array: field.attr_name == "register_array",
+                array_len: attr.args.get("len").map(literal::parse_usize),
+                array_item_size: attr.args.get("item_size").map(literal::parse_usize),
             })
         } else {
             panic!(
                 "register attribute on field {} must have offset parameter",
                 field
-                    .name
+                    .field_name
                     .map(|i| i.to_string())
                     .unwrap_or(attr.args.get("read_fn").unwrap().to_string())
             );
@@ -151,7 +165,9 @@ struct PeripheralField {
 fn parse_peripheral_fields(stream: TokenStream) -> Vec<PeripheralField> {
     let mut iter = stream.into_iter();
     let mut result = Vec::new();
-    while let Some(field) = skip_to_field_with_attributes(&mut iter, "peripheral", |_| false) {
+    while let Some(field) =
+        skip_to_field_with_attributes(&mut iter, |name| name == "peripheral", |_| false)
+    {
         if field.attributes.is_empty() {
             continue;
         }
@@ -164,7 +180,7 @@ fn parse_peripheral_fields(stream: TokenStream) -> Vec<PeripheralField> {
             attr.args.get("mask").cloned(),
         ) {
             result.push(PeripheralField {
-                name: field.name.unwrap().to_string(),
+                name: field.field_name.unwrap().to_string(),
                 offset: literal::parse_hex_u32(offset),
                 mask: literal::parse_hex_u32(mask),
             })
@@ -304,26 +320,87 @@ fn gen_bus_match_tokens(mask_matches: &MaskMatchBlock, access_type: AccessType) 
 }
 
 fn gen_register_match_tokens(registers: &[RegisterField], access_type: AccessType) -> TokenStream {
+    let mut constant_tokens = TokenStream::new();
+    let mut next_const_id = 0usize;
+    let mut add_constant = |expr: TokenStream| -> Ident {
+        let const_ident = format_ident!("CONST{}", next_const_id);
+        next_const_id += 1;
+        constant_tokens.extend(quote! {
+            const #const_ident: u32 = #expr;
+        });
+        const_ident
+    };
+
     if registers.is_empty() {
         return quote! {};
     }
-    let match_arms = registers.iter().map(|reg| {
+    let match_arms: Vec<_> = registers.iter().map(|reg| {
         let offset = hex_literal_u32(reg.offset);
+
+        let ty = &reg.ty_tokens;
+        let item_size =  || {
+            if reg.ty_tokens.is_empty() {
+                let item_size = reg.array_item_size.unwrap_or_else(|| panic!("item_size must be defined for register_array at offset 0x{:08x}", reg.offset));
+                quote! { #item_size }
+            } else {
+                quote! { <#ty as caliptra_emu_bus::RegisterArray>::ITEM_SIZE }
+            }
+        };
+        let mut array_match_pattern = || -> TokenStream {
+            let item_size = item_size();
+            let len = if reg.ty_tokens.is_empty() {
+                let array_len = reg.array_len.unwrap_or_else(|| panic!("len must be defined for register_array at offset 0x{:08x}", reg.offset));
+                quote! { #array_len }
+            } else {
+                quote! { <#ty as caliptra_emu_bus::RegisterArray>::LEN }
+            };
+            let end_offset = add_constant(quote! { (#offset + (#len - 1) * #item_size) as u32 });
+            quote! {
+                #offset..=#end_offset if (addr as usize) % #item_size == 0
+            }
+        };
+        let array_index = || {
+            let item_size = item_size();
+            quote! {
+                (addr - #offset) as usize / #item_size
+            }
+        };
+
         match access_type {
             AccessType::Read => {
                 if let Some(ref read_fn) = reg.read_fn {
                     let read_fn = Ident::new(read_fn, Span::call_site());
-                    quote! {
-                        #offset => return std::result::Result::Ok(
-                            std::convert::Into::<caliptra_emu_types::RvAddr>::into(
-                                self.#read_fn(size)?
-                            )
-                        ),
+                    if reg.is_array {
+                        let pattern = array_match_pattern();
+                        let array_index = array_index();
+                        quote! {
+                            #pattern => return std::result::Result::Ok(
+                                std::convert::Into::<caliptra_emu_types::RvAddr>::into(
+                                    self.#read_fn(size, #array_index)?
+                                )
+                            ),
+                        }
+                    } else {
+                        quote! {
+                            #offset => return std::result::Result::Ok(
+                                std::convert::Into::<caliptra_emu_types::RvAddr>::into(
+                                    self.#read_fn(size)?
+                                )
+                            ),
+                        }
                     }
                 } else if let Some(ref reg_name) = reg.name {
                     let reg_name = Ident::new(reg_name, Span::call_site());
-                    quote! {
-                        #offset => return caliptra_emu_bus::Register::read(&mut self.#reg_name, size),
+                    if reg.is_array {
+                        let pattern = array_match_pattern();
+                        let array_index = array_index();
+                        quote! {
+                            #pattern => return caliptra_emu_bus::Register::read(&mut self.#reg_name[#array_index], size),
+                        }
+                    } else {
+                        quote! {
+                            #offset => return caliptra_emu_bus::Register::read(&mut self.#reg_name, size),
+                        }
                     }
                 } else {
                     unreachable!();
@@ -332,22 +409,39 @@ fn gen_register_match_tokens(registers: &[RegisterField], access_type: AccessTyp
             AccessType::Write => {
                 if let Some(ref write_fn) = reg.write_fn {
                     let write_fn = Ident::new(write_fn, Span::call_site());
-                    quote! {
-                        #offset => return self.#write_fn(size, std::convert::From::<caliptra_emu_types::RvAddr>::from(val)),
+                    if reg.is_array {
+                        let pattern = array_match_pattern();
+                        let array_index = array_index();
+                        quote! {
+                            #pattern => return self.#write_fn(size, #array_index, std::convert::From::<caliptra_emu_types::RvAddr>::from(val)),
+                        }
+                    } else {
+                        quote! {
+                            #offset => return self.#write_fn(size, std::convert::From::<caliptra_emu_types::RvAddr>::from(val)),
+                        }
                     }
                 } else if let Some(ref reg_name) = reg.name {
                     let reg_name = Ident::new(reg_name, Span::call_site());
-                    quote! {
-                        #offset => return caliptra_emu_bus::Register::write(&mut self.#reg_name, size, val),
+                    if reg.is_array {
+                        let pattern = array_match_pattern();
+                        let array_index = array_index();
+                        quote! {
+                           #pattern => return caliptra_emu_bus::Register::write(&mut self.#reg_name[#array_index], size, val),
+                        }
+                    } else {
+                        quote! {
+                            #offset => return caliptra_emu_bus::Register::write(&mut self.#reg_name, size, val),
+                        }
                     }
                 } else {
                     unreachable!();
                 }
             }
         }
-    });
+    }).collect();
 
     quote! {
+        #constant_tokens
         match addr {
             #(#match_arms)*
             _ => {}
@@ -509,8 +603,18 @@ mod tests {
                 #[register(offset = 0xcafe_f0e4, write_fn = reg_action1_write)]
                 pub reg_action1: u32,
 
+                #[register_array(offset = 0xcafe_f0f4)]
+                pub reg_array: [u32; 5],
+
+                #[register_array(offset = 0xcafe_f114, read_fn = reg_array_action0_read)]
+                pub reg_array_action0: [u32; 2],
+
+                #[register_array(offset = 0xcafe_f11c, write_fn = reg_array_action1_write)]
+                pub reg_array_action1: [u32; 2],
+
                 #[register(offset = 0xcafe_f0e8, read_fn = reg_action2_read, write_fn = reg_action2_write)]
                 #[register(offset = 0xcafe_f0ec, read_fn = reg_action3_read, write_fn = reg_action3_write)]
+                #[register_array(offset = 0xcafe_f134, item_size = 4, len = 5, read_fn = reg_array_action2_read, write_fn = reg_array_action2_write)]
                 _fieldless_regs: (),
             }
         });
@@ -519,14 +623,22 @@ mod tests {
             quote! {
                 impl caliptra_emu_bus::Bus for MyBus {
                     fn read(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
+                        const CONST0: u32 = (0xcafe_f0f4 + (<[u32; 5] as caliptra_emu_bus::RegisterArray>::LEN - 1) * <[u32; 5] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE) as u32;
+                        const CONST1: u32 = (0xcafe_f114 + (<[u32; 2] as caliptra_emu_bus::RegisterArray>::LEN - 1) * <[u32; 2] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE) as u32;
+                        const CONST2: u32 = (0xcafe_f11c + (<[u32; 2] as caliptra_emu_bus::RegisterArray>::LEN - 1) * <[u32; 2] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE) as u32;
+                        const CONST3: u32 = (0xcafe_f134 + (5usize - 1) * 4usize) as u32;
                         match addr {
                             0xcafe_f0d0 => return caliptra_emu_bus::Register::read(&mut self.reg_u32, size),
                             0xcafe_f0d4 => return caliptra_emu_bus::Register::read(&mut self.reg_u16, size),
                             0xcafe_f0d8 => return caliptra_emu_bus::Register::read(&mut self.reg_u8, size),
                             0xcafe_f0e0 => return std::result::Result::Ok(std::convert::Into::<caliptra_emu_types::RvAddr>::into(self.reg_action0_read(size)?)),
                             0xcafe_f0e4 => return caliptra_emu_bus::Register::read(&mut self.reg_action1, size),
+                            0xcafe_f0f4..=CONST0 if (addr as usize) % <[u32; 5] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE == 0 => return caliptra_emu_bus::Register::read(&mut self.reg_array[(addr - 0xcafe_f0f4) as usize /  <[u32; 5] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE], size),
+                            0xcafe_f114..=CONST1 if (addr as usize) % <[u32; 2] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE == 0 => return std::result::Result::Ok(std::convert::Into::<caliptra_emu_types::RvAddr>::into(self.reg_array_action0_read(size, (addr - 0xcafe_f114) as usize /  <[u32; 2] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE)?)),
+                            0xcafe_f11c..=CONST2 if (addr as usize) % <[u32; 2] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE == 0 => return caliptra_emu_bus::Register::read(&mut self.reg_array_action1[(addr - 0xcafe_f11c) as usize /  <[u32; 2] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE], size),
                             0xcafe_f0e8 => return std::result::Result::Ok(std::convert::Into::<caliptra_emu_types::RvAddr>::into(self.reg_action2_read(size)?)),
                             0xcafe_f0ec => return std::result::Result::Ok(std::convert::Into::<caliptra_emu_types::RvAddr>::into(self.reg_action3_read(size)?)),
+                            0xcafe_f134..=CONST3 if (addr as usize) % 4usize == 0 => return std::result::Result::Ok(std::convert::Into::<caliptra_emu_types::RvAddr>::into(self.reg_array_action2_read(size, (addr - 0xcafe_f134) as usize / 4usize)?)),
                             _ => {}
                         }
                         match addr & 0xf000_0000 {
@@ -553,14 +665,22 @@ mod tests {
                         Err(caliptra_emu_bus::BusError::LoadAccessFault)
                     }
                     fn write(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr, val: caliptra_emu_types::RvData) -> Result<(), caliptra_emu_bus::BusError> {
+                        const CONST0: u32 = (0xcafe_f0f4 + (<[u32; 5] as caliptra_emu_bus::RegisterArray>::LEN - 1) * <[u32; 5] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE) as u32;
+                        const CONST1: u32 = (0xcafe_f114 + (<[u32; 2] as caliptra_emu_bus::RegisterArray>::LEN - 1) * <[u32; 2] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE) as u32;
+                        const CONST2: u32 = (0xcafe_f11c + (<[u32; 2] as caliptra_emu_bus::RegisterArray>::LEN - 1) * <[u32; 2] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE) as u32;
+                        const CONST3: u32 = (0xcafe_f134 + (5usize - 1) * 4usize) as u32;
                         match addr {
                             0xcafe_f0d0 => return caliptra_emu_bus::Register::write(&mut self.reg_u32, size, val),
                             0xcafe_f0d4 => return caliptra_emu_bus::Register::write(&mut self.reg_u16, size, val),
                             0xcafe_f0d8 => return caliptra_emu_bus::Register::write(&mut self.reg_u8, size, val),
                             0xcafe_f0e0 => return caliptra_emu_bus::Register::write(&mut self.reg_action0, size, val),
                             0xcafe_f0e4 => return self.reg_action1_write(size, std::convert::From::<caliptra_emu_types::RvAddr>::from(val)),
+                            0xcafe_f0f4..=CONST0 if (addr as usize) % <[u32; 5] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE == 0 => return caliptra_emu_bus::Register::write(&mut self.reg_array[(addr - 0xcafe_f0f4) as usize /  <[u32; 5] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE], size, val),
+                            0xcafe_f114..=CONST1 if (addr as usize) % <[u32; 2] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE == 0 => return caliptra_emu_bus::Register::write(&mut self.reg_array_action0[(addr - 0xcafe_f114) as usize /  <[u32; 2] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE], size, val),
+                            0xcafe_f11c..=CONST2 if (addr as usize) % <[u32; 2] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE == 0 => return self.reg_array_action1_write(size, (addr - 0xcafe_f11c) as usize /  <[u32; 2] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE, std::convert::From::<caliptra_emu_types::RvAddr>::from(val)),
                             0xcafe_f0e8 => return self.reg_action2_write(size, std::convert::From::<caliptra_emu_types::RvAddr>::from(val)),
                             0xcafe_f0ec => return self.reg_action3_write(size, std::convert::From::<caliptra_emu_types::RvAddr>::from(val)),
+                            0xcafe_f134..=CONST3 if (addr as usize) % 4usize == 0 => return self.reg_array_action2_write(size, (addr - 0xcafe_f134) as usize / 4usize, std::convert::From::<caliptra_emu_types::RvAddr>::from(val)),
                             _ => {}
                         }
                         match addr & 0xf000_0000 {

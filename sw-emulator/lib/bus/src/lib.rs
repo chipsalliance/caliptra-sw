@@ -29,5 +29,5 @@ pub use crate::register::{
     ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister, Register,
     WriteOnlyMemory, WriteOnlyRegister,
 };
-pub use crate::register_array::ReadWriteRegisterArray;
+pub use crate::register_array::{ReadWriteRegisterArray, RegisterArray};
 pub use crate::rom::Rom;

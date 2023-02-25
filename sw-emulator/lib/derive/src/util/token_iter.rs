@@ -13,7 +13,7 @@ Abstract:
 --*/
 use std::{collections::HashMap, fmt::Display};
 
-use proc_macro2::{Delimiter, Group, Ident, Literal, Spacing, TokenTree};
+use proc_macro2::{Delimiter, Group, Ident, Literal, Spacing, TokenStream, TokenTree};
 
 pub struct Attribute {
     #[allow(dead_code)]
@@ -22,7 +22,9 @@ pub struct Attribute {
 }
 
 pub struct FieldWithAttributes {
-    pub name: Option<Ident>,
+    pub attr_name: String,
+    pub field_name: Option<Ident>,
+    pub field_type: TokenStream,
     pub attributes: Vec<Attribute>,
 }
 
@@ -137,6 +139,25 @@ pub fn skip_to_struct_with_attributes(iter: &mut impl Iterator<Item = TokenTree>
     }
 }
 
+pub fn collect_while(
+    iter: &mut impl Iterator<Item = TokenTree>,
+    mut pred: impl FnMut(&TokenTree) -> bool,
+) -> TokenStream {
+    let mut result = TokenStream::new();
+    loop {
+        match iter.next() {
+            Some(t) => {
+                if pred(&t) {
+                    result.extend(Some(t));
+                } else {
+                    return result;
+                }
+            }
+            None => return result,
+        }
+    }
+}
+
 pub fn skip_to_group(iter: &mut impl Iterator<Item = TokenTree>, delimiter: Delimiter) -> Group {
     loop {
         match iter.next() {
@@ -177,16 +198,18 @@ pub fn skip_to_attribute_or_ident(iter: &mut impl Iterator<Item = TokenTree>) ->
 
 pub fn skip_to_field_with_attributes(
     iter: &mut impl Iterator<Item = TokenTree>,
-    attribute_name: &str,
+    attribute_name_pred: impl Fn(&str) -> bool,
     no_field_required_pred: impl Fn(&Attribute) -> bool,
 ) -> Option<FieldWithAttributes> {
+    let mut attr_name = String::new();
     let mut attributes = Vec::new();
     loop {
         match skip_to_attribute_or_ident(iter) {
             Some(TokenTree::Group(group)) => {
                 let mut iter = group.stream().into_iter();
                 let attribute_ident = expect_ident(&mut iter);
-                if attribute_ident.to_string() != attribute_name {
+                attr_name = attribute_ident.to_string();
+                if !attribute_name_pred(&attr_name) {
                     continue;
                 }
                 let params = expect_group(&mut iter, Delimiter::Parenthesis);
@@ -216,14 +239,33 @@ pub fn skip_to_field_with_attributes(
                 attributes.push(attribute);
                 if no_field_required_pred(attributes.last().unwrap()) {
                     return Some(FieldWithAttributes {
-                        name: None,
+                        attr_name,
+                        field_name: None,
+                        field_type: TokenStream::new(),
                         attributes: attributes,
                     });
                 }
             }
             Some(TokenTree::Ident(ident)) => {
+                expect_punct_of(iter, ':');
+                let mut depth = 0;
+                let field_type = collect_while(iter, |t| match t {
+                    TokenTree::Punct(p) if p.as_char() == '<' => {
+                        depth += 1;
+                        true
+                    }
+                    TokenTree::Punct(p) if p.as_char() == '>' => {
+                        depth -= 1;
+                        true
+                    }
+                    TokenTree::Punct(p) => depth != 0 || p.as_char() != ',',
+                    _ => true,
+                });
+
                 return Some(FieldWithAttributes {
-                    name: Some(ident),
+                    attr_name,
+                    field_name: Some(ident),
+                    field_type,
                     attributes,
                 });
             }
@@ -404,11 +446,11 @@ mod tests {
             &mut tokens(
                 "#[attr1(a = 35)] #[attr2(b = 42)] #[attr1(a = 65, baz=\"hi\")] pub foo: Foo,",
             ),
-            "attr1",
+            |name| name == "attr1",
             |_| false,
         )
         .unwrap();
-        assert_eq!("foo", result.name.unwrap().to_string());
+        assert_eq!("foo", result.field_name.unwrap().to_string());
         assert_eq!("attr1", result.attributes[0].name.to_string());
         assert_eq!(
             "35",

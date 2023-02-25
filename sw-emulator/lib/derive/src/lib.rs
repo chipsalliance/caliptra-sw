@@ -16,7 +16,7 @@ mod util;
 
 use proc_macro::TokenStream;
 
-#[proc_macro_derive(Bus, attributes(peripheral, poll_fn, register))]
+#[proc_macro_derive(Bus, attributes(peripheral, poll_fn, register, register_array))]
 pub fn derive_bus(input: TokenStream) -> TokenStream {
     crate::bus::derive_bus(input.into()).into()
 }

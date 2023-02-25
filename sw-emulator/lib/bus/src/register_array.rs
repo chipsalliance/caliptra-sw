@@ -6,8 +6,16 @@ use std::{
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use tock_registers::{LocalRegisterCopy, RegisterLongName, UIntLike};
 
-use crate::{Bus, BusError};
+use crate::{Bus, BusError, Register};
 
+pub trait RegisterArray {
+    const ITEM_SIZE: usize;
+    const LEN: usize;
+}
+impl<const LEN: usize, T: Register> RegisterArray for [T; LEN] {
+    const ITEM_SIZE: usize = T::SIZE;
+    const LEN: usize = LEN;
+}
 pub struct ReadWriteRegisterArray<
     T: Copy + UIntLike + Into<RvData> + TryFrom<RvData>,
     const SIZE: usize,
@@ -55,6 +63,12 @@ impl<T: UIntLike + Into<RvData> + TryFrom<RvData>, const SIZE: usize, R: Registe
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.regs[index]
     }
+}
+impl<T: UIntLike + Into<RvData> + TryFrom<RvData>, const SIZE: usize, R: RegisterLongName>
+    RegisterArray for ReadWriteRegisterArray<T, SIZE, R>
+{
+    const ITEM_SIZE: usize = std::mem::size_of::<T>();
+    const LEN: usize = SIZE;
 }
 impl<T: UIntLike + Into<RvData> + TryFrom<RvData>, const SIZE: usize, R: RegisterLongName> Bus
     for ReadWriteRegisterArray<T, SIZE, R>

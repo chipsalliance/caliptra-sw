@@ -17,6 +17,24 @@ use proc_macro2::{Literal, TokenTree};
 
 use crate::util::token_iter::DisplayToken;
 
+pub fn parse_usize(literal: &TokenTree) -> usize {
+    if let TokenTree::Literal(literal) = literal {
+        let s = literal.to_string();
+        if s.starts_with("0x") {
+            if let Ok(val) = usize::from_str_radix(&s[2..].replace("_", ""), 16) {
+                return val;
+            }
+        }
+        if let Ok(val) = usize::from_str(&s.replace("_", "")) {
+            return val;
+        }
+    }
+    panic!(
+        "Can't parse {} as hex",
+        &DisplayToken(&Some(literal.clone()))
+    );
+}
+
 pub fn parse_hex_u32(literal: TokenTree) -> u32 {
     if let TokenTree::Literal(literal) = &literal {
         let s = literal.to_string();
