@@ -13,10 +13,7 @@ Abstract:
 --*/
 
 use crate::{KeyUsage, KeyVault};
-use caliptra_emu_bus::{
-    BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister, Timer,
-    TimerAction,
-};
+use caliptra_emu_bus::{BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Timer, TimerAction};
 use caliptra_emu_crypto::{Ecc384, Ecc384PubKey, Ecc384Signature};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
@@ -143,6 +140,21 @@ register_bitfields! [
     ],
 ];
 
+fn words_from_bytes_le(arr: &[u8; 48]) -> [u32; 12] {
+    let mut result = [0u32; 12];
+    for i in 0..result.len() {
+        result[i] = u32::from_le_bytes(arr[i * 4..][..4].try_into().unwrap())
+    }
+    result
+}
+fn bytes_from_words_le(arr: &[u32; 12]) -> [u8; 48] {
+    let mut result = [0u8; 48];
+    for i in 0..arr.len() {
+        result[i * 4..][..4].copy_from_slice(&arr[i].to_le_bytes());
+    }
+    result
+}
+
 #[derive(Bus)]
 #[poll_fn(poll)]
 pub struct AsymEcc384 {
@@ -175,40 +187,40 @@ pub struct AsymEcc384 {
     sca_cfg: ReadWriteRegister<u32, Status::Register>,
 
     /// Seed size
-    #[peripheral(offset = 0x0000_0080, mask = 0x0000_007f)]
-    seed: ReadWriteMemory<ECC384_SEED_SIZE>,
+    #[register_array(offset = 0x0000_0080)]
+    seed: [u32; ECC384_SEED_SIZE / 4],
 
     /// Hash size
-    #[peripheral(offset = 0x0000_0100, mask = 0x0000_007f)]
-    hash: ReadWriteMemory<ECC384_SEED_SIZE>,
+    #[register_array(offset = 0x0000_0100)]
+    hash: [u32; ECC384_SEED_SIZE / 4],
 
     /// Private Key
-    #[peripheral(offset = 0x0000_0180, mask = 0x0000_007f)]
-    priv_key: ReadWriteMemory<ECC384_COORD_SIZE>,
+    #[register_array(offset = 0x0000_0180)]
+    priv_key: [u32; ECC384_COORD_SIZE / 4],
 
     /// Public Key X coordinate
-    #[peripheral(offset = 0x0000_0200, mask = 0x0000_007f)]
-    pub_key_x: ReadWriteMemory<ECC384_COORD_SIZE>,
+    #[register_array(offset = 0x0000_0200)]
+    pub_key_x: [u32; ECC384_COORD_SIZE / 4],
 
     /// Public Key Y coordinate
-    #[peripheral(offset = 0x0000_0280, mask = 0x0000_007f)]
-    pub_key_y: ReadWriteMemory<ECC384_COORD_SIZE>,
+    #[register_array(offset = 0x0000_0280)]
+    pub_key_y: [u32; ECC384_COORD_SIZE / 4],
 
     /// Signature R coordinate
-    #[peripheral(offset = 0x0000_0300, mask = 0x0000_007f)]
-    sig_r: ReadWriteMemory<ECC384_COORD_SIZE>,
+    #[register_array(offset = 0x0000_0300)]
+    sig_r: [u32; ECC384_COORD_SIZE / 4],
 
     /// Signature S coordinate
-    #[peripheral(offset = 0x0000_0380, mask = 0x0000_007f)]
-    sig_s: ReadWriteMemory<ECC384_COORD_SIZE>,
+    #[register_array(offset = 0x0000_0380)]
+    sig_s: [u32; ECC384_COORD_SIZE / 4],
 
     /// Verify R coordinate
-    #[peripheral(offset = 0x0000_0400, mask = 0x0000_007f)]
-    verify_r: ReadOnlyMemory<ECC384_COORD_SIZE>,
+    #[register_array(offset = 0x0000_0400, write_fn = write_access_fault)]
+    verify_r: [u32; ECC384_COORD_SIZE / 4],
 
     /// Initialization vector for blinding and counter measures
-    #[peripheral(offset = 0x0000_0480, mask = 0x0000_007f)]
-    iv: ReadWriteMemory<ECC384_IV_SIZE>,
+    #[register_array(offset = 0x0000_0480)]
+    iv: [u32; ECC384_IV_SIZE / 4],
 
     /// Key Read Control Register
     #[register(offset = 0x0000_0600, write_fn = on_write_key_read_control)]
@@ -287,15 +299,15 @@ impl AsymEcc384 {
             control: ReadWriteRegister::new(0),
             status: ReadOnlyRegister::new(Status::READY::SET.value),
             sca_cfg: ReadWriteRegister::new(0),
-            seed: ReadWriteMemory::new(),
-            hash: ReadWriteMemory::new(),
-            priv_key: ReadWriteMemory::new(),
-            pub_key_x: ReadWriteMemory::new(),
-            pub_key_y: ReadWriteMemory::new(),
-            sig_r: ReadWriteMemory::new(),
-            sig_s: ReadWriteMemory::new(),
-            verify_r: ReadOnlyMemory::new(),
-            iv: ReadWriteMemory::new(),
+            seed: Default::default(),
+            hash: Default::default(),
+            priv_key: Default::default(),
+            pub_key_x: Default::default(),
+            pub_key_y: Default::default(),
+            sig_r: Default::default(),
+            sig_s: Default::default(),
+            verify_r: Default::default(),
+            iv: Default::default(),
             key_read_ctrl: ReadWriteRegister::new(0),
             key_read_status: ReadOnlyRegister::new(KeyReadStatus::READY::SET.value),
             seed_read_ctrl: ReadWriteRegister::new(0),
@@ -500,6 +512,15 @@ impl AsymEcc384 {
         Ok(())
     }
 
+    fn write_access_fault(
+        &self,
+        _size: RvSize,
+        _index: usize,
+        _val: RvData,
+    ) -> Result<(), BusError> {
+        Err(BusError::StoreAccessFault)
+    }
+
     /// Called by Bus::poll() to indicate that time has passed
     fn poll(&mut self) {
         if self.timer.fired(&mut self.op_complete_action) {
@@ -548,10 +569,8 @@ impl AsymEcc384 {
             ),
         };
 
-        if key != None {
-            self.priv_key
-                .data_mut()
-                .copy_from_slice(&key.unwrap()[..ECC384_COORD_SIZE]);
+        if let Some(key) = key {
+            self.priv_key = words_from_bytes_le(key[..ECC384_COORD_SIZE].try_into().unwrap());
         }
 
         self.key_read_status.reg.modify(
@@ -581,10 +600,8 @@ impl AsymEcc384 {
             ),
         };
 
-        if seed != None {
-            self.seed
-                .data_mut()
-                .copy_from_slice(&seed.unwrap()[..ECC384_SEED_SIZE]);
+        if let Some(seed) = seed {
+            self.seed = words_from_bytes_le(seed[..ECC384_SEED_SIZE].try_into().unwrap());
         }
 
         self.seed_read_status.reg.modify(
@@ -614,10 +631,8 @@ impl AsymEcc384 {
             ),
         };
 
-        if msg != None {
-            self.hash
-                .data_mut()
-                .copy_from_slice(&msg.unwrap()[..ECC384_SEED_SIZE]);
+        if let Some(msg) = msg {
+            self.hash = words_from_bytes_le(msg[..ECC384_SEED_SIZE].try_into().unwrap());
         }
 
         self.msg_read_status.reg.modify(
@@ -632,8 +647,8 @@ impl AsymEcc384 {
 
         // Store the key in the key-vault.
         let mut expanded_priv_key: [u8; 64] = [0; 64];
-        expanded_priv_key[..self.priv_key.data_mut().len()]
-            .copy_from_slice(self.priv_key.data_mut());
+        let priv_key_bytes = bytes_from_words_le(&self.priv_key);
+        expanded_priv_key[..priv_key_bytes.len()].copy_from_slice(&priv_key_bytes);
 
         let key_write_result = match self
             .key_vault
@@ -662,8 +677,8 @@ impl AsymEcc384 {
 
     /// Generate ECC Key Pair
     fn gen_key(&mut self) {
-        let (priv_key, pub_key) = Ecc384::gen_key_pair(self.seed.data());
-        self.priv_key.data_mut().copy_from_slice(&priv_key);
+        let (priv_key, pub_key) = Ecc384::gen_key_pair(&bytes_from_words_le(&self.seed));
+        self.priv_key = words_from_bytes_le(&priv_key);
 
         // Check if key write control is enabled.
         if self
@@ -680,31 +695,34 @@ impl AsymEcc384 {
             self.op_key_write_complete_action = Some(self.timer.schedule_poll_in(KEY_RW_TICKS));
         }
 
-        self.pub_key_x.data_mut().copy_from_slice(&pub_key.x);
-        self.pub_key_y.data_mut().copy_from_slice(&pub_key.y);
+        self.pub_key_x = words_from_bytes_le(&pub_key.x);
+        self.pub_key_y = words_from_bytes_le(&pub_key.y);
     }
 
     /// Sign the hash register
     fn sign(&mut self) {
-        let signature = Ecc384::sign(self.priv_key.data(), self.hash.data());
-        self.sig_r.data_mut().copy_from_slice(&signature.r);
-        self.sig_s.data_mut().copy_from_slice(&signature.s);
+        let signature = Ecc384::sign(
+            &bytes_from_words_le(&self.priv_key),
+            &bytes_from_words_le(&self.hash),
+        );
+        self.sig_r = words_from_bytes_le(&signature.r);
+        self.sig_s = words_from_bytes_le(&signature.s);
     }
 
     /// Verify the ECC Signature
     fn verify(&mut self) {
         let verify_r = Ecc384::verify(
             &Ecc384PubKey {
-                x: self.pub_key_x.data().clone(),
-                y: self.pub_key_y.data().clone(),
+                x: bytes_from_words_le(&self.pub_key_x),
+                y: bytes_from_words_le(&self.pub_key_y),
             },
-            self.hash.data(),
+            &bytes_from_words_le(&self.hash),
             &Ecc384Signature {
-                r: self.sig_r.data().clone(),
-                s: self.sig_s.data().clone(),
+                r: bytes_from_words_le(&self.sig_r),
+                s: bytes_from_words_le(&self.sig_s),
             },
         );
-        self.verify_r.data_mut().copy_from_slice(&verify_r);
+        self.verify_r = words_from_bytes_le(&verify_r);
     }
 }
 
@@ -854,16 +872,13 @@ mod tests {
             clock.increment_and_poll(1, &mut ecc);
         }
 
-        let mut priv_key: [u8; 48] = [0; 48];
-        priv_key.clone_from(ecc.priv_key.data());
+        let mut priv_key = bytes_from_words_le(&ecc.priv_key);
         priv_key.to_little_endian(); // Change DWORDs to little-endian.
 
-        let mut pub_key_x: [u8; 48] = [0; 48];
-        pub_key_x.clone_from(ecc.pub_key_x.data());
+        let mut pub_key_x = bytes_from_words_le(&ecc.pub_key_x);
         pub_key_x.to_little_endian(); // Change DWORDs to little-endian.
 
-        let mut pub_key_y: [u8; 48] = [0; 48];
-        pub_key_y.clone_from(ecc.pub_key_y.data());
+        let mut pub_key_y = bytes_from_words_le(&ecc.pub_key_y);
         pub_key_y.to_little_endian(); // Change DWORDs to little-endian.
 
         assert_eq!(&priv_key, &PRIV_KEY);
@@ -938,16 +953,13 @@ mod tests {
                     clock.increment_and_poll(1, &mut ecc);
                 }
 
-                let mut priv_key: [u8; 48] = [0; 48];
-                priv_key.clone_from(ecc.priv_key.data());
+                let mut priv_key = bytes_from_words_le(&ecc.priv_key);
                 priv_key.to_little_endian(); // Change DWORDs to little-endian.
 
-                let mut pub_key_x: [u8; 48] = [0; 48];
-                pub_key_x.clone_from(ecc.pub_key_x.data());
+                let mut pub_key_x = bytes_from_words_le(&ecc.pub_key_x);
                 pub_key_x.to_little_endian(); // Change DWORDs to little-endian.
 
-                let mut pub_key_y: [u8; 48] = [0; 48];
-                pub_key_y.clone_from(ecc.pub_key_y.data());
+                let mut pub_key_y = bytes_from_words_le(&ecc.pub_key_y);
                 pub_key_y.to_little_endian(); // Change DWORDs to little-endian.
 
                 assert_eq!(&priv_key, &PRIV_KEY);
@@ -1021,20 +1033,17 @@ mod tests {
                 clock.increment_and_poll(1, &mut ecc);
             }
 
-            let mut priv_key: [u8; 48] = [0; 48];
             let mut key_usage = KeyUsage::default();
             key_usage.set_ecc_private_key(true);
-            priv_key.clone_from_slice(
-                &ecc.key_vault.read_key(key_id, key_usage).unwrap()[..ECC384_COORD_SIZE],
-            );
+            let mut priv_key: [u8; 48] = ecc.key_vault.read_key(key_id, key_usage).unwrap()[..48]
+                .try_into()
+                .unwrap();
             priv_key.to_little_endian(); // Change DWORDs to little-endian.
 
-            let mut pub_key_x: [u8; 48] = [0; 48];
-            pub_key_x.clone_from(ecc.pub_key_x.data());
+            let mut pub_key_x = bytes_from_words_le(&ecc.pub_key_x);
             pub_key_x.to_little_endian(); // Change DWORDs to little-endian.
 
-            let mut pub_key_y: [u8; 48] = [0; 48];
-            pub_key_y.clone_from(ecc.pub_key_y.data());
+            let mut pub_key_y = bytes_from_words_le(&ecc.pub_key_y);
             pub_key_y.to_little_endian(); // Change DWORDs to little-endian.
 
             assert_eq!(&priv_key, &PRIV_KEY);
@@ -1092,12 +1101,10 @@ mod tests {
             clock.increment_and_poll(1, &mut ecc);
         }
 
-        let mut sig_r: [u8; 48] = [0; 48];
-        sig_r.clone_from(ecc.sig_r.data());
+        let mut sig_r = bytes_from_words_le(&ecc.sig_r);
         sig_r.to_little_endian(); // Change DWORDs to little-endian.
 
-        let mut sig_s: [u8; 48] = [0; 48];
-        sig_s.clone_from(ecc.sig_s.data());
+        let mut sig_s = bytes_from_words_le(&ecc.sig_s);
         sig_s.to_little_endian(); // Change DWORDs to little-endian.
 
         assert_eq!(&sig_r, &SIG_R);
@@ -1179,12 +1186,10 @@ mod tests {
                 clock.increment_and_poll(1, &mut ecc);
             }
 
-            let mut sig_r: [u8; 48] = [0; 48];
-            sig_r.clone_from(ecc.sig_r.data());
+            let mut sig_r = bytes_from_words_le(&ecc.sig_r);
             sig_r.to_little_endian(); // Change DWORDs to little-endian.
 
-            let mut sig_s: [u8; 48] = [0; 48];
-            sig_s.clone_from(ecc.sig_s.data());
+            let mut sig_s = bytes_from_words_le(&ecc.sig_s);
             sig_s.to_little_endian(); // Change DWORDs to little-endian.
 
             assert_eq!(&sig_r, &SIG_R);
@@ -1333,12 +1338,10 @@ mod tests {
                 clock.increment_and_poll(1, &mut ecc);
             }
 
-            let mut sig_r: [u8; 48] = [0; 48];
-            sig_r.clone_from(ecc.sig_r.data());
+            let mut sig_r = bytes_from_words_le(&ecc.sig_r);
             sig_r.to_little_endian(); // Change DWORDs to little-endian.
 
-            let mut sig_s: [u8; 48] = [0; 48];
-            sig_s.clone_from(ecc.sig_s.data());
+            let mut sig_s = bytes_from_words_le(&ecc.sig_s);
             sig_s.to_little_endian(); // Change DWORDs to little-endian.
 
             assert_eq!(&sig_r, &SIG_R);
@@ -1489,7 +1492,7 @@ mod tests {
             clock.increment_and_poll(1, &mut ecc);
         }
 
-        sig_s_reverse.clone_from(ecc.verify_r.data());
+        let mut sig_s_reverse = bytes_from_words_le(&ecc.verify_r);
         sig_s_reverse.to_little_endian();
 
         assert_eq!(&sig_s_reverse, &SIG_R);
