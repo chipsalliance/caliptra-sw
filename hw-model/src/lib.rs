@@ -3,6 +3,7 @@ use std::error::Error;
 use caliptra_emu_bus::Bus;
 
 pub mod mmio;
+mod model_emulated;
 mod output;
 
 use mmio::BusMmio;
