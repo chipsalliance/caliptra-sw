@@ -463,6 +463,7 @@ impl StateMachineContext for Context {
     }
 
     fn lock(&mut self, user: &Owner) {
+        self.ring_buffer.reset();
         self.locked = 1;
         self.user = user.0;
     }
@@ -496,21 +497,30 @@ impl RingBuffer {
         }
     }
     pub fn enqueue(&mut self, element: u32) {
-        // there is no buffer full condition in mailbox h/w
-        self.mailbox_ram
-            .write(RvSize::Word, self.write_index as u32, element)
-            .unwrap();
-        self.write_index = (self.write_index + RvSize::Word as usize) & (self.capacity - 1);
+        // On buffer full condition, ignore the write.
+        if self.write_index < self.capacity {
+            self.mailbox_ram
+                .write(RvSize::Word, self.write_index as u32, element)
+                .unwrap();
+            self.write_index = self.write_index + RvSize::Word as usize;
+        }
     }
     pub fn dequeue(&mut self) -> u32 {
-        // there is no buffer empty condition in mailbox h/w
-        let element = self
-            .mailbox_ram
-            .read(RvSize::Word, self.read_index as u32)
-            .unwrap();
+        // On buffer empty condition, return 0.
+        let mut element = 0;
+        if self.read_index < self.capacity {
+            element = self
+                .mailbox_ram
+                .read(RvSize::Word, self.read_index as u32)
+                .unwrap();
 
-        self.read_index = (self.read_index + RvSize::Word as usize) & (self.capacity - 1);
+            self.read_index = self.read_index + RvSize::Word as usize;
+        }
         element
+    }
+    pub fn reset(&mut self) {
+        self.read_index = 0;
+        self.write_index = 0;
     }
 }
 
@@ -688,5 +698,114 @@ mod tests {
             States::Idle
         ));
         assert_eq!(mb.regs.borrow().state_machine.context().locked, 0);
+    }
+
+    #[test]
+    fn test_send_receive_max_limit() {
+        // Acquire lock
+        let mut mb = Mailbox::new(MailboxRam::new());
+        assert_eq!(mb.read(RvSize::Word, Mailbox::OFFSET_LOCK).unwrap(), 0);
+        // Confirm it is locked
+        let lock = mb.read(RvSize::Word, Mailbox::OFFSET_LOCK).unwrap();
+        assert_eq!(lock, 1);
+
+        let user = mb.read(RvSize::Word, OFFSET_USER).unwrap();
+        assert_eq!(user, 0);
+
+        // Write command
+        assert_eq!(
+            mb.write(RvSize::Word, Mailbox::OFFSET_CMD, 0x55).ok(),
+            Some(())
+        );
+
+        // Write dlen
+        assert_eq!(
+            mb.write(
+                RvSize::Word,
+                Mailbox::OFFSET_DLEN,
+                (MAX_MAILBOX_CAPACITY_BYTES + 4) as u32
+            )
+            .ok(),
+            Some(())
+        );
+
+        for data_in in (0..MAX_MAILBOX_CAPACITY_BYTES).step_by(4) {
+            // Write datain
+            assert_eq!(
+                mb.write(RvSize::Word, Mailbox::OFFSET_DATAIN, data_in as u32)
+                    .ok(),
+                Some(())
+            );
+        }
+
+        // Write an additional DWORD. This should be a no-op.
+        assert_eq!(
+            mb.write(RvSize::Word, Mailbox::OFFSET_DATAIN, 0xDEADBEEF)
+                .ok(),
+            Some(())
+        );
+
+        assert_eq!(
+            mb.write(
+                RvSize::Word,
+                Mailbox::OFFSET_STATUS,
+                Status::STATUS::DATA_READY.value
+            )
+            .ok(),
+            Some(())
+        );
+
+        // Write exec
+        assert_eq!(
+            mb.write(RvSize::Word, Mailbox::OFFSET_EXECUTE, 0x55).ok(),
+            Some(())
+        );
+
+        assert!(matches!(
+            mb.regs.borrow().state_machine.state(),
+            States::Exec
+        ));
+
+        let status = mb.read(RvSize::Word, Mailbox::OFFSET_STATUS).unwrap();
+        assert_eq!(status, Status::STATUS::DATA_READY.value);
+
+        let cmd = mb.read(RvSize::Word, Mailbox::OFFSET_CMD).unwrap();
+        assert_eq!(cmd, 0x55);
+
+        let dlen = mb.read(RvSize::Word, Mailbox::OFFSET_DLEN).unwrap();
+        assert_eq!(dlen, (MAX_MAILBOX_CAPACITY_BYTES + 4) as u32);
+
+        for data_in in (0..MAX_MAILBOX_CAPACITY_BYTES).step_by(4) {
+            // Read dataout
+            let data_out = mb.read(RvSize::Word, Mailbox::OFFSET_DATAOUT).unwrap();
+            // compare with queued data.
+            assert_eq!(data_in as u32, data_out as u32);
+        }
+
+        // Read an additional DWORD. This should return 0.
+        assert_eq!(mb.read(RvSize::Word, Mailbox::OFFSET_DATAOUT).unwrap(), 0);
+
+        assert_eq!(
+            mb.write(
+                RvSize::Word,
+                Mailbox::OFFSET_STATUS,
+                Status::STATUS::CMD_COMPLETE.value
+            )
+            .ok(),
+            Some(())
+        );
+
+        // Receiver resets exec register
+        assert_eq!(
+            mb.write(RvSize::Word, Mailbox::OFFSET_EXECUTE, 0).ok(),
+            Some(())
+        );
+        // Confirm it is unlocked
+        assert_eq!(mb.regs.borrow().state_machine.context.locked, 0);
+
+        assert!(matches!(
+            mb.regs.borrow().state_machine.state(),
+            States::Idle
+        ));
     }
 }
