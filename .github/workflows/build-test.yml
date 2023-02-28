@@ -16,6 +16,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+          token: ${{secrets.CALIPTRA_PAT_READ}}
+
+      - name: Print submodule contents
+        run: |
+          (cd hw-latest && find)
 
       - name: Install risv32imc target
         run: |
