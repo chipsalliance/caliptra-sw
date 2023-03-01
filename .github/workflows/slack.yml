@@ -1,0 +1,25 @@
+name: Publish merged PRs on Slack
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  slack_publish:
+    runs-on: ubuntu-22.04
+    if: github.event.pull_request.merged
+    steps:
+      - name: publish_message
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          curl ${{ secrets.SLACK_PR_MERGED_WEBHOOK_URL }} \
+          -H "Content-Type: application/json" \
+          -d "$(jq -n --arg title "${PR_TITLE}" \
+                      --arg body "${PR_BODY}" \
+                      --arg author "${AUTHOR}" \
+                      --arg url "${PR_URL}" \
+                      '$ARGS.named')"
