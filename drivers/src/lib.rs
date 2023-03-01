@@ -18,10 +18,12 @@ mod array;
 mod error;
 mod wait;
 
+mod data_vault;
 mod doe;
 mod ecc384;
 mod error_reporter;
 mod exit_ctrl;
+mod fuse_bank;
 mod hmac384;
 mod key_vault;
 mod kv_access;
@@ -37,6 +39,7 @@ mod status_reporter;
 
 pub type CaliptraResult<T> = Result<T, u32>;
 pub use array::{Array4x12, Array4x4, Array4x5, Array4x8, Array4xN};
+pub use data_vault::DataVault;
 pub use doe::DeobfuscationEngine;
 pub use ecc384::{
     Ecc384, Ecc384Data, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Scalar, Ecc384Seed,
@@ -48,6 +51,7 @@ pub use error_reporter::{
     report_hw_error_non_fatal,
 };
 pub use exit_ctrl::ExitCtrl;
+pub use fuse_bank::FuseBank;
 pub use hmac384::{Hmac384, Hmac384Data, Hmac384Key, Hmac384Op, Hmac384Tag};
 pub use key_vault::{KeyId, KeyUsage, KeyVault};
 pub use kv_access::{KeyReadArgs, KeyWriteArgs};
