@@ -11,7 +11,7 @@ caliptra-emu-cpu = { path = "../cpu"}
 caliptra-emu-crypto = { path = "../crypto"}
 caliptra-emu-derive = { path = "../derive" }
 caliptra-emu-types = { path = "../types" }
-tock-registers = { git = "https://github.com/tock/tock.git"}
+tock-registers = "0.8.1"
 smlang="0.6.0"
 lazy_static = "1.4.0"
 arrayref = "0.3.6"
