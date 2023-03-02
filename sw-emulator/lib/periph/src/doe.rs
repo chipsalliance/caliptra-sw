@@ -28,7 +28,8 @@ const DOE_IV_SIZE: usize = 16;
 /// The number of CPU clock cycles it takes to perform the hash update action.
 const DOE_OP_TICKS: u64 = 1000;
 
-const DOE_KEY_USAGE: u32 = 0x2; // hmac_block_dest_valid
+// hmac_block_dest_valid
+const DOE_KEY_USAGE: u32 = 0x2;
 
 register_bitfields! [
     u32,
@@ -41,13 +42,17 @@ register_bitfields! [
             DEOBFUSCATE_FE = 0b10,
             CLEAR_SECRETS = 0b11,
         ],
-        DEST OFFSET(2) NUMBITS(3) [],
+        DEST OFFSET(2) NUMBITS(5) [],
     ],
 
     /// Status Register Fields
-    pub(crate) Status [
+    Status [
         READY OFFSET(0) NUMBITS(1) [],
         VALID OFFSET(1) NUMBITS(1) [],
+        UDS_FLOW_DONE OFFSET(2) NUMBITS(1) [],
+        FE_FLOW_DONE OFFSET(3) NUMBITS(1) [],
+        DEOBF_SECRETS_CLEARED OFFSET(4) NUMBITS(1) [],
+        RSVD OFFSET(5) NUMBITS(27) [],
     ],
 ];
 
@@ -154,7 +159,7 @@ impl Doe {
     /// * `key_id` - Key index to store the UDS
     fn unscramble_uds(&mut self, key_id: u32) {
         let cipher_uds = self.soc_reg.uds();
-        let mut plain_uds = [0u8; 64];
+        let mut plain_uds = [0u8; 48];
         Aes256Cbc::decrypt(
             &self.soc_reg.doe_key(),
             self.iv.data(),
@@ -173,7 +178,7 @@ impl Doe {
     /// * `key_id` - Key index to store the field entropy
     fn unscramble_fe(&mut self, key_id: u32) {
         let cipher_fe = self.soc_reg.field_entropy();
-        let mut plain_fe = [0u8; 64];
+        let mut plain_fe = [0u8; 48];
         Aes256Cbc::decrypt(
             &self.soc_reg.doe_key(),
             self.iv.data(),
@@ -330,7 +335,10 @@ mod tests {
         let mut key_usage = KeyUsage::default();
         key_usage.set_hmac_data(true);
 
-        assert_eq!(key_vault.read_key(3, key_usage).unwrap(), PLAIN_TEXT_FE);
+        assert_eq!(
+            key_vault.read_key(3, key_usage).unwrap(),
+            PLAIN_TEXT_FE[..KeyVault::KEY_SIZE]
+        );
     }
 
     #[test]

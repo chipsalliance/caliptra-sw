@@ -29,7 +29,12 @@ register_bitfields! [
     Control [
         INIT OFFSET(0) NUMBITS(1) [],
         NEXT OFFSET(1) NUMBITS(1) [],
-        MODE OFFSET(2) NUMBITS(1) [],
+        MODE OFFSET(2) NUMBITS(1) [
+            SHA256_224 = 0b00,
+            SHA256 = 0b01,
+        ],
+        ZEROIZE OFFSET(3) NUMBITS(1) [],
+        RSVD OFFSET(4) NUMBITS(28) [],
     ],
 
     /// Status Register Fields

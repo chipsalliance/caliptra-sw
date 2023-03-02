@@ -69,6 +69,12 @@ register_bitfields! [
         LOCK OFFSET(0) NUMBITS(1) [],
         RSVD OFFSET(1) NUMBITS(31) [],
     ],
+
+    /// Control Register Fields
+    Control[
+        ZEROIZE OFFSET(0) NUMBITS(1) [],
+        RSVD OFFSET(1) NUMBITS(31) [],
+    ],
 ];
 
 #[derive(Bus)]
@@ -113,6 +119,10 @@ pub struct Sha512Accelerator {
     #[peripheral(offset = 0x0000_0040, mask = 0x0000_001F)]
     hash_upper: ReadOnlyMemory<SHA512_HASH_HALF_SIZE>,
 
+    /// Control register
+    #[register(offset = 0x0000_0060, write_fn = on_write_control)]
+    control: ReadWriteRegister<u32, Control::Register>,
+
     /// Mailbox Memory
     mailbox_ram: MailboxRam,
 
@@ -144,6 +154,7 @@ impl Sha512Accelerator {
             start_address: ReadWriteRegister::new(0),
             op_complete_action: None,
             state_machine: StateMachine::new(Context::new()),
+            control: ReadWriteRegister::new(0),
         }
     }
 
@@ -331,6 +342,30 @@ impl Sha512Accelerator {
         } else {
             Err(BusError::StoreAccessFault)?
         }
+    }
+
+    /// On Write callback for `control` register
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - Size of the write
+    /// * `val` - Data to write
+    ///
+    /// # Error
+    ///
+    /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
+    pub fn on_write_control(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
+        // Writes have to be Word aligned
+        if size != RvSize::Word {
+            Err(BusError::StoreAccessFault)?
+        }
+
+        // Set the control register
+        self.control.reg.set(val);
+
+        // [TODO] Zero out the SHA-ACC internal registers.
+
+        Ok(())
     }
 
     /// Function to retrieve data from the mailbox and compute it's hash.

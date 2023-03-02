@@ -23,8 +23,6 @@ use caliptra_registers::sha512;
 const SHA384_BLOCK_BYTE_SIZE: usize = 128;
 const SHA384_BLOCK_LEN_OFFSET: usize = 112;
 const SHA384_MAX_DATA_SIZE: usize = 1024 * 1024;
-const SHA384_MIN_KEY_READ_SIZE: u32 = 1;
-const SHA384_MAX_KEY_READ_SIZE: u32 = 16;
 
 caliptra_err_def! {
     Sha384,
@@ -218,7 +216,7 @@ impl Sha384 {
                     // the panic call.
                     if let Some(slice) = buf.get(offset..offset + SHA384_BLOCK_BYTE_SIZE) {
                         let block = <&[u8; SHA384_BLOCK_BYTE_SIZE]>::try_from(slice).unwrap();
-                        self.digest_block(block, first)?;
+                        self.digest_block(block, first, false)?;
                         bytes_remaining -= SHA384_BLOCK_BYTE_SIZE;
                         first = false;
                     } else {
@@ -237,16 +235,12 @@ impl Sha384 {
     ///
     /// * `key` - Key to calculate digest for
     fn digest_key(&self, key: KeyReadArgs) -> CaliptraResult<()> {
-        if !(SHA384_MIN_KEY_READ_SIZE..SHA384_MAX_KEY_READ_SIZE + 1).contains(&key.word_size) {
-            raise_err!(InvalidKeySize)
-        }
-
         let sha = sha512::RegisterBlock::sha512_reg();
 
         KvAccess::copy_from_kv(key, sha.kv_rd_status(), sha.kv_rd_ctrl())
             .map_err(|err| err.into_read_data_err())?;
 
-        self.digest_op(true)
+        self.digest_op(true, true)
     }
 
     /// Calculate the digest of the last block
@@ -270,6 +264,7 @@ impl Sha384 {
 
         // Construct the block
         let mut block = [0u8; SHA384_BLOCK_BYTE_SIZE];
+        let mut last = false;
 
         // PANIC-FREE: Following check optimizes the out of bounds
         // panic in copy_from_slice
@@ -280,16 +275,17 @@ impl Sha384 {
         block[slice.len()] = 0b1000_0000;
         if slice.len() < SHA384_BLOCK_LEN_OFFSET {
             set_block_len(buf_size, &mut block);
+            last = true;
         }
 
         // Calculate the digest of the op
-        self.digest_block(&block, first)?;
+        self.digest_block(&block, first, last)?;
 
         // Add a padding block if one is needed
         if slice.len() >= SHA384_BLOCK_LEN_OFFSET {
             block.fill(0);
             set_block_len(buf_size, &mut block);
-            self.digest_block(&block, false)?;
+            self.digest_block(&block, false, true)?;
         }
 
         Ok(())
@@ -301,14 +297,16 @@ impl Sha384 {
     ///
     /// * `block`: Block to calculate the digest
     /// * `first` - Flag indicating if this is the first block
+    /// * `last` - Flag indicating if this is the last block
     fn digest_block(
         &self,
         block: &[u8; SHA384_BLOCK_BYTE_SIZE],
         first: bool,
+        last: bool,
     ) -> CaliptraResult<()> {
         let sha512 = sha512::RegisterBlock::sha512_reg();
         Array4x32::from(block).write_to_reg(sha512.block());
-        self.digest_op(first)
+        self.digest_op(first, last)
     }
 
     // Perform the digest operation in the hardware
@@ -316,7 +314,8 @@ impl Sha384 {
     // # Arguments
     //
     /// * `first` - Flag indicating if this is the first block
-    fn digest_op(&self, first: bool) -> CaliptraResult<()> {
+    /// * `last` - Flag indicating if this is the last block
+    fn digest_op(&self, first: bool, last: bool) -> CaliptraResult<()> {
         const MODE_SHA384: u32 = 0b10;
 
         let sha = sha512::RegisterBlock::sha512_reg();
@@ -324,15 +323,9 @@ impl Sha384 {
         // Wait for the hardware to be ready
         wait::until(|| sha.status().read().ready());
 
-        if first {
-            // Submit the first block
-            sha.ctrl()
-                .write(|w| w.mode(MODE_SHA384).init(true).next(false));
-        } else {
-            // Submit next block in existing hashing chain
-            sha.ctrl()
-                .write(|w| w.mode(MODE_SHA384).init(false).next(true));
-        }
+        // Submit the first/next block for hashing.
+        sha.ctrl()
+            .write(|w| w.mode(MODE_SHA384).init(first).next(!first).last(last));
 
         // Wait for the digest operation to finish
         wait::until(|| sha.status().read().ready());
@@ -405,7 +398,7 @@ impl<'a> Sha384DigestOp<'a> {
 
             // If the buffer is full calculate the digest of accumulated data
             if self.buf_idx == self.buf.len() {
-                self.sha.digest_block(&self.buf, self.is_first())?;
+                self.sha.digest_block(&self.buf, self.is_first(), false)?;
                 self.reset_buf_state();
             }
         }

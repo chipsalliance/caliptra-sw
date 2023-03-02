@@ -155,7 +155,7 @@ impl Ecc384PubKey {
         let mut der = [0u8; 97];
         der[0] = 0x04;
         let x: [u8; 48] = self.x.into();
-        let y: [u8; 48] = self.x.into();
+        let y: [u8; 48] = self.y.into();
         der[01..49].copy_from_slice(&x);
         der[49..97].copy_from_slice(&y);
         der
@@ -352,7 +352,7 @@ trait Ecc384KeyAccessErr {
     /// Convert to read private key operation error
     fn into_read_priv_key_err(self) -> Ecc384Err;
 
-    /// Convert to write privat key operation error
+    /// Convert to write private key operation error
     fn into_write_priv_key_err(self) -> Ecc384Err;
 }
 

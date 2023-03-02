@@ -18,7 +18,7 @@ Abstract:
 use caliptra_lib::{KeyId, KeyUsage, KeyVault};
 mod harness;
 
-const KEY_IDS: [KeyId; 8] = [
+const KEY_IDS: [KeyId; 32] = [
     KeyId::KeyId0,
     KeyId::KeyId1,
     KeyId::KeyId2,
@@ -27,6 +27,30 @@ const KEY_IDS: [KeyId; 8] = [
     KeyId::KeyId5,
     KeyId::KeyId6,
     KeyId::KeyId7,
+    KeyId::KeyId8,
+    KeyId::KeyId9,
+    KeyId::KeyId10,
+    KeyId::KeyId11,
+    KeyId::KeyId12,
+    KeyId::KeyId13,
+    KeyId::KeyId14,
+    KeyId::KeyId15,
+    KeyId::KeyId16,
+    KeyId::KeyId17,
+    KeyId::KeyId18,
+    KeyId::KeyId19,
+    KeyId::KeyId20,
+    KeyId::KeyId21,
+    KeyId::KeyId22,
+    KeyId::KeyId23,
+    KeyId::KeyId24,
+    KeyId::KeyId25,
+    KeyId::KeyId26,
+    KeyId::KeyId27,
+    KeyId::KeyId28,
+    KeyId::KeyId29,
+    KeyId::KeyId30,
+    KeyId::KeyId31,
 ];
 
 fn test_write_lock_and_erase_keys() {

@@ -23,98 +23,97 @@ use tock_registers::{register_bitfields, LocalRegisterCopy};
 mod constants {
     #![allow(unused)]
 
-    pub const PCR_COUNT: u32 = 8;
-    pub const PCR_SIZE: usize = 64;
-    pub const PCR_CONTROL_REG_OFFSET: u32 = 0x000;
+    // Key Vault
+    pub const KEY_CONTROL_REG_START_OFFSET: u32 = crate::KeyVault::KEY_CONTROL_REG_OFFSET;
+    pub const KEY_CONTROL_REG_END_OFFSET: u32 = KEY_CONTROL_REG_START_OFFSET
+        + (crate::KeyVault::KEY_COUNT - 1) * crate::KeyVault::KEY_CONTROL_REG_WIDTH;
+
+    // PCR Vault
+    pub const PCR_SIZE: usize = 48;
+    pub const PCR_SIZE_WORDS: usize = PCR_SIZE / 4;
+    pub const PCR_COUNT: u32 = 32;
+    pub const PCR_CONTROL_REG_OFFSET: u32 = 0x2000;
     pub const PCR_CONTROL_REG_WIDTH: u32 = 0x4;
     pub const PCR_CONTROL_REG_START_OFFSET: u32 = PCR_CONTROL_REG_OFFSET;
     pub const PCR_CONTROL_REG_END_OFFSET: u32 =
         PCR_CONTROL_REG_START_OFFSET + (PCR_COUNT - 1) * PCR_CONTROL_REG_WIDTH;
 
-    pub const KEY_COUNT: u32 = 8;
-    pub const PCR_REG_OFFSET: u32 = 0x200;
-    pub const PCR_REG_WIDTH: u32 = 64;
-    pub const PCR_REG_START_OFFSET: u32 = PCR_REG_OFFSET;
-    pub const PCR_REG_END_OFFSET: u32 = PCR_REG_START_OFFSET + (PCR_COUNT - 1) * PCR_REG_WIDTH;
-
-    pub const KEY_SIZE: usize = 64;
-    pub const KEY_CONTROL_REG_OFFSET: u32 = 0x400;
-    pub const KEY_CONTROL_REG_WIDTH: u32 = 0x4;
-    pub const KEY_CONTROL_REG_START_OFFSET: u32 = KEY_CONTROL_REG_OFFSET;
-    pub const KEY_CONTROL_REG_END_OFFSET: u32 =
-        KEY_CONTROL_REG_START_OFFSET + (KEY_COUNT - 1) * KEY_CONTROL_REG_WIDTH;
-
+    // Sticky Data Vault
     pub const STICKY_DATAVAULT_CTRL_REG_COUNT: u32 = 10;
     pub const STICKY_DATAVAULT_CTRL_REG_WIDTH: u32 = 4;
-    pub const STICKY_DATAVAULT_CTRL_REG_START_OFFSET: u32 = 0x804;
+    pub const STICKY_DATAVAULT_CTRL_REG_START_OFFSET: u32 = 0x4000;
     pub const STICKY_DATAVAULT_CTRL_REG_END_OFFSET: u32 = STICKY_DATAVAULT_CTRL_REG_START_OFFSET
         + (STICKY_DATAVAULT_CTRL_REG_COUNT - 1) * STICKY_DATAVAULT_CTRL_REG_WIDTH;
 
-    pub const NONSTICKY_DATAVAULT_CTRL_REG_COUNT: u32 = 10;
-    pub const NONSTICKY_DATAVAULT_CTRL_REG_WIDTH: u32 = 4;
-    pub const NONSTICKY_DATAVAULT_CTRL_REG_START_OFFSET: u32 = 0x82c;
-    pub const NONSTICKY_DATAVAULT_CTRL_REG_END_OFFSET: u32 =
-        NONSTICKY_DATAVAULT_CTRL_REG_START_OFFSET
-            + (NONSTICKY_DATAVAULT_CTRL_REG_COUNT - 1) * NONSTICKY_DATAVAULT_CTRL_REG_WIDTH;
-
-    pub const NONSTICKY_LOCKABLE_SCRATCH_CTRL_REG_COUNT: u32 = 10;
-    pub const NONSTICKY_LOCKABLE_SCRATCH_CTRL_REG_WIDTH: u32 = 4;
-    pub const NONSTICKY_LOCKABLE_SCRATCH_CTRL_REG_START_OFFSET: u32 = 0x854;
-    pub const NONSTICKY_LOCKABLE_SCRATCH_CTRL_REG_END_OFFSET: u32 =
-        NONSTICKY_LOCKABLE_SCRATCH_CTRL_REG_START_OFFSET
-            + (NONSTICKY_LOCKABLE_SCRATCH_CTRL_REG_COUNT - 1)
-                * NONSTICKY_LOCKABLE_SCRATCH_CTRL_REG_WIDTH;
-
     pub const STICKY_DATAVAULT_ENTRY_COUNT: u32 = 10;
     pub const STICKY_DATAVAULT_ENTRY_WIDTH: u32 = 48;
-    pub const STICKY_DATAVAULT_ENTRY_WORD_START_OFFSET: u32 = 0x900;
+    pub const STICKY_DATAVAULT_ENTRY_WORD_START_OFFSET: u32 = 0x4028;
     pub const STICKY_DATAVAULT_ENTRY_WORD_END_OFFSET: u32 = STICKY_DATAVAULT_ENTRY_WORD_START_OFFSET
         + STICKY_DATAVAULT_ENTRY_COUNT * STICKY_DATAVAULT_ENTRY_WIDTH
         - 4;
 
+    // Non-Sticky Data Vault
+    pub const NONSTICKY_DATAVAULT_CTRL_REG_COUNT: u32 = 10;
+    pub const NONSTICKY_DATAVAULT_CTRL_REG_WIDTH: u32 = 4;
+    pub const NONSTICKY_DATAVAULT_CTRL_REG_START_OFFSET: u32 = 0x4208;
+    pub const NONSTICKY_DATAVAULT_CTRL_REG_END_OFFSET: u32 =
+        NONSTICKY_DATAVAULT_CTRL_REG_START_OFFSET
+            + (NONSTICKY_DATAVAULT_CTRL_REG_COUNT - 1) * NONSTICKY_DATAVAULT_CTRL_REG_WIDTH;
+
     pub const NONSTICKY_DATAVAULT_ENTRY_COUNT: u32 = 10;
     pub const NONSTICKY_DATAVAULT_ENTRY_WIDTH: u32 = 48;
-    pub const NONSTICKY_DATAVAULT_ENTRY_WORD_START_OFFSET: u32 = 0xc00;
+    pub const NONSTICKY_DATAVAULT_ENTRY_WORD_START_OFFSET: u32 = 0x4230;
     pub const NONSTICKY_DATAVAULT_ENTRY_WORD_END_OFFSET: u32 =
         NONSTICKY_DATAVAULT_ENTRY_WORD_START_OFFSET
             + NONSTICKY_DATAVAULT_ENTRY_COUNT * NONSTICKY_DATAVAULT_ENTRY_WIDTH
             - 4;
 
+    // Non-Sticky Lockable Scratch
+    pub const NONSTICKY_LOCKABLE_SCRATCH_CTRL_REG_COUNT: u32 = 10;
+    pub const NONSTICKY_LOCKABLE_SCRATCH_CTRL_REG_WIDTH: u32 = 4;
+    pub const NONSTICKY_LOCKABLE_SCRATCH_CTRL_REG_START_OFFSET: u32 = 0x4410;
+    pub const NONSTICKY_LOCKABLE_SCRATCH_CTRL_REG_END_OFFSET: u32 =
+        NONSTICKY_LOCKABLE_SCRATCH_CTRL_REG_START_OFFSET
+            + (NONSTICKY_LOCKABLE_SCRATCH_CTRL_REG_COUNT - 1)
+                * NONSTICKY_LOCKABLE_SCRATCH_CTRL_REG_WIDTH;
+
     pub const NONSTICKY_LOCKABLE_SCRATCH_REG_COUNT: u32 = 10;
     pub const NONSTICKY_LOCKABLE_SCRATCH_REG_WIDTH: u32 = 4;
-    pub const NONSTICKY_LOCKABLE_SCRATCH_REG_START_OFFSET: u32 = 0xf00;
+    pub const NONSTICKY_LOCKABLE_SCRATCH_REG_START_OFFSET: u32 = 0x4438;
     pub const NONSTICKY_LOCKABLE_SCRATCH_REG_END_OFFSET: u32 =
         NONSTICKY_LOCKABLE_SCRATCH_REG_START_OFFSET
             + (NONSTICKY_LOCKABLE_SCRATCH_REG_COUNT - 1) * NONSTICKY_LOCKABLE_SCRATCH_REG_WIDTH;
 
+    // Non-Sticky Generic Scratch
     pub const NONSTICKY_GENERIC_SCRATCH_REG_COUNT: u32 = 8;
     pub const NONSTICKY_GENERIC_SCRATCH_REG_WIDTH: u32 = 4;
-    pub const NONSTICKY_GENERIC_SCRATCH_REG_START_OFFSET: u32 = 0xf28;
+    pub const NONSTICKY_GENERIC_SCRATCH_REG_START_OFFSET: u32 = 0x4460;
     pub const NONSTICKY_GENERIC_SCRATCH_REG_END_OFFSET: u32 =
         NONSTICKY_GENERIC_SCRATCH_REG_START_OFFSET
             + (NONSTICKY_GENERIC_SCRATCH_REG_COUNT - 1) * NONSTICKY_GENERIC_SCRATCH_REG_WIDTH;
 
+    // Sticky Lockable Scratch
     pub const STICKY_LOCKABLE_SCRATCH_CTRL_REG_COUNT: u32 = 8;
     pub const STICKY_LOCKABLE_SCRATCH_CTRL_REG_WIDTH: u32 = 4;
-    pub const STICKY_LOCKABLE_SCRATCH_CTRL_REG_START_OFFSET: u32 = 0xf48;
+    pub const STICKY_LOCKABLE_SCRATCH_CTRL_REG_START_OFFSET: u32 = 0x4480;
     pub const STICKY_LOCKABLE_SCRATCH_CTRL_REG_END_OFFSET: u32 =
         STICKY_LOCKABLE_SCRATCH_CTRL_REG_START_OFFSET
             + (STICKY_LOCKABLE_SCRATCH_CTRL_REG_COUNT - 1) * STICKY_LOCKABLE_SCRATCH_CTRL_REG_WIDTH;
 
     pub const STICKY_LOCKABLE_SCRATCH_REG_COUNT: u32 = 8;
     pub const STICKY_LOCKABLE_SCRATCH_REG_WIDTH: u32 = 4;
-    pub const STICKY_LOCKABLE_SCRATCH_REG_START_OFFSET: u32 = 0xf68;
+    pub const STICKY_LOCKABLE_SCRATCH_REG_START_OFFSET: u32 = 0x44a0;
     pub const STICKY_LOCKABLE_SCRATCH_REG_END_OFFSET: u32 = STICKY_LOCKABLE_SCRATCH_REG_START_OFFSET
         + (STICKY_LOCKABLE_SCRATCH_REG_COUNT - 1) * STICKY_LOCKABLE_SCRATCH_REG_WIDTH;
 
     /// PCR Register Size
-    pub const PCR_REG_SIZE: usize = 0x200;
+    pub const PCR_REG_SIZE: usize = 0x600;
 
     /// PCR Control register reset value
     pub const PCR_CONTROL_REG_RESET_VAL: u32 = 0;
 
     /// Key Memory Size
-    pub const KEY_REG_SIZE: usize = 0x200;
+    pub const KEY_REG_SIZE: usize = 0x600;
 
     /// Key control register reset value
     pub const KEY_CONTROL_REG_RESET_VAL: u32 = 0;
@@ -129,16 +128,16 @@ mod constants {
     pub const NONSTICKY_LOCKABLE_SCRATCH_CTRL_REG_RESET_VAL: u32 = 0x0;
 
     /// Sticky DataVault Entry Size.
-    pub const STICKY_DATAVAULT_ENTRY_SIZE: usize = 48;
+    pub const STICKY_DATAVAULT_ENTRY_SIZE_WORDS: usize = 48 >> 2;
 
     /// Sticky DataVault Size.
-    pub const STICKY_DATAVAULT_SIZE: usize = 0x1e0;
+    pub const STICKY_DATAVAULT_SIZE_WORDS: usize = 0x1e0 >> 2;
 
     /// Non-Sticky DataVault Entry Size.
-    pub const NONSTICKY_DATAVAULT_ENTRY_SIZE: usize = 48;
+    pub const NONSTICKY_DATAVAULT_ENTRY_SIZE_WORDS: usize = 48 >> 2;
 
     /// Non-Sticky Entry Size.
-    pub const NONSTICKY_DATAVAULT_SIZE: usize = 0x1e0;
+    pub const NONSTICKY_DATAVAULT_SIZE_WORDS: usize = 0x1e0 >> 2;
 
     /// Sticky Lockable Scratch Control Register Reset Value.
     pub const STICKY_LOCKABLE_SCRATCH_CTRL_REG_RESET_VAL: u32 = 0x0;
@@ -150,6 +149,11 @@ pub struct KeyVault {
 }
 
 impl KeyVault {
+    pub const KEY_COUNT: u32 = 32;
+    pub const KEY_SIZE: usize = 48;
+    pub const KEY_CONTROL_REG_OFFSET: u32 = 0;
+    pub const KEY_CONTROL_REG_WIDTH: u32 = 0x4;
+
     /// Create a new instance of KeyVault
     pub fn new() -> Self {
         Self {
@@ -162,7 +166,7 @@ impl KeyVault {
         &self,
         key_id: u32,
         desired_usage: KeyUsage,
-    ) -> Result<[u8; constants::KEY_SIZE], BusError> {
+    ) -> Result<[u8; KeyVault::KEY_SIZE], BusError> {
         self.regs.borrow().read_key(key_id, desired_usage)
     }
 
@@ -170,15 +174,24 @@ impl KeyVault {
     pub fn write_key(
         &mut self,
         key_id: u32,
-        key: &[u8; constants::KEY_SIZE],
+        key: &[u8; KeyVault::KEY_SIZE],
         key_usage: u32,
     ) -> Result<(), BusError> {
         self.regs.borrow_mut().write_key(key_id, key, key_usage)
     }
 
     /// Internal emulator interface to read pcr from key vault
-    pub fn read_pcr(&self, key_id: u32) -> [u8; constants::PCR_SIZE] {
-        self.regs.borrow().read_pcr(key_id)
+    pub fn read_pcr(&self, pcr_id: u32) -> [u8; constants::PCR_SIZE] {
+        self.regs.borrow().read_pcr(pcr_id)
+    }
+
+    /// Internal emulator interface to write pcr to key vault
+    pub fn write_pcr(
+        &mut self,
+        pcr_id: u32,
+        pcr: &[u8; constants::PCR_SIZE],
+    ) -> Result<(), BusError> {
+        self.regs.borrow_mut().write_pcr(pcr_id, pcr)
     }
 }
 
@@ -235,9 +248,10 @@ register_bitfields! [
         USE_LOCK OFFSET(1) NUMBITS(1) [],
         CLEAR OFFSET(2) NUMBITS(1) [],
         RSVD0 OFFSET(3) NUMBITS(1) [],
-        RSVD1 OFFSET(4) NUMBITS(4) [],
-        USAGE OFFSET(8) NUMBITS(6) [],
-        RSVD OFFSET(14) NUMBITS(18) [],
+        RSVD1 OFFSET(4) NUMBITS(5) [],
+        USAGE OFFSET(9) NUMBITS(6) [],
+        LAST_DWORD OFFSET(15) NUMBITS(4) [],
+        RSVD OFFSET(19) NUMBITS(13) [],
     ],
 
     /// Clear Secrets Register Fields
@@ -253,10 +267,13 @@ register_bitfields! [
         RSVD OFFSET(1) NUMBITS(31) [],
     ],
 
-    /// Scratch Control Register Fields
-    pub SCRATCH_CONTROL [
-        LOCK_ENTRY OFFSET(0) NUMBITS(1) [],
-        RSVD OFFSET(1) NUMBITS(31) [],
+    /// PCR Control Register Fields
+    pub PV_CONTROL [
+        LOCK OFFSET(0) NUMBITS(1) [],
+        CLEAR OFFSET(1) NUMBITS(1) [],
+        RSVD0 OFFSET(2) NUMBITS(1) [],
+        RSVD1 OFFSET(3) NUMBITS(5) [],
+        RSVD OFFSET(8) NUMBITS(24) [],
     ],
 ];
 
@@ -265,83 +282,75 @@ use constants::*;
 /// Key Vault Peripheral
 #[derive(Bus)]
 pub struct KeyVaultRegs {
-    /// PCR Control Registers
-    #[register_array(offset = 0x0000_0000, write_fn = write_pcr_ctrl)]
-    pcr_control: ReadWriteRegisterArray<u32, { PCR_COUNT as usize }, KV_CONTROL::Register>,
-
-    /// PCR Registers
-    #[register_array(offset = 0x0000_0200, write_fn = write_pcr)]
-    pcrs: [u32; PCR_REG_SIZE / 4],
-
     /// Key Control Registers
-    #[register_array(offset = 0x0000_0400, write_fn = write_key_ctrl)]
-    key_control: ReadWriteRegisterArray<u32, { KEY_COUNT as usize }, KV_CONTROL::Register>,
+    #[register_array(offset = 0x0000_0000, write_fn = write_key_ctrl)]
+    key_control:
+        ReadWriteRegisterArray<u32, { KeyVault::KEY_COUNT as usize }, KV_CONTROL::Register>,
 
     /// Key Registers
     keys: ReadWriteMemory<{ KEY_REG_SIZE }>,
 
+    /// PCR Control Registers
+    #[register_array(offset = 0x0000_2000, write_fn = write_pcr_ctrl)]
+    pcr_control: ReadWriteRegisterArray<u32, { PCR_COUNT as usize }, PV_CONTROL::Register>,
+
+    /// PCR Registers
+    pcrs: ReadWriteMemory<{ PCR_REG_SIZE }>,
+
     /// Sticky Data Vault Control Registers
-    #[register_array(offset = 0x0000_0804, write_fn = write_sticky_datavault_ctrl)]
+    #[register_array(offset = 0x0000_4000, write_fn = write_sticky_datavault_ctrl)]
     sticky_datavault_control: ReadWriteRegisterArray<
         u32,
         { STICKY_DATAVAULT_CTRL_REG_COUNT as usize },
         DV_CONTROL::Register,
     >,
 
+    /// Sticky DataVault Entry Registers.
+    #[register_array(offset = 0x0000_4028, write_fn = write_sticky_datavault_entry)]
+    sticky_datavault_entry: [u32; STICKY_DATAVAULT_SIZE_WORDS],
+
     /// Non-Sticky Data Vault Control Registers
-    #[register_array(offset = 0x0000_082c, write_fn = write_nonsticky_datavault_ctrl)]
+    #[register_array(offset = 0x0000_4208, write_fn = write_nonsticky_datavault_ctrl)]
     nonsticky_datavault_control: ReadWriteRegisterArray<
         u32,
         { NONSTICKY_DATAVAULT_CTRL_REG_COUNT as usize },
         DV_CONTROL::Register,
     >,
 
-    /// Non-Sticky Lockable Scratch Registers
-    #[register_array(offset = 0x0000_0854, write_fn = write_nonsticky_lockable_scratch_ctrl)]
+    /// Non-Sticky DataVault Entry Registers.
+    #[register_array(offset = 0x0000_4230, write_fn = write_nonsticky_datavault_entry)]
+    nonsticky_datavault_entry: [u32; NONSTICKY_DATAVAULT_SIZE_WORDS],
+
+    /// Non-Sticky Lockable Scratch Control Registers
+    #[register_array(offset = 0x0000_4410, write_fn = write_nonsticky_lockable_scratch_ctrl)]
     nonsticky_lockable_scratch_control: ReadWriteRegisterArray<
         u32,
         { NONSTICKY_LOCKABLE_SCRATCH_CTRL_REG_COUNT as usize },
-        SCRATCH_CONTROL::Register,
+        DV_CONTROL::Register,
     >,
 
-    /// Sticky DataVault Entry Registers.
-    #[register_array(offset = 0x0000_0900, write_fn = write_sticky_datavault_entry)]
-    sticky_datavault_entry: [u32; STICKY_DATAVAULT_SIZE / 4],
-
-    /// Non-Sticky DataVault Entry Registers.
-    #[register_array(offset = 0x0000_0c00, write_fn = write_nonsticky_datavault_entry)]
-    nonsticky_datavault_entry: [u32; NONSTICKY_DATAVAULT_SIZE / 4],
-
     /// Non-Sticky Lockable Scratch Registers.
-    #[register_array(offset = 0x0000_0f00, write_fn = write_nonsticky_lockable_scratch)]
+    #[register_array(offset = 0x0000_4438, write_fn = write_nonsticky_lockable_scratch)]
     nonsticky_lockable_scratch:
         ReadWriteRegisterArray<u32, { NONSTICKY_LOCKABLE_SCRATCH_REG_COUNT as usize }>,
 
     /// Non-Sticky Generic Scratch Registers.
-    #[register_array(offset = 0x0000_0f28)]
+    #[register_array(offset = 0x0000_4460)]
     nonsticky_generic_scratch:
         ReadWriteRegisterArray<u32, { NONSTICKY_GENERIC_SCRATCH_REG_COUNT as usize }>,
 
     /// Sticky Lockable Scratch Control Registers.
-    #[register_array(offset = 0x0000_0f48, write_fn = write_sticky_lockable_scratch_ctrl)]
+    #[register_array(offset = 0x0000_4480, write_fn = write_sticky_lockable_scratch_ctrl)]
     sticky_lockable_scratch_control: ReadWriteRegisterArray<
         u32,
         { STICKY_LOCKABLE_SCRATCH_CTRL_REG_COUNT as usize },
-        SCRATCH_CONTROL::Register,
+        DV_CONTROL::Register,
     >,
 
     /// Sticky Lockable Scratch Registers.
-    #[register_array(offset = 0x0000_0f68, write_fn = write_sticky_lockable_scratch)]
+    #[register_array(offset = 0x0000_44a0, write_fn = write_sticky_lockable_scratch)]
     sticky_lockable_scratch:
         ReadWriteRegisterArray<u32, { STICKY_LOCKABLE_SCRATCH_REG_COUNT as usize }>,
-}
-
-fn bytes_from_words_le(arr: &[u32; PCR_SIZE / 4]) -> [u8; PCR_SIZE] {
-    let mut result = [0u8; PCR_SIZE];
-    for i in 0..arr.len() {
-        result[i * 4..][..4].copy_from_slice(&arr[i].to_le_bytes());
-    }
-    result
 }
 
 impl KeyVaultRegs {
@@ -349,7 +358,7 @@ impl KeyVaultRegs {
     pub fn new() -> Self {
         Self {
             pcr_control: ReadWriteRegisterArray::new(PCR_CONTROL_REG_RESET_VAL),
-            pcrs: [0; PCR_REG_SIZE / 4],
+            pcrs: ReadWriteMemory::new(),
             key_control: ReadWriteRegisterArray::new(KEY_CONTROL_REG_RESET_VAL),
             keys: ReadWriteMemory::new(),
             sticky_datavault_control: ReadWriteRegisterArray::new(
@@ -361,8 +370,8 @@ impl KeyVaultRegs {
             nonsticky_lockable_scratch_control: ReadWriteRegisterArray::new(
                 NONSTICKY_LOCKABLE_SCRATCH_CTRL_REG_RESET_VAL,
             ),
-            sticky_datavault_entry: [0; STICKY_DATAVAULT_SIZE / 4],
-            nonsticky_datavault_entry: [0; NONSTICKY_DATAVAULT_SIZE / 4],
+            sticky_datavault_entry: [0; STICKY_DATAVAULT_SIZE_WORDS],
+            nonsticky_datavault_entry: [0; NONSTICKY_DATAVAULT_SIZE_WORDS],
             nonsticky_lockable_scratch: ReadWriteRegisterArray::new(0),
             nonsticky_generic_scratch: ReadWriteRegisterArray::new(0),
             sticky_lockable_scratch_control: ReadWriteRegisterArray::new(
@@ -373,18 +382,15 @@ impl KeyVaultRegs {
     }
 
     fn write_pcr_ctrl(&mut self, _size: RvSize, index: usize, val: u32) -> Result<(), BusError> {
-        let val = LocalRegisterCopy::<u32, KV_CONTROL::Register>::new(val);
+        let val = LocalRegisterCopy::<u32, PV_CONTROL::Register>::new(val);
         let pcr_ctrl_reg = &mut self.pcr_control[index];
 
         pcr_ctrl_reg.modify(
-            KV_CONTROL::WRITE_LOCK
-                .val(pcr_ctrl_reg.read(KV_CONTROL::WRITE_LOCK) | val.read(KV_CONTROL::WRITE_LOCK)),
+            PV_CONTROL::LOCK.val(pcr_ctrl_reg.read(PV_CONTROL::LOCK) | val.read(PV_CONTROL::LOCK)),
         );
 
-        pcr_ctrl_reg.modify(KV_CONTROL::USAGE.val(val.read(KV_CONTROL::USAGE)));
-
-        if val.is_set(KV_CONTROL::CLEAR) {
-            self.pcrs[index * (PCR_SIZE / 4)..][..(PCR_SIZE / 4)].fill(0);
+        if pcr_ctrl_reg.read(PV_CONTROL::LOCK) == 0 && val.is_set(PV_CONTROL::CLEAR) {
+            self.pcrs.data_mut()[index * PCR_SIZE_WORDS..][..PCR_SIZE_WORDS].fill(0);
         }
         Ok(())
     }
@@ -405,9 +411,9 @@ impl KeyVaultRegs {
 
         key_ctrl_reg.modify(KV_CONTROL::USAGE.val(val.read(KV_CONTROL::USAGE)));
 
-        if val.is_set(KV_CONTROL::CLEAR) {
-            let key_min = index * KEY_SIZE;
-            let key_max = key_min + KEY_SIZE;
+        if key_ctrl_reg.read(KV_CONTROL::WRITE_LOCK) == 0 && val.is_set(KV_CONTROL::CLEAR) {
+            let key_min = index * KeyVault::KEY_SIZE;
+            let key_max = key_min + KeyVault::KEY_SIZE;
             self.keys.data_mut()[key_min..key_max].fill(0);
         }
         Ok(())
@@ -417,16 +423,16 @@ impl KeyVaultRegs {
         &self,
         key_id: u32,
         desired_usage: KeyUsage,
-    ) -> Result<[u8; KEY_SIZE], BusError> {
+    ) -> Result<[u8; KeyVault::KEY_SIZE], BusError> {
         let key_ctrl_reg = &self.key_control[key_id as usize];
         if (key_ctrl_reg.read(KV_CONTROL::USE_LOCK) != 0)
             || ((key_ctrl_reg.read(KV_CONTROL::USAGE) & u32::from(desired_usage)) == 0)
         {
             Err(BusError::LoadAccessFault)?
         }
-        let key_start = key_id as usize * KEY_SIZE;
-        let key_end = key_id as usize * KEY_SIZE + KEY_SIZE;
-        let mut key = [0u8; KEY_SIZE];
+        let key_start = key_id as usize * KeyVault::KEY_SIZE;
+        let key_end = key_id as usize * KeyVault::KEY_SIZE + KeyVault::KEY_SIZE;
+        let mut key = [0u8; KeyVault::KEY_SIZE];
         key.copy_from_slice(&self.keys.data()[key_start..key_end]);
         Ok(key)
     }
@@ -434,7 +440,7 @@ impl KeyVaultRegs {
     pub fn write_key(
         &mut self,
         key_id: u32,
-        key: &[u8; KEY_SIZE],
+        key: &[u8; KeyVault::KEY_SIZE],
         key_usage: u32,
     ) -> Result<(), BusError> {
         let key_ctrl_reg = &mut self.key_control[key_id as usize];
@@ -443,8 +449,8 @@ impl KeyVaultRegs {
         {
             Err(BusError::StoreAccessFault)?
         }
-        let key_start = key_id as usize * KEY_SIZE;
-        let key_end = key_start + KEY_SIZE;
+        let key_start = key_id as usize * KeyVault::KEY_SIZE;
+        let key_end = key_start + KeyVault::KEY_SIZE;
         self.keys.data_mut()[key_start..key_end].copy_from_slice(key);
 
         // Update the key usage.
@@ -453,18 +459,27 @@ impl KeyVaultRegs {
         Ok(())
     }
 
-    pub fn read_pcr(&self, key_id: u32) -> [u8; PCR_SIZE] {
-        let pcr_slice = &self.pcrs[key_id as usize * (PCR_SIZE / 4)..][..PCR_SIZE / 4];
-        bytes_from_words_le(pcr_slice.try_into().unwrap())
+    pub fn read_pcr(&self, pcr_id: u32) -> [u8; constants::PCR_SIZE] {
+        let pcr_start = pcr_id as usize * constants::PCR_SIZE;
+        let pcr_end = pcr_start + constants::PCR_SIZE;
+        let mut key = [0u8; constants::PCR_SIZE];
+        key.copy_from_slice(&self.pcrs.data()[pcr_start..pcr_end]);
+        key
     }
 
-    fn write_pcr(&mut self, _size: RvSize, word_index: usize, val: u32) -> Result<(), BusError> {
-        let pcr_id = word_index as usize / (PCR_SIZE / 4);
-        let pcr_ctrl_reg = &mut self.pcr_control[pcr_id];
-        if pcr_ctrl_reg.read(KV_CONTROL::WRITE_LOCK) != 0 {
+    pub fn write_pcr(
+        &mut self,
+        pcr_id: u32,
+        pcr: &[u8; constants::PCR_SIZE],
+    ) -> Result<(), BusError> {
+        let pcr_ctrl_reg = &mut self.pcr_control[pcr_id as usize];
+        if pcr_ctrl_reg.read(PV_CONTROL::LOCK) != 0 {
             Err(BusError::StoreAccessFault)?
         }
-        self.pcrs[word_index] = val;
+
+        let pcr_start = pcr_id as usize * constants::PCR_SIZE;
+        let pcr_end = pcr_start + constants::PCR_SIZE;
+        self.pcrs.data_mut()[pcr_start..pcr_end].copy_from_slice(pcr);
         Ok(())
     }
 
@@ -491,7 +506,7 @@ impl KeyVaultRegs {
         val: u32,
     ) -> Result<(), BusError> {
         let ctrl_reg =
-            &mut self.sticky_datavault_control[word_index / (STICKY_DATAVAULT_ENTRY_SIZE / 4)];
+            &mut self.sticky_datavault_control[word_index / STICKY_DATAVAULT_ENTRY_SIZE_WORDS];
         if ctrl_reg.read(DV_CONTROL::LOCK_ENTRY) != 0 {
             Err(BusError::StoreAccessFault)?
         }
@@ -523,7 +538,7 @@ impl KeyVaultRegs {
         val: u32,
     ) -> Result<(), BusError> {
         let ctrl_reg = &mut self.nonsticky_datavault_control
-            [word_index / (NONSTICKY_DATAVAULT_ENTRY_SIZE / 4)];
+            [word_index / (NONSTICKY_DATAVAULT_ENTRY_SIZE_WORDS)];
         if ctrl_reg.read(DV_CONTROL::LOCK_ENTRY) != 0 {
             Err(BusError::StoreAccessFault)?
         }
@@ -537,12 +552,13 @@ impl KeyVaultRegs {
         index: usize,
         val: u32,
     ) -> Result<(), BusError> {
-        let val_reg = LocalRegisterCopy::<u32, SCRATCH_CONTROL::Register>::new(val);
+        let val_reg = LocalRegisterCopy::<u32, DV_CONTROL::Register>::new(val);
         let ctrl_reg = &mut self.nonsticky_lockable_scratch_control[index];
 
-        ctrl_reg.modify(SCRATCH_CONTROL::LOCK_ENTRY.val(
-            ctrl_reg.read(SCRATCH_CONTROL::LOCK_ENTRY) | val_reg.read(SCRATCH_CONTROL::LOCK_ENTRY),
-        ));
+        ctrl_reg.modify(
+            DV_CONTROL::LOCK_ENTRY
+                .val(ctrl_reg.read(DV_CONTROL::LOCK_ENTRY) | val_reg.read(DV_CONTROL::LOCK_ENTRY)),
+        );
         Ok(())
     }
 
@@ -553,7 +569,7 @@ impl KeyVaultRegs {
         val: u32,
     ) -> Result<(), BusError> {
         let ctrl_reg = &mut self.nonsticky_lockable_scratch_control[word_index];
-        if ctrl_reg.read(SCRATCH_CONTROL::LOCK_ENTRY) != 0 {
+        if ctrl_reg.read(DV_CONTROL::LOCK_ENTRY) != 0 {
             Err(BusError::StoreAccessFault)?
         }
 
@@ -567,12 +583,13 @@ impl KeyVaultRegs {
         index: usize,
         val: u32,
     ) -> Result<(), BusError> {
-        let val = LocalRegisterCopy::<u32, SCRATCH_CONTROL::Register>::new(val);
+        let val = LocalRegisterCopy::<u32, DV_CONTROL::Register>::new(val);
         let ctrl_reg = &mut self.sticky_lockable_scratch_control[index];
 
-        ctrl_reg.modify(SCRATCH_CONTROL::LOCK_ENTRY.val(
-            ctrl_reg.read(SCRATCH_CONTROL::LOCK_ENTRY) | val.read(SCRATCH_CONTROL::LOCK_ENTRY),
-        ));
+        ctrl_reg.modify(
+            DV_CONTROL::LOCK_ENTRY
+                .val(ctrl_reg.read(DV_CONTROL::LOCK_ENTRY) | val.read(DV_CONTROL::LOCK_ENTRY)),
+        );
         Ok(())
     }
 
@@ -583,7 +600,7 @@ impl KeyVaultRegs {
         val: u32,
     ) -> Result<(), BusError> {
         let ctrl_reg = &mut self.sticky_lockable_scratch_control[word_index];
-        if ctrl_reg.read(SCRATCH_CONTROL::LOCK_ENTRY) != 0 {
+        if ctrl_reg.read(DV_CONTROL::LOCK_ENTRY) != 0 {
             Err(BusError::StoreAccessFault)?
         }
         self.sticky_lockable_scratch[word_index].set(val);
@@ -600,10 +617,10 @@ mod tests {
     #[test]
     fn test_key_ctrl_reset_state() {
         let mut vault = KeyVault::new();
-        for idx in 0u32..8 {
+        for idx in 0u32..KeyVault::KEY_COUNT {
             assert_eq!(
                 vault
-                    .read(RvSize::Word, KEY_CONTROL_REG_OFFSET + (idx << 2))
+                    .read(RvSize::Word, KeyVault::KEY_CONTROL_REG_OFFSET + (idx << 2))
                     .ok(),
                 Some(KEY_CONTROL_REG_RESET_VAL)
             );
@@ -613,8 +630,8 @@ mod tests {
     #[test]
     fn test_key_read_write() {
         let mut vault = KeyVault::new();
-        for idx in 0u32..8 {
-            let addr = OFFSET_KEYS + (idx * KEY_SIZE as u32);
+        for idx in 0u32..KeyVault::KEY_COUNT {
+            let addr = OFFSET_KEYS + (idx * KeyVault::KEY_SIZE as u32);
             assert_eq!(vault.write(RvSize::Word, addr, u32::MAX).ok(), None);
 
             assert_eq!(vault.read(RvSize::Word, addr).ok(), None);
@@ -623,19 +640,18 @@ mod tests {
 
     #[test]
     fn test_key_private_read_write() {
-        let expected: [u8; 64] = [
+        let expected: [u8; KeyVault::KEY_SIZE] = [
             0x11, 0x65, 0xb3, 0x40, 0x6f, 0xf0, 0xb5, 0x2a, 0x3d, 0x24, 0x72, 0x1f, 0x78, 0x54,
             0x62, 0xca, 0x22, 0x76, 0xc9, 0xf4, 0x54, 0xa1, 0x16, 0xc2, 0xb2, 0xba, 0x20, 0x17,
             0x1a, 0x79, 0x05, 0xea, 0x5a, 0x02, 0x66, 0x82, 0xeb, 0x65, 0x9c, 0x4d, 0x5f, 0x11,
-            0x5c, 0x36, 0x3a, 0xa3, 0xc7, 0x9b, 0x1a, 0x79, 0x05, 0xea, 0x5a, 0x02, 0x1a, 0x79,
-            0x05, 0xea, 0x5a, 0x02, 0x05, 0xea, 0x5a, 0x02,
+            0x5c, 0x36, 0x3a, 0xa3, 0xc7, 0x9b,
         ];
 
         let mut vault = KeyVault::new();
         let mut key_usage = KeyUsage::default();
         key_usage.set_hmac_data(true); // dummy usage.
 
-        for idx in 0..8 {
+        for idx in 0..KeyVault::KEY_COUNT {
             vault
                 .write_key(idx, &expected, u32::from(key_usage))
                 .unwrap();
@@ -645,22 +661,40 @@ mod tests {
     }
 
     #[test]
-    fn test_key_private_read_blocked() {
-        let expected: [u8; 64] = [
+    fn test_pcr_private_read_write() {
+        let expected: [u8; constants::PCR_SIZE] = [
             0x11, 0x65, 0xb3, 0x40, 0x6f, 0xf0, 0xb5, 0x2a, 0x3d, 0x24, 0x72, 0x1f, 0x78, 0x54,
             0x62, 0xca, 0x22, 0x76, 0xc9, 0xf4, 0x54, 0xa1, 0x16, 0xc2, 0xb2, 0xba, 0x20, 0x17,
             0x1a, 0x79, 0x05, 0xea, 0x5a, 0x02, 0x66, 0x82, 0xeb, 0x65, 0x9c, 0x4d, 0x5f, 0x11,
-            0x5c, 0x36, 0x3a, 0xa3, 0xc7, 0x9b, 0x1a, 0x79, 0x05, 0xea, 0x5a, 0x02, 0x1a, 0x79,
-            0x05, 0xea, 0x5a, 0x02, 0x05, 0xea, 0x5a, 0x02,
+            0x5c, 0x36, 0x3a, 0xa3, 0xc7, 0x9b,
+        ];
+
+        let mut vault = KeyVault::new();
+
+        for idx in 0..constants::PCR_COUNT {
+            vault.write_pcr(idx, &expected).unwrap();
+            let returned = vault.read_pcr(idx);
+            assert_eq!(&returned, &expected);
+        }
+    }
+
+    #[test]
+    fn test_key_private_read_blocked() {
+        let expected: [u8; KeyVault::KEY_SIZE] = [
+            0x11, 0x65, 0xb3, 0x40, 0x6f, 0xf0, 0xb5, 0x2a, 0x3d, 0x24, 0x72, 0x1f, 0x78, 0x54,
+            0x62, 0xca, 0x22, 0x76, 0xc9, 0xf4, 0x54, 0xa1, 0x16, 0xc2, 0xb2, 0xba, 0x20, 0x17,
+            0x1a, 0x79, 0x05, 0xea, 0x5a, 0x02, 0x66, 0x82, 0xeb, 0x65, 0x9c, 0x4d, 0x5f, 0x11,
+            0x5c, 0x36, 0x3a, 0xa3, 0xc7, 0x9b,
         ];
 
         let mut vault = KeyVault::new();
         let mut key_usage = KeyUsage::default();
         key_usage.set_hmac_data(true); // dummy usage.
 
-        for key_id in 0..8 {
+        for key_id in 0..KeyVault::KEY_COUNT {
             let mut val_reg = LocalRegisterCopy::<u32, KV_CONTROL::Register>::new(0);
-            let key_control_addr = KEY_CONTROL_REG_OFFSET + (key_id * KEY_CONTROL_REG_WIDTH);
+            let key_control_addr =
+                KeyVault::KEY_CONTROL_REG_OFFSET + (key_id * KeyVault::KEY_CONTROL_REG_WIDTH);
             assert_eq!(
                 vault
                     .write(RvSize::Word, key_control_addr, val_reg.get())
@@ -693,12 +727,11 @@ mod tests {
 
     #[test]
     fn test_key_private_write_blocked() {
-        let expected: [u8; 64] = [
+        let expected: [u8; KeyVault::KEY_SIZE] = [
             0x11, 0x65, 0xb3, 0x40, 0x6f, 0xf0, 0xb5, 0x2a, 0x3d, 0x24, 0x72, 0x1f, 0x78, 0x54,
             0x62, 0xca, 0x22, 0x76, 0xc9, 0xf4, 0x54, 0xa1, 0x16, 0xc2, 0xb2, 0xba, 0x20, 0x17,
             0x1a, 0x79, 0x05, 0xea, 0x5a, 0x02, 0x66, 0x82, 0xeb, 0x65, 0x9c, 0x4d, 0x5f, 0x11,
-            0x5c, 0x36, 0x3a, 0xa3, 0xc7, 0x9b, 0x1a, 0x79, 0x05, 0xea, 0x5a, 0x02, 0x1a, 0x79,
-            0x05, 0xea, 0x5a, 0x02, 0x05, 0xea, 0x5a, 0x02,
+            0x5c, 0x36, 0x3a, 0xa3, 0xc7, 0x9b,
         ];
 
         let mut vault = KeyVault::new();
@@ -707,12 +740,13 @@ mod tests {
         let mut val_reg = LocalRegisterCopy::<u32, KV_CONTROL::Register>::new(0);
         val_reg.write(KV_CONTROL::WRITE_LOCK.val(1) + KV_CONTROL::USAGE.val(u32::from(key_usage))); // Key write disabled.
 
-        for key_id in 0..8 {
+        for key_id in 0..KeyVault::KEY_COUNT {
             assert_eq!(
                 vault
                     .write(
                         RvSize::Word,
-                        KEY_CONTROL_REG_OFFSET + (key_id * KEY_CONTROL_REG_WIDTH),
+                        KeyVault::KEY_CONTROL_REG_OFFSET
+                            + (key_id * KeyVault::KEY_CONTROL_REG_WIDTH),
                         val_reg.get()
                     )
                     .ok(),
@@ -730,15 +764,14 @@ mod tests {
 
     #[test]
     fn test_key_clear() {
-        let expected: [u8; 64] = [
+        let expected: [u8; KeyVault::KEY_SIZE] = [
             0x11, 0x65, 0xb3, 0x40, 0x6f, 0xf0, 0xb5, 0x2a, 0x3d, 0x24, 0x72, 0x1f, 0x78, 0x54,
             0x62, 0xca, 0x22, 0x76, 0xc9, 0xf4, 0x54, 0xa1, 0x16, 0xc2, 0xb2, 0xba, 0x20, 0x17,
             0x1a, 0x79, 0x05, 0xea, 0x5a, 0x02, 0x66, 0x82, 0xeb, 0x65, 0x9c, 0x4d, 0x5f, 0x11,
-            0x5c, 0x36, 0x3a, 0xa3, 0xc7, 0x9b, 0x1a, 0x79, 0x05, 0xea, 0x5a, 0x02, 0x1a, 0x79,
-            0x05, 0xea, 0x5a, 0x02, 0x05, 0xea, 0x5a, 0x02,
+            0x5c, 0x36, 0x3a, 0xa3, 0xc7, 0x9b,
         ];
 
-        let cleared_key: [u8; 64] = [0; 64];
+        let cleared_key: [u8; KeyVault::KEY_SIZE] = [0; KeyVault::KEY_SIZE];
 
         let mut vault = KeyVault::new();
         let mut key_usage = KeyUsage::default();
@@ -746,7 +779,7 @@ mod tests {
         let mut val_reg = LocalRegisterCopy::<u32, KV_CONTROL::Register>::new(0);
         val_reg.write(KV_CONTROL::CLEAR.val(1) + KV_CONTROL::USAGE.val(u32::from(key_usage))); // Clear key.
 
-        for key_id in 0..8 {
+        for key_id in 0..KeyVault::KEY_COUNT {
             assert_eq!(
                 vault
                     .write_key(key_id, &expected, u32::from(key_usage))
@@ -760,7 +793,8 @@ mod tests {
                 vault
                     .write(
                         RvSize::Word,
-                        KEY_CONTROL_REG_OFFSET + (key_id * KEY_CONTROL_REG_WIDTH),
+                        KeyVault::KEY_CONTROL_REG_OFFSET
+                            + (key_id * KeyVault::KEY_CONTROL_REG_WIDTH),
                         val_reg.get()
                     )
                     .ok(),

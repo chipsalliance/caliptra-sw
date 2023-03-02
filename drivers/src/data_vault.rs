@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_registers::kv;
+use caliptra_registers::dv;
 
 use crate::{Array4x12, Ecc384PubKey, Ecc384Signature};
 
@@ -186,8 +186,8 @@ impl DataVault {
     ///    cold reset entry value  
     ///
     fn read_cold_reset_entry48(&self, entry: ColdResetEntry48) -> Array4x12 {
-        let kv = kv::RegisterBlock::kv_reg();
-        Array4x12::read_from_reg(kv.sticky_data_vault_entry().at(entry.into()))
+        let dv = dv::RegisterBlock::dv_reg();
+        Array4x12::read_from_reg(dv.sticky_data_vault_entry().at(entry.into()))
     }
 
     /// Write and lock the cold reset entry.
@@ -208,8 +208,8 @@ impl DataVault {
     /// * `value` - cold reset entry value
     ///
     fn write_cold_reset_entry48(&mut self, entry: ColdResetEntry48, value: &Array4x12) {
-        let kv = kv::RegisterBlock::kv_reg();
-        value.write_to_reg(kv.sticky_data_vault_entry().at(entry.into()));
+        let dv = dv::RegisterBlock::dv_reg();
+        value.write_to_reg(dv.sticky_data_vault_entry().at(entry.into()));
     }
 
     /// Lock the cold reset entry.
@@ -218,8 +218,8 @@ impl DataVault {
     /// * `entry` - cold reset entry
     ///
     fn lock_cold_reset_entry48(&mut self, entry: ColdResetEntry48) {
-        let kv = kv::RegisterBlock::kv_reg();
-        kv.sticky_data_vault_ctrl()
+        let dv = dv::RegisterBlock::dv_reg();
+        dv.sticky_data_vault_ctrl()
             .at(entry.into())
             .write(|w| w.lock_entry(true));
     }
@@ -233,8 +233,8 @@ impl DataVault {
     ///    cold reset entry value  
     ///
     fn read_cold_reset_entry4(&self, entry: ColdResetEntry4) -> u32 {
-        let kv = kv::RegisterBlock::kv_reg();
-        kv.sticky_lockable_scratch_reg().at(entry.into()).read()
+        let dv = dv::RegisterBlock::dv_reg();
+        dv.sticky_lockable_scratch_reg().at(entry.into()).read()
     }
 
     /// Write and lock the cold reset entry.
@@ -255,8 +255,8 @@ impl DataVault {
     /// * `value` - cold reset entry value
     ///
     fn write_cold_reset_entry4(&mut self, entry: ColdResetEntry4, value: u32) {
-        let kv = kv::RegisterBlock::kv_reg();
-        kv.sticky_lockable_scratch_reg()
+        let dv = dv::RegisterBlock::dv_reg();
+        dv.sticky_lockable_scratch_reg()
             .at(entry.into())
             .write(|_| value);
     }
@@ -267,8 +267,8 @@ impl DataVault {
     /// * `entry` - cold reset entry
     ///
     fn lock_cold_reset_entry4(&mut self, entry: ColdResetEntry4) {
-        let kv = kv::RegisterBlock::kv_reg();
-        kv.sticky_lockable_scratch_reg_ctrl()
+        let dv = dv::RegisterBlock::dv_reg();
+        dv.sticky_lockable_scratch_reg_ctrl()
             .at(entry.into())
             .write(|w| w.lock_entry(true));
     }

@@ -73,7 +73,7 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x1000_8000, mask = 0x0000_7fff)]
     pub ecc384: AsymEcc384,
 
-    #[peripheral(offset = 0x1001_0000, mask = 0x0000_7fff)]
+    #[peripheral(offset = 0x1001_0000, mask = 0x0000_07ff)]
     pub hmac: HmacSha384,
 
     #[peripheral(offset = 0x1001_8000, mask = 0x0000_7fff)]

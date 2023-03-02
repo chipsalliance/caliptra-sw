@@ -13,34 +13,43 @@ Abstract:
 --*/
 
 use crate::{caliptra_err_def, Array4x12, CaliptraResult};
-use caliptra_registers::kv;
+use caliptra_registers::pv;
 
 /// PCR Identifier
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PcrId {
-    /// PCR Id 0
     PcrId0 = 0,
-
-    /// PCR Id 1
     PcrId1 = 1,
-
-    /// PCR Id 2
     PcrId2 = 2,
-
-    /// PCR Id 3
     PcrId3 = 3,
-
-    /// PCR Id 4
     PcrId4 = 4,
-
-    /// PCR Id 5
     PcrId5 = 5,
-
-    /// PCR Id 6
     PcrId6 = 6,
-
-    /// PCR Id 7
     PcrId7 = 7,
+    PcrId8 = 8,
+    PcrId9 = 9,
+    PcrId10 = 10,
+    PcrId11 = 11,
+    PcrId12 = 12,
+    PcrId13 = 13,
+    PcrId14 = 14,
+    PcrId15 = 15,
+    PcrId16 = 16,
+    PcrId17 = 17,
+    PcrId18 = 18,
+    PcrId19 = 19,
+    PcrId20 = 20,
+    PcrId21 = 21,
+    PcrId22 = 22,
+    PcrId23 = 23,
+    PcrId24 = 24,
+    PcrId25 = 25,
+    PcrId26 = 26,
+    PcrId27 = 27,
+    PcrId28 = 28,
+    PcrId29 = 29,
+    PcrId30 = 30,
+    PcrId31 = 31,
 }
 
 impl From<PcrId> for u32 {
@@ -75,7 +84,7 @@ impl PcrBank {
     ///
     /// Note: The pcrs that have "use" lock set will not be erased
     pub fn erase_all_pcrs(&mut self) {
-        const PCR_IDS: [PcrId; 8] = [
+        const PCR_IDS: [PcrId; 32] = [
             PcrId::PcrId0,
             PcrId::PcrId1,
             PcrId::PcrId2,
@@ -84,12 +93,36 @@ impl PcrBank {
             PcrId::PcrId5,
             PcrId::PcrId6,
             PcrId::PcrId7,
+            PcrId::PcrId8,
+            PcrId::PcrId9,
+            PcrId::PcrId10,
+            PcrId::PcrId11,
+            PcrId::PcrId12,
+            PcrId::PcrId13,
+            PcrId::PcrId14,
+            PcrId::PcrId15,
+            PcrId::PcrId16,
+            PcrId::PcrId17,
+            PcrId::PcrId18,
+            PcrId::PcrId19,
+            PcrId::PcrId20,
+            PcrId::PcrId21,
+            PcrId::PcrId22,
+            PcrId::PcrId23,
+            PcrId::PcrId24,
+            PcrId::PcrId25,
+            PcrId::PcrId26,
+            PcrId::PcrId27,
+            PcrId::PcrId28,
+            PcrId::PcrId29,
+            PcrId::PcrId30,
+            PcrId::PcrId31,
         ];
 
-        let kv = kv::RegisterBlock::kv_reg();
+        let pv = pv::RegisterBlock::pv_reg();
         for id in PCR_IDS {
-            if !self.pcr_write_lock(id) {
-                kv.pcr_ctrl().at(id.into()).write(|w| w.clear(true));
+            if !self.pcr_lock(id) {
+                pv.pcr_ctrl().at(id.into()).write(|w| w.clear(true));
             }
         }
     }
@@ -100,16 +133,16 @@ impl PcrBank {
     ///
     /// * `id` - PCR ID to erase
     pub fn erase_pcr(&mut self, id: PcrId) -> CaliptraResult<()> {
-        if self.pcr_write_lock(id) {
+        if self.pcr_lock(id) {
             raise_err!(EraseWriteLockSetFailure)
         }
 
-        let kv = kv::RegisterBlock::kv_reg();
-        kv.pcr_ctrl().at(id.into()).write(|w| w.clear(true));
+        let pv = pv::RegisterBlock::pv_reg();
+        pv.pcr_ctrl().at(id.into()).write(|w| w.clear(true));
         Ok(())
     }
 
-    /// Retrieve the write lock status for a PCR
+    /// Retrieve the 'lock for clear' status for a PCR
     ///
     /// # Arguments
     ///
@@ -117,31 +150,31 @@ impl PcrBank {
     ///
     /// # Returns
     ///
-    /// * `true` - If the PCR is write locked
-    /// * `false` - If the PCR is not write locked
-    pub fn pcr_write_lock(&self, id: PcrId) -> bool {
-        let kv = kv::RegisterBlock::kv_reg();
-        kv.pcr_ctrl().at(id.into()).read().lock_wr()
+    /// * `true` - If the PCR is locked for clear
+    /// * `false` - If the PCR is not locked for clear
+    pub fn pcr_lock(&self, id: PcrId) -> bool {
+        let pv = pv::RegisterBlock::pv_reg();
+        pv.pcr_ctrl().at(id.into()).read().lock()
     }
 
-    /// Set the write lock for a PCR
+    /// Set the 'lock for clear' setting for a PCR
     ///
     /// # Arguments
     ///
     /// * `id` - PCR ID
-    pub fn set_pcr_write_lock(&mut self, id: PcrId) {
-        let kv = kv::RegisterBlock::kv_reg();
-        kv.pcr_ctrl().at(id.into()).write(|w| w.lock_wr(true))
+    pub fn set_pcr_lock(&mut self, id: PcrId) {
+        let pv = pv::RegisterBlock::pv_reg();
+        pv.pcr_ctrl().at(id.into()).write(|w| w.lock(true))
     }
 
-    /// Clear the write lock for a PCR
+    /// Clear the 'lock for clear' setting for a PCR
     ///
     /// # Arguments
     ///
     /// * `id` - PCR ID
-    pub fn clear_pcr_write_lock(&mut self, id: PcrId) {
-        let kv = kv::RegisterBlock::kv_reg();
-        kv.pcr_ctrl().at(id.into()).write(|w| w.lock_wr(false))
+    pub fn clear_pcr_lock(&mut self, id: PcrId) {
+        let pv = pv::RegisterBlock::pv_reg();
+        pv.pcr_ctrl().at(id.into()).write(|w| w.lock(false))
     }
 
     /// Read the value of a PCR
@@ -155,33 +188,13 @@ impl PcrBank {
     /// * `Array4x12` - PCR Value
     #[inline(never)]
     pub fn read_pcr(&self, id: PcrId) -> Array4x12 {
-        let kv = kv::RegisterBlock::kv_reg();
+        let pv = pv::RegisterBlock::pv_reg();
 
         let mut result = Array4x12::default();
         for i in 0..result.0.len() {
-            result.0[i] = kv.pcr_entry().at(id.into()).at(i).read();
+            result.0[i] = pv.pcr_entry().at(id.into()).at(i).read();
         }
 
         result
-    }
-
-    /// Write value to a PCR
-    ///
-    /// # Arguments
-    ///
-    /// * `id` - PCR ID
-    /// * `val` - Value to write
-    #[inline(never)]
-    pub fn write_pcr(&self, id: PcrId, val: &Array4x12) -> CaliptraResult<()> {
-        if self.pcr_write_lock(id) {
-            raise_err!(EraseWriteLockSetFailure)
-        }
-
-        let kv = kv::RegisterBlock::kv_reg();
-        for i in 0..val.0.len() {
-            kv.pcr_entry().at(id.into()).at(i).write(|_| val.0[i])
-        }
-
-        Ok(())
     }
 }

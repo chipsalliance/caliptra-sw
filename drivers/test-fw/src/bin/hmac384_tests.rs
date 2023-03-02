@@ -88,7 +88,6 @@ fn test_hmac3() {
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
         usage,
-        word_size: 12,
     };
     let result = Sha384::default().digest((data).into(), key_out_1.into());
     assert!(result.is_ok());
@@ -110,7 +109,7 @@ fn test_hmac3() {
     ];
 
     let mut out_tag = Array4x12::default();
-    let key = KeyReadArgs::new(KeyId::KeyId0, 48);
+    let key = KeyReadArgs::new(KeyId::KeyId0);
     let actual = Hmac384::default().hmac(key.into(), (&data).into(), (&mut out_tag).into());
 
     assert!(actual.is_ok());
@@ -127,7 +126,6 @@ fn test_hmac4() {
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
         usage,
-        word_size: 12,
     };
     let result = Sha384::default().digest((data).into(), key_out_1.into());
     assert!(result.is_ok());
@@ -153,7 +151,7 @@ fn test_hmac4() {
     ];
 
     let mut out_tag = Array4x12::default();
-    let key = KeyReadArgs::new(KeyId::KeyId0, 48);
+    let key = KeyReadArgs::new(KeyId::KeyId0);
 
     let actual = Hmac384::default().hmac(key.into(), (&data).into(), (&mut out_tag).into());
 
@@ -171,7 +169,6 @@ fn test_hmac5() {
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
         usage,
-        word_size: 12,
     };
     let result = Sha384::default().digest((data).into(), key_out_1.into());
     assert!(result.is_ok());
@@ -198,7 +195,7 @@ fn test_hmac5() {
     ];
 
     let mut out_tag = Array4x12::default();
-    let key = KeyReadArgs::new(KeyId::KeyId0, 12);
+    let key = KeyReadArgs::new(KeyId::KeyId0);
     let actual = Hmac384::default().hmac(key.into(), (&data).into(), (&mut out_tag).into());
 
     assert!(actual.is_ok());
@@ -234,13 +231,12 @@ fn test_hmac6() {
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
         usage: key_usage,
-        word_size: 12,
     };
     let result = Sha384::default().digest((data).into(), key_out_1.into());
     assert!(result.is_ok());
 
     // Key vault key to be used for all the operations. This is a constant
-    let key = KeyReadArgs::new(KeyId::KeyId0, 12);
+    let key = KeyReadArgs::new(KeyId::KeyId0);
 
     let data: [u8; 28] = [
         0x77, 0x68, 0x61, 0x74, 0x20, 0x64, 0x6f, 0x20, 0x79, 0x61, 0x20, 0x77, 0x61, 0x6e, 0x74,
@@ -276,13 +272,13 @@ fn test_hmac6() {
     // Generate the Tag Of Original Data and put the tag In KV @5.  KV @5 will be used as data in the next step
     let mut key_usage = KeyUsage::default();
     key_usage.set_hmac_data(true);
-    let out_tag = KeyWriteArgs::new(KeyId::KeyId5, 12, key_usage);
+    let out_tag = KeyWriteArgs::new(KeyId::KeyId5, key_usage);
     let actual = Hmac384::default().hmac(key.into(), (&data).into(), out_tag.into());
     assert!(actual.is_ok());
 
     // Data From Key Vault generate HMAC in to output buffer
     let mut hmac_step_2 = Array4x12::default();
-    let data_input: KeyReadArgs = KeyReadArgs::new(KeyId::KeyId5, 12);
+    let data_input: KeyReadArgs = KeyReadArgs::new(KeyId::KeyId5);
 
     let actual = Hmac384::default().hmac(key.into(), data_input.into(), (&mut hmac_step_2).into());
 

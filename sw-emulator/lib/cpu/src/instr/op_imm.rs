@@ -10,6 +10,10 @@ Abstract:
 
     File contains implementation of RISCV Immediate instructions.
 
+References:
+    https://riscv.org/wp-content/uploads/2019/06/riscv-spec.pdf
+    https://github.com/d0iasm/rvemu for arithmetic operations.
+
 --*/
 
 use crate::cpu::Cpu;

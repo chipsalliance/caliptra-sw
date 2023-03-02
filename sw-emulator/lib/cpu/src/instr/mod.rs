@@ -10,6 +10,9 @@ Abstract:
 
     File contains implementation of RISCV Instructions
 
+References:
+    https://riscv.org/wp-content/uploads/2019/06/riscv-spec.pdf
+
 --*/
 
 mod auipc;

@@ -68,7 +68,7 @@ fn test_gen_key_pair() {
     let mut der = [0u8; 97];
     der[0] = 0x04;
     der[01..49].copy_from_slice(&PUB_KEY_X);
-    der[49..97].copy_from_slice(&PUB_KEY_X);
+    der[49..97].copy_from_slice(&PUB_KEY_Y);
     assert_eq!(pub_key.to_der(), der);
 }
 
@@ -131,7 +131,6 @@ fn test_kv_seed_from_input_msg_from_input() {
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId2,
         usage: key_usage, // ecc_private_key
-        word_size: 12,
     };
     let result = Ecc384::default().key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
@@ -146,7 +145,7 @@ fn test_kv_seed_from_input_msg_from_input() {
     // Step 2: Sign message with private key generated in step 1.
     //
     let digest = [0u8; 48];
-    let key_in_1 = KeyReadArgs::new(KeyId::KeyId2, 12);
+    let key_in_1 = KeyReadArgs::new(KeyId::KeyId2);
 
     let result =
         Ecc384::default().sign(key_in_1.into(), Ecc384Data::from(&Array4x12::from(digest)));
@@ -203,7 +202,6 @@ fn test_kv_seed_from_input_msg_from_kv() {
     let key_out_step_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
         usage: key_usage,
-        word_size: 12,
     };
     let result = Ecc384::default().key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
@@ -227,7 +225,6 @@ fn test_kv_seed_from_input_msg_from_kv() {
     let key_out_step_2 = KeyWriteArgs {
         id: KeyId::KeyId1,
         usage: key_usage,
-        word_size: 12,
     };
 
     let result = Ecc384::default().key_pair(
@@ -242,8 +239,8 @@ fn test_kv_seed_from_input_msg_from_kv() {
     //
     // Step 3: Sign message with private key generated in step 1.
     //
-    let key_in_msg = KeyReadArgs::new(KeyId::KeyId0, 12); // Msg
-    let key_in_private_key = KeyReadArgs::new(KeyId::KeyId1, 12); // Priv key.
+    let key_in_msg = KeyReadArgs::new(KeyId::KeyId0); // Msg
+    let key_in_private_key = KeyReadArgs::new(KeyId::KeyId1); // Priv key.
     let result = Ecc384::default().sign(key_in_private_key.into(), key_in_msg.into());
     assert!(result.is_ok());
     let signature = result.unwrap();
@@ -263,7 +260,6 @@ fn test_kv_seed_from_input_msg_from_kv() {
     assert!(result.unwrap());
 }
 
-#[inline(never)]
 fn test_kv_seed_from_kv_msg_from_kv() {
     //
     // Step 1: Generate a key-pair. Store private key in kv slot 0.
@@ -280,7 +276,6 @@ fn test_kv_seed_from_kv_msg_from_kv() {
     let key_out_step_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
         usage: key_usage,
-        word_size: 12,
     };
     let result = Ecc384::default().key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
@@ -317,13 +312,12 @@ fn test_kv_seed_from_kv_msg_from_kv() {
         0x10, 0x70, 0xf6,
     ];
 
-    let key_in_seed = KeyReadArgs::new(KeyId::KeyId0, 12); // Seed
+    let key_in_seed = KeyReadArgs::new(KeyId::KeyId0); // Seed
     let mut key_usage = KeyUsage::default();
     key_usage.set_ecc_private_key(true);
     let key_out_step_2 = KeyWriteArgs {
         id: KeyId::KeyId1,
         usage: key_usage,
-        word_size: 12,
     };
     let result =
         Ecc384::default().key_pair(key_in_seed.into(), Ecc384PrivKeyOut::from(key_out_step_2));
@@ -347,7 +341,6 @@ fn test_kv_seed_from_kv_msg_from_kv() {
     let key_out_step_1 = KeyWriteArgs {
         id: KeyId::KeyId2,
         usage: key_usage,
-        word_size: 12,
     };
     let result = Ecc384::default().key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
@@ -374,8 +367,8 @@ fn test_kv_seed_from_kv_msg_from_kv() {
         0xbe, 0x2b, 0x9b,
     ];
 
-    let key_in_private_key = KeyReadArgs::new(KeyId::KeyId1, 12); // Priv key.
-    let key_in_msg = KeyReadArgs::new(KeyId::KeyId2, 12); // Msg
+    let key_in_private_key = KeyReadArgs::new(KeyId::KeyId1); // Priv key.
+    let key_in_msg = KeyReadArgs::new(KeyId::KeyId2); // Msg
     let result = Ecc384::default().sign(key_in_private_key.into(), key_in_msg.into());
     assert!(result.is_ok());
     let signature = result.unwrap();
@@ -395,7 +388,6 @@ fn test_kv_seed_from_kv_msg_from_kv() {
         x: Ecc384Scalar::from(pub_key_x),
         y: Ecc384Scalar::from(pub_key_y),
     };
-    //let key_in_msg = KeyReadArgs::new(KeyId::KeyId2, 12);
     let ecc = Ecc384::default();
     let result = ecc.verify(&pub_key, &Ecc384Scalar::from(msg), &signature);
     assert!(result.is_ok());
@@ -418,7 +410,6 @@ fn test_kv_seed_from_kv_msg_from_input() {
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
         usage: key_usage,
-        word_size: 12,
     };
     let result = Ecc384::default().key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
@@ -450,13 +441,12 @@ fn test_kv_seed_from_kv_msg_from_input() {
         0xf2, 0xd5, 0xf4, 0xc0, 0xb8, 0x47, 0x5e, 0xdb, 0x8e, 0x6f, 0xd6, 0x40, 0x1b, 0xd9, 0x75,
         0x10, 0x70, 0xf6,
     ];
-    let key_in_seed = KeyReadArgs::new(KeyId::KeyId0, 12);
+    let key_in_seed = KeyReadArgs::new(KeyId::KeyId0);
     let mut key_usage = KeyUsage::default();
     key_usage.set_ecc_private_key(true);
     let key_out_priv_key = KeyWriteArgs {
         id: KeyId::KeyId1,
         usage: key_usage,
-        word_size: 12,
     };
     let result = Ecc384::default().key_pair(
         Ecc384Seed::from(key_in_seed),
@@ -493,7 +483,7 @@ fn test_kv_seed_from_kv_msg_from_input() {
         0x01, 0x91, 0x24, 0x4e, 0x9a, 0x1d, 0x25, 0xe3, 0xd4, 0x16, 0xa5, 0x70, 0x61, 0xa8, 0x84,
         0xbe, 0x2b, 0x9b,
     ];
-    let key_in_priv_key = KeyReadArgs::new(KeyId::KeyId1, 12);
+    let key_in_priv_key = KeyReadArgs::new(KeyId::KeyId1);
     let result = Ecc384::default().sign(
         key_in_priv_key.into(),
         Ecc384Data::from(&Array4x12::from(msg)),

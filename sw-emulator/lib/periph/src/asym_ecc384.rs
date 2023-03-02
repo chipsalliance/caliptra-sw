@@ -47,6 +47,7 @@ register_bitfields! [
             SIGN = 0b10,
             VERIFY = 0b11,
         ],
+        ZEROIZE OFFSET(2) NUMBITS(1) [],
     ],
 
     /// Status Register Fields
@@ -59,10 +60,9 @@ register_bitfields! [
     /// Key Control Register Fields
     KeyReadControl[
         KEY_READ_EN OFFSET(0) NUMBITS(1) [],
-        KEY_ID OFFSET(1) NUMBITS(3) [],
-        IS_PCR OFFSET(4) NUMBITS(1) [],
-        KEY_SIZE OFFSET(5) NUMBITS(5) [],
-        RSVD OFFSET(10) NUMBITS(22) [],
+        KEY_ID OFFSET(1) NUMBITS(5) [],
+        PCR_HASH_EXTEND OFFSET(6) NUMBITS(1) [],
+        RSVD OFFSET(7) NUMBITS(25) [],
     ],
 
     /// Key Status Register Fields
@@ -77,54 +77,12 @@ register_bitfields! [
         RSVD OFFSET(10) NUMBITS(22) [],
     ],
 
-    /// Seed Control Register Fields
-    SeedReadControl[
-        KEY_READ_EN OFFSET(0) NUMBITS(1) [],
-        KEY_ID OFFSET(1) NUMBITS(3) [],
-        IS_PCR OFFSET(4) NUMBITS(1) [],
-        KEY_SIZE OFFSET(5) NUMBITS(5) [],
-        RSVD OFFSET(10) NUMBITS(22) [],
-    ],
-
-    /// Seed Status Register Fields
-    SeedReadStatus[
-        READY OFFSET(0) NUMBITS(1) [],
-        VALID OFFSET(1) NUMBITS(1) [],
-        ERROR OFFSET(2) NUMBITS(8) [
-            KV_SUCCESS = 0,
-            KV_READ_FAIL = 1,
-            KV_WRITE_FAIL= 2,
-        ],
-        RSVD OFFSET(10) NUMBITS(22) [],
-    ],
-
-    /// Msg Control Register Fields
-    MsgReadControl[
-        KEY_READ_EN OFFSET(0) NUMBITS(1) [],
-        KEY_ID OFFSET(1) NUMBITS(3) [],
-        IS_PCR OFFSET(4) NUMBITS(1) [],
-        KEY_SIZE OFFSET(5) NUMBITS(5) [],
-        RSVD OFFSET(10) NUMBITS(22) [],
-    ],
-
-    /// Msg Status Register Fields
-    MsgReadStatus[
-        READY OFFSET(0) NUMBITS(1) [],
-        VALID OFFSET(1) NUMBITS(1) [],
-        ERROR OFFSET(2) NUMBITS(8) [
-            KV_SUCCESS = 0,
-            KV_READ_FAIL = 1,
-            KV_WRITE_FAIL= 2,],
-        RSVD OFFSET(10) NUMBITS(22) [],
-    ],
-
     /// Private Key Write Control Register Fields
     KeyWriteControl[
         KEY_WRITE_EN OFFSET(0) NUMBITS(1) [],
-        KEY_ID OFFSET(1) NUMBITS(3) [],
-        IS_PCR OFFSET(4) NUMBITS(1) [],
-        USAGE OFFSET(5) NUMBITS(6) [],
-        RSVD OFFSET(11) NUMBITS(21) [],
+        KEY_ID OFFSET(1) NUMBITS(5) [],
+        USAGE OFFSET(6) NUMBITS(6) [],
+        RSVD OFFSET(12) NUMBITS(20) [],
     ],
 
     // Tag Status Register Fields
@@ -232,19 +190,19 @@ pub struct AsymEcc384 {
 
     /// Seed Read Control Register
     #[register(offset = 0x0000_0608, write_fn = on_write_seed_read_control)]
-    seed_read_ctrl: ReadWriteRegister<u32, SeedReadControl::Register>,
+    seed_read_ctrl: ReadWriteRegister<u32, KeyReadControl::Register>,
 
     /// Seed Read Status Register
     #[register(offset = 0x0000_060c)]
-    seed_read_status: ReadOnlyRegister<u32, SeedReadStatus::Register>,
+    seed_read_status: ReadOnlyRegister<u32, KeyReadStatus::Register>,
 
     /// Msg Read Control Register
     #[register(offset = 0x0000_0610, write_fn = on_write_msg_read_control)]
-    msg_read_ctrl: ReadWriteRegister<u32, MsgReadControl::Register>,
+    msg_read_ctrl: ReadWriteRegister<u32, KeyReadControl::Register>,
 
     /// Msg Read Status Register
     #[register(offset = 0x0000_0614)]
-    msg_read_status: ReadOnlyRegister<u32, MsgReadStatus::Register>,
+    msg_read_status: ReadOnlyRegister<u32, KeyReadStatus::Register>,
 
     /// Key Write Control Register
     #[register(offset = 0x0000_0618, write_fn = on_write_key_write_control)]
@@ -311,9 +269,9 @@ impl AsymEcc384 {
             key_read_ctrl: ReadWriteRegister::new(0),
             key_read_status: ReadOnlyRegister::new(KeyReadStatus::READY::SET.value),
             seed_read_ctrl: ReadWriteRegister::new(0),
-            seed_read_status: ReadOnlyRegister::new(SeedReadStatus::READY::SET.value),
+            seed_read_status: ReadOnlyRegister::new(KeyReadStatus::READY::SET.value),
             msg_read_ctrl: ReadWriteRegister::new(0),
-            msg_read_status: ReadOnlyRegister::new(MsgReadStatus::READY::SET.value),
+            msg_read_status: ReadOnlyRegister::new(KeyReadStatus::READY::SET.value),
             key_write_ctrl: ReadWriteRegister::new(0),
             key_write_status: ReadOnlyRegister::new(KeyWriteStatus::READY::SET.value),
             key_vault,
@@ -383,8 +341,7 @@ impl AsymEcc384 {
 
         self.key_read_ctrl.reg.modify(
             KeyReadControl::KEY_READ_EN.val(key_read_ctrl.read(KeyReadControl::KEY_READ_EN))
-                + KeyReadControl::KEY_ID.val(key_read_ctrl.read(KeyReadControl::KEY_ID))
-                + KeyReadControl::KEY_SIZE.val(key_read_ctrl.read(KeyReadControl::KEY_SIZE)),
+                + KeyReadControl::KEY_ID.val(key_read_ctrl.read(KeyReadControl::KEY_ID)),
         );
 
         if key_read_ctrl.is_set(KeyReadControl::KEY_READ_EN) {
@@ -421,19 +378,18 @@ impl AsymEcc384 {
         }
 
         // Set the key control register
-        let seed_ctrl = InMemoryRegister::<u32, SeedReadControl::Register>::new(val);
+        let seed_ctrl = InMemoryRegister::<u32, KeyReadControl::Register>::new(val);
 
         self.seed_read_ctrl.reg.modify(
-            SeedReadControl::KEY_READ_EN.val(seed_ctrl.read(SeedReadControl::KEY_READ_EN))
-                + SeedReadControl::KEY_ID.val(seed_ctrl.read(SeedReadControl::KEY_ID))
-                + SeedReadControl::KEY_SIZE.val(seed_ctrl.read(SeedReadControl::KEY_SIZE)),
+            KeyReadControl::KEY_READ_EN.val(seed_ctrl.read(KeyReadControl::KEY_READ_EN))
+                + KeyReadControl::KEY_ID.val(seed_ctrl.read(KeyReadControl::KEY_ID)),
         );
 
-        if seed_ctrl.is_set(SeedReadControl::KEY_READ_EN) {
+        if seed_ctrl.is_set(KeyReadControl::KEY_READ_EN) {
             self.seed_read_status.reg.modify(
-                SeedReadStatus::READY::CLEAR
-                    + SeedReadStatus::VALID::CLEAR
-                    + SeedReadStatus::ERROR::CLEAR,
+                KeyReadStatus::READY::CLEAR
+                    + KeyReadStatus::VALID::CLEAR
+                    + KeyReadStatus::ERROR::CLEAR,
             );
 
             self.op_seed_read_complete_action = Some(self.timer.schedule_poll_in(KEY_RW_TICKS));
@@ -459,19 +415,18 @@ impl AsymEcc384 {
         }
 
         // Set the msg read control register
-        let msg_read_ctrl = InMemoryRegister::<u32, MsgReadControl::Register>::new(val);
+        let msg_read_ctrl = InMemoryRegister::<u32, KeyReadControl::Register>::new(val);
 
         self.msg_read_ctrl.reg.modify(
-            MsgReadControl::KEY_READ_EN.val(msg_read_ctrl.read(MsgReadControl::KEY_READ_EN))
-                + MsgReadControl::KEY_ID.val(msg_read_ctrl.read(MsgReadControl::KEY_ID))
-                + MsgReadControl::KEY_SIZE.val(msg_read_ctrl.read(MsgReadControl::KEY_SIZE)),
+            KeyReadControl::KEY_READ_EN.val(msg_read_ctrl.read(KeyReadControl::KEY_READ_EN))
+                + KeyReadControl::KEY_ID.val(msg_read_ctrl.read(KeyReadControl::KEY_ID)),
         );
 
-        if msg_read_ctrl.is_set(MsgReadControl::KEY_READ_EN) {
+        if msg_read_ctrl.is_set(KeyReadControl::KEY_READ_EN) {
             self.msg_read_status.reg.modify(
-                MsgReadStatus::READY::CLEAR
-                    + MsgReadStatus::VALID::CLEAR
-                    + MsgReadStatus::ERROR::CLEAR,
+                KeyReadStatus::READY::CLEAR
+                    + KeyReadStatus::VALID::CLEAR
+                    + KeyReadStatus::ERROR::CLEAR,
             );
 
             self.op_msg_read_complete_action = Some(self.timer.schedule_poll_in(KEY_RW_TICKS));
@@ -581,7 +536,7 @@ impl AsymEcc384 {
     }
 
     fn seed_read_complete(&mut self) {
-        let key_id = self.seed_read_ctrl.reg.read(SeedReadControl::KEY_ID);
+        let key_id = self.seed_read_ctrl.reg.read(KeyReadControl::KEY_ID);
 
         let mut key_usage = KeyUsage::default();
         key_usage.set_ecc_key_gen_seed(true);
@@ -589,13 +544,13 @@ impl AsymEcc384 {
         let result = self.key_vault.read_key(key_id, key_usage);
         let (seed_read_result, seed) = match result.err() {
             Some(BusError::LoadAccessFault) | Some(BusError::LoadAddrMisaligned) => {
-                (SeedReadStatus::ERROR::KV_READ_FAIL.value, None)
+                (KeyReadStatus::ERROR::KV_READ_FAIL.value, None)
             }
             Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
-                (SeedReadStatus::ERROR::KV_WRITE_FAIL.value, None)
+                (KeyReadStatus::ERROR::KV_WRITE_FAIL.value, None)
             }
             None => (
-                SeedReadStatus::ERROR::KV_SUCCESS.value,
+                KeyReadStatus::ERROR::KV_SUCCESS.value,
                 Some(result.unwrap()),
             ),
         };
@@ -605,14 +560,14 @@ impl AsymEcc384 {
         }
 
         self.seed_read_status.reg.modify(
-            SeedReadStatus::READY::SET
-                + SeedReadStatus::VALID::SET
-                + SeedReadStatus::ERROR.val(seed_read_result),
+            KeyReadStatus::READY::SET
+                + KeyReadStatus::VALID::SET
+                + KeyReadStatus::ERROR.val(seed_read_result),
         );
     }
 
     fn msg_read_complete(&mut self) {
-        let key_id = self.msg_read_ctrl.reg.read(MsgReadControl::KEY_ID);
+        let key_id = self.msg_read_ctrl.reg.read(KeyReadControl::KEY_ID);
 
         let mut key_usage = KeyUsage::default();
         key_usage.set_ecc_data(true);
@@ -620,13 +575,13 @@ impl AsymEcc384 {
         let result = self.key_vault.read_key(key_id, key_usage);
         let (msg_read_result, msg) = match result.err() {
             Some(BusError::LoadAccessFault) | Some(BusError::LoadAddrMisaligned) => {
-                (MsgReadStatus::ERROR::KV_READ_FAIL.value, None)
+                (KeyReadStatus::ERROR::KV_READ_FAIL.value, None)
             }
             Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
-                (MsgReadStatus::ERROR::KV_WRITE_FAIL.value, None)
+                (KeyReadStatus::ERROR::KV_WRITE_FAIL.value, None)
             }
             None => (
-                MsgReadStatus::ERROR::KV_SUCCESS.value,
+                KeyReadStatus::ERROR::KV_SUCCESS.value,
                 Some(result.unwrap()),
             ),
         };
@@ -636,9 +591,9 @@ impl AsymEcc384 {
         }
 
         self.msg_read_status.reg.modify(
-            MsgReadStatus::READY::SET
-                + MsgReadStatus::VALID::SET
-                + MsgReadStatus::ERROR.val(msg_read_result),
+            KeyReadStatus::READY::SET
+                + KeyReadStatus::VALID::SET
+                + KeyReadStatus::ERROR.val(msg_read_result),
         );
     }
 
@@ -646,15 +601,11 @@ impl AsymEcc384 {
         let key_id = self.key_write_ctrl.reg.read(KeyWriteControl::KEY_ID);
 
         // Store the key in the key-vault.
-        let mut expanded_priv_key: [u8; 64] = [0; 64];
-        let priv_key_bytes = bytes_from_words_le(&self.priv_key);
-        expanded_priv_key[..priv_key_bytes.len()].copy_from_slice(&priv_key_bytes);
-
         let key_write_result = match self
             .key_vault
             .write_key(
                 key_id,
-                &expanded_priv_key,
+                &bytes_from_words_le(&self.priv_key),
                 self.key_write_ctrl.reg.read(KeyWriteControl::USAGE),
             )
             .err()
@@ -889,90 +840,82 @@ mod tests {
     #[test]
     fn test_gen_key_kv_seed() {
         // Test for getting the seed from the key-vault.
-        for key_id in 0..8 {
-            for use_pcr in 0..2 {
-                let clock = Clock::new();
-                let mut seed = [0u8; 48];
-                seed.to_big_endian(); // Change DWORDs to big-endian.
+        for key_id in 0..KeyVault::KEY_COUNT {
+            let clock = Clock::new();
+            let mut seed = [0u8; 48];
+            seed.to_big_endian(); // Change DWORDs to big-endian.
 
-                let mut key_vault = KeyVault::new();
-                let mut expanded_seed: [u8; 64] = [0; 64];
-                expanded_seed[..seed.len()].copy_from_slice(&seed);
-                let mut key_usage = KeyUsage::default();
-                key_usage.set_ecc_key_gen_seed(true);
+            let mut key_vault = KeyVault::new();
+            let mut key_usage = KeyUsage::default();
+            key_usage.set_ecc_key_gen_seed(true);
 
-                key_vault
-                    .write_key(key_id, &expanded_seed, u32::from(key_usage))
-                    .unwrap();
-                let mut ecc = AsymEcc384::new(&clock, key_vault);
+            key_vault
+                .write_key(key_id, &seed, u32::from(key_usage))
+                .unwrap();
+            let mut ecc = AsymEcc384::new(&clock, key_vault);
 
-                // Instruct seed to be read from key-vault.
-                let seed_ctrl = InMemoryRegister::<u32, SeedReadControl::Register>::new(0);
-                seed_ctrl.modify(
-                    SeedReadControl::KEY_ID.val(key_id)
-                        + SeedReadControl::KEY_SIZE.val((seed.len() >> 2) as u32 - 1)
-                        + SeedReadControl::KEY_READ_EN.val(1)
-                        + SeedReadControl::IS_PCR.val(use_pcr),
+            // Instruct seed to be read from key-vault.
+            let seed_ctrl = InMemoryRegister::<u32, KeyReadControl::Register>::new(0);
+            seed_ctrl
+                .modify(KeyReadControl::KEY_ID.val(key_id) + KeyReadControl::KEY_READ_EN.val(1));
+
+            assert_eq!(
+                ecc.write(RvSize::Word, OFFSET_SEED_CONTROL, seed_ctrl.get())
+                    .ok(),
+                Some(())
+            );
+
+            // Wait for ecc periph to retrieve the seed from key-vault.
+            loop {
+                let seed_read_status = InMemoryRegister::<u32, KeyReadStatus::Register>::new(
+                    ecc.read(RvSize::Word, OFFSET_SEED_STATUS).unwrap(),
                 );
 
-                assert_eq!(
-                    ecc.write(RvSize::Word, OFFSET_SEED_CONTROL, seed_ctrl.get())
-                        .ok(),
-                    Some(())
-                );
-
-                // Wait for ecc periph to retrieve the seed from key-vault.
-                loop {
-                    let seed_read_status = InMemoryRegister::<u32, SeedReadStatus::Register>::new(
-                        ecc.read(RvSize::Word, OFFSET_SEED_STATUS).unwrap(),
+                if seed_read_status.is_set(KeyReadStatus::VALID) {
+                    assert_eq!(
+                        seed_read_status.read(KeyReadStatus::ERROR),
+                        KeyReadStatus::ERROR::KV_SUCCESS.value
                     );
-
-                    if seed_read_status.is_set(SeedReadStatus::VALID) {
-                        assert_eq!(
-                            seed_read_status.read(SeedReadStatus::ERROR),
-                            SeedReadStatus::ERROR::KV_SUCCESS.value
-                        );
-                        break;
-                    }
-                    clock.increment_and_poll(1, &mut ecc);
+                    break;
                 }
-
-                assert_eq!(
-                    ecc.write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::GEN_KEY.into())
-                        .ok(),
-                    Some(())
-                );
-
-                loop {
-                    let status = InMemoryRegister::<u32, Status::Register>::new(
-                        ecc.read(RvSize::Word, OFFSET_STATUS).unwrap(),
-                    );
-                    if status.is_set(Status::VALID) && status.is_set(Status::READY) {
-                        break;
-                    }
-                    clock.increment_and_poll(1, &mut ecc);
-                }
-
-                let mut priv_key = bytes_from_words_le(&ecc.priv_key);
-                priv_key.to_little_endian(); // Change DWORDs to little-endian.
-
-                let mut pub_key_x = bytes_from_words_le(&ecc.pub_key_x);
-                pub_key_x.to_little_endian(); // Change DWORDs to little-endian.
-
-                let mut pub_key_y = bytes_from_words_le(&ecc.pub_key_y);
-                pub_key_y.to_little_endian(); // Change DWORDs to little-endian.
-
-                assert_eq!(&priv_key, &PRIV_KEY);
-                assert_eq!(&pub_key_x, &PUB_KEY_X);
-                assert_eq!(&pub_key_y, &PUB_KEY_Y);
+                clock.increment_and_poll(1, &mut ecc);
             }
+
+            assert_eq!(
+                ecc.write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::GEN_KEY.into())
+                    .ok(),
+                Some(())
+            );
+
+            loop {
+                let status = InMemoryRegister::<u32, Status::Register>::new(
+                    ecc.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                );
+                if status.is_set(Status::VALID) && status.is_set(Status::READY) {
+                    break;
+                }
+                clock.increment_and_poll(1, &mut ecc);
+            }
+
+            let mut priv_key = bytes_from_words_le(&ecc.priv_key);
+            priv_key.to_little_endian(); // Change DWORDs to little-endian.
+
+            let mut pub_key_x = bytes_from_words_le(&ecc.pub_key_x);
+            pub_key_x.to_little_endian(); // Change DWORDs to little-endian.
+
+            let mut pub_key_y = bytes_from_words_le(&ecc.pub_key_y);
+            pub_key_y.to_little_endian(); // Change DWORDs to little-endian.
+
+            assert_eq!(&priv_key, &PRIV_KEY);
+            assert_eq!(&pub_key_x, &PUB_KEY_X);
+            assert_eq!(&pub_key_y, &PUB_KEY_Y);
         }
     }
 
     #[test]
     fn test_gen_key_kv_privkey() {
         // Test for storing the generated private key in the key-vault.
-        for key_id in 0..8 {
+        for key_id in 0..KeyVault::KEY_COUNT {
             let clock = Clock::new();
             let mut seed = [0u8; 48];
             seed.to_big_endian(); // Change DWORDs to big-endian.
@@ -1057,7 +1000,7 @@ mod tests {
         let clock = Clock::new();
         let mut ecc = AsymEcc384::new(&clock, KeyVault::new());
 
-        let mut hash = [0u8; 48];
+        let mut hash = [0u8; KeyVault::KEY_SIZE];
         hash.to_big_endian(); // Change DWORDs to big-endian.
 
         for i in (0..hash.len()).step_by(4) {
@@ -1120,12 +1063,10 @@ mod tests {
             priv_key.to_big_endian(); // Change DWORDs to big-endian.
 
             let mut key_vault = KeyVault::new();
-            let mut expanded_priv_key: [u8; 64] = [0; 64];
-            expanded_priv_key[..priv_key.len()].copy_from_slice(&priv_key);
             let mut key_usage = KeyUsage::default();
             key_usage.set_ecc_private_key(true);
             key_vault
-                .write_key(key_id, &expanded_priv_key, u32::from(key_usage))
+                .write_key(key_id, &priv_key, u32::from(key_usage))
                 .unwrap();
 
             let mut ecc = AsymEcc384::new(&clock, key_vault);
@@ -1143,11 +1084,8 @@ mod tests {
 
             // Instruct private key to be read from key-vault.
             let key_read_ctrl = InMemoryRegister::<u32, KeyReadControl::Register>::new(0);
-            key_read_ctrl.modify(
-                KeyReadControl::KEY_ID.val(key_id)
-                    + KeyReadControl::KEY_SIZE.val((priv_key.len() >> 2) as u32 - 1)
-                    + KeyReadControl::KEY_READ_EN.val(1),
-            );
+            key_read_ctrl
+                .modify(KeyReadControl::KEY_ID.val(key_id) + KeyReadControl::KEY_READ_EN.val(1));
 
             assert_eq!(
                 ecc.write(RvSize::Word, OFFSET_KEY_READ_CONTROL, key_read_ctrl.get())
@@ -1206,12 +1144,10 @@ mod tests {
             priv_key.to_big_endian(); // Change DWORDs to big-endian.
 
             let mut key_vault = KeyVault::new();
-            let mut expanded_priv_key: [u8; 64] = [0; 64];
-            expanded_priv_key[..priv_key.len()].copy_from_slice(&priv_key);
             let mut key_usage = KeyUsage::default();
             key_usage.set_ecc_private_key(true);
             key_vault
-                .write_key(key_id, &expanded_priv_key, !(u32::from(key_usage)))
+                .write_key(key_id, &priv_key, !(u32::from(key_usage)))
                 .unwrap();
 
             let mut ecc = AsymEcc384::new(&clock, key_vault);
@@ -1229,11 +1165,8 @@ mod tests {
 
             // Instruct private key to be read from key-vault.
             let key_read_ctrl = InMemoryRegister::<u32, KeyReadControl::Register>::new(0);
-            key_read_ctrl.modify(
-                KeyReadControl::KEY_ID.val(key_id)
-                    + KeyReadControl::KEY_SIZE.val((priv_key.len() >> 2) as u32 - 1)
-                    + KeyReadControl::KEY_READ_EN.val(1),
-            );
+            key_read_ctrl
+                .modify(KeyReadControl::KEY_ID.val(key_id) + KeyReadControl::KEY_READ_EN.val(1));
 
             assert_eq!(
                 ecc.write(RvSize::Word, OFFSET_KEY_READ_CONTROL, key_read_ctrl.get())
@@ -1267,24 +1200,19 @@ mod tests {
             hash.to_big_endian(); // Change DWORDs to big-endian.
 
             let mut key_vault = KeyVault::new();
-            let mut expanded_hash: [u8; 64] = [0; 64];
-            expanded_hash[..hash.len()].copy_from_slice(&hash);
             let mut key_usage = KeyUsage::default();
             key_usage.set_ecc_data(true);
 
             key_vault
-                .write_key(key_id, &expanded_hash, u32::from(key_usage))
+                .write_key(key_id, &hash, u32::from(key_usage))
                 .unwrap();
 
             let mut ecc = AsymEcc384::new(&clock, key_vault);
 
             // Instruct hash to be read from key-vault.
-            let msg_ctrl = InMemoryRegister::<u32, MsgReadControl::Register>::new(0);
-            msg_ctrl.modify(
-                MsgReadControl::KEY_ID.val(key_id)
-                    + MsgReadControl::KEY_SIZE.val((hash.len() >> 2) as u32 - 1)
-                    + MsgReadControl::KEY_READ_EN.val(1),
-            );
+            let msg_ctrl = InMemoryRegister::<u32, KeyReadControl::Register>::new(0);
+            msg_ctrl
+                .modify(KeyReadControl::KEY_ID.val(key_id) + KeyReadControl::KEY_READ_EN.val(1));
 
             assert_eq!(
                 ecc.write(RvSize::Word, OFFSET_MSG_CONTROL, msg_ctrl.get())
@@ -1294,13 +1222,13 @@ mod tests {
 
             // Wait for ecc periph to retrieve the private key from the key-vault.
             loop {
-                let msg_read_status = InMemoryRegister::<u32, MsgReadStatus::Register>::new(
+                let msg_read_status = InMemoryRegister::<u32, KeyReadStatus::Register>::new(
                     ecc.read(RvSize::Word, OFFSET_MSG_STATUS).unwrap(),
                 );
-                if msg_read_status.is_set(MsgReadStatus::VALID) {
+                if msg_read_status.is_set(KeyReadStatus::VALID) {
                     assert_eq!(
-                        msg_read_status.read(MsgReadStatus::ERROR),
-                        MsgReadStatus::ERROR::KV_SUCCESS.value
+                        msg_read_status.read(KeyReadStatus::ERROR),
+                        KeyReadStatus::ERROR::KV_SUCCESS.value
                     );
                     break;
                 }
@@ -1358,24 +1286,19 @@ mod tests {
             hash.to_big_endian(); // Change DWORDs to big-endian.
 
             let mut key_vault = KeyVault::new();
-            let mut expanded_hash: [u8; 64] = [0; 64];
-            expanded_hash[..hash.len()].copy_from_slice(&hash);
             let mut key_usage = KeyUsage::default();
             key_usage.set_ecc_data(true);
 
             key_vault
-                .write_key(key_id, &expanded_hash, !(u32::from(key_usage)))
+                .write_key(key_id, &hash, !(u32::from(key_usage)))
                 .unwrap();
 
             let mut ecc = AsymEcc384::new(&clock, key_vault);
 
             // Instruct hash to be read from key-vault.
-            let msg_ctrl = InMemoryRegister::<u32, MsgReadControl::Register>::new(0);
-            msg_ctrl.modify(
-                MsgReadControl::KEY_ID.val(key_id)
-                    + MsgReadControl::KEY_SIZE.val((hash.len() >> 2) as u32 - 1)
-                    + MsgReadControl::KEY_READ_EN.val(1),
-            );
+            let msg_ctrl = InMemoryRegister::<u32, KeyReadControl::Register>::new(0);
+            msg_ctrl
+                .modify(KeyReadControl::KEY_ID.val(key_id) + KeyReadControl::KEY_READ_EN.val(1));
 
             assert_eq!(
                 ecc.write(RvSize::Word, OFFSET_MSG_CONTROL, msg_ctrl.get())
@@ -1385,13 +1308,13 @@ mod tests {
 
             // Wait for ecc periph to retrieve the private key from the key-vault.
             loop {
-                let msg_read_status = InMemoryRegister::<u32, MsgReadStatus::Register>::new(
+                let msg_read_status = InMemoryRegister::<u32, KeyReadStatus::Register>::new(
                     ecc.read(RvSize::Word, OFFSET_MSG_STATUS).unwrap(),
                 );
-                if msg_read_status.is_set(MsgReadStatus::VALID) {
+                if msg_read_status.is_set(KeyReadStatus::VALID) {
                     assert_eq!(
-                        msg_read_status.read(MsgReadStatus::ERROR),
-                        MsgReadStatus::ERROR::KV_READ_FAIL.value
+                        msg_read_status.read(KeyReadStatus::ERROR),
+                        KeyReadStatus::ERROR::KV_READ_FAIL.value
                     );
                     break;
                 }
@@ -1405,7 +1328,7 @@ mod tests {
         let clock = Clock::new();
         let mut ecc = AsymEcc384::new(&clock, KeyVault::new());
 
-        let hash = [0u8; 48];
+        let hash = [0u8; KeyVault::KEY_SIZE];
         for i in (0..hash.len()).step_by(4) {
             assert_eq!(
                 ecc.write(RvSize::Word, OFFSET_HASH + i as RvAddr, make_word(i, &hash))

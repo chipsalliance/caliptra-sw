@@ -22,8 +22,6 @@ use core::usize;
 const HMAC384_BLOCK_SIZE_BYTES: usize = 128;
 const HMAC384_BLOCK_LEN_OFFSET: usize = 112;
 const HMAC384_MAX_DATA_SIZE: usize = 1024 * 1024;
-const HMAC384_MIN_KEY_READ_SIZE: u32 = 1;
-const HMAC384_MAX_KEY_SIZE: u32 = 48;
 
 caliptra_err_def! {
     Hmac384,
@@ -305,11 +303,6 @@ impl Hmac384 {
     /// * `key` - Key to calculate hmac for
     ///
     fn hmac_key(&self, key: KeyReadArgs) -> CaliptraResult<()> {
-        // Check if key read size is valid
-        if !(HMAC384_MIN_KEY_READ_SIZE..HMAC384_MAX_KEY_SIZE + 1).contains(&key.word_size) {
-            raise_err!(InvalidKeySize)
-        }
-
         let hmac = hmac::RegisterBlock::hmac_reg();
 
         KvAccess::copy_from_kv(key, hmac.kv_rd_block_status(), hmac.kv_rd_block_ctrl())

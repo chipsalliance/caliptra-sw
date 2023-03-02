@@ -24,9 +24,6 @@ use ureg::Mmio;
 pub struct KeyReadArgs {
     /// Key Id
     pub id: KeyId,
-
-    /// Size of key in words (4-byte multiple)
-    pub word_size: u32,
 }
 
 impl KeyReadArgs {
@@ -35,9 +32,8 @@ impl KeyReadArgs {
     /// # Arguments
     ///
     /// * `id` - Key Id
-    /// * `word_size` - Size of key in words (4-byte multiple)    
-    pub fn new(id: KeyId, word_size: u32) -> Self {
-        Self { id, word_size }
+    pub fn new(id: KeyId) -> Self {
+        Self { id }
     }
 }
 
@@ -46,9 +42,6 @@ impl KeyReadArgs {
 pub struct KeyWriteArgs {
     /// Key Id
     pub id: KeyId,
-
-    /// Size of key in words (4-byte multiple)
-    pub word_size: u32,
 
     /// Key usage flags
     pub usage: KeyUsage,
@@ -60,14 +53,9 @@ impl KeyWriteArgs {
     /// # Arguments
     ///
     /// * `id` - Key Id
-    /// * `word_size` - Size of key in words (4-byte multiple)    
     /// * `usage` - Key usage flags
-    pub fn new(id: KeyId, word_size: u32, usage: KeyUsage) -> Self {
-        Self {
-            id,
-            word_size,
-            usage,
-        }
+    pub fn new(id: KeyId, usage: KeyUsage) -> Self {
+        Self { id, usage }
     }
 }
 
@@ -151,7 +139,6 @@ impl KvAccess {
         wait::until(|| status_reg.read().ready());
         ctrl_reg.write(|w| {
             w.write_en(true)
-                .entry_is_pcr(false)
                 .write_entry(key.id.into())
                 .hmac_key_dest_valid(key.usage.hmac_key())
                 .hmac_block_dest_valid(key.usage.hmac_data())
@@ -225,8 +212,7 @@ impl KvAccess {
         ctrl_reg.write(|w| {
             w.read_en(true)
                 .read_entry(key.id.into())
-                .entry_is_pcr(false)
-                .entry_data_size(key.word_size - 1)
+                .pcr_hash_extend(false)
         });
 
         crate::wait::until(|| status_reg.read().valid());

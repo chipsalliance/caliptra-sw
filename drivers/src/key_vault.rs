@@ -20,29 +20,38 @@ use caliptra_registers::kv;
 /// Key Identifier
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyId {
-    /// Key ID 0
     KeyId0 = 0,
-
-    /// Key ID 1
     KeyId1 = 1,
-
-    /// Key ID 2
     KeyId2 = 2,
-
-    /// Key ID 3
     KeyId3 = 3,
-
-    /// Key ID 4
     KeyId4 = 4,
-
-    /// Key ID 5
     KeyId5 = 5,
-
-    /// Key ID 6
     KeyId6 = 6,
-
-    /// Key ID 7
     KeyId7 = 7,
+    KeyId8 = 8,
+    KeyId9 = 9,
+    KeyId10 = 10,
+    KeyId11 = 11,
+    KeyId12 = 12,
+    KeyId13 = 13,
+    KeyId14 = 14,
+    KeyId15 = 15,
+    KeyId16 = 16,
+    KeyId17 = 17,
+    KeyId18 = 18,
+    KeyId19 = 19,
+    KeyId20 = 20,
+    KeyId21 = 21,
+    KeyId22 = 22,
+    KeyId23 = 23,
+    KeyId24 = 24,
+    KeyId25 = 25,
+    KeyId26 = 26,
+    KeyId27 = 27,
+    KeyId28 = 28,
+    KeyId29 = 29,
+    KeyId30 = 30,
+    KeyId31 = 31,
 }
 
 impl From<KeyId> for u32 {
@@ -105,7 +114,7 @@ impl KeyVault {
     ///
     /// Note: The keys that have "use" or "write" lock set will not be erased
     pub fn erase_all_keys(&mut self) {
-        const KEY_IDS: [KeyId; 8] = [
+        const KEY_IDS: [KeyId; 32] = [
             KeyId::KeyId0,
             KeyId::KeyId1,
             KeyId::KeyId2,
@@ -114,6 +123,30 @@ impl KeyVault {
             KeyId::KeyId5,
             KeyId::KeyId6,
             KeyId::KeyId7,
+            KeyId::KeyId8,
+            KeyId::KeyId9,
+            KeyId::KeyId10,
+            KeyId::KeyId11,
+            KeyId::KeyId12,
+            KeyId::KeyId13,
+            KeyId::KeyId14,
+            KeyId::KeyId15,
+            KeyId::KeyId16,
+            KeyId::KeyId17,
+            KeyId::KeyId18,
+            KeyId::KeyId19,
+            KeyId::KeyId20,
+            KeyId::KeyId21,
+            KeyId::KeyId22,
+            KeyId::KeyId23,
+            KeyId::KeyId24,
+            KeyId::KeyId25,
+            KeyId::KeyId26,
+            KeyId::KeyId27,
+            KeyId::KeyId28,
+            KeyId::KeyId29,
+            KeyId::KeyId30,
+            KeyId::KeyId31,
         ];
 
         let kv = kv::RegisterBlock::kv_reg();

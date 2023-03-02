@@ -268,7 +268,6 @@ fn test_kv() {
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
         usage,
-        word_size: 12,
     };
     let mut result = Sha384::default().digest((&data).into(), key_out_1.into());
     assert!(result.is_ok());
@@ -279,7 +278,7 @@ fn test_kv() {
     // Success also indicates buffer was correctly retrieved from the key-vault.
     //
     let mut digest = Array4x12::default();
-    let key_in_2 = KeyReadArgs::new(KeyId::KeyId0, 12);
+    let key_in_2 = KeyReadArgs::new(KeyId::KeyId0);
     result = Sha384::default().digest(key_in_2.into(), (&mut digest).into());
     assert!(result.is_ok());
     assert_eq!(digest, Array4x12::from(expected));
@@ -295,11 +294,7 @@ fn test_kv_incorrect_key_acl() {
         // Step 1: Hash a buffer from input and store the hash into key-vault slot 0.
         // Prevent the key to be used as sha data.
         //
-        let key_out_1 = KeyWriteArgs {
-            id: key_id,
-            usage,
-            word_size: 12,
-        };
+        let key_out_1 = KeyWriteArgs { id: key_id, usage };
         let mut result = Sha384::default().digest((data).into(), key_out_1.into());
         assert!(result.is_ok());
 
@@ -308,7 +303,7 @@ fn test_kv_incorrect_key_acl() {
         // This should fail since acl set on key should prevent it's usage as SHA data.
         //
         let mut digest = Array4x12::default();
-        let key_in_2 = KeyReadArgs::new(key_id, 12);
+        let key_in_2 = KeyReadArgs::new(key_id);
         result = Sha384::default().digest(key_in_2.into(), (&mut digest).into());
         assert!(result.is_err());
     }

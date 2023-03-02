@@ -10,6 +10,9 @@ Abstract:
 
     File contains Macros and API for Caliptra Library Test Harness
 
+References:
+    https://os.phil-opp.com/vga-text-mode for print functionality.
+
 --*/
 
 use core::fmt;

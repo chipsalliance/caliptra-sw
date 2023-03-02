@@ -32,7 +32,8 @@ register_bitfields! [
     Control [
         INIT OFFSET(0) NUMBITS(1) [],
         NEXT OFFSET(1) NUMBITS(1) [],
-        RSVD OFFSET(2) NUMBITS(30) [],
+        ZEROIZE OFFSET(2) NUMBITS(1) [],
+        RSVD OFFSET(3) NUMBITS(29) [],
     ],
 
     /// Status Register Fields
@@ -45,10 +46,9 @@ register_bitfields! [
     /// Key Read Control Register Fields
     KeyReadControl[
         KEY_READ_EN OFFSET(0) NUMBITS(1) [],
-        KEY_ID OFFSET(1) NUMBITS(3) [],
-        IS_PCR OFFSET(4) NUMBITS(1) [],
-        KEY_SIZE OFFSET(5) NUMBITS(5) [],
-        RSVD OFFSET(10) NUMBITS(22) [],
+        KEY_ID OFFSET(1) NUMBITS(5) [],
+        PCR_HASH_EXTEND OFFSET(6) NUMBITS(1) [],
+        RSVD OFFSET(7) NUMBITS(25) [],
     ],
 
     /// Key Read Status Register Fields
@@ -63,34 +63,12 @@ register_bitfields! [
         RSVD OFFSET(10) NUMBITS(22) [],
     ],
 
-    /// Block Read Control Register Fields
-    BlockReadControl[
-        KEY_READ_EN OFFSET(0) NUMBITS(1) [],
-        KEY_ID OFFSET(1) NUMBITS(3) [],
-        IS_PCR OFFSET(4) NUMBITS(1) [],
-        KEY_SIZE OFFSET(5) NUMBITS(5) [],
-        RSVD OFFSET(10) NUMBITS(22) [],
-    ],
-
-    /// Block Read Status Register Fields
-    BlockReadStatus[
-        READY OFFSET(0) NUMBITS(1) [],
-        VALID OFFSET(1) NUMBITS(1) [],
-        ERROR OFFSET(2) NUMBITS(8) [
-            KV_SUCCESS = 0,
-            KV_READ_FAIL = 1,
-            KV_WRITE_FAIL= 2,
-        ],
-        RSVD OFFSET(10) NUMBITS(22) [],
-    ],
-
     /// Tag Write Control Register Fields
     TagWriteControl[
         KEY_WRITE_EN OFFSET(0) NUMBITS(1) [],
-        KEY_ID OFFSET(1) NUMBITS(3) [],
-        IS_PCR OFFSET(4) NUMBITS(1) [],
-        USAGE OFFSET(5) NUMBITS(6) [],
-        RSVD OFFSET(11) NUMBITS(21) [],
+        KEY_ID OFFSET(1) NUMBITS(5) [],
+        USAGE OFFSET(6) NUMBITS(6) [],
+        RSVD OFFSET(12) NUMBITS(20) [],
     ],
 
     // Tag Status Register Fields
@@ -175,11 +153,11 @@ pub struct HmacSha384 {
 
     /// Block Read Control Register
     #[register(offset = 0x0000_0608, write_fn = on_write_block_read_control)]
-    block_read_ctrl: ReadWriteRegister<u32, BlockReadControl::Register>,
+    block_read_ctrl: ReadWriteRegister<u32, KeyReadControl::Register>,
 
     /// Block Read Status Register
     #[register(offset = 0x0000_060c)]
-    block_read_status: ReadOnlyRegister<u32, BlockReadStatus::Register>,
+    block_read_status: ReadOnlyRegister<u32, KeyReadStatus::Register>,
 
     /// Tag Write Control Register
     #[register(offset = 0x0000_0610, write_fn = on_write_tag_write_control)]
@@ -249,7 +227,7 @@ impl HmacSha384 {
             key_read_ctrl: ReadWriteRegister::new(0),
             key_read_status: ReadOnlyRegister::new(KeyReadStatus::READY::SET.value),
             block_read_ctrl: ReadWriteRegister::new(0),
-            block_read_status: ReadOnlyRegister::new(BlockReadStatus::READY::SET.value),
+            block_read_status: ReadOnlyRegister::new(KeyReadStatus::READY::SET.value),
             tag_write_ctrl: ReadWriteRegister::new(0),
             tag_write_status: ReadOnlyRegister::new(TagWriteStatus::READY::SET.value),
             key_vault,
@@ -323,8 +301,7 @@ impl HmacSha384 {
 
         self.key_read_ctrl.reg.modify(
             KeyReadControl::KEY_READ_EN.val(key_read_ctrl.read(KeyReadControl::KEY_READ_EN))
-                + KeyReadControl::KEY_ID.val(key_read_ctrl.read(KeyReadControl::KEY_ID))
-                + KeyReadControl::KEY_SIZE.val(key_read_ctrl.read(KeyReadControl::KEY_SIZE)),
+                + KeyReadControl::KEY_ID.val(key_read_ctrl.read(KeyReadControl::KEY_ID)),
         );
 
         if key_read_ctrl.is_set(KeyReadControl::KEY_READ_EN) {
@@ -361,19 +338,18 @@ impl HmacSha384 {
         }
 
         // Set the block control register
-        let block_read_ctrl = InMemoryRegister::<u32, BlockReadControl::Register>::new(val);
+        let block_read_ctrl = InMemoryRegister::<u32, KeyReadControl::Register>::new(val);
 
         self.block_read_ctrl.reg.modify(
-            BlockReadControl::KEY_READ_EN.val(block_read_ctrl.read(BlockReadControl::KEY_READ_EN))
-                + BlockReadControl::KEY_ID.val(block_read_ctrl.read(BlockReadControl::KEY_ID))
-                + BlockReadControl::KEY_SIZE.val(block_read_ctrl.read(BlockReadControl::KEY_SIZE)),
+            KeyReadControl::KEY_READ_EN.val(block_read_ctrl.read(KeyReadControl::KEY_READ_EN))
+                + KeyReadControl::KEY_ID.val(block_read_ctrl.read(KeyReadControl::KEY_ID)),
         );
 
-        if block_read_ctrl.is_set(BlockReadControl::KEY_READ_EN) {
+        if block_read_ctrl.is_set(KeyReadControl::KEY_READ_EN) {
             self.block_read_status.reg.modify(
-                BlockReadStatus::READY::CLEAR
-                    + BlockReadStatus::VALID::CLEAR
-                    + BlockReadStatus::ERROR::CLEAR,
+                KeyReadStatus::READY::CLEAR
+                    + KeyReadStatus::VALID::CLEAR
+                    + KeyReadStatus::ERROR::CLEAR,
             );
 
             self.op_block_read_complete_action = Some(self.timer.schedule_poll_in(KEY_RW_TICKS));
@@ -486,15 +462,8 @@ impl HmacSha384 {
     }
 
     fn block_read_complete(&mut self) {
-        let key_id = self.block_read_ctrl.reg.read(BlockReadControl::KEY_ID);
-        let mut size = self.block_read_ctrl.reg.read(BlockReadControl::KEY_SIZE);
+        let key_id = self.block_read_ctrl.reg.read(KeyReadControl::KEY_ID);
 
-        // Max key slot size is 64 bytes
-        if size > 15 {
-            size = 15;
-        }
-        // Convert the size to bytes. Note KEY_SIZE field in register is encoded as N-1 Double Words
-        let data_len = ((size + 1) << 2) as usize;
         // Clear the block
         self.block.data_mut().fill(0);
 
@@ -504,25 +473,25 @@ impl HmacSha384 {
         let result = self.key_vault.read_key(key_id, key_usage);
         let (block_read_result, data) = match result.err() {
             Some(BusError::LoadAccessFault) | Some(BusError::LoadAddrMisaligned) => {
-                (BlockReadStatus::ERROR::KV_READ_FAIL.value, None)
+                (KeyReadStatus::ERROR::KV_READ_FAIL.value, None)
             }
             Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
-                (BlockReadStatus::ERROR::KV_WRITE_FAIL.value, None)
+                (KeyReadStatus::ERROR::KV_WRITE_FAIL.value, None)
             }
             None => (
-                BlockReadStatus::ERROR::KV_SUCCESS.value,
+                KeyReadStatus::ERROR::KV_SUCCESS.value,
                 Some(result.unwrap()),
             ),
         };
 
         if data != None {
-            self.format_block(data_len, &data.unwrap());
+            self.format_block(&data.unwrap());
         }
 
         self.block_read_status.reg.modify(
-            BlockReadStatus::READY::SET
-                + BlockReadStatus::VALID::SET
-                + BlockReadStatus::ERROR.val(block_read_result),
+            KeyReadStatus::READY::SET
+                + KeyReadStatus::VALID::SET
+                + KeyReadStatus::ERROR.val(block_read_result),
         );
     }
 
@@ -537,16 +506,16 @@ impl HmacSha384 {
     /// # Error
     ///
     /// * `None`
-    fn format_block(&mut self, data_len: usize, data: &[u8; 64]) {
+    fn format_block(&mut self, data: &[u8; KeyVault::KEY_SIZE]) {
         let mut block_arr = [0u8; HMAC_BLOCK_SIZE];
-        block_arr[..data_len].copy_from_slice(&data[..data_len]);
+        block_arr[..data.len()].copy_from_slice(&data[..data.len()]);
         block_arr.to_little_endian();
 
         // Add block padding.
-        block_arr[data_len] = 0b1000_0000;
+        block_arr[data.len()] = 0b1000_0000;
 
         // Add block length.
-        let len = ((HMAC_BLOCK_SIZE + data_len) as u128) * 8;
+        let len = ((HMAC_BLOCK_SIZE + data.len()) as u128) * 8;
         block_arr[HMAC_BLOCK_SIZE - 16..].copy_from_slice(&len.to_be_bytes());
 
         block_arr.to_big_endian();
@@ -558,15 +527,11 @@ impl HmacSha384 {
 
         // Store the tag in the key-vault.
         // Tag is in big-endian format and is stored in the same format.
-        let mut expanded_tag: [u8; 64] = [0; 64];
-        expanded_tag[..self.tag.data_mut().len()].copy_from_slice(self.tag.data_mut());
-
-        // Store the key config and the key in the key-vault.
         let tag_write_result = match self
             .key_vault
             .write_key(
                 key_id,
-                &expanded_tag,
+                &self.tag.data(),
                 self.tag_write_ctrl.reg.read(TagWriteControl::USAGE),
             )
             .err()
@@ -613,9 +578,6 @@ mod tests {
     const OFFSET_BLOCK_STATUS: RvAddr = 0x60c;
     const OFFSET_TAG_CONTROL: RvAddr = 0x610;
     const OFFSET_TAG_STATUS: RvAddr = 0x614;
-
-    const KV_OFFSET_KEY_CONTROL: RvAddr = 0x400;
-    const KEY_CONTROL_REG_WIDTH: u32 = 0x4;
 
     #[test]
     fn test_name() {
@@ -700,7 +662,7 @@ mod tests {
     }
 
     fn test_hmac(
-        key: &mut [u8; 48],
+        key: &mut [u8; HMAC_KEY_SIZE],
         data: &[u8],
         result: &[u8],
         keyvault_actions: &Vec<KeyVaultAction>,
@@ -781,9 +743,7 @@ mod tests {
         let mut key_vault = KeyVault::new();
 
         if key_via_kv == true {
-            let mut expanded_key: [u8; 64] = [0; 64];
-            expanded_key[..key.len()].copy_from_slice(key);
-            key_vault.write_key(key_id, &expanded_key, 0x3F).unwrap();
+            key_vault.write_key(key_id, &key, 0x3F).unwrap();
 
             if key_read_disallowed == true {
                 let val_reg = InMemoryRegister::<u32, key_vault::KV_CONTROL::Register>::new(0);
@@ -792,7 +752,8 @@ mod tests {
                     key_vault
                         .write(
                             RvSize::Word,
-                            KV_OFFSET_KEY_CONTROL + (key_id * KEY_CONTROL_REG_WIDTH),
+                            KeyVault::KEY_CONTROL_REG_OFFSET
+                                + (key_id * KeyVault::KEY_CONTROL_REG_WIDTH),
                             val_reg.get()
                         )
                         .ok(),
@@ -807,7 +768,8 @@ mod tests {
                     key_vault
                         .write(
                             RvSize::Word,
-                            KV_OFFSET_KEY_CONTROL + (key_id * KEY_CONTROL_REG_WIDTH),
+                            KeyVault::KEY_CONTROL_REG_OFFSET
+                                + (key_id * KeyVault::KEY_CONTROL_REG_WIDTH),
                             val_reg.get()
                         )
                         .ok(),
@@ -817,13 +779,13 @@ mod tests {
         }
 
         if block_via_kv == true {
-            let mut expanded_block: [u8; 64] = [0; 64];
-            expanded_block[..data.len()].copy_from_slice(&data);
-            expanded_block.to_big_endian(); // Keys are stored in big-endian format.
+            let mut block: [u8; KeyVault::KEY_SIZE] = [0; KeyVault::KEY_SIZE];
+            block[..data.len()].copy_from_slice(&data);
+            block.to_big_endian(); // Keys are stored in big-endian format.
             let mut key_usage = KeyUsage::default();
             key_usage.set_hmac_data(true);
             key_vault
-                .write_key(block_id, &expanded_block, u32::from(key_usage))
+                .write_key(block_id, &block, u32::from(key_usage))
                 .unwrap();
 
             if block_read_disallowed == true {
@@ -833,7 +795,8 @@ mod tests {
                     key_vault
                         .write(
                             RvSize::Word,
-                            KV_OFFSET_KEY_CONTROL + (block_id * KEY_CONTROL_REG_WIDTH),
+                            KeyVault::KEY_CONTROL_REG_OFFSET
+                                + (block_id * KeyVault::KEY_CONTROL_REG_WIDTH),
                             val_reg.get()
                         )
                         .ok(),
@@ -848,7 +811,8 @@ mod tests {
                     key_vault
                         .write(
                             RvSize::Word,
-                            KV_OFFSET_KEY_CONTROL + (block_id * KEY_CONTROL_REG_WIDTH),
+                            KeyVault::KEY_CONTROL_REG_OFFSET
+                                + (block_id * KeyVault::KEY_CONTROL_REG_WIDTH),
                             val_reg.get()
                         )
                         .ok(),
@@ -866,7 +830,8 @@ mod tests {
                 key_vault
                     .write(
                         RvSize::Word,
-                        KV_OFFSET_KEY_CONTROL + (tag_id * KEY_CONTROL_REG_WIDTH),
+                        KeyVault::KEY_CONTROL_REG_OFFSET
+                            + (tag_id * KeyVault::KEY_CONTROL_REG_WIDTH),
                         val_reg.get()
                     )
                     .ok(),
@@ -905,11 +870,8 @@ mod tests {
         } else {
             // Instruct key to be read from key-vault.
             let key_ctrl = InMemoryRegister::<u32, KeyReadControl::Register>::new(0);
-            key_ctrl.modify(
-                KeyReadControl::KEY_ID.val(key_id)
-                    + KeyReadControl::KEY_SIZE.val((key.len() >> 2) as u32 - 1)
-                    + KeyReadControl::KEY_READ_EN.val(1),
-            );
+            key_ctrl
+                .modify(KeyReadControl::KEY_ID.val(key_id) + KeyReadControl::KEY_READ_EN.val(1));
 
             assert_eq!(
                 hmac.write(RvSize::Word, OFFSET_KEY_CONTROL, key_ctrl.get())
@@ -955,11 +917,9 @@ mod tests {
                 assert_eq!(totalblocks, 1);
 
                 // Instruct block to be read from key-vault.
-                let block_ctrl = InMemoryRegister::<u32, BlockReadControl::Register>::new(0);
+                let block_ctrl = InMemoryRegister::<u32, KeyReadControl::Register>::new(0);
                 block_ctrl.modify(
-                    BlockReadControl::KEY_ID.val(block_id)
-                        + BlockReadControl::KEY_SIZE.val((HMAC_KEY_SIZE >> 2) as u32 - 1)
-                        + BlockReadControl::KEY_READ_EN.val(1),
+                    KeyReadControl::KEY_ID.val(block_id) + KeyReadControl::KEY_READ_EN.val(1),
                 );
                 assert_eq!(
                     hmac.write(RvSize::Word, OFFSET_BLOCK_CONTROL, block_ctrl.get())
@@ -969,13 +929,13 @@ mod tests {
 
                 // Wait for hmac periph to retrieve the block from the key-vault.
                 loop {
-                    let block_read_status = InMemoryRegister::<u32, BlockReadStatus::Register>::new(
+                    let block_read_status = InMemoryRegister::<u32, KeyReadStatus::Register>::new(
                         hmac.read(RvSize::Word, OFFSET_BLOCK_STATUS).unwrap(),
                     );
 
-                    if block_read_status.is_set(BlockReadStatus::VALID) {
-                        if block_read_status.read(BlockReadStatus::ERROR)
-                            != BlockReadStatus::ERROR::KV_SUCCESS.value
+                    if block_read_status.is_set(KeyReadStatus::VALID) {
+                        if block_read_status.read(KeyReadStatus::ERROR)
+                            != KeyReadStatus::ERROR::KV_SUCCESS.value
                         {
                             assert_eq!((block_read_disallowed || block_disallowed_for_hmac), true);
                             return;

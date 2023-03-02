@@ -313,9 +313,11 @@ register_bitfields! [
         LIFE_CYCLE OFFSET(0) NUMBITS(2) [
            UNPROVISIONED = 0b00,
            MANUFACTURING = 0b01,
-           PRODUCTION = 011,
+           PRODUCTION = 0b11,
         ],
         DEBUG_LOCKED OFFSET(2) NUMBITS(1) [],
+        SCAN_MODE OFFSET(3) NUMBITS(1) [],
+        RSVD OFFSET(4) NUMBITS(28) [],
     ],
 
     /// Key Manifest Public Key Mask

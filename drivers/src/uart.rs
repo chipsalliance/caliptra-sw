@@ -10,6 +10,9 @@ Abstract:
 
     File contains API for accessing the UART
 
+References:
+    https://os.phil-opp.com/vga-text-mode for output functionality.
+
 --*/
 
 use core::{fmt, ptr};
