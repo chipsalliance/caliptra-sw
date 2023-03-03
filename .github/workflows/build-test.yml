@@ -52,15 +52,14 @@ jobs:
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
+      - name: Check source-code formatting (run "cargo fmt" if this fails)
+        run: |
+          cargo fmt --check --all
+
       - name: Install risv32imc target
         run: |
           rustup update
           rustup target add riscv32imc-unknown-none-elf
-
-      - name: Install caliptra-emu
-        run: |
-          cargo install --path sw-emulator/app
-          sccache --show-stats
 
       - name: Install cargo binutils
         run: |
@@ -72,8 +71,6 @@ jobs:
           export RUSTFLAGS="-D warnings"
           cargo build
           cargo build --release
-          (cd drivers && cargo build)
-          (cd drivers && cargo build --release)
           drivers/test-fw/build.sh
           sccache --show-stats
 
@@ -82,6 +79,11 @@ jobs:
           export RUSTFLAGS="-D warnings"
           cargo test
           cargo test --release
+          sccache --show-stats
+
+      - name: Install caliptra-emu
+        run: |
+          cargo install --path sw-emulator/app
           sccache --show-stats
 
       - name: Run tests inside emulator
@@ -95,7 +97,3 @@ jobs:
           (cd /tmp/ && git clone --depth 1 --branch old-framework-2.x https://github.com/riscv-non-isa/riscv-arch-test)
           (cd sw-emulator/compliance-test && cargo run --release  -- --test_root_path /tmp/riscv-arch-test)
 
-      - name: Check source-code formatting (run "cargo fmt" if this fails)
-        run: |
-          cargo fmt --check
-          (cd drivers && cargo fmt --check)
