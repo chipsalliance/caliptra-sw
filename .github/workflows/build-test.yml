@@ -85,6 +85,7 @@ jobs:
           cargo build
           cargo build --release
           drivers/test-fw/build.sh
+          fmc/build.sh
           sccache --show-stats
 
       - name: Run unit tests

@@ -1,0 +1,19 @@
+[package]
+name = "fmc"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+riscv = []
+
+[[bin]]
+name = "fmc"
+required-features = ["riscv"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+caliptra-lib = { path = "../drivers" }
+caliptra-registers = { path = "../registers" }
+cfg-if = "1.0.0"
+
