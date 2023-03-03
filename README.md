@@ -35,7 +35,7 @@ installing an up-to-date Rust toolchain.
 ## Build and test
 
 ```
-$ git clone https://github.com/chipsalliance/caliptra-sw
+$ git clone https://github.com/chipsalliance/caliptra-sw --config submodule.recurse=true
 $ cd caliptra-sw
 $ cargo build
 $ cargo test
