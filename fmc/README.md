@@ -123,6 +123,72 @@ fields may not be changed or removed). Table revisions with different Major Vers
 
 *FHT is currently defined to be 48 bytes in length.*
 
+### FhtMarker
+
+This is a "magic number" used to identify the start of the table, allowing the FMC or RT firmware modules to determine that the FHT has been populated. The
+expected value 0x54484643 will appear as ASCII ‘CFHT’ when viewed as a hex dump.
+
+### FhtMajorVer & FhtMinorVer
+
+The Major and Minor version numbers of the Firmware Handoff Table. All FHT versions with the same Major version number must remain backward compatible.
+Therefore, fields must remain at constant offsets, and no fields may be redefined. It is possible to deprecate existing fields or define new fields within the
+reserved space at the end of the table by incrementing the Minor version number
+
+For example, a Caliptra ROM is be frozen with FHT version 1.0. During later stages of development, it is found that an additional 4 byte data field must be
+passed from FMC to Runtime. During boot, the ROM will populate the FHT as version 1.0. When FMC executes, it will update the table version to 1.1 and add the
+additional data to the first 4 bytes of the reserved space at the end of the FHT.
+
+### ManifestBaseAddr
+
+This is the physical address of the location in SRAM where ROM has placed a complete copy of the Firmware Manifest. This must remain resident such that firmware
+is able to re-run firmware integrity checks on-demand (required by FIPS 140-3).
+
+### FipsFwBaseAddr
+
+*Future feature, not currently supported.* This is the physical address of the location in ROM or SRAM where a discrete FIPS Crypto module resides. If a
+discrete FIPS module does not exist, then this field shall be NULL and ROM, FMC, and RT FW must all carry their own code for accessing crypto resources and
+keys.
+
+### RtFwBaseAddr
+
+This is the physical address of the location in ICCM SRAM where ROM has placed the authenticated Runtime Firmware module.
+
+### FmcCdiKvIdx
+
+This field provides the index into the Key Vault where the CDI<sub>FMC</sub> is stored.
+
+### FmcPrivKeyKvIdx
+
+This field provides the index into the Key Vault where the PrivateKey<sub>FMC</sub> is stored.
+
+### FmcPubKeyDvIdx
+
+This field provides the index into the Data Vault where the PublicKey<sub>FMC</sub> is stored.
+
+### FmcCertDvIdx
+
+This field provides the index into the Data Vault where the Cert<sub>FMC</sub> signature is stored.
+
+### RtCdiKvIdx
+
+This field provides the index into the Key Vault where the CDI<sub>RT</sub> is stored.
+
+### RtPrivKeyKvIdx
+
+This field provides the index into the Key Vault where the PrivateKey<sub>RT</sub> is stored.
+
+### RtPubKeyDvIdx
+
+This field provides the index into the Data Vault where the PublicKey<sub>RT</sub> is stored.
+
+### RtCertDvIdx
+
+This field provides the index into the Data Vault where the Cert<sub>RT</sub> signature is stored.
+
+### Reserved
+
+This area is reserved for definition of additional fields that may be added during Minor version updates of the FHT.
+
 ## FMC Boot Flow
 
 The following list of steps are to be performed by FMC on each boot when ROM jumps to its entry point:
