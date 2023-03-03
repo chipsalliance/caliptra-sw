@@ -32,8 +32,8 @@ jobs:
           path: ~/.cargo/registry/index
           key: cargo-index-${{ env.SCCACHE_C_CUSTOM_CACHE_BUSTER }}-${{ hashFiles('Cargo.lock') }}
 
-      - name: Cache sccache binary
-        uses: actions/cache@v3
+      - name: Restore sccache binary
+        uses: actions/cache/restore@v3
         id: sccache_bin_restore
         with:
           path: ~/.cargo/bin/sccache
@@ -43,6 +43,15 @@ jobs:
         if: steps.sccache_bin_restore.outputs.cache-hit != 'true'
         run: |
           cargo install sccache --version ${SCCACHE_VERSION} --no-default-features --features=gha
+
+      # Save the sccache binary immediately so we can reuse it in future runs
+      # even if the rest of the current run fails.
+      - name: Save sccache binary
+        uses: actions/cache/save@v3
+        if: steps.sccache_bin_restore.outputs.cache-hit != 'true'
+        with:
+          path: ~/.cargo/bin/sccache
+          key: ${{ steps.sccache_bin_restore.outputs.cache-primary-key }}
 
       - name: Configure sccache
         uses: actions/github-script@v6
