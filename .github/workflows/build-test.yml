@@ -52,13 +52,17 @@ jobs:
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
+      - name: Update to latest stable Rust toolchain
+        run: |
+          rm -f ~/.cargo/bin/rustfmt ~/.cargo/bin/cargo-fmt
+          rustup update
+
       - name: Check source-code formatting (run "cargo fmt" if this fails)
         run: |
           cargo fmt --check --all
 
       - name: Install risv32imc target
         run: |
-          rustup update
           rustup target add riscv32imc-unknown-none-elf
 
       - name: Install cargo binutils
