@@ -21,7 +21,7 @@ jobs:
       SCCACHE_GHA_CACHE_FROM: sccache-caliptra-sw
 
       # Change this to a new random value if you suspect the cache is corrupted
-      SCCACHE_C_CUSTOM_CACHE_BUSTER: c73dbfa95cb3
+      SCCACHE_C_CUSTOM_CACHE_BUSTER: 0cf528e385e9
 
     steps:
       - uses: actions/checkout@v3
