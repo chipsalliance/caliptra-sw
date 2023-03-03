@@ -16,7 +16,6 @@ jobs:
 
     env:
       CARGO_INCREMENTAL: 0
-      RUSTC_WRAPPER: ~/.cargo/bin/sccache
       SCCACHE_VERSION: 0.3.3
       SCCACHE_GHA_CACHE_TO: sccache-caliptra-sw
       SCCACHE_GHA_CACHE_FROM: sccache-caliptra-sw
@@ -49,6 +48,7 @@ jobs:
         uses: actions/github-script@v6
         with:
           script: |
+            core.exportVariable('RUSTC_WRAPPER', process.env.HOME + '/.cargo/bin/sccache');
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
