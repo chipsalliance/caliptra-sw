@@ -55,7 +55,7 @@ following is a brief overview of those expectations. Further details can be foun
 - ROM is responsible for creating Caliptra’s initial DICE identity and extending it with measurements of the FMC Module.
 - ROM jumps to the Caliptra FMC entry point.
 
-At the time the Caliptra FMC entry point is executed, the Caliptra memory space will look like one of the following diagrams (dependant upon selected FIPS
+At the time the Caliptra FMC entry point is executed, the Caliptra memory space will look like one of the following diagrams (dependent upon selected FIPS
 Crypto boundary):
 
 <center>
@@ -86,7 +86,7 @@ task. “Feature-creep” in this area is undesirable, and all efforts shall be 
   separately from the FMC FW module. This is not expected to be the case for the first generation of Caliptra.)*
 - FMC must measure the Runtime Firmware Module using services from the FIPS Crypto Module.
 - FMC must extend the Caliptra DICE identity to the Runtime Firmware Module using FIPS Crypto services, generating artifacts CDI<sub>RT</sub>,
-  AliasKeyPair<sub>RT</sub>, and certifying PrivateKey<sub>RT</sub>.
+  AliasKeyPair<sub>RT</sub>, and certifying PublicKey<sub>RT</sub>.
 - At any time during its flow, the FMC *MAY* be required to execute a workaround for an RTL or ROM bug that was discovered after Caliptra hardware was frozen.
   The nature, feasibility, and timing of such a workaround will be dependent on the specific details of the bug.
 - FMC must make the CDI<sub>RT</sub>, AliasKeyPair<sub>RT</sub>, and Cert<sub>RT</sub> available to the Runtime Firmware Module, while making its own
@@ -101,16 +101,16 @@ to pass parameters and configuration information from one firmware layer to the 
 Table revisions with the same Major Version must remain backward compatible (i.e. fields may be added to the end of the table, or fields may be deprecated, but
 fields may not be changed or removed). Table revisions with different Major Versions may or may not be compatible.
 
-*Note: All fields are little endian unless otherwise specified.*
+*Note: All fields are little-endian unless otherwise specified.*
 
 | Field             | Size (bytes) | Populated By | Description                                                                                                |
 |:------------------|:-------------|:-------------|:-----------------------------------------------------------------------------------------------------------|
-| FhtMarker         | 4            | ROM          | Magic Number marking start of the table. The value must be 0x43464854 (‘CFHT’ in ASCII).                   |
+| FhtMarker         | 4            | ROM          | Magic Number marking start of table. Value must be 0x54484643 (‘CFHT’ when viewed as little-endian ASCII). |
 | FhtMajorVer       | 2            | ROM          | Major version of FHT.                                                                                      |
 | FhtMinorVer       | 2            | ROM, FMC     | Minor version of FHT. Initially written by ROM but may be changed to a higher version by FMC.              |
-| ManifestBaseAddr  | 4            | ROM          | Base address of Manifest in DCCM SRAM.                                                                     |
-| FipsFwBaseAddr    | 4            | ROM          | Base address of FIPS Module in ROM or ICCM SRAM. May be NULL if there is no discrete module.               |
-| RtFwBaseAddr      | 4            | ROM          | Base address of Runtime FW Module in ICCM SRAM.                                                            |
+| ManifestBaseAddr  | 4            | ROM          | Physical base address of Manifest in DCCM SRAM.                                                            |
+| FipsFwBaseAddr    | 4            | ROM          | Physical base address of FIPS Module in ROM or ICCM SRAM. May be NULL if there is no discrete module.      |
+| RtFwBaseAddr      | 4            | ROM          | Physical base address of Runtime FW Module in ICCM SRAM.                                                   |
 | FmcCdiKvIdx       | 1            | ROM, FMC     | Index of FMC CDI value in the Key Vault. Value of 0xFF indicates not present.                              |
 | FmcPrivKeyKvIdx   | 1            | ROM, FMC     | Index of FMC Private Alias Key in the Key Vault.                                                           |
 | FmcPubKeyDvIdx    | 1            | ROM          | Index of FMC Public Alias Key in the Data Vault.                                                           |
