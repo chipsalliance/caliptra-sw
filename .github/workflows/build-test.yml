@@ -39,6 +39,7 @@ jobs:
           (cd drivers && cargo build)
           (cd drivers && cargo build --release)
           drivers/test-fw/build.sh
+          fmc/build.sh
 
       - name: Run unit tests
         run: |
