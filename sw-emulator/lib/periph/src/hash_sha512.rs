@@ -12,11 +12,11 @@ Abstract:
 
 --*/
 
+use crate::asym_ecc384::words_from_bytes_le;
 use crate::key_vault::KeyUsage;
 use crate::KeyVault;
 use caliptra_emu_bus::{
-    BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister, Timer,
-    TimerAction,
+    BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteRegister, Timer, TimerAction,
 };
 use caliptra_emu_crypto::EndianessTransform;
 use caliptra_emu_crypto::{Sha512, Sha512Mode};
@@ -87,6 +87,7 @@ register_bitfields! [
 ];
 
 const SHA512_BLOCK_SIZE: usize = 128;
+const SHA512_BLOCK_SIZE_WORDS: usize = 128 >> 2;
 
 const SHA512_HASH_SIZE: usize = 64;
 
@@ -98,6 +99,25 @@ const UPDATE_TICKS: u64 = 1000;
 
 /// The number of CPU clock cycles read and write keys from key vault
 const KEY_RW_TICKS: u64 = 100;
+
+fn sha512_block_words_from_bytes_le(
+    arr: &[u8; SHA512_BLOCK_SIZE],
+) -> [u32; SHA512_BLOCK_SIZE_WORDS] {
+    let mut result = [0u32; SHA512_BLOCK_SIZE_WORDS];
+    for i in 0..result.len() {
+        result[i] = u32::from_le_bytes(arr[i * 4..][..4].try_into().unwrap())
+    }
+    result
+}
+fn sha512_block_bytes_from_words_le(
+    arr: &[u32; SHA512_BLOCK_SIZE_WORDS],
+) -> [u8; SHA512_BLOCK_SIZE] {
+    let mut result = [0u8; SHA512_BLOCK_SIZE];
+    for i in 0..arr.len() {
+        result[i * 4..][..4].copy_from_slice(&arr[i].to_le_bytes());
+    }
+    result
+}
 
 /// SHA-512 Peripheral
 #[derive(Bus)]
@@ -128,8 +148,8 @@ pub struct HashSha512 {
     status: ReadOnlyRegister<u32, Status::Register>,
 
     /// SHA512 Block Memory
-    #[peripheral(offset = 0x0000_0080, mask = 0x0000_007f)]
-    block: ReadWriteMemory<SHA512_BLOCK_SIZE>,
+    #[register_array(offset = 0x0000_0080, write_fn = write_block)]
+    block: [u32; SHA512_BLOCK_SIZE_WORDS],
 
     /// SHA512 Hash Memory
     #[peripheral(offset = 0x0000_0100, mask = 0x0000_00ff)]
@@ -196,7 +216,7 @@ impl HashSha512 {
             block_read_status: ReadOnlyRegister::new(BlockReadStatus::READY::SET.value),
             hash_write_ctrl: ReadWriteRegister::new(0),
             hash_write_status: ReadOnlyRegister::new(HashWriteStatus::READY::SET.value),
-            block: ReadWriteMemory::new(),
+            block: Default::default(),
             hash: ReadOnlyMemory::new(),
             key_vault,
             timer: Timer::new(clock),
@@ -254,18 +274,44 @@ impl HashSha512 {
             self.sha512.reset(mode);
 
             // Update the SHA512 engine with a new block
-            self.sha512.update(self.block.data());
+            self.sha512
+                .update(&sha512_block_bytes_from_words_le(&self.block));
 
             // Schedule a future call to poll() complete the operation.
             self.op_complete_action = Some(self.timer.schedule_poll_in(INIT_TICKS));
         } else if self.control.reg.is_set(Control::NEXT) {
             // Update the SHA512 engine with a new block
-            self.sha512.update(self.block.data());
+            self.sha512
+                .update(&sha512_block_bytes_from_words_le(&self.block));
 
             // Schedule a future call to poll() complete the operation.
             self.op_complete_action = Some(self.timer.schedule_poll_in(UPDATE_TICKS));
         }
 
+        Ok(())
+    }
+
+    /// On Write callback for `block` registers
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - Size of the write
+    /// * `val` - Data to write
+    ///
+    /// # Error
+    ///
+    /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
+    fn write_block(&mut self, _size: RvSize, word_index: usize, val: u32) -> Result<(), BusError> {
+        let pcr_hash_extend = self
+            .block_read_ctrl
+            .reg
+            .read(BlockReadControl::PCR_HASH_EXTEND);
+
+        // If PCR_HASH_EXTEND bit is set, skip updating the first 48 bytes in the block registers
+        // as these contain the PCR retrieved from the PCR vault.
+        if pcr_hash_extend == 0 || word_index >= 12 {
+            self.block[word_index] = val;
+        }
         Ok(())
     }
 
@@ -294,7 +340,9 @@ impl HashSha512 {
 
         self.block_read_ctrl.reg.modify(
             BlockReadControl::KEY_READ_EN.val(block_read_ctrl.read(BlockReadControl::KEY_READ_EN))
-                + BlockReadControl::KEY_ID.val(block_read_ctrl.read(BlockReadControl::KEY_ID)),
+                + BlockReadControl::KEY_ID.val(block_read_ctrl.read(BlockReadControl::KEY_ID))
+                + BlockReadControl::PCR_HASH_EXTEND
+                    .val(block_read_ctrl.read(BlockReadControl::PCR_HASH_EXTEND)),
         );
 
         if block_read_ctrl.is_set(BlockReadControl::KEY_READ_EN) {
@@ -371,24 +419,42 @@ impl HashSha512 {
             );
 
             self.op_hash_write_complete_action = Some(self.timer.schedule_poll_in(KEY_RW_TICKS));
+        } else if self.control.reg.is_set(Control::LAST) {
+            let pcr_id = self.block_read_ctrl.reg.read(BlockReadControl::KEY_ID);
+            self.key_vault
+                .write_pcr(pcr_id, array_ref![self.hash.data(), 0, KeyVault::KEY_SIZE])
+                .unwrap();
         }
 
         // Update Ready and Valid status bits
         self.status
             .reg
             .modify(Status::READY::SET + Status::VALID::SET);
+
+        // Reset the pcr_hash_extend bit. This is done so the next round
+        // of block copy operation does not skip the first 48 bytes.
+        self.block_read_ctrl
+            .reg
+            .modify(BlockReadControl::PCR_HASH_EXTEND::CLEAR);
     }
 
     fn block_read_complete(&mut self) {
         let key_id = self.block_read_ctrl.reg.read(BlockReadControl::KEY_ID);
+        let pcr_hash_extend = self
+            .block_read_ctrl
+            .reg
+            .read(BlockReadControl::PCR_HASH_EXTEND);
 
         // Clear the block
-        self.block.data_mut().fill(0);
+        self.block.fill(0);
 
-        let mut key_usage = KeyUsage::default();
-        key_usage.set_sha_data(true);
-
-        let result = self.key_vault.read_key(key_id, key_usage);
+        let result: Result<[u8; KeyVault::KEY_SIZE], BusError> = if pcr_hash_extend == 0 {
+            let mut key_usage = KeyUsage::default();
+            key_usage.set_sha_data(true);
+            self.key_vault.read_key(key_id, key_usage)
+        } else {
+            Ok(self.key_vault.read_pcr(key_id))
+        };
         let (block_read_result, data) = match result.err() {
             Some(BusError::LoadAccessFault) | Some(BusError::LoadAddrMisaligned) => {
                 (BlockReadStatus::ERROR::KV_READ_FAIL.value, None)
@@ -399,8 +465,15 @@ impl HashSha512 {
             None => (BlockReadStatus::ERROR::KV_SUCCESS.value, result.ok()),
         };
 
-        if let Some(data) = &data {
-            self.format_block(data);
+        if let Some(data) = data {
+            if pcr_hash_extend != 0 {
+                // Copy the PCR (48 bytes) to the block registers.
+                self.block[..KeyVault::KEY_SIZE / 4].copy_from_slice(&words_from_bytes_le(
+                    &data[..KeyVault::KEY_SIZE].try_into().unwrap(),
+                ));
+            } else {
+                self.format_block(&data);
+            }
         }
 
         self.block_read_status.reg.modify(
@@ -435,7 +508,7 @@ impl HashSha512 {
         block_arr[SHA512_BLOCK_SIZE - 16..].copy_from_slice(&len.to_be_bytes());
 
         block_arr.to_big_endian();
-        self.block.data_mut().copy_from_slice(&block_arr);
+        self.block = sha512_block_words_from_bytes_le(&block_arr[..].try_into().unwrap());
     }
 
     fn hash_write_complete(&mut self) {
@@ -564,20 +637,20 @@ mod tests {
         HashWriteFailTest(bool),
     }
 
+    fn make_word(idx: usize, arr: &[u8]) -> RvData {
+        let mut res: RvData = 0;
+        for i in 0..4 {
+            res |= (arr[idx + i] as RvData) << (i * 8);
+        }
+        res
+    }
+
     fn test_sha(
         data: &[u8],
         expected: &[u8],
         mode: Sha512Mode,
         keyvault_actions: &[KeyVaultAction],
     ) {
-        fn make_word(idx: usize, arr: &[u8]) -> RvData {
-            let mut res: RvData = 0;
-            for i in 0..4 {
-                res |= (arr[idx + i] as RvData) << (i * 8);
-            }
-            res
-        }
-
         let mut block_via_kv: bool = false;
         let mut block_id: u32 = u32::MAX;
         let mut hash_to_kv: bool = false;
@@ -1063,5 +1136,168 @@ mod tests {
                 ],
             );
         }
+    }
+
+    fn test_pcr_hash_extend(data: &[u8], pcr_data: &mut [u8; KeyVault::KEY_SIZE], expected: &[u8]) {
+        // Prime the PCR vault.
+        let clock = Clock::new();
+        let pcr_id = 0;
+        let mut key_vault = KeyVault::new();
+        pcr_data.change_endianess();
+        assert!(key_vault.write_pcr(pcr_id, pcr_data).is_ok());
+        pcr_data.change_endianess();
+
+        let mut sha512 = HashSha512::new(&clock, key_vault);
+        // Enable pcr hash extend.
+        let block_ctrl = InMemoryRegister::<u32, BlockReadControl::Register>::new(0);
+        block_ctrl.modify(
+            BlockReadControl::KEY_ID.val(pcr_id)
+                + BlockReadControl::KEY_READ_EN.val(1)
+                + BlockReadControl::PCR_HASH_EXTEND.val(1),
+        );
+        assert_eq!(
+            sha512
+                .write(RvSize::Word, OFFSET_BLOCK_CONTROL, block_ctrl.get())
+                .ok(),
+            Some(())
+        );
+        // Wait for sha512 periph to retrieve the pcr from the key-vault.
+        loop {
+            let block_read_status = InMemoryRegister::<u32, BlockReadStatus::Register>::new(
+                sha512.read(RvSize::Word, OFFSET_BLOCK_STATUS).unwrap(),
+            );
+            if block_read_status.is_set(BlockReadStatus::VALID) {
+                break;
+            }
+            clock.increment_and_poll(1, &mut sha512);
+        }
+
+        // Transfer the data to the block registers
+        let actual_data_length = data.len() + pcr_data.len();
+        let totalblocks = ((actual_data_length + 16) + SHA512_BLOCK_SIZE) / SHA512_BLOCK_SIZE;
+        let totalbytes = totalblocks * SHA512_BLOCK_SIZE;
+        let mut block_arr = vec![0; totalbytes];
+
+        block_arr[..pcr_data.len()].copy_from_slice(pcr_data);
+        block_arr[pcr_data.len()..actual_data_length].copy_from_slice(data);
+        block_arr[data.len() + pcr_data.len()] = 1 << 7;
+        let len: u128 = actual_data_length as u128;
+        let len = len * 8;
+        block_arr[totalbytes - 16..].copy_from_slice(&len.to_be_bytes());
+        block_arr.to_big_endian();
+        let mut last_block = false;
+        for idx in 0..totalblocks {
+            for i in (0..SHA512_BLOCK_SIZE).step_by(4) {
+                assert_eq!(
+                    sha512
+                        .write(
+                            RvSize::Word,
+                            OFFSET_BLOCK + i as RvAddr,
+                            make_word((idx * SHA512_BLOCK_SIZE) + i, &block_arr)
+                        )
+                        .ok(),
+                    Some(())
+                );
+            }
+
+            if idx == (totalblocks - 1) {
+                last_block = true;
+            }
+
+            if idx == 0 {
+                let control: ReadWriteRegister<u32, Control::Register> = ReadWriteRegister::new(0);
+                control.reg.modify(
+                    Control::MODE.val(Sha512Mode::Sha384.into())
+                        + Control::INIT.val(1)
+                        + Control::LAST.val(last_block as u32),
+                );
+                assert_eq!(
+                    sha512
+                        .write(RvSize::Word, OFFSET_CONTROL, control.reg.get())
+                        .ok(),
+                    Some(())
+                );
+            } else {
+                let control: ReadWriteRegister<u32, Control::Register> = ReadWriteRegister::new(0);
+                control
+                    .reg
+                    .modify(Control::NEXT.val(1) + Control::LAST.val(last_block as u32));
+
+                assert_eq!(
+                    sha512
+                        .write(RvSize::Word, OFFSET_CONTROL, control.reg.get())
+                        .ok(),
+                    Some(())
+                );
+            }
+
+            loop {
+                let status = InMemoryRegister::<u32, Status::Register>::new(
+                    sha512.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+                );
+                if status.is_set(Status::VALID) && status.is_set(Status::READY) {
+                    break;
+                }
+                clock.increment_and_poll(1, &mut sha512);
+            }
+        }
+
+        // Read the hash from the PCR vault.
+        let mut hash_le: [u8; SHA384_HASH_SIZE];
+        hash_le = sha512.key_vault.read_pcr(pcr_id);
+        hash_le.to_little_endian();
+        assert_eq!(&hash_le[0..sha512.hash().len()], expected);
+    }
+
+    #[test]
+    fn test_sha384_pcr_hash_extend_single_block() {
+        let data: [u8; 48] = [
+            0x9c, 0x2f, 0x48, 0x76, 0x0d, 0x13, 0xac, 0x42, 0xea, 0xd1, 0x96, 0xe5, 0x4d, 0xcb,
+            0xaa, 0x5e, 0x58, 0x72, 0x06, 0x62, 0xa9, 0x6b, 0x91, 0x94, 0xe9, 0x81, 0x33, 0x29,
+            0xbd, 0xb6, 0x27, 0xc7, 0xc1, 0xca, 0x77, 0x15, 0x31, 0x16, 0x32, 0xc1, 0x39, 0xe7,
+            0xa3, 0x59, 0x14, 0xfc, 0x1e, 0xcd,
+        ];
+        let mut pcr_data: [u8; 48] = [
+            0x9c, 0x2f, 0x48, 0x76, 0x0d, 0x13, 0xac, 0x42, 0xea, 0xd1, 0x96, 0xe5, 0x4d, 0xcb,
+            0xaa, 0x5e, 0x58, 0x72, 0x06, 0x62, 0xa9, 0x6b, 0x91, 0x94, 0xe9, 0x81, 0x33, 0x29,
+            0xbd, 0xb6, 0x27, 0xc7, 0xc1, 0xca, 0x77, 0x15, 0x31, 0x16, 0x32, 0xc1, 0x39, 0xe7,
+            0xa3, 0x59, 0x14, 0xfc, 0x1e, 0xcd,
+        ];
+        let expected: [u8; 48] = [
+            0x13, 0x77, 0x93, 0x7b, 0x0, 0x6b, 0x72, 0xab, 0x18, 0xc1, 0x26, 0x4d, 0x2, 0xa4, 0xd6,
+            0xe2, 0xd9, 0xb6, 0x7e, 0xec, 0x63, 0x52, 0x52, 0x41, 0x30, 0x56, 0x51, 0x14, 0x8d,
+            0xca, 0x13, 0xd1, 0x2b, 0x8f, 0xca, 0x88, 0xeb, 0x5, 0x5e, 0x20, 0x66, 0x5e, 0xa8,
+            0x90, 0xa3, 0x1b, 0x8c, 0x8,
+        ];
+
+        test_pcr_hash_extend(&data, &mut pcr_data, &expected);
+    }
+
+    #[test]
+    fn test_sha384_pcr_hash_extend_multi_block() {
+        let data: [u8; 82] = [
+            0x77, 0x78, 0x79, 0x7A, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A,
+            0x6B, 0x6C, 0x6D, 0x6E, 0x6F, 0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78,
+            0x79, 0x7A, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A, 0x6B, 0x6C,
+            0x6D, 0x6E, 0x6F, 0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7A,
+            0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A, 0x6B, 0x6C, 0x6D, 0x6E,
+            0x6F, 0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7A,
+        ];
+
+        let mut pcr_data: [u8; 48] = [
+            0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A, 0x6B, 0x6C, 0x6D, 0x6E,
+            0x6F, 0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7A, 0x61, 0x62,
+            0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A, 0x6B, 0x6C, 0x6D, 0x6E, 0x6F, 0x70,
+            0x71, 0x72, 0x73, 0x74, 0x75, 0x76,
+        ];
+
+        let expected: [u8; SHA384_HASH_SIZE] = [
+            0x9c, 0x2f, 0x48, 0x76, 0xd, 0x13, 0xac, 0x42, 0xea, 0xd1, 0x96, 0xe5, 0x4d, 0xcb,
+            0xaa, 0x5e, 0x58, 0x72, 0x6, 0x62, 0xa9, 0x6b, 0x91, 0x94, 0xe9, 0x81, 0x33, 0x29,
+            0xbd, 0xb6, 0x27, 0xc7, 0xc1, 0xca, 0x77, 0x15, 0x31, 0x16, 0x32, 0xc1, 0x39, 0xe7,
+            0xa3, 0x59, 0x14, 0xfc, 0x1e, 0xcd,
+        ];
+
+        test_pcr_hash_extend(&data, &mut pcr_data, &expected);
     }
 }
