@@ -14,7 +14,7 @@ Abstract:
 --*/
 
 use crate::array::Array4xN;
-use crate::{wait, CaliptraResult, KeyId, KeyUsage};
+use crate::{wait, CaliptraResult, KeyId, KeyUsage, PcrId};
 use caliptra_registers::enums::KvErrorE;
 use caliptra_registers::regs::{KvReadCtrlRegWriteVal, KvStatusRegReadVal, KvWriteCtrlRegWriteVal};
 use ureg::Mmio;
@@ -106,7 +106,7 @@ impl KvAccess {
     /// # Arguments
     ///
     /// * `reg` - Source register to copy from
-    /// * `arr` - Destination arry to copy the contents of reguster to
+    /// * `arr` - Destination array to copy the contents of register to
     pub(crate) fn end_copy_to_arr<
         const ARR_WORD_LEN: usize,
         const ARR_BYTE_LEN: usize,
@@ -213,6 +213,40 @@ impl KvAccess {
             w.read_en(true)
                 .read_entry(key.id.into())
                 .pcr_hash_extend(false)
+        });
+
+        crate::wait::until(|| status_reg.read().valid());
+
+        match status_reg.read().error() {
+            KvErrorE::Success => Ok(()),
+            KvErrorE::KvReadFail => Err(KvAccessErr::KeyRead),
+            KvErrorE::KvWriteFail => Err(KvAccessErr::KeyWrite),
+            _ => Err(KvAccessErr::Generic),
+        }
+    }
+
+    /// Hash extends the contents from pcr slot in pcr vault
+    ///
+    /// # Arguments
+    ///
+    /// * `pcr_id` - Pcr slot to hash extend
+    /// * `status_reg` - Status register
+    /// * `ctrl_reg` - Control register
+    pub(crate) fn extend_from_pv<
+        StatusReg: ureg::ReadableReg<ReadVal = KvStatusRegReadVal>,
+        CtrlReg: ureg::ResettableReg + ureg::WritableReg<WriteVal = KvReadCtrlRegWriteVal>,
+        TMmio: Mmio,
+    >(
+        pcr_id: PcrId,
+        status_reg: ureg::RegRef<StatusReg, TMmio>,
+        ctrl_reg: ureg::RegRef<CtrlReg, TMmio>,
+    ) -> Result<(), KvAccessErr> {
+        crate::wait::until(|| status_reg.read().ready());
+
+        ctrl_reg.write(|w| {
+            w.read_en(true)
+                .read_entry(pcr_id.into())
+                .pcr_hash_extend(true)
         });
 
         crate::wait::until(|| status_reg.read().valid());

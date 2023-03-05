@@ -15,14 +15,14 @@ Abstract:
 use core::usize;
 
 use crate::kv_access::{KvAccess, KvAccessErr};
-use crate::{
-    array::Array4x32, caliptra_err_def, wait, Array4x12, CaliptraResult, KeyReadArgs, KeyWriteArgs,
-};
+use crate::PcrId;
+use crate::{array::Array4x32, caliptra_err_def, wait, Array4x12, CaliptraResult};
 use caliptra_registers::sha512;
 
 const SHA384_BLOCK_BYTE_SIZE: usize = 128;
 const SHA384_BLOCK_LEN_OFFSET: usize = 112;
 const SHA384_MAX_DATA_SIZE: usize = 1024 * 1024;
+const SHA384_HASH_SIZE: usize = 48;
 
 caliptra_err_def! {
     Sha384,
@@ -32,11 +32,6 @@ caliptra_err_def! {
         ReadDataKvRead = 0x01,
         ReadDataKvWrite = 0x02,
         ReadDataKvUnknown = 0x3,
-
-        // Errors encountered while writing digest to key vault
-        WriteDigestKvRead = 0x04,
-        WriteDigestKvWrite = 0x05,
-        WriteDigestKvUnknown = 0x06,
 
         // Invalid State
         InvalidStateErr = 0x07,
@@ -61,8 +56,8 @@ pub enum Sha384Data<'a> {
     /// Array
     Slice(&'a [u8]),
 
-    /// Key
-    Key(KeyReadArgs),
+    /// PCR hash extend arguments
+    PcrHashExtend(PcrHashExtendArgs<'a>),
 }
 
 impl<'a> From<&'a [u8]> for Sha384Data<'a> {
@@ -79,10 +74,38 @@ impl<'a, const N: usize> From<&'a [u8; N]> for Sha384Data<'a> {
     }
 }
 
-impl From<KeyReadArgs> for Sha384Data<'_> {
+impl<'a> From<PcrHashExtendArgs<'a>> for Sha384Data<'a> {
     /// Converts to this type from the input type.
-    fn from(value: KeyReadArgs) -> Self {
-        Self::Key(value)
+    fn from(value: PcrHashExtendArgs<'a>) -> Self {
+        Self::PcrHashExtend(value)
+    }
+}
+
+/// Key read operation arguments
+#[derive(Debug, Clone, Copy)]
+pub struct PcrHashExtendArgs<'a> {
+    /// Array
+    pub slice: &'a [u8],
+
+    /// PCR hash extend
+    pub hash_extend: bool,
+
+    /// Pcr Id
+    pub id: PcrId,
+}
+
+impl<'a> PcrHashExtendArgs<'a> {
+    /// Create an instance of `KeyReadArgs`
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Key Id
+    pub fn new(slice: &'a [u8], hash_extend: bool, id: PcrId) -> Self {
+        Self {
+            slice,
+            hash_extend,
+            id,
+        }
     }
 }
 
@@ -91,22 +114,12 @@ impl From<KeyReadArgs> for Sha384Data<'_> {
 pub enum Sha384Digest<'a> {
     /// Array
     Array4x12(&'a mut Array4x12),
-
-    /// Key
-    Key(KeyWriteArgs),
 }
 
 impl<'a> From<&'a mut Array4x12> for Sha384Digest<'a> {
     /// Converts to this type from the input type.
     fn from(value: &'a mut Array4x12) -> Self {
         Self::Array4x12(value)
-    }
-}
-
-impl<'a> From<KeyWriteArgs> for Sha384Digest<'a> {
-    /// Converts to this type from the input type.
-    fn from(value: KeyWriteArgs) -> Self {
-        Self::Key(value)
     }
 }
 
@@ -129,9 +142,6 @@ impl Sha384 {
         match &mut digest {
             Sha384Digest::Array4x12(arr) => {
                 KvAccess::begin_copy_to_arr(sha.kv_wr_status(), sha.kv_wr_ctrl(), arr)?
-            }
-            Sha384Digest::Key(key) => {
-                KvAccess::begin_copy_to_kv(sha.kv_wr_status(), sha.kv_wr_ctrl(), *key)?
             }
         }
 
@@ -161,15 +171,19 @@ impl Sha384 {
             Sha384Digest::Array4x12(arr) => {
                 KvAccess::begin_copy_to_arr(sha.kv_wr_status(), sha.kv_wr_ctrl(), arr)?
             }
-            Sha384Digest::Key(key) => {
-                KvAccess::begin_copy_to_kv(sha.kv_wr_status(), sha.kv_wr_ctrl(), *key)?
-            }
         }
 
-        // Calculate the digest
         match data {
-            Sha384Data::Slice(slice) => self.digest_buf(slice)?,
-            Sha384Data::Key(key) => self.digest_key(key)?,
+            Sha384Data::Slice(slice) => {
+                // Calculate the digest
+                self.digest_buf(slice, 0)?;
+            }
+            Sha384Data::PcrHashExtend(hash_extend) => {
+                self.retrieve_pcr(hash_extend.id)?;
+
+                // Calculate the digest
+                self.digest_buf(hash_extend.slice, SHA384_HASH_SIZE)?;
+            }
         }
 
         // Copy the digest to specified destination
@@ -177,8 +191,6 @@ impl Sha384 {
             Sha384Digest::Array4x12(arr) => {
                 KvAccess::end_copy_to_arr(sha.digest().truncate::<12>(), *arr)
             }
-            Sha384Digest::Key(key) => KvAccess::end_copy_to_kv(sha.kv_wr_status(), *key)
-                .map_err(|err| err.into_write_digest_err().into()),
         }
     }
 
@@ -187,24 +199,42 @@ impl Sha384 {
     /// # Arguments
     ///
     /// * `buf` - Buffer to calculate the digest over
-    fn digest_buf(&self, buf: &[u8]) -> CaliptraResult<()> {
+    /// * `pcr_hash_extend` - Indicates if pcr is to be hash extended.
+    fn digest_buf(&self, buf: &[u8], prepad_byte_count_in: usize) -> CaliptraResult<()> {
+        let mut prepad_byte_count = prepad_byte_count_in;
+        let total_bytes = prepad_byte_count_in + buf.len();
+
         // Check if the buffer is not large
-        if buf.len() > SHA384_MAX_DATA_SIZE {
+        if total_bytes > SHA384_MAX_DATA_SIZE {
             raise_err!(MaxDataErr)
         }
 
         let mut first = true;
-        let mut bytes_remaining = buf.len();
+        let mut bytes_remaining = total_bytes;
+        let mut block = [0u8; SHA384_BLOCK_BYTE_SIZE];
 
         loop {
-            let offset = buf.len() - bytes_remaining;
+            let offset = (buf.len() + prepad_byte_count) - bytes_remaining;
             match bytes_remaining {
                 0..=127 => {
-                    // PANIC-FREE: Use buf.get() instead if buf[] as the compiler
+                    // PANIC-FREE: Use buf.get() instead of buf[] as the compiler
                     // cannot reason about `offset` parameter to optimize out
                     // the panic.
-                    if let Some(slice) = buf.get(offset..) {
-                        self.digest_partial_block(slice, first, buf.len())?;
+                    if let Some(mut slice) = buf.get(offset..) {
+                        // If this is the first block, create a block with the prepad.
+                        if first && prepad_byte_count > 0 {
+                            // PANIC-FREE: Following check optimizes the out of bounds
+                            // panic in copy_from_slice
+                            if block.len() < bytes_remaining
+                                || buf.len() > (bytes_remaining - prepad_byte_count)
+                            {
+                                raise_err!(IndexOutOfBounds)
+                            }
+
+                            block[prepad_byte_count..bytes_remaining].copy_from_slice(buf);
+                            slice = block.get(..bytes_remaining).unwrap();
+                        }
+                        self.digest_partial_block(slice, first, total_bytes)?;
                         break;
                     } else {
                         raise_err!(InvalidSlice)
@@ -214,7 +244,19 @@ impl Sha384 {
                     // PANIC-FREE: Use buf.get() instead if buf[] as the compiler
                     // cannot reason about `offset` parameter to optimize out
                     // the panic call.
-                    if let Some(slice) = buf.get(offset..offset + SHA384_BLOCK_BYTE_SIZE) {
+                    if let Some(mut slice) =
+                        buf.get(offset..offset + (SHA384_BLOCK_BYTE_SIZE - prepad_byte_count))
+                    {
+                        // If this is the first block, create a block with the prepad.
+                        if first && prepad_byte_count > 0 {
+                            block[prepad_byte_count..].copy_from_slice(
+                                buf.get(..(SHA384_BLOCK_BYTE_SIZE - prepad_byte_count))
+                                    .unwrap(),
+                            );
+                            slice = &block;
+                            prepad_byte_count = 0;
+                        }
+
                         let block = <&[u8; SHA384_BLOCK_BYTE_SIZE]>::try_from(slice).unwrap();
                         self.digest_block(block, first, false)?;
                         bytes_remaining -= SHA384_BLOCK_BYTE_SIZE;
@@ -229,18 +271,19 @@ impl Sha384 {
         Ok(())
     }
 
-    /// Calculate digest of a key in the Key Vault
+    /// Waits for the PCR to be retrieved from the PCR vault
+    /// and copied to the block registers.
     ///
     /// # Arguments
     ///
-    /// * `key` - Key to calculate digest for
-    fn digest_key(&self, key: KeyReadArgs) -> CaliptraResult<()> {
+    /// * `pcr_id` - PCR to hash extend
+    fn retrieve_pcr(&self, pcr_id: PcrId) -> CaliptraResult<()> {
         let sha = sha512::RegisterBlock::sha512_reg();
 
-        KvAccess::copy_from_kv(key, sha.vault_rd_status(), sha.vault_rd_ctrl())
+        KvAccess::extend_from_pv(pcr_id, sha.vault_rd_status(), sha.vault_rd_ctrl())
             .map_err(|err| err.into_read_data_err())?;
 
-        self.digest_op(true, true)
+        Ok(())
     }
 
     /// Calculate the digest of the last block
@@ -431,8 +474,6 @@ impl<'a> Sha384DigestOp<'a> {
             Sha384Digest::Array4x12(arr) => {
                 KvAccess::end_copy_to_arr(sha.digest().truncate::<12>(), *arr)
             }
-            Sha384Digest::Key(key) => KvAccess::end_copy_to_kv(sha.kv_wr_status(), *key)
-                .map_err(|err| err.into_write_digest_err().into()),
         }
     }
 
@@ -453,9 +494,6 @@ impl<'a> Sha384DigestOp<'a> {
 trait Sha384KeyAccessErr {
     /// Convert to read data operation error
     fn into_read_data_err(self) -> Sha384Err;
-
-    /// Convert to write digest operation error
-    fn into_write_digest_err(self) -> Sha384Err;
 }
 
 impl Sha384KeyAccessErr for KvAccessErr {
@@ -465,15 +503,6 @@ impl Sha384KeyAccessErr for KvAccessErr {
             KvAccessErr::KeyRead => Sha384Err::ReadDataKvRead,
             KvAccessErr::KeyWrite => Sha384Err::ReadDataKvWrite,
             KvAccessErr::Generic => Sha384Err::ReadDataKvUnknown,
-        }
-    }
-
-    /// Convert to write digest operation error
-    fn into_write_digest_err(self) -> Sha384Err {
-        match self {
-            KvAccessErr::KeyRead => Sha384Err::WriteDigestKvRead,
-            KvAccessErr::KeyWrite => Sha384Err::WriteDigestKvWrite,
-            KvAccessErr::Generic => Sha384Err::WriteDigestKvUnknown,
         }
     }
 }

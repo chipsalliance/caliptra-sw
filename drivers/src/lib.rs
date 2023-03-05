@@ -60,7 +60,7 @@ pub use pcr_bank::{PcrBank, PcrId};
 pub use reset::{ResetReason, ResetService};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
 pub use sha256::{Sha256, Sha256DigestOp};
-pub use sha384::{Sha384, Sha384Data, Sha384Digest, Sha384DigestOp};
+pub use sha384::{PcrHashExtendArgs, Sha384, Sha384Data, Sha384Digest, Sha384DigestOp};
 pub use sha384acc::{Sha384Acc, Sha384AccOp};
 pub use state::{DeviceState, Lifecycle};
 pub use status_reporter::{report_boot_status, report_flow_status};

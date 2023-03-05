@@ -25,6 +25,13 @@ pub enum Sha512Mode {
     Sha512,
 }
 
+impl From<Sha512Mode> for u32 {
+    /// Converts to this type from the input type.
+    fn from(sha_mode: Sha512Mode) -> Self {
+        sha_mode as Self
+    }
+}
+
 /// SHA-512
 pub struct Sha512 {
     /// Hash
