@@ -6,6 +6,11 @@ edition = "2021"
 [features]
 riscv = []
 
+[lib]
+test = false
+doctest = false
+
+
 [[bin]]
 name = "fmc"
 required-features = ["riscv"]
