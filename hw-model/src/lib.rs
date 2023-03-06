@@ -5,6 +5,8 @@ use caliptra_emu_bus::Bus;
 pub mod mmio;
 mod model_emulated;
 
+#[cfg(feature = "verilator")]
+mod model_verilated;
 mod output;
 mod rv32_builder;
 
@@ -13,7 +15,14 @@ pub use output::Output;
 
 pub use model_emulated::ModelEmulated;
 
+#[cfg(feature = "verilator")]
+pub use model_verilated::ModelVerilated;
+
 pub fn create(params: InitParams) -> Result<impl HwModel, Box<dyn Error>> {
+    #[cfg(feature = "verilator")]
+    return ModelVerilated::init(params);
+
+    #[cfg(not(feature = "verilator"))]
     return ModelEmulated::init(params);
 }
 
