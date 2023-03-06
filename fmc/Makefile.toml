@@ -1,0 +1,49 @@
+[tasks.build]
+command = "cargo"
+install_crate = false
+args = [
+  "build",
+  "--target",
+  "riscv32imc-unknown-none-elf",
+  "--features=riscv",
+  "--profile=firmware", 
+  "--bin=fmc",
+  "${@}",
+]
+
+[tasks.objcopy]
+command = "cargo"
+install_crate = false
+args = [
+  "objcopy",
+  "--target",
+  "riscv32imc-unknown-none-elf",
+  "--features=riscv",
+  "--profile=firmware", 
+  "--bin=fmc",
+  "--",
+  "-O",
+  "binary",
+  "fmc.bin",
+  "${@}",
+]
+dependencies = ["build"]
+
+[tasks.objdump]
+command = "cargo"
+install_crate = false
+args = [
+  "objdump",
+  "--target",
+  "riscv32imc-unknown-none-elf",
+  "--features=riscv",
+  "--profile=firmware", 
+  "--bin=fmc",
+  "${@}",
+  "--",
+  "-d",
+  "-z",
+  "--no-print-imm-hex",
+  "--disassembler-options=no-aliases",  
+]
+dependencies = ["build"]

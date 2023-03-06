@@ -1,6 +1,8 @@
 #![no_std]
 #![no_main]
 
+core::arch::global_asm!(include_str!("start.S"));
+
 #[no_mangle]
 pub extern "C" fn main() -> ! {
     loop {}

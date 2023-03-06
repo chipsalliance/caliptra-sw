@@ -79,13 +79,17 @@ jobs:
           cargo install cargo-binutils
           rustup component add llvm-tools-preview
 
+      - name: Install cargo make
+        run: |
+          cargo install cargo-make
+
       - name: Build
         run: |
           export RUSTFLAGS="-D warnings"
           cargo build
           cargo build --release
           drivers/test-fw/build.sh
-          fmc/build.sh
+          (cd fmc && cargo make build)
           sccache --show-stats
 
       - name: Run unit tests
