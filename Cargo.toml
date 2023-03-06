@@ -8,6 +8,7 @@ members = [
   "drivers",
   "drivers/test-fw",
   "fmc",
+  "hw-latest/verilated",
   "hw-model",
   "registers",
   "registers/bin/generator",
