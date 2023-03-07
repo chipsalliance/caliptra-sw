@@ -4,11 +4,18 @@ use caliptra_emu_bus::Bus;
 
 pub mod mmio;
 mod model_emulated;
+
 mod output;
+mod rv32_builder;
 
 use mmio::BusMmio;
 pub use output::Output;
-mod rv32_builder;
+
+pub use model_emulated::ModelEmulated;
+
+pub fn create(params: InitParams) -> Result<impl HwModel, Box<dyn Error>> {
+    return ModelEmulated::init(params);
+}
 
 #[derive(Default)]
 pub struct InitParams<'a> {
@@ -25,7 +32,8 @@ pub struct InitParams<'a> {
 pub enum ModelError {}
 
 // Represents a emulator or simulation of the caliptra hardware, to be called
-// from tests.
+// from tests. Typically, test cases should use `create()` to create a model
+// based on the cargo features (and any model-specific environment variables).
 pub trait HwModel {
     type TBus<'a>: Bus
     where
@@ -92,5 +100,102 @@ pub trait HwModel {
                 BusMmio::new(self.apb_bus()),
             )
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{mmio::Rv32GenMmio, HwModel, InitParams};
+    use caliptra_emu_bus::Bus;
+    use caliptra_emu_types::RvSize;
+    use caliptra_registers::soc_ifc;
+
+    use crate as caliptra_hw_model;
+
+    const MBOX_ADDR_BASE: u32 = 0x3002_0000;
+    const MBOX_ADDR_LOCK: u32 = MBOX_ADDR_BASE;
+    const MBOX_ADDR_CMD: u32 = MBOX_ADDR_BASE + 0x0000_0008;
+
+    fn gen_image_hi() -> Vec<u8> {
+        let rv32_gen = Rv32GenMmio::new();
+        let soc_ifc =
+            unsafe { soc_ifc::RegisterBlock::new_with_mmio(0x3003_0000 as *mut u32, &rv32_gen) };
+        soc_ifc
+            .cptra_generic_output_wires()
+            .at(0)
+            .write(|_| b'h'.into());
+        soc_ifc
+            .cptra_generic_output_wires()
+            .at(0)
+            .write(|_| b'i'.into());
+        soc_ifc.cptra_generic_output_wires().at(0).write(|_| 0xff);
+        rv32_gen.build()
+    }
+
+    #[test]
+    fn test_apb() {
+        let mut model = caliptra_hw_model::create(InitParams {
+            ..Default::default()
+        })
+        .unwrap();
+
+        assert_eq!(
+            model.apb_bus().read(RvSize::Word, MBOX_ADDR_LOCK).unwrap(),
+            0
+        );
+
+        assert_eq!(
+            model.apb_bus().read(RvSize::Word, MBOX_ADDR_LOCK).unwrap(),
+            1
+        );
+
+        model
+            .apb_bus()
+            .write(RvSize::Word, MBOX_ADDR_CMD, 4242)
+            .unwrap();
+        assert_eq!(
+            model.apb_bus().read(RvSize::Word, MBOX_ADDR_CMD).unwrap(),
+            4242
+        );
+    }
+
+    #[test]
+    fn test_mbox() {
+        // Same as test_apb, but uses higher-level register interface
+        let mut model = caliptra_hw_model::create(InitParams {
+            ..Default::default()
+        })
+        .unwrap();
+
+        assert_eq!(model.soc_mbox().lock().read().lock(), false);
+
+        assert_eq!(model.soc_mbox().lock().read().lock(), true);
+
+        model.soc_mbox().cmd().write(|_| 4242);
+        assert_eq!(model.soc_mbox().cmd().read(), 4242);
+    }
+
+    #[test]
+    fn test_execution() {
+        let mut model = caliptra_hw_model::create(InitParams {
+            rom: &&gen_image_hi(),
+            ..Default::default()
+        })
+        .unwrap();
+
+        model.step_until_output("hi").unwrap();
+    }
+
+    #[test]
+    fn test_output_failure() {
+        let mut model = caliptra_hw_model::create(InitParams {
+            rom: &&gen_image_hi(),
+            ..Default::default()
+        })
+        .unwrap();
+        assert_eq!(
+            model.step_until_output("ha").err().unwrap().to_string(),
+            "expected output \"ha\", was \"hi\""
+        );
     }
 }
