@@ -34,7 +34,7 @@ pub enum ModelError {}
 
 // Represents a emulator or simulation of the caliptra hardware, to be called
 // from tests.
-pub trait Model {
+pub trait HwModel {
     type TBus<'a>: Bus
     where
         Self: 'a;

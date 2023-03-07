@@ -44,7 +44,7 @@ pub struct ModelVerilated {
     output: Output,
 }
 
-impl crate::Model for ModelVerilated {
+impl crate::HwModel for ModelVerilated {
     type TBus<'a> = VerilatedApbBus<'a>;
 
     fn init(params: crate::InitParams) -> Result<Self, Box<dyn std::error::Error>>
@@ -105,7 +105,7 @@ impl crate::Model for ModelVerilated {
 #[cfg(test)]
 mod tests {
 
-    use crate::{mmio::Rv32GenMmio, model_verilated::ModelVerilated, InitParams, Model};
+    use crate::{mmio::Rv32GenMmio, model_verilated::ModelVerilated, HwModel, InitParams};
     use caliptra_emu_bus::Bus;
     use caliptra_emu_types::RvSize;
     use caliptra_registers::soc_ifc;

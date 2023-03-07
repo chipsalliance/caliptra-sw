@@ -52,7 +52,7 @@ pub struct ModelEmulated {
     generic_load_rx: mpsc::Receiver<u8>,
 }
 
-impl crate::Model for ModelEmulated {
+impl crate::HwModel for ModelEmulated {
     type TBus<'a> = EmulatedApbBus<'a>;
 
     fn init(params: InitParams) -> Result<Self, Box<dyn Error>>
@@ -93,7 +93,7 @@ impl crate::Model for ModelEmulated {
 
 #[cfg(test)]
 mod tests {
-    use crate::{mmio::Rv32GenMmio, model_emulated::ModelEmulated, InitParams, Model};
+    use crate::{mmio::Rv32GenMmio, model_emulated::ModelEmulated, HwModel, InitParams};
     use caliptra_emu_types::RvSize;
     use caliptra_registers::soc_ifc;
 
