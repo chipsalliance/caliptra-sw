@@ -9,6 +9,7 @@ edition = "2021"
 [dependencies]
 caliptra-lib = { path = "..", features=["emu"] }
 caliptra-registers = { path = "../../registers" }
+caliptra-kat = { path = "../../kat" }
 cfg-if = "1.0.0"
 
 [features]

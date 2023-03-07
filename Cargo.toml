@@ -27,6 +27,7 @@ members = [
   "ureg/lib/codegen",
   "ureg/lib/systemrdl",
   "x509",
+  "kat",
 ]
 
 [profile.firmware]

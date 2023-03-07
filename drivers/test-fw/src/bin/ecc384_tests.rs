@@ -15,6 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
+use caliptra_kat::Ecc384Kat;
 use caliptra_lib::{
     Array4x12, Ecc384, Ecc384Data, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Scalar,
     Ecc384Seed, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
@@ -505,7 +506,12 @@ fn test_kv_seed_from_kv_msg_from_input() {
     assert!(result.is_ok());
 }
 
+fn test_kat() {
+    assert_eq!(Ecc384Kat::default().execute().is_ok(), true);
+}
+
 test_suite! {
+    test_kat,
     test_gen_key_pair,
     test_sign,
     test_verify,

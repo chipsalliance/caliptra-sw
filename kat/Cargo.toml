@@ -1,0 +1,13 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "caliptra-kat"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+test = false
+doctest = false
+
+[dependencies]
+caliptra-lib = { path = "../drivers" }

@@ -15,6 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
+use caliptra_kat::Sha1Kat;
 use caliptra_lib::{Array4x5, Array4xN, Sha1};
 
 mod harness;
@@ -64,7 +65,12 @@ fn test_op1() {
     assert_eq!(digest, expected);
 }
 
+fn test_kat() {
+    assert_eq!(Sha1Kat::default().execute().is_ok(), true);
+}
+
 test_suite! {
+    test_kat,
     test_digest0,
     test_digest1,
     test_digest2,
