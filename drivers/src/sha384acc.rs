@@ -1,4 +1,3 @@
-use crate::Array4x12;
 /*++
 
 Licensed under the Apache-2.0 license.
@@ -14,6 +13,7 @@ Abstract:
 --*/
 use crate::caliptra_err_def;
 use crate::wait;
+use crate::Array4x12;
 use crate::CaliptraResult;
 use caliptra_registers::sha512_acc;
 use caliptra_registers::sha512_acc::regs::ExecuteWriteVal;
