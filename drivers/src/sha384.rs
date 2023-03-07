@@ -237,7 +237,7 @@ impl Sha384 {
     fn digest_key(&self, key: KeyReadArgs) -> CaliptraResult<()> {
         let sha = sha512::RegisterBlock::sha512_reg();
 
-        KvAccess::copy_from_kv(key, sha.kv_rd_status(), sha.kv_rd_ctrl())
+        KvAccess::copy_from_kv(key, sha.vault_rd_status(), sha.vault_rd_ctrl())
             .map_err(|err| err.into_read_data_err())?;
 
         self.digest_op(true, true)
