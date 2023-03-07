@@ -92,6 +92,7 @@ dependencies = [
 name = "caliptra-drivers-test-bin"
 version = "0.1.0"
 dependencies = [
+ "caliptra-kat",
  "caliptra-lib",
  "caliptra-registers",
  "cfg-if",
@@ -180,6 +181,13 @@ dependencies = [
  "caliptra-registers",
  "caliptra-verilated",
  "ureg",
+]
+
+[[package]]
+name = "caliptra-kat"
+version = "0.1.0"
+dependencies = [
+ "caliptra-lib",
 ]
 
 [[package]]

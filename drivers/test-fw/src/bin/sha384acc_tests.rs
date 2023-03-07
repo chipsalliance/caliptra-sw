@@ -15,6 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
+use caliptra_kat::Sha384AccKat;
 use caliptra_lib::{Array4x12, Mailbox, Sha384Acc};
 mod harness;
 
@@ -149,7 +150,12 @@ fn test_digest_max_mailbox_size() {
     }
 }
 
+fn test_kat() {
+    assert_eq!(Sha384AccKat::default().execute().is_ok(), true);
+}
+
 test_suite! {
+    test_kat,
     test_digest_max_mailbox_size,
     test_digest0,
     test_digest1,

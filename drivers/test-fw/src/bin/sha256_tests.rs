@@ -15,6 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
+use caliptra_kat::Sha256Kat;
 use caliptra_lib::{Array4x8, Sha256};
 
 mod harness;
@@ -222,7 +223,12 @@ fn test_op8() {
     assert_eq!(digest, Array4x8::from(expected));
 }
 
+fn test_kat() {
+    assert_eq!(Sha256Kat::default().execute().is_ok(), true);
+}
+
 test_suite! {
+    test_kat,
     test_digest0,
     test_digest1,
     test_digest2,

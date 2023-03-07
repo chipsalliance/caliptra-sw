@@ -15,6 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
+use caliptra_kat::Hmac384Kat;
 use caliptra_lib::{Array4x12, Hmac384, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Sha384};
 
 mod harness;
@@ -400,7 +401,12 @@ fn test_hmac_multi_block_two_step() {
     assert_eq!(out_tag, Array4x12::from(result));
 }
 
+fn test_kat() {
+    assert_eq!(Hmac384Kat::default().execute().is_ok(), true);
+}
+
 test_suite! {
+    test_kat,
     test_hmac0,
     test_hmac1,
     test_hmac3,

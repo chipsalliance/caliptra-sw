@@ -15,6 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
+use caliptra_kat::Sha384Kat;
 use caliptra_lib::{Array4x12, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Sha384};
 
 mod harness;
@@ -309,7 +310,12 @@ fn test_kv_incorrect_key_acl() {
     }
 }
 
+fn test_kat() {
+    assert_eq!(Sha384Kat::default().execute().is_ok(), true);
+}
+
 test_suite! {
+    test_kat,
     test_digest0,
     test_digest1,
     test_digest2,
