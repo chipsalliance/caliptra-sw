@@ -1,3 +1,5 @@
+# Licensed under the Apache-2.0 license
+
 [workspace]
 exclude = [
   # Uses a custom .cargo/config

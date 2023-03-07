@@ -1,3 +1,5 @@
+// Licensed under the Apache-2.0 license
+
 use crate::string_arena::StringArena;
 use std::path::Path;
 

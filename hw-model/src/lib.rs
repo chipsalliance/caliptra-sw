@@ -1,3 +1,5 @@
+// Licensed under the Apache-2.0 license
+
 use std::error::Error;
 
 use caliptra_emu_bus::Bus;

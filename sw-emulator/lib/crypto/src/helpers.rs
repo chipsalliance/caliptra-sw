@@ -1,3 +1,5 @@
+// Licensed under the Apache-2.0 license
+
 pub trait EndianessTransform {
     fn change_endianess(&mut self);
     fn to_big_endian(&mut self);
