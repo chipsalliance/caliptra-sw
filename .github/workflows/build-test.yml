@@ -70,6 +70,10 @@ jobs:
         run: |
           cargo fmt --check --all
 
+      - name: Check license headers
+        run: |
+          cargo run -p file-header-fix -- --check
+
       - name: Install risv32imc target
         run: |
           rustup target add riscv32imc-unknown-none-elf
