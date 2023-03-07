@@ -1,3 +1,5 @@
+// Licensed under the Apache-2.0 license
+
 pub struct Output {
     output: String,
     exit_requested: bool,

@@ -1,3 +1,5 @@
+// Licensed under the Apache-2.0 license
+
 use std::env;
 use std::fs;
 use std::path::PathBuf;

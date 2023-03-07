@@ -1,3 +1,5 @@
+// Licensed under the Apache-2.0 license
+
 use std::collections::HashSet;
 
 // TODO: Consider using elsa/FrozenVec to remove unsafe code

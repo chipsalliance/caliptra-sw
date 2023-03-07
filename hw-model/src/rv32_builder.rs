@@ -1,3 +1,5 @@
+// Licensed under the Apache-2.0 license
+
 /// The world's most primitive RISC-V assembler
 #[derive(Default)]
 pub struct Rv32Builder(Vec<u8>);

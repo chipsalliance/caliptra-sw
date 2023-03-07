@@ -1,3 +1,5 @@
+// Licensed under the Apache-2.0 license
+
 use std::fmt::Write;
 
 use caliptra_emu_bus::{

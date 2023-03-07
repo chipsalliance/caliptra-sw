@@ -1,3 +1,5 @@
+// Licensed under the Apache-2.0 license
+
 /*++
 
 Copyright (c) 2020. RISC-V International. All rights reserved.

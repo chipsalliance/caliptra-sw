@@ -1,3 +1,5 @@
+# Licensed under the Apache-2.0 license
+
 #!/bin/bash
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
