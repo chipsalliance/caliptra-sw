@@ -20,12 +20,24 @@ pub use model_emulated::ModelEmulated;
 #[cfg(feature = "verilator")]
 pub use model_verilated::ModelVerilated;
 
-pub fn create(params: InitParams) -> Result<impl HwModel, Box<dyn Error>> {
-    #[cfg(feature = "verilator")]
-    return ModelVerilated::init(params);
+/// Constructs an HwModel based on the cargo features and environment
+/// variables. Most test cases that need to construct a HwModel should use this
+/// function.
+///
+/// Ideally this function would return `Result<impl HwModel, Box<dyn Error>>`
+/// to prevent users from calling functions that weren't available on HwModel
+/// implementations.  Unfortunately, rust-analyzer (used by IDEs) can't fully
+/// resolve associated types from `impl Trait`, so this function will return the
+/// full type until they fix that. Users should treat this return type as if it
+/// were `impl HwModel`.
+#[cfg(not(feature = "verilator"))]
+pub fn create(params: InitParams) -> Result<ModelEmulated, Box<dyn Error>> {
+    ModelEmulated::init(params)
+}
 
-    #[cfg(not(feature = "verilator"))]
-    return ModelEmulated::init(params);
+#[cfg(feature = "verilator")]
+pub fn create(params: InitParams) -> Result<ModelVerilated, Box<dyn Error>> {
+    ModelVerilated::init(params)
 }
 
 #[derive(Default)]
