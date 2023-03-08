@@ -1,0 +1,14 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "test-suite"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+caliptra-emu-bus = { version = "0.1.0", path = "../../sw-emulator/lib/bus" }
+caliptra-emu-types = { version = "0.1.0", path = "../../sw-emulator/lib/types" }
+caliptra-hw-model = { version = "0.1.0", path = "../../hw-model",  features = ["verilator"] }
+caliptra-registers = { version = "0.1.0", path = "../../registers" }
