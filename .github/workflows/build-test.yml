@@ -120,6 +120,7 @@ jobs:
       - name: Run tests inside emulator
         run: |
           drivers/test-fw/test.sh
+          (cd fmc && cargo make workflow)
           sccache --show-stats
 
       - name: Run emulator conformance tests

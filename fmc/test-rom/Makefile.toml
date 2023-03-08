@@ -8,8 +8,9 @@ args = [
   "--target",
   "riscv32imc-unknown-none-elf",
   "--features=riscv",
+  "--features=emu",
   "--profile=firmware", 
-  "--bin=fmc",
+  "--bin=test-rom",
   "${@}",
 ]
 
@@ -22,11 +23,11 @@ args = [
   "riscv32imc-unknown-none-elf",
   "--features=riscv",
   "--profile=firmware", 
-  "--bin=fmc",
+  "--bin=test-rom",
   "--",
   "-O",
   "binary",
-  "/tmp/fmc.bin",
+  "/tmp/test-rom.bin",
   "${@}",
 ]
 dependencies = ["build"]
@@ -40,7 +41,7 @@ args = [
   "riscv32imc-unknown-none-elf",
   "--features=riscv",
   "--profile=firmware", 
-  "--bin=fmc",
+  "--bin=test-fmc",
   "${@}",
   "--",
   "-d",
@@ -50,13 +51,14 @@ args = [
 ]
 dependencies = ["build"]
 
+
 [tasks.emu]
 command = "cargo"
 install_crate = false
 args = [
   "run",
   "--manifest-path",
-  "../sw-emulator/Cargo.toml",
+  "../../../sw-emulator/Cargo.toml",
   "--bin",
   "caliptra-emu",
   "--",
@@ -67,35 +69,22 @@ args = [
 ]
 dependencies = ["objcopy"]
 
-[tasks.debug]
+
+[tasks.deb]
 command = "cargo"
 install_crate = false
 args = [
   "run",
   "--manifest-path",
-  "../sw-emulator/Cargo.toml",
+  "../../../sw-emulator/Cargo.toml",
   "--bin",
   "caliptra-emu",
   "--",
-  "--firmware",
-  "/tmp/fmc.bin",
-  "--gdb-port",
-  "1234",
   "--rom",
   "/tmp/test-rom.bin",
+  "--firmware",
+  "/tmp/fmc.bin"
 ]
 dependencies = ["objcopy"]
 
-[tasks.gdb]
-script = "/opt/riscv/bin/riscv64-unknown-elf-gdb ../target/riscv32imc-unknown-none-elf/firmware/test-rom"
 
-[tasks.test-rom]
-script = "(cd test-rom && cargo make objcopy)"
-dependencies = ["objcopy"]
-
-
-[tasks.workflow]
-dependencies = [
-  "test-rom",
-  "emu"
-]
