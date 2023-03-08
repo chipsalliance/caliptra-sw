@@ -814,6 +814,11 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
                 #block_instance_tokens
             }
             impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+                /// # Safety
+                ///
+                /// The caller is responsible for ensuring that ptr is valid for
+                /// volatile reads and writes at any of the offsets in this register
+                /// block.
                 pub unsafe fn new(ptr: *mut #raw_ptr_type) -> Self {
                     Self{
                         ptr,

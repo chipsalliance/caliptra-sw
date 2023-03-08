@@ -229,10 +229,10 @@ static GENERAL_PROPERTIES: [PropertyMeta; 2] = [
     },
 ];
 
-pub(crate) fn property<'a>(
+pub(crate) fn property(
     component_type: ComponentType,
-    name: &'a str,
-) -> Result<'a, &'static PropertyMeta> {
+    name: &str,
+) -> Result<'_, &'static PropertyMeta> {
     if let Some(p) = GENERAL_PROPERTIES.iter().find(|m| m.name == name) {
         return Ok(p);
     }
@@ -246,10 +246,10 @@ pub(crate) fn property<'a>(
     Err(RdlError::UnknownPropertyName(name))
 }
 
-pub(crate) fn default_property<'a>(
+pub(crate) fn default_property(
     scope_type: ScopeType,
-    name: &'a str,
-) -> Result<'a, &'static PropertyMeta> {
+    name: &str,
+) -> Result<'_, &'static PropertyMeta> {
     if let Some(p) = GENERAL_PROPERTIES.iter().find(|m| m.name == name) {
         return Ok(p);
     }
