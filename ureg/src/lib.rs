@@ -817,10 +817,10 @@ mod tests {
     pub struct ControlRegWriteVal(u32);
     impl ControlRegWriteVal {
         pub fn enabled(self, val: bool) -> ControlRegWriteVal {
-            ControlRegWriteVal((self.0 & !0x1) | u32::from(val) << 0)
+            ControlRegWriteVal((self.0 & !0x1) | u32::from(val))
         }
         pub fn pull(self, f: impl FnOnce(PullSelector) -> Pull) -> ControlRegWriteVal {
-            ControlRegWriteVal((self.0 & !(0x3 << 1)) | u32::from(f(PullSelector()) as u32) << 1)
+            ControlRegWriteVal((self.0 & !(0x3 << 1)) | (f(PullSelector()) as u32) << 1)
         }
     }
     impl From<u32> for ControlRegWriteVal {
@@ -859,11 +859,11 @@ mod tests {
             .control()
             .modify(|w| w.enabled(true).pull(|w| w.hi_z()));
         assert_eq!(0b101, block.control().read().0);
-        assert_eq!(true, block.control().read().enabled());
+        assert!(block.control().read().enabled());
         assert_eq!(Pull::HiZ, block.control().read().pull());
-        assert_eq!(true, block.control().read().pull().hi_z());
-        assert_eq!(false, block.control().read().pull().down());
-        assert_eq!(false, block.control().read().pull().up());
+        assert!(block.control().read().pull().hi_z());
+        assert!(!block.control().read().pull().down());
+        assert!(!block.control().read().pull().up());
 
         block.fifo().read();
     }
