@@ -60,6 +60,24 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_parse_usize() {
+        assert_eq!(42, parse_usize(&Literal::from_str("42").unwrap().into()));
+        assert_eq!(0, parse_usize(&Literal::from_str("0").unwrap().into()));
+        assert_eq!(
+            33_000,
+            parse_usize(&Literal::from_str("33_000").unwrap().into())
+        );
+        assert_eq!(
+            0x1234,
+            parse_usize(&Literal::from_str("0x1234").unwrap().into())
+        );
+        assert_eq!(
+            0x1234_5678,
+            parse_usize(&Literal::from_str("0x1234_5678").unwrap().into())
+        );
+    }
+
+    #[test]
     fn test_parse_hex_u32() {
         assert_eq!(0x0, parse_hex_u32(Literal::from_str("0x0").unwrap().into()));
         assert_eq!(
