@@ -12,6 +12,8 @@ Abstract:
 
 --*/
 
+#![allow(clippy::unusual_byte_groupings)]
+
 use crate::xreg_file::XReg;
 use bitfield::{bitfield, BitRange, BitRangeMut};
 use caliptra_emu_types::emu_enum;

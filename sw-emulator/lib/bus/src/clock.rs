@@ -121,6 +121,11 @@ impl Timer {
 pub struct Clock {
     clock: Rc<ClockImpl>,
 }
+impl Default for Clock {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl Clock {
     /// Constructs a new Clock with the cycle counter set to 0.
     pub fn new() -> Clock {
@@ -247,12 +252,12 @@ impl ClockImpl {
             (u64::MAX >> 1)
         );
         let new_action = TimerActionImpl {
-            time: time,
+            time,
             id: self.next_action_id(),
         };
         let mut actions = self.future_poll_actions.borrow_mut();
         actions.insert(new_action);
-        self.recompute_next_action_time(&*actions);
+        self.recompute_next_action_time(&actions);
         new_action.into()
     }
     fn cancel(self: &Rc<Self>, action: TimerAction) {
@@ -264,7 +269,7 @@ impl ClockImpl {
         );
         let mut future_actions = self.future_poll_actions.borrow_mut();
         future_actions.remove(&action);
-        self.recompute_next_action_time(&*future_actions)
+        self.recompute_next_action_time(&future_actions)
     }
     fn next_action_id(self: &Rc<Self>) -> TimerActionId {
         let result = TimerActionId {
@@ -300,14 +305,14 @@ impl ClockImpl {
     #[cold]
     fn remove_fired_actions(&self) {
         let mut future_actions = self.future_poll_actions.borrow_mut();
-        while let Some(action) = self.find_next_action(&*future_actions) {
+        while let Some(action) = self.find_next_action(&future_actions) {
             if !self.has_fired(action.time) {
                 break;
             }
-            let action = action.clone();
+            let action = *action;
             future_actions.remove(&action);
         }
-        self.recompute_next_action_time(&*future_actions);
+        self.recompute_next_action_time(&future_actions);
     }
 }
 

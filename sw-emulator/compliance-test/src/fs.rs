@@ -110,14 +110,11 @@ pub fn annotate_error(err: std::io::Error, suffix: &str) -> std::io::Error {
 fn rand_str() -> std::io::Result<String> {
     let chars = b"abcdefghijklmnopqrstuvwxyz123456";
     let mut result = vec![0u8; 24];
-    match getrandom::getrandom(&mut result) {
-        Err(err) => {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Unable to retrive random data from OS: {}", err),
-            ))
-        }
-        _ => {}
+    if let Err(err) = getrandom::getrandom(&mut result) {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Unable to retrive random data from OS: {}", err),
+        ));
     }
     for ch in result.iter_mut() {
         *ch = chars[usize::from(*ch & 0x1f)];

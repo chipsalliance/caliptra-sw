@@ -110,7 +110,7 @@ impl<const KEY_SIZE: usize> Hmac512<KEY_SIZE> {
         self.reset();
 
         // Key is received as a list of big-endian DWORDs. Changing them to little-endian.
-        let mut key_le = key.clone();
+        let mut key_le = *key;
         key_le.to_little_endian();
 
         // Expand the key and XOR it with OPAD
@@ -139,11 +139,11 @@ impl<const KEY_SIZE: usize> Hmac512<KEY_SIZE> {
     /// * `block` - Block to calculate MAC over
     pub fn update(&mut self, block: &[u8; BLOCK_SIZE]) {
         // hash the block
-        self.hash1.update(&block);
+        self.hash1.update(block);
 
         // Calculate the summary hash so far
         let mut sum_hash = [0u8; MAX_TAG_SIZE];
-        self.hash1.hash(&mut sum_hash);
+        self.hash1.copy_hash(&mut sum_hash);
 
         // The SHA512::hash function returns the hash as a list of big-endian DWORDs.
         // Converting sum_hash to little-endian DWORDs.
@@ -180,7 +180,7 @@ impl<const KEY_SIZE: usize> Hmac512<KEY_SIZE> {
     ///
     /// * `tag` - Buffer to copy the tag to
     pub fn tag(&self, tag: &mut [u8]) {
-        self.hash2.hash(tag);
+        self.hash2.copy_hash(tag);
     }
 }
 
@@ -190,7 +190,7 @@ mod tests {
 
     fn test<const N: usize>(mode: Hmac512Mode, key: &mut [u8; N], data: &[u8], result: &[u8]) {
         let mut block = [0u8; BLOCK_SIZE];
-        block[..data.len()].copy_from_slice(&data);
+        block[..data.len()].copy_from_slice(data);
         block[data.len()] = 1 << 7;
 
         let len: u128 = (BLOCK_SIZE + data.len()) as u128;
@@ -200,7 +200,7 @@ mod tests {
         let mut hmac = Hmac512::new(mode);
         block.to_big_endian();
         key.to_big_endian();
-        hmac.init(&key, &block);
+        hmac.init(key, &block);
 
         let mut tag = [0u8; MAX_TAG_SIZE];
         hmac.tag(&mut tag);

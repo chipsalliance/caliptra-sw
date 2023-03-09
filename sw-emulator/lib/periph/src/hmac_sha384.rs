@@ -265,13 +265,13 @@ impl HmacSha384 {
 
         if self.control.reg.is_set(Control::INIT) {
             // Initialize the HMAC engine with key and initial data block
-            self.hmac.init(&self.key.data(), &self.block.data());
+            self.hmac.init(self.key.data(), self.block.data());
 
             // Schedule a future call to poll() complete the operation.
             self.op_complete_action = Some(self.timer.schedule_poll_in(INIT_TICKS));
         } else if self.control.reg.is_set(Control::NEXT) {
             // Update a HMAC engine with a new block
-            self.hmac.update(&self.block.data());
+            self.hmac.update(self.block.data());
 
             // Schedule a future call to poll() complete the operation.
             self.op_complete_action = Some(self.timer.schedule_poll_in(UPDATE_TICKS));
@@ -448,10 +448,8 @@ impl HmacSha384 {
             ),
         };
 
-        if key != None {
-            self.key
-                .data_mut()
-                .copy_from_slice(&key.unwrap()[..HMAC_KEY_SIZE]);
+        if let Some(key) = &key {
+            self.key.data_mut().copy_from_slice(&key[..HMAC_KEY_SIZE]);
         }
 
         self.key_read_status.reg.modify(
@@ -484,8 +482,8 @@ impl HmacSha384 {
             ),
         };
 
-        if data != None {
-            self.format_block(&data.unwrap());
+        if let Some(data) = &data {
+            self.format_block(data);
         }
 
         self.block_read_status.reg.modify(
@@ -531,7 +529,7 @@ impl HmacSha384 {
             .key_vault
             .write_key(
                 key_id,
-                &self.tag.data(),
+                self.tag.data(),
                 self.tag_write_ctrl.reg.read(TagWriteControl::USAGE),
             )
             .err()

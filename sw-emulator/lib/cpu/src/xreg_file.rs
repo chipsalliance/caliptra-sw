@@ -134,6 +134,11 @@ impl XRegFile {
         }
     }
 }
+impl Default for XRegFile {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 #[cfg(test)]
 mod tests {

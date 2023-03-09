@@ -45,7 +45,7 @@ impl<'a> Display for DisplayToken<'a> {
 pub fn expect_ident_of(iter: &mut impl Iterator<Item = TokenTree>, expected_name: &str) {
     let token = iter.next();
     if let Some(TokenTree::Ident(ref ident)) = token {
-        if ident.to_string() == expected_name {
+        if ident == expected_name {
             return;
         }
     }
@@ -119,7 +119,7 @@ pub fn skip_to_struct_with_attributes(iter: &mut impl Iterator<Item = TokenTree>
     loop {
         match iter.next() {
             Some(TokenTree::Ident(ident)) => {
-                if ident.to_string() == "struct" {
+                if ident == "struct" {
                     return attributes;
                 }
             }
@@ -185,7 +185,7 @@ pub fn skip_to_attribute_or_ident(iter: &mut impl Iterator<Item = TokenTree>) ->
                 }
             }
             Some(TokenTree::Ident(ident)) => {
-                if ident.to_string() == "pub" {
+                if ident == "pub" {
                     continue;
                 }
                 return Some(TokenTree::Ident(ident));
@@ -234,7 +234,7 @@ pub fn skip_to_field_with_attributes(
                 }
                 let attribute = Attribute {
                     name: attribute_ident,
-                    args: args,
+                    args,
                 };
                 attributes.push(attribute);
                 if no_field_required_pred(attributes.last().unwrap()) {
@@ -242,7 +242,7 @@ pub fn skip_to_field_with_attributes(
                         attr_name,
                         field_name: None,
                         field_type: TokenStream::new(),
-                        attributes: attributes,
+                        attributes,
                     });
                 }
             }
