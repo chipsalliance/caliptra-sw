@@ -10,5 +10,5 @@ edition = "2021"
 [dependencies]
 caliptra-emu-bus = { version = "0.1.0", path = "../../sw-emulator/lib/bus" }
 caliptra-emu-types = { version = "0.1.0", path = "../../sw-emulator/lib/types" }
-caliptra-hw-model = { version = "0.1.0", path = "../../hw-model",  features = ["verilator"] }
+caliptra-hw-model = { version = "0.1.0", path = "../../hw-model" }
 caliptra-registers = { version = "0.1.0", path = "../../registers" }
