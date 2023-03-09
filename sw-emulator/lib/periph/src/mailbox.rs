@@ -776,7 +776,7 @@ mod tests {
             // Read dataout
             let data_out = mb.read(RvSize::Word, Mailbox::OFFSET_DATAOUT).unwrap();
             // compare with queued data.
-            assert_eq!(data_in as u32, data_out as u32);
+            assert_eq!(data_in as u32, data_out);
         }
 
         // Read an additional DWORD. This should return 0.

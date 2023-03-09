@@ -537,9 +537,9 @@ mod tests {
     fn test_sha_accelerator(data: &[u8], expected: &[u8]) {
         // Write to the mailbox.
         let mut mb_ram = MailboxRam::new();
-        if data.len() > 0 {
+        if !data.is_empty() {
             let mut data_word_multiples = vec![0u8; ((data.len() + 3) / 4) * 4];
-            data_word_multiples[..data.len()].copy_from_slice(&data[..]);
+            data_word_multiples[..data.len()].copy_from_slice(data);
 
             for idx in (0..data_word_multiples.len()).step_by(4) {
                 // Convert to big-endian.
@@ -635,7 +635,7 @@ mod tests {
             0x43, 0xFF, 0x5B, 0xED, 0x80, 0x86, 0x07, 0x2B, 0xA1, 0xE7, 0xCC, 0x23, 0x58, 0xBA,
             0xEC, 0xA1, 0x34, 0xC8, 0x25, 0xA7,
         ];
-        test_sha_accelerator(&data, &expected);
+        test_sha_accelerator(data, &expected);
     }
 
     #[test]
@@ -647,7 +647,7 @@ mod tests {
             0x5B, 0x1F, 0xE3, 0xC8, 0x45, 0x2B,
         ];
         let data = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".as_bytes();
-        test_sha_accelerator(&data, &expected);
+        test_sha_accelerator(data, &expected);
     }
 
     #[test]
@@ -659,7 +659,7 @@ mod tests {
             0xE9, 0xFA, 0x91, 0x74, 0x60, 0x39,
         ];
         let data = "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu".as_bytes();
-        test_sha_accelerator(&data, &expected);
+        test_sha_accelerator(data, &expected);
     }
 
     #[test]
@@ -671,7 +671,7 @@ mod tests {
             0x53, 0x98, 0x4a, 0xb0, 0x01, 0x4e,
         ];
         let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefgh".as_bytes();
-        test_sha_accelerator(&data, &expected);
+        test_sha_accelerator(data, &expected);
     }
 
     #[test]
@@ -683,7 +683,7 @@ mod tests {
             0xa3, 0x59, 0x14, 0xfc, 0x1e, 0xcd,
         ];
         let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz".as_bytes();
-        test_sha_accelerator(&data, &expected);
+        test_sha_accelerator(data, &expected);
     }
 
     #[test]

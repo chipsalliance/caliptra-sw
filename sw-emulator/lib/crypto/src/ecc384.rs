@@ -295,7 +295,7 @@ mod tests {
     #[test]
     fn test_sign() {
         let hash = [0u8; 48];
-        let mut priv_key = PRIV_KEY.clone();
+        let mut priv_key = PRIV_KEY;
         priv_key.to_big_endian();
 
         let mut signature = Ecc384::sign(&priv_key, &hash);
@@ -310,13 +310,13 @@ mod tests {
     #[test]
     fn test_verify() {
         let hash = [0u8; 48];
-        let mut priv_key = PRIV_KEY.clone();
+        let mut priv_key = PRIV_KEY;
         priv_key.to_big_endian();
 
         let mut signature = Ecc384::sign(&priv_key, &hash);
 
-        let mut pub_key_x = PUB_KEY_X.clone();
-        let mut pub_key_y = PUB_KEY_Y.clone();
+        let mut pub_key_x = PUB_KEY_X;
+        let mut pub_key_y = PUB_KEY_Y;
 
         pub_key_x.to_big_endian();
         pub_key_y.to_big_endian();
@@ -334,13 +334,13 @@ mod tests {
     #[test]
     fn test_verify_fail() {
         let hash = [0u8; 48];
-        let mut priv_key = PRIV_KEY.clone();
+        let mut priv_key = PRIV_KEY;
         priv_key.to_big_endian();
 
         let mut signature = Ecc384::sign(&priv_key, &hash);
 
-        let mut pub_key_x = PUB_KEY_X.clone();
-        let mut pub_key_y = PUB_KEY_Y.clone();
+        let mut pub_key_x = PUB_KEY_X;
+        let mut pub_key_y = PUB_KEY_Y;
 
         pub_key_x.to_big_endian();
         pub_key_y.to_big_endian();

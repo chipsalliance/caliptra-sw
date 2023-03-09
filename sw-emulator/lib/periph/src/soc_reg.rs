@@ -1192,7 +1192,7 @@ mod tests {
 
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mut mailbox = Mailbox::new(mailbox_ram.clone());
+        let mut mailbox = Mailbox::new(mailbox_ram);
         let args = CaliptraRootBusArgs::default();
         let args = CaliptraRootBusArgs {
             firmware: firmware.clone(),
@@ -1215,7 +1215,7 @@ mod tests {
         );
 
         // Check if mailbox is locked.
-        assert_eq!(mailbox.is_locked(), true);
+        assert!(mailbox.is_locked());
 
         //
         // [Receiver Side]
@@ -1230,7 +1230,7 @@ mod tests {
         }
         assert_eq!(mailbox.read_dlen().unwrap(), firmware.len() as u32);
         assert_eq!(mailbox.read_cmd().unwrap(), FW_LOAD_CMD_OPCODE);
-        assert_eq!(mailbox.is_status_data_ready(), true);
+        assert!(mailbox.is_status_data_ready());
 
         // Read the data out of the mailbox.
         let mut temp: Vec<u32> = Vec::new();
@@ -1254,11 +1254,11 @@ mod tests {
             }
         }
         // Check if the mailbox lock is released.
-        assert_eq!(mailbox.is_locked(), false);
+        assert!(!mailbox.is_locked());
     }
 
     fn send_data_to_mailbox(mailbox: &mut Mailbox, cmd: u32, data: &[u8]) {
-        while mailbox.try_acquire_lock() == false {}
+        while !mailbox.try_acquire_lock() {}
 
         mailbox.write_cmd(cmd).unwrap();
         mailbox.write_dlen(data.len() as u32).unwrap();
@@ -1295,7 +1295,7 @@ mod tests {
         ];
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mut mailbox = Mailbox::new(mailbox_ram.clone());
+        let mut mailbox = Mailbox::new(mailbox_ram);
         let req_idevid_csr = true;
         let mut log_dir = PathBuf::new();
         log_dir.push("/tmp");
@@ -1338,14 +1338,14 @@ mod tests {
                     .read(RvSize::Word, CPTRA_DBG_MANUF_SERVICE_REG_START)
                     .unwrap(),
             );
-            if dbg_manuf_service_reg.is_set(DebugManufService::REQ_IDEVID_CSR) == false {
+            if !dbg_manuf_service_reg.is_set(DebugManufService::REQ_IDEVID_CSR) {
                 break;
             }
         }
 
         // Check if the downloaded csr matches.
         let path = "/tmp/caliptra_idevid_csr.der";
-        assert_eq!(Path::new(path).exists(), true);
+        assert!(Path::new(path).exists());
         let mut idevid_csr_buffer = Vec::new();
         let mut idevid_csr_file = File::open(path).unwrap();
         idevid_csr_file.read_to_end(&mut idevid_csr_buffer).unwrap();
@@ -1362,7 +1362,7 @@ mod tests {
         ];
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mut mailbox = Mailbox::new(mailbox_ram.clone());
+        let mut mailbox = Mailbox::new(mailbox_ram);
         let req_ldevid_cert = true;
         let mut log_dir = PathBuf::new();
         log_dir.push("/tmp");
@@ -1405,14 +1405,14 @@ mod tests {
                     .read(RvSize::Word, CPTRA_DBG_MANUF_SERVICE_REG_START)
                     .unwrap(),
             );
-            if dbg_manuf_service_reg.is_set(DebugManufService::REQ_LDEVID_CERT) == false {
+            if !dbg_manuf_service_reg.is_set(DebugManufService::REQ_LDEVID_CERT) {
                 break;
             }
         }
 
         // Check if the downloaded cert matches.
         let path = "/tmp/caliptra_ldevid_cert.der";
-        assert_eq!(Path::new(path).exists(), true);
+        assert!(Path::new(path).exists());
         let mut ldevid_cert_buffer = Vec::new();
         let mut idevid_csr_file = File::open(path).unwrap();
         idevid_csr_file
@@ -1428,12 +1428,12 @@ mod tests {
 
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mailbox = Mailbox::new(mailbox_ram.clone());
+        let mailbox = Mailbox::new(mailbox_ram);
         let args = CaliptraRootBusArgs {
             tb_services_cb: TbServicesCb::new(move |ch| output2.borrow_mut().push(ch)),
             ..Default::default()
         };
-        let mut soc_reg: SocRegisters = SocRegisters::new(&clock, mailbox.clone(), args);
+        let mut soc_reg: SocRegisters = SocRegisters::new(&clock, mailbox, args);
 
         let _ = soc_reg.write(RvSize::Word, CPTRA_GENERIC_OUTPUT_WIRES_START, b'h'.into());
 

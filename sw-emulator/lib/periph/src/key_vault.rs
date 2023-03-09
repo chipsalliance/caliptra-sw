@@ -707,12 +707,9 @@ mod tests {
                 Some(())
             );
 
-            assert_eq!(
-                vault
-                    .write_key(key_id, &expected, u32::from(key_usage))
-                    .is_ok(),
-                true
-            );
+            assert!(vault
+                .write_key(key_id, &expected, u32::from(key_usage))
+                .is_ok());
 
             // Block read access to the key.
             val_reg.write(KV_CONTROL::USE_LOCK.val(1));

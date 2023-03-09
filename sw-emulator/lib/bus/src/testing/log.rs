@@ -50,7 +50,7 @@ impl Log {
     }
 
     /// Access the contents of the log without modifying it.
-    pub fn as_str<'a>(&'a self) -> (impl Deref<Target = str> + 'a) {
+    pub fn as_str(&self) -> (impl Deref<Target = str> + '_) {
         Ref::map(self.log.borrow(), String::as_str)
     }
 
@@ -64,8 +64,13 @@ impl Log {
     }
 
     /// returns a writer that can be use with write!() or writeln!().
-    pub fn w<'a>(&'a self) -> (impl Write + 'a) {
+    pub fn w(&self) -> (impl Write + '_) {
         LogWriter { log: &self.log }
+    }
+}
+impl Default for Log {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -100,6 +105,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::redundant_clone)]
     fn test_clone() {
         let log = Log::new();
         writeln!(log.clone().w(), "Line 1").unwrap();
