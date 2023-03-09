@@ -150,7 +150,7 @@ impl Ecc384 {
         let mut priv_key = [0u8; ECC_384_COORD_SIZE];
 
         // Seed is received as a list of big-endian DWORDs. Changing them to little-endian.
-        let mut seed_reversed = seed.clone();
+        let mut seed_reversed = *seed;
         seed_reversed.to_little_endian();
 
         let mut drbg = HmacDrbg::<Sha384>::new(&[], &[], &seed_reversed);
@@ -181,8 +181,8 @@ impl Ecc384 {
     /// *  Ecc384Signature - Signature
     pub fn sign(priv_key: &Ecc384PrivKey, hash: &Ecc384Scalar) -> Ecc384Signature {
         // Private key and hash are received as a list of big-endian DWORDs. Changing them to little-endian.
-        let mut priv_key_reversed = priv_key.clone();
-        let mut hash_reversed = hash.clone();
+        let mut priv_key_reversed = *priv_key;
+        let mut hash_reversed = *hash;
         priv_key_reversed.to_little_endian();
         hash_reversed.to_little_endian();
 
@@ -214,14 +214,14 @@ impl Ecc384 {
         signature: &Ecc384Signature,
     ) -> Ecc384Scalar {
         // Public key, hash and signature are received as a list of big-endian DWORDs. Changing them to little-endian.
-        let mut pub_key_reversed = pub_key.clone();
+        let mut pub_key_reversed = *pub_key;
         pub_key_reversed.x.to_little_endian();
         pub_key_reversed.y.to_little_endian();
 
-        let mut hash_reversed = hash.clone();
+        let mut hash_reversed = *hash;
         hash_reversed.to_little_endian();
 
-        let mut signature_reversed = signature.clone();
+        let mut signature_reversed = *signature;
         signature_reversed.r.to_little_endian();
         signature_reversed.s.to_little_endian();
 

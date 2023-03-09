@@ -20,12 +20,12 @@ use crate::util::token_iter::DisplayToken;
 pub fn parse_usize(literal: &TokenTree) -> usize {
     if let TokenTree::Literal(literal) = literal {
         let s = literal.to_string();
-        if s.starts_with("0x") {
-            if let Ok(val) = usize::from_str_radix(&s[2..].replace("_", ""), 16) {
+        if let Some(s) = s.strip_prefix("0x") {
+            if let Ok(val) = usize::from_str_radix(&s.replace('_', ""), 16) {
                 return val;
             }
         }
-        if let Ok(val) = usize::from_str(&s.replace("_", "")) {
+        if let Ok(val) = usize::from_str(&s.replace('_', "")) {
             return val;
         }
     }
@@ -38,8 +38,8 @@ pub fn parse_usize(literal: &TokenTree) -> usize {
 pub fn parse_hex_u32(literal: TokenTree) -> u32 {
     if let TokenTree::Literal(literal) = &literal {
         let s = literal.to_string();
-        if s.starts_with("0x") {
-            if let Ok(val) = u32::from_str_radix(&s[2..].replace("_", ""), 16) {
+        if let Some(s) = s.strip_prefix("0x") {
+            if let Ok(val) = u32::from_str_radix(&s.replace('_', ""), 16) {
                 return val;
             }
         }

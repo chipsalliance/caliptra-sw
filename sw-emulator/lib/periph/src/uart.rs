@@ -50,6 +50,11 @@ impl Uart {
         256
     }
 }
+impl Default for Uart {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Bus for Uart {
     /// Read data of specified size from given address

@@ -170,13 +170,13 @@ impl HashSha256 {
             self.sha256.reset(mode);
 
             // Update the SHA256 engine with a new block
-            self.sha256.update(&self.block.data());
+            self.sha256.update(self.block.data());
 
             // Schedule a future call to poll() complete the operation.
             self.op_complete_action = Some(self.timer.schedule_poll_in(INIT_TICKS));
         } else if self.control.reg.is_set(Control::NEXT) {
             // Update the SHA512 engine with a new block
-            self.sha256.update(&self.block.data());
+            self.sha256.update(self.block.data());
 
             // Schedule a future call to poll() complete the operation.
             self.op_complete_action = Some(self.timer.schedule_poll_in(UPDATE_TICKS));

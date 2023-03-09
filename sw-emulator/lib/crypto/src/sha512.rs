@@ -126,9 +126,9 @@ impl Sha512 {
     /// # Arguments
     ///
     /// * `hash` - Hash to copy
-    pub fn hash(&self, hash: &mut [u8]) {
+    pub fn copy_hash(&self, hash: &mut [u8]) {
         // Return the hash as a list of big-endian DWORDs.
-        let mut hash_be = self.hash.clone();
+        let mut hash_be: [u64; 8] = self.hash;
         hash_be.to_big_endian();
 
         hash_be
@@ -198,7 +198,7 @@ mod tests {
         ];
 
         let mut hash = [0u8; 28];
-        sha.hash(&mut hash);
+        sha.copy_hash(&mut hash);
         hash.to_little_endian();
         assert_eq!(&hash, &expected);
     }
@@ -218,7 +218,7 @@ mod tests {
         ];
 
         let mut hash = [0u8; 32];
-        sha.hash(&mut hash);
+        sha.copy_hash(&mut hash);
         hash.to_little_endian();
 
         assert_eq!(&hash, &expected);
@@ -240,7 +240,7 @@ mod tests {
         ];
 
         let mut hash = [0u8; 48];
-        sha.hash(&mut hash);
+        sha.copy_hash(&mut hash);
         hash.to_little_endian();
 
         assert_eq!(&hash, &expected);
@@ -263,7 +263,7 @@ mod tests {
         ];
 
         let mut hash = [0u8; 64];
-        sha.hash(&mut hash);
+        sha.copy_hash(&mut hash);
         hash.to_little_endian();
 
         assert_eq!(&hash, &expected);

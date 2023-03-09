@@ -194,6 +194,11 @@ impl KeyVault {
         self.regs.borrow_mut().write_pcr(pcr_id, pcr)
     }
 }
+impl Default for KeyVault {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Bus for KeyVault {
     /// Read data of specified size from given address

@@ -380,17 +380,17 @@ impl SocRegisters {
 
     /// Get Unique device secret
     pub fn uds(&self) -> [u8; FUSE_UDS_SEED_SIZE] {
-        self.regs.borrow().fuse_uds_seed.data().clone()
+        *self.regs.borrow().fuse_uds_seed.data()
     }
 
     // Get field entropy
     pub fn field_entropy(&self) -> [u8; FUSE_FIELD_ENTROPY_SIZE] {
-        self.regs.borrow().fuse_field_entropy.data().clone()
+        *self.regs.borrow().fuse_field_entropy.data()
     }
 
     /// Get deobfuscation engine key
     pub fn doe_key(&self) -> [u8; INTERNAL_OBF_KEY_SIZE] {
-        self.regs.borrow().internal_obf_key.data().clone()
+        *self.regs.borrow().internal_obf_key.data()
     }
 
     /// Clear secrets
@@ -709,10 +709,10 @@ impl SocRegistersImpl {
         }
 
         // DWORD 00      - Flags
-        self.fuse_idevid_cert_attr.data_mut()[00..04].copy_from_slice(&reg.get().to_le_bytes());
+        self.fuse_idevid_cert_attr.data_mut()[0..4].copy_from_slice(&reg.get().to_le_bytes());
 
         // DWORD 01 - 05 - IDEVID Subject Key Identifier
-        self.fuse_idevid_cert_attr.data_mut()[04..24].copy_from_slice(&[0x00; 20]);
+        self.fuse_idevid_cert_attr.data_mut()[4..24].copy_from_slice(&[0x00; 20]);
 
         // DWORD 06 - 07 - UEID / Manufacturer Serial Number
         let ueid = args.ueid.to_le_bytes();
@@ -770,7 +770,7 @@ impl SocRegistersImpl {
 
         // If ready_for_fw bit is set, upload the firmware image to the mailbox.
         if self.cptra_flow_status.reg.is_set(FlowStatus::READY_FOR_FW) {
-            while self.mailbox.try_acquire_lock() == false {}
+            while !self.mailbox.try_acquire_lock() {}
             self.op_fw_write_complete_action =
                 Some(self.timer.schedule_poll_in(Self::FW_WRITE_TICKS));
         } else if self
@@ -870,14 +870,14 @@ impl SocRegistersImpl {
 
         for _ in (0..n).step_by(core::mem::size_of::<u32>()) {
             let buf = self.mailbox.read_dataout().unwrap();
-            file.write(&buf.to_le_bytes()).unwrap();
+            file.write_all(&buf.to_le_bytes()).unwrap();
         }
 
         if remainder > 0 {
             let part = self.mailbox.read_dataout().unwrap();
             for idx in 0..remainder {
                 let byte = ((part >> (idx << 3)) & 0xFF) as u8;
-                file.write(&[byte]).unwrap();
+                file.write_all(&[byte]).unwrap();
             }
         }
     }
@@ -1147,7 +1147,7 @@ impl Bus for SocRegistersImpl {
 
         if self.timer.fired(&mut self.op_fw_read_complete_action) {
             // Receiver sets status as CMD_COMPLETE after reading the mailbox data.
-            if self.mailbox.is_status_cmd_complete() == true {
+            if self.mailbox.is_status_cmd_complete() {
                 // Reset the execute bit
                 self.mailbox.write_execute(0).unwrap();
             } else {

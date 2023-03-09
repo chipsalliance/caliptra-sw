@@ -254,13 +254,13 @@ impl HashSha512 {
             self.sha512.reset(mode);
 
             // Update the SHA512 engine with a new block
-            self.sha512.update(&self.block.data());
+            self.sha512.update(self.block.data());
 
             // Schedule a future call to poll() complete the operation.
             self.op_complete_action = Some(self.timer.schedule_poll_in(INIT_TICKS));
         } else if self.control.reg.is_set(Control::NEXT) {
             // Update the SHA512 engine with a new block
-            self.sha512.update(&self.block.data());
+            self.sha512.update(self.block.data());
 
             // Schedule a future call to poll() complete the operation.
             self.op_complete_action = Some(self.timer.schedule_poll_in(UPDATE_TICKS));
@@ -356,7 +356,7 @@ impl HashSha512 {
 
     fn op_complete(&mut self) {
         // Retrieve the hash
-        self.sha512.hash(self.hash.data_mut());
+        self.sha512.copy_hash(self.hash.data_mut());
 
         // Check if hash write control is enabled.
         if self
@@ -399,8 +399,8 @@ impl HashSha512 {
             None => (BlockReadStatus::ERROR::KV_SUCCESS.value, result.ok()),
         };
 
-        if data != None {
-            self.format_block(&data.unwrap());
+        if let Some(data) = &data {
+            self.format_block(data);
         }
 
         self.block_read_status.reg.modify(

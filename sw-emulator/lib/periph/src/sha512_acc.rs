@@ -418,7 +418,7 @@ impl Sha512Accelerator {
         }
 
         let mut hash = [0u8; SHA512_HASH_SIZE];
-        sha.hash(&mut hash);
+        sha.copy_hash(&mut hash);
 
         // Place the hash in the DIGEST registers.
         self.hash_lower
@@ -454,7 +454,7 @@ impl Sha512Accelerator {
         }
     }
 
-    pub fn hash(&self, hash_out: &mut [u8]) {
+    pub fn copy_hash(&self, hash_out: &mut [u8]) {
         let mut hash = [0u8; SHA512_HASH_SIZE];
 
         hash[..SHA512_HASH_HALF_SIZE].copy_from_slice(&self.hash_lower.data()[..]);
@@ -617,7 +617,7 @@ mod tests {
 
         // Read the hash.
         let mut hash: [u8; SHA512_HASH_SIZE] = [0; SHA512_HASH_SIZE];
-        sha_accl.hash(&mut hash);
+        sha_accl.copy_hash(&mut hash);
 
         // Release the lock.
         assert_eq!(sha_accl.write(RvSize::Word, OFFSET_LOCK, 1).ok(), Some(()));

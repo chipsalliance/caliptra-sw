@@ -80,6 +80,11 @@ impl Bus for MailboxRam {
         Ok(())
     }
 }
+impl Default for MailboxRam {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 #[derive(Clone)]
 pub struct Mailbox {
@@ -147,11 +152,7 @@ impl Mailbox {
 
     pub fn try_acquire_lock(&mut self) -> bool {
         let result = self.regs.borrow_mut().read(RvSize::Word, Self::OFFSET_LOCK);
-        if result.is_ok() && result.unwrap() == 0 {
-            true
-        } else {
-            false
-        }
+        matches!(result, Ok(0))
     }
 
     pub fn is_locked(&mut self) -> bool {
@@ -186,11 +187,7 @@ impl Mailbox {
             .read(RvSize::Word, Self::OFFSET_STATUS)
             .unwrap();
         let reg = InMemoryRegister::<u32, Status::Register>::new(val);
-        if reg.read(Status::STATUS) == status {
-            true
-        } else {
-            false
-        }
+        reg.read(Status::STATUS) == status
     }
 
     fn set_status(&mut self, status_in: u32) -> Result<(), BusError> {
@@ -502,7 +499,7 @@ impl RingBuffer {
             self.mailbox_ram
                 .write(RvSize::Word, self.write_index as u32, element)
                 .unwrap();
-            self.write_index = self.write_index + RvSize::Word as usize;
+            self.write_index += RvSize::Word as usize;
         }
     }
     pub fn dequeue(&mut self) -> u32 {
@@ -514,7 +511,7 @@ impl RingBuffer {
                 .read(RvSize::Word, self.read_index as u32)
                 .unwrap();
 
-            self.read_index = self.read_index + RvSize::Word as usize;
+            self.read_index += RvSize::Word as usize;
         }
         element
     }

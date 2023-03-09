@@ -121,7 +121,7 @@ impl SingleThreadBase for GdbTarget {
 
         // Read XReg
         for idx in 0..regs.x.len() {
-            regs.x[idx as usize] = self.cpu.read_xreg(XReg::from(idx as u16)).unwrap();
+            regs.x[idx] = self.cpu.read_xreg(XReg::from(idx as u16)).unwrap();
         }
 
         Ok(())
