@@ -25,12 +25,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Cache Cargo index
-        uses: actions/cache@v3
-        with:
-          path: ~/.cargo/registry/index
-          key: cargo-index-${{ env.SCCACHE_C_CUSTOM_CACHE_BUSTER }}-${{ hashFiles('Cargo.lock') }}
-
       - name: Restore sccache binary
         uses: actions/cache/restore@v3
         id: sccache_bin_restore
