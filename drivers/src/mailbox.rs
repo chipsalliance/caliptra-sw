@@ -192,10 +192,10 @@ impl MailboxSendTxn {
     /// Checks if receiver processed the request.
     pub fn is_response_ready(&self) -> bool {
         let mbox = mbox::RegisterBlock::mbox_csr();
-        match mbox.status().read().status() {
-            MboxStatusE::CmdComplete | MboxStatusE::CmdFailure => true,
-            _ => false,
-        }
+        matches!(
+            mbox.status().read().status(),
+            MboxStatusE::CmdComplete | MboxStatusE::CmdFailure
+        )
     }
 
     pub fn status(&self) -> MboxStatusE {
