@@ -186,7 +186,7 @@ mod tests {
 
     #[test]
     fn test_sha512_224() {
-        let mut sha_512_test_block_var = SHA_512_TEST_BLOCK.clone();
+        let mut sha_512_test_block_var = SHA_512_TEST_BLOCK;
         sha_512_test_block_var.to_big_endian();
 
         let mut sha = Sha512::new(Sha512Mode::Sha224);
@@ -205,7 +205,7 @@ mod tests {
 
     #[test]
     fn test_sha512_256() {
-        let mut sha_512_test_block_var = SHA_512_TEST_BLOCK.clone();
+        let mut sha_512_test_block_var = SHA_512_TEST_BLOCK;
         sha_512_test_block_var.to_big_endian();
 
         let mut sha = Sha512::new(Sha512Mode::Sha256);
@@ -226,7 +226,7 @@ mod tests {
 
     #[test]
     fn test_sha384() {
-        let mut sha_512_test_block_var = SHA_512_TEST_BLOCK.clone();
+        let mut sha_512_test_block_var = SHA_512_TEST_BLOCK;
         sha_512_test_block_var.to_big_endian();
 
         let mut sha = Sha512::new(Sha512Mode::Sha384);
@@ -248,7 +248,7 @@ mod tests {
 
     #[test]
     fn test_sha512() {
-        let mut sha_512_test_block_var = SHA_512_TEST_BLOCK.clone();
+        let mut sha_512_test_block_var = SHA_512_TEST_BLOCK;
         sha_512_test_block_var.to_big_endian();
 
         let mut sha = Sha512::new(Sha512Mode::Sha512);

@@ -255,7 +255,7 @@ mod tests {
         let inner_dir = dir.path().join("inner");
         create_dir(&inner_dir).unwrap();
         let file_path = inner_dir.join("file0.txt");
-        write(&file_path, "Hello").unwrap();
+        write(file_path, "Hello").unwrap();
         std::fs::set_permissions(&inner_dir, std::fs::Permissions::from_mode(0o000)).unwrap();
 
         assert!([&dir_path, &inner_dir].iter().all(|p| p.exists()));

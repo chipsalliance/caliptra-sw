@@ -746,7 +746,7 @@ mod tests {
     fn make_word(idx: usize, arr: &[u8]) -> RvData {
         let mut res: RvData = 0;
         for i in 0..4 {
-            res = res | ((arr[idx + i] as RvData) << i * 8);
+            res |= (arr[idx + i] as RvData) << (i * 8);
         }
         res
     }
@@ -1011,7 +1011,7 @@ mod tests {
             );
         }
 
-        let mut priv_key = PRIV_KEY.clone();
+        let mut priv_key = PRIV_KEY;
         priv_key.to_big_endian(); // Change DWORDs to big-endian.
 
         for i in (0..PRIV_KEY.len()).step_by(4) {
@@ -1059,7 +1059,7 @@ mod tests {
         // Test for getting the private key from the key-vault.
         for key_id in 0..8 {
             let clock = Clock::new();
-            let mut priv_key = PRIV_KEY.clone();
+            let mut priv_key = PRIV_KEY;
             priv_key.to_big_endian(); // Change DWORDs to big-endian.
 
             let mut key_vault = KeyVault::new();
@@ -1140,7 +1140,7 @@ mod tests {
         // Negative test for retrieving disallowed private key from the key-vault.
         for key_id in 0..8 {
             let clock = Clock::new();
-            let mut priv_key = PRIV_KEY.clone();
+            let mut priv_key = PRIV_KEY;
             priv_key.to_big_endian(); // Change DWORDs to big-endian.
 
             let mut key_vault = KeyVault::new();
@@ -1235,7 +1235,7 @@ mod tests {
                 clock.increment_and_poll(1, &mut ecc);
             }
 
-            let mut priv_key = PRIV_KEY.clone();
+            let mut priv_key = PRIV_KEY;
             priv_key.to_big_endian(); // Change DWORDs to big-endian.
 
             for i in (0..PRIV_KEY.len()).step_by(4) {
@@ -1337,7 +1337,7 @@ mod tests {
             );
         }
 
-        let mut pub_key_x_reverse = PUB_KEY_X.clone();
+        let mut pub_key_x_reverse = PUB_KEY_X;
         pub_key_x_reverse.to_big_endian();
 
         for i in (0..pub_key_x_reverse.len()).step_by(4) {
@@ -1352,7 +1352,7 @@ mod tests {
             );
         }
 
-        let mut pub_key_y_reverse = PUB_KEY_Y.clone();
+        let mut pub_key_y_reverse = PUB_KEY_Y;
         pub_key_y_reverse.to_big_endian();
 
         for i in (0..pub_key_y_reverse.len()).step_by(4) {
@@ -1367,7 +1367,7 @@ mod tests {
             );
         }
 
-        let mut sig_r_reverse = SIG_R.clone();
+        let mut sig_r_reverse = SIG_R;
         sig_r_reverse.to_big_endian();
 
         for i in (0..sig_r_reverse.len()).step_by(4) {
@@ -1382,7 +1382,7 @@ mod tests {
             );
         }
 
-        let mut sig_s_reverse = SIG_S.clone();
+        let mut sig_s_reverse = SIG_S;
         sig_s_reverse.to_big_endian();
 
         for i in (0..sig_s_reverse.len()).step_by(4) {
