@@ -336,7 +336,7 @@ impl<const N: usize> ReadWriteMemory<N> {
 
     /// Mutable reference to data
     pub fn data_mut(&mut self) -> &mut [u8; N] {
-        let ptr = self.data.data().as_ptr() as *mut [u8; N];
+        let ptr = self.data.data_mut().as_mut_ptr() as *mut [u8; N];
         unsafe { &mut *ptr }
     }
 }
@@ -392,7 +392,7 @@ impl<const N: usize> ReadOnlyMemory<N> {
 
     /// Mutable reference to data
     pub fn data_mut(&mut self) -> &mut [u8; N] {
-        let ptr = self.data.data().as_ptr() as *mut [u8; N];
+        let ptr = self.data.data_mut().as_mut_ptr() as *mut [u8; N];
         unsafe { &mut *ptr }
     }
 }
@@ -437,7 +437,7 @@ impl<const N: usize> WriteOnlyMemory<N> {
 
     /// Mutable reference to data
     pub fn data_mut(&mut self) -> &mut [u8; N] {
-        let ptr = self.data.data().as_ptr() as *mut [u8; N];
+        let ptr = self.data.data_mut().as_mut_ptr() as *mut [u8; N];
         unsafe { &mut *ptr }
     }
 }
