@@ -1,2 +1,4 @@
+# Licensed under the Apache-2.0 license
+
 [registries.crates-io]
 protocol = "sparse"
