@@ -38,13 +38,13 @@ impl CaliptraEmulator {
     pub fn new(rom: Vec<u8>, tb_services_cb: Box<dyn FnMut(u8)>) -> Self {
         let clock = Clock::new();
         let bus_args = CaliptraRootBusArgs {
-            rom: rom,
+            rom,
             tb_services_cb: TbServicesCb::new(tb_services_cb),
             ..CaliptraRootBusArgs::default()
         };
         let cpu = Cpu::new(CaliptraRootBus::new(&clock, bus_args), clock);
 
-        Self { cpu: cpu }
+        Self { cpu }
     }
 }
 
@@ -63,7 +63,7 @@ impl crate::HwModel for ModelEmulated {
     {
         let (generic_load_tx, generic_load_rx) = mpsc::channel();
         let m = ModelEmulated {
-            generic_load_rx: generic_load_rx,
+            generic_load_rx,
             output: Output::new(),
             emu: CaliptraEmulator::new(
                 params.rom.to_vec(),
@@ -75,7 +75,7 @@ impl crate::HwModel for ModelEmulated {
 
         Ok(m)
     }
-    fn apb_bus<'a>(&'a mut self) -> Self::TBus<'a> {
+    fn apb_bus(&mut self) -> Self::TBus<'_> {
         EmulatedApbBus { emu: &mut self.emu }
     }
 

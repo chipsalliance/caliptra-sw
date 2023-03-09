@@ -43,7 +43,7 @@ fn check_file(path: &Path) -> Result<(), Error> {
 fn fix_file(path: &Path) -> Result<(), Error> {
     let wrap_err = add_path(path);
 
-    let mut contents = Vec::from(match path.extension().map(|s| s.to_str()).flatten() {
+    let mut contents = Vec::from(match path.extension().and_then(|s| s.to_str()) {
         Some("rs" | "h" | "c" | "cpp" | "cc") => format!("// {REQUIRED_TEXT}\n"),
         Some("toml" | "sh" | "py") => format!("# {REQUIRED_TEXT}\n"),
         Some("ld") => format!("/* {REQUIRED_TEXT} */\n"),
@@ -55,7 +55,7 @@ fn fix_file(path: &Path) -> Result<(), Error> {
         }
     });
     let mut prev_contents = std::fs::read(path).map_err(wrap_err)?;
-    if prev_contents.iter().next() != Some(&b'\n') {
+    if prev_contents.first() != Some(&b'\n') {
         contents.push(b'\n');
     }
     contents.append(&mut prev_contents);
@@ -98,7 +98,7 @@ fn main() {
 
     let check_only = if args == ["--check"] {
         true
-    } else if args.len() == 0 {
+    } else if args.is_empty() {
         false
     } else {
         println!("Usage: file-header-fix [--check]");
