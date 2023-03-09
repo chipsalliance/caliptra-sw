@@ -12,10 +12,13 @@ mod model_verilated;
 mod output;
 mod rv32_builder;
 
+mod soc_flows;
+
 use mmio::BusMmio;
 pub use output::Output;
 
 pub use model_emulated::ModelEmulated;
+pub use soc_flows::SocFlows;
 
 #[cfg(feature = "verilator")]
 pub use model_verilated::ModelVerilated;
