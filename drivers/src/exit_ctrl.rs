@@ -33,6 +33,7 @@ impl ExitCtrl {
             }
         }
 
+        #[allow(clippy::empty_loop)]
         loop {}
     }
 }
