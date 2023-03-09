@@ -91,4 +91,8 @@ impl crate::HwModel for ModelEmulated {
 
         &mut self.output
     }
+
+    fn tracing_hint(&mut self, _enable: bool) {
+        todo!();
+    }
 }

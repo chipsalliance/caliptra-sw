@@ -12,16 +12,15 @@ mod model_verilated;
 mod output;
 mod rv32_builder;
 
-mod soc_flows;
-
 use mmio::BusMmio;
 pub use output::Output;
 
 pub use model_emulated::ModelEmulated;
-pub use soc_flows::SocFlows;
 
 #[cfg(feature = "verilator")]
 pub use model_verilated::ModelVerilated;
+
+use caliptra_emu_types::RvSize;
 
 /// Constructs an HwModel based on the cargo features and environment
 /// variables. Most test cases that need to construct a HwModel should use this
@@ -55,7 +54,13 @@ pub struct InitParams<'a> {
     pub iccm: &'a [u8],
 }
 
-pub enum ModelError {}
+pub enum ModelError {
+    MailboxErr,
+    NotReadyForFwErr,
+}
+
+/// Firmware Load Command Opcode
+const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
 
 // Represents a emulator or simulation of the caliptra hardware, to be called
 // from tests. Typically, test cases should use `create()` to create a model
@@ -127,6 +132,54 @@ pub trait HwModel {
             )
         }
     }
+
+    fn tracing_hint(&mut self, enable: bool);
+
+    /// Upload firmware to the mailbox.
+    fn upload_firmware(&mut self, firmware: &Vec<u8>) -> Result<(), ModelError> {
+        if self.soc_mbox().lock().read().lock() {
+            return Err(ModelError::MailboxErr);
+        }
+        if !self.soc_mbox().lock().read().lock() {
+            return Err(ModelError::MailboxErr);
+        }
+        #[cfg(feature = "verilator")]
+        if !self.soc_ifc().cptra_flow_status().read().ready_for_fw() {
+            return Err(ModelError::NotReadyForFwErr);
+        }
+
+        self.soc_mbox().cmd().write(|_| FW_LOAD_CMD_OPCODE);
+
+        self.soc_mbox().dlen().write(|_| firmware.len() as u32);
+
+        let word_size = RvSize::Word as usize;
+        let remainder = firmware.len() % word_size;
+        let n = firmware.len() - remainder;
+
+        for idx in (0..n).step_by(word_size) {
+            let val = u32::from_le_bytes(firmware[idx..idx + word_size].try_into().unwrap());
+            self.soc_mbox().datain().write(|_| val);
+        }
+
+        // Handle the remainder bytes.
+        if remainder > 0 {
+            let mut last_word = firmware[n] as u32;
+            for idx in 1..remainder {
+                last_word |= (firmware[n + idx] as u32) << (idx << 3);
+            }
+            self.soc_mbox().datain().write(|_| last_word);
+        }
+
+        // Set the status as DATA_READY.
+        self.soc_mbox()
+            .status()
+            .write(|w| w.status(|w| w.data_ready()));
+
+        // Set Execute Bit
+        self.soc_mbox().execute().write(|w| w.execute(true));
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -142,6 +195,15 @@ mod tests {
     const MBOX_ADDR_LOCK: u32 = MBOX_ADDR_BASE;
     const MBOX_ADDR_CMD: u32 = MBOX_ADDR_BASE + 0x0000_0008;
 
+    #[cfg(feature = "verilator")]
+    fn gen_image_fw_ready() -> Vec<u8> {
+        let rv32_gen = Rv32GenMmio::new();
+        let soc_ifc =
+            unsafe { soc_ifc::RegisterBlock::new_with_mmio(0x3003_0000 as *mut u32, &rv32_gen) };
+
+        soc_ifc.cptra_flow_status().write(|w| w.ready_for_fw(true));
+        rv32_gen.build()
+    }
     fn gen_image_hi() -> Vec<u8> {
         let rv32_gen = Rv32GenMmio::new();
         let soc_ifc =
@@ -223,5 +285,47 @@ mod tests {
             model.step_until_output("ha").err().unwrap().to_string(),
             "expected output \"ha\", was \"hi\""
         );
+    }
+
+    #[test]
+    pub fn test_upload_firmware() {
+        let firmware: Vec<u8> = [
+            0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
+            0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
+            0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
+            0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
+        ]
+        .into();
+
+        let mut model = caliptra_hw_model::create(InitParams {
+            #[cfg(feature = "verilator")]
+            rom: &gen_image_fw_ready(),
+            ..Default::default()
+        })
+        .unwrap();
+
+        // Wait for ROM to request firmware.
+        #[cfg(feature = "verilator")]
+        model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+
+        assert!(model.upload_firmware(&firmware).is_ok());
+
+        assert_eq!(
+            model.soc_mbox().cmd().read(),
+            caliptra_hw_model::FW_LOAD_CMD_OPCODE
+        );
+        assert_eq!(model.soc_mbox().dlen().read(), firmware.len() as u32);
+        assert!(model.soc_mbox().status().read().status().data_ready());
+
+        // Read the data out of the mailbox.
+        let mut temp: Vec<u32> = Vec::new();
+        let mut word_count = (firmware.len() + 3) >> 2;
+        while word_count > 0 {
+            let word = model.soc_mbox().dataout().read();
+            temp.push(word);
+            word_count -= 1;
+        }
+        let fw_img_from_mb: Vec<u8> = temp.iter().flat_map(|val| val.to_le_bytes()).collect();
+        assert_eq!(firmware, fw_img_from_mb[..firmware.len()]);
     }
 }

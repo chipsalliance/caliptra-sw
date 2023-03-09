@@ -7,6 +7,7 @@ use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_verilated::CaliptraVerilated;
 
 use crate::Output;
+use std::env;
 
 // TODO: Make this configurable
 const SOC_PAUSER: u32 = 0xffff_ffff;
@@ -44,6 +45,16 @@ pub struct ModelVerilated {
 
     generic_load_rx: mpsc::Receiver<u8>,
     output: Output,
+    trace_enabled: bool,
+}
+
+impl ModelVerilated {
+    pub fn start_tracing(&mut self, path: &str, depth: i32) {
+        self.v.start_tracing(path, depth).unwrap();
+    }
+    pub fn stop_tracing(&mut self) {
+        self.v.stop_tracing();
+    }
 }
 
 impl crate::HwModel for ModelVerilated {
@@ -75,6 +86,7 @@ impl crate::HwModel for ModelVerilated {
             v,
             generic_load_rx,
             output: Output::new(),
+            trace_enabled: false,
         };
 
         m.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
@@ -101,5 +113,18 @@ impl crate::HwModel for ModelVerilated {
         }
 
         &mut self.output
+    }
+
+    fn tracing_hint(&mut self, enable: bool) {
+        if self.trace_enabled != enable {
+            self.trace_enabled = enable;
+            if enable {
+                if let Ok(trace_path) = env::var("CPTRA_TRACE_PATH") {
+                    self.v.start_tracing(&trace_path, 99).ok();
+                }
+            } else {
+                self.v.stop_tracing();
+            }
+        }
     }
 }
