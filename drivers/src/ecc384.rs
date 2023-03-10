@@ -182,6 +182,7 @@ impl Ecc384 {
     /// # Arguments
     ///
     /// * `seed` - Seed for deterministic ECC Key Pair generation
+    /// * `nonce` - Nonce for deterministic ECC Key Pair generation
     /// * `priv_key` - Generate ECC-384 Private key
     ///
     /// # Returns
@@ -190,6 +191,7 @@ impl Ecc384 {
     pub fn key_pair(
         &self,
         seed: Ecc384Seed,
+        nonce: &Array4x12,
         mut priv_key: Ecc384PrivKeyOut,
     ) -> CaliptraResult<Ecc384PubKey> {
         let ecc = ecc::RegisterBlock::ecc_reg();
@@ -215,6 +217,9 @@ impl Ecc384 {
                     .map_err(|err| err.into_read_seed_err())?
             }
         }
+
+        // Copy nonce to the hardware
+        KvAccess::copy_from_arr(nonce, ecc.nonce())?;
 
         // Program the command register for key generation
         ecc.ctrl().write(|w| w.ctrl(|w| w.keygen()));
