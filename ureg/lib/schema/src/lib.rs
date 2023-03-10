@@ -70,7 +70,7 @@ mod registerfield_tests {
 
         assert_eq!(
             RegisterField {
-                position: 1,
+                position: *&1,
                 width: 3,
                 ..Default::default()
             }
