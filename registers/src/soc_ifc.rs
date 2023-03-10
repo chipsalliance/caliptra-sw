@@ -401,6 +401,34 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
             )
         }
     }
+    /// Caliptra HW revision ID that matches the official final release milestone
+    /// [br]Caliptra Access: RO
+    /// [br]SOC Access:      RO
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    pub fn cptra_hw_rev_id(&self) -> ureg::RegRef<crate::soc_ifc::meta::CptraHwRevId, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0xd0 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Caliptra FW revision ID
+    /// [br]Caliptra Access: RW
+    /// [br]SOC Access:      RO
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    pub fn cptra_fw_rev_id(
+        &self,
+    ) -> ureg::Array<2, ureg::RegRef<crate::soc_ifc::meta::CptraFwRevId, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0xd4 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
     /// Obfuscated UDS.
     /// [br]Caliptra Access: -
     /// [br]SOC Access:      WL-S
@@ -1381,6 +1409,8 @@ pub mod meta {
     >;
     pub type CptraGenericInputWires = ureg::ReadOnlyReg32<u32>;
     pub type CptraGenericOutputWires = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraHwRevId = ureg::ReadOnlyReg32<u32>;
+    pub type CptraFwRevId = ureg::ReadWriteReg32<0, u32, u32>;
     pub type FuseUdsSeed = ureg::WriteOnlyReg32<0, u32>;
     pub type FuseFieldEntropy = ureg::WriteOnlyReg32<0, u32>;
     pub type FuseKeyManifestPkHash = ureg::ReadWriteReg32<0, u32, u32>;

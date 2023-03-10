@@ -265,6 +265,20 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
             )
         }
     }
+    /// 12 32-bit registers storing the 384-bit nonce for keygen.
+    /// The nonce can be any 384-bit value in [0 : 2^384-1].
+    /// These registers are located at ECC_base_address +
+    /// 0x0000_0500 to 0x0000_052C in big-endian representation.
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    pub fn nonce(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::Nonce, &TMmio>> {
+        unsafe {
+            ureg::Array::new_with_mmio(
+                self.ptr.wrapping_add(0x500 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
     /// Controls the Key Vault read access for this engine
     ///
     /// Read value: [`regs::KvReadCtrlRegReadVal`]; Write value: [`regs::KvReadCtrlRegWriteVal`]
@@ -1080,6 +1094,7 @@ pub mod meta {
     pub type SignS = ureg::ReadWriteReg32<0, u32, u32>;
     pub type VerifyR = ureg::ReadOnlyReg32<u32>;
     pub type Iv = ureg::WriteOnlyReg32<0, u32>;
+    pub type Nonce = ureg::WriteOnlyReg32<0, u32>;
     pub type KvRdPkeyCtrl = ureg::ReadWriteReg32<
         0,
         crate::regs::KvReadCtrlRegReadVal,
