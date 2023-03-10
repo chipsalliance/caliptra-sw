@@ -394,10 +394,10 @@ mod tests {
         ($func:ident, $size:path, $aligned:literal) => {
             #[test]
             fn $func() {
-                fn make_word(size: usize, idx: usize, vec: &Vec<u8>) -> RvData {
+                fn make_word(size: usize, idx: usize, vec: &[u8]) -> RvData {
                     let mut res: RvData = 0;
                     for i in 0..size {
-                        res = res | ((vec[idx + i] as RvData) << i * 8);
+                        res |= ((vec[idx + i] as RvData) << i * 8);
                     }
                     res
                 }

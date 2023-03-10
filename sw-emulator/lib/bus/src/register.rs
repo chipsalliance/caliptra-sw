@@ -324,6 +324,7 @@ impl<const N: usize> ReadWriteMemory<N> {
     }
 
     /// Size of the memory in bytes
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> RvAddr {
         self.data.len() as RvAddr
     }
@@ -358,6 +359,11 @@ impl<const N: usize> Bus for ReadWriteMemory<N> {
         }
     }
 }
+impl<const N: usize> Default for ReadWriteMemory<N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// Fixed sized Read Only Memory
 pub struct ReadOnlyMemory<const N: usize> {
@@ -380,6 +386,7 @@ impl<const N: usize> ReadOnlyMemory<N> {
     }
 
     /// Size of the memory in bytes
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> RvAddr {
         self.data.len() as RvAddr
     }
@@ -411,6 +418,11 @@ impl<const N: usize> Bus for ReadOnlyMemory<N> {
         Err(BusError::StoreAccessFault)
     }
 }
+impl<const N: usize> Default for ReadOnlyMemory<N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// Fixed sized Write Only Memory
 pub struct WriteOnlyMemory<const N: usize> {
@@ -425,6 +437,7 @@ impl<const N: usize> WriteOnlyMemory<N> {
         }
     }
     /// Size of the memory in bytes
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> RvAddr {
         self.data.len() as RvAddr
     }
@@ -454,6 +467,11 @@ impl<const N: usize> Bus for WriteOnlyMemory<N> {
             Ok(data) => Ok(data),
             Err(error) => Err(error.into()),
         }
+    }
+}
+impl<const N: usize> Default for WriteOnlyMemory<N> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

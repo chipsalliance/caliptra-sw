@@ -44,7 +44,7 @@ impl Aes256Cbc {
 
         // IV is received as a list of big-endian DWORDs.
         // Convert them to little-endian.
-        let mut iv_be = iv.clone();
+        let mut iv_be = *iv;
         iv_be.to_little_endian();
 
         // Not changing key or cipher text endianess since it is internal from the firmware crypto API perspective.

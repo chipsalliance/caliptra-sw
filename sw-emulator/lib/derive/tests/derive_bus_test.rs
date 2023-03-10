@@ -23,6 +23,7 @@ impl From<MyCustomField> for RvData {
 
 #[derive(Bus)]
 #[poll_fn(poll)]
+#[allow(clippy::manual_non_exhaustive)]
 struct MyBus {
     pub log: Log,
 

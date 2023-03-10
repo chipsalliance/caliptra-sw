@@ -421,8 +421,7 @@ mod tests {
         let rom = Rom::new(
             std::iter::repeat(RV32_NO_OP)
                 .take(256)
-                .map(u32::to_le_bytes)
-                .flatten()
+                .flat_map(u32::to_le_bytes)
                 .collect(),
         );
         bus.attach_dev("ROM", 0..=0x3ff, Box::new(rom)).unwrap();

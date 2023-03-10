@@ -254,13 +254,13 @@ impl HashSha512 {
             self.sha512.reset(mode);
 
             // Update the SHA512 engine with a new block
-            self.sha512.update(&self.block.data());
+            self.sha512.update(self.block.data());
 
             // Schedule a future call to poll() complete the operation.
             self.op_complete_action = Some(self.timer.schedule_poll_in(INIT_TICKS));
         } else if self.control.reg.is_set(Control::NEXT) {
             // Update the SHA512 engine with a new block
-            self.sha512.update(&self.block.data());
+            self.sha512.update(self.block.data());
 
             // Schedule a future call to poll() complete the operation.
             self.op_complete_action = Some(self.timer.schedule_poll_in(UPDATE_TICKS));
@@ -356,7 +356,7 @@ impl HashSha512 {
 
     fn op_complete(&mut self) {
         // Retrieve the hash
-        self.sha512.hash(self.hash.data_mut());
+        self.sha512.copy_hash(self.hash.data_mut());
 
         // Check if hash write control is enabled.
         if self
@@ -399,8 +399,8 @@ impl HashSha512 {
             None => (BlockReadStatus::ERROR::KV_SUCCESS.value, result.ok()),
         };
 
-        if data != None {
-            self.format_block(&data.unwrap());
+        if let Some(data) = &data {
+            self.format_block(data);
         }
 
         self.block_read_status.reg.modify(
@@ -568,12 +568,12 @@ mod tests {
         data: &[u8],
         expected: &[u8],
         mode: Sha512Mode,
-        keyvault_actions: &Vec<KeyVaultAction>,
+        keyvault_actions: &[KeyVaultAction],
     ) {
         fn make_word(idx: usize, arr: &[u8]) -> RvData {
             let mut res: RvData = 0;
             for i in 0..4 {
-                res = res | ((arr[idx + i] as RvData) << i * 8);
+                res |= (arr[idx + i] as RvData) << (i * 8);
             }
             res
         }
@@ -612,11 +612,11 @@ mod tests {
             }
         }
 
-        if block_via_kv == true {
+        if block_via_kv {
             assert!(data.len() % 4 == 0);
             assert!(data.len() <= (SHA512_BLOCK_SIZE - (16 + 1)));
         } else {
-            block_arr[..data.len()].copy_from_slice(&data);
+            block_arr[..data.len()].copy_from_slice(data);
             block_arr[data.len()] = 1 << 7;
 
             let len: u128 = data.len() as u128;
@@ -630,9 +630,9 @@ mod tests {
         let mut key_vault = KeyVault::new();
 
         // Add the test block to the key-vault.
-        if block_via_kv == true {
+        if block_via_kv {
             let mut block: [u8; KeyVault::KEY_SIZE] = [0; KeyVault::KEY_SIZE];
-            block[..data.len()].copy_from_slice(&data);
+            block[..data.len()].copy_from_slice(data);
             block.to_big_endian(); // Keys are stored in big-endian format.
             let mut key_usage = KeyUsage::default();
             key_usage.set_sha_data(true);
@@ -641,7 +641,7 @@ mod tests {
                 .write_key(block_id, &block, u32::from(key_usage))
                 .unwrap();
 
-            if block_read_disallowed == true {
+            if block_read_disallowed {
                 let val_reg = InMemoryRegister::<u32, key_vault::KV_CONTROL::Register>::new(0);
                 val_reg.write(key_vault::KV_CONTROL::USE_LOCK.val(1)); // Key read disabled.
                 assert_eq!(
@@ -673,8 +673,8 @@ mod tests {
         }
 
         // For negative hash write test, make the key-slot uneditable.
-        if hash_write_fail_test == true {
-            assert_eq!(hash_to_kv, true);
+        if hash_write_fail_test {
+            assert!(hash_to_kv);
             let val_reg = InMemoryRegister::<u32, key_vault::KV_CONTROL::Register>::new(0);
             val_reg.write(key_vault::KV_CONTROL::WRITE_LOCK.val(1)); // Key write disabled.
             assert_eq!(
@@ -692,7 +692,7 @@ mod tests {
 
         let mut sha512 = HashSha512::new(&clock, key_vault);
 
-        if hash_to_kv == true {
+        if hash_to_kv {
             // Instruct hash to be written to the key-vault.
             let mut key_usage = KeyUsage::default();
             key_usage.set_sha_data(true);
@@ -713,7 +713,7 @@ mod tests {
 
         // Process each block via the SHA engine.
         for idx in 0..totalblocks {
-            if block_via_kv == false {
+            if !block_via_kv {
                 for i in (0..SHA512_BLOCK_SIZE).step_by(4) {
                     assert_eq!(
                         sha512
@@ -753,7 +753,7 @@ mod tests {
                         if block_read_status.read(BlockReadStatus::ERROR)
                             != BlockReadStatus::ERROR::KV_SUCCESS.value
                         {
-                            assert_eq!((block_read_disallowed || block_disallowed_for_sha), true);
+                            assert!((block_read_disallowed || block_disallowed_for_sha));
                             return;
                         }
 
@@ -764,14 +764,12 @@ mod tests {
             }
 
             if idx == 0 {
-                let modebits;
-
-                match mode {
-                    Sha512Mode::Sha224 => modebits = 0,
-                    Sha512Mode::Sha256 => modebits = 1,
-                    Sha512Mode::Sha384 => modebits = 2,
-                    Sha512Mode::Sha512 => modebits = 3,
-                }
+                let modebits = match mode {
+                    Sha512Mode::Sha224 => 0,
+                    Sha512Mode::Sha256 => 1,
+                    Sha512Mode::Sha384 => 2,
+                    Sha512Mode::Sha512 => 3,
+                };
 
                 let control: ReadWriteRegister<u32, Control::Register> = ReadWriteRegister::new(0);
                 control.reg.modify(Control::MODE.val(modebits));
@@ -793,7 +791,7 @@ mod tests {
             }
 
             loop {
-                if hash_to_kv == false {
+                if !hash_to_kv {
                     let status = InMemoryRegister::<u32, Status::Register>::new(
                         sha512.read(RvSize::Word, OFFSET_STATUS).unwrap(),
                     );
@@ -811,7 +809,7 @@ mod tests {
                         if hash_write_status.read(HashWriteStatus::ERROR)
                             != HashWriteStatus::ERROR::KV_SUCCESS.value
                         {
-                            assert_eq!(hash_write_fail_test, true);
+                            assert!(hash_write_fail_test);
                             return;
                         }
                         break;
@@ -823,13 +821,13 @@ mod tests {
         }
 
         let mut hash_le: [u8; SHA512_HASH_SIZE] = [0; SHA512_HASH_SIZE];
-        if hash_to_kv == true {
+        if hash_to_kv {
             let mut key_usage = KeyUsage::default();
             key_usage.set_sha_data(true);
             hash_le[..KeyVault::KEY_SIZE]
                 .copy_from_slice(&sha512.key_vault.read_key(hash_id, key_usage).unwrap()[..]);
         } else {
-            hash_le[..sha512.hash().len()].clone_from_slice(&sha512.hash());
+            hash_le[..sha512.hash().len()].clone_from_slice(sha512.hash());
         }
         hash_le.to_little_endian();
         assert_eq!(&hash_le[0..sha512.hash().len()], expected);
@@ -847,7 +845,7 @@ mod tests {
             0x2A, 0x9A, 0xC9, 0x4F, 0xA5, 0x4C, 0xA4, 0x9F,
         ];
 
-        test_sha(&SHA_512_TEST_BLOCK, &expected, Sha512Mode::Sha512, &vec![]);
+        test_sha(&SHA_512_TEST_BLOCK, &expected, Sha512Mode::Sha512, &[]);
     }
 
     #[test]
@@ -877,7 +875,7 @@ mod tests {
             &SHA_512_TEST_MULTI_BLOCK,
             &expected,
             Sha512Mode::Sha512,
-            &vec![],
+            &[],
         );
     }
 
@@ -890,7 +888,7 @@ mod tests {
             0xEC, 0xA1, 0x34, 0xC8, 0x25, 0xA7,
         ];
 
-        test_sha(&SHA_512_TEST_BLOCK, &expected, Sha512Mode::Sha384, &vec![]);
+        test_sha(&SHA_512_TEST_BLOCK, &expected, Sha512Mode::Sha384, &[]);
     }
 
     #[test]
@@ -900,7 +898,7 @@ mod tests {
             0x42, 0xE2, 0x0E, 0x37, 0xED, 0x26, 0x5C, 0xEE, 0xE9, 0xA4, 0x3E, 0x89, 0x24, 0xAA,
         ];
 
-        test_sha(&SHA_512_TEST_BLOCK, &expected, Sha512Mode::Sha224, &vec![]);
+        test_sha(&SHA_512_TEST_BLOCK, &expected, Sha512Mode::Sha224, &[]);
     }
 
     #[test]
@@ -911,7 +909,7 @@ mod tests {
             0x07, 0xE7, 0xAF, 0x23,
         ];
 
-        test_sha(&SHA_512_TEST_BLOCK, &expected, Sha512Mode::Sha256, &vec![]);
+        test_sha(&SHA_512_TEST_BLOCK, &expected, Sha512Mode::Sha256, &[]);
     }
 
     #[test]
@@ -935,7 +933,7 @@ mod tests {
                 &test_block,
                 &expected,
                 Sha512Mode::Sha384,
-                &vec![KeyVaultAction::BlockFromVault(key_id)],
+                &[KeyVaultAction::BlockFromVault(key_id)],
             );
         }
     }
@@ -962,7 +960,7 @@ mod tests {
                 &test_block,
                 &expected,
                 Sha512Mode::Sha384,
-                &vec![
+                &[
                     KeyVaultAction::BlockFromVault(key_id),
                     KeyVaultAction::BlockReadDisallowed(true),
                 ],
@@ -975,7 +973,7 @@ mod tests {
                 &test_block,
                 &expected,
                 Sha512Mode::Sha384,
-                &vec![
+                &[
                     KeyVaultAction::BlockFromVault(key_id),
                     KeyVaultAction::BlockDisallowedForSHA(true),
                 ],
@@ -1004,7 +1002,7 @@ mod tests {
                 &test_block,
                 &expected,
                 Sha512Mode::Sha384,
-                &vec![KeyVaultAction::HashToVault(key_id)],
+                &[KeyVaultAction::HashToVault(key_id)],
             );
         }
     }
@@ -1030,7 +1028,7 @@ mod tests {
                 &test_block,
                 &expected,
                 Sha512Mode::Sha384,
-                &vec![
+                &[
                     KeyVaultAction::HashToVault(key_id),
                     KeyVaultAction::HashWriteFailTest(true),
                 ],
@@ -1059,7 +1057,7 @@ mod tests {
                 &test_block,
                 &expected,
                 Sha512Mode::Sha384,
-                &vec![
+                &[
                     KeyVaultAction::BlockFromVault(key_id),
                     KeyVaultAction::HashToVault((key_id + 1) % KeyVault::KEY_COUNT),
                 ],

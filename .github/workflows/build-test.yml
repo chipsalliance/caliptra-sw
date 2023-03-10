@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     env:
+      RUST_TOOLCHAIN_VERSION: 1.68.0
       CARGO_INCREMENTAL: 0
       SCCACHE_VERSION: 0.3.3
       SCCACHE_GHA_CACHE_TO: sccache-caliptra-sw
@@ -60,10 +61,13 @@ jobs:
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
-      - name: Update to latest stable Rust toolchain
+      - name: Set Rust ${{ env.RUST_TOOLCHAIN_VERSION }} as the default toolchain.
         run: |
-          rm -f ~/.cargo/bin/rustfmt ~/.cargo/bin/cargo-fmt
-          rustup update
+          rustup default ${RUST_TOOLCHAIN_VERSION}
+          rustup component add rustfmt clippy
+          rustc --version
+          cargo fmt --version
+          cargo clippy --version
 
       - name: Check source-code formatting (run "cargo fmt" if this fails)
         run: |
@@ -94,6 +98,12 @@ jobs:
           drivers/test-fw/build.sh
           (cd fmc && cargo make build)
           sccache --show-stats
+
+      # Clippy needs to build crates as part of the check, so do it after the
+      # build.
+      - name: Clippy lint check
+        run: |
+          cargo clippy --all-targets -- -D warnings
 
       - name: Run unit tests
         run: |

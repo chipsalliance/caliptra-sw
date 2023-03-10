@@ -194,6 +194,11 @@ impl KeyVault {
         self.regs.borrow_mut().write_pcr(pcr_id, pcr)
     }
 }
+impl Default for KeyVault {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Bus for KeyVault {
     /// Read data of specified size from given address
@@ -702,12 +707,9 @@ mod tests {
                 Some(())
             );
 
-            assert_eq!(
-                vault
-                    .write_key(key_id, &expected, u32::from(key_usage))
-                    .is_ok(),
-                true
-            );
+            assert!(vault
+                .write_key(key_id, &expected, u32::from(key_usage))
+                .is_ok());
 
             // Block read access to the key.
             val_reg.write(KV_CONTROL::USE_LOCK.val(1));

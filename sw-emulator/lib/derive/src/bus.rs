@@ -37,12 +37,12 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
     let mask_matches = build_match_tree_from_fields(&peripheral_fields);
 
     let read_bus_match_tokens = if let Some(mask_matches) = &mask_matches {
-        gen_bus_match_tokens(&mask_matches, AccessType::Read)
+        gen_bus_match_tokens(mask_matches, AccessType::Read)
     } else {
         quote! {}
     };
     let write_bus_match_tokens = if let Some(mask_matches) = &mask_matches {
-        gen_bus_match_tokens(&mask_matches, AccessType::Write)
+        gen_bus_match_tokens(mask_matches, AccessType::Write)
     } else {
         quote! {}
     };
@@ -84,7 +84,7 @@ fn get_poll_fn(struct_attrs: &[Group]) -> Option<String> {
     for attr in struct_attrs {
         let mut iter = attr.stream().into_iter();
         if let Some(TokenTree::Ident(ident)) = iter.next() {
-            if ident.to_string() == "poll_fn" {
+            if ident == "poll_fn" {
                 if let Some(TokenTree::Group(group)) = iter.next() {
                     if let Some(TokenTree::Ident(ident)) = group.stream().into_iter().next() {
                         return Some(ident.to_string());
@@ -395,11 +395,11 @@ fn gen_register_match_tokens(registers: &[RegisterField], access_type: AccessTyp
                         let pattern = array_match_pattern();
                         let array_index = array_index();
                         quote! {
-                            #pattern => return caliptra_emu_bus::Register::read(&mut self.#reg_name[#array_index], size),
+                            #pattern => return caliptra_emu_bus::Register::read(&self.#reg_name[#array_index], size),
                         }
                     } else {
                         quote! {
-                            #offset => return caliptra_emu_bus::Register::read(&mut self.#reg_name, size),
+                            #offset => return caliptra_emu_bus::Register::read(&self.#reg_name, size),
                         }
                     }
                 } else {
@@ -628,14 +628,14 @@ mod tests {
                         const CONST2: u32 = (0xcafe_f11c + (<[u32; 2] as caliptra_emu_bus::RegisterArray>::LEN - 1) * <[u32; 2] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE) as u32;
                         const CONST3: u32 = (0xcafe_f134 + (5usize - 1) * 4usize) as u32;
                         match addr {
-                            0xcafe_f0d0 => return caliptra_emu_bus::Register::read(&mut self.reg_u32, size),
-                            0xcafe_f0d4 => return caliptra_emu_bus::Register::read(&mut self.reg_u16, size),
-                            0xcafe_f0d8 => return caliptra_emu_bus::Register::read(&mut self.reg_u8, size),
+                            0xcafe_f0d0 => return caliptra_emu_bus::Register::read(&self.reg_u32, size),
+                            0xcafe_f0d4 => return caliptra_emu_bus::Register::read(&self.reg_u16, size),
+                            0xcafe_f0d8 => return caliptra_emu_bus::Register::read(&self.reg_u8, size),
                             0xcafe_f0e0 => return std::result::Result::Ok(std::convert::Into::<caliptra_emu_types::RvAddr>::into(self.reg_action0_read(size)?)),
-                            0xcafe_f0e4 => return caliptra_emu_bus::Register::read(&mut self.reg_action1, size),
-                            0xcafe_f0f4..=CONST0 if (addr as usize) % <[u32; 5] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE == 0 => return caliptra_emu_bus::Register::read(&mut self.reg_array[(addr - 0xcafe_f0f4) as usize /  <[u32; 5] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE], size),
+                            0xcafe_f0e4 => return caliptra_emu_bus::Register::read(&self.reg_action1, size),
+                            0xcafe_f0f4..=CONST0 if (addr as usize) % <[u32; 5] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE == 0 => return caliptra_emu_bus::Register::read(&self.reg_array[(addr - 0xcafe_f0f4) as usize /  <[u32; 5] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE], size),
                             0xcafe_f114..=CONST1 if (addr as usize) % <[u32; 2] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE == 0 => return std::result::Result::Ok(std::convert::Into::<caliptra_emu_types::RvAddr>::into(self.reg_array_action0_read(size, (addr - 0xcafe_f114) as usize /  <[u32; 2] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE)?)),
-                            0xcafe_f11c..=CONST2 if (addr as usize) % <[u32; 2] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE == 0 => return caliptra_emu_bus::Register::read(&mut self.reg_array_action1[(addr - 0xcafe_f11c) as usize /  <[u32; 2] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE], size),
+                            0xcafe_f11c..=CONST2 if (addr as usize) % <[u32; 2] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE == 0 => return caliptra_emu_bus::Register::read(&self.reg_array_action1[(addr - 0xcafe_f11c) as usize /  <[u32; 2] as caliptra_emu_bus::RegisterArray>::ITEM_SIZE], size),
                             0xcafe_f0e8 => return std::result::Result::Ok(std::convert::Into::<caliptra_emu_types::RvAddr>::into(self.reg_action2_read(size)?)),
                             0xcafe_f0ec => return std::result::Result::Ok(std::convert::Into::<caliptra_emu_types::RvAddr>::into(self.reg_action3_read(size)?)),
                             0xcafe_f134..=CONST3 if (addr as usize) % 4usize == 0 => return std::result::Result::Ok(std::convert::Into::<caliptra_emu_types::RvAddr>::into(self.reg_array_action2_read(size, (addr - 0xcafe_f134) as usize / 4usize)?)),

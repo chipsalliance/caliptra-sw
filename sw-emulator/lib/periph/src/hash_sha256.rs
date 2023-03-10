@@ -170,13 +170,13 @@ impl HashSha256 {
             self.sha256.reset(mode);
 
             // Update the SHA256 engine with a new block
-            self.sha256.update(&self.block.data());
+            self.sha256.update(self.block.data());
 
             // Schedule a future call to poll() complete the operation.
             self.op_complete_action = Some(self.timer.schedule_poll_in(INIT_TICKS));
         } else if self.control.reg.is_set(Control::NEXT) {
             // Update the SHA512 engine with a new block
-            self.sha256.update(&self.block.data());
+            self.sha256.update(self.block.data());
 
             // Schedule a future call to poll() complete the operation.
             self.op_complete_action = Some(self.timer.schedule_poll_in(UPDATE_TICKS));
@@ -284,7 +284,7 @@ mod tests {
         fn make_word(idx: usize, arr: &[u8]) -> RvData {
             let mut res: RvData = 0;
             for i in 0..4 {
-                res = res | ((arr[idx + i] as RvData) << i * 8);
+                res |= (arr[idx + i] as RvData) << (i * 8);
             }
             res
         }
@@ -295,7 +295,7 @@ mod tests {
 
         let mut block_arr = vec![0; totalbytes];
 
-        block_arr[..data.len()].copy_from_slice(&data);
+        block_arr[..data.len()].copy_from_slice(data);
         block_arr[data.len()] = 1 << 7;
 
         let len: u64 = data.len() as u64;
@@ -323,12 +323,10 @@ mod tests {
             }
 
             if idx == 0 {
-                let modebits;
-
-                match mode {
-                    Sha256Mode::Sha224 => modebits = 0,
-                    Sha256Mode::Sha256 => modebits = 1,
-                }
+                let modebits = match mode {
+                    Sha256Mode::Sha224 => 0,
+                    Sha256Mode::Sha256 => 1,
+                };
 
                 let control: ReadWriteRegister<u32, Control::Register> = ReadWriteRegister::new(0);
                 control.reg.modify(Control::MODE.val(modebits));
@@ -362,19 +360,19 @@ mod tests {
         }
 
         let mut hash_le: [u8; 32] = [0; 32];
-        hash_le[..sha256.hash().len()].clone_from_slice(&sha256.hash());
+        hash_le[..sha256.hash().len()].clone_from_slice(sha256.hash());
         hash_le.to_little_endian();
         assert_eq!(&hash_le[0..sha256.hash().len()], expected);
     }
 
-    #[cfg_attr(rustfmt, rustfmt_skip)]
+    #[rustfmt::skip]
     const SHA_256_TEST_BLOCK: [u8; 3] = [
         0x61, 0x62, 0x63, 
     ];
 
     #[test]
     fn test_sha256_224() {
-        #[cfg_attr(rustfmt, rustfmt_skip)]
+        #[rustfmt::skip]
             let expected: [u8; 28] = [
             0x23, 0x09, 0x7d, 0x22, 0x34, 0x05, 0xd8, 0x22, 0x86, 0x42, 0xa4, 0x77, 0xbd, 0xa2, 0x55, 0xb3,
             0x2a, 0xad, 0xbc, 0xe4, 0xbd, 0xa0, 0xb3, 0xf7, 0xe3, 0x6c, 0x9d, 0xa7,
@@ -385,7 +383,7 @@ mod tests {
 
     #[test]
     fn test_sha256_256() {
-        #[cfg_attr(rustfmt, rustfmt_skip)]
+        #[rustfmt::skip]
             let expected: [u8; 32] = [
             0xBA, 0x78, 0x16, 0xBF, 0x8F, 0x1, 0xCF, 0xEA, 0x41, 0x41, 0x40, 0xDE, 0x5D, 0xAE, 0x22, 0x23,
             0xB0, 0x03, 0x61, 0xA3, 0x96, 0x17, 0x7A, 0x9C, 0xB4, 0x10, 0xFF, 0x61, 0xF2, 0x0, 0x15, 0xAD,

@@ -25,14 +25,14 @@ struct MappedDevice {
 
 /// A bus that uses dynamic-dispatch to delegate to a runtime-modifiable list of
 /// devices. Useful as a quick-and-dirty Bus implementation.
+#[derive(Default)]
 pub struct DynamicBus {
     /// Devices connected to the CPU
     devs: Vec<MappedDevice>,
 }
-
 impl DynamicBus {
     pub fn new() -> DynamicBus {
-        Self { devs: Vec::new() }
+        Self::default()
     }
     /// Attach the specified device to the CPU
     ///
@@ -48,7 +48,7 @@ impl DynamicBus {
         let dev = MappedDevice {
             name: name.into(),
             mmap_range,
-            bus: bus,
+            bus,
         };
         let dev_addr = dev.mmap_range.clone();
         let mut index = 0;

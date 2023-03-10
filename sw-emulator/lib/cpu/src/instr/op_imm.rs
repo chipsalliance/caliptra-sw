@@ -106,6 +106,7 @@ impl<TBus: Bus> Cpu<TBus> {
 }
 
 #[cfg(test)]
+#[allow(clippy::identity_op)]
 mod tests {
     use crate::{test_imm_op, test_imm_src1_eq_dest, test_imm_zero_dest, test_imm_zero_src1};
 
@@ -196,7 +197,7 @@ mod tests {
 
     // Bypassing tests
     test_imm_zero_src1!(test_slti_24, slti, 0, 0xFFF);
-    test_imm_zero_dest!(test_slti_25, slti, 0x00F_F00FF, 0xFFF);
+    test_imm_zero_dest!(test_slti_25, slti, 0x00FF_00FF, 0xFFF);
 
     // ---------------------------------------------------------------------------------------------
     // Tests for Set Less Than Immediate Unsigned (`sltiu`) Instruction

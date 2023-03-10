@@ -265,13 +265,13 @@ impl HmacSha384 {
 
         if self.control.reg.is_set(Control::INIT) {
             // Initialize the HMAC engine with key and initial data block
-            self.hmac.init(&self.key.data(), &self.block.data());
+            self.hmac.init(self.key.data(), self.block.data());
 
             // Schedule a future call to poll() complete the operation.
             self.op_complete_action = Some(self.timer.schedule_poll_in(INIT_TICKS));
         } else if self.control.reg.is_set(Control::NEXT) {
             // Update a HMAC engine with a new block
-            self.hmac.update(&self.block.data());
+            self.hmac.update(self.block.data());
 
             // Schedule a future call to poll() complete the operation.
             self.op_complete_action = Some(self.timer.schedule_poll_in(UPDATE_TICKS));
@@ -448,10 +448,8 @@ impl HmacSha384 {
             ),
         };
 
-        if key != None {
-            self.key
-                .data_mut()
-                .copy_from_slice(&key.unwrap()[..HMAC_KEY_SIZE]);
+        if let Some(key) = &key {
+            self.key.data_mut().copy_from_slice(&key[..HMAC_KEY_SIZE]);
         }
 
         self.key_read_status.reg.modify(
@@ -484,8 +482,8 @@ impl HmacSha384 {
             ),
         };
 
-        if data != None {
-            self.format_block(&data.unwrap());
+        if let Some(data) = &data {
+            self.format_block(data);
         }
 
         self.block_read_status.reg.modify(
@@ -531,7 +529,7 @@ impl HmacSha384 {
             .key_vault
             .write_key(
                 key_id,
-                &self.tag.data(),
+                self.tag.data(),
                 self.tag_write_ctrl.reg.read(TagWriteControl::USAGE),
             )
             .err()
@@ -665,12 +663,12 @@ mod tests {
         key: &mut [u8; HMAC_KEY_SIZE],
         data: &[u8],
         result: &[u8],
-        keyvault_actions: &Vec<KeyVaultAction>,
+        keyvault_actions: &[KeyVaultAction],
     ) {
         fn make_word(idx: usize, arr: &[u8]) -> RvData {
             let mut res: RvData = 0;
             for i in 0..4 {
-                res = res | ((arr[idx + i] as RvData) << i * 8);
+                res |= (arr[idx + i] as RvData) << (i * 8);
             }
             res
         }
@@ -723,11 +721,11 @@ mod tests {
             }
         }
 
-        if block_via_kv == true {
+        if block_via_kv {
             assert_eq!(data.len(), HMAC_KEY_SIZE);
         } else {
             // Compute the total bytes and total blocks required for the final message.
-            block_arr[..data.len()].copy_from_slice(&data);
+            block_arr[..data.len()].copy_from_slice(data);
             block_arr[data.len()] = 1 << 7;
 
             let len: u128 = (HMAC_BLOCK_SIZE + data.len()) as u128;
@@ -742,10 +740,10 @@ mod tests {
         key.to_big_endian();
         let mut key_vault = KeyVault::new();
 
-        if key_via_kv == true {
-            key_vault.write_key(key_id, &key, 0x3F).unwrap();
+        if key_via_kv {
+            key_vault.write_key(key_id, key, 0x3F).unwrap();
 
-            if key_read_disallowed == true {
+            if key_read_disallowed {
                 let val_reg = InMemoryRegister::<u32, key_vault::KV_CONTROL::Register>::new(0);
                 val_reg.write(key_vault::KV_CONTROL::USE_LOCK.val(1)); // Key read disabled.
                 assert_eq!(
@@ -759,7 +757,7 @@ mod tests {
                         .ok(),
                     Some(())
                 );
-            } else if key_disallowed_for_hmac == true {
+            } else if key_disallowed_for_hmac {
                 let mut key_usage = KeyUsage::default();
                 key_usage.set_hmac_key(true);
                 let val_reg = InMemoryRegister::<u32, key_vault::KV_CONTROL::Register>::new(0);
@@ -778,9 +776,9 @@ mod tests {
             }
         }
 
-        if block_via_kv == true {
+        if block_via_kv {
             let mut block: [u8; KeyVault::KEY_SIZE] = [0; KeyVault::KEY_SIZE];
-            block[..data.len()].copy_from_slice(&data);
+            block[..data.len()].copy_from_slice(data);
             block.to_big_endian(); // Keys are stored in big-endian format.
             let mut key_usage = KeyUsage::default();
             key_usage.set_hmac_data(true);
@@ -788,7 +786,7 @@ mod tests {
                 .write_key(block_id, &block, u32::from(key_usage))
                 .unwrap();
 
-            if block_read_disallowed == true {
+            if block_read_disallowed {
                 let val_reg = InMemoryRegister::<u32, key_vault::KV_CONTROL::Register>::new(0);
                 val_reg.write(key_vault::KV_CONTROL::USE_LOCK.val(1)); // Key read disabled.
                 assert_eq!(
@@ -822,8 +820,8 @@ mod tests {
         }
 
         // For negative tag write test, make the key-slot uneditable.
-        if tag_write_fail_test == true {
-            assert_eq!(tag_to_kv, true);
+        if tag_write_fail_test {
+            assert!(tag_to_kv);
             let val_reg = InMemoryRegister::<u32, key_vault::KV_CONTROL::Register>::new(0);
             val_reg.write(key_vault::KV_CONTROL::WRITE_LOCK.val(1)); // Key write disabled.
             assert_eq!(
@@ -841,7 +839,7 @@ mod tests {
 
         let mut hmac = HmacSha384::new(&clock, key_vault);
 
-        if tag_to_kv == true {
+        if tag_to_kv {
             // Instruct tag to be read from key-vault.
             let mut key_usage = KeyUsage::default();
             key_usage.set_hmac_data(true);
@@ -859,7 +857,7 @@ mod tests {
             );
         }
 
-        if key_via_kv == false {
+        if !key_via_kv {
             for i in (0..key.len()).step_by(4) {
                 assert_eq!(
                     hmac.write(RvSize::Word, OFFSET_KEY + i as RvAddr, make_word(i, key))
@@ -889,7 +887,7 @@ mod tests {
                     if key_read_status.read(KeyReadStatus::ERROR)
                         != KeyReadStatus::ERROR::KV_SUCCESS.value
                     {
-                        assert_eq!((key_read_disallowed || key_disallowed_for_hmac), true);
+                        assert!((key_read_disallowed || key_disallowed_for_hmac));
                         return;
                     }
                     break;
@@ -900,7 +898,7 @@ mod tests {
 
         // Process each block via the HMAC engine.
         for idx in 0..totalblocks {
-            if block_via_kv == false {
+            if !block_via_kv {
                 for i in (0..HMAC_BLOCK_SIZE).step_by(4) {
                     assert_eq!(
                         hmac.write(
@@ -937,7 +935,7 @@ mod tests {
                         if block_read_status.read(KeyReadStatus::ERROR)
                             != KeyReadStatus::ERROR::KV_SUCCESS.value
                         {
-                            assert_eq!((block_read_disallowed || block_disallowed_for_hmac), true);
+                            assert!((block_read_disallowed || block_disallowed_for_hmac));
                             return;
                         }
 
@@ -962,7 +960,7 @@ mod tests {
             }
 
             loop {
-                if tag_to_kv == false {
+                if !tag_to_kv {
                     let status = InMemoryRegister::<u32, Status::Register>::new(
                         hmac.read(RvSize::Word, OFFSET_STATUS).unwrap(),
                     );
@@ -979,7 +977,7 @@ mod tests {
                         if tag_write_status.read(TagWriteStatus::ERROR)
                             != TagWriteStatus::ERROR::KV_SUCCESS.value
                         {
-                            assert_eq!(tag_write_fail_test, true);
+                            assert!(tag_write_fail_test);
                             return;
                         }
                         break;
@@ -990,7 +988,7 @@ mod tests {
             }
         }
 
-        if tag_to_kv == true {
+        if tag_to_kv {
             let mut key_usage = KeyUsage::default();
             key_usage.set_hmac_data(true);
             tag_le.clone_from_slice(
@@ -1048,7 +1046,7 @@ mod tests {
             0xda, 0xb9, 0xf1, 0xb5, 0x82, 0xc2,
         ];
 
-        test_hmac(&mut key, &data, &result, &vec![]);
+        test_hmac(&mut key, &data, &result, &[]);
     }
 
     #[test]
@@ -1080,7 +1078,7 @@ mod tests {
             0xCC, 0x4B, 0x7C, 0xCA, 0xC8, 0xC3,
         ];
 
-        test_hmac(&mut key, &data, &result, &vec![]);
+        test_hmac(&mut key, &data, &result, &[]);
     }
 
     #[test]
@@ -1110,7 +1108,7 @@ mod tests {
             0xCE, 0x60, 0xA8, 0xFE, 0x93, 0xD1,
         ];
 
-        test_hmac(&mut key.clone(), &data, &result, &vec![]);
+        test_hmac(&mut key.clone(), &data, &result, &[]);
     }
 
     #[test]
@@ -1139,7 +1137,7 @@ mod tests {
                 &mut key.clone(),
                 &data,
                 &result,
-                &vec![KeyVaultAction::KeyFromVault(key_id)],
+                &[KeyVaultAction::KeyFromVault(key_id)],
             );
         }
     }
@@ -1171,7 +1169,7 @@ mod tests {
                 &mut key.clone(),
                 &data,
                 &result,
-                &vec![
+                &[
                     KeyVaultAction::KeyFromVault(key_id),
                     KeyVaultAction::KeyReadDisallowed(true),
                 ],
@@ -1184,7 +1182,7 @@ mod tests {
                 &mut key.clone(),
                 &data,
                 &result,
-                &vec![
+                &[
                     KeyVaultAction::KeyFromVault(key_id),
                     KeyVaultAction::KeyDisallowedForHMAC(true),
                 ],
@@ -1220,7 +1218,7 @@ mod tests {
                 &mut key.clone(),
                 &data,
                 &result,
-                &vec![KeyVaultAction::BlockFromVault(key_id)],
+                &[KeyVaultAction::BlockFromVault(key_id)],
             );
         }
     }
@@ -1254,7 +1252,7 @@ mod tests {
                 &mut key.clone(),
                 &data,
                 &result,
-                &vec![
+                &[
                     KeyVaultAction::BlockFromVault(key_id),
                     KeyVaultAction::BlockReadDisallowed(true),
                 ],
@@ -1267,7 +1265,7 @@ mod tests {
                 &mut key.clone(),
                 &data,
                 &result,
-                &vec![
+                &[
                     KeyVaultAction::BlockFromVault(key_id),
                     KeyVaultAction::BlockDisallowedForHMAC(true),
                 ],
@@ -1303,7 +1301,7 @@ mod tests {
                 &mut key.clone(),
                 &data,
                 &result,
-                &vec![KeyVaultAction::TagToVault(key_id)],
+                &[KeyVaultAction::TagToVault(key_id)],
             );
         }
     }
@@ -1336,7 +1334,7 @@ mod tests {
                 &mut key.clone(),
                 &data,
                 &result,
-                &vec![
+                &[
                     KeyVaultAction::TagToVault(key_id),
                     KeyVaultAction::TagWriteFailTest(true),
                 ],
@@ -1372,7 +1370,7 @@ mod tests {
                 &mut key.clone(),
                 &data,
                 &result,
-                &vec![
+                &[
                     KeyVaultAction::KeyFromVault(key_id),
                     KeyVaultAction::BlockFromVault((key_id + 1) % 8),
                 ],
@@ -1408,7 +1406,7 @@ mod tests {
                 &mut key.clone(),
                 &data,
                 &result,
-                &vec![
+                &[
                     KeyVaultAction::KeyFromVault(key_id),
                     KeyVaultAction::BlockFromVault((key_id + 1) % 8),
                     KeyVaultAction::TagToVault((key_id + 2) % 8),

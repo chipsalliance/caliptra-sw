@@ -58,7 +58,7 @@ fn sv_files(manifest_dir: &Path) -> Result<Vec<String>, std::io::Error> {
 }
 
 fn main() {
-    if !std::env::var_os("CARGO_FEATURE_VERILATOR").is_some() {
+    if std::env::var_os("CARGO_FEATURE_VERILATOR").is_none() {
         return;
     }
     let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());

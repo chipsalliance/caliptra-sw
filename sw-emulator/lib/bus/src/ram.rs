@@ -34,6 +34,7 @@ impl Ram {
     }
 
     /// Size of the memory in bytes
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> RvAddr {
         self.data.len() as RvAddr
     }

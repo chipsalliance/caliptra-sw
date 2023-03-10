@@ -42,19 +42,9 @@ fn free_run(mut cpu: Cpu<CaliptraRootBus>, trace_path: Option<PathBuf>) {
         };
 
         // Need to have the loop in the same scope as trace_fn to prevent borrowing rules violation
-        loop {
-            match cpu.step(Some(trace_fn)) {
-                StepAction::Continue => continue,
-                _ => break,
-            }
-        }
+        while let StepAction::Continue = cpu.step(Some(trace_fn)) {}
     } else {
-        loop {
-            match cpu.step(None) {
-                StepAction::Continue => continue,
-                _ => break,
-            }
-        }
+        while let StepAction::Continue = cpu.step(None) {}
     };
 }
 

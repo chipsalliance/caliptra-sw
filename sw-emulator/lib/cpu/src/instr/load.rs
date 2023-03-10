@@ -197,16 +197,16 @@ mod tests {
     }
 
     // Basic Tests
-    test_ld_op!(test_lw_2, lw, 0x00FF_00FF, 00, 0x1000, DATA_LW);
-    test_ld_op!(test_lw_3, lw, 0xFF00_FF00, 04, 0x1000, DATA_LW);
-    test_ld_op!(test_lw_4, lw, 0x0FF0_0FF0, 08, 0x1000, DATA_LW);
+    test_ld_op!(test_lw_2, lw, 0x00FF_00FF, 0, 0x1000, DATA_LW);
+    test_ld_op!(test_lw_3, lw, 0xFF00_FF00, 4, 0x1000, DATA_LW);
+    test_ld_op!(test_lw_4, lw, 0x0FF0_0FF0, 8, 0x1000, DATA_LW);
     test_ld_op!(test_lw_5, lw, 0xF00F_F00F, 12, 0x1000, DATA_LW);
 
     // Tests with negative offset
     test_ld_op!(test_lw_6, lw, 0x00FF_00FF, -12, 0x100C, DATA_LW);
-    test_ld_op!(test_lw_7, lw, 0xFF00_FF00, -08, 0x100C, DATA_LW);
-    test_ld_op!(test_lw_8, lw, 0x0FF0_0FF0, -04, 0x100C, DATA_LW);
-    test_ld_op!(test_lw_9, lw, 0xF00F_F00F, -00, 0x100C, DATA_LW);
+    test_ld_op!(test_lw_7, lw, 0xFF00_FF00, -8, 0x100C, DATA_LW);
+    test_ld_op!(test_lw_8, lw, 0x0FF0_0FF0, -4, 0x100C, DATA_LW);
+    test_ld_op!(test_lw_9, lw, 0xF00F_F00F, -0, 0x100C, DATA_LW);
 
     // Test with negative base
     #[test]

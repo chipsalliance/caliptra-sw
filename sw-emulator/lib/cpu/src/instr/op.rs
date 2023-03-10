@@ -168,6 +168,7 @@ impl<TBus: Bus> Cpu<TBus> {
     }
 }
 
+#[allow(clippy::identity_op)]
 #[cfg(test)]
 mod tests {
     use crate::{
@@ -219,15 +220,15 @@ mod tests {
 
     // Arithmetic tests
     test_rr_op!(test_mul_32, mul, 0x00001200, 0x00007e00, 0xb6db6db7);
-    test_rr_op!(test_mul_33, mul, 0x00001240, 0x00007Fc0, 0xb6db6db7);
+    test_rr_op!(test_mul_33, mul, 0x00001240, 0x00007fc0, 0xb6db6db7);
     test_rr_op!(test_mul_2, mul, 0x00000000, 0x00000000, 0x00000000);
     test_rr_op!(test_mul_3, mul, 0x00000001, 0x00000001, 0x00000001);
     test_rr_op!(test_mul_4, mul, 0x00000015, 0x00000003, 0x00000007);
     test_rr_op!(test_mul_5, mul, 0x00000000, 0x00000000, 0xFFFF8000);
     test_rr_op!(test_mul_6, mul, 0x00000000, 0x80000000, 0x00000000);
     test_rr_op!(test_mul_7, mul, 0x00000000, 0x80000000, 0xFFFF8000);
-    test_rr_op!(test_mul_30, mul, 0x0000FF7F, 0xaaaaaaab, 0x0002Fe7d);
-    test_rr_op!(test_mul_31, mul, 0x0000FF7F, 0x0002Fe7d, 0xaaaaaaab);
+    test_rr_op!(test_mul_30, mul, 0x0000FF7F, 0xaaaaaaab, 0x0002fe7d);
+    test_rr_op!(test_mul_31, mul, 0x0000FF7F, 0x0002fe7d, 0xaaaaaaab);
     test_rr_op!(test_mul_34, mul, 0x00000000, 0xFF000000, 0xFF000000);
     test_rr_op!(test_mul_35, mul, 0x00000001, 0xFFFFFFFF, 0xFFFFFFFF);
     test_rr_op!(test_mul_36, mul, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000001);
@@ -292,7 +293,7 @@ mod tests {
     test_rr_op!(test_sll_5, sll, 0x00004000, 0x00000001, 14);
     test_rr_op!(test_sll_6, sll, 0x80000000, 0x00000001, 31);
     test_rr_op!(test_sll_7, sll, 0xFFFFFFFF, 0xFFFFFFFF, 0);
-    test_rr_op!(test_sll_8, sll, 0xFFFFFFFe, 0xFFFFFFFF, 1);
+    test_rr_op!(test_sll_8, sll, 0xFFFFFFFE, 0xFFFFFFFF, 1);
     test_rr_op!(test_sll_9, sll, 0xFFFFFF80, 0xFFFFFFFF, 7);
     test_rr_op!(test_sll_10, sll, 0xFFFFC000, 0xFFFFFFFF, 14);
     test_rr_op!(test_sll_11, sll, 0x80000000, 0xFFFFFFFF, 31);
@@ -304,7 +305,7 @@ mod tests {
     test_rr_op!(test_sll_17, sll, 0x21212121, 0x21212121, 0xFFFFFFC0);
     test_rr_op!(test_sll_18, sll, 0x42424242, 0x21212121, 0xFFFFFFC1);
     test_rr_op!(test_sll_19, sll, 0x90909080, 0x21212121, 0xFFFFFFC7);
-    test_rr_op!(test_sll_20, sll, 0x48484000, 0x21212121, 0xFFFFFFCe);
+    test_rr_op!(test_sll_20, sll, 0x48484000, 0x21212121, 0xFFFFFFCE);
 
     // Source/Destination tests
     test_rr_src1_eq_dest!(test_sll_22, sll, 0x00000080, 0x00000001, 7);
@@ -465,7 +466,7 @@ mod tests {
 
     test_rr_op!(test_mulhu_5, mulhu, 0x00000000, 0x00000000, 0xFFFF8000);
     test_rr_op!(test_mulhu_6, mulhu, 0x00000000, 0x80000000, 0x00000000);
-    test_rr_op!(test_mulhu_7, mulhu, 0x7FFfC000, 0x80000000, 0xFFFF8000);
+    test_rr_op!(test_mulhu_7, mulhu, 0x7FFFC000, 0x80000000, 0xFFFF8000);
 
     test_rr_op!(test_mulhu_30, mulhu, 0x0001FEFE, 0xAAAAAAAB, 0x0002FE7D);
     test_rr_op!(test_mulhu_31, mulhu, 0x0001FEFE, 0x0002FE7D, 0xAAAAAAAB);
@@ -631,7 +632,7 @@ mod tests {
     test_rr_op!(test_sra_17, sra, 0x81818181, 0x81818181, 0xFFFFFFC0);
     test_rr_op!(test_sra_18, sra, 0xC0C0C0C0, 0x81818181, 0xFFFFFFC1);
     test_rr_op!(test_sra_19, sra, 0xFF030303, 0x81818181, 0xFFFFFFC7);
-    test_rr_op!(test_sra_20, sra, 0xFFFE0606, 0x81818181, 0xFFFFFFCe);
+    test_rr_op!(test_sra_20, sra, 0xFFFE0606, 0x81818181, 0xFFFFFFCE);
     test_rr_op!(test_sra_21, sra, 0xFFFFFFFF, 0x81818181, 0xFFFFFFFF);
 
     // Source/Destination tests
@@ -655,7 +656,7 @@ mod tests {
     // Arithmetic tests
     test_rr_op!(test_or_2, or, 0xFF0FFF0F, 0xFF00FF00, 0x0F0F0F0F);
     test_rr_op!(test_or_3, or, 0xFFF0FFF0, 0x0FF00FF0, 0xF0F0F0F0);
-    test_rr_op!(test_or_4, or, 0x0FFF0FFf, 0x00FF00FF, 0x0F0F0F0F);
+    test_rr_op!(test_or_4, or, 0x0FFF0FFF, 0x00FF00FF, 0x0F0F0F0F);
     test_rr_op!(test_or_5, or, 0xF0FFF0FF, 0xF00FF00F, 0xF0F0F0F0);
 
     // Source/Destination tests
