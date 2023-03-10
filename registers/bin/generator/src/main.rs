@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::path::PathBuf;
+use std::process::Stdio;
 use std::rc::Rc;
 use std::{error::Error, path::Path, process::Command};
 
@@ -36,23 +37,15 @@ static CALIPTRA_RDL_FILES: &[&str] = &[
     "src/integration/rtl/caliptra_reg.rdl",
 ];
 
-fn run_cmd(cmd: &mut Command) -> Result<(), Box<dyn Error>> {
-    let status = cmd.status()?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(format!(
-            "Process {:?} {:?} exited with status code {:?}",
-            cmd.get_program(),
-            cmd.get_args(),
-            status.code()
-        )
-        .into())
-    }
-}
+fn run_cmd_stdout(cmd: &mut Command, input: Option<&[u8]>) -> Result<String, Box<dyn Error>> {
+    cmd.stdin(Stdio::piped());
+    cmd.stdout(Stdio::piped());
 
-fn run_cmd_stdout(cmd: &mut Command) -> Result<String, Box<dyn Error>> {
-    let out = cmd.output()?;
+    let mut child = cmd.spawn()?;
+    if let (Some(mut stdin), Some(input)) = (child.stdin.take(), input) {
+        std::io::Write::write_all(&mut stdin, input)?;
+    }
+    let out = child.wait_with_output()?;
     if out.status.success() {
         Ok(String::from_utf8_lossy(&out.stdout).into())
     } else {
@@ -76,21 +69,47 @@ fn remove_reg_prefixes(registers: &mut [Rc<Register>], prefix: &str) {
     }
 }
 
-fn write_and_format(dest_file: &Path, contents: &str) -> Result<(), Box<dyn Error>> {
+fn rustfmt(code: &str) -> Result<String, Box<dyn Error>> {
+    run_cmd_stdout(
+        Command::new("rustfmt")
+            .arg("--emit=stdout")
+            .arg("--config=normalize_comments=true,normalize_doc_attributes=true"),
+        Some(code.as_bytes()),
+    )
+}
+
+fn write_file(dest_file: &Path, contents: &str) -> Result<(), Box<dyn Error>> {
     println!("Writing to {dest_file:?}");
     std::fs::write(dest_file, contents)?;
-    run_cmd(
-        Command::new("rustfmt")
-            .arg(dest_file)
-            .arg("--config=normalize_comments=true,normalize_doc_attributes=true"),
-    )?;
+    Ok(())
+}
+
+fn file_check_contents(dest_file: &Path, expected_contents: &str) -> Result<(), Box<dyn Error>> {
+    println!("Checking file {dest_file:?}");
+    let actual_contents = std::fs::read(dest_file)?;
+    if actual_contents != expected_contents.as_bytes() {
+        return Err(format!(
+            "{dest_file:?} does not match the generator output. If this is \
+            unexpected, ensure that the caliptra-rtl submodule is pointing to \
+            the correct commit and/or run \"git submodule update\". Otherwise, \
+            run registers/update.sh to update this file."
+        )
+        .into());
+    }
     Ok(())
 }
 
 fn real_main() -> Result<(), Box<dyn Error>> {
-    let args: Vec<String> = std::env::args().collect();
+    let mut args: Vec<String> = std::env::args().collect();
+    let file_action = if args.get(1).map(String::as_str) == Some("--check") {
+        args.remove(1);
+        file_check_contents
+    } else {
+        write_file
+    };
+
     if args.len() < 3 {
-        Err("Usage: codegen <caliptra_rtl_dir> <dest_dir>")?;
+        Err("Usage: codegen [--check] <caliptra_rtl_dir> <dest_dir>")?;
     }
 
     let rtl_dir = Path::new(&args[1]);
@@ -105,12 +124,14 @@ fn real_main() -> Result<(), Box<dyn Error>> {
             .current_dir(rtl_dir)
             .arg("rev-parse")
             .arg("HEAD"),
+        None,
     )?;
     let rtl_git_status = run_cmd_stdout(
         Command::new("git")
             .current_dir(rtl_dir)
             .arg("status")
             .arg("--porcelain"),
+        None,
     )?;
     let mut header = HEADER_PREFIX.to_string();
     write!(
@@ -219,7 +240,10 @@ fn real_main() -> Result<(), Box<dyn Error>> {
             },
         );
         root_submod_tokens.extend(quote! { pub mod #module_ident; });
-        write_and_format(&dest_file, &(header.clone() + &tokens.to_string()))?;
+        file_action(
+            &dest_file,
+            &rustfmt(&(header.clone() + &tokens.to_string()))?,
+        )?;
     }
     let root_type_tokens = ureg_codegen::generate_code(
         &root_block,
@@ -229,9 +253,9 @@ fn real_main() -> Result<(), Box<dyn Error>> {
         },
     );
     let root_tokens = quote! { #root_type_tokens #root_submod_tokens };
-    write_and_format(
+    file_action(
         &dest_dir.join("lib.rs"),
-        &(header.clone() + &root_tokens.to_string()),
+        &rustfmt(&(header.clone() + &root_tokens.to_string()))?,
     )?;
     Ok(())
 }
