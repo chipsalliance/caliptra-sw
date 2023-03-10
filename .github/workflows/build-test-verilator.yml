@@ -97,6 +97,10 @@ jobs:
           rustup update
           rustup target add riscv32imc-unknown-none-elf
 
+      - name: Check that generated register code matches caliptra-rtl submodule
+        run: |
+          cargo run -p caliptra_registers_generator -- --check hw-latest/caliptra-rtl registers/src
+
       - name: Build
         run: |
           export RUSTFLAGS="-D warnings"
