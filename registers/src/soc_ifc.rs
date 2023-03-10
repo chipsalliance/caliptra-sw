@@ -15,6 +15,11 @@ impl RegisterBlock<ureg::RealMmio> {
     }
 }
 impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
+    /// # Safety
+    ///
+    /// The caller is responsible for ensuring that ptr is valid for
+    /// volatile reads and writes at any of the offsets in this register
+    /// block.
     pub unsafe fn new(ptr: *mut u32) -> Self {
         Self {
             ptr,

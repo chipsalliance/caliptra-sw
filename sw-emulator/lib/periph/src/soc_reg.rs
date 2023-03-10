@@ -380,17 +380,17 @@ impl SocRegisters {
 
     /// Get Unique device secret
     pub fn uds(&self) -> [u8; FUSE_UDS_SEED_SIZE] {
-        self.regs.borrow().fuse_uds_seed.data().clone()
+        *self.regs.borrow().fuse_uds_seed.data()
     }
 
     // Get field entropy
     pub fn field_entropy(&self) -> [u8; FUSE_FIELD_ENTROPY_SIZE] {
-        self.regs.borrow().fuse_field_entropy.data().clone()
+        *self.regs.borrow().fuse_field_entropy.data()
     }
 
     /// Get deobfuscation engine key
     pub fn doe_key(&self) -> [u8; INTERNAL_OBF_KEY_SIZE] {
-        self.regs.borrow().internal_obf_key.data().clone()
+        *self.regs.borrow().internal_obf_key.data()
     }
 
     /// Clear secrets
@@ -709,10 +709,10 @@ impl SocRegistersImpl {
         }
 
         // DWORD 00      - Flags
-        self.fuse_idevid_cert_attr.data_mut()[00..04].copy_from_slice(&reg.get().to_le_bytes());
+        self.fuse_idevid_cert_attr.data_mut()[0..4].copy_from_slice(&reg.get().to_le_bytes());
 
         // DWORD 01 - 05 - IDEVID Subject Key Identifier
-        self.fuse_idevid_cert_attr.data_mut()[04..24].copy_from_slice(&[0x00; 20]);
+        self.fuse_idevid_cert_attr.data_mut()[4..24].copy_from_slice(&[0x00; 20]);
 
         // DWORD 06 - 07 - UEID / Manufacturer Serial Number
         let ueid = args.ueid.to_le_bytes();
@@ -770,7 +770,7 @@ impl SocRegistersImpl {
 
         // If ready_for_fw bit is set, upload the firmware image to the mailbox.
         if self.cptra_flow_status.reg.is_set(FlowStatus::READY_FOR_FW) {
-            while self.mailbox.try_acquire_lock() == false {}
+            while !self.mailbox.try_acquire_lock() {}
             self.op_fw_write_complete_action =
                 Some(self.timer.schedule_poll_in(Self::FW_WRITE_TICKS));
         } else if self
@@ -870,14 +870,14 @@ impl SocRegistersImpl {
 
         for _ in (0..n).step_by(core::mem::size_of::<u32>()) {
             let buf = self.mailbox.read_dataout().unwrap();
-            file.write(&buf.to_le_bytes()).unwrap();
+            file.write_all(&buf.to_le_bytes()).unwrap();
         }
 
         if remainder > 0 {
             let part = self.mailbox.read_dataout().unwrap();
             for idx in 0..remainder {
                 let byte = ((part >> (idx << 3)) & 0xFF) as u8;
-                file.write(&[byte]).unwrap();
+                file.write_all(&[byte]).unwrap();
             }
         }
     }
@@ -1147,7 +1147,7 @@ impl Bus for SocRegistersImpl {
 
         if self.timer.fired(&mut self.op_fw_read_complete_action) {
             // Receiver sets status as CMD_COMPLETE after reading the mailbox data.
-            if self.mailbox.is_status_cmd_complete() == true {
+            if self.mailbox.is_status_cmd_complete() {
                 // Reset the execute bit
                 self.mailbox.write_execute(0).unwrap();
             } else {
@@ -1192,7 +1192,7 @@ mod tests {
 
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mut mailbox = Mailbox::new(mailbox_ram.clone());
+        let mut mailbox = Mailbox::new(mailbox_ram);
         let args = CaliptraRootBusArgs::default();
         let args = CaliptraRootBusArgs {
             firmware: firmware.clone(),
@@ -1215,7 +1215,7 @@ mod tests {
         );
 
         // Check if mailbox is locked.
-        assert_eq!(mailbox.is_locked(), true);
+        assert!(mailbox.is_locked());
 
         //
         // [Receiver Side]
@@ -1230,7 +1230,7 @@ mod tests {
         }
         assert_eq!(mailbox.read_dlen().unwrap(), firmware.len() as u32);
         assert_eq!(mailbox.read_cmd().unwrap(), FW_LOAD_CMD_OPCODE);
-        assert_eq!(mailbox.is_status_data_ready(), true);
+        assert!(mailbox.is_status_data_ready());
 
         // Read the data out of the mailbox.
         let mut temp: Vec<u32> = Vec::new();
@@ -1254,11 +1254,11 @@ mod tests {
             }
         }
         // Check if the mailbox lock is released.
-        assert_eq!(mailbox.is_locked(), false);
+        assert!(!mailbox.is_locked());
     }
 
     fn send_data_to_mailbox(mailbox: &mut Mailbox, cmd: u32, data: &[u8]) {
-        while mailbox.try_acquire_lock() == false {}
+        while !mailbox.try_acquire_lock() {}
 
         mailbox.write_cmd(cmd).unwrap();
         mailbox.write_dlen(data.len() as u32).unwrap();
@@ -1295,7 +1295,7 @@ mod tests {
         ];
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mut mailbox = Mailbox::new(mailbox_ram.clone());
+        let mut mailbox = Mailbox::new(mailbox_ram);
         let req_idevid_csr = true;
         let mut log_dir = PathBuf::new();
         log_dir.push("/tmp");
@@ -1338,14 +1338,14 @@ mod tests {
                     .read(RvSize::Word, CPTRA_DBG_MANUF_SERVICE_REG_START)
                     .unwrap(),
             );
-            if dbg_manuf_service_reg.is_set(DebugManufService::REQ_IDEVID_CSR) == false {
+            if !dbg_manuf_service_reg.is_set(DebugManufService::REQ_IDEVID_CSR) {
                 break;
             }
         }
 
         // Check if the downloaded csr matches.
         let path = "/tmp/caliptra_idevid_csr.der";
-        assert_eq!(Path::new(path).exists(), true);
+        assert!(Path::new(path).exists());
         let mut idevid_csr_buffer = Vec::new();
         let mut idevid_csr_file = File::open(path).unwrap();
         idevid_csr_file.read_to_end(&mut idevid_csr_buffer).unwrap();
@@ -1362,7 +1362,7 @@ mod tests {
         ];
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mut mailbox = Mailbox::new(mailbox_ram.clone());
+        let mut mailbox = Mailbox::new(mailbox_ram);
         let req_ldevid_cert = true;
         let mut log_dir = PathBuf::new();
         log_dir.push("/tmp");
@@ -1405,14 +1405,14 @@ mod tests {
                     .read(RvSize::Word, CPTRA_DBG_MANUF_SERVICE_REG_START)
                     .unwrap(),
             );
-            if dbg_manuf_service_reg.is_set(DebugManufService::REQ_LDEVID_CERT) == false {
+            if !dbg_manuf_service_reg.is_set(DebugManufService::REQ_LDEVID_CERT) {
                 break;
             }
         }
 
         // Check if the downloaded cert matches.
         let path = "/tmp/caliptra_ldevid_cert.der";
-        assert_eq!(Path::new(path).exists(), true);
+        assert!(Path::new(path).exists());
         let mut ldevid_cert_buffer = Vec::new();
         let mut idevid_csr_file = File::open(path).unwrap();
         idevid_csr_file
@@ -1428,12 +1428,12 @@ mod tests {
 
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mailbox = Mailbox::new(mailbox_ram.clone());
+        let mailbox = Mailbox::new(mailbox_ram);
         let args = CaliptraRootBusArgs {
             tb_services_cb: TbServicesCb::new(move |ch| output2.borrow_mut().push(ch)),
             ..Default::default()
         };
-        let mut soc_reg: SocRegisters = SocRegisters::new(&clock, mailbox.clone(), args);
+        let mut soc_reg: SocRegisters = SocRegisters::new(&clock, mailbox, args);
 
         let _ = soc_reg.write(RvSize::Word, CPTRA_GENERIC_OUTPUT_WIRES_START, b'h'.into());
 

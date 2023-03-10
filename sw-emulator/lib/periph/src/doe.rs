@@ -212,7 +212,7 @@ mod tests {
     fn make_word(idx: usize, arr: &[u8]) -> RvData {
         let mut res: RvData = 0;
         for i in 0..4 {
-            res = res | ((arr[idx + i] as RvData) << i * 8);
+            res |= (arr[idx + i] as RvData) << (i * 8);
         }
         res
     }
@@ -239,7 +239,7 @@ mod tests {
             Mailbox::new(MailboxRam::new()),
             CaliptraRootBusArgs::default(),
         );
-        let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg.clone());
+        let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg);
 
         for i in (0..iv.len()).step_by(4) {
             assert_eq!(
@@ -297,7 +297,7 @@ mod tests {
             Mailbox::new(MailboxRam::new()),
             CaliptraRootBusArgs::default(),
         );
-        let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg.clone());
+        let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg);
 
         let mut iv = [0u8; DOE_IV_SIZE];
         iv.to_big_endian();
@@ -353,7 +353,7 @@ mod tests {
             Mailbox::new(MailboxRam::new()),
             CaliptraRootBusArgs::default(),
         );
-        let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg.clone());
+        let mut doe = Doe::new(&clock, key_vault, soc_reg.clone());
         assert_ne!(soc_reg.uds(), expected_uds);
         assert_ne!(soc_reg.doe_key(), expected_doe_key);
         assert_ne!(soc_reg.field_entropy(), expected_fe);

@@ -57,7 +57,7 @@ impl run_blocking::BlockingEventLoop for GdbEventLoop {
     ) -> Result<Option<SingleThreadStopReason<u32>>, <GdbTarget as Target>::Error> {
         // a pretty typical stop reason in response to a Ctrl-C interrupt is to
         // report a "Signal::SIGINT".
-        Ok(Some(SingleThreadStopReason::Signal(Signal::SIGINT).into()))
+        Ok(Some(SingleThreadStopReason::Signal(Signal::SIGINT)))
     }
 }
 

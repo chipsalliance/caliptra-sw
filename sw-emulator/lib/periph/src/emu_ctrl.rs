@@ -36,6 +36,11 @@ impl EmuCtrl {
         4
     }
 }
+impl Default for EmuCtrl {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Bus for EmuCtrl {
     /// Read data of specified size from given address

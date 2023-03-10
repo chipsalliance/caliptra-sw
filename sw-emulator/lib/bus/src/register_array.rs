@@ -128,16 +128,16 @@ mod tests {
             ReadWriteRegisterArray::new(0x40);
         assert_eq!(0, array[0].read(Meipl::PRIORITY));
         assert_eq!(0x40, array[0].get());
-        assert_eq!(0x40, Bus::read(&mut array, RvSize::Word, 0 * 4).unwrap());
+        assert_eq!(0x40, Bus::read(&mut array, RvSize::Word, 0).unwrap());
 
         array[0].write(Meipl::PRIORITY.val(0xa));
         assert_eq!(0x0a, array[0].read(Meipl::PRIORITY));
         assert_eq!(0x0a, array[0].get());
-        assert_eq!(0x0a, Bus::read(&mut array, RvSize::Word, 0 * 4).unwrap());
+        assert_eq!(0x0a, Bus::read(&mut array, RvSize::Word, 0).unwrap());
 
         array[1].modify(Meipl::PRIORITY.val(5));
         assert_eq!(0x05, array[1].read(Meipl::PRIORITY));
-        assert_eq!(0x45, Bus::read(&mut array, RvSize::Word, 1 * 4).unwrap());
+        assert_eq!(0x45, Bus::read(&mut array, RvSize::Word, 4).unwrap());
 
         Bus::write(&mut array, RvSize::Word, 31 * 4, 0x2e).unwrap();
         assert_eq!(0x2e, Bus::read(&mut array, RvSize::Word, 31 * 4).unwrap());
@@ -186,25 +186,16 @@ mod tests {
             ReadWriteRegisterArray::new(0x40);
         assert_eq!(0, array[0].read(Meipl16::PRIORITY));
         assert_eq!(0x40, array[0].get());
-        assert_eq!(
-            0x40,
-            Bus::read(&mut array, RvSize::HalfWord, 0 * 2).unwrap()
-        );
+        assert_eq!(0x40, Bus::read(&mut array, RvSize::HalfWord, 0).unwrap());
 
         array[0].write(Meipl16::PRIORITY.val(0xa));
         assert_eq!(0x0a, array[0].read(Meipl16::PRIORITY));
         assert_eq!(0x0a, array[0].get());
-        assert_eq!(
-            0x0a,
-            Bus::read(&mut array, RvSize::HalfWord, 0 * 2).unwrap()
-        );
+        assert_eq!(0x0a, Bus::read(&mut array, RvSize::HalfWord, 0).unwrap());
 
         array[1].modify(Meipl16::PRIORITY.val(5));
         assert_eq!(0x05, array[1].read(Meipl16::PRIORITY));
-        assert_eq!(
-            0x45,
-            Bus::read(&mut array, RvSize::HalfWord, 1 * 2).unwrap()
-        );
+        assert_eq!(0x45, Bus::read(&mut array, RvSize::HalfWord, 2).unwrap());
 
         Bus::write(&mut array, RvSize::HalfWord, 31 * 2, 0x2e).unwrap();
         assert_eq!(

@@ -18,9 +18,9 @@ const fn rvsize<T>() -> RvSize {
 
 unsafe fn transmute_to_u32<T>(src: &T) -> u32 {
     match std::mem::size_of::<T>() {
-        1 => std::mem::transmute_copy::<T, u8>(&src).into(),
-        2 => std::mem::transmute_copy::<T, u16>(&src).into(),
-        4 => std::mem::transmute_copy::<T, u32>(&src).into(),
+        1 => std::mem::transmute_copy::<T, u8>(src).into(),
+        2 => std::mem::transmute_copy::<T, u16>(src).into(),
+        4 => std::mem::transmute_copy::<T, u32>(src),
         _ => panic!("Unsupported write size"),
     }
 }
@@ -83,14 +83,13 @@ impl<TBus: Bus> ureg::Mmio for BusMmio<TBus> {
 }
 
 /// An MMIO interface that generates RV32IMC store instructions.
+#[derive(Default)]
 pub struct Rv32GenMmio {
     builder: Cell<Rv32Builder>,
 }
 impl Rv32GenMmio {
     pub fn new() -> Self {
-        Self {
-            builder: Cell::new(Rv32Builder::new()),
-        }
+        Self::default()
     }
     pub fn build(self) -> Vec<u8> {
         self.into_inner().build()

@@ -20,12 +20,12 @@ use crate::util::token_iter::DisplayToken;
 pub fn parse_usize(literal: &TokenTree) -> usize {
     if let TokenTree::Literal(literal) = literal {
         let s = literal.to_string();
-        if s.starts_with("0x") {
-            if let Ok(val) = usize::from_str_radix(&s[2..].replace("_", ""), 16) {
+        if let Some(s) = s.strip_prefix("0x") {
+            if let Ok(val) = usize::from_str_radix(&s.replace('_', ""), 16) {
                 return val;
             }
         }
-        if let Ok(val) = usize::from_str(&s.replace("_", "")) {
+        if let Ok(val) = usize::from_str(&s.replace('_', "")) {
             return val;
         }
     }
@@ -38,8 +38,8 @@ pub fn parse_usize(literal: &TokenTree) -> usize {
 pub fn parse_hex_u32(literal: TokenTree) -> u32 {
     if let TokenTree::Literal(literal) = &literal {
         let s = literal.to_string();
-        if s.starts_with("0x") {
-            if let Ok(val) = u32::from_str_radix(&s[2..].replace("_", ""), 16) {
+        if let Some(s) = s.strip_prefix("0x") {
+            if let Ok(val) = u32::from_str_radix(&s.replace('_', ""), 16) {
                 return val;
             }
         }
@@ -58,6 +58,24 @@ mod tests {
     use proc_macro2::{Ident, Span};
 
     use super::*;
+
+    #[test]
+    fn test_parse_usize() {
+        assert_eq!(42, parse_usize(&Literal::from_str("42").unwrap().into()));
+        assert_eq!(0, parse_usize(&Literal::from_str("0").unwrap().into()));
+        assert_eq!(
+            33_000,
+            parse_usize(&Literal::from_str("33_000").unwrap().into())
+        );
+        assert_eq!(
+            0x1234,
+            parse_usize(&Literal::from_str("0x1234").unwrap().into())
+        );
+        assert_eq!(
+            0x1234_5678,
+            parse_usize(&Literal::from_str("0x1234_5678").unwrap().into())
+        );
+    }
 
     #[test]
     fn test_parse_hex_u32() {

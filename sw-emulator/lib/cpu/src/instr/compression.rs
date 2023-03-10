@@ -26,6 +26,12 @@ const OP_MASK_6: u16 = 0xf003;
 const OP_MASK_7: u16 = 0xec03;
 const OP_MASK_9: u16 = 0xfc63;
 
+macro_rules! static_assert {
+    ($expression:expr) => {
+        const _: () = assert!($expression);
+    };
+}
+
 /// Decodes a 16-bit RV32IMC compressed instruction `instr` into a 32-bit RV32IM instruction.
 ///
 /// # Errors
@@ -34,7 +40,7 @@ const OP_MASK_9: u16 = 0xfc63;
 pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
     match instr & OP_MASK_5 {
         rv16::CJ::OP_CODE => {
-            const _: () = assert!(rv16::CJ::OP_MASK == OP_MASK_5);
+            static_assert!(rv16::CJ::OP_MASK == OP_MASK_5);
             let instr = rv16::CJ(instr);
             let mut result = RvInstr32J(0);
             result.set_opcode(RvInstr32Opcode::Jal);
@@ -43,7 +49,7 @@ pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
             return Ok(result.0);
         }
         rv16::CJal::OP_CODE => {
-            const _: () = assert!(rv16::CJal::OP_MASK == OP_MASK_5);
+            static_assert!(rv16::CJal::OP_MASK == OP_MASK_5);
             let instr = rv16::CJal(instr);
             let mut result = RvInstr32J(0);
             result.set_opcode(RvInstr32Opcode::Jal);
@@ -52,7 +58,7 @@ pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
             return Ok(result.0);
         }
         rv16::CLw::OP_CODE => {
-            const _: () = assert!(rv16::CLw::OP_MASK == OP_MASK_5);
+            static_assert!(rv16::CLw::OP_MASK == OP_MASK_5);
             let instr = rv16::CLw(instr);
             let mut result = RvInstr32I(0);
             result.set_opcode(RvInstr32Opcode::Load);
@@ -63,7 +69,7 @@ pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
             return Ok(result.0);
         }
         rv16::CSw::OP_CODE => {
-            const _: () = assert!(rv16::CSw::OP_MASK == OP_MASK_5);
+            static_assert!(rv16::CSw::OP_MASK == OP_MASK_5);
             let instr = rv16::CSw(instr);
             let mut result = RvInstr32S(0);
             result.set_opcode(RvInstr32Opcode::Store);
@@ -74,7 +80,7 @@ pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
             return Ok(result.0);
         }
         rv16::CLwsp::OP_CODE => {
-            const _: () = assert!(rv16::CLwsp::OP_MASK == OP_MASK_5);
+            static_assert!(rv16::CLwsp::OP_MASK == OP_MASK_5);
             let instr = rv16::CLwsp(instr);
             if instr.rd() != XReg::X0 {
                 let mut result = RvInstr32I(0);
@@ -87,7 +93,7 @@ pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
             }
         }
         rv16::CSwsp::OP_CODE => {
-            const _: () = assert!(rv16::CSwsp::OP_MASK == OP_MASK_5);
+            static_assert!(rv16::CSwsp::OP_MASK == OP_MASK_5);
             let instr = rv16::CSwsp(instr);
             let mut result = RvInstr32S(0);
             result.set_opcode(RvInstr32Opcode::Store);
@@ -98,7 +104,7 @@ pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
             return Ok(result.0);
         }
         rv16::CAddi::OP_CODE => {
-            const _: () = assert!(rv16::CAddi::OP_MASK == OP_MASK_5);
+            static_assert!(rv16::CAddi::OP_MASK == OP_MASK_5);
             let instr = rv16::CAddi(instr);
             let mut result = RvInstr32I(0);
             result.set_opcode(RvInstr32Opcode::OpImm);
@@ -109,7 +115,7 @@ pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
             return Ok(result.0);
         }
         rv16::CAddi4spn::OP_CODE => {
-            const _: () = assert!(rv16::CAddi4spn::OP_MASK == OP_MASK_5);
+            static_assert!(rv16::CAddi4spn::OP_MASK == OP_MASK_5);
             let instr = rv16::CAddi4spn(instr);
             if instr.nzuimm() != 0 {
                 let mut result = RvInstr32I(0);
@@ -122,7 +128,7 @@ pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
             }
         }
         rv16::CLi::OP_CODE => {
-            const _: () = assert!(rv16::CLui::OP_MASK == OP_MASK_5);
+            static_assert!(rv16::CLui::OP_MASK == OP_MASK_5);
             let instr = rv16::CLi(instr);
             let mut result = RvInstr32I(0);
             result.set_opcode(RvInstr32Opcode::OpImm);
@@ -133,12 +139,12 @@ pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
             return Ok(result.0);
         }
         rv16::CLui::OP_CODE => {
-            const _: () = assert!(rv16::CLui::OP_MASK == OP_MASK_5);
+            static_assert!(rv16::CLui::OP_MASK == OP_MASK_5);
             let instr = rv16::CLui(instr);
             if instr.nzimm() != 0 {
                 if instr.rd() == XReg::X2 {
-                    const _: () = assert!(rv16::CAddi16sp::OP_MASK == OP_MASK_5);
-                    const _: () = assert!(rv16::CAddi16sp::OP_CODE == rv16::CLui::OP_CODE);
+                    static_assert!(rv16::CAddi16sp::OP_MASK == OP_MASK_5);
+                    static_assert!(rv16::CAddi16sp::OP_CODE == rv16::CLui::OP_CODE);
                     let instr = rv16::CAddi16sp(instr.0);
                     let mut result = RvInstr32I(0);
                     result.set_opcode(RvInstr32Opcode::OpImm);
@@ -157,7 +163,7 @@ pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
             }
         }
         rv16::CBeqz::OP_CODE => {
-            const _: () = assert!(rv16::CBeqz::OP_MASK == OP_MASK_5);
+            static_assert!(rv16::CBeqz::OP_MASK == OP_MASK_5);
             let instr = rv16::CBeqz(instr);
             let mut result = RvInstr32B(0);
             result.set_opcode(RvInstr32Opcode::Branch);
@@ -168,7 +174,7 @@ pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
             return Ok(result.0);
         }
         rv16::CBnez::OP_CODE => {
-            const _: () = assert!(rv16::CBnez::OP_MASK == OP_MASK_5);
+            static_assert!(rv16::CBnez::OP_MASK == OP_MASK_5);
             let instr = rv16::CBnez(instr);
             let mut result = RvInstr32B(0);
             result.set_opcode(RvInstr32Opcode::Branch);
@@ -179,7 +185,7 @@ pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
             return Ok(result.0);
         }
         rv16::CSlli::OP_CODE => {
-            const _: () = assert!(rv16::CSlli::OP_MASK == OP_MASK_5);
+            static_assert!(rv16::CSlli::OP_MASK == OP_MASK_5);
             let instr = rv16::CSlli(instr);
             let mut result = RvInstr32I(0);
             // For RV32C, code points with shamt[5] == 1 are reserved
@@ -197,7 +203,7 @@ pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
 
     match instr & OP_MASK_6 {
         rv16::CMv::OP_CODE => {
-            const _: () = assert!(rv16::CMv::OP_MASK == OP_MASK_6);
+            static_assert!(rv16::CMv::OP_MASK == OP_MASK_6);
             let instr = rv16::CMv(instr);
             if instr.rs2() == XReg::X0 {
                 let instr = rv16::CJr(instr.0);
@@ -219,7 +225,7 @@ pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
             }
         }
         rv16::CAdd::OP_CODE => {
-            const _: () = assert!(rv16::CAdd::OP_MASK == OP_MASK_6);
+            static_assert!(rv16::CAdd::OP_MASK == OP_MASK_6);
             let instr = rv16::CAdd(instr);
             if instr.rs1rd() == XReg::X0 && instr.rs2() == XReg::X0 {
                 // EBREAK
@@ -249,7 +255,7 @@ pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
 
     match instr & OP_MASK_7 {
         rv16::CSrli::OP_CODE => {
-            const _: () = assert!(rv16::CSrli::OP_MASK == OP_MASK_7);
+            static_assert!(rv16::CSrli::OP_MASK == OP_MASK_7);
             let instr = rv16::CSrli(instr);
 
             // For RV32C, code points with shamt[5] == 1 are reserved
@@ -265,7 +271,7 @@ pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
             }
         }
         rv16::CSrai::OP_CODE => {
-            const _: () = assert!(rv16::CSrai::OP_MASK == OP_MASK_7);
+            static_assert!(rv16::CSrai::OP_MASK == OP_MASK_7);
             let instr = rv16::CSrai(instr);
 
             // For RV32C, code points with shamt[5] == 1 are reserved
@@ -281,7 +287,7 @@ pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
             }
         }
         rv16::CAndi::OP_CODE => {
-            const _: () = assert!(rv16::CAndi::OP_MASK == OP_MASK_7);
+            static_assert!(rv16::CAndi::OP_MASK == OP_MASK_7);
             let instr = rv16::CAndi(instr);
             let mut result = RvInstr32I(0);
             result.set_opcode(RvInstr32Opcode::OpImm);
@@ -296,7 +302,7 @@ pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
 
     match instr & OP_MASK_9 {
         rv16::CAnd::OP_CODE => {
-            const _: () = assert!(rv16::CAnd::OP_MASK == OP_MASK_9);
+            static_assert!(rv16::CAnd::OP_MASK == OP_MASK_9);
             let instr = rv16::CAnd(instr);
             let mut result = RvInstr32R(0);
             result.set_opcode(RvInstr32Opcode::Op);
@@ -307,7 +313,7 @@ pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
             return Ok(result.0);
         }
         rv16::COr::OP_CODE => {
-            const _: () = assert!(rv16::COr::OP_MASK == OP_MASK_9);
+            static_assert!(rv16::COr::OP_MASK == OP_MASK_9);
             let instr = rv16::COr(instr);
             let mut result = RvInstr32R(0);
             result.set_opcode(RvInstr32Opcode::Op);
@@ -318,7 +324,7 @@ pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
             return Ok(result.0);
         }
         rv16::CXor::OP_CODE => {
-            const _: () = assert!(rv16::CXor::OP_MASK == OP_MASK_9);
+            static_assert!(rv16::CXor::OP_MASK == OP_MASK_9);
             let instr = rv16::CXor(instr);
             let mut result = RvInstr32R(0);
             result.set_opcode(RvInstr32Opcode::Op);
@@ -329,7 +335,7 @@ pub fn decompress_instr(instr: u16) -> Result<u32, RvException> {
             return Ok(result.0);
         }
         rv16::CSub::OP_CODE => {
-            const _: () = assert!(rv16::CSub::OP_MASK == OP_MASK_9);
+            static_assert!(rv16::CSub::OP_MASK == OP_MASK_9);
             let instr = rv16::CSub(instr);
             let mut result = RvInstr32R(0);
             result.set_opcode(RvInstr32Opcode::Op);
@@ -558,7 +564,7 @@ mod rv16 {
             result.set_bit_range(6, 6, bit_range(self.0, 5, 5));
             result.set_bit_range(8, 7, bit_range(self.0, 4, 3));
             result.set_bit_range(5, 5, bit_range(self.0, 2, 2));
-            return sign_extend_i32(result, 9);
+            sign_extend_i32(result, 9)
         }
     }
 
@@ -576,7 +582,7 @@ mod rv16 {
             let mut result = 0u32;
             result.set_bit_range(5, 5, bit_range(self.0, 12, 12));
             result.set_bit_range(4, 0, bit_range(self.0, 6, 2));
-            return sign_extend_i32(result, 5);
+            sign_extend_i32(result, 5)
         }
 
         pub fn rd(&self) -> XReg {

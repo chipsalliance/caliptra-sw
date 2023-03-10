@@ -110,14 +110,11 @@ pub fn annotate_error(err: std::io::Error, suffix: &str) -> std::io::Error {
 fn rand_str() -> std::io::Result<String> {
     let chars = b"abcdefghijklmnopqrstuvwxyz123456";
     let mut result = vec![0u8; 24];
-    match getrandom::getrandom(&mut result) {
-        Err(err) => {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Unable to retrive random data from OS: {}", err),
-            ))
-        }
-        _ => {}
+    if let Err(err) = getrandom::getrandom(&mut result) {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Unable to retrive random data from OS: {}", err),
+        ));
     }
     for ch in result.iter_mut() {
         *ch = chars[usize::from(*ch & 0x1f)];
@@ -258,7 +255,7 @@ mod tests {
         let inner_dir = dir.path().join("inner");
         create_dir(&inner_dir).unwrap();
         let file_path = inner_dir.join("file0.txt");
-        write(&file_path, "Hello").unwrap();
+        write(file_path, "Hello").unwrap();
         std::fs::set_permissions(&inner_dir, std::fs::Permissions::from_mode(0o000)).unwrap();
 
         assert!([&dir_path, &inner_dir].iter().all(|p| p.exists()));

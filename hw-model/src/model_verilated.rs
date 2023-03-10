@@ -90,7 +90,7 @@ impl crate::HwModel for ModelVerilated {
         };
 
         m.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
-        assert_eq!(m.soc_ifc().cptra_fuse_wr_done().read().done(), true);
+        assert!(m.soc_ifc().cptra_fuse_wr_done().read().done());
         m.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
         m.v.next_cycle_high(2);
@@ -98,7 +98,7 @@ impl crate::HwModel for ModelVerilated {
         Ok(m)
     }
 
-    fn apb_bus<'a>(&'a mut self) -> Self::TBus<'a> {
+    fn apb_bus(&mut self) -> Self::TBus<'_> {
         VerilatedApbBus { v: &mut self.v }
     }
 

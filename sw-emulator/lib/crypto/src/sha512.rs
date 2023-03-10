@@ -126,9 +126,9 @@ impl Sha512 {
     /// # Arguments
     ///
     /// * `hash` - Hash to copy
-    pub fn hash(&self, hash: &mut [u8]) {
+    pub fn copy_hash(&self, hash: &mut [u8]) {
         // Return the hash as a list of big-endian DWORDs.
-        let mut hash_be = self.hash.clone();
+        let mut hash_be: [u64; 8] = self.hash;
         hash_be.to_big_endian();
 
         hash_be
@@ -186,7 +186,7 @@ mod tests {
 
     #[test]
     fn test_sha512_224() {
-        let mut sha_512_test_block_var = SHA_512_TEST_BLOCK.clone();
+        let mut sha_512_test_block_var = SHA_512_TEST_BLOCK;
         sha_512_test_block_var.to_big_endian();
 
         let mut sha = Sha512::new(Sha512Mode::Sha224);
@@ -198,14 +198,14 @@ mod tests {
         ];
 
         let mut hash = [0u8; 28];
-        sha.hash(&mut hash);
+        sha.copy_hash(&mut hash);
         hash.to_little_endian();
         assert_eq!(&hash, &expected);
     }
 
     #[test]
     fn test_sha512_256() {
-        let mut sha_512_test_block_var = SHA_512_TEST_BLOCK.clone();
+        let mut sha_512_test_block_var = SHA_512_TEST_BLOCK;
         sha_512_test_block_var.to_big_endian();
 
         let mut sha = Sha512::new(Sha512Mode::Sha256);
@@ -218,7 +218,7 @@ mod tests {
         ];
 
         let mut hash = [0u8; 32];
-        sha.hash(&mut hash);
+        sha.copy_hash(&mut hash);
         hash.to_little_endian();
 
         assert_eq!(&hash, &expected);
@@ -226,7 +226,7 @@ mod tests {
 
     #[test]
     fn test_sha384() {
-        let mut sha_512_test_block_var = SHA_512_TEST_BLOCK.clone();
+        let mut sha_512_test_block_var = SHA_512_TEST_BLOCK;
         sha_512_test_block_var.to_big_endian();
 
         let mut sha = Sha512::new(Sha512Mode::Sha384);
@@ -240,7 +240,7 @@ mod tests {
         ];
 
         let mut hash = [0u8; 48];
-        sha.hash(&mut hash);
+        sha.copy_hash(&mut hash);
         hash.to_little_endian();
 
         assert_eq!(&hash, &expected);
@@ -248,7 +248,7 @@ mod tests {
 
     #[test]
     fn test_sha512() {
-        let mut sha_512_test_block_var = SHA_512_TEST_BLOCK.clone();
+        let mut sha_512_test_block_var = SHA_512_TEST_BLOCK;
         sha_512_test_block_var.to_big_endian();
 
         let mut sha = Sha512::new(Sha512Mode::Sha512);
@@ -263,7 +263,7 @@ mod tests {
         ];
 
         let mut hash = [0u8; 64];
-        sha.hash(&mut hash);
+        sha.copy_hash(&mut hash);
         hash.to_little_endian();
 
         assert_eq!(&hash, &expected);

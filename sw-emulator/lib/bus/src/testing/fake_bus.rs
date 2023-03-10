@@ -44,6 +44,11 @@ impl FakeBus {
         }
     }
 }
+impl Default for FakeBus {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl Bus for FakeBus {
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
         writeln!(self.log.w(), "read(RvSize::{size:?}, {addr:#x})").unwrap();

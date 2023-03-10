@@ -18,11 +18,11 @@ mod test {
         ($test:ident, $instr:ident, $result:expr, $offset:expr, $base:expr, $data:expr) => {
             #[test]
             fn $test() {
-                use crate::xreg_file::XReg;
-                use crate::instr::test_encoder::tests;
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
 
-                crate::isa_test!(
-                    0x0000 => crate::text![
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
                         tests::$instr(XReg::X14, $offset, XReg::X1);
                     ],
                     0x1000 => $data,
@@ -42,11 +42,11 @@ mod test {
         ($test:ident, $instr:ident, $result:expr, $data:expr, $imm:expr) => {
             #[test]
             fn $test() {
-                use crate::xreg_file::XReg;
-                use crate::instr::test_encoder::tests;
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
 
-                crate::isa_test!(
-                    0x0000 => crate::text![
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
                         tests::$instr(XReg::X14, XReg::X1, $imm);
                     ],
                     0x1000 => vec![0],
@@ -66,11 +66,11 @@ mod test {
         ($test:ident, $instr:ident, $result:expr, $data:expr, $imm:expr) => {
             #[test]
             fn $test() {
-                use crate::xreg_file::XReg;
-                use crate::instr::test_encoder::tests;
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
 
-                crate::isa_test!(
-                    0x0000 => crate::text![
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
                         tests::$instr(XReg::X1, XReg::X1, $imm);
                     ],
                     0x1000 => vec![0],
@@ -90,11 +90,11 @@ mod test {
         ($test:ident, $instr:ident, $result:expr, $imm:expr) => {
             #[test]
             fn $test() {
-                use crate::xreg_file::XReg;
-                use crate::instr::test_encoder::tests;
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
 
-                crate::isa_test!(
-                    0x0000 => crate::text![
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
                         tests::$instr(XReg::X1, XReg::X0, $imm);
                     ],
                     0x1000 => vec![0],
@@ -112,11 +112,11 @@ mod test {
         ($test:ident, $instr:ident, $data:expr, $imm:expr) => {
             #[test]
             fn $test() {
-                use crate::xreg_file::XReg;
-                use crate::instr::test_encoder::tests;
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
 
-                crate::isa_test!(
-                    0x0000 => crate::text![
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
                         tests::$instr(XReg::X0, XReg::X1, $imm);
                     ],
                     0x1000 => vec![0],
@@ -136,11 +136,11 @@ mod test {
         ($test:ident, $ld_instr:ident, $st_instr:ident, $result:expr, $offset:expr, $base:expr, $data:expr) => {
             #[test]
             fn $test() {
-                use crate::xreg_file::XReg;
-                use crate::instr::test_encoder::tests;
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
 
-                crate::isa_test!(
-                    0x0000 => crate::text![
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
                         tests::$st_instr(XReg::X2, $offset, XReg::X1);
                         tests::$ld_instr(XReg::X14, $offset, XReg::X1);
                     ],
@@ -162,11 +162,11 @@ mod test {
         ($test:ident, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
             #[test]
             fn $test() {
-                use crate::xreg_file::XReg;
-                use crate::instr::test_encoder::tests;
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
 
-                crate::isa_test!(
-                    0x0000 => crate::text![
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
                         tests::$instr(XReg::X14, XReg::X1, XReg::X2);
                     ],
                     0x1000 => vec![0],
@@ -187,11 +187,11 @@ mod test {
         ($test:ident, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
             #[test]
             fn $test() {
-                use crate::xreg_file::XReg;
-                use crate::instr::test_encoder::tests;
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
 
-                crate::isa_test!(
-                    0x0000 => crate::text![
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
                         tests::$instr(XReg::X1, XReg::X1, XReg::X2);
                     ],
                     0x1000 => vec![0],
@@ -212,11 +212,11 @@ mod test {
         ($test:ident, $instr:ident, $result:expr, $val1:expr, $val2:expr) => {
             #[test]
             fn $test() {
-                use crate::xreg_file::XReg;
-                use crate::instr::test_encoder::tests;
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
 
-                crate::isa_test!(
-                    0x0000 => crate::text![
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
                         tests::$instr(XReg::X2, XReg::X1, XReg::X2);
                     ],
                     0x1000 => vec![0],
@@ -237,11 +237,11 @@ mod test {
         ($test:ident, $instr:ident, $result:expr, $val:expr) => {
             #[test]
             fn $test() {
-                use crate::xreg_file::XReg;
-                use crate::instr::test_encoder::tests;
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
 
-                crate::isa_test!(
-                    0x0000 => crate::text![
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
                         tests::$instr(XReg::X1, XReg::X1, XReg::X1);
                     ],
                     0x1000 => vec![0],
@@ -261,11 +261,11 @@ mod test {
         ($test:ident, $instr:ident, $result:expr, $val:expr) => {
             #[test]
             fn $test() {
-                use crate::xreg_file::XReg;
-                use crate::instr::test_encoder::tests;
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
 
-                crate::isa_test!(
-                    0x0000 => crate::text![
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
                         tests::$instr(XReg::X2, XReg::X0, XReg::X1);
                     ],
                     0x1000 => vec![0],
@@ -285,11 +285,11 @@ mod test {
         ($test:ident, $instr:ident, $result:expr, $val:expr) => {
             #[test]
             fn $test() {
-                use crate::xreg_file::XReg;
-                use crate::instr::test_encoder::tests;
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
 
-                crate::isa_test!(
-                    0x0000 => crate::text![
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
                         tests::$instr(XReg::X2, XReg::X1, XReg::X0);
                     ],
                     0x1000 => vec![0],
@@ -309,11 +309,11 @@ mod test {
         ($test:ident, $instr:ident, $result:expr) => {
             #[test]
             fn $test() {
-                use crate::xreg_file::XReg;
-                use crate::instr::test_encoder::tests;
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
 
-                crate::isa_test!(
-                    0x0000 => crate::text![
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
                         tests::$instr(XReg::X1, XReg::X0, XReg::X0);
                     ],
                     0x1000 => vec![0],
@@ -332,11 +332,11 @@ mod test {
         ($test:ident, $instr:ident, $val1:expr, $val2:expr) => {
             #[test]
             fn $test() {
-                use crate::xreg_file::XReg;
-                use crate::instr::test_encoder::tests;
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
 
-                crate::isa_test!(
-                    0x0000 => crate::text![
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
                         tests::$instr(XReg::X0, XReg::X1, XReg::X2);
                     ],
                     0x1000 => vec![0],
@@ -357,8 +357,8 @@ mod test {
         ($test:ident, $result:expr, $val:expr, $shamt:expr) => {
             #[test]
             fn $test() {
-                use crate::xreg_file::XReg;
-                use crate::instr::test_encoder::tests::{lui, srai};
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests::{lui, srai};
 
                 isa_test!(
                     0x0000 => text![
@@ -380,11 +380,11 @@ mod test {
         ($test:ident, $instr:ident, $val1:expr, $val2:expr) => {
             #[test]
             fn $test() {
-                use crate::xreg_file::XReg;
-                use crate::instr::test_encoder::tests;
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
 
-                crate::isa_test!(
-                    0x0000 => crate::text![
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
                         tests::$instr(XReg::X1, XReg::X2, 0x0010);           // 0x0000
                         tests::beq(XReg::X3, XReg::X3, 0x0010);              // 0x0004
                         tests::addi(XReg::X4, XReg::X0, 1);                  // 0x0008
@@ -412,11 +412,11 @@ mod test {
         ($test:ident, $instr:ident, $val1:expr, $val2:expr) => {
             #[test]
             fn $test() {
-                use crate::xreg_file::XReg;
-                use crate::instr::test_encoder::tests;
+                use $crate::xreg_file::XReg;
+                use $crate::instr::test_encoder::tests;
 
-                crate::isa_test!(
-                    0x0000 => crate::text![
+                $crate::isa_test!(
+                    0x0000 => $crate::text![
                         tests::$instr(XReg::X1, XReg::X2, 0x0014);           // 0x0000
                         tests::beq(XReg::X3, XReg::X3, 0x0008);              // 0x0004
                         tests::beq(XReg::X3, XReg::X4, 0x000C);              // 0x0008
@@ -447,11 +447,11 @@ mod test {
             {$($init_reg:path = $init_val:expr;)*},
             {$($result_reg:path = $result_val:expr;)*}
         ) => {
-            let mut cpu = crate::isa_test_cpu!( $text_addr => $text, $data_addr => $data);
+            let mut cpu = $crate::isa_test_cpu!( $text_addr => $text, $data_addr => $data);
             $(assert_eq!(cpu.write_xreg($init_reg, $init_val).ok(), Some(()));)*
 
             while (cpu.read_pc() < $text_addr + $text.len() as u32) {
-                assert_eq!(cpu.exec_instr(None).ok(), Some(crate::cpu::StepAction::Continue));
+                assert_eq!(cpu.exec_instr(None).ok(), Some($crate::cpu::StepAction::Continue));
             }
 
             $(assert_eq!(cpu.read_xreg($result_reg).ok(), Some($result_val));)*
@@ -464,8 +464,8 @@ mod test {
             $text_addr:expr => $text:expr,
             $data_addr:expr => $data:expr
         ) => {{
-            use crate::cpu::Cpu;
             use caliptra_emu_bus::{Clock, DynamicBus, Ram, Rom};
+            use $crate::cpu::Cpu;
 
             let text_range = $text_addr..=u32::try_from($text_addr + $text.len() - 1).unwrap();
             let data_range = $data_addr..=u32::try_from($data_addr + $data.len() - 1).unwrap();

@@ -558,7 +558,7 @@ fn determine_enum_name_from_reg_ty(reg_ty: &RegisterType, field: &RegisterField)
             return reg_ty_name.into();
         }
     }
-    return field.name.clone();
+    field.name.clone()
 }
 
 fn all_regs<'a>(
@@ -621,7 +621,7 @@ impl RegisterBlock {
             for reg_ty in self.declared_register_types.iter() {
                 for field in reg_ty.fields.iter() {
                     if let Some(ref e) = field.enum_type {
-                        let name = determine_enum_name_from_reg_ty(&reg_ty, field);
+                        let name = determine_enum_name_from_reg_ty(reg_ty, field);
                         if e.name.is_some() {
                             new_enums.insert(e.clone(), e.clone());
                         } else {

@@ -1,15 +1,13 @@
 // Licensed under the Apache-2.0 license
 
+#[derive(Default)]
 pub struct Output {
     output: String,
     exit_requested: bool,
 }
 impl Output {
     pub fn new() -> Self {
-        Self {
-            output: String::new(),
-            exit_requested: false,
-        }
+        Self::default()
     }
     #[allow(dead_code)]
     pub(crate) fn process_generic_load(&mut self, ch: u8) {
@@ -47,7 +45,7 @@ impl Output {
     /// Take at most `limit` characters from the output
     pub fn take(&mut self, limit: usize) -> String {
         if self.output.len() <= limit {
-            std::mem::replace(&mut self.output, String::new())
+            std::mem::take(&mut self.output)
         } else {
             let remaining = self.output[limit..].to_string();
             let mut result = std::mem::replace(&mut self.output, remaining);

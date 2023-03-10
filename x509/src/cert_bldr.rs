@@ -61,7 +61,7 @@ impl Ecdsa384Signature {
                 return 2 + val.len() - idx + if val[idx] > 127 { 1 } else { 0 };
             }
         }
-        return 2 + 1;
+        2 + 1
     }
 
     // DER Encode unsigned integer
@@ -255,6 +255,7 @@ impl<'a> Ecdsa384CertBuilder<'a> {
     }
 
     /// Return the length of Certificate or Certificate Signing Request
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.len
     }

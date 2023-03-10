@@ -156,7 +156,7 @@ impl Ecc384PubKey {
         der[0] = 0x04;
         let x: [u8; 48] = self.x.into();
         let y: [u8; 48] = self.y.into();
-        der[01..49].copy_from_slice(&x);
+        der[1..49].copy_from_slice(&x);
         der[49..97].copy_from_slice(&y);
         der
     }

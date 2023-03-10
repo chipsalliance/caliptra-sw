@@ -26,7 +26,7 @@ impl TbServicesCb {
         Self(Box::new(f))
     }
     pub(crate) fn take(&mut self) -> Box<dyn FnMut(u8)> {
-        std::mem::replace(self, Default::default()).0
+        std::mem::take(self).0
     }
 }
 impl Default for TbServicesCb {
@@ -119,7 +119,7 @@ impl CaliptraRootBus {
         let key_vault = KeyVault::new();
         let mailbox_ram = MailboxRam::new();
         let mailbox = Mailbox::new(mailbox_ram.clone());
-        let rom = Rom::new(std::mem::replace(&mut args.rom, vec![]));
+        let rom = Rom::new(std::mem::take(&mut args.rom));
         let soc_reg = SocRegisters::new(clock, mailbox.clone(), args);
 
         Self {
@@ -128,16 +128,16 @@ impl CaliptraRootBus {
             ecc384: AsymEcc384::new(clock, key_vault.clone()),
             hmac: HmacSha384::new(clock, key_vault.clone()),
             key_vault: key_vault.clone(),
-            sha512: HashSha512::new(clock, key_vault.clone()),
+            sha512: HashSha512::new(clock, key_vault),
             sha256: HashSha256::new(clock),
             iccm: Ram::new(vec![0; Self::ICCM_SIZE]),
             dccm: Ram::new(vec![0; Self::DCCM_SIZE]),
             uart: Uart::new(),
             ctrl: EmuCtrl::new(),
-            soc_reg: soc_reg.clone(),
+            soc_reg,
             mailbox_sram: mailbox_ram.clone(),
-            mailbox: mailbox.clone(),
-            sha512_acc: Sha512Accelerator::new(clock, mailbox_ram.clone()),
+            mailbox,
+            sha512_acc: Sha512Accelerator::new(clock, mailbox_ram),
         }
     }
 }

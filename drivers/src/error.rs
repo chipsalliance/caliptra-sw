@@ -51,6 +51,7 @@ macro_rules! caliptra_err_def {
     ($comp_name:ident, $enum_name: ident { $($field_name: ident = $field_val: literal,)* }) => {
 
         #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+        #[allow(clippy::enum_variant_names)]
         pub enum $enum_name {
             $($field_name = $field_val,)*
         }

@@ -81,11 +81,7 @@ impl<'a, const W: usize, const B: usize> From<&'a [u8; B]> for Array4xN<W, B> {
 impl<'a, const W: usize, const B: usize> From<&'a [u32; W]> for Array4xN<W, B> {
     #[inline(never)]
     fn from(value: &'a [u32; W]) -> Self {
-        let mut result = Self([0u32; W]);
-        for i in 0..W {
-            result.0[i] = value[i];
-        }
-        result
+        Self(*value)
     }
 }
 

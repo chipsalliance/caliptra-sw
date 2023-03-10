@@ -92,7 +92,7 @@ mod tests {
     fn test_exec_success() {
         let temp_file = TempFile::new().unwrap();
         assert!(!temp_file.path().exists());
-        exec(&mut std::process::Command::new("touch").arg(temp_file.path())).unwrap();
+        exec(std::process::Command::new("touch").arg(temp_file.path())).unwrap();
         assert!(temp_file.path().exists());
     }
 

@@ -78,7 +78,7 @@ pub trait HwModel {
     ///
     /// WARNING: Reading or writing to this bus may involve the Caliptra
     /// microcontroller executing a few instructions
-    fn apb_bus<'a>(&'a mut self) -> Self::TBus<'a>;
+    fn apb_bus(&mut self) -> Self::TBus<'_>;
 
     /// Step execution ahead one clock cycle.
     fn step(&mut self);
@@ -109,9 +109,7 @@ pub trait HwModel {
 
     /// A register block that can be used to manipulate the soc_ifc peripheral
     /// over the simulated SoC->Caliptra APB bus.
-    fn soc_ifc<'a>(
-        &'a mut self,
-    ) -> caliptra_registers::soc_ifc::RegisterBlock<BusMmio<Self::TBus<'a>>> {
+    fn soc_ifc(&mut self) -> caliptra_registers::soc_ifc::RegisterBlock<BusMmio<Self::TBus<'_>>> {
         unsafe {
             caliptra_registers::soc_ifc::RegisterBlock::new_with_mmio(
                 0x3003_0000 as *mut u32,
@@ -122,9 +120,7 @@ pub trait HwModel {
 
     /// A register block that can be used to manipulate the mbox peripheral
     /// over the simulated SoC->Caliptra APB bus.
-    fn soc_mbox<'a>(
-        &'a mut self,
-    ) -> caliptra_registers::mbox::RegisterBlock<BusMmio<Self::TBus<'a>>> {
+    fn soc_mbox(&mut self) -> caliptra_registers::mbox::RegisterBlock<BusMmio<Self::TBus<'_>>> {
         unsafe {
             caliptra_registers::mbox::RegisterBlock::new_with_mmio(
                 0x3002_0000 as *mut u32,
@@ -255,9 +251,8 @@ mod tests {
         })
         .unwrap();
 
-        assert_eq!(model.soc_mbox().lock().read().lock(), false);
-
-        assert_eq!(model.soc_mbox().lock().read().lock(), true);
+        assert!(!model.soc_mbox().lock().read().lock());
+        assert!(model.soc_mbox().lock().read().lock());
 
         model.soc_mbox().cmd().write(|_| 4242);
         assert_eq!(model.soc_mbox().cmd().read(), 4242);
@@ -266,7 +261,7 @@ mod tests {
     #[test]
     fn test_execution() {
         let mut model = caliptra_hw_model::create(InitParams {
-            rom: &&gen_image_hi(),
+            rom: &gen_image_hi(),
             ..Default::default()
         })
         .unwrap();
@@ -277,7 +272,7 @@ mod tests {
     #[test]
     fn test_output_failure() {
         let mut model = caliptra_hw_model::create(InitParams {
-            rom: &&gen_image_hi(),
+            rom: &gen_image_hi(),
             ..Default::default()
         })
         .unwrap();

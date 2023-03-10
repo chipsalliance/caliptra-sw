@@ -324,6 +324,7 @@ impl<const N: usize> ReadWriteMemory<N> {
     }
 
     /// Size of the memory in bytes
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> RvAddr {
         self.data.len() as RvAddr
     }
@@ -336,7 +337,7 @@ impl<const N: usize> ReadWriteMemory<N> {
 
     /// Mutable reference to data
     pub fn data_mut(&mut self) -> &mut [u8; N] {
-        let ptr = self.data.data().as_ptr() as *mut [u8; N];
+        let ptr = self.data.data_mut().as_mut_ptr() as *mut [u8; N];
         unsafe { &mut *ptr }
     }
 }
@@ -356,6 +357,11 @@ impl<const N: usize> Bus for ReadWriteMemory<N> {
             Ok(data) => Ok(data),
             Err(error) => Err(error.into()),
         }
+    }
+}
+impl<const N: usize> Default for ReadWriteMemory<N> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -380,6 +386,7 @@ impl<const N: usize> ReadOnlyMemory<N> {
     }
 
     /// Size of the memory in bytes
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> RvAddr {
         self.data.len() as RvAddr
     }
@@ -392,7 +399,7 @@ impl<const N: usize> ReadOnlyMemory<N> {
 
     /// Mutable reference to data
     pub fn data_mut(&mut self) -> &mut [u8; N] {
-        let ptr = self.data.data().as_ptr() as *mut [u8; N];
+        let ptr = self.data.data_mut().as_mut_ptr() as *mut [u8; N];
         unsafe { &mut *ptr }
     }
 }
@@ -411,6 +418,11 @@ impl<const N: usize> Bus for ReadOnlyMemory<N> {
         Err(BusError::StoreAccessFault)
     }
 }
+impl<const N: usize> Default for ReadOnlyMemory<N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// Fixed sized Write Only Memory
 pub struct WriteOnlyMemory<const N: usize> {
@@ -425,6 +437,7 @@ impl<const N: usize> WriteOnlyMemory<N> {
         }
     }
     /// Size of the memory in bytes
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> RvAddr {
         self.data.len() as RvAddr
     }
@@ -437,7 +450,7 @@ impl<const N: usize> WriteOnlyMemory<N> {
 
     /// Mutable reference to data
     pub fn data_mut(&mut self) -> &mut [u8; N] {
-        let ptr = self.data.data().as_ptr() as *mut [u8; N];
+        let ptr = self.data.data_mut().as_mut_ptr() as *mut [u8; N];
         unsafe { &mut *ptr }
     }
 }
@@ -454,6 +467,11 @@ impl<const N: usize> Bus for WriteOnlyMemory<N> {
             Ok(data) => Ok(data),
             Err(error) => Err(error.into()),
         }
+    }
+}
+impl<const N: usize> Default for WriteOnlyMemory<N> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
