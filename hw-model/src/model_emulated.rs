@@ -47,7 +47,7 @@ impl CaliptraEmulator {
         Self { cpu }
     }
 }
-
+/// Emulated model
 pub struct ModelEmulated {
     emu: CaliptraEmulator,
     output: Output,
@@ -90,5 +90,9 @@ impl crate::HwModel for ModelEmulated {
         }
 
         &mut self.output
+    }
+
+    fn tracing_hint(&mut self, _enable: bool) {
+        // TODO
     }
 }
