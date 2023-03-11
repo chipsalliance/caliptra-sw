@@ -11,7 +11,7 @@ on:
 
 jobs:
   build_and_test:
-    name: Build and Test
+    name: Verilator Build and Test
     runs-on: ubuntu-22.04
 
     env:
