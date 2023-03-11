@@ -47,7 +47,7 @@ impl CaliptraEmulator {
         Self { cpu }
     }
 }
-
+/// Emulated model
 pub struct ModelEmulated {
     emu: CaliptraEmulator,
     output: Output,
