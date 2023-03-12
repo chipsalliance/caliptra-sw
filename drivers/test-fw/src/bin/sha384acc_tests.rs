@@ -151,7 +151,12 @@ fn test_digest_max_mailbox_size() {
 }
 
 fn test_kat() {
-    assert_eq!(Sha384AccKat::default().execute().is_ok(), true);
+    assert_eq!(
+        Sha384AccKat::default()
+            .execute(&Sha384Acc::default())
+            .is_ok(),
+        true
+    );
 }
 
 test_suite! {

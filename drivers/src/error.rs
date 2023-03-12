@@ -84,7 +84,7 @@ macro_rules! caliptra_err_def {
 
         #[allow(unused_macros)]
         macro_rules! err_u32 { ($comp_err: ident) => {
-            ((($crate::error::CalptraComponent::$comp_name) as u32) << 24) | ($enum_name::$comp_err as u32)
+            ((($crate::error::CaliptraComponent::$comp_name) as u32) << 24) | ($enum_name::$comp_err as u32)
         } }
     };
 }

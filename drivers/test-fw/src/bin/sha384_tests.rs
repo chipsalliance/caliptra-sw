@@ -436,7 +436,10 @@ fn test_pcr_hash_extend_multi_block_2() {
 }
 
 fn test_kat() {
-    assert_eq!(Sha384Kat::default().execute().is_ok(), true);
+    assert_eq!(
+        Sha384Kat::default().execute(&Sha384::default()).is_ok(),
+        true
+    );
 }
 
 test_suite! {
