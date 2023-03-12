@@ -507,7 +507,10 @@ fn test_kv_seed_from_kv_msg_from_input() {
 }
 
 fn test_kat() {
-    assert_eq!(Ecc384Kat::default().execute().is_ok(), true);
+    assert_eq!(
+        Ecc384Kat::default().execute(&Ecc384::default()).is_ok(),
+        true
+    );
 }
 
 test_suite! {

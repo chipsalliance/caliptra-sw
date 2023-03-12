@@ -14,8 +14,8 @@ Abstract:
 
 #![no_std]
 
-mod crypto_kat;
 mod ecc384_kat;
+mod error;
 mod hmac384_kat;
 mod sha1_kat;
 mod sha256_kat;
