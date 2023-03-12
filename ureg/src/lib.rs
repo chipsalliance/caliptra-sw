@@ -561,7 +561,7 @@ impl<const LEN: usize, TItem: FromMmioPtr<TMmio = TMmio>, TMmio: Mmio + Copy> Ar
     #[inline(always)]
     pub fn at(&self, index: usize) -> TItem {
         if index >= LEN {
-            panic!("register index out of bounds");
+            panic!("register index out of bounds; {index} >= {LEN}"); // TODO(rkr35): do not sumbit.
         }
         unsafe { TItem::from_ptr(self.ptr.add(index * TItem::STRIDE), self.mmio) }
     }
