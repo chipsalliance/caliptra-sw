@@ -220,21 +220,24 @@ impl Sha384 {
                     // PANIC-FREE: Use buf.get() instead of buf[] as the compiler
                     // cannot reason about `offset` parameter to optimize out
                     // the panic.
-                    if let Some(mut slice) = buf.get(offset..) {
+                    if let Some(slice) = buf.get(offset..) {
                         // If this is the first block, create a block with the prepad.
                         if first && prepad_byte_count > 0 {
                             // PANIC-FREE: Following check optimizes the out of bounds
-                            // panic in copy_from_slice
-                            if block.len() < bytes_remaining
-                                || buf.len() > (bytes_remaining - prepad_byte_count)
-                            {
+                            // panic in copy_from_slice below.
+                            if prepad_byte_count > bytes_remaining {
                                 raise_err!(IndexOutOfBounds)
                             }
 
-                            block[prepad_byte_count..bytes_remaining].copy_from_slice(buf);
-                            slice = block.get(..bytes_remaining).unwrap();
+                            block[prepad_byte_count..bytes_remaining].copy_from_slice(slice);
+                            if let Some(extended_slice) = block.get(..bytes_remaining) {
+                                self.digest_partial_block(extended_slice, first, total_bytes)?;
+                            } else {
+                                raise_err!(InvalidSlice)
+                            }
+                        } else {
+                            self.digest_partial_block(slice, first, total_bytes)?;
                         }
-                        self.digest_partial_block(slice, first, total_bytes)?;
                         break;
                     } else {
                         raise_err!(InvalidSlice)
@@ -249,14 +252,19 @@ impl Sha384 {
                     {
                         // If this is the first block, create a block with the prepad.
                         if first && prepad_byte_count > 0 {
-                            block[prepad_byte_count..].copy_from_slice(
-                                buf.get(..(SHA384_BLOCK_BYTE_SIZE - prepad_byte_count))
-                                    .unwrap(),
-                            );
+                            if prepad_byte_count > (block.len() - 1) {
+                                raise_err!(IndexOutOfBounds)
+                            }
+                            block[prepad_byte_count..].copy_from_slice(slice); // [TODO] fix this panic: slice_start_index_len_fail
                             slice = &block;
                             prepad_byte_count = 0;
                         }
 
+                        // PANIC-FREE: Following check optimizes the out of bounds
+                        // panic in unwrap below.
+                        if slice.len() != SHA384_BLOCK_BYTE_SIZE {
+                            raise_err!(InvalidSlice)
+                        }
                         let block = <&[u8; SHA384_BLOCK_BYTE_SIZE]>::try_from(slice).unwrap();
                         self.digest_block(block, first, false)?;
                         bytes_remaining -= SHA384_BLOCK_BYTE_SIZE;
