@@ -224,7 +224,10 @@ fn test_op8() {
 }
 
 fn test_kat() {
-    assert_eq!(Sha256Kat::default().execute().is_ok(), true);
+    assert_eq!(
+        Sha256Kat::default().execute(&Sha256::default()).is_ok(),
+        true
+    );
 }
 
 test_suite! {

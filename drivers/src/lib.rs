@@ -15,7 +15,7 @@ Abstract:
 #![no_std]
 
 mod array;
-pub mod error;
+mod error;
 mod wait;
 
 mod data_vault;
