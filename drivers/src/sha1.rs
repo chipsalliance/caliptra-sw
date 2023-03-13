@@ -120,7 +120,7 @@ impl Sha1 {
     ///
     /// * `buf` - Digest buffer
     fn copy_digest_to_buf(&self, buf: &mut Array4x5) -> CaliptraResult<()> {
-        *buf = self.compressor.hash().into();
+        *buf = (*self.compressor.hash()).into();
         Ok(())
     }
 
@@ -330,7 +330,6 @@ impl Sha1Compressor {
     /// # Arguments
     ///
     /// * `block` - Block to compress
-    #[allow(clippy::needless_range_loop)]
     pub fn compress(&mut self, block: &[u8; 64]) {
         const K: [u32; 4] = [0x5A827999, 0x6ED9EBA1, 0x8F1BBCDC, 0xCA62C1D6];
         let mut w = [0u32; 80];
@@ -354,12 +353,12 @@ impl Sha1Compressor {
         let mut d = self.hash[3];
         let mut e = self.hash[4];
 
-        for idx in 0..20 {
+        for word in w.iter().take(20) {
             let temp = a
                 .rotate_left(5)
                 .wrapping_add((b & c) | ((!b) & d))
                 .wrapping_add(e)
-                .wrapping_add(w[idx])
+                .wrapping_add(*word)
                 .wrapping_add(K[0]);
             e = d;
             d = c;
@@ -368,12 +367,12 @@ impl Sha1Compressor {
             a = temp;
         }
 
-        for idx in 20..40 {
+        for word in w.iter().take(40).skip(20) {
             let temp = a
                 .rotate_left(5)
                 .wrapping_add(b ^ c ^ d)
                 .wrapping_add(e)
-                .wrapping_add(w[idx])
+                .wrapping_add(*word)
                 .wrapping_add(K[1]);
             e = d;
             d = c;
@@ -382,12 +381,12 @@ impl Sha1Compressor {
             a = temp;
         }
 
-        for idx in 40..60 {
+        for word in w.iter().take(60).skip(40) {
             let temp = a
                 .rotate_left(5)
                 .wrapping_add((b & c) | (b & d) | (c & d))
                 .wrapping_add(e)
-                .wrapping_add(w[idx])
+                .wrapping_add(*word)
                 .wrapping_add(K[2]);
             e = d;
             d = c;
@@ -396,12 +395,12 @@ impl Sha1Compressor {
             a = temp;
         }
 
-        for idx in 60..80 {
+        for word in w.iter().skip(60) {
             let temp = a
                 .rotate_left(5)
                 .wrapping_add(b ^ c ^ d)
                 .wrapping_add(e)
-                .wrapping_add(w[idx])
+                .wrapping_add(*word)
                 .wrapping_add(K[3]);
             e = d;
             d = c;
