@@ -26,7 +26,8 @@ enum ColdResetEntry48 {
     FmcDiceSigS = 5,
     FmcPubKeyX = 6,
     FmcPubKeyY = 7,
-    AliasFmcTci = 8,
+    FmcTci = 8,
+    OwnerPubKeyHash = 9,
 }
 
 impl From<ColdResetEntry48> for usize {
@@ -37,7 +38,8 @@ impl From<ColdResetEntry48> for usize {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ColdResetEntry4 {
-    AliasFmcSvn = 0,
+    FmcSvn = 0,
+    VendorPubKeyIndex = 1,
 }
 
 impl From<ColdResetEntry4> for usize {
@@ -147,7 +149,7 @@ impl DataVault {
     /// * `tci` - fmc tcb component identifier
     ///
     pub fn set_fmc_tci(&mut self, tci: &Array4x12) {
-        self.write_lock_cold_reset_entry48(ColdResetEntry48::AliasFmcTci, tci);
+        self.write_lock_cold_reset_entry48(ColdResetEntry48::FmcTci, tci);
     }
 
     /// Get the fmc tcb component identifier.
@@ -156,7 +158,27 @@ impl DataVault {
     /// * fmc tcb component identifier
     ///
     pub fn fmc_tci(&self) -> Array4x12 {
-        self.read_cold_reset_entry48(ColdResetEntry48::AliasFmcTci)
+        self.read_cold_reset_entry48(ColdResetEntry48::FmcTci)
+    }
+
+    /// Set the owner public key hash.
+    ///
+    /// # Arguments
+    ///
+    /// * `hash` - Owner public key hash
+    ///
+    pub fn set_owner_pk_hash(&mut self, hash: &Array4x12) {
+        self.write_lock_cold_reset_entry48(ColdResetEntry48::OwnerPubKeyHash, hash);
+    }
+
+    /// Get the owner public key hash
+    ///
+    /// # Returns
+    ///
+    /// * `Array4x12` - Owner public key hash
+    ///
+    pub fn owner_pk_hash(&self) -> Array4x12 {
+        self.read_cold_reset_entry48(ColdResetEntry48::OwnerPubKeyHash)
     }
 
     /// Set the fmc security version number.
@@ -165,7 +187,7 @@ impl DataVault {
     /// * `svn` - fmc security version number
     ///
     pub fn set_fmc_svn(&mut self, svn: u32) {
-        self.write_lock_cold_reset_entry4(ColdResetEntry4::AliasFmcSvn, svn);
+        self.write_lock_cold_reset_entry4(ColdResetEntry4::FmcSvn, svn);
     }
 
     /// Get the fmc security version number.
@@ -174,7 +196,26 @@ impl DataVault {
     /// * fmc security version number
     ///
     pub fn fmc_svn(&self) -> u32 {
-        self.read_cold_reset_entry4(ColdResetEntry4::AliasFmcSvn)
+        self.read_cold_reset_entry4(ColdResetEntry4::FmcSvn)
+    }
+
+    /// Set the vendor public key index used for image verification
+    ///
+    /// # Arguments
+    ///
+    /// * `pk_index` - Vendor public key index
+    ///
+    pub fn set_vendor_pk_index(&mut self, pk_index: u32) {
+        self.write_lock_cold_reset_entry4(ColdResetEntry4::VendorPubKeyIndex, pk_index);
+    }
+
+    /// Get the vendor public key index used for image verification.
+    ///
+    /// # Returns
+    ///
+    /// * `u32` - Vendor public key index
+    pub fn vendor_pk_index(&self) -> u32 {
+        self.read_cold_reset_entry4(ColdResetEntry4::VendorPubKeyIndex)
     }
 
     /// Read the cold reset entry.
