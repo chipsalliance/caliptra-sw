@@ -47,9 +47,9 @@ impl CodeGen {
 
         let param_vars = template.params().iter().map(|p| {
             let name = format_ident!("{}", p.name.to_case(Case::Snake));
-            let len = format_ident!("{}_LEN", p.name.to_uppercase());
+            let value = p.len;
             quote! {
-               #name: [u8; Self::#len],
+               #name: &'a[u8; #value],
             }
         });
 
@@ -78,7 +78,7 @@ impl CodeGen {
             let len = format_ident!("{}_LEN", p.name.to_uppercase());
             let offset = format_ident!("{}_OFFSET", p.name.to_uppercase());
             quote!(
-                 apply_slice::<{Self::#offset}, {Self::#len}>(&mut self.tbs, &params.#name);
+                 apply_slice::<{Self::#offset}, {Self::#len}>(&mut self.tbs, params.#name);
             )
         });
 
@@ -90,11 +90,11 @@ impl CodeGen {
         let tbs = template.tbs();
 
         quote!(
-            pub struct #param_name {
+            pub struct #param_name<'a> {
                 #(pub #param_vars)*
             }
 
-            impl #param_name{
+            impl<'a> #param_name<'a>{
                 #(pub #len_consts)*
             }
 
@@ -109,9 +109,11 @@ impl CodeGen {
                 const TBS_TEMPLATE: [u8; Self::TBS_TEMPLATE_LEN] = [#(#tbs,)*];
 
                 pub fn new(params: &#param_name) -> Self {
-                    Self {
+                    let mut template = Self {
                         tbs: Self::TBS_TEMPLATE,
-                    }.apply(params)
+                    };
+                    template.apply(params);
+                    template
                 }
 
                 pub fn sign<Sig, Error>(
@@ -125,15 +127,13 @@ impl CodeGen {
                     &self.tbs
                 }
 
-                fn apply(mut self, params: &#param_name) -> Self{
+                fn apply(&mut self, params: &#param_name) {
                     #[inline(always)]
                     fn apply_slice<const OFFSET: usize, const LEN: usize>(buf: &mut [u8; #tbs_len], val: &[u8; LEN]) {
                         buf[OFFSET..OFFSET + LEN].copy_from_slice(val);
                     }
 
                     #(#apply_calls)*
-
-                    self
                 }
             }
         )

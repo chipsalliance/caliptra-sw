@@ -68,17 +68,17 @@ impl<Algo: SigningAlgorithm> CertTemplateBuilder<Algo> {
         self
     }
 
-    /// Add Device Serial Number Extension
+    /// Add TCG UEID extension
     ///
     /// # Arguments
     ///
-    /// * `sn` - Device Serial Number
-    pub fn add_dev_sn_ext(mut self, sn: &[u8]) -> Self {
-        self.exts.push(x509::make_tcg_ueid_ext(sn)).unwrap();
+    /// * `ueid` - Unique Endpoint Identifier
+    pub fn add_ueid_ext(mut self, ueid: &[u8]) -> Self {
+        self.exts.push(x509::make_tcg_ueid_ext(ueid)).unwrap();
 
         let param = CertTemplateParam {
-            tbs_param: TbsParam::new("DEVICE_SERIAL_NUMBER", 0, sn.len()),
-            needle: sn.to_vec(),
+            tbs_param: TbsParam::new("UEID", 0, ueid.len()),
+            needle: ueid.to_vec(),
         };
         self.params.push(param);
 
