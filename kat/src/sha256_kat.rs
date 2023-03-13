@@ -12,52 +12,53 @@ Abstract:
 
 --*/
 
-use caliptra_lib::Array4xN;
-use caliptra_lib::CaliptraResult;
-use caliptra_lib::Sha256;
-use caliptra_lib::{caliptra_err_def, Array4x8};
+use crate::caliptra_err_def;
+use caliptra_lib::{Array4x8, Array4xN, CaliptraResult, Sha256};
 
 caliptra_err_def! {
-    Sha256,
+    Sha256Kat,
     Sha256KatErr
     {
-        // "No Data Test" failure
-        NoDataTestFailure = 0x01,
+        DigestFailure = 0x01,
+        DigestMismatch = 0x2,
     }
 }
+
+const EXPECTED_DIGEST: Array4xN<8, 32> = Array4xN([
+    0xe3b0c442, 0x98fc1c14, 0x9afbf4c8, 0x996fb924, 0x27ae41e4, 0x649b934c, 0xa495991b, 0x7852b855,
+]);
 
 #[derive(Default, Debug)]
 pub struct Sha256Kat {}
 
 impl Sha256Kat {
-    // This function executes the Known Answer Tests (aka KAT) for SHA256.
-    //
-    // Test vector source:
-    // https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Algorithm-Validation-Program/documents/shs/shabytetestvectors.zip
-    //
-    // # Arguments
-    //
-    /// * None
+    /// This function executes the Known Answer Tests (aka KAT) for SHA256.
+    ///
+    /// Test vector source:
+    /// https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Algorithm-Validation-Program/documents/shs/shabytetestvectors.zip
+    ///
+    /// # Arguments
+    ///
+    /// * `sha` - SHA2-256 Driver
     ///
     /// # Returns
     ///
     /// * `CaliptraResult` - Result denoting the KAT outcome.
-    pub fn execute(&self) -> CaliptraResult<()> {
-        self.kat_no_data()?;
-        Ok(())
+    pub fn execute(&self, sha: &Sha256) -> CaliptraResult<()> {
+        self.kat_no_data(sha)
     }
 
-    fn kat_no_data(&self) -> CaliptraResult<()> {
-        let expected_digest = Array4xN([
-            0xe3b0c442, 0x98fc1c14, 0x9afbf4c8, 0x996fb924, 0x27ae41e4, 0x649b934c, 0xa495991b,
-            0x7852b855,
-        ]);
+    fn kat_no_data(&self, sha: &Sha256) -> CaliptraResult<()> {
         let data = [];
         let mut digest = Array4x8::default();
-        let result = Sha256::default().digest(&data, &mut digest);
-        if result.is_err() || digest != expected_digest {
-            raise_err!(NoDataTestFailure);
+
+        sha.digest(&data, &mut digest)
+            .map_err(|_| err_u32!(DigestFailure))?;
+
+        if digest != EXPECTED_DIGEST {
+            raise_err!(DigestMismatch);
         }
+
         Ok(())
     }
 }

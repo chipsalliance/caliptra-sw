@@ -413,7 +413,10 @@ fn test_hmac_multi_block_two_step() {
 }
 
 fn test_kat() {
-    assert_eq!(Hmac384Kat::default().execute().is_ok(), true);
+    assert_eq!(
+        Hmac384Kat::default().execute(&Hmac384::default()).is_ok(),
+        true
+    );
 }
 
 test_suite! {
