@@ -29,14 +29,15 @@ mod constants {
         + (crate::KeyVault::KEY_COUNT - 1) * crate::KeyVault::KEY_CONTROL_REG_WIDTH;
 
     // PCR Vault
-    pub const PCR_SIZE: usize = 48;
-    pub const PCR_SIZE_WORDS: usize = PCR_SIZE / 4;
+    pub const PCR_SIZE_BYTES: usize = 48;
+    pub const PCR_SIZE_WORDS: usize = PCR_SIZE_BYTES / 4;
     pub const PCR_COUNT: u32 = 32;
     pub const PCR_CONTROL_REG_OFFSET: u32 = 0x2000;
     pub const PCR_CONTROL_REG_WIDTH: u32 = 0x4;
     pub const PCR_CONTROL_REG_START_OFFSET: u32 = PCR_CONTROL_REG_OFFSET;
     pub const PCR_CONTROL_REG_END_OFFSET: u32 =
         PCR_CONTROL_REG_START_OFFSET + (PCR_COUNT - 1) * PCR_CONTROL_REG_WIDTH;
+    pub const PCR_REG_OFFSET: u32 = 0x2600;
 
     // Sticky Data Vault
     pub const STICKY_DATAVAULT_CTRL_REG_COUNT: u32 = 10;
@@ -108,6 +109,7 @@ mod constants {
 
     /// PCR Register Size
     pub const PCR_REG_SIZE: usize = 0x600;
+    pub const PCR_REG_SIZE_WORDS: usize = 0x600 >> 2;
 
     /// PCR Control register reset value
     pub const PCR_CONTROL_REG_RESET_VAL: u32 = 0;
@@ -118,10 +120,10 @@ mod constants {
     /// Key control register reset value
     pub const KEY_CONTROL_REG_RESET_VAL: u32 = 0;
 
-    /// Sticky DataVault Control Register Rest Value.
+    /// Sticky DataVault Control Register Reset Value.
     pub const STICKY_DATAVAULT_CTRL_REG_RESET_VAL: u32 = 0x0;
 
-    /// Non-Sticky DataVault Control Register Rest Value.
+    /// Non-Sticky DataVault Control Register Reset Value.
     pub const NONSTICKY_DATAVAULT_CTRL_REG_RESET_VAL: u32 = 0x0;
 
     /// Non-Sticky Lockable Scratch  Control Register Reset Value.
@@ -181,7 +183,7 @@ impl KeyVault {
     }
 
     /// Internal emulator interface to read pcr from key vault
-    pub fn read_pcr(&self, pcr_id: u32) -> [u8; constants::PCR_SIZE] {
+    pub fn read_pcr(&self, pcr_id: u32) -> [u8; constants::PCR_SIZE_BYTES] {
         self.regs.borrow().read_pcr(pcr_id)
     }
 
@@ -189,7 +191,7 @@ impl KeyVault {
     pub fn write_pcr(
         &mut self,
         pcr_id: u32,
-        pcr: &[u8; constants::PCR_SIZE],
+        pcr: &[u8; constants::PCR_SIZE_BYTES],
     ) -> Result<(), BusError> {
         self.regs.borrow_mut().write_pcr(pcr_id, pcr)
     }
@@ -284,6 +286,8 @@ register_bitfields! [
 
 use constants::*;
 
+use crate::helpers::{bytes_from_words_le, words_from_bytes_le};
+
 /// Key Vault Peripheral
 #[derive(Bus)]
 pub struct KeyVaultRegs {
@@ -300,7 +304,8 @@ pub struct KeyVaultRegs {
     pcr_control: ReadWriteRegisterArray<u32, { PCR_COUNT as usize }, PV_CONTROL::Register>,
 
     /// PCR Registers
-    pcrs: ReadWriteMemory<{ PCR_REG_SIZE }>,
+    #[register_array(offset = 0x0000_2600)]
+    pcrs: [u32; PCR_REG_SIZE_WORDS],
 
     /// Sticky Data Vault Control Registers
     #[register_array(offset = 0x0000_4000, write_fn = write_sticky_datavault_ctrl)]
@@ -363,7 +368,7 @@ impl KeyVaultRegs {
     pub fn new() -> Self {
         Self {
             pcr_control: ReadWriteRegisterArray::new(PCR_CONTROL_REG_RESET_VAL),
-            pcrs: ReadWriteMemory::new(),
+            pcrs: [0; PCR_REG_SIZE_WORDS],
             key_control: ReadWriteRegisterArray::new(KEY_CONTROL_REG_RESET_VAL),
             keys: ReadWriteMemory::new(),
             sticky_datavault_control: ReadWriteRegisterArray::new(
@@ -395,7 +400,8 @@ impl KeyVaultRegs {
         );
 
         if pcr_ctrl_reg.read(PV_CONTROL::LOCK) == 0 && val.is_set(PV_CONTROL::CLEAR) {
-            self.pcrs.data_mut()[index * PCR_SIZE_WORDS..][..PCR_SIZE_WORDS].fill(0);
+            let pcr_start = index * constants::PCR_SIZE_WORDS;
+            self.pcrs[pcr_start..(pcr_start + PCR_SIZE_WORDS)].fill(0);
         }
         Ok(())
     }
@@ -464,27 +470,22 @@ impl KeyVaultRegs {
         Ok(())
     }
 
-    pub fn read_pcr(&self, pcr_id: u32) -> [u8; constants::PCR_SIZE] {
-        let pcr_start = pcr_id as usize * constants::PCR_SIZE;
-        let pcr_end = pcr_start + constants::PCR_SIZE;
-        let mut key = [0u8; constants::PCR_SIZE];
-        key.copy_from_slice(&self.pcrs.data()[pcr_start..pcr_end]);
-        key
+    pub fn read_pcr(&self, pcr_id: u32) -> [u8; constants::PCR_SIZE_BYTES] {
+        let pcr_start = pcr_id as usize * constants::PCR_SIZE_WORDS;
+        let mut pcr = [0u32; constants::PCR_SIZE_WORDS];
+        pcr.copy_from_slice(&self.pcrs[pcr_start..(pcr_start + constants::PCR_SIZE_WORDS)]);
+        bytes_from_words_le(&pcr)
     }
 
     pub fn write_pcr(
         &mut self,
         pcr_id: u32,
-        pcr: &[u8; constants::PCR_SIZE],
+        pcr: &[u8; constants::PCR_SIZE_BYTES],
     ) -> Result<(), BusError> {
-        let pcr_ctrl_reg = &mut self.pcr_control[pcr_id as usize];
-        if pcr_ctrl_reg.read(PV_CONTROL::LOCK) != 0 {
-            Err(BusError::StoreAccessFault)?
-        }
+        let pcr_start = pcr_id as usize * constants::PCR_SIZE_WORDS;
+        self.pcrs[pcr_start..(pcr_start + constants::PCR_SIZE_WORDS)]
+            .copy_from_slice(words_from_bytes_le(pcr).as_slice());
 
-        let pcr_start = pcr_id as usize * constants::PCR_SIZE;
-        let pcr_end = pcr_start + constants::PCR_SIZE;
-        self.pcrs.data_mut()[pcr_start..pcr_end].copy_from_slice(pcr);
         Ok(())
     }
 
@@ -666,8 +667,8 @@ mod tests {
     }
 
     #[test]
-    fn test_pcr_private_read_write() {
-        let expected: [u8; constants::PCR_SIZE] = [
+    fn test_pcr_read_write() {
+        let expected: [u8; constants::PCR_SIZE_BYTES] = [
             0x11, 0x65, 0xb3, 0x40, 0x6f, 0xf0, 0xb5, 0x2a, 0x3d, 0x24, 0x72, 0x1f, 0x78, 0x54,
             0x62, 0xca, 0x22, 0x76, 0xc9, 0xf4, 0x54, 0xa1, 0x16, 0xc2, 0xb2, 0xba, 0x20, 0x17,
             0x1a, 0x79, 0x05, 0xea, 0x5a, 0x02, 0x66, 0x82, 0xeb, 0x65, 0x9c, 0x4d, 0x5f, 0x11,
@@ -676,9 +677,100 @@ mod tests {
 
         let mut vault = KeyVault::new();
 
-        for idx in 0..constants::PCR_COUNT {
-            vault.write_pcr(idx, &expected).unwrap();
-            let returned = vault.read_pcr(idx);
+        for pcr_id in 0..constants::PCR_COUNT {
+            vault.write_pcr(pcr_id, &expected).unwrap();
+
+            // Test private read.
+            let returned = vault.read_pcr(pcr_id);
+            assert_eq!(&returned, &expected);
+
+            // Test public read.
+            let mut pcr: [u32; PCR_SIZE_WORDS] = [0u32; PCR_SIZE_WORDS];
+            let pcr_start_word_addr = PCR_REG_OFFSET + (pcr_id * PCR_SIZE_BYTES as u32);
+            for (word_idx, pcr_word) in pcr.iter_mut().enumerate().take(PCR_SIZE_WORDS) {
+                let result = vault.read(
+                    RvSize::Word,
+                    pcr_start_word_addr + (word_idx as u32 * RvSize::Word as u32),
+                );
+                assert!(result.is_ok());
+                *pcr_word = result.unwrap();
+            }
+            assert_eq!(&bytes_from_words_le(&pcr), &expected);
+        }
+    }
+
+    #[test]
+    fn test_pcr_lock_clear() {
+        let expected: [u8; constants::PCR_SIZE_BYTES] = [
+            0x11, 0x65, 0xb3, 0x40, 0x6f, 0xf0, 0xb5, 0x2a, 0x3d, 0x24, 0x72, 0x1f, 0x78, 0x54,
+            0x62, 0xca, 0x22, 0x76, 0xc9, 0xf4, 0x54, 0xa1, 0x16, 0xc2, 0xb2, 0xba, 0x20, 0x17,
+            0x1a, 0x79, 0x05, 0xea, 0x5a, 0x02, 0x66, 0x82, 0xeb, 0x65, 0x9c, 0x4d, 0x5f, 0x11,
+            0x5c, 0x36, 0x3a, 0xa3, 0xc7, 0x9b,
+        ];
+        let cleared_pcr: [u8; constants::PCR_SIZE_BYTES] = [0u8; constants::PCR_SIZE_BYTES];
+
+        let mut vault = KeyVault::new();
+        let mut val_reg = LocalRegisterCopy::<u32, PV_CONTROL::Register>::new(0);
+
+        for pcr_id in 0..constants::PCR_COUNT {
+            vault.write_pcr(pcr_id, &expected).unwrap();
+
+            // Test private read.
+            let returned = vault.read_pcr(pcr_id);
+            assert_eq!(&returned, &expected);
+
+            let pcr_control_addr = PCR_CONTROL_REG_OFFSET + (pcr_id * PCR_CONTROL_REG_WIDTH);
+
+            // Clear the PCR.
+            val_reg.write(PV_CONTROL::CLEAR.val(1));
+            assert_eq!(
+                vault
+                    .write(RvSize::Word, pcr_control_addr, val_reg.get())
+                    .ok(),
+                Some(())
+            );
+            let returned = vault.read_pcr(pcr_id);
+            assert_eq!(&returned, &cleared_pcr);
+
+            // Lock PCR
+            vault.write_pcr(pcr_id, &expected).unwrap();
+            val_reg.write(PV_CONTROL::LOCK.val(1));
+            assert_eq!(
+                vault
+                    .write(RvSize::Word, pcr_control_addr, val_reg.get())
+                    .ok(),
+                Some(())
+            );
+
+            // Try clearing the PCR. This should be a no-op.
+            val_reg.write(PV_CONTROL::CLEAR.val(1));
+            assert_eq!(
+                vault
+                    .write(RvSize::Word, pcr_control_addr, val_reg.get())
+                    .ok(),
+                Some(())
+            );
+            let returned = vault.read_pcr(pcr_id);
+            assert_eq!(&returned, &expected);
+
+            // Unlock PCR. This should be a no-op.
+            val_reg.write(PV_CONTROL::LOCK.val(0));
+            assert_eq!(
+                vault
+                    .write(RvSize::Word, pcr_control_addr, val_reg.get())
+                    .ok(),
+                Some(())
+            );
+
+            // Try clearing the PCR again. This should again be a no-op.
+            val_reg.write(PV_CONTROL::CLEAR.val(1));
+            assert_eq!(
+                vault
+                    .write(RvSize::Word, pcr_control_addr, val_reg.get())
+                    .ok(),
+                Some(())
+            );
+            let returned = vault.read_pcr(pcr_id);
             assert_eq!(&returned, &expected);
         }
     }
