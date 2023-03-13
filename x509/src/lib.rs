@@ -21,6 +21,6 @@ mod ldevid_cert;
 mod test_util;
 
 pub use cert_bldr::{Ecdsa384CertBuilder, Ecdsa384CsrBuilder, Ecdsa384Signature};
-pub use fmc_alias_cert::{FmcAliasCert, FmcAliasCertParams};
-pub use idevid_csr::{InitDevIdCsr, InitDevIdCsrParams};
-pub use ldevid_cert::{LocalDevIdCert, LocalDevIdCertParams};
+pub use fmc_alias_cert::{FmcAliasCertTbs, FmcAliasCertTbsParams};
+pub use idevid_csr::{InitDevIdCsrTbs, InitDevIdCsrTbsParams};
+pub use ldevid_cert::{LocalDevIdCertTbs, LocalDevIdCertTbsParams};

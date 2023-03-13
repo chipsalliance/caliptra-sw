@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 // Note: All the necessary code is auto generated
-include!(concat!(env!("OUT_DIR"), "/init_dev_id_csr.rs"));
+include!(concat!(env!("OUT_DIR"), "/init_dev_id_csr_tbs.rs"));
 
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
@@ -28,17 +28,17 @@ mod tests {
         let key = Ecc384AsymKey::default();
         let ec_key = key.priv_key().ec_key().unwrap();
 
-        let params = InitDevIdCsrParams {
-            public_key: *TryInto::<&[u8; InitDevIdCsr::PUBLIC_KEY_LEN]>::try_into(key.pub_key())
+        let params = InitDevIdCsrTbsParams {
+            public_key: TryInto::<&[u8; InitDevIdCsrTbs::PUBLIC_KEY_LEN]>::try_into(key.pub_key())
                 .unwrap(),
-            subject_sn: TryInto::<[u8; InitDevIdCsr::SUBJECT_SN_LEN]>::try_into(
+            subject_sn: &TryInto::<[u8; InitDevIdCsrTbs::SUBJECT_SN_LEN]>::try_into(
                 key.hex_str().into_bytes(),
             )
             .unwrap(),
-            device_serial_number: [0xAB; InitDevIdCsr::DEVICE_SERIAL_NUMBER_LEN],
+            ueid: &[0xAB; InitDevIdCsrTbs::UEID_LEN],
         };
 
-        let csr = InitDevIdCsr::new(&params);
+        let csr = InitDevIdCsrTbs::new(&params);
 
         let sig: EcdsaSig = csr
             .sign(|b| {
@@ -48,22 +48,21 @@ mod tests {
             })
             .unwrap();
 
-        assert_ne!(csr.tbs(), InitDevIdCsr::TBS_TEMPLATE);
+        assert_ne!(csr.tbs(), InitDevIdCsrTbs::TBS_TEMPLATE);
         assert_eq!(
-            &csr.tbs()[InitDevIdCsr::PUBLIC_KEY_OFFSET
-                ..InitDevIdCsr::PUBLIC_KEY_OFFSET + InitDevIdCsr::PUBLIC_KEY_LEN],
-            &params.public_key,
+            &csr.tbs()[InitDevIdCsrTbs::PUBLIC_KEY_OFFSET
+                ..InitDevIdCsrTbs::PUBLIC_KEY_OFFSET + InitDevIdCsrTbs::PUBLIC_KEY_LEN],
+            params.public_key,
         );
         assert_eq!(
-            &csr.tbs()[InitDevIdCsr::SUBJECT_SN_OFFSET
-                ..InitDevIdCsr::SUBJECT_SN_OFFSET + InitDevIdCsr::SUBJECT_SN_LEN],
-            &params.subject_sn,
+            &csr.tbs()[InitDevIdCsrTbs::SUBJECT_SN_OFFSET
+                ..InitDevIdCsrTbs::SUBJECT_SN_OFFSET + InitDevIdCsrTbs::SUBJECT_SN_LEN],
+            params.subject_sn,
         );
         assert_eq!(
-            &csr.tbs()[InitDevIdCsr::DEVICE_SERIAL_NUMBER_OFFSET
-                ..InitDevIdCsr::DEVICE_SERIAL_NUMBER_OFFSET
-                    + InitDevIdCsr::DEVICE_SERIAL_NUMBER_LEN],
-            &params.device_serial_number,
+            &csr.tbs()[InitDevIdCsrTbs::UEID_OFFSET
+                ..InitDevIdCsrTbs::UEID_OFFSET + InitDevIdCsrTbs::UEID_LEN],
+            params.ueid,
         );
 
         let ecdsa_sig = crate::Ecdsa384Signature {
