@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::asym_ecc384::words_from_bytes_le;
+use crate::helpers::words_from_bytes_le;
 use crate::key_vault::KeyUsage;
 use crate::KeyVault;
 use caliptra_emu_bus::{
