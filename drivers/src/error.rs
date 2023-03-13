@@ -63,16 +63,6 @@ macro_rules! caliptra_err_def {
         }
 
         #[allow(unused_macros)]
-        macro_rules! kv_err {
-            ($name: ident, $err_code: literal) => (
-                paste::paste! {
-                    [<$name>_HwReadyTimeout] = $err_code,
-                    [<$name>_HwValidTimeout] = $err_code + 1,
-                }
-            )
-        }
-
-        #[allow(unused_macros)]
         macro_rules! raise_err { ($comp_err: ident) => {
             Err(((($crate::error::CaliptraComponent::$comp_name) as u32) << 24) | ($enum_name::$comp_err as u32))?
         } }

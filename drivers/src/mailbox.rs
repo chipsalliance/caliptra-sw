@@ -27,6 +27,7 @@ caliptra_err_def! {
         InvalidDlenErr = 0x2,
         // No data avaiable.
         NoDataAvailErr = 0x03,
+        EnqueueErr = 0x04,
     }
 }
 
@@ -51,23 +52,23 @@ impl Mailbox {
     /// Attempt to acquire the lock to start sending data.
     /// # Returns
     /// * `MailboxSendTxn` - Object representing a send operation
-    pub fn try_start_send_txn() -> CaliptraResult<MailboxSendTxn> {
+    pub fn try_start_send_txn(&self) -> Option<MailboxSendTxn> {
         let mbox = mbox::RegisterBlock::mbox_csr();
         if mbox.lock().read().lock() {
-            raise_err!(InvalidStateErr)
+            None
         } else {
-            Ok(MailboxSendTxn::default())
+            Some(MailboxSendTxn::default())
         }
     }
 
     /// Attempts to start receiving data by checking the status.
     /// # Returns
     /// * 'MailboxRecvTxn' - Object representing a receive operation
-    pub fn try_start_recv_txn() -> CaliptraResult<MailboxRecvTxn> {
+    pub fn try_start_recv_txn(&self) -> Option<MailboxRecvTxn> {
         let mbox = mbox::RegisterBlock::mbox_csr();
         match mbox.status().read().status() {
-            MboxStatusE::DataReady => Ok(MailboxRecvTxn::default()),
-            _ => raise_err!(NoDataAvailErr),
+            MboxStatusE::DataReady => Some(MailboxRecvTxn::default()),
+            _ => None,
         }
     }
 }
@@ -130,7 +131,7 @@ impl MailboxSendTxn {
         self.write_dlen(data.len() as u32)?;
 
         // Copy data to mailbox
-        self.enqueue(data);
+        self.enqueue(data)?;
 
         // Write Status
         let mbox = mbox::RegisterBlock::mbox_csr();
@@ -141,25 +142,28 @@ impl MailboxSendTxn {
         Ok(())
     }
 
-    fn enqueue(&self, buf: &[u8]) {
+    fn enqueue(&self, buf: &[u8]) -> CaliptraResult<()> {
         let remainder = buf.len() % size_of::<u32>();
         let n = buf.len() - remainder;
 
         let mbox = mbox::RegisterBlock::mbox_csr();
 
         for idx in (0..n).step_by(size_of::<u32>()) {
+            let bytes = buf.get(idx..idx + 4).ok_or(err_u32!(EnqueueErr))?;
             mbox.datain()
-                .write(|_| u32::from_le_bytes(buf[idx..idx + 4].try_into().unwrap()));
+                .write(|_| u32::from_le_bytes(bytes.try_into().unwrap()));
         }
 
         // Handle the remainder.
         if remainder > 0 {
-            let mut block_part = buf[n] as u32;
+            let mut block_part = *buf.get(n).ok_or(err_u32!(EnqueueErr))? as u32;
             for idx in 1..remainder {
-                block_part |= (buf[n + idx] as u32) << (idx << 3);
+                block_part |= (*buf.get(n + idx).ok_or(err_u32!(EnqueueErr))? as u32) << (idx << 3);
             }
             mbox.datain().write(|_| block_part);
         }
+
+        Ok(())
     }
 
     ///
@@ -192,6 +196,7 @@ impl MailboxSendTxn {
     /// Checks if receiver processed the request.
     pub fn is_response_ready(&self) -> bool {
         let mbox = mbox::RegisterBlock::mbox_csr();
+
         matches!(
             mbox.status().read().status(),
             MboxStatusE::CmdComplete | MboxStatusE::CmdFailure
@@ -227,9 +232,9 @@ impl Drop for MailboxSendTxn {
             //
             // Send dummy request to transition the state machine to execute state.
             //
-            self.send_request(0, &[]).unwrap();
+            let _ = self.send_request(0, &[]);
             // Release the lock
-            self.complete().unwrap();
+            let _ = self.complete();
         }
     }
 }
@@ -345,7 +350,7 @@ impl Drop for MailboxRecvTxn {
     fn drop(&mut self) {
         if self.state != MailboxOpState::Idle {
             // Execute -> Idle (releases lock)
-            self.complete(false).unwrap();
+            let _ = self.complete(false);
         }
     }
 }
