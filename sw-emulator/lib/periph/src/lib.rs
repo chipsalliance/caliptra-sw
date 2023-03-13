@@ -19,6 +19,7 @@ mod doe;
 mod emu_ctrl;
 mod hash_sha256;
 mod hash_sha512;
+mod helpers;
 mod hmac_sha384;
 mod key_vault;
 mod mailbox;
