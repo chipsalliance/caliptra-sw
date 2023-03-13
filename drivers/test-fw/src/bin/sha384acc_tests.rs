@@ -32,7 +32,7 @@ fn test_digest0() {
         0xa3, 0xc7, 0x9b,
     ];
 
-    if let Ok(mut txn) = Mailbox::try_start_send_txn() {
+    if let Some(mut txn) = Mailbox::default().try_start_send_txn() {
         const CMD: u32 = 0x1c;
         assert!(txn.send_request(CMD, &data).is_ok());
 
@@ -59,7 +59,7 @@ fn test_digest1() {
         0x74, 0x60, 0x39,
     ];
 
-    if let Ok(mut txn) = Mailbox::try_start_send_txn() {
+    if let Some(mut txn) = Mailbox::default().try_start_send_txn() {
         const CMD: u32 = 0x1c;
         assert!(txn.send_request(CMD, &data).is_ok());
 
@@ -89,7 +89,7 @@ fn test_digest2() {
     let mut digest = Array4x12::default();
     let sha_acc = Sha384Acc::default();
 
-    if let Ok(mut txn) = Mailbox::try_start_send_txn() {
+    if let Some(mut txn) = Mailbox::default().try_start_send_txn() {
         const CMD: u32 = 0x1c;
         assert!(txn.send_request(CMD, &data).is_ok());
 

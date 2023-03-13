@@ -25,7 +25,7 @@ mod harness;
 fn test_send_txn_drop() {
     let mut ii = 0;
     while ii < 2 {
-        if let Ok(txn) = Mailbox::try_start_send_txn() {
+        if let Some(txn) = Mailbox::default().try_start_send_txn() {
             drop(txn);
         } else {
             assert!(false);
@@ -35,7 +35,7 @@ fn test_send_txn_drop() {
 }
 
 fn test_send_txn_error() {
-    if let Ok(mut txn) = Mailbox::try_start_send_txn() {
+    if let Some(mut txn) = Mailbox::default().try_start_send_txn() {
         assert!(txn.write_dlen(0x01).is_err());
         assert!(txn.execute_request().is_err());
         assert!(txn.complete().is_err());
@@ -44,11 +44,11 @@ fn test_send_txn_error() {
 }
 
 fn test_try_start_rcv_txn_error() {
-    if let Ok(_recv_txn) = Mailbox::try_start_recv_txn() {
+    if let Some(_recv_txn) = Mailbox::default().try_start_recv_txn() {
         assert!(false);
     }
-    if let Ok(_txn) = Mailbox::try_start_send_txn() {
-        if let Ok(_recv_txn) = Mailbox::try_start_recv_txn() {
+    if let Some(_txn) = Mailbox::default().try_start_send_txn() {
+        if let Some(_recv_txn) = Mailbox::default().try_start_recv_txn() {
             assert!(false);
         }
     } else {
@@ -86,7 +86,7 @@ fn test_mailbox_loopback() {
 
     let mut ii = 0;
     while ii < 2 {
-        if let Ok(mut txn) = Mailbox::try_start_send_txn() {
+        if let Some(mut txn) = Mailbox::default().try_start_send_txn() {
             const CMD: u32 = 0x1c;
 
             assert!(txn.send_request(CMD, request).is_ok());
@@ -96,7 +96,7 @@ fn test_mailbox_loopback() {
             assert_eq!(mbox.dlen().read(), request.len() as u32);
             // Initialize an empty receive buffer.
             // Send a bigger buffer than needed.
-            if let Ok(mut recv_txn) = Mailbox::try_start_recv_txn() {
+            if let Some(mut recv_txn) = Mailbox::default().try_start_recv_txn() {
                 assert_eq!(mbox.dlen().read(), recv_txn.dlen());
                 assert!(recv_txn.recv_request(&mut request_received[..]).is_ok());
                 assert_eq!(request, &request_received[..request.len()]);
