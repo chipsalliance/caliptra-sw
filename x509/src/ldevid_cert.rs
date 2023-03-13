@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 // Note: All the necessary code is auto generated
-include!(concat!(env!("OUT_DIR"), "/local_dev_id_cert.rs"));
+include!(concat!(env!("OUT_DIR"), "/local_dev_id_cert_tbs.rs"));
 
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
@@ -30,32 +30,34 @@ mod tests {
         let issuer_key = Ecc384AsymKey::default();
         let ec_key = issuer_key.priv_key().ec_key().unwrap();
 
-        let params = LocalDevIdCertParams {
-            serial_number: [0xABu8; LocalDevIdCertParams::SERIAL_NUMBER_LEN],
-            public_key: *TryInto::<&[u8; LocalDevIdCertParams::PUBLIC_KEY_LEN]>::try_into(
+        let params = LocalDevIdCertTbsParams {
+            serial_number: &[0xABu8; LocalDevIdCertTbsParams::SERIAL_NUMBER_LEN],
+            public_key: TryInto::<&[u8; LocalDevIdCertTbsParams::PUBLIC_KEY_LEN]>::try_into(
                 subject_key.pub_key(),
             )
             .unwrap(),
-            subject_sn: TryInto::<[u8; LocalDevIdCertParams::SUBJECT_SN_LEN]>::try_into(
+            subject_sn: &TryInto::<[u8; LocalDevIdCertTbsParams::SUBJECT_SN_LEN]>::try_into(
                 subject_key.hex_str().into_bytes(),
             )
             .unwrap(),
-            issuer_sn: TryInto::<[u8; LocalDevIdCertParams::ISSUER_SN_LEN]>::try_into(
+            issuer_sn: &TryInto::<[u8; LocalDevIdCertTbsParams::ISSUER_SN_LEN]>::try_into(
                 issuer_key.hex_str().into_bytes(),
             )
             .unwrap(),
-            device_serial_number: [0xAB; LocalDevIdCertParams::DEVICE_SERIAL_NUMBER_LEN],
-            subject_key_id: TryInto::<[u8; LocalDevIdCertParams::SUBJECT_KEY_ID_LEN]>::try_into(
-                subject_key.sha1(),
-            )
-            .unwrap(),
-            authority_key_id: TryInto::<[u8; LocalDevIdCertParams::SUBJECT_KEY_ID_LEN]>::try_into(
-                issuer_key.sha1(),
-            )
-            .unwrap(),
+            ueid: &[0xAB; LocalDevIdCertTbsParams::UEID_LEN],
+            subject_key_id:
+                &TryInto::<[u8; LocalDevIdCertTbsParams::SUBJECT_KEY_ID_LEN]>::try_into(
+                    subject_key.sha1(),
+                )
+                .unwrap(),
+            authority_key_id:
+                &TryInto::<[u8; LocalDevIdCertTbsParams::SUBJECT_KEY_ID_LEN]>::try_into(
+                    issuer_key.sha1(),
+                )
+                .unwrap(),
         };
 
-        let cert = LocalDevIdCert::new(&params);
+        let cert = LocalDevIdCertTbs::new(&params);
 
         let sig = cert
             .sign(|b| {
@@ -65,39 +67,38 @@ mod tests {
             })
             .unwrap();
 
-        assert_ne!(cert.tbs(), LocalDevIdCert::TBS_TEMPLATE);
+        assert_ne!(cert.tbs(), LocalDevIdCertTbs::TBS_TEMPLATE);
         assert_eq!(
-            &cert.tbs()[LocalDevIdCert::PUBLIC_KEY_OFFSET
-                ..LocalDevIdCert::PUBLIC_KEY_OFFSET + LocalDevIdCert::PUBLIC_KEY_LEN],
-            &params.public_key,
+            &cert.tbs()[LocalDevIdCertTbs::PUBLIC_KEY_OFFSET
+                ..LocalDevIdCertTbs::PUBLIC_KEY_OFFSET + LocalDevIdCertTbs::PUBLIC_KEY_LEN],
+            params.public_key,
         );
         assert_eq!(
-            &cert.tbs()[LocalDevIdCert::SUBJECT_SN_OFFSET
-                ..LocalDevIdCert::SUBJECT_SN_OFFSET + LocalDevIdCert::SUBJECT_SN_LEN],
-            &params.subject_sn,
+            &cert.tbs()[LocalDevIdCertTbs::SUBJECT_SN_OFFSET
+                ..LocalDevIdCertTbs::SUBJECT_SN_OFFSET + LocalDevIdCertTbs::SUBJECT_SN_LEN],
+            params.subject_sn,
         );
         assert_eq!(
-            &cert.tbs()[LocalDevIdCert::ISSUER_SN_OFFSET
-                ..LocalDevIdCert::ISSUER_SN_OFFSET + LocalDevIdCert::ISSUER_SN_LEN],
-            &params.issuer_sn,
+            &cert.tbs()[LocalDevIdCertTbs::ISSUER_SN_OFFSET
+                ..LocalDevIdCertTbs::ISSUER_SN_OFFSET + LocalDevIdCertTbs::ISSUER_SN_LEN],
+            params.issuer_sn,
         );
         assert_eq!(
-            &cert.tbs()[LocalDevIdCert::DEVICE_SERIAL_NUMBER_OFFSET
-                ..LocalDevIdCert::DEVICE_SERIAL_NUMBER_OFFSET
-                    + LocalDevIdCert::DEVICE_SERIAL_NUMBER_LEN],
-            &params.device_serial_number,
+            &cert.tbs()[LocalDevIdCertTbs::UEID_OFFSET
+                ..LocalDevIdCertTbs::UEID_OFFSET + LocalDevIdCertTbs::UEID_LEN],
+            params.ueid,
         );
         assert_eq!(
-            &cert.tbs()[LocalDevIdCert::SUBJECT_KEY_ID_OFFSET
-                ..LocalDevIdCert::SUBJECT_KEY_ID_OFFSET + LocalDevIdCert::SUBJECT_KEY_ID_LEN],
-            &params.subject_key_id,
+            &cert.tbs()[LocalDevIdCertTbs::SUBJECT_KEY_ID_OFFSET
+                ..LocalDevIdCertTbs::SUBJECT_KEY_ID_OFFSET + LocalDevIdCertTbs::SUBJECT_KEY_ID_LEN],
+            params.subject_key_id,
         );
         assert_eq!(
-            &cert.tbs()[LocalDevIdCert::AUTHORITY_KEY_ID_OFFSET
-                ..LocalDevIdCert::AUTHORITY_KEY_ID_OFFSET + LocalDevIdCert::AUTHORITY_KEY_ID_LEN],
-            &params.authority_key_id,
+            &cert.tbs()[LocalDevIdCertTbs::AUTHORITY_KEY_ID_OFFSET
+                ..LocalDevIdCertTbs::AUTHORITY_KEY_ID_OFFSET
+                    + LocalDevIdCertTbs::AUTHORITY_KEY_ID_LEN],
+            params.authority_key_id,
         );
-
         let ecdsa_sig = crate::Ecdsa384Signature {
             r: TryInto::<[u8; 48]>::try_into(sig.r().to_vec_padded(48).unwrap()).unwrap(),
             s: TryInto::<[u8; 48]>::try_into(sig.s().to_vec_padded(48).unwrap()).unwrap(),

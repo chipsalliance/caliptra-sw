@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 // Note: All the necessary code is auto generated
-include!(concat!(env!("OUT_DIR"), "/fmc_alias_cert.rs"));
+include!(concat!(env!("OUT_DIR"), "/fmc_alias_cert_tbs.rs"));
 
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
@@ -30,34 +30,35 @@ mod tests {
         let issuer_key = Ecc384AsymKey::default();
         let ec_key = issuer_key.priv_key().ec_key().unwrap();
 
-        let params = FmcAliasCertParams {
-            serial_number: [0xABu8; FmcAliasCertParams::SERIAL_NUMBER_LEN],
-            public_key: *TryInto::<&[u8; FmcAliasCertParams::PUBLIC_KEY_LEN]>::try_into(
+        let params = FmcAliasCertTbsParams {
+            serial_number: &[0xABu8; FmcAliasCertTbsParams::SERIAL_NUMBER_LEN],
+            public_key: TryInto::<&[u8; FmcAliasCertTbsParams::PUBLIC_KEY_LEN]>::try_into(
                 subject_key.pub_key(),
             )
             .unwrap(),
-            subject_sn: TryInto::<[u8; FmcAliasCertParams::SUBJECT_SN_LEN]>::try_into(
+            subject_sn: &TryInto::<[u8; FmcAliasCertTbsParams::SUBJECT_SN_LEN]>::try_into(
                 subject_key.hex_str().into_bytes(),
             )
             .unwrap(),
-            issuer_sn: TryInto::<[u8; FmcAliasCertParams::ISSUER_SN_LEN]>::try_into(
+            issuer_sn: &TryInto::<[u8; FmcAliasCertTbsParams::ISSUER_SN_LEN]>::try_into(
                 issuer_key.hex_str().into_bytes(),
             )
             .unwrap(),
-            device_serial_number: [0xAB; FmcAliasCertParams::DEVICE_SERIAL_NUMBER_LEN],
-            subject_key_id: TryInto::<[u8; FmcAliasCertParams::SUBJECT_KEY_ID_LEN]>::try_into(
+            ueid: &[0xAB; FmcAliasCertTbsParams::UEID_LEN],
+            subject_key_id: &TryInto::<[u8; FmcAliasCertTbsParams::SUBJECT_KEY_ID_LEN]>::try_into(
                 subject_key.sha1(),
             )
             .unwrap(),
-            authority_key_id: TryInto::<[u8; FmcAliasCertParams::SUBJECT_KEY_ID_LEN]>::try_into(
-                issuer_key.sha1(),
-            )
-            .unwrap(),
-            tcb_info_fmc_config: [0xCDu8; FmcAliasCertParams::TCB_INFO_FMC_CONFIG_LEN],
-            tcb_info_fmc_hash: [0xEFu8; FmcAliasCertParams::TCB_INFO_FMC_CONFIG_LEN],
+            authority_key_id:
+                &TryInto::<[u8; FmcAliasCertTbsParams::SUBJECT_KEY_ID_LEN]>::try_into(
+                    issuer_key.sha1(),
+                )
+                .unwrap(),
+            tcb_info_owner_pk_hash: &[0xCDu8; FmcAliasCertTbsParams::TCB_INFO_OWNER_PK_HASH_LEN],
+            tcb_info_fmc_tci: &[0xEFu8; FmcAliasCertTbsParams::TCB_INFO_FMC_TCI_LEN],
         };
 
-        let cert = FmcAliasCert::new(&params);
+        let cert = FmcAliasCertTbs::new(&params);
 
         let sig = cert
             .sign(|b| {
@@ -67,47 +68,47 @@ mod tests {
             })
             .unwrap();
 
-        assert_ne!(cert.tbs(), FmcAliasCert::TBS_TEMPLATE);
+        assert_ne!(cert.tbs(), FmcAliasCertTbs::TBS_TEMPLATE);
         assert_eq!(
-            &cert.tbs()[FmcAliasCert::PUBLIC_KEY_OFFSET
-                ..FmcAliasCert::PUBLIC_KEY_OFFSET + FmcAliasCert::PUBLIC_KEY_LEN],
-            &params.public_key,
+            &cert.tbs()[FmcAliasCertTbs::PUBLIC_KEY_OFFSET
+                ..FmcAliasCertTbs::PUBLIC_KEY_OFFSET + FmcAliasCertTbs::PUBLIC_KEY_LEN],
+            params.public_key,
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCert::SUBJECT_SN_OFFSET
-                ..FmcAliasCert::SUBJECT_SN_OFFSET + FmcAliasCert::SUBJECT_SN_LEN],
-            &params.subject_sn,
+            &cert.tbs()[FmcAliasCertTbs::SUBJECT_SN_OFFSET
+                ..FmcAliasCertTbs::SUBJECT_SN_OFFSET + FmcAliasCertTbs::SUBJECT_SN_LEN],
+            params.subject_sn,
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCert::ISSUER_SN_OFFSET
-                ..FmcAliasCert::ISSUER_SN_OFFSET + FmcAliasCert::ISSUER_SN_LEN],
-            &params.issuer_sn,
+            &cert.tbs()[FmcAliasCertTbs::ISSUER_SN_OFFSET
+                ..FmcAliasCertTbs::ISSUER_SN_OFFSET + FmcAliasCertTbs::ISSUER_SN_LEN],
+            params.issuer_sn,
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCert::DEVICE_SERIAL_NUMBER_OFFSET
-                ..FmcAliasCert::DEVICE_SERIAL_NUMBER_OFFSET
-                    + FmcAliasCert::DEVICE_SERIAL_NUMBER_LEN],
-            &params.device_serial_number,
+            &cert.tbs()[FmcAliasCertTbs::UEID_OFFSET
+                ..FmcAliasCertTbs::UEID_OFFSET + FmcAliasCertTbs::UEID_LEN],
+            params.ueid,
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCert::SUBJECT_KEY_ID_OFFSET
-                ..FmcAliasCert::SUBJECT_KEY_ID_OFFSET + FmcAliasCert::SUBJECT_KEY_ID_LEN],
-            &params.subject_key_id,
+            &cert.tbs()[FmcAliasCertTbs::SUBJECT_KEY_ID_OFFSET
+                ..FmcAliasCertTbs::SUBJECT_KEY_ID_OFFSET + FmcAliasCertTbs::SUBJECT_KEY_ID_LEN],
+            params.subject_key_id,
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCert::AUTHORITY_KEY_ID_OFFSET
-                ..FmcAliasCert::AUTHORITY_KEY_ID_OFFSET + FmcAliasCert::AUTHORITY_KEY_ID_LEN],
-            &params.authority_key_id,
+            &cert.tbs()[FmcAliasCertTbs::AUTHORITY_KEY_ID_OFFSET
+                ..FmcAliasCertTbs::AUTHORITY_KEY_ID_OFFSET + FmcAliasCertTbs::AUTHORITY_KEY_ID_LEN],
+            params.authority_key_id,
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCert::TCB_INFO_FMC_CONFIG_OFFSET
-                ..FmcAliasCert::TCB_INFO_FMC_CONFIG_OFFSET + FmcAliasCert::TCB_INFO_FMC_CONFIG_LEN],
-            &params.tcb_info_fmc_config,
+            &cert.tbs()[FmcAliasCertTbs::TCB_INFO_OWNER_PK_HASH_OFFSET
+                ..FmcAliasCertTbs::TCB_INFO_OWNER_PK_HASH_OFFSET
+                    + FmcAliasCertTbs::TCB_INFO_OWNER_PK_HASH_LEN],
+            params.tcb_info_owner_pk_hash,
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCert::TCB_INFO_FMC_HASH_OFFSET
-                ..FmcAliasCert::TCB_INFO_FMC_HASH_OFFSET + FmcAliasCert::TCB_INFO_FMC_HASH_LEN],
-            &params.tcb_info_fmc_hash,
+            &cert.tbs()[FmcAliasCertTbs::TCB_INFO_FMC_TCI_OFFSET
+                ..FmcAliasCertTbs::TCB_INFO_FMC_TCI_OFFSET + FmcAliasCertTbs::TCB_INFO_FMC_TCI_LEN],
+            params.tcb_info_fmc_tci,
         );
 
         let ecdsa_sig = crate::Ecdsa384Signature {
