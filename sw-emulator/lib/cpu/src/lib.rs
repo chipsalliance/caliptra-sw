@@ -18,8 +18,8 @@ mod instr;
 mod types;
 pub mod xreg_file;
 
-pub use cpu::Cpu;
 pub use cpu::StepAction;
 pub use cpu::WatchPtrHit;
 pub use cpu::WatchPtrKind;
+pub use cpu::{Cpu, InstrTracer};
 pub use types::RvInstr;

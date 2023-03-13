@@ -18,7 +18,7 @@ use crate::xreg_file::{XReg, XRegFile};
 use caliptra_emu_bus::{Bus, BusError, Clock};
 use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
 
-pub type InstrTracer<'a> = &'a mut dyn FnMut(u32, RvInstr);
+pub type InstrTracer<'a> = dyn FnMut(u32, RvInstr) + 'a;
 
 #[derive(PartialEq)]
 pub enum WatchPtrKind {
@@ -300,7 +300,7 @@ impl<TBus: Bus> Cpu<TBus> {
     /// # Error
     ///
     /// * `RvException` - Exception
-    pub fn step(&mut self, instr_tracer: Option<InstrTracer>) -> StepAction {
+    pub fn step(&mut self, instr_tracer: Option<&mut InstrTracer>) -> StepAction {
         self.clock.increment_and_poll(1, &mut self.bus);
         match self.exec_instr(instr_tracer) {
             Ok(result) => result,

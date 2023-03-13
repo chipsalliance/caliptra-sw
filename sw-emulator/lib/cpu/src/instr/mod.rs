@@ -52,7 +52,7 @@ impl<TBus: Bus> Cpu<TBus> {
     /// * `RvException` - Exception encountered during instruction execution
     pub(crate) fn exec_instr(
         &mut self,
-        instr_tracer: Option<InstrTracer>,
+        instr_tracer: Option<&mut InstrTracer>,
     ) -> Result<StepAction, RvException> {
         // Set In Execution Mode and remove Hit
         self.is_execute_instr = true;
@@ -103,7 +103,7 @@ impl<TBus: Bus> Cpu<TBus> {
     fn exec_instr16(
         &mut self,
         instr: u16,
-        instr_tracer: Option<InstrTracer>,
+        instr_tracer: Option<&mut InstrTracer>,
     ) -> Result<(), RvException> {
         if let Some(instr_tracer) = instr_tracer {
             instr_tracer(self.read_pc(), RvInstr::Instr16(instr))
@@ -123,7 +123,7 @@ impl<TBus: Bus> Cpu<TBus> {
     fn exec_instr32(
         &mut self,
         instr: u32,
-        instr_tracer: Option<InstrTracer>,
+        instr_tracer: Option<&mut InstrTracer>,
     ) -> Result<(), RvException> {
         if let Some(instr_tracer) = instr_tracer {
             instr_tracer(self.read_pc(), RvInstr::Instr32(instr))
