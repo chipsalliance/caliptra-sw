@@ -50,78 +50,8 @@ caliptra_err_def! {
     }
 }
 
-/// SHA-384 Data
-#[derive(Debug, Copy, Clone)]
-pub enum Sha384Data<'a> {
-    /// Array
-    Slice(&'a [u8]),
-
-    /// PCR hash extend arguments
-    PcrHashExtend(PcrHashExtendArgs<'a>),
-}
-
-impl<'a> From<&'a [u8]> for Sha384Data<'a> {
-    /// Converts to this type from the input type.
-    fn from(value: &'a [u8]) -> Self {
-        Self::Slice(value)
-    }
-}
-
-impl<'a, const N: usize> From<&'a [u8; N]> for Sha384Data<'a> {
-    /// Converts to this type from the input type.
-    fn from(value: &'a [u8; N]) -> Self {
-        Self::Slice(value)
-    }
-}
-
-impl<'a> From<PcrHashExtendArgs<'a>> for Sha384Data<'a> {
-    /// Converts to this type from the input type.
-    fn from(value: PcrHashExtendArgs<'a>) -> Self {
-        Self::PcrHashExtend(value)
-    }
-}
-
-/// Key read operation arguments
-#[derive(Debug, Clone, Copy)]
-pub struct PcrHashExtendArgs<'a> {
-    /// Array
-    pub slice: &'a [u8],
-
-    /// PCR hash extend
-    pub hash_extend: bool,
-
-    /// Pcr Id
-    pub id: PcrId,
-}
-
-impl<'a> PcrHashExtendArgs<'a> {
-    /// Create an instance of `KeyReadArgs`
-    ///
-    /// # Arguments
-    ///
-    /// * `id` - Key Id
-    pub fn new(slice: &'a [u8], hash_extend: bool, id: PcrId) -> Self {
-        Self {
-            slice,
-            hash_extend,
-            id,
-        }
-    }
-}
-
 /// SHA-384 Digest
-#[derive(Debug)]
-pub enum Sha384Digest<'a> {
-    /// Array
-    Array4x12(&'a mut Array4x12),
-}
-
-impl<'a> From<&'a mut Array4x12> for Sha384Digest<'a> {
-    /// Converts to this type from the input type.
-    fn from(value: &'a mut Array4x12) -> Self {
-        Self::Array4x12(value)
-    }
-}
+pub type Sha384Digest<'a> = &'a mut Array4x12;
 
 #[derive(Default, Debug)]
 pub struct Sha384 {}
@@ -134,17 +64,8 @@ impl Sha384 {
     /// * `Sha384Digest` - Object representing the digest operation
     pub fn digest_init<'a>(
         &'a self,
-        mut digest: Sha384Digest<'a>,
+        digest: Sha384Digest<'a>,
     ) -> CaliptraResult<Sha384DigestOp<'a>> {
-        let sha = sha512::RegisterBlock::sha512_reg();
-
-        // Configure writing digest to specified destination
-        match &mut digest {
-            Sha384Digest::Array4x12(arr) => {
-                KvAccess::begin_copy_to_arr(sha.kv_wr_status(), sha.kv_wr_ctrl(), arr)?
-            }
-        }
-
         let op = Sha384DigestOp {
             sha: self,
             state: Sha384DigestState::Init,
@@ -163,78 +84,24 @@ impl Sha384 {
     ///
     /// * `data` - Data to used to update the digest
     ///
-    pub fn digest(&self, data: Sha384Data, mut digest: Sha384Digest) -> CaliptraResult<()> {
-        let sha = sha512::RegisterBlock::sha512_reg();
-
-        // Configure writing digest to specified destination
-        match &mut digest {
-            Sha384Digest::Array4x12(arr) => {
-                KvAccess::begin_copy_to_arr(sha.kv_wr_status(), sha.kv_wr_ctrl(), arr)?
-            }
-        }
-
-        match data {
-            Sha384Data::Slice(slice) => {
-                // Calculate the digest
-                self.digest_buf(slice, 0)?;
-            }
-            Sha384Data::PcrHashExtend(hash_extend) => {
-                self.retrieve_pcr(hash_extend.id)?;
-
-                // Calculate the digest
-                self.digest_buf(hash_extend.slice, SHA384_HASH_SIZE)?;
-            }
-        }
-
-        // Copy the digest to specified destination
-        match &mut digest {
-            Sha384Digest::Array4x12(arr) => {
-                KvAccess::end_copy_to_arr(sha.digest().truncate::<12>(), *arr)
-            }
-        }
-    }
-
-    /// Calculate the digest of the buffer
-    ///
-    /// # Arguments
-    ///
-    /// * `buf` - Buffer to calculate the digest over
-    /// * `pcr_hash_extend` - Indicates if pcr is to be hash extended.
-    fn digest_buf(&self, buf: &[u8], prepad_byte_count_in: usize) -> CaliptraResult<()> {
-        let mut prepad_byte_count = prepad_byte_count_in;
-        let total_bytes = prepad_byte_count_in + buf.len();
-
+    pub fn digest(&self, buf: &[u8], digest: Sha384Digest) -> CaliptraResult<()> {
         // Check if the buffer is not large
-        if total_bytes > SHA384_MAX_DATA_SIZE {
+        if buf.len() > SHA384_MAX_DATA_SIZE {
             raise_err!(MaxDataErr)
         }
 
         let mut first = true;
-        let mut bytes_remaining = total_bytes;
-        let mut block = [0u8; SHA384_BLOCK_BYTE_SIZE];
+        let mut bytes_remaining = buf.len();
 
         loop {
-            let offset = (buf.len() + prepad_byte_count) - bytes_remaining;
+            let offset = buf.len() - bytes_remaining;
             match bytes_remaining {
                 0..=127 => {
-                    // PANIC-FREE: Use buf.get() instead of buf[] as the compiler
+                    // PANIC-FREE: Use buf.get() instead if buf[] as the compiler
                     // cannot reason about `offset` parameter to optimize out
                     // the panic.
-                    if let Some(mut slice) = buf.get(offset..) {
-                        // If this is the first block, create a block with the prepad.
-                        if first && prepad_byte_count > 0 {
-                            // PANIC-FREE: Following check optimizes the out of bounds
-                            // panic in copy_from_slice
-                            if block.len() < bytes_remaining
-                                || buf.len() > (bytes_remaining - prepad_byte_count)
-                            {
-                                raise_err!(IndexOutOfBounds)
-                            }
-
-                            block[prepad_byte_count..bytes_remaining].copy_from_slice(buf);
-                            slice = block.get(..bytes_remaining).unwrap();
-                        }
-                        self.digest_partial_block(slice, first, total_bytes)?;
+                    if let Some(slice) = buf.get(offset..) {
+                        self.digest_partial_block(slice, first, buf.len())?;
                         break;
                     } else {
                         raise_err!(InvalidSlice)
@@ -244,19 +111,7 @@ impl Sha384 {
                     // PANIC-FREE: Use buf.get() instead if buf[] as the compiler
                     // cannot reason about `offset` parameter to optimize out
                     // the panic call.
-                    if let Some(mut slice) =
-                        buf.get(offset..offset + (SHA384_BLOCK_BYTE_SIZE - prepad_byte_count))
-                    {
-                        // If this is the first block, create a block with the prepad.
-                        if first && prepad_byte_count > 0 {
-                            block[prepad_byte_count..].copy_from_slice(
-                                buf.get(..(SHA384_BLOCK_BYTE_SIZE - prepad_byte_count))
-                                    .unwrap(),
-                            );
-                            slice = &block;
-                            prepad_byte_count = 0;
-                        }
-
+                    if let Some(slice) = buf.get(offset..offset + SHA384_BLOCK_BYTE_SIZE) {
                         let block = <&[u8; SHA384_BLOCK_BYTE_SIZE]>::try_from(slice).unwrap();
                         self.digest_block(block, first, false)?;
                         bytes_remaining -= SHA384_BLOCK_BYTE_SIZE;
@@ -266,6 +121,52 @@ impl Sha384 {
                     }
                 }
             }
+        }
+
+        self.copy_digest_to_buf(digest)?;
+
+        Ok(())
+    }
+
+    /// Copy digest to buffer
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - Digest buffer
+    fn copy_digest_to_buf(&self, buf: &mut Array4x12) -> CaliptraResult<()> {
+        *buf = Array4x12::read_from_reg(
+            sha512::RegisterBlock::sha512_reg()
+                .digest()
+                .truncate::<12>(),
+        );
+        Ok(())
+    }
+
+    pub fn pcr_extend(&self, id: PcrId, data: &[u8]) -> CaliptraResult<()> {
+        let total_bytes = data.len() + SHA384_HASH_SIZE;
+        if total_bytes > (SHA384_BLOCK_BYTE_SIZE - 1) {
+            raise_err!(MaxDataErr)
+        }
+
+        // Wait on the PCR to be retrieved from the PCR vault.
+        self.retrieve_pcr(id)?;
+
+        // Prepare the data block; first SHA384_HASH_SIZE bytes are not filled
+        // to account for the PCR retrieved. The retrieved PCR is unaffected as
+        // writing to the first SHA384_HASH_SIZE bytes is skipped by the hardware.
+        let mut block = [0u8; SHA384_BLOCK_BYTE_SIZE];
+
+        // PANIC-FREE: Following check optimizes the out of bounds
+        // panic in copy_from_slice
+        if SHA384_HASH_SIZE > total_bytes || total_bytes > block.len() {
+            raise_err!(MaxDataErr)
+        }
+        block[SHA384_HASH_SIZE..total_bytes].copy_from_slice(data);
+
+        if let Some(slice) = block.get(..total_bytes) {
+            self.digest_partial_block(slice, true, total_bytes)?;
+        } else {
+            raise_err!(MaxDataErr)
         }
 
         Ok(())
@@ -467,14 +368,10 @@ impl<'a> Sha384DigestOp<'a> {
         // Set the state of the operation to final
         self.state = Sha384DigestState::Final;
 
-        let sha = sha512::RegisterBlock::sha512_reg();
+        // Copy digest
+        self.sha.copy_digest_to_buf(self.digest)?;
 
-        // Copy the digest to specified destination
-        match &mut self.digest {
-            Sha384Digest::Array4x12(arr) => {
-                KvAccess::end_copy_to_arr(sha.digest().truncate::<12>(), *arr)
-            }
-        }
+        Ok(())
     }
 
     /// Check if this the first digest operation

@@ -53,7 +53,7 @@ impl Sha384Kat {
         let data = &[];
         let mut digest = Array4x12::default();
 
-        sha.digest(data.into(), (&mut digest).into())
+        sha.digest(data, &mut digest)
             .map_err(|_| err_u32!(DigestFailure))?;
 
         if digest != SHA384_EXPECTED_DIGEST {
