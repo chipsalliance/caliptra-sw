@@ -12,7 +12,10 @@ Abstract:
 
 --*/
 
-use crate::{caliptra_err_def, Array4x12, CaliptraResult};
+use crate::{
+    caliptra_err_def, Array4x12, CaliptraResult, PcrHashExtendArgs, Sha384, Sha384Data,
+    Sha384Digest,
+};
 use caliptra_registers::pv;
 
 /// PCR Identifier
@@ -196,5 +199,20 @@ impl PcrBank {
         }
 
         result
+    }
+
+    /// Extend the PCR with specified data
+    ///
+    /// # Arguments
+    ///
+    /// * `id`   - PCR ID
+    /// * `sha`  - SHA2-384 Engine
+    /// * `data` - Data to extend
+    ///
+    pub fn extend_pcr(&self, id: PcrId, sha: &Sha384, data: &[u8]) -> CaliptraResult<()> {
+        let pcr_args = PcrHashExtendArgs::new(data, true, id);
+        let data = Sha384Data::PcrHashExtend(pcr_args);
+        let mut digest = Array4x12::default();
+        sha.digest(data, Sha384Digest::Array4x12(&mut digest))
     }
 }
