@@ -81,22 +81,13 @@ jobs:
         run: |
           rustup target add riscv32imc-unknown-none-elf
 
-      - name: Install cargo binutils
-        run: |
-          cargo install cargo-binutils
-          rustup component add llvm-tools-preview
-
-      - name: Install cargo make
-        run: |
-          cargo install cargo-make
-
       - name: Build
         run: |
           export RUSTFLAGS="-D warnings"
           cargo build
           cargo build --release
           drivers/test-fw/build.sh
-          (cd fmc && cargo make build)
+          (cd fmc && ./build.sh)
           sccache --show-stats
 
       # Clippy needs to build crates as part of the check, so do it after the
@@ -105,21 +96,11 @@ jobs:
         run: |
           cargo clippy --all-targets -- -D warnings
 
-      - name: Run unit tests
+      - name: Run tests
         run: |
           export RUSTFLAGS="-D warnings"
           cargo test
           cargo test --release
-          sccache --show-stats
-
-      - name: Install caliptra-emu
-        run: |
-          cargo install --path sw-emulator/app
-          sccache --show-stats
-
-      - name: Run tests inside emulator
-        run: |
-          drivers/test-fw/test.sh
           sccache --show-stats
 
       - name: Run emulator conformance tests
