@@ -81,3 +81,13 @@ required-features = ["riscv"]
 name = "status_reporter"
 path = "src/bin/status_reporter_tests.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "test_success"
+path = "src/bin/test_success.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "test_failure"
+path = "src/bin/test_failure.rs"
+required-features = ["riscv"]
