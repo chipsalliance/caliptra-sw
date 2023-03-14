@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use std::error::Error;
+use std::{error::Error, io::ErrorKind};
 
 use caliptra_emu_bus::Bus;
 
@@ -13,6 +13,7 @@ mod output;
 mod rv32_builder;
 
 use mmio::BusMmio;
+use output::ExitStatus;
 pub use output::Output;
 
 pub use model_emulated::ModelEmulated;
@@ -89,6 +90,28 @@ pub trait HwModel {
     /// Execute until the result of `predicate` becomes true.
     fn step_until(&mut self, mut predicate: impl FnMut(&mut Self) -> bool) {
         while !predicate(self) {
+            self.step();
+        }
+    }
+
+    fn copy_output_until_exit_success(
+        &mut self,
+        mut w: impl std::io::Write,
+    ) -> std::io::Result<()> {
+        loop {
+            if !self.output().peek().is_empty() {
+                w.write_all(self.output().take(usize::MAX).as_bytes())?;
+            }
+            match self.output().exit_status() {
+                Some(ExitStatus::Passed) => return Ok(()),
+                Some(ExitStatus::Failed) => {
+                    return Err(std::io::Error::new(
+                        ErrorKind::Other,
+                        "firmware exited with failure",
+                    ))
+                }
+                None => {}
+            }
             self.step();
         }
     }
