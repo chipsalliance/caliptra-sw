@@ -37,3 +37,22 @@ panic = "abort"
 lto = true
 opt-level = "s"
 codegen-units = 1
+
+# Always optimize the emulator during tests, as it is a major bottleneck for
+# test speed.
+[profile.test.package.caliptra-emu-bus]
+opt-level = 3
+[profile.test.package.caliptra-emu-cpu]
+opt-level = 3
+[profile.test.package.caliptra-emu-crypto]
+opt-level = 3
+[profile.test.package.caliptra-emu-periph]
+opt-level = 3
+[profile.test.package.caliptra-emu-types]
+opt-level = 3
+[profile.test.package.caliptra-hw-model]
+opt-level = 3
+[profile.test.package.tock-registers]
+opt-level = 3
+[profile.test.package.caliptra-lib]
+opt-level = 3
