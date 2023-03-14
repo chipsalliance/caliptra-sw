@@ -203,6 +203,8 @@ version = "0.1.0"
 dependencies = [
  "bitfield",
  "bitflags",
+ "caliptra-builder",
+ "caliptra-hw-model",
  "caliptra-registers",
  "cfg-if",
  "ureg",
