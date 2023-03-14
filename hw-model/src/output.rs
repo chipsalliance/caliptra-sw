@@ -1,9 +1,15 @@
 // Licensed under the Apache-2.0 license
 
+#[derive(Clone, Copy)]
+pub enum ExitStatus {
+    Passed,
+    Failed,
+}
+
 #[derive(Default)]
 pub struct Output {
     output: String,
-    exit_requested: bool,
+    exit_status: Option<ExitStatus>,
 }
 impl Output {
     pub fn new() -> Self {
@@ -20,14 +26,14 @@ impl Output {
             TESTCASE_PASSED => {
                 // This is the same string as printed by the verilog test-bench
                 self.output.push_str("* TESTCASE PASSED\n");
-                self.exit_requested = true;
+                self.exit_status = Some(ExitStatus::Passed);
             }
             TESTCASE_FAILED => {
                 // This is the same string as printed by the verilog test-bench
                 self.output.push_str("* TESTCASE FAILED\n");
-                self.exit_requested = true;
+                self.exit_status = Some(ExitStatus::Failed);
             }
-            0x20..=0x7f => {
+            0x20..=0x7f | b'\r' | b'\n' | b'\t' => {
                 self.output.push(ch as char);
             }
             _ => {
@@ -57,7 +63,11 @@ impl Output {
     /// Returns true if the caliptra microcontroller has signalled that it wants to exit
     /// (this only makes sense when running test cases on the microcontroller)
     pub fn exit_requested(&self) -> bool {
-        self.exit_requested
+        self.exit_status.is_some()
+    }
+
+    pub fn exit_status(&self) -> Option<ExitStatus> {
+        self.exit_status
     }
 }
 
