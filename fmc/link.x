@@ -11,8 +11,9 @@ SECTIONS
 		KEEP(*(.init .init.*));
         *(.text .text.*);
         KEEP(*(.vectors))
-
     	. = ALIGN(4);
+		*(.trap);
+		*(.trap.rust);
         _etext = .;
   	} > REGION_TEXT
 
