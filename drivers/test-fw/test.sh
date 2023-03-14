@@ -10,7 +10,7 @@ cargo build \
   --profile=firmware \
   --features emu,riscv
 
-for i in "src/bin/"*".rs"; do
+for i in "src/bin/"*"_tests.rs"; do
   basename="$(basename "$i")"
   filename="../../target/riscv32imc-unknown-none-elf/firmware/${basename%%_tests.*}"
   echo "$i"
