@@ -1,28 +1,31 @@
 # Licensed under the Apache-2.0 license
 
 [package]
-name = "fmc"
+name = "caliptra-rt"
 version = "0.1.0"
 edition = "2021"
 
 [features]
-riscv = ["caliptra-rt/riscv"]
+# This feature is used to filter all these binary targets during normal builds
+# (targets must be built with cargo arguments:
+#     --target riscv32imc-unknown-none-elf \
+#     --profile=firmware \
+#     --features riscv
+riscv = []
 
 [lib]
 test = false
 doctest = false
 
 
-[[bin]]
-name = "fmc"
-required-features = ["riscv"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 caliptra-lib = { path = "../drivers" }
-caliptra-rt = { path = "../rt" }
 caliptra-registers = { path = "../registers" }
 cfg-if = "1.0.0"
-ureg = { version = "0.1.0", path = "../ureg" }
+
+[build-dependencies]
+riscv-target = "0.1.2"
 

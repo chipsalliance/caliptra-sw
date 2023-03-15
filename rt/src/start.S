@@ -77,11 +77,17 @@ _start:
     // Setup stack pointer   
     la sp, _sstack
 
+    # Setup trap handler
+    la t0, _trap_entry
+    csrw MTVEC, t0    
+
     // TODO: Initialize ICCM & DCCM on cold boot to
     // all zeros. This is needed to intialize the ECC
     // in ICCM & DCCM.
 
-    // TODO: Setup Exception Vector
+    // Setup Exception Vector
+    la   t0, _trap_entry
+    csrw   mtvec, t0
 
     // TODO: Setup NMI Vector
 
@@ -131,3 +137,56 @@ _copy_mem32:
 1:
     ret   
     .cfi_endproc
+
+/* 
+    Trap entry point (_trap_entry)
+    Saves caller saved registers ra, t0..6, a0..7, calls trap handler in rust,
+    restores caller saved registers and then returns.    
+*/
+.section .trap, "ax"
+.global  _trap_entry    
+
+_trap_entry:
+    addi sp, sp, -16*4
+    sw     ra, 0*4(sp)
+/* Save temporary registers t0-t6 */
+    sw     t0, 1*4(sp)
+    sw     t1, 2*4(sp)
+    sw     t2, 3*4(sp)
+    sw     t3, 4*4(sp)
+    sw     t4, 5*4(sp)
+    sw     t5, 6*4(sp)
+    sw     t6, 7*4(sp)
+
+/* Save argument registers a0-a7 */
+    sw     a0, 8*4(sp)
+    sw     a1, 9*4(sp)
+    sw     a2, 10*4(sp)
+    sw     a3, 11*4(sp)
+    sw     a4, 12*4(sp)
+    sw     a5, 13*4(sp)
+    sw     a6, 14*4(sp)
+    sw     a7, 15*4(sp)
+
+    jal    zero, _rust_trap_entry 
+
+    lw     ra, 0*4(sp)
+    lw     t0, 1*4(sp)
+    lw     t1, 2*4(sp)
+    lw     t2, 3*4(sp)
+    lw     t3, 4*4(sp)
+    lw     t4, 5*4(sp)
+    lw     t5, 6*4(sp)
+    lw     t6, 7*4(sp)
+
+    lw     a0, 8*4(sp)
+    lw     a1, 9*4(sp)
+    lw     a2, 10*4(sp)
+    lw     a3, 11*4(sp)
+    lw     a4, 12*4(sp)
+    lw     a5, 13*4(sp)
+    lw     a6, 14*4(sp)
+    lw     a7, 15*4(sp)
+
+    addi sp, sp, 16*4
+    mret
