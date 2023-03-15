@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use std::io::stdout;
+use std::io::{stdout, LineWriter};
 
 use caliptra_hw_model::{HwModel, InitParams};
 
@@ -12,7 +12,11 @@ fn run_driver_test(test_bin_name: &str) {
         ..Default::default()
     })
     .unwrap();
-    model.copy_output_until_exit_success(stdout()).unwrap();
+
+    // Wrap in a line-writer so output from different test threads doesn't multiplex within a line.
+    model
+        .copy_output_until_exit_success(LineWriter::new(stdout()))
+        .unwrap();
 }
 
 #[test]
