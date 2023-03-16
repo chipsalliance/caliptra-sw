@@ -37,6 +37,11 @@ bitflags::bitflags! {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum IdevidCertAttr {
     Flags = 0,
+    SubjectKeyId1 = 1,
+    SubjectKeyId2 = 2,
+    SubjectKeyId3 = 3,
+    SubjectKeyId4 = 4,
+    SubjectKeyId5 = 5,
     ManufacturerSerialNumber1 = 6,
     ManufacturerSerialNumber2 = 7,
 }
@@ -98,6 +103,48 @@ impl FuseBank {
         ueid[4..].copy_from_slice(&ueid2.to_le_bytes());
 
         ueid
+    }
+
+    /// Get the subject key identifier.
+    ///
+    /// # Arguments
+    /// * None
+    ///
+    /// # Returns
+    ///     subject key identifier
+    ///
+    pub fn subject_key_id(&self) -> [u8; 20] {
+        let soc_ifc_regs = soc_ifc::RegisterBlock::soc_ifc_reg();
+
+        let subkeyid1 = soc_ifc_regs
+            .fuse_idevid_cert_attr()
+            .at(IdevidCertAttr::SubjectKeyId1.into())
+            .read();
+        let subkeyid2 = soc_ifc_regs
+            .fuse_idevid_cert_attr()
+            .at(IdevidCertAttr::SubjectKeyId2.into())
+            .read();
+        let subkeyid3 = soc_ifc_regs
+            .fuse_idevid_cert_attr()
+            .at(IdevidCertAttr::SubjectKeyId3.into())
+            .read();
+        let subkeyid4 = soc_ifc_regs
+            .fuse_idevid_cert_attr()
+            .at(IdevidCertAttr::SubjectKeyId4.into())
+            .read();
+        let subkeyid5 = soc_ifc_regs
+            .fuse_idevid_cert_attr()
+            .at(IdevidCertAttr::SubjectKeyId5.into())
+            .read();
+
+        let mut subject_key_id = [0u8; 20];
+        subject_key_id[..4].copy_from_slice(&subkeyid1.to_le_bytes());
+        subject_key_id[4..8].copy_from_slice(&subkeyid2.to_le_bytes());
+        subject_key_id[8..12].copy_from_slice(&subkeyid3.to_le_bytes());
+        subject_key_id[12..16].copy_from_slice(&subkeyid4.to_le_bytes());
+        subject_key_id[16..20].copy_from_slice(&subkeyid5.to_le_bytes());
+
+        subject_key_id
     }
 
     /// Get the vendor public key hash.
