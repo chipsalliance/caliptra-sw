@@ -51,7 +51,7 @@ pub use error_reporter::{
     report_hw_error_non_fatal,
 };
 pub use exit_ctrl::ExitCtrl;
-pub use fuse_bank::FuseBank;
+pub use fuse_bank::{FuseBank, VendorPubKeyRevocation, X509KeyIdAlgo};
 pub use hmac384::{Hmac384, Hmac384Data, Hmac384Key, Hmac384Op, Hmac384Tag};
 pub use key_vault::{KeyId, KeyUsage, KeyVault};
 pub use kv_access::{KeyReadArgs, KeyWriteArgs};
@@ -62,7 +62,7 @@ pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
 pub use sha256::{Sha256, Sha256DigestOp};
 pub use sha384::{Sha384, Sha384Digest, Sha384DigestOp};
 pub use sha384acc::{Sha384Acc, Sha384AccOp};
-pub use state::{DeviceState, Lifecycle};
+pub use state::{DeviceState, Lifecycle, MfgState};
 pub use status_reporter::{report_boot_status, FlowStatus};
 
 cfg_if::cfg_if! {
