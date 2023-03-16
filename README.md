@@ -4,6 +4,11 @@
 This repository contains firmware, libraries, and tools related to the
 [Caliptra Project](https://github.com/chipsalliance/caliptra).
 
+## [rom](/rom/dev)
+
+"Read Only Memory", the code that is first executed when the chip is powered on.
+Normally the ROM is part of the silicon. 
+
 ## [fmc](/fmc/)
 
 "First Mutable Code", the code that the boot ROM measures and jumps to after

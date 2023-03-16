@@ -22,6 +22,7 @@ impl uWrite for MutablePrinter {
 
     /// Writes a string slice into this writer, returning whether the write succeeded.
     #[cfg(not(feature = "std"))]
+    #[inline(never)]
     fn write_str(&mut self, _str: &str) -> Result<(), Self::Error> {
         #[cfg(feature = "emu")]
         caliptra_lib::Uart::default().write(_str);

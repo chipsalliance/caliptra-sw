@@ -1,0 +1,31 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "caliptra-rom"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+caliptra-lib = { path = "../../drivers" }
+caliptra-kat = { path = "../../kat" }
+caliptra-x509 = { path = "../../x509", default-features = false }
+caliptra-image-types = { path = "../../image/types", default-features = false }
+caliptra-image-verify = { path = "../../image/verify", default-features = false }
+caliptra_common = { path = "../../common", default-features = false }
+ufmt = "0.2.0"
+zerocopy = "0.6.1"
+
+[build-dependencies]
+cfg-if = "1.0.0"
+
+[features]
+default = ["std"]
+emu = ["caliptra-lib/emu"]
+std = [
+  "caliptra-x509/std",
+  "caliptra-image-types/std",
+  "caliptra-image-verify/std",
+  "caliptra_common/std",
+  "ufmt/std",
+]
+no-fmc = []

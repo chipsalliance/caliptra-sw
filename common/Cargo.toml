@@ -9,3 +9,8 @@ edition = "2021"
 [dependencies]
 ufmt = "0.2.0"
 zerocopy = "0.6.1"
+
+[features]
+default = ["std"]
+std = []
+

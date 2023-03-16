@@ -26,6 +26,7 @@ pub enum X509KeyIdAlgo {
 }
 
 bitflags::bitflags! {
+    #[derive(Default, Copy, Clone)]
     pub struct VendorPubKeyRevocation : u32 {
         const KEY0 = 0b0001;
         const KEY1 = 0b0010;
