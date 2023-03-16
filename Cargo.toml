@@ -32,6 +32,14 @@ members = [
   "ureg/lib/systemrdl",
   "x509",
   "kat",
+  "image/types",
+  "image/gen",
+  "image/serde",
+  "image/verify",
+  "image/app",
+  "rom/dev",
+  "rom/dev/tools/test-fmc",
+  "rom/dev/tools/test-rt",
 ]
 
 [profile.firmware]

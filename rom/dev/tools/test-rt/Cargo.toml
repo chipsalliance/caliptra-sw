@@ -1,0 +1,18 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "caliptra-rom-test-rt"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+caliptra-lib = { path = "../../../../drivers" }
+ufmt = "0.2.0"
+
+[build-dependencies]
+cfg-if = "1.0.0"
+
+[features]
+default = ["std"]
+emu = ["caliptra-lib/emu"]
+std = ["ufmt/std"]

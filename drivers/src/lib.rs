@@ -15,7 +15,7 @@ Abstract:
 #![no_std]
 
 mod array;
-mod error;
+pub mod error;
 mod wait;
 
 mod data_vault;
@@ -39,7 +39,9 @@ mod status_reporter;
 
 pub type CaliptraResult<T> = Result<T, u32>;
 pub use array::{Array4x12, Array4x4, Array4x5, Array4x8, Array4xN};
-pub use data_vault::DataVault;
+pub use data_vault::{
+    ColdResetEntry4, ColdResetEntry48, DataVault, WarmResetEntry4, WarmResetEntry48,
+};
 pub use doe::DeobfuscationEngine;
 pub use ecc384::{
     Ecc384, Ecc384Data, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Scalar, Ecc384Seed,

@@ -1,0 +1,958 @@
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    verifier.rs
+
+Abstract:
+
+    This file is the main implementaiton of Caliptra Image Verifier.
+
+--*/
+
+use crate::*;
+use caliptra_image_types::*;
+use caliptra_lib::*;
+
+const ZERO_DIGEST: ImageDigest = [0u32; SHA384_DIGEST_WORD_SIZE];
+
+caliptra_err_def! {
+    ImageVerifier,
+    ImageVerifierErr {
+        ManifestMarkerMismatch = 1,
+        ManifestSizeMismatch = 2,
+        VendorPubKeyDigestInvalid = 3,
+        VendorPubKeyDigestFailure = 4,
+        VendorPubKeyDigestMismatch = 5,
+        OwnerPubKeyDigestFailure = 6,
+        OwnerPubKeyDigestMismatch = 7,
+        VendorEccPubKeyIndexOutOfBounds = 8,
+        VendorEccPubKeyRevoked = 9,
+        HeaderDigestFailure = 10,
+        VendorEccVerifyFailure = 11,
+        VendorEccSignatureInvalid = 12,
+        VendorEccPubKeyIndexMismatch = 13,
+        OwnerEccVerifyFailure = 14,
+        OwnerEccSignatureInvalid = 15,
+        TocEntryCountInvalid = 16,
+        TocDigestFailures = 17,
+        TocDigestMismatch = 18,
+        FmcDigestFailure = 19,
+        FmcDigestMismatch = 20,
+        RuntimeDigestFailure = 21,
+        RuntimeDigestMismatch = 22,
+        FmcRuntimeOverlap = 23,
+        FmcRuntimeIncorrectOrder = 24,
+        OwnerPubKeyDigestInvalidArg = 25,
+        OwnerEccSignatureInvalidArg = 26,
+        VendorPubKeyDigestInvalidArg = 27,
+        VendorEccSignatureInvalidArg = 28,
+    }
+}
+
+/// Header Info
+struct HeaderInfo<'a> {
+    vendor_ecc_pub_key_idx: u32,
+    vendor_info: (&'a ImageEccPubKey, &'a ImageEccSignature),
+    owner_info: Option<(&'a ImageEccPubKey, &'a ImageEccSignature)>,
+    owner_pub_keys_digest: ImageDigest,
+}
+
+/// TOC Info
+struct TocInfo<'a> {
+    len: u32,
+    digest: &'a ImageDigest,
+}
+
+/// Image Info
+struct ImageInfo<'a> {
+    fmc: &'a ImageTocEntry,
+    runtime: &'a ImageTocEntry,
+}
+
+/// Image Verifier
+pub struct ImageVerifier<Env: ImageVerificationEnv> {
+    /// Verifiaction Environment
+    env: Env,
+}
+
+impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
+    /// Create a new instance `ImageVerifier`
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - Environment
+    pub fn new(env: Env) -> Self {
+        Self { env }
+    }
+
+    /// Verify Caliptra image
+    ///
+    /// # Arguments
+    ///
+    /// * `manifest` - Image Manifest
+    /// * `image`    - Image to verify
+    /// * `reason`   - Reset Reason
+    ///
+    /// # Returns
+    ///
+    /// * `ImageVerificationInfo` - Image verifiaction information success
+    pub fn verify(
+        &self,
+        manifest: &ImageManifest,
+        image: Env::Image,
+        _reason: ResetReason,
+    ) -> CaliptraResult<ImageVerificationInfo> {
+        // Check if manifest has required marker
+        if manifest.marker() != MANIFEST_MARKER {
+            raise_err!(ManifestMarkerMismatch)
+        }
+
+        // Check if manifest size is valid
+        if manifest.size() as usize != core::mem::size_of::<ImageManifest>() {
+            raise_err!(ManifestSizeMismatch)
+        }
+
+        // Verify the preamble
+        let preamble = manifest.preamble();
+        let header_info = self.verify_preamble(image, preamble)?;
+
+        // Verify Header
+        let header = manifest.header();
+        let toc_info = self.verify_header(image, header, &header_info)?;
+
+        // Verify TOC
+        let image_info = self.verify_toc(image, manifest, &toc_info)?;
+
+        // Verify FMC
+        let fmc_info = self.verify_fmc(image, image_info.fmc)?;
+
+        // Verify Runtime
+        let runtime_info = self.verify_runtime(image, image_info.runtime)?;
+
+        let mut info = ImageVerificationInfo::default();
+        info.set_vendor_ecc_pub_key_idx(header_info.vendor_ecc_pub_key_idx)
+            .set_owner_pub_keys_digest(header_info.owner_pub_keys_digest)
+            .set_fmc(fmc_info)
+            .set_runtime(runtime_info);
+
+        Ok(info)
+    }
+
+    /// Verify Preamble
+    fn verify_preamble<'a>(
+        &self,
+        image: Env::Image,
+        preamble: &'a ImagePreamble,
+    ) -> CaliptraResult<HeaderInfo<'a>> {
+        // Verify Vendor Public Key Digest
+        self.verify_vendor_pk_digest(image)?;
+
+        // Verify Owner Public Key Digest
+        let owner_pk_digest = self.verify_owner_pk_digest(image)?;
+
+        // Verify Vendor Key Index
+        let vendor_ecc_pub_key_idx = self.verify_vendor_ecc_pk_idx(preamble, image)?;
+
+        // Vendor Information
+        let vendor_info = (
+            &preamble.vendor_pub_keys().ecc_pub_keys()[vendor_ecc_pub_key_idx as usize],
+            preamble.vendor_sigs().ecc_sig(),
+        );
+
+        // Owner Information
+        let (owner_pub_keys_digest, owner_info) = if let Some(digest) = owner_pk_digest {
+            (
+                digest,
+                Some((
+                    preamble.owner_pub_keys().ecc_pub_key(),
+                    preamble.owner_sigs().ecc_sig(),
+                )),
+            )
+        } else {
+            (ZERO_DIGEST, None)
+        };
+
+        let info = HeaderInfo {
+            vendor_ecc_pub_key_idx,
+            vendor_info,
+            owner_pub_keys_digest,
+            owner_info,
+        };
+
+        Ok(info)
+    }
+
+    /// Verify Vendor ECC Public Key Index
+    fn verify_vendor_ecc_pk_idx(
+        &self,
+        preamble: &ImagePreamble,
+        image: Env::Image,
+    ) -> CaliptraResult<u32> {
+        const SECOND_LAST_KEY_IDX: u32 = VENDOR_ECC_KEY_COUNT - 2;
+        const LAST_KEY_IDX: u32 = VENDOR_ECC_KEY_COUNT - 1;
+
+        let key_idx = preamble.vendor_ecc_pub_key_idx();
+        let revocation = self.env.vendor_pub_key_revocation(image);
+
+        match key_idx {
+            0..=SECOND_LAST_KEY_IDX => {
+                let key = VendorPubKeyRevocation::from_bits_truncate(0x01u32 << key_idx);
+                if revocation.contains(key) {
+                    raise_err!(VendorEccPubKeyRevoked)
+                }
+            }
+            LAST_KEY_IDX => {
+                // The last key is never revoked
+            }
+            _ => raise_err!(VendorEccPubKeyIndexOutOfBounds),
+        }
+
+        Ok(key_idx)
+    }
+
+    /// Verify vendor public key digest
+    fn verify_vendor_pk_digest(
+        &self,
+        image: <Env as ImageVerificationEnv>::Image,
+    ) -> Result<(), u32> {
+        // We skip vendor public key check in unprovisioned state
+        if self.env.dev_lifecycle(image) == Lifecycle::Unprovisioned {
+            return Ok(());
+        }
+
+        // Read expected value from environment
+        let expected = self.env.vendor_pub_key_digest(image);
+
+        // Vendor public key digest must never be zero
+        if expected == ZERO_DIGEST {
+            raise_err!(VendorPubKeyDigestInvalid)
+        }
+
+        let range = ImageManifest::vendor_pub_key_range();
+
+        let actual = self
+            .env
+            .sha384_digest(image, range.start, range.len() as u32)
+            .map_err(|_| err_u32!(VendorPubKeyDigestFailure))?;
+
+        if expected != actual {
+            raise_err!(VendorPubKeyDigestMismatch)
+        }
+
+        Ok(())
+    }
+
+    /// Verify owner public key digest
+    fn verify_owner_pk_digest(&self, image: Env::Image) -> CaliptraResult<Option<ImageDigest>> {
+        let expected = self.env.owner_pub_key_digest(image);
+
+        // Skip Verification if owner public key digest is zero
+        if expected == ZERO_DIGEST {
+            return Ok(None);
+        }
+
+        let range = ImageManifest::owner_pub_key_range();
+
+        let actual = self
+            .env
+            .sha384_digest(image, range.start, range.len() as u32)
+            .map_err(|_| err_u32!(OwnerPubKeyDigestFailure))?;
+
+        if expected != actual {
+            raise_err!(OwnerPubKeyDigestMismatch)
+        }
+
+        Ok(Some(expected))
+    }
+
+    /// Verify Header
+    fn verify_header<'a>(
+        &self,
+        image: Env::Image,
+        header: &'a ImageHeader,
+        info: &HeaderInfo,
+    ) -> CaliptraResult<TocInfo<'a>> {
+        // Calculate the digest for the header
+        let range = ImageManifest::header_range();
+        let digest = self
+            .env
+            .sha384_digest(image, range.start, range.len() as u32)
+            .map_err(|_| err_u32!(HeaderDigestFailure))?;
+
+        // Verify vendor signature
+        let (pub_key, sig) = info.vendor_info;
+        self.verify_vendor_sig(image, &digest, pub_key, sig)?;
+
+        // Verify the ECC public key index used verify header signature is encoded
+        // in the header
+        if header.vendor_ecc_pub_key_idx() != info.vendor_ecc_pub_key_idx {
+            raise_err!(VendorEccPubKeyIndexMismatch)
+        }
+
+        // Verify owner signature
+        if let Some((pub_key, sig)) = info.owner_info {
+            self.verify_owner_sig(image, &digest, pub_key, sig)?;
+        }
+
+        let verif_info = TocInfo {
+            len: header.toc_len(),
+            digest: header.toc_digest(),
+        };
+
+        Ok(verif_info)
+    }
+
+    /// Verify Owner Signature
+    fn verify_owner_sig(
+        &self,
+        image: Env::Image,
+        digest: &ImageDigest,
+        pub_key: &ImageEccPubKey,
+        sig: &ImageEccSignature,
+    ) -> CaliptraResult<()> {
+        if pub_key.x == ZERO_DIGEST || pub_key.y == ZERO_DIGEST {
+            raise_err!(OwnerPubKeyDigestInvalidArg)
+        }
+        if sig.r == ZERO_DIGEST || sig.s == ZERO_DIGEST {
+            raise_err!(OwnerEccSignatureInvalidArg)
+        }
+
+        let result = self
+            .env
+            .ecc384_verify(image, digest, pub_key, sig)
+            .map_err(|_| err_u32!(OwnerEccVerifyFailure))?;
+
+        if !result {
+            raise_err!(OwnerEccSignatureInvalid)
+        }
+
+        Ok(())
+    }
+
+    /// Verify Vendor Signature
+    fn verify_vendor_sig(
+        &self,
+        image: Env::Image,
+        digest: &ImageDigest,
+        pub_key: &ImageEccPubKey,
+        sig: &ImageEccSignature,
+    ) -> CaliptraResult<()> {
+        if pub_key.x == ZERO_DIGEST || pub_key.y == ZERO_DIGEST {
+            raise_err!(VendorPubKeyDigestInvalidArg)
+        }
+        if sig.r == ZERO_DIGEST || sig.s == ZERO_DIGEST {
+            raise_err!(VendorEccSignatureInvalidArg)
+        }
+
+        let result = self
+            .env
+            .ecc384_verify(image, digest, pub_key, sig)
+            .map_err(|_| err_u32!(VendorEccVerifyFailure))?;
+
+        if !result {
+            raise_err!(VendorEccSignatureInvalid)
+        }
+
+        Ok(())
+    }
+
+    /// Verify Table of Contents
+    fn verify_toc<'a>(
+        &self,
+        image: Env::Image,
+        manifest: &'a ImageManifest,
+        verify_info: &TocInfo,
+    ) -> CaliptraResult<ImageInfo<'a>> {
+        if verify_info.len != MAX_TOC_ENTRY_COUNT {
+            raise_err!(TocEntryCountInvalid)
+        }
+
+        let range = ImageManifest::toc_range();
+
+        let actual = self
+            .env
+            .sha384_digest(image, range.start, range.len() as u32)
+            .map_err(|_| err_u32!(TocDigestFailures))?;
+
+        if *verify_info.digest != actual {
+            raise_err!(TocDigestMismatch)
+        }
+
+        // TODO: Perform Following offset length length checks
+        // 1. Image length donot exceeed the Image Bundle size
+
+        // Check if fmc and runtime section overlap.
+        let fmc_range = manifest.fmc().image_range();
+        let runtime_range = manifest.runtime().image_range();
+        if fmc_range.contains(&runtime_range.start)
+            || fmc_range.contains(&(runtime_range.end - 1))
+            || runtime_range.contains(&fmc_range.start)
+            || runtime_range.contains(&(fmc_range.end - 1))
+        {
+            raise_err!(FmcRuntimeOverlap)
+        }
+
+        // Ensure the fmc section is before the runtime section in the manifest.
+        if fmc_range.end > runtime_range.start {
+            raise_err!(FmcRuntimeIncorrectOrder)
+        }
+
+        let info = ImageInfo {
+            fmc: manifest.fmc(),
+            runtime: manifest.runtime(),
+        };
+
+        Ok(info)
+    }
+
+    /// Verify FMC
+    fn verify_fmc(
+        &self,
+        image: Env::Image,
+        verify_info: &ImageTocEntry,
+    ) -> CaliptraResult<ImageVerificationExeInfo> {
+        let range = verify_info.image_range();
+
+        let actual = self
+            .env
+            .sha384_digest(image, range.start, range.len() as u32)
+            .map_err(|_| err_u32!(FmcDigestFailure))?;
+
+        if *verify_info.digest() != actual {
+            raise_err!(FmcDigestMismatch)
+        }
+
+        // TODO: Perform following Address checks
+        // 1. Load address is a valid ICCM Address
+        // 2. Entry Point is a valid ICCM Address
+        // 3. Entry Point is within the image
+
+        let mut info = ImageVerificationExeInfo::default();
+        info.set_load_addr(verify_info.load_addr())
+            .set_entry_point(verify_info.entry_point())
+            .set_svn(verify_info.svn())
+            .set_digest(*verify_info.digest())
+            .set_size(verify_info.size());
+
+        // TODO: SVN Check
+        // 0. Skip SVN check in unprovisioned mode or when antirollback is disabled
+        // 1. SVN is not more than 32
+        // 2. SVN is valid against min_svn and fuse_svn
+
+        Ok(info)
+    }
+
+    /// Verify Runtime
+    fn verify_runtime(
+        &self,
+        image: Env::Image,
+        verify_info: &ImageTocEntry,
+    ) -> CaliptraResult<ImageVerificationExeInfo> {
+        let range = verify_info.image_range();
+
+        let actual = self
+            .env
+            .sha384_digest(image, range.start, range.len() as u32)
+            .map_err(|_| err_u32!(RuntimeDigestFailure))?;
+
+        if *verify_info.digest() != actual {
+            raise_err!(RuntimeDigestMismatch)
+        }
+
+        // TODO: Perform following Address checks
+        // 1. Load address is a valid ICCM Address
+        // 2. Entry Point is a valid ICCM Address
+        // 3. Entry Point is within the image
+
+        let mut info = ImageVerificationExeInfo::default();
+        info.set_load_addr(verify_info.load_addr())
+            .set_entry_point(verify_info.entry_point())
+            .set_svn(verify_info.svn())
+            .set_digest(*verify_info.digest())
+            .set_size(verify_info.size());
+
+        // TODO: SVN Check
+        // 0. Skip SVN check in unprovisioned mode or when antirollback is disabled
+        // 1. SVN is not more than 64
+        // 2. SVN is valid against min_svn and fuse_svn
+
+        Ok(info)
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::*;
+
+    const DUMMY_DATA: [u32; 12] = [
+        0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef,
+        0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef,
+    ];
+    const VENDOR_ECC_PUBKEY: ImageEccPubKey = ImageEccPubKey {
+        x: DUMMY_DATA,
+        y: DUMMY_DATA,
+    };
+    const VENDOR_ECC_SIG: ImageEccSignature = ImageEccSignature {
+        r: DUMMY_DATA,
+        s: DUMMY_DATA,
+    };
+    const OWNER_ECC_PUBKEY: ImageEccPubKey = ImageEccPubKey {
+        x: DUMMY_DATA,
+        y: DUMMY_DATA,
+    };
+    const OWNER_ECC_SIG: ImageEccSignature = ImageEccSignature {
+        r: DUMMY_DATA,
+        s: DUMMY_DATA,
+    };
+
+    #[test]
+    fn test_manifest_marker() {
+        let manifest = ImageManifest::default();
+        let verifier = ImageVerifier::new(TestEnv::default());
+        let result = verifier.verify(&manifest, (), ResetReason::ColdReset);
+        assert!(result.is_err());
+        assert_eq!(result.err(), Some(err_u32!(ManifestMarkerMismatch)));
+    }
+
+    #[test]
+    fn test_manifest_size() {
+        let mut manifest = ImageManifest::default();
+        manifest.set_marker(MANIFEST_MARKER);
+        let verifier = ImageVerifier::new(TestEnv::default());
+        let result = verifier.verify(&manifest, (), ResetReason::ColdReset);
+        assert!(result.is_err());
+        assert_eq!(result.err(), Some(err_u32!(ManifestSizeMismatch)));
+    }
+
+    #[test]
+    fn test_preamble_vendor_pubkey_digest() {
+        let preamble = ImagePreamble::default();
+        let test_env = TestEnv {
+            lifecycle: Lifecycle::Production,
+            ..Default::default()
+        };
+        let verifier = ImageVerifier::new(test_env);
+        let result = verifier.verify_preamble((), &preamble);
+        assert!(result.is_err());
+        assert_eq!(result.err(), Some(err_u32!(VendorPubKeyDigestInvalid)));
+    }
+
+    #[test]
+    fn test_preamble_owner_pubkey_digest() {
+        let test_env = TestEnv {
+            lifecycle: Lifecycle::Production,
+            vendor_pub_key_digest: DUMMY_DATA,
+            owner_pub_key_digest: DUMMY_DATA,
+            digest: DUMMY_DATA,
+            ..Default::default()
+        };
+        let verifier = ImageVerifier::new(test_env);
+        let preamble = ImagePreamble::default();
+
+        let result = verifier.verify_preamble((), &preamble);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_preamble_vendor_pubkey() {
+        let test_env = TestEnv {
+            lifecycle: Lifecycle::Production,
+            vendor_pub_key_digest: DUMMY_DATA,
+            owner_pub_key_digest: DUMMY_DATA,
+            ..Default::default()
+        };
+        let verifier = ImageVerifier::new(test_env);
+        let preamble = ImagePreamble::default();
+        let result = verifier.verify_preamble((), &preamble);
+        assert_eq!(result.err(), Some(err_u32!(VendorPubKeyDigestMismatch)));
+    }
+
+    #[test]
+    fn test_header_vendor_pubkey_invalid_arg() {
+        let test_env = TestEnv::default();
+        let verifier = ImageVerifier::new(test_env);
+        let header = ImageHeader::default();
+        let ecc_pubkey = ImageEccPubKey::default();
+        let ecc_sig = ImageEccSignature::default();
+        let header_info: HeaderInfo = HeaderInfo {
+            vendor_ecc_pub_key_idx: 0,
+            vendor_info: (&ImageEccPubKey::default(), &ImageEccSignature::default()),
+            owner_info: Some((&ecc_pubkey, &ecc_sig)),
+            owner_pub_keys_digest: ImageDigest::default(),
+        };
+        let result = verifier.verify_header((), &header, &header_info);
+        assert_eq!(result.err(), Some(err_u32!(VendorPubKeyDigestInvalidArg)));
+    }
+
+    #[test]
+    fn test_header_vendor_signature_invalid_arg() {
+        let test_env = TestEnv::default();
+        let verifier = ImageVerifier::new(test_env);
+        let header = ImageHeader::default();
+        let owner_ecc_pubkey = ImageEccPubKey::default();
+        let owner_ecc_sig = ImageEccSignature::default();
+        let header_info: HeaderInfo = HeaderInfo {
+            vendor_ecc_pub_key_idx: 0,
+            vendor_info: (&VENDOR_ECC_PUBKEY, &ImageEccSignature::default()),
+            owner_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
+            owner_pub_keys_digest: ImageDigest::default(),
+        };
+        let result = verifier.verify_header((), &header, &header_info);
+        assert_eq!(result.err(), Some(err_u32!(VendorEccSignatureInvalidArg)));
+    }
+
+    #[test]
+    fn test_header_vendor_signature_invalid() {
+        let test_env = TestEnv {
+            lifecycle: Lifecycle::Production,
+            vendor_pub_key_digest: DUMMY_DATA,
+            owner_pub_key_digest: DUMMY_DATA,
+            ..Default::default()
+        };
+        let verifier = ImageVerifier::new(test_env);
+        let header = ImageHeader::default();
+        let owner_ecc_pubkey = ImageEccPubKey::default();
+        let owner_ecc_sig = ImageEccSignature::default();
+        let header_info: HeaderInfo = HeaderInfo {
+            vendor_ecc_pub_key_idx: 0,
+            vendor_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
+            owner_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
+            owner_pub_keys_digest: ImageDigest::default(),
+        };
+        let result = verifier.verify_header((), &header, &header_info);
+        assert_eq!(result.err(), Some(err_u32!(VendorEccSignatureInvalid)));
+    }
+
+    #[test]
+    fn test_header_incorrect_pubkey_index() {
+        let test_env = TestEnv {
+            verify_result: true,
+            ..Default::default()
+        };
+        let verifier = ImageVerifier::new(test_env);
+        let header = ImageHeader::default();
+        let owner_ecc_pubkey = ImageEccPubKey::default();
+        let owner_ecc_sig = ImageEccSignature::default();
+        let header_info: HeaderInfo = HeaderInfo {
+            vendor_ecc_pub_key_idx: 1,
+            vendor_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
+            owner_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
+            owner_pub_keys_digest: ImageDigest::default(),
+        };
+        let result = verifier.verify_header((), &header, &header_info);
+        assert_eq!(result.err(), Some(err_u32!(VendorEccPubKeyIndexMismatch)));
+    }
+
+    #[test]
+    fn test_header_owner_pubkey_invalid_arg() {
+        let test_env = TestEnv {
+            verify_result: true,
+            ..Default::default()
+        };
+        let verifier = ImageVerifier::new(test_env);
+        let header = ImageHeader::default();
+        let owner_ecc_pubkey = ImageEccPubKey::default();
+        let owner_ecc_sig = ImageEccSignature::default();
+        let header_info: HeaderInfo = HeaderInfo {
+            vendor_ecc_pub_key_idx: 0,
+            vendor_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
+            owner_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
+            owner_pub_keys_digest: ImageDigest::default(),
+        };
+        let result = verifier.verify_header((), &header, &header_info);
+        assert_eq!(result.err(), Some(err_u32!(OwnerPubKeyDigestInvalidArg)));
+    }
+
+    #[test]
+    fn test_header_owner_signature_invalid_arg() {
+        let test_env = TestEnv {
+            verify_result: true,
+            ..Default::default()
+        };
+        let verifier = ImageVerifier::new(test_env);
+        let header = ImageHeader::default();
+        let owner_ecc_sig = ImageEccSignature::default();
+        let header_info: HeaderInfo = HeaderInfo {
+            vendor_ecc_pub_key_idx: 0,
+            vendor_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
+            owner_info: Some((&OWNER_ECC_PUBKEY, &owner_ecc_sig)),
+            owner_pub_keys_digest: ImageDigest::default(),
+        };
+        let result = verifier.verify_header((), &header, &header_info);
+        assert_eq!(result.err(), Some(err_u32!(OwnerEccSignatureInvalidArg)));
+    }
+
+    #[test]
+    fn test_header_success() {
+        let test_env = TestEnv {
+            verify_result: true,
+            ..Default::default()
+        };
+        let verifier = ImageVerifier::new(test_env);
+        let mut header = ImageHeader::default();
+        header.set_toc_len(100);
+        header.set_toc_digest(DUMMY_DATA);
+        let header_info: HeaderInfo = HeaderInfo {
+            vendor_ecc_pub_key_idx: 0,
+            vendor_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
+            owner_info: Some((&OWNER_ECC_PUBKEY, &OWNER_ECC_SIG)),
+            owner_pub_keys_digest: ImageDigest::default(),
+        };
+        let toc_info = verifier.verify_header((), &header, &header_info).unwrap();
+        assert_eq!(toc_info.len, 100);
+        assert_eq!(toc_info.digest, &DUMMY_DATA);
+    }
+
+    #[test]
+    fn test_toc_incorrect_length() {
+        let manifest = ImageManifest::default();
+        let test_env = TestEnv::default();
+        let verifier = ImageVerifier::new(test_env);
+        let toc_info = TocInfo {
+            len: MAX_TOC_ENTRY_COUNT / 2,
+            digest: &ImageDigest::default(),
+        };
+        let result = verifier.verify_toc((), &manifest, &toc_info);
+        assert_eq!(result.err(), Some(err_u32!(TocEntryCountInvalid)));
+    }
+
+    #[test]
+    fn test_toc_digest_mismatch() {
+        let manifest = ImageManifest::default();
+        let test_env = TestEnv::default();
+        let verifier = ImageVerifier::new(test_env);
+        let toc_info = TocInfo {
+            len: MAX_TOC_ENTRY_COUNT,
+            digest: &DUMMY_DATA,
+        };
+        let result = verifier.verify_toc((), &manifest, &toc_info);
+        assert_eq!(result.err(), Some(err_u32!(TocDigestMismatch)));
+    }
+
+    #[test]
+    fn test_toc_fmc_rt_overlap() {
+        let mut manifest = ImageManifest::default();
+        let test_env = TestEnv::default();
+        let verifier = ImageVerifier::new(test_env);
+        let toc_info = TocInfo {
+            len: MAX_TOC_ENTRY_COUNT,
+            digest: &ImageDigest::default(),
+        };
+
+        // Case 0:
+        // [-FMC--]
+        // [--RT--]
+        manifest.fmc_mut().set_offset(0);
+        manifest.fmc_mut().set_size(100);
+        manifest.runtime_mut().set_offset(0);
+        manifest.runtime_mut().set_size(100);
+        let result = verifier.verify_toc((), &manifest, &toc_info);
+        assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
+
+        // Case 1:
+        // [-FMC--]
+        //        [--RT--]
+        manifest.fmc_mut().set_offset(0);
+        manifest.fmc_mut().set_size(100);
+        manifest.runtime_mut().set_offset(99);
+        manifest.runtime_mut().set_size(200);
+        let result = verifier.verify_toc((), &manifest, &toc_info);
+        assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
+
+        // Case 2:
+        // [-FMC--]
+        //   [-RT-]
+        manifest.fmc_mut().set_offset(0);
+        manifest.fmc_mut().set_size(100);
+        manifest.runtime_mut().set_offset(5);
+        manifest.runtime_mut().set_size(100);
+        let result = verifier.verify_toc((), &manifest, &toc_info);
+        assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
+
+        // Case 3:
+        //   [-FMC-]
+        // [---RT--]
+        manifest.fmc_mut().set_offset(5);
+        manifest.fmc_mut().set_size(100);
+        manifest.runtime_mut().set_offset(0);
+        manifest.runtime_mut().set_size(100);
+        let result = verifier.verify_toc((), &manifest, &toc_info);
+        assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
+
+        // Case 4:
+        //        [-FMC--]
+        // [--RT--]
+        manifest.runtime_mut().set_offset(0);
+        manifest.runtime_mut().set_size(100);
+        manifest.fmc_mut().set_offset(99);
+        manifest.fmc_mut().set_size(200);
+        let result = verifier.verify_toc((), &manifest, &toc_info);
+        assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
+
+        // Case 5:
+        //  [---FMC---]
+        //    [-RT-]
+        manifest.fmc_mut().set_offset(100);
+        manifest.fmc_mut().set_size(500);
+        manifest.runtime_mut().set_offset(150);
+        manifest.runtime_mut().set_size(200);
+        let result = verifier.verify_toc((), &manifest, &toc_info);
+        assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
+
+        // Case 6:
+        //  [----RT----]
+        //    [-FMC-]
+        manifest.runtime_mut().set_offset(0);
+        manifest.runtime_mut().set_size(200);
+        manifest.fmc_mut().set_offset(20);
+        manifest.fmc_mut().set_size(30);
+        let result = verifier.verify_toc((), &manifest, &toc_info);
+        assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
+    }
+
+    #[test]
+    fn test_toc_fmc_rt_order() {
+        let mut manifest = ImageManifest::default();
+        let test_env = TestEnv::default();
+        let verifier = ImageVerifier::new(test_env);
+        let toc_info = TocInfo {
+            len: MAX_TOC_ENTRY_COUNT,
+            digest: &ImageDigest::default(),
+        };
+
+        //          [-FMC--]
+        // [--RT--]
+        manifest.runtime_mut().set_offset(0);
+        manifest.runtime_mut().set_size(100);
+        manifest.fmc_mut().set_offset(100);
+        manifest.fmc_mut().set_size(200);
+        let result = verifier.verify_toc((), &manifest, &toc_info);
+        assert_eq!(result.err(), Some(err_u32!(FmcRuntimeIncorrectOrder)));
+    }
+
+    #[test]
+    fn test_fmc_digest_mismatch() {
+        let test_env = TestEnv::default();
+        let verifier = ImageVerifier::new(test_env);
+        let mut verify_info = ImageTocEntry::default();
+        verify_info.set_digest(DUMMY_DATA);
+        let result = verifier.verify_fmc((), &verify_info);
+        assert_eq!(result.err(), Some(err_u32!(FmcDigestMismatch)));
+    }
+
+    #[test]
+    fn test_fmc_success() {
+        let test_env = TestEnv::default();
+        let verifier = ImageVerifier::new(test_env);
+        let mut verify_info = ImageTocEntry::default();
+        verify_info.set_load_addr(0xCAFEB0BA);
+        verify_info.set_entry_point(0xDEADBEEF);
+        verify_info.set_svn(420);
+        verify_info.set_size(100);
+
+        let result = verifier.verify_fmc((), &verify_info);
+        assert!(result.is_ok());
+        let info = result.unwrap();
+        assert_eq!(info.load_addr(), 0xCAFEB0BA);
+        assert_eq!(info.entry_point(), 0xDEADBEEF);
+        assert_eq!(info.svn(), 420);
+        assert_eq!(info.size(), 100);
+    }
+
+    #[test]
+    fn test_rt_digest_mismatch() {
+        let test_env = TestEnv::default();
+        let verifier = ImageVerifier::new(test_env);
+        let mut verify_info = ImageTocEntry::default();
+        verify_info.set_digest(DUMMY_DATA);
+        let result = verifier.verify_runtime((), &verify_info);
+        assert_eq!(result.err(), Some(err_u32!(RuntimeDigestMismatch)));
+    }
+
+    #[test]
+    fn test_rt_success() {
+        let test_env = TestEnv::default();
+        let verifier = ImageVerifier::new(test_env);
+        let mut verify_info = ImageTocEntry::default();
+        verify_info.set_load_addr(0xCAFEB0BA);
+        verify_info.set_entry_point(0xDEADBEEF);
+        verify_info.set_svn(420);
+        verify_info.set_size(100);
+
+        let result = verifier.verify_runtime((), &verify_info);
+        assert!(result.is_ok());
+        let info = result.unwrap();
+        assert_eq!(info.load_addr(), 0xCAFEB0BA);
+        assert_eq!(info.entry_point(), 0xDEADBEEF);
+        assert_eq!(info.svn(), 420);
+        assert_eq!(info.size(), 100);
+    }
+
+    struct TestEnv {
+        digest: ImageDigest,
+        verify_result: bool,
+        vendor_pub_key_digest: ImageDigest,
+        vendor_pub_key_revocation: VendorPubKeyRevocation,
+        owner_pub_key_digest: ImageDigest,
+        lifecycle: Lifecycle,
+    }
+
+    impl Default for TestEnv {
+        fn default() -> Self {
+            TestEnv {
+                digest: ImageDigest::default(),
+                verify_result: false,
+                vendor_pub_key_digest: ImageDigest::default(),
+                vendor_pub_key_revocation: VendorPubKeyRevocation::default(),
+                owner_pub_key_digest: ImageDigest::default(),
+                lifecycle: Lifecycle::Unprovisioned,
+            }
+        }
+    }
+
+    impl ImageVerificationEnv for TestEnv {
+        type Image = ();
+
+        fn sha384_digest(
+            &self,
+            _image: Self::Image,
+            _offset: u32,
+            _len: u32,
+        ) -> CaliptraResult<ImageDigest> {
+            Ok(self.digest)
+        }
+
+        fn ecc384_verify(
+            &self,
+            _image: Self::Image,
+            _digest: &ImageDigest,
+            _pub_key: &ImageEccPubKey,
+            _sig: &ImageEccSignature,
+        ) -> CaliptraResult<bool> {
+            Ok(self.verify_result)
+        }
+
+        fn vendor_pub_key_digest(&self, _image: Self::Image) -> ImageDigest {
+            self.vendor_pub_key_digest
+        }
+
+        fn vendor_pub_key_revocation(&self, _image: Self::Image) -> VendorPubKeyRevocation {
+            self.vendor_pub_key_revocation
+        }
+
+        fn owner_pub_key_digest(&self, _image: Self::Image) -> ImageDigest {
+            self.owner_pub_key_digest
+        }
+
+        fn anti_rollback_disable(&self, _image: Self::Image) -> bool {
+            false
+        }
+
+        fn dev_lifecycle(&self, _image: Self::Image) -> Lifecycle {
+            self.lifecycle
+        }
+    }
+}

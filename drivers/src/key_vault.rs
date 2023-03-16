@@ -54,6 +54,13 @@ pub enum KeyId {
     KeyId31 = 31,
 }
 
+impl From<KeyId> for u8 {
+    /// Converts to this type from the input type.
+    fn from(key_id: KeyId) -> Self {
+        key_id as Self
+    }
+}
+
 impl From<KeyId> for u32 {
     /// Converts to this type from the input type.
     fn from(key_id: KeyId) -> Self {

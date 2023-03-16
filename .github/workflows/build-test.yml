@@ -106,6 +106,7 @@ jobs:
           drivers/test-fw/build.sh
           (cd fmc && ./build.sh)
           (cd runtime && ./build.sh)
+          (cd rom/dev && ./build.sh)
           sccache --show-stats
 
       # Clippy needs to build crates as part of the check, so do it after the
