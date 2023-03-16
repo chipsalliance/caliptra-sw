@@ -689,7 +689,8 @@ impl SocRegistersImpl {
             IDevIdCertAttrFlags [
                 KEY_ID_ALGO OFFSET(0) NUMBITS(2) [
                     SHA1 = 0b00,
-                    SHA256 = 0b10,
+                    SHA256 = 0b01,
+                    SHA384 = 0b10,
                     FUSE = 0b11,
                 ],
                 RESERVED OFFSET(2) NUMBITS(30) [],
@@ -700,8 +701,10 @@ impl SocRegistersImpl {
         let reg: InMemoryRegister<u32, IDevIdCertAttrFlags::Register> = InMemoryRegister::new(0);
         if args.idev_key_id_algo.eq_ignore_ascii_case("sha1") {
             reg.write(IDevIdCertAttrFlags::KEY_ID_ALGO::SHA1)
-        } else if args.idev_key_id_algo.eq_ignore_ascii_case("sha2") {
+        } else if args.idev_key_id_algo.eq_ignore_ascii_case("sha256") {
             reg.write(IDevIdCertAttrFlags::KEY_ID_ALGO::SHA256)
+        } else if args.idev_key_id_algo.eq_ignore_ascii_case("sha384") {
+            reg.write(IDevIdCertAttrFlags::KEY_ID_ALGO::SHA384)
         } else if args.idev_key_id_algo.eq_ignore_ascii_case("fuse") {
             reg.write(IDevIdCertAttrFlags::KEY_ID_ALGO::FUSE)
         } else {
@@ -837,14 +840,11 @@ impl SocRegistersImpl {
             return;
         }
 
-        println!("\nDownloading csr to file...");
         self.download_to_file("caliptra_idevid_csr.der");
-        println!("Downloaded csr to file...");
 
         self.cptra_dbg_manuf_service_reg
             .reg
             .modify(DebugManufService::REQ_IDEVID_CSR::CLEAR);
-        println!("Set DebugManufService::REQ_IDEVID_CSR::CLEAR...");
     }
 
     fn download_ldev_id_cert(&mut self) {
