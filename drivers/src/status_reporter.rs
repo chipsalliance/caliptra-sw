@@ -24,16 +24,27 @@ pub fn report_boot_status(val: u32) {
     soc_ifc.cptra_boot_status().write(|_| val);
 }
 
-/// Report flow status
-///
-/// # Arguments
-///
-/// * `val` - Flow status code.
-pub fn report_flow_status(val: u32) {
-    let soc_ifc = soc_ifc::RegisterBlock::soc_ifc_reg();
+#[derive(Default, Debug)]
+pub struct FlowStatus {}
 
-    let flow_status = soc_ifc.cptra_flow_status().read();
-    soc_ifc
-        .cptra_flow_status()
-        .write(|_| flow_status.modify().status(val));
+impl FlowStatus {
+    /// Set IDEVID CSR ready
+    ///
+    /// # Arguments
+    ///
+    /// * None
+    pub fn set_idevid_csr_ready(&mut self) {
+        let soc_ifc = soc_ifc::RegisterBlock::soc_ifc_reg();
+        soc_ifc.cptra_flow_status().write(|w| w.status(0x0800_0000));
+    }
+
+    /// Set ready for firmware
+    ///
+    /// # Arguments
+    ///
+    /// * None
+    pub fn set_ready_for_firmware(&mut self) {
+        let soc_ifc = soc_ifc::RegisterBlock::soc_ifc_reg();
+        soc_ifc.cptra_flow_status().write(|w| w.ready_for_fw(true));
+    }
 }
