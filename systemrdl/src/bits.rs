@@ -44,6 +44,7 @@ impl FromStr for Bits {
         };
         let w = u64::from_str(&s[0..i]).map_err(|_| ())?;
         let mut i = s[i..].chars();
+
         if i.next() != Some('\'') {
             return Err(());
         }
@@ -54,7 +55,9 @@ impl FromStr for Bits {
             Some('h') => 16,
             _ => return Err(()),
         };
-        let val = u64::from_str_radix(i.as_str(), radix).map_err(|_| ())?;
+
+        let str_val = i.as_str().replace('_', "");
+        let val = u64::from_str_radix(&str_val, radix).map_err(|_| ())?;
         if val > mask(w)? {
             return Err(());
         }
