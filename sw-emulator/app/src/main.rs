@@ -76,7 +76,7 @@ fn main() -> io::Result<()> {
                 .default_value(&u64::MAX.to_string())
         )
         .arg(
-            arg!(--"idevid-key-id-algo" <algo> "idevid certificate key id algorithm [sha1, sha2, fuses]")
+            arg!(--"idevid-key-id-algo" <algo> "idevid certificate key id algorithm [sha1, sha256, sha384, fuse]")
                 .required(false)
                 .default_value("sha1"),
         )
