@@ -38,7 +38,7 @@ impl From<DeviceLifecycleE> for Lifecycle {
             DeviceLifecycleE::DeviceUnprovisioned => Lifecycle::Unprovisioned,
             DeviceLifecycleE::DeviceManufacturing => Lifecycle::Manufacturing,
             DeviceLifecycleE::DeviceProduction => Lifecycle::Production,
-            DeviceLifecycleE::Reserved2 => Lifecycle::Unknown,
+            _ => Lifecycle::Unknown,
         }
     }
 }
@@ -62,5 +62,34 @@ impl DeviceState {
     pub fn debug_locked(&self) -> bool {
         let soc_ifc_regs = caliptra_registers::soc_ifc::RegisterBlock::soc_ifc_reg();
         soc_ifc_regs.cptra_security_state().read().debug_locked()
+    }
+}
+
+bitflags::bitflags! {
+    /// Manufacturing State
+    struct MfgFlags : u32 {
+        /// Generate Initial Device Id Certificate Signing Request
+       const GENERATE_IDEVID_CSR = 0x01;
+    }
+}
+
+impl From<u32> for MfgFlags {
+    /// Converts to this type from the input type.
+    fn from(value: u32) -> Self {
+        MfgFlags::from_bits_truncate(value)
+    }
+}
+
+/// Manufacturing State
+#[derive(Default, Debug)]
+pub struct MfgState {}
+
+impl MfgState {
+    /// Returns the flag indicating whether to generate Initial Device ID Certificate
+    /// Signing Request (CSR)
+    pub fn gen_idev_id_csr(&self) -> bool {
+        let soc_ifc_regs = caliptra_registers::soc_ifc::RegisterBlock::soc_ifc_reg();
+        let flags: MfgFlags = soc_ifc_regs.cptra_dbg_manuf_service_reg().read().into();
+        flags.contains(MfgFlags::GENERATE_IDEVID_CSR)
     }
 }
