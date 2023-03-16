@@ -54,7 +54,9 @@ impl FromStr for Bits {
             Some('h') => 16,
             _ => return Err(()),
         };
-        let val = u64::from_str_radix(i.as_str(), radix).map_err(|_| ())?;
+
+        let str_val = i.as_str().replace('_', "");
+        let val = u64::from_str_radix(&str_val, radix).map_err(|_| ())?;
         if val > mask(w)? {
             return Err(());
         }
@@ -116,5 +118,13 @@ mod tests {
         assert_eq!(Ok(Bits::new(4, 0xf)), Bits::from_str("4'hF"));
         assert_eq!(Err(()), Bits::from_str("4'h10"));
         assert_eq!(Ok(Bits::new(32, 0xf00d)), Bits::from_str("32'hf00d"));
+        assert_eq!(
+            Ok(Bits::new(32, 0xf00d_baaf)),
+            Bits::from_str("32'hf00d_baaf")
+        );
+        assert_eq!(
+            Ok(Bits::new(32, 0xf00d_baaf)),
+            Bits::from_str("32'hf0_0d_ba_af")
+        );
     }
 }
