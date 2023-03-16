@@ -7,7 +7,8 @@ edition = "2021"
 
 [features]
 emu = ["caliptra-lib/emu"]
-riscv = ["caliptra-rt/riscv"]
+riscv = ["caliptra-firmware/riscv"]
+
 
 [[bin]]
 name = "caliptra-fmc-test-rom"
@@ -18,7 +19,7 @@ required-features = ["riscv"]
 [dependencies]
 caliptra-lib = { version = "0.1.0", path = "../../drivers" }
 caliptra-registers = { version = "0.1.0", path = "../../registers" }
-caliptra-rt = { path = "../../rt" }
+caliptra-firmware = { path = "../../firmware" }
 cfg-if = "1.0.0"
 ufmt = "0.2.0"
 

@@ -53,6 +53,10 @@ pub struct InitParams<'a> {
 
     // The initial contents of the ICCM SRAM
     pub iccm: &'a [u8],
+
+    // The contents to be uploaded to the mailbox buffer
+    #[cfg(feature = "emu")]
+    pub payload: &'a [u8],
 }
 
 pub enum ModelError {

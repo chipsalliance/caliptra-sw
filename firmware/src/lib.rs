@@ -6,6 +6,9 @@ Abstract:
     File contains Macros and APIs for Caliptra RISCV RT
 --*/
 #![cfg_attr(not(feature = "std"), no_std)]
+pub mod printer;
+pub use printer::Uart;
+
 #[cfg(feature = "riscv")]
 core::arch::global_asm!(include_str!("start.S"));
 

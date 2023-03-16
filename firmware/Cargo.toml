@@ -1,7 +1,7 @@
 # Licensed under the Apache-2.0 license
 
 [package]
-name = "caliptra-rt"
+name = "caliptra-firmware"
 version = "0.1.0"
 edition = "2021"
 
@@ -25,6 +25,7 @@ doctest = false
 caliptra-lib = { path = "../drivers" }
 caliptra-registers = { path = "../registers" }
 cfg-if = "1.0.0"
+ufmt = "0.2.0"
 
 [build-dependencies]
 riscv-target = "0.1.2"

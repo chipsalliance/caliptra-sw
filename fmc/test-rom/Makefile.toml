@@ -1,0 +1,31 @@
+[tasks.objcopy]
+command = "cargo"
+install_crate = false
+args = [
+  "objcopy",
+  "--target",
+  "riscv32imc-unknown-none-elf",
+  "--features=riscv",
+  "--profile=firmware", 
+  "--bin=caliptra-fmc-test-rom",
+  "--",
+  "-O",
+  "binary",
+  "/tmp/test-rom.bin",
+  "${@}",
+]
+dependencies = ["build"]
+
+[tasks.build]
+command = "cargo"
+install_crate = false
+args = [
+  "build",
+  "--target",
+  "riscv32imc-unknown-none-elf",
+  "--features=riscv",
+  "--features=emu",
+  "--profile=firmware", 
+  "--bin=caliptra-fmc-test-rom",
+  "${@}",
+]

@@ -14,12 +14,13 @@ Abstract:
 
 #![no_std]
 #![no_main]
-
 use caliptra_lib::Mailbox;
 use caliptra_registers::soc_ifc;
 use core::arch::asm;
 use core::ptr;
-extern crate caliptra_rt;
+#[macro_use]
+extern crate caliptra_firmware;
+use caliptra_firmware::printer;
 
 /// Firmware Load Command Opcode
 const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
@@ -29,8 +30,10 @@ pub fn download_firmware() {
     soc_ifc.cptra_flow_status().modify(|w| w.ready_for_fw(true));
     let mut firmware_buffer: [u8; 1024] = [0_u8; 1024];
 
+    let mb = Mailbox {};
+
     loop {
-        if let Ok(mut txn) = Mailbox::try_start_recv_txn() {
+        if let Some(mut txn) = mb.try_start_recv_txn() {
             match txn.cmd() {
                 FW_LOAD_CMD_OPCODE => {
                     let iccm_base_address = 0x40000000_u32;
@@ -50,6 +53,8 @@ pub fn download_firmware() {
 }
 
 #[no_mangle]
-pub extern "C" fn main() {
+pub extern "C" fn main() -> ! {
+    uformatln!("entering rom");
     download_firmware();
+    loop {}
 }

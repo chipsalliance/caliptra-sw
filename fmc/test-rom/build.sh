@@ -6,6 +6,5 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 
 cargo build \
   --target riscv32imc-unknown-none-elf \
-  --features=emu,riscv \
-  --profile=firmware \
-  --bin=caliptra-fmc
+  --features=riscv \
+  --profile=firmware 

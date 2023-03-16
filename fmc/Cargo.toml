@@ -1,12 +1,14 @@
 # Licensed under the Apache-2.0 license
 
 [package]
-name = "fmc"
+name = "caliptra-fmc"
 version = "0.1.0"
 edition = "2021"
 
 [features]
-riscv = ["caliptra-rt/riscv"]
+riscv = ["caliptra-firmware/riscv"]
+emu = []
+
 
 [lib]
 test = false
@@ -14,15 +16,16 @@ doctest = false
 
 
 [[bin]]
-name = "fmc"
+name = "caliptra-fmc"
 required-features = ["riscv"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-caliptra-lib = { path = "../drivers" }
-caliptra-rt = { path = "../rt" }
+caliptra-lib = { path = "../drivers", features=["emu"] }
+caliptra-firmware = { path = "../firmware" }
 caliptra-registers = { path = "../registers" }
 cfg-if = "1.0.0"
 ureg = { version = "0.1.0", path = "../ureg" }
+ufmt = "0.2.0"
 
