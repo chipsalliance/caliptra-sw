@@ -217,7 +217,7 @@ mod test {
 
     #[test]
     fn test_foo() {
-        let tokens: Vec<Token> = Lexer::new("field 35\tiDentifier2_ 0x24\n\r 0xf00_bad 2'b01 5'o27 4'd9 16'h1caf /* ignore comment */ %= // line comment\n += \"string 1\" \"string\\\"2\" {}[]();:,.=@#reg field regfile addrmap signal enum mem constraint").take(35).collect();
+        let tokens: Vec<Token> = Lexer::new("field 35\tiDentifier2_ 0x24\n\r 0xf00_bad 100_200 2'b01 5'o27 4'd9 16'h1caf 32'h3CAB_FFB0 /* ignore comment */ %= // line comment\n += \"string 1\" \"string\\\"2\" {}[]();:,.=@#reg field regfile addrmap signal enum mem constraint").take(37).collect();
         assert_eq!(
             tokens,
             vec![
@@ -226,10 +226,12 @@ mod test {
                 Token::Identifier("iDentifier2_"),
                 Token::Number(0x24),
                 Token::Number(0xf00bad),
+                Token::Number(100_200),
                 Token::Bits(Bits::new(2, 1)),
                 Token::Bits(Bits::new(5, 0o27)),
                 Token::Bits(Bits::new(4, 9)),
                 Token::Bits(Bits::new(16, 0x1caf)),
+                Token::Bits(Bits::new(32, 0x3cab_ffb0)),
                 Token::PercentEqual,
                 Token::PlusEqual,
                 Token::StringLiteral("\"string 1\""),
