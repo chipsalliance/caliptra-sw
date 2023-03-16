@@ -208,6 +208,11 @@ impl MailboxSendTxn {
         mbox.status().read().status()
     }
 
+    pub fn set_status_complete(&self) {
+        let mbox = mbox::RegisterBlock::mbox_csr();
+        mbox.status().write(|w| w.status(|w| w.cmd_complete()));
+    }
+
     ///
     /// Transitions from Execute --> Idle (releases the lock)
     ///
