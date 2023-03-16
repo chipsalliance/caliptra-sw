@@ -61,6 +61,12 @@ pub fn build_firmware_rom(fw_crate_name: &str, bin_name: &str) -> io::Result<Vec
     elf2rom(&elf_bytes)
 }
 
+/// Builds an ICCM image (the raw bytes of ICCM); these are typically used with the FMC test-rom.
+pub fn build_firmware_iccm(fw_crate_name: &str, bin_name: &str) -> io::Result<Vec<u8>> {
+    let elf_bytes = build_firmware_elf(fw_crate_name, bin_name)?;
+    elf2iccm(&elf_bytes)
+}
+
 pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
     let mut result = vec![0u8; 0x8000];
     let elf = elf::ElfBytes::<LittleEndian>::minimal_parse(elf_bytes).map_err(other_err)?;
@@ -86,6 +92,43 @@ pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
     Ok(result)
 }
 
+/// Converts an elf image to an ICCM image (the raw bytes of ICCM); these are
+/// typically used in conjunction with the FMC test-rom.
+pub fn elf2iccm(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
+    const ICCM_START: usize = 0x4000_0000;
+    const ICCM_MAX_SIZE: usize = 128 * 1024;
+
+    let mut result = vec![];
+    let elf = elf::ElfBytes::<LittleEndian>::minimal_parse(elf_bytes).map_err(other_err)?;
+
+    let Some(segments) = elf.segments() else {
+        return Err(other_err("ELF file has no segments"))
+    };
+    for segment in segments {
+        if segment.p_type != elf::abi::PT_LOAD {
+            continue;
+        }
+        let file_offset = segment.p_offset as usize;
+        let mem_addr = segment.p_paddr as usize;
+        let len = segment.p_filesz as usize;
+        if mem_addr < ICCM_START {
+            return Err(other_err(format!("segment at 0x{mem_addr:x} is not in ICCM")));
+        }
+        let iccm_offset = mem_addr - ICCM_START;
+
+        let Some(src_bytes) = elf_bytes.get(file_offset..file_offset + len) else {
+            return Err(other_err(format!("segment at 0x{file_offset:x} out of file bounds")));
+        };
+        if iccm_offset + len > ICCM_MAX_SIZE {
+            return Err(other_err(format!("segment at 0x{mem_addr:x} (len 0x{len:x} exceeds ICCM")));
+        }
+        result.resize(usize::max(result.len(), iccm_offset + len), 0);
+        let dest_bytes = &mut result[iccm_offset..iccm_offset + len];
+        dest_bytes.copy_from_slice(src_bytes);
+    }
+    Ok(result)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -100,5 +143,11 @@ mod test {
     fn test_elf2rom_golden() {
         let rom_bytes = elf2rom(include_bytes!("testdata/example.elf")).unwrap();
         assert_eq!(&rom_bytes, include_bytes!("testdata/example.rom.golden"));
+    }
+
+    #[test]
+    fn test_elf2iccm_golden() {
+        let rom_bytes = elf2iccm(include_bytes!("testdata/example-iccm.elf")).unwrap();
+        assert_eq!(&rom_bytes, include_bytes!("testdata/example-iccm.bin.golden"));
     }
 }
