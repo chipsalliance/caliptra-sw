@@ -63,7 +63,7 @@ pub use sha256::{Sha256, Sha256DigestOp};
 pub use sha384::{Sha384, Sha384Digest, Sha384DigestOp};
 pub use sha384acc::{Sha384Acc, Sha384AccOp};
 pub use state::{DeviceState, Lifecycle};
-pub use status_reporter::{report_boot_status, report_flow_status};
+pub use status_reporter::{report_boot_status, FlowStatus};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "emu")] {
