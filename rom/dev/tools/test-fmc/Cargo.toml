@@ -1,0 +1,20 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "caliptra-rom-test-fmc"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+caliptra-lib = { path = "../../../../drivers" }
+caliptra-common = { path = "../../../../common", default-features = false }
+ufmt = "0.2.0"
+zerocopy = "0.6.1"
+
+[build-dependencies]
+cfg-if = "1.0.0"
+
+[features]
+default = ["std"]
+emu = ["caliptra-lib/emu"]
+std = ["ufmt/std"]

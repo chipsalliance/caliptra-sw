@@ -1,0 +1,17 @@
+[vendor]
+ecc_pub_keys = [
+  "vnd-pub-key-0.pem",
+  "vnd-pub-key-1.pem",
+  "vnd-pub-key-2.pem",
+  "vnd-pub-key-3.pem",
+]
+ecc_priv_keys = [
+  "vnd-priv-key-0.pem",
+  "vnd-priv-key-1.pem",
+  "vnd-priv-key-2.pem",
+  "vnd-priv-key-3.pem",
+]
+
+[owner]
+ecc_pub_key = "own-pub-key.pem"
+ecc_priv_key = "own-priv-key.pem"

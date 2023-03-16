@@ -1,0 +1,17 @@
+# Licensed under the Apache-2.0 license.
+
+[package]
+name = "caliptra-image-gen"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+doctest = false
+
+[dependencies]
+caliptra-image-types = { path = "../types", features = ["std"] }
+# caliptra-lib = { path = "../../drivers" }
+getset = "0.1.2"
+bitflags = "2.0.1"
+zerocopy = "0.6.1"
+anyhow = "1.0.70"

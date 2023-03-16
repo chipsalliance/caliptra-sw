@@ -44,6 +44,9 @@ pub enum CaliptraComponent {
 
     /// SHA1
     Sha1 = 10,
+
+    /// ImageVerifier
+    ImageVerifier = 11,
 }
 
 #[macro_export]

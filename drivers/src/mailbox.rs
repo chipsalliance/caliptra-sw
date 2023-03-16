@@ -27,7 +27,10 @@ caliptra_err_def! {
         InvalidDlenErr = 0x2,
         // No data avaiable.
         NoDataAvailErr = 0x03,
+        // Enqueue Error
         EnqueueErr = 0x04,
+        // Dequeue Error
+        DequeueErr = 0x05,
     }
 }
 
@@ -149,7 +152,9 @@ impl MailboxSendTxn {
         let mbox = mbox::RegisterBlock::mbox_csr();
 
         for idx in (0..n).step_by(size_of::<u32>()) {
-            let bytes = buf.get(idx..idx + 4).ok_or(err_u32!(EnqueueErr))?;
+            let bytes = buf
+                .get(idx..idx + size_of::<u32>())
+                .ok_or(err_u32!(EnqueueErr))?;
             mbox.datain()
                 .write(|_| u32::from_le_bytes(bytes.try_into().unwrap()));
         }
@@ -271,7 +276,7 @@ impl MailboxRecvTxn {
         mbox.dlen().read()
     }
 
-    fn dequeue(&self, buf: &mut [u8]) {
+    fn dequeue(&self, buf: &mut [u8]) -> CaliptraResult<()> {
         let mbox = mbox::RegisterBlock::mbox_csr();
 
         let byte_count = min(buf.len(), mbox.dlen().read() as usize);
@@ -280,17 +285,22 @@ impl MailboxRecvTxn {
         let n = byte_count - remainder;
 
         for idx in (0..n).step_by(size_of::<u32>()) {
-            buf[idx..idx + size_of::<u32>()].copy_from_slice(&mbox.dataout().read().to_le_bytes());
+            let bytes = buf
+                .get_mut(idx..idx + size_of::<u32>())
+                .ok_or(err_u32!(DequeueErr))?;
+            bytes.copy_from_slice(&mbox.dataout().read().to_le_bytes());
         }
 
         // Handle the remainder.
         if remainder > 0 {
             let part = mbox.dataout().read();
             for idx in 0..remainder {
-                buf[n + idx] = ((part >> (idx << 3)) & 0xFF) as u8;
+                let byte = buf.get_mut(n + idx).ok_or(err_u32!(EnqueueErr))?;
+                *byte = ((part >> (idx << 3)) & 0xFF) as u8;
             }
-            mbox.datain().write(|_| part);
         }
+
+        Ok(())
     }
 
     /// Retrieves data from the maibox without performing state transition.
@@ -306,8 +316,7 @@ impl MailboxRecvTxn {
         if self.state != MailboxOpState::Execute {
             raise_err!(InvalidStateErr)
         }
-        self.dequeue(&mut data[offset..]);
-        Ok(())
+        self.dequeue(&mut data[offset..])
     }
 
     /// Retrieves data from the maibox.
