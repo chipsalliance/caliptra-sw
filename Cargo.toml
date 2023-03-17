@@ -9,6 +9,7 @@ exclude = [
 members = [
   "builder",
   "ci-tools/file-header-fix",
+  "common",
   "drivers",
   "drivers/test-fw",
   "fmc",
