@@ -72,22 +72,24 @@ impl crate::HwModel for ModelVerilated {
 
         v.write_rom_image(params.rom);
 
-        v.input.cptra_pwrgood = true;
-        v.next_cycle_high(1);
-
-        v.input.cptra_rst_b = true;
-        v.next_cycle_high(1);
-
-        while !v.output.ready_for_fuses {
-            v.next_cycle_high(1);
-        }
-
         let mut m = ModelVerilated {
             v,
             generic_load_rx,
             output: Output::new(),
             trace_enabled: false,
         };
+
+        m.tracing_hint(true);
+
+        m.v.input.cptra_pwrgood = true;
+        m.v.next_cycle_high(1);
+
+        m.v.input.cptra_rst_b = true;
+        m.v.next_cycle_high(1);
+
+        while !m.v.output.ready_for_fuses {
+            m.v.next_cycle_high(1);
+        }
 
         m.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
         assert!(m.soc_ifc().cptra_fuse_wr_done().read().done());
