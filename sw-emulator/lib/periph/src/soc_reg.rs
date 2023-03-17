@@ -27,8 +27,7 @@ use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 use tock_registers::registers::InMemoryRegister;
 
-/// Firmware Load Command Opcode
-const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
+type ReadyForFwCallback = Box<dyn FnMut(&mut Mailbox, &Vec<u8>)>;
 
 /// CPTRA_HW_ERROR_FATAL Register Start Address
 const CPTRA_HW_ERROR_FATAL_START: u32 = 0x0;
@@ -571,7 +570,11 @@ struct SocRegistersImpl {
 
     /// LDEVID Cert Read Complete action
     op_ldevid_cert_read_complete_action: Option<TimerAction>,
+
+    /// test bench services callback
     tb_services_cb: Box<dyn FnMut(u8)>,
+
+    ready_for_fw_cb: ReadyForFwCallback,
 }
 
 impl SocRegistersImpl {
@@ -653,6 +656,7 @@ impl SocRegistersImpl {
             op_idevid_csr_read_complete_action: None,
             op_ldevid_cert_read_complete_action: None,
             tb_services_cb: args.tb_services_cb.take(),
+            ready_for_fw_cb: args.ready_for_fw_cb.take(),
         };
 
         regs.set_cptra_dbg_manuf_service_reg(&args);
@@ -792,46 +796,6 @@ impl SocRegistersImpl {
                 Some(self.timer.schedule_poll_in(Self::LDEVID_CERT_READ_TICKS));
         }
 
-        Ok(())
-    }
-
-    fn upload_firmware(&mut self) -> Result<(), BusError> {
-        // Write the cmd to mailbox.
-        self.mailbox.write_cmd(FW_LOAD_CMD_OPCODE)?;
-
-        // Write dlen.
-        self.mailbox.write_dlen(self.firmware.len() as u32)?;
-
-        //
-        // Write firmware image.
-        //
-        let word_size = RvSize::Word as usize;
-        let remainder = self.firmware.len() % word_size;
-        let n = self.firmware.len() - remainder;
-
-        for idx in (0..n).step_by(word_size) {
-            self.mailbox.write_datain(u32::from_le_bytes(
-                self.firmware[idx..idx + word_size].try_into().unwrap(),
-            ))?;
-        }
-
-        // Handle the remainder bytes.
-        if remainder > 0 {
-            let mut last_word = self.firmware[n] as u32;
-            for idx in 1..remainder {
-                last_word |= (self.firmware[n + idx] as u32) << (idx << 3);
-            }
-            self.mailbox.write_datain(last_word)?;
-        }
-
-        // Set the status as DATA_READY.
-        self.mailbox.set_status_data_ready()?;
-
-        // Set the execute register.
-        self.mailbox.write_execute(1)?;
-
-        // Schedule a future call to poll() to check on the fw read operation completion.
-        self.op_fw_read_complete_action = Some(self.timer.schedule_poll_in(Self::FW_READ_TICKS));
         Ok(())
     }
 
@@ -1142,7 +1106,11 @@ impl Bus for SocRegistersImpl {
     /// Called by Bus::poll() to indicate that time has passed
     fn poll(&mut self) {
         if self.timer.fired(&mut self.op_fw_write_complete_action) {
-            self.upload_firmware().unwrap();
+            (self.ready_for_fw_cb)(&mut self.mailbox, &self.firmware);
+            // Schedule a future call to poll() to check on the fw read operation completion.
+            self.op_fw_read_complete_action =
+                Some(self.timer.schedule_poll_in(Self::FW_READ_TICKS));
+            //            self.upload_firmware().unwrap();
         }
 
         if self.timer.fired(&mut self.op_fw_read_complete_action) {
@@ -1179,83 +1147,6 @@ mod tests {
     use super::*;
     use crate::{root_bus::TbServicesCb, MailboxRam};
     use tock_registers::registers::InMemoryRegister;
-
-    #[test]
-    fn test_fw_upload_download() {
-        let firmware: Vec<u8> = [
-            0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
-            0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
-            0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
-            0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
-        ]
-        .into();
-
-        let clock = Clock::new();
-        let mailbox_ram = MailboxRam::new();
-        let mut mailbox = Mailbox::new(mailbox_ram);
-        let args = CaliptraRootBusArgs::default();
-        let args = CaliptraRootBusArgs {
-            firmware: firmware.clone(),
-            ..args
-        };
-        let mut soc_reg: SocRegisters = SocRegisters::new(&clock, mailbox.clone(), args);
-
-        //
-        // [Sender Side]
-        //
-
-        // Trigger firmware download in the mailbox.
-        let flow_status = InMemoryRegister::<u32, FlowStatus::Register>::new(0);
-        flow_status.write(FlowStatus::READY_FOR_FW.val(1));
-        assert_eq!(
-            soc_reg
-                .write(RvSize::Word, CPTRA_FLOW_STATUS_START, flow_status.get())
-                .ok(),
-            Some(())
-        );
-
-        // Check if mailbox is locked.
-        assert!(mailbox.is_locked());
-
-        //
-        // [Receiver Side]
-        //
-
-        // Wait till data is available in the mailbox.
-        loop {
-            clock.increment_and_poll(1, &mut soc_reg);
-            if mailbox.read_execute().unwrap() == 1 {
-                break;
-            }
-        }
-        assert_eq!(mailbox.read_dlen().unwrap(), firmware.len() as u32);
-        assert_eq!(mailbox.read_cmd().unwrap(), FW_LOAD_CMD_OPCODE);
-        assert!(mailbox.is_status_data_ready());
-
-        // Read the data out of the mailbox.
-        let mut temp: Vec<u32> = Vec::new();
-        let mut word_count = (firmware.len() + 3) >> 2;
-        while word_count > 0 {
-            let word = mailbox.read_dataout().unwrap();
-            temp.push(word);
-            word_count -= 1;
-        }
-        let fw_img_from_mb: Vec<u8> = temp.iter().flat_map(|val| val.to_le_bytes()).collect();
-        assert_eq!(firmware, fw_img_from_mb[..firmware.len()]);
-
-        // Set the status to CMD_COMPLETE.
-        assert_eq!(mailbox.set_status_cmd_complete().ok(), Some(()));
-
-        // Wait till receiver resets the execute register.
-        loop {
-            clock.increment_and_poll(1, &mut soc_reg);
-            if mailbox.read_execute().unwrap() == 0 {
-                break;
-            }
-        }
-        // Check if the mailbox lock is released.
-        assert!(!mailbox.is_locked());
-    }
 
     fn send_data_to_mailbox(mailbox: &mut Mailbox, cmd: u32, data: &[u8]) {
         while !mailbox.try_acquire_lock() {}

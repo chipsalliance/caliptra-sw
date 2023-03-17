@@ -14,7 +14,9 @@ Abstract:
 
 use caliptra_emu_bus::Clock;
 use caliptra_emu_cpu::{Cpu, RvInstr, StepAction};
-use caliptra_emu_periph::{CaliptraRootBus, CaliptraRootBusArgs, TbServicesCb};
+use caliptra_emu_periph::{
+    CaliptraRootBus, CaliptraRootBusArgs, Mailbox, ReadyForFwCb, TbServicesCb,
+};
 use clap::{arg, value_parser, ArgAction};
 use std::fs::File;
 use std::io;
@@ -24,6 +26,9 @@ use std::process::exit;
 mod gdb;
 use crate::gdb::gdb_target::GdbTarget;
 use gdb::gdb_state;
+
+/// Firmware Load Command Opcode
+const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
 
 // CPU Main Loop (free_run no GDB)
 fn free_run(mut cpu: Cpu<CaliptraRootBus>, trace_path: Option<PathBuf>) {
@@ -144,6 +149,41 @@ fn main() -> io::Result<()> {
             0x01 => exit(0xFF),
             0xFF => exit(0x00),
             _ => print!("{}", val as char),
+        }),
+        ready_for_fw_cb: ReadyForFwCb::new(move |mailbox: &mut Mailbox, firmware: &Vec<u8>| {
+            // Write the cmd to mailbox.
+            let _ = mailbox.write_cmd(FW_LOAD_CMD_OPCODE);
+
+            // Write dlen.
+            let _ = mailbox.write_dlen(firmware.len() as u32).is_ok();
+
+            //
+            // Write firmware image.
+            //
+            let word_size = std::mem::size_of::<u32>();
+            let remainder = firmware.len() % word_size;
+            let n = firmware.len() - remainder;
+
+            for idx in (0..n).step_by(word_size) {
+                let _ = mailbox.write_datain(u32::from_le_bytes(
+                    firmware[idx..idx + word_size].try_into().unwrap(),
+                ));
+            }
+
+            // Handle the remainder bytes.
+            if remainder > 0 {
+                let mut last_word = firmware[n] as u32;
+                for idx in 1..remainder {
+                    last_word |= (firmware[n + idx] as u32) << (idx << 3);
+                }
+                let _ = mailbox.write_datain(last_word);
+            }
+
+            // Set the status as DATA_READY.
+            let _ = mailbox.set_status_data_ready();
+
+            // Set the execute register.
+            let _ = mailbox.write_execute(1);
         }),
     };
     let cpu = Cpu::new(CaliptraRootBus::new(&clock, bus_args), clock);

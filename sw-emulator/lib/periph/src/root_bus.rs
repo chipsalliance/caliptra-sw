@@ -47,6 +47,34 @@ impl From<Box<dyn FnMut(u8) + 'static>> for TbServicesCb {
     }
 }
 
+type ReadyForFwFn = Box<dyn FnMut(&mut Mailbox, &Vec<u8>)>;
+pub struct ReadyForFwCb(pub ReadyForFwFn);
+impl ReadyForFwCb {
+    pub fn new(f: impl FnMut(&mut Mailbox, &Vec<u8>) + 'static) -> Self {
+        Self(Box::new(f))
+    }
+    pub(crate) fn take(&mut self) -> ReadyForFwFn {
+        std::mem::take(self).0
+    }
+}
+impl Default for ReadyForFwCb {
+    fn default() -> Self {
+        Self(Box::new(|_, _| {}))
+    }
+}
+impl std::fmt::Debug for ReadyForFwCb {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("ReadyForFwCb")
+            .field(&"<unknown closure>")
+            .finish()
+    }
+}
+impl From<Box<dyn FnMut(&mut Mailbox, &Vec<u8>) + 'static>> for ReadyForFwCb {
+    fn from(value: Box<dyn FnMut(&mut Mailbox, &Vec<u8>)>) -> Self {
+        Self(value)
+    }
+}
+
 /// Caliptra Root Bus Arguments
 #[derive(Default, Debug)]
 pub struct CaliptraRootBusArgs {
@@ -60,6 +88,7 @@ pub struct CaliptraRootBusArgs {
     /// Callback to customize application behavior when
     /// a write to the tb-services register write is performed.
     pub tb_services_cb: TbServicesCb,
+    pub ready_for_fw_cb: ReadyForFwCb,
 }
 
 #[derive(Bus)]
