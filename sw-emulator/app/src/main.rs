@@ -101,6 +101,18 @@ fn main() -> io::Result<()> {
                 .value_parser(value_parser!(PathBuf))
                 .default_value("/tmp")
         )
+        .arg(
+            arg!(--"mfg_pk_hash" ... "Hash of the four Manufacturer Public Keys")
+                .required(false)
+                .value_parser(value_parser!(String))
+                .default_value(""),
+        )
+        .arg(
+            arg!(--"owner_pk_hash" ... "Owner Public Key Hash")
+                .required(false)
+                .value_parser(value_parser!(String))
+                .default_value(""),
+        )
         .get_matches();
 
     let args_rom = args.get_one::<PathBuf>("rom").unwrap();
@@ -108,11 +120,38 @@ fn main() -> io::Result<()> {
     let args_log_dir = args.get_one::<PathBuf>("log-dir").unwrap();
     let args_idevid_key_id_algo = args.get_one::<String>("idevid-key-id-algo").unwrap();
     let args_ueid = args.get_one::<u64>("ueid").unwrap();
+    let mut mfg_pk_hash = match hex::decode(args.get_one::<String>("mfg_pk_hash").unwrap()) {
+        Ok(mfg_pk_hash) => mfg_pk_hash,
+        Err(_) => {
+            println!("Manufacturer public keys hash format is incorrect",);
+            exit(-1);
+        }
+    };
+    let mut owner_pk_hash = match hex::decode(args.get_one::<String>("owner_pk_hash").unwrap()) {
+        Ok(owner_pk_hash) => owner_pk_hash,
+        Err(_) => {
+            println!("Owner public key hash format is incorrect",);
+            exit(-1);
+        }
+    };
 
     if !Path::new(&args_rom).exists() {
         println!("ROM File {:?} does not exist", args_rom);
         exit(-1);
     }
+
+    if (!mfg_pk_hash.is_empty() && mfg_pk_hash.len() != 48)
+        || (!owner_pk_hash.is_empty() && owner_pk_hash.len() != 48)
+    {
+        println!(
+            "Incorrect mfg_pk_hash: {} and/or owner_pk_hash: {} length",
+            mfg_pk_hash.len(),
+            owner_pk_hash.len()
+        );
+        exit(-1);
+    }
+    change_dword_endianess(&mut mfg_pk_hash);
+    change_dword_endianess(&mut owner_pk_hash);
 
     let mut rom = File::open(args_rom)?;
     let mut rom_buffer = Vec::new();
@@ -184,6 +223,8 @@ fn main() -> io::Result<()> {
             // Set the execute register.
             let _ = mailbox.write_execute(1);
         }),
+        mfg_pk_hash,
+        owner_pk_hash,
     };
     let cpu = Cpu::new(CaliptraRootBus::new(&clock, bus_args), clock);
 
@@ -211,4 +252,11 @@ fn main() -> io::Result<()> {
     }
 
     Ok(())
+}
+
+fn change_dword_endianess(data: &mut Vec<u8>) {
+    for idx in (0..data.len()).step_by(4) {
+        data.swap(idx, idx + 3);
+        data.swap(idx + 1, idx + 2);
+    }
 }

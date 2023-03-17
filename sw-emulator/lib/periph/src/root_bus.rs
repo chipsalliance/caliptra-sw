@@ -88,6 +88,8 @@ pub struct CaliptraRootBusArgs {
     /// a write to the tb-services register write is performed.
     pub tb_services_cb: TbServicesCb,
     pub ready_for_fw_cb: ReadyForFwCb,
+    pub mfg_pk_hash: Vec<u8>,
+    pub owner_pk_hash: Vec<u8>,
 }
 
 #[derive(Bus)]

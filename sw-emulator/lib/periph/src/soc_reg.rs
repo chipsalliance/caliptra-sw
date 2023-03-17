@@ -657,8 +657,26 @@ impl SocRegistersImpl {
 
         regs.set_cptra_dbg_manuf_service_reg(&args);
         regs.set_idevid_cert_attr(&args);
+        regs.set_fuse_vendor_pk_hash(&args);
+        regs.set_fuse_owner_pk_hash(&args);
 
         regs
+    }
+
+    fn set_fuse_vendor_pk_hash(&mut self, args: &CaliptraRootBusArgs) {
+        if args.mfg_pk_hash.len() == FUSE_VENDOR_PK_HASH_SIZE {
+            self.fuse_vendor_pk_hash
+                .data_mut()
+                .copy_from_slice(array_ref![args.mfg_pk_hash, 0, FUSE_VENDOR_PK_HASH_SIZE]);
+        }
+    }
+
+    fn set_fuse_owner_pk_hash(&mut self, args: &CaliptraRootBusArgs) {
+        if args.owner_pk_hash.len() == FUSE_OWNER_PK_HASH_SIZE {
+            self.fuse_owner_pk_hash
+                .data_mut()
+                .copy_from_slice(array_ref![args.owner_pk_hash, 0, FUSE_OWNER_PK_HASH_SIZE]);
+        }
     }
 
     fn set_cptra_dbg_manuf_service_reg(&mut self, args: &CaliptraRootBusArgs) {
