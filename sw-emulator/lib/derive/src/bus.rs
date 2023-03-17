@@ -29,6 +29,8 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
     let mut iter = input.into_iter();
     let struct_attrs = skip_to_struct_with_attributes(&mut iter);
     let poll_fn = get_poll_fn(&struct_attrs);
+    let warm_reset_fn = get_warm_reset_fn(&struct_attrs);
+    let update_reset_fn = get_update_reset_fn(&struct_attrs);
     let struct_name = expect_ident(&mut iter);
     let struct_fields = skip_to_group(&mut iter, Delimiter::Brace);
     let peripheral_fields = parse_peripheral_fields(struct_fields.stream());
@@ -54,6 +56,18 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
     } else {
         quote! {}
     };
+    let self_warm_reset_tokens = if let Some(warm_reset_fn) = &warm_reset_fn {
+        let warm_reset_fn = Ident::new(warm_reset_fn, Span::call_site());
+        quote! { Self::#warm_reset_fn(self); }
+    } else {
+        quote! {}
+    };
+    let self_update_reset_tokens = if let Some(update_reset_fn) = &update_reset_fn {
+        let update_reset_fn = Ident::new(update_reset_fn, Span::call_site());
+        quote! { Self::#update_reset_fn(self); }
+    } else {
+        quote! {}
+    };
 
     let field_idents: Vec<_> = peripheral_fields
         .iter()
@@ -76,6 +90,15 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
                 #(self.#field_idents.poll();)*
                 #self_poll_tokens
             }
+            fn warm_reset(&mut self) {
+                #(self.#field_idents.warm_reset();)*
+                #self_warm_reset_tokens
+            }
+            fn update_reset(&mut self) {
+                #(self.#field_idents.update_reset();)*
+                #self_update_reset_tokens
+            }
+
         }
     }
 }
@@ -85,6 +108,38 @@ fn get_poll_fn(struct_attrs: &[Group]) -> Option<String> {
         let mut iter = attr.stream().into_iter();
         if let Some(TokenTree::Ident(ident)) = iter.next() {
             if ident == "poll_fn" {
+                if let Some(TokenTree::Group(group)) = iter.next() {
+                    if let Some(TokenTree::Ident(ident)) = group.stream().into_iter().next() {
+                        return Some(ident.to_string());
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn get_warm_reset_fn(struct_attrs: &[Group]) -> Option<String> {
+    for attr in struct_attrs {
+        let mut iter = attr.stream().into_iter();
+        if let Some(TokenTree::Ident(ident)) = iter.next() {
+            if ident == "warm_reset_fn" {
+                if let Some(TokenTree::Group(group)) = iter.next() {
+                    if let Some(TokenTree::Ident(ident)) = group.stream().into_iter().next() {
+                        return Some(ident.to_string());
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn get_update_reset_fn(struct_attrs: &[Group]) -> Option<String> {
+    for attr in struct_attrs {
+        let mut iter = attr.stream().into_iter();
+        if let Some(TokenTree::Ident(ident)) = iter.next() {
+            if ident == "update_reset_fn" {
                 if let Some(TokenTree::Group(group)) = iter.next() {
                     if let Some(TokenTree::Ident(ident)) = group.stream().into_iter().next() {
                         return Some(ident.to_string());
@@ -718,6 +773,28 @@ mod tests {
                         self.spi0.poll();
                         Self::bus_poll(self);
                     }
+                    fn warm_reset(&mut self) {
+                        self.rom.warm_reset();
+                        self.sram.warm_reset();
+                        self.dram.warm_reset();
+                        self.uart0.warm_reset();
+                        self.uart1.warm_reset();
+                        self.i2c0.warm_reset();
+                        self.i2c1.warm_reset();
+                        self.i2c2.warm_reset();
+                        self.spi0.warm_reset();
+                    }
+                    fn update_reset(&mut self) {
+                        self.rom.update_reset();
+                        self.sram.update_reset();
+                        self.dram.update_reset();
+                        self.uart0.update_reset();
+                        self.uart1.update_reset();
+                        self.i2c0.update_reset();
+                        self.i2c1.update_reset();
+                        self.i2c2.update_reset();
+                        self.spi0.update_reset();
+                    }
                 }
             }.to_string()
         );
@@ -739,6 +816,10 @@ mod tests {
                         Err(caliptra_emu_bus::BusError::StoreAccessFault)
                     }
                     fn poll(&mut self) {
+                    }
+                    fn warm_reset(&mut self) {
+                    }
+                    fn update_reset(&mut self) {
                     }
                 }
             }.to_string()

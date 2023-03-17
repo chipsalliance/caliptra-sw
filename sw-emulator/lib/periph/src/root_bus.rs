@@ -86,6 +86,34 @@ impl From<Box<dyn FnMut(ReadyForFwCbArgs) + 'static>> for ReadyForFwCb {
     }
 }
 
+type UploadUpdateFwFn = Box<dyn FnMut(&mut Mailbox)>;
+pub struct UploadUpdateFwCb(pub UploadUpdateFwFn);
+impl UploadUpdateFwCb {
+    pub fn new(f: impl FnMut(&mut Mailbox) + 'static) -> Self {
+        Self(Box::new(f))
+    }
+    pub(crate) fn take(&mut self) -> UploadUpdateFwFn {
+        std::mem::take(self).0
+    }
+}
+impl Default for UploadUpdateFwCb {
+    fn default() -> Self {
+        Self(Box::new(|_| {}))
+    }
+}
+impl std::fmt::Debug for UploadUpdateFwCb {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("UploadUpdateFwCb")
+            .field(&"<unknown closure>")
+            .finish()
+    }
+}
+impl From<Box<dyn FnMut(&mut Mailbox) + 'static>> for UploadUpdateFwCb {
+    fn from(value: Box<dyn FnMut(&mut Mailbox)>) -> Self {
+        Self(value)
+    }
+}
+
 /// Caliptra Root Bus Arguments
 #[derive(Default, Debug)]
 pub struct CaliptraRootBusArgs {
@@ -102,6 +130,7 @@ pub struct CaliptraRootBusArgs {
     pub mfg_pk_hash: Vec<u8>,
     pub owner_pk_hash: Vec<u8>,
     pub device_lifecycle: String,
+    pub upload_update_fw: UploadUpdateFwCb,
 }
 
 #[derive(Bus)]

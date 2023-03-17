@@ -15,7 +15,7 @@ Abstract:
 use caliptra_emu_bus::Clock;
 use caliptra_emu_cpu::{Cpu, RvInstr, StepAction};
 use caliptra_emu_periph::{
-    CaliptraRootBus, CaliptraRootBusArgs, Mailbox, ReadyForFwCb, TbServicesCb,
+    CaliptraRootBus, CaliptraRootBusArgs, Mailbox, ReadyForFwCb, TbServicesCb, UploadUpdateFwCb,
 };
 use clap::{arg, value_parser, ArgAction};
 use std::fs::File;
@@ -69,7 +69,12 @@ fn main() -> io::Result<()> {
                 .required(false)
         )
         .arg(
-            arg!(--"firmware" <FILE> "Firmware image file")
+            arg!(--"firmware" <FILE> "Current Firmware image file")
+                .required(false)
+                .value_parser(value_parser!(PathBuf)),
+        )
+        .arg(
+            arg!(--"update-firmware" <FILE> "Update Firmware image file")
                 .required(false)
                 .value_parser(value_parser!(PathBuf)),
         )
@@ -126,7 +131,8 @@ fn main() -> io::Result<()> {
         .get_matches();
 
     let args_rom = args.get_one::<PathBuf>("rom").unwrap();
-    let args_firmware = args.get_one::<PathBuf>("firmware");
+    let args_current_fw = args.get_one::<PathBuf>("firmware");
+    let args_update_fw = args.get_one::<PathBuf>("update-firmware");
     let args_log_dir = args.get_one::<PathBuf>("log-dir").unwrap();
     let args_idevid_key_id_algo = args.get_one::<String>("idevid-key-id-algo").unwrap();
     let args_ueid = args.get_one::<u64>("ueid").unwrap();
@@ -176,16 +182,27 @@ fn main() -> io::Result<()> {
         exit(-1);
     }
 
-    let mut firmware_buffer = Vec::new();
-    if let Some(path) = args_firmware {
+    let mut current_fw_buf = Vec::new();
+    if let Some(path) = args_current_fw {
         if !Path::new(&path).exists() {
-            println!("Firmware File {:?} does not exist", args_firmware);
+            println!("Current firmware file {:?} does not exist", args_current_fw);
             exit(-1);
         }
         let mut firmware = File::open(path)?;
-        firmware.read_to_end(&mut firmware_buffer)?;
+        firmware.read_to_end(&mut current_fw_buf)?;
     }
-    let firmware_buffer = Rc::new(firmware_buffer);
+    let current_fw_buf = Rc::new(current_fw_buf);
+
+    let mut update_fw_buf = Vec::new();
+    if let Some(path) = args_update_fw {
+        if !Path::new(&path).exists() {
+            println!("Update firmware file {:?} does not exist", args_update_fw);
+            exit(-1);
+        }
+        let mut firmware = File::open(path)?;
+        firmware.read_to_end(&mut update_fw_buf)?;
+    }
+    let update_fw_buf = Rc::new(update_fw_buf);
 
     let clock = Clock::new();
     let bus_args = CaliptraRootBusArgs {
@@ -204,46 +221,18 @@ fn main() -> io::Result<()> {
             // Lock the mailbox
             while !args.mailbox.try_acquire_lock() {}
 
-            let firmware_buffer = firmware_buffer.clone();
+            let firmware_buffer = current_fw_buf.clone();
             args.schedule_later(FW_WRITE_TICKS, move |mailbox: &mut Mailbox| {
-                // Write the cmd to mailbox.
-                let _ = mailbox.write_cmd(FW_LOAD_CMD_OPCODE);
-
-                // Write dlen.
-                let _ = mailbox.write_dlen(firmware_buffer.len() as u32).is_ok();
-
-                //
-                // Write firmware image.
-                //
-                let word_size = std::mem::size_of::<u32>();
-                let remainder = firmware_buffer.len() % word_size;
-                let n = firmware_buffer.len() - remainder;
-
-                for idx in (0..n).step_by(word_size) {
-                    let _ = mailbox.write_datain(u32::from_le_bytes(
-                        firmware_buffer[idx..idx + word_size].try_into().unwrap(),
-                    ));
-                }
-
-                // Handle the remainder bytes.
-                if remainder > 0 {
-                    let mut last_word = firmware_buffer[n] as u32;
-                    for idx in 1..remainder {
-                        last_word |= (firmware_buffer[n + idx] as u32) << (idx << 3);
-                    }
-                    let _ = mailbox.write_datain(last_word);
-                }
-
-                // Set the status as DATA_READY.
-                let _ = mailbox.set_status_data_ready();
-
-                // Set the execute register.
-                let _ = mailbox.write_execute(1);
+                upload_fw_to_mailbox(mailbox, firmware_buffer);
             });
         }),
         mfg_pk_hash,
         owner_pk_hash,
         device_lifecycle: args_device_lifecycle.clone(),
+        upload_update_fw: UploadUpdateFwCb::new(move |mailbox: &mut Mailbox| {
+            while !mailbox.try_acquire_lock() {}
+            upload_fw_to_mailbox(mailbox, update_fw_buf.clone());
+        }),
     };
     let cpu = Cpu::new(CaliptraRootBus::new(&clock, bus_args), clock);
 
@@ -278,4 +267,40 @@ fn change_dword_endianess(data: &mut Vec<u8>) {
         data.swap(idx, idx + 3);
         data.swap(idx + 1, idx + 2);
     }
+}
+
+fn upload_fw_to_mailbox(mailbox: &mut Mailbox, firmware_buffer: Rc<Vec<u8>>) {
+    // Write the cmd to mailbox.
+    let _ = mailbox.write_cmd(FW_LOAD_CMD_OPCODE);
+
+    // Write dlen.
+    let _ = mailbox.write_dlen(firmware_buffer.len() as u32).is_ok();
+
+    //
+    // Write firmware image.
+    //
+    let word_size = std::mem::size_of::<u32>();
+    let remainder = firmware_buffer.len() % word_size;
+    let n = firmware_buffer.len() - remainder;
+
+    for idx in (0..n).step_by(word_size) {
+        let _ = mailbox.write_datain(u32::from_le_bytes(
+            firmware_buffer[idx..idx + word_size].try_into().unwrap(),
+        ));
+    }
+
+    // Handle the remainder bytes.
+    if remainder > 0 {
+        let mut last_word = firmware_buffer[n] as u32;
+        for idx in 1..remainder {
+            last_word |= (firmware_buffer[n + idx] as u32) << (idx << 3);
+        }
+        let _ = mailbox.write_datain(last_word);
+    }
+
+    // Set the status as DATA_READY.
+    let _ = mailbox.set_status_data_ready();
+
+    // Set the execute register.
+    let _ = mailbox.write_execute(1);
 }

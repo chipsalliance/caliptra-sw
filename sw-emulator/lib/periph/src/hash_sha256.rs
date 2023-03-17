@@ -54,9 +54,11 @@ const INIT_TICKS: u64 = 1000;
 /// The number of CPU clock cycles it takes to perform the hash update action.
 const UPDATE_TICKS: u64 = 1000;
 
-/// SHA-512 Peripheral
+/// SHA-256 Peripheral
 #[derive(Bus)]
 #[poll_fn(poll)]
+#[warm_reset_fn(warm_reset)]
+#[update_reset_fn(update_reset)]
 pub struct HashSha256 {
     /// Name 0 register
     #[register(offset = 0x0000_0000)]
@@ -196,6 +198,16 @@ impl HashSha256 {
                 .reg
                 .modify(Status::READY::SET + Status::VALID::SET);
         }
+    }
+
+    /// Called by Bus::warm_reset() to indicate a warm reset
+    fn warm_reset(&mut self) {
+        // TODO: Reset registers
+    }
+
+    /// Called by Bus::update_reset() to indicate an update reset
+    fn update_reset(&mut self) {
+        // TODO: Reset registers
     }
 
     pub fn hash(&self) -> &[u8] {
@@ -355,7 +367,7 @@ mod tests {
                 if status.is_set(Status::VALID) && status.is_set(Status::READY) {
                     break;
                 }
-                clock.increment_and_poll(1, &mut sha256);
+                clock.increment_and_process_timer_actions(1, &mut sha256);
             }
         }
 

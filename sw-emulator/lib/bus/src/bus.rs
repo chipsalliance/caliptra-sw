@@ -63,4 +63,12 @@ pub trait Bus {
     fn poll(&mut self) {
         // By default, do nothing
     }
+
+    fn warm_reset(&mut self) {
+        // By default, do nothing
+    }
+
+    fn update_reset(&mut self) {
+        // By default, do nothing
+    }
 }

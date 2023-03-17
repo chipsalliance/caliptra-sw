@@ -122,6 +122,8 @@ fn sha512_block_bytes_from_words_le(
 /// SHA-512 Peripheral
 #[derive(Bus)]
 #[poll_fn(poll)]
+#[warm_reset_fn(warm_reset)]
+#[update_reset_fn(update_reset)]
 pub struct HashSha512 {
     /// Name 0 register
     #[register(offset = 0x0000_0000)]
@@ -400,6 +402,16 @@ impl HashSha512 {
         } else if self.timer.fired(&mut self.op_hash_write_complete_action) {
             self.hash_write_complete();
         }
+    }
+
+    /// Called by Bus::warm_reset() to indicate a warm reset
+    fn warm_reset(&mut self) {
+        // TODO: Reset registers
+    }
+
+    /// Called by Bus::update_reset() to indicate an update reset
+    fn update_reset(&mut self) {
+        // TODO: Reset registers
     }
 
     fn op_complete(&mut self) {
@@ -832,7 +844,7 @@ mod tests {
 
                         break;
                     }
-                    clock.increment_and_poll(1, &mut sha512);
+                    clock.increment_and_process_timer_actions(1, &mut sha512);
                 }
             }
 
@@ -889,7 +901,7 @@ mod tests {
                     }
                 }
 
-                clock.increment_and_poll(1, &mut sha512);
+                clock.increment_and_process_timer_actions(1, &mut sha512);
             }
         }
 
@@ -1169,7 +1181,7 @@ mod tests {
             if block_read_status.is_set(BlockReadStatus::VALID) {
                 break;
             }
-            clock.increment_and_poll(1, &mut sha512);
+            clock.increment_and_process_timer_actions(1, &mut sha512);
         }
 
         // Transfer the data to the block registers
@@ -1238,7 +1250,7 @@ mod tests {
                 if status.is_set(Status::VALID) && status.is_set(Status::READY) {
                     break;
                 }
-                clock.increment_and_poll(1, &mut sha512);
+                clock.increment_and_process_timer_actions(1, &mut sha512);
             }
         }
 

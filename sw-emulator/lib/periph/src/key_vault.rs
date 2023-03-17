@@ -212,6 +212,14 @@ impl Bus for KeyVault {
     fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {
         self.regs.borrow_mut().write(size, addr, val)
     }
+
+    fn warm_reset(&mut self) {
+        self.regs.borrow_mut().warm_reset();
+    }
+
+    fn update_reset(&mut self) {
+        self.regs.borrow_mut().update_reset();
+    }
 }
 
 bitfield! {
@@ -290,6 +298,8 @@ use crate::helpers::{bytes_from_words_le, words_from_bytes_le};
 
 /// Key Vault Peripheral
 #[derive(Bus)]
+#[warm_reset_fn(warm_reset)]
+#[update_reset_fn(update_reset)]
 pub struct KeyVaultRegs {
     /// Key Control Registers
     #[register_array(offset = 0x0000_0000, write_fn = write_key_ctrl)]
@@ -389,6 +399,33 @@ impl KeyVaultRegs {
             ),
             sticky_lockable_scratch: ReadWriteRegisterArray::new(0),
         }
+    }
+
+    fn unlock_vault_registers(&mut self) {
+        // Unlock PCRs.
+        for pcr_ctrl_reg in self.pcr_control.iter_mut() {
+            pcr_ctrl_reg.modify(PV_CONTROL::LOCK::CLEAR);
+        }
+
+        // Unlock KV.
+        for kv_ctrl_reg in self.key_control.iter_mut() {
+            kv_ctrl_reg.modify(KV_CONTROL::WRITE_LOCK::CLEAR + KV_CONTROL::USE_LOCK::CLEAR);
+        }
+
+        // Unlock non-sticky DV.
+        for dv_ctrl_reg in self.nonsticky_datavault_control.iter_mut() {
+            dv_ctrl_reg.modify(DV_CONTROL::LOCK_ENTRY::CLEAR);
+        }
+    }
+
+    /// Called by Bus::warm_reset() to indicate a warm reset
+    fn warm_reset(&mut self) {
+        self.unlock_vault_registers();
+    }
+
+    /// Called by Bus::update_reset() to indicate an update reset
+    fn update_reset(&mut self) {
+        self.unlock_vault_registers();
     }
 
     fn write_pcr_ctrl(&mut self, _size: RvSize, index: usize, val: u32) -> Result<(), BusError> {

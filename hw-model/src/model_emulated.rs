@@ -139,6 +139,12 @@ impl<TBus: Bus> Bus for BusLogger<TBus> {
     fn poll(&mut self) {
         self.bus.poll();
     }
+    fn warm_reset(&mut self) {
+        self.bus.warm_reset();
+    }
+    fn update_reset(&mut self) {
+        self.bus.update_reset();
+    }
 }
 
 /// Emulated model

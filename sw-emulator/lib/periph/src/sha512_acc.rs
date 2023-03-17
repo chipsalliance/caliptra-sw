@@ -79,6 +79,8 @@ register_bitfields! [
 
 #[derive(Bus)]
 #[poll_fn(poll)]
+#[warm_reset_fn(warm_reset)]
+#[update_reset_fn(update_reset)]
 pub struct Sha512Accelerator {
     /// LOCK register
     #[register(offset = 0x0000_0000, read_fn = on_read_lock, write_fn = on_write_lock)]
@@ -438,6 +440,16 @@ impl Sha512Accelerator {
         }
     }
 
+    /// Called by Bus::warm_reset() to indicate a warm reset
+    fn warm_reset(&mut self) {
+        // TODO: Reset registers
+    }
+
+    /// Called by Bus::update_reset() to indicate an update reset
+    fn update_reset(&mut self) {
+        // TODO: Reset registers
+    }
+
     fn op_complete(&mut self) {
         // Update the 'Valid' status bit
         self.status.reg.modify(Status::VALID::SET);
@@ -620,7 +632,7 @@ mod tests {
                 break;
             }
 
-            clock.increment_and_poll(1, &mut sha_accl);
+            clock.increment_and_process_timer_actions(1, &mut sha_accl);
         }
 
         // Read the hash.

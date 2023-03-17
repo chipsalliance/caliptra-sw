@@ -14,7 +14,7 @@ Abstract:
 --*/
 use std::{
     cell::{Cell, RefCell},
-    collections::BTreeSet,
+    collections::{BTreeSet, HashSet},
     ptr,
     rc::Rc,
 };
@@ -98,7 +98,7 @@ impl Timer {
     /// `TimerAction` that can be used with [`Timer::cancel`] or
     /// [`Timer::fired`].
     pub fn schedule_poll_at(&self, time: u64) -> TimerAction {
-        self.clock.schedule_poll_at(time)
+        self.clock.schedule_action_at(time, TimerActionType::Poll)
     }
 
     /// Schedules a future call to [`Bus::poll()`] at `self.now() + time`, and
@@ -106,6 +106,24 @@ impl Timer {
     /// [`Timer::fired`].
     pub fn schedule_poll_in(&self, ticks_from_now: u64) -> TimerAction {
         self.schedule_poll_at(self.now().wrapping_add(ticks_from_now))
+    }
+
+    /// Schedules a future call to [`Bus::warm_reset()` or `Bus::update_reset()`] at `self.now() + time`, and
+    /// returns a `TimerAction` that can be used with [`Timer::cancel`] or
+    /// [`Timer::fired`].
+    pub fn schedule_reset_in(
+        &self,
+        ticks_from_now: u64,
+        reset_type: TimerActionType,
+    ) -> TimerAction {
+        assert!(
+            reset_type != TimerActionType::WarmReset || reset_type != TimerActionType::UpdateReset,
+            "Cannot schedule a reset timer action with {} action type.",
+            reset_type as u32
+        );
+
+        self.clock
+            .schedule_action_at(self.now().wrapping_add(ticks_from_now), reset_type)
     }
 
     /// Cancels a previously scheduled poll action.
@@ -146,20 +164,36 @@ impl Clock {
         self.clock.now()
     }
 
-    /// Increments the clock by `delta`, and returns true if any scheduled timer
+    /// Increments the clock by `delta`, and returns a list of timer
     /// actions fired.
     #[inline]
-    pub fn increment(&self, delta: u64) -> bool {
+    pub fn increment(&self, delta: u64) -> HashSet<TimerActionType> {
         self.clock.increment(delta)
     }
 
     /// Increments the clock by `delta`, and polls the bus if any scheduled
     /// timer actions fired.
     #[inline]
-    pub fn increment_and_poll(&self, delta: u64, bus: &mut impl Bus) {
-        if self.increment(delta) {
-            bus.poll();
+    pub fn increment_and_process_timer_actions(
+        &self,
+        delta: u64,
+        bus: &mut impl Bus,
+    ) -> HashSet<TimerActionType> {
+        let fired_action_types = self.increment(delta);
+        for action_type in fired_action_types.iter() {
+            match action_type {
+                TimerActionType::Poll => bus.poll(),
+                TimerActionType::WarmReset => {
+                    bus.warm_reset();
+                    break;
+                }
+                TimerActionType::UpdateReset => {
+                    bus.update_reset();
+                    break;
+                }
+            }
         }
+        fired_action_types
     }
 }
 
@@ -181,6 +215,8 @@ struct TimerActionImpl {
     time: u64,
 
     id: TimerActionId,
+
+    action_type: TimerActionType,
 }
 impl From<TimerAction> for TimerActionImpl {
     fn from(val: TimerAction) -> Self {
@@ -207,6 +243,13 @@ impl Default for TimerActionId {
     }
 }
 
+#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum TimerActionType {
+    Poll,
+    WarmReset,
+    UpdateReset,
+}
+
 struct ClockImpl {
     now: Cell<u64>,
     next_action_time: Cell<Option<u64>>,
@@ -229,7 +272,8 @@ impl ClockImpl {
     }
 
     #[inline]
-    fn increment(&self, delta: u64) -> bool {
+    fn increment(&self, delta: u64) -> HashSet<TimerActionType> {
+        let mut fired_action_types: HashSet<TimerActionType> = HashSet::new();
         assert!(
             delta < (u64::MAX >> 1),
             "Cannot increment the current time by more than {} clock cycles.",
@@ -238,14 +282,14 @@ impl ClockImpl {
         self.now.set(self.now.get().wrapping_add(delta));
         if let Some(next_action_time) = self.next_action_time.get() {
             if self.has_fired(next_action_time) {
-                self.remove_fired_actions();
-                return true;
+                self.remove_fired_actions(&mut fired_action_types);
+                return fired_action_types;
             }
         }
-        false
+        fired_action_types
     }
 
-    fn schedule_poll_at(self: &Rc<Self>, time: u64) -> TimerAction {
+    fn schedule_action_at(self: &Rc<Self>, time: u64, action_type: TimerActionType) -> TimerAction {
         assert!(
             time.wrapping_sub(self.now()) < (u64::MAX >> 1),
             "Cannot schedule a timer action more than {} clock cycles from now.",
@@ -254,6 +298,7 @@ impl ClockImpl {
         let new_action = TimerActionImpl {
             time,
             id: self.next_action_id(),
+            action_type,
         };
         let mut actions = self.future_poll_actions.borrow_mut();
         actions.insert(new_action);
@@ -295,6 +340,7 @@ impl ClockImpl {
         let search_action = TimerActionImpl {
             time: search_start,
             id: TimerActionId::default(),
+            action_type: TimerActionType::Poll,
         };
         if let Some(action) = future_actions.range(&search_action..).next() {
             return Some(action);
@@ -303,7 +349,7 @@ impl ClockImpl {
     }
 
     #[cold]
-    fn remove_fired_actions(&self) {
+    fn remove_fired_actions(&self, fired_action_types: &mut HashSet<TimerActionType>) {
         let mut future_actions = self.future_poll_actions.borrow_mut();
         while let Some(action) = self.find_next_action(&future_actions) {
             if !self.has_fired(action.time) {
@@ -311,6 +357,7 @@ impl ClockImpl {
             }
             let action = *action;
             future_actions.remove(&action);
+            fired_action_types.insert(action.action_type);
         }
         self.recompute_next_action_time(&future_actions);
     }
@@ -327,9 +374,9 @@ mod tests {
         let clock = Clock::new();
         assert_eq!(clock.now(), 0);
         assert_eq!(clock.now(), 0);
-        assert!(!clock.increment(25));
+        assert!(clock.increment(25).is_empty());
         assert_eq!(clock.now(), 25);
-        assert!(!clock.increment(100));
+        assert!(clock.increment(100).is_empty());
         assert_eq!(clock.now(), 125);
     }
 
@@ -344,7 +391,7 @@ mod tests {
         let mut action5 = Some(timer.schedule_poll_in(102));
         let mut action6 = Option::<TimerAction>::None;
 
-        assert!(!clock.increment(24));
+        assert!(clock.increment(24).is_empty());
         assert_eq!(clock.now().wrapping_sub(t0), 24);
         assert!(!timer.fired(&mut action0) && action0.is_some());
         assert!(!timer.fired(&mut action2) && action2.is_some());
@@ -353,7 +400,7 @@ mod tests {
         assert!(!timer.fired(&mut action5) && action5.is_some());
         assert!(!timer.fired(&mut action6) && action6.is_none());
 
-        assert!(clock.increment(1));
+        assert!(!clock.increment(1).is_empty());
         assert_eq!(clock.now().wrapping_sub(t0), 25);
         assert!(timer.fired(&mut action0) && action0.is_none());
         assert!(!timer.fired(&mut action2) && action2.is_some());
@@ -362,7 +409,7 @@ mod tests {
         assert!(!timer.fired(&mut action5) && action5.is_some());
         assert!(!timer.fired(&mut action6) && action6.is_none());
 
-        assert!(!clock.increment(1));
+        assert!(clock.increment(1).is_empty());
         assert_eq!(clock.now().wrapping_sub(t0), 26);
         assert!(!timer.fired(&mut action0) && action0.is_none());
         assert!(!timer.fired(&mut action2) && action2.is_some());
@@ -373,7 +420,7 @@ mod tests {
 
         action6 = Some(timer.schedule_poll_in(1));
 
-        assert!(clock.increment(1));
+        assert!(!clock.increment(1).is_empty());
         assert_eq!(clock.now().wrapping_sub(t0), 27);
         assert!(!timer.fired(&mut action0) && action0.is_none());
         assert!(!timer.fired(&mut action2) && action2.is_some());
@@ -383,10 +430,10 @@ mod tests {
         assert!(timer.fired(&mut action6) && action6.is_none());
 
         timer.cancel(action1.take().unwrap());
-        assert!(!clock.increment(24));
+        assert!(clock.increment(24).is_empty());
         assert_eq!(clock.now().wrapping_sub(t0), 51);
 
-        assert!(clock.increment(50));
+        assert!(!clock.increment(50).is_empty());
         assert_eq!(clock.now().wrapping_sub(t0), 101);
         assert!(!timer.fired(&mut action0) && action0.is_none());
         assert!(timer.fired(&mut action2) && action2.is_none());
@@ -395,7 +442,7 @@ mod tests {
         assert!(!timer.fired(&mut action5) && action5.is_some());
         assert!(!timer.fired(&mut action6) && action6.is_none());
 
-        assert!(clock.increment(1000000000000000000));
+        assert!(!clock.increment(1000000000000000000).is_empty());
         assert!(!timer.fired(&mut action0) && action0.is_none());
         assert!(!timer.fired(&mut action2) && action2.is_none());
         assert!(!timer.fired(&mut action3) && action3.is_none());
@@ -403,7 +450,7 @@ mod tests {
         assert!(timer.fired(&mut action5) && action5.is_none());
         assert!(!timer.fired(&mut action6) && action6.is_none());
 
-        assert!(!clock.increment(1000000000000000000));
+        assert!(clock.increment(1000000000000000000).is_empty());
     }
 
     #[test]
@@ -415,7 +462,7 @@ mod tests {
     #[test]
     fn test_timer_schedule_with_clock_at_12327834() {
         let clock = Clock::new();
-        assert!(!clock.increment(234293489238));
+        assert!(clock.increment(234293489238).is_empty());
         test_timer_schedule_with_clock(clock);
     }
 
@@ -443,10 +490,10 @@ mod tests {
         let mut bus = FakeBus::new();
 
         let mut action0 = Some(timer.schedule_poll_in(25));
-        clock.increment_and_poll(20, &mut bus);
+        clock.increment_and_process_timer_actions(20, &mut bus);
         assert_eq!(bus.log.take(), "");
 
-        clock.increment_and_poll(20, &mut bus);
+        clock.increment_and_process_timer_actions(20, &mut bus);
         assert_eq!(bus.log.take(), "poll()\n");
 
         assert!(timer.fired(&mut action0));
