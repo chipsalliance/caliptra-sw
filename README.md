@@ -30,20 +30,81 @@ used by firmware running on Caliptra's RISC-V cpu.
 To build Caliptra firmware or tools, you need a Linux installation with a recent
 Rust toolchain. See [Getting started with
 Rust](https://www.rust-lang.org/learn/get-started) for more information on
-installing an up-to-date Rust toolchain.
+installing an up-to-date Rust toolchain. We use version 1.68 of the Rust
+toolchain for all continuous integration.
 
-## Build and test
+## Checkout and build
 
-```
-$ git clone https://github.com/chipsalliance/caliptra-sw --config submodule.recurse=true
-$ cd caliptra-sw
-$ cargo build
-$ cargo test
+```shell
+git clone https://github.com/chipsalliance/caliptra-sw --config submodule.recurse=true
+cd caliptra-sw
+cargo build
 ```
 
-## Testing firmware images with sw-emulator
+## Testing in a hurry
 
+To run all unit tests on the host cpu, and run all integration tests against the
+sw-emulator:
+
+```shell
+# (from caliptra-sw/)
+cargo test
 ```
-$ cargo install --path sw-emulator/app
-$ drivers/test-fw/test.sh
+
+To run a single emulator test:
+
+```shell
+cargo test -p caliptra-lib test_doe
 ```
+
+You may wish to get a primitive trace from the sw-emulator while running the
+test:
+
+```console
+$ CPTRA_TRACE_PATH=/tmp/trace.txt cargo test -p caliptra-lib test_doe
+$ cat /tmp/trace.txt
+<snip>
+pc=0xf6
+pc=0xf8
+UC write4 *0x50002290 <- 0xffffffff
+pc=0xfa
+pc=0xb2
+pc=0xb6
+UC read1 *0x500022b5 -> 0xff
+pc=0xba
+<snip>
+```
+
+## Testing against Verilator
+
+We use [Verilator](https://www.veripool.org/verilator/) to provides a
+high-fidelity simulation based on
+[Caliptra's RTL](https://github.com/chipsalliance/caliptra-sw). Running tests in
+this environment can reveal bugs in the firmware, hardware, and the integration
+between the two.
+
+If you don't have verilator 5.004 or later installed, follow [these directions](/hw-latest/verilated).
+
+To run all the tests in verilator (this will take several hours):
+
+```shell
+cargo test --features=verilator --release
+```
+
+Sometimes you may only want to run a single test, like this
+[pcrbank driver test](/drivers/test-fw/src/bin/pcrbank_tests.rs)
+(hosted by the [driver integration tests](/drivers/tests/integration_tests.rs))
+that can run in seconds:
+
+```shell
+cargo test --features=verilator -p caliptra-lib test_pcrbank
+```
+
+To get a VCD dump of ALL waveforms while running the test:
+
+```shell
+CPTRA_TRACE_PATH=/tmp/trace.vcd cargo test --features=verilator -p caliptra-lib test_pcrbank
+```
+
+You can open the vcd file with a tool like
+[GTKWave](https://gtkwave.sourceforge.net/) to debug the hardware/firmware.
