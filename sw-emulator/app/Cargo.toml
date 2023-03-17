@@ -15,3 +15,4 @@ caliptra-emu-periph = { path = "../lib/periph" }
 caliptra-emu-types = { path = "../lib/types" }
 gdbstub = "0.6.3"
 gdbstub_arch = "0.2.4"
+hex = "0.4.3"
