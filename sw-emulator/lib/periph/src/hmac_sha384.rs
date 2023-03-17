@@ -106,6 +106,8 @@ const KEY_RW_TICKS: u64 = 100;
 /// HMAC-SHA-384 Peripheral
 #[derive(Bus)]
 #[poll_fn(poll)]
+#[warm_reset_fn(warm_reset)]
+#[update_reset_fn(update_reset)]
 pub struct HmacSha384 {
     /// Name 0 register
     #[register(offset = 0x0000_0000)]
@@ -401,6 +403,16 @@ impl HmacSha384 {
         } else if self.timer.fired(&mut self.op_tag_write_complete_action) {
             self.tag_write_complete();
         }
+    }
+
+    /// Called by Bus::warm_reset() to indicate a warm reset
+    fn warm_reset(&mut self) {
+        // TODO: Reset registers
+    }
+
+    /// Called by Bus::update_reset() to indicate an update reset
+    fn update_reset(&mut self) {
+        // TODO: Reset registers
     }
 
     fn op_complete(&mut self) {
@@ -892,7 +904,7 @@ mod tests {
                     }
                     break;
                 }
-                clock.increment_and_poll(1, &mut hmac);
+                clock.increment_and_process_timer_actions(1, &mut hmac);
             }
         }
 
@@ -941,7 +953,7 @@ mod tests {
 
                         break;
                     }
-                    clock.increment_and_poll(1, &mut hmac);
+                    clock.increment_and_process_timer_actions(1, &mut hmac);
                 }
             }
 
@@ -984,7 +996,7 @@ mod tests {
                     }
                 }
 
-                clock.increment_and_poll(1, &mut hmac);
+                clock.increment_and_process_timer_actions(1, &mut hmac);
             }
         }
 

@@ -104,6 +104,8 @@ register_bitfields! [
 
 #[derive(Bus)]
 #[poll_fn(poll)]
+#[warm_reset_fn(warm_reset)]
+#[update_reset_fn(update_reset)]
 pub struct AsymEcc384 {
     /// Name 0 register
     #[register(offset = 0x0000_0000)]
@@ -485,6 +487,16 @@ impl AsymEcc384 {
         }
     }
 
+    /// Called by Bus::warm_reset() to indicate a warm reset
+    fn warm_reset(&mut self) {
+        // TODO: Reset registers
+    }
+
+    /// Called by Bus::update_reset() to indicate an update reset
+    fn update_reset(&mut self) {
+        // TODO: Reset registers
+    }
+
     fn op_complete(&mut self) {
         match self.control.reg.read_as_enum(Control::CTRL) {
             Some(Control::CTRL::Value::GEN_KEY) => self.gen_key(),
@@ -831,7 +843,7 @@ mod tests {
                 break;
             }
 
-            clock.increment_and_poll(1, &mut ecc);
+            clock.increment_and_process_timer_actions(1, &mut ecc);
         }
 
         let mut priv_key = bytes_from_words_le(&ecc.priv_key);
@@ -889,7 +901,7 @@ mod tests {
                     );
                     break;
                 }
-                clock.increment_and_poll(1, &mut ecc);
+                clock.increment_and_process_timer_actions(1, &mut ecc);
             }
 
             assert_eq!(
@@ -905,7 +917,7 @@ mod tests {
                 if status.is_set(Status::VALID) && status.is_set(Status::READY) {
                     break;
                 }
-                clock.increment_and_poll(1, &mut ecc);
+                clock.increment_and_process_timer_actions(1, &mut ecc);
             }
 
             let mut priv_key = bytes_from_words_le(&ecc.priv_key);
@@ -974,7 +986,7 @@ mod tests {
                     );
                     break;
                 }
-                clock.increment_and_poll(1, &mut ecc);
+                clock.increment_and_process_timer_actions(1, &mut ecc);
             }
 
             loop {
@@ -984,7 +996,7 @@ mod tests {
                 if status.is_set(Status::VALID) && status.is_set(Status::READY) {
                     break;
                 }
-                clock.increment_and_poll(1, &mut ecc);
+                clock.increment_and_process_timer_actions(1, &mut ecc);
             }
 
             let mut key_usage = KeyUsage::default();
@@ -1052,7 +1064,7 @@ mod tests {
                 break;
             }
 
-            clock.increment_and_poll(1, &mut ecc);
+            clock.increment_and_process_timer_actions(1, &mut ecc);
         }
 
         let mut sig_r = bytes_from_words_le(&ecc.sig_r);
@@ -1116,7 +1128,7 @@ mod tests {
                     );
                     break;
                 }
-                clock.increment_and_poll(1, &mut ecc);
+                clock.increment_and_process_timer_actions(1, &mut ecc);
             }
 
             assert_eq!(
@@ -1132,7 +1144,7 @@ mod tests {
                 if status.is_set(Status::VALID) && status.is_set(Status::READY) {
                     break;
                 }
-                clock.increment_and_poll(1, &mut ecc);
+                clock.increment_and_process_timer_actions(1, &mut ecc);
             }
 
             let mut sig_r = bytes_from_words_le(&ecc.sig_r);
@@ -1197,7 +1209,7 @@ mod tests {
                     );
                     break;
                 }
-                clock.increment_and_poll(1, &mut ecc);
+                clock.increment_and_process_timer_actions(1, &mut ecc);
             }
         }
     }
@@ -1243,7 +1255,7 @@ mod tests {
                     );
                     break;
                 }
-                clock.increment_and_poll(1, &mut ecc);
+                clock.increment_and_process_timer_actions(1, &mut ecc);
             }
 
             let mut priv_key = PRIV_KEY;
@@ -1274,7 +1286,7 @@ mod tests {
                 if status.is_set(Status::VALID) && status.is_set(Status::READY) {
                     break;
                 }
-                clock.increment_and_poll(1, &mut ecc);
+                clock.increment_and_process_timer_actions(1, &mut ecc);
             }
 
             let mut sig_r = bytes_from_words_le(&ecc.sig_r);
@@ -1329,7 +1341,7 @@ mod tests {
                     );
                     break;
                 }
-                clock.increment_and_poll(1, &mut ecc);
+                clock.increment_and_process_timer_actions(1, &mut ecc);
             }
         }
     }
@@ -1423,7 +1435,7 @@ mod tests {
                 break;
             }
 
-            clock.increment_and_poll(1, &mut ecc);
+            clock.increment_and_process_timer_actions(1, &mut ecc);
         }
 
         let mut sig_s_reverse = bytes_from_words_le(&ecc.verify_r);

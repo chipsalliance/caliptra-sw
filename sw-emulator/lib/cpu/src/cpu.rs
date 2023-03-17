@@ -15,7 +15,7 @@ Abstract:
 use crate::csr_file::{Csr, CsrFile};
 use crate::types::{RvInstr, RvMStatus};
 use crate::xreg_file::{XReg, XRegFile};
-use caliptra_emu_bus::{Bus, BusError, Clock};
+use caliptra_emu_bus::{Bus, BusError, Clock, TimerActionType};
 use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
 
 pub type InstrTracer<'a> = dyn FnMut(u32, RvInstr) + 'a;
@@ -120,6 +120,10 @@ impl<TBus: Bus> Cpu<TBus> {
     /// * `pc` - Program counter value
     pub fn write_pc(&mut self, pc: RvData) {
         self.pc = pc;
+    }
+
+    fn reset_pc(&mut self) {
+        self.pc = 0;
     }
 
     /// Returns the next program counter after the current instruction is finished executing.
@@ -301,7 +305,23 @@ impl<TBus: Bus> Cpu<TBus> {
     ///
     /// * `RvException` - Exception
     pub fn step(&mut self, instr_tracer: Option<&mut InstrTracer>) -> StepAction {
-        self.clock.increment_and_poll(1, &mut self.bus);
+        let fired_action_types = self
+            .clock
+            .increment_and_process_timer_actions(1, &mut self.bus);
+        for action_type in fired_action_types.iter() {
+            match action_type {
+                TimerActionType::WarmReset => {
+                    self.reset_pc();
+                    break;
+                }
+                TimerActionType::UpdateReset => {
+                    self.reset_pc();
+                    break;
+                }
+                _ => {}
+            }
+        }
+
         match self.exec_instr(instr_tracer) {
             Ok(result) => result,
             Err(exception) => self.handle_exception(exception),

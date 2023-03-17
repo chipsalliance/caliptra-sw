@@ -17,7 +17,7 @@ use crate::{CaliptraRootBusArgs, Iccm, Mailbox};
 use caliptra_emu_bus::BusError::{LoadAccessFault, StoreAccessFault};
 use caliptra_emu_bus::{
     Bus, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister,
-    Register, Timer, TimerAction,
+    Register, Timer, TimerAction, TimerActionType,
 };
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::cell::RefCell;
@@ -31,6 +31,7 @@ use tock_registers::registers::InMemoryRegister;
 // Second parameter is schedule(ticks_from_now: u64, cb: Box<dyn FnOnce(&mut
 // Mailbox)>), which is called to schedule firmware writing in the future
 type ReadyForFwCallback = Box<dyn FnMut(ReadyForFwCbArgs)>;
+type UploadUpdateFwCallback = Box<dyn FnMut(&mut Mailbox)>;
 
 /// CPTRA_HW_ERROR_FATAL Register Start Address
 const CPTRA_HW_ERROR_FATAL_START: u32 = 0x0;
@@ -187,6 +188,12 @@ const CPTRA_GENERIC_INPUT_WIRES_SIZE: usize = 8;
 
 /// CPTRA_GENERIC_OUTPUT_WIRES Register Start Address
 const CPTRA_GENERIC_OUTPUT_WIRES_START: u32 = 0xc8;
+
+/// CPTRA_GENERIC_OUTPUT_WIRES Register 0 Address
+const CPTRA_GENERIC_OUTPUT_WIRES_0: u32 = CPTRA_GENERIC_OUTPUT_WIRES_START;
+
+/// CPTRA_GENERIC_OUTPUT_WIRES Register 1 Address
+const CPTRA_GENERIC_OUTPUT_WIRES_1: u32 = 0xcc;
 
 /// CPTRA_GENERIC_OUTPUT_WIRES Register End Address
 const CPTRA_GENERIC_OUTPUT_WIRES_END: u32 = 0xcf;
@@ -358,6 +365,13 @@ register_bitfields! [
         REQ_LDEVID_CERT OFFSET(1) NUMBITS(1) [],
         RSVD OFFSET(2) NUMBITS(30) [],
     ],
+
+    /// Reset Reason
+    ResetReason [
+        FW_UPD_RESET OFFSET(0) NUMBITS(1) [],
+        WARM_RESET OFFSET(1) NUMBITS(1) [],
+        RSVD OFFSET(2) NUMBITS(30) [],
+    ]
 ];
 
 /// SOC Register peripheral
@@ -427,6 +441,14 @@ impl Bus for SocRegisters {
     fn poll(&mut self) {
         self.regs.borrow_mut().poll();
     }
+
+    fn warm_reset(&mut self) {
+        self.regs.borrow_mut().warm_reset();
+    }
+
+    fn update_reset(&mut self) {
+        self.regs.borrow_mut().update_reset();
+    }
 }
 
 /// SOC Register implementation
@@ -460,7 +482,7 @@ struct SocRegistersImpl {
     cptra_flow_status: ReadWriteRegister<u32, FlowStatus::Register>,
 
     /// CPTRA_RESET_REASON Register
-    cptra_reset_reason: ReadOnlyRegister<u32>,
+    cptra_reset_reason: ReadOnlyRegister<u32, ResetReason::Register>,
 
     /// CPTRA_SECURITY_STATE Register
     cptra_security_state: ReadOnlyRegister<u32, SecurityState::Register>,
@@ -578,10 +600,15 @@ struct SocRegistersImpl {
     /// LDEVID Cert Read Complete action
     op_ldevid_cert_read_complete_action: Option<TimerAction>,
 
+    /// Reset Trigger action
+    op_reset_trigger_action: Option<TimerAction>,
+
     /// test bench services callback
     tb_services_cb: Box<dyn FnMut(u8)>,
 
     ready_for_fw_cb: ReadyForFwCallback,
+
+    upload_update_fw: UploadUpdateFwCallback,
 }
 
 impl SocRegistersImpl {
@@ -660,8 +687,10 @@ impl SocRegistersImpl {
             op_fw_read_complete_action: None,
             op_idevid_csr_read_complete_action: None,
             op_ldevid_cert_read_complete_action: None,
+            op_reset_trigger_action: None,
             tb_services_cb: args.tb_services_cb.take(),
             ready_for_fw_cb: args.ready_for_fw_cb.take(),
+            upload_update_fw: args.upload_update_fw.take(),
         };
 
         regs.set_cptra_dbg_manuf_service_reg(&args);
@@ -792,6 +821,29 @@ impl SocRegistersImpl {
         Ok(())
     }
 
+    /// On Write callback for initiating warm reset.
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - Size of the write
+    /// * `val` - Data to write
+    ///
+    /// # Error
+    ///
+    /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
+    fn on_write_warm_reset(&mut self, size: RvSize, _val: RvData) -> Result<(), BusError> {
+        if size != RvSize::Word {
+            Err(BusError::StoreAccessFault)?
+        }
+
+        // [TODO] Enable warm reset after design agreement.
+        // // Schedule warm reset timer action.
+        // self.op_reset_trigger_action =
+        //     Some(self.timer.schedule_reset_in(0, TimerActionType::WarmReset));
+
+        Ok(())
+    }
+
     /// On Write callback for `flow_status` register
     ///
     /// # Arguments
@@ -889,6 +941,11 @@ impl SocRegistersImpl {
                 file.write_all(&[byte]).unwrap();
             }
         }
+    }
+
+    fn reset_common(&mut self) {
+        // Unlock the ICCM.
+        self.iccm.unlock();
     }
 }
 
@@ -1059,14 +1116,6 @@ impl Bus for SocRegistersImpl {
 
             CPTRA_FLOW_STATUS_START..=CPTRA_FLOW_STATUS_END => self.on_write_flow_status(size, val),
 
-            CPTRA_RESET_REASON_START..=CPTRA_RESET_REASON_END => {
-                self.cptra_reset_reason.write(size, val)
-            }
-
-            CPTRA_SECURITY_STATE_START..=CPTRA_SECURITY_STATE_END => {
-                self.cptra_security_state.write(size, val)
-            }
-
             CPTRA_VALID_PAUSER_START..=CPTRA_VALID_PAUSER_END => {
                 self.cptra_valid_pauser
                     .write(size, addr - CPTRA_VALID_PAUSER_START, val)
@@ -1117,8 +1166,10 @@ impl Bus for SocRegistersImpl {
                 .write(size, addr - CPTRA_GENERIC_INPUT_WIRES_START, val),
 
             CPTRA_GENERIC_OUTPUT_WIRES_START..=CPTRA_GENERIC_OUTPUT_WIRES_END => {
-                if addr == CPTRA_GENERIC_OUTPUT_WIRES_START {
+                if addr == CPTRA_GENERIC_OUTPUT_WIRES_0 {
                     self.on_write_tb_services(size, val)
+                } else if addr == CPTRA_GENERIC_OUTPUT_WIRES_1 {
+                    self.on_write_warm_reset(size, val)
                 } else {
                     self.cptra_generic_output_wires.write(
                         size,
@@ -1139,7 +1190,15 @@ impl Bus for SocRegistersImpl {
             }
 
             INTERNAL_FW_UPDATE_RESET_START..=INTERNAL_FW_UPDATE_RESET_END => {
-                self.internal_fw_update_reset.write(size, val)
+                self.internal_fw_update_reset.write(size, val)?;
+
+                // Schedule a firmware update reset timer action.
+                self.op_reset_trigger_action = Some(
+                    self.timer
+                        .schedule_reset_in(0, TimerActionType::UpdateReset),
+                );
+
+                Ok(())
             }
 
             INTERNAL_FW_UPDATE_RESET_WAIT_CYCLES_START
@@ -1189,6 +1248,29 @@ impl Bus for SocRegistersImpl {
         {
             self.download_ldev_id_cert()
         }
+    }
+
+    /// Called by Bus::warm_reset() to indicate a warm reset
+    fn warm_reset(&mut self) {
+        // Set the reaset reason to 'WARM_RESET'
+        self.cptra_reset_reason
+            .reg
+            .write(ResetReason::WARM_RESET::SET);
+
+        self.reset_common();
+    }
+
+    /// Called by Bus::update_reset() to indicate an update reset
+    fn update_reset(&mut self) {
+        // Upload the update firmware in the mailbox.
+        (self.upload_update_fw)(&mut self.mailbox);
+
+        // Set the reaset reason to 'FW_UPD_RESET'
+        self.cptra_reset_reason
+            .reg
+            .write(ResetReason::FW_UPD_RESET::SET);
+
+        self.reset_common();
     }
 }
 
@@ -1276,7 +1358,7 @@ mod tests {
 
         // Wait till the idevid csr is downloaded.
         loop {
-            clock.increment_and_poll(1, &mut soc_reg);
+            clock.increment_and_process_timer_actions(1, &mut soc_reg);
             let dbg_manuf_service_reg = InMemoryRegister::<u32, DebugManufService::Register>::new(
                 soc_reg
                     .read(RvSize::Word, CPTRA_DBG_MANUF_SERVICE_REG_START)
@@ -1344,7 +1426,7 @@ mod tests {
 
         // Wait till the ldevid cert is downloaded.
         loop {
-            clock.increment_and_poll(1, &mut soc_reg);
+            clock.increment_and_process_timer_actions(1, &mut soc_reg);
             let dbg_manuf_service_reg = InMemoryRegister::<u32, DebugManufService::Register>::new(
                 soc_reg
                     .read(RvSize::Word, CPTRA_DBG_MANUF_SERVICE_REG_START)

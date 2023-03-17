@@ -58,6 +58,8 @@ register_bitfields! [
 
 #[derive(Bus)]
 #[poll_fn(poll)]
+#[warm_reset_fn(warm_reset)]
+#[update_reset_fn(update_reset)]
 pub struct Doe {
     /// Initialization Vector
     #[peripheral(offset = 0x0000_0000, mask = 0x0000_000f)]
@@ -150,6 +152,16 @@ impl Doe {
                 .reg
                 .modify(Status::READY::SET + Status::VALID::SET);
         }
+    }
+
+    /// Called by Bus::warm_reset() to indicate a warm reset
+    fn warm_reset(&mut self) {
+        // TODO: Reset registers
+    }
+
+    /// Called by Bus::update_reset() to indicate an update reset
+    fn update_reset(&mut self) {
+        // TODO: Reset registers
     }
 
     /// Unscramble unique device secret  (UDS) and store it in key vault
@@ -269,7 +281,7 @@ mod tests {
                 break;
             }
 
-            clock.increment_and_poll(1, &mut doe);
+            clock.increment_and_process_timer_actions(1, &mut doe);
         }
 
         let mut key_usage = KeyUsage::default();
@@ -331,7 +343,7 @@ mod tests {
                 break;
             }
 
-            clock.increment_and_poll(1, &mut doe);
+            clock.increment_and_process_timer_actions(1, &mut doe);
         }
 
         let mut key_usage = KeyUsage::default();
@@ -380,7 +392,7 @@ mod tests {
                 break;
             }
 
-            clock.increment_and_poll(1, &mut doe);
+            clock.increment_and_process_timer_actions(1, &mut doe);
         }
 
         assert_eq!(soc_reg.uds(), expected_uds);
