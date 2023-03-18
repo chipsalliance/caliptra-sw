@@ -69,13 +69,30 @@ jobs:
           cargo fmt --version
           cargo clippy --version
 
+      - name: Check that Cargo.lock doesn't need to be updated
+          # Note: this isn't the same as checking that Cargo.lock is up to date
+          # (cargo update --locked), which makes sure that every package is the
+          # latest published version. This is just ensuring that every
+          # dependency has an entry in Cargo.lock that is compatible with the
+          # version requirements in all Cargo.toml files.
+        run: |
+          # This works because cargo tree requires a Cargo.lock with no required updates
+          cargo tree --locked > /dev/null || (
+            echo "Please include required changes to Cargo.lock in your pull request"
+            # Without the --locked flag, cargo will do the minimal possible update to Cargo.lock
+            cargo tree > /dev/null 2> /dev/null
+            # Print out the differences to ease debugging
+            git diff Cargo.lock
+            exit 1
+          )
+
       - name: Check source-code formatting (run "cargo fmt" if this fails)
         run: |
           cargo fmt --check --all
 
       - name: Check license headers
         run: |
-          cargo run -p file-header-fix -- --check
+          cargo run -p file-header-fix --locked -- --check
 
       - name: Install risv32imc target
         run: |
@@ -84,8 +101,8 @@ jobs:
       - name: Build
         run: |
           export RUSTFLAGS="-D warnings"
-          cargo build
-          cargo build --release
+          cargo build --locked
+          cargo build --locked --release
           drivers/test-fw/build.sh
           (cd fmc && ./build.sh)
           sccache --show-stats
@@ -94,18 +111,18 @@ jobs:
       # build.
       - name: Clippy lint check
         run: |
-          cargo clippy --all-targets -- -D warnings
+          cargo clippy --locked --all-targets -- -D warnings
 
       - name: Run tests
         run: |
           export RUSTFLAGS="-D warnings"
-          cargo test
-          cargo test --release
+          cargo test --locked
+          cargo test --locked --release  
           sccache --show-stats
 
       - name: Run emulator conformance tests
         run: |
           sudo apt-get install gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
           (cd /tmp/ && git clone --depth 1 --branch old-framework-2.x https://github.com/riscv-non-isa/riscv-arch-test)
-          (cd sw-emulator/compliance-test && cargo run --release  -- --test_root_path /tmp/riscv-arch-test)
+          cargo run --locked -p compliance-test --release -- --test_root_path /tmp/riscv-arch-test
 

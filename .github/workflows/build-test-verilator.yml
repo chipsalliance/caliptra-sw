@@ -99,7 +99,7 @@ jobs:
 
       - name: Check that generated register code matches caliptra-rtl submodule
         run: |
-          cargo run -p caliptra_registers_generator -- --check hw-latest/caliptra-rtl registers/src
+          cargo run --locked -p caliptra_registers_generator -- --check hw-latest/caliptra-rtl registers/src
 
       - name: Build
         run: |
@@ -107,7 +107,7 @@ jobs:
           export RUSTC_WRAPPER=~/.cargo/bin/sccache
           export CXX="sccache g++"
           sccache --show-stats
-          (cd hw-model && cargo build --release --features verilator --jobs 10)
+          (cd hw-model && cargo build --locked --release --features verilator --jobs 10)
           sccache --show-stats
 
       - name: Run unit tests
@@ -115,8 +115,8 @@ jobs:
           export RUSTFLAGS="-D warnings"
           export RUSTC_WRAPPER=~/.cargo/bin/sccache
           export CXX="sccache g++"
-          (cd hw-model && cargo test --release --features verilator)
-          (cd hw-latest/verilated && cargo test --release --features verilator)
+          (cd hw-model && cargo test --locked --release --features verilator)
+          (cd hw-latest/verilated && cargo test --locked --release --features verilator)
 
       - name: Check source-code formatting (run "cargo fmt" if this fails)
         run: |
