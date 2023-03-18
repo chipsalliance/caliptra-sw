@@ -27,7 +27,7 @@ use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 use tock_registers::registers::InMemoryRegister;
 
-type ReadyForFwCallback = Box<dyn FnMut(&mut Mailbox, &[u8])>;
+type ReadyForFwCallback = Box<dyn FnMut(&mut Mailbox)>;
 
 /// CPTRA_HW_ERROR_FATAL Register Start Address
 const CPTRA_HW_ERROR_FATAL_START: u32 = 0x0;
@@ -550,9 +550,6 @@ struct SocRegistersImpl {
     /// Mailbox
     mailbox: Mailbox,
 
-    /// Firmware
-    firmware: Vec<u8>,
-
     /// Log Directory
     log_dir: PathBuf,
 
@@ -648,7 +645,6 @@ impl SocRegistersImpl {
             internal_fw_update_reset_wait_cycles: ReadWriteRegister::new(0),
             internal_nmi_vector: ReadWriteRegister::new(0),
             mailbox,
-            firmware: args.firmware.clone(),
             log_dir: args.log_dir.clone(),
             timer: Timer::new(clock),
             op_fw_write_complete_action: None,
@@ -1106,11 +1102,10 @@ impl Bus for SocRegistersImpl {
     /// Called by Bus::poll() to indicate that time has passed
     fn poll(&mut self) {
         if self.timer.fired(&mut self.op_fw_write_complete_action) {
-            (self.ready_for_fw_cb)(&mut self.mailbox, &self.firmware);
+            (self.ready_for_fw_cb)(&mut self.mailbox);
             // Schedule a future call to poll() to check on the fw read operation completion.
             self.op_fw_read_complete_action =
                 Some(self.timer.schedule_poll_in(Self::FW_READ_TICKS));
-            //            self.upload_firmware().unwrap();
         }
 
         if self.timer.fired(&mut self.op_fw_read_complete_action) {

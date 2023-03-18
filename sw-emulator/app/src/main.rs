@@ -139,7 +139,6 @@ fn main() -> io::Result<()> {
     let clock = Clock::new();
     let bus_args = CaliptraRootBusArgs {
         rom: rom_buffer,
-        firmware: firmware_buffer,
         log_dir: args_log_dir.clone(),
         ueid: *args_ueid,
         idev_key_id_algo: args_idevid_key_id_algo.clone(),
@@ -150,31 +149,31 @@ fn main() -> io::Result<()> {
             0xFF => exit(0x00),
             _ => print!("{}", val as char),
         }),
-        ready_for_fw_cb: ReadyForFwCb::new(move |mailbox: &mut Mailbox, firmware: &[u8]| {
+        ready_for_fw_cb: ReadyForFwCb::new(move |mailbox: &mut Mailbox| {
             // Write the cmd to mailbox.
             let _ = mailbox.write_cmd(FW_LOAD_CMD_OPCODE);
 
             // Write dlen.
-            let _ = mailbox.write_dlen(firmware.len() as u32).is_ok();
+            let _ = mailbox.write_dlen(firmware_buffer.len() as u32).is_ok();
 
             //
             // Write firmware image.
             //
             let word_size = std::mem::size_of::<u32>();
-            let remainder = firmware.len() % word_size;
-            let n = firmware.len() - remainder;
+            let remainder = firmware_buffer.len() % word_size;
+            let n = firmware_buffer.len() - remainder;
 
             for idx in (0..n).step_by(word_size) {
                 let _ = mailbox.write_datain(u32::from_le_bytes(
-                    firmware[idx..idx + word_size].try_into().unwrap(),
+                    firmware_buffer[idx..idx + word_size].try_into().unwrap(),
                 ));
             }
 
             // Handle the remainder bytes.
             if remainder > 0 {
-                let mut last_word = firmware[n] as u32;
+                let mut last_word = firmware_buffer[n] as u32;
                 for idx in 1..remainder {
-                    last_word |= (firmware[n + idx] as u32) << (idx << 3);
+                    last_word |= (firmware_buffer[n + idx] as u32) << (idx << 3);
                 }
                 let _ = mailbox.write_datain(last_word);
             }

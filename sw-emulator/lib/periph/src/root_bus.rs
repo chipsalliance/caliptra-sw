@@ -47,10 +47,10 @@ impl From<Box<dyn FnMut(u8) + 'static>> for TbServicesCb {
     }
 }
 
-type ReadyForFwFn = Box<dyn FnMut(&mut Mailbox, &[u8])>;
+type ReadyForFwFn = Box<dyn FnMut(&mut Mailbox)>;
 pub struct ReadyForFwCb(pub ReadyForFwFn);
 impl ReadyForFwCb {
-    pub fn new(f: impl FnMut(&mut Mailbox, &[u8]) + 'static) -> Self {
+    pub fn new(f: impl FnMut(&mut Mailbox) + 'static) -> Self {
         Self(Box::new(f))
     }
     pub(crate) fn take(&mut self) -> ReadyForFwFn {
@@ -59,7 +59,7 @@ impl ReadyForFwCb {
 }
 impl Default for ReadyForFwCb {
     fn default() -> Self {
-        Self(Box::new(|_, _| {}))
+        Self(Box::new(|_| {}))
     }
 }
 impl std::fmt::Debug for ReadyForFwCb {
@@ -69,8 +69,8 @@ impl std::fmt::Debug for ReadyForFwCb {
             .finish()
     }
 }
-impl From<Box<dyn FnMut(&mut Mailbox, &[u8]) + 'static>> for ReadyForFwCb {
-    fn from(value: Box<dyn FnMut(&mut Mailbox, &[u8])>) -> Self {
+impl From<Box<dyn FnMut(&mut Mailbox) + 'static>> for ReadyForFwCb {
+    fn from(value: Box<dyn FnMut(&mut Mailbox)>) -> Self {
         Self(value)
     }
 }
@@ -79,7 +79,6 @@ impl From<Box<dyn FnMut(&mut Mailbox, &[u8]) + 'static>> for ReadyForFwCb {
 #[derive(Default, Debug)]
 pub struct CaliptraRootBusArgs {
     pub rom: Vec<u8>,
-    pub firmware: Vec<u8>,
     pub log_dir: PathBuf,
     pub ueid: u64,
     pub idev_key_id_algo: String,
