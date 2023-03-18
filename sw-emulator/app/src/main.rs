@@ -150,7 +150,7 @@ fn main() -> io::Result<()> {
             0xFF => exit(0x00),
             _ => print!("{}", val as char),
         }),
-        ready_for_fw_cb: ReadyForFwCb::new(move |mailbox: &mut Mailbox, firmware: &Vec<u8>| {
+        ready_for_fw_cb: ReadyForFwCb::new(move |mailbox: &mut Mailbox, firmware: &[u8]| {
             // Write the cmd to mailbox.
             let _ = mailbox.write_cmd(FW_LOAD_CMD_OPCODE);
 

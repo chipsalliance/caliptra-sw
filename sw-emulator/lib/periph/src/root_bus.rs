@@ -47,10 +47,10 @@ impl From<Box<dyn FnMut(u8) + 'static>> for TbServicesCb {
     }
 }
 
-type ReadyForFwFn = Box<dyn FnMut(&mut Mailbox, &Vec<u8>)>;
+type ReadyForFwFn = Box<dyn FnMut(&mut Mailbox, &[u8])>;
 pub struct ReadyForFwCb(pub ReadyForFwFn);
 impl ReadyForFwCb {
-    pub fn new(f: impl FnMut(&mut Mailbox, &Vec<u8>) + 'static) -> Self {
+    pub fn new(f: impl FnMut(&mut Mailbox, &[u8]) + 'static) -> Self {
         Self(Box::new(f))
     }
     pub(crate) fn take(&mut self) -> ReadyForFwFn {
@@ -69,8 +69,8 @@ impl std::fmt::Debug for ReadyForFwCb {
             .finish()
     }
 }
-impl From<Box<dyn FnMut(&mut Mailbox, &Vec<u8>) + 'static>> for ReadyForFwCb {
-    fn from(value: Box<dyn FnMut(&mut Mailbox, &Vec<u8>)>) -> Self {
+impl From<Box<dyn FnMut(&mut Mailbox, &[u8]) + 'static>> for ReadyForFwCb {
+    fn from(value: Box<dyn FnMut(&mut Mailbox, &[u8])>) -> Self {
         Self(value)
     }
 }

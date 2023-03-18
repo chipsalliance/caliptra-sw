@@ -27,7 +27,7 @@ use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 use tock_registers::registers::InMemoryRegister;
 
-type ReadyForFwCallback = Box<dyn FnMut(&mut Mailbox, &Vec<u8>)>;
+type ReadyForFwCallback = Box<dyn FnMut(&mut Mailbox, &[u8])>;
 
 /// CPTRA_HW_ERROR_FATAL Register Start Address
 const CPTRA_HW_ERROR_FATAL_START: u32 = 0x0;
