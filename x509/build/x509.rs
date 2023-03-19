@@ -14,6 +14,7 @@ Abstract:
 
 use openssl::bn::BigNumContext;
 use openssl::ec::EcGroup;
+use openssl::ec::EcKey;
 use openssl::ec::PointConversionForm;
 use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
@@ -98,16 +99,17 @@ impl AsymKey for Ecc384AsymKey {
 impl Default for Ecc384AsymKey {
     /// Returns the "default value" for a type.
     fn default() -> Self {
-        let priv_key = PKey::ec_gen("secp384r1").unwrap();
         let ecc_group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
+        let priv_key = EcKey::generate(&ecc_group).unwrap();
         let mut bn_ctx = BigNumContext::new().unwrap();
         let pub_key = priv_key
-            .ec_key()
-            .unwrap()
             .public_key()
             .to_bytes(&ecc_group, PointConversionForm::UNCOMPRESSED, &mut bn_ctx)
             .unwrap();
-        Self { priv_key, pub_key }
+        Self {
+            priv_key: PKey::from_ec_key(priv_key).unwrap(),
+            pub_key,
+        }
     }
 }
 
