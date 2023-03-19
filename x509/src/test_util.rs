@@ -17,7 +17,7 @@ pub mod tests {
 
     use openssl::{
         bn::BigNumContext,
-        ec::{EcGroup, PointConversionForm},
+        ec::{EcGroup, EcKey, PointConversionForm},
         nid::Nid,
         pkey::{PKey, Private},
         sha::{Sha1, Sha256},
@@ -56,16 +56,17 @@ pub mod tests {
 
     impl Default for Ecc384AsymKey {
         fn default() -> Self {
-            let priv_key = PKey::ec_gen("secp384r1").unwrap();
             let ecc_group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
+            let priv_key = EcKey::generate(&ecc_group).unwrap();
             let mut bn_ctx = BigNumContext::new().unwrap();
             let pub_key = priv_key
-                .ec_key()
-                .unwrap()
                 .public_key()
                 .to_bytes(&ecc_group, PointConversionForm::UNCOMPRESSED, &mut bn_ctx)
                 .unwrap();
-            Self { priv_key, pub_key }
+            Self {
+                priv_key: PKey::from_ec_key(priv_key).unwrap(),
+                pub_key,
+            }
         }
     }
 }
