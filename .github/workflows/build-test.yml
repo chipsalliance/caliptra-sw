@@ -11,7 +11,7 @@ on:
 
 jobs:
   build_and_test:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
 
     env:
       RUST_TOOLCHAIN_VERSION: 1.68.0
@@ -21,7 +21,7 @@ jobs:
       SCCACHE_GHA_CACHE_FROM: sccache-caliptra-sw
 
       # Change this to a new random value if you suspect the cache is corrupted
-      SCCACHE_C_CUSTOM_CACHE_BUSTER: c73dbfa95cb3
+      SCCACHE_C_CUSTOM_CACHE_BUSTER: 68a6835b420c
 
     steps:
       - uses: actions/checkout@v3
