@@ -91,3 +91,8 @@ required-features = ["riscv"]
 name = "test_failure"
 path = "src/bin/test_failure.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "entropy_src"
+path = "src/bin/entropy_src_tests.rs"
+required-features = ["riscv"]

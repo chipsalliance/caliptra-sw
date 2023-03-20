@@ -78,3 +78,8 @@ fn test_sha384acc() {
 fn test_status_reporter() {
     run_driver_test("status_reporter");
 }
+
+#[test]
+fn test_entropy_src() {
+    run_driver_test("entropy_src");
+}
