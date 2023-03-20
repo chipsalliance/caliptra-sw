@@ -62,6 +62,8 @@ void caliptra_verilated_eval(struct caliptra_verilated* model,
   v->ext_imem_addr = in->imem_addr;
   v->ext_imem_wdata = in->imem_wdata;
 
+  v->etrng_req = in->etrng_eq;
+
   if (model->tfp.get()) {
     model->tfp->dump(model->sim_time++);
   }
@@ -75,4 +77,7 @@ void caliptra_verilated_eval(struct caliptra_verilated* model,
 
   out->generic_load_en = v->generic_load_en;
   out->generic_load_data = v->generic_load_data;
+
+  out->itrng_data = v->itrng_data;
+  out->itrng_valid = v->itrng_valid;
 }

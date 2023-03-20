@@ -40,8 +40,8 @@ module caliptra_verilated (
     input bit [7:0][31:0]           cptra_obf_key,
 
     // Physical Source for Internal TRNG
-    input  logic [3:0]       itrng_data,
-    input  logic             itrng_valid,
+    input  bit [3:0]       itrng_data,
+    input  bit             itrng_valid,
 
     output bit ready_for_fuses,
     output bit ready_for_fw_push,
@@ -54,7 +54,7 @@ module caliptra_verilated (
     output bit generic_load_en,
     output bit [31:0] generic_load_data,
 
-    output logic             etrng_req
+    output bit etrng_req
     ); 
 
 
