@@ -39,6 +39,10 @@ module caliptra_verilated (
 
     input bit [7:0][31:0]           cptra_obf_key,
 
+    // Physical Source for Internal TRNG
+    input  logic [3:0]       itrng_data,
+    input  logic             itrng_valid,
+
     output bit ready_for_fuses,
     output bit ready_for_fw_push,
 
@@ -48,8 +52,11 @@ module caliptra_verilated (
 
 
     output bit generic_load_en,
-    output bit [31:0] generic_load_data
+    output bit [31:0] generic_load_data,
+
+    output logic             etrng_req
     ); 
+
 
     import caliptra_top_tb_pkg::*;
     import soc_ifc_pkg::*;
@@ -147,7 +154,9 @@ caliptra_top caliptra_top_dut (
     //FIXME: export these
     .cptra_error_fatal(),
     .cptra_error_non_fatal(),
-    .trng_req(),
+    .etrng_req(etrng_req),
+    .itrng_data(itrng_data),
+    .itrng_valid(itrng_valid),
 
     .security_state(security_state) //FIXME TIE-OFF
 );
