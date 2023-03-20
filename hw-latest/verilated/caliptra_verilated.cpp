@@ -62,7 +62,7 @@ void caliptra_verilated_eval(struct caliptra_verilated* model,
   v->ext_imem_addr = in->imem_addr;
   v->ext_imem_wdata = in->imem_wdata;
 
-  v->etrng_req = in->etrng_eq;
+  v->etrng_req = in->etrng_req;
 
   if (model->tfp.get()) {
     model->tfp->dump(model->sim_time++);

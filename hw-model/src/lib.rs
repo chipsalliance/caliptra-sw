@@ -4,6 +4,8 @@ use std::{error::Error, io::ErrorKind};
 
 use caliptra_emu_bus::Bus;
 
+use rand::RngCore;
+
 pub mod mmio;
 mod model_emulated;
 
@@ -43,7 +45,16 @@ pub fn create(params: InitParams) -> Result<ModelVerilated, Box<dyn Error>> {
     ModelVerilated::init(params)
 }
 
-#[derive(Default)]
+struct RandomNibbles<R: RngCore>(pub R);
+
+impl<R: RngCore> Iterator for RandomNibbles<R> {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        Some((self.0.next_u32() & 0xf) as u8)
+    }
+}
+
 pub struct InitParams<'a> {
     // The contents of the boot ROM
     pub rom: &'a [u8],
@@ -53,6 +64,19 @@ pub struct InitParams<'a> {
 
     // The initial contents of the ICCM SRAM
     pub iccm: &'a [u8],
+
+    pub csrng_nibbles: Box<dyn Iterator<Item = u8>>,
+}
+
+impl<'a> Default for InitParams<'a> {
+    fn default() -> Self {
+        Self {
+            rom: Default::default(),
+            dccm: Default::default(),
+            iccm: Default::default(),
+            csrng_nibbles: Box::new(RandomNibbles(rand::thread_rng())),
+        }
+    }
 }
 
 pub enum ModelError {
