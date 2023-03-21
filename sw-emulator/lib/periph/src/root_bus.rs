@@ -90,6 +90,7 @@ pub struct CaliptraRootBusArgs {
     pub ready_for_fw_cb: ReadyForFwCb,
     pub mfg_pk_hash: Vec<u8>,
     pub owner_pk_hash: Vec<u8>,
+    pub device_lifecycle: String,
 }
 
 #[derive(Bus)]

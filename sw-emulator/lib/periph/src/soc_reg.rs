@@ -659,6 +659,7 @@ impl SocRegistersImpl {
         regs.set_idevid_cert_attr(&args);
         regs.set_fuse_vendor_pk_hash(&args);
         regs.set_fuse_owner_pk_hash(&args);
+        regs.set_cptra_security_state_device_lifecycle(&args);
 
         regs
     }
@@ -677,6 +678,18 @@ impl SocRegistersImpl {
                 .data_mut()
                 .copy_from_slice(array_ref![args.owner_pk_hash, 0, FUSE_OWNER_PK_HASH_SIZE]);
         }
+    }
+
+    fn set_cptra_security_state_device_lifecycle(&mut self, args: &CaliptraRootBusArgs) {
+        let mut value = SecurityState::LIFE_CYCLE::UNPROVISIONED;
+        if args.device_lifecycle.eq_ignore_ascii_case("manufacturing") {
+            value = SecurityState::LIFE_CYCLE::MANUFACTURING;
+        } else if args.device_lifecycle.eq_ignore_ascii_case("production") {
+            value = SecurityState::LIFE_CYCLE::PRODUCTION;
+        }
+        self.cptra_security_state
+            .reg
+            .modify(SecurityState::LIFE_CYCLE.val(value.read(SecurityState::LIFE_CYCLE)));
     }
 
     fn set_cptra_dbg_manuf_service_reg(&mut self, args: &CaliptraRootBusArgs) {
