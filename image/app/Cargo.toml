@@ -13,7 +13,7 @@ caliptra-image-serde = { path = "../serde" }
 serde = "1.0"
 toml = "0.7.0"
 serde_derive = "1.0.136"
-clap = "4.1.4"
+clap = { version = "3.2.14", default-features = false, features = ["std"] }
 openssl-sys = "0.9"
 openssl = "0.10"
 elf = "0.7.1"
