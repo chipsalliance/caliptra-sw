@@ -10,13 +10,18 @@ fn test_success() {
 
     let esrc = entropy_src::RegisterBlock::entropy_src_reg();
 
-    const FALSE: u32 = 6;
-    const TRUE: u32 = 9;
+    const FALSE: u32 = 9;
+    const TRUE: u32 = 6;
 
-    esrc.module_enable().write(|w| w.module_enable(TRUE));
+    // esrc.conf().write(|_| 0x909099.into());
+    // esrc.module_enable().write(|_| 6.into());
+
     esrc.entropy_control().write(|w| w.es_route(TRUE));
 
+    esrc.module_enable().write(|w| w.module_enable(TRUE));
+
     println!("L");
+
     for _ in 0..100 {
         core::hint::black_box(esrc);
     }
