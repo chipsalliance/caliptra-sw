@@ -102,16 +102,22 @@ fn main() -> io::Result<()> {
                 .default_value("/tmp")
         )
         .arg(
-            arg!(--"mfg_pk_hash" ... "Hash of the four Manufacturer Public Keys")
+            arg!(--"mfg-pk-hash" ... "Hash of the four Manufacturer Public Keys")
                 .required(false)
                 .value_parser(value_parser!(String))
                 .default_value(""),
         )
         .arg(
-            arg!(--"owner_pk_hash" ... "Owner Public Key Hash")
+            arg!(--"owner-pk-hash" ... "Owner Public Key Hash")
                 .required(false)
                 .value_parser(value_parser!(String))
                 .default_value(""),
+        )
+        .arg(
+            arg!(--"device-lifecycle" ... "Device Lifecycle State [unprovisioned, manufacturing, production]")
+                .required(false)
+                .value_parser(value_parser!(String))
+                .default_value("unprovisioned"),
         )
         .get_matches();
 
@@ -120,20 +126,21 @@ fn main() -> io::Result<()> {
     let args_log_dir = args.get_one::<PathBuf>("log-dir").unwrap();
     let args_idevid_key_id_algo = args.get_one::<String>("idevid-key-id-algo").unwrap();
     let args_ueid = args.get_one::<u64>("ueid").unwrap();
-    let mut mfg_pk_hash = match hex::decode(args.get_one::<String>("mfg_pk_hash").unwrap()) {
+    let mut mfg_pk_hash = match hex::decode(args.get_one::<String>("mfg-pk-hash").unwrap()) {
         Ok(mfg_pk_hash) => mfg_pk_hash,
         Err(_) => {
             println!("Manufacturer public keys hash format is incorrect",);
             exit(-1);
         }
     };
-    let mut owner_pk_hash = match hex::decode(args.get_one::<String>("owner_pk_hash").unwrap()) {
+    let mut owner_pk_hash = match hex::decode(args.get_one::<String>("owner-pk-hash").unwrap()) {
         Ok(owner_pk_hash) => owner_pk_hash,
         Err(_) => {
             println!("Owner public key hash format is incorrect",);
             exit(-1);
         }
     };
+    let args_device_lifecycle = args.get_one::<String>("device-lifecycle").unwrap();
 
     if !Path::new(&args_rom).exists() {
         println!("ROM File {:?} does not exist", args_rom);
@@ -225,6 +232,7 @@ fn main() -> io::Result<()> {
         }),
         mfg_pk_hash,
         owner_pk_hash,
+        device_lifecycle: args_device_lifecycle.clone(),
     };
     let cpu = Cpu::new(CaliptraRootBus::new(&clock, bus_args), clock);
 
