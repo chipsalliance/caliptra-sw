@@ -17,52 +17,42 @@ mod verifier;
 
 use caliptra_image_types::*;
 use caliptra_lib::*;
-use getset::{CopyGetters, Getters, Setters};
 
 pub use verifier::ImageVerifier;
 
 /// Image Verifification Executable Info
-#[derive(Default, Debug, Getters, Setters, CopyGetters)]
+#[derive(Default, Debug)]
 pub struct ImageVerificationExeInfo {
     /// Load address
-    #[getset(get_copy = "pub", set = "pub")]
-    load_addr: u32,
+    pub load_addr: u32,
 
     /// Length
-    #[getset(get_copy = "pub", set = "pub")]
-    size: u32,
+    pub size: u32,
 
     /// Entry Point
-    #[getset(get_copy = "pub", set = "pub")]
-    entry_point: u32,
+    pub entry_point: u32,
 
     /// Security version number
-    #[getset(get_copy = "pub", set = "pub")]
-    svn: u32,
+    pub svn: u32,
 
     /// Digest of the image
-    #[getset(get = "pub", set = "pub")]
-    digest: ImageDigest,
+    pub digest: ImageDigest,
 }
 
 /// Verified image information
-#[derive(Default, Debug, Getters, Setters, CopyGetters)]
+#[derive(Default, Debug)]
 pub struct ImageVerificationInfo {
     /// Vendor ECC public key index
-    #[getset(get_copy = "pub", set = "pub")]
-    vendor_ecc_pub_key_idx: u32,
+    pub vendor_ecc_pub_key_idx: u32,
 
     /// Owner public keys digest
-    #[getset(get = "pub", set = "pub")]
-    owner_pub_keys_digest: ImageDigest,
+    pub owner_pub_keys_digest: ImageDigest,
 
     /// First mutable code
-    #[getset(get = "pub", set = "pub")]
-    fmc: ImageVerificationExeInfo,
+    pub fmc: ImageVerificationExeInfo,
 
     /// Runtime
-    #[getset(get = "pub", set = "pub")]
-    runtime: ImageVerificationExeInfo,
+    pub runtime: ImageVerificationExeInfo,
 }
 
 /// Image Verification Environment

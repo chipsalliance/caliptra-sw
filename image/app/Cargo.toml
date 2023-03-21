@@ -19,6 +19,5 @@ openssl = "0.10"
 elf = "0.7.1"
 zerocopy = "0.6.1"
 anyhow = "1.0.70"
-getset = "0.1.2"
 hex = "0.4.3"
 

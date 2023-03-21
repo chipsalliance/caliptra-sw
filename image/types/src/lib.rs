@@ -16,7 +16,6 @@ Abstract:
 
 use core::ops::Range;
 
-use getset::{CopyGetters, Getters, MutGetters, Setters};
 use memoffset::{offset_of, span_of};
 use zerocopy::{AsBytes, FromBytes};
 
@@ -37,73 +36,60 @@ pub type ImageRevision = [u8; IMAGE_REVISION_BYTE_SIZE];
 pub type ImageEccPrivKey = ImageScalar;
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Getters, Setters, Copy, Clone, Eq, PartialEq)]
+#[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq)]
 pub struct ImageEccPubKey {
     /// X Coordinate
-    #[getset(get = "pub", set = "pub")]
     pub x: ImageScalar,
 
     /// Y Coordinate
-    #[getset(get = "pub", set = "pub")]
     pub y: ImageScalar,
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Getters, Setters, Copy, Clone, Eq, PartialEq)]
+#[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq)]
 pub struct ImageEccSignature {
     /// Random point
-    #[getset(get = "pub", set = "pub")]
     pub r: ImageScalar,
 
     /// Proof
-    #[getset(get = "pub", set = "pub")]
     pub s: ImageScalar,
 }
 
 /// Caliptra Image Bundle
 #[cfg(feature = "std")]
-#[derive(Debug, Default, Getters, Setters)]
+#[derive(Debug, Default)]
 pub struct ImageBundle {
     /// Manifest
-    #[getset(get = "pub", set = "pub")]
-    manifest: ImageManifest,
+    pub manifest: ImageManifest,
 
     /// FMC
-    #[getset(get = "pub", set = "pub")]
-    fmc: Vec<u8>,
+    pub fmc: Vec<u8>,
 
     /// Runtime
-    #[getset(get = "pub", set = "pub")]
-    runtime: Vec<u8>,
+    pub runtime: Vec<u8>,
 }
 
 /// Calipatra Image Manifest
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Getters, Setters, MutGetters, CopyGetters)]
+#[derive(AsBytes, FromBytes, Default, Debug)]
 pub struct ImageManifest {
     /// Marker
-    #[getset(get_copy = "pub", set = "pub")]
-    marker: u32,
+    pub marker: u32,
 
     /// Size of `Manifest` strucuture
-    #[getset(get_copy = "pub", set = "pub")]
-    size: u32,
+    pub size: u32,
 
     /// Preamle
-    #[getset(get = "pub", get_mut = "pub", set = "pub")]
-    preamble: ImagePreamble,
+    pub preamble: ImagePreamble,
 
     /// Header
-    #[getset(get = "pub", get_mut = "pub", set = "pub")]
-    header: ImageHeader,
+    pub header: ImageHeader,
 
     /// First Mutable Code TOC Entry
-    #[getset(get = "pub", get_mut = "pub", set = "pub")]
-    fmc: ImageTocEntry,
+    pub fmc: ImageTocEntry,
 
     /// Runtime TOC Entry
-    #[getset(get = "pub", get_mut = "pub", set = "pub")]
-    runtime: ImageTocEntry,
+    pub runtime: ImageTocEntry,
 }
 
 impl ImageManifest {
@@ -135,95 +121,80 @@ impl ImageManifest {
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Getters, Setters, MutGetters, Clone, Copy)]
+#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
 pub struct ImageVendorPubKeys {
-    #[getset(get = "pub", set = "pub", get_mut = "pub")]
-    ecc_pub_keys: [ImageEccPubKey; VENDOR_ECC_KEY_COUNT as usize],
+    pub ecc_pub_keys: [ImageEccPubKey; VENDOR_ECC_KEY_COUNT as usize],
     // TODO: Add LMS Public Keys here
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Getters, Setters, MutGetters, Clone, Copy)]
+#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
 pub struct ImageVendorPrivKeys {
-    #[getset(get = "pub", set = "pub", get_mut = "pub")]
-    ecc_priv_keys: [ImageEccPrivKey; VENDOR_ECC_KEY_COUNT as usize],
+    pub ecc_priv_keys: [ImageEccPrivKey; VENDOR_ECC_KEY_COUNT as usize],
     // TODO: Add LMS Private Keys here
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Getters, Setters, MutGetters, Clone, Copy)]
+#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
 pub struct ImageOwnerPubKeys {
-    #[getset(get = "pub", set = "pub", get_mut = "pub")]
-    ecc_pub_key: ImageEccPubKey,
+    pub ecc_pub_key: ImageEccPubKey,
     // TODO: Add LMS Public Keys here
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Getters, MutGetters, Setters)]
+#[derive(AsBytes, FromBytes, Default, Debug)]
 pub struct ImageOwnerPrivKeys {
-    #[getset(get = "pub", set = "pub", get_mut = "pub")]
-    ecc_priv_key: ImageEccPrivKey,
+    pub ecc_priv_key: ImageEccPrivKey,
     // TODO: Add LMS Private Keys here
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Getters, Setters)]
+#[derive(AsBytes, FromBytes, Default, Debug)]
 pub struct ImageSignatures {
-    #[getset(get = "pub", set = "pub")]
-    ecc_sig: ImageEccSignature,
+    pub ecc_sig: ImageEccSignature,
     // TODO: Add LMS Signature here
 }
 
 /// Calipatra Image Bundle Preamble
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Getters, Setters, CopyGetters)]
+#[derive(AsBytes, FromBytes, Default, Debug)]
 pub struct ImagePreamble {
     /// Vendor  Public Keys
-    #[getset(get = "pub", set = "pub")]
-    vendor_pub_keys: ImageVendorPubKeys,
+    pub vendor_pub_keys: ImageVendorPubKeys,
 
     /// Vendor ECC Public Key Index
-    #[getset(get_copy = "pub", set = "pub")]
-    vendor_ecc_pub_key_idx: u32,
+    pub vendor_ecc_pub_key_idx: u32,
 
     /// Vendor Signatures
-    #[getset(get = "pub", set = "pub")]
-    vendor_sigs: ImageSignatures,
+    pub vendor_sigs: ImageSignatures,
 
     /// Owner Public Key
-    #[getset(get = "pub", set = "pub")]
-    owner_pub_keys: ImageOwnerPubKeys,
+    pub owner_pub_keys: ImageOwnerPubKeys,
 
     /// Owner Signatures
-    #[getset(get = "pub", set = "pub")]
-    owner_sigs: ImageSignatures,
+    pub owner_sigs: ImageSignatures,
 
-    _rsvd: [u32; 2],
+    pub _rsvd: [u32; 2],
 }
 
 /// Caliptra Image header
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Getters, Setters, CopyGetters)]
+#[derive(AsBytes, FromBytes, Default, Debug)]
 pub struct ImageHeader {
     /// Revision
-    #[getset(get = "pub", set = "pub")]
-    revision: [u32; 2],
+    pub revision: [u32; 2],
 
     /// Vendor ECC Public Key Index
-    #[getset(get_copy = "pub", set = "pub")]
-    vendor_ecc_pub_key_idx: u32,
+    pub vendor_ecc_pub_key_idx: u32,
 
     /// Flags
-    #[getset(get_copy = "pub", set = "pub")]
-    flags: u32,
+    pub flags: u32,
 
     /// TOC Entry Count
-    #[getset(get_copy = "pub", set = "pub")]
-    toc_len: u32,
+    pub toc_len: u32,
 
     /// TOC Digest
-    #[getset(get = "pub", set = "pub")]
-    toc_digest: ImageDigest,
+    pub toc_digest: ImageDigest,
 }
 
 /// Caliptra table contents entry id
@@ -257,47 +228,37 @@ impl From<ImageTocEntryId> for u32 {
 
 /// Caliptra Table of contents entry
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Getters, Setters, CopyGetters)]
+#[derive(AsBytes, FromBytes, Default, Debug)]
 pub struct ImageTocEntry {
     /// ID
-    #[getset(get_copy = "pub", set = "pub")]
-    id: u32,
+    pub id: u32,
 
     /// Type
-    #[getset(get_copy = "pub", set = "pub")]
-    r#type: u32,
+    pub r#type: u32,
 
     /// Commit revision
-    #[getset(get = "pub", set = "pub")]
-    revision: ImageRevision,
+    pub revision: ImageRevision,
 
     /// Security Version Number
-    #[getset(get_copy = "pub", set = "pub")]
-    svn: u32,
+    pub svn: u32,
 
     /// Minimum Security Version Number
-    #[getset(get_copy = "pub", set = "pub")]
-    min_svn: u32,
+    pub min_svn: u32,
 
     /// Entry Point
-    #[getset(get_copy = "pub", set = "pub")]
-    load_addr: u32,
+    pub load_addr: u32,
 
     /// Entry Point
-    #[getset(get_copy = "pub", set = "pub")]
-    entry_point: u32,
+    pub entry_point: u32,
 
     /// Offset
-    #[getset(get_copy = "pub", set = "pub")]
-    offset: u32,
+    pub offset: u32,
 
     /// Size
-    #[getset(get_copy = "pub", set = "pub")]
-    size: u32,
+    pub size: u32,
 
     /// Digest
-    #[getset(get = "pub", set = "pub")]
-    digest: ImageDigest,
+    pub digest: ImageDigest,
 }
 
 impl ImageTocEntry {

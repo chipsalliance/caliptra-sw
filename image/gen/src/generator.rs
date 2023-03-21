@@ -43,7 +43,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
     where
         E: ImageGenratorExecutable,
     {
-        if IMAGE_MANIFEST_BYTE_SIZE as u32 + config.fmc().size() + config.runtime().size()
+        if IMAGE_MANIFEST_BYTE_SIZE as u32 + config.fmc.size() + config.runtime.size()
             > IMAGE_BYTE_SIZE as u32
         {
             bail!("Image larger than {IMAGE_BYTE_SIZE} bytes");
@@ -52,14 +52,14 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         // Create FMC TOC & Content
         let id = ImageTocEntryId::Fmc;
         let offset = IMAGE_MANIFEST_BYTE_SIZE as u32;
-        let (fmc_toc, fmc) = self.gen_image(config.fmc(), id, offset)?;
+        let (fmc_toc, fmc) = self.gen_image(&config.fmc, id, offset)?;
 
         // Create Runtime TOC & Content
         let id = ImageTocEntryId::Runtime;
-        let offset = offset + fmc_toc.size();
-        let (runtime_toc, runtime) = self.gen_image(config.runtime(), id, offset)?;
+        let offset = offset + fmc_toc.size;
+        let (runtime_toc, runtime) = self.gen_image(&config.runtime, id, offset)?;
 
-        let ecc_key_idx = config.vendor_config.ecc_key_idx();
+        let ecc_key_idx = config.vendor_config.ecc_key_idx;
 
         // Create Header
         let toc_digest = self.toc_digest(&fmc_toc, &runtime_toc)?;
@@ -70,21 +70,21 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         let preamble = self.gen_preamble(config, ecc_key_idx, &header_digest)?;
 
         // Create Manifest
-        let mut manifest = ImageManifest::default();
-        manifest
-            .set_marker(MANIFEST_MARKER)
-            .set_size(core::mem::size_of::<ImageManifest>() as u32)
-            .set_preamble(preamble)
-            .set_header(header)
-            .set_fmc(fmc_toc)
-            .set_runtime(runtime_toc);
+        let manifest = ImageManifest {
+            marker: MANIFEST_MARKER,
+            size: core::mem::size_of::<ImageManifest>() as u32,
+            preamble,
+            header,
+            fmc: fmc_toc,
+            runtime: runtime_toc,
+        };
 
         // Create Image Bundle
-        let mut image = ImageBundle::default();
-        image
-            .set_manifest(manifest)
-            .set_fmc(fmc)
-            .set_runtime(runtime);
+        let image = ImageBundle {
+            manifest,
+            fmc,
+            runtime,
+        };
 
         Ok(image)
     }
@@ -102,34 +102,36 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         let mut vendor_sigs = ImageSignatures::default();
         let mut owner_sigs = ImageSignatures::default();
 
-        if let Some(priv_keys) = config.vendor_config.priv_keys() {
+        if let Some(priv_keys) = config.vendor_config.priv_keys {
             let sig = self.crypto.ecdsa384_sign(
                 digest,
-                &priv_keys.ecc_priv_keys()[ecc_key_idx as usize],
-                &config.vendor_config.pub_keys().ecc_pub_keys()[ecc_key_idx as usize],
+                &priv_keys.ecc_priv_keys[ecc_key_idx as usize],
+                &config.vendor_config.pub_keys.ecc_pub_keys[ecc_key_idx as usize],
             )?;
-            vendor_sigs.set_ecc_sig(sig);
+            vendor_sigs.ecc_sig = sig;
         }
 
-        if let Some(owner_config) = config.owner_config() {
-            if let Some(priv_keys) = owner_config.priv_keys() {
+        if let Some(owner_config) = &config.owner_config {
+            if let Some(priv_keys) = &owner_config.priv_keys {
                 let sig = self.crypto.ecdsa384_sign(
                     digest,
-                    priv_keys.ecc_priv_key(),
-                    owner_config.pub_keys().ecc_pub_key(),
+                    &priv_keys.ecc_priv_key,
+                    &owner_config.pub_keys.ecc_pub_key,
                 )?;
-                owner_sigs.set_ecc_sig(sig);
+                owner_sigs.ecc_sig = sig;
             }
         }
 
-        let mut preamble = ImagePreamble::default();
-        preamble
-            .set_vendor_pub_keys(*config.vendor_config.pub_keys())
-            .set_vendor_ecc_pub_key_idx(ecc_key_idx)
-            .set_vendor_sigs(vendor_sigs)
-            .set_owner_sigs(owner_sigs);
-        if let Some(owner_config) = config.owner_config() {
-            preamble.set_owner_pub_keys(*owner_config.pub_keys());
+        let mut preamble = ImagePreamble {
+            vendor_pub_keys: config.vendor_config.pub_keys,
+            vendor_ecc_pub_key_idx: ecc_key_idx,
+            vendor_sigs,
+            owner_sigs,
+            ..Default::default()
+        };
+
+        if let Some(owner_config) = &config.owner_config {
+            preamble.owner_pub_keys = owner_config.pub_keys;
         }
 
         Ok(preamble)
@@ -142,12 +144,13 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         flags: u32,
         digest: ImageDigest,
     ) -> anyhow::Result<ImageHeader> {
-        let mut header = ImageHeader::default();
-        header
-            .set_vendor_ecc_pub_key_idx(ecc_key_idx)
-            .set_flags(flags)
-            .set_toc_len(MAX_TOC_ENTRY_COUNT)
-            .set_toc_digest(digest);
+        let header = ImageHeader {
+            vendor_ecc_pub_key_idx: ecc_key_idx,
+            flags,
+            toc_len: MAX_TOC_ENTRY_COUNT,
+            toc_digest: digest,
+            ..Default::default()
+        };
         Ok(header)
     }
 
@@ -169,18 +172,18 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         let r#type = ImageTocEntryType::Executable;
         let digest = self.crypto.sha384_digest(image.content())?;
 
-        let mut entry = ImageTocEntry::default();
-        entry
-            .set_id(id.into())
-            .set_type(r#type.into())
-            .set_revision(*image.rev())
-            .set_svn(image.svn())
-            .set_min_svn(image.min_svn())
-            .set_load_addr(image.load_addr())
-            .set_entry_point(image.entry_point())
-            .set_offset(offset)
-            .set_size(image.content().len() as u32)
-            .set_digest(digest);
+        let entry = ImageTocEntry {
+            id: id.into(),
+            r#type: r#type.into(),
+            revision: *image.rev(),
+            svn: image.svn(),
+            min_svn: image.min_svn(),
+            load_addr: image.load_addr(),
+            entry_point: image.entry_point(),
+            offset,
+            size: image.content().len() as u32,
+            digest,
+        };
 
         Ok((entry, image.content().clone()))
     }

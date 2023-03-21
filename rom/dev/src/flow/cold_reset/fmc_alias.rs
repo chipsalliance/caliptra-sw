@@ -171,7 +171,7 @@ impl FmcAliasLayer {
 
         cprintln!(
             "[afmc] Image verified using Vendor ECC Key Index {}",
-            info.vendor_ecc_pub_key_idx()
+            info.vendor_ecc_pub_key_idx
         );
 
         Ok(info)
@@ -191,26 +191,26 @@ impl FmcAliasLayer {
     ) -> CaliptraResult<()> {
         cprintln!(
             "[afmc] Loading FMC at address 0x{:08x} len {}",
-            manifest.fmc().load_addr(),
-            manifest.fmc().size()
+            manifest.fmc.load_addr,
+            manifest.fmc.size
         );
 
         let fmc_dest = unsafe {
-            let addr = (manifest.fmc().load_addr()) as *mut u8;
-            core::slice::from_raw_parts_mut(addr, manifest.fmc().size() as usize)
+            let addr = (manifest.fmc.load_addr) as *mut u8;
+            core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize)
         };
 
         txn.copy_request(0, fmc_dest)?;
 
         cprintln!(
             "[afmc] Loading Runtime at address 0x{:08x} len {}",
-            manifest.runtime().load_addr(),
-            manifest.runtime().size()
+            manifest.runtime.load_addr,
+            manifest.runtime.size
         );
 
         let runtime_dest = unsafe {
-            let addr = (manifest.runtime().load_addr()) as *mut u8;
-            core::slice::from_raw_parts_mut(addr, manifest.runtime().size() as usize)
+            let addr = (manifest.runtime.load_addr) as *mut u8;
+            core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize)
         };
 
         txn.copy_request(0, runtime_dest)?;
@@ -229,48 +229,46 @@ impl FmcAliasLayer {
     /// * `env`  - ROM Environment
     /// * `info` - Image Verification Info
     fn populate_data_vault(env: &RomEnv, info: &ImageVerificationInfo) {
-        env.data_vault().map(|d| {
-            d.write_cold_reset_entry48(ColdResetEntry48::FmcTci, &info.fmc().digest().into())
-        });
+        env.data_vault()
+            .map(|d| d.write_cold_reset_entry48(ColdResetEntry48::FmcTci, &info.fmc.digest.into()));
 
         env.data_vault()
-            .map(|d| d.write_cold_reset_entry4(ColdResetEntry4::FmcSvn, info.fmc().svn()));
+            .map(|d| d.write_cold_reset_entry4(ColdResetEntry4::FmcSvn, info.fmc.svn));
+
+        env.data_vault()
+            .map(|d| d.write_cold_reset_entry4(ColdResetEntry4::FmcLoadAddr, info.fmc.load_addr));
 
         env.data_vault().map(|d| {
-            d.write_cold_reset_entry4(ColdResetEntry4::FmcLoadAddr, info.fmc().load_addr())
-        });
-
-        env.data_vault().map(|d| {
-            d.write_cold_reset_entry4(ColdResetEntry4::FmcEntryPoint, info.fmc().entry_point())
+            d.write_cold_reset_entry4(ColdResetEntry4::FmcEntryPoint, info.fmc.entry_point)
         });
 
         env.data_vault().map(|d| {
             d.write_cold_reset_entry48(
                 ColdResetEntry48::OwnerPubKeyHash,
-                &info.owner_pub_keys_digest().into(),
+                &info.owner_pub_keys_digest.into(),
             )
         });
 
         env.data_vault().map(|d| {
             d.write_cold_reset_entry4(
                 ColdResetEntry4::VendorPubKeyIndex,
-                info.vendor_ecc_pub_key_idx(),
+                info.vendor_ecc_pub_key_idx,
             )
         });
 
         env.data_vault().map(|d| {
-            d.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime().digest().into())
+            d.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime.digest.into())
         });
 
         env.data_vault()
-            .map(|d| d.write_warm_reset_entry4(WarmResetEntry4::RtSvn, info.runtime().svn()));
+            .map(|d| d.write_warm_reset_entry4(WarmResetEntry4::RtSvn, info.runtime.svn));
 
         env.data_vault().map(|d| {
-            d.write_warm_reset_entry4(WarmResetEntry4::RtLoadAddr, info.runtime().load_addr())
+            d.write_warm_reset_entry4(WarmResetEntry4::RtLoadAddr, info.runtime.load_addr)
         });
 
         env.data_vault().map(|d| {
-            d.write_warm_reset_entry4(WarmResetEntry4::RtEntryPoint, info.runtime().entry_point())
+            d.write_warm_reset_entry4(WarmResetEntry4::RtEntryPoint, info.runtime.entry_point)
         });
 
         // TODO: Need a better way to get the Manifest address

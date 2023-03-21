@@ -60,8 +60,8 @@ impl<'a> ImageVerificationEnv for RomImageVerificationEnv<'a> {
         // TODO: Remove following conversions after refactoring the driver ECC384PubKey
         // for use across targets
         let pub_key = Ecc384PubKey {
-            x: pub_key.x().into(),
-            y: pub_key.y().into(),
+            x: pub_key.x.into(),
+            y: pub_key.y.into(),
         };
 
         // TODO: Remove following conversions after refactoring the driver SHA384Digest
@@ -71,8 +71,8 @@ impl<'a> ImageVerificationEnv for RomImageVerificationEnv<'a> {
         // TODO: Remove following conversions after refactoring the driver ECC384Signature
         // for use across targets
         let sig = Ecc384Signature {
-            r: sig.r().into(),
-            s: sig.s().into(),
+            r: sig.r.into(),
+            s: sig.s.into(),
         };
 
         self.env.ecc384().map(|e| e.verify(&pub_key, &digest, &sig))

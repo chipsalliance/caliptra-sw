@@ -98,12 +98,12 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         .parent()
         .with_context(|| "Invalid parent path")?;
 
-    let mut gen_config = ImageGeneratorConfig::<ElfExecutable>::default();
-    gen_config
-        .set_vendor_config(vendor_config(config_dir, config.vendor(), *ecc_key_idx)?)
-        .set_owner_config(owner_config(config_dir, config.owner())?)
-        .set_fmc(fmc)
-        .set_runtime(runtime);
+    let gen_config = ImageGeneratorConfig::<ElfExecutable> {
+        vendor_config: vendor_config(config_dir, &config.vendor, *ecc_key_idx)?,
+        owner_config: owner_config(config_dir, &config.owner)?,
+        fmc,
+        runtime,
+    };
 
     let gen = ImageGenerator::new(OsslCrypto::default());
     let image = gen.generate(&gen_config).unwrap();
@@ -128,7 +128,7 @@ fn vendor_config(
     ecc_key_idx: u32,
 ) -> anyhow::Result<ImageGeneratorVendorConfig> {
     let mut gen_config = ImageGeneratorVendorConfig::default();
-    let ecc_pub_keys = config.ecc_pub_keys();
+    let ecc_pub_keys = &config.ecc_pub_keys;
 
     for (i, pem_file) in ecc_pub_keys
         .iter()
@@ -136,10 +136,10 @@ fn vendor_config(
         .take(VENDOR_ECC_KEY_COUNT as usize)
     {
         let pub_key_path = path.join(pem_file);
-        gen_config.pub_keys_mut().ecc_pub_keys_mut()[i] = ecc_pub_key_from_pem(&pub_key_path)?;
+        gen_config.pub_keys.ecc_pub_keys[i] = ecc_pub_key_from_pem(&pub_key_path)?;
     }
 
-    if let Some(ecc_priv_keys) = config.ecc_priv_keys() {
+    if let Some(ecc_priv_keys) = &config.ecc_priv_keys {
         let mut priv_keys = ImageVendorPrivKeys::default();
         for (i, pem_file) in ecc_priv_keys
             .iter()
@@ -147,12 +147,12 @@ fn vendor_config(
             .take(VENDOR_ECC_KEY_COUNT as usize)
         {
             let priv_key_path = path.join(pem_file);
-            priv_keys.ecc_priv_keys_mut()[i] = ecc_priv_key_from_pem(&priv_key_path)?;
+            priv_keys.ecc_priv_keys[i] = ecc_priv_key_from_pem(&priv_key_path)?;
         }
-        gen_config.set_priv_keys(Some(priv_keys));
+        gen_config.priv_keys = Some(priv_keys);
     }
 
-    gen_config.set_ecc_key_idx(ecc_key_idx);
+    gen_config.ecc_key_idx = ecc_key_idx;
 
     Ok(gen_config)
 }
@@ -164,16 +164,16 @@ fn owner_config(
 ) -> anyhow::Result<Option<ImageGeneratorOwnerConfig>> {
     if let Some(config) = config {
         let mut gen_config = ImageGeneratorOwnerConfig::default();
-        let pem_file = config.ecc_pub_key();
+        let pem_file = &config.ecc_pub_key;
 
         let pub_key_path = path.join(pem_file);
-        *gen_config.pub_keys_mut().ecc_pub_key_mut() = ecc_pub_key_from_pem(&pub_key_path)?;
+        gen_config.pub_keys.ecc_pub_key = ecc_pub_key_from_pem(&pub_key_path)?;
 
-        if let Some(pem_file) = config.ecc_priv_key() {
+        if let Some(pem_file) = &config.ecc_priv_key {
             let mut priv_keys = ImageOwnerPrivKeys::default();
             let pub_key_path = path.join(pem_file);
-            *priv_keys.ecc_priv_key_mut() = ecc_priv_key_from_pem(&pub_key_path)?;
-            gen_config.set_priv_keys(Some(priv_keys));
+            priv_keys.ecc_priv_key = ecc_priv_key_from_pem(&pub_key_path)?;
+            gen_config.priv_keys = Some(priv_keys);
         }
 
         Ok(Some(gen_config))

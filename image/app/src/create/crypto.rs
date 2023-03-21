@@ -42,8 +42,8 @@ impl ImageGeneratorCrypto for OsslCrypto {
         pub_key: &ImageEccPubKey,
     ) -> anyhow::Result<ImageEccSignature> {
         let priv_key: [u8; ECC384_SCALAR_BYTE_SIZE] = from_hw_format(priv_key);
-        let pub_key_x: [u8; ECC384_SCALAR_BYTE_SIZE] = from_hw_format(pub_key.x());
-        let pub_key_y: [u8; ECC384_SCALAR_BYTE_SIZE] = from_hw_format(pub_key.y());
+        let pub_key_x: [u8; ECC384_SCALAR_BYTE_SIZE] = from_hw_format(&pub_key.x);
+        let pub_key_y: [u8; ECC384_SCALAR_BYTE_SIZE] = from_hw_format(&pub_key.y);
         let digest: [u8; SHA384_DIGEST_BYTE_SIZE] = from_hw_format(digest);
 
         let group = EcGroup::from_curve_name(Nid::SECP384R1)?;
@@ -62,10 +62,10 @@ impl ImageGeneratorCrypto for OsslCrypto {
         let r = sig.r().to_vec_padded(ECC384_SCALAR_BYTE_SIZE as i32)?;
         let s = sig.s().to_vec_padded(ECC384_SCALAR_BYTE_SIZE as i32)?;
 
-        let mut image_sig = ImageEccSignature::default();
-        image_sig.set_r(to_hw_format(&r));
-        image_sig.set_s(to_hw_format(&s));
-
+        let image_sig = ImageEccSignature {
+            r: to_hw_format(&r),
+            s: to_hw_format(&s),
+        };
         Ok(image_sig)
     }
 }
@@ -86,8 +86,10 @@ pub fn ecc_pub_key_from_pem(path: &PathBuf) -> anyhow::Result<ImageEccPubKey> {
     let x = x.to_vec_padded(ECC384_SCALAR_BYTE_SIZE as i32)?;
     let y = y.to_vec_padded(ECC384_SCALAR_BYTE_SIZE as i32)?;
 
-    let mut image_key = ImageEccPubKey::default();
-    image_key.set_x(to_hw_format(&x)).set_y(to_hw_format(&y));
+    let image_key = ImageEccPubKey {
+        x: to_hw_format(&x),
+        y: to_hw_format(&y),
+    };
     Ok(image_key)
 }
 
