@@ -11,9 +11,9 @@ Abstract:
 #[cfg(not(feature = "std"))]
 core::arch::global_asm!(include_str!("start.S"));
 #[macro_use]
-extern crate caliptra_cpu;
+extern crate caliptra_common;
 
-use caliptra_cpu::exception;
+use caliptra_cpu::trap::TrapRecord;
 
 //use caliptra_cpu::{cprintln, exception, MutablePrinter};
 
@@ -39,12 +39,12 @@ pub extern "C" fn fmc_entry() -> ! {
 #[no_mangle]
 #[inline(never)]
 #[allow(clippy::empty_loop)]
-extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
+extern "C" fn exception_handler(trap_record: &TrapRecord) {
     cprintln!(
         "FMC EXCEPTION mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
-        exception.mcause,
-        exception.mscause,
-        exception.mepc
+        trap_record.mcause,
+        trap_record.mscause,
+        trap_record.mepc
     );
 
     // Signal non-fatal error to SOC
@@ -56,12 +56,12 @@ extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
 #[no_mangle]
 #[inline(never)]
 #[allow(clippy::empty_loop)]
-extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
+extern "C" fn nmi_handler(trap_record: &TrapRecord) {
     cprintln!(
         "FMC NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
-        exception.mcause,
-        exception.mscause,
-        exception.mepc
+        trap_record.mcause,
+        trap_record.mscause,
+        trap_record.mepc
     );
 
     loop {}

@@ -1,9 +1,11 @@
 # Licensed under the Apache-2.0 license
 [package]
-name = "common"
+name = "caliptra_common"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+ufmt = "0.2.0"
+zerocopy = "0.6.1"

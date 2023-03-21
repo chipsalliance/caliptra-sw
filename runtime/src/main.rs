@@ -18,9 +18,9 @@ Abstract:
 core::arch::global_asm!(include_str!("start.S"));
 
 #[macro_use]
-extern crate caliptra_cpu;
+extern crate caliptra_common;
 
-use caliptra_cpu::exception;
+use caliptra_cpu::trap::TrapRecord;
 
 #[cfg(feature = "std")]
 pub fn main() {}
@@ -44,7 +44,7 @@ pub extern "C" fn rt_entry() -> ! {
 #[no_mangle]
 #[inline(never)]
 #[allow(clippy::empty_loop)]
-extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
+extern "C" fn exception_handler(exception: &TrapRecord) {
     cprintln!(
         "RT EXCEPTION mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
         exception.mcause,
@@ -61,12 +61,12 @@ extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
 #[no_mangle]
 #[inline(never)]
 #[allow(clippy::empty_loop)]
-extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
+extern "C" fn nmi_handler(nmi_record: &TrapRecord) {
     cprintln!(
         "RT NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
-        exception.mcause,
-        exception.mscause,
-        exception.mepc
+        nmi_record.mcause,
+        nmi_record.mscause,
+        nmi_record.mepc
     );
 
     loop {}
