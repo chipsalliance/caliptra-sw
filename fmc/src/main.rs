@@ -11,11 +11,11 @@ Abstract:
 #[cfg(not(feature = "std"))]
 core::arch::global_asm!(include_str!("start.S"));
 #[macro_use]
-extern crate caliptra_mutable;
+extern crate caliptra_cpu;
 
-use caliptra_mutable::exception;
+use caliptra_cpu::exception;
 
-//use caliptra_mutable::{cprintln, exception, MutablePrinter};
+//use caliptra_cpu::{cprintln, exception, MutablePrinter};
 
 #[cfg(feature = "std")]
 pub fn main() {}

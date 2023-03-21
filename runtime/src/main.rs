@@ -18,9 +18,9 @@ Abstract:
 core::arch::global_asm!(include_str!("start.S"));
 
 #[macro_use]
-extern crate caliptra_mutable;
+extern crate caliptra_cpu;
 
-use caliptra_mutable::exception;
+use caliptra_cpu::exception;
 
 #[cfg(feature = "std")]
 pub fn main() {}
