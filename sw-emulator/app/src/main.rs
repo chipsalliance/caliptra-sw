@@ -14,7 +14,9 @@ Abstract:
 
 use caliptra_emu_bus::Clock;
 use caliptra_emu_cpu::{Cpu, RvInstr, StepAction};
-use caliptra_emu_periph::{CaliptraRootBus, CaliptraRootBusArgs, TbServicesCb};
+use caliptra_emu_periph::{
+    CaliptraRootBus, CaliptraRootBusArgs, Mailbox, ReadyForFwCb, TbServicesCb,
+};
 use clap::{arg, value_parser, ArgAction};
 use std::fs::File;
 use std::io;
@@ -24,6 +26,9 @@ use std::process::exit;
 mod gdb;
 use crate::gdb::gdb_target::GdbTarget;
 use gdb::gdb_state;
+
+/// Firmware Load Command Opcode
+const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
 
 // CPU Main Loop (free_run no GDB)
 fn free_run(mut cpu: Cpu<CaliptraRootBus>, trace_path: Option<PathBuf>) {
@@ -96,6 +101,24 @@ fn main() -> io::Result<()> {
                 .value_parser(value_parser!(PathBuf))
                 .default_value("/tmp")
         )
+        .arg(
+            arg!(--"mfg-pk-hash" ... "Hash of the four Manufacturer Public Keys")
+                .required(false)
+                .value_parser(value_parser!(String))
+                .default_value(""),
+        )
+        .arg(
+            arg!(--"owner-pk-hash" ... "Owner Public Key Hash")
+                .required(false)
+                .value_parser(value_parser!(String))
+                .default_value(""),
+        )
+        .arg(
+            arg!(--"device-lifecycle" ... "Device Lifecycle State [unprovisioned, manufacturing, production]")
+                .required(false)
+                .value_parser(value_parser!(String))
+                .default_value("unprovisioned"),
+        )
         .get_matches();
 
     let args_rom = args.get_one::<PathBuf>("rom").unwrap();
@@ -103,11 +126,39 @@ fn main() -> io::Result<()> {
     let args_log_dir = args.get_one::<PathBuf>("log-dir").unwrap();
     let args_idevid_key_id_algo = args.get_one::<String>("idevid-key-id-algo").unwrap();
     let args_ueid = args.get_one::<u64>("ueid").unwrap();
+    let mut mfg_pk_hash = match hex::decode(args.get_one::<String>("mfg-pk-hash").unwrap()) {
+        Ok(mfg_pk_hash) => mfg_pk_hash,
+        Err(_) => {
+            println!("Manufacturer public keys hash format is incorrect",);
+            exit(-1);
+        }
+    };
+    let mut owner_pk_hash = match hex::decode(args.get_one::<String>("owner-pk-hash").unwrap()) {
+        Ok(owner_pk_hash) => owner_pk_hash,
+        Err(_) => {
+            println!("Owner public key hash format is incorrect",);
+            exit(-1);
+        }
+    };
+    let args_device_lifecycle = args.get_one::<String>("device-lifecycle").unwrap();
 
     if !Path::new(&args_rom).exists() {
         println!("ROM File {:?} does not exist", args_rom);
         exit(-1);
     }
+
+    if (!mfg_pk_hash.is_empty() && mfg_pk_hash.len() != 48)
+        || (!owner_pk_hash.is_empty() && owner_pk_hash.len() != 48)
+    {
+        println!(
+            "Incorrect mfg_pk_hash: {} and/or owner_pk_hash: {} length",
+            mfg_pk_hash.len(),
+            owner_pk_hash.len()
+        );
+        exit(-1);
+    }
+    change_dword_endianess(&mut mfg_pk_hash);
+    change_dword_endianess(&mut owner_pk_hash);
 
     let mut rom = File::open(args_rom)?;
     let mut rom_buffer = Vec::new();
@@ -134,7 +185,6 @@ fn main() -> io::Result<()> {
     let clock = Clock::new();
     let bus_args = CaliptraRootBusArgs {
         rom: rom_buffer,
-        firmware: firmware_buffer,
         log_dir: args_log_dir.clone(),
         ueid: *args_ueid,
         idev_key_id_algo: args_idevid_key_id_algo.clone(),
@@ -145,6 +195,44 @@ fn main() -> io::Result<()> {
             0xFF => exit(0x00),
             _ => print!("{}", val as char),
         }),
+        ready_for_fw_cb: ReadyForFwCb::new(move |mailbox: &mut Mailbox| {
+            // Write the cmd to mailbox.
+            let _ = mailbox.write_cmd(FW_LOAD_CMD_OPCODE);
+
+            // Write dlen.
+            let _ = mailbox.write_dlen(firmware_buffer.len() as u32).is_ok();
+
+            //
+            // Write firmware image.
+            //
+            let word_size = std::mem::size_of::<u32>();
+            let remainder = firmware_buffer.len() % word_size;
+            let n = firmware_buffer.len() - remainder;
+
+            for idx in (0..n).step_by(word_size) {
+                let _ = mailbox.write_datain(u32::from_le_bytes(
+                    firmware_buffer[idx..idx + word_size].try_into().unwrap(),
+                ));
+            }
+
+            // Handle the remainder bytes.
+            if remainder > 0 {
+                let mut last_word = firmware_buffer[n] as u32;
+                for idx in 1..remainder {
+                    last_word |= (firmware_buffer[n + idx] as u32) << (idx << 3);
+                }
+                let _ = mailbox.write_datain(last_word);
+            }
+
+            // Set the status as DATA_READY.
+            let _ = mailbox.set_status_data_ready();
+
+            // Set the execute register.
+            let _ = mailbox.write_execute(1);
+        }),
+        mfg_pk_hash,
+        owner_pk_hash,
+        device_lifecycle: args_device_lifecycle.clone(),
     };
     let cpu = Cpu::new(CaliptraRootBus::new(&clock, bus_args), clock);
 
@@ -172,4 +260,11 @@ fn main() -> io::Result<()> {
     }
 
     Ok(())
+}
+
+fn change_dword_endianess(data: &mut Vec<u8>) {
+    for idx in (0..data.len()).step_by(4) {
+        data.swap(idx, idx + 3);
+        data.swap(idx + 1, idx + 2);
+    }
 }

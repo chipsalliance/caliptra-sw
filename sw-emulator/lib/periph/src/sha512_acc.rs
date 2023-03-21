@@ -383,13 +383,14 @@ impl Sha512Accelerator {
         let totalblocks = ((data_len + 16) + SHA512_BLOCK_SIZE) / SHA512_BLOCK_SIZE;
         let totalbytes = totalblocks * SHA512_BLOCK_SIZE;
         let mut block_arr: Vec<u8> = vec![0; totalbytes];
+        let start_address = self.start_address.reg.get();
 
         // Read data from mailbox ram.
         for idx in 0..totaldwords {
             let byte_offset = idx << 2;
             let word = self
                 .mailbox_ram
-                .read(RvSize::Word, byte_offset as u32)
+                .read(RvSize::Word, start_address + byte_offset as u32)
                 .unwrap();
             block_arr[byte_offset..byte_offset + 4].copy_from_slice(&word.to_le_bytes());
         }
@@ -534,12 +535,13 @@ mod tests {
     const OFFSET_EXECUTE: RvAddr = 0x18;
     const OFFSET_STATUS: RvAddr = 0x1c;
 
-    fn test_sha_accelerator(data: &[u8], expected: &[u8]) {
+    fn test_sha_accelerator(data: &[u8], expected: &[u8], start_address: usize) {
         // Write to the mailbox.
         let mut mb_ram = MailboxRam::new();
         if !data.is_empty() {
-            let mut data_word_multiples = vec![0u8; ((data.len() + 3) / 4) * 4];
-            data_word_multiples[..data.len()].copy_from_slice(data);
+            assert!((start_address % 4) == 0);
+            let mut data_word_multiples = vec![0u8; ((start_address + data.len() + 3) / 4) * 4];
+            data_word_multiples[start_address..start_address + data.len()].copy_from_slice(data);
 
             for idx in (0..data_word_multiples.len()).step_by(4) {
                 // Convert to big-endian.
@@ -580,7 +582,13 @@ mod tests {
 
         // Set the start address.
         assert_eq!(
-            sha_accl.write(RvSize::Word, OFFSET_START_ADDRESS, 0).ok(),
+            sha_accl
+                .write(
+                    RvSize::Word,
+                    OFFSET_START_ADDRESS,
+                    start_address.try_into().unwrap()
+                )
+                .ok(),
             Some(())
         );
 
@@ -635,7 +643,7 @@ mod tests {
             0x43, 0xFF, 0x5B, 0xED, 0x80, 0x86, 0x07, 0x2B, 0xA1, 0xE7, 0xCC, 0x23, 0x58, 0xBA,
             0xEC, 0xA1, 0x34, 0xC8, 0x25, 0xA7,
         ];
-        test_sha_accelerator(data, &expected);
+        test_sha_accelerator(data, &expected, 0);
     }
 
     #[test]
@@ -647,7 +655,7 @@ mod tests {
             0x5B, 0x1F, 0xE3, 0xC8, 0x45, 0x2B,
         ];
         let data = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".as_bytes();
-        test_sha_accelerator(data, &expected);
+        test_sha_accelerator(data, &expected, 0);
     }
 
     #[test]
@@ -659,7 +667,7 @@ mod tests {
             0xE9, 0xFA, 0x91, 0x74, 0x60, 0x39,
         ];
         let data = "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu".as_bytes();
-        test_sha_accelerator(data, &expected);
+        test_sha_accelerator(data, &expected, 0);
     }
 
     #[test]
@@ -671,7 +679,7 @@ mod tests {
             0x53, 0x98, 0x4a, 0xb0, 0x01, 0x4e,
         ];
         let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefgh".as_bytes();
-        test_sha_accelerator(data, &expected);
+        test_sha_accelerator(data, &expected, 0);
     }
 
     #[test]
@@ -683,7 +691,19 @@ mod tests {
             0xa3, 0x59, 0x14, 0xfc, 0x1e, 0xcd,
         ];
         let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz".as_bytes();
-        test_sha_accelerator(data, &expected);
+        test_sha_accelerator(data, &expected, 0);
+    }
+
+    #[test]
+    fn test_accelerator_sha384_6() {
+        let expected: [u8; SHA384_HASH_SIZE] = [
+            0x33, 0x91, 0xFD, 0xDD, 0xFC, 0x8D, 0xC7, 0x39, 0x37, 0x07, 0xA6, 0x5B, 0x1B, 0x47,
+            0x09, 0x39, 0x7C, 0xF8, 0xB1, 0xD1, 0x62, 0xAF, 0x05, 0xAB, 0xFE, 0x8F, 0x45, 0x0D,
+            0xE5, 0xF3, 0x6B, 0xC6, 0xB0, 0x45, 0x5A, 0x85, 0x20, 0xBC, 0x4E, 0x6F, 0x5F, 0xE9,
+            0x5B, 0x1F, 0xE3, 0xC8, 0x45, 0x2B,
+        ];
+        let data = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".as_bytes();
+        test_sha_accelerator(data, &expected, 4);
     }
 
     #[test]
@@ -695,7 +715,7 @@ mod tests {
             0xD2, 0xF1, 0x48, 0x98, 0xB9, 0x5B,
         ];
         let data = [];
-        test_sha_accelerator(&data, &expected);
+        test_sha_accelerator(&data, &expected, 0);
     }
 
     #[test]
@@ -707,7 +727,7 @@ mod tests {
             0xfd, 0xea, 0x6f, 0x89, 0xef, 0xee,
         ];
         let data: [u8; MAX_MAILBOX_CAPACITY_BYTES] = [0u8; MAX_MAILBOX_CAPACITY_BYTES];
-        test_sha_accelerator(&data, &expected);
+        test_sha_accelerator(&data, &expected, 0);
     }
 
     #[test]

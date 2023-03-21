@@ -116,6 +116,7 @@ dependencies = [
  "clap",
  "gdbstub",
  "gdbstub_arch",
+ "hex",
 ]
 
 [[package]]
@@ -178,6 +179,17 @@ name = "caliptra-emu-types"
 version = "0.1.0"
 
 [[package]]
+name = "caliptra-fmc"
+version = "0.1.0"
+dependencies = [
+ "caliptra-lib",
+ "caliptra-mutable",
+ "caliptra-registers",
+ "cfg-if",
+ "ufmt",
+]
+
+[[package]]
 name = "caliptra-hw-model"
 version = "0.1.0"
 dependencies = [
@@ -211,10 +223,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "caliptra-mutable"
+version = "0.1.0"
+dependencies = [
+ "caliptra-lib",
+ "caliptra-registers",
+ "cfg-if",
+ "ufmt",
+]
+
+[[package]]
 name = "caliptra-registers"
 version = "0.1.0"
 dependencies = [
  "ureg",
+]
+
+[[package]]
+name = "caliptra-runtime"
+version = "0.1.0"
+dependencies = [
+ "caliptra-lib",
+ "caliptra-mutable",
+ "caliptra-registers",
+ "cfg-if",
+ "ufmt",
 ]
 
 [[package]]
@@ -310,6 +343,10 @@ checksum = "2850f2f5a82cbf437dd5af4d49848fbdfc27c157c3d010345776f952765261c5"
 dependencies = [
  "os_str_bytes",
 ]
+
+[[package]]
+name = "common"
+version = "0.1.0"
 
 [[package]]
 name = "compliance-test"
@@ -443,15 +480,6 @@ dependencies = [
 [[package]]
 name = "file-header-fix"
 version = "0.1.0"
-
-[[package]]
-name = "fmc"
-version = "0.1.0"
-dependencies = [
- "caliptra-lib",
- "caliptra-registers",
- "cfg-if",
-]
 
 [[package]]
 name = "foreign-types"
@@ -849,6 +877,33 @@ name = "typenum"
 version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "497961ef93d974e23eb6f433eb5fe1b7930b659f06d12dec6fc44a8f554c0bba"
+
+[[package]]
+name = "ufmt"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a64846ec02b57e9108d6469d98d1648782ad6bb150a95a9baac26900bbeab9d"
+dependencies = [
+ "ufmt-macros",
+ "ufmt-write",
+]
+
+[[package]]
+name = "ufmt-macros"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d337d3be617449165cb4633c8dece429afd83f84051024079f97ad32a9663716"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "ufmt-write"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e87a2ed6b42ec5e28cc3b94c09982969e9227600b2e3dcbc1db927a84c06bd69"
 
 [[package]]
 name = "unicode-ident"

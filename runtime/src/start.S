@@ -48,7 +48,6 @@ _start:
       la gp, __global_pointer$
    .option pop
 
- 
     // Setup stack pointer   
     la sp, _sstack
 
@@ -71,7 +70,7 @@ _start:
     la a1, _bss_len      // len 
     call _zero_mem32
 
-    tail fmc_entry
+    tail rt_entry
 
     .cfi_endproc 
 

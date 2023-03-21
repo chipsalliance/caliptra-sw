@@ -37,6 +37,8 @@ pub fn build_firmware_elf(fw_crate_name: &str, bin_name: &str) -> io::Result<Vec
         Command::new(env!("CARGO"))
             .current_dir(WORKSPACE_DIR)
             .arg("build")
+            .arg("--quiet")
+            .arg("--locked")
             .arg("--target")
             .arg(TARGET)
             .arg("--features=emu,riscv")
