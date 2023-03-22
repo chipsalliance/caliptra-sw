@@ -25,4 +25,5 @@ caliptra-cpu = { version = "0.1.0", path = "../cpu" }
 caliptra-registers = { path = "../registers" }
 cfg-if = "1.0.0"
 ufmt = "0.2.0"
+caliptra_common = { version = "0.1.0", path = "../common" }
 
