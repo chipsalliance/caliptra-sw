@@ -15,6 +15,8 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_main)]
 
 use crate::lock::lock_registers;
+use core::hint::black_box;
+
 use caliptra_lib::report_fw_error_non_fatal;
 use rom_env::RomEnv;
 
@@ -145,6 +147,7 @@ extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
 #[cfg(not(feature = "std"))]
 fn rom_panic(_: &core::panic::PanicInfo) -> ! {
     cprintln!("Panic!!");
+    panic_is_possible();
 
     // TODO: Signal non-fatal error to SOC
 
@@ -157,4 +160,12 @@ fn report_error(code: u32) -> ! {
     report_fw_error_non_fatal(code);
 
     loop {}
+}
+
+#[no_mangle]
+#[inline(never)]
+fn panic_is_possible() {
+    black_box(());
+    // The existence of this symbol is used to inform test_panic_missing
+    // that panics are possible. Do not remove or rename this symbol.
 }
