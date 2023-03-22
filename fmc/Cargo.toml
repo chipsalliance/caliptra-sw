@@ -21,7 +21,7 @@ required-features = ["riscv"]
 
 [dependencies]
 caliptra-lib = { path = "../drivers" }
-caliptra-mutable = { version = "0.1.0", path = "../mutable" }
+caliptra-cpu = { version = "0.1.0", path = "../cpu" }
 caliptra-registers = { path = "../registers" }
 cfg-if = "1.0.0"
 ufmt = "0.2.0"

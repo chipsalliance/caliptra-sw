@@ -1,7 +1,7 @@
 # Licensed under the Apache-2.0 license
 
 [package]
-name = "caliptra-mutable"
+name = "caliptra-cpu"
 version = "0.1.0"
 edition = "2021"
 

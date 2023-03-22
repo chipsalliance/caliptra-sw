@@ -34,31 +34,23 @@ Running Caliptra FMC ...
 pub extern "C" fn fmc_entry() -> ! {
     cprintln!("{}", BANNER);
 
-    extern "C" {
-        static mut FHT_ORG: u8;
+    if let Some(fht) = FirmwareHandoffTable::try_load() {
+        cprintln!("[fmc] FHT Marker: 0x{:08X}", fht.marker);
+        cprintln!("[fmc] FHT Major Version: 0x{:04X}", fht.major_ver);
+        cprintln!("[fmc] FHT Minor Version: 0x{:04X}", fht.minor_ver);
+        cprintln!("[fmc] FHT Manifest Addr: 0x{:08X}", fht.manifest_base_addr);
+        cprintln!("[fmc] FHT FMC CDI KV KeyID: {}", fht.fmc_cdi_kv_idx);
+        cprintln!(
+            "[fmc] FHT FMC PrivKey KV KeyID: {}",
+            fht.fmc_priv_key_kv_idx
+        );
+        cprintln!("[fmc] FHT RT Load Address: 0x{:08x}", fht.rt_fw_load_addr);
+        cprintln!("[fmc] FHT RT Entry Point: 0x{:08x}", fht.rt_fw_load_addr);
+
+        caliptra_lib::ExitCtrl::exit(0)
+    } else {
+        caliptra_lib::ExitCtrl::exit(0xff)
     }
-
-    let slice = unsafe {
-        let ptr = &mut FHT_ORG as *mut u8;
-        cprintln!("[fmc] Loading FHT from 0x{:08X}", ptr as u32);
-        core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
-    };
-
-    let fht = FirmwareHandoffTable::read_from(slice).unwrap();
-
-    cprintln!("[fmc] FHT Marker: 0x{:08X}", fht.marker);
-    cprintln!("[fmc] FHT Major Version: 0x{:04X}", fht.major_ver);
-    cprintln!("[fmc] FHT Minor Version: 0x{:04X}", fht.minor_ver);
-    cprintln!("[fmc] FHT Manifest Addr: 0x{:08X}", fht.manifest_base_addr);
-    cprintln!("[fmc] FHT FMC CDI KV KeyID: {}", fht.fmc_cdi_kv_idx);
-    cprintln!(
-        "[fmc] FHT FMC PrivKey KV KeyID: {}",
-        fht.fmc_priv_key_kv_idx
-    );
-    cprintln!("[fmc] FHT RT Load Address: 0x{:08x}", fht.rt_fw_load_addr);
-    cprintln!("[fmc] FHT RT Entry Point: 0x{:08x}", fht.rt_fw_load_addr);
-
-    caliptra_lib::ExitCtrl::exit(0)
 }
 
 #[no_mangle]

@@ -121,6 +121,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "caliptra-cpu"
+version = "0.1.0"
+dependencies = [
+ "caliptra-lib",
+ "caliptra-registers",
+ "cfg-if",
+ "ufmt",
+]
+
+[[package]]
 name = "caliptra-drivers-test-bin"
 version = "0.1.0"
 dependencies = [
@@ -207,8 +217,8 @@ version = "0.1.0"
 name = "caliptra-fmc"
 version = "0.1.0"
 dependencies = [
+ "caliptra-cpu",
  "caliptra-lib",
- "caliptra-mutable",
  "caliptra-registers",
  "cfg-if",
  "ufmt",
@@ -309,16 +319,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "caliptra-mutable"
-version = "0.1.0"
-dependencies = [
- "caliptra-lib",
- "caliptra-registers",
- "cfg-if",
- "ufmt",
-]
-
-[[package]]
 name = "caliptra-registers"
 version = "0.1.0"
 dependencies = [
@@ -364,8 +364,8 @@ dependencies = [
 name = "caliptra-runtime"
 version = "0.1.0"
 dependencies = [
+ "caliptra-cpu",
  "caliptra-lib",
- "caliptra-mutable",
  "caliptra-registers",
  "cfg-if",
  "ufmt",
