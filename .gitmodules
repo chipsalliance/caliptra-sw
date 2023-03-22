@@ -4,4 +4,4 @@
 [submodule "hw-latest/caliptra-rtl"]
 	path = hw-latest/caliptra-rtl
 	url = https://github.com/chipsalliance/caliptra-rtl
-	branch = main
+	branch = trng-firmware-testing
