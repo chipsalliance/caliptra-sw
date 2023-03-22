@@ -102,20 +102,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "caliptra-common"
-version = "0.1.0"
-dependencies = [
- "zerocopy",
-]
-
-[[package]]
 name = "caliptra-cpu"
 version = "0.1.0"
 dependencies = [
  "caliptra-lib",
  "caliptra-registers",
  "cfg-if",
- "ufmt",
 ]
 
 [[package]]
@@ -208,6 +200,7 @@ dependencies = [
  "caliptra-cpu",
  "caliptra-lib",
  "caliptra-registers",
+ "caliptra_common",
  "cfg-if",
  "ufmt",
 ]
@@ -259,6 +252,7 @@ dependencies = [
  "caliptra-cpu",
  "caliptra-lib",
  "caliptra-registers",
+ "caliptra_common",
  "cfg-if",
  "ufmt",
 ]
@@ -282,6 +276,14 @@ dependencies = [
  "openssl",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "caliptra_common"
+version = "0.1.0"
+dependencies = [
+ "ufmt",
+ "zerocopy",
 ]
 
 [[package]]

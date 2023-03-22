@@ -123,12 +123,29 @@ impl FirmwareHandoffTable {
     pub fn is_valid(&self) -> bool {
         self.fht_marker == FHT_MARKER && self.fmc_cdi_kv_idx != FHT_INVALID_IDX
     }
+    pub fn try_load() -> Option<FirmwareHandoffTable> {
+        extern "C" {
+            static mut FHT_ORG: u8;
+        }
+
+        let slice = unsafe {
+            let ptr = &mut FHT_ORG as *mut u8;
+            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
+        };
+
+        let fht = FirmwareHandoffTable::read_from(slice).unwrap();
+
+        if fht.is_valid() {
+            return Some(fht);
+        }
+        None
+    }
 }
 
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
-    use std::mem;
+    use core::mem;
     // FHT is currently defined to be 60 bytes in length.
     const FHT_SIZE: usize = 60;
 

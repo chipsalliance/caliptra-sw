@@ -1,9 +1,6 @@
 // Licensed under the Apache-2.0 license
 
 #![no_std]
-pub mod exception;
-#[macro_use]
-pub mod printer;
+pub mod trap;
 
-pub use exception::ExceptionRecord;
-pub use printer::MutablePrinter;
+pub use trap::{Exception, Interrupt, Trap, TrapRecord};
