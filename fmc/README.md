@@ -1,4 +1,4 @@
-# Caliptra - FMC Specification v0.4
+# Caliptra - FMC Specification v0.5
 
 ## Version History
 
@@ -10,6 +10,7 @@
 | 02/27/2023 | 0.4     | Update for decision that Anti-Rollback will be entirely handled by ROM             |
 |            |         | Add details/clarifications in FMC Boot steps including where to store artifacts    |
 |            |         | Add Firmware Handoff Table (FHT) definition                                        |
+| 03/21/2023 | 0.5     | Additional fields added to FHT                                                     |
 
 ## Scope
 
@@ -103,32 +104,41 @@ fields may not be changed or removed). Table revisions with different Major Vers
 
 *Note: All fields are little-endian unless otherwise specified.*
 
-| Field             | Size (bytes) | Populated By | Description                                                                                                |
-|:------------------|:-------------|:-------------|:-----------------------------------------------------------------------------------------------------------|
-| FhtMarker         | 4            | ROM          | Magic Number marking start of table. Value must be 0x54484643 (‘CFHT’ when viewed as little-endian ASCII). |
-| FhtMajorVer       | 2            | ROM          | Major version of FHT.                                                                                      |
-| FhtMinorVer       | 2            | ROM, FMC     | Minor version of FHT. Initially written by ROM but may be changed to a higher version by FMC.              |
-| ManifestBaseAddr  | 4            | ROM          | Physical base address of Manifest in DCCM SRAM.                                                            |
-| FipsFwBaseAddr    | 4            | ROM          | Physical base address of FIPS Module in ROM or ICCM SRAM. May be NULL if there is no discrete module.      |
-| RtFwBaseAddr      | 4            | ROM          | Physical base address of Runtime FW Module in ICCM SRAM.                                                   |
-| FmcCdiKvIdx       | 1            | ROM, FMC     | Index of FMC CDI value in the Key Vault. Value of 0xFF indicates not present.                              |
-| FmcPrivKeyKvIdx   | 1            | ROM, FMC     | Index of FMC Private Alias Key in the Key Vault.                                                           |
-| FmcPubKeyDvIdx    | 1            | ROM          | Index of FMC Public Alias Key in the Data Vault.                                                           |
-| FmcCertDvIdx      | 1            | ROM          | Index of FMC Certificate Signature in the Data Vault.                                                      |
-| RtCdiKvIdx        | 1            | FMC, RT      | Index of RT CDI value in the Key Vault.                                                                    |
-| RtPrivKeyKvIdx    | 1            | FMC, RT      | Index of RT Private Alias Key in the Key Vault.                                                            |
-| RtPubKeyDvIdx     | 1            | FMC          | Index of RT Public Alias Key in the Data Vault.                                                            |
-| RtCertDvIdx       | 1            | FMC          | Index of RT Certificate Signature in the Data Vault.                                                       |
-| Reserved          | 20           |              | Reserved for future use.                                                                                   |
+| Field                 | Size (bytes) | Written By | Description                                                                                              |
+|:----------------------|:-------------|:-----------|:---------------------------------------------------------------------------------------------------------|
+| fht_marker            | 4            | ROM        | Magic Number marking start of FHT. Value must be 0x54484643, ‘CFHT’ when viewed as little-endian ASCII.  |
+| fht_major_ver         | 2            | ROM        | Major version of FHT.                                                                                    |
+| fht_minor_ver         | 2            | ROM, FMC   | Minor version of FHT. Initially written by ROM but may be changed to a higher version by FMC.            |
+| manifest_load_addr    | 4            | ROM        | Physical base address of Manifest in DCCM SRAM.                                                          |
+| fips_fw_load_addr     | 4            | ROM        | Physical base address of FIPS Module in ROM or ICCM SRAM. May be NULL if there is no discrete module.    |
+| rt_fw_load_addr       | 4            | ROM        | Physical base address of Runtime FW Module in ICCM SRAM.                                                 |
+| rt_fw_entry_point     | 4            | ROM        | Entry point of Runtime FW Module in ICCM SRAM.                                                           |
+| fmc_tci_dv_idx        | 1            | ROM        | Index of FMC TCI value in the Data Vault.                                                                |
+| fmc_cdi_kv_idx        | 1            | ROM        | Index of FMC CDI value in the Key Vault. Value of 0xFF indicates not present.                            |
+| fmc_priv_key_kv_idx   | 1            | ROM        | Index of FMC Private Alias Key in the Key Vault.                                                         |
+| fmc_pub_key_x_dv_idx  | 1            | ROM        | Index of FMC Public Alias Key X Coordinate in the Data Vault.                                            |
+| fmc_pub_key_y_dv_idx  | 1            | ROM        | Index of FMC Public Alias Key Y Coordinate in the Data Vault                                             |
+| fmc_cert_sig_r_dv_idx | 1            | ROM        | Index of FMC Certificate Signature R Component in the Data Vault.                                        |
+| fmc_cert_sig_s_dv_idx | 1            | ROM        | Index of FMC Certificate Signature S Component in the Data Vault.                                        |
+| fmc_svn_dv_idx        | 1            | ROM        | Index of FMC SVN value in the Data Vault.                                                                |
+| rt_tci_dv_idx         | 1            | ROM        | Index of RT TCI value in the Data Vault.                                                                 |
+| rt_cdi_kv_idx         | 1            | FMC        | Index of RT CDI value in the Key Vault.                                                                  |
+| rt_priv_key_kv_idx    | 1            | FMC        | Index of RT Private Alias Key in the Key Vault.                                                          |
+| rt_pub_key_x_dv_idx   | 1            | FMC        | Index of RT Public Alias Key X Coordinate in the Data Vault.                                             |
+| rt_pub_key_y_dv_idx   | 1            | FMC        | Index of RT Public Alias Key Y Coordinate in the Data Vault.                                             |
+| rt_cert_sig_r_dv_idx  | 1            | FMC        | Index of RT Certificate Signature R Component in the Data Vault.                                         |
+| rt_cert_sig_s_dv_idx  | 1            | FMC        | Index of RT Certificate Signature S Component in the Data Vault.                                         |
+| rt_svn_dv_idx         | 1            | FMC        | Index of RT SVN value in the Data Vault.                                                                 |
+| reserved              | 20           |            | Reserved for future use.                                                                                 |
 
-*FHT is currently defined to be 48 bytes in length.*
+*FHT is currently defined to be 60 bytes in length.*
 
-### FhtMarker
+### fht_marker
 
 This is a "magic number" used to identify the start of the table, allowing the FMC or RT firmware modules to determine that the FHT has been populated. The
 expected value 0x54484643 will appear as ASCII ‘CFHT’ when viewed as a hex dump.
 
-### FhtMajorVer & FhtMinorVer
+### fht_major_ver & fht_minor_ver
 
 The Major and Minor version numbers of the Firmware Handoff Table. All FHT versions with the same Major version number must remain backward compatible.
 Therefore, fields must remain at constant offsets, and no fields may be redefined. It is possible to deprecate existing fields or define new fields within the
@@ -138,54 +148,74 @@ For example, a Caliptra ROM is be frozen with FHT version 1.0. During later stag
 passed from FMC to Runtime. During boot, the ROM will populate the FHT as version 1.0. When FMC executes, it will update the table version to 1.1 and add the
 additional data to the first 4 bytes of the reserved space at the end of the FHT.
 
-### ManifestBaseAddr
+### manifest_load_addr
 
 This is the physical address of the location in SRAM where ROM has placed a complete copy of the Firmware Manifest. This must remain resident such that firmware
 is able to re-run firmware integrity checks on-demand (required by FIPS 140-3).
 
-### FipsFwBaseAddr
+### fips_fw_load_addr
 
 *Future feature, not currently supported.* This is the physical address of the location in ROM or SRAM where a discrete FIPS Crypto module resides. If a
 discrete FIPS module does not exist, then this field shall be NULL and ROM, FMC, and RT FW must all carry their own code for accessing crypto resources and
 keys.
 
-### RtFwBaseAddr
+### rt_fw_load_addr
 
 This is the physical address of the location in ICCM SRAM where ROM has placed the authenticated Runtime Firmware module.
 
-### FmcCdiKvIdx
+### rt_fw_entry_point
+
+This is the physical address of the Entry Point of Runtime FW Module in ICCM SRAM.
+
+### fmc_tci_dv_idx
+
+This field provides the index into the Data Vault where the TCI<sub>FMC</sub> is stored. TCI<sub>FMC</sub> is a SHA-384 Hash of the FMC Module.
+
+### fmc_cdi_kv_idx
 
 This field provides the index into the Key Vault where the CDI<sub>FMC</sub> is stored.
 
-### FmcPrivKeyKvIdx
+### fmc_priv_key_kv_idx
 
 This field provides the index into the Key Vault where the PrivateKey<sub>FMC</sub> is stored.
 
-### FmcPubKeyDvIdx
+### fmc_pub_key_x_dv_idx, fmc_pub_key_y_dv_idx
 
-This field provides the index into the Data Vault where the PublicKey<sub>FMC</sub> is stored.
+These fields provide the indices into the Data Vault where the PublicKey<sub>FMC</sub> X and Y coordinates are stored.
 
-### FmcCertDvIdx
+### fmc_cert_sig_r_dv_idx, fmc_cert_sig_s_dv_idx
 
-This field provides the index into the Data Vault where the Cert<sub>FMC</sub> signature is stored.
+These fields provide the indices into the Data Vault where the Cert<sub>FMC</sub> signature R and S components are stored.
 
-### RtCdiKvIdx
+### fmc_svn_dv_idx
+
+This field provides the index into the Data Vault where the SVN<sub>FMC</sub> is stored.
+
+### rt_tci_dv_idx
+
+This field provides the index into the Data Vault where the TCI<sub>RT</sub> is stored. TCI<sub>RT</sub> is a SHA-384 Hash of the RT FW Module.
+
+### rt_cdi_kv_idx
 
 This field provides the index into the Key Vault where the CDI<sub>RT</sub> is stored.
 
-### RtPrivKeyKvIdx
+### rt_priv_key_kv_idx
 
 This field provides the index into the Key Vault where the PrivateKey<sub>RT</sub> is stored.
 
-### RtPubKeyDvIdx
+### rt_pub_key_x_dv_idx, rt_pub_key_y_dv_idx
 
-This field provides the index into the Data Vault where the PublicKey<sub>RT</sub> is stored.
+These fields provide the indices into the Data Vault where the PublicKey<sub>RT</sub> X and Y coordinates are stored.
 
-### RtCertDvIdx
+### rt_cert_sig_r_dv_idx, rt_cert_sig_s_dv_idx
 
-This field provides the index into the Data Vault where the Cert<sub>RT</sub> signature is stored.
+These fields provide the indices into the Data Vault where the Cert<sub>RT</sub> signature R and S components are stored.
 
-### Reserved
+### rt_svn_dv_idx
+
+This field provides the index into the Data Vault where the SVN<sub>RT</sub> is stored.
+
+### reserved
 
 This area is reserved for definition of additional fields that may be added during Minor version updates of the FHT.
 
@@ -195,22 +225,23 @@ The following list of steps are to be performed by FMC on each boot when ROM jum
 
 1. FMC locates the Firmware Handoff Table (FHT) responsible for passing vital configuration and other data from one firmware layer to the next. This is found
    at well-known address CALIPTRA_FHT_ADDR.
-1. FMC sanity checks FHT by verifying that Fht.FhtMarker == ‘CFHT’ and version is known/supported by FMC.
+1. FMC sanity checks FHT by verifying that fht.fht_marker == ‘CFHT’ and version is known/supported by FMC.
 1. FMC locates the discrete FW-based FIPS Crypto Module in ICCM using Fht.FipsFwBaseAddr (if not NULL) and calls its initialization routine. Otherwise FMC
    utilizes the ROM-based FIPS Crypto Module or its own internal FIPS Crypto services in implementations without a discrete FW-based FIPS Crypto Module.
-1. FMC locates the Manifest at Fht.ManifestBaseAddr.
-1. FMC reads the measurement of the Runtime FW Module, Measurement<sub>RT</sub>, from the Manifest that has previously been validated by ROM.
-1. FMC extends Caliptra PCR registers with Measurement<sub>RT</sub>.
-1. FMC derives CDI<sub>RT</sub> from CDI<sub>FMC</sub> mixed with Measurement<sub>RT</sub> and stores it in the Key Vault.
-1. FMC updates RtCdiKvIdx in the FHT.
-1. FMC derives AliasKeyPair<sub>RT</sub> from CDI<sub>RT</sub>. The Private Key is stored in the Key Vault while the Public Key is stored in the Data Vault.
-1. FMC updates RtPrivKeyKvIdx and RtPubKeyDvIdx in the FHT.
+1. FMC locates the Manifest at fht.manifest_load_addr.
+1. FMC reads the measurement of the Runtime FW Module, TCI<sub>RT</sub>, from the Data Vault that has previously been validated by ROM.
+1. FMC extends Caliptra PCR registers with TCI<sub>RT</sub>.
+1. FMC derives CDI<sub>RT</sub> from CDI<sub>FMC</sub> mixed with TCI<sub>RT</sub> and stores it in the Key Vault.
+1. FMC updates fht.rt_cdi_kv_idx in the FHT.
+1. FMC derives AliasKeyPair<sub>RT</sub> from CDI<sub>RT</sub>. The Private Key is stored in the Key Vault while the Public Key X and Y coordinates are stored
+   in the Data Vault.
+1. FMC updates fht.rt_priv_key_kv_idx, fht.rt_pub_key_x_dv_idx, and fht.rt_pub_key_y_dv_idx in the FHT.
 1. FMC generates an x509 certificate with PubKey<sub>RT</sub> as the subject and signed by PrivKey<sub>FMC</sub>.
 1. FMC stores the Cert<sub>RT</sub> signature in the Data Vault.
-1. FMC updates RtCertDvIdx in the FHT.
-1. FMC ensures that CDI<sub>FMC</sub> and PrivateKey<sub>FMC</sub> are destroyed or locked from further use.
-1. FMC locates the Runtime FW Module in ICCM using Fht.RtFwBaseAddr.
-1. FMC jumps to the Runtime FW Module entry point.
+1. FMC updates fht.rt_cert_sig_r_dv_idx and fht.rt_cert_sig_r_dv_idx in the FHT.
+1. FMC ensures that CDI<sub>FMC</sub> and PrivateKey<sub>FMC</sub> are locked to block further usage until the next boot.
+1. FMC locates the Runtime FW Module in ICCM at fht.rt_fw_load_addr.
+1. FMC jumps to the Runtime FW Module entry point at fht.rt_fw_entry_point.
 
 <center>
 
@@ -226,35 +257,35 @@ sequenceDiagram
     ROM->>+ROM: Early ROM Flow
     ROM->>ROM: Authenticate FW Modules
     ROM->>ROM: Enforce Anti-Rollback Protection
-    ROM->>ROM: Create FHT
+    ROM->>ROM: Create fht
     ROM->>-FMC: Jump to FMC Entry Point
 
     FMC->>+FMC: SanityCheckFht(CALIPTRA_FHT_ADDR)
-    FMC->>FMC: LocateFipsFw(Fht) (if needed)
+    FMC->>FMC: LocateFipsFw(fht) (if needed)
     FMC->>+FIPS: InitFipsFw() (if needed)
     FIPS-->>-FMC: return()
-    FMC->>FMC: LocateManifest(Fht)
-    FMC->>FMC: GetRtMeasurement(Fht.ManifestBaseAddr)
-    FMC->>+FIPS: ExtendPcr(PCR_IDX_RT, RtMeas)
+    FMC->>FMC: LocateManifest(fht)
+    FMC->>FMC: GetRtMeasurement(fht.rt_tci_dv_idx)
+    FMC->>+FIPS: ExtendPcr(PCR_IDX_RT, RtTci)
     FIPS-->>-FMC: return()
 
     rect rgba(0, 0, 200, .2)
     note over FIPS, FMC: DICE-related derivations will be<br> defined in greater detail later
 
-    FMC->>+FIPS: DeriveCdi(Fht.FmcCdiKvIdx, RtMeas)
-    FIPS-->>-FMC: return(Fht.RtCdiKvIdx)
-    FMC->>+FIPS: DeriveKeyPair(Fht.RtCdiKvIdx)
-    FIPS-->>-FMC: return(Fht.RtPrivKeyKvIdx,<br> Fht.RtPubKeyDvIdx)
-    FMC->>+FIPS: CertifyKey(Fht.RtPubKeyDvIdx, Fht.FmcPrivKeyKvIdx)
-    FIPS-->>-FMC: return(Fht.RtCertDvIdx)
-    FMC->>+FIPS: DeleteKey(Fht.FmcCdiKvIdx)
+    FMC->>+FIPS: DeriveCdi(fht.FmcCdiKvIdx, RtTci)
+    FIPS-->>-FMC: return(fht.rt_cdi_kv_idx)
+    FMC->>+FIPS: DeriveKeyPair(fht.rt_cdi_kv_idx)
+    FIPS-->>-FMC: return(fht.rt_priv_key_kv_idx,<br> fht.rt_pub_key_x_dv_idx,<br> fht.rt_pub_key_y_dv_idx)
+    FMC->>+FIPS: CertifyKey(fht.rt_pub_key_x_dv_idx,<br> fht.rt_pub_key_y_dv_idx,<br> fht.fmc_priv_key_kv_idx)
+    FIPS-->>-FMC: return(fht.rt_cert_sig_r_dv_idx, fht.rt_cert_sig_s_dv_idx)
+    FMC->>+FIPS: LockKey(fht.fmc_cdi_kv_idx)
     FIPS-->>-FMC: return()
-    FMC->>+FIPS: DeleteKey(Fht.FmcPrivKeyKvIdx)
+    FMC->>+FIPS: LockKey(fht.fmc_priv_key_kv_idx)
     FIPS-->>-FMC: return()
 
     end %% rect
 
-    FMC->>FMC: LocateRtFw(Fht)
+    FMC->>FMC: LocateRtFw(fht)
     FMC->>-RT: Jump to Runtime Entry Point
 
     activate RT
