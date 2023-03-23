@@ -29,7 +29,7 @@ jobs:
         with:
           submodules: 'true'
 
-      - name: Restore Cargo index
+      - name: Restore Cargo index from cache
         uses: actions/cache/restore@v3
         id: cargo_index_restore
         with:
@@ -97,6 +97,20 @@ jobs:
           rustup update
           rustup target add riscv32imc-unknown-none-elf
 
+      - name: Update Cargo index
+        run: |
+          cargo tree --locked > /dev/null || (
+            echo "Please include required changes to Cargo.lock in your pull request"
+            exit 1
+          )
+
+      - name: Save Cargo index to cache
+        uses: actions/cache/save@v3
+        if: steps.cargo_index_restore.outputs.cache-hit != 'true'
+        with:
+          path: ~/.cargo/registry/index
+          key: cargo-index-${{ env.SCCACHE_C_CUSTOM_CACHE_BUSTER }}-${{ hashFiles('Cargo.lock') }}
+
       - name: Check that generated register code matches caliptra-rtl submodule
         run: |
           cargo run --locked -p caliptra_registers_generator -- --check hw-latest/caliptra-rtl registers/src
@@ -122,9 +136,3 @@ jobs:
         run: |
           (cd hw-model && cargo fmt --check)
 
-      - name: Save Cargo index
-        uses: actions/cache/save@v3
-        if: steps.cargo_index_restore.outputs.cache-hit != 'true'
-        with:
-          path: ~/.cargo/registry/index
-          key: cargo-index-${{ env.SCCACHE_C_CUSTOM_CACHE_BUSTER }}-${{ hashFiles('Cargo.lock') }}
