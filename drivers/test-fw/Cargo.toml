@@ -93,3 +93,13 @@ required-features = ["riscv"]
 name = "test_failure"
 path = "src/bin/test_failure.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "test_lms_24"
+path = "src/bin/lms_24_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "test_lms_32"
+path = "src/bin/lms_32_tests.rs"
+required-features = ["riscv"]

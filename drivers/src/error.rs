@@ -47,6 +47,8 @@ pub enum CaliptraComponent {
 
     /// ImageVerifier
     ImageVerifier = 11,
+
+    Lms = 12,
 }
 
 #[macro_export]

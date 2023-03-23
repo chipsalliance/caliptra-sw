@@ -36,6 +36,7 @@ mod sha384;
 mod sha384acc;
 mod state;
 mod status_reporter;
+mod lms;
 
 pub type CaliptraResult<T> = Result<T, u32>;
 pub use array::{Array4x12, Array4x4, Array4x5, Array4x8, Array4xN};
@@ -66,7 +67,11 @@ pub use sha384::{Sha384, Sha384Digest, Sha384DigestOp};
 pub use sha384acc::{Sha384Acc, Sha384AccOp};
 pub use state::{DeviceState, Lifecycle, MfgState};
 pub use status_reporter::{report_boot_status, FlowStatus};
-
+pub use lms::{
+    candidate_ots_signature, hash_message, lookup_lmots_algorithm_type, get_lms_parameters,
+    lookup_lms_algorithm_type, verify_lms_signature, HashValue, LmotsAlgorithmType,
+    LmotsSignature, LmsAlgorithmType, LmsIdentifier, LmsSignature, Sha256Digest, Sha192Digest,
+};
 cfg_if::cfg_if! {
     if #[cfg(feature = "emu")] {
         mod uart;
