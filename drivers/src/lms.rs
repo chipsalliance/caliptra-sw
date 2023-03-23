@@ -14,7 +14,7 @@ Abstract:
 
 --*/
 
-use crate::{Array4x8, Sha256, caliptra_err_def, CaliptraResult};
+use crate::{caliptra_err_def, Array4x8, CaliptraResult, Sha256};
 
 const D_PBLC: u16 = 0x8080;
 const D_MESG: u16 = 0x8181;
@@ -81,10 +81,10 @@ impl<const N: usize> From<Array4x8> for HashValue<N> {
     fn from(data: Array4x8) -> Self {
         let mut t = [0u8; N];
         for (index, word) in data.0.iter().enumerate() {
-            if index >= (N/4) {
+            if index >= (N / 4) {
                 break;
             }
-            t[index*4..index*4+4].copy_from_slice(&word.to_be_bytes());
+            t[index * 4..index * 4 + 4].copy_from_slice(&word.to_be_bytes());
         }
         HashValue(t)
     }
@@ -95,8 +95,6 @@ impl<const N: usize> AsRef<[u8]> for HashValue<N> {
         &self.0
     }
 }
-
-
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum LmotsAlgorithmType {
@@ -125,10 +123,7 @@ pub fn lookup_lmots_algorithm_type(val: u32) -> Option<LmotsAlgorithmType> {
         8 => Some(LmotsAlgorithmType::LmotsSha256N24W8),
         _ => None,
     }
-
 }
-
-
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum LmsAlgorithmType {
@@ -252,10 +247,11 @@ const LMOTS_P: [LmotsParameter; 9] = [
     },
 ];
 
-
 // maybe this should just return the 5 values and not a struct?
 // similar to how the LMS parameters are returned
-pub fn get_lmots_parameters(algo_type: &LmotsAlgorithmType) -> CaliptraResult<&'static LmotsParameter> {
+pub fn get_lmots_parameters(
+    algo_type: &LmotsAlgorithmType,
+) -> CaliptraResult<&'static LmotsParameter> {
     for i in &LMOTS_P {
         if i.algorithm_name == *algo_type {
             return Ok(i);
@@ -312,14 +308,19 @@ fn checksum(algo_type: &LmotsAlgorithmType, input_string: &[u8]) -> CaliptraResu
     let mut sum = 0u16;
     let upper_bound = params.n as u16 * (8 / params.w as u16);
     for i in 0..upper_bound as usize {
-        sum = sum + ((1 << params.w) - 1)
-            - (coefficient(input_string, i, params.w as usize) as u16);
+        sum =
+            sum + ((1 << params.w) - 1) - (coefficient(input_string, i, params.w as usize) as u16);
     }
     let shifted = sum << params.ls;
     return Ok(shifted);
 }
 
-pub fn hash_message<const N: usize>(message :&[u8], lms_identifier :&LmsIdentifier, q: &[u8; 4], nonce: &[u8; N]) -> CaliptraResult<HashValue<N>> {
+pub fn hash_message<const N: usize>(
+    message: &[u8],
+    lms_identifier: &LmsIdentifier,
+    q: &[u8; 4],
+    nonce: &[u8; N],
+) -> CaliptraResult<HashValue<N>> {
     let mut digest = Array4x8::default();
     let sha = Sha256::default();
     let mut hasher = sha.digest_init(&mut digest)?;
@@ -380,8 +381,8 @@ pub fn candidate_ots_signature<const N: usize, const P: usize>(
             let sha = Sha256::default();
             let mut hasher = sha.digest_init(&mut digest)?;
             hash_block[22] = j;
-            hash_block[23..23+N].clone_from_slice(&tmp.0);
-            hasher.update(&hash_block[0..23+N])?;
+            hash_block[23..23 + N].clone_from_slice(&tmp.0);
+            hasher.update(&hash_block[0..23 + N])?;
             hasher.finalize()?;
             tmp = HashValue::<N>::from(digest);
         }
@@ -399,9 +400,7 @@ pub fn candidate_ots_signature<const N: usize, const P: usize>(
     hasher.finalize()?;
     let result = HashValue::<N>::from(digest);
     return Ok(result);
-
 }
-
 
 pub fn verify_lms_signature<const N: usize, const P: usize>(
     tree_height: u8,
@@ -412,7 +411,12 @@ pub fn verify_lms_signature<const N: usize, const P: usize>(
     lms_sig: &LmsSignature<N, P>,
 ) -> CaliptraResult<bool> {
     let q_str = q.to_be_bytes();
-    let message_digest = hash_message(input_string, lms_identifier, &q_str, &lms_sig.lmots_signature.nonce)?;
+    let message_digest = hash_message(
+        input_string,
+        lms_identifier,
+        &q_str,
+        &lms_sig.lmots_signature.nonce,
+    )?;
     let candidate_key = candidate_ots_signature(
         &lms_sig.lmots_signature.ots_type,
         lms_identifier,
