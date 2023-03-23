@@ -13,8 +13,8 @@ Abstract:
 --*/
 
 use crate::{
-    AsymEcc384, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha384, KeyVault, Mailbox, MailboxRam,
-    Sha512Accelerator, SocRegisters, Uart,
+    iccm::Iccm, AsymEcc384, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha384, KeyVault, Mailbox,
+    MailboxRam, Sha512Accelerator, SocRegisters, Uart,
 };
 use caliptra_emu_bus::{Clock, Ram, Rom};
 use caliptra_emu_derive::Bus;
@@ -117,7 +117,7 @@ pub struct CaliptraRootBus {
     pub sha256: HashSha256,
 
     #[peripheral(offset = 0x4000_0000, mask = 0x0fff_ffff)]
-    pub iccm: Ram,
+    pub iccm: Iccm,
 
     #[peripheral(offset = 0x2000_1000, mask = 0x0000_0fff)]
     pub uart: Uart,
@@ -151,7 +151,8 @@ impl CaliptraRootBus {
         let mailbox_ram = MailboxRam::new();
         let mailbox = Mailbox::new(mailbox_ram.clone());
         let rom = Rom::new(std::mem::take(&mut args.rom));
-        let soc_reg = SocRegisters::new(clock, mailbox.clone(), args);
+        let iccm = Iccm::new();
+        let soc_reg = SocRegisters::new(clock, mailbox.clone(), iccm.clone(), args);
 
         Self {
             rom,
@@ -161,7 +162,7 @@ impl CaliptraRootBus {
             key_vault: key_vault.clone(),
             sha512: HashSha512::new(clock, key_vault),
             sha256: HashSha256::new(clock),
-            iccm: Ram::new(vec![0; Self::ICCM_SIZE]),
+            iccm,
             dccm: Ram::new(vec![0; Self::DCCM_SIZE]),
             uart: Uart::new(),
             ctrl: EmuCtrl::new(),
