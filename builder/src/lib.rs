@@ -7,6 +7,10 @@ use std::process::Command;
 
 use elf::endian::LittleEndian;
 
+mod elf_symbols;
+
+pub use elf_symbols::{elf_symbols, Symbol, SymbolBind, SymbolType, SymbolVisibility};
+
 fn other_err(e: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> io::Error {
     io::Error::new(ErrorKind::Other, e)
 }
@@ -42,6 +46,7 @@ pub fn build_firmware_elf(fw_crate_name: &str, bin_name: &str) -> io::Result<Vec
             .arg("--target")
             .arg(TARGET)
             .arg("--features=emu,riscv")
+            .arg("--no-default-features")
             .arg("--profile")
             .arg(PROFILE)
             .arg("-p")

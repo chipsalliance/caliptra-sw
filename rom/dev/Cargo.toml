@@ -18,7 +18,11 @@ zerocopy = "0.6.1"
 [build-dependencies]
 cfg-if = "1.0.0"
 
+[dev-dependencies]
+caliptra-builder = { path = "../../builder" }
+
 [features]
+riscv = []
 default = ["std"]
 emu = ["caliptra-lib/emu"]
 std = [

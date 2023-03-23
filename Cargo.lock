@@ -322,6 +322,7 @@ dependencies = [
 name = "caliptra-rom"
 version = "0.1.0"
 dependencies = [
+ "caliptra-builder",
  "caliptra-image-types",
  "caliptra-image-verify",
  "caliptra-kat",
