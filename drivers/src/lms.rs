@@ -70,9 +70,7 @@ impl<const N: usize> From<&[u8; N]> for HashValue<N> {
 impl From<[u8; 32]> for HashValue<24> {
     fn from(data: [u8; 32]) -> Self {
         let mut t = [0u8; 24];
-        for index in 0..24 {
-            t[index] = data[index];
-        }
+        t[..24].copy_from_slice(&data[..24]);
         HashValue(t)
     }
 }
@@ -282,7 +280,7 @@ pub fn get_lms_parameters(algo_type: &LmsAlgorithmType) -> CaliptraResult<(u8, u
 fn coefficient(s: &[u8], i: usize, w: usize) -> u8 {
     let blah: u16 = (1 << (w)) - 1;
     let index = i * w / 8;
-    let b = s[index as usize];
+    let b = s[index];
 
     // extra logic to avoid the divide by 0
     // which a good compiler would notice only happens when w is 0 and that portion of the
@@ -300,7 +298,7 @@ fn coefficient(s: &[u8], i: usize, w: usize) -> u8 {
         rs = b >> shift;
     }
     let small_blah = blah as u8;
-    return small_blah & rs;
+    small_blah & rs
 }
 
 fn checksum(algo_type: &LmotsAlgorithmType, input_string: &[u8]) -> CaliptraResult<u16> {
@@ -312,7 +310,7 @@ fn checksum(algo_type: &LmotsAlgorithmType, input_string: &[u8]) -> CaliptraResu
             sum + ((1 << params.w) - 1) - (coefficient(input_string, i, params.w as usize) as u16);
     }
     let shifted = sum << params.ls;
-    return Ok(shifted);
+    Ok(shifted)
 }
 
 pub fn hash_message<const N: usize>(
@@ -330,7 +328,7 @@ pub fn hash_message<const N: usize>(
     hasher.update(nonce)?;
     hasher.update(message)?;
     hasher.finalize()?;
-    return Ok(HashValue::from(digest));
+    Ok(HashValue::from(digest))
 }
 
 pub fn candidate_ots_signature<const N: usize, const P: usize>(
@@ -356,9 +354,7 @@ pub fn candidate_ots_signature<const N: usize, const P: usize>(
     }
     let mut z = [HashValue::<N>::default(); P];
     let mut message_hash_with_checksum = [0u8; 34]; // 2 extra bytes for the checksum. needs to be N+2
-    for index in 0..N {
-        message_hash_with_checksum[index] = message_digest.0[index];
-    }
+    message_hash_with_checksum[..N].copy_from_slice(&message_digest.0[..N]);
 
     let checksum_q = checksum(algo_type, &message_hash_with_checksum)?;
     let be_checksum = checksum_q.to_be_bytes();
@@ -370,9 +366,9 @@ pub fn candidate_ots_signature<const N: usize, const P: usize>(
     let mut hash_block = [0u8; 55];
     hash_block[0..16].clone_from_slice(lms_identifier);
     hash_block[16..20].clone_from_slice(q);
-    for i in 0..params.p as u16 {
+    for i in 0..params.p {
         let a = coefficient(&message_hash_with_checksum, i as usize, params.w as usize);
-        let mut tmp = signature.y[i as usize].clone();
+        let mut tmp = signature.y[i as usize];
         let t_upper: u16 = (1 << params.w) - 1; // subtract with overflow?
         let upper = t_upper as u8;
         hash_block[20..22].clone_from_slice(&i.to_be_bytes());
@@ -399,7 +395,7 @@ pub fn candidate_ots_signature<const N: usize, const P: usize>(
     }
     hasher.finalize()?;
     let result = HashValue::<N>::from(digest);
-    return Ok(result);
+    Ok(result)
 }
 
 pub fn verify_lms_signature<const N: usize, const P: usize>(
@@ -469,13 +465,12 @@ pub fn verify_lms_signature<const N: usize, const P: usize>(
             hasher.finalize()?;
             temp = HashValue::<N>::from(digest);
         }
-        node_num = node_num / 2;
-        i = i + 1;
+        node_num /= 2;
+        i += 1;
     }
     let candidate_key = temp;
     if candidate_key != *lms_public_key {
         return Ok(false);
     }
-
-    return Ok(true);
+    Ok(true)
 }
