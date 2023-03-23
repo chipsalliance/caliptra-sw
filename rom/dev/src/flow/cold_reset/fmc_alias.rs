@@ -22,8 +22,8 @@ use crate::{rom_env::RomEnv, rom_err_def};
 use caliptra_image_types::ImageManifest;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
 use caliptra_lib::{
-    Array4x12, CaliptraResult, Hmac384Data, Hmac384Key, KeyId, KeyReadArgs, MailboxRecvTxn,
-    ResetReason,
+    Array4x12, CaliptraResult, ColdResetEntry4, ColdResetEntry48, Hmac384Data, Hmac384Key, KeyId,
+    KeyReadArgs, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
 use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams};
 use zerocopy::FromBytes;
@@ -229,43 +229,49 @@ impl FmcAliasLayer {
     /// * `env`  - ROM Environment
     /// * `info` - Image Verification Info
     fn populate_data_vault(env: &RomEnv, info: &ImageVerificationInfo) {
-        // Lock the FMC TCI in data vault until next cold reset
+        env.data_vault().map(|d| {
+            d.write_cold_reset_entry48(ColdResetEntry48::FmcTci, &info.fmc().digest().into())
+        });
+
         env.data_vault()
-            .map(|d| d.set_fmc_tci(&info.fmc().digest().into()));
+            .map(|d| d.write_cold_reset_entry4(ColdResetEntry4::FmcSvn, info.fmc().svn()));
 
-        // Lock the FMC SVN  in data vault until next cold reset
-        env.data_vault().map(|d| d.set_fmc_svn(info.fmc().svn()));
+        env.data_vault().map(|d| {
+            d.write_cold_reset_entry4(ColdResetEntry4::FmcLoadAddr, info.fmc().load_addr())
+        });
 
-        // Lock the FMC load address in data vault until next cold reset
+        env.data_vault().map(|d| {
+            d.write_cold_reset_entry4(ColdResetEntry4::FmcEntryPoint, info.fmc().entry_point())
+        });
+
+        env.data_vault().map(|d| {
+            d.write_cold_reset_entry48(
+                ColdResetEntry48::OwnerPubKeyHash,
+                &info.owner_pub_keys_digest().into(),
+            )
+        });
+
+        env.data_vault().map(|d| {
+            d.write_cold_reset_entry4(
+                ColdResetEntry4::VendorPubKeyIndex,
+                info.vendor_ecc_pub_key_idx(),
+            )
+        });
+
+        env.data_vault().map(|d| {
+            d.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime().digest().into())
+        });
+
         env.data_vault()
-            .map(|d| d.set_fmc_load_addr(info.fmc().load_addr()));
+            .map(|d| d.write_warm_reset_entry4(WarmResetEntry4::RtSvn, info.runtime().svn()));
 
-        // Lock the FMC entry point in data vault until next cold reset
-        env.data_vault()
-            .map(|d| d.set_fmc_entry_point(info.fmc().entry_point()));
+        env.data_vault().map(|d| {
+            d.write_warm_reset_entry4(WarmResetEntry4::RtLoadAddr, info.runtime().load_addr())
+        });
 
-        // Lock the Owner Public Key Hash in data vault until next cold reset
-        env.data_vault()
-            .map(|d| d.set_owner_pk_hash(&info.owner_pub_keys_digest().into()));
-
-        // Lock the Vendor Public Key Index in data vault until next cold reset
-        env.data_vault()
-            .map(|d| d.set_vendor_pk_index(info.vendor_ecc_pub_key_idx()));
-
-        // Lock the Runtime TCI in data vault until next warm reset
-        env.data_vault()
-            .map(|d| d.set_rt_tci(&info.runtime().digest().into()));
-
-        // Lock the Runtime SVN  in data vault until next warm reset
-        env.data_vault().map(|d| d.set_rt_svn(info.runtime().svn()));
-
-        // Lock the Runtime load address in data vault until next warm reset
-        env.data_vault()
-            .map(|d| d.set_rt_load_addr(info.runtime().load_addr()));
-
-        // Lock the Runtime entry point in data vault until next warm reset
-        env.data_vault()
-            .map(|d| d.set_rt_entry_point(info.runtime().entry_point()));
+        env.data_vault().map(|d| {
+            d.write_warm_reset_entry4(WarmResetEntry4::RtEntryPoint, info.runtime().entry_point())
+        });
 
         // TODO: Need a better way to get the Manifest address
         let slice = unsafe {
@@ -273,7 +279,8 @@ impl FmcAliasLayer {
             ptr as u32
         };
 
-        env.data_vault().map(|d| d.set_manifest_addr(slice));
+        env.data_vault()
+            .map(|d| d.write_warm_reset_entry4(WarmResetEntry4::ManifestAddr, slice));
     }
 
     /// Extend the PCR0 & PCR1
