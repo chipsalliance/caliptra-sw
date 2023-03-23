@@ -90,6 +90,8 @@ fn test_hash_message_24() {
     assert_eq!(expected_hash, hash);
 }
 
+/*
+// This is commented out because its inclusion causes the test ROM image to be too large.
 fn test_ots_24() {
     let candidate_ots_hash = HashValue::from([
         229, 72, 52, 115, 22, 187, 93, 94, 46, 253, 182, 255, 106, 154, 50, 55, 249, 210, 43, 88,
@@ -332,6 +334,7 @@ fn test_ots_24() {
         candidate_ots_signature(&ots_sig.ots_type, &lms_identifier, &q_str, &ots_sig, &hash);
     assert_eq!(result_ots.unwrap(), candidate_ots_hash);
 }
+*/
 
 fn test_lms_24_height_15() {
     let message: [u8; 33] = [
