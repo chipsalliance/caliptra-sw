@@ -808,7 +808,7 @@ fn test_hss_upper_32() {
         &hss_public_key,
         &upper_signature,
     )
-        .unwrap();
+    .unwrap();
     assert_eq!(success, true);
 }
 
