@@ -27,6 +27,7 @@ mod fuse_bank;
 mod hmac384;
 mod key_vault;
 mod kv_access;
+mod lms;
 mod mailbox;
 mod pcr_bank;
 mod reset;
@@ -36,7 +37,6 @@ mod sha384;
 mod sha384acc;
 pub mod state;
 mod status_reporter;
-mod lms;
 
 pub type CaliptraResult<T> = Result<T, u32>;
 pub use array::{Array4x12, Array4x4, Array4x5, Array4x8, Array4xN};
@@ -58,6 +58,11 @@ pub use fuse_bank::{FuseBank, IdevidCertAttr, VendorPubKeyRevocation, X509KeyIdA
 pub use hmac384::{Hmac384, Hmac384Data, Hmac384Key, Hmac384Op, Hmac384Tag};
 pub use key_vault::{KeyId, KeyUsage, KeyVault};
 pub use kv_access::{KeyReadArgs, KeyWriteArgs};
+pub use lms::{
+    candidate_ots_signature, get_lms_parameters, hash_message, lookup_lmots_algorithm_type,
+    lookup_lms_algorithm_type, verify_lms_signature, HashValue, LmotsAlgorithmType, LmotsSignature,
+    LmsAlgorithmType, LmsIdentifier, LmsSignature, Sha192Digest, Sha256Digest,
+};
 pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
 pub use pcr_bank::{PcrBank, PcrId};
 pub use reset::{ResetReason, ResetService};
@@ -67,11 +72,6 @@ pub use sha384::{Sha384, Sha384Digest, Sha384DigestOp};
 pub use sha384acc::{Sha384Acc, Sha384AccOp};
 pub use state::{DeviceState, Lifecycle, MfgState};
 pub use status_reporter::{report_boot_status, FlowStatus};
-pub use lms::{
-    candidate_ots_signature, hash_message, lookup_lmots_algorithm_type, get_lms_parameters,
-    lookup_lms_algorithm_type, verify_lms_signature, HashValue, LmotsAlgorithmType,
-    LmotsSignature, LmsAlgorithmType, LmsIdentifier, LmsSignature, Sha256Digest, Sha192Digest,
-};
 cfg_if::cfg_if! {
     if #[cfg(feature = "emu")] {
         mod uart;
