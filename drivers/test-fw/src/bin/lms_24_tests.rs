@@ -17,9 +17,9 @@ Abstract:
 
 mod harness;
 use caliptra_lib::{
-    get_lms_parameters, hash_message, lookup_lmots_algorithm_type,
-    lookup_lms_algorithm_type, verify_lms_signature, HashValue, LmotsAlgorithmType, LmotsSignature,
-    LmsAlgorithmType, LmsSignature, Sha192Digest,
+    get_lms_parameters, hash_message, lookup_lmots_algorithm_type, lookup_lms_algorithm_type,
+    verify_lms_signature, HashValue, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType,
+    LmsSignature, Sha192Digest,
 };
 
 fn test_lms_lookup() {
