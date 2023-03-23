@@ -14,6 +14,7 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
 
+use crate::lock::lock_registers;
 use caliptra_lib::report_fw_error_non_fatal;
 use rom_env::RomEnv;
 
@@ -26,6 +27,7 @@ mod exception;
 mod fht;
 mod flow;
 mod kat;
+mod lock;
 mod pcr;
 mod print;
 mod rom_env;
@@ -75,7 +77,12 @@ pub extern "C" fn rom_entry() -> ! {
 
     let result = flow::run(&env);
     match result {
-        Ok(fht) => fht::load_fht(fht),
+        Ok(fht) => {
+            // Lock the datavault registers.
+            lock_registers(&env, env.reset().map(|r| r.reset_reason()));
+
+            fht::load_fht(fht);
+        }
         Err(err) => report_error(err),
     }
 
