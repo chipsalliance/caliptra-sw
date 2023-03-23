@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{CaliptraRootBusArgs, Mailbox};
+use crate::{CaliptraRootBusArgs, Iccm, Mailbox};
 use caliptra_emu_bus::BusError::{LoadAccessFault, StoreAccessFault};
 use caliptra_emu_bus::{
     Bus, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister,
@@ -371,9 +371,11 @@ impl SocRegisters {
     const CALIPTRA_REG_END_ADDR: u32 = 0x62C;
 
     /// Create an instance of SOC register peripheral
-    pub fn new(clock: &Clock, mailbox: Mailbox, args: CaliptraRootBusArgs) -> Self {
+    pub fn new(clock: &Clock, mailbox: Mailbox, iccm: Iccm, args: CaliptraRootBusArgs) -> Self {
         Self {
-            regs: Rc::new(RefCell::new(SocRegistersImpl::new(clock, mailbox, args))),
+            regs: Rc::new(RefCell::new(SocRegistersImpl::new(
+                clock, mailbox, iccm, args,
+            ))),
         }
     }
 
@@ -550,6 +552,9 @@ struct SocRegistersImpl {
     /// Mailbox
     mailbox: Mailbox,
 
+    /// ICCM
+    iccm: Iccm,
+
     /// Log Directory
     log_dir: PathBuf,
 
@@ -602,7 +607,7 @@ impl SocRegistersImpl {
     /// The number of CPU clock cycles it takes to read the LDEVID Cert from the mailbox.
     const LDEVID_CERT_READ_TICKS: u64 = 300;
 
-    pub fn new(clock: &Clock, mailbox: Mailbox, mut args: CaliptraRootBusArgs) -> Self {
+    pub fn new(clock: &Clock, mailbox: Mailbox, iccm: Iccm, mut args: CaliptraRootBusArgs) -> Self {
         let mut regs = Self {
             cptra_hw_error_fatal: ReadWriteRegister::new(0),
             cptra_hw_error_non_fatal: ReadWriteRegister::new(0),
@@ -645,6 +650,7 @@ impl SocRegistersImpl {
             internal_fw_update_reset_wait_cycles: ReadWriteRegister::new(0),
             internal_nmi_vector: ReadWriteRegister::new(0),
             mailbox,
+            iccm,
             log_dir: args.log_dir.clone(),
             timer: Timer::new(clock),
             op_fw_write_complete_action: None,
@@ -1111,6 +1117,12 @@ impl Bus for SocRegistersImpl {
             }
 
             INTERNAL_ICCM_LOCK_START..=INTERNAL_ICCM_LOCK_END => {
+                let iccm_lock_reg = InMemoryRegister::<u32, IccmLock::Register>::new(val);
+                if iccm_lock_reg.is_set(IccmLock::LOCK) {
+                    self.iccm.lock();
+                } else {
+                    self.iccm.unlock();
+                }
                 self.internal_iccm_lock.write(size, val)
             }
 
@@ -1222,7 +1234,8 @@ mod tests {
             log_dir,
             ..args
         };
-        let mut soc_reg: SocRegisters = SocRegisters::new(&clock, mailbox.clone(), args);
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&clock, mailbox.clone(), Iccm::new(), args);
 
         //
         // [Sender Side]
@@ -1289,7 +1302,8 @@ mod tests {
             log_dir,
             ..args
         };
-        let mut soc_reg: SocRegisters = SocRegisters::new(&clock, mailbox.clone(), args);
+        let mut soc_reg: SocRegisters =
+            SocRegisters::new(&clock, mailbox.clone(), Iccm::new(), args);
 
         //
         // [Sender Side]
@@ -1350,7 +1364,7 @@ mod tests {
             tb_services_cb: TbServicesCb::new(move |ch| output2.borrow_mut().push(ch)),
             ..Default::default()
         };
-        let mut soc_reg: SocRegisters = SocRegisters::new(&clock, mailbox, args);
+        let mut soc_reg: SocRegisters = SocRegisters::new(&clock, mailbox, Iccm::new(), args);
 
         let _ = soc_reg.write(RvSize::Word, CPTRA_GENERIC_OUTPUT_WIRES_START, b'h'.into());
 

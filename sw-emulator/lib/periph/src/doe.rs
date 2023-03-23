@@ -199,7 +199,7 @@ impl Doe {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CaliptraRootBusArgs, KeyUsage, Mailbox, MailboxRam};
+    use crate::{CaliptraRootBusArgs, Iccm, KeyUsage, Mailbox, MailboxRam};
     use caliptra_emu_bus::Bus;
     use caliptra_emu_crypto::EndianessTransform;
     use caliptra_emu_types::RvAddr;
@@ -237,6 +237,7 @@ mod tests {
         let soc_reg = SocRegisters::new(
             &clock,
             Mailbox::new(MailboxRam::new()),
+            Iccm::new(),
             CaliptraRootBusArgs::default(),
         );
         let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg);
@@ -295,6 +296,7 @@ mod tests {
         let soc_reg = SocRegisters::new(
             &clock,
             Mailbox::new(MailboxRam::new()),
+            Iccm::new(),
             CaliptraRootBusArgs::default(),
         );
         let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg);
@@ -351,6 +353,7 @@ mod tests {
         let soc_reg = SocRegisters::new(
             &clock,
             Mailbox::new(MailboxRam::new()),
+            Iccm::new(),
             CaliptraRootBusArgs::default(),
         );
         let mut doe = Doe::new(&clock, key_vault, soc_reg.clone());
