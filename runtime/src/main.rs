@@ -8,21 +8,14 @@ File Name:
 
 Abstract:
 
-    File contains main entry point for Caliptra Runtime
+    File contains main entry point for Caliptra Test Runtime
 
 --*/
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
 
-#[cfg(not(feature = "std"))]
-core::arch::global_asm!(include_str!("start.S"));
-
-#[macro_use]
-extern crate caliptra_common;
-
-use caliptra_common::hand_off::FirmwareHandoffTable;
-
-use caliptra_cpu::trap::TrapRecord;
+use caliptra_common::cprintln;
+use caliptra_cpu::TrapRecord;
 
 #[cfg(feature = "std")]
 pub fn main() {}
@@ -37,10 +30,18 @@ const BANNER: &str = r#"
 "#;
 
 #[no_mangle]
-pub extern "C" fn rt_entry() -> ! {
+pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
 
-    if let Some(_fht) = FirmwareHandoffTable::try_load() {
+    if let Some(fht) = caliptra_common::FirmwareHandoffTable::try_load() {
+        cprintln!("[rt] FHT Marker: 0x{:08X}", fht.fht_marker);
+        cprintln!("[rt] FHT Major Version: 0x{:04X}", fht.fht_major_ver);
+        cprintln!("[rt] FHT Minor Version: 0x{:04X}", fht.fht_minor_ver);
+        cprintln!("[rt] FHT Manifest Addr: 0x{:08X}", fht.manifest_load_addr);
+        cprintln!("[rt] FHT FMC CDI KV KeyID: {}", fht.fmc_cdi_kv_idx);
+        cprintln!("[rt] FHT FMC PrivKey KV KeyID: {}", fht.fmc_priv_key_kv_idx);
+        cprintln!("[rt] FHT RT Load Address: 0x{:08x}", fht.rt_fw_load_addr);
+        cprintln!("[rt] FHT RT Entry Point: 0x{:08x}", fht.rt_fw_load_addr);
         caliptra_lib::ExitCtrl::exit(0)
     } else {
         caliptra_lib::ExitCtrl::exit(0xff)
@@ -50,12 +51,12 @@ pub extern "C" fn rt_entry() -> ! {
 #[no_mangle]
 #[inline(never)]
 #[allow(clippy::empty_loop)]
-extern "C" fn exception_handler(exception: &TrapRecord) {
+extern "C" fn exception_handler(trap_record: &TrapRecord) {
     cprintln!(
-        "RT EXCEPTION mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
-        exception.mcause,
-        exception.mscause,
-        exception.mepc
+        "FMC EXCEPTION mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
+        trap_record.mcause,
+        trap_record.mscause,
+        trap_record.mepc
     );
 
     // Signal non-fatal error to SOC
@@ -67,12 +68,12 @@ extern "C" fn exception_handler(exception: &TrapRecord) {
 #[no_mangle]
 #[inline(never)]
 #[allow(clippy::empty_loop)]
-extern "C" fn nmi_handler(nmi_record: &TrapRecord) {
+extern "C" fn nmi_handler(trap_record: &TrapRecord) {
     cprintln!(
-        "RT NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
-        nmi_record.mcause,
-        nmi_record.mscause,
-        nmi_record.mepc
+        "FMC NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
+        trap_record.mcause,
+        trap_record.mscause,
+        trap_record.mepc
     );
 
     loop {}
