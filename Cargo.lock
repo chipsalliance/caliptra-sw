@@ -209,12 +209,13 @@ version = "0.1.0"
 name = "caliptra-fmc"
 version = "0.1.0"
 dependencies = [
+ "caliptra-builder",
  "caliptra-cpu",
  "caliptra-lib",
- "caliptra-registers",
  "caliptra_common",
  "cfg-if",
  "ufmt",
+ "zerocopy",
 ]
 
 [[package]]
@@ -354,12 +355,13 @@ dependencies = [
 name = "caliptra-runtime"
 version = "0.1.0"
 dependencies = [
+ "caliptra-builder",
  "caliptra-cpu",
  "caliptra-lib",
- "caliptra-registers",
  "caliptra_common",
  "cfg-if",
  "ufmt",
+ "zerocopy",
 ]
 
 [[package]]
@@ -387,6 +389,7 @@ dependencies = [
 name = "caliptra_common"
 version = "0.1.0"
 dependencies = [
+ "caliptra-lib",
  "ufmt",
  "zerocopy",
 ]

@@ -4,7 +4,6 @@
 pub mod hand_off;
 #[macro_use]
 pub mod printer;
-
 pub use hand_off::FirmwareHandoffTable;
 pub use hand_off::FHT_MARKER;
 pub use printer::MutablePrinter;

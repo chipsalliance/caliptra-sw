@@ -1,42 +1,55 @@
 /*++
+
 Licensed under the Apache-2.0 license.
+
 File Name:
+
     main.rs
+
 Abstract:
+
     File contains main entry point for Caliptra ROM Test FMC
+
 --*/
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
 
-#[cfg(not(feature = "std"))]
-core::arch::global_asm!(include_str!("start.S"));
-#[macro_use]
-extern crate caliptra_common;
+#[cfg(feature = "riscv")]
+core::arch::global_asm!(include_str!("transfer_control.S"));
 
-use caliptra_common::hand_off::FirmwareHandoffTable;
+use caliptra_common::{cprintln, FirmwareHandoffTable};
+pub mod fmc_env;
+pub mod fmc_env_cell;
 
-use caliptra_cpu::trap::TrapRecord;
-
-//use caliptra_cpu::{cprintln, exception, MutablePrinter};
+use caliptra_cpu::TrapRecord;
+use fmc_env::FmcEnv;
 
 #[cfg(feature = "std")]
 pub fn main() {}
 
 const BANNER: &str = r#"
-  ____      _ _       _               _____ __  __  ____
- / ___|__ _| (_)_ __ | |_ _ __ __ _  |  ___|  \/  |/ ___|
-| |   / _` | | | '_ \| __| '__/ _` | | |_  | |\/| | |
-| |__| (_| | | | |_) | |_| | | (_| | |  _| | |  | | |___
- \____\__,_|_|_| .__/ \__|_|  \__,_| |_|   |_|  |_|\____|
-               |_|
+Running Caliptra FMC ...
 "#;
 
 #[no_mangle]
-pub extern "C" fn fmc_entry() -> ! {
+pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
 
-    if let Some(_fht) = FirmwareHandoffTable::try_load() {
-        caliptra_lib::ExitCtrl::exit(0)
+    if let Some(fht) = FirmwareHandoffTable::try_load() {
+        cprintln!("[fmc] FHT Marker: 0x{:08X}", fht.fht_marker);
+        cprintln!("[fmc] FHT Major Version: 0x{:04X}", fht.fht_major_ver);
+        cprintln!("[fmc] FHT Minor Version: 0x{:04X}", fht.fht_minor_ver);
+        cprintln!("[fmc] FHT Manifest Addr: 0x{:08X}", fht.manifest_load_addr);
+        cprintln!("[fmc] FHT FMC CDI KV KeyID: {}", fht.fmc_cdi_kv_idx);
+        cprintln!(
+            "[fmc] FHT FMC PrivKey KV KeyID: {}",
+            fht.fmc_priv_key_kv_idx
+        );
+        cprintln!("[fmc] FHT RT Load Address: 0x{:08x}", fht.rt_fw_load_addr);
+        cprintln!("[fmc] FHT RT Entry Point: 0x{:08x}", fht.rt_fw_load_addr);
+
+        let env = fmc_env::FmcEnv::default();
+        launch_rt(&env)
     } else {
         caliptra_lib::ExitCtrl::exit(0xff)
     }
@@ -72,7 +85,6 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
 
     loop {}
 }
-
 #[panic_handler]
 #[inline(never)]
 #[cfg(not(feature = "std"))]
@@ -83,4 +95,19 @@ fn fmc_panic(_: &core::panic::PanicInfo) -> ! {
     // TODO: Signal non-fatal error to SOC
 
     loop {}
+}
+
+fn launch_rt(env: &FmcEnv) -> ! {
+    // Function is defined in start.S
+    extern "C" {
+        fn transfer_control(entry: u32) -> !;
+    }
+
+    // Get the fmc entry point from data vault
+    let entry = env.data_vault().map(|d| d.rt_entry_point());
+
+    cprintln!("[exit] Launching RT @ 0x{:08X}", entry);
+
+    // Exit ROM and jump to speicified entry point
+    unsafe { transfer_control(entry) }
 }

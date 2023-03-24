@@ -5,25 +5,24 @@ name = "caliptra-fmc"
 version = "0.1.0"
 edition = "2021"
 
-[features]
-riscv = []
-
-[lib]
-test = false
-doctest = false
-
-
-[[bin]]
-name = "caliptra-fmc"
-required-features = ["riscv"]
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-caliptra-lib = { path = "../drivers" }
 caliptra-cpu = { version = "0.1.0", path = "../cpu" }
-caliptra-registers = { path = "../registers" }
-cfg-if = "1.0.0"
+caliptra-lib = { path = "../drivers" }
+caliptra_common = { path = "../common", default-features = false }
 ufmt = "0.2.0"
-caliptra_common = { version = "0.1.0", path = "../common", default-features = false }
+zerocopy = "0.6.1"
 
+[build-dependencies]
+cfg-if = "1.0.0"
+
+[dev-dependencies]
+caliptra-builder = { path = "../builder" }
+
+[features]
+riscv = ["caliptra-cpu/riscv"]
+default = ["std"]
+std = ["ufmt/std", "caliptra_common/std"]
+emu = [
+    "caliptra_common/emu",
+    "caliptra-lib/emu"
+]

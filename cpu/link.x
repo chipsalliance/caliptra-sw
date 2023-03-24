@@ -1,7 +1,3 @@
-OUTPUT_ARCH(riscv)
-OUTPUT_FORMAT("elf32-littleriscv", "elf32-littleriscv", "elf32-littleriscv")
-ENTRY(_start)
-
 SECTIONS 
 {
 	.text : ALIGN(4)
@@ -65,6 +61,27 @@ SECTIONS
     	_sstack = .;
     } > REGION_STACK
 
+	.estack (NOLOAD): ALIGN(4)
+    {
+    	_eestack = .;
+		
+        . = . + ESTACK_SIZE;
+
+        . = ALIGN(4);
+    	_sestack = .;
+    } > REGION_ESTACK
+
+	.nstack (NOLOAD): ALIGN(4)
+    {
+    	_enstack = .;
+		
+        . = . + NSTACK_SIZE;
+
+        . = ALIGN(4);
+    	_snstack = .;
+    } > REGION_NSTACK
+
+
 	.got (INFO) :
   	{
     	KEEP(*(.got .got.*));
@@ -84,4 +101,9 @@ SECTIONS
 _bss_len  = SIZEOF(.bss);
 _data_len = SIZEOF(.data);
 
-ASSERT(SIZEOF(.got) == 0, ".got section detected in fmc");
+ASSERT(SIZEOF(.got) == 0, ".got section detected");
+ASSERT(SIZEOF(.data) == 0, ".data section detected");
+ASSERT(SIZEOF(.bss) == 0, ".bss section detected");
+ASSERT(SIZEOF(.stack) == STACK_SIZE, ".stack section overflow");
+ASSERT(SIZEOF(.estack) == ESTACK_SIZE, ".estack section overflow");
+ASSERT(SIZEOF(.nstack) == NSTACK_SIZE, ".nstack section overflow");

@@ -48,7 +48,6 @@ _start:
       la gp, __global_pointer$
    .option pop
 
- 
     // Setup stack pointer   
     la sp, _sstack
 
@@ -57,9 +56,19 @@ _start:
     // in ICCM & DCCM.
 
     // TODO: Setup Exception Vector
+    la t0, _trap_handler
+    csrw mtvec, t0    
 
-    // TODO: Setup NMI Vector
+    // Setup NMI Vector
+    // Load address of NMI handler
+    la t0, _nmi_handler
+    // Load address of MMIO NMI vector register
+    // CLP_SOC_IFC_REG_INTERNAL_NMI_VECTOR = 0x3003062c
+    li t1, 0x3003062c
+    // Store address of NMI handler in MMIO NMI vector register
+    sw t0, 0x0(t1)    
 
+    
     // Copy Data Section    
     la a0, _sdata        // dest
     la a1, _sidata       // src
@@ -71,7 +80,7 @@ _start:
     la a1, _bss_len      // len 
     call _zero_mem32
 
-    tail fmc_entry
+    tail entry_point
 
     .cfi_endproc 
 
@@ -106,3 +115,4 @@ _copy_mem32:
 1:
     ret   
     .cfi_endproc
+
