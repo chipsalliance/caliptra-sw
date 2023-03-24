@@ -9,6 +9,7 @@ File Name:
 Abstract:
 
     A mutable memory location that enforces Rust borrow rules.
+    Tailored for single threaded environments.
 
 --*/
 
@@ -19,11 +20,11 @@ use core::cell::UnsafeCell;
 /// This cell is used to enforce rust borrowing rules while still allowing
 /// mutable borrows that allows Rust to perform borrow checking.
 #[derive(Debug)]
-pub struct EnvCell<T> {
+pub struct FmcEnvCell<T> {
     val: UnsafeCell<T>,
 }
 
-impl<T> EnvCell<T> {
+impl<T> FmcEnvCell<T> {
     /// Create a new `RentalCell` with `value`
     pub fn new(value: T) -> Self {
         Self {
@@ -40,7 +41,7 @@ impl<T> EnvCell<T> {
     }
 }
 
-impl<T: Default> Default for EnvCell<T> {
+impl<T: Default> Default for FmcEnvCell<T> {
     /// Returns the "default value" for a type.
     fn default() -> Self {
         Self::new(T::default())

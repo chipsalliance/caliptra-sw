@@ -17,10 +17,12 @@ Abstract:
 #[cfg(feature = "riscv")]
 core::arch::global_asm!(include_str!("transfer_control.S"));
 
-use caliptra_common::cprintln;
-use caliptra_common::{Env, FirmwareHandoffTable};
+use caliptra_common::{cprintln, FirmwareHandoffTable};
+pub mod fmc_env;
+pub mod fmc_env_cell;
 
 use caliptra_cpu::TrapRecord;
+use fmc_env::FmcEnv;
 
 #[cfg(feature = "std")]
 pub fn main() {}
@@ -46,7 +48,7 @@ pub extern "C" fn entry_point() -> ! {
         cprintln!("[fmc] FHT RT Load Address: 0x{:08x}", fht.rt_fw_load_addr);
         cprintln!("[fmc] FHT RT Entry Point: 0x{:08x}", fht.rt_fw_load_addr);
 
-        let env = Env::default();
+        let env = fmc_env::FmcEnv::default();
         launch_rt(&env)
     } else {
         caliptra_lib::ExitCtrl::exit(0xff)
@@ -95,7 +97,7 @@ fn fmc_panic(_: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 
-fn launch_rt(env: &Env) -> ! {
+fn launch_rt(env: &FmcEnv) -> ! {
     // Function is defined in start.S
     extern "C" {
         fn transfer_control(entry: u32) -> !;
