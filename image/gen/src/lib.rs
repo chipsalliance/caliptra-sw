@@ -17,7 +17,6 @@ mod generator;
 pub use generator::ImageGenerator;
 
 use caliptra_image_types::*;
-use getset::{CopyGetters, Getters, MutGetters, Setters};
 
 /// Image Generator Executable
 pub trait ImageGenratorExecutable {
@@ -58,43 +57,34 @@ pub trait ImageGeneratorCrypto {
 }
 
 /// Image Generator Vendor Configuration
-#[derive(Default, Getters, Setters, MutGetters, CopyGetters)]
+#[derive(Default)]
 pub struct ImageGeneratorVendorConfig {
-    #[getset(get = "pub", set = "pub", get_mut = "pub")]
-    pub_keys: ImageVendorPubKeys,
+    pub pub_keys: ImageVendorPubKeys,
 
-    #[getset(get_copy = "pub", set = "pub")]
-    ecc_key_idx: u32,
+    pub ecc_key_idx: u32,
 
-    #[getset(get = "pub", set = "pub", get_mut = "pub")]
-    priv_keys: Option<ImageVendorPrivKeys>,
+    pub priv_keys: Option<ImageVendorPrivKeys>,
 }
 
 /// Image Generator Owner Configuration
-#[derive(Default, Getters, Setters, MutGetters)]
+#[derive(Default)]
 pub struct ImageGeneratorOwnerConfig {
-    #[getset(get = "pub", set = "pub", get_mut = "pub")]
-    pub_keys: ImageOwnerPubKeys,
+    pub pub_keys: ImageOwnerPubKeys,
 
-    #[getset(get = "pub", set = "pub", get_mut = "pub")]
-    priv_keys: Option<ImageOwnerPrivKeys>,
+    pub priv_keys: Option<ImageOwnerPrivKeys>,
 }
 
 /// Image Generator Configuration
-#[derive(Default, Getters, Setters, CopyGetters)]
+#[derive(Default)]
 pub struct ImageGeneratorConfig<T>
 where
     T: ImageGenratorExecutable,
 {
-    #[getset(get = "pub", set = "pub")]
-    vendor_config: ImageGeneratorVendorConfig,
+    pub vendor_config: ImageGeneratorVendorConfig,
 
-    #[getset(get = "pub", set = "pub")]
-    owner_config: Option<ImageGeneratorOwnerConfig>,
+    pub owner_config: Option<ImageGeneratorOwnerConfig>,
 
-    #[getset(get = "pub", set = "pub")]
-    fmc: T,
+    pub fmc: T,
 
-    #[getset(get = "pub", set = "pub")]
-    runtime: T,
+    pub runtime: T,
 }

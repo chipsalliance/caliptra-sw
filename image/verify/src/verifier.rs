@@ -106,21 +106,21 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         _reason: ResetReason,
     ) -> CaliptraResult<ImageVerificationInfo> {
         // Check if manifest has required marker
-        if manifest.marker() != MANIFEST_MARKER {
+        if manifest.marker != MANIFEST_MARKER {
             raise_err!(ManifestMarkerMismatch)
         }
 
         // Check if manifest size is valid
-        if manifest.size() as usize != core::mem::size_of::<ImageManifest>() {
+        if manifest.size as usize != core::mem::size_of::<ImageManifest>() {
             raise_err!(ManifestSizeMismatch)
         }
 
         // Verify the preamble
-        let preamble = manifest.preamble();
+        let preamble = &manifest.preamble;
         let header_info = self.verify_preamble(image, preamble)?;
 
         // Verify Header
-        let header = manifest.header();
+        let header = &manifest.header;
         let toc_info = self.verify_header(image, header, &header_info)?;
 
         // Verify TOC
@@ -132,11 +132,12 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         // Verify Runtime
         let runtime_info = self.verify_runtime(image, image_info.runtime)?;
 
-        let mut info = ImageVerificationInfo::default();
-        info.set_vendor_ecc_pub_key_idx(header_info.vendor_ecc_pub_key_idx)
-            .set_owner_pub_keys_digest(header_info.owner_pub_keys_digest)
-            .set_fmc(fmc_info)
-            .set_runtime(runtime_info);
+        let info = ImageVerificationInfo {
+            vendor_ecc_pub_key_idx: header_info.vendor_ecc_pub_key_idx,
+            owner_pub_keys_digest: header_info.owner_pub_keys_digest,
+            fmc: fmc_info,
+            runtime: runtime_info,
+        };
 
         Ok(info)
     }
@@ -158,8 +159,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // Vendor Information
         let vendor_info = (
-            &preamble.vendor_pub_keys().ecc_pub_keys()[vendor_ecc_pub_key_idx as usize],
-            preamble.vendor_sigs().ecc_sig(),
+            &preamble.vendor_pub_keys.ecc_pub_keys[vendor_ecc_pub_key_idx as usize],
+            &preamble.vendor_sigs.ecc_sig,
         );
 
         // Owner Information
@@ -167,8 +168,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             (
                 digest,
                 Some((
-                    preamble.owner_pub_keys().ecc_pub_key(),
-                    preamble.owner_sigs().ecc_sig(),
+                    &preamble.owner_pub_keys.ecc_pub_key,
+                    &preamble.owner_sigs.ecc_sig,
                 )),
             )
         } else {
@@ -194,7 +195,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         const SECOND_LAST_KEY_IDX: u32 = VENDOR_ECC_KEY_COUNT - 2;
         const LAST_KEY_IDX: u32 = VENDOR_ECC_KEY_COUNT - 1;
 
-        let key_idx = preamble.vendor_ecc_pub_key_idx();
+        let key_idx = preamble.vendor_ecc_pub_key_idx;
         let revocation = self.env.vendor_pub_key_revocation(image);
 
         match key_idx {
@@ -288,7 +289,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // Verify the ECC public key index used verify header signature is encoded
         // in the header
-        if header.vendor_ecc_pub_key_idx() != info.vendor_ecc_pub_key_idx {
+        if header.vendor_ecc_pub_key_idx != info.vendor_ecc_pub_key_idx {
             raise_err!(VendorEccPubKeyIndexMismatch)
         }
 
@@ -298,8 +299,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         }
 
         let verif_info = TocInfo {
-            len: header.toc_len(),
-            digest: header.toc_digest(),
+            len: header.toc_len,
+            digest: &header.toc_digest,
         };
 
         Ok(verif_info)
@@ -385,8 +386,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         // 1. Image length donot exceeed the Image Bundle size
 
         // Check if fmc and runtime section overlap.
-        let fmc_range = manifest.fmc().image_range();
-        let runtime_range = manifest.runtime().image_range();
+        let fmc_range = manifest.fmc.image_range();
+        let runtime_range = manifest.runtime.image_range();
         if fmc_range.contains(&runtime_range.start)
             || fmc_range.contains(&(runtime_range.end - 1))
             || runtime_range.contains(&fmc_range.start)
@@ -401,8 +402,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         }
 
         let info = ImageInfo {
-            fmc: manifest.fmc(),
-            runtime: manifest.runtime(),
+            fmc: &manifest.fmc,
+            runtime: &manifest.runtime,
         };
 
         Ok(info)
@@ -421,7 +422,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             .sha384_digest(image, range.start, range.len() as u32)
             .map_err(|_| err_u32!(FmcDigestFailure))?;
 
-        if *verify_info.digest() != actual {
+        if verify_info.digest != actual {
             raise_err!(FmcDigestMismatch)
         }
 
@@ -430,12 +431,13 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         // 2. Entry Point is a valid ICCM Address
         // 3. Entry Point is within the image
 
-        let mut info = ImageVerificationExeInfo::default();
-        info.set_load_addr(verify_info.load_addr())
-            .set_entry_point(verify_info.entry_point())
-            .set_svn(verify_info.svn())
-            .set_digest(*verify_info.digest())
-            .set_size(verify_info.size());
+        let info = ImageVerificationExeInfo {
+            load_addr: verify_info.load_addr,
+            entry_point: verify_info.entry_point,
+            svn: verify_info.svn,
+            digest: verify_info.digest,
+            size: verify_info.size,
+        };
 
         // TODO: SVN Check
         // 0. Skip SVN check in unprovisioned mode or when antirollback is disabled
@@ -458,7 +460,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             .sha384_digest(image, range.start, range.len() as u32)
             .map_err(|_| err_u32!(RuntimeDigestFailure))?;
 
-        if *verify_info.digest() != actual {
+        if verify_info.digest != actual {
             raise_err!(RuntimeDigestMismatch)
         }
 
@@ -467,12 +469,13 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         // 2. Entry Point is a valid ICCM Address
         // 3. Entry Point is within the image
 
-        let mut info = ImageVerificationExeInfo::default();
-        info.set_load_addr(verify_info.load_addr())
-            .set_entry_point(verify_info.entry_point())
-            .set_svn(verify_info.svn())
-            .set_digest(*verify_info.digest())
-            .set_size(verify_info.size());
+        let info = ImageVerificationExeInfo {
+            load_addr: verify_info.load_addr,
+            entry_point: verify_info.entry_point,
+            svn: verify_info.svn,
+            digest: verify_info.digest,
+            size: verify_info.size,
+        };
 
         // TODO: SVN Check
         // 0. Skip SVN check in unprovisioned mode or when antirollback is disabled
@@ -519,8 +522,10 @@ mod tests {
 
     #[test]
     fn test_manifest_size() {
-        let mut manifest = ImageManifest::default();
-        manifest.set_marker(MANIFEST_MARKER);
+        let manifest = ImageManifest {
+            marker: MANIFEST_MARKER,
+            ..Default::default()
+        };
         let verifier = ImageVerifier::new(TestEnv::default());
         let result = verifier.verify(&manifest, (), ResetReason::ColdReset);
         assert!(result.is_err());
@@ -692,9 +697,11 @@ mod tests {
             ..Default::default()
         };
         let verifier = ImageVerifier::new(test_env);
-        let mut header = ImageHeader::default();
-        header.set_toc_len(100);
-        header.set_toc_digest(DUMMY_DATA);
+        let header = ImageHeader {
+            toc_len: 100,
+            toc_digest: DUMMY_DATA,
+            ..Default::default()
+        };
         let header_info: HeaderInfo = HeaderInfo {
             vendor_ecc_pub_key_idx: 0,
             vendor_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
@@ -745,70 +752,70 @@ mod tests {
         // Case 0:
         // [-FMC--]
         // [--RT--]
-        manifest.fmc_mut().set_offset(0);
-        manifest.fmc_mut().set_size(100);
-        manifest.runtime_mut().set_offset(0);
-        manifest.runtime_mut().set_size(100);
+        manifest.fmc.offset = 0;
+        manifest.fmc.size = 100;
+        manifest.runtime.offset = 0;
+        manifest.runtime.size = 100;
         let result = verifier.verify_toc((), &manifest, &toc_info);
         assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
 
         // Case 1:
         // [-FMC--]
         //        [--RT--]
-        manifest.fmc_mut().set_offset(0);
-        manifest.fmc_mut().set_size(100);
-        manifest.runtime_mut().set_offset(99);
-        manifest.runtime_mut().set_size(200);
+        manifest.fmc.offset = 0;
+        manifest.fmc.size = 100;
+        manifest.runtime.offset = 99;
+        manifest.runtime.size = 200;
         let result = verifier.verify_toc((), &manifest, &toc_info);
         assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
 
         // Case 2:
         // [-FMC--]
         //   [-RT-]
-        manifest.fmc_mut().set_offset(0);
-        manifest.fmc_mut().set_size(100);
-        manifest.runtime_mut().set_offset(5);
-        manifest.runtime_mut().set_size(100);
+        manifest.fmc.offset = 0;
+        manifest.fmc.size = 100;
+        manifest.runtime.offset = 5;
+        manifest.runtime.size = 100;
         let result = verifier.verify_toc((), &manifest, &toc_info);
         assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
 
         // Case 3:
         //   [-FMC-]
         // [---RT--]
-        manifest.fmc_mut().set_offset(5);
-        manifest.fmc_mut().set_size(100);
-        manifest.runtime_mut().set_offset(0);
-        manifest.runtime_mut().set_size(100);
+        manifest.fmc.offset = 5;
+        manifest.fmc.size = 100;
+        manifest.runtime.offset = 0;
+        manifest.runtime.size = 100;
         let result = verifier.verify_toc((), &manifest, &toc_info);
         assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
 
         // Case 4:
         //        [-FMC--]
         // [--RT--]
-        manifest.runtime_mut().set_offset(0);
-        manifest.runtime_mut().set_size(100);
-        manifest.fmc_mut().set_offset(99);
-        manifest.fmc_mut().set_size(200);
+        manifest.runtime.offset = 0;
+        manifest.runtime.size = 100;
+        manifest.fmc.offset = 99;
+        manifest.fmc.size = 200;
         let result = verifier.verify_toc((), &manifest, &toc_info);
         assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
 
         // Case 5:
         //  [---FMC---]
         //    [-RT-]
-        manifest.fmc_mut().set_offset(100);
-        manifest.fmc_mut().set_size(500);
-        manifest.runtime_mut().set_offset(150);
-        manifest.runtime_mut().set_size(200);
+        manifest.fmc.offset = 100;
+        manifest.fmc.size = 500;
+        manifest.runtime.offset = 150;
+        manifest.runtime.size = 200;
         let result = verifier.verify_toc((), &manifest, &toc_info);
         assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
 
         // Case 6:
         //  [----RT----]
         //    [-FMC-]
-        manifest.runtime_mut().set_offset(0);
-        manifest.runtime_mut().set_size(200);
-        manifest.fmc_mut().set_offset(20);
-        manifest.fmc_mut().set_size(30);
+        manifest.runtime.offset = 0;
+        manifest.runtime.size = 200;
+        manifest.fmc.offset = 20;
+        manifest.fmc.size = 30;
         let result = verifier.verify_toc((), &manifest, &toc_info);
         assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
     }
@@ -825,10 +832,10 @@ mod tests {
 
         //          [-FMC--]
         // [--RT--]
-        manifest.runtime_mut().set_offset(0);
-        manifest.runtime_mut().set_size(100);
-        manifest.fmc_mut().set_offset(100);
-        manifest.fmc_mut().set_size(200);
+        manifest.runtime.offset = 0;
+        manifest.runtime.size = 100;
+        manifest.fmc.offset = 100;
+        manifest.fmc.size = 200;
         let result = verifier.verify_toc((), &manifest, &toc_info);
         assert_eq!(result.err(), Some(err_u32!(FmcRuntimeIncorrectOrder)));
     }
@@ -837,8 +844,10 @@ mod tests {
     fn test_fmc_digest_mismatch() {
         let test_env = TestEnv::default();
         let verifier = ImageVerifier::new(test_env);
-        let mut verify_info = ImageTocEntry::default();
-        verify_info.set_digest(DUMMY_DATA);
+        let verify_info = ImageTocEntry {
+            digest: DUMMY_DATA,
+            ..Default::default()
+        };
         let result = verifier.verify_fmc((), &verify_info);
         assert_eq!(result.err(), Some(err_u32!(FmcDigestMismatch)));
     }
@@ -847,27 +856,31 @@ mod tests {
     fn test_fmc_success() {
         let test_env = TestEnv::default();
         let verifier = ImageVerifier::new(test_env);
-        let mut verify_info = ImageTocEntry::default();
-        verify_info.set_load_addr(0xCAFEB0BA);
-        verify_info.set_entry_point(0xDEADBEEF);
-        verify_info.set_svn(420);
-        verify_info.set_size(100);
+        let verify_info = ImageTocEntry {
+            load_addr: 0xCAFEB0BA,
+            entry_point: 0xDEADBEEF,
+            svn: 420,
+            size: 100,
+            ..Default::default()
+        };
 
         let result = verifier.verify_fmc((), &verify_info);
         assert!(result.is_ok());
         let info = result.unwrap();
-        assert_eq!(info.load_addr(), 0xCAFEB0BA);
-        assert_eq!(info.entry_point(), 0xDEADBEEF);
-        assert_eq!(info.svn(), 420);
-        assert_eq!(info.size(), 100);
+        assert_eq!(info.load_addr, 0xCAFEB0BA);
+        assert_eq!(info.entry_point, 0xDEADBEEF);
+        assert_eq!(info.svn, 420);
+        assert_eq!(info.size, 100);
     }
 
     #[test]
     fn test_rt_digest_mismatch() {
         let test_env = TestEnv::default();
         let verifier = ImageVerifier::new(test_env);
-        let mut verify_info = ImageTocEntry::default();
-        verify_info.set_digest(DUMMY_DATA);
+        let verify_info = ImageTocEntry {
+            digest: DUMMY_DATA,
+            ..Default::default()
+        };
         let result = verifier.verify_runtime((), &verify_info);
         assert_eq!(result.err(), Some(err_u32!(RuntimeDigestMismatch)));
     }
@@ -876,19 +889,20 @@ mod tests {
     fn test_rt_success() {
         let test_env = TestEnv::default();
         let verifier = ImageVerifier::new(test_env);
-        let mut verify_info = ImageTocEntry::default();
-        verify_info.set_load_addr(0xCAFEB0BA);
-        verify_info.set_entry_point(0xDEADBEEF);
-        verify_info.set_svn(420);
-        verify_info.set_size(100);
-
+        let verify_info = ImageTocEntry {
+            load_addr: 0xCAFEB0BA,
+            entry_point: 0xDEADBEEF,
+            svn: 420,
+            size: 100,
+            ..Default::default()
+        };
         let result = verifier.verify_runtime((), &verify_info);
         assert!(result.is_ok());
         let info = result.unwrap();
-        assert_eq!(info.load_addr(), 0xCAFEB0BA);
-        assert_eq!(info.entry_point(), 0xDEADBEEF);
-        assert_eq!(info.svn(), 420);
-        assert_eq!(info.size(), 100);
+        assert_eq!(info.load_addr, 0xCAFEB0BA);
+        assert_eq!(info.entry_point, 0xDEADBEEF);
+        assert_eq!(info.svn, 420);
+        assert_eq!(info.size, 100);
     }
 
     struct TestEnv {

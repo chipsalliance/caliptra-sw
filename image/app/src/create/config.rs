@@ -14,38 +14,31 @@ Abstract:
 
 use anyhow::Context;
 use caliptra_image_types::VENDOR_ECC_KEY_COUNT;
-use getset::{CopyGetters, Getters, Setters};
 use serde_derive::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 /// Vendor Key Configuration
-#[derive(Default, Getters, Setters, Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
 pub(crate) struct VendorKeyConfig {
-    #[getset(get = "pub", set = "pub")]
-    ecc_pub_keys: [String; VENDOR_ECC_KEY_COUNT as usize],
+    pub ecc_pub_keys: [String; VENDOR_ECC_KEY_COUNT as usize],
 
-    #[getset(get = "pub", set = "pub")]
-    ecc_priv_keys: Option<[String; VENDOR_ECC_KEY_COUNT as usize]>,
+    pub ecc_priv_keys: Option<[String; VENDOR_ECC_KEY_COUNT as usize]>,
 }
 
 /// Owner Key Configuration
-#[derive(Default, Getters, Setters, Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
 pub(crate) struct OwnerKeyConfig {
-    #[getset(get = "pub", set = "pub")]
-    ecc_pub_key: String,
+    pub ecc_pub_key: String,
 
-    #[getset(get = "pub", set = "pub")]
-    ecc_priv_key: Option<String>,
+    pub ecc_priv_key: Option<String>,
 }
 
 //Key Configuration
-#[derive(Default, Getters, Setters, CopyGetters, Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
 pub(crate) struct KeyConfig {
-    #[getset(get = "pub", set = "pub")]
-    vendor: VendorKeyConfig,
+    pub vendor: VendorKeyConfig,
 
-    #[getset(get = "pub", set = "pub")]
-    owner: Option<OwnerKeyConfig>,
+    pub owner: Option<OwnerKeyConfig>,
 }
 
 /// Load Key Configuration from file
