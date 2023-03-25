@@ -24,6 +24,8 @@ quote = "1.0.23"
 [dev-dependencies]
 openssl = "0.10.48"
 hex = "0.4.3"
+x509-parser = "0.15.0"
+
 
 [features]
 default = ["std"]
