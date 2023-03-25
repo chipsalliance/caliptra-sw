@@ -108,7 +108,7 @@ chrono = "0.4.24"
 clap = { version = "3.2.14", default-features = false, features = ["std"] }
 convert_case = "0.6.0"
 elf = "0.7.2"
-gdbstub = "0.6.3"  
+gdbstub = "0.6.3"
 gdbstub_arch = "0.2.4"
 getrandom = "0.2"
 hex = "0.4.3"
@@ -137,6 +137,7 @@ ureg-codegen = { path = "ureg/lib/codegen" }
 ureg-schema = { path = "ureg/lib/schema" }
 ureg-systemrdl = { path = "ureg/lib/systemrdl" }
 wycheproof = "0.5.1"
+x509-parser = "0.15.0"
 zerocopy = "0.6.1"
 
 [profile.firmware]
