@@ -7,12 +7,17 @@ This repository contains firmware, libraries, and tools related to the
 ## [rom](/rom/dev)
 
 "Read Only Memory", the code that is first executed when the chip is powered on.
-Normally the ROM is part of the silicon. 
+Normally the ROM is part of the silicon.
 
 ## [fmc](/fmc/)
 
 "First Mutable Code", the code that the boot ROM measures and jumps to after
 validation succeeds.
+
+## [runtime](/runtime/)
+
+"Runtime Firmware", the code that serves mailbox commands to the SoC at
+runtime.
 
 ## [hw-model](/hw-model/)
 
@@ -37,6 +42,13 @@ Rust toolchain. See [Getting started with
 Rust](https://www.rust-lang.org/learn/get-started) for more information on
 installing an up-to-date Rust toolchain. We use version 1.68 of the Rust
 toolchain for all continuous integration.
+
+Additionally, install a RISC-V baremetal toolchain for tools used by the build
+system (e.g. objdump, objcopy). On Debian-based systems:
+
+```shell
+apt install gcc-riscv64-unknown-elf
+```
 
 ## Checkout and build
 
