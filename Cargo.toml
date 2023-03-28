@@ -1,6 +1,12 @@
 # Licensed under the Apache-2.0 license
 
 [workspace]
+
+# Use dependency resolver v2 to allow [dev-dependencies] to have different
+# features from [dependencies]. See
+# https://doc.rust-lang.org/cargo/reference/resolver.html#feature-resolver-version-2
+resolver = "2"
+
 exclude = [
   # Uses a custom .cargo/config
   "sw-emulator/example",
