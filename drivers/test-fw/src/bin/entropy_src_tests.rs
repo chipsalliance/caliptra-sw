@@ -4,8 +4,20 @@
 mod harness;
 
 use caliptra_registers::entropy_src;
+use core::panic::PanicInfo;
+use core::arch::global_asm;
 
-fn test_success() {
+global_asm!(include_str!("start.S"));
+
+#[panic_handler]
+pub fn panic(info: &PanicInfo) -> ! {
+    println!("[failed]");
+    println!("Error: {}\n", info);
+    loop {}
+}
+
+#[no_mangle]
+pub extern "C" fn main() {
     let esrc = entropy_src::RegisterBlock::entropy_src_reg();
 
     const FALSE: u32 = 9;
@@ -25,16 +37,14 @@ fn test_success() {
         core::hint::black_box(esrc);
     }
 
-    println!("X");
-    let valid_bit = esrc.interrupt_state().read().es_entropy_valid();
-
-    println!("valid_bit = {valid_bit}");
-    println!(
-        "InterruptState register = {:x}",
-        u32::from(esrc.interrupt_state().read())
-    );
+    for i in 0..17 {
+        let state = esrc.interrupt_state().read();
+        state.es_entropy_valid();
+        println!("state={:01x} data={:08x}", 
+        u32::from(state),
+            esrc.entropy_data().read());
+        esrc.interrupt_state().write(|_| u32::from(state).into());
+    }
+    println!("Complete");
 }
 
-test_suite! {
-    test_success,
-}
