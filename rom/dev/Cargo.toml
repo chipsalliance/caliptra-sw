@@ -24,7 +24,7 @@ caliptra-builder = { path = "../../builder" }
 [features]
 riscv = []
 default = ["std"]
-emu = ["caliptra-drivers/emu"]
+uart = []
 std = [
   "caliptra-x509/std",
   "caliptra-image-types/std",

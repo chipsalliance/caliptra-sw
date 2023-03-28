@@ -26,13 +26,11 @@ impl ExitCtrl {
     ///
     /// This method does not return
     pub fn exit(exit_code: u32) -> ! {
-        if cfg!(feature = "emu") {
-            const STDOUT: *mut u32 = 0x3003_00C8 as *mut u32;
-            unsafe {
-                core::ptr::write_volatile(STDOUT, if exit_code == 0 { 0xff } else { 0x01 });
-            }
-        }
-
+        let soc_ifc = caliptra_registers::soc_ifc::RegisterBlock::soc_ifc_reg();
+        soc_ifc
+            .cptra_generic_output_wires()
+            .at(0)
+            .write(|_| if exit_code == 0 { 0xff } else { 0x01 });
         #[allow(clippy::empty_loop)]
         loop {}
     }

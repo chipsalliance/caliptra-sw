@@ -31,7 +31,7 @@ build-emu:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu,riscv \
+		--features uart,riscv \
 
 build-rom:
 	$(RUSTFLAGS) cargo build \
@@ -39,7 +39,7 @@ build-rom:
 		--manifest-path ../rom/dev/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu \
+		--features uart \
 
 objcopy-rom: 
 	riscv64-unknown-elf-objcopy \
@@ -57,7 +57,7 @@ build-test-rt:
 		--manifest-path ../runtime/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu,riscv \
+		--features uart,riscv \
 
 gen-certs:
 	$(shell bash $(CURRENT_DIR)/tools/scripts/gen_test_certs.sh $(TARGET_DIR))

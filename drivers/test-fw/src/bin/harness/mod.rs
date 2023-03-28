@@ -30,16 +30,9 @@ macro_rules! println {
 
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "emu")] {
-            use caliptra_drivers::Uart;
-            use core::fmt::Write;
-            Uart::new().write_fmt(args).unwrap();
-        }
-        else {
-            let _ = args;
-        }
-    }
+    use caliptra_drivers::Uart;
+    use core::fmt::Write;
+    Uart::new().write_fmt(args).unwrap();
 }
 
 #[macro_export]
@@ -55,14 +48,7 @@ macro_rules! test_suite {
         pub fn panic(info: &PanicInfo) -> ! {
             println!("[failed]");
             println!("Error: {}\n", info);
-            cfg_if::cfg_if! {
-                if #[cfg(feature = "emu")] {
-                    use caliptra_drivers::ExitCtrl;
-                    ExitCtrl::exit(u32::MAX);
-                } else {
-                    loop {}
-                }
-            }
+            caliptra_drivers::ExitCtrl::exit(u32::MAX);
         }
 
         #[no_mangle]

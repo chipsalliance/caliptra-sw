@@ -67,10 +67,6 @@ pub use sha384acc::{Sha384Acc, Sha384AccOp};
 pub use state::{DeviceState, Lifecycle, MfgState};
 pub use status_reporter::{report_boot_status, FlowStatus};
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "emu")] {
-        mod uart;
+mod uart;
 
-        pub use uart::Uart;
-    }
-}
+pub use uart::Uart;

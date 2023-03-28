@@ -30,7 +30,7 @@ build-emu:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu \
+		--features uart \
 		
 build-test-fmc:
 	$(RUSTFLAGS) cargo build \
@@ -38,7 +38,7 @@ build-test-fmc:
 		--manifest-path tools/test-fmc/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu \
+		--features uart \
 
 build-test-rt:
 	$(RUSTFLAGS) cargo build \
@@ -46,7 +46,7 @@ build-test-rt:
 		--manifest-path tools/test-rt/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu \
+		--features uart \
 
 gen-certs:
 	$(shell bash $(CURRENT_DIR)/tools/scripts/gen_test_certs.sh $(TARGET_DIR))

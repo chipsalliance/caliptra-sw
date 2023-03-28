@@ -7,14 +7,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-caliptra-drivers = { path = "..", features=["emu"] }
+caliptra-drivers = { path = ".." }
 caliptra-registers = { path = "../../registers" }
 caliptra-kat = { path = "../../kat" }
 cfg-if = "1.0.0"
 
 [features]
-emu = []
-
 # This feature is used to filter all these binary targets during normal builds
 # (targets must be built with cargo arguments:
 #     --target riscv32imc-unknown-none-elf \

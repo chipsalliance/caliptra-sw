@@ -22,7 +22,6 @@ caliptra-builder = { path = "../builder" }
 riscv = ["caliptra-cpu/riscv"]
 default = ["std"]
 std = ["ufmt/std", "caliptra_common/std"]
-emu = [
-    "caliptra_common/emu",
-    "caliptra-drivers/emu"
+uart = [
+    "caliptra_common/uart",
 ]

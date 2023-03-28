@@ -15,5 +15,5 @@ caliptra-drivers = { path = "../drivers" }
 [features]
 default = ["std"]
 std = []
-emu = []
+uart = []
 

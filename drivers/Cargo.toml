@@ -17,7 +17,6 @@ bitfield = "0.14.0"
 bitflags = "2.0.1"
 
 [features]
-emu = []
 verilator = ["caliptra-hw-model/verilator"]
 
 [dev-dependencies]
