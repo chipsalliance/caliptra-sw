@@ -1,10 +1,11 @@
 // Licensed under the Apache-2.0 license
 
 use std::{error::Error, io::ErrorKind};
+use std::str::FromStr;
 
 use caliptra_emu_bus::Bus;
 
-use rand::RngCore;
+use rand::{RngCore, SeedableRng, rngs::StdRng};
 
 pub mod mmio;
 mod model_emulated;
@@ -70,11 +71,16 @@ pub struct InitParams<'a> {
 
 impl<'a> Default for InitParams<'a> {
     fn default() -> Self {
+        let rng: Box<dyn Iterator<Item = u8>> = if let Ok(Ok(val)) = std::env::var("CPTRA_TRNG_SEED").map(|s| u64::from_str(&s)) {
+            Box::new(RandomNibbles(StdRng::seed_from_u64(val)))
+        } else {
+            Box::new(RandomNibbles(rand::thread_rng()))
+        };
         Self {
             rom: Default::default(),
             dccm: Default::default(),
             iccm: Default::default(),
-            csrng_nibbles: Box::new(RandomNibbles(rand::thread_rng())),
+            csrng_nibbles: rng,
         }
     }
 }

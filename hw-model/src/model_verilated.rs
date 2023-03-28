@@ -12,6 +12,9 @@ use std::env;
 // TODO: Make this configurable
 const SOC_PAUSER: u32 = 0xffff_ffff;
 
+// How many clock cycles before emitting a TRNG nibble
+const TRNG_DELAY: u32 = 4;
+
 pub struct VerilatedApbBus<'a> {
     v: &'a mut CaliptraVerilated,
 }
@@ -46,6 +49,9 @@ pub struct ModelVerilated {
     generic_load_rx: mpsc::Receiver<u8>,
     output: Output,
     trace_enabled: bool,
+
+    csrng_nibbles: Box<dyn Iterator<Item = u8>>,
+    trng_delay_remaining: u32,
 }
 
 impl ModelVerilated {
@@ -56,6 +62,7 @@ impl ModelVerilated {
         self.v.stop_tracing();
     }
 }
+
 
 impl crate::HwModel for ModelVerilated {
     type TBus<'a> = VerilatedApbBus<'a>;
@@ -77,6 +84,10 @@ impl crate::HwModel for ModelVerilated {
             generic_load_rx,
             output: Output::new(),
             trace_enabled: false,
+
+            csrng_nibbles: params.csrng_nibbles,
+
+            trng_delay_remaining: TRNG_DELAY,
         };
 
         m.tracing_hint(true);
@@ -105,7 +116,19 @@ impl crate::HwModel for ModelVerilated {
     }
 
     fn step(&mut self) {
+        if self.v.output.etrng_req {
+            if self.trng_delay_remaining == 0 {
+                if let Some(val) = self.csrng_nibbles.next() {
+                    self.v.input.itrng_valid = true;
+                    self.v.input.itrng_data = val & 0xf;
+                }
+                self.trng_delay_remaining = TRNG_DELAY;
+            } else {
+                self.trng_delay_remaining -= 1;
+            }
+        }
         self.v.next_cycle_high(1);
+        self.v.input.itrng_valid = false;
     }
 
     fn output(&mut self) -> &mut crate::Output {
