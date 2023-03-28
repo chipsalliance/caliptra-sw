@@ -12,8 +12,8 @@ Abstract:
 
 --*/
 
+use caliptra_drivers::CaliptraResult;
 use caliptra_kat::{Ecc384Kat, Hmac384Kat, Sha1Kat, Sha256Kat, Sha384AccKat, Sha384Kat};
-use caliptra_lib::CaliptraResult;
 
 use crate::{cprintln, rom_env::RomEnv};
 

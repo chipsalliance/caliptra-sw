@@ -22,7 +22,7 @@ Note:
 --*/
 
 use crate::rom_env::RomEnv;
-use caliptra_lib::{CaliptraResult, PcrId};
+use caliptra_drivers::{CaliptraResult, PcrId};
 
 /// Extend PCR0
 ///
@@ -33,10 +33,10 @@ pub fn extend_pcr0(env: &RomEnv) -> CaliptraResult<()> {
     let pcr_bank = env.pcr_bank();
 
     // Clear the PCR
-    pcr_bank.map(|p| p.erase_pcr(caliptra_lib::PcrId::PcrId0))?;
+    pcr_bank.map(|p| p.erase_pcr(caliptra_drivers::PcrId::PcrId0))?;
 
     // Lock the PCR from clear
-    pcr_bank.map(|p| p.set_pcr_lock(caliptra_lib::PcrId::PcrId0));
+    pcr_bank.map(|p| p.set_pcr_lock(caliptra_drivers::PcrId::PcrId0));
 
     // Extend common data into PCR
     extend_pcr_common(env, PcrId::PcrId0)
@@ -51,7 +51,7 @@ pub fn extend_pcr1(env: &RomEnv) -> CaliptraResult<()> {
     let pcr_bank = env.pcr_bank();
 
     // Clear the PCR
-    pcr_bank.map(|p| p.erase_pcr(caliptra_lib::PcrId::PcrId1))?;
+    pcr_bank.map(|p| p.erase_pcr(caliptra_drivers::PcrId::PcrId1))?;
 
     // Extend common data into PCR
     extend_pcr_common(env, PcrId::PcrId1)

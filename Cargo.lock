@@ -117,17 +117,30 @@ dependencies = [
 name = "caliptra-cpu"
 version = "0.1.0"
 dependencies = [
- "caliptra-lib",
+ "caliptra-drivers",
  "caliptra-registers",
  "cfg-if",
+]
+
+[[package]]
+name = "caliptra-drivers"
+version = "0.1.0"
+dependencies = [
+ "bitfield",
+ "bitflags 2.0.2",
+ "caliptra-builder",
+ "caliptra-hw-model",
+ "caliptra-registers",
+ "cfg-if",
+ "ureg",
 ]
 
 [[package]]
 name = "caliptra-drivers-test-bin"
 version = "0.1.0"
 dependencies = [
+ "caliptra-drivers",
  "caliptra-kat",
- "caliptra-lib",
  "caliptra-registers",
  "cfg-if",
 ]
@@ -211,7 +224,7 @@ version = "0.1.0"
 dependencies = [
  "caliptra-builder",
  "caliptra-cpu",
- "caliptra-lib",
+ "caliptra-drivers",
  "caliptra_common",
  "cfg-if",
  "ufmt",
@@ -236,10 +249,10 @@ name = "caliptra-image-app"
 version = "0.5.0"
 dependencies = [
  "anyhow",
+ "caliptra-drivers",
  "caliptra-image-gen",
  "caliptra-image-serde",
  "caliptra-image-types",
- "caliptra-lib",
  "clap",
  "elf",
  "hex",
@@ -282,8 +295,8 @@ name = "caliptra-image-verify"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.0.2",
+ "caliptra-drivers",
  "caliptra-image-types",
- "caliptra-lib",
  "zerocopy",
 ]
 
@@ -291,20 +304,7 @@ dependencies = [
 name = "caliptra-kat"
 version = "0.1.0"
 dependencies = [
- "caliptra-lib",
-]
-
-[[package]]
-name = "caliptra-lib"
-version = "0.1.0"
-dependencies = [
- "bitfield",
- "bitflags 2.0.2",
- "caliptra-builder",
- "caliptra-hw-model",
- "caliptra-registers",
- "cfg-if",
- "ureg",
+ "caliptra-drivers",
 ]
 
 [[package]]
@@ -319,10 +319,10 @@ name = "caliptra-rom"
 version = "0.1.0"
 dependencies = [
  "caliptra-builder",
+ "caliptra-drivers",
  "caliptra-image-types",
  "caliptra-image-verify",
  "caliptra-kat",
- "caliptra-lib",
  "caliptra-x509",
  "caliptra_common",
  "cfg-if",
@@ -334,7 +334,7 @@ dependencies = [
 name = "caliptra-rom-test-fmc"
 version = "0.1.0"
 dependencies = [
- "caliptra-lib",
+ "caliptra-drivers",
  "caliptra_common",
  "cfg-if",
  "ufmt",
@@ -345,7 +345,7 @@ dependencies = [
 name = "caliptra-rom-test-rt"
 version = "0.1.0"
 dependencies = [
- "caliptra-lib",
+ "caliptra-drivers",
  "cfg-if",
  "ufmt",
 ]
@@ -356,7 +356,7 @@ version = "0.1.0"
 dependencies = [
  "caliptra-builder",
  "caliptra-cpu",
- "caliptra-lib",
+ "caliptra-drivers",
  "caliptra_common",
  "cfg-if",
  "ufmt",
@@ -388,7 +388,7 @@ dependencies = [
 name = "caliptra_common"
 version = "0.1.0"
 dependencies = [
- "caliptra-lib",
+ "caliptra-drivers",
  "ufmt",
  "zerocopy",
 ]

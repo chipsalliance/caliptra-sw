@@ -15,7 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_lib::{report_boot_status, FlowStatus};
+use caliptra_drivers::{report_boot_status, FlowStatus};
 use caliptra_registers::soc_ifc;
 
 mod harness;

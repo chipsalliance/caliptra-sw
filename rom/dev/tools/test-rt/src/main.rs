@@ -36,7 +36,7 @@ const BANNER: &str = r#"
 pub extern "C" fn rt_entry() -> ! {
     cprintln!("{}", BANNER);
 
-    caliptra_lib::ExitCtrl::exit(0)
+    caliptra_drivers::ExitCtrl::exit(0)
 }
 
 #[no_mangle]

@@ -25,7 +25,7 @@ impl uWrite for RomPrinter {
     #[inline(never)]
     fn write_str(&mut self, _str: &str) -> Result<(), Self::Error> {
         #[cfg(feature = "emu")]
-        caliptra_lib::Uart::default().write(_str);
+        caliptra_drivers::Uart::default().write(_str);
         Ok(())
     }
 

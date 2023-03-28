@@ -10,7 +10,7 @@ doctest = false
 
 [dependencies]
 caliptra-image-types = { path = "../types", default-features = false }
-caliptra-lib = { path = "../../drivers" }
+caliptra-drivers = { path = "../../drivers" }
 bitflags = "2.0.1"
 zerocopy = "0.6.1"
 

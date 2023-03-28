@@ -15,8 +15,8 @@ Abstract:
 #![no_std]
 #![no_main]
 
+use caliptra_drivers::{Array4x12, PcrBank, PcrId, Sha384};
 use caliptra_kat::Sha384Kat;
-use caliptra_lib::{Array4x12, PcrBank, PcrId, Sha384};
 
 mod harness;
 

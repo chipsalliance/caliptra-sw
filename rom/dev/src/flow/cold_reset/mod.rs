@@ -26,7 +26,7 @@ use crate::flow::cold_reset::idev_id::InitDevIdLayer;
 use crate::flow::cold_reset::ldev_id::LocalDevIdLayer;
 use crate::{cprintln, rom_env::RomEnv};
 use caliptra_common::FirmwareHandoffTable;
-use caliptra_lib::*;
+use caliptra_drivers::*;
 use crypto::Ecc384KeyPair;
 
 pub const KEY_ID_CDI: KeyId = KeyId::KeyId6;

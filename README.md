@@ -59,14 +59,14 @@ cargo test
 To run a single emulator test:
 
 ```shell
-cargo test -p caliptra-lib test_doe
+cargo test -p caliptra-drivers test_doe
 ```
 
 You may wish to get a primitive trace from the sw-emulator while running the
 test:
 
 ```console
-$ CPTRA_TRACE_PATH=/tmp/trace.txt cargo test -p caliptra-lib test_doe
+$ CPTRA_TRACE_PATH=/tmp/trace.txt cargo test -p caliptra-drivers test_doe
 $ cat /tmp/trace.txt
 <snip>
 pc=0xf6
@@ -102,13 +102,13 @@ Sometimes you may only want to run a single test, like this
 that can run in seconds:
 
 ```shell
-cargo test --features=verilator -p caliptra-lib test_pcrbank
+cargo test --features=verilator -p caliptra-drivers test_pcrbank
 ```
 
 To get a VCD dump of ALL waveforms while running the test:
 
 ```shell
-CPTRA_TRACE_PATH=/tmp/trace.vcd cargo test --features=verilator -p caliptra-lib test_pcrbank
+CPTRA_TRACE_PATH=/tmp/trace.vcd cargo test --features=verilator -p caliptra-drivers test_pcrbank
 ```
 
 You can open the vcd file with a tool like

@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 use crate::{caliptra_err_def, sha384_kat::SHA384_EXPECTED_DIGEST};
-use caliptra_lib::{Array4x12, CaliptraResult, Sha384Acc};
+use caliptra_drivers::{Array4x12, CaliptraResult, Sha384Acc};
 
 caliptra_err_def! {
     Sha384AccKat,

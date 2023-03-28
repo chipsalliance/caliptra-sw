@@ -15,11 +15,11 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_kat::Hmac384Kat;
-use caliptra_lib::{
+use caliptra_drivers::{
     Array4x12, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, Hmac384, KeyId, KeyReadArgs,
     KeyUsage, KeyWriteArgs,
 };
+use caliptra_kat::Hmac384Kat;
 
 mod harness;
 

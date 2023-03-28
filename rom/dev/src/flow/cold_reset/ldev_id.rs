@@ -20,7 +20,7 @@ use crate::cprint_slice;
 use crate::cprintln;
 use crate::rom_env::RomEnv;
 use crate::rom_err_def;
-use caliptra_lib::*;
+use caliptra_drivers::*;
 use caliptra_x509::*;
 
 rom_err_def! {

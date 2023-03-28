@@ -15,8 +15,8 @@ Abstract:
 #![no_std]
 #![no_main]
 
+use caliptra_drivers::{Array4x12, Mailbox, Sha384Acc};
 use caliptra_kat::Sha384AccKat;
-use caliptra_lib::{Array4x12, Mailbox, Sha384Acc};
 mod harness;
 
 const MAX_MAILBOX_CAPACITY_BYTES: usize = 128 << 10;

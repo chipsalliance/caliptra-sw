@@ -14,7 +14,7 @@ Abstract:
 --*/
 
 use crate::rom_env::RomEnv;
-use caliptra_lib::{CaliptraResult, KeyId};
+use caliptra_drivers::{CaliptraResult, KeyId};
 
 use super::crypto::Ecc384KeyPair;
 

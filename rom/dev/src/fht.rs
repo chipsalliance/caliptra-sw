@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use caliptra_common::{FirmwareHandoffTable, FHT_MARKER};
-use caliptra_lib::{ColdResetEntry4, ColdResetEntry48, WarmResetEntry4, WarmResetEntry48};
+use caliptra_drivers::{ColdResetEntry4, ColdResetEntry48, WarmResetEntry4, WarmResetEntry48};
 use zerocopy::AsBytes;
 
 use crate::{

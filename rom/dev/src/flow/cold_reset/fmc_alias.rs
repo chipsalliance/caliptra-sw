@@ -19,12 +19,12 @@ use super::x509::X509;
 use crate::verifier::RomImageVerificationEnv;
 use crate::{cprint, cprint_slice, cprintln, pcr};
 use crate::{rom_env::RomEnv, rom_err_def};
-use caliptra_image_types::ImageManifest;
-use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
-use caliptra_lib::{
+use caliptra_drivers::{
     Array4x12, CaliptraResult, ColdResetEntry4, ColdResetEntry48, Hmac384Data, Hmac384Key, KeyId,
     KeyReadArgs, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
+use caliptra_image_types::ImageManifest;
+use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
 use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams};
 use zerocopy::FromBytes;
 
@@ -77,7 +77,7 @@ impl DiceLayer for FmcAliasLayer {
         // of PCR1 as the UDS for deriving the CDI
         let uds = env
             .pcr_bank()
-            .map(|p| p.read_pcr(caliptra_lib::PcrId::PcrId1));
+            .map(|p| p.read_pcr(caliptra_drivers::PcrId::PcrId1));
 
         // Derive the DICE CDI from decrypted UDS
         let cdi = Self::derive_cdi(env, uds, input.cdi)?;

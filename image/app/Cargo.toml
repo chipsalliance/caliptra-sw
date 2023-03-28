@@ -6,7 +6,7 @@ version = "0.5.0"
 edition = "2021"
 
 [dependencies]
-caliptra-lib = { path = "../../drivers" }
+caliptra-drivers = { path = "../../drivers" }
 caliptra-image-types = { path = "../types", features = ["std"] }
 caliptra-image-gen = { path = "../gen" }
 caliptra-image-serde = { path = "../serde" }

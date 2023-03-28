@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::caliptra_err_def;
-use caliptra_lib::{
+use caliptra_drivers::{
     Array4xN, CaliptraResult, Ecc384, Ecc384Data, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Signature,
 };
 
