@@ -26,7 +26,7 @@ VERILATOR_OBJS = out/verilated_threads.o out/verilated.o out/verilated_vcd_c.o
 
 LIB_OBJS = out/caliptra_verilated.o
 
-export WORKSPACE = $(realpath out/workspace)
+export CALIPTRA_ROOT = $(realpath ../caliptra-rtl)
 
 suppress = -Wno-WIDTH -Wno-UNOPTFLAT -Wno-LITENDIAN -Wno-CMPCONST -Wno-MULTIDRIVEN -Wno-UNPACKED
 
@@ -34,12 +34,6 @@ out/libcaliptra_verilated.a: out/Vcaliptra_verilated__ALL.a $(LIB_OBJS) $(VERILA
 	cp out/Vcaliptra_verilated__ALL.a out/.libcaliptra_verilated.a
 	ar rs out/.libcaliptra_verilated.a $(LIB_OBJS) $(VERILATOR_OBJS)
 	mv out/.libcaliptra_verilated.a out/libcaliptra_verilated.a
-
-out/workspace:
-	mkdir -p out/workspace
-
-out/workspace/Caliptra: out/workspace
-	ln -nfs ${CALIPTRA_RTL_DIR} out/workspace/Caliptra
 
 out:
 	mkdir -p out
@@ -51,7 +45,7 @@ $(VERILATOR_OBJS): out/%.o: $(VERILATOR_INCLUDEDIR)/%.cpp
 $(LIB_OBJS): out/%.o: $(VERILATED_DIR)/%.cpp
 	$(CXX) -Iout ${CFLAGS} $(VERILATOR_CFLAGS) -c $< -o $@
 
-out/Vcaliptra_verilated.h: ${VERILATED_DIR}/caliptra_verilated.sv out/workspace/Caliptra out
+out/Vcaliptra_verilated.h: ${VERILATED_DIR}/caliptra_verilated.sv out
 	$(VERILATOR)  --cc -CFLAGS "${CFLAGS}" \
 	  --trace \
 	  +libext+.v+.sv +define+RV_OPENSOURCE \
