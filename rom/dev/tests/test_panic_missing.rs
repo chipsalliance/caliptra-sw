@@ -1,8 +1,10 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_builder::ROM_WITH_UART;
+
 #[test]
 fn test_panic_missing() {
-    let rom_elf = caliptra_builder::build_firmware_elf("caliptra-rom", "caliptra-rom").unwrap();
+    let rom_elf = caliptra_builder::build_firmware_elf(&ROM_WITH_UART).unwrap();
     let symbols = caliptra_builder::elf_symbols(&rom_elf).unwrap();
     if symbols.iter().any(|s| s.name.contains("panic_is_possible")) {
         panic!(

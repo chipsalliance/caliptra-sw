@@ -11,6 +11,18 @@ mod elf_symbols;
 
 pub use elf_symbols::{elf_symbols, Symbol, SymbolBind, SymbolType, SymbolVisibility};
 
+pub const ROM: FwId = FwId {
+    crate_name: "caliptra-rom",
+    bin_name: "caliptra-rom",
+    features: &[],
+};
+
+pub const ROM_WITH_UART: FwId = FwId {
+    crate_name: "caliptra-rom",
+    bin_name: "caliptra-rom",
+    features: &["emu"],
+};
+
 fn other_err(e: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> io::Error {
     io::Error::new(ErrorKind::Other, e)
 }
@@ -32,10 +44,32 @@ fn run_cmd(cmd: &mut Command) -> io::Result<()> {
     }
 }
 
-pub fn build_firmware_elf(fw_crate_name: &str, bin_name: &str) -> io::Result<Vec<u8>> {
+// Represent the Cargo identity of a firmware binary.
+#[derive(Default)]
+pub struct FwId<'a> {
+    // The crate name (For example, "caliptra-rom")
+    pub crate_name: &'a str,
+
+    // If the crate contains multiple binaries, the name of the binary. Leave
+    // empty to build the crate's default binary.
+    pub bin_name: &'a str,
+
+    // The features to use the build the binary
+    pub features: &'a [&'a str],
+}
+
+pub fn build_firmware_elf(id: &FwId) -> io::Result<Vec<u8>> {
     const WORKSPACE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
     const TARGET: &str = "riscv32imc-unknown-none-elf";
     const PROFILE: &str = "firmware";
+
+    let mut features_csv = id.features.join(",");
+    if !id.features.contains(&"riscv") {
+        if !features_csv.is_empty() {
+            features_csv.push(',');
+        }
+        features_csv.push_str("riscv");
+    }
 
     run_cmd(
         Command::new(env!("CARGO"))
@@ -45,26 +79,27 @@ pub fn build_firmware_elf(fw_crate_name: &str, bin_name: &str) -> io::Result<Vec
             .arg("--locked")
             .arg("--target")
             .arg(TARGET)
-            .arg("--features=emu,riscv")
+            .arg("--features")
+            .arg(features_csv)
             .arg("--no-default-features")
             .arg("--profile")
             .arg(PROFILE)
             .arg("-p")
-            .arg(fw_crate_name)
+            .arg(id.crate_name)
             .arg("--bin")
-            .arg(bin_name),
+            .arg(id.bin_name),
     )?;
     fs::read(
         Path::new(WORKSPACE_DIR)
             .join("target")
             .join(TARGET)
             .join(PROFILE)
-            .join(bin_name),
+            .join(id.bin_name),
     )
 }
 
-pub fn build_firmware_rom(fw_crate_name: &str, bin_name: &str) -> io::Result<Vec<u8>> {
-    let elf_bytes = build_firmware_elf(fw_crate_name, bin_name)?;
+pub fn build_firmware_rom(id: &FwId) -> io::Result<Vec<u8>> {
+    let elf_bytes = build_firmware_elf(id)?;
     elf2rom(&elf_bytes)
 }
 
@@ -100,7 +135,12 @@ mod test {
     #[test]
     fn test_build_firmware() {
         // Ensure that we can build the ELF and elf2rom can parse it
-        build_firmware_rom("caliptra-drivers-test-bin", "test_success").unwrap();
+        build_firmware_rom(&FwId {
+            crate_name: "caliptra-drivers-test-bin",
+            bin_name: "test_success",
+            ..Default::default()
+        })
+        .unwrap();
     }
 
     #[test]
