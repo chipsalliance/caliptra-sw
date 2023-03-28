@@ -44,6 +44,7 @@ members = [
   "image/verify",
   "image/app",
   "image/openssl",
+  "image/elf",
   "rom/dev",
   "rom/dev/tools/test-fmc",
   "rom/dev/tools/test-rt",

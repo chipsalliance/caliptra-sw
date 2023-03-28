@@ -13,7 +13,6 @@ Abstract:
 --*/
 
 mod config;
-mod executable;
 
 use anyhow::Context;
 use caliptra_image_gen::*;
@@ -25,8 +24,8 @@ use clap::ArgMatches;
 use std::path::Path;
 use std::path::PathBuf;
 
+use caliptra_image_elf::ElfExecutable;
 use config::{OwnerKeyConfig, VendorKeyConfig};
-use executable::ElfExecutable;
 
 /// Run the command
 pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
