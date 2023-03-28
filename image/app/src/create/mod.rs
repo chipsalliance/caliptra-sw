@@ -76,7 +76,7 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
     let config = config::load_key_config(config_path)?;
 
     let fmc_rev = hex::decode(fmc_rev)?;
-    let fmc = ElfExecutable::new(
+    let fmc = ElfExecutable::open(
         fmc_path,
         *fmc_svn,
         *fmc_min_svn,
@@ -84,7 +84,7 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
     )?;
 
     let runtime_rev = hex::decode(runtime_rev)?;
-    let runtime = ElfExecutable::new(
+    let runtime = ElfExecutable::open(
         runtime_path,
         *runtime_svn,
         *runtime_min_svn,

@@ -31,13 +31,25 @@ pub struct ElfExecutable {
 }
 
 impl ElfExecutable {
+    pub fn open(
+        path: &PathBuf,
+        svn: u32,
+        min_svn: u32,
+        rev: ImageRevision,
+    ) -> anyhow::Result<Self> {
+        let file_data = std::fs::read(path).with_context(|| "Failed to read file")?;
+        ElfExecutable::new(&file_data, svn, min_svn, rev)
+    }
     /// Create new instance of `ElfExecutable`.
-    pub fn new(path: &PathBuf, svn: u32, min_svn: u32, rev: ImageRevision) -> anyhow::Result<Self> {
+    pub fn new(
+        elf_bytes: &[u8],
+        svn: u32,
+        min_svn: u32,
+        rev: ImageRevision,
+    ) -> anyhow::Result<Self> {
         let mut content = vec![];
 
-        let file_data = std::fs::read(path).with_context(|| "Failed to read file")?;
-
-        let elf_file = ElfBytes::<AnyEndian>::minimal_parse(&file_data)
+        let elf_file = ElfBytes::<AnyEndian>::minimal_parse(elf_bytes)
             .with_context(|| "Failed to parse elf file")?;
 
         let (load_addr, text) = Self::read_section(&elf_file, ".text", true)?;
