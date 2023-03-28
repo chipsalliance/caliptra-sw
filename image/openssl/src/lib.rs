@@ -4,11 +4,11 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-   crypto.rs
+   lib.rs
 
 Abstract:
 
-    File contains crypto utilities used by the application.
+    File contains crypto utilities needed to generate images.
 
 --*/
 
@@ -24,7 +24,7 @@ use openssl::nid::Nid;
 use openssl::sha::Sha384;
 
 #[derive(Default)]
-pub(crate) struct OsslCrypto {}
+pub struct OsslCrypto {}
 
 impl ImageGeneratorCrypto for OsslCrypto {
     /// Calculate SHA-384 Digest

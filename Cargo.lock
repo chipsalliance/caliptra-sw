@@ -237,6 +237,7 @@ version = "0.5.0"
 dependencies = [
  "anyhow",
  "caliptra-image-gen",
+ "caliptra-image-openssl",
  "caliptra-image-serde",
  "caliptra-image-types",
  "caliptra-lib",
@@ -258,6 +259,16 @@ dependencies = [
  "bitflags 2.0.2",
  "caliptra-image-types",
  "zerocopy",
+]
+
+[[package]]
+name = "caliptra-image-openssl"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "caliptra-image-gen",
+ "caliptra-image-types",
+ "openssl",
 ]
 
 [[package]]
