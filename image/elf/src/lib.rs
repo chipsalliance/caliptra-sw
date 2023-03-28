@@ -4,7 +4,7 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-   executable.rs
+   lib.rs
 
 Abstract:
 
