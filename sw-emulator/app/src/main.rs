@@ -23,12 +23,16 @@ use std::io;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::exit;
+use std::rc::Rc;
 mod gdb;
 use crate::gdb::gdb_target::GdbTarget;
 use gdb::gdb_state;
 
 /// Firmware Load Command Opcode
 const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
+
+/// The number of CPU clock cycles it takes to write the firmware to the mailbox.
+const FW_WRITE_TICKS: u64 = 1000;
 
 // CPU Main Loop (free_run no GDB)
 fn free_run(mut cpu: Cpu<CaliptraRootBus>, trace_path: Option<PathBuf>) {
@@ -181,6 +185,7 @@ fn main() -> io::Result<()> {
         let mut firmware = File::open(path)?;
         firmware.read_to_end(&mut firmware_buffer)?;
     }
+    let firmware_buffer = Rc::new(firmware_buffer);
 
     let clock = Clock::new();
     let bus_args = CaliptraRootBusArgs {
@@ -195,40 +200,46 @@ fn main() -> io::Result<()> {
             0xFF => exit(0x00),
             _ => print!("{}", val as char),
         }),
-        ready_for_fw_cb: ReadyForFwCb::new(move |mailbox: &mut Mailbox| {
-            // Write the cmd to mailbox.
-            let _ = mailbox.write_cmd(FW_LOAD_CMD_OPCODE);
+        ready_for_fw_cb: ReadyForFwCb::new(move |args| {
+            // Lock the mailbox
+            while !args.mailbox.try_acquire_lock() {}
 
-            // Write dlen.
-            let _ = mailbox.write_dlen(firmware_buffer.len() as u32).is_ok();
+            let firmware_buffer = firmware_buffer.clone();
+            args.schedule_later(FW_WRITE_TICKS, move |mailbox: &mut Mailbox| {
+                // Write the cmd to mailbox.
+                let _ = mailbox.write_cmd(FW_LOAD_CMD_OPCODE);
 
-            //
-            // Write firmware image.
-            //
-            let word_size = std::mem::size_of::<u32>();
-            let remainder = firmware_buffer.len() % word_size;
-            let n = firmware_buffer.len() - remainder;
+                // Write dlen.
+                let _ = mailbox.write_dlen(firmware_buffer.len() as u32).is_ok();
 
-            for idx in (0..n).step_by(word_size) {
-                let _ = mailbox.write_datain(u32::from_le_bytes(
-                    firmware_buffer[idx..idx + word_size].try_into().unwrap(),
-                ));
-            }
+                //
+                // Write firmware image.
+                //
+                let word_size = std::mem::size_of::<u32>();
+                let remainder = firmware_buffer.len() % word_size;
+                let n = firmware_buffer.len() - remainder;
 
-            // Handle the remainder bytes.
-            if remainder > 0 {
-                let mut last_word = firmware_buffer[n] as u32;
-                for idx in 1..remainder {
-                    last_word |= (firmware_buffer[n + idx] as u32) << (idx << 3);
+                for idx in (0..n).step_by(word_size) {
+                    let _ = mailbox.write_datain(u32::from_le_bytes(
+                        firmware_buffer[idx..idx + word_size].try_into().unwrap(),
+                    ));
                 }
-                let _ = mailbox.write_datain(last_word);
-            }
 
-            // Set the status as DATA_READY.
-            let _ = mailbox.set_status_data_ready();
+                // Handle the remainder bytes.
+                if remainder > 0 {
+                    let mut last_word = firmware_buffer[n] as u32;
+                    for idx in 1..remainder {
+                        last_word |= (firmware_buffer[n + idx] as u32) << (idx << 3);
+                    }
+                    let _ = mailbox.write_datain(last_word);
+                }
 
-            // Set the execute register.
-            let _ = mailbox.write_execute(1);
+                // Set the status as DATA_READY.
+                let _ = mailbox.set_status_data_ready();
+
+                // Set the execute register.
+                let _ = mailbox.write_execute(1);
+            });
         }),
         mfg_pk_hash,
         owner_pk_hash,

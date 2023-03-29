@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use crate::root_bus::ReadyForFwCbArgs;
 use crate::{CaliptraRootBusArgs, Iccm, Mailbox};
 use caliptra_emu_bus::BusError::{LoadAccessFault, StoreAccessFault};
 use caliptra_emu_bus::{
@@ -27,7 +28,9 @@ use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 use tock_registers::registers::InMemoryRegister;
 
-type ReadyForFwCallback = Box<dyn FnMut(&mut Mailbox)>;
+// Second parameter is schedule(ticks_from_now: u64, cb: Box<dyn FnOnce(&mut
+// Mailbox)>), which is called to schedule firmware writing in the future
+type ReadyForFwCallback = Box<dyn FnMut(ReadyForFwCbArgs)>;
 
 /// CPTRA_HW_ERROR_FATAL Register Start Address
 const CPTRA_HW_ERROR_FATAL_START: u32 = 0x0;
@@ -563,6 +566,8 @@ struct SocRegistersImpl {
 
     /// Firmware Write Complete action
     op_fw_write_complete_action: Option<TimerAction>,
+    #[allow(clippy::type_complexity)]
+    op_fw_write_complete_cb: Option<Box<dyn FnOnce(&mut Mailbox)>>,
 
     /// Firmware Read Complete action
     op_fw_read_complete_action: Option<TimerAction>,
@@ -594,9 +599,6 @@ impl SocRegistersImpl {
         0x2C, 0x7D, 0x39, 0xF2, 0x33, 0x69, 0xA9, 0xD9, 0xBA, 0xCF, 0xA5, 0x30, 0xE2, 0x63, 0x4,
         0x23, 0x14, 0x61,
     ];
-
-    /// The number of CPU clock cycles it takes to write the firmware to the mailbox.
-    const FW_WRITE_TICKS: u64 = 1000;
 
     /// The number of CPU clock cycles it takes to read the firmware from the mailbox.
     const FW_READ_TICKS: u64 = 0;
@@ -654,6 +656,7 @@ impl SocRegistersImpl {
             log_dir: args.log_dir.clone(),
             timer: Timer::new(clock),
             op_fw_write_complete_action: None,
+            op_fw_write_complete_cb: None,
             op_fw_read_complete_action: None,
             op_idevid_csr_read_complete_action: None,
             op_ldevid_cert_read_complete_action: None,
@@ -808,11 +811,20 @@ impl SocRegistersImpl {
         // Set the flow status register.
         self.cptra_flow_status.reg.set(val);
 
-        // If ready_for_fw bit is set, upload the firmware image to the mailbox.
+        // If ready_for_fw bit is set, run the op_fn_write_complete_cb.
         if self.cptra_flow_status.reg.is_set(FlowStatus::READY_FOR_FW) {
-            while !self.mailbox.try_acquire_lock() {}
-            self.op_fw_write_complete_action =
-                Some(self.timer.schedule_poll_in(Self::FW_WRITE_TICKS));
+            let op_fw_write_complete_action = &mut self.op_fw_write_complete_action;
+            let op_fw_write_complete_cb = &mut self.op_fw_write_complete_cb;
+            let timer = &self.timer;
+            let sched_fn = move |ticks_from_now: u64, cb: Box<dyn FnOnce(&mut Mailbox)>| {
+                *op_fw_write_complete_action = Some(timer.schedule_poll_in(ticks_from_now));
+                *op_fw_write_complete_cb = Some(cb);
+            };
+            let args = ReadyForFwCbArgs {
+                mailbox: &mut self.mailbox,
+                sched_fn: Box::new(sched_fn),
+            };
+            (self.ready_for_fw_cb)(args);
         } else if self
             .cptra_flow_status
             .reg
@@ -1145,10 +1157,12 @@ impl Bus for SocRegistersImpl {
     /// Called by Bus::poll() to indicate that time has passed
     fn poll(&mut self) {
         if self.timer.fired(&mut self.op_fw_write_complete_action) {
-            (self.ready_for_fw_cb)(&mut self.mailbox);
-            // Schedule a future call to poll() to check on the fw read operation completion.
-            self.op_fw_read_complete_action =
-                Some(self.timer.schedule_poll_in(Self::FW_READ_TICKS));
+            if let Some(cb) = self.op_fw_write_complete_cb.take() {
+                (cb)(&mut self.mailbox);
+                // Schedule a future call to poll() to check on the fw read operation completion.
+                self.op_fw_read_complete_action =
+                    Some(self.timer.schedule_poll_in(Self::FW_READ_TICKS));
+            }
         }
 
         if self.timer.fired(&mut self.op_fw_read_complete_action) {
