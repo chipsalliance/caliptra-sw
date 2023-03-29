@@ -3,11 +3,12 @@
 use zerocopy::{AsBytes, FromBytes};
 
 pub const FHT_MARKER: u32 = 0x54484643;
-pub const FHT_INVALID_IDX: u8 = 0xff;
+pub const FHT_INVALID_IDX: u8 = u8::MAX;
+pub const FHT_INVALID_ADDRESS: u32 = u32::MAX;
 
-/// The Firmware Handoff Table is a data structure that is resident
-/// at a well-known location in DCCM. It is initially populated by ROM and modified by FMC as a way to pass parameters and configuration information
-/// from one firmware layer to the next.
+/// The Firmware Handoff Table is a data structure that is resident at a well-known
+/// location in DCCM. It is initially populated by ROM and modified by FMC as a way
+/// to pass parameters and configuration information from one firmware layer to the next.
 #[repr(C)]
 #[derive(Clone, Debug, AsBytes, FromBytes)]
 pub struct FirmwareHandoffTable {
@@ -93,10 +94,10 @@ impl Default for FirmwareHandoffTable {
             fht_marker: 0,
             fht_major_ver: 0,
             fht_minor_ver: 0,
-            manifest_load_addr: 0,
-            fips_fw_load_addr: 0,
-            rt_fw_load_addr: 0,
-            rt_fw_entry_point: 0,
+            manifest_load_addr: FHT_INVALID_ADDRESS,
+            fips_fw_load_addr: FHT_INVALID_ADDRESS,
+            rt_fw_load_addr: FHT_INVALID_ADDRESS,
+            rt_fw_entry_point: FHT_INVALID_ADDRESS,
             fmc_tci_dv_idx: FHT_INVALID_IDX,
             fmc_cdi_kv_idx: FHT_INVALID_IDX,
             fmc_priv_key_kv_idx: FHT_INVALID_IDX,
@@ -120,9 +121,21 @@ impl Default for FirmwareHandoffTable {
 
 impl FirmwareHandoffTable {
     /// Perform valdity check of the table's data.
+    /// The fields below should have been populated by ROM with
+    /// valid data before it transfers control to mutable code.
     pub fn is_valid(&self) -> bool {
-        self.fht_marker == FHT_MARKER && self.fmc_cdi_kv_idx != FHT_INVALID_IDX
+        self.fht_marker == FHT_MARKER
+            && self.fmc_cdi_kv_idx != FHT_INVALID_IDX
+            && self.manifest_load_addr != FHT_INVALID_ADDRESS
+            && self.fmc_pub_key_x_dv_idx != FHT_INVALID_IDX
+            && self.fmc_pub_key_y_dv_idx != FHT_INVALID_IDX
+            && self.fmc_cert_sig_r_dv_idx != FHT_INVALID_IDX
+            && self.fmc_cert_sig_s_dv_idx != FHT_INVALID_IDX
+            && self.rt_tci_dv_idx != FHT_INVALID_IDX
+            && self.rt_fw_entry_point != FHT_INVALID_ADDRESS
     }
+    /// Load FHT from its fixed address and perform validity check of
+    /// its data.
     pub fn try_load() -> Option<FirmwareHandoffTable> {
         extern "C" {
             static mut FHT_ORG: u8;
@@ -139,6 +152,18 @@ impl FirmwareHandoffTable {
             return Some(fht);
         }
         None
+    }
+    pub fn save_fht(fht: FirmwareHandoffTable) {
+        extern "C" {
+            static mut FHT_ORG: u8;
+        }
+
+        let slice = unsafe {
+            let ptr = &mut FHT_ORG as *mut u8;
+            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
+        };
+
+        slice.copy_from_slice(fht.as_bytes());
     }
 }
 
