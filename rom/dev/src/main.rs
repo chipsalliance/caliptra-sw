@@ -17,7 +17,7 @@ Abstract:
 use crate::lock::lock_registers;
 use core::hint::black_box;
 
-use caliptra_lib::report_fw_error_non_fatal;
+use caliptra_drivers::report_fw_error_non_fatal;
 use rom_env::RomEnv;
 
 #[cfg(not(feature = "std"))]
@@ -59,10 +59,10 @@ pub extern "C" fn rom_entry() -> ! {
     let env = rom_env::RomEnv::default();
 
     let _lifecyle = match env.dev_state().map(|d| d.lifecycle()) {
-        caliptra_lib::Lifecycle::Unprovisioned => "Unprovisioned",
-        caliptra_lib::Lifecycle::Manufacturing => "Manufacturing",
-        caliptra_lib::Lifecycle::Production => "Production",
-        caliptra_lib::Lifecycle::Unknown => "Unknown",
+        caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",
+        caliptra_drivers::Lifecycle::Manufacturing => "Manufacturing",
+        caliptra_drivers::Lifecycle::Production => "Production",
+        caliptra_drivers::Lifecycle::Unknown => "Unknown",
     };
     cprintln!("[state] LifecycleState = {}", _lifecyle);
 
@@ -92,7 +92,7 @@ pub extern "C" fn rom_entry() -> ! {
     launch_fmc(&env);
 
     #[cfg(feature = "no-fmc")]
-    caliptra_lib::ExitCtrl::exit(0);
+    caliptra_drivers::ExitCtrl::exit(0);
 }
 
 fn launch_fmc(env: &RomEnv) -> ! {

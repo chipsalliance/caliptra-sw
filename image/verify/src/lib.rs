@@ -15,8 +15,8 @@ Abstract:
 
 mod verifier;
 
+use caliptra_drivers::*;
 use caliptra_image_types::*;
-use caliptra_lib::*;
 
 pub use verifier::ImageVerifier;
 

@@ -15,7 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_lib::Mailbox;
+use caliptra_drivers::Mailbox;
 use caliptra_registers::mbox::{self};
 use core::mem::size_of;
 use core::slice;

@@ -15,8 +15,8 @@ Abstract:
 #![no_std]
 #![no_main]
 
+use caliptra_drivers::{Array4x8, Sha256};
 use caliptra_kat::Sha256Kat;
-use caliptra_lib::{Array4x8, Sha256};
 
 mod harness;
 

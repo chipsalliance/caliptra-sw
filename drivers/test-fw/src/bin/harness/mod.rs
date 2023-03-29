@@ -32,7 +32,7 @@ macro_rules! println {
 pub fn _print(args: fmt::Arguments) {
     cfg_if::cfg_if! {
         if #[cfg(feature = "emu")] {
-            use caliptra_lib::Uart;
+            use caliptra_drivers::Uart;
             use core::fmt::Write;
             Uart::new().write_fmt(args).unwrap();
         }
@@ -57,7 +57,7 @@ macro_rules! test_suite {
             println!("Error: {}\n", info);
             cfg_if::cfg_if! {
                 if #[cfg(feature = "emu")] {
-                    use caliptra_lib::ExitCtrl;
+                    use caliptra_drivers::ExitCtrl;
                     ExitCtrl::exit(u32::MAX);
                 } else {
                     loop {}

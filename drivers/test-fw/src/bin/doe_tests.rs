@@ -15,7 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_lib::{Array4x4, DeobfuscationEngine, KeyId};
+use caliptra_drivers::{Array4x4, DeobfuscationEngine, KeyId};
 
 mod harness;
 

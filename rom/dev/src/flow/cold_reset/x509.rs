@@ -14,7 +14,7 @@ Abstract:
 use super::crypto::Crypto;
 use crate::cprintln;
 use crate::rom_env::RomEnv;
-use caliptra_lib::*;
+use caliptra_drivers::*;
 
 /// Wrapper to hold certificate buffer and length
 pub struct Certificate<'a, const LEN: usize> {

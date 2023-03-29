@@ -6,7 +6,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-caliptra-lib = { path = "../../../../drivers" }
+caliptra-drivers = { path = "../../../../drivers" }
 caliptra_common = { path = "../../../../common", default-features = false }
 ufmt = "0.2.0"
 zerocopy = "0.6.1"
@@ -16,5 +16,5 @@ cfg-if = "1.0.0"
 
 [features]
 default = ["std"]
-emu = ["caliptra-lib/emu"]
+emu = ["caliptra-drivers/emu"]
 std = ["ufmt/std", "caliptra_common/std"]

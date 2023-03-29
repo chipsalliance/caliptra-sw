@@ -15,8 +15,8 @@ Abstract:
 #![no_std]
 #![no_main]
 
+use caliptra_drivers::{Array4x5, Array4xN, Sha1};
 use caliptra_kat::Sha1Kat;
-use caliptra_lib::{Array4x5, Array4xN, Sha1};
 
 mod harness;
 

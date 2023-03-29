@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::rom_env::RomEnv;
-use caliptra_lib::*;
+use caliptra_drivers::*;
 use caliptra_x509::Ecdsa384Signature;
 
 /// ECDSA-384 Signature Adapter

@@ -12,9 +12,9 @@ Abstract:
 
 --*/
 
+use caliptra_drivers::*;
 use caliptra_image_types::*;
 use caliptra_image_verify::ImageVerificationEnv;
-use caliptra_lib::*;
 
 use crate::rom_env::RomEnv;
 

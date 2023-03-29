@@ -13,7 +13,7 @@ Abstract:
 --*/
 use crate::{cprintln, fht, rom_env::RomEnv};
 use caliptra_common::FirmwareHandoffTable;
-use caliptra_lib::CaliptraResult;
+use caliptra_drivers::CaliptraResult;
 
 /// Unknown Reset
 #[derive(Default)]

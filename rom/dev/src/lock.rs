@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_lib::{
+use caliptra_drivers::{
     ColdResetEntry4, ColdResetEntry48, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
 

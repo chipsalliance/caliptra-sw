@@ -13,8 +13,8 @@ Abstract:
 --*/
 
 use crate::*;
+use caliptra_drivers::*;
 use caliptra_image_types::*;
-use caliptra_lib::*;
 
 const ZERO_DIGEST: ImageDigest = [0u32; SHA384_DIGEST_WORD_SIZE];
 

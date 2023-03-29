@@ -15,7 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_lib::{
+use caliptra_drivers::{
     report_fw_error_fatal, report_fw_error_non_fatal, report_hw_error_fatal,
     report_hw_error_non_fatal,
 };

@@ -6,7 +6,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-caliptra-lib = { path = "../../drivers" }
+caliptra-drivers = { path = "../../drivers" }
 caliptra-kat = { path = "../../kat" }
 caliptra-x509 = { path = "../../x509", default-features = false }
 caliptra-image-types = { path = "../../image/types", default-features = false }
@@ -24,7 +24,7 @@ caliptra-builder = { path = "../../builder" }
 [features]
 riscv = []
 default = ["std"]
-emu = ["caliptra-lib/emu"]
+emu = ["caliptra-drivers/emu"]
 std = [
   "caliptra-x509/std",
   "caliptra-image-types/std",
