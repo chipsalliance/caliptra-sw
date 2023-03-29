@@ -25,6 +25,7 @@ pub struct caliptra_verilated_sig_in {
     pub imem_we: bool,
     pub imem_addr: u32,
     pub imem_wdata: u64,
+    pub etrng_req: bool,
 }
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
@@ -36,6 +37,8 @@ pub struct caliptra_verilated_sig_out {
     pub prdata: u32,
     pub generic_load_en: bool,
     pub generic_load_data: u32,
+    pub itrng_data: u8,
+    pub itrng_valid: bool,
 }
 extern "C" {
     pub fn caliptra_verilated_new() -> *mut caliptra_verilated;

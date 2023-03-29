@@ -19,3 +19,4 @@ caliptra-emu-types = { path = "../sw-emulator/lib/types" }
 caliptra-registers = { path = "../registers" }
 ureg = { path = "../ureg" }
 caliptra-verilated = { path = "../hw-latest/verilated", optional = true, features = ["verilator"] }
+rand = "0.8"
