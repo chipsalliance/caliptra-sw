@@ -42,9 +42,9 @@ pub extern "C" fn entry_point() -> ! {
         cprintln!("[rt] FHT FMC PrivKey KV KeyID: {}", fht.fmc_priv_key_kv_idx);
         cprintln!("[rt] FHT RT Load Address: 0x{:08x}", fht.rt_fw_load_addr);
         cprintln!("[rt] FHT RT Entry Point: 0x{:08x}", fht.rt_fw_load_addr);
-        caliptra_lib::ExitCtrl::exit(0)
+        caliptra_drivers::ExitCtrl::exit(0)
     } else {
-        caliptra_lib::ExitCtrl::exit(0xff)
+        caliptra_drivers::ExitCtrl::exit(0xff)
     }
 }
 
@@ -60,7 +60,7 @@ extern "C" fn exception_handler(trap_record: &TrapRecord) {
     );
 
     // Signal non-fatal error to SOC
-    caliptra_lib::report_fw_error_non_fatal(0xdead0);
+    caliptra_drivers::report_fw_error_non_fatal(0xdead0);
 
     loop {}
 }

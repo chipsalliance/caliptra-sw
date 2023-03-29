@@ -51,7 +51,7 @@ pub extern "C" fn entry_point() -> ! {
         let env = fmc_env::FmcEnv::default();
         launch_rt(&env)
     } else {
-        caliptra_lib::ExitCtrl::exit(0xff)
+        caliptra_drivers::ExitCtrl::exit(0xff)
     }
 }
 
@@ -67,7 +67,7 @@ extern "C" fn exception_handler(trap_record: &TrapRecord) {
     );
 
     // Signal non-fatal error to SOC
-    caliptra_lib::report_fw_error_non_fatal(0xdead0);
+    caliptra_drivers::report_fw_error_non_fatal(0xdead0);
 
     loop {}
 }

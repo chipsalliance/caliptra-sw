@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::caliptra_err_def;
-use caliptra_lib::{Array4x5, Array4xN, CaliptraResult, Sha1};
+use caliptra_drivers::{Array4x5, Array4xN, CaliptraResult, Sha1};
 
 caliptra_err_def! {
     Sha1Kat,

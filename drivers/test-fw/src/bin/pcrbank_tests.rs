@@ -15,7 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_lib::{PcrBank, PcrId};
+use caliptra_drivers::{PcrBank, PcrId};
 
 mod harness;
 

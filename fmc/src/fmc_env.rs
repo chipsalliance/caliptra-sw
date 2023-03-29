@@ -16,7 +16,7 @@ Abstract:
 --*/
 use crate::fmc_env_cell::FmcEnvCell;
 
-use caliptra_lib::{
+use caliptra_drivers::{
     DataVault, DeviceState, FlowStatus, FuseBank, Hmac384, KeyVault, Mailbox, MfgState, PcrBank,
     ResetService, Sha1, Sha256, Sha384, Sha384Acc,
 };

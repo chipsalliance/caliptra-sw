@@ -73,5 +73,5 @@ opt-level = 3
 opt-level = 3
 [profile.test.package.tock-registers]
 opt-level = 3
-[profile.test.package.caliptra-lib]
+[profile.test.package.caliptra-drivers]
 opt-level = 3

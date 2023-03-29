@@ -58,7 +58,7 @@ pub extern "C" fn fmc_entry() -> ! {
     cprintln!("[fmc] FHT RT Load Address: 0x{:08x}", fht.rt_fw_load_addr);
     cprintln!("[fmc] FHT RT Entry Point: 0x{:08x}", fht.rt_fw_load_addr);
 
-    caliptra_lib::ExitCtrl::exit(0)
+    caliptra_drivers::ExitCtrl::exit(0)
 }
 
 #[no_mangle]

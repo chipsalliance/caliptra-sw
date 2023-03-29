@@ -19,7 +19,7 @@ mod warm_reset;
 
 use crate::rom_env::RomEnv;
 use caliptra_common::FirmwareHandoffTable;
-use caliptra_lib::{CaliptraResult, ResetReason};
+use caliptra_drivers::{CaliptraResult, ResetReason};
 
 pub use cold_reset::KEY_ID_CDI;
 pub use cold_reset::KEY_ID_PRIV_KEY;

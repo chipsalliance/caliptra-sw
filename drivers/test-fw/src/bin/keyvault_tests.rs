@@ -15,7 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_lib::{KeyId, KeyUsage, KeyVault};
+use caliptra_drivers::{KeyId, KeyUsage, KeyVault};
 mod harness;
 
 const KEY_IDS: [KeyId; 32] = [
