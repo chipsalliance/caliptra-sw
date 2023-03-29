@@ -47,10 +47,21 @@ impl From<Box<dyn FnMut(u8) + 'static>> for TbServicesCb {
     }
 }
 
-type ReadyForFwFn = Box<dyn FnMut(&mut Mailbox)>;
+type ReadyForFwCbSchedFn<'a> = dyn FnOnce(u64, Box<dyn FnOnce(&mut Mailbox)>) + 'a;
+pub struct ReadyForFwCbArgs<'a> {
+    pub mailbox: &'a mut Mailbox,
+    pub(crate) sched_fn: Box<ReadyForFwCbSchedFn<'a>>,
+}
+impl<'a> ReadyForFwCbArgs<'a> {
+    pub fn schedule_later(self, ticks_from_now: u64, cb: impl FnOnce(&mut Mailbox) + 'static) {
+        (self.sched_fn)(ticks_from_now, Box::new(cb));
+    }
+}
+
+type ReadyForFwFn = Box<dyn FnMut(ReadyForFwCbArgs)>;
 pub struct ReadyForFwCb(pub ReadyForFwFn);
 impl ReadyForFwCb {
-    pub fn new(f: impl FnMut(&mut Mailbox) + 'static) -> Self {
+    pub fn new(f: impl FnMut(ReadyForFwCbArgs) + 'static) -> Self {
         Self(Box::new(f))
     }
     pub(crate) fn take(&mut self) -> ReadyForFwFn {
@@ -69,8 +80,8 @@ impl std::fmt::Debug for ReadyForFwCb {
             .finish()
     }
 }
-impl From<Box<dyn FnMut(&mut Mailbox) + 'static>> for ReadyForFwCb {
-    fn from(value: Box<dyn FnMut(&mut Mailbox)>) -> Self {
+impl From<Box<dyn FnMut(ReadyForFwCbArgs) + 'static>> for ReadyForFwCb {
+    fn from(value: Box<dyn FnMut(ReadyForFwCbArgs)>) -> Self {
         Self(value)
     }
 }
