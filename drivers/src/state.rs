@@ -63,6 +63,16 @@ impl DeviceState {
         let soc_ifc_regs = caliptra_registers::soc_ifc::RegisterBlock::soc_ifc_reg();
         soc_ifc_regs.cptra_security_state().read().debug_locked()
     }
+
+    /// Locks or unlocks the ICCM.
+    ///
+    /// # Arguments
+    /// * `lock` - Desired lock state of the ICCM
+    ///
+    pub fn set_iccm_lock(&mut self, lock: bool) {
+        let soc_ifc_regs = caliptra_registers::soc_ifc::RegisterBlock::soc_ifc_reg();
+        soc_ifc_regs.internal_iccm_lock().modify(|w| w.lock(lock));
+    }
 }
 
 bitflags::bitflags! {
