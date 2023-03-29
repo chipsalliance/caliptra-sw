@@ -13,22 +13,19 @@ Abstract:
 --*/
 
 mod config;
-mod crypto;
-mod executable;
 
 use anyhow::Context;
 use caliptra_image_gen::*;
+use caliptra_image_openssl::ecc_priv_key_from_pem;
+use caliptra_image_openssl::ecc_pub_key_from_pem;
 use caliptra_image_serde::ImageBundleWriter;
 use caliptra_image_types::*;
 use clap::ArgMatches;
 use std::path::Path;
 use std::path::PathBuf;
 
+use caliptra_image_elf::ElfExecutable;
 use config::{OwnerKeyConfig, VendorKeyConfig};
-use crypto::OsslCrypto;
-use executable::ElfExecutable;
-
-use self::crypto::{ecc_priv_key_from_pem, ecc_pub_key_from_pem};
 
 /// Run the command
 pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
@@ -79,7 +76,7 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
     let config = config::load_key_config(config_path)?;
 
     let fmc_rev = hex::decode(fmc_rev)?;
-    let fmc = ElfExecutable::new(
+    let fmc = ElfExecutable::open(
         fmc_path,
         *fmc_svn,
         *fmc_min_svn,
@@ -87,7 +84,7 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
     )?;
 
     let runtime_rev = hex::decode(runtime_rev)?;
-    let runtime = ElfExecutable::new(
+    let runtime = ElfExecutable::open(
         runtime_path,
         *runtime_svn,
         *runtime_min_svn,
@@ -105,7 +102,7 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         runtime,
     };
 
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(caliptra_image_openssl::OsslCrypto::default());
     let image = gen.generate(&gen_config).unwrap();
 
     let out_file = std::fs::OpenOptions::new()
