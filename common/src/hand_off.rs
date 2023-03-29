@@ -131,8 +131,11 @@ impl FirmwareHandoffTable {
             && self.fmc_pub_key_y_dv_idx != FHT_INVALID_IDX
             && self.fmc_cert_sig_r_dv_idx != FHT_INVALID_IDX
             && self.fmc_cert_sig_s_dv_idx != FHT_INVALID_IDX
+            && self.rt_fw_load_addr != FHT_INVALID_ADDRESS
             && self.rt_tci_dv_idx != FHT_INVALID_IDX
             && self.rt_fw_entry_point != FHT_INVALID_ADDRESS
+            // This is for Gen1 POR.
+            && self.fips_fw_load_addr == FHT_INVALID_ADDRESS
     }
     /// Load FHT from its fixed address and perform validity check of
     /// its data.
@@ -152,18 +155,6 @@ impl FirmwareHandoffTable {
             return Some(fht);
         }
         None
-    }
-    pub fn save_fht(fht: FirmwareHandoffTable) {
-        extern "C" {
-            static mut FHT_ORG: u8;
-        }
-
-        let slice = unsafe {
-            let ptr = &mut FHT_ORG as *mut u8;
-            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
-        };
-
-        slice.copy_from_slice(fht.as_bytes());
     }
 }
 
