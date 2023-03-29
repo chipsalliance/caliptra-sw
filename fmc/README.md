@@ -11,6 +11,7 @@
 |            |         | Add details/clarifications in FMC Boot steps including where to store artifacts    |
 |            |         | Add Firmware Handoff Table (FHT) definition                                        |
 | 03/21/2023 | 0.5     | Additional fields added to FHT                                                     |
+| 03/29/2023 | 0.5     | Changed the value for invalid adress fields in FHT                                                     |
 
 ## Scope
 
@@ -35,6 +36,7 @@ As an architecture specification for FMC, this document describes the following 
 | RoT                 | Root of Trust                                                             |
 | RT                  | Runtime                                                                   |
 | RTM                 | Root of Trust for Measurement                                             |
+| TCI                 | Trusted Component Identifier                                              |
 | SVN                 | Security Version Number                                                   |
 
 ## Overview
@@ -110,7 +112,7 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | fht_major_ver         | 2            | ROM        | Major version of FHT.                                                                                    |
 | fht_minor_ver         | 2            | ROM, FMC   | Minor version of FHT. Initially written by ROM but may be changed to a higher version by FMC.            |
 | manifest_load_addr    | 4            | ROM        | Physical base address of Manifest in DCCM SRAM.                                                          |
-| fips_fw_load_addr     | 4            | ROM        | Physical base address of FIPS Module in ROM or ICCM SRAM. May be NULL if there is no discrete module.    |
+| fips_fw_load_addr     | 4            | ROM        | Physical base address of FIPS Module in ROM or ICCM SRAM. May be 0xFFFF_FFFF if there is no discrete module.    |
 | rt_fw_load_addr       | 4            | ROM        | Physical base address of Runtime FW Module in ICCM SRAM.                                                 |
 | rt_fw_entry_point     | 4            | ROM        | Entry point of Runtime FW Module in ICCM SRAM.                                                           |
 | fmc_tci_dv_idx        | 1            | ROM        | Index of FMC TCI value in the Data Vault.                                                                |
@@ -156,7 +158,7 @@ is able to re-run firmware integrity checks on-demand (required by FIPS 140-3).
 ### fips_fw_load_addr
 
 *Future feature, not currently supported.* This is the physical address of the location in ROM or SRAM where a discrete FIPS Crypto module resides. If a
-discrete FIPS module does not exist, then this field shall be NULL and ROM, FMC, and RT FW must all carry their own code for accessing crypto resources and
+discrete FIPS module does not exist, then this field shall be 0xFFFF_FFFF and ROM, FMC, and RT FW must all carry their own code for accessing crypto resources and
 keys.
 
 ### rt_fw_load_addr
@@ -226,7 +228,7 @@ The following list of steps are to be performed by FMC on each boot when ROM jum
 1. FMC locates the Firmware Handoff Table (FHT) responsible for passing vital configuration and other data from one firmware layer to the next. This is found
    at well-known address CALIPTRA_FHT_ADDR.
 1. FMC sanity checks FHT by verifying that fht.fht_marker == ‘CFHT’ and version is known/supported by FMC.
-1. FMC locates the discrete FW-based FIPS Crypto Module in ICCM using Fht.FipsFwBaseAddr (if not NULL) and calls its initialization routine. Otherwise FMC
+1. FMC locates the discrete FW-based FIPS Crypto Module in ICCM using fht.fips_fw_base_addr (if not 0xFFFF_FFFF) and calls its initialization routine. Otherwise FMC
    utilizes the ROM-based FIPS Crypto Module or its own internal FIPS Crypto services in implementations without a discrete FW-based FIPS Crypto Module.
 1. FMC locates the Manifest at fht.manifest_load_addr.
 1. FMC reads the measurement of the Runtime FW Module, TCI<sub>RT</sub>, from the Data Vault that has previously been validated by ROM.
