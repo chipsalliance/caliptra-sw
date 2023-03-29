@@ -147,7 +147,9 @@ caliptra_top caliptra_top_dut (
     //FIXME: export these
     .cptra_error_fatal(),
     .cptra_error_non_fatal(),
-    .trng_req(),
+    .etrng_req(),
+    .itrng_data(),
+    .itrng_valid(),
 
     .security_state(security_state) //FIXME TIE-OFF
 );

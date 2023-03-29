@@ -141,6 +141,7 @@ impl Crypto {
         seed: KeyId,
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
+        // [TODO] Add Nonce to the ecc384_key_gen function
         let seed = Ecc384Seed::Key(KeyReadArgs::new(seed));
 
         let mut usage = KeyUsage::default();
@@ -150,7 +151,9 @@ impl Crypto {
 
         Ok(Ecc384KeyPair {
             priv_key,
-            pub_key: env.ecc384().map(|e| e.key_pair(seed, key_out))?,
+            pub_key: env
+                .ecc384()
+                .map(|e| e.key_pair(seed, &Array4x12::default(), key_out))?,
         })
     }
 
