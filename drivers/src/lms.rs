@@ -31,6 +31,7 @@ caliptra_err_def! {
         InvalidPValue = 0x04,
         InvalidHashWidth = 0x05,
         InvalidTreeHeight = 0x06,
+        InvalidQValue = 0x07,
     }
 }
 #[derive(Default, Debug)]
@@ -278,7 +279,7 @@ pub fn get_lms_parameters(algo_type: &LmsAlgorithmType) -> CaliptraResult<(u8, u
 
 // follows pseudo code at https://www.rfc-editor.org/rfc/rfc8554#section-3.1.3
 fn coefficient(s: &[u8], i: usize, w: usize) -> u8 {
-    let blah: u16 = (1 << (w)) - 1;
+    let bitmask: u16 = (1 << (w)) - 1;
     let index = i * w / 8;
     let b = s[index];
 
@@ -297,17 +298,17 @@ fn coefficient(s: &[u8], i: usize, w: usize) -> u8 {
     if shift < 8 {
         rs = b >> shift;
     }
-    let small_blah = blah as u8;
-    small_blah & rs
+    let small_bitmask = bitmask as u8;
+    small_bitmask & rs
 }
 
 fn checksum(algo_type: &LmotsAlgorithmType, input_string: &[u8]) -> CaliptraResult<u16> {
     let params = get_lmots_parameters(algo_type)?;
     let mut sum = 0u16;
     let upper_bound = params.n as u16 * (8 / params.w as u16);
+    let bitmask = (1 << params.w) - 1;
     for i in 0..upper_bound as usize {
-        sum =
-            sum + ((1 << params.w) - 1) - (coefficient(input_string, i, params.w as usize) as u16);
+        sum += bitmask - (coefficient(input_string, i, params.w as usize) as u16);
     }
     let shifted = sum << params.ls;
     Ok(shifted)
@@ -346,7 +347,7 @@ pub fn candidate_ots_signature<const N: usize, const P: usize>(
     if params.p as usize != P {
         raise_err!(InvalidPValue);
     }
-    if params.n > 34 {
+    if params.n > 32 {
         raise_err!(InvalidHashWidth);
     }
     if params.n as usize != N {
@@ -430,6 +431,9 @@ pub fn verify_lms_signature<const N: usize, const P: usize>(
         _ => raise_err!(InvalidTreeHeight),
     }
 
+    if q > 2u32.pow(tree_height as u32) - 1 {
+        raise_err!(InvalidQValue);
+    }
     let mut node_num = (1 << tree_height) + q;
     let mut digest = Array4x8::default();
     let sha = Sha256::default();
