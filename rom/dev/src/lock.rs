@@ -16,7 +16,7 @@ use caliptra_drivers::{
     ColdResetEntry4, ColdResetEntry48, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
 
-use crate::rom_env::RomEnv;
+use crate::{cprintln, rom_env::RomEnv};
 
 /// Lock registers
 ///
@@ -25,6 +25,7 @@ use crate::rom_env::RomEnv;
 /// * `env` - ROM Environment
 /// * `reset_reason` - Reset reason
 pub fn lock_registers(env: &RomEnv, reset_reason: ResetReason) {
+    cprintln!("[state] Locking Datavault");
     if reset_reason == ResetReason::ColdReset {
         lock_cold_reset_reg(env);
         lock_warm_reset_reg(env);
@@ -32,6 +33,9 @@ pub fn lock_registers(env: &RomEnv, reset_reason: ResetReason) {
         lock_warm_reset_reg(env);
     } else if reset_reason == ResetReason::UpdateReset {
     }
+
+    cprintln!("[state] Locking ICCM");
+    env.dev_state().map(|d| d.set_iccm_lock(true));
 }
 
 /// Lock registers on a cold reset
