@@ -40,8 +40,11 @@ pub extern "C" fn entry_point() -> ! {
         cprintln!("[rt] FHT Manifest Addr: 0x{:08X}", fht.manifest_load_addr);
         cprintln!("[rt] FHT FMC CDI KV KeyID: {}", fht.fmc_cdi_kv_idx);
         cprintln!("[rt] FHT FMC PrivKey KV KeyID: {}", fht.fmc_priv_key_kv_idx);
-        cprintln!("[rt] FHT RT Load Address: 0x{:08x}", fht.rt_fw_load_addr);
-        cprintln!("[rt] FHT RT Entry Point: 0x{:08x}", fht.rt_fw_load_addr);
+        cprintln!(
+            "[rt] FHT RT Load Address: 0x{:08x}",
+            fht.rt_fw_load_addr_idx
+        );
+        cprintln!("[rt] FHT RT Entry Point: 0x{:08x}", fht.rt_fw_load_addr_idx);
         caliptra_drivers::ExitCtrl::exit(0)
     } else {
         caliptra_drivers::ExitCtrl::exit(0xff)

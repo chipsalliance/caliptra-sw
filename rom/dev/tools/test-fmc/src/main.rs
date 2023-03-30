@@ -55,8 +55,14 @@ pub extern "C" fn fmc_entry() -> ! {
         "[fmc] FHT FMC PrivKey KV KeyID: {}",
         fht.fmc_priv_key_kv_idx
     );
-    cprintln!("[fmc] FHT RT Load Address: 0x{:08x}", fht.rt_fw_load_addr);
-    cprintln!("[fmc] FHT RT Entry Point: 0x{:08x}", fht.rt_fw_load_addr);
+    cprintln!(
+        "[fmc] FHT RT Load Address: 0x{:08x}",
+        fht.rt_fw_load_addr_idx
+    );
+    cprintln!(
+        "[fmc] FHT RT Entry Point: 0x{:08x}",
+        fht.rt_fw_load_addr_idx
+    );
 
     caliptra_drivers::ExitCtrl::exit(0)
 }
