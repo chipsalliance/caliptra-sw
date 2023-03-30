@@ -112,9 +112,9 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | fht_major_ver         | 2            | ROM        | Major version of FHT.                                                                                    |
 | fht_minor_ver         | 2            | ROM, FMC   | Minor version of FHT. Initially written by ROM but may be changed to a higher version by FMC.            |
 | manifest_load_addr    | 4            | ROM        | Physical base address of Manifest in DCCM SRAM.                                                          |
-| fips_fw_load_addr     | 4            | ROM        | Physical base address of FIPS Module in ROM or ICCM SRAM. May be 0xFFFF_FFFF if there is no discrete module.    |
-| rt_fw_load_addr       | 4            | ROM        | Physical base address of Runtime FW Module in ICCM SRAM.                                                 |
-| rt_fw_entry_point     | 4            | ROM        | Entry point of Runtime FW Module in ICCM SRAM.                                                           |
+| fips_fw_load_addr_idx | 4            | ROM        | Index of base address of FIPS Module in ROM or ICCM SRAM. May be 0xFF if there is no discrete module.    |
+| rt_fw_load_addr_idx   | 4            | ROM        | Index of load address of Runtime FW Module value in data vault.SRAM.                                                 |
+| rt_fw_entry_point_idx | 4            | ROM        | Index of entry point of Runtime FW Module value in data vault. SRAM.                                                           |
 | fmc_tci_dv_idx        | 1            | ROM        | Index of FMC TCI value in the Data Vault.                                                                |
 | fmc_cdi_kv_idx        | 1            | ROM        | Index of FMC CDI value in the Key Vault. Value of 0xFF indicates not present.                            |
 | fmc_priv_key_kv_idx   | 1            | ROM        | Index of FMC Private Alias Key in the Key Vault.                                                         |
@@ -155,19 +155,19 @@ additional data to the first 4 bytes of the reserved space at the end of the FHT
 This is the physical address of the location in SRAM where ROM has placed a complete copy of the Firmware Manifest. This must remain resident such that firmware
 is able to re-run firmware integrity checks on-demand (required by FIPS 140-3).
 
-### fips_fw_load_addr
+### fips_fw_load_addr_idx
 
-*Future feature, not currently supported.* This is the physical address of the location in ROM or SRAM where a discrete FIPS Crypto module resides. If a
-discrete FIPS module does not exist, then this field shall be 0xFFFF_FFFF and ROM, FMC, and RT FW must all carry their own code for accessing crypto resources and
+*Future feature, not currently supported.* This field provides the index of the DV entry that stores the physical address of the location in ROM or SRAM where a discrete FIPS Crypto module resides. If a
+discrete FIPS module does not exist, then this field shall be 0xFF and ROM, FMC, and RT FW must all carry their own code for accessing crypto resources and
 keys.
 
-### rt_fw_load_addr
+### rt_fw_load_addr_idx
 
-This is the physical address of the location in ICCM SRAM where ROM has placed the authenticated Runtime Firmware module.
+This field provides the index of the DV entry that stores the physical address of the location in ICCM SRAM where ROM has placed the authenticated Runtime Firmware module.
 
-### rt_fw_entry_point
+### rt_fw_entry_point_idx
 
-This is the physical address of the Entry Point of Runtime FW Module in ICCM SRAM.
+This field provides the index of the DV entry that stores the physical address of the Entry Point of Runtime FW Module in ICCM SRAM.
 
 ### fmc_tci_dv_idx
 

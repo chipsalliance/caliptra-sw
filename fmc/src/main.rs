@@ -45,8 +45,14 @@ pub extern "C" fn entry_point() -> ! {
             "[fmc] FHT FMC PrivKey KV KeyID: {}",
             fht.fmc_priv_key_kv_idx
         );
-        cprintln!("[fmc] FHT RT Load Address: 0x{:08x}", fht.rt_fw_load_addr);
-        cprintln!("[fmc] FHT RT Entry Point: 0x{:08x}", fht.rt_fw_load_addr);
+        cprintln!(
+            "[fmc] FHT RT Load Address: 0x{:08x}",
+            fht.rt_fw_load_addr_idx
+        );
+        cprintln!(
+            "[fmc] FHT RT Entry Point: 0x{:08x}",
+            fht.rt_fw_load_addr_idx
+        );
 
         let env = fmc_env::FmcEnv::default();
         launch_rt(&env)
