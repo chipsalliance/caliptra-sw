@@ -21,7 +21,7 @@ use core::format_args;
 use core::ops::Fn;
 
 // If not using the runtime entrypoint, include a test start.S
-#[cfg(feature = "riscv")]
+#[cfg(all(feature = "riscv", not(feature = "runtime")))]
 core::arch::global_asm!(include_str!("start.S"));
 
 #[macro_export]
@@ -114,6 +114,9 @@ macro_rules! test_suite {
             main();
             caliptra_drivers::ExitCtrl::exit(0);
         }
+
+        #[cfg(feature = "runtime")]
+        runtime_handlers! {}
     };
 }
 
