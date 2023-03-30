@@ -17,8 +17,8 @@ Abstract:
 use crate::fmc_env_cell::FmcEnvCell;
 
 use caliptra_drivers::{
-    DataVault, DeviceState, FlowStatus, FuseBank, Hmac384, KeyVault, Mailbox, MfgState, PcrBank,
-    ResetService, Sha1, Sha256, Sha384, Sha384Acc,
+    DataVault, DeviceState, Ecc384, FlowStatus, FuseBank, Hmac384, KeyVault, Mailbox, MfgState,
+    PcrBank, ResetService, Sha1, Sha256, Sha384, Sha384Acc,
 };
 
 /// Hardware Context
@@ -40,6 +40,9 @@ pub struct FmcEnv {
 
     /// Hmac384 Engine
     hmac384: FmcEnvCell<Hmac384>,
+
+    /// Ecc384 Engine
+    ecc384: FmcEnvCell<Ecc384>,
 
     /// Key Vault
     key_vault: FmcEnvCell<KeyVault>,
@@ -75,6 +78,7 @@ impl Default for FmcEnv {
             sha384: FmcEnvCell::new(Sha384::default()),
             sha384_acc: FmcEnvCell::new(Sha384Acc::default()),
             hmac384: FmcEnvCell::new(Hmac384::default()),
+            ecc384: FmcEnvCell::new(Ecc384::default()),
             key_vault: FmcEnvCell::new(KeyVault::default()),
             data_vault: FmcEnvCell::new(DataVault::default()),
             dev_state: FmcEnvCell::new(DeviceState::default()),
@@ -156,5 +160,10 @@ impl FmcEnv {
     /// Get PCR Bank
     pub fn pcr_bank(&self) -> &FmcEnvCell<PcrBank> {
         &self.pcr_bank
+    }
+
+    /// Get ECC-384 engine reference
+    pub fn ecc384(&self) -> &FmcEnvCell<Ecc384> {
+        &self.ecc384
     }
 }

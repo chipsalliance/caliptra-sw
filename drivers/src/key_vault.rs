@@ -54,6 +54,47 @@ pub enum KeyId {
     KeyId31 = 31,
 }
 
+impl TryFrom<u8> for KeyId {
+    type Error = ();
+    fn try_from(original: u8) -> Result<Self, Self::Error> {
+        match original {
+            0 => Ok(Self::KeyId0),
+            1 => Ok(Self::KeyId1),
+            2 => Ok(Self::KeyId2),
+            3 => Ok(Self::KeyId3),
+            4 => Ok(Self::KeyId4),
+            5 => Ok(Self::KeyId5),
+            6 => Ok(Self::KeyId6),
+            7 => Ok(Self::KeyId7),
+            8 => Ok(Self::KeyId8),
+            9 => Ok(Self::KeyId9),
+            10 => Ok(Self::KeyId10),
+            11 => Ok(Self::KeyId11),
+            12 => Ok(Self::KeyId12),
+            13 => Ok(Self::KeyId13),
+            14 => Ok(Self::KeyId14),
+            15 => Ok(Self::KeyId15),
+            16 => Ok(Self::KeyId16),
+            17 => Ok(Self::KeyId17),
+            18 => Ok(Self::KeyId18),
+            19 => Ok(Self::KeyId19),
+            20 => Ok(Self::KeyId20),
+            21 => Ok(Self::KeyId21),
+            22 => Ok(Self::KeyId22),
+            23 => Ok(Self::KeyId23),
+            24 => Ok(Self::KeyId24),
+            25 => Ok(Self::KeyId25),
+            26 => Ok(Self::KeyId26),
+            27 => Ok(Self::KeyId27),
+            28 => Ok(Self::KeyId28),
+            29 => Ok(Self::KeyId29),
+            30 => Ok(Self::KeyId30),
+            31 => Ok(Self::KeyId31),
+            _ => Err(()),
+        }
+    }
+}
+
 impl From<KeyId> for u8 {
     /// Converts to this type from the input type.
     fn from(key_id: KeyId) -> Self {
