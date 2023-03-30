@@ -420,10 +420,27 @@ dependencies = [
  "caliptra-builder",
  "caliptra-cpu",
  "caliptra-drivers",
+ "caliptra-hw-model",
+ "caliptra-image-elf",
+ "caliptra-image-fake-keys",
+ "caliptra-image-gen",
+ "caliptra-image-openssl",
+ "caliptra-image-serde",
+ "caliptra-image-types",
  "caliptra_common",
  "cfg-if",
  "ufmt",
  "zerocopy",
+]
+
+[[package]]
+name = "caliptra-runtime-test-bin"
+version = "0.1.0"
+dependencies = [
+ "caliptra-cpu",
+ "caliptra-drivers",
+ "caliptra-test-harness",
+ "cfg-if",
 ]
 
 [[package]]

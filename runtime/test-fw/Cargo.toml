@@ -1,0 +1,27 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "caliptra-runtime-test-bin"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+runtime = ["caliptra-test-harness/runtime"]
+riscv = ["caliptra-cpu/riscv", "runtime"]
+emu = [
+    "caliptra-drivers/emu"
+]
+
+[[bin]]
+name = "boot"
+path = "src/boot_tests.rs"
+required-features = ["riscv"]
+
+[build-dependencies]
+cfg-if = "1.0.0"
+
+[dependencies]
+caliptra-test-harness = { path = "../../test-harness" }
+caliptra-cpu = { version = "0.1.0", path = "../../cpu" }
+caliptra-drivers = { path = "../../drivers" }
+cfg-if = "1.0.0"

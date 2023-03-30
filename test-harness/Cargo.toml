@@ -9,6 +9,9 @@ edition = "2021"
 emu = []
 riscv = []
 
+# Whether or not this is a harness for a runtime firmware image
+runtime = []
+
 [dependencies]
 cfg-if = "1.0.0"
 caliptra-drivers = { path = "../drivers", features=["emu"] }
