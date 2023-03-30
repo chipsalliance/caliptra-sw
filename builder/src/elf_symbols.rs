@@ -178,6 +178,5 @@ mod test {
                 bind: SymbolBind::Global,
             })
         );
-        println!("{:?}", symbols);
     }
 }

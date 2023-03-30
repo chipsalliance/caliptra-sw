@@ -69,6 +69,42 @@ pub struct ImageBundle {
     pub runtime: Vec<u8>,
 }
 
+#[cfg(feature = "std")]
+impl ImageBundle {
+    pub fn to_bytes(&self) -> std::io::Result<Vec<u8>> {
+        use std::io::ErrorKind;
+        let mut result = vec![];
+        result.extend_from_slice(self.manifest.as_bytes());
+        if self.manifest.fmc.offset as usize != result.len() {
+            return Err(std::io::Error::new(
+                ErrorKind::Other,
+                "actual fmc offset does not match manifest",
+            ));
+        }
+        if self.manifest.fmc.size as usize != self.fmc.len() {
+            return Err(std::io::Error::new(
+                ErrorKind::Other,
+                "actual fmc size does not match manifest",
+            ));
+        }
+        result.extend_from_slice(&self.fmc);
+        if self.manifest.runtime.offset as usize != result.len() {
+            return Err(std::io::Error::new(
+                ErrorKind::Other,
+                "actual runtime offset does not match manifest",
+            ));
+        }
+        if self.manifest.runtime.size as usize != self.runtime.len() {
+            return Err(std::io::Error::new(
+                ErrorKind::Other,
+                "actual runtime size does not match manifest",
+            ));
+        }
+        result.extend_from_slice(&self.runtime);
+        Ok(result)
+    }
+}
+
 /// Calipatra Image Manifest
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug)]

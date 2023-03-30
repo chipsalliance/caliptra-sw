@@ -3,8 +3,14 @@
 use std::fs;
 use std::io::{self, ErrorKind};
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
+use caliptra_image_elf::ElfExecutable;
+use caliptra_image_gen::{
+    ImageGenerator, ImageGeneratorConfig, ImageGeneratorOwnerConfig, ImageGeneratorVendorConfig,
+};
+use caliptra_image_openssl::OsslCrypto;
+use caliptra_image_types::ImageRevision;
 use elf::endian::LittleEndian;
 
 mod elf_symbols;
@@ -20,6 +26,18 @@ pub const ROM: FwId = FwId {
 pub const ROM_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
+    features: &["emu"],
+};
+
+pub const FMC_WITH_UART: FwId = FwId {
+    crate_name: "caliptra-fmc",
+    bin_name: "caliptra-fmc",
+    features: &["emu"],
+};
+
+pub const APP_WITH_UART: FwId = FwId {
+    crate_name: "caliptra-runtime",
+    bin_name: "caliptra-runtime",
     features: &["emu"],
 };
 
@@ -41,6 +59,28 @@ fn run_cmd(cmd: &mut Command) -> io::Result<()> {
                 status.code()
             ),
         ))
+    }
+}
+
+fn run_cmd_stdout(cmd: &mut Command, input: Option<&[u8]>) -> io::Result<String> {
+    cmd.stdin(Stdio::piped());
+    cmd.stdout(Stdio::piped());
+
+    let mut child = cmd.spawn()?;
+    if let (Some(mut stdin), Some(input)) = (child.stdin.take(), input) {
+        std::io::Write::write_all(&mut stdin, input)?;
+    }
+    let out = child.wait_with_output()?;
+    if out.status.success() {
+        Ok(String::from_utf8_lossy(&out.stdout).into())
+    } else {
+        Err(other_err(format!(
+            "Process {:?} {:?} exited with status code {:?} stderr {}",
+            cmd.get_program(),
+            cmd.get_args(),
+            out.status.code(),
+            String::from_utf8_lossy(&out.stderr)
+        )))
     }
 }
 
@@ -128,8 +168,78 @@ pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
     Ok(result)
 }
 
+pub struct ImageOptions {
+    fmc_min_svn: u32,
+    fmc_svn: u32,
+    app_min_svn: u32,
+    app_svn: u32,
+    vendor_config: ImageGeneratorVendorConfig,
+    owner_config: Option<ImageGeneratorOwnerConfig>,
+}
+impl Default for ImageOptions {
+    fn default() -> Self {
+        Self {
+            fmc_min_svn: Default::default(),
+            fmc_svn: Default::default(),
+            app_min_svn: Default::default(),
+            app_svn: Default::default(),
+            vendor_config: caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0,
+            owner_config: Some(caliptra_image_fake_keys::OWNER_CONFIG),
+        }
+    }
+}
+
+pub fn build_and_sign_image(fmc: &FwId, app: &FwId, opts: ImageOptions) -> anyhow::Result<Vec<u8>> {
+    let fmc_elf = build_firmware_elf(fmc)?;
+    let app_elf = build_firmware_elf(app)?;
+    let gen = ImageGenerator::new(OsslCrypto::default());
+    let image = gen.generate(&ImageGeneratorConfig {
+        fmc: ElfExecutable::new(
+            &fmc_elf,
+            opts.fmc_min_svn,
+            opts.fmc_svn,
+            image_revision_from_git_repo()?,
+        )?,
+        runtime: ElfExecutable::new(
+            &app_elf,
+            opts.app_min_svn,
+            opts.app_svn,
+            image_revision_from_git_repo()?,
+        )?,
+        vendor_config: opts.vendor_config,
+        owner_config: opts.owner_config,
+    })?;
+    Ok(image.to_bytes()?)
+}
+
+fn image_revision_from_git_repo() -> io::Result<ImageRevision> {
+    let commit_id = run_cmd_stdout(Command::new("git").arg("rev-parse").arg("HEAD"), None)?;
+    let rtl_git_status =
+        run_cmd_stdout(Command::new("git").arg("status").arg("--porcelain"), None)?;
+    image_revision_from_str(&commit_id, rtl_git_status.is_empty())
+}
+
+fn image_revision_from_str(commit_id_str: &str, is_clean: bool) -> io::Result<ImageRevision> {
+    // (dirtdirtdirtdirtdirt)
+    const DIRTY_SUFFIX: [u8; 10] = [0xd1, 0x47, 0xd1, 0x47, 0xd1, 0x47, 0xd1, 0x47, 0xd1, 0x47];
+
+    let mut commit_id = ImageRevision::default();
+    hex::decode_to_slice(commit_id_str.trim(), &mut commit_id).map_err(|e| {
+        other_err(format!(
+            "Unable to decode git commit {commit_id_str:?}: {e}"
+        ))
+    })?;
+
+    if !is_clean {
+        // spoil the revision because the git client is dirty
+        commit_id[10..].copy_from_slice(&DIRTY_SUFFIX);
+    }
+    Ok(commit_id)
+}
+
 #[cfg(test)]
 mod test {
+
     use super::*;
 
     #[test]
@@ -147,5 +257,34 @@ mod test {
     fn test_elf2rom_golden() {
         let rom_bytes = elf2rom(include_bytes!("testdata/example.elf")).unwrap();
         assert_eq!(&rom_bytes, include_bytes!("testdata/example.rom.golden"));
+    }
+
+    #[test]
+    fn test_image_revision_from_str() {
+        assert_eq!(
+            image_revision_from_str("d6a462a63a9cf2dafa5bbc6cf78b1fccc308009a", true).unwrap(),
+            [
+                0xd6, 0xa4, 0x62, 0xa6, 0x3a, 0x9c, 0xf2, 0xda, 0xfa, 0x5b, 0xbc, 0x6c, 0xf7, 0x8b,
+                0x1f, 0xcc, 0xc3, 0x08, 0x00, 0x9a
+            ]
+        );
+        assert_eq!(
+            image_revision_from_str("d6a462a63a9cf2dafa5bbc6cf78b1fccc308009a\n", true).unwrap(),
+            [
+                0xd6, 0xa4, 0x62, 0xa6, 0x3a, 0x9c, 0xf2, 0xda, 0xfa, 0x5b, 0xbc, 0x6c, 0xf7, 0x8b,
+                0x1f, 0xcc, 0xc3, 0x08, 0x00, 0x9a
+            ]
+        );
+        assert_eq!(
+            image_revision_from_str("d6a462a63a9cf2dafa5bbc6cf78b1fccc308009a", false).unwrap(),
+            [
+                0xd6, 0xa4, 0x62, 0xa6, 0x3a, 0x9c, 0xf2, 0xda, 0xfa, 0x5b, 0xd1, 0x47, 0xd1, 0x47,
+                0xd1, 0x47, 0xd1, 0x47, 0xd1, 0x47
+            ]
+        );
+        assert_eq!(
+            image_revision_from_str("d6a462a63a9cf2dafa5bbc6cf78b1fccc30800", false).unwrap_err().to_string(),
+            "Unable to decode git commit \"d6a462a63a9cf2dafa5bbc6cf78b1fccc30800\": Invalid string length");
+        assert!(image_revision_from_str("d6a462a63a9cf2dafa5bbc6cf78b1fccc308009g", true).is_err());
     }
 }
