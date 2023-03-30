@@ -149,6 +149,7 @@ dependencies = [
  "caliptra-drivers",
  "caliptra-kat",
  "caliptra-registers",
+ "caliptra-test-harness",
  "cfg-if",
 ]
 
@@ -435,6 +436,14 @@ version = "0.1.0"
 dependencies = [
  "caliptra-builder",
  "caliptra-hw-model",
+]
+
+[[package]]
+name = "caliptra-test-harness"
+version = "0.1.0"
+dependencies = [
+ "caliptra-drivers",
+ "cfg-if",
 ]
 
 [[package]]

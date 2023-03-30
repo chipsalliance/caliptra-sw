@@ -21,7 +21,7 @@ use caliptra_drivers::{
 };
 use caliptra_registers::soc_ifc;
 
-mod harness;
+use caliptra_test_harness::test_suite;
 
 fn test_report_fw_error() {
     let v: u32 = 0xdead0;

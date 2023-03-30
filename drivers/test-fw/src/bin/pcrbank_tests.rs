@@ -17,7 +17,7 @@ Abstract:
 
 use caliptra_drivers::{PcrBank, PcrId};
 
-mod harness;
+use caliptra_test_harness::test_suite;
 
 const PCR_IDS: [PcrId; 32] = [
     PcrId::PcrId0,

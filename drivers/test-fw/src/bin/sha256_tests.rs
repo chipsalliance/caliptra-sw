@@ -18,7 +18,7 @@ Abstract:
 use caliptra_drivers::{Array4x8, Sha256};
 use caliptra_kat::Sha256Kat;
 
-mod harness;
+use caliptra_test_harness::test_suite;
 
 fn test_digest0() {
     let expected: [u8; 32] = [
