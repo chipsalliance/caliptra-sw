@@ -1,6 +1,9 @@
 // Licensed under the Apache-2.0 license
 
-use std::{error::Error, io::ErrorKind};
+use std::{
+    error::Error,
+    io::{stdout, ErrorKind},
+};
 
 use caliptra_emu_bus::Bus;
 
@@ -43,7 +46,6 @@ pub fn create(params: InitParams) -> Result<ModelVerilated, Box<dyn Error>> {
     ModelVerilated::init(params)
 }
 
-#[derive(Default)]
 pub struct InitParams<'a> {
     // The contents of the boot ROM
     pub rom: &'a [u8],
@@ -53,8 +55,21 @@ pub struct InitParams<'a> {
 
     // The initial contents of the ICCM SRAM
     pub iccm: &'a [u8],
+
+    pub log_writer: Box<dyn std::io::Write>,
+}
+impl<'a> Default for InitParams<'a> {
+    fn default() -> Self {
+        Self {
+            rom: Default::default(),
+            dccm: Default::default(),
+            iccm: Default::default(),
+            log_writer: Box::new(stdout()),
+        }
+    }
 }
 
+#[derive(Debug)]
 pub enum ModelError {
     MailboxErr,
     NotReadyForFwErr,
@@ -92,6 +107,10 @@ pub trait HwModel {
         while !predicate(self) {
             self.step();
         }
+    }
+
+    fn step_until_exit_success(&mut self) -> std::io::Result<()> {
+        self.copy_output_until_exit_success(std::io::Sink::default())
     }
 
     fn copy_output_until_exit_success(
