@@ -110,6 +110,10 @@ impl crate::HwModel for ModelVerilated {
         &mut self.output
     }
 
+    fn ready_for_fw(&self) -> bool {
+        self.v.output.ready_for_fw_push
+    }
+
     fn tracing_hint(&mut self, enable: bool) {
         if self.trace_enabled != enable {
             self.trace_enabled = enable;
