@@ -23,8 +23,11 @@ pub enum RomComponent {
     /// FMC Alias Layer
     FmcAlias = 0x102,
 
+    /// Update Reset Errors
+    UpdateReset = 0x103,
+
     /// Global Error
-    Global = 0x103,
+    Global = 0x104,
 }
 
 #[macro_export]
