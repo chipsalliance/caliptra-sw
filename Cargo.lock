@@ -405,6 +405,14 @@ name = "caliptra-systemrdl"
 version = "0.1.0"
 
 [[package]]
+name = "caliptra-test"
+version = "0.1.0"
+dependencies = [
+ "caliptra-builder",
+ "caliptra-hw-model",
+]
+
+[[package]]
 name = "caliptra-verilated"
 version = "0.1.0"
 

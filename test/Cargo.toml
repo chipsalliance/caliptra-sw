@@ -1,0 +1,15 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "caliptra-test"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dev-dependencies]
+caliptra-builder = { path = "../builder" }
+caliptra-hw-model = { path = "../hw-model" }
+
+[features]
+verilator = ["caliptra-hw-model/verilator"]

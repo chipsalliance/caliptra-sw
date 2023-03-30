@@ -49,6 +49,7 @@ members = [
   "rom/dev",
   "rom/dev/tools/test-fmc",
   "rom/dev/tools/test-rt",
+  "test",
 ]
 
 [profile.firmware]
