@@ -113,8 +113,8 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | fht_minor_ver         | 2            | ROM, FMC   | Minor version of FHT. Initially written by ROM but may be changed to a higher version by FMC.            |
 | manifest_load_addr    | 4            | ROM        | Physical base address of Manifest in DCCM SRAM.                                                          |
 | fips_fw_load_addr     | 4            | ROM        | Physical base address of FIPS Module in ROM or ICCM SRAM. May be 0xFFFF_FFFF if there is no discrete module.    |
-| rt_fw_load_addr       | 4            | ROM        | Physical base address of Runtime FW Module in ICCM SRAM.                                                 |
-| rt_fw_entry_point     | 4            | ROM        | Entry point of Runtime FW Module in ICCM SRAM.                                                           |
+| rt_fw_load_addr       | 4            | ROM        | Index of load address of Runtime FW Module value in data vault.SRAM.                                                 |
+| rt_fw_entry_point     | 4            | ROM        | Index of entry point of Runtime FW Module value in data vault. SRAM.                                                           |
 | fmc_tci_dv_idx        | 1            | ROM        | Index of FMC TCI value in the Data Vault.                                                                |
 | fmc_cdi_kv_idx        | 1            | ROM        | Index of FMC CDI value in the Key Vault. Value of 0xFF indicates not present.                            |
 | fmc_priv_key_kv_idx   | 1            | ROM        | Index of FMC Private Alias Key in the Key Vault.                                                         |

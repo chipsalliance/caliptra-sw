@@ -31,13 +31,13 @@ pub struct FirmwareHandoffTable {
     pub fips_fw_load_addr: u32,
 
     /// Physical base address of Runtime FW Module in ICCM SRAM.
-    pub rt_fw_load_addr: u32,
-
-    /// Entry point of Runtime FW Module in ICCM SRAM.
-    pub rt_fw_entry_point: u32,
+    pub rt_fw_load_addr: u8,
 
     /// Index of FMC TCI value in the Data Vault.
     pub fmc_tci_dv_idx: u8,
+
+    /// Entry point of Runtime FW Module in ICCM SRAM.
+    pub rt_fw_entry_point: u8,
 
     /// Index of FMC CDI value in the Key Vault. Value of 0xFF indicates not present.
     pub fmc_cdi_kv_idx: u8,
@@ -85,7 +85,7 @@ pub struct FirmwareHandoffTable {
     pub rt_svn_dv_idx: u8,
 
     /// Reserved for future use.
-    pub reserved: [u8; 20],
+    pub reserved: [u8; 26],
 }
 
 impl Default for FirmwareHandoffTable {
@@ -96,9 +96,9 @@ impl Default for FirmwareHandoffTable {
             fht_minor_ver: 0,
             manifest_load_addr: FHT_INVALID_ADDRESS,
             fips_fw_load_addr: FHT_INVALID_ADDRESS,
-            rt_fw_load_addr: FHT_INVALID_ADDRESS,
-            rt_fw_entry_point: FHT_INVALID_ADDRESS,
+            rt_fw_load_addr: FHT_INVALID_IDX,
             fmc_tci_dv_idx: FHT_INVALID_IDX,
+            rt_fw_entry_point: FHT_INVALID_IDX,
             fmc_cdi_kv_idx: FHT_INVALID_IDX,
             fmc_priv_key_kv_idx: FHT_INVALID_IDX,
             fmc_pub_key_x_dv_idx: FHT_INVALID_IDX,
@@ -114,7 +114,7 @@ impl Default for FirmwareHandoffTable {
             rt_cert_sig_r_dv_idx: FHT_INVALID_IDX,
             rt_cert_sig_s_dv_idx: FHT_INVALID_IDX,
             rt_svn_dv_idx: FHT_INVALID_IDX,
-            reserved: [0; 20],
+            reserved: [0; 26],
         }
     }
 }
@@ -131,9 +131,9 @@ impl FirmwareHandoffTable {
             && self.fmc_pub_key_y_dv_idx != FHT_INVALID_IDX
             && self.fmc_cert_sig_r_dv_idx != FHT_INVALID_IDX
             && self.fmc_cert_sig_s_dv_idx != FHT_INVALID_IDX
-            && self.rt_fw_load_addr != FHT_INVALID_ADDRESS
+            && self.rt_fw_load_addr != FHT_INVALID_IDX
             && self.rt_tci_dv_idx != FHT_INVALID_IDX
-            && self.rt_fw_entry_point != FHT_INVALID_ADDRESS
+            && self.rt_fw_entry_point != FHT_INVALID_IDX
             // This is for Gen1 POR.
             && self.fips_fw_load_addr == FHT_INVALID_ADDRESS
     }
