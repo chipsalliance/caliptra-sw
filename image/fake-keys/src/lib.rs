@@ -1,6 +1,10 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_image_types::{ImageEccPrivKey, ImageEccPubKey};
+use caliptra_image_gen::{ImageGeneratorOwnerConfig, ImageGeneratorVendorConfig};
+use caliptra_image_types::{
+    ImageEccPrivKey, ImageEccPubKey, ImageOwnerPrivKeys, ImageOwnerPubKeys, ImageVendorPrivKeys,
+    ImageVendorPubKeys,
+};
 
 /// Generated with
 ///
@@ -98,3 +102,51 @@ pub const OWNER_KEY_PRIVATE: ImageEccPrivKey = [
     0x59fdf849, 0xe39f4256, 0x19342ed2, 0x81d28d3d, 0x45ab3219, 0x5174582c, 0xecb4e9df, 0x9cc2e991,
     0xb75f88fd, 0xfa4bc6a4, 0x6b88340f, 0x05dd8890,
 ];
+
+pub const VENDOR_PUBLIC_KEYS: ImageVendorPubKeys = ImageVendorPubKeys {
+    ecc_pub_keys: [
+        VENDOR_KEY_0_PUBLIC,
+        VENDOR_KEY_1_PUBLIC,
+        VENDOR_KEY_2_PUBLIC,
+        VENDOR_KEY_3_PUBLIC,
+    ],
+};
+
+pub const VENDOR_PRIVATE_KEYS: ImageVendorPrivKeys = ImageVendorPrivKeys {
+    ecc_priv_keys: [
+        VENDOR_KEY_0_PRIVATE,
+        VENDOR_KEY_1_PRIVATE,
+        VENDOR_KEY_2_PRIVATE,
+        VENDOR_KEY_3_PRIVATE,
+    ],
+};
+
+pub const VENDOR_CONFIG_KEY_0: ImageGeneratorVendorConfig = ImageGeneratorVendorConfig {
+    pub_keys: VENDOR_PUBLIC_KEYS,
+    ecc_key_idx: 0,
+    priv_keys: Some(VENDOR_PRIVATE_KEYS),
+};
+
+pub const VENDOR_CONFIG_KEY_1: ImageGeneratorVendorConfig = ImageGeneratorVendorConfig {
+    ecc_key_idx: 1,
+    ..VENDOR_CONFIG_KEY_0
+};
+
+pub const VENDOR_CONFIG_KEY_2: ImageGeneratorVendorConfig = ImageGeneratorVendorConfig {
+    ecc_key_idx: 2,
+    ..VENDOR_CONFIG_KEY_0
+};
+
+pub const VENDOR_CONFIG_KEY_3: ImageGeneratorVendorConfig = ImageGeneratorVendorConfig {
+    ecc_key_idx: 3,
+    ..VENDOR_CONFIG_KEY_0
+};
+
+pub const OWNER_CONFIG: ImageGeneratorOwnerConfig = ImageGeneratorOwnerConfig {
+    pub_keys: ImageOwnerPubKeys {
+        ecc_pub_key: OWNER_KEY_PUBLIC,
+    },
+    priv_keys: Some(ImageOwnerPrivKeys {
+        ecc_priv_key: OWNER_KEY_PRIVATE,
+    }),
+};

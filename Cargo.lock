@@ -275,6 +275,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "caliptra-image-fake-keys"
+version = "0.1.0"
+dependencies = [
+ "caliptra-image-gen",
+ "caliptra-image-openssl",
+ "caliptra-image-types",
+]
+
+[[package]]
 name = "caliptra-image-gen"
 version = "0.1.0"
 dependencies = [
