@@ -50,6 +50,7 @@ out/Vcaliptra_verilated.h: ${VERILATED_DIR}/caliptra_verilated.sv out
 	  --trace \
 	  +libext+.v+.sv +define+RV_OPENSOURCE \
 	  --timescale 1ns/1ps \
+	  --trace-structs \
 	  $(includes) \
 	  -Mdir out \
 	  -MMD \
