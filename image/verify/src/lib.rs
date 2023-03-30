@@ -90,4 +90,13 @@ pub trait ImageVerificationEnv {
 
     // Get Device Lifecycle state
     fn dev_lifecycle(&self, image: Self::Image) -> Lifecycle;
+
+    // Get the vendor key index saved on cold boot in data vault
+    fn vendor_pub_key_idx_dv(&self) -> u32;
+
+    // Get the owner key digest saved on cold boot in data vault
+    fn owner_pub_key_digest_dv(&self) -> ImageDigest;
+
+    // Save the fmc digest in the data vault on cold boot
+    fn get_fmc_digest_dv(&self) -> ImageDigest;
 }
