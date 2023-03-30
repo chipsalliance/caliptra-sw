@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use std::cell::Cell;
 use std::cell::RefCell;
 use std::env;
 use std::error::Error;
@@ -12,6 +13,7 @@ use std::rc::Rc;
 use caliptra_emu_bus::Clock;
 use caliptra_emu_cpu::Cpu;
 use caliptra_emu_cpu::InstrTracer;
+use caliptra_emu_periph::ReadyForFwCb;
 use caliptra_emu_periph::{CaliptraRootBus, CaliptraRootBusArgs, TbServicesCb};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 
@@ -151,6 +153,7 @@ pub struct ModelEmulated {
     cpu: Cpu<BusLogger<CaliptraRootBus>>,
     output: Output,
     trace_fn: Option<Box<InstrTracer<'static>>>,
+    ready_for_fw: Rc<Cell<bool>>,
 }
 
 impl crate::HwModel for ModelEmulated {
@@ -161,6 +164,10 @@ impl crate::HwModel for ModelEmulated {
         Self: Sized,
     {
         let clock = Clock::new();
+
+        let ready_for_fw = Rc::new(Cell::new(false));
+        let ready_for_fw_clone = ready_for_fw.clone();
+
         let output = Output::new(params.log_writer);
 
         let output_sink = output.sink().clone();
@@ -169,6 +176,9 @@ impl crate::HwModel for ModelEmulated {
             rom: params.rom.into(),
             tb_services_cb: TbServicesCb(Box::new(move |ch| {
                 output_sink.push_uart_char(ch);
+            })),
+            ready_for_fw_cb: ReadyForFwCb(Box::new(move |_| {
+                ready_for_fw_clone.set(true);
             })),
             ..CaliptraRootBusArgs::default()
         };
@@ -181,11 +191,16 @@ impl crate::HwModel for ModelEmulated {
             output,
             cpu,
             trace_fn: None,
+            ready_for_fw,
         };
         // Turn tracing on if CPTRA_TRACE_PATH environment variable is set
         m.tracing_hint(true);
 
         Ok(m)
+    }
+
+    fn ready_for_fw(&self) -> bool {
+        self.ready_for_fw.get()
     }
     fn apb_bus(&mut self) -> Self::TBus<'_> {
         EmulatedApbBus { model: self }
