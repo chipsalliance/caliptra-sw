@@ -9,3 +9,10 @@ edition = "2021"
 
 [dependencies]
 elf = "0.7.2"
+caliptra-image-elf = { path = "../image/elf" }
+caliptra-image-fake-keys = { path = "../image/fake-keys" }
+caliptra-image-gen = { path = "../image/gen" }
+caliptra-image-openssl = { path = "../image/openssl" }
+caliptra-image-types = { path = "../image/types" }
+hex = "0.4.3"
+anyhow = "1.0.70"
