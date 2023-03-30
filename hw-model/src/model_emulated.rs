@@ -8,7 +8,6 @@ use std::io::BufWriter;
 use std::io::Write;
 use std::path::Path;
 use std::rc::Rc;
-use std::sync::mpsc;
 
 use caliptra_emu_bus::Clock;
 use caliptra_emu_cpu::Cpu;
@@ -151,7 +150,6 @@ impl<TBus: Bus> Bus for BusLogger<TBus> {
 pub struct ModelEmulated {
     cpu: Cpu<BusLogger<CaliptraRootBus>>,
     output: Output,
-    generic_load_rx: mpsc::Receiver<u8>,
     trace_fn: Option<Box<InstrTracer<'static>>>,
 }
 
@@ -162,12 +160,15 @@ impl crate::HwModel for ModelEmulated {
     where
         Self: Sized,
     {
-        let (generic_load_tx, generic_load_rx) = mpsc::channel();
         let clock = Clock::new();
+        let output = Output::new(params.log_writer);
+
+        let output_sink = output.sink().clone();
+
         let bus_args = CaliptraRootBusArgs {
             rom: params.rom.into(),
             tb_services_cb: TbServicesCb(Box::new(move |ch| {
-                let _ = generic_load_tx.send(ch);
+                output_sink.push_uart_char(ch);
             })),
             ..CaliptraRootBusArgs::default()
         };
@@ -177,8 +178,7 @@ impl crate::HwModel for ModelEmulated {
         );
 
         let mut m = ModelEmulated {
-            generic_load_rx,
-            output: Output::new(),
+            output,
             cpu,
             trace_fn: None,
         };
@@ -196,10 +196,6 @@ impl crate::HwModel for ModelEmulated {
     }
 
     fn output(&mut self) -> &mut Output {
-        // Make sure output contains all the latest generic loads from the verilator model
-        while let Ok(ch) = self.generic_load_rx.try_recv() {
-            self.output.process_generic_load(ch)
-        }
         &mut self.output
     }
 
