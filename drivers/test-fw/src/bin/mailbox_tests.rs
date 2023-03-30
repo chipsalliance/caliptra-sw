@@ -20,7 +20,7 @@ use caliptra_registers::mbox::{self};
 use core::mem::size_of;
 use core::slice;
 
-mod harness;
+use caliptra_test_harness::test_suite;
 
 fn test_send_txn_drop() {
     let mut ii = 0;

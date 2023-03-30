@@ -1,0 +1,14 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "caliptra-test-harness"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+emu = []
+riscv = []
+
+[dependencies]
+cfg-if = "1.0.0"
+caliptra-drivers = { path = "../drivers", features=["emu"] }

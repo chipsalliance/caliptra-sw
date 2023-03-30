@@ -18,7 +18,7 @@ Abstract:
 use caliptra_drivers::{Array4x5, Array4xN, Sha1};
 use caliptra_kat::Sha1Kat;
 
-mod harness;
+use caliptra_test_harness::test_suite;
 
 fn test_sha1(data: &str, expected: Array4x5) {
     let mut digest = Array4x5::default();

@@ -18,7 +18,7 @@ Abstract:
 use caliptra_drivers::{Array4x12, PcrBank, PcrId, Sha384};
 use caliptra_kat::Sha384Kat;
 
-mod harness;
+use caliptra_test_harness::test_suite;
 
 fn test_digest0() {
     let expected: [u8; 48] = [

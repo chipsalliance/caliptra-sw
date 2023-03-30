@@ -17,7 +17,7 @@ Abstract:
 
 use caliptra_drivers::{Array4x4, DeobfuscationEngine, KeyId};
 
-mod harness;
+use caliptra_test_harness::test_suite;
 
 fn test_decrypt_uds() {
     let iv = [0xFF_u8; 16];
