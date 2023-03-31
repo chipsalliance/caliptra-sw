@@ -210,11 +210,6 @@ pub trait HwModel {
             self.soc_mbox().datain().write(|_| last_word);
         }
 
-        // Set the status as DATA_READY.
-        self.soc_mbox()
-            .status()
-            .write(|w| w.status(|w| w.data_ready()));
-
         // Set Execute Bit
         self.soc_mbox().execute().write(|w| w.execute(true));
 
@@ -354,7 +349,6 @@ mod tests {
             caliptra_hw_model::FW_LOAD_CMD_OPCODE
         );
         assert_eq!(model.soc_mbox().dlen().read(), firmware.len() as u32);
-        assert!(model.soc_mbox().status().read().status().data_ready());
 
         // Read the data out of the mailbox.
         let mut temp: Vec<u32> = Vec::new();

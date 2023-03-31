@@ -13,6 +13,7 @@ Abstract:
 --*/
 
 use crate::{caliptra_err_def, CaliptraResult};
+use caliptra_registers::mbox::enums::MboxFsmE;
 use caliptra_registers::mbox::{self, enums::MboxStatusE};
 use core::cmp::min;
 use core::mem::size_of;
@@ -69,8 +70,8 @@ impl Mailbox {
     /// * 'MailboxRecvTxn' - Object representing a receive operation
     pub fn try_start_recv_txn(&self) -> Option<MailboxRecvTxn> {
         let mbox = mbox::RegisterBlock::mbox_csr();
-        match mbox.status().read().status() {
-            MboxStatusE::DataReady => Some(MailboxRecvTxn::default()),
+        match mbox.status().read().mbox_fsm_ps() {
+            MboxFsmE::MboxExecuteUc => Some(MailboxRecvTxn::default()),
             _ => None,
         }
     }

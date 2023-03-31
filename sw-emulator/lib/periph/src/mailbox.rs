@@ -19,8 +19,8 @@ use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::{cell::RefCell, rc::Rc};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
-use tock_registers::register_bitfields;
 use tock_registers::registers::InMemoryRegister;
+use tock_registers::{register_bitfields, LocalRegisterCopy};
 
 /// Maximum mailbox capacity.
 const MAX_MAILBOX_CAPACITY_BYTES: usize = 128 << 10;
@@ -358,13 +358,26 @@ impl MailboxRegs {
 
     // Todo: Implement write status callback fn
     pub fn write_status(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
-        self.state_machine.context.status = val;
+        let val = LocalRegisterCopy::<u32, Status::Register>::new(val);
+        self.state_machine
+            .context
+            .status
+            .write(Status::STATUS.val(val.read(Status::STATUS)));
         Ok(())
     }
 
     // Todo: Implement read status callback fn
     pub fn read_status(&self, _size: RvSize) -> Result<u32, BusError> {
-        Ok(self.state_machine.context.status)
+        let mut result = self.state_machine.context.status;
+        result.modify(match self.state_machine.state {
+            // TODO: What about MBOX_EXECUTE_SOC?
+            States::Exec => Status::MBOX_FSM_PS::MBOX_EXECUTE_UC,
+            States::Idle => Status::MBOX_FSM_PS::MBOX_IDLE,
+            States::RdyForCmd => Status::MBOX_FSM_PS::MBOX_RDY_FOR_CMD,
+            States::RdyForData => Status::MBOX_FSM_PS::MBOX_RDY_FOR_DATA,
+            States::RdyForDlen => Status::MBOX_FSM_PS::MBOX_RDY_FOR_DLEN,
+        });
+        Ok(result.get())
     }
 }
 
@@ -410,7 +423,7 @@ pub struct Context {
     /// Fifo storage
     pub ring_buffer: RingBuffer,
     /// Mailbox Status
-    status: u32,
+    status: LocalRegisterCopy<u32, Status::Register>,
     /// Command
     pub cmd: u32,
     // data_out
@@ -424,7 +437,7 @@ impl Context {
             user: 0,
             exec: false,
             dlen: 0,
-            status: 0,
+            status: LocalRegisterCopy::new(0),
             ring_buffer: RingBuffer::new(ram),
             cmd: 0,
             data_out: 0,
@@ -590,7 +603,10 @@ mod tests {
         ));
 
         let status = mb.read(RvSize::Word, Mailbox::OFFSET_STATUS).unwrap();
-        assert_eq!(status, Status::STATUS::DATA_READY.value);
+        assert_eq!(
+            status,
+            (Status::STATUS::DATA_READY + Status::MBOX_FSM_PS::MBOX_EXECUTE_UC).value
+        );
 
         let cmd = mb.read(RvSize::Word, Mailbox::OFFSET_CMD).unwrap();
         assert_eq!(cmd, 0x55);
@@ -764,7 +780,10 @@ mod tests {
         ));
 
         let status = mb.read(RvSize::Word, Mailbox::OFFSET_STATUS).unwrap();
-        assert_eq!(status, Status::STATUS::DATA_READY.value);
+        assert_eq!(
+            status,
+            (Status::STATUS::DATA_READY + Status::MBOX_FSM_PS::MBOX_EXECUTE_UC).value
+        );
 
         let cmd = mb.read(RvSize::Word, Mailbox::OFFSET_CMD).unwrap();
         assert_eq!(cmd, 0x55);
