@@ -32,7 +32,7 @@ pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
         fht_minor_ver: FHT_MINOR_VERSION,
         manifest_load_addr: env.data_vault().map(|d| d.manifest_addr()),
         fips_fw_load_addr_idx: u8::MAX,
-        rt_fw_load_addr_idx: WarmResetEntry4::RtEntryPoint.into(),
+        rt_fw_load_addr_idx: WarmResetEntry4::RtLoadAddr.into(),
         rt_fw_entry_point_idx: WarmResetEntry4::RtEntryPoint.into(),
         fmc_cdi_kv_idx: KEY_ID_CDI.into(),
         fmc_priv_key_kv_idx: KEY_ID_PRIV_KEY.into(),
