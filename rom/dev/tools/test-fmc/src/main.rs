@@ -64,7 +64,7 @@ pub extern "C" fn fmc_entry() -> ! {
         fht.rt_fw_load_addr_idx
     );
 
-    caliptra_drivers::ExitCtrl::exit(0)
+    caliptra_drivers::TbServices::exit(0)
 }
 
 #[no_mangle]

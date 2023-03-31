@@ -53,13 +53,13 @@ pub extern "C" fn entry_point() -> ! {
         );
         cprintln!(
             "[fmc] FHT RT Entry Point: 0x{:08x}",
-            fht.rt_fw_load_addr_idx
+            fht.rt_fw_entry_point_idx
         );
 
         let env = fmc_env::FmcEnv::default();
         launch_rt(&env)
     } else {
-        caliptra_drivers::ExitCtrl::exit(0xff)
+        caliptra_drivers::TbServices::exit(0xff)
     }
 }
 

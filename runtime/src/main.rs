@@ -47,9 +47,9 @@ pub extern "C" fn entry_point() -> ! {
             fht.rt_fw_load_addr_idx
         );
         cprintln!("[rt] FHT RT Entry Point: 0x{:08x}", fht.rt_fw_load_addr_idx);
-        caliptra_drivers::ExitCtrl::exit(0)
+        caliptra_drivers::TbServices::exit(0)
     } else {
-        caliptra_drivers::ExitCtrl::exit(0xff)
+        caliptra_drivers::TbServices::exit(0xff)
     }
 }
 

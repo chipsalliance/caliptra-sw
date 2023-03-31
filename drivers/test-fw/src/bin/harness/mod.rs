@@ -57,8 +57,8 @@ macro_rules! test_suite {
             println!("Error: {}\n", info);
             cfg_if::cfg_if! {
                 if #[cfg(feature = "emu")] {
-                    use caliptra_drivers::ExitCtrl;
-                    ExitCtrl::exit(u32::MAX);
+                    use caliptra_drivers::TbServices;
+                    TbServices::exit(u32::MAX);
                 } else {
                     loop {}
                 }

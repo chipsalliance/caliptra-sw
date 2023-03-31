@@ -15,8 +15,10 @@ mod model_verilated;
 mod output;
 mod rv32_builder;
 
+use caliptra_registers::soc_ifc;
 use mmio::BusMmio;
 use output::ExitStatus;
+
 pub use output::Output;
 
 pub use model_emulated::ModelEmulated;
@@ -25,6 +27,9 @@ pub use model_emulated::ModelEmulated;
 pub use model_verilated::ModelVerilated;
 
 use caliptra_emu_types::RvSize;
+
+const COLD_RESET: u8 = 0xf5;
+const WARM_RESET: u8 = 0xf6;
 
 /// Constructs an HwModel based on the cargo features and environment
 /// variables. Most test cases that need to construct a HwModel should use this
@@ -219,6 +224,29 @@ pub trait HwModel {
         self.soc_mbox().execute().write(|w| w.execute(true));
 
         Ok(())
+    }
+
+    fn request_service(val: u32) {
+        let soc_ifc = soc_ifc::RegisterBlock::soc_ifc_reg();
+        soc_ifc.cptra_generic_output_wires().at(0).write(|_| val);
+    }
+
+    /// Request cold reset
+    ///
+    /// # Returns
+    ///
+    /// This method does not return
+    fn cold_reset() {
+        Self::request_service(COLD_RESET.into());
+    }
+
+    /// Request warm reset
+    ///
+    /// # Returns
+    ///
+    /// This method does not return
+    fn warm_reset() {
+        Self::request_service(WARM_RESET.into());
     }
 }
 
