@@ -13,11 +13,13 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
+use core::hint::black_box;
 
 #[cfg(feature = "riscv")]
 core::arch::global_asm!(include_str!("transfer_control.S"));
 
 use caliptra_common::{cprintln, FirmwareHandoffTable};
+use caliptra_drivers::report_fw_error_non_fatal;
 pub mod fmc_env;
 pub mod fmc_env_cell;
 
@@ -71,11 +73,7 @@ extern "C" fn exception_handler(trap_record: &TrapRecord) {
         trap_record.mscause,
         trap_record.mepc
     );
-
-    // Signal non-fatal error to SOC
-    caliptra_drivers::report_fw_error_non_fatal(0xdead0);
-
-    loop {}
+    report_error(0xdead);
 }
 
 #[no_mangle]
@@ -89,7 +87,10 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
         trap_record.mepc
     );
 
-    loop {}
+    // TODO: Signal error to SOC
+    // - Signal Fatal error for ICCM/DCCM double bit faults
+    // - Signal Non=-Fatal error for all other errors
+    report_error(0xdead);
 }
 #[panic_handler]
 #[inline(never)]
@@ -97,10 +98,10 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
 #[allow(clippy::empty_loop)]
 fn fmc_panic(_: &core::panic::PanicInfo) -> ! {
     cprintln!("FMC Panic!!");
+    panic_is_possible();
 
     // TODO: Signal non-fatal error to SOC
-
-    loop {}
+    report_error(0xdead);
 }
 
 fn launch_rt(env: &FmcEnv) -> ! {
@@ -116,4 +117,20 @@ fn launch_rt(env: &FmcEnv) -> ! {
 
     // Exit ROM and jump to speicified entry point
     unsafe { transfer_control(entry) }
+}
+
+#[allow(clippy::empty_loop)]
+fn report_error(code: u32) -> ! {
+    cprintln!("FMC Error: 0x{:08X}", code);
+    report_fw_error_non_fatal(code);
+
+    loop {}
+}
+
+#[no_mangle]
+#[inline(never)]
+fn panic_is_possible() {
+    black_box(());
+    // The existence of this symbol is used to inform test_panic_missing
+    // that panics are possible. Do not remove or rename this symbol.
 }
