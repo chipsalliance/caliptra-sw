@@ -17,6 +17,7 @@ cfg-if = "1.0.0"
 
 [dev-dependencies]
 caliptra-builder = { path = "../builder" }
+caliptra-hw-model = { path = "../hw-model" }
 
 [features]
 riscv = ["caliptra-cpu/riscv"]
