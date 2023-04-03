@@ -35,7 +35,7 @@ Running Caliptra FMC ...
 pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
 
-    if let Some(hand_off) = HandOff::from_rom() {
+    if let Some(hand_off) = HandOff::from_previous() {
         let env = fmc_env::FmcEnv::default();
         hand_off.to_rt(&env)
     } else {

@@ -62,7 +62,7 @@ pub fn dump_fht(fht: &FirmwareHandoffTable) {
 }
 
 impl HandOff {
-    pub fn from_rom() -> Option<HandOff> {
+    pub fn from_previous() -> Option<HandOff> {
         if let Some(fht) = FirmwareHandoffTable::try_load() {
             dump_fht(&fht);
             let me = Self { fht };
@@ -82,7 +82,7 @@ impl HandOff {
         if !ICCM.validate_address(rt_entry) {
             crate::report_error(0xdead);
         }
-        // Exit ROM and jump to speicified entry point
+        // Exit FMC and jump to speicified entry point
         unsafe { transfer_control(rt_entry) }
     }
 
