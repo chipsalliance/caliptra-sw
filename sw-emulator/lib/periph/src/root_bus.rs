@@ -119,8 +119,6 @@ impl From<Box<dyn FnMut(&mut Mailbox) + 'static>> for UploadUpdateFwCb {
 pub struct CaliptraRootBusArgs {
     pub rom: Vec<u8>,
     pub log_dir: PathBuf,
-    pub ueid: u64,
-    pub idev_key_id_algo: String,
     /// Callback to customize application behavior when
     /// a write to the tb-services register write is performed.
     pub tb_services_cb: TbServicesCb,

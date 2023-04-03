@@ -25,9 +25,13 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::rc::Rc;
+use tock_registers::interfaces::{Readable, Writeable};
+use tock_registers::registers::InMemoryRegister;
 mod gdb;
 use crate::gdb::gdb_target::GdbTarget;
 use gdb::gdb_state;
+
+use tock_registers::register_bitfields;
 
 /// Firmware Load Command Opcode
 const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
@@ -221,8 +225,6 @@ fn main() -> io::Result<()> {
     let bus_args = CaliptraRootBusArgs {
         rom: rom_buffer,
         log_dir: args_log_dir.clone(),
-        ueid: *args_ueid,
-        idev_key_id_algo: args_idevid_key_id_algo.clone(),
         tb_services_cb: TbServicesCb::new(move |val| match val {
             0x01 => exit(0xFF),
             0xFF => exit(0x00),
@@ -270,6 +272,7 @@ fn main() -> io::Result<()> {
         soc_ifc.fuse_owner_pk_hash().write(&owner_pk_hash);
     }
 
+    // Populate DBG_MANUF_SERVICE_REG
     {
         const GEN_IDEVID_CSR_FLAG: u32 = 1 << 0;
         const GEN_LDEVID_CSR_FLAG: u32 = 1 << 1;
@@ -282,6 +285,43 @@ fn main() -> io::Result<()> {
             val |= GEN_LDEVID_CSR_FLAG;
         }
         soc_ifc.cptra_dbg_manuf_service_reg().write(|_| val);
+    }
+
+    // Populate fuse_idevid_cert_attr
+    {
+        register_bitfields! [
+            u32,
+            IDevIdCertAttrFlags [
+                KEY_ID_ALGO OFFSET(0) NUMBITS(2) [
+                    SHA1 = 0b00,
+                    SHA256 = 0b01,
+                    SHA384 = 0b10,
+                    FUSE = 0b11,
+                ],
+                RESERVED OFFSET(2) NUMBITS(30) [],
+            ],
+        ];
+
+        // Determine the Algorithm used for IDEVID Certificate Subject Key Identifier
+        let algo = match args_idevid_key_id_algo.to_ascii_lowercase().as_str() {
+            "" | "sha1" => IDevIdCertAttrFlags::KEY_ID_ALGO::SHA1,
+            "sha256" => IDevIdCertAttrFlags::KEY_ID_ALGO::SHA256,
+            "sha384" => IDevIdCertAttrFlags::KEY_ID_ALGO::SHA384,
+            "fuse" => IDevIdCertAttrFlags::KEY_ID_ALGO::FUSE,
+            _ => panic!("Unknown idev_key_id_algo {:?}", args_idevid_key_id_algo),
+        };
+
+        let flags: InMemoryRegister<u32, IDevIdCertAttrFlags::Register> = InMemoryRegister::new(0);
+        flags.write(algo);
+        let mut cert = [0u32; 24];
+        // DWORD 00 - Flags
+        cert[0] = flags.get();
+        // DWORD 01 - 05 - IDEVID Subject Key Identifier (all zeroes)
+        // DWORD 06 - 07 - UEID / Manufacturer Serial Number
+        cert[6] = *args_ueid as u32;
+        cert[7] = (*args_ueid >> 32) as u32;
+
+        soc_ifc.fuse_idevid_cert_attr().write(&cert);
     }
 
     let cpu = Cpu::new(root_bus, clock);

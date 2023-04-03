@@ -18,3 +18,4 @@ caliptra-hw-model = { path = "../../hw-model" }
 gdbstub = "0.6.3"
 gdbstub_arch = "0.2.4"
 hex = "0.4.3"
+tock-registers = { git = "https://github.com/tock/tock.git"}

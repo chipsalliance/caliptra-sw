@@ -166,6 +166,7 @@ dependencies = [
  "gdbstub",
  "gdbstub_arch",
  "hex",
+ "tock-registers",
 ]
 
 [[package]]
