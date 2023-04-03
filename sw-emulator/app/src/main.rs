@@ -298,9 +298,6 @@ fn upload_fw_to_mailbox(mailbox: &mut Mailbox, firmware_buffer: Rc<Vec<u8>>) {
         let _ = mailbox.write_datain(last_word);
     }
 
-    // Set the status as DATA_READY.
-    let _ = mailbox.set_status_data_ready();
-
     // Set the execute register.
     let _ = mailbox.write_execute(1);
 }
