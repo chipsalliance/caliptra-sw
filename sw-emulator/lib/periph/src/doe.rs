@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{KeyVault, SocRegisters};
+use crate::{KeyVault, SocRegistersInternal};
 use caliptra_emu_bus::{
     BusError, Clock, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister, Timer, TimerAction,
 };
@@ -79,7 +79,7 @@ pub struct Doe {
     key_vault: KeyVault,
 
     /// SOC Registers
-    soc_reg: SocRegisters,
+    soc_reg: SocRegistersInternal,
 
     /// Operation Complete Action
     op_complete_action: Option<TimerAction>,
@@ -97,7 +97,7 @@ impl Doe {
     /// # Returns
     ///
     /// * `Self` - Instance of deobfuscation engine
-    pub fn new(clock: &Clock, key_vault: KeyVault, soc_reg: SocRegisters) -> Self {
+    pub fn new(clock: &Clock, key_vault: KeyVault, soc_reg: SocRegistersInternal) -> Self {
         Self {
             iv: ReadWriteMemory::new(),
             control: ReadWriteRegister::new(0),
@@ -246,7 +246,7 @@ mod tests {
 
         let clock = Clock::new();
         let key_vault = KeyVault::new();
-        let soc_reg = SocRegisters::new(
+        let soc_reg = SocRegistersInternal::new(
             &clock,
             Mailbox::new(MailboxRam::new()),
             Iccm::new(),
@@ -305,7 +305,7 @@ mod tests {
 
         let clock = Clock::new();
         let key_vault = KeyVault::new();
-        let soc_reg = SocRegisters::new(
+        let soc_reg = SocRegistersInternal::new(
             &clock,
             Mailbox::new(MailboxRam::new()),
             Iccm::new(),
@@ -362,7 +362,7 @@ mod tests {
         let expected_fe = [0u8; 32];
         let clock = Clock::new();
         let key_vault = KeyVault::new();
-        let soc_reg = SocRegisters::new(
+        let soc_reg = SocRegistersInternal::new(
             &clock,
             Mailbox::new(MailboxRam::new()),
             Iccm::new(),

@@ -40,8 +40,9 @@ pub use key_vault::KeyUsage;
 pub use key_vault::KeyVault;
 pub use mailbox::{Mailbox, MailboxRam};
 pub use root_bus::{
-    CaliptraRootBus, CaliptraRootBusArgs, ReadyForFwCb, TbServicesCb, UploadUpdateFwCb,
+    CaliptraRootBus, CaliptraRootBusArgs, ReadyForFwCb, SocToCaliptraBus, TbServicesCb,
+    UploadUpdateFwCb,
 };
 pub use sha512_acc::Sha512Accelerator;
-pub use soc_reg::SocRegisters;
+pub use soc_reg::SocRegistersInternal;
 pub use uart::Uart;

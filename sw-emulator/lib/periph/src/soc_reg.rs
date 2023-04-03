@@ -376,17 +376,22 @@ register_bitfields! [
 
 /// SOC Register peripheral
 #[derive(Clone)]
-pub struct SocRegisters {
+pub struct SocRegistersInternal {
     regs: Rc<RefCell<SocRegistersImpl>>,
 }
 
-impl SocRegisters {
-    /// Caliptra Register Start Address
-    const CALIPTRA_REG_START_ADDR: u32 = 0x00;
+/// Caliptra Register Start Address
+const CALIPTRA_REG_START_ADDR: u32 = 0x00;
 
-    /// Caliptra Register End Address
-    const CALIPTRA_REG_END_ADDR: u32 = 0x62C;
+/// Caliptra Register End Address
+const CALIPTRA_REG_END_ADDR: u32 = 0x62C;
 
+/// Caliptra Fuse start address
+const FUSE_START_ADDR: u32 = 0x200;
+/// Caliptra Fuse end address
+const FUSE_END_ADDR: u32 = 0x340;
+
+impl SocRegistersInternal {
     /// Create an instance of SOC register peripheral
     pub fn new(clock: &Clock, mailbox: Mailbox, iccm: Iccm, args: CaliptraRootBusArgs) -> Self {
         Self {
@@ -415,13 +420,19 @@ impl SocRegisters {
     pub fn clear_secrets(&mut self) {
         self.regs.borrow_mut().clear_secrets();
     }
+
+    pub fn external_regs(&self) -> SocRegistersExternal {
+        SocRegistersExternal {
+            regs: self.regs.clone(),
+        }
+    }
 }
 
-impl Bus for SocRegisters {
+impl Bus for SocRegistersInternal {
     /// Read data of specified size from given address
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
         match addr {
-            Self::CALIPTRA_REG_START_ADDR..=Self::CALIPTRA_REG_END_ADDR => {
+            CALIPTRA_REG_START_ADDR..=CALIPTRA_REG_END_ADDR => {
                 self.regs.borrow_mut().read(size, addr)
             }
             _ => Err(LoadAccessFault),
@@ -431,7 +442,11 @@ impl Bus for SocRegisters {
     /// Write data of specified size to given address
     fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {
         match addr {
-            Self::CALIPTRA_REG_START_ADDR..=Self::CALIPTRA_REG_END_ADDR => {
+            FUSE_START_ADDR..=FUSE_END_ADDR => {
+                // Microcontroller can't ever write to fuse registers
+                Err(StoreAccessFault)
+            }
+            CALIPTRA_REG_START_ADDR..=CALIPTRA_REG_END_ADDR => {
                 self.regs.borrow_mut().write(size, addr, val)
             }
             _ => Err(StoreAccessFault),
@@ -448,6 +463,50 @@ impl Bus for SocRegisters {
 
     fn update_reset(&mut self) {
         self.regs.borrow_mut().update_reset();
+    }
+}
+
+pub struct SocRegistersExternal {
+    regs: Rc<RefCell<SocRegistersImpl>>,
+}
+impl Bus for SocRegistersExternal {
+    /// Read data of specified size from given address
+    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+        match addr {
+            CALIPTRA_REG_START_ADDR..=CALIPTRA_REG_END_ADDR => {
+                self.regs.borrow_mut().read(size, addr)
+            }
+            _ => Err(LoadAccessFault),
+        }
+    }
+
+    /// Write data of specified size to given address
+    fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {
+        match addr {
+            FUSE_START_ADDR..=FUSE_END_ADDR => {
+                if self.regs.borrow_mut().fuses_can_be_written {
+                    self.regs.borrow_mut().write(size, addr, val)
+                } else {
+                    Err(StoreAccessFault)
+                }
+            }
+            CALIPTRA_REG_START_ADDR..=CALIPTRA_REG_END_ADDR => {
+                self.regs.borrow_mut().write(size, addr, val)
+            }
+            _ => Err(StoreAccessFault),
+        }
+    }
+
+    fn poll(&mut self) {
+        // Do nothing; external interface can't control time
+    }
+
+    fn warm_reset(&mut self) {
+        // Do nothing; external interface can't control reset
+    }
+
+    fn update_reset(&mut self) {
+        // Do nothing; external interface can't control reset
     }
 }
 
@@ -609,6 +668,8 @@ struct SocRegistersImpl {
     ready_for_fw_cb: ReadyForFwCallback,
 
     upload_update_fw: UploadUpdateFwCallback,
+
+    fuses_can_be_written: bool,
 }
 
 impl SocRegistersImpl {
@@ -691,6 +752,7 @@ impl SocRegistersImpl {
             tb_services_cb: args.tb_services_cb.take(),
             ready_for_fw_cb: args.ready_for_fw_cb.take(),
             upload_update_fw: args.upload_update_fw.take(),
+            fuses_can_be_written: true,
         };
 
         regs.set_cptra_dbg_manuf_service_reg(&args);
@@ -1145,6 +1207,9 @@ impl Bus for SocRegistersImpl {
             }
 
             CPTRA_FUSE_WR_DONE_START..=CPTRA_FUSE_WR_DONE_END => {
+                if (val & 1) != 0 {
+                    self.fuses_can_be_written = false;
+                }
                 self.cptra_fuse_wr_done.write(size, val)
             }
 
@@ -1331,8 +1396,8 @@ mod tests {
             log_dir,
             ..args
         };
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&clock, mailbox.clone(), Iccm::new(), args);
+        let mut soc_reg: SocRegistersInternal =
+            SocRegistersInternal::new(&clock, mailbox.clone(), Iccm::new(), args);
 
         //
         // [Sender Side]
@@ -1399,8 +1464,8 @@ mod tests {
             log_dir,
             ..args
         };
-        let mut soc_reg: SocRegisters =
-            SocRegisters::new(&clock, mailbox.clone(), Iccm::new(), args);
+        let mut soc_reg: SocRegistersInternal =
+            SocRegistersInternal::new(&clock, mailbox.clone(), Iccm::new(), args);
 
         //
         // [Sender Side]
@@ -1461,7 +1526,8 @@ mod tests {
             tb_services_cb: TbServicesCb::new(move |ch| output2.borrow_mut().push(ch)),
             ..Default::default()
         };
-        let mut soc_reg: SocRegisters = SocRegisters::new(&clock, mailbox, Iccm::new(), args);
+        let mut soc_reg: SocRegistersInternal =
+            SocRegistersInternal::new(&clock, mailbox, Iccm::new(), args);
 
         let _ = soc_reg.write(RvSize::Word, CPTRA_GENERIC_OUTPUT_WIRES_START, b'h'.into());
 

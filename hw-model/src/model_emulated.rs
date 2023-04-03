@@ -14,7 +14,7 @@ use caliptra_emu_bus::Clock;
 use caliptra_emu_cpu::Cpu;
 use caliptra_emu_cpu::InstrTracer;
 use caliptra_emu_periph::ReadyForFwCb;
-use caliptra_emu_periph::{CaliptraRootBus, CaliptraRootBusArgs, TbServicesCb};
+use caliptra_emu_periph::{CaliptraRootBus, CaliptraRootBusArgs, SocToCaliptraBus, TbServicesCb};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 
 use crate::InitParams;
@@ -46,7 +46,7 @@ pub struct EmulatedApbBus<'a> {
 
 impl<'a> Bus for EmulatedApbBus<'a> {
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, caliptra_emu_bus::BusError> {
-        let result = self.model.cpu.bus.bus.read(size, addr);
+        let result = self.model.soc_to_caliptra_bus.read(size, addr);
         self.model.cpu.bus.log_read("SoC", size, addr, result);
         result
     }
@@ -56,7 +56,7 @@ impl<'a> Bus for EmulatedApbBus<'a> {
         addr: RvAddr,
         val: RvData,
     ) -> Result<(), caliptra_emu_bus::BusError> {
-        let result = self.model.cpu.bus.write(size, addr, val);
+        let result = self.model.soc_to_caliptra_bus.write(size, addr, val);
         self.model.cpu.bus.log_write("SoC", size, addr, val, result);
         result
     }
@@ -151,6 +151,7 @@ impl<TBus: Bus> Bus for BusLogger<TBus> {
 /// Emulated model
 pub struct ModelEmulated {
     cpu: Cpu<BusLogger<CaliptraRootBus>>,
+    soc_to_caliptra_bus: SocToCaliptraBus,
     output: Output,
     trace_fn: Option<Box<InstrTracer<'static>>>,
     ready_for_fw: Rc<Cell<bool>>,
@@ -182,14 +183,14 @@ impl crate::HwModel for ModelEmulated {
             })),
             ..CaliptraRootBusArgs::default()
         };
-        let cpu = Cpu::new(
-            BusLogger::new(CaliptraRootBus::new(&clock, bus_args)),
-            clock,
-        );
+        let root_bus = CaliptraRootBus::new(&clock, bus_args);
+        let soc_to_caliptra_bus = root_bus.soc_to_caliptra_bus();
+        let cpu = Cpu::new(BusLogger::new(root_bus), clock);
 
         let mut m = ModelEmulated {
             output,
             cpu,
+            soc_to_caliptra_bus,
             trace_fn: None,
             ready_for_fw,
         };

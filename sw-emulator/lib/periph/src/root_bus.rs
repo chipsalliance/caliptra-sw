@@ -13,8 +13,8 @@ Abstract:
 --*/
 
 use crate::{
-    iccm::Iccm, AsymEcc384, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha384, KeyVault, Mailbox,
-    MailboxRam, Sha512Accelerator, SocRegisters, Uart,
+    iccm::Iccm, soc_reg::SocRegistersExternal, AsymEcc384, Doe, EmuCtrl, HashSha256, HashSha512,
+    HmacSha384, KeyVault, Mailbox, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
 };
 use caliptra_emu_bus::{Clock, Ram, Rom};
 use caliptra_emu_derive::Bus;
@@ -175,7 +175,7 @@ pub struct CaliptraRootBus {
     pub sha512_acc: Sha512Accelerator,
 
     #[peripheral(offset = 0x3003_0000, mask = 0x0000_ffff)]
-    pub soc_reg: SocRegisters,
+    pub soc_reg: SocRegistersInternal,
 
     #[peripheral(offset = 0x5000_0000, mask = 0x0fff_ffff)]
     pub dccm: Ram,
@@ -192,7 +192,7 @@ impl CaliptraRootBus {
         let mailbox = Mailbox::new(mailbox_ram.clone());
         let rom = Rom::new(std::mem::take(&mut args.rom));
         let iccm = Iccm::new();
-        let soc_reg = SocRegisters::new(clock, mailbox.clone(), iccm.clone(), args);
+        let soc_reg = SocRegistersInternal::new(clock, mailbox.clone(), iccm.clone(), args);
 
         Self {
             rom,
@@ -212,4 +212,22 @@ impl CaliptraRootBus {
             sha512_acc: Sha512Accelerator::new(clock, mailbox_ram),
         }
     }
+
+    pub fn soc_to_caliptra_bus(&self) -> SocToCaliptraBus {
+        SocToCaliptraBus {
+            // TODO: This should not be the same mailbox bus as the one used
+            // internaly
+            mailbox: self.mailbox.clone(),
+            soc_ifc: self.soc_reg.external_regs(),
+        }
+    }
+}
+
+#[derive(Bus)]
+pub struct SocToCaliptraBus {
+    #[peripheral(offset = 0x3002_0000, mask = 0x0000_0fff)]
+    mailbox: Mailbox,
+
+    #[peripheral(offset = 0x3003_0000, mask = 0x0000_ffff)]
+    soc_ifc: SocRegistersExternal,
 }
