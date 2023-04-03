@@ -232,6 +232,20 @@ dependencies = [
  "caliptra-builder",
  "caliptra-cpu",
  "caliptra-drivers",
+ "caliptra-hw-model",
+ "caliptra_common",
+ "cfg-if",
+ "ufmt",
+ "zerocopy",
+]
+
+[[package]]
+name = "caliptra-fmc-mock-rt"
+version = "0.1.0"
+dependencies = [
+ "caliptra-builder",
+ "caliptra-cpu",
+ "caliptra-drivers",
  "caliptra_common",
  "cfg-if",
  "ufmt",

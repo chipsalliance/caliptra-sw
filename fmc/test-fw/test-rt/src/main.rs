@@ -8,36 +8,46 @@ File Name:
 
 Abstract:
 
-    File contains main entry point for Caliptra ROM Test FMC
+    File contains main entry point for Caliptra Test Runtime
 
 --*/
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
-use core::hint::black_box;
 
 use caliptra_common::cprintln;
-use caliptra_drivers::report_fw_error_non_fatal;
-pub mod fmc_env;
-pub mod fmc_env_cell;
-mod hand_off;
-
 use caliptra_cpu::TrapRecord;
-use hand_off::HandOff;
+use caliptra_drivers::report_fw_error_non_fatal;
+use core::hint::black_box;
 
 #[cfg(feature = "std")]
 pub fn main() {}
 
 const BANNER: &str = r#"
-Running Caliptra FMC ...
+   _____                 __     __________   __   
+  /     \   ____   ____ |  | __ \______   \_/  |_ 
+ /  \ /  \ /  _ \_/ ___\|  |/ /  |       _/\   __\
+/    Y    (  <_> )  \___|    <   |    |   \ |  |  
+\____|__  /\____/ \___  >__|_ \  |____|_  / |__|  
+        \/            \/     \/         \/       
 "#;
 
 #[no_mangle]
 pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
 
-    if let Some(hand_off) = HandOff::from_previous() {
-        let env = fmc_env::FmcEnv::default();
-        hand_off.to_rt(&env)
+    if let Some(fht) = caliptra_common::FirmwareHandoffTable::try_load() {
+        cprintln!("[rt] FHT Marker: 0x{:08X}", fht.fht_marker);
+        cprintln!("[rt] FHT Major Version: 0x{:04X}", fht.fht_major_ver);
+        cprintln!("[rt] FHT Minor Version: 0x{:04X}", fht.fht_minor_ver);
+        cprintln!("[rt] FHT Manifest Addr: 0x{:08X}", fht.manifest_load_addr);
+        cprintln!("[rt] FHT FMC CDI KV KeyID: {}", fht.fmc_cdi_kv_idx);
+        cprintln!("[rt] FHT FMC PrivKey KV KeyID: {}", fht.fmc_priv_key_kv_idx);
+        cprintln!(
+            "[rt] FHT RT Load Address: 0x{:08x}",
+            fht.rt_fw_load_addr_idx
+        );
+        cprintln!("[rt] FHT RT Entry Point: 0x{:08x}", fht.rt_fw_load_addr_idx);
+        caliptra_drivers::ExitCtrl::exit(0)
     } else {
         caliptra_drivers::ExitCtrl::exit(0xff)
     }
@@ -53,6 +63,8 @@ extern "C" fn exception_handler(trap_record: &TrapRecord) {
         trap_record.mscause,
         trap_record.mepc
     );
+
+    // Signal non-fatal error to SOC
     report_error(0xdead);
 }
 
@@ -67,17 +79,15 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
         trap_record.mepc
     );
 
-    // TODO: Signal error to SOC
-    // - Signal Fatal error for ICCM/DCCM double bit faults
-    // - Signal Non=-Fatal error for all other errors
     report_error(0xdead);
 }
+
 #[panic_handler]
 #[inline(never)]
 #[cfg(not(feature = "std"))]
 #[allow(clippy::empty_loop)]
 fn fmc_panic(_: &core::panic::PanicInfo) -> ! {
-    cprintln!("FMC Panic!!");
+    cprintln!("RT Panic!!");
     panic_is_possible();
 
     // TODO: Signal non-fatal error to SOC
@@ -86,9 +96,8 @@ fn fmc_panic(_: &core::panic::PanicInfo) -> ! {
 
 #[allow(clippy::empty_loop)]
 fn report_error(code: u32) -> ! {
-    cprintln!("FMC Error: 0x{:08X}", code);
+    cprintln!("RT Error: 0x{:08X}", code);
     report_fw_error_non_fatal(code);
-
     loop {}
 }
 

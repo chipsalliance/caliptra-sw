@@ -99,6 +99,19 @@ impl From<WarmResetEntry4> for usize {
     }
 }
 
+impl TryFrom<u8> for WarmResetEntry4 {
+    type Error = ();
+    fn try_from(original: u8) -> Result<Self, Self::Error> {
+        match original {
+            0 => Ok(Self::RtSvn),
+            1 => Ok(Self::RtLoadAddr),
+            2 => Ok(Self::RtEntryPoint),
+            3 => Ok(Self::ManifestAddr),
+            _ => Err(()),
+        }
+    }
+}
+
 #[derive(Default, Debug)]
 pub struct DataVault {}
 
@@ -546,7 +559,7 @@ impl DataVault {
     /// # Returns
     ///    warm reset entry value  
     ///
-    fn read_warm_reset_entry4(&self, entry: WarmResetEntry4) -> u32 {
+    pub fn read_warm_reset_entry4(&self, entry: WarmResetEntry4) -> u32 {
         let dv = dv::RegisterBlock::dv_reg();
         dv.non_sticky_lockable_scratch_reg().at(entry.into()).read()
     }
