@@ -550,7 +550,6 @@ impl SocRegistersImpl {
             fuses_can_be_written: true,
         };
 
-        regs.set_idevid_cert_attr(&args);
         regs.set_cptra_security_state_device_lifecycle(&args);
 
         regs
@@ -566,45 +565,6 @@ impl SocRegistersImpl {
         self.cptra_security_state
             .reg
             .modify(SecurityState::LIFE_CYCLE.val(value.read(SecurityState::LIFE_CYCLE)));
-    }
-
-    fn set_idevid_cert_attr(&mut self, args: &CaliptraRootBusArgs) {
-        register_bitfields! [
-            u32,
-            IDevIdCertAttrFlags [
-                KEY_ID_ALGO OFFSET(0) NUMBITS(2) [
-                    SHA1 = 0b00,
-                    SHA256 = 0b01,
-                    SHA384 = 0b10,
-                    FUSE = 0b11,
-                ],
-                RESERVED OFFSET(2) NUMBITS(30) [],
-            ],
-        ];
-
-        // Determine the Algorithm used for IDEVID Certificate Subject Key Identifier
-        let reg: InMemoryRegister<u32, IDevIdCertAttrFlags::Register> = InMemoryRegister::new(0);
-        if args.idev_key_id_algo.eq_ignore_ascii_case("sha1") {
-            reg.write(IDevIdCertAttrFlags::KEY_ID_ALGO::SHA1)
-        } else if args.idev_key_id_algo.eq_ignore_ascii_case("sha256") {
-            reg.write(IDevIdCertAttrFlags::KEY_ID_ALGO::SHA256)
-        } else if args.idev_key_id_algo.eq_ignore_ascii_case("sha384") {
-            reg.write(IDevIdCertAttrFlags::KEY_ID_ALGO::SHA384)
-        } else if args.idev_key_id_algo.eq_ignore_ascii_case("fuse") {
-            reg.write(IDevIdCertAttrFlags::KEY_ID_ALGO::FUSE)
-        } else {
-            reg.write(IDevIdCertAttrFlags::KEY_ID_ALGO::SHA1)
-        }
-
-        // DWORD 00      - Flags
-        self.fuse_idevid_cert_attr[0] = reg.get();
-
-        // DWORD 01 - 05 - IDEVID Subject Key Identifier
-        self.fuse_idevid_cert_attr[1..6].copy_from_slice(&[0x0u32; 5]);
-
-        // DWORD 06 - 07 - UEID / Manufacturer Serial Number
-        self.fuse_idevid_cert_attr[6] = args.ueid as u32;
-        self.fuse_idevid_cert_attr[7] = (args.ueid >> 32) as u32;
     }
 
     /// Clear secrets
