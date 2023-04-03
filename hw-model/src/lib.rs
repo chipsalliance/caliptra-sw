@@ -15,7 +15,7 @@ mod model_verilated;
 mod output;
 mod rv32_builder;
 
-use mmio::BusMmio;
+pub use mmio::BusMmio;
 use output::ExitStatus;
 pub use output::Output;
 

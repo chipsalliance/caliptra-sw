@@ -9,10 +9,12 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "3.2.14", default-features = false, features = ["std"] }
+caliptra-registers = { path = "../../registers" }
 caliptra-emu-bus = { path = "../lib/bus" }
 caliptra-emu-cpu = { path = "../lib/cpu" }
 caliptra-emu-periph = { path = "../lib/periph" }
 caliptra-emu-types = { path = "../lib/types" }
+caliptra-hw-model = { path = "../../hw-model" }
 gdbstub = "0.6.3"
 gdbstub_arch = "0.2.4"
 hex = "0.4.3"
