@@ -214,13 +214,15 @@ fn main() -> io::Result<()> {
     let update_fw_buf = Rc::new(update_fw_buf);
 
     let clock = Clock::new();
+
+    let req_idevid_csr = args.get_flag("req-idevid-csr");
+    let req_ldevid_cert = args.get_flag("req-ldevid-cert");
+
     let bus_args = CaliptraRootBusArgs {
         rom: rom_buffer,
         log_dir: args_log_dir.clone(),
         ueid: *args_ueid,
         idev_key_id_algo: args_idevid_key_id_algo.clone(),
-        req_idevid_csr: args.get_flag("req-idevid-csr"),
-        req_ldevid_cert: args.get_flag("req-ldevid-cert"),
         tb_services_cb: TbServicesCb::new(move |val| match val {
             0x01 => exit(0xFF),
             0xFF => exit(0x00),
@@ -266,6 +268,20 @@ fn main() -> io::Result<()> {
                 .expect("owner_pk_hash must be 48 bytes"),
         );
         soc_ifc.fuse_owner_pk_hash().write(&owner_pk_hash);
+    }
+
+    {
+        const GEN_IDEVID_CSR_FLAG: u32 = 1 << 0;
+        const GEN_LDEVID_CSR_FLAG: u32 = 1 << 1;
+
+        let mut val = 0;
+        if req_idevid_csr {
+            val |= GEN_IDEVID_CSR_FLAG;
+        }
+        if req_ldevid_cert {
+            val |= GEN_LDEVID_CSR_FLAG;
+        }
+        soc_ifc.cptra_dbg_manuf_service_reg().write(|_| val);
     }
 
     let cpu = Cpu::new(root_bus, clock);
