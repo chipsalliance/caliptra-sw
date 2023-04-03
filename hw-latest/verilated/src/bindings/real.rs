@@ -37,8 +37,15 @@ pub struct caliptra_verilated_sig_out {
     pub generic_load_en: bool,
     pub generic_load_data: u32,
 }
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone)]
+pub struct caliptra_verilated_init_args {
+    pub security_state: u32,
+}
 extern "C" {
-    pub fn caliptra_verilated_new() -> *mut caliptra_verilated;
+    pub fn caliptra_verilated_new(
+        args: *mut caliptra_verilated_init_args,
+    ) -> *mut caliptra_verilated;
 }
 extern "C" {
     pub fn caliptra_verilated_destroy(model: *mut caliptra_verilated);

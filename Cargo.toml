@@ -23,6 +23,7 @@ members = [
   "fmc/test-fw/test-rt",
   "hw-latest/verilated",
   "hw-model",
+  "hw-model/types",
   "registers",
   "registers/bin/generator",
   "runtime",

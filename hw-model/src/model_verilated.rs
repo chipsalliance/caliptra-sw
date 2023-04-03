@@ -67,7 +67,12 @@ impl crate::HwModel for ModelVerilated {
         let generic_load_cb = Box::new(move |ch| {
             output_sink.push_uart_char(ch);
         });
-        let mut v = CaliptraVerilated::with_generic_load_cb(generic_load_cb);
+        let mut v = CaliptraVerilated::with_generic_load_cb(
+            caliptra_verilated::InitArgs {
+                security_state: u32::from(params.security_state),
+            },
+            generic_load_cb,
+        );
 
         v.write_rom_image(params.rom);
 

@@ -18,6 +18,7 @@ use caliptra_emu_periph::{
     CaliptraRootBus, CaliptraRootBusArgs, Mailbox, ReadyForFwCb, TbServicesCb, UploadUpdateFwCb,
 };
 use caliptra_hw_model::BusMmio;
+use caliptra_hw_model_types::{DeviceLifecycle, SecurityState};
 use clap::{arg, value_parser, ArgAction};
 use std::fs::File;
 use std::io;
@@ -222,6 +223,19 @@ fn main() -> io::Result<()> {
     let req_idevid_csr = args.get_flag("req-idevid-csr");
     let req_ldevid_cert = args.get_flag("req-ldevid-cert");
 
+    let mut security_state = SecurityState::default();
+    security_state.set_device_lifecycle(
+        match args_device_lifecycle.to_ascii_lowercase().as_str() {
+            "manufacturing" => DeviceLifecycle::Manufacturing,
+            "production" => DeviceLifecycle::Production,
+            "unprovisioned" | "" => DeviceLifecycle::Unprovisioned,
+            other => {
+                println!("Unknown device lifecycle {:?}", other);
+                exit(-1);
+            }
+        },
+    );
+
     let bus_args = CaliptraRootBusArgs {
         rom: rom_buffer,
         log_dir: args_log_dir.clone(),
@@ -239,7 +253,7 @@ fn main() -> io::Result<()> {
                 upload_fw_to_mailbox(mailbox, firmware_buffer);
             });
         }),
-        device_lifecycle: args_device_lifecycle.clone(),
+        security_state,
         upload_update_fw: UploadUpdateFwCb::new(move |mailbox: &mut Mailbox| {
             while !mailbox.try_acquire_lock() {}
             upload_fw_to_mailbox(mailbox, update_fw_buf.clone());

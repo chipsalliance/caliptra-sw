@@ -161,6 +161,7 @@ dependencies = [
  "caliptra-emu-periph",
  "caliptra-emu-types",
  "caliptra-hw-model",
+ "caliptra-hw-model-types",
  "caliptra-registers",
  "clap",
  "gdbstub",
@@ -219,6 +220,7 @@ dependencies = [
  "caliptra-emu-crypto",
  "caliptra-emu-derive",
  "caliptra-emu-types",
+ "caliptra-hw-model-types",
  "lazy_static",
  "smlang",
  "tock-registers",
@@ -264,10 +266,15 @@ dependencies = [
  "caliptra-emu-cpu",
  "caliptra-emu-periph",
  "caliptra-emu-types",
+ "caliptra-hw-model-types",
  "caliptra-registers",
  "caliptra-verilated",
  "ureg",
 ]
+
+[[package]]
+name = "caliptra-hw-model-types"
+version = "0.1.0"
 
 [[package]]
 name = "caliptra-image-app"

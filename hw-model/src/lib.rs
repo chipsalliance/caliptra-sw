@@ -15,6 +15,7 @@ mod model_verilated;
 mod output;
 mod rv32_builder;
 
+use caliptra_hw_model_types::{DeviceLifecycle, SecurityState};
 pub use mmio::BusMmio;
 use output::ExitStatus;
 pub use output::Output;
@@ -57,6 +58,8 @@ pub struct InitParams<'a> {
     pub iccm: &'a [u8],
 
     pub log_writer: Box<dyn std::io::Write>,
+
+    pub security_state: SecurityState,
 }
 impl<'a> Default for InitParams<'a> {
     fn default() -> Self {
@@ -65,6 +68,8 @@ impl<'a> Default for InitParams<'a> {
             dccm: Default::default(),
             iccm: Default::default(),
             log_writer: Box::new(stdout()),
+            security_state: *SecurityState::default()
+                .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
         }
     }
 }

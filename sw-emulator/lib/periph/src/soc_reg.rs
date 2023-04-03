@@ -493,7 +493,7 @@ impl SocRegistersImpl {
     const LDEVID_CERT_READ_TICKS: u64 = 300;
 
     pub fn new(clock: &Clock, mailbox: Mailbox, iccm: Iccm, mut args: CaliptraRootBusArgs) -> Self {
-        let mut regs = Self {
+        let regs = Self {
             cptra_hw_error_fatal: ReadWriteRegister::new(0),
             cptra_hw_error_non_fatal: ReadWriteRegister::new(0),
             cptra_fw_error_fatal: ReadWriteRegister::new(0),
@@ -504,7 +504,7 @@ impl SocRegistersImpl {
             cptra_boot_status: ReadWriteRegister::new(0),
             cptra_flow_status: ReadWriteRegister::new(0),
             cptra_reset_reason: ReadOnlyRegister::new(0),
-            cptra_security_state: ReadOnlyRegister::new(0),
+            cptra_security_state: ReadOnlyRegister::new(args.security_state.into()),
             cptra_valid_pauser: Default::default(),
             cptra_pauser_lock: Default::default(),
             cptra_trng_valid_pauser: ReadWriteRegister::new(0),
@@ -550,21 +550,7 @@ impl SocRegistersImpl {
             fuses_can_be_written: true,
         };
 
-        regs.set_cptra_security_state_device_lifecycle(&args);
-
         regs
-    }
-
-    fn set_cptra_security_state_device_lifecycle(&mut self, args: &CaliptraRootBusArgs) {
-        let mut value = SecurityState::LIFE_CYCLE::UNPROVISIONED;
-        if args.device_lifecycle.eq_ignore_ascii_case("manufacturing") {
-            value = SecurityState::LIFE_CYCLE::MANUFACTURING;
-        } else if args.device_lifecycle.eq_ignore_ascii_case("production") {
-            value = SecurityState::LIFE_CYCLE::PRODUCTION;
-        }
-        self.cptra_security_state
-            .reg
-            .modify(SecurityState::LIFE_CYCLE.val(value.read(SecurityState::LIFE_CYCLE)));
     }
 
     /// Clear secrets

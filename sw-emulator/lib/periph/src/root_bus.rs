@@ -18,6 +18,7 @@ use crate::{
 };
 use caliptra_emu_bus::{Clock, Ram, Rom};
 use caliptra_emu_derive::Bus;
+use caliptra_hw_model_types::SecurityState;
 use std::path::PathBuf;
 
 pub struct TbServicesCb(pub Box<dyn FnMut(u8)>);
@@ -119,11 +120,13 @@ impl From<Box<dyn FnMut(&mut Mailbox) + 'static>> for UploadUpdateFwCb {
 pub struct CaliptraRootBusArgs {
     pub rom: Vec<u8>,
     pub log_dir: PathBuf,
+    // The security state wires provided to caliptra_top
+    pub security_state: SecurityState,
+
     /// Callback to customize application behavior when
     /// a write to the tb-services register write is performed.
     pub tb_services_cb: TbServicesCb,
     pub ready_for_fw_cb: ReadyForFwCb,
-    pub device_lifecycle: String,
     pub upload_update_fw: UploadUpdateFwCb,
 }
 
