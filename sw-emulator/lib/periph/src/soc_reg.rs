@@ -550,7 +550,6 @@ impl SocRegistersImpl {
             fuses_can_be_written: true,
         };
 
-        regs.set_cptra_dbg_manuf_service_reg(&args);
         regs.set_idevid_cert_attr(&args);
         regs.set_cptra_security_state_device_lifecycle(&args);
 
@@ -567,28 +566,6 @@ impl SocRegistersImpl {
         self.cptra_security_state
             .reg
             .modify(SecurityState::LIFE_CYCLE.val(value.read(SecurityState::LIFE_CYCLE)));
-    }
-
-    fn set_cptra_dbg_manuf_service_reg(&mut self, args: &CaliptraRootBusArgs) {
-        register_bitfields! [
-            u32,
-            DebugManufService [
-                GEN_IDEVID_CSR OFFSET(0) NUMBITS(1) [],
-                GEN_LDEVID_CERT OFFSET(1) NUMBITS(1) [],
-                RESERVED OFFSET(2) NUMBITS(30) [],
-            ],
-        ];
-        let reg: InMemoryRegister<u32, DebugManufService::Register> = InMemoryRegister::new(0);
-
-        if args.req_idevid_csr {
-            reg.modify(DebugManufService::GEN_IDEVID_CSR::SET);
-        }
-
-        if args.req_ldevid_cert {
-            reg.modify(DebugManufService::GEN_LDEVID_CERT::SET);
-        }
-
-        self.cptra_dbg_manuf_service_reg.reg.set(reg.get());
     }
 
     fn set_idevid_cert_attr(&mut self, args: &CaliptraRootBusArgs) {
@@ -941,17 +918,16 @@ mod tests {
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
         let mut mailbox = Mailbox::new(mailbox_ram);
-        let req_idevid_csr = true;
         let mut log_dir = PathBuf::new();
         log_dir.push("/tmp");
         let args = CaliptraRootBusArgs::default();
-        let args = CaliptraRootBusArgs {
-            req_idevid_csr,
-            log_dir,
-            ..args
-        };
+        let args = CaliptraRootBusArgs { log_dir, ..args };
         let mut soc_reg: SocRegistersInternal =
             SocRegistersInternal::new(&clock, mailbox.clone(), Iccm::new(), args);
+
+        soc_reg
+            .write(RvSize::Word, CPTRA_DBG_MANUF_SERVICE_REG_START, 1)
+            .unwrap();
 
         //
         // [Sender Side]
@@ -1009,17 +985,15 @@ mod tests {
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
         let mut mailbox = Mailbox::new(mailbox_ram);
-        let req_ldevid_cert = true;
         let mut log_dir = PathBuf::new();
         log_dir.push("/tmp");
         let args = CaliptraRootBusArgs::default();
-        let args = CaliptraRootBusArgs {
-            req_ldevid_cert,
-            log_dir,
-            ..args
-        };
+        let args = CaliptraRootBusArgs { log_dir, ..args };
         let mut soc_reg: SocRegistersInternal =
             SocRegistersInternal::new(&clock, mailbox.clone(), Iccm::new(), args);
+        soc_reg
+            .write(RvSize::Word, CPTRA_DBG_MANUF_SERVICE_REG_START, 2)
+            .unwrap();
 
         //
         // [Sender Side]
