@@ -39,6 +39,8 @@ module caliptra_verilated (
 
     input bit [7:0][31:0]           cptra_obf_key,
 
+    input bit [3:0] security_state,
+
     output bit ready_for_fuses,
     output bit ready_for_fw_push,
 
@@ -77,10 +79,6 @@ module caliptra_verilated (
     logic [MBOX_DATA_AND_ECC_W-1:0] mbox_sram_wdata;
     logic [MBOX_DATA_AND_ECC_W-1:0] mbox_sram_wdata_bitflip;
     logic [MBOX_DATA_AND_ECC_W-1:0] mbox_sram_rdata;
-
-
-    //TIE-OFF device lifecycle
-    security_state_t security_state = '{device_lifecycle: DEVICE_PRODUCTION, debug_locked: 1'b1};
 
     el2_mem_if el2_mem_export ();
 
@@ -151,7 +149,7 @@ caliptra_top caliptra_top_dut (
     .itrng_data(),
     .itrng_valid(),
 
-    .security_state(security_state) //FIXME TIE-OFF
+    .security_state(security_state)
 );
 
 assign generic_load_en = caliptra_top_dut.soc_ifc_top1.i_soc_ifc_reg.field_combo.CPTRA_GENERIC_OUTPUT_WIRES[0].generic_wires.load_next;

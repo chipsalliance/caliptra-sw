@@ -12,8 +12,10 @@ struct caliptra_verilated {
   uint64_t sim_time = 0;
 };
 
-struct caliptra_verilated* caliptra_verilated_new(void) {
-  return new caliptra_verilated();
+struct caliptra_verilated* caliptra_verilated_new(struct caliptra_verilated_init_args* init_args) {
+  auto result = new caliptra_verilated();
+  result->v.security_state = init_args->security_state;
+  return result;
 }
 void caliptra_verilated_destroy(struct caliptra_verilated* model) {
   if (model->tfp.get()) {

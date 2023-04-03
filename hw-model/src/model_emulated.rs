@@ -181,6 +181,7 @@ impl crate::HwModel for ModelEmulated {
             ready_for_fw_cb: ReadyForFwCb(Box::new(move |_| {
                 ready_for_fw_clone.set(true);
             })),
+            security_state: params.security_state,
             ..CaliptraRootBusArgs::default()
         };
         let root_bus = CaliptraRootBus::new(&clock, bus_args);

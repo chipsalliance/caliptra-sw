@@ -5,7 +5,10 @@ Licensed under the Apache-2.0 license.
 #[allow(dead_code)]
 mod real;
 
-pub use real::{caliptra_verilated, caliptra_verilated_sig_in, caliptra_verilated_sig_out};
+pub use real::{
+    caliptra_verilated, caliptra_verilated_init_args, caliptra_verilated_sig_in,
+    caliptra_verilated_sig_out,
+};
 
 #[cfg(not(feature = "verilator"))]
 mod disabled {
@@ -13,7 +16,9 @@ mod disabled {
 
     const MSG: &str = "Built without verilator support; use --features=verilator to enable";
 
-    pub unsafe fn caliptra_verilated_new() -> *mut caliptra_verilated {
+    pub unsafe fn caliptra_verilated_new(
+        _args: *mut caliptra_verilated_init_args,
+    ) -> *mut caliptra_verilated {
         panic!("{}", MSG);
     }
     pub unsafe fn caliptra_verilated_destroy(_model: *mut caliptra_verilated) {

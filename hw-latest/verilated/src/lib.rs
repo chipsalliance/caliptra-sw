@@ -6,6 +6,7 @@ use std::ffi::CString;
 use std::ffi::NulError;
 use std::ptr::null;
 
+pub use bindings::caliptra_verilated_init_args as InitArgs;
 pub use bindings::caliptra_verilated_sig_in as SigIn;
 pub use bindings::caliptra_verilated_sig_out as SigOut;
 
@@ -18,16 +19,16 @@ pub struct CaliptraVerilated {
 
 impl CaliptraVerilated {
     /// Constructs a new model.
-    pub fn new() -> Self {
-        Self::with_generic_load_cb(Box::new(|_| {}))
+    pub fn new(args: InitArgs) -> Self {
+        Self::with_generic_load_cb(args, Box::new(|_| {}))
     }
 
     /// Creates a model that calls `generic_load_cb` whenever the
     /// microcontroller CPU does a load to the generic wires.
-    pub fn with_generic_load_cb(generic_load_cb: Box<dyn FnMut(u8)>) -> Self {
+    pub fn with_generic_load_cb(mut args: InitArgs, generic_load_cb: Box<dyn FnMut(u8)>) -> Self {
         unsafe {
             Self {
-                v: bindings::caliptra_verilated_new(),
+                v: bindings::caliptra_verilated_new(&mut args),
                 input: Default::default(),
                 output: Default::default(),
                 generic_load_cb,
@@ -147,11 +148,6 @@ impl CaliptraVerilated {
         self.input.imem_we = false;
     }
 }
-impl Default for CaliptraVerilated {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 impl Drop for CaliptraVerilated {
     fn drop(&mut self) {
         unsafe { bindings::caliptra_verilated_destroy(self.v) }
@@ -171,7 +167,7 @@ mod tests {
         if !cfg!(feature = "verilator") {
             return;
         }
-        let mut v = CaliptraVerilated::new();
+        let mut v = CaliptraVerilated::new(InitArgs { security_state: 0 });
 
         std::fs::remove_file("/tmp/caliptra_verilated_test.vcd").ok();
         std::fs::remove_file("/tmp/caliptra_verilated_test2.vcd").ok();

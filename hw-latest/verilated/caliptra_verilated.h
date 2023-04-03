@@ -40,9 +40,14 @@ struct caliptra_verilated_sig_out {
   uint32_t generic_load_data;
 };
 
+struct caliptra_verilated_init_args {
+  uint32_t security_state;
+};
+
 // Constructs a new model. Model must eventually be destroyed with
 // caliptra_verilated_destroy.
-struct caliptra_verilated* caliptra_verilated_new(void);
+struct caliptra_verilated* caliptra_verilated_new(
+    struct caliptra_verilated_init_args* args);
 
 // Destroys the model.
 void caliptra_verilated_destroy(struct caliptra_verilated* model);
