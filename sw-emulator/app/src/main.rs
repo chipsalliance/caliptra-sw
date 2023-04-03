@@ -17,6 +17,7 @@ use caliptra_emu_cpu::{Cpu, RvInstr, StepAction};
 use caliptra_emu_periph::{
     CaliptraRootBus, CaliptraRootBusArgs, Mailbox, ReadyForFwCb, TbServicesCb, UploadUpdateFwCb,
 };
+use caliptra_hw_model::BusMmio;
 use clap::{arg, value_parser, ArgAction};
 use std::fs::File;
 use std::io;
@@ -55,6 +56,14 @@ fn free_run(mut cpu: Cpu<CaliptraRootBus>, trace_path: Option<PathBuf>) {
     } else {
         while let StepAction::Continue = cpu.step(None) {}
     };
+}
+
+fn words_from_bytes_le(arr: &[u8; 48]) -> [u32; 12] {
+    let mut result = [0u32; 12];
+    for i in 0..result.len() {
+        result[i] = u32::from_le_bytes(arr[i * 4..][..4].try_into().unwrap())
+    }
+    result
 }
 
 fn main() -> io::Result<()> {
@@ -226,15 +235,40 @@ fn main() -> io::Result<()> {
                 upload_fw_to_mailbox(mailbox, firmware_buffer);
             });
         }),
-        mfg_pk_hash,
-        owner_pk_hash,
         device_lifecycle: args_device_lifecycle.clone(),
         upload_update_fw: UploadUpdateFwCb::new(move |mailbox: &mut Mailbox| {
             while !mailbox.try_acquire_lock() {}
             upload_fw_to_mailbox(mailbox, update_fw_buf.clone());
         }),
     };
-    let cpu = Cpu::new(CaliptraRootBus::new(&clock, bus_args), clock);
+
+    let root_bus = CaliptraRootBus::new(&clock, bus_args);
+    let soc_ifc = unsafe {
+        caliptra_registers::soc_ifc::RegisterBlock::new_with_mmio(
+            0x3003_0000 as *mut u32,
+            BusMmio::new(root_bus.soc_to_caliptra_bus()),
+        )
+    };
+
+    if !mfg_pk_hash.is_empty() {
+        let mfg_pk_hash = words_from_bytes_le(
+            &mfg_pk_hash
+                .try_into()
+                .expect("mfg_pk_hash must be 48 bytes"),
+        );
+        soc_ifc.fuse_key_manifest_pk_hash().write(&mfg_pk_hash);
+    }
+
+    if !owner_pk_hash.is_empty() {
+        let owner_pk_hash = words_from_bytes_le(
+            &owner_pk_hash
+                .try_into()
+                .expect("owner_pk_hash must be 48 bytes"),
+        );
+        soc_ifc.fuse_owner_pk_hash().write(&owner_pk_hash);
+    }
+
+    let cpu = Cpu::new(root_bus, clock);
 
     // Check if Optional GDB Port is passed
     match args.get_one::<String>("gdb-port") {

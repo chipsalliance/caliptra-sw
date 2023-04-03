@@ -160,6 +160,8 @@ dependencies = [
  "caliptra-emu-cpu",
  "caliptra-emu-periph",
  "caliptra-emu-types",
+ "caliptra-hw-model",
+ "caliptra-registers",
  "clap",
  "gdbstub",
  "gdbstub_arch",
