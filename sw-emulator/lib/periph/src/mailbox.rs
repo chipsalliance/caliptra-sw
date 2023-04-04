@@ -172,6 +172,10 @@ impl Mailbox {
         Ok(())
     }
 
+    pub fn is_command_exec_requested(&self) -> bool {
+        matches!(self.regs.borrow_mut().state_machine.state, States::Exec)
+    }
+
     pub fn is_status_data_ready(&mut self) -> bool {
         self.match_status(Status::STATUS::DATA_READY.value)
     }
