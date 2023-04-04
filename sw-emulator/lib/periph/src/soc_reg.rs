@@ -1227,7 +1227,7 @@ impl Bus for SocRegistersImpl {
 
         if self.timer.fired(&mut self.op_fw_read_complete_action) {
             // Receiver sets status as CMD_COMPLETE after reading the mailbox data.
-            if self.mailbox.is_status_cmd_complete() {
+            if !self.mailbox.is_status_cmd_busy() {
                 // Reset the execute bit
                 self.mailbox.write_execute(0).unwrap();
             } else {
