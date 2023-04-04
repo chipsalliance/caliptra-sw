@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::FwId;
-use caliptra_hw_model::{HwModel, InitParams};
+use caliptra_hw_model::{BootParams, HwModel, InitParams};
 
 fn run_driver_test(test_bin_name: &str) {
     let rom = caliptra_builder::build_firmware_rom(&FwId {
@@ -10,8 +10,11 @@ fn run_driver_test(test_bin_name: &str) {
         features: &["emu"],
     })
     .unwrap();
-    let mut model = caliptra_hw_model::create(InitParams {
-        rom: &rom,
+    let mut model = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            ..Default::default()
+        },
         ..Default::default()
     })
     .unwrap();

@@ -162,7 +162,7 @@ pub struct ModelEmulated {
 impl crate::HwModel for ModelEmulated {
     type TBus<'a> = EmulatedApbBus<'a>;
 
-    fn init(params: InitParams) -> Result<Self, Box<dyn Error>>
+    fn new_unbooted(params: InitParams) -> Result<Self, Box<dyn Error>>
     where
         Self: Sized,
     {
@@ -206,9 +206,6 @@ impl crate::HwModel for ModelEmulated {
         };
         // Turn tracing on if CPTRA_TRACE_PATH environment variable is set
         m.tracing_hint(true);
-
-        // Start the microcontroller
-        m.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
         Ok(m)
     }
