@@ -479,6 +479,8 @@ impl StateMachineContext for Context {
     }
     fn unlock(&mut self) {
         self.locked = 0;
+        // Reset status
+        self.status.set(0);
     }
     fn dequeue(&mut self) {
         self.data_out = self.ring_buffer.dequeue();
