@@ -34,7 +34,7 @@ mod sha1;
 mod sha256;
 mod sha384;
 mod sha384acc;
-mod state;
+pub mod state;
 mod status_reporter;
 
 pub type CaliptraResult<T> = Result<T, u32>;
@@ -53,7 +53,7 @@ pub use error_reporter::{
     report_hw_error_non_fatal,
 };
 pub use exit_ctrl::ExitCtrl;
-pub use fuse_bank::{FuseBank, VendorPubKeyRevocation, X509KeyIdAlgo};
+pub use fuse_bank::{FuseBank, IdevidCertAttr, VendorPubKeyRevocation, X509KeyIdAlgo};
 pub use hmac384::{Hmac384, Hmac384Data, Hmac384Key, Hmac384Op, Hmac384Tag};
 pub use key_vault::{KeyId, KeyUsage, KeyVault};
 pub use kv_access::{KeyReadArgs, KeyWriteArgs};
