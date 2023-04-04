@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
-use caliptra_hw_model::{HwModel, InitParams};
+use caliptra_hw_model::{BootParams, HwModel, InitParams};
 
 #[track_caller]
 fn assert_output_contains(haystack: &str, needle: &str) {
@@ -20,12 +20,15 @@ fn smoke_test() {
         ImageOptions::default(),
     )
     .unwrap();
-    let mut hw = caliptra_hw_model::create(InitParams {
-        rom: &rom,
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            ..Default::default()
+        },
+        fw_image: Some(&image),
         ..Default::default()
     })
     .unwrap();
-    hw.upload_firmware(&image).unwrap();
     let mut output = vec![];
     hw.copy_output_until_exit_success(&mut output).unwrap();
     let output = String::from_utf8_lossy(&output);

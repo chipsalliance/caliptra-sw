@@ -2,7 +2,8 @@
 
 use std::{
     error::Error,
-    io::{stdout, ErrorKind},
+    fmt::Display,
+    io::{stdout, ErrorKind, Write},
 };
 
 use caliptra_emu_bus::Bus;
@@ -15,7 +16,7 @@ mod model_verilated;
 mod output;
 mod rv32_builder;
 
-use caliptra_hw_model_types::{DeviceLifecycle, SecurityState};
+use caliptra_hw_model_types::{DeviceLifecycle, Fuses, SecurityState};
 pub use mmio::BusMmio;
 use output::ExitStatus;
 pub use output::Output;
@@ -29,7 +30,11 @@ use caliptra_emu_types::RvSize;
 
 /// Constructs an HwModel based on the cargo features and environment
 /// variables. Most test cases that need to construct a HwModel should use this
-/// function.
+/// function over HwModel::new_unbooted().
+///
+/// The model returned by this function does not have any fuses programmed and
+/// is not yet ready to execute code in the microcontroller. Most test cases
+/// should use [`new`] instead.
 ///
 /// Ideally this function would return `Result<impl HwModel, Box<dyn Error>>`
 /// to prevent users from calling functions that weren't available on HwModel
@@ -38,13 +43,29 @@ use caliptra_emu_types::RvSize;
 /// full type until they fix that. Users should treat this return type as if it
 /// were `impl HwModel`.
 #[cfg(not(feature = "verilator"))]
-pub fn create(params: InitParams) -> Result<ModelEmulated, Box<dyn Error>> {
-    ModelEmulated::init(params)
+pub fn new_unbooted(params: InitParams) -> Result<ModelEmulated, Box<dyn Error>> {
+    ModelEmulated::new_unbooted(params)
+}
+
+/// Constructs an HwModel based on the cargo features and environment variables,
+/// and boot it to the point where CPU execution can occur. This includes
+/// programming the fuses, initializing the boot_fsm state machine, and
+/// (optionally) uploading firmware. Most test cases that need to construct a
+/// HwModel should use this function over [`HwModel::new()`] and
+/// [`crate::new_unbooted`].
+#[cfg(not(feature = "verilator"))]
+pub fn new(params: BootParams) -> Result<ModelEmulated, Box<dyn Error>> {
+    ModelEmulated::new(params)
 }
 
 #[cfg(feature = "verilator")]
-pub fn create(params: InitParams) -> Result<ModelVerilated, Box<dyn Error>> {
-    ModelVerilated::init(params)
+pub fn new_unbooted(params: InitParams) -> Result<ModelVerilated, Box<dyn Error>> {
+    ModelVerilated::new_unbooted(params)
+}
+
+#[cfg(feature = "verilator")]
+pub fn new(params: BootParams) -> Result<ModelVerilated, Box<dyn Error>> {
+    ModelVerilated::new(params)
 }
 
 pub struct InitParams<'a> {
@@ -74,26 +95,85 @@ impl<'a> Default for InitParams<'a> {
     }
 }
 
+#[derive(Default)]
+pub struct BootParams<'a> {
+    pub init_params: InitParams<'a>,
+    pub fuses: Fuses,
+    pub fw_image: Option<&'a [u8]>,
+}
+
 #[derive(Debug)]
 pub enum ModelError {
     MailboxErr,
     NotReadyForFwErr,
+    ReadyForFirmwareTimeout { cycles: u32 },
+}
+impl Error for ModelError {}
+impl Display for ModelError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ModelError::MailboxErr => write!(f, "Mailbox error"),
+            ModelError::NotReadyForFwErr => write!(f, "Not ready for firmware"),
+            ModelError::ReadyForFirmwareTimeout { cycles } => write!(
+                f,
+                "Ready-for-firmware signal not received after {cycles} cycles"
+            ),
+        }
+    }
 }
 
 /// Firmware Load Command Opcode
 const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
 
 // Represents a emulator or simulation of the caliptra hardware, to be called
-// from tests. Typically, test cases should use `create()` to create a model
+// from tests. Typically, test cases should use [`crate::new()`] to create a model
 // based on the cargo features (and any model-specific environment variables).
 pub trait HwModel {
     type TBus<'a>: Bus
     where
         Self: 'a;
 
-    fn init(params: InitParams) -> Result<Self, Box<dyn Error>>
+    /// Create a model. Most high-level tests should use [`new()`]
+    /// instead.
+    fn new_unbooted(params: InitParams) -> Result<Self, Box<dyn Error>>
     where
         Self: Sized;
+
+    /// Create a model, and boot it to the point where CPU execution can
+    /// occur. This includes programming the fuses, initializing the
+    /// boot_fsm state machine, and (optionally) uploading firmware.
+    fn new(run_params: BootParams) -> Result<Self, Box<dyn Error>>
+    where
+        Self: Sized,
+    {
+        let mut hw: Self = HwModel::new_unbooted(run_params.init_params)?;
+
+        hw.init_fuses(&run_params.fuses);
+
+        hw.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+
+        hw.step();
+
+        if let Some(fw_image) = run_params.fw_image {
+            const MAX_WAIT_CYCLES: u32 = 12_000_000;
+            let mut cycles = 0;
+            while !hw.ready_for_fw() {
+                hw.step();
+                cycles += 1;
+                if cycles > MAX_WAIT_CYCLES {
+                    return Err(ModelError::ReadyForFirmwareTimeout { cycles }.into());
+                }
+            }
+            writeln!(
+                hw.output().logger(),
+                "ready_for_fw high after {cycles} cycles"
+            )
+            .unwrap();
+            hw.upload_firmware(fw_image)?;
+        }
+
+        Ok(hw)
+    }
 
     /// The APB bus from the SoC to Caliptra
     ///
@@ -114,7 +194,58 @@ pub trait HwModel {
         }
     }
 
+    /// Returns true if the microcontroller has signalled that it is ready for
+    /// firmware to be written to the mailbox. For RTL implementations, this
+    /// should come via a caliptra_top wire rather than an APB register.
     fn ready_for_fw(&self) -> bool;
+
+    /// Initializes the fuse values and locks them in until the next reset. This
+    /// function can only be called during early boot, shortly after the model
+    /// is created with `new_unbooted()`.
+    ///
+    /// # Panics
+    ///
+    /// If the cptra_fuse_wr_done has already been written, or the
+    /// hardware prevents cptra_fuse_wr_done from being set.
+    fn init_fuses(&mut self, fuses: &Fuses) {
+        assert!(
+            !self.soc_ifc().cptra_fuse_wr_done().read().done(),
+            "Fuses are already locked in place (according to cptra_fuse_wr_done)"
+        );
+
+        self.soc_ifc().fuse_uds_seed().write(&fuses.uds_seed);
+        self.soc_ifc()
+            .fuse_field_entropy()
+            .write(&fuses.field_entropy);
+        self.soc_ifc()
+            .fuse_key_manifest_pk_hash()
+            .write(&fuses.key_manifest_pk_hash);
+        self.soc_ifc()
+            .fuse_key_manifest_pk_hash_mask()
+            .write(|w| w.mask(fuses.key_manifest_pk_hash_mask.into()));
+        self.soc_ifc()
+            .fuse_owner_pk_hash()
+            .write(&fuses.owner_pk_hash);
+        self.soc_ifc()
+            .fuse_fmc_key_manifest_svn()
+            .write(|_| fuses.fmc_key_manifest_svn);
+        self.soc_ifc().fuse_runtime_svn().write(&fuses.runtime_svn);
+        self.soc_ifc()
+            .fuse_anti_rollback_disable()
+            .write(|w| w.dis(fuses.anti_rollback_disable));
+        self.soc_ifc()
+            .fuse_idevid_cert_attr()
+            .write(&fuses.idevid_cert_attr);
+        self.soc_ifc()
+            .fuse_idevid_manuf_hsm_id()
+            .write(&fuses.idevid_manuf_hsm_id);
+        self.soc_ifc()
+            .fuse_life_cycle()
+            .write(|w| w.life_cycle(fuses.life_cycle.into()));
+
+        self.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
+        assert!(self.soc_ifc().cptra_fuse_wr_done().read().done());
+    }
 
     fn step_until_exit_success(&mut self) -> std::io::Result<()> {
         self.copy_output_until_exit_success(std::io::Sink::default())
@@ -181,7 +312,7 @@ pub trait HwModel {
     fn tracing_hint(&mut self, enable: bool);
 
     /// Upload firmware to the mailbox.
-    fn upload_firmware(&mut self, firmware: &Vec<u8>) -> Result<(), ModelError> {
+    fn upload_firmware(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
         if self.soc_mbox().lock().read().lock() {
             return Err(ModelError::MailboxErr);
         }
@@ -224,7 +355,7 @@ pub trait HwModel {
 
 #[cfg(test)]
 mod tests {
-    use crate::{mmio::Rv32GenMmio, HwModel, InitParams};
+    use crate::{mmio::Rv32GenMmio, BootParams, HwModel, InitParams};
     use caliptra_emu_bus::Bus;
     use caliptra_emu_types::RvSize;
     use caliptra_registers::soc_ifc;
@@ -235,7 +366,6 @@ mod tests {
     const MBOX_ADDR_LOCK: u32 = MBOX_ADDR_BASE;
     const MBOX_ADDR_CMD: u32 = MBOX_ADDR_BASE + 0x0000_0008;
 
-    #[cfg(feature = "verilator")]
     fn gen_image_fw_ready() -> Vec<u8> {
         let rv32_gen = Rv32GenMmio::new();
         let soc_ifc =
@@ -262,10 +392,13 @@ mod tests {
 
     #[test]
     fn test_apb() {
-        let mut model = caliptra_hw_model::create(InitParams {
+        let mut model = caliptra_hw_model::new_unbooted(InitParams {
             ..Default::default()
         })
         .unwrap();
+
+        model.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
+        model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
         assert_eq!(
             model.apb_bus().read(RvSize::Word, MBOX_ADDR_LOCK).unwrap(),
@@ -290,10 +423,13 @@ mod tests {
     #[test]
     fn test_mbox() {
         // Same as test_apb, but uses higher-level register interface
-        let mut model = caliptra_hw_model::create(InitParams {
+        let mut model = caliptra_hw_model::new_unbooted(InitParams {
             ..Default::default()
         })
         .unwrap();
+
+        model.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
+        model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
         assert!(!model.soc_mbox().lock().read().lock());
         assert!(model.soc_mbox().lock().read().lock());
@@ -304,19 +440,24 @@ mod tests {
 
     #[test]
     fn test_execution() {
-        let mut model = caliptra_hw_model::create(InitParams {
-            rom: &gen_image_hi(),
+        let mut model = caliptra_hw_model::new(BootParams {
+            init_params: InitParams {
+                rom: &gen_image_hi(),
+                ..Default::default()
+            },
             ..Default::default()
         })
         .unwrap();
-
         model.step_until_output("hi").unwrap();
     }
 
     #[test]
     fn test_output_failure() {
-        let mut model = caliptra_hw_model::create(InitParams {
-            rom: &gen_image_hi(),
+        let mut model = caliptra_hw_model::new(BootParams {
+            init_params: InitParams {
+                rom: &gen_image_hi(),
+                ..Default::default()
+            },
             ..Default::default()
         })
         .unwrap();
@@ -336,15 +477,16 @@ mod tests {
         ]
         .into();
 
-        let mut model = caliptra_hw_model::create(InitParams {
-            #[cfg(feature = "verilator")]
-            rom: &gen_image_fw_ready(),
+        let mut model = caliptra_hw_model::new(BootParams {
+            init_params: InitParams {
+                rom: &gen_image_fw_ready(),
+                ..Default::default()
+            },
             ..Default::default()
         })
         .unwrap();
 
         // Wait for ROM to request firmware.
-        #[cfg(feature = "verilator")]
         model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
 
         assert!(model.upload_firmware(&firmware).is_ok());

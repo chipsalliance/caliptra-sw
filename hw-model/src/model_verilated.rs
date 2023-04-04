@@ -57,7 +57,7 @@ impl ModelVerilated {
 impl crate::HwModel for ModelVerilated {
     type TBus<'a> = VerilatedApbBus<'a>;
 
-    fn init(params: crate::InitParams) -> Result<Self, Box<dyn std::error::Error>>
+    fn new_unbooted(params: crate::InitParams) -> Result<Self, Box<dyn std::error::Error>>
     where
         Self: Sized,
     {
@@ -93,13 +93,6 @@ impl crate::HwModel for ModelVerilated {
         while !m.v.output.ready_for_fuses {
             m.v.next_cycle_high(1);
         }
-
-        m.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
-        assert!(m.soc_ifc().cptra_fuse_wr_done().read().done());
-        m.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
-
-        m.v.next_cycle_high(2);
-
         Ok(m)
     }
 
