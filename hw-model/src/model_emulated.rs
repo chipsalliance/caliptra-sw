@@ -13,6 +13,7 @@ use std::rc::Rc;
 use caliptra_emu_bus::Clock;
 use caliptra_emu_cpu::Cpu;
 use caliptra_emu_cpu::InstrTracer;
+use caliptra_emu_periph::ActionCb;
 use caliptra_emu_periph::ReadyForFwCb;
 use caliptra_emu_periph::{CaliptraRootBus, CaliptraRootBusArgs, SocToCaliptraBus, TbServicesCb};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
@@ -155,6 +156,7 @@ pub struct ModelEmulated {
     output: Output,
     trace_fn: Option<Box<InstrTracer<'static>>>,
     ready_for_fw: Rc<Cell<bool>>,
+    cpu_enabled: Rc<Cell<bool>>,
 }
 
 impl crate::HwModel for ModelEmulated {
@@ -169,18 +171,24 @@ impl crate::HwModel for ModelEmulated {
         let ready_for_fw = Rc::new(Cell::new(false));
         let ready_for_fw_clone = ready_for_fw.clone();
 
+        let cpu_enabled = Rc::new(Cell::new(false));
+        let cpu_enabled_cloned = cpu_enabled.clone();
+
         let output = Output::new(params.log_writer);
 
         let output_sink = output.sink().clone();
 
         let bus_args = CaliptraRootBusArgs {
             rom: params.rom.into(),
-            tb_services_cb: TbServicesCb(Box::new(move |ch| {
+            tb_services_cb: TbServicesCb::new(move |ch| {
                 output_sink.push_uart_char(ch);
-            })),
-            ready_for_fw_cb: ReadyForFwCb(Box::new(move |_| {
+            }),
+            ready_for_fw_cb: ReadyForFwCb::new(move |_| {
                 ready_for_fw_clone.set(true);
-            })),
+            }),
+            bootfsm_go_cb: ActionCb::new(move || {
+                cpu_enabled_cloned.set(true);
+            }),
             security_state: params.security_state,
             ..CaliptraRootBusArgs::default()
         };
@@ -194,9 +202,13 @@ impl crate::HwModel for ModelEmulated {
             soc_to_caliptra_bus,
             trace_fn: None,
             ready_for_fw,
+            cpu_enabled,
         };
         // Turn tracing on if CPTRA_TRACE_PATH environment variable is set
         m.tracing_hint(true);
+
+        // Start the microcontroller
+        m.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
         Ok(m)
     }
@@ -209,7 +221,9 @@ impl crate::HwModel for ModelEmulated {
     }
 
     fn step(&mut self) {
-        self.cpu.step(self.trace_fn.as_deref_mut());
+        if self.cpu_enabled.get() {
+            self.cpu.step(self.trace_fn.as_deref_mut());
+        }
     }
 
     fn output(&mut self) -> &mut Output {

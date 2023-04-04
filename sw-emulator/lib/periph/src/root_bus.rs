@@ -115,6 +115,33 @@ impl From<Box<dyn FnMut(&mut Mailbox) + 'static>> for UploadUpdateFwCb {
     }
 }
 
+pub struct ActionCb(Box<dyn FnMut()>);
+impl ActionCb {
+    pub fn new(f: impl FnMut() + 'static) -> Self {
+        Self(Box::new(f))
+    }
+    pub(crate) fn take(&mut self) -> Box<dyn FnMut()> {
+        std::mem::take(self).0
+    }
+}
+impl Default for ActionCb {
+    fn default() -> Self {
+        Self(Box::new(|| {}))
+    }
+}
+impl std::fmt::Debug for ActionCb {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("ActionCb")
+            .field(&"<unknown closure>")
+            .finish()
+    }
+}
+impl From<Box<dyn FnMut() + 'static>> for ActionCb {
+    fn from(value: Box<dyn FnMut()>) -> Self {
+        Self(value)
+    }
+}
+
 /// Caliptra Root Bus Arguments
 #[derive(Default, Debug)]
 pub struct CaliptraRootBusArgs {
@@ -128,6 +155,7 @@ pub struct CaliptraRootBusArgs {
     pub tb_services_cb: TbServicesCb,
     pub ready_for_fw_cb: ReadyForFwCb,
     pub upload_update_fw: UploadUpdateFwCb,
+    pub bootfsm_go_cb: ActionCb,
 }
 
 #[derive(Bus)]

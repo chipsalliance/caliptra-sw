@@ -258,6 +258,7 @@ fn main() -> io::Result<()> {
             while !mailbox.try_acquire_lock() {}
             upload_fw_to_mailbox(mailbox, update_fw_buf.clone());
         }),
+        ..Default::default()
     };
 
     let root_bus = CaliptraRootBus::new(&clock, bus_args);
