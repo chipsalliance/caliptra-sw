@@ -34,6 +34,7 @@ use tock_registers::registers::InMemoryRegister;
 // Mailbox)>), which is called to schedule firmware writing in the future
 type ReadyForFwCallback = Box<dyn FnMut(ReadyForFwCbArgs)>;
 type UploadUpdateFwCallback = Box<dyn FnMut(&mut Mailbox)>;
+type BootFsmGoCallback = Box<dyn FnMut()>;
 
 mod constants {
     #![allow(unused)]
@@ -361,8 +362,8 @@ struct SocRegistersImpl {
     #[register(offset = 0x00b0)]
     cptra_timer_config: ReadWriteRegister<u32>,
 
-    #[register(offset = 0x00b4)]
-    cptra_bootfsm_go: ReadOnlyRegister<u32>,
+    #[register(offset = 0x00b4, write_fn = on_write_bootfsm_go)]
+    cptra_bootfsm_go: u32,
 
     #[register(offset = 0x00b8)]
     cptra_dbg_manuf_service_reg: ReadWriteRegister<u32, DebugManufService::Register>,
@@ -464,6 +465,8 @@ struct SocRegistersImpl {
 
     upload_update_fw: UploadUpdateFwCallback,
 
+    bootfsm_go_cb: BootFsmGoCallback,
+
     fuses_can_be_written: bool,
 }
 
@@ -513,7 +516,7 @@ impl SocRegistersImpl {
             cptra_trng_status: ReadOnlyRegister::new(0),
             cptra_fuse_wr_done: 0,
             cptra_timer_config: ReadWriteRegister::new(0),
-            cptra_bootfsm_go: ReadOnlyRegister::new(0),
+            cptra_bootfsm_go: 0,
             cptra_dbg_manuf_service_reg: ReadWriteRegister::new(0),
             cptra_clk_gating_en: ReadOnlyRegister::new(0),
             cptra_generic_input_wires: Default::default(),
@@ -548,6 +551,7 @@ impl SocRegistersImpl {
             ready_for_fw_cb: args.ready_for_fw_cb.take(),
             upload_update_fw: args.upload_update_fw.take(),
             fuses_can_be_written: true,
+            bootfsm_go_cb: args.bootfsm_go_cb.take(),
         };
 
         regs
@@ -558,6 +562,14 @@ impl SocRegistersImpl {
         self.fuse_uds_seed = [0u32; 12];
         self.fuse_field_entropy = [0u32; 8];
         self.internal_obf_key.data_mut().fill(0);
+    }
+
+    fn on_write_bootfsm_go(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
+        if (val & 1) != (self.cptra_bootfsm_go & 1) && (val & 1) != 0 {
+            self.cptra_bootfsm_go = 1;
+            (self.bootfsm_go_cb)();
+        }
+        Ok(())
     }
 
     /// On Write callback for `stdout` register
