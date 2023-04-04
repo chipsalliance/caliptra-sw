@@ -897,7 +897,7 @@ impl SocRegistersImpl {
     }
 
     fn download_idev_id_csr(&mut self) {
-        if !self.mailbox.is_status_data_ready() {
+        if !self.mailbox.is_command_exec_requested() {
             return;
         }
 
@@ -909,7 +909,7 @@ impl SocRegistersImpl {
     }
 
     fn download_ldev_id_cert(&mut self) {
-        if !self.mailbox.is_status_data_ready() {
+        if !self.mailbox.is_command_exec_requested() {
             return;
         }
 
@@ -941,6 +941,7 @@ impl SocRegistersImpl {
                 file.write_all(&[byte]).unwrap();
             }
         }
+        self.mailbox.set_status_cmd_complete().unwrap();
     }
 
     fn reset_common(&mut self) {
