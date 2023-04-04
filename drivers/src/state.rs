@@ -67,7 +67,7 @@ impl DeviceState {
 
 bitflags::bitflags! {
     /// Manufacturing State
-    struct MfgFlags : u32 {
+    pub struct MfgFlags : u32 {
         /// Generate Initial Device Id Certificate Signing Request
        const GENERATE_IDEVID_CSR = 0x01;
     }

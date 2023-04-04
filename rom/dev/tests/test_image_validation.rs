@@ -3,7 +3,7 @@
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
 use caliptra_drivers::Array4x12;
 use caliptra_hw_model::{
-    BootParams, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, InitParams, SecurityState, U4,
+    BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, SecurityState, U4,
 };
 use caliptra_image_elf::ElfExecutable;
 use caliptra_image_fake_keys::{
@@ -13,6 +13,8 @@ use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig, ImageGeneratorVen
 use caliptra_image_openssl::OsslCrypto;
 use caliptra_image_types::{ImageBundle, ImageManifest, VENDOR_ECC_KEY_COUNT};
 use zerocopy::AsBytes;
+
+mod helpers;
 
 // [TODO] Use the error codes from the common library.
 const MANIFEST_MARKER_MISMATCH: u32 = 0x0B000001;
@@ -61,7 +63,7 @@ const SIGNATURE_S: [u8; 48] = [
 
 #[test]
 fn test_invalid_manifest_marker() {
-    let (mut hw, mut image_bundle) = build_hw_model_and_image_bundle(Fuses::default());
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(Fuses::default());
     image_bundle.manifest.marker = 0xDEADBEEF;
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
@@ -72,7 +74,7 @@ fn test_invalid_manifest_marker() {
 
 #[test]
 fn test_invalid_manifest_size() {
-    let (mut hw, mut image_bundle) = build_hw_model_and_image_bundle(Fuses::default());
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(Fuses::default());
     image_bundle.manifest.size = (core::mem::size_of::<ImageManifest>() - 1) as u32;
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
@@ -88,7 +90,7 @@ fn test_preamble_zero_vendor_pubkey_digest() {
         key_manifest_pk_hash: [0u32; 12],
         ..Default::default()
     };
-    let (mut hw, image_bundle) = build_hw_model_and_image_bundle(fuses);
+    let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses);
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
     let mut output = vec![];
@@ -104,7 +106,7 @@ fn test_preamble_vendor_pubkey_digest_mismatch() {
         ..Default::default()
     };
 
-    let (mut hw, image_bundle) = build_hw_model_and_image_bundle(fuses);
+    let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses);
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
     let mut output = vec![];
@@ -119,7 +121,7 @@ fn test_preamble_owner_pubkey_digest_mismatch() {
         ..Default::default()
     };
 
-    let (mut hw, image_bundle) = build_hw_model_and_image_bundle(fuses);
+    let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses);
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
     let mut output = vec![];
@@ -183,7 +185,7 @@ fn test_preamble_vendor_pubkey_revocation() {
 #[test]
 fn test_preamble_vendor_pubkey_out_of_bounds() {
     let mut output = vec![];
-    let (mut hw, mut image_bundle) = build_hw_model_and_image_bundle(Fuses::default());
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(Fuses::default());
     image_bundle.manifest.preamble.vendor_ecc_pub_key_idx = VENDOR_ECC_KEY_COUNT;
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
@@ -195,7 +197,7 @@ fn test_preamble_vendor_pubkey_out_of_bounds() {
 
 #[test]
 fn test_header_verify_vendor_sig_zero_pubkey() {
-    let (mut hw, mut image_bundle) = build_hw_model_and_image_bundle(Fuses::default());
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(Fuses::default());
     let vendor_ecc_pub_key_idx = image_bundle.manifest.preamble.vendor_ecc_pub_key_idx as usize;
     let mut output = vec![];
 
@@ -230,7 +232,7 @@ fn test_header_verify_vendor_sig_zero_pubkey() {
 #[test]
 fn test_header_verify_vendor_sig_zero_signature() {
     let mut output = vec![];
-    let (mut hw, mut image_bundle) = build_hw_model_and_image_bundle(Fuses::default());
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(Fuses::default());
 
     // Set vendor_sig.r to zero.
     let vendor_sig_r_backup = image_bundle.manifest.preamble.vendor_sigs.ecc_sig.r;
@@ -255,7 +257,7 @@ fn test_header_verify_vendor_sig_zero_signature() {
 
 #[test]
 fn test_header_verify_vendor_sig_mismatch() {
-    let (mut hw, mut image_bundle) = build_hw_model_and_image_bundle(Fuses::default());
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(Fuses::default());
     let vendor_ecc_pub_key_idx = image_bundle.manifest.preamble.vendor_ecc_pub_key_idx as usize;
     let mut output = vec![];
 
@@ -301,7 +303,7 @@ fn test_header_verify_vendor_sig_mismatch() {
 
 #[test]
 fn test_header_verify_vendor_pub_key_in_preamble_and_header() {
-    let (mut hw, mut image_bundle) = build_hw_model_and_image_bundle(Fuses::default());
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(Fuses::default());
     let mut output = vec![];
 
     // Change vendor pubkey index.
@@ -500,7 +502,7 @@ fn test_header_verify_owner_sig_zero_signature_s() {
 
 #[test]
 fn test_toc_invalid_entry_count() {
-    let (mut hw, mut image_bundle) = build_hw_model_and_image_bundle(Fuses::default());
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(Fuses::default());
     let mut output = vec![];
 
     // Change the TOC length.
@@ -515,7 +517,7 @@ fn test_toc_invalid_entry_count() {
 
 #[test]
 fn test_toc_invalid_toc_digest() {
-    let (mut hw, mut image_bundle) = build_hw_model_and_image_bundle(Fuses::default());
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(Fuses::default());
     let mut output = vec![];
 
     // Change the TOC digest.
@@ -533,7 +535,7 @@ fn test_toc_fmc_range_overlap() {
     let mut output = vec![];
 
     // Case 1: FMC offset == Runtime offset
-    let (mut hw, mut image_bundle) = build_hw_model_and_image_bundle(Fuses::default());
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(Fuses::default());
     let fmc_new_offset = image_bundle.manifest.runtime.offset;
     // These are unchanged.
     let fmc_new_size = image_bundle.manifest.fmc.size;
@@ -552,7 +554,7 @@ fn test_toc_fmc_range_overlap() {
     assert!(result.is_ok());
 
     // Case 2: FMC offset > Runtime offset
-    let (mut hw, mut image_bundle) = build_hw_model_and_image_bundle(Fuses::default());
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(Fuses::default());
     let fmc_new_offset = image_bundle.manifest.runtime.offset + 1;
     // These are unchanged.
     let fmc_new_size = image_bundle.manifest.fmc.size;
@@ -570,7 +572,7 @@ fn test_toc_fmc_range_overlap() {
     assert!(result.is_ok());
 
     // // Case 3: FMC start offset < Runtime offset < FMC end offset
-    let (mut hw, mut image_bundle) = build_hw_model_and_image_bundle(Fuses::default());
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(Fuses::default());
     let runtime_new_offset = image_bundle.manifest.fmc.offset + 1;
     // These are unchanged.
     let fmc_new_offset = image_bundle.manifest.fmc.offset;
@@ -590,7 +592,7 @@ fn test_toc_fmc_range_overlap() {
 
 #[test]
 fn test_toc_fmc_range_incorrect_order() {
-    let (mut hw, mut image_bundle) = build_hw_model_and_image_bundle(Fuses::default());
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(Fuses::default());
     let mut output = vec![];
     let fmc_new_offset = image_bundle.manifest.runtime.offset;
     let fmc_new_size = image_bundle.manifest.runtime.size;
@@ -611,7 +613,7 @@ fn test_toc_fmc_range_incorrect_order() {
 
 #[test]
 fn test_fmc_digest_mismatch() {
-    let (mut hw, mut image_bundle) = build_hw_model_and_image_bundle(Fuses::default());
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(Fuses::default());
     let mut output = vec![];
 
     // Change the FMC image.
@@ -625,7 +627,7 @@ fn test_fmc_digest_mismatch() {
 
 #[test]
 fn test_runtime_digest_mismatch() {
-    let (mut hw, mut image_bundle) = build_hw_model_and_image_bundle(Fuses::default());
+    let (mut hw, mut image_bundle) = helpers::build_hw_model_and_image_bundle(Fuses::default());
     let mut output = vec![];
 
     // Change the FMC image.
@@ -685,27 +687,4 @@ fn update_fmc_runtime_ranges(
     image.extend_from_slice(&image_bundle.fmc);
     image.extend_from_slice(&image_bundle.runtime);
     image
-}
-
-fn build_hw_model_and_image_bundle(fuses: Fuses) -> (DefaultHwModel, ImageBundle) {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
-    let hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
-            rom: &rom,
-            security_state: SecurityState::from(fuses.life_cycle as u32),
-            ..Default::default()
-        },
-        fuses,
-        fw_image: None,
-    })
-    .unwrap();
-
-    let image_bundle = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap();
-
-    (hw, image_bundle)
 }

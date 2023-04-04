@@ -23,7 +23,7 @@ use caliptra_drivers::{
     Array4x12, CaliptraResult, ColdResetEntry4, ColdResetEntry48, Hmac384Data, Hmac384Key, KeyId,
     KeyReadArgs, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
-use caliptra_image_types::ImageManifest;
+use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
 use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams};
 use zerocopy::{AsBytes, FromBytes};
@@ -37,7 +37,8 @@ rom_err_def! {
     FmcAliasErr
     {
         CertVerify = 0x1,
-     ManifestReadFailure = 0x2,
+        ManifestReadFailure = 0x2,
+        InvalidImageSize = 0x3,
     }
 }
 
@@ -130,8 +131,11 @@ impl FmcAliasLayer {
                     continue;
                 }
 
-                // TODO: Add a check the image is not zero bytes and must be less
-                // than or equal to 128 KB
+                if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
+                    cprintln!("Invalid Image of size {} bytes" txn.dlen());
+                    txn.complete(false)?;
+                    raise_err!(InvalidImageSize);
+                }
 
                 cprintln!("");
                 cprintln!("[afmc] Received Image of size {} bytes" txn.dlen());
