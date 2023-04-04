@@ -284,8 +284,6 @@ impl InitDevIdLayer {
                 // Release access to the mailbox
                 txn.complete()?;
 
-                txn.set_status_complete();
-
                 cprintln!("[idev] CSR uploaded");
 
                 // exit the loop

@@ -137,10 +137,6 @@ impl MailboxSendTxn {
         // Copy data to mailbox
         self.enqueue(data)?;
 
-        // Write Status
-        let mbox = mbox::RegisterBlock::mbox_csr();
-        mbox.status().write(|w| w.status(|w| w.data_ready()));
-
         self.state = MailboxOpState::RdyForData;
 
         Ok(())
@@ -201,6 +197,7 @@ impl MailboxSendTxn {
 
     /// Checks if receiver processed the request.
     pub fn is_response_ready(&self) -> bool {
+        // TODO: Handle MboxStatusE::DataReady
         let mbox = mbox::RegisterBlock::mbox_csr();
 
         matches!(
@@ -212,11 +209,6 @@ impl MailboxSendTxn {
     pub fn status(&self) -> MboxStatusE {
         let mbox = mbox::RegisterBlock::mbox_csr();
         mbox.status().read().status()
-    }
-
-    pub fn set_status_complete(&self) {
-        let mbox = mbox::RegisterBlock::mbox_csr();
-        mbox.status().write(|w| w.status(|w| w.cmd_complete()));
     }
 
     ///
