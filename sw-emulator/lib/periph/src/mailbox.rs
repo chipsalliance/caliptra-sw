@@ -359,7 +359,11 @@ impl MailboxRegs {
 
     // Todo: Implement write ex callback fn
     pub fn write_ex(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
-        let _ = self.state_machine.process_event(Events::ExecWr);
+        let _ = self.state_machine.process_event(if val & 1 != 0 {
+            Events::ExecSet
+        } else {
+            Events::ExecClear
+        });
         self.execute.reg.set(val);
         Ok(())
     }
@@ -412,9 +416,9 @@ statemachine! {
         RdyForCmd  + CmdWrite(Cmd) / set_cmd = RdyForDlen,
         RdyForDlen + DlenWrite(DataLength) / init_dlen = RdyForData,
         RdyForData + DataWrite(DataIn) / enqueue = RdyForData,
-        RdyForData + ExecWr = Exec,
+        RdyForData + ExecSet = Exec,
         Exec + DataRead / dequeue = Exec,
-        Exec + ExecWr [is_locked] / unlock = Idle
+        Exec + ExecClear [is_locked] / unlock = Idle
     }
 }
 
@@ -705,7 +709,7 @@ mod tests {
             .regs
             .borrow_mut()
             .state_machine
-            .process_event(Events::ExecWr);
+            .process_event(Events::ExecSet);
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
             States::Exec
@@ -715,7 +719,7 @@ mod tests {
             .regs
             .borrow_mut()
             .state_machine
-            .process_event(Events::ExecWr);
+            .process_event(Events::ExecClear);
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
             States::Idle
