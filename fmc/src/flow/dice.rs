@@ -16,7 +16,7 @@ Abstract:
 use crate::fmc_env::FmcEnv;
 use caliptra_drivers::{CaliptraResult, KeyId};
 
-use crate::flow::crypto::Ecc384KeyPair;
+use caliptra_common::crypto::Ecc384KeyPair;
 
 /// DICE Layer Input
 #[derive(Debug)]
@@ -46,7 +46,7 @@ pub struct DiceInput {
     /// Temporary KeyId used during DICE derivations
     pub uds_key: KeyId,
 
-    /// Temporary KeyId used during DICE derivations
+    /// Field entropy key.
     pub fe_key: KeyId,
 }
 
@@ -67,12 +67,6 @@ pub struct DiceOutput {
 
     /// Subject Key Identifier
     pub subj_key_id: [u8; 20],
-
-    /// Runtime Load Address
-    pub runtime_load_addr: u32,
-
-    /// Runtime Entry Point
-    pub runtime_entry_point: u32,
 }
 
 /// DICE Layer Interface

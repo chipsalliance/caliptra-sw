@@ -17,7 +17,6 @@ mod unknown_reset;
 mod update_reset;
 mod warm_reset;
 
-mod crypto;
 pub mod dice;
 mod rt_alias;
 
