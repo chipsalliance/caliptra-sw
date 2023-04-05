@@ -481,7 +481,7 @@ impl HashSha512 {
             if pcr_hash_extend != 0 {
                 // Copy the PCR (48 bytes) to the block registers.
                 self.block[..KeyVault::KEY_SIZE / 4].copy_from_slice(&words_from_bytes_le(
-                    &data[..KeyVault::KEY_SIZE].try_into().unwrap(),
+                    &<[u8; KeyVault::KEY_SIZE]>::try_from(&data[..KeyVault::KEY_SIZE]).unwrap(),
                 ));
             } else {
                 self.format_block(&data);

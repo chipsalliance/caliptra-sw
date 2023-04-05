@@ -531,7 +531,9 @@ impl AsymEcc384 {
         };
 
         if let Some(key) = key {
-            self.priv_key = words_from_bytes_le(key[..ECC384_COORD_SIZE].try_into().unwrap());
+            self.priv_key = words_from_bytes_le(
+                &<[u8; ECC384_COORD_SIZE]>::try_from(&key[..ECC384_COORD_SIZE]).unwrap(),
+            );
         }
 
         self.key_read_status.reg.modify(
@@ -562,7 +564,9 @@ impl AsymEcc384 {
         };
 
         if let Some(seed) = seed {
-            self.seed = words_from_bytes_le(seed[..ECC384_SEED_SIZE].try_into().unwrap());
+            self.seed = words_from_bytes_le(
+                &<[u8; ECC384_SEED_SIZE]>::try_from(&seed[..ECC384_SEED_SIZE]).unwrap(),
+            );
         }
 
         self.seed_read_status.reg.modify(
@@ -593,7 +597,9 @@ impl AsymEcc384 {
         };
 
         if let Some(msg) = msg {
-            self.hash = words_from_bytes_le(msg[..ECC384_SEED_SIZE].try_into().unwrap());
+            self.hash = words_from_bytes_le(
+                &<[u8; ECC384_SEED_SIZE]>::try_from(&msg[..ECC384_SEED_SIZE]).unwrap(),
+            );
         }
 
         self.msg_read_status.reg.modify(
