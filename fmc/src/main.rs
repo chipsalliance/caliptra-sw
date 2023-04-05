@@ -17,6 +17,7 @@ use core::hint::black_box;
 
 use caliptra_common::cprintln;
 use caliptra_drivers::report_fw_error_non_fatal;
+mod flow;
 pub mod fmc_env;
 pub mod fmc_env_cell;
 mod hand_off;
@@ -35,12 +36,13 @@ Running Caliptra FMC ...
 pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
 
-    if let Some(hand_off) = HandOff::from_previous() {
+    if let Some(mut hand_off) = HandOff::from_previous() {
         let env = fmc_env::FmcEnv::default();
-        hand_off.to_rt(&env)
-    } else {
-        caliptra_drivers::ExitCtrl::exit(0xff)
+        if flow::run(&env, &mut hand_off).is_ok() {
+            hand_off.to_rt(&env)
+        }
     }
+    caliptra_drivers::ExitCtrl::exit(0xff)
 }
 
 #[no_mangle]

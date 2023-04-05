@@ -233,6 +233,7 @@ dependencies = [
  "caliptra-cpu",
  "caliptra-drivers",
  "caliptra-hw-model",
+ "caliptra-x509",
  "caliptra_common",
  "cfg-if",
  "ufmt",
