@@ -45,9 +45,6 @@ pub struct DiceInput {
 
     /// Temporary KeyId used during DICE derivations
     pub uds_key: KeyId,
-
-    /// Field entropy key.
-    pub fe_key: KeyId,
 }
 
 /// DICE Layer Output
