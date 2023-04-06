@@ -10,7 +10,7 @@ use caliptra_image_gen::{
     ImageGenerator, ImageGeneratorConfig, ImageGeneratorOwnerConfig, ImageGeneratorVendorConfig,
 };
 use caliptra_image_openssl::OsslCrypto;
-use caliptra_image_types::ImageRevision;
+use caliptra_image_types::{ImageBundle, ImageRevision};
 use elf::endian::LittleEndian;
 
 mod elf_symbols;
@@ -173,8 +173,8 @@ pub struct ImageOptions {
     fmc_svn: u32,
     app_min_svn: u32,
     app_svn: u32,
-    vendor_config: ImageGeneratorVendorConfig,
-    owner_config: Option<ImageGeneratorOwnerConfig>,
+    pub vendor_config: ImageGeneratorVendorConfig,
+    pub owner_config: Option<ImageGeneratorOwnerConfig>,
 }
 impl Default for ImageOptions {
     fn default() -> Self {
@@ -189,7 +189,11 @@ impl Default for ImageOptions {
     }
 }
 
-pub fn build_and_sign_image(fmc: &FwId, app: &FwId, opts: ImageOptions) -> anyhow::Result<Vec<u8>> {
+pub fn build_and_sign_image(
+    fmc: &FwId,
+    app: &FwId,
+    opts: ImageOptions,
+) -> anyhow::Result<ImageBundle> {
     let fmc_elf = build_firmware_elf(fmc)?;
     let app_elf = build_firmware_elf(app)?;
     let gen = ImageGenerator::new(OsslCrypto::default());
@@ -209,9 +213,8 @@ pub fn build_and_sign_image(fmc: &FwId, app: &FwId, opts: ImageOptions) -> anyho
         vendor_config: opts.vendor_config,
         owner_config: opts.owner_config,
     })?;
-    Ok(image.to_bytes()?)
+    Ok(image)
 }
-
 fn image_revision_from_git_repo() -> io::Result<ImageRevision> {
     let commit_id = run_cmd_stdout(Command::new("git").arg("rev-parse").arg("HEAD"), None)?;
     let rtl_git_status =

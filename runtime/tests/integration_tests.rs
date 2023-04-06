@@ -14,7 +14,7 @@ fn run_rt_test(test_bin_name: Option<&str>) {
     };
 
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
-    let image = caliptra_builder::build_and_sign_image(
+    let image_bundle = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &runtime_fwid,
         ImageOptions::default(),
@@ -30,7 +30,9 @@ fn run_rt_test(test_bin_name: Option<&str>) {
     })
     .unwrap();
 
-    model.upload_firmware(&image).unwrap();
+    model
+        .upload_firmware(&image_bundle.to_bytes().unwrap())
+        .unwrap();
 }
 
 #[test]

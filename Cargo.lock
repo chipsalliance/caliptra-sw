@@ -393,6 +393,11 @@ version = "0.1.0"
 dependencies = [
  "caliptra-builder",
  "caliptra-drivers",
+ "caliptra-hw-model",
+ "caliptra-image-elf",
+ "caliptra-image-fake-keys",
+ "caliptra-image-gen",
+ "caliptra-image-openssl",
  "caliptra-image-types",
  "caliptra-image-verify",
  "caliptra-kat",
