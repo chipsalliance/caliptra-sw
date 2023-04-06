@@ -12,6 +12,7 @@ caliptra-registers = { path = "../../registers" }
 caliptra-kat = { path = "../../kat" }
 caliptra-test-harness = { path = "../../test-harness" }
 cfg-if = "1.0.0"
+zerocopy = "0.6.1"
 
 [features]
 emu = ["caliptra-test-harness/emu"]

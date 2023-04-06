@@ -151,6 +151,7 @@ dependencies = [
  "caliptra-registers",
  "caliptra-test-harness",
  "cfg-if",
+ "zerocopy",
 ]
 
 [[package]]
