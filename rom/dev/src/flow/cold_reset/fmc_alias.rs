@@ -26,10 +26,10 @@ use caliptra_drivers::{
 use caliptra_image_types::ImageManifest;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
 use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams};
-use zerocopy::FromBytes;
+use zerocopy::{AsBytes, FromBytes};
 
 extern "C" {
-    static mut MAN1_ORG: u8;
+    static mut MAN1_ORG: u32;
 }
 
 rom_err_def! {
@@ -147,13 +147,13 @@ impl FmcAliasLayer {
     /// * `Manifest` - Caliptra Image Bundle Manifest
     fn load_manifest(txn: &MailboxRecvTxn) -> CaliptraResult<ImageManifest> {
         let slice = unsafe {
-            let ptr = &mut MAN1_ORG as *mut u8;
-            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>())
+            let ptr = &mut MAN1_ORG as *mut u32;
+            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
         };
 
         txn.copy_request(0, slice)?;
 
-        ImageManifest::read_from(slice).ok_or(err_u32!(ManifestReadFailure))
+        ImageManifest::read_from(slice.as_bytes()).ok_or(err_u32!(ManifestReadFailure))
     }
 
     /// Verify the image
@@ -196,8 +196,8 @@ impl FmcAliasLayer {
         );
 
         let fmc_dest = unsafe {
-            let addr = (manifest.fmc.load_addr) as *mut u8;
-            core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize)
+            let addr = (manifest.fmc.load_addr) as *mut u32;
+            core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize / 4)
         };
 
         txn.copy_request(0, fmc_dest)?;
@@ -209,8 +209,8 @@ impl FmcAliasLayer {
         );
 
         let runtime_dest = unsafe {
-            let addr = (manifest.runtime.load_addr) as *mut u8;
-            core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize)
+            let addr = (manifest.runtime.load_addr) as *mut u32;
+            core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize / 4)
         };
 
         txn.copy_request(0, runtime_dest)?;
@@ -273,7 +273,7 @@ impl FmcAliasLayer {
 
         // TODO: Need a better way to get the Manifest address
         let slice = unsafe {
-            let ptr = &MAN1_ORG as *const u8;
+            let ptr = &MAN1_ORG as *const u32;
             ptr as u32
         };
 

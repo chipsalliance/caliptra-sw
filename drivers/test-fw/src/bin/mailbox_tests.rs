@@ -19,6 +19,7 @@ use caliptra_drivers::Mailbox;
 use caliptra_registers::mbox::{self};
 use core::mem::size_of;
 use core::slice;
+use zerocopy::AsBytes;
 
 use caliptra_test_harness::test_suite;
 
@@ -82,7 +83,7 @@ fn test_mailbox_loopback() {
             4 * size_of::<u32>() - 1,
         )
     };
-    let mut request_received = [0u8; 128];
+    let mut request_received = [0u32; 32];
 
     let mut ii = 0;
     while ii < 2 {
@@ -99,7 +100,7 @@ fn test_mailbox_loopback() {
             if let Some(mut recv_txn) = Mailbox::default().try_start_recv_txn() {
                 assert_eq!(mbox.dlen().read(), recv_txn.dlen());
                 assert!(recv_txn.recv_request(&mut request_received[..]).is_ok());
-                assert_eq!(request, &request_received[..request.len()]);
+                assert_eq!(request, &request_received.as_bytes()[..request.len()]);
                 assert!(recv_txn.recv_request(&mut request_received[..]).is_err());
                 for nn in &mut request_received[0..request.len()] {
                     *nn = 42
