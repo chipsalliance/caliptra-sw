@@ -103,7 +103,7 @@ impl LocalDevIdLayer {
         // CDI Key
         let key = Hmac384Key::Key(KeyReadArgs::new(cdi));
         let data = Hmac384Data::Key(KeyReadArgs::new(uds));
-        let cdi = Crypto::hmac384_mac(env, key, data, cdi)?;
+        Crypto::hmac384_mac(env, key, data, cdi)?;
 
         cprintln!("[ldev] Erasing FE.KEYID = {}", uds as u8);
         env.key_vault().map(|k| k.erase_key(uds))?;

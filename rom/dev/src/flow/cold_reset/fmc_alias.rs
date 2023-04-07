@@ -20,8 +20,8 @@ use crate::verifier::RomImageVerificationEnv;
 use crate::{cprint, cprint_slice, cprintln, pcr};
 use crate::{rom_env::RomEnv, rom_err_def};
 use caliptra_drivers::{
-    Array4x12, CaliptraResult, ColdResetEntry4, ColdResetEntry48, Hmac384Data, Hmac384Key, KeyId,
-    KeyReadArgs, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
+    Array4x12, CaliptraResult, Hmac384Data, Hmac384Key, KeyId, KeyReadArgs, MailboxRecvTxn,
+    ResetReason, Sha384DigestOp,
 };
 use caliptra_image_types::ImageManifest;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
@@ -64,26 +64,20 @@ impl DiceLayer for FmcAliasLayer {
         // Verify the image
         let info = Self::verify_image(env, &manifest)?;
 
-        // populate data vault
-        Self::populate_data_vault(env, &info);
+        // Populate data vault
+        Self::populate_data_vault(env, &info)?;
 
-        // Extend PCR0 & PCR1
+        // Extend PCR0
         Self::extend_pcrs(env)?;
 
         // Load the image
         Self::load_image(env, &manifest, txn)?;
 
-        // At this point PCR0 & PCR1 must have the same value. We use the value
-        // of PCR1 as the UDS for deriving the CDI
-        let uds = env
-            .pcr_bank()
-            .map(|p| p.read_pcr(caliptra_drivers::PcrId::PcrId1));
-
-        // Derive the DICE CDI from decrypted UDS
-        let cdi = Self::derive_cdi(env, uds, input.cdi)?;
+        // Derive the FMC DICE CDI from the FMC measurement
+        Self::derive_cdi(env, input.cdi)?;
 
         // Derive DICE Key Pair from CDI
-        let key_pair = Self::derive_key_pair(env, cdi, input.subj_priv_key)?;
+        let key_pair = Self::derive_key_pair(env, input.cdi, input.subj_priv_key)?;
 
         // Generate the Subject Serial Number and Subject Key Identifier.
         //
@@ -95,7 +89,7 @@ impl DiceLayer for FmcAliasLayer {
         // Generate the output for next layer
         let output = input.to_output(key_pair, subj_sn, subj_key_id);
 
-        // Generate Local Device ID Certificate
+        // Generate FMC Alias Certificate
         Self::generate_cert_sig(env, input, &output)?;
 
         cprintln!("[afmc] --");
@@ -228,47 +222,23 @@ impl FmcAliasLayer {
     ///
     /// * `env`  - ROM Environment
     /// * `info` - Image Verification Info
-    fn populate_data_vault(env: &RomEnv, info: &ImageVerificationInfo) {
-        env.data_vault()
-            .map(|d| d.write_cold_reset_entry48(ColdResetEntry48::FmcTci, &info.fmc.digest.into()));
-
-        env.data_vault()
-            .map(|d| d.write_cold_reset_entry4(ColdResetEntry4::FmcSvn, info.fmc.svn));
-
-        env.data_vault()
-            .map(|d| d.write_cold_reset_entry4(ColdResetEntry4::FmcLoadAddr, info.fmc.load_addr));
-
+    fn populate_data_vault(env: &RomEnv, info: &ImageVerificationInfo) -> CaliptraResult<()> {
+        // Write cold-reset data.
         env.data_vault().map(|d| {
-            d.write_cold_reset_entry4(ColdResetEntry4::FmcEntryPoint, info.fmc.entry_point)
+            d.set_fmc_tci(&info.fmc.digest.into());
+            d.set_fmc_svn(info.fmc.svn);
+            d.set_fmc_load_addr(info.fmc.load_addr);
+            d.set_fmc_entry_point(info.fmc.entry_point);
+            d.set_owner_pk_hash(&info.owner_pub_keys_digest.into());
+            d.set_vendor_pk_index(info.vendor_ecc_pub_key_idx);
         });
 
+        // Write warm-reset data.
         env.data_vault().map(|d| {
-            d.write_cold_reset_entry48(
-                ColdResetEntry48::OwnerPubKeyHash,
-                &info.owner_pub_keys_digest.into(),
-            )
-        });
-
-        env.data_vault().map(|d| {
-            d.write_cold_reset_entry4(
-                ColdResetEntry4::VendorPubKeyIndex,
-                info.vendor_ecc_pub_key_idx,
-            )
-        });
-
-        env.data_vault().map(|d| {
-            d.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime.digest.into())
-        });
-
-        env.data_vault()
-            .map(|d| d.write_warm_reset_entry4(WarmResetEntry4::RtSvn, info.runtime.svn));
-
-        env.data_vault().map(|d| {
-            d.write_warm_reset_entry4(WarmResetEntry4::RtLoadAddr, info.runtime.load_addr)
-        });
-
-        env.data_vault().map(|d| {
-            d.write_warm_reset_entry4(WarmResetEntry4::RtEntryPoint, info.runtime.entry_point)
+            d.set_rt_tci(&info.runtime.digest.into());
+            d.set_rt_svn(info.runtime.svn);
+            d.set_rt_load_addr(info.runtime.load_addr);
+            d.set_rt_entry_point(info.runtime.entry_point);
         });
 
         // TODO: Need a better way to get the Manifest address
@@ -277,47 +247,84 @@ impl FmcAliasLayer {
             ptr as u32
         };
 
-        env.data_vault()
-            .map(|d| d.write_warm_reset_entry4(WarmResetEntry4::ManifestAddr, slice));
+        env.data_vault().map(|d| d.set_manifest_addr(slice));
+
+        Self::derive_fmc_measurements(env, info)?;
+
+        Ok(())
     }
 
-    /// Extend the PCR0 & PCR1
+    /// Derive the FMC measurement digest and place it in the data vault.
     ///
-    /// PCR0 is a journey PCR and is locked for clear on cold boot. PCR1
-    /// is the current PCR and is cleared on any reset
+    /// The hash covers fuse state and FMC image state.
+    ///
+    /// # Arguments
+    ///
+    /// * `env`  - ROM Environment
+    /// * `info` - Image Verification Info
+    fn derive_fmc_measurements(env: &RomEnv, info: &ImageVerificationInfo) -> CaliptraResult<()> {
+        let sha = env.sha384();
+        let mut digest = Array4x12::default();
+        let mut op = sha.map(|s| s.digest_init(&mut digest).unwrap());
+
+        let extend_digest_u8 = |op: &mut Sha384DigestOp, data: u8| {
+            op.update(&data.to_le_bytes())
+        };
+
+        let extend_digest = |op: &mut Sha384DigestOp, data: Array4x12| {
+            let bytes: &[u8; 48] = &data.into();
+            op.update(bytes)
+        };
+
+        extend_digest_u8(&mut op, env.dev_state().map(|d| d.lifecycle()) as u8)?;
+        extend_digest_u8(&mut op, env.dev_state().map(|d| d.debug_locked()) as u8)?;
+        extend_digest_u8(&mut op, env.fuse_bank().map(|f| f.anti_rollback_disable()) as u8)?;
+        extend_digest(&mut op, env.fuse_bank().map(|f| f.vendor_pub_key_hash()))?;
+        extend_digest(&mut op, info.owner_pub_keys_digest.into())?;
+        extend_digest_u8(&mut op, info.vendor_ecc_pub_key_idx as u8)?;
+        extend_digest(&mut op, info.fmc.digest.into())?;
+        extend_digest_u8(&mut op, info.fmc.svn as u8)?;
+
+        op.finalize()?;
+
+        env.data_vault().map(|d| d.set_fmc_measurements(&digest));
+
+        Ok(())
+    }
+
+    /// Extend PCR0
+    ///
+    /// PCR0 is a journey PCR and is locked for clear on cold boot.
     ///
     /// # Arguments
     ///
     /// * `env` - ROM Environment
     fn extend_pcrs(env: &RomEnv) -> CaliptraResult<()> {
-        pcr::extend_pcr0(env)?;
-        pcr::extend_pcr1(env)?;
+        let measurement = env.data_vault().map(|d| d.fmc_measurements());
+
+        pcr::extend_pcr0(env, measurement)?;
 
         // TODO: Check PCR0 != 0
-
-        // TODO: Check PCR0 == PCR1
 
         Ok(())
     }
 
-    /// Derive Composite Device Identity (CDI) from Unique Device Secret (UDS)
+    /// Derive FMC's Composite Device Identity (CDI)
     ///
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    /// * `uds` - Array containing the UDS
     /// * `cdi` - Key Slot to store the generated CDI
-    ///
-    /// # Returns
-    ///
-    /// * `KeyId` - KeySlot containing the DICE CDI
-    fn derive_cdi(env: &RomEnv, uds: Array4x12, cdi: KeyId) -> CaliptraResult<KeyId> {
+    fn derive_cdi(env: &RomEnv, cdi: KeyId) -> CaliptraResult<()> {
         // CDI Key
         let key = Hmac384Key::Key(KeyReadArgs::new(cdi));
-        let data: [u8; 48] = uds.into();
-        let data = Hmac384Data::Slice(&data);
-        let cdi = Crypto::hmac384_mac(env, key, data, cdi)?;
-        Ok(cdi)
+
+        // CDI measurement
+        let data: &[u8; 48] = &env.data_vault().map(|d| d.fmc_measurements()).into();
+        let data = Hmac384Data::Slice(data);
+        Crypto::hmac384_mac(env, key, data, cdi)?;
+
+        Ok(())
     }
 
     /// Derive Dice Layer Key Pair
@@ -335,7 +342,7 @@ impl FmcAliasLayer {
         Crypto::ecc384_key_gen(env, cdi, priv_key)
     }
 
-    /// Generate Local Device ID Certificate Signature
+    /// Generate FMC Alias Certificate Signature
     ///
     /// # Arguments
     ///
@@ -360,11 +367,12 @@ impl FmcAliasLayer {
             authority_key_id: &input.auth_key_id,
             serial_number: &X509::cert_sn(env, pub_key)?,
             public_key: &pub_key.to_der(),
+            tcb_info_fmc_measurements: &env.data_vault().map(|d| d.fmc_measurements()).into(),
             tcb_info_fmc_tci: &env.data_vault().map(|d| d.fmc_tci()).into(),
             tcb_info_owner_pk_hash: &env.data_vault().map(|d| d.owner_pk_hash()).into(),
         };
 
-        // Generate the `To Be Signed` portion of the CSR
+        // Generate the `To Be Signed` portion of the certificate
         let tbs = FmcAliasCertTbs::new(&params);
 
         // Sign the the `To Be Signed` portion

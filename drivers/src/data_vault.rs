@@ -28,6 +28,7 @@ pub enum ColdResetEntry48 {
     FmcPubKeyY = 7,
     FmcTci = 8,
     OwnerPubKeyHash = 9,
+    FmcMeasurements = 10,
 }
 
 impl From<ColdResetEntry48> for u8 {
@@ -243,6 +244,26 @@ impl DataVault {
     ///
     pub fn owner_pk_hash(&self) -> Array4x12 {
         self.read_cold_reset_entry48(ColdResetEntry48::OwnerPubKeyHash)
+    }
+
+    /// Set the FMC alias measurement
+    ///
+    /// # Arguments
+    ///
+    /// * `hash` - FMC alias measurement
+    ///
+    pub fn set_fmc_measurements(&mut self, hash: &Array4x12) {
+        self.write_lock_cold_reset_entry48(ColdResetEntry48::FmcMeasurements, hash);
+    }
+
+    /// Get the FMC alias measurement
+    ///
+    /// # Returns
+    ///
+    /// * `Array4x12` - FMC alias measurement
+    ///
+    pub fn fmc_measurements(&self) -> Array4x12 {
+        self.read_cold_reset_entry48(ColdResetEntry48::FmcMeasurements)
     }
 
     /// Set the fmc security version number.

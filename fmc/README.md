@@ -108,30 +108,31 @@ fields may not be changed or removed). Table revisions with different Major Vers
 
 | Field                 | Size (bytes) | Written By | Description                                                                                              |
 |:----------------------|:-------------|:-----------|:---------------------------------------------------------------------------------------------------------|
-| fht_marker            | 4            | ROM        | Magic Number marking start of FHT. Value must be 0x54484643, ‘CFHT’ when viewed as little-endian ASCII.  |
-| fht_major_ver         | 2            | ROM        | Major version of FHT.                                                                                    |
-| fht_minor_ver         | 2            | ROM, FMC   | Minor version of FHT. Initially written by ROM but may be changed to a higher version by FMC.            |
-| manifest_load_addr    | 4            | ROM        | Physical base address of Manifest in DCCM SRAM.                                                          |
-| fips_fw_load_addr_idx | 4            | ROM        | Index of base address of FIPS Module in ROM or ICCM SRAM. May be 0xFF if there is no discrete module.    |
-| rt_fw_load_addr_idx   | 4            | ROM        | Index of load address of Runtime FW Module value in data vault.SRAM.                                                 |
-| rt_fw_entry_point_idx | 4            | ROM        | Index of entry point of Runtime FW Module value in data vault. SRAM.                                                           |
-| fmc_tci_dv_idx        | 1            | ROM        | Index of FMC TCI value in the Data Vault.                                                                |
-| fmc_cdi_kv_idx        | 1            | ROM        | Index of FMC CDI value in the Key Vault. Value of 0xFF indicates not present.                            |
-| fmc_priv_key_kv_idx   | 1            | ROM        | Index of FMC Private Alias Key in the Key Vault.                                                         |
-| fmc_pub_key_x_dv_idx  | 1            | ROM        | Index of FMC Public Alias Key X Coordinate in the Data Vault.                                            |
-| fmc_pub_key_y_dv_idx  | 1            | ROM        | Index of FMC Public Alias Key Y Coordinate in the Data Vault                                             |
-| fmc_cert_sig_r_dv_idx | 1            | ROM        | Index of FMC Certificate Signature R Component in the Data Vault.                                        |
-| fmc_cert_sig_s_dv_idx | 1            | ROM        | Index of FMC Certificate Signature S Component in the Data Vault.                                        |
-| fmc_svn_dv_idx        | 1            | ROM        | Index of FMC SVN value in the Data Vault.                                                                |
-| rt_tci_dv_idx         | 1            | ROM        | Index of RT TCI value in the Data Vault.                                                                 |
-| rt_cdi_kv_idx         | 1            | FMC        | Index of RT CDI value in the Key Vault.                                                                  |
-| rt_priv_key_kv_idx    | 1            | FMC        | Index of RT Private Alias Key in the Key Vault.                                                          |
-| rt_pub_key_x_dv_idx   | 1            | FMC        | Index of RT Public Alias Key X Coordinate in the Data Vault.                                             |
-| rt_pub_key_y_dv_idx   | 1            | FMC        | Index of RT Public Alias Key Y Coordinate in the Data Vault.                                             |
-| rt_cert_sig_r_dv_idx  | 1            | FMC        | Index of RT Certificate Signature R Component in the Data Vault.                                         |
-| rt_cert_sig_s_dv_idx  | 1            | FMC        | Index of RT Certificate Signature S Component in the Data Vault.                                         |
-| rt_svn_dv_idx         | 1            | FMC        | Index of RT SVN value in the Data Vault.                                                                 |
-| reserved              | 20           |            | Reserved for future use.                                                                                 |
+| fht_marker              | 4            | ROM        | Magic Number marking start of FHT. Value must be 0x54484643, ‘CFHT’ when viewed as little-endian ASCII.  |
+| fht_major_ver           | 2            | ROM        | Major version of FHT.                                                                                    |
+| fht_minor_ver           | 2            | ROM, FMC   | Minor version of FHT. Initially written by ROM but may be changed to a higher version by FMC.            |
+| manifest_load_addr      | 4            | ROM        | Physical base address of Manifest in DCCM SRAM.                                                          |
+| fips_fw_load_addr_idx   | 4            | ROM        | Index of base address of FIPS Module in ROM or ICCM SRAM. May be 0xFF if there is no discrete module.    |
+| rt_fw_load_addr_idx     | 4            | ROM        | Index of load address of Runtime FW Module value in data vault.SRAM.                                                 |
+| rt_fw_entry_point_idx   | 4            | ROM        | Index of entry point of Runtime FW Module value in data vault. SRAM.                                                           |
+| fmc_tci_dv_idx          | 1            | ROM        | Index of FMC TCI value in the Data Vault.                                                                |
+| fmc_cdi_kv_idx          | 1            | ROM        | Index of FMC CDI value in the Key Vault. Value of 0xFF indicates not present.                            |
+| fmc_priv_key_kv_idx     | 1            | ROM        | Index of FMC Private Alias Key in the Key Vault.                                                         |
+| fmc_pub_key_x_dv_idx    | 1            | ROM        | Index of FMC Public Alias Key X Coordinate in the Data Vault.                                            |
+| fmc_pub_key_y_dv_idx    | 1            | ROM        | Index of FMC Public Alias Key Y Coordinate in the Data Vault                                             |
+| fmc_cert_sig_r_dv_idx   | 1            | ROM        | Index of FMC Certificate Signature R Component in the Data Vault.                                        |
+| fmc_cert_sig_s_dv_idx   | 1            | ROM        | Index of FMC Certificate Signature S Component in the Data Vault.                                        |
+| fmc_svn_dv_idx          | 1            | ROM        | Index of FMC SVN value in the Data Vault.                                                                |
+| fmc_measurements_dv_idx | 1            | ROM        | Index of FMC Measurements value in the Data Vault.                                                                |
+| rt_tci_dv_idx           | 1            | ROM        | Index of RT TCI value in the Data Vault.                                                                 |
+| rt_cdi_kv_idx           | 1            | FMC        | Index of RT CDI value in the Key Vault.                                                                  |
+| rt_priv_key_kv_idx      | 1            | FMC        | Index of RT Private Alias Key in the Key Vault.                                                          |
+| rt_pub_key_x_dv_idx     | 1            | FMC        | Index of RT Public Alias Key X Coordinate in the Data Vault.                                             |
+| rt_pub_key_y_dv_idx     | 1            | FMC        | Index of RT Public Alias Key Y Coordinate in the Data Vault.                                             |
+| rt_cert_sig_r_dv_idx    | 1            | FMC        | Index of RT Certificate Signature R Component in the Data Vault.                                         |
+| rt_cert_sig_s_dv_idx    | 1            | FMC        | Index of RT Certificate Signature S Component in the Data Vault.                                         |
+| rt_svn_dv_idx           | 1            | FMC        | Index of RT SVN value in the Data Vault.                                                                 |
+| reserved                | 20           |            | Reserved for future use.                                                                                 |
 
 *FHT is currently defined to be 60 bytes in length.*
 

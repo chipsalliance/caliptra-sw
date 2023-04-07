@@ -60,6 +60,8 @@ pub struct FirmwareHandoffTable {
     /// Index of FMC SVN value in the Data Vault
     pub fmc_svn_dv_idx: u8,
 
+    pub fmc_measurements_dv_idx: u8,
+
     /// Index of RT TCI value in the Data Vault.
     pub rt_tci_dv_idx: u8,
 
@@ -85,7 +87,7 @@ pub struct FirmwareHandoffTable {
     pub rt_svn_dv_idx: u8,
 
     /// Reserved for future use.
-    pub reserved: [u8; 29],
+    pub reserved: [u8; 28],
 }
 
 impl Default for FirmwareHandoffTable {
@@ -106,6 +108,7 @@ impl Default for FirmwareHandoffTable {
             fmc_cert_sig_r_dv_idx: FHT_INVALID_IDX,
             fmc_cert_sig_s_dv_idx: FHT_INVALID_IDX,
             fmc_svn_dv_idx: FHT_INVALID_IDX,
+            fmc_measurements_dv_idx: FHT_INVALID_IDX,
             rt_tci_dv_idx: FHT_INVALID_IDX,
             rt_cdi_kv_idx: FHT_INVALID_IDX,
             rt_priv_key_kv_idx: FHT_INVALID_IDX,
@@ -114,7 +117,7 @@ impl Default for FirmwareHandoffTable {
             rt_cert_sig_r_dv_idx: FHT_INVALID_IDX,
             rt_cert_sig_s_dv_idx: FHT_INVALID_IDX,
             rt_svn_dv_idx: FHT_INVALID_IDX,
-            reserved: [0; 29],
+            reserved: [0; 28],
         }
     }
 }
@@ -131,6 +134,7 @@ impl FirmwareHandoffTable {
             && self.fmc_pub_key_y_dv_idx != FHT_INVALID_IDX
             && self.fmc_cert_sig_r_dv_idx != FHT_INVALID_IDX
             && self.fmc_cert_sig_s_dv_idx != FHT_INVALID_IDX
+            && self.fmc_measurements_dv_idx != FHT_INVALID_IDX
             && self.rt_fw_load_addr_idx != FHT_INVALID_IDX
             && self.rt_tci_dv_idx != FHT_INVALID_IDX
             && self.rt_fw_entry_point_idx != FHT_INVALID_IDX

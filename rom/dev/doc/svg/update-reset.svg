@@ -222,7 +222,7 @@
 						x="22.18" dy="1.2em" class="st4">Runtime<v:newlineChar/></tspan><tspan x="13.44" dy="1.2em" class="st4">From Mailbox</tspan></text>		</g>
 		<g id="shape1014-49" v:mID="1014" v:groupContext="shape" v:layerMember="0" transform="translate(113.011,-224.442)">
 			<title>Subprocess.1048</title>
-			<desc>PCR1 Generation</desc>
+			<desc>Measurement Generation</desc>
 			<v:custProps>
 				<v:cp v:nameU="Cost" v:lbl="Cost" v:prompt="" v:type="7" v:format="@" v:sortKey="" v:invis="false" v:ask="false"
 						v:langID="1033" v:cal="0"/>
@@ -253,7 +253,7 @@
 			<path d="M0 548.82 L72 548.82 L72 494.82 L0 494.82 L0 548.82" class="st2"/>
 			<path d="M9 548.82 L9 494.82" class="st2"/>
 			<path d="M63 548.82 L63 494.82" class="st2"/>
-			<text x="27.6" y="519.42" class="st3" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>PCR1<v:newlineChar/><tspan
+			<text x="27.6" y="519.42" class="st3" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Measurement<v:newlineChar/><tspan
 						x="17.62" dy="1.2em" class="st4">Generation</tspan></text>		</g>
 		<g id="shape1016-56" v:mID="1016" v:groupContext="shape" v:layerMember="1" transform="translate(84.6593,-36.375)">
 			<title>Dynamic connector.1062</title>

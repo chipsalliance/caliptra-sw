@@ -28,10 +28,9 @@ impl DiceLayer for RtAliasLayer {
 }
 
 impl RtAliasLayer {
-    /// Extend the PCR0 & PCR1
+    /// Extend PCR0
     ///
-    /// PCR0 is a journey PCR and is locked for clear on cold boot. PCR1
-    /// is the current PCR and is cleared on any reset
+    /// PCR0 is a journey PCR and is locked for clear on cold boot.
     ///
     /// # Arguments
     ///

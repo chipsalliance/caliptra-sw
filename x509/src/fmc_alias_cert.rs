@@ -56,6 +56,8 @@ mod tests {
                 .unwrap(),
             tcb_info_owner_pk_hash: &[0xCDu8; FmcAliasCertTbsParams::TCB_INFO_OWNER_PK_HASH_LEN],
             tcb_info_fmc_tci: &[0xEFu8; FmcAliasCertTbsParams::TCB_INFO_FMC_TCI_LEN],
+            tcb_info_fmc_measurements: &[0xEFu8;
+                FmcAliasCertTbsParams::TCB_INFO_FMC_MEASUREMENTS_LEN],
         };
 
         let cert = FmcAliasCertTbs::new(&params);
@@ -109,6 +111,12 @@ mod tests {
             &cert.tbs()[FmcAliasCertTbs::TCB_INFO_FMC_TCI_OFFSET
                 ..FmcAliasCertTbs::TCB_INFO_FMC_TCI_OFFSET + FmcAliasCertTbs::TCB_INFO_FMC_TCI_LEN],
             params.tcb_info_fmc_tci,
+        );
+        assert_eq!(
+            &cert.tbs()[FmcAliasCertTbs::TCB_INFO_FMC_MEASUREMENTS_OFFSET
+                ..FmcAliasCertTbs::TCB_INFO_FMC_MEASUREMENTS_OFFSET
+                    + FmcAliasCertTbs::TCB_INFO_FMC_MEASUREMENTS_LEN],
+            params.tcb_info_fmc_measurements,
         );
 
         let ecdsa_sig = crate::Ecdsa384Signature {

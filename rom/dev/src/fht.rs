@@ -42,6 +42,7 @@ pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
         fmc_cert_sig_s_dv_idx: ColdResetEntry48::FmcDiceSigS.into(),
         fmc_tci_dv_idx: ColdResetEntry48::FmcTci.into(),
         fmc_svn_dv_idx: ColdResetEntry4::FmcSvn.into(),
+        fmc_measurements_dv_idx: ColdResetEntry48::FmcMeasurements.into(),
         rt_cdi_kv_idx: u8::MAX,
         rt_priv_key_kv_idx: u8::MAX,
         rt_pub_key_x_dv_idx: u8::MAX,

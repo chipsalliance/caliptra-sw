@@ -23,7 +23,7 @@ pub struct EnvCell<T> {
     val: UnsafeCell<T>,
 }
 
-impl<T> EnvCell<T> {
+impl<'a, T: 'a> EnvCell<T> {
     /// Create a new `RentalCell` with `value`
     pub fn new(value: T) -> Self {
         Self {
@@ -34,7 +34,7 @@ impl<T> EnvCell<T> {
     /// Helper function to use the Cell
     pub fn map<F, R>(&self, closure: F) -> R
     where
-        F: FnOnce(&mut T) -> R,
+        F: FnOnce(&'a mut T) -> R,
     {
         closure(unsafe { &mut *self.val.get() })
     }

@@ -69,6 +69,13 @@ fn gen_fmc_alias_cert(out_dir: &str) {
             0,
             &[
                 FwidParam {
+                    name: "TCB_INFO_FMC_MEASUREMENTS",
+                    fwid: Fwid {
+                        hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
+                        digest: &[0xCD; 48],
+                    },
+                },
+                FwidParam {
                     name: "TCB_INFO_FMC_TCI",
                     fwid: Fwid {
                         hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),

@@ -429,82 +429,106 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
 **Actions:**
 
-1.	PCR0 is the Journey PCR. PCR0 is locked for clear by the ROM at cold reset. Subsequent layers may continue to extend PCR0 as runtime updates are performed.
+1.	Lock critical state in Data Vault
+
+	`dv48_store_cr(FMC_DIGEST, Dv48Slot8)`
+    `dv48_lock_cr(Dv48Slot8)`
+
+    `dv4_store_cr(FMC_SVN, Dv4Slot0)`
+    `dv4_lock_cr(Dv4Slot0)`
+
+    `dv4_store_cr(FMC_LOAD_ADDR, Dv4Slot1)`
+    `dv4_lock_cr(Dv4Slot1)`
+
+    `dv4_store_cr(FMC_ENTRY_POINT, Dv4Slot2)`
+    `dv4_lock_cr(Dv4Slot2)`
+
+    `dv48_store_cr(FUSE_OWNER_PK_HASH, Dv48Slot9)`
+    `dv48_lock_cr(Dv48Slot9)`
+
+    `dv4_store_cr(MANUFACTURER_PK_INDEX, Dv4Slot1)`
+    `dv4_lock_cr(Dv4Slot1)`
+
+    `dv48_store_wr(RT_DIGEST, Dv48Slot0)`
+    `dv48_lock_wr(Dv48Slot0)`
+
+    `dv48_store_wr(RT_SVN, Dv4Slot0)`
+    `dv48_lock_wr(Dv4Slot0)`
+
+    `dv48_store_wr(RT_LOAD_ADDR, Dv4Slot1)`
+    `dv48_lock_wr(Dv4Slot1)`
+
+    `dv48_store_wr(RT_ENTRY_POINT, Dv4Slot2)`
+    `dv48_lock_wr(Dv4Slot2)`
+
+    `dv48_store_wr(MANIFEST_ADDR, Dv4Slot3)`
+    `dv48_lock_wr(Dv4Slot3)`
+
+2.  FMC measurements are derived and written to Data Vault.
+
+	`FmcMeasurement = SHA384(CPTRA_SECURITY_STATE.LIFECYCLE_STATE ||
+	                         CPTRA_SECURITY_STATE.DEBUG_ENABLED ||
+	                         FUSE_ANTI_ROLLBACK_DISABLE ||
+	                         MANUFACTURER_PK ||
+	                         FUSE_OWNER_PK_HASH ||
+	                         FMC_DIGEST ||
+	                         FMC_SVN)`
+
+	`dv48_store(FmcMeasurement, Dv48Slot10)`
+	`dv48_lock_cr(Dv48Slot10)`
+
+3.	PCR0 is the Journey PCR. PCR0 is locked for clear by the ROM at cold reset. Subsequent layers may continue to extend PCR0 as runtime updates are performed.
 
 	`pcr_lock_clr(Pcr0)`
-	`pcr_extend(Pcr0, CPTRA_SECURITY_STATE.LIFECYCLE_STATE)`
-    `pcr_extend(Pcr0, CPTRA_SECURITY_STATE.DEBUG_ENABLED)`
-    `pcr_extend(Pcr0, FUSE_ANTI_ROLLBACK_DISABLE)`
-    `pcr_extend(Pcr0, MANUFACTURER_PK)`
-    `pcr_extend(Pcr0, FUSE_OWNER_PK_HASH)`
-    `pcr_extend(Pcr0, FMC_DIGEST)`
-    `pcr_extend(Pcr0, FMC_SVN)`
+	`pcr_extend(Pcr0, FmcMeasurement)`
 
-2.	PCR1 is the Current PCR. It is not locked for clear. It is cleared during reset (any) by the ROM. On cold reset, fresh measurements are extended by the ROM. In the case of warm reset or update reset, the PCR1 is constructed from data locked in data vault sticky registers.
+4.	CDI for Alias is derived from FmcMeasurement. For the Alias FMC CDI Derivation,  LDevID CDI in Key Vault Slot6 is used as HMAC Key and contents of FmcMeasurement are used as data. The resultant MAC is stored back in Slot 6 
 
-    `pcr_extend(Pcr1, CPTRA_SECURITY_STATE.LIFECYCLE_STATE)`
-    `pcr_extend(Pcr1, CPTRA_SECURITY_STATE.DEBUG_ENABLED)`
-    `pcr_extend(Pcr1, FUSE_ANTI_ROLLBACK_DISABLE)`
-    `pcr_extend(Pcr1, MANUFACTURER_PK)`
-    `pcr_extend(Pcr1, FUSE_OWNER_PK_HASH)`
-    `pcr_extend(Pcr1, FMC_DIGEST)`
-    `pcr_extend(Pcr1, FMC_SVN)`
+	`hmac384_mac(KvSlot6, FmcMeasurement, KvSlot6)`
 
-3.	CDI for Alias is derived from PCR0. For the Alias FMC CDI Derivation,  LDevID CDI in Key Vault Slot6 is used as HMAC Key and contents of PCR0 are used as data. The resultant mac is stored back in Slot 6 
-
-	`Pcr0Measurement = pcr_read(Pcr0)`
-	`hmac384_mac(KvSlot6, Pcr0Measurement, KvSlot6)`
-
-4.	Derive Alias FMC ECC Key Pair using CDI in Key Vault Slot6 and store the generated private key in KeySlot7. 
+5.	Derive Alias FMC ECC Key Pair using CDI in Key Vault Slot6 and store the generated private key in KeySlot7. 
 
     `AliasFmcPubKey = ecc384_keygen(KvSlot6, KvSlot7)`
 
-5.	Store and lock (for write) the Alias FMC Public Key in Data Vault (48 bytes) Slot 4 & Slot 5
+6.	Store and lock (for write) the Alias FMC Public Key in Data Vault (48 bytes) Slot 6 & Slot 7
 
-    `dv48_store(AliasFmcPubKey.X, Dv48Slot4)`
-    `dv48_lock_wr(Dv48Slot4)`
-    `dv48_store(AliasFmcPubKey.Y, Dv48Slot5)`
-    `dv48_lock_wr(Dv48Slot5)`
+    `dv48_store_cr(AliasFmcPubKey.X, Dv48Slot6)`
+    `dv48_lock_cr(Dv48Slot6)`
+    `dv48_store_cr(AliasFmcPubKey.Y, Dv48Slot7)`
+    `dv48_lock_cr(Dv48Slot7)`
 
-6.	Generate the `To Be Signed` DER Blob of the Alias FMC Certificate
+7.	Generate the `To Be Signed` DER Blob of the Alias FMC Certificate
 	
 	`AliasFmcTbs = gen_cert_tbs(ALIAS_FMC_CERT, LDevIdPubKey, AliasFmcPubKey)`
 
-7.	Sign the Alias FMC `To Be Signed` DER Blob with LDevId Private Key in Key Vault Slot 5
+8.	Sign the Alias FMC `To Be Signed` DER Blob with LDevId Private Key in Key Vault Slot 5
 
 	`AliasFmcTbsDigest = sha384_digest(AliasFmcTbs)`
 	`AliasFmcTbsCertSig = ecc384_sign(KvSlot5, AliasFmcTbsDigest)`
 
-8.	Clear the LDevId Private Key in Key Vault Slot 5
+9.  Store and lock (for write) the Alias FMC certificate signature in Data Vault (48 bytes) Slot 4 & Slot 5
+
+    `dv48_store_cr(AliasFmcTbsCertSig.R, Dv48Slot4)`
+    `dv48_lock_cr(Dv48Slot4)`
+    `dv48_store_cr(AliasFmcTbsCertSig.S, Dv48Slot5)`
+    `dv48_lock_cr(Dv48Slot5)`
+
+10.	Clear the LDevId Private Key in Key Vault Slot 5
 
 	`kv_clear(KvSlot5)`
 
-9.	Verify the signature of Alias FMC `To Be Signed` Blob
+11.	Verify the signature of Alias FMC `To Be Signed` Blob
 
 	`AliasFmcTbsDigest = sha384_digest(AliasFmcTbs)`
 	`Result = ecc384_verify(AliasFmcPubKey, AliasFmcDigest , AliasFmcTbsCertSig)`
 
-10.	Store and lock (for write) the LDevID Certificate Signature in the sticky Data Vault (48 bytes) Slot 6 & Slot 7 
+12.	Store and lock (for write) the LDevID Certificate Signature in the sticky Data Vault (48 bytes) Slot 6 & Slot 7 
 
     `dv48_store(AliasFmcTbsCertSig.R, Dv48Slot6)`
     `dv48_lock_wr(Dv48Slot6)`
 
     `dv48_store(AliasFmcTbsCertSig.S, Dv48Slot7)`
     `dv48_lock_wr(Dv48Slot7)`
-
-11.	Lock critical state needed for warm and update reset in Data Vault
-
-	`dv48_store(FMC_DIGEST, Dv48Slot8)`
-    `dv48_lock_wr(Dv48Slot8)`
-
-    `dv4_store(FMC_SVN, Dv4Slot0)`
-    `dv4_lock_wr(Dv4Slot0)`
-
-    `dv48_store(FUSE_OWNER_PK_HASH, Dv48Slot9)`
-    `dv48_lock_wr(Dv48Slot9)`
-
-    `dv4_store(MANUFACTURER_PK_INDEX, Dv4Slot1)`
-    `dv4_lock_wr(Dv4Slot1)`
 
 
 **Post-Conditions:**

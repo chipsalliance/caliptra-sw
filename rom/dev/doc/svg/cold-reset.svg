@@ -187,12 +187,12 @@
 						dy="1.2em" class="st7">From Mailbox</tspan></text>		</g>
 		<g id="shape1048-145" transform="translate(320.089,-409.875)">
 			<title>Subprocess.1048</title>
-			<desc>PCR0/PCR1 Generation</desc>
+			<desc>Measurement Generation</desc>
 			<path d="M0 585.75 L72 585.75 L72 531.75 L0 531.75 L0 585.75 Z" class="st1"/>
 			<path d="M0 585.75 L72 585.75 L72 531.75 L0 531.75 L0 585.75" class="st2"/>
 			<path d="M9 585.75 L9 531.75" class="st2"/>
 			<path d="M63 585.75 L63 531.75" class="st2"/>
-			<text x="17.66" y="556.35" class="st3">PCR0/PCR1 <tspan x="17.62" dy="1.2em" class="st7">Generation</tspan></text>		</g>
+			<text x="17.66" y="556.35" class="st3">Measurement <tspan x="17.62" dy="1.2em" class="st7">Generation</tspan></text>		</g>
 		<g id="shape1049-152" transform="translate(14.6621,-158.304)">
 			<title>Subprocess.1049</title>
 			<desc>IDEVID Key Pair Generation</desc>
