@@ -14,7 +14,7 @@ Abstract:
 --*/
 
 use super::crypto::{Crypto, Ecc384KeyPair};
-use super::dice::{DiceInput, DiceLayer, DiceOutput};
+use super::dice::DiceOutput;
 use super::x509::X509;
 use crate::verifier::RomImageVerificationEnv;
 use crate::{cprint, cprint_slice, cprintln, pcr};
@@ -27,6 +27,8 @@ use caliptra_image_types::ImageManifest;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
 use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams};
 use zerocopy::FromBytes;
+
+use crate::flow::cold_reset::{KEY_ID_CDI, KEY_ID_FMC_PRIV_KEY};
 
 extern "C" {
     static mut MAN1_ORG: u8;
@@ -44,15 +46,18 @@ rom_err_def! {
 #[derive(Default)]
 pub struct FmcAliasLayer {}
 
-impl DiceLayer for FmcAliasLayer {
+impl FmcAliasLayer {
+    /// Download firmware mailbox command ID.
+    const MBOX_DOWNLOAD_FIRMWARE_CMD_ID: u32 = 0x46574C44;
+
     /// Perform derivations for the DICE layer
-    fn derive(env: &RomEnv, input: &DiceInput) -> CaliptraResult<DiceOutput> {
+    pub fn derive(env: &RomEnv, ldevid_output: &DiceOutput) -> CaliptraResult<DiceOutput> {
         cprintln!("[afmc] ++");
-        cprintln!("[afmc] CDI.KEYID = {}", input.cdi as u8);
-        cprintln!("[afmc] SUBJECT.KEYID = {}", input.subj_priv_key as u8);
+        cprintln!("[afmc] CDI.KEYID = {}", KEY_ID_CDI as u8);
+        cprintln!("[afmc] SUBJECT.KEYID = {}", KEY_ID_FMC_PRIV_KEY as u8);
         cprintln!(
             "[afmc] AUTHORITY.KEYID = {}",
-            input.auth_key_pair.priv_key as u8
+            ldevid_output.subj_key_pair.priv_key as u8
         );
 
         // Download the image
@@ -74,39 +79,38 @@ impl DiceLayer for FmcAliasLayer {
         Self::load_image(env, &manifest, txn)?;
 
         // At this point PCR0 & PCR1 must have the same value. We use the value
-        // of PCR1 as the UDS for deriving the CDI
-        let uds = env
+        // of PCR1 as the measurement for deriving the CDI
+        let measurement = env
             .pcr_bank()
             .map(|p| p.read_pcr(caliptra_drivers::PcrId::PcrId1));
 
-        // Derive the DICE CDI from decrypted UDS
-        let cdi = Self::derive_cdi(env, uds, input.cdi)?;
+        // Derive the DICE CDI from the measurement
+        Self::derive_cdi(env, measurement, KEY_ID_CDI)?;
 
         // Derive DICE Key Pair from CDI
-        let key_pair = Self::derive_key_pair(env, cdi, input.subj_priv_key)?;
+        let fmc_alias_key_pair = Self::derive_key_pair(env, KEY_ID_CDI, KEY_ID_FMC_PRIV_KEY)?;
 
         // Generate the Subject Serial Number and Subject Key Identifier.
         //
         // This information will be used by next DICE Layer while generating
         // certificates
-        let subj_sn = X509::subj_sn(env, &key_pair.pub_key)?;
-        let subj_key_id = X509::subj_key_id(env, &key_pair.pub_key)?;
+        let subj_sn = X509::subj_sn(env, &fmc_alias_key_pair.pub_key)?;
+        let subj_key_id = X509::subj_key_id(env, &fmc_alias_key_pair.pub_key)?;
 
         // Generate the output for next layer
-        let output = input.to_output(key_pair, subj_sn, subj_key_id);
+        let fmc_output = DiceOutput {
+            subj_key_pair: fmc_alias_key_pair,
+            subj_sn,
+            subj_key_id,
+        };
 
         // Generate Local Device ID Certificate
-        Self::generate_cert_sig(env, input, &output)?;
+        Self::generate_cert_sig(env, ldevid_output, &fmc_output)?;
 
         cprintln!("[afmc] --");
 
-        Ok(output)
+        Ok(fmc_output)
     }
-}
-
-impl FmcAliasLayer {
-    /// Download firmware mailbox command ID.
-    const MBOX_DOWNLOAD_FIRMWARE_CMD_ID: u32 = 0x46574C44;
 
     /// Download the image
     ///
@@ -300,24 +304,20 @@ impl FmcAliasLayer {
         Ok(())
     }
 
-    /// Derive Composite Device Identity (CDI) from Unique Device Secret (UDS)
+    /// Derive Composite Device Identity (CDI) from a measurement
     ///
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    /// * `uds` - Array containing the UDS
+    /// * `measurement` - Array containing the measurement
     /// * `cdi` - Key Slot to store the generated CDI
-    ///
-    /// # Returns
-    ///
-    /// * `KeyId` - KeySlot containing the DICE CDI
-    fn derive_cdi(env: &RomEnv, uds: Array4x12, cdi: KeyId) -> CaliptraResult<KeyId> {
+    fn derive_cdi(env: &RomEnv, measurement: Array4x12, cdi: KeyId) -> CaliptraResult<()> {
         // CDI Key
         let key = Hmac384Key::Key(KeyReadArgs::new(cdi));
-        let data: [u8; 48] = uds.into();
+        let data: [u8; 48] = measurement.into();
         let data = Hmac384Data::Slice(&data);
-        let cdi = Crypto::hmac384_mac(env, key, data, cdi)?;
-        Ok(cdi)
+        Crypto::hmac384_mac(env, key, data, cdi)?;
+        Ok(())
     }
 
     /// Derive Dice Layer Key Pair
@@ -335,29 +335,29 @@ impl FmcAliasLayer {
         Crypto::ecc384_key_gen(env, cdi, priv_key)
     }
 
-    /// Generate Local Device ID Certificate Signature
+    /// Generate FMC Alias Certificate Signature
     ///
     /// # Arguments
     ///
     /// * `env`    - ROM Environment
-    /// * `input`  - DICE Input
-    /// * `output` - DICE Output
+    /// * `ldevid_output` - DICE Output for LDevID layer
+    /// * `fmc_output`    - DICE Output for FMC layer
     fn generate_cert_sig(
         env: &RomEnv,
-        input: &DiceInput,
-        output: &DiceOutput,
+        ldevid_output: &DiceOutput,
+        fmc_output: &DiceOutput,
     ) -> CaliptraResult<()> {
-        let auth_priv_key = input.auth_key_pair.priv_key;
-        let auth_pub_key = &input.auth_key_pair.pub_key;
-        let pub_key = &output.subj_key_pair.pub_key;
+        let auth_priv_key = ldevid_output.subj_key_pair.priv_key;
+        let auth_pub_key = &ldevid_output.subj_key_pair.pub_key;
+        let pub_key = &fmc_output.subj_key_pair.pub_key;
 
         // Certificate `To Be Signed` Parameters
         let params = FmcAliasCertTbsParams {
             ueid: &X509::ueid(env)?,
-            subject_sn: &output.subj_sn,
-            subject_key_id: &output.subj_key_id,
-            issuer_sn: &input.auth_sn,
-            authority_key_id: &input.auth_key_id,
+            subject_sn: &fmc_output.subj_sn,
+            subject_key_id: &fmc_output.subj_key_id,
+            issuer_sn: &ldevid_output.subj_sn,
+            authority_key_id: &ldevid_output.subj_key_id,
             serial_number: &X509::cert_sn(env, pub_key)?,
             public_key: &pub_key.to_der(),
             tcb_info_fmc_tci: &env.data_vault().map(|d| d.fmc_tci()).into(),

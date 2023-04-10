@@ -20,17 +20,25 @@ mod ldev_id;
 mod x509;
 
 use crate::fht;
-use crate::flow::cold_reset::dice::*;
 use crate::flow::cold_reset::fmc_alias::FmcAliasLayer;
 use crate::flow::cold_reset::idev_id::InitDevIdLayer;
 use crate::flow::cold_reset::ldev_id::LocalDevIdLayer;
 use crate::{cprintln, rom_env::RomEnv};
 use caliptra_common::FirmwareHandoffTable;
 use caliptra_drivers::*;
-use crypto::Ecc384KeyPair;
 
+pub const KEY_ID_UDS: KeyId = KeyId::KeyId0;
+pub const KEY_ID_FE: KeyId = KeyId::KeyId1;
 pub const KEY_ID_CDI: KeyId = KeyId::KeyId6;
-pub const KEY_ID_PRIV_KEY: KeyId = KeyId::KeyId7;
+pub const KEY_ID_IDEVID_PRIV_KEY: KeyId = KeyId::KeyId7;
+pub const KEY_ID_LDEVID_PRIV_KEY: KeyId = KeyId::KeyId5;
+pub const KEY_ID_FMC_PRIV_KEY: KeyId = KeyId::KeyId7;
+
+/// Initialization Vector used by Deobfuscation Engine during Unique Device Secret (UDS) decryption.
+const DOE_UDS_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e]);
+
+/// Initialization Vector used by Deobfuscation Engine during Field Entropy decryption.
+const DOE_FE_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e]);
 
 /// Cold Reset Flow
 pub struct ColdResetFlow {}
@@ -45,30 +53,47 @@ impl ColdResetFlow {
     pub fn run(env: &RomEnv) -> CaliptraResult<FirmwareHandoffTable> {
         cprintln!("[cold-reset] ++");
 
-        // Compose the three dice layers into one function
-        let dice_fn = compose_layers(
-            InitDevIdLayer::derive,
-            compose_layers(LocalDevIdLayer::derive, FmcAliasLayer::derive),
-        );
+        Self::decrypt_uds(env, KEY_ID_UDS)?;
+        Self::decrypt_field_entropy(env, KEY_ID_FE)?;
+        Self::clear_doe_secrets(env)?;
 
-        // Create initial output
-        let input = DiceInput {
-            cdi: KEY_ID_CDI,
-            subj_priv_key: KEY_ID_PRIV_KEY,
-            auth_key_pair: Ecc384KeyPair {
-                priv_key: KeyId::KeyId5,
-                pub_key: Ecc384PubKey::default(),
-            },
-            auth_sn: [0u8; 64],
-            auth_key_id: [0u8; 20],
-            uds_key: KeyId::KeyId0,
-            fe_key: KeyId::KeyId1,
-        };
-
-        let _ = dice_fn(env, &input)?;
+        let idevid_output = InitDevIdLayer::derive(env)?;
+        let ldevid_output = LocalDevIdLayer::derive(env, &idevid_output)?;
+        let _fmc_output = FmcAliasLayer::derive(env, &ldevid_output)?;
 
         cprintln!("[cold-reset] --");
 
         Ok(fht::make_fht(env))
+    }
+
+    /// Decrypt Unique Device Secret (UDS)
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - ROM Environment
+    /// * `uds` - Key Vault slot to store the decrypted UDS in
+    fn decrypt_uds(env: &RomEnv, uds: KeyId) -> CaliptraResult<()> {
+        // Engage the Deobfuscation Engine to decrypt the UDS
+        env.doe().map(|d| d.decrypt_uds(&DOE_UDS_IV, uds))
+    }
+
+    /// Decrypt Field Entropy (FW)
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - ROM Environment
+    /// * `slot` - Key Vault slot to store the decrypted UDS in
+    fn decrypt_field_entropy(env: &RomEnv, fe: KeyId) -> CaliptraResult<()> {
+        // Engage the Deobfuscation Engine to decrypt the UDS
+        env.doe().map(|d| d.decrypt_field_entropy(&DOE_FE_IV, fe))
+    }
+
+    /// Clear Deobfuscation Engine secrets
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - ROM Environment
+    fn clear_doe_secrets(env: &RomEnv) -> CaliptraResult<()> {
+        env.doe().map(|d| d.clear_secrets())
     }
 }

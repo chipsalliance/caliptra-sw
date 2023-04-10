@@ -18,7 +18,7 @@ use zerocopy::AsBytes;
 
 use crate::{
     cprintln,
-    flow::{KEY_ID_CDI, KEY_ID_PRIV_KEY},
+    flow::{KEY_ID_CDI, KEY_ID_FMC_PRIV_KEY},
     rom_env::RomEnv,
 };
 
@@ -35,7 +35,7 @@ pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
         rt_fw_load_addr_idx: WarmResetEntry4::RtLoadAddr.into(),
         rt_fw_entry_point_idx: WarmResetEntry4::RtEntryPoint.into(),
         fmc_cdi_kv_idx: KEY_ID_CDI.into(),
-        fmc_priv_key_kv_idx: KEY_ID_PRIV_KEY.into(),
+        fmc_priv_key_kv_idx: KEY_ID_FMC_PRIV_KEY.into(),
         fmc_pub_key_x_dv_idx: ColdResetEntry48::FmcPubKeyX.into(),
         fmc_pub_key_y_dv_idx: ColdResetEntry48::FmcPubKeyY.into(),
         fmc_cert_sig_r_dv_idx: ColdResetEntry48::FmcDiceSigR.into(),

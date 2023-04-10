@@ -103,16 +103,12 @@ impl Crypto {
     /// * `key` - HMAC384 key
     /// * `data` - Input data to hash
     /// * `tag` - Key slot to store the tag
-    ///
-    /// # Returns
-    ///
-    /// * `KeyId` - Key Id inputted
     pub fn hmac384_mac(
         env: &RomEnv,
         key: Hmac384Key,
         data: Hmac384Data,
         tag: KeyId,
-    ) -> CaliptraResult<KeyId> {
+    ) -> CaliptraResult<()> {
         // Tag
         let mut usage = KeyUsage::default();
         usage.set_hmac_key(true);
@@ -122,7 +118,7 @@ impl Crypto {
         // Calculate the CDI
         env.hmac384().map(|h| h.hmac(key, data, tag_args))?;
 
-        Ok(tag)
+        Ok(())
     }
 
     /// Generate ECC Key Pair
