@@ -14,7 +14,7 @@ Abstract:
 
 use crate::{KeyVault, SocRegistersInternal};
 use caliptra_emu_bus::{
-    BusError, Clock, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister, Timer, TimerAction,
+    ActionHandle, BusError, Clock, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister, Timer,
 };
 use caliptra_emu_crypto::Aes256Cbc;
 use caliptra_emu_derive::Bus;
@@ -82,7 +82,7 @@ pub struct Doe {
     soc_reg: SocRegistersInternal,
 
     /// Operation Complete Action
-    op_complete_action: Option<TimerAction>,
+    op_complete_action: Option<ActionHandle>,
 }
 
 impl Doe {

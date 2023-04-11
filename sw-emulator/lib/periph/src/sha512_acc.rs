@@ -13,7 +13,7 @@ Abstract:
 --*/
 use crate::MailboxRam;
 use caliptra_emu_bus::{
-    Bus, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteRegister, Timer, TimerAction,
+    ActionHandle, Bus, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteRegister, Timer,
 };
 use caliptra_emu_crypto::{EndianessTransform, Sha512, Sha512Mode};
 use caliptra_emu_derive::Bus;
@@ -135,7 +135,7 @@ pub struct Sha512Accelerator {
     state_machine: StateMachine<Context>,
 
     /// Operation complete action
-    op_complete_action: Option<TimerAction>,
+    op_complete_action: Option<ActionHandle>,
 }
 
 impl Sha512Accelerator {
