@@ -53,6 +53,11 @@ pub enum CaliptraComponent {
 
     /// CSRNG
     Csrng = 13,
+
+    /// Runtime firmware
+    /// TODO: Once https://github.com/chipsalliance/caliptra-sw/pull/220 is
+    /// merged remove this and use RT error mechanism instead.
+    Runtime = 14,
 }
 
 #[macro_export]

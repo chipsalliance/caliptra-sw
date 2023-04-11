@@ -36,6 +36,9 @@ pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
 
     if let Some(_fht) = caliptra_common::FirmwareHandoffTable::try_load() {
+        cprintln!("Caliptra RT listening for mailbox commands...");
+        caliptra_runtime::handle_mailbox_commands();
+
         caliptra_drivers::ExitCtrl::exit(0)
     } else {
         caliptra_drivers::ExitCtrl::exit(0xff)
@@ -47,7 +50,7 @@ pub extern "C" fn entry_point() -> ! {
 #[allow(clippy::empty_loop)]
 extern "C" fn exception_handler(trap_record: &TrapRecord) {
     cprintln!(
-        "FMC EXCEPTION mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
+        "RT EXCEPTION mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
         trap_record.mcause,
         trap_record.mscause,
         trap_record.mepc
@@ -62,7 +65,7 @@ extern "C" fn exception_handler(trap_record: &TrapRecord) {
 #[allow(clippy::empty_loop)]
 extern "C" fn nmi_handler(trap_record: &TrapRecord) {
     cprintln!(
-        "FMC NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
+        "RT NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
         trap_record.mcause,
         trap_record.mscause,
         trap_record.mepc
