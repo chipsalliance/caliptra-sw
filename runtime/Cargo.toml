@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 caliptra-cpu = { version = "0.1.0", path = "../cpu" }
 caliptra-drivers = { path = "../drivers" }
+caliptra-registers = { path = "../registers" }
 caliptra_common = { path = "../common", default-features = false }
 ufmt = "0.2.0"
 zerocopy = "0.6.1"
@@ -33,3 +34,4 @@ emu = [
     "caliptra-drivers/emu"
 ]
 std = ["ufmt/std", "caliptra_common/std"]
+verilator = ["caliptra-hw-model/verilator"]
