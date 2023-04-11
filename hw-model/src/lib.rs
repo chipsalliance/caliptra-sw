@@ -28,6 +28,18 @@ pub use model_verilated::ModelVerilated;
 
 use caliptra_emu_types::RvSize;
 
+/// Ideally, general-purpose functions would return `impl HwModel` instead of
+/// `DefaultHwModel` to prevent users from calling functions that aren't
+/// available on all HwModel implementations.  Unfortunately, rust-analyzer
+/// (used by IDEs) can't fully resolve associated types from `impl Trait`, so
+/// such functions should use `DefaultHwModel` until they fix that. Users should
+/// treat `DefaultHwModel` as if it were `impl HwModel`.
+#[cfg(not(feature = "verilator"))]
+pub type DefaultHwModel = ModelEmulated;
+
+#[cfg(feature = "verilator")]
+pub type DefaultHwModel = ModelVerilated;
+
 /// Constructs an HwModel based on the cargo features and environment
 /// variables. Most test cases that need to construct a HwModel should use this
 /// function over HwModel::new_unbooted().
@@ -35,16 +47,8 @@ use caliptra_emu_types::RvSize;
 /// The model returned by this function does not have any fuses programmed and
 /// is not yet ready to execute code in the microcontroller. Most test cases
 /// should use [`new`] instead.
-///
-/// Ideally this function would return `Result<impl HwModel, Box<dyn Error>>`
-/// to prevent users from calling functions that weren't available on HwModel
-/// implementations.  Unfortunately, rust-analyzer (used by IDEs) can't fully
-/// resolve associated types from `impl Trait`, so this function will return the
-/// full type until they fix that. Users should treat this return type as if it
-/// were `impl HwModel`.
-#[cfg(not(feature = "verilator"))]
-pub fn new_unbooted(params: InitParams) -> Result<ModelEmulated, Box<dyn Error>> {
-    ModelEmulated::new_unbooted(params)
+pub fn new_unbooted(params: InitParams) -> Result<DefaultHwModel, Box<dyn Error>> {
+    DefaultHwModel::new_unbooted(params)
 }
 
 /// Constructs an HwModel based on the cargo features and environment variables,
@@ -53,19 +57,8 @@ pub fn new_unbooted(params: InitParams) -> Result<ModelEmulated, Box<dyn Error>>
 /// (optionally) uploading firmware. Most test cases that need to construct a
 /// HwModel should use this function over [`HwModel::new()`] and
 /// [`crate::new_unbooted`].
-#[cfg(not(feature = "verilator"))]
-pub fn new(params: BootParams) -> Result<ModelEmulated, Box<dyn Error>> {
-    ModelEmulated::new(params)
-}
-
-#[cfg(feature = "verilator")]
-pub fn new_unbooted(params: InitParams) -> Result<ModelVerilated, Box<dyn Error>> {
-    ModelVerilated::new_unbooted(params)
-}
-
-#[cfg(feature = "verilator")]
-pub fn new(params: BootParams) -> Result<ModelVerilated, Box<dyn Error>> {
-    ModelVerilated::new(params)
+pub fn new(params: BootParams) -> Result<DefaultHwModel, Box<dyn Error>> {
+    DefaultHwModel::new(params)
 }
 
 pub struct InitParams<'a> {
