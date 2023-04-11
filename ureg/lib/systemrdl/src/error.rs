@@ -18,6 +18,7 @@ pub enum Error {
     FieldsCannotHaveMultipleDimensions,
     UnsupportedRegWidth(u64),
     AccessTypeNaUnsupported,
+    ResetValueOnRegisterUnsupported,
     RdlError(systemrdl::RdlError<'static>),
     BlockError {
         block_name: String,
@@ -73,6 +74,9 @@ impl Display for Error {
             }
             Self::UnsupportedRegWidth(w) => write!(f, "Unsupported register width {w}"),
             Self::AccessTypeNaUnsupported => write!(f, "AccessType 'na' is not supported"),
+            Self::ResetValueOnRegisterUnsupported => {
+                write!(f, "reset value on register is unsupported")
+            }
             Self::RdlError(err) => write!(f, "systemrdl error: {err}"),
             Self::BlockError { block_name, err } => write!(f, "block {block_name:?} {err}"),
             Self::FieldError { field_name, err } => write!(f, "field {field_name:?} {err}"),

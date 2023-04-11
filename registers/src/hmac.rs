@@ -845,7 +845,7 @@ pub mod meta {
     pub type Key = ureg::WriteOnlyReg32<0, u32>;
     pub type Block = ureg::WriteOnlyReg32<0, u32>;
     pub type Tag = ureg::ReadOnlyReg32<u32>;
-    pub type LfsrSeed = ureg::WriteOnlyReg32<0, u32>;
+    pub type LfsrSeed = ureg::WriteOnlyReg32<0x3cabffb0, u32>;
     pub type KvRdKeyCtrl = ureg::ReadWriteReg32<
         0,
         crate::regs::KvReadCtrlRegReadVal,
