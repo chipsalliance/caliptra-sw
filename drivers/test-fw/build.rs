@@ -13,7 +13,6 @@ Abstract:
 --*/
 
 fn main() {
-    println!("cargo:rerun-if-changed=scripts/rom.ld");
-    println!("cargo:rerun-if-changed=src/bin/start.S");
-    println!("cargo:rustc-link-arg=-Tdrivers/test-fw/scripts/rom.ld");
+    println!("cargo:rerun-if-changed=../../test-harness/scripts/rom.ld");
+    println!("cargo:rustc-link-arg=-Ttest-harness/scripts/rom.ld");
 }
