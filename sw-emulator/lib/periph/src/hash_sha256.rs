@@ -13,8 +13,8 @@ Abstract:
 --*/
 
 use caliptra_emu_bus::{
-    BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister, Timer,
-    TimerAction,
+    ActionHandle, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory,
+    ReadWriteRegister, Timer,
 };
 use caliptra_emu_crypto::{Sha256, Sha256Mode};
 use caliptra_emu_derive::Bus;
@@ -97,7 +97,7 @@ pub struct HashSha256 {
 
     timer: Timer,
 
-    op_complete_action: Option<TimerAction>,
+    op_complete_action: Option<ActionHandle>,
 }
 
 impl HashSha256 {

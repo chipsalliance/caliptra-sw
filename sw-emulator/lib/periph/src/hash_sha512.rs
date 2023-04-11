@@ -16,7 +16,7 @@ use crate::helpers::words_from_bytes_le;
 use crate::key_vault::KeyUsage;
 use crate::KeyVault;
 use caliptra_emu_bus::{
-    BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteRegister, Timer, TimerAction,
+    ActionHandle, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteRegister, Timer,
 };
 use caliptra_emu_crypto::EndianessTransform;
 use caliptra_emu_crypto::{Sha512, Sha512Mode};
@@ -182,13 +182,13 @@ pub struct HashSha512 {
     timer: Timer,
 
     /// Operation complete action
-    op_complete_action: Option<TimerAction>,
+    op_complete_action: Option<ActionHandle>,
 
     /// Block read complete action
-    op_block_read_complete_action: Option<TimerAction>,
+    op_block_read_complete_action: Option<ActionHandle>,
 
     /// Hash write complete action
-    op_hash_write_complete_action: Option<TimerAction>,
+    op_hash_write_complete_action: Option<ActionHandle>,
 }
 
 impl HashSha512 {

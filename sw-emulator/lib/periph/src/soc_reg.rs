@@ -17,8 +17,8 @@ use crate::root_bus::ReadyForFwCbArgs;
 use crate::{CaliptraRootBusArgs, Iccm, Mailbox};
 use caliptra_emu_bus::BusError::{LoadAccessFault, StoreAccessFault};
 use caliptra_emu_bus::{
-    Bus, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteRegister, Register, Timer,
-    TimerAction, TimerActionType,
+    ActionHandle, Bus, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteRegister,
+    Register, Timer, TimerActionType,
 };
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
@@ -442,21 +442,21 @@ struct SocRegistersImpl {
     timer: Timer,
 
     /// Firmware Write Complete action
-    op_fw_write_complete_action: Option<TimerAction>,
+    op_fw_write_complete_action: Option<ActionHandle>,
     #[allow(clippy::type_complexity)]
     op_fw_write_complete_cb: Option<Box<dyn FnOnce(&mut Mailbox)>>,
 
     /// Firmware Read Complete action
-    op_fw_read_complete_action: Option<TimerAction>,
+    op_fw_read_complete_action: Option<ActionHandle>,
 
     /// IDEVID CSR Read Complete action
-    op_idevid_csr_read_complete_action: Option<TimerAction>,
+    op_idevid_csr_read_complete_action: Option<ActionHandle>,
 
     /// LDEVID Cert Read Complete action
-    op_ldevid_cert_read_complete_action: Option<TimerAction>,
+    op_ldevid_cert_read_complete_action: Option<ActionHandle>,
 
     /// Reset Trigger action
-    op_reset_trigger_action: Option<TimerAction>,
+    op_reset_trigger_action: Option<ActionHandle>,
 
     /// test bench services callback
     tb_services_cb: Box<dyn FnMut(u8)>,
