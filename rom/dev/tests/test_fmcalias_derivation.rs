@@ -1,3 +1,4 @@
+use caliptra_builder::ImageOptions;
 // Licensed under the Apache-2.0 license
 use caliptra_hw_model::{Fuses, HwModel, ModelError};
 use caliptra_image_types::IMAGE_BYTE_SIZE;
@@ -9,7 +10,8 @@ const INVALID_IMAGE_SIZE: u32 = 0x02000003;
 
 #[test]
 fn test_zero_firmware_size() {
-    let (mut hw, _image_bundle) = helpers::build_hw_model_and_image_bundle(Fuses::default());
+    let (mut hw, _image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
     let mut output = vec![];
 
     // Zero-sized firmware.
@@ -27,7 +29,8 @@ fn test_firmware_gt_max_size() {
 
     // Firmware size > 128 KB.
 
-    let (mut hw, _image_bundle) = helpers::build_hw_model_and_image_bundle(Fuses::default());
+    let (mut hw, _image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
     let mut output = vec![];
 
     // Manually put the oversize data in the mailbox because
