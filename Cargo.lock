@@ -264,14 +264,23 @@ dependencies = [
 name = "caliptra-hw-model"
 version = "0.1.0"
 dependencies = [
+ "caliptra-builder",
  "caliptra-emu-bus",
  "caliptra-emu-cpu",
  "caliptra-emu-periph",
  "caliptra-emu-types",
  "caliptra-hw-model-types",
  "caliptra-registers",
+ "caliptra-test-harness-types",
  "caliptra-verilated",
  "ureg",
+]
+
+[[package]]
+name = "caliptra-hw-model-test-fw"
+version = "0.1.0"
+dependencies = [
+ "caliptra-test-harness",
 ]
 
 [[package]]
