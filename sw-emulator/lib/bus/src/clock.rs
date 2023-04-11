@@ -108,16 +108,9 @@ impl Timer {
         self.schedule_poll_at(self.now().wrapping_add(ticks_from_now))
     }
 
-    /// Schedules a future call to [`Bus::warm_reset()` or `Bus::update_reset()`] at `self.now() + time`, and
-    /// returns an `ActionHandle` that can be used with [`Timer::cancel`] or
-    /// [`Timer::fired`].
-    pub fn schedule_reset_in(&self, ticks_from_now: u64, reset_type: TimerAction) -> ActionHandle {
-        assert!(
-            reset_type != TimerAction::WarmReset || reset_type != TimerAction::UpdateReset,
-            "Cannot schedule a reset timer action with {} action type.",
-            reset_type as u32
-        );
-
+    /// Schedules an action at `self.now() + time`, and returns an `ActionHandle`
+    /// that can be used with [`Timer::cancel`] or [`Timer::fired`].
+    pub fn schedule_action_in(&self, ticks_from_now: u64, reset_type: TimerAction) -> ActionHandle {
         self.clock
             .schedule_action_at(self.now().wrapping_add(ticks_from_now), reset_type)
     }
