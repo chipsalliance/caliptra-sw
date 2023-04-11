@@ -15,7 +15,7 @@ Abstract:
 use crate::csr_file::{Csr, CsrFile};
 use crate::types::{RvInstr, RvMStatus};
 use crate::xreg_file::{XReg, XRegFile};
-use caliptra_emu_bus::{Bus, BusError, Clock, TimerActionType};
+use caliptra_emu_bus::{Bus, BusError, Clock, TimerAction};
 use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
 
 pub type InstrTracer<'a> = dyn FnMut(u32, RvInstr) + 'a;
@@ -310,11 +310,11 @@ impl<TBus: Bus> Cpu<TBus> {
             .increment_and_process_timer_actions(1, &mut self.bus);
         for action_type in fired_action_types.iter() {
             match action_type {
-                TimerActionType::WarmReset => {
+                TimerAction::WarmReset => {
                     self.reset_pc();
                     break;
                 }
-                TimerActionType::UpdateReset => {
+                TimerAction::UpdateReset => {
                     self.reset_pc();
                     break;
                 }
