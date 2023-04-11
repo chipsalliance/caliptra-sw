@@ -234,7 +234,7 @@ impl Default for TimerActionId {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum TimerAction {
     Poll,
     WarmReset,

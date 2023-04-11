@@ -249,7 +249,7 @@ mod tests {
         let soc_reg = SocRegistersInternal::new(
             &clock,
             Mailbox::new(MailboxRam::new()),
-            Iccm::new(),
+            Iccm::new(&clock),
             CaliptraRootBusArgs::default(),
         );
         let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg);
@@ -308,7 +308,7 @@ mod tests {
         let soc_reg = SocRegistersInternal::new(
             &clock,
             Mailbox::new(MailboxRam::new()),
-            Iccm::new(),
+            Iccm::new(&clock),
             CaliptraRootBusArgs::default(),
         );
         let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg);
@@ -365,7 +365,7 @@ mod tests {
         let soc_reg = SocRegistersInternal::new(
             &clock,
             Mailbox::new(MailboxRam::new()),
-            Iccm::new(),
+            Iccm::new(&clock),
             CaliptraRootBusArgs::default(),
         );
         let mut doe = Doe::new(&clock, key_vault, soc_reg.clone());
