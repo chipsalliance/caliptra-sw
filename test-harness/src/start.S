@@ -18,8 +18,10 @@ _start:
 
 .equ CPTRA_FW_ERROR_NON_FATAL, 0x3003000c
 .equ CPTRA_FW_EXTENDED_ERROR_INFO, 0x30030018
+.equ CPTRA_INTERNAL_NMI_VECTOR, 0x3003062c
 
 .equ CPTRA_ERROR_EXCEPTION, 0x03000002
+.equ CPTRA_ERROR_NMI, 0x03000003
 
 .option push
 .option norelax
@@ -32,6 +34,11 @@ _start:
     # Setup trap handler
     la t0, trap_vec
     csrw MTVEC, t0
+
+    # Setup NMI handler
+    li t0, CPTRA_INTERNAL_NMI_VECTOR
+    la t1, nmi_vec
+    sw t1, 0(t0)
 
     # Copy BSS
     la t0, BSS_START
@@ -69,6 +76,13 @@ end_copy_data:
     sw t1, 0(t0)
 1:
     j 1b
+
+.align 2
+nmi_vec:
+    li t0, CPTRA_FW_ERROR_NON_FATAL
+    li t1, CPTRA_ERROR_NMI
+    sw t1, 0(t0)
+    j exception_common
 
 .align 2
 trap_vec:
