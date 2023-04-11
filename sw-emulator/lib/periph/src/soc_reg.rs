@@ -887,7 +887,7 @@ mod tests {
         let args = CaliptraRootBusArgs::default();
         let args = CaliptraRootBusArgs { log_dir, ..args };
         let mut soc_reg: SocRegistersInternal =
-            SocRegistersInternal::new(&clock, mailbox.clone(), Iccm::new(), args);
+            SocRegistersInternal::new(&clock, mailbox.clone(), Iccm::new(&clock), args);
 
         soc_reg
             .write(RvSize::Word, CPTRA_DBG_MANUF_SERVICE_REG_START, 1)
@@ -954,7 +954,7 @@ mod tests {
         let args = CaliptraRootBusArgs::default();
         let args = CaliptraRootBusArgs { log_dir, ..args };
         let mut soc_reg: SocRegistersInternal =
-            SocRegistersInternal::new(&clock, mailbox.clone(), Iccm::new(), args);
+            SocRegistersInternal::new(&clock, mailbox.clone(), Iccm::new(&clock), args);
         soc_reg
             .write(RvSize::Word, CPTRA_DBG_MANUF_SERVICE_REG_START, 2)
             .unwrap();
@@ -1019,7 +1019,7 @@ mod tests {
             ..Default::default()
         };
         let mut soc_reg: SocRegistersInternal =
-            SocRegistersInternal::new(&clock, mailbox, Iccm::new(), args);
+            SocRegistersInternal::new(&clock, mailbox, Iccm::new(&clock), args);
 
         let _ = soc_reg.write(RvSize::Word, CPTRA_GENERIC_OUTPUT_WIRES_START, b'h'.into());
 

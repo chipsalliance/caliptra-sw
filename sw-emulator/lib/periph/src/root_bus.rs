@@ -216,7 +216,7 @@ impl CaliptraRootBus {
         let mailbox_ram = MailboxRam::new();
         let mailbox = Mailbox::new(mailbox_ram.clone());
         let rom = Rom::new(std::mem::take(&mut args.rom));
-        let iccm = Iccm::new();
+        let iccm = Iccm::new(clock);
         let soc_reg = SocRegistersInternal::new(clock, mailbox.clone(), iccm.clone(), args);
 
         Self {
