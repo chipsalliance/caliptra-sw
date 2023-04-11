@@ -171,16 +171,26 @@ fn translate_register(iref: systemrdl::InstanceRef) -> Result<ureg::Register, Er
         .property_val_opt("desc")
         .unwrap()
         .unwrap_or_default();
+
+    if inst.reset.is_some() {
+        return Err(wrap_err(Error::ResetValueOnRegisterUnsupported));
+    }
+
+    let ty = translate_register_ty(inst.type_name.clone(), iref.scope)?;
+
     let result = ureg_schema::Register {
         name: inst.name.clone(),
         offset: inst
             .offset
             .ok_or(Error::OffsetNotDefined)
             .map_err(wrap_err)?,
-        default_val: inst.reset.map(|b| b.val()).unwrap_or_default(),
+        default_val: ty.fields.iter().fold(0, |reset, field| {
+            let width_mask = (1 << field.width) - 1;
+            reset | ((field.default_val & width_mask) << field.position)
+        }),
         comment: unpad_description(&description),
         array_dimensions: inst.dimension_sizes.clone(),
-        ty: translate_register_ty(inst.type_name.clone(), iref.scope)?,
+        ty,
     };
 
     Ok(result)
