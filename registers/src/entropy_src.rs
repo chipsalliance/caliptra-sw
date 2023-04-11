@@ -3116,50 +3116,50 @@ pub mod meta {
         ureg::WriteOnlyReg32<0, crate::entropy_src::regs::InterruptTestWriteVal>;
     pub type AlertTest = ureg::WriteOnlyReg32<0, crate::entropy_src::regs::AlertTestWriteVal>;
     pub type MeRegwen = ureg::ReadWriteReg32<
-        0,
+        1,
         crate::entropy_src::regs::MeRegwenReadVal,
         crate::entropy_src::regs::MeRegwenWriteVal,
     >;
     pub type SwRegupd = ureg::ReadWriteReg32<
-        0,
+        1,
         crate::entropy_src::regs::SwRegupdReadVal,
         crate::entropy_src::regs::SwRegupdWriteVal,
     >;
     pub type Regwen = ureg::ReadOnlyReg32<crate::entropy_src::regs::RegwenReadVal>;
     pub type Rev = ureg::ReadOnlyReg32<crate::entropy_src::regs::RevReadVal>;
     pub type ModuleEnable = ureg::ReadWriteReg32<
-        0,
+        9,
         crate::entropy_src::regs::ModuleEnableReadVal,
         crate::entropy_src::regs::ModuleEnableWriteVal,
     >;
     pub type Conf = ureg::ReadWriteReg32<
-        0,
+        0x909099,
         crate::entropy_src::regs::ConfReadVal,
         crate::entropy_src::regs::ConfWriteVal,
     >;
     pub type EntropyControl = ureg::ReadWriteReg32<
-        0,
+        0x99,
         crate::entropy_src::regs::EntropyControlReadVal,
         crate::entropy_src::regs::EntropyControlWriteVal,
     >;
     pub type EntropyData = ureg::ReadOnlyReg32<u32>;
     pub type HealthTestWindows = ureg::ReadWriteReg32<
-        0,
+        0x600200,
         crate::entropy_src::regs::HealthTestWindowsReadVal,
         crate::entropy_src::regs::HealthTestWindowsWriteVal,
     >;
     pub type RepcntThresholds = ureg::ReadWriteReg32<
-        0,
+        0xffffffff,
         crate::entropy_src::regs::RepcntThresholdsReadVal,
         crate::entropy_src::regs::RepcntThresholdsWriteVal,
     >;
     pub type RepcntsThresholds = ureg::ReadWriteReg32<
-        0,
+        0xffffffff,
         crate::entropy_src::regs::RepcntsThresholdsReadVal,
         crate::entropy_src::regs::RepcntsThresholdsWriteVal,
     >;
     pub type AdaptpHiThresholds = ureg::ReadWriteReg32<
-        0,
+        0xffffffff,
         crate::entropy_src::regs::AdaptpHiThresholdsReadVal,
         crate::entropy_src::regs::AdaptpHiThresholdsWriteVal,
     >;
@@ -3169,12 +3169,12 @@ pub mod meta {
         crate::entropy_src::regs::AdaptpLoThresholdsWriteVal,
     >;
     pub type BucketThresholds = ureg::ReadWriteReg32<
-        0,
+        0xffffffff,
         crate::entropy_src::regs::BucketThresholdsReadVal,
         crate::entropy_src::regs::BucketThresholdsWriteVal,
     >;
     pub type MarkovHiThresholds = ureg::ReadWriteReg32<
-        0,
+        0xffffffff,
         crate::entropy_src::regs::MarkovHiThresholdsReadVal,
         crate::entropy_src::regs::MarkovHiThresholdsWriteVal,
     >;
@@ -3184,7 +3184,7 @@ pub mod meta {
         crate::entropy_src::regs::MarkovLoThresholdsWriteVal,
     >;
     pub type ExthtHiThresholds = ureg::ReadWriteReg32<
-        0,
+        0xffffffff,
         crate::entropy_src::regs::ExthtHiThresholdsReadVal,
         crate::entropy_src::regs::ExthtHiThresholdsWriteVal,
     >;
@@ -3221,7 +3221,7 @@ pub mod meta {
     pub type ExthtHiTotalFails = ureg::ReadOnlyReg32<u32>;
     pub type ExthtLoTotalFails = ureg::ReadOnlyReg32<u32>;
     pub type AlertThreshold = ureg::ReadWriteReg32<
-        0,
+        0xfffd0002,
         crate::entropy_src::regs::AlertThresholdReadVal,
         crate::entropy_src::regs::AlertThresholdWriteVal,
     >;
@@ -3232,12 +3232,12 @@ pub mod meta {
     pub type ExthtFailCounts =
         ureg::ReadOnlyReg32<crate::entropy_src::regs::ExthtFailCountsReadVal>;
     pub type FwOvControl = ureg::ReadWriteReg32<
-        0,
+        0x99,
         crate::entropy_src::regs::FwOvControlReadVal,
         crate::entropy_src::regs::FwOvControlWriteVal,
     >;
     pub type FwOvSha3Start = ureg::ReadWriteReg32<
-        0,
+        9,
         crate::entropy_src::regs::FwOvSha3StartReadVal,
         crate::entropy_src::regs::FwOvSha3StartWriteVal,
     >;
@@ -3250,7 +3250,7 @@ pub mod meta {
     pub type FwOvRdData = ureg::ReadOnlyReg32<u32>;
     pub type FwOvWrData = ureg::WriteOnlyReg32<0, u32>;
     pub type ObserveFifoThresh = ureg::ReadWriteReg32<
-        0,
+        0x20,
         crate::entropy_src::regs::ObserveFifoThreshReadVal,
         crate::entropy_src::regs::ObserveFifoThreshWriteVal,
     >;

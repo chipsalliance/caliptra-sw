@@ -196,7 +196,7 @@ pub mod meta {
     //! Additional metadata needed by ureg.
     pub type Name = ureg::ReadOnlyReg32<u32>;
     pub type Version = ureg::ReadOnlyReg32<u32>;
-    pub type Ctrl = ureg::WriteOnlyReg32<0, crate::sha256::regs::CtrlWriteVal>;
+    pub type Ctrl = ureg::WriteOnlyReg32<4, crate::sha256::regs::CtrlWriteVal>;
     pub type Status = ureg::ReadOnlyReg32<crate::sha256::regs::StatusReadVal>;
     pub type Block = ureg::WriteOnlyReg32<0, u32>;
     pub type Digest = ureg::ReadOnlyReg32<u32>;

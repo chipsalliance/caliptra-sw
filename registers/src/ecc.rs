@@ -1090,7 +1090,7 @@ pub mod meta {
     pub type Version = ureg::ReadOnlyReg32<u32>;
     pub type Ctrl = ureg::WriteOnlyReg32<0, crate::ecc::regs::CtrlWriteVal>;
     pub type Status = ureg::ReadOnlyReg32<crate::ecc::regs::StatusReadVal>;
-    pub type Scaconfig = ureg::WriteOnlyReg32<0, crate::ecc::regs::ScaconfigWriteVal>;
+    pub type Scaconfig = ureg::WriteOnlyReg32<7, crate::ecc::regs::ScaconfigWriteVal>;
     pub type Seed = ureg::WriteOnlyReg32<0, u32>;
     pub type Msg = ureg::WriteOnlyReg32<0, u32>;
     pub type Privkey = ureg::ReadWriteReg32<0, u32, u32>;

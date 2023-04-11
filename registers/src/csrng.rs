@@ -1103,12 +1103,15 @@ pub mod meta {
     pub type InterruptTest = ureg::WriteOnlyReg32<0, crate::csrng::regs::InterruptTestWriteVal>;
     pub type AlertTest = ureg::WriteOnlyReg32<0, crate::csrng::regs::AlertTestWriteVal>;
     pub type Regwen = ureg::ReadWriteReg32<
-        0,
+        1,
         crate::csrng::regs::RegwenReadVal,
         crate::csrng::regs::RegwenWriteVal,
     >;
-    pub type Ctrl =
-        ureg::ReadWriteReg32<0, crate::csrng::regs::CtrlReadVal, crate::csrng::regs::CtrlWriteVal>;
+    pub type Ctrl = ureg::ReadWriteReg32<
+        0x999,
+        crate::csrng::regs::CtrlReadVal,
+        crate::csrng::regs::CtrlWriteVal,
+    >;
     pub type CmdReq = ureg::WriteOnlyReg32<0, u32>;
     pub type SwCmdSts = ureg::ReadOnlyReg32<crate::csrng::regs::SwCmdStsReadVal>;
     pub type GenbitsVld = ureg::ReadOnlyReg32<crate::csrng::regs::GenbitsVldReadVal>;

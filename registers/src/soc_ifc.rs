@@ -1414,13 +1414,13 @@ pub mod meta {
     pub type CptraResetReason = ureg::ReadOnlyReg32<crate::soc_ifc::regs::CptraResetReasonReadVal>;
     pub type CptraSecurityState =
         ureg::ReadOnlyReg32<crate::soc_ifc::regs::CptraSecurityStateReadVal>;
-    pub type CptraValidPauser = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraValidPauser = ureg::ReadWriteReg32<0xffffffff, u32, u32>;
     pub type CptraPauserLock = ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::PauserLockReadVal,
         crate::soc_ifc::regs::PauserLockWriteVal,
     >;
-    pub type CptraTrngValidPauser = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type CptraTrngValidPauser = ureg::ReadWriteReg32<0xffffffff, u32, u32>;
     pub type CptraTrngPauserLock = ureg::ReadWriteReg32<
         0,
         crate::soc_ifc::regs::PauserLockReadVal,
@@ -1489,7 +1489,7 @@ pub mod meta {
         crate::soc_ifc::regs::InternalFwUpdateResetWriteVal,
     >;
     pub type InternalFwUpdateResetWaitCycles = ureg::ReadWriteReg32<
-        0,
+        5,
         crate::soc_ifc::regs::InternalFwUpdateResetWaitCyclesReadVal,
         crate::soc_ifc::regs::InternalFwUpdateResetWaitCyclesWriteVal,
     >;
