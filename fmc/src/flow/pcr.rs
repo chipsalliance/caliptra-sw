@@ -30,8 +30,8 @@ use caliptra_drivers::{CaliptraResult, PcrId};
 /// # Arguments
 ///
 /// * `env` - FMC Environment
-pub fn extend_pcr0(env: &FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
-    extend_pcr_common(env, hand_off, PcrId::PcrId0)
+pub fn extend_current_pcr(env: &FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
+    extend_pcr_common(env, hand_off, PcrId::PcrId3)
 }
 
 /// Extend PCR1
@@ -39,8 +39,8 @@ pub fn extend_pcr0(env: &FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
 /// # Arguments
 ///
 /// * `env` - FMC Environment
-pub fn extend_pcr1(env: &FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
-    extend_pcr_common(env, hand_off, PcrId::PcrId1)
+pub fn extend_journey_pcr(env: &FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
+    extend_pcr_common(env, hand_off, PcrId::PcrId2)
 }
 
 /// Extend common data into PCR

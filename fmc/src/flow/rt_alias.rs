@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 use crate::flow::dice::{DiceInput, DiceLayer, DiceOutput};
-use crate::flow::pcr::{extend_pcr0, extend_pcr1};
+use crate::flow::pcr::{extend_current_pcr, extend_journey_pcr};
 use crate::fmc_env::FmcEnv;
 use crate::HandOff;
 use caliptra_common::cprintln;
@@ -45,17 +45,14 @@ impl RtAliasLayer {
         Ok(())
     }
 
-    /// Extend the PCR0 & PCR1
-    ///
-    /// PCR0 is a journey PCR and is locked for clear on cold boot. PCR1
-    /// is the current PCR and is cleared on any reset
+    /// Extend current and journey PCRs
     ///
     /// # Arguments
     ///
     /// * `env` - FMC Environment
     pub fn extend_pcrs(env: &FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
-        extend_pcr0(env, hand_off)?;
-        extend_pcr1(env, hand_off)?;
+        extend_current_pcr(env, hand_off)?;
+        extend_journey_pcr(env, hand_off)?;
         Ok(())
     }
 
