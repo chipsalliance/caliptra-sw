@@ -1,0 +1,24 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "caliptra-hw-model-test-fw"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = []
+riscv = ["caliptra-test-harness/riscv"]
+emu = ["caliptra-test-harness/emu"]
+
+[dependencies]
+caliptra-test-harness = { path = "../../test-harness" }
+
+[[bin]]
+name = "test_iccm_unaligned_write"
+path = "test_iccm_unaligned_write.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "test_iccm_byte_write"
+path = "test_iccm_byte_write.rs"
+required-features = ["riscv"]
