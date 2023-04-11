@@ -18,7 +18,7 @@ use crate::{CaliptraRootBusArgs, Iccm, Mailbox};
 use caliptra_emu_bus::BusError::{LoadAccessFault, StoreAccessFault};
 use caliptra_emu_bus::{
     ActionHandle, Bus, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteRegister,
-    Register, Timer, TimerActionType,
+    Register, Timer, TimerAction,
 };
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
@@ -708,10 +708,8 @@ impl SocRegistersImpl {
         self.internal_fw_update_reset.write(size, val)?;
 
         // Schedule a firmware update reset timer action.
-        self.op_reset_trigger_action = Some(
-            self.timer
-                .schedule_reset_in(0, TimerActionType::UpdateReset),
-        );
+        self.op_reset_trigger_action =
+            Some(self.timer.schedule_reset_in(0, TimerAction::UpdateReset));
         Ok(())
     }
 
