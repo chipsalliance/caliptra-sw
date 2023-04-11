@@ -709,7 +709,7 @@ impl SocRegistersImpl {
 
         // Schedule a firmware update reset timer action.
         self.op_reset_trigger_action =
-            Some(self.timer.schedule_reset_in(0, TimerAction::UpdateReset));
+            Some(self.timer.schedule_action_in(0, TimerAction::UpdateReset));
         Ok(())
     }
 
