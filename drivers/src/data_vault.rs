@@ -30,7 +30,32 @@ pub enum ColdResetEntry48 {
     OwnerPubKeyHash = 9,
 }
 
+impl TryFrom<u8> for ColdResetEntry48 {
+    type Error = ();
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(ColdResetEntry48::LDevDiceSigR),
+            1 => Ok(ColdResetEntry48::LDevDiceSigS),
+            2 => Ok(ColdResetEntry48::LDevDicePubKeyX),
+            3 => Ok(ColdResetEntry48::LDevDicePubKeyY),
+            4 => Ok(ColdResetEntry48::FmcDiceSigR),
+            5 => Ok(ColdResetEntry48::FmcDiceSigS),
+            6 => Ok(ColdResetEntry48::FmcPubKeyX),
+            7 => Ok(ColdResetEntry48::FmcPubKeyY),
+            8 => Ok(ColdResetEntry48::FmcTci),
+            9 => Ok(ColdResetEntry48::OwnerPubKeyHash),
+            _ => Err(()),
+        }
+    }
+}
+
 impl From<ColdResetEntry48> for u8 {
+    fn from(value: ColdResetEntry48) -> Self {
+        value as Self
+    }
+}
+
+impl From<ColdResetEntry48> for u32 {
     fn from(value: ColdResetEntry48) -> Self {
         value as Self
     }
@@ -50,7 +75,26 @@ pub enum ColdResetEntry4 {
     VendorPubKeyIndex = 3,
 }
 
+impl TryFrom<u8> for ColdResetEntry4 {
+    type Error = ();
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::FmcSvn),
+            1 => Ok(Self::FmcLoadAddr),
+            2 => Ok(Self::FmcEntryPoint),
+            3 => Ok(Self::VendorPubKeyIndex),
+            _ => Err(()),
+        }
+    }
+}
+
 impl From<ColdResetEntry4> for u8 {
+    fn from(value: ColdResetEntry4) -> Self {
+        value as Self
+    }
+}
+
+impl From<ColdResetEntry4> for u32 {
     fn from(value: ColdResetEntry4) -> Self {
         value as Self
     }
@@ -67,17 +111,13 @@ pub enum WarmResetEntry48 {
     RtTci = 0,
 }
 
-impl TryFrom<u8> for WarmResetEntry48 {
-    type Error = ();
-    fn try_from(original: u8) -> Result<Self, Self::Error> {
-        match original {
-            0 => Ok(Self::RtTci),
-            _ => Err(()),
-        }
+impl From<WarmResetEntry48> for u8 {
+    fn from(value: WarmResetEntry48) -> Self {
+        value as Self
     }
 }
 
-impl From<WarmResetEntry48> for u8 {
+impl From<WarmResetEntry48> for u32 {
     fn from(value: WarmResetEntry48) -> Self {
         value as Self
     }
@@ -103,6 +143,12 @@ impl From<WarmResetEntry4> for u8 {
     }
 }
 
+impl From<WarmResetEntry4> for u32 {
+    fn from(value: WarmResetEntry4) -> Self {
+        value as Self
+    }
+}
+
 impl From<WarmResetEntry4> for usize {
     fn from(value: WarmResetEntry4) -> Self {
         value as Self
@@ -117,6 +163,16 @@ impl TryFrom<u8> for WarmResetEntry4 {
             1 => Ok(Self::RtLoadAddr),
             2 => Ok(Self::RtEntryPoint),
             3 => Ok(Self::ManifestAddr),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<u8> for WarmResetEntry48 {
+    type Error = ();
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::RtTci),
             _ => Err(()),
         }
     }
@@ -426,7 +482,7 @@ impl DataVault {
     /// # Returns
     ///    cold reset entry value  
     ///
-    fn read_cold_reset_entry48(&self, entry: ColdResetEntry48) -> Array4x12 {
+    pub fn read_cold_reset_entry48(&self, entry: ColdResetEntry48) -> Array4x12 {
         let dv = dv::RegisterBlock::dv_reg();
         Array4x12::read_from_reg(dv.sticky_data_vault_entry().at(entry.into()))
     }
@@ -520,7 +576,7 @@ impl DataVault {
     /// # Returns
     ///    cold reset entry value  
     ///
-    fn read_cold_reset_entry4(&self, entry: ColdResetEntry4) -> u32 {
+    pub fn read_cold_reset_entry4(&self, entry: ColdResetEntry4) -> u32 {
         let dv = dv::RegisterBlock::dv_reg();
         dv.sticky_lockable_scratch_reg().at(entry.into()).read()
     }

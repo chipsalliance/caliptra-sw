@@ -526,6 +526,7 @@ dependencies = [
 name = "caliptra_common"
 version = "0.1.0"
 dependencies = [
+ "bitfield",
  "caliptra-drivers",
  "ufmt",
  "zerocopy",
