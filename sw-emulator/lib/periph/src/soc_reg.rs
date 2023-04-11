@@ -426,7 +426,7 @@ struct SocRegistersImpl {
     internal_fw_update_reset_wait_cycles: ReadWriteRegister<u32, FwUpdateResetWaitCycles::Register>,
 
     /// INTERNAL_NMI_VECTOR Register
-    #[register(offset = 0x062c)]
+    #[register(offset = 0x062c, write_fn = on_write_internal_nmi_vector)]
     internal_nmi_vector: ReadWriteRegister<u32>,
 
     /// Mailbox
@@ -710,6 +710,14 @@ impl SocRegistersImpl {
         // Schedule a firmware update reset timer action.
         self.op_reset_trigger_action =
             Some(self.timer.schedule_action_in(0, TimerAction::UpdateReset));
+        Ok(())
+    }
+    fn on_write_internal_nmi_vector(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
+        if size != RvSize::Word {
+            return Err(BusError::StoreAccessFault);
+        }
+        self.timer
+            .schedule_action_in(0, TimerAction::SetNmiVec { addr: val });
         Ok(())
     }
 
