@@ -180,6 +180,8 @@ impl Clock {
                     bus.update_reset();
                     break;
                 }
+                TimerAction::Nmi { .. } => {}
+                TimerAction::SetNmiVec { .. } => {}
             }
         }
         fired_actions
@@ -237,6 +239,8 @@ pub enum TimerAction {
     Poll,
     WarmReset,
     UpdateReset,
+    Nmi { mcause: u32 },
+    SetNmiVec { addr: u32 },
 }
 
 struct ClockImpl {
