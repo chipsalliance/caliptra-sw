@@ -32,6 +32,7 @@ fn main() {
     gen_init_devid_csr(out_dir);
     gen_local_devid_cert(out_dir);
     gen_fmc_alias_cert(out_dir);
+    gen_rt_alias_cert(out_dir);
 }
 
 /// Generated Initial DeviceId Cert Signing request Template
@@ -86,4 +87,34 @@ fn gen_fmc_alias_cert(out_dir: &str) {
         );
     let template = bldr.tbs_template("Caliptra FMC Alias", "Caliptra LDevID");
     CodeGen::gen_code("FmcAliasCertTbs", template, out_dir);
+}
+
+fn gen_rt_alias_cert(out_dir: &str) {
+    let mut usage = KeyUsage::default();
+    usage.set_key_cert_sign(true);
+    let bldr = cert::CertTemplateBuilder::<EcdsaSha384Algo>::new()
+        .add_basic_constraints_ext(true, 0)
+        .add_key_usage_ext(usage)
+        .add_ueid_ext(&[0xFF; 8])
+        .add_dice_tcb_info_ext(
+            0,
+            &[
+                FwidParam {
+                    name: "TCB_INFO_RT_TCI",
+                    fwid: Fwid {
+                        hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
+                        digest: &[0xCD; 48],
+                    },
+                },
+                FwidParam {
+                    name: "TCB_INFO_OWNER_PK_HASH",
+                    fwid: Fwid {
+                        hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
+                        digest: &[0xEF; 48],
+                    },
+                },
+            ],
+        );
+    let template = bldr.tbs_template("Caliptra Rt Alias", "Caliptra FMC");
+    CodeGen::gen_code("RtAliasCertTbs", template, out_dir);
 }
