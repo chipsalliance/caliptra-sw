@@ -13,7 +13,7 @@ File Name:
 
 use crate::fmc_env::FmcEnv;
 use caliptra_common::{cprintln, FirmwareHandoffTable};
-use caliptra_drivers::WarmResetEntry4;
+use caliptra_drivers::{Array4x12, WarmResetEntry4, WarmResetEntry48};
 
 #[cfg(feature = "riscv")]
 core::arch::global_asm!(include_str!("transfer_control.S"));
@@ -63,9 +63,12 @@ pub fn dump_fht(fht: &FirmwareHandoffTable) {
 
 impl HandOff {
     pub fn from_previous() -> Option<HandOff> {
+        // try_load performs basic sanity check of the FHT (check FHT marker, valid indices, etc.)
         if let Some(fht) = FirmwareHandoffTable::try_load() {
             dump_fht(&fht);
+
             let me = Self { fht };
+
             return Some(me);
         }
         None
@@ -86,6 +89,27 @@ impl HandOff {
         unsafe { transfer_control(rt_entry) }
     }
 
+    /// Retrieve runtime TCI (digest)
+    pub fn rt_tci(&self, env: &FmcEnv) -> Array4x12 {
+        env.data_vault().map(|d| {
+            d.read_warm_reset_entry48(
+                WarmResetEntry48::try_from(self.fht.rt_tci_dv_idx)
+                    .unwrap_or_else(|_| crate::report_error(0xdead)),
+            )
+        })
+    }
+
+    /// Retrieve runtime security version number.
+    pub fn rt_svn(&self, env: &FmcEnv) -> u32 {
+        env.data_vault().map(|d| {
+            d.read_warm_reset_entry4(
+                WarmResetEntry4::try_from(self.fht.rt_svn_dv_idx)
+                    .unwrap_or_else(|_| crate::report_error(0xdead)),
+            )
+        })
+    }
+
+    /// Retrieve runtime entry point
     fn rt_entry_point(&self, env: &FmcEnv) -> u32 {
         env.data_vault().map(|d| {
             d.read_warm_reset_entry4(

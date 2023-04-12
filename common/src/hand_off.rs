@@ -1,6 +1,9 @@
 // Licensed under the Apache-2.0 license.
 
 use zerocopy::{AsBytes, FromBytes};
+extern "C" {
+    static mut FHT_ORG: u32;
+}
 
 pub const FHT_MARKER: u32 = 0x54484643;
 pub const FHT_INVALID_IDX: u8 = u8::MAX;
@@ -140,16 +143,15 @@ impl FirmwareHandoffTable {
     /// Load FHT from its fixed address and perform validity check of
     /// its data.
     pub fn try_load() -> Option<FirmwareHandoffTable> {
-        extern "C" {
-            static mut FHT_ORG: u8;
-        }
-
         let slice = unsafe {
-            let ptr = &mut FHT_ORG as *mut u8;
-            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
+            let ptr = &mut FHT_ORG as *mut u32;
+            core::slice::from_raw_parts_mut(
+                ptr,
+                core::mem::size_of::<FirmwareHandoffTable>() / core::mem::size_of::<u32>(),
+            )
         };
 
-        let fht = FirmwareHandoffTable::read_from(slice).unwrap();
+        let fht = FirmwareHandoffTable::read_from(slice.as_bytes()).unwrap();
 
         if fht.is_valid() {
             return Some(fht);

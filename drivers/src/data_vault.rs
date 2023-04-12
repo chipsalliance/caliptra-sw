@@ -67,6 +67,16 @@ pub enum WarmResetEntry48 {
     RtTci = 0,
 }
 
+impl TryFrom<u8> for WarmResetEntry48 {
+    type Error = ();
+    fn try_from(original: u8) -> Result<Self, Self::Error> {
+        match original {
+            0 => Ok(Self::RtTci),
+            _ => Err(()),
+        }
+    }
+}
+
 impl From<WarmResetEntry48> for u8 {
     fn from(value: WarmResetEntry48) -> Self {
         value as Self
@@ -463,7 +473,7 @@ impl DataVault {
     /// # Returns
     ///    warm reset entry value  
     ///
-    fn read_warm_reset_entry48(&self, entry: WarmResetEntry48) -> Array4x12 {
+    pub fn read_warm_reset_entry48(&self, entry: WarmResetEntry48) -> Array4x12 {
         let dv = dv::RegisterBlock::dv_reg();
         Array4x12::read_from_reg(dv.nonsticky_data_vault_entry().at(entry.into()))
     }
