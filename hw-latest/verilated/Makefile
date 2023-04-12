@@ -62,7 +62,7 @@ out/Vcaliptra_verilated.h: ${VERILATED_DIR}/caliptra_verilated.sv out
 	  --top-module caliptra_verilated
 
 out/Vcaliptra_verilated__ALL.a: out/Vcaliptra_verilated.h
-	$(MAKE) -j -e -C out -f Vcaliptra_verilated.mk $(VERILATOR_MAKE_FLAGS)
+	$(MAKE) -j $(CALIPTRA_VERILATOR_JOBS) -e -C out -f Vcaliptra_verilated.mk $(VERILATOR_MAKE_FLAGS)
 
 clean:
 	rm -r out
