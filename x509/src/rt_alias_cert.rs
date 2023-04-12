@@ -53,7 +53,6 @@ mod tests {
                 issuer_key.sha1(),
             )
             .unwrap(),
-            tcb_info_owner_pk_hash: &[0xCDu8; RtAliasCertTbsParams::TCB_INFO_OWNER_PK_HASH_LEN],
             tcb_info_rt_tci: &[0xEFu8; RtAliasCertTbsParams::TCB_INFO_RT_TCI_LEN],
         };
 
@@ -97,12 +96,6 @@ mod tests {
             &cert.tbs()[RtAliasCertTbs::AUTHORITY_KEY_ID_OFFSET
                 ..RtAliasCertTbs::AUTHORITY_KEY_ID_OFFSET + RtAliasCertTbs::AUTHORITY_KEY_ID_LEN],
             params.authority_key_id,
-        );
-        assert_eq!(
-            &cert.tbs()[RtAliasCertTbs::TCB_INFO_OWNER_PK_HASH_OFFSET
-                ..RtAliasCertTbs::TCB_INFO_OWNER_PK_HASH_OFFSET
-                    + RtAliasCertTbs::TCB_INFO_OWNER_PK_HASH_LEN],
-            params.tcb_info_owner_pk_hash,
         );
         assert_eq!(
             &cert.tbs()[RtAliasCertTbs::TCB_INFO_RT_TCI_OFFSET
