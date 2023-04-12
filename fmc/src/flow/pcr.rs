@@ -8,16 +8,16 @@ File Name:
 
 Abstract:
 
-    File contains execution routines for extending PCR0 & PCR1
+    File contains execution routines for extending current and journey PCRs.
 
 Environment:
 
-    ROM
+    FMC
 
 Note:
 
-    PCR0 - Journey PCR unlocked and cleared on cold reset
-    PCR1 - Current PCR unlocked and cleared on any reset
+    PCR2 - Journey PCR unlocked and cleared on cold reset
+    PCR3 - Current PCR unlocked and cleared on any reset
 
 --*/
 
@@ -25,22 +25,25 @@ use crate::fmc_env::FmcEnv;
 use crate::HandOff;
 use caliptra_drivers::{CaliptraResult, PcrId};
 
-/// Extend PCR0
+const CURRENT_PCR: PcrId = PcrId::PcrId3;
+const JOURNEY_PCR: PcrId = PcrId::PcrId2;
+
+/// Extend current PCR
 ///
 /// # Arguments
 ///
 /// * `env` - FMC Environment
 pub fn extend_current_pcr(env: &FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
-    extend_pcr_common(env, hand_off, PcrId::PcrId3)
+    extend_pcr_common(env, hand_off, CURRENT_PCR)
 }
 
-/// Extend PCR1
+/// Extend journey PCR
 ///
 /// # Arguments
 ///
 /// * `env` - FMC Environment
 pub fn extend_journey_pcr(env: &FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
-    extend_pcr_common(env, hand_off, PcrId::PcrId2)
+    extend_pcr_common(env, hand_off, JOURNEY_PCR)
 }
 
 /// Extend common data into PCR
