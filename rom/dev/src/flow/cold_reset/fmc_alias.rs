@@ -57,7 +57,7 @@ impl DiceLayer for FmcAliasLayer {
         );
 
         // Download the image
-        let txn = Self::download_image(env)?;
+        let mut txn = Self::download_image(env)?;
 
         // Load the manifest
         let manifest = Self::load_manifest(&txn)?;
@@ -72,7 +72,11 @@ impl DiceLayer for FmcAliasLayer {
         Self::extend_pcrs(env)?;
 
         // Load the image
-        Self::load_image(env, &manifest, txn)?;
+        Self::load_image(env, &manifest, &txn)?;
+
+        // Complete the mailbox transaction indicating success.
+        txn.complete(true)?;
+        drop(txn);
 
         // At this point PCR0 & PCR1 must have the same value. We use the value
         // of PCR1 as the UDS for deriving the CDI
@@ -191,7 +195,7 @@ impl FmcAliasLayer {
     fn load_image(
         _env: &RomEnv,
         manifest: &ImageManifest,
-        txn: MailboxRecvTxn,
+        txn: &MailboxRecvTxn,
     ) -> CaliptraResult<()> {
         cprintln!(
             "[afmc] Loading FMC at address 0x{:08x} len {}",
@@ -218,10 +222,6 @@ impl FmcAliasLayer {
         };
 
         txn.copy_request(0, runtime_dest)?;
-
-        // Drop the tranaction and release the Mailbox lock after the image
-        // has been successfully verified and loaded in memory
-        drop(txn);
 
         Ok(())
     }
