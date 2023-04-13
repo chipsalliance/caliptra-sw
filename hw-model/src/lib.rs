@@ -16,7 +16,7 @@ mod model_verilated;
 mod output;
 mod rv32_builder;
 
-use caliptra_hw_model_types::{DeviceLifecycle, Fuses, SecurityState};
+pub use caliptra_hw_model_types::{DeviceLifecycle, Fuses, SecurityState, U4};
 pub use mmio::BusMmio;
 use output::ExitStatus;
 pub use output::Output;
@@ -258,6 +258,32 @@ pub trait HwModel {
                     return Err(std::io::Error::new(
                         ErrorKind::Other,
                         "firmware exited with failure",
+                    ))
+                }
+                None => {}
+            }
+            self.step();
+        }
+    }
+
+    fn copy_output_until_non_fatal_error(
+        &mut self,
+        expected_fw_nonfatal_error: u32,
+        mut w: impl std::io::Write,
+    ) -> std::io::Result<()> {
+        loop {
+            if self.soc_ifc().cptra_fw_error_non_fatal().read() == expected_fw_nonfatal_error {
+                return Ok(());
+            }
+
+            if !self.output().peek().is_empty() {
+                w.write_all(self.output().take(usize::MAX).as_bytes())?;
+            }
+            match self.output().exit_status() {
+                Some(ExitStatus::Passed) | Some(ExitStatus::Failed) => {
+                    return Err(std::io::Error::new(
+                        ErrorKind::Other,
+                        "firmware exited unexpectedly",
                     ))
                 }
                 None => {}
