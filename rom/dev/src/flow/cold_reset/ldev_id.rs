@@ -18,6 +18,8 @@ use super::dice::*;
 use super::x509::*;
 use crate::cprint_slice;
 use crate::cprintln;
+use crate::flow::cold_reset::copy_tbs;
+use crate::flow::cold_reset::TbsType;
 use crate::rom_env::RomEnv;
 use crate::rom_err_def;
 use caliptra_drivers::*;
@@ -188,6 +190,9 @@ impl LocalDevIdLayer {
         // Lock the Local Device ID public keys in data vault until
         // cold reset
         env.data_vault().map(|d| d.set_ldev_dice_pub_key(pub_key));
+
+        //  Copy TBS to DCCM.
+        copy_tbs(tbs.tbs(), TbsType::LdevidTbs)?;
 
         Ok(())
     }

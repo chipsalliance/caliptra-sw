@@ -406,6 +406,8 @@ dependencies = [
  "caliptra-x509",
  "caliptra_common",
  "cfg-if",
+ "hex",
+ "openssl",
  "ufmt",
  "zerocopy",
 ]
@@ -414,7 +416,9 @@ dependencies = [
 name = "caliptra-rom-test-fmc"
 version = "0.1.0"
 dependencies = [
+ "caliptra-cpu",
  "caliptra-drivers",
+ "caliptra-x509",
  "caliptra_common",
  "cfg-if",
  "ufmt",
@@ -425,6 +429,7 @@ dependencies = [
 name = "caliptra-rom-test-rt"
 version = "0.1.0"
 dependencies = [
+ "caliptra-cpu",
  "caliptra-drivers",
  "cfg-if",
  "ufmt",
