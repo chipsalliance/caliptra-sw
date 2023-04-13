@@ -20,11 +20,11 @@ Abstract:
 #![no_std]
 #![no_main]
 
-mod harness;
-use caliptra_lib::{
+use caliptra_drivers::{
     candidate_ots_signature, hash_message, verify_lms_signature, HashValue, LmotsAlgorithmType,
     LmotsSignature, LmsAlgorithmType, LmsSignature, Sha256Digest,
 };
+use caliptra_test_harness::test_suite;
 
 fn test_hash_message_32() {
     let message: [u8; 162] = [
