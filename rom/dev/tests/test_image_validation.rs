@@ -3,7 +3,7 @@
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
 use caliptra_drivers::Array4x12;
 use caliptra_hw_model::{
-    BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, ModelEmulated, SecurityState, U4,
+    BootParams, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, InitParams, SecurityState, U4,
 };
 use caliptra_image_elf::ElfExecutable;
 use caliptra_image_fake_keys::{
@@ -687,7 +687,7 @@ fn update_fmc_runtime_ranges(
     image
 }
 
-fn build_hw_model_and_image_bundle(fuses: Fuses) -> (ModelEmulated, ImageBundle) {
+fn build_hw_model_and_image_bundle(fuses: Fuses) -> (DefaultHwModel, ImageBundle) {
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
