@@ -20,6 +20,11 @@ cfg-if = "1.0.0"
 
 [dev-dependencies]
 caliptra-builder = { path = "../../builder" }
+caliptra-hw-model = { path = "../../hw-model" }
+caliptra-image-gen = { path = "../../image/gen" }
+caliptra-image-openssl = { path = "../../image/openssl" }
+caliptra-image-elf = { path = "../../image/elf" }
+caliptra-image-fake-keys = { path = "../../image/fake-keys" }
 
 [features]
 riscv = []

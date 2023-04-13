@@ -107,6 +107,32 @@ impl From<U4> for u32 {
     }
 }
 
+impl TryFrom<u32> for U4 {
+    type Error = ();
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value {
+            0b0000 => Ok(Self::X0),
+            0b0001 => Ok(Self::X1),
+            0b0010 => Ok(Self::X2),
+            0b0011 => Ok(Self::X3),
+            0b0100 => Ok(Self::X4),
+            0b0101 => Ok(Self::X5),
+            0b0110 => Ok(Self::X6),
+            0b0111 => Ok(Self::X7),
+            0b1000 => Ok(Self::X8),
+            0b1001 => Ok(Self::X9),
+            0b1010 => Ok(Self::Xa),
+            0b1011 => Ok(Self::Xb),
+            0b1100 => Ok(Self::Xc),
+            0b1101 => Ok(Self::Xd),
+            0b1110 => Ok(Self::Xe),
+            0b1111 => Ok(Self::Xf),
+            16_u32..=u32::MAX => Err(()),
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct Fuses {
     pub uds_seed: [u32; 12],

@@ -90,7 +90,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
     }
 
     /// Create preable
-    fn gen_preamble<E>(
+    pub fn gen_preamble<E>(
         &self,
         config: &ImageGeneratorConfig<E>,
         ecc_key_idx: u32,
@@ -155,8 +155,14 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
     }
 
     /// Calculate header digest
-    fn header_digest(&self, header: &ImageHeader) -> anyhow::Result<ImageDigest> {
+    pub fn header_digest(&self, header: &ImageHeader) -> anyhow::Result<ImageDigest> {
         self.crypto.sha384_digest(header.as_bytes())
+    }
+
+    /// Calculate owner public key(s) digest
+    pub fn owner_pubkey_digest(&self, preamble: &ImagePreamble) -> anyhow::Result<ImageDigest> {
+        self.crypto
+            .sha384_digest(preamble.owner_pub_keys.as_bytes())
     }
 
     /// Generate image
@@ -189,7 +195,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
     }
 
     /// Calculate TOC digest
-    fn toc_digest(
+    pub fn toc_digest(
         &self,
         fmc_toc: &ImageTocEntry,
         rt_toc: &ImageTocEntry,

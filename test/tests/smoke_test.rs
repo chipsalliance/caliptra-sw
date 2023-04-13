@@ -25,7 +25,7 @@ fn smoke_test() {
             rom: &rom,
             ..Default::default()
         },
-        fw_image: Some(&image),
+        fw_image: Some(&image.to_bytes().unwrap()),
         ..Default::default()
     })
     .unwrap();
