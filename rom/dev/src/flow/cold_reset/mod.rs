@@ -32,6 +32,15 @@ use crypto::Ecc384KeyPair;
 pub const KEY_ID_CDI: KeyId = KeyId::KeyId6;
 pub const KEY_ID_PRIV_KEY: KeyId = KeyId::KeyId7;
 
+extern "C" {
+    static mut LDEVID_TBS_ORG: u8;
+    static mut FMCALIAS_TBS_ORG: u8;
+}
+
+pub enum TbsType {
+    LdevidTbs = 0,
+    FmcaliasTbs = 1,
+}
 /// Cold Reset Flow
 pub struct ColdResetFlow {}
 
@@ -71,4 +80,20 @@ impl ColdResetFlow {
 
         Ok(fht::make_fht(env))
     }
+}
+
+pub fn copy_tbs(tbs: &[u8], tbs_type: TbsType) -> CaliptraResult<()> {
+    let dst = match tbs_type {
+        TbsType::LdevidTbs => unsafe {
+            let ptr = &mut LDEVID_TBS_ORG as *mut u8;
+            core::slice::from_raw_parts_mut(ptr, tbs.len())
+        },
+        TbsType::FmcaliasTbs => unsafe {
+            let ptr = &mut FMCALIAS_TBS_ORG as *mut u8;
+            core::slice::from_raw_parts_mut(ptr, tbs.len())
+        },
+    };
+
+    dst[..tbs.len()].copy_from_slice(tbs);
+    Ok(())
 }

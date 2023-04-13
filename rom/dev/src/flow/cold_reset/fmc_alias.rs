@@ -18,6 +18,7 @@ use core::mem::ManuallyDrop;
 use super::crypto::{Crypto, Ecc384KeyPair};
 use super::dice::{DiceInput, DiceLayer, DiceOutput};
 use super::x509::X509;
+use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::verifier::RomImageVerificationEnv;
 use crate::{cprint, cprint_slice, cprintln, pcr};
 use crate::{rom_env::RomEnv, rom_err_def};
@@ -409,6 +410,9 @@ impl FmcAliasLayer {
 
         // Lock the FMC Public key in the data vault until next boot
         env.data_vault().map(|d| d.set_fmc_pub_key(pub_key));
+
+        //  Copy TBS to DCCM.
+        copy_tbs(tbs.tbs(), TbsType::FmcaliasTbs)?;
 
         Ok(())
     }
