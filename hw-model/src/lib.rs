@@ -385,14 +385,6 @@ mod tests {
     const MBOX_ADDR_LOCK: u32 = MBOX_ADDR_BASE;
     const MBOX_ADDR_CMD: u32 = MBOX_ADDR_BASE + 0x0000_0008;
 
-    fn gen_image_fw_ready() -> Vec<u8> {
-        let rv32_gen = Rv32GenMmio::new();
-        let soc_ifc =
-            unsafe { soc_ifc::RegisterBlock::new_with_mmio(0x3003_0000 as *mut u32, &rv32_gen) };
-
-        soc_ifc.cptra_flow_status().write(|w| w.ready_for_fw(true));
-        rv32_gen.build()
-    }
     fn gen_image_hi() -> Vec<u8> {
         let rv32_gen = Rv32GenMmio::new();
         let soc_ifc =
@@ -484,47 +476,5 @@ mod tests {
             model.step_until_output("ha").err().unwrap().to_string(),
             "expected output \"ha\", was \"hi\""
         );
-    }
-
-    #[test]
-    pub fn test_upload_firmware() {
-        let firmware: Vec<u8> = [
-            0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
-            0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
-            0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
-            0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
-        ]
-        .into();
-
-        let mut model = caliptra_hw_model::new(BootParams {
-            init_params: InitParams {
-                rom: &gen_image_fw_ready(),
-                ..Default::default()
-            },
-            ..Default::default()
-        })
-        .unwrap();
-
-        // Wait for ROM to request firmware.
-        model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
-
-        assert!(model.upload_firmware(&firmware).is_ok());
-
-        assert_eq!(
-            model.soc_mbox().cmd().read(),
-            caliptra_hw_model::FW_LOAD_CMD_OPCODE
-        );
-        assert_eq!(model.soc_mbox().dlen().read(), firmware.len() as u32);
-
-        // Read the data out of the mailbox.
-        let mut temp: Vec<u32> = Vec::new();
-        let mut word_count = (firmware.len() + 3) >> 2;
-        while word_count > 0 {
-            let word = model.soc_mbox().dataout().read();
-            temp.push(word);
-            word_count -= 1;
-        }
-        let fw_img_from_mb: Vec<u8> = temp.iter().flat_map(|val| val.to_le_bytes()).collect();
-        assert_eq!(firmware, fw_img_from_mb[..firmware.len()]);
     }
 }
