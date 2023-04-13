@@ -26,8 +26,6 @@ pub use model_emulated::ModelEmulated;
 #[cfg(feature = "verilator")]
 pub use model_verilated::ModelVerilated;
 
-use caliptra_emu_types::RvSize;
-
 /// Ideally, general-purpose functions would return `impl HwModel` instead of
 /// `DefaultHwModel` to prevent users from calling functions that aren't
 /// available on all HwModel implementations.  Unfortunately, rust-analyzer
@@ -95,9 +93,13 @@ pub struct BootParams<'a> {
     pub fw_image: Option<&'a [u8]>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum ModelError {
-    MailboxErr,
+    MailboxCmdFailed,
+    UnableToLockMailbox,
+    BufferTooLargeForMailbox,
+    UploadFirmwareUnexpectedResponse,
+    UnknownCommandStatus(u32),
     NotReadyForFwErr,
     ReadyForFirmwareTimeout { cycles: u32 },
 }
@@ -105,7 +107,16 @@ impl Error for ModelError {}
 impl Display for ModelError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ModelError::MailboxErr => write!(f, "Mailbox error"),
+            ModelError::MailboxCmdFailed => write!(f, "Mailbox command failed"),
+            ModelError::UnableToLockMailbox => write!(f, "Unable to lock mailbox"),
+            ModelError::BufferTooLargeForMailbox => write!(f, "Buffer too large for mailbox"),
+            ModelError::UploadFirmwareUnexpectedResponse => {
+                write!(f, "Received unexpected response after uploading firmware")
+            }
+            ModelError::UnknownCommandStatus(status) => write!(
+                f,
+                "Received unknown command status from mailbox peripheral: 0x{status:x}"
+            ),
             ModelError::NotReadyForFwErr => write!(f, "Not ready for firmware"),
             ModelError::ReadyForFirmwareTimeout { cycles } => write!(
                 f,
@@ -330,44 +341,105 @@ pub trait HwModel {
 
     fn tracing_hint(&mut self, enable: bool);
 
-    /// Upload firmware to the mailbox.
-    fn upload_firmware(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
+    /// Executes `cmd` with request data `buf`. Returns `Ok(Some(_))` if
+    /// the uC responded with data, `Ok(None)` if the uC indicated success
+    /// without data, Err(ModelError::MailboxCmdFailed) if the microcontroller
+    /// responded with an error, or other model errors if there was a problem
+    /// communicating with the mailbox.
+    fn mailbox_execute(
+        &mut self,
+        cmd: u32,
+        buf: &[u8],
+    ) -> std::result::Result<Option<Vec<u8>>, ModelError> {
+        const MAILBOX_SIZE: u32 = 128 * 1024;
+
         if self.soc_mbox().lock().read().lock() {
-            return Err(ModelError::MailboxErr);
+            return Err(ModelError::UnableToLockMailbox);
         }
-        if !self.soc_mbox().lock().read().lock() {
-            return Err(ModelError::MailboxErr);
-        }
-        #[cfg(feature = "verilator")]
-        if !self.soc_ifc().cptra_flow_status().read().ready_for_fw() {
-            return Err(ModelError::NotReadyForFwErr);
-        }
-
-        self.soc_mbox().cmd().write(|_| FW_LOAD_CMD_OPCODE);
-
-        self.soc_mbox().dlen().write(|_| firmware.len() as u32);
-
-        let word_size = RvSize::Word as usize;
-        let remainder = firmware.len() % word_size;
-        let n = firmware.len() - remainder;
-
-        for idx in (0..n).step_by(word_size) {
-            let val = u32::from_le_bytes(firmware[idx..idx + word_size].try_into().unwrap());
-            self.soc_mbox().datain().write(|_| val);
+        let Ok(input_len) = u32::try_from(buf.len()) else {
+            return Err(ModelError::BufferTooLargeForMailbox);
+        };
+        if input_len > MAILBOX_SIZE {
+            return Err(ModelError::BufferTooLargeForMailbox);
         }
 
-        // Handle the remainder bytes.
-        if remainder > 0 {
-            let mut last_word = firmware[n] as u32;
-            for idx in 1..remainder {
-                last_word |= (firmware[n + idx] as u32) << (idx << 3);
-            }
-            self.soc_mbox().datain().write(|_| last_word);
+        self.soc_mbox().cmd().write(|_| cmd);
+        self.soc_mbox().dlen().write(|_| input_len);
+
+        writeln!(
+            self.output().logger(),
+            "<<< Executing mbox cmd 0x{cmd:08x} ({input_len} bytes) from SoC"
+        )
+        .unwrap();
+        let mut remaining = buf;
+        while remaining.len() >= 4 {
+            // Panic is impossible because the subslice is always 4 bytes
+            let word = u32::from_le_bytes(remaining[..4].try_into().unwrap());
+            self.soc_mbox().datain().write(|_| word);
+            remaining = &remaining[4..];
+        }
+        if !remaining.is_empty() {
+            let mut word_bytes = [0u8; 4];
+            word_bytes[..remaining.len()].copy_from_slice(remaining);
+            let word = u32::from_le_bytes(word_bytes);
+            self.soc_mbox().datain().write(|_| word);
         }
 
-        // Set Execute Bit
+        // Ask the microcontroller to execute this command
         self.soc_mbox().execute().write(|w| w.execute(true));
 
+        // Wait for the microcontroller to finish executing
+        while self.soc_mbox().status().read().status().cmd_busy() {
+            self.step();
+        }
+        let status = self.soc_mbox().status().read().status();
+        if status.cmd_failure() {
+            writeln!(self.output().logger(), ">>> mbox cmd response: failed").unwrap();
+            self.soc_mbox().execute().write(|w| w.execute(false));
+            return Err(ModelError::MailboxCmdFailed);
+        }
+        if status.cmd_complete() {
+            writeln!(self.output().logger(), ">>> mbox cmd response: success").unwrap();
+            self.soc_mbox().execute().write(|w| w.execute(false));
+            return Ok(None);
+        }
+        if !status.data_ready() {
+            return Err(ModelError::UnknownCommandStatus(status as u32));
+        }
+
+        let mut result = vec![];
+        let mut dlen = self.soc_mbox().dlen().read();
+
+        writeln!(
+            self.output().logger(),
+            ">>> mbox cmd response data ({dlen} bytes)"
+        )
+        .unwrap();
+        while dlen >= 4 {
+            result.extend_from_slice(&self.soc_mbox().dataout().read().to_le_bytes());
+            dlen -= 4;
+        }
+        if dlen > 0 {
+            // Unwrap cannot panic because dlen is less than 4
+            result.extend_from_slice(
+                &self.soc_mbox().dataout().read().to_le_bytes()[..usize::try_from(dlen).unwrap()],
+            );
+        }
+
+        self.soc_mbox().execute().write(|w| w.execute(false));
+        // mbox_fsm_ps isn't updated immediately after execute is cleared (!?),
+        // so step an extra clock cycle to wait for fm_ps to update
+        self.step();
+        assert!(self.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+        Ok(Some(result))
+    }
+
+    /// Upload firmware to the mailbox.
+    fn upload_firmware(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
+        let response = self.mailbox_execute(FW_LOAD_CMD_OPCODE, firmware)?;
+        if response.is_some() {
+            return Err(ModelError::UploadFirmwareUnexpectedResponse);
+        }
         Ok(())
     }
 }
