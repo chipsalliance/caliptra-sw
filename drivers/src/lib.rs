@@ -44,7 +44,7 @@ pub use data_vault::{
 };
 pub use doe::DeobfuscationEngine;
 pub use ecc384::{
-    Ecc384, Ecc384Data, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Scalar, Ecc384Seed,
+    Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Scalar, Ecc384Seed,
     Ecc384Signature,
 };
 pub use error::CaliptraComponent;

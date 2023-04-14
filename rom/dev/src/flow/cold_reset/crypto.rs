@@ -176,12 +176,9 @@ impl Crypto {
         data: &[u8],
     ) -> CaliptraResult<Ecc384Signature> {
         let digest = Self::sha384_digest(env, data)?;
-
-        let data = Ecc384Data::Array4x12(&digest);
-
         let priv_key_args = KeyReadArgs::new(priv_key);
         let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
-        env.ecc384().map(|ecc| ecc.sign(priv_key, data))
+        env.ecc384().map(|ecc| ecc.sign(priv_key, &digest))
     }
 
     /// Verify the ECC Signature
