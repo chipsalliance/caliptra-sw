@@ -13,11 +13,12 @@ Abstract:
 --*/
 
 use crate::{
-    iccm::Iccm, AsymEcc384, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha384, KeyVault, Mailbox,
-    MailboxRam, Sha512Accelerator, SocRegisters, Uart,
+    iccm::Iccm, soc_reg::SocRegistersExternal, AsymEcc384, Doe, EmuCtrl, HashSha256, HashSha512,
+    HmacSha384, KeyVault, Mailbox, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
 };
 use caliptra_emu_bus::{Clock, Ram, Rom};
 use caliptra_emu_derive::Bus;
+use caliptra_hw_model_types::SecurityState;
 use std::path::PathBuf;
 
 pub struct TbServicesCb(pub Box<dyn FnMut(u8)>);
@@ -114,23 +115,47 @@ impl From<Box<dyn FnMut(&mut Mailbox) + 'static>> for UploadUpdateFwCb {
     }
 }
 
+pub struct ActionCb(Box<dyn FnMut()>);
+impl ActionCb {
+    pub fn new(f: impl FnMut() + 'static) -> Self {
+        Self(Box::new(f))
+    }
+    pub(crate) fn take(&mut self) -> Box<dyn FnMut()> {
+        std::mem::take(self).0
+    }
+}
+impl Default for ActionCb {
+    fn default() -> Self {
+        Self(Box::new(|| {}))
+    }
+}
+impl std::fmt::Debug for ActionCb {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("ActionCb")
+            .field(&"<unknown closure>")
+            .finish()
+    }
+}
+impl From<Box<dyn FnMut() + 'static>> for ActionCb {
+    fn from(value: Box<dyn FnMut()>) -> Self {
+        Self(value)
+    }
+}
+
 /// Caliptra Root Bus Arguments
 #[derive(Default, Debug)]
 pub struct CaliptraRootBusArgs {
     pub rom: Vec<u8>,
     pub log_dir: PathBuf,
-    pub ueid: u64,
-    pub idev_key_id_algo: String,
-    pub req_idevid_csr: bool,
-    pub req_ldevid_cert: bool,
+    // The security state wires provided to caliptra_top
+    pub security_state: SecurityState,
+
     /// Callback to customize application behavior when
     /// a write to the tb-services register write is performed.
     pub tb_services_cb: TbServicesCb,
     pub ready_for_fw_cb: ReadyForFwCb,
-    pub mfg_pk_hash: Vec<u8>,
-    pub owner_pk_hash: Vec<u8>,
-    pub device_lifecycle: String,
     pub upload_update_fw: UploadUpdateFwCb,
+    pub bootfsm_go_cb: ActionCb,
 }
 
 #[derive(Bus)]
@@ -175,7 +200,7 @@ pub struct CaliptraRootBus {
     pub sha512_acc: Sha512Accelerator,
 
     #[peripheral(offset = 0x3003_0000, mask = 0x0000_ffff)]
-    pub soc_reg: SocRegisters,
+    pub soc_reg: SocRegistersInternal,
 
     #[peripheral(offset = 0x5000_0000, mask = 0x0fff_ffff)]
     pub dccm: Ram,
@@ -191,8 +216,8 @@ impl CaliptraRootBus {
         let mailbox_ram = MailboxRam::new();
         let mailbox = Mailbox::new(mailbox_ram.clone());
         let rom = Rom::new(std::mem::take(&mut args.rom));
-        let iccm = Iccm::new();
-        let soc_reg = SocRegisters::new(clock, mailbox.clone(), iccm.clone(), args);
+        let iccm = Iccm::new(clock);
+        let soc_reg = SocRegistersInternal::new(clock, mailbox.clone(), iccm.clone(), args);
 
         Self {
             rom,
@@ -212,4 +237,22 @@ impl CaliptraRootBus {
             sha512_acc: Sha512Accelerator::new(clock, mailbox_ram),
         }
     }
+
+    pub fn soc_to_caliptra_bus(&self) -> SocToCaliptraBus {
+        SocToCaliptraBus {
+            // TODO: This should not be the same mailbox bus as the one used
+            // internaly
+            mailbox: self.mailbox.clone(),
+            soc_ifc: self.soc_reg.external_regs(),
+        }
+    }
+}
+
+#[derive(Bus)]
+pub struct SocToCaliptraBus {
+    #[peripheral(offset = 0x3002_0000, mask = 0x0000_0fff)]
+    mailbox: Mailbox,
+
+    #[peripheral(offset = 0x3003_0000, mask = 0x0000_ffff)]
+    soc_ifc: SocRegistersExternal,
 }

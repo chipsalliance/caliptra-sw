@@ -149,7 +149,9 @@ dependencies = [
  "caliptra-drivers",
  "caliptra-kat",
  "caliptra-registers",
+ "caliptra-test-harness",
  "cfg-if",
+ "zerocopy",
 ]
 
 [[package]]
@@ -160,10 +162,14 @@ dependencies = [
  "caliptra-emu-cpu",
  "caliptra-emu-periph",
  "caliptra-emu-types",
+ "caliptra-hw-model",
+ "caliptra-hw-model-types",
+ "caliptra-registers",
  "clap",
  "gdbstub",
  "gdbstub_arch",
  "hex",
+ "tock-registers",
 ]
 
 [[package]]
@@ -216,6 +222,7 @@ dependencies = [
  "caliptra-emu-crypto",
  "caliptra-emu-derive",
  "caliptra-emu-types",
+ "caliptra-hw-model-types",
  "lazy_static",
  "smlang",
  "tock-registers",
@@ -232,6 +239,21 @@ dependencies = [
  "caliptra-builder",
  "caliptra-cpu",
  "caliptra-drivers",
+ "caliptra-hw-model",
+ "caliptra-x509",
+ "caliptra_common",
+ "cfg-if",
+ "ufmt",
+ "zerocopy",
+]
+
+[[package]]
+name = "caliptra-fmc-mock-rt"
+version = "0.1.0"
+dependencies = [
+ "caliptra-builder",
+ "caliptra-cpu",
+ "caliptra-drivers",
  "caliptra_common",
  "cfg-if",
  "ufmt",
@@ -242,14 +264,28 @@ dependencies = [
 name = "caliptra-hw-model"
 version = "0.1.0"
 dependencies = [
+ "caliptra-builder",
  "caliptra-emu-bus",
  "caliptra-emu-cpu",
  "caliptra-emu-periph",
  "caliptra-emu-types",
+ "caliptra-hw-model-types",
  "caliptra-registers",
+ "caliptra-test-harness-types",
  "caliptra-verilated",
  "ureg",
 ]
+
+[[package]]
+name = "caliptra-hw-model-test-fw"
+version = "0.1.0"
+dependencies = [
+ "caliptra-test-harness",
+]
+
+[[package]]
+name = "caliptra-hw-model-types"
+version = "0.1.0"
 
 [[package]]
 name = "caliptra-image-app"
@@ -357,6 +393,11 @@ version = "0.1.0"
 dependencies = [
  "caliptra-builder",
  "caliptra-drivers",
+ "caliptra-hw-model",
+ "caliptra-image-elf",
+ "caliptra-image-fake-keys",
+ "caliptra-image-gen",
+ "caliptra-image-openssl",
  "caliptra-image-types",
  "caliptra-image-verify",
  "caliptra-kat",
@@ -394,10 +435,27 @@ dependencies = [
  "caliptra-builder",
  "caliptra-cpu",
  "caliptra-drivers",
+ "caliptra-hw-model",
+ "caliptra-image-elf",
+ "caliptra-image-fake-keys",
+ "caliptra-image-gen",
+ "caliptra-image-openssl",
+ "caliptra-image-serde",
+ "caliptra-image-types",
  "caliptra_common",
  "cfg-if",
  "ufmt",
  "zerocopy",
+]
+
+[[package]]
+name = "caliptra-runtime-test-bin"
+version = "0.1.0"
+dependencies = [
+ "caliptra-cpu",
+ "caliptra-drivers",
+ "caliptra-test-harness",
+ "cfg-if",
 ]
 
 [[package]]
@@ -411,6 +469,18 @@ dependencies = [
  "caliptra-builder",
  "caliptra-hw-model",
 ]
+
+[[package]]
+name = "caliptra-test-harness"
+version = "0.1.0"
+dependencies = [
+ "caliptra-drivers",
+ "cfg-if",
+]
+
+[[package]]
+name = "caliptra-test-harness-types"
+version = "0.1.0"
 
 [[package]]
 name = "caliptra-verilated"

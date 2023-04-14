@@ -16,6 +16,12 @@ caliptra-emu-bus = { path = "../sw-emulator/lib/bus" }
 caliptra-emu-cpu = { path = "../sw-emulator/lib/cpu" }
 caliptra-emu-periph = { path = "../sw-emulator/lib/periph" }
 caliptra-emu-types = { path = "../sw-emulator/lib/types" }
+caliptra-hw-model-types = { path = "types" }
 caliptra-registers = { path = "../registers" }
 ureg = { path = "../ureg" }
 caliptra-verilated = { path = "../hw-latest/verilated", optional = true, features = ["verilator"] }
+
+[dev-dependencies]
+caliptra-builder = { path = "../builder" }
+caliptra-registers = { path = "../registers" }
+caliptra-test-harness-types = { path = "../test-harness/types" }

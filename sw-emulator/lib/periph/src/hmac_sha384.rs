@@ -14,8 +14,8 @@ Abstract:
 
 use crate::{KeyUsage, KeyVault};
 use caliptra_emu_bus::{
-    BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister, Timer,
-    TimerAction, WriteOnlyMemory,
+    ActionHandle, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory,
+    ReadWriteRegister, Timer, WriteOnlyMemory,
 };
 use caliptra_emu_crypto::EndianessTransform;
 use caliptra_emu_crypto::{Hmac512, Hmac512Mode};
@@ -179,16 +179,16 @@ pub struct HmacSha384 {
     timer: Timer,
 
     /// Operation complete action
-    op_complete_action: Option<TimerAction>,
+    op_complete_action: Option<ActionHandle>,
 
     /// Key read complete action
-    op_key_read_complete_action: Option<TimerAction>,
+    op_key_read_complete_action: Option<ActionHandle>,
 
     /// Block read complete action
-    op_block_read_complete_action: Option<TimerAction>,
+    op_block_read_complete_action: Option<ActionHandle>,
 
     /// Tag write complete action
-    op_tag_write_complete_action: Option<TimerAction>,
+    op_tag_write_complete_action: Option<ActionHandle>,
 }
 
 impl HmacSha384 {

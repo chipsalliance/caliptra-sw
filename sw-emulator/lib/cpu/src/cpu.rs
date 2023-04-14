@@ -15,7 +15,7 @@ Abstract:
 use crate::csr_file::{Csr, CsrFile};
 use crate::types::{RvInstr, RvMStatus};
 use crate::xreg_file::{XReg, XRegFile};
-use caliptra_emu_bus::{Bus, BusError, Clock, TimerActionType};
+use caliptra_emu_bus::{Bus, BusError, Clock, TimerAction};
 use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
 
 pub type InstrTracer<'a> = dyn FnMut(u32, RvInstr) + 'a;
@@ -61,6 +61,9 @@ pub struct Cpu<TBus: Bus> {
     /// The next program counter after the current instruction is finished executing.
     next_pc: RvData,
 
+    /// The NMI vector. In the real CPU, this is hardwired from the outside.
+    nmivec: u32,
+
     // The bus the CPU uses to talk to memory and peripherals.
     pub bus: TBus,
 
@@ -101,6 +104,7 @@ impl<TBus: Bus> Cpu<TBus> {
             clock,
             is_execute_instr: false,
             watch_ptr_cfg: WatchPtrCfg::new(),
+            nmivec: 0,
         }
     }
 
@@ -300,24 +304,22 @@ impl<TBus: Bus> Cpu<TBus> {
     }
 
     /// Step a single instruction
-    ///
-    /// # Error
-    ///
-    /// * `RvException` - Exception
     pub fn step(&mut self, instr_tracer: Option<&mut InstrTracer>) -> StepAction {
         let fired_action_types = self
             .clock
             .increment_and_process_timer_actions(1, &mut self.bus);
         for action_type in fired_action_types.iter() {
             match action_type {
-                TimerActionType::WarmReset => {
+                TimerAction::WarmReset => {
                     self.reset_pc();
                     break;
                 }
-                TimerActionType::UpdateReset => {
+                TimerAction::UpdateReset => {
                     self.reset_pc();
                     break;
                 }
+                TimerAction::Nmi { mcause } => return self.handle_nmi(*mcause, 0),
+                TimerAction::SetNmiVec { addr } => self.nmivec = *addr,
                 _ => {}
             }
         }
@@ -329,17 +331,24 @@ impl<TBus: Bus> Cpu<TBus> {
     }
 
     /// Handle synchronous exception
-    ///
-    /// # Error
-    ///
-    /// * `RvException` - Exception
     fn handle_exception(&mut self, exception: RvException) -> StepAction {
         let ret = self.handle_trap(
             false,
             self.read_pc(),
             exception.cause().into(),
             exception.info(),
+            // Cannot panic; mtvec is a valid CSR
+            self.read_csr(Csr::MTVEC).unwrap() & !0b11,
         );
+        match ret {
+            Ok(_) => StepAction::Continue,
+            Err(_) => StepAction::Fatal,
+        }
+    }
+
+    /// Handle non-maskable interrupt (VeeR-specific)
+    fn handle_nmi(&mut self, cause: u32, info: u32) -> StepAction {
+        let ret = self.handle_trap(false, self.read_pc(), cause, info, self.nmivec);
         match ret {
             Ok(_) => StepAction::Continue,
             Err(_) => StepAction::Fatal,
@@ -357,6 +366,7 @@ impl<TBus: Bus> Cpu<TBus> {
         pc: RvAddr,
         cause: u32,
         info: u32,
+        next_pc: u32,
     ) -> Result<(), RvException> {
         // TODO: Implement Interrupt Handling
         // 1. Support for vectored asynchronous interrupts
@@ -372,7 +382,6 @@ impl<TBus: Bus> Cpu<TBus> {
         status.set_mie(0);
         self.write_csr(Csr::MSTATUS, status.0)?;
 
-        let next_pc = self.read_csr(Csr::MTVEC)? & !0b11;
         self.write_pc(next_pc);
         println!("{:x}", next_pc);
         Ok(())

@@ -28,11 +28,11 @@ use crate::Bus;
 /// # Example
 ///
 /// ```
-/// use caliptra_emu_bus::{Bus, BusError, Timer, TimerAction};
+/// use caliptra_emu_bus::{Bus, BusError, Timer, ActionHandle};
 /// use caliptra_emu_types::{RvAddr, RvData, RvSize};
 /// struct MyPeriph {
 ///     timer: Timer,
-///     action0: Option<TimerAction>,
+///     action0: Option<ActionHandle>,
 /// }
 /// impl Bus for MyPeriph {
 ///     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
@@ -77,7 +77,7 @@ impl Timer {
     /// If the scheduled time for `action` has come, `action` will be set to
     /// None and the function will return true. Otherwise (or if action is None),
     /// the function will return false.
-    pub fn fired(&self, action: &mut Option<TimerAction>) -> bool {
+    pub fn fired(&self, action: &mut Option<ActionHandle>) -> bool {
         let has_fired = if let Some(ref action) = action {
             debug_assert_eq!(
                 action.0.id.timer_ptr,
@@ -95,33 +95,22 @@ impl Timer {
     }
 
     /// Schedules a future call to [`Bus::poll()`] at `time`, and returns a
-    /// `TimerAction` that can be used with [`Timer::cancel`] or
+    /// `ActionHandle` that can be used with [`Timer::cancel`] or
     /// [`Timer::fired`].
-    pub fn schedule_poll_at(&self, time: u64) -> TimerAction {
-        self.clock.schedule_action_at(time, TimerActionType::Poll)
+    pub fn schedule_poll_at(&self, time: u64) -> ActionHandle {
+        self.clock.schedule_action_at(time, TimerAction::Poll)
     }
 
     /// Schedules a future call to [`Bus::poll()`] at `self.now() + time`, and
-    /// returns a `TimerAction` that can be used with [`Timer::cancel`] or
+    /// returns a `ActionHandle` that can be used with [`Timer::cancel`] or
     /// [`Timer::fired`].
-    pub fn schedule_poll_in(&self, ticks_from_now: u64) -> TimerAction {
+    pub fn schedule_poll_in(&self, ticks_from_now: u64) -> ActionHandle {
         self.schedule_poll_at(self.now().wrapping_add(ticks_from_now))
     }
 
-    /// Schedules a future call to [`Bus::warm_reset()` or `Bus::update_reset()`] at `self.now() + time`, and
-    /// returns a `TimerAction` that can be used with [`Timer::cancel`] or
-    /// [`Timer::fired`].
-    pub fn schedule_reset_in(
-        &self,
-        ticks_from_now: u64,
-        reset_type: TimerActionType,
-    ) -> TimerAction {
-        assert!(
-            reset_type != TimerActionType::WarmReset || reset_type != TimerActionType::UpdateReset,
-            "Cannot schedule a reset timer action with {} action type.",
-            reset_type as u32
-        );
-
+    /// Schedules an action at `self.now() + time`, and returns an `ActionHandle`
+    /// that can be used with [`Timer::cancel`] or [`Timer::fired`].
+    pub fn schedule_action_in(&self, ticks_from_now: u64, reset_type: TimerAction) -> ActionHandle {
         self.clock
             .schedule_action_at(self.now().wrapping_add(ticks_from_now), reset_type)
     }
@@ -130,8 +119,8 @@ impl Timer {
     ///
     /// * Panics
     ///
-    /// Panics if the supplied `TimerAction` was not created by this Timer.
-    pub fn cancel(&self, handle: TimerAction) {
+    /// Panics if the supplied `ActionHandle` was not created by this Timer.
+    pub fn cancel(&self, handle: ActionHandle) {
         self.clock.cancel(handle)
     }
 }
@@ -167,7 +156,7 @@ impl Clock {
     /// Increments the clock by `delta`, and returns a list of timer
     /// actions fired.
     #[inline]
-    pub fn increment(&self, delta: u64) -> HashSet<TimerActionType> {
+    pub fn increment(&self, delta: u64) -> HashSet<TimerAction> {
         self.clock.increment(delta)
     }
 
@@ -178,48 +167,50 @@ impl Clock {
         &self,
         delta: u64,
         bus: &mut impl Bus,
-    ) -> HashSet<TimerActionType> {
-        let fired_action_types = self.increment(delta);
-        for action_type in fired_action_types.iter() {
-            match action_type {
-                TimerActionType::Poll => bus.poll(),
-                TimerActionType::WarmReset => {
+    ) -> HashSet<TimerAction> {
+        let fired_actions = self.increment(delta);
+        for action in fired_actions.iter() {
+            match action {
+                TimerAction::Poll => bus.poll(),
+                TimerAction::WarmReset => {
                     bus.warm_reset();
                     break;
                 }
-                TimerActionType::UpdateReset => {
+                TimerAction::UpdateReset => {
                     bus.update_reset();
                     break;
                 }
+                TimerAction::Nmi { .. } => {}
+                TimerAction::SetNmiVec { .. } => {}
             }
         }
-        fired_action_types
+        fired_actions
     }
 }
 
 /// Represents an action scheduled with a `Timer`. Returned by
 /// [`Timer::schedule_poll_at`] and passed to [`Timer::has_fired()`] or
 /// [`Timer::cancel`].
-pub struct TimerAction(TimerActionImpl);
-impl From<TimerActionImpl> for TimerAction {
-    fn from(val: TimerActionImpl) -> Self {
-        TimerAction(val)
+pub struct ActionHandle(ActionHandleImpl);
+impl From<ActionHandleImpl> for ActionHandle {
+    fn from(val: ActionHandleImpl) -> Self {
+        ActionHandle(val)
     }
 }
 
-/// The internal representation of `TimerAction`. We keep these types separate
+/// The internal representation of `ActionHandle`. We keep these types separate
 /// to avoid exposing these implementation-specific traits.
 #[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
-struct TimerActionImpl {
+struct ActionHandleImpl {
     /// The time the action is supposed to fire.
     time: u64,
 
     id: TimerActionId,
 
-    action_type: TimerActionType,
+    action: TimerAction,
 }
-impl From<TimerAction> for TimerActionImpl {
-    fn from(val: TimerAction) -> Self {
+impl From<ActionHandle> for ActionHandleImpl {
+    fn from(val: ActionHandle) -> Self {
         val.0
     }
 }
@@ -243,18 +234,20 @@ impl Default for TimerActionId {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub enum TimerActionType {
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum TimerAction {
     Poll,
     WarmReset,
     UpdateReset,
+    Nmi { mcause: u32 },
+    SetNmiVec { addr: u32 },
 }
 
 struct ClockImpl {
     now: Cell<u64>,
     next_action_time: Cell<Option<u64>>,
     next_action_id: Cell<u64>,
-    future_poll_actions: RefCell<BTreeSet<TimerActionImpl>>,
+    action_handles: RefCell<BTreeSet<ActionHandleImpl>>,
 }
 impl ClockImpl {
     fn new() -> Rc<Self> {
@@ -262,7 +255,7 @@ impl ClockImpl {
             now: Cell::new(0),
             next_action_time: Cell::new(None),
             next_action_id: Cell::new(0),
-            future_poll_actions: RefCell::new(BTreeSet::new()),
+            action_handles: RefCell::new(BTreeSet::new()),
         })
     }
 
@@ -272,8 +265,8 @@ impl ClockImpl {
     }
 
     #[inline]
-    fn increment(&self, delta: u64) -> HashSet<TimerActionType> {
-        let mut fired_action_types: HashSet<TimerActionType> = HashSet::new();
+    fn increment(&self, delta: u64) -> HashSet<TimerAction> {
+        let mut fired_actions: HashSet<TimerAction> = HashSet::new();
         assert!(
             delta < (u64::MAX >> 1),
             "Cannot increment the current time by more than {} clock cycles.",
@@ -282,37 +275,37 @@ impl ClockImpl {
         self.now.set(self.now.get().wrapping_add(delta));
         if let Some(next_action_time) = self.next_action_time.get() {
             if self.has_fired(next_action_time) {
-                self.remove_fired_actions(&mut fired_action_types);
-                return fired_action_types;
+                self.remove_fired_actions(&mut fired_actions);
+                return fired_actions;
             }
         }
-        fired_action_types
+        fired_actions
     }
 
-    fn schedule_action_at(self: &Rc<Self>, time: u64, action_type: TimerActionType) -> TimerAction {
+    fn schedule_action_at(self: &Rc<Self>, time: u64, action: TimerAction) -> ActionHandle {
         assert!(
             time.wrapping_sub(self.now()) < (u64::MAX >> 1),
             "Cannot schedule a timer action more than {} clock cycles from now.",
             (u64::MAX >> 1)
         );
-        let new_action = TimerActionImpl {
+        let new_action = ActionHandleImpl {
             time,
             id: self.next_action_id(),
-            action_type,
+            action,
         };
-        let mut actions = self.future_poll_actions.borrow_mut();
+        let mut actions = self.action_handles.borrow_mut();
         actions.insert(new_action);
         self.recompute_next_action_time(&actions);
         new_action.into()
     }
-    fn cancel(self: &Rc<Self>, action: TimerAction) {
-        let action = TimerActionImpl::from(action);
+    fn cancel(self: &Rc<Self>, action: ActionHandle) {
+        let action = ActionHandleImpl::from(action);
         assert_eq!(
             Rc::as_ptr(self),
             action.id.timer_ptr,
             "Supplied action was not created by this timer."
         );
-        let mut future_actions = self.future_poll_actions.borrow_mut();
+        let mut future_actions = self.action_handles.borrow_mut();
         future_actions.remove(&action);
         self.recompute_next_action_time(&future_actions)
     }
@@ -328,19 +321,19 @@ impl ClockImpl {
     fn has_fired(&self, action_time: u64) -> bool {
         self.now().wrapping_sub(action_time) < (u64::MAX >> 1)
     }
-    fn recompute_next_action_time(&self, future_actions: &BTreeSet<TimerActionImpl>) {
+    fn recompute_next_action_time(&self, future_actions: &BTreeSet<ActionHandleImpl>) {
         self.next_action_time
             .set(self.find_next_action(future_actions).map(|a| a.time));
     }
     fn find_next_action<'a>(
         &self,
-        future_actions: &'a BTreeSet<TimerActionImpl>,
-    ) -> Option<&'a TimerActionImpl> {
+        future_actions: &'a BTreeSet<ActionHandleImpl>,
+    ) -> Option<&'a ActionHandleImpl> {
         let search_start = self.now().wrapping_sub(u64::MAX >> 1);
-        let search_action = TimerActionImpl {
+        let search_action = ActionHandleImpl {
             time: search_start,
             id: TimerActionId::default(),
-            action_type: TimerActionType::Poll,
+            action: TimerAction::Poll,
         };
         if let Some(action) = future_actions.range(&search_action..).next() {
             return Some(action);
@@ -349,15 +342,15 @@ impl ClockImpl {
     }
 
     #[cold]
-    fn remove_fired_actions(&self, fired_action_types: &mut HashSet<TimerActionType>) {
-        let mut future_actions = self.future_poll_actions.borrow_mut();
+    fn remove_fired_actions(&self, fired_actions: &mut HashSet<TimerAction>) {
+        let mut future_actions = self.action_handles.borrow_mut();
         while let Some(action) = self.find_next_action(&future_actions) {
             if !self.has_fired(action.time) {
                 break;
             }
             let action = *action;
             future_actions.remove(&action);
-            fired_action_types.insert(action.action_type);
+            fired_actions.insert(action.action);
         }
         self.recompute_next_action_time(&future_actions);
     }
@@ -389,7 +382,7 @@ mod tests {
         let mut action3 = Some(timer.schedule_poll_in(100));
         let mut action4 = Some(timer.schedule_poll_in(101));
         let mut action5 = Some(timer.schedule_poll_in(102));
-        let mut action6 = Option::<TimerAction>::None;
+        let mut action6 = Option::<ActionHandle>::None;
 
         assert!(clock.increment(24).is_empty());
         assert_eq!(clock.now().wrapping_sub(t0), 24);

@@ -36,7 +36,7 @@ bitflags::bitflags! {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum IdevidCertAttr {
+pub enum IdevidCertAttr {
     Flags = 0,
     SubjectKeyId1 = 1,
     SubjectKeyId2 = 2,

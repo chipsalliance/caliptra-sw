@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 caliptra-cpu = { version = "0.1.0", path = "../cpu" }
 caliptra-drivers = { path = "../drivers" }
+caliptra-x509 = { version = "0.1.0", path = "../x509" , default-features = false }
 caliptra_common = { path = "../common", default-features = false }
 ufmt = "0.2.0"
 zerocopy = "0.6.1"
@@ -17,12 +18,10 @@ cfg-if = "1.0.0"
 
 [dev-dependencies]
 caliptra-builder = { path = "../builder" }
+caliptra-hw-model = { path = "../hw-model" }
 
 [features]
 riscv = ["caliptra-cpu/riscv"]
 default = ["std"]
 std = ["ufmt/std", "caliptra_common/std"]
-emu = [
-    "caliptra_common/emu",
-    "caliptra-drivers/emu"
-]
+emu = ["caliptra_common/emu", "caliptra-drivers/emu"]

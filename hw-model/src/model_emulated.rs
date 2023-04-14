@@ -13,8 +13,9 @@ use std::rc::Rc;
 use caliptra_emu_bus::Clock;
 use caliptra_emu_cpu::Cpu;
 use caliptra_emu_cpu::InstrTracer;
+use caliptra_emu_periph::ActionCb;
 use caliptra_emu_periph::ReadyForFwCb;
-use caliptra_emu_periph::{CaliptraRootBus, CaliptraRootBusArgs, TbServicesCb};
+use caliptra_emu_periph::{CaliptraRootBus, CaliptraRootBusArgs, SocToCaliptraBus, TbServicesCb};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 
 use crate::InitParams;
@@ -46,7 +47,7 @@ pub struct EmulatedApbBus<'a> {
 
 impl<'a> Bus for EmulatedApbBus<'a> {
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, caliptra_emu_bus::BusError> {
-        let result = self.model.cpu.bus.bus.read(size, addr);
+        let result = self.model.soc_to_caliptra_bus.read(size, addr);
         self.model.cpu.bus.log_read("SoC", size, addr, result);
         result
     }
@@ -56,7 +57,7 @@ impl<'a> Bus for EmulatedApbBus<'a> {
         addr: RvAddr,
         val: RvData,
     ) -> Result<(), caliptra_emu_bus::BusError> {
-        let result = self.model.cpu.bus.write(size, addr, val);
+        let result = self.model.soc_to_caliptra_bus.write(size, addr, val);
         self.model.cpu.bus.log_write("SoC", size, addr, val, result);
         result
     }
@@ -151,15 +152,17 @@ impl<TBus: Bus> Bus for BusLogger<TBus> {
 /// Emulated model
 pub struct ModelEmulated {
     cpu: Cpu<BusLogger<CaliptraRootBus>>,
+    soc_to_caliptra_bus: SocToCaliptraBus,
     output: Output,
     trace_fn: Option<Box<InstrTracer<'static>>>,
     ready_for_fw: Rc<Cell<bool>>,
+    cpu_enabled: Rc<Cell<bool>>,
 }
 
 impl crate::HwModel for ModelEmulated {
     type TBus<'a> = EmulatedApbBus<'a>;
 
-    fn init(params: InitParams) -> Result<Self, Box<dyn Error>>
+    fn new_unbooted(params: InitParams) -> Result<Self, Box<dyn Error>>
     where
         Self: Sized,
     {
@@ -168,30 +171,38 @@ impl crate::HwModel for ModelEmulated {
         let ready_for_fw = Rc::new(Cell::new(false));
         let ready_for_fw_clone = ready_for_fw.clone();
 
+        let cpu_enabled = Rc::new(Cell::new(false));
+        let cpu_enabled_cloned = cpu_enabled.clone();
+
         let output = Output::new(params.log_writer);
 
         let output_sink = output.sink().clone();
 
         let bus_args = CaliptraRootBusArgs {
             rom: params.rom.into(),
-            tb_services_cb: TbServicesCb(Box::new(move |ch| {
+            tb_services_cb: TbServicesCb::new(move |ch| {
                 output_sink.push_uart_char(ch);
-            })),
-            ready_for_fw_cb: ReadyForFwCb(Box::new(move |_| {
+            }),
+            ready_for_fw_cb: ReadyForFwCb::new(move |_| {
                 ready_for_fw_clone.set(true);
-            })),
+            }),
+            bootfsm_go_cb: ActionCb::new(move || {
+                cpu_enabled_cloned.set(true);
+            }),
+            security_state: params.security_state,
             ..CaliptraRootBusArgs::default()
         };
-        let cpu = Cpu::new(
-            BusLogger::new(CaliptraRootBus::new(&clock, bus_args)),
-            clock,
-        );
+        let root_bus = CaliptraRootBus::new(&clock, bus_args);
+        let soc_to_caliptra_bus = root_bus.soc_to_caliptra_bus();
+        let cpu = Cpu::new(BusLogger::new(root_bus), clock);
 
         let mut m = ModelEmulated {
             output,
             cpu,
+            soc_to_caliptra_bus,
             trace_fn: None,
             ready_for_fw,
+            cpu_enabled,
         };
         // Turn tracing on if CPTRA_TRACE_PATH environment variable is set
         m.tracing_hint(true);
@@ -207,7 +218,9 @@ impl crate::HwModel for ModelEmulated {
     }
 
     fn step(&mut self) {
-        self.cpu.step(self.trace_fn.as_deref_mut());
+        if self.cpu_enabled.get() {
+            self.cpu.step(self.trace_fn.as_deref_mut());
+        }
     }
 
     fn output(&mut self) -> &mut Output {

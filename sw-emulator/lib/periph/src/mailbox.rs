@@ -172,6 +172,14 @@ impl Mailbox {
         Ok(())
     }
 
+    pub fn is_command_exec_requested(&self) -> bool {
+        matches!(self.regs.borrow_mut().state_machine.state, States::Exec)
+    }
+
+    pub fn is_status_cmd_busy(&mut self) -> bool {
+        self.match_status(Status::STATUS::CMD_BUSY.value)
+    }
+
     pub fn is_status_data_ready(&mut self) -> bool {
         self.match_status(Status::STATUS::DATA_READY.value)
     }
@@ -351,7 +359,11 @@ impl MailboxRegs {
 
     // Todo: Implement write ex callback fn
     pub fn write_ex(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
-        let _ = self.state_machine.process_event(Events::ExecWr);
+        let _ = self.state_machine.process_event(if val & 1 != 0 {
+            Events::ExecSet
+        } else {
+            Events::ExecClear
+        });
         self.execute.reg.set(val);
         Ok(())
     }
@@ -404,9 +416,9 @@ statemachine! {
         RdyForCmd  + CmdWrite(Cmd) / set_cmd = RdyForDlen,
         RdyForDlen + DlenWrite(DataLength) / init_dlen = RdyForData,
         RdyForData + DataWrite(DataIn) / enqueue = RdyForData,
-        RdyForData + ExecWr = Exec,
+        RdyForData + ExecSet = Exec,
         Exec + DataRead / dequeue = Exec,
-        Exec + ExecWr [is_locked] / unlock = Idle
+        Exec + ExecClear [is_locked] / unlock = Idle
     }
 }
 
@@ -479,6 +491,8 @@ impl StateMachineContext for Context {
     }
     fn unlock(&mut self) {
         self.locked = 0;
+        // Reset status
+        self.status.set(0);
     }
     fn dequeue(&mut self) {
         self.data_out = self.ring_buffer.dequeue();
@@ -695,7 +709,7 @@ mod tests {
             .regs
             .borrow_mut()
             .state_machine
-            .process_event(Events::ExecWr);
+            .process_event(Events::ExecSet);
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
             States::Exec
@@ -705,7 +719,7 @@ mod tests {
             .regs
             .borrow_mut()
             .state_machine
-            .process_event(Events::ExecWr);
+            .process_event(Events::ExecClear);
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
             States::Idle

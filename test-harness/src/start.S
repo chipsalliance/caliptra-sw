@@ -16,6 +16,13 @@ Abstract:
 .global _start
 _start:
 
+.equ CPTRA_FW_ERROR_NON_FATAL, 0x3003000c
+.equ CPTRA_FW_EXTENDED_ERROR_INFO, 0x30030018
+.equ CPTRA_INTERNAL_NMI_VECTOR, 0x3003062c
+
+.equ CPTRA_ERROR_EXCEPTION, 0x03000002
+.equ CPTRA_ERROR_NMI, 0x03000003
+
 .option push
 .option norelax
     la gp, __global_pointer$
@@ -27,6 +34,11 @@ _start:
     # Setup trap handler
     la t0, trap_vec
     csrw MTVEC, t0
+
+    # Setup NMI handler
+    li t0, CPTRA_INTERNAL_NMI_VECTOR
+    la t1, nmi_vec
+    sw t1, 0(t0)
 
     # Copy BSS
     la t0, BSS_START
@@ -65,13 +77,50 @@ end_copy_data:
 1:
     j 1b
 
+.align 2
+nmi_vec:
+    li t0, CPTRA_FW_ERROR_NON_FATAL
+    li t1, CPTRA_ERROR_NMI
+    sw t1, 0(t0)
+    j exception_common
+
+.align 2
 trap_vec:
+    li t0, CPTRA_FW_ERROR_NON_FATAL
+    li t1, CPTRA_ERROR_EXCEPTION
+    sw t1, 0(t0)
+
+exception_common:
+    li t0, CPTRA_FW_EXTENDED_ERROR_INFO
+    sw sp, 0(t0)
+
+    csrr t1, mepc
+    sw t1, 4(t0)
+
+    csrr t1, mcause
+    sw t1, 8(t0)
+
+    // MSCAUSE = 0x7FF
+    csrr t1, 0x7ff
+    sw t1, 12(t0)
+
+    csrr t1, mstatus
+    sw t1, 16(t0)
+
+    csrr t1, mtval
+    sw t1, 20(t0)
+
     # exit the emulator with error
     la t0, EMU_CTRL_EXIT
     li t1, 0x01
     sw t1, 0(t0)
 1:
     j 1b
+
+    nop
+    nop
+    nop
+    nop
 
 .section .data
 .equ  EMU_CTRL_EXIT, 0x300300C8

@@ -122,6 +122,9 @@ jobs:
           export CXX="sccache g++"
           sccache --show-stats
           (cd hw-model && cargo build --locked --release --features verilator --jobs 10)
+          # build all tests; need to make sure they still build with verilator
+          # even if we don't have time to run them.
+          cargo test --no-run --locked --release --features=verilator
           sccache --show-stats
 
       - name: Run unit tests

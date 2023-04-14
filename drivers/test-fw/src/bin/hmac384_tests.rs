@@ -21,7 +21,7 @@ use caliptra_drivers::{
 };
 use caliptra_kat::Hmac384Kat;
 
-mod harness;
+use caliptra_test_harness::test_suite;
 
 fn test_hmac0() {
     let key: [u8; 48] = [
@@ -225,7 +225,7 @@ fn test_hmac5() {
 /// Generate the HMAC of the output tag in the buffer - step_1 Tag
 ///
 ///
-/// Step 2:  
+/// Step 2:
 /// Key From Key Vault
 /// Generate the output tag that goes in the KV
 /// Generate the HMAC of the tag in KV and the tag goes in specified buffer

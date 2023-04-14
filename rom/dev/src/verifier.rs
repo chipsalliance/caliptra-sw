@@ -102,4 +102,19 @@ impl<'a> ImageVerificationEnv for RomImageVerificationEnv<'a> {
     fn dev_lifecycle(&self, _image: Self::Image) -> Lifecycle {
         self.env.dev_state().map(|d| d.lifecycle())
     }
+
+    /// Get the vendor key index saved in data vault on cold boot
+    fn vendor_pub_key_idx_dv(&self) -> u32 {
+        self.env.data_vault().map(|dv| dv.vendor_pk_index())
+    }
+
+    /// Get the owner public key digest saved in the dv on cold boot
+    fn owner_pub_key_digest_dv(&self) -> ImageDigest {
+        self.env.data_vault().map(|dv| dv.owner_pk_hash()).into()
+    }
+
+    // Get the fmc digest from the data vault on cold boot
+    fn get_fmc_digest_dv(&self) -> ImageDigest {
+        self.env.data_vault().map(|dv| dv.fmc_tci()).into()
+    }
 }

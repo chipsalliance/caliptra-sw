@@ -1,0 +1,28 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "caliptra-fmc-mock-rt"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+caliptra-cpu = { version = "0.1.0", path = "../../../cpu" }
+caliptra-drivers = { path = "../../../drivers" }
+caliptra_common = { path = "../../../common", default-features = false }
+ufmt = "0.2.0"
+zerocopy = "0.6.1"
+
+[build-dependencies]
+cfg-if = "1.0.0"
+
+[dev-dependencies]
+caliptra-builder = { path = "../../../builder" }
+
+[features]
+riscv = ["caliptra-cpu/riscv"]
+default = ["std"]
+emu = [
+    "caliptra_common/emu",
+    "caliptra-drivers/emu"
+]
+std = ["ufmt/std", "caliptra_common/std"]

@@ -108,6 +108,20 @@ run: build-emu build-fw-image objcopy
 		--firmware $(TARGET_DIR)/caliptra-rom-test-fw \
 		--device-lifecycle unprovisioned \
 
+run-update: build-emu build-fw-image objcopy
+		cargo run \
+		--manifest-path ../../sw-emulator/Cargo.toml \
+		--release \
+		--bin caliptra-emu \
+		-- \
+		--req-idevid-csr \
+		--idevid-key-id-algo sha1 \
+		--rom $(TARGET_DIR)/caliptra-rom.bin \
+		--firmware $(TARGET_DIR)/caliptra-rom-test-fw \
+		--update-firmware $(TARGET_DIR)/caliptra-rom-test-fw \
+		--device-lifecycle unprovisioned \
+
+
 size:
 	$(RUSTFLAGS) cargo size \
 		--profile firmware \

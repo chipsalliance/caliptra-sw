@@ -10,17 +10,19 @@ edition = "2021"
 caliptra-drivers = { path = "..", features=["emu"] }
 caliptra-registers = { path = "../../registers" }
 caliptra-kat = { path = "../../kat" }
+caliptra-test-harness = { path = "../../test-harness" }
 cfg-if = "1.0.0"
+zerocopy = "0.6.1"
 
 [features]
-emu = []
+emu = ["caliptra-test-harness/emu"]
 
 # This feature is used to filter all these binary targets during normal builds
 # (targets must be built with cargo arguments:
 #     --target riscv32imc-unknown-none-elf \
 #     --profile=firmware \
 #     --features riscv
-riscv = []
+riscv = ["caliptra-test-harness/riscv"]
 
 [[bin]]
 name = "sha1"

@@ -137,10 +137,6 @@ impl MailboxSendTxn {
         // Copy data to mailbox
         self.enqueue(data)?;
 
-        // Write Status
-        let mbox = mbox::RegisterBlock::mbox_csr();
-        mbox.status().write(|w| w.status(|w| w.data_ready()));
-
         self.state = MailboxOpState::RdyForData;
 
         Ok(())
@@ -201,6 +197,7 @@ impl MailboxSendTxn {
 
     /// Checks if receiver processed the request.
     pub fn is_response_ready(&self) -> bool {
+        // TODO: Handle MboxStatusE::DataReady
         let mbox = mbox::RegisterBlock::mbox_csr();
 
         matches!(
@@ -212,11 +209,6 @@ impl MailboxSendTxn {
     pub fn status(&self) -> MboxStatusE {
         let mbox = mbox::RegisterBlock::mbox_csr();
         mbox.status().read().status()
-    }
-
-    pub fn set_status_complete(&self) {
-        let mbox = mbox::RegisterBlock::mbox_csr();
-        mbox.status().write(|w| w.status(|w| w.cmd_complete()));
     }
 
     ///
@@ -271,40 +263,26 @@ impl MailboxRecvTxn {
         mbox.cmd().read()
     }
 
-    /// Returns the value stored in the data length register
+    /// Returns the value stored in the data length register. This is the total
+    /// size of the mailbox data in bytes.
     pub fn dlen(&self) -> u32 {
         let mbox = mbox::RegisterBlock::mbox_csr();
         mbox.dlen().read()
     }
 
-    fn dequeue(&self, buf: &mut [u8]) -> CaliptraResult<()> {
+    fn dequeue(&self, buf: &mut [u32]) -> CaliptraResult<()> {
         let mbox = mbox::RegisterBlock::mbox_csr();
-
-        let byte_count = min(buf.len(), mbox.dlen().read() as usize);
-        let remainder = byte_count % size_of::<u32>();
-
-        let n = byte_count - remainder;
-
-        for idx in (0..n).step_by(size_of::<u32>()) {
-            let bytes = buf
-                .get_mut(idx..idx + size_of::<u32>())
-                .ok_or(err_u32!(DequeueErr))?;
-            bytes.copy_from_slice(&mbox.dataout().read().to_le_bytes());
+        let dlen_bytes = mbox.dlen().read() as usize;
+        let dlen_words = (dlen_bytes + 3) / 4;
+        let words_to_read = min(buf.len(), dlen_words);
+        for dest_word in buf[0..words_to_read].iter_mut() {
+            *dest_word = mbox.dataout().read();
         }
-
-        // Handle the remainder.
-        if remainder > 0 {
-            let part = mbox.dataout().read();
-            for idx in 0..remainder {
-                let byte = buf.get_mut(n + idx).ok_or(err_u32!(EnqueueErr))?;
-                *byte = ((part >> (idx << 3)) & 0xFF) as u8;
-            }
-        }
-
         Ok(())
     }
 
-    /// Retrieves data from the maibox without performing state transition.
+    /// Pulls at most `data.len()` words from the mailbox FIFO without performing state transition.
+    ///
     /// # Arguments
     ///
     /// * `data` - data buffer.
@@ -313,15 +291,16 @@ impl MailboxRecvTxn {
     ///
     /// Status of Operation
     ///   
-    pub fn copy_request(&self, offset: usize, data: &mut [u8]) -> CaliptraResult<()> {
+    pub fn copy_request(&self, offset: usize, data: &mut [u32]) -> CaliptraResult<()> {
         if self.state != MailboxOpState::Execute {
             raise_err!(InvalidStateErr)
         }
         self.dequeue(&mut data[offset..])
     }
 
-    /// Retrieves data from the maibox.
+    /// Pulls at most `data.len()` words from the mailbox FIFO.
     /// Transitions from Execute --> Idle (releases the lock)
+    ///
     /// # Arguments
     ///
     /// * `data` - data buffer.
@@ -330,7 +309,7 @@ impl MailboxRecvTxn {
     ///
     /// Status of Operation
     ///   
-    pub fn recv_request(&mut self, data: &mut [u8]) -> CaliptraResult<()> {
+    pub fn recv_request(&mut self, data: &mut [u32]) -> CaliptraResult<()> {
         self.copy_request(0, data)?;
         self.complete(true)?;
         Ok(())

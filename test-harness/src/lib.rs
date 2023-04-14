@@ -14,12 +14,19 @@ References:
     https://os.phil-opp.com/vga-text-mode for print functionality.
 
 --*/
+#![no_std]
 
 use core::fmt;
+use core::format_args;
+use core::ops::Fn;
+
+// If not using the runtime entrypoint, include a test start.S
+#[cfg(all(feature = "riscv", not(feature = "runtime")))]
+core::arch::global_asm!(include_str!("start.S"));
 
 #[macro_export]
 macro_rules! print {
-    ($($arg:tt)*) => ($crate::harness::_print(format_args!($($arg)*)));
+    ($($arg:tt)*) => ($crate::_print(format_args!($($arg)*)));
 }
 
 #[macro_export]
@@ -43,13 +50,43 @@ pub fn _print(args: fmt::Arguments) {
 }
 
 #[macro_export]
+macro_rules! runtime_handlers {
+    () => {
+        use caliptra_cpu::TrapRecord;
+
+        #[no_mangle]
+        #[inline(never)]
+        extern "C" fn exception_handler(trap_record: &TrapRecord) {
+            println!(
+                "TEST EXCEPTION mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
+                trap_record.mcause, trap_record.mscause, trap_record.mepc
+            );
+
+            // Signal non-fatal error to SOC
+            caliptra_drivers::report_fw_error_non_fatal(0xdead0);
+
+            assert!(false);
+        }
+
+        #[no_mangle]
+        #[inline(never)]
+        extern "C" fn nmi_handler(trap_record: &TrapRecord) {
+            println!(
+                "TEST NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
+                trap_record.mcause, trap_record.mscause, trap_record.mepc
+            );
+
+            assert!(false);
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! test_suite {
     ($($test_case: ident,)*) => {
         use core::arch::global_asm;
         use core::panic::PanicInfo;
-        use $crate::harness::Testable;
-
-        global_asm!(include_str!("start.S"));
+        use caliptra_test_harness::{println, Testable};
 
         #[panic_handler]
         pub fn panic(info: &PanicInfo) -> ! {
@@ -71,6 +108,15 @@ macro_rules! test_suite {
                 $test_case.run();
             )*
         }
+
+        #[no_mangle]
+        pub extern "C" fn entry_point() {
+            main();
+            caliptra_drivers::ExitCtrl::exit(0);
+        }
+
+        #[cfg(feature = "runtime")]
+        runtime_handlers! {}
     };
 }
 

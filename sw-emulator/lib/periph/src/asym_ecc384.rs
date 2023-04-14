@@ -14,7 +14,7 @@ Abstract:
 
 use crate::helpers::{bytes_from_words_le, words_from_bytes_le};
 use crate::{KeyUsage, KeyVault};
-use caliptra_emu_bus::{BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Timer, TimerAction};
+use caliptra_emu_bus::{ActionHandle, BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Timer};
 use caliptra_emu_crypto::{Ecc384, Ecc384PubKey, Ecc384Signature};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
@@ -214,19 +214,19 @@ pub struct AsymEcc384 {
     timer: Timer,
 
     /// Operation complete callback
-    op_complete_action: Option<TimerAction>,
+    op_complete_action: Option<ActionHandle>,
 
     /// Key read complete action
-    op_key_read_complete_action: Option<TimerAction>,
+    op_key_read_complete_action: Option<ActionHandle>,
 
     /// Seed read complete action
-    op_seed_read_complete_action: Option<TimerAction>,
+    op_seed_read_complete_action: Option<ActionHandle>,
 
     /// Msg read complete action
-    op_msg_read_complete_action: Option<TimerAction>,
+    op_msg_read_complete_action: Option<ActionHandle>,
 
     /// Key write complete action
-    op_key_write_complete_action: Option<TimerAction>,
+    op_key_write_complete_action: Option<ActionHandle>,
 }
 
 impl AsymEcc384 {
@@ -531,7 +531,9 @@ impl AsymEcc384 {
         };
 
         if let Some(key) = key {
-            self.priv_key = words_from_bytes_le(key[..ECC384_COORD_SIZE].try_into().unwrap());
+            self.priv_key = words_from_bytes_le(
+                &<[u8; ECC384_COORD_SIZE]>::try_from(&key[..ECC384_COORD_SIZE]).unwrap(),
+            );
         }
 
         self.key_read_status.reg.modify(
@@ -562,7 +564,9 @@ impl AsymEcc384 {
         };
 
         if let Some(seed) = seed {
-            self.seed = words_from_bytes_le(seed[..ECC384_SEED_SIZE].try_into().unwrap());
+            self.seed = words_from_bytes_le(
+                &<[u8; ECC384_SEED_SIZE]>::try_from(&seed[..ECC384_SEED_SIZE]).unwrap(),
+            );
         }
 
         self.seed_read_status.reg.modify(
@@ -593,7 +597,9 @@ impl AsymEcc384 {
         };
 
         if let Some(msg) = msg {
-            self.hash = words_from_bytes_le(msg[..ECC384_SEED_SIZE].try_into().unwrap());
+            self.hash = words_from_bytes_le(
+                &<[u8; ECC384_SEED_SIZE]>::try_from(&msg[..ECC384_SEED_SIZE]).unwrap(),
+            );
         }
 
         self.msg_read_status.reg.modify(

@@ -16,7 +16,7 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{KeyId, KeyUsage, KeyVault};
-mod harness;
+use caliptra_test_harness::test_suite;
 
 const KEY_IDS: [KeyId; 32] = [
     KeyId::KeyId0,

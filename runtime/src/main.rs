@@ -86,7 +86,7 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
 #[inline(never)]
 #[cfg(not(feature = "std"))]
 #[allow(clippy::empty_loop)]
-fn fmc_panic(_: &core::panic::PanicInfo) -> ! {
+fn runtime_panic(_: &core::panic::PanicInfo) -> ! {
     cprintln!("RT Panic!!");
     panic_is_possible();
 

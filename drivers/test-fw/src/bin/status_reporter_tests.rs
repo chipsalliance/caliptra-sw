@@ -18,7 +18,7 @@ Abstract:
 use caliptra_drivers::{report_boot_status, FlowStatus};
 use caliptra_registers::soc_ifc;
 
-mod harness;
+use caliptra_test_harness::test_suite;
 
 fn retrieve_boot_status() -> u32 {
     let soc_ifc = soc_ifc::RegisterBlock::soc_ifc_reg();

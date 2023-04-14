@@ -17,6 +17,8 @@ use caliptra_emu_cpu::{Cpu, RvInstr, StepAction};
 use caliptra_emu_periph::{
     CaliptraRootBus, CaliptraRootBusArgs, Mailbox, ReadyForFwCb, TbServicesCb, UploadUpdateFwCb,
 };
+use caliptra_hw_model::BusMmio;
+use caliptra_hw_model_types::{DeviceLifecycle, SecurityState};
 use clap::{arg, value_parser, ArgAction};
 use std::fs::File;
 use std::io;
@@ -24,9 +26,13 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::rc::Rc;
+use tock_registers::interfaces::{Readable, Writeable};
+use tock_registers::registers::InMemoryRegister;
 mod gdb;
 use crate::gdb::gdb_target::GdbTarget;
 use gdb::gdb_state;
+
+use tock_registers::register_bitfields;
 
 /// Firmware Load Command Opcode
 const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
@@ -55,6 +61,14 @@ fn free_run(mut cpu: Cpu<CaliptraRootBus>, trace_path: Option<PathBuf>) {
     } else {
         while let StepAction::Continue = cpu.step(None) {}
     };
+}
+
+fn words_from_bytes_le(arr: &[u8; 48]) -> [u32; 12] {
+    let mut result = [0u32; 12];
+    for i in 0..result.len() {
+        result[i] = u32::from_le_bytes(arr[i * 4..][..4].try_into().unwrap())
+    }
+    result
 }
 
 fn main() -> io::Result<()> {
@@ -205,13 +219,26 @@ fn main() -> io::Result<()> {
     let update_fw_buf = Rc::new(update_fw_buf);
 
     let clock = Clock::new();
+
+    let req_idevid_csr = args.get_flag("req-idevid-csr");
+    let req_ldevid_cert = args.get_flag("req-ldevid-cert");
+
+    let mut security_state = SecurityState::default();
+    security_state.set_device_lifecycle(
+        match args_device_lifecycle.to_ascii_lowercase().as_str() {
+            "manufacturing" => DeviceLifecycle::Manufacturing,
+            "production" => DeviceLifecycle::Production,
+            "unprovisioned" | "" => DeviceLifecycle::Unprovisioned,
+            other => {
+                println!("Unknown device lifecycle {:?}", other);
+                exit(-1);
+            }
+        },
+    );
+
     let bus_args = CaliptraRootBusArgs {
         rom: rom_buffer,
         log_dir: args_log_dir.clone(),
-        ueid: *args_ueid,
-        idev_key_id_algo: args_idevid_key_id_algo.clone(),
-        req_idevid_csr: args.get_flag("req-idevid-csr"),
-        req_ldevid_cert: args.get_flag("req-ldevid-cert"),
         tb_services_cb: TbServicesCb::new(move |val| match val {
             0x01 => exit(0xFF),
             0xFF => exit(0x00),
@@ -226,15 +253,93 @@ fn main() -> io::Result<()> {
                 upload_fw_to_mailbox(mailbox, firmware_buffer);
             });
         }),
-        mfg_pk_hash,
-        owner_pk_hash,
-        device_lifecycle: args_device_lifecycle.clone(),
+        security_state,
         upload_update_fw: UploadUpdateFwCb::new(move |mailbox: &mut Mailbox| {
             while !mailbox.try_acquire_lock() {}
             upload_fw_to_mailbox(mailbox, update_fw_buf.clone());
         }),
+        ..Default::default()
     };
-    let cpu = Cpu::new(CaliptraRootBus::new(&clock, bus_args), clock);
+
+    let root_bus = CaliptraRootBus::new(&clock, bus_args);
+    let soc_ifc = unsafe {
+        caliptra_registers::soc_ifc::RegisterBlock::new_with_mmio(
+            0x3003_0000 as *mut u32,
+            BusMmio::new(root_bus.soc_to_caliptra_bus()),
+        )
+    };
+
+    if !mfg_pk_hash.is_empty() {
+        let mfg_pk_hash = words_from_bytes_le(
+            &mfg_pk_hash
+                .try_into()
+                .expect("mfg_pk_hash must be 48 bytes"),
+        );
+        soc_ifc.fuse_key_manifest_pk_hash().write(&mfg_pk_hash);
+    }
+
+    if !owner_pk_hash.is_empty() {
+        let owner_pk_hash = words_from_bytes_le(
+            &owner_pk_hash
+                .try_into()
+                .expect("owner_pk_hash must be 48 bytes"),
+        );
+        soc_ifc.fuse_owner_pk_hash().write(&owner_pk_hash);
+    }
+
+    // Populate DBG_MANUF_SERVICE_REG
+    {
+        const GEN_IDEVID_CSR_FLAG: u32 = 1 << 0;
+        const GEN_LDEVID_CSR_FLAG: u32 = 1 << 1;
+
+        let mut val = 0;
+        if req_idevid_csr {
+            val |= GEN_IDEVID_CSR_FLAG;
+        }
+        if req_ldevid_cert {
+            val |= GEN_LDEVID_CSR_FLAG;
+        }
+        soc_ifc.cptra_dbg_manuf_service_reg().write(|_| val);
+    }
+
+    // Populate fuse_idevid_cert_attr
+    {
+        register_bitfields! [
+            u32,
+            IDevIdCertAttrFlags [
+                KEY_ID_ALGO OFFSET(0) NUMBITS(2) [
+                    SHA1 = 0b00,
+                    SHA256 = 0b01,
+                    SHA384 = 0b10,
+                    FUSE = 0b11,
+                ],
+                RESERVED OFFSET(2) NUMBITS(30) [],
+            ],
+        ];
+
+        // Determine the Algorithm used for IDEVID Certificate Subject Key Identifier
+        let algo = match args_idevid_key_id_algo.to_ascii_lowercase().as_str() {
+            "" | "sha1" => IDevIdCertAttrFlags::KEY_ID_ALGO::SHA1,
+            "sha256" => IDevIdCertAttrFlags::KEY_ID_ALGO::SHA256,
+            "sha384" => IDevIdCertAttrFlags::KEY_ID_ALGO::SHA384,
+            "fuse" => IDevIdCertAttrFlags::KEY_ID_ALGO::FUSE,
+            _ => panic!("Unknown idev_key_id_algo {:?}", args_idevid_key_id_algo),
+        };
+
+        let flags: InMemoryRegister<u32, IDevIdCertAttrFlags::Register> = InMemoryRegister::new(0);
+        flags.write(algo);
+        let mut cert = [0u32; 24];
+        // DWORD 00 - Flags
+        cert[0] = flags.get();
+        // DWORD 01 - 05 - IDEVID Subject Key Identifier (all zeroes)
+        // DWORD 06 - 07 - UEID / Manufacturer Serial Number
+        cert[6] = *args_ueid as u32;
+        cert[7] = (*args_ueid >> 32) as u32;
+
+        soc_ifc.fuse_idevid_cert_attr().write(&cert);
+    }
+
+    let cpu = Cpu::new(root_bus, clock);
 
     // Check if Optional GDB Port is passed
     match args.get_one::<String>("gdb-port") {

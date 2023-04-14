@@ -17,7 +17,7 @@ Abstract:
 
 use caliptra_drivers::{Array4x12, Mailbox, Sha384Acc};
 use caliptra_kat::Sha384AccKat;
-mod harness;
+use caliptra_test_harness::test_suite;
 
 const MAX_MAILBOX_CAPACITY_BYTES: usize = 128 << 10;
 const SHA384_HASH_SIZE: usize = 48;
@@ -105,6 +105,34 @@ fn test_digest2() {
     }
 }
 
+fn test_digest_offset() {
+    let data = "abcdefghijklmnopqrst".as_bytes();
+    let expected: [u8; SHA384_HASH_SIZE] = [
+        0xd4, 0xcc, 0x9a, 0x0d, 0xc5, 0x46, 0x09, 0x40, 0xb0, 0x50, 0xa2, 0x42, 0x14, 0xf6, 0x78,
+        0xf6, 0x3b, 0x99, 0x3e, 0xc3, 0xc5, 0x7d, 0xb9, 0xcc, 0x20, 0x7b, 0x20, 0x9c, 0xbd, 0xa7,
+        0xcc, 0x09, 0xe9, 0x4a, 0x84, 0x62, 0x83, 0x56, 0x7d, 0x28, 0xd8, 0xc7, 0x73, 0xc1, 0x87,
+        0x39, 0x07, 0xa7,
+    ];
+
+    let mut digest = Array4x12::default();
+    let sha_acc = Sha384Acc::default();
+
+    if let Some(mut txn) = Mailbox::default().try_start_send_txn() {
+        const CMD: u32 = 0x1c;
+        assert!(txn.send_request(CMD, &data).is_ok());
+
+        if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
+            let result = sha_acc_op.digest(8, 4, false, (&mut digest).into());
+            assert!(result.is_ok());
+            assert_eq!(digest, Array4x12::from(expected));
+            drop(sha_acc_op);
+        } else {
+            assert!(false);
+        }
+        drop(txn);
+    }
+}
+
 fn test_digest_zero_size_buffer() {
     let expected: [u8; SHA384_HASH_SIZE] = [
         0x38, 0xB0, 0x60, 0xA7, 0x51, 0xAC, 0x96, 0x38, 0x4C, 0xD9, 0x32, 0x7E, 0xB1, 0xB1, 0xE3,
@@ -162,6 +190,7 @@ fn test_kat() {
 test_suite! {
     test_kat,
     test_digest_max_mailbox_size,
+    test_digest_offset,
     test_digest0,
     test_digest1,
     test_digest2,
