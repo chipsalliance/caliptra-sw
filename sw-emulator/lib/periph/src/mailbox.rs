@@ -418,6 +418,8 @@ statemachine! {
         RdyForData + DataWrite(DataIn) / enqueue = RdyForData,
         RdyForData + ExecSet = Exec,
         Exec + DataRead / dequeue = Exec,
+        Exec + DlenWrite(DataLength) / init_dlen = Exec,
+        Exec + DataWrite(DataIn) / enqueue = Exec,
         Exec + ExecClear [is_locked] / unlock = Idle
     }
 }
@@ -477,6 +479,7 @@ impl StateMachineContext for Context {
     }
     // actions
     fn init_dlen(&mut self, data_len: &DataLength) {
+        self.ring_buffer.reset();
         self.dlen = data_len.0;
     }
 
