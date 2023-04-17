@@ -446,7 +446,8 @@ pub trait HwModel {
 
 #[cfg(test)]
 mod tests {
-    use crate::{mmio::Rv32GenMmio, BootParams, HwModel, InitParams};
+    use crate::{mmio::Rv32GenMmio, BootParams, HwModel, InitParams, ModelError};
+    use caliptra_builder::FwId;
     use caliptra_emu_bus::Bus;
     use caliptra_emu_types::RvSize;
     use caliptra_registers::soc_ifc;
@@ -547,6 +548,67 @@ mod tests {
         assert_eq!(
             model.step_until_output("ha").err().unwrap().to_string(),
             "expected output \"ha\", was \"hi\""
+        );
+    }
+
+    #[test]
+    pub fn test_mailbox_execute() {
+        let message: [u8; 10] = [0x90, 0x5e, 0x1f, 0xad, 0x8b, 0x60, 0xb0, 0xbf, 0x1c, 0x7e];
+
+        let rom = caliptra_builder::build_firmware_rom(&FwId {
+            crate_name: "caliptra-hw-model-test-fw",
+            bin_name: "mailbox_responder",
+            features: &["emu"],
+        })
+        .unwrap();
+
+        let mut model = caliptra_hw_model::new(BootParams {
+            init_params: InitParams {
+                rom: &rom,
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .unwrap();
+
+        // Send command that echoes the command and input message
+        assert_eq!(
+            model.mailbox_execute(0x1000_0000, &message),
+            Ok(Some(
+                [[0x00, 0x00, 0x00, 0x10].as_slice(), &message].concat()
+            )),
+        );
+
+        // Send command that echoes the command and input message
+        assert_eq!(
+            model.mailbox_execute(0x1000_0000, &message[..8]),
+            Ok(Some(vec![
+                0x00, 0x00, 0x00, 0x10, 0x90, 0x5e, 0x1f, 0xad, 0x8b, 0x60, 0xb0, 0xbf
+            ])),
+        );
+
+        // Send command that returns 7 bytes of output
+        assert_eq!(
+            model.mailbox_execute(0x1000_1000, &[]),
+            Ok(Some(vec![0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd]))
+        );
+
+        // Send command that returns 7 bytes of output, and doesn't consume input
+        assert_eq!(
+            model.mailbox_execute(0x1000_1000, &[42]),
+            Ok(Some(vec![0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd])),
+        );
+
+        // Send command that returns 0 bytes of output
+        assert_eq!(model.mailbox_execute(0x1000_2000, &[]), Ok(Some(vec![])));
+
+        // Send command that returns success with no output
+        assert_eq!(model.mailbox_execute(0x2000_0000, &[]), Ok(None));
+
+        // Send command that returns failure
+        assert_eq!(
+            model.mailbox_execute(0x4000_0000, &message),
+            Err(ModelError::MailboxCmdFailed)
         );
     }
 }
