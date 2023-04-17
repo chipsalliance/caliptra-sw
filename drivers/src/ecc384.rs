@@ -116,29 +116,6 @@ impl From<KeyReadArgs> for Ecc384PrivKeyIn<'_> {
     }
 }
 
-/// ECC-384 Data
-#[derive(Debug, Copy, Clone)]
-pub enum Ecc384Data<'a> {
-    /// Array
-    Array4x12(&'a Ecc384Scalar),
-
-    /// Key Vault Key
-    Key(KeyReadArgs),
-}
-
-impl<'a> From<&'a Array4x12> for Ecc384Data<'a> {
-    /// Converts to this type from the input type.
-    fn from(value: &'a Array4x12) -> Self {
-        Self::Array4x12(value)
-    }
-}
-impl From<KeyReadArgs> for Ecc384Data<'_> {
-    /// Converts to this type from the input type.
-    fn from(value: KeyReadArgs) -> Self {
-        Self::Key(value)
-    }
-}
-
 /// ECC-384 Public Key
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
 pub struct Ecc384PubKey {
@@ -255,7 +232,7 @@ impl Ecc384 {
     pub fn sign(
         &self,
         priv_key: Ecc384PrivKeyIn,
-        data: Ecc384Data,
+        data: &Ecc384Scalar,
     ) -> CaliptraResult<Ecc384Signature> {
         let ecc = ecc::RegisterBlock::ecc_reg();
 
@@ -272,13 +249,7 @@ impl Ecc384 {
         }
 
         // Copy digest
-        match data {
-            Ecc384Data::Array4x12(arr) => KvAccess::copy_from_arr(arr, ecc.msg())?,
-            Ecc384Data::Key(key) => {
-                KvAccess::copy_from_kv(key, ecc.kv_rd_msg_status(), ecc.kv_rd_msg_ctrl())
-                    .map_err(|err| err.into_read_data_err())?
-            }
-        }
+        KvAccess::copy_from_arr(data, ecc.msg())?;
 
         // Program the command register
         ecc.ctrl().write(|w| w.ctrl(|w| w.signing()));
