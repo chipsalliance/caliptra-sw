@@ -75,6 +75,28 @@ impl Mailbox {
             _ => None,
         }
     }
+
+    /// Aborts with failure any pending SoC->Uc transactions.
+    ///
+    /// This is useful to call from a fatal-error-handling routine.
+    ///
+    /// # Safety
+    ///
+    /// Callers must guarantee that no other code is interacting with the
+    /// mailbox at the time this function is called. (For example, any
+    /// MailboxRecvTxn and MailboxSendTxn instances have been destroyed or
+    /// forgotten).
+    ///
+    /// This function is safe to call from a trap handler.
+    pub unsafe fn abort_pending_soc_to_uc_transactions() {
+        let mbox = mbox::RegisterBlock::mbox_csr();
+        if mbox.status().read().mbox_fsm_ps().mbox_execute_uc() {
+            // SoC firmware might be stuck waiting for Caliptra to finish
+            // executing this pending mailbox transaction. Notify them that
+            // we've failed.
+            mbox.status().write(|w| w.status(|w| w.cmd_failure()));
+        }
+    }
 }
 
 #[derive(Default)]
