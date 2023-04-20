@@ -89,9 +89,10 @@ fn test_invalid_manifest_marker() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
-    let mut output = vec![];
-    let result = hw.copy_output_until_non_fatal_error(MANIFEST_MARKER_MISMATCH, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        MANIFEST_MARKER_MISMATCH
+    );
 }
 
 #[test]
@@ -105,9 +106,10 @@ fn test_invalid_manifest_size() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
-    let mut output = vec![];
-    let result = hw.copy_output_until_non_fatal_error(MANIFEST_SIZE_MISMATCH, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        MANIFEST_SIZE_MISMATCH
+    );
 }
 
 #[test]
@@ -125,9 +127,10 @@ fn test_preamble_zero_vendor_pubkey_digest() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
-    let mut output = vec![];
-    let result = hw.copy_output_until_non_fatal_error(VENDOR_PUB_KEY_DIGEST_INVALID, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        VENDOR_PUB_KEY_DIGEST_INVALID
+    );
 }
 
 #[test]
@@ -145,9 +148,10 @@ fn test_preamble_vendor_pubkey_digest_mismatch() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
-    let mut output = vec![];
-    let result = hw.copy_output_until_non_fatal_error(VENDOR_PUB_KEY_DIGEST_MISMATCH, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        VENDOR_PUB_KEY_DIGEST_MISMATCH
+    );
 }
 
 #[test]
@@ -165,9 +169,10 @@ fn test_preamble_owner_pubkey_digest_mismatch() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
-    let mut output = vec![];
-    let result = hw.copy_output_until_non_fatal_error(OWNER_PUB_KEY_DIGEST_MISMATCH, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        OWNER_PUB_KEY_DIGEST_MISMATCH
+    );
 }
 
 #[test]
@@ -209,27 +214,27 @@ fn test_preamble_vendor_pubkey_revocation() {
             caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
                 .unwrap();
 
-        let result = if key_idx == LAST_KEY_IDX {
+        if key_idx == LAST_KEY_IDX {
             // Last key is never revoked.
             hw.upload_firmware(&image_bundle.to_bytes().unwrap())
                 .unwrap();
-            hw.copy_output_until_exit_success(&mut output)
+            hw.copy_output_until_exit_success(&mut output).unwrap();
         } else {
             assert_eq!(
                 ModelError::MailboxCmdFailed,
                 hw.upload_firmware(&image_bundle.to_bytes().unwrap())
                     .unwrap_err()
             );
-            hw.copy_output_until_non_fatal_error(VENDOR_ECC_PUB_KEY_REVOKED, &mut output)
-        };
-
-        assert!(result.is_ok());
+            assert_eq!(
+                hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+                VENDOR_ECC_PUB_KEY_REVOKED
+            );
+        }
     }
 }
 
 #[test]
 fn test_preamble_vendor_pubkey_out_of_bounds() {
-    let mut output = vec![];
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
     image_bundle.manifest.preamble.vendor_ecc_pub_key_idx = VENDOR_ECC_KEY_COUNT;
@@ -239,10 +244,10 @@ fn test_preamble_vendor_pubkey_out_of_bounds() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
-    let result =
-        hw.copy_output_until_non_fatal_error(VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS, &mut output);
-
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS
+    );
 }
 
 #[test]
@@ -250,7 +255,6 @@ fn test_header_verify_vendor_sig_zero_pubkey() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
     let vendor_ecc_pub_key_idx = image_bundle.manifest.preamble.vendor_ecc_pub_key_idx as usize;
-    let mut output = vec![];
 
     // Set ecc_pub_key.x to zero.
     let ecc_pub_key_x_backup =
@@ -265,9 +269,10 @@ fn test_header_verify_vendor_sig_zero_pubkey() {
             .unwrap_err()
     );
 
-    let result =
-        hw.copy_output_until_non_fatal_error(VENDOR_PUB_KEY_DIGEST_INVALID_ARG, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        VENDOR_PUB_KEY_DIGEST_INVALID_ARG
+    );
 
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
@@ -284,14 +289,14 @@ fn test_header_verify_vendor_sig_zero_pubkey() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
-    let result =
-        hw.copy_output_until_non_fatal_error(VENDOR_PUB_KEY_DIGEST_INVALID_ARG, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        VENDOR_PUB_KEY_DIGEST_INVALID_ARG
+    );
 }
 
 #[test]
 fn test_header_verify_vendor_sig_zero_signature() {
-    let mut output = vec![];
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
@@ -304,9 +309,10 @@ fn test_header_verify_vendor_sig_zero_signature() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
-    let result =
-        hw.copy_output_until_non_fatal_error(VENDOR_ECC_SIGNATURE_INVALID_ARG, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        VENDOR_ECC_SIGNATURE_INVALID_ARG
+    );
 
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
@@ -320,9 +326,10 @@ fn test_header_verify_vendor_sig_zero_signature() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
-    let result =
-        hw.copy_output_until_non_fatal_error(VENDOR_ECC_SIGNATURE_INVALID_ARG, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        VENDOR_ECC_SIGNATURE_INVALID_ARG
+    );
 }
 
 #[test]
@@ -330,7 +337,6 @@ fn test_header_verify_vendor_sig_mismatch() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
     let vendor_ecc_pub_key_idx = image_bundle.manifest.preamble.vendor_ecc_pub_key_idx as usize;
-    let mut output = vec![];
 
     // Modify the owner public key.
     let ecc_pub_key_backup =
@@ -348,8 +354,10 @@ fn test_header_verify_vendor_sig_mismatch() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(VENDOR_ECC_SIGNATURE_INVALID, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        VENDOR_ECC_SIGNATURE_INVALID
+    );
 
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
@@ -377,15 +385,16 @@ fn test_header_verify_vendor_sig_mismatch() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(VENDOR_ECC_SIGNATURE_INVALID, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        VENDOR_ECC_SIGNATURE_INVALID
+    );
 }
 
 #[test]
 fn test_header_verify_vendor_pub_key_in_preamble_and_header() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let mut output = vec![];
 
     // Change vendor pubkey index.
     image_bundle.manifest.header.vendor_ecc_pub_key_idx =
@@ -397,15 +406,14 @@ fn test_header_verify_vendor_pub_key_in_preamble_and_header() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
-    let result =
-        hw.copy_output_until_non_fatal_error(VENDOR_ECC_PUB_KEY_INDEX_MISMATCH, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        VENDOR_ECC_PUB_KEY_INDEX_MISMATCH
+    );
 }
 
 #[test]
 fn test_header_verify_owner_sig_zero_pubkey_x() {
-    let mut output = vec![];
-
     let mut image_bundle = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
@@ -449,15 +457,14 @@ fn test_header_verify_owner_sig_zero_pubkey_x() {
             .unwrap_err()
     );
 
-    let result =
-        hw.copy_output_until_non_fatal_error(OWNER_PUB_KEY_DIGEST_INVALID_ARG, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        OWNER_PUB_KEY_DIGEST_INVALID_ARG
+    );
 }
 
 #[test]
 fn test_header_verify_owner_sig_zero_pubkey_y() {
-    let mut output = vec![];
-
     let mut image_bundle = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
@@ -501,15 +508,14 @@ fn test_header_verify_owner_sig_zero_pubkey_y() {
             .unwrap_err()
     );
 
-    let result =
-        hw.copy_output_until_non_fatal_error(OWNER_PUB_KEY_DIGEST_INVALID_ARG, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        OWNER_PUB_KEY_DIGEST_INVALID_ARG
+    );
 }
 
 #[test]
 fn test_header_verify_owner_sig_zero_signature_r() {
-    let mut output = vec![];
-
     let mut image_bundle = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
@@ -547,14 +553,14 @@ fn test_header_verify_owner_sig_zero_signature_r() {
             .unwrap_err()
     );
 
-    let result = hw.copy_output_until_non_fatal_error(OWNER_ECC_SIGNATURE_INVALID_ARG, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        OWNER_ECC_SIGNATURE_INVALID_ARG
+    );
 }
 
 #[test]
 fn test_header_verify_owner_sig_zero_signature_s() {
-    let mut output = vec![];
-
     let mut image_bundle = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
@@ -592,15 +598,16 @@ fn test_header_verify_owner_sig_zero_signature_s() {
             .unwrap_err()
     );
 
-    let result = hw.copy_output_until_non_fatal_error(OWNER_ECC_SIGNATURE_INVALID_ARG, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        OWNER_ECC_SIGNATURE_INVALID_ARG
+    );
 }
 
 #[test]
 fn test_toc_invalid_entry_count() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let mut output = vec![];
 
     // Change the TOC length.
     image_bundle.manifest.header.toc_len = caliptra_image_types::MAX_TOC_ENTRY_COUNT + 1;
@@ -611,15 +618,16 @@ fn test_toc_invalid_entry_count() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(TOC_ENTRY_COUNT_INVALID, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        TOC_ENTRY_COUNT_INVALID
+    );
 }
 
 #[test]
 fn test_toc_invalid_toc_digest() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let mut output = vec![];
 
     // Change the TOC digest.
     image_bundle.manifest.header.toc_digest[0] = 0xDEADBEEF;
@@ -630,14 +638,14 @@ fn test_toc_invalid_toc_digest() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(TOC_DIGEST_MISMATCH, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        TOC_DIGEST_MISMATCH
+    );
 }
 
 #[test]
 fn test_toc_fmc_range_overlap() {
-    let mut output = vec![];
-
     // Case 1: FMC offset == Runtime offset
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
@@ -658,8 +666,10 @@ fn test_toc_fmc_range_overlap() {
         ModelError::MailboxCmdFailed,
         hw.upload_firmware(&image).unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(FMC_RUNTIME_OVERLAP, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        FMC_RUNTIME_OVERLAP
+    );
 
     // Case 2: FMC offset > Runtime offset
     let (mut hw, mut image_bundle) =
@@ -681,8 +691,10 @@ fn test_toc_fmc_range_overlap() {
         ModelError::MailboxCmdFailed,
         hw.upload_firmware(&image).unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(FMC_RUNTIME_OVERLAP, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        FMC_RUNTIME_OVERLAP
+    );
 
     // // Case 3: FMC start offset < Runtime offset < FMC end offset
     let (mut hw, mut image_bundle) =
@@ -704,15 +716,16 @@ fn test_toc_fmc_range_overlap() {
         ModelError::MailboxCmdFailed,
         hw.upload_firmware(&image).unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(FMC_RUNTIME_OVERLAP, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        FMC_RUNTIME_OVERLAP
+    );
 }
 
 #[test]
 fn test_toc_fmc_range_incorrect_order() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let mut output = vec![];
     let fmc_new_offset = image_bundle.manifest.runtime.offset;
     let fmc_new_size = image_bundle.manifest.runtime.size;
     let runtime_new_offset = image_bundle.manifest.fmc.offset;
@@ -729,15 +742,16 @@ fn test_toc_fmc_range_incorrect_order() {
         ModelError::MailboxCmdFailed,
         hw.upload_firmware(&image).unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(FMC_RUNTIME_INCORRECT_ORDER, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        FMC_RUNTIME_INCORRECT_ORDER
+    );
 }
 
 #[test]
 fn test_fmc_digest_mismatch() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let mut output = vec![];
 
     // Change the FMC image.
     image_bundle.fmc[0..4].copy_from_slice(0xDEADBEEFu32.as_bytes());
@@ -747,90 +761,96 @@ fn test_fmc_digest_mismatch() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(FMC_DIGEST_MISMATCH, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        FMC_DIGEST_MISMATCH
+    );
 }
 
 #[test]
 fn test_fmc_invalid_load_addr_before_iccm() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let mut output = vec![];
 
     let image = update_load_addr(&mut image_bundle, true, ICCM_START_ADDR - 4);
     assert_eq!(
         ModelError::MailboxCmdFailed,
         hw.upload_firmware(&image).unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(FMC_LOAD_ADDR_INVALID, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        FMC_LOAD_ADDR_INVALID
+    );
 }
 
 #[test]
 fn test_fmc_invalid_load_addr_after_iccm() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let mut output = vec![];
 
     let image = update_load_addr(&mut image_bundle, true, ICCM_END_ADDR + 1);
     assert_eq!(
         ModelError::MailboxCmdFailed,
         hw.upload_firmware(&image).unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(FMC_LOAD_ADDR_INVALID, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        FMC_LOAD_ADDR_INVALID
+    );
 }
 
 #[test]
 fn test_fmc_load_addr_unaligned() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let mut output = vec![];
     let load_addr = image_bundle.manifest.fmc.load_addr;
     let image = update_load_addr(&mut image_bundle, true, load_addr + 1);
     assert_eq!(
         ModelError::MailboxCmdFailed,
         hw.upload_firmware(&image).unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(FMC_LOAD_ADDR_UNALIGNED, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        FMC_LOAD_ADDR_UNALIGNED
+    );
 }
 
 #[test]
 fn test_fmc_invalid_entry_point_before_iccm() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let mut output = vec![];
 
     let image = update_entry_point(&mut image_bundle, true, ICCM_START_ADDR - 4);
     assert_eq!(
         ModelError::MailboxCmdFailed,
         hw.upload_firmware(&image).unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(FMC_ENTRY_POINT_INVALID, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        FMC_ENTRY_POINT_INVALID
+    );
 }
 
 #[test]
 fn test_fmc_invalid_entry_point_after_iccm() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let mut output = vec![];
 
     let image = update_entry_point(&mut image_bundle, true, ICCM_END_ADDR + 1);
     assert_eq!(
         ModelError::MailboxCmdFailed,
         hw.upload_firmware(&image).unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(FMC_ENTRY_POINT_INVALID, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        FMC_ENTRY_POINT_INVALID
+    );
 }
 
 #[test]
 fn test_fmc_entry_point_unaligned() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let mut output = vec![];
     let entry_point = image_bundle.manifest.fmc.entry_point;
 
     let image = update_entry_point(&mut image_bundle, true, entry_point + 1);
@@ -838,8 +858,10 @@ fn test_fmc_entry_point_unaligned() {
         ModelError::MailboxCmdFailed,
         hw.upload_firmware(&image).unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(FMC_ENTRY_POINT_UNALIGNED, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        FMC_ENTRY_POINT_UNALIGNED
+    );
 }
 
 #[test]
@@ -864,15 +886,15 @@ fn test_fmc_svn_greater_than_32() {
     };
 
     let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
-    let mut output = vec![];
     assert_eq!(
         ModelError::MailboxCmdFailed,
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
-    let result =
-        hw.copy_output_until_non_fatal_error(FMC_SVN_GREATER_THAN_MAX_SUPPORTED, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        FMC_SVN_GREATER_THAN_MAX_SUPPORTED
+    );
 }
 
 #[test]
@@ -897,14 +919,15 @@ fn test_fmc_svn_less_than_min_svn() {
         ..Default::default()
     };
     let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
-    let mut output = vec![];
     assert_eq!(
         ModelError::MailboxCmdFailed,
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(FMC_SVN_LESS_THAN_MIN_SUPPORTED, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        FMC_SVN_LESS_THAN_MIN_SUPPORTED
+    );
 }
 
 #[test]
@@ -930,21 +953,21 @@ fn test_fmc_svn_less_than_fuse_svn() {
     };
 
     let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
-    let mut output = vec![];
     assert_eq!(
         ModelError::MailboxCmdFailed,
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(FMC_SVN_LESS_THAN_FUSE, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        FMC_SVN_LESS_THAN_FUSE
+    );
 }
 
 #[test]
 fn test_runtime_digest_mismatch() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let mut output = vec![];
 
     // Change the FMC image.
     image_bundle.runtime[0..4].copy_from_slice(0xDEADBEEFu32.as_bytes());
@@ -953,98 +976,106 @@ fn test_runtime_digest_mismatch() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(RUNTIME_DIGEST_MISMATCH, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        RUNTIME_DIGEST_MISMATCH
+    );
 }
 
 #[test]
 fn test_runtime_invalid_load_addr_before_iccm() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let mut output = vec![];
 
     let image = update_load_addr(&mut image_bundle, false, ICCM_START_ADDR - 4);
     assert_eq!(
         ModelError::MailboxCmdFailed,
         hw.upload_firmware(&image).unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(RUNTIME_LOAD_ADDR_INVALID, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        RUNTIME_LOAD_ADDR_INVALID
+    );
 }
 
 #[test]
 fn test_runtime_invalid_load_addr_after_iccm() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let mut output = vec![];
 
     let image = update_load_addr(&mut image_bundle, false, ICCM_END_ADDR + 1);
     assert_eq!(
         ModelError::MailboxCmdFailed,
         hw.upload_firmware(&image).unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(RUNTIME_LOAD_ADDR_INVALID, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        RUNTIME_LOAD_ADDR_INVALID
+    );
 }
 
 #[test]
 fn test_runtime_load_addr_unaligned() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let mut output = vec![];
     let load_addr = image_bundle.manifest.runtime.load_addr;
     let image = update_load_addr(&mut image_bundle, false, load_addr + 1);
     assert_eq!(
         ModelError::MailboxCmdFailed,
         hw.upload_firmware(&image).unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(RUNTIME_LOAD_ADDR_UNALIGNED, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        RUNTIME_LOAD_ADDR_UNALIGNED
+    );
 }
 
 #[test]
 fn test_runtime_invalid_entry_point_before_iccm() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let mut output = vec![];
 
     let image = update_entry_point(&mut image_bundle, false, ICCM_START_ADDR - 4);
     assert_eq!(
         ModelError::MailboxCmdFailed,
         hw.upload_firmware(&image).unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(RUNTIME_ENTRY_POINT_INVALID, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        RUNTIME_ENTRY_POINT_INVALID
+    );
 }
 
 #[test]
 fn test_runtime_invalid_entry_point_after_iccm() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let mut output = vec![];
 
     let image = update_entry_point(&mut image_bundle, false, ICCM_END_ADDR + 1);
     assert_eq!(
         ModelError::MailboxCmdFailed,
         hw.upload_firmware(&image).unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(RUNTIME_ENTRY_POINT_INVALID, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        RUNTIME_ENTRY_POINT_INVALID
+    );
 }
 
 #[test]
 fn test_runtime_entry_point_unaligned() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let mut output = vec![];
     let entry_point = image_bundle.manifest.runtime.entry_point;
     let image = update_entry_point(&mut image_bundle, false, entry_point + 1);
     assert_eq!(
         ModelError::MailboxCmdFailed,
         hw.upload_firmware(&image).unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(RUNTIME_ENTRY_POINT_UNALIGNED, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        RUNTIME_ENTRY_POINT_UNALIGNED
+    );
 }
 
 #[test]
@@ -1068,15 +1099,15 @@ fn test_runtime_svn_greater_than_64() {
     };
 
     let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
-    let mut output = vec![];
     assert_eq!(
         ModelError::MailboxCmdFailed,
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
-    let result =
-        hw.copy_output_until_non_fatal_error(RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED
+    );
 }
 
 #[test]
@@ -1101,16 +1132,16 @@ fn test_runtime_svn_less_than_min_svn() {
     };
 
     let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
-    let mut output = vec![];
 
     assert_eq!(
         ModelError::MailboxCmdFailed,
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
-    let result =
-        hw.copy_output_until_non_fatal_error(RUNTIME_SVN_LESS_THAN_MIN_SUPPORTED, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        RUNTIME_SVN_LESS_THAN_MIN_SUPPORTED
+    );
 }
 
 #[test]
@@ -1136,14 +1167,15 @@ fn test_runtime_svn_less_than_fuse_svn() {
     };
 
     let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
-    let mut output = vec![];
     assert_eq!(
         ModelError::MailboxCmdFailed,
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
-    let result = hw.copy_output_until_non_fatal_error(RUNTIME_SVN_LESS_THAN_FUSE, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        RUNTIME_SVN_LESS_THAN_FUSE
+    );
 }
 
 fn update_header(image_bundle: &mut ImageBundle) {

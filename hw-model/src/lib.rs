@@ -274,32 +274,6 @@ pub trait HwModel {
         }
     }
 
-    fn copy_output_until_non_fatal_error(
-        &mut self,
-        expected_fw_nonfatal_error: u32,
-        mut w: impl std::io::Write,
-    ) -> std::io::Result<()> {
-        loop {
-            if self.soc_ifc().cptra_fw_error_non_fatal().read() == expected_fw_nonfatal_error {
-                return Ok(());
-            }
-
-            if !self.output().peek().is_empty() {
-                w.write_all(self.output().take(usize::MAX).as_bytes())?;
-            }
-            match self.output().exit_status() {
-                Some(ExitStatus::Passed) | Some(ExitStatus::Failed) => {
-                    return Err(std::io::Error::new(
-                        ErrorKind::Other,
-                        "firmware exited unexpectedly",
-                    ))
-                }
-                None => {}
-            }
-            self.step();
-        }
-    }
-
     /// Execute until the output contains `expected_output`.
     fn step_until_output(&mut self, expected_output: &str) -> Result<(), Box<dyn Error>> {
         self.step_until(|m| m.output().peek().len() >= expected_output.len());
