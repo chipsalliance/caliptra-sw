@@ -12,15 +12,16 @@ const INVALID_IMAGE_SIZE: u32 = 0x02000003;
 fn test_zero_firmware_size() {
     let (mut hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let mut output = vec![];
 
     // Zero-sized firmware.
     assert_eq!(
         hw.upload_firmware(&[]).unwrap_err(),
         ModelError::MailboxCmdFailed
     );
-    let result = hw.copy_output_until_non_fatal_error(INVALID_IMAGE_SIZE, &mut output);
-    assert!(result.is_ok());
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        INVALID_IMAGE_SIZE
+    );
 }
 
 #[test]
@@ -31,7 +32,6 @@ fn test_firmware_gt_max_size() {
 
     let (mut hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let mut output = vec![];
 
     // Manually put the oversize data in the mailbox because
     // HwModel::upload_firmware won't let us.
@@ -42,6 +42,13 @@ fn test_firmware_gt_max_size() {
         hw.soc_mbox().datain().write(|_| i as u32);
     }
     hw.soc_mbox().execute().write(|w| w.execute(true));
-    let result = hw.copy_output_until_non_fatal_error(INVALID_IMAGE_SIZE, &mut output);
-    assert!(result.is_ok());
+    while hw.soc_mbox().status().read().status().cmd_busy() {
+        hw.step();
+    }
+    hw.soc_mbox().execute().write(|w| w.execute(false));
+
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        INVALID_IMAGE_SIZE
+    );
 }
