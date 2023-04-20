@@ -17,7 +17,7 @@ Abstract:
 use caliptra_common::cprintln;
 use caliptra_cpu::TrapRecord;
 use caliptra_drivers::{report_fw_error_non_fatal, Mailbox};
-use core::hint::black_box;
+use core::{hint::black_box, mem};
 
 #[cfg(feature = "std")]
 pub fn main() {}
@@ -31,9 +31,23 @@ const BANNER: &str = r#"
         \/            \/     \/         \/       
 "#;
 
+const MBOX_DOWNLOAD_FIRMWARE_CMD_ID: u32 = 0x46574C44;
+
 #[no_mangle]
 pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
+
+    let mbox = Mailbox::default();
+    let download_txn = if let Some(txn) = mbox.try_start_recv_txn() {
+        if txn.cmd() == MBOX_DOWNLOAD_FIRMWARE_CMD_ID {
+            Some(txn)
+        } else {
+            mem::forget(txn);
+            None
+        }
+    } else {
+        None
+    };
 
     if let Some(fht) = caliptra_common::FirmwareHandoffTable::try_load() {
         cprintln!("[rt] FHT Marker: 0x{:08X}", fht.fht_marker);
@@ -47,8 +61,14 @@ pub extern "C" fn entry_point() -> ! {
             fht.rt_fw_load_addr_idx
         );
         cprintln!("[rt] FHT RT Entry Point: 0x{:08x}", fht.rt_fw_load_addr_idx);
+
+        if let Some(mut txn) = download_txn {
+            // Complete the download-firmware transaction that was started in the ROM
+            txn.complete(true).unwrap();
+        }
         caliptra_drivers::ExitCtrl::exit(0)
     } else {
+        // TODO: Use report_error()
         caliptra_drivers::ExitCtrl::exit(0xff)
     }
 }

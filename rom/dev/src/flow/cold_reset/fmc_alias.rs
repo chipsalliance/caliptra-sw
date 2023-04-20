@@ -59,7 +59,7 @@ impl DiceLayer for FmcAliasLayer {
         );
 
         // Download the image
-        let mut txn = Self::download_image(env)?;
+        let txn = Self::download_image(env)?;
 
         // Load the manifest
         let manifest = Self::load_manifest(&txn)?;
@@ -75,9 +75,6 @@ impl DiceLayer for FmcAliasLayer {
 
         // Load the image
         Self::load_image(env, &manifest, &txn)?;
-
-        // Complete the mailbox transaction indicating success.
-        txn.complete(true)?;
 
         // At this point PCR0 & PCR1 must have the same value. We use the value
         // of PCR1 as the UDS for deriving the CDI

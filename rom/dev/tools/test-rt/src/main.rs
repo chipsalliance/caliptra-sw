@@ -14,6 +14,8 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
 
+use core::mem::ManuallyDrop;
+
 use caliptra_drivers::Mailbox;
 
 #[cfg(not(feature = "std"))]
@@ -34,9 +36,19 @@ const BANNER: &str = r#"
                |_|
 "#;
 
+const MBOX_DOWNLOAD_FIRMWARE_CMD_ID: u32 = 0x46574C44;
+
 #[no_mangle]
 pub extern "C" fn rt_entry() -> ! {
     cprintln!("{}", BANNER);
+
+    let mbox = Mailbox::default();
+    if let Some(txn) = mbox.try_start_recv_txn() {
+        let mut txn = ManuallyDrop::new(txn);
+        if txn.cmd() == MBOX_DOWNLOAD_FIRMWARE_CMD_ID {
+            txn.complete(true).unwrap();
+        }
+    }
 
     caliptra_drivers::ExitCtrl::exit(0)
 }
