@@ -97,7 +97,10 @@ macro_rules! test_suite {
                     use caliptra_drivers::ExitCtrl;
                     ExitCtrl::exit(u32::MAX);
                 } else {
-                    loop {}
+                    loop {
+                        use caliptra_drivers::Mailbox;
+                        unsafe { Mailbox::abort_pending_soc_to_uc_transactions() };
+                    }
                 }
             }
         }

@@ -17,7 +17,7 @@ Abstract:
 use crate::lock::lock_registers;
 use core::hint::black_box;
 
-use caliptra_drivers::report_fw_error_non_fatal;
+use caliptra_drivers::{report_fw_error_non_fatal, Mailbox};
 use rom_env::RomEnv;
 
 #[cfg(not(feature = "std"))]
@@ -159,7 +159,12 @@ fn report_error(code: u32) -> ! {
     cprintln!("ROM Error: 0x{:08X}", code);
     report_fw_error_non_fatal(code);
 
-    loop {}
+    loop {
+        // SoC firmware might be stuck waiting for Caliptra to finish
+        // executing this pending mailbox transaction. Notify them that
+        // we've failed.
+        unsafe { Mailbox::abort_pending_soc_to_uc_transactions() };
+    }
 }
 
 #[no_mangle]
