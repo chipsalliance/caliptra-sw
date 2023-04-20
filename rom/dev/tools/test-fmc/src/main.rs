@@ -15,6 +15,7 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_main)]
 
 use caliptra_common::FirmwareHandoffTable;
+use caliptra_drivers::Mailbox;
 use zerocopy::FromBytes;
 
 #[cfg(not(feature = "std"))]
@@ -80,7 +81,9 @@ extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
 
     // TODO: Signal non-fatal error to SOC
 
-    loop {}
+    loop {
+        unsafe { Mailbox::abort_pending_soc_to_uc_transactions() };
+    }
 }
 
 #[no_mangle]
@@ -94,7 +97,9 @@ extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
         exception.mepc
     );
 
-    loop {}
+    loop {
+        unsafe { Mailbox::abort_pending_soc_to_uc_transactions() };
+    }
 }
 
 #[panic_handler]
