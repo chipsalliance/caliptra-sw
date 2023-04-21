@@ -14,7 +14,7 @@ pub const FHT_INVALID_ADDRESS: u32 = u32::MAX;
 
 #[repr(C)]
 #[derive(AsBytes, Copy, Clone, Debug, FromBytes, PartialEq)]
-pub struct HandOffDataHandle(u32);
+pub struct HandOffDataHandle(pub u32);
 pub const FHT_INVALID_HANDLE: HandOffDataHandle = HandOffDataHandle(u32::MAX);
 
 bitfield_bitrange! {struct HandOffDataHandle(u32)}

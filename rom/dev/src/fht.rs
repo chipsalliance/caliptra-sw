@@ -13,7 +13,8 @@ Abstract:
 --*/
 
 use caliptra_common::{
-    DataStore, FirmwareHandoffTable, HandOffDataHandle, FHT_INVALID_HANDLE, FHT_MARKER,
+    DataVaultRegister, FirmwareHandoffTable, HandOffDataHandle, Vault, FHT_INVALID_HANDLE,
+    FHT_MARKER,
 };
 use caliptra_drivers::{ColdResetEntry4, ColdResetEntry48, WarmResetEntry4, WarmResetEntry48};
 use zerocopy::AsBytes;
@@ -29,40 +30,92 @@ const FHT_MINOR_VERSION: u16 = 0;
 
 struct FhtDataStore {}
 impl FhtDataStore {
-    pub fn fmc_cdi_store() -> HandOffDataHandle {
-        HandOffDataHandle::from(DataStore::KeyVaultSlot(KEY_ID_CDI))
+    /// The FMC CDI is stored in a 32-bit DataVault sticky register.
+    pub const fn fmc_cdi_store() -> HandOffDataHandle {
+        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_CDI as u32)
     }
-    pub fn fmc_priv_key_store() -> HandOffDataHandle {
-        HandOffDataHandle::from(DataStore::KeyVaultSlot(KEY_ID_PRIV_KEY))
+    /// The FMC private key is stored in a 32-bit DataVault sticky register.
+    pub const fn fmc_priv_key_store() -> HandOffDataHandle {
+        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_PRIV_KEY as u32)
     }
-    pub fn fmc_svn_store() -> HandOffDataHandle {
-        HandOffDataHandle::from(DataStore::DataVaultSticky4(ColdResetEntry4::FmcSvn))
+    /// The FMC SVN is stored in a 32-bit DataVault sticky register.
+    pub const fn fmc_svn_store() -> HandOffDataHandle {
+        HandOffDataHandle(
+            ((Vault::DataVault as u32) << 12)
+                | (DataVaultRegister::Sticky32BitReg as u32) << 8
+                | ColdResetEntry4::FmcSvn as u32,
+        )
     }
-    pub fn fmc_tci_store() -> HandOffDataHandle {
-        HandOffDataHandle::from(DataStore::DataVaultSticky48(ColdResetEntry48::FmcTci))
+    /// The FMC TCI is stored in a 384-bit DataVault sticky register.
+    pub const fn fmc_tci_store() -> HandOffDataHandle {
+        HandOffDataHandle(
+            ((Vault::DataVault as u32) << 12)
+                | (DataVaultRegister::Sticky384BitReg as u32) << 8
+                | ColdResetEntry48::FmcTci as u32,
+        )
     }
-    pub fn fmc_cert_sig_r_store() -> HandOffDataHandle {
-        HandOffDataHandle::from(DataStore::DataVaultSticky48(ColdResetEntry48::FmcDiceSigR))
+
+    /// The FMC certificate signature R value is stored in a 384-bit DataVault
+    /// sticky register.
+    pub const fn fmc_cert_sig_r_store() -> HandOffDataHandle {
+        HandOffDataHandle(
+            ((Vault::DataVault as u32) << 12)
+                | (DataVaultRegister::Sticky384BitReg as u32) << 8
+                | ColdResetEntry48::FmcDiceSigR as u32,
+        )
     }
+
+    /// The FMC certificate signature S value is stored in a 384-bit DataVault
+    /// sticky register.
     pub fn fmc_cert_sig_s_store() -> HandOffDataHandle {
-        HandOffDataHandle::from(DataStore::DataVaultSticky48(ColdResetEntry48::FmcDiceSigS))
+        HandOffDataHandle(
+            ((Vault::DataVault as u32) << 12)
+                | (DataVaultRegister::Sticky384BitReg as u32) << 8
+                | ColdResetEntry48::FmcDiceSigS as u32,
+        )
     }
-    pub fn fmc_pub_key_x_store() -> HandOffDataHandle {
-        HandOffDataHandle::from(DataStore::DataVaultSticky48(ColdResetEntry48::FmcPubKeyX))
+    /// The FMC public key X coordinate is stored in a 384-bit DataVault
+    /// sticky register.
+    pub const fn fmc_pub_key_x_store() -> HandOffDataHandle {
+        HandOffDataHandle(
+            (Vault::DataVault as u32) << 12
+                | (DataVaultRegister::Sticky384BitReg as u32) << 8
+                | ColdResetEntry48::FmcPubKeyX as u32,
+        )
     }
+    /// FMC public key Y coordinate is stored in a 384-bit DataVault
+    /// sticky register.
     pub fn fmc_pub_key_y_store() -> HandOffDataHandle {
-        HandOffDataHandle::from(DataStore::DataVaultSticky48(ColdResetEntry48::FmcPubKeyY))
+        HandOffDataHandle(
+            (Vault::DataVault as u32) << 12
+                | (DataVaultRegister::Sticky384BitReg as u32) << 8
+                | ColdResetEntry48::FmcPubKeyY as u32,
+        )
     }
+    /// The RT SVN is stored in a 32-bit DataVault non-sticky register.
     pub fn rt_svn_data_store() -> HandOffDataHandle {
-        HandOffDataHandle::from(DataStore::DataVaultNonSticky4(WarmResetEntry4::RtSvn))
+        HandOffDataHandle(
+            ((Vault::DataVault as u32) << 12)
+                | (DataVaultRegister::NonSticky32BitReg as u32) << 8
+                | WarmResetEntry4::RtSvn as u32,
+        )
     }
+    /// The RT TCI is stored in a 384-bit DataVault non-sticky register.
     pub fn rt_tci_data_store() -> HandOffDataHandle {
-        HandOffDataHandle::from(DataStore::DataVaultNonSticky48(WarmResetEntry48::RtTci))
+        HandOffDataHandle(
+            ((Vault::DataVault as u32) << 12)
+                | (DataVaultRegister::NonSticky384BitReg as u32) << 8
+                | WarmResetEntry48::RtTci as u32,
+        )
     }
-    pub fn rt_fw_entry_point() -> HandOffDataHandle {
-        HandOffDataHandle::from(DataStore::DataVaultNonSticky4(
-            WarmResetEntry4::RtEntryPoint,
-        ))
+    /// The runtime firmware entry point is stored in a 32-bit DataVault
+    /// non-sticky register.
+    pub const fn rt_fw_entry_point() -> HandOffDataHandle {
+        HandOffDataHandle(
+            ((Vault::DataVault as u32) << 12)
+                | (DataVaultRegister::NonSticky32BitReg as u32) << 8
+                | WarmResetEntry4::RtEntryPoint as u32,
+        )
     }
 }
 
