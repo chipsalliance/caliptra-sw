@@ -103,3 +103,8 @@ required-features = ["riscv"]
 name = "test_negative_lms"
 path = "src/bin/negative_tests_lms.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "csrng"
+path = "src/bin/csrng_tests.rs"
+required-features = ["riscv"]

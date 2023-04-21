@@ -18,6 +18,7 @@ mod array;
 pub mod error;
 mod wait;
 
+mod csrng;
 mod data_vault;
 mod doe;
 mod ecc384;
@@ -40,6 +41,9 @@ mod status_reporter;
 
 pub type CaliptraResult<T> = Result<T, u32>;
 pub use array::{Array4x12, Array4x4, Array4x5, Array4x8, Array4xN};
+pub use csrng::{
+    Csrng, HealthFailCounts as CsrngHealthFailCounts, Iter as CsrngIter, Seed as CsrngSeed,
+};
 pub use data_vault::{
     ColdResetEntry4, ColdResetEntry48, DataVault, WarmResetEntry4, WarmResetEntry48,
 };
