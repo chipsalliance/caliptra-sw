@@ -18,7 +18,7 @@
 `include "config_defines.svh"
 `include "caliptra_macros.svh"
 
-module caliptra_verilated ( 
+module caliptra_verilated (
     input bit core_clk,
 
     input bit cptra_pwrgood,
@@ -41,6 +41,10 @@ module caliptra_verilated (
 
     input bit [3:0] security_state,
 
+    // Physical Source for Internal TRNG
+    input  bit [3:0]       itrng_data,
+    input  bit             itrng_valid,
+
     output bit ready_for_fuses,
     output bit ready_for_fw_push,
 
@@ -50,8 +54,11 @@ module caliptra_verilated (
 
 
     output bit generic_load_en,
-    output bit [31:0] generic_load_data
-    ); 
+    output bit [31:0] generic_load_data,
+
+    output bit etrng_req
+    );
+
 
     import caliptra_top_tb_pkg::*;
     import soc_ifc_pkg::*;
@@ -101,7 +108,7 @@ caliptra_top caliptra_top_dut (
     .jtag_tms(1'b0),
     .jtag_trst_n(1'b0),
     .jtag_tdo(),
-    
+
     .PADDR(paddr),
     .PPROT(),
     .PAUSER(pauser),
@@ -128,7 +135,7 @@ caliptra_top caliptra_top_dut (
     .mbox_sram_addr(mbox_sram_addr),
     .mbox_sram_wdata(mbox_sram_wdata),
     .mbox_sram_rdata(mbox_sram_rdata),
-        
+
     .imem_cs(imem_cs),
     .imem_addr(imem_addr),
     .imem_rdata(imem_rdata),
@@ -145,9 +152,9 @@ caliptra_top caliptra_top_dut (
     //FIXME: export these
     .cptra_error_fatal(),
     .cptra_error_non_fatal(),
-    .etrng_req(),
-    .itrng_data(),
-    .itrng_valid(),
+    .etrng_req(etrng_req),
+    .itrng_data(itrng_data),
+    .itrng_valid(itrng_valid),
 
     .security_state(security_state)
 );
@@ -160,7 +167,7 @@ caliptra_veer_sram_export veer_sram_export_inst (
 );
 
 //SRAM for mbox (preload raw data here)
-caliptra_sram 
+caliptra_sram
 #(
     .DATA_WIDTH(MBOX_DATA_W),
     .DEPTH     (MBOX_DEPTH )
@@ -177,7 +184,7 @@ dummy_mbox_preloader
 );
 // Actual Mailbox RAM -- preloaded with data from
 // dummy_mbox_preloader with ECC bits appended
-caliptra_sram 
+caliptra_sram
 #(
     .DATA_WIDTH(MBOX_DATA_AND_ECC_W),
     .DEPTH     (MBOX_DEPTH         )
