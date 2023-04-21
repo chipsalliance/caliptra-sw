@@ -154,6 +154,7 @@ pub trait HwModel {
 
         hw.init_fuses(&run_params.fuses);
 
+        writeln!(hw.output().logger(), "writing to cptra_bootfsm_go")?;
         hw.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
         hw.step();
@@ -168,11 +169,7 @@ pub trait HwModel {
                     return Err(ModelError::ReadyForFirmwareTimeout { cycles }.into());
                 }
             }
-            writeln!(
-                hw.output().logger(),
-                "ready_for_fw high after {cycles} cycles"
-            )
-            .unwrap();
+            writeln!(hw.output().logger(), "ready_for_fw is high")?;
             hw.upload_firmware(fw_image)?;
         }
 

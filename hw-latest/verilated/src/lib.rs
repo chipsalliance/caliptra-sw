@@ -10,31 +10,45 @@ pub use bindings::caliptra_verilated_init_args as InitArgs;
 pub use bindings::caliptra_verilated_sig_in as SigIn;
 pub use bindings::caliptra_verilated_sig_out as SigOut;
 
+pub type GenericLoadCallbackFn = dyn Fn(&CaliptraVerilated, u8);
+
 pub struct CaliptraVerilated {
     v: *mut bindings::caliptra_verilated,
     pub input: SigIn,
     pub output: SigOut,
-    generic_load_cb: Box<dyn FnMut(u8)>,
+    generic_load_cb: Box<GenericLoadCallbackFn>,
+    total_cycles: u64,
 }
 
 impl CaliptraVerilated {
     /// Constructs a new model.
     pub fn new(args: InitArgs) -> Self {
-        Self::with_generic_load_cb(args, Box::new(|_| {}))
+        Self::with_generic_load_cb(args, Box::new(|_, _| {}))
     }
 
     /// Creates a model that calls `generic_load_cb` whenever the
     /// microcontroller CPU does a load to the generic wires.
-    pub fn with_generic_load_cb(mut args: InitArgs, generic_load_cb: Box<dyn FnMut(u8)>) -> Self {
+    #[allow(clippy::type_complexity)]
+    pub fn with_generic_load_cb(
+        mut args: InitArgs,
+        generic_load_cb: Box<GenericLoadCallbackFn>,
+    ) -> Self {
         unsafe {
             Self {
                 v: bindings::caliptra_verilated_new(&mut args),
                 input: Default::default(),
                 output: Default::default(),
                 generic_load_cb,
+                total_cycles: 0,
             }
         }
     }
+
+    /// Returns the total number of cycles since simulation start
+    pub fn total_cycles(&self) -> u64 {
+        self.total_cycles
+    }
+
     /// Starts tracing to VCD file `path`, with SystemVerilog module depth
     /// `depth`. If tracing was previously started to another file, that file
     /// will be closed and all new traces will be written to this file.
@@ -58,13 +72,14 @@ impl CaliptraVerilated {
     pub fn eval(&mut self) {
         unsafe { bindings::caliptra_verilated_eval(self.v, &self.input, &mut self.output) }
         if self.output.generic_load_en && self.input.core_clk {
-            (self.generic_load_cb)(self.output.generic_load_data as u8);
+            (self.generic_load_cb)(self, self.output.generic_load_data as u8);
         }
     }
 
     /// Toggles core_clk until there have been `n_cycles` rising edges.
     pub fn next_cycle_high(&mut self, n_cycles: u32) {
         for _ in 0..n_cycles {
+            self.total_cycles += 1;
             loop {
                 self.input.core_clk = !self.input.core_clk;
                 self.eval();

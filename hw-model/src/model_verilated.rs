@@ -3,6 +3,7 @@
 use caliptra_emu_bus::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_verilated::CaliptraVerilated;
+use std::io::Write;
 
 use crate::Output;
 use std::env;
@@ -64,7 +65,9 @@ impl crate::HwModel for ModelVerilated {
         let output = Output::new(params.log_writer);
 
         let output_sink = output.sink().clone();
-        let generic_load_cb = Box::new(move |ch| {
+
+        let generic_load_cb = Box::new(move |v: &CaliptraVerilated, ch: u8| {
+            output_sink.set_now(v.total_cycles());
             output_sink.push_uart_char(ch);
         });
         let mut v = CaliptraVerilated::with_generic_load_cb(
@@ -93,6 +96,7 @@ impl crate::HwModel for ModelVerilated {
         while !m.v.output.ready_for_fuses {
             m.v.next_cycle_high(1);
         }
+        writeln!(m.output().logger(), "ready_for_fuses is high")?;
         Ok(m)
     }
 
@@ -105,6 +109,7 @@ impl crate::HwModel for ModelVerilated {
     }
 
     fn output(&mut self) -> &mut crate::Output {
+        self.output.sink().set_now(self.v.total_cycles());
         &mut self.output
     }
 
