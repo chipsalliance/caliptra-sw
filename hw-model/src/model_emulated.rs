@@ -167,6 +167,7 @@ impl crate::HwModel for ModelEmulated {
         Self: Sized,
     {
         let clock = Clock::new();
+        let timer = clock.timer();
 
         let ready_for_fw = Rc::new(Cell::new(false));
         let ready_for_fw_clone = ready_for_fw.clone();
@@ -181,6 +182,7 @@ impl crate::HwModel for ModelEmulated {
         let bus_args = CaliptraRootBusArgs {
             rom: params.rom.into(),
             tb_services_cb: TbServicesCb::new(move |ch| {
+                output_sink.set_now(timer.now());
                 output_sink.push_uart_char(ch);
             }),
             ready_for_fw_cb: ReadyForFwCb::new(move |_| {
@@ -224,6 +226,9 @@ impl crate::HwModel for ModelEmulated {
     }
 
     fn output(&mut self) -> &mut Output {
+        // In case the caller wants to log something, make sure the log has the
+        // correct time.
+        self.output.sink().set_now(self.cpu.clock.now());
         &mut self.output
     }
 
