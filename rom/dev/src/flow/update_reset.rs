@@ -154,7 +154,7 @@ impl UpdateResetFlow {
             core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize / 4)
         };
 
-        txn.copy_request(0, runtime_dest)?;
+        txn.copy_request(runtime_dest)?;
 
         //Call the complete here to reset the execute bit
         txn.complete(true)?;
@@ -177,7 +177,7 @@ impl UpdateResetFlow {
             core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
         };
 
-        txn.copy_request(0, slice)?;
+        txn.copy_request(slice)?;
 
         ImageManifest::read_from(slice.as_bytes()).ok_or(err_u32!(ManifestReadFailure))
     }

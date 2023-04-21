@@ -291,11 +291,11 @@ impl MailboxRecvTxn {
     ///
     /// Status of Operation
     ///   
-    pub fn copy_request(&self, offset: usize, data: &mut [u32]) -> CaliptraResult<()> {
+    pub fn copy_request(&self, data: &mut [u32]) -> CaliptraResult<()> {
         if self.state != MailboxOpState::Execute {
             raise_err!(InvalidStateErr)
         }
-        self.dequeue(&mut data[offset..])
+        self.dequeue(data)
     }
 
     /// Pulls at most `data.len()` words from the mailbox FIFO.
@@ -310,7 +310,7 @@ impl MailboxRecvTxn {
     /// Status of Operation
     ///   
     pub fn recv_request(&mut self, data: &mut [u32]) -> CaliptraResult<()> {
-        self.copy_request(0, data)?;
+        self.copy_request(data)?;
         self.complete(true)?;
         Ok(())
     }
