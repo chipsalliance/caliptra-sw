@@ -92,3 +92,34 @@ fn test_lms_32() {
 fn test_negative_lms() {
     run_driver_test("test_negative_lms");
 }
+
+#[test]
+#[cfg(feature = "verilator")]
+fn test_csrng() {
+    // https://github.com/chipsalliance/caliptra-rtl/blob/fa91d66f30223899403f4e65a6f697a6f9100fd1/src/csrng/tb/csrng_tb.sv#L461
+    const TRNG_ENTROPY: &str = "33F63B65F57AD68765693560E743CC5010518E4BF4ECBEBA71DC56AAA08B394311731D9DF763FC5D27E4ED3E4B7DE947";
+
+    let rom = caliptra_builder::build_firmware_rom(&FwId {
+        crate_name: "caliptra-drivers-test-bin",
+        bin_name: "csrng",
+        features: &["emu"],
+    })
+    .unwrap();
+
+    let trng_nibbles = TRNG_ENTROPY
+        .chars()
+        .rev()
+        .map(|b| b.to_digit(16).expect("bad nibble digit") as u8);
+
+    let mut model = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            trng_nibbles: Box::new(trng_nibbles),
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+    .unwrap();
+
+    model.step_until_exit_success().unwrap();
+}

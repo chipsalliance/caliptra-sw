@@ -50,6 +50,9 @@ pub enum CaliptraComponent {
 
     /// LMS
     Lms = 12,
+
+    /// CSRNG
+    Csrng = 13,
 }
 
 #[macro_export]
