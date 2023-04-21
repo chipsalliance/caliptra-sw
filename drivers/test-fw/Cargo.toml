@@ -55,11 +55,6 @@ path = "src/bin/ecc384_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
-name = "mailbox"
-path = "src/bin/mailbox_tests.rs"
-required-features = ["riscv"]
-
-[[bin]]
 name = "keyvault"
 path = "src/bin/keyvault_tests.rs"
 required-features = ["riscv"]
