@@ -331,10 +331,6 @@ impl MailboxRecvTxn {
         let mbox = mbox::RegisterBlock::mbox_csr();
         mbox.status().write(|w| w.status(|_| status));
 
-        // Release the lock
-        let mbox = mbox::RegisterBlock::mbox_csr();
-        mbox.execute().write(|w| w.execute(false));
-
         self.state = MailboxOpState::Idle;
         Ok(())
     }
