@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use std::str::FromStr;
 use std::{
     error::Error,
     fmt::Display,
@@ -7,6 +8,8 @@ use std::{
 };
 
 use caliptra_emu_bus::Bus;
+
+use rand::{rngs::StdRng, RngCore, SeedableRng};
 
 pub mod mmio;
 mod model_emulated;
@@ -59,6 +62,16 @@ pub fn new(params: BootParams) -> Result<DefaultHwModel, Box<dyn Error>> {
     DefaultHwModel::new(params)
 }
 
+struct RandomNibbles<R: RngCore>(pub R);
+
+impl<R: RngCore> Iterator for RandomNibbles<R> {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        Some((self.0.next_u32() & 0xf) as u8)
+    }
+}
+
 pub struct InitParams<'a> {
     // The contents of the boot ROM
     pub rom: &'a [u8],
@@ -72,9 +85,18 @@ pub struct InitParams<'a> {
     pub log_writer: Box<dyn std::io::Write>,
 
     pub security_state: SecurityState,
+
+    pub trng_nibbles: Box<dyn Iterator<Item = u8>>,
 }
+
 impl<'a> Default for InitParams<'a> {
     fn default() -> Self {
+        let rng: Box<dyn Iterator<Item = u8>> =
+            if let Ok(Ok(val)) = std::env::var("CPTRA_TRNG_SEED").map(|s| u64::from_str(&s)) {
+                Box::new(RandomNibbles(StdRng::seed_from_u64(val)))
+            } else {
+                Box::new(RandomNibbles(rand::thread_rng()))
+            };
         Self {
             rom: Default::default(),
             dccm: Default::default(),
@@ -82,6 +104,7 @@ impl<'a> Default for InitParams<'a> {
             log_writer: Box::new(stdout()),
             security_state: *SecurityState::default()
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
+            trng_nibbles: rng,
         }
     }
 }
