@@ -91,9 +91,13 @@ fn gen_fmc_alias_cert(out_dir: &str) {
 
 fn gen_rt_alias_cert(out_dir: &str) {
     let mut usage = KeyUsage::default();
+    // Add KeyCertSign to allow signing of other certs
     usage.set_key_cert_sign(true);
+    // Add DigitalSignature to allow signing of firmware
+    usage.set_digital_signature(true);
     let bldr = cert::CertTemplateBuilder::<EcdsaSha384Algo>::new()
-        .add_basic_constraints_ext(true, 0)
+        // Basic Constraints : CA = true, PathLen = 1
+        .add_basic_constraints_ext(true, 1)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 8])
         .add_dice_tcb_info_ext(
