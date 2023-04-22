@@ -169,10 +169,10 @@ pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
 }
 
 pub struct ImageOptions {
-    fmc_min_svn: u32,
-    fmc_svn: u32,
-    app_min_svn: u32,
-    app_svn: u32,
+    pub fmc_min_svn: u32,
+    pub fmc_svn: u32,
+    pub app_min_svn: u32,
+    pub app_svn: u32,
     pub vendor_config: ImageGeneratorVendorConfig,
     pub owner_config: Option<ImageGeneratorOwnerConfig>,
 }
@@ -200,14 +200,14 @@ pub fn build_and_sign_image(
     let image = gen.generate(&ImageGeneratorConfig {
         fmc: ElfExecutable::new(
             &fmc_elf,
-            opts.fmc_min_svn,
             opts.fmc_svn,
+            opts.fmc_min_svn,
             image_revision_from_git_repo()?,
         )?,
         runtime: ElfExecutable::new(
             &app_elf,
-            opts.app_min_svn,
             opts.app_svn,
+            opts.app_min_svn,
             image_revision_from_git_repo()?,
         )?,
         vendor_config: opts.vendor_config,

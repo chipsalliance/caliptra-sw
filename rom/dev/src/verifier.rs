@@ -15,6 +15,7 @@ Abstract:
 use caliptra_drivers::*;
 use caliptra_image_types::*;
 use caliptra_image_verify::ImageVerificationEnv;
+use core::ops::Range;
 
 use crate::rom_env::RomEnv;
 
@@ -116,5 +117,19 @@ impl<'a> ImageVerificationEnv for RomImageVerificationEnv<'a> {
     // Get the fmc digest from the data vault on cold boot
     fn get_fmc_digest_dv(&self) -> ImageDigest {
         self.env.data_vault().map(|dv| dv.fmc_tci()).into()
+    }
+
+    // Get Fuse FMC Key Manifest SVN
+    fn fmc_svn(&self) -> u32 {
+        self.env.fuse_bank().map(|f| f.fmc_svn())
+    }
+
+    // Get Runtime fuse SVN
+    fn runtime_svn(&self) -> u32 {
+        self.env.fuse_bank().map(|f| f.runtime_svn())
+    }
+
+    fn iccm_range(&self) -> Range<u32> {
+        self.env.iccm_range()
     }
 }
