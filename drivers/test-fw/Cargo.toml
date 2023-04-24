@@ -60,6 +60,12 @@ path = "src/bin/keyvault_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "mailbox"
+path = "src/bin/mailbox_tests.rs"
+required-features = ["riscv"]
+
+
+[[bin]]
 name = "pcrbank"
 path = "src/bin/pcrbank_tests.rs"
 required-features = ["riscv"]
