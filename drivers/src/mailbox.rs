@@ -144,6 +144,27 @@ impl Default for MailboxRecvTxn<Execute> {
         MailboxRecvTxn { state: Execute }
     }
 }
+/// Drop implementation for MailboxRecvTxn
+impl<S> Drop for MailboxSendTxn<S> {
+    fn drop(&mut self) {
+        let mbox = mbox::RegisterBlock::mbox_csr();
+        match mbox.status().read().mbox_fsm_ps() {
+            MboxFsmE::MboxRdyForCmd => {
+                let data_to_send = &[0u8; 0];
+                let txn = MailboxSendTxn::default()
+                    .write_cmd(0)
+                    .try_write_dlen((data_to_send.len()) as u32)
+                    .unwrap_or_else(|_| loop {});
+
+                let mut txn = txn.try_write_data(data_to_send).unwrap_or_else(|_| loop {});
+
+                let mut txn = txn.execute();
+                txn.complete();
+            }
+            _ => {}
+        }
+    }
+}
 
 /// Drop implementation for MailboxRecvTxn
 impl<S> Drop for MailboxRecvTxn<S> {
