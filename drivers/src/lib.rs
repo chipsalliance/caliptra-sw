@@ -57,7 +57,7 @@ pub use fuse_bank::{FuseBank, IdevidCertAttr, VendorPubKeyRevocation, X509KeyIdA
 pub use hmac384::{Hmac384, Hmac384Data, Hmac384Key, Hmac384Op, Hmac384Tag};
 pub use key_vault::{KeyId, KeyUsage, KeyVault};
 pub use kv_access::{KeyReadArgs, KeyWriteArgs};
-pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
+pub use mailbox::{Execute, Idle, Mailbox, MailboxRecvTxn, MailboxSendTxn};
 pub use pcr_bank::{PcrBank, PcrId};
 pub use reset::{ResetReason, ResetService};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
