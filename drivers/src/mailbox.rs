@@ -15,12 +15,8 @@ caliptra_err_def! {
     Mailbox,
     MailboxErr
     {
-        // Invalid state
-        InvalidStateErr = 0x1,
         // Exceeds mailbox capacity
         InvalidDlenErr = 0x2,
-        // No data avaiable.
-        NoDataAvailErr = 0x03,
         // Enqueue Error
         EnqueueErr = 0x04,
         // Dequeue Error
@@ -74,6 +70,21 @@ impl Mailbox {
         mbox.dlen().read()
     }
 
+    pub fn is_request_avaiable(&self) -> bool {
+        let mbox = mbox::RegisterBlock::mbox_csr();
+        match mbox.status().read().mbox_fsm_ps() {
+            MboxFsmE::MboxExecuteUc => true,
+            _ => false,
+        }
+    }
+
+    pub fn drop_request(&self) -> CaliptraResult<()> {
+        if let Some(rcv_txn) = self.try_start_recv_txn() {
+            rcv_txn.complete(false);
+        }
+        Ok(())
+    }
+
     /// Attempt to acquire the lock to start sending data.
     /// # Returns
     /// * `MailboxSendTxn` - Object representing a send operation
@@ -109,7 +120,8 @@ pub struct MailboxRecvTxn<S> {
 }
 
 impl MailboxRecvTxn<Execute> {
-    pub fn try_read_data(&self, buf: &mut [u32]) -> MailboxRecvTxn<Execute> {
+    /// Read data from the mailbox.
+    pub fn read_data(&self, buf: &mut [u32]) {
         let mbox = mbox::RegisterBlock::mbox_csr();
         let dlen_bytes = mbox.dlen().read() as usize;
         let dlen_words = (dlen_bytes + 3) / 4;
@@ -117,7 +129,6 @@ impl MailboxRecvTxn<Execute> {
         for dest_word in buf[0..words_to_read].iter_mut() {
             *dest_word = mbox.dataout().read();
         }
-        MailboxRecvTxn { state: Execute }
     }
 
     /// Transition from Execute to Idle (releases the mailbox lock).
@@ -142,28 +153,28 @@ impl Default for MailboxRecvTxn<Execute> {
 }
 
 fn goto_idle() {
-    let data_to_send = &[0u8; 0];
-    let txn = MailboxSendTxn::default()
-        .write_cmd(0)
-        .try_write_dlen((data_to_send.len()) as u32)
-        .unwrap_or_else(|_| loop {});
+    let mbox = mbox::RegisterBlock::mbox_csr();
+    match mbox.status().read().mbox_fsm_ps() {
+        MboxFsmE::MboxRdyForCmd => {
+            let data_to_send = &[0u8; 0];
+            let txn = MailboxSendTxn::default()
+                .write_cmd(0)
+                .try_write_dlen((data_to_send.len()) as u32)
+                .unwrap_or_else(|_| loop {});
 
-    let mut txn = txn.try_write_data(data_to_send).unwrap_or_else(|_| loop {});
+            let mut txn = txn.try_write_data(data_to_send).unwrap_or_else(|_| loop {});
 
-    let mut txn = txn.execute();
-    txn.complete();
+            let mut txn = txn.execute();
+            txn.complete();
+        }
+        _ => {}
+    }
 }
 
 /// Drop implementation for MailboxRecvTxn
 impl<S> Drop for MailboxSendTxn<S> {
     fn drop(&mut self) {
-        let mbox = mbox::RegisterBlock::mbox_csr();
-        match mbox.status().read().mbox_fsm_ps() {
-            MboxFsmE::MboxRdyForCmd => {
-                goto_idle();
-            }
-            _ => {}
-        }
+        goto_idle();
     }
 }
 

@@ -402,6 +402,7 @@ dependencies = [
  "caliptra-image-types",
  "caliptra-image-verify",
  "caliptra-kat",
+ "caliptra-registers",
  "caliptra-x509",
  "caliptra_common",
  "cfg-if",
