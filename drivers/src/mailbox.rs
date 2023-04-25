@@ -278,6 +278,6 @@ impl<S> Drop for MailboxRecvTxn<S> {
     fn drop(&mut self) {
         let mbox = mbox::RegisterBlock::mbox_csr();
         mbox.status()
-            .write(|w| w.status(|_| MboxStatusE::CmdFailure));
+            .write(|w| w.status(|_| MboxStatusE::CmdComplete));
     }
 }
