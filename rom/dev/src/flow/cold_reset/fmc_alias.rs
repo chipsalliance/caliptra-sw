@@ -22,8 +22,8 @@ use crate::verifier::RomImageVerificationEnv;
 use crate::{cprint, cprint_slice, cprintln, pcr};
 use crate::{rom_env::RomEnv, rom_err_def};
 use caliptra_drivers::{
-    Array4x12, CaliptraResult, ColdResetEntry4, ColdResetEntry48, Hmac384Data, Hmac384Key, KeyId,
-    KeyReadArgs, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
+    Array4x12, CaliptraResult, ColdResetEntry4, ColdResetEntry48, Execute, Hmac384Data, Hmac384Key,
+    KeyId, KeyReadArgs, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
@@ -41,6 +41,7 @@ rom_err_def! {
         CertVerify = 0x1,
         ManifestReadFailure = 0x2,
         InvalidImageSize = 0x3,
+        MailboxAccessFailure = 0x4,
     }
 }
 
@@ -59,7 +60,7 @@ impl DiceLayer for FmcAliasLayer {
         );
 
         // Download the image
-        let mut txn = Self::download_image(env)?;
+        let txn = Self::download_image(env)?;
 
         // Load the manifest
         let manifest = Self::load_manifest(&txn)?;
@@ -77,7 +78,7 @@ impl DiceLayer for FmcAliasLayer {
         Self::load_image(env, &manifest, &txn)?;
 
         // Complete the mailbox transaction indicating success.
-        txn.complete(true)?;
+        drop(txn);
 
         // At this point PCR0 & PCR1 must have the same value. We use the value
         // of PCR1 as the UDS for deriving the CDI
@@ -127,32 +128,41 @@ impl FmcAliasLayer {
     /// report_error is called. This prevents a race condition where the SoC
     /// reads FW_ERROR_NON_FATAL immediately after the mailbox transaction
     /// fails, but before caliptra has set the FW_ERROR_NON_FATAL register.
-    fn download_image(env: &RomEnv) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn>> {
+    fn download_image(env: &RomEnv) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn<Execute>>> {
         env.flow_status().map(|f| f.set_ready_for_firmware());
 
         cprint!("[afmc] Waiting for Image ");
         loop {
             cprint!(".");
-            if let Some(mut txn) = env.mbox().map(|m| m.try_start_recv_txn()) {
-                if txn.cmd() != Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID {
-                    cprintln!("Invalid command 0x{:08x} received", txn.cmd());
-                    txn.complete(false)?;
+            if env.mbox().map(|m| m.is_request_avaiable()) {
+                if env.mbox().map(|m| m.cmd()) != Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID {
+                    env.mbox().map(|m| m.drop_request());
                     continue;
+                } else {
+                    break;
                 }
-                // This is a download-firmware command; don't drop this, as the
-                // transaction will be completed by either report_error() (on
-                // failure) or by a manual complete call upon success.
-                let txn = ManuallyDrop::new(txn);
-                if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
-                    cprintln!("Invalid Image of size {} bytes" txn.dlen());
-                    raise_err!(InvalidImageSize);
-                }
-
-                cprintln!("");
-                cprintln!("[afmc] Received Image of size {} bytes" txn.dlen());
-                break Ok(txn);
             }
         }
+        if env.mbox().map(|m| m.dlen()) == 0
+            || env.mbox().map(|m| m.dlen()) > IMAGE_BYTE_SIZE as u32
+        {
+            cprintln!(
+                "Invalid Image of size {} bytes",
+                env.mbox().map(|m| m.dlen())
+            );
+
+            env.mbox().map(|m| m.drop_request());
+            raise_err!(InvalidImageSize);
+        }
+
+        if let Some(txn) = env.mbox().map(|m| m.try_start_recv_txn()) {
+            // This is a download-firmware command; don't drop this, as the
+            // transaction will be completed by either report_error() (on
+            // failure) or by a manual complete call upon success.
+            let txn = ManuallyDrop::new(txn);
+            return Ok(txn);
+        }
+        Err(err_u32!(MailboxAccessFailure))
     }
 
     /// Load the manifest
@@ -160,13 +170,14 @@ impl FmcAliasLayer {
     /// # Returns
     ///
     /// * `Manifest` - Caliptra Image Bundle Manifest
-    fn load_manifest(txn: &MailboxRecvTxn) -> CaliptraResult<ImageManifest> {
+    fn load_manifest(txn: &MailboxRecvTxn<Execute>) -> CaliptraResult<ImageManifest> {
         let slice = unsafe {
             let ptr = &mut MAN1_ORG as *mut u32;
             core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
         };
 
-        txn.copy_request(slice)?;
+        // Copy the image to the slice
+        txn.read_data(slice);
 
         ImageManifest::read_from(slice.as_bytes()).ok_or(err_u32!(ManifestReadFailure))
     }
@@ -202,7 +213,7 @@ impl FmcAliasLayer {
     fn load_image(
         _env: &RomEnv,
         manifest: &ImageManifest,
-        txn: &MailboxRecvTxn,
+        txn: &MailboxRecvTxn<Execute>,
     ) -> CaliptraResult<()> {
         cprintln!(
             "[afmc] Loading FMC at address 0x{:08x} len {}",
@@ -215,7 +226,7 @@ impl FmcAliasLayer {
             core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize / 4)
         };
 
-        txn.copy_request(fmc_dest)?;
+        txn.read_data(fmc_dest);
 
         cprintln!(
             "[afmc] Loading Runtime at address 0x{:08x} len {}",
@@ -228,7 +239,7 @@ impl FmcAliasLayer {
             core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize / 4)
         };
 
-        txn.copy_request(runtime_dest)?;
+        txn.read_data(runtime_dest);
 
         Ok(())
     }

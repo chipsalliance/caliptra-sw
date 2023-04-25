@@ -14,7 +14,7 @@ Abstract:
 use crate::{cprintln, fht, rom_env::RomEnv, rom_err_def, verifier::RomImageVerificationEnv};
 
 use caliptra_common::FirmwareHandoffTable;
-use caliptra_drivers::{CaliptraResult, MailboxRecvTxn, ResetReason};
+use caliptra_drivers::{CaliptraResult, Execute, MailboxRecvTxn, ResetReason};
 use caliptra_image_types::ImageManifest;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
 use zerocopy::{AsBytes, FromBytes};
@@ -48,15 +48,22 @@ impl UpdateResetFlow {
     pub fn run(env: &RomEnv) -> CaliptraResult<FirmwareHandoffTable> {
         cprintln!("[update-reset] ++");
 
-        let Some(recv_txn) = env.mbox().map(|m| m.try_start_recv_txn()) else {
-            cprintln!("Failed To Get Mailbox Transaction");
+        if !env.mbox().map(|m| m.is_request_avaiable()) {
+            cprintln!("Mailbox request not found");
             raise_err!(MailboxAccessFailure)
         };
 
-        if recv_txn.cmd() != Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID {
-            cprintln!("Invalid command 0x{:08x} received", recv_txn.cmd());
+        let cmd = env.mbox().map(|m| m.cmd());
+
+        if cmd != Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID {
+            cprintln!("Invalid command 0x{:08x} received", cmd);
             raise_err!(InvalidFirmwareCommand)
         }
+
+        let Some(recv_txn) = env.mbox().map(|m| m.try_start_recv_txn()) else {
+            cprintln!("Mailbox receive transaction failed");
+            raise_err!(MailboxAccessFailure)
+        };
 
         let manifest = Self::load_manifest(&recv_txn)?;
 
@@ -141,7 +148,7 @@ impl UpdateResetFlow {
     fn load_image(
         _env: &RomEnv,
         manifest: &ImageManifest,
-        mut txn: MailboxRecvTxn,
+        mut txn: MailboxRecvTxn<Execute>,
     ) -> CaliptraResult<()> {
         cprintln!(
             "[update-reset] Loading Runtime at address 0x{:08x} len {}",
@@ -154,10 +161,8 @@ impl UpdateResetFlow {
             core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize / 4)
         };
 
-        txn.copy_request(runtime_dest)?;
-
-        //Call the complete here to reset the execute bit
-        txn.complete(true)?;
+        // Read data and complete the request.
+        txn.read_data(runtime_dest);
 
         // Drop the tranaction and release the Mailbox lock after the image
         // has been successfully verified and loaded in memory
@@ -171,13 +176,13 @@ impl UpdateResetFlow {
     /// # Returns
     ///
     /// * `Manifest` - Caliptra Image Bundle Manifest
-    fn load_manifest(txn: &MailboxRecvTxn) -> CaliptraResult<ImageManifest> {
+    fn load_manifest(txn: &MailboxRecvTxn<Execute>) -> CaliptraResult<ImageManifest> {
         let slice = unsafe {
             let ptr = &mut MAN2_ORG as *mut u32;
             core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
         };
 
-        txn.copy_request(slice)?;
+        txn.read_data(slice);
 
         ImageManifest::read_from(slice.as_bytes()).ok_or(err_u32!(ManifestReadFailure))
     }

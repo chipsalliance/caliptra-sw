@@ -273,7 +273,13 @@ impl InitDevIdLayer {
             // Create Mailbox send transaction to send the CSR
             if let Some(mut txn) = env.mbox().map(|m| m.try_start_send_txn()) {
                 // Copy the CSR to mailbox
-                txn.send_request(0, csr.get().ok_or(err_u32!(CsrInvalid))?)?;
+                let data_to_send = csr.get().ok_or(err_u32!(CsrInvalid))?;
+                // Write the command , data buffer length and try to write the data buffer
+                let mut txn = txn
+                    .write_cmd(0)
+                    .try_write_dlen((data_to_send.len()) as u32)?
+                    .try_write_data(data_to_send)?
+                    .execute();
 
                 // Signal the JTAG/SOC that Initial Device ID CSR is ready
                 env.flow_status().map(|f| f.set_idevid_csr_ready());
@@ -282,7 +288,7 @@ impl InitDevIdLayer {
                 while env.mfg_state().map(|m| m.gen_idev_id_csr()) {}
 
                 // Release access to the mailbox
-                txn.complete()?;
+                txn.complete();
 
                 cprintln!("[idev] CSR uploaded");
 
