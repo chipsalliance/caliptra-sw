@@ -107,11 +107,11 @@ _start:
     // Cold Boot
     la a0, ICCM_ORG         // dest
     la a1, ICCM_SIZE        // len 
-    call _zero_mem32
+    call _zero_mem256
 
     la a0, DCCM_ORG         // dest
     la a1, DCCM_SIZE        // len 
-    call _zero_mem32
+    call _zero_mem256
 
 post_ecc_init:
 
@@ -132,16 +132,22 @@ post_ecc_init:
 
 .section .init.text, "ax"
 .align 2
-_zero_mem32:
+_zero_mem256:
     .cfi_startproc
-    li t0, 4
+    // Can't use "sw x0" below if we want c.sw
+    li a2, 0
+    add a1, a1, a0
 1:    
-    beqz a1, 1f
-    sw x0, 0(a0) 
-    addi a0, a0, 4
-    sub a1, a1, t0
-    j 1b
-1:
+    sw a2, 0(a0)
+    sw a2, 4(a0)
+    sw a2, 8(a0)
+    sw a2, 12(a0)
+    sw a2, 16(a0)
+    sw a2, 20(a0)
+    sw a2, 24(a0)
+    sw a2, 28(a0)
+    addi a0, a0, 32
+    bltu a0, a1, 1b
     ret
     .cfi_endproc
 
