@@ -85,17 +85,50 @@ impl<Algo: SigningAlgorithm> CertTemplateBuilder<Algo> {
         self
     }
 
-    pub fn add_dice_tcb_info_ext(mut self, svn: u64, fwids: &[FwidParam]) -> Self {
+    pub fn add_fmc_dice_tcb_info_ext(mut self, fwids: &[FwidParam]) -> Self {
+        let flags: u32 = 0xC0C1C2C3;
+        let svn: u8 = 0xC4;
+        let min_svn: u8 = 0xC5;
+
         self.exts
-            .push(x509::make_dice_tcb_info_ext(svn, fwids))
+            .push(x509::make_fmc_dice_tcb_info_ext(flags, svn, min_svn, fwids))
+            .unwrap();
+
+        self.params.push(CertTemplateParam {
+            tbs_param: TbsParam::new("tcb_info_flags", 0, std::mem::size_of_val(&flags)),
+            needle: flags.to_be_bytes().to_vec(),
+        });
+
+        self.params.push(CertTemplateParam {
+            tbs_param: TbsParam::new("tcb_info_svn", 0, std::mem::size_of_val(&svn)),
+            needle: svn.to_be_bytes().to_vec(),
+        });
+
+        self.params.push(CertTemplateParam {
+            tbs_param: TbsParam::new("tcb_info_min_svn", 0, std::mem::size_of_val(&min_svn)),
+            needle: min_svn.to_be_bytes().to_vec(),
+        });
+
+        for fwid in fwids.iter() {
+            self.params.push(CertTemplateParam {
+                tbs_param: TbsParam::new(fwid.name, 0, fwid.fwid.digest.len()),
+                needle: fwid.fwid.digest.to_vec(),
+            });
+        }
+
+        self
+    }
+
+    pub fn add_rt_dice_tcb_info_ext(mut self, fwids: &[FwidParam]) -> Self {
+        self.exts
+            .push(x509::make_rt_dice_tcb_info_ext(fwids))
             .unwrap();
 
         for fwid in fwids.iter() {
-            let param = CertTemplateParam {
+            self.params.push(CertTemplateParam {
                 tbs_param: TbsParam::new(fwid.name, 0, fwid.fwid.digest.len()),
                 needle: fwid.fwid.digest.to_vec(),
-            };
-            self.params.push(param);
+            });
         }
 
         self
@@ -236,6 +269,10 @@ impl<Algo: SigningAlgorithm> CertTemplateBuilder<Algo> {
 
         // Retrieve the To be signed portion from the Certificate
         let mut tbs = x509::get_tbs(der);
+
+        // Match long params first to ensure a subset is not sanitized by a short param.
+        self.params
+            .sort_by(|a, b| a.needle.len().cmp(&b.needle.len()).reverse());
 
         // Calculate the offset of parameters and sanitize the TBS section
         let params = self
