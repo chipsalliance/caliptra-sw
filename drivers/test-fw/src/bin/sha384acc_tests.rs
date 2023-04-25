@@ -22,6 +22,24 @@ use caliptra_test_harness::test_suite;
 const MAX_MAILBOX_CAPACITY_BYTES: usize = 128 << 10;
 const SHA384_HASH_SIZE: usize = 48;
 
+fn send_request(cmd: u32, data: &[u8]) {
+    if let Some(mut txn) = Mailbox::default().try_start_send_txn() {
+        // Write the command , data buffer length and try to write the data buffer
+        // to the mailbox using builder pattern.
+        let txn = txn
+            .write_cmd(cmd)
+            .try_write_dlen((data.len()) as u32)
+            .unwrap_or_else(|_| panic!("Failed to write command and data length to mailbox"));
+
+        // Try write data to the mailbox
+        let mut txn = txn
+            .try_write_data(data)
+            .unwrap_or_else(|_| panic!("Failed to write data to mailbox"));
+
+        // Execute the transaction
+        let mut txn = txn.execute();
+    }
+}
 fn test_digest0() {
     let data = "abcd".as_bytes();
 
@@ -34,7 +52,20 @@ fn test_digest0() {
 
     if let Some(mut txn) = Mailbox::default().try_start_send_txn() {
         const CMD: u32 = 0x1c;
-        assert!(txn.send_request(CMD, &data).is_ok());
+        // Write the command , data buffer length and try to write the data buffer
+        // to the mailbox using builder pattern.
+        let txn = txn
+            .write_cmd(CMD)
+            .try_write_dlen((data.len()) as u32)
+            .unwrap_or_else(|_| panic!("Failed to write command and data length to mailbox"));
+
+        // Try write data to the mailbox
+        let mut txn = txn
+            .try_write_data(data)
+            .unwrap_or_else(|_| panic!("Failed to write data to mailbox"));
+
+        // Execute the transaction
+        let mut txn = txn.execute();
 
         let mut digest = Array4x12::default();
         let sha_acc = Sha384Acc::default();
@@ -59,9 +90,21 @@ fn test_digest1() {
         0x74, 0x60, 0x39,
     ];
 
+    // Try to start a mailbox send transaction and send a request to the SHA-384 accelerator.
     if let Some(mut txn) = Mailbox::default().try_start_send_txn() {
         const CMD: u32 = 0x1c;
-        assert!(txn.send_request(CMD, &data).is_ok());
+        // Write the command , data buffer length and try to write the data buffer
+        // to the mailbox using builder pattern.
+        let txn = txn
+            .write_cmd(CMD)
+            .try_write_dlen(data.len() as u32)
+            .unwrap_or_else(|_| panic!("Failed to write command and data length to mailbox"));
+
+        let mut txn = txn
+            .try_write_data(data)
+            .unwrap_or_else(|_| panic!("Failed to write data to mailbox"));
+
+        txn.execute();
 
         let mut digest = Array4x12::default();
         let sha_acc = Sha384Acc::default();
@@ -89,10 +132,22 @@ fn test_digest2() {
     let mut digest = Array4x12::default();
     let sha_acc = Sha384Acc::default();
 
+    // Try to start a mailbox send transaction and send a request to the SHA-384 accelerator.
+    // The mailbox is not released until the transaction is dropped.
     if let Some(mut txn) = Mailbox::default().try_start_send_txn() {
         const CMD: u32 = 0x1c;
-        assert!(txn.send_request(CMD, &data).is_ok());
+        // Write the command , data buffer length and try to write the data buffer
+        // to the mailbox using builder pattern.
+        let txn = txn
+            .write_cmd(CMD)
+            .try_write_dlen(data.len() as u32)
+            .unwrap_or_else(|_| panic!("Failed to write command and data length to mailbox"));
 
+        let mut txn = txn
+            .try_write_data(data)
+            .unwrap_or_else(|_| panic!("Failed to write data to mailbox"));
+
+        txn.execute();
         if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
             let result = sha_acc_op.digest(data.len() as u32, 0, false, (&mut digest).into());
             assert!(result.is_ok());
@@ -119,7 +174,19 @@ fn test_digest_offset() {
 
     if let Some(mut txn) = Mailbox::default().try_start_send_txn() {
         const CMD: u32 = 0x1c;
-        assert!(txn.send_request(CMD, &data).is_ok());
+        // Write the command , data buffer length and try to write the data buffer
+        // to the mailbox using builder pattern.
+        let txn = txn
+            .write_cmd(CMD)
+            .try_write_dlen(data.len() as u32)
+            .unwrap_or_else(|_| panic!("Failed to write command and data length to mailbox"));
+
+        // Try to write the data buffer to the mailbox.
+        let mut txn = txn
+            .try_write_data(data)
+            .unwrap_or_else(|_| panic!("Failed to write data to mailbox"));
+
+        txn.execute();
 
         if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
             let result = sha_acc_op.digest(8, 4, false, (&mut digest).into());
