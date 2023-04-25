@@ -29,6 +29,14 @@ jobs:
         with:
           submodules: 'true'
 
+      - name: Set Rust ${{ env.RUST_TOOLCHAIN_VERSION }} as the default toolchain.
+        run: |
+          rustup default ${RUST_TOOLCHAIN_VERSION}
+          rustup component add rustfmt clippy
+          rustc --version
+          cargo fmt --version
+          cargo clippy --version
+
       - name: Restore Cargo index from cache
         uses: actions/cache/restore@v3
         id: cargo_index_restore
@@ -94,7 +102,6 @@ jobs:
 
       - name: Install risv32imc target
         run: |
-          rustup update
           rustup target add riscv32imc-unknown-none-elf
 
       - name: Update Cargo index

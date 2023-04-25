@@ -241,10 +241,6 @@ bitfield! {
 
     /// Flag indicating if the key can be used aas ECC Key Generation Seed
     pub ecc_key_gen_seed, set_ecc_key_gen_seed: 4;
-
-    /// Flag indicating if the key can be used aas ECC data part of signature
-    /// generation and verification process
-    pub ecc_data, set_ecc_data:5;
 }
 
 impl From<KeyUsage> for u32 {

@@ -20,6 +20,10 @@ use caliptra_drivers::{
     DataVault, DeobfuscationEngine, DeviceState, Ecc384, FlowStatus, FuseBank, Hmac384, KeyVault,
     Mailbox, MfgState, PcrBank, ResetService, Sha1, Sha256, Sha384, Sha384Acc,
 };
+use core::ops::Range;
+
+const ICCM_START: u32 = 0x40000000;
+const ICCM_SIZE: u32 = 128 << 10;
 
 /// Rom Context
 pub struct RomEnv {
@@ -174,5 +178,13 @@ impl RomEnv {
     /// Get PCR Bank
     pub fn pcr_bank(&self) -> &EnvCell<PcrBank> {
         &self.pcr_bank
+    }
+
+    /// Get ICCM Range
+    pub fn iccm_range(&self) -> Range<u32> {
+        Range {
+            start: ICCM_START,
+            end: ICCM_START + ICCM_SIZE,
+        }
     }
 }
