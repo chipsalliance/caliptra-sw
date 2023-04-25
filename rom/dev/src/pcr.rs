@@ -59,6 +59,5 @@ pub fn extend_pcr0(env: &RomEnv) -> CaliptraResult<()> {
     extend_u8(env.data_vault().map(|d| d.fmc_svn()) as u8)?;
 
     // TODO: Check PCR0 != 0
-
     Ok(())
 }
