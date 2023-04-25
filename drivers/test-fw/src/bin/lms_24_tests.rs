@@ -18,7 +18,7 @@ Abstract:
 use caliptra_drivers::{
     get_lms_parameters, hash_message, lookup_lmots_algorithm_type, lookup_lms_algorithm_type,
     verify_lms_signature, HashValue, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType,
-    LmsSignature, Sha192Digest,
+    LmsIdentifier, LmsSignature, Sha192Digest,
 };
 use caliptra_test_harness::test_suite;
 
@@ -394,6 +394,41 @@ fn test_lms_24_height_15() {
     let success =
         verify_lms_signature(15, &message, &lms_identifier, q, &lms_public_key, &lms_sig).unwrap();
     assert_eq!(success, true);
+
+    // some negative tests, but we can't fit all of them in here before we go over the ROM limit
+    let new_message = "this is a different message".as_bytes();
+    let should_fail = verify_lms_signature(
+        15,
+        &new_message,
+        &lms_identifier,
+        q,
+        &lms_public_key,
+        &lms_sig,
+    )
+    .unwrap();
+    assert_eq!(should_fail, false);
+
+    let new_lms: LmsIdentifier = [0u8; 16];
+    let should_fail =
+        verify_lms_signature(15, &message, &new_lms, q, &lms_public_key, &lms_sig).unwrap();
+    assert_eq!(should_fail, false);
+
+    let new_q = q + 1;
+    let should_fail = verify_lms_signature(
+        15,
+        &message,
+        &lms_identifier,
+        new_q,
+        &lms_public_key,
+        &lms_sig,
+    )
+    .unwrap();
+    assert_eq!(should_fail, false);
+
+    let new_public_key = HashValue::from([0u8; 24]);
+    let should_fail =
+        verify_lms_signature(15, &message, &lms_identifier, q, &new_public_key, &lms_sig).unwrap();
+    assert_eq!(should_fail, false);
 }
 
 fn test_lms_24_height_20() {
