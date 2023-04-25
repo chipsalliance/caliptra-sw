@@ -77,3 +77,18 @@ fn test_sha384acc() {
 fn test_status_reporter() {
     run_driver_test("status_reporter");
 }
+
+#[test]
+fn test_lms_24() {
+    run_driver_test("test_lms_24");
+}
+
+#[test]
+fn test_lms_32() {
+    run_driver_test("test_lms_32");
+}
+
+#[test]
+fn test_negative_lms() {
+    run_driver_test("test_negative_lms");
+}
