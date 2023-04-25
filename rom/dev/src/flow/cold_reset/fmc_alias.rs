@@ -13,8 +13,6 @@ Abstract:
 
 --*/
 
-use core::mem::ManuallyDrop;
-
 use super::crypto::{Crypto, Ecc384KeyPair};
 use super::dice::{DiceInput, DiceLayer, DiceOutput};
 use super::x509::X509;
@@ -25,14 +23,17 @@ use crate::rom_env::RomEnv;
 use crate::verifier::RomImageVerificationEnv;
 use crate::{cprint, cprintln, pcr};
 use caliptra_common::dice;
+use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::{
-    okref, Array4x12, CaliptraResult, ColdResetEntry4, ColdResetEntry48, Hmac384Data, Hmac384Key,
-    KeyId, KeyReadArgs, Lifecycle, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
+    okref, report_boot_status, Array4x12, CaliptraResult, ColdResetEntry4, ColdResetEntry48,
+    Hmac384Data, Hmac384Key, KeyId, KeyReadArgs, Lifecycle, MailboxRecvTxn, ResetReason,
+    WarmResetEntry4, WarmResetEntry48,
 };
 use caliptra_error::caliptra_err_def;
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
 use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams, NotAfter, NotBefore};
+use core::mem::ManuallyDrop;
 use zerocopy::{AsBytes, FromBytes};
 
 extern "C" {
@@ -79,12 +80,14 @@ impl DiceLayer for FmcAliasLayer {
 
         // Extend PCR0
         pcr::extend_pcr0(env)?;
+        report_boot_status(FmcAliasExtendPcrComplete.into());
 
         // Load the image
         Self::load_image(env, manifest, &txn)?;
 
         // Complete the mailbox transaction indicating success.
         txn.complete(true)?;
+        report_boot_status(FmcAliasFirmwareDownloadTxComplete.into());
 
         // At this point PCR0 & PCR1 must have the same value. We use the value
         // of PCR1 as the measurement for deriving the CDI
@@ -97,13 +100,17 @@ impl DiceLayer for FmcAliasLayer {
 
         // Derive DICE Key Pair from CDI
         let key_pair = Self::derive_key_pair(env, KEY_ID_CDI, KEY_ID_FMC_PRIV_KEY)?;
+        report_boot_status(FmcAliasKeyPairDerivationComplete.into());
 
         // Generate the Subject Serial Number and Subject Key Identifier.
         //
         // This information will be used by next DICE Layer while generating
         // certificates
         let subj_sn = X509::subj_sn(env, &key_pair.pub_key)?;
+        report_boot_status(FmcAliasSubjIdSnGenerationComplete.into());
+
         let subj_key_id = X509::subj_key_id(env, &key_pair.pub_key)?;
+        report_boot_status(FmcAliasSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
         let output = DiceOutput {
@@ -137,6 +144,7 @@ impl DiceLayer for FmcAliasLayer {
         // Generate Local Device ID Certificate
         Self::generate_cert_sig(env, input, &output, &nb.not_before, &nf.not_after)?;
 
+        report_boot_status(FmcAliasDerivationComplete.into());
         cprintln!("[afmc] --");
 
         Ok(output)
@@ -182,6 +190,7 @@ impl FmcAliasLayer {
 
                 cprintln!("");
                 cprintln!("[afmc] Received Image of size {} bytes" txn.dlen());
+                report_boot_status(FmcAliasDownloadImageComplete.into());
                 break Ok(txn);
             }
         }
@@ -200,7 +209,12 @@ impl FmcAliasLayer {
 
         txn.copy_request(slice)?;
 
-        ImageManifest::read_from(slice.as_bytes()).ok_or(err_u32!(ManifestReadFailure))
+        if let Some(result) = ImageManifest::read_from(slice.as_bytes()) {
+            report_boot_status(FmcAliasManifestLoadComplete.into());
+            Ok(result)
+        } else {
+            raise_err!(ManifestReadFailure)
+        }
     }
 
     /// Verify the image
@@ -221,7 +235,7 @@ impl FmcAliasLayer {
             "[afmc] Image verified using Vendor ECC Key Index {}",
             info.vendor_ecc_pub_key_idx
         );
-
+        report_boot_status(FmcAliasImageVerificationComplete.into());
         Ok(info)
     }
 
@@ -263,6 +277,7 @@ impl FmcAliasLayer {
 
         txn.copy_request(runtime_dest)?;
 
+        report_boot_status(FmcAliasLoadImageComplete.into());
         Ok(())
     }
 
@@ -323,6 +338,8 @@ impl FmcAliasLayer {
 
         env.data_vault()
             .map(|d| d.write_warm_reset_entry4(WarmResetEntry4::ManifestAddr, slice));
+
+        report_boot_status(FmcAliasPopulateDataVaultComplete.into());
     }
 
     /// Derive Composite Device Identity (CDI) from FMC measurements
@@ -338,6 +355,7 @@ impl FmcAliasLayer {
         let data: [u8; 48] = measurements.into();
         let data = Hmac384Data::Slice(&data);
         Crypto::hmac384_mac(env, key, data, cdi)?;
+        report_boot_status(FmcAliasDeriveCdiComplete.into());
         Ok(())
     }
 
@@ -439,6 +457,7 @@ impl FmcAliasLayer {
         //  Copy TBS to DCCM.
         copy_tbs(tbs.tbs(), TbsType::FmcaliasTbs)?;
 
+        report_boot_status(FmcAliasCertSigGenerationComplete.into());
         Ok(())
     }
 
