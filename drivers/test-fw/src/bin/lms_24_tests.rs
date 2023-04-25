@@ -99,8 +99,8 @@ fn test_lms_24_height_15() {
         158, 20, 249, 74, 242, 177, 66, 175, 101, 91, 176, 36, 80, 31, 240, 7,
     ];
     let q: u32 = 0;
-    let lmots_type = caliptra_drivers::LmotsAlgorithmType::LmotsSha256N24W4;
-    let lms_type = caliptra_drivers::LmsAlgorithmType::LmsSha256N24H15;
+    let lmots_type = LmotsAlgorithmType::LmotsSha256N24W4;
+    let lms_type = LmsAlgorithmType::LmsSha256N24H15;
     let lms_public_key = HashValue::from([
         3, 42, 162, 189, 155, 49, 233, 189, 51, 75, 70, 46, 39, 121, 32, 117, 189, 173, 221, 174,
         249, 237, 177, 36,
@@ -440,8 +440,8 @@ fn test_lms_24_height_20() {
         69, 136, 206, 137, 163, 10, 230, 185, 177, 120, 219, 80, 34, 70, 71, 93,
     ];
     let q: u32 = 0;
-    let lmots_type = caliptra_drivers::LmotsAlgorithmType::LmotsSha256N24W4;
-    let lms_type = caliptra_drivers::LmsAlgorithmType::LmsSha256N24H20;
+    let lmots_type = LmotsAlgorithmType::LmotsSha256N24W4;
+    let lms_type = LmsAlgorithmType::LmsSha256N24H20;
     let lms_public_key = HashValue::from([
         180, 158, 253, 95, 46, 160, 158, 176, 138, 132, 212, 106, 19, 251, 152, 71, 149, 125, 57,
         221, 202, 204, 143, 224,
