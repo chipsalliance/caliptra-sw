@@ -109,11 +109,7 @@ pub struct MailboxRecvTxn<S> {
 }
 
 impl MailboxRecvTxn<Execute> {
-    pub fn try_read_data(&self, buf: &mut [u32]) -> CaliptraResult<MailboxRecvTxn<Execute>> {
-        if Mailbox::default().dlen() == 0 {
-            raise_err!(NoDataAvailErr);
-        }
-
+    pub fn try_read_data(&self, buf: &mut [u32]) -> MailboxRecvTxn<Execute> {
         let mbox = mbox::RegisterBlock::mbox_csr();
         let dlen_bytes = mbox.dlen().read() as usize;
         let dlen_words = (dlen_bytes + 3) / 4;
@@ -121,7 +117,7 @@ impl MailboxRecvTxn<Execute> {
         for dest_word in buf[0..words_to_read].iter_mut() {
             *dest_word = mbox.dataout().read();
         }
-        Ok(MailboxRecvTxn { state: Execute })
+        MailboxRecvTxn { state: Execute }
     }
 
     /// Transition from Execute to Idle (releases the mailbox lock).
@@ -144,22 +140,27 @@ impl Default for MailboxRecvTxn<Execute> {
         MailboxRecvTxn { state: Execute }
     }
 }
+
+fn goto_idle() {
+    let data_to_send = &[0u8; 0];
+    let txn = MailboxSendTxn::default()
+        .write_cmd(0)
+        .try_write_dlen((data_to_send.len()) as u32)
+        .unwrap_or_else(|_| loop {});
+
+    let mut txn = txn.try_write_data(data_to_send).unwrap_or_else(|_| loop {});
+
+    let mut txn = txn.execute();
+    txn.complete();
+}
+
 /// Drop implementation for MailboxRecvTxn
 impl<S> Drop for MailboxSendTxn<S> {
     fn drop(&mut self) {
         let mbox = mbox::RegisterBlock::mbox_csr();
         match mbox.status().read().mbox_fsm_ps() {
             MboxFsmE::MboxRdyForCmd => {
-                let data_to_send = &[0u8; 0];
-                let txn = MailboxSendTxn::default()
-                    .write_cmd(0)
-                    .try_write_dlen((data_to_send.len()) as u32)
-                    .unwrap_or_else(|_| loop {});
-
-                let mut txn = txn.try_write_data(data_to_send).unwrap_or_else(|_| loop {});
-
-                let mut txn = txn.execute();
-                txn.complete();
+                goto_idle();
             }
             _ => {}
         }

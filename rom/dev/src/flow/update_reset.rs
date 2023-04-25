@@ -158,7 +158,7 @@ impl UpdateResetFlow {
         };
 
         // Try to read data and complete the request.
-        txn.try_read_data(runtime_dest)?.complete(true);
+        txn.try_read_data(runtime_dest).complete(true);
 
         // Drop the tranaction and release the Mailbox lock after the image
         // has been successfully verified and loaded in memory
@@ -178,7 +178,7 @@ impl UpdateResetFlow {
             core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
         };
 
-        txn.try_read_data(slice)?;
+        txn.try_read_data(slice);
 
         ImageManifest::read_from(slice.as_bytes()).ok_or(err_u32!(ManifestReadFailure))
     }

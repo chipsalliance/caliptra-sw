@@ -171,7 +171,7 @@ impl FmcAliasLayer {
         };
 
         // Copy the image to the slice
-        let txn = txn.try_read_data(slice)?;
+        let txn = txn.try_read_data(slice);
 
         let result =
             ImageManifest::read_from(slice.as_bytes()).ok_or(err_u32!(ManifestReadFailure));
@@ -234,7 +234,7 @@ impl FmcAliasLayer {
             core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize / 4)
         };
 
-        let txn = txn.try_read_data(fmc_dest)?;
+        let txn = txn.try_read_data(fmc_dest);
 
         cprintln!(
             "[afmc] Loading Runtime at address 0x{:08x} len {}",
@@ -247,7 +247,7 @@ impl FmcAliasLayer {
             core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize / 4)
         };
 
-        let txn = txn.try_read_data(runtime_dest)?;
+        let txn = txn.try_read_data(runtime_dest);
 
         Ok(txn)
     }
