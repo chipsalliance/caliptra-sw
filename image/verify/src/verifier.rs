@@ -12,6 +12,8 @@ Abstract:
 
 --*/
 
+use core::num::NonZeroU32;
+
 use crate::*;
 use caliptra_drivers::*;
 use caliptra_image_types::*;
@@ -249,7 +251,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     fn verify_vendor_pk_digest(
         &self,
         image: <Env as ImageVerificationEnv>::Image,
-    ) -> Result<(), u32> {
+    ) -> Result<(), NonZeroU32> {
         // We skip vendor public key check in unprovisioned state
         if self.env.dev_lifecycle(image) == Lifecycle::Unprovisioned {
             return Ok(());

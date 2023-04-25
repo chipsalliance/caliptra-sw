@@ -40,25 +40,31 @@ macro_rules! rom_err_def {
             $($field_name = $field_val,)*
         }
 
-        impl From<$enum_name> for u32 {
+        impl From<$enum_name> for core::num::NonZeroU32 {
             fn from(val: $enum_name) -> Self {
-                ((($crate::error::RomComponent::$comp_name) as Self) << 24) | (val as Self)
+                // Panic is impossible as long as the enums don't define zero.
+                core::num::NonZeroU32::new(((($crate::error::RomComponent::$comp_name) as u32) << 24) | (val as u32)).unwrap()
+            }
+        }
+        impl From<$enum_name> for u32 {
+            fn from(val: $enum_name) -> u32 {
+                core::num::NonZeroU32::from(val).into()
             }
         }
 
         #[allow(unused_macros)]
         macro_rules! raise_err { ($comp_err: ident) => {
-            Err(((($crate::error::RomComponent::$comp_name) as u32) << 24) | ($enum_name::$comp_err as u32))?
+            Err(core::num::NonZeroU32::from($enum_name::$comp_err))?
         } }
 
         #[allow(unused_macros)]
         macro_rules! err { ($comp_err: ident) => {
-            Result::<(), u32>::Err(((($crate::error::RomComponent::$comp_name) as u32) << 24) | ($enum_name::$comp_err as u32))
+            Result::<(), u32>::Err(core::num::NonZeroU32::from($enum_name::$comp_err))
         } }
 
         #[allow(unused_macros)]
         macro_rules! err_u32 { ($comp_err: ident) => {
-            ((($crate::error::RomComponent::$comp_name) as u32) << 24) | ($enum_name::$comp_err as u32)
+            core::num::NonZeroU32::from($enum_name::$comp_err)
         } }
     };
 }
