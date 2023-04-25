@@ -23,7 +23,7 @@ use caliptra_drivers::{
     Array4x12, CaliptraResult, ColdResetEntry4, ColdResetEntry48, Hmac384Data, Hmac384Key, KeyId,
     KeyReadArgs, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
-use caliptra_image_types::ImageManifest;
+use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
 use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams};
 use zerocopy::{AsBytes, FromBytes};
@@ -37,7 +37,8 @@ rom_err_def! {
     FmcAliasErr
     {
         CertVerify = 0x1,
-     ManifestReadFailure = 0x2,
+        ManifestReadFailure = 0x2,
+        InvalidImageSize = 0x3,
     }
 }
 
@@ -56,7 +57,7 @@ impl DiceLayer for FmcAliasLayer {
         );
 
         // Download the image
-        let txn = Self::download_image(env)?;
+        let mut txn = Self::download_image(env)?;
 
         // Load the manifest
         let manifest = Self::load_manifest(&txn)?;
@@ -71,7 +72,11 @@ impl DiceLayer for FmcAliasLayer {
         Self::extend_pcrs(env)?;
 
         // Load the image
-        Self::load_image(env, &manifest, txn)?;
+        Self::load_image(env, &manifest, &txn)?;
+
+        // Complete the mailbox transaction indicating success.
+        txn.complete(true)?;
+        drop(txn);
 
         // At this point PCR0 & PCR1 must have the same value. We use the value
         // of PCR1 as the UDS for deriving the CDI
@@ -130,8 +135,11 @@ impl FmcAliasLayer {
                     continue;
                 }
 
-                // TODO: Add a check the image is not zero bytes and must be less
-                // than or equal to 128 KB
+                if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
+                    cprintln!("Invalid Image of size {} bytes" txn.dlen());
+                    txn.complete(false)?;
+                    raise_err!(InvalidImageSize);
+                }
 
                 cprintln!("");
                 cprintln!("[afmc] Received Image of size {} bytes" txn.dlen());
@@ -151,7 +159,7 @@ impl FmcAliasLayer {
             core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
         };
 
-        txn.copy_request(0, slice)?;
+        txn.copy_request(slice)?;
 
         ImageManifest::read_from(slice.as_bytes()).ok_or(err_u32!(ManifestReadFailure))
     }
@@ -187,7 +195,7 @@ impl FmcAliasLayer {
     fn load_image(
         _env: &RomEnv,
         manifest: &ImageManifest,
-        txn: MailboxRecvTxn,
+        txn: &MailboxRecvTxn,
     ) -> CaliptraResult<()> {
         cprintln!(
             "[afmc] Loading FMC at address 0x{:08x} len {}",
@@ -200,7 +208,7 @@ impl FmcAliasLayer {
             core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize / 4)
         };
 
-        txn.copy_request(0, fmc_dest)?;
+        txn.copy_request(fmc_dest)?;
 
         cprintln!(
             "[afmc] Loading Runtime at address 0x{:08x} len {}",
@@ -213,11 +221,7 @@ impl FmcAliasLayer {
             core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize / 4)
         };
 
-        txn.copy_request(0, runtime_dest)?;
-
-        // Drop the tranaction and release the Mailbox lock after the image
-        // has been successfully verified and loaded in memory
-        drop(txn);
+        txn.copy_request(runtime_dest)?;
 
         Ok(())
     }

@@ -13,6 +13,7 @@ jobs:
     timeout-minutes: 360
 
     env:
+      RUST_TOOLCHAIN_VERSION: 1.68.0
       VERILATOR_VERSION: v5.006
       PKG_CONFIG_PATH: /opt/verilator/share/pkgconfig
         # Change this to a new random value if you suspect the cache is corrupted
@@ -63,7 +64,6 @@ jobs:
 
       - name: Install risv32imc target
         run: |
-          rustup update
           rustup target add riscv32imc-unknown-none-elf
 
       - name: Run smoke test inside verilator (will take hours)

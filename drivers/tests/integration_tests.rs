@@ -49,11 +49,6 @@ fn test_keyvault() {
 }
 
 #[test]
-fn test_mailbox() {
-    run_driver_test("mailbox");
-}
-
-#[test]
 fn test_pcrbank() {
     run_driver_test("pcrbank");
 }

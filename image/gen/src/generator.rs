@@ -165,6 +165,12 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             .sha384_digest(preamble.owner_pub_keys.as_bytes())
     }
 
+    /// Calculate vendor public key(s) digest
+    pub fn vendor_pubkey_digest(&self, preamble: &ImagePreamble) -> anyhow::Result<ImageDigest> {
+        self.crypto
+            .sha384_digest(preamble.vendor_pub_keys.as_bytes())
+    }
+
     /// Generate image
     fn gen_image<E>(
         &self,

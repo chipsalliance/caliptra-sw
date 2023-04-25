@@ -36,7 +36,7 @@ bitflags::bitflags! {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum IdevidCertAttr {
+pub enum IdevidCertAttr {
     Flags = 0,
     SubjectKeyId1 = 1,
     SubjectKeyId2 = 2,
@@ -210,9 +210,12 @@ impl FuseBank {
     /// # Returns
     ///     fmc security version number
     ///
-    pub fn fmc_svn() -> u32 {
+    pub fn fmc_svn(&self) -> u32 {
         let soc_ifc_regs = soc_ifc::RegisterBlock::soc_ifc_reg();
-        soc_ifc_regs.fuse_fmc_key_manifest_svn().read()
+        32 - soc_ifc_regs
+            .fuse_fmc_key_manifest_svn()
+            .read()
+            .leading_zeros()
     }
 
     /// Get the runtime security version number.
@@ -223,9 +226,10 @@ impl FuseBank {
     /// # Returns
     ///     runtime security version number
     ///
-    pub fn runtime_svn() -> u64 {
+    pub fn runtime_svn(&self) -> u32 {
         let soc_ifc_regs = soc_ifc::RegisterBlock::soc_ifc_reg();
-        (soc_ifc_regs.fuse_runtime_svn().at(1).read() as u64) << 32
-            | soc_ifc_regs.fuse_runtime_svn().at(0).read() as u64
+        64 - ((soc_ifc_regs.fuse_runtime_svn().at(1).read() as u64) << 32
+            | soc_ifc_regs.fuse_runtime_svn().at(0).read() as u64)
+            .leading_zeros()
     }
 }

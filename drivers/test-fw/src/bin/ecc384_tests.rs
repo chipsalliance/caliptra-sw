@@ -16,8 +16,8 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{
-    Array4x12, Array4xN, Ecc384, Ecc384Data, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey,
-    Ecc384Scalar, Ecc384Seed, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
+    Array4x12, Array4xN, Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Scalar,
+    Ecc384Seed, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
 };
 use caliptra_kat::Ecc384Kat;
 
@@ -76,11 +76,8 @@ fn test_gen_key_pair() {
 }
 
 fn test_sign() {
-    let digest = [0u8; 48];
-    let result = Ecc384::default().sign(
-        Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)),
-        Ecc384Data::from(&Array4x12::from(digest)),
-    );
+    let digest: Array4xN<12, 48> = Array4xN([0u32; 12]);
+    let result = Ecc384::default().sign(Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)), &digest);
     assert!(result.is_ok());
     let signature = result.unwrap();
     assert_eq!(signature.r, Ecc384Scalar::from(SIGNATURE_R));
@@ -88,12 +85,9 @@ fn test_sign() {
 }
 
 fn test_verify() {
-    let digest = [0u8; 48];
+    let digest: Array4xN<12, 48> = Array4xN([0u32; 12]);
     let ecc = Ecc384::default();
-    let result = ecc.sign(
-        Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)),
-        Ecc384Data::from(&Array4x12::from(digest)),
-    );
+    let result = ecc.sign(Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)), &digest);
     assert!(result.is_ok());
     let signature = result.unwrap();
     let pub_key = Ecc384PubKey {
@@ -106,12 +100,9 @@ fn test_verify() {
 }
 
 fn test_verify_failure() {
-    let digest = [0u8; 48];
+    let digest: Array4xN<12, 48> = Array4xN([0u32; 12]);
     let ecc = Ecc384::default();
-    let result = ecc.sign(
-        Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)),
-        Ecc384Data::from(&Array4x12::from(digest)),
-    );
+    let result = ecc.sign(Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)), &digest);
     assert!(result.is_ok());
     let signature = result.unwrap();
     let pub_key = Ecc384PubKey {
@@ -149,11 +140,10 @@ fn test_kv_seed_from_input_msg_from_input() {
     //
     // Step 2: Sign message with private key generated in step 1.
     //
-    let digest = [0u8; 48];
+    let digest: Array4xN<12, 48> = Array4xN([0u32; 12]);
     let key_in_1 = KeyReadArgs::new(KeyId::KeyId2);
 
-    let result =
-        Ecc384::default().sign(key_in_1.into(), Ecc384Data::from(&Array4x12::from(digest)));
+    let result = Ecc384::default().sign(key_in_1.into(), &digest);
     assert!(result.is_ok());
     let signature = result.unwrap();
     assert_eq!(signature.r, Ecc384Scalar::from(SIGNATURE_R));
@@ -168,248 +158,6 @@ fn test_kv_seed_from_input_msg_from_input() {
     };
     let ecc = Ecc384::default();
     let result = ecc.verify(&pub_key, &Ecc384Scalar::from(digest), &signature);
-    assert!(result.is_ok());
-    assert!(result.unwrap());
-}
-
-fn test_kv_seed_from_input_msg_from_kv() {
-    let msg: [u8; 48] = [
-        0xfe, 0xee, 0xf5, 0x54, 0x4a, 0x76, 0x56, 0x49, 0x90, 0x12, 0x8a, 0xd1, 0x89, 0xe8, 0x73,
-        0xf2, 0x1f, 0xd, 0xfd, 0x5a, 0xd7, 0xe2, 0xfa, 0x86, 0x11, 0x27, 0xee, 0x6e, 0x39, 0x4c,
-        0xa7, 0x84, 0x87, 0x1c, 0x1a, 0xec, 0x3, 0x2c, 0x7a, 0x8b, 0x10, 0xb9, 0x3e, 0xe, 0xab,
-        0x89, 0x46, 0xd6,
-    ];
-    let signature_r: [u8; 48] = [
-        0xef, 0x73, 0xa1, 0x64, 0xa0, 0xb8, 0x34, 0x3f, 0xcc, 0x54, 0x92, 0x93, 0x38, 0x2, 0x50,
-        0xed, 0x16, 0x8f, 0xef, 0x65, 0xdb, 0x9a, 0xc, 0xa1, 0x91, 0xe5, 0xdd, 0x38, 0xcd, 0xf5,
-        0x3, 0xdf, 0xdf, 0x6c, 0x61, 0x7f, 0x57, 0xf3, 0xf6, 0x5, 0xa7, 0x79, 0x9f, 0x61, 0x73,
-        0xac, 0xa, 0x4d,
-    ];
-    let signature_s: [u8; 48] = [
-        0x42, 0xa1, 0xcb, 0xba, 0x24, 0x1a, 0x5f, 0x6, 0xbc, 0xb5, 0x57, 0xb8, 0x9a, 0x87, 0x29,
-        0xa3, 0x39, 0x11, 0xc6, 0x28, 0x5f, 0x8e, 0xe1, 0x7e, 0x2a, 0x72, 0xa6, 0x3b, 0xa, 0xd6,
-        0xe0, 0xae, 0xf2, 0x23, 0x98, 0xd2, 0xff, 0x63, 0xde, 0x73, 0x8, 0xdd, 0x14, 0x2a, 0x4e,
-        0x6, 0x78, 0x60,
-    ];
-
-    //
-    // Step 1: Generate a key-pair. Store private key in kv slot 0.
-    // Mark the key as ecc_msg_dest_valid as it will be used as a test msg.
-    // Private key (msg) generated should be:
-    //    [0xfe, 0xee, 0xf5, 0x54, 0x4a, 0x76, 0x56, 0x49, 0x90, 0x12, 0x8a, 0xd1, 0x89, 0xe8, 0x73,
-    //     0xf2, 0x1f, 0xd, 0xfd, 0x5a, 0xd7, 0xe2, 0xfa, 0x86, 0x11, 0x27, 0xee, 0x6e, 0x39, 0x4c,
-    //     0xa7, 0x84, 0x87, 0x1c, 0x1a, 0xec, 0x3, 0x2c, 0x7a, 0x8b, 0x10, 0xb9, 0x3e, 0xe, 0xab,
-    //     0x89, 0x46, 0xd6,]
-    //
-    //
-    let seed = [0u8; 48];
-    let nonce = Array4xN::default();
-    let mut key_usage = KeyUsage::default();
-    key_usage.set_ecc_data(true);
-    let key_out_step_1 = KeyWriteArgs {
-        id: KeyId::KeyId0,
-        usage: key_usage,
-    };
-    let result = Ecc384::default().key_pair(
-        Ecc384Seed::from(&Ecc384Scalar::from(seed)),
-        &nonce,
-        Ecc384PrivKeyOut::from(key_out_step_1),
-    );
-    assert!(result.is_ok());
-    let pub_key = result.unwrap();
-    assert_eq!(pub_key.x, Ecc384Scalar::from(PUB_KEY_X));
-    assert_eq!(pub_key.y, Ecc384Scalar::from(PUB_KEY_Y));
-
-    //
-    // Step 2: Generate key pair and store private key in kv slot 1.
-    // Private key generated should be:
-    //     0xfe, 0xee, 0xf5, 0x54, 0x4a, 0x76, 0x56, 0x49, 0x90, 0x12, 0x8a, 0xd1, 0x89, 0xe8, 0x73,
-    //     0xf2, 0x1f, 0xd, 0xfd, 0x5a, 0xd7, 0xe2, 0xfa, 0x86, 0x11, 0x27, 0xee, 0x6e, 0x39, 0x4c,
-    //     0xa7, 0x84, 0x87, 0x1c, 0x1a, 0xec, 0x3, 0x2c, 0x7a, 0x8b, 0x10, 0xb9, 0x3e, 0xe, 0xab,
-    //     0x89, 0x46, 0xd6,]
-    //
-    let seed = [0u8; 48];
-    let nonce = Array4xN::default();
-    let mut key_usage = KeyUsage::default();
-    key_usage.set_ecc_private_key(true);
-    let key_out_step_2 = KeyWriteArgs {
-        id: KeyId::KeyId1,
-        usage: key_usage,
-    };
-
-    let result = Ecc384::default().key_pair(
-        Ecc384Seed::from(&Ecc384Scalar::from(seed)),
-        &nonce,
-        Ecc384PrivKeyOut::from(key_out_step_2),
-    );
-    assert!(result.is_ok());
-    let pub_key = result.unwrap();
-    assert_eq!(pub_key.x, Ecc384Scalar::from(PUB_KEY_X));
-    assert_eq!(pub_key.y, Ecc384Scalar::from(PUB_KEY_Y));
-
-    //
-    // Step 3: Sign message with private key generated in step 1.
-    //
-    let key_in_msg = KeyReadArgs::new(KeyId::KeyId0); // Msg
-    let key_in_private_key = KeyReadArgs::new(KeyId::KeyId1); // Priv key.
-    let result = Ecc384::default().sign(key_in_private_key.into(), key_in_msg.into());
-    assert!(result.is_ok());
-    let signature = result.unwrap();
-    assert_eq!(signature.r, Ecc384Scalar::from(signature_r));
-    assert_eq!(signature.s, Ecc384Scalar::from(signature_s));
-
-    //
-    // Step 4: Verify the signature generated in step 2.
-    //
-    let pub_key = Ecc384PubKey {
-        x: Ecc384Scalar::from(PUB_KEY_X),
-        y: Ecc384Scalar::from(PUB_KEY_Y),
-    };
-    let ecc = Ecc384::default();
-    let result = ecc.verify(&pub_key, &Ecc384Scalar::from(msg), &signature);
-    assert!(result.is_ok());
-    assert!(result.unwrap());
-}
-
-fn test_kv_seed_from_kv_msg_from_kv() {
-    //
-    // Step 1: Generate a key-pair. Store private key in kv slot 0.
-    // Mark the key as ecc_key_gen_seed as it will be used as a seed for key generation.
-    // Seed generated should be:
-    //    [0xfe, 0xee, 0xf5, 0x54, 0x4a, 0x76, 0x56, 0x49, 0x90, 0x12, 0x8a, 0xd1, 0x89, 0xe8, 0x73,
-    //     0xf2, 0x1f, 0xd, 0xfd, 0x5a, 0xd7, 0xe2, 0xfa, 0x86, 0x11, 0x27, 0xee, 0x6e, 0x39, 0x4c,
-    //     0xa7, 0x84, 0x87, 0x1c, 0x1a, 0xec, 0x3, 0x2c, 0x7a, 0x8b, 0x10, 0xb9, 0x3e, 0xe, 0xab,
-    //     0x89, 0x46, 0xd6,]
-    //
-    //
-    let seed = [0u8; 48];
-    let nonce = Array4xN::default();
-    let mut key_usage = KeyUsage::default();
-    key_usage.set_ecc_key_gen_seed(true);
-    let key_out_step_1 = KeyWriteArgs {
-        id: KeyId::KeyId0,
-        usage: key_usage,
-    };
-    let result = Ecc384::default().key_pair(
-        Ecc384Seed::from(&Ecc384Scalar::from(seed)),
-        &nonce,
-        Ecc384PrivKeyOut::from(key_out_step_1),
-    );
-    assert!(result.is_ok());
-    let pub_key = result.unwrap();
-    assert_eq!(pub_key.x, Ecc384Scalar::from(PUB_KEY_X));
-    assert_eq!(pub_key.y, Ecc384Scalar::from(PUB_KEY_Y));
-
-    //
-    // Step 2: Generate key pair and store private key in kv slot 1.
-    // Seed generated in step 1 is:
-    //    [0xfe, 0xee, 0xf5, 0x54, 0x4a, 0x76, 0x56, 0x49, 0x90, 0x12, 0x8a, 0xd1, 0x89, 0xe8, 0x73,
-    //     0xf2, 0x1f, 0xd, 0xfd, 0x5a, 0xd7, 0xe2, 0xfa, 0x86, 0x11, 0x27, 0xee, 0x6e, 0x39, 0x4c,
-    //     0xa7, 0x84, 0x87, 0x1c, 0x1a, 0xec, 0x3, 0x2c, 0x7a, 0x8b, 0x10, 0xb9, 0x3e, 0xe, 0xab,
-    //     0x89, 0x46, 0xd6,]
-    //
-    // Private key generated should be:
-    // [0xc3, 0xb, 0x13, 0xa9, 0x33, 0x39, 0xbb, 0x5a, 0x2f, 0x4c, 0xed, 0xf8, 0x83, 0x57, 0x43,
-    //  0x45, 0xbd, 0xa1, 0xd7, 0x7f, 0x36, 0x59, 0x75, 0x81, 0x2d, 0xa2, 0xc1, 0x4, 0xac, 0x76,
-    //  0x28, 0xba, 0x9a, 0x8e, 0xf4, 0x37, 0xd0, 0x50, 0x6, 0x96, 0xc9, 0x40, 0xc, 0x20, 0x59, 0x42, 0xa5, 0x2c, ]
-    //
-    let pub_key_x: [u8; 48] = [
-        0x93, 0x79, 0x9d, 0x55, 0x12, 0x26, 0x36, 0x28, 0x34, 0xf6, 0xf, 0x7b, 0x94, 0x52, 0x90,
-        0xb7, 0xcc, 0xe6, 0xe9, 0x96, 0x1, 0xfb, 0x7e, 0xbd, 0x2, 0x6c, 0x2e, 0x3c, 0x44, 0x5d,
-        0x3c, 0xd9, 0xb6, 0x50, 0x68, 0xda, 0xc0, 0xa8, 0x48, 0xbe, 0x9f, 0x5, 0x60, 0xaa, 0x75,
-        0x8f, 0xda, 0x27,
-    ];
-
-    let pub_key_y: [u8; 48] = [
-        0xe5, 0x87, 0xb2, 0xcd, 0x38, 0xe9, 0x4f, 0x7a, 0x2f, 0xd4, 0x31, 0xf5, 0xb1, 0xb2, 0xa8,
-        0xa0, 0x33, 0x7b, 0x97, 0x63, 0x75, 0x19, 0xf4, 0xb1, 0x51, 0x3e, 0xc9, 0x0, 0x9f, 0x96,
-        0x26, 0xfe, 0xb2, 0x5, 0x74, 0xfb, 0xff, 0x22, 0x5, 0xad, 0x84, 0x69, 0x87, 0xfd, 0xb6,
-        0x67, 0x1d, 0x8f,
-    ];
-
-    let key_in_seed = KeyReadArgs::new(KeyId::KeyId0); // Seed
-    let nonce = Array4xN::default();
-    let mut key_usage = KeyUsage::default();
-    key_usage.set_ecc_private_key(true);
-    let key_out_step_2 = KeyWriteArgs {
-        id: KeyId::KeyId1,
-        usage: key_usage,
-    };
-    let result = Ecc384::default().key_pair(
-        key_in_seed.into(),
-        &nonce,
-        Ecc384PrivKeyOut::from(key_out_step_2),
-    );
-    assert!(result.is_ok());
-    let pub_key = result.unwrap();
-    assert_eq!(pub_key.x, Ecc384Scalar::from(pub_key_x));
-    assert_eq!(pub_key.y, Ecc384Scalar::from(pub_key_y));
-
-    //
-    // Step 3: Generate a key-pair. Store private key in kv slot 2.
-    // Mark the key as ecc_msg_dest_valid as it will be used as a test msg.
-    // Msg generated should be:
-    //    [0xfe, 0xee, 0xf5, 0x54, 0x4a, 0x76, 0x56, 0x49, 0x90, 0x12, 0x8a, 0xd1, 0x89, 0xe8, 0x73,
-    //     0xf2, 0x1f, 0xd, 0xfd, 0x5a, 0xd7, 0xe2, 0xfa, 0x86, 0x11, 0x27, 0xee, 0x6e, 0x39, 0x4c,
-    //     0xa7, 0x84, 0x87, 0x1c, 0x1a, 0xec, 0x3, 0x2c, 0x7a, 0x8b, 0x10, 0xb9, 0x3e, 0xe, 0xab,
-    //     0x89, 0x46, 0xd6,]
-    //
-    let seed = [0u8; 48];
-    let mut key_usage = KeyUsage::default();
-    key_usage.set_ecc_data(true);
-    let key_out_step_1 = KeyWriteArgs {
-        id: KeyId::KeyId2,
-        usage: key_usage,
-    };
-    let result = Ecc384::default().key_pair(
-        Ecc384Seed::from(&Ecc384Scalar::from(seed)),
-        &nonce,
-        Ecc384PrivKeyOut::from(key_out_step_1),
-    );
-    assert!(result.is_ok());
-    let pub_key = result.unwrap();
-    assert_eq!(pub_key.x, Ecc384Scalar::from(PUB_KEY_X));
-    assert_eq!(pub_key.y, Ecc384Scalar::from(PUB_KEY_Y));
-
-    //
-    // Step 4: Sign message generated in step 3 with private key generated in step 2.
-    //
-    let sig_r: [u8; 48] = [
-        0xda, 0x48, 0xb4, 0xc1, 0x6a, 0xed, 0x87, 0x69, 0xc0, 0x64, 0x48, 0x3d, 0x4b, 0xc8, 0xba,
-        0xb3, 0xe, 0x4a, 0x51, 0x3d, 0x45, 0x80, 0x5d, 0x18, 0x73, 0x89, 0x42, 0x46, 0xe4, 0xd5,
-        0xd6, 0x1, 0x83, 0xd8, 0x41, 0xaf, 0xbf, 0xaa, 0xc2, 0x57, 0xff, 0xc, 0xff, 0x20, 0xbf,
-        0x65, 0x8c, 0xa4,
-    ];
-    let sig_s: [u8; 48] = [
-        0xdd, 0xb4, 0xbd, 0x4c, 0xbf, 0x7c, 0xa5, 0x2e, 0xd0, 0xea, 0xdc, 0xbe, 0x7c, 0x42, 0xbe,
-        0x99, 0x9d, 0x97, 0x14, 0xbe, 0x15, 0xa8, 0x8b, 0x45, 0x67, 0x18, 0x15, 0x46, 0x85, 0x7d,
-        0xa0, 0xb3, 0x49, 0xe8, 0x90, 0x28, 0x45, 0x74, 0xb7, 0x2e, 0x42, 0xd3, 0xa1, 0x38, 0xdc,
-        0xe8, 0x8c, 0x10,
-    ];
-
-    let key_in_private_key = KeyReadArgs::new(KeyId::KeyId1); // Priv key.
-    let key_in_msg = KeyReadArgs::new(KeyId::KeyId2); // Msg
-    let result = Ecc384::default().sign(key_in_private_key.into(), key_in_msg.into());
-    assert!(result.is_ok());
-    let signature = result.unwrap();
-    assert_eq!(signature.r, Ecc384Scalar::from(sig_r));
-    assert_eq!(signature.s, Ecc384Scalar::from(sig_s));
-
-    //
-    // Step 5: Verify the signature generated in step 4.
-    //
-    let msg: [u8; 48] = [
-        0xfe, 0xee, 0xf5, 0x54, 0x4a, 0x76, 0x56, 0x49, 0x90, 0x12, 0x8a, 0xd1, 0x89, 0xe8, 0x73,
-        0xf2, 0x1f, 0xd, 0xfd, 0x5a, 0xd7, 0xe2, 0xfa, 0x86, 0x11, 0x27, 0xee, 0x6e, 0x39, 0x4c,
-        0xa7, 0x84, 0x87, 0x1c, 0x1a, 0xec, 0x3, 0x2c, 0x7a, 0x8b, 0x10, 0xb9, 0x3e, 0xe, 0xab,
-        0x89, 0x46, 0xd6,
-    ];
-    let pub_key = Ecc384PubKey {
-        x: Ecc384Scalar::from(pub_key_x),
-        y: Ecc384Scalar::from(pub_key_y),
-    };
-    let ecc = Ecc384::default();
-    let result = ecc.verify(&pub_key, &Ecc384Scalar::from(msg), &signature);
     assert!(result.is_ok());
     assert!(result.unwrap());
 }
@@ -509,10 +257,7 @@ fn test_kv_seed_from_kv_msg_from_input() {
         0xe8, 0x8c, 0x10,
     ];
     let key_in_priv_key = KeyReadArgs::new(KeyId::KeyId1);
-    let result = Ecc384::default().sign(
-        key_in_priv_key.into(),
-        Ecc384Data::from(&Array4x12::from(msg)),
-    );
+    let result = Ecc384::default().sign(key_in_priv_key.into(), &Array4x12::from(msg));
     assert!(result.is_ok());
     let signature = result.unwrap();
     assert_eq!(signature.r, Ecc384Scalar::from(sig_r));
@@ -544,7 +289,5 @@ test_suite! {
     test_verify,
     test_verify_failure,
     test_kv_seed_from_input_msg_from_input,
-    test_kv_seed_from_kv_msg_from_kv,
-    test_kv_seed_from_input_msg_from_kv,
     test_kv_seed_from_kv_msg_from_input,
 }

@@ -25,6 +25,7 @@ caliptra-image-gen = { path = "../../image/gen" }
 caliptra-image-openssl = { path = "../../image/openssl" }
 caliptra-image-elf = { path = "../../image/elf" }
 caliptra-image-fake-keys = { path = "../../image/fake-keys" }
+caliptra-image-types = { path = "../../image/types" }
 
 [features]
 riscv = []
