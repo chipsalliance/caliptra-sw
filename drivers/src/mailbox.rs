@@ -197,20 +197,16 @@ impl<S> Drop for MailboxSendTxn<S> {
 }
 fn goto_idle() {
     let mbox = mbox::RegisterBlock::mbox_csr();
-    match mbox.status().read().mbox_fsm_ps() {
-        MboxFsmE::MboxRdyForCmd => {
-            let data_to_send = &[0u8; 0];
-            let txn = MailboxSendTxn::default()
-                .write_cmd(0)
-                .try_write_dlen((data_to_send.len()) as u32)
-                .unwrap_or_else(|_| loop {});
-
-            let mut txn = txn.try_write_data(data_to_send).unwrap_or_else(|_| loop {});
-
-            let mut txn = txn.execute();
-            txn.complete();
+    if mbox.status().read().mbox_fsm_ps() == MboxFsmE::MboxRdyForCmd {
+        let data_to_send = &[0u8; 0];
+        if let Ok(txn) = MailboxSendTxn::default()
+            .write_cmd(0)
+            .try_write_dlen((data_to_send.len()) as u32)
+        {
+            if let Ok(mut txn) = txn.try_write_data(data_to_send) {
+                txn.execute().complete();
+            }
         }
-        _ => {}
     }
 }
 // Mailbox receive protocol abstraction using typestate pattern.

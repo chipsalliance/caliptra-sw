@@ -53,7 +53,7 @@ impl UpdateResetFlow {
             raise_err!(MailboxAccessFailure)
         };
 
-        let cmd = env.mbox().map(|m| recv_txn.cmd());
+        let cmd = recv_txn.cmd();
 
         if cmd != Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID {
             //cprintln!("Invalid command 0x{:08x} received", cmd);
@@ -143,7 +143,7 @@ impl UpdateResetFlow {
     fn load_image(
         _env: &RomEnv,
         manifest: &ImageManifest,
-        mut txn: MailboxRecvTxn,
+        txn: MailboxRecvTxn,
     ) -> CaliptraResult<()> {
         cprintln!(
             "[update-reset] Loading Runtime at address 0x{:08x} len {}",
