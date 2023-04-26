@@ -1,2 +1,9 @@
 [target.riscv32imc-unknown-none-elf]
-rustflags = ["-C", "target-feature=+relax"]
+rustflags = [
+    "-C", "target-feature=+relax",
+    "-C", "target-feature=+zba",
+    "-C", "target-feature=+zbb",
+    "-C", "target-feature=+zbc",
+    "-C", "target-feature=+zbs",
+    "-C", "target-feature=+unaligned-scalar-mem",
+]
