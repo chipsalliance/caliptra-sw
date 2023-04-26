@@ -134,35 +134,28 @@ impl FmcAliasLayer {
         cprint!("[afmc] Waiting for Image ");
         loop {
             cprint!(".");
-            if env.mbox().map(|m| m.is_request_avaiable()) {
-                if env.mbox().map(|m| m.cmd()) != Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID {
-                    env.mbox().map(|m| m.drop_request());
+            if let Some(txn) = env.mbox().map(|m| m.try_start_recv_txn()) {
+                let cmd = txn.cmd();
+                let dlen = txn.dlen();
+                if cmd != Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID {
+                    cprintln!("Invalid command 0x{:08x} received", cmd);
+                    txn.complete(false);
                     continue;
-                } else {
-                    break;
                 }
+                // This is a download-firmware command; don't drop this, as the
+                // transaction will be completed by either report_error() (on
+                // failure) or by a manual complete call upon success.
+                let txn = ManuallyDrop::new(txn);
+                if dlen == 0 || dlen > IMAGE_BYTE_SIZE as u32 {
+                    cprintln!("Invalid Image of size {} bytes" dlen);
+                    raise_err!(InvalidImageSize);
+                }
+
+                cprintln!("");
+                cprintln!("Received Image size {} bytes" dlen);
+                break Ok(txn);
             }
         }
-        if env.mbox().map(|m| m.dlen()) == 0
-            || env.mbox().map(|m| m.dlen()) > IMAGE_BYTE_SIZE as u32
-        {
-            cprintln!(
-                "Invalid Image of size {} bytes",
-                env.mbox().map(|m| m.dlen())
-            );
-
-            env.mbox().map(|m| m.drop_request());
-            raise_err!(InvalidImageSize);
-        }
-
-        if let Some(txn) = env.mbox().map(|m| m.try_start_recv_txn()) {
-            // This is a download-firmware command; don't drop this, as the
-            // transaction will be completed by either report_error() (on
-            // failure) or by a manual complete call upon success.
-            let txn = ManuallyDrop::new(txn);
-            return Ok(txn);
-        }
-        Err(err_u32!(MailboxAccessFailure))
     }
 
     /// Load the manifest
@@ -196,7 +189,7 @@ impl FmcAliasLayer {
         let info = verifier.verify(manifest, (), ResetReason::ColdReset)?;
 
         cprintln!(
-            "[afmc] Image verified using Vendor ECC Key Index {}",
+            "Image verified using Vendor ECC Key Index {}",
             info.vendor_ecc_pub_key_idx
         );
 
@@ -216,7 +209,7 @@ impl FmcAliasLayer {
         txn: &MailboxRecvTxn,
     ) -> CaliptraResult<()> {
         cprintln!(
-            "[afmc] Loading FMC at address 0x{:08x} len {}",
+            "Loading FMC at address 0x{:08x} len {}",
             manifest.fmc.load_addr,
             manifest.fmc.size
         );

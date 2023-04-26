@@ -56,28 +56,9 @@ pub struct Mailbox {}
 const MAX_MAILBOX_LEN: u32 = 128 * 1024;
 
 impl Mailbox {
-    /// Returns the value stored in the command register
-    pub fn cmd(&self) -> u32 {
-        let mbox = mbox::RegisterBlock::mbox_csr();
-        mbox.cmd().read()
-    }
-
-    /// Returns the value stored in the data length register. This is the total
-    /// size of the mailbox data in bytes.
-    pub fn dlen(&self) -> u32 {
-        let mbox = mbox::RegisterBlock::mbox_csr();
-        mbox.dlen().read()
-    }
-
     pub fn is_request_avaiable(&self) -> bool {
         let mbox = mbox::RegisterBlock::mbox_csr();
         matches!(mbox.status().read().mbox_fsm_ps(), MboxFsmE::MboxExecuteUc)
-    }
-
-    pub fn drop_request(&self) {
-        if let Some(rcv_txn) = self.try_start_recv_txn() {
-            rcv_txn.complete(false);
-        }
     }
 
     /// Attempt to acquire the lock to start sending data.
@@ -237,6 +218,19 @@ fn goto_idle() {
 pub struct MailboxRecvTxn {}
 /// Default implementation for MailboxRecvTxn<Execute>
 impl MailboxRecvTxn {
+    /// Returns the value stored in the command register
+    pub fn cmd(&self) -> u32 {
+        let mbox = mbox::RegisterBlock::mbox_csr();
+        mbox.cmd().read()
+    }
+
+    /// Returns the value stored in the data length register. This is the total
+    /// size of the mailbox data in bytes.
+    pub fn dlen(&self) -> u32 {
+        let mbox = mbox::RegisterBlock::mbox_csr();
+        mbox.dlen().read()
+    }
+
     /// Read data from the mailbox.
     pub fn read_data(&self, buf: &mut [u32]) {
         let mbox = mbox::RegisterBlock::mbox_csr();

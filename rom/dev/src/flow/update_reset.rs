@@ -48,22 +48,17 @@ impl UpdateResetFlow {
     pub fn run(env: &RomEnv) -> CaliptraResult<FirmwareHandoffTable> {
         cprintln!("[update-reset] ++");
 
-        if !env.mbox().map(|m| m.is_request_avaiable()) {
-            cprintln!("Mailbox request not found");
+        let Some(recv_txn) = env.mbox().map(|m| m.try_start_recv_txn()) else {
+            //cprintln!("Mailbox receive transaction failed");
             raise_err!(MailboxAccessFailure)
         };
 
-        let cmd = env.mbox().map(|m| m.cmd());
+        let cmd = env.mbox().map(|m| recv_txn.cmd());
 
         if cmd != Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID {
-            cprintln!("Invalid command 0x{:08x} received", cmd);
+            //cprintln!("Invalid command 0x{:08x} received", cmd);
             raise_err!(InvalidFirmwareCommand)
         }
-
-        let Some(recv_txn) = env.mbox().map(|m| m.try_start_recv_txn()) else {
-            cprintln!("Mailbox receive transaction failed");
-            raise_err!(MailboxAccessFailure)
-        };
 
         let manifest = Self::load_manifest(&recv_txn)?;
 
