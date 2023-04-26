@@ -63,7 +63,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
 
         // Create Header
         let toc_digest = self.toc_digest(&fmc_toc, &runtime_toc)?;
-        let header = self.gen_header(ecc_key_idx, Self::DEFAULT_FLAGS, toc_digest)?;
+        let header = self.gen_header(config, ecc_key_idx, Self::DEFAULT_FLAGS, toc_digest)?;
 
         // Create Preamable
         let header_digest = self.header_digest(&header)?;
@@ -138,19 +138,32 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
     }
 
     /// Generate header
-    fn gen_header(
+    fn gen_header<E>(
         &self,
+        config: &ImageGeneratorConfig<E>,
         ecc_key_idx: u32,
         flags: u32,
         digest: ImageDigest,
-    ) -> anyhow::Result<ImageHeader> {
-        let header = ImageHeader {
+    ) -> anyhow::Result<ImageHeader>
+    where
+        E: ImageGenratorExecutable,
+    {
+        let mut header = ImageHeader {
             vendor_ecc_pub_key_idx: ecc_key_idx,
             flags,
             toc_len: MAX_TOC_ENTRY_COUNT,
             toc_digest: digest,
             ..Default::default()
         };
+
+        header.vendor_not_before = config.vendor_config.not_before;
+        header.vendor_not_after = config.vendor_config.not_after;
+
+        if let Some(owner_config) = &config.owner_config {
+            header.owner_data.owner_not_before = owner_config.not_before;
+            header.owner_data.owner_not_after = owner_config.not_after;
+        }
+
         Ok(header)
     }
 

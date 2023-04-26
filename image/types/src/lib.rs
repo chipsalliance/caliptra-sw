@@ -213,6 +213,16 @@ pub struct ImagePreamble {
     pub _rsvd: [u32; 2],
 }
 
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Default, Debug)]
+pub struct OwnerSignedData {
+    /// Owner Start Date [ASN1 Time Format] For LDEV-Id certificate: Takes Preference over vendor start date
+    pub owner_not_before: [u8; 15],
+
+    /// Owner End Date [ASN1 Time Format] For LDEV-Id certificate: Takes Preference over vendor end date
+    pub owner_not_after: [u8; 15],
+}
+
 /// Caliptra Image header
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug)]
@@ -231,6 +241,15 @@ pub struct ImageHeader {
 
     /// TOC Digest
     pub toc_digest: ImageDigest,
+
+    /// Vendor Start Date [ASN1 Time Format] For LDEV-Id certificate
+    pub vendor_not_before: [u8; 15],
+
+    /// Vendor End Date [ASN1 Time Format] For LDEV-Id certificate
+    pub vendor_not_after: [u8; 15],
+
+    /// The Signed owner data
+    pub owner_data: OwnerSignedData,
 }
 
 /// Caliptra table contents entry id

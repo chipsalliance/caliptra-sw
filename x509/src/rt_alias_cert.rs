@@ -23,6 +23,7 @@ mod tests {
 
     use super::*;
     use crate::test_util::tests::*;
+    use crate::{NotAfter, NotBefore};
 
     #[test]
     fn test_cert_signing() {
@@ -54,6 +55,8 @@ mod tests {
             )
             .unwrap(),
             tcb_info_rt_tci: &[0xEFu8; RtAliasCertTbsParams::TCB_INFO_RT_TCI_LEN],
+            not_before: &NotBefore::default().not_before,
+            not_after: &NotAfter::default().not_after,
         };
 
         let cert = RtAliasCertTbs::new(&params);

@@ -23,6 +23,7 @@ mod tests {
 
     use super::*;
     use crate::test_util::tests::*;
+    use crate::{NotAfter, NotBefore};
 
     #[test]
     fn test_cert_signing() {
@@ -55,6 +56,8 @@ mod tests {
                     issuer_key.sha1(),
                 )
                 .unwrap(),
+            not_before: &NotBefore::default().not_before,
+            not_after: &NotAfter::default().not_after,
         };
 
         let cert = LocalDevIdCertTbs::new(&params);

@@ -64,6 +64,10 @@ pub struct ImageGeneratorVendorConfig {
     pub ecc_key_idx: u32,
 
     pub priv_keys: Option<ImageVendorPrivKeys>,
+
+    pub not_before: [u8; 15],
+
+    pub not_after: [u8; 15],
 }
 
 /// Image Generator Owner Configuration
@@ -72,6 +76,10 @@ pub struct ImageGeneratorOwnerConfig {
     pub pub_keys: ImageOwnerPubKeys,
 
     pub priv_keys: Option<ImageOwnerPrivKeys>,
+
+    pub not_before: [u8; 15],
+
+    pub not_after: [u8; 15],
 }
 
 /// Image Generator Configuration
