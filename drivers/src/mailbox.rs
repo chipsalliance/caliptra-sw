@@ -85,7 +85,10 @@ impl Mailbox {
         let mbox = mbox::RegisterBlock::mbox_csr();
         match mbox.status().read().mbox_fsm_ps() {
             MboxFsmE::MboxExecuteUc => Some(MailboxRecvTxn::default()),
-            _ => None,
+            _ => {
+                // Mailbox is locked
+                None
+            }
         }
     }
 

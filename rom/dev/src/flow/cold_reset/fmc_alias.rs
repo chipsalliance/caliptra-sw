@@ -131,15 +131,16 @@ impl FmcAliasLayer {
     fn download_image(env: &RomEnv) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn>> {
         env.flow_status().map(|f| f.set_ready_for_firmware());
 
-        cprint!("[afmc] Waiting for Image ");
+        cprint!("Waiting for Image ");
         loop {
-            cprint!(".");
+            cprint!(".....");
             if let Some(txn) = env.mbox().map(|m| m.try_start_recv_txn()) {
                 let cmd = txn.cmd();
                 let dlen = txn.dlen();
                 if cmd != Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID {
                     cprintln!("Invalid command 0x{:08x} received", cmd);
                     txn.complete(false);
+                    cprintln!("continue");
                     continue;
                 }
                 // This is a download-firmware command; don't drop this, as the
@@ -154,6 +155,8 @@ impl FmcAliasLayer {
                 cprintln!("");
                 cprintln!("Received Image size {} bytes" dlen);
                 break Ok(txn);
+            } else {
+                cprintln!("Mailbox access failure");
             }
         }
     }
