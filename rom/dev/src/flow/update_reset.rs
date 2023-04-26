@@ -14,7 +14,7 @@ Abstract:
 use crate::{cprintln, fht, rom_env::RomEnv, rom_err_def, verifier::RomImageVerificationEnv};
 
 use caliptra_common::FirmwareHandoffTable;
-use caliptra_drivers::{CaliptraResult, Execute, MailboxRecvTxn, ResetReason};
+use caliptra_drivers::{CaliptraResult, MailboxRecvTxn, ResetReason};
 use caliptra_image_types::ImageManifest;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
 use zerocopy::{AsBytes, FromBytes};
@@ -148,7 +148,7 @@ impl UpdateResetFlow {
     fn load_image(
         _env: &RomEnv,
         manifest: &ImageManifest,
-        mut txn: MailboxRecvTxn<Execute>,
+        mut txn: MailboxRecvTxn,
     ) -> CaliptraResult<()> {
         cprintln!(
             "[update-reset] Loading Runtime at address 0x{:08x} len {}",
@@ -176,7 +176,7 @@ impl UpdateResetFlow {
     /// # Returns
     ///
     /// * `Manifest` - Caliptra Image Bundle Manifest
-    fn load_manifest(txn: &MailboxRecvTxn<Execute>) -> CaliptraResult<ImageManifest> {
+    fn load_manifest(txn: &MailboxRecvTxn) -> CaliptraResult<ImageManifest> {
         let slice = unsafe {
             let ptr = &mut MAN2_ORG as *mut u32;
             core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)

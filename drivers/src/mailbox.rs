@@ -15,13 +15,9 @@ caliptra_err_def! {
     Mailbox,
     MailboxErr
     {
-        // Invalid state
-        InvalidStateErr = 0x1,
         // Exceeds mailbox capacity
-        InvalidDlenErr = 0x2,
-        // No data avaiable.
-        NoDataAvailErr = 0x03,
-        EnqueueErr = 0x04,
+        InvalidDlenErr = 0x1,
+        EnqueueErr = 0x02,
     }
 }
 
@@ -45,6 +41,8 @@ caliptra_err_def! {
 /// Idle is the initial state of the mailbox, when it is unlocked.
 /// The mailbox is locked when a transaction is in progress.
 /// The mailbox is unlocked when the transaction is complete.
+///
+/// Idle is the initial state of the mailbox, when it is unlocked.
 pub struct Idle;
 /// RdyForCmd is the state after the mailbox is idle.
 pub struct RdyForCmd;
@@ -73,10 +71,7 @@ impl Mailbox {
 
     pub fn is_request_avaiable(&self) -> bool {
         let mbox = mbox::RegisterBlock::mbox_csr();
-        match mbox.status().read().mbox_fsm_ps() {
-            MboxFsmE::MboxExecuteUc => true,
-            _ => false,
-        }
+        matches!(mbox.status().read().mbox_fsm_ps(), MboxFsmE::MboxExecuteUc)
     }
 
     pub fn drop_request(&self) {
@@ -105,7 +100,7 @@ impl Mailbox {
     /// Attempts to start receiving data by checking the status.
     /// # Returns
     /// * 'MailboxRecvTxn' - Object representing a receive operation
-    pub fn try_start_recv_txn(&self) -> Option<MailboxRecvTxn<Execute>> {
+    pub fn try_start_recv_txn(&self) -> Option<MailboxRecvTxn> {
         let mbox = mbox::RegisterBlock::mbox_csr();
         match mbox.status().read().mbox_fsm_ps() {
             MboxFsmE::MboxExecuteUc => Some(MailboxRecvTxn::default()),
@@ -238,16 +233,10 @@ fn goto_idle() {
     }
 }
 // Mailbox receive protocol abstraction using typestate pattern.
-pub struct MailboxRecvTxn<S> {
-    pub state: S,
-}
+#[derive(Default)]
+pub struct MailboxRecvTxn {}
 /// Default implementation for MailboxRecvTxn<Execute>
-impl Default for MailboxRecvTxn<Execute> {
-    fn default() -> Self {
-        MailboxRecvTxn { state: Execute }
-    }
-}
-impl MailboxRecvTxn<Execute> {
+impl MailboxRecvTxn {
     /// Read data from the mailbox.
     pub fn read_data(&self, buf: &mut [u32]) {
         let mbox = mbox::RegisterBlock::mbox_csr();
@@ -260,7 +249,7 @@ impl MailboxRecvTxn<Execute> {
     }
 
     /// Transition from Execute to Idle (releases the mailbox lock).
-    pub fn complete(self, success: bool) -> MailboxRecvTxn<Idle> {
+    pub fn complete(&self, success: bool) {
         let status = if success {
             MboxStatusE::CmdComplete
         } else {
@@ -269,15 +258,18 @@ impl MailboxRecvTxn<Execute> {
 
         let mbox = mbox::RegisterBlock::mbox_csr();
         mbox.status().write(|w| w.status(|_| status));
-        MailboxRecvTxn { state: Idle }
     }
 }
 
 /// Drop implementation for MailboxRecvTxn
-impl<S> Drop for MailboxRecvTxn<S> {
+impl Drop for MailboxRecvTxn {
     fn drop(&mut self) {
         let mbox = mbox::RegisterBlock::mbox_csr();
-        mbox.status()
-            .write(|w| w.status(|_| MboxStatusE::CmdComplete));
+
+        if mbox.status().read().mbox_fsm_ps() == MboxFsmE::MboxExecuteUc {
+            let mbox = mbox::RegisterBlock::mbox_csr();
+            mbox.status()
+                .write(|w| w.status(|_| MboxStatusE::CmdFailure));
+        }
     }
 }

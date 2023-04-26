@@ -22,8 +22,8 @@ use crate::verifier::RomImageVerificationEnv;
 use crate::{cprint, cprint_slice, cprintln, pcr};
 use crate::{rom_env::RomEnv, rom_err_def};
 use caliptra_drivers::{
-    Array4x12, CaliptraResult, ColdResetEntry4, ColdResetEntry48, Execute, Hmac384Data, Hmac384Key,
-    KeyId, KeyReadArgs, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
+    Array4x12, CaliptraResult, ColdResetEntry4, ColdResetEntry48, Hmac384Data, Hmac384Key, KeyId,
+    KeyReadArgs, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
@@ -78,7 +78,7 @@ impl DiceLayer for FmcAliasLayer {
         Self::load_image(env, &manifest, &txn)?;
 
         // Complete the mailbox transaction indicating success.
-        drop(txn);
+        txn.complete(true);
 
         // At this point PCR0 & PCR1 must have the same value. We use the value
         // of PCR1 as the UDS for deriving the CDI
@@ -128,7 +128,7 @@ impl FmcAliasLayer {
     /// report_error is called. This prevents a race condition where the SoC
     /// reads FW_ERROR_NON_FATAL immediately after the mailbox transaction
     /// fails, but before caliptra has set the FW_ERROR_NON_FATAL register.
-    fn download_image(env: &RomEnv) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn<Execute>>> {
+    fn download_image(env: &RomEnv) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn>> {
         env.flow_status().map(|f| f.set_ready_for_firmware());
 
         cprint!("[afmc] Waiting for Image ");
@@ -170,7 +170,7 @@ impl FmcAliasLayer {
     /// # Returns
     ///
     /// * `Manifest` - Caliptra Image Bundle Manifest
-    fn load_manifest(txn: &MailboxRecvTxn<Execute>) -> CaliptraResult<ImageManifest> {
+    fn load_manifest(txn: &MailboxRecvTxn) -> CaliptraResult<ImageManifest> {
         let slice = unsafe {
             let ptr = &mut MAN1_ORG as *mut u32;
             core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
@@ -213,7 +213,7 @@ impl FmcAliasLayer {
     fn load_image(
         _env: &RomEnv,
         manifest: &ImageManifest,
-        txn: &MailboxRecvTxn<Execute>,
+        txn: &MailboxRecvTxn,
     ) -> CaliptraResult<()> {
         cprintln!(
             "[afmc] Loading FMC at address 0x{:08x} len {}",
