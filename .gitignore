@@ -10,3 +10,7 @@
 
 # Ignore IntelliJ files
 /.idea/
+
+# Files created by tests
+rom/dev/caliptra_idevid_csr.der
+rom/dev/caliptra_ldevid_cert.der
