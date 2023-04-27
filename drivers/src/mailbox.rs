@@ -1,16 +1,9 @@
-/*++
-
-Licensed under the Apache-2.0 license.
-
-File Name:
-
-    mailbox.rs
-
-Abstract:
-
-    File contains API for Mailbox operations
-
---*/
+//! Licensed under the Apache-2.0 license.
+//! file : mailbox.rs
+//! Abstract:
+//!    File contains mailbox abstraction.
+//!   The mailbox is the interface for the SoC to communicate with the Caliptra iRot.
+//!   The mailbox is used to send commands to the Caliptra iRot and to receive responses.
 
 use crate::{caliptra_err_def, CaliptraResult};
 use caliptra_registers::mbox::enums::MboxFsmE;
@@ -22,41 +15,75 @@ caliptra_err_def! {
     Mailbox,
     MailboxErr
     {
-        // Invalid state
-        InvalidStateErr = 0x1,
         // Exceeds mailbox capacity
-        InvalidDlenErr = 0x2,
-        // No data avaiable.
-        NoDataAvailErr = 0x03,
-        // Enqueue Error
-        EnqueueErr = 0x04,
-        // Dequeue Error
-        DequeueErr = 0x05,
+        InvalidDlenErr = 0x1,
+        EnqueueErr = 0x02,
+        MailboxAccessErr = 0x03,
     }
 }
 
-#[derive(Copy, Clone, Default, Eq, PartialEq)]
-/// Malbox operational states
-pub enum MailboxOpState {
-    #[default]
-    RdyForCmd,
-    RdyForDlen,
-    RdyForData,
-    Execute,
-    Idle,
-}
+/// Mailbox operational states.
+/// These are used to implement the typestate pattern.
+/// See https://rust-embedded.github.io/book/patterns/typestate.html
+/// for more information.
+/// The typestate pattern is used to statically enforce the correct
+/// order of mailbox operations.
+/// For example, the MailboxSendTxn type can only transition from
+/// the RdyForCmd state to the RdyForDlen state.
+/// This prevents the user from writing a data length before a command.
+///
+/// The typestate pattern is implemented using the following structs.
+/// Each struct represents a state and contains a method for each
+/// possible transition to another state.
+/// The method names are the same as the next state.
+/// For example, the RdyForCmd struct contains a method called
+/// write_cmd that transitions to the RdyForDlen state.
 
-#[derive(Default, Debug)]
+/// Idle is the initial state of the mailbox, when it is unlocked.
+/// The mailbox is locked when a transaction is in progress.
+/// The mailbox is unlocked when the transaction is complete.
+///
+/// Idle is the initial state of the mailbox, when it is unlocked.
+pub struct Idle;
+/// RdyForCmd is the state after the mailbox is idle.
+pub struct RdyForCmd;
+pub struct RdyForDlen;
+pub struct RdyForData;
+pub struct Execute;
+#[derive(Default)]
 /// Caliptra mailbox abstraction
 pub struct Mailbox {}
 
 const MAX_MAILBOX_LEN: u32 = 128 * 1024;
 
 impl Mailbox {
+    pub fn send_request(&self, cmd: u32, data: &[u8]) -> CaliptraResult<MailboxSendTxn<Execute>> {
+        let option = Mailbox::default().try_start_send_txn();
+        if option.is_none() {
+            return raise_err!(MailboxAccessErr);
+        }
+        // Write the command , data buffer length and try to write the data buffer
+        // to the mailbox using builder pattern.
+        let txn = option
+            .unwrap()
+            .write_cmd(cmd)
+            .try_write_dlen((data.len()) as u32)?
+            .try_write_data(data)?
+            .execute();
+
+        Ok(txn)
+    }
+
     /// Attempt to acquire the lock to start sending data.
     /// # Returns
     /// * `MailboxSendTxn` - Object representing a send operation
-    pub fn try_start_send_txn(&self) -> Option<MailboxSendTxn> {
+    /// * `None` - If the mailbox is locked
+    /// # Example
+    /// ```
+    /// let mut mb = Mailbox::default();
+    /// let txn = mb.try_start_send_txn().unwrap_or_else(|| panic!("Mailbox is locked"));
+    /// ```
+    pub fn try_start_send_txn(&self) -> Option<MailboxSendTxn<RdyForCmd>> {
         let mbox = mbox::RegisterBlock::mbox_csr();
         if mbox.lock().read().lock() {
             None
@@ -64,7 +91,6 @@ impl Mailbox {
             Some(MailboxSendTxn::default())
         }
     }
-
     /// Attempts to start receiving data by checking the status.
     /// # Returns
     /// * 'MailboxRecvTxn' - Object representing a receive operation
@@ -72,7 +98,10 @@ impl Mailbox {
         let mbox = mbox::RegisterBlock::mbox_csr();
         match mbox.status().read().mbox_fsm_ps() {
             MboxFsmE::MboxExecuteUc => Some(MailboxRecvTxn::default()),
-            _ => None,
+            _ => {
+                // Mailbox is locked
+                None
+            }
         }
     }
 
@@ -99,72 +128,42 @@ impl Mailbox {
     }
 }
 
-#[derive(Default)]
-/// Mailbox send protocol abstraction
-pub struct MailboxSendTxn {
-    /// Current state.
-    state: MailboxOpState,
+/// MailboxSendTxn protocol abstraction using typestate pattern.
+pub struct MailboxSendTxn<S> {
+    pub state: S,
+}
+impl Default for MailboxSendTxn<RdyForCmd> {
+    fn default() -> Self {
+        MailboxSendTxn { state: RdyForCmd }
+    }
 }
 
-impl MailboxSendTxn {
-    ///
-    /// Transitions from RdyCmd --> RdyForDlen
-    ///
-    pub fn write_cmd(&mut self, cmd: u32) -> CaliptraResult<()> {
-        if self.state != MailboxOpState::RdyForCmd {
-            raise_err!(InvalidStateErr)
-        }
+impl MailboxSendTxn<RdyForCmd> {
+    pub fn write_cmd(&mut self, cmd: u32) -> MailboxSendTxn<RdyForDlen> {
         let mbox = mbox::RegisterBlock::mbox_csr();
 
         // Write Command :
         mbox.cmd().write(|_| cmd);
-
-        self.state = MailboxOpState::RdyForDlen;
-        Ok(())
+        MailboxSendTxn { state: RdyForDlen }
     }
+}
 
-    ///
-    /// Writes number of bytes to data length register.
-    /// Transitions from RdyForDlen --> RdyForData
-    ///
-    pub fn write_dlen(&mut self, dlen: u32) -> CaliptraResult<()> {
-        if self.state != MailboxOpState::RdyForDlen {
-            raise_err!(InvalidStateErr)
-        }
-        let mbox = mbox::RegisterBlock::mbox_csr();
-
+impl MailboxSendTxn<RdyForDlen> {
+    /// Transition to the RdyForData state.
+    pub fn try_write_dlen(&mut self, dlen: u32) -> CaliptraResult<MailboxSendTxn<RdyForData>> {
         if dlen > MAX_MAILBOX_LEN {
             raise_err!(InvalidDlenErr);
         }
 
-        // Write Len in Bytes
+        let mbox = mbox::RegisterBlock::mbox_csr();
+
+        // Write Data Length :
         mbox.dlen().write(|_| dlen);
-
-        self.state = MailboxOpState::RdyForData;
-        Ok(())
+        Ok(MailboxSendTxn { state: RdyForData })
     }
-
-    /// Transitions mailbox to RdyForData state and copies data to mailbox.
-    /// * 'cmd' - Command to Be Sent
-    /// * 'data' - Data Bufer
-    pub fn copy_request(&mut self, cmd: u32, data: &[u8]) -> CaliptraResult<()> {
-        if self.state != MailboxOpState::RdyForCmd {
-            raise_err!(InvalidStateErr)
-        }
-
-        self.write_cmd(cmd)?;
-
-        self.write_dlen(data.len() as u32)?;
-
-        // Copy data to mailbox
-        self.enqueue(data)?;
-
-        self.state = MailboxOpState::RdyForData;
-
-        Ok(())
-    }
-
-    fn enqueue(&self, buf: &[u8]) -> CaliptraResult<()> {
+}
+impl MailboxSendTxn<RdyForData> {
+    pub fn try_write_data(&self, buf: &[u8]) -> CaliptraResult<MailboxSendTxn<RdyForData>> {
         let remainder = buf.len() % size_of::<u32>();
         let n = buf.len() - remainder;
 
@@ -187,97 +186,49 @@ impl MailboxSendTxn {
             mbox.datain().write(|_| block_part);
         }
 
-        Ok(())
+        Ok(MailboxSendTxn { state: RdyForData })
     }
-
-    ///
-    /// Transitions from RdyForData --> Execute
-    ///
-    pub fn execute_request(&mut self) -> CaliptraResult<()> {
-        if self.state != MailboxOpState::RdyForData {
-            raise_err!(InvalidStateErr)
-        }
-
+    /// Transition to the Execute state.
+    pub fn execute(&mut self) -> MailboxSendTxn<Execute> {
         let mbox = mbox::RegisterBlock::mbox_csr();
-
         // Set Execute Bit
         mbox.execute().write(|w| w.execute(true));
-
-        self.state = MailboxOpState::Execute;
-
-        Ok(())
+        MailboxSendTxn { state: Execute }
     }
+}
 
-    /// Send Data to SOC
-    /// * 'cmd' - Command to Be Sent
-    /// * 'data' - Data Bufer
-    pub fn send_request(&mut self, cmd: u32, data: &[u8]) -> CaliptraResult<()> {
-        self.copy_request(cmd, data)?;
-        self.execute_request()?;
-        Ok(())
-    }
-
-    /// Checks if receiver processed the request.
-    pub fn is_response_ready(&self) -> bool {
-        // TODO: Handle MboxStatusE::DataReady
-        let mbox = mbox::RegisterBlock::mbox_csr();
-
-        matches!(
-            mbox.status().read().status(),
-            MboxStatusE::CmdComplete | MboxStatusE::CmdFailure
-        )
-    }
-
-    pub fn status(&self) -> MboxStatusE {
-        let mbox = mbox::RegisterBlock::mbox_csr();
-        mbox.status().read().status()
-    }
-
-    ///
-    /// Transitions from Execute --> Idle (releases the lock)
-    ///
-    pub fn complete(&mut self) -> CaliptraResult<()> {
-        if self.state != MailboxOpState::Execute {
-            raise_err!(InvalidStateErr)
-        }
+impl MailboxSendTxn<Execute> {
+    /// Transition to the Idle state.
+    pub fn complete(&mut self) -> MailboxSendTxn<Idle> {
         let mbox = mbox::RegisterBlock::mbox_csr();
         mbox.execute().write(|w| w.execute(false));
-        self.state = MailboxOpState::Idle;
-        Ok(())
+        MailboxSendTxn { state: Idle }
     }
 }
-
-impl Drop for MailboxSendTxn {
+/// Drop implementation for MailboxRecvTxn
+impl<S> Drop for MailboxSendTxn<S> {
     fn drop(&mut self) {
-        //
-        // Release the lock by transitioning the mailbox state machine back
-        // to Idle.
-        //
-        if self.state == MailboxOpState::RdyForCmd {
-            //
-            // Send dummy request to transition the state machine to execute state.
-            //
-            let _ = self.send_request(0, &[]);
-            // Release the lock
-            let _ = self.complete();
+        goto_idle();
+    }
+}
+fn goto_idle() {
+    let mbox = mbox::RegisterBlock::mbox_csr();
+    if mbox.status().read().mbox_fsm_ps() == MboxFsmE::MboxRdyForCmd {
+        let data_to_send = &[0u8; 0];
+        if let Ok(txn) = MailboxSendTxn::default()
+            .write_cmd(0)
+            .try_write_dlen((data_to_send.len()) as u32)
+        {
+            if let Ok(mut txn) = txn.try_write_data(data_to_send) {
+                txn.execute().complete();
+            }
         }
     }
 }
-
-/// Mailbox recveive protocol abstraction
-pub struct MailboxRecvTxn {
-    /// Current state of transaction
-    state: MailboxOpState,
-}
-
-impl Default for MailboxRecvTxn {
-    fn default() -> Self {
-        Self {
-            state: MailboxOpState::Execute,
-        }
-    }
-}
-
+// Mailbox receive protocol abstraction using typestate pattern.
+#[derive(Default)]
+pub struct MailboxRecvTxn {}
+/// Default implementation for MailboxRecvTxn<Execute>
 impl MailboxRecvTxn {
     /// Returns the value stored in the command register
     pub fn cmd(&self) -> u32 {
@@ -292,7 +243,8 @@ impl MailboxRecvTxn {
         mbox.dlen().read()
     }
 
-    fn dequeue(&self, buf: &mut [u32]) -> CaliptraResult<()> {
+    /// Read data from the mailbox.
+    pub fn read_data(&self, buf: &mut [u32]) {
         let mbox = mbox::RegisterBlock::mbox_csr();
         let dlen_bytes = mbox.dlen().read() as usize;
         let dlen_words = (dlen_bytes + 3) / 4;
@@ -300,50 +252,12 @@ impl MailboxRecvTxn {
         for dest_word in buf[0..words_to_read].iter_mut() {
             *dest_word = mbox.dataout().read();
         }
-        Ok(())
     }
 
-    /// Pulls at most `data.len()` words from the mailbox FIFO without performing state transition.
-    ///
-    /// # Arguments
-    ///
-    /// * `data` - data buffer.
-    ///
-    /// # Returns
-    ///
-    /// Status of Operation
-    ///   
-    pub fn copy_request(&self, data: &mut [u32]) -> CaliptraResult<()> {
-        if self.state != MailboxOpState::Execute {
-            raise_err!(InvalidStateErr)
-        }
-        self.dequeue(data)
-    }
-
-    /// Pulls at most `data.len()` words from the mailbox FIFO.
-    /// Transitions from Execute --> Idle (releases the lock)
-    ///
-    /// # Arguments
-    ///
-    /// * `data` - data buffer.
-    ///
-    /// # Returns
-    ///
-    /// Status of Operation
-    ///   
-    pub fn recv_request(&mut self, data: &mut [u32]) -> CaliptraResult<()> {
-        self.copy_request(data)?;
-        self.complete(true)?;
-        Ok(())
-    }
-
-    ///
-    /// Transitions from Execute --> Idle
-    ///
-    pub fn complete(&mut self, success: bool) -> CaliptraResult<()> {
-        if self.state != MailboxOpState::Execute {
-            raise_err!(InvalidStateErr)
-        }
+    /// Transition from Execute to Idle (releases the mailbox lock).
+    pub fn complete(self, success: bool) {
+        // Prevent drop() from being called, since we're going to complete the transaction here
+        core::mem::forget(self);
         let status = if success {
             MboxStatusE::CmdComplete
         } else {
@@ -352,17 +266,21 @@ impl MailboxRecvTxn {
 
         let mbox = mbox::RegisterBlock::mbox_csr();
         mbox.status().write(|w| w.status(|_| status));
-
-        self.state = MailboxOpState::Idle;
-        Ok(())
     }
 }
 
+pub fn recv_txn_drop() {
+    let mbox = mbox::RegisterBlock::mbox_csr();
+
+    if mbox.status().read().mbox_fsm_ps() == MboxFsmE::MboxExecuteUc {
+        let mbox = mbox::RegisterBlock::mbox_csr();
+        mbox.status()
+            .write(|w| w.status(|_| MboxStatusE::CmdFailure));
+    }
+}
+/// Drop implementation for MailboxRecvTxn
 impl Drop for MailboxRecvTxn {
     fn drop(&mut self) {
-        if self.state != MailboxOpState::Idle {
-            // Execute -> Idle (releases lock)
-            let _ = self.complete(false);
-        }
+        recv_txn_drop();
     }
 }

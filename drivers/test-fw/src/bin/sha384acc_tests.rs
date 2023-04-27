@@ -24,6 +24,7 @@ const SHA384_HASH_SIZE: usize = 48;
 
 fn test_digest0() {
     let data = "abcd".as_bytes();
+    const CMD: u32 = 0x1c;
 
     let expected: [u8; SHA384_HASH_SIZE] = [
         0x11, 0x65, 0xb3, 0x40, 0x6f, 0xf0, 0xb5, 0x2a, 0x3d, 0x24, 0x72, 0x1f, 0x78, 0x54, 0x62,
@@ -32,10 +33,7 @@ fn test_digest0() {
         0xa3, 0xc7, 0x9b,
     ];
 
-    if let Some(mut txn) = Mailbox::default().try_start_send_txn() {
-        const CMD: u32 = 0x1c;
-        assert!(txn.send_request(CMD, &data).is_ok());
-
+    if let Ok(txn) = Mailbox::default().send_request(CMD, data) {
         let mut digest = Array4x12::default();
         let sha_acc = Sha384Acc::default();
         if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
@@ -51,6 +49,7 @@ fn test_digest0() {
 }
 
 fn test_digest1() {
+    const CMD: u32 = 0x1c;
     let data = "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu".as_bytes();
     let expected: [u8; SHA384_HASH_SIZE] = [
         0x09, 0x33, 0x0C, 0x33, 0xF7, 0x11, 0x47, 0xE8, 0x3D, 0x19, 0x2F, 0xC7, 0x82, 0xCD, 0x1B,
@@ -59,10 +58,8 @@ fn test_digest1() {
         0x74, 0x60, 0x39,
     ];
 
-    if let Some(mut txn) = Mailbox::default().try_start_send_txn() {
-        const CMD: u32 = 0x1c;
-        assert!(txn.send_request(CMD, &data).is_ok());
-
+    // Try to start a mailbox send transaction and send a request to the SHA-384 accelerator.
+    if let Ok(txn) = Mailbox::default().send_request(CMD, data) {
         let mut digest = Array4x12::default();
         let sha_acc = Sha384Acc::default();
         if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
@@ -78,6 +75,7 @@ fn test_digest1() {
 }
 
 fn test_digest2() {
+    const CMD: u32 = 0x1c;
     let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx".as_bytes();
     let expected: [u8; SHA384_HASH_SIZE] = [
         0x67, 0x4b, 0x2e, 0x80, 0xff, 0x8d, 0x94, 0x00, 0x8d, 0xe7, 0x40, 0x9c, 0x7b, 0x1f, 0x87,
@@ -89,10 +87,9 @@ fn test_digest2() {
     let mut digest = Array4x12::default();
     let sha_acc = Sha384Acc::default();
 
-    if let Some(mut txn) = Mailbox::default().try_start_send_txn() {
-        const CMD: u32 = 0x1c;
-        assert!(txn.send_request(CMD, &data).is_ok());
-
+    // Try to start a mailbox send transaction and send a request to the SHA-384 accelerator.
+    // The mailbox is not released until the transaction is dropped.
+    if let Ok(txn) = Mailbox::default().send_request(CMD, data) {
         if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
             let result = sha_acc_op.digest(data.len() as u32, 0, false, (&mut digest).into());
             assert!(result.is_ok());
@@ -119,7 +116,19 @@ fn test_digest_offset() {
 
     if let Some(mut txn) = Mailbox::default().try_start_send_txn() {
         const CMD: u32 = 0x1c;
-        assert!(txn.send_request(CMD, &data).is_ok());
+        // Write the command , data buffer length and try to write the data buffer
+        // to the mailbox using builder pattern.
+        let txn = txn
+            .write_cmd(CMD)
+            .try_write_dlen(data.len() as u32)
+            .unwrap_or_else(|_| panic!("Failed to write command and data length to mailbox"));
+
+        // Try to write the data buffer to the mailbox.
+        let mut txn = txn
+            .try_write_data(data)
+            .unwrap_or_else(|_| panic!("Failed to write data to mailbox"));
+
+        txn.execute();
 
         if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
             let result = sha_acc_op.digest(8, 4, false, (&mut digest).into());
