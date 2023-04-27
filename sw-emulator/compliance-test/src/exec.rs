@@ -87,7 +87,7 @@ mod tests {
     use super::*;
     use crate::fs::TempFile;
 
-    #[cfg(target_os = "linux")]
+    #[cfg(target_family = "unix")]
     #[test]
     fn test_exec_success() {
         let temp_file = TempFile::new().unwrap();
@@ -96,7 +96,7 @@ mod tests {
         assert!(temp_file.path().exists());
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(target_family = "unix")]
     #[test]
     fn test_exec_process_not_found() {
         let result = exec(&mut std::process::Command::new(
@@ -110,7 +110,7 @@ mod tests {
             .contains("while running command [\"/tmp/pvoruxpa5dbnjv5sj5t15omn\"]"));
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(target_family = "unix")]
     #[test]
     fn test_exec_process_returned_nonzero() {
         let result = exec(std::process::Command::new("cat").arg("/tmp/pvoruxpa5dbnjv5sj5t15omn"));

@@ -15,7 +15,7 @@ Abstract:
 // Note: All the necessary code is auto generated
 include!(concat!(env!("OUT_DIR"), "/fmc_alias_cert_tbs.rs"));
 
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(all(test, target_family = "unix"))]
 mod tests {
     use openssl::ecdsa::EcdsaSig;
     use openssl::sha::Sha384;
