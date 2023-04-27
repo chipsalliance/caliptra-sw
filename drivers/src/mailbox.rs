@@ -18,6 +18,7 @@ caliptra_err_def! {
         // Exceeds mailbox capacity
         InvalidDlenErr = 0x1,
         EnqueueErr = 0x02,
+        MailboxAccessErr = 0x03,
     }
 }
 
@@ -56,6 +57,23 @@ pub struct Mailbox {}
 const MAX_MAILBOX_LEN: u32 = 128 * 1024;
 
 impl Mailbox {
+    pub fn send_request(&self, cmd: u32, data: &[u8]) -> CaliptraResult<MailboxSendTxn<Execute>> {
+        let option = Mailbox::default().try_start_send_txn();
+        if option.is_none() {
+            return raise_err!(MailboxAccessErr);
+        }
+        // Write the command , data buffer length and try to write the data buffer
+        // to the mailbox using builder pattern.
+        let txn = option
+            .unwrap()
+            .write_cmd(cmd)
+            .try_write_dlen((data.len()) as u32)?
+            .try_write_data(data)?
+            .execute();
+
+        Ok(txn)
+    }
+
     pub fn is_request_avaiable(&self) -> bool {
         let mbox = mbox::RegisterBlock::mbox_csr();
         matches!(mbox.status().read().mbox_fsm_ps(), MboxFsmE::MboxExecuteUc)
