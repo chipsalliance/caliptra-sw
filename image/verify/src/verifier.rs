@@ -580,7 +580,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     }
 }
 
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(all(test, target_family = "unix"))]
 mod tests {
     use super::*;
 
