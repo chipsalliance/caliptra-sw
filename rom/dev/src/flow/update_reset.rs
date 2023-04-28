@@ -49,14 +49,14 @@ impl UpdateResetFlow {
         cprintln!("[update-reset] ++");
 
         let Some(recv_txn) = env.mbox().map(|m| m.try_start_recv_txn()) else {
-            cprintln!("Mailbox receive transaction failed");
+            cprintln!("Failed To Get Mailbox Txn");            
             raise_err!(MailboxAccessFailure)
         };
 
         let cmd = recv_txn.cmd();
 
         if cmd != Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID {
-            cprintln!("Invalid command 0x{:08x} received", cmd);
+            cprintln!("Invalid cmd 0x{:08x} received", cmd);
             raise_err!(InvalidFirmwareCommand)
         }
 
@@ -65,7 +65,7 @@ impl UpdateResetFlow {
         let info = Self::verify_image(env, &manifest)?;
 
         cprintln!(
-            "[update-reset] Image verified using Vendor ECC Key Index {}",
+            "[update-reset] Img verified using Vendor ECC Key Idx {}",
             info.vendor_ecc_pub_key_idx
         );
 

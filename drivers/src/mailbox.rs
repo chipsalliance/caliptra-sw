@@ -44,8 +44,6 @@ caliptra_err_def! {
 /// The mailbox is unlocked when the transaction is complete.
 ///
 /// Idle is the initial state of the mailbox, when it is unlocked.
-pub struct Idle;
-/// RdyForCmd is the state after the mailbox is idle.
 pub struct RdyForCmd;
 pub struct RdyForDlen;
 pub struct RdyForData;
@@ -58,20 +56,15 @@ const MAX_MAILBOX_LEN: u32 = 128 * 1024;
 
 impl Mailbox {
     pub fn send_request(&self, cmd: u32, data: &[u8]) -> CaliptraResult<MailboxSendTxn<Execute>> {
-        let option = Mailbox::default().try_start_send_txn();
-        if option.is_none() {
-            return raise_err!(MailboxAccessErr);
+        if let Some(txn) = self.try_start_send_txn() {
+            let txn = txn
+                .write_cmd(cmd)
+                .try_write_dlen((data.len()) as u32)?
+                .try_write_data(data)?;
+            Ok(txn.execute())
+        } else {
+            raise_err!(MailboxAccessErr)
         }
-        // Write the command , data buffer length and try to write the data buffer
-        // to the mailbox using builder pattern.
-        let txn = option
-            .unwrap()
-            .write_cmd(cmd)
-            .try_write_dlen((data.len()) as u32)?
-            .try_write_data(data)?
-            .execute();
-
-        Ok(txn)
     }
 
     /// Attempt to acquire the lock to start sending data.
@@ -139,7 +132,7 @@ impl Default for MailboxSendTxn<RdyForCmd> {
 }
 
 impl MailboxSendTxn<RdyForCmd> {
-    pub fn write_cmd(&mut self, cmd: u32) -> MailboxSendTxn<RdyForDlen> {
+    pub fn write_cmd(self, cmd: u32) -> MailboxSendTxn<RdyForDlen> {
         let mbox = mbox::RegisterBlock::mbox_csr();
 
         // Write Command :
@@ -150,7 +143,7 @@ impl MailboxSendTxn<RdyForCmd> {
 
 impl MailboxSendTxn<RdyForDlen> {
     /// Transition to the RdyForData state.
-    pub fn try_write_dlen(&mut self, dlen: u32) -> CaliptraResult<MailboxSendTxn<RdyForData>> {
+    pub fn try_write_dlen(self, dlen: u32) -> CaliptraResult<MailboxSendTxn<RdyForData>> {
         if dlen > MAX_MAILBOX_LEN {
             raise_err!(InvalidDlenErr);
         }
@@ -163,7 +156,7 @@ impl MailboxSendTxn<RdyForDlen> {
     }
 }
 impl MailboxSendTxn<RdyForData> {
-    pub fn try_write_data(&self, buf: &[u8]) -> CaliptraResult<MailboxSendTxn<RdyForData>> {
+    pub fn try_write_data(self, buf: &[u8]) -> CaliptraResult<MailboxSendTxn<RdyForData>> {
         let remainder = buf.len() % size_of::<u32>();
         let n = buf.len() - remainder;
 
@@ -189,7 +182,7 @@ impl MailboxSendTxn<RdyForData> {
         Ok(MailboxSendTxn { state: RdyForData })
     }
     /// Transition to the Execute state.
-    pub fn execute(&mut self) -> MailboxSendTxn<Execute> {
+    pub fn execute(self) -> MailboxSendTxn<Execute> {
         let mbox = mbox::RegisterBlock::mbox_csr();
         // Set Execute Bit
         mbox.execute().write(|w| w.execute(true));
@@ -199,10 +192,9 @@ impl MailboxSendTxn<RdyForData> {
 
 impl MailboxSendTxn<Execute> {
     /// Transition to the Idle state.
-    pub fn complete(&mut self) -> MailboxSendTxn<Idle> {
+    pub fn complete(self) {
         let mbox = mbox::RegisterBlock::mbox_csr();
         mbox.execute().write(|w| w.execute(false));
-        MailboxSendTxn { state: Idle }
     }
 }
 /// Drop implementation for MailboxRecvTxn
@@ -214,12 +206,8 @@ impl<S> Drop for MailboxSendTxn<S> {
 fn goto_idle() {
     let mbox = mbox::RegisterBlock::mbox_csr();
     if mbox.status().read().mbox_fsm_ps() == MboxFsmE::MboxRdyForCmd {
-        let data_to_send = &[0u8; 0];
-        if let Ok(txn) = MailboxSendTxn::default()
-            .write_cmd(0)
-            .try_write_dlen((data_to_send.len()) as u32)
-        {
-            if let Ok(mut txn) = txn.try_write_data(data_to_send) {
+        if let Ok(txn) = MailboxSendTxn::default().write_cmd(0).try_write_dlen(0_u32) {
+            if let Ok(txn) = txn.try_write_data(&[0u8; 0]) {
                 txn.execute().complete();
             }
         }
@@ -269,18 +257,15 @@ impl MailboxRecvTxn {
     }
 }
 
-pub fn recv_txn_drop() {
-    let mbox = mbox::RegisterBlock::mbox_csr();
-
-    if mbox.status().read().mbox_fsm_ps() == MboxFsmE::MboxExecuteUc {
-        let mbox = mbox::RegisterBlock::mbox_csr();
-        mbox.status()
-            .write(|w| w.status(|_| MboxStatusE::CmdFailure));
-    }
-}
 /// Drop implementation for MailboxRecvTxn
 impl Drop for MailboxRecvTxn {
     fn drop(&mut self) {
-        recv_txn_drop();
+        let mbox = mbox::RegisterBlock::mbox_csr();
+
+        if mbox.status().read().mbox_fsm_ps() == MboxFsmE::MboxExecuteUc {
+            let mbox = mbox::RegisterBlock::mbox_csr();
+            mbox.status()
+                .write(|w| w.status(|_| MboxStatusE::CmdFailure));
+        }
     }
 }

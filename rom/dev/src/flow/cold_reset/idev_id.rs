@@ -272,7 +272,7 @@ impl InitDevIdLayer {
         let data_to_send = csr.get().ok_or(err_u32!(CsrInvalid))?;
         loop {
             // Create Mailbox send transaction to send the CSR
-            if let Ok(mut txn) = env.mbox().map(|m| m.send_request(0, data_to_send)) {
+            if let Ok(txn) = env.mbox().map(|m| m.send_request(0, data_to_send)) {
                 // Signal the JTAG/SOC that Initial Device ID CSR is ready
                 env.flow_status().map(|f| f.set_idevid_csr_ready());
 

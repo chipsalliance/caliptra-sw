@@ -41,7 +41,6 @@ rom_err_def! {
         CertVerify = 0x1,
         ManifestReadFailure = 0x2,
         InvalidImageSize = 0x3,
-        MailboxAccessFailure = 0x4,
     }
 }
 
@@ -132,14 +131,14 @@ impl FmcAliasLayer {
     fn download_image(env: &RomEnv) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn>> {
         env.flow_status().map(|f| f.set_ready_for_firmware());
 
-        cprint!("[afmc] Waiting for Image ");
+        cprint!("[afmc] Waiting for Img ");
         loop {
             cprint!(".");
             if let Some(txn) = env.mbox().map(|m| m.try_start_recv_txn()) {
                 let cmd = txn.cmd();
                 let dlen = txn.dlen();
                 if cmd != Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID {
-                    cprintln!("Invalid command 0x{:08x} received", cmd);
+                    cprintln!("Invalid cmd 0x{:08x} recvd", cmd);
                     txn.complete(false);
                     continue;
                 }
@@ -148,12 +147,12 @@ impl FmcAliasLayer {
                 // failure) or by a manual complete call upon success.
                 let txn = ManuallyDrop::new(txn);
                 if dlen == 0 || dlen > IMAGE_BYTE_SIZE as u32 {
-                    cprintln!("Invalid Image of size {} bytes" dlen);
+                    cprintln!("Invalid Img of size {} bytes" dlen);
                     raise_err!(InvalidImageSize);
                 }
 
                 cprintln!("");
-                cprintln!("[afmc] Received Image of size {} bytes" txn.dlen());
+                cprintln!("[afmc] Received Img of size {} bytes" txn.dlen());
                 break Ok(txn);
             }
         }
@@ -190,7 +189,7 @@ impl FmcAliasLayer {
         let info = verifier.verify(manifest, (), ResetReason::ColdReset)?;
 
         cprintln!(
-            "[afmc] Image verified using Vendor ECC Key Index {}",
+            "[afmc] Img verified using Vendor ECC Key Index {}",
             info.vendor_ecc_pub_key_idx
         );
 
@@ -209,6 +208,12 @@ impl FmcAliasLayer {
         manifest: &ImageManifest,
         txn: &MailboxRecvTxn,
     ) -> CaliptraResult<()> {
+        cprintln!(
+            "[afmc] FMC at addr 0x{:08x} len {}",
+            manifest.fmc.load_addr,
+            manifest.fmc.size
+        );
+
         let fmc_dest = unsafe {
             let addr = (manifest.fmc.load_addr) as *mut u32;
             core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize / 4)
@@ -217,7 +222,7 @@ impl FmcAliasLayer {
         txn.read_data(fmc_dest);
 
         cprintln!(
-            "[afmc] Loading Runtime at address 0x{:08x} len {}",
+            "[afmc] Runtime at addr 0x{:08x} len {}",
             manifest.runtime.load_addr,
             manifest.runtime.size
         );

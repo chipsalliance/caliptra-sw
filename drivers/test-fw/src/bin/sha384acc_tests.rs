@@ -114,7 +114,7 @@ fn test_digest_offset() {
     let mut digest = Array4x12::default();
     let sha_acc = Sha384Acc::default();
 
-    if let Some(mut txn) = Mailbox::default().try_start_send_txn() {
+    if let Some(txn) = Mailbox::default().try_start_send_txn() {
         const CMD: u32 = 0x1c;
         // Write the command , data buffer length and try to write the data buffer
         // to the mailbox using builder pattern.
@@ -124,7 +124,7 @@ fn test_digest_offset() {
             .unwrap_or_else(|_| panic!("Failed to write command and data length to mailbox"));
 
         // Try to write the data buffer to the mailbox.
-        let mut txn = txn
+        let txn = txn
             .try_write_data(data)
             .unwrap_or_else(|_| panic!("Failed to write data to mailbox"));
 
@@ -138,7 +138,6 @@ fn test_digest_offset() {
         } else {
             assert!(false);
         }
-        drop(txn);
     }
 }
 
