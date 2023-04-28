@@ -450,6 +450,7 @@ dependencies = [
  "caliptra-image-serde",
  "caliptra-image-types",
  "caliptra_common",
+ "caliptra_error",
  "cfg-if",
  "ufmt",
  "zerocopy",
@@ -514,6 +515,10 @@ dependencies = [
  "ufmt",
  "zerocopy",
 ]
+
+[[package]]
+name = "caliptra_error"
+version = "0.1.0"
 
 [[package]]
 name = "caliptra_registers_generator"

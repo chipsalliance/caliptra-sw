@@ -19,6 +19,21 @@ use caliptra_cpu::TrapRecord;
 use caliptra_drivers::{report_fw_error_non_fatal, Mailbox};
 use core::hint::black_box;
 
+pub mod error;
+
+// Runtime global errors
+// Nmi and Exception are fatal errors.
+// Panic is a non-fatal error.
+runtime_err_def! {
+    Global,
+    GlobalErr
+    {
+        Nmi= 0x1,
+        Exception= 0x2,
+        Panic = 0x3,
+    }
+}
+
 #[cfg(feature = "std")]
 pub fn main() {}
 
@@ -65,7 +80,7 @@ extern "C" fn exception_handler(trap_record: &TrapRecord) {
     );
 
     // Signal non-fatal error to SOC
-    report_error(0xdead);
+    report_error(GlobalErr::Exception.into());
 }
 
 #[no_mangle]
@@ -79,7 +94,7 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
         trap_record.mepc
     );
 
-    report_error(0xdead);
+    report_error(GlobalErr::Nmi.into());
 }
 
 #[panic_handler]
@@ -91,13 +106,15 @@ fn runtime_panic(_: &core::panic::PanicInfo) -> ! {
     panic_is_possible();
 
     // TODO: Signal non-fatal error to SOC
-    report_error(0xdead);
+    report_error(GlobalErr::Panic.into());
 }
 
 #[allow(clippy::empty_loop)]
 fn report_error(code: u32) -> ! {
     cprintln!("RT Error: 0x{:08X}", code);
+
     report_fw_error_non_fatal(code);
+
     loop {
         // SoC firmware might be stuck waiting for Caliptra to finish
         // executing this pending mailbox transaction. Notify them that

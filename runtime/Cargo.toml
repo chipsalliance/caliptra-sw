@@ -9,6 +9,7 @@ edition = "2021"
 caliptra-cpu = { version = "0.1.0", path = "../cpu" }
 caliptra-drivers = { path = "../drivers" }
 caliptra_common = { path = "../common", default-features = false }
+caliptra_error = { version = "0.1.0", path = "../error", default-features = false }
 ufmt = "0.2.0"
 zerocopy = "0.6.1"
 
@@ -28,8 +29,5 @@ caliptra-image-types = { path = "../image/types" }
 [features]
 riscv = ["caliptra-cpu/riscv"]
 default = ["std"]
-emu = [
-    "caliptra_common/emu",
-    "caliptra-drivers/emu"
-]
+emu = ["caliptra_common/emu", "caliptra-drivers/emu"]
 std = ["ufmt/std", "caliptra_common/std"]

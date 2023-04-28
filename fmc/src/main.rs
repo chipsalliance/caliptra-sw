@@ -17,6 +17,7 @@ use core::hint::black_box;
 
 use caliptra_common::cprintln;
 use caliptra_drivers::{report_fw_error_non_fatal, Mailbox};
+mod error;
 mod flow;
 pub mod fmc_env;
 pub mod fmc_env_cell;
@@ -24,6 +25,19 @@ mod hand_off;
 
 use caliptra_cpu::TrapRecord;
 use hand_off::HandOff;
+
+//FMC global errors
+// Nmi and Exception are fatal errors.
+// Panic is a non-fatal error.
+fmc_err_def! {
+    Global,
+    GlobalErr
+    {
+        Nmi= 0x1,
+        Exception= 0x2,
+        Panic = 0x3,
+    }
+}
 
 #[cfg(feature = "std")]
 pub fn main() {}
@@ -55,7 +69,7 @@ extern "C" fn exception_handler(trap_record: &TrapRecord) {
         trap_record.mscause,
         trap_record.mepc
     );
-    report_error(0xdead);
+    report_error(GlobalErr::Exception.into());
 }
 
 #[no_mangle]
@@ -72,7 +86,7 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
     // TODO: Signal error to SOC
     // - Signal Fatal error for ICCM/DCCM double bit faults
     // - Signal Non=-Fatal error for all other errors
-    report_error(0xdead);
+    report_error(GlobalErr::Nmi.into());
 }
 #[panic_handler]
 #[inline(never)]
@@ -83,7 +97,7 @@ fn fmc_panic(_: &core::panic::PanicInfo) -> ! {
     panic_is_possible();
 
     // TODO: Signal non-fatal error to SOC
-    report_error(0xdead);
+    report_error(GlobalErr::Panic.into());
 }
 
 #[allow(clippy::empty_loop)]

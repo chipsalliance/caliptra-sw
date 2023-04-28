@@ -4,6 +4,14 @@
 This repository contains firmware, libraries, and tools related to the
 [Caliptra Project](https://github.com/chipsalliance/caliptra).
 
+## [cpu](/cpu/)
+
+Minimal runtime / startup for Caliptra CPU.
+
+## [error](/error/)
+
+Common error handling and reporting support for Caliptra components.
+
 ## [rom](/rom/dev)
 
 "Read Only Memory", the code that is first executed when the chip is powered on.
