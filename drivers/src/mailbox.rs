@@ -17,8 +17,7 @@ caliptra_err_def! {
     {
         // Exceeds mailbox capacity
         InvalidDlenErr = 0x1,
-        EnqueueErr = 0x02,
-        MailboxAccessErr = 0x03,
+        MailboxAccessErr = 0x02,
     }
 }
 
@@ -55,12 +54,24 @@ pub struct Mailbox {}
 const MAX_MAILBOX_LEN: u32 = 128 * 1024;
 
 impl Mailbox {
+    /// Send a command via mailbox.
+    /// # Arguments
+    /// * `cmd` - Command to send
+    /// * `data` - Data to send
+    /// # Returns
+    /// * `MailboxSendTxn` - Object representing a send operation in progress (Execute state)
+    /// # Example
+    /// ```
+    /// let mut mb = Mailbox::default();
+    /// let txn = mb.send_request(0x1, &[0x1, 0x2, 0x3]).unwrap_or_else(|_| panic!("Mailbox is locked"));
+    /// ```
+    ///
     pub fn send_request(&self, cmd: u32, data: &[u8]) -> CaliptraResult<MailboxSendTxn<Execute>> {
         if let Some(txn) = self.try_start_send_txn() {
             let txn = txn
                 .write_cmd(cmd)
                 .try_write_dlen((data.len()) as u32)?
-                .try_write_data(data)?;
+                .write_data(data);
             Ok(txn.execute())
         } else {
             raise_err!(MailboxAccessErr)
@@ -156,30 +167,25 @@ impl MailboxSendTxn<RdyForDlen> {
     }
 }
 impl MailboxSendTxn<RdyForData> {
-    pub fn try_write_data(self, buf: &[u8]) -> CaliptraResult<MailboxSendTxn<RdyForData>> {
-        let remainder = buf.len() % size_of::<u32>();
-        let n = buf.len() - remainder;
-
+    pub fn write_data(self, buf: &[u8]) -> MailboxSendTxn<RdyForData> {
+        let chunks = buf.chunks_exact(size_of::<u32>());
+        let remainder = chunks.remainder();
         let mbox = mbox::RegisterBlock::mbox_csr();
 
-        for idx in (0..n).step_by(size_of::<u32>()) {
-            let bytes = buf
-                .get(idx..idx + size_of::<u32>())
-                .ok_or(err_u32!(EnqueueErr))?;
+        for word in chunks {
             mbox.datain()
-                .write(|_| u32::from_le_bytes(bytes.try_into().unwrap()));
+                .write(|_| u32::from_le_bytes(word.try_into().unwrap()));
+        }
+        if !remainder.is_empty() {
+            let last_word = remainder
+                .iter()
+                .rev()
+                .fold(0, |w, &byte| (w << 8) | u32::from(byte));
+            // write `last_word`
+            mbox.datain().write(|_| last_word);
         }
 
-        // Handle the remainder.
-        if remainder > 0 {
-            let mut block_part = *buf.get(n).ok_or(err_u32!(EnqueueErr))? as u32;
-            for idx in 1..remainder {
-                block_part |= (*buf.get(n + idx).ok_or(err_u32!(EnqueueErr))? as u32) << (idx << 3);
-            }
-            mbox.datain().write(|_| block_part);
-        }
-
-        Ok(MailboxSendTxn { state: RdyForData })
+        MailboxSendTxn { state: RdyForData }
     }
     /// Transition to the Execute state.
     pub fn execute(self) -> MailboxSendTxn<Execute> {
@@ -207,9 +213,7 @@ fn goto_idle() {
     let mbox = mbox::RegisterBlock::mbox_csr();
     if mbox.status().read().mbox_fsm_ps() == MboxFsmE::MboxRdyForCmd {
         if let Ok(txn) = MailboxSendTxn::default().write_cmd(0).try_write_dlen(0_u32) {
-            if let Ok(txn) = txn.try_write_data(&[0u8; 0]) {
-                txn.execute().complete();
-            }
+            txn.write_data(&[0u8; 0]).execute().complete();
         }
     }
 }

@@ -124,9 +124,7 @@ fn test_digest_offset() {
             .unwrap_or_else(|_| panic!("Failed to write command and data length to mailbox"));
 
         // Try to write the data buffer to the mailbox.
-        let txn = txn
-            .try_write_data(data)
-            .unwrap_or_else(|_| panic!("Failed to write data to mailbox"));
+        let txn = txn.write_data(data);
 
         txn.execute();
 
