@@ -160,14 +160,15 @@ pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
         let Some(src_bytes) = elf_bytes.get(file_offset..file_offset + len) else {
             return Err(other_err(format!("segment at 0x{:x} out of file bounds", segment.p_offset)));
         };
-        if len > 0 {
-            let Some(dest_bytes) = result.get_mut(mem_offset..mem_offset + len) else {
-              return Err(other_err(format!(
-                    "segment at 0x{mem_offset:04x}..0x{:04x} exceeds the ROM region \
-                     of 0x0000..0x{:04x}", mem_offset + len, result.len())));
-            };
-            dest_bytes.copy_from_slice(src_bytes);
+        if len == 0 {
+            continue;
         }
+        let Some(dest_bytes) = result.get_mut(mem_offset..mem_offset + len) else {
+          return Err(other_err(format!(
+                "segment at 0x{mem_offset:04x}..0x{:04x} exceeds the ROM region \
+                 of 0x0000..0x{:04x}", mem_offset + len, result.len())));
+        };
+        dest_bytes.copy_from_slice(src_bytes);
     }
     Ok(result)
 }
