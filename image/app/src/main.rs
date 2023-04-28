@@ -75,6 +75,26 @@ fn main() {
             arg!(--"out" <FILE> "Output file")
                 .required(true)
                 .value_parser(value_parser!(PathBuf)),
+        )
+        .arg(
+            arg!(--"own-from-date" <String> "Certificate Validity Start Date By Owner [YYYYMMDDHHMMSS - Zulu Time]")
+                .required(false)
+                .value_parser(value_parser!(String)),
+        )
+        .arg(
+            arg!(--"own-to-date" <String> "Certificate Validity End Date By Owner [YYYYMMDDHHMMSS - Zulu Time]")
+                .required(false)
+                .value_parser(value_parser!(String)),
+        )
+        .arg(
+            arg!(--"mfg-from-date" <String> "Certificate Validity Start Date By Manufacturer [YYYYMMDDHHMMSS - Zulu Time]")
+                .required(false)
+                .value_parser(value_parser!(String)),
+        )
+        .arg(
+            arg!(--"mfg-to-date" <String> "Certificate Validity End Date By Manufacturer [YYYYMMDDHHMMSS - Zulu Time]")
+                .required(false)
+                .value_parser(value_parser!(String)),
         )];
 
     let cmd = Command::new("caliptra-image-app")

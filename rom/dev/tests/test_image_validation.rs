@@ -1190,6 +1190,87 @@ fn test_runtime_svn_less_than_fuse_svn() {
 }
 
 #[test]
+fn cert_test_with_custom_dates() {
+    pub const TEST_FMC_WITH_UART: FwId = FwId {
+        crate_name: "caliptra-rom-test-fmc",
+        bin_name: "caliptra-rom-test-fmc",
+        features: &["emu"],
+    };
+
+    let fuses = Fuses::default();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        fw_image: None,
+    })
+    .unwrap();
+
+    let mut opts = ImageOptions::default();
+
+    opts.vendor_config
+        .not_before
+        .copy_from_slice("20250101000000Z".as_bytes());
+
+    opts.vendor_config
+        .not_after
+        .copy_from_slice("20260101000000Z".as_bytes());
+
+    let mut own_config = opts.owner_config.unwrap();
+
+    own_config
+        .not_before
+        .copy_from_slice("20270101000000Z".as_bytes());
+    own_config
+        .not_after
+        .copy_from_slice("20280101000000Z".as_bytes());
+
+    opts.owner_config = Some(own_config);
+
+    let image_bundle =
+        caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, opts).unwrap();
+
+    let mut output = vec![];
+
+    // Set gen_idev_id_csr to generate CSR.
+    let flags = MfgFlags::GENERATE_IDEVID_CSR;
+    hw.soc_ifc()
+        .cptra_dbg_manuf_service_reg()
+        .write(|_| flags.bits());
+
+    #[cfg(feature = "verilator")]
+    {
+        // [TODO] Download the CSR from the mailbox and set the gen_idev_id_csr bit 0.
+    }
+
+    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        .unwrap();
+
+    let result = hw.copy_output_until_exit_success(&mut output);
+    assert!(result.is_ok());
+    let output = String::from_utf8_lossy(&output);
+
+    // Get the idevid cert.
+    let idevid_cert = idevid_cert(&output);
+
+    // Get the ldevid cert.
+    let ldevid_cert = ldevid_cert(&idevid_cert, &output);
+
+    let not_before: Asn1Time = Asn1Time::from_str("20270101000000Z").unwrap();
+    let not_after: Asn1Time = Asn1Time::from_str("20280101000000Z").unwrap();
+
+    // Get the fmclias cert.
+    let cert = fmcalias_cert(&ldevid_cert, &output);
+    assert!(cert.not_before() == not_before);
+    assert!(cert.not_after() == not_after);
+}
+
+#[test]
 fn cert_test() {
     pub const TEST_FMC_WITH_UART: FwId = FwId {
         crate_name: "caliptra-rom-test-fmc",
@@ -1486,7 +1567,7 @@ fn ldevid_cert(idevd_cert: &X509, output: &str) -> X509 {
     ldevid_cert
 }
 
-fn fmcalias_cert(ldevid_cert: &X509, output: &str) {
+fn fmcalias_cert(ldevid_cert: &X509, output: &str) -> X509 {
     // Get the ldevid cert
     let fmcalias_cert =
         X509::from_der(&hex::decode(get_data("[fmc] FMCALIAS cert = ", output)).unwrap()).unwrap();
@@ -1512,6 +1593,8 @@ fn fmcalias_cert(ldevid_cert: &X509, output: &str) {
     assert!(fmcalias_cert
         .verify(ldevid_cert.public_key().as_ref().unwrap())
         .unwrap());
+
+    fmcalias_cert
 }
 
 fn get_data(to_match: &str, haystack: &str) -> String {
