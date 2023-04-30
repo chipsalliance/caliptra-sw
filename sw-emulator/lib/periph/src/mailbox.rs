@@ -10,6 +10,9 @@ Abstract:
 
     File contains MAILBOX implementation
 
+    The Caliptra Mailbox is the primary means of communication between the
+    Caliptra and the SoC is integrated into.
+
 --*/
 use smlang::statemachine;
 
@@ -52,6 +55,8 @@ register_bitfields! [
 
 ];
 
+/// The Mailbox RAM is a 128KB RAM that is used to transfer data between the
+/// Caliptra and the SoC.
 #[derive(Clone)]
 pub struct MailboxRam {
     ram: Rc<RefCell<Ram>>,
@@ -99,6 +104,7 @@ impl Mailbox {
     const OFFSET_DATAOUT: RvAddr = 0x14;
     const OFFSET_EXECUTE: RvAddr = 0x18;
     const OFFSET_STATUS: RvAddr = 0x1C;
+    const OFFSET_UNLOCK: RvAddr = 0x20;
 
     pub fn new(ram: MailboxRam) -> Self {
         Self {
@@ -153,6 +159,14 @@ impl Mailbox {
     pub fn try_acquire_lock(&mut self) -> bool {
         let result = self.regs.borrow_mut().read(RvSize::Word, Self::OFFSET_LOCK);
         matches!(result, Ok(0))
+    }
+
+    /// Release the lock by writing to the  unlock register.
+    /// Only the uC can release the lock.
+    pub fn try_foce_unlock(&mut self) -> Result<(), BusError> {
+        self.regs
+            .borrow_mut()
+            .write(RvSize::Word, Self::OFFSET_UNLOCK, 1)
     }
 
     pub fn is_locked(&mut self) -> bool {
@@ -270,6 +284,10 @@ pub struct MailboxRegs {
     #[register(offset = 0x0000_001c, write_fn = write_status, read_fn = read_status)]
     _status: ReadWriteRegister<u32>,
 
+    /// MBOX_UNLOCK register
+    #[register(offset = 0x0000_0020, write_fn = write_unlock, read_fn = read_unlock)]
+    _unlock: ReadWriteRegister<u32>,
+
     /// State Machine
     state_machine: StateMachine<Context>,
 }
@@ -284,6 +302,7 @@ impl MailboxRegs {
     const DATA_OUT_VAL: RvData = 0x0;
     const EXEC_VAL: RvData = 0x0;
     const STATUS_VAL: RvData = 0x0;
+    const UNLOCK_VAL: RvData = 0x0;
 
     /// Create a new instance of Mailbox registers
     pub fn new(ram: MailboxRam) -> Self {
@@ -296,6 +315,7 @@ impl MailboxRegs {
             data_out: ReadOnlyRegister::new(Self::DATA_OUT_VAL),
             execute: ReadWriteRegister::new(Self::EXEC_VAL),
             _status: ReadWriteRegister::new(Self::STATUS_VAL),
+            _unlock: ReadWriteRegister::new(Self::UNLOCK_VAL),
             state_machine: StateMachine::new(Context::new(ram)),
         }
     }
@@ -391,6 +411,15 @@ impl MailboxRegs {
         });
         Ok(result.get())
     }
+
+    pub fn write_unlock(&mut self, _size: RvSize, _val: RvData) -> Result<(), BusError> {
+        let _ = self.state_machine.process_event(Events::WrUnlock);
+        Ok(())
+    }
+
+    pub fn read_unlock(&self, _size: RvSize) -> Result<u32, BusError> {
+        Ok(self.state_machine.context.unlock)
+    }
 }
 
 #[derive(PartialEq)]
@@ -413,14 +442,18 @@ statemachine! {
     transitions: {
         // CurrentState Event [guard] / action = NextState
         *Idle + RdLock(Owner) [is_not_locked] / lock = RdyForCmd,
-        RdyForCmd  + CmdWrite(Cmd) / set_cmd = RdyForDlen,
+        RdyForCmd + CmdWrite(Cmd) / set_cmd = RdyForDlen,
+        RdyForCmd + WrUnlock [is_locked] / unlock_and_reset = Idle,
         RdyForDlen + DlenWrite(DataLength) / init_dlen = RdyForData,
+        RdyForDlen + WrUnlock [is_locked] / unlock_and_reset = Idle,
         RdyForData + DataWrite(DataIn) / enqueue = RdyForData,
         RdyForData + ExecSet = Exec,
+        RdyForData + WrUnlock [is_locked] / unlock_and_reset = Idle,
         Exec + DataRead / dequeue = Exec,
         Exec + DlenWrite(DataLength) / init_dlen = Exec,
         Exec + DataWrite(DataIn) / enqueue = Exec,
-        Exec + ExecClear [is_locked] / unlock = Idle
+        Exec + ExecClear [is_locked] / unlock = Idle,
+        Exec + WrUnlock [is_locked] / unlock_and_reset = Idle
     }
 }
 
@@ -440,8 +473,11 @@ pub struct Context {
     status: LocalRegisterCopy<u32, Status::Register>,
     /// Command
     pub cmd: u32,
-    // data_out
+    /// data_out
     data_out: u32,
+
+    /// Unlock
+    pub unlock: u32,
 }
 
 impl Context {
@@ -455,6 +491,7 @@ impl Context {
             ring_buffer: RingBuffer::new(ram),
             cmd: 0,
             data_out: 0,
+            unlock: 0,
         }
     }
 }
@@ -497,6 +534,12 @@ impl StateMachineContext for Context {
         // Reset status
         self.status.set(0);
     }
+
+    fn unlock_and_reset(&mut self) {
+        self.unlock();
+        self.ring_buffer.reset();
+    }
+
     fn dequeue(&mut self) {
         self.data_out = self.ring_buffer.dequeue();
     }
@@ -728,6 +771,167 @@ mod tests {
             States::Idle
         ));
         assert_eq!(mb.regs.borrow().state_machine.context().locked, 0);
+    }
+
+    #[test]
+    fn test_sm_arc_execuc_unlock() {
+        // Acquire lock
+        let mut mb = Mailbox::new(MailboxRam::new());
+        assert_eq!(mb.read(RvSize::Word, Mailbox::OFFSET_LOCK).unwrap(), 0);
+        // Confirm it is locked
+        let lock = mb.read(RvSize::Word, Mailbox::OFFSET_LOCK).unwrap();
+        assert_eq!(lock, 1);
+
+        let user = mb.read(RvSize::Word, OFFSET_USER).unwrap();
+        assert_eq!(user, 0);
+
+        // Write command
+        assert_eq!(
+            mb.write(RvSize::Word, Mailbox::OFFSET_CMD, 0x55).ok(),
+            Some(())
+        );
+        // Confirm it is locked
+        assert_eq!(mb.regs.borrow().state_machine.context.locked, 1);
+
+        // Write dlen
+        assert_eq!(
+            mb.write(RvSize::Word, Mailbox::OFFSET_DLEN, 16).ok(),
+            Some(())
+        );
+        // Confirm it is locked
+        assert_eq!(mb.regs.borrow().state_machine.context.locked, 1);
+
+        for data_in in 1..17 {
+            // Write datain
+            assert_eq!(
+                mb.write(RvSize::Word, Mailbox::OFFSET_DATAIN, data_in).ok(),
+                Some(())
+            );
+            // Confirm it is locked
+            assert_eq!(mb.regs.borrow().state_machine.context.locked, 1);
+        }
+        assert_eq!(
+            mb.write(
+                RvSize::Word,
+                Mailbox::OFFSET_STATUS,
+                Status::STATUS::DATA_READY.value
+            )
+            .ok(),
+            Some(())
+        );
+
+        // Write exec
+        assert_eq!(
+            mb.write(RvSize::Word, Mailbox::OFFSET_EXECUTE, 0x55).ok(),
+            Some(())
+        );
+        // Confirm it is locked
+        assert_eq!(mb.regs.borrow().state_machine.context.locked, 1);
+
+        assert!(matches!(
+            mb.regs.borrow().state_machine.state(),
+            States::Exec
+        ));
+
+        let status = mb.read(RvSize::Word, Mailbox::OFFSET_STATUS).unwrap();
+        assert_eq!(
+            status,
+            (Status::STATUS::DATA_READY + Status::MBOX_FSM_PS::MBOX_EXECUTE_UC).value
+        );
+
+        // Release lock
+        let _ = mb
+            .regs
+            .borrow_mut()
+            .state_machine
+            .process_event(Events::WrUnlock);
+
+        // Check transition to idle
+        assert!(matches!(
+            mb.regs.borrow().state_machine.state(),
+            States::Idle
+        ));
+
+        let status = mb.read(RvSize::Word, Mailbox::OFFSET_STATUS).unwrap();
+        assert_eq!(
+            status,
+            (Status::STATUS::CMD_BUSY + Status::MBOX_FSM_PS::MBOX_IDLE).value
+        );
+    }
+    #[test]
+    fn test_sm_arc_rdyfordlen_unlock() {
+        let mb = Mailbox::new(MailboxRam::new());
+        assert_eq!(mb.regs.borrow().state_machine.context().locked, 0);
+        assert_eq!(mb.regs.borrow().state_machine.context().dlen, 0);
+        // Acquire lock
+        let _ = mb
+            .regs
+            .borrow_mut()
+            .state_machine
+            .process_event(Events::RdLock(Owner(0)));
+
+        assert!(matches!(
+            mb.regs.borrow().state_machine.state(),
+            States::RdyForCmd
+        ));
+        assert_eq!(mb.regs.borrow().state_machine.context().locked, 1);
+
+        // Write cmd
+        let _ = mb
+            .regs
+            .borrow_mut()
+            .state_machine
+            .process_event(Events::CmdWrite(Cmd(0x55)));
+
+        assert!(matches!(
+            mb.regs.borrow().state_machine.state(),
+            States::RdyForDlen
+        ));
+
+        // Release lock
+        let _ = mb
+            .regs
+            .borrow_mut()
+            .state_machine
+            .process_event(Events::WrUnlock);
+
+        assert_eq!(mb.regs.borrow().state_machine.context().locked, 0);
+
+        assert!(matches!(
+            mb.regs.borrow().state_machine.state(),
+            States::Idle
+        ));
+    }
+    #[test]
+    fn test_sm_arc_rdyforcmd_unlock() {
+        let mb = Mailbox::new(MailboxRam::new());
+        assert_eq!(mb.regs.borrow().state_machine.context().locked, 0);
+        assert_eq!(mb.regs.borrow().state_machine.context().dlen, 0);
+        // Acquire lock
+        let _ = mb
+            .regs
+            .borrow_mut()
+            .state_machine
+            .process_event(Events::RdLock(Owner(0)));
+
+        assert!(matches!(
+            mb.regs.borrow().state_machine.state(),
+            States::RdyForCmd
+        ));
+        assert_eq!(mb.regs.borrow().state_machine.context().locked, 1);
+
+        // Release lock
+        let _ = mb
+            .regs
+            .borrow_mut()
+            .state_machine
+            .process_event(Events::WrUnlock);
+
+        assert_eq!(mb.regs.borrow().state_machine.context().locked, 0);
+        assert!(matches!(
+            mb.regs.borrow().state_machine.state(),
+            States::Idle
+        ));
     }
 
     #[test]

@@ -248,6 +248,7 @@ impl CaliptraRootBus {
     }
 }
 
+/// SOC to Caliptra Bus : This is the bus that is exposed to the SOC.
 #[derive(Bus)]
 pub struct SocToCaliptraBus {
     #[peripheral(offset = 0x3002_0000, mask = 0x0000_0fff)]
