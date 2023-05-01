@@ -249,18 +249,8 @@ impl MailboxSendTxn {
 
 impl Drop for MailboxSendTxn {
     fn drop(&mut self) {
-        //
-        // Release the lock by transitioning the mailbox state machine back
-        // to Idle.
-        //
-        if self.state == MailboxOpState::RdyForCmd {
-            //
-            // Send dummy request to transition the state machine to execute state.
-            //
-            let _ = self.send_request(0, &[]);
-            // Release the lock
-            let _ = self.complete();
-        }
+        let mbox = mbox::RegisterBlock::mbox_csr();
+        mbox.unlock().write(|w| w.unlock(true));
     }
 }
 

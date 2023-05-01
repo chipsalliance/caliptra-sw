@@ -238,6 +238,8 @@ impl CaliptraRootBus {
         }
     }
 
+    /// Get the SOC to Caliptra Bus
+    /// This is the bus that is exposed to the SOC.
     pub fn soc_to_caliptra_bus(&self) -> SocToCaliptraBus {
         SocToCaliptraBus {
             // TODO: This should not be the same mailbox bus as the one used

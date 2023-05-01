@@ -187,7 +187,7 @@ impl Mailbox {
     }
 
     pub fn is_command_exec_requested(&self) -> bool {
-        matches!(self.regs.borrow_mut().state_machine.state, States::Exec)
+        matches!(self.regs.borrow_mut().state_machine.state, States::ExecUc)
     }
 
     pub fn is_status_cmd_busy(&mut self) -> bool {
@@ -380,7 +380,7 @@ impl MailboxRegs {
     // Todo: Implement write ex callback fn
     pub fn write_ex(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
         let _ = self.state_machine.process_event(if val & 1 != 0 {
-            Events::ExecSet
+            Events::UcExecSet
         } else {
             Events::ExecClear
         });
@@ -403,7 +403,7 @@ impl MailboxRegs {
         let mut result = self.state_machine.context.status;
         result.modify(match self.state_machine.state {
             // TODO: What about MBOX_EXECUTE_SOC?
-            States::Exec => Status::MBOX_FSM_PS::MBOX_EXECUTE_UC,
+            States::ExecUc => Status::MBOX_FSM_PS::MBOX_EXECUTE_UC,
             States::Idle => Status::MBOX_FSM_PS::MBOX_IDLE,
             States::RdyForCmd => Status::MBOX_FSM_PS::MBOX_RDY_FOR_CMD,
             States::RdyForData => Status::MBOX_FSM_PS::MBOX_RDY_FOR_DATA,
@@ -447,13 +447,13 @@ statemachine! {
         RdyForDlen + DlenWrite(DataLength) / init_dlen = RdyForData,
         RdyForDlen + WrUnlock [is_locked] / unlock_and_reset = Idle,
         RdyForData + DataWrite(DataIn) / enqueue = RdyForData,
-        RdyForData + ExecSet = Exec,
+        RdyForData + UcExecSet  = ExecUc,
         RdyForData + WrUnlock [is_locked] / unlock_and_reset = Idle,
-        Exec + DataRead / dequeue = Exec,
-        Exec + DlenWrite(DataLength) / init_dlen = Exec,
-        Exec + DataWrite(DataIn) / enqueue = Exec,
-        Exec + ExecClear [is_locked] / unlock = Idle,
-        Exec + WrUnlock [is_locked] / unlock_and_reset = Idle
+        ExecUc + DataRead / dequeue = ExecUc,
+        ExecUc + DlenWrite(DataLength) / init_dlen = ExecUc,
+        ExecUc + DataWrite(DataIn) / enqueue = ExecUc,
+        ExecUc + ExecClear [is_locked] / unlock = Idle,
+        ExecUc + WrUnlock [is_locked] / unlock_and_reset = Idle
     }
 }
 
@@ -659,7 +659,7 @@ mod tests {
 
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
-            States::Exec
+            States::ExecUc
         ));
 
         let status = mb.read(RvSize::Word, Mailbox::OFFSET_STATUS).unwrap();
@@ -755,10 +755,10 @@ mod tests {
             .regs
             .borrow_mut()
             .state_machine
-            .process_event(Events::ExecSet);
+            .process_event(Events::UcExecSet);
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
-            States::Exec
+            States::ExecUc
         ));
 
         let _ = mb
@@ -830,7 +830,7 @@ mod tests {
 
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
-            States::Exec
+            States::ExecUc
         ));
 
         let status = mb.read(RvSize::Word, Mailbox::OFFSET_STATUS).unwrap();
@@ -997,7 +997,7 @@ mod tests {
 
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
-            States::Exec
+            States::ExecUc
         ));
 
         let status = mb.read(RvSize::Word, Mailbox::OFFSET_STATUS).unwrap();
