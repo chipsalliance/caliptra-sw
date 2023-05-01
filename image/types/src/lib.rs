@@ -18,6 +18,7 @@ use core::mem::size_of;
 use core::ops::Range;
 use memoffset::{offset_of, span_of};
 use zerocopy::{AsBytes, FromBytes};
+use caliptra_drivers::{LmsIdentifier};
 
 pub const MANIFEST_MARKER: u32 = 0x4E414D43;
 pub const VENDOR_ECC_KEY_COUNT: u32 = 4;
@@ -27,6 +28,10 @@ pub const ECC384_SCALAR_WORD_SIZE: usize = 12;
 pub const ECC384_SCALAR_BYTE_SIZE: usize = 48;
 pub const SHA384_DIGEST_WORD_SIZE: usize = 12;
 pub const SHA384_DIGEST_BYTE_SIZE: usize = 48;
+pub const SHA192_DIGEST_WORD_SIZE: usize = 6;
+pub const SHA192_DIGEST_BYTE_SIZE: usize = 24;
+pub const IMAGE_LMS_OTS_P_PARAM: usize = 51;
+pub const IMAGE_LMS_KEY_HEIGHT: usize = 15;
 pub const IMAGE_BYTE_SIZE: usize = 128 * 1024;
 pub const IMAGE_MANIFEST_BYTE_SIZE: usize = core::mem::size_of::<ImageManifest>();
 
@@ -34,6 +39,8 @@ pub type ImageScalar = [u32; ECC384_SCALAR_WORD_SIZE];
 pub type ImageDigest = [u32; SHA384_DIGEST_WORD_SIZE];
 pub type ImageRevision = [u8; IMAGE_REVISION_BYTE_SIZE];
 pub type ImageEccPrivKey = ImageScalar;
+
+pub type Sha192Hash = [u8; 24];
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq)]
@@ -47,12 +54,56 @@ pub struct ImageEccPubKey {
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq)]
+pub struct ImageLmsPublicKey {
+    pub tree_type: u32,
+
+    pub otstype: u32,
+
+    pub id: LmsIdentifier,
+
+    pub digest: Sha192Hash
+}
+
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq)]
 pub struct ImageEccSignature {
     /// Random point
     pub r: ImageScalar,
 
     /// Proof
     pub s: ImageScalar,
+}
+
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Debug, Copy, Clone, Eq, PartialEq)]
+pub struct ImageLmOTSSignature {
+    pub otstype: u32,
+
+    pub random: [u8; SHA192_DIGEST_BYTE_SIZE],
+
+    pub sig: [Sha192Hash; IMAGE_LMS_OTS_P_PARAM]
+}
+
+impl Default for ImageLmOTSSignature {
+    fn default() -> Self {
+        Self {
+            otstype: 0,
+            random: [0; SHA192_DIGEST_BYTE_SIZE],
+            sig: [Sha192Hash::default(); IMAGE_LMS_OTS_P_PARAM]
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq)]
+pub struct ImageLmsSignature {
+    pub q: u32,
+
+    pub ots_sig: ImageLmOTSSignature,
+
+    pub lms_type: u32,
+
+    pub digest: [Sha192Hash; IMAGE_LMS_KEY_HEIGHT]
 }
 
 /// Caliptra Image Bundle
