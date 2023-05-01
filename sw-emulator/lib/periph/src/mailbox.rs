@@ -481,6 +481,8 @@ impl StateMachineContext for Context {
     fn init_dlen(&mut self, data_len: &DataLength) {
         self.ring_buffer.reset();
         self.dlen = data_len.0;
+
+        self.ring_buffer.latch_dlen(self.dlen as usize);
     }
 
     fn set_cmd(&mut self, cmd: &Cmd) {
@@ -498,15 +500,17 @@ impl StateMachineContext for Context {
         self.status.set(0);
     }
     fn dequeue(&mut self) {
-        self.data_out = self.ring_buffer.dequeue();
+        if let Ok(data_out) = self.ring_buffer.dequeue() {
+            self.data_out = data_out;
+        }
     }
-
     fn enqueue(&mut self, data_in: &DataIn) {
         self.ring_buffer.enqueue(data_in.0);
     }
 }
 
 pub struct RingBuffer {
+    latched_dlen: u32,
     capacity: usize,
     read_index: usize,
     write_index: usize,
@@ -517,11 +521,19 @@ impl RingBuffer {
     pub fn new(ram: MailboxRam) -> Self {
         let ram_size = ram.ram.borrow().data().len();
         RingBuffer {
+            latched_dlen: 0,
             capacity: ram_size,
             read_index: 0,
             write_index: 0,
             mailbox_ram: ram,
         }
+    }
+    pub fn latch_dlen(&mut self, dlen: usize) {
+        if dlen > self.capacity {
+            self.latched_dlen = self.capacity as u32;
+            return;
+        }
+        self.latched_dlen = dlen as u32;
     }
     pub fn enqueue(&mut self, element: u32) {
         // On buffer full condition, ignore the write.
@@ -532,18 +544,19 @@ impl RingBuffer {
             self.write_index += RvSize::Word as usize;
         }
     }
-    pub fn dequeue(&mut self) -> u32 {
-        // On buffer empty condition, return 0.
-        let mut element = 0;
-        if self.read_index < self.capacity {
-            element = self
-                .mailbox_ram
-                .read(RvSize::Word, self.read_index as u32)
-                .unwrap();
-
-            self.read_index += RvSize::Word as usize;
+    pub fn dequeue(&mut self) -> Result<u32, ()> {
+        if self.read_index >= self.latched_dlen as usize {
+            return Err(());
         }
-        element
+
+        let element = self
+            .mailbox_ram
+            .read(RvSize::Word, self.read_index as u32)
+            .unwrap();
+
+        self.read_index += RvSize::Word as usize;
+
+        Ok(element)
     }
     pub fn reset(&mut self) {
         self.read_index = 0;
@@ -561,6 +574,7 @@ mod tests {
 
     #[test]
     fn test_send_receive() {
+        let request_to_send: [u32; 4] = [0x1111_1111, 0x2222_2222, 0x3333_3333, 0x4444_4444];
         // Acquire lock
         let mut mb = Mailbox::new(MailboxRam::new());
         assert_eq!(mb.read(RvSize::Word, Mailbox::OFFSET_LOCK).unwrap(), 0);
@@ -579,18 +593,22 @@ mod tests {
         // Confirm it is locked
         assert_eq!(mb.regs.borrow().state_machine.context.locked, 1);
 
+        let dlen = request_to_send.len() as u32;
+        let dlen = dlen * 4;
         // Write dlen
         assert_eq!(
-            mb.write(RvSize::Word, Mailbox::OFFSET_DLEN, 16).ok(),
+            mb.write(RvSize::Word, Mailbox::OFFSET_DLEN, dlen).ok(),
             Some(())
         );
+
         // Confirm it is locked
         assert_eq!(mb.regs.borrow().state_machine.context.locked, 1);
 
-        for data_in in 1..17 {
+        for data_in in request_to_send.iter() {
             // Write datain
             assert_eq!(
-                mb.write(RvSize::Word, Mailbox::OFFSET_DATAIN, data_in).ok(),
+                mb.write(RvSize::Word, Mailbox::OFFSET_DATAIN, *data_in)
+                    .ok(),
                 Some(())
             );
             // Confirm it is locked
@@ -629,14 +647,14 @@ mod tests {
         assert_eq!(cmd, 0x55);
 
         let dlen = mb.read(RvSize::Word, Mailbox::OFFSET_DLEN).unwrap();
-        assert_eq!(dlen, 16);
+        assert_eq!(dlen, (request_to_send.len() * 4) as u32);
 
-        for data_in in 1..17 {
+        request_to_send.iter().for_each(|data_in| {
             // Read dataout
             let data_out = mb.read(RvSize::Word, Mailbox::OFFSET_DATAOUT).unwrap();
             // compare with queued data.
-            assert_eq!(data_in, data_out);
-        }
+            assert_eq!(*data_in, data_out);
+        });
         assert_eq!(
             mb.write(
                 RvSize::Word,
@@ -808,15 +826,19 @@ mod tests {
         let dlen = mb.read(RvSize::Word, Mailbox::OFFSET_DLEN).unwrap();
         assert_eq!(dlen, (MAX_MAILBOX_CAPACITY_BYTES + 4) as u32);
 
+        let mut data_out = 0;
         for data_in in (0..MAX_MAILBOX_CAPACITY_BYTES).step_by(4) {
             // Read dataout
-            let data_out = mb.read(RvSize::Word, Mailbox::OFFSET_DATAOUT).unwrap();
+            data_out = mb.read(RvSize::Word, Mailbox::OFFSET_DATAOUT).unwrap();
             // compare with queued data.
             assert_eq!(data_in as u32, data_out);
         }
 
-        // Read an additional DWORD. This should return 0.
-        assert_eq!(mb.read(RvSize::Word, Mailbox::OFFSET_DATAOUT).unwrap(), 0);
+        // Read an additional DWORD. This should return the last word
+        assert_eq!(
+            mb.read(RvSize::Word, Mailbox::OFFSET_DATAOUT).unwrap(),
+            data_out
+        );
 
         assert_eq!(
             mb.write(
