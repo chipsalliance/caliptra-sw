@@ -53,24 +53,7 @@ pub extern "C" fn fmc_entry() -> ! {
     };
 
     let fht = FirmwareHandoffTable::read_from(slice).unwrap();
-
-    cprintln!("[fmc] FHT Marker: 0x{:08X}", fht.fht_marker);
-    cprintln!("[fmc] FHT Major Version: 0x{:04X}", fht.fht_major_ver);
-    cprintln!("[fmc] FHT Minor Version: 0x{:04X}", fht.fht_minor_ver);
-    cprintln!("[fmc] FHT Manifest Addr: 0x{:08X}", fht.manifest_load_addr);
-    cprintln!("[fmc] FHT FMC CDI KV KeyID: {}", fht.fmc_cdi_kv_idx);
-    cprintln!(
-        "[fmc] FHT FMC PrivKey KV KeyID: {}",
-        fht.fmc_priv_key_kv_idx
-    );
-    cprintln!(
-        "[fmc] FHT RT Load Address: 0x{:08x}",
-        fht.rt_fw_load_addr_idx
-    );
-    cprintln!(
-        "[fmc] FHT RT Entry Point: 0x{:08x}",
-        fht.rt_fw_load_addr_idx
-    );
+    assert!(fht.is_valid());
 
     create_certs();
 

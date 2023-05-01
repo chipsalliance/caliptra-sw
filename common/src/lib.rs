@@ -1,10 +1,15 @@
 // Licensed under the Apache-2.0 license.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+
 pub mod crypto;
 pub mod hand_off;
 #[macro_use]
 pub mod printer;
-pub use hand_off::FirmwareHandoffTable;
-pub use hand_off::FHT_MARKER;
+///merge imports
+pub use hand_off::{
+    print_fht, report_handoff_error_and_halt, DataStore, DataVaultRegister, FirmwareHandoffTable,
+    HandOffDataHandle, Vault, FHT_INVALID_HANDLE, FHT_MARKER,
+};
+
 pub use printer::MutablePrinter;
