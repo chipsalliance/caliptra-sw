@@ -83,8 +83,8 @@ pub trait ImageVerificationEnv {
     /// Get Vendor Public Key Revocation list
     fn vendor_pub_key_revocation(&self, image: Self::Image) -> VendorPubKeyRevocation;
 
-    /// Get Owner Public Key Digest
-    fn owner_pub_key_digest(&self, image: Self::Image) -> ImageDigest;
+    /// Get Owner Public Key Digest from fuses
+    fn owner_pub_key_digest_fuses(&self) -> ImageDigest;
 
     /// Get Anti-Rollback disable setting
     fn anti_rollback_disable(&self, image: Self::Image) -> bool;
