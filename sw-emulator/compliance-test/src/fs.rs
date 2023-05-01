@@ -245,7 +245,7 @@ mod tests {
             .all(|p| !p.exists()));
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(target_family = "unix")]
     #[test]
     fn test_tempdir_delete_error() {
         use std::os::unix::prelude::PermissionsExt;

@@ -18,6 +18,8 @@ use super::dice::*;
 use super::x509::*;
 use crate::cprint_slice;
 use crate::cprintln;
+use crate::flow::cold_reset::copy_tbs;
+use crate::flow::cold_reset::TbsType;
 use crate::rom_env::RomEnv;
 use crate::rom_err_def;
 use caliptra_drivers::*;
@@ -150,6 +152,8 @@ impl LocalDevIdLayer {
             authority_key_id: &input.auth_key_id,
             serial_number: &X509::cert_sn(env, pub_key)?,
             public_key: &pub_key.to_der(),
+            not_before: &NotBefore::default().not_before,
+            not_after: &NotAfter::default().not_after,
         };
 
         // Generate the `To Be Signed` portion of the CSR
@@ -163,7 +167,8 @@ impl LocalDevIdLayer {
         let sig = Crypto::ecdsa384_sign(env, auth_priv_key, tbs.tbs())?;
 
         // Clear the authority private key
-        cprintln!("[ldev] Erasing AUTHORITY.KEYID = {}", auth_priv_key as u8);
+        //To-Do : Disabling The Print Temporarily
+        //cprintln!("[ldev] Erasing AUTHORITY.KEYID = {}", auth_priv_key as u8);
         env.key_vault().map(|k| k.erase_key(auth_priv_key))?;
 
         // Verify the signature of the `To Be Signed` portion
@@ -188,6 +193,9 @@ impl LocalDevIdLayer {
         // Lock the Local Device ID public keys in data vault until
         // cold reset
         env.data_vault().map(|d| d.set_ldev_dice_pub_key(pub_key));
+
+        //  Copy TBS to DCCM.
+        copy_tbs(tbs.tbs(), TbsType::LdevidTbs)?;
 
         Ok(())
     }

@@ -18,6 +18,7 @@ use core::mem::ManuallyDrop;
 use super::crypto::{Crypto, Ecc384KeyPair};
 use super::dice::{DiceInput, DiceLayer, DiceOutput};
 use super::x509::X509;
+use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::verifier::RomImageVerificationEnv;
 use crate::{cprint, cprint_slice, cprintln, pcr};
 use crate::{rom_env::RomEnv, rom_err_def};
@@ -27,7 +28,7 @@ use caliptra_drivers::{
 };
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
-use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams};
+use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams, NotAfter, NotBefore};
 use zerocopy::{AsBytes, FromBytes};
 
 extern "C" {
@@ -51,12 +52,14 @@ impl DiceLayer for FmcAliasLayer {
     /// Perform derivations for the DICE layer
     fn derive(env: &RomEnv, input: &DiceInput) -> CaliptraResult<DiceOutput> {
         cprintln!("[afmc] ++");
-        cprintln!("[afmc] CDI.KEYID = {}", input.cdi as u8);
-        cprintln!("[afmc] SUBJECT.KEYID = {}", input.subj_priv_key as u8);
-        cprintln!(
-            "[afmc] AUTHORITY.KEYID = {}",
-            input.auth_key_pair.priv_key as u8
-        );
+
+        // To Do : Disabling the Prints Temporarily
+        //cprintln!("[afmc] CDI.KEYID = {}", input.cdi as u8);
+        //cprintln!("[afmc] SUBJECT.KEYID = {}", input.subj_priv_key as u8);
+        // cprintln!(
+        //     "[afmc] AUTHORITY.KEYID = {}",
+        //     input.auth_key_pair.priv_key as u8
+        // );
 
         // Download the image
         let mut txn = Self::download_image(env)?;
@@ -101,8 +104,30 @@ impl DiceLayer for FmcAliasLayer {
         // Generate the output for next layer
         let output = input.to_output(key_pair, subj_sn, subj_key_id);
 
+        // if there is a valid value in the manifest for the not_before and not_after
+        // we take it from there.
+
+        let mut nb = NotBefore::default();
+        let mut nf = NotAfter::default();
+        let null_time = [0u8; 15];
+
+        if manifest.header.vendor_not_after != null_time
+            && manifest.header.vendor_not_before != null_time
+        {
+            nf.not_after = manifest.header.vendor_not_after;
+            nb.not_before = manifest.header.vendor_not_before;
+        }
+
+        //The owner values takes preference
+        if manifest.header.owner_data.owner_not_after != null_time
+            && manifest.header.owner_data.owner_not_before != null_time
+        {
+            nf.not_after = manifest.header.owner_data.owner_not_after;
+            nb.not_before = manifest.header.owner_data.owner_not_before;
+        }
+
         // Generate Local Device ID Certificate
-        Self::generate_cert_sig(env, input, &output)?;
+        Self::generate_cert_sig(env, input, &output, &nb.not_before, &nf.not_after)?;
 
         cprintln!("[afmc] --");
 
@@ -357,6 +382,8 @@ impl FmcAliasLayer {
         env: &RomEnv,
         input: &DiceInput,
         output: &DiceOutput,
+        not_before: &[u8; FmcAliasCertTbsParams::NOT_BEFORE_LEN],
+        not_after: &[u8; FmcAliasCertTbsParams::NOT_AFTER_LEN],
     ) -> CaliptraResult<()> {
         let auth_priv_key = input.auth_key_pair.priv_key;
         let auth_pub_key = &input.auth_key_pair.pub_key;
@@ -373,6 +400,8 @@ impl FmcAliasLayer {
             public_key: &pub_key.to_der(),
             tcb_info_fmc_tci: &env.data_vault().map(|d| d.fmc_tci()).into(),
             tcb_info_owner_pk_hash: &env.data_vault().map(|d| d.owner_pk_hash()).into(),
+            not_before,
+            not_after,
         };
 
         // Generate the `To Be Signed` portion of the CSR
@@ -409,6 +438,9 @@ impl FmcAliasLayer {
 
         // Lock the FMC Public key in the data vault until next boot
         env.data_vault().map(|d| d.set_fmc_pub_key(pub_key));
+
+        //  Copy TBS to DCCM.
+        copy_tbs(tbs.tbs(), TbsType::FmcaliasTbs)?;
 
         Ok(())
     }

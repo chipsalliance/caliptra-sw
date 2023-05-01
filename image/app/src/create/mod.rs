@@ -14,6 +14,7 @@ Abstract:
 
 mod config;
 
+use anyhow::anyhow;
 use anyhow::Context;
 use caliptra_image_gen::*;
 use caliptra_image_openssl::ecc_priv_key_from_pem;
@@ -26,6 +27,46 @@ use std::path::PathBuf;
 
 use caliptra_image_elf::ElfExecutable;
 use config::{OwnerKeyConfig, VendorKeyConfig};
+
+use chrono::NaiveDate;
+
+///
+/// This function takes the string as the input
+/// and extracts year, month and day from the string
+/// and then performs some basic validity checks
+///
+fn check_date(from_date: &str, to_date: &str) -> anyhow::Result<bool> {
+    let time_fmt = "YYYYMMDDHHMMSS";
+
+    let current_date = chrono::Utc::now().date_naive();
+
+    if from_date.len() < time_fmt.len() || to_date.len() < time_fmt.len() {
+        return Err(anyhow!("Invalid Date Input Format"));
+    }
+
+    let from_date_str: &str = &from_date[0..8];
+    let to_date_str: &str = &to_date[0..8];
+
+    let from_date_in = match NaiveDate::parse_from_str(from_date_str, "%Y%m%d") {
+        Ok(d) => d,
+        Err(_) => return Err(anyhow!("Invalid From Date Input Format")),
+    };
+
+    let to_date_in = match NaiveDate::parse_from_str(to_date_str, "%Y%m%d") {
+        Ok(d) => d,
+        Err(_) => return Err(anyhow!("Invalid To Date Input Format")),
+    };
+
+    if from_date_in < current_date || to_date_in < current_date {
+        return Err(anyhow!("Invalid Input Date"));
+    }
+
+    if from_date_in > to_date_in {
+        return Err(anyhow!("From Date Is greater Than To Date"));
+    }
+
+    Ok(true)
+}
 
 /// Run the command
 pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
@@ -73,6 +114,32 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         .get_one::<PathBuf>("out")
         .with_context(|| "out arg not specified")?;
 
+    //YYYYMMDDHHMMSS - Zulu Time
+    let mut own_from_date: [u8; 15] = [0u8; 15];
+    let mut own_to_date: [u8; 15] = [0u8; 15];
+    if let Some(from_date) = args.get_one::<String>("own-from-date") {
+        if let Some(to_date) = args.get_one::<String>("own-to-date") {
+            check_date(from_date, to_date)?;
+            own_from_date[0..14].copy_from_slice(&from_date.as_bytes()[0..14]);
+            own_from_date[14] = b'Z';
+            own_to_date[0..14].copy_from_slice(&to_date.as_bytes()[0..14]);
+            own_to_date[14] = b'Z';
+        }
+    }
+
+    //YYYYMMDDHHMMSS - Zulu Time
+    let mut mfg_from_date: [u8; 15] = [0u8; 15];
+    let mut mfg_to_date: [u8; 15] = [0u8; 15];
+    if let Some(from_date) = args.get_one::<String>("mfg-from-date") {
+        if let Some(to_date) = args.get_one::<String>("mfg-to-date") {
+            check_date(from_date, to_date)?;
+            mfg_from_date[0..14].copy_from_slice(&from_date.as_bytes()[0..14]);
+            mfg_from_date[14] = b'Z';
+            mfg_to_date[0..14].clone_from_slice(&to_date.as_bytes()[0..14]);
+            mfg_to_date[14] = b'Z';
+        }
+    }
+
     let config = config::load_key_config(config_path)?;
 
     let fmc_rev = hex::decode(fmc_rev)?;
@@ -96,8 +163,14 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         .with_context(|| "Invalid parent path")?;
 
     let gen_config = ImageGeneratorConfig::<ElfExecutable> {
-        vendor_config: vendor_config(config_dir, &config.vendor, *ecc_key_idx)?,
-        owner_config: owner_config(config_dir, &config.owner)?,
+        vendor_config: vendor_config(
+            config_dir,
+            &config.vendor,
+            *ecc_key_idx,
+            mfg_from_date,
+            mfg_to_date,
+        )?,
+        owner_config: owner_config(config_dir, &config.owner, own_from_date, own_to_date)?,
         fmc,
         runtime,
     };
@@ -123,6 +196,8 @@ fn vendor_config(
     path: &Path,
     config: &VendorKeyConfig,
     ecc_key_idx: u32,
+    from_date: [u8; 15],
+    to_date: [u8; 15],
 ) -> anyhow::Result<ImageGeneratorVendorConfig> {
     let mut gen_config = ImageGeneratorVendorConfig::default();
     let ecc_pub_keys = &config.ecc_pub_keys;
@@ -150,6 +225,8 @@ fn vendor_config(
     }
 
     gen_config.ecc_key_idx = ecc_key_idx;
+    gen_config.not_before = from_date;
+    gen_config.not_after = to_date;
 
     Ok(gen_config)
 }
@@ -158,6 +235,8 @@ fn vendor_config(
 fn owner_config(
     path: &Path,
     config: &Option<OwnerKeyConfig>,
+    from_date: [u8; 15],
+    to_date: [u8; 15],
 ) -> anyhow::Result<Option<ImageGeneratorOwnerConfig>> {
     if let Some(config) = config {
         let mut gen_config = ImageGeneratorOwnerConfig::default();
@@ -172,6 +251,8 @@ fn owner_config(
             priv_keys.ecc_priv_key = ecc_priv_key_from_pem(&pub_key_path)?;
             gen_config.priv_keys = Some(priv_keys);
         }
+        gen_config.not_before = from_date;
+        gen_config.not_after = to_date;
 
         Ok(Some(gen_config))
     } else {

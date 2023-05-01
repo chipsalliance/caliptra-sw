@@ -1,6 +1,8 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_builder::FwId;
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
+use caliptra_drivers::state::MfgFlags;
 use caliptra_drivers::Array4x12;
 use caliptra_hw_model::{
     BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError, SecurityState, U4,
@@ -12,6 +14,15 @@ use caliptra_image_fake_keys::{
 use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig, ImageGeneratorVendorConfig};
 use caliptra_image_openssl::OsslCrypto;
 use caliptra_image_types::{ImageBundle, ImageManifest, VENDOR_ECC_KEY_COUNT};
+use openssl::asn1::Asn1Integer;
+use openssl::asn1::Asn1Time;
+use openssl::bn::BigNum;
+use openssl::hash::MessageDigest;
+use openssl::pkey::{PKey, Private};
+use openssl::rsa::Rsa;
+use openssl::x509::X509Req;
+use openssl::x509::X509;
+use std::str;
 use zerocopy::AsBytes;
 
 mod helpers;
@@ -1178,6 +1189,146 @@ fn test_runtime_svn_less_than_fuse_svn() {
     );
 }
 
+#[test]
+fn cert_test_with_custom_dates() {
+    pub const TEST_FMC_WITH_UART: FwId = FwId {
+        crate_name: "caliptra-rom-test-fmc",
+        bin_name: "caliptra-rom-test-fmc",
+        features: &["emu"],
+    };
+
+    let fuses = Fuses::default();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        fw_image: None,
+    })
+    .unwrap();
+
+    let mut opts = ImageOptions::default();
+
+    opts.vendor_config
+        .not_before
+        .copy_from_slice("20250101000000Z".as_bytes());
+
+    opts.vendor_config
+        .not_after
+        .copy_from_slice("20260101000000Z".as_bytes());
+
+    let mut own_config = opts.owner_config.unwrap();
+
+    own_config
+        .not_before
+        .copy_from_slice("20270101000000Z".as_bytes());
+    own_config
+        .not_after
+        .copy_from_slice("20280101000000Z".as_bytes());
+
+    opts.owner_config = Some(own_config);
+
+    let image_bundle =
+        caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, opts).unwrap();
+
+    let mut output = vec![];
+
+    // Set gen_idev_id_csr to generate CSR.
+    let flags = MfgFlags::GENERATE_IDEVID_CSR;
+    hw.soc_ifc()
+        .cptra_dbg_manuf_service_reg()
+        .write(|_| flags.bits());
+
+    #[cfg(feature = "verilator")]
+    {
+        // [TODO] Download the CSR from the mailbox and set the gen_idev_id_csr bit 0.
+    }
+
+    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        .unwrap();
+
+    let result = hw.copy_output_until_exit_success(&mut output);
+    assert!(result.is_ok());
+    let output = String::from_utf8_lossy(&output);
+
+    // Get the idevid cert.
+    let idevid_cert = idevid_cert(&output);
+
+    // Get the ldevid cert.
+    let ldevid_cert = ldevid_cert(&idevid_cert, &output);
+
+    let not_before: Asn1Time = Asn1Time::from_str("20270101000000Z").unwrap();
+    let not_after: Asn1Time = Asn1Time::from_str("20280101000000Z").unwrap();
+
+    // Get the fmclias cert.
+    let cert = fmcalias_cert(&ldevid_cert, &output);
+    assert!(cert.not_before() == not_before);
+    assert!(cert.not_after() == not_after);
+}
+
+#[test]
+fn cert_test() {
+    pub const TEST_FMC_WITH_UART: FwId = FwId {
+        crate_name: "caliptra-rom-test-fmc",
+        bin_name: "caliptra-rom-test-fmc",
+        features: &["emu"],
+    };
+
+    let fuses = Fuses::default();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        fw_image: None,
+    })
+    .unwrap();
+
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &TEST_FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
+
+    let mut output = vec![];
+
+    // Set gen_idev_id_csr to generate CSR.
+    let flags = MfgFlags::GENERATE_IDEVID_CSR;
+    hw.soc_ifc()
+        .cptra_dbg_manuf_service_reg()
+        .write(|_| flags.bits());
+
+    #[cfg(feature = "verilator")]
+    {
+        // [TODO] Download the CSR from the mailbox and set the gen_idev_id_csr bit 0.
+    }
+
+    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        .unwrap();
+
+    let result = hw.copy_output_until_exit_success(&mut output);
+    assert!(result.is_ok());
+    let output = String::from_utf8_lossy(&output);
+
+    // Get the idevid cert.
+    let idevid_cert = idevid_cert(&output);
+
+    // Get the ldevid cert.
+    let ldevid_cert = ldevid_cert(&idevid_cert, &output);
+
+    // Get the fmclias cert.
+    fmcalias_cert(&ldevid_cert, &output);
+}
+
 fn update_header(image_bundle: &mut ImageBundle) {
     let opts = ImageOptions::default();
     let config = ImageGeneratorConfig {
@@ -1276,4 +1427,184 @@ fn generate_image_bytes(image_bundle: &mut ImageBundle) -> Vec<u8> {
     image.extend_from_slice(&image_bundle.fmc);
     image.extend_from_slice(&image_bundle.runtime);
     image
+}
+
+fn generate_self_signed_cert() -> (X509, PKey<Private>) {
+    let mut x509_name = openssl::x509::X509NameBuilder::new().unwrap();
+    x509_name
+        .append_entry_by_text("CN", "Caliptra Test")
+        .unwrap();
+    let x509_name = x509_name.build();
+
+    let mut x509_builder = openssl::x509::X509::builder().unwrap();
+    x509_builder.set_subject_name(&x509_name).unwrap();
+
+    // Set serial number.
+    let big_num = BigNum::from_u32(1).unwrap();
+    let serial_number = Asn1Integer::from_bn(big_num.as_ref()).unwrap();
+    x509_builder
+        .set_serial_number(serial_number.as_ref())
+        .unwrap();
+
+    // Set validity.
+    let not_valid_before = Asn1Time::days_from_now(0).unwrap();
+    let not_valid_after = Asn1Time::days_from_now(30).unwrap();
+    x509_builder
+        .set_not_before(not_valid_before.as_ref())
+        .unwrap();
+    x509_builder
+        .set_not_after(not_valid_after.as_ref())
+        .unwrap();
+
+    // Generate a pkey pair.
+    let rsa = Rsa::generate(2048).unwrap();
+    let pkey_pair = PKey::from_rsa(rsa).unwrap();
+
+    // Set public key.
+    x509_builder.set_pubkey(pkey_pair.as_ref()).unwrap();
+
+    // Since this is a self-signed certificate, we need to set the name of the
+    // issuer to the name of the subject.
+    x509_builder.set_issuer_name(x509_name.as_ref()).unwrap();
+
+    // Sign the certificate with the private key.
+    let hash = MessageDigest::md5();
+    x509_builder.sign(pkey_pair.as_ref(), hash).unwrap();
+
+    // Get the cert.
+    let cert = x509_builder.build();
+    println!("{}", str::from_utf8(&cert.to_text().unwrap()).unwrap());
+    (cert, pkey_pair)
+}
+
+fn idevid_cert(output: &str) -> X509 {
+    // Get CSR
+    let csr_str = get_data("[idev] CSR = ", output);
+    let csr = hex::decode(csr_str).unwrap();
+
+    // Verify the signature on the certificate is valid.
+    let req: X509Req = X509Req::from_der(&csr).unwrap();
+    println!(
+        "CSR:\n {}",
+        str::from_utf8(&req.to_text().unwrap()).unwrap()
+    );
+    assert!(req.verify(&req.public_key().unwrap()).unwrap());
+
+    // Generate a self-signed CA cert and get the corresponding key-pair.
+    let (ca_cert, ca_pkey_pair) = generate_self_signed_cert();
+
+    //
+    // Create the idevid certificate.
+    //
+    let mut x509_builder = openssl::x509::X509::builder().unwrap();
+
+    // Set the Subject Name from the CSR.
+    x509_builder.set_subject_name(req.subject_name()).unwrap();
+
+    // Set the Issue Name from the CA cert.
+    x509_builder.set_issuer_name(ca_cert.issuer_name()).unwrap();
+
+    // Set serial number.
+    let big_num = BigNum::from_u32(1).unwrap();
+    let serial_number = Asn1Integer::from_bn(big_num.as_ref()).unwrap();
+    x509_builder
+        .set_serial_number(serial_number.as_ref())
+        .unwrap();
+
+    // Set public key from the CSR.
+    x509_builder.set_pubkey(&req.public_key().unwrap()).unwrap();
+
+    // Set cert validity.
+    let not_valid_before = Asn1Time::days_from_now(0).unwrap();
+    let not_valid_after = Asn1Time::days_from_now(1).unwrap();
+    x509_builder
+        .set_not_before(not_valid_before.as_ref())
+        .unwrap();
+    x509_builder
+        .set_not_after(not_valid_after.as_ref())
+        .unwrap();
+
+    // Sign the cert with the CA's private key.
+    x509_builder
+        .sign(ca_pkey_pair.as_ref(), MessageDigest::md5())
+        .unwrap();
+
+    // Get the cert.
+    let idevid_cert = x509_builder.build();
+    println!(
+        "IDEVID Cert from CSR:\n{}",
+        str::from_utf8(&idevid_cert.to_text().unwrap()).unwrap()
+    );
+    idevid_cert
+}
+
+fn ldevid_cert(idevd_cert: &X509, output: &str) -> X509 {
+    // Get the ldevid cert
+    let ldevid_cert =
+        X509::from_der(&hex::decode(get_data("[fmc] LDEVID cert = ", output)).unwrap()).unwrap();
+    println!(
+        "LDEVID Cert:\n{}",
+        str::from_utf8(&ldevid_cert.to_text().unwrap()).unwrap()
+    );
+
+    // Get ldevid public key
+    let pub_key_from_dv = hex::decode(get_data("[fmc] LDEVID PUBLIC KEY DER = ", output)).unwrap();
+
+    // Verify the signature on the cert is valid.
+    let pub_key_from_cert = ldevid_cert
+        .public_key()
+        .as_ref()
+        .unwrap()
+        .public_key_to_der()
+        .unwrap();
+    assert_eq!(pub_key_from_dv, pub_key_from_cert[23..]);
+
+    // Verify the ldevid cert using idevid cert's public key.
+    assert!(ldevid_cert
+        .verify(idevd_cert.public_key().as_ref().unwrap())
+        .unwrap());
+
+    ldevid_cert
+}
+
+fn fmcalias_cert(ldevid_cert: &X509, output: &str) -> X509 {
+    // Get the ldevid cert
+    let fmcalias_cert =
+        X509::from_der(&hex::decode(get_data("[fmc] FMCALIAS cert = ", output)).unwrap()).unwrap();
+    println!(
+        "FMCALIAS Cert:\n {}",
+        str::from_utf8(&fmcalias_cert.to_text().unwrap()).unwrap()
+    );
+
+    // Get fmclias public key
+    let pub_key_from_dv =
+        hex::decode(get_data("[fmc] FMCALIAS PUBLIC KEY DER = ", output)).unwrap();
+
+    // Verify the signature on the cert is valid.
+    let pub_key_from_cert = fmcalias_cert
+        .public_key()
+        .as_ref()
+        .unwrap()
+        .public_key_to_der()
+        .unwrap();
+    assert_eq!(pub_key_from_dv, pub_key_from_cert[23..]);
+
+    // Verify the ldevid cert using idevid cert's public key.
+    assert!(fmcalias_cert
+        .verify(ldevid_cert.public_key().as_ref().unwrap())
+        .unwrap());
+
+    fmcalias_cert
+}
+
+fn get_data(to_match: &str, haystack: &str) -> String {
+    let mut index = haystack.find(to_match).unwrap();
+    index += to_match.len();
+    let mut str = String::new();
+    while haystack.chars().nth(index).unwrap() != '\n' {
+        str.push(haystack.chars().nth(index).unwrap());
+        index += 1;
+    }
+
+    str
 }

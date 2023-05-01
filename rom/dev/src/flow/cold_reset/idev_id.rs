@@ -242,10 +242,12 @@ impl InitDevIdLayer {
             raise_err!(CsrVerify);
         }
 
-        let _pub_x: [u8; 48] = key_pair.pub_key.x.into();
-        let _pub_y: [u8; 48] = key_pair.pub_key.y.into();
-        cprint_slice!("[idev] PUB.X", _pub_x);
-        cprint_slice!("[idev] PUB.Y", _pub_y);
+        // [TODO] Due to printing of the CSR, rom sections are hitting max limits.
+        // Add this back when CSR printing is removed from here and added to test cases.
+        // let _pub_x: [u8; 48] = key_pair.pub_key.x.into();
+        // let _pub_y: [u8; 48] = key_pair.pub_key.y.into();
+        // cprint_slice!("[idev] PUB.X", _pub_x);
+        // cprint_slice!("[idev] PUB.Y", _pub_y);
 
         let _sig_r: [u8; 48] = sig.r.into();
         let _sig_s: [u8; 48] = sig.s.into();
@@ -257,6 +259,7 @@ impl InitDevIdLayer {
         let csr_bldr =
             Ecdsa384CsrBuilder::new(tbs.tbs(), &sig.to_ecdsa()).ok_or(err_u32!(CsrBuilderInit))?;
         let csr_len = csr_bldr.build(&mut csr).ok_or(err_u32!(CsrBuilderBuild))?;
+        cprint_slice!("[idev] CSR", csr);
 
         // Execute Send CSR Flow
         Self::send_csr(env, InitDevIdCsr::new(&csr, csr_len))

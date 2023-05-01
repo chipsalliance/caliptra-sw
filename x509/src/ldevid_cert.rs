@@ -15,7 +15,7 @@ Abstract:
 // Note: All the necessary code is auto generated
 include!(concat!(env!("OUT_DIR"), "/local_dev_id_cert_tbs.rs"));
 
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(all(test, target_family = "unix"))]
 mod tests {
     use openssl::ecdsa::EcdsaSig;
     use openssl::sha::Sha384;
@@ -23,6 +23,7 @@ mod tests {
 
     use super::*;
     use crate::test_util::tests::*;
+    use crate::{NotAfter, NotBefore};
 
     #[test]
     fn test_cert_signing() {
@@ -55,6 +56,8 @@ mod tests {
                     issuer_key.sha1(),
                 )
                 .unwrap(),
+            not_before: &NotBefore::default().not_before,
+            not_after: &NotAfter::default().not_after,
         };
 
         let cert = LocalDevIdCertTbs::new(&params);

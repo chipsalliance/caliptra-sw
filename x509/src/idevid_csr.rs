@@ -15,7 +15,7 @@ Abstract:
 // Note: All the necessary code is auto generated
 include!(concat!(env!("OUT_DIR"), "/init_dev_id_csr_tbs.rs"));
 
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(all(test, target_family = "unix"))]
 mod tests {
     use openssl::sha::Sha384;
     use openssl::{ecdsa::EcdsaSig, x509::X509Req};
