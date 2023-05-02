@@ -211,7 +211,7 @@ impl Doe {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CaliptraRootBusArgs, Iccm, KeyUsage, Mailbox, MailboxRam};
+    use crate::{CaliptraRootBusArgs, Iccm, KeyUsage, MailboxInternal, MailboxRam};
     use caliptra_emu_bus::Bus;
     use caliptra_emu_crypto::EndianessTransform;
     use caliptra_emu_types::RvAddr;
@@ -220,6 +220,11 @@ mod tests {
     const OFFSET_IV: RvAddr = 0;
     const OFFSET_CONTROL: RvAddr = 0x10;
     const OFFSET_STATUS: RvAddr = 0x14;
+
+    fn mailbox_internal(sram: MailboxRam) -> MailboxInternal {
+        let mailbox_regs = crate::soc2caliptra_mailbox_regs(sram);
+        MailboxInternal::new(mailbox_regs)
+    }
 
     fn make_word(idx: usize, arr: &[u8]) -> RvData {
         let mut res: RvData = 0;
@@ -248,7 +253,7 @@ mod tests {
         let key_vault = KeyVault::new();
         let soc_reg = SocRegistersInternal::new(
             &clock,
-            Mailbox::new(MailboxRam::new()),
+            mailbox_internal(MailboxRam::new()),
             Iccm::new(&clock),
             CaliptraRootBusArgs::default(),
         );
@@ -307,7 +312,7 @@ mod tests {
         let key_vault = KeyVault::new();
         let soc_reg = SocRegistersInternal::new(
             &clock,
-            Mailbox::new(MailboxRam::new()),
+            mailbox_internal(MailboxRam::new()),
             Iccm::new(&clock),
             CaliptraRootBusArgs::default(),
         );
@@ -364,7 +369,7 @@ mod tests {
         let key_vault = KeyVault::new();
         let soc_reg = SocRegistersInternal::new(
             &clock,
-            Mailbox::new(MailboxRam::new()),
+            mailbox_internal(MailboxRam::new()),
             Iccm::new(&clock),
             CaliptraRootBusArgs::default(),
         );
