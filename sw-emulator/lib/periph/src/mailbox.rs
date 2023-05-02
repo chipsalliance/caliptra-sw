@@ -87,11 +87,16 @@ impl Default for MailboxRam {
 }
 
 #[derive(Clone)]
-pub struct Mailbox {
+pub struct MailboxInternal {
     regs: Rc<RefCell<MailboxRegs>>,
 }
 
-impl Mailbox {
+#[derive(Clone)]
+pub struct MailboxExternal {
+    regs: Rc<RefCell<MailboxRegs>>,
+}
+
+impl MailboxInternal {
     const OFFSET_LOCK: RvAddr = 0x00;
     const OFFSET_CMD: RvAddr = 0x08;
     const OFFSET_DLEN: RvAddr = 0x0C;
@@ -223,7 +228,7 @@ impl Mailbox {
     }
 }
 
-impl Bus for Mailbox {
+impl Bus for MailboxInternal {
     /// Read data of specified size from given address
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
         self.regs.borrow_mut().read(size, addr)
@@ -576,10 +581,13 @@ mod tests {
     fn test_send_receive() {
         let request_to_send: [u32; 4] = [0x1111_1111, 0x2222_2222, 0x3333_3333, 0x4444_4444];
         // Acquire lock
-        let mut mb = Mailbox::new(MailboxRam::new());
-        assert_eq!(mb.read(RvSize::Word, Mailbox::OFFSET_LOCK).unwrap(), 0);
+        let mut mb = MailboxInternal::new(MailboxRam::new());
+        assert_eq!(
+            mb.read(RvSize::Word, MailboxInternal::OFFSET_LOCK).unwrap(),
+            0
+        );
         // Confirm it is locked
-        let lock = mb.read(RvSize::Word, Mailbox::OFFSET_LOCK).unwrap();
+        let lock = mb.read(RvSize::Word, MailboxInternal::OFFSET_LOCK).unwrap();
         assert_eq!(lock, 1);
 
         let user = mb.read(RvSize::Word, OFFSET_USER).unwrap();
@@ -587,7 +595,8 @@ mod tests {
 
         // Write command
         assert_eq!(
-            mb.write(RvSize::Word, Mailbox::OFFSET_CMD, 0x55).ok(),
+            mb.write(RvSize::Word, MailboxInternal::OFFSET_CMD, 0x55)
+                .ok(),
             Some(())
         );
         // Confirm it is locked
@@ -597,7 +606,8 @@ mod tests {
         let dlen = dlen * 4;
         // Write dlen
         assert_eq!(
-            mb.write(RvSize::Word, Mailbox::OFFSET_DLEN, dlen).ok(),
+            mb.write(RvSize::Word, MailboxInternal::OFFSET_DLEN, dlen)
+                .ok(),
             Some(())
         );
 
@@ -607,7 +617,7 @@ mod tests {
         for data_in in request_to_send.iter() {
             // Write datain
             assert_eq!(
-                mb.write(RvSize::Word, Mailbox::OFFSET_DATAIN, *data_in)
+                mb.write(RvSize::Word, MailboxInternal::OFFSET_DATAIN, *data_in)
                     .ok(),
                 Some(())
             );
@@ -617,7 +627,7 @@ mod tests {
         assert_eq!(
             mb.write(
                 RvSize::Word,
-                Mailbox::OFFSET_STATUS,
+                MailboxInternal::OFFSET_STATUS,
                 Status::STATUS::DATA_READY.value
             )
             .ok(),
@@ -626,7 +636,8 @@ mod tests {
 
         // Write exec
         assert_eq!(
-            mb.write(RvSize::Word, Mailbox::OFFSET_EXECUTE, 0x55).ok(),
+            mb.write(RvSize::Word, MailboxInternal::OFFSET_EXECUTE, 0x55)
+                .ok(),
             Some(())
         );
         // Confirm it is locked
@@ -637,28 +648,32 @@ mod tests {
             States::Exec
         ));
 
-        let status = mb.read(RvSize::Word, Mailbox::OFFSET_STATUS).unwrap();
+        let status = mb
+            .read(RvSize::Word, MailboxInternal::OFFSET_STATUS)
+            .unwrap();
         assert_eq!(
             status,
             (Status::STATUS::DATA_READY + Status::MBOX_FSM_PS::MBOX_EXECUTE_UC).value
         );
 
-        let cmd = mb.read(RvSize::Word, Mailbox::OFFSET_CMD).unwrap();
+        let cmd = mb.read(RvSize::Word, MailboxInternal::OFFSET_CMD).unwrap();
         assert_eq!(cmd, 0x55);
 
-        let dlen = mb.read(RvSize::Word, Mailbox::OFFSET_DLEN).unwrap();
+        let dlen = mb.read(RvSize::Word, MailboxInternal::OFFSET_DLEN).unwrap();
         assert_eq!(dlen, (request_to_send.len() * 4) as u32);
 
         request_to_send.iter().for_each(|data_in| {
             // Read dataout
-            let data_out = mb.read(RvSize::Word, Mailbox::OFFSET_DATAOUT).unwrap();
+            let data_out = mb
+                .read(RvSize::Word, MailboxInternal::OFFSET_DATAOUT)
+                .unwrap();
             // compare with queued data.
             assert_eq!(*data_in, data_out);
         });
         assert_eq!(
             mb.write(
                 RvSize::Word,
-                Mailbox::OFFSET_STATUS,
+                MailboxInternal::OFFSET_STATUS,
                 Status::STATUS::CMD_COMPLETE.value
             )
             .ok(),
@@ -667,7 +682,8 @@ mod tests {
 
         // Receiver resets exec register
         assert_eq!(
-            mb.write(RvSize::Word, Mailbox::OFFSET_EXECUTE, 0).ok(),
+            mb.write(RvSize::Word, MailboxInternal::OFFSET_EXECUTE, 0)
+                .ok(),
             Some(())
         );
         // Confirm it is unlocked
@@ -681,7 +697,7 @@ mod tests {
 
     #[test]
     fn test_sm_init() {
-        let mb = Mailbox::new(MailboxRam::new());
+        let mb = MailboxInternal::new(MailboxRam::new());
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
             States::Idle
@@ -691,7 +707,7 @@ mod tests {
 
     #[test]
     fn test_sm_lock() {
-        let mb = Mailbox::new(MailboxRam::new());
+        let mb = MailboxInternal::new(MailboxRam::new());
         assert_eq!(mb.regs.borrow().state_machine.context().locked, 0);
         assert_eq!(mb.regs.borrow().state_machine.context().dlen, 0);
 
@@ -751,10 +767,13 @@ mod tests {
     #[test]
     fn test_send_receive_max_limit() {
         // Acquire lock
-        let mut mb = Mailbox::new(MailboxRam::new());
-        assert_eq!(mb.read(RvSize::Word, Mailbox::OFFSET_LOCK).unwrap(), 0);
+        let mut mb = MailboxInternal::new(MailboxRam::new());
+        assert_eq!(
+            mb.read(RvSize::Word, MailboxInternal::OFFSET_LOCK).unwrap(),
+            0
+        );
         // Confirm it is locked
-        let lock = mb.read(RvSize::Word, Mailbox::OFFSET_LOCK).unwrap();
+        let lock = mb.read(RvSize::Word, MailboxInternal::OFFSET_LOCK).unwrap();
         assert_eq!(lock, 1);
 
         let user = mb.read(RvSize::Word, OFFSET_USER).unwrap();
@@ -762,7 +781,8 @@ mod tests {
 
         // Write command
         assert_eq!(
-            mb.write(RvSize::Word, Mailbox::OFFSET_CMD, 0x55).ok(),
+            mb.write(RvSize::Word, MailboxInternal::OFFSET_CMD, 0x55)
+                .ok(),
             Some(())
         );
 
@@ -770,7 +790,7 @@ mod tests {
         assert_eq!(
             mb.write(
                 RvSize::Word,
-                Mailbox::OFFSET_DLEN,
+                MailboxInternal::OFFSET_DLEN,
                 (MAX_MAILBOX_CAPACITY_BYTES + 4) as u32
             )
             .ok(),
@@ -780,7 +800,7 @@ mod tests {
         for data_in in (0..MAX_MAILBOX_CAPACITY_BYTES).step_by(4) {
             // Write datain
             assert_eq!(
-                mb.write(RvSize::Word, Mailbox::OFFSET_DATAIN, data_in as u32)
+                mb.write(RvSize::Word, MailboxInternal::OFFSET_DATAIN, data_in as u32)
                     .ok(),
                 Some(())
             );
@@ -788,7 +808,7 @@ mod tests {
 
         // Write an additional DWORD. This should be a no-op.
         assert_eq!(
-            mb.write(RvSize::Word, Mailbox::OFFSET_DATAIN, 0xDEADBEEF)
+            mb.write(RvSize::Word, MailboxInternal::OFFSET_DATAIN, 0xDEADBEEF)
                 .ok(),
             Some(())
         );
@@ -796,7 +816,7 @@ mod tests {
         assert_eq!(
             mb.write(
                 RvSize::Word,
-                Mailbox::OFFSET_STATUS,
+                MailboxInternal::OFFSET_STATUS,
                 Status::STATUS::DATA_READY.value
             )
             .ok(),
@@ -805,7 +825,8 @@ mod tests {
 
         // Write exec
         assert_eq!(
-            mb.write(RvSize::Word, Mailbox::OFFSET_EXECUTE, 0x55).ok(),
+            mb.write(RvSize::Word, MailboxInternal::OFFSET_EXECUTE, 0x55)
+                .ok(),
             Some(())
         );
 
@@ -814,36 +835,41 @@ mod tests {
             States::Exec
         ));
 
-        let status = mb.read(RvSize::Word, Mailbox::OFFSET_STATUS).unwrap();
+        let status = mb
+            .read(RvSize::Word, MailboxInternal::OFFSET_STATUS)
+            .unwrap();
         assert_eq!(
             status,
             (Status::STATUS::DATA_READY + Status::MBOX_FSM_PS::MBOX_EXECUTE_UC).value
         );
 
-        let cmd = mb.read(RvSize::Word, Mailbox::OFFSET_CMD).unwrap();
+        let cmd = mb.read(RvSize::Word, MailboxInternal::OFFSET_CMD).unwrap();
         assert_eq!(cmd, 0x55);
 
-        let dlen = mb.read(RvSize::Word, Mailbox::OFFSET_DLEN).unwrap();
+        let dlen = mb.read(RvSize::Word, MailboxInternal::OFFSET_DLEN).unwrap();
         assert_eq!(dlen, (MAX_MAILBOX_CAPACITY_BYTES + 4) as u32);
 
         let mut data_out = 0;
         for data_in in (0..MAX_MAILBOX_CAPACITY_BYTES).step_by(4) {
             // Read dataout
-            data_out = mb.read(RvSize::Word, Mailbox::OFFSET_DATAOUT).unwrap();
+            data_out = mb
+                .read(RvSize::Word, MailboxInternal::OFFSET_DATAOUT)
+                .unwrap();
             // compare with queued data.
             assert_eq!(data_in as u32, data_out);
         }
 
         // Read an additional DWORD. This should return the last word
         assert_eq!(
-            mb.read(RvSize::Word, Mailbox::OFFSET_DATAOUT).unwrap(),
+            mb.read(RvSize::Word, MailboxInternal::OFFSET_DATAOUT)
+                .unwrap(),
             data_out
         );
 
         assert_eq!(
             mb.write(
                 RvSize::Word,
-                Mailbox::OFFSET_STATUS,
+                MailboxInternal::OFFSET_STATUS,
                 Status::STATUS::CMD_COMPLETE.value
             )
             .ok(),
@@ -852,7 +878,8 @@ mod tests {
 
         // Receiver resets exec register
         assert_eq!(
-            mb.write(RvSize::Word, Mailbox::OFFSET_EXECUTE, 0).ok(),
+            mb.write(RvSize::Word, MailboxInternal::OFFSET_EXECUTE, 0)
+                .ok(),
             Some(())
         );
         // Confirm it is unlocked

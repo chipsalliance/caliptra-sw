@@ -14,7 +14,7 @@ Abstract:
 
 use crate::helpers::{bytes_from_words_le, words_from_bytes_le};
 use crate::root_bus::ReadyForFwCbArgs;
-use crate::{CaliptraRootBusArgs, Iccm, Mailbox};
+use crate::{CaliptraRootBusArgs, Iccm, MailboxInternal};
 use caliptra_emu_bus::BusError::{LoadAccessFault, StoreAccessFault};
 use caliptra_emu_bus::{
     ActionHandle, Bus, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteRegister,
@@ -31,7 +31,7 @@ use tock_registers::registers::InMemoryRegister;
 // Second parameter is schedule(ticks_from_now: u64, cb: Box<dyn FnOnce(&mut
 // Mailbox)>), which is called to schedule firmware writing in the future
 type ReadyForFwCallback = Box<dyn FnMut(ReadyForFwCbArgs)>;
-type UploadUpdateFwCallback = Box<dyn FnMut(&mut Mailbox)>;
+type UploadUpdateFwCallback = Box<dyn FnMut(&mut MailboxInternal)>;
 type BootFsmGoCallback = Box<dyn FnMut()>;
 
 mod constants {
@@ -181,7 +181,12 @@ const FUSE_END_ADDR: u32 = 0x340;
 
 impl SocRegistersInternal {
     /// Create an instance of SOC register peripheral
-    pub fn new(clock: &Clock, mailbox: Mailbox, iccm: Iccm, args: CaliptraRootBusArgs) -> Self {
+    pub fn new(
+        clock: &Clock,
+        mailbox: MailboxInternal,
+        iccm: Iccm,
+        args: CaliptraRootBusArgs,
+    ) -> Self {
         Self {
             regs: Rc::new(RefCell::new(SocRegistersImpl::new(
                 clock, mailbox, iccm, args,
@@ -428,7 +433,7 @@ struct SocRegistersImpl {
     internal_nmi_vector: ReadWriteRegister<u32>,
 
     /// Mailbox
-    mailbox: Mailbox,
+    mailbox: MailboxInternal,
 
     /// ICCM
     iccm: Iccm,
@@ -439,7 +444,7 @@ struct SocRegistersImpl {
     /// Firmware Write Complete action
     op_fw_write_complete_action: Option<ActionHandle>,
     #[allow(clippy::type_complexity)]
-    op_fw_write_complete_cb: Option<Box<dyn FnOnce(&mut Mailbox)>>,
+    op_fw_write_complete_cb: Option<Box<dyn FnOnce(&mut MailboxInternal)>>,
 
     /// Firmware Read Complete action
     op_fw_read_complete_action: Option<ActionHandle>,
@@ -478,7 +483,12 @@ impl SocRegistersImpl {
     /// The number of CPU clock cycles it takes to read the firmware from the mailbox.
     const FW_READ_TICKS: u64 = 0;
 
-    pub fn new(clock: &Clock, mailbox: Mailbox, iccm: Iccm, mut args: CaliptraRootBusArgs) -> Self {
+    pub fn new(
+        clock: &Clock,
+        mailbox: MailboxInternal,
+        iccm: Iccm,
+        mut args: CaliptraRootBusArgs,
+    ) -> Self {
         let regs = Self {
             cptra_hw_error_fatal: ReadWriteRegister::new(0),
             cptra_hw_error_non_fatal: ReadWriteRegister::new(0),
@@ -621,7 +631,7 @@ impl SocRegistersImpl {
             let op_fw_write_complete_action = &mut self.op_fw_write_complete_action;
             let op_fw_write_complete_cb = &mut self.op_fw_write_complete_cb;
             let timer = &self.timer;
-            let sched_fn = move |ticks_from_now: u64, cb: Box<dyn FnOnce(&mut Mailbox)>| {
+            let sched_fn = move |ticks_from_now: u64, cb: Box<dyn FnOnce(&mut MailboxInternal)>| {
                 *op_fw_write_complete_action = Some(timer.schedule_poll_in(ticks_from_now));
                 *op_fw_write_complete_cb = Some(cb);
             };
@@ -750,7 +760,7 @@ mod tests {
     };
     use tock_registers::{interfaces::ReadWriteable, registers::InMemoryRegister};
 
-    fn send_data_to_mailbox(mailbox: &mut Mailbox, cmd: u32, data: &[u8]) {
+    fn send_data_to_mailbox(mailbox: &mut MailboxInternal, cmd: u32, data: &[u8]) {
         while !mailbox.try_acquire_lock() {}
 
         mailbox.write_cmd(cmd).unwrap();
@@ -779,7 +789,7 @@ mod tests {
     }
 
     fn download_idev_id_csr(
-        mailbox: &mut Mailbox,
+        mailbox: &mut MailboxInternal,
         path: &mut PathBuf,
         soc_reg: &mut SocRegistersInternal,
     ) {
@@ -794,7 +804,7 @@ mod tests {
     }
 
     fn download_ldev_id_cert(
-        mailbox: &mut Mailbox,
+        mailbox: &mut MailboxInternal,
         path: &mut PathBuf,
         soc_reg: &mut SocRegistersInternal,
     ) {
@@ -808,7 +818,7 @@ mod tests {
             .modify(DebugManufService::REQ_LDEVID_CERT::CLEAR)
     }
 
-    fn download_to_file(mailbox: &mut Mailbox, path: &mut PathBuf, file: &str) {
+    fn download_to_file(mailbox: &mut MailboxInternal, path: &mut PathBuf, file: &str) {
         path.push(file);
         let mut file = std::fs::File::create(path).unwrap();
 
@@ -841,7 +851,7 @@ mod tests {
         ];
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mut mailbox = Mailbox::new(mailbox_ram);
+        let mut mailbox = MailboxInternal::new(mailbox_ram);
         let mut log_dir = PathBuf::new();
         log_dir.push("/tmp");
         let args = CaliptraRootBusArgs::default();
@@ -900,7 +910,7 @@ mod tests {
         ];
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mut mailbox = Mailbox::new(mailbox_ram);
+        let mut mailbox = MailboxInternal::new(mailbox_ram);
         let mut log_dir = PathBuf::new();
         log_dir.push("/tmp");
         let args = CaliptraRootBusArgs::default();
@@ -957,7 +967,7 @@ mod tests {
 
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mailbox = Mailbox::new(mailbox_ram);
+        let mailbox = MailboxInternal::new(mailbox_ram);
         let args = CaliptraRootBusArgs {
             tb_services_cb: TbServicesCb::new(move |ch| output2.borrow_mut().push(ch)),
             ..Default::default()
