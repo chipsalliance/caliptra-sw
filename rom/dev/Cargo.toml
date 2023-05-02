@@ -44,3 +44,7 @@ std = [
   "ufmt/std",
 ]
 no-fmc = []
+
+[[bin]]
+name = "asm_tests"
+path = "test-fw/asm_tests.rs"
