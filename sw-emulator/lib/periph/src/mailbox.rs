@@ -179,7 +179,7 @@ impl MailboxExternal {
 
     pub fn is_command_exec_requested(&self) -> bool {
         self.regs.borrow_mut().request(MailboxRequester::Soc);
-        matches!(self.regs.borrow_mut().state_machine.state, States::Exec)
+        matches!(self.regs.borrow_mut().state_machine.state, States::ExecUc)
     }
 
     pub fn is_status_cmd_busy(&mut self) -> bool {
@@ -333,7 +333,7 @@ impl MailboxInternal {
 
     pub fn is_command_exec_requested(&self) -> bool {
         self.regs.borrow_mut().request(MailboxRequester::Caliptra);
-        matches!(self.regs.borrow_mut().state_machine.state, States::Exec)
+        matches!(self.regs.borrow_mut().state_machine.state, States::ExecUc)
     }
 
     pub fn is_status_cmd_busy(&mut self) -> bool {
@@ -566,7 +566,7 @@ impl MailboxRegs {
         let mut result = self.state_machine.context.status;
         result.modify(match self.state_machine.state {
             // TODO: What about MBOX_EXECUTE_SOC?
-            States::Exec => Status::MBOX_FSM_PS::MBOX_EXECUTE_UC,
+            States::ExecUc => Status::MBOX_FSM_PS::MBOX_EXECUTE_UC,
             States::Idle => Status::MBOX_FSM_PS::MBOX_IDLE,
             States::RdyForCmd => Status::MBOX_FSM_PS::MBOX_RDY_FOR_CMD,
             States::RdyForData => Status::MBOX_FSM_PS::MBOX_RDY_FOR_DATA,
@@ -599,11 +599,11 @@ statemachine! {
         RdyForCmd  + CmdWrite(Cmd) / set_cmd = RdyForDlen,
         RdyForDlen + DlenWrite(DataLength) / init_dlen = RdyForData,
         RdyForData + DataWrite(DataIn) / enqueue = RdyForData,
-        RdyForData + ExecSet = Exec,
-        Exec + DataRead / dequeue = Exec,
-        Exec + DlenWrite(DataLength) / init_dlen = Exec,
-        Exec + DataWrite(DataIn) / enqueue = Exec,
-        Exec + ExecClear [is_locked] / unlock = Idle
+        RdyForData + ExecSet = ExecUc,
+        ExecUc + DataRead / dequeue = ExecUc,
+        ExecUc + DlenWrite(DataLength) / init_dlen = ExecUc,
+        ExecUc + DataWrite(DataIn) / enqueue = ExecUc,
+        ExecUc + ExecClear [is_locked] / unlock = Idle
     }
 }
 
@@ -838,7 +838,7 @@ mod tests {
 
         assert!(matches!(
             soc.regs.borrow().state_machine.state(),
-            States::Exec
+            States::ExecUc
         ));
 
         let status = caliptra.read(RvSize::Word, OFFSET_STATUS).unwrap();
@@ -938,7 +938,7 @@ mod tests {
             .process_event(Events::ExecSet);
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
-            States::Exec
+            States::ExecUc
         ));
 
         let _ = mb
@@ -1008,7 +1008,7 @@ mod tests {
 
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
-            States::Exec
+            States::ExecUc
         ));
 
         let status = mb.read(RvSize::Word, OFFSET_STATUS).unwrap();
