@@ -21,41 +21,46 @@ use caliptra_emu_bus::TimerAction;
 use caliptra_emu_types::RvAddr;
 use caliptra_emu_types::RvData;
 use caliptra_emu_types::RvSize;
+use std::cell::Cell;
 use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone)]
 pub struct Iccm {
-    iccm: Rc<RefCell<IccmImpl>>,
+    iccm: Rc<IccmImpl>,
 }
 const ICCM_SIZE_BYTES: usize = 128 * 1024;
 
 impl Iccm {
     pub fn lock(&mut self) {
-        self.iccm.borrow_mut().locked = true;
+        self.iccm.locked.set(true);
     }
 
     pub fn unlock(&mut self) {
-        self.iccm.borrow_mut().locked = false;
+        self.iccm.locked.set(false);
     }
 
     pub fn new(clock: &Clock) -> Self {
         Self {
-            iccm: Rc::new(RefCell::new(IccmImpl::new(clock))),
+            iccm: Rc::new(IccmImpl::new(clock)),
         }
+    }
+
+    pub fn ram(&self) -> &RefCell<Ram> {
+        &self.iccm.ram
     }
 }
 
 struct IccmImpl {
-    ram: Ram,
-    locked: bool,
+    ram: RefCell<Ram>,
+    locked: Cell<bool>,
     timer: Timer,
 }
 
 impl IccmImpl {
     pub fn new(clock: &Clock) -> Self {
         Self {
-            ram: Ram::new(vec![0; ICCM_SIZE_BYTES]),
-            locked: false,
+            ram: RefCell::new(Ram::new(vec![0; ICCM_SIZE_BYTES])),
+            locked: Cell::new(false),
             timer: clock.timer(),
         }
     }
@@ -64,7 +69,7 @@ impl IccmImpl {
 impl Bus for Iccm {
     /// Read data of specified size from given address
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
-        self.iccm.borrow_mut().ram.read(size, addr)
+        self.iccm.ram.borrow_mut().read(size, addr)
     }
 
     /// Write data of specified size to given address
@@ -75,10 +80,8 @@ impl Bus for Iccm {
         // From RISC-V_VeeR_EL2_PRM.pdf
         const NMI_CAUSE_DBUS_STORE_ERROR: u32 = 0xf000_0000;
 
-        let mut iccm = self.iccm.borrow_mut();
-
         if size != RvSize::Word || (addr & 0x3) != 0 {
-            iccm.timer.schedule_action_in(
+            self.iccm.timer.schedule_action_in(
                 NMI_DELAY,
                 TimerAction::Nmi {
                     mcause: NMI_CAUSE_DBUS_STORE_ERROR,
@@ -86,10 +89,10 @@ impl Bus for Iccm {
             );
             return Ok(());
         }
-        if iccm.locked {
+        if self.iccm.locked.get() {
             return Err(StoreAccessFault);
         }
-        iccm.ram.write(size, addr, val)
+        self.iccm.ram.borrow_mut().write(size, addr, val)
     }
 }
 

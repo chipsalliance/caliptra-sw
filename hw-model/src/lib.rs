@@ -125,6 +125,8 @@ pub enum ModelError {
     UnknownCommandStatus(u32),
     NotReadyForFwErr,
     ReadyForFirmwareTimeout { cycles: u32 },
+    ProvidedIccmTooLarge,
+    ProvidedDccmTooLarge,
 }
 impl Error for ModelError {}
 impl Display for ModelError {
@@ -145,6 +147,8 @@ impl Display for ModelError {
                 f,
                 "Ready-for-firmware signal not received after {cycles} cycles"
             ),
+            ModelError::ProvidedDccmTooLarge => write!(f, "Provided DCCM image too large"),
+            ModelError::ProvidedIccmTooLarge => write!(f, "Provided ICCM image too large"),
         }
     }
 }
