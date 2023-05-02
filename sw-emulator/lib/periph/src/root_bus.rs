@@ -14,7 +14,7 @@ Abstract:
 
 use crate::{
     iccm::Iccm, soc_reg::SocRegistersExternal, AsymEcc384, Doe, EmuCtrl, HashSha256, HashSha512,
-    HmacSha384, KeyVault, MailboxInternal, MailboxRam, Sha512Accelerator, Soc2CaliptraMailboxRegs,
+    HmacSha384, KeyVault, MailboxExternal, MailboxInternal, MailboxRam, Sha512Accelerator,
     SocRegistersInternal, Uart,
 };
 use caliptra_emu_bus::{Clock, Ram, Rom};
@@ -248,7 +248,7 @@ impl CaliptraRootBus {
         SocToCaliptraBus {
             // TODO: This should not be the same mailbox bus as the one used
             // internaly
-            mailbox: self.mailbox.clone(),
+            mailbox: MailboxExternal::new(self.mailbox.regs.clone()),
             soc_ifc: self.soc_reg.external_regs(),
         }
     }
@@ -257,7 +257,7 @@ impl CaliptraRootBus {
 #[derive(Bus)]
 pub struct SocToCaliptraBus {
     #[peripheral(offset = 0x3002_0000, mask = 0x0000_0fff)]
-    mailbox: MailboxInternal,
+    mailbox: MailboxExternal,
 
     #[peripheral(offset = 0x3003_0000, mask = 0x0000_ffff)]
     soc_ifc: SocRegistersExternal,
