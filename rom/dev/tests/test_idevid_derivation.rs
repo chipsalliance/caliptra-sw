@@ -2,18 +2,9 @@
 
 use caliptra_builder::ImageOptions;
 use caliptra_drivers::{state::MfgFlags, IdevidCertAttr, X509KeyIdAlgo};
-//use caliptra_drivers::{state::MfgFlags, IdevidCertAttr, X509KeyIdAlgo};
 use caliptra_hw_model::{Fuses, HwModel};
 
-mod helpers;
-
-#[track_caller]
-fn assert_output_contains(haystack: &str, needle: &str) {
-    assert!(
-        haystack.contains(needle),
-        "Expected substring in output not found: {needle}"
-    );
-}
+pub mod helpers;
 
 #[test]
 fn test_generate_csr() {
@@ -27,11 +18,10 @@ fn test_generate_csr() {
         .cptra_dbg_manuf_service_reg()
         .write(|_| flags.bits());
 
-    #[cfg(feature = "verilator")]
-    {
-        // [TODO] Download the CSR from the mailbox and set the gen_idev_id_csr bit 0.
-    }
+    // Download the CSR from the mailbox.
+    let csr_downloaded = helpers::get_csr(&mut hw);
 
+    // Wait for uploading firmware.
     hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
@@ -40,7 +30,9 @@ fn test_generate_csr() {
     assert!(result.is_ok());
 
     let output = String::from_utf8_lossy(&output);
-    assert_output_contains(&output, "[idev] CSR uploaded");
+    let csr_str = helpers::get_data("[idev] CSR = ", &output);
+    let csr_uploaded = hex::decode(csr_str).unwrap();
+    assert_eq!(csr_uploaded, csr_downloaded);
 }
 
 #[test]
