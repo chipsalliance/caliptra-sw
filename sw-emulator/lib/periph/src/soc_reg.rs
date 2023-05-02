@@ -760,6 +760,11 @@ mod tests {
     };
     use tock_registers::{interfaces::ReadWriteable, registers::InMemoryRegister};
 
+    fn mailbox_internal(sram: MailboxRam) -> MailboxInternal {
+        let mailbox_regs = crate::soc2caliptra_mailbox_regs(sram);
+        MailboxInternal::new(mailbox_regs)
+    }
+
     fn send_data_to_mailbox(mailbox: &mut MailboxInternal, cmd: u32, data: &[u8]) {
         while !mailbox.try_acquire_lock() {}
 
@@ -851,7 +856,7 @@ mod tests {
         ];
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mut mailbox = MailboxInternal::new(mailbox_ram);
+        let mut mailbox = mailbox_internal(mailbox_ram);
         let mut log_dir = PathBuf::new();
         log_dir.push("/tmp");
         let args = CaliptraRootBusArgs::default();
@@ -910,7 +915,7 @@ mod tests {
         ];
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mut mailbox = MailboxInternal::new(mailbox_ram);
+        let mut mailbox = mailbox_internal(mailbox_ram);
         let mut log_dir = PathBuf::new();
         log_dir.push("/tmp");
         let args = CaliptraRootBusArgs::default();
@@ -967,7 +972,7 @@ mod tests {
 
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mailbox = MailboxInternal::new(mailbox_ram);
+        let mailbox = mailbox_internal(mailbox_ram);
         let args = CaliptraRootBusArgs {
             tb_services_cb: TbServicesCb::new(move |ch| output2.borrow_mut().push(ch)),
             ..Default::default()

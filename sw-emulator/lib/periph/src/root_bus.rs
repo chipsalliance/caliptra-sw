@@ -14,8 +14,8 @@ Abstract:
 
 use crate::{
     iccm::Iccm, soc_reg::SocRegistersExternal, AsymEcc384, Doe, EmuCtrl, HashSha256, HashSha512,
-    HmacSha384, KeyVault, MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal,
-    Uart,
+    HmacSha384, KeyVault, MailboxInternal, MailboxRam, Sha512Accelerator, Soc2CaliptraMailboxRegs,
+    SocRegistersInternal, Uart,
 };
 use caliptra_emu_bus::{Clock, Ram, Rom};
 use caliptra_emu_derive::Bus;
@@ -219,7 +219,8 @@ impl CaliptraRootBus {
     pub fn new(clock: &Clock, mut args: CaliptraRootBusArgs) -> Self {
         let key_vault = KeyVault::new();
         let mailbox_ram = MailboxRam::new();
-        let mailbox = MailboxInternal::new(mailbox_ram.clone());
+        let soc_to_uc_mailbox_regs = crate::soc2caliptra_mailbox_regs(mailbox_ram.clone());
+        let mailbox = MailboxInternal::new(soc_to_uc_mailbox_regs.clone());
         let rom = Rom::new(std::mem::take(&mut args.rom));
         let iccm = Iccm::new(clock);
         let soc_reg = SocRegistersInternal::new(clock, mailbox.clone(), iccm.clone(), args);
