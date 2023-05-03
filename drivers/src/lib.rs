@@ -63,9 +63,8 @@ pub use hmac384::{Hmac384, Hmac384Data, Hmac384Key, Hmac384Op, Hmac384Tag};
 pub use key_vault::{KeyId, KeyUsage, KeyVault};
 pub use kv_access::{KeyReadArgs, KeyWriteArgs};
 pub use lms::{
-    candidate_ots_signature, get_lms_parameters, hash_message, lookup_lmots_algorithm_type,
-    lookup_lms_algorithm_type, verify_lms_signature, HashValue, LmotsAlgorithmType, LmotsSignature,
-    LmsAlgorithmType, LmsIdentifier, LmsSignature, Sha192Digest, Sha256Digest,
+    HashValue, Lms, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsIdentifier, LmsSignature,
+    Sha192Digest, Sha256Digest, lookup_lmots_algorithm_type, lookup_lms_algorithm_type,
 };
 pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
 pub use pcr_bank::{PcrBank, PcrId};

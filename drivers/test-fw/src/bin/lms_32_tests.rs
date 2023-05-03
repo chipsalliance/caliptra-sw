@@ -21,8 +21,8 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{
-    candidate_ots_signature, hash_message, verify_lms_signature, HashValue, LmotsAlgorithmType,
-    LmotsSignature, LmsAlgorithmType, LmsSignature, Sha256Digest,
+    HashValue, LmotsAlgorithmType, LmotsSignature, Lms, LmsAlgorithmType, LmsSignature,
+    Sha256Digest,
 };
 use caliptra_test_harness::test_suite;
 
@@ -52,7 +52,8 @@ fn test_hash_message_32() {
     let lms_q: u32 = 0xa;
     let q_str = lms_q.to_be_bytes();
 
-    let result = hash_message::<32>(&message, &lms_public_identifier, &q_str, &final_c);
+    let result =
+        Lms::default().hash_message::<32>(&message, &lms_public_identifier, &q_str, &final_c);
     let expected = HashValue::from([
         197, 161, 71, 71, 171, 172, 219, 132, 181, 174, 255, 248, 113, 57, 175, 182, 199, 253, 140,
         213, 215, 42, 14, 95, 56, 156, 32, 130, 218, 23, 63, 40,
@@ -260,7 +261,9 @@ fn test_ots_32() {
 
     let q_str = lms_q.to_be_bytes();
 
-    let result = hash_message::<32>(&message, &lms_public_identifier, &q_str, &final_c).unwrap();
+    let result = Lms::default()
+        .hash_message::<32>(&message, &lms_public_identifier, &q_str, &final_c)
+        .unwrap();
     let expected = HashValue::from([
         197, 161, 71, 71, 171, 172, 219, 132, 181, 174, 255, 248, 113, 57, 175, 182, 199, 253, 140,
         213, 215, 42, 14, 95, 56, 156, 32, 130, 218, 23, 63, 40,
@@ -276,7 +279,7 @@ fn test_ots_32() {
         123, 137, 201, 181, 66, 198, 144, 160, 42, 2, 153, 48, 197, 135, 38, 170, 241, 133, 152,
         70, 241, 226, 174, 134, 68, 114, 27, 42, 34, 97, 35, 145,
     ]);
-    let result_ots = candidate_ots_signature::<32, 34>(
+    let result_ots = Lms::default().candidate_ots_signature::<32, 34>(
         &final_ots_sig.ots_type,
         &lms_public_identifier,
         &q_str,
@@ -533,7 +536,7 @@ fn test_lms_lower_32() {
         lms_path: &final_path,
     };
 
-    let final_thingie = verify_lms_signature(
+    let final_thingie = Lms::default().verify_lms_signature(
         5,
         &message,
         &lms_public_identifier,
@@ -800,15 +803,16 @@ fn test_hss_upper_32() {
         lms_path: &path,
     };
 
-    let success = verify_lms_signature(
-        5,
-        &public_buffer,
-        &identifier,
-        q,
-        &hss_public_key,
-        &upper_signature,
-    )
-    .unwrap();
+    let success = Lms::default()
+        .verify_lms_signature(
+            5,
+            &public_buffer,
+            &identifier,
+            q,
+            &hss_public_key,
+            &upper_signature,
+        )
+        .unwrap();
     assert_eq!(success, true);
 }
 

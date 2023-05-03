@@ -15,9 +15,7 @@ File contains test cases for LMS signature verification using SHA256/192.
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{
-    verify_lms_signature, HashValue, LmotsSignature, LmsIdentifier, LmsSignature, Sha192Digest,
-};
+use caliptra_drivers::{HashValue, LmotsSignature, Lms, LmsIdentifier, LmsSignature, Sha192Digest};
 use caliptra_test_harness::test_suite;
 
 fn test_failures_lms_24() {
@@ -321,42 +319,47 @@ fn test_failures_lms_24() {
         lms_path: &path,
     };
 
-    let success =
-        verify_lms_signature(15, &message, &lms_identifier, q, &lms_public_key, &lms_sig).unwrap();
+    let success = Lms::default()
+        .verify_lms_signature(15, &message, &lms_identifier, q, &lms_public_key, &lms_sig)
+        .unwrap();
     assert_eq!(success, true);
 
     let new_message = "this is a different message".as_bytes();
-    let should_fail = verify_lms_signature(
-        15,
-        &new_message,
-        &lms_identifier,
-        q,
-        &lms_public_key,
-        &lms_sig,
-    )
-    .unwrap();
+    let should_fail = Lms::default()
+        .verify_lms_signature(
+            15,
+            &new_message,
+            &lms_identifier,
+            q,
+            &lms_public_key,
+            &lms_sig,
+        )
+        .unwrap();
     assert_eq!(should_fail, false);
 
     let new_lms: LmsIdentifier = [0u8; 16];
-    let should_fail =
-        verify_lms_signature(15, &message, &new_lms, q, &lms_public_key, &lms_sig).unwrap();
+    let should_fail = Lms::default()
+        .verify_lms_signature(15, &message, &new_lms, q, &lms_public_key, &lms_sig)
+        .unwrap();
     assert_eq!(should_fail, false);
 
     let new_q = q + 1;
-    let should_fail = verify_lms_signature(
-        15,
-        &message,
-        &lms_identifier,
-        new_q,
-        &lms_public_key,
-        &lms_sig,
-    )
-    .unwrap();
+    let should_fail = Lms::default()
+        .verify_lms_signature(
+            15,
+            &message,
+            &lms_identifier,
+            new_q,
+            &lms_public_key,
+            &lms_sig,
+        )
+        .unwrap();
     assert_eq!(should_fail, false);
 
     let new_public_key = HashValue::from([0u8; 24]);
-    let should_fail =
-        verify_lms_signature(15, &message, &lms_identifier, q, &new_public_key, &lms_sig).unwrap();
+    let should_fail = Lms::default()
+        .verify_lms_signature(15, &message, &lms_identifier, q, &new_public_key, &lms_sig)
+        .unwrap();
     assert_eq!(should_fail, false);
 
     let new_ots = LmotsSignature {
@@ -371,15 +374,16 @@ fn test_failures_lms_24() {
         sig_type: lms_type,
         lms_path: &[HashValue::from([0u8; 24]); 15],
     };
-    let should_fail = verify_lms_signature(
-        15,
-        &message,
-        &lms_identifier,
-        q,
-        &lms_public_key,
-        &new_lms_sig,
-    )
-    .unwrap();
+    let should_fail = Lms::default()
+        .verify_lms_signature(
+            15,
+            &message,
+            &lms_identifier,
+            q,
+            &lms_public_key,
+            &new_lms_sig,
+        )
+        .unwrap();
     assert_eq!(should_fail, false);
 }
 

@@ -16,9 +16,8 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{
-    get_lms_parameters, hash_message, lookup_lmots_algorithm_type, lookup_lms_algorithm_type,
-    verify_lms_signature, HashValue, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType,
-    LmsIdentifier, LmsSignature, Sha192Digest,
+    lookup_lmots_algorithm_type, lookup_lms_algorithm_type, HashValue, LmotsAlgorithmType,
+    LmotsSignature, Lms, LmsAlgorithmType, LmsIdentifier, LmsSignature, Sha192Digest,
 };
 use caliptra_test_harness::test_suite;
 
@@ -29,36 +28,56 @@ fn test_lms_lookup() {
 
 fn test_get_lms_parameters() {
     // Full size SHA256 hashes
-    let (width, height) = get_lms_parameters(&LmsAlgorithmType::LmsSha256N32H5).unwrap();
+    let (width, height) = Lms::default()
+        .get_lms_parameters(&LmsAlgorithmType::LmsSha256N32H5)
+        .unwrap();
     assert_eq!(32, width);
     assert_eq!(5, height);
-    let (width, height) = get_lms_parameters(&LmsAlgorithmType::LmsSha256N32H10).unwrap();
+    let (width, height) = Lms::default()
+        .get_lms_parameters(&LmsAlgorithmType::LmsSha256N32H10)
+        .unwrap();
     assert_eq!(32, width);
     assert_eq!(10, height);
-    let (width, height) = get_lms_parameters(&LmsAlgorithmType::LmsSha256N32H15).unwrap();
+    let (width, height) = Lms::default()
+        .get_lms_parameters(&LmsAlgorithmType::LmsSha256N32H15)
+        .unwrap();
     assert_eq!(32, width);
     assert_eq!(15, height);
-    let (width, height) = get_lms_parameters(&LmsAlgorithmType::LmsSha256N32H20).unwrap();
+    let (width, height) = Lms::default()
+        .get_lms_parameters(&LmsAlgorithmType::LmsSha256N32H20)
+        .unwrap();
     assert_eq!(32, width);
     assert_eq!(20, height);
-    let (width, height) = get_lms_parameters(&LmsAlgorithmType::LmsSha256N32H25).unwrap();
+    let (width, height) = Lms::default()
+        .get_lms_parameters(&LmsAlgorithmType::LmsSha256N32H25)
+        .unwrap();
     assert_eq!(32, width);
     assert_eq!(25, height);
 
     // Truncated 192 bit SHA256 hashes
-    let (width, height) = get_lms_parameters(&LmsAlgorithmType::LmsSha256N24H5).unwrap();
+    let (width, height) = Lms::default()
+        .get_lms_parameters(&LmsAlgorithmType::LmsSha256N24H5)
+        .unwrap();
     assert_eq!(24, width);
     assert_eq!(5, height);
-    let (width, height) = get_lms_parameters(&LmsAlgorithmType::LmsSha256N24H10).unwrap();
+    let (width, height) = Lms::default()
+        .get_lms_parameters(&LmsAlgorithmType::LmsSha256N24H10)
+        .unwrap();
     assert_eq!(24, width);
     assert_eq!(10, height);
-    let (width, height) = get_lms_parameters(&LmsAlgorithmType::LmsSha256N24H15).unwrap();
+    let (width, height) = Lms::default()
+        .get_lms_parameters(&LmsAlgorithmType::LmsSha256N24H15)
+        .unwrap();
     assert_eq!(24, width);
     assert_eq!(15, height);
-    let (width, height) = get_lms_parameters(&LmsAlgorithmType::LmsSha256N24H20).unwrap();
+    let (width, height) = Lms::default()
+        .get_lms_parameters(&LmsAlgorithmType::LmsSha256N24H20)
+        .unwrap();
     assert_eq!(24, width);
     assert_eq!(20, height);
-    let (width, height) = get_lms_parameters(&LmsAlgorithmType::LmsSha256N24H25).unwrap();
+    let (width, height) = Lms::default()
+        .get_lms_parameters(&LmsAlgorithmType::LmsSha256N24H25)
+        .unwrap();
     assert_eq!(24, width);
     assert_eq!(25, height);
 }
@@ -73,7 +92,7 @@ fn test_hash_message_24() {
         116, 104, 105, 115, 32, 105, 115, 32, 116, 104, 101, 32, 109, 101, 115, 115, 97, 103, 101,
         32, 73, 32, 119, 97, 110, 116, 32, 115, 105, 103, 110, 101, 100,
     ];
-    let lms_identifier: [u8; 16] = [
+    let lms_identifier: LmsIdentifier = [
         102, 40, 233, 90, 126, 166, 161, 73, 107, 57, 114, 28, 121, 57, 28, 123,
     ];
     let nonce: [u8; 24] = [
@@ -86,7 +105,9 @@ fn test_hash_message_24() {
         175, 160, 9, 71, 29, 26, 61, 20, 90, 217, 142, 152, 112, 68, 51, 17, 154, 191, 74, 150,
         161, 238, 102, 161,
     ]);
-    let hash = hash_message(&message, &lms_identifier, &q_str, &nonce).unwrap();
+    let hash = Lms::default()
+        .hash_message(&message, &lms_identifier, &q_str, &nonce)
+        .unwrap();
     assert_eq!(expected_hash, hash);
 }
 
@@ -95,7 +116,7 @@ fn test_lms_24_height_15() {
         116, 104, 105, 115, 32, 105, 115, 32, 116, 104, 101, 32, 109, 101, 115, 115, 97, 103, 101,
         32, 73, 32, 119, 97, 110, 116, 32, 115, 105, 103, 110, 101, 100,
     ];
-    let lms_identifier: [u8; 16] = [
+    let lms_identifier: LmsIdentifier = [
         158, 20, 249, 74, 242, 177, 66, 175, 101, 91, 176, 36, 80, 31, 240, 7,
     ];
     let q: u32 = 0;
@@ -391,43 +412,48 @@ fn test_lms_24_height_15() {
         lms_path: &path,
     };
 
-    let success =
-        verify_lms_signature(15, &message, &lms_identifier, q, &lms_public_key, &lms_sig).unwrap();
+    let success = Lms::default()
+        .verify_lms_signature(15, &message, &lms_identifier, q, &lms_public_key, &lms_sig)
+        .unwrap();
     assert_eq!(success, true);
 
     // some negative tests, but we can't fit all of them in here before we go over the ROM limit
     let new_message = "this is a different message".as_bytes();
-    let should_fail = verify_lms_signature(
-        15,
-        &new_message,
-        &lms_identifier,
-        q,
-        &lms_public_key,
-        &lms_sig,
-    )
-    .unwrap();
+    let should_fail = Lms::default()
+        .verify_lms_signature(
+            15,
+            &new_message,
+            &lms_identifier,
+            q,
+            &lms_public_key,
+            &lms_sig,
+        )
+        .unwrap();
     assert_eq!(should_fail, false);
 
     let new_lms: LmsIdentifier = [0u8; 16];
-    let should_fail =
-        verify_lms_signature(15, &message, &new_lms, q, &lms_public_key, &lms_sig).unwrap();
+    let should_fail = Lms::default()
+        .verify_lms_signature(15, &message, &new_lms, q, &lms_public_key, &lms_sig)
+        .unwrap();
     assert_eq!(should_fail, false);
 
     let new_q = q + 1;
-    let should_fail = verify_lms_signature(
-        15,
-        &message,
-        &lms_identifier,
-        new_q,
-        &lms_public_key,
-        &lms_sig,
-    )
-    .unwrap();
+    let should_fail = Lms::default()
+        .verify_lms_signature(
+            15,
+            &message,
+            &lms_identifier,
+            new_q,
+            &lms_public_key,
+            &lms_sig,
+        )
+        .unwrap();
     assert_eq!(should_fail, false);
 
     let new_public_key = HashValue::from([0u8; 24]);
-    let should_fail =
-        verify_lms_signature(15, &message, &lms_identifier, q, &new_public_key, &lms_sig).unwrap();
+    let should_fail = Lms::default()
+        .verify_lms_signature(15, &message, &lms_identifier, q, &new_public_key, &lms_sig)
+        .unwrap();
     assert_eq!(should_fail, false);
 }
 
@@ -436,7 +462,7 @@ fn test_lms_24_height_20() {
         116, 104, 105, 115, 32, 105, 115, 32, 116, 104, 101, 32, 109, 101, 115, 115, 97, 103, 101,
         32, 73, 32, 119, 97, 110, 116, 32, 115, 105, 103, 110, 101, 100,
     ];
-    let lms_identifier: [u8; 16] = [
+    let lms_identifier: LmsIdentifier = [
         69, 136, 206, 137, 163, 10, 230, 185, 177, 120, 219, 80, 34, 70, 71, 93,
     ];
     let q: u32 = 0;
@@ -751,8 +777,9 @@ fn test_lms_24_height_20() {
         lms_path: &path,
     };
 
-    let success =
-        verify_lms_signature(20, &message, &lms_identifier, q, &lms_public_key, &lms_sig).unwrap();
+    let success = Lms::default()
+        .verify_lms_signature(20, &message, &lms_identifier, q, &lms_public_key, &lms_sig)
+        .unwrap();
     assert_eq!(success, true);
 }
 

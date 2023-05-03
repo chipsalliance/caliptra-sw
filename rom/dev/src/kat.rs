@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use caliptra_drivers::CaliptraResult;
-use caliptra_kat::{Ecc384Kat, Hmac384Kat, Sha1Kat, Sha256Kat, Sha384AccKat, Sha384Kat};
+use caliptra_kat::{Ecc384Kat, Hmac384Kat, LmsKat, Sha1Kat, Sha256Kat, Sha384AccKat, Sha384Kat};
 
 use crate::{cprintln, rom_env::RomEnv};
 
@@ -43,6 +43,9 @@ pub fn execute_kat(env: &RomEnv) -> CaliptraResult<()> {
 
     cprintln!("[kat] Executing HMAC-384 Engine KAT");
     env.hmac384().map(|h| Hmac384Kat::default().execute(h))?;
+
+    cprintln!("[kat] Executing LMS Engine KAT");
+    env.lms().map(|l| LmsKat::default().execute(l))?;
 
     cprintln!("[kat] --");
 

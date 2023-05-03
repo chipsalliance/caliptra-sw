@@ -246,235 +246,239 @@ const LMOTS_P: [LmotsParameter; 9] = [
     },
 ];
 
-// maybe this should just return the 5 values and not a struct?
-// similar to how the LMS parameters are returned
-pub fn get_lmots_parameters(
-    algo_type: &LmotsAlgorithmType,
-) -> CaliptraResult<&'static LmotsParameter> {
-    for i in &LMOTS_P {
-        if i.algorithm_name == *algo_type {
-            return Ok(i);
+impl Lms {
+    pub fn get_lmots_parameters(
+        &self,
+        algo_type: &LmotsAlgorithmType,
+    ) -> CaliptraResult<&'static LmotsParameter> {
+        for i in &LMOTS_P {
+            if i.algorithm_name == *algo_type {
+                return Ok(i);
+            }
+        }
+        raise_err!(InvalidLmotsAlgorithmType)
+    }
+
+    pub fn get_lms_parameters(&self, algo_type: &LmsAlgorithmType) -> CaliptraResult<(u8, u8)> {
+        match algo_type {
+            LmsAlgorithmType::LmsSha256N32H5 => Ok((32, 5)),
+            LmsAlgorithmType::LmsSha256N32H10 => Ok((32, 10)),
+            LmsAlgorithmType::LmsSha256N32H15 => Ok((32, 15)),
+            LmsAlgorithmType::LmsSha256N32H20 => Ok((32, 20)),
+            LmsAlgorithmType::LmsSha256N32H25 => Ok((32, 25)),
+            LmsAlgorithmType::LmsSha256N24H5 => Ok((24, 5)),
+            LmsAlgorithmType::LmsSha256N24H10 => Ok((24, 10)),
+            LmsAlgorithmType::LmsSha256N24H15 => Ok((24, 15)),
+            LmsAlgorithmType::LmsSha256N24H20 => Ok((24, 20)),
+            LmsAlgorithmType::LmsSha256N24H25 => Ok((24, 25)),
+            LmsAlgorithmType::LmsReserved => {
+                raise_err!(InvalidLmsAlgorithmType)
+            }
         }
     }
-    raise_err!(InvalidLmotsAlgorithmType)
-}
 
-pub fn get_lms_parameters(algo_type: &LmsAlgorithmType) -> CaliptraResult<(u8, u8)> {
-    match algo_type {
-        LmsAlgorithmType::LmsSha256N32H5 => Ok((32, 5)),
-        LmsAlgorithmType::LmsSha256N32H10 => Ok((32, 10)),
-        LmsAlgorithmType::LmsSha256N32H15 => Ok((32, 15)),
-        LmsAlgorithmType::LmsSha256N32H20 => Ok((32, 20)),
-        LmsAlgorithmType::LmsSha256N32H25 => Ok((32, 25)),
-        LmsAlgorithmType::LmsSha256N24H5 => Ok((24, 5)),
-        LmsAlgorithmType::LmsSha256N24H10 => Ok((24, 10)),
-        LmsAlgorithmType::LmsSha256N24H15 => Ok((24, 15)),
-        LmsAlgorithmType::LmsSha256N24H20 => Ok((24, 20)),
-        LmsAlgorithmType::LmsSha256N24H25 => Ok((24, 25)),
-        LmsAlgorithmType::LmsReserved => {
-            raise_err!(InvalidLmsAlgorithmType)
+    // follows pseudo code at https://www.rfc-editor.org/rfc/rfc8554#section-3.1.3
+    fn coefficient(&self, s: &[u8], i: usize, w: usize) -> u8 {
+        let bitmask: u16 = (1 << (w)) - 1;
+        let index = i * w / 8;
+        let b = s[index];
+
+        // extra logic to avoid the divide by 0
+        // which a good compiler would notice only happens when w is 0 and that portion of the
+        // expression could be skipped
+        let mut shift = 8;
+        if w != 0 {
+            shift = 8 - (w * (i % (8 / w)) + w);
         }
-    }
-}
 
-// follows pseudo code at https://www.rfc-editor.org/rfc/rfc8554#section-3.1.3
-fn coefficient(s: &[u8], i: usize, w: usize) -> u8 {
-    let bitmask: u16 = (1 << (w)) - 1;
-    let index = i * w / 8;
-    let b = s[index];
-
-    // extra logic to avoid the divide by 0
-    // which a good compiler would notice only happens when w is 0 and that portion of the
-    // expression could be skipped
-    let mut shift = 8;
-    if w != 0 {
-        shift = 8 - (w * (i % (8 / w)) + w);
-    }
-
-    // Rust errors if we try to shift off all of the bits off from a value
-    // some implementations 0 fill, others do some other filling.
-    // we make this be 0
-    let mut rs = 0;
-    if shift < 8 {
-        rs = b >> shift;
-    }
-    let small_bitmask = bitmask as u8;
-    small_bitmask & rs
-}
-
-fn checksum(algo_type: &LmotsAlgorithmType, input_string: &[u8]) -> CaliptraResult<u16> {
-    let params = get_lmots_parameters(algo_type)?;
-    let mut sum = 0u16;
-    let upper_bound = params.n as u16 * (8 / params.w as u16);
-    let bitmask = (1 << params.w) - 1;
-    for i in 0..upper_bound as usize {
-        sum += bitmask - (coefficient(input_string, i, params.w as usize) as u16);
-    }
-    let shifted = sum << params.ls;
-    Ok(shifted)
-}
-
-pub fn hash_message<const N: usize>(
-    message: &[u8],
-    lms_identifier: &LmsIdentifier,
-    q: &[u8; 4],
-    nonce: &[u8; N],
-) -> CaliptraResult<HashValue<N>> {
-    let mut digest = Array4x8::default();
-    let sha = Sha256::default();
-    let mut hasher = sha.digest_init(&mut digest)?;
-    hasher.update(lms_identifier)?;
-    hasher.update(q)?;
-    hasher.update(&D_MESG.to_be_bytes())?;
-    hasher.update(nonce)?;
-    hasher.update(message)?;
-    hasher.finalize()?;
-    Ok(HashValue::from(digest))
-}
-
-pub fn candidate_ots_signature<const N: usize, const P: usize>(
-    algo_type: &LmotsAlgorithmType,
-    lms_identifier: &LmsIdentifier,
-    q: &[u8; 4],
-    signature: &LmotsSignature<N, P>,
-    message_digest: &HashValue<N>,
-) -> CaliptraResult<HashValue<N>> {
-    if algo_type != &signature.ots_type {
-        // println!("These have different ots types");
-        raise_err!(InvalidLmotsAlgorithmType);
-    }
-    let params = get_lmots_parameters(algo_type)?;
-    if params.p as usize != P {
-        raise_err!(InvalidPValue);
-    }
-    if params.n > 32 {
-        raise_err!(InvalidHashWidth);
-    }
-    if params.n as usize != N {
-        raise_err!(InvalidHashWidth);
-    }
-    let mut z = [HashValue::<N>::default(); P];
-    let mut message_hash_with_checksum = [0u8; 34]; // 2 extra bytes for the checksum. needs to be N+2
-    message_hash_with_checksum[..N].copy_from_slice(&message_digest.0[..N]);
-
-    let checksum_q = checksum(algo_type, &message_hash_with_checksum)?;
-    let be_checksum = checksum_q.to_be_bytes();
-    message_hash_with_checksum[N] = be_checksum[0];
-    message_hash_with_checksum[N + 1] = be_checksum[1];
-
-    // In order to reduce the number of copies allocate a single block of memory
-    // and update only the portions that update between iterations
-    let mut hash_block = [0u8; 55];
-    hash_block[0..16].clone_from_slice(lms_identifier);
-    hash_block[16..20].clone_from_slice(q);
-    for i in 0..params.p {
-        let a = coefficient(&message_hash_with_checksum, i as usize, params.w as usize);
-        let mut tmp = signature.y[i as usize];
-        let t_upper: u16 = (1 << params.w) - 1; // subtract with overflow?
-        let upper = t_upper as u8;
-        hash_block[20..22].clone_from_slice(&i.to_be_bytes());
-        for j in a..upper {
-            let mut digest = Array4x8::default();
-            let sha = Sha256::default();
-            let mut hasher = sha.digest_init(&mut digest)?;
-            hash_block[22] = j;
-            hash_block[23..23 + N].clone_from_slice(&tmp.0);
-            hasher.update(&hash_block[0..23 + N])?;
-            hasher.finalize()?;
-            tmp = HashValue::<N>::from(digest);
+        // Rust errors if we try to shift off all of the bits off from a value
+        // some implementations 0 fill, others do some other filling.
+        // we make this be 0
+        let mut rs = 0;
+        if shift < 8 {
+            rs = b >> shift;
         }
-        z[i as usize] = tmp;
-    }
-    let mut digest = Array4x8::default();
-    let sha = Sha256::default();
-    let mut hasher = sha.digest_init(&mut digest)?;
-    hasher.update(lms_identifier)?;
-    hasher.update(q)?;
-    hasher.update(&D_PBLC.to_be_bytes())?;
-    for t in z {
-        hasher.update(&t.0)?;
-    }
-    hasher.finalize()?;
-    let result = HashValue::<N>::from(digest);
-    Ok(result)
-}
-
-pub fn verify_lms_signature<const N: usize, const P: usize>(
-    tree_height: u8,
-    input_string: &[u8],
-    lms_identifier: &LmsIdentifier,
-    q: u32,
-    lms_public_key: &HashValue<N>,
-    lms_sig: &LmsSignature<N, P>,
-) -> CaliptraResult<bool> {
-    let q_str = q.to_be_bytes();
-    let message_digest = hash_message(
-        input_string,
-        lms_identifier,
-        &q_str,
-        &lms_sig.lmots_signature.nonce,
-    )?;
-    let candidate_key = candidate_ots_signature(
-        &lms_sig.lmots_signature.ots_type,
-        lms_identifier,
-        &q_str,
-        &lms_sig.lmots_signature,
-        &message_digest,
-    )?;
-
-    match tree_height {
-        5 => (),
-        10 => (),
-        15 => (),
-        20 => (),
-        25 => (),
-        _ => raise_err!(InvalidTreeHeight),
+        let small_bitmask = bitmask as u8;
+        small_bitmask & rs
     }
 
-    if q > 2u32.pow(tree_height as u32) - 1 {
-        raise_err!(InvalidQValue);
-    }
-    let mut node_num = (1 << tree_height) + q;
-    let mut digest = Array4x8::default();
-    let sha = Sha256::default();
-    let mut hasher = sha.digest_init(&mut digest)?;
-    hasher.update(lms_identifier)?;
-    hasher.update(&node_num.to_be_bytes())?;
-    hasher.update(&D_LEAF.to_be_bytes())?;
-    hasher.update(&candidate_key.0)?;
-    hasher.finalize()?;
-    let mut temp = HashValue::<N>::from(digest);
-    let mut i = 0;
-    while node_num > 1 {
-        if node_num % 2 == 1 {
-            let mut digest = Array4x8::default();
-            let sha = Sha256::default();
-            let mut hasher = sha.digest_init(&mut digest)?;
-            hasher.update(lms_identifier)?;
-            hasher.update(&(node_num / 2).to_be_bytes())?;
-            hasher.update(&D_INTR.to_be_bytes())?;
-            hasher.update(&lms_sig.lms_path[i].0)?;
-            hasher.update(&temp.0)?;
-            hasher.finalize()?;
-            temp = HashValue::<N>::from(digest);
-        } else {
-            let mut digest = Array4x8::default();
-            let sha = Sha256::default();
-            let mut hasher = sha.digest_init(&mut digest)?;
-            hasher.update(lms_identifier)?;
-            hasher.update(&(node_num / 2).to_be_bytes())?;
-            hasher.update(&D_INTR.to_be_bytes())?;
-            hasher.update(&temp.0)?;
-            hasher.update(&lms_sig.lms_path[i].0)?;
-            hasher.finalize()?;
-            temp = HashValue::<N>::from(digest);
+    fn checksum(&self, algo_type: &LmotsAlgorithmType, input_string: &[u8]) -> CaliptraResult<u16> {
+        let params = self.get_lmots_parameters(algo_type)?;
+        let mut sum = 0u16;
+        let upper_bound = params.n as u16 * (8 / params.w as u16);
+        let bitmask = (1 << params.w) - 1;
+        for i in 0..upper_bound as usize {
+            sum += bitmask - (self.coefficient(input_string, i, params.w as usize) as u16);
         }
-        node_num /= 2;
-        i += 1;
+        let shifted = sum << params.ls;
+        Ok(shifted)
     }
-    let candidate_key = temp;
-    if candidate_key != *lms_public_key {
-        return Ok(false);
+
+    pub fn hash_message<const N: usize>(
+        &self,
+        message: &[u8],
+        lms_identifier: &LmsIdentifier,
+        q: &[u8; 4],
+        nonce: &[u8; N],
+    ) -> CaliptraResult<HashValue<N>> {
+        let mut digest = Array4x8::default();
+        let sha = Sha256::default();
+        let mut hasher = sha.digest_init(&mut digest)?;
+        hasher.update(lms_identifier)?;
+        hasher.update(q)?;
+        hasher.update(&D_MESG.to_be_bytes())?;
+        hasher.update(nonce)?;
+        hasher.update(message)?;
+        hasher.finalize()?;
+        Ok(HashValue::from(digest))
     }
-    Ok(true)
+
+    pub fn candidate_ots_signature<const N: usize, const P: usize>(
+        &self,
+        algo_type: &LmotsAlgorithmType,
+        lms_identifier: &LmsIdentifier,
+        q: &[u8; 4],
+        signature: &LmotsSignature<N, P>,
+        message_digest: &HashValue<N>,
+    ) -> CaliptraResult<HashValue<N>> {
+        if algo_type != &signature.ots_type {
+            // println!("These have different ots types");
+            raise_err!(InvalidLmotsAlgorithmType);
+        }
+        let params = self.get_lmots_parameters(algo_type)?;
+        if params.p as usize != P {
+            raise_err!(InvalidPValue);
+        }
+        if params.n > 32 {
+            raise_err!(InvalidHashWidth);
+        }
+        if params.n as usize != N {
+            raise_err!(InvalidHashWidth);
+        }
+        let mut z = [HashValue::<N>::default(); P];
+        let mut message_hash_with_checksum = [0u8; 34]; // 2 extra bytes for the checksum. needs to be N+2
+        message_hash_with_checksum[..N].copy_from_slice(&message_digest.0[..N]);
+
+        let checksum_q = self.checksum(algo_type, &message_hash_with_checksum)?;
+        let be_checksum = checksum_q.to_be_bytes();
+        message_hash_with_checksum[N] = be_checksum[0];
+        message_hash_with_checksum[N + 1] = be_checksum[1];
+
+        // In order to reduce the number of copies allocate a single block of memory
+        // and update only the portions that update between iterations
+        let mut hash_block = [0u8; 55];
+        hash_block[0..16].clone_from_slice(lms_identifier);
+        hash_block[16..20].clone_from_slice(q);
+        for i in 0..params.p {
+            let a = self.coefficient(&message_hash_with_checksum, i as usize, params.w as usize);
+            let mut tmp = signature.y[i as usize];
+            let t_upper: u16 = (1 << params.w) - 1; // subtract with overflow?
+            let upper = t_upper as u8;
+            hash_block[20..22].clone_from_slice(&i.to_be_bytes());
+            for j in a..upper {
+                let mut digest = Array4x8::default();
+                let sha = Sha256::default();
+                let mut hasher = sha.digest_init(&mut digest)?;
+                hash_block[22] = j;
+                hash_block[23..23 + N].clone_from_slice(&tmp.0);
+                hasher.update(&hash_block[0..23 + N])?;
+                hasher.finalize()?;
+                tmp = HashValue::<N>::from(digest);
+            }
+            z[i as usize] = tmp;
+        }
+        let mut digest = Array4x8::default();
+        let sha = Sha256::default();
+        let mut hasher = sha.digest_init(&mut digest)?;
+        hasher.update(lms_identifier)?;
+        hasher.update(q)?;
+        hasher.update(&D_PBLC.to_be_bytes())?;
+        for t in z {
+            hasher.update(&t.0)?;
+        }
+        hasher.finalize()?;
+        let result = HashValue::<N>::from(digest);
+        Ok(result)
+    }
+
+    pub fn verify_lms_signature<const N: usize, const P: usize>(
+        &self,
+        tree_height: u8,
+        input_string: &[u8],
+        lms_identifier: &LmsIdentifier,
+        q: u32,
+        lms_public_key: &HashValue<N>,
+        lms_sig: &LmsSignature<N, P>,
+    ) -> CaliptraResult<bool> {
+        let q_str = q.to_be_bytes();
+        let message_digest = self.hash_message(
+            input_string,
+            lms_identifier,
+            &q_str,
+            &lms_sig.lmots_signature.nonce,
+        )?;
+        let candidate_key = self.candidate_ots_signature(
+            &lms_sig.lmots_signature.ots_type,
+            lms_identifier,
+            &q_str,
+            &lms_sig.lmots_signature,
+            &message_digest,
+        )?;
+
+        match tree_height {
+            5 => (),
+            10 => (),
+            15 => (),
+            20 => (),
+            25 => (),
+            _ => raise_err!(InvalidTreeHeight),
+        }
+
+        if q > 2u32.pow(tree_height as u32) - 1 {
+            raise_err!(InvalidQValue);
+        }
+        let mut node_num = (1 << tree_height) + q;
+        let mut digest = Array4x8::default();
+        let sha = Sha256::default();
+        let mut hasher = sha.digest_init(&mut digest)?;
+        hasher.update(lms_identifier)?;
+        hasher.update(&node_num.to_be_bytes())?;
+        hasher.update(&D_LEAF.to_be_bytes())?;
+        hasher.update(&candidate_key.0)?;
+        hasher.finalize()?;
+        let mut temp = HashValue::<N>::from(digest);
+        let mut i = 0;
+        while node_num > 1 {
+            if node_num % 2 == 1 {
+                let mut digest = Array4x8::default();
+                let sha = Sha256::default();
+                let mut hasher = sha.digest_init(&mut digest)?;
+                hasher.update(lms_identifier)?;
+                hasher.update(&(node_num / 2).to_be_bytes())?;
+                hasher.update(&D_INTR.to_be_bytes())?;
+                hasher.update(&lms_sig.lms_path[i].0)?;
+                hasher.update(&temp.0)?;
+                hasher.finalize()?;
+                temp = HashValue::<N>::from(digest);
+            } else {
+                let mut digest = Array4x8::default();
+                let sha = Sha256::default();
+                let mut hasher = sha.digest_init(&mut digest)?;
+                hasher.update(lms_identifier)?;
+                hasher.update(&(node_num / 2).to_be_bytes())?;
+                hasher.update(&D_INTR.to_be_bytes())?;
+                hasher.update(&temp.0)?;
+                hasher.update(&lms_sig.lms_path[i].0)?;
+                hasher.finalize()?;
+                temp = HashValue::<N>::from(digest);
+            }
+            node_num /= 2;
+            i += 1;
+        }
+        let candidate_key = temp;
+        if candidate_key != *lms_public_key {
+            return Ok(false);
+        }
+        Ok(true)
+    }
 }
