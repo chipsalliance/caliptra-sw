@@ -58,39 +58,31 @@ pub struct ImageVerificationInfo {
 
 /// Image Verification Environment
 pub trait ImageVerificationEnv {
-    type Image: Copy;
-
     /// Calculate SHA-384 Digest
-    fn sha384_digest(
-        &self,
-        image: Self::Image,
-        offset: u32,
-        len: u32,
-    ) -> CaliptraResult<ImageDigest>;
+    fn sha384_digest(&self, offset: u32, len: u32) -> CaliptraResult<ImageDigest>;
 
     /// Perform ECC-348 Verification
     fn ecc384_verify(
         &self,
-        image: Self::Image,
         digest: &ImageDigest,
         pub_key: &ImageEccPubKey,
         sig: &ImageEccSignature,
     ) -> CaliptraResult<bool>;
 
     /// Get Vendor Public Key Digest
-    fn vendor_pub_key_digest(&self, image: Self::Image) -> ImageDigest;
+    fn vendor_pub_key_digest(&self) -> ImageDigest;
 
     /// Get Vendor Public Key Revocation list
-    fn vendor_pub_key_revocation(&self, image: Self::Image) -> VendorPubKeyRevocation;
+    fn vendor_pub_key_revocation(&self) -> VendorPubKeyRevocation;
 
     /// Get Owner Public Key Digest from fuses
     fn owner_pub_key_digest_fuses(&self) -> ImageDigest;
 
     /// Get Anti-Rollback disable setting
-    fn anti_rollback_disable(&self, image: Self::Image) -> bool;
+    fn anti_rollback_disable(&self) -> bool;
 
     // Get Device Lifecycle state
-    fn dev_lifecycle(&self, image: Self::Image) -> Lifecycle;
+    fn dev_lifecycle(&self) -> Lifecycle;
 
     // Get the vendor key index saved on cold boot in data vault
     fn vendor_pub_key_idx_dv(&self) -> u32;

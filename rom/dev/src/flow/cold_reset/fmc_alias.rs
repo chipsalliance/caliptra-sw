@@ -211,7 +211,7 @@ impl FmcAliasLayer {
     ) -> CaliptraResult<ImageVerificationInfo> {
         let venv = RomImageVerificationEnv::new(env);
         let verifier = ImageVerifier::new(venv);
-        let info = verifier.verify(manifest, (), ResetReason::ColdReset)?;
+        let info = verifier.verify(manifest, ResetReason::ColdReset)?;
 
         cprintln!(
             "[afmc] Image verified using Vendor ECC Key Index {}",
