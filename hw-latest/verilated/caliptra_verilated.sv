@@ -52,11 +52,24 @@ module caliptra_verilated (
     output bit pslverr,
     output bit [`CALIPTRA_APB_DATA_WIDTH-1:0] prdata,
 
-
     output bit generic_load_en,
     output bit [31:0] generic_load_data,
 
-    output bit etrng_req
+    output bit etrng_req,
+
+    output bit [31:0] uc_haddr,
+    output bit [2:0] uc_hburst,
+    output bit uc_hmastlock,
+    output bit [3:0] uc_hprot,
+    output bit [2:0] uc_hsize,
+    output bit [1:0] uc_htrans,
+    output bit [63:0] uc_hwdata,
+    output bit uc_hwrite,
+
+    output bit [63:0] uc_hrdata,
+    output bit uc_hready,
+    output bit uc_hresp
+
     );
 
 
@@ -161,6 +174,19 @@ caliptra_top caliptra_top_dut (
 
 assign generic_load_en = caliptra_top_dut.soc_ifc_top1.i_soc_ifc_reg.field_combo.CPTRA_GENERIC_OUTPUT_WIRES[0].generic_wires.load_next;
 assign generic_load_data = caliptra_top_dut.soc_ifc_top1.i_soc_ifc_reg.field_combo.CPTRA_GENERIC_OUTPUT_WIRES[0].generic_wires.next;
+
+assign uc_haddr = caliptra_top_dut.rvtop.lsu_haddr;
+assign uc_hburst = caliptra_top_dut.rvtop.lsu_hburst;
+assign uc_hmastlock = caliptra_top_dut.rvtop.lsu_hmastlock;
+assign uc_hprot = caliptra_top_dut.rvtop.lsu_hprot;
+assign uc_hsize = caliptra_top_dut.rvtop.lsu_hsize;
+assign uc_htrans = caliptra_top_dut.rvtop.lsu_htrans;
+assign uc_hwdata = caliptra_top_dut.rvtop.lsu_hwdata;
+assign uc_hwrite = caliptra_top_dut.rvtop.lsu_hwrite;
+
+assign uc_hrdata = caliptra_top_dut.rvtop.lsu_hrdata;
+assign uc_hready = caliptra_top_dut.rvtop.lsu_hready;
+assign uc_hresp = caliptra_top_dut.rvtop.lsu_hresp;
 
 caliptra_veer_sram_export veer_sram_export_inst (
     .el2_mem_export(el2_mem_export.top)

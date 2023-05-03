@@ -8,7 +8,7 @@ use std::{
     rc::Rc,
 };
 
-use caliptra_emu_bus::Bus;
+use caliptra_emu_bus::{Bus, BusError};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 
 #[derive(Clone)]
@@ -27,6 +27,22 @@ impl Write for LogFile {
 
     fn flush(&mut self) -> std::io::Result<()> {
         self.0.borrow_mut().flush()
+    }
+}
+
+pub struct NullBus();
+impl Bus for NullBus {
+    fn read(&mut self, _size: RvSize, _addr: RvAddr) -> Result<RvData, caliptra_emu_bus::BusError> {
+        Err(BusError::LoadAccessFault)
+    }
+
+    fn write(
+        &mut self,
+        _size: RvSize,
+        _addr: RvAddr,
+        _val: RvData,
+    ) -> Result<(), caliptra_emu_bus::BusError> {
+        Err(BusError::StoreAccessFault)
     }
 }
 
@@ -53,10 +69,10 @@ impl<TBus: Bus> BusLogger<TBus> {
             let size = usize::from(size);
             match result {
                 Ok(val) => {
-                    writeln!(log, "{bus_name} read{size} *0x{addr:08x} -> 0x{val:x}").unwrap()
+                    writeln!(log, "{bus_name}  read{size} *0x{addr:08x} -> 0x{val:x}").unwrap()
                 }
                 Err(e) => {
-                    writeln!(log, "{bus_name} read{size}  *0x{addr:08x} ***FAULT {e:?}").unwrap()
+                    writeln!(log, "{bus_name}  read{size}  *0x{addr:08x} ***FAULT {e:?}").unwrap()
                 }
             }
         }

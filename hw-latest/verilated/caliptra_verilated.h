@@ -43,6 +43,19 @@ struct caliptra_verilated_sig_out {
   uint32_t generic_load_data;
 
   bool etrng_req;
+
+  uint32_t uc_haddr;
+  uint8_t uc_hburst;
+  bool uc_hmastlock;
+  uint8_t uc_hprot;
+  uint8_t uc_hsize;
+  uint8_t uc_htrans;
+  bool uc_hwrite;
+  uint64_t uc_hwdata;
+
+  uint64_t uc_hrdata;
+  bool uc_hready;
+  bool uc_hresp;
 };
 
 struct caliptra_verilated_init_args {
