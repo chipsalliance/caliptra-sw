@@ -28,3 +28,8 @@ required-features = ["riscv"]
 name = "mailbox_responder"
 path = "mailbox_responder.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "mailbox_sender"
+path = "mailbox_sender.rs"
+required-features = ["riscv"]
