@@ -59,6 +59,8 @@ register_bitfields! [
 
 ];
 
+type StatusRegister = LocalRegisterCopy<u32, Status::Register>;
+
 #[derive(Clone)]
 pub struct MailboxRam {
     ram: Rc<RefCell<Ram>>,
@@ -540,19 +542,37 @@ impl MailboxRegs {
         Ok(mb.context.data_out)
     }
 
-    // Todo: Implement write ex callback fn
+    /// Write to execute register
     pub fn write_ex(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
-        let _ = self.state_machine.process_event(if val & 1 != 0 {
-            Events::ExecSet
-        } else {
-            Events::ExecClear
-        });
+        let event = {
+            match self.requester {
+                MailboxRequester::Caliptra => {
+                    if val & 1 != 0 {
+                        Events::UcExecSet
+                    } else {
+                        Events::UcExecClear
+                    }
+                }
+                _ => {
+                    if val & 1 != 0 {
+                        Events::SocExecSet
+                    } else {
+                        Events::SocExecClear
+                    }
+                }
+            }
+        };
+
+        let _ = self.state_machine.process_event(event);
         self.execute.reg.set(val);
         Ok(())
     }
 
     // Todo: Implement write status callback fn
     pub fn write_status(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
+        let event = Events::StatusWrite(StatusRegister::new(val));
+        let _ = self.state_machine.process_event(event);
+
         let val = LocalRegisterCopy::<u32, Status::Register>::new(val);
         self.state_machine
             .context
@@ -567,6 +587,7 @@ impl MailboxRegs {
         result.modify(match self.state_machine.state {
             // TODO: What about MBOX_EXECUTE_SOC?
             States::ExecUc => Status::MBOX_FSM_PS::MBOX_EXECUTE_UC,
+            States::ExecSoc => Status::MBOX_FSM_PS::MBOX_EXECUTE_SOC,
             States::Idle => Status::MBOX_FSM_PS::MBOX_IDLE,
             States::RdyForCmd => Status::MBOX_FSM_PS::MBOX_RDY_FOR_CMD,
             States::RdyForData => Status::MBOX_FSM_PS::MBOX_RDY_FOR_DATA,
@@ -595,15 +616,36 @@ pub struct Cmd(pub u32);
 statemachine! {
     transitions: {
         // CurrentState Event [guard] / action = NextState
+
+        //move from idle to rdy for command when lock is acquired.
         *Idle + RdLock(Owner) [is_not_locked] / lock = RdyForCmd,
+
+        //move from rdy for cmd to rdy for dlen when cmd is written to.
         RdyForCmd  + CmdWrite(Cmd) / set_cmd = RdyForDlen,
+
+        //move from rdy for dlen to rdy for data when dlen is written to.
         RdyForDlen + DlenWrite(DataLength) / init_dlen = RdyForData,
+
         RdyForData + DataWrite(DataIn) / enqueue = RdyForData,
-        RdyForData + ExecSet = ExecUc,
+
+        //move from rdy for data to execute uc  when micro sets execute bit.
+        RdyForData + UcExecSet = ExecUc,
+
+        //move from rdy for data to execute soc when soc sets execute bit.
+        RdyForData + SocExecSet = ExecSoc,
+
         ExecUc + DataRead / dequeue = ExecUc,
         ExecUc + DlenWrite(DataLength) / init_dlen = ExecUc,
         ExecUc + DataWrite(DataIn) / enqueue = ExecUc,
-        ExecUc + ExecClear [is_locked] / unlock = Idle
+        ExecUc + UcExecClear [is_locked] / unlock = Idle,
+
+        ExecUc + StatusWrite(StatusRegister) [ is_not_busy ] = ExecUc,
+
+        ExecSoc + DataRead / dequeue = ExecUc,
+        ExecSoc + DlenWrite(DataLength) / init_dlen = ExecSoc,
+        ExecSoc + DataWrite(DataIn) / enqueue = ExecSoc,
+        ExecSoc + SocExecClear [is_locked] / unlock = Idle
+
     }
 }
 
@@ -620,7 +662,7 @@ pub struct Context {
     /// Fifo storage
     pub ring_buffer: RingBuffer,
     /// Mailbox Status
-    status: LocalRegisterCopy<u32, Status::Register>,
+    status: StatusRegister,
     /// Command
     pub cmd: u32,
     // data_out
@@ -652,6 +694,7 @@ impl StateMachineContext for Context {
             Ok(())
         }
     }
+
     fn is_locked(&mut self) -> Result<(), ()> {
         if self.locked != 0 {
             Ok(())
@@ -660,6 +703,17 @@ impl StateMachineContext for Context {
             Err(())
         }
     }
+
+    fn is_not_busy(&mut self, event_data: &StatusRegister) -> Result<(), ()> {
+        let status = event_data.read(Status::STATUS);
+        if status != Status::STATUS::CMD_BUSY.value {
+            Ok(())
+        } else {
+            // no transition
+            Err(())
+        }
+    }
+
     // actions
     fn init_dlen(&mut self, data_len: &DataLength) {
         self.ring_buffer.reset();
@@ -838,13 +892,13 @@ mod tests {
 
         assert!(matches!(
             soc.regs.borrow().state_machine.state(),
-            States::ExecUc
+            States::ExecSoc
         ));
 
         let status = caliptra.read(RvSize::Word, OFFSET_STATUS).unwrap();
         assert_eq!(
             status,
-            (Status::STATUS::DATA_READY + Status::MBOX_FSM_PS::MBOX_EXECUTE_UC).value
+            (Status::STATUS::DATA_READY + Status::MBOX_FSM_PS::MBOX_EXECUTE_SOC).value
         );
 
         let cmd = caliptra.read(RvSize::Word, OFFSET_CMD).unwrap();
@@ -935,7 +989,7 @@ mod tests {
             .regs
             .borrow_mut()
             .state_machine
-            .process_event(Events::ExecSet);
+            .process_event(Events::UcExecSet);
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
             States::ExecUc
@@ -945,7 +999,7 @@ mod tests {
             .regs
             .borrow_mut()
             .state_machine
-            .process_event(Events::ExecClear);
+            .process_event(Events::UcExecClear);
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
             States::Idle
