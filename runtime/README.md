@@ -270,6 +270,18 @@ this case, the new Runtime Firmware must:
 Caliptra Runtime Firmware SHALL implement a profile of the DICE Protection
 Environment (DPE) API.
 
+### PAUSER Privilege Levels
+
+Caliptra models PAUSER callers to its mailbox as having 1 of 2 privilege levels:
+
+* PL0 - High Privilege. Only 1 PAUSER in the SoC may be at PL0. The PL0 PAUSER
+  is denoted in the signed Caliptra firmware image. The PL0 PAUSER may call any
+  supported DPE commands. Only PL0 can use the CertifyKey command. Success of the
+  CertifyKey command signifies to the caller that it is at PL0.
+* PL1 - Restricted Privilege. All other PAUSERs in the SoC are PL1. Caliptra
+  SHALL fail any calls to the DPE CertifyKey command by PL1 callers.
+  PL1 callers should use the CertifyCsr command instead.
+
 ### DPE Profile Implementation
 
 The DPE iRoT Profile leaves some choices up to implementers. This section
@@ -422,15 +434,7 @@ properties are acceptable.
 
 ### Certificate Generation
 
-DPE leaf certs are mostly fixed size, but do have some variable-size sections:
-
-* tcg-dice-MultiTcbInfo extension
-* Signature
-
-For this reason, DPE must do some ASN.1 generation. An implementation MAY
-choose to template certain structures in the certificate for convenience.
-
-The DPE Runtime Alias Key SHALL sign DPE leaf certificates.
+The DPE Runtime Alias Key SHALL sign DPE leaf certificates and CSRs.
 
 The DPE `GET_CERTIFICATE_CHAIN` command shall return the following certificates:
 
@@ -479,7 +483,6 @@ The following items are still under discussion in the Caliptra WG:
 * Should hardware PCRs be clearable by runtime firmware?
 * Should runtime firmware support a quote API for signing hardware PCRs with a
   runtime alias key?
-* Which callers should be allowed to call DPE?
 * Should `ECDSA384_SIGNATURE_VERIFY` take an hash from the mailbox or use a
   hash from the SHA block?
 
