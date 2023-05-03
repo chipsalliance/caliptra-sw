@@ -17,6 +17,7 @@ use rand::{rngs::StdRng, RngCore, SeedableRng};
 pub mod mmio;
 mod model_emulated;
 
+mod bus_logger;
 #[cfg(feature = "verilator")]
 mod model_verilated;
 mod output;

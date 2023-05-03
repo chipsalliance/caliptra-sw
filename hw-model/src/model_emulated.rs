@@ -1,11 +1,8 @@
 // Licensed under the Apache-2.0 license
 
 use std::cell::Cell;
-use std::cell::RefCell;
 use std::env;
 use std::error::Error;
-use std::fs::File;
-use std::io::BufWriter;
 use std::io::Write;
 use std::path::Path;
 use std::rc::Rc;
@@ -18,29 +15,12 @@ use caliptra_emu_periph::ReadyForFwCb;
 use caliptra_emu_periph::{CaliptraRootBus, CaliptraRootBusArgs, SocToCaliptraBus, TbServicesCb};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 
+use crate::bus_logger::BusLogger;
+use crate::bus_logger::LogFile;
 use crate::InitParams;
 use crate::ModelError;
 use crate::Output;
 use caliptra_emu_bus::Bus;
-
-#[derive(Clone)]
-struct LogFile(Rc<RefCell<BufWriter<File>>>);
-impl LogFile {
-    fn open(path: &Path) -> std::io::Result<Self> {
-        Ok(Self(Rc::new(RefCell::new(BufWriter::new(File::create(
-            path,
-        )?)))))
-    }
-}
-impl Write for LogFile {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.borrow_mut().write(buf)
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.0.borrow_mut().flush()
-    }
-}
 
 pub struct EmulatedApbBus<'a> {
     model: &'a mut ModelEmulated,
@@ -61,92 +41,6 @@ impl<'a> Bus for EmulatedApbBus<'a> {
         let result = self.model.soc_to_caliptra_bus.write(size, addr, val);
         self.model.cpu.bus.log_write("SoC", size, addr, val, result);
         result
-    }
-}
-
-struct BusLogger<TBus: Bus> {
-    bus: TBus,
-    log: Option<LogFile>,
-}
-impl<TBus: Bus> BusLogger<TBus> {
-    fn new(bus: TBus) -> Self {
-        Self { bus, log: None }
-    }
-    fn log_read(
-        &mut self,
-        bus_name: &str,
-        size: RvSize,
-        addr: RvAddr,
-        result: Result<RvData, caliptra_emu_bus::BusError>,
-    ) {
-        if addr < 0x1000_0000 {
-            // Don't care about memory
-            return;
-        }
-        if let Some(log) = &mut self.log {
-            let size = usize::from(size);
-            match result {
-                Ok(val) => {
-                    writeln!(log, "{bus_name} read{size} *0x{addr:08x} -> 0x{val:x}").unwrap()
-                }
-                Err(e) => {
-                    writeln!(log, "{bus_name} read{size}  *0x{addr:08x} ***FAULT {e:?}").unwrap()
-                }
-            }
-        }
-    }
-    fn log_write(
-        &mut self,
-        bus_name: &str,
-        size: RvSize,
-        addr: RvAddr,
-        val: RvData,
-        result: Result<(), caliptra_emu_bus::BusError>,
-    ) {
-        if addr < 0x1000_0000 {
-            // Don't care about memory
-            return;
-        }
-        if let Some(log) = &mut self.log {
-            let size = usize::from(size);
-            match result {
-                Ok(()) => {
-                    writeln!(log, "{bus_name} write{size} *0x{addr:08x} <- 0x{val:x}").unwrap()
-                }
-                Err(e) => writeln!(
-                    log,
-                    "{bus_name} write{size} *0x{addr:08x} <- 0x{val:x} ***FAULT {e:?}"
-                )
-                .unwrap(),
-            }
-        }
-    }
-}
-impl<TBus: Bus> Bus for BusLogger<TBus> {
-    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, caliptra_emu_bus::BusError> {
-        let result = self.bus.read(size, addr);
-        self.log_read("UC", size, addr, result);
-        result
-    }
-
-    fn write(
-        &mut self,
-        size: RvSize,
-        addr: RvAddr,
-        val: RvData,
-    ) -> Result<(), caliptra_emu_bus::BusError> {
-        let result = self.bus.write(size, addr, val);
-        self.log_write("UC", size, addr, val, result);
-        result
-    }
-    fn poll(&mut self) {
-        self.bus.poll();
-    }
-    fn warm_reset(&mut self) {
-        self.bus.warm_reset();
-    }
-    fn update_reset(&mut self) {
-        self.bus.update_reset();
     }
 }
 
