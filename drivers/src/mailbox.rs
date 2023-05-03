@@ -72,6 +72,7 @@ impl Mailbox {
         let mbox = mbox::RegisterBlock::mbox_csr();
         match mbox.status().read().mbox_fsm_ps() {
             MboxFsmE::MboxExecuteUc => Some(MailboxRecvTxn::default()),
+            MboxFsmE::MboxExecuteSoc => Some(MailboxRecvTxn::default()),
             _ => None,
         }
     }

@@ -480,13 +480,11 @@ impl MailboxRegs {
         }
     }
     pub fn request(&mut self, requester: MailboxRequester) {
-        println!("{} is the requester", self.requester as u32);
         self.requester = requester;
     }
 
     // Todo: Implement read_lock callback fn
     pub fn read_lock(&mut self, _size: RvSize) -> Result<u32, BusError> {
-        println!("{} Read Lock", self.requester as u32);
         if self
             .state_machine
             .process_event(Events::RdLock(Owner(self.requester as u32)))
@@ -641,7 +639,7 @@ statemachine! {
 
         ExecUc + StatusWrite(StatusRegister) [ is_not_busy ] = ExecUc,
 
-        ExecSoc + DataRead / dequeue = ExecUc,
+        ExecSoc + DataRead / dequeue = ExecSoc,
         ExecSoc + DlenWrite(DataLength) / init_dlen = ExecSoc,
         ExecSoc + DataWrite(DataIn) / enqueue = ExecSoc,
         ExecSoc + SocExecClear [is_locked] / unlock = Idle
@@ -727,7 +725,6 @@ impl StateMachineContext for Context {
     }
 
     fn lock(&mut self, user: &Owner) {
-        println!("Locking mailbox : {:x}", user.0);
         self.fifo.reset();
         self.locked = 1;
         self.user = user.0;
@@ -925,10 +922,7 @@ mod tests {
         );
 
         // Receiver resets exec register
-        assert_eq!(
-            caliptra.write(RvSize::Word, OFFSET_EXECUTE, 0).ok(),
-            Some(())
-        );
+        assert_eq!(soc.write(RvSize::Word, OFFSET_EXECUTE, 0).ok(), Some(()));
         // Confirm it is unlocked
         assert_eq!(caliptra.regs.borrow().state_machine.context.locked, 0);
 
