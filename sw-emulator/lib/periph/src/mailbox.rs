@@ -86,12 +86,22 @@ impl Default for MailboxRam {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BusSource {
+    Internal,
+    External,
+}
+
 #[derive(Clone)]
-pub struct Mailbox {
+pub struct MailboxInternal {
+    regs: Rc<RefCell<MailboxRegs>>,
+}
+#[derive(Clone)]
+pub struct MailboxExternal {
     regs: Rc<RefCell<MailboxRegs>>,
 }
 
-impl Mailbox {
+impl MailboxInternal {
     const OFFSET_LOCK: RvAddr = 0x00;
     const OFFSET_CMD: RvAddr = 0x08;
     const OFFSET_DLEN: RvAddr = 0x0C;
@@ -173,7 +183,10 @@ impl Mailbox {
     }
 
     pub fn is_command_exec_requested(&self) -> bool {
-        matches!(self.regs.borrow_mut().state_machine.state, States::Exec)
+        matches!(
+            self.regs.borrow_mut().state_machine.state,
+            States::ExecReceiver
+        )
     }
 
     pub fn is_status_cmd_busy(&mut self) -> bool {
@@ -221,17 +234,46 @@ impl Mailbox {
     pub fn set_status_data_ready(&mut self) -> Result<(), BusError> {
         self.set_status(Status::STATUS::DATA_READY.value)
     }
+
+    pub fn external_regs(&self) -> MailboxExternal {
+        MailboxExternal {
+            regs: self.regs.clone(),
+        }
+    }
 }
 
-impl Bus for Mailbox {
+impl Bus for MailboxInternal {
     /// Read data of specified size from given address
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
-        self.regs.borrow_mut().read(size, addr)
+        let mut regs = self.regs.borrow_mut();
+        regs.source = BusSource::Internal;
+        regs.read(size, addr)
     }
 
     /// Write data of specified size to given address
     fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {
-        self.regs.borrow_mut().write(size, addr, val)
+        let mut regs = self.regs.borrow_mut();
+        regs.source = BusSource::Internal;
+        regs.write(size, addr, val)
+    }
+}
+impl Bus for MailboxExternal {
+    /// Read data of specified size from given address
+    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+        let mut regs = self.regs.borrow_mut();
+        regs.source = BusSource::External;
+        let result = regs.read(size, addr);
+        regs.source = BusSource::Internal;
+        result
+    }
+
+    /// Write data of specified size to given address
+    fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {
+        let mut regs = self.regs.borrow_mut();
+        regs.source = BusSource::External;
+        let result = regs.write(size, addr, val);
+        regs.source = BusSource::Internal;
+        result
     }
 }
 
@@ -272,6 +314,8 @@ pub struct MailboxRegs {
 
     /// State Machine
     state_machine: StateMachine<Context>,
+
+    source: BusSource,
 }
 
 impl MailboxRegs {
@@ -297,6 +341,7 @@ impl MailboxRegs {
             execute: ReadWriteRegister::new(Self::EXEC_VAL),
             _status: ReadWriteRegister::new(Self::STATUS_VAL),
             state_machine: StateMachine::new(Context::new(ram)),
+            source: BusSource::Internal,
         }
     }
 
@@ -304,7 +349,7 @@ impl MailboxRegs {
     pub fn read_lock(&mut self, _size: RvSize) -> Result<u32, BusError> {
         if self
             .state_machine
-            .process_event(Events::RdLock(Owner(0)))
+            .process_event(Events::RdLock(self.source))
             .is_ok()
         {
             Ok(0)
@@ -315,7 +360,8 @@ impl MailboxRegs {
 
     // Todo: Implement read_user callback fn
     pub fn read_user(&self, _size: RvSize) -> Result<u32, BusError> {
-        Ok(self.state_machine.context.user)
+        // sw-emulator has no concept of PAUSER
+        Ok(0)
     }
 
     // Todo: Implement write cmd callback fn
@@ -375,6 +421,7 @@ impl MailboxRegs {
             .context
             .status
             .write(Status::STATUS.val(val.read(Status::STATUS)));
+        let _ = self.state_machine.process_event(Events::SetStatus);
         Ok(())
     }
 
@@ -382,8 +429,15 @@ impl MailboxRegs {
     pub fn read_status(&self, _size: RvSize) -> Result<u32, BusError> {
         let mut result = self.state_machine.context.status;
         result.modify(match self.state_machine.state {
-            // TODO: What about MBOX_EXECUTE_SOC?
-            States::Exec => Status::MBOX_FSM_PS::MBOX_EXECUTE_UC,
+            States::ExecReceiver => match self.state_machine.context.user {
+                BusSource::External => Status::MBOX_FSM_PS::MBOX_EXECUTE_UC,
+                BusSource::Internal => Status::MBOX_FSM_PS::MBOX_EXECUTE_SOC,
+            },
+            States::ExecSender => match self.state_machine.context.user {
+                BusSource::External => Status::MBOX_FSM_PS::MBOX_EXECUTE_SOC,
+                BusSource::Internal => Status::MBOX_FSM_PS::MBOX_EXECUTE_UC,
+            },
+
             States::Idle => Status::MBOX_FSM_PS::MBOX_IDLE,
             States::RdyForCmd => Status::MBOX_FSM_PS::MBOX_RDY_FOR_CMD,
             States::RdyForData => Status::MBOX_FSM_PS::MBOX_RDY_FOR_DATA,
@@ -412,15 +466,18 @@ pub struct Cmd(pub u32);
 statemachine! {
     transitions: {
         // CurrentState Event [guard] / action = NextState
-        *Idle + RdLock(Owner) [is_not_locked] / lock = RdyForCmd,
+        *Idle + RdLock(BusSource) [is_not_locked] / lock = RdyForCmd,
         RdyForCmd  + CmdWrite(Cmd) / set_cmd = RdyForDlen,
         RdyForDlen + DlenWrite(DataLength) / init_dlen = RdyForData,
         RdyForData + DataWrite(DataIn) / enqueue = RdyForData,
-        RdyForData + ExecSet = Exec,
-        Exec + DataRead / dequeue = Exec,
-        Exec + DlenWrite(DataLength) / init_dlen = Exec,
-        Exec + DataWrite(DataIn) / enqueue = Exec,
-        Exec + ExecClear [is_locked] / unlock = Idle
+        RdyForData + ExecSet = ExecReceiver,
+        ExecReceiver + DataRead / dequeue = ExecReceiver,
+        ExecReceiver + DlenWrite(DataLength) / init_dlen = ExecReceiver,
+        ExecReceiver + DataWrite(DataIn) / enqueue = ExecReceiver,
+        ExecReceiver + SetStatus = ExecSender,
+        ExecSender + DataRead / dequeue = ExecSender,
+        ExecSender + ExecClear [is_locked] / unlock = Idle,
+        ExecReceiver + ExecClear [is_locked] / unlock = Idle
     }
 }
 
@@ -429,7 +486,7 @@ pub struct Context {
     /// lock state
     pub locked: u32,
     /// Who acquired the lock.
-    pub user: u32,
+    pub user: BusSource,
     /// Execute flag
     pub exec: bool,
     /// number of data elements
@@ -448,7 +505,7 @@ impl Context {
     fn new(ram: MailboxRam) -> Self {
         Self {
             locked: 0,
-            user: 0,
+            user: BusSource::Internal,
             exec: false,
             dlen: 0,
             status: LocalRegisterCopy::new(0),
@@ -461,7 +518,7 @@ impl Context {
 
 impl StateMachineContext for Context {
     // guards
-    fn is_not_locked(&mut self, _user: &Owner) -> Result<(), ()> {
+    fn is_not_locked(&mut self, _user: &BusSource) -> Result<(), ()> {
         if self.locked == 1 {
             // no transition
             Err(())
@@ -477,6 +534,7 @@ impl StateMachineContext for Context {
             Err(())
         }
     }
+
     // actions
     fn init_dlen(&mut self, data_len: &DataLength) {
         self.ring_buffer.reset();
@@ -489,10 +547,10 @@ impl StateMachineContext for Context {
         self.cmd = cmd.0;
     }
 
-    fn lock(&mut self, user: &Owner) {
+    fn lock(&mut self, user: &BusSource) {
         self.ring_buffer.reset();
         self.locked = 1;
-        self.user = user.0;
+        self.user = *user;
     }
     fn unlock(&mut self) {
         self.locked = 0;
@@ -576,48 +634,58 @@ mod tests {
     fn test_send_receive() {
         let request_to_send: [u32; 4] = [0x1111_1111, 0x2222_2222, 0x3333_3333, 0x4444_4444];
         // Acquire lock
-        let mut mb = Mailbox::new(MailboxRam::new());
-        assert_eq!(mb.read(RvSize::Word, Mailbox::OFFSET_LOCK).unwrap(), 0);
+        let mut mb = MailboxInternal::new(MailboxRam::new());
+        let mut ext = mb.external_regs();
+
+        assert_eq!(
+            ext.read(RvSize::Word, MailboxInternal::OFFSET_LOCK)
+                .unwrap(),
+            0
+        );
         // Confirm it is locked
-        let lock = mb.read(RvSize::Word, Mailbox::OFFSET_LOCK).unwrap();
+        let lock = ext
+            .read(RvSize::Word, MailboxInternal::OFFSET_LOCK)
+            .unwrap();
         assert_eq!(lock, 1);
 
-        let user = mb.read(RvSize::Word, OFFSET_USER).unwrap();
+        let user = ext.read(RvSize::Word, OFFSET_USER).unwrap();
         assert_eq!(user, 0);
 
         // Write command
         assert_eq!(
-            mb.write(RvSize::Word, Mailbox::OFFSET_CMD, 0x55).ok(),
+            ext.write(RvSize::Word, MailboxInternal::OFFSET_CMD, 0x55)
+                .ok(),
             Some(())
         );
         // Confirm it is locked
-        assert_eq!(mb.regs.borrow().state_machine.context.locked, 1);
+        assert_eq!(ext.regs.borrow().state_machine.context.locked, 1);
 
         let dlen = request_to_send.len() as u32;
         let dlen = dlen * 4;
         // Write dlen
         assert_eq!(
-            mb.write(RvSize::Word, Mailbox::OFFSET_DLEN, dlen).ok(),
+            ext.write(RvSize::Word, MailboxInternal::OFFSET_DLEN, dlen)
+                .ok(),
             Some(())
         );
 
         // Confirm it is locked
-        assert_eq!(mb.regs.borrow().state_machine.context.locked, 1);
+        assert_eq!(ext.regs.borrow().state_machine.context.locked, 1);
 
         for data_in in request_to_send.iter() {
             // Write datain
             assert_eq!(
-                mb.write(RvSize::Word, Mailbox::OFFSET_DATAIN, *data_in)
+                ext.write(RvSize::Word, MailboxInternal::OFFSET_DATAIN, *data_in)
                     .ok(),
                 Some(())
             );
             // Confirm it is locked
-            assert_eq!(mb.regs.borrow().state_machine.context.locked, 1);
+            assert_eq!(ext.regs.borrow().state_machine.context.locked, 1);
         }
         assert_eq!(
             mb.write(
                 RvSize::Word,
-                Mailbox::OFFSET_STATUS,
+                MailboxInternal::OFFSET_STATUS,
                 Status::STATUS::DATA_READY.value
             )
             .ok(),
@@ -626,39 +694,44 @@ mod tests {
 
         // Write exec
         assert_eq!(
-            mb.write(RvSize::Word, Mailbox::OFFSET_EXECUTE, 0x55).ok(),
+            ext.write(RvSize::Word, MailboxInternal::OFFSET_EXECUTE, 0x55)
+                .ok(),
             Some(())
         );
         // Confirm it is locked
-        assert_eq!(mb.regs.borrow().state_machine.context.locked, 1);
+        assert_eq!(ext.regs.borrow().state_machine.context.locked, 1);
 
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
-            States::Exec
+            States::ExecReceiver
         ));
 
-        let status = mb.read(RvSize::Word, Mailbox::OFFSET_STATUS).unwrap();
+        let status = mb
+            .read(RvSize::Word, MailboxInternal::OFFSET_STATUS)
+            .unwrap();
         assert_eq!(
             status,
             (Status::STATUS::DATA_READY + Status::MBOX_FSM_PS::MBOX_EXECUTE_UC).value
         );
 
-        let cmd = mb.read(RvSize::Word, Mailbox::OFFSET_CMD).unwrap();
+        let cmd = mb.read(RvSize::Word, MailboxInternal::OFFSET_CMD).unwrap();
         assert_eq!(cmd, 0x55);
 
-        let dlen = mb.read(RvSize::Word, Mailbox::OFFSET_DLEN).unwrap();
+        let dlen = mb.read(RvSize::Word, MailboxInternal::OFFSET_DLEN).unwrap();
         assert_eq!(dlen, (request_to_send.len() * 4) as u32);
 
         request_to_send.iter().for_each(|data_in| {
             // Read dataout
-            let data_out = mb.read(RvSize::Word, Mailbox::OFFSET_DATAOUT).unwrap();
+            let data_out = mb
+                .read(RvSize::Word, MailboxInternal::OFFSET_DATAOUT)
+                .unwrap();
             // compare with queued data.
             assert_eq!(*data_in, data_out);
         });
         assert_eq!(
             mb.write(
                 RvSize::Word,
-                Mailbox::OFFSET_STATUS,
+                MailboxInternal::OFFSET_STATUS,
                 Status::STATUS::CMD_COMPLETE.value
             )
             .ok(),
@@ -667,11 +740,12 @@ mod tests {
 
         // Receiver resets exec register
         assert_eq!(
-            mb.write(RvSize::Word, Mailbox::OFFSET_EXECUTE, 0).ok(),
+            ext.write(RvSize::Word, MailboxInternal::OFFSET_EXECUTE, 0)
+                .ok(),
             Some(())
         );
         // Confirm it is unlocked
-        assert_eq!(mb.regs.borrow().state_machine.context.locked, 0);
+        assert_eq!(ext.regs.borrow().state_machine.context.locked, 0);
 
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
@@ -681,7 +755,7 @@ mod tests {
 
     #[test]
     fn test_sm_init() {
-        let mb = Mailbox::new(MailboxRam::new());
+        let mb = MailboxInternal::new(MailboxRam::new());
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
             States::Idle
@@ -691,7 +765,7 @@ mod tests {
 
     #[test]
     fn test_sm_lock() {
-        let mb = Mailbox::new(MailboxRam::new());
+        let mb = MailboxInternal::new(MailboxRam::new());
         assert_eq!(mb.regs.borrow().state_machine.context().locked, 0);
         assert_eq!(mb.regs.borrow().state_machine.context().dlen, 0);
 
@@ -699,7 +773,7 @@ mod tests {
             .regs
             .borrow_mut()
             .state_machine
-            .process_event(Events::RdLock(Owner(0)));
+            .process_event(Events::RdLock(BusSource::External));
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
             States::RdyForCmd
@@ -733,7 +807,7 @@ mod tests {
             .process_event(Events::ExecSet);
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
-            States::Exec
+            States::ExecReceiver
         ));
 
         let _ = mb
@@ -751,26 +825,34 @@ mod tests {
     #[test]
     fn test_send_receive_max_limit() {
         // Acquire lock
-        let mut mb = Mailbox::new(MailboxRam::new());
-        assert_eq!(mb.read(RvSize::Word, Mailbox::OFFSET_LOCK).unwrap(), 0);
+        let mut mb = MailboxInternal::new(MailboxRam::new());
+        let mut ext = mb.external_regs();
+        assert_eq!(
+            ext.read(RvSize::Word, MailboxInternal::OFFSET_LOCK)
+                .unwrap(),
+            0
+        );
         // Confirm it is locked
-        let lock = mb.read(RvSize::Word, Mailbox::OFFSET_LOCK).unwrap();
+        let lock = ext
+            .read(RvSize::Word, MailboxInternal::OFFSET_LOCK)
+            .unwrap();
         assert_eq!(lock, 1);
 
-        let user = mb.read(RvSize::Word, OFFSET_USER).unwrap();
+        let user = ext.read(RvSize::Word, OFFSET_USER).unwrap();
         assert_eq!(user, 0);
 
         // Write command
         assert_eq!(
-            mb.write(RvSize::Word, Mailbox::OFFSET_CMD, 0x55).ok(),
+            ext.write(RvSize::Word, MailboxInternal::OFFSET_CMD, 0x55)
+                .ok(),
             Some(())
         );
 
         // Write dlen
         assert_eq!(
-            mb.write(
+            ext.write(
                 RvSize::Word,
-                Mailbox::OFFSET_DLEN,
+                MailboxInternal::OFFSET_DLEN,
                 (MAX_MAILBOX_CAPACITY_BYTES + 4) as u32
             )
             .ok(),
@@ -780,7 +862,7 @@ mod tests {
         for data_in in (0..MAX_MAILBOX_CAPACITY_BYTES).step_by(4) {
             // Write datain
             assert_eq!(
-                mb.write(RvSize::Word, Mailbox::OFFSET_DATAIN, data_in as u32)
+                ext.write(RvSize::Word, MailboxInternal::OFFSET_DATAIN, data_in as u32)
                     .ok(),
                 Some(())
             );
@@ -788,7 +870,7 @@ mod tests {
 
         // Write an additional DWORD. This should be a no-op.
         assert_eq!(
-            mb.write(RvSize::Word, Mailbox::OFFSET_DATAIN, 0xDEADBEEF)
+            ext.write(RvSize::Word, MailboxInternal::OFFSET_DATAIN, 0xDEADBEEF)
                 .ok(),
             Some(())
         );
@@ -796,7 +878,7 @@ mod tests {
         assert_eq!(
             mb.write(
                 RvSize::Word,
-                Mailbox::OFFSET_STATUS,
+                MailboxInternal::OFFSET_STATUS,
                 Status::STATUS::DATA_READY.value
             )
             .ok(),
@@ -805,45 +887,51 @@ mod tests {
 
         // Write exec
         assert_eq!(
-            mb.write(RvSize::Word, Mailbox::OFFSET_EXECUTE, 0x55).ok(),
+            ext.write(RvSize::Word, MailboxInternal::OFFSET_EXECUTE, 0x55)
+                .ok(),
             Some(())
         );
 
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
-            States::Exec
+            States::ExecReceiver
         ));
 
-        let status = mb.read(RvSize::Word, Mailbox::OFFSET_STATUS).unwrap();
+        let status = ext
+            .read(RvSize::Word, MailboxInternal::OFFSET_STATUS)
+            .unwrap();
         assert_eq!(
             status,
             (Status::STATUS::DATA_READY + Status::MBOX_FSM_PS::MBOX_EXECUTE_UC).value
         );
 
-        let cmd = mb.read(RvSize::Word, Mailbox::OFFSET_CMD).unwrap();
+        let cmd = mb.read(RvSize::Word, MailboxInternal::OFFSET_CMD).unwrap();
         assert_eq!(cmd, 0x55);
 
-        let dlen = mb.read(RvSize::Word, Mailbox::OFFSET_DLEN).unwrap();
+        let dlen = mb.read(RvSize::Word, MailboxInternal::OFFSET_DLEN).unwrap();
         assert_eq!(dlen, (MAX_MAILBOX_CAPACITY_BYTES + 4) as u32);
 
         let mut data_out = 0;
         for data_in in (0..MAX_MAILBOX_CAPACITY_BYTES).step_by(4) {
             // Read dataout
-            data_out = mb.read(RvSize::Word, Mailbox::OFFSET_DATAOUT).unwrap();
+            data_out = mb
+                .read(RvSize::Word, MailboxInternal::OFFSET_DATAOUT)
+                .unwrap();
             // compare with queued data.
             assert_eq!(data_in as u32, data_out);
         }
 
         // Read an additional DWORD. This should return the last word
         assert_eq!(
-            mb.read(RvSize::Word, Mailbox::OFFSET_DATAOUT).unwrap(),
+            mb.read(RvSize::Word, MailboxInternal::OFFSET_DATAOUT)
+                .unwrap(),
             data_out
         );
 
         assert_eq!(
             mb.write(
                 RvSize::Word,
-                Mailbox::OFFSET_STATUS,
+                MailboxInternal::OFFSET_STATUS,
                 Status::STATUS::CMD_COMPLETE.value
             )
             .ok(),
@@ -852,7 +940,8 @@ mod tests {
 
         // Receiver resets exec register
         assert_eq!(
-            mb.write(RvSize::Word, Mailbox::OFFSET_EXECUTE, 0).ok(),
+            ext.write(RvSize::Word, MailboxInternal::OFFSET_EXECUTE, 0)
+                .ok(),
             Some(())
         );
         // Confirm it is unlocked
