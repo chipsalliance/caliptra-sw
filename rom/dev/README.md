@@ -441,51 +441,41 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
     `pcr_extend(Pcr0, FMC_DIGEST)`
     `pcr_extend(Pcr0, FMC_SVN)`
 
-2.	PCR1 is the Current PCR. It is not locked for clear. It is cleared during reset (any) by the ROM. On cold reset, fresh measurements are extended by the ROM. In the case of warm reset or update reset, the PCR1 is constructed from data locked in data vault sticky registers.
-
-    `pcr_extend(Pcr1, CPTRA_SECURITY_STATE.LIFECYCLE_STATE)`
-    `pcr_extend(Pcr1, CPTRA_SECURITY_STATE.DEBUG_ENABLED)`
-    `pcr_extend(Pcr1, FUSE_ANTI_ROLLBACK_DISABLE)`
-    `pcr_extend(Pcr1, MANUFACTURER_PK)`
-    `pcr_extend(Pcr1, FUSE_OWNER_PK_HASH)`
-    `pcr_extend(Pcr1, FMC_DIGEST)`
-    `pcr_extend(Pcr1, FMC_SVN)`
-
-3.	CDI for Alias is derived from PCR0. For the Alias FMC CDI Derivation,  LDevID CDI in Key Vault Slot6 is used as HMAC Key and contents of PCR0 are used as data. The resultant mac is stored back in Slot 6
+2.	CDI for Alias is derived from PCR0. For the Alias FMC CDI Derivation,  LDevID CDI in Key Vault Slot6 is used as HMAC Key and contents of PCR0 are used as data. The resultant mac is stored back in Slot 6
 
 	`Pcr0Measurement = pcr_read(Pcr0)`
 	`hmac384_mac(KvSlot6, Pcr0Measurement, KvSlot6)`
 
-4.	Derive Alias FMC ECC Key Pair using CDI in Key Vault Slot6 and store the generated private key in KeySlot7.
+3.	Derive Alias FMC ECC Key Pair using CDI in Key Vault Slot6 and store the generated private key in KeySlot7.
 
     `AliasFmcPubKey = ecc384_keygen(KvSlot6, KvSlot7)`
 
-5.	Store and lock (for write) the Alias FMC Public Key in Data Vault (48 bytes) Slot 4 & Slot 5
+4.	Store and lock (for write) the Alias FMC Public Key in Data Vault (48 bytes) Slot 4 & Slot 5
 
     `dv48_store(AliasFmcPubKey.X, Dv48Slot4)`
     `dv48_lock_wr(Dv48Slot4)`
     `dv48_store(AliasFmcPubKey.Y, Dv48Slot5)`
     `dv48_lock_wr(Dv48Slot5)`
 
-6.	Generate the `To Be Signed` DER Blob of the Alias FMC Certificate
+5.	Generate the `To Be Signed` DER Blob of the Alias FMC Certificate
 
 	`AliasFmcTbs = gen_cert_tbs(ALIAS_FMC_CERT, LDevIdPubKey, AliasFmcPubKey)`
 
-7.	Sign the Alias FMC `To Be Signed` DER Blob with LDevId Private Key in Key Vault Slot 5
+6.	Sign the Alias FMC `To Be Signed` DER Blob with LDevId Private Key in Key Vault Slot 5
 
 	`AliasFmcTbsDigest = sha384_digest(AliasFmcTbs)`
 	`AliasFmcTbsCertSig = ecc384_sign(KvSlot5, AliasFmcTbsDigest)`
 
-8.	Clear the LDevId Private Key in Key Vault Slot 5
+7.	Clear the LDevId Private Key in Key Vault Slot 5
 
 	`kv_clear(KvSlot5)`
 
-9.	Verify the signature of Alias FMC `To Be Signed` Blob
+8.	Verify the signature of Alias FMC `To Be Signed` Blob
 
 	`AliasFmcTbsDigest = sha384_digest(AliasFmcTbs)`
 	`Result = ecc384_verify(AliasFmcPubKey, AliasFmcDigest , AliasFmcTbsCertSig)`
 
-10.	Store and lock (for write) the LDevID Certificate Signature in the sticky Data Vault (48 bytes) Slot 6 & Slot 7
+9.	Store and lock (for write) the LDevID Certificate Signature in the sticky Data Vault (48 bytes) Slot 6 & Slot 7
 
     `dv48_store(AliasFmcTbsCertSig.R, Dv48Slot6)`
     `dv48_lock_wr(Dv48Slot6)`
@@ -493,7 +483,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
     `dv48_store(AliasFmcTbsCertSig.S, Dv48Slot7)`
     `dv48_lock_wr(Dv48Slot7)`
 
-11.	Lock critical state needed for warm and update reset in Data Vault
+10.	Lock critical state needed for warm and update reset in Data Vault
 
 	`dv48_store(FMC_DIGEST, Dv48Slot8)`
     `dv48_lock_wr(Dv48Slot8)`
