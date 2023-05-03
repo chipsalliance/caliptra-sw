@@ -10,28 +10,75 @@ pub use bindings::caliptra_verilated_init_args as InitArgs;
 pub use bindings::caliptra_verilated_sig_in as SigIn;
 pub use bindings::caliptra_verilated_sig_out as SigOut;
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum AhbTxnType {
+    ReadU8,
+    ReadU16,
+    ReadU32,
+
+    WriteU8,
+    WriteU16,
+    WriteU32,
+}
+impl AhbTxnType {
+    pub fn is_write(&self) -> bool {
+        matches!(self, Self::WriteU8 | Self::WriteU16 | Self::WriteU32)
+    }
+    fn from_signals(hsize: u8, hwrite: bool) -> Self {
+        match (hsize, hwrite) {
+            (0, false) => Self::ReadU8,
+            (1, false) => Self::ReadU16,
+            (2, false) => Self::ReadU32,
+
+            (0, true) => Self::WriteU8,
+            (1, true) => Self::WriteU16,
+            (2, true) => Self::WriteU32,
+
+            _ => panic!("Unsupported hsize value 0b{hsize:b}"),
+        }
+    }
+}
+
 pub type GenericLoadCallbackFn = dyn Fn(&CaliptraVerilated, u8);
+pub type AhbCallbackFn = dyn Fn(&CaliptraVerilated, AhbTxnType, u32, u32);
+
+struct AhbPendingTxn {
+    ty: AhbTxnType,
+    addr: u32,
+}
+impl AhbPendingTxn {
+    fn data32(&self, data64: u64) -> u32 {
+        if (self.addr & 4) == 0 {
+            data64 as u32
+        } else {
+            (data64 >> 32) as u32
+        }
+    }
+}
 
 pub struct CaliptraVerilated {
     v: *mut bindings::caliptra_verilated,
     pub input: SigIn,
     pub output: SigOut,
     generic_load_cb: Box<GenericLoadCallbackFn>,
+    ahb_cb: Box<AhbCallbackFn>,
     total_cycles: u64,
+    ahb_txn: Option<AhbPendingTxn>,
 }
 
 impl CaliptraVerilated {
     /// Constructs a new model.
     pub fn new(args: InitArgs) -> Self {
-        Self::with_generic_load_cb(args, Box::new(|_, _| {}))
+        Self::with_callbacks(args, Box::new(|_, _| {}), Box::new(|_, _, _, _| {}))
     }
 
     /// Creates a model that calls `generic_load_cb` whenever the
     /// microcontroller CPU does a load to the generic wires.
     #[allow(clippy::type_complexity)]
-    pub fn with_generic_load_cb(
+    pub fn with_callbacks(
         mut args: InitArgs,
         generic_load_cb: Box<GenericLoadCallbackFn>,
+        ahb_cb: Box<AhbCallbackFn>,
     ) -> Self {
         unsafe {
             Self {
@@ -39,7 +86,9 @@ impl CaliptraVerilated {
                 input: Default::default(),
                 output: Default::default(),
                 generic_load_cb,
+                ahb_cb,
                 total_cycles: 0,
+                ahb_txn: None,
             }
         }
     }
@@ -71,8 +120,44 @@ impl CaliptraVerilated {
     /// in subsequent evaluations. Typically `next_cycle_high` is used instead.
     pub fn eval(&mut self) {
         unsafe { bindings::caliptra_verilated_eval(self.v, &self.input, &mut self.output) }
-        if self.output.generic_load_en && self.input.core_clk {
+        if !self.input.core_clk {
+            return;
+        }
+        if self.output.generic_load_en {
             (self.generic_load_cb)(self, self.output.generic_load_data as u8);
+        }
+        if let Some(ahb_txn) = &self.ahb_txn {
+            if self.output.uc_hready {
+                if ahb_txn.ty.is_write() {
+                    (self.ahb_cb)(
+                        self,
+                        ahb_txn.ty,
+                        ahb_txn.addr,
+                        ahb_txn.data32(self.output.uc_hwdata),
+                    );
+                } else {
+                    (self.ahb_cb)(
+                        self,
+                        ahb_txn.ty,
+                        ahb_txn.addr,
+                        ahb_txn.data32(self.output.uc_hrdata),
+                    );
+                }
+                self.ahb_txn = None;
+            }
+        }
+        match self.output.uc_htrans {
+            0b00 => {}
+            0b10 => {
+                // Ignore ROM accesses
+                if self.output.uc_haddr >= 0x1000_0000 {
+                    self.ahb_txn = Some(AhbPendingTxn {
+                        ty: AhbTxnType::from_signals(self.output.uc_hsize, self.output.uc_hwrite),
+                        addr: self.output.uc_haddr,
+                    })
+                }
+            }
+            other => panic!("Unsupport htrans value 0b{:b}", other),
         }
     }
 
