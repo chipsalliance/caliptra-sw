@@ -536,7 +536,23 @@ impl MailboxRegs {
     // Todo: Implement read dout callback fn
     pub fn read_dout(&mut self, _size: RvSize) -> Result<u32, BusError> {
         let mb = &mut self.state_machine;
-        let _ = mb.process_event(Events::DataRead);
+        match mb.state {
+            States::ExecUc => {
+                // Soc set execute bit the data is for Caliptra
+                // Only Caliptra is allowed to read the data.
+                if self.requester == MailboxRequester::Soc {
+                    let _ = mb.process_event(Events::DataRead);
+                }
+            }
+            States::ExecSoc => {
+                // Caliptra set execute bit the data is for Soc
+                // Only Soc is allowed to read the data.
+                if self.requester == MailboxRequester::Caliptra {
+                    let _ = mb.process_event(Events::DataRead);
+                }
+            }
+            _ => {}
+        }
         Ok(mb.context.data_out)
     }
 
@@ -583,7 +599,6 @@ impl MailboxRegs {
     pub fn read_status(&self, _size: RvSize) -> Result<u32, BusError> {
         let mut result = self.state_machine.context.status;
         result.modify(match self.state_machine.state {
-            // TODO: What about MBOX_EXECUTE_SOC?
             States::ExecUc => Status::MBOX_FSM_PS::MBOX_EXECUTE_UC,
             States::ExecSoc => Status::MBOX_FSM_PS::MBOX_EXECUTE_SOC,
             States::Idle => Status::MBOX_FSM_PS::MBOX_IDLE,
@@ -627,6 +642,11 @@ statemachine! {
         RdyForData + DataWrite(DataIn) / enqueue = RdyForData,
 
         //move from rdy for data to execute uc  when micro sets execute bit.
+        //uC set execute, data is for the SoC
+        //If we're here, restrict reading to the user that requested the data
+        //Only SoC can read from mbox
+        //Only SoC can write to datain here to respond to uC
+
         RdyForData + UcExecSet = ExecUc,
 
         //move from rdy for data to execute soc when soc sets execute bit.
@@ -639,6 +659,9 @@ statemachine! {
 
         //ExecUc + StatusWrite(StatusRegister) [ is_not_busy ] = ExecUc,
 
+        //SoC set execute, data is for the uC
+        //only uC can read from mbox
+        //only uC can write to datain here to respond to SoC
         ExecSoc + DataRead / dequeue = ExecSoc,
         ExecSoc + DlenWrite(DataLength) / init_dlen = ExecSoc,
         ExecSoc + DataWrite(DataIn) / enqueue = ExecSoc,
@@ -1004,21 +1027,24 @@ mod tests {
     #[test]
     fn test_send_receive_max_limit() {
         // Acquire lock
-        let mut mb = get_mailbox();
-        assert_eq!(mb.read(RvSize::Word, OFFSET_LOCK).unwrap(), 0);
+        let regs = get_mbox_regs(MailboxRam::new());
+        let mut caliptra = MailboxInternal::new(regs.clone());
+        let mut soc = MailboxExternal::new(regs);
+        assert_eq!(soc.read(RvSize::Word, OFFSET_LOCK).unwrap(), 0);
+
         // Confirm it is locked
-        let lock = mb.read(RvSize::Word, OFFSET_LOCK).unwrap();
+        let lock = caliptra.read(RvSize::Word, OFFSET_LOCK).unwrap();
         assert_eq!(lock, 1);
 
-        let user = mb.read(RvSize::Word, OFFSET_USER).unwrap();
-        assert_eq!(user, MailboxRequester::Caliptra as u32);
+        let user = soc.read(RvSize::Word, OFFSET_USER).unwrap();
+        assert_eq!(user, MailboxRequester::Soc as u32);
 
         // Write command
-        assert_eq!(mb.write(RvSize::Word, OFFSET_CMD, 0x55).ok(), Some(()));
+        assert_eq!(soc.write(RvSize::Word, OFFSET_CMD, 0x55).ok(), Some(()));
 
         // Write dlen
         assert_eq!(
-            mb.write(
+            soc.write(
                 RvSize::Word,
                 OFFSET_DLEN,
                 (MAX_MAILBOX_CAPACITY_BYTES + 4) as u32
@@ -1030,75 +1056,67 @@ mod tests {
         for data_in in (0..MAX_MAILBOX_CAPACITY_BYTES).step_by(4) {
             // Write datain
             assert_eq!(
-                mb.write(RvSize::Word, OFFSET_DATAIN, data_in as u32).ok(),
+                soc.write(RvSize::Word, OFFSET_DATAIN, data_in as u32).ok(),
                 Some(())
             );
         }
 
         // Write an additional DWORD. This should be a no-op.
         assert_eq!(
-            mb.write(RvSize::Word, OFFSET_DATAIN, 0xDEADBEEF).ok(),
-            Some(())
-        );
-
-        assert_eq!(
-            mb.write(
-                RvSize::Word,
-                OFFSET_STATUS,
-                Status::STATUS::DATA_READY.value
-            )
-            .ok(),
+            soc.write(RvSize::Word, OFFSET_DATAIN, 0xDEADBEEF).ok(),
             Some(())
         );
 
         // Write exec
-        assert_eq!(mb.write(RvSize::Word, OFFSET_EXECUTE, 0x55).ok(), Some(()));
+        assert_eq!(soc.write(RvSize::Word, OFFSET_EXECUTE, 0x55).ok(), Some(()));
 
         assert!(matches!(
-            mb.regs.borrow().state_machine.state(),
-            States::ExecUc
+            soc.regs.borrow().state_machine.state(),
+            States::ExecSoc
         ));
 
-        let status = mb.read(RvSize::Word, OFFSET_STATUS).unwrap();
-        assert_eq!(
-            status,
-            (Status::STATUS::DATA_READY + Status::MBOX_FSM_PS::MBOX_EXECUTE_UC).value
-        );
-
-        let cmd = mb.read(RvSize::Word, OFFSET_CMD).unwrap();
+        let cmd = caliptra.read(RvSize::Word, OFFSET_CMD).unwrap();
         assert_eq!(cmd, 0x55);
 
-        let dlen = mb.read(RvSize::Word, OFFSET_DLEN).unwrap();
+        let dlen = caliptra.read(RvSize::Word, OFFSET_DLEN).unwrap();
         assert_eq!(dlen, (MAX_MAILBOX_CAPACITY_BYTES + 4) as u32);
 
         let mut data_out = 0;
         for data_in in (0..MAX_MAILBOX_CAPACITY_BYTES).step_by(4) {
             // Read dataout
-            data_out = mb.read(RvSize::Word, OFFSET_DATAOUT).unwrap();
+            data_out = caliptra.read(RvSize::Word, OFFSET_DATAOUT).unwrap();
             // compare with queued data.
             assert_eq!(data_in as u32, data_out);
         }
 
         // Read an additional DWORD. This should return the last word
-        assert_eq!(mb.read(RvSize::Word, OFFSET_DATAOUT).unwrap(), data_out);
+        assert_eq!(
+            caliptra.read(RvSize::Word, OFFSET_DATAOUT).unwrap(),
+            data_out
+        );
 
         assert_eq!(
-            mb.write(
-                RvSize::Word,
-                OFFSET_STATUS,
-                Status::STATUS::CMD_COMPLETE.value
-            )
-            .ok(),
+            caliptra
+                .write(
+                    RvSize::Word,
+                    OFFSET_STATUS,
+                    Status::STATUS::CMD_COMPLETE.value
+                )
+                .ok(),
             Some(())
         );
 
         // Receiver resets exec register
-        assert_eq!(mb.write(RvSize::Word, OFFSET_EXECUTE, 0).ok(), Some(()));
+        assert_eq!(soc.write(RvSize::Word, OFFSET_EXECUTE, 0).ok(), Some(()));
         // Confirm it is unlocked
-        assert_eq!(mb.regs.borrow().state_machine.context.locked, 0);
+        assert_eq!(soc.regs.borrow().state_machine.context.locked, 0);
 
         assert!(matches!(
-            mb.regs.borrow().state_machine.state(),
+            soc.regs.borrow().state_machine.state(),
+            States::Idle
+        ));
+        assert!(matches!(
+            caliptra.regs.borrow().state_machine.state(),
             States::Idle
         ));
     }
