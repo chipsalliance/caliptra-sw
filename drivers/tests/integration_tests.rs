@@ -207,6 +207,48 @@ fn test_mailbox_soc_to_uc() {
 }
 
 #[test]
+fn test_mailbox_uc_to_soc() {
+    let mut model = start_driver_test("mailbox_driver_sender").unwrap();
+
+    // 0 byte request
+    let txn = model.wait_for_mailbox_receive().unwrap();
+    assert_eq!(txn.req.cmd, 0xa000_0000);
+    assert_eq!(txn.req.data, b"");
+    txn.respond_success();
+
+    // 3 byte request
+    let txn = model.wait_for_mailbox_receive().unwrap();
+    assert_eq!(txn.req.cmd, 0xa000_1000);
+    assert_eq!(txn.req.data, b"Hi!");
+    // NOTE: The current driver doesn't actually look at the result
+    txn.respond_success();
+
+    // 4 byte request
+    let txn = model.wait_for_mailbox_receive().unwrap();
+    assert_eq!(txn.req.cmd, 0xa000_2000);
+    assert_eq!(txn.req.data, b"Hi!!");
+    txn.respond_success();
+
+    // 6 byte request
+    let txn = model.wait_for_mailbox_receive().unwrap();
+    assert_eq!(txn.req.cmd, 0xa000_3000);
+    assert_eq!(txn.req.data, b"Hello!");
+    txn.respond_success();
+
+    // 8 byte request
+    let txn = model.wait_for_mailbox_receive().unwrap();
+    assert_eq!(txn.req.cmd, 0xa000_4000);
+    assert_eq!(txn.req.data, b"Hello!!!");
+    txn.respond_success();
+
+    // write_cmd / write_dlen / execute_request used separately
+    let txn = model.wait_for_mailbox_receive().unwrap();
+    assert_eq!(txn.req.cmd, 0xb000_0000);
+    assert_eq!(txn.req.data, b"");
+    txn.respond_success();
+}
+
+#[test]
 fn test_pcrbank() {
     run_driver_test("pcrbank");
 }
