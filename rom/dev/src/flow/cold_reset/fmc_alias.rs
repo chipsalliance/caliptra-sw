@@ -13,9 +13,12 @@ Abstract:
 
 --*/
 
+use core::mem::ManuallyDrop;
+
 use super::crypto::{Crypto, Ecc384KeyPair};
 use super::dice::{DiceInput, DiceLayer, DiceOutput};
 use super::x509::X509;
+use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::verifier::RomImageVerificationEnv;
 use crate::{cprint, cprint_slice, cprintln, pcr};
 use crate::{rom_env::RomEnv, rom_err_def};
@@ -25,7 +28,7 @@ use caliptra_drivers::{
 };
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
-use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams};
+use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams, NotAfter, NotBefore};
 use zerocopy::{AsBytes, FromBytes};
 
 extern "C" {
@@ -49,15 +52,17 @@ impl DiceLayer for FmcAliasLayer {
     /// Perform derivations for the DICE layer
     fn derive(env: &RomEnv, input: &DiceInput) -> CaliptraResult<DiceOutput> {
         cprintln!("[afmc] ++");
-        cprintln!("[afmc] CDI.KEYID = {}", input.cdi as u8);
-        cprintln!("[afmc] SUBJECT.KEYID = {}", input.subj_priv_key as u8);
-        cprintln!(
-            "[afmc] AUTHORITY.KEYID = {}",
-            input.auth_key_pair.priv_key as u8
-        );
+
+        // To Do : Disabling the Prints Temporarily
+        //cprintln!("[afmc] CDI.KEYID = {}", input.cdi as u8);
+        //cprintln!("[afmc] SUBJECT.KEYID = {}", input.subj_priv_key as u8);
+        // cprintln!(
+        //     "[afmc] AUTHORITY.KEYID = {}",
+        //     input.auth_key_pair.priv_key as u8
+        // );
 
         // Download the image
-        let txn = Self::download_image(env)?;
+        let mut txn = Self::download_image(env)?;
 
         // Load the manifest
         let manifest = Self::load_manifest(&txn)?;
@@ -72,7 +77,10 @@ impl DiceLayer for FmcAliasLayer {
         Self::extend_pcrs(env)?;
 
         // Load the image
-        Self::load_image(env, &manifest, txn)?;
+        Self::load_image(env, &manifest, &txn)?;
+
+        // Complete the mailbox transaction indicating success.
+        txn.complete(true)?;
 
         // At this point PCR0 & PCR1 must have the same value. We use the value
         // of PCR1 as the UDS for deriving the CDI
@@ -96,8 +104,30 @@ impl DiceLayer for FmcAliasLayer {
         // Generate the output for next layer
         let output = input.to_output(key_pair, subj_sn, subj_key_id);
 
+        // if there is a valid value in the manifest for the not_before and not_after
+        // we take it from there.
+
+        let mut nb = NotBefore::default();
+        let mut nf = NotAfter::default();
+        let null_time = [0u8; 15];
+
+        if manifest.header.vendor_not_after != null_time
+            && manifest.header.vendor_not_before != null_time
+        {
+            nf.not_after = manifest.header.vendor_not_after;
+            nb.not_before = manifest.header.vendor_not_before;
+        }
+
+        //The owner values takes preference
+        if manifest.header.owner_data.owner_not_after != null_time
+            && manifest.header.owner_data.owner_not_before != null_time
+        {
+            nf.not_after = manifest.header.owner_data.owner_not_after;
+            nb.not_before = manifest.header.owner_data.owner_not_before;
+        }
+
         // Generate Local Device ID Certificate
-        Self::generate_cert_sig(env, input, &output)?;
+        Self::generate_cert_sig(env, input, &output, &nb.not_before, &nf.not_after)?;
 
         cprintln!("[afmc] --");
 
@@ -117,8 +147,12 @@ impl FmcAliasLayer {
     ///
     /// # Returns
     ///
-    /// * `MailboxRecvTxn` - Mailbox transaction handle
-    fn download_image(env: &RomEnv) -> CaliptraResult<MailboxRecvTxn> {
+    /// Mailbox transaction handle. This transaction is ManuallyDrop because we
+    /// don't want the transaction to be completed with failure until after
+    /// report_error is called. This prevents a race condition where the SoC
+    /// reads FW_ERROR_NON_FATAL immediately after the mailbox transaction
+    /// fails, but before caliptra has set the FW_ERROR_NON_FATAL register.
+    fn download_image(env: &RomEnv) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn>> {
         env.flow_status().map(|f| f.set_ready_for_firmware());
 
         cprint!("[afmc] Waiting for Image ");
@@ -130,10 +164,12 @@ impl FmcAliasLayer {
                     txn.complete(false)?;
                     continue;
                 }
-
+                // This is a download-firmware command; don't drop this, as the
+                // transaction will be completed by either report_error() (on
+                // failure) or by a manual complete call upon success.
+                let txn = ManuallyDrop::new(txn);
                 if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
                     cprintln!("Invalid Image of size {} bytes" txn.dlen());
-                    txn.complete(false)?;
                     raise_err!(InvalidImageSize);
                 }
 
@@ -155,7 +191,7 @@ impl FmcAliasLayer {
             core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
         };
 
-        txn.copy_request(0, slice)?;
+        txn.copy_request(slice)?;
 
         ImageManifest::read_from(slice.as_bytes()).ok_or(err_u32!(ManifestReadFailure))
     }
@@ -191,7 +227,7 @@ impl FmcAliasLayer {
     fn load_image(
         _env: &RomEnv,
         manifest: &ImageManifest,
-        txn: MailboxRecvTxn,
+        txn: &MailboxRecvTxn,
     ) -> CaliptraResult<()> {
         cprintln!(
             "[afmc] Loading FMC at address 0x{:08x} len {}",
@@ -204,7 +240,7 @@ impl FmcAliasLayer {
             core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize / 4)
         };
 
-        txn.copy_request(0, fmc_dest)?;
+        txn.copy_request(fmc_dest)?;
 
         cprintln!(
             "[afmc] Loading Runtime at address 0x{:08x} len {}",
@@ -217,11 +253,7 @@ impl FmcAliasLayer {
             core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize / 4)
         };
 
-        txn.copy_request(0, runtime_dest)?;
-
-        // Drop the tranaction and release the Mailbox lock after the image
-        // has been successfully verified and loaded in memory
-        drop(txn);
+        txn.copy_request(runtime_dest)?;
 
         Ok(())
     }
@@ -350,6 +382,8 @@ impl FmcAliasLayer {
         env: &RomEnv,
         input: &DiceInput,
         output: &DiceOutput,
+        not_before: &[u8; FmcAliasCertTbsParams::NOT_BEFORE_LEN],
+        not_after: &[u8; FmcAliasCertTbsParams::NOT_AFTER_LEN],
     ) -> CaliptraResult<()> {
         let auth_priv_key = input.auth_key_pair.priv_key;
         let auth_pub_key = &input.auth_key_pair.pub_key;
@@ -366,6 +400,8 @@ impl FmcAliasLayer {
             public_key: &pub_key.to_der(),
             tcb_info_fmc_tci: &env.data_vault().map(|d| d.fmc_tci()).into(),
             tcb_info_owner_pk_hash: &env.data_vault().map(|d| d.owner_pk_hash()).into(),
+            not_before,
+            not_after,
         };
 
         // Generate the `To Be Signed` portion of the CSR
@@ -402,6 +438,9 @@ impl FmcAliasLayer {
 
         // Lock the FMC Public key in the data vault until next boot
         env.data_vault().map(|d| d.set_fmc_pub_key(pub_key));
+
+        //  Copy TBS to DCCM.
+        copy_tbs(tbs.tbs(), TbsType::FmcaliasTbs)?;
 
         Ok(())
     }

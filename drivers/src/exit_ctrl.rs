@@ -12,6 +12,8 @@ Abstract:
 
 --*/
 
+use crate::Mailbox;
+
 /// Exit control
 pub enum ExitCtrl {}
 
@@ -33,7 +35,8 @@ impl ExitCtrl {
             }
         }
 
-        #[allow(clippy::empty_loop)]
-        loop {}
+        loop {
+            unsafe { Mailbox::abort_pending_soc_to_uc_transactions() };
+        }
     }
 }

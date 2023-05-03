@@ -14,7 +14,15 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
 
+extern "C" {
+    static mut LDEVID_TBS_ORG: u8;
+    static mut FMCALIAS_TBS_ORG: u8;
+}
+
 use caliptra_common::FirmwareHandoffTable;
+use caliptra_drivers::DataVault;
+use caliptra_drivers::Mailbox;
+use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
 use zerocopy::FromBytes;
 
 #[cfg(not(feature = "std"))]
@@ -45,24 +53,9 @@ pub extern "C" fn fmc_entry() -> ! {
     };
 
     let fht = FirmwareHandoffTable::read_from(slice).unwrap();
+    assert!(fht.is_valid());
 
-    cprintln!("[fmc] FHT Marker: 0x{:08X}", fht.fht_marker);
-    cprintln!("[fmc] FHT Major Version: 0x{:04X}", fht.fht_major_ver);
-    cprintln!("[fmc] FHT Minor Version: 0x{:04X}", fht.fht_minor_ver);
-    cprintln!("[fmc] FHT Manifest Addr: 0x{:08X}", fht.manifest_load_addr);
-    cprintln!("[fmc] FHT FMC CDI KV KeyID: {}", fht.fmc_cdi_kv_idx);
-    cprintln!(
-        "[fmc] FHT FMC PrivKey KV KeyID: {}",
-        fht.fmc_priv_key_kv_idx
-    );
-    cprintln!(
-        "[fmc] FHT RT Load Address: 0x{:08x}",
-        fht.rt_fw_load_addr_idx
-    );
-    cprintln!(
-        "[fmc] FHT RT Entry Point: 0x{:08x}",
-        fht.rt_fw_load_addr_idx
-    );
+    create_certs();
 
     caliptra_drivers::ExitCtrl::exit(0)
 }
@@ -80,7 +73,9 @@ extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
 
     // TODO: Signal non-fatal error to SOC
 
-    loop {}
+    loop {
+        unsafe { Mailbox::abort_pending_soc_to_uc_transactions() };
+    }
 }
 
 #[no_mangle]
@@ -94,7 +89,9 @@ extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
         exception.mepc
     );
 
-    loop {}
+    loop {
+        unsafe { Mailbox::abort_pending_soc_to_uc_transactions() };
+    }
 }
 
 #[panic_handler]
@@ -107,4 +104,77 @@ fn fmc_panic(_: &core::panic::PanicInfo) -> ! {
     // TODO: Signal non-fatal error to SOC
 
     loop {}
+}
+
+fn create_certs() {
+    //
+    // Create LDEVID cert.
+    //
+
+    // Retrieve the public key and signature from the data vault.
+    let data_vault = DataVault::default();
+    let ldevid_pub_key = data_vault.ldev_dice_pub_key();
+    let mut _pub_der: [u8; 97] = ldevid_pub_key.to_der();
+    cprint_slice!("[fmc] LDEVID PUBLIC KEY DER", _pub_der);
+
+    let sig = data_vault.ldev_dice_signature();
+
+    let ecdsa_sig = Ecdsa384Signature {
+        r: sig.r.into(),
+        s: sig.s.into(),
+    };
+    let mut tbs: [u8; core::mem::size_of::<LocalDevIdCertTbs>()] =
+        [0u8; core::mem::size_of::<LocalDevIdCertTbs>()];
+    copy_tbs(&mut tbs, true);
+
+    let mut cert: [u8; 651] = [0u8; 651];
+    let builder = Ecdsa384CertBuilder::new(
+        &tbs[..core::mem::size_of::<LocalDevIdCertTbs>()],
+        &ecdsa_sig,
+    )
+    .unwrap();
+    let _cert_len = builder.build(&mut cert).unwrap();
+    cprint_slice!("[fmc] LDEVID cert", cert);
+
+    //
+    // Create FMCALIAS cert.
+    //
+
+    // Retrieve the public key and signature from the data vault.
+    let fmcalias_pub_key = data_vault.fmc_pub_key();
+    let _pub_der: [u8; 97] = fmcalias_pub_key.to_der();
+    cprint_slice!("[fmc] FMCALIAS PUBLIC KEY DER", _pub_der);
+
+    let sig = data_vault.fmc_dice_signature();
+    let ecdsa_sig = Ecdsa384Signature {
+        r: sig.r.into(),
+        s: sig.s.into(),
+    };
+
+    let mut tbs: [u8; core::mem::size_of::<FmcAliasCertTbs>()] =
+        [0u8; core::mem::size_of::<FmcAliasCertTbs>()];
+    copy_tbs(&mut tbs, false);
+
+    let mut cert: [u8; 818] = [0u8; 818];
+    let builder =
+        Ecdsa384CertBuilder::new(&tbs[..core::mem::size_of::<FmcAliasCertTbs>()], &ecdsa_sig)
+            .unwrap();
+    let _cert_len = builder.build(&mut cert).unwrap();
+    cprint_slice!("[fmc] FMCALIAS cert", cert);
+}
+
+fn copy_tbs(tbs: &mut [u8], ldevid_tbs: bool) {
+    // Copy the tbs from DCCM
+    let src = if ldevid_tbs {
+        unsafe {
+            let ptr = &mut LDEVID_TBS_ORG as *mut u8;
+            core::slice::from_raw_parts_mut(ptr, tbs.len())
+        }
+    } else {
+        unsafe {
+            let ptr = &mut FMCALIAS_TBS_ORG as *mut u8;
+            core::slice::from_raw_parts_mut(ptr, tbs.len())
+        }
+    };
+    tbs.copy_from_slice(src);
 }

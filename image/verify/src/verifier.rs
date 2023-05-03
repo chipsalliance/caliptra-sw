@@ -12,6 +12,8 @@ Abstract:
 
 --*/
 
+use core::num::NonZeroU32;
+
 use crate::*;
 use caliptra_drivers::*;
 use caliptra_image_types::*;
@@ -53,6 +55,20 @@ caliptra_err_def! {
         UpdateResetVenPubKeyIdxMismatch = 30,
         UpdateResetFmcDigestMismatch = 31,
         UpdateResetVenPubKeyIdxOutOfBounds = 32,
+        FmcLoadAddrInvalid = 33,
+        FmcLoadAddrUnaligned = 34,
+        FmcEntryPointInvalid = 35,
+        FmcEntryPointUnaligned = 36,
+        FmcSvnGreaterThanMaxSupported = 37,
+        FmcSvnLessThanMinSupported = 38,
+        FmcSvnLessThanFuse = 39,
+        RuntimeLoadAddrInvalid = 40,
+        RuntimeLoadAddrUnaligned = 41,
+        RuntimeEntryPointInvalid = 42,
+        RuntimeEntryPointUnaligned = 43,
+        RuntimeSvnGreaterThanMaxSupported = 44,
+        RuntimeSvnLessThanMinSupported = 45,
+        RuntimeSvnLessThanFuse = 46,
     }
 }
 
@@ -235,7 +251,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     fn verify_vendor_pk_digest(
         &self,
         image: <Env as ImageVerificationEnv>::Image,
-    ) -> Result<(), u32> {
+    ) -> Result<(), NonZeroU32> {
         // We skip vendor public key check in unprovisioned state
         if self.env.dev_lifecycle(image) == Lifecycle::Unprovisioned {
             return Ok(());
@@ -437,6 +453,13 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         Ok(info)
     }
 
+    // Check if SVN check is required
+    fn svn_check_required(&self, image: Env::Image) -> bool {
+        // If device is unprovisioned or if anti-rollback is disabled, don't check the SVN.
+        !(self.env.dev_lifecycle(image) == Lifecycle::Unprovisioned
+            || self.env.anti_rollback_disable(image))
+    }
+
     /// Verify FMC
     fn verify_fmc(
         &self,
@@ -455,10 +478,39 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             raise_err!(FmcDigestMismatch)
         }
 
-        // TODO: Perform following Address checks
-        // 1. Load address is a valid ICCM Address
-        // 2. Entry Point is a valid ICCM Address
-        // 3. Entry Point is within the image
+        // TODO: Perform following Address check
+        // Entry Point is within the image
+        if !self.env.iccm_range().contains(&verify_info.load_addr) {
+            raise_err!(FmcLoadAddrInvalid)
+        }
+        if verify_info.load_addr % 4 != 0 {
+            raise_err!(FmcLoadAddrUnaligned)
+        }
+
+        if !self.env.iccm_range().contains(&verify_info.entry_point) {
+            raise_err!(FmcEntryPointInvalid)
+        }
+        if verify_info.entry_point % 4 != 0 {
+            raise_err!(FmcEntryPointUnaligned)
+        }
+
+        if self.svn_check_required(image) {
+            if verify_info.svn > 32 {
+                raise_err!(FmcSvnGreaterThanMaxSupported)
+            }
+
+            if verify_info.svn < verify_info.min_svn {
+                raise_err!(FmcSvnLessThanMinSupported)
+            }
+
+            if verify_info.svn < self.env.fmc_svn() {
+                raise_err!(FmcSvnLessThanFuse)
+            }
+        }
+
+        if reason == ResetReason::UpdateReset && actual != self.env.get_fmc_digest_dv() {
+            raise_err!(UpdateResetFmcDigestMismatch)
+        }
 
         let info = ImageVerificationExeInfo {
             load_addr: verify_info.load_addr,
@@ -467,15 +519,6 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             digest: verify_info.digest,
             size: verify_info.size,
         };
-
-        // TODO: SVN Check
-        // 0. Skip SVN check in unprovisioned mode or when antirollback is disabled
-        // 1. SVN is not more than 32
-        // 2. SVN is valid against min_svn and fuse_svn
-
-        if reason == ResetReason::UpdateReset && actual != self.env.get_fmc_digest_dv() {
-            raise_err!(UpdateResetFmcDigestMismatch)
-        }
 
         Ok(info)
     }
@@ -498,9 +541,34 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         }
 
         // TODO: Perform following Address checks
-        // 1. Load address is a valid ICCM Address
-        // 2. Entry Point is a valid ICCM Address
         // 3. Entry Point is within the image
+
+        if !self.env.iccm_range().contains(&verify_info.load_addr) {
+            raise_err!(RuntimeLoadAddrInvalid)
+        }
+        if verify_info.load_addr % 4 != 0 {
+            raise_err!(RuntimeLoadAddrUnaligned)
+        }
+        if !self.env.iccm_range().contains(&verify_info.entry_point) {
+            raise_err!(RuntimeEntryPointInvalid)
+        }
+        if verify_info.entry_point % 4 != 0 {
+            raise_err!(RuntimeEntryPointUnaligned)
+        }
+
+        if self.svn_check_required(image) {
+            if verify_info.svn > 64 {
+                raise_err!(RuntimeSvnGreaterThanMaxSupported)
+            }
+
+            if verify_info.svn < verify_info.min_svn {
+                raise_err!(RuntimeSvnLessThanMinSupported)
+            }
+
+            if verify_info.svn < self.env.runtime_svn() {
+                raise_err!(RuntimeSvnLessThanFuse)
+            }
+        }
 
         let info = ImageVerificationExeInfo {
             load_addr: verify_info.load_addr,
@@ -510,16 +578,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             size: verify_info.size,
         };
 
-        // TODO: SVN Check
-        // 0. Skip SVN check in unprovisioned mode or when antirollback is disabled
-        // 1. SVN is not more than 64
-        // 2. SVN is valid against min_svn and fuse_svn
-
         Ok(info)
     }
 }
 
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(all(test, target_family = "unix"))]
 mod tests {
     use super::*;
 
@@ -609,6 +672,8 @@ mod tests {
 
         let verify_info = ImageTocEntry {
             digest: DUMMY_DATA,
+            load_addr: 0x40000000,
+            entry_point: 0x40000000,
             ..Default::default()
         };
 
@@ -627,12 +692,10 @@ mod tests {
         };
 
         let verifier = ImageVerifier::new(test_env);
-        // let mut verify_info = ImageTocEntry::default();
-
-        // verify_info.digest = DUMMY_DATA;
-
         let verify_info = ImageTocEntry {
             digest: DUMMY_DATA,
+            load_addr: 0x40000000,
+            entry_point: 0x40000000,
             ..Default::default()
         };
 
@@ -1004,9 +1067,9 @@ mod tests {
         let test_env = TestEnv::default();
         let verifier = ImageVerifier::new(test_env);
         let verify_info = ImageTocEntry {
-            load_addr: 0xCAFEB0BA,
-            entry_point: 0xDEADBEEF,
-            svn: 420,
+            load_addr: 0x40000000,
+            entry_point: 0x40000000,
+            svn: 1,
             size: 100,
             ..Default::default()
         };
@@ -1014,9 +1077,9 @@ mod tests {
         let result = verifier.verify_fmc((), &verify_info, ResetReason::ColdReset);
         assert!(result.is_ok());
         let info = result.unwrap();
-        assert_eq!(info.load_addr, 0xCAFEB0BA);
-        assert_eq!(info.entry_point, 0xDEADBEEF);
-        assert_eq!(info.svn, 420);
+        assert_eq!(info.load_addr, 0x40000000);
+        assert_eq!(info.entry_point, 0x40000000);
+        assert_eq!(info.svn, 1);
         assert_eq!(info.size, 100);
     }
 
@@ -1037,18 +1100,18 @@ mod tests {
         let test_env = TestEnv::default();
         let verifier = ImageVerifier::new(test_env);
         let verify_info = ImageTocEntry {
-            load_addr: 0xCAFEB0BA,
-            entry_point: 0xDEADBEEF,
-            svn: 420,
+            load_addr: 0x40000000,
+            entry_point: 0x40000000,
+            svn: 1,
             size: 100,
             ..Default::default()
         };
         let result = verifier.verify_runtime((), &verify_info);
         assert!(result.is_ok());
         let info = result.unwrap();
-        assert_eq!(info.load_addr, 0xCAFEB0BA);
-        assert_eq!(info.entry_point, 0xDEADBEEF);
-        assert_eq!(info.svn, 420);
+        assert_eq!(info.load_addr, 0x40000000);
+        assert_eq!(info.entry_point, 0x40000000);
+        assert_eq!(info.svn, 1);
         assert_eq!(info.size, 100);
     }
 
@@ -1128,6 +1191,21 @@ mod tests {
 
         fn get_fmc_digest_dv(&self) -> ImageDigest {
             self.fmc_digest
+        }
+
+        fn fmc_svn(&self) -> u32 {
+            0
+        }
+
+        fn runtime_svn(&self) -> u32 {
+            0
+        }
+
+        fn iccm_range(&self) -> Range<u32> {
+            Range {
+                start: 0x40000000,
+                end: 0x40000000 + (128 * 1024),
+            }
         }
     }
 }

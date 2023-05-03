@@ -75,6 +75,28 @@ impl Mailbox {
             _ => None,
         }
     }
+
+    /// Aborts with failure any pending SoC->Uc transactions.
+    ///
+    /// This is useful to call from a fatal-error-handling routine.
+    ///
+    /// # Safety
+    ///
+    /// Callers must guarantee that no other code is interacting with the
+    /// mailbox at the time this function is called. (For example, any
+    /// MailboxRecvTxn and MailboxSendTxn instances have been destroyed or
+    /// forgotten).
+    ///
+    /// This function is safe to call from a trap handler.
+    pub unsafe fn abort_pending_soc_to_uc_transactions() {
+        let mbox = mbox::RegisterBlock::mbox_csr();
+        if mbox.status().read().mbox_fsm_ps().mbox_execute_uc() {
+            // SoC firmware might be stuck waiting for Caliptra to finish
+            // executing this pending mailbox transaction. Notify them that
+            // we've failed.
+            mbox.status().write(|w| w.status(|w| w.cmd_failure()));
+        }
+    }
 }
 
 #[derive(Default)]
@@ -291,11 +313,11 @@ impl MailboxRecvTxn {
     ///
     /// Status of Operation
     ///   
-    pub fn copy_request(&self, offset: usize, data: &mut [u32]) -> CaliptraResult<()> {
+    pub fn copy_request(&self, data: &mut [u32]) -> CaliptraResult<()> {
         if self.state != MailboxOpState::Execute {
             raise_err!(InvalidStateErr)
         }
-        self.dequeue(&mut data[offset..])
+        self.dequeue(data)
     }
 
     /// Pulls at most `data.len()` words from the mailbox FIFO.
@@ -310,7 +332,7 @@ impl MailboxRecvTxn {
     /// Status of Operation
     ///   
     pub fn recv_request(&mut self, data: &mut [u32]) -> CaliptraResult<()> {
-        self.copy_request(0, data)?;
+        self.copy_request(data)?;
         self.complete(true)?;
         Ok(())
     }
@@ -330,10 +352,6 @@ impl MailboxRecvTxn {
 
         let mbox = mbox::RegisterBlock::mbox_csr();
         mbox.status().write(|w| w.status(|_| status));
-
-        // Release the lock
-        let mbox = mbox::RegisterBlock::mbox_csr();
-        mbox.execute().write(|w| w.execute(false));
 
         self.state = MailboxOpState::Idle;
         Ok(())

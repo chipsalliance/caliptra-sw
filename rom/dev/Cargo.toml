@@ -15,8 +15,11 @@ caliptra_common = { path = "../../common", default-features = false }
 ufmt = "0.2.0"
 zerocopy = "0.6.1"
 
+
 [build-dependencies]
 cfg-if = "1.0.0"
+hex = "0.4.3"
+
 
 [dev-dependencies]
 caliptra-builder = { path = "../../builder" }
@@ -26,6 +29,8 @@ caliptra-image-openssl = { path = "../../image/openssl" }
 caliptra-image-elf = { path = "../../image/elf" }
 caliptra-image-fake-keys = { path = "../../image/fake-keys" }
 caliptra-image-types = { path = "../../image/types" }
+hex = "0.4.3"
+openssl = "0.10"
 
 [features]
 riscv = []
@@ -39,3 +44,7 @@ std = [
   "ufmt/std",
 ]
 no-fmc = []
+
+[[bin]]
+name = "asm_tests"
+path = "test-fw/asm_tests.rs"

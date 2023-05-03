@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use std::fmt::Display;
 use std::io::LineWriter;
 use std::{
     cell::{Cell, RefCell},
@@ -18,11 +19,66 @@ struct OutputSinkImpl {
     new_uart_output: Cell<String>,
     log_writer: RefCell<LineWriter<Box<dyn std::io::Write>>>,
     at_start_of_line: Cell<bool>,
+    now: Cell<u64>,
+    next_write_needs_time_prefix: Cell<bool>,
+}
+
+struct PrettyU64(u64);
+impl Display for PrettyU64 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        const RANKS: [u64; 7] = [
+            1_000_000_000_000_000_000,
+            1_000_000_000_000_000,
+            1_000_000_000_000,
+            1_000_000_000,
+            1_000_000,
+            1_000,
+            1,
+        ];
+        const PADDING_RANK: u64 = 1_000_000_000;
+        let mut prev_numbers = false;
+        for rank in RANKS {
+            if (self.0 / rank) > 0 || rank == 1 {
+                if prev_numbers {
+                    write!(f, "{:03}", (self.0 / rank) % 1000)?;
+                } else if rank >= PADDING_RANK {
+                    write!(f, "{}", (self.0 / rank) % 1000)?;
+                } else {
+                    write!(f, "{:>3}", (self.0 / rank) % 1000)?;
+                }
+                if rank > 1 {
+                    write!(f, ",")?;
+                }
+                prev_numbers = true;
+            } else if rank < PADDING_RANK {
+                write!(f, "    ")?;
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn test_pretty_u64() {
+    assert_eq!(PrettyU64(0).to_string(), "          0");
+    assert_eq!(PrettyU64(1).to_string(), "          1");
+    assert_eq!(PrettyU64(999).to_string(), "        999");
+    assert_eq!(PrettyU64(1_000).to_string(), "      1,000");
+    assert_eq!(PrettyU64(1_001).to_string(), "      1,001");
+    assert_eq!(PrettyU64(999_999).to_string(), "    999,999");
+    assert_eq!(PrettyU64(1_000_000).to_string(), "  1,000,000");
+    assert_eq!(PrettyU64(1_000_001).to_string(), "  1,000,001");
+    assert_eq!(PrettyU64(999_999_999).to_string(), "999,999,999");
+    assert_eq!(PrettyU64(1_999_999_999).to_string(), "1,999,999,999");
 }
 
 #[derive(Clone)]
 pub struct OutputSink(Rc<OutputSinkImpl>);
 impl OutputSink {
+    pub fn set_now(&self, now: u64) {
+        self.0.now.set(now);
+    }
     pub fn push_uart_char(&self, ch: u8) {
         const UART_LOG_PREFIX: &[u8] = b"UART: ";
 
@@ -56,6 +112,7 @@ impl OutputSink {
                 let log_writer = &mut self.0.log_writer.borrow_mut();
                 if self.0.at_start_of_line.get() {
                     log_writer.flush().unwrap();
+                    write!(log_writer, "{} ", PrettyU64(self.0.now.get())).unwrap();
                     log_writer.write_all(UART_LOG_PREFIX).unwrap();
                     self.0.at_start_of_line.set(false);
                 }
@@ -76,7 +133,19 @@ impl OutputSink {
 }
 impl std::io::Write for &OutputSink {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.log_writer.borrow_mut().write(buf)
+        let log_writer = &mut self.0.log_writer.borrow_mut();
+        // Write a time prefix in front of every line
+        for line in buf.split_inclusive(|ch| *ch == b'\n') {
+            if self.0.next_write_needs_time_prefix.get() {
+                write!(log_writer, "{} ", PrettyU64(self.0.now.get())).unwrap();
+                self.0.next_write_needs_time_prefix.set(false);
+            }
+            log_writer.write_all(line)?;
+            if line.ends_with(b"\n") {
+                self.0.next_write_needs_time_prefix.set(true);
+            }
+        }
+        Ok(buf.len())
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
@@ -100,6 +169,8 @@ impl Output {
                 log_writer: RefCell::new(LineWriter::new(log_writer)),
                 exit_status: Cell::new(None),
                 at_start_of_line: Cell::new(true),
+                now: Cell::new(0),
+                next_write_needs_time_prefix: Cell::new(true),
             })),
         }
     }
@@ -191,7 +262,9 @@ mod tests {
         let log = Log::new();
         let mut out = Output::new(log.clone());
 
+        out.sink().set_now(0);
         out.sink().push_uart_char(b'h');
+        out.sink().set_now(1);
         out.sink().push_uart_char(b'i');
         out.sink().push_uart_char(b'!');
         out.sink().push_uart_char(b'\n');
@@ -200,7 +273,7 @@ mod tests {
         assert_eq!(&out.take(10), "!\n");
         assert_eq!(&out.take(10), "");
 
-        assert_eq!(log.into_string(), "UART: hi!\n");
+        assert_eq!(log.into_string(), "          0 UART: hi!\n");
     }
 
     #[test]
@@ -219,7 +292,9 @@ mod tests {
         let log = Log::new();
         let mut out = Output::new(log.clone());
 
+        out.sink().set_now(1000);
         out.sink().push_uart_char(b'h');
+        out.sink().set_now(2000);
         out.sink().push_uart_char(b'i');
         out.sink().push_uart_char(b'\n');
         assert_eq!(&out.take(10), "hi\n");
@@ -228,7 +303,10 @@ mod tests {
         assert_eq!(out.exit_status(), Some(ExitStatus::Passed));
         assert_eq!(&out.take(10), "");
 
-        assert_eq!(log.into_string(), "UART: hi\n* TESTCASE PASSED\n");
+        assert_eq!(
+            log.into_string(),
+            "      1,000 UART: hi\n* TESTCASE PASSED\n"
+        );
     }
 
     #[test]
@@ -243,7 +321,10 @@ mod tests {
         assert_eq!(out.exit_status(), Some(ExitStatus::Failed));
         assert_eq!(&out.take(10), "hi\n");
 
-        assert_eq!(log.into_string(), "UART: hi\n* TESTCASE FAILED\n");
+        assert_eq!(
+            log.into_string(),
+            "          0 UART: hi\n* TESTCASE FAILED\n"
+        );
     }
 
     #[test]

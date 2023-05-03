@@ -14,6 +14,8 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
 
+use caliptra_drivers::Mailbox;
+
 #[cfg(not(feature = "std"))]
 core::arch::global_asm!(include_str!("start.S"));
 
@@ -52,7 +54,9 @@ extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
 
     // TODO: Signal non-fatal error to SOC
 
-    loop {}
+    loop {
+        unsafe { Mailbox::abort_pending_soc_to_uc_transactions() };
+    }
 }
 
 #[no_mangle]
@@ -66,7 +70,9 @@ extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
         exception.mepc
     );
 
-    loop {}
+    loop {
+        unsafe { Mailbox::abort_pending_soc_to_uc_transactions() };
+    }
 }
 
 #[panic_handler]

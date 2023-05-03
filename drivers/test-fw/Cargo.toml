@@ -55,11 +55,6 @@ path = "src/bin/ecc384_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
-name = "mailbox"
-path = "src/bin/mailbox_tests.rs"
-required-features = ["riscv"]
-
-[[bin]]
 name = "keyvault"
 path = "src/bin/keyvault_tests.rs"
 required-features = ["riscv"]
@@ -92,4 +87,24 @@ required-features = ["riscv"]
 [[bin]]
 name = "test_failure"
 path = "src/bin/test_failure.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "test_lms_24"
+path = "src/bin/lms_24_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "test_lms_32"
+path = "src/bin/lms_32_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "test_negative_lms"
+path = "src/bin/negative_tests_lms.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "csrng"
+path = "src/bin/csrng_tests.rs"
 required-features = ["riscv"]

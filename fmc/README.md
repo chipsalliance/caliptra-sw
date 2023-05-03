@@ -112,25 +112,25 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | fht_major_ver         | 2            | ROM        | Major version of FHT.                                                                                    |
 | fht_minor_ver         | 2            | ROM, FMC   | Minor version of FHT. Initially written by ROM but may be changed to a higher version by FMC.            |
 | manifest_load_addr    | 4            | ROM        | Physical base address of Manifest in DCCM SRAM.                                                          |
-| fips_fw_load_addr_idx | 4            | ROM        | Index of base address of FIPS Module in ROM or ICCM SRAM. May be 0xFF if there is no discrete module.    |
-| rt_fw_load_addr_idx   | 4            | ROM        | Index of load address of Runtime FW Module value in data vault.SRAM.                                                 |
-| rt_fw_entry_point_idx | 4            | ROM        | Index of entry point of Runtime FW Module value in data vault. SRAM.                                                           |
-| fmc_tci_dv_idx        | 1            | ROM        | Index of FMC TCI value in the Data Vault.                                                                |
-| fmc_cdi_kv_idx        | 1            | ROM        | Index of FMC CDI value in the Key Vault. Value of 0xFF indicates not present.                            |
-| fmc_priv_key_kv_idx   | 1            | ROM        | Index of FMC Private Alias Key in the Key Vault.                                                         |
-| fmc_pub_key_x_dv_idx  | 1            | ROM        | Index of FMC Public Alias Key X Coordinate in the Data Vault.                                            |
-| fmc_pub_key_y_dv_idx  | 1            | ROM        | Index of FMC Public Alias Key Y Coordinate in the Data Vault                                             |
-| fmc_cert_sig_r_dv_idx | 1            | ROM        | Index of FMC Certificate Signature R Component in the Data Vault.                                        |
-| fmc_cert_sig_s_dv_idx | 1            | ROM        | Index of FMC Certificate Signature S Component in the Data Vault.                                        |
-| fmc_svn_dv_idx        | 1            | ROM        | Index of FMC SVN value in the Data Vault.                                                                |
-| rt_tci_dv_idx         | 1            | ROM        | Index of RT TCI value in the Data Vault.                                                                 |
-| rt_cdi_kv_idx         | 1            | FMC        | Index of RT CDI value in the Key Vault.                                                                  |
-| rt_priv_key_kv_idx    | 1            | FMC        | Index of RT Private Alias Key in the Key Vault.                                                          |
-| rt_pub_key_x_dv_idx   | 1            | FMC        | Index of RT Public Alias Key X Coordinate in the Data Vault.                                             |
-| rt_pub_key_y_dv_idx   | 1            | FMC        | Index of RT Public Alias Key Y Coordinate in the Data Vault.                                             |
-| rt_cert_sig_r_dv_idx  | 1            | FMC        | Index of RT Certificate Signature R Component in the Data Vault.                                         |
-| rt_cert_sig_s_dv_idx  | 1            | FMC        | Index of RT Certificate Signature S Component in the Data Vault.                                         |
-| rt_svn_dv_idx         | 1            | FMC        | Index of RT SVN value in the Data Vault.                                                                 |
+| fips_fw_load_addr_hdl | 4            | ROM        | Handle of base address of FIPS Module in ROM or ICCM SRAM. May be 0xFF if there is no discrete module.    |
+| rt_fw_load_addr_hdl   | 4            | ROM        | Handle of load address of Runtime FW Module value in data vault.SRAM.                                                 |
+| rt_fw_entry_point_hdl | 4            | ROM        | Handle of entry point of Runtime FW Module value in data vault. SRAM.                                                           |
+| fmc_tci_dv_hdl        | 1            | ROM        | Handle of FMC TCI value in the Data Vault.                                                                |
+| fmc_cdi_kv_hdl        | 1            | ROM        | Handle of FMC CDI value in the Key Vault. Value of 0xFF indicates not present.                            |
+| fmc_priv_key_kv_hdl   | 1            | ROM        | Handle of FMC Private Alias Key in the Key Vault.                                                         |
+| fmc_pub_key_x_dv_hdl  | 1            | ROM        | Handle of FMC Public Alias Key X Coordinate in the Data Vault.                                            |
+| fmc_pub_key_y_dv_hdl  | 1            | ROM        | Handle of FMC Public Alias Key Y Coordinate in the Data Vault                                             |
+| fmc_cert_sig_r_dv_hdl | 1            | ROM        | Handle of FMC Certificate Signature R Component in the Data Vault.                                        |
+| fmc_cert_sig_s_dv_hdl | 1            | ROM        | Handle of FMC Certificate Signature S Component in the Data Vault.                                        |
+| fmc_svn_dv_hdl        | 1            | ROM        | Handle of FMC SVN value in the Data Vault.                                                                |
+| rt_tci_dv_hdl         | 1            | ROM        | Handle of RT TCI value in the Data Vault.                                                                 |
+| rt_cdi_kv_hdl         | 1            | FMC        | Handle of RT CDI value in the Key Vault.                                                                  |
+| rt_priv_key_kv_hdl    | 1            | FMC        | Handle of RT Private Alias Key in the Key Vault.                                                          |
+| rt_pub_key_x_dv_hdl   | 1            | FMC        | Handle of RT Public Alias Key X Coordinate in the Data Vault.                                             |
+| rt_pub_key_y_dv_hdl   | 1            | FMC        | Handle of RT Public Alias Key Y Coordinate in the Data Vault.                                             |
+| rt_cert_sig_r_dv_hdl  | 1            | FMC        | Handle of RT Certificate Signature R Component in the Data Vault.                                         |
+| rt_cert_sig_s_dv_hdl  | 1            | FMC        | Handle of RT Certificate Signature S Component in the Data Vault.                                         |
+| rt_svn_dv_hdl         | 1            | FMC        | Handle of RT SVN value in the Data Vault.                                                                 |
 | reserved              | 20           |            | Reserved for future use.                                                                                 |
 
 *FHT is currently defined to be 60 bytes in length.*
@@ -155,67 +155,67 @@ additional data to the first 4 bytes of the reserved space at the end of the FHT
 This is the physical address of the location in SRAM where ROM has placed a complete copy of the Firmware Manifest. This must remain resident such that firmware
 is able to re-run firmware integrity checks on-demand (required by FIPS 140-3).
 
-### fips_fw_load_addr_idx
+### fips_fw_load_addr_hdl
 
-*Future feature, not currently supported.* This field provides the index of the DV entry that stores the physical address of the location in ROM or SRAM where a discrete FIPS Crypto module resides. If a
+*Future feature, not currently supported.* This field provides the Handle of the DV entry that stores the physical address of the location in ROM or SRAM where a discrete FIPS Crypto module resides. If a
 discrete FIPS module does not exist, then this field shall be 0xFF and ROM, FMC, and RT FW must all carry their own code for accessing crypto resources and
 keys.
 
-### rt_fw_load_addr_idx
+### rt_fw_load_addr_hdl
 
-This field provides the index of the DV entry that stores the physical address of the location in ICCM SRAM where ROM has placed the authenticated Runtime Firmware module.
+This field provides the Handle of the DV entry that stores the physical address of the location in ICCM SRAM where ROM has placed the authenticated Runtime Firmware module.
 
-### rt_fw_entry_point_idx
+### rt_fw_entry_point_hdl
 
-This field provides the index of the DV entry that stores the physical address of the Entry Point of Runtime FW Module in ICCM SRAM.
+This field provides the Handle of the DV entry that stores the physical address of the Entry Point of Runtime FW Module in ICCM SRAM.
 
-### fmc_tci_dv_idx
+### fmc_tci_dv_hdl
 
-This field provides the index into the Data Vault where the TCI<sub>FMC</sub> is stored. TCI<sub>FMC</sub> is a SHA-384 Hash of the FMC Module.
+This field provides the Handle into the Data Vault where the TCI<sub>FMC</sub> is stored. TCI<sub>FMC</sub> is a SHA-384 Hash of the FMC Module.
 
-### fmc_cdi_kv_idx
+### fmc_cdi_kv_hdl
 
-This field provides the index into the Key Vault where the CDI<sub>FMC</sub> is stored.
+This field provides the Handle into the Key Vault where the CDI<sub>FMC</sub> is stored.
 
-### fmc_priv_key_kv_idx
+### fmc_priv_key_kv_hdl
 
-This field provides the index into the Key Vault where the PrivateKey<sub>FMC</sub> is stored.
+This field provides the Handle into the Key Vault where the PrivateKey<sub>FMC</sub> is stored.
 
-### fmc_pub_key_x_dv_idx, fmc_pub_key_y_dv_idx
+### fmc_pub_key_x_dv_hdl, fmc_pub_key_y_dv_hdl
 
 These fields provide the indices into the Data Vault where the PublicKey<sub>FMC</sub> X and Y coordinates are stored.
 
-### fmc_cert_sig_r_dv_idx, fmc_cert_sig_s_dv_idx
+### fmc_cert_sig_r_dv_hdl, fmc_cert_sig_s_dv_hdl
 
 These fields provide the indices into the Data Vault where the Cert<sub>FMC</sub> signature R and S components are stored.
 
-### fmc_svn_dv_idx
+### fmc_svn_dv_hdl
 
-This field provides the index into the Data Vault where the SVN<sub>FMC</sub> is stored.
+This field provides the Handle into the Data Vault where the SVN<sub>FMC</sub> is stored.
 
-### rt_tci_dv_idx
+### rt_tci_dv_hdl
 
-This field provides the index into the Data Vault where the TCI<sub>RT</sub> is stored. TCI<sub>RT</sub> is a SHA-384 Hash of the RT FW Module.
+This field provides the Handle into the Data Vault where the TCI<sub>RT</sub> is stored. TCI<sub>RT</sub> is a SHA-384 Hash of the RT FW Module.
 
-### rt_cdi_kv_idx
+### rt_cdi_kv_hdl
 
-This field provides the index into the Key Vault where the CDI<sub>RT</sub> is stored.
+This field provides the Handle into the Key Vault where the CDI<sub>RT</sub> is stored.
 
-### rt_priv_key_kv_idx
+### rt_priv_key_kv_hdl
 
-This field provides the index into the Key Vault where the PrivateKey<sub>RT</sub> is stored.
+This field provides the Handle into the Key Vault where the PrivateKey<sub>RT</sub> is stored.
 
-### rt_pub_key_x_dv_idx, rt_pub_key_y_dv_idx
+### rt_pub_key_x_dv_hdl, rt_pub_key_y_dv_hdl
 
 These fields provide the indices into the Data Vault where the PublicKey<sub>RT</sub> X and Y coordinates are stored.
 
-### rt_cert_sig_r_dv_idx, rt_cert_sig_s_dv_idx
+### rt_cert_sig_r_dv_hdl, rt_cert_sig_s_dv_hdl
 
 These fields provide the indices into the Data Vault where the Cert<sub>RT</sub> signature R and S components are stored.
 
-### rt_svn_dv_idx
+### rt_svn_dv_hdl
 
-This field provides the index into the Data Vault where the SVN<sub>RT</sub> is stored.
+This field provides the Handle into the Data Vault where the SVN<sub>RT</sub> is stored.
 
 ### reserved
 
@@ -234,13 +234,13 @@ The following list of steps are to be performed by FMC on each boot when ROM jum
 1. FMC reads the measurement of the Runtime FW Module, TCI<sub>RT</sub>, from the Data Vault that has previously been validated by ROM.
 1. FMC extends Caliptra PCR registers with TCI<sub>RT</sub>.
 1. FMC derives CDI<sub>RT</sub> from CDI<sub>FMC</sub> mixed with TCI<sub>RT</sub> and stores it in the Key Vault.
-1. FMC updates fht.rt_cdi_kv_idx in the FHT.
+1. FMC updates fht.rt_cdi_kv_hdl in the FHT.
 1. FMC derives AliasKeyPair<sub>RT</sub> from CDI<sub>RT</sub>. The Private Key is stored in the Key Vault while the Public Key X and Y coordinates are stored
    in the Data Vault.
-1. FMC updates fht.rt_priv_key_kv_idx, fht.rt_pub_key_x_dv_idx, and fht.rt_pub_key_y_dv_idx in the FHT.
+1. FMC updates fht.rt_priv_key_kv_hdl, fht.rt_pub_key_x_dv_hdl, and fht.rt_pub_key_y_dv_hdl in the FHT.
 1. FMC generates an x509 certificate with PubKey<sub>RT</sub> as the subject and signed by PrivKey<sub>FMC</sub>.
 1. FMC stores the Cert<sub>RT</sub> signature in the Data Vault.
-1. FMC updates fht.rt_cert_sig_r_dv_idx and fht.rt_cert_sig_r_dv_idx in the FHT.
+1. FMC updates fht.rt_cert_sig_r_dv_hdl and fht.rt_cert_sig_r_dv_hdl in the FHT.
 1. FMC ensures that CDI<sub>FMC</sub> and PrivateKey<sub>FMC</sub> are locked to block further usage until the next boot.
 1. FMC locates the Runtime FW Module in ICCM at fht.rt_fw_load_addr.
 1. FMC jumps to the Runtime FW Module entry point at fht.rt_fw_entry_point.
@@ -267,22 +267,22 @@ sequenceDiagram
     FMC->>+FIPS: InitFipsFw() (if needed)
     FIPS-->>-FMC: return()
     FMC->>FMC: LocateManifest(fht)
-    FMC->>FMC: GetRtMeasurement(fht.rt_tci_dv_idx)
-    FMC->>+FIPS: ExtendPcr(PCR_IDX_RT, RtTci)
+    FMC->>FMC: GetRtMeasurement(fht.rt_tci_dv_hdl)
+    FMC->>+FIPS: ExtendPcr(PCR_hdl_RT, RtTci)
     FIPS-->>-FMC: return()
 
     rect rgba(0, 0, 200, .2)
     note over FIPS, FMC: DICE-related derivations will be<br> defined in greater detail later
 
-    FMC->>+FIPS: DeriveCdi(fht.FmcCdiKvIdx, RtTci)
-    FIPS-->>-FMC: return(fht.rt_cdi_kv_idx)
-    FMC->>+FIPS: DeriveKeyPair(fht.rt_cdi_kv_idx)
-    FIPS-->>-FMC: return(fht.rt_priv_key_kv_idx,<br> fht.rt_pub_key_x_dv_idx,<br> fht.rt_pub_key_y_dv_idx)
-    FMC->>+FIPS: CertifyKey(fht.rt_pub_key_x_dv_idx,<br> fht.rt_pub_key_y_dv_idx,<br> fht.fmc_priv_key_kv_idx)
-    FIPS-->>-FMC: return(fht.rt_cert_sig_r_dv_idx, fht.rt_cert_sig_s_dv_idx)
-    FMC->>+FIPS: LockKey(fht.fmc_cdi_kv_idx)
+    FMC->>+FIPS: DeriveCdi(fht.FmcCdiKvhdl, RtTci)
+    FIPS-->>-FMC: return(fht.rt_cdi_kv_hdl)
+    FMC->>+FIPS: DeriveKeyPair(fht.rt_cdi_kv_hdl)
+    FIPS-->>-FMC: return(fht.rt_priv_key_kv_hdl,<br> fht.rt_pub_key_x_dv_hdl,<br> fht.rt_pub_key_y_dv_hdl)
+    FMC->>+FIPS: CertifyKey(fht.rt_pub_key_x_dv_hdl,<br> fht.rt_pub_key_y_dv_hdl,<br> fht.fmc_priv_key_kv_hdl)
+    FIPS-->>-FMC: return(fht.rt_cert_sig_r_dv_hdl, fht.rt_cert_sig_s_dv_hdl)
+    FMC->>+FIPS: LockKey(fht.fmc_cdi_kv_hdl)
     FIPS-->>-FMC: return()
-    FMC->>+FIPS: LockKey(fht.fmc_priv_key_kv_idx)
+    FMC->>+FIPS: LockKey(fht.fmc_priv_key_kv_hdl)
     FIPS-->>-FMC: return()
 
     end %% rect

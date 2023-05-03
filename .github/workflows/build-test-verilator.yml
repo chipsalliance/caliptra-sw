@@ -24,10 +24,21 @@ jobs:
       # Change this to a new random value if you suspect the cache is corrupted
       SCCACHE_C_CUSTOM_CACHE_BUSTER: f3e6951f0c1d
 
+      # Compiler warnings should fail to compile
+      EXTRA_CARGO_CONFIG: "target.'cfg(all())'.rustflags = [\"-Dwarnings\"]"
+
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
+
+      - name: Set Rust ${{ env.RUST_TOOLCHAIN_VERSION }} as the default toolchain.
+        run: |
+          rustup default ${RUST_TOOLCHAIN_VERSION}
+          rustup component add rustfmt clippy
+          rustc --version
+          cargo fmt --version
+          cargo clippy --version
 
       - name: Restore Cargo index from cache
         uses: actions/cache/restore@v3
@@ -94,7 +105,6 @@ jobs:
 
       - name: Install risv32imc target
         run: |
-          rustup update
           rustup target add riscv32imc-unknown-none-elf
 
       - name: Update Cargo index
@@ -124,7 +134,7 @@ jobs:
           (cd hw-model && cargo build --locked --release --features verilator --jobs 10)
           # build all tests; need to make sure they still build with verilator
           # even if we don't have time to run them.
-          cargo test --no-run --locked --release --features=verilator
+          cargo --config "$EXTRA_CARGO_CONFIG" test --no-run --locked --release --features=verilator
           sccache --show-stats
 
       - name: Run unit tests
@@ -132,8 +142,8 @@ jobs:
           export RUSTFLAGS="-D warnings"
           export RUSTC_WRAPPER=~/.cargo/bin/sccache
           export CXX="sccache g++"
-          (cd hw-model && cargo test --locked --release --features verilator)
-          (cd hw-latest/verilated && cargo test --locked --release --features verilator)
+          (cd hw-model && cargo --config "$EXTRA_CARGO_CONFIG" test --locked --release --features verilator)
+          (cd hw-latest/verilated && cargo --config "$EXTRA_CARGO_CONFIG" test --locked --release --features verilator)
 
       - name: Check source-code formatting (run "cargo fmt" if this fails)
         run: |

@@ -19,6 +19,7 @@ use caliptra_emu_periph::{CaliptraRootBus, CaliptraRootBusArgs, SocToCaliptraBus
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 
 use crate::InitParams;
+use crate::ModelError;
 use crate::Output;
 use caliptra_emu_bus::Bus;
 
@@ -167,6 +168,7 @@ impl crate::HwModel for ModelEmulated {
         Self: Sized,
     {
         let clock = Clock::new();
+        let timer = clock.timer();
 
         let ready_for_fw = Rc::new(Cell::new(false));
         let ready_for_fw_clone = ready_for_fw.clone();
@@ -181,6 +183,7 @@ impl crate::HwModel for ModelEmulated {
         let bus_args = CaliptraRootBusArgs {
             rom: params.rom.into(),
             tb_services_cb: TbServicesCb::new(move |ch| {
+                output_sink.set_now(timer.now());
                 output_sink.push_uart_char(ch);
             }),
             ready_for_fw_cb: ReadyForFwCb::new(move |_| {
@@ -192,7 +195,20 @@ impl crate::HwModel for ModelEmulated {
             security_state: params.security_state,
             ..CaliptraRootBusArgs::default()
         };
-        let root_bus = CaliptraRootBus::new(&clock, bus_args);
+        let mut root_bus = CaliptraRootBus::new(&clock, bus_args);
+
+        {
+            let mut iccm_ram = root_bus.iccm.ram().borrow_mut();
+            let Some(iccm_dest) = iccm_ram.data_mut().get_mut(0..params.iccm.len()) else {
+                return Err(ModelError::ProvidedIccmTooLarge.into());
+            };
+            iccm_dest.copy_from_slice(params.iccm);
+
+            let Some(dccm_dest) = root_bus.dccm.data_mut().get_mut(0..params.dccm.len()) else {
+                return Err(ModelError::ProvidedDccmTooLarge.into());
+            };
+            dccm_dest.copy_from_slice(params.dccm);
+        }
         let soc_to_caliptra_bus = root_bus.soc_to_caliptra_bus();
         let cpu = Cpu::new(BusLogger::new(root_bus), clock);
 
@@ -224,6 +240,9 @@ impl crate::HwModel for ModelEmulated {
     }
 
     fn output(&mut self) -> &mut Output {
+        // In case the caller wants to log something, make sure the log has the
+        // correct time.
+        self.output.sink().set_now(self.cpu.clock.now());
         &mut self.output
     }
 

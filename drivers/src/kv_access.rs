@@ -145,7 +145,6 @@ impl KvAccess {
                 .sha_block_dest_valid(key.usage.sha_data())
                 .ecc_pkey_dest_valid(key.usage.ecc_private_key())
                 .ecc_seed_dest_valid(key.usage.ecc_key_gen_seed())
-                .ecc_msg_dest_valid(key.usage.ecc_data())
         });
         Ok(())
     }

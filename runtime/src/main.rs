@@ -16,7 +16,7 @@ Abstract:
 
 use caliptra_common::cprintln;
 use caliptra_cpu::TrapRecord;
-use caliptra_drivers::report_fw_error_non_fatal;
+use caliptra_drivers::{report_fw_error_non_fatal, Mailbox};
 use core::hint::black_box;
 
 #[cfg(feature = "std")]
@@ -35,18 +35,7 @@ const BANNER: &str = r#"
 pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
 
-    if let Some(fht) = caliptra_common::FirmwareHandoffTable::try_load() {
-        cprintln!("[rt] FHT Marker: 0x{:08X}", fht.fht_marker);
-        cprintln!("[rt] FHT Major Version: 0x{:04X}", fht.fht_major_ver);
-        cprintln!("[rt] FHT Minor Version: 0x{:04X}", fht.fht_minor_ver);
-        cprintln!("[rt] FHT Manifest Addr: 0x{:08X}", fht.manifest_load_addr);
-        cprintln!("[rt] FHT FMC CDI KV KeyID: {}", fht.fmc_cdi_kv_idx);
-        cprintln!("[rt] FHT FMC PrivKey KV KeyID: {}", fht.fmc_priv_key_kv_idx);
-        cprintln!(
-            "[rt] FHT RT Load Address: 0x{:08x}",
-            fht.rt_fw_load_addr_idx
-        );
-        cprintln!("[rt] FHT RT Entry Point: 0x{:08x}", fht.rt_fw_load_addr_idx);
+    if let Some(_fht) = caliptra_common::FirmwareHandoffTable::try_load() {
         caliptra_drivers::ExitCtrl::exit(0)
     } else {
         caliptra_drivers::ExitCtrl::exit(0xff)
@@ -98,7 +87,12 @@ fn runtime_panic(_: &core::panic::PanicInfo) -> ! {
 fn report_error(code: u32) -> ! {
     cprintln!("RT Error: 0x{:08X}", code);
     report_fw_error_non_fatal(code);
-    loop {}
+    loop {
+        // SoC firmware might be stuck waiting for Caliptra to finish
+        // executing this pending mailbox transaction. Notify them that
+        // we've failed.
+        unsafe { Mailbox::abort_pending_soc_to_uc_transactions() };
+    }
 }
 
 #[no_mangle]

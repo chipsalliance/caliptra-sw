@@ -111,10 +111,15 @@ pub fn build_firmware_elf(id: &FwId) -> io::Result<Vec<u8>> {
         features_csv.push_str("riscv");
     }
 
+    let mut cmd = Command::new(env!("CARGO"));
+    cmd.current_dir(WORKSPACE_DIR);
+    if option_env!("GITHUB_ACTIONS").is_some() {
+        // In continuous integration, warnings are always errors.
+        cmd.arg("--config")
+            .arg("target.'cfg(all())'.rustflags = [\"-Dwarnings\"]");
+    }
     run_cmd(
-        Command::new(env!("CARGO"))
-            .current_dir(WORKSPACE_DIR)
-            .arg("build")
+        cmd.arg("build")
             .arg("--quiet")
             .arg("--locked")
             .arg("--target")
@@ -160,8 +165,13 @@ pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
         let Some(src_bytes) = elf_bytes.get(file_offset..file_offset + len) else {
             return Err(other_err(format!("segment at 0x{:x} out of file bounds", segment.p_offset)));
         };
-        let Some(dest_bytes) = result.get_mut(mem_offset..mem_offset + len) else {
+        if len == 0 {
             continue;
+        }
+        let Some(dest_bytes) = result.get_mut(mem_offset..mem_offset + len) else {
+          return Err(other_err(format!(
+                "segment at 0x{mem_offset:04x}..0x{:04x} exceeds the ROM region \
+                 of 0x0000..0x{:04x}", mem_offset + len, result.len())));
         };
         dest_bytes.copy_from_slice(src_bytes);
     }
@@ -169,10 +179,10 @@ pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
 }
 
 pub struct ImageOptions {
-    fmc_min_svn: u32,
-    fmc_svn: u32,
-    app_min_svn: u32,
-    app_svn: u32,
+    pub fmc_min_svn: u32,
+    pub fmc_svn: u32,
+    pub app_min_svn: u32,
+    pub app_svn: u32,
     pub vendor_config: ImageGeneratorVendorConfig,
     pub owner_config: Option<ImageGeneratorOwnerConfig>,
 }
@@ -200,14 +210,14 @@ pub fn build_and_sign_image(
     let image = gen.generate(&ImageGeneratorConfig {
         fmc: ElfExecutable::new(
             &fmc_elf,
-            opts.fmc_min_svn,
             opts.fmc_svn,
+            opts.fmc_min_svn,
             image_revision_from_git_repo()?,
         )?,
         runtime: ElfExecutable::new(
             &app_elf,
-            opts.app_min_svn,
             opts.app_svn,
+            opts.app_min_svn,
             image_revision_from_git_repo()?,
         )?,
         vendor_config: opts.vendor_config,

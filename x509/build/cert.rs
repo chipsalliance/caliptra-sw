@@ -145,12 +145,25 @@ impl<Algo: SigningAlgorithm> CertTemplateBuilder<Algo> {
         self.builder.set_version(2).unwrap();
 
         // Set the valid from time
-        let valid_from = Asn1Time::from_str("20230101000000Z").unwrap();
+        let not_before = "20230101000000Z";
+        let valid_from = Asn1Time::from_str(not_before).unwrap();
         self.builder.set_not_before(&valid_from).unwrap();
+        let param = CertTemplateParam {
+            tbs_param: TbsParam::new("NOT_BEFORE", 0, not_before.len()),
+            needle: not_before.as_bytes().to_vec(),
+        };
+
+        self.params.push(param);
 
         // Set the valid to time
-        let valid_to = Asn1Time::from_str("99991231235959Z").unwrap();
+        let not_after = "99991231235959Z";
+        let valid_to = Asn1Time::from_str(not_after).unwrap();
         self.builder.set_not_after(&valid_to).unwrap();
+        let param = CertTemplateParam {
+            tbs_param: TbsParam::new("NOT_AFTER", 0, not_after.len()),
+            needle: not_after.as_bytes().to_vec(),
+        };
+        self.params.push(param);
 
         // Set the serial number
         let serial_number_bytes = [0x7Fu8; 20];

@@ -12,6 +12,7 @@ emu = ["caliptra-test-harness/emu"]
 
 [dependencies]
 caliptra-test-harness = { path = "../../test-harness" }
+caliptra-registers = { path = "../../registers" }
 
 [[bin]]
 name = "test_iccm_unaligned_write"
@@ -21,4 +22,9 @@ required-features = ["riscv"]
 [[bin]]
 name = "test_iccm_byte_write"
 path = "test_iccm_byte_write.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "mailbox_responder"
+path = "mailbox_responder.rs"
 required-features = ["riscv"]
