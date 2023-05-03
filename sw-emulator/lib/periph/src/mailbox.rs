@@ -568,8 +568,8 @@ impl MailboxRegs {
 
     // Todo: Implement write status callback fn
     pub fn write_status(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
-        let event = Events::StatusWrite(StatusRegister::new(val));
-        let _ = self.state_machine.process_event(event);
+        //        let event = Events::StatusWrite(StatusRegister::new(val));
+        //        let _ = self.state_machine.process_event(event);
 
         let val = LocalRegisterCopy::<u32, Status::Register>::new(val);
         self.state_machine
@@ -637,7 +637,7 @@ statemachine! {
         ExecUc + DataWrite(DataIn) / enqueue = ExecUc,
         ExecUc + UcExecClear [is_locked] / unlock = Idle,
 
-        ExecUc + StatusWrite(StatusRegister) [ is_not_busy ] = ExecUc,
+        //ExecUc + StatusWrite(StatusRegister) [ is_not_busy ] = ExecUc,
 
         ExecSoc + DataRead / dequeue = ExecSoc,
         ExecSoc + DlenWrite(DataLength) / init_dlen = ExecSoc,
@@ -702,15 +702,15 @@ impl StateMachineContext for Context {
         }
     }
 
-    fn is_not_busy(&mut self, event_data: &StatusRegister) -> Result<(), ()> {
-        let status = event_data.read(Status::STATUS);
-        if status != Status::STATUS::CMD_BUSY.value {
-            Ok(())
-        } else {
-            // no transition
-            Err(())
-        }
-    }
+    //fn is_not_busy(&mut self, event_data: &StatusRegister) -> Result<(), ()> {
+    //    let status = event_data.read(Status::STATUS);
+    //    if status != Status::STATUS::CMD_BUSY.value {
+    //        Ok(())
+    //    } else {
+    // no transition
+    //        Err(())
+    //    }
+    //}
 
     // actions
     fn init_dlen(&mut self, data_len: &DataLength) {

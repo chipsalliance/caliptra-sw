@@ -220,7 +220,7 @@ impl CaliptraRootBus {
         let key_vault = KeyVault::new();
         let mailbox_ram = MailboxRam::new();
         let soc_to_uc_mailbox_regs = crate::soc2caliptra_mailbox_regs(mailbox_ram.clone());
-        let mailbox = MailboxInternal::new(soc_to_uc_mailbox_regs.clone());
+        let mailbox = MailboxInternal::new(soc_to_uc_mailbox_regs);
         let rom = Rom::new(std::mem::take(&mut args.rom));
         let iccm = Iccm::new(clock);
         let soc_reg = SocRegistersInternal::new(clock, mailbox.clone(), iccm.clone(), args);
