@@ -3,7 +3,7 @@
 use caliptra_builder::ImageOptions;
 use caliptra_hw_model::{Fuses, HwModel, ModelError};
 
-mod helpers;
+pub mod helpers;
 
 // [TODO] Use the error codes from the common library.
 const INVALID_IMAGE_SIZE: u32 = 0x02000003;
