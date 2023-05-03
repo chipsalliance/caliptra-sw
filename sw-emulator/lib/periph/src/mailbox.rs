@@ -660,7 +660,7 @@ pub struct Context {
     /// number of data elements
     pub dlen: u32,
     /// Fifo storage
-    pub ring_buffer: RingBuffer,
+    pub fifo: Fifo,
     /// Mailbox Status
     status: StatusRegister,
     /// Command
@@ -677,7 +677,7 @@ impl Context {
             exec: false,
             dlen: 0,
             status: LocalRegisterCopy::new(0),
-            ring_buffer: RingBuffer::new(ram),
+            fifo: Fifo::new(ram),
             cmd: 0,
             data_out: 0,
         }
@@ -716,10 +716,10 @@ impl StateMachineContext for Context {
 
     // actions
     fn init_dlen(&mut self, data_len: &DataLength) {
-        self.ring_buffer.reset();
+        self.fifo.reset();
         self.dlen = data_len.0;
 
-        self.ring_buffer.latch_dlen(self.dlen as usize);
+        self.fifo.latch_dlen(self.dlen as usize);
     }
 
     fn set_cmd(&mut self, cmd: &Cmd) {
@@ -728,7 +728,7 @@ impl StateMachineContext for Context {
 
     fn lock(&mut self, user: &Owner) {
         println!("Locking mailbox : {:x}", user.0);
-        self.ring_buffer.reset();
+        self.fifo.reset();
         self.locked = 1;
         self.user = user.0;
     }
@@ -738,16 +738,16 @@ impl StateMachineContext for Context {
         self.status.set(0);
     }
     fn dequeue(&mut self) {
-        if let Ok(data_out) = self.ring_buffer.dequeue() {
+        if let Ok(data_out) = self.fifo.dequeue() {
             self.data_out = data_out;
         }
     }
     fn enqueue(&mut self, data_in: &DataIn) {
-        self.ring_buffer.enqueue(data_in.0);
+        self.fifo.enqueue(data_in.0);
     }
 }
 
-pub struct RingBuffer {
+pub struct Fifo {
     latched_dlen: u32,
     capacity: usize,
     read_index: usize,
@@ -755,10 +755,10 @@ pub struct RingBuffer {
     mailbox_ram: MailboxRam,
 }
 
-impl RingBuffer {
+impl Fifo {
     pub fn new(ram: MailboxRam) -> Self {
         let ram_size = ram.ram.borrow().data().len();
-        RingBuffer {
+        Fifo {
             latched_dlen: 0,
             capacity: ram_size,
             read_index: 0,
