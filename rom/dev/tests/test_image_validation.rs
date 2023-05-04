@@ -349,7 +349,7 @@ fn test_header_verify_vendor_sig_mismatch() {
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
     let vendor_ecc_pub_key_idx = image_bundle.manifest.preamble.vendor_ecc_pub_key_idx as usize;
 
-    // Modify the owner public key.
+    // Modify the vendor public key.
     let ecc_pub_key_backup =
         image_bundle.manifest.preamble.vendor_pub_keys.ecc_pub_keys[vendor_ecc_pub_key_idx];
 
@@ -420,6 +420,116 @@ fn test_header_verify_vendor_pub_key_in_preamble_and_header() {
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_non_fatal().read(),
         VENDOR_ECC_PUB_KEY_INDEX_MISMATCH
+    );
+}
+
+#[test]
+fn test_header_verify_owner_sig_zero_fuses() {
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
+
+    let fuses = caliptra_hw_model::Fuses::default();
+
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        fw_image: None,
+    })
+    .unwrap();
+
+    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        .unwrap();
+
+    assert_eq!(hw.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
+}
+
+#[test]
+fn test_header_verify_owner_sig_zero_fuses_zero_pubkey_x() {
+    let mut image_bundle = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
+    // Set ecc_pub_key.x to zero.
+    image_bundle
+        .manifest
+        .preamble
+        .owner_pub_keys
+        .ecc_pub_key
+        .x
+        .fill(0);
+
+    let fuses = caliptra_hw_model::Fuses::default();
+
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        fw_image: None,
+    })
+    .unwrap();
+
+    assert_eq!(
+        ModelError::MailboxCmdFailed,
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        OWNER_PUB_KEY_DIGEST_INVALID_ARG
+    );
+}
+
+#[test]
+fn test_header_verify_owner_sig_corrupt_fuses() {
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
+
+    let fuses = caliptra_hw_model::Fuses {
+        owner_pk_hash: [1u32; 12],
+        ..Default::default()
+    };
+
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        fw_image: None,
+    })
+    .unwrap();
+
+    assert_eq!(
+        ModelError::MailboxCmdFailed,
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        OWNER_PUB_KEY_DIGEST_MISMATCH
     );
 }
 

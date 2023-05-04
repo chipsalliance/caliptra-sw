@@ -285,13 +285,6 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         image: Env::Image,
         reason: ResetReason,
     ) -> CaliptraResult<Option<ImageDigest>> {
-        let expected = self.env.owner_pub_key_digest(image);
-
-        // Skip Verification if owner public key digest is zero
-        if expected == ZERO_DIGEST {
-            return Ok(None);
-        }
-
         let range = ImageManifest::owner_pub_key_range();
 
         let actual = self
@@ -299,18 +292,20 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             .sha384_digest(image, range.start, range.len() as u32)
             .map_err(|_| err_u32!(OwnerPubKeyDigestFailure))?;
 
-        if expected != actual {
+        let fuses_digest = self.env.owner_pub_key_digest_fuses();
+
+        if fuses_digest != ZERO_DIGEST && fuses_digest != actual {
             raise_err!(OwnerPubKeyDigestMismatch)
         }
 
         if reason == ResetReason::UpdateReset {
-            let cold_boot_digest = self.env.owner_pub_key_digest(image);
-            if cold_boot_digest != expected {
+            let cold_boot_digest = self.env.owner_pub_key_digest_dv();
+            if cold_boot_digest != actual {
                 raise_err!(UpdateResetOwnerDigestFailure)
             }
         }
 
-        Ok(Some(expected))
+        Ok(Some(actual))
     }
 
     /// Verify Header
@@ -1169,7 +1164,7 @@ mod tests {
             self.vendor_pub_key_revocation
         }
 
-        fn owner_pub_key_digest(&self, _image: Self::Image) -> ImageDigest {
+        fn owner_pub_key_digest_fuses(&self) -> ImageDigest {
             self.owner_pub_key_digest
         }
 
