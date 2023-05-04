@@ -206,7 +206,7 @@ impl<'a, Model: HwModel> MailboxRecvTxn<'a, Model> {
             .status()
             .read()
             .mbox_fsm_ps()
-            .mbox_execute_uc());
+            .mbox_execute_soc());
     }
 }
 
@@ -747,6 +747,7 @@ mod tests {
 
         // Test 3-byte request, respond with failure
         let txn = model.wait_for_mailbox_receive().unwrap();
+        println!("{:08x}", txn.req.cmd);
         assert_eq!(txn.req.cmd, 0xe000_1000);
         assert_eq!(txn.req.data, [0xdd, 0xcc, 0xbb]);
         txn.respond_failure();

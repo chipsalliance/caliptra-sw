@@ -656,8 +656,8 @@ statemachine! {
         ExecSoc + DataRead / dequeue = ExecSoc,
         ExecSoc + DlenWrite(DataLength) / init_dlen = ExecSoc,
         ExecSoc + DataWrite(DataIn) / enqueue = ExecSoc,
-        ExecSoc + UcExecClear [is_locked] / unlock = Idle,
-        ExecSoc + SocExecClear [is_locked] / unlock = Idle
+        ExecSoc + UcExecClear / unlock = Idle,
+        ExecSoc + SocExecClear / unlock = Idle
 
     }
 }

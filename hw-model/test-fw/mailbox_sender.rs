@@ -76,10 +76,11 @@ extern "C" fn main() {
             .cptra_fw_extended_error_info()
             .at(4)
             .write(|_| mbox.dataout().read());
+        // Transition the state machine to idle.
+        mbox.execute().write(|w| w.execute(false));
         soc_ifc
             .cptra_fw_extended_error_info()
             .at(0)
             .write(|_| status.into());
-        mbox.execute().write(|w| w.execute(false));
     }
 }
