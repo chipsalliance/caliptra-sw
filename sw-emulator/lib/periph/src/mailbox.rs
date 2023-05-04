@@ -96,21 +96,11 @@ impl Default for MailboxRam {
     }
 }
 
-pub type Soc2CaliptraMailboxRegs = Rc<RefCell<MailboxRegs>>;
-pub fn soc2caliptra_mailbox_regs(sram: MailboxRam) -> Soc2CaliptraMailboxRegs {
-    Rc::new(RefCell::new(MailboxRegs::new(sram)))
-}
-
 #[derive(Clone)]
 pub struct MailboxExternal {
-    regs: Soc2CaliptraMailboxRegs,
+    regs: Rc<RefCell<MailboxRegs>>,
 }
 
-impl MailboxExternal {
-    pub fn new(regs: Soc2CaliptraMailboxRegs) -> Self {
-        Self { regs }
-    }
-}
 impl Bus for MailboxExternal {
     /// Read data of specified size from given address
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
@@ -133,14 +123,22 @@ impl Bus for MailboxExternal {
 
 #[derive(Clone)]
 pub struct MailboxInternal {
-    pub regs: Soc2CaliptraMailboxRegs,
+    regs: Rc<RefCell<MailboxRegs>>,
 }
 
 /// Mailbox Peripheral
 
 impl MailboxInternal {
-    pub fn new(regs: Soc2CaliptraMailboxRegs) -> Self {
-        Self { regs }
+    pub fn new(ram: MailboxRam) -> Self {
+        Self {
+            regs: Rc::new(RefCell::new(MailboxRegs::new(ram))),
+        }
+    }
+
+    pub fn as_external(&self) -> MailboxExternal {
+        MailboxExternal {
+            regs: self.regs.clone(),
+        }
     }
 
     // Release the lock by writing to the  unlock register.
@@ -776,14 +774,8 @@ mod tests {
     const OFFSET_USER: RvAddr = 0x04;
 
     pub fn get_mailbox() -> MailboxInternal {
-        let ram = MailboxRam::new();
         // Acquire lock
-        let soc_to_mailbox_regs = Rc::new(RefCell::new(MailboxRegs::new(ram)));
-        MailboxInternal::new(soc_to_mailbox_regs)
-    }
-
-    pub fn get_mbox_regs(ram: MailboxRam) -> Soc2CaliptraMailboxRegs {
-        Rc::new(RefCell::new(MailboxRegs::new(ram)))
+        MailboxInternal::new(MailboxRam::new())
     }
 
     #[test]
@@ -851,9 +843,8 @@ mod tests {
 
     #[test]
     fn test_soc_to_caliptra_lock() {
-        let regs = get_mbox_regs(MailboxRam::new());
-        let mut caliptra = MailboxInternal::new(regs.clone());
-        let mut soc = MailboxExternal::new(regs);
+        let mut caliptra = MailboxInternal::new(MailboxRam::new());
+        let mut soc = caliptra.as_external();
 
         assert_eq!(soc.read(RvSize::Word, OFFSET_LOCK).unwrap(), 0);
         // Confirm it is locked
@@ -869,9 +860,8 @@ mod tests {
     fn test_send_receive() {
         let request_to_send: [u32; 4] = [0x1111_1111, 0x2222_2222, 0x3333_3333, 0x4444_4444];
 
-        let regs = get_mbox_regs(MailboxRam::new());
-        let mut caliptra = MailboxInternal::new(regs.clone());
-        let mut soc = MailboxExternal::new(regs);
+        let mut caliptra = MailboxInternal::new(MailboxRam::new());
+        let mut soc = caliptra.as_external();
 
         assert_eq!(soc.read(RvSize::Word, OFFSET_LOCK).unwrap(), 0);
         // Confirm it is locked

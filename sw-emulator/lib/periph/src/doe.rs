@@ -221,11 +221,6 @@ mod tests {
     const OFFSET_CONTROL: RvAddr = 0x10;
     const OFFSET_STATUS: RvAddr = 0x14;
 
-    fn mailbox_internal(sram: MailboxRam) -> MailboxInternal {
-        let mailbox_regs = crate::soc2caliptra_mailbox_regs(sram);
-        MailboxInternal::new(mailbox_regs)
-    }
-
     fn make_word(idx: usize, arr: &[u8]) -> RvData {
         let mut res: RvData = 0;
         for i in 0..4 {
@@ -253,7 +248,7 @@ mod tests {
         let key_vault = KeyVault::new();
         let soc_reg = SocRegistersInternal::new(
             &clock,
-            mailbox_internal(MailboxRam::new()),
+            MailboxInternal::new(MailboxRam::new()),
             Iccm::new(&clock),
             CaliptraRootBusArgs::default(),
         );
@@ -312,7 +307,7 @@ mod tests {
         let key_vault = KeyVault::new();
         let soc_reg = SocRegistersInternal::new(
             &clock,
-            mailbox_internal(MailboxRam::new()),
+            MailboxInternal::new(MailboxRam::new()),
             Iccm::new(&clock),
             CaliptraRootBusArgs::default(),
         );
@@ -369,7 +364,7 @@ mod tests {
         let key_vault = KeyVault::new();
         let soc_reg = SocRegistersInternal::new(
             &clock,
-            mailbox_internal(MailboxRam::new()),
+            MailboxInternal::new(MailboxRam::new()),
             Iccm::new(&clock),
             CaliptraRootBusArgs::default(),
         );
