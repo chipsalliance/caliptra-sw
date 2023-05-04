@@ -18,6 +18,7 @@ use super::dice::*;
 use super::x509::*;
 use crate::cprint_slice;
 use crate::cprintln;
+use crate::flow::cold_reset::{KEY_ID_CDI, KEY_ID_FE, KEY_ID_IDEVID_PRIV_KEY, KEY_ID_UDS};
 use crate::rom_env::RomEnv;
 use crate::rom_err_def;
 use caliptra_drivers::*;
@@ -60,31 +61,31 @@ impl DiceLayer for InitDevIdLayer {
     /// # Arguments
     ///
     /// * `env`   - ROM Environment
-    /// * `input` - DICE layer input
+    /// * `_input` - DICE layer input
     ///
     /// # Returns
     ///
     /// * `DiceOutput` - DICE layer output
-    fn derive(env: &RomEnv, input: &DiceInput) -> CaliptraResult<DiceOutput> {
+    fn derive(env: &RomEnv, _input: &DiceInput) -> CaliptraResult<DiceOutput> {
         cprintln!("[idev] ++");
-        cprintln!("[idev] CDI.KEYID = {}", input.cdi as u8);
-        cprintln!("[idev] SUBJECT.KEYID = {}", input.subj_priv_key as u8);
-        cprintln!("[idev] UDS.KEYID = {}", input.uds_key as u8);
+        cprintln!("[idev] CDI.KEYID = {}", KEY_ID_CDI as u8);
+        cprintln!("[idev] SUBJECT.KEYID = {}", KEY_ID_IDEVID_PRIV_KEY as u8);
+        cprintln!("[idev] UDS.KEYID = {}", KEY_ID_UDS as u8);
 
         // Decrypt the UDS
-        let uds = Self::decrypt_uds(env, input.uds_key)?;
+        Self::decrypt_uds(env, KEY_ID_UDS)?;
 
         // Decrypt the Filed Entropy
-        Self::decrypt_field_entropy(env, input.fe_key)?;
+        Self::decrypt_field_entropy(env, KEY_ID_FE)?;
 
         // Clear Deobfuscation Engine Secrets
         Self::clear_doe_secrets(env)?;
 
         // Derive the DICE CDI from decrypted UDS
-        let cdi = Self::derive_cdi(env, uds, input.cdi)?;
+        Self::derive_cdi(env, KEY_ID_UDS, KEY_ID_CDI)?;
 
         // Derive DICE Key Pair from CDI
-        let key_pair = Self::derive_key_pair(env, cdi, input.subj_priv_key)?;
+        let key_pair = Self::derive_key_pair(env, KEY_ID_CDI, KEY_ID_IDEVID_PRIV_KEY)?;
 
         // Generate the Subject Serial Number and Subject Key Identifier.
         // This information will be used by next DICE Layer while generating
@@ -93,7 +94,11 @@ impl DiceLayer for InitDevIdLayer {
         let subj_key_id = X509::idev_subj_key_id(env, &key_pair.pub_key)?;
 
         // Generate the output for next layer
-        let output = input.to_output(key_pair, subj_sn, subj_key_id);
+        let output = DiceOutput {
+            subj_key_pair: key_pair,
+            subj_sn,
+            subj_key_id,
+        };
 
         // Generate the Initial DevID Certificate Signing Request (CSR)
         Self::generate_csr(env, &output)?;
@@ -112,14 +117,10 @@ impl InitDevIdLayer {
     ///
     /// * `env` - ROM Environment
     /// * `uds` - Key Vault slot to store the decrypted UDS in
-    ///
-    /// # Returns
-    ///
-    /// * `KeyId` - Key Vault slot containing the decrypted UDS
-    fn decrypt_uds(env: &RomEnv, uds: KeyId) -> CaliptraResult<KeyId> {
+    fn decrypt_uds(env: &RomEnv, uds: KeyId) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
         env.doe().map(|d| d.decrypt_uds(&DOE_UDS_IV, uds))?;
-        Ok(uds)
+        Ok(())
     }
 
     /// Decrypt Field Entropy (FW)
@@ -128,14 +129,10 @@ impl InitDevIdLayer {
     ///
     /// * `env` - ROM Environment
     /// * `slot` - Key Vault slot to store the decrypted UDS in
-    ///
-    /// # Returns
-    ///
-    /// * `KeyId` - Key Vault slot containing the decrypted UDS
-    fn decrypt_field_entropy(env: &RomEnv, fe: KeyId) -> CaliptraResult<KeyId> {
+    fn decrypt_field_entropy(env: &RomEnv, fe: KeyId) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
         env.doe().map(|d| d.decrypt_field_entropy(&DOE_FE_IV, fe))?;
-        Ok(fe)
+        Ok(())
     }
 
     /// Clear Deobfuscation Engine secrets
@@ -154,19 +151,15 @@ impl InitDevIdLayer {
     /// * `env` - ROM Environment
     /// * `uds` - Key slot holding the UDS
     /// * `cdi` - Key Slot to store the generated CDI
-    ///
-    /// # Returns
-    ///
-    /// * `KeyId` - KeySlot containing the DICE CDI
-    fn derive_cdi(env: &RomEnv, uds: KeyId, cdi: KeyId) -> CaliptraResult<KeyId> {
+    fn derive_cdi(env: &RomEnv, uds: KeyId, cdi: KeyId) -> CaliptraResult<()> {
         // CDI Key
         let key = Hmac384Key::Array4x12(&IDEVID_CDI_KEY);
         let data = Hmac384Data::Key(KeyReadArgs::new(uds));
-        let cdi = Crypto::hmac384_mac(env, key, data, cdi)?;
+        Crypto::hmac384_mac(env, key, data, cdi)?;
 
         cprintln!("[idev] Erasing UDS.KEYID = {}", uds as u8);
         env.key_vault().map(|k| k.erase_key(uds))?;
-        Ok(cdi)
+        Ok(())
     }
 
     /// Derive Dice Layer Key Pair

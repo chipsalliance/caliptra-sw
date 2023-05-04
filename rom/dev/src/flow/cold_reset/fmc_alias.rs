@@ -19,6 +19,7 @@ use super::crypto::{Crypto, Ecc384KeyPair};
 use super::dice::{DiceInput, DiceLayer, DiceOutput};
 use super::x509::X509;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
+use crate::flow::cold_reset::{KEY_ID_CDI, KEY_ID_FMC_PRIV_KEY};
 use crate::verifier::RomImageVerificationEnv;
 use crate::{cprint, cprint_slice, cprintln, pcr};
 use crate::{rom_env::RomEnv, rom_err_def};
@@ -53,14 +54,12 @@ impl DiceLayer for FmcAliasLayer {
     /// Perform derivations for the DICE layer
     fn derive(env: &RomEnv, input: &DiceInput) -> CaliptraResult<DiceOutput> {
         cprintln!("[afmc] ++");
-
-        // To Do : Disabling the Prints Temporarily
-        //cprintln!("[afmc] CDI.KEYID = {}", input.cdi as u8);
-        //cprintln!("[afmc] SUBJECT.KEYID = {}", input.subj_priv_key as u8);
-        // cprintln!(
-        //     "[afmc] AUTHORITY.KEYID = {}",
-        //     input.auth_key_pair.priv_key as u8
-        // );
+        cprintln!("[afmc] CDI.KEYID = {}", KEY_ID_CDI as u8);
+        cprintln!("[afmc] SUBJECT.KEYID = {}", KEY_ID_FMC_PRIV_KEY as u8);
+        cprintln!(
+            "[afmc] AUTHORITY.KEYID = {}",
+            input.auth_key_pair.priv_key as u8
+        );
 
         // Download the image
         let mut txn = Self::download_image(env)?;
@@ -84,16 +83,16 @@ impl DiceLayer for FmcAliasLayer {
         txn.complete(true)?;
 
         // At this point PCR0 & PCR1 must have the same value. We use the value
-        // of PCR1 as the UDS for deriving the CDI
-        let uds = env
+        // of PCR1 as the measurement for deriving the CDI
+        let measurement = env
             .pcr_bank()
             .map(|p| p.read_pcr(caliptra_drivers::PcrId::PcrId1));
 
         // Derive the DICE CDI from decrypted UDS
-        let cdi = Self::derive_cdi(env, uds, input.cdi)?;
+        Self::derive_cdi(env, measurement, KEY_ID_CDI)?;
 
         // Derive DICE Key Pair from CDI
-        let key_pair = Self::derive_key_pair(env, cdi, input.subj_priv_key)?;
+        let key_pair = Self::derive_key_pair(env, KEY_ID_CDI, KEY_ID_FMC_PRIV_KEY)?;
 
         // Generate the Subject Serial Number and Subject Key Identifier.
         //
@@ -103,7 +102,11 @@ impl DiceLayer for FmcAliasLayer {
         let subj_key_id = X509::subj_key_id(env, &key_pair.pub_key)?;
 
         // Generate the output for next layer
-        let output = input.to_output(key_pair, subj_sn, subj_key_id);
+        let output = DiceOutput {
+            subj_key_pair: key_pair,
+            subj_sn,
+            subj_key_id,
+        };
 
         // if there is a valid value in the manifest for the not_before and not_after
         // we take it from there.
@@ -337,24 +340,20 @@ impl FmcAliasLayer {
         Ok(())
     }
 
-    /// Derive Composite Device Identity (CDI) from Unique Device Secret (UDS)
+    /// Derive Composite Device Identity (CDI) from FMC measurements
     ///
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    /// * `uds` - Array containing the UDS
+    /// * `measurements` - Array containing the FMC measurements
     /// * `cdi` - Key Slot to store the generated CDI
-    ///
-    /// # Returns
-    ///
-    /// * `KeyId` - KeySlot containing the DICE CDI
-    fn derive_cdi(env: &RomEnv, uds: Array4x12, cdi: KeyId) -> CaliptraResult<KeyId> {
+    fn derive_cdi(env: &RomEnv, measurements: Array4x12, cdi: KeyId) -> CaliptraResult<()> {
         // CDI Key
         let key = Hmac384Key::Key(KeyReadArgs::new(cdi));
-        let data: [u8; 48] = uds.into();
+        let data: [u8; 48] = measurements.into();
         let data = Hmac384Data::Slice(&data);
-        let cdi = Crypto::hmac384_mac(env, key, data, cdi)?;
-        Ok(cdi)
+        Crypto::hmac384_mac(env, key, data, cdi)?;
+        Ok(())
     }
 
     /// Derive Dice Layer Key Pair
