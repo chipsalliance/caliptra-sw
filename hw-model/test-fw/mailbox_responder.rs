@@ -23,7 +23,7 @@ extern "C" fn main() {
     let mbox = caliptra_registers::mbox::RegisterBlock::mbox_csr();
 
     loop {
-        while !mbox.status().read().mbox_fsm_ps().mbox_execute_soc() {
+        while !mbox.status().read().mbox_fsm_ps().mbox_execute_uc() {
             // Wait for a request from the SoC.
         }
         let cmd = mbox.cmd().read();

@@ -641,20 +641,22 @@ statemachine! {
 
         RdyForData + DataWrite(DataIn) / enqueue = RdyForData,
 
-        //move from rdy for data to execute uc  when micro sets execute bit.
-        RdyForData + UcExecSet = ExecUc,
+        //move from rdy for data to execute uc  when soc sets execute bit.
+        RdyForData + SocExecSet = ExecUc,
 
         //move from rdy for data to execute soc when soc sets execute bit.
-        RdyForData + SocExecSet = ExecSoc,
+        RdyForData + UcExecSet = ExecSoc,
 
         ExecUc + DataRead / dequeue = ExecUc,
         ExecUc + DlenWrite(DataLength) / init_dlen = ExecUc,
         ExecUc + DataWrite(DataIn) / enqueue = ExecUc,
+        ExecUc + SocExecClear [is_locked] / unlock = Idle,
         ExecUc + UcExecClear [is_locked] / unlock = Idle,
 
         ExecSoc + DataRead / dequeue = ExecSoc,
         ExecSoc + DlenWrite(DataLength) / init_dlen = ExecSoc,
         ExecSoc + DataWrite(DataIn) / enqueue = ExecSoc,
+        ExecSoc + UcExecClear [is_locked] / unlock = Idle,
         ExecSoc + SocExecClear [is_locked] / unlock = Idle
 
     }
@@ -902,13 +904,13 @@ mod tests {
 
         assert!(matches!(
             soc.regs.borrow().state_machine.state(),
-            States::ExecSoc
+            States::ExecUc
         ));
 
         let status = caliptra.read(RvSize::Word, OFFSET_STATUS).unwrap();
         assert_eq!(
             status,
-            (Status::STATUS::DATA_READY + Status::MBOX_FSM_PS::MBOX_EXECUTE_SOC).value
+            (Status::STATUS::DATA_READY + Status::MBOX_FSM_PS::MBOX_EXECUTE_UC).value
         );
 
         let cmd = caliptra.read(RvSize::Word, OFFSET_CMD).unwrap();
@@ -934,7 +936,7 @@ mod tests {
             Some(())
         );
 
-        // Receiver resets exec register
+        // Requester resets exec register
         assert_eq!(soc.write(RvSize::Word, OFFSET_EXECUTE, 0).ok(), Some(()));
         // Confirm it is unlocked
         assert_eq!(caliptra.regs.borrow().state_machine.context.locked, 0);
@@ -999,7 +1001,7 @@ mod tests {
             .process_event(Events::UcExecSet);
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
-            States::ExecUc
+            States::ExecSoc
         ));
 
         let _ = mb
@@ -1069,13 +1071,13 @@ mod tests {
 
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
-            States::ExecUc
+            States::ExecSoc
         ));
 
         let status = mb.read(RvSize::Word, OFFSET_STATUS).unwrap();
         assert_eq!(
             status,
-            (Status::STATUS::DATA_READY + Status::MBOX_FSM_PS::MBOX_EXECUTE_UC).value
+            (Status::STATUS::DATA_READY + Status::MBOX_FSM_PS::MBOX_EXECUTE_SOC).value
         );
 
         let cmd = mb.read(RvSize::Word, OFFSET_CMD).unwrap();

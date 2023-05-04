@@ -91,7 +91,7 @@ impl Mailbox {
     /// This function is safe to call from a trap handler.
     pub unsafe fn abort_pending_soc_to_uc_transactions() {
         let mbox = mbox::RegisterBlock::mbox_csr();
-        if mbox.status().read().mbox_fsm_ps().mbox_execute_soc() {
+        if mbox.status().read().mbox_fsm_ps().mbox_execute_uc() {
             // SoC firmware might be stuck waiting for Caliptra to finish
             // executing this pending mailbox transaction. Notify them that
             // we've failed.
