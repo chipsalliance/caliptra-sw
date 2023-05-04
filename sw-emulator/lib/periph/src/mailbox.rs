@@ -110,150 +110,23 @@ impl MailboxExternal {
     pub fn new(regs: Soc2CaliptraMailboxRegs) -> Self {
         Self { regs }
     }
-    pub fn read_dlen(&mut self) -> Result<u32, BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Soc);
-        self.regs.borrow_mut().read(RvSize::Word, OFFSET_DLEN)
-    }
-
-    pub fn write_dlen(&mut self, dlen: u32) -> Result<(), BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Soc);
-        self.regs
-            .borrow_mut()
-            .write(RvSize::Word, OFFSET_DLEN, dlen)
-    }
-
-    pub fn read_cmd(&mut self) -> Result<u32, BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Soc);
-        self.regs.borrow_mut().read(RvSize::Word, OFFSET_CMD)
-    }
-
-    pub fn write_cmd(&mut self, cmd: u32) -> Result<(), BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Soc);
-        self.regs.borrow_mut().write(RvSize::Word, OFFSET_CMD, cmd)
-    }
-
-    pub fn read_datain(&mut self) -> Result<u32, BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Soc);
-        self.regs.borrow_mut().read(RvSize::Word, OFFSET_DATAIN)
-    }
-
-    pub fn write_datain(&mut self, val: u32) -> Result<(), BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Soc);
-        self.regs
-            .borrow_mut()
-            .write(RvSize::Word, OFFSET_DATAIN, val)
-    }
-
-    pub fn read_dataout(&mut self) -> Result<u32, BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Soc);
-        self.regs.borrow_mut().read(RvSize::Word, OFFSET_DATAOUT)
-    }
-
-    pub fn write_dataout(&mut self, val: u32) -> Result<(), BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Soc);
-        self.regs
-            .borrow_mut()
-            .write(RvSize::Word, OFFSET_DATAOUT, val)
-    }
-
-    pub fn try_acquire_lock(&mut self) -> bool {
-        self.regs.borrow_mut().request(MailboxRequester::Soc);
-        let result = self.regs.borrow_mut().read(RvSize::Word, OFFSET_LOCK);
-        matches!(result, Ok(0))
-    }
-
-    pub fn is_locked(&mut self) -> bool {
-        self.regs.borrow_mut().request(MailboxRequester::Soc);
-        self.regs.borrow().state_machine.context().locked == 1
-    }
-
-    pub fn read_execute(&mut self) -> Result<u32, BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Soc);
-        self.regs.borrow_mut().read(RvSize::Word, OFFSET_EXECUTE)
-    }
-
-    pub fn write_execute(&mut self, val: u32) -> Result<(), BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Soc);
-        self.regs
-            .borrow_mut()
-            .write(RvSize::Word, OFFSET_EXECUTE, val)?;
-        Ok(())
-    }
-
-    pub fn is_command_exec_requested(&self) -> bool {
-        self.regs.borrow_mut().request(MailboxRequester::Soc);
-        matches!(self.regs.borrow_mut().state_machine.state, States::ExecUc)
-    }
-
-    pub fn is_status_cmd_busy(&mut self) -> bool {
-        self.regs.borrow_mut().request(MailboxRequester::Soc);
-        self.match_status(Status::STATUS::CMD_BUSY.value)
-    }
-
-    pub fn is_status_data_ready(&mut self) -> bool {
-        self.regs.borrow_mut().request(MailboxRequester::Soc);
-        self.match_status(Status::STATUS::DATA_READY.value)
-    }
-
-    pub fn is_status_cmd_complete(&mut self) -> bool {
-        self.regs.borrow_mut().request(MailboxRequester::Soc);
-        self.match_status(Status::STATUS::CMD_COMPLETE.value)
-    }
-
-    fn match_status(&mut self, status: u32) -> bool {
-        self.regs.borrow_mut().request(MailboxRequester::Soc);
-        let val = self
-            .regs
-            .borrow_mut()
-            .read(RvSize::Word, OFFSET_STATUS)
-            .unwrap();
-        let reg = InMemoryRegister::<u32, Status::Register>::new(val);
-        reg.read(Status::STATUS) == status
-    }
-
-    fn set_status(&mut self, status_in: u32) -> Result<(), BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Soc);
-        let status = self
-            .regs
-            .borrow_mut()
-            .read(RvSize::Word, OFFSET_STATUS)
-            .unwrap();
-
-        let status_reg: ReadWriteRegister<u32, Status::Register> = ReadWriteRegister::new(status);
-        status_reg.reg.modify(Status::STATUS.val(status_in));
-
-        self.regs
-            .borrow_mut()
-            .write(RvSize::Word, OFFSET_STATUS, status_reg.reg.get())?;
-        Ok(())
-    }
-
-    pub fn set_status_cmd_complete(&mut self) -> Result<(), BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Soc);
-        self.set_status(Status::STATUS::CMD_COMPLETE.value)
-    }
-
-    pub fn set_status_data_ready(&mut self) -> Result<(), BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Soc);
-        self.set_status(Status::STATUS::DATA_READY.value)
-    }
 }
 impl Bus for MailboxExternal {
     /// Read data of specified size from given address
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
         let mut regs = self.regs.borrow_mut();
-        regs.request(MailboxRequester::Soc);
+        regs.set_request(MailboxRequester::Soc);
         let result = regs.read(size, addr);
-        regs.request(MailboxRequester::Caliptra);
+        regs.set_request(MailboxRequester::Caliptra);
         result
     }
 
     /// Write data of specified size to given address
     fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {
         let mut regs = self.regs.borrow_mut();
-        regs.request(MailboxRequester::Soc);
+        regs.set_request(MailboxRequester::Soc);
         let result = regs.write(size, addr, val);
-        regs.request(MailboxRequester::Caliptra);
+        regs.set_request(MailboxRequester::Caliptra);
         result
     }
 }
@@ -277,97 +150,131 @@ impl MailboxInternal {
     }
 
     pub fn read_dlen(&mut self) -> Result<u32, BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Caliptra);
+        self.regs
+            .borrow_mut()
+            .set_request(MailboxRequester::Caliptra);
         self.regs.borrow_mut().read(RvSize::Word, OFFSET_DLEN)
     }
 
     pub fn write_dlen(&mut self, dlen: u32) -> Result<(), BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Caliptra);
+        self.regs
+            .borrow_mut()
+            .set_request(MailboxRequester::Caliptra);
         self.regs
             .borrow_mut()
             .write(RvSize::Word, OFFSET_DLEN, dlen)
     }
 
     pub fn read_cmd(&mut self) -> Result<u32, BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Caliptra);
+        self.regs
+            .borrow_mut()
+            .set_request(MailboxRequester::Caliptra);
         self.regs.borrow_mut().read(RvSize::Word, OFFSET_CMD)
     }
 
     pub fn write_cmd(&mut self, cmd: u32) -> Result<(), BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Caliptra);
+        self.regs
+            .borrow_mut()
+            .set_request(MailboxRequester::Caliptra);
         self.regs.borrow_mut().write(RvSize::Word, OFFSET_CMD, cmd)
     }
 
     pub fn read_datain(&mut self) -> Result<u32, BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Caliptra);
+        self.regs
+            .borrow_mut()
+            .set_request(MailboxRequester::Caliptra);
         self.regs.borrow_mut().read(RvSize::Word, OFFSET_DATAIN)
     }
 
     pub fn write_datain(&mut self, val: u32) -> Result<(), BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Caliptra);
+        self.regs
+            .borrow_mut()
+            .set_request(MailboxRequester::Caliptra);
         self.regs
             .borrow_mut()
             .write(RvSize::Word, OFFSET_DATAIN, val)
     }
 
     pub fn read_dataout(&mut self) -> Result<u32, BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Caliptra);
+        self.regs
+            .borrow_mut()
+            .set_request(MailboxRequester::Caliptra);
         self.regs.borrow_mut().read(RvSize::Word, OFFSET_DATAOUT)
     }
 
     pub fn write_dataout(&mut self, val: u32) -> Result<(), BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Caliptra);
+        self.regs
+            .borrow_mut()
+            .set_request(MailboxRequester::Caliptra);
         self.regs
             .borrow_mut()
             .write(RvSize::Word, OFFSET_DATAOUT, val)
     }
 
     pub fn try_acquire_lock(&mut self) -> bool {
-        self.regs.borrow_mut().request(MailboxRequester::Caliptra);
+        self.regs
+            .borrow_mut()
+            .set_request(MailboxRequester::Caliptra);
         let result = self.regs.borrow_mut().read(RvSize::Word, OFFSET_LOCK);
         matches!(result, Ok(0))
     }
 
     pub fn is_locked(&mut self) -> bool {
-        self.regs.borrow_mut().request(MailboxRequester::Caliptra);
+        self.regs
+            .borrow_mut()
+            .set_request(MailboxRequester::Caliptra);
         self.regs.borrow().state_machine.context().locked == 1
     }
 
     pub fn read_execute(&mut self) -> Result<u32, BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Caliptra);
+        self.regs
+            .borrow_mut()
+            .set_request(MailboxRequester::Caliptra);
         self.regs.borrow_mut().read(RvSize::Word, OFFSET_EXECUTE)
     }
 
     pub fn write_execute(&mut self, val: u32) -> Result<(), BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Caliptra);
+        self.regs
+            .borrow_mut()
+            .set_request(MailboxRequester::Caliptra);
         self.regs
             .borrow_mut()
             .write(RvSize::Word, OFFSET_EXECUTE, val)?;
         Ok(())
     }
 
-    pub fn is_command_exec_requested(&self) -> bool {
-        self.regs.borrow_mut().request(MailboxRequester::Caliptra);
+    pub fn is_command_exec_set_requested(&self) -> bool {
+        self.regs
+            .borrow_mut()
+            .set_request(MailboxRequester::Caliptra);
         matches!(self.regs.borrow_mut().state_machine.state, States::ExecUc)
     }
 
     pub fn is_status_cmd_busy(&mut self) -> bool {
-        self.regs.borrow_mut().request(MailboxRequester::Caliptra);
+        self.regs
+            .borrow_mut()
+            .set_request(MailboxRequester::Caliptra);
         self.match_status(Status::STATUS::CMD_BUSY.value)
     }
 
     pub fn is_status_data_ready(&mut self) -> bool {
-        self.regs.borrow_mut().request(MailboxRequester::Caliptra);
+        self.regs
+            .borrow_mut()
+            .set_request(MailboxRequester::Caliptra);
         self.match_status(Status::STATUS::DATA_READY.value)
     }
 
     pub fn is_status_cmd_complete(&mut self) -> bool {
-        self.regs.borrow_mut().request(MailboxRequester::Caliptra);
+        self.regs
+            .borrow_mut()
+            .set_request(MailboxRequester::Caliptra);
         self.match_status(Status::STATUS::CMD_COMPLETE.value)
     }
 
     fn match_status(&mut self, status: u32) -> bool {
-        self.regs.borrow_mut().request(MailboxRequester::Caliptra);
+        self.regs
+            .borrow_mut()
+            .set_request(MailboxRequester::Caliptra);
         let val = self
             .regs
             .borrow_mut()
@@ -378,7 +285,9 @@ impl MailboxInternal {
     }
 
     fn set_status(&mut self, status_in: u32) -> Result<(), BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Caliptra);
+        self.regs
+            .borrow_mut()
+            .set_request(MailboxRequester::Caliptra);
         let status = self
             .regs
             .borrow_mut()
@@ -395,12 +304,16 @@ impl MailboxInternal {
     }
 
     pub fn set_status_cmd_complete(&mut self) -> Result<(), BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Caliptra);
+        self.regs
+            .borrow_mut()
+            .set_request(MailboxRequester::Caliptra);
         self.set_status(Status::STATUS::CMD_COMPLETE.value)
     }
 
     pub fn set_status_data_ready(&mut self) -> Result<(), BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Caliptra);
+        self.regs
+            .borrow_mut()
+            .set_request(MailboxRequester::Caliptra);
         self.set_status(Status::STATUS::DATA_READY.value)
     }
 }
@@ -408,13 +321,17 @@ impl MailboxInternal {
 impl Bus for MailboxInternal {
     /// Read data of specified size from given address
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Caliptra);
+        self.regs
+            .borrow_mut()
+            .set_request(MailboxRequester::Caliptra);
         self.regs.borrow_mut().read(size, addr)
     }
 
     /// Write data of specified size to given address
     fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Caliptra);
+        self.regs
+            .borrow_mut()
+            .set_request(MailboxRequester::Caliptra);
         self.regs.borrow_mut().write(size, addr, val)
     }
 }
@@ -507,7 +424,7 @@ impl MailboxRegs {
             requester: MailboxRequester::Caliptra,
         }
     }
-    pub fn request(&mut self, requester: MailboxRequester) {
+    pub fn set_request(&mut self, requester: MailboxRequester) {
         self.requester = requester;
     }
 
