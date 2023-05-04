@@ -583,8 +583,7 @@ impl MailboxRegs {
 
     // Todo: Implement write status callback fn
     pub fn write_status(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
-        //        let event = Events::StatusWrite(StatusRegister::new(val));
-        //        let _ = self.state_machine.process_event(event);
+        let _ = self.state_machine.process_event(Events::SetStatus);
 
         let val = LocalRegisterCopy::<u32, Status::Register>::new(val);
         self.state_machine
@@ -652,12 +651,15 @@ statemachine! {
         ExecUc + DataWrite(DataIn) / enqueue = ExecUc,
         ExecUc + SocExecClear [is_locked] / unlock = Idle,
         ExecUc + UcExecClear [is_locked] / unlock = Idle,
+        ExecUc + SetStatus = ExecSoc,
+
 
         ExecSoc + DataRead / dequeue = ExecSoc,
         ExecSoc + DlenWrite(DataLength) / init_dlen = ExecSoc,
         ExecSoc + DataWrite(DataIn) / enqueue = ExecSoc,
         ExecSoc + UcExecClear / unlock = Idle,
-        ExecSoc + SocExecClear / unlock = Idle
+        ExecSoc + SocExecClear / unlock = Idle,
+        ExecSoc + SetStatus = ExecUc,
 
     }
 }

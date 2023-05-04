@@ -206,7 +206,7 @@ impl<'a, Model: HwModel> MailboxRecvTxn<'a, Model> {
             .status()
             .read()
             .mbox_fsm_ps()
-            .mbox_execute_soc());
+            .mbox_execute_uc());
     }
 }
 
