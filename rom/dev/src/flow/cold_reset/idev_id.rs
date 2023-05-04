@@ -16,9 +16,9 @@ Abstract:
 use super::crypto::*;
 use super::dice::*;
 use super::x509::*;
-use crate::cprint_slice;
 use crate::cprintln;
 use crate::flow::cold_reset::{KEY_ID_CDI, KEY_ID_FE, KEY_ID_IDEVID_PRIV_KEY, KEY_ID_UDS};
+use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 use crate::rom_err_def;
 use caliptra_drivers::*;
@@ -244,15 +244,15 @@ impl InitDevIdLayer {
 
         let _sig_r: [u8; 48] = sig.r.into();
         let _sig_s: [u8; 48] = sig.s.into();
-        cprint_slice!("[idev] SIG.R", _sig_r);
-        cprint_slice!("[idev] SIG.S", _sig_s);
+        cprintln!("[idev] SIG.R = {}", HexBytes(&_sig_r));
+        cprintln!("[idev] SIG.S = {}", HexBytes(&_sig_s));
 
         // Build the CSR with `To Be Signed` & `Signature`
         let mut csr = [0u8; MAX_CSR_SIZE];
         let csr_bldr =
             Ecdsa384CsrBuilder::new(tbs.tbs(), &sig.to_ecdsa()).ok_or(err_u32!(CsrBuilderInit))?;
         let csr_len = csr_bldr.build(&mut csr).ok_or(err_u32!(CsrBuilderBuild))?;
-        cprint_slice!("[idev] CSR", csr);
+        cprintln!("[idev] CSR = {}", HexBytes(&csr));
 
         // Execute Send CSR Flow
         Self::send_csr(env, InitDevIdCsr::new(&csr, csr_len))
