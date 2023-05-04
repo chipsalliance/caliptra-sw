@@ -252,7 +252,7 @@ impl InitDevIdLayer {
         let csr_bldr =
             Ecdsa384CsrBuilder::new(tbs.tbs(), &sig.to_ecdsa()).ok_or(err_u32!(CsrBuilderInit))?;
         let csr_len = csr_bldr.build(&mut csr).ok_or(err_u32!(CsrBuilderBuild))?;
-        cprintln!("[idev] CSR = {}", HexBytes(&csr));
+        cprintln!("[idev] CSR = {}", HexBytes(&csr[..csr_len]));
 
         // Execute Send CSR Flow
         Self::send_csr(env, InitDevIdCsr::new(&csr, csr_len))
