@@ -12,6 +12,7 @@ doctest = false
 [dependencies]
 
 [build-dependencies]
+caliptra_common = { path = "../common" }
 openssl = "0.10.48"
 hex = "0.4.3"
 bitfield = "0.14.0"

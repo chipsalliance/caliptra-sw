@@ -12,6 +12,10 @@ Abstract:
 
 --*/
 
+use caliptra_common::dice;
+
+use hex::ToHex;
+
 use openssl::bn::BigNumContext;
 use openssl::ec::EcGroup;
 use openssl::ec::EcKey;
@@ -29,6 +33,11 @@ use openssl::x509::X509Extension;
 use openssl::x509::X509v3Context;
 
 use crate::tbs::TbsParam;
+
+const FLAG_MASK: u32 = dice::FLAG_BIT_NOT_CONFIGURED
+    | dice::FLAG_BIT_NOT_SECURE
+    | dice::FLAG_BIT_DEBUG
+    | dice::FLAG_BIT_FIXED_WIDTH;
 
 /// Asymmetric Key
 pub trait AsymKey: Default {
@@ -260,7 +269,31 @@ pub struct FwidParam<'a> {
 }
 
 // Make a tcg-dice-TcbInfo extension
-pub fn make_dice_tcb_info_ext(svn: u64, fwids: &[FwidParam]) -> X509Extension {
+pub fn make_fmc_dice_tcb_info_ext(
+    flags: u32,
+    svn: u8,
+    min_svn: u8,
+    fwids: &[FwidParam],
+) -> X509Extension {
+    make_dice_tcb_info_ext_helper(
+        asn1::BitString::new(flags.to_be_bytes().as_ref(), 0),
+        asn1::BitString::new(FLAG_MASK.to_be_bytes().as_ref(), 0),
+        Some((1_u32 << 17) | ((svn as u32) << 8) | (min_svn as u32)),
+        fwids,
+    )
+}
+
+// Make a tcg-dice-TcbInfo extension
+pub fn make_rt_dice_tcb_info_ext(fwids: &[FwidParam]) -> X509Extension {
+    make_dice_tcb_info_ext_helper(None, None, None, fwids)
+}
+
+fn make_dice_tcb_info_ext_helper(
+    flags: Option<asn1::BitString>,
+    flags_mask: Option<asn1::BitString>,
+    svn: Option<u32>,
+    fwids: &[FwidParam],
+) -> X509Extension {
     #[derive(asn1::Asn1Write)]
     struct TcbInfo<'a> {
         #[implicit(0)]
@@ -270,7 +303,7 @@ pub fn make_dice_tcb_info_ext(svn: u64, fwids: &[FwidParam]) -> X509Extension {
         #[implicit(2)]
         version: Option<asn1::Utf8String<'a>>,
         #[implicit(3)]
-        svn: Option<u64>,
+        svn: Option<u32>,
         #[implicit(4)]
         layer: Option<u64>,
         #[implicit(5)]
@@ -283,6 +316,8 @@ pub fn make_dice_tcb_info_ext(svn: u64, fwids: &[FwidParam]) -> X509Extension {
         vendor_info: Option<&'a [u8]>,
         #[implicit(9)]
         tcb_type: Option<&'a [u8]>,
+        #[implicit(10)]
+        flags_mask: Option<asn1::BitString<'a>>,
     }
 
     let asn1_fwids: Vec<&Fwid> = fwids.iter().map(|f| &f.fwid).collect();
@@ -291,13 +326,14 @@ pub fn make_dice_tcb_info_ext(svn: u64, fwids: &[FwidParam]) -> X509Extension {
         vendor: Some(asn1::Utf8String::new("Caliptra")),
         model: None,
         version: None,
-        svn: Some(svn),
+        svn,
         layer: None,
         index: None,
         fwids: Some(asn1::SequenceOfWriter::new(&asn1_fwids)),
-        flags: None,
+        flags,
         vendor_info: None,
         tcb_type: None,
+        flags_mask,
     };
 
     let der = asn1::write_single(&tcb_info).unwrap();
@@ -345,12 +381,17 @@ pub fn get_tbs(der: Vec<u8>) -> Vec<u8> {
 pub fn init_param(needle: &[u8], haystack: &[u8], param: TbsParam) -> TbsParam {
     assert_eq!(needle.len(), param.len);
     eprintln!("{}", param.name);
-    let offset = haystack
-        .windows(param.len)
-        .position(|w| w == needle)
-        .unwrap();
+    let pos = haystack.windows(param.len).position(|w| w == needle);
 
-    TbsParam { offset, ..param }
+    match pos {
+        Some(offset) => TbsParam { offset, ..param },
+        None => panic!(
+            "Could not find needle '{}' with value\n\n{}\n\nin haystack\n\n{}",
+            param.name,
+            needle.encode_hex::<String>(),
+            haystack.encode_hex::<String>()
+        ),
+    }
 }
 
 /// Sanitize the TBS buffer for the specified parameter
