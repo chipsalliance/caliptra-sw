@@ -13,3 +13,4 @@ caliptra-hw-model = { path = "../hw-model" }
 
 [features]
 verilator = ["caliptra-hw-model/verilator"]
+fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
