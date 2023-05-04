@@ -405,11 +405,20 @@ impl Bus for MailboxInternal {
         self.regs.borrow_mut().write(size, addr, val)
     }
 }
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+
 pub enum MailboxRequester {
-    Caliptra = 1,
-    Soc = 2,
-    Idle = 3,
+    Caliptra = 0,
+    Soc = 1,
+}
+
+impl From<MailboxRequester> for u32 {
+    fn from(val: MailboxRequester) -> Self {
+        match val {
+            MailboxRequester::Caliptra => 0,
+            MailboxRequester::Soc => 1,
+        }
+    }
 }
 
 /// Mailbox Peripheral
@@ -476,7 +485,7 @@ impl MailboxRegs {
             execute: ReadWriteRegister::new(Self::EXEC_VAL),
             _status: ReadWriteRegister::new(Self::STATUS_VAL),
             state_machine: StateMachine::new(Context::new(ram)),
-            requester: MailboxRequester::Idle,
+            requester: MailboxRequester::Caliptra,
         }
     }
     pub fn request(&mut self, requester: MailboxRequester) {
@@ -487,7 +496,7 @@ impl MailboxRegs {
     pub fn read_lock(&mut self, _size: RvSize) -> Result<u32, BusError> {
         if self
             .state_machine
-            .process_event(Events::RdLock(Owner(self.requester as u32)))
+            .process_event(Events::RdLock(self.requester))
             .is_ok()
         {
             Ok(0)
@@ -497,7 +506,7 @@ impl MailboxRegs {
     }
 
     // Todo: Implement read_user callback fn
-    pub fn read_user(&self, _size: RvSize) -> Result<u32, BusError> {
+    pub fn read_user(&self, _size: RvSize) -> Result<MailboxRequester, BusError> {
         Ok(self.state_machine.context.user)
     }
 
@@ -616,7 +625,7 @@ statemachine! {
         // CurrentState Event [guard] / action = NextState
 
         //move from idle to rdy for command when lock is acquired.
-        *Idle + RdLock(Owner) [is_not_locked] / lock = RdyForCmd,
+        *Idle + RdLock(MailboxRequester) [is_not_locked] / lock = RdyForCmd,
 
         //move from rdy for cmd to rdy for dlen when cmd is written to.
         RdyForCmd  + CmdWrite(Cmd) / set_cmd = RdyForDlen,
@@ -652,7 +661,7 @@ pub struct Context {
     /// lock state
     pub locked: u32,
     /// Who acquired the lock.
-    pub user: u32,
+    pub user: MailboxRequester,
     /// Execute flag
     pub exec: bool,
     /// number of data elements
@@ -671,7 +680,7 @@ impl Context {
     fn new(ram: MailboxRam) -> Self {
         Self {
             locked: 0,
-            user: 0,
+            user: MailboxRequester::Caliptra,
             exec: false,
             dlen: 0,
             status: LocalRegisterCopy::new(0),
@@ -684,7 +693,7 @@ impl Context {
 
 impl StateMachineContext for Context {
     // guards
-    fn is_not_locked(&mut self, _user: &Owner) -> Result<(), ()> {
+    fn is_not_locked(&mut self, _user: &MailboxRequester) -> Result<(), ()> {
         if self.locked == 1 {
             // no transition
             Err(())
@@ -724,10 +733,10 @@ impl StateMachineContext for Context {
         self.cmd = cmd.0;
     }
 
-    fn lock(&mut self, user: &Owner) {
+    fn lock(&mut self, user: &MailboxRequester) {
         self.fifo.reset();
         self.locked = 1;
-        self.user = user.0;
+        self.user = *user;
     }
     fn unlock(&mut self) {
         self.locked = 0;
@@ -952,7 +961,7 @@ mod tests {
             .regs
             .borrow_mut()
             .state_machine
-            .process_event(Events::RdLock(Owner(0)));
+            .process_event(Events::RdLock(MailboxRequester::Caliptra));
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
             States::RdyForCmd
