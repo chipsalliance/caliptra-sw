@@ -1,8 +1,10 @@
 // Licensed under the Apache-2.0 license
 
+use std::mem;
+
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
-use caliptra_hw_model::DefaultHwModel;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
+use caliptra_hw_model::{DefaultHwModel, ModelError};
 use caliptra_image_types::ImageBundle;
 
 pub fn build_hw_model_and_image_bundle(
@@ -47,20 +49,11 @@ pub fn get_data(to_match: &str, haystack: &str) -> String {
     str
 }
 
-pub fn get_csr(hw: &mut DefaultHwModel) -> Vec<u8> {
-    let mut csr_downloaded = Vec::new();
+pub fn get_csr(hw: &mut DefaultHwModel) -> Result<Vec<u8>, ModelError> {
     hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().status() == 0x0800_0000);
-    let mbox = hw.soc_mbox();
-    let byte_count = mbox.dlen().read() as usize;
-    let remainder = byte_count % core::mem::size_of::<u32>();
-    let n = byte_count - remainder;
-    for _ in (0..n).step_by(core::mem::size_of::<u32>()) {
-        csr_downloaded.extend_from_slice(&mbox.dataout().read().to_le_bytes());
-    }
-    if remainder > 0 {
-        let part = mbox.dataout().read();
-        csr_downloaded.extend_from_slice(&part.to_le_bytes()[0..remainder]);
-    }
+    let mut txn = hw.wait_for_mailbox_receive()?;
+    let result = mem::take(&mut txn.req.data);
+    txn.respond_success();
     hw.soc_ifc().cptra_dbg_manuf_service_reg().write(|_| 0);
-    csr_downloaded
+    Ok(result)
 }
