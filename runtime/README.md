@@ -140,6 +140,9 @@ Table: `GET_LDEV_CERT` output arguments
 
 ### ECDSA384\_SIGNATURE\_VERIFY
 
+Verifies an ECDSA P-384 signature. The hash to be verified is taken from
+Caliptra's SHA384 accelerator peripheral.
+
 Command Code: `0x5349_4756` ("SIGV")
 
 Table: `ECDSA384_SIGNATURE_VERIFY` input arguments
@@ -147,7 +150,6 @@ Table: `ECDSA384_SIGNATURE_VERIFY` input arguments
 | **Name**     | **Type** | **Description**
 | --------     | -------- | ---------------
 | chksum       | u32      | Checksum over other input arguments, computed by the caller. Little endian.
-| data         | u8[48]   | Signed hash to verify
 | pub\_key\_x  | u8[48]   | X portion of ECDSA verification key
 | pub\_key\_y  | u8[48]   | Y portion of ECDSA verification key
 | signature\_r | u8[48]   | R portion of signature to verify
