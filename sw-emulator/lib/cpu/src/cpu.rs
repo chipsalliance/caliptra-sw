@@ -383,7 +383,10 @@ impl<TBus: Bus> Cpu<TBus> {
         self.write_csr(Csr::MSTATUS, status.0)?;
 
         self.write_pc(next_pc);
-        println!("{:x}", next_pc);
+        println!(
+            "handle_trap: cause={:x}, mtval={:x}, next_pc={:x}",
+            cause, info, next_pc
+        );
         Ok(())
     }
 

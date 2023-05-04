@@ -188,7 +188,6 @@ fn test_preamble_owner_pubkey_digest_mismatch() {
 
 #[test]
 fn test_preamble_vendor_pubkey_revocation() {
-    let mut output = vec![];
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     const LAST_KEY_IDX: u32 = VENDOR_ECC_KEY_COUNT - 1;
     const VENDOR_CONFIG_LIST: [ImageGeneratorVendorConfig; VENDOR_ECC_KEY_COUNT as usize] = [
@@ -229,7 +228,8 @@ fn test_preamble_vendor_pubkey_revocation() {
             // Last key is never revoked.
             hw.upload_firmware(&image_bundle.to_bytes().unwrap())
                 .unwrap();
-            hw.copy_output_until_exit_success(&mut output).unwrap();
+            hw.step_until_output_contains("Caliptra RT listening for mailbox commands...")
+                .unwrap();
         } else {
             assert_eq!(
                 ModelError::MailboxCmdFailed,
