@@ -315,6 +315,12 @@ pub trait HwModel {
         Ok(())
     }
 
+    fn step_until_output_contains(&mut self, substr: &str) -> Result<(), Box<dyn Error>> {
+        self.output().set_search_term(substr);
+        self.step_until(|m| m.output().search_matched());
+        Ok(())
+    }
+
     /// A register block that can be used to manipulate the soc_ifc peripheral
     /// over the simulated SoC->Caliptra APB bus.
     fn soc_ifc(&mut self) -> caliptra_registers::soc_ifc::RegisterBlock<BusMmio<Self::TBus<'_>>> {
