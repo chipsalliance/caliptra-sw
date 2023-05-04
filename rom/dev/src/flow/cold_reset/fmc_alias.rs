@@ -89,7 +89,7 @@ impl DiceLayer for FmcAliasLayer {
         Self::populate_data_vault(venv.data_vault, info);
 
         // Extend PCR0
-        pcr::extend_pcr0(&mut venv)?;
+        pcr::extend_pcr0(&mut venv, info)?;
         report_boot_status(FmcAliasExtendPcrComplete.into());
 
         // Load the image
@@ -150,7 +150,7 @@ impl DiceLayer for FmcAliasLayer {
         }
 
         // Generate Local Device ID Certificate
-        Self::generate_cert_sig(env, input, &output, &nb.not_before, &nf.not_after)?;
+        Self::generate_cert_sig(env, info, input, &output, &nb.not_before, &nf.not_after)?;
 
         report_boot_status(FmcAliasDerivationComplete.into());
         cprintln!("[afmc] --");
@@ -379,6 +379,7 @@ impl FmcAliasLayer {
     /// * `output` - DICE Output
     fn generate_cert_sig(
         env: &mut RomEnv,
+        info: &ImageVerificationInfo,
         input: &DiceInput,
         output: &DiceOutput,
         not_before: &[u8; FmcAliasCertTbsParams::NOT_BEFORE_LEN],
@@ -391,7 +392,7 @@ impl FmcAliasLayer {
         let flags = Self::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
 
         let svn = env.data_vault.fmc_svn() as u8;
-        let min_svn = 0_u8; // TODO: plumb from image header (and set to zero if anti_rollback_disable is set).
+        let fuse_svn = info.fmc.effective_fuse_svn as u8;
 
         // Certificate `To Be Signed` Parameters
         let params = FmcAliasCertTbsParams {
@@ -405,8 +406,8 @@ impl FmcAliasLayer {
             tcb_info_fmc_tci: &(&env.data_vault.fmc_tci()).into(),
             tcb_info_owner_pk_hash: &(&env.data_vault.owner_pk_hash()).into(),
             tcb_info_flags: &flags,
-            tcb_info_svn: &svn.to_be_bytes(),
-            tcb_info_min_svn: &min_svn.to_be_bytes(),
+            tcb_info_fmc_svn: &svn.to_be_bytes(),
+            tcb_info_fmc_svn_fuses: &fuse_svn.to_be_bytes(),
             not_before,
             not_after,
         };

@@ -441,6 +441,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
     `pcr_extend(Pcr0, FUSE_OWNER_PK_HASH)`
     `pcr_extend(Pcr0, FMC_DIGEST)`
     `pcr_extend(Pcr0, FMC_SVN)`
+    `pcr_extend(Pcr0, FMC_FUSE_SVN)` (or 0 if `FUSE_ANTI_ROLLBACK_DISABLE`)
 
 2.	CDI for Alias is derived from PCR0. For the Alias FMC CDI Derivation,  LDevID CDI in Key Vault Slot6 is used as HMAC Key and contents of PCR0 are used as data. The resultant mac is stored back in Slot 6
 
