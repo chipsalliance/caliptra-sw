@@ -3,6 +3,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod crypto;
+pub mod dice;
 pub mod hand_off;
 #[macro_use]
 pub mod printer;

@@ -22,9 +22,10 @@ use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::verifier::RomImageVerificationEnv;
 use crate::{cprint, cprint_slice, cprintln, pcr};
 use crate::{rom_env::RomEnv, rom_err_def};
+use caliptra_common::dice;
 use caliptra_drivers::{
     Array4x12, CaliptraResult, ColdResetEntry4, ColdResetEntry48, Hmac384Data, Hmac384Key, KeyId,
-    KeyReadArgs, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
+    KeyReadArgs, Lifecycle, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
@@ -389,6 +390,14 @@ impl FmcAliasLayer {
         let auth_pub_key = &input.auth_key_pair.pub_key;
         let pub_key = &output.subj_key_pair.pub_key;
 
+        let flags = Self::make_flags(
+            env.dev_state().map(|d| d.lifecycle()),
+            env.dev_state().map(|d| d.debug_locked()),
+        );
+
+        let svn = env.data_vault().map(|d| d.fmc_svn()) as u8;
+        let min_svn = 0_u8; // TODO: plumb from image header (and set to zero if anti_rollback_disable is set).
+
         // Certificate `To Be Signed` Parameters
         let params = FmcAliasCertTbsParams {
             ueid: &X509::ueid(env)?,
@@ -400,6 +409,9 @@ impl FmcAliasLayer {
             public_key: &pub_key.to_der(),
             tcb_info_fmc_tci: &env.data_vault().map(|d| d.fmc_tci()).into(),
             tcb_info_owner_pk_hash: &env.data_vault().map(|d| d.owner_pk_hash()).into(),
+            tcb_info_flags: &flags,
+            tcb_info_svn: &svn.to_be_bytes(),
+            tcb_info_min_svn: &min_svn.to_be_bytes(),
             not_before,
             not_after,
         };
@@ -443,5 +455,27 @@ impl FmcAliasLayer {
         copy_tbs(tbs.tbs(), TbsType::FmcaliasTbs)?;
 
         Ok(())
+    }
+
+    /// Generate flags for DICE evidence
+    ///
+    /// # Arguments
+    ///
+    /// * `device_lifecycle` - Device lifecycle
+    /// * `debug_locked`     - Debug locked
+    fn make_flags(device_lifecycle: Lifecycle, debug_locked: bool) -> [u8; 4] {
+        let mut flags: u32 = dice::FLAG_BIT_FIXED_WIDTH;
+
+        flags |= match device_lifecycle {
+            Lifecycle::Unprovisioned => dice::FLAG_BIT_NOT_CONFIGURED,
+            Lifecycle::Manufacturing => dice::FLAG_BIT_NOT_SECURE,
+            _ => 0,
+        };
+
+        if debug_locked {
+            flags |= dice::FLAG_BIT_DEBUG;
+        }
+
+        flags.to_be_bytes()
     }
 }
