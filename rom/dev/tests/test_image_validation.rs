@@ -25,7 +25,7 @@ use openssl::x509::X509;
 use std::str;
 use zerocopy::AsBytes;
 
-mod helpers;
+pub mod helpers;
 
 // [TODO] Use the error codes from the common library.
 const MANIFEST_MARKER_MISMATCH: u32 = 0x0B000001;
@@ -188,7 +188,6 @@ fn test_preamble_owner_pubkey_digest_mismatch() {
 
 #[test]
 fn test_preamble_vendor_pubkey_revocation() {
-    let mut output = vec![];
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     const LAST_KEY_IDX: u32 = VENDOR_ECC_KEY_COUNT - 1;
     const VENDOR_CONFIG_LIST: [ImageGeneratorVendorConfig; VENDOR_ECC_KEY_COUNT as usize] = [
@@ -229,7 +228,8 @@ fn test_preamble_vendor_pubkey_revocation() {
             // Last key is never revoked.
             hw.upload_firmware(&image_bundle.to_bytes().unwrap())
                 .unwrap();
-            hw.copy_output_until_exit_success(&mut output).unwrap();
+            hw.step_until_output_contains("Caliptra RT listening for mailbox commands...")
+                .unwrap();
         } else {
             assert_eq!(
                 ModelError::MailboxCmdFailed,
@@ -1352,10 +1352,8 @@ fn cert_test_with_custom_dates() {
         .cptra_dbg_manuf_service_reg()
         .write(|_| flags.bits());
 
-    #[cfg(feature = "verilator")]
-    {
-        // [TODO] Download the CSR from the mailbox and set the gen_idev_id_csr bit 0.
-    }
+    // Download the CSR from the mailbox.
+    let _ = helpers::get_csr(&mut hw);
 
     hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
@@ -1416,10 +1414,8 @@ fn cert_test() {
         .cptra_dbg_manuf_service_reg()
         .write(|_| flags.bits());
 
-    #[cfg(feature = "verilator")]
-    {
-        // [TODO] Download the CSR from the mailbox and set the gen_idev_id_csr bit 0.
-    }
+    // Download the CSR from the mailbox.
+    let _ = helpers::get_csr(&mut hw);
 
     hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
@@ -1589,7 +1585,7 @@ fn generate_self_signed_cert() -> (X509, PKey<Private>) {
 
 fn idevid_cert(output: &str) -> X509 {
     // Get CSR
-    let csr_str = get_data("[idev] CSR = ", output);
+    let csr_str = helpers::get_data("[idev] CSR = ", output);
     let csr = hex::decode(csr_str).unwrap();
 
     // Verify the signature on the certificate is valid.
@@ -1651,14 +1647,16 @@ fn idevid_cert(output: &str) -> X509 {
 fn ldevid_cert(idevd_cert: &X509, output: &str) -> X509 {
     // Get the ldevid cert
     let ldevid_cert =
-        X509::from_der(&hex::decode(get_data("[fmc] LDEVID cert = ", output)).unwrap()).unwrap();
+        X509::from_der(&hex::decode(helpers::get_data("[fmc] LDEVID cert = ", output)).unwrap())
+            .unwrap();
     println!(
         "LDEVID Cert:\n{}",
         str::from_utf8(&ldevid_cert.to_text().unwrap()).unwrap()
     );
 
     // Get ldevid public key
-    let pub_key_from_dv = hex::decode(get_data("[fmc] LDEVID PUBLIC KEY DER = ", output)).unwrap();
+    let pub_key_from_dv =
+        hex::decode(helpers::get_data("[fmc] LDEVID PUBLIC KEY DER = ", output)).unwrap();
 
     // Verify the signature on the cert is valid.
     let pub_key_from_cert = ldevid_cert
@@ -1680,15 +1678,19 @@ fn ldevid_cert(idevd_cert: &X509, output: &str) -> X509 {
 fn fmcalias_cert(ldevid_cert: &X509, output: &str) -> X509 {
     // Get the ldevid cert
     let fmcalias_cert =
-        X509::from_der(&hex::decode(get_data("[fmc] FMCALIAS cert = ", output)).unwrap()).unwrap();
+        X509::from_der(&hex::decode(helpers::get_data("[fmc] FMCALIAS cert = ", output)).unwrap())
+            .unwrap();
     println!(
         "FMCALIAS Cert:\n {}",
         str::from_utf8(&fmcalias_cert.to_text().unwrap()).unwrap()
     );
 
     // Get fmclias public key
-    let pub_key_from_dv =
-        hex::decode(get_data("[fmc] FMCALIAS PUBLIC KEY DER = ", output)).unwrap();
+    let pub_key_from_dv = hex::decode(helpers::get_data(
+        "[fmc] FMCALIAS PUBLIC KEY DER = ",
+        output,
+    ))
+    .unwrap();
 
     // Verify the signature on the cert is valid.
     let pub_key_from_cert = fmcalias_cert
@@ -1705,16 +1707,4 @@ fn fmcalias_cert(ldevid_cert: &X509, output: &str) -> X509 {
         .unwrap());
 
     fmcalias_cert
-}
-
-fn get_data(to_match: &str, haystack: &str) -> String {
-    let mut index = haystack.find(to_match).unwrap();
-    index += to_match.len();
-    let mut str = String::new();
-    while haystack.chars().nth(index).unwrap() != '\n' {
-        str.push(haystack.chars().nth(index).unwrap());
-        index += 1;
-    }
-
-    str
 }
