@@ -31,6 +31,7 @@ const OFFSET_DATAIN: RvAddr = 0x10;
 const OFFSET_DATAOUT: RvAddr = 0x14;
 const OFFSET_EXECUTE: RvAddr = 0x18;
 const OFFSET_STATUS: RvAddr = 0x1C;
+const OFFSET_UNLOCK: RvAddr = 0x20;
 
 register_bitfields! [
     u32,
@@ -138,6 +139,12 @@ impl MailboxInternal {
         MailboxExternal {
             regs: self.regs.clone(),
         }
+    }
+
+    // Release the lock by writing to the  unlock register.
+    /// Only the uC can release the lock.
+    pub fn try_force_unlock(&mut self) -> Result<(), BusError> {
+        self.regs.borrow_mut().write(RvSize::Word, OFFSET_UNLOCK, 1)
     }
 
     pub fn read_dlen(&mut self) -> Result<u32, BusError> {
@@ -377,6 +384,10 @@ pub struct MailboxRegs {
     #[register(offset = 0x0000_001c, write_fn = write_status, read_fn = read_status)]
     _status: ReadWriteRegister<u32>,
 
+    /// MBOX_UNLOCK register
+    #[register(offset = 0x0000_0020, write_fn = write_unlock, read_fn = read_unlock)]
+    _unlock: ReadWriteRegister<u32>,
+
     /// State Machine
     state_machine: StateMachine<Context>,
 
@@ -393,6 +404,7 @@ impl MailboxRegs {
     const DATA_OUT_VAL: RvData = 0x0;
     const EXEC_VAL: RvData = 0x0;
     const STATUS_VAL: RvData = 0x0;
+    const UNLOCK_VAL: RvData = 0x0;
 
     /// Create a new instance of Mailbox registers
     pub fn new(ram: MailboxRam) -> Self {
@@ -405,6 +417,7 @@ impl MailboxRegs {
             data_out: ReadOnlyRegister::new(Self::DATA_OUT_VAL),
             execute: ReadWriteRegister::new(Self::EXEC_VAL),
             _status: ReadWriteRegister::new(Self::STATUS_VAL),
+            _unlock: ReadWriteRegister::new(Self::UNLOCK_VAL),
             state_machine: StateMachine::new(Context::new(ram)),
             requester: MailboxRequester::Caliptra,
         }
@@ -523,6 +536,15 @@ impl MailboxRegs {
         });
         Ok(result.get())
     }
+
+    pub fn write_unlock(&mut self, _size: RvSize, _val: RvData) -> Result<(), BusError> {
+        let _ = self.state_machine.process_event(Events::WrUnlock);
+        Ok(())
+    }
+
+    pub fn read_unlock(&self, _size: RvSize) -> Result<u32, BusError> {
+        Ok(self.state_machine.context.unlock)
+    }
 }
 
 #[derive(PartialEq)]
@@ -550,11 +572,14 @@ statemachine! {
 
         //move from rdy for cmd to rdy for dlen when cmd is written to.
         RdyForCmd  + CmdWrite(Cmd) / set_cmd = RdyForDlen,
+        RdyForCmd + WrUnlock  / unlock_and_reset = Idle,
 
         //move from rdy for dlen to rdy for data when dlen is written to.
         RdyForDlen + DlenWrite(DataLength) / init_dlen = RdyForData,
+        RdyForDlen + WrUnlock = Idle,
 
         RdyForData + DataWrite(DataIn) / enqueue = RdyForData,
+        RdyForData + WrUnlock  / unlock_and_reset = Idle,
 
         //move from rdy for data to execute uc  when soc sets execute bit.
         RdyForData + SocExecSet = ExecUc,
@@ -568,13 +593,15 @@ statemachine! {
         ExecUc + SocExecClear [is_locked] / unlock = Idle,
         ExecUc + UcExecClear [is_locked] / unlock = Idle,
         ExecUc + SetStatus = ExecSoc,
+        ExecUc + WrUnlock  / unlock_and_reset = Idle,
 
         ExecSoc + DataRead / dequeue = ExecSoc,
         ExecSoc + DlenWrite(DataLength) / init_dlen = ExecSoc,
         ExecSoc + DataWrite(DataIn) / enqueue = ExecSoc,
         ExecSoc + UcExecClear [is_locked] / unlock = Idle,
         ExecSoc + SocExecClear [is_locked] / unlock = Idle,
-        ExecSoc + SetStatus = ExecUc
+        ExecSoc + SetStatus = ExecUc,
+        ExecSoc + WrUnlock  / unlock_and_reset = Idle,
 
     }
 }
@@ -597,6 +624,8 @@ pub struct Context {
     pub cmd: u32,
     // data_out
     data_out: u32,
+    // unlock
+    pub unlock: u32,
 }
 
 impl Context {
@@ -610,6 +639,7 @@ impl Context {
             fifo: Fifo::new(ram),
             cmd: 0,
             data_out: 0,
+            unlock: 0,
         }
     }
 }
@@ -673,6 +703,10 @@ impl StateMachineContext for Context {
     }
     fn enqueue(&mut self, data_in: &DataIn) {
         self.fifo.enqueue(data_in.0);
+    }
+    fn unlock_and_reset(&mut self) {
+        self.unlock();
+        self.fifo.reset();
     }
 }
 
@@ -742,6 +776,69 @@ mod tests {
     pub fn get_mailbox() -> MailboxInternal {
         // Acquire lock
         MailboxInternal::new(MailboxRam::new())
+    }
+
+    #[test]
+    fn test_sm_arc_rdyfordata_unlock() {
+        // Acquire lock
+        let mut mb = get_mailbox();
+        assert_eq!(mb.read(RvSize::Word, OFFSET_LOCK).unwrap(), 0);
+        // Confirm it is locked
+        let lock = mb.read(RvSize::Word, OFFSET_LOCK).unwrap();
+        assert_eq!(lock, 1);
+
+        let user = mb.read(RvSize::Word, OFFSET_USER).unwrap();
+        assert_eq!(user, 0);
+
+        // Write command
+        assert_eq!(mb.write(RvSize::Word, OFFSET_CMD, 0x55).ok(), Some(()));
+        // Confirm it is locked
+        assert_eq!(mb.regs.borrow().state_machine.context.locked, 1);
+
+        // Release lock
+        let _ = mb
+            .regs
+            .borrow_mut()
+            .state_machine
+            .process_event(Events::WrUnlock);
+
+        // Check transition to idle
+        assert!(matches!(
+            mb.regs.borrow().state_machine.state(),
+            States::Idle
+        ));
+    }
+
+    #[test]
+    fn test_sm_arc_rdyforcmd_unlock() {
+        let mb = get_mailbox();
+        assert_eq!(mb.regs.borrow().state_machine.context().locked, 0);
+        assert_eq!(mb.regs.borrow().state_machine.context().dlen, 0);
+        // Acquire lock
+        let _ = mb
+            .regs
+            .borrow_mut()
+            .state_machine
+            .process_event(Events::RdLock(MailboxRequester::Caliptra));
+
+        assert!(matches!(
+            mb.regs.borrow().state_machine.state(),
+            States::RdyForCmd
+        ));
+        assert_eq!(mb.regs.borrow().state_machine.context().locked, 1);
+
+        // Release lock
+        let _ = mb
+            .regs
+            .borrow_mut()
+            .state_machine
+            .process_event(Events::WrUnlock);
+
+        assert_eq!(mb.regs.borrow().state_machine.context().locked, 0);
+        assert!(matches!(
+            mb.regs.borrow().state_machine.state(),
+            States::Idle
+        ));
     }
 
     #[test]
