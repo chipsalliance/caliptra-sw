@@ -1,7 +1,9 @@
 // Licensed under the Apache-2.0 license.
 
 use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
-use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
+use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError};
+use caliptra_runtime::{CommandId, EcdsaVerifyCmd, EcdsaVerifyResponse};
+use zerocopy::{AsBytes, FromBytes};
 
 // Run test_bin as a ROM image. The is used for faster tests that can run
 // against verilator
@@ -62,41 +64,6 @@ fn run_rt_test(test_bin_name: Option<&'static str>) -> DefaultHwModel {
     model
 }
 
-fn send_mailbox_command(model: &mut DefaultHwModel, cmd_id: u32, arg_buf: &[u32]) -> Vec<u32> {
-    model.soc_mbox().lock().read().lock();
-    model.soc_mbox().cmd().write(|_| cmd_id);
-    model
-        .soc_mbox()
-        .dlen()
-        .write(|_| u32::try_from(arg_buf.len()).unwrap() * 4);
-
-    for word in arg_buf {
-        model.soc_mbox().datain().write(|_| *word);
-    }
-    model
-        .soc_mbox()
-        .execute()
-        .write(|exec_reg| exec_reg.execute(true));
-
-    model.step_until(|m| !m.soc_mbox().status().read().status().cmd_busy());
-
-    let dlen_bytes = model.soc_mbox().dlen().read() as usize;
-    let dlen_words = (dlen_bytes + 3) / 4;
-    let mut resp = vec![0u32; dlen_words];
-
-    for dest_word in resp.iter_mut() {
-        *dest_word = model.soc_mbox().dataout().read();
-    }
-
-    model
-        .soc_mbox()
-        .execute()
-        .write(|exec_reg| exec_reg.execute(false));
-    model.step(); // Step once to get mailbox to idel state
-
-    resp
-}
-
 #[test]
 fn test_standard() {
     // Test that the normal runtime firmware boots.
@@ -117,15 +84,86 @@ fn test_boot() {
 }
 
 #[test]
-fn test_mbox() {
+fn test_verify_cmd() {
     let mut model = run_rom_test("mbox");
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
-    let cmd_buf = [0u32; 4];
-    let resp = send_mailbox_command(&mut model, 0x0, &cmd_buf);
+    // Message to hash
+    let msg: &[u32] = &[
+        0xea89d79d, 0x4547c025, 0x1f387ad5, 0xfb01de22, 0x723cbd0a, 0x44fddedb, 0xc11332e4,
+        0xef3e5889, 0x2066ba85, 0xe23dda44, 0xe67086dd, 0x48545132, 0xeebb5501, 0x752c70bb,
+        0x2ec31a78, 0x60189413, 0xe36f57cb, 0x57b7057a, 0x415b5bda, 0xc3d76d8f, 0x402e040b,
+        0x345a39f4, 0xe0dce42a, 0x36c33456, 0x52bce225, 0x1f484543, 0x953d257e, 0x23682651,
+        0x17251b77, 0x51a8b405, 0x372a0266, 0xbdf128ac,
+    ];
 
-    assert_eq!(resp, vec![0xFFFFFFFFu32; 4]);
+    // Stream to SHA ACC
+    let _ = model
+        .compute_sha512_acc_digest(
+            msg,
+            (msg.len() * 4).try_into().unwrap(),
+            /*sha384=*/ true,
+        )
+        .unwrap();
 
-    assert!(model.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+    // ECDSAVS NIST test vector
+    let cmd = EcdsaVerifyCmd {
+        chksum: 0,
+        pub_key_x: [
+            0xcb, 0x90, 0x8b, 0x1f, 0xd5, 0x16, 0xa5, 0x7b, 0x8e, 0xe1, 0xe1, 0x43, 0x83, 0x57,
+            0x9b, 0x33, 0xcb, 0x15, 0x4f, 0xec, 0xe2, 0x0c, 0x50, 0x35, 0xe2, 0xb3, 0x76, 0x51,
+            0x95, 0xd1, 0x95, 0x1d, 0x75, 0xbd, 0x78, 0xfb, 0x23, 0xe0, 0x0f, 0xef, 0x37, 0xd7,
+            0xd0, 0x64, 0xfd, 0x9a, 0xf1, 0x44,
+        ],
+        pub_key_y: [
+            0xcd, 0x99, 0xc4, 0x6b, 0x58, 0x57, 0x40, 0x1d, 0xdc, 0xff, 0x2c, 0xf7, 0xcf, 0x82,
+            0x21, 0x21, 0xfa, 0xf1, 0xcb, 0xad, 0x9a, 0x01, 0x1b, 0xed, 0x8c, 0x55, 0x1f, 0x6f,
+            0x59, 0xb2, 0xc3, 0x60, 0xf7, 0x9b, 0xfb, 0xe3, 0x2a, 0xdb, 0xca, 0xa0, 0x95, 0x83,
+            0xbd, 0xfd, 0xf7, 0xc3, 0x74, 0xbb,
+        ],
+        signature_r: [
+            0x33, 0xf6, 0x4f, 0xb6, 0x5c, 0xd6, 0xa8, 0x91, 0x85, 0x23, 0xf2, 0x3a, 0xea, 0x0b,
+            0xbc, 0xf5, 0x6b, 0xba, 0x1d, 0xac, 0xa7, 0xaf, 0xf8, 0x17, 0xc8, 0x79, 0x1d, 0xc9,
+            0x24, 0x28, 0xd6, 0x05, 0xac, 0x62, 0x9d, 0xe2, 0xe8, 0x47, 0xd4, 0x3c, 0xee, 0x55,
+            0xba, 0x9e, 0x4a, 0x0e, 0x83, 0xba,
+        ],
+        signature_s: [
+            0x44, 0x28, 0xbb, 0x47, 0x8a, 0x43, 0xac, 0x73, 0xec, 0xd6, 0xde, 0x51, 0xdd, 0xf7,
+            0xc2, 0x8f, 0xf3, 0xc2, 0x44, 0x16, 0x25, 0xa0, 0x81, 0x71, 0x43, 0x37, 0xdd, 0x44,
+            0xfe, 0xa8, 0x01, 0x1b, 0xae, 0x71, 0x95, 0x9a, 0x10, 0x94, 0x7b, 0x6e, 0xa3, 0x3f,
+            0x77, 0xe1, 0x28, 0xd3, 0xc6, 0xae,
+        ],
+    };
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::ECDSA384_VERIFY), cmd.as_bytes())
+        .unwrap()
+        .unwrap();
+    let resp_bytes: &[u8] = resp.as_bytes();
+    let response = EcdsaVerifyResponse::read_from(resp_bytes).unwrap();
+    assert_eq!(response.result, true as u32);
+}
+
+#[test]
+fn test_unimplemented_cmds() {
+    let mut model = run_rom_test("mbox");
+
+    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+
+    let cmd = [0u8; 4];
+
+    let expected_err = Err(ModelError::MailboxCmdFailed(0xe0002));
+
+    let mut resp = model.mailbox_execute(u32::from(CommandId::GET_IDEV_CSR), &cmd);
+    assert_eq!(resp, expected_err);
+
+    resp = model.mailbox_execute(u32::from(CommandId::GET_LDEV_CERT), &cmd);
+    assert_eq!(resp, expected_err);
+
+    resp = model.mailbox_execute(u32::from(CommandId::STASH_MEASUREMENT), &cmd);
+    assert_eq!(resp, expected_err);
+
+    resp = model.mailbox_execute(u32::from(CommandId::INVOKE_DPE), &cmd);
+    assert_eq!(resp, expected_err);
 }

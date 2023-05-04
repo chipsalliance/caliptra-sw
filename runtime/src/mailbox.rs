@@ -1,6 +1,9 @@
 // Licensed under the Apache-2.0 license
 
+use crate::RuntimeErr;
+use caliptra_drivers::CaliptraResult;
 use caliptra_registers::mbox::{self, enums::MboxStatusE};
+use zerocopy::{LayoutVerified, Unalign};
 
 pub struct Mailbox {}
 
@@ -23,7 +26,7 @@ impl Mailbox {
 
     // Get the length of the current mailbox data in words
     pub fn dlen_words() -> u32 {
-        (Self::dlen() + 7) / 8
+        (Self::dlen() + 3) / 4
     }
 
     pub fn cmd() -> u32 {
@@ -36,10 +39,25 @@ impl Mailbox {
         }
     }
 
-    pub fn copy_to_mbox(buf: &[u32]) {
+    pub fn copy_to_mbox(buf: &[Unalign<u32>]) {
         for word in buf {
-            mbox::RegisterBlock::mbox_csr().datain().write(|_| *word);
+            mbox::RegisterBlock::mbox_csr()
+                .datain()
+                .write(|_| word.get());
         }
+    }
+
+    /// Write a word-aligned `buf` to the mailbox
+    pub fn write_response(buf: &[u8]) -> CaliptraResult<()> {
+        let Some(buf_words) = LayoutVerified::new_slice_unaligned(buf) else {
+            // buf size is not a multiple of word size
+            return Err(RuntimeErr::InternalErr.into());
+        };
+
+        Self::set_dlen(buf.len() as u32);
+        Self::copy_to_mbox(&buf_words);
+
+        Ok(())
     }
 
     pub fn set_status(status: MboxStatusE) {
