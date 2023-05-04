@@ -61,3 +61,14 @@ macro_rules! cprint_slice  {
         $crate::cprintln!("");
     }
 }
+
+#[macro_export]
+macro_rules! cprint_slice_ref  {
+    ($name:expr, $arr:expr) => {
+        $crate::cprint!("{} = ", $name);
+        for &byte in $arr {
+            $crate::cprint!("{:02X}" byte);
+        }
+        $crate::cprintln!("");
+    }
+}

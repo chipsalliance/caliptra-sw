@@ -127,14 +127,14 @@ fn create_certs() {
         [0u8; core::mem::size_of::<LocalDevIdCertTbs>()];
     copy_tbs(&mut tbs, true);
 
-    let mut cert: [u8; 651] = [0u8; 651];
+    let mut cert: [u8; 1024] = [0u8; 1024];
     let builder = Ecdsa384CertBuilder::new(
         &tbs[..core::mem::size_of::<LocalDevIdCertTbs>()],
         &ecdsa_sig,
     )
     .unwrap();
     let _cert_len = builder.build(&mut cert).unwrap();
-    cprint_slice!("[fmc] LDEVID cert", cert);
+    cprint_slice_ref!("[fmc] LDEVID cert", &cert[.._cert_len]);
 
     //
     // Create FMCALIAS cert.
@@ -155,12 +155,12 @@ fn create_certs() {
         [0u8; core::mem::size_of::<FmcAliasCertTbs>()];
     copy_tbs(&mut tbs, false);
 
-    let mut cert: [u8; 818] = [0u8; 818];
+    let mut cert: [u8; 1024] = [0u8; 1024];
     let builder =
         Ecdsa384CertBuilder::new(&tbs[..core::mem::size_of::<FmcAliasCertTbs>()], &ecdsa_sig)
             .unwrap();
     let _cert_len = builder.build(&mut cert).unwrap();
-    cprint_slice!("[fmc] FMCALIAS cert", cert);
+    cprint_slice_ref!("[fmc] FMCALIAS cert", &cert[.._cert_len]);
 }
 
 fn copy_tbs(tbs: &mut [u8], ldevid_tbs: bool) {
