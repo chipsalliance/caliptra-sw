@@ -240,14 +240,20 @@ impl MailboxExternal {
 impl Bus for MailboxExternal {
     /// Read data of specified size from given address
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Soc);
-        self.regs.borrow_mut().read(size, addr)
+        let mut regs = self.regs.borrow_mut();
+        regs.request(MailboxRequester::Soc);
+        let result = regs.read(size, addr);
+        regs.request(MailboxRequester::Caliptra);
+        result
     }
 
     /// Write data of specified size to given address
     fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {
-        self.regs.borrow_mut().request(MailboxRequester::Soc);
-        self.regs.borrow_mut().write(size, addr, val)
+        let mut regs = self.regs.borrow_mut();
+        regs.request(MailboxRequester::Soc);
+        let result = regs.write(size, addr, val);
+        regs.request(MailboxRequester::Caliptra);
+        result
     }
 }
 
@@ -645,8 +651,6 @@ statemachine! {
         ExecUc + DlenWrite(DataLength) / init_dlen = ExecUc,
         ExecUc + DataWrite(DataIn) / enqueue = ExecUc,
         ExecUc + UcExecClear [is_locked] / unlock = Idle,
-
-        //ExecUc + StatusWrite(StatusRegister) [ is_not_busy ] = ExecUc,
 
         ExecSoc + DataRead / dequeue = ExecSoc,
         ExecSoc + DlenWrite(DataLength) / init_dlen = ExecSoc,
