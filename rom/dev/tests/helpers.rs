@@ -37,16 +37,14 @@ pub fn build_hw_model_and_image_bundle(
 ///
 /// * `to_match` - String to search for
 /// * `haystack` - String to search in
-pub fn get_data(to_match: &str, haystack: &str) -> String {
-    let mut index = haystack.find(to_match).unwrap();
-    index += to_match.len();
-    let mut str = String::new();
-    while haystack.chars().nth(index).unwrap() != '\n' {
-        str.push(haystack.chars().nth(index).unwrap());
-        index += 1;
-    }
-
-    str
+pub fn get_data<'a>(to_match: &str, haystack: &'a str) -> &'a str {
+    let index = haystack
+        .find(to_match)
+        .unwrap_or_else(|| panic!("unable to find substr {to_match:?}"));
+    haystack[index + to_match.len()..]
+        .split('\n')
+        .next()
+        .unwrap_or("")
 }
 
 pub fn get_csr(hw: &mut DefaultHwModel) -> Result<Vec<u8>, ModelError> {
@@ -56,4 +54,26 @@ pub fn get_csr(hw: &mut DefaultHwModel) -> Result<Vec<u8>, ModelError> {
     txn.respond_success();
     hw.soc_ifc().cptra_dbg_manuf_service_reg().write(|_| 0);
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const LOG: &str = "Foo bar baz \n\
+                       [idev] CSR = foo bar\n\
+                       [idev] CSR = wrong";
+
+    #[test]
+    fn test_get_data() {
+        assert_eq!("foo bar", get_data("[idev] CSR = ", LOG));
+
+        assert_eq!("", get_data("CSR = wrong", LOG));
+    }
+
+    #[test]
+    #[should_panic(expected = "unable to find substr \"[idev] FOO = \"")]
+    fn test_get_data_not_found() {
+        assert_eq!("", get_data("[idev] FOO = ", LOG));
+    }
 }
