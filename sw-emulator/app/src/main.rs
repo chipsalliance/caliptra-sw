@@ -15,7 +15,8 @@ Abstract:
 use caliptra_emu_bus::Clock;
 use caliptra_emu_cpu::{Cpu, RvInstr, StepAction};
 use caliptra_emu_periph::{
-    CaliptraRootBus, CaliptraRootBusArgs, Mailbox, ReadyForFwCb, TbServicesCb, UploadUpdateFwCb,
+    CaliptraRootBus, CaliptraRootBusArgs, MailboxInternal, ReadyForFwCb, TbServicesCb,
+    UploadUpdateFwCb,
 };
 use caliptra_hw_model::BusMmio;
 use caliptra_hw_model_types::{DeviceLifecycle, SecurityState};
@@ -249,12 +250,12 @@ fn main() -> io::Result<()> {
             while !args.mailbox.try_acquire_lock() {}
 
             let firmware_buffer = current_fw_buf.clone();
-            args.schedule_later(FW_WRITE_TICKS, move |mailbox: &mut Mailbox| {
+            args.schedule_later(FW_WRITE_TICKS, move |mailbox: &mut MailboxInternal| {
                 upload_fw_to_mailbox(mailbox, firmware_buffer);
             });
         }),
         security_state,
-        upload_update_fw: UploadUpdateFwCb::new(move |mailbox: &mut Mailbox| {
+        upload_update_fw: UploadUpdateFwCb::new(move |mailbox: &mut MailboxInternal| {
             while !mailbox.try_acquire_lock() {}
             upload_fw_to_mailbox(mailbox, update_fw_buf.clone());
         }),
@@ -374,7 +375,7 @@ fn change_dword_endianess(data: &mut Vec<u8>) {
     }
 }
 
-fn upload_fw_to_mailbox(mailbox: &mut Mailbox, firmware_buffer: Rc<Vec<u8>>) {
+fn upload_fw_to_mailbox(mailbox: &mut MailboxInternal, firmware_buffer: Rc<Vec<u8>>) {
     // Write the cmd to mailbox.
     let _ = mailbox.write_cmd(FW_LOAD_CMD_OPCODE);
 

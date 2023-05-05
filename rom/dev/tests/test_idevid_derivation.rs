@@ -20,7 +20,7 @@ fn test_generate_csr() {
         .write(|_| flags.bits());
 
     // Download the CSR from the mailbox.
-    let csr_downloaded = helpers::get_csr(&mut hw);
+    let csr_downloaded = helpers::get_csr(&mut hw).unwrap();
 
     // Wait for uploading firmware.
     hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());

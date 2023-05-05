@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 use core::convert::Infallible;
-use ufmt::uWrite;
+use ufmt::{uDisplay, uWrite};
 
 #[derive(Default)]
 pub struct RomPrinter;
@@ -51,13 +51,15 @@ macro_rules! cprintln {
     }}
 }
 
-#[macro_export]
-macro_rules! cprint_slice  {
-    ($name:expr, $arr:expr) => {
-        $crate::cprint!("{} = ", $name);
-        for byte in $arr {
-            $crate::cprint!("{:02X}" byte);
+pub struct HexBytes<'a>(pub &'a [u8]);
+impl uDisplay for HexBytes<'_> {
+    fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> Result<(), W::Error>
+    where
+        W: uWrite + ?Sized,
+    {
+        for byte in self.0.iter() {
+            ufmt::uwrite!(f, "{:02X}", *byte)?;
         }
-        $crate::cprintln!("");
+        Ok(())
     }
 }

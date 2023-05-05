@@ -16,10 +16,10 @@ Abstract:
 use super::crypto::*;
 use super::dice::*;
 use super::x509::*;
-use crate::cprint_slice;
 use crate::cprintln;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::flow::cold_reset::{KEY_ID_CDI, KEY_ID_FE, KEY_ID_LDEVID_PRIV_KEY};
+use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 use crate::rom_err_def;
 use caliptra_drivers::*;
@@ -175,13 +175,13 @@ impl LocalDevIdLayer {
 
         let _pub_x: [u8; 48] = pub_key.x.into();
         let _pub_y: [u8; 48] = pub_key.y.into();
-        cprint_slice!("[ldev] PUB.X", _pub_x);
-        cprint_slice!("[ldev] PUB.Y", _pub_y);
+        cprintln!("[ldev] PUB.X = {}", HexBytes(&_pub_x));
+        cprintln!("[ldev] PUB.Y = {}", HexBytes(&_pub_y));
 
         let _sig_r: [u8; 48] = sig.r.into();
         let _sig_s: [u8; 48] = sig.s.into();
-        cprint_slice!("[ldev] SIG.R", _sig_r);
-        cprint_slice!("[ldev] SIG.S", _sig_s);
+        cprintln!("[ldev] SIG.R = {}", HexBytes(&_sig_r));
+        cprintln!("[ldev] SIG.S = {}", HexBytes(&_sig_s));
 
         // Lock the Local Device ID cert signature in data vault until
         // cold reset
