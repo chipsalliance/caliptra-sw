@@ -131,6 +131,7 @@ pub enum ModelError {
     ProvidedIccmTooLarge,
     ProvidedDccmTooLarge,
     UnexpectedMailboxFsmStatus { expected: u32, actual: u32 },
+    UploadMeasurementUnexpectedResponse,
 }
 impl Error for ModelError {}
 impl Display for ModelError {
@@ -157,6 +158,12 @@ impl Display for ModelError {
                 f,
                 "Expected mailbox FSM status to be {expected}, was {actual}"
             ),
+            ModelError::UploadMeasurementUnexpectedResponse => {
+                write!(
+                    f,
+                    "Received unexpected response after uploading measurement"
+                )
+            }
         }
     }
 }
@@ -255,6 +262,9 @@ fn mbox_write_fifo(mbox: &mbox::RegisterBlock<impl Mmio>, buf: &[u8]) -> Result<
 
 /// Firmware Load Command Opcode
 const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
+
+/// Stash Measurement Command Opcode.
+const STASH_MEASUREMENT_CMD_OPCODE: u32 = 0x4D45_4153;
 
 // Represents a emulator or simulation of the caliptra hardware, to be called
 // from tests. Typically, test cases should use [`crate::new()`] to create a model
@@ -548,6 +558,15 @@ pub trait HwModel {
             model: self,
             req: MailboxRequest { cmd, data },
         }))
+    }
+
+    /// Upload measurement to the mailbox.
+    fn upload_measurement(&mut self, measurement: &[u8]) -> Result<(), ModelError> {
+        let response = self.mailbox_execute(STASH_MEASUREMENT_CMD_OPCODE, measurement)?;
+        if response.is_some() {
+            return Err(ModelError::UploadMeasurementUnexpectedResponse);
+        }
+        Ok(())
     }
 }
 

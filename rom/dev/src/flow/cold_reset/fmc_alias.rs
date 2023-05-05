@@ -27,7 +27,7 @@ use crate::{rom_env::RomEnv, rom_err_def};
 use caliptra_common::dice;
 use caliptra_drivers::{
     Array4x12, CaliptraResult, ColdResetEntry4, ColdResetEntry48, Hmac384Data, Hmac384Key, KeyId,
-    KeyReadArgs, Lifecycle, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
+    KeyReadArgs, Lifecycle, MailboxRecvTxn, PcrId, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
@@ -45,7 +45,22 @@ rom_err_def! {
         CertVerify = 0x1,
         ManifestReadFailure = 0x2,
         InvalidImageSize = 0x3,
+        MeasurementReadFailure = 0x4,
     }
+}
+
+/// Caliptra Measurement
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Default, Debug)]
+pub struct Measurement {
+    /// Checksum
+    pub checksum: u32,
+
+    /// Metadata
+    pub metadata: [u8; 4],
+
+    /// Measurement
+    pub measurement: [u32; 12],
 }
 
 #[derive(Default)]
@@ -62,8 +77,8 @@ impl DiceLayer for FmcAliasLayer {
             input.auth_key_pair.priv_key as u8
         );
 
-        // Download the image
-        let mut txn = Self::download_image(env)?;
+        // Process mailbox commands.
+        let mut txn = Self::process_mailbox_commands(env)?;
 
         // Load the manifest
         let manifest = Self::load_manifest(&txn)?;
@@ -142,9 +157,16 @@ impl DiceLayer for FmcAliasLayer {
 
 impl FmcAliasLayer {
     /// Download firmware mailbox command ID.
-    const MBOX_DOWNLOAD_FIRMWARE_CMD_ID: u32 = 0x46574C44;
+    const MBOX_DOWNLOAD_FIRMWARE_CMD_ID: u32 = 0x4657_4C44;
 
-    /// Download the image
+    /// Stash Measurement mailbox command ID.
+    const MBOX_STASH_MEASUREMENT_CMD_ID: u32 = 0x4D45_4153;
+
+    const MEASUREMENT_MAX_COUNT: u32 = 8;
+
+    /// Process the following mailbox commands, in order:
+    /// 1. Stash Measurement (upto 8; optional)
+    /// 2. Download Firmware
     ///
     /// # Arguments
     ///
@@ -157,32 +179,77 @@ impl FmcAliasLayer {
     /// report_error is called. This prevents a race condition where the SoC
     /// reads FW_ERROR_NON_FATAL immediately after the mailbox transaction
     /// fails, but before caliptra has set the FW_ERROR_NON_FATAL register.
-    fn download_image(env: &RomEnv) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn>> {
+    fn process_mailbox_commands(env: &RomEnv) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn>> {
         env.flow_status().map(|f| f.set_ready_for_firmware());
 
-        cprint!("[afmc] Waiting for Image ");
+        cprint!("[afmc] Waiting for Measurement(s) or Image ");
+        let mut measurement_count = 0;
         loop {
             cprint!(".");
             if let Some(mut txn) = env.mbox().map(|m| m.try_start_recv_txn()) {
-                if txn.cmd() != Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID {
-                    cprintln!("Invalid command 0x{:08x} received", txn.cmd());
-                    txn.complete(false)?;
-                    continue;
-                }
-                // This is a download-firmware command; don't drop this, as the
-                // transaction will be completed by either report_error() (on
-                // failure) or by a manual complete call upon success.
-                let txn = ManuallyDrop::new(txn);
-                if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
-                    cprintln!("Invalid Image of size {} bytes" txn.dlen());
-                    raise_err!(InvalidImageSize);
-                }
+                match txn.cmd() {
+                    Self::MBOX_STASH_MEASUREMENT_CMD_ID => {
+                        if measurement_count == Self::MEASUREMENT_MAX_COUNT {
+                            cprintln!(
+                                "[afmc] Maximum supported number of measurements already received, ignoring."
+                            );
+                            txn.complete(false)?;
+                            continue;
+                        }
 
-                cprintln!("");
-                cprintln!("[afmc] Received Image of size {} bytes" txn.dlen());
-                break Ok(txn);
+                        // Extend the measurement into PCR1.
+                        let mut txn = ManuallyDrop::new(txn);
+                        Self::extend_measurement(env, &txn)?;
+                        measurement_count += 1;
+                        txn.complete(true)?;
+                    }
+                    Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID => {
+                        // This is a download-firmware command; don't drop this, as the
+                        // transaction will be completed by either report_error() (on
+                        // failure) or by a manual complete call upon success.
+                        let txn = ManuallyDrop::new(txn);
+                        if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
+                            cprintln!("Invalid Image of size {} bytes" txn.dlen());
+                            raise_err!(InvalidImageSize);
+                        }
+
+                        cprintln!("");
+                        cprintln!("[afmc] Received Image of size {} bytes" txn.dlen());
+                        break Ok(txn);
+                    }
+                    _ => {
+                        cprintln!("Invalid command 0x{:08x} received", txn.cmd());
+                        txn.complete(false)?;
+                        continue;
+                    }
+                }
             }
         }
+    }
+
+    /// Extend measurement into PCR1
+    /// # Arguments
+    /// * `env` - ROM Environment
+    /// * `txn` - Mailbox Receive Transaction
+    /// # Returns
+    /// * `()` - Ok
+    ///     Err - StashMeasurementReadFailure
+    fn extend_measurement(env: &RomEnv, txn: &MailboxRecvTxn) -> CaliptraResult<()> {
+        const MEASUREMENT_WORDS: usize = core::mem::size_of::<Measurement>() / 4;
+        let mut slice: [u32; MEASUREMENT_WORDS] = [0u32; MEASUREMENT_WORDS];
+        txn.copy_request(&mut slice)?;
+
+        let measurement =
+            Measurement::read_from(slice.as_bytes()).ok_or(err_u32!(MeasurementReadFailure))?;
+
+        // Extend measurement into PCR1.
+        let pcr_bank = env.pcr_bank();
+        let sha = env.sha384();
+        sha.map(|s| {
+            pcr_bank.map(|p| p.extend_pcr(PcrId::PcrId1, s, measurement.measurement.as_bytes()))
+        })?;
+
+        Ok(())
     }
 
     /// Load the manifest

@@ -31,6 +31,7 @@ caliptra-image-fake-keys = { path = "../../image/fake-keys" }
 caliptra-image-types = { path = "../../image/types" }
 hex = "0.4.3"
 openssl = "0.10"
+arrayref = "0.3.6"
 
 [features]
 riscv = []

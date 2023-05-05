@@ -22,6 +22,8 @@ extern "C" {
 use caliptra_common::FirmwareHandoffTable;
 use caliptra_drivers::DataVault;
 use caliptra_drivers::Mailbox;
+use caliptra_drivers::PcrBank;
+use caliptra_drivers::PcrId;
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
 use zerocopy::FromBytes;
 
@@ -54,6 +56,8 @@ pub extern "C" fn fmc_entry() -> ! {
 
     let fht = FirmwareHandoffTable::read_from(slice).unwrap();
     assert!(fht.is_valid());
+
+    process_mailbox_commands();
 
     create_certs();
 
@@ -104,6 +108,33 @@ fn fmc_panic(_: &core::panic::PanicInfo) -> ! {
     // TODO: Signal non-fatal error to SOC
 
     loop {}
+}
+
+fn process_mailbox_commands() {
+    let pcr_bank = PcrBank::default();
+    let mbox = caliptra_registers::mbox::RegisterBlock::mbox_csr();
+
+    let cmd = mbox.cmd().read();
+    cprintln!("[fmc] Received command: 0x{:08X}", cmd);
+    match cmd {
+        0x1000_0000 => {
+            // TODO Generate certs
+            mbox.status().write(|w| w.status(|w| w.cmd_complete()));
+        }
+        0x1000_1000 => {
+            // Read PCR1 and send it back.
+            let pcr1 = pcr_bank.read_pcr(PcrId::PcrId1);
+
+            mbox.dlen().write(|_| 48);
+            for i in 0..pcr1.0.len() {
+                mbox.datain().write(|_| pcr1.0[i]);
+            }
+            mbox.status().write(|w| w.status(|w| w.data_ready()));
+        }
+        _ => {
+            // No-op
+        }
+    }
 }
 
 fn create_certs() {

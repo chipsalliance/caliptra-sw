@@ -409,6 +409,7 @@ dependencies = [
 name = "caliptra-rom"
 version = "0.1.0"
 dependencies = [
+ "arrayref",
  "caliptra-builder",
  "caliptra-drivers",
  "caliptra-hw-model",
@@ -434,6 +435,7 @@ version = "0.1.0"
 dependencies = [
  "caliptra-cpu",
  "caliptra-drivers",
+ "caliptra-registers",
  "caliptra-x509",
  "caliptra_common",
  "cfg-if",
