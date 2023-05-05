@@ -21,7 +21,8 @@ Abstract:
     (CSRNG) peripheral.
 
 --*/
-use crate::{caliptra_err_def, wait, CaliptraResult};
+use crate::wait;
+use crate::{caliptra_err_def, CaliptraResult};
 use caliptra_registers::{
     csrng,
     entropy_src::{self, regs::AlertFailCountsReadVal},

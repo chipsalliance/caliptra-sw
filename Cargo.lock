@@ -152,6 +152,7 @@ dependencies = [
  "bitfield",
  "bitflags 2.0.2",
  "caliptra-builder",
+ "caliptra-error",
  "caliptra-hw-model",
  "caliptra-registers",
  "cfg-if",
@@ -248,6 +249,10 @@ dependencies = [
 
 [[package]]
 name = "caliptra-emu-types"
+version = "0.1.0"
+
+[[package]]
+name = "caliptra-error"
 version = "0.1.0"
 
 [[package]]
