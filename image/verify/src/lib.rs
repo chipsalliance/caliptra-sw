@@ -46,7 +46,10 @@ pub struct ImageVerificationInfo {
     /// Vendor ECC public key index
     pub vendor_ecc_pub_key_idx: u32,
 
-    /// Owner public keys digest
+    /// Digest of vendor public keys that verified the image
+    pub vendor_pub_keys_digest: ImageDigest,
+
+    /// Digest of owner public keys that verified the image
     pub owner_pub_keys_digest: ImageDigest,
 
     /// First mutable code
