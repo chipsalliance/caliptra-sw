@@ -74,8 +74,8 @@ impl DiceLayer for FmcAliasLayer {
         // populate data vault
         Self::populate_data_vault(env, &info);
 
-        // Extend PCR0 & PCR1
-        Self::extend_pcrs(env)?;
+        // Extend PCR0
+        pcr::extend_pcr0(env)?;
 
         // Load the image
         Self::load_image(env, &manifest, &txn)?;
@@ -320,25 +320,6 @@ impl FmcAliasLayer {
 
         env.data_vault()
             .map(|d| d.write_warm_reset_entry4(WarmResetEntry4::ManifestAddr, slice));
-    }
-
-    /// Extend the PCR0 & PCR1
-    ///
-    /// PCR0 is a journey PCR and is locked for clear on cold boot. PCR1
-    /// is the current PCR and is cleared on any reset
-    ///
-    /// # Arguments
-    ///
-    /// * `env` - ROM Environment
-    fn extend_pcrs(env: &RomEnv) -> CaliptraResult<()> {
-        pcr::extend_pcr0(env)?;
-        pcr::extend_pcr1(env)?;
-
-        // TODO: Check PCR0 != 0
-
-        // TODO: Check PCR0 == PCR1
-
-        Ok(())
     }
 
     /// Derive Composite Device Identity (CDI) from FMC measurements
