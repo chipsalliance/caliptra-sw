@@ -20,8 +20,9 @@ use super::dice::{DiceInput, DiceLayer, DiceOutput};
 use super::x509::X509;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::flow::cold_reset::{KEY_ID_CDI, KEY_ID_FMC_PRIV_KEY};
+use crate::print::HexBytes;
 use crate::verifier::RomImageVerificationEnv;
-use crate::{cprint, cprint_slice, cprintln, pcr};
+use crate::{cprint, cprintln, pcr};
 use crate::{rom_env::RomEnv, rom_err_def};
 use caliptra_common::dice;
 use caliptra_drivers::{
@@ -73,8 +74,8 @@ impl DiceLayer for FmcAliasLayer {
         // populate data vault
         Self::populate_data_vault(env, &info);
 
-        // Extend PCR0 & PCR1
-        Self::extend_pcrs(env)?;
+        // Extend PCR0
+        pcr::extend_pcr0(env)?;
 
         // Load the image
         Self::load_image(env, &manifest, &txn)?;
@@ -321,25 +322,6 @@ impl FmcAliasLayer {
             .map(|d| d.write_warm_reset_entry4(WarmResetEntry4::ManifestAddr, slice));
     }
 
-    /// Extend the PCR0 & PCR1
-    ///
-    /// PCR0 is a journey PCR and is locked for clear on cold boot. PCR1
-    /// is the current PCR and is cleared on any reset
-    ///
-    /// # Arguments
-    ///
-    /// * `env` - ROM Environment
-    fn extend_pcrs(env: &RomEnv) -> CaliptraResult<()> {
-        pcr::extend_pcr0(env)?;
-        pcr::extend_pcr1(env)?;
-
-        // TODO: Check PCR0 != 0
-
-        // TODO: Check PCR0 == PCR1
-
-        Ok(())
-    }
-
     /// Derive Composite Device Identity (CDI) from FMC measurements
     ///
     /// # Arguments
@@ -436,13 +418,13 @@ impl FmcAliasLayer {
 
         let _pub_x: [u8; 48] = pub_key.x.into();
         let _pub_y: [u8; 48] = pub_key.y.into();
-        cprint_slice!("[afmc] PUB.X", _pub_x);
-        cprint_slice!("[afmc] PUB.Y", _pub_y);
+        cprintln!("[afmc] PUB.X = {}", HexBytes(&_pub_x));
+        cprintln!("[afmc] PUB.Y = {}", HexBytes(&_pub_y));
 
         let _sig_r: [u8; 48] = sig.r.into();
         let _sig_s: [u8; 48] = sig.s.into();
-        cprint_slice!("[afmc] SIG.R", _sig_r);
-        cprint_slice!("[afmc] SIG.S", _sig_s);
+        cprintln!("[afmc] SIG.R = {}", HexBytes(&_sig_r));
+        cprintln!("[afmc] SIG.S = {}", HexBytes(&_sig_s));
 
         // Lock the FMC Certificate Signature in data vault until next boot
         env.data_vault().map(|d| d.set_fmc_dice_signature(&sig));
