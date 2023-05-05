@@ -42,7 +42,7 @@ pub type Sha192Digest = HashValue<24>;
 pub type LmsIdentifier = [u8; 16];
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct HashValue<const N: usize>([u8; N]);
+pub struct HashValue<const N: usize>(pub [u8; N]);
 
 impl<const N: usize> Default for HashValue<N> {
     fn default() -> Self {
