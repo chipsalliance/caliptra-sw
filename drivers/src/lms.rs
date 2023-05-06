@@ -107,7 +107,6 @@ impl From<[u8; 32]> for HashValue<8> {
     }
 }
 
-
 impl<const N: usize> From<Array4x8> for HashValue<N> {
     fn from(data: Array4x8) -> Self {
         let mut result = [0u32; N];
@@ -394,7 +393,6 @@ impl Lms {
         }
         let mut z = [HashValue::<N>::default(); P];
 
-
         // TODO this buffer needs to be 34 bytes long to handle sha256 hashes
         // but for sha256/192 we only need 26 bytes
         // if we set the buffer to 34 we no longer fit in the ROM
@@ -402,7 +400,6 @@ impl Lms {
 
         //let mut message_hash_with_checksum = [0u8; 34]; // 2 extra bytes for the checksum. needs to be N+2
         let mut message_hash_with_checksum = [0u8; 26]; // 2 extra bytes for the checksum. needs to be N+2
-
 
         let mut i = 0;
         for val in message_digest.0.iter().take(N) {
