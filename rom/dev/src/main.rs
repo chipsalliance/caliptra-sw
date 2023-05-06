@@ -17,14 +17,13 @@ Abstract:
 use crate::lock::lock_registers;
 use core::hint::black_box;
 
-use caliptra_drivers::{report_fw_error_non_fatal, Mailbox};
+use caliptra_drivers::{caliptra_err_def, report_fw_error_non_fatal, Mailbox};
 use rom_env::RomEnv;
 
 #[cfg(not(feature = "std"))]
 core::arch::global_asm!(include_str!("start.S"));
 
 mod env_cell;
-mod error;
 mod exception;
 mod fht;
 mod flow;
@@ -35,8 +34,8 @@ mod print;
 mod rom_env;
 mod verifier;
 
-rom_err_def! {
-    Global,
+caliptra_err_def! {
+    RomGlobal,
     GlobalErr
     {
         Nmi= 0x1,

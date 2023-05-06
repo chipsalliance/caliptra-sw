@@ -14,6 +14,7 @@ caliptra-image-verify = { path = "../../image/verify", default-features = false 
 caliptra_common = { path = "../../common", default-features = false }
 ufmt = "0.2.0"
 zerocopy = "0.6.1"
+caliptra-error = { version = "0.1.0", path = "../../error", default_features = false }
 
 
 [build-dependencies]
@@ -36,13 +37,7 @@ openssl = "0.10"
 riscv = []
 default = ["std"]
 emu = ["caliptra-drivers/emu"]
-std = [
-  "caliptra-x509/std",
-  "caliptra-image-types/std",
-  "caliptra-image-verify/std",
-  "caliptra_common/std",
-  "ufmt/std",
-]
+std = ["caliptra-x509/std", "caliptra-image-types/std", "caliptra-image-verify/std", "caliptra_common/std", "ufmt/std"]
 no-fmc = []
 
 [[bin]]

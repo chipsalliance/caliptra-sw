@@ -21,14 +21,15 @@ use super::x509::X509;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::flow::cold_reset::{KEY_ID_CDI, KEY_ID_FMC_PRIV_KEY};
 use crate::print::HexBytes;
+use crate::rom_env::RomEnv;
 use crate::verifier::RomImageVerificationEnv;
 use crate::{cprint, cprintln, pcr};
-use crate::{rom_env::RomEnv, rom_err_def};
 use caliptra_common::dice;
 use caliptra_drivers::{
     okref, Array4x12, CaliptraResult, ColdResetEntry4, ColdResetEntry48, Hmac384Data, Hmac384Key,
     KeyId, KeyReadArgs, Lifecycle, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
+use caliptra_error::caliptra_err_def;
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
 use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams, NotAfter, NotBefore};
@@ -38,7 +39,7 @@ extern "C" {
     static mut MAN1_ORG: u32;
 }
 
-rom_err_def! {
+caliptra_err_def! {
     FmcAlias,
     FmcAliasErr
     {
