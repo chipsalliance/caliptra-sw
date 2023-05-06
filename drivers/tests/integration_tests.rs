@@ -283,12 +283,10 @@ fn test_lms_24() {
     run_driver_test("test_lms_24");
 }
 
-/*
 #[test]
 fn test_lms_32() {
     run_driver_test("test_lms_32");
 }
-*/
 
 #[test]
 fn test_negative_lms() {
