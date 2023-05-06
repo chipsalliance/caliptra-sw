@@ -36,10 +36,6 @@ impl LmsKat {
         self.kat_lms_24(lms)
     }
 
-    fn _kat_lms_24(&self, _lms: &Lms) -> CaliptraResult<()> {
-        Ok(())
-    }
-
     fn kat_lms_24(&self, lms: &Lms) -> CaliptraResult<()> {
         const MESSAGE: [u8; 33] = [
             116, 104, 105, 115, 32, 105, 115, 32, 116, 104, 101, 32, 109, 101, 115, 115, 97, 103,
@@ -48,10 +44,12 @@ impl LmsKat {
         const LMS_IDENTIFIER: LmsIdentifier = [
             158, 20, 249, 74, 242, 177, 66, 175, 101, 91, 176, 36, 80, 31, 240, 7,
         ];
-        const Q :u32 = 0;
+        const Q: u32 = 0;
         const LMOTS_TYPE: LmotsAlgorithmType = LmotsAlgorithmType::LmotsSha256N24W4;
         const LMS_TYPE: LmsAlgorithmType = LmsAlgorithmType::LmsSha256N24H15;
-        const LMS_PUBLIC_KEY :HashValue<6> = HashValue([53125821, 2603739581, 860571182, 662249589, 3182288302, 4193104164]);
+        const LMS_PUBLIC_KEY: HashValue<6> = HashValue([
+            53125821, 2603739581, 860571182, 662249589, 3182288302, 4193104164,
+        ]);
         const NONCE: [u32; 6] = [
             3022260699, 3712621641, 4235802516, 1978255207, 478105939, 4149435076,
         ];
@@ -273,7 +271,7 @@ impl LmsKat {
         };
 
         let success =
-            lms.verify_lms_signature( &MESSAGE, &LMS_IDENTIFIER, Q, &LMS_PUBLIC_KEY, &LMS_SIG)?;
+            lms.verify_lms_signature(&MESSAGE, &LMS_IDENTIFIER, Q, &LMS_PUBLIC_KEY, &LMS_SIG)?;
         if !success {
             raise_err!(DigestMismatch);
         }

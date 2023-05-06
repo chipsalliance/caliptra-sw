@@ -27,7 +27,6 @@ pub const ROM_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
     features: &["emu"],
-    //features: &[],
 };
 
 pub const FMC_WITH_UART: FwId = FwId {
