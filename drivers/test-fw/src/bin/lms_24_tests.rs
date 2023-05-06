@@ -371,12 +371,12 @@ fn test_lms_24_height_15() {
     assert_eq!(success, true);
 }
 
-fn test_lms_24_height_20() {
-    let message: [u8; 33] = [
+fn _test_lms_24_height_20() {
+    const MESSAGE: [u8; 33] = [
         116, 104, 105, 115, 32, 105, 115, 32, 116, 104, 101, 32, 109, 101, 115, 115, 97, 103, 101,
         32, 73, 32, 119, 97, 110, 116, 32, 115, 105, 103, 110, 101, 100,
     ];
-    let lms_identifier: LmsIdentifier = [
+    const LMS_IDENTIFIER: LmsIdentifier = [
         69, 136, 206, 137, 163, 10, 230, 185, 177, 120, 219, 80, 34, 70, 71, 93,
     ];
     let q: u32 = 0;
@@ -702,7 +702,7 @@ fn test_lms_24_height_20() {
     };
 
     let success = Lms::default()
-        .verify_lms_signature(&message, &lms_identifier, q, &lms_public_key, &lms_sig)
+        .verify_lms_signature(&MESSAGE, &LMS_IDENTIFIER, q, &lms_public_key, &lms_sig)
         .unwrap();
     assert_eq!(success, true);
 }

@@ -92,6 +92,22 @@ impl From<[u8; 24]> for HashValue<6> {
     }
 }
 
+impl From<[u8; 32]> for HashValue<8> {
+    fn from(data: [u8; 32]) -> Self {
+        let mut result = [0u32; 8];
+        for i in 0..8 {
+            result[i] = u32::from_be_bytes([
+                data[i * 4],
+                data[i * 4 + 1],
+                data[i * 4 + 2],
+                data[i * 4 + 3],
+            ]);
+        }
+        HashValue(result)
+    }
+}
+
+
 impl<const N: usize> From<Array4x8> for HashValue<N> {
     fn from(data: Array4x8) -> Self {
         let mut result = [0u32; N];
@@ -377,9 +393,17 @@ impl Lms {
             raise_err!(InvalidHashWidth);
         }
         let mut z = [HashValue::<N>::default(); P];
+
+
+        // TODO this buffer needs to be 34 bytes long to handle sha256 hashes
+        // but for sha256/192 we only need 26 bytes
+        // if we set the buffer to 34 we no longer fit in the ROM
+        // as a result the lms_32_tests are commented out
+
         //let mut message_hash_with_checksum = [0u8; 34]; // 2 extra bytes for the checksum. needs to be N+2
-        let mut message_hash_with_checksum = [0u8; 24 + 2]; // 2 extra bytes for the checksum. needs to be N+2
-                                                            //message_hash_with_checksum[..N].copy_from_slice(&message_digest.0[..N]);
+        let mut message_hash_with_checksum = [0u8; 26]; // 2 extra bytes for the checksum. needs to be N+2
+
+
         let mut i = 0;
         for val in message_digest.0.iter().take(N) {
             message_hash_with_checksum[i..i + 4].clone_from_slice(&val.to_be_bytes());
