@@ -89,8 +89,8 @@ impl<'a> ImageVerificationEnv for RomImageVerificationEnv<'a> {
         self.env.fuse_bank().map(|f| f.vendor_pub_key_revocation())
     }
 
-    /// Retrieve Owner Public Key Digest
-    fn owner_pub_key_digest(&self, _image: Self::Image) -> ImageDigest {
+    /// Retrieve Owner Public Key Digest from fuses
+    fn owner_pub_key_digest_fuses(&self) -> ImageDigest {
         self.env.fuse_bank().map(|f| f.owner_pub_key_hash()).into()
     }
 

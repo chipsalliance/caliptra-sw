@@ -130,10 +130,32 @@ pub struct ImageManifest {
 
 impl ImageManifest {
     /// Returns the `Range<u32>` containing the vendor public keys
-    pub fn vendor_pub_key_range() -> Range<u32> {
+    pub fn vendor_pub_keys_range() -> Range<u32> {
         let offset = offset_of!(ImageManifest, preamble) as u32;
         let span = span_of!(ImagePreamble, vendor_pub_keys);
         span.start as u32 + offset..span.end as u32 + offset
+    }
+
+    /// Returns the `Range<u32>` containing the specified vendor public key,
+    /// or an empty range if the index is invalid.
+    pub fn vendor_pub_key_range(vendor_ecc_pub_key_idx: u32) -> Range<u32> {
+        if vendor_ecc_pub_key_idx > VENDOR_ECC_KEY_COUNT {
+            return 0..0;
+        }
+
+        let pub_key_size = (2 * 4 * ECC384_SCALAR_WORD_SIZE) as u32;
+        let range = Self::vendor_pub_keys_range();
+
+        // Sanity check
+        // TODO: can remove this when LMS keys are added
+        if range.len() as u32 != VENDOR_ECC_KEY_COUNT * pub_key_size {
+            return 0..0;
+        }
+
+        let offset = (offset_of!(ImageVendorPubKeys, ecc_pub_keys) as u32)
+            + vendor_ecc_pub_key_idx * pub_key_size;
+
+        range.start + offset..range.len() as u32 + offset
     }
 
     /// Returns `Range<u32>` containing the owner public key
@@ -161,6 +183,7 @@ impl ImageManifest {
 pub struct ImageVendorPubKeys {
     pub ecc_pub_keys: [ImageEccPubKey; VENDOR_ECC_KEY_COUNT as usize],
     // TODO: Add LMS Public Keys here
+    // TODO: Update vendor_pub_key_range to pick up the new LMS keys
 }
 
 #[repr(C)]

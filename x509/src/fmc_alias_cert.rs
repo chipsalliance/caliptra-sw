@@ -54,8 +54,11 @@ mod tests {
                     issuer_key.sha1(),
                 )
                 .unwrap(),
-            tcb_info_owner_pk_hash: &[0xCDu8; FmcAliasCertTbsParams::TCB_INFO_OWNER_PK_HASH_LEN],
-            tcb_info_fmc_tci: &[0xEFu8; FmcAliasCertTbsParams::TCB_INFO_FMC_TCI_LEN],
+            tcb_info_flags: &[0xB0, 0xB1, 0xB2, 0xB3],
+            tcb_info_owner_pk_hash: &[0xB5u8; FmcAliasCertTbsParams::TCB_INFO_OWNER_PK_HASH_LEN],
+            tcb_info_fmc_tci: &[0xB6u8; FmcAliasCertTbsParams::TCB_INFO_FMC_TCI_LEN],
+            tcb_info_svn: &[0xB7],
+            tcb_info_min_svn: &[0xB8],
             not_before: &NotBefore::default().not_before,
             not_after: &NotAfter::default().not_after,
         };
@@ -102,6 +105,11 @@ mod tests {
             params.authority_key_id,
         );
         assert_eq!(
+            &cert.tbs()[FmcAliasCertTbs::TCB_INFO_FLAGS_OFFSET
+                ..FmcAliasCertTbs::TCB_INFO_FLAGS_OFFSET + FmcAliasCertTbs::TCB_INFO_FLAGS_LEN],
+            params.tcb_info_flags,
+        );
+        assert_eq!(
             &cert.tbs()[FmcAliasCertTbs::TCB_INFO_OWNER_PK_HASH_OFFSET
                 ..FmcAliasCertTbs::TCB_INFO_OWNER_PK_HASH_OFFSET
                     + FmcAliasCertTbs::TCB_INFO_OWNER_PK_HASH_LEN],
@@ -111,6 +119,16 @@ mod tests {
             &cert.tbs()[FmcAliasCertTbs::TCB_INFO_FMC_TCI_OFFSET
                 ..FmcAliasCertTbs::TCB_INFO_FMC_TCI_OFFSET + FmcAliasCertTbs::TCB_INFO_FMC_TCI_LEN],
             params.tcb_info_fmc_tci,
+        );
+        assert_eq!(
+            &cert.tbs()[FmcAliasCertTbs::TCB_INFO_SVN_OFFSET
+                ..FmcAliasCertTbs::TCB_INFO_SVN_OFFSET + FmcAliasCertTbs::TCB_INFO_SVN_LEN],
+            params.tcb_info_svn,
+        );
+        assert_eq!(
+            &cert.tbs()[FmcAliasCertTbs::TCB_INFO_MIN_SVN_OFFSET
+                ..FmcAliasCertTbs::TCB_INFO_MIN_SVN_OFFSET + FmcAliasCertTbs::TCB_INFO_MIN_SVN_LEN],
+            params.tcb_info_min_svn,
         );
 
         let ecdsa_sig = crate::Ecdsa384Signature {

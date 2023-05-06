@@ -341,7 +341,7 @@ fn send_command(command: Command) -> CaliptraResult<()> {
         if reg.cmd_sts() {
             // TODO(rkr35): Somehow convey additional error information found in
             // the ERR_CODE register.
-            return Err(u32::from(err));
+            return Err(err.into());
         }
 
         if reg.cmd_rdy() {

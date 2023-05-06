@@ -9,6 +9,8 @@ use std::{
 
 use caliptra_emu_bus::Bus;
 
+use caliptra_registers::mbox;
+use caliptra_registers::mbox::enums::{MboxFsmE, MboxStatusE};
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 
 pub mod mmio;
@@ -28,6 +30,7 @@ pub use model_emulated::ModelEmulated;
 
 #[cfg(feature = "verilator")]
 pub use model_verilated::ModelVerilated;
+use ureg::Mmio;
 
 /// Ideally, general-purpose functions would return `impl HwModel` instead of
 /// `DefaultHwModel` to prevent users from calling functions that aren't
@@ -125,6 +128,9 @@ pub enum ModelError {
     UnknownCommandStatus(u32),
     NotReadyForFwErr,
     ReadyForFirmwareTimeout { cycles: u32 },
+    ProvidedIccmTooLarge,
+    ProvidedDccmTooLarge,
+    UnexpectedMailboxFsmStatus { expected: u32, actual: u32 },
 }
 impl Error for ModelError {}
 impl Display for ModelError {
@@ -145,8 +151,106 @@ impl Display for ModelError {
                 f,
                 "Ready-for-firmware signal not received after {cycles} cycles"
             ),
+            ModelError::ProvidedDccmTooLarge => write!(f, "Provided DCCM image too large"),
+            ModelError::ProvidedIccmTooLarge => write!(f, "Provided ICCM image too large"),
+            ModelError::UnexpectedMailboxFsmStatus { expected, actual } => write!(
+                f,
+                "Expected mailbox FSM status to be {expected}, was {actual}"
+            ),
         }
     }
+}
+
+pub struct MailboxRequest {
+    pub cmd: u32,
+    pub data: Vec<u8>,
+}
+
+pub struct MailboxRecvTxn<'a, TModel: HwModel> {
+    model: &'a mut TModel,
+    pub req: MailboxRequest,
+}
+impl<'a, Model: HwModel> MailboxRecvTxn<'a, Model> {
+    pub fn respond_success(self) {
+        self.complete(MboxStatusE::CmdComplete);
+    }
+    pub fn respond_failure(self) {
+        self.complete(MboxStatusE::CmdFailure);
+    }
+    pub fn respond_with_data(self, data: &[u8]) -> Result<(), ModelError> {
+        let mbox = self.model.soc_mbox();
+        let mbox_fsm_ps = mbox.status().read().mbox_fsm_ps();
+        if !mbox_fsm_ps.mbox_execute_soc() {
+            return Err(ModelError::UnexpectedMailboxFsmStatus {
+                expected: MboxFsmE::MboxExecuteSoc as u32,
+                actual: mbox_fsm_ps as u32,
+            });
+        }
+        mbox_write_fifo(&mbox, data)?;
+        drop(mbox);
+        self.complete(MboxStatusE::DataReady);
+        Ok(())
+    }
+
+    fn complete(self, status: MboxStatusE) {
+        self.model
+            .soc_mbox()
+            .status()
+            .write(|w| w.status(|_| status));
+        // mbox_fsm_ps isn't updated immediately after execute is cleared (!?),
+        // so step an extra clock cycle to wait for fm_ps to update
+        self.model.step();
+        assert!(self
+            .model
+            .soc_mbox()
+            .status()
+            .read()
+            .mbox_fsm_ps()
+            .mbox_execute_uc());
+    }
+}
+
+fn mbox_read_fifo(mbox: mbox::RegisterBlock<impl Mmio>) -> Vec<u8> {
+    let mut dlen = mbox.dlen().read();
+    let mut result = vec![];
+    while dlen >= 4 {
+        result.extend_from_slice(&mbox.dataout().read().to_le_bytes());
+        dlen -= 4;
+    }
+    if dlen > 0 {
+        // Unwrap cannot panic because dlen is less than 4
+        result.extend_from_slice(
+            &mbox.dataout().read().to_le_bytes()[..usize::try_from(dlen).unwrap()],
+        );
+    }
+    result
+}
+
+fn mbox_write_fifo(mbox: &mbox::RegisterBlock<impl Mmio>, buf: &[u8]) -> Result<(), ModelError> {
+    const MAILBOX_SIZE: u32 = 128 * 1024;
+
+    let Ok(input_len) = u32::try_from(buf.len()) else {
+        return Err(ModelError::BufferTooLargeForMailbox);
+    };
+    if input_len > MAILBOX_SIZE {
+        return Err(ModelError::BufferTooLargeForMailbox);
+    }
+    mbox.dlen().write(|_| input_len);
+
+    let mut remaining = buf;
+    while remaining.len() >= 4 {
+        // Panic is impossible because the subslice is always 4 bytes
+        let word = u32::from_le_bytes(remaining[..4].try_into().unwrap());
+        mbox.datain().write(|_| word);
+        remaining = &remaining[4..];
+    }
+    if !remaining.is_empty() {
+        let mut word_bytes = [0u8; 4];
+        word_bytes[..remaining.len()].copy_from_slice(remaining);
+        let word = u32::from_le_bytes(word_bytes);
+        mbox.datain().write(|_| word);
+    }
+    Ok(())
 }
 
 /// Firmware Load Command Opcode
@@ -311,6 +415,12 @@ pub trait HwModel {
         Ok(())
     }
 
+    fn step_until_output_contains(&mut self, substr: &str) -> Result<(), Box<dyn Error>> {
+        self.output().set_search_term(substr);
+        self.step_until(|m| m.output().search_matched());
+        Ok(())
+    }
+
     /// A register block that can be used to manipulate the soc_ifc peripheral
     /// over the simulated SoC->Caliptra APB bus.
     fn soc_ifc(&mut self) -> caliptra_registers::soc_ifc::RegisterBlock<BusMmio<Self::TBus<'_>>> {
@@ -345,39 +455,19 @@ pub trait HwModel {
         cmd: u32,
         buf: &[u8],
     ) -> std::result::Result<Option<Vec<u8>>, ModelError> {
-        const MAILBOX_SIZE: u32 = 128 * 1024;
-
         if self.soc_mbox().lock().read().lock() {
             return Err(ModelError::UnableToLockMailbox);
         }
-        let Ok(input_len) = u32::try_from(buf.len()) else {
-            return Err(ModelError::BufferTooLargeForMailbox);
-        };
-        if input_len > MAILBOX_SIZE {
-            return Err(ModelError::BufferTooLargeForMailbox);
-        }
-
-        self.soc_mbox().cmd().write(|_| cmd);
-        self.soc_mbox().dlen().write(|_| input_len);
 
         writeln!(
             self.output().logger(),
-            "<<< Executing mbox cmd 0x{cmd:08x} ({input_len} bytes) from SoC"
+            "<<< Executing mbox cmd 0x{cmd:08x} ({} bytes) from SoC",
+            buf.len(),
         )
         .unwrap();
-        let mut remaining = buf;
-        while remaining.len() >= 4 {
-            // Panic is impossible because the subslice is always 4 bytes
-            let word = u32::from_le_bytes(remaining[..4].try_into().unwrap());
-            self.soc_mbox().datain().write(|_| word);
-            remaining = &remaining[4..];
-        }
-        if !remaining.is_empty() {
-            let mut word_bytes = [0u8; 4];
-            word_bytes[..remaining.len()].copy_from_slice(remaining);
-            let word = u32::from_le_bytes(word_bytes);
-            self.soc_mbox().datain().write(|_| word);
-        }
+
+        self.soc_mbox().cmd().write(|_| cmd);
+        mbox_write_fifo(&self.soc_mbox(), buf)?;
 
         // Ask the microcontroller to execute this command
         self.soc_mbox().execute().write(|w| w.execute(true));
@@ -401,24 +491,13 @@ pub trait HwModel {
             return Err(ModelError::UnknownCommandStatus(status as u32));
         }
 
-        let mut result = vec![];
-        let mut dlen = self.soc_mbox().dlen().read();
-
+        let dlen = self.soc_mbox().dlen().read();
         writeln!(
             self.output().logger(),
             ">>> mbox cmd response data ({dlen} bytes)"
         )
         .unwrap();
-        while dlen >= 4 {
-            result.extend_from_slice(&self.soc_mbox().dataout().read().to_le_bytes());
-            dlen -= 4;
-        }
-        if dlen > 0 {
-            // Unwrap cannot panic because dlen is less than 4
-            result.extend_from_slice(
-                &self.soc_mbox().dataout().read().to_le_bytes()[..usize::try_from(dlen).unwrap()],
-            );
-        }
+        let result = mbox_read_fifo(self.soc_mbox());
 
         self.soc_mbox().execute().write(|w| w.execute(false));
         // mbox_fsm_ps isn't updated immediately after execute is cleared (!?),
@@ -436,6 +515,40 @@ pub trait HwModel {
         }
         Ok(())
     }
+
+    fn wait_for_mailbox_receive(&mut self) -> Result<MailboxRecvTxn<Self>, ModelError>
+    where
+        Self: Sized,
+    {
+        loop {
+            if let Some(txn) = self.try_mailbox_receive()? {
+                let req = txn.req;
+                return Ok(MailboxRecvTxn { model: self, req });
+            }
+        }
+    }
+
+    fn try_mailbox_receive(&mut self) -> Result<Option<MailboxRecvTxn<Self>>, ModelError>
+    where
+        Self: Sized,
+    {
+        if !self
+            .soc_mbox()
+            .status()
+            .read()
+            .mbox_fsm_ps()
+            .mbox_execute_soc()
+        {
+            self.step();
+            return Ok(None);
+        }
+        let cmd = self.soc_mbox().cmd().read();
+        let data = mbox_read_fifo(self.soc_mbox());
+        Ok(Some(MailboxRecvTxn {
+            model: self,
+            req: MailboxRequest { cmd, data },
+        }))
+    }
 }
 
 #[cfg(test)]
@@ -444,7 +557,7 @@ mod tests {
     use caliptra_builder::FwId;
     use caliptra_emu_bus::Bus;
     use caliptra_emu_types::RvSize;
-    use caliptra_registers::soc_ifc;
+    use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc};
 
     use crate as caliptra_hw_model;
 
@@ -604,5 +717,52 @@ mod tests {
             model.mailbox_execute(0x4000_0000, &message),
             Err(ModelError::MailboxCmdFailed)
         );
+    }
+
+    #[test]
+    pub fn test_mailbox_receive() {
+        let rom = caliptra_builder::build_firmware_rom(&FwId {
+            crate_name: "caliptra-hw-model-test-fw",
+            bin_name: "mailbox_sender",
+            features: &["emu"],
+        })
+        .unwrap();
+
+        let mut model = caliptra_hw_model::new(BootParams {
+            init_params: InitParams {
+                rom: &rom,
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .unwrap();
+
+        // Test 8-byte request, respond-with-success
+        let txn = model.wait_for_mailbox_receive().unwrap();
+        assert_eq!(txn.req.cmd, 0xe000_0000);
+        assert_eq!(
+            txn.req.data,
+            [0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef]
+        );
+        txn.respond_success();
+        model.step_until(|m| m.soc_ifc().cptra_fw_extended_error_info().at(0).read() != 0);
+        assert_eq!(
+            &model.soc_ifc().cptra_fw_extended_error_info().read()[..2],
+            &[MboxStatusE::CmdComplete as u32, 8]
+        );
+
+        // Test 3-byte request, respond with failure
+        let txn = model.wait_for_mailbox_receive().unwrap();
+        assert_eq!(txn.req.cmd, 0xe000_1000);
+        assert_eq!(txn.req.data, [0xdd, 0xcc, 0xbb]);
+        txn.respond_failure();
+        model.step_until(|m| m.soc_ifc().cptra_fw_extended_error_info().at(0).read() != 0);
+        assert_eq!(
+            &model.soc_ifc().cptra_fw_extended_error_info().read()[..2],
+            &[MboxStatusE::CmdFailure as u32, 3]
+        );
+
+        // TODO: Add test for txn.respond_with_data (this doesn't work yet due
+        // to https://github.com/chipsalliance/caliptra-rtl/issues/78)
     }
 }

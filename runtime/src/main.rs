@@ -35,18 +35,10 @@ const BANNER: &str = r#"
 pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
 
-    if let Some(fht) = caliptra_common::FirmwareHandoffTable::try_load() {
-        cprintln!("[rt] FHT Marker: 0x{:08X}", fht.fht_marker);
-        cprintln!("[rt] FHT Major Version: 0x{:04X}", fht.fht_major_ver);
-        cprintln!("[rt] FHT Minor Version: 0x{:04X}", fht.fht_minor_ver);
-        cprintln!("[rt] FHT Manifest Addr: 0x{:08X}", fht.manifest_load_addr);
-        cprintln!("[rt] FHT FMC CDI KV KeyID: {}", fht.fmc_cdi_kv_idx);
-        cprintln!("[rt] FHT FMC PrivKey KV KeyID: {}", fht.fmc_priv_key_kv_idx);
-        cprintln!(
-            "[rt] FHT RT Load Address: 0x{:08x}",
-            fht.rt_fw_load_addr_idx
-        );
-        cprintln!("[rt] FHT RT Entry Point: 0x{:08x}", fht.rt_fw_load_addr_idx);
+    if let Some(_fht) = caliptra_common::FirmwareHandoffTable::try_load() {
+        cprintln!("Caliptra RT listening for mailbox commands...");
+        caliptra_runtime::handle_mailbox_commands();
+
         caliptra_drivers::ExitCtrl::exit(0)
     } else {
         caliptra_drivers::ExitCtrl::exit(0xff)
@@ -58,7 +50,7 @@ pub extern "C" fn entry_point() -> ! {
 #[allow(clippy::empty_loop)]
 extern "C" fn exception_handler(trap_record: &TrapRecord) {
     cprintln!(
-        "FMC EXCEPTION mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
+        "RT EXCEPTION mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
         trap_record.mcause,
         trap_record.mscause,
         trap_record.mepc
@@ -73,7 +65,7 @@ extern "C" fn exception_handler(trap_record: &TrapRecord) {
 #[allow(clippy::empty_loop)]
 extern "C" fn nmi_handler(trap_record: &TrapRecord) {
     cprintln!(
-        "FMC NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
+        "RT NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
         trap_record.mcause,
         trap_record.mscause,
         trap_record.mepc

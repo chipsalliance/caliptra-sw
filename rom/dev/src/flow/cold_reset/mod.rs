@@ -27,10 +27,13 @@ use crate::flow::cold_reset::ldev_id::LocalDevIdLayer;
 use crate::{cprintln, rom_env::RomEnv};
 use caliptra_common::FirmwareHandoffTable;
 use caliptra_drivers::*;
-use crypto::Ecc384KeyPair;
 
+pub const KEY_ID_UDS: KeyId = KeyId::KeyId0;
+pub const KEY_ID_FE: KeyId = KeyId::KeyId1;
 pub const KEY_ID_CDI: KeyId = KeyId::KeyId6;
-pub const KEY_ID_PRIV_KEY: KeyId = KeyId::KeyId7;
+pub const KEY_ID_IDEVID_PRIV_KEY: KeyId = KeyId::KeyId7;
+pub const KEY_ID_LDEVID_PRIV_KEY: KeyId = KeyId::KeyId5;
+pub const KEY_ID_FMC_PRIV_KEY: KeyId = KeyId::KeyId7;
 
 extern "C" {
     static mut LDEVID_TBS_ORG: u8;
@@ -60,19 +63,7 @@ impl ColdResetFlow {
             compose_layers(LocalDevIdLayer::derive, FmcAliasLayer::derive),
         );
 
-        // Create initial output
-        let input = DiceInput {
-            cdi: KEY_ID_CDI,
-            subj_priv_key: KEY_ID_PRIV_KEY,
-            auth_key_pair: Ecc384KeyPair {
-                priv_key: KeyId::KeyId5,
-                pub_key: Ecc384PubKey::default(),
-            },
-            auth_sn: [0u8; 64],
-            auth_key_id: [0u8; 20],
-            uds_key: KeyId::KeyId0,
-            fe_key: KeyId::KeyId1,
-        };
+        let input = DiceInput::default();
 
         let _ = dice_fn(env, &input)?;
 

@@ -55,6 +55,16 @@ path = "src/bin/ecc384_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "mailbox_driver_responder"
+path = "src/bin/mailbox_driver_responder.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "mailbox_driver_sender"
+path = "src/bin/mailbox_driver_sender.rs"
+required-features = ["riscv"]
+
+[[bin]]
 name = "keyvault"
 path = "src/bin/keyvault_tests.rs"
 required-features = ["riscv"]

@@ -74,7 +74,7 @@ pub extern "C" fn rom_entry() -> ! {
 
     let result = kat::execute_kat(&env);
     if let Err(err) = result {
-        report_error(err);
+        report_error(err.into());
     }
 
     let result = flow::run(&env);
@@ -85,7 +85,7 @@ pub extern "C" fn rom_entry() -> ! {
 
             fht::load_fht(fht);
         }
-        Err(err) => report_error(err),
+        Err(err) => report_error(err.into()),
     }
 
     #[cfg(not(feature = "no-fmc"))]

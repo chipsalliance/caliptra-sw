@@ -12,15 +12,13 @@ File Name:
 ++*/
 
 use crate::fmc_env::FmcEnv;
-use caliptra_common::{cprintln, FirmwareHandoffTable};
-use caliptra_drivers::{Array4x12, WarmResetEntry4, WarmResetEntry48};
-
+use caliptra_common::DataStore::*;
+use caliptra_common::{DataStore, FirmwareHandoffTable};
+use caliptra_drivers::Array4x12;
 #[cfg(feature = "riscv")]
 core::arch::global_asm!(include_str!("transfer_control.S"));
 
-const ICCM_ORG: u32 = 0x40000000;
-const ICCM_SIZE: u32 = 128 << 10;
-
+struct IccmAddress(u32);
 struct MemoryRegion {
     start: u32,
     size: u32,
@@ -32,41 +30,29 @@ impl MemoryRegion {
     }
 }
 
-const ICCM: MemoryRegion = MemoryRegion {
-    start: ICCM_ORG,
-    size: ICCM_SIZE,
-};
+impl IccmAddress {
+    const ICCM_ORG: u32 = 0x40000000;
+    const ICCM_SIZE: u32 = 128 << 10;
+    const ICCM: MemoryRegion = MemoryRegion {
+        start: Self::ICCM_ORG,
+        size: Self::ICCM_SIZE,
+    };
+
+    /// Validate that the address is within the ICCM region.
+    pub fn is_valid(&self) -> bool {
+        Self::ICCM.validate_address(self.0)
+    }
+}
 
 pub struct HandOff {
     fht: FirmwareHandoffTable,
 }
 
-pub fn dump_fht(fht: &FirmwareHandoffTable) {
-    cprintln!("[fmc] FHT Marker: 0x{:08X}", fht.fht_marker);
-    cprintln!("[fmc] FHT Major Version: 0x{:04X}", fht.fht_major_ver);
-    cprintln!("[fmc] FHT Minor Version: 0x{:04X}", fht.fht_minor_ver);
-    cprintln!("[fmc] FHT Manifest Addr: 0x{:08X}", fht.manifest_load_addr);
-    cprintln!("[fmc] FHT FMC CDI KV KeyID: {}", fht.fmc_cdi_kv_idx);
-    cprintln!(
-        "[fmc] FHT FMC PrivKey KV KeyID: {}",
-        fht.fmc_priv_key_kv_idx
-    );
-    cprintln!(
-        "[fmc] FHT RT Load Address: 0x{:08x}",
-        fht.rt_fw_entry_point_idx
-    );
-    cprintln!(
-        "[fmc] FHT RT Entry Point: 0x{:08x}",
-        fht.rt_fw_load_addr_idx
-    );
-}
-
 impl HandOff {
+    /// Create a new `HandOff` from the FHT table.
     pub fn from_previous() -> Option<HandOff> {
         // try_load performs basic sanity check of the FHT (check FHT marker, valid indices, etc.)
         if let Some(fht) = FirmwareHandoffTable::try_load() {
-            dump_fht(&fht);
-
             let me = Self { fht };
 
             return Some(me);
@@ -74,48 +60,93 @@ impl HandOff {
         None
     }
 
+    /// Transfer control to the runtime firmware.
     pub fn to_rt(&self, env: &FmcEnv) -> ! {
         // Function is defined in start.S
         extern "C" {
             fn transfer_control(entry: u32) -> !;
         }
-        let rt_entry = self.rt_entry_point(env);
-        cprintln!("[exit] Launching RT @ 0x{:08X}", rt_entry);
+        // Retrieve runtime entry point
+        let rt_entry = IccmAddress(self.rt_entry_point(env));
 
-        if !ICCM.validate_address(rt_entry) {
+        if !rt_entry.is_valid() {
             crate::report_error(0xdead);
         }
         // Exit FMC and jump to speicified entry point
-        unsafe { transfer_control(rt_entry) }
+        unsafe { transfer_control(rt_entry.0) }
     }
 
     /// Retrieve runtime TCI (digest)
     pub fn rt_tci(&self, env: &FmcEnv) -> Array4x12 {
-        env.data_vault().map(|d| {
-            d.read_warm_reset_entry48(
-                WarmResetEntry48::try_from(self.fht.rt_tci_dv_idx)
-                    .unwrap_or_else(|_| crate::report_error(0xdead)),
-            )
-        })
+        let ds: DataStore = self.fht.rt_tci_dv_hdl.try_into().unwrap_or_else(|_| {
+            caliptra_common::report_handoff_error_and_halt("Invalid TCI DV handle", 0xbabedead)
+        });
+
+        // The data store is either a warm reset entry or a cold reset entry.
+        match ds {
+            DataVaultNonSticky48(dv_entry) => {
+                return env
+                    .data_vault()
+                    .map(|d| d.read_warm_reset_entry48(dv_entry));
+            }
+            DataVaultSticky48(dv_entry) => {
+                return env
+                    .data_vault()
+                    .map(|d| d.read_cold_reset_entry48(dv_entry));
+            }
+            _ => {
+                crate::report_error(0xbabedead);
+            }
+        }
     }
 
     /// Retrieve runtime security version number.
     pub fn rt_svn(&self, env: &FmcEnv) -> u32 {
-        env.data_vault().map(|d| {
-            d.read_warm_reset_entry4(
-                WarmResetEntry4::try_from(self.fht.rt_svn_dv_idx)
-                    .unwrap_or_else(|_| crate::report_error(0xdead)),
+        let ds: DataStore = self.fht.rt_svn_dv_hdl.try_into().unwrap_or_else(|_| {
+            caliptra_common::report_handoff_error_and_halt(
+                "Invalid runtime SVN DV handle",
+                0xbabedead,
             )
-        })
+        });
+
+        // The data store is either a warm reset entry or a cold reset entry inside
+        // the data vault.
+        match ds {
+            DataVaultNonSticky4(dv_entry) => {
+                return env.data_vault().map(|d| d.read_warm_reset_entry4(dv_entry));
+            }
+            DataVaultSticky4(dv_entry) => {
+                return env.data_vault().map(|d| d.read_cold_reset_entry4(dv_entry));
+            }
+            _ => {
+                crate::report_error(0xbabedead);
+            }
+        }
     }
 
-    /// Retrieve runtime entry point
+    /// Retrieve the entry point of the runtime firmware.
     fn rt_entry_point(&self, env: &FmcEnv) -> u32 {
-        env.data_vault().map(|d| {
-            d.read_warm_reset_entry4(
-                WarmResetEntry4::try_from(self.fht.rt_fw_entry_point_idx)
-                    .unwrap_or_else(|_| crate::report_error(0xdead)),
-            )
-        })
+        let ds: DataStore = self
+            .fht
+            .rt_fw_entry_point_hdl
+            .try_into()
+            .unwrap_or_else(|_| {
+                caliptra_common::report_handoff_error_and_halt(
+                    "Invalid runtime entry point DV handle",
+                    0xbabedead,
+                )
+            });
+        // The data store is either a warm reset entry or a cold reset entry.
+        match ds {
+            DataVaultNonSticky4(dv_entry) => {
+                return env.data_vault().map(|d| d.read_warm_reset_entry4(dv_entry));
+            }
+            DataVaultSticky4(dv_entry) => {
+                return env.data_vault().map(|d| d.read_cold_reset_entry4(dv_entry));
+            }
+            _ => {
+                crate::report_error(0xbabedead);
+            }
+        }
     }
 }

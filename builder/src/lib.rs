@@ -112,10 +112,15 @@ pub fn build_firmware_elf(id: &FwId) -> io::Result<Vec<u8>> {
         features_csv.push_str("riscv");
     }
 
+    let mut cmd = Command::new(env!("CARGO"));
+    cmd.current_dir(WORKSPACE_DIR);
+    if option_env!("GITHUB_ACTIONS").is_some() {
+        // In continuous integration, warnings are always errors.
+        cmd.arg("--config")
+            .arg("target.'cfg(all())'.rustflags = [\"-Dwarnings\"]");
+    }
     run_cmd(
-        Command::new(env!("CARGO"))
-            .current_dir(WORKSPACE_DIR)
-            .arg("build")
+        cmd.arg("build")
             .arg("--quiet")
             .arg("--locked")
             .arg("--target")

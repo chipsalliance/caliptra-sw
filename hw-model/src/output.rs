@@ -156,6 +156,10 @@ impl std::io::Write for &OutputSink {
 pub struct Output {
     output: String,
     sink: OutputSink,
+
+    search_term: Option<String>,
+    unsearched: usize, // Number of characters that have not been searched yet
+    search_matched: bool,
 }
 impl Output {
     pub fn new(log_writer: impl std::io::Write + 'static) -> Self {
@@ -172,6 +176,9 @@ impl Output {
                 now: Cell::new(0),
                 next_write_needs_time_prefix: Cell::new(true),
             })),
+            search_term: None,
+            unsearched: 0,
+            search_matched: false,
         }
     }
     pub fn sink(&self) -> &OutputSink {
@@ -202,11 +209,37 @@ impl Output {
 
     fn process_new_data(&mut self) {
         let new_data = self.sink.0.new_uart_output.take();
+        let new_data_len = new_data.len();
+
         if self.output.is_empty() {
             self.output = new_data;
         } else {
             self.output.push_str(&new_data);
         }
+
+        if let Some(term) = &self.search_term {
+            if !self.search_matched {
+                let to_search = term.len() + self.unsearched;
+                if self.output.len() >= to_search {
+                    self.search_matched =
+                        self.output[self.output.len() - to_search..].contains(term);
+                    self.unsearched = 0;
+                } else {
+                    self.unsearched += new_data_len;
+                }
+            }
+        }
+    }
+
+    pub(crate) fn set_search_term(&mut self, search_term: &str) {
+        self.search_term = Some(search_term.to_string());
+        self.unsearched = 0;
+        self.search_matched = false;
+    }
+
+    pub(crate) fn search_matched(&mut self) -> bool {
+        self.process_new_data();
+        self.search_matched
     }
 
     /// Returns true if the caliptra microcontroller has signalled that it wants to exit

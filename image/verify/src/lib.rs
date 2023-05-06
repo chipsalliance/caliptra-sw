@@ -46,7 +46,10 @@ pub struct ImageVerificationInfo {
     /// Vendor ECC public key index
     pub vendor_ecc_pub_key_idx: u32,
 
-    /// Owner public keys digest
+    /// Digest of vendor public keys that verified the image
+    pub vendor_pub_keys_digest: ImageDigest,
+
+    /// Digest of owner public keys that verified the image
     pub owner_pub_keys_digest: ImageDigest,
 
     /// First mutable code
@@ -83,8 +86,8 @@ pub trait ImageVerificationEnv {
     /// Get Vendor Public Key Revocation list
     fn vendor_pub_key_revocation(&self, image: Self::Image) -> VendorPubKeyRevocation;
 
-    /// Get Owner Public Key Digest
-    fn owner_pub_key_digest(&self, image: Self::Image) -> ImageDigest;
+    /// Get Owner Public Key Digest from fuses
+    fn owner_pub_key_digest_fuses(&self) -> ImageDigest;
 
     /// Get Anti-Rollback disable setting
     fn anti_rollback_disable(&self, image: Self::Image) -> bool;

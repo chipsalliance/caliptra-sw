@@ -1,4 +1,4 @@
-# Caliptra - ROM Specification v0.5
+# Caliptra - ROM Specification v0.5.2
 
 ## 1. Version History
 
@@ -9,7 +9,8 @@
 | 12/15/2022 | 0.3     | Added Fuse & Register details                                            |
 | 01/20/2023 | 0.4     | Added Certificate Details                                                |
 | 02/20/2023 | 0.5     | Added Image Verification Details                                         |
-| 03/01/2023 | 0.51    | Added Crypto Derivations                                                 |
+| 03/01/2023 | 0.5.1   | Added Crypto Derivations                                                 |
+| 04/27/2023 | 0.5.2   | Added Runtime SVN bit clarification                                      |
 
 
 ## 2. Spec Opens
@@ -17,7 +18,7 @@
 - Update the spec with support for LMS PQC algorithm for firmware verification
 - Update the spec with adding certificate expiration times for vendor and owner
 - Update the firmware image format to include the runtime configuration section
-- Ability to run production signed firmware that can only run in debug mode 
+- Ability to run production signed firmware that can only run in debug mode
 - Add certificate section
 
 ## 3. Scope
@@ -59,18 +60,18 @@ following topics:
 | X509                | Digital Certificate Standard                                              |
 
 ## 5. DICE Layers
-  
+
 ![DICE](doc/svg/rom-dice.svg)
 
 ### 5.1 Initial Device ID (IDEVID) DICE Layer
 
 This layer represents the manufacturer/silicon vendor device identity. This layer's CDI is constructed
-using a deobfuscated UDS. A self signed CSR is generated during (or when requested) cold reset. 
+using a deobfuscated UDS. A self signed CSR is generated during (or when requested) cold reset.
 CSR is provided to the manufacturer/silicon vendor CA for issuing a Manufacturer Device Certificate.
 
 ### 5.2 Local Device ID DICE (LDEVID) Layer
 
-This layer represents the owner identity. This layer's CDI is constructed by mixing some entropy 
+This layer represents the owner identity. This layer's CDI is constructed by mixing some entropy
 once the owner acquires the devices. The primary purpose of this layer is to mitigate supply
 chain attacks via owner providing some entropy via fuses which is further randomized via the
 deobfuscation engine. ROM generates a certificate for this layer. The certificate is signed by
@@ -100,7 +101,7 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | FUSE_MANUFACTURER_PK_REVOCATION | 4            | Manufacturer Public Key Revocation Mask                 |
 | FUSE_OWNER_PK_HASH              | 384          | Owner Public Key Hash                                   |
 | FUSE_FMC_SVN                    | 32           | FMC Security Version Number                             |
-| FUSE_RUNTIME_SVN                | 64           | Runtime Security Version Number                         |
+| FUSE_RUNTIME_SVN                | 64           | Runtime Security Version Number <br> *NOTE: Hardware reserves 128 fuse bits for this pupose. However, only 64 bits are supported by ROM at this time.* |
 | FUSE_ANTI_ROLLBACK_DISABLE      | 1            | Disable SVN checking for FMC & Runtime when bit is set  |
 | FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR   |
 | CPTRA_DBG_MANUF_SERVICE_REG     | 32           | Manufacturing Services like IDEVID CSR upload           |
@@ -166,7 +167,7 @@ The header contains the security version and SHA-384 hash of the table of conten
 | Revision | 8 | 8-byte version of the firmware image bundle |
 | Flags | 4 | Feature flags. <br> **Bit0:** - Disable Runtime Updates <br>**Bit1-Bit31:** Reserved |
 | TOC Entry Count | 4 | Number of entries in TOC. |
-| TOC Digest | 48 | SHA2-384 Digest of table of contents. | 
+| TOC Digest | 48 | SHA2-384 Digest of table of contents. |
 
 #### 8.1.3 Table of Contents
 It contains the image information and SHA-384 hash of individual firmware images.
@@ -263,9 +264,9 @@ Both UDS and Field Entropy are available only during cold reset of Caliptra.
     `doe_decrypt_uds(KvSlot0, DOE_UDS_IV)`
 
 2.	Decrypt Field Entropy to Key Vault Slot 1
-	
+
 	`doe_decrypt_uds(KvSlot1, DOE_FE_IV)`
-	
+
 3.	Clear class secrets (Clears UDS, Field Entropy and Obfuscation Key cleared)
 
 	`doe_clear_secrets()`
@@ -283,7 +284,7 @@ Both UDS and Field Entropy are available only during cold reset of Caliptra.
 ### 9.3 Initial Device ID DICE Layer
 
 Initial Device ID Layer is used to generate Manufactured CDI & Private Keys.  This layer represents the manufacturer or silicon vendor DICE Identity. During manufacturing,  ROM can be requested to create Certificate Signing Request (CSR) via JTAG.
- 
+
 **Pre-Conditions:**
 * UDS is loaded in Key Vault Slot 0
 
@@ -304,7 +305,7 @@ Initial Device ID Layer is used to generate Manufactured CDI & Private Keys.  Th
 *(Note: Steps 4-7 are performed if CSR download is requested via CPTRA_DBG_MANUF_SERVICE_REG register)*
 
 4.	Generate the `To Be Signed` DER Blob of the IDevId CSR
-	
+
 	`IDevIdTbs = gen_tbs(IDEVID_CSR, IDevIdPubKey)`
 
 5.	Sign the LDevID `To Be Signed` DER Blob with IDevId Private Key in Key Vault Slot 7
@@ -317,7 +318,7 @@ Initial Device ID Layer is used to generate Manufactured CDI & Private Keys.  Th
 	`IDevIdTbsDigest = sha384_digest(IDevIdTbs)`
 	`Result = ecc384_verify(IDevIdPubKey, IDevIdTbsDigest, IDevIdCertSig)`
 
-7.  Upload the CSR to mailbox and wait for JTAG to read the CSR out of the mailbox. *(TODO: Add the sequence diagram)* 
+7.  Upload the CSR to mailbox and wait for JTAG to read the CSR out of the mailbox. *(TODO: Add the sequence diagram)*
 
 **Post-Conditions:**
 * Vault state as follows:
@@ -340,14 +341,14 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 **Actions:**
 
 1.	Derive the CDI using IDevID CDI in Key Vault Slot6 as HMAC Key and Field Entropy stored in Key Vault Slot1 as data. The resultant mac is stored back in Slot 6
- 
+
 	`hmac384_mac(KvSlot6, KvSlot1, KvSlot6)`
 
 2.	Clear the Field Entropy in Key Vault Slot 1
 
 	`kv_clear(KvSlot1)`
 
-3.	Derive ECC Key Pair using CDI in Key Vault Slot6 and store the generated private key in KeySlot5. 
+3.	Derive ECC Key Pair using CDI in Key Vault Slot6 and store the generated private key in KeySlot5.
 
     `LDevIdPubKey = ecc384_keygen(KvSlot6, KvSlot5)`
 
@@ -359,7 +360,7 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
     `dv48_lock_wr(Dv48Slot1)`
 
 5.	Generate the `To Be Signed` DER Blob of the LDevId Certificate
-	
+
 	`LDevIdTbs = gen_cert_tbs(LDEVID_CERT, IDevIdPubKey, LDevIdPubKey)`
 
 6.	Sign the LDevID `To Be Signed` DER Blob with IDevId Private Key in Key Vault Slot 7
@@ -397,14 +398,14 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 
 ### 9.6 Downloading images from Mailbox
 
-The following is the sequence of the steps that are required to download the parts of firmware image from mailbox. 
+The following is the sequence of the steps that are required to download the parts of firmware image from mailbox.
 
 - ROM asserts READY_FOR_FIRMWARE signal.
 - Poll for the execute bit to be set. This bit is set as the last step to transfer the control of the command to the Caliptra ROM.
 - Read the command register and ensure the command is FW_DOWNLOAD.
-- Read the data length register and validate the value in it. 
+- Read the data length register and validate the value in it.
 - Read N dwords from the mailbox DATAOUT register.  Execute the command.
-- Once the entire data is processed, clear the execute bit. 
+- Once the entire data is processed, clear the execute bit.
     - This should be the last step. Clearing this bit transfers the control back to the originator of the command.
 
 ![DATA FROM MBOX FLOW](doc/svg/data-from-mbox.svg)
@@ -440,51 +441,41 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
     `pcr_extend(Pcr0, FMC_DIGEST)`
     `pcr_extend(Pcr0, FMC_SVN)`
 
-2.	PCR1 is the Current PCR. It is not locked for clear. It is cleared during reset (any) by the ROM. On cold reset, fresh measurements are extended by the ROM. In the case of warm reset or update reset, the PCR1 is constructed from data locked in data vault sticky registers.
-
-    `pcr_extend(Pcr1, CPTRA_SECURITY_STATE.LIFECYCLE_STATE)`
-    `pcr_extend(Pcr1, CPTRA_SECURITY_STATE.DEBUG_ENABLED)`
-    `pcr_extend(Pcr1, FUSE_ANTI_ROLLBACK_DISABLE)`
-    `pcr_extend(Pcr1, MANUFACTURER_PK)`
-    `pcr_extend(Pcr1, FUSE_OWNER_PK_HASH)`
-    `pcr_extend(Pcr1, FMC_DIGEST)`
-    `pcr_extend(Pcr1, FMC_SVN)`
-
-3.	CDI for Alias is derived from PCR0. For the Alias FMC CDI Derivation,  LDevID CDI in Key Vault Slot6 is used as HMAC Key and contents of PCR0 are used as data. The resultant mac is stored back in Slot 6 
+2.	CDI for Alias is derived from PCR0. For the Alias FMC CDI Derivation,  LDevID CDI in Key Vault Slot6 is used as HMAC Key and contents of PCR0 are used as data. The resultant mac is stored back in Slot 6
 
 	`Pcr0Measurement = pcr_read(Pcr0)`
 	`hmac384_mac(KvSlot6, Pcr0Measurement, KvSlot6)`
 
-4.	Derive Alias FMC ECC Key Pair using CDI in Key Vault Slot6 and store the generated private key in KeySlot7. 
+3.	Derive Alias FMC ECC Key Pair using CDI in Key Vault Slot6 and store the generated private key in KeySlot7.
 
     `AliasFmcPubKey = ecc384_keygen(KvSlot6, KvSlot7)`
 
-5.	Store and lock (for write) the Alias FMC Public Key in Data Vault (48 bytes) Slot 4 & Slot 5
+4.	Store and lock (for write) the Alias FMC Public Key in Data Vault (48 bytes) Slot 4 & Slot 5
 
     `dv48_store(AliasFmcPubKey.X, Dv48Slot4)`
     `dv48_lock_wr(Dv48Slot4)`
     `dv48_store(AliasFmcPubKey.Y, Dv48Slot5)`
     `dv48_lock_wr(Dv48Slot5)`
 
-6.	Generate the `To Be Signed` DER Blob of the Alias FMC Certificate
-	
+5.	Generate the `To Be Signed` DER Blob of the Alias FMC Certificate
+
 	`AliasFmcTbs = gen_cert_tbs(ALIAS_FMC_CERT, LDevIdPubKey, AliasFmcPubKey)`
 
-7.	Sign the Alias FMC `To Be Signed` DER Blob with LDevId Private Key in Key Vault Slot 5
+6.	Sign the Alias FMC `To Be Signed` DER Blob with LDevId Private Key in Key Vault Slot 5
 
 	`AliasFmcTbsDigest = sha384_digest(AliasFmcTbs)`
 	`AliasFmcTbsCertSig = ecc384_sign(KvSlot5, AliasFmcTbsDigest)`
 
-8.	Clear the LDevId Private Key in Key Vault Slot 5
+7.	Clear the LDevId Private Key in Key Vault Slot 5
 
 	`kv_clear(KvSlot5)`
 
-9.	Verify the signature of Alias FMC `To Be Signed` Blob
+8.	Verify the signature of Alias FMC `To Be Signed` Blob
 
 	`AliasFmcTbsDigest = sha384_digest(AliasFmcTbs)`
 	`Result = ecc384_verify(AliasFmcPubKey, AliasFmcDigest , AliasFmcTbsCertSig)`
 
-10.	Store and lock (for write) the LDevID Certificate Signature in the sticky Data Vault (48 bytes) Slot 6 & Slot 7 
+9.	Store and lock (for write) the LDevID Certificate Signature in the sticky Data Vault (48 bytes) Slot 6 & Slot 7
 
     `dv48_store(AliasFmcTbsCertSig.R, Dv48Slot6)`
     `dv48_lock_wr(Dv48Slot6)`
@@ -492,7 +483,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
     `dv48_store(AliasFmcTbsCertSig.S, Dv48Slot7)`
     `dv48_lock_wr(Dv48Slot7)`
 
-11.	Lock critical state needed for warm and update reset in Data Vault
+10.	Lock critical state needed for warm and update reset in Data Vault
 
 	`dv48_store(FMC_DIGEST, Dv48Slot8)`
     `dv48_lock_wr(Dv48Slot8)`
@@ -542,84 +533,84 @@ The basic flow for validating the firmware involves the following:
 
 - Validate the manufacturing keys in the preamble
 - Validate the owner keys in the preamble
-- Select the manufacturer keys 
-- Once both the validations are complete, download the header from the mailbox. 
+- Select the manufacturer keys
+- Once both the validations are complete, download the header from the mailbox.
 - Validate the Manifest Header using the selected Manufacturer keys against the manufacturer signature.
-- Validate the Manifest Header using the owner key against the owner signature. 
-- On the completion of the last two validations, it is assured that the header portion is authentic. 
-- Load both the TOC entries from the mailbox. 
+- Validate the Manifest Header using the owner key against the owner signature.
+- On the completion of the last two validations, it is assured that the header portion is authentic.
+- Load both the TOC entries from the mailbox.
 - Validate the downloaded TOC data against the TOC hash in the header.
-- This marks the TOC data as valid. The next step is to use the TOC Hash to validate image sections. 
-- Download the FMC Image portion of the Image. 
+- This marks the TOC data as valid. The next step is to use the TOC Hash to validate image sections.
+- Download the FMC Image portion of the Image.
 - Validate the FMC Image against the hash in the TOC entry for the FMC.
     - If this is a cold reset, the FMC version number should be stored in a register.
-- Download the RT Image part of the firmware Image. 
+- Download the RT Image part of the firmware Image.
 - Validate the RT Image against the hash in the TOC entry for the RT.
-- If all the above validations are complete, the entire image is validated. 
+- If all the above validations are complete, the entire image is validated.
 - Let the SOC know that the firmware download command is complete.
 
 
 ### 13.1 **Overall Validation Flow**
 ![Overall Validation Flow](doc/svg/overall-validation-flow.svg)
 
-  
+
 #### **Pre-Conditions**
 
 The following are the pre-conditions that should be satisfied:
 - Caliptra has transitioned through the BOOTFSM and all the fuses that are required for the validation are already populated by SOC.
-- The FUSES programmed by the soc are 
+- The FUSES programmed by the soc are
     - fuse_key_manifest_pk_hash : This fuse contains the hash of the manufacturer keys present in preamble.
-    - use_key_manifest_pk_hash_mask : This is the bit mask of the keys which are revoked. 
+    - use_key_manifest_pk_hash_mask : This is the bit mask of the keys which are revoked.
     - fuse_owner_pk_hash : The hash of the owner public key in preamble.
     - fuse_key_manifest_svn : Used in FMC validation, to make sure that the version number is good.
     - fuse_runtime_svn : Used in RT validation, to make sure that the runtime image's version number is good.
-- The SOC has written the data to the mailbox. 
-- The SOC has written the data length in the DLEN mailbox register. 
+- The SOC has written the data to the mailbox.
+- The SOC has written the data length in the DLEN mailbox register.
 - The SOC has put the FW_DOWNLOAD command in the command register.
-- The SOC has set the execute bit in the mailbox execute register. 
+- The SOC has set the execute bit in the mailbox execute register.
 <br> *( NOTE: At this time the interrupts are not enabled. Writing a execute bit will not generate an interrupt. The validation and update flow will need to be invoked externally.)*
 
 ## 13.2 Preamble Validation: Validate The Manufacturing Keys
 
 - Load the preamble bytes from the mailbox.
-- There are four manufacturing keys in the preamble. 
+- There are four manufacturing keys in the preamble.
 - fuse_key_manifest_pk_hash is the fuse that contains the hash of all the four manufacturing keys.
-- To validate the key region, take the hash of all the four keys and compare it against the hash in fuse. 
-- If the hash does not match, fail the image validation. 
+- To validate the key region, take the hash of all the four keys and compare it against the hash in fuse.
+- If the hash does not match, fail the image validation.
 - If the hash matches, all the four keys are validated.
 
 ### 13.2.1 Preamble Validation: Manufacturing Key Selection
 
 - Since there are four key slots in the preamble, we will need to select one key out of four.
-- use_key_manifest_pk_hash_mask is the mask which revokes a key. 
-    - If bit-0 is set, that key is disabled. All other higher bits which are zeros, are still enabled. 
-    - If all the bits are zeros, all the keys are enabled. 
-    - If bit-0 and bit-1 are set, all higher slot bits (2 and 3) are enabled.  
-- Select the key using the Public Key Index Hint field in the preamble. This key should not be disabled using the use_key_manifest_pk_hash_mask fuse. 
+- use_key_manifest_pk_hash_mask is the mask which revokes a key.
+    - If bit-0 is set, that key is disabled. All other higher bits which are zeros, are still enabled.
+    - If all the bits are zeros, all the keys are enabled.
+    - If bit-0 and bit-1 are set, all higher slot bits (2 and 3) are enabled.
+- Select the key using the Public Key Index Hint field in the preamble. This key should not be disabled using the use_key_manifest_pk_hash_mask fuse.
     - If the key is disabled, fail the validation.
-    - If the key is enabled, select the key. 
+    - If the key is enabled, select the key.
 - At this time, we have validated all the four keys and selected the key that will be used for validation of the header against the manufacturer header signature field.
-<br> *(Note: Please note that this is just a hint and you will need to start the header validation with this hint. If the header validation fails, you will still need to try other keys from the other key slots, if they are not disabled.) 
+<br> *(Note: Please note that this is just a hint and you will need to start the header validation with this hint. If the header validation fails, you will still need to try other keys from the other key slots, if they are not disabled.)
 
 ### 13.2.2 Preamble Validation: Validate The Owner Key
 
-- There is one slot for the owner key in the image preamble. 
-- fuse_owner_pk_hash contains the hash of the owner public key. 
+- There is one slot for the owner key in the image preamble.
+- fuse_owner_pk_hash contains the hash of the owner public key.
 - The validation of owner public key is done by hashing the owner public key from the preamble and comparing the hash against the hash in the fuse_owner_pk_hash.
-- If the hash matches, the owner public key is valid. 
-- If the hash match fails, fail the image validation. 
+- If the hash matches, the owner public key is valid.
+- If the hash match fails, fail the image validation.
 
 ## Preamble Validation Steps
 ![Preamble Validation Flow](doc/svg/preamble-validation.svg)
 
 ## 13.3 Header Validation
 
-- Load the header portion of the firmware image from the mailbox. 
+- Load the header portion of the firmware image from the mailbox.
 - Header is the only signed component. There are two signatures generated for the header.
-- First signature is generated using one of the manufacturing keys. 
-- Second signature is generated using the owner public key. 
-- To validate the header, hash and sign it using the selected manufacturer key and compare with the manufacturer signature in the preamble. 
-- If the manufacturer signature matches, proceed with the owner signature validation. If the signature does not match, fail the validation. 
+- First signature is generated using one of the manufacturing keys.
+- Second signature is generated using the owner public key.
+- To validate the header, hash and sign it using the selected manufacturer key and compare with the manufacturer signature in the preamble.
+- If the manufacturer signature matches, proceed with the owner signature validation. If the signature does not match, fail the validation.
 - The hash is already generated. Sign the above hash using the owner public key and match the signature. If the signature matches, the validation succeeds. If the signature does not match the validation fails.
 
 ## Header Validation Steps
@@ -629,25 +620,25 @@ The following are the pre-conditions that should be satisfied:
 
 - At this point all the previous steps of validations are complete.
 - The Preamble and the header are validated.
-- Load both the TOCs (FMC TOC and RT TOC) from the mailbox. 
+- Load both the TOCs (FMC TOC and RT TOC) from the mailbox.
 <br> *(NOTE: We should be able to use the sha accelerator here. Entire header contents are contiguous) That way we will not need to download the code at all)*
 - Generate the hash of the entire TOC data.
-- Compare the hash of the TOC data with the hash in the header. 
-- If the hash matches, the TOC data is valid. 
-- Once the TOC contents are verified, the last part of TOC validation is the SVN validation. 
+- Compare the hash of the TOC data with the hash in the header.
+- If the hash matches, the TOC data is valid.
+- Once the TOC contents are verified, the last part of TOC validation is the SVN validation.
     - There are two SVN fields that are present in the table of contents.
         - Fw.Svn    : The Current SVN of the image
         - Fw.MinSvn : The Min target SVN for the image
-    - The MinSvn is also placed in the fuse. 
-        - Fuse.svn  : This is the minimum required SVN that the image should have. 
+    - The MinSvn is also placed in the fuse.
+        - Fuse.svn  : This is the minimum required SVN that the image should have.
     - The following checks are required to pass for SVN validation
         - Fw.Svn >= Fw.MinSvn
         - Fw.MinSvn >= Fuse.Svn
     - In case the Fw.MinSvn is greater than the Fuse.Svn
-        - Update the fuse SVN to Fw.MinSvn. To do this there will be a fuse update list that will be maintained and passed to runtime. The runtime will 
-          notify the SOC to update the fuse data using this list. 
+        - Update the fuse SVN to Fw.MinSvn. To do this there will be a fuse update list that will be maintained and passed to runtime. The runtime will
+          notify the SOC to update the fuse data using this list.
 
-<br> *(Note: The Same SVN Validation is going to be done for the FMC and RT as well) 
+<br> *(Note: The Same SVN Validation is going to be done for the FMC and RT as well)
 
 <br>
 
@@ -656,16 +647,16 @@ The following are the pre-conditions that should be satisfied:
 
 ## 13.5 Validating Image Sections
 
-- Once the TOC is validated, the image section associated with each TOC needs validation. 
-- The hash for each image section is stored in the TOC data. 
+- Once the TOC is validated, the image section associated with each TOC needs validation.
+- The hash for each image section is stored in the TOC data.
 - Load the FMC Image section. The Offset and the size of the section is present in TOC.
 - Calculate the SHA-384 hash of the FMC image section.
-- Compare the hash with the hash available in the FMC TOC. 
-- If the hash matches, the FMC image section is validated. If the hash does not match, reject the image. 
-- Load the RT Image section from the mail box. The offset and the size of the section is present in the TOC. 
+- Compare the hash with the hash available in the FMC TOC.
+- If the hash matches, the FMC image section is validated. If the hash does not match, reject the image.
+- Load the RT Image section from the mail box. The offset and the size of the section is present in the TOC.
 - Calcaulte the SHA-384 hash of the RT image section.
-- Compare the hash with the hash in the RT TOC. 
-- If the hash matches, the RT image section is validated. If the hash does not match, reject the image. 
+- Compare the hash with the hash in the RT TOC.
+- If the hash matches, the RT image section is validated. If the hash does not match, reject the image.
 
 ## Image Section Validation Steps
 ![Image Section Validation Flow](doc/svg/image-section-validation.svg)
@@ -677,19 +668,19 @@ The following are the pre-conditions that should be satisfied:
     - Warm Boot Mode
     - Update Reset Mode
 - Cold Boot Mode
-    - Validation of the entire image is done using the steps described above. 
-    - Save the hash of the FMC portion of the image in a separate register. 
+    - Validation of the entire image is done using the steps described above.
+    - Save the hash of the FMC portion of the image in a separate register.
     - Copy the FMC and RT image's text and data section in the appropriate ICCM and DCCM memory regions.
 - Warm Boot Mode
     - In this mode there is no validation or load required for any parts of the image.
     - All the contents of ICCM and DCCM are preserved since this is a warm reboot.
 - Update Reset Mode
-    - The image is exactly the same as the initial image which was verified on the cold boot, except that 
-      the RT part of the image is changed.  
+    - The image is exactly the same as the initial image which was verified on the cold boot, except that
+      the RT part of the image is changed.
     - This also implies that the TOC hash in the header will not match anymore and this will need to be skipped.
     - The validation flow will look like the following:
         - Validate the preamble
         - Validate the header
         - The TOC hash will NOT match, skip the TOC hash validation.
-        - We still need to make sure that the hash of the FMC which was stored in the data vault register at cold boot 
+        - We still need to make sure that the hash of the FMC which was stored in the data vault register at cold boot
           still matches the FMC code. This is the hash of the FMC image portion.

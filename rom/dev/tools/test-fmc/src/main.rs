@@ -53,24 +53,7 @@ pub extern "C" fn fmc_entry() -> ! {
     };
 
     let fht = FirmwareHandoffTable::read_from(slice).unwrap();
-
-    cprintln!("[fmc] FHT Marker: 0x{:08X}", fht.fht_marker);
-    cprintln!("[fmc] FHT Major Version: 0x{:04X}", fht.fht_major_ver);
-    cprintln!("[fmc] FHT Minor Version: 0x{:04X}", fht.fht_minor_ver);
-    cprintln!("[fmc] FHT Manifest Addr: 0x{:08X}", fht.manifest_load_addr);
-    cprintln!("[fmc] FHT FMC CDI KV KeyID: {}", fht.fmc_cdi_kv_idx);
-    cprintln!(
-        "[fmc] FHT FMC PrivKey KV KeyID: {}",
-        fht.fmc_priv_key_kv_idx
-    );
-    cprintln!(
-        "[fmc] FHT RT Load Address: 0x{:08x}",
-        fht.rt_fw_load_addr_idx
-    );
-    cprintln!(
-        "[fmc] FHT RT Entry Point: 0x{:08x}",
-        fht.rt_fw_load_addr_idx
-    );
+    assert!(fht.is_valid());
 
     create_certs();
 
@@ -144,14 +127,14 @@ fn create_certs() {
         [0u8; core::mem::size_of::<LocalDevIdCertTbs>()];
     copy_tbs(&mut tbs, true);
 
-    let mut cert: [u8; 651] = [0u8; 651];
+    let mut cert: [u8; 1024] = [0u8; 1024];
     let builder = Ecdsa384CertBuilder::new(
         &tbs[..core::mem::size_of::<LocalDevIdCertTbs>()],
         &ecdsa_sig,
     )
     .unwrap();
     let _cert_len = builder.build(&mut cert).unwrap();
-    cprint_slice!("[fmc] LDEVID cert", cert);
+    cprint_slice_ref!("[fmc] LDEVID cert", &cert[.._cert_len]);
 
     //
     // Create FMCALIAS cert.
@@ -172,12 +155,12 @@ fn create_certs() {
         [0u8; core::mem::size_of::<FmcAliasCertTbs>()];
     copy_tbs(&mut tbs, false);
 
-    let mut cert: [u8; 818] = [0u8; 818];
+    let mut cert: [u8; 1024] = [0u8; 1024];
     let builder =
         Ecdsa384CertBuilder::new(&tbs[..core::mem::size_of::<FmcAliasCertTbs>()], &ecdsa_sig)
             .unwrap();
     let _cert_len = builder.build(&mut cert).unwrap();
-    cprint_slice!("[fmc] FMCALIAS cert", cert);
+    cprint_slice_ref!("[fmc] FMCALIAS cert", &cert[.._cert_len]);
 }
 
 fn copy_tbs(tbs: &mut [u8], ldevid_tbs: bool) {
