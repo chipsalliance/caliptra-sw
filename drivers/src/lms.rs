@@ -32,65 +32,76 @@ caliptra_err_def! {
         InvalidHashWidth = 0x05,
         InvalidTreeHeight = 0x06,
         InvalidQValue = 0x07,
+        InvalidIndex = 0x08,
+        PathOutOfBounds = 0x09,
     }
 }
 #[derive(Default, Debug)]
 pub struct Lms {}
 
-pub type Sha256Digest = HashValue<32>;
-pub type Sha192Digest = HashValue<24>;
+pub type Sha256Digest = HashValue<8>;
+pub type Sha192Digest = HashValue<6>;
 pub type LmsIdentifier = [u8; 16];
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct HashValue<const N: usize>(pub [u8; N]);
+pub struct HashValue<const N: usize>(pub [u32; N]);
 
 impl<const N: usize> Default for HashValue<N> {
     fn default() -> Self {
-        let data = [0u8; N];
+        let data = [0u32; N];
         HashValue(data)
     }
 }
 
 impl<const N: usize> HashValue<N> {
-    pub fn new(data: [u8; N]) -> Self {
+    pub fn new(data: [u32; N]) -> Self {
         HashValue(data)
     }
 }
-impl<const N: usize> From<[u8; N]> for HashValue<N> {
-    fn from(data: [u8; N]) -> Self {
+impl<const N: usize> From<[u32; N]> for HashValue<N> {
+    fn from(data: [u32; N]) -> Self {
         HashValue(data)
     }
 }
 
-impl<const N: usize> From<&[u8; N]> for HashValue<N> {
-    fn from(data: &[u8; N]) -> Self {
+impl<const N: usize> From<&[u32; N]> for HashValue<N> {
+    fn from(data: &[u32; N]) -> Self {
         HashValue(*data)
     }
 }
 
-impl From<[u8; 32]> for HashValue<24> {
-    fn from(data: [u8; 32]) -> Self {
-        let mut t = [0u8; 24];
-        t[..24].copy_from_slice(&data[..24]);
-        HashValue(t)
+impl From<[u32; 8]> for HashValue<6> {
+    fn from(data: [u32; 8]) -> Self {
+        let mut result = [0u32; 6];
+        result[..6].copy_from_slice(&data[..6]);
+        HashValue(result)
+    }
+}
+impl From<[u8; 24]> for HashValue<6> {
+    fn from(data: [u8; 24]) -> Self {
+        let mut result = [0u32; 6];
+        for i in 0..6 {
+            result[i] = u32::from_be_bytes([
+                data[i * 4],
+                data[i * 4 + 1],
+                data[i * 4 + 2],
+                data[i * 4 + 3],
+            ]);
+        }
+        HashValue(result)
     }
 }
 
 impl<const N: usize> From<Array4x8> for HashValue<N> {
     fn from(data: Array4x8) -> Self {
-        let mut t = [0u8; N];
-        for (index, word) in data.0.iter().enumerate() {
-            if index >= (N / 4) {
-                break;
-            }
-            t[index * 4..index * 4 + 4].copy_from_slice(&word.to_be_bytes());
-        }
-        HashValue(t)
+        let mut result = [0u32; N];
+        result[..N].copy_from_slice(&data.0[..N]);
+        HashValue(result)
     }
 }
 
-impl<const N: usize> AsRef<[u8]> for HashValue<N> {
-    fn as_ref(&self) -> &[u8] {
+impl<const N: usize> AsRef<[u32]> for HashValue<N> {
+    fn as_ref(&self) -> &[u32] {
         &self.0
     }
 }
@@ -159,7 +170,7 @@ pub fn lookup_lms_algorithm_type(val: u32) -> Option<LmsAlgorithmType> {
 #[derive(Debug)]
 pub struct LmotsSignature<const N: usize, const P: usize> {
     pub ots_type: LmotsAlgorithmType,
-    pub nonce: [u8; N],
+    pub nonce: [u32; N],
     pub y: [HashValue<N>; P],
 }
 
@@ -278,9 +289,16 @@ impl Lms {
     }
 
     // follows pseudo code at https://www.rfc-editor.org/rfc/rfc8554#section-3.1.3
-    fn coefficient(&self, s: &[u8], i: usize, w: usize) -> u8 {
+    pub fn coefficient(&self, s: &[u8], i: usize, w: usize) -> CaliptraResult<u8> {
+        let valid_w = matches!(w, 1 | 2 | 4 | 8);
+        if !valid_w {
+            raise_err!(InvalidWinternitzParameter)
+        }
         let bitmask: u16 = (1 << (w)) - 1;
         let index = i * w / 8;
+        if index >= s.len() {
+            raise_err!(InvalidIndex)
+        }
         let b = s[index];
 
         // extra logic to avoid the divide by 0
@@ -299,7 +317,7 @@ impl Lms {
             rs = b >> shift;
         }
         let small_bitmask = bitmask as u8;
-        small_bitmask & rs
+        Ok(small_bitmask & rs)
     }
 
     fn checksum(&self, algo_type: &LmotsAlgorithmType, input_string: &[u8]) -> CaliptraResult<u16> {
@@ -308,7 +326,7 @@ impl Lms {
         let upper_bound = params.n as u16 * (8 / params.w as u16);
         let bitmask = (1 << params.w) - 1;
         for i in 0..upper_bound as usize {
-            sum += bitmask - (self.coefficient(input_string, i, params.w as usize) as u16);
+            sum += bitmask - (self.coefficient(input_string, i, params.w as usize)? as u16);
         }
         let shifted = sum << params.ls;
         Ok(shifted)
@@ -319,7 +337,7 @@ impl Lms {
         message: &[u8],
         lms_identifier: &LmsIdentifier,
         q: &[u8; 4],
-        nonce: &[u8; N],
+        nonce: &[u32; N],
     ) -> CaliptraResult<HashValue<N>> {
         let mut digest = Array4x8::default();
         let sha = Sha256::default();
@@ -327,7 +345,10 @@ impl Lms {
         hasher.update(lms_identifier)?;
         hasher.update(q)?;
         hasher.update(&D_MESG.to_be_bytes())?;
-        hasher.update(nonce)?;
+        //hasher.update(nonce)?;
+        for i in nonce.iter() {
+            hasher.update(&i.to_be_bytes())?;
+        }
         hasher.update(message)?;
         hasher.finalize()?;
         Ok(HashValue::from(digest))
@@ -352,40 +373,52 @@ impl Lms {
         if params.n > 32 {
             raise_err!(InvalidHashWidth);
         }
-        if params.n as usize != N {
+        if params.n as usize != N * 4 {
             raise_err!(InvalidHashWidth);
         }
         let mut z = [HashValue::<N>::default(); P];
-        let mut message_hash_with_checksum = [0u8; 34]; // 2 extra bytes for the checksum. needs to be N+2
-        message_hash_with_checksum[..N].copy_from_slice(&message_digest.0[..N]);
+        //let mut message_hash_with_checksum = [0u8; 34]; // 2 extra bytes for the checksum. needs to be N+2
+        let mut message_hash_with_checksum = [0u8; 24 + 2]; // 2 extra bytes for the checksum. needs to be N+2
+                                                            //message_hash_with_checksum[..N].copy_from_slice(&message_digest.0[..N]);
+        let mut i = 0;
+        for val in message_digest.0.iter().take(N) {
+            message_hash_with_checksum[i..i + 4].clone_from_slice(&val.to_be_bytes());
+            i += 4;
+        }
 
         let checksum_q = self.checksum(algo_type, &message_hash_with_checksum)?;
         let be_checksum = checksum_q.to_be_bytes();
-        message_hash_with_checksum[N] = be_checksum[0];
-        message_hash_with_checksum[N + 1] = be_checksum[1];
+        let checksum_offset = N * 4;
+        message_hash_with_checksum[checksum_offset] = be_checksum[0];
+        message_hash_with_checksum[checksum_offset + 1] = be_checksum[1];
 
         // In order to reduce the number of copies allocate a single block of memory
         // and update only the portions that update between iterations
         let mut hash_block = [0u8; 55];
         hash_block[0..16].clone_from_slice(lms_identifier);
         hash_block[16..20].clone_from_slice(q);
-        for i in 0..params.p {
-            let a = self.coefficient(&message_hash_with_checksum, i as usize, params.w as usize);
-            let mut tmp = signature.y[i as usize];
+        for (i, val) in z.iter_mut().enumerate().take(P) {
+            let a = self.coefficient(&message_hash_with_checksum, i, params.w as usize)?;
+            let mut tmp = signature.y[i];
             let t_upper: u16 = (1 << params.w) - 1; // subtract with overflow?
             let upper = t_upper as u8;
-            hash_block[20..22].clone_from_slice(&i.to_be_bytes());
+            hash_block[20..22].clone_from_slice(&(i as u16).to_be_bytes());
             for j in a..upper {
                 let mut digest = Array4x8::default();
                 let sha = Sha256::default();
                 let mut hasher = sha.digest_init(&mut digest)?;
                 hash_block[22] = j;
-                hash_block[23..23 + N].clone_from_slice(&tmp.0);
-                hasher.update(&hash_block[0..23 + N])?;
+                //hash_block[23..23 + N].clone_from_slice(&tmp.0);
+                let mut i = 23;
+                for val in tmp.0.iter().take(N) {
+                    hash_block[i..i + 4].clone_from_slice(&val.to_be_bytes());
+                    i += 4;
+                }
+                hasher.update(&hash_block[0..23 + N * 4])?;
                 hasher.finalize()?;
                 tmp = HashValue::<N>::from(digest);
             }
-            z[i as usize] = tmp;
+            *val = tmp;
         }
         let mut digest = Array4x8::default();
         let sha = Sha256::default();
@@ -394,7 +427,10 @@ impl Lms {
         hasher.update(q)?;
         hasher.update(&D_PBLC.to_be_bytes())?;
         for t in z {
-            hasher.update(&t.0)?;
+            //hasher.update(&t.0)?;
+            for val in t.0.iter() {
+                hasher.update(&val.to_be_bytes())?;
+            }
         }
         hasher.finalize()?;
         let result = HashValue::<N>::from(digest);
@@ -403,7 +439,6 @@ impl Lms {
 
     pub fn verify_lms_signature<const N: usize, const P: usize>(
         &self,
-        tree_height: u8,
         input_string: &[u8],
         lms_identifier: &LmsIdentifier,
         q: u32,
@@ -411,6 +446,11 @@ impl Lms {
         lms_sig: &LmsSignature<N, P>,
     ) -> CaliptraResult<bool> {
         let q_str = q.to_be_bytes();
+        let (_, tree_height) = self.get_lms_parameters(&lms_sig.sig_type)?;
+        let mut node_num = (1 << tree_height) + q;
+        if node_num > 2 << tree_height {
+            raise_err!(InvalidQValue);
+        }
         let message_digest = self.hash_message(
             input_string,
             lms_identifier,
@@ -434,17 +474,16 @@ impl Lms {
             _ => raise_err!(InvalidTreeHeight),
         }
 
-        if q > 2u32.pow(tree_height as u32) - 1 {
-            raise_err!(InvalidQValue);
-        }
-        let mut node_num = (1 << tree_height) + q;
         let mut digest = Array4x8::default();
         let sha = Sha256::default();
         let mut hasher = sha.digest_init(&mut digest)?;
         hasher.update(lms_identifier)?;
         hasher.update(&node_num.to_be_bytes())?;
         hasher.update(&D_LEAF.to_be_bytes())?;
-        hasher.update(&candidate_key.0)?;
+        //hasher.update(&candidate_key.0)?;
+        for val in candidate_key.0.iter() {
+            hasher.update(&val.to_be_bytes())?;
+        }
         hasher.finalize()?;
         let mut temp = HashValue::<N>::from(digest);
         let mut i = 0;
@@ -456,8 +495,21 @@ impl Lms {
                 hasher.update(lms_identifier)?;
                 hasher.update(&(node_num / 2).to_be_bytes())?;
                 hasher.update(&D_INTR.to_be_bytes())?;
-                hasher.update(&lms_sig.lms_path[i].0)?;
-                hasher.update(&temp.0)?;
+                //hasher.update(&lms_sig.lms_path.get(i).ok_or(err_u32!(PathOutOfBounds))?.0)?;
+                for val in lms_sig
+                    .lms_path
+                    .get(i)
+                    .ok_or(err_u32!(PathOutOfBounds))?
+                    .0
+                    .iter()
+                    .take(N)
+                {
+                    hasher.update(&val.to_be_bytes())?;
+                }
+                //hasher.update(&temp.0)?;
+                for val in temp.0.iter().take(N) {
+                    hasher.update(&val.to_be_bytes())?;
+                }
                 hasher.finalize()?;
                 temp = HashValue::<N>::from(digest);
             } else {
@@ -467,8 +519,22 @@ impl Lms {
                 hasher.update(lms_identifier)?;
                 hasher.update(&(node_num / 2).to_be_bytes())?;
                 hasher.update(&D_INTR.to_be_bytes())?;
-                hasher.update(&temp.0)?;
-                hasher.update(&lms_sig.lms_path[i].0)?;
+                //hasher.update(&temp.0)?;
+                for val in temp.0.iter() {
+                    hasher.update(&val.to_be_bytes())?;
+                }
+                //hasher.update(&lms_sig.lms_path[i].0)?;
+                //hasher.update(&lms_sig.lms_path.get(i).ok_or(err_u32!(PathOutOfBounds))?.0)?;
+                for val in lms_sig
+                    .lms_path
+                    .get(i)
+                    .ok_or(err_u32!(PathOutOfBounds))?
+                    .0
+                    .iter()
+                    .take(N)
+                {
+                    hasher.update(&val.to_be_bytes())?;
+                }
                 hasher.finalize()?;
                 temp = HashValue::<N>::from(digest);
             }

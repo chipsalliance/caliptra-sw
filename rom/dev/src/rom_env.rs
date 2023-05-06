@@ -18,7 +18,7 @@ Abstract:
 use crate::env_cell::EnvCell;
 use caliptra_drivers::{
     DataVault, DeobfuscationEngine, DeviceState, Ecc384, FlowStatus, FuseBank, Hmac384, KeyVault,
-    Mailbox, MfgState, PcrBank, ResetService, Sha1, Sha256, Sha384, Sha384Acc, Lms,
+    Lms, Mailbox, MfgState, PcrBank, ResetService, Sha1, Sha256, Sha384, Sha384Acc,
 };
 use core::ops::Range;
 
