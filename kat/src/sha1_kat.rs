@@ -49,10 +49,7 @@ impl Sha1Kat {
 
     fn kat_no_data(&self, sha: &mut Sha1) -> CaliptraResult<()> {
         let data = [];
-        let mut digest = Array4x5::default();
-
-        sha.digest(&data, &mut digest)
-            .map_err(|_| err_u32!(DigestFailure))?;
+        let digest = sha.digest(&data).map_err(|_| err_u32!(DigestFailure))?;
 
         if digest != EXPECTED_DIGEST {
             raise_err!(DigestMismatch);

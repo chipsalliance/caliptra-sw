@@ -58,9 +58,7 @@ impl Crypto {
     ///
     /// * `Array4x5` - Digest
     pub fn sha1_digest(env: &RomEnv, data: &[u8]) -> CaliptraResult<Array4x5> {
-        let mut digest = Array4x5::default();
-        env.sha1().map(|sha| sha.digest(data, &mut digest))?;
-        Ok(digest)
+        env.sha1().map(|sha| sha.digest(data))
     }
 
     /// Calculate SHA2-256 Digest
@@ -73,10 +71,9 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Array4x8` - Digest
+    #[inline(always)]
     pub fn sha256_digest(env: &RomEnv, data: &[u8]) -> CaliptraResult<Array4x8> {
-        let mut digest = Array4x8::default();
-        env.sha256().map(|sha| sha.digest(data, &mut digest))?;
-        Ok(digest)
+        env.sha256().map(|sha| sha.digest(data))
     }
 
     /// Calculate SHA2-384 Digest
@@ -90,9 +87,7 @@ impl Crypto {
     ///
     /// * `Array4x12` - Digest
     pub fn sha384_digest(env: &RomEnv, data: &[u8]) -> CaliptraResult<Array4x12> {
-        let mut digest = Array4x12::default();
-        env.sha384().map(|s| s.digest(data, &mut digest))?;
-        Ok(digest)
+        env.sha384().map(|s| s.digest(data))
     }
 
     /// Calculate HMAC-348

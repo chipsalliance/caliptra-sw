@@ -27,9 +27,7 @@ fn test_digest0() {
         0xB8, 0x55,
     ];
     let data = [];
-    let mut digest = Array4x8::default();
-    let result = Sha256::default().digest(&data, &mut digest);
-    assert!(result.is_ok());
+    let digest = Sha256::default().digest(&data).unwrap();
     assert_eq!(digest, Array4x8::from(expected));
 }
 
@@ -40,9 +38,7 @@ fn test_digest1() {
         0x15, 0xAD,
     ];
     let data = "abc".as_bytes();
-    let mut digest = Array4x8::default();
-    let result = Sha256::default().digest(data, &mut digest);
-    assert!(result.is_ok());
+    let digest = Sha256::default().digest(data).unwrap();
     assert_eq!(digest, Array4x8::from(expected));
 }
 
@@ -53,9 +49,7 @@ fn test_digest2() {
         0x6, 0xC1,
     ];
     let data = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".as_bytes();
-    let mut digest = Array4x8::default();
-    let result = Sha256::default().digest(data, &mut digest);
-    assert!(result.is_ok());
+    let digest = Sha256::default().digest(data).unwrap();
     assert_eq!(digest, Array4x8::from(expected));
 }
 
@@ -66,10 +60,7 @@ fn test_digest3() {
         0xE9, 0xD1,
     ];
     let data = "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu".as_bytes();
-    let mut digest = Array4x8::default();
-    let result = Sha256::default().digest(data, &mut digest);
-    result.unwrap();
-    assert!(result.is_ok());
+    let digest = Sha256::default().digest(data).unwrap();
     assert_eq!(digest, Array4x8::from(expected));
 }
 

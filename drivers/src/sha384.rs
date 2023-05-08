@@ -84,7 +84,7 @@ impl Sha384 {
     ///
     /// * `data` - Data to used to update the digest
     ///
-    pub fn digest(&self, buf: &[u8], digest: Sha384Digest) -> CaliptraResult<()> {
+    pub fn digest(&self, buf: &[u8]) -> CaliptraResult<Array4x12> {
         // Check if the buffer is not large
         if buf.len() > SHA384_MAX_DATA_SIZE {
             raise_err!(MaxDataErr)
@@ -122,10 +122,7 @@ impl Sha384 {
                 }
             }
         }
-
-        self.copy_digest_to_buf(digest)?;
-
-        Ok(())
+        Ok(self.read_digest())
     }
 
     /// Copy digest to buffer
@@ -133,13 +130,12 @@ impl Sha384 {
     /// # Arguments
     ///
     /// * `buf` - Digest buffer
-    fn copy_digest_to_buf(&self, buf: &mut Array4x12) -> CaliptraResult<()> {
+    fn read_digest(&self) -> Array4x12 {
         let sha = sha512::RegisterBlock::sha512_reg();
         // digest_block() only waits until the peripheral is ready for the next
         // command; the result register may not be valid yet
         wait::until(|| sha.status().read().valid());
-        *buf = Array4x12::read_from_reg(sha.digest().truncate::<12>());
-        Ok(())
+        Array4x12::read_from_reg(sha.digest().truncate::<12>())
     }
 
     pub fn pcr_extend(&self, id: PcrId, data: &[u8]) -> CaliptraResult<()> {
@@ -369,7 +365,7 @@ impl<'a> Sha384DigestOp<'a> {
         self.state = Sha384DigestState::Final;
 
         // Copy digest
-        self.sha.copy_digest_to_buf(self.digest)?;
+        *self.digest = self.sha.read_digest();
 
         Ok(())
     }

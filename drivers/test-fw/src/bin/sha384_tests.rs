@@ -29,9 +29,7 @@ fn test_digest0() {
     ];
 
     let data = &[];
-    let mut digest = Array4x12::default();
-    let result = Sha384::default().digest(data, &mut digest);
-    assert!(result.is_ok());
+    let digest = Sha384::default().digest(data).unwrap();
     assert_eq!(digest, Array4x12::from(expected));
 }
 
@@ -43,9 +41,7 @@ fn test_digest1() {
         0xC8, 0x25, 0xA7,
     ];
     let data = "abc".as_bytes();
-    let mut digest = Array4x12::default();
-    let result = Sha384::default().digest(data.into(), &mut digest);
-    assert!(result.is_ok());
+    let digest = Sha384::default().digest(data.into()).unwrap();
     assert_eq!(digest, Array4x12::from(expected));
 }
 
@@ -57,9 +53,7 @@ fn test_digest2() {
         0xC8, 0x45, 0x2B,
     ];
     let data = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".as_bytes();
-    let mut digest = Array4x12::default();
-    let result = Sha384::default().digest(data.into(), &mut digest);
-    assert!(result.is_ok());
+    let digest = Sha384::default().digest(data.into()).unwrap();
     assert_eq!(digest, Array4x12::from(expected));
 }
 
@@ -71,9 +65,7 @@ fn test_digest3() {
         0x74, 0x60, 0x39,
     ];
     let data = "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu".as_bytes();
-    let mut digest = Array4x12::default();
-    let result = Sha384::default().digest(data.into(), &mut digest);
-    assert!(result.is_ok());
+    let digest = Sha384::default().digest(data.into()).unwrap();
     assert_eq!(digest, Array4x12::from(expected));
 }
 
