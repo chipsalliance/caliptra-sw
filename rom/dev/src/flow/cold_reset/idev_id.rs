@@ -242,8 +242,8 @@ impl InitDevIdLayer {
         // cprint_slice!("[idev] PUB.X", _pub_x);
         // cprint_slice!("[idev] PUB.Y", _pub_y);
 
-        let _sig_r: [u8; 48] = sig.r.into();
-        let _sig_s: [u8; 48] = sig.s.into();
+        let _sig_r: [u8; 48] = (&sig.r).into();
+        let _sig_s: [u8; 48] = (&sig.s).into();
         cprintln!("[idev] SIG.R = {}", HexBytes(&_sig_r));
         cprintln!("[idev] SIG.S = {}", HexBytes(&_sig_s));
 

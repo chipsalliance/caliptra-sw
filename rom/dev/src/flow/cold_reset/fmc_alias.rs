@@ -388,8 +388,8 @@ impl FmcAliasLayer {
             authority_key_id: &input.auth_key_id,
             serial_number: &X509::cert_sn(env, pub_key)?,
             public_key: &pub_key.to_der(),
-            tcb_info_fmc_tci: &env.data_vault().map(|d| d.fmc_tci()).into(),
-            tcb_info_owner_pk_hash: &env.data_vault().map(|d| d.owner_pk_hash()).into(),
+            tcb_info_fmc_tci: &(&env.data_vault().map(|d| d.fmc_tci())).into(),
+            tcb_info_owner_pk_hash: &(&env.data_vault().map(|d| d.owner_pk_hash())).into(),
             tcb_info_flags: &flags,
             tcb_info_svn: &svn.to_be_bytes(),
             tcb_info_min_svn: &min_svn.to_be_bytes(),
@@ -416,13 +416,13 @@ impl FmcAliasLayer {
             raise_err!(CertVerify);
         }
 
-        let _pub_x: [u8; 48] = pub_key.x.into();
-        let _pub_y: [u8; 48] = pub_key.y.into();
+        let _pub_x: [u8; 48] = (&pub_key.x).into();
+        let _pub_y: [u8; 48] = (&pub_key.y).into();
         cprintln!("[afmc] PUB.X = {}", HexBytes(&_pub_x));
         cprintln!("[afmc] PUB.Y = {}", HexBytes(&_pub_y));
 
-        let _sig_r: [u8; 48] = sig.r.into();
-        let _sig_s: [u8; 48] = sig.s.into();
+        let _sig_r: [u8; 48] = (&sig.r).into();
+        let _sig_s: [u8; 48] = (&sig.s).into();
         cprintln!("[afmc] SIG.R = {}", HexBytes(&_sig_r));
         cprintln!("[afmc] SIG.S = {}", HexBytes(&_sig_s));
 

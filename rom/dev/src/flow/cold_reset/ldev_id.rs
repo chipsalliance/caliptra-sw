@@ -173,13 +173,13 @@ impl LocalDevIdLayer {
             raise_err!(CertVerify);
         }
 
-        let _pub_x: [u8; 48] = pub_key.x.into();
-        let _pub_y: [u8; 48] = pub_key.y.into();
+        let _pub_x: [u8; 48] = (&pub_key.x).into();
+        let _pub_y: [u8; 48] = (&pub_key.y).into();
         cprintln!("[ldev] PUB.X = {}", HexBytes(&_pub_x));
         cprintln!("[ldev] PUB.Y = {}", HexBytes(&_pub_y));
 
-        let _sig_r: [u8; 48] = sig.r.into();
-        let _sig_s: [u8; 48] = sig.s.into();
+        let _sig_r: [u8; 48] = (&sig.r).into();
+        let _sig_s: [u8; 48] = (&sig.s).into();
         cprintln!("[ldev] SIG.R = {}", HexBytes(&_sig_r));
         cprintln!("[ldev] SIG.S = {}", HexBytes(&_sig_s));
 

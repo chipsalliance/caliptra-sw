@@ -58,8 +58,8 @@ fn extend_pcr_common(env: &FmcEnv, hand_off: &HandOff, pcr_id: PcrId) -> Caliptr
 
     // Extend RT TCI (Hash over runtime code)
     let data = hand_off.rt_tci(env);
-    let bytes: &[u8; 48] = &data.into();
-    sha.map(|s| pcr_bank.map(|p| p.extend_pcr(pcr_id, s, bytes)))?;
+    let bytes: [u8; 48] = (&data).into();
+    sha.map(|s| pcr_bank.map(|p| p.extend_pcr(pcr_id, s, &bytes)))?;
 
     // Extend RT SVN
     let data = hand_off.rt_svn(env);

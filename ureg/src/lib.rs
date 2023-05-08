@@ -657,10 +657,12 @@ impl<const LEN: usize, TReg: ReadableReg, TMmio: Mmio> Array<LEN, RegRef<TReg, T
     pub fn read(&self) -> [TReg::ReadVal; LEN] {
         let mut result: MaybeUninit<[TReg::ReadVal; LEN]> = MaybeUninit::uninit();
         unsafe {
-            for i in 0..LEN {
-                *(result.as_mut_ptr() as *mut TReg::ReadVal).add(i) =
-                    TReg::ReadVal::from(self.mmio.read_volatile(self.ptr.add(i)));
-            }
+            read_volatile_slice(
+                &self.mmio,
+                result.as_mut_ptr() as *mut TReg::ReadVal,
+                self.ptr,
+                LEN,
+            );
             result.assume_init()
         }
     }
@@ -670,6 +672,31 @@ impl<const LEN: usize, TReg: ReadableReg, TMmio: Mmio> Array<LEN, RegRef<TReg, T
         self.ptr
     }
 }
+
+#[inline(never)]
+unsafe fn read_volatile_slice<D: Copy, T: Copy + From<D>, TMmio: Mmio>(
+    mmio: &TMmio,
+    dst: *mut T,
+    src: *mut D,
+    len: usize,
+) {
+    for i in 0..len {
+        dst.add(i).write(mmio.read_volatile(src.add(i)).into());
+    }
+}
+
+#[inline(never)]
+unsafe fn write_volatile_slice<D: Copy, T: Copy + Into<D>, TMmio: Mmio>(
+    mmio: &TMmio,
+    dest: *mut D,
+    val: &[T],
+) {
+    #[allow(clippy::needless_range_loop)]
+    for i in 0..val.len() {
+        mmio.write_volatile(dest.add(i), val[i].into());
+    }
+}
+
 impl<const LEN: usize, TReg: WritableReg, TMmio: Mmio> Array<LEN, RegRef<TReg, TMmio>> {
     /// Reads the entire contents of the array from the underlying registers
     ///
@@ -699,10 +726,7 @@ impl<const LEN: usize, TReg: WritableReg, TMmio: Mmio> Array<LEN, RegRef<TReg, T
     #[inline(always)]
     pub fn write(&self, val: &[TReg::WriteVal; LEN]) {
         unsafe {
-            #[allow(clippy::needless_range_loop)]
-            for i in 0..LEN {
-                self.mmio.write_volatile(self.ptr.add(i), val[i].into());
-            }
+            write_volatile_slice(&self.mmio, self.ptr, val.as_slice());
         }
     }
 }
@@ -721,6 +745,10 @@ impl<const LEN: usize, TItem: FromMmioPtr> FromMmioPtr for Array<LEN, TItem> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // To run inside the MIRI interpreter to detect undefined behavior in the
+    // unsafe code, run with:
+    // cargo +nightly miri test -p ureg --lib
 
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     pub enum Pull {
