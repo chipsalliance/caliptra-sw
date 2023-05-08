@@ -54,6 +54,14 @@ pub trait ImageGeneratorCrypto {
         priv_key: &ImageEccPrivKey,
         pub_key: &ImageEccPubKey,
     ) -> anyhow::Result<ImageEccSignature>;
+
+    /// Calculate LMS Signature
+    fn lms_sign(
+        &self,
+        digest: &ImageDigest,
+        priv_key: &ImageLmsPrivKey,
+        pub_key: &ImageLmsPublicKey,
+    ) -> anyhow::Result<ImageLmsSignature>;
 }
 
 /// Image Generator Vendor Configuration
