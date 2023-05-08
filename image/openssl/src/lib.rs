@@ -318,6 +318,7 @@ fn generate_ots_signature_helper(
     seed: &[u8],
     rand: &[u8],
     q: u32,
+    otstype: u32,
 ) -> ImageLmOTSSignature {
     let alg_params = get_lmots_parameters(&ots_alg).unwrap();
     let mut sig: ImageLmOTSSignature = Default::default();
@@ -370,7 +371,7 @@ fn generate_ots_signature_helper(
         sig_val.clone_from_slice(tmp);
     }
 
-    sig.otstype = ots_alg as u32;
+
     sig
 }
 
@@ -411,12 +412,12 @@ fn sign_with_lms_key(
         &priv_key.id,
         &priv_key.seed,
         nonce,
-        q
+
     );
     let mut sig = Some(ImageLmsSignature::default());
     sig.as_mut().map(|x| x.q = q);
     sig.as_mut().map(|x| x.ots_sig = ots_sig);
-    sig.as_mut().map(|x| x.tree_type = priv_key.tree_type);
+
     generate_lms_pubkey_helper(
         &priv_key.id,
         ots_alg_type,
@@ -453,8 +454,7 @@ fn test_print_lms_private_pub_key() {
 #[test]
 fn test_lms() {
     let priv_key = ImageLmsPrivKey {
-        tree_type: 10,
-        otstype: 8,
+
         id: [
             0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d,
             0x2e, 0x2f,
@@ -465,8 +465,7 @@ fn test_lms() {
         ],
     };
     let expected_pub_key = ImageLmsPublicKey {
-        tree_type: 10,
-        otstype: 8,
+
         id: priv_key.id.clone(),
         digest: [
             0x2c, 0x57, 0x14, 0x50, 0xae, 0xd9, 0x9c, 0xfb, 0x4f, 0x4a, 0xc2, 0x85, 0xda, 0x14,
@@ -480,8 +479,7 @@ fn test_lms() {
 #[test]
 fn test_lms_sig() {
     let priv_key = ImageLmsPrivKey {
-        tree_type: 10,
-        otstype: 8,
+
         id: [
             0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d,
             0x2e, 0x2f,
@@ -638,8 +636,7 @@ fn test_lms_sig() {
     .unwrap();
     let mut expected_sig = ImageLmsSignature::default();
     expected_sig.q = 5;
-    expected_sig.tree_type = 10;
-    expected_sig.ots_sig.otstype = 8;
+
     expected_sig.ots_sig.random = nonce.clone();
     for i in 0..26 {
         expected_sig.ots_sig.sig[i].clone_from_slice(&expected_ots_sig[i]);
