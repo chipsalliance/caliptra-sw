@@ -102,7 +102,6 @@ run: build-emu build-fw-image objcopy
 		--release \
 		--bin caliptra-emu \
 		-- \
-		--req-idevid-csr \
 		--idevid-key-id-algo sha1 \
 		--rom $(TARGET_DIR)/caliptra-rom.bin \
 		--firmware $(TARGET_DIR)/caliptra-rom-test-fw \
