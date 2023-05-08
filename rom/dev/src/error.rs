@@ -43,7 +43,7 @@ macro_rules! rom_err_def {
         impl From<$enum_name> for core::num::NonZeroU32 {
             fn from(val: $enum_name) -> Self {
                 // Panic is impossible as long as the enums don't define zero.
-                core::num::NonZeroU32::new(((($crate::error::RomComponent::$comp_name) as u32) << 24) | (val as u32)).unwrap()
+                core::num::NonZeroU32::new(((($crate::error::RomComponent::$comp_name) as u32) << 16) | (val as u32)).unwrap()
             }
         }
         impl From<$enum_name> for u32 {
