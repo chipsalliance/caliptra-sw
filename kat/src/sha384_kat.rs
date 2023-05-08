@@ -51,10 +51,7 @@ impl Sha384Kat {
 
     fn kat_no_data(&self, sha: &Sha384) -> CaliptraResult<()> {
         let data = &[];
-        let mut digest = Array4x12::default();
-
-        sha.digest(data, &mut digest)
-            .map_err(|_| err_u32!(DigestFailure))?;
+        let digest = sha.digest(data).map_err(|_| err_u32!(DigestFailure))?;
 
         if digest != SHA384_EXPECTED_DIGEST {
             raise_err!(DigestMismatch);

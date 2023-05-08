@@ -70,7 +70,7 @@ impl Sha1 {
     /// # Arguments
     ///
     /// * `buf` - Buffer to calculate the digest over
-    pub fn digest(&mut self, buf: &[u8], digest: Sha1Digest) -> CaliptraResult<()> {
+    pub fn digest(&mut self, buf: &[u8]) -> CaliptraResult<Array4x5> {
         // Check if the buffer is not large
         if buf.len() > SHA1_MAX_DATA_SIZE {
             raise_err!(MaxDataErr)
@@ -109,9 +109,7 @@ impl Sha1 {
             }
         }
 
-        self.copy_digest_to_buf(digest)?;
-
-        Ok(())
+        Ok(self.compressor.hash().into())
     }
 
     /// Copy digest to buffer
