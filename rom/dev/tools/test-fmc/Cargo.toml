@@ -12,6 +12,7 @@ ufmt = "0.2.0"
 zerocopy = "0.6.1"
 caliptra-x509 = { version = "0.1.0", path = "../../../../x509" , default-features = false }
 caliptra-cpu = { version = "0.1.0", path = "../../../../cpu" }
+caliptra-registers = { path = "../../../../registers" }
 
 [build-dependencies]
 cfg-if = "1.0.0"

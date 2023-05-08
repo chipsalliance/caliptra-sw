@@ -56,6 +56,13 @@ pub fn get_csr(hw: &mut DefaultHwModel) -> Result<Vec<u8>, ModelError> {
     Ok(result)
 }
 
+pub fn change_dword_endianess(data: &mut [u8]) {
+    for idx in (0..data.len()).step_by(4) {
+        data.swap(idx, idx + 3);
+        data.swap(idx + 1, idx + 2);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

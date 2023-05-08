@@ -17,12 +17,15 @@ Abstract:
 extern "C" {
     static mut LDEVID_TBS_ORG: u8;
     static mut FMCALIAS_TBS_ORG: u8;
+    static mut PCR_LOG_ORG: u8;
 }
 
 use caliptra_common::FirmwareHandoffTable;
+use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_drivers::DataVault;
 use caliptra_drivers::Mailbox;
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
+use zerocopy::AsBytes;
 use zerocopy::FromBytes;
 
 #[cfg(not(feature = "std"))]
@@ -56,6 +59,8 @@ pub extern "C" fn fmc_entry() -> ! {
     assert!(fht.is_valid());
 
     create_certs();
+
+    process_mailbox_commands();
 
     caliptra_drivers::ExitCtrl::exit(0)
 }
@@ -177,4 +182,74 @@ fn copy_tbs(tbs: &mut [u8], ldevid_tbs: bool) {
         }
     };
     tbs.copy_from_slice(src);
+}
+
+fn get_pcr_entry(entry_index: usize) -> PcrLogEntry {
+    // Copy the pcr log entry from DCCM
+    let mut pcr_entry: [u8; core::mem::size_of::<PcrLogEntry>()] =
+        [0u8; core::mem::size_of::<PcrLogEntry>()];
+
+    let src = unsafe {
+        let offset = core::mem::size_of::<PcrLogEntry>() * entry_index;
+        let ptr = (&mut PCR_LOG_ORG as *mut u8).add(offset);
+        core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<PcrLogEntry>())
+    };
+
+    pcr_entry.copy_from_slice(src);
+    PcrLogEntry::read_from_prefix(pcr_entry.as_bytes()).unwrap()
+}
+
+fn process_mailbox_commands() {
+    let mbox = caliptra_registers::mbox::RegisterBlock::mbox_csr();
+
+    let cmd = mbox.cmd().read();
+    cprintln!("[fmc] Received command: 0x{:08X}", cmd);
+    match cmd {
+        0x1000_0000 => {
+            read_pcr_log(&mbox);
+        }
+        0x1000_0001 => {
+            // TODO: Generate certs
+        }
+        _ => {
+            // No-op
+        }
+    }
+}
+
+fn read_pcr_log(mbox: &caliptra_registers::mbox::RegisterBlock) {
+    let mut pcr_entry_count = 0;
+    loop {
+        let pcr_entry = get_pcr_entry(pcr_entry_count);
+        if PcrLogEntryId::from(pcr_entry.id) == PcrLogEntryId::Invalid {
+            break;
+        }
+
+        pcr_entry_count += 1;
+        let pcr_entry_bytes = pcr_entry.as_bytes();
+        let word_size = core::mem::size_of::<u32>();
+        let remainder = pcr_entry_bytes.len() % word_size;
+        let n = pcr_entry_bytes.len() - remainder;
+
+        for idx in (0..n).step_by(word_size) {
+            mbox.datain().write(|_| {
+                u32::from_le_bytes(pcr_entry_bytes[idx..idx + word_size].try_into().unwrap())
+            });
+        }
+
+        if remainder > 0 {
+            let mut last_word = pcr_entry_bytes[n] as u32;
+            for idx in 1..remainder {
+                last_word |= (pcr_entry_bytes[n + idx] as u32) << (idx << 3);
+            }
+            mbox.datain().write(|_| last_word);
+        }
+    }
+
+    mbox.dlen().write(|_| {
+        (core::mem::size_of::<PcrLogEntry>() * pcr_entry_count)
+            .try_into()
+            .unwrap()
+    });
+    mbox.status().write(|w| w.status(|w| w.data_ready()));
 }
