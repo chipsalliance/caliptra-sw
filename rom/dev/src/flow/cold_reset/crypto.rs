@@ -28,8 +28,8 @@ impl Ecdsa384SignatureAdapter for Ecc384Signature {
     /// Convert to ECDSA Signatuure
     fn to_ecdsa(&self) -> Ecdsa384Signature {
         Ecdsa384Signature {
-            r: self.r.into(),
-            s: self.s.into(),
+            r: (&self.r).into(),
+            s: (&self.s).into(),
         }
     }
 }
