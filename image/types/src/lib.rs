@@ -101,7 +101,7 @@ pub struct ImageLmsSignature {
 
     pub ots_sig: ImageLmOTSSignature,
 
-    pub lms_type: u32,
+    pub tree_type: u32,
 
     pub digest: [Sha192Hash; IMAGE_LMS_KEY_HEIGHT]
 }
