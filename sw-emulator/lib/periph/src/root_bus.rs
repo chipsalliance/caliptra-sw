@@ -120,6 +120,34 @@ impl From<Box<dyn FnMut(&mut MailboxInternal) + 'static>> for UploadUpdateFwCb {
     }
 }
 
+type DownloadCsrFn = Box<dyn FnMut(&mut MailboxInternal, &PathBuf)>;
+pub struct DownloadIdevidCsrCb(pub DownloadCsrFn);
+impl DownloadIdevidCsrCb {
+    pub fn new(f: impl FnMut(&mut MailboxInternal, &PathBuf) + 'static) -> Self {
+        Self(Box::new(f))
+    }
+    pub(crate) fn take(&mut self) -> DownloadCsrFn {
+        std::mem::take(self).0
+    }
+}
+impl Default for DownloadIdevidCsrCb {
+    fn default() -> Self {
+        Self(Box::new(|_, _| {}))
+    }
+}
+impl std::fmt::Debug for DownloadIdevidCsrCb {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("DownloadCsrCb")
+            .field(&"<unknown closure>")
+            .finish()
+    }
+}
+impl From<Box<dyn FnMut(&mut MailboxInternal, &PathBuf) + 'static>> for DownloadIdevidCsrCb {
+    fn from(value: Box<dyn FnMut(&mut MailboxInternal, &PathBuf)>) -> Self {
+        Self(value)
+    }
+}
+
 pub struct ActionCb(Box<dyn FnMut()>);
 impl ActionCb {
     pub fn new(f: impl FnMut() + 'static) -> Self {
@@ -161,6 +189,7 @@ pub struct CaliptraRootBusArgs {
     pub ready_for_fw_cb: ReadyForFwCb,
     pub upload_update_fw: UploadUpdateFwCb,
     pub bootfsm_go_cb: ActionCb,
+    pub download_idevid_csr_cb: DownloadIdevidCsrCb,
 }
 
 #[derive(Bus)]

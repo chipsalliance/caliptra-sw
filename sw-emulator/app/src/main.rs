@@ -15,8 +15,8 @@ Abstract:
 use caliptra_emu_bus::Clock;
 use caliptra_emu_cpu::{Cpu, RvInstr, StepAction};
 use caliptra_emu_periph::{
-    CaliptraRootBus, CaliptraRootBusArgs, MailboxInternal, ReadyForFwCb, TbServicesCb,
-    UploadUpdateFwCb,
+    CaliptraRootBus, CaliptraRootBusArgs, DownloadIdevidCsrCb, MailboxInternal, ReadyForFwCb,
+    TbServicesCb, UploadUpdateFwCb,
 };
 use caliptra_hw_model::BusMmio;
 use caliptra_hw_model_types::{DeviceLifecycle, SecurityState};
@@ -259,6 +259,11 @@ fn main() -> io::Result<()> {
             while !mailbox.try_acquire_lock() {}
             upload_fw_to_mailbox(mailbox, update_fw_buf.clone());
         }),
+        download_idevid_csr_cb: DownloadIdevidCsrCb::new(
+            move |mailbox: &mut MailboxInternal, path: &PathBuf| {
+                download_idev_id_csr(mailbox, path);
+            },
+        ),
         ..Default::default()
     };
 
@@ -376,6 +381,8 @@ fn change_dword_endianess(data: &mut Vec<u8>) {
 }
 
 fn upload_fw_to_mailbox(mailbox: &mut MailboxInternal, firmware_buffer: Rc<Vec<u8>>) {
+    println!("Uploading firmware to mailbox");
+
     // Write the cmd to mailbox.
     let _ = mailbox.write_cmd(FW_LOAD_CMD_OPCODE);
 
@@ -406,4 +413,31 @@ fn upload_fw_to_mailbox(mailbox: &mut MailboxInternal, firmware_buffer: Rc<Vec<u
 
     // Set the execute register.
     let _ = mailbox.write_execute(1);
+
+    println!("Uploaded firmware to mailbox");
+}
+
+fn download_idev_id_csr(mailbox: &mut MailboxInternal, path: &PathBuf) {
+    let mut path = path.clone();
+    path.push("caliptra_ldevid_cert.der");
+
+    let mut file = std::fs::File::create(path).unwrap();
+
+    let byte_count = mailbox.read_dlen().unwrap() as usize;
+    let remainder = byte_count % core::mem::size_of::<u32>();
+    let n = byte_count - remainder;
+
+    for _ in (0..n).step_by(core::mem::size_of::<u32>()) {
+        let buf = mailbox.read_dataout().unwrap();
+        file.write_all(&buf.to_le_bytes()).unwrap();
+    }
+
+    if remainder > 0 {
+        let part = mailbox.read_dataout().unwrap();
+        for idx in 0..remainder {
+            let byte = ((part >> (idx << 3)) & 0xFF) as u8;
+            file.write_all(&[byte]).unwrap();
+        }
+    }
+    //mailbox.set_status_cmd_complete().unwrap();
 }
