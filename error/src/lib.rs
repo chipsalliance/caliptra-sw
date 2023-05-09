@@ -265,7 +265,7 @@ impl CaliptraError {
     pub const RUNTIME_INTERNAL: CaliptraError = CaliptraError::new_const(0x000E0001);
     pub const RUNTIME_UNIMPLEMENTED_COMMAND: CaliptraError = CaliptraError::new_const(0x000E0002);
     pub const RUNTIME_INSUFFICIENT_MEMORY: CaliptraError = CaliptraError::new_const(0x000E0003);
-    pub const RUNTIME_ECDSA_VERIF_FAILED: CaliptraError = CaliptraError::new_const(0x000E0004);
+    pub const RUNTIME_ECDSA_VERIFY_FAILED: CaliptraError = CaliptraError::new_const(0x000E0004);
     pub const RUNTIME_INVALID_CHECKSUM: CaliptraError = CaliptraError::new_const(0x000E0005);
     pub const RUNTIME_FIPS_UNIMPLEMENTED: CaliptraError = CaliptraError::new_const(0x000E0006);
 
