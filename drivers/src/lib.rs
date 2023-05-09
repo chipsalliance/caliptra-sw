@@ -30,6 +30,7 @@ mod key_vault;
 mod kv_access;
 mod lms;
 mod mailbox;
+mod okref;
 mod pcr_bank;
 mod reset;
 mod sha1;
@@ -72,6 +73,7 @@ pub use lms::{
     LmsAlgorithmType, LmsIdentifier, LmsSignature, Sha192Digest, Sha256Digest,
 };
 pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
+pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};
 pub use reset::{ResetReason, ResetService};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};

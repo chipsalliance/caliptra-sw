@@ -228,10 +228,11 @@ impl InitDevIdLayer {
         );
 
         // Sign the the `To Be Signed` portion
-        let sig = Crypto::ecdsa384_sign(env, key_pair.priv_key, tbs.tbs())?;
+        let sig = Crypto::ecdsa384_sign(env, key_pair.priv_key, tbs.tbs());
+        let sig = okref(&sig)?;
 
         // Verify the signature of the `To Be Signed` portion
-        if !Crypto::ecdsa384_verify(env, &key_pair.pub_key, tbs.tbs(), &sig)? {
+        if !Crypto::ecdsa384_verify(env, &key_pair.pub_key, tbs.tbs(), sig)? {
             raise_err!(CsrVerify);
         }
 
