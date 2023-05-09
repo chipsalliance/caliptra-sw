@@ -26,8 +26,8 @@ use crate::{cprint, cprintln, pcr};
 use crate::{rom_env::RomEnv, rom_err_def};
 use caliptra_common::dice;
 use caliptra_drivers::{
-    Array4x12, CaliptraResult, ColdResetEntry4, ColdResetEntry48, Hmac384Data, Hmac384Key, KeyId,
-    KeyReadArgs, Lifecycle, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
+    okref, Array4x12, CaliptraResult, ColdResetEntry4, ColdResetEntry48, Hmac384Data, Hmac384Key,
+    KeyId, KeyReadArgs, Lifecycle, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
@@ -66,19 +66,21 @@ impl DiceLayer for FmcAliasLayer {
         let mut txn = Self::download_image(env)?;
 
         // Load the manifest
-        let manifest = Self::load_manifest(&txn)?;
+        let manifest = Self::load_manifest(&txn);
+        let manifest = okref(&manifest)?;
 
         // Verify the image
-        let info = Self::verify_image(env, &manifest)?;
+        let info = Self::verify_image(env, manifest);
+        let info = okref(&info)?;
 
         // populate data vault
-        Self::populate_data_vault(env, &info);
+        Self::populate_data_vault(env, info);
 
         // Extend PCR0
         pcr::extend_pcr0(env)?;
 
         // Load the image
-        Self::load_image(env, &manifest, &txn)?;
+        Self::load_image(env, manifest, &txn)?;
 
         // Complete the mailbox transaction indicating success.
         txn.complete(true)?;
@@ -384,8 +386,8 @@ impl FmcAliasLayer {
             ueid: &X509::ueid(env)?,
             subject_sn: &output.subj_sn,
             subject_key_id: &output.subj_key_id,
-            issuer_sn: &input.auth_sn,
-            authority_key_id: &input.auth_key_id,
+            issuer_sn: input.auth_sn,
+            authority_key_id: input.auth_key_id,
             serial_number: &X509::cert_sn(env, pub_key)?,
             public_key: &pub_key.to_der(),
             tcb_info_fmc_tci: &(&env.data_vault().map(|d| d.fmc_tci())).into(),
@@ -405,14 +407,15 @@ impl FmcAliasLayer {
             "[afmc] Signing Cert with AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
-        let sig = Crypto::ecdsa384_sign(env, auth_priv_key, tbs.tbs())?;
+        let sig = Crypto::ecdsa384_sign(env, auth_priv_key, tbs.tbs());
+        let sig = okref(&sig)?;
 
         // Clear the authority private key
         cprintln!("[afmc] Erasing AUTHORITY.KEYID = {}", auth_priv_key as u8);
         env.key_vault().map(|k| k.erase_key(auth_priv_key))?;
 
         // Verify the signature of the `To Be Signed` portion
-        if !Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), &sig)? {
+        if !Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? {
             raise_err!(CertVerify);
         }
 
@@ -427,7 +430,7 @@ impl FmcAliasLayer {
         cprintln!("[afmc] SIG.S = {}", HexBytes(&_sig_s));
 
         // Lock the FMC Certificate Signature in data vault until next boot
-        env.data_vault().map(|d| d.set_fmc_dice_signature(&sig));
+        env.data_vault().map(|d| d.set_fmc_dice_signature(sig));
 
         // Lock the FMC Public key in the data vault until next boot
         env.data_vault().map(|d| d.set_fmc_pub_key(pub_key));

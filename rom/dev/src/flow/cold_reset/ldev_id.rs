@@ -140,14 +140,17 @@ impl LocalDevIdLayer {
         let auth_pub_key = &input.auth_key_pair.pub_key;
         let pub_key = &output.subj_key_pair.pub_key;
 
+        let serial_number = X509::cert_sn(env, pub_key);
+        let serial_number = okref(&serial_number)?;
+
         // CSR `To Be Signed` Parameters
         let params = LocalDevIdCertTbsParams {
             ueid: &X509::ueid(env)?,
             subject_sn: &output.subj_sn,
             subject_key_id: &output.subj_key_id,
-            issuer_sn: &input.auth_sn,
-            authority_key_id: &input.auth_key_id,
-            serial_number: &X509::cert_sn(env, pub_key)?,
+            issuer_sn: input.auth_sn,
+            authority_key_id: input.auth_key_id,
+            serial_number,
             public_key: &pub_key.to_der(),
             not_before: &NotBefore::default().not_before,
             not_after: &NotAfter::default().not_after,
@@ -161,7 +164,8 @@ impl LocalDevIdLayer {
             "[ldev] Signing Cert with AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
-        let sig = Crypto::ecdsa384_sign(env, auth_priv_key, tbs.tbs())?;
+        let sig = Crypto::ecdsa384_sign(env, auth_priv_key, tbs.tbs());
+        let sig = okref(&sig)?;
 
         // Clear the authority private key
         //To-Do : Disabling The Print Temporarily
@@ -169,7 +173,7 @@ impl LocalDevIdLayer {
         env.key_vault().map(|k| k.erase_key(auth_priv_key))?;
 
         // Verify the signature of the `To Be Signed` portion
-        if !Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), &sig)? {
+        if !Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? {
             raise_err!(CertVerify);
         }
 
@@ -185,7 +189,7 @@ impl LocalDevIdLayer {
 
         // Lock the Local Device ID cert signature in data vault until
         // cold reset
-        env.data_vault().map(|d| d.set_ldev_dice_signature(&sig));
+        env.data_vault().map(|d| d.set_ldev_dice_signature(sig));
 
         // Lock the Local Device ID public keys in data vault until
         // cold reset
