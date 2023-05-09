@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::caliptra_err_def;
-use caliptra_drivers::{Array4x12, Array4xN, CaliptraResult, Hmac384};
+use caliptra_drivers::{Array4x12, CaliptraResult, Hmac384};
 
 caliptra_err_def! {
     Hmac384Kat,
@@ -24,12 +24,12 @@ caliptra_err_def! {
     }
 }
 
-const KEY: Array4xN<12, 48> = Array4xN([
+const KEY: Array4x12 = Array4x12::new([
     0xb0b0b0b, 0xb0b0b0b, 0xb0b0b0b, 0xb0b0b0b, 0xb0b0b0b, 0xb0b0b0b, 0xb0b0b0b, 0xb0b0b0b,
     0xb0b0b0b, 0xb0b0b0b, 0xb0b0b0b, 0xb0b0b0b,
 ]);
 
-const EXPECTED_TAG: Array4xN<12, 48> = Array4xN([
+const EXPECTED_TAG: Array4x12 = Array4x12::new([
     0xb93a3e87, 0xa1bc85c8, 0x7b54f81d, 0xabb499a5, 0xe1a66254, 0x9198594c, 0x9088733c, 0x8edd0068,
     0x83e4d461, 0x823e6259, 0x8b07a904, 0x28f9add9,
 ]);

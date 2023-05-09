@@ -14,7 +14,7 @@ Abstract:
 
 use crate::caliptra_err_def;
 use caliptra_drivers::{
-    Array4xN, CaliptraResult, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Signature,
+    Array4x12, Array4xN, CaliptraResult, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Signature,
 };
 
 caliptra_err_def! {
@@ -27,7 +27,7 @@ caliptra_err_def! {
     }
 }
 
-const PRIV_KEY: Array4xN<12, 48> = Array4xN([
+const PRIV_KEY: Array4x12 = Array4x12::new([
     0xc908585a, 0x486c3b3d, 0x8bbe50eb, 0x7d2eb8a0, 0x3aa04e3d, 0x8bde2c31, 0xa8a2a1e3, 0x349dc21c,
     0xbbe6c90a, 0xe2f74912, 0x8884b622, 0xbb72b4c5,
 ]);
@@ -76,7 +76,7 @@ impl Ecc384Kat {
     }
 
     fn kat_signature_generate(&self, ecc: &Ecc384) -> CaliptraResult<()> {
-        let digest: Array4xN<12, 48> = Array4xN([0u32; 12]);
+        let digest = Array4x12::new([0u32; 12]);
         let signature = ecc
             .sign(Ecc384PrivKeyIn::from(&PRIV_KEY), &digest)
             .map_err(|_| err_u32!(SignatureGenerateFailure))?;
