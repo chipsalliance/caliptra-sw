@@ -15,6 +15,11 @@ Abstract:
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Array4xN<const W: usize, const B: usize>(pub [u32; W]);
+impl<const W: usize, const B: usize> Array4xN<W, B> {
+    pub const fn new(val: [u32; W]) -> Self {
+        Self(val)
+    }
+}
 
 impl<const W: usize, const B: usize> Default for Array4xN<W, B> {
     fn default() -> Self {

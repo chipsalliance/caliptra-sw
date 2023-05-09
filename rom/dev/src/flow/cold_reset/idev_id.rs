@@ -33,7 +33,7 @@ const DOE_UDS_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193
 const DOE_FE_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e]);
 
 /// Key used to derive the Composite Device Identity(CDI) for Initial Device Identity (IDEVID)
-const IDEVID_CDI_KEY: Array4x12 = Array4xN::<12, 48>([
+const IDEVID_CDI_KEY: Array4x12 = Array4x12::new([
     0x5bd3c575, 0x2ba359a2, 0x696c97f0, 0x56f594a3, 0x6130c106, 0xedcddddb, 0xd01044f6, 0xf2d302d8,
     0xeeefec92, 0xa0ebfaa0, 0x36bf2d20, 0x0535df6f,
 ]);
