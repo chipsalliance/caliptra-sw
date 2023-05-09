@@ -74,3 +74,35 @@ fn test_iccm_unaligned_write_nmi_failure() {
     assert!(ext_info.mepc >= main_addr + 4 && ext_info.mepc <= main_addr + 12);
     assert_eq!(ext_info.mcause, harness::NMI_CAUSE_DBUS_STORE_ERROR);
 }
+
+#[test]
+fn test_write_unmapped_address() {
+    let elf = caliptra_builder::build_firmware_elf(&FwId {
+        bin_name: "test_write_unmapped_address",
+        ..BASE_FWID
+    })
+    .unwrap();
+    let mut model = run_fw_elf(&elf);
+    model.step_until_exit_success().unwrap_err();
+    let soc_ifc: caliptra_registers::soc_ifc::RegisterBlock<_> = model.soc_ifc();
+    assert_eq!(
+        soc_ifc.cptra_fw_error_non_fatal().read(),
+        harness::ERROR_EXCEPTION
+    );
+}
+
+#[test]
+fn test_write_to_rom() {
+    let elf = caliptra_builder::build_firmware_elf(&FwId {
+        bin_name: "test_write_to_rom",
+        ..BASE_FWID
+    })
+    .unwrap();
+    let mut model = run_fw_elf(&elf);
+    model.step_until_exit_success().unwrap_err();
+    let soc_ifc: caliptra_registers::soc_ifc::RegisterBlock<_> = model.soc_ifc();
+    assert_eq!(
+        soc_ifc.cptra_fw_error_non_fatal().read(),
+        harness::ERROR_EXCEPTION
+    );
+}

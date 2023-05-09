@@ -207,7 +207,7 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x3003_0000, mask = 0x0000_ffff)]
     pub soc_reg: SocRegistersInternal,
 
-    #[peripheral(offset = 0x5000_0000, mask = 0x0fff_ffff)]
+    #[peripheral(offset = 0x5000_0000, mask = 0x0001_ffff)]
     pub dccm: Ram,
 }
 
@@ -245,8 +245,6 @@ impl CaliptraRootBus {
 
     pub fn soc_to_caliptra_bus(&self) -> SocToCaliptraBus {
         SocToCaliptraBus {
-            // TODO: This should not be the same mailbox bus as the one used
-            // internaly
             mailbox: self.mailbox.as_external(),
             soc_ifc: self.soc_reg.external_regs(),
         }

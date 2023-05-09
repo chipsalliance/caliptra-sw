@@ -25,9 +25,21 @@ path = "test_iccm_byte_write.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "test_write_unmapped_address"
+path = "test_write_unmapped_address.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "test_write_to_rom"
+path = "test_write_to_rom.rs"
+required-features = ["riscv"]
+
+
+[[bin]]
 name = "mailbox_responder"
 path = "mailbox_responder.rs"
 required-features = ["riscv"]
+
 
 [[bin]]
 name = "mailbox_sender"
