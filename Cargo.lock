@@ -133,6 +133,7 @@ dependencies = [
  "caliptra-image-types",
  "elf",
  "hex",
+ "once_cell",
 ]
 
 [[package]]

@@ -1,9 +1,12 @@
 // Licensed under the Apache-2.0 license
 
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::fs;
 use std::io::{self, ErrorKind};
 use std::path::Path;
 use std::process::{Command, Stdio};
+use std::sync::{Arc, Mutex};
 
 use caliptra_image_elf::ElfExecutable;
 use caliptra_image_gen::{
@@ -16,6 +19,7 @@ use elf::endian::LittleEndian;
 mod elf_symbols;
 
 pub use elf_symbols::{elf_symbols, Symbol, SymbolBind, SymbolType, SymbolVisibility};
+use once_cell::sync::Lazy;
 
 pub const ROM: FwId = FwId {
     crate_name: "caliptra-rom",
@@ -85,7 +89,7 @@ fn run_cmd_stdout(cmd: &mut Command, input: Option<&[u8]>) -> io::Result<String>
 }
 
 // Represent the Cargo identity of a firmware binary.
-#[derive(Default)]
+#[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
 pub struct FwId<'a> {
     // The crate name (For example, "caliptra-rom")
     pub crate_name: &'a str,
@@ -98,7 +102,7 @@ pub struct FwId<'a> {
     pub features: &'a [&'a str],
 }
 
-pub fn build_firmware_elf(id: &FwId) -> io::Result<Vec<u8>> {
+pub fn build_firmware_elf_uncached(id: &FwId) -> io::Result<Vec<u8>> {
     const WORKSPACE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
     const TARGET: &str = "riscv32imc-unknown-none-elf";
     const PROFILE: &str = "firmware";
@@ -143,7 +147,38 @@ pub fn build_firmware_elf(id: &FwId) -> io::Result<Vec<u8>> {
     )
 }
 
-pub fn build_firmware_rom(id: &FwId) -> io::Result<Vec<u8>> {
+pub fn build_firmware_elf(id: &FwId<'static>) -> io::Result<Arc<Vec<u8>>> {
+    type CacheEntry = Arc<Mutex<Arc<Vec<u8>>>>;
+    static CACHE: Lazy<Mutex<HashMap<FwId, CacheEntry>>> = Lazy::new(Default::default);
+
+    let result_mutex: Arc<Mutex<Arc<Vec<u8>>>>;
+    let mut result_mutex_guard;
+    {
+        let mut cache_guard = CACHE.lock().unwrap();
+        let entry = cache_guard.entry(*id);
+        match entry {
+            Entry::Occupied(entry) => {
+                let result = entry.get().clone();
+                drop(cache_guard);
+                return Ok(result.lock().unwrap().clone());
+            }
+            Entry::Vacant(entry) => {
+                result_mutex = Default::default();
+                let result_mutex_cloned = result_mutex.clone();
+                result_mutex_guard = result_mutex.lock().unwrap();
+
+                // Add the already-locked mutex to the map so other threads
+                // needing the same firmware wait for us to populate it.
+                entry.insert(result_mutex_cloned);
+            }
+        }
+    }
+    let result = Arc::new(build_firmware_elf_uncached(id)?);
+    *result_mutex_guard = result.clone();
+    Ok(result)
+}
+
+pub fn build_firmware_rom(id: &FwId<'static>) -> io::Result<Vec<u8>> {
     let elf_bytes = build_firmware_elf(id)?;
     elf2rom(&elf_bytes)
 }
@@ -200,8 +235,8 @@ impl Default for ImageOptions {
 }
 
 pub fn build_and_sign_image(
-    fmc: &FwId,
-    app: &FwId,
+    fmc: &FwId<'static>,
+    app: &FwId<'static>,
     opts: ImageOptions,
 ) -> anyhow::Result<ImageBundle> {
     let fmc_elf = build_firmware_elf(fmc)?;
@@ -257,13 +292,13 @@ mod test {
 
     #[test]
     fn test_build_firmware() {
-        // Ensure that we can build the ELF and elf2rom can parse it
-        build_firmware_rom(&FwId {
+        static FWID: FwId = FwId {
             crate_name: "caliptra-drivers-test-bin",
             bin_name: "test_success",
-            ..Default::default()
-        })
-        .unwrap();
+            features: &[],
+        };
+        // Ensure that we can build the ELF and elf2rom can parse it
+        build_firmware_rom(&FWID).unwrap();
     }
 
     #[test]

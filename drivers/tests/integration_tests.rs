@@ -5,7 +5,7 @@ use std::error::Error;
 use caliptra_builder::FwId;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError};
 
-fn start_driver_test(test_bin_name: &str) -> Result<DefaultHwModel, Box<dyn Error>> {
+fn start_driver_test(test_bin_name: &'static str) -> Result<DefaultHwModel, Box<dyn Error>> {
     let rom = caliptra_builder::build_firmware_rom(&FwId {
         crate_name: "caliptra-drivers-test-bin",
         bin_name: test_bin_name,
@@ -21,7 +21,7 @@ fn start_driver_test(test_bin_name: &str) -> Result<DefaultHwModel, Box<dyn Erro
     })
 }
 
-fn run_driver_test(test_bin_name: &str) {
+fn run_driver_test(test_bin_name: &'static str) {
     let mut model = start_driver_test(test_bin_name).unwrap();
     // Wrap in a line-writer so output from different test threads doesn't multiplex within a line.
     model.step_until_exit_success().unwrap();
