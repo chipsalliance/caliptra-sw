@@ -143,9 +143,13 @@ pub struct AsymEcc384 {
     #[register_array(offset = 0x0000_0100)]
     hash: [u32; ECC384_SEED_SIZE / 4],
 
-    /// Private Key
-    #[register_array(offset = 0x0000_0180)]
-    priv_key: [u32; ECC384_COORD_SIZE / 4],
+    /// Private Key Out
+    #[register_array(offset = 0x0000_0180, write_fn = write_access_fault)]
+    priv_key_out: [u32; ECC384_COORD_SIZE / 4],
+
+    /// Private Key In
+    #[register_array(offset = 0x0000_0580, read_fn = read_access_fault)]
+    priv_key_in: [u32; ECC384_COORD_SIZE / 4],
 
     /// Public Key X coordinate
     #[register_array(offset = 0x0000_0200)]
@@ -192,11 +196,11 @@ pub struct AsymEcc384 {
     seed_read_status: ReadOnlyRegister<u32, KeyReadStatus::Register>,
 
     /// Key Write Control Register
-    #[register(offset = 0x0000_0618, write_fn = on_write_key_write_control)]
+    #[register(offset = 0x0000_0610, write_fn = on_write_key_write_control)]
     key_write_ctrl: ReadWriteRegister<u32, KeyWriteControl::Register>,
 
     /// Key Write Status Register
-    #[register(offset = 0x0000_061c)]
+    #[register(offset = 0x0000_0614)]
     key_write_status: ReadOnlyRegister<u32, KeyWriteStatus::Register>,
 
     /// Key Vault
@@ -243,7 +247,8 @@ impl AsymEcc384 {
             sca_cfg: ReadWriteRegister::new(0),
             seed: Default::default(),
             hash: Default::default(),
-            priv_key: Default::default(),
+            priv_key_in: Default::default(),
+            priv_key_out: Default::default(),
             pub_key_x: Default::default(),
             pub_key_y: Default::default(),
             sig_r: Default::default(),
@@ -412,6 +417,10 @@ impl AsymEcc384 {
         Ok(())
     }
 
+    fn read_access_fault(&self, _size: RvSize, _index: usize) -> Result<RvData, BusError> {
+        Err(BusError::LoadAccessFault)
+    }
+
     fn write_access_fault(
         &self,
         _size: RvSize,
@@ -478,7 +487,7 @@ impl AsymEcc384 {
         };
 
         if let Some(key) = key {
-            self.priv_key = words_from_bytes_le(
+            self.priv_key_in = words_from_bytes_le(
                 &<[u8; ECC384_COORD_SIZE]>::try_from(&key[..ECC384_COORD_SIZE]).unwrap(),
             );
         }
@@ -531,7 +540,7 @@ impl AsymEcc384 {
             .key_vault
             .write_key(
                 key_id,
-                &bytes_from_words_le(&self.priv_key),
+                &bytes_from_words_le(&self.priv_key_in),
                 self.key_write_ctrl.reg.read(KeyWriteControl::USAGE),
             )
             .err()
@@ -558,7 +567,7 @@ impl AsymEcc384 {
             &bytes_from_words_le(&self.seed),
             &bytes_from_words_le(&self.nonce),
         );
-        self.priv_key = words_from_bytes_le(&priv_key);
+        self.priv_key_in = words_from_bytes_le(&priv_key);
 
         // Check if key write control is enabled.
         if self
@@ -573,6 +582,9 @@ impl AsymEcc384 {
             );
 
             self.op_key_write_complete_action = Some(self.timer.schedule_poll_in(KEY_RW_TICKS));
+        } else {
+            // Make the private key available to the uC
+            self.priv_key_out = self.priv_key_in;
         }
 
         self.pub_key_x = words_from_bytes_le(&pub_key.x);
@@ -582,7 +594,7 @@ impl AsymEcc384 {
     /// Sign the hash register
     fn sign(&mut self) {
         let signature = Ecc384::sign(
-            &bytes_from_words_le(&self.priv_key),
+            &bytes_from_words_le(&self.priv_key_in),
             &bytes_from_words_le(&self.hash),
         );
         self.sig_r = words_from_bytes_le(&signature.r);
@@ -622,7 +634,7 @@ mod tests {
     const OFFSET_STATUS: RvAddr = 0x18;
     const OFFSET_SEED: RvAddr = 0x80;
     const OFFSET_HASH: RvAddr = 0x100;
-    const OFFSET_PRIV_KEY: RvAddr = 0x180;
+    const OFFSET_PRIV_KEY_IN: RvAddr = 0x580;
     const OFFSET_PUB_KEY_X: RvAddr = 0x200;
     const OFFSET_PUB_KEY_Y: RvAddr = 0x280;
     const OFFSET_SIG_R: RvAddr = 0x300;
@@ -633,8 +645,8 @@ mod tests {
     const OFFSET_KEY_READ_STATUS: RvAddr = 0x604;
     const OFFSET_SEED_CONTROL: RvAddr = 0x608;
     const OFFSET_SEED_STATUS: RvAddr = 0x60c;
-    const OFFSET_KEY_WRITE_CONTROL: RvAddr = 0x618;
-    const OFFSET_KEY_WRITE_STATUS: RvAddr = 0x61c;
+    const OFFSET_KEY_WRITE_CONTROL: RvAddr = 0x610;
+    const OFFSET_KEY_WRITE_STATUS: RvAddr = 0x614;
 
     const PRIV_KEY: [u8; 48] = [
         0xfe, 0xee, 0xf5, 0x54, 0x4a, 0x76, 0x56, 0x49, 0x90, 0x12, 0x8a, 0xd1, 0x89, 0xe8, 0x73,
@@ -764,7 +776,7 @@ mod tests {
             clock.increment_and_process_timer_actions(1, &mut ecc);
         }
 
-        let mut priv_key = bytes_from_words_le(&ecc.priv_key);
+        let mut priv_key = bytes_from_words_le(&ecc.priv_key_out);
         priv_key.to_little_endian(); // Change DWORDs to little-endian.
 
         let mut pub_key_x = bytes_from_words_le(&ecc.pub_key_x);
@@ -838,7 +850,7 @@ mod tests {
                 clock.increment_and_process_timer_actions(1, &mut ecc);
             }
 
-            let mut priv_key = bytes_from_words_le(&ecc.priv_key);
+            let mut priv_key = bytes_from_words_le(&ecc.priv_key_out);
             priv_key.to_little_endian(); // Change DWORDs to little-endian.
 
             let mut pub_key_x = bytes_from_words_le(&ecc.pub_key_x);
@@ -959,7 +971,7 @@ mod tests {
             assert_eq!(
                 ecc.write(
                     RvSize::Word,
-                    OFFSET_PRIV_KEY + i as RvAddr,
+                    OFFSET_PRIV_KEY_IN + i as RvAddr,
                     make_word(i, &priv_key)
                 )
                 .ok(),
