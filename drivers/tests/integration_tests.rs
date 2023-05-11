@@ -4,6 +4,7 @@ use std::error::Error;
 
 use caliptra_builder::FwId;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError};
+use caliptra_registers::mbox::enums::MboxStatusE;
 
 fn start_driver_test(test_bin_name: &'static str) -> Result<DefaultHwModel, Box<dyn Error>> {
     let rom = caliptra_builder::build_firmware_rom(&FwId {
@@ -246,6 +247,35 @@ fn test_mailbox_uc_to_soc() {
     assert_eq!(txn.req.cmd, 0xb000_0000);
     assert_eq!(txn.req.data, b"");
     txn.respond_success();
+}
+
+#[test]
+fn test_mailbox_negative_tests() {
+    let mut model = start_driver_test("mailbox_driver_negative_tests").unwrap();
+    let txn = model.wait_for_mailbox_receive().unwrap();
+
+    let cmd = txn.req.cmd;
+
+    // Test the receiver can't change the command register when the FSM is in Exec state.
+    assert!(model.soc_mbox().cmd().read() == cmd);
+    model.soc_mbox().cmd().write(|_| cmd + 1);
+    assert!(model.soc_mbox().cmd().read() == cmd);
+
+    // Check we can't release the lock on the receiver side.
+    model.soc_mbox().execute().write(|w| w.execute(false));
+
+    assert!(model
+        .soc_mbox()
+        .status()
+        .read()
+        .mbox_fsm_ps()
+        .mbox_execute_soc());
+
+    // Finally, respond :
+    model
+        .soc_mbox()
+        .status()
+        .write(|w| w.status(|_| MboxStatusE::DataReady));
 }
 
 #[test]
