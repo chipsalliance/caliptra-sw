@@ -14,9 +14,10 @@ Abstract:
 
 use caliptra_emu_bus::{Bus, Clock};
 use caliptra_emu_cpu::{Cpu, RvInstr, StepAction};
+use caliptra_emu_periph::soc_reg::DebugManufService;
 use caliptra_emu_periph::{
-    CaliptraRootBus, CaliptraRootBusArgs, MailboxInternal, ReadyForFwCb, TbServicesCb,
-    UploadUpdateFwCb,
+    CaliptraRootBus, CaliptraRootBusArgs, DownloadIdevidCsrCb, MailboxInternal, ReadyForFwCb,
+    TbServicesCb, UploadUpdateFwCb,
 };
 use caliptra_emu_types::{RvAddr, RvSize};
 use caliptra_hw_model::BusMmio;
@@ -28,7 +29,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::rc::Rc;
-use tock_registers::interfaces::{Readable, Writeable};
+use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::registers::InMemoryRegister;
 mod gdb;
 use crate::gdb::gdb_target::GdbTarget;
@@ -220,6 +221,8 @@ fn main() -> io::Result<()> {
     }
     let update_fw_buf = Rc::new(update_fw_buf);
 
+    let log_dir = Rc::new(args_log_dir.to_path_buf());
+
     let clock = Clock::new();
 
     let req_idevid_csr = args.get_flag("req-idevid-csr");
@@ -260,6 +263,15 @@ fn main() -> io::Result<()> {
             while !mailbox.try_acquire_lock() {}
             upload_fw_to_mailbox(mailbox, update_fw_buf.clone());
         }),
+        download_idevid_csr_cb: DownloadIdevidCsrCb::new(
+            move |mailbox: &mut MailboxInternal,
+                  cptra_dbg_manuf_service_reg: &mut InMemoryRegister<
+                u32,
+                DebugManufService::Register,
+            >| {
+                download_idev_id_csr(mailbox, log_dir.clone(), cptra_dbg_manuf_service_reg);
+            },
+        ),
         ..Default::default()
     };
 
@@ -414,4 +426,43 @@ fn upload_fw_to_mailbox(mailbox: &mut MailboxInternal, firmware_buffer: Rc<Vec<u
 
     // Set the execute register.
     let _ = soc.write(RvSize::Word, OFFSET_EXECUTE, 1);
+}
+
+fn download_idev_id_csr(
+    mailbox: &mut MailboxInternal,
+    path: Rc<PathBuf>,
+    cptra_dbg_manuf_service_reg: &mut InMemoryRegister<u32, DebugManufService::Register>,
+) {
+    const OFFSET_DATAOUT: RvAddr = 0x14;
+    const OFFSET_STATUS: RvAddr = 0x1C;
+
+    let mut path = path.to_path_buf();
+    path.push("caliptra_ldevid_cert.der");
+
+    let mut file = std::fs::File::create(path).unwrap();
+
+    let byte_count = mailbox.read_dlen().unwrap() as usize;
+    let remainder = byte_count % core::mem::size_of::<u32>();
+    let n = byte_count - remainder;
+
+    let mut soc = mailbox.as_external();
+
+    for _ in (0..n).step_by(core::mem::size_of::<u32>()) {
+        let buf = soc.read(RvSize::Word, OFFSET_DATAOUT).unwrap();
+        file.write_all(&buf.to_le_bytes()).unwrap();
+    }
+
+    if remainder > 0 {
+        let part = mailbox.read_dataout().unwrap();
+        for idx in 0..remainder {
+            let byte = ((part >> (idx << 3)) & 0xFF) as u8;
+            file.write_all(&[byte]).unwrap();
+        }
+    }
+
+    // Complete the mailbox command.
+    soc.write(RvSize::Word, OFFSET_STATUS, 0x2).unwrap();
+
+    // Clear the Idevid CSR requested bit.
+    cptra_dbg_manuf_service_reg.modify(DebugManufService::REQ_IDEVID_CSR::CLEAR);
 }

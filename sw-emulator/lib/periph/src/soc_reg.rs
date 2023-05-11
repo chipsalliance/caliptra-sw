@@ -33,6 +33,8 @@ use tock_registers::registers::InMemoryRegister;
 type ReadyForFwCallback = Box<dyn FnMut(ReadyForFwCbArgs)>;
 type UploadUpdateFwCallback = Box<dyn FnMut(&mut MailboxInternal)>;
 type BootFsmGoCallback = Box<dyn FnMut()>;
+type DownloadIdevidCsrCallback =
+    Box<dyn FnMut(&mut MailboxInternal, &mut InMemoryRegister<u32, DebugManufService::Register>)>;
 
 mod constants {
     #![allow(unused)]
@@ -148,7 +150,7 @@ register_bitfields! [
     ],
 
     /// Debug Manufacturing Service Register
-    DebugManufService [
+    pub DebugManufService [
         REQ_IDEVID_CSR OFFSET(0) NUMBITS(1) [],
         REQ_LDEVID_CERT OFFSET(1) NUMBITS(1) [],
         RSVD OFFSET(2) NUMBITS(30) [],
@@ -449,6 +451,9 @@ struct SocRegistersImpl {
     /// Firmware Read Complete action
     op_fw_read_complete_action: Option<ActionHandle>,
 
+    /// IDEVID CSR Read Complete action
+    op_idevid_csr_read_complete_action: Option<ActionHandle>,
+
     /// Reset Trigger action
     op_reset_trigger_action: Option<ActionHandle>,
 
@@ -462,6 +467,8 @@ struct SocRegistersImpl {
     bootfsm_go_cb: BootFsmGoCallback,
 
     fuses_can_be_written: bool,
+
+    download_idevid_csr_cb: DownloadIdevidCsrCallback,
 }
 
 impl SocRegistersImpl {
@@ -482,6 +489,9 @@ impl SocRegistersImpl {
 
     /// The number of CPU clock cycles it takes to read the firmware from the mailbox.
     const FW_READ_TICKS: u64 = 0;
+
+    /// The number of CPU clock cycles it takes to read the IDEVID CSR from the mailbox.
+    const IDEVID_CSR_READ_TICKS: u64 = 100;
 
     pub fn new(
         clock: &Clock,
@@ -536,12 +546,14 @@ impl SocRegistersImpl {
             op_fw_write_complete_action: None,
             op_fw_write_complete_cb: None,
             op_fw_read_complete_action: None,
+            op_idevid_csr_read_complete_action: None,
             op_reset_trigger_action: None,
             tb_services_cb: args.tb_services_cb.take(),
             ready_for_fw_cb: args.ready_for_fw_cb.take(),
             upload_update_fw: args.upload_update_fw.take(),
             fuses_can_be_written: true,
             bootfsm_go_cb: args.bootfsm_go_cb.take(),
+            download_idevid_csr_cb: args.download_idevid_csr_cb.take(),
         };
 
         regs
@@ -640,6 +652,13 @@ impl SocRegistersImpl {
                 sched_fn: Box::new(sched_fn),
             };
             (self.ready_for_fw_cb)(args);
+        } else if self
+            .cptra_flow_status
+            .reg
+            .is_set(FlowStatus::IDEVID_CSR_READY)
+        {
+            self.op_idevid_csr_read_complete_action =
+                Some(self.timer.schedule_poll_in(Self::IDEVID_CSR_READ_TICKS));
         }
 
         Ok(())
@@ -722,6 +741,17 @@ impl SocRegistersImpl {
                 self.op_fw_read_complete_action =
                     Some(self.timer.schedule_poll_in(Self::FW_READ_TICKS));
             }
+        }
+
+        if self
+            .timer
+            .fired(&mut self.op_idevid_csr_read_complete_action)
+        {
+            // Download the Idevid CSR from the mailbox.
+            (self.download_idevid_csr_cb)(
+                &mut self.mailbox,
+                &mut self.cptra_dbg_manuf_service_reg.reg,
+            );
         }
     }
 
