@@ -6,7 +6,7 @@ use caliptra_hw_model::{Fuses, HwModel, ModelError};
 pub mod helpers;
 
 // [TODO] Use the error codes from the common library.
-const INVALID_IMAGE_SIZE: u32 = 0x02000003;
+const INVALID_IMAGE_SIZE: u32 = 0x0102_0003;
 
 #[test]
 fn test_unknown_command_is_not_fatal() {

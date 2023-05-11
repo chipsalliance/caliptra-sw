@@ -49,6 +49,7 @@ rom_err_def! {
         CsrBuilderBuild= 0x2,
         CsrInvalid = 0x3,
         CsrVerify = 0x4,
+        CsrOverflow= 0x5,
     }
 }
 
@@ -253,6 +254,11 @@ impl InitDevIdLayer {
         let csr_bldr =
             Ecdsa384CsrBuilder::new(tbs.tbs(), &sig.to_ecdsa()).ok_or(err_u32!(CsrBuilderInit))?;
         let csr_len = csr_bldr.build(&mut csr).ok_or(err_u32!(CsrBuilderBuild))?;
+
+        if csr_len > csr.len() {
+            raise_err!(CsrOverflow);
+        }
+
         cprintln!("[idev] CSR = {}", HexBytes(&csr[..csr_len]));
 
         // Execute Send CSR Flow
