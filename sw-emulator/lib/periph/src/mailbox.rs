@@ -485,6 +485,11 @@ impl MailboxRegs {
 
     /// Write to execute register
     pub fn write_ex(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
+        // Only the lock owner can clear the execute bit.
+        if self.requester != self.state_machine.context.user {
+            return Ok(());
+        }
+
         let event = {
             match self.requester {
                 MailboxRequester::Caliptra => {

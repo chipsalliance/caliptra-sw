@@ -12,12 +12,13 @@ Abstract:
 
 --*/
 
-use caliptra_emu_bus::Clock;
+use caliptra_emu_bus::{Bus, Clock};
 use caliptra_emu_cpu::{Cpu, RvInstr, StepAction};
 use caliptra_emu_periph::{
     CaliptraRootBus, CaliptraRootBusArgs, MailboxInternal, ReadyForFwCb, TbServicesCb,
     UploadUpdateFwCb,
 };
+use caliptra_emu_types::{RvAddr, RvSize};
 use caliptra_hw_model::BusMmio;
 use caliptra_hw_model_types::{DeviceLifecycle, SecurityState};
 use clap::{arg, value_parser, ArgAction};
@@ -376,11 +377,16 @@ fn change_dword_endianess(data: &mut Vec<u8>) {
 }
 
 fn upload_fw_to_mailbox(mailbox: &mut MailboxInternal, firmware_buffer: Rc<Vec<u8>>) {
-    // Write the cmd to mailbox.
-    let _ = mailbox.write_cmd(FW_LOAD_CMD_OPCODE);
+    const OFFSET_CMD: RvAddr = 0x08;
+    const OFFSET_DLEN: RvAddr = 0x0C;
+    const OFFSET_DATAIN: RvAddr = 0x10;
+    const OFFSET_EXECUTE: RvAddr = 0x18;
 
-    // Write dlen.
-    let _ = mailbox.write_dlen(firmware_buffer.len() as u32).is_ok();
+    let mut soc = mailbox.as_external();
+    // Write the cmd to mailbox.
+
+    let _ = soc.write(RvSize::Word, OFFSET_CMD, FW_LOAD_CMD_OPCODE);
+    let _ = soc.write(RvSize::Word, OFFSET_DLEN, firmware_buffer.len() as u32);
 
     //
     // Write firmware image.
@@ -390,9 +396,11 @@ fn upload_fw_to_mailbox(mailbox: &mut MailboxInternal, firmware_buffer: Rc<Vec<u
     let n = firmware_buffer.len() - remainder;
 
     for idx in (0..n).step_by(word_size) {
-        let _ = mailbox.write_datain(u32::from_le_bytes(
-            firmware_buffer[idx..idx + word_size].try_into().unwrap(),
-        ));
+        let _ = soc.write(
+            RvSize::Word,
+            OFFSET_DATAIN,
+            u32::from_le_bytes(firmware_buffer[idx..idx + word_size].try_into().unwrap()),
+        );
     }
 
     // Handle the remainder bytes.
@@ -401,9 +409,9 @@ fn upload_fw_to_mailbox(mailbox: &mut MailboxInternal, firmware_buffer: Rc<Vec<u
         for idx in 1..remainder {
             last_word |= (firmware_buffer[n + idx] as u32) << (idx << 3);
         }
-        let _ = mailbox.write_datain(last_word);
+        let _ = soc.write(RvSize::Word, OFFSET_DATAIN, last_word);
     }
 
     // Set the execute register.
-    let _ = mailbox.write_execute(1);
+    let _ = soc.write(RvSize::Word, OFFSET_EXECUTE, 1);
 }
