@@ -17,15 +17,11 @@ Abstract:
 use crate::fmc_env_cell::FmcEnvCell;
 
 use caliptra_drivers::{
-    DataVault, DeviceState, Ecc384, FlowStatus, FuseBank, Hmac384, KeyVault, Mailbox, MfgState,
-    PcrBank, ResetService, Sha1, Sha256, Sha384, Sha384Acc,
+    DataVault, Ecc384, Hmac384, KeyVault, Mailbox, PcrBank, Sha1, Sha256, Sha384, Sha384Acc, SocIfc,
 };
 
 /// Hardware Context
 pub struct FmcEnv {
-    /// Reset Service
-    reset: FmcEnvCell<ResetService>,
-
     // SHA1 Engine
     sha1: FmcEnvCell<Sha1>,
 
@@ -51,19 +47,10 @@ pub struct FmcEnv {
     data_vault: FmcEnvCell<DataVault>,
 
     /// Device state
-    dev_state: FmcEnvCell<DeviceState>,
-
-    /// Manufacturing State
-    mfg_state: FmcEnvCell<MfgState>,
+    soc_ifc: FmcEnvCell<SocIfc>,
 
     /// Mailbox
     mbox: FmcEnvCell<Mailbox>,
-
-    /// Flow Status
-    flow_status: FmcEnvCell<FlowStatus>,
-
-    /// Fuse Bank
-    fuse_bank: FmcEnvCell<FuseBank>,
 
     /// PCR Bank
     pcr_bank: FmcEnvCell<PcrBank>,
@@ -72,7 +59,6 @@ pub struct FmcEnv {
 impl Default for FmcEnv {
     fn default() -> Self {
         Self {
-            reset: FmcEnvCell::new(ResetService::default()),
             sha1: FmcEnvCell::new(Sha1::default()),
             sha256: FmcEnvCell::new(Sha256::default()),
             sha384: FmcEnvCell::new(Sha384::default()),
@@ -81,22 +67,14 @@ impl Default for FmcEnv {
             ecc384: FmcEnvCell::new(Ecc384::default()),
             key_vault: FmcEnvCell::new(KeyVault::default()),
             data_vault: FmcEnvCell::new(DataVault::default()),
-            dev_state: FmcEnvCell::new(DeviceState::default()),
-            mfg_state: FmcEnvCell::new(MfgState::default()),
+            soc_ifc: FmcEnvCell::new(SocIfc::default()),
             mbox: FmcEnvCell::new(Mailbox::default()),
-            flow_status: FmcEnvCell::new(FlowStatus::default()),
-            fuse_bank: FmcEnvCell::new(FuseBank::default()),
             pcr_bank: FmcEnvCell::new(PcrBank::default()),
         }
     }
 }
 
 impl FmcEnv {
-    /// Get reset service reference
-    pub fn reset(&self) -> &FmcEnvCell<ResetService> {
-        &self.reset
-    }
-
     /// Get SHA1 engine reference
     pub fn sha1(&self) -> &FmcEnvCell<Sha1> {
         &self.sha1
@@ -133,28 +111,13 @@ impl FmcEnv {
     }
 
     /// Get Security state reference
-    pub fn dev_state(&self) -> &FmcEnvCell<DeviceState> {
-        &self.dev_state
-    }
-
-    /// Get Manufacturing state reference
-    pub fn mfg_state(&self) -> &FmcEnvCell<MfgState> {
-        &self.mfg_state
+    pub fn soc_ifc(&self) -> &FmcEnvCell<SocIfc> {
+        &self.soc_ifc
     }
 
     /// Get Mailbox
     pub fn mbox(&self) -> &FmcEnvCell<Mailbox> {
         &self.mbox
-    }
-
-    /// Get Flow Status
-    pub fn flow_status(&self) -> &FmcEnvCell<FlowStatus> {
-        &self.flow_status
-    }
-
-    /// Get Fuse Bank
-    pub fn fuse_bank(&self) -> &FmcEnvCell<FuseBank> {
-        &self.fuse_bank
     }
 
     /// Get PCR Bank

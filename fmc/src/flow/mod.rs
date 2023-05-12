@@ -36,7 +36,7 @@ use caliptra_drivers::ResetReason;
 pub fn run(env: &FmcEnv, hand_off: &mut HandOff) -> CaliptraResult<()> {
     let _ = RtAliasLayer::run(env, hand_off);
     // Retrieve reset reason.
-    let reset_reason = env.reset().map(|r| r.reset_reason());
+    let reset_reason = env.soc_ifc().map(|r| r.reset_reason());
     match reset_reason {
         // Cold Reset Flow
         ResetReason::ColdReset => cold_reset::ColdResetFlow::run(env, hand_off),

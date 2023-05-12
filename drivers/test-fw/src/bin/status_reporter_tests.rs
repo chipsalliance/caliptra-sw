@@ -15,7 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{report_boot_status, FlowStatus};
+use caliptra_drivers::{report_boot_status, SocIfc};
 use caliptra_registers::soc_ifc;
 
 use caliptra_test_harness::test_suite;
@@ -33,13 +33,13 @@ fn test_report_boot_status() {
 
 fn test_report_idevid_csr_ready() {
     let soc_ifc = soc_ifc::RegisterBlock::soc_ifc_reg();
-    FlowStatus::default().set_idevid_csr_ready();
+    SocIfc::default().flow_status_set_idevid_csr_ready();
     assert_eq!(0x0800_0000, soc_ifc.cptra_flow_status().read().status());
 }
 
 fn test_report_ready_for_firmware() {
     let soc_ifc = soc_ifc::RegisterBlock::soc_ifc_reg();
-    FlowStatus::default().set_ready_for_firmware();
+    SocIfc::default().flow_status_set_ready_for_firmware();
     assert!(soc_ifc.cptra_flow_status().read().ready_for_fw());
 }
 

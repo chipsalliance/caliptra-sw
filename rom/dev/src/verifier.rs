@@ -73,27 +73,37 @@ impl<'a> ImageVerificationEnv for RomImageVerificationEnv<'a> {
 
     /// Retrieve Vendor Public Key Digest
     fn vendor_pub_key_digest(&self) -> ImageDigest {
-        self.env.fuse_bank().map(|f| f.vendor_pub_key_hash()).into()
+        self.env
+            .soc_ifc()
+            .map(|f| f.fuse_bank().vendor_pub_key_hash())
+            .into()
     }
 
     /// Retrieve Vendor Public Key Revocation Bitmask
     fn vendor_pub_key_revocation(&self) -> VendorPubKeyRevocation {
-        self.env.fuse_bank().map(|f| f.vendor_pub_key_revocation())
+        self.env
+            .soc_ifc()
+            .map(|f| f.fuse_bank().vendor_pub_key_revocation())
     }
 
     /// Retrieve Owner Public Key Digest from fuses
     fn owner_pub_key_digest_fuses(&self) -> ImageDigest {
-        self.env.fuse_bank().map(|f| f.owner_pub_key_hash()).into()
+        self.env
+            .soc_ifc()
+            .map(|f| f.fuse_bank().owner_pub_key_hash())
+            .into()
     }
 
     /// Retrieve Anti-Rollback disable fuse value
     fn anti_rollback_disable(&self) -> bool {
-        self.env.fuse_bank().map(|f| f.anti_rollback_disable())
+        self.env
+            .soc_ifc()
+            .map(|f| f.fuse_bank().anti_rollback_disable())
     }
 
     /// Retrieve Device Lifecycle state
     fn dev_lifecycle(&self) -> Lifecycle {
-        self.env.dev_state().map(|d| d.lifecycle())
+        self.env.soc_ifc().map(|d| d.lifecycle())
     }
 
     /// Get the vendor key index saved in data vault on cold boot
@@ -113,12 +123,12 @@ impl<'a> ImageVerificationEnv for RomImageVerificationEnv<'a> {
 
     // Get Fuse FMC Key Manifest SVN
     fn fmc_svn(&self) -> u32 {
-        self.env.fuse_bank().map(|f| f.fmc_svn())
+        self.env.soc_ifc().map(|f| f.fuse_bank().fmc_svn())
     }
 
     // Get Runtime fuse SVN
     fn runtime_svn(&self) -> u32 {
-        self.env.fuse_bank().map(|f| f.runtime_svn())
+        self.env.soc_ifc().map(|f| f.fuse_bank().runtime_svn())
     }
 
     fn iccm_range(&self) -> Range<u32> {

@@ -15,6 +15,8 @@ Abstract:
 use caliptra_registers::soc_ifc;
 use caliptra_registers::soc_ifc::enums::DeviceLifecycleE;
 
+use crate::FuseBank;
+
 /// Device Life Cycle State
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Lifecycle {
@@ -43,11 +45,16 @@ impl From<DeviceLifecycleE> for Lifecycle {
     }
 }
 
+pub fn report_boot_status(val: u32) {
+    let soc_ifc = soc_ifc::RegisterBlock::soc_ifc_reg();
+    soc_ifc.cptra_boot_status().write(|_| val);
+}
+
 /// Device State
 #[derive(Default, Debug)]
-pub struct DeviceState {}
+pub struct SocIfc {}
 
-impl DeviceState {
+impl SocIfc {
     /// Retrieve the device lifecycle state
     pub fn lifecycle(&self) -> Lifecycle {
         let soc_ifc_regs = soc_ifc::RegisterBlock::soc_ifc_reg();
@@ -73,6 +80,51 @@ impl DeviceState {
         let soc_ifc_regs = caliptra_registers::soc_ifc::RegisterBlock::soc_ifc_reg();
         soc_ifc_regs.internal_iccm_lock().modify(|w| w.lock(lock));
     }
+
+    /// Retrieve reset reason
+    pub fn reset_reason(&self) -> ResetReason {
+        let soc_ifc_regs = soc_ifc::RegisterBlock::soc_ifc_reg();
+        let bit0 = soc_ifc_regs.cptra_reset_reason().read().fw_upd_reset();
+        let bit1 = soc_ifc_regs.cptra_reset_reason().read().warm_reset();
+        match (bit0, bit1) {
+            (true, true) => ResetReason::Unknown,
+            (false, true) => ResetReason::WarmReset,
+            (true, false) => ResetReason::UpdateReset,
+            (false, false) => ResetReason::ColdReset,
+        }
+    }
+
+    /// Set IDEVID CSR ready
+    ///
+    /// # Arguments
+    ///
+    /// * None
+    pub fn flow_status_set_idevid_csr_ready(&mut self) {
+        let soc_ifc = soc_ifc::RegisterBlock::soc_ifc_reg();
+        soc_ifc.cptra_flow_status().write(|w| w.status(0x0800_0000));
+    }
+
+    /// Set ready for firmware
+    ///
+    /// # Arguments
+    ///
+    /// * None
+    pub fn flow_status_set_ready_for_firmware(&mut self) {
+        let soc_ifc = soc_ifc::RegisterBlock::soc_ifc_reg();
+        soc_ifc.cptra_flow_status().write(|w| w.ready_for_fw(true));
+    }
+
+    pub fn fuse_bank(&self) -> FuseBank {
+        FuseBank::new()
+    }
+
+    /// Returns the flag indicating whether to generate Initial Device ID Certificate
+    /// Signing Request (CSR)
+    pub fn mfg_flag_gen_idev_id_csr(&self) -> bool {
+        let soc_ifc_regs = caliptra_registers::soc_ifc::RegisterBlock::soc_ifc_reg();
+        let flags: MfgFlags = soc_ifc_regs.cptra_dbg_manuf_service_reg().read().into();
+        flags.contains(MfgFlags::GENERATE_IDEVID_CSR)
+    }
 }
 
 bitflags::bitflags! {
@@ -90,16 +142,18 @@ impl From<u32> for MfgFlags {
     }
 }
 
-/// Manufacturing State
-#[derive(Default, Debug)]
-pub struct MfgState {}
+/// Reset Reason
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum ResetReason {
+    /// Cold Reset
+    ColdReset,
 
-impl MfgState {
-    /// Returns the flag indicating whether to generate Initial Device ID Certificate
-    /// Signing Request (CSR)
-    pub fn gen_idev_id_csr(&self) -> bool {
-        let soc_ifc_regs = caliptra_registers::soc_ifc::RegisterBlock::soc_ifc_reg();
-        let flags: MfgFlags = soc_ifc_regs.cptra_dbg_manuf_service_reg().read().into();
-        flags.contains(MfgFlags::GENERATE_IDEVID_CSR)
-    }
+    /// Warm Reset
+    WarmReset,
+
+    /// Update Reset
+    UpdateReset,
+
+    /// Unknown Reset
+    Unknown,
 }

@@ -15,8 +15,15 @@ Abstract:
 use crate::Array4x12;
 use caliptra_registers::soc_ifc;
 
-#[derive(Default, Debug)]
-pub struct FuseBank {}
+pub struct FuseBank {
+    // Don't allow other crates to create this directly
+    _priv: (),
+}
+impl FuseBank {
+    pub(crate) fn new() -> Self {
+        Self { _priv: () }
+    }
+}
 
 pub enum X509KeyIdAlgo {
     Sha1 = 0,
