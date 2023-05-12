@@ -734,13 +734,13 @@ impl SocRegistersImpl {
 
         if self.timer.fired(&mut self.op_fw_read_complete_action) {
             // Receiver sets status as CMD_COMPLETE after reading the mailbox data.
-            if !self.mailbox.is_status_cmd_busy() {
-                const OFFSET_EXECUTE: RvAddr = 0x18;
+            if !self.mailbox.regs().status().read().status().cmd_busy() {
                 // Reset the execute bit
                 self.mailbox
                     .as_external()
-                    .write(RvSize::Word, OFFSET_EXECUTE, 0)
-                    .unwrap();
+                    .regs()
+                    .execute()
+                    .write(|w| w.execute(false));
             } else {
                 self.op_fw_read_complete_action =
                     Some(self.timer.schedule_poll_in(Self::FW_READ_TICKS));
@@ -795,21 +795,19 @@ mod tests {
     use tock_registers::{interfaces::ReadWriteable, registers::InMemoryRegister};
 
     fn send_data_to_mailbox(mailbox: &mut MailboxInternal, cmd: u32, data: &[u8]) {
-        while !mailbox.try_acquire_lock() {}
+        let regs = mailbox.regs();
+        while regs.lock().read().lock() {}
 
-        mailbox.write_cmd(cmd).unwrap();
-        mailbox.write_dlen(data.len() as u32).unwrap();
+        regs.cmd().write(|_| cmd);
+        regs.dlen().write(|_| (data.len() as u32));
 
         let word_size = RvSize::Word as usize;
         let remainder = data.len() % word_size;
         let n = data.len() - remainder;
 
         for idx in (0..n).step_by(word_size) {
-            mailbox
-                .write_datain(u32::from_le_bytes(
-                    data[idx..idx + word_size].try_into().unwrap(),
-                ))
-                .unwrap();
+            regs.datain()
+                .write(|_| u32::from_le_bytes(data[idx..idx + word_size].try_into().unwrap()));
         }
 
         // Handle the remainder bytes.
@@ -818,7 +816,7 @@ mod tests {
             for idx in 1..remainder {
                 last_word |= (data[n + idx] as u32) << (idx << 3);
             }
-            mailbox.write_datain(last_word).unwrap();
+            regs.datain().write(|_| last_word);
         }
     }
 
@@ -856,23 +854,25 @@ mod tests {
         path.push(file);
         let mut file = std::fs::File::create(path).unwrap();
 
-        let byte_count = mailbox.read_dlen().unwrap() as usize;
+        let regs = mailbox.regs();
+
+        let byte_count = regs.dlen().read() as usize;
         let remainder = byte_count % core::mem::size_of::<u32>();
         let n = byte_count - remainder;
 
         for _ in (0..n).step_by(core::mem::size_of::<u32>()) {
-            let buf = mailbox.read_dataout().unwrap();
+            let buf = regs.dataout().read();
             file.write_all(&buf.to_le_bytes()).unwrap();
         }
 
         if remainder > 0 {
-            let part = mailbox.read_dataout().unwrap();
+            let part = regs.dataout().read();
             for idx in 0..remainder {
                 let byte = ((part >> (idx << 3)) & 0xFF) as u8;
                 file.write_all(&[byte]).unwrap();
             }
         }
-        mailbox.set_status_cmd_complete().unwrap();
+        regs.status().write(|w| w.status(|w| w.cmd_complete()));
     }
 
     #[test]
@@ -903,8 +903,11 @@ mod tests {
 
         // Add csr data to the mailbox.
         send_data_to_mailbox(&mut mailbox, 0xDEADBEEF, &data);
-        mailbox.set_status_data_ready().unwrap();
-        mailbox.write_execute(1).unwrap();
+        mailbox
+            .regs()
+            .status()
+            .write(|w| w.status(|w| w.data_ready()));
+        mailbox.regs().execute().write(|w| w.execute(true));
 
         // Trigger csr download.
         let flow_status = InMemoryRegister::<u32, FlowStatus::Register>::new(0);
@@ -961,8 +964,11 @@ mod tests {
 
         // Add cert data to the mailbox.
         send_data_to_mailbox(&mut mailbox, 0xDEADBEEF, &data);
-        mailbox.set_status_data_ready().unwrap();
-        mailbox.write_execute(1).unwrap();
+        mailbox
+            .regs()
+            .status()
+            .write(|w| w.status(|w| w.data_ready()));
+        mailbox.regs().execute().write(|w| w.execute(true));
 
         // Trigger cert download.
         let flow_status = InMemoryRegister::<u32, FlowStatus::Register>::new(0);
