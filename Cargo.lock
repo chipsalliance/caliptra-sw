@@ -194,6 +194,7 @@ version = "0.1.0"
 dependencies = [
  "caliptra-emu-types",
  "tock-registers",
+ "ureg",
 ]
 
 [[package]]

@@ -9,4 +9,5 @@ edition = "2021"
 
 [dependencies]
 caliptra-emu-types = { path = "../types" }
+ureg = { path = "../../../ureg" }
 tock-registers = { git = "https://github.com/tock/tock.git"}

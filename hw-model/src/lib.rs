@@ -21,8 +21,8 @@ mod model_verilated;
 mod output;
 mod rv32_builder;
 
+pub use caliptra_emu_bus::BusMmio;
 pub use caliptra_hw_model_types::{DeviceLifecycle, Fuses, SecurityState, U4};
-pub use mmio::BusMmio;
 use output::ExitStatus;
 pub use output::Output;
 
