@@ -68,19 +68,19 @@ pub fn extend_pcr0(env: &RomEnv) -> CaliptraResult<()> {
     };
 
     extend_u8(
-        env.dev_state().map(|d| d.lifecycle()) as u8,
+        env.soc_ifc().map(|d| d.lifecycle()) as u8,
         PcrLogEntryId::DeviceLifecycle,
     )?;
     extend_u8(
-        env.dev_state().map(|d| d.debug_locked()) as u8,
+        env.soc_ifc().map(|d| d.debug_locked()) as u8,
         PcrLogEntryId::DebugLocked,
     )?;
     extend_u8(
-        env.fuse_bank().map(|f| f.anti_rollback_disable()) as u8,
+        env.soc_ifc().map(|s| s.fuse_bank().anti_rollback_disable()) as u8,
         PcrLogEntryId::AntiRollbackDisabled,
     )?;
     extend(
-        env.fuse_bank().map(|f| f.vendor_pub_key_hash()),
+        env.soc_ifc().map(|s| s.fuse_bank().vendor_pub_key_hash()),
         PcrLogEntryId::VendorPubKeyHash,
     )?;
     extend(

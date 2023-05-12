@@ -205,7 +205,7 @@ impl InitDevIdLayer {
         // Generate the CSR if requested via Manufacturing Service Register
         //
         // A flag is asserted via JTAG interface to enble the generation of CSR
-        if !env.mfg_state().map(|m| m.gen_idev_id_csr()) {
+        if !env.soc_ifc().map(|m| m.mfg_flag_gen_idev_id_csr()) {
             return Ok(());
         }
 
@@ -296,10 +296,10 @@ impl InitDevIdLayer {
                 txn.send_request(0, csr.get().ok_or(err_u32!(CsrInvalid))?)?;
 
                 // Signal the JTAG/SOC that Initial Device ID CSR is ready
-                env.flow_status().map(|f| f.set_idevid_csr_ready());
+                env.soc_ifc().map(|f| f.flow_status_set_idevid_csr_ready());
 
                 // Wait for JTAG/SOC to consume the mailbox
-                while env.mfg_state().map(|m| m.gen_idev_id_csr()) {}
+                while env.soc_ifc().map(|m| m.mfg_flag_gen_idev_id_csr()) {}
 
                 // Release access to the mailbox
                 txn.complete()?;

@@ -169,7 +169,8 @@ impl FmcAliasLayer {
     /// reads FW_ERROR_NON_FATAL immediately after the mailbox transaction
     /// fails, but before caliptra has set the FW_ERROR_NON_FATAL register.
     fn download_image(env: &RomEnv) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn>> {
-        env.flow_status().map(|f| f.set_ready_for_firmware());
+        env.soc_ifc()
+            .map(|f| f.flow_status_set_ready_for_firmware());
 
         cprint!("[afmc] Waiting for Image ");
         loop {
@@ -393,8 +394,8 @@ impl FmcAliasLayer {
         let pub_key = &output.subj_key_pair.pub_key;
 
         let flags = Self::make_flags(
-            env.dev_state().map(|d| d.lifecycle()),
-            env.dev_state().map(|d| d.debug_locked()),
+            env.soc_ifc().map(|d| d.lifecycle()),
+            env.soc_ifc().map(|d| d.debug_locked()),
         );
 
         let svn = env.data_vault().map(|d| d.fmc_svn()) as u8;

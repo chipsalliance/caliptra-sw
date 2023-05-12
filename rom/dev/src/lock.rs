@@ -35,7 +35,7 @@ pub fn lock_registers(env: &RomEnv, reset_reason: ResetReason) {
     }
 
     cprintln!("[state] Locking ICCM");
-    env.dev_state().map(|d| d.set_iccm_lock(true));
+    env.soc_ifc().map(|d| d.set_iccm_lock(true));
 }
 
 /// Lock registers on a cold reset

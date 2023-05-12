@@ -57,7 +57,7 @@ pub extern "C" fn rom_entry() -> ! {
 
     let env = rom_env::RomEnv::default();
 
-    let _lifecyle = match env.dev_state().map(|d| d.lifecycle()) {
+    let _lifecyle = match env.soc_ifc().map(|d| d.lifecycle()) {
         caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",
         caliptra_drivers::Lifecycle::Manufacturing => "Manufacturing",
         caliptra_drivers::Lifecycle::Production => "Production",
@@ -67,7 +67,7 @@ pub extern "C" fn rom_entry() -> ! {
 
     cprintln!(
         "[state] DebugLocked = {}",
-        env.dev_state()
+        env.soc_ifc()
             .map(|d| if d.debug_locked() { "Yes" } else { "No" })
     );
 
@@ -80,7 +80,7 @@ pub extern "C" fn rom_entry() -> ! {
     match result {
         Ok(fht) => {
             // Lock the datavault registers.
-            lock_registers(&env, env.reset().map(|r| r.reset_reason()));
+            lock_registers(&env, env.soc_ifc().map(|r| r.reset_reason()));
 
             fht::load_fht(fht);
         }
