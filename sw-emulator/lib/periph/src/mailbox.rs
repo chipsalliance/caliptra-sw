@@ -101,6 +101,38 @@ pub struct MailboxExternal {
     regs: Rc<RefCell<MailboxRegs>>,
 }
 
+impl MailboxExternal {
+    pub fn try_acquire_lock(&mut self) -> bool {
+        self.regs.borrow_mut().set_request(MailboxRequester::Soc);
+        let result = self.regs.borrow_mut().read(RvSize::Word, OFFSET_LOCK);
+        matches!(result, Ok(0))
+    }
+
+    pub fn write_execute(&mut self, val: u32) -> Result<(), BusError> {
+        self.regs.borrow_mut().set_request(MailboxRequester::Soc);
+        self.regs
+            .borrow_mut()
+            .write(RvSize::Word, OFFSET_EXECUTE, val)?;
+        Ok(())
+    }
+
+    pub fn is_status_cmd_busy(&mut self) -> bool {
+        self.regs.borrow_mut().set_request(MailboxRequester::Soc);
+        self.match_status(Status::STATUS::CMD_BUSY.value)
+    }
+
+    fn match_status(&mut self, status: u32) -> bool {
+        self.regs.borrow_mut().set_request(MailboxRequester::Soc);
+        let val = self
+            .regs
+            .borrow_mut()
+            .read(RvSize::Word, OFFSET_STATUS)
+            .unwrap();
+        let reg = InMemoryRegister::<u32, Status::Register>::new(val);
+        reg.read(Status::STATUS) == status
+    }
+}
+
 impl Bus for MailboxExternal {
     /// Read data of specified size from given address
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {

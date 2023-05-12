@@ -251,7 +251,7 @@ fn main() -> io::Result<()> {
         }),
         ready_for_fw_cb: ReadyForFwCb::new(move |args| {
             // Lock the mailbox
-            while !args.mailbox.try_acquire_lock() {}
+            while !args.mailbox.as_external().try_acquire_lock() {}
 
             let firmware_buffer = current_fw_buf.clone();
             args.schedule_later(FW_WRITE_TICKS, move |mailbox: &mut MailboxInternal| {
