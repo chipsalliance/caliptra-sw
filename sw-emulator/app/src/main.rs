@@ -250,9 +250,6 @@ fn main() -> io::Result<()> {
             _ => print!("{}", val as char),
         }),
         ready_for_fw_cb: ReadyForFwCb::new(move |args| {
-            // Lock the mailbox
-            while !args.mailbox.try_acquire_lock() {}
-
             let firmware_buffer = current_fw_buf.clone();
             args.schedule_later(FW_WRITE_TICKS, move |mailbox: &mut MailboxInternal| {
                 upload_fw_to_mailbox(mailbox, firmware_buffer);
@@ -260,7 +257,6 @@ fn main() -> io::Result<()> {
         }),
         security_state,
         upload_update_fw: UploadUpdateFwCb::new(move |mailbox: &mut MailboxInternal| {
-            while !mailbox.try_acquire_lock() {}
             upload_fw_to_mailbox(mailbox, update_fw_buf.clone());
         }),
         download_idevid_csr_cb: DownloadIdevidCsrCb::new(
@@ -389,6 +385,7 @@ fn change_dword_endianess(data: &mut Vec<u8>) {
 }
 
 fn upload_fw_to_mailbox(mailbox: &mut MailboxInternal, firmware_buffer: Rc<Vec<u8>>) {
+    const OFFSET_LOCK: RvAddr = 0x00;
     const OFFSET_CMD: RvAddr = 0x08;
     const OFFSET_DLEN: RvAddr = 0x0C;
     const OFFSET_DATAIN: RvAddr = 0x10;
@@ -396,6 +393,8 @@ fn upload_fw_to_mailbox(mailbox: &mut MailboxInternal, firmware_buffer: Rc<Vec<u
 
     let mut soc = mailbox.as_external();
     // Write the cmd to mailbox.
+
+    assert_eq!(soc.read(RvSize::Word, OFFSET_LOCK).unwrap(), 0);
 
     let _ = soc.write(RvSize::Word, OFFSET_CMD, FW_LOAD_CMD_OPCODE);
     let _ = soc.write(RvSize::Word, OFFSET_DLEN, firmware_buffer.len() as u32);

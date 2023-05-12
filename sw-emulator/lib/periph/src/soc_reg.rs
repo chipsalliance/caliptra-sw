@@ -735,8 +735,12 @@ impl SocRegistersImpl {
         if self.timer.fired(&mut self.op_fw_read_complete_action) {
             // Receiver sets status as CMD_COMPLETE after reading the mailbox data.
             if !self.mailbox.is_status_cmd_busy() {
+                const OFFSET_EXECUTE: RvAddr = 0x18;
                 // Reset the execute bit
-                self.mailbox.write_execute(0).unwrap();
+                self.mailbox
+                    .as_external()
+                    .write(RvSize::Word, OFFSET_EXECUTE, 0)
+                    .unwrap();
             } else {
                 self.op_fw_read_complete_action =
                     Some(self.timer.schedule_poll_in(Self::FW_READ_TICKS));
