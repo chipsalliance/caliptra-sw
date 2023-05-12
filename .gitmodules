@@ -5,3 +5,7 @@
 	path = hw-latest/caliptra-rtl
 	url = https://github.com/chipsalliance/caliptra-rtl
 	branch = main
+[submodule "runtime/dpe"]
+	path = runtime/dpe
+	url = https://github.com/chipsalliance/caliptra-dpe.git
+	branch = main
