@@ -2,6 +2,7 @@
 
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
 use caliptra_hw_model::{BootParams, HwModel, InitParams};
+use std::io::Write;
 
 #[track_caller]
 fn assert_output_contains(haystack: &str, needle: &str) {
@@ -30,7 +31,13 @@ fn smoke_test() {
     })
     .unwrap();
     let mut output = vec![];
-    hw.copy_output_until_exit_success(&mut output).unwrap();
+
+    hw.step_until_output_contains("Caliptra RT listening for mailbox commands...")
+        .unwrap();
+    output
+        .write_all(hw.output().take(usize::MAX).as_bytes())
+        .unwrap();
+
     let output = String::from_utf8_lossy(&output);
     assert_output_contains(&output, "Running Caliptra ROM");
     assert_output_contains(&output, "[cold-reset]");

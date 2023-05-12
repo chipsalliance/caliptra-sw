@@ -26,7 +26,7 @@ mod key_vault;
 mod mailbox;
 mod root_bus;
 mod sha512_acc;
-mod soc_reg;
+pub mod soc_reg;
 mod uart;
 
 pub use asym_ecc384::AsymEcc384;
@@ -38,10 +38,10 @@ pub use hmac_sha384::HmacSha384;
 pub use iccm::Iccm;
 pub use key_vault::KeyUsage;
 pub use key_vault::KeyVault;
-pub use mailbox::{Mailbox, MailboxRam};
+pub use mailbox::{MailboxExternal, MailboxInternal, MailboxRam};
 pub use root_bus::{
-    ActionCb, CaliptraRootBus, CaliptraRootBusArgs, ReadyForFwCb, SocToCaliptraBus, TbServicesCb,
-    UploadUpdateFwCb,
+    ActionCb, CaliptraRootBus, CaliptraRootBusArgs, DownloadIdevidCsrCb, ReadyForFwCb,
+    SocToCaliptraBus, TbServicesCb, UploadUpdateFwCb,
 };
 pub use sha512_acc::Sha512Accelerator;
 pub use soc_reg::SocRegistersInternal;

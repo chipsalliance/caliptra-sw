@@ -13,13 +13,16 @@ Abstract:
 --*/
 
 use crate::{
-    iccm::Iccm, soc_reg::SocRegistersExternal, AsymEcc384, Doe, EmuCtrl, HashSha256, HashSha512,
-    HmacSha384, KeyVault, Mailbox, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
+    iccm::Iccm,
+    soc_reg::{DebugManufService, SocRegistersExternal},
+    AsymEcc384, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha384, KeyVault, MailboxExternal,
+    MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
 };
 use caliptra_emu_bus::{Clock, Ram, Rom};
 use caliptra_emu_derive::Bus;
 use caliptra_hw_model_types::SecurityState;
 use std::path::PathBuf;
+use tock_registers::registers::InMemoryRegister;
 
 pub struct TbServicesCb(pub Box<dyn FnMut(u8)>);
 impl TbServicesCb {
@@ -48,13 +51,17 @@ impl From<Box<dyn FnMut(u8) + 'static>> for TbServicesCb {
     }
 }
 
-type ReadyForFwCbSchedFn<'a> = dyn FnOnce(u64, Box<dyn FnOnce(&mut Mailbox)>) + 'a;
+type ReadyForFwCbSchedFn<'a> = dyn FnOnce(u64, Box<dyn FnOnce(&mut MailboxInternal)>) + 'a;
 pub struct ReadyForFwCbArgs<'a> {
-    pub mailbox: &'a mut Mailbox,
+    pub mailbox: &'a mut MailboxInternal,
     pub(crate) sched_fn: Box<ReadyForFwCbSchedFn<'a>>,
 }
 impl<'a> ReadyForFwCbArgs<'a> {
-    pub fn schedule_later(self, ticks_from_now: u64, cb: impl FnOnce(&mut Mailbox) + 'static) {
+    pub fn schedule_later(
+        self,
+        ticks_from_now: u64,
+        cb: impl FnOnce(&mut MailboxInternal) + 'static,
+    ) {
         (self.sched_fn)(ticks_from_now, Box::new(cb));
     }
 }
@@ -87,10 +94,10 @@ impl From<Box<dyn FnMut(ReadyForFwCbArgs) + 'static>> for ReadyForFwCb {
     }
 }
 
-type UploadUpdateFwFn = Box<dyn FnMut(&mut Mailbox)>;
+type UploadUpdateFwFn = Box<dyn FnMut(&mut MailboxInternal)>;
 pub struct UploadUpdateFwCb(pub UploadUpdateFwFn);
 impl UploadUpdateFwCb {
-    pub fn new(f: impl FnMut(&mut Mailbox) + 'static) -> Self {
+    pub fn new(f: impl FnMut(&mut MailboxInternal) + 'static) -> Self {
         Self(Box::new(f))
     }
     pub(crate) fn take(&mut self) -> UploadUpdateFwFn {
@@ -109,8 +116,54 @@ impl std::fmt::Debug for UploadUpdateFwCb {
             .finish()
     }
 }
-impl From<Box<dyn FnMut(&mut Mailbox) + 'static>> for UploadUpdateFwCb {
-    fn from(value: Box<dyn FnMut(&mut Mailbox)>) -> Self {
+impl From<Box<dyn FnMut(&mut MailboxInternal) + 'static>> for UploadUpdateFwCb {
+    fn from(value: Box<dyn FnMut(&mut MailboxInternal)>) -> Self {
+        Self(value)
+    }
+}
+
+type DownloadCsrFn =
+    Box<dyn FnMut(&mut MailboxInternal, &mut InMemoryRegister<u32, DebugManufService::Register>)>;
+pub struct DownloadIdevidCsrCb(pub DownloadCsrFn);
+impl DownloadIdevidCsrCb {
+    pub fn new(
+        f: impl FnMut(&mut MailboxInternal, &mut InMemoryRegister<u32, DebugManufService::Register>)
+            + 'static,
+    ) -> Self {
+        Self(Box::new(f))
+    }
+    pub(crate) fn take(&mut self) -> DownloadCsrFn {
+        std::mem::take(self).0
+    }
+}
+impl Default for DownloadIdevidCsrCb {
+    fn default() -> Self {
+        Self(Box::new(|_, _| {}))
+    }
+}
+impl std::fmt::Debug for DownloadIdevidCsrCb {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("DownloadCsrCb")
+            .field(&"<unknown closure>")
+            .finish()
+    }
+}
+impl
+    From<
+        Box<
+            dyn FnMut(&mut MailboxInternal, &mut InMemoryRegister<u32, DebugManufService::Register>)
+                + 'static,
+        >,
+    > for DownloadIdevidCsrCb
+{
+    fn from(
+        value: Box<
+            dyn FnMut(
+                &mut MailboxInternal,
+                &mut InMemoryRegister<u32, DebugManufService::Register>,
+            ),
+        >,
+    ) -> Self {
         Self(value)
     }
 }
@@ -156,6 +209,7 @@ pub struct CaliptraRootBusArgs {
     pub ready_for_fw_cb: ReadyForFwCb,
     pub upload_update_fw: UploadUpdateFwCb,
     pub bootfsm_go_cb: ActionCb,
+    pub download_idevid_csr_cb: DownloadIdevidCsrCb,
 }
 
 #[derive(Bus)]
@@ -194,7 +248,7 @@ pub struct CaliptraRootBus {
     pub mailbox_sram: MailboxRam,
 
     #[peripheral(offset = 0x3002_0000, mask = 0x0000_0fff)]
-    pub mailbox: Mailbox,
+    pub mailbox: MailboxInternal,
 
     #[peripheral(offset = 0x3002_1000, mask = 0x0000_0fff)]
     pub sha512_acc: Sha512Accelerator,
@@ -214,7 +268,7 @@ impl CaliptraRootBus {
     pub fn new(clock: &Clock, mut args: CaliptraRootBusArgs) -> Self {
         let key_vault = KeyVault::new();
         let mailbox_ram = MailboxRam::new();
-        let mailbox = Mailbox::new(mailbox_ram.clone());
+        let mailbox = MailboxInternal::new(mailbox_ram.clone());
         let rom = Rom::new(std::mem::take(&mut args.rom));
         let iccm = Iccm::new(clock);
         let soc_reg = SocRegistersInternal::new(clock, mailbox.clone(), iccm.clone(), args);
@@ -242,7 +296,7 @@ impl CaliptraRootBus {
         SocToCaliptraBus {
             // TODO: This should not be the same mailbox bus as the one used
             // internaly
-            mailbox: self.mailbox.clone(),
+            mailbox: self.mailbox.as_external(),
             soc_ifc: self.soc_reg.external_regs(),
         }
     }
@@ -251,7 +305,7 @@ impl CaliptraRootBus {
 #[derive(Bus)]
 pub struct SocToCaliptraBus {
     #[peripheral(offset = 0x3002_0000, mask = 0x0000_0fff)]
-    mailbox: Mailbox,
+    mailbox: MailboxExternal,
 
     #[peripheral(offset = 0x3003_0000, mask = 0x0000_ffff)]
     soc_ifc: SocRegistersExternal,

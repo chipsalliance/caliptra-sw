@@ -137,14 +137,17 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // Verify the preamble
         let preamble = &manifest.preamble;
-        let header_info = self.verify_preamble(image, preamble, reason)?;
+        let header_info = self.verify_preamble(image, preamble, reason);
+        let header_info = okref(&header_info)?;
 
         // Verify Header
         let header = &manifest.header;
-        let toc_info = self.verify_header(image, header, &header_info)?;
+        let toc_info = self.verify_header(image, header, header_info);
+        let toc_info = okref(&toc_info)?;
 
         // Verify TOC
-        let image_info = self.verify_toc(image, manifest, &toc_info)?;
+        let image_info = self.verify_toc(image, manifest, toc_info);
+        let image_info = okref(&image_info)?;
 
         // Verify FMC
         let fmc_info = self.verify_fmc(image, image_info.fmc, reason)?;
@@ -154,6 +157,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         let info = ImageVerificationInfo {
             vendor_ecc_pub_key_idx: header_info.vendor_ecc_pub_key_idx,
+            vendor_pub_keys_digest: self.make_vendor_key_digest(image, header_info)?,
             owner_pub_keys_digest: header_info.owner_pub_keys_digest,
             fmc: fmc_info,
             runtime: runtime_info,
@@ -265,7 +269,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             raise_err!(VendorPubKeyDigestInvalid)
         }
 
-        let range = ImageManifest::vendor_pub_key_range();
+        let range = ImageManifest::vendor_pub_keys_range();
 
         let actual = self
             .env
@@ -285,13 +289,6 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         image: Env::Image,
         reason: ResetReason,
     ) -> CaliptraResult<Option<ImageDigest>> {
-        let expected = self.env.owner_pub_key_digest(image);
-
-        // Skip Verification if owner public key digest is zero
-        if expected == ZERO_DIGEST {
-            return Ok(None);
-        }
-
         let range = ImageManifest::owner_pub_key_range();
 
         let actual = self
@@ -299,18 +296,20 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             .sha384_digest(image, range.start, range.len() as u32)
             .map_err(|_| err_u32!(OwnerPubKeyDigestFailure))?;
 
-        if expected != actual {
+        let fuses_digest = self.env.owner_pub_key_digest_fuses();
+
+        if fuses_digest != ZERO_DIGEST && fuses_digest != actual {
             raise_err!(OwnerPubKeyDigestMismatch)
         }
 
         if reason == ResetReason::UpdateReset {
-            let cold_boot_digest = self.env.owner_pub_key_digest(image);
-            if cold_boot_digest != expected {
+            let cold_boot_digest = self.env.owner_pub_key_digest_dv();
+            if cold_boot_digest != actual {
                 raise_err!(UpdateResetOwnerDigestFailure)
             }
         }
 
-        Ok(Some(expected))
+        Ok(Some(actual))
     }
 
     /// Verify Header
@@ -579,6 +578,25 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         };
 
         Ok(info)
+    }
+
+    /// Calculates a digest of the vendor key that signed the image.
+    ///
+    /// TODO: include the LMS key in the digest.
+    fn make_vendor_key_digest(
+        &self,
+        image: Env::Image,
+        info: &HeaderInfo,
+    ) -> CaliptraResult<ImageDigest> {
+        let range = ImageManifest::vendor_pub_key_range(info.vendor_ecc_pub_key_idx);
+
+        if range.is_empty() {
+            raise_err!(VendorEccPubKeyIndexOutOfBounds)
+        }
+
+        self.env
+            .sha384_digest(image, range.start, range.len() as u32)
+            .map_err(|_| err_u32!(VendorPubKeyDigestFailure))
     }
 }
 
@@ -1169,7 +1187,7 @@ mod tests {
             self.vendor_pub_key_revocation
         }
 
-        fn owner_pub_key_digest(&self, _image: Self::Image) -> ImageDigest {
+        fn owner_pub_key_digest_fuses(&self) -> ImageDigest {
             self.owner_pub_key_digest
         }
 

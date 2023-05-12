@@ -14,8 +14,10 @@ Abstract:
 
 use caliptra_emu_bus::Clock;
 use caliptra_emu_cpu::{Cpu, RvInstr, StepAction};
+use caliptra_emu_periph::soc_reg::DebugManufService;
 use caliptra_emu_periph::{
-    CaliptraRootBus, CaliptraRootBusArgs, Mailbox, ReadyForFwCb, TbServicesCb, UploadUpdateFwCb,
+    CaliptraRootBus, CaliptraRootBusArgs, DownloadIdevidCsrCb, MailboxInternal, ReadyForFwCb,
+    TbServicesCb, UploadUpdateFwCb,
 };
 use caliptra_hw_model::BusMmio;
 use caliptra_hw_model_types::{DeviceLifecycle, SecurityState};
@@ -26,7 +28,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::rc::Rc;
-use tock_registers::interfaces::{Readable, Writeable};
+use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::registers::InMemoryRegister;
 mod gdb;
 use crate::gdb::gdb_target::GdbTarget;
@@ -218,6 +220,8 @@ fn main() -> io::Result<()> {
     }
     let update_fw_buf = Rc::new(update_fw_buf);
 
+    let log_dir = Rc::new(args_log_dir.to_path_buf());
+
     let clock = Clock::new();
 
     let req_idevid_csr = args.get_flag("req-idevid-csr");
@@ -245,19 +249,24 @@ fn main() -> io::Result<()> {
             _ => print!("{}", val as char),
         }),
         ready_for_fw_cb: ReadyForFwCb::new(move |args| {
-            // Lock the mailbox
-            while !args.mailbox.try_acquire_lock() {}
-
             let firmware_buffer = current_fw_buf.clone();
-            args.schedule_later(FW_WRITE_TICKS, move |mailbox: &mut Mailbox| {
+            args.schedule_later(FW_WRITE_TICKS, move |mailbox: &mut MailboxInternal| {
                 upload_fw_to_mailbox(mailbox, firmware_buffer);
             });
         }),
         security_state,
-        upload_update_fw: UploadUpdateFwCb::new(move |mailbox: &mut Mailbox| {
-            while !mailbox.try_acquire_lock() {}
+        upload_update_fw: UploadUpdateFwCb::new(move |mailbox: &mut MailboxInternal| {
             upload_fw_to_mailbox(mailbox, update_fw_buf.clone());
         }),
+        download_idevid_csr_cb: DownloadIdevidCsrCb::new(
+            move |mailbox: &mut MailboxInternal,
+                  cptra_dbg_manuf_service_reg: &mut InMemoryRegister<
+                u32,
+                DebugManufService::Register,
+            >| {
+                download_idev_id_csr(mailbox, log_dir.clone(), cptra_dbg_manuf_service_reg);
+            },
+        ),
         ..Default::default()
     };
 
@@ -374,12 +383,14 @@ fn change_dword_endianess(data: &mut Vec<u8>) {
     }
 }
 
-fn upload_fw_to_mailbox(mailbox: &mut Mailbox, firmware_buffer: Rc<Vec<u8>>) {
+fn upload_fw_to_mailbox(mailbox: &mut MailboxInternal, firmware_buffer: Rc<Vec<u8>>) {
+    let soc_mbox = mailbox.as_external().regs();
     // Write the cmd to mailbox.
-    let _ = mailbox.write_cmd(FW_LOAD_CMD_OPCODE);
 
-    // Write dlen.
-    let _ = mailbox.write_dlen(firmware_buffer.len() as u32).is_ok();
+    assert!(!soc_mbox.lock().read().lock());
+
+    soc_mbox.cmd().write(|_| FW_LOAD_CMD_OPCODE);
+    soc_mbox.dlen().write(|_| firmware_buffer.len() as u32);
 
     //
     // Write firmware image.
@@ -389,9 +400,9 @@ fn upload_fw_to_mailbox(mailbox: &mut Mailbox, firmware_buffer: Rc<Vec<u8>>) {
     let n = firmware_buffer.len() - remainder;
 
     for idx in (0..n).step_by(word_size) {
-        let _ = mailbox.write_datain(u32::from_le_bytes(
-            firmware_buffer[idx..idx + word_size].try_into().unwrap(),
-        ));
+        soc_mbox.datain().write(|_| {
+            u32::from_le_bytes(firmware_buffer[idx..idx + word_size].try_into().unwrap())
+        });
     }
 
     // Handle the remainder bytes.
@@ -400,9 +411,45 @@ fn upload_fw_to_mailbox(mailbox: &mut Mailbox, firmware_buffer: Rc<Vec<u8>>) {
         for idx in 1..remainder {
             last_word |= (firmware_buffer[n + idx] as u32) << (idx << 3);
         }
-        let _ = mailbox.write_datain(last_word);
+        soc_mbox.datain().write(|_| last_word);
     }
 
     // Set the execute register.
-    let _ = mailbox.write_execute(1);
+    soc_mbox.execute().write(|w| w.execute(true));
+}
+
+fn download_idev_id_csr(
+    mailbox: &mut MailboxInternal,
+    path: Rc<PathBuf>,
+    cptra_dbg_manuf_service_reg: &mut InMemoryRegister<u32, DebugManufService::Register>,
+) {
+    let mut path = path.to_path_buf();
+    path.push("caliptra_ldevid_cert.der");
+
+    let mut file = std::fs::File::create(path).unwrap();
+
+    let soc_mbox = mailbox.as_external().regs();
+
+    let byte_count = soc_mbox.dlen().read() as usize;
+    let remainder = byte_count % core::mem::size_of::<u32>();
+    let n = byte_count - remainder;
+
+    for _ in (0..n).step_by(core::mem::size_of::<u32>()) {
+        let buf = soc_mbox.dataout().read();
+        file.write_all(&buf.to_le_bytes()).unwrap();
+    }
+
+    if remainder > 0 {
+        let part = soc_mbox.dataout().read();
+        for idx in 0..remainder {
+            let byte = ((part >> (idx << 3)) & 0xFF) as u8;
+            file.write_all(&[byte]).unwrap();
+        }
+    }
+
+    // Complete the mailbox command.
+    soc_mbox.status().write(|w| w.status(|w| w.cmd_complete()));
+
+    // Clear the Idevid CSR requested bit.
+    cptra_dbg_manuf_service_reg.modify(DebugManufService::REQ_IDEVID_CSR::CLEAR);
 }

@@ -53,6 +53,11 @@ pub enum CaliptraComponent {
 
     /// CSRNG
     Csrng = 13,
+
+    /// Runtime firmware
+    /// TODO: Once https://github.com/chipsalliance/caliptra-sw/pull/220 is
+    /// merged remove this and use RT error mechanism instead.
+    Runtime = 14,
 }
 
 #[macro_export]
@@ -68,7 +73,7 @@ macro_rules! caliptra_err_def {
         impl From<$enum_name> for core::num::NonZeroU32 {
             fn from(val: $enum_name) -> Self {
                 // Panic is impossible as long as the enums don't define zero.
-                core::num::NonZeroU32::new(((($crate::error::CaliptraComponent::$comp_name) as u32) << 24) | (val as u32)).unwrap()
+                core::num::NonZeroU32::new(((($crate::error::CaliptraComponent::$comp_name) as u32) << 16) | (val as u32)).unwrap()
             }
         }
         impl From<$enum_name> for u32 {

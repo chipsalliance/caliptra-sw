@@ -25,6 +25,18 @@ path = "test_iccm_byte_write.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "test_iccm_write_locked"
+path = "test_iccm_write_locked.rs"
+required-features = ["riscv"]
+
+
+[[bin]]
 name = "mailbox_responder"
 path = "mailbox_responder.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "mailbox_sender"
+path = "mailbox_sender.rs"
+required-features = ["riscv"]
+

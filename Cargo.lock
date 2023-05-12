@@ -133,6 +133,7 @@ dependencies = [
  "caliptra-image-types",
  "elf",
  "hex",
+ "once_cell",
 ]
 
 [[package]]
@@ -193,6 +194,7 @@ version = "0.1.0"
 dependencies = [
  "caliptra-emu-types",
  "tock-registers",
+ "ureg",
 ]
 
 [[package]]
@@ -238,6 +240,7 @@ dependencies = [
  "caliptra-emu-derive",
  "caliptra-emu-types",
  "caliptra-hw-model-types",
+ "caliptra-registers",
  "lazy_static",
  "smlang",
  "tock-registers",
@@ -465,6 +468,7 @@ dependencies = [
  "caliptra-image-openssl",
  "caliptra-image-serde",
  "caliptra-image-types",
+ "caliptra-registers",
  "caliptra_common",
  "cfg-if",
  "ufmt",
@@ -477,6 +481,7 @@ version = "0.1.0"
 dependencies = [
  "caliptra-cpu",
  "caliptra-drivers",
+ "caliptra-runtime",
  "caliptra-test-harness",
  "cfg-if",
 ]
@@ -515,6 +520,7 @@ version = "0.1.0"
 dependencies = [
  "asn1",
  "bitfield",
+ "caliptra_common",
  "convert_case",
  "hex",
  "openssl",

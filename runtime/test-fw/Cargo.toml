@@ -7,14 +7,25 @@ edition = "2021"
 
 [features]
 runtime = ["caliptra-test-harness/runtime"]
-riscv = ["caliptra-cpu/riscv", "runtime"]
+riscv = [
+    "caliptra-cpu/riscv",
+    "caliptra-runtime/riscv",
+    "caliptra-test-harness/riscv",
+]
 emu = [
-    "caliptra-drivers/emu"
+    "caliptra-drivers/emu",
+    "caliptra-runtime/emu",
+    "caliptra-test-harness/emu",
 ]
 
 [[bin]]
 name = "boot"
 path = "src/boot_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "mbox"
+path = "src/mbox_tests.rs"
 required-features = ["riscv"]
 
 [build-dependencies]
@@ -23,5 +34,6 @@ cfg-if = "1.0.0"
 [dependencies]
 caliptra-test-harness = { path = "../../test-harness" }
 caliptra-cpu = { version = "0.1.0", path = "../../cpu" }
+caliptra-runtime = { path = "..", default-features = false }
 caliptra-drivers = { path = "../../drivers" }
 cfg-if = "1.0.0"

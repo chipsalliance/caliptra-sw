@@ -19,12 +19,15 @@ use super::crypto::{Crypto, Ecc384KeyPair};
 use super::dice::{DiceInput, DiceLayer, DiceOutput};
 use super::x509::X509;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
+use crate::flow::cold_reset::{KEY_ID_CDI, KEY_ID_FMC_PRIV_KEY};
+use crate::print::HexBytes;
 use crate::verifier::RomImageVerificationEnv;
-use crate::{cprint, cprint_slice, cprintln, pcr};
+use crate::{cprint, cprintln, pcr};
 use crate::{rom_env::RomEnv, rom_err_def};
+use caliptra_common::dice;
 use caliptra_drivers::{
-    Array4x12, CaliptraResult, ColdResetEntry4, ColdResetEntry48, Hmac384Data, Hmac384Key, KeyId,
-    KeyReadArgs, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
+    okref, Array4x12, CaliptraResult, ColdResetEntry4, ColdResetEntry48, Hmac384Data, Hmac384Key,
+    KeyId, KeyReadArgs, Lifecycle, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
@@ -52,47 +55,47 @@ impl DiceLayer for FmcAliasLayer {
     /// Perform derivations for the DICE layer
     fn derive(env: &RomEnv, input: &DiceInput) -> CaliptraResult<DiceOutput> {
         cprintln!("[afmc] ++");
-
-        // To Do : Disabling the Prints Temporarily
-        //cprintln!("[afmc] CDI.KEYID = {}", input.cdi as u8);
-        //cprintln!("[afmc] SUBJECT.KEYID = {}", input.subj_priv_key as u8);
-        // cprintln!(
-        //     "[afmc] AUTHORITY.KEYID = {}",
-        //     input.auth_key_pair.priv_key as u8
-        // );
+        cprintln!("[afmc] CDI.KEYID = {}", KEY_ID_CDI as u8);
+        cprintln!("[afmc] SUBJECT.KEYID = {}", KEY_ID_FMC_PRIV_KEY as u8);
+        cprintln!(
+            "[afmc] AUTHORITY.KEYID = {}",
+            input.auth_key_pair.priv_key as u8
+        );
 
         // Download the image
         let mut txn = Self::download_image(env)?;
 
         // Load the manifest
-        let manifest = Self::load_manifest(&txn)?;
+        let manifest = Self::load_manifest(&txn);
+        let manifest = okref(&manifest)?;
 
         // Verify the image
-        let info = Self::verify_image(env, &manifest)?;
+        let info = Self::verify_image(env, manifest);
+        let info = okref(&info)?;
 
         // populate data vault
-        Self::populate_data_vault(env, &info);
+        Self::populate_data_vault(env, info);
 
-        // Extend PCR0 & PCR1
-        Self::extend_pcrs(env)?;
+        // Extend PCR0
+        pcr::extend_pcr0(env)?;
 
         // Load the image
-        Self::load_image(env, &manifest, &txn)?;
+        Self::load_image(env, manifest, &txn)?;
 
         // Complete the mailbox transaction indicating success.
         txn.complete(true)?;
 
         // At this point PCR0 & PCR1 must have the same value. We use the value
-        // of PCR1 as the UDS for deriving the CDI
-        let uds = env
+        // of PCR1 as the measurement for deriving the CDI
+        let measurement = env
             .pcr_bank()
             .map(|p| p.read_pcr(caliptra_drivers::PcrId::PcrId1));
 
         // Derive the DICE CDI from decrypted UDS
-        let cdi = Self::derive_cdi(env, uds, input.cdi)?;
+        Self::derive_cdi(env, measurement, KEY_ID_CDI)?;
 
         // Derive DICE Key Pair from CDI
-        let key_pair = Self::derive_key_pair(env, cdi, input.subj_priv_key)?;
+        let key_pair = Self::derive_key_pair(env, KEY_ID_CDI, KEY_ID_FMC_PRIV_KEY)?;
 
         // Generate the Subject Serial Number and Subject Key Identifier.
         //
@@ -102,7 +105,11 @@ impl DiceLayer for FmcAliasLayer {
         let subj_key_id = X509::subj_key_id(env, &key_pair.pub_key)?;
 
         // Generate the output for next layer
-        let output = input.to_output(key_pair, subj_sn, subj_key_id);
+        let output = DiceOutput {
+            subj_key_pair: key_pair,
+            subj_sn,
+            subj_key_id,
+        };
 
         // if there is a valid value in the manifest for the not_before and not_after
         // we take it from there.
@@ -317,43 +324,20 @@ impl FmcAliasLayer {
             .map(|d| d.write_warm_reset_entry4(WarmResetEntry4::ManifestAddr, slice));
     }
 
-    /// Extend the PCR0 & PCR1
-    ///
-    /// PCR0 is a journey PCR and is locked for clear on cold boot. PCR1
-    /// is the current PCR and is cleared on any reset
+    /// Derive Composite Device Identity (CDI) from FMC measurements
     ///
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    fn extend_pcrs(env: &RomEnv) -> CaliptraResult<()> {
-        pcr::extend_pcr0(env)?;
-        pcr::extend_pcr1(env)?;
-
-        // TODO: Check PCR0 != 0
-
-        // TODO: Check PCR0 == PCR1
-
-        Ok(())
-    }
-
-    /// Derive Composite Device Identity (CDI) from Unique Device Secret (UDS)
-    ///
-    /// # Arguments
-    ///
-    /// * `env` - ROM Environment
-    /// * `uds` - Array containing the UDS
+    /// * `measurements` - Array containing the FMC measurements
     /// * `cdi` - Key Slot to store the generated CDI
-    ///
-    /// # Returns
-    ///
-    /// * `KeyId` - KeySlot containing the DICE CDI
-    fn derive_cdi(env: &RomEnv, uds: Array4x12, cdi: KeyId) -> CaliptraResult<KeyId> {
+    fn derive_cdi(env: &RomEnv, measurements: Array4x12, cdi: KeyId) -> CaliptraResult<()> {
         // CDI Key
         let key = Hmac384Key::Key(KeyReadArgs::new(cdi));
-        let data: [u8; 48] = uds.into();
+        let data: [u8; 48] = measurements.into();
         let data = Hmac384Data::Slice(&data);
-        let cdi = Crypto::hmac384_mac(env, key, data, cdi)?;
-        Ok(cdi)
+        Crypto::hmac384_mac(env, key, data, cdi)?;
+        Ok(())
     }
 
     /// Derive Dice Layer Key Pair
@@ -389,17 +373,28 @@ impl FmcAliasLayer {
         let auth_pub_key = &input.auth_key_pair.pub_key;
         let pub_key = &output.subj_key_pair.pub_key;
 
+        let flags = Self::make_flags(
+            env.dev_state().map(|d| d.lifecycle()),
+            env.dev_state().map(|d| d.debug_locked()),
+        );
+
+        let svn = env.data_vault().map(|d| d.fmc_svn()) as u8;
+        let min_svn = 0_u8; // TODO: plumb from image header (and set to zero if anti_rollback_disable is set).
+
         // Certificate `To Be Signed` Parameters
         let params = FmcAliasCertTbsParams {
             ueid: &X509::ueid(env)?,
             subject_sn: &output.subj_sn,
             subject_key_id: &output.subj_key_id,
-            issuer_sn: &input.auth_sn,
-            authority_key_id: &input.auth_key_id,
+            issuer_sn: input.auth_sn,
+            authority_key_id: input.auth_key_id,
             serial_number: &X509::cert_sn(env, pub_key)?,
             public_key: &pub_key.to_der(),
-            tcb_info_fmc_tci: &env.data_vault().map(|d| d.fmc_tci()).into(),
-            tcb_info_owner_pk_hash: &env.data_vault().map(|d| d.owner_pk_hash()).into(),
+            tcb_info_fmc_tci: &(&env.data_vault().map(|d| d.fmc_tci())).into(),
+            tcb_info_owner_pk_hash: &(&env.data_vault().map(|d| d.owner_pk_hash())).into(),
+            tcb_info_flags: &flags,
+            tcb_info_svn: &svn.to_be_bytes(),
+            tcb_info_min_svn: &min_svn.to_be_bytes(),
             not_before,
             not_after,
         };
@@ -412,29 +407,30 @@ impl FmcAliasLayer {
             "[afmc] Signing Cert with AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
-        let sig = Crypto::ecdsa384_sign(env, auth_priv_key, tbs.tbs())?;
+        let sig = Crypto::ecdsa384_sign(env, auth_priv_key, tbs.tbs());
+        let sig = okref(&sig)?;
 
         // Clear the authority private key
         cprintln!("[afmc] Erasing AUTHORITY.KEYID = {}", auth_priv_key as u8);
         env.key_vault().map(|k| k.erase_key(auth_priv_key))?;
 
         // Verify the signature of the `To Be Signed` portion
-        if !Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), &sig)? {
+        if !Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? {
             raise_err!(CertVerify);
         }
 
-        let _pub_x: [u8; 48] = pub_key.x.into();
-        let _pub_y: [u8; 48] = pub_key.y.into();
-        cprint_slice!("[afmc] PUB.X", _pub_x);
-        cprint_slice!("[afmc] PUB.Y", _pub_y);
+        let _pub_x: [u8; 48] = (&pub_key.x).into();
+        let _pub_y: [u8; 48] = (&pub_key.y).into();
+        cprintln!("[afmc] PUB.X = {}", HexBytes(&_pub_x));
+        cprintln!("[afmc] PUB.Y = {}", HexBytes(&_pub_y));
 
-        let _sig_r: [u8; 48] = sig.r.into();
-        let _sig_s: [u8; 48] = sig.s.into();
-        cprint_slice!("[afmc] SIG.R", _sig_r);
-        cprint_slice!("[afmc] SIG.S", _sig_s);
+        let _sig_r: [u8; 48] = (&sig.r).into();
+        let _sig_s: [u8; 48] = (&sig.s).into();
+        cprintln!("[afmc] SIG.R = {}", HexBytes(&_sig_r));
+        cprintln!("[afmc] SIG.S = {}", HexBytes(&_sig_s));
 
         // Lock the FMC Certificate Signature in data vault until next boot
-        env.data_vault().map(|d| d.set_fmc_dice_signature(&sig));
+        env.data_vault().map(|d| d.set_fmc_dice_signature(sig));
 
         // Lock the FMC Public key in the data vault until next boot
         env.data_vault().map(|d| d.set_fmc_pub_key(pub_key));
@@ -443,5 +439,27 @@ impl FmcAliasLayer {
         copy_tbs(tbs.tbs(), TbsType::FmcaliasTbs)?;
 
         Ok(())
+    }
+
+    /// Generate flags for DICE evidence
+    ///
+    /// # Arguments
+    ///
+    /// * `device_lifecycle` - Device lifecycle
+    /// * `debug_locked`     - Debug locked
+    fn make_flags(device_lifecycle: Lifecycle, debug_locked: bool) -> [u8; 4] {
+        let mut flags: u32 = dice::FLAG_BIT_FIXED_WIDTH;
+
+        flags |= match device_lifecycle {
+            Lifecycle::Unprovisioned => dice::FLAG_BIT_NOT_CONFIGURED,
+            Lifecycle::Manufacturing => dice::FLAG_BIT_NOT_SECURE,
+            _ => 0,
+        };
+
+        if debug_locked {
+            flags |= dice::FLAG_BIT_DEBUG;
+        }
+
+        flags.to_be_bytes()
     }
 }

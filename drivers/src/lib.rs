@@ -15,6 +15,7 @@ Abstract:
 #![no_std]
 
 mod array;
+mod array_concat;
 pub mod error;
 mod wait;
 
@@ -30,6 +31,7 @@ mod key_vault;
 mod kv_access;
 mod lms;
 mod mailbox;
+mod okref;
 mod pcr_bank;
 mod reset;
 mod sha1;
@@ -45,6 +47,7 @@ pub type CaliptraError = NonZeroU32;
 pub type CaliptraResult<T> = Result<T, CaliptraError>;
 
 pub use array::{Array4x12, Array4x4, Array4x5, Array4x8, Array4xN};
+pub use array_concat::array_concat3;
 pub use csrng::{
     Csrng, HealthFailCounts as CsrngHealthFailCounts, Iter as CsrngIter, Seed as CsrngSeed,
 };
@@ -72,6 +75,7 @@ pub use lms::{
     LmsAlgorithmType, LmsIdentifier, LmsSignature, Sha192Digest, Sha256Digest,
 };
 pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
+pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};
 pub use reset::{ResetReason, ResetService};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};

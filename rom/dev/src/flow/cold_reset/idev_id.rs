@@ -16,8 +16,9 @@ Abstract:
 use super::crypto::*;
 use super::dice::*;
 use super::x509::*;
-use crate::cprint_slice;
 use crate::cprintln;
+use crate::flow::cold_reset::{KEY_ID_CDI, KEY_ID_FE, KEY_ID_IDEVID_PRIV_KEY, KEY_ID_UDS};
+use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 use crate::rom_err_def;
 use caliptra_drivers::*;
@@ -32,7 +33,7 @@ const DOE_UDS_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193
 const DOE_FE_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e]);
 
 /// Key used to derive the Composite Device Identity(CDI) for Initial Device Identity (IDEVID)
-const IDEVID_CDI_KEY: Array4x12 = Array4xN::<12, 48>([
+const IDEVID_CDI_KEY: Array4x12 = Array4x12::new([
     0x5bd3c575, 0x2ba359a2, 0x696c97f0, 0x56f594a3, 0x6130c106, 0xedcddddb, 0xd01044f6, 0xf2d302d8,
     0xeeefec92, 0xa0ebfaa0, 0x36bf2d20, 0x0535df6f,
 ]);
@@ -48,6 +49,7 @@ rom_err_def! {
         CsrBuilderBuild= 0x2,
         CsrInvalid = 0x3,
         CsrVerify = 0x4,
+        CsrOverflow= 0x5,
     }
 }
 
@@ -60,31 +62,31 @@ impl DiceLayer for InitDevIdLayer {
     /// # Arguments
     ///
     /// * `env`   - ROM Environment
-    /// * `input` - DICE layer input
+    /// * `_input` - DICE layer input
     ///
     /// # Returns
     ///
     /// * `DiceOutput` - DICE layer output
-    fn derive(env: &RomEnv, input: &DiceInput) -> CaliptraResult<DiceOutput> {
+    fn derive(env: &RomEnv, _input: &DiceInput) -> CaliptraResult<DiceOutput> {
         cprintln!("[idev] ++");
-        cprintln!("[idev] CDI.KEYID = {}", input.cdi as u8);
-        cprintln!("[idev] SUBJECT.KEYID = {}", input.subj_priv_key as u8);
-        cprintln!("[idev] UDS.KEYID = {}", input.uds_key as u8);
+        cprintln!("[idev] CDI.KEYID = {}", KEY_ID_CDI as u8);
+        cprintln!("[idev] SUBJECT.KEYID = {}", KEY_ID_IDEVID_PRIV_KEY as u8);
+        cprintln!("[idev] UDS.KEYID = {}", KEY_ID_UDS as u8);
 
         // Decrypt the UDS
-        let uds = Self::decrypt_uds(env, input.uds_key)?;
+        Self::decrypt_uds(env, KEY_ID_UDS)?;
 
         // Decrypt the Filed Entropy
-        Self::decrypt_field_entropy(env, input.fe_key)?;
+        Self::decrypt_field_entropy(env, KEY_ID_FE)?;
 
         // Clear Deobfuscation Engine Secrets
         Self::clear_doe_secrets(env)?;
 
         // Derive the DICE CDI from decrypted UDS
-        let cdi = Self::derive_cdi(env, uds, input.cdi)?;
+        Self::derive_cdi(env, KEY_ID_UDS, KEY_ID_CDI)?;
 
         // Derive DICE Key Pair from CDI
-        let key_pair = Self::derive_key_pair(env, cdi, input.subj_priv_key)?;
+        let key_pair = Self::derive_key_pair(env, KEY_ID_CDI, KEY_ID_IDEVID_PRIV_KEY)?;
 
         // Generate the Subject Serial Number and Subject Key Identifier.
         // This information will be used by next DICE Layer while generating
@@ -93,7 +95,11 @@ impl DiceLayer for InitDevIdLayer {
         let subj_key_id = X509::idev_subj_key_id(env, &key_pair.pub_key)?;
 
         // Generate the output for next layer
-        let output = input.to_output(key_pair, subj_sn, subj_key_id);
+        let output = DiceOutput {
+            subj_key_pair: key_pair,
+            subj_sn,
+            subj_key_id,
+        };
 
         // Generate the Initial DevID Certificate Signing Request (CSR)
         Self::generate_csr(env, &output)?;
@@ -112,14 +118,10 @@ impl InitDevIdLayer {
     ///
     /// * `env` - ROM Environment
     /// * `uds` - Key Vault slot to store the decrypted UDS in
-    ///
-    /// # Returns
-    ///
-    /// * `KeyId` - Key Vault slot containing the decrypted UDS
-    fn decrypt_uds(env: &RomEnv, uds: KeyId) -> CaliptraResult<KeyId> {
+    fn decrypt_uds(env: &RomEnv, uds: KeyId) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
         env.doe().map(|d| d.decrypt_uds(&DOE_UDS_IV, uds))?;
-        Ok(uds)
+        Ok(())
     }
 
     /// Decrypt Field Entropy (FW)
@@ -128,14 +130,10 @@ impl InitDevIdLayer {
     ///
     /// * `env` - ROM Environment
     /// * `slot` - Key Vault slot to store the decrypted UDS in
-    ///
-    /// # Returns
-    ///
-    /// * `KeyId` - Key Vault slot containing the decrypted UDS
-    fn decrypt_field_entropy(env: &RomEnv, fe: KeyId) -> CaliptraResult<KeyId> {
+    fn decrypt_field_entropy(env: &RomEnv, fe: KeyId) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
         env.doe().map(|d| d.decrypt_field_entropy(&DOE_FE_IV, fe))?;
-        Ok(fe)
+        Ok(())
     }
 
     /// Clear Deobfuscation Engine secrets
@@ -154,19 +152,15 @@ impl InitDevIdLayer {
     /// * `env` - ROM Environment
     /// * `uds` - Key slot holding the UDS
     /// * `cdi` - Key Slot to store the generated CDI
-    ///
-    /// # Returns
-    ///
-    /// * `KeyId` - KeySlot containing the DICE CDI
-    fn derive_cdi(env: &RomEnv, uds: KeyId, cdi: KeyId) -> CaliptraResult<KeyId> {
+    fn derive_cdi(env: &RomEnv, uds: KeyId, cdi: KeyId) -> CaliptraResult<()> {
         // CDI Key
         let key = Hmac384Key::Array4x12(&IDEVID_CDI_KEY);
         let data = Hmac384Data::Key(KeyReadArgs::new(uds));
-        let cdi = Crypto::hmac384_mac(env, key, data, cdi)?;
+        Crypto::hmac384_mac(env, key, data, cdi)?;
 
         cprintln!("[idev] Erasing UDS.KEYID = {}", uds as u8);
         env.key_vault().map(|k| k.erase_key(uds))?;
-        Ok(cdi)
+        Ok(())
     }
 
     /// Derive Dice Layer Key Pair
@@ -235,10 +229,11 @@ impl InitDevIdLayer {
         );
 
         // Sign the the `To Be Signed` portion
-        let sig = Crypto::ecdsa384_sign(env, key_pair.priv_key, tbs.tbs())?;
+        let sig = Crypto::ecdsa384_sign(env, key_pair.priv_key, tbs.tbs());
+        let sig = okref(&sig)?;
 
         // Verify the signature of the `To Be Signed` portion
-        if !Crypto::ecdsa384_verify(env, &key_pair.pub_key, tbs.tbs(), &sig)? {
+        if !Crypto::ecdsa384_verify(env, &key_pair.pub_key, tbs.tbs(), sig)? {
             raise_err!(CsrVerify);
         }
 
@@ -249,17 +244,22 @@ impl InitDevIdLayer {
         // cprint_slice!("[idev] PUB.X", _pub_x);
         // cprint_slice!("[idev] PUB.Y", _pub_y);
 
-        let _sig_r: [u8; 48] = sig.r.into();
-        let _sig_s: [u8; 48] = sig.s.into();
-        cprint_slice!("[idev] SIG.R", _sig_r);
-        cprint_slice!("[idev] SIG.S", _sig_s);
+        let _sig_r: [u8; 48] = (&sig.r).into();
+        let _sig_s: [u8; 48] = (&sig.s).into();
+        cprintln!("[idev] SIG.R = {}", HexBytes(&_sig_r));
+        cprintln!("[idev] SIG.S = {}", HexBytes(&_sig_s));
 
         // Build the CSR with `To Be Signed` & `Signature`
         let mut csr = [0u8; MAX_CSR_SIZE];
         let csr_bldr =
             Ecdsa384CsrBuilder::new(tbs.tbs(), &sig.to_ecdsa()).ok_or(err_u32!(CsrBuilderInit))?;
         let csr_len = csr_bldr.build(&mut csr).ok_or(err_u32!(CsrBuilderBuild))?;
-        cprint_slice!("[idev] CSR", csr);
+
+        if csr_len > csr.len() {
+            raise_err!(CsrOverflow);
+        }
+
+        cprintln!("[idev] CSR = {}", HexBytes(&csr[..csr_len]));
 
         // Execute Send CSR Flow
         Self::send_csr(env, InitDevIdCsr::new(&csr, csr_len))

@@ -13,7 +13,9 @@ Abstract:
 --*/
 
 use crate::kv_access::{KvAccess, KvAccessErr};
-use crate::{caliptra_err_def, wait, Array4x12, CaliptraResult, KeyReadArgs, KeyWriteArgs};
+use crate::{
+    array_concat3, caliptra_err_def, wait, Array4x12, CaliptraResult, KeyReadArgs, KeyWriteArgs,
+};
 use caliptra_registers::ecc;
 
 /// ECC-384 Coordinate
@@ -128,14 +130,9 @@ pub struct Ecc384PubKey {
 
 impl Ecc384PubKey {
     /// Return DER formatted public key in uncompressed form
+    #[inline(never)]
     pub fn to_der(&self) -> [u8; 97] {
-        let mut der = [0u8; 97];
-        der[0] = 0x04;
-        let x: [u8; 48] = self.x.into();
-        let y: [u8; 48] = self.y.into();
-        der[1..49].copy_from_slice(&x);
-        der[49..97].copy_from_slice(&y);
-        der
+        array_concat3([0x04], (&self.x).into(), (&self.y).into())
     }
 }
 
@@ -206,7 +203,7 @@ impl Ecc384 {
 
         // Copy the private key
         match &mut priv_key {
-            Ecc384PrivKeyOut::Array4x12(arr) => KvAccess::end_copy_to_arr(ecc.privkey(), arr)?,
+            Ecc384PrivKeyOut::Array4x12(arr) => KvAccess::end_copy_to_arr(ecc.privkey_out(), arr)?,
             Ecc384PrivKeyOut::Key(key) => KvAccess::end_copy_to_kv(ecc.kv_wr_pkey_status(), *key)
                 .map_err(|err| err.into_write_priv_key_err())?,
         }
@@ -241,7 +238,7 @@ impl Ecc384 {
 
         // Copy private key
         match priv_key {
-            Ecc384PrivKeyIn::Array4x12(arr) => KvAccess::copy_from_arr(arr, ecc.privkey())?,
+            Ecc384PrivKeyIn::Array4x12(arr) => KvAccess::copy_from_arr(arr, ecc.privkey_in())?,
             Ecc384PrivKeyIn::Key(key) => {
                 KvAccess::copy_from_kv(key, ecc.kv_rd_pkey_status(), ecc.kv_rd_pkey_ctrl())
                     .map_err(|err| err.into_read_priv_key_err())?

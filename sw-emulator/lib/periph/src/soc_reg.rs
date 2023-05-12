@@ -14,7 +14,7 @@ Abstract:
 
 use crate::helpers::{bytes_from_words_le, words_from_bytes_le};
 use crate::root_bus::ReadyForFwCbArgs;
-use crate::{CaliptraRootBusArgs, Iccm, Mailbox};
+use crate::{CaliptraRootBusArgs, Iccm, MailboxInternal};
 use caliptra_emu_bus::BusError::{LoadAccessFault, StoreAccessFault};
 use caliptra_emu_bus::{
     ActionHandle, Bus, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteRegister,
@@ -23,18 +23,18 @@ use caliptra_emu_bus::{
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::cell::RefCell;
-use std::io::Write;
-use std::path::PathBuf;
 use std::rc::Rc;
-use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers::interfaces::{Readable, Writeable};
 use tock_registers::register_bitfields;
 use tock_registers::registers::InMemoryRegister;
 
 // Second parameter is schedule(ticks_from_now: u64, cb: Box<dyn FnOnce(&mut
 // Mailbox)>), which is called to schedule firmware writing in the future
 type ReadyForFwCallback = Box<dyn FnMut(ReadyForFwCbArgs)>;
-type UploadUpdateFwCallback = Box<dyn FnMut(&mut Mailbox)>;
+type UploadUpdateFwCallback = Box<dyn FnMut(&mut MailboxInternal)>;
 type BootFsmGoCallback = Box<dyn FnMut()>;
+type DownloadIdevidCsrCallback =
+    Box<dyn FnMut(&mut MailboxInternal, &mut InMemoryRegister<u32, DebugManufService::Register>)>;
 
 mod constants {
     #![allow(unused)]
@@ -150,7 +150,7 @@ register_bitfields! [
     ],
 
     /// Debug Manufacturing Service Register
-    DebugManufService [
+    pub DebugManufService [
         REQ_IDEVID_CSR OFFSET(0) NUMBITS(1) [],
         REQ_LDEVID_CERT OFFSET(1) NUMBITS(1) [],
         RSVD OFFSET(2) NUMBITS(30) [],
@@ -183,7 +183,12 @@ const FUSE_END_ADDR: u32 = 0x340;
 
 impl SocRegistersInternal {
     /// Create an instance of SOC register peripheral
-    pub fn new(clock: &Clock, mailbox: Mailbox, iccm: Iccm, args: CaliptraRootBusArgs) -> Self {
+    pub fn new(
+        clock: &Clock,
+        mailbox: MailboxInternal,
+        iccm: Iccm,
+        args: CaliptraRootBusArgs,
+    ) -> Self {
         Self {
             regs: Rc::new(RefCell::new(SocRegistersImpl::new(
                 clock, mailbox, iccm, args,
@@ -430,13 +435,10 @@ struct SocRegistersImpl {
     internal_nmi_vector: ReadWriteRegister<u32>,
 
     /// Mailbox
-    mailbox: Mailbox,
+    mailbox: MailboxInternal,
 
     /// ICCM
     iccm: Iccm,
-
-    /// Log Directory
-    log_dir: PathBuf,
 
     /// Timer
     timer: Timer,
@@ -444,16 +446,13 @@ struct SocRegistersImpl {
     /// Firmware Write Complete action
     op_fw_write_complete_action: Option<ActionHandle>,
     #[allow(clippy::type_complexity)]
-    op_fw_write_complete_cb: Option<Box<dyn FnOnce(&mut Mailbox)>>,
+    op_fw_write_complete_cb: Option<Box<dyn FnOnce(&mut MailboxInternal)>>,
 
     /// Firmware Read Complete action
     op_fw_read_complete_action: Option<ActionHandle>,
 
     /// IDEVID CSR Read Complete action
     op_idevid_csr_read_complete_action: Option<ActionHandle>,
-
-    /// LDEVID Cert Read Complete action
-    op_ldevid_cert_read_complete_action: Option<ActionHandle>,
 
     /// Reset Trigger action
     op_reset_trigger_action: Option<ActionHandle>,
@@ -468,6 +467,8 @@ struct SocRegistersImpl {
     bootfsm_go_cb: BootFsmGoCallback,
 
     fuses_can_be_written: bool,
+
+    download_idevid_csr_cb: DownloadIdevidCsrCallback,
 }
 
 impl SocRegistersImpl {
@@ -492,10 +493,12 @@ impl SocRegistersImpl {
     /// The number of CPU clock cycles it takes to read the IDEVID CSR from the mailbox.
     const IDEVID_CSR_READ_TICKS: u64 = 100;
 
-    /// The number of CPU clock cycles it takes to read the LDEVID Cert from the mailbox.
-    const LDEVID_CERT_READ_TICKS: u64 = 300;
-
-    pub fn new(clock: &Clock, mailbox: Mailbox, iccm: Iccm, mut args: CaliptraRootBusArgs) -> Self {
+    pub fn new(
+        clock: &Clock,
+        mailbox: MailboxInternal,
+        iccm: Iccm,
+        mut args: CaliptraRootBusArgs,
+    ) -> Self {
         let regs = Self {
             cptra_hw_error_fatal: ReadWriteRegister::new(0),
             cptra_hw_error_non_fatal: ReadWriteRegister::new(0),
@@ -539,19 +542,18 @@ impl SocRegistersImpl {
             internal_nmi_vector: ReadWriteRegister::new(0),
             mailbox,
             iccm,
-            log_dir: args.log_dir.clone(),
             timer: Timer::new(clock),
             op_fw_write_complete_action: None,
             op_fw_write_complete_cb: None,
             op_fw_read_complete_action: None,
             op_idevid_csr_read_complete_action: None,
-            op_ldevid_cert_read_complete_action: None,
             op_reset_trigger_action: None,
             tb_services_cb: args.tb_services_cb.take(),
             ready_for_fw_cb: args.ready_for_fw_cb.take(),
             upload_update_fw: args.upload_update_fw.take(),
             fuses_can_be_written: true,
             bootfsm_go_cb: args.bootfsm_go_cb.take(),
+            download_idevid_csr_cb: args.download_idevid_csr_cb.take(),
         };
 
         regs
@@ -641,7 +643,7 @@ impl SocRegistersImpl {
             let op_fw_write_complete_action = &mut self.op_fw_write_complete_action;
             let op_fw_write_complete_cb = &mut self.op_fw_write_complete_cb;
             let timer = &self.timer;
-            let sched_fn = move |ticks_from_now: u64, cb: Box<dyn FnOnce(&mut Mailbox)>| {
+            let sched_fn = move |ticks_from_now: u64, cb: Box<dyn FnOnce(&mut MailboxInternal)>| {
                 *op_fw_write_complete_action = Some(timer.schedule_poll_in(ticks_from_now));
                 *op_fw_write_complete_cb = Some(cb);
             };
@@ -657,13 +659,6 @@ impl SocRegistersImpl {
         {
             self.op_idevid_csr_read_complete_action =
                 Some(self.timer.schedule_poll_in(Self::IDEVID_CSR_READ_TICKS));
-        } else if self
-            .cptra_flow_status
-            .reg
-            .is_set(FlowStatus::LDEVID_CERT_READY)
-        {
-            self.op_ldevid_cert_read_complete_action =
-                Some(self.timer.schedule_poll_in(Self::LDEVID_CERT_READ_TICKS));
         }
 
         Ok(())
@@ -721,54 +716,6 @@ impl SocRegistersImpl {
         Ok(())
     }
 
-    fn download_idev_id_csr(&mut self) {
-        if !self.mailbox.is_command_exec_requested() {
-            return;
-        }
-
-        self.download_to_file("caliptra_idevid_csr.der");
-
-        self.cptra_dbg_manuf_service_reg
-            .reg
-            .modify(DebugManufService::REQ_IDEVID_CSR::CLEAR);
-    }
-
-    fn download_ldev_id_cert(&mut self) {
-        if !self.mailbox.is_command_exec_requested() {
-            return;
-        }
-
-        self.download_to_file("caliptra_ldevid_cert.der");
-
-        self.cptra_dbg_manuf_service_reg
-            .reg
-            .modify(DebugManufService::REQ_LDEVID_CERT::CLEAR);
-    }
-
-    fn download_to_file(&mut self, file: &str) {
-        let mut path = self.log_dir.clone();
-        path.push(file);
-        let mut file = std::fs::File::create(path).unwrap();
-
-        let byte_count = self.mailbox.read_dlen().unwrap() as usize;
-        let remainder = byte_count % core::mem::size_of::<u32>();
-        let n = byte_count - remainder;
-
-        for _ in (0..n).step_by(core::mem::size_of::<u32>()) {
-            let buf = self.mailbox.read_dataout().unwrap();
-            file.write_all(&buf.to_le_bytes()).unwrap();
-        }
-
-        if remainder > 0 {
-            let part = self.mailbox.read_dataout().unwrap();
-            for idx in 0..remainder {
-                let byte = ((part >> (idx << 3)) & 0xFF) as u8;
-                file.write_all(&[byte]).unwrap();
-            }
-        }
-        self.mailbox.set_status_cmd_complete().unwrap();
-    }
-
     fn reset_common(&mut self) {
         // Unlock the ICCM.
         self.iccm.unlock();
@@ -786,10 +733,12 @@ impl SocRegistersImpl {
         }
 
         if self.timer.fired(&mut self.op_fw_read_complete_action) {
-            // Receiver sets status as CMD_COMPLETE after reading the mailbox data.
-            if !self.mailbox.is_status_cmd_busy() {
+            let soc_mbox = self.mailbox.as_external().regs();
+            // uC will set status to CMD_COMPLETE after reading the
+            // mailbox data; we can't clear the execute bit until that is done.`
+            if !soc_mbox.status().read().status().cmd_busy() {
                 // Reset the execute bit
-                self.mailbox.write_execute(0).unwrap();
+                soc_mbox.execute().write(|w| w.execute(false));
             } else {
                 self.op_fw_read_complete_action =
                     Some(self.timer.schedule_poll_in(Self::FW_READ_TICKS));
@@ -800,14 +749,11 @@ impl SocRegistersImpl {
             .timer
             .fired(&mut self.op_idevid_csr_read_complete_action)
         {
-            self.download_idev_id_csr();
-        }
-
-        if self
-            .timer
-            .fired(&mut self.op_ldevid_cert_read_complete_action)
-        {
-            self.download_ldev_id_cert()
+            // Download the Idevid CSR from the mailbox.
+            (self.download_idevid_csr_cb)(
+                &mut self.mailbox,
+                &mut self.cptra_dbg_manuf_service_reg.reg,
+            );
         }
     }
 
@@ -837,28 +783,29 @@ impl SocRegistersImpl {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs::File, io::Read, path::Path};
-
     use super::*;
     use crate::{root_bus::TbServicesCb, MailboxRam};
-    use tock_registers::registers::InMemoryRegister;
+    use std::{
+        fs::File,
+        io::{Read, Write},
+        path::{Path, PathBuf},
+    };
+    use tock_registers::{interfaces::ReadWriteable, registers::InMemoryRegister};
 
-    fn send_data_to_mailbox(mailbox: &mut Mailbox, cmd: u32, data: &[u8]) {
-        while !mailbox.try_acquire_lock() {}
+    fn send_data_to_mailbox(mailbox: &mut MailboxInternal, cmd: u32, data: &[u8]) {
+        let regs = mailbox.regs();
+        while regs.lock().read().lock() {}
 
-        mailbox.write_cmd(cmd).unwrap();
-        mailbox.write_dlen(data.len() as u32).unwrap();
+        regs.cmd().write(|_| cmd);
+        regs.dlen().write(|_| (data.len() as u32));
 
         let word_size = RvSize::Word as usize;
         let remainder = data.len() % word_size;
         let n = data.len() - remainder;
 
         for idx in (0..n).step_by(word_size) {
-            mailbox
-                .write_datain(u32::from_le_bytes(
-                    data[idx..idx + word_size].try_into().unwrap(),
-                ))
-                .unwrap();
+            regs.datain()
+                .write(|_| u32::from_le_bytes(data[idx..idx + word_size].try_into().unwrap()));
         }
 
         // Handle the remainder bytes.
@@ -867,8 +814,63 @@ mod tests {
             for idx in 1..remainder {
                 last_word |= (data[n + idx] as u32) << (idx << 3);
             }
-            mailbox.write_datain(last_word).unwrap();
+            regs.datain().write(|_| last_word);
         }
+    }
+
+    fn download_idev_id_csr(
+        mailbox: &mut MailboxInternal,
+        path: &mut PathBuf,
+        soc_reg: &mut SocRegistersInternal,
+    ) {
+        download_to_file(mailbox, path, "caliptra_idevid_csr.der");
+
+        soc_reg
+            .regs
+            .borrow_mut()
+            .cptra_dbg_manuf_service_reg
+            .reg
+            .modify(DebugManufService::REQ_IDEVID_CSR::CLEAR)
+    }
+
+    fn download_ldev_id_cert(
+        mailbox: &mut MailboxInternal,
+        path: &mut PathBuf,
+        soc_reg: &mut SocRegistersInternal,
+    ) {
+        download_to_file(mailbox, path, "caliptra_ldevid_cert.der");
+
+        soc_reg
+            .regs
+            .borrow_mut()
+            .cptra_dbg_manuf_service_reg
+            .reg
+            .modify(DebugManufService::REQ_LDEVID_CERT::CLEAR)
+    }
+
+    fn download_to_file(mailbox: &mut MailboxInternal, path: &mut PathBuf, file: &str) {
+        path.push(file);
+        let mut file = std::fs::File::create(path).unwrap();
+
+        let regs = mailbox.regs();
+
+        let byte_count = regs.dlen().read() as usize;
+        let remainder = byte_count % core::mem::size_of::<u32>();
+        let n = byte_count - remainder;
+
+        for _ in (0..n).step_by(core::mem::size_of::<u32>()) {
+            let buf = regs.dataout().read();
+            file.write_all(&buf.to_le_bytes()).unwrap();
+        }
+
+        if remainder > 0 {
+            let part = regs.dataout().read();
+            for idx in 0..remainder {
+                let byte = ((part >> (idx << 3)) & 0xFF) as u8;
+                file.write_all(&[byte]).unwrap();
+            }
+        }
+        regs.status().write(|w| w.status(|w| w.cmd_complete()));
     }
 
     #[test]
@@ -881,7 +883,7 @@ mod tests {
         ];
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mut mailbox = Mailbox::new(mailbox_ram);
+        let mut mailbox = MailboxInternal::new(mailbox_ram);
         let mut log_dir = PathBuf::new();
         log_dir.push("/tmp");
         let args = CaliptraRootBusArgs::default();
@@ -899,8 +901,11 @@ mod tests {
 
         // Add csr data to the mailbox.
         send_data_to_mailbox(&mut mailbox, 0xDEADBEEF, &data);
-        mailbox.set_status_data_ready().unwrap();
-        mailbox.write_execute(1).unwrap();
+        mailbox
+            .regs()
+            .status()
+            .write(|w| w.status(|w| w.data_ready()));
+        mailbox.regs().execute().write(|w| w.execute(true));
 
         // Trigger csr download.
         let flow_status = InMemoryRegister::<u32, FlowStatus::Register>::new(0);
@@ -916,18 +921,10 @@ mod tests {
         // [Receiver Side]
         //
 
-        // Wait till the idevid csr is downloaded.
-        loop {
-            clock.increment_and_process_timer_actions(1, &mut soc_reg);
-            let dbg_manuf_service_reg = InMemoryRegister::<u32, DebugManufService::Register>::new(
-                soc_reg
-                    .read(RvSize::Word, CPTRA_DBG_MANUF_SERVICE_REG_START)
-                    .unwrap(),
-            );
-            if !dbg_manuf_service_reg.is_set(DebugManufService::REQ_IDEVID_CSR) {
-                break;
-            }
-        }
+        // Download the IDEVID CSR.
+        let mut log_dir = PathBuf::new();
+        log_dir.push("/tmp");
+        download_idev_id_csr(&mut mailbox, &mut log_dir, &mut soc_reg);
 
         // Check if the downloaded csr matches.
         let path = "/tmp/caliptra_idevid_csr.der";
@@ -948,7 +945,7 @@ mod tests {
         ];
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mut mailbox = Mailbox::new(mailbox_ram);
+        let mut mailbox = MailboxInternal::new(mailbox_ram);
         let mut log_dir = PathBuf::new();
         log_dir.push("/tmp");
         let args = CaliptraRootBusArgs::default();
@@ -965,8 +962,11 @@ mod tests {
 
         // Add cert data to the mailbox.
         send_data_to_mailbox(&mut mailbox, 0xDEADBEEF, &data);
-        mailbox.set_status_data_ready().unwrap();
-        mailbox.write_execute(1).unwrap();
+        mailbox
+            .regs()
+            .status()
+            .write(|w| w.status(|w| w.data_ready()));
+        mailbox.regs().execute().write(|w| w.execute(true));
 
         // Trigger cert download.
         let flow_status = InMemoryRegister::<u32, FlowStatus::Register>::new(0);
@@ -982,18 +982,10 @@ mod tests {
         // [Receiver Side]
         //
 
-        // Wait till the ldevid cert is downloaded.
-        loop {
-            clock.increment_and_process_timer_actions(1, &mut soc_reg);
-            let dbg_manuf_service_reg = InMemoryRegister::<u32, DebugManufService::Register>::new(
-                soc_reg
-                    .read(RvSize::Word, CPTRA_DBG_MANUF_SERVICE_REG_START)
-                    .unwrap(),
-            );
-            if !dbg_manuf_service_reg.is_set(DebugManufService::REQ_LDEVID_CERT) {
-                break;
-            }
-        }
+        // Download the LDEVID cert.
+        let mut log_dir = PathBuf::new();
+        log_dir.push("/tmp");
+        download_ldev_id_cert(&mut mailbox, &mut log_dir, &mut soc_reg);
 
         // Check if the downloaded cert matches.
         let path = "/tmp/caliptra_ldevid_cert.der";
@@ -1013,7 +1005,7 @@ mod tests {
 
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mailbox = Mailbox::new(mailbox_ram);
+        let mailbox = MailboxInternal::new(mailbox_ram);
         let args = CaliptraRootBusArgs {
             tb_services_cb: TbServicesCb::new(move |ch| output2.borrow_mut().push(ch)),
             ..Default::default()

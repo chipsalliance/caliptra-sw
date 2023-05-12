@@ -21,7 +21,7 @@ use zerocopy::AsBytes;
 
 use crate::{
     cprintln,
-    flow::{KEY_ID_CDI, KEY_ID_PRIV_KEY},
+    flow::{KEY_ID_CDI, KEY_ID_FMC_PRIV_KEY},
     rom_env::RomEnv,
 };
 
@@ -36,7 +36,7 @@ impl FhtDataStore {
     }
     /// The FMC private key is stored in a 32-bit DataVault sticky register.
     pub const fn fmc_priv_key_store() -> HandOffDataHandle {
-        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_PRIV_KEY as u32)
+        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_FMC_PRIV_KEY as u32)
     }
     /// The FMC SVN is stored in a 32-bit DataVault sticky register.
     pub const fn fmc_svn_store() -> HandOffDataHandle {
