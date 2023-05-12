@@ -733,14 +733,12 @@ impl SocRegistersImpl {
         }
 
         if self.timer.fired(&mut self.op_fw_read_complete_action) {
-            // Receiver sets status as CMD_COMPLETE after reading the mailbox data.
-            if !self.mailbox.regs().status().read().status().cmd_busy() {
+            let soc_mbox = self.mailbox.as_external().regs();
+            // uC will set status to CMD_COMPLETE after reading the
+            // mailbox data; we can't clear the execute bit until that is done.`
+            if !soc_mbox.status().read().status().cmd_busy() {
                 // Reset the execute bit
-                self.mailbox
-                    .as_external()
-                    .regs()
-                    .execute()
-                    .write(|w| w.execute(false));
+                soc_mbox.execute().write(|w| w.execute(false));
             } else {
                 self.op_fw_read_complete_action =
                     Some(self.timer.schedule_poll_in(Self::FW_READ_TICKS));
