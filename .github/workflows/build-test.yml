@@ -137,3 +137,7 @@ jobs:
           (cd /tmp/ && git clone --depth 1 --branch old-framework-2.x https://github.com/riscv-non-isa/riscv-arch-test)
           cargo run --locked -p compliance-test --release -- --test_root_path /tmp/riscv-arch-test
 
+      - name: ROM Makefile
+        run: |
+          (cd rom/dev && make run)
+
