@@ -12,14 +12,13 @@ Abstract:
 
 --*/
 
-use caliptra_emu_bus::{Bus, Clock};
+use caliptra_emu_bus::Clock;
 use caliptra_emu_cpu::{Cpu, RvInstr, StepAction};
 use caliptra_emu_periph::soc_reg::DebugManufService;
 use caliptra_emu_periph::{
     CaliptraRootBus, CaliptraRootBusArgs, DownloadIdevidCsrCb, MailboxInternal, ReadyForFwCb,
     TbServicesCb, UploadUpdateFwCb,
 };
-use caliptra_emu_types::{RvAddr, RvSize};
 use caliptra_hw_model::BusMmio;
 use caliptra_hw_model_types::{DeviceLifecycle, SecurityState};
 use clap::{arg, value_parser, ArgAction};
@@ -385,19 +384,13 @@ fn change_dword_endianess(data: &mut Vec<u8>) {
 }
 
 fn upload_fw_to_mailbox(mailbox: &mut MailboxInternal, firmware_buffer: Rc<Vec<u8>>) {
-    const OFFSET_LOCK: RvAddr = 0x00;
-    const OFFSET_CMD: RvAddr = 0x08;
-    const OFFSET_DLEN: RvAddr = 0x0C;
-    const OFFSET_DATAIN: RvAddr = 0x10;
-    const OFFSET_EXECUTE: RvAddr = 0x18;
-
-    let mut soc = mailbox.as_external();
+    let soc_mbox = mailbox.as_external().regs();
     // Write the cmd to mailbox.
 
-    assert_eq!(soc.read(RvSize::Word, OFFSET_LOCK).unwrap(), 0);
+    assert!(!soc_mbox.lock().read().lock());
 
-    let _ = soc.write(RvSize::Word, OFFSET_CMD, FW_LOAD_CMD_OPCODE);
-    let _ = soc.write(RvSize::Word, OFFSET_DLEN, firmware_buffer.len() as u32);
+    soc_mbox.cmd().write(|_| FW_LOAD_CMD_OPCODE);
+    soc_mbox.dlen().write(|_| firmware_buffer.len() as u32);
 
     //
     // Write firmware image.
@@ -407,11 +400,9 @@ fn upload_fw_to_mailbox(mailbox: &mut MailboxInternal, firmware_buffer: Rc<Vec<u
     let n = firmware_buffer.len() - remainder;
 
     for idx in (0..n).step_by(word_size) {
-        let _ = soc.write(
-            RvSize::Word,
-            OFFSET_DATAIN,
-            u32::from_le_bytes(firmware_buffer[idx..idx + word_size].try_into().unwrap()),
-        );
+        soc_mbox.datain().write(|_| {
+            u32::from_le_bytes(firmware_buffer[idx..idx + word_size].try_into().unwrap())
+        });
     }
 
     // Handle the remainder bytes.
@@ -420,11 +411,11 @@ fn upload_fw_to_mailbox(mailbox: &mut MailboxInternal, firmware_buffer: Rc<Vec<u
         for idx in 1..remainder {
             last_word |= (firmware_buffer[n + idx] as u32) << (idx << 3);
         }
-        let _ = soc.write(RvSize::Word, OFFSET_DATAIN, last_word);
+        soc_mbox.datain().write(|_| last_word);
     }
 
     // Set the execute register.
-    let _ = soc.write(RvSize::Word, OFFSET_EXECUTE, 1);
+    soc_mbox.execute().write(|w| w.execute(true));
 }
 
 fn download_idev_id_csr(
@@ -432,27 +423,24 @@ fn download_idev_id_csr(
     path: Rc<PathBuf>,
     cptra_dbg_manuf_service_reg: &mut InMemoryRegister<u32, DebugManufService::Register>,
 ) {
-    const OFFSET_DATAOUT: RvAddr = 0x14;
-    const OFFSET_STATUS: RvAddr = 0x1C;
-
     let mut path = path.to_path_buf();
     path.push("caliptra_ldevid_cert.der");
 
     let mut file = std::fs::File::create(path).unwrap();
 
-    let byte_count = mailbox.read_dlen().unwrap() as usize;
+    let soc_mbox = mailbox.as_external().regs();
+
+    let byte_count = soc_mbox.dlen().read() as usize;
     let remainder = byte_count % core::mem::size_of::<u32>();
     let n = byte_count - remainder;
 
-    let mut soc = mailbox.as_external();
-
     for _ in (0..n).step_by(core::mem::size_of::<u32>()) {
-        let buf = soc.read(RvSize::Word, OFFSET_DATAOUT).unwrap();
+        let buf = soc_mbox.dataout().read();
         file.write_all(&buf.to_le_bytes()).unwrap();
     }
 
     if remainder > 0 {
-        let part = mailbox.read_dataout().unwrap();
+        let part = soc_mbox.dataout().read();
         for idx in 0..remainder {
             let byte = ((part >> (idx << 3)) & 0xFF) as u8;
             file.write_all(&[byte]).unwrap();
@@ -460,7 +448,7 @@ fn download_idev_id_csr(
     }
 
     // Complete the mailbox command.
-    soc.write(RvSize::Word, OFFSET_STATUS, 0x2).unwrap();
+    soc_mbox.status().write(|w| w.status(|w| w.cmd_complete()));
 
     // Clear the Idevid CSR requested bit.
     cptra_dbg_manuf_service_reg.modify(DebugManufService::REQ_IDEVID_CSR::CLEAR);

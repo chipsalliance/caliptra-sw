@@ -14,6 +14,7 @@ caliptra-emu-crypto = { path = "../crypto"}
 caliptra-emu-derive = { path = "../derive" }
 caliptra-emu-types = { path = "../types" }
 caliptra-hw-model-types = { path = "../../../hw-model/types" }
+caliptra-registers = { path = "../../../registers" }
 tock-registers = { git = "https://github.com/tock/tock.git"}
 smlang="0.6.0"
 lazy_static = "1.4.0"
