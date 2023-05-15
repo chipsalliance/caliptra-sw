@@ -21,11 +21,11 @@ use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::flow::cold_reset::{KEY_ID_CDI, KEY_ID_FE, KEY_ID_LDEVID_PRIV_KEY};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
-use crate::rom_err_def;
 use caliptra_drivers::*;
+use caliptra_error::caliptra_err_def;
 use caliptra_x509::*;
 
-rom_err_def! {
+caliptra_err_def! {
     LocalDevId,
     LocalevIdErr
     {

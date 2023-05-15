@@ -11,10 +11,11 @@ Abstract:
     File contains the implementation of update reset flow.
 
 --*/
-use crate::{cprintln, fht, rom_env::RomEnv, rom_err_def, verifier::RomImageVerificationEnv};
+use crate::{cprintln, fht, rom_env::RomEnv, verifier::RomImageVerificationEnv};
 
 use caliptra_common::FirmwareHandoffTable;
-use caliptra_drivers::{CaliptraResult, MailboxRecvTxn, ResetReason};
+use caliptra_drivers::{MailboxRecvTxn, ResetReason};
+use caliptra_error::{caliptra_err_def, CaliptraResult};
 use caliptra_image_types::ImageManifest;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
 use zerocopy::{AsBytes, FromBytes};
@@ -24,7 +25,7 @@ extern "C" {
     static mut MAN1_ORG: u32;
 }
 
-rom_err_def! {
+caliptra_err_def! {
     UpdateReset,
     UpdateResetErr
     {
