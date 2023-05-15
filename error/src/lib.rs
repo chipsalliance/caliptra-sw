@@ -101,6 +101,24 @@ pub enum CaliptraComponent {
 
     /// Rom Global Error
     RomGlobal = 0x104,
+
+    /// SHA-256 KAT
+    Sha256Kat = 0x9001,
+
+    /// SHA-384 KAT
+    Sha384Kat = 0x9002,
+
+    /// HMAC-384 KAT
+    Hmac384Kat = 0x9003,
+
+    /// ECC-384 KAT
+    Ecc384Kat = 0x9004,
+
+    /// SHA384 Accelerator KAT
+    Sha384AccKat = 0x9005,
+
+    /// SHA1 KAT
+    Sha1Kat = 0x9006,
 }
 
 #[macro_export]
