@@ -23,7 +23,6 @@ use rom_env::RomEnv;
 #[cfg(not(feature = "std"))]
 core::arch::global_asm!(include_str!("start.S"));
 
-mod env_cell;
 mod exception;
 mod fht;
 mod flow;
@@ -55,9 +54,9 @@ Running Caliptra ROM ...
 pub extern "C" fn rom_entry() -> ! {
     cprintln!("{}", BANNER);
 
-    let env = rom_env::RomEnv::default();
+    let mut env = rom_env::RomEnv::default();
 
-    let _lifecyle = match env.soc_ifc().map(|d| d.lifecycle()) {
+    let _lifecyle = match env.soc_ifc.lifecycle() {
         caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",
         caliptra_drivers::Lifecycle::Manufacturing => "Manufacturing",
         caliptra_drivers::Lifecycle::Production => "Production",
@@ -67,20 +66,24 @@ pub extern "C" fn rom_entry() -> ! {
 
     cprintln!(
         "[state] DebugLocked = {}",
-        env.soc_ifc()
-            .map(|d| if d.debug_locked() { "Yes" } else { "No" })
+        if env.soc_ifc.debug_locked() {
+            "Yes"
+        } else {
+            "No"
+        }
     );
 
-    let result = kat::execute_kat(&env);
+    let result = kat::execute_kat(&mut env);
     if let Err(err) = result {
         report_error(err.into());
     }
 
-    let result = flow::run(&env);
+    let result = flow::run(&mut env);
     match result {
         Ok(fht) => {
             // Lock the datavault registers.
-            lock_registers(&env, env.soc_ifc().map(|r| r.reset_reason()));
+            let reset_reason = env.soc_ifc.reset_reason();
+            lock_registers(&mut env, reset_reason);
 
             fht::load_fht(fht);
         }
@@ -101,7 +104,7 @@ fn launch_fmc(env: &RomEnv) -> ! {
     }
 
     // Get the fmc entry point from data vault
-    let entry = env.data_vault().map(|d| d.fmc_entry_point());
+    let entry = env.data_vault.fmc_entry_point();
 
     cprintln!("[exit] Launching FMC @ 0x{:08X}", entry);
 

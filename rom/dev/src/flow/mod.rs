@@ -29,8 +29,8 @@ pub use cold_reset::KEY_ID_FMC_PRIV_KEY;
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-pub fn run(env: &RomEnv) -> CaliptraResult<FirmwareHandoffTable> {
-    let reset_reason = env.soc_ifc().map(|r| r.reset_reason());
+pub fn run(env: &mut RomEnv) -> CaliptraResult<FirmwareHandoffTable> {
+    let reset_reason = env.soc_ifc.reset_reason();
     match reset_reason {
         // Cold Reset Flow
         ResetReason::ColdReset => cold_reset::ColdResetFlow::run(env),
