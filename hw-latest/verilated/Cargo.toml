@@ -1,0 +1,18 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "caliptra-verilated"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+
+# The "verilator" feature must be enabled for this library to link correctly
+# with the verilator srcs. It's disabled by default because we don't want folks
+# to have to install verilator (and endure the painfully slow build) when doing
+# a workspace-wide "cargo build".
+verilator = []
+
+[dependencies]
