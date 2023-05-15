@@ -36,10 +36,6 @@ impl LmsKat {
         self.kat_lms_24(lms)
     }
 
-    fn _kat_lms_24(&self, _lms: &Lms) -> CaliptraResult<()> {
-        Ok(())
-    }
-
     fn kat_lms_24(&self, lms: &Lms) -> CaliptraResult<()> {
         const MESSAGE: [u8; 8] = [0, 0, 30, 76, 217, 179, 51, 230];
         const LMS_TYPE: LmsAlgorithmType = LmsAlgorithmType::LmsSha256N24H15;
