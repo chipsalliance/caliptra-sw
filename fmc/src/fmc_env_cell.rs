@@ -16,7 +16,6 @@ Abstract:
 use core::cell::UnsafeCell;
 
 /// Environment Cell.
-///
 /// This cell is used to enforce rust borrowing rules while still allowing
 /// mutable borrows that allows Rust to perform borrow checking.
 #[derive(Debug)]
