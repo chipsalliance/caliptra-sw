@@ -24,7 +24,7 @@ use crate::{cprintln, rom_env::RomEnv};
 ///
 /// * `env` - ROM Environment
 /// * `reset_reason` - Reset reason
-pub fn lock_registers(env: &RomEnv, reset_reason: ResetReason) {
+pub fn lock_registers(env: &mut RomEnv, reset_reason: ResetReason) {
     cprintln!("[state] Locking Datavault");
     if reset_reason == ResetReason::ColdReset {
         lock_cold_reset_reg(env);
@@ -35,7 +35,7 @@ pub fn lock_registers(env: &RomEnv, reset_reason: ResetReason) {
     }
 
     cprintln!("[state] Locking ICCM");
-    env.soc_ifc().map(|d| d.set_iccm_lock(true));
+    env.soc_ifc.set_iccm_lock(true);
 }
 
 /// Lock registers on a cold reset
@@ -43,30 +43,30 @@ pub fn lock_registers(env: &RomEnv, reset_reason: ResetReason) {
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-fn lock_cold_reset_reg(env: &RomEnv) {
+fn lock_cold_reset_reg(env: &mut RomEnv) {
     // Lock the FMC TCI in data vault until next cold reset
-    env.data_vault()
-        .map(|d| d.lock_cold_reset_entry48(ColdResetEntry48::FmcTci));
+    env.data_vault
+        .lock_cold_reset_entry48(ColdResetEntry48::FmcTci);
 
     // Lock the FMC SVN  in data vault until next cold reset
-    env.data_vault()
-        .map(|d| d.lock_cold_reset_entry4(ColdResetEntry4::FmcSvn));
+    env.data_vault
+        .lock_cold_reset_entry4(ColdResetEntry4::FmcSvn);
 
     // Lock the FMC load address in data vault until next cold reset
-    env.data_vault()
-        .map(|d| d.lock_cold_reset_entry4(ColdResetEntry4::FmcLoadAddr));
+    env.data_vault
+        .lock_cold_reset_entry4(ColdResetEntry4::FmcLoadAddr);
 
     // Lock the FMC entry point in data vault until next cold reset
-    env.data_vault()
-        .map(|d| d.lock_cold_reset_entry4(ColdResetEntry4::FmcEntryPoint));
+    env.data_vault
+        .lock_cold_reset_entry4(ColdResetEntry4::FmcEntryPoint);
 
     // Lock the Owner Public Key Hash in data vault until next cold reset
-    env.data_vault()
-        .map(|d| d.lock_cold_reset_entry48(ColdResetEntry48::OwnerPubKeyHash));
+    env.data_vault
+        .lock_cold_reset_entry48(ColdResetEntry48::OwnerPubKeyHash);
 
     // Lock the Vendor Public Key Index in data vault until next cold reset
-    env.data_vault()
-        .map(|d| d.lock_cold_reset_entry4(ColdResetEntry4::VendorPubKeyIndex));
+    env.data_vault
+        .lock_cold_reset_entry4(ColdResetEntry4::VendorPubKeyIndex);
 }
 
 /// Lock registers on a warm reset
@@ -74,24 +74,24 @@ fn lock_cold_reset_reg(env: &RomEnv) {
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-fn lock_warm_reset_reg(env: &RomEnv) {
+fn lock_warm_reset_reg(env: &mut RomEnv) {
     // Lock the Runtime TCI in data vault until next warm reset
-    env.data_vault()
-        .map(|d| d.lock_warm_reset_entry48(WarmResetEntry48::RtTci));
+    env.data_vault
+        .lock_warm_reset_entry48(WarmResetEntry48::RtTci);
 
     // Lock the Runtime SVN  in data vault until next warm reset
-    env.data_vault()
-        .map(|d| d.lock_warm_reset_entry4(WarmResetEntry4::RtSvn));
+    env.data_vault
+        .lock_warm_reset_entry4(WarmResetEntry4::RtSvn);
 
     // Lock the Runtime load address in data vault until next warm reset
-    env.data_vault()
-        .map(|d| d.lock_warm_reset_entry4(WarmResetEntry4::RtLoadAddr));
+    env.data_vault
+        .lock_warm_reset_entry4(WarmResetEntry4::RtLoadAddr);
 
     // Lock the Runtime entry point in data vault until next warm reset
-    env.data_vault()
-        .map(|d| d.lock_warm_reset_entry4(WarmResetEntry4::RtEntryPoint));
+    env.data_vault
+        .lock_warm_reset_entry4(WarmResetEntry4::RtEntryPoint);
 
     // Lock the Manifest addr in data vault until next warm reset
-    env.data_vault()
-        .map(|d| d.lock_warm_reset_entry4(WarmResetEntry4::ManifestAddr));
+    env.data_vault
+        .lock_warm_reset_entry4(WarmResetEntry4::ManifestAddr);
 }

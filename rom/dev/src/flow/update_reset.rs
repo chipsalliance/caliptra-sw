@@ -49,7 +49,7 @@ impl UpdateResetFlow {
     pub fn run(env: &RomEnv) -> CaliptraResult<FirmwareHandoffTable> {
         cprintln!("[update-reset] ++");
 
-        let Some(recv_txn) = env.mbox().map(|m| m.try_start_recv_txn()) else {
+        let Some(recv_txn) = env.mbox.try_start_recv_txn() else {
             cprintln!("Failed To Get Mailbox Transaction");
             raise_err!(MailboxAccessFailure)
         };
