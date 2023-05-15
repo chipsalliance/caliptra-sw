@@ -187,6 +187,26 @@ Table: `STASH_MEASUREMENT` output arguments
 | result      | u32      | Result code. Little endian.
 | dpe\_result | u32      | Result code of DPE DeriveChild command. Little endian.
 
+### DISABLE\_ATTESTATION
+
+Disable attestation by erasing the CDI and DICE key. This command is intended
+for callers who update infrequently and cannot tolerate a changing DPE API surface, and is intended for situations where Caliptra firmware cannot be loaded
+and the SoC must proceed with boot.
+
+Upon receipt of this command, Caliptra's current CDI is replaced with zeroes,
+and the associated DICE key is re-derived from the zeroed CDI.
+
+Command Code: `0x4453_424C` ("DSBL")
+
+`DISABLE_ATTESTATION` takes no input arguments.
+
+Table: `DISABLE_ATTESTATION` output arguments
+
+| **Name**    | **Type** | **Description**
+| --------    | -------- | ---------------
+| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| result      | u32      | Result code. Little endian.
+
 ### INVOKE\_DPE\_COMMAND
 
 Command Code: `0x4450_4543` ("DPEC")
