@@ -1,0 +1,14 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "caliptra-hw-model-c-binding"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+caliptra-hw-model = { path = "../" }
+caliptra-emu-types = { path = "../../sw-emulator/lib/types" }
+caliptra-emu-bus = { path = "../../sw-emulator/lib/bus" }
+
+[lib]
+crate-type = ["staticlib"]

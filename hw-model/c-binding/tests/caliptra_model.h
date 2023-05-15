@@ -1,3 +1,6 @@
+// Licensed under the Apache-2.0 license
+#ifndef CALIPTRA_MODEL_H
+#define CALIPTRA_MODEL_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -26,9 +29,10 @@ enum {
   // more error enums here
 };
 
+
 // The buffers inside `params` are not used once
-// caliptra_model_init_sw_emulator() has returned.
-int caliptra_model_init_sw_emulator(struct caliptra_model_init_params params,
+// caliptra_model_init_default() has returned.
+int caliptra_model_init_default(struct caliptra_model_init_params params,
                                     struct caliptra_model **model);
 void caliptra_model_destroy(struct caliptra_model *model);
 
@@ -55,3 +59,5 @@ bool caliptra_model_exit_requested(struct caliptra_model *model);
 // Peek at the buffer containing the "uart" output from the model. The returned
 // buffer is only valid until the next API call to this model.
 struct caliptra_buffer caliptra_model_output_peek(struct caliptra_model *model);
+
+#endif // CALIPTRA_MODEL_H
