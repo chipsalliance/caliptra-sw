@@ -33,7 +33,7 @@ const DOE_UDS_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193
 const DOE_FE_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e]);
 
 /// Key used to derive the Composite Device Identity(CDI) for Initial Device Identity (IDEVID)
-const IDEVID_CDI_KEY: Array4x12 = Array4xN::<12, 48>([
+const IDEVID_CDI_KEY: Array4x12 = Array4x12::new([
     0x5bd3c575, 0x2ba359a2, 0x696c97f0, 0x56f594a3, 0x6130c106, 0xedcddddb, 0xd01044f6, 0xf2d302d8,
     0xeeefec92, 0xa0ebfaa0, 0x36bf2d20, 0x0535df6f,
 ]);
@@ -49,6 +49,7 @@ rom_err_def! {
         CsrBuilderBuild= 0x2,
         CsrInvalid = 0x3,
         CsrVerify = 0x4,
+        CsrOverflow= 0x5,
     }
 }
 
@@ -228,10 +229,11 @@ impl InitDevIdLayer {
         );
 
         // Sign the the `To Be Signed` portion
-        let sig = Crypto::ecdsa384_sign(env, key_pair.priv_key, tbs.tbs())?;
+        let sig = Crypto::ecdsa384_sign(env, key_pair.priv_key, tbs.tbs());
+        let sig = okref(&sig)?;
 
         // Verify the signature of the `To Be Signed` portion
-        if !Crypto::ecdsa384_verify(env, &key_pair.pub_key, tbs.tbs(), &sig)? {
+        if !Crypto::ecdsa384_verify(env, &key_pair.pub_key, tbs.tbs(), sig)? {
             raise_err!(CsrVerify);
         }
 
@@ -242,8 +244,8 @@ impl InitDevIdLayer {
         // cprint_slice!("[idev] PUB.X", _pub_x);
         // cprint_slice!("[idev] PUB.Y", _pub_y);
 
-        let _sig_r: [u8; 48] = sig.r.into();
-        let _sig_s: [u8; 48] = sig.s.into();
+        let _sig_r: [u8; 48] = (&sig.r).into();
+        let _sig_s: [u8; 48] = (&sig.s).into();
         cprintln!("[idev] SIG.R = {}", HexBytes(&_sig_r));
         cprintln!("[idev] SIG.S = {}", HexBytes(&_sig_s));
 
@@ -252,6 +254,11 @@ impl InitDevIdLayer {
         let csr_bldr =
             Ecdsa384CsrBuilder::new(tbs.tbs(), &sig.to_ecdsa()).ok_or(err_u32!(CsrBuilderInit))?;
         let csr_len = csr_bldr.build(&mut csr).ok_or(err_u32!(CsrBuilderBuild))?;
+
+        if csr_len > csr.len() {
+            raise_err!(CsrOverflow);
+        }
+
         cprintln!("[idev] CSR = {}", HexBytes(&csr[..csr_len]));
 
         // Execute Send CSR Flow

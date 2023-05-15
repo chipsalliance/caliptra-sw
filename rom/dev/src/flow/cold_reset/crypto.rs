@@ -28,8 +28,8 @@ impl Ecdsa384SignatureAdapter for Ecc384Signature {
     /// Convert to ECDSA Signatuure
     fn to_ecdsa(&self) -> Ecdsa384Signature {
         Ecdsa384Signature {
-            r: self.r.into(),
-            s: self.s.into(),
+            r: (&self.r).into(),
+            s: (&self.s).into(),
         }
     }
 }
@@ -58,9 +58,7 @@ impl Crypto {
     ///
     /// * `Array4x5` - Digest
     pub fn sha1_digest(env: &RomEnv, data: &[u8]) -> CaliptraResult<Array4x5> {
-        let mut digest = Array4x5::default();
-        env.sha1().map(|sha| sha.digest(data, &mut digest))?;
-        Ok(digest)
+        env.sha1().map(|sha| sha.digest(data))
     }
 
     /// Calculate SHA2-256 Digest
@@ -73,10 +71,9 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Array4x8` - Digest
+    #[inline(always)]
     pub fn sha256_digest(env: &RomEnv, data: &[u8]) -> CaliptraResult<Array4x8> {
-        let mut digest = Array4x8::default();
-        env.sha256().map(|sha| sha.digest(data, &mut digest))?;
-        Ok(digest)
+        env.sha256().map(|sha| sha.digest(data))
     }
 
     /// Calculate SHA2-384 Digest
@@ -90,9 +87,7 @@ impl Crypto {
     ///
     /// * `Array4x12` - Digest
     pub fn sha384_digest(env: &RomEnv, data: &[u8]) -> CaliptraResult<Array4x12> {
-        let mut digest = Array4x12::default();
-        env.sha384().map(|s| s.digest(data, &mut digest))?;
-        Ok(digest)
+        env.sha384().map(|s| s.digest(data))
     }
 
     /// Calculate HMAC-348
@@ -175,10 +170,11 @@ impl Crypto {
         priv_key: KeyId,
         data: &[u8],
     ) -> CaliptraResult<Ecc384Signature> {
-        let digest = Self::sha384_digest(env, data)?;
+        let digest = Self::sha384_digest(env, data);
+        let digest = okref(&digest)?;
         let priv_key_args = KeyReadArgs::new(priv_key);
         let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
-        env.ecc384().map(|ecc| ecc.sign(priv_key, &digest))
+        env.ecc384().map(|ecc| ecc.sign(priv_key, digest))
     }
 
     /// Verify the ECC Signature
@@ -201,7 +197,8 @@ impl Crypto {
         data: &[u8],
         sig: &Ecc384Signature,
     ) -> CaliptraResult<bool> {
-        let digest = Self::sha384_digest(env, data)?;
-        env.ecc384().map(|e| e.verify(pub_key, &digest, sig))
+        let digest = Self::sha384_digest(env, data);
+        let digest = okref(&digest)?;
+        env.ecc384().map(|e| e.verify(pub_key, digest, sig))
     }
 }

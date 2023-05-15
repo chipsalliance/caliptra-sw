@@ -133,6 +133,7 @@ dependencies = [
  "caliptra-image-types",
  "elf",
  "hex",
+ "once_cell",
 ]
 
 [[package]]
@@ -193,6 +194,7 @@ version = "0.1.0"
 dependencies = [
  "caliptra-emu-types",
  "tock-registers",
+ "ureg",
 ]
 
 [[package]]
@@ -238,6 +240,7 @@ dependencies = [
  "caliptra-emu-derive",
  "caliptra-emu-types",
  "caliptra-hw-model-types",
+ "caliptra-registers",
  "lazy_static",
  "smlang",
  "tock-registers",

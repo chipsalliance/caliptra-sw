@@ -33,6 +33,8 @@ use tock_registers::registers::InMemoryRegister;
 type ReadyForFwCallback = Box<dyn FnMut(ReadyForFwCbArgs)>;
 type UploadUpdateFwCallback = Box<dyn FnMut(&mut MailboxInternal)>;
 type BootFsmGoCallback = Box<dyn FnMut()>;
+type DownloadIdevidCsrCallback =
+    Box<dyn FnMut(&mut MailboxInternal, &mut InMemoryRegister<u32, DebugManufService::Register>)>;
 
 mod constants {
     #![allow(unused)]
@@ -148,7 +150,7 @@ register_bitfields! [
     ],
 
     /// Debug Manufacturing Service Register
-    DebugManufService [
+    pub DebugManufService [
         REQ_IDEVID_CSR OFFSET(0) NUMBITS(1) [],
         REQ_LDEVID_CERT OFFSET(1) NUMBITS(1) [],
         RSVD OFFSET(2) NUMBITS(30) [],
@@ -449,6 +451,9 @@ struct SocRegistersImpl {
     /// Firmware Read Complete action
     op_fw_read_complete_action: Option<ActionHandle>,
 
+    /// IDEVID CSR Read Complete action
+    op_idevid_csr_read_complete_action: Option<ActionHandle>,
+
     /// Reset Trigger action
     op_reset_trigger_action: Option<ActionHandle>,
 
@@ -462,6 +467,8 @@ struct SocRegistersImpl {
     bootfsm_go_cb: BootFsmGoCallback,
 
     fuses_can_be_written: bool,
+
+    download_idevid_csr_cb: DownloadIdevidCsrCallback,
 }
 
 impl SocRegistersImpl {
@@ -482,6 +489,9 @@ impl SocRegistersImpl {
 
     /// The number of CPU clock cycles it takes to read the firmware from the mailbox.
     const FW_READ_TICKS: u64 = 0;
+
+    /// The number of CPU clock cycles it takes to read the IDEVID CSR from the mailbox.
+    const IDEVID_CSR_READ_TICKS: u64 = 100;
 
     pub fn new(
         clock: &Clock,
@@ -536,12 +546,14 @@ impl SocRegistersImpl {
             op_fw_write_complete_action: None,
             op_fw_write_complete_cb: None,
             op_fw_read_complete_action: None,
+            op_idevid_csr_read_complete_action: None,
             op_reset_trigger_action: None,
             tb_services_cb: args.tb_services_cb.take(),
             ready_for_fw_cb: args.ready_for_fw_cb.take(),
             upload_update_fw: args.upload_update_fw.take(),
             fuses_can_be_written: true,
             bootfsm_go_cb: args.bootfsm_go_cb.take(),
+            download_idevid_csr_cb: args.download_idevid_csr_cb.take(),
         };
 
         regs
@@ -640,6 +652,13 @@ impl SocRegistersImpl {
                 sched_fn: Box::new(sched_fn),
             };
             (self.ready_for_fw_cb)(args);
+        } else if self
+            .cptra_flow_status
+            .reg
+            .is_set(FlowStatus::IDEVID_CSR_READY)
+        {
+            self.op_idevid_csr_read_complete_action =
+                Some(self.timer.schedule_poll_in(Self::IDEVID_CSR_READ_TICKS));
         }
 
         Ok(())
@@ -714,14 +733,27 @@ impl SocRegistersImpl {
         }
 
         if self.timer.fired(&mut self.op_fw_read_complete_action) {
-            // Receiver sets status as CMD_COMPLETE after reading the mailbox data.
-            if !self.mailbox.is_status_cmd_busy() {
+            let soc_mbox = self.mailbox.as_external().regs();
+            // uC will set status to CMD_COMPLETE after reading the
+            // mailbox data; we can't clear the execute bit until that is done.`
+            if !soc_mbox.status().read().status().cmd_busy() {
                 // Reset the execute bit
-                self.mailbox.write_execute(0).unwrap();
+                soc_mbox.execute().write(|w| w.execute(false));
             } else {
                 self.op_fw_read_complete_action =
                     Some(self.timer.schedule_poll_in(Self::FW_READ_TICKS));
             }
+        }
+
+        if self
+            .timer
+            .fired(&mut self.op_idevid_csr_read_complete_action)
+        {
+            // Download the Idevid CSR from the mailbox.
+            (self.download_idevid_csr_cb)(
+                &mut self.mailbox,
+                &mut self.cptra_dbg_manuf_service_reg.reg,
+            );
         }
     }
 
@@ -761,21 +793,19 @@ mod tests {
     use tock_registers::{interfaces::ReadWriteable, registers::InMemoryRegister};
 
     fn send_data_to_mailbox(mailbox: &mut MailboxInternal, cmd: u32, data: &[u8]) {
-        while !mailbox.try_acquire_lock() {}
+        let regs = mailbox.regs();
+        while regs.lock().read().lock() {}
 
-        mailbox.write_cmd(cmd).unwrap();
-        mailbox.write_dlen(data.len() as u32).unwrap();
+        regs.cmd().write(|_| cmd);
+        regs.dlen().write(|_| (data.len() as u32));
 
         let word_size = RvSize::Word as usize;
         let remainder = data.len() % word_size;
         let n = data.len() - remainder;
 
         for idx in (0..n).step_by(word_size) {
-            mailbox
-                .write_datain(u32::from_le_bytes(
-                    data[idx..idx + word_size].try_into().unwrap(),
-                ))
-                .unwrap();
+            regs.datain()
+                .write(|_| u32::from_le_bytes(data[idx..idx + word_size].try_into().unwrap()));
         }
 
         // Handle the remainder bytes.
@@ -784,7 +814,7 @@ mod tests {
             for idx in 1..remainder {
                 last_word |= (data[n + idx] as u32) << (idx << 3);
             }
-            mailbox.write_datain(last_word).unwrap();
+            regs.datain().write(|_| last_word);
         }
     }
 
@@ -822,23 +852,25 @@ mod tests {
         path.push(file);
         let mut file = std::fs::File::create(path).unwrap();
 
-        let byte_count = mailbox.read_dlen().unwrap() as usize;
+        let regs = mailbox.regs();
+
+        let byte_count = regs.dlen().read() as usize;
         let remainder = byte_count % core::mem::size_of::<u32>();
         let n = byte_count - remainder;
 
         for _ in (0..n).step_by(core::mem::size_of::<u32>()) {
-            let buf = mailbox.read_dataout().unwrap();
+            let buf = regs.dataout().read();
             file.write_all(&buf.to_le_bytes()).unwrap();
         }
 
         if remainder > 0 {
-            let part = mailbox.read_dataout().unwrap();
+            let part = regs.dataout().read();
             for idx in 0..remainder {
                 let byte = ((part >> (idx << 3)) & 0xFF) as u8;
                 file.write_all(&[byte]).unwrap();
             }
         }
-        mailbox.set_status_cmd_complete().unwrap();
+        regs.status().write(|w| w.status(|w| w.cmd_complete()));
     }
 
     #[test]
@@ -869,8 +901,11 @@ mod tests {
 
         // Add csr data to the mailbox.
         send_data_to_mailbox(&mut mailbox, 0xDEADBEEF, &data);
-        mailbox.set_status_data_ready().unwrap();
-        mailbox.write_execute(1).unwrap();
+        mailbox
+            .regs()
+            .status()
+            .write(|w| w.status(|w| w.data_ready()));
+        mailbox.regs().execute().write(|w| w.execute(true));
 
         // Trigger csr download.
         let flow_status = InMemoryRegister::<u32, FlowStatus::Register>::new(0);
@@ -927,8 +962,11 @@ mod tests {
 
         // Add cert data to the mailbox.
         send_data_to_mailbox(&mut mailbox, 0xDEADBEEF, &data);
-        mailbox.set_status_data_ready().unwrap();
-        mailbox.write_execute(1).unwrap();
+        mailbox
+            .regs()
+            .status()
+            .write(|w| w.status(|w| w.data_ready()));
+        mailbox.regs().execute().write(|w| w.execute(true));
 
         // Trigger cert download.
         let flow_status = InMemoryRegister::<u32, FlowStatus::Register>::new(0);

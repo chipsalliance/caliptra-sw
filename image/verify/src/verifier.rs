@@ -137,14 +137,17 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // Verify the preamble
         let preamble = &manifest.preamble;
-        let header_info = self.verify_preamble(image, preamble, reason)?;
+        let header_info = self.verify_preamble(image, preamble, reason);
+        let header_info = okref(&header_info)?;
 
         // Verify Header
         let header = &manifest.header;
-        let toc_info = self.verify_header(image, header, &header_info)?;
+        let toc_info = self.verify_header(image, header, header_info);
+        let toc_info = okref(&toc_info)?;
 
         // Verify TOC
-        let image_info = self.verify_toc(image, manifest, &toc_info)?;
+        let image_info = self.verify_toc(image, manifest, toc_info);
+        let image_info = okref(&image_info)?;
 
         // Verify FMC
         let fmc_info = self.verify_fmc(image, image_info.fmc, reason)?;
@@ -154,7 +157,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         let info = ImageVerificationInfo {
             vendor_ecc_pub_key_idx: header_info.vendor_ecc_pub_key_idx,
-            vendor_pub_keys_digest: self.make_vendor_key_digest(image, &header_info)?,
+            vendor_pub_keys_digest: self.make_vendor_key_digest(image, header_info)?,
             owner_pub_keys_digest: header_info.owner_pub_keys_digest,
             fmc: fmc_info,
             runtime: runtime_info,

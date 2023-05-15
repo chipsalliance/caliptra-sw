@@ -7,7 +7,7 @@ use caliptra_image_types::IMAGE_BYTE_SIZE;
 pub mod helpers;
 
 // [TODO] Use the error codes from the common library.
-const INVALID_IMAGE_SIZE: u32 = 0x02000003;
+const INVALID_IMAGE_SIZE: u32 = 0x01020003;
 
 #[test]
 fn test_zero_firmware_size() {

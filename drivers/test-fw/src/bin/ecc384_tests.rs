@@ -76,7 +76,7 @@ fn test_gen_key_pair() {
 }
 
 fn test_sign() {
-    let digest: Array4xN<12, 48> = Array4xN([0u32; 12]);
+    let digest = Array4x12::new([0u32; 12]);
     let result = Ecc384::default().sign(Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)), &digest);
     assert!(result.is_ok());
     let signature = result.unwrap();
@@ -85,7 +85,7 @@ fn test_sign() {
 }
 
 fn test_verify() {
-    let digest: Array4xN<12, 48> = Array4xN([0u32; 12]);
+    let digest = Array4x12::new([0u32; 12]);
     let ecc = Ecc384::default();
     let result = ecc.sign(Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)), &digest);
     assert!(result.is_ok());
@@ -100,7 +100,7 @@ fn test_verify() {
 }
 
 fn test_verify_failure() {
-    let digest: Array4xN<12, 48> = Array4xN([0u32; 12]);
+    let digest = Array4x12::new([0u32; 12]);
     let ecc = Ecc384::default();
     let result = ecc.sign(Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)), &digest);
     assert!(result.is_ok());
@@ -140,7 +140,7 @@ fn test_kv_seed_from_input_msg_from_input() {
     //
     // Step 2: Sign message with private key generated in step 1.
     //
-    let digest: Array4xN<12, 48> = Array4xN([0u32; 12]);
+    let digest = Array4x12::new([0u32; 12]);
     let key_in_1 = KeyReadArgs::new(KeyId::KeyId2);
 
     let result = Ecc384::default().sign(key_in_1.into(), &digest);

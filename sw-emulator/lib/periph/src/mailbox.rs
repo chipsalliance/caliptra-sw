@@ -13,25 +13,16 @@ Abstract:
 --*/
 use smlang::statemachine;
 
-use caliptra_emu_bus::{Bus, Ram};
+use caliptra_emu_bus::{Bus, BusMmio, Ram};
 use caliptra_emu_bus::{BusError, ReadOnlyRegister, ReadWriteRegister, WriteOnlyRegister};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::{cell::RefCell, rc::Rc};
-use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
-use tock_registers::registers::InMemoryRegister;
+use tock_registers::interfaces::Writeable;
 use tock_registers::{register_bitfields, LocalRegisterCopy};
 
 /// Maximum mailbox capacity.
 const MAX_MAILBOX_CAPACITY_BYTES: usize = 128 << 10;
-const OFFSET_LOCK: RvAddr = 0x00;
-const OFFSET_CMD: RvAddr = 0x08;
-const OFFSET_DLEN: RvAddr = 0x0C;
-const OFFSET_DATAIN: RvAddr = 0x10;
-const OFFSET_DATAOUT: RvAddr = 0x14;
-const OFFSET_EXECUTE: RvAddr = 0x18;
-const OFFSET_STATUS: RvAddr = 0x1C;
-const OFFSET_UNLOCK: RvAddr = 0x20;
 
 register_bitfields! [
     u32,
@@ -100,6 +91,16 @@ impl Default for MailboxRam {
 pub struct MailboxExternal {
     regs: Rc<RefCell<MailboxRegs>>,
 }
+impl MailboxExternal {
+    pub fn regs(&mut self) -> caliptra_registers::mbox::RegisterBlock<BusMmio<Self>> {
+        unsafe {
+            caliptra_registers::mbox::RegisterBlock::new_with_mmio(
+                std::ptr::null_mut::<u32>(),
+                BusMmio::new(self.clone()),
+            )
+        }
+    }
+}
 
 impl Bus for MailboxExternal {
     /// Read data of specified size from given address
@@ -135,184 +136,19 @@ impl MailboxInternal {
         }
     }
 
+    pub fn regs(&mut self) -> caliptra_registers::mbox::RegisterBlock<BusMmio<Self>> {
+        unsafe {
+            caliptra_registers::mbox::RegisterBlock::new_with_mmio(
+                std::ptr::null_mut::<u32>(),
+                BusMmio::new(self.clone()),
+            )
+        }
+    }
+
     pub fn as_external(&self) -> MailboxExternal {
         MailboxExternal {
             regs: self.regs.clone(),
         }
-    }
-
-    // Release the lock by writing to the  unlock register.
-    /// Only the uC can release the lock.
-    pub fn try_force_unlock(&mut self) -> Result<(), BusError> {
-        self.regs.borrow_mut().write(RvSize::Word, OFFSET_UNLOCK, 1)
-    }
-
-    pub fn read_dlen(&mut self) -> Result<u32, BusError> {
-        self.regs
-            .borrow_mut()
-            .set_request(MailboxRequester::Caliptra);
-        self.regs.borrow_mut().read(RvSize::Word, OFFSET_DLEN)
-    }
-
-    pub fn write_dlen(&mut self, dlen: u32) -> Result<(), BusError> {
-        self.regs
-            .borrow_mut()
-            .set_request(MailboxRequester::Caliptra);
-        self.regs
-            .borrow_mut()
-            .write(RvSize::Word, OFFSET_DLEN, dlen)
-    }
-
-    pub fn read_cmd(&mut self) -> Result<u32, BusError> {
-        self.regs
-            .borrow_mut()
-            .set_request(MailboxRequester::Caliptra);
-        self.regs.borrow_mut().read(RvSize::Word, OFFSET_CMD)
-    }
-
-    pub fn write_cmd(&mut self, cmd: u32) -> Result<(), BusError> {
-        self.regs
-            .borrow_mut()
-            .set_request(MailboxRequester::Caliptra);
-        self.regs.borrow_mut().write(RvSize::Word, OFFSET_CMD, cmd)
-    }
-
-    pub fn read_datain(&mut self) -> Result<u32, BusError> {
-        self.regs
-            .borrow_mut()
-            .set_request(MailboxRequester::Caliptra);
-        self.regs.borrow_mut().read(RvSize::Word, OFFSET_DATAIN)
-    }
-
-    pub fn write_datain(&mut self, val: u32) -> Result<(), BusError> {
-        self.regs
-            .borrow_mut()
-            .set_request(MailboxRequester::Caliptra);
-        self.regs
-            .borrow_mut()
-            .write(RvSize::Word, OFFSET_DATAIN, val)
-    }
-
-    pub fn read_dataout(&mut self) -> Result<u32, BusError> {
-        self.regs
-            .borrow_mut()
-            .set_request(MailboxRequester::Caliptra);
-        self.regs.borrow_mut().read(RvSize::Word, OFFSET_DATAOUT)
-    }
-
-    pub fn write_dataout(&mut self, val: u32) -> Result<(), BusError> {
-        self.regs
-            .borrow_mut()
-            .set_request(MailboxRequester::Caliptra);
-        self.regs
-            .borrow_mut()
-            .write(RvSize::Word, OFFSET_DATAOUT, val)
-    }
-
-    pub fn try_acquire_lock(&mut self) -> bool {
-        self.regs
-            .borrow_mut()
-            .set_request(MailboxRequester::Caliptra);
-        let result = self.regs.borrow_mut().read(RvSize::Word, OFFSET_LOCK);
-        matches!(result, Ok(0))
-    }
-
-    pub fn is_locked(&mut self) -> bool {
-        self.regs
-            .borrow_mut()
-            .set_request(MailboxRequester::Caliptra);
-        self.regs.borrow().state_machine.context().locked == 1
-    }
-
-    pub fn read_execute(&mut self) -> Result<u32, BusError> {
-        self.regs
-            .borrow_mut()
-            .set_request(MailboxRequester::Caliptra);
-        self.regs.borrow_mut().read(RvSize::Word, OFFSET_EXECUTE)
-    }
-
-    pub fn write_execute(&mut self, val: u32) -> Result<(), BusError> {
-        self.regs
-            .borrow_mut()
-            .set_request(MailboxRequester::Caliptra);
-        self.regs
-            .borrow_mut()
-            .write(RvSize::Word, OFFSET_EXECUTE, val)?;
-        Ok(())
-    }
-
-    pub fn is_command_exec_set_requested(&self) -> bool {
-        self.regs
-            .borrow_mut()
-            .set_request(MailboxRequester::Caliptra);
-        matches!(self.regs.borrow_mut().state_machine.state, States::ExecUc)
-    }
-
-    pub fn is_status_cmd_busy(&mut self) -> bool {
-        self.regs
-            .borrow_mut()
-            .set_request(MailboxRequester::Caliptra);
-        self.match_status(Status::STATUS::CMD_BUSY.value)
-    }
-
-    pub fn is_status_data_ready(&mut self) -> bool {
-        self.regs
-            .borrow_mut()
-            .set_request(MailboxRequester::Caliptra);
-        self.match_status(Status::STATUS::DATA_READY.value)
-    }
-
-    pub fn is_status_cmd_complete(&mut self) -> bool {
-        self.regs
-            .borrow_mut()
-            .set_request(MailboxRequester::Caliptra);
-        self.match_status(Status::STATUS::CMD_COMPLETE.value)
-    }
-
-    fn match_status(&mut self, status: u32) -> bool {
-        self.regs
-            .borrow_mut()
-            .set_request(MailboxRequester::Caliptra);
-        let val = self
-            .regs
-            .borrow_mut()
-            .read(RvSize::Word, OFFSET_STATUS)
-            .unwrap();
-        let reg = InMemoryRegister::<u32, Status::Register>::new(val);
-        reg.read(Status::STATUS) == status
-    }
-
-    fn set_status(&mut self, status_in: u32) -> Result<(), BusError> {
-        self.regs
-            .borrow_mut()
-            .set_request(MailboxRequester::Caliptra);
-        let status = self
-            .regs
-            .borrow_mut()
-            .read(RvSize::Word, OFFSET_STATUS)
-            .unwrap();
-
-        let status_reg: ReadWriteRegister<u32, Status::Register> = ReadWriteRegister::new(status);
-        status_reg.reg.modify(Status::STATUS.val(status_in));
-
-        self.regs
-            .borrow_mut()
-            .write(RvSize::Word, OFFSET_STATUS, status_reg.reg.get())?;
-        Ok(())
-    }
-
-    pub fn set_status_cmd_complete(&mut self) -> Result<(), BusError> {
-        self.regs
-            .borrow_mut()
-            .set_request(MailboxRequester::Caliptra);
-        self.set_status(Status::STATUS::CMD_COMPLETE.value)
-    }
-
-    pub fn set_status_data_ready(&mut self) -> Result<(), BusError> {
-        self.regs
-            .borrow_mut()
-            .set_request(MailboxRequester::Caliptra);
-        self.set_status(Status::STATUS::DATA_READY.value)
     }
 }
 
@@ -485,6 +321,11 @@ impl MailboxRegs {
 
     /// Write to execute register
     pub fn write_ex(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
+        // Only the lock owner can clear the execute bit.
+        if self.requester != self.state_machine.context.user {
+            return Ok(());
+        }
+
         let event = {
             match self.requester {
                 MailboxRequester::Caliptra => {
@@ -768,10 +609,6 @@ impl Fifo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use caliptra_emu_bus::Bus;
-    use caliptra_emu_types::RvAddr;
-
-    const OFFSET_USER: RvAddr = 0x04;
 
     pub fn get_mailbox() -> MailboxInternal {
         // Acquire lock
@@ -782,16 +619,15 @@ mod tests {
     fn test_sm_arc_rdyfordata_unlock() {
         // Acquire lock
         let mut mb = get_mailbox();
-        assert_eq!(mb.read(RvSize::Word, OFFSET_LOCK).unwrap(), 0);
+        let uc_regs = mb.regs();
+        assert!(!uc_regs.lock().read().lock());
         // Confirm it is locked
-        let lock = mb.read(RvSize::Word, OFFSET_LOCK).unwrap();
-        assert_eq!(lock, 1);
+        assert!(uc_regs.lock().read().lock());
 
-        let user = mb.read(RvSize::Word, OFFSET_USER).unwrap();
-        assert_eq!(user, 0);
+        assert_eq!(uc_regs.user().read(), 0);
 
         // Write command
-        assert_eq!(mb.write(RvSize::Word, OFFSET_CMD, 0x55).ok(), Some(()));
+        uc_regs.cmd().write(|_| 0x55);
         // Confirm it is locked
         assert_eq!(mb.regs.borrow().state_machine.context.locked, 1);
 
@@ -845,15 +681,15 @@ mod tests {
     fn test_soc_to_caliptra_lock() {
         let mut caliptra = MailboxInternal::new(MailboxRam::new());
         let mut soc = caliptra.as_external();
+        let soc_regs = soc.regs();
 
-        assert_eq!(soc.read(RvSize::Word, OFFSET_LOCK).unwrap(), 0);
+        assert!(!soc_regs.lock().read().lock());
         // Confirm it is locked
-        let soc_has_lock = soc.read(RvSize::Word, OFFSET_LOCK).unwrap();
-        assert_eq!(soc_has_lock, 1);
+        assert!(soc_regs.lock().read().lock());
 
         // Confirm caliptra has lock
-        let caliptra_has_lock = caliptra.read(RvSize::Word, OFFSET_LOCK).unwrap();
-        assert_eq!(caliptra_has_lock, 1);
+        let caliptra_has_lock = caliptra.regs().lock().read().lock();
+        assert!(caliptra_has_lock);
     }
 
     #[test]
@@ -862,49 +698,38 @@ mod tests {
 
         let mut caliptra = MailboxInternal::new(MailboxRam::new());
         let mut soc = caliptra.as_external();
+        let soc_regs = soc.regs();
+        let uc_regs = caliptra.regs();
 
-        assert_eq!(soc.read(RvSize::Word, OFFSET_LOCK).unwrap(), 0);
+        assert!(!soc_regs.lock().read().lock());
         // Confirm it is locked
-        let lock = soc.read(RvSize::Word, OFFSET_LOCK).unwrap();
-        assert_eq!(lock, 1);
+        assert!(soc_regs.lock().read().lock());
 
-        let user = soc.read(RvSize::Word, OFFSET_USER).unwrap();
-        assert_eq!(user, MailboxRequester::Soc as u32);
+        assert_eq!(soc_regs.user().read(), MailboxRequester::Soc as u32);
 
         // Write command
-        assert_eq!(soc.write(RvSize::Word, OFFSET_CMD, 0x55).ok(), Some(()));
+        soc_regs.cmd().write(|_| 0x55);
         // Confirm it is locked
         assert_eq!(soc.regs.borrow().state_machine.context.locked, 1);
 
         let dlen = request_to_send.len() as u32;
         let dlen = dlen * 4;
         // Write dlen
-        assert_eq!(soc.write(RvSize::Word, OFFSET_DLEN, dlen).ok(), Some(()));
+        soc_regs.dlen().write(|_| dlen);
 
         // Confirm it is locked
         assert_eq!(soc.regs.borrow().state_machine.context.locked, 1);
 
         for data_in in request_to_send.iter() {
             // Write datain
-            assert_eq!(
-                soc.write(RvSize::Word, OFFSET_DATAIN, *data_in).ok(),
-                Some(())
-            );
+            soc_regs.datain().write(|_| *data_in);
             // Confirm it is locked
             assert_eq!(soc.regs.borrow().state_machine.context.locked, 1);
         }
-        assert_eq!(
-            soc.write(
-                RvSize::Word,
-                OFFSET_STATUS,
-                Status::STATUS::DATA_READY.value
-            )
-            .ok(),
-            Some(())
-        );
+        soc_regs.status().write(|w| w.status(|w| w.data_ready()));
 
         // Write exec
-        assert_eq!(soc.write(RvSize::Word, OFFSET_EXECUTE, 0x55).ok(), Some(()));
+        soc_regs.execute().write(|w| w.execute(true));
         // Confirm it is locked
         assert_eq!(soc.regs.borrow().state_machine.context.locked, 1);
 
@@ -913,37 +738,26 @@ mod tests {
             States::ExecUc
         ));
 
-        let status = caliptra.read(RvSize::Word, OFFSET_STATUS).unwrap();
         assert_eq!(
-            status,
+            u32::from(uc_regs.status().read()),
             (Status::STATUS::DATA_READY + Status::MBOX_FSM_PS::MBOX_EXECUTE_UC).value
         );
 
-        let cmd = caliptra.read(RvSize::Word, OFFSET_CMD).unwrap();
-        assert_eq!(cmd, 0x55);
+        assert_eq!(uc_regs.cmd().read(), 0x55);
 
-        let dlen = caliptra.read(RvSize::Word, OFFSET_DLEN).unwrap();
+        let dlen = uc_regs.dlen().read();
         assert_eq!(dlen, (request_to_send.len() * 4) as u32);
 
         request_to_send.iter().for_each(|data_in| {
             // Read dataout
-            let data_out = caliptra.read(RvSize::Word, OFFSET_DATAOUT).unwrap();
+            let data_out = uc_regs.dataout().read();
             // compare with queued data.
             assert_eq!(*data_in, data_out);
         });
-        assert_eq!(
-            caliptra
-                .write(
-                    RvSize::Word,
-                    OFFSET_STATUS,
-                    Status::STATUS::CMD_COMPLETE.value
-                )
-                .ok(),
-            Some(())
-        );
+        uc_regs.status().write(|w| w.status(|w| w.cmd_complete()));
 
         // Requester resets exec register
-        assert_eq!(soc.write(RvSize::Word, OFFSET_EXECUTE, 0).ok(), Some(()));
+        soc_regs.execute().write(|w| w.execute(false));
         // Confirm it is unlocked
         assert_eq!(caliptra.regs.borrow().state_machine.context.locked, 0);
 
@@ -1026,95 +840,67 @@ mod tests {
     fn test_send_receive_max_limit() {
         // Acquire lock
         let mut mb = get_mailbox();
-        assert_eq!(mb.read(RvSize::Word, OFFSET_LOCK).unwrap(), 0);
-        // Confirm it is locked
-        let lock = mb.read(RvSize::Word, OFFSET_LOCK).unwrap();
-        assert_eq!(lock, 1);
+        let uc_regs = mb.regs();
 
-        let user = mb.read(RvSize::Word, OFFSET_USER).unwrap();
+        assert!(!uc_regs.lock().read().lock());
+        // Confirm it is locked
+        assert!(uc_regs.lock().read().lock());
+
+        let user = uc_regs.user().read();
         assert_eq!(user, MailboxRequester::Caliptra as u32);
 
         // Write command
-        assert_eq!(mb.write(RvSize::Word, OFFSET_CMD, 0x55).ok(), Some(()));
+        uc_regs.cmd().write(|_| 0x55);
 
         // Write dlen
-        assert_eq!(
-            mb.write(
-                RvSize::Word,
-                OFFSET_DLEN,
-                (MAX_MAILBOX_CAPACITY_BYTES + 4) as u32
-            )
-            .ok(),
-            Some(())
-        );
+        uc_regs
+            .dlen()
+            .write(|_| (MAX_MAILBOX_CAPACITY_BYTES + 4) as u32);
 
         for data_in in (0..MAX_MAILBOX_CAPACITY_BYTES).step_by(4) {
             // Write datain
-            assert_eq!(
-                mb.write(RvSize::Word, OFFSET_DATAIN, data_in as u32).ok(),
-                Some(())
-            );
+            uc_regs.datain().write(|_| data_in as u32);
         }
 
         // Write an additional DWORD. This should be a no-op.
-        assert_eq!(
-            mb.write(RvSize::Word, OFFSET_DATAIN, 0xDEADBEEF).ok(),
-            Some(())
-        );
+        uc_regs.datain().write(|_| 0xDEADBEEF);
 
-        assert_eq!(
-            mb.write(
-                RvSize::Word,
-                OFFSET_STATUS,
-                Status::STATUS::DATA_READY.value
-            )
-            .ok(),
-            Some(())
-        );
+        uc_regs.status().write(|w| w.status(|w| w.data_ready()));
 
-        // Write exec
-        assert_eq!(mb.write(RvSize::Word, OFFSET_EXECUTE, 0x55).ok(), Some(()));
+        uc_regs.execute().write(|w| w.execute(true));
 
         assert!(matches!(
             mb.regs.borrow().state_machine.state(),
             States::ExecSoc
         ));
 
-        let status = mb.read(RvSize::Word, OFFSET_STATUS).unwrap();
         assert_eq!(
-            status,
+            u32::from(uc_regs.status().read()),
             (Status::STATUS::DATA_READY + Status::MBOX_FSM_PS::MBOX_EXECUTE_SOC).value
         );
 
-        let cmd = mb.read(RvSize::Word, OFFSET_CMD).unwrap();
-        assert_eq!(cmd, 0x55);
+        assert_eq!(uc_regs.cmd().read(), 0x55);
 
-        let dlen = mb.read(RvSize::Word, OFFSET_DLEN).unwrap();
-        assert_eq!(dlen, (MAX_MAILBOX_CAPACITY_BYTES + 4) as u32);
+        assert_eq!(
+            uc_regs.dlen().read(),
+            (MAX_MAILBOX_CAPACITY_BYTES + 4) as u32
+        );
 
         let mut data_out = 0;
         for data_in in (0..MAX_MAILBOX_CAPACITY_BYTES).step_by(4) {
             // Read dataout
-            data_out = mb.read(RvSize::Word, OFFSET_DATAOUT).unwrap();
+            data_out = uc_regs.dataout().read();
             // compare with queued data.
             assert_eq!(data_in as u32, data_out);
         }
 
         // Read an additional DWORD. This should return the last word
-        assert_eq!(mb.read(RvSize::Word, OFFSET_DATAOUT).unwrap(), data_out);
+        assert_eq!(uc_regs.dataout().read(), data_out);
 
-        assert_eq!(
-            mb.write(
-                RvSize::Word,
-                OFFSET_STATUS,
-                Status::STATUS::CMD_COMPLETE.value
-            )
-            .ok(),
-            Some(())
-        );
+        uc_regs.status().write(|w| w.status(|w| w.cmd_complete()));
 
         // Receiver resets exec register
-        assert_eq!(mb.write(RvSize::Word, OFFSET_EXECUTE, 0).ok(), Some(()));
+        uc_regs.execute().write(|w| w.execute(false));
         // Confirm it is unlocked
         assert_eq!(mb.regs.borrow().state_machine.context.locked, 0);
 

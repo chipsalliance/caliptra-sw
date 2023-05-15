@@ -21,8 +21,8 @@ mod model_verilated;
 mod output;
 mod rv32_builder;
 
+pub use caliptra_emu_bus::BusMmio;
 pub use caliptra_hw_model_types::{DeviceLifecycle, Fuses, SecurityState, U4};
-pub use mmio::BusMmio;
 use output::ExitStatus;
 pub use output::Output;
 
@@ -627,6 +627,31 @@ mod tests {
 
         model.soc_mbox().cmd().write(|_| 4242);
         assert_eq!(model.soc_mbox().cmd().read(), 4242);
+    }
+
+    #[test]
+    /// Violate the mailbox protocol by having the sender trying to write to mailbox in execute state.
+    fn test_mbox_negative() {
+        let mut model = caliptra_hw_model::new_unbooted(InitParams {
+            ..Default::default()
+        })
+        .unwrap();
+
+        model.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
+        model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+
+        assert!(!model.soc_mbox().lock().read().lock());
+        assert!(model.soc_mbox().lock().read().lock());
+
+        model.soc_mbox().cmd().write(|_| 4242);
+        assert_eq!(model.soc_mbox().cmd().read(), 4242);
+
+        model.soc_mbox().execute().write(|w| w.execute(true));
+        model.soc_mbox().dlen().write(|_| [1, 2, 3].len() as u32);
+        assert_eq!([1, 2, 3].len() as u32, model.soc_mbox().dlen().read());
+        let _ = caliptra_hw_model::mbox_write_fifo(&model.soc_mbox(), &[1, 2, 3]);
+        let buf = caliptra_hw_model::mbox_read_fifo(model.soc_mbox());
+        assert_eq!(buf, &[0, 0, 0]);
     }
 
     #[test]

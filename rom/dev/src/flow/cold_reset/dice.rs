@@ -14,32 +14,36 @@ Abstract:
 --*/
 
 use crate::rom_env::RomEnv;
-use caliptra_drivers::{CaliptraResult, Ecc384PubKey, KeyId};
+use caliptra_drivers::{okref, Array4x12, CaliptraResult, Ecc384PubKey, KeyId};
 
 use super::crypto::Ecc384KeyPair;
 
 /// DICE Layer Input
 #[derive(Debug)]
-pub struct DiceInput {
+pub struct DiceInput<'a> {
     /// Authority Key Pair
-    pub auth_key_pair: Ecc384KeyPair,
+    pub auth_key_pair: &'a Ecc384KeyPair,
 
     /// Authority Serial Number
-    pub auth_sn: [u8; 64],
+    pub auth_sn: &'a [u8; 64],
 
     /// Authority Key Identifier
-    pub auth_key_id: [u8; 20],
+    pub auth_key_id: &'a [u8; 20],
 }
 
-impl DiceInput {
+impl DiceInput<'_> {
     pub fn default() -> Self {
-        DiceInput {
-            auth_key_pair: Ecc384KeyPair {
-                priv_key: KeyId::KeyId0,
-                pub_key: Ecc384PubKey::default(),
+        const DEFAULT_KEY_PAIR: Ecc384KeyPair = Ecc384KeyPair {
+            priv_key: KeyId::KeyId0,
+            pub_key: Ecc384PubKey {
+                x: Array4x12::new([0; 12]),
+                y: Array4x12::new([0; 12]),
             },
-            auth_sn: [0u8; 64],
-            auth_key_id: [0u8; 20],
+        };
+        DiceInput {
+            auth_key_pair: &DEFAULT_KEY_PAIR,
+            auth_sn: &[0u8; 64],
+            auth_key_id: &[0u8; 20],
         }
     }
 }
@@ -87,11 +91,12 @@ where
     G: Fn(&RomEnv, &DiceInput) -> CaliptraResult<DiceOutput>,
 {
     move |env, i| {
-        let output = f(env, i)?;
+        let output = f(env, i);
+        let output = okref(&output)?;
         let input = DiceInput {
-            auth_key_pair: output.subj_key_pair,
-            auth_sn: output.subj_sn,
-            auth_key_id: output.subj_key_id,
+            auth_key_pair: &output.subj_key_pair,
+            auth_sn: &output.subj_sn,
+            auth_key_id: &output.subj_key_id,
         };
         g(env, &input)
     }

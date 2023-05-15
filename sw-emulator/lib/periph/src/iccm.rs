@@ -13,7 +13,6 @@ Abstract:
 --*/
 use caliptra_emu_bus::Bus;
 use caliptra_emu_bus::BusError;
-use caliptra_emu_bus::BusError::StoreAccessFault;
 use caliptra_emu_bus::Clock;
 use caliptra_emu_bus::Ram;
 use caliptra_emu_bus::Timer;
@@ -90,7 +89,13 @@ impl Bus for Iccm {
             return Ok(());
         }
         if self.iccm.locked.get() {
-            return Err(StoreAccessFault);
+            self.iccm.timer.schedule_action_in(
+                NMI_DELAY,
+                TimerAction::Nmi {
+                    mcause: NMI_CAUSE_DBUS_STORE_ERROR,
+                },
+            );
+            return Ok(());
         }
         self.iccm.ram.borrow_mut().write(size, addr, val)
     }
@@ -132,9 +137,12 @@ mod tests {
         iccm.lock();
         for word_offset in (0u32..ICCM_SIZE_BYTES as u32).step_by(4) {
             assert_eq!(iccm.read(RvSize::Word, word_offset).unwrap(), 0);
+            assert!(iccm.write(RvSize::Word, word_offset, u32::MAX).is_ok());
             assert_eq!(
-                iccm.write(RvSize::Word, word_offset, u32::MAX).err(),
-                Some(BusError::StoreAccessFault)
+                next_action(&clock),
+                Some(TimerAction::Nmi {
+                    mcause: 0xf000_0000
+                })
             );
         }
         assert_eq!(next_action(&clock), None);

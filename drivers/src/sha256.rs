@@ -71,7 +71,7 @@ impl Sha256 {
     /// # Arguments
     ///
     /// * `buf` - Buffer to calculate the digest over
-    pub fn digest(&self, buf: &[u8], digest: Sha256Digest) -> CaliptraResult<()> {
+    pub fn digest(&self, buf: &[u8]) -> CaliptraResult<Array4x8> {
         // Check if the buffer is not large
         if buf.len() > SHA256_MAX_DATA_SIZE {
             raise_err!(MaxDataErr)
@@ -110,9 +110,9 @@ impl Sha256 {
             }
         }
 
-        self.copy_digest_to_buf(digest)?;
-
-        Ok(())
+        Ok(Array4x8::read_from_reg(
+            sha256::RegisterBlock::sha256_reg().digest(),
+        ))
     }
 
     /// Copy digest to buffer
