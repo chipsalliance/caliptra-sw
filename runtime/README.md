@@ -73,10 +73,12 @@ Table: Mailbox command "result" codes:
 | `BAD_IMAGE`      | `0x4249_4D47` ("BIMG") | Malformed input image
 | `BAD_CHKSUM`     | `0x4243_484B` ("BCHK") | Checksum check failed on input arguments
 
-Relevant Mailbox Registers:
+Relevant Registers:
 
-* COMMAND: Command code to execute
-* DLEN: Number of bytes written to mailbox
+* mbox\_csr -> COMMAND: Command code to execute
+* mbox\_csr -> DLEN: Number of bytes written to mailbox
+* CPTRA\_FW\_ERROR\_NON\_FATAL: Status code of mailbox command. Any result
+  other than `SUCCESS` signifies a mailbox command failure.
 
 ### CALIPTRA\_FW\_LOAD
 
@@ -101,12 +103,7 @@ Table: `CALIPTRA_FW_LOAD` input arguments
 | --------  | --------      | ---------------
 | data      | u8[...]       | Firmware image to load.
 
-Table: `CALIPTRA_FW_LOAD` output arguments
-
-| **Name** | **Type** | **Description**
-| -------- | -------- | ---------------
-| chksum   | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
-| result   | u32      | Result code. Little endian.
+`CALIPTRA_FW_LOAD` returns no output arguments.
 
 ### GET\_IDEV\_CSR
 
@@ -155,13 +152,7 @@ Table: `ECDSA384_SIGNATURE_VERIFY` input arguments
 | signature\_r | u8[48]   | R portion of signature to verify
 | signature\_s | u8[48]   | S portion of signature to verify
 
-
-Table: `ECDSA384_SIGNATURE_VERIFY` output arguments
-
-| **Name** | **Type** | **Description**
-| -------- | -------- | ---------------
-| chksum   | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
-| result   | u32      | Result code. Little endian.
+`ECDSA384_SIGNATURE_VERIFY` returns no output arguments.
 
 ### STASH\_MEASUREMENT
 
@@ -186,7 +177,6 @@ Table: `STASH_MEASUREMENT` output arguments
 | **Name**    | **Type** | **Description**
 | --------    | -------- | ---------------
 | chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
-| result      | u32      | Result code. Little endian.
 | dpe\_result | u32      | Result code of DPE DeriveChild command. Little endian.
 
 ### DISABLE\_ATTESTATION
@@ -202,12 +192,8 @@ Command Code: `0x4453_424C` ("DSBL")
 
 `DISABLE_ATTESTATION` takes no input arguments.
 
-Table: `DISABLE_ATTESTATION` output arguments
+`DISABLE_ATTESTATION` returns no output arguments.
 
-| **Name**    | **Type** | **Description**
-| --------    | -------- | ---------------
-| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
-| result      | u32      | Result code. Little endian.
 
 ### INVOKE\_DPE\_COMMAND
 
@@ -226,7 +212,6 @@ Table: `INVOKE_DPE_COMMAND` output arguments
 | **Name**    | **Type**      | **Description**
 | --------    | --------      | ---------------
 | chksum      | u32           | Checksum over other output arguments, computed by Caliptra. Little endian.
-| result      | u32           | Result code. Little endian.
 | data        | u8[...]       | DPE response structure as defined in the DPE iRoT profile.
 
 ## Checksum
