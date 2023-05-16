@@ -131,6 +131,7 @@ pub enum ModelError {
     ProvidedIccmTooLarge,
     ProvidedDccmTooLarge,
     UnexpectedMailboxFsmStatus { expected: u32, actual: u32 },
+    UnableToLockSha512Acc,
 }
 impl Error for ModelError {}
 impl Display for ModelError {
@@ -157,6 +158,7 @@ impl Display for ModelError {
                 f,
                 "Expected mailbox FSM status to be {expected}, was {actual}"
             ),
+            ModelError::UnableToLockSha512Acc => write!(f, "Unable to lock sha512acc"),
         }
     }
 }
@@ -443,6 +445,19 @@ pub trait HwModel {
         }
     }
 
+    /// A register block that can be used to manipulate the sha512_acc peripheral
+    /// over the simulated SoC->Caliptra APB bus.
+    fn soc_sha512_acc(
+        &mut self,
+    ) -> caliptra_registers::sha512_acc::RegisterBlock<BusMmio<Self::TBus<'_>>> {
+        unsafe {
+            caliptra_registers::sha512_acc::RegisterBlock::new_with_mmio(
+                0x3002_1000 as *mut u32,
+                BusMmio::new(self.apb_bus()),
+            )
+        }
+    }
+
     fn tracing_hint(&mut self, enable: bool);
 
     /// Executes `cmd` with request data `buf`. Returns `Ok(Some(_))` if
@@ -508,6 +523,51 @@ pub trait HwModel {
         self.step();
         assert!(self.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
         Ok(Some(result))
+    }
+
+    /// Streams `data` to the sha512acc SoC interface. If `sha384` computes
+    /// the sha384 hash of `data`, else computes sha512 hash.
+    ///
+    /// `dlen` is the size of data in bytes. sha512acc does not require streamed
+    /// data to be full words.
+    ///
+    /// Returns the computed digest if the sha512acc lock can be acquired.
+    /// Else, returns an error.
+    fn compute_sha512_acc_digest(
+        &mut self,
+        data: &[u32],
+        dlen: u32,
+        sha384: bool,
+    ) -> Result<Vec<u32>, ModelError> {
+        self.soc_sha512_acc().control().write(|w| w.zeroize(true));
+
+        if self.soc_sha512_acc().lock().read().lock() {
+            return Err(ModelError::UnableToLockSha512Acc);
+        }
+
+        self.soc_sha512_acc().dlen().write(|_| dlen);
+
+        self.soc_sha512_acc().mode().write(|w| {
+            w.mode(|w| {
+                if sha384 {
+                    w.sha_stream_384()
+                } else {
+                    w.sha_stream_512()
+                }
+            })
+        });
+
+        for word in data {
+            self.soc_sha512_acc().datain().write(|_| word.swap_bytes());
+        }
+
+        self.soc_sha512_acc().execute().write(|w| w.execute(true));
+
+        self.step_until(|m| m.soc_sha512_acc().status().read().valid());
+
+        self.soc_sha512_acc().lock().write(|w| w.lock(true)); // clear lock
+
+        Ok(self.soc_sha512_acc().digest().read().to_vec())
     }
 
     /// Upload firmware to the mailbox.
@@ -792,5 +852,82 @@ mod tests {
 
         // TODO: Add test for txn.respond_with_data (this doesn't work yet due
         // to https://github.com/chipsalliance/caliptra-rtl/issues/78)
+    }
+
+    struct Sha384Test<'a> {
+        msg: &'a [u32],
+        dlen: u32,
+        expected: &'a [u32],
+    }
+
+    #[test]
+    fn test_sha512_acc() {
+        // This test doesn't rely on any firmware features. mailbox_responder
+        // image is sufficient
+        let rom = caliptra_builder::build_firmware_rom(&FwId {
+            crate_name: "caliptra-hw-model-test-fw",
+            bin_name: "mailbox_responder",
+            features: &["emu"],
+        })
+        .unwrap();
+
+        let mut model = caliptra_hw_model::new(BootParams {
+            init_params: InitParams {
+                rom: &rom,
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .unwrap();
+
+        // Note: Streamed `msg` data is big endian. `expected` digest values are little-endian
+        // words.
+        let tests = vec![
+            Sha384Test {
+                msg: &[
+                    0xea89d79d, 0x4547c025, 0x1f387ad5, 0xfb01de22, 0x723cbd0a, 0x44fddedb,
+                    0xc11332e4, 0xef3e5889, 0x2066ba85, 0xe23dda44, 0xe67086dd, 0x48545132,
+                    0xeebb5501, 0x752c70bb, 0x2ec31a78, 0x60189413, 0xe36f57cb, 0x57b7057a,
+                    0x415b5bda, 0xc3d76d8f, 0x402e040b, 0x345a39f4, 0xe0dce42a, 0x36c33456,
+                    0x52bce225, 0x1f484543, 0x953d257e, 0x23682651, 0x17251b77, 0x51a8b405,
+                    0x372a0266, 0xbdf128ac,
+                ],
+                dlen: 128,
+                expected: &[
+                    0x965b83f5, 0xd34f7443, 0xeb88e78f, 0xcc234791, 0x56c9cb00, 0x80dd6833,
+                    0x4dac0ad3, 0x3ba8c774, 0x100e4400, 0x63db28b4, 0xb51ac37, 0x705d4d70,
+                    0xa6bb0a3c, 0xf3d9dd14, 0xa9496a55, 0x67c16cb6,
+                ],
+            },
+            Sha384Test {
+                msg: &[0x74736574], // Bytes "test" converted to little endian
+                dlen: 4,
+                // Computed with sha384sum
+                expected: &[
+                    0x76841232, 0x0f7b0aa5, 0x812fce42, 0x8dc4706b, 0x3cae50e0, 0x2a64caa1,
+                    0x6a782249, 0xbfe8efc4, 0xb7ef1ccb, 0x126255d1, 0x96047dfe, 0xdf17a0a9,
+                    0xd5bc262b, 0xa2b797a3, 0xc4fea9c9, 0xc99e829a,
+                ],
+            },
+            Sha384Test {
+                msg: &[0x74736574], // Bytes "test" converted to little endian
+                dlen: 2,            // Only hash the bytes "te"
+                // Computed with sha384sum
+                expected: &[
+                    0x7c9c881a, 0x549e5c64, 0x9a49c98a, 0xf4ead3ca, 0x907e6c6c, 0xfc7f98f4,
+                    0x8f640ad7, 0xf783584b, 0xf460cacc, 0x6fa3dd75, 0x55d71820, 0x199afcf8,
+                    0xf23c8f0, 0xa48ae0df, 0x9583c0da, 0xa52da0e6,
+                ],
+            },
+        ];
+
+        for test in tests {
+            assert_eq!(
+                model
+                    .compute_sha512_acc_digest(test.msg, test.dlen, /*sha384=*/ true)
+                    .unwrap(),
+                test.expected
+            );
+        }
     }
 }

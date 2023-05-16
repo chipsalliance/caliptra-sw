@@ -17,8 +17,10 @@ use caliptra_emu_bus::{
 };
 use caliptra_emu_crypto::{EndianessTransform, Sha512, Sha512Mode};
 use caliptra_emu_derive::Bus;
-use caliptra_emu_types::{RvData, RvSize};
+use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use smlang::statemachine;
+use std::cell::RefCell;
+use std::rc::Rc;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 use tock_registers::registers::InMemoryRegister;
@@ -34,6 +36,8 @@ const SHA_ACC_OP_TICKS: u64 = 1000;
 
 const SHA512_BLOCK_SIZE: usize = 128;
 const SHA512_HASH_SIZE: usize = 64;
+
+#[cfg(test)]
 const SHA384_HASH_SIZE: usize = 48;
 const SHA512_HASH_HALF_SIZE: usize = SHA512_HASH_SIZE / 2;
 
@@ -81,7 +85,7 @@ register_bitfields! [
 #[poll_fn(poll)]
 #[warm_reset_fn(warm_reset)]
 #[update_reset_fn(update_reset)]
-pub struct Sha512Accelerator {
+pub struct Sha512AcceleratorRegs {
     /// LOCK register
     #[register(offset = 0x0000_0000, read_fn = on_read_lock, write_fn = on_write_lock)]
     _lock: ReadWriteRegister<u32, Lock::Register>,
@@ -136,10 +140,12 @@ pub struct Sha512Accelerator {
 
     /// Operation complete action
     op_complete_action: Option<ActionHandle>,
+
+    /// Hasher for streamed hash data
+    sha_stream: Sha512,
 }
 
-impl Sha512Accelerator {
-    /// Create a new instance of SHA-512 Accelerator
+impl Sha512AcceleratorRegs {
     pub fn new(clock: &Clock, mailbox_ram: MailboxRam) -> Self {
         Self {
             status: ReadOnlyRegister::new(Status::VALID::CLEAR.value),
@@ -157,6 +163,7 @@ impl Sha512Accelerator {
             op_complete_action: None,
             state_machine: StateMachine::new(Context::new()),
             control: ReadWriteRegister::new(0),
+            sha_stream: Sha512::new(Sha512Mode::Sha512),
         }
     }
 
@@ -239,12 +246,14 @@ impl Sha512Accelerator {
             Err(BusError::StoreAccessFault)?
         }
 
-        let val_reg = InMemoryRegister::<u32, ShaMode::Register>::new(val);
-        if val_reg.read(ShaMode::MODE) != ShaMode::MODE::SHA512_ACC_MODE_MBOX_384.value {
-            Err(BusError::StoreAccessFault)?
-        }
         self.mode.reg.set(val);
 
+        let mode = self.mode.reg.read(ShaMode::MODE);
+        if mode == ShaMode::MODE::SHA512_ACC_MODE_SHA_STREAM_384.value {
+            self.sha_stream = Sha512::new(Sha512Mode::Sha384);
+        } else if mode == ShaMode::MODE::SHA512_ACC_MODE_SHA_STREAM_512.value {
+            self.sha_stream = Sha512::new(Sha512Mode::Sha512);
+        }
         Ok(())
     }
 
@@ -309,9 +318,14 @@ impl Sha512Accelerator {
     /// # Error
     ///
     /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
-    pub fn on_write_data_in(&mut self, _size: RvSize, _val: RvData) -> Result<(), BusError> {
-        // Not implemented
-        Err(BusError::StoreAccessFault)?
+    pub fn on_write_data_in(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
+        if size != RvSize::Word {
+            Err(BusError::StoreAccessFault)?
+        }
+
+        self.sha_stream.update_bytes(&val.to_be_bytes());
+
+        Ok(())
     }
 
     /// On Write callback for `execute` register
@@ -332,18 +346,25 @@ impl Sha512Accelerator {
         // Set the execute register
         self.execute.reg.set(val);
 
-        if self.execute.reg.read(Execute::EXECUTE) == 1
-            && self.mode.reg.read(ShaMode::MODE) == ShaMode::MODE::SHA512_ACC_MODE_MBOX_384.value
-        {
-            self.compute_hash();
+        if self.execute.reg.read(Execute::EXECUTE) == 1 {
+            let mode = self.mode.reg.read(ShaMode::MODE);
+            if mode == ShaMode::MODE::SHA512_ACC_MODE_MBOX_384.value {
+                self.compute_mbox_hash();
 
-            // Schedule a future call to poll() complete the operation.
-            self.op_complete_action = Some(self.timer.schedule_poll_in(SHA_ACC_OP_TICKS));
-
-            Ok(())
+                // Schedule a future call to poll() complete the operation.
+                self.op_complete_action = Some(self.timer.schedule_poll_in(SHA_ACC_OP_TICKS));
+            } else if mode == ShaMode::MODE::SHA512_ACC_MODE_SHA_STREAM_384.value
+                || mode == ShaMode::MODE::SHA512_ACC_MODE_SHA_STREAM_512.value
+            {
+                self.finalize_stream_hash();
+            } else {
+                return Err(BusError::StoreAccessFault);
+            }
         } else {
             Err(BusError::StoreAccessFault)?
         }
+
+        Ok(())
     }
 
     /// On Write callback for `control` register
@@ -379,7 +400,7 @@ impl Sha512Accelerator {
     /// # Error
     ///
     /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
-    fn compute_hash(&mut self) {
+    fn compute_mbox_hash(&mut self) {
         let data_len = self.dlen.reg.get() as usize;
         let totaldwords = (data_len + (RvSize::Word as usize - 1)) / (RvSize::Word as usize);
         let totalblocks = ((data_len + 16) + SHA512_BLOCK_SIZE) / SHA512_BLOCK_SIZE;
@@ -433,6 +454,24 @@ impl Sha512Accelerator {
             .copy_from_slice(&hash[SHA512_HASH_HALF_SIZE..]);
     }
 
+    fn finalize_stream_hash(&mut self) {
+        self.sha_stream.finalize(self.dlen.reg.get());
+
+        let mut hash = [0u8; SHA512_HASH_SIZE];
+        self.sha_stream.copy_hash(&mut hash);
+
+        // Place the hash in the DIGEST registers.
+        self.hash_lower
+            .data_mut()
+            .copy_from_slice(&hash[..SHA512_HASH_HALF_SIZE]);
+
+        self.hash_upper
+            .data_mut()
+            .copy_from_slice(&hash[SHA512_HASH_HALF_SIZE..]);
+
+        self.op_complete();
+    }
+
     /// Called by Bus::poll() to indicate that time has passed
     fn poll(&mut self) {
         if self.timer.fired(&mut self.op_complete_action) {
@@ -456,6 +495,7 @@ impl Sha512Accelerator {
     }
 
     /// Get the length of the hash
+    #[cfg(test)]
     pub fn hash_len(&self) -> usize {
         let mode = self.mode.reg.read(ShaMode::MODE);
         if mode == ShaMode::MODE::SHA512_ACC_MODE_MBOX_384.value
@@ -467,6 +507,7 @@ impl Sha512Accelerator {
         }
     }
 
+    #[cfg(test)]
     pub fn copy_hash(&self, hash_out: &mut [u8]) {
         let mut hash = [0u8; SHA512_HASH_SIZE];
 
@@ -478,6 +519,36 @@ impl Sha512Accelerator {
             .take(self.hash_len())
             .zip(hash_out)
             .for_each(|(src, dest)| *dest = src);
+    }
+}
+
+#[derive(Clone)]
+pub struct Sha512Accelerator {
+    regs: Rc<RefCell<Sha512AcceleratorRegs>>,
+}
+
+impl Sha512Accelerator {
+    /// Create a new instance of SHA-512 Accelerator
+    pub fn new(clock: &Clock, mailbox_ram: MailboxRam) -> Self {
+        Self {
+            regs: Rc::new(RefCell::new(Sha512AcceleratorRegs::new(clock, mailbox_ram))),
+        }
+    }
+}
+
+impl Bus for Sha512Accelerator {
+    /// Read data of specified size from given address
+    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+        self.regs.borrow_mut().read(size, addr)
+    }
+
+    /// Write data of specified size to given address
+    fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {
+        self.regs.borrow_mut().write(size, addr, val)
+    }
+
+    fn poll(&mut self) {
+        self.regs.borrow_mut().poll();
     }
 }
 
@@ -637,7 +708,7 @@ mod tests {
 
         // Read the hash.
         let mut hash: [u8; SHA512_HASH_SIZE] = [0; SHA512_HASH_SIZE];
-        sha_accl.copy_hash(&mut hash);
+        sha_accl.regs.borrow().copy_hash(&mut hash);
 
         // Release the lock.
         assert_eq!(sha_accl.write(RvSize::Word, OFFSET_LOCK, 1).ok(), Some(()));
@@ -745,20 +816,30 @@ mod tests {
     #[test]
     fn test_sm_lock() {
         let clock = Clock::new();
-        let mut sha_accl = Sha512Accelerator::new(&clock, MailboxRam::new());
-        assert_eq!(sha_accl.state_machine.context.locked, 0);
+        let sha_accl = Sha512Accelerator::new(&clock, MailboxRam::new());
+        assert_eq!(sha_accl.regs.borrow().state_machine.context.locked, 0);
 
         let _ = sha_accl
+            .regs
+            .borrow_mut()
             .state_machine
             .process_event(Events::RdLock(Owner(0)));
-        assert!(matches!(sha_accl.state_machine.state(), States::RdyForExc));
-        assert_eq!(sha_accl.state_machine.context.locked, 1);
+        assert!(matches!(
+            sha_accl.regs.borrow().state_machine.state(),
+            States::RdyForExc
+        ));
+        assert_eq!(sha_accl.regs.borrow().state_machine.context.locked, 1);
 
         let _ = sha_accl
+            .regs
+            .borrow_mut()
             .state_machine
             .process_event(Events::WrLock(Owner(0)));
-        assert!(matches!(sha_accl.state_machine.state(), States::Idle));
-        assert_eq!(sha_accl.state_machine.context.locked, 0);
+        assert!(matches!(
+            sha_accl.regs.borrow().state_machine.state(),
+            States::Idle
+        ));
+        assert_eq!(sha_accl.regs.borrow().state_machine.context.locked, 0);
     }
 
     #[test]

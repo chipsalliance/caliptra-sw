@@ -294,9 +294,8 @@ impl CaliptraRootBus {
 
     pub fn soc_to_caliptra_bus(&self) -> SocToCaliptraBus {
         SocToCaliptraBus {
-            // TODO: This should not be the same mailbox bus as the one used
-            // internaly
             mailbox: self.mailbox.as_external(),
+            sha512_acc: self.sha512_acc.clone(),
             soc_ifc: self.soc_reg.external_regs(),
         }
     }
@@ -306,6 +305,9 @@ impl CaliptraRootBus {
 pub struct SocToCaliptraBus {
     #[peripheral(offset = 0x3002_0000, mask = 0x0000_0fff)]
     mailbox: MailboxExternal,
+
+    #[peripheral(offset = 0x3002_1000, mask = 0x0000_0fff)]
+    sha512_acc: Sha512Accelerator,
 
     #[peripheral(offset = 0x3003_0000, mask = 0x0000_ffff)]
     soc_ifc: SocRegistersExternal,
