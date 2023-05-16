@@ -16,7 +16,6 @@ Abstract:
 
 mod array;
 mod array_concat;
-pub mod error;
 mod wait;
 
 mod csrng;
@@ -41,13 +40,9 @@ mod sha384acc;
 pub mod state;
 mod status_reporter;
 
-use core::num::NonZeroU32;
-
-pub type CaliptraError = NonZeroU32;
-pub type CaliptraResult<T> = Result<T, CaliptraError>;
-
 pub use array::{Array4x12, Array4x4, Array4x5, Array4x8, Array4xN};
 pub use array_concat::array_concat3;
+pub use caliptra_error::{caliptra_err_def, CaliptraComponent, CaliptraError, CaliptraResult};
 pub use csrng::{
     Csrng, HealthFailCounts as CsrngHealthFailCounts, Iter as CsrngIter, Seed as CsrngSeed,
 };
@@ -59,7 +54,6 @@ pub use ecc384::{
     Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Scalar, Ecc384Seed,
     Ecc384Signature,
 };
-pub use error::CaliptraComponent;
 pub use error_reporter::{
     report_fw_error_fatal, report_fw_error_non_fatal, report_hw_error_fatal,
     report_hw_error_non_fatal,

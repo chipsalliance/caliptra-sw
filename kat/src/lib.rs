@@ -15,7 +15,6 @@ Abstract:
 #![no_std]
 
 mod ecc384_kat;
-mod error;
 mod hmac384_kat;
 mod lms_kat;
 mod sha1_kat;
@@ -23,6 +22,7 @@ mod sha256_kat;
 mod sha384_kat;
 mod sha384acc_kat;
 
+pub use caliptra_drivers::{caliptra_err_def, CaliptraComponent, CaliptraError, CaliptraResult};
 pub use ecc384_kat::Ecc384Kat;
 pub use hmac384_kat::Hmac384Kat;
 pub use lms_kat::LmsKat;

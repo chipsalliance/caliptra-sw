@@ -20,7 +20,6 @@ use crate::cprintln;
 use crate::flow::cold_reset::{KEY_ID_CDI, KEY_ID_FE, KEY_ID_IDEVID_PRIV_KEY, KEY_ID_UDS};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
-use crate::rom_err_def;
 use caliptra_drivers::*;
 use caliptra_x509::*;
 
@@ -41,7 +40,7 @@ const IDEVID_CDI_KEY: Array4x12 = Array4x12::new([
 /// Maximum Certificate Signing Request Size
 const MAX_CSR_SIZE: usize = 512;
 
-rom_err_def! {
+caliptra_err_def! {
     InitDevId,
     InitDevIdErr
     {
