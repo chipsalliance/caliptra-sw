@@ -190,7 +190,7 @@ fn test_mailbox_soc_to_uc() {
     {
         assert_eq!(
             model.mailbox_execute(0x8000_0000, &[0x88, 0x99, 0xaa, 0xbb]),
-            Err(ModelError::MailboxCmdFailed)
+            Err(ModelError::MailboxCmdFailed(0))
         );
         assert_eq!(model.output().take(usize::MAX), "cmd: 0x80000000\n");
 

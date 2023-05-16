@@ -121,7 +121,7 @@ pub struct BootParams<'a> {
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ModelError {
-    MailboxCmdFailed,
+    MailboxCmdFailed(u32),
     UnableToLockMailbox,
     BufferTooLargeForMailbox,
     UploadFirmwareUnexpectedResponse,
@@ -136,7 +136,7 @@ impl Error for ModelError {}
 impl Display for ModelError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ModelError::MailboxCmdFailed => write!(f, "Mailbox command failed"),
+            ModelError::MailboxCmdFailed(err) => write!(f, "Mailbox command failed. fw_err={err}"),
             ModelError::UnableToLockMailbox => write!(f, "Unable to lock mailbox"),
             ModelError::BufferTooLargeForMailbox => write!(f, "Buffer too large for mailbox"),
             ModelError::UploadFirmwareUnexpectedResponse => {
@@ -480,7 +480,10 @@ pub trait HwModel {
         if status.cmd_failure() {
             writeln!(self.output().logger(), ">>> mbox cmd response: failed").unwrap();
             self.soc_mbox().execute().write(|w| w.execute(false));
-            return Err(ModelError::MailboxCmdFailed);
+            let soc_ifc = self.soc_ifc();
+            return Err(ModelError::MailboxCmdFailed(
+                soc_ifc.cptra_fw_error_non_fatal().read(),
+            ));
         }
         if status.cmd_complete() {
             writeln!(self.output().logger(), ">>> mbox cmd response: success").unwrap();
@@ -740,7 +743,7 @@ mod tests {
         // Send command that returns failure
         assert_eq!(
             model.mailbox_execute(0x4000_0000, &message),
-            Err(ModelError::MailboxCmdFailed)
+            Err(ModelError::MailboxCmdFailed(0))
         );
     }
 
