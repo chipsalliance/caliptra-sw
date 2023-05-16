@@ -96,13 +96,9 @@ fn test_invalid_manifest_marker() {
     image_bundle.manifest.marker = 0xDEADBEEF;
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(MANIFEST_MARKER_MISMATCH),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        MANIFEST_MARKER_MISMATCH
     );
 }
 
@@ -113,13 +109,9 @@ fn test_invalid_manifest_size() {
     image_bundle.manifest.size = (core::mem::size_of::<ImageManifest>() - 1) as u32;
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(MANIFEST_SIZE_MISMATCH),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        MANIFEST_SIZE_MISMATCH
     );
 }
 
@@ -134,13 +126,9 @@ fn test_preamble_zero_vendor_pubkey_digest() {
         helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(VENDOR_PUB_KEY_DIGEST_INVALID),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        VENDOR_PUB_KEY_DIGEST_INVALID
     );
 }
 
@@ -155,13 +143,9 @@ fn test_preamble_vendor_pubkey_digest_mismatch() {
     let (mut hw, image_bundle) =
         helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(VENDOR_PUB_KEY_DIGEST_MISMATCH),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        VENDOR_PUB_KEY_DIGEST_MISMATCH
     );
 }
 
@@ -176,13 +160,9 @@ fn test_preamble_owner_pubkey_digest_mismatch() {
         helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(OWNER_PUB_KEY_DIGEST_MISMATCH),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        OWNER_PUB_KEY_DIGEST_MISMATCH
     );
 }
 
@@ -232,13 +212,9 @@ fn test_preamble_vendor_pubkey_revocation() {
                 .unwrap();
         } else {
             assert_eq!(
-                ModelError::MailboxCmdFailed,
+                ModelError::MailboxCmdFailed(VENDOR_ECC_PUB_KEY_REVOKED),
                 hw.upload_firmware(&image_bundle.to_bytes().unwrap())
                     .unwrap_err()
-            );
-            assert_eq!(
-                hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-                VENDOR_ECC_PUB_KEY_REVOKED
             );
         }
     }
@@ -251,13 +227,9 @@ fn test_preamble_vendor_pubkey_out_of_bounds() {
     image_bundle.manifest.preamble.vendor_ecc_pub_key_idx = VENDOR_ECC_KEY_COUNT;
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS
     );
 }
 
@@ -275,14 +247,9 @@ fn test_header_verify_vendor_sig_zero_pubkey() {
         .fill(0);
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(VENDOR_PUB_KEY_DIGEST_INVALID_ARG),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        VENDOR_PUB_KEY_DIGEST_INVALID_ARG
     );
 
     let (mut hw, mut image_bundle) =
@@ -296,13 +263,9 @@ fn test_header_verify_vendor_sig_zero_pubkey() {
         .fill(0);
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(VENDOR_PUB_KEY_DIGEST_INVALID_ARG),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        VENDOR_PUB_KEY_DIGEST_INVALID_ARG
     );
 }
 
@@ -316,13 +279,9 @@ fn test_header_verify_vendor_sig_zero_signature() {
     image_bundle.manifest.preamble.vendor_sigs.ecc_sig.r.fill(0);
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(VENDOR_ECC_SIGNATURE_INVALID_ARG),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        VENDOR_ECC_SIGNATURE_INVALID_ARG
     );
 
     let (mut hw, mut image_bundle) =
@@ -333,13 +292,9 @@ fn test_header_verify_vendor_sig_zero_signature() {
     image_bundle.manifest.preamble.vendor_sigs.ecc_sig.s.fill(0);
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(VENDOR_ECC_SIGNATURE_INVALID_ARG),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        VENDOR_ECC_SIGNATURE_INVALID_ARG
     );
 }
 
@@ -361,13 +316,9 @@ fn test_header_verify_vendor_sig_mismatch() {
         .clone_from_slice(Array4x12::from(PUB_KEY_Y).0.as_slice());
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(VENDOR_ECC_SIGNATURE_INVALID),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        VENDOR_ECC_SIGNATURE_INVALID
     );
 
     let (mut hw, mut image_bundle) =
@@ -392,13 +343,9 @@ fn test_header_verify_vendor_sig_mismatch() {
         .clone_from_slice(Array4x12::from(SIGNATURE_S).0.as_slice());
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(VENDOR_ECC_SIGNATURE_INVALID),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        VENDOR_ECC_SIGNATURE_INVALID
     );
 }
 
@@ -413,13 +360,9 @@ fn test_header_verify_vendor_pub_key_in_preamble_and_header() {
     update_header(&mut image_bundle);
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(VENDOR_ECC_PUB_KEY_INDEX_MISMATCH),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        VENDOR_ECC_PUB_KEY_INDEX_MISMATCH
     );
 }
 
@@ -484,14 +427,9 @@ fn test_header_verify_owner_sig_zero_fuses_zero_pubkey_x() {
     .unwrap();
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(OWNER_PUB_KEY_DIGEST_INVALID_ARG),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        OWNER_PUB_KEY_DIGEST_INVALID_ARG
     );
 }
 
@@ -522,14 +460,9 @@ fn test_header_verify_owner_sig_corrupt_fuses() {
     .unwrap();
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(OWNER_PUB_KEY_DIGEST_MISMATCH),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        OWNER_PUB_KEY_DIGEST_MISMATCH
     );
 }
 
@@ -573,14 +506,9 @@ fn test_header_verify_owner_sig_zero_pubkey_x() {
     .unwrap();
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(OWNER_PUB_KEY_DIGEST_INVALID_ARG),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        OWNER_PUB_KEY_DIGEST_INVALID_ARG
     );
 }
 
@@ -624,14 +552,9 @@ fn test_header_verify_owner_sig_zero_pubkey_y() {
     .unwrap();
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(OWNER_PUB_KEY_DIGEST_INVALID_ARG),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        OWNER_PUB_KEY_DIGEST_INVALID_ARG
     );
 }
 
@@ -669,14 +592,9 @@ fn test_header_verify_owner_sig_zero_signature_r() {
     image_bundle.manifest.preamble.owner_sigs.ecc_sig.r.fill(0);
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(OWNER_ECC_SIGNATURE_INVALID_ARG),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        OWNER_ECC_SIGNATURE_INVALID_ARG
     );
 }
 
@@ -714,14 +632,9 @@ fn test_header_verify_owner_sig_zero_signature_s() {
     image_bundle.manifest.preamble.owner_sigs.ecc_sig.s.fill(0);
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(OWNER_ECC_SIGNATURE_INVALID_ARG),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        OWNER_ECC_SIGNATURE_INVALID_ARG
     );
 }
 
@@ -735,13 +648,9 @@ fn test_toc_invalid_entry_count() {
     update_header(&mut image_bundle);
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(TOC_ENTRY_COUNT_INVALID),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        TOC_ENTRY_COUNT_INVALID
     );
 }
 
@@ -755,13 +664,9 @@ fn test_toc_invalid_toc_digest() {
     update_header(&mut image_bundle);
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(TOC_DIGEST_MISMATCH),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        TOC_DIGEST_MISMATCH
     );
 }
 
@@ -784,12 +689,8 @@ fn test_toc_fmc_range_overlap() {
         runtime_new_size,
     );
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(FMC_RUNTIME_OVERLAP),
         hw.upload_firmware(&image).unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        FMC_RUNTIME_OVERLAP
     );
 
     // Case 2: FMC offset > Runtime offset
@@ -809,12 +710,8 @@ fn test_toc_fmc_range_overlap() {
     );
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(FMC_RUNTIME_OVERLAP),
         hw.upload_firmware(&image).unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        FMC_RUNTIME_OVERLAP
     );
 
     // // Case 3: FMC start offset < Runtime offset < FMC end offset
@@ -834,12 +731,8 @@ fn test_toc_fmc_range_overlap() {
     );
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(FMC_RUNTIME_OVERLAP),
         hw.upload_firmware(&image).unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        FMC_RUNTIME_OVERLAP
     );
 }
 
@@ -860,12 +753,8 @@ fn test_toc_fmc_range_incorrect_order() {
         runtime_new_size,
     );
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(FMC_RUNTIME_INCORRECT_ORDER),
         hw.upload_firmware(&image).unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        FMC_RUNTIME_INCORRECT_ORDER
     );
 }
 
@@ -878,13 +767,9 @@ fn test_fmc_digest_mismatch() {
     image_bundle.fmc[0..4].copy_from_slice(0xDEADBEEFu32.as_bytes());
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(FMC_DIGEST_MISMATCH),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        FMC_DIGEST_MISMATCH
     );
 }
 
@@ -895,12 +780,8 @@ fn test_fmc_invalid_load_addr_before_iccm() {
 
     let image = update_load_addr(&mut image_bundle, true, ICCM_START_ADDR - 4);
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(FMC_LOAD_ADDR_INVALID),
         hw.upload_firmware(&image).unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        FMC_LOAD_ADDR_INVALID
     );
 }
 
@@ -911,12 +792,8 @@ fn test_fmc_invalid_load_addr_after_iccm() {
 
     let image = update_load_addr(&mut image_bundle, true, ICCM_END_ADDR + 1);
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(FMC_LOAD_ADDR_INVALID),
         hw.upload_firmware(&image).unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        FMC_LOAD_ADDR_INVALID
     );
 }
 
@@ -927,12 +804,8 @@ fn test_fmc_load_addr_unaligned() {
     let load_addr = image_bundle.manifest.fmc.load_addr;
     let image = update_load_addr(&mut image_bundle, true, load_addr + 1);
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(FMC_LOAD_ADDR_UNALIGNED),
         hw.upload_firmware(&image).unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        FMC_LOAD_ADDR_UNALIGNED
     );
 }
 
@@ -943,12 +816,8 @@ fn test_fmc_invalid_entry_point_before_iccm() {
 
     let image = update_entry_point(&mut image_bundle, true, ICCM_START_ADDR - 4);
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(FMC_ENTRY_POINT_INVALID),
         hw.upload_firmware(&image).unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        FMC_ENTRY_POINT_INVALID
     );
 }
 
@@ -959,12 +828,8 @@ fn test_fmc_invalid_entry_point_after_iccm() {
 
     let image = update_entry_point(&mut image_bundle, true, ICCM_END_ADDR + 1);
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(FMC_ENTRY_POINT_INVALID),
         hw.upload_firmware(&image).unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        FMC_ENTRY_POINT_INVALID
     );
 }
 
@@ -976,12 +841,8 @@ fn test_fmc_entry_point_unaligned() {
 
     let image = update_entry_point(&mut image_bundle, true, entry_point + 1);
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(FMC_ENTRY_POINT_UNALIGNED),
         hw.upload_firmware(&image).unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        FMC_ENTRY_POINT_UNALIGNED
     );
 }
 
@@ -1008,13 +869,9 @@ fn test_fmc_svn_greater_than_32() {
 
     let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(FMC_SVN_GREATER_THAN_MAX_SUPPORTED),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        FMC_SVN_GREATER_THAN_MAX_SUPPORTED
     );
 }
 
@@ -1041,13 +898,9 @@ fn test_fmc_svn_less_than_min_svn() {
     };
     let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(FMC_SVN_LESS_THAN_MIN_SUPPORTED),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        FMC_SVN_LESS_THAN_MIN_SUPPORTED
     );
 }
 
@@ -1075,13 +928,9 @@ fn test_fmc_svn_less_than_fuse_svn() {
 
     let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(FMC_SVN_LESS_THAN_FUSE),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        FMC_SVN_LESS_THAN_FUSE
     );
 }
 
@@ -1093,13 +942,9 @@ fn test_runtime_digest_mismatch() {
     // Change the FMC image.
     image_bundle.runtime[0..4].copy_from_slice(0xDEADBEEFu32.as_bytes());
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(RUNTIME_DIGEST_MISMATCH),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        RUNTIME_DIGEST_MISMATCH
     );
 }
 
@@ -1110,12 +955,8 @@ fn test_runtime_invalid_load_addr_before_iccm() {
 
     let image = update_load_addr(&mut image_bundle, false, ICCM_START_ADDR - 4);
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(RUNTIME_LOAD_ADDR_INVALID),
         hw.upload_firmware(&image).unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        RUNTIME_LOAD_ADDR_INVALID
     );
 }
 
@@ -1126,12 +967,8 @@ fn test_runtime_invalid_load_addr_after_iccm() {
 
     let image = update_load_addr(&mut image_bundle, false, ICCM_END_ADDR + 1);
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(RUNTIME_LOAD_ADDR_INVALID),
         hw.upload_firmware(&image).unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        RUNTIME_LOAD_ADDR_INVALID
     );
 }
 
@@ -1142,12 +979,8 @@ fn test_runtime_load_addr_unaligned() {
     let load_addr = image_bundle.manifest.runtime.load_addr;
     let image = update_load_addr(&mut image_bundle, false, load_addr + 1);
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(RUNTIME_LOAD_ADDR_UNALIGNED),
         hw.upload_firmware(&image).unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        RUNTIME_LOAD_ADDR_UNALIGNED
     );
 }
 
@@ -1158,12 +991,8 @@ fn test_runtime_invalid_entry_point_before_iccm() {
 
     let image = update_entry_point(&mut image_bundle, false, ICCM_START_ADDR - 4);
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(RUNTIME_ENTRY_POINT_INVALID),
         hw.upload_firmware(&image).unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        RUNTIME_ENTRY_POINT_INVALID
     );
 }
 
@@ -1174,12 +1003,8 @@ fn test_runtime_invalid_entry_point_after_iccm() {
 
     let image = update_entry_point(&mut image_bundle, false, ICCM_END_ADDR + 1);
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(RUNTIME_ENTRY_POINT_INVALID),
         hw.upload_firmware(&image).unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        RUNTIME_ENTRY_POINT_INVALID
     );
 }
 
@@ -1190,12 +1015,8 @@ fn test_runtime_entry_point_unaligned() {
     let entry_point = image_bundle.manifest.runtime.entry_point;
     let image = update_entry_point(&mut image_bundle, false, entry_point + 1);
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(RUNTIME_ENTRY_POINT_UNALIGNED),
         hw.upload_firmware(&image).unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        RUNTIME_ENTRY_POINT_UNALIGNED
     );
 }
 
@@ -1221,13 +1042,9 @@ fn test_runtime_svn_greater_than_64() {
 
     let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED
     );
 }
 
@@ -1255,13 +1072,9 @@ fn test_runtime_svn_less_than_min_svn() {
     let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(RUNTIME_SVN_LESS_THAN_MIN_SUPPORTED),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
-    );
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        RUNTIME_SVN_LESS_THAN_MIN_SUPPORTED
     );
 }
 
@@ -1289,7 +1102,7 @@ fn test_runtime_svn_less_than_fuse_svn() {
 
     let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
     assert_eq!(
-        ModelError::MailboxCmdFailed,
+        ModelError::MailboxCmdFailed(RUNTIME_SVN_LESS_THAN_FUSE),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
