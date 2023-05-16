@@ -39,6 +39,12 @@ pub struct Sha512 {
 
     /// SHA 512 Mode
     mode: Sha512Mode,
+
+    /// Partial block to be processed
+    partial_block: Vec<u8>,
+
+    /// Number of full blocks processed to create hash
+    blocks_processed: usize,
 }
 
 impl Sha512 {
@@ -105,6 +111,8 @@ impl Sha512 {
         Self {
             hash: Self::hash_iv(mode),
             mode,
+            partial_block: vec![],
+            blocks_processed: 0,
         }
     }
 
@@ -118,14 +126,60 @@ impl Sha512 {
     ///
     /// # Arguments
     ///
-    /// * `block` - Block to compress
+    /// * `block` - Block to compress. Each word in `block` is expected to
+    ///   be little-endian
     pub fn update(&mut self, block: &[u8; Self::BLOCK_SIZE]) {
         let mut block = *Block::<U128>::from_slice(block);
+        block.to_big_endian();
 
-        // Block is received as a list of big-endian DWORDs.
-        // Changing them to little-endian.
-        block.to_little_endian();
         sha2::compress512(&mut self.hash, &[block]);
+        self.blocks_processed += 1;
+    }
+
+    /// Update the hash with an arbitrary number to bytes
+    ///
+    /// `bytes` is expected to be big-endian data
+    pub fn update_bytes(&mut self, bytes: &[u8]) {
+        self.partial_block.extend_from_slice(bytes);
+
+        while self.partial_block.len() >= Self::BLOCK_SIZE {
+            // Safe to unwrap becasue slice is guaranteed to be correct size
+            self.partial_block[..Self::BLOCK_SIZE].to_little_endian();
+            self.update(&self.partial_block[..Self::BLOCK_SIZE].try_into().unwrap());
+            self.partial_block.drain(..Self::BLOCK_SIZE);
+        }
+    }
+
+    /// Finalize the hash by adding padding
+    pub fn finalize(&mut self, dlen: u32) {
+        // Check if dlen is less than the amount of data streamed
+        // TODO: What to do if dlen is less than the blocks we've already processed?
+        let bytes_of_blocks = self.blocks_processed * Self::BLOCK_SIZE;
+        let partial = if (dlen as usize) < bytes_of_blocks + self.partial_block.len() {
+            (dlen as usize) - bytes_of_blocks
+        } else {
+            self.partial_block.len()
+        };
+
+        let msg_len = (self.blocks_processed * Self::BLOCK_SIZE) + partial;
+        self.partial_block.resize(partial, 0);
+
+        self.partial_block.push(0b1000_0000);
+        let zeros: usize = Self::BLOCK_SIZE - ((msg_len + 1 + 16) % 128);
+        self.partial_block.extend_from_slice(&vec![0u8; zeros]);
+
+        // Add bit length of hashed data
+        self.partial_block
+            .extend_from_slice(&((msg_len * 8) as u128).to_be_bytes());
+
+        // update function expects little endian words
+        self.partial_block.to_little_endian();
+
+        while self.partial_block.len() >= Self::BLOCK_SIZE {
+            // Safe to unwrap becasue slice is guaranteed to be correct size
+            self.update(&self.partial_block[..Self::BLOCK_SIZE].try_into().unwrap());
+            self.partial_block.drain(..Self::BLOCK_SIZE);
+        }
     }
 
     /// Retrieve the hash
@@ -141,7 +195,7 @@ impl Sha512 {
         hash_be
             .iter()
             .flat_map(|i| i.to_be_bytes())
-            .take(self.hash_len())
+            .take(std::cmp::min(hash.len(), Self::HASH_SIZE))
             .zip(hash)
             .for_each(|(src, dest)| *dest = src);
     }
