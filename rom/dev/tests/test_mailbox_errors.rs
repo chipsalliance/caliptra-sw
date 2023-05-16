@@ -16,7 +16,7 @@ fn test_unknown_command_is_not_fatal() {
     // This command does not exist
     assert_eq!(
         hw.mailbox_execute(0xabcd_1234, &[]),
-        Err(ModelError::MailboxCmdFailed)
+        Err(ModelError::MailboxCmdFailed(0))
     );
 
     // The ROM does not currently report an error for this
@@ -33,23 +33,17 @@ fn test_unknown_command_is_not_fatal() {
 fn test_mailbox_command_aborted_after_report_error() {
     let (mut hw, image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    assert_eq!(Err(ModelError::MailboxCmdFailed), hw.upload_firmware(&[]));
-
     assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        INVALID_IMAGE_SIZE
+        Err(ModelError::MailboxCmdFailed(INVALID_IMAGE_SIZE)),
+        hw.upload_firmware(&[])
     );
 
     // Make sure a new attempt to upload firmware is rejected (even though this
     // command would otherwise succeed)
-    assert_eq!(
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap()),
-        Err(ModelError::MailboxCmdFailed)
-    );
-
+    //
     // The original failure reason should still be in the register
     assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        INVALID_IMAGE_SIZE
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap()),
+        Err(ModelError::MailboxCmdFailed(INVALID_IMAGE_SIZE))
     );
 }

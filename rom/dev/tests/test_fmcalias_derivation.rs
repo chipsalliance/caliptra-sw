@@ -17,7 +17,7 @@ fn test_zero_firmware_size() {
     // Zero-sized firmware.
     assert_eq!(
         hw.upload_firmware(&[]).unwrap_err(),
-        ModelError::MailboxCmdFailed
+        ModelError::MailboxCmdFailed(0x01020003)
     );
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_non_fatal().read(),
