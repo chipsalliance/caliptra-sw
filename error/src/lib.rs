@@ -119,6 +119,9 @@ pub enum CaliptraComponent {
 
     /// SHA1 KAT
     Sha1Kat = 0x9006,
+
+    /// LMS KAT
+    LmsKat = 0x9007,
 }
 
 #[macro_export]

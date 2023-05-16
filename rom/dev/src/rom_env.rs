@@ -18,7 +18,7 @@ Abstract:
 use crate::env_cell::EnvCell;
 use caliptra_drivers::{
     DataVault, DeobfuscationEngine, DeviceState, Ecc384, FlowStatus, FuseBank, Hmac384, KeyVault,
-    Mailbox, MfgState, PcrBank, ResetService, Sha1, Sha256, Sha384, Sha384Acc,
+    Lms, Mailbox, MfgState, PcrBank, ResetService, Sha1, Sha256, Sha384, Sha384Acc,
 };
 use core::ops::Range;
 
@@ -50,6 +50,9 @@ pub struct RomEnv {
 
     /// Ecc384 Engine
     ecc384: EnvCell<Ecc384>,
+
+    /// LMS Engine
+    lms: EnvCell<Lms>,
 
     /// Key Vault
     key_vault: EnvCell<KeyVault>,
@@ -87,6 +90,7 @@ impl Default for RomEnv {
             sha384_acc: EnvCell::new(Sha384Acc::default()),
             hmac384: EnvCell::new(Hmac384::default()),
             ecc384: EnvCell::new(Ecc384::default()),
+            lms: EnvCell::new(Lms::default()),
             key_vault: EnvCell::new(KeyVault::default()),
             data_vault: EnvCell::new(DataVault::default()),
             dev_state: EnvCell::new(DeviceState::default()),
@@ -138,6 +142,11 @@ impl RomEnv {
     /// Get ECC-384 engine reference
     pub fn ecc384(&self) -> &EnvCell<Ecc384> {
         &self.ecc384
+    }
+
+    /// Get LMS engine reference
+    pub fn lms(&self) -> &EnvCell<Lms> {
+        &self.lms
     }
 
     /// Get Key Vault reference
