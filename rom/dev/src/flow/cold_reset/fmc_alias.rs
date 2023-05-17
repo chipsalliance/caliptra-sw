@@ -209,10 +209,9 @@ impl FmcAliasLayer {
 
         txn.copy_request(slice)?;
 
-        let result = ImageManifest::read_from(slice.as_bytes());
-        if let Some(..) = result {
+        if let Some(result) = ImageManifest::read_from(slice.as_bytes()) {
             report_boot_status(FmcAliasManifestLoadComplete.into());
-            Ok(result.unwrap())
+            Ok(result)
         } else {
             raise_err!(ManifestReadFailure)
         }
