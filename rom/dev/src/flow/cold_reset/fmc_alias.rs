@@ -165,7 +165,6 @@ impl FmcAliasLayer {
 
         cprint!("[afmc] Waiting for Image ");
         loop {
-            cprint!(".");
             if let Some(mut txn) = env.mbox().map(|m| m.try_start_recv_txn()) {
                 if txn.cmd() != Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID {
                     cprintln!("Invalid command 0x{:08x} received", txn.cmd());
