@@ -90,7 +90,7 @@ impl UpdateResetFlow {
 
         let verifier = ImageVerifier::new(venv);
 
-        let info = verifier.verify(manifest, (), ResetReason::UpdateReset)?;
+        let info = verifier.verify(manifest, ResetReason::UpdateReset)?;
 
         Ok(info)
     }
