@@ -37,6 +37,6 @@ int caliptra_bootfsm_go(struct caliptra_model *model);
 int caliptra_upload_fw(struct caliptra_model *model, struct caliptra_buffer *fw_buffer);
 
 // Execute Mailbox Command
-int mailbox_execute(struct caliptra_model *model, uint32_t cmd, struct caliptra_buffer *mbox_buffer);
+int caliptra_mailbox_execute(struct caliptra_model *model, uint32_t cmd, struct caliptra_buffer *mbox_tx_buffer, struct caliptra_buffer *mbox_rx_buffer);
 
 #endif // CALIPTRA_API_H

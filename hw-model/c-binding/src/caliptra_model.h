@@ -52,6 +52,9 @@ int caliptra_model_step(struct caliptra_model *model);
 // Returns true if caliptra is ready to receive fuses over the APB interface
 bool caliptra_model_ready_for_fuses(struct caliptra_model *model);
 
+// Returns true if caliptra is ready for fw
+bool caliptra_model_ready_for_fw(struct caliptra_model *model);
+
 // Returns true if the caliptra microcontroller has signalled that it wants to
 // exit (this only makes sense when running test cases on the microcontroller)
 bool caliptra_model_exit_requested(struct caliptra_model *model);

@@ -303,6 +303,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "caliptra-hw-model-c-binding"
+version = "0.1.0"
+dependencies = [
+ "caliptra-emu-bus",
+ "caliptra-emu-types",
+ "caliptra-hw-model",
+ "cc",
+]
+
+[[package]]
 name = "caliptra-hw-model-test-fw"
 version = "0.1.0"
 dependencies = [
