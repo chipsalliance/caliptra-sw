@@ -40,7 +40,7 @@ void main(void)
 {
     // Initialize Params
     struct caliptra_model_init_params init_params = {
-      .rom = read_file_or_die("fw_test/caliptra-rom.bin"),
+      .rom = read_file_or_die("out/caliptra-rom.bin"),
       .dccm = {.data = NULL, .len = 0},
       .iccm = {.data = NULL, .len = 0},
     };
@@ -63,7 +63,7 @@ void main(void)
     }
 
     // Load Image Bundle
-    struct caliptra_buffer image_bundle = read_file_or_die("fw_test/image-bundle.bin");
+    struct caliptra_buffer image_bundle = read_file_or_die("out/image-bundle.bin");
     caliptra_upload_fw(model, &image_bundle);
 
     // Run Until RT is ready to receive commands

@@ -13,25 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-SOURCE += api/caliptra_api.c
-SOURCE += smoke_test.c
+
 OUT = out
 TARGET = $(OUT)/smoke_test
-
 RTL_SOC_IFC_INCLUDE_PATH = ../../../hw-latest/caliptra-rtl/src/soc_ifc/rtl
 CALIPTRA_MODEL_PATH = ../src
+CFLAGS += -I$(RTL_SOC_IFC_INCLUDE_PATH) -I$(CALIPTRA_MODEL_PATH) -Lout/debug
 
-CFLAGS += -I$(RTL_SOC_IFC_INCLUDE_PATH) -I$(CALIPTRA_MODEL_PATH) -L$(HW_MODEL_C_LIB)
+SOURCE += api/caliptra_api.c
+SOURCE += smoke_test.c
 
-
+OBJS := $(patsubst %.c,%.o, $(filter %.c,$(SOURCE)))
 all: $(TARGET)
+$(OUT)/%.o: $(SOURCE)
+	$(MKDIR)
+	$(CC) ${CFLAGS} -c $< -o $@
 
-$(TARGET):
-ifndef HW_MODEL_C_LIB
-	$(error HW_MODEL_C_LIB must be pointing to "libcaliptra_hw_model_c_binding.a")
-endif
-
-	@ mkdir -p $(OUT)
-	$(CC) -o $(TARGET) $(CFLAGS) $(SOURCE) -lcaliptra_hw_model_c_binding -lpthread -ldl
+$(TARGET): $(OBJS)
+	cargo build --target-dir out/
+	cargo run --bin image
+	$(CC) -o $(TARGET) $(OBJS) $(CFLAGS) -Wl,-lcaliptra_hw_model_c_binding -lpthread -lstdc++ -ldl -lm
 clean:
 	$(RM) -rf $(OUT)

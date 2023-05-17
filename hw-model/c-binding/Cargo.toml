@@ -9,9 +9,14 @@ edition = "2021"
 caliptra-hw-model = { path = "../" }
 caliptra-emu-types = { path = "../../sw-emulator/lib/types" }
 caliptra-emu-bus = { path = "../../sw-emulator/lib/bus" }
+caliptra-builder = { path = "../../builder" }
 
 [lib]
 crate-type = ["staticlib"]
 
-[build-dependencies]
-cc = "1.0"
+[features]
+verilator = ["caliptra-hw-model/verilator"]
+
+[[bin]]
+name = "image"
+path = "bin/image_gen.rs"
