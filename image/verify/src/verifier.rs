@@ -69,6 +69,7 @@ caliptra_err_def! {
         RuntimeSvnGreaterThanMaxSupported = 44,
         RuntimeSvnLessThanMinSupported = 45,
         RuntimeSvnLessThanFuse = 46,
+        ImageLenMoreThanBundleSize = 47,
     }
 }
 
@@ -122,6 +123,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     pub fn verify(
         &self,
         manifest: &ImageManifest,
+        img_bundle_sz: u32,
         reason: ResetReason,
     ) -> CaliptraResult<ImageVerificationInfo> {
         // Check if manifest has required marker
@@ -145,7 +147,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let toc_info = okref(&toc_info)?;
 
         // Verify TOC
-        let image_info = self.verify_toc(manifest, toc_info);
+        let image_info = self.verify_toc(manifest, toc_info, img_bundle_sz);
         let image_info = okref(&image_info)?;
 
         // Verify FMC
@@ -395,6 +397,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         &self,
         manifest: &'a ImageManifest,
         verify_info: &TocInfo,
+        img_bundle_sz: u32,
     ) -> CaliptraResult<ImageInfo<'a>> {
         if verify_info.len != MAX_TOC_ENTRY_COUNT {
             raise_err!(TocEntryCountInvalid)
@@ -411,8 +414,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             raise_err!(TocDigestMismatch)
         }
 
-        // TODO: Perform Following offset length length checks
-        // 1. Image length donot exceeed the Image Bundle size
+        // Image length donot exceeed the Image Bundle size
+        let img_len: u64 = manifest.size as u64
+            + manifest.fmc.image_size() as u64
+            + manifest.runtime.image_size() as u64;
+
+        if img_len > img_bundle_sz.into() {
+            raise_err!(ImageLenMoreThanBundleSize)
+        }
 
         // Check if fmc and runtime section overlap.
         let fmc_range = manifest.fmc.image_range();
@@ -723,7 +732,7 @@ mod tests {
     fn test_manifest_marker() {
         let manifest = ImageManifest::default();
         let verifier = ImageVerifier::new(TestEnv::default());
-        let result = verifier.verify(&manifest, ResetReason::ColdReset);
+        let result = verifier.verify(&manifest, manifest.size, ResetReason::ColdReset);
         assert!(result.is_err());
         assert_eq!(result.err(), Some(err_u32!(ManifestMarkerMismatch)));
     }
@@ -732,10 +741,11 @@ mod tests {
     fn test_manifest_size() {
         let manifest = ImageManifest {
             marker: MANIFEST_MARKER,
+            size: 100,
             ..Default::default()
         };
         let verifier = ImageVerifier::new(TestEnv::default());
-        let result = verifier.verify(&manifest, ResetReason::ColdReset);
+        let result = verifier.verify(&manifest, manifest.size, ResetReason::ColdReset);
         assert!(result.is_err());
         assert_eq!(result.err(), Some(err_u32!(ManifestSizeMismatch)));
     }
@@ -930,7 +940,7 @@ mod tests {
             len: MAX_TOC_ENTRY_COUNT / 2,
             digest: &ImageDigest::default(),
         };
-        let result = verifier.verify_toc(&manifest, &toc_info);
+        let result = verifier.verify_toc(&manifest, &toc_info, manifest.size);
         assert_eq!(result.err(), Some(err_u32!(TocEntryCountInvalid)));
     }
 
@@ -943,7 +953,7 @@ mod tests {
             len: MAX_TOC_ENTRY_COUNT,
             digest: &DUMMY_DATA,
         };
-        let result = verifier.verify_toc(&manifest, &toc_info);
+        let result = verifier.verify_toc(&manifest, &toc_info, manifest.size);
         assert_eq!(result.err(), Some(err_u32!(TocDigestMismatch)));
     }
 
@@ -964,7 +974,11 @@ mod tests {
         manifest.fmc.size = 100;
         manifest.runtime.offset = 0;
         manifest.runtime.size = 100;
-        let result = verifier.verify_toc(&manifest, &toc_info);
+        let result = verifier.verify_toc(
+            &manifest,
+            &toc_info,
+            manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
+        );
         assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
 
         // Case 1:
@@ -974,7 +988,11 @@ mod tests {
         manifest.fmc.size = 100;
         manifest.runtime.offset = 99;
         manifest.runtime.size = 200;
-        let result = verifier.verify_toc(&manifest, &toc_info);
+        let result = verifier.verify_toc(
+            &manifest,
+            &toc_info,
+            manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
+        );
         assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
 
         // Case 2:
@@ -984,7 +1002,11 @@ mod tests {
         manifest.fmc.size = 100;
         manifest.runtime.offset = 5;
         manifest.runtime.size = 100;
-        let result = verifier.verify_toc(&manifest, &toc_info);
+        let result = verifier.verify_toc(
+            &manifest,
+            &toc_info,
+            manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
+        );
         assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
 
         // Case 3:
@@ -994,7 +1016,11 @@ mod tests {
         manifest.fmc.size = 100;
         manifest.runtime.offset = 0;
         manifest.runtime.size = 100;
-        let result = verifier.verify_toc(&manifest, &toc_info);
+        let result = verifier.verify_toc(
+            &manifest,
+            &toc_info,
+            manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
+        );
         assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
 
         // Case 4:
@@ -1004,7 +1030,11 @@ mod tests {
         manifest.runtime.size = 100;
         manifest.fmc.offset = 99;
         manifest.fmc.size = 200;
-        let result = verifier.verify_toc(&manifest, &toc_info);
+        let result = verifier.verify_toc(
+            &manifest,
+            &toc_info,
+            manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
+        );
         assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
 
         // Case 5:
@@ -1014,7 +1044,11 @@ mod tests {
         manifest.fmc.size = 500;
         manifest.runtime.offset = 150;
         manifest.runtime.size = 200;
-        let result = verifier.verify_toc(&manifest, &toc_info);
+        let result = verifier.verify_toc(
+            &manifest,
+            &toc_info,
+            manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
+        );
         assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
 
         // Case 6:
@@ -1024,8 +1058,57 @@ mod tests {
         manifest.runtime.size = 200;
         manifest.fmc.offset = 20;
         manifest.fmc.size = 30;
-        let result = verifier.verify_toc(&manifest, &toc_info);
+        let result = verifier.verify_toc(
+            &manifest,
+            &toc_info,
+            manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
+        );
         assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
+    }
+
+    #[test]
+    fn test_size_failure() {
+        let mut manifest = ImageManifest::default();
+        let test_env = TestEnv::default();
+        let verifier = ImageVerifier::new(test_env);
+        let toc_info = TocInfo {
+            len: MAX_TOC_ENTRY_COUNT,
+            digest: &ImageDigest::default(),
+        };
+
+        // [-FMC--]
+        // [--RT--]
+        manifest.fmc.offset = 0;
+        manifest.fmc.size = 100;
+        manifest.runtime.offset = 100;
+        manifest.runtime.size = 200;
+        let result = verifier.verify_toc(&manifest, &toc_info, 100);
+        assert_eq!(result.err(), Some(err_u32!(ImageLenMoreThanBundleSize)));
+    }
+
+    #[test]
+    fn test_size_success() {
+        let mut manifest = ImageManifest::default();
+        let test_env = TestEnv::default();
+        let verifier = ImageVerifier::new(test_env);
+        let toc_info = TocInfo {
+            len: MAX_TOC_ENTRY_COUNT,
+            digest: &ImageDigest::default(),
+        };
+
+        // [-FMC--]
+        // [--RT--]
+        manifest.fmc.offset = 0;
+        manifest.fmc.size = 100;
+        manifest.runtime.offset = 100;
+        manifest.runtime.size = 200;
+        let result = verifier.verify_toc(
+            &manifest,
+            &toc_info,
+            manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
+        );
+
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -1038,13 +1121,17 @@ mod tests {
             digest: &ImageDigest::default(),
         };
 
-        //          [-FMC--]
+        // [-FMC--]
         // [--RT--]
         manifest.runtime.offset = 0;
         manifest.runtime.size = 100;
         manifest.fmc.offset = 100;
         manifest.fmc.size = 200;
-        let result = verifier.verify_toc(&manifest, &toc_info);
+        let result = verifier.verify_toc(
+            &manifest,
+            &toc_info,
+            manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
+        );
         assert_eq!(result.err(), Some(err_u32!(FmcRuntimeIncorrectOrder)));
     }
 
