@@ -21,6 +21,7 @@ use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::flow::cold_reset::{KEY_ID_CDI, KEY_ID_FE, KEY_ID_LDEVID_PRIV_KEY};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
+use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
 use caliptra_error::caliptra_err_def;
 use caliptra_x509::*;
@@ -72,7 +73,10 @@ impl DiceLayer for LocalDevIdLayer {
         // This information will be used by the next DICE Layer while generating
         // certificates
         let subj_sn = X509::subj_sn(env, &key_pair.pub_key)?;
+        report_boot_status(LDevIdSubjIdSnGenerationComplete.into());
+
         let subj_key_id = X509::subj_key_id(env, &key_pair.pub_key)?;
+        report_boot_status(LDevIdSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
         let output = DiceOutput {
@@ -85,6 +89,7 @@ impl DiceLayer for LocalDevIdLayer {
         Self::generate_cert_sig(env, input, &output)?;
 
         cprintln!("[ldev] --");
+        report_boot_status(LDevIdDerivationComplete.into());
 
         Ok(output)
     }
@@ -106,6 +111,7 @@ impl LocalDevIdLayer {
 
         cprintln!("[ldev] Erasing FE.KEYID = {}", fe as u8);
         env.key_vault().map(|k| k.erase_key(fe))?;
+        report_boot_status(LDevIdCdiDerivationComplete.into());
         Ok(())
     }
 
@@ -121,7 +127,11 @@ impl LocalDevIdLayer {
     ///
     /// * `Ecc384KeyPair` - Derive DICE Layer Key Pair
     fn derive_key_pair(env: &RomEnv, cdi: KeyId, priv_key: KeyId) -> CaliptraResult<Ecc384KeyPair> {
-        Crypto::ecc384_key_gen(env, cdi, priv_key)
+        let result = Crypto::ecc384_key_gen(env, cdi, priv_key);
+        if result.is_ok() {
+            report_boot_status(LDevIdKeyPairDerivationComplete.into());
+        }
+        result
     }
 
     /// Generate Local Device ID Certificate Signature
@@ -198,6 +208,7 @@ impl LocalDevIdLayer {
         //  Copy TBS to DCCM.
         copy_tbs(tbs.tbs(), TbsType::LdevidTbs)?;
 
+        report_boot_status(LDevIdCertSigGenerationComplete.into());
         Ok(())
     }
 }
