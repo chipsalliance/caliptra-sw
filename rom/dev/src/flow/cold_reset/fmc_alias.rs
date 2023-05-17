@@ -71,7 +71,7 @@ impl DiceLayer for FmcAliasLayer {
         let manifest = okref(&manifest)?;
 
         // Verify the image
-        let info = Self::verify_image(env, manifest);
+        let info = Self::verify_image(env, manifest, txn.dlen());
         let info = okref(&info)?;
 
         // populate data vault
@@ -212,10 +212,11 @@ impl FmcAliasLayer {
     fn verify_image(
         env: &RomEnv,
         manifest: &ImageManifest,
+        img_bundle_sz: u32,
     ) -> CaliptraResult<ImageVerificationInfo> {
         let venv = RomImageVerificationEnv::new(env);
         let verifier = ImageVerifier::new(venv);
-        let info = verifier.verify(manifest, ResetReason::ColdReset)?;
+        let info = verifier.verify(manifest, img_bundle_sz, ResetReason::ColdReset)?;
 
         cprintln!(
             "[afmc] Image verified using Vendor ECC Key Index {}",
