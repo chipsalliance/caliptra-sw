@@ -324,7 +324,6 @@ fn test_negative_lms() {
 }
 
 #[test]
-#[cfg(feature = "verilator")]
 fn test_csrng() {
     // https://github.com/chipsalliance/caliptra-rtl/blob/fa91d66f30223899403f4e65a6f697a6f9100fd1/src/csrng/tb/csrng_tb.sv#L461
     const TRNG_ENTROPY: &str = "33F63B65F57AD68765693560E743CC5010518E4BF4ECBEBA71DC56AAA08B394311731D9DF763FC5D27E4ED3E4B7DE947";
