@@ -18,6 +18,7 @@ const FMCALIAS_BOOT_STATUS_BASE: u32 = 129;
 
 /// Statuses used by ROM to log dice derivation progress.
 #[repr(u32)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RomBootStatus {
     // Idevid Statuses
     IDevIdDecryptUdsComplete = IDEVID_BOOT_STATUS_BASE,
