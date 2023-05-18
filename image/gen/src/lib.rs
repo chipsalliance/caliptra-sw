@@ -60,7 +60,6 @@ pub trait ImageGeneratorCrypto {
         &self,
         digest: &ImageDigest,
         priv_key: &ImageLmsPrivKey,
-        pub_key: &ImageLmsPublicKey,
     ) -> anyhow::Result<ImageLmsSignature>;
 }
 

@@ -15,10 +15,8 @@ Abstract:
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Context};
-use caliptra_drivers::{
-    get_lmots_parameters, get_lms_parameters, lms_coefficient, LmotsAlgorithmType,
-    LmsAlgorithmType, LmsIdentifier, D_INTR, D_LEAF, D_MESG, D_PBLC, SHA192_DIGEST_BYTE_SIZE,
-};
+use caliptra_drivers::{LmotsAlgorithmType,
+    Lms, LmsAlgorithmType, LmsIdentifier, D_INTR, D_LEAF, D_MESG, D_PBLC};
 use caliptra_image_gen::ImageGeneratorCrypto;
 use caliptra_image_types::*;
 use openssl::bn::{BigNum, BigNumContext};
@@ -27,7 +25,6 @@ use openssl::ecdsa::EcdsaSig;
 use openssl::nid::Nid;
 use openssl::rand::rand_bytes;
 use openssl::sha::{Sha256, Sha384};
-use zerocopy::AsBytes;
 
 #[derive(Default)]
 pub struct OsslCrypto {}
@@ -79,7 +76,6 @@ impl ImageGeneratorCrypto for OsslCrypto {
         &self,
         digest: &ImageDigest,
         priv_key: &ImageLmsPrivKey,
-        pub_key: &ImageLmsPublicKey,
     ) -> anyhow::Result<ImageLmsSignature> {
         let message: [u8; ECC384_SCALAR_BYTE_SIZE] = from_hw_format(digest);
         let mut nonce = [0u8; SHA192_DIGEST_BYTE_SIZE];
@@ -242,7 +238,7 @@ fn generate_lms_pubkey_helper(
     let mut pub_key_stack = vec![0u8; SHA192_DIGEST_BYTE_SIZE * (tree_height as usize)];
     let mut stack_idx: usize = 0;
     let max_idx: u32 = 1 << tree_height;
-    let alg_params = get_lmots_parameters(&ots_alg).unwrap();
+    let alg_params = Lms::default().get_lmots_parameters(&ots_alg).unwrap();
     let p: usize = alg_params.p as usize;
     for i in 0..max_idx {
         generate_lmots_pubkey_helper(id, i, p, alg_params.w, seed, &mut k[..]);
@@ -318,9 +314,8 @@ fn generate_ots_signature_helper(
     seed: &[u8],
     rand: &[u8],
     q: u32,
-    otstype: u32,
 ) -> ImageLmOTSSignature {
-    let alg_params = get_lmots_parameters(&ots_alg).unwrap();
+    let alg_params = Lms::default().get_lmots_parameters(&ots_alg).unwrap();
     let mut sig: ImageLmOTSSignature = Default::default();
     sig.random.clone_from_slice(rand);
     let mut hasher = Sha256::new();
@@ -338,7 +333,7 @@ fn generate_ots_signature_helper(
     let alg_p: usize = alg_params.p.into();
     let alg_chksum_max: u16 = (1 << alg_params.w) - 1;
     for i in 0..data_coeff {
-        checksum += alg_chksum_max - (lms_coefficient(&q_arr, i, width) as u16);
+        checksum += alg_chksum_max - (Lms::default().coefficient(&q_arr, i, width).unwrap() as u16);
     }
 
     let checksum_str: [u8; 2] = checksum.to_be_bytes();
@@ -349,9 +344,9 @@ fn generate_ots_signature_helper(
     for i in 0..alg_p {
         let a: u8;
         if i < data_coeff {
-            a = lms_coefficient(&q_arr, i, width);
+            a = Lms::default().coefficient(&q_arr, i, width).unwrap();
         } else {
-            a = lms_coefficient(&checksum_str, i - data_coeff, width);
+            a = Lms::default().coefficient(&checksum_str, i - data_coeff, width).unwrap();
         }
 
         let offset: usize = i * SHA192_DIGEST_BYTE_SIZE;
@@ -400,7 +395,7 @@ fn sign_with_lms_key(
     ots_alg_type: LmotsAlgorithmType,
     q: u32,
 ) -> anyhow::Result<ImageLmsSignature> {
-    let Ok((_, height)) = get_lms_parameters(&lms_alg_type) else {
+    let Ok((_, height)) = Lms::default().get_lms_parameters(&lms_alg_type) else {
          return Err(anyhow!("Error parsing lms parameters"));
     };
     if q >= (1 << height) {
@@ -412,7 +407,7 @@ fn sign_with_lms_key(
         &priv_key.id,
         &priv_key.seed,
         nonce,
-
+        q
     );
     let mut sig = Some(ImageLmsSignature::default());
     sig.as_mut().map(|x| x.q = q);
@@ -436,15 +431,15 @@ fn test_print_lms_private_pub_key() {
     priv_key.tree_type = LmsAlgorithmType::LmsSha256N24H15 as u32;
     priv_key.otstype = LmotsAlgorithmType::LmotsSha256N24W4 as u32;
     for i in 0..4 {
-        rand_bytes(&mut priv_key.id);
-        rand_bytes(&mut priv_key.seed);
+        rand_bytes(&mut priv_key.id).unwrap();
+        rand_bytes(&mut priv_key.seed).unwrap();
         let pub_key = generate_lms_pubkey(&priv_key);
         println!("pub const VENDOR_LMS_KEY{i}_PRIVATE: ImageLmsPrivKey = {priv_key:#04x?};");
         println!("pub const VENDOR_LMS_KEY{i}_PUBLIC: ImageLmsPublicKey = {pub_key:#04x?};");
     }
     for i in 0..1 {
-        rand_bytes(&mut priv_key.id);
-        rand_bytes(&mut priv_key.seed);
+        rand_bytes(&mut priv_key.id).unwrap();
+        rand_bytes(&mut priv_key.seed).unwrap();
         let pub_key = generate_lms_pubkey(&priv_key);
         println!("pub const OWNER_LMS_KEY{i}_PRIVATE: ImageLmsPrivKey = {priv_key:#04x?};");
         println!("pub const OWNER_LMS_KEY{i}_PUBLIC: ImageLmsPublicKey = {pub_key:#04x?};");
@@ -454,7 +449,8 @@ fn test_print_lms_private_pub_key() {
 #[test]
 fn test_lms() {
     let priv_key = ImageLmsPrivKey {
-
+        tree_type: LmsAlgorithmType::LmsSha256N24H5 as u32,
+        otstype: LmotsAlgorithmType::LmotsSha256N24W8 as u32,
         id: [
             0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d,
             0x2e, 0x2f,
@@ -465,7 +461,8 @@ fn test_lms() {
         ],
     };
     let expected_pub_key = ImageLmsPublicKey {
-
+        tree_type: LmsAlgorithmType::LmsSha256N24H5 as u32,
+        otstype: LmotsAlgorithmType::LmotsSha256N24W8 as u32,
         id: priv_key.id.clone(),
         digest: [
             0x2c, 0x57, 0x14, 0x50, 0xae, 0xd9, 0x9c, 0xfb, 0x4f, 0x4a, 0xc2, 0x85, 0xda, 0x14,
@@ -479,7 +476,8 @@ fn test_lms() {
 #[test]
 fn test_lms_sig() {
     let priv_key = ImageLmsPrivKey {
-
+        tree_type: LmsAlgorithmType::LmsSha256N24H5 as u32,
+        otstype: LmotsAlgorithmType::LmotsSha256N24W8 as u32,
         id: [
             0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d,
             0x2e, 0x2f,

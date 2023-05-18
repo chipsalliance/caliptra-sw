@@ -16,20 +16,21 @@ Abstract:
 
 use core::mem::size_of;
 use core::ops::Range;
+
+use caliptra_drivers::{LmsIdentifier};
 use memoffset::{offset_of, span_of};
 use zerocopy::{AsBytes, FromBytes};
-use caliptra_drivers::{LmsIdentifier};
 
 pub const MANIFEST_MARKER: u32 = 0x4E414D43;
 pub const VENDOR_ECC_KEY_COUNT: u32 = 4;
+pub const VENDOR_LMS_KEY_COUNT: u32 = 4;
 pub const MAX_TOC_ENTRY_COUNT: u32 = 2;
 pub const IMAGE_REVISION_BYTE_SIZE: usize = 20;
 pub const ECC384_SCALAR_WORD_SIZE: usize = 12;
 pub const ECC384_SCALAR_BYTE_SIZE: usize = 48;
+pub const SHA192_DIGEST_BYTE_SIZE: usize = 24;
 pub const SHA384_DIGEST_WORD_SIZE: usize = 12;
 pub const SHA384_DIGEST_BYTE_SIZE: usize = 48;
-pub const SHA192_DIGEST_WORD_SIZE: usize = 6;
-pub const SHA192_DIGEST_BYTE_SIZE: usize = 24;
 pub const IMAGE_LMS_OTS_P_PARAM: usize = 51;
 pub const IMAGE_LMS_KEY_HEIGHT: usize = 15;
 pub const IMAGE_BYTE_SIZE: usize = 128 * 1024;
@@ -39,8 +40,6 @@ pub type ImageScalar = [u32; ECC384_SCALAR_WORD_SIZE];
 pub type ImageDigest = [u32; SHA384_DIGEST_WORD_SIZE];
 pub type ImageRevision = [u8; IMAGE_REVISION_BYTE_SIZE];
 pub type ImageEccPrivKey = ImageScalar;
-
-pub type Sha192Hash = [u8; 24];
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq)]
@@ -61,7 +60,19 @@ pub struct ImageLmsPublicKey {
 
     pub id: LmsIdentifier,
 
-    pub digest: Sha192Hash
+    pub digest: [u8; SHA192_DIGEST_BYTE_SIZE],
+}
+
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq)]
+pub struct ImageLmsPrivKey {
+    pub tree_type: u32,
+
+    pub otstype: u32,
+
+    pub id: LmsIdentifier,
+
+    pub seed: [u8; SHA192_DIGEST_BYTE_SIZE],
 }
 
 #[repr(C)]
@@ -81,7 +92,7 @@ pub struct ImageLmOTSSignature {
 
     pub random: [u8; SHA192_DIGEST_BYTE_SIZE],
 
-    pub sig: [Sha192Hash; IMAGE_LMS_OTS_P_PARAM]
+    pub sig: [[u8; SHA192_DIGEST_BYTE_SIZE]; IMAGE_LMS_OTS_P_PARAM],
 }
 
 impl Default for ImageLmOTSSignature {
@@ -89,7 +100,7 @@ impl Default for ImageLmOTSSignature {
         Self {
             otstype: 0,
             random: [0; SHA192_DIGEST_BYTE_SIZE],
-            sig: [Sha192Hash::default(); IMAGE_LMS_OTS_P_PARAM]
+            sig: [[0; SHA192_DIGEST_BYTE_SIZE]; IMAGE_LMS_OTS_P_PARAM],
         }
     }
 }
@@ -103,7 +114,7 @@ pub struct ImageLmsSignature {
 
     pub tree_type: u32,
 
-    pub digest: [Sha192Hash; IMAGE_LMS_KEY_HEIGHT]
+    pub tree_path: [[u8; SHA192_DIGEST_BYTE_SIZE]; IMAGE_LMS_KEY_HEIGHT],
 }
 
 /// Caliptra Image Bundle
@@ -245,29 +256,28 @@ impl ImageManifest {
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
 pub struct ImageVendorPubKeys {
     pub ecc_pub_keys: [ImageEccPubKey; VENDOR_ECC_KEY_COUNT as usize],
-    // TODO: Add LMS Public Keys here
-    // TODO: Update vendor_pub_key_range to pick up the new LMS keys
+    pub lms_pub_keys: [ImageLmsPublicKey; VENDOR_LMS_KEY_COUNT as usize],
 }
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
 pub struct ImageVendorPrivKeys {
     pub ecc_priv_keys: [ImageEccPrivKey; VENDOR_ECC_KEY_COUNT as usize],
-    // TODO: Add LMS Private Keys here
+    pub lms_priv_keys: [ImageLmsPrivKey; VENDOR_LMS_KEY_COUNT as usize],
 }
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
 pub struct ImageOwnerPubKeys {
     pub ecc_pub_key: ImageEccPubKey,
-    // TODO: Add LMS Public Keys here
+    pub lms_pub_key: ImageLmsPublicKey,
 }
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug)]
 pub struct ImageOwnerPrivKeys {
     pub ecc_priv_key: ImageEccPrivKey,
-    // TODO: Add LMS Private Keys here
+    pub lms_priv_key: ImageLmsPrivKey,
 }
 
 #[repr(C)]
