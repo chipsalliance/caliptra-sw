@@ -66,7 +66,7 @@ pub use kv_access::{KeyReadArgs, KeyWriteArgs};
 pub use lms::{
     lookup_lmots_algorithm_type, lookup_lms_algorithm_type, HashValue, LmotsAlgorithmType,
     LmotsSignature, Lms, LmsAlgorithmType, LmsIdentifier, LmsSignature, Sha192Digest, Sha256Digest,
-    D_INTR, D_LEAF, D_MESG, D_PBLC
+    D_INTR, D_LEAF, D_MESG, D_PBLC,
 };
 pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
 pub use okref::okref;
