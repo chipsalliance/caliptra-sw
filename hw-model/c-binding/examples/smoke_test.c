@@ -36,7 +36,7 @@ static struct caliptra_buffer read_file_or_die(const char* path)
     return buffer;
 }
 
-void main(void)
+int main(void)
 {
     // Initialize Params
     struct caliptra_model_init_params init_params = {
@@ -74,6 +74,7 @@ void main(void)
             break;
     }
     printf("Caliptra C Smoke Test Passed \n");
+    return 0;
 }
 
 

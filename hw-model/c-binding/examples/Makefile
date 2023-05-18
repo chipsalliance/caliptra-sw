@@ -34,5 +34,10 @@ $(TARGET): $(OBJS)
 	cargo build --target-dir out/
 	cargo run --manifest-path=$(BUILDER_PATH)/Cargo.toml --bin image
 	$(CC) -o $(TARGET) $(OBJS) $(CFLAGS) -Wl,-lcaliptra_hw_model_c_binding -lpthread -lstdc++ -ldl -lm
+
 clean:
 	$(RM) -rf $(OUT)
+
+run: $(TARGET)
+	 $(TARGET)
+
