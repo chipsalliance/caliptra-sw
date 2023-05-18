@@ -56,7 +56,7 @@ impl Mailbox {
     /// Attempt to acquire the lock to start sending data.
     /// # Returns
     /// * `MailboxSendTxn` - Object representing a send operation
-    pub fn try_start_send_txn(&self) -> Option<MailboxSendTxn> {
+    pub fn try_start_send_txn(&mut self) -> Option<MailboxSendTxn> {
         let mbox = mbox::RegisterBlock::mbox_csr();
         if mbox.lock().read().lock() {
             None
@@ -68,7 +68,7 @@ impl Mailbox {
     /// Attempts to start receiving data by checking the status.
     /// # Returns
     /// * 'MailboxRecvTxn' - Object representing a receive operation
-    pub fn try_start_recv_txn(&self) -> Option<MailboxRecvTxn> {
+    pub fn try_start_recv_txn(&mut self) -> Option<MailboxRecvTxn> {
         let mbox = mbox::RegisterBlock::mbox_csr();
         match mbox.status().read().mbox_fsm_ps() {
             MboxFsmE::MboxExecuteUc => Some(MailboxRecvTxn::default()),
@@ -164,7 +164,7 @@ impl MailboxSendTxn {
         Ok(())
     }
 
-    fn enqueue(&self, buf: &[u8]) -> CaliptraResult<()> {
+    fn enqueue(&mut self, buf: &[u8]) -> CaliptraResult<()> {
         let remainder = buf.len() % size_of::<u32>();
         let n = buf.len() - remainder;
 
@@ -292,7 +292,7 @@ impl MailboxRecvTxn {
         mbox.dlen().read()
     }
 
-    fn dequeue(&self, buf: &mut [u32]) -> CaliptraResult<()> {
+    fn dequeue(&mut self, buf: &mut [u32]) -> CaliptraResult<()> {
         let mbox = mbox::RegisterBlock::mbox_csr();
         let dlen_bytes = mbox.dlen().read() as usize;
         let dlen_words = (dlen_bytes + 3) / 4;
@@ -313,7 +313,7 @@ impl MailboxRecvTxn {
     ///
     /// Status of Operation
     ///   
-    pub fn copy_request(&self, data: &mut [u32]) -> CaliptraResult<()> {
+    pub fn copy_request(&mut self, data: &mut [u32]) -> CaliptraResult<()> {
         if self.state != MailboxOpState::Execute {
             raise_err!(InvalidStateErr)
         }

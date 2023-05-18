@@ -206,7 +206,7 @@ impl PcrBank {
     /// * `sha`  - SHA2-384 Engine
     /// * `data` - Data to extend
     ///
-    pub fn extend_pcr(&self, id: PcrId, sha: &Sha384, data: &[u8]) -> CaliptraResult<()> {
+    pub fn extend_pcr(&self, id: PcrId, sha: &mut Sha384, data: &[u8]) -> CaliptraResult<()> {
         sha.pcr_extend(id, data)
     }
 }

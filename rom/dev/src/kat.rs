@@ -29,19 +29,19 @@ pub fn execute_kat(env: &mut RomEnv) -> CaliptraResult<()> {
     Sha1Kat::default().execute(&mut env.sha1)?;
 
     cprintln!("[kat] Executing SHA2-256 Engine KAT");
-    Sha256Kat::default().execute(&env.sha256)?;
+    Sha256Kat::default().execute(&mut env.sha256)?;
 
     cprintln!("[kat] Executing SHA2-384 Engine KAT");
-    Sha384Kat::default().execute(&env.sha384)?;
+    Sha384Kat::default().execute(&mut env.sha384)?;
 
     cprintln!("[kat] Executing SHA2-384 Accelerator KAT");
-    Sha384AccKat::default().execute(&env.sha384_acc)?;
+    Sha384AccKat::default().execute(&mut env.sha384_acc)?;
 
     cprintln!("[kat] Executing ECC-384 Engine KAT");
-    Ecc384Kat::default().execute(&env.ecc384)?;
+    Ecc384Kat::default().execute(&mut env.ecc384)?;
 
     cprintln!("[kat] Executing HMAC-384 Engine KAT");
-    Hmac384Kat::default().execute(&env.hmac384)?;
+    Hmac384Kat::default().execute(&mut env.hmac384)?;
 
     cprintln!("[kat] Executing LMS Engine KAT");
     LmsKat::default().execute(&env.lms)?;

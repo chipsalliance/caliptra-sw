@@ -17,7 +17,7 @@ pub fn panic(_info: &core::panic::PanicInfo) -> ! {
 }
 
 fn start_send_txn() -> MailboxSendTxn {
-    let mbox = Mailbox::default();
+    let mut mbox = Mailbox::default();
     loop {
         if let Some(txn) = mbox.try_start_send_txn() {
             return txn;

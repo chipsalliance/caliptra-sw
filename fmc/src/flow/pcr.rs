@@ -33,7 +33,7 @@ const JOURNEY_PCR: PcrId = PcrId::PcrId2;
 /// # Arguments
 ///
 /// * `env` - FMC Environment
-pub fn extend_current_pcr(env: &FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
+pub fn extend_current_pcr(env: &mut FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
     extend_pcr_common(env, hand_off, CURRENT_PCR)
 }
 
@@ -42,7 +42,7 @@ pub fn extend_current_pcr(env: &FmcEnv, hand_off: &HandOff) -> CaliptraResult<()
 /// # Arguments
 ///
 /// * `env` - FMC Environment
-pub fn extend_journey_pcr(env: &FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
+pub fn extend_journey_pcr(env: &mut FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
     extend_pcr_common(env, hand_off, JOURNEY_PCR)
 }
 
@@ -52,16 +52,16 @@ pub fn extend_journey_pcr(env: &FmcEnv, hand_off: &HandOff) -> CaliptraResult<()
 ///
 /// * `env` - FMC Environment
 /// * `pcr_id` - PCR slot to extend the data into
-fn extend_pcr_common(env: &FmcEnv, hand_off: &HandOff, pcr_id: PcrId) -> CaliptraResult<()> {
+fn extend_pcr_common(env: &mut FmcEnv, hand_off: &HandOff, pcr_id: PcrId) -> CaliptraResult<()> {
     // Extend RT TCI (Hash over runtime code)
     let data = hand_off.rt_tci(env);
     let bytes: [u8; 48] = (&data).into();
-    env.pcr_bank.extend_pcr(pcr_id, &env.sha384, &bytes)?;
+    env.pcr_bank.extend_pcr(pcr_id, &mut env.sha384, &bytes)?;
 
     // Extend RT SVN
     let data = hand_off.rt_svn(env);
     let bytes = &data.to_le_bytes();
-    env.pcr_bank.extend_pcr(pcr_id, &env.sha384, bytes)?;
+    env.pcr_bank.extend_pcr(pcr_id, &mut env.sha384, bytes)?;
 
     Ok(())
 }

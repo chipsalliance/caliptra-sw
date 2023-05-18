@@ -121,7 +121,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     ///
     /// * `ImageVerificationInfo` - Image verifiaction information success
     pub fn verify(
-        &self,
+        &mut self,
         manifest: &ImageManifest,
         img_bundle_sz: u32,
         reason: ResetReason,
@@ -169,7 +169,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
     /// Verify Preamble
     fn verify_preamble<'a>(
-        &self,
+        &mut self,
         preamble: &'a ImagePreamble,
         reason: ResetReason,
     ) -> CaliptraResult<HeaderInfo<'a>> {
@@ -217,7 +217,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
     /// Verify Vendor ECC Public Key Index
     fn verify_vendor_ecc_pk_idx(
-        &self,
+        &mut self,
         preamble: &ImagePreamble,
         reason: ResetReason,
     ) -> CaliptraResult<u32> {
@@ -251,7 +251,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     }
 
     /// Verify vendor public key digest
-    fn verify_vendor_pk_digest(&self) -> Result<(), NonZeroU32> {
+    fn verify_vendor_pk_digest(&mut self) -> Result<(), NonZeroU32> {
         // We skip vendor public key check in unprovisioned state
         if self.env.dev_lifecycle() == Lifecycle::Unprovisioned {
             return Ok(());
@@ -280,7 +280,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     }
 
     /// Verify owner public key digest
-    fn verify_owner_pk_digest(&self, reason: ResetReason) -> CaliptraResult<Option<ImageDigest>> {
+    fn verify_owner_pk_digest(
+        &mut self,
+        reason: ResetReason,
+    ) -> CaliptraResult<Option<ImageDigest>> {
         let range = ImageManifest::owner_pub_key_range();
 
         let actual = self
@@ -306,7 +309,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
     /// Verify Header
     fn verify_header<'a>(
-        &self,
+        &mut self,
         header: &'a ImageHeader,
         info: &HeaderInfo,
     ) -> CaliptraResult<TocInfo<'a>> {
@@ -342,7 +345,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
     /// Verify Owner Signature
     fn verify_owner_sig(
-        &self,
+        &mut self,
         digest: &ImageDigest,
         pub_key: &ImageEccPubKey,
         sig: &ImageEccSignature,
@@ -368,7 +371,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
     /// Verify Vendor Signature
     fn verify_vendor_sig(
-        &self,
+        &mut self,
         digest: &ImageDigest,
         pub_key: &ImageEccPubKey,
         sig: &ImageEccSignature,
@@ -394,7 +397,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
     /// Verify Table of Contents
     fn verify_toc<'a>(
-        &self,
+        &mut self,
         manifest: &'a ImageManifest,
         verify_info: &TocInfo,
         img_bundle_sz: u32,
@@ -448,14 +451,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     }
 
     // Check if SVN check is required
-    fn svn_check_required(&self) -> bool {
+    fn svn_check_required(&mut self) -> bool {
         // If device is unprovisioned or if anti-rollback is disabled, don't check the SVN.
         !(self.env.dev_lifecycle() == Lifecycle::Unprovisioned || self.env.anti_rollback_disable())
     }
 
     /// Verify FMC
     fn verify_fmc(
-        &self,
+        &mut self,
         verify_info: &ImageTocEntry,
         reason: ResetReason,
     ) -> CaliptraResult<ImageVerificationExeInfo> {
@@ -517,8 +520,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
     /// Verify Runtime
     fn verify_runtime(
-        &self,
-
+        &mut self,
         verify_info: &ImageTocEntry,
     ) -> CaliptraResult<ImageVerificationExeInfo> {
         let range = verify_info.image_range();
@@ -576,7 +578,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     /// Calculates a digest of the vendor key that signed the image.
     ///
     /// TODO: include the LMS key in the digest.
-    fn make_vendor_key_digest(&self, info: &HeaderInfo) -> CaliptraResult<ImageDigest> {
+    fn make_vendor_key_digest(&mut self, info: &HeaderInfo) -> CaliptraResult<ImageDigest> {
         let range = ImageManifest::vendor_pub_key_range(info.vendor_ecc_pub_key_idx);
 
         if range.is_empty() {
@@ -620,7 +622,7 @@ mod tests {
             verify_result: true,
             ..Default::default()
         };
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let preamble = ImagePreamble::default();
 
         let result = verifier.verify_vendor_ecc_pk_idx(&preamble, ResetReason::UpdateReset);
@@ -633,7 +635,7 @@ mod tests {
             verify_result: true,
             ..Default::default()
         };
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
 
         let preamble = ImagePreamble {
             vendor_ecc_pub_key_idx: 2,
@@ -657,7 +659,7 @@ mod tests {
             ..Default::default()
         };
 
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let preamble = ImagePreamble::default();
 
         let result = verifier.verify_preamble(&preamble, ResetReason::UpdateReset);
@@ -675,7 +677,7 @@ mod tests {
             ..Default::default()
         };
 
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
 
         let verify_info = ImageTocEntry {
             digest: DUMMY_DATA,
@@ -698,7 +700,7 @@ mod tests {
             ..Default::default()
         };
 
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let verify_info = ImageTocEntry {
             digest: DUMMY_DATA,
             load_addr: 0x40000000,
@@ -721,7 +723,7 @@ mod tests {
             ..Default::default()
         };
 
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let preamble = ImagePreamble::default();
 
         let result = verifier.verify_preamble(&preamble, ResetReason::UpdateReset);
@@ -731,7 +733,7 @@ mod tests {
     #[test]
     fn test_manifest_marker() {
         let manifest = ImageManifest::default();
-        let verifier = ImageVerifier::new(TestEnv::default());
+        let mut verifier = ImageVerifier::new(TestEnv::default());
         let result = verifier.verify(&manifest, manifest.size, ResetReason::ColdReset);
         assert!(result.is_err());
         assert_eq!(result.err(), Some(err_u32!(ManifestMarkerMismatch)));
@@ -744,7 +746,7 @@ mod tests {
             size: 100,
             ..Default::default()
         };
-        let verifier = ImageVerifier::new(TestEnv::default());
+        let mut verifier = ImageVerifier::new(TestEnv::default());
         let result = verifier.verify(&manifest, manifest.size, ResetReason::ColdReset);
         assert!(result.is_err());
         assert_eq!(result.err(), Some(err_u32!(ManifestSizeMismatch)));
@@ -757,7 +759,7 @@ mod tests {
             lifecycle: Lifecycle::Production,
             ..Default::default()
         };
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let result = verifier.verify_preamble(&preamble, ResetReason::ColdReset);
         assert!(result.is_err());
         assert_eq!(result.err(), Some(err_u32!(VendorPubKeyDigestInvalid)));
@@ -772,7 +774,7 @@ mod tests {
             digest: DUMMY_DATA,
             ..Default::default()
         };
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let preamble = ImagePreamble::default();
 
         let result = verifier.verify_preamble(&preamble, ResetReason::ColdReset);
@@ -787,7 +789,7 @@ mod tests {
             owner_pub_key_digest: DUMMY_DATA,
             ..Default::default()
         };
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let preamble = ImagePreamble::default();
         let result = verifier.verify_preamble(&preamble, ResetReason::ColdReset);
         assert_eq!(result.err(), Some(err_u32!(VendorPubKeyDigestMismatch)));
@@ -796,7 +798,7 @@ mod tests {
     #[test]
     fn test_header_vendor_pubkey_invalid_arg() {
         let test_env = TestEnv::default();
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let header = ImageHeader::default();
         let ecc_pubkey = ImageEccPubKey::default();
         let ecc_sig = ImageEccSignature::default();
@@ -813,7 +815,7 @@ mod tests {
     #[test]
     fn test_header_vendor_signature_invalid_arg() {
         let test_env = TestEnv::default();
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let header = ImageHeader::default();
         let owner_ecc_pubkey = ImageEccPubKey::default();
         let owner_ecc_sig = ImageEccSignature::default();
@@ -835,7 +837,7 @@ mod tests {
             owner_pub_key_digest: DUMMY_DATA,
             ..Default::default()
         };
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let header = ImageHeader::default();
         let owner_ecc_pubkey = ImageEccPubKey::default();
         let owner_ecc_sig = ImageEccSignature::default();
@@ -855,7 +857,7 @@ mod tests {
             verify_result: true,
             ..Default::default()
         };
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let header = ImageHeader::default();
         let owner_ecc_pubkey = ImageEccPubKey::default();
         let owner_ecc_sig = ImageEccSignature::default();
@@ -875,7 +877,7 @@ mod tests {
             verify_result: true,
             ..Default::default()
         };
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let header = ImageHeader::default();
         let owner_ecc_pubkey = ImageEccPubKey::default();
         let owner_ecc_sig = ImageEccSignature::default();
@@ -895,7 +897,7 @@ mod tests {
             verify_result: true,
             ..Default::default()
         };
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let header = ImageHeader::default();
         let owner_ecc_sig = ImageEccSignature::default();
         let header_info: HeaderInfo = HeaderInfo {
@@ -914,7 +916,7 @@ mod tests {
             verify_result: true,
             ..Default::default()
         };
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let header = ImageHeader {
             toc_len: 100,
             toc_digest: DUMMY_DATA,
@@ -935,7 +937,7 @@ mod tests {
     fn test_toc_incorrect_length() {
         let manifest = ImageManifest::default();
         let test_env = TestEnv::default();
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let toc_info = TocInfo {
             len: MAX_TOC_ENTRY_COUNT / 2,
             digest: &ImageDigest::default(),
@@ -948,7 +950,7 @@ mod tests {
     fn test_toc_digest_mismatch() {
         let manifest = ImageManifest::default();
         let test_env = TestEnv::default();
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let toc_info = TocInfo {
             len: MAX_TOC_ENTRY_COUNT,
             digest: &DUMMY_DATA,
@@ -961,7 +963,7 @@ mod tests {
     fn test_toc_fmc_rt_overlap() {
         let mut manifest = ImageManifest::default();
         let test_env = TestEnv::default();
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let toc_info = TocInfo {
             len: MAX_TOC_ENTRY_COUNT,
             digest: &ImageDigest::default(),
@@ -1070,7 +1072,7 @@ mod tests {
     fn test_size_failure() {
         let mut manifest = ImageManifest::default();
         let test_env = TestEnv::default();
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let toc_info = TocInfo {
             len: MAX_TOC_ENTRY_COUNT,
             digest: &ImageDigest::default(),
@@ -1090,7 +1092,7 @@ mod tests {
     fn test_size_success() {
         let mut manifest = ImageManifest::default();
         let test_env = TestEnv::default();
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let toc_info = TocInfo {
             len: MAX_TOC_ENTRY_COUNT,
             digest: &ImageDigest::default(),
@@ -1115,7 +1117,7 @@ mod tests {
     fn test_toc_fmc_rt_order() {
         let mut manifest = ImageManifest::default();
         let test_env = TestEnv::default();
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let toc_info = TocInfo {
             len: MAX_TOC_ENTRY_COUNT,
             digest: &ImageDigest::default(),
@@ -1138,7 +1140,7 @@ mod tests {
     #[test]
     fn test_fmc_digest_mismatch() {
         let test_env = TestEnv::default();
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let verify_info = ImageTocEntry {
             digest: DUMMY_DATA,
             ..Default::default()
@@ -1150,7 +1152,7 @@ mod tests {
     #[test]
     fn test_fmc_success() {
         let test_env = TestEnv::default();
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let verify_info = ImageTocEntry {
             load_addr: 0x40000000,
             entry_point: 0x40000000,
@@ -1171,7 +1173,7 @@ mod tests {
     #[test]
     fn test_rt_digest_mismatch() {
         let test_env = TestEnv::default();
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let verify_info = ImageTocEntry {
             digest: DUMMY_DATA,
             ..Default::default()
@@ -1183,7 +1185,7 @@ mod tests {
     #[test]
     fn test_rt_success() {
         let test_env = TestEnv::default();
-        let verifier = ImageVerifier::new(test_env);
+        let mut verifier = ImageVerifier::new(test_env);
         let verify_info = ImageTocEntry {
             load_addr: 0x40000000,
             entry_point: 0x40000000,
@@ -1225,12 +1227,12 @@ mod tests {
     }
 
     impl ImageVerificationEnv for TestEnv {
-        fn sha384_digest(&self, _offset: u32, _len: u32) -> CaliptraResult<ImageDigest> {
+        fn sha384_digest(&mut self, _offset: u32, _len: u32) -> CaliptraResult<ImageDigest> {
             Ok(self.digest)
         }
 
         fn ecc384_verify(
-            &self,
+            &mut self,
             _digest: &ImageDigest,
             _pub_key: &ImageEccPubKey,
             _sig: &ImageEccSignature,

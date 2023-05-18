@@ -23,7 +23,7 @@ Note:
 
 use crate::rom_env::RomEnv;
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
-use caliptra_drivers::{Array4x12, CaliptraResult, PcrId};
+use caliptra_drivers::{Array4x12, CaliptraResult, PcrBank, PcrId, Sha384};
 use caliptra_error::caliptra_err_def;
 use zerocopy::AsBytes;
 
@@ -39,6 +39,24 @@ caliptra_err_def! {
 extern "C" {
     static mut PCR_LOG_ORG: u8;
 }
+struct PcrExtender<'a> {
+    pcr_bank: &'a mut PcrBank,
+    sha384: &'a mut Sha384,
+}
+impl PcrExtender<'_> {
+    fn extend(&mut self, data: Array4x12, pcr_entry_id: PcrLogEntryId) -> CaliptraResult<()> {
+        let bytes: &[u8; 48] = &data.into();
+        self.pcr_bank
+            .extend_pcr(PcrId::PcrId0, self.sha384, bytes)?;
+        log_pcr(pcr_entry_id, PcrId::PcrId0, bytes)
+    }
+    fn extend_u8(&mut self, data: u8, pcr_entry_id: PcrLogEntryId) -> CaliptraResult<()> {
+        let bytes = &data.to_le_bytes();
+        self.pcr_bank
+            .extend_pcr(PcrId::PcrId0, self.sha384, bytes)?;
+        log_pcr(pcr_entry_id, PcrId::PcrId0, bytes)
+    }
+}
 
 /// Extend PCR0
 ///
@@ -46,49 +64,40 @@ extern "C" {
 ///
 /// * `env` - ROM Environment
 pub fn extend_pcr0(env: &mut RomEnv) -> CaliptraResult<()> {
-    let sha384 = &mut env.sha384;
-
     // Clear the PCR
     env.pcr_bank.erase_pcr(caliptra_drivers::PcrId::PcrId0)?;
 
     // Lock the PCR from clear
     env.pcr_bank.set_pcr_lock(caliptra_drivers::PcrId::PcrId0);
 
-    let extend = |data: Array4x12, pcr_entry_id: PcrLogEntryId| {
-        let bytes: &[u8; 48] = &data.into();
-        env.pcr_bank.extend_pcr(PcrId::PcrId0, sha384, bytes)?;
-        log_pcr(pcr_entry_id, PcrId::PcrId0, bytes)
+    let mut pcr = PcrExtender {
+        pcr_bank: &mut env.pcr_bank,
+        sha384: &mut env.sha384,
     };
 
-    let extend_u8 = |data: u8, pcr_entry_id: PcrLogEntryId| {
-        let bytes = &data.to_le_bytes();
-        env.pcr_bank.extend_pcr(PcrId::PcrId0, sha384, bytes)?;
-        log_pcr(pcr_entry_id, PcrId::PcrId0, bytes)
-    };
-
-    extend_u8(
+    pcr.extend_u8(
         env.soc_ifc.lifecycle() as u8,
         PcrLogEntryId::DeviceLifecycle,
     )?;
-    extend_u8(env.soc_ifc.debug_locked() as u8, PcrLogEntryId::DebugLocked)?;
-    extend_u8(
+    pcr.extend_u8(env.soc_ifc.debug_locked() as u8, PcrLogEntryId::DebugLocked)?;
+    pcr.extend_u8(
         env.soc_ifc.fuse_bank().anti_rollback_disable() as u8,
         PcrLogEntryId::AntiRollbackDisabled,
     )?;
-    extend(
+    pcr.extend(
         env.soc_ifc.fuse_bank().vendor_pub_key_hash(),
         PcrLogEntryId::VendorPubKeyHash,
     )?;
-    extend(
+    pcr.extend(
         env.data_vault.owner_pk_hash(),
         PcrLogEntryId::OwnerPubKeyHash,
     )?;
-    extend_u8(
+    pcr.extend_u8(
         env.data_vault.vendor_pk_index() as u8,
         PcrLogEntryId::VendorPubKeyIndex,
     )?;
-    extend(env.data_vault.fmc_tci(), PcrLogEntryId::FmcTci)?;
-    extend_u8(env.data_vault.fmc_svn() as u8, PcrLogEntryId::FmcSvn)?;
+    pcr.extend(env.data_vault.fmc_tci(), PcrLogEntryId::FmcTci)?;
+    pcr.extend_u8(env.data_vault.fmc_svn() as u8, PcrLogEntryId::FmcSvn)?;
 
     // TODO: Check PCR0 != 0
     Ok(())

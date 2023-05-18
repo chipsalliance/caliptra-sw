@@ -71,7 +71,7 @@ fn test_op0() {
         0xB8, 0x55,
     ];
     let mut digest = Array4x8::default();
-    let sha = Sha256::default();
+    let mut sha = Sha256::default();
     let mut digest_op = sha.digest_init(&mut digest).unwrap();
     let actual = digest_op.finalize();
     assert!(actual.is_ok());
@@ -86,7 +86,7 @@ fn test_op1() {
     ];
     let data = [];
     let mut digest = Array4x8::default();
-    let sha = Sha256::default();
+    let mut sha = Sha256::default();
     let mut digest_op = sha.digest_init(&mut digest).unwrap();
     assert!(digest_op.update(&data).is_ok());
     let actual = digest_op.finalize();
@@ -102,7 +102,7 @@ fn test_op2() {
     ];
     let data = "abc".as_bytes();
     let mut digest = Array4x8::default();
-    let sha = Sha256::default();
+    let mut sha = Sha256::default();
     let mut digest_op = sha.digest_init(&mut digest).unwrap();
     assert!(digest_op.update(data).is_ok());
     let actual = digest_op.finalize();
@@ -118,7 +118,7 @@ fn test_op3() {
     ];
     let data = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".as_bytes();
     let mut digest = Array4x8::default();
-    let sha = Sha256::default();
+    let mut sha = Sha256::default();
     let mut digest_op = sha.digest_init(&mut digest).unwrap();
     assert!(digest_op.update(data).is_ok());
     let actual = digest_op.finalize();
@@ -134,7 +134,7 @@ fn test_op4() {
     ];
     let data = "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu".as_bytes();
     let mut digest = Array4x8::default();
-    let sha = Sha256::default();
+    let mut sha = Sha256::default();
     let mut digest_op = sha.digest_init(&mut digest).unwrap();
     assert!(digest_op.update(data).is_ok());
     let actual = digest_op.finalize();
@@ -150,7 +150,7 @@ fn test_op5() {
     ];
     const DATA: [u8; 1000] = [0x61; 1000];
     let mut digest = Array4x8::default();
-    let sha = Sha256::default();
+    let mut sha = Sha256::default();
     let mut digest_op = sha.digest_init(&mut digest).unwrap();
     for _ in 0..1_000 {
         assert!(digest_op.update(&DATA).is_ok());
@@ -168,7 +168,7 @@ fn test_op6() {
     ];
     let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz".as_bytes();
     let mut digest = Array4x8::default();
-    let sha = Sha256::default();
+    let mut sha = Sha256::default();
     let mut digest_op = sha.digest_init(&mut digest).unwrap();
     for idx in 0..data.len() {
         assert!(digest_op.update(&data[idx..idx + 1]).is_ok());
@@ -186,7 +186,7 @@ fn test_op7() {
     ];
     let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijkl".as_bytes();
     let mut digest = Array4x8::default();
-    let sha = Sha256::default();
+    let mut sha = Sha256::default();
     let mut digest_op = sha.digest_init(&mut digest).unwrap();
     for idx in 0..data.len() {
         assert!(digest_op.update(&data[idx..idx + 1]).is_ok());
@@ -204,7 +204,7 @@ fn test_op8() {
     ];
     let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcd".as_bytes(); // Exact single block
     let mut digest = Array4x8::default();
-    let sha = Sha256::default();
+    let mut sha = Sha256::default();
     let mut digest_op = sha.digest_init(&mut digest).unwrap();
     for idx in 0..data.len() {
         assert!(digest_op.update(&data[idx..idx + 1]).is_ok());
@@ -216,7 +216,7 @@ fn test_op8() {
 
 fn test_kat() {
     assert_eq!(
-        Sha256Kat::default().execute(&Sha256::default()).is_ok(),
+        Sha256Kat::default().execute(&mut Sha256::default()).is_ok(),
         true
     );
 }

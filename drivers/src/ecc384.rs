@@ -163,7 +163,7 @@ impl Ecc384 {
     ///
     /// * `Ecc384PubKey` - Generated ECC-384 Public Key
     pub fn key_pair(
-        &self,
+        &mut self,
         seed: Ecc384Seed,
         nonce: &Array4x12,
         mut priv_key: Ecc384PrivKeyOut,
@@ -227,7 +227,7 @@ impl Ecc384 {
     ///
     /// * `Ecc384Signature` - Generate signature
     pub fn sign(
-        &self,
+        &mut self,
         priv_key: Ecc384PrivKeyIn,
         data: &Ecc384Scalar,
     ) -> CaliptraResult<Ecc384Signature> {
@@ -275,7 +275,7 @@ impl Ecc384 {
     ///
     /// *  `bool` - True if the signature verification passed else false
     pub fn verify(
-        &self,
+        &mut self,
         pub_key: &Ecc384PubKey,
         digest: &Ecc384Scalar,
         signature: &Ecc384Signature,

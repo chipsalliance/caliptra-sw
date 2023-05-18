@@ -40,12 +40,12 @@ impl Sha384AccKat {
     /// # Returns
     ///
     /// * `CaliptraResult` - Result denoting the KAT outcome.
-    pub fn execute(&self, sha_acc: &Sha384Acc) -> CaliptraResult<()> {
+    pub fn execute(&self, sha_acc: &mut Sha384Acc) -> CaliptraResult<()> {
         self.kat_no_data(sha_acc)?;
         Ok(())
     }
 
-    fn kat_no_data(&self, sha_acc: &Sha384Acc) -> CaliptraResult<()> {
+    fn kat_no_data(&self, sha_acc: &mut Sha384Acc) -> CaliptraResult<()> {
         let mut digest = Array4x12::default();
 
         if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {

@@ -52,7 +52,7 @@ impl Sha384Acc {
     ///
     /// * `Sha384AccOp` - On, success, an object representing the SHA384 accelerator operation.
     /// * 'None' - On failure to acquire the SHA384 Accelerator lock.
-    pub fn try_start_operation(&self) -> Option<Sha384AccOp> {
+    pub fn try_start_operation(&mut self) -> Option<Sha384AccOp> {
         let sha_acc = sha512_acc::RegisterBlock::sha512_acc_csr();
 
         if sha_acc.lock().read().lock() {

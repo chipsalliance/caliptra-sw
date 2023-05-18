@@ -410,7 +410,7 @@ fn test_hmac_multi_block_two_step() {
     ];
 
     let mut out_tag = Array4x12::default();
-    let hmac384 = Hmac384::default();
+    let mut hmac384 = Hmac384::default();
     let mut hmac_op = hmac384
         .hmac_init((&Array4x12::from(key)).into(), (&mut out_tag).into())
         .unwrap();
@@ -422,7 +422,9 @@ fn test_hmac_multi_block_two_step() {
 
 fn test_kat() {
     assert_eq!(
-        Hmac384Kat::default().execute(&Hmac384::default()).is_ok(),
+        Hmac384Kat::default()
+            .execute(&mut Hmac384::default())
+            .is_ok(),
         true
     );
 }

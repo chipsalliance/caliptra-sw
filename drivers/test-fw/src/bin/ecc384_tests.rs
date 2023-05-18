@@ -86,7 +86,7 @@ fn test_sign() {
 
 fn test_verify() {
     let digest = Array4x12::new([0u32; 12]);
-    let ecc = Ecc384::default();
+    let mut ecc = Ecc384::default();
     let result = ecc.sign(Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)), &digest);
     assert!(result.is_ok());
     let signature = result.unwrap();
@@ -101,7 +101,7 @@ fn test_verify() {
 
 fn test_verify_failure() {
     let digest = Array4x12::new([0u32; 12]);
-    let ecc = Ecc384::default();
+    let mut ecc = Ecc384::default();
     let result = ecc.sign(Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)), &digest);
     assert!(result.is_ok());
     let signature = result.unwrap();
@@ -156,7 +156,7 @@ fn test_kv_seed_from_input_msg_from_input() {
         x: pub_key.x,
         y: pub_key.y,
     };
-    let ecc = Ecc384::default();
+    let mut ecc = Ecc384::default();
     let result = ecc.verify(&pub_key, &Ecc384Scalar::from(digest), &signature);
     assert!(result.is_ok());
     assert!(result.unwrap());
@@ -270,14 +270,14 @@ fn test_kv_seed_from_kv_msg_from_input() {
         x: pub_key_x.into(),
         y: pub_key_y.into(),
     };
-    let ecc = Ecc384::default();
+    let mut ecc = Ecc384::default();
     let result = ecc.verify(&pub_key, &Ecc384Scalar::from(msg), &signature);
     assert!(result.is_ok());
 }
 
 fn test_kat() {
     assert_eq!(
-        Ecc384Kat::default().execute(&Ecc384::default()).is_ok(),
+        Ecc384Kat::default().execute(&mut Ecc384::default()).is_ok(),
         true
     );
 }

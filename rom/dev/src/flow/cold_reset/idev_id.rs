@@ -122,7 +122,7 @@ impl InitDevIdLayer {
     ///
     /// * `env` - ROM Environment
     /// * `uds` - Key Vault slot to store the decrypted UDS in
-    fn decrypt_uds(env: &RomEnv, uds: KeyId) -> CaliptraResult<()> {
+    fn decrypt_uds(env: &mut RomEnv, uds: KeyId) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
         env.doe.decrypt_uds(&DOE_UDS_IV, uds)?;
         report_boot_status(IDevIdDecryptUdsComplete.into());
@@ -135,7 +135,7 @@ impl InitDevIdLayer {
     ///
     /// * `env` - ROM Environment
     /// * `slot` - Key Vault slot to store the decrypted UDS in
-    fn decrypt_field_entropy(env: &RomEnv, fe: KeyId) -> CaliptraResult<()> {
+    fn decrypt_field_entropy(env: &mut RomEnv, fe: KeyId) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
         env.doe.decrypt_field_entropy(&DOE_FE_IV, fe)?;
         report_boot_status(IDevIdDecryptFeComplete.into());
@@ -147,7 +147,7 @@ impl InitDevIdLayer {
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    fn clear_doe_secrets(env: &RomEnv) -> CaliptraResult<()> {
+    fn clear_doe_secrets(env: &mut RomEnv) -> CaliptraResult<()> {
         let result = env.doe.clear_secrets();
         if result.is_ok() {
             report_boot_status(IDevIdClearDoeSecretsComplete.into());

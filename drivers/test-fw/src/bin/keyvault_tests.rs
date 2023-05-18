@@ -75,7 +75,7 @@ fn test_erase_all_keys() {
 }
 
 fn test_read_key_usage() {
-    let vault = KeyVault::default();
+    let mut vault = KeyVault::default();
 
     for key_id in KEY_IDS {
         assert_eq!(vault.key_usage(key_id), KeyUsage(0));
