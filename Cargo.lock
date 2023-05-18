@@ -306,7 +306,6 @@ dependencies = [
 name = "caliptra-hw-model-c-binding"
 version = "0.1.0"
 dependencies = [
- "caliptra-builder",
  "caliptra-emu-bus",
  "caliptra-emu-types",
  "caliptra-hw-model",

@@ -17,6 +17,7 @@
 OUT = out
 TARGET = $(OUT)/smoke_test
 RTL_SOC_IFC_INCLUDE_PATH = ../../../hw-latest/caliptra-rtl/src/soc_ifc/rtl
+BUILDER_PATH = ../../../builder
 CALIPTRA_MODEL_PATH = ../src
 CFLAGS += -I$(RTL_SOC_IFC_INCLUDE_PATH) -I$(CALIPTRA_MODEL_PATH) -Lout/debug
 
@@ -31,7 +32,7 @@ $(OUT)/%.o: $(SOURCE)
 
 $(TARGET): $(OBJS)
 	cargo build --target-dir out/
-	cargo run --bin image
+	cargo run --manifest-path=$(BUILDER_PATH)/Cargo.toml --bin image
 	$(CC) -o $(TARGET) $(OBJS) $(CFLAGS) -Wl,-lcaliptra_hw_model_c_binding -lpthread -lstdc++ -ldl -lm
 clean:
 	$(RM) -rf $(OUT)
