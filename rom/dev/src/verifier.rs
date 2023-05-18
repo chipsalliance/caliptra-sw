@@ -32,15 +32,8 @@ impl<'a> RomImageVerificationEnv<'a> {
 }
 
 impl<'a> ImageVerificationEnv for RomImageVerificationEnv<'a> {
-    type Image = ();
-
     /// Calculate Digest using SHA-384 Accelerator
-    fn sha384_digest(
-        &self,
-        _image: Self::Image,
-        offset: u32,
-        len: u32,
-    ) -> CaliptraResult<ImageDigest> {
+    fn sha384_digest(&self, offset: u32, len: u32) -> CaliptraResult<ImageDigest> {
         loop {
             if let Some(mut txn) = self.env.sha384_acc().map(|s| s.try_start_operation()) {
                 let mut digest = Array4x12::default();
@@ -53,7 +46,6 @@ impl<'a> ImageVerificationEnv for RomImageVerificationEnv<'a> {
     /// ECC-384 Verification routine
     fn ecc384_verify(
         &self,
-        _image: Self::Image,
         digest: &ImageDigest,
         pub_key: &ImageEccPubKey,
         sig: &ImageEccSignature,
@@ -80,12 +72,12 @@ impl<'a> ImageVerificationEnv for RomImageVerificationEnv<'a> {
     }
 
     /// Retrieve Vendor Public Key Digest
-    fn vendor_pub_key_digest(&self, _image: Self::Image) -> ImageDigest {
+    fn vendor_pub_key_digest(&self) -> ImageDigest {
         self.env.fuse_bank().map(|f| f.vendor_pub_key_hash()).into()
     }
 
     /// Retrieve Vendor Public Key Revocation Bitmask
-    fn vendor_pub_key_revocation(&self, _image: Self::Image) -> VendorPubKeyRevocation {
+    fn vendor_pub_key_revocation(&self) -> VendorPubKeyRevocation {
         self.env.fuse_bank().map(|f| f.vendor_pub_key_revocation())
     }
 
@@ -95,12 +87,12 @@ impl<'a> ImageVerificationEnv for RomImageVerificationEnv<'a> {
     }
 
     /// Retrieve Anti-Rollback disable fuse value
-    fn anti_rollback_disable(&self, _image: Self::Image) -> bool {
+    fn anti_rollback_disable(&self) -> bool {
         self.env.fuse_bank().map(|f| f.anti_rollback_disable())
     }
 
     /// Retrieve Device Lifecycle state
-    fn dev_lifecycle(&self, _image: Self::Image) -> Lifecycle {
+    fn dev_lifecycle(&self) -> Lifecycle {
         self.env.dev_state().map(|d| d.lifecycle())
     }
 

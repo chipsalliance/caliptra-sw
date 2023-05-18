@@ -14,8 +14,8 @@ Abstract:
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use core::mem::size_of;
 use core::ops::Range;
-
 use memoffset::{offset_of, span_of};
 use zerocopy::{AsBytes, FromBytes};
 
@@ -107,7 +107,7 @@ impl ImageBundle {
 
 /// Calipatra Image Manifest
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, FromBytes, Debug)]
 pub struct ImageManifest {
     /// Marker
     pub marker: u32,
@@ -128,6 +128,18 @@ pub struct ImageManifest {
     pub runtime: ImageTocEntry,
 }
 
+impl Default for ImageManifest {
+    fn default() -> Self {
+        Self {
+            marker: Default::default(),
+            size: size_of::<ImageManifest>() as u32,
+            preamble: ImagePreamble::default(),
+            header: ImageHeader::default(),
+            fmc: ImageTocEntry::default(),
+            runtime: ImageTocEntry::default(),
+        }
+    }
+}
 impl ImageManifest {
     /// Returns the `Range<u32>` containing the vendor public keys
     pub fn vendor_pub_keys_range() -> Range<u32> {
@@ -342,5 +354,9 @@ pub struct ImageTocEntry {
 impl ImageTocEntry {
     pub fn image_range(&self) -> Range<u32> {
         self.offset..self.offset + self.size
+    }
+
+    pub fn image_size(&self) -> u32 {
+        self.size
     }
 }

@@ -407,6 +407,7 @@ The following is the sequence of the steps that are required to download the par
 - Read N dwords from the mailbox DATAOUT register.  Execute the command.
 - Once the entire data is processed, clear the execute bit.
     - This should be the last step. Clearing this bit transfers the control back to the originator of the command.
+- On failure, a non-zero status code will be reported in the `CPTRA_FW_ERROR_NON_FATAL` register
 
 ![DATA FROM MBOX FLOW](doc/svg/data-from-mbox.svg)
 
@@ -548,6 +549,7 @@ The basic flow for validating the firmware involves the following:
 - Validate the RT Image against the hash in the TOC entry for the RT.
 - If all the above validations are complete, the entire image is validated.
 - Let the SOC know that the firmware download command is complete.
+- On failure, a non-zero status code will be reported in the `CPTRA_FW_ERROR_NON_FATAL` register
 
 
 ### 13.1 **Overall Validation Flow**

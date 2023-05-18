@@ -20,6 +20,7 @@ use crate::cprintln;
 use crate::flow::cold_reset::{KEY_ID_CDI, KEY_ID_FE, KEY_ID_IDEVID_PRIV_KEY, KEY_ID_UDS};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
+use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
 use caliptra_x509::*;
 
@@ -91,7 +92,10 @@ impl DiceLayer for InitDevIdLayer {
         // This information will be used by next DICE Layer while generating
         // certificates
         let subj_sn = X509::subj_sn(env, &key_pair.pub_key)?;
+        report_boot_status(IDevIdSubjIdSnGenerationComplete.into());
+
         let subj_key_id = X509::idev_subj_key_id(env, &key_pair.pub_key)?;
+        report_boot_status(IDevIdSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
         let output = DiceOutput {
@@ -104,6 +108,7 @@ impl DiceLayer for InitDevIdLayer {
         Self::generate_csr(env, &output)?;
 
         cprintln!("[idev] --");
+        report_boot_status(IDevIdDerivationComplete.into());
 
         // Return the DICE Layer Output
         Ok(output)
@@ -120,6 +125,7 @@ impl InitDevIdLayer {
     fn decrypt_uds(env: &RomEnv, uds: KeyId) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
         env.doe().map(|d| d.decrypt_uds(&DOE_UDS_IV, uds))?;
+        report_boot_status(IDevIdDecryptUdsComplete.into());
         Ok(())
     }
 
@@ -132,6 +138,7 @@ impl InitDevIdLayer {
     fn decrypt_field_entropy(env: &RomEnv, fe: KeyId) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
         env.doe().map(|d| d.decrypt_field_entropy(&DOE_FE_IV, fe))?;
+        report_boot_status(IDevIdDecryptFeComplete.into());
         Ok(())
     }
 
@@ -141,7 +148,11 @@ impl InitDevIdLayer {
     ///
     /// * `env` - ROM Environment
     fn clear_doe_secrets(env: &RomEnv) -> CaliptraResult<()> {
-        env.doe().map(|d| d.clear_secrets())
+        let result = env.doe().map(|d| d.clear_secrets());
+        if result.is_ok() {
+            report_boot_status(IDevIdClearDoeSecretsComplete.into());
+        }
+        result
     }
 
     /// Derive Composite Device Identity (CDI) from Unique Device Secret (UDS)
@@ -159,6 +170,8 @@ impl InitDevIdLayer {
 
         cprintln!("[idev] Erasing UDS.KEYID = {}", uds as u8);
         env.key_vault().map(|k| k.erase_key(uds))?;
+
+        report_boot_status(IDevIdCdiDerivationComplete.into());
         Ok(())
     }
 
@@ -174,7 +187,11 @@ impl InitDevIdLayer {
     ///
     /// * `Ecc384KeyPair` - Derive DICE Layer Key Pair
     fn derive_key_pair(env: &RomEnv, cdi: KeyId, priv_key: KeyId) -> CaliptraResult<Ecc384KeyPair> {
-        Crypto::ecc384_key_gen(env, cdi, priv_key)
+        let result = Crypto::ecc384_key_gen(env, cdi, priv_key);
+        if result.is_ok() {
+            report_boot_status(IDevIdKeyPairDerivationComplete.into());
+        }
+        result
     }
 
     /// Generate Local Device ID CSR
@@ -259,6 +276,7 @@ impl InitDevIdLayer {
         }
 
         cprintln!("[idev] CSR = {}", HexBytes(&csr[..csr_len]));
+        report_boot_status(IDevIdMakeCsrComplete.into());
 
         // Execute Send CSR Flow
         Self::send_csr(env, InitDevIdCsr::new(&csr, csr_len))
@@ -287,6 +305,7 @@ impl InitDevIdLayer {
                 txn.complete()?;
 
                 cprintln!("[idev] CSR uploaded");
+                report_boot_status(IDevIdSendCsrComplete.into());
 
                 // exit the loop
                 break Ok(());

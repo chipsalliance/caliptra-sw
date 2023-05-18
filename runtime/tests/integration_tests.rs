@@ -2,8 +2,8 @@
 
 use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError};
-use caliptra_runtime::{CommandId, EcdsaVerifyCmd, EcdsaVerifyResponse};
-use zerocopy::{AsBytes, FromBytes};
+use caliptra_runtime::{CommandId, EcdsaVerifyCmd};
+use zerocopy::AsBytes;
 
 // Run test_bin as a ROM image. The is used for faster tests that can run
 // against verilator
@@ -138,11 +138,9 @@ fn test_verify_cmd() {
 
     let resp = model
         .mailbox_execute(u32::from(CommandId::ECDSA384_VERIFY), cmd.as_bytes())
-        .unwrap()
         .unwrap();
-    let resp_bytes: &[u8] = resp.as_bytes();
-    let response = EcdsaVerifyResponse::read_from(resp_bytes).unwrap();
-    assert_eq!(response.result, true as u32);
+    assert!(resp.is_none());
+    assert_eq!(model.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
 }
 
 #[test]
