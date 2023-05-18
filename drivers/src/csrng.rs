@@ -27,7 +27,7 @@ use caliptra_registers::{
     entropy_src::{self, regs::AlertFailCountsReadVal},
 };
 use core::{iter::FusedIterator, marker::PhantomData, num::NonZeroUsize};
-use ureg::RealMmio;
+use ureg::RealMmioMut;
 
 caliptra_err_def! {
     Csrng,
@@ -251,7 +251,7 @@ pub struct HealthFailCounts {
     pub specific: AlertFailCountsReadVal,
 }
 
-fn registers() -> csrng::RegisterBlock<RealMmio> {
+fn registers() -> csrng::RegisterBlock<RealMmioMut> {
     csrng::RegisterBlock::csrng_reg()
 }
 

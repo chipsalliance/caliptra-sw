@@ -9,7 +9,7 @@ pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl RegisterBlock<ureg::RealMmio> {
+impl RegisterBlock<ureg::RealMmioMut> {
     pub fn dv_reg() -> Self {
         unsafe { Self::new(0x1001c000 as *mut u32) }
     }

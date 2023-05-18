@@ -810,7 +810,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
                 ptr: *mut #raw_ptr_type,
                 mmio: TMmio,
             }
-            impl RegisterBlock<ureg::RealMmio> {
+            impl RegisterBlock<ureg::RealMmioMut> {
                 #block_instance_tokens
             }
             impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
