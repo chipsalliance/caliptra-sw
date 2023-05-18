@@ -372,6 +372,7 @@ fn generate_ots_signature_helper(
     sig
 }
 
+#[allow(unused)]
 fn generate_lms_pubkey(priv_key: &ImageLmsPrivKey) -> ImageLmsPublicKey {
     let mut pub_key = Some(ImageLmsPublicKey::default());
     pub_key.as_mut().map(|x| x.otstype = priv_key.otstype);
