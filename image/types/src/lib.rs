@@ -17,7 +17,7 @@ Abstract:
 use core::mem::size_of;
 use core::ops::Range;
 
-use caliptra_drivers::{LmsIdentifier};
+use caliptra_drivers::LmsIdentifier;
 use memoffset::{offset_of, span_of};
 use zerocopy::{AsBytes, FromBytes};
 

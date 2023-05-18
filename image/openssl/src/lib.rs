@@ -15,8 +15,9 @@ Abstract:
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Context};
-use caliptra_drivers::{LmotsAlgorithmType,
-    Lms, LmsAlgorithmType, LmsIdentifier, D_INTR, D_LEAF, D_MESG, D_PBLC};
+use caliptra_drivers::{
+    LmotsAlgorithmType, Lms, LmsAlgorithmType, LmsIdentifier, D_INTR, D_LEAF, D_MESG, D_PBLC,
+};
 use caliptra_image_gen::ImageGeneratorCrypto;
 use caliptra_image_types::*;
 use openssl::bn::{BigNum, BigNumContext};
@@ -346,7 +347,9 @@ fn generate_ots_signature_helper(
         if i < data_coeff {
             a = Lms::default().coefficient(&q_arr, i, width).unwrap();
         } else {
-            a = Lms::default().coefficient(&checksum_str, i - data_coeff, width).unwrap();
+            a = Lms::default()
+                .coefficient(&checksum_str, i - data_coeff, width)
+                .unwrap();
         }
 
         let offset: usize = i * SHA192_DIGEST_BYTE_SIZE;
@@ -365,7 +368,6 @@ fn generate_ots_signature_helper(
         let sig_val = &mut sig.sig[i];
         sig_val.clone_from_slice(tmp);
     }
-
 
     sig
 }
@@ -407,7 +409,7 @@ fn sign_with_lms_key(
         &priv_key.id,
         &priv_key.seed,
         nonce,
-        q
+        q,
     );
     let mut sig = Some(ImageLmsSignature::default());
     sig.as_mut().map(|x| x.q = q);
