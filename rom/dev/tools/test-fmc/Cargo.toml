@@ -9,6 +9,7 @@ edition = "2021"
 caliptra-drivers = { path = "../../../../drivers" }
 caliptra_common = { path = "../../../../common", default-features = false }
 ufmt = "0.2.0"
+ureg = { path = "../../../../ureg" }
 zerocopy = "0.6.1"
 caliptra-x509 = { version = "0.1.0", path = "../../../../x509" , default-features = false }
 caliptra-cpu = { version = "0.1.0", path = "../../../../cpu" }

@@ -806,7 +806,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
         }
         block_tokens = quote! {
             #[derive(Clone, Copy)]
-            pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio> = ureg::RealMmio>{
+            pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>>{
                 ptr: *mut #raw_ptr_type,
                 mmio: TMmio,
             }

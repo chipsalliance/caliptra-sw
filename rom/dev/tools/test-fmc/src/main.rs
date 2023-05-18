@@ -25,6 +25,7 @@ use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_drivers::DataVault;
 use caliptra_drivers::Mailbox;
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
+use ureg::RealMmio;
 use zerocopy::AsBytes;
 use zerocopy::FromBytes;
 
@@ -217,7 +218,7 @@ fn process_mailbox_commands() {
     }
 }
 
-fn read_pcr_log(mbox: &caliptra_registers::mbox::RegisterBlock) {
+fn read_pcr_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmio>) {
     let mut pcr_entry_count = 0;
     loop {
         let pcr_entry = get_pcr_entry(pcr_entry_count);
