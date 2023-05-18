@@ -33,7 +33,9 @@ impl ureg::Mmio for Rv32GenMmio {
     unsafe fn read_volatile<T: Clone + Copy + Sized>(&self, _src: *const T) -> T {
         panic!("Rv32GenMmio: Reads not supported; write-only");
     }
+}
 
+impl ureg::MmioMut for Rv32GenMmio {
     /// Adds machine code that stores the 32-bit value `src` to destination
     /// address `dst`.
     ///
@@ -52,7 +54,7 @@ impl ureg::Mmio for Rv32GenMmio {
 
 #[cfg(test)]
 mod tests {
-    use ureg::Mmio;
+    use ureg::MmioMut;
 
     use super::*;
 

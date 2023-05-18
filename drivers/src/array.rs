@@ -45,7 +45,7 @@ impl<const W: usize, const B: usize> Array4xN<W, B> {
     #[allow(unused)]
     pub fn write_to_reg<
         TReg: ureg::ResettableReg + ureg::WritableReg<WriteVal = u32>,
-        TMmio: ureg::Mmio + Copy,
+        TMmio: ureg::MmioMut + Copy,
     >(
         &self,
         reg_array: ureg::Array<W, ureg::RegRef<TReg, TMmio>>,
