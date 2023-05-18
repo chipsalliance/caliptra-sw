@@ -451,6 +451,7 @@ dependencies = [
  "caliptra_common",
  "cfg-if",
  "ufmt",
+ "ureg",
  "zerocopy",
 ]
 
