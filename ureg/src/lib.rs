@@ -138,8 +138,8 @@ pub trait MmioMut: Mmio {
 /// A zero-sized type that implements the Mmio trait with real reads from the
 /// provided pointer.
 #[derive(Clone, Copy, Default)]
-pub struct RealMmio();
-impl Mmio for RealMmio {
+pub struct RealMmio<'a>(PhantomData<&'a ()>);
+impl Mmio for RealMmio<'_> {
     /// Performs a volatile read from `src` and returns the read value.
     ///
     /// # Safety
@@ -153,8 +153,8 @@ impl Mmio for RealMmio {
 /// A zero-sized type that implements the Mmio and MmioMut traits with real
 /// reads and writes from/to the provided pointer.
 #[derive(Clone, Copy, Default)]
-pub struct RealMmioMut();
-impl Mmio for RealMmioMut {
+pub struct RealMmioMut<'a>(PhantomData<&'a mut ()>);
+impl Mmio for RealMmioMut<'_> {
     /// Performs a volatile read from `src` and returns the read value.
     ///
     /// # Safety
@@ -164,7 +164,7 @@ impl Mmio for RealMmioMut {
         core::ptr::read_volatile(src)
     }
 }
-impl MmioMut for RealMmioMut {
+impl MmioMut for RealMmioMut<'_> {
     /// Performs a volatile write of `src` to `dst`.
     ///
     /// # Safety

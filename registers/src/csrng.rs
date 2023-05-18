@@ -9,7 +9,7 @@ pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl RegisterBlock<ureg::RealMmioMut> {
+impl RegisterBlock<ureg::RealMmioMut<'_>> {
     pub fn csrng_reg() -> Self {
         unsafe { Self::new(0x20002000 as *mut u32) }
     }

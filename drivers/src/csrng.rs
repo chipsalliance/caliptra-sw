@@ -251,7 +251,7 @@ pub struct HealthFailCounts {
     pub specific: AlertFailCountsReadVal,
 }
 
-fn registers() -> csrng::RegisterBlock<RealMmioMut> {
+fn registers() -> csrng::RegisterBlock<RealMmioMut<'static>> {
     csrng::RegisterBlock::csrng_reg()
 }
 
