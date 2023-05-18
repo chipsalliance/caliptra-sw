@@ -21,7 +21,8 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{
-    HashValue, LmotsAlgorithmType, LmotsSignature, Lms, LmsAlgorithmType, LmsSignature,
+    HashValue, LmotsAlgorithmType, LmotsSignature, Lms, LmsAlgorithmType, LmsPublicKey,
+    LmsSignature,
 };
 use caliptra_test_harness::test_suite;
 
@@ -241,10 +242,10 @@ fn test_ots_32() {
         576791441,
     ]);
     let result_ots = Lms::default().candidate_ots_signature::<8, 34>(
-        &FINAL_OTS_SIG.ots_type,
         &LMS_IDENTIFIER,
+        &FINAL_OTS_SIG.ots_type,
         &q_str,
-        &FINAL_OTS_SIG,
+        &FINAL_OTS_SIG.y,
         &result,
     );
     assert_eq!(result_ots.unwrap(), EXPECTED_OTS);
@@ -270,7 +271,7 @@ fn test_lms_lower_32() {
         0xb6,
     ];
 
-    const LMS_PUBLIC_KEY: HashValue<8> = HashValue([
+    const LMS_PUBLIC_HASH: HashValue<8> = HashValue([
         1817183377, 2108091134, 1302263494, 1081818544, 3846724370, 765378069, 3450420478,
         3313686443,
     ]);
@@ -442,29 +443,26 @@ fn test_lms_lower_32() {
         ]),
     ];
 
-    const FINAL_OTS: LmotsSignature<8, 34> = LmotsSignature {
+    const FINAL_LMS_SIG: LmsSignature<8, 34, 5> = LmsSignature::<8, 34, 5> {
+        q: Q,
         ots_type: LmotsAlgorithmType::LmotsSha256N32W8,
         nonce: FINAL_C,
         y: Y,
+        lms_type: LmsAlgorithmType::LmsSha256N32H5,
+        path: PATH,
     };
 
-    const FINAL_LMS_SOG: LmsSignature<8, 34> = LmsSignature::<8, 34> {
-        q: Q,
-        lmots_signature: FINAL_OTS,
-        sig_type: LmsAlgorithmType::LmsSha256N32H5,
-        lms_path: &PATH,
+    const LMS_PUBLIC_KEY: LmsPublicKey<8> = LmsPublicKey {
+        lms_identifier: LMS_IDENTIFIER,
+        root_hash: LMS_PUBLIC_HASH,
+        lms_type: LmsAlgorithmType::LmsSha256N32H5,
+        lmots_type: LmotsAlgorithmType::LmotsSha256N32W8,
     };
 
-    let final_thingie = Lms::default()
-        .verify_lms_signature(
-            &MESSAGE,
-            &LMS_IDENTIFIER,
-            Q,
-            &LMS_PUBLIC_KEY,
-            &FINAL_LMS_SOG,
-        )
+    let final_result = Lms::default()
+        .verify_lms_signature(&MESSAGE, &LMS_PUBLIC_KEY, &FINAL_LMS_SIG)
         .unwrap();
-    assert_eq!(final_thingie, true);
+    assert_eq!(final_result, true);
 }
 
 // from https://www.rfc-editor.org/rfc/rfc8554#page-49
@@ -475,7 +473,7 @@ fn test_hss_upper_32() {
         0xb8,
     ];
 
-    const HSS_PUBLIC_KEY: HashValue<8> = HashValue([
+    const HSS_PUBLIC_HASH: HashValue<8> = HashValue([
         1348800059, 838748791, 1050843655, 4036817642, 820345328, 3747147662, 697147459, 1286781048,
     ]);
 
@@ -660,27 +658,25 @@ fn test_hss_upper_32() {
             1656705334,
         ]),
     ];
-    const OTS: LmotsSignature<8, 34> = LmotsSignature {
+
+    const UPPER_SIGNATURE: LmsSignature<8, 34, 5> = LmsSignature {
+        q: Q,
         ots_type: LmotsAlgorithmType::LmotsSha256N32W8,
         nonce: UPPER_NONCE,
         y: Y,
+        lms_type: LmsAlgorithmType::LmsSha256N32H5,
+        path: PATH,
     };
 
-    const UPPER_SIGNATURE: LmsSignature<8, 34> = LmsSignature {
-        q: Q,
-        lmots_signature: OTS,
-        sig_type: LmsAlgorithmType::LmsSha256N32H5,
-        lms_path: &PATH,
+    const HSS_PUBLIC_KEY: LmsPublicKey<8> = LmsPublicKey {
+        lms_identifier: IDENTIFIER,
+        root_hash: HSS_PUBLIC_HASH,
+        lms_type: LmsAlgorithmType::LmsSha256N32H5,
+        lmots_type: LmotsAlgorithmType::LmotsSha256N32W8,
     };
 
     let success = Lms::default()
-        .verify_lms_signature(
-            &PUBLIC_BUFFER,
-            &IDENTIFIER,
-            Q,
-            &HSS_PUBLIC_KEY,
-            &UPPER_SIGNATURE,
-        )
+        .verify_lms_signature(&PUBLIC_BUFFER, &HSS_PUBLIC_KEY, &UPPER_SIGNATURE)
         .unwrap();
     assert_eq!(success, true);
 }

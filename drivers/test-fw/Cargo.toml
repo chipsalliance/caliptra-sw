@@ -123,3 +123,8 @@ required-features = ["riscv"]
 name = "csrng"
 path = "src/bin/csrng_tests.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "test_lms_parsing"
+path = "src/bin/lms_parsing_tests.rs"
+required-features = ["riscv"]

@@ -16,8 +16,7 @@ File contains test cases for LMS signature verification using SHA256/192.
 #![no_main]
 
 use caliptra_drivers::{
-    HashValue, LmotsAlgorithmType, LmotsSignature, Lms, LmsAlgorithmType, LmsIdentifier,
-    LmsSignature,
+    HashValue, LmotsAlgorithmType, Lms, LmsAlgorithmType, LmsIdentifier, LmsPublicKey, LmsSignature,
 };
 use caliptra_test_harness::test_suite;
 
@@ -32,7 +31,7 @@ fn test_failures_lms_24() {
     const Q: u32 = 0;
     const LMOTS_TYPE: LmotsAlgorithmType = LmotsAlgorithmType::LmotsSha256N24W4;
     const LMS_TYPE: LmsAlgorithmType = LmsAlgorithmType::LmsSha256N24H15;
-    const LMS_PUBLIC_KEY: HashValue<6> = HashValue([
+    const LMS_PUBLIC_HASH: HashValue<6> = HashValue([
         53125821, 2603739581, 860571182, 662249589, 3182288302, 4193104164,
     ]);
 
@@ -243,62 +242,69 @@ fn test_failures_lms_24() {
         ]),
     ];
 
-    let ots = LmotsSignature {
+    let lms_sig = LmsSignature {
+        q: Q,
         ots_type: LMOTS_TYPE,
         nonce: NONCE,
         y: Y,
+        lms_type: LMS_TYPE,
+        path: PATH,
     };
 
-    let lms_sig = LmsSignature {
-        q: Q,
-        lmots_signature: ots,
-        sig_type: LMS_TYPE,
-        lms_path: &PATH,
+    const LMS_PUBLIC_KEY: LmsPublicKey<6> = LmsPublicKey {
+        lms_identifier: LMS_IDENTIFIER,
+        root_hash: LMS_PUBLIC_HASH,
+        lms_type: LMS_TYPE,
+        lmots_type: LMOTS_TYPE,
     };
 
     let success = Lms::default()
-        .verify_lms_signature(&MESSAGE, &LMS_IDENTIFIER, Q, &LMS_PUBLIC_KEY, &lms_sig)
+        .verify_lms_signature(&MESSAGE, &LMS_PUBLIC_KEY, &lms_sig)
         .unwrap();
     assert_eq!(success, true);
 
     let new_message = "this is a different message".as_bytes();
     let should_fail = Lms::default()
-        .verify_lms_signature(&new_message, &LMS_IDENTIFIER, Q, &LMS_PUBLIC_KEY, &lms_sig)
+        .verify_lms_signature(&new_message, &LMS_PUBLIC_KEY, &lms_sig)
         .unwrap();
     assert_eq!(should_fail, false);
 
     let new_lms: LmsIdentifier = [0u8; 16];
+    let new_lms_public_key = LmsPublicKey {
+        lms_identifier: new_lms,
+        ..LMS_PUBLIC_KEY
+    };
     let should_fail = Lms::default()
-        .verify_lms_signature(&MESSAGE, &new_lms, Q, &LMS_PUBLIC_KEY, &lms_sig)
+        .verify_lms_signature(&MESSAGE, &new_lms_public_key, &lms_sig)
         .unwrap();
     assert_eq!(should_fail, false);
 
     let new_q = Q + 1;
-    let should_fail = Lms::default()
-        .verify_lms_signature(&MESSAGE, &LMS_IDENTIFIER, new_q, &LMS_PUBLIC_KEY, &lms_sig)
-        .unwrap();
-    assert_eq!(should_fail, false);
-
-    let new_public_key = HashValue::from([0u8; 24]);
-    let should_fail = Lms::default()
-        .verify_lms_signature(&MESSAGE, &LMS_IDENTIFIER, Q, &new_public_key, &lms_sig)
-        .unwrap();
-    assert_eq!(should_fail, false);
-
-    let new_ots = LmotsSignature {
-        ots_type: LMOTS_TYPE,
-        nonce: NONCE,
-        y: Y,
+    let new_lms_sig = LmsSignature {
+        q: new_q,
+        ..lms_sig
     };
+    let should_fail = Lms::default()
+        .verify_lms_signature(&MESSAGE, &LMS_PUBLIC_KEY, &new_lms_sig)
+        .unwrap();
+    assert_eq!(should_fail, false);
+
+    let new_public_key = LmsPublicKey {
+        root_hash: HashValue::from([0u8; 24]),
+        ..LMS_PUBLIC_KEY
+    };
+    let should_fail = Lms::default()
+        .verify_lms_signature(&MESSAGE, &new_public_key, &lms_sig)
+        .unwrap();
+    assert_eq!(should_fail, false);
 
     let new_lms_sig = LmsSignature {
-        q: Q,
-        lmots_signature: new_ots,
-        sig_type: LMS_TYPE,
-        lms_path: &[HashValue::from([0u8; 24]); 15],
+        path: [HashValue::from([0u32; 6]); 15],
+        ..lms_sig
     };
+
     let should_fail = Lms::default()
-        .verify_lms_signature(&MESSAGE, &LMS_IDENTIFIER, Q, &LMS_PUBLIC_KEY, &new_lms_sig)
+        .verify_lms_signature(&MESSAGE, &LMS_PUBLIC_KEY, &new_lms_sig)
         .unwrap();
     assert_eq!(should_fail, false);
 }

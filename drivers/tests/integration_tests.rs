@@ -324,6 +324,11 @@ fn test_negative_lms() {
 }
 
 #[test]
+fn test_lms_parsing() {
+    run_driver_test("test_lms_parsing");
+}
+
+#[test]
 #[cfg(feature = "verilator")]
 fn test_csrng() {
     // https://github.com/chipsalliance/caliptra-rtl/blob/fa91d66f30223899403f4e65a6f697a6f9100fd1/src/csrng/tb/csrng_tb.sv#L461

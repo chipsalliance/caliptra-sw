@@ -14,8 +14,8 @@ Abstract:
 
 use crate::caliptra_err_def;
 use caliptra_drivers::{
-    CaliptraResult, HashValue, LmotsAlgorithmType, LmotsSignature, Lms, LmsAlgorithmType,
-    LmsIdentifier, LmsSignature,
+    CaliptraResult, HashValue, LmotsAlgorithmType, Lms, LmsAlgorithmType, LmsIdentifier,
+    LmsPublicKey, LmsSignature,
 };
 
 caliptra_err_def! {
@@ -44,7 +44,7 @@ impl LmsKat {
         const LMS_IDENTIFIER: LmsIdentifier = [
             97, 165, 213, 125, 55, 245, 228, 107, 251, 117, 32, 128, 107, 7, 161, 184,
         ];
-        const LMS_PUBLIC_KEY: HashValue<6> = HashValue([
+        const LMS_PUBLIC_HASH: HashValue<6> = HashValue([
             4139166856, 3602845794, 318997898, 2236488139, 3162486332, 3951052027,
         ]);
         const NONCE: [u32; 6] = [0, 0, 0, 0, 0, 0];
@@ -251,21 +251,23 @@ impl LmsKat {
             ]),
         ];
 
-        const OTS: LmotsSignature<6, 51> = LmotsSignature {
+        const LMS_SIG: LmsSignature<6, 51, 15> = LmsSignature {
+            q: Q,
             ots_type: LMOTS_TYPE,
             nonce: NONCE,
             y: Y,
+            lms_type: LMS_TYPE,
+            path: PATH,
         };
 
-        const LMS_SIG: LmsSignature<6, 51> = LmsSignature {
-            q: Q,
-            lmots_signature: OTS,
-            sig_type: LMS_TYPE,
-            lms_path: &PATH,
+        const LMS_PUBLIC_KEY: LmsPublicKey<6> = LmsPublicKey {
+            lms_identifier: LMS_IDENTIFIER,
+            root_hash: LMS_PUBLIC_HASH,
+            lms_type: LMS_TYPE,
+            lmots_type: LMOTS_TYPE,
         };
 
-        let success =
-            lms.verify_lms_signature(&MESSAGE, &LMS_IDENTIFIER, Q, &LMS_PUBLIC_KEY, &LMS_SIG)?;
+        let success = lms.verify_lms_signature(&MESSAGE, &LMS_PUBLIC_KEY, &LMS_SIG)?;
         if !success {
             raise_err!(DigestMismatch);
         }

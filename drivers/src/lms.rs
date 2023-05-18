@@ -34,6 +34,9 @@ caliptra_err_def! {
         InvalidQValue = 0x07,
         InvalidIndex = 0x08,
         PathOutOfBounds = 0x09,
+        InvalidSignatureLength = 0x0a,
+        InvalidPublicKeyLength = 0x0b,
+        InvalidSignatureDepth = 0x0c,
     }
 }
 #[derive(Default, Debug)]
@@ -42,6 +45,10 @@ pub struct Lms {}
 pub type Sha256Digest = HashValue<8>;
 pub type Sha192Digest = HashValue<6>;
 pub type LmsIdentifier = [u8; 16];
+
+pub fn slice_to_num(buff: &[u8]) -> u32 {
+    u32::from_be_bytes(buff.try_into().unwrap())
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HashValue<const N: usize>(pub [u32; N]);
@@ -190,11 +197,29 @@ pub struct LmotsSignature<const N: usize, const P: usize> {
 }
 
 #[derive(Debug)]
-pub struct LmsSignature<'a, const N: usize, const P: usize> {
+pub struct _LmsSignature<'a, const N: usize, const P: usize> {
     pub q: u32,
     pub lmots_signature: LmotsSignature<N, P>,
     pub sig_type: LmsAlgorithmType,
     pub lms_path: &'a [HashValue<N>],
+}
+
+#[derive(Debug)]
+pub struct LmsSignature<const N: usize, const P: usize, const H: usize> {
+    pub q: u32,
+    pub ots_type: LmotsAlgorithmType,
+    pub nonce: [u32; N],
+    pub y: [HashValue<N>; P],
+    pub lms_type: LmsAlgorithmType,
+    pub path: [HashValue<N>; H],
+}
+
+#[derive(Debug)]
+pub struct LmsPublicKey<const N: usize> {
+    pub lms_identifier: LmsIdentifier,
+    pub root_hash: HashValue<N>,
+    pub lms_type: LmsAlgorithmType,
+    pub lmots_type: LmotsAlgorithmType,
 }
 
 #[derive(Debug)]
@@ -272,37 +297,158 @@ const LMOTS_P: [LmotsParameter; 9] = [
     },
 ];
 
+pub fn get_lmots_parameters(
+    algo_type: &LmotsAlgorithmType,
+) -> CaliptraResult<&'static LmotsParameter> {
+    for i in &LMOTS_P {
+        if i.algorithm_name == *algo_type {
+            return Ok(i);
+        }
+    }
+    raise_err!(InvalidLmotsAlgorithmType)
+}
+
+pub fn get_lms_parameters(algo_type: &LmsAlgorithmType) -> CaliptraResult<(u8, u8)> {
+    match algo_type {
+        LmsAlgorithmType::LmsSha256N32H5 => Ok((32, 5)),
+        LmsAlgorithmType::LmsSha256N32H10 => Ok((32, 10)),
+        LmsAlgorithmType::LmsSha256N32H15 => Ok((32, 15)),
+        LmsAlgorithmType::LmsSha256N32H20 => Ok((32, 20)),
+        LmsAlgorithmType::LmsSha256N32H25 => Ok((32, 25)),
+        LmsAlgorithmType::LmsSha256N24H5 => Ok((24, 5)),
+        LmsAlgorithmType::LmsSha256N24H10 => Ok((24, 10)),
+        LmsAlgorithmType::LmsSha256N24H15 => Ok((24, 15)),
+        LmsAlgorithmType::LmsSha256N24H20 => Ok((24, 20)),
+        LmsAlgorithmType::LmsSha256N24H25 => Ok((24, 25)),
+        LmsAlgorithmType::LmsReserved => {
+            raise_err!(InvalidLmsAlgorithmType)
+        }
+    }
+}
+
+pub fn parse_public_contents<const N: usize>(
+    public_string: &[u8],
+) -> CaliptraResult<LmsPublicKey<N>> {
+    if public_string.len() != (24 + N * 4) {
+        raise_err!(InvalidPublicKeyLength);
+    }
+    let mut pos = 0;
+    let lms_type = lookup_lms_algorithm_type(slice_to_num(&public_string[pos..pos + 4]))
+        .ok_or(err_u32!(InvalidLmsAlgorithmType))?;
+    pos += 4;
+
+    let lmots_type = lookup_lmots_algorithm_type(slice_to_num(&public_string[pos..pos + 4]))
+        .ok_or(err_u32!(InvalidLmotsAlgorithmType))?;
+    pos += 4;
+
+    let (hash_width, _) = get_lms_parameters(&lms_type)?;
+    if hash_width as usize != N * 4 {
+        raise_err!(InvalidHashWidth);
+    }
+
+    let mut lms_identifier = [0u8; 16];
+    lms_identifier.copy_from_slice(&public_string[pos..pos + 16]);
+    pos += 16;
+
+    let mut temp = [0u32; N];
+    //temp.copy_from_slice(&public_string[pos..pos + N]);
+
+    for t in temp.iter_mut().take(N) {
+        *t = slice_to_num(&public_string[pos..pos + 4]);
+        pos += 4;
+    }
+
+    let public_hash = HashValue::<N>::from(temp);
+
+    let pk = LmsPublicKey {
+        lms_type,
+        lmots_type,
+        lms_identifier,
+        root_hash: public_hash,
+    };
+    Ok(pk)
+}
+
+pub fn parse_signature_contents<const N: usize, const P: usize, const H: usize>(
+    signature: &[u8],
+) -> CaliptraResult<LmsSignature<N, P, H>> {
+    if signature.len() < 8 {
+        raise_err!(InvalidSignatureLength);
+    }
+    let mut pos = 0;
+    let q = slice_to_num(&signature[pos..pos + 4]);
+    pos += 4;
+
+    let ots_type = lookup_lmots_algorithm_type(slice_to_num(&signature[pos..pos + 4]))
+        .ok_or(err_u32!(InvalidLmotsAlgorithmType))?;
+    pos += 4;
+    let lmots_params = get_lmots_parameters(&ots_type)?;
+    if lmots_params.n as usize != N * 4 {
+        raise_err!(InvalidHashWidth);
+    }
+    if lmots_params.p as usize != P {
+        raise_err!(InvalidPValue);
+    }
+
+    let signature_size_before_path = 8 + N * 4 + (lmots_params.p as usize * N * 4) + 4;
+    if signature.len() < signature_size_before_path {
+        raise_err!(InvalidSignatureLength);
+    }
+
+    let mut nonce = [0u32; N];
+    for i in nonce.iter_mut().take(N) {
+        *i = slice_to_num(&signature[pos..pos + 4]);
+        pos += 4;
+    }
+
+    let mut y = [HashValue::<N>::default(); P];
+    for t in y.iter_mut().take(P) {
+        let mut tmp = [0u32; N];
+        for tt in tmp.iter_mut().take(N) {
+            *tt = slice_to_num(&signature[pos..pos + 4]);
+            pos += 4;
+        }
+        *t = HashValue::<N>::from(tmp);
+    }
+    let lms_type = lookup_lms_algorithm_type(slice_to_num(&signature[pos..pos + 4]))
+        .ok_or(err_u32!(InvalidLmsAlgorithmType))?;
+    pos += 4;
+
+    let (hash_width, height) = get_lms_parameters(&lms_type)?;
+
+    if N * 4 != hash_width as usize {
+        raise_err!(InvalidHashWidth);
+    }
+
+    if height as usize != H {
+        raise_err!(InvalidSignatureDepth);
+    }
+
+    if (H * N * 4) + pos > signature.len() {
+        raise_err!(InvalidSignatureDepth);
+    }
+
+    let mut path = [HashValue::<N>::default(); H];
+    for t in path.iter_mut().take(H) {
+        let mut tmp = [0u32; N];
+        for tt in tmp.iter_mut().take(N) {
+            *tt = slice_to_num(&signature[pos..pos + 4]);
+            pos += 4;
+        }
+        *t = HashValue::<N>::from(tmp);
+    }
+    let lms_sig = LmsSignature {
+        q,
+        ots_type,
+        nonce,
+        y,
+        lms_type,
+        path,
+    };
+    Ok(lms_sig)
+}
+
 impl Lms {
-    pub fn get_lmots_parameters(
-        &self,
-        algo_type: &LmotsAlgorithmType,
-    ) -> CaliptraResult<&'static LmotsParameter> {
-        for i in &LMOTS_P {
-            if i.algorithm_name == *algo_type {
-                return Ok(i);
-            }
-        }
-        raise_err!(InvalidLmotsAlgorithmType)
-    }
-
-    pub fn get_lms_parameters(&self, algo_type: &LmsAlgorithmType) -> CaliptraResult<(u8, u8)> {
-        match algo_type {
-            LmsAlgorithmType::LmsSha256N32H5 => Ok((32, 5)),
-            LmsAlgorithmType::LmsSha256N32H10 => Ok((32, 10)),
-            LmsAlgorithmType::LmsSha256N32H15 => Ok((32, 15)),
-            LmsAlgorithmType::LmsSha256N32H20 => Ok((32, 20)),
-            LmsAlgorithmType::LmsSha256N32H25 => Ok((32, 25)),
-            LmsAlgorithmType::LmsSha256N24H5 => Ok((24, 5)),
-            LmsAlgorithmType::LmsSha256N24H10 => Ok((24, 10)),
-            LmsAlgorithmType::LmsSha256N24H15 => Ok((24, 15)),
-            LmsAlgorithmType::LmsSha256N24H20 => Ok((24, 20)),
-            LmsAlgorithmType::LmsSha256N24H25 => Ok((24, 25)),
-            LmsAlgorithmType::LmsReserved => {
-                raise_err!(InvalidLmsAlgorithmType)
-            }
-        }
-    }
-
     // follows pseudo code at https://www.rfc-editor.org/rfc/rfc8554#section-3.1.3
     pub fn coefficient(&self, s: &[u8], i: usize, w: usize) -> CaliptraResult<u8> {
         let valid_w = matches!(w, 1 | 2 | 4 | 8);
@@ -336,7 +482,7 @@ impl Lms {
     }
 
     fn checksum(&self, algo_type: &LmotsAlgorithmType, input_string: &[u8]) -> CaliptraResult<u16> {
-        let params = self.get_lmots_parameters(algo_type)?;
+        let params = get_lmots_parameters(algo_type)?;
         let mut sum = 0u16;
         let upper_bound = params.n as u16 * (8 / params.w as u16);
         let bitmask = (1 << params.w) - 1;
@@ -371,17 +517,13 @@ impl Lms {
 
     pub fn candidate_ots_signature<const N: usize, const P: usize>(
         &self,
-        algo_type: &LmotsAlgorithmType,
         lms_identifier: &LmsIdentifier,
+        algo_type: &LmotsAlgorithmType,
         q: &[u8; 4],
-        signature: &LmotsSignature<N, P>,
+        y: &[HashValue<N>; P],
         message_digest: &HashValue<N>,
     ) -> CaliptraResult<HashValue<N>> {
-        if algo_type != &signature.ots_type {
-            // println!("These have different ots types");
-            raise_err!(InvalidLmotsAlgorithmType);
-        }
-        let params = self.get_lmots_parameters(algo_type)?;
+        let params = get_lmots_parameters(algo_type)?;
         if params.p as usize != P {
             raise_err!(InvalidPValue);
         }
@@ -414,7 +556,7 @@ impl Lms {
         hash_block[16..20].clone_from_slice(q);
         for (i, val) in z.iter_mut().enumerate().take(P) {
             let a = self.coefficient(&message_hash_with_checksum, i, params.w as usize)?;
-            let mut tmp = signature.y[i];
+            let mut tmp = y[i];
             let t_upper: u16 = (1 << params.w) - 1; // subtract with overflow?
             let upper = t_upper as u8;
             hash_block[20..22].clone_from_slice(&(i as u16).to_be_bytes());
@@ -452,31 +594,29 @@ impl Lms {
         Ok(result)
     }
 
-    pub fn verify_lms_signature<const N: usize, const P: usize>(
+    pub fn verify_lms_signature<const N: usize, const P: usize, const H: usize>(
         &self,
         input_string: &[u8],
-        lms_identifier: &LmsIdentifier,
-        q: u32,
-        lms_public_key: &HashValue<N>,
-        lms_sig: &LmsSignature<N, P>,
+        lms_public_key: &LmsPublicKey<N>,
+        lms_sig: &LmsSignature<N, P, H>,
     ) -> CaliptraResult<bool> {
-        let q_str = q.to_be_bytes();
-        let (_, tree_height) = self.get_lms_parameters(&lms_sig.sig_type)?;
-        let mut node_num = (1 << tree_height) + q;
+        let q_str = lms_sig.q.to_be_bytes();
+        let (_, tree_height) = get_lms_parameters(&lms_sig.lms_type)?;
+        let mut node_num: u32 = (1 << tree_height) + lms_sig.q;
         if node_num > 2 << tree_height {
             raise_err!(InvalidQValue);
         }
         let message_digest = self.hash_message(
             input_string,
-            lms_identifier,
+            &lms_public_key.lms_identifier,
             &q_str,
-            &lms_sig.lmots_signature.nonce,
+            &lms_sig.nonce,
         )?;
         let candidate_key = self.candidate_ots_signature(
-            &lms_sig.lmots_signature.ots_type,
-            lms_identifier,
+            &lms_public_key.lms_identifier,
+            &lms_sig.ots_type,
             &q_str,
-            &lms_sig.lmots_signature,
+            &lms_sig.y,
             &message_digest,
         )?;
 
@@ -492,7 +632,7 @@ impl Lms {
         let mut digest = Array4x8::default();
         let sha = Sha256::default();
         let mut hasher = sha.digest_init(&mut digest)?;
-        hasher.update(lms_identifier)?;
+        hasher.update(&lms_public_key.lms_identifier)?;
         hasher.update(&node_num.to_be_bytes())?;
         hasher.update(&D_LEAF.to_be_bytes())?;
         //hasher.update(&candidate_key.0)?;
@@ -507,12 +647,12 @@ impl Lms {
                 let mut digest = Array4x8::default();
                 let sha = Sha256::default();
                 let mut hasher = sha.digest_init(&mut digest)?;
-                hasher.update(lms_identifier)?;
+                hasher.update(&lms_public_key.lms_identifier)?;
                 hasher.update(&(node_num / 2).to_be_bytes())?;
                 hasher.update(&D_INTR.to_be_bytes())?;
                 //hasher.update(&lms_sig.lms_path.get(i).ok_or(err_u32!(PathOutOfBounds))?.0)?;
                 for val in lms_sig
-                    .lms_path
+                    .path
                     .get(i)
                     .ok_or(err_u32!(PathOutOfBounds))?
                     .0
@@ -531,7 +671,7 @@ impl Lms {
                 let mut digest = Array4x8::default();
                 let sha = Sha256::default();
                 let mut hasher = sha.digest_init(&mut digest)?;
-                hasher.update(lms_identifier)?;
+                hasher.update(&lms_public_key.lms_identifier)?;
                 hasher.update(&(node_num / 2).to_be_bytes())?;
                 hasher.update(&D_INTR.to_be_bytes())?;
                 //hasher.update(&temp.0)?;
@@ -541,7 +681,7 @@ impl Lms {
                 //hasher.update(&lms_sig.lms_path[i].0)?;
                 //hasher.update(&lms_sig.lms_path.get(i).ok_or(err_u32!(PathOutOfBounds))?.0)?;
                 for val in lms_sig
-                    .lms_path
+                    .path
                     .get(i)
                     .ok_or(err_u32!(PathOutOfBounds))?
                     .0
@@ -557,7 +697,7 @@ impl Lms {
             i += 1;
         }
         let candidate_key = temp;
-        if candidate_key != *lms_public_key {
+        if candidate_key != lms_public_key.root_hash {
             return Ok(false);
         }
         Ok(true)
