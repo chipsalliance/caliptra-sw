@@ -18,7 +18,7 @@ pub fn panic(_info: &core::panic::PanicInfo) -> ! {
 
 #[no_mangle]
 extern "C" fn main() {
-    let mbox = caliptra_drivers::Mailbox::default();
+    let mut mbox = caliptra_drivers::Mailbox::default();
     loop {
         let Some(mut txn) = mbox.try_start_recv_txn() else {
             continue;

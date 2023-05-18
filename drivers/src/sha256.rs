@@ -51,7 +51,7 @@ impl Sha256 {
     ///
     /// * `Sha256Digest` - Object representing the digest operation
     pub fn digest_init<'a>(
-        &'a self,
+        &'a mut self,
         digest: Sha256Digest<'a>,
     ) -> CaliptraResult<Sha256DigestOp<'a>> {
         let op = Sha256DigestOp {
@@ -71,7 +71,7 @@ impl Sha256 {
     /// # Arguments
     ///
     /// * `buf` - Buffer to calculate the digest over
-    pub fn digest(&self, buf: &[u8]) -> CaliptraResult<Array4x8> {
+    pub fn digest(&mut self, buf: &[u8]) -> CaliptraResult<Array4x8> {
         // Check if the buffer is not large
         if buf.len() > SHA256_MAX_DATA_SIZE {
             raise_err!(MaxDataErr)
@@ -120,7 +120,7 @@ impl Sha256 {
     /// # Arguments
     ///
     /// * `buf` - Digest buffer
-    fn copy_digest_to_buf(&self, buf: &mut Array4x8) -> CaliptraResult<()> {
+    fn copy_digest_to_buf(&mut self, buf: &mut Array4x8) -> CaliptraResult<()> {
         *buf = Array4x8::read_from_reg(sha256::RegisterBlock::sha256_reg().digest());
         Ok(())
     }
@@ -133,7 +133,7 @@ impl Sha256 {
     /// * `first` - Flag indicating if this is the first buffer
     /// * `buf_size` - Total buffer size
     fn digest_partial_block(
-        &self,
+        &mut self,
         slice: &[u8],
         first: bool,
         buf_size: usize,
@@ -178,7 +178,7 @@ impl Sha256 {
     /// * `block`: Block to calculate the digest
     /// * `first` - Flag indicating if this is the first block
     fn digest_block(
-        &self,
+        &mut self,
         block: &[u8; SHA256_BLOCK_BYTE_SIZE],
         first: bool,
     ) -> CaliptraResult<()> {
@@ -192,7 +192,7 @@ impl Sha256 {
     // # Arguments
     //
     /// * `first` - Flag indicating if this is the first block
-    fn digest_op(&self, first: bool) -> CaliptraResult<()> {
+    fn digest_op(&mut self, first: bool) -> CaliptraResult<()> {
         let sha256 = sha256::RegisterBlock::sha256_reg();
 
         // Wait for the hardware to be ready
@@ -229,7 +229,7 @@ enum Sha256DigestState {
 /// Multi step SHA-256 digest operation
 pub struct Sha256DigestOp<'a> {
     /// SHA-256 Engine
-    sha: &'a Sha256,
+    sha: &'a mut Sha256,
 
     /// State
     state: Sha256DigestState,

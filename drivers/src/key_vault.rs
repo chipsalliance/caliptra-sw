@@ -268,7 +268,7 @@ impl KeyVault {
     /// # Returns
     /// * `true` - If the key is use locked
     /// * `false` - If the Key is not use locked
-    pub fn key_use_lock(&self, id: KeyId) -> bool {
+    pub fn key_use_lock(&mut self, id: KeyId) -> bool {
         let kv = kv::RegisterBlock::kv_reg();
         kv.key_ctrl().at(id.into()).read().lock_use()
     }
@@ -301,7 +301,7 @@ impl KeyVault {
     ///
     /// # Returns
     /// * `KeyUsage` - Key Usage
-    pub fn key_usage(&self, id: KeyId) -> KeyUsage {
+    pub fn key_usage(&mut self, id: KeyId) -> KeyUsage {
         let kv = kv::RegisterBlock::kv_reg();
         let val = kv.key_ctrl().at(id.into()).read();
         KeyUsage(val.dest_valid())

@@ -63,7 +63,7 @@ impl Sha384 {
     ///
     /// * `Sha384Digest` - Object representing the digest operation
     pub fn digest_init<'a>(
-        &'a self,
+        &'a mut self,
         digest: Sha384Digest<'a>,
     ) -> CaliptraResult<Sha384DigestOp<'a>> {
         let op = Sha384DigestOp {
@@ -84,7 +84,7 @@ impl Sha384 {
     ///
     /// * `data` - Data to used to update the digest
     ///
-    pub fn digest(&self, buf: &[u8]) -> CaliptraResult<Array4x12> {
+    pub fn digest(&mut self, buf: &[u8]) -> CaliptraResult<Array4x12> {
         // Check if the buffer is not large
         if buf.len() > SHA384_MAX_DATA_SIZE {
             raise_err!(MaxDataErr)
@@ -130,7 +130,7 @@ impl Sha384 {
     /// # Arguments
     ///
     /// * `buf` - Digest buffer
-    fn read_digest(&self) -> Array4x12 {
+    fn read_digest(&mut self) -> Array4x12 {
         let sha = sha512::RegisterBlock::sha512_reg();
         // digest_block() only waits until the peripheral is ready for the next
         // command; the result register may not be valid yet
@@ -138,7 +138,7 @@ impl Sha384 {
         Array4x12::read_from_reg(sha.digest().truncate::<12>())
     }
 
-    pub fn pcr_extend(&self, id: PcrId, data: &[u8]) -> CaliptraResult<()> {
+    pub fn pcr_extend(&mut self, id: PcrId, data: &[u8]) -> CaliptraResult<()> {
         let total_bytes = data.len() + SHA384_HASH_SIZE;
         if total_bytes > (SHA384_BLOCK_BYTE_SIZE - 1) {
             raise_err!(MaxDataErr)
@@ -174,7 +174,7 @@ impl Sha384 {
     /// # Arguments
     ///
     /// * `pcr_id` - PCR to hash extend
-    fn retrieve_pcr(&self, pcr_id: PcrId) -> CaliptraResult<()> {
+    fn retrieve_pcr(&mut self, pcr_id: PcrId) -> CaliptraResult<()> {
         let sha = sha512::RegisterBlock::sha512_reg();
 
         KvAccess::extend_from_pv(pcr_id, sha.vault_rd_status(), sha.vault_rd_ctrl())
@@ -191,7 +191,7 @@ impl Sha384 {
     /// * `first` - Flag indicating if this is the first buffer
     /// * `buf_size` - Total buffer size
     fn digest_partial_block(
-        &self,
+        &mut self,
         slice: &[u8],
         first: bool,
         buf_size: usize,
@@ -239,7 +239,7 @@ impl Sha384 {
     /// * `first` - Flag indicating if this is the first block
     /// * `last` - Flag indicating if this is the last block
     fn digest_block(
-        &self,
+        &mut self,
         block: &[u8; SHA384_BLOCK_BYTE_SIZE],
         first: bool,
         last: bool,
@@ -255,7 +255,7 @@ impl Sha384 {
     //
     /// * `first` - Flag indicating if this is the first block
     /// * `last` - Flag indicating if this is the last block
-    fn digest_op(&self, first: bool, last: bool) -> CaliptraResult<()> {
+    fn digest_op(&mut self, first: bool, last: bool) -> CaliptraResult<()> {
         const MODE_SHA384: u32 = 0b10;
 
         let sha = sha512::RegisterBlock::sha512_reg();
@@ -290,7 +290,7 @@ enum Sha384DigestState {
 /// Multi step SHA-384 digest operation
 pub struct Sha384DigestOp<'a> {
     /// SHA-384 Engine
-    sha: &'a Sha384,
+    sha: &'a mut Sha384,
 
     /// State
     state: Sha384DigestState,

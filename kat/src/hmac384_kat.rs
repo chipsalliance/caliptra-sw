@@ -50,7 +50,7 @@ impl Hmac384Kat {
     /// # Returns
     ///
     /// * `CaliptraResult` - Result denoting the KAT outcome.
-    pub fn execute(&self, hmac: &Hmac384) -> CaliptraResult<()> {
+    pub fn execute(&self, hmac: &mut Hmac384) -> CaliptraResult<()> {
         self.kat_no_data(hmac)?;
         Ok(())
     }
@@ -64,7 +64,7 @@ impl Hmac384Kat {
     /// # Returns
     ///
     /// * `CaliptraResult` - Result denoting the KAT outcome.
-    fn kat_no_data(&self, hmac: &Hmac384) -> CaliptraResult<()> {
+    fn kat_no_data(&self, hmac: &mut Hmac384) -> CaliptraResult<()> {
         let data = &[];
         let mut tag = Array4x12::default();
 

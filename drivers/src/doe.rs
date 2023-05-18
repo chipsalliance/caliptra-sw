@@ -25,7 +25,7 @@ impl DeobfuscationEngine {
     ///
     /// * `iv` - Initialization vector
     /// * `key_id` - Key vault key to store the decrypted UDS in
-    pub fn decrypt_uds(&self, iv: &Array4x4, key_id: KeyId) -> CaliptraResult<()> {
+    pub fn decrypt_uds(&mut self, iv: &Array4x4, key_id: KeyId) -> CaliptraResult<()> {
         let doe = doe::RegisterBlock::doe_reg();
 
         // Wait for hardware ready
@@ -50,7 +50,7 @@ impl DeobfuscationEngine {
     ///
     /// * `iv` - Initialization vector
     /// * `key_id` - Key vault key to store the decrypted field entropy in
-    pub fn decrypt_field_entropy(&self, iv: &Array4x4, key_id: KeyId) -> CaliptraResult<()> {
+    pub fn decrypt_field_entropy(&mut self, iv: &Array4x4, key_id: KeyId) -> CaliptraResult<()> {
         let doe = doe::RegisterBlock::doe_reg();
 
         // Wait for hardware ready
@@ -75,7 +75,7 @@ impl DeobfuscationEngine {
     /// * Deobfuscation Key
     /// * Encrypted UDS
     /// * Encrypted Field entropy
-    pub fn clear_secrets(&self) -> CaliptraResult<()> {
+    pub fn clear_secrets(&mut self) -> CaliptraResult<()> {
         // Self::_execute_cmd(CONTROL::CMD::CLEAR_SECRETS.value, None, None);
         let doe = doe::RegisterBlock::doe_reg();
 

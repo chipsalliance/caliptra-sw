@@ -91,13 +91,13 @@ pub extern "C" fn rom_entry() -> ! {
     }
 
     #[cfg(not(feature = "no-fmc"))]
-    launch_fmc(&env);
+    launch_fmc(&mut env);
 
     #[cfg(feature = "no-fmc")]
     caliptra_drivers::ExitCtrl::exit(0);
 }
 
-fn launch_fmc(env: &RomEnv) -> ! {
+fn launch_fmc(env: &mut RomEnv) -> ! {
     // Function is defined in start.S
     extern "C" {
         fn exit_rom(entry: u32) -> !;

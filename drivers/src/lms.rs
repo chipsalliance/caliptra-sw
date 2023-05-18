@@ -355,7 +355,7 @@ impl Lms {
         nonce: &[u32; N],
     ) -> CaliptraResult<HashValue<N>> {
         let mut digest = Array4x8::default();
-        let sha = Sha256::default();
+        let mut sha = Sha256::default();
         let mut hasher = sha.digest_init(&mut digest)?;
         hasher.update(lms_identifier)?;
         hasher.update(q)?;
@@ -420,7 +420,7 @@ impl Lms {
             hash_block[20..22].clone_from_slice(&(i as u16).to_be_bytes());
             for j in a..upper {
                 let mut digest = Array4x8::default();
-                let sha = Sha256::default();
+                let mut sha = Sha256::default();
                 let mut hasher = sha.digest_init(&mut digest)?;
                 hash_block[22] = j;
                 //hash_block[23..23 + N].clone_from_slice(&tmp.0);
@@ -436,7 +436,7 @@ impl Lms {
             *val = tmp;
         }
         let mut digest = Array4x8::default();
-        let sha = Sha256::default();
+        let mut sha = Sha256::default();
         let mut hasher = sha.digest_init(&mut digest)?;
         hasher.update(lms_identifier)?;
         hasher.update(q)?;
@@ -490,7 +490,7 @@ impl Lms {
         }
 
         let mut digest = Array4x8::default();
-        let sha = Sha256::default();
+        let mut sha = Sha256::default();
         let mut hasher = sha.digest_init(&mut digest)?;
         hasher.update(lms_identifier)?;
         hasher.update(&node_num.to_be_bytes())?;
@@ -505,7 +505,7 @@ impl Lms {
         while node_num > 1 {
             if node_num % 2 == 1 {
                 let mut digest = Array4x8::default();
-                let sha = Sha256::default();
+                let mut sha = Sha256::default();
                 let mut hasher = sha.digest_init(&mut digest)?;
                 hasher.update(lms_identifier)?;
                 hasher.update(&(node_num / 2).to_be_bytes())?;
@@ -529,7 +529,7 @@ impl Lms {
                 temp = HashValue::<N>::from(digest);
             } else {
                 let mut digest = Array4x8::default();
-                let sha = Sha256::default();
+                let mut sha = Sha256::default();
                 let mut hasher = sha.digest_init(&mut digest)?;
                 hasher.update(lms_identifier)?;
                 hasher.update(&(node_num / 2).to_be_bytes())?;

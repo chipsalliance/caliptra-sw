@@ -155,7 +155,7 @@ impl Hmac384 {
     ///
     /// * `tag`  -  The calculated tag
     pub fn hmac_init<'a>(
-        &'a self,
+        &'a mut self,
         key: Hmac384Key,
         mut tag: Hmac384Tag<'a>,
     ) -> CaliptraResult<Hmac384Op> {
@@ -203,7 +203,7 @@ impl Hmac384 {
     ///
     /// * `tag`  -  The calculated tag
     pub fn hmac(
-        &self,
+        &mut self,
         key: Hmac384Key,
         data: Hmac384Data,
         mut tag: Hmac384Tag,
@@ -251,7 +251,7 @@ impl Hmac384 {
     ///
     /// * `buf` - Buffer to calculate the hmac over
     ///
-    fn hmac_buf(&self, buf: &[u8]) -> CaliptraResult<()> {
+    fn hmac_buf(&mut self, buf: &[u8]) -> CaliptraResult<()> {
         // Check if the buffer is within the size that we support
         if buf.len() > HMAC384_MAX_DATA_SIZE {
             raise_err!(MaxDataErr)
@@ -302,7 +302,7 @@ impl Hmac384 {
     ///
     /// * `key` - Key to calculate hmac for
     ///
-    fn hmac_key(&self, key: KeyReadArgs) -> CaliptraResult<()> {
+    fn hmac_key(&mut self, key: KeyReadArgs) -> CaliptraResult<()> {
         let hmac = hmac::RegisterBlock::hmac_reg();
 
         KvAccess::copy_from_kv(key, hmac.kv_rd_block_status(), hmac.kv_rd_block_ctrl())
@@ -311,7 +311,12 @@ impl Hmac384 {
         self.hmac_op(true)
     }
 
-    fn hmac_partial_block(&self, slice: &[u8], first: bool, buf_size: usize) -> CaliptraResult<()> {
+    fn hmac_partial_block(
+        &mut self,
+        slice: &[u8],
+        first: bool,
+        buf_size: usize,
+    ) -> CaliptraResult<()> {
         /// Set block length
         fn set_block_len(buf_size: usize, block: &mut [u8; HMAC384_BLOCK_SIZE_BYTES]) {
             let bit_len = ((buf_size + HMAC384_BLOCK_SIZE_BYTES) as u128) << 3;
@@ -354,7 +359,7 @@ impl Hmac384 {
     /// * `first` - Flag indicating if this is the first block
     ///
     fn hmac_block(
-        &self,
+        &mut self,
         block: &[u8; HMAC384_BLOCK_SIZE_BYTES],
         first: bool,
     ) -> CaliptraResult<()> {
@@ -370,7 +375,7 @@ impl Hmac384 {
     ///
     /// * `first` - Flag indicating if this is the first block
     ///
-    fn hmac_op(&self, first: bool) -> CaliptraResult<()> {
+    fn hmac_op(&mut self, first: bool) -> CaliptraResult<()> {
         let hmac = hmac::RegisterBlock::hmac_reg();
 
         // Wait for the hardware to be ready
@@ -406,7 +411,7 @@ enum Hmac384OpState {
 /// HMAC multi step operation
 pub struct Hmac384Op<'a> {
     /// Hmac-384 Engine
-    hmac_engine: &'a Hmac384,
+    hmac_engine: &'a mut Hmac384,
 
     /// State
     state: Hmac384OpState,

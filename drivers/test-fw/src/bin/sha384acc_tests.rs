@@ -37,7 +37,7 @@ fn test_digest0() {
         assert!(txn.send_request(CMD, &data).is_ok());
 
         let mut digest = Array4x12::default();
-        let sha_acc = Sha384Acc::default();
+        let mut sha_acc = Sha384Acc::default();
         if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
             let result = sha_acc_op.digest(data.len() as u32, 0, false, (&mut digest).into());
             assert!(result.is_ok());
@@ -64,7 +64,7 @@ fn test_digest1() {
         assert!(txn.send_request(CMD, &data).is_ok());
 
         let mut digest = Array4x12::default();
-        let sha_acc = Sha384Acc::default();
+        let mut sha_acc = Sha384Acc::default();
         if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
             let result = sha_acc_op.digest(data.len() as u32, 0, false, (&mut digest).into());
             assert!(result.is_ok());
@@ -87,7 +87,7 @@ fn test_digest2() {
     ];
 
     let mut digest = Array4x12::default();
-    let sha_acc = Sha384Acc::default();
+    let mut sha_acc = Sha384Acc::default();
 
     if let Some(mut txn) = Mailbox::default().try_start_send_txn() {
         const CMD: u32 = 0x1c;
@@ -115,7 +115,7 @@ fn test_digest_offset() {
     ];
 
     let mut digest = Array4x12::default();
-    let sha_acc = Sha384Acc::default();
+    let mut sha_acc = Sha384Acc::default();
 
     if let Some(mut txn) = Mailbox::default().try_start_send_txn() {
         const CMD: u32 = 0x1c;
@@ -142,7 +142,7 @@ fn test_digest_zero_size_buffer() {
     ];
 
     let mut digest = Array4x12::default();
-    let sha_acc = Sha384Acc::default();
+    let mut sha_acc = Sha384Acc::default();
     if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
         let result = sha_acc_op.digest(0, 0, true, (&mut digest).into());
         assert!(result.is_ok());
@@ -162,7 +162,7 @@ fn test_digest_max_mailbox_size() {
     ];
 
     let mut digest = Array4x12::default();
-    let sha_acc = Sha384Acc::default();
+    let mut sha_acc = Sha384Acc::default();
     if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
         let result = sha_acc_op.digest(
             MAX_MAILBOX_CAPACITY_BYTES as u32,
@@ -181,7 +181,7 @@ fn test_digest_max_mailbox_size() {
 fn test_kat() {
     assert_eq!(
         Sha384AccKat::default()
-            .execute(&Sha384Acc::default())
+            .execute(&mut Sha384Acc::default())
             .is_ok(),
         true
     );

@@ -62,11 +62,11 @@ pub struct ImageVerificationInfo {
 /// Image Verification Environment
 pub trait ImageVerificationEnv {
     /// Calculate SHA-384 Digest
-    fn sha384_digest(&self, offset: u32, len: u32) -> CaliptraResult<ImageDigest>;
+    fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest>;
 
     /// Perform ECC-348 Verification
     fn ecc384_verify(
-        &self,
+        &mut self,
         digest: &ImageDigest,
         pub_key: &ImageEccPubKey,
         sig: &ImageEccSignature,

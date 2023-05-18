@@ -70,12 +70,12 @@ impl Ecc384Kat {
     /// # Returns
     ///
     /// * `CaliptraResult` - Result denoting the KAT outcome.
-    pub fn execute(&self, ecc: &Ecc384) -> CaliptraResult<()> {
+    pub fn execute(&self, ecc: &mut Ecc384) -> CaliptraResult<()> {
         self.kat_signature_generate(ecc)?;
         self.kat_signature_verify(ecc)
     }
 
-    fn kat_signature_generate(&self, ecc: &Ecc384) -> CaliptraResult<()> {
+    fn kat_signature_generate(&self, ecc: &mut Ecc384) -> CaliptraResult<()> {
         let digest = Array4x12::new([0u32; 12]);
         let signature = ecc
             .sign(Ecc384PrivKeyIn::from(&PRIV_KEY), &digest)
@@ -88,7 +88,7 @@ impl Ecc384Kat {
         Ok(())
     }
 
-    fn kat_signature_verify(&self, ecc: &Ecc384) -> CaliptraResult<()> {
+    fn kat_signature_verify(&self, ecc: &mut Ecc384) -> CaliptraResult<()> {
         let digest = [0u32; 12];
         if !ecc
             .verify(&PUB_KEY, &digest.into(), &SIGNATURE)

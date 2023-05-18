@@ -41,7 +41,7 @@ impl DiceLayer for RtAliasLayer {
 
 impl RtAliasLayer {
     #[inline(never)]
-    pub fn run(env: &FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
+    pub fn run(env: &mut FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
         cprintln!("[art] Extend PCRs");
         Self::extend_pcrs(env, hand_off)?;
         Ok(())
@@ -52,7 +52,7 @@ impl RtAliasLayer {
     /// # Arguments
     ///
     /// * `env` - FMC Environment
-    pub fn extend_pcrs(env: &FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
+    pub fn extend_pcrs(env: &mut FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
         extend_current_pcr(env, hand_off)?;
         extend_journey_pcr(env, hand_off)?;
         Ok(())

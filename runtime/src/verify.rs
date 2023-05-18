@@ -29,7 +29,7 @@ pub fn handle_ecdsa_verify(cmd_args: &[u8]) -> CaliptraResult<()> {
             s: Ecc384Scalar::from(cmd.signature_s),
         };
 
-        let ecdsa = Ecc384::default();
+        let mut ecdsa = Ecc384::default();
         let success = ecdsa.verify(&pubkey, &digest, &sig)?;
         if !success {
             return Err(RuntimeErr::EcdsaVerificationFailed.into());

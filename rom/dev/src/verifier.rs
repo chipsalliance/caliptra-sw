@@ -21,19 +21,19 @@ use crate::rom_env::RomEnv;
 
 /// ROM Verification Environemnt
 pub(crate) struct RomImageVerificationEnv<'a> {
-    env: &'a RomEnv,
+    env: &'a mut RomEnv,
 }
 
 impl<'a> RomImageVerificationEnv<'a> {
     /// Create and instance `RomImageVerificationEnv`
-    pub fn new(env: &'a RomEnv) -> Self {
+    pub fn new(env: &'a mut RomEnv) -> Self {
         Self { env }
     }
 }
 
 impl<'a> ImageVerificationEnv for RomImageVerificationEnv<'a> {
     /// Calculate Digest using SHA-384 Accelerator
-    fn sha384_digest(&self, offset: u32, len: u32) -> CaliptraResult<ImageDigest> {
+    fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest> {
         loop {
             if let Some(mut txn) = self.env.sha384_acc.try_start_operation() {
                 let mut digest = Array4x12::default();
@@ -45,7 +45,7 @@ impl<'a> ImageVerificationEnv for RomImageVerificationEnv<'a> {
 
     /// ECC-384 Verification routine
     fn ecc384_verify(
-        &self,
+        &mut self,
         digest: &ImageDigest,
         pub_key: &ImageEccPubKey,
         sig: &ImageEccSignature,

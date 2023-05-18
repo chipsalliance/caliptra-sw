@@ -68,7 +68,7 @@ impl DiceLayer for FmcAliasLayer {
         let mut txn = Self::download_image(env)?;
 
         // Load the manifest
-        let manifest = Self::load_manifest(&txn);
+        let manifest = Self::load_manifest(&mut txn);
         let manifest = okref(&manifest)?;
 
         // Verify the image
@@ -83,7 +83,7 @@ impl DiceLayer for FmcAliasLayer {
         report_boot_status(FmcAliasExtendPcrComplete.into());
 
         // Load the image
-        Self::load_image(env, manifest, &txn)?;
+        Self::load_image(env, manifest, &mut txn)?;
 
         // Complete the mailbox transaction indicating success.
         txn.complete(true)?;
@@ -199,7 +199,7 @@ impl FmcAliasLayer {
     /// # Returns
     ///
     /// * `Manifest` - Caliptra Image Bundle Manifest
-    fn load_manifest(txn: &MailboxRecvTxn) -> CaliptraResult<ImageManifest> {
+    fn load_manifest(txn: &mut MailboxRecvTxn) -> CaliptraResult<ImageManifest> {
         let slice = unsafe {
             let ptr = &mut MAN1_ORG as *mut u32;
             core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
@@ -221,12 +221,12 @@ impl FmcAliasLayer {
     ///
     /// * `env` - ROM Environment
     fn verify_image(
-        env: &RomEnv,
+        env: &mut RomEnv,
         manifest: &ImageManifest,
         img_bundle_sz: u32,
     ) -> CaliptraResult<ImageVerificationInfo> {
         let venv = RomImageVerificationEnv::new(env);
-        let verifier = ImageVerifier::new(venv);
+        let mut verifier = ImageVerifier::new(venv);
         let info = verifier.verify(manifest, img_bundle_sz, ResetReason::ColdReset)?;
 
         cprintln!(
@@ -245,9 +245,9 @@ impl FmcAliasLayer {
     /// * `manifest` - Manifest
     /// * `txn`      - Mailbox Receive Transaction
     fn load_image(
-        _env: &RomEnv,
+        _env: &mut RomEnv,
         manifest: &ImageManifest,
-        txn: &MailboxRecvTxn,
+        txn: &mut MailboxRecvTxn,
     ) -> CaliptraResult<()> {
         cprintln!(
             "[afmc] Loading FMC at address 0x{:08x} len {}",

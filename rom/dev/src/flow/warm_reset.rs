@@ -25,7 +25,7 @@ impl WarmResetFlow {
     ///
     /// * `env` - ROM Environment
     #[inline(never)]
-    pub fn run(env: &RomEnv) -> CaliptraResult<FirmwareHandoffTable> {
+    pub fn run(env: &mut RomEnv) -> CaliptraResult<FirmwareHandoffTable> {
         cprintln!("[warm-reset] ++");
 
         // TODO: Implement

@@ -44,11 +44,11 @@ impl Sha256Kat {
     /// # Returns
     ///
     /// * `CaliptraResult` - Result denoting the KAT outcome.
-    pub fn execute(&self, sha: &Sha256) -> CaliptraResult<()> {
+    pub fn execute(&self, sha: &mut Sha256) -> CaliptraResult<()> {
         self.kat_no_data(sha)
     }
 
-    fn kat_no_data(&self, sha: &Sha256) -> CaliptraResult<()> {
+    fn kat_no_data(&self, sha: &mut Sha256) -> CaliptraResult<()> {
         let data = [];
 
         let digest = sha.digest(&data).map_err(|_| err_u32!(DigestFailure))?;
