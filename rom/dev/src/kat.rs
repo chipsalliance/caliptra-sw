@@ -44,7 +44,7 @@ pub fn execute_kat(env: &mut RomEnv) -> CaliptraResult<()> {
     Hmac384Kat::default().execute(&mut env.hmac384)?;
 
     cprintln!("[kat] Executing LMS Engine KAT");
-    LmsKat::default().execute(&env.lms)?;
+    LmsKat::default().execute(&mut env.sha256, &env.lms)?;
 
     cprintln!("[kat] --");
 

@@ -21,11 +21,12 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{
-    HashValue, LmotsAlgorithmType, LmotsSignature, Lms, LmsAlgorithmType, LmsSignature,
+    HashValue, LmotsAlgorithmType, LmotsSignature, Lms, LmsAlgorithmType, LmsSignature, Sha256,
 };
 use caliptra_test_harness::test_suite;
 
 fn test_hash_message_32() {
+    let mut sha256 = Sha256::default();
     const MESSAGE: [u8; 162] = [
         0x54, 0x68, 0x65, 0x20, 0x70, 0x6f, 0x77, 0x65, 0x72, 0x73, 0x20, 0x6e, 0x6f, 0x74, 0x20,
         0x64, 0x65, 0x6c, 0x65, 0x67, 0x61, 0x74, 0x65, 0x64, 0x20, 0x74, 0x6f, 0x20, 0x74, 0x68,
@@ -51,7 +52,8 @@ fn test_hash_message_32() {
     let lms_q: u32 = 0xa;
     let q_str = lms_q.to_be_bytes();
 
-    let result = Lms::default().hash_message::<8>(&MESSAGE, &LMS_IDENTIFIER, &q_str, &FINAL_C);
+    let result =
+        Lms::default().hash_message::<8>(&mut sha256, &MESSAGE, &LMS_IDENTIFIER, &q_str, &FINAL_C);
     let expected = HashValue::from([
         197, 161, 71, 71, 171, 172, 219, 132, 181, 174, 255, 248, 113, 57, 175, 182, 199, 253, 140,
         213, 215, 42, 14, 95, 56, 156, 32, 130, 218, 23, 63, 40,
@@ -60,6 +62,7 @@ fn test_hash_message_32() {
 }
 
 fn test_ots_32() {
+    let mut sha256 = Sha256::default();
     const MESSAGE: [u8; 162] = [
         0x54, 0x68, 0x65, 0x20, 0x70, 0x6f, 0x77, 0x65, 0x72, 0x73, 0x20, 0x6e, 0x6f, 0x74, 0x20,
         0x64, 0x65, 0x6c, 0x65, 0x67, 0x61, 0x74, 0x65, 0x64, 0x20, 0x74, 0x6f, 0x20, 0x74, 0x68,
@@ -223,7 +226,7 @@ fn test_ots_32() {
     let q_str = LMS_Q.to_be_bytes();
 
     let result = Lms::default()
-        .hash_message::<8>(&MESSAGE, &LMS_IDENTIFIER, &q_str, &FINAL_C)
+        .hash_message::<8>(&mut sha256, &MESSAGE, &LMS_IDENTIFIER, &q_str, &FINAL_C)
         .unwrap();
     let expected = HashValue::from([
         197, 161, 71, 71, 171, 172, 219, 132, 181, 174, 255, 248, 113, 57, 175, 182, 199, 253, 140,
@@ -241,6 +244,7 @@ fn test_ots_32() {
         576791441,
     ]);
     let result_ots = Lms::default().candidate_ots_signature::<8, 34>(
+        &mut sha256,
         &FINAL_OTS_SIG.ots_type,
         &LMS_IDENTIFIER,
         &q_str,
@@ -252,6 +256,7 @@ fn test_ots_32() {
 // from https://www.rfc-editor.org/rfc/rfc8554#page-52
 // this is the lower part of the HSS tree
 fn test_lms_lower_32() {
+    let mut sha256 = Sha256::default();
     const MESSAGE: [u8; 162] = [
         0x54, 0x68, 0x65, 0x20, 0x70, 0x6f, 0x77, 0x65, 0x72, 0x73, 0x20, 0x6e, 0x6f, 0x74, 0x20,
         0x64, 0x65, 0x6c, 0x65, 0x67, 0x61, 0x74, 0x65, 0x64, 0x20, 0x74, 0x6f, 0x20, 0x74, 0x68,
@@ -457,6 +462,7 @@ fn test_lms_lower_32() {
 
     let final_thingie = Lms::default()
         .verify_lms_signature(
+            &mut sha256,
             &MESSAGE,
             &LMS_IDENTIFIER,
             Q,
@@ -470,6 +476,7 @@ fn test_lms_lower_32() {
 // from https://www.rfc-editor.org/rfc/rfc8554#page-49
 // this tests the upper part of that HSS tree
 fn test_hss_upper_32() {
+    let mut sha256 = Sha256::default();
     const IDENTIFIER: [u8; 16] = [
         0x61, 0xa5, 0xd5, 0x7d, 0x37, 0xf5, 0xe4, 0x6b, 0xfb, 0x75, 0x20, 0x80, 0x6b, 0x07, 0xa1,
         0xb8,
@@ -675,6 +682,7 @@ fn test_hss_upper_32() {
 
     let success = Lms::default()
         .verify_lms_signature(
+            &mut sha256,
             &PUBLIC_BUFFER,
             &IDENTIFIER,
             Q,
