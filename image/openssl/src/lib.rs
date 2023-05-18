@@ -16,7 +16,8 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Context};
 use caliptra_drivers::{
-    LmotsAlgorithmType, Lms, LmsAlgorithmType, LmsIdentifier, D_INTR, D_LEAF, D_MESG, D_PBLC,
+    lookup_lmots_algorithm_type, lookup_lms_algorithm_type, LmotsAlgorithmType, Lms,
+    LmsAlgorithmType, LmsIdentifier, D_INTR, D_LEAF, D_MESG, D_PBLC,
 };
 use caliptra_image_gen::ImageGeneratorCrypto;
 use caliptra_image_types::*;
@@ -211,11 +212,11 @@ fn generate_lmots_pubkey_helper(
     gen_k(id, q, p, w, &x, k);
 }
 
-fn stack_top_mut(st: &mut Vec<u8>, st_index: usize) -> &mut [u8] {
+fn stack_top_mut(st: &mut [u8], st_index: usize) -> &mut [u8] {
     &mut st[st_index * SHA192_DIGEST_BYTE_SIZE..][..SHA192_DIGEST_BYTE_SIZE]
 }
 
-fn stack_top(st: &Vec<u8>, st_index: usize) -> &[u8] {
+fn stack_top(st: &[u8], st_index: usize) -> &[u8] {
     &st[st_index * SHA192_DIGEST_BYTE_SIZE..][..SHA192_DIGEST_BYTE_SIZE]
 }
 
@@ -256,8 +257,8 @@ fn generate_lms_pubkey_helper(
         let mut j: u32 = i;
         let mut cur_node: u32 = (1 << tree_height) + i;
         while j % 2 == 1 {
-            r = r >> 1;
-            j = j >> 1;
+            r >>= 1;
+            j >>= 1;
             // pop left_side (i.e T[r]) from stack
             stack_idx -= 1;
 
@@ -282,7 +283,7 @@ fn generate_lms_pubkey_helper(
             }
 
             r_str = r.to_be_bytes();
-            cur_node = cur_node >> 1;
+            cur_node >>= 1;
             // temp = H(I || u32str(r) || u16str(D_INTR) || left_side || temp)
             hasher = Sha256::new();
             hasher.update(id);
@@ -343,14 +344,13 @@ fn generate_ots_signature_helper(
     gen_x(id, q, alg_p, seed, &mut x);
 
     for i in 0..alg_p {
-        let a: u8;
-        if i < data_coeff {
-            a = Lms::default().coefficient(&q_arr, i, width).unwrap();
+        let a: u8 = if i < data_coeff {
+            Lms::default().coefficient(&q_arr, i, width).unwrap()
         } else {
-            a = Lms::default()
+            Lms::default()
                 .coefficient(&checksum_str, i - data_coeff, width)
-                .unwrap();
-        }
+                .unwrap()
+        };
 
         let offset: usize = i * SHA192_DIGEST_BYTE_SIZE;
         let tmp: &mut [u8] = &mut x[offset..][..SHA192_DIGEST_BYTE_SIZE];
@@ -373,21 +373,28 @@ fn generate_ots_signature_helper(
 }
 
 #[allow(unused)]
-fn generate_lms_pubkey(priv_key: &ImageLmsPrivKey) -> ImageLmsPublicKey {
+fn generate_lms_pubkey(priv_key: &ImageLmsPrivKey) -> anyhow::Result<ImageLmsPublicKey> {
+    let treetype = lookup_lms_algorithm_type(priv_key.tree_type).unwrap();
+    let otstype = lookup_lmots_algorithm_type(priv_key.otstype).unwrap();
+    let Ok((_, height)) = Lms::default().get_lms_parameters(&treetype) else {
+        return Err(anyhow!("Error parsing lms parameters"));
+   };
     let mut pub_key = Some(ImageLmsPublicKey::default());
-    pub_key.as_mut().map(|x| x.otstype = priv_key.otstype);
-    pub_key.as_mut().map(|x| x.id = priv_key.id.clone());
-    pub_key.as_mut().map(|x| x.tree_type = priv_key.tree_type);
+    if let Some(x) = pub_key.as_mut() {
+        x.otstype = priv_key.otstype;
+        x.id = priv_key.id;
+        x.tree_type = priv_key.tree_type;
+    }
     generate_lms_pubkey_helper(
         &priv_key.id,
-        LmotsAlgorithmType::LmotsSha256N24W8,
-        5u8,
+        otstype,
+        height,
         &priv_key.seed,
         None,
         &mut pub_key,
         &mut None,
     );
-    pub_key.unwrap()
+    Ok(pub_key.unwrap())
 }
 
 fn sign_with_lms_key(
@@ -413,8 +420,10 @@ fn sign_with_lms_key(
         q,
     );
     let mut sig = Some(ImageLmsSignature::default());
-    sig.as_mut().map(|x| x.q = q);
-    sig.as_mut().map(|x| x.ots_sig = ots_sig);
+    if let Some(x) = sig.as_mut() {
+        x.q = q;
+        x.ots_sig = ots_sig;
+    }
 
     generate_lms_pubkey_helper(
         &priv_key.id,
@@ -430,9 +439,11 @@ fn sign_with_lms_key(
 
 #[test]
 fn test_print_lms_private_pub_key() {
-    let mut priv_key: ImageLmsPrivKey = ImageLmsPrivKey::default();
-    priv_key.tree_type = LmsAlgorithmType::LmsSha256N24H15 as u32;
-    priv_key.otstype = LmotsAlgorithmType::LmotsSha256N24W4 as u32;
+    let mut priv_key: ImageLmsPrivKey = ImageLmsPrivKey {
+        tree_type: LmsAlgorithmType::LmsSha256N24H15 as u32,
+        otstype: LmotsAlgorithmType::LmotsSha256N24W4 as u32,
+        ..Default::default()
+    };
     for i in 0..4 {
         rand_bytes(&mut priv_key.id).unwrap();
         rand_bytes(&mut priv_key.seed).unwrap();
@@ -466,13 +477,13 @@ fn test_lms() {
     let expected_pub_key = ImageLmsPublicKey {
         tree_type: LmsAlgorithmType::LmsSha256N24H5 as u32,
         otstype: LmotsAlgorithmType::LmotsSha256N24W8 as u32,
-        id: priv_key.id.clone(),
+        id: priv_key.id,
         digest: [
             0x2c, 0x57, 0x14, 0x50, 0xae, 0xd9, 0x9c, 0xfb, 0x4f, 0x4a, 0xc2, 0x85, 0xda, 0x14,
             0x88, 0x27, 0x96, 0x61, 0x83, 0x14, 0x50, 0x8b, 0x12, 0xd2,
         ],
     };
-    let pub_key = generate_lms_pubkey(&priv_key);
+    let pub_key = generate_lms_pubkey(&priv_key).unwrap();
     assert_eq!(expected_pub_key, pub_key);
 }
 
@@ -635,15 +646,19 @@ fn test_lms_sig() {
         5,
     )
     .unwrap();
-    let mut expected_sig = ImageLmsSignature::default();
-    expected_sig.q = 5;
+    let mut expected_sig = ImageLmsSignature {
+        q: 5,
+        ..Default::default()
+    };
 
-    expected_sig.ots_sig.random = nonce.clone();
-    for i in 0..26 {
-        expected_sig.ots_sig.sig[i].clone_from_slice(&expected_ots_sig[i]);
+    expected_sig.ots_sig.random = nonce;
+    assert_eq!(26, expected_ots_sig.len());
+    assert_eq!(5, expected_tree_path.len());
+    for (i, expected_ots_sig_item) in expected_ots_sig.iter().enumerate() {
+        expected_sig.ots_sig.sig[i].clone_from_slice(expected_ots_sig_item);
     }
-    for i in 0..5 {
-        expected_sig.tree_path[i].clone_from_slice(&expected_tree_path[i]);
+    for (i, expected_path_item) in expected_tree_path.iter().enumerate() {
+        expected_sig.tree_path[i].clone_from_slice(expected_path_item);
     }
     assert_eq!(sig, expected_sig);
 }
