@@ -21,21 +21,19 @@ use crate::rom_env::RomEnv;
 
 /// ROM Verification Environemnt
 pub(crate) struct RomImageVerificationEnv<'a> {
-    env: &'a mut RomEnv,
+    pub(crate) sha384: &'a mut Sha384,
+    pub(crate) sha384_acc: &'a mut Sha384Acc,
+    pub(crate) soc_ifc: &'a mut SocIfc,
+    pub(crate) ecc384: &'a mut Ecc384,
+    pub(crate) data_vault: &'a mut DataVault,
+    pub(crate) pcr_bank: &'a mut PcrBank,
 }
 
-impl<'a> RomImageVerificationEnv<'a> {
-    /// Create and instance `RomImageVerificationEnv`
-    pub fn new(env: &'a mut RomEnv) -> Self {
-        Self { env }
-    }
-}
-
-impl<'a> ImageVerificationEnv for RomImageVerificationEnv<'a> {
+impl<'a> ImageVerificationEnv for &mut RomImageVerificationEnv<'a> {
     /// Calculate Digest using SHA-384 Accelerator
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest> {
         loop {
-            if let Some(mut txn) = self.env.sha384_acc.try_start_operation() {
+            if let Some(mut txn) = self.sha384_acc.try_start_operation() {
                 let mut digest = Array4x12::default();
                 txn.digest(len, offset, false, &mut digest)?;
                 return Ok(digest.0);
@@ -68,57 +66,57 @@ impl<'a> ImageVerificationEnv for RomImageVerificationEnv<'a> {
             s: sig.s.into(),
         };
 
-        self.env.ecc384.verify(&pub_key, &digest, &sig)
+        self.ecc384.verify(&pub_key, &digest, &sig)
     }
 
     /// Retrieve Vendor Public Key Digest
     fn vendor_pub_key_digest(&self) -> ImageDigest {
-        self.env.soc_ifc.fuse_bank().vendor_pub_key_hash().into()
+        self.soc_ifc.fuse_bank().vendor_pub_key_hash().into()
     }
 
     /// Retrieve Vendor Public Key Revocation Bitmask
     fn vendor_pub_key_revocation(&self) -> VendorPubKeyRevocation {
-        self.env.soc_ifc.fuse_bank().vendor_pub_key_revocation()
+        self.soc_ifc.fuse_bank().vendor_pub_key_revocation()
     }
 
     /// Retrieve Owner Public Key Digest from fuses
     fn owner_pub_key_digest_fuses(&self) -> ImageDigest {
-        self.env.soc_ifc.fuse_bank().owner_pub_key_hash().into()
+        self.soc_ifc.fuse_bank().owner_pub_key_hash().into()
     }
 
     /// Retrieve Anti-Rollback disable fuse value
     fn anti_rollback_disable(&self) -> bool {
-        self.env.soc_ifc.fuse_bank().anti_rollback_disable()
+        self.soc_ifc.fuse_bank().anti_rollback_disable()
     }
 
     /// Retrieve Device Lifecycle state
     fn dev_lifecycle(&self) -> Lifecycle {
-        self.env.soc_ifc.lifecycle()
+        self.soc_ifc.lifecycle()
     }
 
     /// Get the vendor key index saved in data vault on cold boot
     fn vendor_pub_key_idx_dv(&self) -> u32 {
-        self.env.data_vault.vendor_pk_index()
+        self.data_vault.vendor_pk_index()
     }
 
     /// Get the owner public key digest saved in the dv on cold boot
     fn owner_pub_key_digest_dv(&self) -> ImageDigest {
-        self.env.data_vault.owner_pk_hash().into()
+        self.data_vault.owner_pk_hash().into()
     }
 
     // Get the fmc digest from the data vault on cold boot
     fn get_fmc_digest_dv(&self) -> ImageDigest {
-        self.env.data_vault.fmc_tci().into()
+        self.data_vault.fmc_tci().into()
     }
 
     // Get Fuse FMC Key Manifest SVN
     fn fmc_svn(&self) -> u32 {
-        self.env.soc_ifc.fuse_bank().fmc_svn()
+        self.soc_ifc.fuse_bank().fmc_svn()
     }
 
     // Get Runtime fuse SVN
     fn runtime_svn(&self) -> u32 {
-        self.env.soc_ifc.fuse_bank().runtime_svn()
+        self.soc_ifc.fuse_bank().runtime_svn()
     }
 
     fn iccm_range(&self) -> Range<u32> {

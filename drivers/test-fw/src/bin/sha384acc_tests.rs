@@ -17,6 +17,7 @@ Abstract:
 
 use caliptra_drivers::{Array4x12, Mailbox, Sha384Acc};
 use caliptra_kat::Sha384AccKat;
+use caliptra_registers::mbox::MboxCsr;
 use caliptra_registers::sha512_acc::Sha512AccCsr;
 use caliptra_test_harness::test_suite;
 
@@ -25,7 +26,7 @@ const SHA384_HASH_SIZE: usize = 48;
 
 fn test_digest0() {
     let mut sha_acc = unsafe { Sha384Acc::new(Sha512AccCsr::new()) };
-    let mut mbox = Mailbox::default();
+    let mut mbox = unsafe { Mailbox::new(MboxCsr::new()) };
     let data = "abcd".as_bytes();
 
     let expected: [u8; SHA384_HASH_SIZE] = [
@@ -54,7 +55,7 @@ fn test_digest0() {
 
 fn test_digest1() {
     let mut sha_acc = unsafe { Sha384Acc::new(Sha512AccCsr::new()) };
-    let mut mbox = Mailbox::default();
+    let mut mbox = unsafe { Mailbox::new(MboxCsr::new()) };
 
     let data = "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu".as_bytes();
     let expected: [u8; SHA384_HASH_SIZE] = [
@@ -83,7 +84,7 @@ fn test_digest1() {
 
 fn test_digest2() {
     let mut sha_acc = unsafe { Sha384Acc::new(Sha512AccCsr::new()) };
-    let mut mbox = Mailbox::default();
+    let mut mbox = unsafe { Mailbox::new(MboxCsr::new()) };
 
     let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx".as_bytes();
     let expected: [u8; SHA384_HASH_SIZE] = [
@@ -113,7 +114,7 @@ fn test_digest2() {
 
 fn test_digest_offset() {
     let mut sha_acc = unsafe { Sha384Acc::new(Sha512AccCsr::new()) };
-    let mut mbox = Mailbox::default();
+    let mut mbox = unsafe { Mailbox::new(MboxCsr::new()) };
 
     let data = "abcdefghijklmnopqrst".as_bytes();
     let expected: [u8; SHA384_HASH_SIZE] = [
