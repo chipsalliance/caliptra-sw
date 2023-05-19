@@ -61,7 +61,7 @@ impl UpdateResetFlow {
 
         let manifest = Self::load_manifest(&recv_txn)?;
 
-        let info = Self::verify_image(env, &manifest)?;
+        let info = Self::verify_image(env, &manifest, recv_txn.dlen())?;
 
         cprintln!(
             "[update-reset] Image verified using Vendor ECC Key Index {}",
@@ -85,12 +85,13 @@ impl UpdateResetFlow {
     fn verify_image(
         env: &RomEnv,
         manifest: &ImageManifest,
+        img_bundle_sz: u32,
     ) -> CaliptraResult<ImageVerificationInfo> {
         let venv = RomImageVerificationEnv::new(env);
 
         let verifier = ImageVerifier::new(venv);
 
-        let info = verifier.verify(manifest, (), ResetReason::UpdateReset)?;
+        let info = verifier.verify(manifest, img_bundle_sz, ResetReason::UpdateReset)?;
 
         Ok(info)
     }

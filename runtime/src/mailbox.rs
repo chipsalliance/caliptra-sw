@@ -20,7 +20,7 @@ impl Mailbox {
     }
 
     // Set the length of the current mailbox data in bytes
-    pub fn set_dlen(len: u32) {
+    pub fn _set_dlen(len: u32) {
         mbox::RegisterBlock::mbox_csr().dlen().write(|_| len);
     }
 
@@ -39,7 +39,7 @@ impl Mailbox {
         }
     }
 
-    pub fn copy_to_mbox(buf: &[Unalign<u32>]) {
+    pub fn _copy_to_mbox(buf: &[Unalign<u32>]) {
         for word in buf {
             mbox::RegisterBlock::mbox_csr()
                 .datain()
@@ -48,14 +48,14 @@ impl Mailbox {
     }
 
     /// Write a word-aligned `buf` to the mailbox
-    pub fn write_response(buf: &[u8]) -> CaliptraResult<()> {
+    pub fn _write_response(buf: &[u8]) -> CaliptraResult<()> {
         let Some(buf_words) = LayoutVerified::new_slice_unaligned(buf) else {
             // buf size is not a multiple of word size
             return Err(RuntimeErr::InternalErr.into());
         };
 
-        Self::set_dlen(buf.len() as u32);
-        Self::copy_to_mbox(&buf_words);
+        Self::_set_dlen(buf.len() as u32);
+        Self::_copy_to_mbox(&buf_words);
 
         Ok(())
     }

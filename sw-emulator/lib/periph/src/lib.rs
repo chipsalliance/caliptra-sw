@@ -15,6 +15,7 @@ Abstract:
 extern crate arrayref;
 
 mod asym_ecc384;
+mod csrng;
 mod doe;
 mod emu_ctrl;
 mod hash_sha256;
@@ -30,6 +31,7 @@ pub mod soc_reg;
 mod uart;
 
 pub use asym_ecc384::AsymEcc384;
+pub use csrng::Csrng;
 pub use doe::Doe;
 pub use emu_ctrl::EmuCtrl;
 pub use hash_sha256::HashSha256;

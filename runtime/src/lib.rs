@@ -20,6 +20,7 @@ caliptra_err_def! {
         InternalErr = 0x1,
         UnimplementedCommand = 0x2,
         InsufficientMemory = 0x3,
+        EcdsaVerificationFailed = 0x4,
     }
 }
 
@@ -67,13 +68,6 @@ impl Default for EcdsaVerifyCmd {
     }
 }
 
-#[repr(C)]
-#[derive(AsBytes, FromBytes)]
-pub struct EcdsaVerifyResponse {
-    pub chksum: u32,
-    pub result: u32,
-}
-
 fn wait_for_cmd() {
     // TODO: Enable interrupts?
     //#[cfg(feature = "riscv")]
@@ -110,7 +104,7 @@ fn handle_command() -> CaliptraResult<MboxStatusE> {
         CommandId::GET_LDEV_CERT => Err(err_u32!(UnimplementedCommand)),
         CommandId::ECDSA384_VERIFY => {
             verify::handle_ecdsa_verify(cmd_bytes)?;
-            Ok(MboxStatusE::DataReady)
+            Ok(MboxStatusE::CmdComplete)
         }
         CommandId::STASH_MEASUREMENT => Err(err_u32!(UnimplementedCommand)),
         CommandId::INVOKE_DPE => Err(err_u32!(UnimplementedCommand)),

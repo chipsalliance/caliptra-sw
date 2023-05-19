@@ -15,7 +15,7 @@ Abstract:
 use crate::{
     iccm::Iccm,
     soc_reg::{DebugManufService, SocRegistersExternal},
-    AsymEcc384, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha384, KeyVault, MailboxExternal,
+    AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha384, KeyVault, MailboxExternal,
     MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
 };
 use caliptra_emu_bus::{Clock, Ram, Rom};
@@ -241,6 +241,9 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x2000_1000, mask = 0x0000_0fff)]
     pub uart: Uart,
 
+    #[peripheral(offset = 0x2000_2000, mask = 0x0000_1fff)]
+    pub csrng: Csrng,
+
     #[peripheral(offset = 0x2000_f000, mask = 0x0000_0fff)]
     pub ctrl: EmuCtrl,
 
@@ -289,6 +292,7 @@ impl CaliptraRootBus {
             mailbox_sram: mailbox_ram.clone(),
             mailbox,
             sha512_acc: Sha512Accelerator::new(clock, mailbox_ram),
+            csrng: Csrng::new(),
         }
     }
 

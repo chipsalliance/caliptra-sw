@@ -1,11 +1,11 @@
 // Licensed under the Apache-2.0 license
 
-use crate::{EcdsaVerifyCmd, EcdsaVerifyResponse, Mailbox, RuntimeErr};
+use crate::{EcdsaVerifyCmd, RuntimeErr};
 use caliptra_drivers::{
     Array4x12, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Scalar, Ecc384Signature,
 };
 use caliptra_registers::sha512_acc;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::FromBytes;
 
 /// Handle the `ECDSA384_SIGNATURE_VERIFY` mailbox command
 pub fn handle_ecdsa_verify(cmd_args: &[u8]) -> CaliptraResult<()> {
@@ -31,13 +31,9 @@ pub fn handle_ecdsa_verify(cmd_args: &[u8]) -> CaliptraResult<()> {
 
         let ecdsa = Ecc384::default();
         let success = ecdsa.verify(&pubkey, &digest, &sig)?;
-
-        let response = EcdsaVerifyResponse {
-            chksum: 0, // TODO: Implement checksum
-            result: success as u32,
-        };
-
-        Mailbox::write_response(response.as_bytes())?;
+        if !success {
+            return Err(RuntimeErr::EcdsaVerificationFailed.into());
+        }
     } else {
         return Err(RuntimeErr::InsufficientMemory.into());
     };

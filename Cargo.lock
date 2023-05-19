@@ -233,6 +233,7 @@ dependencies = [
 name = "caliptra-emu-periph"
 version = "0.1.0"
 dependencies = [
+ "aes",
  "arrayref",
  "bitfield",
  "caliptra-emu-bus",
