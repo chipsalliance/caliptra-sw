@@ -17,7 +17,7 @@ VERILATOR = verilator
 VERILATED_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 CALIPTRA_RTL_DIR := $(realpath $(VERILATED_DIR)../caliptra-rtl)
 
-CFLAGS := -std=c++11 -fno-exceptions
+CFLAGS := -std=c++11 -fno-exceptions -fPIC
 VERILATOR_MAKE_FLAGS = OPT_FAST="-Os"
 
 VERILATOR_CFLAGS = $(shell pkg-config --cflags verilator)
