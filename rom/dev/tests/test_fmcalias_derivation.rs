@@ -3,6 +3,7 @@
 use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, ROM_WITH_UART};
 use caliptra_common::PcrLogEntry;
 use caliptra_common::PcrLogEntryId::*;
+use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, SecurityState};
 use caliptra_image_fake_keys::VENDOR_CONFIG_KEY_1;
 use caliptra_image_gen::ImageGenerator;
@@ -12,9 +13,6 @@ use zerocopy::{AsBytes, FromBytes};
 
 pub mod helpers;
 
-// [TODO] Use the error codes from the common library.
-const INVALID_IMAGE_SIZE: u32 = 0x01020003;
-
 #[test]
 fn test_zero_firmware_size() {
     let (mut hw, _image_bundle) =
@@ -23,11 +21,11 @@ fn test_zero_firmware_size() {
     // Zero-sized firmware.
     assert_eq!(
         hw.upload_firmware(&[]).unwrap_err(),
-        ModelError::MailboxCmdFailed(0x01020003)
+        ModelError::MailboxCmdFailed(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into())
     );
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        INVALID_IMAGE_SIZE
+        CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()
     );
 }
 
@@ -56,7 +54,7 @@ fn test_firmware_gt_max_size() {
 
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        INVALID_IMAGE_SIZE
+        CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()
     );
 }
 

@@ -56,8 +56,8 @@ mod tests {
             .unwrap(),
             tcb_info_rt_svn: &[0xE3],
             tcb_info_rt_tci: &[0xEFu8; RtAliasCertTbsParams::TCB_INFO_RT_TCI_LEN],
-            not_before: &NotBefore::default().not_before,
-            not_after: &NotAfter::default().not_after,
+            not_before: &NotBefore::default().value,
+            not_after: &NotAfter::default().value,
         };
 
         let cert = RtAliasCertTbs::new(&params);

@@ -14,9 +14,9 @@ Abstract:
 --*/
 
 use crate::rom_env::RomEnv;
-use caliptra_drivers::{okref, Array4x12, CaliptraResult, Ecc384PubKey, KeyId};
+use caliptra_drivers::{Array4x12, CaliptraResult, Ecc384PubKey, KeyId};
 
-use super::crypto::Ecc384KeyPair;
+use super::{crypto::Ecc384KeyPair, fw_processor::FwProcInfo};
 
 /// DICE Layer Input
 #[derive(Debug)]
@@ -29,6 +29,8 @@ pub struct DiceInput<'a> {
 
     /// Authority Key Identifier
     pub auth_key_id: &'a [u8; 20],
+
+    pub fw_proc_info: FwProcInfo,
 }
 
 impl DiceInput<'_> {
@@ -44,6 +46,7 @@ impl DiceInput<'_> {
             auth_key_pair: &DEFAULT_KEY_PAIR,
             auth_sn: &[0u8; 64],
             auth_key_id: &[0u8; 20],
+            fw_proc_info: FwProcInfo::default(),
         }
     }
 }
@@ -74,30 +77,4 @@ pub trait DiceLayer {
     ///
     /// * `DiceOutput` - DICE layer output
     fn derive(env: &mut RomEnv, input: &DiceInput) -> CaliptraResult<DiceOutput>;
-}
-
-/// Compose two dice layers into one
-///
-/// # Arguments
-///
-/// * `f` - Dice Layer 1
-/// * `g` - Dice Layer 2
-pub fn compose_layers<F, G>(
-    f: F,
-    g: G,
-) -> impl Fn(&mut RomEnv, &DiceInput) -> CaliptraResult<DiceOutput>
-where
-    F: Fn(&mut RomEnv, &DiceInput) -> CaliptraResult<DiceOutput>,
-    G: Fn(&mut RomEnv, &DiceInput) -> CaliptraResult<DiceOutput>,
-{
-    move |env, i| {
-        let output = f(env, i);
-        let output = okref(&output)?;
-        let input = DiceInput {
-            auth_key_pair: &output.subj_key_pair,
-            auth_sn: &output.subj_sn,
-            auth_key_id: &output.subj_key_id,
-        };
-        g(env, &input)
-    }
 }

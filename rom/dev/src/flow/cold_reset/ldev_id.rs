@@ -157,8 +157,8 @@ impl LocalDevIdLayer {
             authority_key_id: input.auth_key_id,
             serial_number,
             public_key: &pub_key.to_der(),
-            not_before: &NotBefore::default().not_before,
-            not_after: &NotAfter::default().not_after,
+            not_before: &NotBefore::default().value,
+            not_after: &NotAfter::default().value,
         };
 
         // Generate the `To Be Signed` portion of the CSR
