@@ -27,7 +27,7 @@ impl WarmResetFlow {
     ///
     /// * `env` - FMC Environment
     #[inline(never)]
-    pub fn run(_: &FmcEnv, _: &mut HandOff) -> CaliptraResult<()> {
+    pub fn run(_: &mut FmcEnv, _: &mut HandOff) -> CaliptraResult<()> {
         cprintln!("[warm-reset] ++");
 
         // TODO: Implement
