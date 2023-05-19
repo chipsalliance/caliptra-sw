@@ -61,7 +61,7 @@ impl HandOff {
     }
 
     /// Transfer control to the runtime firmware.
-    pub fn to_rt(&self, env: &FmcEnv) -> ! {
+    pub fn to_rt(&self, env: &mut FmcEnv) -> ! {
         // Function is defined in start.S
         extern "C" {
             fn transfer_control(entry: u32) -> !;
@@ -84,16 +84,8 @@ impl HandOff {
 
         // The data store is either a warm reset entry or a cold reset entry.
         match ds {
-            DataVaultNonSticky48(dv_entry) => {
-                return env
-                    .data_vault()
-                    .map(|d| d.read_warm_reset_entry48(dv_entry));
-            }
-            DataVaultSticky48(dv_entry) => {
-                return env
-                    .data_vault()
-                    .map(|d| d.read_cold_reset_entry48(dv_entry));
-            }
+            DataVaultNonSticky48(dv_entry) => env.data_vault.read_warm_reset_entry48(dv_entry),
+            DataVaultSticky48(dv_entry) => env.data_vault.read_cold_reset_entry48(dv_entry),
             _ => {
                 crate::report_error(0xbabedead);
             }
@@ -112,12 +104,8 @@ impl HandOff {
         // The data store is either a warm reset entry or a cold reset entry inside
         // the data vault.
         match ds {
-            DataVaultNonSticky4(dv_entry) => {
-                return env.data_vault().map(|d| d.read_warm_reset_entry4(dv_entry));
-            }
-            DataVaultSticky4(dv_entry) => {
-                return env.data_vault().map(|d| d.read_cold_reset_entry4(dv_entry));
-            }
+            DataVaultNonSticky4(dv_entry) => env.data_vault.read_warm_reset_entry4(dv_entry),
+            DataVaultSticky4(dv_entry) => env.data_vault.read_cold_reset_entry4(dv_entry),
             _ => {
                 crate::report_error(0xbabedead);
             }
@@ -138,12 +126,8 @@ impl HandOff {
             });
         // The data store is either a warm reset entry or a cold reset entry.
         match ds {
-            DataVaultNonSticky4(dv_entry) => {
-                return env.data_vault().map(|d| d.read_warm_reset_entry4(dv_entry));
-            }
-            DataVaultSticky4(dv_entry) => {
-                return env.data_vault().map(|d| d.read_cold_reset_entry4(dv_entry));
-            }
+            DataVaultNonSticky4(dv_entry) => env.data_vault.read_warm_reset_entry4(dv_entry),
+            DataVaultSticky4(dv_entry) => env.data_vault.read_cold_reset_entry4(dv_entry),
             _ => {
                 crate::report_error(0xbabedead);
             }

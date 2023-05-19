@@ -26,7 +26,7 @@ impl ColdResetFlow {
     ///
     /// * `env` - FMC Environment
     #[inline(never)]
-    pub fn run(_: &FmcEnv, _: &HandOff) -> CaliptraResult<()> {
+    pub fn run(_: &mut FmcEnv, _: &HandOff) -> CaliptraResult<()> {
         cprintln!("[cold-reset] ++");
 
         // TODO: Implement

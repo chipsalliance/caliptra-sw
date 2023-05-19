@@ -19,7 +19,6 @@ use caliptra_common::cprintln;
 use caliptra_drivers::{report_fw_error_non_fatal, Mailbox};
 mod flow;
 pub mod fmc_env;
-pub mod fmc_env_cell;
 mod hand_off;
 
 use caliptra_cpu::TrapRecord;
@@ -37,9 +36,9 @@ pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
 
     if let Some(mut hand_off) = HandOff::from_previous() {
-        let env = fmc_env::FmcEnv::default();
-        if flow::run(&env, &mut hand_off).is_ok() {
-            hand_off.to_rt(&env)
+        let mut env = fmc_env::FmcEnv::default();
+        if flow::run(&mut env, &mut hand_off).is_ok() {
+            hand_off.to_rt(&mut env)
         }
     }
     caliptra_drivers::ExitCtrl::exit(0xff)

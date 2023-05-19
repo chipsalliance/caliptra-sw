@@ -53,18 +53,15 @@ pub fn extend_journey_pcr(env: &FmcEnv, hand_off: &HandOff) -> CaliptraResult<()
 /// * `env` - FMC Environment
 /// * `pcr_id` - PCR slot to extend the data into
 fn extend_pcr_common(env: &FmcEnv, hand_off: &HandOff, pcr_id: PcrId) -> CaliptraResult<()> {
-    let pcr_bank = env.pcr_bank();
-    let sha = env.sha384();
-
     // Extend RT TCI (Hash over runtime code)
     let data = hand_off.rt_tci(env);
     let bytes: [u8; 48] = (&data).into();
-    sha.map(|s| pcr_bank.map(|p| p.extend_pcr(pcr_id, s, &bytes)))?;
+    env.pcr_bank.extend_pcr(pcr_id, &env.sha384, &bytes)?;
 
     // Extend RT SVN
     let data = hand_off.rt_svn(env);
     let bytes = &data.to_le_bytes();
-    sha.map(|s| pcr_bank.map(|p| p.extend_pcr(pcr_id, s, bytes)))?;
+    env.pcr_bank.extend_pcr(pcr_id, &env.sha384, bytes)?;
 
     Ok(())
 }
