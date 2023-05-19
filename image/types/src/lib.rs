@@ -270,14 +270,12 @@ pub struct ImageVendorPrivKeys {
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
 pub struct ImageOwnerPubKeys {
     pub ecc_pub_key: ImageEccPubKey,
-    pub lms_pub_key: ImageLmsPublicKey,
 }
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug)]
 pub struct ImageOwnerPrivKeys {
     pub ecc_priv_key: ImageEccPrivKey,
-    pub lms_priv_key: ImageLmsPrivKey,
 }
 
 #[repr(C)]
