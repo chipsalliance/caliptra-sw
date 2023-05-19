@@ -19,6 +19,7 @@ use caliptra_drivers::{
     lookup_lmots_algorithm_type, lookup_lms_algorithm_type, HashValue, LmotsAlgorithmType,
     LmotsSignature, Lms, LmsAlgorithmType, LmsIdentifier, LmsSignature, Sha192Digest, Sha256,
 };
+use caliptra_registers::sha256::Sha256Reg;
 use caliptra_test_harness::test_suite;
 
 fn test_lms_lookup() {
@@ -98,7 +99,7 @@ fn test_coefficient() {
 }
 
 fn test_hash_message_24() {
-    let mut sha256 = Sha256::default();
+    let mut sha256 = unsafe { Sha256::new(Sha256Reg::new()) };
     let message: [u8; 33] = [
         116, 104, 105, 115, 32, 105, 115, 32, 116, 104, 101, 32, 109, 101, 115, 115, 97, 103, 101,
         32, 73, 32, 119, 97, 110, 116, 32, 115, 105, 103, 110, 101, 100,
@@ -133,7 +134,7 @@ fn test_hash_message_24() {
 }
 
 fn test_lms_24_height_15() {
-    let mut sha256 = Sha256::default();
+    let mut sha256 = unsafe { Sha256::new(Sha256Reg::new()) };
     const MESSAGE: [u8; 33] = [
         116, 104, 105, 115, 32, 105, 115, 32, 116, 104, 101, 32, 109, 101, 115, 115, 97, 103, 101,
         32, 73, 32, 119, 97, 110, 116, 32, 115, 105, 103, 110, 101, 100,
@@ -381,7 +382,7 @@ fn test_lms_24_height_15() {
 }
 
 fn _test_lms_24_height_20() {
-    let mut sha256 = Sha256::default();
+    let mut sha256 = unsafe { Sha256::new(Sha256Reg::new()) };
     const MESSAGE: [u8; 33] = [
         116, 104, 105, 115, 32, 105, 115, 32, 116, 104, 101, 32, 109, 101, 115, 115, 97, 103, 101,
         32, 73, 32, 119, 97, 110, 116, 32, 115, 105, 103, 110, 101, 100,

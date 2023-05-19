@@ -17,7 +17,7 @@ use core::usize;
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::PcrId;
 use crate::{array::Array4x32, caliptra_err_def, wait, Array4x12, CaliptraResult};
-use caliptra_registers::sha512;
+use caliptra_registers::sha512::Sha512Reg;
 
 const SHA384_BLOCK_BYTE_SIZE: usize = 128;
 const SHA384_BLOCK_LEN_OFFSET: usize = 112;
@@ -53,10 +53,14 @@ caliptra_err_def! {
 /// SHA-384 Digest
 pub type Sha384Digest<'a> = &'a mut Array4x12;
 
-#[derive(Default, Debug)]
-pub struct Sha384 {}
+pub struct Sha384 {
+    sha512: Sha512Reg,
+}
 
 impl Sha384 {
+    pub fn new(sha512: Sha512Reg) -> Self {
+        Self { sha512 }
+    }
     /// Initialize multi step digest operation
     ///
     /// # Returns
@@ -131,7 +135,7 @@ impl Sha384 {
     ///
     /// * `buf` - Digest buffer
     fn read_digest(&mut self) -> Array4x12 {
-        let sha = sha512::RegisterBlock::sha512_reg();
+        let sha = self.sha512.regs();
         // digest_block() only waits until the peripheral is ready for the next
         // command; the result register may not be valid yet
         wait::until(|| sha.status().read().valid());
@@ -175,7 +179,7 @@ impl Sha384 {
     ///
     /// * `pcr_id` - PCR to hash extend
     fn retrieve_pcr(&mut self, pcr_id: PcrId) -> CaliptraResult<()> {
-        let sha = sha512::RegisterBlock::sha512_reg();
+        let sha = self.sha512.regs_mut();
 
         KvAccess::extend_from_pv(pcr_id, sha.vault_rd_status(), sha.vault_rd_ctrl())
             .map_err(|err| err.into_read_data_err())?;
@@ -244,7 +248,7 @@ impl Sha384 {
         first: bool,
         last: bool,
     ) -> CaliptraResult<()> {
-        let sha512 = sha512::RegisterBlock::sha512_reg();
+        let sha512 = self.sha512.regs_mut();
         Array4x32::from(block).write_to_reg(sha512.block());
         self.digest_op(first, last)
     }
@@ -258,7 +262,7 @@ impl Sha384 {
     fn digest_op(&mut self, first: bool, last: bool) -> CaliptraResult<()> {
         const MODE_SHA384: u32 = 0b10;
 
-        let sha = sha512::RegisterBlock::sha512_reg();
+        let sha = self.sha512.regs_mut();
 
         // Wait for the hardware to be ready
         wait::until(|| sha.status().read().ready());

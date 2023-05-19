@@ -16,7 +16,7 @@ use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::{
     array::Array4x32, caliptra_err_def, wait, Array4x12, CaliptraResult, KeyReadArgs, KeyWriteArgs,
 };
-use caliptra_registers::hmac;
+use caliptra_registers::hmac::HmacReg;
 use core::usize;
 
 const HMAC384_BLOCK_SIZE_BYTES: usize = 128;
@@ -143,10 +143,14 @@ impl From<KeyReadArgs> for Hmac384Key<'_> {
     }
 }
 
-#[derive(Default, Debug)]
-pub struct Hmac384 {}
+pub struct Hmac384 {
+    hmac: HmacReg,
+}
 
 impl Hmac384 {
+    pub fn new(hmac: HmacReg) -> Self {
+        Self { hmac }
+    }
     /// Initialize multi step HMAC operation
     ///
     /// # Arguments
@@ -159,7 +163,7 @@ impl Hmac384 {
         key: Hmac384Key,
         mut tag: Hmac384Tag<'a>,
     ) -> CaliptraResult<Hmac384Op> {
-        let hmac = hmac::RegisterBlock::hmac_reg();
+        let hmac = self.hmac.regs_mut();
 
         // Configure the hardware so that the output tag is stored at a location specified by the
         // caller.
@@ -208,7 +212,7 @@ impl Hmac384 {
         data: Hmac384Data,
         mut tag: Hmac384Tag,
     ) -> CaliptraResult<()> {
-        let hmac = hmac::RegisterBlock::hmac_reg();
+        let hmac = self.hmac.regs_mut();
 
         // Configure the hardware so that the output tag is stored at a location specified by the
         // caller.
@@ -235,6 +239,7 @@ impl Hmac384 {
             Hmac384Data::Slice(buf) => self.hmac_buf(buf)?,
             Hmac384Data::Key(key) => self.hmac_key(key)?,
         }
+        let hmac = self.hmac.regs();
 
         // Copy the tag to the specified location
         match &mut tag {
@@ -303,7 +308,7 @@ impl Hmac384 {
     /// * `key` - Key to calculate hmac for
     ///
     fn hmac_key(&mut self, key: KeyReadArgs) -> CaliptraResult<()> {
-        let hmac = hmac::RegisterBlock::hmac_reg();
+        let hmac = self.hmac.regs_mut();
 
         KvAccess::copy_from_kv(key, hmac.kv_rd_block_status(), hmac.kv_rd_block_ctrl())
             .map_err(|err| err.into_read_data_err())?;
@@ -363,7 +368,7 @@ impl Hmac384 {
         block: &[u8; HMAC384_BLOCK_SIZE_BYTES],
         first: bool,
     ) -> CaliptraResult<()> {
-        let hmac384 = hmac::RegisterBlock::hmac_reg();
+        let hmac384 = self.hmac.regs_mut();
         Array4x32::from(block).write_to_reg(hmac384.block());
         self.hmac_op(first)
     }
@@ -376,7 +381,7 @@ impl Hmac384 {
     /// * `first` - Flag indicating if this is the first block
     ///
     fn hmac_op(&mut self, first: bool) -> CaliptraResult<()> {
-        let hmac = hmac::RegisterBlock::hmac_reg();
+        let hmac = self.hmac.regs_mut();
 
         // Wait for the hardware to be ready
         wait::until(|| hmac.status().read().ready());
@@ -487,7 +492,7 @@ impl<'a> Hmac384Op<'a> {
         // Set the state of the operation to final
         self.state = Hmac384OpState::Final;
 
-        let hmac = hmac::RegisterBlock::hmac_reg();
+        let hmac = self.hmac_engine.hmac.regs();
 
         // Copy the tag to the specified location
         match &mut self.tag {

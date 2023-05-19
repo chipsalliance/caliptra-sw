@@ -66,7 +66,7 @@ fn test_entropy_src_seed() {
 }
 
 fn test_zero_health_fails() {
-    let csrng = unsafe { Csrng::new() }.expect("construct CSRNG");
+    let csrng = unsafe { Csrng::new() }.expect("construct CSRSNG");
     let counts = csrng.health_counts();
     assert_eq!(counts.total, 0, "Expected zero total health check fails");
     assert_eq!(

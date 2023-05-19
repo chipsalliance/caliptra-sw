@@ -19,13 +19,16 @@ use caliptra_drivers::{
     DataVault, DeobfuscationEngine, Ecc384, Hmac384, KeyVault, Lms, Mailbox, PcrBank, Sha1, Sha256,
     Sha384, Sha384Acc, SocIfc,
 };
+use caliptra_registers::{
+    doe::DoeReg, dv::DvReg, ecc::EccReg, hmac::HmacReg, kv::KvReg, pv::PvReg, sha256::Sha256Reg,
+    sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg,
+};
 use core::ops::Range;
 
 const ICCM_START: u32 = 0x40000000;
 const ICCM_SIZE: u32 = 128 << 10;
 
 /// Rom Context
-#[derive(Default)]
 pub struct RomEnv {
     /// Deobfuscation engine
     pub doe: DeobfuscationEngine,
@@ -68,11 +71,26 @@ pub struct RomEnv {
 }
 
 impl RomEnv {
-    /// Get ICCM Range
-    pub fn iccm_range(&self) -> Range<u32> {
-        Range {
-            start: ICCM_START,
-            end: ICCM_START + ICCM_SIZE,
+    pub const ICCM_RANGE: Range<u32> = Range {
+        start: ICCM_START,
+        end: ICCM_START + ICCM_SIZE,
+    };
+
+    pub unsafe fn new_from_registers() -> Self {
+        Self {
+            doe: DeobfuscationEngine::new(DoeReg::new()),
+            sha1: Sha1::default(),
+            sha256: Sha256::new(Sha256Reg::new()),
+            sha384: Sha384::new(Sha512Reg::new()),
+            sha384_acc: Sha384Acc::new(Sha512AccCsr::new()),
+            hmac384: Hmac384::new(HmacReg::new()),
+            ecc384: Ecc384::new(EccReg::new()),
+            lms: Lms::default(),
+            key_vault: KeyVault::new(KvReg::new()),
+            data_vault: DataVault::new(DvReg::new()),
+            soc_ifc: SocIfc::new(SocIfcReg::new()),
+            mbox: Mailbox::default(),
+            pcr_bank: PcrBank::new(PvReg::new()),
         }
     }
 }

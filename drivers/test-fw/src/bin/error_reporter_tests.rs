@@ -19,7 +19,7 @@ use caliptra_drivers::{
     report_fw_error_fatal, report_fw_error_non_fatal, report_hw_error_fatal,
     report_hw_error_non_fatal,
 };
-use caliptra_registers::soc_ifc;
+use caliptra_registers::soc_ifc::SocIfcReg;
 
 use caliptra_test_harness::test_suite;
 
@@ -31,8 +31,8 @@ fn test_report_fw_error() {
 }
 
 fn retrieve_fw_error_non_fatal() -> u32 {
-    let soc_ifc = soc_ifc::RegisterBlock::soc_ifc_reg();
-    soc_ifc.cptra_fw_error_non_fatal().read()
+    let soc_ifc = unsafe { SocIfcReg::new() };
+    soc_ifc.regs().cptra_fw_error_non_fatal().read()
 }
 
 fn test_report_fw_error_fatal() {
@@ -44,13 +44,13 @@ fn test_report_fw_error_fatal() {
 }
 
 fn retrieve_fw_error_fatal() -> u32 {
-    let soc_ifc = soc_ifc::RegisterBlock::soc_ifc_reg();
-    soc_ifc.cptra_fw_error_fatal().read()
+    let soc_ifc = unsafe { SocIfcReg::new() };
+    soc_ifc.regs().cptra_fw_error_fatal().read()
 }
 
 fn retrieve_hw_error_non_fatal() -> u32 {
-    let soc_ifc = soc_ifc::RegisterBlock::soc_ifc_reg();
-    soc_ifc.cptra_hw_error_non_fatal().read()
+    let soc_ifc = unsafe { SocIfcReg::new() };
+    soc_ifc.regs().cptra_hw_error_non_fatal().read()
 }
 
 fn test_report_hw_error() {
@@ -66,8 +66,8 @@ fn test_report_hw_error_fatal() {
 }
 
 fn retrieve_hw_error_fatal() -> u32 {
-    let soc_ifc = soc_ifc::RegisterBlock::soc_ifc_reg();
-    soc_ifc.cptra_hw_error_fatal().read()
+    let soc_ifc = unsafe { SocIfcReg::new() };
+    soc_ifc.regs().cptra_hw_error_fatal().read()
 }
 
 test_suite! {
