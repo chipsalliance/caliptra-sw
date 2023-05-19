@@ -15,9 +15,13 @@ Abstract:
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Context};
+
+#[cfg(test)]
+use caliptra_drivers::LmsAlgorithmType;
+
 use caliptra_drivers::{
-    lookup_lmots_algorithm_type, lookup_lms_algorithm_type, LmotsAlgorithmType, Lms,
-    LmsAlgorithmType, LmsIdentifier, D_INTR, D_LEAF, D_MESG, D_PBLC,
+    lookup_lmots_algorithm_type, lookup_lms_algorithm_type, LmotsAlgorithmType, Lms, LmsIdentifier,
+    D_INTR, D_LEAF, D_MESG, D_PBLC,
 };
 use caliptra_image_gen::ImageGeneratorCrypto;
 use caliptra_image_types::*;
@@ -311,8 +315,10 @@ fn generate_ots_signature_helper(
     q: u32,
 ) -> ImageLmOTSSignature {
     let alg_params = Lms::default().get_lmots_parameters(&ots_alg).unwrap();
-    let mut sig: ImageLmOTSSignature = Default::default();
-    sig.otstype = ots_alg as u32;
+    let mut sig = ImageLmOTSSignature {
+        otstype: ots_alg as u32,
+        ..Default::default()
+    };
     sig.random.clone_from_slice(rand);
     let mut hasher = Sha256::new();
     hasher.update(id);
