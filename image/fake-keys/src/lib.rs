@@ -206,12 +206,6 @@ pub const VENDOR_PUBLIC_KEYS: ImageVendorPubKeys = ImageVendorPubKeys {
         VENDOR_KEY_2_PUBLIC,
         VENDOR_KEY_3_PUBLIC,
     ],
-    lms_pub_keys: [
-        VENDOR_LMS_KEY0_PUBLIC,
-        VENDOR_LMS_KEY1_PUBLIC,
-        VENDOR_LMS_KEY2_PUBLIC,
-        VENDOR_LMS_KEY3_PUBLIC,
-    ],
 };
 
 pub const VENDOR_PRIVATE_KEYS: ImageVendorPrivKeys = ImageVendorPrivKeys {
@@ -220,12 +214,6 @@ pub const VENDOR_PRIVATE_KEYS: ImageVendorPrivKeys = ImageVendorPrivKeys {
         VENDOR_KEY_1_PRIVATE,
         VENDOR_KEY_2_PRIVATE,
         VENDOR_KEY_3_PRIVATE,
-    ],
-    lms_priv_keys: [
-        VENDOR_LMS_KEY0_PRIVATE,
-        VENDOR_LMS_KEY1_PRIVATE,
-        VENDOR_LMS_KEY2_PRIVATE,
-        VENDOR_LMS_KEY3_PRIVATE,
     ],
 };
 

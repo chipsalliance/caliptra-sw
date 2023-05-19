@@ -450,6 +450,7 @@ fn sign_with_lms_key(
 }
 
 #[test]
+#[ignore]
 fn test_print_lms_private_pub_key() {
     let mut priv_key: ImageLmsPrivKey = ImageLmsPrivKey {
         tree_type: LmsAlgorithmType::LmsSha256N24H15 as u32,
