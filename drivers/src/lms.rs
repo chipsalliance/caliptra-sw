@@ -197,14 +197,6 @@ pub struct LmotsSignature<const N: usize, const P: usize> {
 }
 
 #[derive(Debug)]
-pub struct _LmsSignature<'a, const N: usize, const P: usize> {
-    pub q: u32,
-    pub lmots_signature: LmotsSignature<N, P>,
-    pub sig_type: LmsAlgorithmType,
-    pub lms_path: &'a [HashValue<N>],
-}
-
-#[derive(Debug)]
 pub struct LmsSignature<const N: usize, const P: usize, const H: usize> {
     pub q: u32,
     pub ots_type: LmotsAlgorithmType,
