@@ -21,7 +21,7 @@ Note:
 
 --*/
 
-use crate::rom_env::RomEnv;
+use crate::verifier::RomImageVerificationEnv;
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_drivers::{Array4x12, CaliptraResult, PcrBank, PcrId, Sha384};
 use caliptra_error::caliptra_err_def;
@@ -63,7 +63,7 @@ impl PcrExtender<'_> {
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-pub fn extend_pcr0(env: &mut RomEnv) -> CaliptraResult<()> {
+pub(crate) fn extend_pcr0(env: &mut RomImageVerificationEnv) -> CaliptraResult<()> {
     // Clear the PCR
     env.pcr_bank.erase_pcr(caliptra_drivers::PcrId::PcrId0)?;
 
@@ -71,8 +71,8 @@ pub fn extend_pcr0(env: &mut RomEnv) -> CaliptraResult<()> {
     env.pcr_bank.set_pcr_lock(caliptra_drivers::PcrId::PcrId0);
 
     let mut pcr = PcrExtender {
-        pcr_bank: &mut env.pcr_bank,
-        sha384: &mut env.sha384,
+        pcr_bank: env.pcr_bank,
+        sha384: env.sha384,
     };
 
     pcr.extend_u8(

@@ -20,8 +20,8 @@ use caliptra_drivers::{
     Sha384, Sha384Acc, SocIfc,
 };
 use caliptra_registers::{
-    doe::DoeReg, dv::DvReg, ecc::EccReg, hmac::HmacReg, kv::KvReg, pv::PvReg, sha256::Sha256Reg,
-    sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg,
+    doe::DoeReg, dv::DvReg, ecc::EccReg, hmac::HmacReg, kv::KvReg, mbox::MboxCsr, pv::PvReg,
+    sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg,
 };
 use core::ops::Range;
 
@@ -89,7 +89,7 @@ impl RomEnv {
             key_vault: KeyVault::new(KvReg::new()),
             data_vault: DataVault::new(DvReg::new()),
             soc_ifc: SocIfc::new(SocIfcReg::new()),
-            mbox: Mailbox::default(),
+            mbox: Mailbox::new(MboxCsr::new()),
             pcr_bank: PcrBank::new(PvReg::new()),
         }
     }

@@ -9,7 +9,7 @@
 #[allow(unused)]
 use caliptra_test_harness;
 
-use caliptra_registers;
+use caliptra_registers::{self, mbox::MboxCsr, soc_ifc::SocIfcReg};
 
 #[panic_handler]
 pub fn panic(_info: &core::panic::PanicInfo) -> ! {
@@ -18,9 +18,14 @@ pub fn panic(_info: &core::panic::PanicInfo) -> ! {
 
 #[no_mangle]
 extern "C" fn main() {
-    let soc_ifc = caliptra_registers::soc_ifc::RegisterBlock::soc_ifc_reg();
-    soc_ifc.cptra_flow_status().write(|w| w.ready_for_fw(true));
-    let mbox = caliptra_registers::mbox::RegisterBlock::mbox_csr();
+    let mut soc_ifc = unsafe { SocIfcReg::new() };
+    let mut mbox = unsafe { MboxCsr::new() };
+    let mbox = mbox.regs_mut();
+
+    soc_ifc
+        .regs_mut()
+        .cptra_flow_status()
+        .write(|w| w.ready_for_fw(true));
 
     loop {
         while !mbox.status().read().mbox_fsm_ps().mbox_execute_uc() {
