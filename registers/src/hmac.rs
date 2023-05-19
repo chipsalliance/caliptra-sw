@@ -45,12 +45,6 @@ pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl RegisterBlock<ureg::RealMmioMut<'_>> {
-    /// Deprecated; use [`HmacReg::new()`] instead.
-    pub fn hmac_reg() -> Self {
-        unsafe { Self::new(0x10010000 as *mut u32) }
-    }
-}
 impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
     /// # Safety
     ///

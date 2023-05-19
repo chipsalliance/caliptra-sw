@@ -744,7 +744,6 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
     let mut meta_tokens = TokenStream::new();
     let mut block_tokens = TokenStream::new();
 
-    let mut block_instance_tokens = TokenStream::new();
     let mut instance_type_tokens = TokenStream::new();
 
     if !block.block().registers.is_empty() {
@@ -759,16 +758,8 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
 
         for instance in block.block().instances.iter() {
             let name_camel = camel_ident(&instance.name);
-            let name = snake_ident(&instance.name);
             let addr = hex_literal(instance.address.into());
-
-            let block_instance_doc = format!("Deprecated; use [`{name_camel}::new()`] instead.");
-            // TODO: Remove this statement once all the drivers have been
-            // migrated to the instance type.
-            block_instance_tokens.extend(quote! {
-                #[doc = #block_instance_doc]
-                pub fn #name() -> Self { unsafe { Self::new(#addr as *mut #raw_ptr_type) } }
-            });
+            // TODO: Should this be unsafe?
             instance_type_tokens.extend(quote! {
                 /// A zero-sized type that represents ownership of this
                 /// peripheral, used to get access to a Register lock. Most
@@ -861,9 +852,6 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
             pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>>{
                 ptr: *mut #raw_ptr_type,
                 mmio: TMmio,
-            }
-            impl RegisterBlock<ureg::RealMmioMut<'_>> {
-                #block_instance_tokens
             }
             impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
                 /// # Safety

@@ -45,12 +45,6 @@ pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl RegisterBlock<ureg::RealMmioMut<'_>> {
-    /// Deprecated; use [`Sha512AccCsr::new()`] instead.
-    pub fn sha512_acc_csr() -> Self {
-        unsafe { Self::new(0x30021000 as *mut u32) }
-    }
-}
 impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
     /// # Safety
     ///
