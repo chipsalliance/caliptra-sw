@@ -45,12 +45,6 @@ pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
     ptr: *mut u32,
     mmio: TMmio,
 }
-impl RegisterBlock<ureg::RealMmioMut<'_>> {
-    /// Deprecated; use [`EntropySrcReg::new()`] instead.
-    pub fn entropy_src_reg() -> Self {
-        unsafe { Self::new(0x20003000 as *mut u32) }
-    }
-}
 impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
     /// # Safety
     ///
