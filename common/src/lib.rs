@@ -8,6 +8,8 @@ pub mod hand_off;
 #[macro_use]
 pub mod printer;
 pub mod boot_status;
+pub mod pcr;
+
 ///merge imports
 pub use hand_off::{
     print_fht, report_handoff_error_and_halt, DataStore, DataVaultRegister, FirmwareHandoffTable,
@@ -15,4 +17,5 @@ pub use hand_off::{
 };
 
 pub use boot_status::RomBootStatus;
+pub use pcr::{PcrLogEntry, PcrLogEntryId};
 pub use printer::MutablePrinter;
