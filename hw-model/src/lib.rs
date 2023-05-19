@@ -30,7 +30,7 @@ pub use model_emulated::ModelEmulated;
 
 #[cfg(feature = "verilator")]
 pub use model_verilated::ModelVerilated;
-use ureg::{Mmio, MmioMut};
+use ureg::MmioMut;
 
 /// Ideally, general-purpose functions would return `impl HwModel` instead of
 /// `DefaultHwModel` to prevent users from calling functions that aren't
@@ -212,7 +212,7 @@ impl<'a, Model: HwModel> MailboxRecvTxn<'a, Model> {
     }
 }
 
-fn mbox_read_fifo(mbox: mbox::RegisterBlock<impl Mmio>) -> Vec<u8> {
+fn mbox_read_fifo(mbox: mbox::RegisterBlock<impl MmioMut>) -> Vec<u8> {
     let mut dlen = mbox.dlen().read();
     let mut result = vec![];
     while dlen >= 4 {

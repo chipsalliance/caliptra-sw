@@ -6,6 +6,7 @@
 #![no_std]
 
 // Needed to bring in startup code
+use caliptra_registers::soc_ifc::SocIfcReg;
 #[allow(unused)]
 use caliptra_test_harness::println;
 
@@ -16,8 +17,11 @@ pub fn panic(_info: &core::panic::PanicInfo) -> ! {
 
 #[no_mangle]
 extern "C" fn main() {
-    let soc_ifc_regs = caliptra_registers::soc_ifc::RegisterBlock::soc_ifc_reg();
-    soc_ifc_regs.internal_iccm_lock().modify(|w| w.lock(true));
+    let mut soc_ifc = unsafe { SocIfcReg::new() };
+    soc_ifc
+        .regs_mut()
+        .internal_iccm_lock()
+        .modify(|w| w.lock(true));
 
     unsafe {
         let iccm_start = 0x40000000_u32;
