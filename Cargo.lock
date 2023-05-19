@@ -494,6 +494,7 @@ version = "0.1.0"
 dependencies = [
  "caliptra-cpu",
  "caliptra-drivers",
+ "caliptra-registers",
  "caliptra-runtime",
  "caliptra-test-harness",
  "cfg-if",

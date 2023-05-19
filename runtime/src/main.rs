@@ -17,6 +17,7 @@ Abstract:
 use caliptra_common::cprintln;
 use caliptra_cpu::TrapRecord;
 use caliptra_drivers::{report_fw_error_non_fatal, Mailbox};
+use caliptra_runtime::Drivers;
 use core::hint::black_box;
 
 #[cfg(feature = "std")]
@@ -34,10 +35,11 @@ const BANNER: &str = r#"
 #[no_mangle]
 pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
+    let mut drivers = unsafe { Drivers::new_from_registers() };
 
     if let Some(_fht) = caliptra_common::FirmwareHandoffTable::try_load() {
         cprintln!("Caliptra RT listening for mailbox commands...");
-        caliptra_runtime::handle_mailbox_commands();
+        caliptra_runtime::handle_mailbox_commands(&mut drivers);
 
         caliptra_drivers::ExitCtrl::exit(0)
     } else {
