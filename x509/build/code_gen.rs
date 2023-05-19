@@ -84,7 +84,7 @@ impl CodeGen {
 
         let tbs_len = template.tbs().len();
         let tbs_len_const = quote!(
-            const TBS_TEMPLATE_LEN: usize = #tbs_len;
+            pub const TBS_TEMPLATE_LEN: usize = #tbs_len;
         );
 
         let tbs = template.tbs();

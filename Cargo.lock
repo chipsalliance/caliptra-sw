@@ -508,8 +508,10 @@ dependencies = [
  "caliptra-image-serde",
  "caliptra-image-types",
  "caliptra-registers",
+ "caliptra-x509",
  "caliptra_common",
  "cfg-if",
+ "openssl",
  "ufmt",
  "zerocopy",
 ]

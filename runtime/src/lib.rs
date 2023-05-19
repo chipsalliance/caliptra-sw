@@ -2,14 +2,18 @@
 
 #![no_std]
 
-mod mailbox;
+pub mod dice;
 mod verify;
+
+// Used by runtime tests
+pub mod mailbox;
 
 use mailbox::Mailbox;
 
 use caliptra_common::cprintln;
-use caliptra_drivers::{caliptra_err_def, CaliptraResult, Ecc384};
+use caliptra_drivers::{caliptra_err_def, CaliptraResult, DataVault, Ecc384};
 use caliptra_registers::{
+    dv::DvReg,
     ecc::EccReg,
     mbox::{enums::MboxStatusE, MboxCsr},
     sha512_acc::Sha512AccCsr,
@@ -54,6 +58,7 @@ pub struct Drivers {
     pub mbox: Mailbox,
     pub sha_acc: Sha512AccCsr,
     pub ecdsa: Ecc384,
+    pub data_vault: DataVault,
 }
 impl Drivers {
     /// # Safety
@@ -66,6 +71,7 @@ impl Drivers {
             mbox: Mailbox::new(MboxCsr::new()),
             sha_acc: Sha512AccCsr::new(),
             ecdsa: Ecc384::new(EccReg::new()),
+            data_vault: DataVault::new(DvReg::new()),
         }
     }
 }
