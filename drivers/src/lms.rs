@@ -16,10 +16,10 @@ Abstract:
 
 use crate::{caliptra_err_def, Array4x8, CaliptraResult, Sha256};
 
-const D_PBLC: u16 = 0x8080;
-const D_MESG: u16 = 0x8181;
-const D_LEAF: u16 = 0x8282;
-const D_INTR: u16 = 0x8383;
+pub const D_PBLC: u16 = 0x8080;
+pub const D_MESG: u16 = 0x8181;
+pub const D_LEAF: u16 = 0x8282;
+pub const D_INTR: u16 = 0x8383;
 
 caliptra_err_def! {
     Lms,
