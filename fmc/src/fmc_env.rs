@@ -18,9 +18,12 @@ Abstract:
 use caliptra_drivers::{
     DataVault, Ecc384, Hmac384, KeyVault, Mailbox, PcrBank, Sha1, Sha256, Sha384, Sha384Acc, SocIfc,
 };
+use caliptra_registers::{
+    dv::DvReg, ecc::EccReg, hmac::HmacReg, kv::KvReg, pv::PvReg, sha256::Sha256Reg,
+    sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg,
+};
 
 /// Hardware Context
-#[derive(Default)]
 pub struct FmcEnv {
     // SHA1 Engine
     pub sha1: Sha1,
@@ -54,4 +57,27 @@ pub struct FmcEnv {
 
     /// PCR Bank
     pub pcr_bank: PcrBank,
+}
+
+impl FmcEnv {
+    /// # Safety
+    ///
+    /// Callers must ensure that this function is called only once, and that any
+    /// concurrent access to these register blocks does not conflict with these
+    /// drivers.
+    pub unsafe fn new_from_registers() -> Self {
+        Self {
+            sha1: Sha1::default(),
+            sha256: Sha256::new(Sha256Reg::new()),
+            sha384: Sha384::new(Sha512Reg::new()),
+            sha384_acc: Sha384Acc::new(Sha512AccCsr::new()),
+            hmac384: Hmac384::new(HmacReg::new()),
+            ecc384: Ecc384::new(EccReg::new()),
+            key_vault: KeyVault::new(KvReg::new()),
+            data_vault: DataVault::new(DvReg::new()),
+            soc_ifc: SocIfc::new(SocIfcReg::new()),
+            mbox: Mailbox::default(),
+            pcr_bank: PcrBank::new(PvReg::new()),
+        }
+    }
 }

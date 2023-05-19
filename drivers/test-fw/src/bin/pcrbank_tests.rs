@@ -16,6 +16,7 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{PcrBank, PcrId};
+use caliptra_registers::pv::PvReg;
 
 use caliptra_test_harness::test_suite;
 
@@ -55,7 +56,7 @@ const PCR_IDS: [PcrId; 32] = [
 ];
 
 fn test_lock_and_erase_pcrs() {
-    let mut pcr_bank = PcrBank::default();
+    let mut pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
     for pcr_id in PCR_IDS {
         assert!(pcr_bank.erase_pcr(pcr_id).is_ok());
 
@@ -70,12 +71,12 @@ fn test_lock_and_erase_pcrs() {
 }
 
 fn test_erase_all_pcrs() {
-    let mut pcr_bank = PcrBank::default();
+    let mut pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
     pcr_bank.erase_all_pcrs();
 }
 
 fn test_write_protection_stickiness() {
-    let mut pcr_bank = PcrBank::default();
+    let mut pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
     for pcr_id in PCR_IDS {
         assert!(pcr_bank.pcr_lock(pcr_id));
         pcr_bank.clear_pcr_lock(pcr_id);

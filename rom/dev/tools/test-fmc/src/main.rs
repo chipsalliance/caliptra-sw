@@ -24,6 +24,7 @@ use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_drivers::DataVault;
 use caliptra_drivers::Mailbox;
+use caliptra_registers::dv::DvReg;
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
 use ureg::RealMmioMut;
 use zerocopy::AsBytes;
@@ -118,7 +119,7 @@ fn create_certs() {
     //
 
     // Retrieve the public key and signature from the data vault.
-    let data_vault = DataVault::default();
+    let data_vault = unsafe { DataVault::new(DvReg::new()) };
     let ldevid_pub_key = data_vault.ldev_dice_pub_key();
     let mut _pub_der: [u8; 97] = ldevid_pub_key.to_der();
     cprint_slice!("[fmc] LDEVID PUBLIC KEY DER", _pub_der);
@@ -201,7 +202,8 @@ fn get_pcr_entry(entry_index: usize) -> PcrLogEntry {
 }
 
 fn process_mailbox_commands() {
-    let mbox = caliptra_registers::mbox::RegisterBlock::mbox_csr();
+    let mut mbox = unsafe { caliptra_registers::mbox::MboxCsr::new() };
+    let mbox = mbox.regs_mut();
 
     let cmd = mbox.cmd().read();
     cprintln!("[fmc] Received command: 0x{:08X}", cmd);

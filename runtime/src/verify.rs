@@ -4,7 +4,7 @@ use crate::{EcdsaVerifyCmd, RuntimeErr};
 use caliptra_drivers::{
     Array4x12, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Scalar, Ecc384Signature,
 };
-use caliptra_registers::sha512_acc;
+use caliptra_registers::{ecc::EccReg, sha512_acc};
 use zerocopy::FromBytes;
 
 /// Handle the `ECDSA384_SIGNATURE_VERIFY` mailbox command
@@ -29,7 +29,8 @@ pub fn handle_ecdsa_verify(cmd_args: &[u8]) -> CaliptraResult<()> {
             s: Ecc384Scalar::from(cmd.signature_s),
         };
 
-        let mut ecdsa = Ecc384::default();
+        // TODO: Don't do this
+        let mut ecdsa = unsafe { Ecc384::new(EccReg::new()) };
         let success = ecdsa.verify(&pubkey, &digest, &sig)?;
         if !success {
             return Err(RuntimeErr::EcdsaVerificationFailed.into());

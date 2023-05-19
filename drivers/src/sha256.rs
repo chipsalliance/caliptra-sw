@@ -15,7 +15,7 @@ Abstract:
 use core::usize;
 
 use crate::{array::Array4x16, caliptra_err_def, wait, Array4x8, CaliptraResult};
-use caliptra_registers::sha256;
+use caliptra_registers::sha256::Sha256Reg;
 
 const SHA256_BLOCK_BYTE_SIZE: usize = 64;
 const SHA256_BLOCK_LEN_OFFSET: usize = 56;
@@ -41,10 +41,14 @@ caliptra_err_def! {
     }
 }
 
-#[derive(Default, Debug)]
-pub struct Sha256 {}
+pub struct Sha256 {
+    sha256: Sha256Reg,
+}
 
 impl Sha256 {
+    pub fn new(sha256: Sha256Reg) -> Self {
+        Self { sha256 }
+    }
     /// Initialize multi step digest operation
     ///
     /// # Returns
@@ -110,9 +114,8 @@ impl Sha256 {
             }
         }
 
-        Ok(Array4x8::read_from_reg(
-            sha256::RegisterBlock::sha256_reg().digest(),
-        ))
+        let sha256 = self.sha256.regs();
+        Ok(Array4x8::read_from_reg(sha256.digest()))
     }
 
     /// Copy digest to buffer
@@ -121,7 +124,8 @@ impl Sha256 {
     ///
     /// * `buf` - Digest buffer
     fn copy_digest_to_buf(&mut self, buf: &mut Array4x8) -> CaliptraResult<()> {
-        *buf = Array4x8::read_from_reg(sha256::RegisterBlock::sha256_reg().digest());
+        let sha256 = self.sha256.regs();
+        *buf = Array4x8::read_from_reg(sha256.digest());
         Ok(())
     }
 
@@ -182,7 +186,7 @@ impl Sha256 {
         block: &[u8; SHA256_BLOCK_BYTE_SIZE],
         first: bool,
     ) -> CaliptraResult<()> {
-        let sha256 = sha256::RegisterBlock::sha256_reg();
+        let sha256 = self.sha256.regs_mut();
         Array4x16::from(block).write_to_reg(sha256.block());
         self.digest_op(first)
     }
@@ -193,7 +197,7 @@ impl Sha256 {
     //
     /// * `first` - Flag indicating if this is the first block
     fn digest_op(&mut self, first: bool) -> CaliptraResult<()> {
-        let sha256 = sha256::RegisterBlock::sha256_reg();
+        let sha256 = self.sha256.regs_mut();
 
         // Wait for the hardware to be ready
         wait::until(|| sha256.status().read().ready());

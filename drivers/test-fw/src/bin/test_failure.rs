@@ -13,11 +13,16 @@ pub fn panic(_info: &core::panic::PanicInfo) -> ! {
 
 #[no_mangle]
 extern "C" fn main() {
-    let soc_ifc = caliptra_registers::soc_ifc::RegisterBlock::soc_ifc_reg();
+    let mut soc_ifc = unsafe { caliptra_registers::soc_ifc::SocIfcReg::new() };
     soc_ifc
+        .regs_mut()
         .cptra_generic_output_wires()
         .at(0)
         .write(|_| b'F'.into());
     // 0xff means exit with failure
-    soc_ifc.cptra_generic_output_wires().at(0).write(|_| 0x01);
+    soc_ifc
+        .regs_mut()
+        .cptra_generic_output_wires()
+        .at(0)
+        .write(|_| 0x01);
 }

@@ -12,8 +12,8 @@ Abstract:
 
 --*/
 
-use caliptra_registers::soc_ifc;
 use caliptra_registers::soc_ifc::enums::DeviceLifecycleE;
+use caliptra_registers::soc_ifc::{self, SocIfcReg};
 
 use crate::FuseBank;
 
@@ -46,18 +46,22 @@ impl From<DeviceLifecycleE> for Lifecycle {
 }
 
 pub fn report_boot_status(val: u32) {
-    let soc_ifc = soc_ifc::RegisterBlock::soc_ifc_reg();
-    soc_ifc.cptra_boot_status().write(|_| val);
+    let mut soc_ifc = unsafe { soc_ifc::SocIfcReg::new() };
+    soc_ifc.regs_mut().cptra_boot_status().write(|_| val);
 }
 
 /// Device State
-#[derive(Default, Debug)]
-pub struct SocIfc {}
+pub struct SocIfc {
+    soc_ifc: SocIfcReg,
+}
 
 impl SocIfc {
+    pub fn new(soc_ifc: SocIfcReg) -> Self {
+        Self { soc_ifc }
+    }
     /// Retrieve the device lifecycle state
     pub fn lifecycle(&self) -> Lifecycle {
-        let soc_ifc_regs = soc_ifc::RegisterBlock::soc_ifc_reg();
+        let soc_ifc_regs = self.soc_ifc.regs();
         soc_ifc_regs
             .cptra_security_state()
             .read()
@@ -67,7 +71,7 @@ impl SocIfc {
 
     /// Check if device is locked for debug
     pub fn debug_locked(&self) -> bool {
-        let soc_ifc_regs = caliptra_registers::soc_ifc::RegisterBlock::soc_ifc_reg();
+        let soc_ifc_regs = self.soc_ifc.regs();
         soc_ifc_regs.cptra_security_state().read().debug_locked()
     }
 
@@ -77,13 +81,13 @@ impl SocIfc {
     /// * `lock` - Desired lock state of the ICCM
     ///
     pub fn set_iccm_lock(&mut self, lock: bool) {
-        let soc_ifc_regs = caliptra_registers::soc_ifc::RegisterBlock::soc_ifc_reg();
+        let soc_ifc_regs = self.soc_ifc.regs_mut();
         soc_ifc_regs.internal_iccm_lock().modify(|w| w.lock(lock));
     }
 
     /// Retrieve reset reason
-    pub fn reset_reason(&self) -> ResetReason {
-        let soc_ifc_regs = soc_ifc::RegisterBlock::soc_ifc_reg();
+    pub fn reset_reason(&mut self) -> ResetReason {
+        let soc_ifc_regs = self.soc_ifc.regs();
         let bit0 = soc_ifc_regs.cptra_reset_reason().read().fw_upd_reset();
         let bit1 = soc_ifc_regs.cptra_reset_reason().read().warm_reset();
         match (bit0, bit1) {
@@ -100,7 +104,7 @@ impl SocIfc {
     ///
     /// * None
     pub fn flow_status_set_idevid_csr_ready(&mut self) {
-        let soc_ifc = soc_ifc::RegisterBlock::soc_ifc_reg();
+        let soc_ifc = self.soc_ifc.regs_mut();
         soc_ifc.cptra_flow_status().write(|w| w.status(0x0800_0000));
     }
 
@@ -110,18 +114,20 @@ impl SocIfc {
     ///
     /// * None
     pub fn flow_status_set_ready_for_firmware(&mut self) {
-        let soc_ifc = soc_ifc::RegisterBlock::soc_ifc_reg();
+        let soc_ifc = self.soc_ifc.regs_mut();
         soc_ifc.cptra_flow_status().write(|w| w.ready_for_fw(true));
     }
 
     pub fn fuse_bank(&self) -> FuseBank {
-        FuseBank::new()
+        FuseBank {
+            soc_ifc: &self.soc_ifc,
+        }
     }
 
     /// Returns the flag indicating whether to generate Initial Device ID Certificate
     /// Signing Request (CSR)
-    pub fn mfg_flag_gen_idev_id_csr(&self) -> bool {
-        let soc_ifc_regs = caliptra_registers::soc_ifc::RegisterBlock::soc_ifc_reg();
+    pub fn mfg_flag_gen_idev_id_csr(&mut self) -> bool {
+        let soc_ifc_regs = self.soc_ifc.regs();
         let flags: MfgFlags = soc_ifc_regs.cptra_dbg_manuf_service_reg().read().into();
         flags.contains(MfgFlags::GENERATE_IDEVID_CSR)
     }

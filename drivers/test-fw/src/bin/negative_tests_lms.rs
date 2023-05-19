@@ -19,10 +19,11 @@ use caliptra_drivers::{
     HashValue, LmotsAlgorithmType, LmotsSignature, Lms, LmsAlgorithmType, LmsIdentifier,
     LmsSignature, Sha256,
 };
+use caliptra_registers::sha256::Sha256Reg;
 use caliptra_test_harness::test_suite;
 
 fn test_failures_lms_24() {
-    let mut sha256 = Sha256::default();
+    let mut sha256 = unsafe { Sha256::new(Sha256Reg::new()) };
     const MESSAGE: [u8; 33] = [
         116, 104, 105, 115, 32, 105, 115, 32, 116, 104, 101, 32, 109, 101, 115, 115, 97, 103, 101,
         32, 73, 32, 119, 97, 110, 116, 32, 115, 105, 103, 110, 101, 100,
