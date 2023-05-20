@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include "caliptra_model.h"
 #include "api/caliptra_api.h"
 
 static struct caliptra_buffer read_file_or_die(const char* path)

@@ -15,3 +15,6 @@ crate-type = ["staticlib"]
 
 [features]
 verilator = ["caliptra-hw-model/verilator"]
+
+[build-dependencies]
+cbindgen = "0.24.0"
