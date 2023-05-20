@@ -59,7 +59,7 @@ pub unsafe extern "C" fn caliptra_model_destroy(model: *mut caliptra_model) {
     assert!(!model.is_null());
 
     // This will force model to be freed
-    let _ = Box::from_raw(model);
+    drop(Box::from_raw(model));
 }
 
 /// # Safety

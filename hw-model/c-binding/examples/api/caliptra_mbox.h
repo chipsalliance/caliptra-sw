@@ -3,56 +3,52 @@
 #define CALIPTRA_MBOX_H
 
 #include "caliptra_api.h"
-#define CALIPTRA_MBOX_WRITE(model, offset, data) \
-    do { \
-        caliptra_model_apb_write_u32(model, (offset + CALIPTRA_TOP_REG_MBOX_CSR_BASE_ADDR), data); \
-    } while(0)
+static inline void caliptra_mbox_write(caliptra_model *model, uint32_t offset, uint32_t data)
+{
+    caliptra_model_apb_write_u32(model, (offset + CALIPTRA_TOP_REG_MBOX_CSR_BASE_ADDR), data);
+}
 
-#define CALIPTRA_MBOX_READ(model, offset) \
-    ({ \
-        uint32_t _ret; \
-        caliptra_model_apb_read_u32(model, (offset + CALIPTRA_TOP_REG_MBOX_CSR_BASE_ADDR), &_ret); \
-        _ret; \
-    })
+static inline uint32_t caliptra_mbox_read(caliptra_model *model, uint32_t offset)
+{
+    uint32_t data;
+    caliptra_model_apb_read_u32(model, (offset + CALIPTRA_TOP_REG_MBOX_CSR_BASE_ADDR), &data);
+    return data;
+}
 
-#define CALIPTRA_MBOX_IS_LOCK(model) \
-    ({ \
-        uint32_t _lock = CALIPTRA_MBOX_READ(model, MBOX_CSR_MBOX_LOCK); \
-        _lock &= 1; \
-    })
+static inline bool caliptra_mbox_is_lock(caliptra_model *model)
+{
+    return (caliptra_mbox_read(model, MBOX_CSR_MBOX_LOCK) & 1);
+}
 
-#define CALIPTRA_MBOX_WRITE_CMD(model, cmd) \
-    do { \
-        CALIPTRA_MBOX_WRITE(model, MBOX_CSR_MBOX_CMD, cmd); \
-    } while(0)
+static inline void caliptra_mbox_write_cmd(caliptra_model *model, uint32_t cmd)
+{
+    caliptra_mbox_write(model, MBOX_CSR_MBOX_CMD, cmd);
+}
 
-#define CALIPTRA_MBOX_WRITE_EXECUTE(model, ex) \
-    do { \
-        CALIPTRA_MBOX_WRITE(model, MBOX_CSR_MBOX_EXECUTE, ex); \
-    } while(0)
+static inline void caliptra_mbox_write_execute(caliptra_model *model, bool ex)
+{
+    caliptra_mbox_write(model, MBOX_CSR_MBOX_EXECUTE, ex);
+}
 
-#define CALIPTRA_MBOX_READ_STATUS(model) \
-    ({ \
-        uint32_t _status = CALIPTRA_MBOX_READ(model, MBOX_CSR_MBOX_STATUS); \
-        _status &= 0xf; \
-    })
+static inline uint8_t caliptra_mbox_read_status(caliptra_model *model)
+{
+    return (uint8_t)(caliptra_mbox_read(model, MBOX_CSR_MBOX_STATUS) & 0xf);
+}
 
-#define CALIPTRA_MBOX_READ_STATUS_FSM(model) \
-    ({ \
-        uint32_t _status_fsm = CALIPTRA_MBOX_READ(model, MBOX_CSR_MBOX_STATUS) >> 16; \
-        _status_fsm &= 0xf; \
-    })
+static inline uint8_t caliptra_mbox_read_status_fsm(caliptra_model *model)
+{
+    return (uint8_t)(caliptra_mbox_read(model, MBOX_CSR_MBOX_STATUS) >> 16 & 0xf);
+}
 
-#define CALIPTRA_MBOX_READ_DLEN(model) \
-    ({ \
-        uint32_t _dlen = CALIPTRA_MBOX_READ(model, MBOX_CSR_MBOX_DLEN); \
-        _dlen; \
-    })
+static inline uint32_t caliptra_mbox_read_dlen(caliptra_model *model)
+{
+    return caliptra_mbox_read(model, MBOX_CSR_MBOX_DLEN);
+}
 
-#define CALIPTRA_MBOX_WRITE_DLEN(model, dlen) \
-    do { \
-        CALIPTRA_MBOX_WRITE(model, MBOX_CSR_MBOX_DLEN, dlen); \
-    } while(0)
+static inline void caliptra_mbox_write_dlen(caliptra_model *model, uint32_t dlen)
+{
+    caliptra_mbox_write(model, MBOX_CSR_MBOX_DLEN, dlen);
+}
 
 
 #define CALIPTRA_MBOX_STATUS_BUSY               0
