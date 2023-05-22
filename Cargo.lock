@@ -142,6 +142,7 @@ dependencies = [
  "caliptra-image-gen",
  "caliptra-image-openssl",
  "caliptra-image-types",
+ "clap",
  "elf",
  "hex",
  "once_cell",

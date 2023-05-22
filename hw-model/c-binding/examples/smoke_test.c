@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <unistd.h>
 #include "api/caliptra_api.h"
 
 static struct caliptra_buffer read_file_or_die(const char* path)
@@ -35,11 +36,40 @@ static struct caliptra_buffer read_file_or_die(const char* path)
     return buffer;
 }
 
-int main(void)
+static void display_usage(void)
 {
+    printf("./smoke_test -r [rom_file] -f [fw_image_file] \n");
+}
+
+int main(int argc, char *argv[])
+{
+    // Process Input Arguments
+    int opt;
+    const char *rom_path = NULL;
+    const char *fw_path = NULL;
+    while((opt = getopt(argc, argv, ":r:f:")) != -1) {
+        switch(opt)
+        {
+            case 'r':
+                rom_path = optarg;
+                break;
+            case 'f':
+                fw_path = optarg;
+                break;
+            case ':':
+            case '?':
+                display_usage();
+                return -EINVAL;
+        }
+    }
+    if (!rom_path || !fw_path) {
+        display_usage();
+        return -EINVAL;
+    }
+
     // Initialize Params
     struct caliptra_model_init_params init_params = {
-      .rom = read_file_or_die("out/caliptra-rom.bin"),
+      .rom = read_file_or_die(rom_path),
       .dccm = {.data = NULL, .len = 0},
       .iccm = {.data = NULL, .len = 0},
     };
@@ -62,7 +92,7 @@ int main(void)
     }
 
     // Load Image Bundle
-    struct caliptra_buffer image_bundle = read_file_or_die("out/image-bundle.bin");
+    struct caliptra_buffer image_bundle = read_file_or_die(fw_path);
     caliptra_upload_fw(model, &image_bundle);
 
     // Run Until RT is ready to receive commands
