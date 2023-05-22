@@ -11,6 +11,8 @@ caliptra-drivers = { path = "../drivers" }
 caliptra-registers = { path = "../registers" }
 caliptra_common = { path = "../common", default-features = false }
 caliptra-x509 = { path = "../x509", default-features = false }
+crypto = { path = "dpe/crypto" }
+platform = { path = "dpe/platform" }
 ufmt = "0.2.0"
 zerocopy = "0.6.1"
 
