@@ -41,12 +41,13 @@ impl From<CommandId> for u32 {
 
 // Contains all the possible mailbox response structs
 #[cfg_attr(test, derive(PartialEq, Debug, Eq))]
+#[allow(clippy::large_enum_variant)]
 pub enum MailboxResp {
     Header(MailboxRespHeader),
     GetIdevCsr(GetIdevCsrResp),
     GetLdevCert(GetLdevCertResp),
     StashMeasurement(StashMeasurementResp),
-    InvokeDpeCommand(InvokeDpeCommandResp),
+    InvokeDpeCommand(InvokeDpeResp),
     TestGetFmcAliasCert(TestGetFmcAliasCertResp),
     FipsVersion(FipsVersionResp),
     FwInfo(FwInfoResp),
@@ -108,7 +109,7 @@ impl Default for MailboxResp {
 
 // HEADER
 #[repr(C)]
-#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+#[derive(Default, Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct MailboxReqHeader {
     pub chksum: i32,
 }
@@ -206,24 +207,46 @@ pub struct StashMeasurementResp {
 // INVOKE_DPE_COMMAND
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
-pub struct InvokeDpeCommandReq {
+pub struct InvokeDpeReq {
     pub hdr: MailboxReqHeader,
     pub data_size: u32,
-    pub data: [u8; InvokeDpeCommandReq::DATA_MAX_SIZE], // variable length
+    pub data: [u8; InvokeDpeReq::DATA_MAX_SIZE], // variable length
 }
-impl InvokeDpeCommandReq {
+
+impl InvokeDpeReq {
     pub const DATA_MAX_SIZE: usize = 1024;
+}
+
+impl Default for InvokeDpeReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            data_size: 0,
+            data: [0u8; InvokeDpeReq::DATA_MAX_SIZE],
+        }
+    }
 }
 
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
-pub struct InvokeDpeCommandResp {
+pub struct InvokeDpeResp {
     pub hdr: MailboxRespHeader,
     pub data_size: u32,
-    pub data: [u8; InvokeDpeCommandResp::DATA_MAX_SIZE], // variable length
+    pub data: [u8; InvokeDpeResp::DATA_MAX_SIZE], // variable length
 }
-impl InvokeDpeCommandResp {
-    pub const DATA_MAX_SIZE: usize = 1024;
+
+impl InvokeDpeResp {
+    pub const DATA_MAX_SIZE: usize = 4096;
+}
+
+impl Default for InvokeDpeResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            data_size: 0,
+            data: [0u8; 4096],
+        }
+    }
 }
 
 // TEST_ONLY_GET_FMC_ALIAS_CERT
