@@ -10,7 +10,11 @@ resolver = "2"
 exclude = [
   # Uses a custom .cargo/config
   "sw-emulator/example",
-  "dpe/*",
+  "dpe/dpe",
+  "dpe/crypto",
+  "dpe/platform",
+  "dpe/simulator",
+  "dpe/tools",
 ]
 
 members = [
@@ -108,6 +112,9 @@ cfg-if = "1.0.0"
 chrono = "0.4.24"
 clap = { version = "3.2.14", default-features = false, features = ["std"] }
 convert_case = "0.6.0"
+dpe = { path = "dpe/dpe", default-features = false, features = ["dpe_profile_p384_sha384"] }
+crypto = { path = "dpe/crypto", default-features = false }
+platform = { path = "dpe/platform", default-features = false }
 elf = "0.7.2"
 gdbstub = "0.6.3"
 gdbstub_arch = "0.2.4"

@@ -34,6 +34,10 @@ jobs:
         run: |
           echo "Build-Test: release_ref=$(git rev-parse HEAD)"
 
+      - name: Pull dpe submodule
+        run: |
+          git submodule update --init dpe
+
       - name: Restore sccache binary
         uses: actions/cache/restore@v3
         id: sccache_bin_restore
