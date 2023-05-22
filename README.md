@@ -43,6 +43,7 @@ toolchain for all continuous integration.
 ```shell
 git clone https://github.com/chipsalliance/caliptra-sw --config submodule.recurse=true
 cd caliptra-sw
+git submodule update --init runtime/dpe
 cargo build
 ```
 

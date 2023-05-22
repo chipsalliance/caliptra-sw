@@ -73,6 +73,10 @@ jobs:
           cargo fmt --version
           cargo clippy --version
 
+      - name: Initialize submodules
+        run: |
+          git submodule update --init runtime/dpe
+
       - name: Check that Cargo.lock doesn't need to be updated
           # Note: this isn't the same as checking that Cargo.lock is up to date
           # (cargo update --locked), which makes sure that every package is the
