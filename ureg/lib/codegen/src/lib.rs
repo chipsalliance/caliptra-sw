@@ -818,11 +818,11 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
 
         for block_array in block.block().sub_arrays.iter() {
             let mut subblock_tokens = TokenStream::new();
-            let subblock_name = format_ident!("{}Block", camel_ident(&block_array.name));
-            let subblock_fn_name = snake_ident(&block_array.name);
-            let meta_prefix = camel_ident(&block_array.name).to_string();
+            let subblock_name = format_ident!("{}Block", camel_ident(&block_array.block.name));
+            let subblock_fn_name = snake_ident(&block_array.block.name);
+            let meta_prefix = camel_ident(&block_array.block.name).to_string();
             generate_block_registers(
-                &block_array.registers,
+                &block_array.block.registers,
                 &raw_ptr_type,
                 &mut meta_tokens,
                 &mut subblock_tokens,

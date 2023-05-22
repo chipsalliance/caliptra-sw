@@ -292,23 +292,26 @@ impl ValidatedRegisterBlock {
         reg_specs.sort_by_key(|reg| reg.min_offset);
         let start_offset = reg_specs[0].min_offset;
         let block_array = RegisterBlockArray {
-            name: block_name.to_string(),
             start_offset,
             stride: reg_specs[0].stride,
             len: reg_specs[0].count,
-            registers: reg_specs
-                .into_iter()
-                .map(|reg_spec| {
-                    Rc::new(Register {
-                        name: reg_spec.name.to_string(),
-                        default_val: reg_spec.default_val,
-                        comment: reg_spec.comment,
-                        array_dimensions: reg_spec.array_dimensions,
-                        offset: reg_spec.min_offset - start_offset,
-                        ty: reg_spec.ty,
+            block: RegisterBlock {
+                name: block_name.to_string(),
+                registers: reg_specs
+                    .into_iter()
+                    .map(|reg_spec| {
+                        Rc::new(Register {
+                            name: reg_spec.name.to_string(),
+                            default_val: reg_spec.default_val,
+                            comment: reg_spec.comment,
+                            array_dimensions: reg_spec.array_dimensions,
+                            offset: reg_spec.min_offset - start_offset,
+                            ty: reg_spec.ty,
+                        })
                     })
-                })
-                .collect(),
+                    .collect(),
+                ..Default::default()
+            },
         };
 
         self.block.sub_arrays.push(block_array);
@@ -566,15 +569,18 @@ fn all_regs<'a>(
     sub_arrays: &'a [RegisterBlockArray],
 ) -> impl Iterator<Item = &'a Rc<Register>> {
     regs.iter()
-        .chain(sub_arrays.iter().flat_map(|a| a.registers.iter()))
+        .chain(sub_arrays.iter().flat_map(|a| a.block.registers.iter()))
 }
 
 fn all_regs_mut<'a>(
     regs: &'a mut [Rc<Register>],
     sub_arrays: &'a mut [RegisterBlockArray],
 ) -> impl Iterator<Item = &'a mut Rc<Register>> {
-    regs.iter_mut()
-        .chain(sub_arrays.iter_mut().flat_map(|a| a.registers.iter_mut()))
+    regs.iter_mut().chain(
+        sub_arrays
+            .iter_mut()
+            .flat_map(|a| a.block.registers.iter_mut()),
+    )
 }
 
 impl RegisterBlock {
@@ -583,7 +589,7 @@ impl RegisterBlock {
         self.sub_arrays
             .sort_by_key(|sub_array| sub_array.start_offset);
         for sub_array in self.sub_arrays.iter_mut() {
-            sub_array.registers.sort_by_key(|reg| reg.offset);
+            sub_array.block.registers.sort_by_key(|reg| reg.offset);
         }
 
         let mut enum_types: HashMap<String, Rc<Enum>> = HashMap::new();

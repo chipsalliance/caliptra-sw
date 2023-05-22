@@ -209,11 +209,10 @@ impl FieldType {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct RegisterBlockArray {
-    pub name: String,
     pub start_offset: u64,
     pub stride: u64,
     pub len: usize,
-    pub registers: Vec<Rc<Register>>,
+    pub block: RegisterBlock,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -354,7 +353,7 @@ fn collect_used_reg_types(block: &RegisterBlock, used_types: &mut HashSet<Rc<Reg
         used_types.insert(reg.ty.clone());
     }
     for array in block.sub_arrays.iter() {
-        for reg in array.registers.iter() {
+        for reg in array.block.registers.iter() {
             used_types.insert(reg.ty.clone());
         }
     }
