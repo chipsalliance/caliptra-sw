@@ -6,8 +6,8 @@ use crate::Enum;
 use crate::EnumVariant;
 use crate::Register;
 use crate::RegisterBlock;
-use crate::RegisterBlockArray;
 use crate::RegisterField;
+use crate::RegisterSubBlock;
 use crate::RegisterType;
 
 use std::collections::hash_map::DefaultHasher;
@@ -291,7 +291,7 @@ impl ValidatedRegisterBlock {
             .collect();
         reg_specs.sort_by_key(|reg| reg.min_offset);
         let start_offset = reg_specs[0].min_offset;
-        let block_array = RegisterBlockArray {
+        let block_array = RegisterSubBlock::Array {
             start_offset,
             stride: reg_specs[0].stride,
             len: reg_specs[0].count,
@@ -314,7 +314,7 @@ impl ValidatedRegisterBlock {
             },
         };
 
-        self.block.sub_arrays.push(block_array);
+        self.block.sub_blocks.push(block_array);
     }
 }
 
@@ -566,36 +566,40 @@ fn determine_enum_name_from_reg_ty(reg_ty: &RegisterType, field: &RegisterField)
 
 fn all_regs<'a>(
     regs: &'a [Rc<Register>],
-    sub_arrays: &'a [RegisterBlockArray],
+    sub_blocks: &'a [RegisterSubBlock],
 ) -> impl Iterator<Item = &'a Rc<Register>> {
+    // TODO: Do this recursively
     regs.iter()
-        .chain(sub_arrays.iter().flat_map(|a| a.block.registers.iter()))
+        .chain(sub_blocks.iter().flat_map(|a| a.block().registers.iter()))
 }
 
 fn all_regs_mut<'a>(
     regs: &'a mut [Rc<Register>],
-    sub_arrays: &'a mut [RegisterBlockArray],
+    sub_blocks: &'a mut [RegisterSubBlock],
 ) -> impl Iterator<Item = &'a mut Rc<Register>> {
+    // TODO: Do this recursively
     regs.iter_mut().chain(
-        sub_arrays
+        sub_blocks
             .iter_mut()
-            .flat_map(|a| a.block.registers.iter_mut()),
+            .flat_map(|a| a.block_mut().registers.iter_mut()),
     )
 }
 
 impl RegisterBlock {
     pub fn validate_and_dedup(mut self) -> Result<ValidatedRegisterBlock, ValidationError> {
         self.registers.sort_by_key(|reg| reg.offset);
-        self.sub_arrays
-            .sort_by_key(|sub_array| sub_array.start_offset);
-        for sub_array in self.sub_arrays.iter_mut() {
-            sub_array.block.registers.sort_by_key(|reg| reg.offset);
+        self.sub_blocks
+            .sort_by_key(|sub_array| sub_array.start_offset());
+
+        for sb in self.sub_blocks.iter_mut() {
+            // TODO: Do this recursively
+            sb.block_mut().registers.sort_by_key(|reg| reg.offset);
         }
 
         let mut enum_types: HashMap<String, Rc<Enum>> = HashMap::new();
         {
             let mut enum_names = HashMap::<Rc<Enum>, HashSet<String>>::new();
-            for reg in all_regs(&self.registers, &self.sub_arrays) {
+            for reg in all_regs(&self.registers, &self.sub_blocks) {
                 for field in reg.ty.fields.iter() {
                     if let Some(ref e) = field.enum_type {
                         enum_names
@@ -643,7 +647,7 @@ impl RegisterBlock {
                 }
             }
 
-            for reg in all_regs_mut(&mut self.registers, &mut self.sub_arrays) {
+            for reg in all_regs_mut(&mut self.registers, &mut self.sub_blocks) {
                 let reg = Rc::make_mut(reg);
                 let ty = Rc::make_mut(&mut reg.ty);
                 reg.array_dimensions.retain(|d| *d != 1);
@@ -694,7 +698,7 @@ impl RegisterBlock {
                 });
             }
         }
-        for reg in all_regs(&self.registers, &self.sub_arrays) {
+        for reg in all_regs(&self.registers, &self.sub_blocks) {
             regs_by_type
                 .entry(reg.ty.clone())
                 .or_default()
@@ -717,7 +721,7 @@ impl RegisterBlock {
             new_types.insert(reg_type, Rc::new(new_type));
         }
         // Replace the old duplicate register types with the new shared types
-        for reg in all_regs_mut(&mut self.registers, &mut self.sub_arrays) {
+        for reg in all_regs_mut(&mut self.registers, &mut self.sub_blocks) {
             if let Some(new_type) = new_types.get(&reg.ty) {
                 Rc::make_mut(reg).ty = new_type.clone();
             }
