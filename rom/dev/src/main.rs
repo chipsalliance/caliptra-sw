@@ -54,7 +54,10 @@ Running Caliptra ROM ...
 pub extern "C" fn rom_entry() -> ! {
     cprintln!("{}", BANNER);
 
-    let mut env = unsafe { rom_env::RomEnv::new_from_registers() };
+    let mut env = match unsafe { rom_env::RomEnv::new_from_registers() } {
+        Ok(env) => env,
+        Err(e) => report_error(e.into()),
+    };
 
     let _lifecyle = match env.soc_ifc.lifecycle() {
         caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",
