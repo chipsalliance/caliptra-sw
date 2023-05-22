@@ -4,13 +4,13 @@ Licensed under the Apache-2.0 license.
 mod error;
 
 pub use error::Error;
-use ureg::RegisterType;
+use ureg::{RegisterSubBlock, RegisterType};
 
 use std::rc::Rc;
 
 use caliptra_systemrdl as systemrdl;
 use caliptra_systemrdl::{ComponentType, ScopeType};
-use systemrdl::{AccessType, ParentScope, RdlError};
+use systemrdl::{AccessType, InstanceRef, ParentScope, RdlError};
 use ureg_schema as ureg;
 use ureg_schema::{RegisterBlock, RegisterBlockInstance};
 
@@ -249,40 +249,53 @@ pub fn translate_types(scope: systemrdl::ParentScope) -> Result<Vec<Rc<RegisterT
     Ok(result)
 }
 
+fn translate_block(iref: InstanceRef) -> Result<RegisterBlock, Error> {
+    let wrap_err = |err: Error| Error::BlockError {
+        block_name: iref.instance.name.clone(),
+        err: Box::new(err),
+    };
+    let inst = iref.instance;
+    let mut block = RegisterBlock {
+        name: inst.name.clone(),
+        ..Default::default()
+    };
+    if let Some(addr) = inst.offset {
+        block.instances.push(RegisterBlockInstance {
+            name: inst.name.clone(),
+            address: u32::try_from(addr).map_err(|_| wrap_err(Error::AddressTooLarge(addr)))?,
+        });
+    }
+    for (name, ty) in iref.scope.type_iter() {
+        if ty.scope.ty == ComponentType::Reg.into() {
+            block
+                .declared_register_types
+                .push(translate_register_ty(Some(name.into()), ty).map_err(wrap_err)?);
+        }
+    }
+    for child in iref.scope.instance_iter() {
+        if child.instance.scope.ty == ComponentType::Reg.into() {
+            block
+                .registers
+                .push(Rc::new(translate_register(child).map_err(wrap_err)?));
+        }
+        if child.instance.scope.ty == ComponentType::RegFile.into() {
+            let Some(start_offset) = child.instance.offset else {
+                continue;
+            };
+            block.sub_blocks.push(RegisterSubBlock::Single {
+                block: translate_block(child)?,
+                start_offset,
+            });
+        }
+    }
+    Ok(block)
+}
+
 pub fn translate_addrmap(addrmap: systemrdl::ParentScope) -> Result<Vec<RegisterBlock>, Error> {
     expect_instance_type(addrmap, ComponentType::AddrMap.into())?;
     let mut blocks = vec![];
     for iref in addrmap.instance_iter() {
-        let wrap_err = |err: Error| Error::RegisterError {
-            register_name: iref.instance.name.clone(),
-            err: Box::new(err),
-        };
-        let inst = iref.instance;
-        let mut block = RegisterBlock {
-            name: inst.name.clone(),
-            ..Default::default()
-        };
-        if let Some(addr) = inst.offset {
-            block.instances.push(RegisterBlockInstance {
-                name: inst.name.clone(),
-                address: u32::try_from(addr).map_err(|_| wrap_err(Error::AddressTooLarge(addr)))?,
-            });
-        }
-        for (name, ty) in iref.scope.type_iter() {
-            if ty.scope.ty == ComponentType::Reg.into() {
-                block
-                    .declared_register_types
-                    .push(translate_register_ty(Some(name.into()), ty).map_err(wrap_err)?);
-            }
-        }
-        for reg in iref.scope.instance_iter() {
-            if reg.instance.scope.ty == ComponentType::Reg.into() {
-                block
-                    .registers
-                    .push(Rc::new(translate_register(reg).map_err(wrap_err)?));
-            }
-        }
-        blocks.push(block);
+        blocks.push(translate_block(iref)?);
     }
     Ok(blocks)
 }

@@ -824,6 +824,582 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
             )
         }
     }
+    pub fn intr_block_rf(&self) -> IntrBlockRfBlock<&TMmio> {
+        IntrBlockRfBlock {
+            ptr: unsafe { self.ptr.add(0x800 / core::mem::size_of::<u32>()) },
+            mmio: core::borrow::Borrow::borrow(&self.mmio),
+        }
+    }
+}
+#[derive(Clone, Copy)]
+pub struct IntrBlockRfBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>> {
+    ptr: *mut u32,
+    mmio: TMmio,
+}
+impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
+    /// Dedicated register with one bit for each event type that may produce an interrupt.
+    ///
+    /// Read value: [`sha512_acc::regs::GlobalIntrEnTReadVal`]; Write value: [`sha512_acc::regs::GlobalIntrEnTWriteVal`]
+    pub fn global_intr_en_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfGlobalIntrEnR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Dedicated register with one bit for each event that may produce an interrupt.
+    ///
+    /// Read value: [`soc_ifc::regs::ErrorIntrEnTReadVal`]; Write value: [`soc_ifc::regs::ErrorIntrEnTWriteVal`]
+    pub fn error_intr_en_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorIntrEnR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(4 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Dedicated register with one bit for each event that may produce an interrupt.
+    ///
+    /// Read value: [`soc_ifc::regs::NotifIntrEnTReadVal`]; Write value: [`soc_ifc::regs::NotifIntrEnTWriteVal`]
+    pub fn notif_intr_en_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifIntrEnR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(8 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Single bit indicating occurrence of any interrupt event
+    /// of a given type. E.g. Notifications and Errors may drive
+    /// to two separate interrupt registers. There may be
+    /// multiple sources of Notifications or Errors that are
+    /// aggregated into a single interrupt pin for that
+    /// respective type. That pin feeds through this register
+    /// in order to apply a global enablement of that interrupt
+    /// event type.
+    /// Nonsticky assertion.
+    ///
+    /// Read value: [`sha512_acc::regs::GlobalIntrTReadVal`]; Write value: [`sha512_acc::regs::GlobalIntrTWriteVal`]
+    pub fn error_global_intr_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorGlobalIntrR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0xc / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Single bit indicating occurrence of any interrupt event
+    /// of a given type. E.g. Notifications and Errors may drive
+    /// to two separate interrupt registers. There may be
+    /// multiple sources of Notifications or Errors that are
+    /// aggregated into a single interrupt pin for that
+    /// respective type. That pin feeds through this register
+    /// in order to apply a global enablement of that interrupt
+    /// event type.
+    /// Nonsticky assertion.
+    ///
+    /// Read value: [`sha512_acc::regs::GlobalIntrTReadVal`]; Write value: [`sha512_acc::regs::GlobalIntrTWriteVal`]
+    pub fn notif_global_intr_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifGlobalIntrR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x10 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Single bit indicating occurrence of each interrupt event.
+    /// Sticky, level assertion, write-1-to-clear.
+    ///
+    /// Read value: [`soc_ifc::regs::ErrorIntrTReadVal`]; Write value: [`soc_ifc::regs::ErrorIntrTWriteVal`]
+    pub fn error_internal_intr_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorInternalIntrR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Single bit indicating occurrence of each interrupt event.
+    /// Sticky, level assertion, write-1-to-clear.
+    ///
+    /// Read value: [`soc_ifc::regs::NotifIntrTReadVal`]; Write value: [`soc_ifc::regs::NotifIntrTWriteVal`]
+    pub fn notif_internal_intr_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifInternalIntrR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x18 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Single bit for each interrupt event allows SW to manually
+    /// trigger occurrence of that event. Upon SW write, the bit
+    /// will pulse for 1 cycle then clear to 0.
+    ///
+    /// Read value: [`soc_ifc::regs::ErrorIntrTrigTReadVal`]; Write value: [`soc_ifc::regs::ErrorIntrTrigTWriteVal`]
+    pub fn error_intr_trig_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorIntrTrigR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x1c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Single bit for each interrupt event allows SW to manually
+    /// trigger occurrence of that event. Upon SW write, the bit
+    /// will pulse for 1 cycle then clear to 0.
+    ///
+    /// Read value: [`soc_ifc::regs::NotifIntrTrigTReadVal`]; Write value: [`soc_ifc::regs::NotifIntrTrigTWriteVal`]
+    pub fn notif_intr_trig_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifIntrTrigR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x20 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Provides statistics about the number of events that have
+    /// occurred.
+    /// Will not overflow ('incrsaturate').
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    pub fn error_internal_intr_count_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorInternalIntrCountR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x100 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Provides statistics about the number of events that have
+    /// occurred.
+    /// Will not overflow ('incrsaturate').
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    pub fn error_inv_dev_intr_count_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorInvDevIntrCountR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x104 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Provides statistics about the number of events that have
+    /// occurred.
+    /// Will not overflow ('incrsaturate').
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    pub fn error_cmd_fail_intr_count_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorCmdFailIntrCountR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x108 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Provides statistics about the number of events that have
+    /// occurred.
+    /// Will not overflow ('incrsaturate').
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    pub fn error_bad_fuse_intr_count_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorBadFuseIntrCountR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x10c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Provides statistics about the number of events that have
+    /// occurred.
+    /// Will not overflow ('incrsaturate').
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    pub fn error_iccm_blocked_intr_count_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorIccmBlockedIntrCountR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x110 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Provides statistics about the number of events that have
+    /// occurred.
+    /// Will not overflow ('incrsaturate').
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    pub fn error_mbox_ecc_unc_intr_count_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorMboxEccUncIntrCountR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x114 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Provides statistics about the number of events that have
+    /// occurred.
+    /// Will not overflow ('incrsaturate').
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    pub fn error_wdt_timer1_timeout_intr_count_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorWdtTimer1TimeoutIntrCountR, &TMmio>
+    {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x118 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Provides statistics about the number of events that have
+    /// occurred.
+    /// Will not overflow ('incrsaturate').
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    pub fn error_wdt_timer2_timeout_intr_count_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorWdtTimer2TimeoutIntrCountR, &TMmio>
+    {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x11c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Provides statistics about the number of events that have
+    /// occurred.
+    /// Will not overflow ('incrsaturate').
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    pub fn notif_cmd_avail_intr_count_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifCmdAvailIntrCountR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x180 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Provides statistics about the number of events that have
+    /// occurred.
+    /// Will not overflow ('incrsaturate').
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    pub fn notif_mbox_ecc_cor_intr_count_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifMboxEccCorIntrCountR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x184 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Provides statistics about the number of events that have
+    /// occurred.
+    /// Will not overflow ('incrsaturate').
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    pub fn notif_debug_locked_intr_count_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifDebugLockedIntrCountR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x188 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Provides statistics about the number of events that have
+    /// occurred.
+    /// Will not overflow ('incrsaturate').
+    ///
+    /// Read value: [`u32`]; Write value: [`u32`]
+    pub fn notif_soc_req_lock_intr_count_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifSocReqLockIntrCountR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x18c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Trigger the event counter to increment based on observing
+    /// the rising edge of an interrupt event input from the
+    /// Hardware. The same input signal that causes an interrupt
+    /// event to be set (sticky) also causes this signal to pulse
+    /// for 1 clock cycle, resulting in the event counter
+    /// incrementing by 1 for every interrupt event.
+    /// This is implemented as a down-counter (1-bit) that will
+    /// decrement immediately on being set - resulting in a pulse
+    ///
+    /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
+    pub fn error_internal_intr_count_incr_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorInternalIntrCountIncrR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x200 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Trigger the event counter to increment based on observing
+    /// the rising edge of an interrupt event input from the
+    /// Hardware. The same input signal that causes an interrupt
+    /// event to be set (sticky) also causes this signal to pulse
+    /// for 1 clock cycle, resulting in the event counter
+    /// incrementing by 1 for every interrupt event.
+    /// This is implemented as a down-counter (1-bit) that will
+    /// decrement immediately on being set - resulting in a pulse
+    ///
+    /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
+    pub fn error_inv_dev_intr_count_incr_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorInvDevIntrCountIncrR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x204 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Trigger the event counter to increment based on observing
+    /// the rising edge of an interrupt event input from the
+    /// Hardware. The same input signal that causes an interrupt
+    /// event to be set (sticky) also causes this signal to pulse
+    /// for 1 clock cycle, resulting in the event counter
+    /// incrementing by 1 for every interrupt event.
+    /// This is implemented as a down-counter (1-bit) that will
+    /// decrement immediately on being set - resulting in a pulse
+    ///
+    /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
+    pub fn error_cmd_fail_intr_count_incr_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorCmdFailIntrCountIncrR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x208 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Trigger the event counter to increment based on observing
+    /// the rising edge of an interrupt event input from the
+    /// Hardware. The same input signal that causes an interrupt
+    /// event to be set (sticky) also causes this signal to pulse
+    /// for 1 clock cycle, resulting in the event counter
+    /// incrementing by 1 for every interrupt event.
+    /// This is implemented as a down-counter (1-bit) that will
+    /// decrement immediately on being set - resulting in a pulse
+    ///
+    /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
+    pub fn error_bad_fuse_intr_count_incr_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorBadFuseIntrCountIncrR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x20c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Trigger the event counter to increment based on observing
+    /// the rising edge of an interrupt event input from the
+    /// Hardware. The same input signal that causes an interrupt
+    /// event to be set (sticky) also causes this signal to pulse
+    /// for 1 clock cycle, resulting in the event counter
+    /// incrementing by 1 for every interrupt event.
+    /// This is implemented as a down-counter (1-bit) that will
+    /// decrement immediately on being set - resulting in a pulse
+    ///
+    /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
+    pub fn error_iccm_blocked_intr_count_incr_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorIccmBlockedIntrCountIncrR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x210 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Trigger the event counter to increment based on observing
+    /// the rising edge of an interrupt event input from the
+    /// Hardware. The same input signal that causes an interrupt
+    /// event to be set (sticky) also causes this signal to pulse
+    /// for 1 clock cycle, resulting in the event counter
+    /// incrementing by 1 for every interrupt event.
+    /// This is implemented as a down-counter (1-bit) that will
+    /// decrement immediately on being set - resulting in a pulse
+    ///
+    /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
+    pub fn error_mbox_ecc_unc_intr_count_incr_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorMboxEccUncIntrCountIncrR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x214 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Trigger the event counter to increment based on observing
+    /// the rising edge of an interrupt event input from the
+    /// Hardware. The same input signal that causes an interrupt
+    /// event to be set (sticky) also causes this signal to pulse
+    /// for 1 clock cycle, resulting in the event counter
+    /// incrementing by 1 for every interrupt event.
+    /// This is implemented as a down-counter (1-bit) that will
+    /// decrement immediately on being set - resulting in a pulse
+    ///
+    /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
+    pub fn error_wdt_timer1_timeout_intr_count_incr_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorWdtTimer1TimeoutIntrCountIncrR, &TMmio>
+    {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x218 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Trigger the event counter to increment based on observing
+    /// the rising edge of an interrupt event input from the
+    /// Hardware. The same input signal that causes an interrupt
+    /// event to be set (sticky) also causes this signal to pulse
+    /// for 1 clock cycle, resulting in the event counter
+    /// incrementing by 1 for every interrupt event.
+    /// This is implemented as a down-counter (1-bit) that will
+    /// decrement immediately on being set - resulting in a pulse
+    ///
+    /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
+    pub fn error_wdt_timer2_timeout_intr_count_incr_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfErrorWdtTimer2TimeoutIntrCountIncrR, &TMmio>
+    {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x21c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Trigger the event counter to increment based on observing
+    /// the rising edge of an interrupt event input from the
+    /// Hardware. The same input signal that causes an interrupt
+    /// event to be set (sticky) also causes this signal to pulse
+    /// for 1 clock cycle, resulting in the event counter
+    /// incrementing by 1 for every interrupt event.
+    /// This is implemented as a down-counter (1-bit) that will
+    /// decrement immediately on being set - resulting in a pulse
+    ///
+    /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
+    pub fn notif_cmd_avail_intr_count_incr_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifCmdAvailIntrCountIncrR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x220 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Trigger the event counter to increment based on observing
+    /// the rising edge of an interrupt event input from the
+    /// Hardware. The same input signal that causes an interrupt
+    /// event to be set (sticky) also causes this signal to pulse
+    /// for 1 clock cycle, resulting in the event counter
+    /// incrementing by 1 for every interrupt event.
+    /// This is implemented as a down-counter (1-bit) that will
+    /// decrement immediately on being set - resulting in a pulse
+    ///
+    /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
+    pub fn notif_mbox_ecc_cor_intr_count_incr_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifMboxEccCorIntrCountIncrR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x224 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Trigger the event counter to increment based on observing
+    /// the rising edge of an interrupt event input from the
+    /// Hardware. The same input signal that causes an interrupt
+    /// event to be set (sticky) also causes this signal to pulse
+    /// for 1 clock cycle, resulting in the event counter
+    /// incrementing by 1 for every interrupt event.
+    /// This is implemented as a down-counter (1-bit) that will
+    /// decrement immediately on being set - resulting in a pulse
+    ///
+    /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
+    pub fn notif_debug_locked_intr_count_incr_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifDebugLockedIntrCountIncrR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x228 / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
+    /// Trigger the event counter to increment based on observing
+    /// the rising edge of an interrupt event input from the
+    /// Hardware. The same input signal that causes an interrupt
+    /// event to be set (sticky) also causes this signal to pulse
+    /// for 1 clock cycle, resulting in the event counter
+    /// incrementing by 1 for every interrupt event.
+    /// This is implemented as a down-counter (1-bit) that will
+    /// decrement immediately on being set - resulting in a pulse
+    ///
+    /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
+    pub fn notif_soc_req_lock_intr_count_incr_r(
+        &self,
+    ) -> ureg::RegRef<crate::soc_ifc::meta::IntrBlockRfNotifSocReqLockIntrCountIncrR, &TMmio> {
+        unsafe {
+            ureg::RegRef::new_with_mmio(
+                self.ptr.wrapping_add(0x22c / core::mem::size_of::<u32>()),
+                core::borrow::Borrow::borrow(&self.mmio),
+            )
+        }
+    }
 }
 pub mod regs {
     //! Types that represent the values held by registers.
@@ -1442,6 +2018,342 @@ pub mod regs {
         }
     }
     #[derive(Clone, Copy)]
+    pub struct ErrorIntrEnTReadVal(u32);
+    impl ErrorIntrEnTReadVal {
+        /// Enable bit for Internal Errors
+        #[inline(always)]
+        pub fn error_internal_en(&self) -> bool {
+            ((self.0 >> 0) & 1) != 0
+        }
+        /// Enable bit for Invalid Device in Pauser field
+        #[inline(always)]
+        pub fn error_inv_dev_en(&self) -> bool {
+            ((self.0 >> 1) & 1) != 0
+        }
+        /// Enable bit for Failed Commands
+        #[inline(always)]
+        pub fn error_cmd_fail_en(&self) -> bool {
+            ((self.0 >> 2) & 1) != 0
+        }
+        /// Enable bit for Bad Fuse received from SoC
+        #[inline(always)]
+        pub fn error_bad_fuse_en(&self) -> bool {
+            ((self.0 >> 3) & 1) != 0
+        }
+        /// Enable bit for ICCM access blocked by lock
+        #[inline(always)]
+        pub fn error_iccm_blocked_en(&self) -> bool {
+            ((self.0 >> 4) & 1) != 0
+        }
+        /// Enable bit for Mailbox ECC Double-bit Error (uncorrectable)
+        #[inline(always)]
+        pub fn error_mbox_ecc_unc_en(&self) -> bool {
+            ((self.0 >> 5) & 1) != 0
+        }
+        /// Enable bit for WDT Timer1 timeout
+        #[inline(always)]
+        pub fn error_wdt_timer1_timeout_en(&self) -> bool {
+            ((self.0 >> 6) & 1) != 0
+        }
+        /// Enable bit for WDT Timer2 timeout, applicable if timer2 is enabled as an independent timer
+        #[inline(always)]
+        pub fn error_wdt_timer2_timeout_en(&self) -> bool {
+            ((self.0 >> 7) & 1) != 0
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        pub fn modify(self) -> ErrorIntrEnTWriteVal {
+            ErrorIntrEnTWriteVal(self.0)
+        }
+    }
+    impl From<u32> for ErrorIntrEnTReadVal {
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<ErrorIntrEnTReadVal> for u32 {
+        fn from(val: ErrorIntrEnTReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct ErrorIntrEnTWriteVal(u32);
+    impl ErrorIntrEnTWriteVal {
+        /// Enable bit for Internal Errors
+        #[inline(always)]
+        pub fn error_internal_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
+        }
+        /// Enable bit for Invalid Device in Pauser field
+        #[inline(always)]
+        pub fn error_inv_dev_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
+        }
+        /// Enable bit for Failed Commands
+        #[inline(always)]
+        pub fn error_cmd_fail_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
+        }
+        /// Enable bit for Bad Fuse received from SoC
+        #[inline(always)]
+        pub fn error_bad_fuse_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
+        }
+        /// Enable bit for ICCM access blocked by lock
+        #[inline(always)]
+        pub fn error_iccm_blocked_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
+        }
+        /// Enable bit for Mailbox ECC Double-bit Error (uncorrectable)
+        #[inline(always)]
+        pub fn error_mbox_ecc_unc_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 5)) | (u32::from(val) << 5))
+        }
+        /// Enable bit for WDT Timer1 timeout
+        #[inline(always)]
+        pub fn error_wdt_timer1_timeout_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 6)) | (u32::from(val) << 6))
+        }
+        /// Enable bit for WDT Timer2 timeout, applicable if timer2 is enabled as an independent timer
+        #[inline(always)]
+        pub fn error_wdt_timer2_timeout_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 7)) | (u32::from(val) << 7))
+        }
+    }
+    impl From<u32> for ErrorIntrEnTWriteVal {
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<ErrorIntrEnTWriteVal> for u32 {
+        fn from(val: ErrorIntrEnTWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct ErrorIntrTReadVal(u32);
+    impl ErrorIntrTReadVal {
+        /// Internal Errors status bit
+        #[inline(always)]
+        pub fn error_internal_sts(&self) -> bool {
+            ((self.0 >> 0) & 1) != 0
+        }
+        /// Invalid Device in Pauser field status bit
+        #[inline(always)]
+        pub fn error_inv_dev_sts(&self) -> bool {
+            ((self.0 >> 1) & 1) != 0
+        }
+        /// Failed Commands status bit
+        #[inline(always)]
+        pub fn error_cmd_fail_sts(&self) -> bool {
+            ((self.0 >> 2) & 1) != 0
+        }
+        /// Bad Fuse received from SoC status bit
+        #[inline(always)]
+        pub fn error_bad_fuse_sts(&self) -> bool {
+            ((self.0 >> 3) & 1) != 0
+        }
+        /// ICCM access blocked by lock status bit
+        #[inline(always)]
+        pub fn error_iccm_blocked_sts(&self) -> bool {
+            ((self.0 >> 4) & 1) != 0
+        }
+        /// Mailbox ECC Double-bit Error (uncorrectable) status bit
+        #[inline(always)]
+        pub fn error_mbox_ecc_unc_sts(&self) -> bool {
+            ((self.0 >> 5) & 1) != 0
+        }
+        /// WDT Timer1 timeout status bit
+        #[inline(always)]
+        pub fn error_wdt_timer1_timeout_sts(&self) -> bool {
+            ((self.0 >> 6) & 1) != 0
+        }
+        /// WDT Timer2 timeout status bit
+        #[inline(always)]
+        pub fn error_wdt_timer2_timeout_sts(&self) -> bool {
+            ((self.0 >> 7) & 1) != 0
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        pub fn modify(self) -> ErrorIntrTWriteVal {
+            ErrorIntrTWriteVal(self.0)
+        }
+    }
+    impl From<u32> for ErrorIntrTReadVal {
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<ErrorIntrTReadVal> for u32 {
+        fn from(val: ErrorIntrTReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct ErrorIntrTWriteVal(u32);
+    impl ErrorIntrTWriteVal {
+        /// Internal Errors status bit
+        #[inline(always)]
+        pub fn error_internal_sts(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
+        }
+        /// Invalid Device in Pauser field status bit
+        #[inline(always)]
+        pub fn error_inv_dev_sts(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
+        }
+        /// Failed Commands status bit
+        #[inline(always)]
+        pub fn error_cmd_fail_sts(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
+        }
+        /// Bad Fuse received from SoC status bit
+        #[inline(always)]
+        pub fn error_bad_fuse_sts(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
+        }
+        /// ICCM access blocked by lock status bit
+        #[inline(always)]
+        pub fn error_iccm_blocked_sts(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
+        }
+        /// Mailbox ECC Double-bit Error (uncorrectable) status bit
+        #[inline(always)]
+        pub fn error_mbox_ecc_unc_sts(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 5)) | (u32::from(val) << 5))
+        }
+        /// WDT Timer1 timeout status bit
+        #[inline(always)]
+        pub fn error_wdt_timer1_timeout_sts(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 6)) | (u32::from(val) << 6))
+        }
+        /// WDT Timer2 timeout status bit
+        #[inline(always)]
+        pub fn error_wdt_timer2_timeout_sts(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 7)) | (u32::from(val) << 7))
+        }
+    }
+    impl From<u32> for ErrorIntrTWriteVal {
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<ErrorIntrTWriteVal> for u32 {
+        fn from(val: ErrorIntrTWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct ErrorIntrTrigTReadVal(u32);
+    impl ErrorIntrTrigTReadVal {
+        /// Internal Errors trigger bit
+        #[inline(always)]
+        pub fn error_internal_trig(&self) -> bool {
+            ((self.0 >> 0) & 1) != 0
+        }
+        /// Invalid Device in Pauser field trigger bit
+        #[inline(always)]
+        pub fn error_inv_dev_trig(&self) -> bool {
+            ((self.0 >> 1) & 1) != 0
+        }
+        /// Failed Commands trigger bit
+        #[inline(always)]
+        pub fn error_cmd_fail_trig(&self) -> bool {
+            ((self.0 >> 2) & 1) != 0
+        }
+        /// Bad Fuse received from SoC trigger bit
+        #[inline(always)]
+        pub fn error_bad_fuse_trig(&self) -> bool {
+            ((self.0 >> 3) & 1) != 0
+        }
+        /// ICCM access blocked by lock trigger bit
+        #[inline(always)]
+        pub fn error_iccm_blocked_trig(&self) -> bool {
+            ((self.0 >> 4) & 1) != 0
+        }
+        /// Mailbox ECC Double-bit Error (uncorrectable) trigger bit
+        #[inline(always)]
+        pub fn error_mbox_ecc_unc_trig(&self) -> bool {
+            ((self.0 >> 5) & 1) != 0
+        }
+        /// WDT Timer1 timeout trigger bit
+        #[inline(always)]
+        pub fn error_wdt_timer1_timeout_trig(&self) -> bool {
+            ((self.0 >> 6) & 1) != 0
+        }
+        /// WDT Timer2 timeout trigger bit
+        #[inline(always)]
+        pub fn error_wdt_timer2_timeout_trig(&self) -> bool {
+            ((self.0 >> 7) & 1) != 0
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        pub fn modify(self) -> ErrorIntrTrigTWriteVal {
+            ErrorIntrTrigTWriteVal(self.0)
+        }
+    }
+    impl From<u32> for ErrorIntrTrigTReadVal {
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<ErrorIntrTrigTReadVal> for u32 {
+        fn from(val: ErrorIntrTrigTReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct ErrorIntrTrigTWriteVal(u32);
+    impl ErrorIntrTrigTWriteVal {
+        /// Internal Errors trigger bit
+        #[inline(always)]
+        pub fn error_internal_trig(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
+        }
+        /// Invalid Device in Pauser field trigger bit
+        #[inline(always)]
+        pub fn error_inv_dev_trig(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
+        }
+        /// Failed Commands trigger bit
+        #[inline(always)]
+        pub fn error_cmd_fail_trig(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
+        }
+        /// Bad Fuse received from SoC trigger bit
+        #[inline(always)]
+        pub fn error_bad_fuse_trig(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
+        }
+        /// ICCM access blocked by lock trigger bit
+        #[inline(always)]
+        pub fn error_iccm_blocked_trig(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
+        }
+        /// Mailbox ECC Double-bit Error (uncorrectable) trigger bit
+        #[inline(always)]
+        pub fn error_mbox_ecc_unc_trig(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 5)) | (u32::from(val) << 5))
+        }
+        /// WDT Timer1 timeout trigger bit
+        #[inline(always)]
+        pub fn error_wdt_timer1_timeout_trig(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 6)) | (u32::from(val) << 6))
+        }
+        /// WDT Timer2 timeout trigger bit
+        #[inline(always)]
+        pub fn error_wdt_timer2_timeout_trig(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 7)) | (u32::from(val) << 7))
+        }
+    }
+    impl From<u32> for ErrorIntrTrigTWriteVal {
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<ErrorIntrTrigTWriteVal> for u32 {
+        fn from(val: ErrorIntrTrigTWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
     pub struct FuseAntiRollbackDisableReadVal(u32);
     impl FuseAntiRollbackDisableReadVal {
         ///
@@ -1693,6 +2605,222 @@ pub mod regs {
             val.0
         }
     }
+    #[derive(Clone, Copy)]
+    pub struct NotifIntrEnTReadVal(u32);
+    impl NotifIntrEnTReadVal {
+        /// Enable bit for Command Available
+        #[inline(always)]
+        pub fn notif_cmd_avail_en(&self) -> bool {
+            ((self.0 >> 0) & 1) != 0
+        }
+        /// Enable bit for Mailbox ECC Single-bit Error (correctable)
+        #[inline(always)]
+        pub fn notif_mbox_ecc_cor_en(&self) -> bool {
+            ((self.0 >> 1) & 1) != 0
+        }
+        /// Enable bit for Security State, Debug Locked transition
+        #[inline(always)]
+        pub fn notif_debug_locked_en(&self) -> bool {
+            ((self.0 >> 2) & 1) != 0
+        }
+        /// Enable bit for SoC requested the mailbox while locked
+        #[inline(always)]
+        pub fn notif_soc_req_lock_en(&self) -> bool {
+            ((self.0 >> 3) & 1) != 0
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        pub fn modify(self) -> NotifIntrEnTWriteVal {
+            NotifIntrEnTWriteVal(self.0)
+        }
+    }
+    impl From<u32> for NotifIntrEnTReadVal {
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<NotifIntrEnTReadVal> for u32 {
+        fn from(val: NotifIntrEnTReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct NotifIntrEnTWriteVal(u32);
+    impl NotifIntrEnTWriteVal {
+        /// Enable bit for Command Available
+        #[inline(always)]
+        pub fn notif_cmd_avail_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
+        }
+        /// Enable bit for Mailbox ECC Single-bit Error (correctable)
+        #[inline(always)]
+        pub fn notif_mbox_ecc_cor_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
+        }
+        /// Enable bit for Security State, Debug Locked transition
+        #[inline(always)]
+        pub fn notif_debug_locked_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
+        }
+        /// Enable bit for SoC requested the mailbox while locked
+        #[inline(always)]
+        pub fn notif_soc_req_lock_en(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
+        }
+    }
+    impl From<u32> for NotifIntrEnTWriteVal {
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<NotifIntrEnTWriteVal> for u32 {
+        fn from(val: NotifIntrEnTWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct NotifIntrTReadVal(u32);
+    impl NotifIntrTReadVal {
+        /// Command Available status bit
+        #[inline(always)]
+        pub fn notif_cmd_avail_sts(&self) -> bool {
+            ((self.0 >> 0) & 1) != 0
+        }
+        /// Mailbox ECC Single-bit Error (correctable) status bit
+        #[inline(always)]
+        pub fn notif_mbox_ecc_cor_sts(&self) -> bool {
+            ((self.0 >> 1) & 1) != 0
+        }
+        /// Security State, Debug Locked transition status bit
+        #[inline(always)]
+        pub fn notif_debug_locked_sts(&self) -> bool {
+            ((self.0 >> 2) & 1) != 0
+        }
+        /// SoC requested the mailbox while locked status bit
+        #[inline(always)]
+        pub fn notif_soc_req_lock_sts(&self) -> bool {
+            ((self.0 >> 3) & 1) != 0
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        pub fn modify(self) -> NotifIntrTWriteVal {
+            NotifIntrTWriteVal(self.0)
+        }
+    }
+    impl From<u32> for NotifIntrTReadVal {
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<NotifIntrTReadVal> for u32 {
+        fn from(val: NotifIntrTReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct NotifIntrTWriteVal(u32);
+    impl NotifIntrTWriteVal {
+        /// Command Available status bit
+        #[inline(always)]
+        pub fn notif_cmd_avail_sts(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
+        }
+        /// Mailbox ECC Single-bit Error (correctable) status bit
+        #[inline(always)]
+        pub fn notif_mbox_ecc_cor_sts(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
+        }
+        /// Security State, Debug Locked transition status bit
+        #[inline(always)]
+        pub fn notif_debug_locked_sts(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
+        }
+        /// SoC requested the mailbox while locked status bit
+        #[inline(always)]
+        pub fn notif_soc_req_lock_sts(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
+        }
+    }
+    impl From<u32> for NotifIntrTWriteVal {
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<NotifIntrTWriteVal> for u32 {
+        fn from(val: NotifIntrTWriteVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct NotifIntrTrigTReadVal(u32);
+    impl NotifIntrTrigTReadVal {
+        /// Command Available trigger bit
+        #[inline(always)]
+        pub fn notif_cmd_avail_trig(&self) -> bool {
+            ((self.0 >> 0) & 1) != 0
+        }
+        /// Mailbox ECC Single-bit Error (correctable) trigger bit
+        #[inline(always)]
+        pub fn notif_mbox_ecc_cor_trig(&self) -> bool {
+            ((self.0 >> 1) & 1) != 0
+        }
+        /// Security State, Debug Locked transition trigger bit
+        #[inline(always)]
+        pub fn notif_debug_locked_trig(&self) -> bool {
+            ((self.0 >> 2) & 1) != 0
+        }
+        /// SoC requested the mailbox while locked trigger bit
+        #[inline(always)]
+        pub fn notif_soc_req_lock_trig(&self) -> bool {
+            ((self.0 >> 3) & 1) != 0
+        }
+        /// Construct a WriteVal that can be used to modify the contents of this register value.
+        pub fn modify(self) -> NotifIntrTrigTWriteVal {
+            NotifIntrTrigTWriteVal(self.0)
+        }
+    }
+    impl From<u32> for NotifIntrTrigTReadVal {
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<NotifIntrTrigTReadVal> for u32 {
+        fn from(val: NotifIntrTrigTReadVal) -> u32 {
+            val.0
+        }
+    }
+    #[derive(Clone, Copy)]
+    pub struct NotifIntrTrigTWriteVal(u32);
+    impl NotifIntrTrigTWriteVal {
+        /// Command Available trigger bit
+        #[inline(always)]
+        pub fn notif_cmd_avail_trig(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
+        }
+        /// Mailbox ECC Single-bit Error (correctable) trigger bit
+        #[inline(always)]
+        pub fn notif_mbox_ecc_cor_trig(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
+        }
+        /// Security State, Debug Locked transition trigger bit
+        #[inline(always)]
+        pub fn notif_debug_locked_trig(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 2)) | (u32::from(val) << 2))
+        }
+        /// SoC requested the mailbox while locked trigger bit
+        #[inline(always)]
+        pub fn notif_soc_req_lock_trig(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
+        }
+    }
+    impl From<u32> for NotifIntrTrigTWriteVal {
+        fn from(val: u32) -> Self {
+            Self(val)
+        }
+    }
+    impl From<NotifIntrTrigTWriteVal> for u32 {
+        fn from(val: NotifIntrTrigTWriteVal) -> u32 {
+            val.0
+        }
+    }
 }
 pub mod enums {
     //! Enumerations used by some register fields.
@@ -1879,4 +3007,79 @@ pub mod meta {
         crate::soc_ifc::regs::InternalFwUpdateResetWaitCyclesWriteVal,
     >;
     pub type InternalNmiVector = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfGlobalIntrEnR = ureg::ReadWriteReg32<
+        0,
+        crate::sha512_acc::regs::GlobalIntrEnTReadVal,
+        crate::sha512_acc::regs::GlobalIntrEnTWriteVal,
+    >;
+    pub type IntrBlockRfErrorIntrEnR = ureg::ReadWriteReg32<
+        0,
+        crate::soc_ifc::regs::ErrorIntrEnTReadVal,
+        crate::soc_ifc::regs::ErrorIntrEnTWriteVal,
+    >;
+    pub type IntrBlockRfNotifIntrEnR = ureg::ReadWriteReg32<
+        0,
+        crate::soc_ifc::regs::NotifIntrEnTReadVal,
+        crate::soc_ifc::regs::NotifIntrEnTWriteVal,
+    >;
+    pub type IntrBlockRfErrorGlobalIntrR =
+        ureg::ReadOnlyReg32<crate::sha512_acc::regs::GlobalIntrTReadVal>;
+    pub type IntrBlockRfNotifGlobalIntrR =
+        ureg::ReadOnlyReg32<crate::sha512_acc::regs::GlobalIntrTReadVal>;
+    pub type IntrBlockRfErrorInternalIntrR = ureg::ReadWriteReg32<
+        0,
+        crate::soc_ifc::regs::ErrorIntrTReadVal,
+        crate::soc_ifc::regs::ErrorIntrTWriteVal,
+    >;
+    pub type IntrBlockRfNotifInternalIntrR = ureg::ReadWriteReg32<
+        0,
+        crate::soc_ifc::regs::NotifIntrTReadVal,
+        crate::soc_ifc::regs::NotifIntrTWriteVal,
+    >;
+    pub type IntrBlockRfErrorIntrTrigR = ureg::ReadWriteReg32<
+        0,
+        crate::soc_ifc::regs::ErrorIntrTrigTReadVal,
+        crate::soc_ifc::regs::ErrorIntrTrigTWriteVal,
+    >;
+    pub type IntrBlockRfNotifIntrTrigR = ureg::ReadWriteReg32<
+        0,
+        crate::soc_ifc::regs::NotifIntrTrigTReadVal,
+        crate::soc_ifc::regs::NotifIntrTrigTWriteVal,
+    >;
+    pub type IntrBlockRfErrorInternalIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfErrorInvDevIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfErrorCmdFailIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfErrorBadFuseIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfErrorIccmBlockedIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfErrorMboxEccUncIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfErrorWdtTimer1TimeoutIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfErrorWdtTimer2TimeoutIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfNotifCmdAvailIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfNotifMboxEccCorIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfNotifDebugLockedIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfNotifSocReqLockIntrCountR = ureg::ReadWriteReg32<0, u32, u32>;
+    pub type IntrBlockRfErrorInternalIntrCountIncrR =
+        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+    pub type IntrBlockRfErrorInvDevIntrCountIncrR =
+        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+    pub type IntrBlockRfErrorCmdFailIntrCountIncrR =
+        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+    pub type IntrBlockRfErrorBadFuseIntrCountIncrR =
+        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+    pub type IntrBlockRfErrorIccmBlockedIntrCountIncrR =
+        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+    pub type IntrBlockRfErrorMboxEccUncIntrCountIncrR =
+        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+    pub type IntrBlockRfErrorWdtTimer1TimeoutIntrCountIncrR =
+        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+    pub type IntrBlockRfErrorWdtTimer2TimeoutIntrCountIncrR =
+        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+    pub type IntrBlockRfNotifCmdAvailIntrCountIncrR =
+        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+    pub type IntrBlockRfNotifMboxEccCorIntrCountIncrR =
+        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+    pub type IntrBlockRfNotifDebugLockedIntrCountIncrR =
+        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
+    pub type IntrBlockRfNotifSocReqLockIntrCountIncrR =
+        ureg::ReadOnlyReg32<crate::sha512_acc::regs::IntrCountIncrTReadVal>;
 }
