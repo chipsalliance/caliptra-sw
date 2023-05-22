@@ -11,9 +11,10 @@ Abstract:
     File contains API for ECC-384 Cryptography operations
 
 --*/
+
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::{
-    array_concat3, wait, Array4x12, CaliptraError, CaliptraResult, KeyReadArgs, KeyWriteArgs,
+    array_concat3, wait, Array4x12, CaliptraError, CaliptraResult, KeyReadArgs, KeyWriteArgs, Trng,
 };
 use caliptra_registers::ecc::EccReg;
 use zerocopy::{AsBytes, FromBytes};
@@ -137,6 +138,7 @@ impl Ecc384 {
     ///
     /// * `seed` - Seed for deterministic ECC Key Pair generation
     /// * `nonce` - Nonce for deterministic ECC Key Pair generation
+    /// * `trng` - TRNG driver instance
     /// * `priv_key` - Generate ECC-384 Private key
     ///
     /// # Returns
@@ -146,6 +148,7 @@ impl Ecc384 {
         &mut self,
         seed: Ecc384Seed,
         nonce: &Array4x12,
+        trng: &mut Trng,
         mut priv_key: Ecc384PrivKeyOut,
     ) -> CaliptraResult<Ecc384PubKey> {
         let ecc = self.ecc.regs_mut();
@@ -175,6 +178,10 @@ impl Ecc384 {
         // Copy nonce to the hardware
         KvAccess::copy_from_arr(nonce, ecc.nonce())?;
 
+        // Generate an IV.
+        let iv = trng.generate()?;
+        KvAccess::copy_from_arr(&iv, ecc.iv())?;
+
         // Program the command register for key generation
         ecc.ctrl().write(|w| w.ctrl(|w| w.keygen()));
 
@@ -203,7 +210,8 @@ impl Ecc384 {
     /// # Arguments
     ///
     /// * `priv_key` - Private key
-    /// * `digest` - Digest to sign
+    /// * `data` - Digest to sign
+    /// * `trng` - TRNG driver instance
     ///
     /// # Returns
     ///
@@ -212,6 +220,7 @@ impl Ecc384 {
         &mut self,
         priv_key: Ecc384PrivKeyIn,
         data: &Ecc384Scalar,
+        trng: &mut Trng,
     ) -> CaliptraResult<Ecc384Signature> {
         let ecc = self.ecc.regs_mut();
 
@@ -229,6 +238,10 @@ impl Ecc384 {
 
         // Copy digest
         KvAccess::copy_from_arr(data, ecc.msg())?;
+
+        // Generate an IV.
+        let iv = trng.generate()?;
+        KvAccess::copy_from_arr(&iv, ecc.iv())?;
 
         // Program the command register
         ecc.ctrl().write(|w| w.ctrl(|w| w.signing()));
