@@ -13,10 +13,11 @@ Abstract:
 --*/
 
 use crate::Array4x12;
-use caliptra_registers::soc_ifc;
+use caliptra_registers::soc_ifc::SocIfcReg;
 
-#[derive(Default, Debug)]
-pub struct FuseBank {}
+pub struct FuseBank<'a> {
+    pub(crate) soc_ifc: &'a SocIfcReg,
+}
 
 pub enum X509KeyIdAlgo {
     Sha1 = 0,
@@ -53,7 +54,7 @@ impl From<IdevidCertAttr> for usize {
     }
 }
 
-impl FuseBank {
+impl FuseBank<'_> {
     /// Get the key id crypto algorithm.
     ///
     /// # Arguments
@@ -63,7 +64,7 @@ impl FuseBank {
     ///     key id crypto algorithm  
     ///
     pub fn idev_id_x509_key_id_algo(&self) -> X509KeyIdAlgo {
-        let soc_ifc_regs = soc_ifc::RegisterBlock::soc_ifc_reg();
+        let soc_ifc_regs = self.soc_ifc.regs();
 
         let flags = soc_ifc_regs
             .fuse_idevid_cert_attr()
@@ -88,7 +89,7 @@ impl FuseBank {
     ///     manufacturer serial number  
     ///
     pub fn ueid(&self) -> [u8; 8] {
-        let soc_ifc_regs = soc_ifc::RegisterBlock::soc_ifc_reg();
+        let soc_ifc_regs = self.soc_ifc.regs();
 
         let ueid1 = soc_ifc_regs
             .fuse_idevid_cert_attr()
@@ -115,7 +116,7 @@ impl FuseBank {
     ///     subject key identifier
     ///
     pub fn subject_key_id(&self) -> [u8; 20] {
-        let soc_ifc_regs = soc_ifc::RegisterBlock::soc_ifc_reg();
+        let soc_ifc_regs = self.soc_ifc.regs();
 
         let subkeyid1 = soc_ifc_regs
             .fuse_idevid_cert_attr()
@@ -157,7 +158,7 @@ impl FuseBank {
     ///     vendor public key hash
     ///
     pub fn vendor_pub_key_hash(&self) -> Array4x12 {
-        let soc_ifc_regs = soc_ifc::RegisterBlock::soc_ifc_reg();
+        let soc_ifc_regs = self.soc_ifc.regs();
         Array4x12::read_from_reg(soc_ifc_regs.fuse_key_manifest_pk_hash())
     }
 
@@ -170,7 +171,7 @@ impl FuseBank {
     ///     vendor public key revocation mask
     ///
     pub fn vendor_pub_key_revocation(&self) -> VendorPubKeyRevocation {
-        let soc_ifc_regs = soc_ifc::RegisterBlock::soc_ifc_reg();
+        let soc_ifc_regs = self.soc_ifc.regs();
         VendorPubKeyRevocation::from_bits_truncate(
             soc_ifc_regs.fuse_key_manifest_pk_hash_mask().read().mask(),
         )
@@ -185,7 +186,7 @@ impl FuseBank {
     ///     owner public key hash
     ///
     pub fn owner_pub_key_hash(&self) -> Array4x12 {
-        let soc_ifc_regs = soc_ifc::RegisterBlock::soc_ifc_reg();
+        let soc_ifc_regs = self.soc_ifc.regs();
         Array4x12::read_from_reg(soc_ifc_regs.fuse_owner_pk_hash())
     }
 
@@ -198,7 +199,7 @@ impl FuseBank {
     ///     rollback disability setting
     ///
     pub fn anti_rollback_disable(&self) -> bool {
-        let soc_ifc_regs = soc_ifc::RegisterBlock::soc_ifc_reg();
+        let soc_ifc_regs = self.soc_ifc.regs();
         soc_ifc_regs.fuse_anti_rollback_disable().read().dis()
     }
 
@@ -211,7 +212,7 @@ impl FuseBank {
     ///     fmc security version number
     ///
     pub fn fmc_svn(&self) -> u32 {
-        let soc_ifc_regs = soc_ifc::RegisterBlock::soc_ifc_reg();
+        let soc_ifc_regs = self.soc_ifc.regs();
         32 - soc_ifc_regs
             .fuse_fmc_key_manifest_svn()
             .read()
@@ -227,7 +228,7 @@ impl FuseBank {
     ///     runtime security version number
     ///
     pub fn runtime_svn(&self) -> u32 {
-        let soc_ifc_regs = soc_ifc::RegisterBlock::soc_ifc_reg();
+        let soc_ifc_regs = self.soc_ifc.regs();
         64 - ((soc_ifc_regs.fuse_runtime_svn().at(1).read() as u64) << 32
             | soc_ifc_regs.fuse_runtime_svn().at(0).read() as u64)
             .leading_zeros()

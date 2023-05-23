@@ -9,7 +9,8 @@
 #[allow(unused)]
 use caliptra_test_harness::{self, println};
 
-use caliptra_drivers::{self};
+use caliptra_drivers::{self, Mailbox};
+use caliptra_registers::mbox::MboxCsr;
 
 #[panic_handler]
 pub fn panic(_info: &core::panic::PanicInfo) -> ! {
@@ -18,7 +19,7 @@ pub fn panic(_info: &core::panic::PanicInfo) -> ! {
 
 #[no_mangle]
 extern "C" fn main() {
-    let mbox = caliptra_drivers::Mailbox::default();
+    let mut mbox = unsafe { Mailbox::new(MboxCsr::new()) };
     loop {
         let Some(mut txn) = mbox.try_start_recv_txn() else {
             continue;

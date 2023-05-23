@@ -67,7 +67,7 @@ impl DiceLayer for InitDevIdLayer {
     /// # Returns
     ///
     /// * `DiceOutput` - DICE layer output
-    fn derive(env: &RomEnv, _input: &DiceInput) -> CaliptraResult<DiceOutput> {
+    fn derive(env: &mut RomEnv, _input: &DiceInput) -> CaliptraResult<DiceOutput> {
         cprintln!("[idev] ++");
         cprintln!("[idev] CDI.KEYID = {}", KEY_ID_CDI as u8);
         cprintln!("[idev] SUBJECT.KEYID = {}", KEY_ID_IDEVID_PRIV_KEY as u8);
@@ -122,9 +122,9 @@ impl InitDevIdLayer {
     ///
     /// * `env` - ROM Environment
     /// * `uds` - Key Vault slot to store the decrypted UDS in
-    fn decrypt_uds(env: &RomEnv, uds: KeyId) -> CaliptraResult<()> {
+    fn decrypt_uds(env: &mut RomEnv, uds: KeyId) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
-        env.doe().map(|d| d.decrypt_uds(&DOE_UDS_IV, uds))?;
+        env.doe.decrypt_uds(&DOE_UDS_IV, uds)?;
         report_boot_status(IDevIdDecryptUdsComplete.into());
         Ok(())
     }
@@ -135,9 +135,9 @@ impl InitDevIdLayer {
     ///
     /// * `env` - ROM Environment
     /// * `slot` - Key Vault slot to store the decrypted UDS in
-    fn decrypt_field_entropy(env: &RomEnv, fe: KeyId) -> CaliptraResult<()> {
+    fn decrypt_field_entropy(env: &mut RomEnv, fe: KeyId) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
-        env.doe().map(|d| d.decrypt_field_entropy(&DOE_FE_IV, fe))?;
+        env.doe.decrypt_field_entropy(&DOE_FE_IV, fe)?;
         report_boot_status(IDevIdDecryptFeComplete.into());
         Ok(())
     }
@@ -147,8 +147,8 @@ impl InitDevIdLayer {
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    fn clear_doe_secrets(env: &RomEnv) -> CaliptraResult<()> {
-        let result = env.doe().map(|d| d.clear_secrets());
+    fn clear_doe_secrets(env: &mut RomEnv) -> CaliptraResult<()> {
+        let result = env.doe.clear_secrets();
         if result.is_ok() {
             report_boot_status(IDevIdClearDoeSecretsComplete.into());
         }
@@ -162,15 +162,14 @@ impl InitDevIdLayer {
     /// * `env` - ROM Environment
     /// * `uds` - Key slot holding the UDS
     /// * `cdi` - Key Slot to store the generated CDI
-    fn derive_cdi(env: &RomEnv, uds: KeyId, cdi: KeyId) -> CaliptraResult<()> {
+    fn derive_cdi(env: &mut RomEnv, uds: KeyId, cdi: KeyId) -> CaliptraResult<()> {
         // CDI Key
         let key = Hmac384Key::Array4x12(&IDEVID_CDI_KEY);
         let data = Hmac384Data::Key(KeyReadArgs::new(uds));
         Crypto::hmac384_mac(env, key, data, cdi)?;
 
         cprintln!("[idev] Erasing UDS.KEYID = {}", uds as u8);
-        env.key_vault().map(|k| k.erase_key(uds))?;
-
+        env.key_vault.erase_key(uds)?;
         report_boot_status(IDevIdCdiDerivationComplete.into());
         Ok(())
     }
@@ -186,7 +185,11 @@ impl InitDevIdLayer {
     /// # Returns
     ///
     /// * `Ecc384KeyPair` - Derive DICE Layer Key Pair
-    fn derive_key_pair(env: &RomEnv, cdi: KeyId, priv_key: KeyId) -> CaliptraResult<Ecc384KeyPair> {
+    fn derive_key_pair(
+        env: &mut RomEnv,
+        cdi: KeyId,
+        priv_key: KeyId,
+    ) -> CaliptraResult<Ecc384KeyPair> {
         let result = Crypto::ecc384_key_gen(env, cdi, priv_key);
         if result.is_ok() {
             report_boot_status(IDevIdKeyPairDerivationComplete.into());
@@ -200,12 +203,12 @@ impl InitDevIdLayer {
     ///
     /// * `env`    - ROM Environment
     /// * `output` - DICE Output
-    fn generate_csr(env: &RomEnv, output: &DiceOutput) -> CaliptraResult<()> {
+    fn generate_csr(env: &mut RomEnv, output: &DiceOutput) -> CaliptraResult<()> {
         //
         // Generate the CSR if requested via Manufacturing Service Register
         //
         // A flag is asserted via JTAG interface to enble the generation of CSR
-        if !env.mfg_state().map(|m| m.gen_idev_id_csr()) {
+        if !env.soc_ifc.mfg_flag_gen_idev_id_csr() {
             return Ok(());
         }
 
@@ -221,7 +224,7 @@ impl InitDevIdLayer {
     ///
     /// * `env`    - ROM Environment
     /// * `output` - DICE Output
-    fn make_csr(env: &RomEnv, output: &DiceOutput) -> CaliptraResult<()> {
+    fn make_csr(env: &mut RomEnv, output: &DiceOutput) -> CaliptraResult<()> {
         let key_pair = &output.subj_key_pair;
 
         // CSR `To Be Signed` Parameters
@@ -288,18 +291,18 @@ impl InitDevIdLayer {
     ///
     /// * `env` - ROM Environment
     /// * `csr` - Certificate Signing Request to send to SOC
-    fn send_csr(env: &RomEnv, csr: InitDevIdCsr) -> CaliptraResult<()> {
+    fn send_csr(env: &mut RomEnv, csr: InitDevIdCsr) -> CaliptraResult<()> {
         loop {
             // Create Mailbox send transaction to send the CSR
-            if let Some(mut txn) = env.mbox().map(|m| m.try_start_send_txn()) {
+            if let Some(mut txn) = env.mbox.try_start_send_txn() {
                 // Copy the CSR to mailbox
                 txn.send_request(0, csr.get().ok_or(err_u32!(CsrInvalid))?)?;
 
                 // Signal the JTAG/SOC that Initial Device ID CSR is ready
-                env.flow_status().map(|f| f.set_idevid_csr_ready());
+                env.soc_ifc.flow_status_set_idevid_csr_ready();
 
                 // Wait for JTAG/SOC to consume the mailbox
-                while env.mfg_state().map(|m| m.gen_idev_id_csr()) {}
+                while env.soc_ifc.mfg_flag_gen_idev_id_csr() {}
 
                 // Release access to the mailbox
                 txn.complete()?;

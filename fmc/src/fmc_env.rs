@@ -14,156 +14,70 @@ Abstract:
     makes authoring mocks and unit tests easy.
 
 --*/
-use crate::fmc_env_cell::FmcEnvCell;
 
 use caliptra_drivers::{
-    DataVault, DeviceState, Ecc384, FlowStatus, FuseBank, Hmac384, KeyVault, Mailbox, MfgState,
-    PcrBank, ResetService, Sha1, Sha256, Sha384, Sha384Acc,
+    DataVault, Ecc384, Hmac384, KeyVault, Mailbox, PcrBank, Sha1, Sha256, Sha384, Sha384Acc, SocIfc,
+};
+use caliptra_registers::{
+    dv::DvReg, ecc::EccReg, hmac::HmacReg, kv::KvReg, mbox::MboxCsr, pv::PvReg, sha256::Sha256Reg,
+    sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg,
 };
 
 /// Hardware Context
 pub struct FmcEnv {
-    /// Reset Service
-    reset: FmcEnvCell<ResetService>,
-
     // SHA1 Engine
-    sha1: FmcEnvCell<Sha1>,
+    pub sha1: Sha1,
 
     // SHA2-256 Engine
-    sha256: FmcEnvCell<Sha256>,
+    pub sha256: Sha256,
 
     // SHA2-384 Engine
-    sha384: FmcEnvCell<Sha384>,
+    pub sha384: Sha384,
 
     // SHA2-384 Accelerator
-    sha384_acc: FmcEnvCell<Sha384Acc>,
+    pub sha384_acc: Sha384Acc,
 
     /// Hmac384 Engine
-    hmac384: FmcEnvCell<Hmac384>,
+    pub hmac384: Hmac384,
 
     /// Ecc384 Engine
-    ecc384: FmcEnvCell<Ecc384>,
+    pub ecc384: Ecc384,
 
     /// Key Vault
-    key_vault: FmcEnvCell<KeyVault>,
+    pub key_vault: KeyVault,
 
     /// Data Vault
-    data_vault: FmcEnvCell<DataVault>,
+    pub data_vault: DataVault,
 
     /// Device state
-    dev_state: FmcEnvCell<DeviceState>,
-
-    /// Manufacturing State
-    mfg_state: FmcEnvCell<MfgState>,
+    pub soc_ifc: SocIfc,
 
     /// Mailbox
-    mbox: FmcEnvCell<Mailbox>,
-
-    /// Flow Status
-    flow_status: FmcEnvCell<FlowStatus>,
-
-    /// Fuse Bank
-    fuse_bank: FmcEnvCell<FuseBank>,
+    pub mbox: Mailbox,
 
     /// PCR Bank
-    pcr_bank: FmcEnvCell<PcrBank>,
-}
-
-impl Default for FmcEnv {
-    fn default() -> Self {
-        Self {
-            reset: FmcEnvCell::new(ResetService::default()),
-            sha1: FmcEnvCell::new(Sha1::default()),
-            sha256: FmcEnvCell::new(Sha256::default()),
-            sha384: FmcEnvCell::new(Sha384::default()),
-            sha384_acc: FmcEnvCell::new(Sha384Acc::default()),
-            hmac384: FmcEnvCell::new(Hmac384::default()),
-            ecc384: FmcEnvCell::new(Ecc384::default()),
-            key_vault: FmcEnvCell::new(KeyVault::default()),
-            data_vault: FmcEnvCell::new(DataVault::default()),
-            dev_state: FmcEnvCell::new(DeviceState::default()),
-            mfg_state: FmcEnvCell::new(MfgState::default()),
-            mbox: FmcEnvCell::new(Mailbox::default()),
-            flow_status: FmcEnvCell::new(FlowStatus::default()),
-            fuse_bank: FmcEnvCell::new(FuseBank::default()),
-            pcr_bank: FmcEnvCell::new(PcrBank::default()),
-        }
-    }
+    pub pcr_bank: PcrBank,
 }
 
 impl FmcEnv {
-    /// Get reset service reference
-    pub fn reset(&self) -> &FmcEnvCell<ResetService> {
-        &self.reset
-    }
-
-    /// Get SHA1 engine reference
-    pub fn sha1(&self) -> &FmcEnvCell<Sha1> {
-        &self.sha1
-    }
-
-    /// Get SHA-256 engine reference
-    pub fn sha256(&self) -> &FmcEnvCell<Sha256> {
-        &self.sha256
-    }
-
-    /// Get SHA-384 engine reference
-    pub fn sha384(&self) -> &FmcEnvCell<Sha384> {
-        &self.sha384
-    }
-
-    /// Get SHA-384 accelerator reference
-    pub fn sha384_acc(&self) -> &FmcEnvCell<Sha384Acc> {
-        &self.sha384_acc
-    }
-
-    /// Get HMAC-384 engine reference
-    pub fn hmac384(&self) -> &FmcEnvCell<Hmac384> {
-        &self.hmac384
-    }
-
-    /// Get Key Vault reference
-    pub fn key_vault(&self) -> &FmcEnvCell<KeyVault> {
-        &self.key_vault
-    }
-
-    /// Get Data Vault reference
-    pub fn data_vault(&self) -> &FmcEnvCell<DataVault> {
-        &self.data_vault
-    }
-
-    /// Get Security state reference
-    pub fn dev_state(&self) -> &FmcEnvCell<DeviceState> {
-        &self.dev_state
-    }
-
-    /// Get Manufacturing state reference
-    pub fn mfg_state(&self) -> &FmcEnvCell<MfgState> {
-        &self.mfg_state
-    }
-
-    /// Get Mailbox
-    pub fn mbox(&self) -> &FmcEnvCell<Mailbox> {
-        &self.mbox
-    }
-
-    /// Get Flow Status
-    pub fn flow_status(&self) -> &FmcEnvCell<FlowStatus> {
-        &self.flow_status
-    }
-
-    /// Get Fuse Bank
-    pub fn fuse_bank(&self) -> &FmcEnvCell<FuseBank> {
-        &self.fuse_bank
-    }
-
-    /// Get PCR Bank
-    pub fn pcr_bank(&self) -> &FmcEnvCell<PcrBank> {
-        &self.pcr_bank
-    }
-
-    /// Get ECC-384 engine reference
-    pub fn ecc384(&self) -> &FmcEnvCell<Ecc384> {
-        &self.ecc384
+    /// # Safety
+    ///
+    /// Callers must ensure that this function is called only once, and that any
+    /// concurrent access to these register blocks does not conflict with these
+    /// drivers.
+    pub unsafe fn new_from_registers() -> Self {
+        Self {
+            sha1: Sha1::default(),
+            sha256: Sha256::new(Sha256Reg::new()),
+            sha384: Sha384::new(Sha512Reg::new()),
+            sha384_acc: Sha384Acc::new(Sha512AccCsr::new()),
+            hmac384: Hmac384::new(HmacReg::new()),
+            ecc384: Ecc384::new(EccReg::new()),
+            key_vault: KeyVault::new(KvReg::new()),
+            data_vault: DataVault::new(DvReg::new()),
+            soc_ifc: SocIfc::new(SocIfcReg::new()),
+            mbox: Mailbox::new(MboxCsr::new()),
+            pcr_bank: PcrBank::new(PvReg::new()),
+        }
     }
 }

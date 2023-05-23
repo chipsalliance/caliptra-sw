@@ -141,3 +141,8 @@ jobs:
         run: |
           (cd rom/dev && make run)
 
+      - name: Caliptra HW-Model C Binding Smoke Test
+        run: |
+          git submodule update --init
+          (cd hw-model/c-binding/examples && make run)
+

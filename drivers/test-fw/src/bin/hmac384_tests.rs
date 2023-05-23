@@ -20,10 +20,13 @@ use caliptra_drivers::{
     KeyReadArgs, KeyUsage, KeyWriteArgs,
 };
 use caliptra_kat::Hmac384Kat;
+use caliptra_registers::ecc::EccReg;
+use caliptra_registers::hmac::HmacReg;
 
 use caliptra_test_harness::test_suite;
 
 fn test_hmac0() {
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
     let key: [u8; 48] = [
         0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
         0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
@@ -41,7 +44,7 @@ fn test_hmac0() {
     ];
 
     let mut out_tag = Array4x12::default();
-    let actual = Hmac384::default().hmac(
+    let actual = hmac384.hmac(
         (&Array4x12::from(key)).into(),
         (&data).into(),
         (&mut out_tag).into(),
@@ -52,6 +55,7 @@ fn test_hmac0() {
 }
 
 fn test_hmac1() {
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
     let key: [u8; 48] = [
         0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66,
         0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
@@ -72,7 +76,7 @@ fn test_hmac1() {
     ];
 
     let mut out_tag = Array4x12::default();
-    let actual = Hmac384::default().hmac(
+    let actual = hmac384.hmac(
         (&Array4x12::from(key)).into(),
         (&data).into(),
         (&mut out_tag).into(),
@@ -83,6 +87,8 @@ fn test_hmac1() {
 }
 
 fn test_hmac3() {
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
     //
     // Step 1: Place a key in the key-vault.
     //
@@ -94,7 +100,7 @@ fn test_hmac3() {
         id: KeyId::KeyId0,
         usage: key_usage, // hmac_key
     };
-    let result = Ecc384::default().key_pair(
+    let result = ecc.key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
         &nonce,
         Ecc384PrivKeyOut::from(key_out_1),
@@ -118,13 +124,15 @@ fn test_hmac3() {
 
     let mut out_tag = Array4x12::default();
     let key = KeyReadArgs::new(KeyId::KeyId0);
-    let actual = Hmac384::default().hmac(key.into(), (&data).into(), (&mut out_tag).into());
+    let actual = hmac384.hmac(key.into(), (&data).into(), (&mut out_tag).into());
 
     assert!(actual.is_ok());
     assert_eq!(out_tag, Array4x12::from(result));
 }
 
 fn test_hmac4() {
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
     //
     // Step 1: Place a key in the key-vault.
     //
@@ -136,7 +144,7 @@ fn test_hmac4() {
         id: KeyId::KeyId0,
         usage: key_usage, // hmac_key
     };
-    let result = Ecc384::default().key_pair(
+    let result = ecc.key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
         &nonce,
         Ecc384PrivKeyOut::from(key_out_1),
@@ -165,13 +173,15 @@ fn test_hmac4() {
     let mut out_tag = Array4x12::default();
     let key = KeyReadArgs::new(KeyId::KeyId0);
 
-    let actual = Hmac384::default().hmac(key.into(), (&data).into(), (&mut out_tag).into());
+    let actual = hmac384.hmac(key.into(), (&data).into(), (&mut out_tag).into());
 
     assert!(actual.is_ok());
     assert_eq!(out_tag, Array4x12::from(result));
 }
 
 fn test_hmac5() {
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
     //
     // Step 1: Place a key in the key-vault.
     //
@@ -183,7 +193,7 @@ fn test_hmac5() {
         id: KeyId::KeyId0,
         usage: key_usage, // hmac_key
     };
-    let result = Ecc384::default().key_pair(
+    let result = ecc.key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
         &nonce,
         Ecc384PrivKeyOut::from(key_out_1),
@@ -212,7 +222,7 @@ fn test_hmac5() {
 
     let mut out_tag = Array4x12::default();
     let key = KeyReadArgs::new(KeyId::KeyId0);
-    let actual = Hmac384::default().hmac(key.into(), (&data).into(), (&mut out_tag).into());
+    let actual = hmac384.hmac(key.into(), (&data).into(), (&mut out_tag).into());
 
     assert!(actual.is_ok());
     assert_eq!(out_tag, Array4x12::from(result));
@@ -233,6 +243,8 @@ fn test_hmac5() {
 ///
 
 fn test_hmac6() {
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
     //
     // Step 1: Place a key in the key-vault.
     //
@@ -248,7 +260,7 @@ fn test_hmac6() {
         id: KeyId::KeyId0,
         usage: key_usage, // hmac_key
     };
-    let result = Ecc384::default().key_pair(
+    let result = ecc.key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
         &nonce,
         Ecc384PrivKeyOut::from(key_out_1),
@@ -272,7 +284,7 @@ fn test_hmac6() {
 
     // Take the Data Generate the Tag in buffer
     let mut out_tag = Array4x12::default();
-    let actual = Hmac384::default().hmac(key.into(), (&data).into(), (&mut out_tag).into());
+    let actual = hmac384.hmac(key.into(), (&data).into(), (&mut out_tag).into());
     assert!(actual.is_ok());
     assert_eq!(out_tag, Array4x12::from(result));
 
@@ -285,7 +297,7 @@ fn test_hmac6() {
 
     // Generate the HMAC of the Tag in to a hmac_step_1
     let mut hmac_step_1 = Array4x12::default();
-    let actual = Hmac384::default().hmac(key.into(), (&result).into(), (&mut hmac_step_1).into());
+    let actual = hmac384.hmac(key.into(), (&result).into(), (&mut hmac_step_1).into());
     assert!(actual.is_ok());
     assert_eq!(hmac_step_1, Array4x12::from(step_1_result_expected));
 
@@ -293,20 +305,21 @@ fn test_hmac6() {
     let mut key_usage = KeyUsage::default();
     key_usage.set_hmac_data(true);
     let out_tag = KeyWriteArgs::new(KeyId::KeyId5, key_usage);
-    let actual = Hmac384::default().hmac(key.into(), (&data).into(), out_tag.into());
+    let actual = hmac384.hmac(key.into(), (&data).into(), out_tag.into());
     assert!(actual.is_ok());
 
     // Data From Key Vault generate HMAC in to output buffer
     let mut hmac_step_2 = Array4x12::default();
     let data_input: KeyReadArgs = KeyReadArgs::new(KeyId::KeyId5);
 
-    let actual = Hmac384::default().hmac(key.into(), data_input.into(), (&mut hmac_step_2).into());
+    let actual = hmac384.hmac(key.into(), data_input.into(), (&mut hmac_step_2).into());
 
     assert!(actual.is_ok());
     assert_eq!(hmac_step_1, hmac_step_2);
 }
 
 fn test_hmac_multi_block() {
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
     let key: [u8; 48] = [
         0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61,
         0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61,
@@ -334,7 +347,7 @@ fn test_hmac_multi_block() {
     ];
 
     let mut out_tag = Array4x12::default();
-    let actual = Hmac384::default().hmac(
+    let actual = hmac384.hmac(
         (&Array4x12::from(key)).into(),
         (&data).into(),
         (&mut out_tag).into(),
@@ -345,6 +358,7 @@ fn test_hmac_multi_block() {
 }
 
 fn test_hmac_exact_single_block() {
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
     let key: [u8; 48] = [
         0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61,
         0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61,
@@ -372,7 +386,7 @@ fn test_hmac_exact_single_block() {
     ];
 
     let mut out_tag = Array4x12::default();
-    let actual = Hmac384::default().hmac(
+    let actual = hmac384.hmac(
         (&Array4x12::from(key)).into(),
         (&data).into(),
         (&mut out_tag).into(),
@@ -383,6 +397,7 @@ fn test_hmac_exact_single_block() {
 }
 
 fn test_hmac_multi_block_two_step() {
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
     let key: [u8; 48] = [
         0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61,
         0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61,
@@ -410,7 +425,6 @@ fn test_hmac_multi_block_two_step() {
     ];
 
     let mut out_tag = Array4x12::default();
-    let hmac384 = Hmac384::default();
     let mut hmac_op = hmac384
         .hmac_init((&Array4x12::from(key)).into(), (&mut out_tag).into())
         .unwrap();
@@ -421,10 +435,8 @@ fn test_hmac_multi_block_two_step() {
 }
 
 fn test_kat() {
-    assert_eq!(
-        Hmac384Kat::default().execute(&Hmac384::default()).is_ok(),
-        true
-    );
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    assert_eq!(Hmac384Kat::default().execute(&mut hmac384).is_ok(), true);
 }
 
 test_suite! {

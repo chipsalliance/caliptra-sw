@@ -17,7 +17,7 @@ use core::usize;
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::PcrId;
 use crate::{array::Array4x32, caliptra_err_def, wait, Array4x12, CaliptraResult};
-use caliptra_registers::sha512;
+use caliptra_registers::sha512::Sha512Reg;
 
 const SHA384_BLOCK_BYTE_SIZE: usize = 128;
 const SHA384_BLOCK_LEN_OFFSET: usize = 112;
@@ -53,17 +53,21 @@ caliptra_err_def! {
 /// SHA-384 Digest
 pub type Sha384Digest<'a> = &'a mut Array4x12;
 
-#[derive(Default, Debug)]
-pub struct Sha384 {}
+pub struct Sha384 {
+    sha512: Sha512Reg,
+}
 
 impl Sha384 {
+    pub fn new(sha512: Sha512Reg) -> Self {
+        Self { sha512 }
+    }
     /// Initialize multi step digest operation
     ///
     /// # Returns
     ///
     /// * `Sha384Digest` - Object representing the digest operation
     pub fn digest_init<'a>(
-        &'a self,
+        &'a mut self,
         digest: Sha384Digest<'a>,
     ) -> CaliptraResult<Sha384DigestOp<'a>> {
         let op = Sha384DigestOp {
@@ -84,7 +88,7 @@ impl Sha384 {
     ///
     /// * `data` - Data to used to update the digest
     ///
-    pub fn digest(&self, buf: &[u8]) -> CaliptraResult<Array4x12> {
+    pub fn digest(&mut self, buf: &[u8]) -> CaliptraResult<Array4x12> {
         // Check if the buffer is not large
         if buf.len() > SHA384_MAX_DATA_SIZE {
             raise_err!(MaxDataErr)
@@ -130,15 +134,15 @@ impl Sha384 {
     /// # Arguments
     ///
     /// * `buf` - Digest buffer
-    fn read_digest(&self) -> Array4x12 {
-        let sha = sha512::RegisterBlock::sha512_reg();
+    fn read_digest(&mut self) -> Array4x12 {
+        let sha = self.sha512.regs();
         // digest_block() only waits until the peripheral is ready for the next
         // command; the result register may not be valid yet
         wait::until(|| sha.status().read().valid());
         Array4x12::read_from_reg(sha.digest().truncate::<12>())
     }
 
-    pub fn pcr_extend(&self, id: PcrId, data: &[u8]) -> CaliptraResult<()> {
+    pub fn pcr_extend(&mut self, id: PcrId, data: &[u8]) -> CaliptraResult<()> {
         let total_bytes = data.len() + SHA384_HASH_SIZE;
         if total_bytes > (SHA384_BLOCK_BYTE_SIZE - 1) {
             raise_err!(MaxDataErr)
@@ -174,8 +178,8 @@ impl Sha384 {
     /// # Arguments
     ///
     /// * `pcr_id` - PCR to hash extend
-    fn retrieve_pcr(&self, pcr_id: PcrId) -> CaliptraResult<()> {
-        let sha = sha512::RegisterBlock::sha512_reg();
+    fn retrieve_pcr(&mut self, pcr_id: PcrId) -> CaliptraResult<()> {
+        let sha = self.sha512.regs_mut();
 
         KvAccess::extend_from_pv(pcr_id, sha.vault_rd_status(), sha.vault_rd_ctrl())
             .map_err(|err| err.into_read_data_err())?;
@@ -191,7 +195,7 @@ impl Sha384 {
     /// * `first` - Flag indicating if this is the first buffer
     /// * `buf_size` - Total buffer size
     fn digest_partial_block(
-        &self,
+        &mut self,
         slice: &[u8],
         first: bool,
         buf_size: usize,
@@ -239,12 +243,12 @@ impl Sha384 {
     /// * `first` - Flag indicating if this is the first block
     /// * `last` - Flag indicating if this is the last block
     fn digest_block(
-        &self,
+        &mut self,
         block: &[u8; SHA384_BLOCK_BYTE_SIZE],
         first: bool,
         last: bool,
     ) -> CaliptraResult<()> {
-        let sha512 = sha512::RegisterBlock::sha512_reg();
+        let sha512 = self.sha512.regs_mut();
         Array4x32::from(block).write_to_reg(sha512.block());
         self.digest_op(first, last)
     }
@@ -255,10 +259,10 @@ impl Sha384 {
     //
     /// * `first` - Flag indicating if this is the first block
     /// * `last` - Flag indicating if this is the last block
-    fn digest_op(&self, first: bool, last: bool) -> CaliptraResult<()> {
+    fn digest_op(&mut self, first: bool, last: bool) -> CaliptraResult<()> {
         const MODE_SHA384: u32 = 0b10;
 
-        let sha = sha512::RegisterBlock::sha512_reg();
+        let sha = self.sha512.regs_mut();
 
         // Wait for the hardware to be ready
         wait::until(|| sha.status().read().ready());
@@ -290,7 +294,7 @@ enum Sha384DigestState {
 /// Multi step SHA-384 digest operation
 pub struct Sha384DigestOp<'a> {
     /// SHA-384 Engine
-    sha: &'a Sha384,
+    sha: &'a mut Sha384,
 
     /// State
     state: Sha384DigestState,

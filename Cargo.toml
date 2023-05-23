@@ -25,6 +25,7 @@ members = [
   "hw-model",
   "hw-model/test-fw",
   "hw-model/types",
+  "hw-model/c-binding",
   "registers",
   "registers/bin/generator",
   "runtime",

@@ -16,6 +16,7 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{KeyId, KeyUsage, KeyVault};
+use caliptra_registers::kv::KvReg;
 use caliptra_test_harness::test_suite;
 
 const KEY_IDS: [KeyId; 32] = [
@@ -54,7 +55,7 @@ const KEY_IDS: [KeyId; 32] = [
 ];
 
 fn test_write_lock_and_erase_keys() {
-    let mut vault = KeyVault::default();
+    let mut vault = unsafe { KeyVault::new(KvReg::new()) };
 
     for key_id in KEY_IDS {
         assert!(vault.erase_key(key_id).is_ok());
@@ -70,12 +71,12 @@ fn test_write_lock_and_erase_keys() {
 }
 
 fn test_erase_all_keys() {
-    let mut vault = KeyVault::default();
+    let mut vault = unsafe { KeyVault::new(KvReg::new()) };
     vault.erase_all_keys();
 }
 
 fn test_read_key_usage() {
-    let vault = KeyVault::default();
+    let mut vault = unsafe { KeyVault::new(KvReg::new()) };
 
     for key_id in KEY_IDS {
         assert_eq!(vault.key_usage(key_id), KeyUsage(0));
@@ -83,7 +84,7 @@ fn test_read_key_usage() {
 }
 
 fn test_use_lock() {
-    let mut vault = KeyVault::default();
+    let mut vault = unsafe { KeyVault::new(KvReg::new()) };
 
     for key_id in KEY_IDS {
         assert!(!vault.key_use_lock(key_id));
@@ -93,7 +94,7 @@ fn test_use_lock() {
 }
 
 fn test_write_protection_stickiness() {
-    let mut vault = KeyVault::default();
+    let mut vault = unsafe { KeyVault::new(KvReg::new()) };
 
     for key_id in KEY_IDS {
         assert!(vault.key_write_lock(key_id));
@@ -103,7 +104,7 @@ fn test_write_protection_stickiness() {
 }
 
 fn test_use_protection_stickiness() {
-    let mut vault = KeyVault::default();
+    let mut vault = unsafe { KeyVault::new(KvReg::new()) };
 
     for key_id in KEY_IDS {
         assert!(vault.key_use_lock(key_id));

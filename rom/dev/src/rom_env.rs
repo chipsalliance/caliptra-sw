@@ -15,10 +15,13 @@ Abstract:
 
 --*/
 
-use crate::env_cell::EnvCell;
 use caliptra_drivers::{
-    DataVault, DeobfuscationEngine, DeviceState, Ecc384, FlowStatus, FuseBank, Hmac384, KeyVault,
-    Lms, Mailbox, MfgState, PcrBank, ResetService, Sha1, Sha256, Sha384, Sha384Acc,
+    DataVault, DeobfuscationEngine, Ecc384, Hmac384, KeyVault, Lms, Mailbox, PcrBank, Sha1, Sha256,
+    Sha384, Sha384Acc, SocIfc,
+};
+use caliptra_registers::{
+    doe::DoeReg, dv::DvReg, ecc::EccReg, hmac::HmacReg, kv::KvReg, mbox::MboxCsr, pv::PvReg,
+    sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg,
 };
 use core::ops::Range;
 
@@ -28,172 +31,66 @@ const ICCM_SIZE: u32 = 128 << 10;
 /// Rom Context
 pub struct RomEnv {
     /// Deobfuscation engine
-    doe: EnvCell<DeobfuscationEngine>,
-
-    /// Reset Service
-    reset: EnvCell<ResetService>,
+    pub doe: DeobfuscationEngine,
 
     // SHA1 Engine
-    sha1: EnvCell<Sha1>,
+    pub sha1: Sha1,
 
     // SHA2-256 Engine
-    sha256: EnvCell<Sha256>,
+    pub sha256: Sha256,
 
     // SHA2-384 Engine
-    sha384: EnvCell<Sha384>,
+    pub sha384: Sha384,
 
     // SHA2-384 Accelerator
-    sha384_acc: EnvCell<Sha384Acc>,
+    pub sha384_acc: Sha384Acc,
 
     /// Hmac384 Engine
-    hmac384: EnvCell<Hmac384>,
+    pub hmac384: Hmac384,
 
     /// Ecc384 Engine
-    ecc384: EnvCell<Ecc384>,
+    pub ecc384: Ecc384,
 
     /// LMS Engine
-    lms: EnvCell<Lms>,
+    pub lms: Lms,
 
     /// Key Vault
-    key_vault: EnvCell<KeyVault>,
+    pub key_vault: KeyVault,
 
     /// Data Vault
-    data_vault: EnvCell<DataVault>,
+    pub data_vault: DataVault,
 
-    /// Device state
-    dev_state: EnvCell<DeviceState>,
-
-    /// Manufacturing State
-    mfg_state: EnvCell<MfgState>,
+    /// SoC interface
+    pub soc_ifc: SocIfc,
 
     /// Mailbox
-    mbox: EnvCell<Mailbox>,
-
-    /// Flow Status
-    flow_status: EnvCell<FlowStatus>,
-
-    /// Fuse Bank
-    fuse_bank: EnvCell<FuseBank>,
+    pub mbox: Mailbox,
 
     /// PCR Bank
-    pcr_bank: EnvCell<PcrBank>,
-}
-
-impl Default for RomEnv {
-    fn default() -> Self {
-        Self {
-            doe: EnvCell::new(DeobfuscationEngine::default()),
-            reset: EnvCell::new(ResetService::default()),
-            sha1: EnvCell::new(Sha1::default()),
-            sha256: EnvCell::new(Sha256::default()),
-            sha384: EnvCell::new(Sha384::default()),
-            sha384_acc: EnvCell::new(Sha384Acc::default()),
-            hmac384: EnvCell::new(Hmac384::default()),
-            ecc384: EnvCell::new(Ecc384::default()),
-            lms: EnvCell::new(Lms::default()),
-            key_vault: EnvCell::new(KeyVault::default()),
-            data_vault: EnvCell::new(DataVault::default()),
-            dev_state: EnvCell::new(DeviceState::default()),
-            mfg_state: EnvCell::new(MfgState::default()),
-            mbox: EnvCell::new(Mailbox::default()),
-            flow_status: EnvCell::new(FlowStatus::default()),
-            fuse_bank: EnvCell::new(FuseBank::default()),
-            pcr_bank: EnvCell::new(PcrBank::default()),
-        }
-    }
+    pub pcr_bank: PcrBank,
 }
 
 impl RomEnv {
-    /// Get deobfuscation engine reference
-    pub fn doe(&self) -> &EnvCell<DeobfuscationEngine> {
-        &self.doe
-    }
+    pub const ICCM_RANGE: Range<u32> = Range {
+        start: ICCM_START,
+        end: ICCM_START + ICCM_SIZE,
+    };
 
-    /// Get reset service reference
-    pub fn reset(&self) -> &EnvCell<ResetService> {
-        &self.reset
-    }
-
-    /// Get SHA1 engine reference
-    pub fn sha1(&self) -> &EnvCell<Sha1> {
-        &self.sha1
-    }
-
-    /// Get SHA-256 engine reference
-    pub fn sha256(&self) -> &EnvCell<Sha256> {
-        &self.sha256
-    }
-
-    /// Get SHA-384 engine reference
-    pub fn sha384(&self) -> &EnvCell<Sha384> {
-        &self.sha384
-    }
-
-    /// Get SHA-384 accelerator reference
-    pub fn sha384_acc(&self) -> &EnvCell<Sha384Acc> {
-        &self.sha384_acc
-    }
-
-    /// Get HMAC-384 engine reference
-    pub fn hmac384(&self) -> &EnvCell<Hmac384> {
-        &self.hmac384
-    }
-
-    /// Get ECC-384 engine reference
-    pub fn ecc384(&self) -> &EnvCell<Ecc384> {
-        &self.ecc384
-    }
-
-    /// Get LMS engine reference
-    pub fn lms(&self) -> &EnvCell<Lms> {
-        &self.lms
-    }
-
-    /// Get Key Vault reference
-    pub fn key_vault(&self) -> &EnvCell<KeyVault> {
-        &self.key_vault
-    }
-
-    /// Get Data Vault reference
-    pub fn data_vault(&self) -> &EnvCell<DataVault> {
-        &self.data_vault
-    }
-
-    /// Get Security state reference
-    pub fn dev_state(&self) -> &EnvCell<DeviceState> {
-        &self.dev_state
-    }
-
-    /// Get Manufacturing state reference
-    pub fn mfg_state(&self) -> &EnvCell<MfgState> {
-        &self.mfg_state
-    }
-
-    /// Get Mailbox
-    pub fn mbox(&self) -> &EnvCell<Mailbox> {
-        &self.mbox
-    }
-
-    /// Get Flow Status
-    pub fn flow_status(&self) -> &EnvCell<FlowStatus> {
-        &self.flow_status
-    }
-
-    /// Get Fuse Bank
-    pub fn fuse_bank(&self) -> &EnvCell<FuseBank> {
-        &self.fuse_bank
-    }
-
-    /// Get PCR Bank
-    pub fn pcr_bank(&self) -> &EnvCell<PcrBank> {
-        &self.pcr_bank
-    }
-
-    /// Get ICCM Range
-    pub fn iccm_range(&self) -> Range<u32> {
-        Range {
-            start: ICCM_START,
-            end: ICCM_START + ICCM_SIZE,
+    pub unsafe fn new_from_registers() -> Self {
+        Self {
+            doe: DeobfuscationEngine::new(DoeReg::new()),
+            sha1: Sha1::default(),
+            sha256: Sha256::new(Sha256Reg::new()),
+            sha384: Sha384::new(Sha512Reg::new()),
+            sha384_acc: Sha384Acc::new(Sha512AccCsr::new()),
+            hmac384: Hmac384::new(HmacReg::new()),
+            ecc384: Ecc384::new(EccReg::new()),
+            lms: Lms::default(),
+            key_vault: KeyVault::new(KvReg::new()),
+            data_vault: DataVault::new(DvReg::new()),
+            soc_ifc: SocIfc::new(SocIfcReg::new()),
+            mbox: Mailbox::new(MboxCsr::new()),
+            pcr_bank: PcrBank::new(PvReg::new()),
         }
     }
 }

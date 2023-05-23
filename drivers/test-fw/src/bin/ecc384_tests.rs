@@ -20,6 +20,7 @@ use caliptra_drivers::{
     Ecc384Seed, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
 };
 use caliptra_kat::Ecc384Kat;
+use caliptra_registers::ecc::EccReg;
 
 use caliptra_test_harness::test_suite;
 
@@ -54,10 +55,11 @@ const SIGNATURE_S: [u8; 48] = [
 ];
 
 fn test_gen_key_pair() {
+    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
     let seed = [0u8; 48];
     let nonce = Array4xN::default();
     let mut priv_key = Array4x12::default();
-    let result = Ecc384::default().key_pair(
+    let result = ecc.key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
         &nonce,
         Ecc384PrivKeyOut::from(&mut priv_key),
@@ -76,8 +78,9 @@ fn test_gen_key_pair() {
 }
 
 fn test_sign() {
+    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
     let digest = Array4x12::new([0u32; 12]);
-    let result = Ecc384::default().sign(Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)), &digest);
+    let result = ecc.sign(Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)), &digest);
     assert!(result.is_ok());
     let signature = result.unwrap();
     assert_eq!(signature.r, Ecc384Scalar::from(SIGNATURE_R));
@@ -85,8 +88,8 @@ fn test_sign() {
 }
 
 fn test_verify() {
+    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
     let digest = Array4x12::new([0u32; 12]);
-    let ecc = Ecc384::default();
     let result = ecc.sign(Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)), &digest);
     assert!(result.is_ok());
     let signature = result.unwrap();
@@ -100,8 +103,8 @@ fn test_verify() {
 }
 
 fn test_verify_failure() {
+    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
     let digest = Array4x12::new([0u32; 12]);
-    let ecc = Ecc384::default();
     let result = ecc.sign(Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)), &digest);
     assert!(result.is_ok());
     let signature = result.unwrap();
@@ -116,6 +119,7 @@ fn test_verify_failure() {
 }
 
 fn test_kv_seed_from_input_msg_from_input() {
+    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
     //
     // Step 1: Generate a key pair and store private key in kv slot 2.
     //
@@ -127,7 +131,7 @@ fn test_kv_seed_from_input_msg_from_input() {
         id: KeyId::KeyId2,
         usage: key_usage, // ecc_private_key
     };
-    let result = Ecc384::default().key_pair(
+    let result = ecc.key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
         &nonce,
         Ecc384PrivKeyOut::from(key_out_1),
@@ -143,7 +147,7 @@ fn test_kv_seed_from_input_msg_from_input() {
     let digest = Array4x12::new([0u32; 12]);
     let key_in_1 = KeyReadArgs::new(KeyId::KeyId2);
 
-    let result = Ecc384::default().sign(key_in_1.into(), &digest);
+    let result = ecc.sign(key_in_1.into(), &digest);
     assert!(result.is_ok());
     let signature = result.unwrap();
     assert_eq!(signature.r, Ecc384Scalar::from(SIGNATURE_R));
@@ -156,13 +160,13 @@ fn test_kv_seed_from_input_msg_from_input() {
         x: pub_key.x,
         y: pub_key.y,
     };
-    let ecc = Ecc384::default();
     let result = ecc.verify(&pub_key, &Ecc384Scalar::from(digest), &signature);
     assert!(result.is_ok());
     assert!(result.unwrap());
 }
 
 fn test_kv_seed_from_kv_msg_from_input() {
+    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
     //
     // Step 1: Generate a key-pair. Store private key in kv slot 0.
     // Mark the key as ecc_key_gen_seed as it will be used as a seed for key generation.
@@ -181,7 +185,7 @@ fn test_kv_seed_from_kv_msg_from_input() {
         id: KeyId::KeyId0,
         usage: key_usage,
     };
-    let result = Ecc384::default().key_pair(
+    let result = ecc.key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
         &nonce,
         Ecc384PrivKeyOut::from(key_out_1),
@@ -220,7 +224,7 @@ fn test_kv_seed_from_kv_msg_from_input() {
         id: KeyId::KeyId1,
         usage: key_usage,
     };
-    let result = Ecc384::default().key_pair(
+    let result = ecc.key_pair(
         Ecc384Seed::from(key_in_seed),
         &nonce,
         Ecc384PrivKeyOut::from(key_out_priv_key),
@@ -257,7 +261,7 @@ fn test_kv_seed_from_kv_msg_from_input() {
         0xe8, 0x8c, 0x10,
     ];
     let key_in_priv_key = KeyReadArgs::new(KeyId::KeyId1);
-    let result = Ecc384::default().sign(key_in_priv_key.into(), &Array4x12::from(msg));
+    let result = ecc.sign(key_in_priv_key.into(), &Array4x12::from(msg));
     assert!(result.is_ok());
     let signature = result.unwrap();
     assert_eq!(signature.r, Ecc384Scalar::from(sig_r));
@@ -270,16 +274,13 @@ fn test_kv_seed_from_kv_msg_from_input() {
         x: pub_key_x.into(),
         y: pub_key_y.into(),
     };
-    let ecc = Ecc384::default();
     let result = ecc.verify(&pub_key, &Ecc384Scalar::from(msg), &signature);
     assert!(result.is_ok());
 }
 
 fn test_kat() {
-    assert_eq!(
-        Ecc384Kat::default().execute(&Ecc384::default()).is_ok(),
-        true
-    );
+    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
+    assert_eq!(Ecc384Kat::default().execute(&mut ecc).is_ok(), true);
 }
 
 test_suite! {

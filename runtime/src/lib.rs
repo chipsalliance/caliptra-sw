@@ -8,8 +8,12 @@ mod verify;
 use mailbox::Mailbox;
 
 use caliptra_common::cprintln;
-use caliptra_drivers::{caliptra_err_def, CaliptraResult};
-use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc};
+use caliptra_drivers::{caliptra_err_def, CaliptraResult, Ecc384};
+use caliptra_registers::{
+    ecc::EccReg,
+    mbox::{enums::MboxStatusE, MboxCsr},
+    sha512_acc::Sha512AccCsr,
+};
 use zerocopy::{AsBytes, FromBytes};
 
 caliptra_err_def! {
@@ -46,6 +50,25 @@ impl From<CommandId> for u32 {
     }
 }
 
+pub struct Drivers {
+    pub mbox: Mailbox,
+    pub sha_acc: Sha512AccCsr,
+    pub ecdsa: Ecc384,
+}
+impl Drivers {
+    /// # Safety
+    ///
+    /// Callers must ensure that this function is called only once, and that
+    /// any concurrent access to these register blocks does not conflict with
+    /// these drivers.
+    pub unsafe fn new_from_registers() -> Self {
+        Self {
+            mbox: Mailbox::new(MboxCsr::new()),
+            sha_acc: Sha512AccCsr::new(),
+            ecdsa: Ecc384::new(EccReg::new()),
+        }
+    }
+}
 #[repr(C)]
 #[derive(AsBytes, FromBytes)]
 pub struct EcdsaVerifyCmd {
@@ -68,7 +91,7 @@ impl Default for EcdsaVerifyCmd {
     }
 }
 
-fn wait_for_cmd() {
+fn wait_for_cmd(_mbox: &mut Mailbox) {
     // TODO: Enable interrupts?
     //#[cfg(feature = "riscv")]
     //unsafe {
@@ -76,12 +99,14 @@ fn wait_for_cmd() {
     //}
 }
 
-fn handle_command() -> CaliptraResult<MboxStatusE> {
-    let cmd_id = Mailbox::cmd();
-    let dlen = Mailbox::dlen() as usize;
-    let dlen_words = Mailbox::dlen_words() as usize;
+fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
+    let mbox = &mut drivers.mbox;
+
+    let cmd_id = mbox.cmd();
+    let dlen = mbox.dlen() as usize;
+    let dlen_words = mbox.dlen_words() as usize;
     let mut buf = [0u32; 1024];
-    Mailbox::copy_from_mbox(buf.get_mut(..dlen_words).ok_or(err_u32!(InternalErr))?);
+    mbox.copy_from_mbox(buf.get_mut(..dlen_words).ok_or(err_u32!(InternalErr))?);
 
     if dlen > buf.len() * 4 {
         // dlen larger than max message
@@ -93,17 +118,13 @@ fn handle_command() -> CaliptraResult<MboxStatusE> {
         .get(..dlen)
         .ok_or(err_u32!(InsufficientMemory))?;
 
-    cprintln!(
-        "[rt] Received command=0x{:x}, len={}",
-        cmd_id,
-        Mailbox::dlen()
-    );
+    cprintln!("[rt] Received command=0x{:x}, len={}", cmd_id, mbox.dlen());
     match CommandId::from(cmd_id) {
         CommandId::FIRMWARE_LOAD => Err(err_u32!(UnimplementedCommand)),
         CommandId::GET_IDEV_CSR => Err(err_u32!(UnimplementedCommand)),
         CommandId::GET_LDEV_CERT => Err(err_u32!(UnimplementedCommand)),
         CommandId::ECDSA384_VERIFY => {
-            verify::handle_ecdsa_verify(cmd_bytes)?;
+            verify::handle_ecdsa_verify(drivers, cmd_bytes)?;
             Ok(MboxStatusE::CmdComplete)
         }
         CommandId::STASH_MEASUREMENT => Err(err_u32!(UnimplementedCommand)),
@@ -112,20 +133,18 @@ fn handle_command() -> CaliptraResult<MboxStatusE> {
     }
 }
 
-pub fn handle_mailbox_commands() {
+pub fn handle_mailbox_commands(drivers: &mut Drivers) {
     loop {
-        wait_for_cmd();
+        wait_for_cmd(&mut drivers.mbox);
 
-        if Mailbox::is_cmd_ready() {
-            match handle_command() {
+        if drivers.mbox.is_cmd_ready() {
+            match handle_command(drivers) {
                 Ok(status) => {
-                    Mailbox::set_status(status);
+                    drivers.mbox.set_status(status);
                 }
                 Err(e) => {
-                    let soc_ifc_regs = soc_ifc::RegisterBlock::soc_ifc_reg();
-                    soc_ifc_regs.cptra_fw_error_non_fatal().write(|_| e.into());
-
-                    Mailbox::set_status(MboxStatusE::CmdFailure);
+                    caliptra_drivers::report_fw_error_non_fatal(e.into());
+                    drivers.mbox.set_status(MboxStatusE::CmdFailure);
                 }
             }
         }

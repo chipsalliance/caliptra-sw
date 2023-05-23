@@ -17,7 +17,7 @@ use crate::array::Array4xN;
 use crate::{wait, CaliptraResult, KeyId, KeyUsage, PcrId};
 use caliptra_registers::enums::KvErrorE;
 use caliptra_registers::regs::{KvReadCtrlRegWriteVal, KvStatusRegReadVal, KvWriteCtrlRegWriteVal};
-use ureg::Mmio;
+use ureg::{Mmio, MmioMut};
 
 /// Key read operation arguments
 #[derive(Debug, Clone, Copy)]
@@ -90,7 +90,7 @@ impl KvAccess {
         const ARR_BYTE_LEN: usize,
         StatusReg: ureg::ReadableReg<ReadVal = KvStatusRegReadVal>,
         CtrlReg: ureg::ResettableReg + ureg::WritableReg<WriteVal = KvWriteCtrlRegWriteVal>,
-        TMmio: Mmio,
+        TMmio: MmioMut,
     >(
         status_reg: ureg::RegRef<StatusReg, TMmio>,
         ctrl_reg: ureg::RegRef<CtrlReg, TMmio>,
@@ -130,7 +130,7 @@ impl KvAccess {
     pub(crate) fn begin_copy_to_kv<
         StatusReg: ureg::ReadableReg<ReadVal = KvStatusRegReadVal>,
         CtrlReg: ureg::ResettableReg + ureg::WritableReg<WriteVal = KvWriteCtrlRegWriteVal>,
-        TMmio: Mmio,
+        TMmio: MmioMut,
     >(
         status_reg: ureg::RegRef<StatusReg, TMmio>,
         ctrl_reg: ureg::RegRef<CtrlReg, TMmio>,
@@ -181,7 +181,7 @@ impl KvAccess {
         const ARR_WORD_LEN: usize,
         const ARR_BYTE_LEN: usize,
         TReg: ureg::ResettableReg + ureg::WritableReg<WriteVal = u32>,
-        TMmio: Mmio + Copy,
+        TMmio: MmioMut + Copy,
     >(
         arr: &Array4xN<ARR_WORD_LEN, ARR_BYTE_LEN>,
         reg: ureg::Array<ARR_WORD_LEN, ureg::RegRef<TReg, TMmio>>,
@@ -200,7 +200,7 @@ impl KvAccess {
     pub(crate) fn copy_from_kv<
         StatusReg: ureg::ReadableReg<ReadVal = KvStatusRegReadVal>,
         CtrlReg: ureg::ResettableReg + ureg::WritableReg<WriteVal = KvReadCtrlRegWriteVal>,
-        TMmio: Mmio,
+        TMmio: MmioMut,
     >(
         key: KeyReadArgs,
         status_reg: ureg::RegRef<StatusReg, TMmio>,
@@ -234,7 +234,7 @@ impl KvAccess {
     pub(crate) fn extend_from_pv<
         StatusReg: ureg::ReadableReg<ReadVal = KvStatusRegReadVal>,
         CtrlReg: ureg::ResettableReg + ureg::WritableReg<WriteVal = KvReadCtrlRegWriteVal>,
-        TMmio: Mmio,
+        TMmio: MmioMut,
     >(
         pcr_id: PcrId,
         status_reg: ureg::RegRef<StatusReg, TMmio>,

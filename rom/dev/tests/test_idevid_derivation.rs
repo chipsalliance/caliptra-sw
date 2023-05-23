@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::ImageOptions;
-use caliptra_drivers::{state::MfgFlags, IdevidCertAttr, X509KeyIdAlgo};
+use caliptra_drivers::{IdevidCertAttr, MfgFlags, X509KeyIdAlgo};
 use caliptra_hw_model::{Fuses, HwModel};
 use std::io::Write;
 

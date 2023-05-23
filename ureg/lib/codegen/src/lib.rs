@@ -744,7 +744,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
     let mut meta_tokens = TokenStream::new();
     let mut block_tokens = TokenStream::new();
 
-    let mut block_instance_tokens = TokenStream::new();
+    let mut instance_type_tokens = TokenStream::new();
 
     if !block.block().registers.is_empty() {
         let max_reg_width = block
@@ -757,11 +757,54 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
         let raw_ptr_type = format_ident!("{}", max_reg_width.rust_primitive_name());
 
         for instance in block.block().instances.iter() {
-            let name = snake_ident(&instance.name);
+            let name_camel = camel_ident(&instance.name);
             let addr = hex_literal(instance.address.into());
             // TODO: Should this be unsafe?
-            block_instance_tokens.extend(quote! {
-                pub fn #name() -> Self { unsafe { Self::new(#addr as *mut #raw_ptr_type) } }
+            instance_type_tokens.extend(quote! {
+                /// A zero-sized type that represents ownership of this
+                /// peripheral, used to get access to a Register lock. Most
+                /// programs create one of these in unsafe code near the top of
+                /// main(), and pass it to the driver responsible for managing
+                /// all access to the hardware.
+                pub struct #name_camel {
+                    // Ensure the only way to create this is via Self::new()
+                    _priv: (),
+                }
+                impl #name_camel {
+                    pub const PTR: *mut #raw_ptr_type = #addr as *mut #raw_ptr_type;
+
+                    /// # Safety
+                    ///
+                    /// Caller must ensure that all concurrent use of this
+                    /// peripheral in the firmware is done so in a compatible
+                    /// way. The simplest way to enforce this is to only call
+                    /// this function once.
+                    pub unsafe fn new() -> Self {
+                        Self{
+                            _priv: (),
+                        }
+                    }
+
+                    /// Returns a register block that can be used to read
+                    /// registers from this peripheral, but cannot write.
+                    pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
+                        RegisterBlock{
+                            ptr: Self::PTR,
+                            mmio: core::default::Default::default(),
+                        }
+                    }
+
+                    /// Return a register block that can be used to read and
+                    /// write this peripheral's registers.
+                    pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
+                        RegisterBlock{
+                            ptr: Self::PTR,
+                            mmio: core::default::Default::default(),
+                        }
+                    }
+
+                }
+
             });
         }
         generate_block_registers(
@@ -806,12 +849,9 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
         }
         block_tokens = quote! {
             #[derive(Clone, Copy)]
-            pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio> = ureg::RealMmio>{
+            pub struct RegisterBlock<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>>{
                 ptr: *mut #raw_ptr_type,
                 mmio: TMmio,
-            }
-            impl RegisterBlock<ureg::RealMmio> {
-                #block_instance_tokens
             }
             impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
                 /// # Safety
@@ -854,6 +894,8 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
 
         #![allow(clippy::erasing_op)]
         #![allow(clippy::identity_op)]
+
+        #instance_type_tokens
 
         #block_tokens
 

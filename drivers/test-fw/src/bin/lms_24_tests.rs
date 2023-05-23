@@ -16,9 +16,10 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{
-    get_lms_parameters, lookup_lmots_algorithm_type, lookup_lms_algorithm_type, HashValue,
-    LmotsAlgorithmType, Lms, LmsAlgorithmType, LmsIdentifier, LmsPublicKey, LmsSignature,
+    lookup_lmots_algorithm_type, lookup_lms_algorithm_type, HashValue, LmotsAlgorithmType,
+    Lms, LmsAlgorithmType, LmsIdentifier, LmsSignature, Sha256, get_lms_parameters, LmsPublicKey
 };
+use caliptra_registers::sha256::Sha256Reg;
 use caliptra_test_harness::test_suite;
 
 fn test_lms_lookup() {
@@ -78,6 +79,7 @@ fn test_coefficient() {
 }
 
 fn test_hash_message_24() {
+    let mut sha256 = unsafe { Sha256::new(Sha256Reg::new()) };
     let message: [u8; 33] = [
         116, 104, 105, 115, 32, 105, 115, 32, 116, 104, 101, 32, 109, 101, 115, 115, 97, 103, 101,
         32, 73, 32, 119, 97, 110, 116, 32, 115, 105, 103, 110, 101, 100,
@@ -106,12 +108,13 @@ fn test_hash_message_24() {
         161, 238, 102, 161,
     ]);
     let hash = Lms::default()
-        .hash_message(&message, &lms_identifier, &q_str, &nonce)
+        .hash_message(&mut sha256, &message, &lms_identifier, &q_str, &nonce)
         .unwrap();
     assert_eq!(expected_hash, hash);
 }
 
 fn test_lms_24_height_15() {
+    let mut sha256 = unsafe { Sha256::new(Sha256Reg::new()) };
     const MESSAGE: [u8; 33] = [
         116, 104, 105, 115, 32, 105, 115, 32, 116, 104, 101, 32, 109, 101, 115, 115, 97, 103, 101,
         32, 73, 32, 119, 97, 110, 116, 32, 115, 105, 103, 110, 101, 100,
@@ -349,7 +352,7 @@ fn test_lms_24_height_15() {
     };
 
     let success = Lms::default()
-        .verify_lms_signature(&MESSAGE, &LMS_PUBLIC_KEY, &LMS_SIG)
+        .verify_lms_signature(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &LMS_SIG)
         .unwrap();
     assert_eq!(success, true);
 }

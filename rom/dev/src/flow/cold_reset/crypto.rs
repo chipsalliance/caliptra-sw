@@ -57,8 +57,8 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Array4x5` - Digest
-    pub fn sha1_digest(env: &RomEnv, data: &[u8]) -> CaliptraResult<Array4x5> {
-        env.sha1().map(|sha| sha.digest(data))
+    pub fn sha1_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x5> {
+        env.sha1.digest(data)
     }
 
     /// Calculate SHA2-256 Digest
@@ -72,8 +72,8 @@ impl Crypto {
     ///
     /// * `Array4x8` - Digest
     #[inline(always)]
-    pub fn sha256_digest(env: &RomEnv, data: &[u8]) -> CaliptraResult<Array4x8> {
-        env.sha256().map(|sha| sha.digest(data))
+    pub fn sha256_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x8> {
+        env.sha256.digest(data)
     }
 
     /// Calculate SHA2-384 Digest
@@ -86,8 +86,8 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Array4x12` - Digest
-    pub fn sha384_digest(env: &RomEnv, data: &[u8]) -> CaliptraResult<Array4x12> {
-        env.sha384().map(|s| s.digest(data))
+    pub fn sha384_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x12> {
+        env.sha384.digest(data)
     }
 
     /// Calculate HMAC-348
@@ -103,7 +103,7 @@ impl Crypto {
     ///
     /// * `KeyId` - Key Id inputted
     pub fn hmac384_mac(
-        env: &RomEnv,
+        env: &mut RomEnv,
         key: Hmac384Key,
         data: Hmac384Data,
         tag: KeyId,
@@ -115,7 +115,7 @@ impl Crypto {
         let tag_args = Hmac384Tag::Key(KeyWriteArgs::new(tag, usage));
 
         // Calculate the CDI
-        env.hmac384().map(|h| h.hmac(key, data, tag_args))?;
+        env.hmac384.hmac(key, data, tag_args)?;
 
         Ok(tag)
     }
@@ -132,7 +132,7 @@ impl Crypto {
     ///
     /// * `Ecc384KeyPair` - Private Key slot id and public key pairs
     pub fn ecc384_key_gen(
-        env: &RomEnv,
+        env: &mut RomEnv,
         seed: KeyId,
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
@@ -146,9 +146,7 @@ impl Crypto {
 
         Ok(Ecc384KeyPair {
             priv_key,
-            pub_key: env
-                .ecc384()
-                .map(|e| e.key_pair(seed, &Array4x12::default(), key_out))?,
+            pub_key: env.ecc384.key_pair(seed, &Array4x12::default(), key_out)?,
         })
     }
 
@@ -166,7 +164,7 @@ impl Crypto {
     ///
     /// * `Ecc384Signature` - Signature
     pub fn ecdsa384_sign(
-        env: &RomEnv,
+        env: &mut RomEnv,
         priv_key: KeyId,
         data: &[u8],
     ) -> CaliptraResult<Ecc384Signature> {
@@ -174,7 +172,7 @@ impl Crypto {
         let digest = okref(&digest)?;
         let priv_key_args = KeyReadArgs::new(priv_key);
         let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
-        env.ecc384().map(|ecc| ecc.sign(priv_key, digest))
+        env.ecc384.sign(priv_key, digest)
     }
 
     /// Verify the ECC Signature
@@ -192,13 +190,13 @@ impl Crypto {
     ///
     /// * `bool` - True on success, false otherwise
     pub fn ecdsa384_verify(
-        env: &RomEnv,
+        env: &mut RomEnv,
         pub_key: &Ecc384PubKey,
         data: &[u8],
         sig: &Ecc384Signature,
     ) -> CaliptraResult<bool> {
         let digest = Self::sha384_digest(env, data);
         let digest = okref(&digest)?;
-        env.ecc384().map(|e| e.verify(pub_key, digest, sig))
+        env.ecc384.verify(pub_key, digest, sig)
     }
 }

@@ -19,11 +19,15 @@ use core::num::NonZeroUsize;
 
 use caliptra_drivers::{Csrng, CsrngSeed};
 
+use caliptra_registers::{csrng::CsrngReg, entropy_src::EntropySrcReg};
 use caliptra_test_harness::test_suite;
 
 // From:
 // https://github.com/lowRISC/opentitan/blob/ff70cfe194f5a2bb08c1a87a949b5c45746a5d99/sw/device/tests/csrng_smoketest.c#L27
 fn test_ctr_drbg_ctr0_smoke() {
+    let csrng_reg = unsafe { CsrngReg::new() };
+    let entropy_src_reg = unsafe { EntropySrcReg::new() };
+
     const SEED: CsrngSeed = CsrngSeed::Constant(&[
         0x73bec010, 0x9262474c, 0x16a30f76, 0x531b51de, 0x2ee494e5, 0xdfec9db3, 0xcb7a879d,
         0x5600419c, 0xca79b0b0, 0xdda33b5c, 0xa468649e, 0xdf5d73fa,
@@ -35,7 +39,7 @@ fn test_ctr_drbg_ctr0_smoke() {
         0xdb17514c, 0xa43c41b7,
     ];
 
-    let mut csrng = unsafe { Csrng::with_seed(SEED) }.expect("construct CSRNG");
+    let mut csrng = Csrng::with_seed(csrng_reg, entropy_src_reg, SEED).expect("construct CSRNG");
     let mut output = [0; EXPECTED_OUTPUT.len()];
     let num_words = NonZeroUsize::new(output.len()).expect("non-zero num_words");
 
@@ -52,9 +56,12 @@ fn test_ctr_drbg_ctr0_smoke() {
 // Requires the hardware model to have been seeded with the TRNG nibbles found here:
 // https://github.com/chipsalliance/caliptra-rtl/blob/fa91d66f30223899403f4e65a6f697a6f9100fd1/src/csrng/tb/csrng_tb.sv#L461
 fn test_entropy_src_seed() {
+    let csrng_reg = unsafe { CsrngReg::new() };
+    let entropy_src_reg = unsafe { EntropySrcReg::new() };
+
     const EXPECTED_OUTPUT: [u32; 4] = [0x15eb2a44, 0x310851dd, 0xba1365ab, 0x4c7322f4];
 
-    let mut csrng = unsafe { Csrng::new() }.expect("construct CSRSNG");
+    let mut csrng = Csrng::new(csrng_reg, entropy_src_reg).expect("construct CSRSNG");
     let mut output = [0; EXPECTED_OUTPUT.len()];
     let num_words = NonZeroUsize::new(output.len()).expect("non-zero num_words");
 
@@ -66,7 +73,10 @@ fn test_entropy_src_seed() {
 }
 
 fn test_zero_health_fails() {
-    let csrng = unsafe { Csrng::new() }.expect("construct CSRNG");
+    let csrng_reg = unsafe { CsrngReg::new() };
+    let entropy_src_reg = unsafe { EntropySrcReg::new() };
+
+    let csrng = Csrng::new(csrng_reg, entropy_src_reg).expect("construct CSRNG");
     let counts = csrng.health_counts();
     assert_eq!(counts.total, 0, "Expected zero total health check fails");
     assert_eq!(

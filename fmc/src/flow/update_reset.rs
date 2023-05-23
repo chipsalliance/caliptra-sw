@@ -26,7 +26,7 @@ impl UpdateResetFlow {
     ///
     /// * `env` - FMC Environment
     #[inline(never)]
-    pub fn run(_: &FmcEnv, _: &mut HandOff) -> CaliptraResult<()> {
+    pub fn run(_: &mut FmcEnv, _: &mut HandOff) -> CaliptraResult<()> {
         cprintln!("[update-reset] ++");
 
         // TODO: Implement

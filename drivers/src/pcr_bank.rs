@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::{caliptra_err_def, Array4x12, CaliptraResult, Sha384};
-use caliptra_registers::pv;
+use caliptra_registers::pv::PvReg;
 
 /// PCR Identifier
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -76,10 +76,14 @@ caliptra_err_def! {
 }
 
 /// Platform Configuration Register (PCR) Bank
-#[derive(Default, Debug)]
-pub struct PcrBank {}
+pub struct PcrBank {
+    pv: PvReg,
+}
 
 impl PcrBank {
+    pub fn new(pv: PvReg) -> Self {
+        Self { pv }
+    }
     /// Erase all the pcrs in the pcr vault
     ///
     /// Note: The pcrs that have "use" lock set will not be erased
@@ -119,9 +123,9 @@ impl PcrBank {
             PcrId::PcrId31,
         ];
 
-        let pv = pv::RegisterBlock::pv_reg();
         for id in PCR_IDS {
             if !self.pcr_lock(id) {
+                let pv = self.pv.regs_mut();
                 pv.pcr_ctrl().at(id.into()).write(|w| w.clear(true));
             }
         }
@@ -137,7 +141,7 @@ impl PcrBank {
             raise_err!(EraseWriteLockSetFailure)
         }
 
-        let pv = pv::RegisterBlock::pv_reg();
+        let pv = self.pv.regs_mut();
         pv.pcr_ctrl().at(id.into()).write(|w| w.clear(true));
         Ok(())
     }
@@ -153,7 +157,7 @@ impl PcrBank {
     /// * `true` - If the PCR is locked for clear
     /// * `false` - If the PCR is not locked for clear
     pub fn pcr_lock(&self, id: PcrId) -> bool {
-        let pv = pv::RegisterBlock::pv_reg();
+        let pv = self.pv.regs();
         pv.pcr_ctrl().at(id.into()).read().lock()
     }
 
@@ -163,7 +167,7 @@ impl PcrBank {
     ///
     /// * `id` - PCR ID
     pub fn set_pcr_lock(&mut self, id: PcrId) {
-        let pv = pv::RegisterBlock::pv_reg();
+        let pv = self.pv.regs_mut();
         pv.pcr_ctrl().at(id.into()).write(|w| w.lock(true))
     }
 
@@ -173,7 +177,7 @@ impl PcrBank {
     ///
     /// * `id` - PCR ID
     pub fn clear_pcr_lock(&mut self, id: PcrId) {
-        let pv = pv::RegisterBlock::pv_reg();
+        let pv = self.pv.regs_mut();
         pv.pcr_ctrl().at(id.into()).write(|w| w.lock(false))
     }
 
@@ -188,7 +192,7 @@ impl PcrBank {
     /// * `Array4x12` - PCR Value
     #[inline(never)]
     pub fn read_pcr(&self, id: PcrId) -> Array4x12 {
-        let pv = pv::RegisterBlock::pv_reg();
+        let pv = self.pv.regs();
 
         let mut result = Array4x12::default();
         for i in 0..result.0.len() {
@@ -206,7 +210,7 @@ impl PcrBank {
     /// * `sha`  - SHA2-384 Engine
     /// * `data` - Data to extend
     ///
-    pub fn extend_pcr(&self, id: PcrId, sha: &Sha384, data: &[u8]) -> CaliptraResult<()> {
+    pub fn extend_pcr(&self, id: PcrId, sha: &mut Sha384, data: &[u8]) -> CaliptraResult<()> {
         sha.pcr_extend(id, data)
     }
 }

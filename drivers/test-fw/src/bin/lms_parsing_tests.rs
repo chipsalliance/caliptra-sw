@@ -17,8 +17,9 @@ Abstract:
 
 use caliptra_drivers::{
     parse_public_contents, parse_signature_contents, LmotsAlgorithmType, Lms, LmsAlgorithmType,
-    LmsIdentifier,
+    LmsIdentifier, Sha256
 };
+use caliptra_registers::sha256::Sha256Reg;
 use caliptra_test_harness::test_suite;
 
 fn test_parse_public() {
@@ -140,6 +141,7 @@ fn test_parse_signature() {
 }
 
 fn test_lms_24_parse_verify() {
+    let mut sha256 = unsafe { Sha256::new(Sha256Reg::new()) };
     const PUBLIC_KEY_BYTES: [u8; 48] = [
         0, 0, 0, 12, 0, 0, 0, 7, 188, 6, 48, 169, 246, 46, 8, 166, 148, 155, 189, 136, 53, 172,
         103, 136, 236, 113, 144, 218, 165, 27, 86, 46, 64, 175, 168, 88, 50, 42, 60, 25, 191, 78,
@@ -239,13 +241,13 @@ fn test_lms_24_parse_verify() {
 
     let lms_sig = parse_signature_contents::<6, 51, 15>(&SIGNATURE_BYTES).unwrap();
     let check = Lms::default()
-        .verify_lms_signature(&MESSAGE, &pk, &lms_sig)
+        .verify_lms_signature(&mut sha256, &MESSAGE, &pk, &lms_sig)
         .unwrap();
     assert!(check);
 
     // this should fail
     let check = Lms::default()
-        .verify_lms_signature(&"blah".as_bytes(), &pk, &lms_sig)
+        .verify_lms_signature(&mut sha256,&"blah".as_bytes(), &pk, &lms_sig)
         .unwrap();
     assert!(!check);
 }

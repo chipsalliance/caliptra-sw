@@ -53,7 +53,7 @@ impl X509 {
     ///
     /// `[u8; 8]` - 64-bit Unique Endpoint Identifier
     pub fn ueid(env: &RomEnv) -> CaliptraResult<[u8; 8]> {
-        let ueid = env.fuse_bank().map(|f| f.ueid());
+        let ueid = env.soc_ifc.fuse_bank().ueid();
         Ok(ueid)
     }
 
@@ -67,7 +67,7 @@ impl X509 {
     /// # Returns
     ///
     /// `[u8; 64]` - X509 Subject Identifier serial number
-    pub fn subj_sn(env: &RomEnv, pub_key: &Ecc384PubKey) -> CaliptraResult<[u8; 64]> {
+    pub fn subj_sn(env: &mut RomEnv, pub_key: &Ecc384PubKey) -> CaliptraResult<[u8; 64]> {
         let data = pub_key.to_der();
         let digest = Crypto::sha256_digest(env, &data);
         let digest = okref(&digest)?;
@@ -84,10 +84,10 @@ impl X509 {
     /// # Returns
     ///
     /// `[u8; 20]` - X509 Subject Key Identifier
-    pub fn idev_subj_key_id(env: &RomEnv, pub_key: &Ecc384PubKey) -> CaliptraResult<[u8; 20]> {
+    pub fn idev_subj_key_id(env: &mut RomEnv, pub_key: &Ecc384PubKey) -> CaliptraResult<[u8; 20]> {
         let data = pub_key.to_der();
 
-        let digest: [u8; 20] = match env.fuse_bank().map(|f| f.idev_id_x509_key_id_algo()) {
+        let digest: [u8; 20] = match env.soc_ifc.fuse_bank().idev_id_x509_key_id_algo() {
             X509KeyIdAlgo::Sha1 => {
                 cprintln!("[idev] Using Sha1 for KeyId Algorithm");
                 let digest = Crypto::sha1_digest(env, &data);
@@ -107,7 +107,7 @@ impl X509 {
             }
             X509KeyIdAlgo::Fuse => {
                 cprintln!("[idev] Using Fuse for KeyId");
-                env.fuse_bank().map(|f| f.subject_key_id())
+                env.soc_ifc.fuse_bank().subject_key_id()
             }
         };
 
@@ -124,7 +124,7 @@ impl X509 {
     /// # Returns
     ///
     /// `[u8; 20]` - X509 Subject Key Identifier
-    pub fn subj_key_id(env: &RomEnv, pub_key: &Ecc384PubKey) -> CaliptraResult<[u8; 20]> {
+    pub fn subj_key_id(env: &mut RomEnv, pub_key: &Ecc384PubKey) -> CaliptraResult<[u8; 20]> {
         let data = pub_key.to_der();
         let digest = Crypto::sha256_digest(env, &data);
         let digest: [u8; 32] = okref(&digest)?.into();
@@ -141,7 +141,7 @@ impl X509 {
     /// # Returns
     ///
     /// `[u8; 20]` - X509 Serial Number
-    pub fn cert_sn(env: &RomEnv, pub_key: &Ecc384PubKey) -> CaliptraResult<[u8; 20]> {
+    pub fn cert_sn(env: &mut RomEnv, pub_key: &Ecc384PubKey) -> CaliptraResult<[u8; 20]> {
         let data = pub_key.to_der();
         let digest = Crypto::sha256_digest(env, &data);
         let mut digest: [u8; 32] = okref(&digest)?.into();

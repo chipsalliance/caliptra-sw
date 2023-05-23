@@ -15,7 +15,7 @@ Abstract:
 use crate::caliptra_err_def;
 use caliptra_drivers::{
     CaliptraResult, HashValue, LmotsAlgorithmType, Lms, LmsAlgorithmType, LmsIdentifier,
-    LmsPublicKey, LmsSignature,
+    LmsPublicKey, LmsSignature, Sha256,
 };
 
 caliptra_err_def! {
@@ -32,11 +32,11 @@ pub struct LmsKat {}
 
 impl LmsKat {
     /// This function executes the Known Answer Tests (aka KAT) for LMS.
-    pub fn execute(&self, lms: &Lms) -> CaliptraResult<()> {
-        self.kat_lms_24(lms)
+    pub fn execute(&self, sha256_driver: &mut Sha256, lms: &Lms) -> CaliptraResult<()> {
+        self.kat_lms_24(sha256_driver, lms)
     }
 
-    fn kat_lms_24(&self, lms: &Lms) -> CaliptraResult<()> {
+    fn kat_lms_24(&self, sha256_driver: &mut Sha256, lms: &Lms) -> CaliptraResult<()> {
         const MESSAGE: [u8; 8] = [0, 0, 30, 76, 217, 179, 51, 230];
         const LMS_TYPE: LmsAlgorithmType = LmsAlgorithmType::LmsSha256N24H15;
         const LMOTS_TYPE: LmotsAlgorithmType = LmotsAlgorithmType::LmotsSha256N24W4;
@@ -267,7 +267,8 @@ impl LmsKat {
             lmots_type: LMOTS_TYPE,
         };
 
-        let success = lms.verify_lms_signature(&MESSAGE, &LMS_PUBLIC_KEY, &LMS_SIG)?;
+        let success =
+            lms.verify_lms_signature(sha256_driver, &MESSAGE, &LMS_PUBLIC_KEY, &LMS_SIG)?;
         if !success {
             raise_err!(DigestMismatch);
         }

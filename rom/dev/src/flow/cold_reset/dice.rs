@@ -73,7 +73,7 @@ pub trait DiceLayer {
     /// # Returns
     ///
     /// * `DiceOutput` - DICE layer output
-    fn derive(env: &RomEnv, input: &DiceInput) -> CaliptraResult<DiceOutput>;
+    fn derive(env: &mut RomEnv, input: &DiceInput) -> CaliptraResult<DiceOutput>;
 }
 
 /// Compose two dice layers into one
@@ -85,10 +85,10 @@ pub trait DiceLayer {
 pub fn compose_layers<F, G>(
     f: F,
     g: G,
-) -> impl Fn(&RomEnv, &DiceInput) -> CaliptraResult<DiceOutput>
+) -> impl Fn(&mut RomEnv, &DiceInput) -> CaliptraResult<DiceOutput>
 where
-    F: Fn(&RomEnv, &DiceInput) -> CaliptraResult<DiceOutput>,
-    G: Fn(&RomEnv, &DiceInput) -> CaliptraResult<DiceOutput>,
+    F: Fn(&mut RomEnv, &DiceInput) -> CaliptraResult<DiceOutput>,
+    G: Fn(&mut RomEnv, &DiceInput) -> CaliptraResult<DiceOutput>,
 {
     move |env, i| {
         let output = f(env, i);

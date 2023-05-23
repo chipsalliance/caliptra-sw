@@ -13,20 +13,24 @@ Abstract:
 --*/
 
 use crate::{wait, Array4x4, CaliptraResult, KeyId};
-use caliptra_registers::doe;
+use caliptra_registers::doe::DoeReg;
 
-#[derive(Default, Debug)]
-pub struct DeobfuscationEngine {}
+pub struct DeobfuscationEngine {
+    doe: DoeReg,
+}
 
 impl DeobfuscationEngine {
+    pub fn new(doe: DoeReg) -> Self {
+        Self { doe }
+    }
     /// Decrypt Unique Device Secret (UDS)
     ///
     /// # Arguments
     ///
     /// * `iv` - Initialization vector
     /// * `key_id` - Key vault key to store the decrypted UDS in
-    pub fn decrypt_uds(&self, iv: &Array4x4, key_id: KeyId) -> CaliptraResult<()> {
-        let doe = doe::RegisterBlock::doe_reg();
+    pub fn decrypt_uds(&mut self, iv: &Array4x4, key_id: KeyId) -> CaliptraResult<()> {
+        let doe = self.doe.regs_mut();
 
         // Wait for hardware ready
         wait::until(|| doe.status().read().ready());
@@ -50,8 +54,8 @@ impl DeobfuscationEngine {
     ///
     /// * `iv` - Initialization vector
     /// * `key_id` - Key vault key to store the decrypted field entropy in
-    pub fn decrypt_field_entropy(&self, iv: &Array4x4, key_id: KeyId) -> CaliptraResult<()> {
-        let doe = doe::RegisterBlock::doe_reg();
+    pub fn decrypt_field_entropy(&mut self, iv: &Array4x4, key_id: KeyId) -> CaliptraResult<()> {
+        let doe = self.doe.regs_mut();
 
         // Wait for hardware ready
         wait::until(|| doe.status().read().ready());
@@ -75,9 +79,9 @@ impl DeobfuscationEngine {
     /// * Deobfuscation Key
     /// * Encrypted UDS
     /// * Encrypted Field entropy
-    pub fn clear_secrets(&self) -> CaliptraResult<()> {
+    pub fn clear_secrets(&mut self) -> CaliptraResult<()> {
         // Self::_execute_cmd(CONTROL::CMD::CLEAR_SECRETS.value, None, None);
-        let doe = doe::RegisterBlock::doe_reg();
+        let doe = self.doe.regs_mut();
 
         // Wait for hardware ready
         wait::until(|| doe.status().read().ready());

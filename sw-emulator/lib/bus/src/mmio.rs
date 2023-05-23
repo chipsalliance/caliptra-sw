@@ -62,7 +62,9 @@ impl<TBus: Bus> ureg::Mmio for BusMmio<TBus> {
             _ => panic!("Unsupported read size"),
         }
     }
+}
 
+impl<TBus: Bus> ureg::MmioMut for BusMmio<TBus> {
     /// Stores `src` to address `dst` on the bus.
     ///
     /// # Panics
@@ -84,7 +86,7 @@ impl<TBus: Bus> ureg::Mmio for BusMmio<TBus> {
 #[cfg(test)]
 mod tests {
     use crate::Ram;
-    use ureg::Mmio;
+    use ureg::{Mmio, MmioMut};
 
     use super::*;
 

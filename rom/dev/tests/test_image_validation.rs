@@ -2,8 +2,8 @@
 
 use caliptra_builder::FwId;
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
-use caliptra_drivers::state::MfgFlags;
 use caliptra_drivers::Array4x12;
+use caliptra_drivers::MfgFlags;
 use caliptra_hw_model::{
     BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError, SecurityState, U4,
 };

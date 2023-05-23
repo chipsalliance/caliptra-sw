@@ -17,12 +17,16 @@ Abstract:
 
 use caliptra_drivers::{Array4x12, Mailbox, Sha384Acc};
 use caliptra_kat::Sha384AccKat;
+use caliptra_registers::mbox::MboxCsr;
+use caliptra_registers::sha512_acc::Sha512AccCsr;
 use caliptra_test_harness::test_suite;
 
 const MAX_MAILBOX_CAPACITY_BYTES: usize = 128 << 10;
 const SHA384_HASH_SIZE: usize = 48;
 
 fn test_digest0() {
+    let mut sha_acc = unsafe { Sha384Acc::new(Sha512AccCsr::new()) };
+    let mut mbox = unsafe { Mailbox::new(MboxCsr::new()) };
     let data = "abcd".as_bytes();
 
     let expected: [u8; SHA384_HASH_SIZE] = [
@@ -32,12 +36,11 @@ fn test_digest0() {
         0xa3, 0xc7, 0x9b,
     ];
 
-    if let Some(mut txn) = Mailbox::default().try_start_send_txn() {
+    if let Some(mut txn) = mbox.try_start_send_txn() {
         const CMD: u32 = 0x1c;
         assert!(txn.send_request(CMD, &data).is_ok());
 
         let mut digest = Array4x12::default();
-        let sha_acc = Sha384Acc::default();
         if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
             let result = sha_acc_op.digest(data.len() as u32, 0, false, (&mut digest).into());
             assert!(result.is_ok());
@@ -47,10 +50,13 @@ fn test_digest0() {
             assert!(false);
         }
         drop(txn);
-    }
+    };
 }
 
 fn test_digest1() {
+    let mut sha_acc = unsafe { Sha384Acc::new(Sha512AccCsr::new()) };
+    let mut mbox = unsafe { Mailbox::new(MboxCsr::new()) };
+
     let data = "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu".as_bytes();
     let expected: [u8; SHA384_HASH_SIZE] = [
         0x09, 0x33, 0x0C, 0x33, 0xF7, 0x11, 0x47, 0xE8, 0x3D, 0x19, 0x2F, 0xC7, 0x82, 0xCD, 0x1B,
@@ -59,12 +65,11 @@ fn test_digest1() {
         0x74, 0x60, 0x39,
     ];
 
-    if let Some(mut txn) = Mailbox::default().try_start_send_txn() {
+    if let Some(mut txn) = mbox.try_start_send_txn() {
         const CMD: u32 = 0x1c;
         assert!(txn.send_request(CMD, &data).is_ok());
 
         let mut digest = Array4x12::default();
-        let sha_acc = Sha384Acc::default();
         if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
             let result = sha_acc_op.digest(data.len() as u32, 0, false, (&mut digest).into());
             assert!(result.is_ok());
@@ -74,10 +79,13 @@ fn test_digest1() {
             assert!(false);
         }
         drop(txn);
-    }
+    };
 }
 
 fn test_digest2() {
+    let mut sha_acc = unsafe { Sha384Acc::new(Sha512AccCsr::new()) };
+    let mut mbox = unsafe { Mailbox::new(MboxCsr::new()) };
+
     let data = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx".as_bytes();
     let expected: [u8; SHA384_HASH_SIZE] = [
         0x67, 0x4b, 0x2e, 0x80, 0xff, 0x8d, 0x94, 0x00, 0x8d, 0xe7, 0x40, 0x9c, 0x7b, 0x1f, 0x87,
@@ -87,9 +95,8 @@ fn test_digest2() {
     ];
 
     let mut digest = Array4x12::default();
-    let sha_acc = Sha384Acc::default();
 
-    if let Some(mut txn) = Mailbox::default().try_start_send_txn() {
+    if let Some(mut txn) = mbox.try_start_send_txn() {
         const CMD: u32 = 0x1c;
         assert!(txn.send_request(CMD, &data).is_ok());
 
@@ -102,10 +109,13 @@ fn test_digest2() {
             assert!(false);
         }
         drop(txn);
-    }
+    };
 }
 
 fn test_digest_offset() {
+    let mut sha_acc = unsafe { Sha384Acc::new(Sha512AccCsr::new()) };
+    let mut mbox = unsafe { Mailbox::new(MboxCsr::new()) };
+
     let data = "abcdefghijklmnopqrst".as_bytes();
     let expected: [u8; SHA384_HASH_SIZE] = [
         0xd4, 0xcc, 0x9a, 0x0d, 0xc5, 0x46, 0x09, 0x40, 0xb0, 0x50, 0xa2, 0x42, 0x14, 0xf6, 0x78,
@@ -115,9 +125,8 @@ fn test_digest_offset() {
     ];
 
     let mut digest = Array4x12::default();
-    let sha_acc = Sha384Acc::default();
 
-    if let Some(mut txn) = Mailbox::default().try_start_send_txn() {
+    if let Some(mut txn) = mbox.try_start_send_txn() {
         const CMD: u32 = 0x1c;
         assert!(txn.send_request(CMD, &data).is_ok());
 
@@ -130,10 +139,12 @@ fn test_digest_offset() {
             assert!(false);
         }
         drop(txn);
-    }
+    };
 }
 
 fn test_digest_zero_size_buffer() {
+    let mut sha_acc = unsafe { Sha384Acc::new(Sha512AccCsr::new()) };
+
     let expected: [u8; SHA384_HASH_SIZE] = [
         0x38, 0xB0, 0x60, 0xA7, 0x51, 0xAC, 0x96, 0x38, 0x4C, 0xD9, 0x32, 0x7E, 0xB1, 0xB1, 0xE3,
         0x6A, 0x21, 0xFD, 0xB7, 0x11, 0x14, 0xBE, 0x07, 0x43, 0x4C, 0x0C, 0xC7, 0xBF, 0x63, 0xF6,
@@ -142,7 +153,6 @@ fn test_digest_zero_size_buffer() {
     ];
 
     let mut digest = Array4x12::default();
-    let sha_acc = Sha384Acc::default();
     if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
         let result = sha_acc_op.digest(0, 0, true, (&mut digest).into());
         assert!(result.is_ok());
@@ -150,10 +160,12 @@ fn test_digest_zero_size_buffer() {
         drop(sha_acc_op);
     } else {
         assert!(false);
-    }
+    };
 }
 
 fn test_digest_max_mailbox_size() {
+    let mut sha_acc = unsafe { Sha384Acc::new(Sha512AccCsr::new()) };
+
     let expected: [u8; SHA384_HASH_SIZE] = [
         0xca, 0xd1, 0x95, 0xe7, 0xc3, 0xf2, 0xb2, 0x50, 0xb3, 0x5a, 0xc7, 0x8b, 0x17, 0xb7, 0xc2,
         0xf2, 0x29, 0xe1, 0x34, 0xb8, 0x61, 0xf2, 0xd0, 0xbe, 0x15, 0xb7, 0xd9, 0x54, 0x69, 0x71,
@@ -162,7 +174,6 @@ fn test_digest_max_mailbox_size() {
     ];
 
     let mut digest = Array4x12::default();
-    let sha_acc = Sha384Acc::default();
     if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
         let result = sha_acc_op.digest(
             MAX_MAILBOX_CAPACITY_BYTES as u32,
@@ -175,16 +186,12 @@ fn test_digest_max_mailbox_size() {
         drop(sha_acc_op);
     } else {
         assert!(false);
-    }
+    };
 }
 
 fn test_kat() {
-    assert_eq!(
-        Sha384AccKat::default()
-            .execute(&Sha384Acc::default())
-            .is_ok(),
-        true
-    );
+    let mut sha_acc = unsafe { Sha384Acc::new(Sha512AccCsr::new()) };
+    assert_eq!(Sha384AccKat::default().execute(&mut sha_acc).is_ok(), true);
 }
 
 test_suite! {

@@ -16,7 +16,7 @@ use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::{
     array_concat3, caliptra_err_def, wait, Array4x12, CaliptraResult, KeyReadArgs, KeyWriteArgs,
 };
-use caliptra_registers::ecc;
+use caliptra_registers::ecc::EccReg;
 
 /// ECC-384 Coordinate
 pub type Ecc384Scalar = Array4x12;
@@ -147,10 +147,14 @@ pub struct Ecc384Signature {
 }
 
 /// Elliptic Curve P-384 API
-#[derive(Default, Debug)]
-pub struct Ecc384 {}
+pub struct Ecc384 {
+    ecc: EccReg,
+}
 
 impl Ecc384 {
+    pub fn new(ecc: EccReg) -> Self {
+        Self { ecc }
+    }
     /// Generate ECC-384 Key Pair
     ///
     /// # Arguments
@@ -163,12 +167,12 @@ impl Ecc384 {
     ///
     /// * `Ecc384PubKey` - Generated ECC-384 Public Key
     pub fn key_pair(
-        &self,
+        &mut self,
         seed: Ecc384Seed,
         nonce: &Array4x12,
         mut priv_key: Ecc384PrivKeyOut,
     ) -> CaliptraResult<Ecc384PubKey> {
-        let ecc = ecc::RegisterBlock::ecc_reg();
+        let ecc = self.ecc.regs_mut();
 
         // Wait for hardware ready
         wait::until(|| ecc.status().read().ready());
@@ -227,11 +231,11 @@ impl Ecc384 {
     ///
     /// * `Ecc384Signature` - Generate signature
     pub fn sign(
-        &self,
+        &mut self,
         priv_key: Ecc384PrivKeyIn,
         data: &Ecc384Scalar,
     ) -> CaliptraResult<Ecc384Signature> {
-        let ecc = ecc::RegisterBlock::ecc_reg();
+        let ecc = self.ecc.regs_mut();
 
         // Wait for hardware ready
         wait::until(|| ecc.status().read().ready());
@@ -275,12 +279,12 @@ impl Ecc384 {
     ///
     /// *  `bool` - True if the signature verification passed else false
     pub fn verify(
-        &self,
+        &mut self,
         pub_key: &Ecc384PubKey,
         digest: &Ecc384Scalar,
         signature: &Ecc384Signature,
     ) -> CaliptraResult<bool> {
-        let ecc = ecc::RegisterBlock::ecc_reg();
+        let ecc = self.ecc.regs_mut();
 
         // Wait for hardware ready
         wait::until(|| ecc.status().read().ready());
