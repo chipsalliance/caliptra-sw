@@ -17,7 +17,7 @@ Abstract:
 
 use caliptra_drivers::{
     parse_public_contents, parse_signature_contents, LmotsAlgorithmType, Lms, LmsAlgorithmType,
-    LmsIdentifier, Sha256
+    LmsIdentifier, Sha256,
 };
 use caliptra_registers::sha256::Sha256Reg;
 use caliptra_test_harness::test_suite;
@@ -247,7 +247,7 @@ fn test_lms_24_parse_verify() {
 
     // this should fail
     let check = Lms::default()
-        .verify_lms_signature(&mut sha256,&"blah".as_bytes(), &pk, &lms_sig)
+        .verify_lms_signature(&mut sha256, &"blah".as_bytes(), &pk, &lms_sig)
         .unwrap();
     assert!(!check);
 }

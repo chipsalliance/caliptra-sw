@@ -21,7 +21,8 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{
-    HashValue, LmotsAlgorithmType, LmotsSignature, Lms, LmsAlgorithmType, LmsSignature, Sha256, LmsPublicKey
+    HashValue, LmotsAlgorithmType, LmotsSignature, Lms, LmsAlgorithmType, LmsPublicKey,
+    LmsSignature, Sha256,
 };
 use caliptra_registers::sha256::Sha256Reg;
 use caliptra_test_harness::test_suite;
@@ -247,7 +248,6 @@ fn test_ots_32() {
     let result_ots = Lms::default().candidate_ots_signature::<8, 34>(
         &mut sha256,
         &FINAL_OTS_SIG.ots_type,
-
         &LMS_IDENTIFIER,
         &q_str,
         &FINAL_OTS_SIG.y,
@@ -466,7 +466,7 @@ fn test_lms_lower_32() {
     };
 
     let final_result = Lms::default()
-        .verify_lms_signature(&mut sha256,&MESSAGE, &LMS_PUBLIC_KEY, &FINAL_LMS_SIG)
+        .verify_lms_signature(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &FINAL_LMS_SIG)
         .unwrap();
     assert_eq!(final_result, true);
 }
@@ -683,7 +683,12 @@ fn test_hss_upper_32() {
     };
 
     let success = Lms::default()
-        .verify_lms_signature(&mut sha256,&PUBLIC_BUFFER, &HSS_PUBLIC_KEY, &UPPER_SIGNATURE)
+        .verify_lms_signature(
+            &mut sha256,
+            &PUBLIC_BUFFER,
+            &HSS_PUBLIC_KEY,
+            &UPPER_SIGNATURE,
+        )
         .unwrap();
     assert_eq!(success, true);
 }

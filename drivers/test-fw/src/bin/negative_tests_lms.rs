@@ -16,10 +16,8 @@ File contains test cases for LMS signature verification using SHA256/192.
 #![no_main]
 
 use caliptra_drivers::{
-
-    HashValue, LmotsAlgorithmType, Lms, LmsAlgorithmType, LmsIdentifier,
-    LmsSignature, Sha256,LmsPublicKey
-
+    HashValue, LmotsAlgorithmType, Lms, LmsAlgorithmType, LmsIdentifier, LmsPublicKey,
+    LmsSignature, Sha256,
 };
 use caliptra_registers::sha256::Sha256Reg;
 use caliptra_test_harness::test_suite;
@@ -264,15 +262,13 @@ fn test_failures_lms_24() {
     };
 
     let success = Lms::default()
-
         .verify_lms_signature(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &lms_sig)
-
         .unwrap();
     assert_eq!(success, true);
 
     let new_message = "this is a different message".as_bytes();
     let should_fail = Lms::default()
-        .verify_lms_signature(&mut sha256,&new_message, &LMS_PUBLIC_KEY, &lms_sig)
+        .verify_lms_signature(&mut sha256, &new_message, &LMS_PUBLIC_KEY, &lms_sig)
         .unwrap();
     assert_eq!(should_fail, false);
 
@@ -283,7 +279,6 @@ fn test_failures_lms_24() {
     };
     let should_fail = Lms::default()
         .verify_lms_signature(&mut sha256, &MESSAGE, &new_lms_public_key, &lms_sig)
-
         .unwrap();
     assert_eq!(should_fail, false);
 
@@ -293,7 +288,7 @@ fn test_failures_lms_24() {
         ..lms_sig
     };
     let should_fail = Lms::default()
-        .verify_lms_signature(&mut sha256,&MESSAGE, &LMS_PUBLIC_KEY, &new_lms_sig)
+        .verify_lms_signature(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &new_lms_sig)
         .unwrap();
     assert_eq!(should_fail, false);
 
@@ -302,7 +297,7 @@ fn test_failures_lms_24() {
         ..LMS_PUBLIC_KEY
     };
     let should_fail = Lms::default()
-        .verify_lms_signature(&mut sha256,&MESSAGE, &new_public_key, &lms_sig)
+        .verify_lms_signature(&mut sha256, &MESSAGE, &new_public_key, &lms_sig)
         .unwrap();
     assert_eq!(should_fail, false);
 

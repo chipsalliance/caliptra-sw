@@ -16,8 +16,8 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{
-    lookup_lmots_algorithm_type, lookup_lms_algorithm_type, HashValue, LmotsAlgorithmType,
-    Lms, LmsAlgorithmType, LmsIdentifier, LmsSignature, Sha256, get_lms_parameters, LmsPublicKey
+    get_lms_parameters, lookup_lmots_algorithm_type, lookup_lms_algorithm_type, HashValue,
+    LmotsAlgorithmType, Lms, LmsAlgorithmType, LmsIdentifier, LmsPublicKey, LmsSignature, Sha256,
 };
 use caliptra_registers::sha256::Sha256Reg;
 use caliptra_test_harness::test_suite;
