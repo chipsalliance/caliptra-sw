@@ -311,6 +311,7 @@ dependencies = [
  "caliptra-verilated",
  "rand",
  "ureg",
+ "zerocopy",
 ]
 
 [[package]]

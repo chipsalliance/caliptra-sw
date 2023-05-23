@@ -8,6 +8,7 @@ use std::{
 };
 
 use caliptra_emu_bus::Bus;
+use zerocopy::{AsBytes, LayoutVerified, Unalign};
 
 use caliptra_registers::mbox;
 use caliptra_registers::mbox::enums::{MboxFsmE, MboxStatusE};
@@ -31,6 +32,11 @@ pub use model_emulated::ModelEmulated;
 #[cfg(feature = "verilator")]
 pub use model_verilated::ModelVerilated;
 use ureg::MmioMut;
+
+pub enum ShaAccMode {
+    Sha384Stream,
+    Sha512Stream,
+}
 
 /// Ideally, general-purpose functions would return `impl HwModel` instead of
 /// `DefaultHwModel` to prevent users from calling functions that aren't
@@ -528,37 +534,50 @@ pub trait HwModel {
     /// Streams `data` to the sha512acc SoC interface. If `sha384` computes
     /// the sha384 hash of `data`, else computes sha512 hash.
     ///
-    /// `dlen` is the size of data in bytes. sha512acc does not require streamed
-    /// data to be full words.
-    ///
     /// Returns the computed digest if the sha512acc lock can be acquired.
     /// Else, returns an error.
     fn compute_sha512_acc_digest(
         &mut self,
-        data: &[u32],
-        dlen: u32,
-        sha384: bool,
-    ) -> Result<Vec<u32>, ModelError> {
+        data: &[u8],
+        mode: ShaAccMode,
+    ) -> Result<Vec<u8>, ModelError> {
         self.soc_sha512_acc().control().write(|w| w.zeroize(true));
 
         if self.soc_sha512_acc().lock().read().lock() {
             return Err(ModelError::UnableToLockSha512Acc);
         }
 
-        self.soc_sha512_acc().dlen().write(|_| dlen);
+        self.soc_sha512_acc()
+            .dlen()
+            .write(|_| data.len().try_into().unwrap());
 
         self.soc_sha512_acc().mode().write(|w| {
-            w.mode(|w| {
-                if sha384 {
-                    w.sha_stream_384()
-                } else {
-                    w.sha_stream_512()
-                }
+            w.mode(|w| match mode {
+                ShaAccMode::Sha384Stream => w.sha_stream_384(),
+                ShaAccMode::Sha512Stream => w.sha_stream_512(),
             })
         });
 
-        for word in data {
-            self.soc_sha512_acc().datain().write(|_| word.swap_bytes());
+        // Unwrap cannot fail, count * sizeof(u32) is always smaller than data.len()
+        let (prefix_words, suffix_bytes) =
+            LayoutVerified::<_, [Unalign<u32>]>::new_slice_unaligned_from_prefix(
+                data,
+                data.len() / 4,
+            )
+            .unwrap();
+
+        for word in prefix_words.into_slice() {
+            self.soc_sha512_acc()
+                .datain()
+                .write(|_| word.get().swap_bytes());
+        }
+
+        if !suffix_bytes.is_empty() {
+            let mut word = [0u8; 4];
+            word[..suffix_bytes.len()].copy_from_slice(suffix_bytes);
+            self.soc_sha512_acc()
+                .datain()
+                .write(|_| u32::from_be_bytes(word));
         }
 
         self.soc_sha512_acc().execute().write(|w| w.execute(true));
@@ -567,7 +586,7 @@ pub trait HwModel {
 
         self.soc_sha512_acc().lock().write(|w| w.lock(true)); // clear lock
 
-        Ok(self.soc_sha512_acc().digest().read().to_vec())
+        Ok(self.soc_sha512_acc().digest().read().as_bytes().to_vec())
     }
 
     /// Upload firmware to the mailbox.
@@ -616,7 +635,7 @@ pub trait HwModel {
 
 #[cfg(test)]
 mod tests {
-    use crate::{mmio::Rv32GenMmio, BootParams, HwModel, InitParams, ModelError};
+    use crate::{mmio::Rv32GenMmio, BootParams, HwModel, InitParams, ModelError, ShaAccMode};
     use caliptra_builder::FwId;
     use caliptra_emu_bus::Bus;
     use caliptra_emu_types::RvSize;
@@ -855,9 +874,8 @@ mod tests {
     }
 
     struct Sha384Test<'a> {
-        msg: &'a [u32],
-        dlen: u32,
-        expected: &'a [u32],
+        msg: &'a [u8],
+        expected: &'a [u8],
     }
 
     #[test]
@@ -880,43 +898,48 @@ mod tests {
         })
         .unwrap();
 
-        // Note: Streamed `msg` data is big endian. `expected` digest values are little-endian
-        // words.
         let tests = vec![
             Sha384Test {
                 msg: &[
-                    0xea89d79d, 0x4547c025, 0x1f387ad5, 0xfb01de22, 0x723cbd0a, 0x44fddedb,
-                    0xc11332e4, 0xef3e5889, 0x2066ba85, 0xe23dda44, 0xe67086dd, 0x48545132,
-                    0xeebb5501, 0x752c70bb, 0x2ec31a78, 0x60189413, 0xe36f57cb, 0x57b7057a,
-                    0x415b5bda, 0xc3d76d8f, 0x402e040b, 0x345a39f4, 0xe0dce42a, 0x36c33456,
-                    0x52bce225, 0x1f484543, 0x953d257e, 0x23682651, 0x17251b77, 0x51a8b405,
-                    0x372a0266, 0xbdf128ac,
+                    0x9d, 0xd7, 0x89, 0xea, 0x25, 0xc0, 0x47, 0x45, 0xd5, 0x7a, 0x38, 0x1f, 0x22,
+                    0xde, 0x01, 0xfb, 0x0a, 0xbd, 0x3c, 0x72, 0xdb, 0xde, 0xfd, 0x44, 0xe4, 0x32,
+                    0x13, 0xc1, 0x89, 0x58, 0x3e, 0xef, 0x85, 0xba, 0x66, 0x20, 0x44, 0xda, 0x3d,
+                    0xe2, 0xdd, 0x86, 0x70, 0xe6, 0x32, 0x51, 0x54, 0x48, 0x01, 0x55, 0xbb, 0xee,
+                    0xbb, 0x70, 0x2c, 0x75, 0x78, 0x1a, 0xc3, 0x2e, 0x13, 0x94, 0x18, 0x60, 0xcb,
+                    0x57, 0x6f, 0xe3, 0x7a, 0x05, 0xb7, 0x57, 0xda, 0x5b, 0x5b, 0x41, 0x8f, 0x6d,
+                    0xd7, 0xc3, 0x0b, 0x04, 0x2e, 0x40, 0xf4, 0x39, 0x5a, 0x34, 0x2a, 0xe4, 0xdc,
+                    0xe0, 0x56, 0x34, 0xc3, 0x36, 0x25, 0xe2, 0xbc, 0x52, 0x43, 0x45, 0x48, 0x1f,
+                    0x7e, 0x25, 0x3d, 0x95, 0x51, 0x26, 0x68, 0x23, 0x77, 0x1b, 0x25, 0x17, 0x05,
+                    0xb4, 0xa8, 0x51, 0x66, 0x02, 0x2a, 0x37, 0xac, 0x28, 0xf1, 0xbd,
                 ],
-                dlen: 128,
                 expected: &[
-                    0x965b83f5, 0xd34f7443, 0xeb88e78f, 0xcc234791, 0x56c9cb00, 0x80dd6833,
-                    0x4dac0ad3, 0x3ba8c774, 0x100e4400, 0x63db28b4, 0xb51ac37, 0x705d4d70,
-                    0xa6bb0a3c, 0xf3d9dd14, 0xa9496a55, 0x67c16cb6,
-                ],
-            },
-            Sha384Test {
-                msg: &[0x74736574], // Bytes "test" converted to little endian
-                dlen: 4,
-                // Computed with sha384sum
-                expected: &[
-                    0x76841232, 0x0f7b0aa5, 0x812fce42, 0x8dc4706b, 0x3cae50e0, 0x2a64caa1,
-                    0x6a782249, 0xbfe8efc4, 0xb7ef1ccb, 0x126255d1, 0x96047dfe, 0xdf17a0a9,
-                    0xd5bc262b, 0xa2b797a3, 0xc4fea9c9, 0xc99e829a,
+                    0xf5, 0x83, 0x5b, 0x96, 0x43, 0x74, 0x4f, 0xd3, 0x8f, 0xe7, 0x88, 0xeb, 0x91,
+                    0x47, 0x23, 0xcc, 0x00, 0xcb, 0xc9, 0x56, 0x33, 0x68, 0xdd, 0x80, 0xd3, 0x0a,
+                    0xac, 0x4d, 0x74, 0xc7, 0xa8, 0x3b, 0x00, 0x44, 0x0e, 0x10, 0xb4, 0x28, 0xdb,
+                    0x63, 0x37, 0xac, 0x51, 0x0b, 0x70, 0x4d, 0x5d, 0x70, 0x3c, 0x0a, 0xbb, 0xa6,
+                    0x14, 0xdd, 0xd9, 0xf3, 0x55, 0x6a, 0x49, 0xa9, 0xb6, 0x6c, 0xc1, 0x67,
                 ],
             },
             Sha384Test {
-                msg: &[0x74736574], // Bytes "test" converted to little endian
-                dlen: 2,            // Only hash the bytes "te"
+                msg: &[0x74, 0x65, 0x73, 0x74], // Bytes "test"
                 // Computed with sha384sum
                 expected: &[
-                    0x7c9c881a, 0x549e5c64, 0x9a49c98a, 0xf4ead3ca, 0x907e6c6c, 0xfc7f98f4,
-                    0x8f640ad7, 0xf783584b, 0xf460cacc, 0x6fa3dd75, 0x55d71820, 0x199afcf8,
-                    0xf23c8f0, 0xa48ae0df, 0x9583c0da, 0xa52da0e6,
+                    0x32, 0x12, 0x84, 0x76, 0xa5, 0x0a, 0x7b, 0x0f, 0x42, 0xce, 0x2f, 0x81, 0x6b,
+                    0x70, 0xc4, 0x8d, 0xe0, 0x50, 0xae, 0x3c, 0xa1, 0xca, 0x64, 0x2a, 0x49, 0x22,
+                    0x78, 0x6a, 0xc4, 0xef, 0xe8, 0xbf, 0xcb, 0x1c, 0xef, 0xb7, 0xd1, 0x55, 0x62,
+                    0x12, 0xfe, 0x7d, 0x04, 0x96, 0xa9, 0xa0, 0x17, 0xdf, 0x2b, 0x26, 0xbc, 0xd5,
+                    0xa3, 0x97, 0xb7, 0xa2, 0xc9, 0xa9, 0xfe, 0xc4, 0x9a, 0x82, 0x9e, 0xc9,
+                ],
+            },
+            Sha384Test {
+                msg: &[0x74, 0x65], // Bytes "te"
+                // Computed with sha384sum
+                expected: &[
+                    0x1a, 0x88, 0x9c, 0x7c, 0x64, 0x5c, 0x9e, 0x54, 0x8a, 0xc9, 0x49, 0x9a, 0xca,
+                    0xd3, 0xea, 0xf4, 0x6c, 0x6c, 0x7e, 0x90, 0xf4, 0x98, 0x7f, 0xfc, 0xd7, 0x0a,
+                    0x64, 0x8f, 0x4b, 0x58, 0x83, 0xf7, 0xcc, 0xca, 0x60, 0xf4, 0x75, 0xdd, 0xa3,
+                    0x6f, 0x20, 0x18, 0xd7, 0x55, 0xf8, 0xfc, 0x9a, 0x19, 0xf0, 0xc8, 0x23, 0x0f,
+                    0xdf, 0xe0, 0x8a, 0xa4, 0xda, 0xc0, 0x83, 0x95, 0xe6, 0xa0, 0x2d, 0xa5,
                 ],
             },
         ];
@@ -924,7 +947,7 @@ mod tests {
         for test in tests {
             assert_eq!(
                 model
-                    .compute_sha512_acc_digest(test.msg, test.dlen, /*sha384=*/ true)
+                    .compute_sha512_acc_digest(test.msg, ShaAccMode::Sha384Stream)
                     .unwrap(),
                 test.expected
             );
