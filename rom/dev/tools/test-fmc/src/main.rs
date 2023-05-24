@@ -170,19 +170,32 @@ fn create_certs() {
     cprint_slice_ref!("[fmc] FMCALIAS cert", &cert[.._cert_len]);
 }
 
+// Copy the tbs from DCCM
 fn copy_tbs(tbs: &mut [u8], ldevid_tbs: bool) {
-    // Copy the tbs from DCCM
-    let src = if ldevid_tbs {
-        unsafe {
-            let ptr = &mut LDEVID_TBS_ORG as *mut u8;
-            core::slice::from_raw_parts_mut(ptr, tbs.len())
+    const SIZE_LEN: usize = core::mem::size_of::<u32>();
+    const MAX_TBS_LEN: usize = 0x400 - SIZE_LEN;
+
+    let src = unsafe {
+        let ptr = if ldevid_tbs {
+            &mut LDEVID_TBS_ORG
+        } else {
+            &mut FMCALIAS_TBS_ORG
+        } as *mut u8;
+
+        let size_bytes = core::slice::from_raw_parts_mut(ptr, SIZE_LEN);
+        let size = u32::from_le_bytes(size_bytes.try_into().unwrap());
+
+        if size > MAX_TBS_LEN as u32 {
+            panic!("TBS size out of bounds: {} > {}", size, MAX_TBS_LEN);
         }
-    } else {
-        unsafe {
-            let ptr = &mut FMCALIAS_TBS_ORG as *mut u8;
-            core::slice::from_raw_parts_mut(ptr, tbs.len())
-        }
+
+        core::slice::from_raw_parts_mut(ptr.add(SIZE_LEN), size as usize)
     };
+
+    if src.len() != tbs.len() {
+        panic!("Bad TBS size: {}, expected {}", src.len(), tbs.len());
+    }
+
     tbs.copy_from_slice(src);
 }
 

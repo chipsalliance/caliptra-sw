@@ -35,6 +35,14 @@ pub const KEY_ID_IDEVID_PRIV_KEY: KeyId = KeyId::KeyId7;
 pub const KEY_ID_LDEVID_PRIV_KEY: KeyId = KeyId::KeyId5;
 pub const KEY_ID_FMC_PRIV_KEY: KeyId = KeyId::KeyId7;
 
+caliptra_err_def! {
+    RomGlobal,
+    GlobalErr
+    {
+        TbsUnsupportedDataLength = 0x6,
+    }
+}
+
 extern "C" {
     static mut LDEVID_TBS_ORG: u8;
     static mut FMCALIAS_TBS_ORG: u8;
@@ -73,18 +81,33 @@ impl ColdResetFlow {
     }
 }
 
+// Writes out a u32 length in little-endian byte order, followed by the TBS.
 pub fn copy_tbs(tbs: &[u8], tbs_type: TbsType) -> CaliptraResult<()> {
-    let dst = match tbs_type {
-        TbsType::LdevidTbs => unsafe {
-            let ptr = &mut LDEVID_TBS_ORG as *mut u8;
-            core::slice::from_raw_parts_mut(ptr, tbs.len())
-        },
-        TbsType::FmcaliasTbs => unsafe {
-            let ptr = &mut FMCALIAS_TBS_ORG as *mut u8;
-            core::slice::from_raw_parts_mut(ptr, tbs.len())
-        },
+    const SIZE_LEN: usize = core::mem::size_of::<u32>();
+    const MAX_TBS_LEN: usize = 0x400 - SIZE_LEN;
+
+    if tbs.len() > MAX_TBS_LEN {
+        raise_err!(TbsUnsupportedDataLength);
+    }
+
+    let (len_dst, tbs_dst) = unsafe {
+        let ptr = match tbs_type {
+            TbsType::LdevidTbs => &mut LDEVID_TBS_ORG,
+            TbsType::FmcaliasTbs => &mut FMCALIAS_TBS_ORG,
+        } as *mut u8;
+
+        ptr.write_bytes(0, SIZE_LEN);
+
+        (
+            core::slice::from_raw_parts_mut(ptr, SIZE_LEN),
+            core::slice::from_raw_parts_mut(ptr.add(SIZE_LEN), tbs.len()),
+        )
     };
 
-    dst[..tbs.len()].copy_from_slice(tbs);
+    let len_bytes = tbs.len().to_le_bytes();
+
+    len_dst[..len_bytes.len()].copy_from_slice(&len_bytes);
+    tbs_dst[..tbs.len()].copy_from_slice(tbs);
+
     Ok(())
 }
