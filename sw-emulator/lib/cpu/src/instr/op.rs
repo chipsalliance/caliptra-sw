@@ -18,6 +18,7 @@ References:
 
 use crate::cpu::Cpu;
 use crate::types::{RvInstr32OpFunct3, RvInstr32OpFunct7, RvInstr32Opcode, RvInstr32R};
+use crate::xreg_file::XReg;
 use caliptra_emu_bus::Bus;
 use caliptra_emu_types::{RvData, RvException};
 
@@ -159,6 +160,42 @@ impl<TBus: Bus> Cpu<TBus> {
                     dividend.wrapping_rem(divisor) as RvData
                 }
             }
+
+            // AND with inverted operand
+            (RvInstr32OpFunct3::Seven, RvInstr32OpFunct7::Andn) => val1 & !val2,
+
+            // OR with inverted operand
+            (RvInstr32OpFunct3::Six, RvInstr32OpFunct7::Orn) => val1 | !val2,
+
+            // Exclusive NOR
+            (RvInstr32OpFunct3::Four, RvInstr32OpFunct7::Xnor) => !(val1 ^ val2),
+
+            // Maximum
+            (RvInstr32OpFunct3::Six, RvInstr32OpFunct7::MinMaxClmul) => {
+                i32::max(val1 as i32, val2 as i32) as u32
+            }
+
+            // Maximum unsigned
+            (RvInstr32OpFunct3::Seven, RvInstr32OpFunct7::MinMaxClmul) => u32::max(val1, val2),
+
+            // Minimum
+            (RvInstr32OpFunct3::Four, RvInstr32OpFunct7::MinMaxClmul) => {
+                i32::min(val1 as i32, val2 as i32) as u32
+            }
+
+            // Minimum unsigned
+            (RvInstr32OpFunct3::Five, RvInstr32OpFunct7::MinMaxClmul) => u32::min(val1, val2),
+
+            // Zero-extend halfword
+            (RvInstr32OpFunct3::Four, RvInstr32OpFunct7::Zext) if instr.rs2() == XReg::X0 => {
+                val1 & 0xffff
+            }
+
+            // Rotate left
+            (RvInstr32OpFunct3::One, RvInstr32OpFunct7::Rotate) => val1.rotate_left(val2 & 0x1f),
+
+            // Rotate right
+            (RvInstr32OpFunct3::Five, RvInstr32OpFunct7::Rotate) => val1.rotate_right(val2 & 0x1f),
 
             // Illegal instruction
             _ => Err(RvException::illegal_instr(instr.0))?,

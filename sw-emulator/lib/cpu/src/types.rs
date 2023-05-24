@@ -123,6 +123,13 @@ emu_enum! {
 
         /// Shift right arithmetic immediate
         Srai = 0b0100000,
+
+        // Bitmanip instructions
+        Bitmanip = 0b011_0000,
+
+        Orc = 0b001_0100,
+
+        Rev8 = 0b011_0100,
     };
     Invalid
 }
@@ -283,6 +290,13 @@ emu_enum! {
 
         /// Sub function
         Sub = 0b010_0000,
+
+        // Min, Max, or Clmul
+        MinMaxClmul = 0b000_0101,
+
+        Zext = 0b000_0100,
+
+        Rotate = 0b011_0000,
     };
     Invalid
 }
@@ -333,6 +347,15 @@ impl RvInstr32OpFunct7 {
 
     /// Remainder Unsigned function
     pub const Remu: RvInstr32OpFunct7 = RvInstr32OpFunct7::Mul;
+
+    // AND with inverted operand
+    pub const Andn: RvInstr32OpFunct7 = RvInstr32OpFunct7::Sub;
+
+    // OR with inverted operand
+    pub const Orn: RvInstr32OpFunct7 = RvInstr32OpFunct7::Sub;
+
+    // XNOR with inverted operand
+    pub const Xnor: RvInstr32OpFunct7 = RvInstr32OpFunct7::Sub;
 }
 
 emu_enum! {
@@ -383,6 +406,8 @@ bitfield! {
 
     /// Opcode function
     pub u32, funct7, set_funct7: 31, 25;
+
+    pub u32, funct5, set_funct5: 24, 20;
 
     /// Immediate value
     pub i32, imm, set_imm: 31, 20;
