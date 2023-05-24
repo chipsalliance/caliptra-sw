@@ -8,6 +8,7 @@ pub mod hand_off;
 #[macro_use]
 pub mod printer;
 pub mod boot_status;
+pub mod fuse;
 pub mod pcr;
 
 ///merge imports
@@ -17,5 +18,6 @@ pub use hand_off::{
 };
 
 pub use boot_status::RomBootStatus;
+pub use fuse::{FuseLogEntry, FuseLogEntryId};
 pub use pcr::{PcrLogEntry, PcrLogEntryId};
 pub use printer::MutablePrinter;
