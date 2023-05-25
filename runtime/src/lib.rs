@@ -8,25 +8,13 @@ mod verify;
 use mailbox::Mailbox;
 
 use caliptra_common::cprintln;
-use caliptra_drivers::{caliptra_err_def, CaliptraResult, Ecc384};
+use caliptra_drivers::{CaliptraError, CaliptraResult, Ecc384};
 use caliptra_registers::{
     ecc::EccReg,
     mbox::{enums::MboxStatusE, MboxCsr},
     sha512_acc::Sha512AccCsr,
 };
 use zerocopy::{AsBytes, FromBytes};
-
-caliptra_err_def! {
-    Runtime,
-    RuntimeErr
-    {
-        // Internal
-        InternalErr = 0x1,
-        UnimplementedCommand = 0x2,
-        InsufficientMemory = 0x3,
-        EcdsaVerificationFailed = 0x4,
-    }
-}
 
 #[derive(PartialEq, Eq)]
 pub struct CommandId(pub u32);
@@ -106,30 +94,33 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     let dlen = mbox.dlen() as usize;
     let dlen_words = mbox.dlen_words() as usize;
     let mut buf = [0u32; 1024];
-    mbox.copy_from_mbox(buf.get_mut(..dlen_words).ok_or(err_u32!(InternalErr))?);
+    mbox.copy_from_mbox(
+        buf.get_mut(..dlen_words)
+            .ok_or(CaliptraError::RUNTIME_INTERNAL)?,
+    );
 
     if dlen > buf.len() * 4 {
         // dlen larger than max message
-        return Err(err_u32!(InsufficientMemory));
+        Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
     }
 
     let cmd_bytes = buf
         .as_bytes()
         .get(..dlen)
-        .ok_or(err_u32!(InsufficientMemory))?;
+        .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
 
     cprintln!("[rt] Received command=0x{:x}, len={}", cmd_id, mbox.dlen());
     match CommandId::from(cmd_id) {
-        CommandId::FIRMWARE_LOAD => Err(err_u32!(UnimplementedCommand)),
-        CommandId::GET_IDEV_CSR => Err(err_u32!(UnimplementedCommand)),
-        CommandId::GET_LDEV_CERT => Err(err_u32!(UnimplementedCommand)),
+        CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        CommandId::GET_IDEV_CSR => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        CommandId::GET_LDEV_CERT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::ECDSA384_VERIFY => {
             verify::handle_ecdsa_verify(drivers, cmd_bytes)?;
             Ok(MboxStatusE::CmdComplete)
         }
-        CommandId::STASH_MEASUREMENT => Err(err_u32!(UnimplementedCommand)),
-        CommandId::INVOKE_DPE => Err(err_u32!(UnimplementedCommand)),
-        _ => Err(err_u32!(UnimplementedCommand)),
+        CommandId::STASH_MEASUREMENT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        CommandId::INVOKE_DPE => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }
 }
 

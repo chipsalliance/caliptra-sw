@@ -274,7 +274,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         // Verify the ECC public key index used verify header signature is encoded
         // in the header
         if header.vendor_ecc_pub_key_idx != info.vendor_ecc_pub_key_idx {
-            Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_PUB_KEY_IDX_MISMATCH)?;
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_MISMATCH)?;
         }
 
         // Verify owner signature
@@ -454,7 +454,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Self::effective_fuse_svn(self.env.fmc_svn(), self.env.anti_rollback_disable());
 
         if reason == ResetReason::UpdateReset && actual != self.env.get_fmc_digest_dv() {
-            Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH)?;
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_FMC_DIGEST_MISMATCH)?;
         }
 
         let info = ImageVerificationExeInfo {
@@ -612,7 +612,7 @@ mod tests {
         let result = verifier.verify_vendor_ecc_pk_idx(&preamble, ResetReason::UpdateReset);
         assert_eq!(
             result.err(),
-            Some(err_u32!(UpdateResetVenPubKeyIdxMismatch))
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_PUB_KEY_IDX_MISMATCH)
         );
     }
 
@@ -676,7 +676,10 @@ mod tests {
         };
 
         let result = verifier.verify_fmc(&verify_info, ResetReason::UpdateReset);
-        assert_eq!(result.err(), Some(err_u32!(UpdateResetFmcDigestMismatch)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_FMC_DIGEST_MISMATCH)
+        );
     }
 
     #[test]
@@ -703,7 +706,10 @@ mod tests {
         let mut verifier = ImageVerifier::new(TestEnv::default());
         let result = verifier.verify(&manifest, manifest.size, ResetReason::ColdReset);
         assert!(result.is_err());
-        assert_eq!(result.err(), Some(err_u32!(ManifestMarkerMismatch)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH)
+        );
     }
 
     #[test]
@@ -716,7 +722,10 @@ mod tests {
         let mut verifier = ImageVerifier::new(TestEnv::default());
         let result = verifier.verify(&manifest, manifest.size, ResetReason::ColdReset);
         assert!(result.is_err());
-        assert_eq!(result.err(), Some(err_u32!(ManifestSizeMismatch)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH)
+        );
     }
 
     #[test]
@@ -729,7 +738,10 @@ mod tests {
         let mut verifier = ImageVerifier::new(test_env);
         let result = verifier.verify_preamble(&preamble, ResetReason::ColdReset);
         assert!(result.is_err());
-        assert_eq!(result.err(), Some(err_u32!(VendorPubKeyDigestInvalid)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID)
+        );
     }
 
     #[test]
@@ -759,7 +771,10 @@ mod tests {
         let mut verifier = ImageVerifier::new(test_env);
         let preamble = ImagePreamble::default();
         let result = verifier.verify_preamble(&preamble, ResetReason::ColdReset);
-        assert_eq!(result.err(), Some(err_u32!(VendorPubKeyDigestMismatch)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_MISMATCH)
+        );
     }
 
     #[test]
@@ -776,7 +791,10 @@ mod tests {
             owner_pub_keys_digest: ImageDigest::default(),
         };
         let result = verifier.verify_header(&header, &header_info);
-        assert_eq!(result.err(), Some(err_u32!(VendorPubKeyDigestInvalidArg)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID_ARG)
+        );
     }
 
     #[test]
@@ -793,7 +811,10 @@ mod tests {
             owner_pub_keys_digest: ImageDigest::default(),
         };
         let result = verifier.verify_header(&header, &header_info);
-        assert_eq!(result.err(), Some(err_u32!(VendorEccSignatureInvalidArg)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID)
+        );
     }
 
     #[test]
@@ -815,7 +836,10 @@ mod tests {
             owner_pub_keys_digest: ImageDigest::default(),
         };
         let result = verifier.verify_header(&header, &header_info);
-        assert_eq!(result.err(), Some(err_u32!(VendorEccSignatureInvalid)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID)
+        );
     }
 
     #[test]
@@ -835,7 +859,10 @@ mod tests {
             owner_pub_keys_digest: ImageDigest::default(),
         };
         let result = verifier.verify_header(&header, &header_info);
-        assert_eq!(result.err(), Some(err_u32!(VendorEccPubKeyIndexMismatch)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_MISMATCH)
+        );
     }
 
     #[test]
@@ -855,7 +882,10 @@ mod tests {
             owner_pub_keys_digest: ImageDigest::default(),
         };
         let result = verifier.verify_header(&header, &header_info);
-        assert_eq!(result.err(), Some(err_u32!(OwnerPubKeyDigestInvalidArg)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_INVALID_ARG)
+        );
     }
 
     #[test]
@@ -874,7 +904,10 @@ mod tests {
             owner_pub_keys_digest: ImageDigest::default(),
         };
         let result = verifier.verify_header(&header, &header_info);
-        assert_eq!(result.err(), Some(err_u32!(OwnerEccSignatureInvalidArg)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID_ARG)
+        );
     }
 
     #[test]
@@ -910,7 +943,10 @@ mod tests {
             digest: &ImageDigest::default(),
         };
         let result = verifier.verify_toc(&manifest, &toc_info, manifest.size);
-        assert_eq!(result.err(), Some(err_u32!(TocEntryCountInvalid)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_TOC_ENTRY_COUNT_INVALID)
+        );
     }
 
     #[test]
@@ -923,7 +959,10 @@ mod tests {
             digest: &DUMMY_DATA,
         };
         let result = verifier.verify_toc(&manifest, &toc_info, manifest.size);
-        assert_eq!(result.err(), Some(err_u32!(TocDigestMismatch)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_MISMATCH)
+        );
     }
 
     #[test]
@@ -948,7 +987,10 @@ mod tests {
             &toc_info,
             manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
         );
-        assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP)
+        );
 
         // Case 1:
         // [-FMC--]
@@ -962,7 +1004,10 @@ mod tests {
             &toc_info,
             manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
         );
-        assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP)
+        );
 
         // Case 2:
         // [-FMC--]
@@ -976,7 +1021,11 @@ mod tests {
             &toc_info,
             manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
         );
-        assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
+
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP)
+        );
 
         // Case 3:
         //   [-FMC-]
@@ -990,7 +1039,10 @@ mod tests {
             &toc_info,
             manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
         );
-        assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP)
+        );
 
         // Case 4:
         //        [-FMC--]
@@ -1004,7 +1056,10 @@ mod tests {
             &toc_info,
             manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
         );
-        assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP)
+        );
 
         // Case 5:
         //  [---FMC---]
@@ -1018,7 +1073,10 @@ mod tests {
             &toc_info,
             manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
         );
-        assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP)
+        );
 
         // Case 6:
         //  [----RT----]
@@ -1032,7 +1090,10 @@ mod tests {
             &toc_info,
             manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
         );
-        assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP)
+        );
     }
 
     #[test]
@@ -1052,7 +1113,10 @@ mod tests {
         manifest.runtime.offset = 100;
         manifest.runtime.size = 200;
         let result = verifier.verify_toc(&manifest, &toc_info, 100);
-        assert_eq!(result.err(), Some(err_u32!(ImageLenMoreThanBundleSize)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE)
+        );
     }
 
     #[test]
@@ -1101,7 +1165,10 @@ mod tests {
             &toc_info,
             manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
         );
-        assert_eq!(result.err(), Some(err_u32!(FmcRuntimeIncorrectOrder)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_INCORRECT_ORDER)
+        );
     }
 
     #[test]
@@ -1113,7 +1180,10 @@ mod tests {
             ..Default::default()
         };
         let result = verifier.verify_fmc(&verify_info, ResetReason::ColdReset);
-        assert_eq!(result.err(), Some(err_u32!(FmcDigestMismatch)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH)
+        );
     }
 
     #[test]
@@ -1146,7 +1216,10 @@ mod tests {
             ..Default::default()
         };
         let result = verifier.verify_runtime(&verify_info);
-        assert_eq!(result.err(), Some(err_u32!(RuntimeDigestMismatch)));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH)
+        );
     }
 
     #[test]

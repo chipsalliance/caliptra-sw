@@ -22,7 +22,7 @@ mod sha256_kat;
 mod sha384_kat;
 mod sha384acc_kat;
 
-pub use caliptra_drivers::{CaliptraComponent, CaliptraError, CaliptraResult};
+pub use caliptra_drivers::{CaliptraError, CaliptraResult};
 pub use ecc384_kat::Ecc384Kat;
 pub use hmac384_kat::Hmac384Kat;
 pub use lms_kat::LmsKat;

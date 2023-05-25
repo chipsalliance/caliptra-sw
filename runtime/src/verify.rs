@@ -1,7 +1,9 @@
 // Licensed under the Apache-2.0 license
 
-use crate::{Drivers, EcdsaVerifyCmd, RuntimeErr};
-use caliptra_drivers::{Array4x12, CaliptraResult, Ecc384PubKey, Ecc384Scalar, Ecc384Signature};
+use crate::{Drivers, EcdsaVerifyCmd};
+use caliptra_drivers::{
+    Array4x12, CaliptraError, CaliptraResult, Ecc384PubKey, Ecc384Scalar, Ecc384Signature,
+};
 use zerocopy::FromBytes;
 
 /// Handle the `ECDSA384_SIGNATURE_VERIFY` mailbox command
@@ -26,10 +28,10 @@ pub(crate) fn handle_ecdsa_verify(drivers: &mut Drivers, cmd_args: &[u8]) -> Cal
 
         let success = drivers.ecdsa.verify(&pubkey, &digest, &sig)?;
         if !success {
-            return Err(RuntimeErr::EcdsaVerificationFailed.into());
+            return Err(CaliptraError::RUNTIME_ECDSA_VERIF_FAILED);
         }
     } else {
-        return Err(RuntimeErr::InsufficientMemory.into());
+        return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
     };
 
     Ok(())
