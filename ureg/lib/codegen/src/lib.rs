@@ -7,7 +7,8 @@ use std::{collections::HashMap, rc::Rc, str::FromStr};
 use proc_macro2::{Ident, Literal, TokenStream};
 use quote::{format_ident, quote};
 use ureg_schema::{
-    Enum, EnumVariant, FieldType, Register, RegisterType, RegisterWidth, ValidatedRegisterBlock,
+    Enum, EnumVariant, FieldType, Register, RegisterSubBlock, RegisterType, RegisterWidth,
+    ValidatedRegisterBlock,
 };
 
 fn tweak_keywords(s: &str) -> &str {
@@ -816,13 +817,14 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
             &options,
         );
 
-        for block_array in block.block().sub_arrays.iter() {
+        for sb in block.block().sub_blocks.iter() {
+            // TODO: Do this recursively
             let mut subblock_tokens = TokenStream::new();
-            let subblock_name = format_ident!("{}Block", camel_ident(&block_array.name));
-            let subblock_fn_name = snake_ident(&block_array.name);
-            let meta_prefix = camel_ident(&block_array.name).to_string();
+            let subblock_name = format_ident!("{}Block", camel_ident(&sb.block().name));
+            let subblock_fn_name = snake_ident(&sb.block().name);
+            let meta_prefix = camel_ident(&sb.block().name).to_string();
             generate_block_registers(
-                &block_array.registers,
+                &sb.block().registers,
                 &raw_ptr_type,
                 &mut meta_tokens,
                 &mut subblock_tokens,
@@ -832,20 +834,39 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
 
             subblock_type_tokens.extend(quote! {
                 #[derive(Clone, Copy)]
-                pub struct #subblock_name(*mut #raw_ptr_type);
-                impl #subblock_name {
+                pub struct #subblock_name<TMmio: ureg::Mmio + core::borrow::Borrow<TMmio>>{
+                    ptr: *mut #raw_ptr_type,
+                    mmio: TMmio,
+                }
+                impl<TMmio: ureg::Mmio> #subblock_name<TMmio> {
                     #subblock_tokens
                 }
             });
-            let start_offset = hex_literal(block_array.start_offset);
-            let stride = hex_literal(block_array.stride);
-            let array_len = block_array.len;
-            block_inner_tokens.extend(quote! {
-                pub fn #subblock_fn_name(&self, index: usize) -> #subblock_name {
-                    assert!(index < #array_len);
-                    #subblock_name(unsafe { self.0.add((#start_offset + index * #stride) / core::mem::size_of::<#raw_ptr_type>()) })
+            let start_offset = hex_literal(sb.start_offset());
+            match sb {
+                RegisterSubBlock::Array { stride, len, .. } => {
+                    let stride = hex_literal(*stride);
+                    block_inner_tokens.extend(quote! {
+                        pub fn #subblock_fn_name(&self, index: usize) -> #subblock_name<&TMmio> {
+                            assert!(index < #len);
+                            #subblock_name{
+                                ptr: unsafe { self.ptr.add((#start_offset + index * #stride) / core::mem::size_of::<#raw_ptr_type>()) }
+                                mmio: core::borrow::Borrow::borrow(&self.mmio),
+                            }
+                        }
+                    });
                 }
-            });
+                RegisterSubBlock::Single { .. } => {
+                    block_inner_tokens.extend(quote! {
+                        pub fn #subblock_fn_name(&self) -> #subblock_name<&TMmio> {
+                            #subblock_name{
+                                ptr: unsafe { self.ptr.add(#start_offset / core::mem::size_of::<#raw_ptr_type>()) },
+                                mmio: core::borrow::Borrow::borrow(&self.mmio),
+                            }
+                        }
+                    });
+                }
+            }
         }
         block_tokens = quote! {
             #[derive(Clone, Copy)]

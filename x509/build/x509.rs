@@ -39,6 +39,37 @@ const FLAG_MASK: u32 = dice::FLAG_BIT_NOT_CONFIGURED
     | dice::FLAG_BIT_DEBUG
     | dice::FLAG_BIT_FIXED_WIDTH;
 
+const AUTH_KEY_ID_OID: &str = "2.5.29.35";
+const TCG_UEID_OID: &str = "2.23.133.5.4.4";
+const TCG_TCB_INFO_OID: &str = "2.23.133.5.4.1";
+const TCG_MULTI_TCB_INFO_OID: &str = "2.23.133.5.4.5";
+
+#[derive(asn1::Asn1Write)]
+struct TcbInfo<'a> {
+    #[implicit(0)]
+    vendor: Option<asn1::Utf8String<'a>>,
+    #[implicit(1)]
+    model: Option<asn1::Utf8String<'a>>,
+    #[implicit(2)]
+    version: Option<asn1::Utf8String<'a>>,
+    #[implicit(3)]
+    svn: Option<u32>,
+    #[implicit(4)]
+    layer: Option<u64>,
+    #[implicit(5)]
+    index: Option<u64>,
+    #[implicit(6)]
+    fwids: Option<asn1::SequenceOfWriter<'a, &'a Fwid<'a>>>,
+    #[implicit(7)]
+    flags: Option<asn1::BitString<'a>>,
+    #[implicit(8)]
+    vendor_info: Option<&'a [u8]>,
+    #[implicit(9)]
+    tcb_type: Option<&'a [u8]>,
+    #[implicit(10)]
+    flags_mask: Option<asn1::BitString<'a>>,
+}
+
 /// Asymmetric Key
 pub trait AsymKey: Default {
     /// Retrieve Private Key
@@ -231,7 +262,7 @@ pub fn make_tcg_ueid_ext(ueid: &[u8]) -> X509Extension {
     let der = asn1::write_single(&tcg_ueid).unwrap();
     let der_str = format!("DER:{}", hex::encode(der).to_uppercase());
 
-    X509Extension::new(None, None, "2.23.133.5.4.4", &der_str).unwrap()
+    X509Extension::new(None, None, TCG_UEID_OID, &der_str).unwrap()
 }
 
 /// Make Subject Key ID extension
@@ -254,7 +285,7 @@ pub fn make_auth_key_id_ext(key_id: &[u8]) -> X509Extension {
     let der = asn1::write_single(&auth_key_id).unwrap();
     let der_str = format!("DER:{}", hex::encode(der).to_uppercase());
 
-    X509Extension::new(None, None, "2.5.29.35", &der_str).unwrap()
+    X509Extension::new(None, None, AUTH_KEY_ID_OID, &der_str).unwrap()
 }
 
 #[derive(asn1::Asn1Read, asn1::Asn1Write)]
@@ -268,77 +299,82 @@ pub struct FwidParam<'a> {
     pub(crate) fwid: Fwid<'a>,
 }
 
-// Make a tcg-dice-TcbInfo extension
+fn fixed_width_svn(svn: u8) -> u16 {
+    (1_u16 << 8) | svn as u16
+}
+
+// Make a tcg-dice-MultiTcbInfo extension
 pub fn make_fmc_dice_tcb_info_ext(
     flags: u32,
     svn: u8,
-    min_svn: u8,
+    svn_fuses: u8,
     fwids: &[FwidParam],
 ) -> X509Extension {
-    make_dice_tcb_info_ext_helper(
-        asn1::BitString::new(flags.to_be_bytes().as_ref(), 0),
-        asn1::BitString::new(FLAG_MASK.to_be_bytes().as_ref(), 0),
-        Some((1_u32 << 17) | ((svn as u32) << 8) | (min_svn as u32)),
-        fwids,
-    )
-}
+    let wide_svn = fixed_width_svn(svn);
+    let wide_svn_fuses = fixed_width_svn(svn_fuses);
 
-// Make a tcg-dice-TcbInfo extension
-pub fn make_rt_dice_tcb_info_ext(fwids: &[FwidParam]) -> X509Extension {
-    make_dice_tcb_info_ext_helper(None, None, None, fwids)
-}
+    let be_flags = flags.to_be_bytes();
+    let be_flags_mask = FLAG_MASK.to_be_bytes();
 
-fn make_dice_tcb_info_ext_helper(
-    flags: Option<asn1::BitString>,
-    flags_mask: Option<asn1::BitString>,
-    svn: Option<u32>,
-    fwids: &[FwidParam],
-) -> X509Extension {
-    #[derive(asn1::Asn1Write)]
-    struct TcbInfo<'a> {
-        #[implicit(0)]
-        vendor: Option<asn1::Utf8String<'a>>,
-        #[implicit(1)]
-        model: Option<asn1::Utf8String<'a>>,
-        #[implicit(2)]
-        version: Option<asn1::Utf8String<'a>>,
-        #[implicit(3)]
-        svn: Option<u32>,
-        #[implicit(4)]
-        layer: Option<u64>,
-        #[implicit(5)]
-        index: Option<u64>,
-        #[implicit(6)]
-        fwids: Option<asn1::SequenceOfWriter<'a, &'a Fwid<'a>>>,
-        #[implicit(7)]
-        flags: Option<asn1::BitString<'a>>,
-        #[implicit(8)]
-        vendor_info: Option<&'a [u8]>,
-        #[implicit(9)]
-        tcb_type: Option<&'a [u8]>,
-        #[implicit(10)]
-        flags_mask: Option<asn1::BitString<'a>>,
-    }
+    let device_info = TcbInfo {
+        vendor: Some(asn1::Utf8String::new("Caliptra")),
+        model: Some(asn1::Utf8String::new("Device")),
+        version: None,
+        svn: Some(wide_svn_fuses.into()),
+        layer: None,
+        index: None,
+        fwids: None,
+        flags: asn1::BitString::new(be_flags.as_ref(), 0),
+        vendor_info: None,
+        tcb_type: None,
+        flags_mask: asn1::BitString::new(be_flags_mask.as_ref(), 0),
+    };
 
     let asn1_fwids: Vec<&Fwid> = fwids.iter().map(|f| &f.fwid).collect();
 
-    let tcb_info = TcbInfo {
+    let fmc_info = TcbInfo {
         vendor: Some(asn1::Utf8String::new("Caliptra")),
-        model: None,
+        model: Some(asn1::Utf8String::new("FMC")),
         version: None,
-        svn,
+        svn: Some(wide_svn.into()),
         layer: None,
         index: None,
         fwids: Some(asn1::SequenceOfWriter::new(&asn1_fwids)),
-        flags,
+        flags: None,
         vendor_info: None,
         tcb_type: None,
-        flags_mask,
+        flags_mask: None,
     };
 
-    let der = asn1::write_single(&tcb_info).unwrap();
+    let tcb_infos = asn1::SequenceOfWriter::new(vec![&device_info, &fmc_info]);
+
+    let der = asn1::write_single(&tcb_infos).unwrap();
     let der_str = format!("DER:{}", hex::encode(der).to_uppercase());
-    X509Extension::new(None, None, "2.23.133.5.4.1", &der_str).unwrap()
+    X509Extension::new(None, None, TCG_MULTI_TCB_INFO_OID, &der_str).unwrap()
+}
+
+// Make a tcg-dice-TcbInfo extension
+pub fn make_rt_dice_tcb_info_ext(svn: u8, fwids: &[FwidParam]) -> X509Extension {
+    let wide_svn = fixed_width_svn(svn);
+    let asn1_fwids: Vec<&Fwid> = fwids.iter().map(|f| &f.fwid).collect();
+
+    let rt_info = TcbInfo {
+        vendor: Some(asn1::Utf8String::new("Caliptra")),
+        model: Some(asn1::Utf8String::new("RT")),
+        version: None,
+        svn: Some(wide_svn.into()),
+        layer: None,
+        index: None,
+        fwids: Some(asn1::SequenceOfWriter::new(&asn1_fwids)),
+        flags: None,
+        vendor_info: None,
+        tcb_type: None,
+        flags_mask: None,
+    };
+
+    let der = asn1::write_single(&rt_info).unwrap();
+    let der_str = format!("DER:{}", hex::encode(der).to_uppercase());
+    X509Extension::new(None, None, TCG_TCB_INFO_OID, &der_str).unwrap()
 }
 
 /// Retrieve the TBS from DER encoded vector

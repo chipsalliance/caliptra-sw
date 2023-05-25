@@ -57,8 +57,8 @@ mod tests {
             tcb_info_flags: &[0xB0, 0xB1, 0xB2, 0xB3],
             tcb_info_owner_pk_hash: &[0xB5u8; FmcAliasCertTbsParams::TCB_INFO_OWNER_PK_HASH_LEN],
             tcb_info_fmc_tci: &[0xB6u8; FmcAliasCertTbsParams::TCB_INFO_FMC_TCI_LEN],
-            tcb_info_svn: &[0xB7],
-            tcb_info_min_svn: &[0xB8],
+            tcb_info_fmc_svn: &[0xB7],
+            tcb_info_fmc_svn_fuses: &[0xB8],
             not_before: &NotBefore::default().not_before,
             not_after: &NotAfter::default().not_after,
         };
@@ -121,14 +121,15 @@ mod tests {
             params.tcb_info_fmc_tci,
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCertTbs::TCB_INFO_SVN_OFFSET
-                ..FmcAliasCertTbs::TCB_INFO_SVN_OFFSET + FmcAliasCertTbs::TCB_INFO_SVN_LEN],
-            params.tcb_info_svn,
+            &cert.tbs()[FmcAliasCertTbs::TCB_INFO_FMC_SVN_OFFSET
+                ..FmcAliasCertTbs::TCB_INFO_FMC_SVN_OFFSET + FmcAliasCertTbs::TCB_INFO_FMC_SVN_LEN],
+            params.tcb_info_fmc_svn,
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCertTbs::TCB_INFO_MIN_SVN_OFFSET
-                ..FmcAliasCertTbs::TCB_INFO_MIN_SVN_OFFSET + FmcAliasCertTbs::TCB_INFO_MIN_SVN_LEN],
-            params.tcb_info_min_svn,
+            &cert.tbs()[FmcAliasCertTbs::TCB_INFO_FMC_SVN_FUSES_OFFSET
+                ..FmcAliasCertTbs::TCB_INFO_FMC_SVN_FUSES_OFFSET
+                    + FmcAliasCertTbs::TCB_INFO_FMC_SVN_FUSES_LEN],
+            params.tcb_info_fmc_svn_fuses,
         );
 
         let ecdsa_sig = crate::Ecdsa384Signature {

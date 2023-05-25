@@ -675,7 +675,7 @@ mod rv16 {
             result
         }
         pub fn rs1rd(&self) -> XReg {
-            XReg::from(bit_range(self.0, 9, 7) + 8)
+            XReg::from(bit_range(self.0, 11, 7))
         }
     }
 

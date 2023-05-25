@@ -48,6 +48,31 @@ impl<TBus: Bus> Cpu<TBus> {
                     // Shift Left Logical Immediate (`slli`) Instruction
                     RvInstr32OpImmFunct7::Slli => reg.wrapping_shl(instr.shamt()) as RvData,
 
+                    // Count leading zeroes
+                    RvInstr32OpImmFunct7::Bitmanip if instr.funct5() == 0b0_0000 => {
+                        reg.leading_zeros()
+                    }
+
+                    // Count trailing zeroes
+                    RvInstr32OpImmFunct7::Bitmanip if instr.funct5() == 0b0_0001 => {
+                        reg.trailing_zeros()
+                    }
+
+                    // Count set bits
+                    RvInstr32OpImmFunct7::Bitmanip if instr.funct5() == 0b0_0010 => {
+                        reg.count_ones()
+                    }
+
+                    // Sign-extend byte
+                    RvInstr32OpImmFunct7::Bitmanip if instr.funct5() == 0b0_0100 => {
+                        reg as i8 as i32 as u32
+                    }
+
+                    // Sign-extend halfword
+                    RvInstr32OpImmFunct7::Bitmanip if instr.funct5() == 0b0_0101 => {
+                        reg as i16 as i32 as u32
+                    }
+
                     // Illegal Instruction
                     _ => Err(RvException::illegal_instr(instr.0))?,
                 }
@@ -84,6 +109,23 @@ impl<TBus: Bus> Cpu<TBus> {
                     RvInstr32OpImmFunct7::Srai => {
                         (reg as i32).wrapping_shr(instr.shamt()) as RvData
                     }
+                    // Rotate Right Immediate (`rori`)
+                    RvInstr32OpImmFunct7::Bitmanip => reg.rotate_right(instr.shamt()),
+
+                    // Bitwise OR-Combine, byte granule
+                    RvInstr32OpImmFunct7::Orc if instr.funct5() == 0b0_0111 => {
+                        let reg_bytes = reg.to_le_bytes();
+                        u32::from_le_bytes(core::array::from_fn(|i| {
+                            if reg_bytes[i] != 0 {
+                                0xff
+                            } else {
+                                0x00
+                            }
+                        }))
+                    }
+
+                    // Byte-reverse register
+                    RvInstr32OpImmFunct7::Rev8 if instr.funct5() == 0b1_1000 => reg.swap_bytes(),
 
                     // Illegal Instruction
                     _ => Err(RvException::illegal_instr(instr.0))?,

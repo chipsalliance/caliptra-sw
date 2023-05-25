@@ -36,6 +36,9 @@ pub struct ImageVerificationExeInfo {
     /// Security version number
     pub svn: u32,
 
+    /// The effective fuse SVN for this image
+    pub effective_fuse_svn: u32,
+
     /// Digest of the image
     pub digest: ImageDigest,
 }

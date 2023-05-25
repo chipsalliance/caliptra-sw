@@ -21,6 +21,7 @@ caliptra-registers = { path = "../registers" }
 ureg = { path = "../ureg" }
 caliptra-verilated = { path = "../hw-latest/verilated", optional = true, features = ["verilator"] }
 rand = "0.8"
+zerocopy = "0.6.1"
 
 [dev-dependencies]
 caliptra-builder = { path = "../builder" }

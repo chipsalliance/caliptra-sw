@@ -25,6 +25,7 @@ use crate::verifier::RomImageVerificationEnv;
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_drivers::{Array4x12, CaliptraResult, PcrBank, PcrId, Sha384};
 use caliptra_error::caliptra_err_def;
+use caliptra_image_verify::ImageVerificationInfo;
 use zerocopy::AsBytes;
 
 caliptra_err_def! {
@@ -39,6 +40,7 @@ caliptra_err_def! {
 extern "C" {
     static mut PCR_LOG_ORG: u8;
 }
+
 struct PcrExtender<'a> {
     pcr_bank: &'a mut PcrBank,
     sha384: &'a mut Sha384,
@@ -63,7 +65,10 @@ impl PcrExtender<'_> {
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-pub(crate) fn extend_pcr0(env: &mut RomImageVerificationEnv) -> CaliptraResult<()> {
+pub(crate) fn extend_pcr0(
+    env: &mut RomImageVerificationEnv,
+    info: &ImageVerificationInfo,
+) -> CaliptraResult<()> {
     // Clear the PCR
     env.pcr_bank.erase_pcr(caliptra_drivers::PcrId::PcrId0)?;
 
@@ -98,6 +103,7 @@ pub(crate) fn extend_pcr0(env: &mut RomImageVerificationEnv) -> CaliptraResult<(
     )?;
     pcr.extend(env.data_vault.fmc_tci(), PcrLogEntryId::FmcTci)?;
     pcr.extend_u8(env.data_vault.fmc_svn() as u8, PcrLogEntryId::FmcSvn)?;
+    pcr.extend_u8(info.fmc.effective_fuse_svn as u8, PcrLogEntryId::FmcFuseSvn)?;
 
     // TODO: Check PCR0 != 0
     Ok(())

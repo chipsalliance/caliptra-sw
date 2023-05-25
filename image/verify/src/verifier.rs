@@ -503,6 +503,9 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             }
         }
 
+        let effective_fuse_svn =
+            Self::effective_fuse_svn(self.env.fmc_svn(), self.env.anti_rollback_disable());
+
         if reason == ResetReason::UpdateReset && actual != self.env.get_fmc_digest_dv() {
             raise_err!(UpdateResetFmcDigestMismatch)
         }
@@ -511,6 +514,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             load_addr: verify_info.load_addr,
             entry_point: verify_info.entry_point,
             svn: verify_info.svn,
+            effective_fuse_svn,
             digest: verify_info.digest,
             size: verify_info.size,
         };
@@ -564,10 +568,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             }
         }
 
+        let effective_fuse_svn =
+            Self::effective_fuse_svn(self.env.runtime_svn(), self.env.anti_rollback_disable());
+
         let info = ImageVerificationExeInfo {
             load_addr: verify_info.load_addr,
             entry_point: verify_info.entry_point,
             svn: verify_info.svn,
+            effective_fuse_svn,
             digest: verify_info.digest,
             size: verify_info.size,
         };
@@ -588,6 +596,18 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         self.env
             .sha384_digest(range.start, range.len() as u32)
             .map_err(|_| err_u32!(VendorPubKeyDigestFailure))
+    }
+
+    /// Calculates the effective fuse SVN.
+    ///
+    /// If anti-rollback is disabled, the effective fuse-SVN is zero.
+    /// Otherwise, it is SVN-fuses.
+    fn effective_fuse_svn(fuse_svn: u32, anti_rollback_disable: bool) -> u32 {
+        if anti_rollback_disable {
+            0_u32
+        } else {
+            fuse_svn
+        }
     }
 }
 
