@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use core::{f32::consts::E, num::NonZeroU32};
+use core::num::NonZeroU32;
 
 use crate::*;
 use caliptra_drivers::*;

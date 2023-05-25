@@ -12,20 +12,10 @@ Abstract:
 
 --*/
 
-use crate::caliptra_err_def;
 use caliptra_drivers::{
-    Array4x12, Array4xN, CaliptraResult, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Signature,
+    Array4x12, Array4xN, CaliptraError, CaliptraResult, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey,
+    Ecc384Signature,
 };
-
-caliptra_err_def! {
-    Ecc384Kat,
-    Ecc384KatErr
-    {
-        SignatureGenerateFailure = 0x01,
-        SignatureVerifyFailure = 0x02,
-        SignatureMismatch = 0x03,
-    }
-}
 
 const PRIV_KEY: Array4x12 = Array4x12::new([
     0xc908585a, 0x486c3b3d, 0x8bbe50eb, 0x7d2eb8a0, 0x3aa04e3d, 0x8bde2c31, 0xa8a2a1e3, 0x349dc21c,
@@ -79,10 +69,10 @@ impl Ecc384Kat {
         let digest = Array4x12::new([0u32; 12]);
         let signature = ecc
             .sign(Ecc384PrivKeyIn::from(&PRIV_KEY), &digest)
-            .map_err(|_| err_u32!(SignatureGenerateFailure))?;
+            .map_err(|_| CaliptraError::ROM_KAT_ECC384_SIGNATURE_GENERATE_FAILURE)?;
 
         if signature != SIGNATURE {
-            raise_err!(SignatureGenerateFailure);
+            Err(CaliptraError::ROM_KAT_ECC384_SIGNATURE_GENERATE_FAILURE)?;
         }
 
         Ok(())
@@ -92,9 +82,9 @@ impl Ecc384Kat {
         let digest = [0u32; 12];
         if !ecc
             .verify(&PUB_KEY, &digest.into(), &SIGNATURE)
-            .map_err(|_| err_u32!(SignatureVerifyFailure))?
+            .map_err(|_| CaliptraError::ROM_KAT_ECC384_SIGNATURE_VERIFY_FAILURE)?
         {
-            raise_err!(SignatureMismatch)
+            Err(CaliptraError::ROM_KAT_ECC384_SIGNATURE_MISMATCH)?;
         }
 
         Ok(())

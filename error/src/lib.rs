@@ -352,6 +352,37 @@ impl CaliptraError {
 
     pub const ROM_KAT_SHA256_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90010001);
     pub const ROM_KAT_SHA256_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90010002);
+
+    pub const ROM_KAT_SHA384_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90020001);
+    pub const ROM_KAT_SHA384_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90020002);
+
+    /// HMAC-384 KAT
+    /// HmacFailure
+    pub const ROM_KAT_HMAC384_FAILURE: CaliptraError = CaliptraError::new_const(0x90030001);
+    pub const ROM_KAT_HMAC384_TAG_MISMATCH: CaliptraError = CaliptraError::new_const(0x90030002);
+
+    pub const ROM_KAT_ECC384_SIGNATURE_GENERATE_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x90040001);
+    pub const ROM_KAT_ECC384_SIGNATURE_VERIFY_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x90040002);
+    pub const ROM_KAT_ECC384_SIGNATURE_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x90040003);
+
+    /// SHA384 Accelerator KAT
+    pub const ROM_KAT_SHA384_ACC_DIGEST_START_OP_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x90050001);
+    pub const ROM_KAT_SHA384_ACC_DIGEST_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x90050002);
+    pub const ROM_KAT_SHA384_ACC_DIGEST_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x90050003);
+
+    /// SHA1 KAT
+    pub const ROM_KAT_SHA1_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90050001);
+    pub const ROM_KAT_SHA1_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90050002);
+
+    /// LmsKat = 0x9007,
+    pub const ROM_KAT_LMS_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90070001);
+    pub const ROM_KAT_LMS_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90070002);
 }
 
 impl From<core::num::NonZeroU32> for crate::CaliptraError {
@@ -378,7 +409,6 @@ pub enum CaliptraComponent {
     /// Deobfuscation Engine Component
     DeobfuscationEngine = 1,
 
-    ImageVerifier = 11,
     /// Runtime firmware
     /// TODO: Once https://github.com/chipsalliance/caliptra-sw/pull/220 is
     /// merged remove this and use RT error mechanism instead.
@@ -386,9 +416,6 @@ pub enum CaliptraComponent {
 
     /// FMC Rt Alias Layer
     RtAlias = 15,
-
-    /// SHA-256 KAT
-    Sha256Kat = 0x9001,
 
     /// SHA-384 KAT
     Sha384Kat = 0x9002,
@@ -407,53 +434,4 @@ pub enum CaliptraComponent {
 
     /// LMS KAT
     LmsKat = 0x9007,
-}
-
-#[macro_export]
-macro_rules! caliptra_err_def {
-    ($comp_name:ident, $enum_name: ident { $($field_name: ident = $field_val: literal,)* }) => {
-
-        #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-        #[allow(clippy::enum_variant_names)]
-        pub enum $enum_name {
-            $($field_name = $field_val,)*
-        }
-
-        impl $enum_name {
-            pub fn component(&self) -> $crate::CaliptraComponent {
-                $crate::CaliptraComponent::$comp_name
-            }
-        }
-
-
-        impl From<$enum_name> for core::num::NonZeroU32 {
-            fn from(val: $enum_name) -> Self {
-                // Panic is impossible as long as the enums don't define zero.
-                core::num::NonZeroU32::new(((($crate::CaliptraComponent::$comp_name) as u32) << 16) | (val as u32)).unwrap()
-            }
-        }
-        impl From<$enum_name> for u32 {
-            fn from(val: $enum_name) -> u32 {
-                core::num::NonZeroU32::from(val).into()
-            }
-        }
-
-        #[allow(unused_macros)]
-        macro_rules! raise_err { ($comp_err: ident) => {
-            Err(core::num::NonZeroU32::from($enum_name::$comp_err))?
-        } }
-
-        /// err_u32 : Create a CaliptraError from a  CaliptraComponentError
-        #[allow(unused_macros)]
-        macro_rules! err_u32 { ($comp_err: ident) => {
-            $crate::CaliptraError::from(core::num::NonZeroU32::from($enum_name::$comp_err))
-        } }
-
-        /// Create a CaliptraError from a CaliptraComponent and a CaliptraComponentError
-        impl From<$enum_name> for $crate::CaliptraError {
-            fn from(val: $enum_name) -> Self {
-                $crate::CaliptraError::from(core::num::NonZeroU32::from(val))
-            }
-        }
-    };
 }

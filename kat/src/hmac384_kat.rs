@@ -12,17 +12,7 @@ Abstract:
 
 --*/
 
-use crate::caliptra_err_def;
-use caliptra_drivers::{Array4x12, CaliptraResult, Hmac384};
-
-caliptra_err_def! {
-    Hmac384Kat,
-    Hmac384KatErr
-    {
-        HmacFailure = 0x01,
-        HmacTagMismatch = 0x02,
-    }
-}
+use caliptra_drivers::{Array4x12, CaliptraError, CaliptraResult, Hmac384};
 
 const KEY: Array4x12 = Array4x12::new([
     0xb0b0b0b, 0xb0b0b0b, 0xb0b0b0b, 0xb0b0b0b, 0xb0b0b0b, 0xb0b0b0b, 0xb0b0b0b, 0xb0b0b0b,
@@ -69,10 +59,10 @@ impl Hmac384Kat {
         let mut tag = Array4x12::default();
 
         hmac.hmac((&KEY).into(), data.into(), (&mut tag).into())
-            .map_err(|_| err_u32!(HmacFailure))?;
+            .map_err(|_| CaliptraError::ROM_KAT_HMAC384_FAILURE)?;
 
         if tag != EXPECTED_TAG {
-            raise_err!(HmacTagMismatch);
+            Err(CaliptraError::ROM_KAT_HMAC384_TAG_MISMATCH)?;
         }
 
         Ok(())
