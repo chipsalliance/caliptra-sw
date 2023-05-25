@@ -204,8 +204,8 @@ impl CaliptraError {
     ///        VendorPubKeyDigestInvalidArg = 27,
     pub const IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID_ARG: CaliptraError =
         CaliptraError::new_const(0x000b001b);
-    ///        FmcRuntimeInvalidType = 28,
-    pub const IMAGE_VERIFIER_ERR_FMC_RUNTIME_INVALID_TYPE: CaliptraError =
+    ///        VendorEccSignatureInvalidArg = 28,
+    pub const IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID_ARG: CaliptraError =
         CaliptraError::new_const(0x000b001c);
 
     ///        UpdateResetOwnerDigestFailure = 29,

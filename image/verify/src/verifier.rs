@@ -327,7 +327,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID_ARG)?;
         }
         if sig.r == ZERO_DIGEST || sig.s == ZERO_DIGEST {
-            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID)?;
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID_ARG)?;
         }
 
         let result = self
@@ -813,7 +813,8 @@ mod tests {
         let result = verifier.verify_header(&header, &header_info);
         assert_eq!(
             result.err(),
-            Some(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID)
+            // verified error
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID_ARG)
         );
     }
 
