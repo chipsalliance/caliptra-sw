@@ -16,17 +16,7 @@ use crate::flow::pcr::{extend_current_pcr, extend_journey_pcr};
 use crate::fmc_env::FmcEnv;
 use crate::HandOff;
 use caliptra_common::cprintln;
-use caliptra_drivers::{caliptra_err_def, CaliptraResult};
-
-caliptra_err_def! {
-    RtAlias,
-    RtAliasErr
-    {
-        // Invalid Operation
-        Unimplemented = 0x01,
-
-    }
-}
+use caliptra_drivers::{CaliptraError, CaliptraResult};
 
 #[derive(Default)]
 pub struct RtAliasLayer {}
@@ -35,7 +25,7 @@ impl DiceLayer for RtAliasLayer {
     /// Perform derivations for the DICE layer
     fn derive(_env: &FmcEnv, _input: &DiceInput) -> CaliptraResult<DiceOutput> {
         // TODO : implement derivation.
-        raise_err!(Unimplemented)
+        Err(CaliptraError::FMC_RTL_ALIAS_UNIMPLEMENTED)
     }
 }
 

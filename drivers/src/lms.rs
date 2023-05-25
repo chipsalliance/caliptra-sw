@@ -14,28 +14,13 @@ Abstract:
 
 --*/
 
-use crate::{caliptra_err_def, Array4x8, CaliptraResult, Sha256};
+use crate::{Array4x8, CaliptraError, CaliptraResult, Sha256};
 
 pub const D_PBLC: u16 = 0x8080;
 pub const D_MESG: u16 = 0x8181;
 pub const D_LEAF: u16 = 0x8282;
 pub const D_INTR: u16 = 0x8383;
 
-caliptra_err_def! {
-    Lms,
-    LmsErr
-    {
-        InvalidLmsAlgorithmType = 0x01,
-        InvalidLmotsAlgorithmType = 0x02,
-        InvalidWinternitzParameter = 0x03,
-        InvalidPValue = 0x04,
-        InvalidHashWidth = 0x05,
-        InvalidTreeHeight = 0x06,
-        InvalidQValue = 0x07,
-        InvalidIndex = 0x08,
-        PathOutOfBounds = 0x09,
-    }
-}
 #[derive(Default, Debug)]
 pub struct Lms {}
 
@@ -282,7 +267,7 @@ impl Lms {
                 return Ok(i);
             }
         }
-        raise_err!(InvalidLmotsAlgorithmType)
+        Err(CaliptraError::DRIVER_LMS_INVALID_LMOTS_ALGO_TYPE)
     }
 
     pub fn get_lms_parameters(&self, algo_type: &LmsAlgorithmType) -> CaliptraResult<(u8, u8)> {
@@ -297,9 +282,7 @@ impl Lms {
             LmsAlgorithmType::LmsSha256N24H15 => Ok((24, 15)),
             LmsAlgorithmType::LmsSha256N24H20 => Ok((24, 20)),
             LmsAlgorithmType::LmsSha256N24H25 => Ok((24, 25)),
-            LmsAlgorithmType::LmsReserved => {
-                raise_err!(InvalidLmsAlgorithmType)
-            }
+            LmsAlgorithmType::LmsReserved => Err(CaliptraError::DRIVER_LMS_INVALID_LMS_ALGO_TYPE),
         }
     }
 
@@ -307,12 +290,12 @@ impl Lms {
     pub fn coefficient(&self, s: &[u8], i: usize, w: usize) -> CaliptraResult<u8> {
         let valid_w = matches!(w, 1 | 2 | 4 | 8);
         if !valid_w {
-            raise_err!(InvalidWinternitzParameter)
+            return Err(CaliptraError::DRIVER_LMS_INVALID_WINTERNITS_PARAM);
         }
         let bitmask: u16 = (1 << (w)) - 1;
         let index = i * w / 8;
         if index >= s.len() {
-            raise_err!(InvalidIndex)
+            return Err(CaliptraError::DRIVER_LMS_INVALID_INDEX);
         }
         let b = s[index];
 
@@ -380,17 +363,17 @@ impl Lms {
     ) -> CaliptraResult<HashValue<N>> {
         if algo_type != &signature.ots_type {
             // println!("These have different ots types");
-            raise_err!(InvalidLmotsAlgorithmType);
+            return Err(CaliptraError::DRIVER_LMS_INVALID_LMOTS_ALGO_TYPE);
         }
         let params = self.get_lmots_parameters(algo_type)?;
         if params.p as usize != P {
-            raise_err!(InvalidPValue);
+            return Err(CaliptraError::DRIVER_LMS_INVALID_PVALUE);
         }
         if params.n > 32 {
-            raise_err!(InvalidHashWidth);
+            return Err(CaliptraError::DRIVER_LMS_INVALID_HASH_WIDTH);
         }
         if params.n as usize != N * 4 {
-            raise_err!(InvalidHashWidth);
+            return Err(CaliptraError::DRIVER_LMS_INVALID_HASH_WIDTH);
         }
         let mut z = [HashValue::<N>::default(); P];
 
@@ -464,7 +447,7 @@ impl Lms {
         let (_, tree_height) = self.get_lms_parameters(&lms_sig.sig_type)?;
         let mut node_num = (1 << tree_height) + q;
         if node_num > 2 << tree_height {
-            raise_err!(InvalidQValue);
+            return Err(CaliptraError::DRIVER_LMS_INVALID_PVALUE);
         }
         let message_digest = self.hash_message(
             sha256_driver,
@@ -488,7 +471,7 @@ impl Lms {
             15 => (),
             20 => (),
             25 => (),
-            _ => raise_err!(InvalidTreeHeight),
+            _ => return Err(CaliptraError::DRIVER_LMS_INVALID_TREE_HEIGHT),
         }
 
         let mut digest = Array4x8::default();
@@ -514,7 +497,7 @@ impl Lms {
                 for val in lms_sig
                     .lms_path
                     .get(i)
-                    .ok_or(err_u32!(PathOutOfBounds))?
+                    .ok_or(CaliptraError::DRIVER_LMS_PATH_OUT_OF_BOUNDS)?
                     .0
                     .iter()
                     .take(N)
@@ -542,7 +525,7 @@ impl Lms {
                 for val in lms_sig
                     .lms_path
                     .get(i)
-                    .ok_or(err_u32!(PathOutOfBounds))?
+                    .ok_or(CaliptraError::DRIVER_LMS_PATH_OUT_OF_BOUNDS)?
                     .0
                     .iter()
                     .take(N)

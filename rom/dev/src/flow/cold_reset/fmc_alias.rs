@@ -29,7 +29,7 @@ use caliptra_drivers::{
     DataVault, Hmac384Data, Hmac384Key, KeyId, KeyReadArgs, Lifecycle, Mailbox, MailboxRecvTxn,
     ResetReason, SocIfc, WarmResetEntry4, WarmResetEntry48,
 };
-use caliptra_error::caliptra_err_def;
+use caliptra_error::CaliptraError;
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
 use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams, NotAfter, NotBefore};
@@ -38,17 +38,6 @@ use zerocopy::{AsBytes, FromBytes};
 
 extern "C" {
     static mut MAN1_ORG: u32;
-}
-
-caliptra_err_def! {
-    FmcAlias,
-    FmcAliasErr
-    {
-        CertVerify = 0x1,
-        ManifestReadFailure = 0x2,
-        InvalidImageSize = 0x3,
-        MailboxStateInconsistent = 0x4,
-    }
 }
 
 #[derive(Default)]
@@ -192,7 +181,9 @@ impl FmcAliasLayer {
                 }
 
                 // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
-                let txn = mbox.peek_recv().ok_or(err_u32!(MailboxStateInconsistent))?;
+                let txn = mbox
+                    .peek_recv()
+                    .ok_or(CaliptraError::FMC_ALIAS_MAILBOX_STATE_INCONSISTENT)?;
 
                 // This is a download-firmware command; don't drop this, as the
                 // transaction will be completed by either report_error() (on
@@ -200,7 +191,7 @@ impl FmcAliasLayer {
                 let txn = ManuallyDrop::new(txn.start_txn());
                 if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
                     cprintln!("Invalid Image of size {} bytes" txn.dlen());
-                    raise_err!(InvalidImageSize);
+                    return Err(CaliptraError::FMC_ALIAS_INVALID_IMAGE_SIZE);
                 }
 
                 cprintln!("");
@@ -228,7 +219,7 @@ impl FmcAliasLayer {
             report_boot_status(FmcAliasManifestLoadComplete.into());
             Ok(result)
         } else {
-            raise_err!(ManifestReadFailure)
+            Err(CaliptraError::FMC_ALIAS_MANIFEST_READ_FAILURE)
         }
     }
 
@@ -429,7 +420,7 @@ impl FmcAliasLayer {
 
         // Verify the signature of the `To Be Signed` portion
         if !Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? {
-            raise_err!(CertVerify);
+            return Err(CaliptraError::FMC_ALIAS_CERT_VERIFY);
         }
 
         let _pub_x: [u8; 48] = (&pub_key.x).into();

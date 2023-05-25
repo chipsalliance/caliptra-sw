@@ -12,20 +12,10 @@ Abstract:
 
 --*/
 
-use crate::caliptra_err_def;
 use caliptra_drivers::{
-    CaliptraResult, HashValue, LmotsAlgorithmType, LmotsSignature, Lms, LmsAlgorithmType,
-    LmsIdentifier, LmsSignature, Sha256,
+    CaliptraError, CaliptraResult, HashValue, LmotsAlgorithmType, LmotsSignature, Lms,
+    LmsAlgorithmType, LmsIdentifier, LmsSignature, Sha256,
 };
-
-caliptra_err_def! {
-    LmsKat,
-    LmsKatErr
-    {
-        DigestFailure = 0x01,
-        DigestMismatch = 0x2,
-    }
-}
 
 #[derive(Default, Debug)]
 pub struct LmsKat {}
@@ -273,7 +263,7 @@ impl LmsKat {
             &LMS_SIG,
         )?;
         if !success {
-            raise_err!(DigestMismatch);
+            Err(CaliptraError::ROM_KAT_LMS_DIGEST_MISMATCH)?;
         }
         Ok(())
     }

@@ -11,18 +11,8 @@ Abstract:
     File contains the Known Answer Tests (KAT) for SHA384 accelerator cryptography operations.
 
 --*/
-use crate::{caliptra_err_def, sha384_kat::SHA384_EXPECTED_DIGEST};
-use caliptra_drivers::{Array4x12, CaliptraResult, Sha384Acc};
-
-caliptra_err_def! {
-    Sha384AccKat,
-    Sha384AccKatErr
-    {
-        DigestStartOpFailure = 0x01,
-        DigestFailure = 0x02,
-        DigestMismatch = 0x3,
-    }
-}
+use crate::sha384_kat::SHA384_EXPECTED_DIGEST;
+use caliptra_drivers::{Array4x12, CaliptraError, CaliptraResult, Sha384Acc};
 
 #[derive(Default)]
 pub struct Sha384AccKat {}
@@ -51,12 +41,12 @@ impl Sha384AccKat {
         if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
             sha_acc_op
                 .digest(0, 0, false, &mut digest)
-                .map_err(|_| err_u32!(DigestFailure))?;
+                .map_err(|_| CaliptraError::ROM_KAT_SHA384_ACC_DIGEST_FAILURE)?;
             if digest != SHA384_EXPECTED_DIGEST {
-                raise_err!(DigestMismatch);
+                Err(CaliptraError::ROM_KAT_SHA384_ACC_DIGEST_MISMATCH)?;
             }
         } else {
-            raise_err!(DigestStartOpFailure);
+            Err(CaliptraError::ROM_KAT_SHA384_ACC_DIGEST_START_OP_FAILURE)?;
         }
 
         Ok(())

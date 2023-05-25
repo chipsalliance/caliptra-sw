@@ -41,18 +41,6 @@ const IDEVID_CDI_KEY: Array4x12 = Array4x12::new([
 /// Maximum Certificate Signing Request Size
 const MAX_CSR_SIZE: usize = 512;
 
-caliptra_err_def! {
-    InitDevId,
-    InitDevIdErr
-    {
-        CsrBuilderInit= 0x1,
-        CsrBuilderBuild= 0x2,
-        CsrInvalid = 0x3,
-        CsrVerify = 0x4,
-        CsrOverflow= 0x5,
-    }
-}
-
 /// Dice Initial Device Identity (IDEVID) Layer
 pub enum InitDevIdLayer {}
 
@@ -253,7 +241,7 @@ impl InitDevIdLayer {
 
         // Verify the signature of the `To Be Signed` portion
         if !Crypto::ecdsa384_verify(env, &key_pair.pub_key, tbs.tbs(), sig)? {
-            raise_err!(CsrVerify);
+            return Err(CaliptraError::ROM_IDEVID_CSR_VERIFICATION_FAILURE);
         }
 
         // [TODO] Due to printing of the CSR, rom sections are hitting max limits.
@@ -270,12 +258,14 @@ impl InitDevIdLayer {
 
         // Build the CSR with `To Be Signed` & `Signature`
         let mut csr = [0u8; MAX_CSR_SIZE];
-        let csr_bldr =
-            Ecdsa384CsrBuilder::new(tbs.tbs(), &sig.to_ecdsa()).ok_or(err_u32!(CsrBuilderInit))?;
-        let csr_len = csr_bldr.build(&mut csr).ok_or(err_u32!(CsrBuilderBuild))?;
+        let csr_bldr = Ecdsa384CsrBuilder::new(tbs.tbs(), &sig.to_ecdsa())
+            .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_INIT_FAILURE)?;
+        let csr_len = csr_bldr
+            .build(&mut csr)
+            .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_BUILD_FAILURE)?;
 
         if csr_len > csr.len() {
-            raise_err!(CsrOverflow);
+            return Err(CaliptraError::ROM_IDEVID_CSR_OVERFLOW);
         }
 
         cprintln!("[idev] CSR = {}", HexBytes(&csr[..csr_len]));
@@ -296,7 +286,7 @@ impl InitDevIdLayer {
             // Create Mailbox send transaction to send the CSR
             if let Some(mut txn) = env.mbox.try_start_send_txn() {
                 // Copy the CSR to mailbox
-                txn.send_request(0, csr.get().ok_or(err_u32!(CsrInvalid))?)?;
+                txn.send_request(0, csr.get().ok_or(CaliptraError::ROM_IDEVID_INVALID_CSR)?)?;
 
                 // Signal the JTAG/SOC that Initial Device ID CSR is ready
                 env.soc_ifc.flow_status_set_idevid_csr_ready();

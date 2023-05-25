@@ -14,7 +14,7 @@ Abstract:
 
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::{
-    array::Array4x32, caliptra_err_def, wait, Array4x12, CaliptraResult, KeyReadArgs, KeyWriteArgs,
+    array::Array4x32, wait, Array4x12, CaliptraError, CaliptraResult, KeyReadArgs, KeyWriteArgs,
 };
 use caliptra_registers::hmac::HmacReg;
 use core::usize;
@@ -22,42 +22,6 @@ use core::usize;
 const HMAC384_BLOCK_SIZE_BYTES: usize = 128;
 const HMAC384_BLOCK_LEN_OFFSET: usize = 112;
 const HMAC384_MAX_DATA_SIZE: usize = 1024 * 1024;
-
-caliptra_err_def! {
-    Hmac384,
-    Hmac384Err
-    {
-        // Errors encountered while reading the key from key vault
-        ReadKeyKvRead = 0x01,
-        ReadKeyKvWrite = 0x02,
-        ReadKeyKvUnknown = 0x03,
-
-        // Errors encountered while reading the data from key vault
-        ReadDataKvRead = 0x04,
-        ReadDataKvWrite = 0x05,
-        ReadDataKvUnknown = 0x06,
-
-        // Errors encountered while writing Tag to key vault
-        WriteTagKvRead = 0x07,
-        WriteTagKvWrite = 0x08,
-        WriteTagKvUnknown = 0x09,
-
-        // Key Read invalid key size
-        InvalidKeySize = 0x0A,
-
-        // Invalid state
-        InvalidStateErr = 0x0B,
-
-        // Max data limit reached
-        MaxDataErr =  0x0C,
-
-        // Invalid slice
-        InvalidSlice = 0x0D,
-
-        // Array Index out of bounds
-        IndexOutOfBounds = 0x0E,
-    }
-}
 
 /// HMAC-384 Data
 #[derive(Debug, Copy, Clone)]
@@ -245,7 +209,7 @@ impl Hmac384 {
         match &mut tag {
             Hmac384Tag::Array4x12(arr) => KvAccess::end_copy_to_arr(hmac.tag(), arr),
             Hmac384Tag::Key(key) => KvAccess::end_copy_to_kv(hmac.kv_wr_status(), *key)
-                .map_err(|err| err.into_write_tag_err().into()),
+                .map_err(|err| err.into_write_tag_err()),
         }
     }
 
@@ -259,7 +223,7 @@ impl Hmac384 {
     fn hmac_buf(&mut self, buf: &[u8]) -> CaliptraResult<()> {
         // Check if the buffer is within the size that we support
         if buf.len() > HMAC384_MAX_DATA_SIZE {
-            raise_err!(MaxDataErr)
+            return Err(CaliptraError::DRIVER_HMAC384_MAX_DATA);
         }
 
         let mut first = true;
@@ -277,7 +241,7 @@ impl Hmac384 {
                         self.hmac_partial_block(slice, first, buf.len())?;
                         break;
                     } else {
-                        raise_err!(InvalidSlice)
+                        return Err(CaliptraError::DRIVER_HMAC384_INVALID_SLICE);
                     }
                 }
 
@@ -291,7 +255,7 @@ impl Hmac384 {
                         bytes_remaining -= HMAC384_BLOCK_SIZE_BYTES;
                         first = false;
                     } else {
-                        raise_err!(InvalidSlice)
+                        return Err(CaliptraError::DRIVER_HMAC384_INVALID_SLICE);
                     }
                 }
             }
@@ -334,7 +298,7 @@ impl Hmac384 {
         // PANIC-FREE: Following check optimizes the out of bounds
         // panic in copy_from_slice
         if slice.len() > block.len() - 1 {
-            raise_err!(IndexOutOfBounds)
+            return Err(CaliptraError::DRIVER_SHA384_INDEX_OUT_OF_BOUNDS);
         }
         block[..slice.len()].copy_from_slice(slice);
         block[slice.len()] = 0b1000_0000;
@@ -444,11 +408,11 @@ impl<'a> Hmac384Op<'a> {
     ///
     pub fn update(&mut self, data: &[u8]) -> CaliptraResult<()> {
         if self.state == Hmac384OpState::Final {
-            raise_err!(InvalidStateErr)
+            return Err(CaliptraError::DRIVER_HMAC384_INVALID_STATE);
         }
 
         if self.data_size + data.len() > HMAC384_MAX_DATA_SIZE {
-            raise_err!(MaxDataErr)
+            return Err(CaliptraError::DRIVER_HMAC384_MAX_DATA);
         }
 
         for byte in data {
@@ -457,7 +421,7 @@ impl<'a> Hmac384Op<'a> {
             // PANIC-FREE: Following check optimizes the out of bounds
             // panic in indexing the `buf`
             if self.buf_idx >= self.buf.len() {
-                raise_err!(IndexOutOfBounds)
+                return Err(CaliptraError::DRIVER_HMAC384_INDEX_OUT_OF_BOUNDS);
             }
 
             // Copy the data to the buffer
@@ -477,11 +441,11 @@ impl<'a> Hmac384Op<'a> {
     /// Finalize the digest operations
     pub fn finalize(&mut self) -> CaliptraResult<()> {
         if self.state == Hmac384OpState::Final {
-            raise_err!(InvalidStateErr)
+            return Err(CaliptraError::DRIVER_HMAC384_INVALID_STATE);
         }
 
         if self.buf_idx > self.buf.len() {
-            raise_err!(InvalidSlice)
+            return Err(CaliptraError::DRIVER_HMAC384_INVALID_SLICE);
         }
 
         // Calculate the hmac of the final block
@@ -498,7 +462,7 @@ impl<'a> Hmac384Op<'a> {
         match &mut self.tag {
             Hmac384Tag::Array4x12(arr) => KvAccess::end_copy_to_arr(hmac.tag(), arr),
             Hmac384Tag::Key(key) => KvAccess::end_copy_to_kv(hmac.kv_wr_status(), *key)
-                .map_err(|err| err.into_write_tag_err().into()),
+                .map_err(|err| err.into_write_tag_err()),
         }
     }
 
@@ -518,40 +482,40 @@ impl<'a> Hmac384Op<'a> {
 /// HMAC-384 key access error trait
 trait Hmac384KeyAccessErr {
     /// Convert to read key operation error
-    fn into_read_key_err(self) -> Hmac384Err;
+    fn into_read_key_err(self) -> CaliptraError;
 
     /// Convert to read data operation error
-    fn into_read_data_err(self) -> Hmac384Err;
+    fn into_read_data_err(self) -> CaliptraError;
 
     /// Convert to write tag operation error
-    fn into_write_tag_err(self) -> Hmac384Err;
+    fn into_write_tag_err(self) -> CaliptraError;
 }
 
 impl Hmac384KeyAccessErr for KvAccessErr {
     /// Convert to read seed operation error
-    fn into_read_key_err(self) -> Hmac384Err {
+    fn into_read_key_err(self) -> CaliptraError {
         match self {
-            KvAccessErr::KeyRead => Hmac384Err::ReadKeyKvRead,
-            KvAccessErr::KeyWrite => Hmac384Err::ReadKeyKvWrite,
-            KvAccessErr::Generic => Hmac384Err::ReadKeyKvUnknown,
+            KvAccessErr::KeyRead => CaliptraError::DRIVER_HMAC384_READ_KEY_KV_READ,
+            KvAccessErr::KeyWrite => CaliptraError::DRIVER_HMAC384_READ_KEY_KV_WRITE,
+            KvAccessErr::Generic => CaliptraError::DRIVER_HMAC384_READ_KEY_KV_UNKNOWN,
         }
     }
 
     /// Convert to read data operation error
-    fn into_read_data_err(self) -> Hmac384Err {
+    fn into_read_data_err(self) -> CaliptraError {
         match self {
-            KvAccessErr::KeyRead => Hmac384Err::ReadDataKvRead,
-            KvAccessErr::KeyWrite => Hmac384Err::ReadDataKvWrite,
-            KvAccessErr::Generic => Hmac384Err::ReadDataKvUnknown,
+            KvAccessErr::KeyRead => CaliptraError::DRIVER_HMAC384_READ_DATA_KV_READ,
+            KvAccessErr::KeyWrite => CaliptraError::DRIVER_HMAC384_READ_DATA_KV_WRITE,
+            KvAccessErr::Generic => CaliptraError::DRIVER_HMAC384_READ_DATA_KV_UNKNOWN,
         }
     }
 
     /// Convert to write tag operation error
-    fn into_write_tag_err(self) -> Hmac384Err {
+    fn into_write_tag_err(self) -> CaliptraError {
         match self {
-            KvAccessErr::KeyRead => Hmac384Err::WriteTagKvRead,
-            KvAccessErr::KeyWrite => Hmac384Err::WriteTagKvWrite,
-            KvAccessErr::Generic => Hmac384Err::WriteTagKvUnknown,
+            KvAccessErr::KeyRead => CaliptraError::DRIVER_HMAC384_WRITE_TAG_KV_READ,
+            KvAccessErr::KeyWrite => CaliptraError::DRIVER_HMAC384_WRITE_TAG_KV_WRITE,
+            KvAccessErr::Generic => CaliptraError::DRIVER_HMAC384_WRITE_TAG_KV_UNKNOWN,
         }
     }
 }

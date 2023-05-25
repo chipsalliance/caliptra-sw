@@ -1,7 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::RuntimeErr;
-use caliptra_drivers::CaliptraResult;
+use caliptra_drivers::{CaliptraError, CaliptraResult};
 use caliptra_registers::mbox::{enums::MboxStatusE, MboxCsr};
 use zerocopy::{LayoutVerified, Unalign};
 
@@ -59,7 +58,7 @@ impl Mailbox {
     pub fn write_response(&mut self, buf: &[u8]) -> CaliptraResult<()> {
         let Some(buf_words) = LayoutVerified::new_slice_unaligned(buf) else {
             // buf size is not a multiple of word size
-            return Err(RuntimeErr::InternalErr.into());
+            return Err(CaliptraError::RUNTIME_INTERNAL);
         };
 
         self.set_dlen(buf.len() as u32);

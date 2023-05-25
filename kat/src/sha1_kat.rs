@@ -12,17 +12,7 @@ Abstract:
 
 --*/
 
-use crate::caliptra_err_def;
-use caliptra_drivers::{Array4x5, CaliptraResult, Sha1};
-
-caliptra_err_def! {
-    Sha1Kat,
-    Sha1KatErr
-    {
-        DigestFailure = 0x01,
-        DigestMismatch = 0x2,
-    }
-}
+use caliptra_drivers::{Array4x5, CaliptraError, CaliptraResult, Sha1};
 
 const EXPECTED_DIGEST: Array4x5 =
     Array4x5::new([0xda39a3ee, 0x5e6b4b0d, 0x3255bfef, 0x95601890, 0xafd80709]);
@@ -49,10 +39,12 @@ impl Sha1Kat {
 
     fn kat_no_data(&self, sha: &mut Sha1) -> CaliptraResult<()> {
         let data = [];
-        let digest = sha.digest(&data).map_err(|_| err_u32!(DigestFailure))?;
+        let digest = sha
+            .digest(&data)
+            .map_err(|_| CaliptraError::ROM_KAT_SHA1_DIGEST_FAILURE)?;
 
         if digest != EXPECTED_DIGEST {
-            raise_err!(DigestMismatch);
+            Err(CaliptraError::ROM_KAT_SHA1_DIGEST_MISMATCH)?;
         }
 
         Ok(())

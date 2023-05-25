@@ -1,6 +1,5 @@
 // Licensed under the Apache-2.0 license
 
-use crate::RuntimeErr;
 use caliptra_drivers::{CaliptraResult, DataVault};
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
 

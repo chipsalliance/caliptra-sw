@@ -23,16 +23,7 @@ use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
-use caliptra_error::caliptra_err_def;
 use caliptra_x509::*;
-
-caliptra_err_def! {
-    LocalDevId,
-    LocalevIdErr
-    {
-        CertVerify = 0x1,
-    }
-}
 
 /// Dice Local Device Identity (IDEVID) Layer
 #[derive(Default)]
@@ -188,7 +179,7 @@ impl LocalDevIdLayer {
 
         // Verify the signature of the `To Be Signed` portion
         if !Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? {
-            raise_err!(CertVerify);
+            return Err(CaliptraError::ROM_LDEVID_CSR_VERIFICATION_FAILURE);
         }
 
         let _pub_x: [u8; 48] = (&pub_key.x).into();
