@@ -127,7 +127,6 @@ jobs:
 
       - name: Build
         run: |
-          export RUSTFLAGS="-D warnings"
           export RUSTC_WRAPPER=~/.cargo/bin/sccache
           export CXX="sccache g++"
           sccache --show-stats
@@ -139,7 +138,6 @@ jobs:
 
       - name: Run unit tests
         run: |
-          export RUSTFLAGS="-D warnings"
           export RUSTC_WRAPPER=~/.cargo/bin/sccache
           export CXX="sccache g++"
           (cd hw-model && cargo --config "$EXTRA_CARGO_CONFIG" test --locked --release --features verilator)

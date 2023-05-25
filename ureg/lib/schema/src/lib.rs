@@ -207,13 +207,38 @@ impl FieldType {
     }
 }
 
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct RegisterBlockArray {
-    pub name: String,
-    pub start_offset: u64,
-    pub stride: u64,
-    pub len: usize,
-    pub registers: Vec<Rc<Register>>,
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum RegisterSubBlock {
+    Single {
+        block: RegisterBlock,
+        start_offset: u64,
+    },
+    Array {
+        block: RegisterBlock,
+        start_offset: u64,
+        stride: u64,
+        len: usize,
+    },
+}
+impl RegisterSubBlock {
+    pub fn block(&self) -> &RegisterBlock {
+        match self {
+            Self::Single { block, .. } => block,
+            Self::Array { block, .. } => block,
+        }
+    }
+    pub fn block_mut(&mut self) -> &mut RegisterBlock {
+        match self {
+            Self::Single { block, .. } => block,
+            Self::Array { block, .. } => block,
+        }
+    }
+    pub fn start_offset(&self) -> u64 {
+        match self {
+            Self::Single { start_offset, .. } => *start_offset,
+            Self::Array { start_offset, .. } => *start_offset,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -221,7 +246,7 @@ pub struct RegisterBlock {
     pub name: String,
     pub registers: Vec<Rc<Register>>,
     pub instances: Vec<RegisterBlockInstance>,
-    pub sub_arrays: Vec<RegisterBlockArray>,
+    pub sub_blocks: Vec<RegisterSubBlock>,
 
     // Register types that are "owned" by this block (but might be used by other register blocks)
     pub declared_register_types: Vec<Rc<RegisterType>>,
@@ -353,8 +378,8 @@ fn collect_used_reg_types(block: &RegisterBlock, used_types: &mut HashSet<Rc<Reg
     for reg in block.registers.iter() {
         used_types.insert(reg.ty.clone());
     }
-    for array in block.sub_arrays.iter() {
-        for reg in array.registers.iter() {
+    for sb in block.sub_blocks.iter() {
+        for reg in sb.block().registers.iter() {
             used_types.insert(reg.ty.clone());
         }
     }

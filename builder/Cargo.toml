@@ -17,3 +17,7 @@ caliptra-image-types = { path = "../image/types" }
 hex = "0.4.3"
 anyhow = "1.0.70"
 once_cell = "1.13"
+
+[[bin]]
+name = "image"
+path = "bin/image_gen.rs"
