@@ -14,38 +14,12 @@ Abstract:
 
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::{
-    array_concat3, caliptra_err_def, wait, Array4x12, CaliptraResult, KeyReadArgs, KeyWriteArgs,
+    array_concat3, wait, Array4x12, CaliptraError, CaliptraResult, KeyReadArgs, KeyWriteArgs,
 };
 use caliptra_registers::ecc::EccReg;
 
 /// ECC-384 Coordinate
 pub type Ecc384Scalar = Array4x12;
-
-caliptra_err_def! {
-    Ecc384,
-    Ecc384Err
-    {
-        // Errors encountered while reading seed from key vault
-        ReadSeedKvRead = 0x01,
-        ReadSeedKvWrite = 0x02,
-        ReadSeedKvUnknown = 0x03,
-
-        // Errors encountered while writing private key to key vault
-        WritePrivKeyKvRead = 0x04,
-        WritePrivKeyKvWrite = 0x05,
-        WritePrivKeyKvUnknown = 0x06,
-
-        // Errors encountered while reading private key from key vault
-        ReadPrivKeyKvRead = 0x07,
-        ReadPrivKeyKvWrite = 0x08,
-        ReadPrivKeyKvUnknown = 0x09,
-
-        // Errors encountered while reading data from key vault
-        ReadDataKvRead = 0x0A,
-        ReadDataKvWrite = 0x0B,
-        ReadDataKvUnknown = 0x0C,
-    }
-}
 
 /// ECC-384 Seed
 #[derive(Debug, Copy, Clone)]
@@ -321,52 +295,52 @@ impl Ecc384 {
 /// ECC-384 key access error trait
 trait Ecc384KeyAccessErr {
     /// Convert to read seed operation error
-    fn into_read_seed_err(self) -> Ecc384Err;
+    fn into_read_seed_err(self) -> CaliptraError;
 
     /// Convert to read data operation error
-    fn into_read_data_err(self) -> Ecc384Err;
+    fn into_read_data_err(self) -> CaliptraError;
 
     /// Convert to read private key operation error
-    fn into_read_priv_key_err(self) -> Ecc384Err;
+    fn into_read_priv_key_err(self) -> CaliptraError;
 
     /// Convert to write private key operation error
-    fn into_write_priv_key_err(self) -> Ecc384Err;
+    fn into_write_priv_key_err(self) -> CaliptraError;
 }
 
 impl Ecc384KeyAccessErr for KvAccessErr {
     /// Convert to read seed operation error
-    fn into_read_seed_err(self) -> Ecc384Err {
+    fn into_read_seed_err(self) -> CaliptraError {
         match self {
-            KvAccessErr::KeyRead => Ecc384Err::ReadSeedKvRead,
-            KvAccessErr::KeyWrite => Ecc384Err::ReadSeedKvWrite,
-            KvAccessErr::Generic => Ecc384Err::ReadSeedKvUnknown,
+            KvAccessErr::KeyRead => CaliptraError::DRIVER_ECC384_READ_SEED_KV_READ,
+            KvAccessErr::KeyWrite => CaliptraError::DRIVER_ECC384_READ_SEED_KV_WRITE,
+            KvAccessErr::Generic => CaliptraError::DRIVER_ECC384_READ_SEED_KV_UNKNOWN,
         }
     }
 
     /// Convert to read data operation error
-    fn into_read_data_err(self) -> Ecc384Err {
+    fn into_read_data_err(self) -> CaliptraError {
         match self {
-            KvAccessErr::KeyRead => Ecc384Err::ReadDataKvRead,
-            KvAccessErr::KeyWrite => Ecc384Err::ReadDataKvWrite,
-            KvAccessErr::Generic => Ecc384Err::ReadDataKvUnknown,
+            KvAccessErr::KeyRead => CaliptraError::DRIVER_ECC384_READ_DATA_KV_READ,
+            KvAccessErr::KeyWrite => CaliptraError::DRIVER_ECC384_READ_DATA_KV_WRITE,
+            KvAccessErr::Generic => CaliptraError::DRIVER_ECC384_READ_DATA_KV_UNKNOWN,
         }
     }
 
     /// Convert to reads private key operation error
-    fn into_read_priv_key_err(self) -> Ecc384Err {
+    fn into_read_priv_key_err(self) -> CaliptraError {
         match self {
-            KvAccessErr::KeyRead => Ecc384Err::ReadPrivKeyKvRead,
-            KvAccessErr::KeyWrite => Ecc384Err::ReadPrivKeyKvWrite,
-            KvAccessErr::Generic => Ecc384Err::ReadPrivKeyKvUnknown,
+            KvAccessErr::KeyRead => CaliptraError::DRIVER_ECC384_READ_PRIV_KEY_KV_READ,
+            KvAccessErr::KeyWrite => CaliptraError::DRIVER_ECC384_READ_PRIV_KEY_KV_WRITE,
+            KvAccessErr::Generic => CaliptraError::DRIVER_ECC384_READ_PRIV_KEY_KV_UNKNOWN,
         }
     }
 
     /// Convert to write private key operation error
-    fn into_write_priv_key_err(self) -> Ecc384Err {
+    fn into_write_priv_key_err(self) -> CaliptraError {
         match self {
-            KvAccessErr::KeyRead => Ecc384Err::WritePrivKeyKvRead,
-            KvAccessErr::KeyWrite => Ecc384Err::WritePrivKeyKvWrite,
-            KvAccessErr::Generic => Ecc384Err::WritePrivKeyKvUnknown,
+            KvAccessErr::KeyRead => CaliptraError::DRIVER_ECC384_WRITE_PRIV_KEY_KV_READ,
+            KvAccessErr::KeyWrite => CaliptraError::DRIVER_ECC384_WRITE_PRIV_KEY_KV_WRITE,
+            KvAccessErr::Generic => CaliptraError::DRIVER_ECC384_READ_PRIV_KEY_KV_UNKNOWN,
         }
     }
 }

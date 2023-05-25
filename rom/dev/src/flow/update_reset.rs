@@ -15,7 +15,7 @@ use crate::{cprintln, fht, rom_env::RomEnv, verifier::RomImageVerificationEnv};
 
 use caliptra_common::FirmwareHandoffTable;
 use caliptra_drivers::{MailboxRecvTxn, ResetReason};
-use caliptra_error::{caliptra_err_def, CaliptraResult};
+use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::ImageManifest;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
 use zerocopy::{AsBytes, FromBytes};
@@ -23,16 +23,6 @@ use zerocopy::{AsBytes, FromBytes};
 extern "C" {
     static mut MAN2_ORG: u32;
     static mut MAN1_ORG: u32;
-}
-
-caliptra_err_def! {
-    UpdateReset,
-    UpdateResetErr
-    {
-        ManifestReadFailure = 0x2,
-        InvalidFirmwareCommand = 0x03,
-        MailboxAccessFailure = 0x04,
-    }
 }
 
 #[derive(Default)]
@@ -51,12 +41,12 @@ impl UpdateResetFlow {
 
         let Some(mut recv_txn) = env.mbox.try_start_recv_txn() else {
             cprintln!("Failed To Get Mailbox Transaction");
-            raise_err!(MailboxAccessFailure)
+            return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE);
         };
 
         if recv_txn.cmd() != Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID {
             cprintln!("Invalid command 0x{:08x} received", recv_txn.cmd());
-            raise_err!(InvalidFirmwareCommand)
+            return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_INVALID_FIRMWARE_COMMAND);
         }
 
         let manifest = Self::load_manifest(&mut recv_txn)?;
@@ -184,6 +174,7 @@ impl UpdateResetFlow {
 
         txn.copy_request(slice)?;
 
-        ImageManifest::read_from(slice.as_bytes()).ok_or(err_u32!(ManifestReadFailure))
+        ImageManifest::read_from(slice.as_bytes())
+            .ok_or(CaliptraError::ROM_UPDATE_RESET_FLOW_MANIFEST_READ_FAILURE)
     }
 }

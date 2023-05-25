@@ -30,6 +30,7 @@ pub enum PcrLogEntryId {
     VendorPubKeyIndex = 6,    // data size = 1 byte
     FmcTci = 7,               // data size = 48 bytes
     FmcSvn = 8,               // data size = 1 byte
+    FmcFuseSvn = 9,           // data size = 1 byte
 }
 
 impl From<u16> for PcrLogEntryId {

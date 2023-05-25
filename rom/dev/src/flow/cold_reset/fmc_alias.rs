@@ -29,7 +29,7 @@ use caliptra_drivers::{
     DataVault, Hmac384Data, Hmac384Key, KeyId, KeyReadArgs, Lifecycle, Mailbox, MailboxRecvTxn,
     ResetReason, SocIfc, WarmResetEntry4, WarmResetEntry48,
 };
-use caliptra_error::caliptra_err_def;
+use caliptra_error::CaliptraError;
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
 use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams, NotAfter, NotBefore};
@@ -38,17 +38,6 @@ use zerocopy::{AsBytes, FromBytes};
 
 extern "C" {
     static mut MAN1_ORG: u32;
-}
-
-caliptra_err_def! {
-    FmcAlias,
-    FmcAliasErr
-    {
-        CertVerify = 0x1,
-        ManifestReadFailure = 0x2,
-        InvalidImageSize = 0x3,
-        MailboxStateInconsistent = 0x4,
-    }
 }
 
 #[derive(Default)]
@@ -89,7 +78,7 @@ impl DiceLayer for FmcAliasLayer {
         Self::populate_data_vault(venv.data_vault, info);
 
         // Extend PCR0
-        pcr::extend_pcr0(&mut venv)?;
+        pcr::extend_pcr0(&mut venv, info)?;
         report_boot_status(FmcAliasExtendPcrComplete.into());
 
         // Load the image
@@ -150,7 +139,7 @@ impl DiceLayer for FmcAliasLayer {
         }
 
         // Generate Local Device ID Certificate
-        Self::generate_cert_sig(env, input, &output, &nb.not_before, &nf.not_after)?;
+        Self::generate_cert_sig(env, info, input, &output, &nb.not_before, &nf.not_after)?;
 
         report_boot_status(FmcAliasDerivationComplete.into());
         cprintln!("[afmc] --");
@@ -192,7 +181,9 @@ impl FmcAliasLayer {
                 }
 
                 // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
-                let txn = mbox.peek_recv().ok_or(err_u32!(MailboxStateInconsistent))?;
+                let txn = mbox
+                    .peek_recv()
+                    .ok_or(CaliptraError::FMC_ALIAS_MAILBOX_STATE_INCONSISTENT)?;
 
                 // This is a download-firmware command; don't drop this, as the
                 // transaction will be completed by either report_error() (on
@@ -200,7 +191,7 @@ impl FmcAliasLayer {
                 let txn = ManuallyDrop::new(txn.start_txn());
                 if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
                     cprintln!("Invalid Image of size {} bytes" txn.dlen());
-                    raise_err!(InvalidImageSize);
+                    return Err(CaliptraError::FMC_ALIAS_INVALID_IMAGE_SIZE);
                 }
 
                 cprintln!("");
@@ -228,7 +219,7 @@ impl FmcAliasLayer {
             report_boot_status(FmcAliasManifestLoadComplete.into());
             Ok(result)
         } else {
-            raise_err!(ManifestReadFailure)
+            Err(CaliptraError::FMC_ALIAS_MANIFEST_READ_FAILURE)
         }
     }
 
@@ -379,6 +370,7 @@ impl FmcAliasLayer {
     /// * `output` - DICE Output
     fn generate_cert_sig(
         env: &mut RomEnv,
+        info: &ImageVerificationInfo,
         input: &DiceInput,
         output: &DiceOutput,
         not_before: &[u8; FmcAliasCertTbsParams::NOT_BEFORE_LEN],
@@ -391,7 +383,7 @@ impl FmcAliasLayer {
         let flags = Self::make_flags(env.soc_ifc.lifecycle(), env.soc_ifc.debug_locked());
 
         let svn = env.data_vault.fmc_svn() as u8;
-        let min_svn = 0_u8; // TODO: plumb from image header (and set to zero if anti_rollback_disable is set).
+        let fuse_svn = info.fmc.effective_fuse_svn as u8;
 
         // Certificate `To Be Signed` Parameters
         let params = FmcAliasCertTbsParams {
@@ -405,8 +397,8 @@ impl FmcAliasLayer {
             tcb_info_fmc_tci: &(&env.data_vault.fmc_tci()).into(),
             tcb_info_owner_pk_hash: &(&env.data_vault.owner_pk_hash()).into(),
             tcb_info_flags: &flags,
-            tcb_info_svn: &svn.to_be_bytes(),
-            tcb_info_min_svn: &min_svn.to_be_bytes(),
+            tcb_info_fmc_svn: &svn.to_be_bytes(),
+            tcb_info_fmc_svn_fuses: &fuse_svn.to_be_bytes(),
             not_before,
             not_after,
         };
@@ -428,7 +420,7 @@ impl FmcAliasLayer {
 
         // Verify the signature of the `To Be Signed` portion
         if !Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? {
-            raise_err!(CertVerify);
+            return Err(CaliptraError::FMC_ALIAS_CERT_VERIFY);
         }
 
         let _pub_x: [u8; 48] = (&pub_key.x).into();

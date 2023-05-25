@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{caliptra_err_def, Array4x12, CaliptraResult, Sha384};
+use crate::{Array4x12, CaliptraError, CaliptraResult, Sha384};
 use caliptra_registers::pv::PvReg;
 
 /// PCR Identifier
@@ -63,15 +63,6 @@ impl From<PcrId> for usize {
     /// Converts to this type from the input type.
     fn from(id: PcrId) -> Self {
         id as Self
-    }
-}
-
-caliptra_err_def! {
-    PcrBank,
-    PcrBankErr
-    {
-        // Erase failed due to write lock st
-        EraseWriteLockSetFailure = 0x01,
     }
 }
 
@@ -138,7 +129,7 @@ impl PcrBank {
     /// * `id` - PCR ID to erase
     pub fn erase_pcr(&mut self, id: PcrId) -> CaliptraResult<()> {
         if self.pcr_lock(id) {
-            raise_err!(EraseWriteLockSetFailure)
+            return Err(CaliptraError::DRIVER_PCR_BANK_ERASE_WRITE_LOCK_SET_FAILURE);
         }
 
         let pv = self.pv.regs_mut();

@@ -11,31 +11,16 @@ Abstract:
     File contains API for SHA384 accelerator operations
 
 --*/
-use crate::caliptra_err_def;
 use crate::wait;
 use crate::Array4x12;
 use crate::CaliptraResult;
 
+use caliptra_error::CaliptraError;
 use caliptra_registers::sha512_acc::regs::ExecuteWriteVal;
 use caliptra_registers::sha512_acc::Sha512AccCsr;
 
 /// Maximum mailbox capacity in Bytes.
 const MAX_MAILBOX_CAPACITY_BYTES: u32 = 128 << 10;
-
-caliptra_err_def! {
-    Sha384Acc,
-    Sha384AccErr
-    {
-        // Invalid Operation
-        InvalidOp = 0x01,
-
-        // Max data limit reached
-        MaxDataErr = 0x02,
-
-        // Array Index out of bounds
-        IndexOutOfBounds = 0x03,
-    }
-}
 
 pub type Sha384Digest<'a> = &'a mut Array4x12;
 
@@ -99,7 +84,7 @@ impl Sha384AccOp<'_> {
         if start_address >= MAX_MAILBOX_CAPACITY_BYTES
             || (start_address + dlen) > MAX_MAILBOX_CAPACITY_BYTES
         {
-            raise_err!(IndexOutOfBounds)
+            return Err(CaliptraError::DRIVER_SHA384ACC_INDEX_OUT_OF_BOUNDS);
         }
 
         // Set the data length to read from the mailbox.
