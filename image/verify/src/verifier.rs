@@ -17,6 +17,7 @@ use core::num::NonZeroU32;
 use crate::*;
 use caliptra_drivers::*;
 use caliptra_image_types::*;
+use memoffset::offset_of;
 
 const ZERO_DIGEST: ImageDigest = [0u32; SHA384_DIGEST_WORD_SIZE];
 
@@ -315,14 +316,22 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     ) -> CaliptraResult<TocInfo<'a>> {
         // Calculate the digest for the header
         let range = ImageManifest::header_range();
-        let digest = self
+        let vendor_header_len = offset_of!(ImageHeader, owner_data);
+
+        // Vendor header digest is calculated up to the owner_data field.
+        let digest_vendor = self
+            .env
+            .sha384_digest(range.start, vendor_header_len as u32)
+            .map_err(|_| err_u32!(HeaderDigestFailure))?;
+
+        let digest_owner = self
             .env
             .sha384_digest(range.start, range.len() as u32)
             .map_err(|_| err_u32!(HeaderDigestFailure))?;
 
         // Verify vendor signature
         let (pub_key, sig) = info.vendor_info;
-        self.verify_vendor_sig(&digest, pub_key, sig)?;
+        self.verify_vendor_sig(&digest_vendor, pub_key, sig)?;
 
         // Verify the ECC public key index used verify header signature is encoded
         // in the header
@@ -332,7 +341,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // Verify owner signature
         if let Some((pub_key, sig)) = info.owner_info {
-            self.verify_owner_sig(&digest, pub_key, sig)?;
+            self.verify_owner_sig(&digest_owner, pub_key, sig)?;
         }
 
         let verif_info = TocInfo {

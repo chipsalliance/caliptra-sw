@@ -134,11 +134,11 @@ impl DiceLayer for FmcAliasLayer {
         let mut nf = NotAfter::default();
         let null_time = [0u8; 15];
 
-        if manifest.header.vendor_not_after != null_time
-            && manifest.header.vendor_not_before != null_time
+        if manifest.header.vendor_data.vendor_not_after != null_time
+            && manifest.header.vendor_data.vendor_not_before != null_time
         {
-            nf.not_after = manifest.header.vendor_not_after;
-            nb.not_before = manifest.header.vendor_not_before;
+            nf.not_after = manifest.header.vendor_data.vendor_not_after;
+            nb.not_before = manifest.header.vendor_data.vendor_not_before;
         }
 
         //The owner values takes preference

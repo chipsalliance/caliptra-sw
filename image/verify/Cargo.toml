@@ -13,6 +13,7 @@ caliptra-image-types = { path = "../types", default-features = false }
 caliptra-drivers = { path = "../../drivers" }
 bitflags = "2.0.1"
 zerocopy = "0.6.1"
+memoffset = "0.8.0"
 
 [features]
 default = ["std"]

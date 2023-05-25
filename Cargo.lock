@@ -384,6 +384,7 @@ dependencies = [
  "anyhow",
  "bitflags 2.0.2",
  "caliptra-image-types",
+ "memoffset",
  "zerocopy",
 ]
 
@@ -423,6 +424,7 @@ dependencies = [
  "bitflags 2.0.2",
  "caliptra-drivers",
  "caliptra-image-types",
+ "memoffset",
  "zerocopy",
 ]
 
@@ -460,6 +462,7 @@ dependencies = [
  "caliptra_common",
  "cfg-if",
  "hex",
+ "memoffset",
  "openssl",
  "ufmt",
  "zerocopy",

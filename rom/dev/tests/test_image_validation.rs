@@ -1258,12 +1258,19 @@ fn update_header(image_bundle: &mut ImageBundle) {
     };
 
     let gen = ImageGenerator::new(OsslCrypto::default());
-    let digest = gen.header_digest(&image_bundle.manifest.header).unwrap();
+    let header_digest_vendor = gen
+        .header_digest_vendor(&image_bundle.manifest.header)
+        .unwrap();
+    let header_digest_owner = gen
+        .header_digest_owner(&image_bundle.manifest.header)
+        .unwrap();
+
     image_bundle.manifest.preamble = gen
         .gen_preamble(
             &config,
             image_bundle.manifest.preamble.vendor_ecc_pub_key_idx,
-            &digest,
+            &header_digest_vendor,
+            &header_digest_owner,
         )
         .unwrap();
 }
