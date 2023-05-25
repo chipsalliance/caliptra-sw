@@ -14,6 +14,7 @@ caliptra-image-fake-keys = { path = "../image/fake-keys" }
 caliptra-image-gen = { path = "../image/gen" }
 caliptra-image-openssl = { path = "../image/openssl" }
 caliptra-image-types = { path = "../image/types" }
+clap = { version = "3.2.14", default-features = false, features = ["std"] }
 hex = "0.4.3"
 anyhow = "1.0.70"
 once_cell = "1.13"
