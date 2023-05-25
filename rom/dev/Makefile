@@ -12,7 +12,6 @@
 #
 ##
 
-RUSTFLAGS=RUSTFLAGS=-Ctarget-feature=+relax
 TARGET_DIR=../../target/riscv32imc-unknown-none-elf/firmware
 CURRENT_DIR = $(shell pwd)
 GIT_REV = $(shell git rev-parse HEAD)
@@ -20,20 +19,20 @@ GIT_REV = $(shell git rev-parse HEAD)
 default: build
 
 build:
-	$(RUSTFLAGS) cargo build \
+	cargo build \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
 
 build-emu:
-	$(RUSTFLAGS) cargo build \
+	cargo build \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
 		--features emu \
 		
 build-test-fmc:
-	$(RUSTFLAGS) cargo build \
+	cargo build \
 		--profile firmware \
 		--manifest-path tools/test-fmc/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
@@ -41,7 +40,7 @@ build-test-fmc:
 		--features emu \
 
 build-test-rt:
-	$(RUSTFLAGS) cargo build \
+	cargo build \
 		--profile firmware \
 		--manifest-path tools/test-rt/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
@@ -70,14 +69,14 @@ build-fw-image: gen-certs build-test-fmc build-test-rt
 		--out $(TARGET_DIR)/caliptra-rom-test-fw \
 		
 bloat: build
-	$(RUSTFLAGS) cargo bloat \
+	 cargo bloat \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
 		-n 1000 \
 
 objdump:
-	$(RUSTFLAGS) cargo objdump \
+	 cargo objdump \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
@@ -123,13 +122,13 @@ run-update: build-emu build-fw-image objcopy
 
 
 size:
-	$(RUSTFLAGS) cargo size \
+	 cargo size \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
 		
 nm:
-	$(RUSTFLAGS) cargo nm \
+	 cargo nm \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
