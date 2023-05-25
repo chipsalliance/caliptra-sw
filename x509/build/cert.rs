@@ -88,10 +88,12 @@ impl<Algo: SigningAlgorithm> CertTemplateBuilder<Algo> {
     pub fn add_fmc_dice_tcb_info_ext(mut self, fwids: &[FwidParam]) -> Self {
         let flags: u32 = 0xC0C1C2C3;
         let svn: u8 = 0xC4;
-        let min_svn: u8 = 0xC5;
+        let svn_fuses: u8 = 0xC5;
 
         self.exts
-            .push(x509::make_fmc_dice_tcb_info_ext(flags, svn, min_svn, fwids))
+            .push(x509::make_fmc_dice_tcb_info_ext(
+                flags, svn, svn_fuses, fwids,
+            ))
             .unwrap();
 
         self.params.push(CertTemplateParam {
@@ -100,13 +102,17 @@ impl<Algo: SigningAlgorithm> CertTemplateBuilder<Algo> {
         });
 
         self.params.push(CertTemplateParam {
-            tbs_param: TbsParam::new("tcb_info_svn", 0, std::mem::size_of_val(&svn)),
+            tbs_param: TbsParam::new("tcb_info_fmc_svn", 0, std::mem::size_of_val(&svn)),
             needle: svn.to_be_bytes().to_vec(),
         });
 
         self.params.push(CertTemplateParam {
-            tbs_param: TbsParam::new("tcb_info_min_svn", 0, std::mem::size_of_val(&min_svn)),
-            needle: min_svn.to_be_bytes().to_vec(),
+            tbs_param: TbsParam::new(
+                "tcb_info_fmc_svn_fuses",
+                0,
+                std::mem::size_of_val(&svn_fuses),
+            ),
+            needle: svn_fuses.to_be_bytes().to_vec(),
         });
 
         for fwid in fwids.iter() {
@@ -120,9 +126,16 @@ impl<Algo: SigningAlgorithm> CertTemplateBuilder<Algo> {
     }
 
     pub fn add_rt_dice_tcb_info_ext(mut self, fwids: &[FwidParam]) -> Self {
+        let svn: u8 = 0xC1;
+
         self.exts
-            .push(x509::make_rt_dice_tcb_info_ext(fwids))
+            .push(x509::make_rt_dice_tcb_info_ext(svn, fwids))
             .unwrap();
+
+        self.params.push(CertTemplateParam {
+            tbs_param: TbsParam::new("tcb_info_rt_svn", 0, std::mem::size_of_val(&svn)),
+            needle: svn.to_be_bytes().to_vec(),
+        });
 
         for fwid in fwids.iter() {
             self.params.push(CertTemplateParam {
