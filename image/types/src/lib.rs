@@ -307,12 +307,26 @@ pub struct ImagePreamble {
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug)]
+pub struct VendorSignedData {
+    /// Vendor Start Date [ASN1 Time Format] For LDEV-Id certificate.
+    pub vendor_not_before: [u8; 15],
+
+    /// Vendor End Date [ASN1 Time Format] For LDEV-Id certificate.
+    pub vendor_not_after: [u8; 15],
+
+    reserved: [u8; 2],
+}
+
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Default, Debug)]
 pub struct OwnerSignedData {
     /// Owner Start Date [ASN1 Time Format] For LDEV-Id certificate: Takes Preference over vendor start date
     pub owner_not_before: [u8; 15],
 
     /// Owner End Date [ASN1 Time Format] For LDEV-Id certificate: Takes Preference over vendor end date
     pub owner_not_after: [u8; 15],
+
+    reserved: [u8; 2],
 }
 
 /// Caliptra Image header
@@ -334,11 +348,8 @@ pub struct ImageHeader {
     /// TOC Digest
     pub toc_digest: ImageDigest,
 
-    /// Vendor Start Date [ASN1 Time Format] For LDEV-Id certificate
-    pub vendor_not_before: [u8; 15],
-
-    /// Vendor End Date [ASN1 Time Format] For LDEV-Id certificate
-    pub vendor_not_after: [u8; 15],
+    /// Vendor Data
+    pub vendor_data: VendorSignedData,
 
     /// The Signed owner data
     pub owner_data: OwnerSignedData,

@@ -13,6 +13,7 @@ Abstract:
 --*/
 use anyhow::bail;
 use caliptra_image_types::*;
+use memoffset::offset_of;
 use zerocopy::AsBytes;
 
 use crate::*;
@@ -65,9 +66,15 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         let toc_digest = self.toc_digest(&fmc_toc, &runtime_toc)?;
         let header = self.gen_header(config, ecc_key_idx, Self::DEFAULT_FLAGS, toc_digest)?;
 
-        // Create Preamable
-        let header_digest = self.header_digest(&header)?;
-        let preamble = self.gen_preamble(config, ecc_key_idx, &header_digest)?;
+        // Create Preamble
+        let header_digest_vendor = self.header_digest_vendor(&header)?;
+        let header_digest_owner = self.header_digest_owner(&header)?;
+        let preamble = self.gen_preamble(
+            config,
+            ecc_key_idx,
+            &header_digest_vendor,
+            &header_digest_owner,
+        )?;
 
         // Create Manifest
         let manifest = ImageManifest {
@@ -94,7 +101,8 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         &self,
         config: &ImageGeneratorConfig<E>,
         ecc_key_idx: u32,
-        digest: &ImageDigest,
+        digest_vendor: &ImageDigest,
+        digest_owner: &ImageDigest,
     ) -> anyhow::Result<ImagePreamble>
     where
         E: ImageGenratorExecutable,
@@ -104,7 +112,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
 
         if let Some(priv_keys) = config.vendor_config.priv_keys {
             let sig = self.crypto.ecdsa384_sign(
-                digest,
+                digest_vendor,
                 &priv_keys.ecc_priv_keys[ecc_key_idx as usize],
                 &config.vendor_config.pub_keys.ecc_pub_keys[ecc_key_idx as usize],
             )?;
@@ -114,7 +122,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         if let Some(owner_config) = &config.owner_config {
             if let Some(priv_keys) = &owner_config.priv_keys {
                 let sig = self.crypto.ecdsa384_sign(
-                    digest,
+                    digest_owner,
                     &priv_keys.ecc_priv_key,
                     &owner_config.pub_keys.ecc_pub_key,
                 )?;
@@ -156,8 +164,8 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             ..Default::default()
         };
 
-        header.vendor_not_before = config.vendor_config.not_before;
-        header.vendor_not_after = config.vendor_config.not_after;
+        header.vendor_data.vendor_not_before = config.vendor_config.not_before;
+        header.vendor_data.vendor_not_after = config.vendor_config.not_after;
 
         if let Some(owner_config) = &config.owner_config {
             header.owner_data.owner_not_before = owner_config.not_before;
@@ -167,8 +175,16 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         Ok(header)
     }
 
-    /// Calculate header digest
-    pub fn header_digest(&self, header: &ImageHeader) -> anyhow::Result<ImageDigest> {
+    /// Calculate header digest for vendor.
+    /// Vendor digest is calculated upto the `owner_data` field.
+    pub fn header_digest_vendor(&self, header: &ImageHeader) -> anyhow::Result<ImageDigest> {
+        let offset = offset_of!(ImageHeader, owner_data);
+        self.crypto
+            .sha384_digest(header.as_bytes().get(..offset).unwrap())
+    }
+
+    /// Calculate header digest for owner.
+    pub fn header_digest_owner(&self, header: &ImageHeader) -> anyhow::Result<ImageDigest> {
         self.crypto.sha384_digest(header.as_bytes())
     }
 

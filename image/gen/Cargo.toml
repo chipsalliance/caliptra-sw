@@ -13,3 +13,4 @@ caliptra-image-types = { path = "../types", features = ["std"] }
 bitflags = "2.0.1"
 zerocopy = "0.6.1"
 anyhow = "1.0.70"
+memoffset = "0.8.0"
