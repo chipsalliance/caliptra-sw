@@ -97,7 +97,7 @@ impl HandOff {
         let ds: DataStore = self.fht.rt_svn_dv_hdl.try_into().unwrap_or_else(|_| {
             caliptra_common::report_handoff_error_and_halt(
                 "Invalid runtime SVN DV handle",
-                0xbabedead,
+                caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
             )
         });
 
@@ -106,9 +106,10 @@ impl HandOff {
         match ds {
             DataVaultNonSticky4(dv_entry) => env.data_vault.read_warm_reset_entry4(dv_entry),
             DataVaultSticky4(dv_entry) => env.data_vault.read_cold_reset_entry4(dv_entry),
-            _ => {
-                crate::report_error(0xbabedead);
-            }
+            _ => caliptra_common::report_handoff_error_and_halt(
+                "Invalid runtime SVN DV handle",
+                caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
+            ),
         }
     }
 
@@ -121,16 +122,17 @@ impl HandOff {
             .unwrap_or_else(|_| {
                 caliptra_common::report_handoff_error_and_halt(
                     "Invalid runtime entry point DV handle",
-                    0xbabedead,
+                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
                 )
             });
         // The data store is either a warm reset entry or a cold reset entry.
         match ds {
             DataVaultNonSticky4(dv_entry) => env.data_vault.read_warm_reset_entry4(dv_entry),
             DataVaultSticky4(dv_entry) => env.data_vault.read_cold_reset_entry4(dv_entry),
-            _ => {
-                crate::report_error(0xbabedead);
-            }
+            _ => caliptra_common::report_handoff_error_and_halt(
+                "Invalid runtime entry point DV handle",
+                caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
+            ),
         }
     }
 }

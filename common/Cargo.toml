@@ -10,6 +10,7 @@ edition = "2021"
 ufmt = "0.2.0"
 zerocopy = "0.6.1"
 caliptra-drivers = { path = "../drivers" }
+caliptra-error = { path = "../error" }
 bitfield = "0.14.0"
 
 
