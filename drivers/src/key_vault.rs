@@ -14,7 +14,7 @@ Abstract:
 
 use bitfield::bitfield;
 
-use crate::{caliptra_err_def, CaliptraResult};
+use crate::{CaliptraError, CaliptraResult};
 use caliptra_registers::kv::KvReg;
 
 /// Key Identifier
@@ -141,18 +141,6 @@ bitfield! {
     pub ecc_data, set_ecc_data:5;
 }
 
-caliptra_err_def! {
-    KeyVault,
-    KeyVaultErr
-    {
-        // Erase failed due to use lock was set
-        EraseUseLockSetFailure = 0x01,
-
-        // Erase failed due to write lock st
-        EraseWriteLockSetFailure = 0x02,
-    }
-}
-
 /// Caliptra Key Vault
 pub struct KeyVault {
     kv: KvReg,
@@ -216,11 +204,11 @@ impl KeyVault {
     /// * `id` - Key ID to erase
     pub fn erase_key(&mut self, id: KeyId) -> CaliptraResult<()> {
         if self.key_use_lock(id) {
-            raise_err!(EraseUseLockSetFailure)
+            return Err(CaliptraError::DRIVER_KV_ERASE_USE_LOCK_SET_FAILURE);
         }
 
         if self.key_write_lock(id) {
-            raise_err!(EraseWriteLockSetFailure)
+            return Err(CaliptraError::DRIVER_KV_ERASE_WRITE_LOCK_SET_FAILURE);
         }
 
         let kv = self.kv.regs_mut();

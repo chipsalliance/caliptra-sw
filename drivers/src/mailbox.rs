@@ -12,29 +12,12 @@ Abstract:
 
 --*/
 
-use crate::{caliptra_err_def, CaliptraResult};
+use crate::{CaliptraError, CaliptraResult};
 use caliptra_registers::mbox::enums::MboxFsmE;
 use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_registers::mbox::MboxCsr;
 use core::cmp::min;
 use core::mem::size_of;
-
-caliptra_err_def! {
-    Mailbox,
-    MailboxErr
-    {
-        // Invalid state
-        InvalidStateErr = 0x1,
-        // Exceeds mailbox capacity
-        InvalidDlenErr = 0x2,
-        // No data avaiable.
-        NoDataAvailErr = 0x03,
-        // Enqueue Error
-        EnqueueErr = 0x04,
-        // Dequeue Error
-        DequeueErr = 0x05,
-    }
-}
 
 #[derive(Copy, Clone, Default, Eq, PartialEq)]
 /// Malbox operational states
@@ -148,7 +131,7 @@ impl MailboxSendTxn<'_> {
     ///
     pub fn write_cmd(&mut self, cmd: u32) -> CaliptraResult<()> {
         if self.state != MailboxOpState::RdyForCmd {
-            raise_err!(InvalidStateErr)
+            return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
         }
         let mbox = self.mbox.regs_mut();
 
@@ -165,12 +148,12 @@ impl MailboxSendTxn<'_> {
     ///
     pub fn write_dlen(&mut self, dlen: u32) -> CaliptraResult<()> {
         if self.state != MailboxOpState::RdyForDlen {
-            raise_err!(InvalidStateErr)
+            return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
         }
         let mbox = self.mbox.regs_mut();
 
         if dlen > MAX_MAILBOX_LEN {
-            raise_err!(InvalidDlenErr);
+            return Err(CaliptraError::DRIVER_MAILBOX_INVALID_DATA_LEN);
         }
 
         // Write Len in Bytes
@@ -185,7 +168,7 @@ impl MailboxSendTxn<'_> {
     /// * 'data' - Data Bufer
     pub fn copy_request(&mut self, cmd: u32, data: &[u8]) -> CaliptraResult<()> {
         if self.state != MailboxOpState::RdyForCmd {
-            raise_err!(InvalidStateErr)
+            return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
         }
 
         self.write_cmd(cmd)?;
@@ -209,16 +192,22 @@ impl MailboxSendTxn<'_> {
         for idx in (0..n).step_by(size_of::<u32>()) {
             let bytes = buf
                 .get(idx..idx + size_of::<u32>())
-                .ok_or(err_u32!(EnqueueErr))?;
+                .ok_or(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR)?;
             mbox.datain()
                 .write(|_| u32::from_le_bytes(bytes.try_into().unwrap()));
         }
 
         // Handle the remainder.
         if remainder > 0 {
-            let mut block_part = *buf.get(n).ok_or(err_u32!(EnqueueErr))? as u32;
+            let mut block_part =
+                *buf.get(n)
+                    .ok_or(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR)? as u32;
             for idx in 1..remainder {
-                block_part |= (*buf.get(n + idx).ok_or(err_u32!(EnqueueErr))? as u32) << (idx << 3);
+                block_part |= (*buf
+                    .get(n + idx)
+                    .ok_or(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR)?
+                    as u32)
+                    << (idx << 3);
             }
             mbox.datain().write(|_| block_part);
         }
@@ -231,7 +220,7 @@ impl MailboxSendTxn<'_> {
     ///
     pub fn execute_request(&mut self) -> CaliptraResult<()> {
         if self.state != MailboxOpState::RdyForData {
-            raise_err!(InvalidStateErr)
+            return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
         }
 
         let mbox = self.mbox.regs_mut();
@@ -274,7 +263,7 @@ impl MailboxSendTxn<'_> {
     ///
     pub fn complete(&mut self) -> CaliptraResult<()> {
         if self.state != MailboxOpState::Execute {
-            raise_err!(InvalidStateErr)
+            return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
         }
         let mbox = self.mbox.regs_mut();
         mbox.execute().write(|w| w.execute(false));
@@ -370,7 +359,7 @@ impl MailboxRecvTxn<'_> {
     ///   
     pub fn copy_request(&mut self, data: &mut [u32]) -> CaliptraResult<()> {
         if self.state != MailboxOpState::Execute {
-            raise_err!(InvalidStateErr)
+            return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
         }
         self.dequeue(data)
     }
@@ -397,7 +386,7 @@ impl MailboxRecvTxn<'_> {
     ///
     pub fn complete(&mut self, success: bool) -> CaliptraResult<()> {
         if self.state != MailboxOpState::Execute {
-            raise_err!(InvalidStateErr)
+            return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
         }
         let status = if success {
             MboxStatusE::CmdComplete

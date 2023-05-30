@@ -16,39 +16,14 @@ use core::usize;
 
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::PcrId;
-use crate::{array::Array4x32, caliptra_err_def, wait, Array4x12, CaliptraResult};
+use crate::{array::Array4x32, wait, Array4x12};
+use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::sha512::Sha512Reg;
 
 const SHA384_BLOCK_BYTE_SIZE: usize = 128;
 const SHA384_BLOCK_LEN_OFFSET: usize = 112;
 const SHA384_MAX_DATA_SIZE: usize = 1024 * 1024;
 const SHA384_HASH_SIZE: usize = 48;
-
-caliptra_err_def! {
-    Sha384,
-    Sha384Err
-    {
-        // Errors encountered while reading data from key vault
-        ReadDataKvRead = 0x01,
-        ReadDataKvWrite = 0x02,
-        ReadDataKvUnknown = 0x3,
-
-        // Invalid State
-        InvalidStateErr = 0x07,
-
-        // Max data limit reached
-        MaxDataErr = 0x08,
-
-        // Key Read invalid key size
-        InvalidKeySize = 0x09,
-
-        // Invalid slice
-        InvalidSlice = 0x0A,
-
-        // Array Index out of bounds
-        IndexOutOfBounds = 0x0B,
-    }
-}
 
 /// SHA-384 Digest
 pub type Sha384Digest<'a> = &'a mut Array4x12;
@@ -91,7 +66,7 @@ impl Sha384 {
     pub fn digest(&mut self, buf: &[u8]) -> CaliptraResult<Array4x12> {
         // Check if the buffer is not large
         if buf.len() > SHA384_MAX_DATA_SIZE {
-            raise_err!(MaxDataErr)
+            return Err(CaliptraError::DRIVER_SHA384_MAX_DATA_ERR);
         }
 
         let mut first = true;
@@ -108,7 +83,7 @@ impl Sha384 {
                         self.digest_partial_block(slice, first, buf.len())?;
                         break;
                     } else {
-                        raise_err!(InvalidSlice)
+                        return Err(CaliptraError::DRIVER_SHA384_INVALID_SLICE);
                     }
                 }
                 _ => {
@@ -121,7 +96,7 @@ impl Sha384 {
                         bytes_remaining -= SHA384_BLOCK_BYTE_SIZE;
                         first = false;
                     } else {
-                        raise_err!(InvalidSlice)
+                        return Err(CaliptraError::DRIVER_SHA384_INVALID_SLICE);
                     }
                 }
             }
@@ -145,7 +120,7 @@ impl Sha384 {
     pub fn pcr_extend(&mut self, id: PcrId, data: &[u8]) -> CaliptraResult<()> {
         let total_bytes = data.len() + SHA384_HASH_SIZE;
         if total_bytes > (SHA384_BLOCK_BYTE_SIZE - 1) {
-            raise_err!(MaxDataErr)
+            return Err(CaliptraError::DRIVER_SHA384_MAX_DATA_ERR);
         }
 
         // Wait on the PCR to be retrieved from the PCR vault.
@@ -159,14 +134,14 @@ impl Sha384 {
         // PANIC-FREE: Following check optimizes the out of bounds
         // panic in copy_from_slice
         if SHA384_HASH_SIZE > total_bytes || total_bytes > block.len() {
-            raise_err!(MaxDataErr)
+            return Err(CaliptraError::DRIVER_SHA384_MAX_DATA_ERR);
         }
         block[SHA384_HASH_SIZE..total_bytes].copy_from_slice(data);
 
         if let Some(slice) = block.get(..total_bytes) {
             self.digest_partial_block(slice, true, total_bytes)?;
         } else {
-            raise_err!(MaxDataErr)
+            return Err(CaliptraError::DRIVER_SHA384_MAX_DATA_ERR);
         }
 
         Ok(())
@@ -213,7 +188,7 @@ impl Sha384 {
         // PANIC-FREE: Following check optimizes the out of bounds
         // panic in copy_from_slice
         if slice.len() > block.len() - 1 {
-            raise_err!(IndexOutOfBounds)
+            return Err(CaliptraError::DRIVER_SHA384_INDEX_OUT_OF_BOUNDS);
         }
         block[..slice.len()].copy_from_slice(slice);
         block[slice.len()] = 0b1000_0000;
@@ -320,11 +295,11 @@ impl<'a> Sha384DigestOp<'a> {
     /// * `data` - Data to used to update the digest
     pub fn update(&mut self, data: &[u8]) -> CaliptraResult<()> {
         if self.state == Sha384DigestState::Final {
-            raise_err!(InvalidStateErr)
+            return Err(CaliptraError::DRIVER_SHA384_INVALID_STATE_ERR);
         }
 
         if self.data_size + data.len() > SHA384_MAX_DATA_SIZE {
-            raise_err!(MaxDataErr)
+            return Err(CaliptraError::DRIVER_SHA384_MAX_DATA_ERR);
         }
 
         for byte in data {
@@ -333,7 +308,7 @@ impl<'a> Sha384DigestOp<'a> {
             // PANIC-FREE: Following check optimizes the out of bounds
             // panic in indexing the `buf`
             if self.buf_idx >= self.buf.len() {
-                raise_err!(IndexOutOfBounds)
+                return Err(CaliptraError::DRIVER_SHA384_INDEX_OUT_OF_BOUNDS);
             }
 
             // Copy the data to the buffer
@@ -353,11 +328,11 @@ impl<'a> Sha384DigestOp<'a> {
     /// Finalize the digest operations
     pub fn finalize(&mut self) -> CaliptraResult<()> {
         if self.state == Sha384DigestState::Final {
-            raise_err!(InvalidStateErr)
+            return Err(CaliptraError::DRIVER_SHA384_INVALID_STATE_ERR);
         }
 
         if self.buf_idx > self.buf.len() {
-            raise_err!(InvalidSlice)
+            return Err(CaliptraError::DRIVER_SHA384_INVALID_SLICE);
         }
 
         // Calculate the digest of the final block
@@ -390,16 +365,16 @@ impl<'a> Sha384DigestOp<'a> {
 /// SHA-384 key access error trait
 trait Sha384KeyAccessErr {
     /// Convert to read data operation error
-    fn into_read_data_err(self) -> Sha384Err;
+    fn into_read_data_err(self) -> CaliptraError;
 }
 
 impl Sha384KeyAccessErr for KvAccessErr {
     /// Convert to read data operation error
-    fn into_read_data_err(self) -> Sha384Err {
+    fn into_read_data_err(self) -> CaliptraError {
         match self {
-            KvAccessErr::KeyRead => Sha384Err::ReadDataKvRead,
-            KvAccessErr::KeyWrite => Sha384Err::ReadDataKvWrite,
-            KvAccessErr::Generic => Sha384Err::ReadDataKvUnknown,
+            KvAccessErr::KeyRead => CaliptraError::DRIVER_SHA384_READ_DATA_KV_READ,
+            KvAccessErr::KeyWrite => CaliptraError::DRIVER_SHA384_READ_DATA_KV_WRITE,
+            KvAccessErr::Generic => CaliptraError::DRIVER_SHA384_READ_DATA_KV_UNKNOWN,
         }
     }
 }

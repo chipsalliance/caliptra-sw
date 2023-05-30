@@ -38,6 +38,7 @@
 | Driver | ECC384 | ReadDataKvWrite |0x0005000B |
 | Driver | ECC384 | ReadDataKvUnknown |0x0005000C |
 | Driver | Key Vault | Erase failed due to use lock was set|0x00060001 |
+| Driver | Key Vault | Erase failed due to write lock was set|0x00060002 |
 | Driver | Pcr Bank | Erase failed due to write lock st |0x00070001 |
 | Driver | Mailbox | Invalid State Error |0x00080001 |
 | Driver | Mailbox | Invalid Data Length Error |0x00080002 |
@@ -97,6 +98,15 @@
 | Image Verifier | Verifier | RuntimeSvnGreaterThanMaxSupported |0x000B002C |
 | Image Verifier | Verifier | RuntimeSvnLessThanMinSupported |0x000B002D |
 | Image Verifier | Verifier | RuntimeSvnLessThanFuse |0x000B002E |
+| Driver | LMS | InvalidLmsAlgorithmType |0x000C0001 |
+| Driver | LMS | InvalidLmotsAlgorithmType |0x000C0002 |
+| Driver | LMS | InvalidWinternitzParameter |0x000C0003 |
+| Driver | LMS | InvalidPValue |0x000C0004 |
+| Driver | LMS | InvalidHashWidth |0x000C0005 |
+| Driver | LMS | InvalidTreeHeight |0x000C0006 |
+| Driver | LMS | InvalidQValue |0x000C0007 |
+| Driver | LMS | InvalidIndex |0x000C0008 |
+| Driver | LMS | PathOutOfBounds |0x000C0009 |
 | Driver | CSRNG | Instantiate Error |0x000d0001 |
 | Driver | CSRNG | Uninstantiate Error |0x000d0002 |
 | Driver | CSRNG | Reseed Error |0x000d0003 |
@@ -113,7 +123,10 @@
 | ROM | LDEVID | Certificate Verification Failure  |0x01010001 |
 | ROM | FMC Alias Layer | Certificate Verification Failure  |0x01020001 |
 | ROM | FMC Alias Layer | Caliptra Image Bundle Manifest Read Failure  |0x01020002 |
+| ROM | FMC Alias Layer | Caliptra Image Bundle Invalid Image Size  |0x01020003 |
+| ROM | FMC Alias Layer | Mailbox state inconsistent  |0x01020004 |
 | ROM | Update Reset Flow | Caliptra Image Bundle Manifest Read Failure  |0x01030002 |
+| ROM | Update Reset Flow | Invalid Firmware Command  |0x01030003 |
 | ROM | Update Reset Flow | Mailbox Access Failure  |0x01030004 |
 | ROM | Global Scope | Non Maskable Interrupt  |0x01040001 |
 | ROM | Global Scope | Exception  |0x01040002 |

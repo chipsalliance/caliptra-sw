@@ -12,31 +12,13 @@ Abstract:
 
 --*/
 
-use crate::{caliptra_err_def, Array4x5, CaliptraResult};
+use crate::{Array4x5, CaliptraError, CaliptraResult};
 
 const SHA1_BLOCK_BYTE_SIZE: usize = 64;
 const SHA1_BLOCK_LEN_OFFSET: usize = 56;
 const SHA1_MAX_DATA_SIZE: usize = 1024 * 1024;
 
 pub type Sha1Digest<'a> = &'a mut Array4x5;
-
-caliptra_err_def! {
-    Sha1,
-    Sha1Err
-    {
-        // Invalid State
-        InvalidStateErr = 0x01,
-
-        // Max data limit reached
-        MaxDataErr = 0x02,
-
-        // Invalid slice
-        InvalidSlice = 0x03,
-
-        // Array Index out of bounds
-        IndexOutOfBounds = 0x04,
-    }
-}
 
 #[derive(Default)]
 pub struct Sha1 {
@@ -73,7 +55,7 @@ impl Sha1 {
     pub fn digest(&mut self, buf: &[u8]) -> CaliptraResult<Array4x5> {
         // Check if the buffer is not large
         if buf.len() > SHA1_MAX_DATA_SIZE {
-            raise_err!(MaxDataErr)
+            return Err(CaliptraError::DRIVER_SHA1_MAX_DATA);
         }
 
         let mut first = true;
@@ -90,7 +72,7 @@ impl Sha1 {
                         self.digest_partial_block(slice, first, buf.len())?;
                         break;
                     } else {
-                        raise_err!(InvalidSlice)
+                        return Err(CaliptraError::DRIVER_SHA1_INVALID_SLICE);
                     }
                 }
                 _ => {
@@ -103,7 +85,7 @@ impl Sha1 {
                         bytes_remaining -= SHA1_BLOCK_BYTE_SIZE;
                         first = false;
                     } else {
-                        raise_err!(InvalidSlice)
+                        return Err(CaliptraError::DRIVER_SHA1_INVALID_SLICE);
                     }
                 }
             }
@@ -147,7 +129,7 @@ impl Sha1 {
         // PANIC-FREE: Following check optimizes the out of bounds
         // panic in copy_from_slice
         if slice.len() > block.len() - 1 {
-            raise_err!(IndexOutOfBounds)
+            return Err(CaliptraError::DRIVER_SHA1_INDEX_OUT_OF_BOUNDS);
         }
         block[..slice.len()].copy_from_slice(slice);
         block[slice.len()] = 0b1000_0000;
@@ -231,11 +213,11 @@ impl<'a> Sha1DigestOp<'a> {
     /// * `data` - Data to used to update the digest
     pub fn update(&mut self, data: &[u8]) -> CaliptraResult<()> {
         if self.state == Sha1DigestState::Final {
-            raise_err!(InvalidStateErr)
+            return Err(CaliptraError::DRIVER_SHA1_INVALID_STATE);
         }
 
         if self.data_size + data.len() > SHA1_MAX_DATA_SIZE {
-            raise_err!(MaxDataErr)
+            return Err(CaliptraError::DRIVER_SHA1_MAX_DATA);
         }
 
         for byte in data {
@@ -244,7 +226,7 @@ impl<'a> Sha1DigestOp<'a> {
             // PANIC-FREE: Following check optimizes the out of bounds
             // panic in indexing the `buf`
             if self.buf_idx >= self.buf.len() {
-                raise_err!(IndexOutOfBounds)
+                return Err(CaliptraError::DRIVER_SHA1_INDEX_OUT_OF_BOUNDS);
             }
 
             // Copy the data to the buffer
@@ -264,11 +246,11 @@ impl<'a> Sha1DigestOp<'a> {
     /// Finalize the digest operations
     pub fn finalize(&mut self) -> CaliptraResult<()> {
         if self.state == Sha1DigestState::Final {
-            raise_err!(InvalidStateErr)
+            return Err(CaliptraError::DRIVER_SHA1_INVALID_STATE);
         }
 
         if self.buf_idx > self.buf.len() {
-            raise_err!(InvalidSlice)
+            return Err(CaliptraError::DRIVER_SHA1_INVALID_SLICE);
         }
 
         // Calculate the digest of the final block

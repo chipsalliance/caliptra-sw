@@ -23,19 +23,9 @@ Note:
 
 use crate::verifier::RomImageVerificationEnv;
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
-use caliptra_drivers::{Array4x12, CaliptraResult, PcrBank, PcrId, Sha384};
-use caliptra_error::caliptra_err_def;
+use caliptra_drivers::{Array4x12, CaliptraError, CaliptraResult, PcrBank, PcrId, Sha384};
 use caliptra_image_verify::ImageVerificationInfo;
 use zerocopy::AsBytes;
-
-caliptra_err_def! {
-    RomGlobal,
-    GlobalErr
-    {
-        PcrLogInvalidEntryId = 0x4,
-        PcrLogUnsupportedDataLength = 0x5,
-    }
-}
 
 extern "C" {
     static mut PCR_LOG_ORG: u8;
@@ -123,11 +113,11 @@ pub(crate) fn extend_pcr0(
 ///
 pub fn log_pcr(pcr_entry_id: PcrLogEntryId, pcr_id: PcrId, data: &[u8]) -> CaliptraResult<()> {
     if pcr_entry_id == PcrLogEntryId::Invalid {
-        raise_err!(PcrLogInvalidEntryId);
+        return Err(CaliptraError::ROM_GLOBAL_PCR_LOG_INVALID_ENTRY_ID);
     }
 
     if data.len() > 48 {
-        raise_err!(PcrLogUnsupportedDataLength);
+        return Err(CaliptraError::ROM_GLOBAL_PCR_LOG_UNSUPPORTED_DATA_LENGTH);
     }
 
     // Create a PCR log entry

@@ -40,7 +40,7 @@ mod soc_ifc;
 
 pub use array::{Array4x12, Array4x4, Array4x5, Array4x8, Array4xN};
 pub use array_concat::array_concat3;
-pub use caliptra_error::{caliptra_err_def, CaliptraComponent, CaliptraError, CaliptraResult};
+pub use caliptra_error::{CaliptraError, CaliptraResult};
 pub use csrng::{
     Csrng, HealthFailCounts as CsrngHealthFailCounts, Iter as CsrngIter, Seed as CsrngSeed,
 };

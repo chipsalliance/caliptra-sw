@@ -21,21 +21,9 @@ Abstract:
     (CSRNG) peripheral.
 
 --*/
-use crate::{caliptra_err_def, wait, CaliptraResult};
+use crate::{wait, CaliptraError, CaliptraResult};
 use caliptra_registers::{csrng::CsrngReg, entropy_src::regs::AlertFailCountsReadVal};
 use core::{iter::FusedIterator, num::NonZeroUsize};
-
-caliptra_err_def! {
-    Csrng,
-    CsrngErr
-    {
-        Instantiate = 1,
-        Uninstantiate = 2,
-        Reseed = 3,
-        Generate = 4,
-        Update = 5,
-    }
-}
 
 // https://opentitan.org/book/hw/ip/csrng/doc/theory_of_operation.html#command-description
 const MAX_SEED_WORDS: usize = 12;
@@ -261,15 +249,15 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
     let flag0: MultiBitBool;
     let glen: usize;
     let extra_words: &[u32];
-    let err: CsrngErr;
+    let err: CaliptraError;
 
     match command {
         Command::Instantiate(ref seed) | Command::Reseed(ref seed) => {
             acmd = if matches!(command, Command::Instantiate(_)) {
-                err = CsrngErr::Instantiate;
+                err = CaliptraError::DRIVER_CSRNG_INSTANTIATE;
                 1
             } else {
-                err = CsrngErr::Reseed;
+                err = CaliptraError::DRIVER_CSRNG_RESEED;
                 2
             };
 
@@ -296,7 +284,7 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
             flag0 = MultiBitBool::False;
             glen = num_128_bit_blocks.min(MAX_GENERATE_BLOCKS);
             extra_words = &[];
-            err = CsrngErr::Generate;
+            err = CaliptraError::DRIVER_CSRNG_GENERATE;
         }
 
         Command::Update(words) => {
@@ -305,7 +293,7 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
             flag0 = MultiBitBool::True;
             glen = 0;
             extra_words = &words[..clen];
-            err = CsrngErr::Update;
+            err = CaliptraError::DRIVER_CSRNG_UPDATE;
         }
 
         Command::Uninstantiate => {
@@ -314,7 +302,7 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
             flag0 = MultiBitBool::False;
             glen = 0;
             extra_words = &[];
-            err = CsrngErr::Uninstantiate;
+            err = CaliptraError::DRIVER_CSRNG_UNINSTANTIATE;
         }
     }
 
@@ -342,7 +330,7 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
         if reg.cmd_sts() {
             // TODO(rkr35): Somehow convey additional error information found in
             // the ERR_CODE register.
-            return Err(err.into());
+            return Err(err);
         }
 
         if reg.cmd_rdy() {

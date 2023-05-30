@@ -1,7 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::RuntimeErr;
-use caliptra_drivers::{CaliptraResult, DataVault};
+use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault};
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
 
 extern "C" {
@@ -42,11 +41,11 @@ fn cert_from_dccm(dv: &DataVault, cert: &mut [u8], cert_type: CertType) -> Calip
         s: sig.s.into(),
     };
     let Some(builder) = Ecdsa384CertBuilder::new(tbs, &bldr_sig) else {
-        return Err(RuntimeErr::InsufficientMemory.into());
+        return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
     };
 
     let Some(size) = builder.build(cert) else {
-        return Err(RuntimeErr::InsufficientMemory.into());
+        return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
     };
 
     Ok(size)

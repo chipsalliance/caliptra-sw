@@ -17,7 +17,7 @@ Abstract:
 use crate::lock::lock_registers;
 use core::hint::black_box;
 
-use caliptra_drivers::{caliptra_err_def, report_fw_error_non_fatal, Mailbox};
+use caliptra_drivers::{report_fw_error_non_fatal, CaliptraError, Mailbox};
 use rom_env::RomEnv;
 
 #[cfg(not(feature = "std"))]
@@ -32,16 +32,6 @@ mod pcr;
 mod print;
 mod rom_env;
 mod verifier;
-
-caliptra_err_def! {
-    RomGlobal,
-    GlobalErr
-    {
-        Nmi= 0x1,
-        Exception= 0x2,
-        Panic = 0x3,
-    }
-}
 
 #[cfg(feature = "std")]
 pub fn main() {}
@@ -127,7 +117,7 @@ extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
 
     // TODO: Signal non-fatal error to SOC
 
-    report_error(GlobalErr::Exception.into());
+    report_error(CaliptraError::ROM_GLOBAL_EXCEPTION.into());
 }
 
 #[no_mangle]
@@ -144,7 +134,7 @@ extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
     // - Signal Fatal error for ICCM/DCCM double bit faults
     // - Signal Non=-Fatal error for all other errors
 
-    report_error(GlobalErr::Nmi.into());
+    report_error(CaliptraError::ROM_GLOBAL_NMI.into());
 }
 
 #[panic_handler]
@@ -156,7 +146,7 @@ fn rom_panic(_: &core::panic::PanicInfo) -> ! {
 
     // TODO: Signal non-fatal error to SOC
 
-    report_error(GlobalErr::Panic.into());
+    report_error(CaliptraError::ROM_GLOBAL_PANIC.into());
 }
 
 #[allow(clippy::empty_loop)]
