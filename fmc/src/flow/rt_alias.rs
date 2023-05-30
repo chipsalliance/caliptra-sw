@@ -25,7 +25,7 @@ impl DiceLayer for RtAliasLayer {
     /// Perform derivations for the DICE layer
     fn derive(_env: &FmcEnv, _input: &DiceInput) -> CaliptraResult<DiceOutput> {
         // TODO : implement derivation.
-        Err(CaliptraError::FMC_RTL_ALIAS_UNIMPLEMENTED)
+        Err(CaliptraError::FMC_RT_ALIAS_UNIMPLEMENTED)
     }
 }
 

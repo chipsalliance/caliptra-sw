@@ -269,7 +269,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let digest_vendor = self
             .env
             .sha384_digest(range.start, vendor_header_len as u32)
-            .map_err(|_| err_u32!(HeaderDigestFailure))?;
+            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE)?;
 
         let digest_owner = self
             .env
