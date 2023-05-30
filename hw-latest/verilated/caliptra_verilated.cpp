@@ -82,4 +82,17 @@ void caliptra_verilated_eval(struct caliptra_verilated* model,
   out->generic_load_data = v->generic_load_data;
 
   out->etrng_req = v->etrng_req;
+
+  out->uc_haddr = v->uc_haddr;
+  out->uc_hburst = v->uc_hburst;
+  out->uc_hmastlock = v->uc_hmastlock;
+  out->uc_hprot = v->uc_hprot;
+  out->uc_hsize = v->uc_hsize;
+  out->uc_htrans = v->uc_htrans;
+  out->uc_hwrite = v->uc_hwrite;
+  out->uc_hwdata = v->uc_hwdata;
+
+  out->uc_hrdata = v->uc_hrdata;
+  out->uc_hready = v->uc_hready;
+  out->uc_hresp = v->uc_hresp;
 }

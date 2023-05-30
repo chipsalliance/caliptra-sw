@@ -39,6 +39,17 @@ pub struct caliptra_verilated_sig_out {
     pub generic_load_en: bool,
     pub generic_load_data: u32,
     pub etrng_req: bool,
+    pub uc_haddr: u32,
+    pub uc_hburst: u8,
+    pub uc_hmastlock: bool,
+    pub uc_hprot: u8,
+    pub uc_hsize: u8,
+    pub uc_htrans: u8,
+    pub uc_hwrite: bool,
+    pub uc_hwdata: u64,
+    pub uc_hrdata: u64,
+    pub uc_hready: bool,
+    pub uc_hresp: bool,
 }
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]

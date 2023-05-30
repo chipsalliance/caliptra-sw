@@ -1,9 +1,13 @@
 // Licensed under the Apache-2.0 license
 
+use crate::bus_logger::{BusLogger, LogFile, NullBus};
 use caliptra_emu_bus::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
-use caliptra_verilated::CaliptraVerilated;
+use caliptra_verilated::{AhbTxnType, CaliptraVerilated};
+use std::cell::RefCell;
 use std::io::Write;
+use std::path::Path;
+use std::rc::Rc;
 
 use crate::Output;
 use std::env;
@@ -15,14 +19,19 @@ const SOC_PAUSER: u32 = 0xffff_ffff;
 const TRNG_DELAY: u32 = 4;
 
 pub struct VerilatedApbBus<'a> {
-    v: &'a mut CaliptraVerilated,
+    model: &'a mut ModelVerilated,
 }
 impl<'a> Bus for VerilatedApbBus<'a> {
-    fn read(&mut self, _size: RvSize, addr: RvAddr) -> Result<RvData, caliptra_emu_bus::BusError> {
+    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, caliptra_emu_bus::BusError> {
         if addr & 0x3 != 0 {
             return Err(caliptra_emu_bus::BusError::LoadAddrMisaligned);
         }
-        Ok(self.v.apb_read_u32(SOC_PAUSER, addr))
+        let result = Ok(self.model.v.apb_read_u32(SOC_PAUSER, addr));
+        self.model
+            .log
+            .borrow_mut()
+            .log_read("SoC", size, addr, result);
+        result
     }
 
     fn write(
@@ -37,7 +46,11 @@ impl<'a> Bus for VerilatedApbBus<'a> {
         if size != RvSize::Word {
             return Err(caliptra_emu_bus::BusError::StoreAccessFault);
         }
-        self.v.apb_write_u32(SOC_PAUSER, addr, val);
+        self.model.v.apb_write_u32(SOC_PAUSER, addr, val);
+        self.model
+            .log
+            .borrow_mut()
+            .log_write("SoC", size, addr, val, Ok(()));
         Ok(())
     }
 }
@@ -50,6 +63,8 @@ pub struct ModelVerilated {
 
     trng_nibbles: Box<dyn Iterator<Item = u8>>,
     trng_delay_remaining: u32,
+
+    log: Rc<RefCell<BusLogger<NullBus>>>,
 }
 
 impl ModelVerilated {
@@ -58,6 +73,14 @@ impl ModelVerilated {
     }
     pub fn stop_tracing(&mut self) {
         self.v.stop_tracing();
+    }
+}
+
+fn ahb_txn_size(ty: AhbTxnType) -> RvSize {
+    match ty {
+        AhbTxnType::ReadU8 | AhbTxnType::WriteU8 => RvSize::Byte,
+        AhbTxnType::ReadU16 | AhbTxnType::WriteU16 => RvSize::HalfWord,
+        AhbTxnType::ReadU32 | AhbTxnType::WriteU32 => RvSize::Word,
     }
 }
 
@@ -76,11 +99,29 @@ impl crate::HwModel for ModelVerilated {
             output_sink.set_now(v.total_cycles());
             output_sink.push_uart_char(ch);
         });
-        let mut v = CaliptraVerilated::with_generic_load_cb(
+
+        let log = Rc::new(RefCell::new(BusLogger::new(NullBus())));
+        let bus_log = log.clone();
+
+        let ahb_cb = Box::new(
+            move |_v: &CaliptraVerilated, ty: AhbTxnType, addr: u32, data: u32| {
+                if ty.is_write() {
+                    bus_log
+                        .borrow_mut()
+                        .log_write("UC", ahb_txn_size(ty), addr, data, Ok(()));
+                } else {
+                    bus_log
+                        .borrow_mut()
+                        .log_read("UC", ahb_txn_size(ty), addr, Ok(data));
+                }
+            },
+        );
+        let mut v = CaliptraVerilated::with_callbacks(
             caliptra_verilated::InitArgs {
                 security_state: u32::from(params.security_state),
             },
             generic_load_cb,
+            ahb_cb,
         );
 
         v.write_rom_image(params.rom);
@@ -92,6 +133,8 @@ impl crate::HwModel for ModelVerilated {
 
             trng_nibbles: params.trng_nibbles,
             trng_delay_remaining: TRNG_DELAY,
+
+            log,
         };
 
         m.tracing_hint(true);
@@ -110,7 +153,7 @@ impl crate::HwModel for ModelVerilated {
     }
 
     fn apb_bus(&mut self) -> Self::TBus<'_> {
-        VerilatedApbBus { v: &mut self.v }
+        VerilatedApbBus { model: self }
     }
 
     fn step(&mut self) {
@@ -143,10 +186,22 @@ impl crate::HwModel for ModelVerilated {
             self.trace_enabled = enable;
             if enable {
                 if let Ok(trace_path) = env::var("CPTRA_TRACE_PATH") {
-                    self.v.start_tracing(&trace_path, 99).ok();
+                    if trace_path.ends_with(".vcd") {
+                        self.v.start_tracing(&trace_path, 99).ok();
+                    } else {
+                        self.log.borrow_mut().log = match LogFile::open(Path::new(&trace_path)) {
+                            Ok(file) => Some(file),
+                            Err(e) => {
+                                eprintln!("Unable to open file {trace_path:?}: {e}");
+                                return;
+                            }
+                        };
+                    }
                 }
             } else {
-                self.v.stop_tracing();
+                if self.log.borrow_mut().log.take().is_none() {
+                    self.v.stop_tracing();
+                }
             }
         }
     }
