@@ -1,0 +1,53 @@
+// Licensed under the Apache-2.0 license
+
+use crate::RuntimeErr;
+use caliptra_drivers::{CaliptraResult, DataVault};
+use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
+
+extern "C" {
+    static mut LDEVID_TBS_ORG: [u8; LocalDevIdCertTbs::TBS_TEMPLATE_LEN];
+    static mut FMCALIAS_TBS_ORG: [u8; FmcAliasCertTbs::TBS_TEMPLATE_LEN];
+}
+
+enum CertType {
+    LDevId,
+    FmcAlias,
+}
+
+/// Copy LDevID certificate produced by ROM to `cert` buffer
+///
+/// Returns the number of bytes written to `cert`
+pub fn copy_ldevid_cert(dv: &DataVault, cert: &mut [u8]) -> CaliptraResult<usize> {
+    cert_from_dccm(dv, cert, CertType::LDevId)
+}
+
+/// Copy FMC Alias certificate produced by ROM to `cert` buffer
+///
+/// Returns the number of bytes written to `cert`
+pub fn copy_fmc_alias_cert(dv: &DataVault, cert: &mut [u8]) -> CaliptraResult<usize> {
+    cert_from_dccm(dv, cert, CertType::FmcAlias)
+}
+
+/// Copy a certificate from `dccm_offset`, append signature, and write the
+/// output to `cert`.
+fn cert_from_dccm(dv: &DataVault, cert: &mut [u8], cert_type: CertType) -> CaliptraResult<usize> {
+    let (tbs, sig) = match cert_type {
+        CertType::LDevId => (unsafe { &LDEVID_TBS_ORG[..] }, dv.ldev_dice_signature()),
+        CertType::FmcAlias => (unsafe { &FMCALIAS_TBS_ORG[..] }, dv.fmc_dice_signature()),
+    };
+
+    // DataVault returns a different type than CertBuilder accepts
+    let bldr_sig = Ecdsa384Signature {
+        r: sig.r.into(),
+        s: sig.s.into(),
+    };
+    let Some(builder) = Ecdsa384CertBuilder::new(tbs, &bldr_sig) else {
+        return Err(RuntimeErr::InsufficientMemory.into());
+    };
+
+    let Some(size) = builder.build(cert) else {
+        return Err(RuntimeErr::InsufficientMemory.into());
+    };
+
+    Ok(size)
+}

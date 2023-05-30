@@ -10,6 +10,7 @@ caliptra-cpu = { version = "0.1.0", path = "../cpu" }
 caliptra-drivers = { path = "../drivers" }
 caliptra-registers = { path = "../registers" }
 caliptra_common = { path = "../common", default-features = false }
+caliptra-x509 = { path = "../x509", default-features = false }
 ufmt = "0.2.0"
 zerocopy = "0.6.1"
 
@@ -25,6 +26,7 @@ caliptra-image-gen = { path = "../image/gen" }
 caliptra-image-openssl = { path = "../image/openssl" }
 caliptra-image-serde = { path = "../image/serde" }
 caliptra-image-types = { path = "../image/types" }
+openssl = "0.10"
 
 [features]
 riscv = ["caliptra-cpu/riscv"]

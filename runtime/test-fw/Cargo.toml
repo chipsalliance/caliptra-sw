@@ -28,6 +28,11 @@ name = "mbox"
 path = "src/mbox_tests.rs"
 required-features = ["riscv"]
 
+[[bin]]
+name = "cert"
+path = "src/cert_tests.rs"
+required-features = ["riscv"]
+
 [build-dependencies]
 cfg-if = "1.0.0"
 

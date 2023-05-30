@@ -3,6 +3,7 @@
 use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode};
 use caliptra_runtime::{CommandId, EcdsaVerifyCmd};
+use openssl::x509::X509;
 use zerocopy::AsBytes;
 
 // Run test_bin as a ROM image. The is used for faster tests that can run
@@ -81,6 +82,28 @@ fn test_boot() {
     let mut model = run_rt_test(Some("boot"));
 
     model.step_until_exit_success().unwrap();
+}
+
+#[test]
+fn test_rom_certs() {
+    let mut model = run_rt_test(Some("cert"));
+
+    // Get certs over the mailbox
+    let ldev_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
+    let ldevid: &[u8] = ldev_resp.as_bytes();
+
+    let fmc_resp = model.mailbox_execute(0x2000_0000, &[]).unwrap().unwrap();
+    let fmc: &[u8] = fmc_resp.as_bytes();
+
+    // Ensure certs are valid X.509
+    let ldev_cert: X509 = X509::from_der(ldevid).unwrap();
+    let fmc_cert: X509 = X509::from_der(fmc).unwrap();
+
+    // Check the FMC is signed by LDevID
+    assert!(fmc_cert.verify(&ldev_cert.public_key().unwrap()).unwrap());
+
+    // TODO: Check that LDevID is signed by IDevID
+    // Runtime does not currently have access to the IDevID public key.
 }
 
 #[test]
