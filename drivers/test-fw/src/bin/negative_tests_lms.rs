@@ -15,7 +15,7 @@ File contains test cases for LMS signature verification using SHA256/192.
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{Lms, Sha256};
+use caliptra_drivers::{CaliptraError, Lms, Sha256};
 use caliptra_lms_types::{
     bytes_to_words_6, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsIdentifier,
     LmsPublicKey, LmsSignature,
@@ -382,6 +382,116 @@ fn test_failures_lms_24() {
         .verify_lms_signature(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &new_lms_sig)
         .unwrap();
     assert_eq!(should_fail, false);
+
+    assert_eq!(
+        Lms::default().verify_lms_signature(
+            &mut sha256,
+            &MESSAGE,
+            &new_public_key,
+            &LmsSignature {
+                tree_type: LmsAlgorithmType::new(12345),
+                ..lms_sig
+            }
+        ),
+        Err(CaliptraError::DRIVER_LMS_INVALID_LMS_ALGO_TYPE)
+    );
+
+    assert_eq!(
+        Lms::default().verify_lms_signature(
+            &mut sha256,
+            &MESSAGE,
+            &LmsPublicKey {
+                otstype: LmotsAlgorithmType::new(23456),
+                ..new_public_key
+            },
+            &LmsSignature {
+                ots: LmotsSignature {
+                    ots_type: LmotsAlgorithmType::new(23456),
+                    ..lms_sig.ots
+                },
+                ..lms_sig
+            }
+        ),
+        Err(CaliptraError::DRIVER_LMS_INVALID_LMOTS_ALGO_TYPE)
+    );
+
+    // TODO: Maybe this should just be INVALID_LMOTS_ALGORITHM_TYPE?
+    assert_eq!(
+        Lms::default().verify_lms_signature(
+            &mut sha256,
+            &MESSAGE,
+            &LmsPublicKey {
+                otstype: LmotsAlgorithmType::LmotsSha256N32W4,
+                ..new_public_key
+            },
+            &LmsSignature {
+                ots: LmotsSignature {
+                    ots_type: LmotsAlgorithmType::LmotsSha256N32W4,
+                    ..lms_sig.ots
+                },
+                ..lms_sig
+            }
+        ),
+        Err(CaliptraError::DRIVER_LMS_INVALID_PVALUE)
+    );
+
+    assert_eq!(
+        Lms::default().verify_lms_signature(
+            &mut sha256,
+            &MESSAGE,
+            &LmsPublicKey {
+                otstype: LmotsAlgorithmType::LmotsSha256N32W8,
+                ..new_public_key
+            },
+            &LmsSignature {
+                q: Q.into(),
+                ots: LmotsSignature {
+                    ots_type: LmotsAlgorithmType::LmotsSha256N32W8,
+                    nonce: NONCE,
+                    y: [Default::default(); 34],
+                },
+                tree_type: LMS_TYPE,
+                tree_path: PATH,
+            }
+        ),
+        Err(CaliptraError::DRIVER_LMS_INVALID_HASH_WIDTH)
+    );
+
+    assert_eq!(
+        Lms::default().verify_lms_signature(
+            &mut sha256,
+            &MESSAGE,
+            &LmsPublicKey {
+                otstype: LmotsAlgorithmType::LmotsSha256N32W4,
+                ..new_public_key
+            },
+            &LmsSignature {
+                q: Q.into(),
+                ots: LmotsSignature {
+                    ots_type: LmotsAlgorithmType::LmotsSha256N32W8,
+                    ..lms_sig.ots
+                },
+                ..lms_sig
+            }
+        ),
+        Err(CaliptraError::DRIVER_LMS_SIGNATURE_LMOTS_DOESNT_MATCH_PUBKEY_LMOTS)
+    );
+    assert_eq!(
+        Lms::default().verify_lms_signature(
+            &mut sha256,
+            &MESSAGE,
+            &LmsPublicKey {
+                tree_type: LmsAlgorithmType::LmsSha256N24H10,
+                ..new_public_key
+            },
+            &LmsSignature {
+                q: Q.into(),
+                tree_type: LmsAlgorithmType::LmsSha256N24H20,
+                ..lms_sig
+            }
+        ),
+        Err(CaliptraError::DRIVER_LMS_PATH_OUT_OF_BOUNDS)
+    );
 }
 
 test_suite! {
