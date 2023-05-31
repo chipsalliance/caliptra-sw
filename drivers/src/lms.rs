@@ -423,47 +423,34 @@ impl Lms {
         let mut temp = HashValue::<N>::from(digest);
         let mut i = 0;
         while node_num > 1 {
+            let mut digest = Array4x8::default();
+            let mut hasher = sha256_driver.digest_init(&mut digest)?;
+            hasher.update(&lms_public_key.id)?;
+            hasher.update(&(node_num / 2).to_be_bytes())?;
+            hasher.update(&D_INTR.to_be_bytes())?;
             if node_num % 2 == 1 {
-                let mut digest = Array4x8::default();
-                let mut hasher = sha256_driver.digest_init(&mut digest)?;
-                hasher.update(&lms_public_key.id)?;
-                hasher.update(&(node_num / 2).to_be_bytes())?;
-                hasher.update(&D_INTR.to_be_bytes())?;
-                for val in lms_sig
-                    .tree_path
-                    .get(i)
-                    .ok_or(CaliptraError::DRIVER_LMS_PATH_OUT_OF_BOUNDS)?
-                    .iter()
-                    .take(N)
-                {
-                    hasher.update(val.as_bytes())?;
-                }
-                for val in temp.0.iter().take(N) {
-                    hasher.update(&val.to_be_bytes())?;
-                }
-                hasher.finalize()?;
-                temp = HashValue::<N>::from(digest);
-            } else {
-                let mut digest = Array4x8::default();
-                let mut hasher = sha256_driver.digest_init(&mut digest)?;
-                hasher.update(&lms_public_key.id)?;
-                hasher.update(&(node_num / 2).to_be_bytes())?;
-                hasher.update(&D_INTR.to_be_bytes())?;
-                for val in temp.0.iter() {
-                    hasher.update(&val.to_be_bytes())?;
-                }
-                for val in lms_sig
-                    .tree_path
-                    .get(i)
-                    .ok_or(CaliptraError::DRIVER_LMS_PATH_OUT_OF_BOUNDS)?
-                    .iter()
-                    .take(N)
-                {
-                    hasher.update(val.as_bytes())?;
-                }
-                hasher.finalize()?;
-                temp = HashValue::<N>::from(digest);
+                hasher.update(
+                    lms_sig
+                        .tree_path
+                        .get(i)
+                        .ok_or(CaliptraError::DRIVER_LMS_PATH_OUT_OF_BOUNDS)?
+                        .as_bytes(),
+                )?;
             }
+            for val in temp.0.iter() {
+                hasher.update(&val.to_be_bytes())?;
+            }
+            if node_num % 2 == 0 {
+                hasher.update(
+                    lms_sig
+                        .tree_path
+                        .get(i)
+                        .ok_or(CaliptraError::DRIVER_LMS_PATH_OUT_OF_BOUNDS)?
+                        .as_bytes(),
+                )?;
+            }
+            hasher.finalize()?;
+            temp = HashValue::<N>::from(digest);
             node_num /= 2;
             i += 1;
         }
