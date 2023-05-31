@@ -35,7 +35,6 @@ impl DiceLayer for RtAliasLayer {
     ) -> CaliptraResult<DiceOutput> {
         // Derive CDI
         let _cdi = Self::derive_cdi(_env, _hand_off, _input.cdi);
-        // TODO : implement derivation.
         Err(CaliptraError::FMC_RT_ALIAS_UNIMPLEMENTED)
     }
 }
