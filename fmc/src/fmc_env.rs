@@ -16,8 +16,8 @@ Abstract:
 --*/
 
 use caliptra_drivers::{
-    Csrng, CaliptraResult, DataVault, Ecc384, Hmac384, KeyVault, Mailbox, PcrBank, Sha1, Sha256, Sha384, Sha384Acc,
-    SocIfc,
+    CaliptraResult, Csrng, DataVault, Ecc384, Hmac384, KeyVault, Mailbox, PcrBank, Sha1, Sha256,
+    Sha384, Sha384Acc, SocIfc,
 };
 use caliptra_registers::{
     csrng::CsrngReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg,
@@ -87,7 +87,6 @@ impl FmcEnv {
             mbox: Mailbox::new(MboxCsr::new()),
             pcr_bank: PcrBank::new(PvReg::new()),
             csrng,
-        }
-    )
+        })
     }
 }
