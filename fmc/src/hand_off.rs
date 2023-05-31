@@ -92,24 +92,9 @@ impl HandOff {
         }
     }
 
-    /// Retrieve runtime security version number.
-    pub fn rt_svn(&self, env: &FmcEnv) -> u32 {
-        let ds: DataStore = self.fht.rt_svn_dv_hdl.try_into().unwrap_or_else(|_| {
-            caliptra_common::report_handoff_error_and_halt(
-                "Invalid runtime SVN DV handle",
-                0xbabedead,
-            )
-        });
-
-        // The data store is either a warm reset entry or a cold reset entry inside
-        // the data vault.
-        match ds {
-            DataVaultNonSticky4(dv_entry) => env.data_vault.read_warm_reset_entry4(dv_entry),
-            DataVaultSticky4(dv_entry) => env.data_vault.read_cold_reset_entry4(dv_entry),
-            _ => {
-                crate::report_error(0xbabedead);
-            }
-        }
+    /// Retrieve image manifest load address in DCCM
+    pub fn image_manifest_address(&self, _env: &FmcEnv) -> u32 {
+        self.fht.manifest_load_addr
     }
 
     /// Retrieve the entry point of the runtime firmware.

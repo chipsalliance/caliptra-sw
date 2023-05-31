@@ -20,10 +20,10 @@ Note:
     PCR3 - Current PCR unlocked and cleared on any reset
 
 --*/
-
+use crate::flow::tci::Tci;
 use crate::fmc_env::FmcEnv;
 use crate::HandOff;
-use caliptra_drivers::{CaliptraResult, PcrId};
+use caliptra_drivers::{okref, CaliptraResult, PcrId};
 
 const CURRENT_PCR: PcrId = PcrId::PcrId3;
 const JOURNEY_PCR: PcrId = PcrId::PcrId2;
@@ -54,14 +54,15 @@ pub fn extend_journey_pcr(env: &mut FmcEnv, hand_off: &HandOff) -> CaliptraResul
 /// * `pcr_id` - PCR slot to extend the data into
 fn extend_pcr_common(env: &mut FmcEnv, hand_off: &HandOff, pcr_id: PcrId) -> CaliptraResult<()> {
     // Extend RT TCI (Hash over runtime code)
-    let data = hand_off.rt_tci(env);
-    let bytes: [u8; 48] = (&data).into();
-    env.pcr_bank.extend_pcr(pcr_id, &mut env.sha384, &bytes)?;
+    let rt_tci = Tci::rt_tci(env, hand_off);
+    let rt_tci: [u8; 48] = okref(&rt_tci)?.into();
+    env.pcr_bank.extend_pcr(pcr_id, &mut env.sha384, &rt_tci)?;
 
-    // Extend RT SVN
-    let data = hand_off.rt_svn(env);
-    let bytes = &data.to_le_bytes();
-    env.pcr_bank.extend_pcr(pcr_id, &mut env.sha384, bytes)?;
+    // Extend FW Image Manifest
+    let manifest_digest = Tci::image_manifest_digest(env, hand_off);
+    let manifest_digest: [u8; 48] = okref(&manifest_digest)?.into();
+    env.pcr_bank
+        .extend_pcr(pcr_id, &mut env.sha384, &manifest_digest)?;
 
     Ok(())
 }

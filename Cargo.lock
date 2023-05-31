@@ -276,6 +276,7 @@ dependencies = [
  "caliptra-cpu",
  "caliptra-drivers",
  "caliptra-hw-model",
+ "caliptra-image-types",
  "caliptra-registers",
  "caliptra-x509",
  "caliptra_common",

@@ -17,9 +17,11 @@ mod unknown_reset;
 mod update_reset;
 mod warm_reset;
 
+mod crypto;
 mod dice;
 mod pcr;
 mod rt_alias;
+mod tci;
 
 use crate::flow::rt_alias::RtAliasLayer;
 
