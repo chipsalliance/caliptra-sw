@@ -51,6 +51,7 @@ members = [
   "image/openssl",
   "image/elf",
   "image/fake-keys",
+  "lms-types",
   "rom/dev",
   "rom/dev/tools/test-fmc",
   "rom/dev/tools/test-rt",

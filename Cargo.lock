@@ -437,6 +437,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "caliptra-lms-types"
+version = "0.1.0"
+dependencies = [
+ "zerocopy",
+]
+
+[[package]]
 name = "caliptra-registers"
 version = "0.1.0"
 dependencies = [
