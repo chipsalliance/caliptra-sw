@@ -15,15 +15,13 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::Csrng;
 use caliptra_drivers::{
-    Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Scalar, Ecc384Seed,
-    KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
+    Array4x12, Array4xN, Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Scalar,
+    Ecc384Seed, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
 };
 use caliptra_kat::Ecc384Kat;
-use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::ecc::EccReg;
-use caliptra_registers::entropy_src::EntropySrcReg;
+
 use caliptra_test_harness::test_suite;
 
 const PRIV_KEY: [u8; 48] = [
@@ -58,13 +56,12 @@ const SIGNATURE_S: [u8; 48] = [
 
 fn test_gen_key_pair() {
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
-    let mut csrng = unsafe { Csrng::new(CsrngReg::new(), EntropySrcReg::new()).unwrap() };
     let seed = [0u8; 48];
+    let nonce = Array4xN::default();
     let mut priv_key = Array4x12::default();
     let result = ecc.key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
-        &Array4x12::default(),
-        &mut csrng,
+        &nonce,
         Ecc384PrivKeyOut::from(&mut priv_key),
     );
     assert!(result.is_ok());
@@ -78,56 +75,6 @@ fn test_gen_key_pair() {
     der[01..49].copy_from_slice(&PUB_KEY_X);
     der[49..97].copy_from_slice(&PUB_KEY_Y);
     assert_eq!(pub_key.to_der(), der);
-}
-
-fn test_gen_key_pair_with_iv() {
-    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
-    let mut csrng = unsafe { Csrng::new(CsrngReg::new(), EntropySrcReg::new()).unwrap() };
-    let seed = [
-        0x8F, 0xA8, 0x54, 0x1C, 0x82, 0xA3, 0x92, 0xCA, 0x74, 0xF2, 0x3E, 0xD1, 0xDB, 0xFD, 0x73,
-        0x54, 0x1C, 0x59, 0x66, 0x39, 0x1B, 0x97, 0xEA, 0x73, 0xD7, 0x44, 0xB0, 0xE3, 0x4B, 0x9D,
-        0xF5, 0x9E, 0xD0, 0x15, 0x80, 0x63, 0xE3, 0x9C, 0x09, 0xA5, 0xA0, 0x55, 0x37, 0x1E, 0xDF,
-        0x7A, 0x54, 0x41,
-    ];
-
-    let nonce = [
-        0x1B, 0x7E, 0xC5, 0xE5, 0x48, 0xE8, 0xAA, 0xA9, 0x2E, 0xC7, 0x70, 0x97, 0xCA, 0x95, 0x51,
-        0xC9, 0x78, 0x3C, 0xE6, 0x82, 0xCA, 0x18, 0xFB, 0x1E, 0xDB, 0xD9, 0xF1, 0xE5, 0x0B, 0xC3,
-        0x82, 0xDB, 0x8A, 0xB3, 0x94, 0x96, 0xC8, 0xEE, 0x42, 0x3F, 0x8C, 0xA1, 0x05, 0xCB, 0xBA,
-        0x7B, 0x65, 0x88,
-    ];
-
-    let priv_key_exp = [
-        0xF2, 0x74, 0xF6, 0x9D, 0x16, 0x3B, 0x0C, 0x9F, 0x1F, 0xC3, 0xEB, 0xF4, 0x29, 0x2A, 0xD1,
-        0xC4, 0xEB, 0x3C, 0xEC, 0x1C, 0x5A, 0x7D, 0xDE, 0x6F, 0x80, 0xC1, 0x42, 0x92, 0x93, 0x4C,
-        0x20, 0x55, 0xE0, 0x87, 0x74, 0x8D, 0x0A, 0x16, 0x9C, 0x77, 0x24, 0x83, 0xAD, 0xEE, 0x5E,
-        0xE7, 0x0E, 0x17,
-    ];
-    let pub_key_x_exp = [
-        0xD7, 0x9C, 0x6D, 0x97, 0x2B, 0x34, 0xA1, 0xDF, 0xC9, 0x16, 0xA7, 0xB6, 0xE0, 0xA9, 0x9B,
-        0x6B, 0x53, 0x87, 0xB3, 0x4D, 0xA2, 0x18, 0x76, 0x07, 0xC1, 0xAD, 0x0A, 0x4D, 0x1A, 0x8C,
-        0x2E, 0x41, 0x72, 0xAB, 0x5F, 0xA5, 0xD9, 0xAB, 0x58, 0xFE, 0x45, 0xE4, 0x3F, 0x56, 0xBB,
-        0xB6, 0x6B, 0xA4,
-    ];
-    let pub_key_y_exp = [
-        0x5A, 0x73, 0x63, 0x93, 0x2B, 0x06, 0xB4, 0xF2, 0x23, 0xBE, 0xF0, 0xB6, 0x0A, 0x63, 0x90,
-        0x26, 0x51, 0x12, 0xDB, 0xBD, 0x0A, 0xAE, 0x67, 0xFE, 0xF2, 0x6B, 0x46, 0x5B, 0xE9, 0x35,
-        0xB4, 0x8E, 0x45, 0x1E, 0x68, 0xD1, 0x6F, 0x11, 0x18, 0xF2, 0xB3, 0x2B, 0x4C, 0x28, 0x60,
-        0x87, 0x49, 0xED,
-    ];
-
-    let mut priv_key = Array4x12::default();
-    let result = ecc.key_pair(
-        Ecc384Seed::from(&Ecc384Scalar::from(seed)),
-        &Array4x12::from(nonce),
-        &mut csrng,
-        Ecc384PrivKeyOut::from(&mut priv_key),
-    );
-    assert!(result.is_ok());
-    let pub_key = result.unwrap();
-    assert_eq!(priv_key, Ecc384Scalar::from(priv_key_exp));
-    assert_eq!(pub_key.x, Ecc384Scalar::from(pub_key_x_exp));
-    assert_eq!(pub_key.y, Ecc384Scalar::from(pub_key_y_exp));
 }
 
 fn test_sign() {
@@ -173,11 +120,11 @@ fn test_verify_failure() {
 
 fn test_kv_seed_from_input_msg_from_input() {
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
-    let mut csrng = unsafe { Csrng::new(CsrngReg::new(), EntropySrcReg::new()).unwrap() };
     //
     // Step 1: Generate a key pair and store private key in kv slot 2.
     //
     let seed = [0u8; 48];
+    let nonce = Array4xN::default();
     let mut key_usage = KeyUsage::default();
     key_usage.set_ecc_private_key(true);
     let key_out_1 = KeyWriteArgs {
@@ -186,8 +133,7 @@ fn test_kv_seed_from_input_msg_from_input() {
     };
     let result = ecc.key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
-        &Array4x12::default(),
-        &mut csrng,
+        &nonce,
         Ecc384PrivKeyOut::from(key_out_1),
     );
     assert!(result.is_ok());
@@ -221,7 +167,6 @@ fn test_kv_seed_from_input_msg_from_input() {
 
 fn test_kv_seed_from_kv_msg_from_input() {
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
-    let mut csrng = unsafe { Csrng::new(CsrngReg::new(), EntropySrcReg::new()).unwrap() };
     //
     // Step 1: Generate a key-pair. Store private key in kv slot 0.
     // Mark the key as ecc_key_gen_seed as it will be used as a seed for key generation.
@@ -233,6 +178,7 @@ fn test_kv_seed_from_kv_msg_from_input() {
     //  0x89, 0x46, 0xd6,]
     //
     let seed = [0u8; 48];
+    let nonce = Array4xN::default();
     let mut key_usage = KeyUsage::default();
     key_usage.set_ecc_key_gen_seed(true);
     let key_out_1 = KeyWriteArgs {
@@ -241,8 +187,7 @@ fn test_kv_seed_from_kv_msg_from_input() {
     };
     let result = ecc.key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
-        &Array4x12::default(),
-        &mut csrng,
+        &nonce,
         Ecc384PrivKeyOut::from(key_out_1),
     );
     assert!(result.is_ok());
@@ -281,8 +226,7 @@ fn test_kv_seed_from_kv_msg_from_input() {
     };
     let result = ecc.key_pair(
         Ecc384Seed::from(key_in_seed),
-        &Array4x12::default(),
-        &mut csrng,
+        &nonce,
         Ecc384PrivKeyOut::from(key_out_priv_key),
     );
     assert!(result.is_ok());
@@ -342,7 +286,6 @@ fn test_kat() {
 test_suite! {
     test_kat,
     test_gen_key_pair,
-    test_gen_key_pair_with_iv,
     test_sign,
     test_verify,
     test_verify_failure,

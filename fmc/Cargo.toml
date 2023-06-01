@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 caliptra-cpu = { version = "0.1.0", path = "../cpu" }
 caliptra-drivers = { path = "../drivers" }
+caliptra-error = { version = "0.1.0", path = "../error" , default-features=false}
 caliptra-registers = { path = "../registers" }
 caliptra-x509 = { version = "0.1.0", path = "../x509" , default-features = false }
 caliptra_common = { path = "../common", default-features = false }

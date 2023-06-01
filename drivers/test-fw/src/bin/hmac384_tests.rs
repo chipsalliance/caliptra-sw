@@ -16,13 +16,11 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{
-    Array4x12, Csrng, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, Hmac384, KeyId,
+    Array4x12, Array4xN, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, Hmac384, KeyId,
     KeyReadArgs, KeyUsage, KeyWriteArgs,
 };
 use caliptra_kat::Hmac384Kat;
-use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::ecc::EccReg;
-use caliptra_registers::entropy_src::EntropySrcReg;
 use caliptra_registers::hmac::HmacReg;
 
 use caliptra_test_harness::test_suite;
@@ -91,11 +89,11 @@ fn test_hmac1() {
 fn test_hmac3() {
     let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
-    let mut csrng = unsafe { Csrng::new(CsrngReg::new(), EntropySrcReg::new()).unwrap() };
     //
     // Step 1: Place a key in the key-vault.
     //
     let seed = [0u8; 48];
+    let nonce = Array4xN::default();
     let mut key_usage = KeyUsage::default();
     key_usage.set_hmac_key(true);
     let key_out_1 = KeyWriteArgs {
@@ -104,8 +102,7 @@ fn test_hmac3() {
     };
     let result = ecc.key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
-        &Array4x12::default(),
-        &mut csrng,
+        &nonce,
         Ecc384PrivKeyOut::from(key_out_1),
     );
     assert!(result.is_ok());
@@ -136,11 +133,11 @@ fn test_hmac3() {
 fn test_hmac4() {
     let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
-    let mut csrng = unsafe { Csrng::new(CsrngReg::new(), EntropySrcReg::new()).unwrap() };
     //
     // Step 1: Place a key in the key-vault.
     //
     let seed = [0u8; 48];
+    let nonce = Array4xN::default();
     let mut key_usage = KeyUsage::default();
     key_usage.set_hmac_key(true);
     let key_out_1 = KeyWriteArgs {
@@ -149,8 +146,7 @@ fn test_hmac4() {
     };
     let result = ecc.key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
-        &Array4x12::default(),
-        &mut csrng,
+        &nonce,
         Ecc384PrivKeyOut::from(key_out_1),
     );
     assert!(result.is_ok());
@@ -186,11 +182,11 @@ fn test_hmac4() {
 fn test_hmac5() {
     let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
-    let mut csrng = unsafe { Csrng::new(CsrngReg::new(), EntropySrcReg::new()).unwrap() };
     //
     // Step 1: Place a key in the key-vault.
     //
     let seed = [0u8; 48];
+    let nonce = Array4xN::default();
     let mut key_usage = KeyUsage::default();
     key_usage.set_hmac_key(true);
     let key_out_1 = KeyWriteArgs {
@@ -199,8 +195,7 @@ fn test_hmac5() {
     };
     let result = ecc.key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
-        &Array4x12::default(),
-        &mut csrng,
+        &nonce,
         Ecc384PrivKeyOut::from(key_out_1),
     );
     assert!(result.is_ok());
@@ -250,7 +245,6 @@ fn test_hmac5() {
 fn test_hmac6() {
     let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
-    let mut csrng = unsafe { Csrng::new(CsrngReg::new(), EntropySrcReg::new()).unwrap() };
     //
     // Step 1: Place a key in the key-vault.
     //
@@ -259,6 +253,7 @@ fn test_hmac6() {
     //          0x87, 0x1c, 0x1a, 0xec, 0x3, 0x2c, 0x7a, 0x8b, 0x10, 0xb9, 0x3e, 0xe, 0xab, 0x89, 0x46, 0xd6,];
     //
     let seed = [0u8; 48];
+    let nonce = Array4xN::default();
     let mut key_usage = KeyUsage::default();
     key_usage.set_hmac_key(true);
     let key_out_1 = KeyWriteArgs {
@@ -267,8 +262,7 @@ fn test_hmac6() {
     };
     let result = ecc.key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
-        &Array4x12::default(),
-        &mut csrng,
+        &nonce,
         Ecc384PrivKeyOut::from(key_out_1),
     );
     assert!(result.is_ok());
