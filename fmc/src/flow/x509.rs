@@ -15,7 +15,6 @@ use super::crypto::Crypto;
 use crate::fmc_env::FmcEnv;
 use caliptra_drivers::*;
 
-
 /// X509 API
 pub enum X509 {}
 

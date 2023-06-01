@@ -113,9 +113,7 @@ impl Crypto {
 
         Ok(Ecc384KeyPair {
             priv_key,
-            pub_key: env
-                .ecc384
-                .key_pair(seed, &Array4x12::default(), &mut env.csrng, key_out)?,
+            pub_key: env.ecc384.key_pair(seed, &Array4x12::default(), key_out)?,
         })
     }
 }
