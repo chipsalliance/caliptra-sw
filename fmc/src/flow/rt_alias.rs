@@ -15,11 +15,13 @@ use crate::flow::crypto::Crypto;
 use crate::flow::dice::{DiceInput, DiceLayer, DiceOutput};
 use crate::flow::pcr::{extend_current_pcr, extend_journey_pcr};
 use crate::flow::tci::Tci;
+use crate::flow::x509::X509;
 use crate::fmc_env::FmcEnv;
 use crate::HandOff;
 use caliptra_common::cprintln;
+use caliptra_common::crypto::Ecc384KeyPair;
 use caliptra_drivers::{
-    okref, CaliptraError, CaliptraResult, Hmac384Data, Hmac384Key, KeyId, KeyReadArgs,
+    okref, CaliptraError, CaliptraResult, Ecc384PubKey, Hmac384Data, Hmac384Key, KeyId, KeyReadArgs,
 };
 const SHA384_HASH_SIZE: usize = 48;
 
@@ -29,22 +31,71 @@ pub struct RtAliasLayer {}
 impl DiceLayer for RtAliasLayer {
     /// Perform derivations for the DICE layer
     fn derive(
-        _env: &mut FmcEnv,
-        _hand_off: &HandOff,
-        _input: &DiceInput,
+        env: &mut FmcEnv,
+        hand_off: &HandOff,
+        input: &DiceInput,
     ) -> CaliptraResult<DiceOutput> {
         // Derive CDI
-        let _cdi = Self::derive_cdi(_env, _hand_off, _input.cdi);
-        Err(CaliptraError::FMC_RT_ALIAS_UNIMPLEMENTED)
+        let cdi = *okref(&Self::derive_cdi(env, hand_off, input.cdi))?;
+
+        // Derive DICE Key Pair from CDI
+        let key_pair = Self::derive_key_pair(env, cdi, input.subj_priv_key)?;
+
+        // Generate the Subject Serial Number and Subject Key Identifier.
+        //
+        // This information will be used by next DICE Layer while generating
+        // certificates
+        let subj_sn = X509::subj_sn(env, &key_pair.pub_key)?;
+        let subj_key_id = X509::subj_key_id(env, &key_pair.pub_key)?;
+
+        let output = input.to_output(key_pair, subj_sn, subj_key_id);
+
+        // Generate Local Device ID Certificate
+        Self::generate_cert_sig(env, input, &output)?;
+        Ok(output)
     }
 }
 
 impl RtAliasLayer {
     #[inline(never)]
     pub fn run(env: &mut FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
-        cprintln!("[art] Extend PCRs");
+        cprintln!("Extend PCRs");
         Self::extend_pcrs(env, hand_off)?;
-        Ok(())
+
+        // Retrieve Dice Input Layer from Hand Off and Derive Key
+        match Self::dice_input_from_hand_off(hand_off) {
+            Ok(input) => {
+                let _ = Self::derive(env, hand_off, &input);
+                Ok(())
+            }
+            _ => Err(CaliptraError::FMC_RT_ALIAS_DERIVE_FAILURE),
+        }
+    }
+
+    /// Retrieve DICE Input from HandsOff
+    ///
+    /// # Arguments
+    ///
+    /// * `hand_off` - HandOff
+    ///
+    /// # Returns
+    ///
+    /// * `DiceInput` - DICE Layer Input
+    fn dice_input_from_hand_off(hand_off: &HandOff) -> CaliptraResult<DiceInput> {
+        // Create initial output
+        let input = DiceInput {
+            cdi: hand_off.fmc_cdi(),
+            subj_priv_key: hand_off.fmc_priv_key(),
+            auth_key_pair: Ecc384KeyPair {
+                priv_key: KeyId::KeyId5,
+                pub_key: Ecc384PubKey::default(),
+            },
+            auth_sn: [0u8; 64],
+            auth_key_id: [0u8; 20],
+            uds_key: hand_off.fmc_cdi(),
+        };
+
+        Ok(input)
     }
 
     /// Extend current and journey PCRs
@@ -52,6 +103,7 @@ impl RtAliasLayer {
     /// # Arguments
     ///
     /// * `env` - FMC Environment
+    /// * `hand_off` - HandOff
     pub fn extend_pcrs(env: &mut FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
         extend_current_pcr(env, hand_off)?;
         extend_journey_pcr(env, hand_off)?;
@@ -88,5 +140,39 @@ impl RtAliasLayer {
         let data = Hmac384Data::Slice(&tci);
         let cdi = Crypto::hmac384_mac(env, key, data, cdi)?;
         Ok(cdi)
+    }
+
+    /// Derive Dice Layer Key Pair
+    ///
+    /// # Arguments
+    ///
+    /// * `env`      - Fmc Environment
+    /// * `cdi`      - Composite Device Identity
+    /// * `priv_key` - Key slot to store the private key into
+    ///
+    /// # Returns
+    ///
+    /// * `Ecc384KeyPair` - Derive DICE Layer Key Pair
+    fn derive_key_pair(
+        env: &mut FmcEnv,
+        cdi: KeyId,
+        priv_key: KeyId,
+    ) -> CaliptraResult<Ecc384KeyPair> {
+        Crypto::ecc384_key_gen(env, cdi, priv_key)
+    }
+
+    /// Generate Local Device ID Certificate Signature
+    ///
+    /// # Arguments
+    ///
+    /// * `env`    - FMC Environment
+    /// * `input`  - DICE Input
+    /// * `output` - DICE Output
+    fn generate_cert_sig(
+        _env: &FmcEnv,
+        _input: &DiceInput,
+        _output: &DiceOutput,
+    ) -> CaliptraResult<()> {
+        Ok(())
     }
 }

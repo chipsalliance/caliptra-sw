@@ -14,7 +14,7 @@ File Name:
 use crate::fmc_env::FmcEnv;
 use caliptra_common::DataStore::*;
 use caliptra_common::{DataStore, FirmwareHandoffTable};
-use caliptra_drivers::Array4x12;
+use caliptra_drivers::{Array4x12, KeyId};
 #[cfg(feature = "riscv")]
 core::arch::global_asm!(include_str!("transfer_control.S"));
 
@@ -58,6 +58,33 @@ impl HandOff {
             return Some(me);
         }
         None
+    }
+
+    /// Retrieve FMC CDI
+    pub fn fmc_cdi(&self) -> KeyId {
+        let ds: DataStore = self.fht.fmc_cdi_kv_hdl.try_into().unwrap_or_else(|_| {
+            caliptra_common::report_handoff_error_and_halt("Invalid CDI DV handle", 0xbabedead)
+        });
+
+        match ds {
+            KeyVaultSlot(key_id) => key_id,
+            _ => crate::report_error(0xbabedead),
+        }
+    }
+
+    /// Retrieve FMC Alias Private Key
+    pub fn fmc_priv_key(&self) -> KeyId {
+        let ds: DataStore = self.fht.fmc_priv_key_kv_hdl.try_into().unwrap_or_else(|_| {
+            caliptra_common::report_handoff_error_and_halt(
+                "Invalid FMC ALias Private Key DV handle",
+                0xbabedead,
+            )
+        });
+
+        match ds {
+            KeyVaultSlot(key_id) => key_id,
+            _ => crate::report_error(0xbabedead),
+        }
     }
 
     /// Transfer control to the runtime firmware.

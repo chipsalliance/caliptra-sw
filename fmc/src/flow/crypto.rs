@@ -8,13 +8,42 @@ Abstract:
 use crate::fmc_env::FmcEnv;
 use caliptra_common::crypto::Ecc384KeyPair;
 use caliptra_drivers::{
-    Array4x12, CaliptraResult, Ecc384PrivKeyOut, Ecc384Seed, Hmac384Data, Hmac384Key, Hmac384Tag,
-    KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
+    Array4x12, Array4x5, Array4x8, CaliptraResult, Ecc384PrivKeyOut, Ecc384Seed, Hmac384Data,
+    Hmac384Key, Hmac384Tag, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
 };
 
 pub enum Crypto {}
 
 impl Crypto {
+    /// Calculate SHA1 Digest
+    ///
+    /// # Arguments
+    ///
+    /// * `env`   - FMC Environment
+    /// * `data`  - Input data to hash
+    ///
+    /// # Returns
+    ///
+    /// * `Array4x5` - Digest
+    pub fn _sha1_digest(env: &mut FmcEnv, data: &[u8]) -> CaliptraResult<Array4x5> {
+        env.sha1.digest(data)
+    }
+
+    /// Calculate SHA2-256 Digest
+    ///
+    /// # Arguments
+    ///
+    /// * `env`   - Fmc Environment
+    /// * `data` - Input data to hash
+    ///
+    /// # Returns
+    ///
+    /// * `Array4x8` - Digest
+    #[inline(always)]
+    pub fn sha256_digest(env: &mut FmcEnv, data: &[u8]) -> CaliptraResult<Array4x8> {
+        env.sha256.digest(data)
+    }
+
     /// Calculate SHA2-384 Digest
     ///
     /// # Arguments
@@ -70,7 +99,7 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Ecc384KeyPair` - Private Key slot id and public key pairs
-    pub fn _ecc384_key_gen(
+    pub fn ecc384_key_gen(
         env: &mut FmcEnv,
         seed: KeyId,
         priv_key: KeyId,
