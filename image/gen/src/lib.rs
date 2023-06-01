@@ -70,6 +70,8 @@ pub struct ImageGeneratorVendorConfig {
 
     pub ecc_key_idx: u32,
 
+    pub lms_key_idx: u32,
+
     pub priv_keys: Option<ImageVendorPrivKeys>,
 
     pub not_before: [u8; 15],

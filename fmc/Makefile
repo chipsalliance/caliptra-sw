@@ -41,7 +41,7 @@ build-rom:
 		--no-default-features \
 		--features emu \
 
-objcopy-rom: 
+objcopy-rom:
 	riscv64-unknown-elf-objcopy \
 		--gap-fill 0x00 \
 		--pad-to 0x8000 \
@@ -70,6 +70,7 @@ build-fw-image: gen-certs build-emu build-test-rt
 		create \
 		--key-config $(TARGET_DIR)/keys.toml \
 		--ecc-pk-idx 3 \
+		--lms-pk-idx 3 \
 		--fmc $(TARGET_DIR)/caliptra-fmc \
 		--fmc-svn 0 \
 		--fmc-min-svn 0 \
@@ -79,7 +80,7 @@ build-fw-image: gen-certs build-emu build-test-rt
 		--rt-min-svn 0 \
 		--rt-rev $(GIT_REV) \
 		--out $(TARGET_DIR)/caliptra-rom-test-fw \
-		
+
 bloat: build
 	$(RUSTFLAGS) cargo bloat \
 		--profile firmware \
@@ -107,7 +108,7 @@ objcopy:
   		$(TARGET_DIR)/caliptra-rom \
   		$(TARGET_DIR)/caliptra-rom.bin \
 
-run: build-emu build-rom objcopy-rom build-fw-image 
+run: build-emu build-rom objcopy-rom build-fw-image
 	cargo run \
 		--manifest-path ../sw-emulator/Cargo.toml \
 		--release \
@@ -123,7 +124,7 @@ size:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		
+
 nm:
 	$(RUSTFLAGS) cargo nm \
 		--profile firmware \
@@ -134,7 +135,7 @@ nm:
 
 hexdump: objcopy
 	xxd $(TARGET_DIR)/caliptra-rom.bin \
-	
+
 clean:
 	cargo clean
 

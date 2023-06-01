@@ -376,6 +376,7 @@ dependencies = [
  "caliptra-image-gen",
  "caliptra-image-openssl",
  "caliptra-image-types",
+ "zerocopy",
 ]
 
 [[package]]
@@ -394,10 +395,10 @@ name = "caliptra-image-openssl"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "caliptra-drivers",
  "caliptra-image-gen",
  "caliptra-image-types",
  "openssl",
+ "zerocopy",
 ]
 
 [[package]]
@@ -413,7 +414,7 @@ dependencies = [
 name = "caliptra-image-types"
 version = "0.1.0"
 dependencies = [
- "caliptra-drivers",
+ "caliptra-lms-types",
  "memoffset",
  "zerocopy",
 ]
