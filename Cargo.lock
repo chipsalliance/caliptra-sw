@@ -376,6 +376,7 @@ dependencies = [
  "caliptra-image-gen",
  "caliptra-image-openssl",
  "caliptra-image-types",
+ "caliptra-lms-types",
  "zerocopy",
 ]
 
@@ -386,6 +387,7 @@ dependencies = [
  "anyhow",
  "bitflags 2.0.2",
  "caliptra-image-types",
+ "caliptra-lms-types",
  "memoffset",
  "zerocopy",
 ]
@@ -397,6 +399,7 @@ dependencies = [
  "anyhow",
  "caliptra-image-gen",
  "caliptra-image-types",
+ "caliptra-lms-types",
  "openssl",
  "zerocopy",
 ]
