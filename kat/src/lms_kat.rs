@@ -12,25 +12,12 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::{
-    CaliptraError, CaliptraResult, HashValue, LmotsAlgorithmType, LmotsSignature, Lms,
-    LmsAlgorithmType, LmsIdentifier, LmsSignature, Sha256,
+use caliptra_drivers::{CaliptraError, CaliptraResult, Lms, Sha256};
+use caliptra_lms_types::{
+    bytes_to_words_6, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsIdentifier,
+    LmsPublicKey, LmsSignature,
 };
-
-const fn bytes_to_words_6(bytes: [u8; 24]) -> HashValue<6> {
-    let mut result = [0_u32; 6];
-    let mut i = 0;
-    while i < result.len() {
-        result[i] = u32::from_be_bytes([
-            bytes[i * 4],
-            bytes[i * 4 + 1],
-            bytes[i * 4 + 2],
-            bytes[i * 4 + 3],
-        ]);
-        i += 1;
-    }
-    HashValue(result)
-}
+use zerocopy::{BigEndian, LittleEndian, U32};
 
 #[derive(Default, Debug)]
 pub struct LmsKat {}
@@ -45,17 +32,17 @@ impl LmsKat {
         const MESSAGE: [u8; 8] = [0, 0, 30, 76, 217, 179, 51, 230];
         const LMS_TYPE: LmsAlgorithmType = LmsAlgorithmType::LmsSha256N24H15;
         const LMOTS_TYPE: LmotsAlgorithmType = LmotsAlgorithmType::LmotsSha256N24W4;
-        const Q: u32 = 0;
+        const Q: U32<BigEndian> = U32::ZERO;
         const LMS_IDENTIFIER: LmsIdentifier = [
             97, 165, 213, 125, 55, 245, 228, 107, 251, 117, 32, 128, 107, 7, 161, 184,
         ];
-        const LMS_PUBLIC_HASH: HashValue<6> = bytes_to_words_6([
+        const LMS_PUBLIC_HASH: [U32<LittleEndian>; 6] = bytes_to_words_6([
             0xf6, 0xb6, 0xac, 0x88, 0xd6, 0xbf, 0x10, 0x62, 0x13, 0x03, 0x85, 0x8a, 0x85, 0x4e,
             0x19, 0xcb, 0xbc, 0x7f, 0xb6, 0x3c, 0xeb, 0x80, 0x44, 0xfb,
         ]);
-        const NONCE: [u32; 6] = [0; 6];
+        const NONCE: [U32<LittleEndian>; 6] = [U32::ZERO; 6];
 
-        const Y: [HashValue<6>; 51] = [
+        const Y: [[U32<LittleEndian>; 6]; 51] = [
             bytes_to_words_6([
                 0x0a, 0x03, 0xc9, 0x4b, 0xb4, 0xb3, 0x1f, 0x2f, 0xaa, 0x24, 0xd1, 0xbd, 0xcc, 0x4f,
                 0xef, 0xda, 0x59, 0x83, 0x22, 0x10, 0xc5, 0xa4, 0x0e, 0x8f,
@@ -262,7 +249,7 @@ impl LmsKat {
             ]),
         ];
 
-        const PATH: [HashValue<6>; 15] = [
+        const PATH: [[U32<LittleEndian>; 6]; 15] = [
             bytes_to_words_6([
                 0x22, 0xa6, 0x0d, 0x20, 0x0a, 0x86, 0x38, 0xac, 0x4f, 0xe0, 0x98, 0x13, 0x34, 0x5b,
                 0x3b, 0x89, 0xe5, 0x4c, 0xf3, 0x92, 0x1d, 0x07, 0x6b, 0x1f,
@@ -325,27 +312,26 @@ impl LmsKat {
             ]),
         ];
 
-        const OTS: LmotsSignature<6, 51> = LmotsSignature {
-            ots_type: LMOTS_TYPE,
-            nonce: NONCE,
-            y: Y,
-        };
-
-        const LMS_SIG: LmsSignature<6, 51> = LmsSignature {
+        const LMS_SIG: LmsSignature<6, 51, 15> = LmsSignature {
             q: Q,
-            lmots_signature: OTS,
-            sig_type: LMS_TYPE,
-            lms_path: &PATH,
+            ots: LmotsSignature {
+                ots_type: LMOTS_TYPE,
+                nonce: NONCE,
+                y: Y,
+            },
+            tree_type: LMS_TYPE,
+            tree_path: PATH,
         };
 
-        let success = lms.verify_lms_signature(
-            sha256_driver,
-            &MESSAGE,
-            &LMS_IDENTIFIER,
-            Q,
-            &LMS_PUBLIC_HASH,
-            &LMS_SIG,
-        )?;
+        const LMS_PUBLIC_KEY: LmsPublicKey<6> = LmsPublicKey {
+            id: LMS_IDENTIFIER,
+            digest: LMS_PUBLIC_HASH,
+            tree_type: LMS_TYPE,
+            otstype: LMOTS_TYPE,
+        };
+
+        let success =
+            lms.verify_lms_signature(sha256_driver, &MESSAGE, &LMS_PUBLIC_KEY, &LMS_SIG)?;
         if !success {
             Err(CaliptraError::ROM_KAT_LMS_DIGEST_MISMATCH)?;
         }
