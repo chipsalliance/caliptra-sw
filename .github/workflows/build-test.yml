@@ -29,13 +29,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Restore Cargo index from cache
-        uses: actions/cache/restore@v3
-        id: cargo_index_restore
-        with:
-          path: ~/.cargo/registry/index
-          key: cargo-index-${{ env.SCCACHE_C_CUSTOM_CACHE_BUSTER }}-${{ hashFiles('Cargo.lock') }}
-
       - name: Restore sccache binary
         uses: actions/cache/restore@v3
         id: sccache_bin_restore
@@ -89,13 +82,6 @@ jobs:
             git diff Cargo.lock
             exit 1
           )
-
-      - name: Save Cargo index to cache
-        uses: actions/cache/save@v3
-        if: steps.cargo_index_restore.outputs.cache-hit != 'true'
-        with:
-          path: ~/.cargo/registry/index
-          key: cargo-index-${{ env.SCCACHE_C_CUSTOM_CACHE_BUSTER }}-${{ hashFiles('Cargo.lock') }}
 
       - name: Check source-code formatting (run "cargo fmt" if this fails)
         run: |
