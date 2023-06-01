@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 caliptra-drivers = { path = "../../drivers" }
 caliptra-kat = { path = "../../kat" }
+caliptra-lms-types = { path = "../../lms-types" }
 caliptra-x509 = { path = "../../x509", default-features = false }
 caliptra-image-types = { path = "../../image/types", default-features = false }
 caliptra-image-verify = { path = "../../image/verify", default-features = false }
