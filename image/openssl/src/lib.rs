@@ -16,13 +16,6 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Context};
 
-#[cfg(test)]
-use caliptra_drivers::LmsAlgorithmType;
-
-use caliptra_drivers::{
-    lookup_lmots_algorithm_type, lookup_lms_algorithm_type, LmotsAlgorithmType, Lms, LmsIdentifier,
-    D_INTR, D_LEAF, D_MESG, D_PBLC,
-};
 use caliptra_image_gen::ImageGeneratorCrypto;
 use caliptra_image_types::*;
 use openssl::bn::{BigNum, BigNumContext};
@@ -32,8 +25,23 @@ use openssl::nid::Nid;
 use openssl::rand::rand_bytes;
 use openssl::sha::{Sha256, Sha384};
 
+use zerocopy::FromBytes;
+
 #[derive(Default)]
 pub struct OsslCrypto {}
+
+const LMS_TREE_GEN_SUPPORTED_FULL_HEIGHT: u8 = 10u8;
+const SUPPORTED_LMS_Q_VALUE: u32 = 5u32;
+
+// LMS-SHA192-H5
+const IMAGE_LMS_TREE_TYPE_HT_5: u32 = 0x0A000000;
+// LMOTS-SHA192-W8
+const IMAGE_LMS_OTS_TYPE_8: u32 = 0x08000000;
+
+const D_PBLC: u16 = 0x8080;
+const D_MESG: u16 = 0x8181;
+const D_LEAF: u16 = 0x8282;
+const D_INTR: u16 = 0x8383;
 
 impl ImageGeneratorCrypto for OsslCrypto {
     /// Calculate SHA-384 Digest
@@ -86,7 +94,7 @@ impl ImageGeneratorCrypto for OsslCrypto {
         let message: [u8; ECC384_SCALAR_BYTE_SIZE] = from_hw_format(digest);
         let mut nonce = [0u8; SHA192_DIGEST_BYTE_SIZE];
         rand_bytes(&mut nonce).unwrap();
-        sign_with_lms_key(priv_key, &message, &nonce, 0)
+        sign_with_lms_key(priv_key, &message, &nonce, SUPPORTED_LMS_Q_VALUE)
     }
 }
 
@@ -116,7 +124,7 @@ pub fn ecc_pub_key_from_pem(path: &PathBuf) -> anyhow::Result<ImageEccPubKey> {
 /// Read ECC-384 Private Key from PEM file
 pub fn ecc_priv_key_from_pem(path: &PathBuf) -> anyhow::Result<ImageEccPrivKey> {
     let key_bytes = std::fs::read(path)
-        .with_context(|| format!("Failed to read public key PEM file {}", path.display()))?;
+        .with_context(|| format!("Failed to read private key PEM file {}", path.display()))?;
 
     let key = EcKey::private_key_from_pem(&key_bytes)?;
 
@@ -125,6 +133,22 @@ pub fn ecc_priv_key_from_pem(path: &PathBuf) -> anyhow::Result<ImageEccPrivKey> 
         .to_vec_padded(ECC384_SCALAR_BYTE_SIZE as i32)?;
 
     Ok(to_hw_format(&priv_key))
+}
+
+/// Read LMS SHA192 public Key from PEM file
+pub fn lms_pub_key_from_pem(path: &PathBuf) -> anyhow::Result<ImageLmsPublicKey> {
+    let key_bytes = std::fs::read(path)
+        .with_context(|| format!("Failed to read public key PEM file {}", path.display()))?;
+
+    ImageLmsPublicKey::read_from(&key_bytes[..]).ok_or(anyhow!("Error parsing LMS public key"))
+}
+
+/// Read LMS SHA192 private Key from PEM file
+pub fn lms_priv_key_from_pem(path: &PathBuf) -> anyhow::Result<ImageLmsPrivKey> {
+    let key_bytes = std::fs::read(path)
+        .with_context(|| format!("Failed to read private key PEM file {}", path.display()))?;
+
+    ImageLmsPrivKey::read_from(&key_bytes[..]).ok_or(anyhow!("Error parsing LMS priv key"))
 }
 
 /// Convert the slice to hardware format
@@ -147,7 +171,7 @@ fn from_hw_format(value: &[u32; ECC384_SCALAR_WORD_SIZE]) -> [u8; ECC384_SCALAR_
 }
 
 // https://www.rfc-editor.org/rfc/rfc8554.html#appendix-A
-fn gen_x(id: &LmsIdentifier, q: u32, p: usize, seed: &[u8], x: &mut [u8]) {
+fn gen_x(id: &[u8], q: u32, p: usize, seed: &[u8], x: &mut [u8]) {
     for i in 0..p {
         let offset = i * SHA192_DIGEST_BYTE_SIZE;
         let x_i = &mut x[offset..][..SHA192_DIGEST_BYTE_SIZE];
@@ -165,7 +189,7 @@ fn gen_x(id: &LmsIdentifier, q: u32, p: usize, seed: &[u8], x: &mut [u8]) {
     }
 }
 
-fn gen_k(id: &LmsIdentifier, q: u32, p: usize, w: u8, x: &[u8], k: &mut [u8]) {
+fn gen_k(id: &[u8], q: u32, p: usize, w: u8, x: &[u8], k: &mut [u8]) {
     let mut y = vec![0u8; p * SHA192_DIGEST_BYTE_SIZE];
     for i in 0..p {
         let offset = i * SHA192_DIGEST_BYTE_SIZE;
@@ -196,17 +220,37 @@ fn gen_k(id: &LmsIdentifier, q: u32, p: usize, w: u8, x: &[u8], k: &mut [u8]) {
     k.clone_from_slice(&hasher.finish()[..SHA192_DIGEST_BYTE_SIZE]);
 }
 
-fn generate_lmots_pubkey_helper(
-    id: &LmsIdentifier,
-    q: u32,
-    p: usize,
-    w: u8,
-    seed: &[u8],
-    k: &mut [u8],
-) {
+fn generate_lmots_pubkey_helper(id: &[u8], q: u32, p: usize, w: u8, seed: &[u8], k: &mut [u8]) {
     let mut x = vec![0u8; p * SHA192_DIGEST_BYTE_SIZE];
     gen_x(id, q, p, seed, &mut x);
     gen_k(id, q, p, w, &x, k);
+}
+
+fn coefficient(s: &[u8], i: usize, w: usize) -> anyhow::Result<u8> {
+    let bitmask: u16 = (1 << (w)) - 1;
+    let index = i * w / 8;
+    if index >= s.len() {
+        return Err(anyhow!("Error invalid coeff index"));
+    }
+    let b = s[index];
+
+    // extra logic to avoid the divide by 0
+    // which a good compiler would notice only happens when w is 0 and that portion of the
+    // expression could be skipped
+    let mut shift = 8;
+    if w != 0 {
+        shift = 8 - (w * (i % (8 / w)) + w);
+    }
+
+    // Rust errors if we try to shift off all of the bits off from a value
+    // some implementations 0 fill, others do some other filling.
+    // we make this be 0
+    let mut rs = 0;
+    if shift < 8 {
+        rs = b >> shift;
+    }
+    let small_bitmask = bitmask as u8;
+    Ok(small_bitmask & rs)
 }
 
 fn stack_top_mut(st: &mut [u8], st_index: usize) -> &mut [u8] {
@@ -219,8 +263,8 @@ fn stack_top(st: &[u8], st_index: usize) -> &[u8] {
 
 // // https://datatracker.ietf.org/doc/html/rfc8554#appendix-C
 fn generate_lms_pubkey_helper(
-    id: &LmsIdentifier,
-    ots_alg: LmotsAlgorithmType,
+    id: &[u8],
+    ots_alg: u32,
     tree_height: u8,
     seed: &[u8],
     q: Option<u32>,
@@ -232,15 +276,24 @@ fn generate_lms_pubkey_helper(
         None => (((1 << tree_height) as u32) + q.unwrap()) ^ 1,
     };
     let mut k = vec![0u8; SHA192_DIGEST_BYTE_SIZE];
+    let zero_k = vec![0u8; SHA192_DIGEST_BYTE_SIZE];
 
     let mut level: usize = 0;
     let mut pub_key_stack = vec![0u8; SHA192_DIGEST_BYTE_SIZE * (tree_height as usize)];
     let mut stack_idx: usize = 0;
     let max_idx: u32 = 1 << tree_height;
-    let alg_params = Lms::default().get_lmots_parameters(&ots_alg).unwrap();
-    let p: usize = alg_params.p as usize;
+
+    let (p, w) = match ots_alg {
+        IMAGE_LMS_OTS_TYPE_8 => (26usize, 8u8),
+        _ => (51usize, 4u8),
+    };
     for i in 0..max_idx {
-        generate_lmots_pubkey_helper(id, i, p, alg_params.w, seed, &mut k[..]);
+        // TODO: We only support a fixed Q in larger trees
+        if tree_height <= LMS_TREE_GEN_SUPPORTED_FULL_HEIGHT || i == SUPPORTED_LMS_Q_VALUE {
+            generate_lmots_pubkey_helper(id, i, p, w, seed, &mut k[..]);
+        } else {
+            k[..].copy_from_slice(&zero_k[..]);
+        }
 
         let mut r: u32 = i + (1 << tree_height);
         let mut r_str: [u8; 4] = r.to_be_bytes();
@@ -308,15 +361,18 @@ fn generate_lms_pubkey_helper(
 // https://datatracker.ietf.org/doc/html/rfc8554#section-4.5
 fn generate_ots_signature_helper(
     message: &[u8],
-    ots_alg: LmotsAlgorithmType,
-    id: &LmsIdentifier,
+    ots_alg: u32,
+    id: &[u8],
     seed: &[u8],
     rand: &[u8],
     q: u32,
 ) -> ImageLmOTSSignature {
-    let alg_params = Lms::default().get_lmots_parameters(&ots_alg).unwrap();
+    let (alg_p, width, ls) = match ots_alg {
+        IMAGE_LMS_OTS_TYPE_8 => (26usize, 8usize, 0u8),
+        _ => (51usize, 4usize, 4u8),
+    };
     let mut sig = ImageLmOTSSignature {
-        otstype: ots_alg as u32,
+        otstype: ots_alg,
         ..Default::default()
     };
     sig.random.clone_from_slice(rand);
@@ -330,13 +386,12 @@ fn generate_ots_signature_helper(
     q_arr.clone_from_slice(&hasher.finish()[..SHA192_DIGEST_BYTE_SIZE]);
 
     let mut checksum: u16 = 0;
-    let width: usize = alg_params.w.into();
     let data_coeff: usize = (SHA192_DIGEST_BYTE_SIZE * 8) / width;
-    let alg_p: usize = alg_params.p.into();
-    let alg_chksum_max: u16 = (1 << alg_params.w) - 1;
+    let alg_chksum_max: u16 = (1 << width) - 1;
     for i in 0..data_coeff {
-        checksum += alg_chksum_max - (Lms::default().coefficient(&q_arr, i, width).unwrap() as u16);
+        checksum += alg_chksum_max - (coefficient(&q_arr, i, width).unwrap() as u16);
     }
+    checksum <<= ls;
 
     let checksum_str: [u8; 2] = checksum.to_be_bytes();
 
@@ -345,11 +400,9 @@ fn generate_ots_signature_helper(
 
     for i in 0..alg_p {
         let a: u8 = if i < data_coeff {
-            Lms::default().coefficient(&q_arr, i, width).unwrap()
+            coefficient(&q_arr, i, width).unwrap()
         } else {
-            Lms::default()
-                .coefficient(&checksum_str, i - data_coeff, width)
-                .unwrap()
+            coefficient(&checksum_str, i - data_coeff, width).unwrap()
         };
 
         let offset: usize = i * SHA192_DIGEST_BYTE_SIZE;
@@ -374,17 +427,21 @@ fn generate_ots_signature_helper(
 
 #[allow(unused)]
 fn generate_lms_pubkey(priv_key: &ImageLmsPrivKey) -> anyhow::Result<ImageLmsPublicKey> {
-    let tree_type = match lookup_lms_algorithm_type(priv_key.tree_type) {
-        Some(x) => x,
-        None => return Err(anyhow!("Error looking up lms tree type")),
+    match priv_key.tree_type {
+        IMAGE_LMS_TREE_TYPE => {}
+        IMAGE_LMS_TREE_TYPE_HT_5 => {}
+        _ => return Err(anyhow!("Error looking up lms tree type")),
     };
-    let ots_type = match lookup_lmots_algorithm_type(priv_key.otstype) {
-        Some(x) => x,
-        None => return Err(anyhow!("Error looking up lms ots type")),
+    match priv_key.otstype {
+        IMAGE_LMS_OTS_TYPE => {}
+        IMAGE_LMS_OTS_TYPE_8 => {}
+        _ => return Err(anyhow!("Error looking up lms ots type")),
     };
-    let Ok((_, height)) = Lms::default().get_lms_parameters(&tree_type) else {
-        return Err(anyhow!("Error parsing lms parameters"));
-   };
+    let height = match priv_key.tree_type {
+        IMAGE_LMS_TREE_TYPE => 15,
+        IMAGE_LMS_TREE_TYPE_HT_5 => 5,
+        _ => return Err(anyhow!("Error parsing lms parameters")),
+    };
     let mut pub_key = Some(ImageLmsPublicKey::default());
     if let Some(x) = pub_key.as_mut() {
         x.otstype = priv_key.otstype;
@@ -393,7 +450,7 @@ fn generate_lms_pubkey(priv_key: &ImageLmsPrivKey) -> anyhow::Result<ImageLmsPub
     }
     generate_lms_pubkey_helper(
         &priv_key.id,
-        ots_type,
+        priv_key.otstype,
         height,
         &priv_key.seed,
         None,
@@ -409,23 +466,27 @@ fn sign_with_lms_key(
     nonce: &[u8],
     q: u32,
 ) -> anyhow::Result<ImageLmsSignature> {
-    let lms_alg_type = match lookup_lms_algorithm_type(priv_key.tree_type) {
-        Some(x) => x,
-        None => return Err(anyhow!("Error looking up lms tree type")),
+    match priv_key.tree_type {
+        IMAGE_LMS_TREE_TYPE => {}
+        IMAGE_LMS_TREE_TYPE_HT_5 => {}
+        _ => return Err(anyhow!("Error looking up lms tree type")),
     };
-    let ots_alg_type = match lookup_lmots_algorithm_type(priv_key.otstype) {
-        Some(x) => x,
-        None => return Err(anyhow!("Error looking up lms ots type")),
+    match priv_key.otstype {
+        IMAGE_LMS_OTS_TYPE => {}
+        IMAGE_LMS_OTS_TYPE_8 => {}
+        _ => return Err(anyhow!("Error looking up lms ots type")),
     };
-    let Ok((_, height)) = Lms::default().get_lms_parameters(&lms_alg_type) else {
-         return Err(anyhow!("Error parsing lms parameters"));
+    let height = match priv_key.tree_type {
+        IMAGE_LMS_TREE_TYPE => 15,
+        IMAGE_LMS_TREE_TYPE_HT_5 => 5,
+        _ => return Err(anyhow!("Error parsing lms parameters")),
     };
     if q >= (1 << height) {
         return Err(anyhow!("Invalid q"));
     }
     let ots_sig = generate_ots_signature_helper(
         message,
-        ots_alg_type,
+        priv_key.otstype,
         &priv_key.id,
         &priv_key.seed,
         nonce,
@@ -433,13 +494,14 @@ fn sign_with_lms_key(
     );
     let mut sig = Some(ImageLmsSignature::default());
     if let Some(x) = sig.as_mut() {
-        x.q = q;
+        x.q = u32::to_be(q);
         x.ots_sig = ots_sig;
+        x.tree_type = priv_key.tree_type;
     }
 
     generate_lms_pubkey_helper(
         &priv_key.id,
-        ots_alg_type,
+        priv_key.otstype,
         height,
         &priv_key.seed,
         Some(q),
@@ -453,21 +515,21 @@ fn sign_with_lms_key(
 #[ignore]
 fn test_print_lms_private_pub_key() {
     let mut priv_key: ImageLmsPrivKey = ImageLmsPrivKey {
-        tree_type: LmsAlgorithmType::LmsSha256N24H15 as u32,
-        otstype: LmotsAlgorithmType::LmotsSha256N24W4 as u32,
+        tree_type: IMAGE_LMS_TREE_TYPE,
+        otstype: IMAGE_LMS_OTS_TYPE,
         ..Default::default()
     };
     for i in 0..4 {
         rand_bytes(&mut priv_key.id).unwrap();
         rand_bytes(&mut priv_key.seed).unwrap();
-        let pub_key = generate_lms_pubkey(&priv_key);
+        let pub_key = generate_lms_pubkey(&priv_key).unwrap();
         println!("pub const VENDOR_LMS_KEY{i}_PRIVATE: ImageLmsPrivKey = {priv_key:#04x?};");
         println!("pub const VENDOR_LMS_KEY{i}_PUBLIC: ImageLmsPublicKey = {pub_key:#04x?};");
     }
     for i in 0..1 {
         rand_bytes(&mut priv_key.id).unwrap();
         rand_bytes(&mut priv_key.seed).unwrap();
-        let pub_key = generate_lms_pubkey(&priv_key);
+        let pub_key = generate_lms_pubkey(&priv_key).unwrap();
         println!("pub const OWNER_LMS_KEY{i}_PRIVATE: ImageLmsPrivKey = {priv_key:#04x?};");
         println!("pub const OWNER_LMS_KEY{i}_PUBLIC: ImageLmsPublicKey = {pub_key:#04x?};");
     }
@@ -476,8 +538,8 @@ fn test_print_lms_private_pub_key() {
 #[test]
 fn test_lms() {
     let priv_key = ImageLmsPrivKey {
-        tree_type: LmsAlgorithmType::LmsSha256N24H5 as u32,
-        otstype: LmotsAlgorithmType::LmotsSha256N24W8 as u32,
+        tree_type: IMAGE_LMS_TREE_TYPE_HT_5,
+        otstype: IMAGE_LMS_OTS_TYPE_8,
         id: [
             0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d,
             0x2e, 0x2f,
@@ -488,8 +550,8 @@ fn test_lms() {
         ],
     };
     let expected_pub_key = ImageLmsPublicKey {
-        tree_type: LmsAlgorithmType::LmsSha256N24H5 as u32,
-        otstype: LmotsAlgorithmType::LmotsSha256N24W8 as u32,
+        tree_type: IMAGE_LMS_TREE_TYPE_HT_5,
+        otstype: IMAGE_LMS_OTS_TYPE_8,
         id: priv_key.id,
         digest: [
             0x2c, 0x57, 0x14, 0x50, 0xae, 0xd9, 0x9c, 0xfb, 0x4f, 0x4a, 0xc2, 0x85, 0xda, 0x14,
@@ -503,8 +565,8 @@ fn test_lms() {
 #[test]
 fn test_lms_sig() {
     let priv_key = ImageLmsPrivKey {
-        tree_type: LmsAlgorithmType::LmsSha256N24H5 as u32,
-        otstype: LmotsAlgorithmType::LmotsSha256N24W8 as u32,
+        tree_type: IMAGE_LMS_TREE_TYPE_HT_5,
+        otstype: IMAGE_LMS_OTS_TYPE_8,
         id: [
             0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d,
             0x2e, 0x2f,
@@ -652,11 +714,12 @@ fn test_lms_sig() {
     ];
     let sig = sign_with_lms_key(&priv_key, &message, &nonce, 5).unwrap();
     let mut expected_sig = ImageLmsSignature {
-        q: 5,
+        q: u32::to_be(5),
         ..Default::default()
     };
 
-    expected_sig.ots_sig.otstype = LmotsAlgorithmType::LmotsSha256N24W8 as u32;
+    expected_sig.tree_type = IMAGE_LMS_TREE_TYPE_HT_5;
+    expected_sig.ots_sig.otstype = IMAGE_LMS_OTS_TYPE_8;
     expected_sig.ots_sig.random = nonce;
     assert_eq!(26, expected_ots_sig.len());
     assert_eq!(5, expected_tree_path.len());
@@ -672,8 +735,8 @@ fn test_lms_sig() {
 #[test]
 fn test_lms_sig_h15() {
     let priv_key = ImageLmsPrivKey {
-        tree_type: LmsAlgorithmType::LmsSha256N24H15 as u32,
-        otstype: LmotsAlgorithmType::LmotsSha256N24W4 as u32,
+        tree_type: IMAGE_LMS_TREE_TYPE,
+        otstype: IMAGE_LMS_OTS_TYPE,
         id: [
             0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d,
             0x2e, 0x2f,
@@ -683,7 +746,6 @@ fn test_lms_sig_h15() {
             0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
         ],
     };
-    println!("otstype {0}", priv_key.otstype);
     let expected_ots_sig: [[u8; 24]; 51] = [
         [
             0xd0, 0xf3, 0x73, 0xcf, 0x2b, 0x22, 0xe3, 0x6a, 0x23, 0x7d, 0x5c, 0x9d, 0xe8, 0x70,
@@ -878,16 +940,16 @@ fn test_lms_sig_h15() {
             0xc9, 0xd2, 0x21, 0x8d, 0x6b, 0xe7, 0xee, 0x27, 0x82, 0xf9,
         ],
         [
-            0x49, 0x91, 0xe8, 0xe2, 0xc5, 0xed, 0xd7, 0xa5, 0x2f, 0x57, 0x0e, 0xad, 0xb7, 0x6d,
-            0xa0, 0x74, 0xda, 0x2d, 0xc2, 0x93, 0x2f, 0x89, 0x1b, 0x44,
+            0x0f, 0x5e, 0x96, 0x15, 0xbb, 0xf5, 0x20, 0xb0, 0xe7, 0xae, 0x87, 0x0f, 0x05, 0x91,
+            0xef, 0x3a, 0x0a, 0xd5, 0xaa, 0x5f, 0x67, 0xc7, 0x8b, 0x4b,
         ],
         [
-            0x92, 0x0e, 0xcb, 0xae, 0x2a, 0x9e, 0xc1, 0x75, 0xd7, 0x49, 0x54, 0xda, 0x1f, 0x27,
-            0x3c, 0xb1, 0x38, 0x46, 0xdc, 0x48, 0x76, 0x0c, 0xb7, 0x0e,
+            0xa3, 0xdc, 0xe3, 0x53, 0x65, 0xa2, 0xb5, 0xcf, 0xa4, 0xa0, 0x84, 0xe8, 0x17, 0x33,
+            0x4b, 0x1b, 0x0b, 0x6f, 0xb8, 0x97, 0x9b, 0x2f, 0x91, 0x52,
         ],
         [
-            0xfb, 0x3b, 0xcb, 0x1d, 0x70, 0x7d, 0x3f, 0xed, 0x23, 0x92, 0x13, 0xcf, 0x0c, 0x92,
-            0x2d, 0x8b, 0x4f, 0x12, 0xd5, 0xd8, 0xfa, 0x34, 0xe7, 0xde,
+            0x7b, 0x2e, 0xe1, 0x52, 0xf7, 0xf9, 0x33, 0x70, 0x7f, 0x7d, 0x4a, 0xf2, 0xdb, 0x97,
+            0x2f, 0x2f, 0x6c, 0xee, 0xce, 0x8a, 0xb6, 0xf0, 0xc9, 0x50,
         ],
     ];
     let message: [u8; 28] = [
@@ -900,74 +962,75 @@ fn test_lms_sig_h15() {
     ];
     let expected_tree_path = [
         [
-            0x8f, 0xb2, 0xe8, 0x51, 0x8e, 0xbe, 0x92, 0xb4, 0xc7, 0x77, 0xfb, 0xf9, 0x68, 0x2f,
-            0x58, 0x99, 0x8f, 0x1c, 0x27, 0xd1, 0xac, 0xa6, 0x3a, 0xdf,
+            0x30, 0xa7, 0x51, 0xee, 0x73, 0x69, 0x88, 0x9c, 0xd7, 0xaf, 0x68, 0xdd, 0x7a, 0xb2,
+            0x6b, 0x86, 0xa0, 0x66, 0x60, 0x3e, 0x3d, 0x66, 0xff, 0x65,
         ],
         [
-            0xf8, 0x5f, 0x24, 0xa9, 0xfc, 0xe6, 0xf0, 0x65, 0xa6, 0x32, 0x6f, 0x64, 0x12, 0x1b,
-            0x0a, 0x05, 0x03, 0x29, 0x0a, 0x26, 0x10, 0x0a, 0xb2, 0x21,
+            0x03, 0xdb, 0xbb, 0x35, 0xef, 0x66, 0x12, 0xc7, 0xbb, 0x40, 0x89, 0x82, 0xca, 0xd9,
+            0x81, 0xe4, 0x84, 0x45, 0xcd, 0xb9, 0xf8, 0x8b, 0xab, 0x5e,
         ],
         [
-            0x09, 0xd3, 0x6d, 0x9e, 0x83, 0x82, 0x46, 0x75, 0x20, 0x65, 0x30, 0x57, 0xee, 0xed,
-            0x93, 0xc9, 0xcd, 0xcf, 0x10, 0x13, 0x0b, 0xd9, 0x39, 0xc3,
+            0xa9, 0x13, 0x58, 0x83, 0x64, 0xe2, 0xff, 0xe8, 0x30, 0x14, 0xd0, 0x60, 0xf9, 0x42,
+            0xd6, 0x8a, 0xa9, 0x12, 0x66, 0x06, 0x21, 0xac, 0x3e, 0xc3,
         ],
         [
-            0x99, 0x88, 0x38, 0x03, 0x16, 0x07, 0x55, 0xfc, 0x6a, 0xba, 0xa3, 0x38, 0x41, 0x62,
-            0xcd, 0x0b, 0x3d, 0x19, 0x40, 0xe2, 0x89, 0x1e, 0xfc, 0xc3,
+            0xc2, 0x5b, 0x3f, 0xce, 0xb1, 0x8a, 0x25, 0x9c, 0xce, 0xcd, 0x74, 0xfd, 0xf2, 0x38,
+            0x4b, 0xd0, 0x33, 0x45, 0xe7, 0x1f, 0x2d, 0x98, 0x61, 0x88,
         ],
         [
-            0x99, 0x24, 0xb2, 0x76, 0x47, 0x61, 0x03, 0xaf, 0x6a, 0xa2, 0xa5, 0x5f, 0x65, 0x5c,
-            0x94, 0xaf, 0xef, 0x10, 0xb4, 0x36, 0x6a, 0xc7, 0x36, 0x35,
+            0x67, 0x4a, 0x09, 0x55, 0x9a, 0xed, 0x9f, 0x64, 0x83, 0x2e, 0x55, 0xbd, 0xae, 0x54,
+            0xc6, 0xc6, 0x39, 0x4d, 0x56, 0x25, 0xf5, 0x3b, 0x2d, 0x55,
         ],
         [
-            0xa9, 0x1d, 0xf0, 0xc3, 0x5f, 0x33, 0x1a, 0xdd, 0xca, 0x93, 0xfd, 0x0d, 0x67, 0xde,
-            0xd1, 0x5b, 0x54, 0x3e, 0x77, 0x28, 0xab, 0x26, 0x0d, 0xe8,
+            0x1d, 0x24, 0x2f, 0x85, 0x7b, 0x70, 0xd0, 0x63, 0x5d, 0x9e, 0x7a, 0x9c, 0xbc, 0x23,
+            0xb3, 0x58, 0x2f, 0xef, 0x8a, 0x37, 0x3a, 0x39, 0xad, 0xaa,
         ],
         [
-            0x9a, 0x75, 0x8b, 0xbb, 0xc8, 0x7e, 0x61, 0x1d, 0x32, 0x86, 0xbe, 0xa2, 0x55, 0x41,
-            0x63, 0xf6, 0xae, 0x2a, 0xb4, 0x8a, 0x9b, 0x31, 0x8d, 0x80,
+            0x2a, 0xfe, 0xc5, 0x1f, 0xb9, 0x88, 0x17, 0xee, 0x76, 0x24, 0x26, 0x7a, 0x92, 0x62,
+            0xe5, 0xdc, 0x9e, 0xcf, 0x97, 0x12, 0x7d, 0xb6, 0xa0, 0x6e,
         ],
         [
-            0xf6, 0x72, 0x34, 0x4a, 0x86, 0xca, 0x24, 0x04, 0x38, 0xcf, 0x00, 0x92, 0x7d, 0x07,
-            0x55, 0x5c, 0xd9, 0xa0, 0x2a, 0x5f, 0x00, 0x2a, 0x88, 0x13,
+            0x0e, 0x32, 0x83, 0x78, 0xe1, 0x22, 0xad, 0x97, 0xc5, 0x13, 0x8c, 0xef, 0x7b, 0xa1,
+            0xf5, 0xf5, 0x7d, 0x52, 0x16, 0x1f, 0xf0, 0x20, 0xb3, 0x4f,
         ],
         [
-            0x77, 0x55, 0x5f, 0x98, 0xc0, 0xe1, 0xf4, 0xd6, 0xf3, 0x08, 0xf3, 0x18, 0x44, 0xa1,
-            0xd9, 0x5d, 0xff, 0xcd, 0xe2, 0xe6, 0x24, 0xb5, 0x2c, 0x5a,
+            0x8d, 0xdc, 0x8f, 0xb6, 0xbb, 0x67, 0xeb, 0x02, 0xdb, 0x07, 0xbe, 0x73, 0xf5, 0x32,
+            0x4b, 0xbb, 0xd3, 0xbf, 0x88, 0x66, 0x23, 0x8d, 0x48, 0x0e,
         ],
         [
-            0x1e, 0xf2, 0x8c, 0xaf, 0xdd, 0x1e, 0xf1, 0xd7, 0xc3, 0xf9, 0x7b, 0x70, 0xfd, 0xf4,
-            0xe6, 0xa3, 0x3b, 0x2b, 0x65, 0xc8, 0xfd, 0x46, 0xee, 0xd7,
+            0xce, 0x47, 0x42, 0x0e, 0x19, 0x5e, 0xd1, 0xad, 0x87, 0x76, 0x6a, 0xe5, 0x05, 0xec,
+            0x77, 0x62, 0xa8, 0x21, 0xf4, 0x4a, 0x28, 0x23, 0xeb, 0x50,
         ],
         [
-            0x19, 0x3c, 0x5c, 0xbf, 0x7b, 0x1b, 0x30, 0x9b, 0xb1, 0x77, 0x04, 0x58, 0x81, 0x94,
-            0xf9, 0x4d, 0x4a, 0xdc, 0x0f, 0xa7, 0x3f, 0x83, 0x41, 0x64,
+            0x36, 0xde, 0x2a, 0xdf, 0x29, 0xe8, 0x43, 0xc1, 0x75, 0x3c, 0xa6, 0x2e, 0xff, 0x34,
+            0xf4, 0xd6, 0xd3, 0xd4, 0x12, 0xba, 0x8b, 0x4e, 0xc1, 0xaa,
         ],
         [
-            0x8a, 0x07, 0x81, 0x03, 0x8b, 0x5b, 0x90, 0xd7, 0x44, 0x4a, 0xd2, 0xc7, 0x16, 0x79,
-            0x0a, 0x74, 0xb3, 0x98, 0x3d, 0x4a, 0x0c, 0x00, 0x28, 0xad,
+            0x5e, 0x54, 0x92, 0x57, 0x29, 0x73, 0x65, 0x2a, 0x67, 0x56, 0xf2, 0x4d, 0x3a, 0x30,
+            0x8d, 0x25, 0x43, 0x9b, 0x6f, 0x18, 0xdc, 0xfe, 0x98, 0x70,
         ],
         [
-            0x44, 0x5e, 0x74, 0xd1, 0x43, 0xc7, 0xf2, 0xd6, 0xf2, 0x71, 0x42, 0xa6, 0xfa, 0x7c,
-            0x29, 0x82, 0xdf, 0xa7, 0x01, 0xce, 0x87, 0xb1, 0x06, 0xc7,
+            0xfa, 0x84, 0xbe, 0x14, 0xf1, 0xcc, 0x19, 0x7c, 0xa4, 0x9f, 0xf6, 0xb4, 0xc0, 0x25,
+            0x70, 0x1c, 0x24, 0xdd, 0x26, 0x37, 0x4e, 0xa8, 0x8f, 0x45,
         ],
         [
-            0x3c, 0xee, 0x32, 0xb6, 0x89, 0xef, 0x29, 0xc6, 0x49, 0xb1, 0xf6, 0x80, 0x16, 0x67,
-            0x1a, 0x23, 0x0c, 0x7c, 0x92, 0x3c, 0x80, 0x69, 0xda, 0xe1,
+            0xc9, 0xb6, 0x46, 0x84, 0x9f, 0xb5, 0x51, 0xf7, 0xa3, 0x52, 0x10, 0x76, 0x31, 0x39,
+            0x2b, 0x53, 0x0a, 0x83, 0x98, 0x15, 0x50, 0x33, 0xf1, 0x2c,
         ],
         [
-            0x91, 0x05, 0xfb, 0x09, 0x50, 0xbe, 0x7f, 0xcc, 0xa1, 0xf2, 0x26, 0x40, 0x36, 0x7e,
-            0xc1, 0x03, 0xe4, 0x56, 0x32, 0xcf, 0x14, 0xee, 0xed, 0x0a,
+            0x24, 0xe8, 0x23, 0xec, 0xbb, 0xee, 0xeb, 0xe8, 0x96, 0x5b, 0x6c, 0xc5, 0x32, 0xcb,
+            0xa4, 0x9a, 0x35, 0x8f, 0xb5, 0x13, 0x71, 0x64, 0xa9, 0x5d,
         ],
     ];
     let sig = sign_with_lms_key(&priv_key, &message, &nonce, 5).unwrap();
 
     let mut expected_sig = ImageLmsSignature {
-        q: 5,
+        q: u32::to_be(5),
         ..Default::default()
     };
 
-    expected_sig.ots_sig.otstype = LmotsAlgorithmType::LmotsSha256N24W4 as u32;
+    expected_sig.tree_type = IMAGE_LMS_TREE_TYPE;
+    expected_sig.ots_sig.otstype = IMAGE_LMS_OTS_TYPE;
     expected_sig.ots_sig.random = nonce;
     assert_eq!(51, expected_ots_sig.len());
     assert_eq!(15, expected_tree_path.len());

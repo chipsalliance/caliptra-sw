@@ -543,7 +543,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     ///
     /// TODO: include the LMS key in the digest.
     fn make_vendor_key_digest(&mut self, info: &HeaderInfo) -> CaliptraResult<ImageDigest> {
-        let range = ImageManifest::vendor_pub_key_range(info.vendor_ecc_pub_key_idx);
+        let range = ImageManifest::vendor_ecc_pub_key_range(info.vendor_ecc_pub_key_idx);
 
         if range.is_empty() {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS)?;
