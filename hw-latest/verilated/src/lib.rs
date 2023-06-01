@@ -15,10 +15,12 @@ pub enum AhbTxnType {
     ReadU8,
     ReadU16,
     ReadU32,
+    ReadU64,
 
     WriteU8,
     WriteU16,
     WriteU32,
+    WriteU64,
 }
 impl AhbTxnType {
     pub fn is_write(&self) -> bool {
@@ -29,10 +31,12 @@ impl AhbTxnType {
             (0, false) => Self::ReadU8,
             (1, false) => Self::ReadU16,
             (2, false) => Self::ReadU32,
+            (3, false) => Self::ReadU64,
 
             (0, true) => Self::WriteU8,
             (1, true) => Self::WriteU16,
             (2, true) => Self::WriteU32,
+            (3, true) => Self::WriteU64,
 
             _ => panic!("Unsupported hsize value 0b{hsize:b}"),
         }
@@ -40,18 +44,20 @@ impl AhbTxnType {
 }
 
 pub type GenericLoadCallbackFn = dyn Fn(&CaliptraVerilated, u8);
-pub type AhbCallbackFn = dyn Fn(&CaliptraVerilated, AhbTxnType, u32, u32);
+pub type AhbCallbackFn = dyn Fn(&CaliptraVerilated, AhbTxnType, u32, u64);
 
 struct AhbPendingTxn {
     ty: AhbTxnType,
     addr: u32,
 }
 impl AhbPendingTxn {
-    fn data32(&self, data64: u64) -> u32 {
-        if (self.addr & 4) == 0 {
-            data64 as u32
+    fn transform_data(&self, data64: u64) -> u64 {
+        if matches!(self.ty, AhbTxnType::ReadU64 | AhbTxnType::WriteU64) {
+            data64
+        } else if (self.addr & 4) == 0 {
+            data64 & 0xffff_ffff
         } else {
-            (data64 >> 32) as u32
+            (data64 >> 32) & 0xffff_ffff
         }
     }
 }
@@ -133,14 +139,14 @@ impl CaliptraVerilated {
                         self,
                         ahb_txn.ty,
                         ahb_txn.addr,
-                        ahb_txn.data32(self.output.uc_hwdata),
+                        ahb_txn.transform_data(self.output.uc_hwdata),
                     );
                 } else {
                     (self.ahb_cb)(
                         self,
                         ahb_txn.ty,
                         ahb_txn.addr,
-                        ahb_txn.data32(self.output.uc_hrdata),
+                        ahb_txn.transform_data(self.output.uc_hrdata),
                     );
                 }
                 self.ahb_txn = None;
