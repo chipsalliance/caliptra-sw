@@ -30,7 +30,6 @@ Multiple mitigation can be done to alleviate such attack.  From enclosing Calipt
   - SOC Management processor is usually of a higher trust level compared to application processor (CPU).  By enclosing the Caliptra mailbox interface to such entity, it reduces the attack surface of an attacker gaining the ability to attack Caliptra mailbox.  While this is not something Caliptra ROM can affect.  We can put this as a recommendation for Caliptra integration guidelines. 
 - Proactive fuzzing
   - Conduct fuzzing on any Caliptra mailbox interface that the ROM provides.  This includes fuzzing the Caliptra mailbox commands and manipulate the Caliptra firmware image.  This shall be done for both Cold boot and Hitless update boot sequence.  
-  - To reduce attack further, if we have decided that warm boot for Caliptra is no longer needed, we should take Warm boot code out of ROM to reduce attack surface.
 - Strengthen error handling.
   - Another mitigation to block attacker from doing offensive interface attack is a robust error handling policy.  A fatal or unexpected error can cause Caliptra to go into a turtle like mechanism which can only be solved with a system reset will significantly increase the difficulty for the attacker to fuzz the interface offensively.
 - Strong memory property protection
@@ -75,7 +74,6 @@ DPA (Differential Power Analysis) and DFA (Differential Fault Analysis) attacks 
   - Side-channel on the elliptic curve exploits the fact that the secret scalar value is used one bit at a time in ECDSA point multiplication operation and if recovered can be used to derive private key. Successful attack requires multiple traces where secret scalar remains constant for each trace, but a different point is used for each trace however we don’t need a knowledge on what the point is.
     - Caliptra uses chip-class ECDSA-384 private key provisioned by a vendor to sign device identifier certificate.
 - DFA attacks require feeding known plain/ciphertext, glitching cryptographic IP and observing the output of cryptographic operation. While DFA attacks require all 3 previously mentioned conditions, the number of traces required to perform such an attack is in the order of few thousand traces also often times DFA attacks can be performed purely from software if an attacker has ability to control SoC voltage via software interface.
-
 
 ## Mitigation
 - IV
