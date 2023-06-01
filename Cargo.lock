@@ -166,9 +166,11 @@ dependencies = [
  "caliptra-builder",
  "caliptra-error",
  "caliptra-hw-model",
+ "caliptra-lms-types",
  "caliptra-registers",
  "cfg-if",
  "ureg",
+ "zerocopy",
 ]
 
 [[package]]
@@ -177,6 +179,7 @@ version = "0.1.0"
 dependencies = [
  "caliptra-drivers",
  "caliptra-kat",
+ "caliptra-lms-types",
  "caliptra-registers",
  "caliptra-test-harness",
  "cfg-if",
@@ -438,6 +441,8 @@ name = "caliptra-kat"
 version = "0.1.0"
 dependencies = [
  "caliptra-drivers",
+ "caliptra-lms-types",
+ "zerocopy",
 ]
 
 [[package]]

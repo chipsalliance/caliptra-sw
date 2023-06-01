@@ -20,26 +20,14 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{
-    HashValue, LmotsAlgorithmType, LmotsSignature, Lms, LmsAlgorithmType, LmsSignature, Sha256,
+use caliptra_drivers::{HashValue, Lms, Sha256};
+use caliptra_lms_types::{
+    bytes_to_words_8, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsPublicKey,
+    LmsSignature,
 };
 use caliptra_registers::sha256::Sha256Reg;
 use caliptra_test_harness::test_suite;
-
-const fn bytes_to_words_8(bytes: [u8; 32]) -> HashValue<8> {
-    let mut result = [0_u32; 8];
-    let mut i = 0;
-    while i < result.len() {
-        result[i] = u32::from_be_bytes([
-            bytes[i * 4],
-            bytes[i * 4 + 1],
-            bytes[i * 4 + 2],
-            bytes[i * 4 + 3],
-        ]);
-        i += 1;
-    }
-    HashValue(result)
-}
+use zerocopy::{BigEndian, LittleEndian, U32};
 
 fn test_hash_message_32() {
     let mut sha256 = unsafe { Sha256::new(Sha256Reg::new()) };
@@ -61,12 +49,11 @@ fn test_hash_message_32() {
         0xb6,
     ];
 
-    const FINAL_C: [u32; 8] = bytes_to_words_8([
+    const FINAL_C: [U32<LittleEndian>; 8] = bytes_to_words_8([
         0x07, 0x03, 0xc4, 0x91, 0xe7, 0x55, 0x8b, 0x35, 0x01, 0x1e, 0xce, 0x35, 0x92, 0xea, 0xa5,
         0xda, 0x4d, 0x91, 0x87, 0x86, 0x77, 0x12, 0x33, 0xe8, 0x35, 0x3b, 0xc4, 0xf6, 0x23, 0x23,
         0x18, 0x5c,
-    ])
-    .0;
+    ]);
 
     let lms_q: u32 = 0xa;
     let q_str = lms_q.to_be_bytes();
@@ -100,13 +87,12 @@ fn test_ots_32() {
         0xb6,
     ];
 
-    const FINAL_C: [u32; 8] = bytes_to_words_8([
+    const FINAL_C: [U32<LittleEndian>; 8] = bytes_to_words_8([
         0x07, 0x03, 0xc4, 0x91, 0xe7, 0x55, 0x8b, 0x35, 0x01, 0x1e, 0xce, 0x35, 0x92, 0xea, 0xa5,
         0xda, 0x4d, 0x91, 0x87, 0x86, 0x77, 0x12, 0x33, 0xe8, 0x35, 0x3b, 0xc4, 0xf6, 0x23, 0x23,
         0x18, 0x5c,
-    ])
-    .0;
-    const FINAL_Y: [HashValue<8>; 34] = [
+    ]);
+    const FINAL_Y: [[U32<LittleEndian>; 8]; 34] = [
         bytes_to_words_8([
             0x95, 0xca, 0xe0, 0x5b, 0x89, 0x9e, 0x35, 0xdf, 0xfd, 0x71, 0x70, 0x54, 0x70, 0x62,
             0x09, 0x98, 0x8e, 0xbf, 0xdf, 0x6e, 0x37, 0x96, 0x0b, 0xb5, 0xc3, 0x8d, 0x76, 0x57,
@@ -303,10 +289,10 @@ fn test_ots_32() {
     ]);
     let result_ots = Lms::default().candidate_ots_signature::<8, 34>(
         &mut sha256,
-        &FINAL_OTS_SIG.ots_type,
         &LMS_IDENTIFIER,
+        FINAL_OTS_SIG.ots_type,
         &q_str,
-        &FINAL_OTS_SIG,
+        &FINAL_OTS_SIG.y,
         &result,
     );
     assert_eq!(result_ots.unwrap(), EXPECTED_OTS);
@@ -334,19 +320,17 @@ fn test_lms_lower_32() {
         0xb6,
     ];
 
-    const LMS_PUBLIC_HASH: HashValue<8> = bytes_to_words_8([
+    const LMS_PUBLIC_HASH: [U32<LittleEndian>; 8] = bytes_to_words_8([
         0x6c, 0x50, 0x04, 0x91, 0x7d, 0xa6, 0xea, 0xfe, 0x4d, 0x9e, 0xf6, 0xc6, 0x40, 0x7b, 0x3d,
         0xb0, 0xe5, 0x48, 0x5b, 0x12, 0x2d, 0x9e, 0xbe, 0x15, 0xcd, 0xa9, 0x3c, 0xfe, 0xc5, 0x82,
         0xd7, 0xab,
     ]);
-    const Q: u32 = 0xa;
-    const FINAL_C: [u32; 8] = bytes_to_words_8([
+    const FINAL_C: [U32<LittleEndian>; 8] = bytes_to_words_8([
         0x07, 0x03, 0xc4, 0x91, 0xe7, 0x55, 0x8b, 0x35, 0x01, 0x1e, 0xce, 0x35, 0x92, 0xea, 0xa5,
         0xda, 0x4d, 0x91, 0x87, 0x86, 0x77, 0x12, 0x33, 0xe8, 0x35, 0x3b, 0xc4, 0xf6, 0x23, 0x23,
         0x18, 0x5c,
-    ])
-    .0;
-    const Y: [HashValue<8>; 34] = [
+    ]);
+    const Y: [[U32<LittleEndian>; 8]; 34] = [
         bytes_to_words_8([
             0x95, 0xca, 0xe0, 0x5b, 0x89, 0x9e, 0x35, 0xdf, 0xfd, 0x71, 0x70, 0x54, 0x70, 0x62,
             0x09, 0x98, 0x8e, 0xbf, 0xdf, 0x6e, 0x37, 0x96, 0x0b, 0xb5, 0xc3, 0x8d, 0x76, 0x57,
@@ -518,7 +502,7 @@ fn test_lms_lower_32() {
             0x6b, 0x5a, 0x0a, 0xdc,
         ]),
     ];
-    const PATH: [HashValue<8>; 5] = [
+    const PATH: [[U32<LittleEndian>; 8]; 5] = [
         bytes_to_words_8([
             0xd5, 0xc0, 0xd1, 0xbe, 0xbb, 0x06, 0x04, 0x8e, 0xd6, 0xfe, 0x2e, 0xf2, 0xc6, 0xce,
             0xf3, 0x05, 0xb3, 0xed, 0x63, 0x39, 0x41, 0xeb, 0xc8, 0xb3, 0xbe, 0xc9, 0x73, 0x87,
@@ -546,30 +530,30 @@ fn test_lms_lower_32() {
         ]),
     ];
 
-    const FINAL_OTS: LmotsSignature<8, 34> = LmotsSignature {
-        ots_type: LmotsAlgorithmType::LmotsSha256N32W8,
-        nonce: FINAL_C,
-        y: Y,
-    };
-
-    const FINAL_LMS_SOG: LmsSignature<8, 34> = LmsSignature::<8, 34> {
+    // final signature
+    const Q: U32<BigEndian> = U32::from_bytes([0x00, 0x00, 0x00, 0x0a]);
+    const FINAL_LMS_SIG: LmsSignature<8, 34, 5> = LmsSignature::<8, 34, 5> {
         q: Q,
-        lmots_signature: FINAL_OTS,
-        sig_type: LmsAlgorithmType::LmsSha256N32H5,
-        lms_path: &PATH,
+        ots: LmotsSignature {
+            ots_type: LmotsAlgorithmType::LmotsSha256N32W8,
+            nonce: FINAL_C,
+            y: Y,
+        },
+        tree_type: LmsAlgorithmType::LmsSha256N32H5,
+        tree_path: PATH,
     };
 
-    let final_thingie = Lms::default()
-        .verify_lms_signature(
-            &mut sha256,
-            &MESSAGE,
-            &LMS_IDENTIFIER,
-            Q,
-            &LMS_PUBLIC_HASH,
-            &FINAL_LMS_SOG,
-        )
+    const LMS_PUBLIC_KEY: LmsPublicKey<8> = LmsPublicKey {
+        id: LMS_IDENTIFIER,
+        digest: LMS_PUBLIC_HASH,
+        tree_type: LmsAlgorithmType::LmsSha256N32H5,
+        otstype: LmotsAlgorithmType::LmotsSha256N32W8,
+    };
+
+    let final_result = Lms::default()
+        .verify_lms_signature(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &FINAL_LMS_SIG)
         .unwrap();
-    assert_eq!(final_thingie, true);
+    assert_eq!(final_result, true);
 }
 
 // from https://www.rfc-editor.org/rfc/rfc8554#page-49
@@ -581,7 +565,7 @@ fn test_hss_upper_32() {
         0xb8,
     ];
 
-    const HSS_PUBLIC_HASH: HashValue<8> = bytes_to_words_8([
+    const HSS_PUBLIC_HASH: [U32<LittleEndian>; 8] = bytes_to_words_8([
         0x50, 0x65, 0x0e, 0x3b, 0x31, 0xfe, 0x4a, 0x77, 0x3e, 0xa2, 0x9a, 0x07, 0xf0, 0x9c, 0xf2,
         0xea, 0x30, 0xe5, 0x79, 0xf0, 0xdf, 0x58, 0xef, 0x8e, 0x29, 0x8d, 0xa0, 0x43, 0x4c, 0xb2,
         0xb8, 0x78,
@@ -600,15 +584,14 @@ fn test_hss_upper_32() {
         0xd7, 0xab,
     ];
 
-    const Q: u32 = 5;
+    const Q: U32<BigEndian> = U32::from_bytes([0x00, 0x00, 0x00, 0x05]);
 
-    const UPPER_NONCE: [u32; 8] = bytes_to_words_8([
+    const UPPER_NONCE: [U32<LittleEndian>; 8] = bytes_to_words_8([
         0xd3, 0x2b, 0x56, 0x67, 0x1d, 0x7e, 0xb9, 0x88, 0x33, 0xc4, 0x9b, 0x43, 0x3c, 0x27, 0x25,
         0x86, 0xbc, 0x4a, 0x1c, 0x8a, 0x89, 0x70, 0x52, 0x8f, 0xfa, 0x04, 0xb9, 0x66, 0xf9, 0x42,
         0x6e, 0xb9,
-    ])
-    .0;
-    const Y: [HashValue<8>; 34] = [
+    ]);
+    const Y: [[U32<LittleEndian>; 8]; 34] = [
         bytes_to_words_8([
             0x96, 0x5a, 0x25, 0xbf, 0xd3, 0x7f, 0x19, 0x6b, 0x90, 0x73, 0xf3, 0xd4, 0xa2, 0x32,
             0xfe, 0xb6, 0x91, 0x28, 0xec, 0x45, 0x14, 0x6f, 0x86, 0x29, 0x2f, 0x9d, 0xff, 0x96,
@@ -780,7 +763,7 @@ fn test_hss_upper_32() {
             0x96, 0x8b, 0xee, 0x74,
         ]),
     ];
-    const PATH: [HashValue<8>; 5] = [
+    const PATH: [[U32<LittleEndian>; 8]; 5] = [
         bytes_to_words_8([
             0xd8, 0xb8, 0x11, 0x2f, 0x92, 0x00, 0xa5, 0xe5, 0x0c, 0x4a, 0x26, 0x21, 0x65, 0xbd,
             0x34, 0x2c, 0xd8, 0x00, 0xb8, 0x49, 0x68, 0x10, 0xbc, 0x71, 0x62, 0x77, 0x43, 0x5a,
@@ -807,26 +790,30 @@ fn test_hss_upper_32() {
             0x62, 0xbf, 0x51, 0x36,
         ]),
     ];
-    const OTS: LmotsSignature<8, 34> = LmotsSignature {
-        ots_type: LmotsAlgorithmType::LmotsSha256N32W8,
-        nonce: UPPER_NONCE,
-        y: Y,
+
+    const UPPER_SIGNATURE: LmsSignature<8, 34, 5> = LmsSignature {
+        q: Q,
+        ots: LmotsSignature {
+            ots_type: LmotsAlgorithmType::LmotsSha256N32W8,
+            nonce: UPPER_NONCE,
+            y: Y,
+        },
+        tree_type: LmsAlgorithmType::LmsSha256N32H5,
+        tree_path: PATH,
     };
 
-    const UPPER_SIGNATURE: LmsSignature<8, 34> = LmsSignature {
-        q: Q,
-        lmots_signature: OTS,
-        sig_type: LmsAlgorithmType::LmsSha256N32H5,
-        lms_path: &PATH,
+    const HSS_PUBLIC_KEY: LmsPublicKey<8> = LmsPublicKey {
+        id: IDENTIFIER,
+        digest: HSS_PUBLIC_HASH,
+        tree_type: LmsAlgorithmType::LmsSha256N32H5,
+        otstype: LmotsAlgorithmType::LmotsSha256N32W8,
     };
 
     let success = Lms::default()
         .verify_lms_signature(
             &mut sha256,
             &PUBLIC_BUFFER,
-            &IDENTIFIER,
-            Q,
-            &HSS_PUBLIC_HASH,
+            &HSS_PUBLIC_KEY,
             &UPPER_SIGNATURE,
         )
         .unwrap();

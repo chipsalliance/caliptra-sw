@@ -237,6 +237,16 @@ impl CaliptraError {
 
     pub const DRIVER_LMS_PATH_OUT_OF_BOUNDS: CaliptraError = CaliptraError::new_const(0x000c0009);
 
+    pub const DRIVER_LMS_INVALID_SIGNATURE_LENGTH: CaliptraError =
+        CaliptraError::new_const(0x000c000a);
+    pub const DRIVER_LMS_INVALID_PUBLIC_KEY_LENGTH: CaliptraError =
+        CaliptraError::new_const(0x000c000b);
+    pub const DRIVER_LMS_INVALID_SIGNATURE_DEPTH: CaliptraError =
+        CaliptraError::new_const(0x000c000c);
+
+    pub const DRIVER_LMS_SIGNATURE_LMOTS_DOESNT_MATCH_PUBKEY_LMOTS: CaliptraError =
+        CaliptraError::new_const(0x000c000d);
+
     /// CSRNG Errors
     pub const DRIVER_CSRNG_INSTANTIATE: CaliptraError = CaliptraError::new_const(0x000d0001);
     pub const DRIVER_CSRNG_UNINSTANTIATE: CaliptraError = CaliptraError::new_const(0x000d0002);
