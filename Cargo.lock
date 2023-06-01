@@ -474,6 +474,7 @@ dependencies = [
  "caliptra-image-types",
  "caliptra-image-verify",
  "caliptra-kat",
+ "caliptra-lms-types",
  "caliptra-registers",
  "caliptra-x509",
  "caliptra_common",

@@ -62,6 +62,7 @@ impl DiceLayer for FmcAliasLayer {
         let manifest = okref(&manifest)?;
 
         let mut venv = RomImageVerificationEnv {
+            sha256: &mut env.sha256,
             sha384: &mut env.sha384,
             sha384_acc: &mut env.sha384_acc,
             soc_ifc: &mut env.soc_ifc,
