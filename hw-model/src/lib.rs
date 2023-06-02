@@ -124,8 +124,8 @@ pub struct InitParams<'a> {
     // The silicon obfuscation key passed to caliptra_top.
     pub cptra_obf_key: [u32; 8],
 
-    // 4-bit nibbles of raw entropy to feed into the internal TRNG (CSRNG
-    // peripheral)
+    // 4-bit nibbles of raw entropy to feed into the internal TRNG (ENTROPY_SRC
+    // peripheral).
     pub itrng_nibbles: Box<dyn Iterator<Item = u8>>,
 
     // Pre-conditioned TRNG responses to return over the soc_ifc CPTRA_TRNG_DATA
@@ -487,6 +487,19 @@ pub trait HwModel {
     fn soc_ifc(&mut self) -> caliptra_registers::soc_ifc::RegisterBlock<BusMmio<Self::TBus<'_>>> {
         unsafe {
             caliptra_registers::soc_ifc::RegisterBlock::new_with_mmio(
+                0x3003_0000 as *mut u32,
+                BusMmio::new(self.apb_bus()),
+            )
+        }
+    }
+
+    /// A register block that can be used to manipulate the soc_ifc peripheral TRNG registers
+    /// over the simulated SoC->Caliptra APB bus.
+    fn soc_ifc_trng(
+        &mut self,
+    ) -> caliptra_registers::soc_ifc_trng::RegisterBlock<BusMmio<Self::TBus<'_>>> {
+        unsafe {
+            caliptra_registers::soc_ifc_trng::RegisterBlock::new_with_mmio(
                 0x3003_0000 as *mut u32,
                 BusMmio::new(self.apb_bus()),
             )
