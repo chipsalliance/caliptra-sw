@@ -50,7 +50,9 @@ impl X509 {
         let data = pub_key.to_der();
         let digest = Crypto::sha256_digest(env, &data);
         let digest: [u8; 32] = okref(&digest)?.into();
-        Ok(digest[..20].try_into().unwrap())
+        let mut out = [0u8; 20];
+        out.copy_from_slice(&digest[..20]);
+        Ok(out)
     }
 
     /// Return the hex representation of the input `buf`

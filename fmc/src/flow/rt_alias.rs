@@ -16,6 +16,7 @@ use crate::flow::dice::{DiceInput, DiceLayer, DiceOutput};
 use crate::flow::pcr::{extend_current_pcr, extend_journey_pcr};
 use crate::flow::tci::Tci;
 use crate::flow::x509::X509;
+use crate::flow::KEY_ID_FMC_PRIV_KEY;
 use crate::fmc_env::FmcEnv;
 use crate::HandOff;
 use caliptra_common::cprintln;
@@ -59,14 +60,14 @@ impl DiceLayer for RtAliasLayer {
 impl RtAliasLayer {
     #[inline(never)]
     pub fn run(env: &mut FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
-        cprintln!("Extend PCRs");
+        cprintln!("[fmc] Extend RT PCRs");
         Self::extend_pcrs(env, hand_off)?;
 
         // Retrieve Dice Input Layer from Hand Off and Derive Key
         match Self::dice_input_from_hand_off(hand_off) {
             Ok(input) => {
-                let _ = Self::derive(env, hand_off, &input);
-                Ok(())
+                let out = Self::derive(env, hand_off, &input)?;
+                hand_off.update(out)
             }
             _ => Err(CaliptraError::FMC_RT_ALIAS_DERIVE_FAILURE),
         }
@@ -87,7 +88,7 @@ impl RtAliasLayer {
             cdi: hand_off.fmc_cdi(),
             subj_priv_key: hand_off.fmc_priv_key(),
             auth_key_pair: Ecc384KeyPair {
-                priv_key: KeyId::KeyId5,
+                priv_key: KEY_ID_FMC_PRIV_KEY,
                 pub_key: Ecc384PubKey::default(),
             },
             auth_sn: [0u8; 64],
@@ -111,6 +112,7 @@ impl RtAliasLayer {
     }
 
     /// Permute Composite Device Identity (CDI) using Rt TCI and Image Manifest Digest
+    /// The RT Alias CDI will overwrite the FMC Alias CDI in the KeyVault Slot
     ///
     /// # Arguments
     ///
@@ -173,6 +175,7 @@ impl RtAliasLayer {
         _input: &DiceInput,
         _output: &DiceOutput,
     ) -> CaliptraResult<()> {
+        // TODO: This will be implemented in a different PR. Issue #84
         Ok(())
     }
 }

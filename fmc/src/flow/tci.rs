@@ -21,6 +21,7 @@ use crate::fmc_env::FmcEnv;
 use crate::HandOff;
 use caliptra_drivers::{Array4x12, CaliptraResult};
 use caliptra_image_types::ImageManifest;
+use core::mem::size_of;
 
 pub struct Tci {}
 
@@ -38,7 +39,7 @@ impl Tci {
         let image_manifest_bytes = unsafe {
             core::slice::from_raw_parts_mut(
                 hand_off.image_manifest_address(env) as *mut u8,
-                ImageManifest::default().size as usize,
+                size_of::<ImageManifest>(),
             )
         };
 
