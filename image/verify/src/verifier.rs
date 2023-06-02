@@ -24,7 +24,9 @@ const ZERO_DIGEST: ImageDigest = [0u32; SHA384_DIGEST_WORD_SIZE];
 /// Header Info
 struct HeaderInfo<'a> {
     vendor_ecc_pub_key_idx: u32,
+    vendor_lms_pub_key_idx: u32,
     vendor_info: (&'a ImageEccPubKey, &'a ImageEccSignature),
+    vendor_lms_info: (&'a ImageLmsPublicKey, &'a ImageLmsSignature),
     owner_info: Option<(&'a ImageEccPubKey, &'a ImageEccSignature)>,
     owner_pub_keys_digest: ImageDigest,
 }
@@ -140,6 +142,18 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             &preamble.vendor_sigs.ecc_sig,
         );
 
+        let vendor_lms_pub_key_idx = preamble.vendor_lms_pub_key_idx;
+        if vendor_lms_pub_key_idx >= VENDOR_LMS_KEY_COUNT {
+            return Err(
+                CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VEN_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS,
+            );
+        }
+
+        let vendor_lms_info = (
+            &preamble.vendor_pub_keys.lms_pub_keys[vendor_lms_pub_key_idx as usize],
+            &preamble.vendor_sigs.lms_sig,
+        );
+
         // Owner Information
         let (owner_pub_keys_digest, owner_info) = if let Some(digest) = owner_pk_digest {
             (
@@ -155,7 +169,9 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         let info = HeaderInfo {
             vendor_ecc_pub_key_idx,
+            vendor_lms_pub_key_idx,
             vendor_info,
+            vendor_lms_info,
             owner_pub_keys_digest,
             owner_info,
         };
@@ -278,12 +294,17 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // Verify vendor signature
         let (pub_key, sig) = info.vendor_info;
-        self.verify_vendor_sig(&digest_vendor, pub_key, sig)?;
+        let (lms_pub_key, lms_sig) = info.vendor_lms_info;
+        self.verify_vendor_sig(&digest_vendor, pub_key, lms_pub_key, sig, lms_sig)?;
 
         // Verify the ECC public key index used verify header signature is encoded
         // in the header
         if header.vendor_ecc_pub_key_idx != info.vendor_ecc_pub_key_idx {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_MISMATCH)?;
+        }
+
+        if header.vendor_lms_pub_key_idx != info.vendor_lms_pub_key_idx {
+            return Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_MISMATCH);
         }
 
         // Verify owner signature
@@ -330,7 +351,9 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         &mut self,
         digest: &ImageDigest,
         pub_key: &ImageEccPubKey,
+        lms_pub_key: &ImageLmsPublicKey,
         sig: &ImageEccSignature,
+        lms_sig: &ImageLmsSignature,
     ) -> CaliptraResult<()> {
         if pub_key.x == ZERO_DIGEST || pub_key.y == ZERO_DIGEST {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID_ARG)?;
@@ -339,13 +362,21 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID_ARG)?;
         }
 
-        let result = self
+        let mut result = self
             .env
             .ecc384_verify(digest, pub_key, sig)
             .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_VERIFY_FAILURE)?;
 
         if !result {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID)?;
+        }
+
+        result = self
+            .env
+            .lms_verify(digest, lms_pub_key, lms_sig)
+            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_VERIFY_FAILURE)?;
+        if !result {
+            return Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID);
         }
 
         Ok(())
@@ -543,7 +574,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     ///
     /// TODO: include the LMS key in the digest.
     fn make_vendor_key_digest(&mut self, info: &HeaderInfo) -> CaliptraResult<ImageDigest> {
-        let range = ImageManifest::vendor_pub_key_range(info.vendor_ecc_pub_key_idx);
+        let range = ImageManifest::vendor_ecc_pub_key_range(info.vendor_ecc_pub_key_idx);
 
         if range.is_empty() {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS)?;
@@ -583,6 +614,12 @@ mod tests {
         r: DUMMY_DATA,
         s: DUMMY_DATA,
     };
+    fn vendor_lms_pubkey() -> ImageLmsPublicKey {
+        ImageLmsPublicKey::default()
+    }
+    fn vendor_lms_sig() -> ImageLmsSignature {
+        ImageLmsSignature::default()
+    }
     const OWNER_ECC_PUBKEY: ImageEccPubKey = ImageEccPubKey {
         x: DUMMY_DATA,
         y: DUMMY_DATA,
@@ -795,7 +832,9 @@ mod tests {
         let ecc_sig = ImageEccSignature::default();
         let header_info: HeaderInfo = HeaderInfo {
             vendor_ecc_pub_key_idx: 0,
+            vendor_lms_pub_key_idx: 0,
             vendor_info: (&ImageEccPubKey::default(), &ImageEccSignature::default()),
+            vendor_lms_info: (&vendor_lms_pubkey(), &vendor_lms_sig()),
             owner_info: Some((&ecc_pubkey, &ecc_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
         };
@@ -815,7 +854,9 @@ mod tests {
         let owner_ecc_sig = ImageEccSignature::default();
         let header_info: HeaderInfo = HeaderInfo {
             vendor_ecc_pub_key_idx: 0,
+            vendor_lms_pub_key_idx: 0,
             vendor_info: (&VENDOR_ECC_PUBKEY, &ImageEccSignature::default()),
+            vendor_lms_info: (&vendor_lms_pubkey(), &vendor_lms_sig()),
             owner_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
         };
@@ -841,7 +882,9 @@ mod tests {
         let owner_ecc_sig = ImageEccSignature::default();
         let header_info: HeaderInfo = HeaderInfo {
             vendor_ecc_pub_key_idx: 0,
+            vendor_lms_pub_key_idx: 0,
             vendor_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
+            vendor_lms_info: (&vendor_lms_pubkey(), &vendor_lms_sig()),
             owner_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
         };
@@ -853,8 +896,11 @@ mod tests {
     }
 
     #[test]
-    fn test_header_incorrect_pubkey_index() {
+    fn test_header_vendor_lms_signature_invalid() {
         let test_env = TestEnv {
+            lifecycle: Lifecycle::Production,
+            vendor_pub_key_digest: DUMMY_DATA,
+            owner_pub_key_digest: DUMMY_DATA,
             verify_result: true,
             ..Default::default()
         };
@@ -863,8 +909,36 @@ mod tests {
         let owner_ecc_pubkey = ImageEccPubKey::default();
         let owner_ecc_sig = ImageEccSignature::default();
         let header_info: HeaderInfo = HeaderInfo {
-            vendor_ecc_pub_key_idx: 1,
+            vendor_ecc_pub_key_idx: 0,
+            vendor_lms_pub_key_idx: 0,
             vendor_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
+            vendor_lms_info: (&vendor_lms_pubkey(), &vendor_lms_sig()),
+            owner_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
+            owner_pub_keys_digest: ImageDigest::default(),
+        };
+        let result = verifier.verify_header(&header, &header_info);
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID)
+        );
+    }
+
+    #[test]
+    fn test_header_incorrect_pubkey_index() {
+        let test_env = TestEnv {
+            verify_result: true,
+            verify_lms_result: true,
+            ..Default::default()
+        };
+        let mut verifier = ImageVerifier::new(test_env);
+        let header = ImageHeader::default();
+        let owner_ecc_pubkey = ImageEccPubKey::default();
+        let owner_ecc_sig = ImageEccSignature::default();
+        let header_info: HeaderInfo = HeaderInfo {
+            vendor_ecc_pub_key_idx: 1,
+            vendor_lms_pub_key_idx: 0,
+            vendor_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
+            vendor_lms_info: (&vendor_lms_pubkey(), &vendor_lms_sig()),
             owner_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
         };
@@ -879,6 +953,7 @@ mod tests {
     fn test_header_owner_pubkey_invalid_arg() {
         let test_env = TestEnv {
             verify_result: true,
+            verify_lms_result: true,
             ..Default::default()
         };
         let mut verifier = ImageVerifier::new(test_env);
@@ -887,7 +962,9 @@ mod tests {
         let owner_ecc_sig = ImageEccSignature::default();
         let header_info: HeaderInfo = HeaderInfo {
             vendor_ecc_pub_key_idx: 0,
+            vendor_lms_pub_key_idx: 0,
             vendor_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
+            vendor_lms_info: (&vendor_lms_pubkey(), &vendor_lms_sig()),
             owner_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
         };
@@ -902,6 +979,7 @@ mod tests {
     fn test_header_owner_signature_invalid_arg() {
         let test_env = TestEnv {
             verify_result: true,
+            verify_lms_result: true,
             ..Default::default()
         };
         let mut verifier = ImageVerifier::new(test_env);
@@ -909,7 +987,9 @@ mod tests {
         let owner_ecc_sig = ImageEccSignature::default();
         let header_info: HeaderInfo = HeaderInfo {
             vendor_ecc_pub_key_idx: 0,
+            vendor_lms_pub_key_idx: 0,
             vendor_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
+            vendor_lms_info: (&vendor_lms_pubkey(), &vendor_lms_sig()),
             owner_info: Some((&OWNER_ECC_PUBKEY, &owner_ecc_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
         };
@@ -924,6 +1004,7 @@ mod tests {
     fn test_header_success() {
         let test_env = TestEnv {
             verify_result: true,
+            verify_lms_result: true,
             ..Default::default()
         };
         let mut verifier = ImageVerifier::new(test_env);
@@ -934,7 +1015,9 @@ mod tests {
         };
         let header_info: HeaderInfo = HeaderInfo {
             vendor_ecc_pub_key_idx: 0,
+            vendor_lms_pub_key_idx: 0,
             vendor_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
+            vendor_lms_info: (&vendor_lms_pubkey(), &vendor_lms_sig()),
             owner_info: Some((&OWNER_ECC_PUBKEY, &OWNER_ECC_SIG)),
             owner_pub_keys_digest: ImageDigest::default(),
         };
@@ -1256,6 +1339,7 @@ mod tests {
         digest: ImageDigest,
         fmc_digest: ImageDigest,
         verify_result: bool,
+        verify_lms_result: bool,
         vendor_pub_key_digest: ImageDigest,
         vendor_pub_key_revocation: VendorPubKeyRevocation,
         owner_pub_key_digest: ImageDigest,
@@ -1268,6 +1352,7 @@ mod tests {
                 digest: ImageDigest::default(),
                 fmc_digest: ImageDigest::default(),
                 verify_result: false,
+                verify_lms_result: false,
                 vendor_pub_key_digest: ImageDigest::default(),
                 vendor_pub_key_revocation: VendorPubKeyRevocation::default(),
                 owner_pub_key_digest: ImageDigest::default(),
@@ -1288,6 +1373,15 @@ mod tests {
             _sig: &ImageEccSignature,
         ) -> CaliptraResult<bool> {
             Ok(self.verify_result)
+        }
+
+        fn lms_verify(
+            &mut self,
+            _digest: &ImageDigest,
+            _pub_key: &ImageLmsPublicKey,
+            _sig: &ImageLmsSignature,
+        ) -> CaliptraResult<bool> {
+            Ok(self.verify_lms_result)
         }
 
         fn vendor_pub_key_digest(&self) -> ImageDigest {

@@ -81,6 +81,7 @@ fn ahb_txn_size(ty: AhbTxnType) -> RvSize {
         AhbTxnType::ReadU8 | AhbTxnType::WriteU8 => RvSize::Byte,
         AhbTxnType::ReadU16 | AhbTxnType::WriteU16 => RvSize::HalfWord,
         AhbTxnType::ReadU32 | AhbTxnType::WriteU32 => RvSize::Word,
+        AhbTxnType::ReadU64 | AhbTxnType::WriteU64 => RvSize::Word,
     }
 }
 
@@ -104,15 +105,36 @@ impl crate::HwModel for ModelVerilated {
         let bus_log = log.clone();
 
         let ahb_cb = Box::new(
-            move |_v: &CaliptraVerilated, ty: AhbTxnType, addr: u32, data: u32| {
+            move |_v: &CaliptraVerilated, ty: AhbTxnType, addr: u32, data: u64| {
                 if ty.is_write() {
-                    bus_log
-                        .borrow_mut()
-                        .log_write("UC", ahb_txn_size(ty), addr, data, Ok(()));
+                    bus_log.borrow_mut().log_write(
+                        "UC",
+                        ahb_txn_size(ty),
+                        addr,
+                        data as u32,
+                        Ok(()),
+                    );
+                    if ty == AhbTxnType::WriteU64 {
+                        bus_log.borrow_mut().log_write(
+                            "UC",
+                            ahb_txn_size(ty),
+                            addr + 4,
+                            (data >> 32) as u32,
+                            Ok(()),
+                        );
+                    }
                 } else {
                     bus_log
                         .borrow_mut()
-                        .log_read("UC", ahb_txn_size(ty), addr, Ok(data));
+                        .log_read("UC", ahb_txn_size(ty), addr, Ok(data as u32));
+                    if ty == AhbTxnType::WriteU64 {
+                        bus_log.borrow_mut().log_read(
+                            "UC",
+                            ahb_txn_size(ty),
+                            addr + 4,
+                            Ok((data >> 32) as u32),
+                        );
+                    }
                 }
             },
         );

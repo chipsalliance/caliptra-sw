@@ -315,11 +315,11 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
     csrng
         .regs_mut()
         .cmd_req()
-        .write(|_| (glen << 12) | (flag0 << 8) | (clen << 4) | acmd);
+        .write(|_| ((glen << 12) | (flag0 << 8) | (clen << 4) | acmd).into());
 
     // Write optional extra words.
     for &word in extra_words {
-        csrng.regs_mut().cmd_req().write(|_| word);
+        csrng.regs_mut().cmd_req().write(|_| word.into());
     }
 
     // Wait for command.

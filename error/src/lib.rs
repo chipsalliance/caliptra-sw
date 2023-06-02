@@ -70,7 +70,7 @@ impl CaliptraError {
     pub const DRIVER_HMAC384_INDEX_OUT_OF_BOUNDS: CaliptraError =
         CaliptraError::new_const(0x0004000e);
 
-    /// Driver Error: ECC384    
+    /// Driver Error: ECC384
     pub const DRIVER_ECC384_READ_SEED_KV_READ: CaliptraError = CaliptraError::new_const(0x00050001);
     pub const DRIVER_ECC384_READ_SEED_KV_WRITE: CaliptraError =
         CaliptraError::new_const(0x00050002);
@@ -217,6 +217,16 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b002e);
     pub const IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE: CaliptraError =
         CaliptraError::new_const(0x000b002f);
+    pub const IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x000b0030);
+    pub const IMAGE_VERIFIER_ERR_VENDOR_LMS_VERIFY_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x000b0031);
+    pub const IMAGE_VERIFIER_ERR_VENDOR_LMS_PUBKEY_INDEX_OUT_OF_BOUNDS: CaliptraError =
+        CaliptraError::new_const(0x000b0032);
+    pub const IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID: CaliptraError =
+        CaliptraError::new_const(0x000b0033);
+    pub const IMAGE_VERIFIER_ERR_UPDATE_RESET_VEN_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS: CaliptraError =
+        CaliptraError::new_const(0x000b0034);
 
     /// Driver Error: LMS
     pub const DRIVER_LMS_INVALID_LMS_ALGO_TYPE: CaliptraError =
@@ -237,6 +247,16 @@ impl CaliptraError {
 
     pub const DRIVER_LMS_PATH_OUT_OF_BOUNDS: CaliptraError = CaliptraError::new_const(0x000c0009);
 
+    pub const DRIVER_LMS_INVALID_SIGNATURE_LENGTH: CaliptraError =
+        CaliptraError::new_const(0x000c000a);
+    pub const DRIVER_LMS_INVALID_PUBLIC_KEY_LENGTH: CaliptraError =
+        CaliptraError::new_const(0x000c000b);
+    pub const DRIVER_LMS_INVALID_SIGNATURE_DEPTH: CaliptraError =
+        CaliptraError::new_const(0x000c000c);
+
+    pub const DRIVER_LMS_SIGNATURE_LMOTS_DOESNT_MATCH_PUBKEY_LMOTS: CaliptraError =
+        CaliptraError::new_const(0x000c000d);
+
     /// CSRNG Errors
     pub const DRIVER_CSRNG_INSTANTIATE: CaliptraError = CaliptraError::new_const(0x000d0001);
     pub const DRIVER_CSRNG_UNINSTANTIATE: CaliptraError = CaliptraError::new_const(0x000d0002);
@@ -251,7 +271,7 @@ impl CaliptraError {
     pub const RUNTIME_ECDSA_VERIF_FAILED: CaliptraError = CaliptraError::new_const(0x000E0004);
 
     /// FMC Errors
-    pub const FMC_RT_ALIAS_UNIMPLEMENTED: CaliptraError = CaliptraError::new_const(0x000F0001);
+    pub const FMC_RT_ALIAS_DERIVE_FAILURE: CaliptraError = CaliptraError::new_const(0x000F0001);
     pub const FMC_HANDOFF_INVALID_PARAM: CaliptraError = CaliptraError::new_const(0x000F0002);
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0003);
     pub const FMC_GLOBAL_EXCEPTION: CaliptraError = CaliptraError::new_const(0x000F0004);

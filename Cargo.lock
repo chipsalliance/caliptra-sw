@@ -166,9 +166,11 @@ dependencies = [
  "caliptra-builder",
  "caliptra-error",
  "caliptra-hw-model",
+ "caliptra-lms-types",
  "caliptra-registers",
  "cfg-if",
  "ureg",
+ "zerocopy",
 ]
 
 [[package]]
@@ -177,6 +179,7 @@ version = "0.1.0"
 dependencies = [
  "caliptra-drivers",
  "caliptra-kat",
+ "caliptra-lms-types",
  "caliptra-registers",
  "caliptra-test-harness",
  "cfg-if",
@@ -277,6 +280,7 @@ dependencies = [
  "caliptra-drivers",
  "caliptra-error",
  "caliptra-hw-model",
+ "caliptra-image-types",
  "caliptra-registers",
  "caliptra-x509",
  "caliptra_common",
@@ -376,6 +380,8 @@ dependencies = [
  "caliptra-image-gen",
  "caliptra-image-openssl",
  "caliptra-image-types",
+ "caliptra-lms-types",
+ "zerocopy",
 ]
 
 [[package]]
@@ -385,6 +391,7 @@ dependencies = [
  "anyhow",
  "bitflags 2.0.2",
  "caliptra-image-types",
+ "caliptra-lms-types",
  "memoffset",
  "zerocopy",
 ]
@@ -394,10 +401,11 @@ name = "caliptra-image-openssl"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "caliptra-drivers",
  "caliptra-image-gen",
  "caliptra-image-types",
+ "caliptra-lms-types",
  "openssl",
+ "zerocopy",
 ]
 
 [[package]]
@@ -413,7 +421,7 @@ dependencies = [
 name = "caliptra-image-types"
 version = "0.1.0"
 dependencies = [
- "caliptra-drivers",
+ "caliptra-lms-types",
  "memoffset",
  "zerocopy",
 ]
@@ -434,6 +442,15 @@ name = "caliptra-kat"
 version = "0.1.0"
 dependencies = [
  "caliptra-drivers",
+ "caliptra-lms-types",
+ "zerocopy",
+]
+
+[[package]]
+name = "caliptra-lms-types"
+version = "0.1.0"
+dependencies = [
+ "zerocopy",
 ]
 
 [[package]]
@@ -458,6 +475,7 @@ dependencies = [
  "caliptra-image-types",
  "caliptra-image-verify",
  "caliptra-kat",
+ "caliptra-lms-types",
  "caliptra-registers",
  "caliptra-x509",
  "caliptra_common",

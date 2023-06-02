@@ -17,7 +17,9 @@ Abstract:
 use core::mem::size_of;
 use core::ops::Range;
 
-use caliptra_drivers::LmsIdentifier;
+use caliptra_lms_types::{
+    LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsPrivateKey, LmsPublicKey, LmsSignature,
+};
 use memoffset::{offset_of, span_of};
 use zerocopy::{AsBytes, FromBytes};
 
@@ -29,11 +31,16 @@ pub const IMAGE_REVISION_BYTE_SIZE: usize = 20;
 pub const ECC384_SCALAR_WORD_SIZE: usize = 12;
 pub const ECC384_SCALAR_BYTE_SIZE: usize = 48;
 pub const SHA192_DIGEST_BYTE_SIZE: usize = 24;
+pub const SHA192_DIGEST_WORD_SIZE: usize = 6;
 pub const SHA384_DIGEST_WORD_SIZE: usize = 12;
 pub const SHA384_DIGEST_BYTE_SIZE: usize = 48;
 pub const IMAGE_LMS_OTS_P_PARAM: usize = 51;
 pub const IMAGE_LMS_KEY_HEIGHT: usize = 15;
 pub const IMAGE_BYTE_SIZE: usize = 128 * 1024;
+// LMS-SHA192-H15
+pub const IMAGE_LMS_TREE_TYPE: LmsAlgorithmType = LmsAlgorithmType::LmsSha256N24H15;
+// LMOTS-SHA192-W4
+pub const IMAGE_LMS_OTS_TYPE: LmotsAlgorithmType = LmotsAlgorithmType::LmotsSha256N24W4;
 pub const IMAGE_MANIFEST_BYTE_SIZE: usize = core::mem::size_of::<ImageManifest>();
 
 pub type ImageScalar = [u32; ECC384_SCALAR_WORD_SIZE];
@@ -51,29 +58,8 @@ pub struct ImageEccPubKey {
     pub y: ImageScalar,
 }
 
-#[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq)]
-pub struct ImageLmsPublicKey {
-    pub tree_type: u32,
-
-    pub otstype: u32,
-
-    pub id: LmsIdentifier,
-
-    pub digest: [u8; SHA192_DIGEST_BYTE_SIZE],
-}
-
-#[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq)]
-pub struct ImageLmsPrivKey {
-    pub tree_type: u32,
-
-    pub otstype: u32,
-
-    pub id: LmsIdentifier,
-
-    pub seed: [u8; SHA192_DIGEST_BYTE_SIZE],
-}
+pub type ImageLmsPublicKey = LmsPublicKey<SHA192_DIGEST_WORD_SIZE>;
+pub type ImageLmsPrivKey = LmsPrivateKey<SHA192_DIGEST_WORD_SIZE>;
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq)]
@@ -85,37 +71,9 @@ pub struct ImageEccSignature {
     pub s: ImageScalar,
 }
 
-#[repr(C)]
-#[derive(AsBytes, FromBytes, Debug, Copy, Clone, Eq, PartialEq)]
-pub struct ImageLmOTSSignature {
-    pub otstype: u32,
-
-    pub random: [u8; SHA192_DIGEST_BYTE_SIZE],
-
-    pub sig: [[u8; SHA192_DIGEST_BYTE_SIZE]; IMAGE_LMS_OTS_P_PARAM],
-}
-
-impl Default for ImageLmOTSSignature {
-    fn default() -> Self {
-        Self {
-            otstype: 0,
-            random: [0; SHA192_DIGEST_BYTE_SIZE],
-            sig: [[0; SHA192_DIGEST_BYTE_SIZE]; IMAGE_LMS_OTS_P_PARAM],
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq)]
-pub struct ImageLmsSignature {
-    pub q: u32,
-
-    pub ots_sig: ImageLmOTSSignature,
-
-    pub tree_type: u32,
-
-    pub tree_path: [[u8; SHA192_DIGEST_BYTE_SIZE]; IMAGE_LMS_KEY_HEIGHT],
-}
+pub type ImageLmsSignature =
+    LmsSignature<SHA192_DIGEST_WORD_SIZE, IMAGE_LMS_OTS_P_PARAM, IMAGE_LMS_KEY_HEIGHT>;
+pub type ImageLmOTSSignature = LmotsSignature<SHA192_DIGEST_WORD_SIZE, IMAGE_LMS_OTS_P_PARAM>;
 
 /// Caliptra Image Bundle
 #[cfg(feature = "std")]
@@ -212,7 +170,7 @@ impl ImageManifest {
 
     /// Returns the `Range<u32>` containing the specified vendor public key,
     /// or an empty range if the index is invalid.
-    pub fn vendor_pub_key_range(vendor_ecc_pub_key_idx: u32) -> Range<u32> {
+    pub fn vendor_ecc_pub_key_range(vendor_ecc_pub_key_idx: u32) -> Range<u32> {
         if vendor_ecc_pub_key_idx > VENDOR_ECC_KEY_COUNT {
             return 0..0;
         }
@@ -221,15 +179,14 @@ impl ImageManifest {
         let range = Self::vendor_pub_keys_range();
 
         // Sanity check
-        // TODO: can remove this when LMS keys are added
-        if range.len() as u32 != VENDOR_ECC_KEY_COUNT * pub_key_size {
+        if (range.len() as u32) < VENDOR_ECC_KEY_COUNT * pub_key_size {
             return 0..0;
         }
 
         let offset = (offset_of!(ImageVendorPubKeys, ecc_pub_keys) as u32)
             + vendor_ecc_pub_key_idx * pub_key_size;
 
-        range.start + offset..range.len() as u32 + offset
+        range.start + offset..range.start + offset + pub_key_size
     }
 
     /// Returns `Range<u32>` containing the owner public key
@@ -256,12 +213,14 @@ impl ImageManifest {
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
 pub struct ImageVendorPubKeys {
     pub ecc_pub_keys: [ImageEccPubKey; VENDOR_ECC_KEY_COUNT as usize],
+    pub lms_pub_keys: [ImageLmsPublicKey; VENDOR_LMS_KEY_COUNT as usize],
 }
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
 pub struct ImageVendorPrivKeys {
     pub ecc_priv_keys: [ImageEccPrivKey; VENDOR_ECC_KEY_COUNT as usize],
+    pub lms_priv_keys: [ImageLmsPrivKey; VENDOR_LMS_KEY_COUNT as usize],
 }
 
 #[repr(C)]
@@ -280,7 +239,7 @@ pub struct ImageOwnerPrivKeys {
 #[derive(AsBytes, FromBytes, Default, Debug)]
 pub struct ImageSignatures {
     pub ecc_sig: ImageEccSignature,
-    // TODO: Add LMS Signature here
+    pub lms_sig: ImageLmsSignature,
 }
 
 /// Calipatra Image Bundle Preamble
@@ -292,6 +251,9 @@ pub struct ImagePreamble {
 
     /// Vendor ECC Public Key Index
     pub vendor_ecc_pub_key_idx: u32,
+
+    /// Vendor LMS Public Key Index
+    pub vendor_lms_pub_key_idx: u32,
 
     /// Vendor Signatures
     pub vendor_sigs: ImageSignatures,
@@ -338,6 +300,9 @@ pub struct ImageHeader {
 
     /// Vendor ECC Public Key Index
     pub vendor_ecc_pub_key_idx: u32,
+
+    /// Vendor LMS Public Key Index
+    pub vendor_lms_pub_key_idx: u32,
 
     /// Flags
     pub flags: u32,

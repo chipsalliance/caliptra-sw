@@ -12,12 +12,9 @@ Abstract:
 
 --*/
 
-use core::iter::zip;
-use core::num::NonZeroUsize;
-
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::{
-    array_concat3, wait, Array4x12, CaliptraError, CaliptraResult, Csrng, KeyReadArgs, KeyWriteArgs,
+    array_concat3, wait, Array4x12, CaliptraError, CaliptraResult, KeyReadArgs, KeyWriteArgs,
 };
 use caliptra_registers::ecc::EccReg;
 
@@ -138,7 +135,6 @@ impl Ecc384 {
     ///
     /// * `seed` - Seed for deterministic ECC Key Pair generation
     /// * `nonce` - Nonce for deterministic ECC Key Pair generation
-    /// * `csrng` - CSRNG driver instance
     /// * `priv_key` - Generate ECC-384 Private key
     ///
     /// # Returns
@@ -148,7 +144,6 @@ impl Ecc384 {
         &mut self,
         seed: Ecc384Seed,
         nonce: &Array4x12,
-        csrng: &mut Csrng,
         mut priv_key: Ecc384PrivKeyOut,
     ) -> CaliptraResult<Ecc384PubKey> {
         let ecc = self.ecc.regs_mut();
@@ -177,14 +172,6 @@ impl Ecc384 {
 
         // Copy nonce to the hardware
         KvAccess::copy_from_arr(nonce, ecc.nonce())?;
-
-        // Generate an IV.
-        let mut iv: [u32; 12] = [0u32; 12];
-        let num_words = NonZeroUsize::new(iv.len()).unwrap();
-        for (dst, src) in zip(&mut iv, csrng.generate(num_words)?) {
-            *dst = src;
-        }
-        KvAccess::copy_from_arr(&Array4x12::from(iv), ecc.iv())?;
 
         // Program the command register for key generation
         ecc.ctrl().write(|w| w.ctrl(|w| w.keygen()));

@@ -10,6 +10,7 @@ doctest = false
 
 [dependencies]
 caliptra-image-types = { path = "../types", features = ["std"] }
+caliptra-lms-types = { path = "../../lms-types" }
 bitflags = "2.0.1"
 zerocopy = "0.6.1"
 anyhow = "1.0.70"
