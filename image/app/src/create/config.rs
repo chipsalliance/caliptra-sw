@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use anyhow::Context;
-use caliptra_image_types::VENDOR_ECC_KEY_COUNT;
+use caliptra_image_types::{VENDOR_ECC_KEY_COUNT, VENDOR_LMS_KEY_COUNT};
 use serde_derive::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -22,7 +22,11 @@ use std::path::PathBuf;
 pub(crate) struct VendorKeyConfig {
     pub ecc_pub_keys: [String; VENDOR_ECC_KEY_COUNT as usize],
 
+    pub lms_pub_keys: [String; VENDOR_LMS_KEY_COUNT as usize],
+
     pub ecc_priv_keys: Option<[String; VENDOR_ECC_KEY_COUNT as usize]>,
+
+    pub lms_priv_keys: Option<[String; VENDOR_LMS_KEY_COUNT as usize]>,
 }
 
 /// Owner Key Configuration

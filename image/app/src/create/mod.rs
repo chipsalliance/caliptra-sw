@@ -19,6 +19,8 @@ use anyhow::Context;
 use caliptra_image_gen::*;
 use caliptra_image_openssl::ecc_priv_key_from_pem;
 use caliptra_image_openssl::ecc_pub_key_from_pem;
+use caliptra_image_openssl::lms_priv_key_from_pem;
+use caliptra_image_openssl::lms_pub_key_from_pem;
 use caliptra_image_serde::ImageBundleWriter;
 use caliptra_image_types::*;
 use clap::ArgMatches;
@@ -110,6 +112,10 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         .get_one::<u32>("ecc-pk-idx")
         .with_context(|| "ecc-pk-idx arg not specified")?;
 
+    let lms_key_idx: &u32 = args
+        .get_one::<u32>("lms-pk-idx")
+        .with_context(|| "lms-pk-idx arg not specified")?;
+
     let out_path: &PathBuf = args
         .get_one::<PathBuf>("out")
         .with_context(|| "out arg not specified")?;
@@ -167,6 +173,7 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
             config_dir,
             &config.vendor,
             *ecc_key_idx,
+            *lms_key_idx,
             mfg_from_date,
             mfg_to_date,
         )?,
@@ -196,6 +203,7 @@ fn vendor_config(
     path: &Path,
     config: &VendorKeyConfig,
     ecc_key_idx: u32,
+    lms_key_idx: u32,
     from_date: [u8; 15],
     to_date: [u8; 15],
 ) -> anyhow::Result<ImageGeneratorVendorConfig> {
@@ -211,8 +219,19 @@ fn vendor_config(
         gen_config.pub_keys.ecc_pub_keys[i] = ecc_pub_key_from_pem(&pub_key_path)?;
     }
 
+    let lms_pub_keys = &config.lms_pub_keys;
+
+    for (i, pem_file) in lms_pub_keys
+        .iter()
+        .enumerate()
+        .take(VENDOR_LMS_KEY_COUNT as usize)
+    {
+        let pub_key_path = path.join(pem_file);
+        gen_config.pub_keys.lms_pub_keys[i] = lms_pub_key_from_pem(&pub_key_path)?;
+    }
+
+    let mut priv_keys = ImageVendorPrivKeys::default();
     if let Some(ecc_priv_keys) = &config.ecc_priv_keys {
-        let mut priv_keys = ImageVendorPrivKeys::default();
         for (i, pem_file) in ecc_priv_keys
             .iter()
             .enumerate()
@@ -224,7 +243,20 @@ fn vendor_config(
         gen_config.priv_keys = Some(priv_keys);
     }
 
+    if let Some(lms_priv_keys) = &config.lms_priv_keys {
+        for (i, pem_file) in lms_priv_keys
+            .iter()
+            .enumerate()
+            .take(VENDOR_LMS_KEY_COUNT as usize)
+        {
+            let priv_key_path = path.join(pem_file);
+            priv_keys.lms_priv_keys[i] = lms_priv_key_from_pem(&priv_key_path)?;
+        }
+        gen_config.priv_keys = Some(priv_keys);
+    }
+
     gen_config.ecc_key_idx = ecc_key_idx;
+    gen_config.lms_key_idx = lms_key_idx;
     gen_config.not_before = from_date;
     gen_config.not_after = to_date;
 

@@ -67,12 +67,20 @@ pub trait ImageVerificationEnv {
     /// Calculate SHA-384 Digest
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest>;
 
-    /// Perform ECC-348 Verification
+    /// Perform ECC-384 Verification
     fn ecc384_verify(
         &mut self,
         digest: &ImageDigest,
         pub_key: &ImageEccPubKey,
         sig: &ImageEccSignature,
+    ) -> CaliptraResult<bool>;
+
+    /// Perform LMS Verification
+    fn lms_verify(
+        &mut self,
+        digest: &ImageDigest,
+        pub_key: &ImageLmsPublicKey,
+        sig: &ImageLmsSignature,
     ) -> CaliptraResult<bool>;
 
     /// Get Vendor Public Key Digest

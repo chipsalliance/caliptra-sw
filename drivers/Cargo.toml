@@ -9,8 +9,10 @@ edition = "2021"
 doctest = false
 
 [dependencies]
+caliptra-lms-types = { path = "../lms-types" }
 caliptra-registers = { path = "../registers" }
 ureg = { path = "../ureg" }
+zerocopy = "0.6.1"
 cfg-if = "1.0.0"
 bitfield = "0.14.0"
 bitflags = "2.0.1"

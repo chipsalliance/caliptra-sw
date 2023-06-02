@@ -21,6 +21,7 @@ use crate::rom_env::RomEnv;
 
 /// ROM Verification Environemnt
 pub(crate) struct RomImageVerificationEnv<'a> {
+    pub(crate) sha256: &'a mut Sha256,
     pub(crate) sha384: &'a mut Sha384,
     pub(crate) sha384_acc: &'a mut Sha384Acc,
     pub(crate) soc_ifc: &'a mut SocIfc,
@@ -67,6 +68,19 @@ impl<'a> ImageVerificationEnv for &mut RomImageVerificationEnv<'a> {
         };
 
         self.ecc384.verify(&pub_key, &digest, &sig)
+    }
+
+    fn lms_verify(
+        &mut self,
+        digest: &ImageDigest,
+        pub_key: &ImageLmsPublicKey,
+        sig: &ImageLmsSignature,
+    ) -> CaliptraResult<bool> {
+        let mut message = [0u8; SHA384_DIGEST_BYTE_SIZE];
+        for i in 0..digest.len() {
+            message[i * 4..][..4].copy_from_slice(&digest[i].to_be_bytes());
+        }
+        Lms::default().verify_lms_signature(self.sha256, &message, pub_key, sig)
     }
 
     /// Retrieve Vendor Public Key Digest
