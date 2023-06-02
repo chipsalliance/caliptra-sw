@@ -571,7 +571,7 @@ fn test_csrng() {
     let mut model = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
-            trng_nibbles: Box::new(trng_nibbles),
+            itrng_nibbles: Box::new(trng_nibbles),
             ..Default::default()
         },
         ..Default::default()

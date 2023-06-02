@@ -154,7 +154,7 @@ impl crate::HwModel for ModelVerilated {
             output,
             trace_enabled: false,
 
-            trng_nibbles: params.trng_nibbles,
+            trng_nibbles: params.itrng_nibbles,
             trng_delay_remaining: TRNG_DELAY,
 
             log,
