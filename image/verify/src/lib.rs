@@ -23,6 +23,14 @@ pub use verifier::ImageVerifier;
 
 /// Image Verifification Executable Info
 #[derive(Default, Debug)]
+pub struct ImageSvnLogInfo {
+    pub manifest_svn: u32,
+    pub manifest_min_svn: u32,
+    pub fuse_svn: u32,
+}
+
+/// Image Verification Executable Info
+#[derive(Default, Debug)]
 pub struct ImageVerificationExeInfo {
     /// Load address
     pub load_addr: u32,
@@ -43,6 +51,22 @@ pub struct ImageVerificationExeInfo {
     pub digest: ImageDigest,
 }
 
+/// Information To Be Logged For The Verified Image
+#[derive(Default, Debug)]
+pub struct ImageVerificationLogInfo {
+    // Vendor Public Key Index To Log
+    pub vendor_ecc_pub_key_idx: u32,
+
+    /// Vendor Public Key Revocation Fuse    
+    pub fuse_vendor_pub_key_revocation: VendorPubKeyRevocation,
+
+    /// First Mutable code's logging information
+    pub fmc_log_info: ImageSvnLogInfo,
+
+    /// Runtime Mutable code's logging information
+    pub rt_log_info: ImageSvnLogInfo,
+}
+
 /// Verified image information
 #[derive(Default, Debug)]
 pub struct ImageVerificationInfo {
@@ -60,6 +84,9 @@ pub struct ImageVerificationInfo {
 
     /// Runtime
     pub runtime: ImageVerificationExeInfo,
+
+    /// Information Returned To Be Logged
+    pub log_info: ImageVerificationLogInfo,
 }
 
 /// Image Verification Environment

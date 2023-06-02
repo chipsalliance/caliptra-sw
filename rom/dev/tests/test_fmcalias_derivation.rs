@@ -1,8 +1,8 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, ROM_WITH_UART};
-use caliptra_common::PcrLogEntry;
-use caliptra_common::PcrLogEntryId::*;
+use caliptra_common::{FuseLogEntry, FuseLogEntryId};
+use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, SecurityState};
 use caliptra_image_fake_keys::VENDOR_CONFIG_KEY_1;
 use caliptra_image_gen::ImageGenerator;
@@ -122,7 +122,7 @@ fn test_pcr_log() {
     // Check PCR entry for DeviceLifecycle.
     let pcr_log_entry =
         PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(pcr_log_entry.id, DeviceLifecycle as u16);
+    assert_eq!(pcr_log_entry.id, PcrLogEntryId::DeviceLifecycle as u16);
     assert_eq!(pcr_log_entry.pcr_id, 0);
     let device_lifecycle = hw
         .soc_ifc()
@@ -135,7 +135,7 @@ fn test_pcr_log() {
     pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
     let pcr_log_entry =
         PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(pcr_log_entry.id, DebugLocked as u16);
+    assert_eq!(pcr_log_entry.id, PcrLogEntryId::DebugLocked as u16);
     assert_eq!(pcr_log_entry.pcr_id, 0);
     let debug_locked = hw.soc_ifc().cptra_security_state().read().debug_locked();
     assert_eq!((pcr_log_entry.pcr_data[0] as u8) != 0, debug_locked);
@@ -144,7 +144,7 @@ fn test_pcr_log() {
     pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
     let pcr_log_entry =
         PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(pcr_log_entry.id, AntiRollbackDisabled as u16);
+    assert_eq!(pcr_log_entry.id, PcrLogEntryId::AntiRollbackDisabled as u16);
     assert_eq!(pcr_log_entry.pcr_id, 0);
     let anti_rollback_disable = hw.soc_ifc().fuse_anti_rollback_disable().read().dis();
     assert_eq!(
@@ -156,7 +156,7 @@ fn test_pcr_log() {
     pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
     let pcr_log_entry =
         PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(pcr_log_entry.id, VendorPubKeyHash as u16);
+    assert_eq!(pcr_log_entry.id, PcrLogEntryId::VendorPubKeyHash as u16);
     assert_eq!(pcr_log_entry.pcr_id, 0);
     helpers::change_dword_endianess(vendor_pubkey_digest.as_bytes_mut());
     assert_eq!(pcr_log_entry.pcr_data, vendor_pubkey_digest);
@@ -165,7 +165,7 @@ fn test_pcr_log() {
     pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
     let pcr_log_entry =
         PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(pcr_log_entry.id, OwnerPubKeyHash as u16);
+    assert_eq!(pcr_log_entry.id, PcrLogEntryId::OwnerPubKeyHash as u16);
     assert_eq!(pcr_log_entry.pcr_id, 0);
     helpers::change_dword_endianess(owner_pubkey_digest.as_bytes_mut());
     assert_eq!(pcr_log_entry.pcr_data, owner_pubkey_digest);
@@ -174,7 +174,7 @@ fn test_pcr_log() {
     pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
     let pcr_log_entry =
         PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(pcr_log_entry.id, VendorPubKeyIndex as u16);
+    assert_eq!(pcr_log_entry.id, PcrLogEntryId::VendorPubKeyIndex as u16);
     assert_eq!(pcr_log_entry.pcr_id, 0);
     assert_eq!(
         pcr_log_entry.pcr_data[0] as u8,
@@ -185,14 +185,146 @@ fn test_pcr_log() {
     pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
     let pcr_log_entry =
         PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(pcr_log_entry.id, FmcTci as u16);
+    assert_eq!(pcr_log_entry.id, PcrLogEntryId::FmcTci as u16);
     assert_eq!(pcr_log_entry.pcr_id, 0);
 
     // Check PCR entry for FmcSvn.
     pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
     let pcr_log_entry =
         PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(pcr_log_entry.id, FmcSvn as u16);
+    assert_eq!(pcr_log_entry.id, PcrLogEntryId::FmcSvn as u16);
     assert_eq!(pcr_log_entry.pcr_id, 0);
     assert_eq!(pcr_log_entry.pcr_data[0] as u8, FMC_SVN as u8);
+}
+
+#[test]
+fn test_fuse_log() {
+    const FMC_SVN: u32 = 4;
+    const FMC_MIN_SVN: u32 = 2;
+
+    let fuses = Fuses {
+        anti_rollback_disable: true,
+        fmc_key_manifest_svn: 0x0F,  // Value of FMC_SVN
+        runtime_svn: [0xF, 0, 0, 0], // Value of RT_SVN
+        ..Default::default()
+    };
+
+    pub const TEST_FMC_WITH_UART: FwId = FwId {
+        crate_name: "caliptra-rom-test-fmc",
+        bin_name: "caliptra-rom-test-fmc",
+        features: &["emu"],
+    };
+
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        fw_image: None,
+    })
+    .unwrap();
+
+    let image_options = ImageOptions {
+        vendor_config: VENDOR_CONFIG_KEY_1,
+        fmc_svn: FMC_SVN,
+        fmc_min_svn: FMC_MIN_SVN,
+        app_svn: FMC_SVN,
+        app_min_svn: FMC_MIN_SVN,
+        ..Default::default()
+    };
+    let image_bundle =
+        caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)
+            .unwrap();
+
+    assert!(hw
+        .upload_firmware(&image_bundle.to_bytes().unwrap())
+        .is_ok());
+
+    hw.step_until_output_contains("[exit] Launching FMC")
+        .unwrap();
+
+    let result = hw.mailbox_execute(0x1000_0002, &[]);
+    assert!(result.is_ok());
+
+    let fuse_entry_arr = result.unwrap().unwrap();
+
+    let mut fuse_log_entry_offset = 0;
+
+    // Check entry for VendorPubKeyIndex.
+    let fuse_log_entry =
+        FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
+
+    assert_eq!(
+        fuse_log_entry.entry_id,
+        FuseLogEntryId::VendorPubKeyIndex as u32
+    );
+
+    assert_eq!(fuse_log_entry.log_data[0], VENDOR_CONFIG_KEY_1.ecc_key_idx);
+
+    // Validate that the ID is VendorPubKeyRevocation
+    fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
+    let fuse_log_entry =
+        FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
+    assert_eq!(
+        fuse_log_entry.entry_id,
+        FuseLogEntryId::VendorPubKeyRevocation as u32
+    );
+    assert_eq!(fuse_log_entry.log_data[0], 0,);
+
+    // Validate the ManifestFmcSvn
+    fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
+    let fuse_log_entry =
+        FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
+    assert_eq!(
+        fuse_log_entry.entry_id,
+        FuseLogEntryId::ManifestFmcSvn as u32
+    );
+    assert_eq!(fuse_log_entry.log_data[0], FMC_SVN);
+
+    // Validate the ManifestFmcMinSvn
+    fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
+    let fuse_log_entry =
+        FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
+    assert_eq!(
+        fuse_log_entry.entry_id,
+        FuseLogEntryId::ManifestFmcMinSvn as u32
+    );
+    assert_eq!(fuse_log_entry.log_data[0], FMC_MIN_SVN);
+
+    // Validate the FuseFmcSvn
+    fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
+    let fuse_log_entry =
+        FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
+    assert_eq!(fuse_log_entry.entry_id, FuseLogEntryId::FuseFmcSvn as u32);
+    assert_eq!(fuse_log_entry.log_data[0], FMC_SVN);
+
+    // Validate the ManifestRtSvn
+    fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
+    let fuse_log_entry =
+        FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
+    assert_eq!(
+        fuse_log_entry.entry_id,
+        FuseLogEntryId::ManifestRtSvn as u32
+    );
+    assert_eq!(fuse_log_entry.log_data[0], FMC_SVN);
+
+    // Validate the ManifestRtMinSvn
+    fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
+    let fuse_log_entry =
+        FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
+    assert_eq!(
+        fuse_log_entry.entry_id,
+        FuseLogEntryId::ManifestRtMinSvn as u32
+    );
+    assert_eq!(fuse_log_entry.log_data[0], FMC_MIN_SVN);
+
+    // Validate the FuseRtSvn
+    fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
+    let fuse_log_entry =
+        FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
+    assert_eq!(fuse_log_entry.entry_id, FuseLogEntryId::FuseRtSvn as u32);
+    assert_eq!(fuse_log_entry.log_data[0], FMC_SVN);
 }

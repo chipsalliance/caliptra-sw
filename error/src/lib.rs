@@ -315,6 +315,11 @@ impl CaliptraError {
     pub const ROM_GLOBAL_PCR_LOG_UNSUPPORTED_DATA_LENGTH: CaliptraError =
         CaliptraError::new_const(0x01040005);
 
+    pub const ROM_GLOBAL_FUSE_LOG_INVALID_ENTRY_ID: CaliptraError =
+        CaliptraError::new_const(0x01040006);
+    pub const ROM_GLOBAL_FUSE_LOG_UNSUPPORTED_DATA_LENGTH: CaliptraError =
+        CaliptraError::new_const(0x01040007);
+
     /// ROM KAT Errors
     pub const ROM_KAT_SHA256_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90010001);
     pub const ROM_KAT_SHA256_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90010002);
