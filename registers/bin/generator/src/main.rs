@@ -9,7 +9,7 @@ use std::{error::Error, path::Path, process::Command};
 
 use quote::__private::TokenStream;
 use quote::{format_ident, quote};
-use ureg_schema::{Enum, EnumVariant, Register, RegisterBlock};
+use ureg_schema::{Enum, EnumVariant, Register, RegisterBlock, RegisterBlockInstance};
 
 static HEADER_PREFIX: &str = r"/*
 Licensed under the Apache-2.0 license.
@@ -190,7 +190,29 @@ fn real_main() -> Result<(), Box<dyn Error>> {
                 ("DEVICE_MANUFACTURING", "MANUFACTURING"),
                 ("DEVICE_PRODUCTION", "PRODUCTION"),
             ]);
+            // Move the TRNG retrieval registers into an independent block;
+            // these need to be owned by a separate driver than the rest of
+            // soc_ifc.
+            let mut trng_block = RegisterBlock {
+                name: "soc_ifc_trng".into(),
+                instances: vec![RegisterBlockInstance {
+                    name: "soc_ifc_trng_reg".into(),
+                    address: block.instances[0].address,
+                }],
+                ..Default::default()
+            };
+            block.registers.retain(|field| {
+                if matches!(field.name.as_str(), "CPTRA_TRNG_DATA" | "CPTRA_TRNG_STATUS") {
+                    trng_block.registers.push(field.clone());
+                    false // remove field from soc_ifc
+                } else {
+                    true // keep field
+                }
+            });
+            let trng_block = trng_block.validate_and_dedup()?;
+            validated_blocks.push(trng_block);
         }
+
         let mut block = block.validate_and_dedup()?;
 
         if block.block().name == "ecc" {
@@ -224,6 +246,7 @@ fn real_main() -> Result<(), Box<dyn Error>> {
                 );
             });
         }
+
         let module_ident = format_ident!("{}", block.block().name);
         ureg_codegen::build_extern_types(
             &block,

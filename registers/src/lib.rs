@@ -868,5 +868,6 @@ pub mod sha256;
 pub mod sha512;
 pub mod sha512_acc;
 pub mod soc_ifc;
+pub mod soc_ifc_trng;
 pub mod spi_host;
 pub mod uart;
