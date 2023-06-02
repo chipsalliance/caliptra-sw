@@ -261,6 +261,24 @@ pub struct FirmwareHandoffTable {
     /// Index of RT SVN value in the Data Vault
     pub rt_svn_dv_hdl: HandOffDataHandle,
 
+    /// LdevId TBS Address
+    pub ldevid_tbs_addr: u32,
+
+    /// FmcAlias TBS Address
+    pub fmcalias_tbs_addr: u32,
+
+    /// LdevId TBS Size.
+    pub ldevid_tbs_size: u16,
+
+    /// FmcAlias TBS Size.
+    pub fmcalias_tbs_size: u16,
+
+    /// PCR log Address
+    pub pcr_log_addr: u32,
+
+    /// Fuse log Address
+    pub fuse_log_addr: u32,
+
     /// Reserved for future use.
     pub reserved: [u8; 32],
 }
@@ -291,7 +309,13 @@ impl Default for FirmwareHandoffTable {
             rt_cert_sig_r_dv_hdl: FHT_INVALID_HANDLE,
             rt_cert_sig_s_dv_hdl: FHT_INVALID_HANDLE,
             rt_svn_dv_hdl: FHT_INVALID_HANDLE,
+            ldevid_tbs_size: 0,
+            fmcalias_tbs_size: 0,
             reserved: [0; 32],
+            ldevid_tbs_addr: 0,
+            fmcalias_tbs_addr: 0,
+            pcr_log_addr: 0,
+            fuse_log_addr: 0,
         }
     }
 }
@@ -362,6 +386,13 @@ pub fn print_fht(fht: &FirmwareHandoffTable) {
         fht.rt_cert_sig_s_dv_hdl.0
     );
     crate::cprintln!("RT SVN DV Handle: 0x{:08x}", fht.rt_svn_dv_hdl.0);
+
+    crate::cprintln!("LdevId TBS Address: 0x{:08x}", fht.ldevid_tbs_addr);
+    crate::cprintln!("LdevId TBS Size: {} bytes", fht.ldevid_tbs_size);
+    crate::cprintln!("FmcAlias TBS Address: 0x{:08x}", fht.fmcalias_tbs_addr);
+    crate::cprintln!("FmcAlias TBS Size: {} bytes", fht.fmcalias_tbs_size);
+    crate::cprintln!("PCR log Address: 0x{:08x}", fht.pcr_log_addr);
+    crate::cprintln!("Fuse log Address: 0x{:08x}", fht.fuse_log_addr);
 }
 
 impl FirmwareHandoffTable {
@@ -381,6 +412,12 @@ impl FirmwareHandoffTable {
             && self.rt_fw_entry_point_hdl != FHT_INVALID_HANDLE
             // This is for Gen1 POR.
             && self.fips_fw_load_addr_hdl == FHT_INVALID_HANDLE
+            && self.ldevid_tbs_size != 0
+            && self.fmcalias_tbs_size != 0
+            && self.ldevid_tbs_addr != 0
+            && self.fmcalias_tbs_addr != 0
+            && self.pcr_log_addr != 0
+            && self.fuse_log_addr != 0
     }
     /// Load FHT from its fixed address and perform validity check of
     /// its data.
@@ -414,8 +451,7 @@ pub fn report_handoff_error_and_halt(msg: &str, code: u32) -> ! {
 mod tests {
     use super::*;
     use core::mem;
-    // FHT is currently defined to be 60 bytes in length.
-    const FHT_SIZE: usize = 120;
+    const FHT_SIZE: usize = 140;
 
     fn rt_tci_store() -> HandOffDataHandle {
         HandOffDataHandle::from(DataStore::DataVaultNonSticky48(WarmResetEntry48::RtTci))

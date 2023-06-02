@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, ROM_WITH_UART};
-use caliptra_common::{FuseLogEntry, FuseLogEntryId};
+use caliptra_common::{FirmwareHandoffTable, FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, SecurityState};
 use caliptra_image_fake_keys::VENDOR_CONFIG_KEY_1;
@@ -327,4 +327,50 @@ fn test_fuse_log() {
         FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(fuse_log_entry.entry_id, FuseLogEntryId::FuseRtSvn as u32);
     assert_eq!(fuse_log_entry.log_data[0], FMC_SVN);
+}
+
+#[test]
+fn test_fht_info() {
+    pub const TEST_FMC_WITH_UART: FwId = FwId {
+        crate_name: "caliptra-rom-test-fmc",
+        bin_name: "caliptra-rom-test-fmc",
+        features: &["emu"],
+    };
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            ..Default::default()
+        },
+        fuses: Fuses::default(),
+        fw_image: None,
+    })
+    .unwrap();
+
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &TEST_FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
+    assert!(hw
+        .upload_firmware(&image_bundle.to_bytes().unwrap())
+        .is_ok());
+
+    hw.step_until_output_contains("[exit] Launching FMC")
+        .unwrap();
+
+    let result = hw.mailbox_execute(0x1000_0003, &[]);
+    assert!(result.is_ok());
+
+    let data = result.unwrap().unwrap();
+    let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
+    assert_eq!(fht.ldevid_tbs_size, 530);
+    assert_eq!(fht.fmcalias_tbs_size, 742);
+    assert_eq!(fht.ldevid_tbs_addr, 0x50003000);
+    assert_eq!(fht.fmcalias_tbs_addr, 0x50003400);
+    assert_eq!(fht.pcr_log_addr, 0x50003800);
+    assert_eq!(fht.fuse_log_addr, 0x50003C00);
+
+    // [TODO] Expand test to validate additional FHT fields.
 }

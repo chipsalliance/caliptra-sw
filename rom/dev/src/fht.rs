@@ -28,7 +28,22 @@ use crate::{
 const FHT_MAJOR_VERSION: u16 = 1;
 const FHT_MINOR_VERSION: u16 = 0;
 
-struct FhtDataStore {}
+extern "C" {
+    static mut LDEVID_TBS_ORG: u8;
+    static mut FMCALIAS_TBS_ORG: u8;
+    static mut PCR_LOG_ORG: u8;
+    static mut FUSE_LOG_ORG: u8;
+}
+
+#[derive(Debug, Default)]
+pub struct FhtDataStore {
+    /// LdevId TBS size
+    pub ldevid_tbs_size: u16,
+
+    /// FmcAlias TBS size
+    pub fmcalias_tbs_size: u16,
+}
+
 impl FhtDataStore {
     /// The FMC CDI is stored in a 32-bit DataVault sticky register.
     pub const fn fmc_cdi_store() -> HandOffDataHandle {
@@ -120,6 +135,18 @@ impl FhtDataStore {
 }
 
 pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
+    let ldevid_tbs_addr: u32;
+    let fmcalias_tbs_addr: u32;
+    let pcr_log_addr: u32;
+    let fuse_log_addr: u32;
+
+    unsafe {
+        ldevid_tbs_addr = &LDEVID_TBS_ORG as *const u8 as u32;
+        fmcalias_tbs_addr = &FMCALIAS_TBS_ORG as *const u8 as u32;
+        pcr_log_addr = &PCR_LOG_ORG as *const u8 as u32;
+        fuse_log_addr = &FUSE_LOG_ORG as *const u8 as u32;
+    }
+
     FirmwareHandoffTable {
         fht_marker: FHT_MARKER,
         fht_major_ver: FHT_MAJOR_VERSION,
@@ -144,6 +171,12 @@ pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
         rt_cert_sig_s_dv_hdl: FHT_INVALID_HANDLE,
         rt_tci_dv_hdl: FhtDataStore::rt_tci_data_store(),
         rt_svn_dv_hdl: FhtDataStore::rt_svn_data_store(),
+        ldevid_tbs_size: env.fht_data_store.ldevid_tbs_size,
+        fmcalias_tbs_size: env.fht_data_store.fmcalias_tbs_size,
+        ldevid_tbs_addr,
+        fmcalias_tbs_addr,
+        pcr_log_addr,
+        fuse_log_addr,
         ..Default::default()
     }
 }

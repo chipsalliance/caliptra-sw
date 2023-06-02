@@ -15,6 +15,7 @@ Abstract:
 
 --*/
 
+use crate::fht::FhtDataStore;
 use caliptra_drivers::{
     DataVault, DeobfuscationEngine, Ecc384, Hmac384, KeyVault, Lms, Mailbox, PcrBank, Sha1, Sha256,
     Sha384, Sha384Acc, SocIfc,
@@ -68,6 +69,9 @@ pub struct RomEnv {
 
     /// PCR Bank
     pub pcr_bank: PcrBank,
+
+    /// FHT Data Store
+    pub fht_data_store: FhtDataStore,
 }
 
 impl RomEnv {
@@ -91,6 +95,7 @@ impl RomEnv {
             soc_ifc: SocIfc::new(SocIfcReg::new()),
             mbox: Mailbox::new(MboxCsr::new()),
             pcr_bank: PcrBank::new(PvReg::new()),
+            fht_data_store: FhtDataStore::default(),
         }
     }
 }
