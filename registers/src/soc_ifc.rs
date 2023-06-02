@@ -321,34 +321,6 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
             )
         }
     }
-    /// Storage for the requested TRNG Data.
-    /// [br]Caliptra Access: RO
-    /// [br]SOC Access:      RW
-    ///
-    /// Read value: [`u32`]; Write value: [`u32`]
-    #[inline(always)]
-    pub fn cptra_trng_data(
-        &self,
-    ) -> ureg::Array<12, ureg::RegRef<crate::soc_ifc::meta::CptraTrngData, &TMmio>> {
-        unsafe {
-            ureg::Array::new_with_mmio(
-                self.ptr.wrapping_add(0x78 / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
-    /// TRNG Status register to indicate request and done
-    ///
-    /// Read value: [`soc_ifc::regs::CptraTrngStatusReadVal`]; Write value: [`soc_ifc::regs::CptraTrngStatusWriteVal`]
-    #[inline(always)]
-    pub fn cptra_trng_status(&self) -> ureg::RegRef<crate::soc_ifc::meta::CptraTrngStatus, &TMmio> {
-        unsafe {
-            ureg::RegRef::new_with_mmio(
-                self.ptr.wrapping_add(0xa8 / core::mem::size_of::<u32>()),
-                core::borrow::Borrow::borrow(&self.mmio),
-            )
-        }
-    }
     /// Writes to fuse registers are completed. After the done bit is set, any subsequent writes to a fuse register will be dropped unless there is a power cycle or a warm reset or caliptra FW allows a write (negotiated through a mailbox command).
     /// [br]Caliptra Access: RO
     /// [br]SOC Access:      RW1-S
@@ -1816,73 +1788,6 @@ pub mod regs {
         }
     }
     #[derive(Clone, Copy)]
-    pub struct CptraTrngStatusReadVal(u32);
-    impl CptraTrngStatusReadVal {
-        /// Indicates that there is a request for TRNG Data.
-        /// [br]Caliptra Access: RW
-        /// [br]SOC Access:      RO
-        #[inline(always)]
-        pub fn data_req(&self) -> bool {
-            ((self.0 >> 0) & 1) != 0
-        }
-        /// Indicates that the requests TRNG Data is done and stored in the TRNG Data register.
-        /// [br]Caliptra Access: RO
-        /// [br]SOC Access:      RW
-        /// [br]When DATA_REQ is 0 DATA_WR_DONE will also be 0
-        #[inline(always)]
-        pub fn data_wr_done(&self) -> bool {
-            ((self.0 >> 1) & 1) != 0
-        }
-        /// Construct a WriteVal that can be used to modify the contents of this register value.
-        #[inline(always)]
-        pub fn modify(self) -> CptraTrngStatusWriteVal {
-            CptraTrngStatusWriteVal(self.0)
-        }
-    }
-    impl From<u32> for CptraTrngStatusReadVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<CptraTrngStatusReadVal> for u32 {
-        #[inline(always)]
-        fn from(val: CptraTrngStatusReadVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
-    pub struct CptraTrngStatusWriteVal(u32);
-    impl CptraTrngStatusWriteVal {
-        /// Indicates that there is a request for TRNG Data.
-        /// [br]Caliptra Access: RW
-        /// [br]SOC Access:      RO
-        #[inline(always)]
-        pub fn data_req(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 0)) | (u32::from(val) << 0))
-        }
-        /// Indicates that the requests TRNG Data is done and stored in the TRNG Data register.
-        /// [br]Caliptra Access: RO
-        /// [br]SOC Access:      RW
-        /// [br]When DATA_REQ is 0 DATA_WR_DONE will also be 0
-        #[inline(always)]
-        pub fn data_wr_done(self, val: bool) -> Self {
-            Self((self.0 & !(1 << 1)) | (u32::from(val) << 1))
-        }
-    }
-    impl From<u32> for CptraTrngStatusWriteVal {
-        #[inline(always)]
-        fn from(val: u32) -> Self {
-            Self(val)
-        }
-    }
-    impl From<CptraTrngStatusWriteVal> for u32 {
-        #[inline(always)]
-        fn from(val: CptraTrngStatusWriteVal) -> u32 {
-            val.0
-        }
-    }
-    #[derive(Clone, Copy)]
     pub struct CptraWdtStatusReadVal(u32);
     impl CptraWdtStatusReadVal {
         /// Timer1 timed out, timer2 enabled
@@ -3126,12 +3031,6 @@ pub mod meta {
         0,
         crate::soc_ifc::regs::CptraXxxxPauserLockReadVal,
         crate::soc_ifc::regs::CptraXxxxPauserLockWriteVal,
-    >;
-    pub type CptraTrngData = ureg::ReadWriteReg32<0, u32, u32>;
-    pub type CptraTrngStatus = ureg::ReadWriteReg32<
-        0,
-        crate::soc_ifc::regs::CptraTrngStatusReadVal,
-        crate::soc_ifc::regs::CptraTrngStatusWriteVal,
     >;
     pub type CptraFuseWrDone = ureg::ReadWriteReg32<
         0,
