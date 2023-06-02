@@ -62,9 +62,6 @@ pub(crate) fn extend_pcr0(
     // Clear the PCR
     env.pcr_bank.erase_pcr(caliptra_drivers::PcrId::PcrId0)?;
 
-    // Lock the PCR from clear
-    env.pcr_bank.set_pcr_lock(caliptra_drivers::PcrId::PcrId0);
-
     let mut pcr = PcrExtender {
         pcr_bank: env.pcr_bank,
         sha384: env.sha384,
