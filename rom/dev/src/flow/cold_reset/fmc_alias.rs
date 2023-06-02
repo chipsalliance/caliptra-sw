@@ -18,11 +18,13 @@ use super::dice::{DiceInput, DiceLayer, DiceOutput};
 use super::x509::X509;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::flow::cold_reset::{KEY_ID_CDI, KEY_ID_FMC_PRIV_KEY};
+use crate::fuse::log_fuse_data;
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 use crate::verifier::RomImageVerificationEnv;
 use crate::{cprint, cprintln, pcr};
 use caliptra_common::dice;
+use caliptra_common::fuse::FuseLogEntryId;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::{
     okref, report_boot_status, Array4x12, CaliptraResult, ColdResetEntry4, ColdResetEntry48,
@@ -31,7 +33,7 @@ use caliptra_drivers::{
 };
 use caliptra_error::CaliptraError;
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
-use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
+use caliptra_image_verify::{ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier};
 use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams, NotAfter, NotBefore};
 use core::mem::ManuallyDrop;
 use zerocopy::{AsBytes, FromBytes};
@@ -74,6 +76,8 @@ impl DiceLayer for FmcAliasLayer {
         // Verify the image
         let info = Self::verify_image(&mut venv, manifest, txn.dlen());
         let info = okref(&info)?;
+
+        Self::update_fuse_log(&info.log_info)?;
 
         // populate data vault
         Self::populate_data_vault(venv.data_vault, info);
@@ -239,10 +243,61 @@ impl FmcAliasLayer {
 
         cprintln!(
             "[afmc] Image verified using Vendor ECC Key Index {}",
-            info.vendor_ecc_pub_key_idx
+            info.vendor_ecc_pub_key_idx,
         );
         report_boot_status(FmcAliasImageVerificationComplete.into());
         Ok(info)
+    }
+
+    fn update_fuse_log(log_info: &ImageVerificationLogInfo) -> CaliptraResult<()> {
+        // Log VendorPubKeyIndex
+        log_fuse_data(
+            FuseLogEntryId::VendorPubKeyIndex,
+            log_info.vendor_ecc_pub_key_idx.as_bytes(),
+        )?;
+
+        // Log VendorPubKeyRevocation
+        log_fuse_data(
+            FuseLogEntryId::VendorPubKeyRevocation,
+            log_info.fuse_vendor_pub_key_revocation.bits().as_bytes(),
+        )?;
+
+        // Log ManifestFmcSvn
+        log_fuse_data(
+            FuseLogEntryId::ManifestFmcSvn,
+            log_info.fmc_log_info.manifest_svn.as_bytes(),
+        )?;
+
+        // Log ManifestFmcMinSvn
+        log_fuse_data(
+            FuseLogEntryId::ManifestFmcMinSvn,
+            log_info.fmc_log_info.manifest_min_svn.as_bytes(),
+        )?;
+
+        // Log FuseFmcSvn
+        log_fuse_data(
+            FuseLogEntryId::FuseFmcSvn,
+            log_info.fmc_log_info.fuse_svn.as_bytes(),
+        )?;
+
+        // Log ManifestRtSvn
+        log_fuse_data(
+            FuseLogEntryId::ManifestRtSvn,
+            log_info.rt_log_info.manifest_svn.as_bytes(),
+        )?;
+
+        // Log ManifestRtMinSvn
+        log_fuse_data(
+            FuseLogEntryId::ManifestRtMinSvn,
+            log_info.rt_log_info.manifest_min_svn.as_bytes(),
+        )?;
+
+        // Log FuseRtSvn
+        log_fuse_data(
+            FuseLogEntryId::FuseRtSvn,
+            log_info.rt_log_info.fuse_svn.as_bytes(),
+        )?;
+        Ok(())
     }
 
     /// Load the image to ICCM & DCCM

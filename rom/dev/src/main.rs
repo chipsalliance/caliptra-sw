@@ -26,6 +26,7 @@ core::arch::global_asm!(include_str!("start.S"));
 mod exception;
 mod fht;
 mod flow;
+mod fuse;
 mod kat;
 mod lock;
 mod pcr;

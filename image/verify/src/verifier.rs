@@ -25,6 +25,7 @@ const ZERO_DIGEST: ImageDigest = [0u32; SHA384_DIGEST_WORD_SIZE];
 struct HeaderInfo<'a> {
     vendor_ecc_pub_key_idx: u32,
     vendor_lms_pub_key_idx: u32,
+    vendor_pub_key_revocation: VendorPubKeyRevocation,
     vendor_info: (&'a ImageEccPubKey, &'a ImageEccSignature),
     vendor_lms_info: (&'a ImageLmsPublicKey, &'a ImageLmsSignature),
     owner_info: Option<(&'a ImageEccPubKey, &'a ImageEccSignature)>,
@@ -101,10 +102,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let image_info = okref(&image_info)?;
 
         // Verify FMC
-        let fmc_info = self.verify_fmc(image_info.fmc, reason)?;
+        let (fmc_info, fmc_log_info) = self.verify_fmc(image_info.fmc, reason)?;
 
         // Verify Runtime
-        let runtime_info = self.verify_runtime(image_info.runtime)?;
+        let (runtime_info, rt_log_info) = self.verify_runtime(image_info.runtime)?;
 
         let info = ImageVerificationInfo {
             vendor_ecc_pub_key_idx: header_info.vendor_ecc_pub_key_idx,
@@ -112,6 +113,12 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             owner_pub_keys_digest: header_info.owner_pub_keys_digest,
             fmc: fmc_info,
             runtime: runtime_info,
+            log_info: ImageVerificationLogInfo {
+                vendor_ecc_pub_key_idx: header_info.vendor_ecc_pub_key_idx,
+                fuse_vendor_pub_key_revocation: header_info.vendor_pub_key_revocation,
+                fmc_log_info,
+                rt_log_info,
+            },
         };
 
         Ok(info)
@@ -130,7 +137,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let owner_pk_digest = self.verify_owner_pk_digest(reason)?;
 
         // Verify Vendor Key Index
-        let vendor_ecc_pub_key_idx = self.verify_vendor_ecc_pk_idx(preamble, reason)?;
+        let (vendor_ecc_pub_key_idx, vendor_pub_key_revocation) =
+            self.verify_vendor_ecc_pk_idx(preamble, reason)?;
 
         if vendor_ecc_pub_key_idx >= VENDOR_ECC_KEY_COUNT {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VEN_PUB_KEY_IDX_OUT_OF_BOUNDS)?;
@@ -174,6 +182,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             vendor_lms_info,
             owner_pub_keys_digest,
             owner_info,
+            vendor_pub_key_revocation,
         };
 
         Ok(info)
@@ -184,7 +193,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         &mut self,
         preamble: &ImagePreamble,
         reason: ResetReason,
-    ) -> CaliptraResult<u32> {
+    ) -> CaliptraResult<(u32, VendorPubKeyRevocation)> {
         const SECOND_LAST_KEY_IDX: u32 = VENDOR_ECC_KEY_COUNT - 2;
         const LAST_KEY_IDX: u32 = VENDOR_ECC_KEY_COUNT - 1;
 
@@ -211,7 +220,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             }
         }
 
-        Ok(key_idx)
+        Ok((key_idx, revocation))
     }
 
     /// Verify vendor public key digest
@@ -448,7 +457,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         &mut self,
         verify_info: &ImageTocEntry,
         reason: ResetReason,
-    ) -> CaliptraResult<ImageVerificationExeInfo> {
+    ) -> CaliptraResult<(ImageVerificationExeInfo, ImageSvnLogInfo)> {
         let range = verify_info.image_range();
 
         let actual = self
@@ -506,14 +515,20 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             size: verify_info.size,
         };
 
-        Ok(info)
+        let log_info: ImageSvnLogInfo = ImageSvnLogInfo {
+            manifest_svn: verify_info.svn,
+            manifest_min_svn: verify_info.min_svn,
+            fuse_svn: self.env.fmc_svn(),
+        };
+
+        Ok((info, log_info))
     }
 
     /// Verify Runtime
     fn verify_runtime(
         &mut self,
         verify_info: &ImageTocEntry,
-    ) -> CaliptraResult<ImageVerificationExeInfo> {
+    ) -> CaliptraResult<(ImageVerificationExeInfo, ImageSvnLogInfo)> {
         let range = verify_info.image_range();
 
         let actual = self
@@ -567,7 +582,13 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             size: verify_info.size,
         };
 
-        Ok(info)
+        let log_info: ImageSvnLogInfo = ImageSvnLogInfo {
+            manifest_svn: verify_info.svn,
+            manifest_min_svn: verify_info.min_svn,
+            fuse_svn: self.env.runtime_svn(),
+        };
+
+        Ok((info, log_info))
     }
 
     /// Calculates a digest of the vendor key that signed the image.
@@ -837,6 +858,7 @@ mod tests {
             vendor_lms_info: (&vendor_lms_pubkey(), &vendor_lms_sig()),
             owner_info: Some((&ecc_pubkey, &ecc_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            vendor_pub_key_revocation: Default::default(),
         };
         let result = verifier.verify_header(&header, &header_info);
         assert_eq!(
@@ -859,6 +881,7 @@ mod tests {
             vendor_lms_info: (&vendor_lms_pubkey(), &vendor_lms_sig()),
             owner_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            vendor_pub_key_revocation: Default::default(),
         };
         let result = verifier.verify_header(&header, &header_info);
         assert_eq!(
@@ -887,6 +910,7 @@ mod tests {
             vendor_lms_info: (&vendor_lms_pubkey(), &vendor_lms_sig()),
             owner_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            vendor_pub_key_revocation: Default::default(),
         };
         let result = verifier.verify_header(&header, &header_info);
         assert_eq!(
@@ -911,6 +935,7 @@ mod tests {
         let header_info: HeaderInfo = HeaderInfo {
             vendor_ecc_pub_key_idx: 0,
             vendor_lms_pub_key_idx: 0,
+            vendor_pub_key_revocation: Default::default(),
             vendor_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
             vendor_lms_info: (&vendor_lms_pubkey(), &vendor_lms_sig()),
             owner_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
@@ -941,6 +966,7 @@ mod tests {
             vendor_lms_info: (&vendor_lms_pubkey(), &vendor_lms_sig()),
             owner_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            vendor_pub_key_revocation: Default::default(),
         };
         let result = verifier.verify_header(&header, &header_info);
         assert_eq!(
@@ -967,6 +993,7 @@ mod tests {
             vendor_lms_info: (&vendor_lms_pubkey(), &vendor_lms_sig()),
             owner_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            vendor_pub_key_revocation: Default::default(),
         };
         let result = verifier.verify_header(&header, &header_info);
         assert_eq!(
@@ -992,6 +1019,7 @@ mod tests {
             vendor_lms_info: (&vendor_lms_pubkey(), &vendor_lms_sig()),
             owner_info: Some((&OWNER_ECC_PUBKEY, &owner_ecc_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            vendor_pub_key_revocation: Default::default(),
         };
         let result = verifier.verify_header(&header, &header_info);
         assert_eq!(
@@ -1020,6 +1048,7 @@ mod tests {
             vendor_lms_info: (&vendor_lms_pubkey(), &vendor_lms_sig()),
             owner_info: Some((&OWNER_ECC_PUBKEY, &OWNER_ECC_SIG)),
             owner_pub_keys_digest: ImageDigest::default(),
+            vendor_pub_key_revocation: Default::default(),
         };
         let toc_info = verifier.verify_header(&header, &header_info).unwrap();
         assert_eq!(toc_info.len, 100);
@@ -1293,7 +1322,7 @@ mod tests {
 
         let result = verifier.verify_fmc(&verify_info, ResetReason::ColdReset);
         assert!(result.is_ok());
-        let info = result.unwrap();
+        let (info, _log_info) = result.unwrap();
         assert_eq!(info.load_addr, 0x40000000);
         assert_eq!(info.entry_point, 0x40000000);
         assert_eq!(info.svn, 1);
@@ -1328,7 +1357,7 @@ mod tests {
         };
         let result = verifier.verify_runtime(&verify_info);
         assert!(result.is_ok());
-        let info = result.unwrap();
+        let (info, _log_info) = result.unwrap();
         assert_eq!(info.load_addr, 0x40000000);
         assert_eq!(info.entry_point, 0x40000000);
         assert_eq!(info.svn, 1);

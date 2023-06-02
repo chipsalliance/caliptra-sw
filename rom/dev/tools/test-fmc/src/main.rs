@@ -18,9 +18,11 @@ extern "C" {
     static mut LDEVID_TBS_ORG: u8;
     static mut FMCALIAS_TBS_ORG: u8;
     static mut PCR_LOG_ORG: u8;
+    static mut FUSE_LOG_ORG: u8;
 }
 
 use caliptra_common::FirmwareHandoffTable;
+use caliptra_common::{FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_drivers::DataVault;
 use caliptra_drivers::Mailbox;
@@ -214,9 +216,11 @@ fn process_mailbox_commands() {
         0x1000_0001 => {
             // TODO: Generate certs
         }
-        _ => {
-            // No-op
+
+        0x1000_0002 => {
+            read_fuse_log(&mbox);
         }
+        _ => {}
     }
 }
 
@@ -255,4 +259,56 @@ fn read_pcr_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
             .unwrap()
     });
     mbox.status().write(|w| w.status(|w| w.data_ready()));
+}
+
+fn read_fuse_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    let mut fuse_entry_count = 0;
+    loop {
+        let fuse_entry = get_fuse_entry(fuse_entry_count);
+        if FuseLogEntryId::from(fuse_entry.entry_id) == FuseLogEntryId::Invalid {
+            break;
+        }
+
+        fuse_entry_count += 1;
+        let fuse_entry_bytes = fuse_entry.as_bytes();
+        let word_size = core::mem::size_of::<u32>();
+        let remainder = fuse_entry_bytes.len() % word_size;
+        let n = fuse_entry_bytes.len() - remainder;
+
+        for idx in (0..n).step_by(word_size) {
+            mbox.datain().write(|_| {
+                u32::from_le_bytes(fuse_entry_bytes[idx..idx + word_size].try_into().unwrap())
+            });
+        }
+
+        if remainder > 0 {
+            let mut last_word = fuse_entry_bytes[n] as u32;
+            for idx in 1..remainder {
+                last_word |= (fuse_entry_bytes[n + idx] as u32) << (idx << 3);
+            }
+            mbox.datain().write(|_| last_word);
+        }
+    }
+
+    mbox.dlen().write(|_| {
+        (core::mem::size_of::<FuseLogEntry>() * fuse_entry_count)
+            .try_into()
+            .unwrap()
+    });
+    mbox.status().write(|w| w.status(|w| w.data_ready()));
+}
+
+fn get_fuse_entry(entry_index: usize) -> FuseLogEntry {
+    // Copy the Fuse log entry from DCCM
+    let mut fuse_entry: [u8; core::mem::size_of::<FuseLogEntry>()] =
+        [0u8; core::mem::size_of::<FuseLogEntry>()];
+
+    let src = unsafe {
+        let offset = core::mem::size_of::<FuseLogEntry>() * entry_index;
+        let ptr = (&mut FUSE_LOG_ORG as *mut u8).add(offset);
+        core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FuseLogEntry>())
+    };
+
+    fuse_entry.copy_from_slice(src);
+    FuseLogEntry::read_from_prefix(fuse_entry.as_bytes()).unwrap()
 }
