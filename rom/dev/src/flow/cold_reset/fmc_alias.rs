@@ -249,6 +249,13 @@ impl FmcAliasLayer {
         Ok(info)
     }
 
+    /// Update the fuse log
+    ///
+    /// # Arguments
+    /// * `log_info` - Image Verification Log Info
+    ///
+    /// # Returns
+    /// * CaliptraResult
     fn update_fuse_log(log_info: &ImageVerificationLogInfo) -> CaliptraResult<()> {
         // Log VendorPubKeyIndex
         log_fuse_data(
@@ -496,7 +503,7 @@ impl FmcAliasLayer {
         env.data_vault.set_fmc_pub_key(pub_key);
 
         //  Copy TBS to DCCM.
-        copy_tbs(tbs.tbs(), TbsType::FmcaliasTbs)?;
+        copy_tbs(tbs.tbs(), TbsType::FmcaliasTbs, env)?;
 
         report_boot_status(FmcAliasCertSigGenerationComplete.into());
         Ok(())

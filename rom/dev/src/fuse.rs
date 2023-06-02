@@ -48,7 +48,10 @@ pub fn log_fuse_data(entry_id: FuseLogEntryId, data: &[u8]) -> CaliptraResult<()
     };
     log_entry.log_data.as_bytes_mut()[..data.len()].copy_from_slice(data);
 
+    // Get a pointer to the FUSE log. This is a static array of FUSE log entries.
     let dst = unsafe { &mut FUSE_LOG_ORG[..] };
+
+    // Store the log entry.
     dst[entry_id as usize - 1] = log_entry;
 
     Ok(())

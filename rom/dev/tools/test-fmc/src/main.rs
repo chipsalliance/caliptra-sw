@@ -19,6 +19,7 @@ extern "C" {
     static mut FMCALIAS_TBS_ORG: u8;
     static mut PCR_LOG_ORG: u8;
     static mut FUSE_LOG_ORG: u8;
+    static mut FHT_ORG: u8;
 }
 
 use caliptra_common::FirmwareHandoffTable;
@@ -48,10 +49,6 @@ Running Caliptra FMC ...
 #[no_mangle]
 pub extern "C" fn fmc_entry() -> ! {
     cprintln!("{}", BANNER);
-
-    extern "C" {
-        static mut FHT_ORG: u8;
-    }
 
     let slice = unsafe {
         let ptr = &mut FHT_ORG as *mut u8;
@@ -216,9 +213,11 @@ fn process_mailbox_commands() {
         0x1000_0001 => {
             // TODO: Generate certs
         }
-
         0x1000_0002 => {
             read_fuse_log(&mbox);
+        }
+        0x1000_0003 => {
+            read_fht(&mbox);
         }
         _ => {}
     }
@@ -233,24 +232,7 @@ fn read_pcr_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
         }
 
         pcr_entry_count += 1;
-        let pcr_entry_bytes = pcr_entry.as_bytes();
-        let word_size = core::mem::size_of::<u32>();
-        let remainder = pcr_entry_bytes.len() % word_size;
-        let n = pcr_entry_bytes.len() - remainder;
-
-        for idx in (0..n).step_by(word_size) {
-            mbox.datain().write(|_| {
-                u32::from_le_bytes(pcr_entry_bytes[idx..idx + word_size].try_into().unwrap())
-            });
-        }
-
-        if remainder > 0 {
-            let mut last_word = pcr_entry_bytes[n] as u32;
-            for idx in 1..remainder {
-                last_word |= (pcr_entry_bytes[n + idx] as u32) << (idx << 3);
-            }
-            mbox.datain().write(|_| last_word);
-        }
+        send_to_mailbox(mbox, pcr_entry.as_bytes(), false);
     }
 
     mbox.dlen().write(|_| {
@@ -270,24 +252,7 @@ fn read_fuse_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
         }
 
         fuse_entry_count += 1;
-        let fuse_entry_bytes = fuse_entry.as_bytes();
-        let word_size = core::mem::size_of::<u32>();
-        let remainder = fuse_entry_bytes.len() % word_size;
-        let n = fuse_entry_bytes.len() - remainder;
-
-        for idx in (0..n).step_by(word_size) {
-            mbox.datain().write(|_| {
-                u32::from_le_bytes(fuse_entry_bytes[idx..idx + word_size].try_into().unwrap())
-            });
-        }
-
-        if remainder > 0 {
-            let mut last_word = fuse_entry_bytes[n] as u32;
-            for idx in 1..remainder {
-                last_word |= (fuse_entry_bytes[n + idx] as u32) << (idx << 3);
-            }
-            mbox.datain().write(|_| last_word);
-        }
+        send_to_mailbox(mbox, fuse_entry.as_bytes(), false);
     }
 
     mbox.dlen().write(|_| {
@@ -311,4 +276,47 @@ fn get_fuse_entry(entry_index: usize) -> FuseLogEntry {
 
     fuse_entry.copy_from_slice(src);
     FuseLogEntry::read_from_prefix(fuse_entry.as_bytes()).unwrap()
+}
+
+fn read_fht(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    // Copy the FHT from DCCM
+    let mut fht: [u8; core::mem::size_of::<FirmwareHandoffTable>()] =
+        [0u8; core::mem::size_of::<FirmwareHandoffTable>()];
+
+    let src = unsafe {
+        let ptr = &mut FHT_ORG as *mut u8;
+        core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
+    };
+
+    fht.copy_from_slice(src);
+
+    send_to_mailbox(mbox, fht.as_bytes(), true);
+}
+
+fn send_to_mailbox(
+    mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>,
+    data: &[u8],
+    update_mb_state: bool,
+) {
+    let data_len = data.len();
+    let word_size = core::mem::size_of::<u32>();
+    let remainder = data_len % word_size;
+    let n = data_len - remainder;
+    for idx in (0..n).step_by(word_size) {
+        mbox.datain()
+            .write(|_| u32::from_le_bytes(data[idx..idx + word_size].try_into().unwrap()));
+    }
+
+    if remainder > 0 {
+        let mut last_word = data[n] as u32;
+        for idx in 1..remainder {
+            last_word |= (data[n + idx] as u32) << (idx << 3);
+        }
+        mbox.datain().write(|_| last_word);
+    }
+
+    if update_mb_state {
+        mbox.dlen().write(|_| data_len as u32);
+        mbox.status().write(|w| w.status(|w| w.data_ready()));
+    }
 }

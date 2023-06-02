@@ -25,10 +25,13 @@ use crate::verifier::RomImageVerificationEnv;
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_drivers::{Array4x12, CaliptraError, CaliptraResult, PcrBank, PcrId, Sha384};
 use caliptra_image_verify::ImageVerificationInfo;
+use core::mem::size_of;
 use zerocopy::AsBytes;
 
+const PCR_LOG_SIZE: usize = 1024;
+
 extern "C" {
-    static mut PCR_LOG_ORG: u8;
+    static mut PCR_LOG_ORG: [PcrLogEntry; PCR_LOG_SIZE / size_of::<PcrLogEntry>()];
 }
 
 struct PcrExtender<'a> {
@@ -125,14 +128,11 @@ pub fn log_pcr(pcr_entry_id: PcrLogEntryId, pcr_id: PcrId, data: &[u8]) -> Calip
     };
     pcr_log_entry.pcr_data.as_bytes_mut()[..data.len()].copy_from_slice(data);
 
-    let dst = unsafe {
-        let offset = core::mem::size_of::<PcrLogEntry>() * (pcr_entry_id as usize - 1);
-        let ptr = (&mut PCR_LOG_ORG as *mut u8).add(offset);
-        core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<PcrLogEntry>())
-    };
+    // Get a pointer to the PCR log. This is a static array of PCR log entries.
+    let dst = unsafe { &mut PCR_LOG_ORG[..] };
 
-    // Store log entry
-    dst.copy_from_slice(pcr_log_entry.as_bytes());
+    // Store the log entry.
+    dst[pcr_entry_id as usize - 1] = pcr_log_entry;
 
     Ok(())
 }
