@@ -14,6 +14,7 @@ Abstract:
 --*/
 
 use crate::fmc_env::FmcEnv;
+use crate::HandOff;
 use caliptra_drivers::{CaliptraResult, KeyId};
 
 use caliptra_common::crypto::Ecc384KeyPair;
@@ -47,6 +48,17 @@ pub struct DiceInput {
     pub uds_key: KeyId,
 }
 
+impl DiceInput {
+    pub fn to_output(&self, key_pair: Ecc384KeyPair, sn: [u8; 64], key_id: [u8; 20]) -> DiceOutput {
+        DiceOutput {
+            cdi: self.cdi,
+            subj_key_pair: key_pair,
+            subj_sn: sn,
+            subj_key_id: key_id,
+        }
+    }
+}
+
 /// DICE Layer Output
 #[derive(Debug)]
 pub struct DiceOutput {
@@ -72,11 +84,16 @@ pub trait DiceLayer {
     ///
     /// # Arguments
     ///
-    /// * `env`   - FMC Environment
-    /// * `input` - DICE layer input
+    /// * `env`        - FMC Environment
+    /// * `hand_off`   - FMC handoff
+    /// * `input`      - DICE layer input
     ///
     /// # Returns
     ///
     /// * `DiceOutput` - DICE layer output
-    fn derive(env: &FmcEnv, input: &DiceInput) -> CaliptraResult<DiceOutput>;
+    fn derive(
+        env: &mut FmcEnv,
+        hand_off: &HandOff,
+        input: &DiceInput,
+    ) -> CaliptraResult<DiceOutput>;
 }

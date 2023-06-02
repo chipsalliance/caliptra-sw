@@ -12,6 +12,7 @@ caliptra-error = { version = "0.1.0", path = "../error" , default-features=false
 caliptra-registers = { path = "../registers" }
 caliptra-x509 = { version = "0.1.0", path = "../x509" , default-features = false }
 caliptra_common = { path = "../common", default-features = false }
+caliptra-image-types = { path = "../image/types",  default-features = false  }
 ufmt = "0.2.0"
 zerocopy = "0.6.1"
 
@@ -21,6 +22,7 @@ cfg-if = "1.0.0"
 [dev-dependencies]
 caliptra-builder = { path = "../builder" }
 caliptra-hw-model = { path = "../hw-model" }
+caliptra-image-types = { path = "../image/types" }
 
 [features]
 riscv = ["caliptra-cpu/riscv"]

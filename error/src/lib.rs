@@ -70,7 +70,7 @@ impl CaliptraError {
     pub const DRIVER_HMAC384_INDEX_OUT_OF_BOUNDS: CaliptraError =
         CaliptraError::new_const(0x0004000e);
 
-    /// Driver Error: ECC384    
+    /// Driver Error: ECC384
     pub const DRIVER_ECC384_READ_SEED_KV_READ: CaliptraError = CaliptraError::new_const(0x00050001);
     pub const DRIVER_ECC384_READ_SEED_KV_WRITE: CaliptraError =
         CaliptraError::new_const(0x00050002);
@@ -271,7 +271,7 @@ impl CaliptraError {
     pub const RUNTIME_ECDSA_VERIF_FAILED: CaliptraError = CaliptraError::new_const(0x000E0004);
 
     /// FMC Errors
-    pub const FMC_RT_ALIAS_UNIMPLEMENTED: CaliptraError = CaliptraError::new_const(0x000F0001);
+    pub const FMC_RT_ALIAS_DERIVE_FAILURE: CaliptraError = CaliptraError::new_const(0x000F0001);
     pub const FMC_HANDOFF_INVALID_PARAM: CaliptraError = CaliptraError::new_const(0x000F0002);
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0003);
     pub const FMC_GLOBAL_EXCEPTION: CaliptraError = CaliptraError::new_const(0x000F0004);

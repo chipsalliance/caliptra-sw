@@ -17,16 +17,22 @@ mod unknown_reset;
 mod update_reset;
 mod warm_reset;
 
-mod dice;
+mod crypto;
+pub mod dice;
 mod pcr;
 mod rt_alias;
+mod tci;
+mod x509;
 
 use crate::flow::rt_alias::RtAliasLayer;
 
 use crate::fmc_env::FmcEnv;
 use crate::HandOff;
 use caliptra_drivers::CaliptraResult;
+use caliptra_drivers::KeyId;
 use caliptra_drivers::ResetReason;
+
+pub const KEY_ID_FMC_PRIV_KEY: KeyId = KeyId::KeyId5;
 
 /// Execute FMC Flows based on reset resason
 ///

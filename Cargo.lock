@@ -280,6 +280,7 @@ dependencies = [
  "caliptra-drivers",
  "caliptra-error",
  "caliptra-hw-model",
+ "caliptra-image-types",
  "caliptra-registers",
  "caliptra-x509",
  "caliptra_common",
