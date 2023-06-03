@@ -16,13 +16,12 @@ Abstract:
 --*/
 
 use caliptra_drivers::{
-    CaliptraResult, Csrng, DataVault, Ecc384, Hmac384, KeyVault, Mailbox, PcrBank, Sha1, Sha256,
-    Sha384, Sha384Acc, SocIfc,
+    CaliptraResult, DataVault, Ecc384, Hmac384, KeyVault, Mailbox, PcrBank, Sha1, Sha256, Sha384,
+    Sha384Acc, SocIfc,
 };
 use caliptra_registers::{
-    csrng::CsrngReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg,
-    mbox::MboxCsr, pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr,
-    soc_ifc::SocIfcReg,
+    dv::DvReg, ecc::EccReg, hmac::HmacReg, kv::KvReg, mbox::MboxCsr, pv::PvReg, sha256::Sha256Reg,
+    sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg,
 };
 
 /// Hardware Context
@@ -59,9 +58,6 @@ pub struct FmcEnv {
 
     /// PCR Bank
     pub pcr_bank: PcrBank,
-
-    /// Cryptographically Secure Random Number Generator
-    pub csrng: Csrng,
 }
 
 impl FmcEnv {
@@ -73,7 +69,6 @@ impl FmcEnv {
     ///
     ///
     pub unsafe fn new_from_registers() -> CaliptraResult<Self> {
-        let csrng = Csrng::new(CsrngReg::new(), EntropySrcReg::new())?;
         Ok(Self {
             sha1: Sha1::default(),
             sha256: Sha256::new(Sha256Reg::new()),
@@ -86,7 +81,6 @@ impl FmcEnv {
             soc_ifc: SocIfc::new(SocIfcReg::new()),
             mbox: Mailbox::new(MboxCsr::new()),
             pcr_bank: PcrBank::new(PvReg::new()),
-            csrng,
         })
     }
 }

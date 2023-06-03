@@ -36,11 +36,14 @@ impl DiceLayer for RtAliasLayer {
         hand_off: &HandOff,
         input: &DiceInput,
     ) -> CaliptraResult<DiceOutput> {
+        cprintln!("[fmc] Derive CDI");
         // Derive CDI
         let cdi = *okref(&Self::derive_cdi(env, hand_off, input.cdi))?;
+        cprintln!("[fmc] Derive Key Pair");
 
         // Derive DICE Key Pair from CDI
         let key_pair = Self::derive_key_pair(env, cdi, input.subj_priv_key)?;
+        cprintln!("[fmc] Derive Key Pair - Done");
 
         // Generate the Subject Serial Number and Subject Key Identifier.
         //
@@ -62,6 +65,7 @@ impl RtAliasLayer {
     pub fn run(env: &mut FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
         cprintln!("[fmc] Extend RT PCRs");
         Self::extend_pcrs(env, hand_off)?;
+        cprintln!("[fmc] Extend RT PCRs Done");
 
         // Retrieve Dice Input Layer from Hand Off and Derive Key
         match Self::dice_input_from_hand_off(hand_off) {
