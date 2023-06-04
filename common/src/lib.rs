@@ -20,4 +20,5 @@ pub use hand_off::{
 pub use boot_status::RomBootStatus;
 pub use fuse::{FuseLogEntry, FuseLogEntryId};
 pub use pcr::{PcrLogEntry, PcrLogEntryId};
+pub use printer::HexBytes;
 pub use printer::MutablePrinter;
