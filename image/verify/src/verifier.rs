@@ -438,6 +438,18 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_INCORRECT_ORDER)?;
         }
 
+        // Check if fmc and runtime images don't overlap on loading in ICCM.
+        let fmc_load_addr_start = manifest.fmc.load_addr;
+        let fmc_load_addr_end = fmc_load_addr_start + manifest.fmc.image_size() - 1;
+        let runtime_load_addr_start = manifest.runtime.load_addr;
+        let runtime_load_addr_end = runtime_load_addr_start + manifest.runtime.image_size() - 1;
+
+        if fmc_load_addr_start <= runtime_load_addr_end
+            && fmc_load_addr_end >= runtime_load_addr_start
+        {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_LOAD_ADDR_OVERLAP)?;
+        }
+
         let info = ImageInfo {
             fmc: &manifest.fmc,
             runtime: &manifest.runtime,
@@ -1257,6 +1269,8 @@ mod tests {
         manifest.fmc.size = 100;
         manifest.runtime.offset = 100;
         manifest.runtime.size = 200;
+        manifest.fmc.load_addr = 0x1000;
+        manifest.runtime.load_addr = 0x2000;
         let result = verifier.verify_toc(
             &manifest,
             &toc_info,
@@ -1290,6 +1304,57 @@ mod tests {
         assert_eq!(
             result.err(),
             Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_INCORRECT_ORDER)
+        );
+    }
+
+    #[test]
+    fn test_fmc_rt_load_address_range_overlap() {
+        let mut manifest = ImageManifest::default();
+        let test_env = TestEnv::default();
+        let mut verifier = ImageVerifier::new(test_env);
+        let toc_info = TocInfo {
+            len: MAX_TOC_ENTRY_COUNT,
+            digest: &ImageDigest::default(),
+        };
+
+        manifest.fmc.offset = 0;
+        manifest.fmc.size = 100;
+        manifest.runtime.offset = 100;
+        manifest.runtime.size = 200;
+
+        // Case 1:
+        // [-FMC--]
+        //      [--RT--]
+        manifest.fmc.load_addr = 0;
+        manifest.fmc.size = 100;
+        manifest.runtime.load_addr = 50;
+        manifest.runtime.size = 100;
+        let result = verifier.verify_toc(
+            &manifest,
+            &toc_info,
+            manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
+        );
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_LOAD_ADDR_OVERLAP)
+        );
+
+        // Case 2:
+        //      [-FMC--]
+        //  [--RT--]
+        manifest.fmc.load_addr = 50;
+        manifest.fmc.size = 100;
+        manifest.runtime.load_addr = 0;
+        manifest.runtime.size = 100;
+        let result = verifier.verify_toc(
+            &manifest,
+            &toc_info,
+            manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
+        );
+
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_LOAD_ADDR_OVERLAP)
         );
     }
 

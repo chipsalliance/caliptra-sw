@@ -227,6 +227,8 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0033);
     pub const IMAGE_VERIFIER_ERR_UPDATE_RESET_VEN_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS: CaliptraError =
         CaliptraError::new_const(0x000b0034);
+    pub const IMAGE_VERIFIER_ERR_FMC_RUNTIME_LOAD_ADDR_OVERLAP: CaliptraError =
+        CaliptraError::new_const(0x000b0035);
 
     /// Driver Error: LMS
     pub const DRIVER_LMS_INVALID_LMS_ALGO_TYPE: CaliptraError =
