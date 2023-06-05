@@ -297,6 +297,7 @@ impl CaliptraError {
     pub const FMC_ALIAS_INVALID_IMAGE_SIZE: CaliptraError = CaliptraError::new_const(0x01020003);
     pub const FMC_ALIAS_MAILBOX_STATE_INCONSISTENT: CaliptraError =
         CaliptraError::new_const(0x01020004);
+    pub const FMC_ALIAS_FMC_RT_OVERLAP: CaliptraError = CaliptraError::new_const(0x01020005);
 
     /// Update Reset Errors
     pub const ROM_UPDATE_RESET_FLOW_MANIFEST_READ_FAILURE: CaliptraError =

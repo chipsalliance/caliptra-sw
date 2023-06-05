@@ -313,6 +313,17 @@ impl FmcAliasLayer {
             manifest.fmc.load_addr,
             manifest.fmc.size
         );
+        // Detect if FMC and RT address overlap
+        if manifest.fmc.load_addr < manifest.runtime.load_addr
+            && manifest.fmc.load_addr + manifest.fmc.size > manifest.runtime.load_addr
+        {
+            cprintln!(
+                "[afmc] FMC and RT overlap: FMC 0x{:08x} RT 0x{:08x}",
+                manifest.fmc.load_addr,
+                manifest.runtime.load_addr
+            );
+            return Err(CaliptraError::FMC_ALIAS_FMC_RT_OVERLAP);
+        }
 
         let fmc_dest = unsafe {
             let addr = (manifest.fmc.load_addr) as *mut u32;
