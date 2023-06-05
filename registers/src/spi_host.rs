@@ -20,11 +20,13 @@ impl SpiHostReg {
     /// peripheral in the firmware is done so in a compatible
     /// way. The simplest way to enforce this is to only call
     /// this function once.
+    #[inline(always)]
     pub unsafe fn new() -> Self {
         Self { _priv: () }
     }
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
+    #[inline(always)]
     pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
@@ -33,6 +35,7 @@ impl SpiHostReg {
     }
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
+    #[inline(always)]
     pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
@@ -51,6 +54,7 @@ impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
     /// The caller is responsible for ensuring that ptr is valid for
     /// volatile reads and writes at any of the offsets in this register
     /// block.
+    #[inline(always)]
     pub unsafe fn new(ptr: *mut u32) -> Self {
         Self {
             ptr,
@@ -64,10 +68,12 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// The caller is responsible for ensuring that ptr is valid for
     /// volatile reads and writes at any of the offsets in this register
     /// block.
+    #[inline(always)]
     pub unsafe fn new_with_mmio(ptr: *mut u32, mmio: TMmio) -> Self {
         Self { ptr, mmio }
     }
     /// Read value: [`spi_host::regs::InterruptStateReadVal`]; Write value: [`spi_host::regs::InterruptStateWriteVal`]
+    #[inline(always)]
     pub fn interrupt_state(&self) -> ureg::RegRef<crate::spi_host::meta::InterruptState, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -77,6 +83,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         }
     }
     /// Read value: [`spi_host::regs::InterruptEnableReadVal`]; Write value: [`spi_host::regs::InterruptEnableWriteVal`]
+    #[inline(always)]
     pub fn interrupt_enable(&self) -> ureg::RegRef<crate::spi_host::meta::InterruptEnable, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -86,6 +93,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         }
     }
     /// Read value: [`spi_host::regs::InterruptTestReadVal`]; Write value: [`spi_host::regs::InterruptTestWriteVal`]
+    #[inline(always)]
     pub fn interrupt_test(&self) -> ureg::RegRef<crate::spi_host::meta::InterruptTest, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -95,6 +103,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         }
     }
     /// Read value: [`spi_host::regs::AlertTestReadVal`]; Write value: [`spi_host::regs::AlertTestWriteVal`]
+    #[inline(always)]
     pub fn alert_test(&self) -> ureg::RegRef<crate::spi_host::meta::AlertTest, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -104,6 +113,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         }
     }
     /// Read value: [`spi_host::regs::ControlReadVal`]; Write value: [`spi_host::regs::ControlWriteVal`]
+    #[inline(always)]
     pub fn control(&self) -> ureg::RegRef<crate::spi_host::meta::Control, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -113,6 +123,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         }
     }
     /// Read value: [`spi_host::regs::StatusReadVal`]; Write value: [`spi_host::regs::StatusWriteVal`]
+    #[inline(always)]
     pub fn status(&self) -> ureg::RegRef<crate::spi_host::meta::Status, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -122,6 +133,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         }
     }
     /// Read value: [`spi_host::regs::ConfigoptsReadVal`]; Write value: [`spi_host::regs::ConfigoptsWriteVal`]
+    #[inline(always)]
     pub fn configopts(
         &self,
     ) -> ureg::Array<2, ureg::RegRef<crate::spi_host::meta::Configopts, &TMmio>> {
@@ -133,6 +145,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         }
     }
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn csid(&self) -> ureg::RegRef<crate::spi_host::meta::Csid, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -142,6 +155,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         }
     }
     /// Read value: [`spi_host::regs::CommandReadVal`]; Write value: [`spi_host::regs::CommandWriteVal`]
+    #[inline(always)]
     pub fn command(&self) -> ureg::RegRef<crate::spi_host::meta::Command, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -151,6 +165,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         }
     }
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn rxdata(&self) -> ureg::RegRef<crate::spi_host::meta::Rxdata, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -160,6 +175,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         }
     }
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn txdata(&self) -> ureg::RegRef<crate::spi_host::meta::Txdata, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -169,6 +185,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         }
     }
     /// Read value: [`spi_host::regs::ErrorEnableReadVal`]; Write value: [`spi_host::regs::ErrorEnableWriteVal`]
+    #[inline(always)]
     pub fn error_enable(&self) -> ureg::RegRef<crate::spi_host::meta::ErrorEnable, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -178,6 +195,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         }
     }
     /// Read value: [`spi_host::regs::ErrorStatusReadVal`]; Write value: [`spi_host::regs::ErrorStatusWriteVal`]
+    #[inline(always)]
     pub fn error_status(&self) -> ureg::RegRef<crate::spi_host::meta::ErrorStatus, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -187,6 +205,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         }
     }
     /// Read value: [`spi_host::regs::EventEnableReadVal`]; Write value: [`spi_host::regs::EventEnableWriteVal`]
+    #[inline(always)]
     pub fn event_enable(&self) -> ureg::RegRef<crate::spi_host::meta::EventEnable, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -208,11 +227,13 @@ pub mod regs {
         }
     }
     impl From<u32> for AlertTestWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<AlertTestWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: AlertTestWriteVal) -> u32 {
             val.0
         }
@@ -261,11 +282,13 @@ pub mod regs {
         }
     }
     impl From<u32> for CommandWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<CommandWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: CommandWriteVal) -> u32 {
             val.0
         }
@@ -337,16 +360,19 @@ pub mod regs {
             ((self.0 >> 31) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
         pub fn modify(self) -> ConfigoptsWriteVal {
             ConfigoptsWriteVal(self.0)
         }
     }
     impl From<u32> for ConfigoptsReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<ConfigoptsReadVal> for u32 {
+        #[inline(always)]
         fn from(val: ConfigoptsReadVal) -> u32 {
             val.0
         }
@@ -419,11 +445,13 @@ pub mod regs {
         }
     }
     impl From<u32> for ConfigoptsWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<ConfigoptsWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: ConfigoptsWriteVal) -> u32 {
             val.0
         }
@@ -468,16 +496,19 @@ pub mod regs {
             ((self.0 >> 31) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
         pub fn modify(self) -> ControlWriteVal {
             ControlWriteVal(self.0)
         }
     }
     impl From<u32> for ControlReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<ControlReadVal> for u32 {
+        #[inline(always)]
         fn from(val: ControlReadVal) -> u32 {
             val.0
         }
@@ -523,11 +554,13 @@ pub mod regs {
         }
     }
     impl From<u32> for ControlWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<ControlWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: ControlWriteVal) -> u32 {
             val.0
         }
@@ -569,16 +602,19 @@ pub mod regs {
             ((self.0 >> 4) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
         pub fn modify(self) -> ErrorEnableWriteVal {
             ErrorEnableWriteVal(self.0)
         }
     }
     impl From<u32> for ErrorEnableReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<ErrorEnableReadVal> for u32 {
+        #[inline(always)]
         fn from(val: ErrorEnableReadVal) -> u32 {
             val.0
         }
@@ -621,11 +657,13 @@ pub mod regs {
         }
     }
     impl From<u32> for ErrorEnableWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<ErrorEnableWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: ErrorEnableWriteVal) -> u32 {
             val.0
         }
@@ -668,16 +706,19 @@ pub mod regs {
             ((self.0 >> 5) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
         pub fn modify(self) -> ErrorStatusWriteVal {
             ErrorStatusWriteVal(self.0)
         }
     }
     impl From<u32> for ErrorStatusReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<ErrorStatusReadVal> for u32 {
+        #[inline(always)]
         fn from(val: ErrorStatusReadVal) -> u32 {
             val.0
         }
@@ -721,11 +762,13 @@ pub mod regs {
         }
     }
     impl From<u32> for ErrorStatusWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<ErrorStatusWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: ErrorStatusWriteVal) -> u32 {
             val.0
         }
@@ -774,16 +817,19 @@ pub mod regs {
             ((self.0 >> 5) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
         pub fn modify(self) -> EventEnableWriteVal {
             EventEnableWriteVal(self.0)
         }
     }
     impl From<u32> for EventEnableReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<EventEnableReadVal> for u32 {
+        #[inline(always)]
         fn from(val: EventEnableReadVal) -> u32 {
             val.0
         }
@@ -833,11 +879,13 @@ pub mod regs {
         }
     }
     impl From<u32> for EventEnableWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<EventEnableWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: EventEnableWriteVal) -> u32 {
             val.0
         }
@@ -856,16 +904,19 @@ pub mod regs {
             ((self.0 >> 1) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
         pub fn modify(self) -> InterruptEnableWriteVal {
             InterruptEnableWriteVal(self.0)
         }
     }
     impl From<u32> for InterruptEnableReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<InterruptEnableReadVal> for u32 {
+        #[inline(always)]
         fn from(val: InterruptEnableReadVal) -> u32 {
             val.0
         }
@@ -885,11 +936,13 @@ pub mod regs {
         }
     }
     impl From<u32> for InterruptEnableWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<InterruptEnableWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: InterruptEnableWriteVal) -> u32 {
             val.0
         }
@@ -910,16 +963,19 @@ pub mod regs {
             ((self.0 >> 1) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
         pub fn modify(self) -> InterruptStateWriteVal {
             InterruptStateWriteVal(self.0)
         }
     }
     impl From<u32> for InterruptStateReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<InterruptStateReadVal> for u32 {
+        #[inline(always)]
         fn from(val: InterruptStateReadVal) -> u32 {
             val.0
         }
@@ -941,11 +997,13 @@ pub mod regs {
         }
     }
     impl From<u32> for InterruptStateWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<InterruptStateWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: InterruptStateWriteVal) -> u32 {
             val.0
         }
@@ -965,11 +1023,13 @@ pub mod regs {
         }
     }
     impl From<u32> for InterruptTestWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<InterruptTestWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: InterruptTestWriteVal) -> u32 {
             val.0
         }
@@ -1066,11 +1126,13 @@ pub mod regs {
         }
     }
     impl From<u32> for StatusReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<StatusReadVal> for u32 {
+        #[inline(always)]
         fn from(val: StatusReadVal) -> u32 {
             val.0
         }
