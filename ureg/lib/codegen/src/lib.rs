@@ -190,6 +190,7 @@ fn generate_enum(e: &Enum) -> TokenStream {
             });
         }
     }
+    let total_count = hex_literal(1u64 << e.bit_width);
 
     // unwrap is safe because this came from a ValidatedRegisterBlock
     let enum_name = camel_ident(e.name.as_ref().unwrap());
@@ -206,9 +207,13 @@ fn generate_enum(e: &Enum) -> TokenStream {
             type Error = ();
             #[inline(always)]
             fn try_from(val: u32) -> Result<#enum_name, ()> {
-                match val {
-                    #from_u32_tokens
-                    _ => Err(()),
+                if val < #total_count {
+                    // This transmute is safe because the check above ensures
+                    // that the value has a corresponding enum variant, and the
+                    // enum is using repr(u32).
+                    Ok(unsafe { core::mem::transmute(val) } )
+                } else {
+                    Err(())
                 }
             }
         }
@@ -310,14 +315,13 @@ mod generate_enums_test {
                 }
                 impl TryFrom<u32> for PullDir {
                     type Error = ();
-                    #[inline (always)] fn try_from(val : u32) -> Result<PullDir, ()> {
-                        match val {
-                            0 => Ok (Self :: Down),
-                            1 => Ok (Self :: Up),
-                            2 => Ok (Self :: HiZ),
-                            3 => Ok (Self :: Reserved3),
-                            _ => Err (()),
-                         }
+                    #[inline (always)]
+                    fn try_from(val : u32) -> Result<PullDir, ()> {
+                        if val < 4 {
+                            Ok(unsafe { core::mem::transmute(val) })
+                        } else {
+                            Err (())
+                        }
                      }
                 }
                 impl From<PullDir> for u32 {
