@@ -457,6 +457,7 @@ fn generate_register(reg: &RegisterType) -> TokenStream {
         let modify_fn_tokens = if !write_val_tokens.is_empty() {
             quote! {
                 /// Construct a WriteVal that can be used to modify the contents of this register value.
+                #[inline(always)]
                 pub fn modify(self) -> #write_val_ident {
                     #write_val_ident(self.0)
                 }
@@ -472,11 +473,13 @@ fn generate_register(reg: &RegisterType) -> TokenStream {
                 #modify_fn_tokens
             }
             impl From<#raw_type> for #read_val_ident {
+                #[inline(always)]
                 fn from(val: #raw_type) -> Self {
                     Self(val)
                 }
             }
             impl From<#read_val_ident> for #raw_type {
+                #[inline(always)]
                 fn from(val: #read_val_ident) -> #raw_type {
                     val.0
                 }
@@ -492,11 +495,13 @@ fn generate_register(reg: &RegisterType) -> TokenStream {
                 #write_val_tokens
             }
             impl From<#raw_type> for #write_val_ident {
+                #[inline(always)]
                 fn from(val: #raw_type) -> Self {
                     Self(val)
                 }
             }
             impl From<#write_val_ident> for #raw_type {
+                #[inline(always)]
                 fn from(val: #write_val_ident) -> #raw_type {
                     val.0
                 }
@@ -656,6 +661,7 @@ fn generate_block_registers(
 
         block_tokens.extend(quote!{
             #[doc = #comment]
+            #[inline(always)]
             pub fn #reg_name(&self) -> #result_type {
                 unsafe { #constructor(self.ptr.wrapping_add(#ptr_offset / core::mem::size_of::<#raw_ptr_type>()),
                                       core::borrow::Borrow::borrow(&self.mmio)) }
@@ -784,6 +790,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
                     /// peripheral in the firmware is done so in a compatible
                     /// way. The simplest way to enforce this is to only call
                     /// this function once.
+                    #[inline(always)]
                     pub unsafe fn new() -> Self {
                         Self{
                             _priv: (),
@@ -792,6 +799,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
 
                     /// Returns a register block that can be used to read
                     /// registers from this peripheral, but cannot write.
+                    #[inline(always)]
                     pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
                         RegisterBlock{
                             ptr: Self::PTR,
@@ -801,6 +809,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
 
                     /// Return a register block that can be used to read and
                     /// write this peripheral's registers.
+                    #[inline(always)]
                     pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
                         RegisterBlock{
                             ptr: Self::PTR,
@@ -851,6 +860,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
                 RegisterSubBlock::Array { stride, len, .. } => {
                     let stride = hex_literal(*stride);
                     block_inner_tokens.extend(quote! {
+                        #[inline(always)]
                         pub fn #subblock_fn_name(&self, index: usize) -> #subblock_name<&TMmio> {
                             assert!(index < #len);
                             #subblock_name{
@@ -862,6 +872,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
                 }
                 RegisterSubBlock::Single { .. } => {
                     block_inner_tokens.extend(quote! {
+                        #[inline(always)]
                         pub fn #subblock_fn_name(&self) -> #subblock_name<&TMmio> {
                             #subblock_name{
                                 ptr: unsafe { self.ptr.add(#start_offset / core::mem::size_of::<#raw_ptr_type>()) },
@@ -884,6 +895,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
                 /// The caller is responsible for ensuring that ptr is valid for
                 /// volatile reads and writes at any of the offsets in this register
                 /// block.
+                #[inline(always)]
                 pub unsafe fn new(ptr: *mut #raw_ptr_type) -> Self {
                     Self{
                         ptr,
@@ -897,6 +909,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
                 /// The caller is responsible for ensuring that ptr is valid for
                 /// volatile reads and writes at any of the offsets in this register
                 /// block.
+                #[inline(always)]
                 pub unsafe fn new_with_mmio(ptr: *mut #raw_ptr_type, mmio: TMmio) -> Self {
                     Self{
                         ptr,

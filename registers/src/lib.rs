@@ -32,16 +32,19 @@ pub mod regs {
             (self.0 >> 7) & 0x1ffffff
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
         pub fn modify(self) -> KvReadCtrlRegWriteVal {
             KvReadCtrlRegWriteVal(self.0)
         }
     }
     impl From<u32> for KvReadCtrlRegReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<KvReadCtrlRegReadVal> for u32 {
+        #[inline(always)]
         fn from(val: KvReadCtrlRegReadVal) -> u32 {
             val.0
         }
@@ -72,11 +75,13 @@ pub mod regs {
         }
     }
     impl From<u32> for KvReadCtrlRegWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<KvReadCtrlRegWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: KvReadCtrlRegWriteVal) -> u32 {
             val.0
         }
@@ -101,11 +106,13 @@ pub mod regs {
         }
     }
     impl From<u32> for KvStatusRegReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<KvStatusRegReadVal> for u32 {
+        #[inline(always)]
         fn from(val: KvStatusRegReadVal) -> u32 {
             val.0
         }
@@ -155,16 +162,19 @@ pub mod regs {
             (self.0 >> 11) & 0x1fffff
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
         pub fn modify(self) -> KvWriteCtrlRegWriteVal {
             KvWriteCtrlRegWriteVal(self.0)
         }
     }
     impl From<u32> for KvWriteCtrlRegReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<KvWriteCtrlRegReadVal> for u32 {
+        #[inline(always)]
         fn from(val: KvWriteCtrlRegReadVal) -> u32 {
             val.0
         }
@@ -215,11 +225,13 @@ pub mod regs {
         }
     }
     impl From<u32> for KvWriteCtrlRegWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<KvWriteCtrlRegWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: KvWriteCtrlRegWriteVal) -> u32 {
             val.0
         }

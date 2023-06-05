@@ -160,6 +160,7 @@ impl Mmio for RealMmioMut<'_> {
     /// # Safety
     ///
     /// Same as [`core::ptr::read_volatile`].
+    #[inline(always)]
     unsafe fn read_volatile<T: Clone + Copy>(&self, src: *const T) -> T {
         core::ptr::read_volatile(src)
     }
@@ -170,16 +171,19 @@ impl MmioMut for RealMmioMut<'_> {
     /// # Safety
     ///
     /// Same as [`core::ptr::write_volatile`].
+    #[inline(always)]
     unsafe fn write_volatile<T: Clone + Copy>(&self, dst: *mut T, src: T) {
         core::ptr::write_volatile(dst, src);
     }
 }
 impl<TMmio: Mmio> Mmio for &TMmio {
+    #[inline(always)]
     unsafe fn read_volatile<T: Clone + Copy>(&self, src: *const T) -> T {
         (*self).read_volatile(src)
     }
 }
 impl<TMmio: MmioMut> MmioMut for &TMmio {
+    #[inline(always)]
     unsafe fn write_volatile<T: Clone + Copy>(&self, dst: *mut T, src: T) {
         (*self).write_volatile(dst, src)
     }

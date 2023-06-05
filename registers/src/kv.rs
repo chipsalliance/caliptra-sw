@@ -20,11 +20,13 @@ impl KvReg {
     /// peripheral in the firmware is done so in a compatible
     /// way. The simplest way to enforce this is to only call
     /// this function once.
+    #[inline(always)]
     pub unsafe fn new() -> Self {
         Self { _priv: () }
     }
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
+    #[inline(always)]
     pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
@@ -33,6 +35,7 @@ impl KvReg {
     }
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
+    #[inline(always)]
     pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
@@ -51,6 +54,7 @@ impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
     /// The caller is responsible for ensuring that ptr is valid for
     /// volatile reads and writes at any of the offsets in this register
     /// block.
+    #[inline(always)]
     pub unsafe fn new(ptr: *mut u32) -> Self {
         Self {
             ptr,
@@ -64,12 +68,14 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// The caller is responsible for ensuring that ptr is valid for
     /// volatile reads and writes at any of the offsets in this register
     /// block.
+    #[inline(always)]
     pub unsafe fn new_with_mmio(ptr: *mut u32, mmio: TMmio) -> Self {
         Self { ptr, mmio }
     }
     /// Controls for each keyvault and pcr entry
     ///
     /// Read value: [`kv::regs::KvctrlReadVal`]; Write value: [`kv::regs::KvctrlWriteVal`]
+    #[inline(always)]
     pub fn key_ctrl(&self) -> ureg::Array<32, ureg::RegRef<crate::kv::meta::KeyCtrl, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
@@ -81,6 +87,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// Key Entries are not readable or writeable by software
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn key_entry(
         &self,
     ) -> ureg::Array<32, ureg::Array<12, ureg::RegRef<crate::kv::meta::KeyEntry, &TMmio>>> {
@@ -92,6 +99,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
         }
     }
     /// Read value: [`kv::regs::ClearSecretsReadVal`]; Write value: [`kv::regs::ClearSecretsWriteVal`]
+    #[inline(always)]
     pub fn clear_secrets(&self) -> ureg::RegRef<crate::kv::meta::ClearSecrets, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -117,16 +125,19 @@ pub mod regs {
             ((self.0 >> 1) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
         pub fn modify(self) -> ClearSecretsWriteVal {
             ClearSecretsWriteVal(self.0)
         }
     }
     impl From<u32> for ClearSecretsReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<ClearSecretsReadVal> for u32 {
+        #[inline(always)]
         fn from(val: ClearSecretsReadVal) -> u32 {
             val.0
         }
@@ -146,11 +157,13 @@ pub mod regs {
         }
     }
     impl From<u32> for ClearSecretsWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<ClearSecretsWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: ClearSecretsWriteVal) -> u32 {
             val.0
         }
@@ -202,16 +215,19 @@ pub mod regs {
             (self.0 >> 17) & 0xf
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
         pub fn modify(self) -> KvctrlWriteVal {
             KvctrlWriteVal(self.0)
         }
     }
     impl From<u32> for KvctrlReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<KvctrlReadVal> for u32 {
+        #[inline(always)]
         fn from(val: KvctrlReadVal) -> u32 {
             val.0
         }
@@ -246,11 +262,13 @@ pub mod regs {
         }
     }
     impl From<u32> for KvctrlWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<KvctrlWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: KvctrlWriteVal) -> u32 {
             val.0
         }

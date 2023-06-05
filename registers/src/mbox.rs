@@ -20,11 +20,13 @@ impl MboxCsr {
     /// peripheral in the firmware is done so in a compatible
     /// way. The simplest way to enforce this is to only call
     /// this function once.
+    #[inline(always)]
     pub unsafe fn new() -> Self {
         Self { _priv: () }
     }
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
+    #[inline(always)]
     pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
@@ -33,6 +35,7 @@ impl MboxCsr {
     }
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
+    #[inline(always)]
     pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
@@ -51,6 +54,7 @@ impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
     /// The caller is responsible for ensuring that ptr is valid for
     /// volatile reads and writes at any of the offsets in this register
     /// block.
+    #[inline(always)]
     pub unsafe fn new(ptr: *mut u32) -> Self {
         Self {
             ptr,
@@ -64,6 +68,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// The caller is responsible for ensuring that ptr is valid for
     /// volatile reads and writes at any of the offsets in this register
     /// block.
+    #[inline(always)]
     pub unsafe fn new_with_mmio(ptr: *mut u32, mmio: TMmio) -> Self {
         Self { ptr, mmio }
     }
@@ -72,6 +77,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// [br]SOC Access:      RO
     ///
     /// Read value: [`mbox::regs::LockReadVal`]; Write value: [`mbox::regs::LockWriteVal`]
+    #[inline(always)]
     pub fn lock(&self) -> ureg::RegRef<crate::mbox::meta::Lock, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -85,6 +91,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// [br]SOC Access:      RO
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn user(&self) -> ureg::RegRef<crate::mbox::meta::User, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -98,6 +105,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// [br]SOC Access:      RW
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn cmd(&self) -> ureg::RegRef<crate::mbox::meta::Cmd, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -112,6 +120,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// [br]TAP Access [in debug/manuf mode]: RO
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn dlen(&self) -> ureg::RegRef<crate::mbox::meta::Dlen, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -125,6 +134,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// [br]SOC Access:      RW
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn datain(&self) -> ureg::RegRef<crate::mbox::meta::Datain, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -139,6 +149,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// [br]TAP Access [in debug/manuf mode]: RO
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn dataout(&self) -> ureg::RegRef<crate::mbox::meta::Dataout, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -152,6 +163,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// [br]SOC Access:      RW
     ///
     /// Read value: [`mbox::regs::ExecuteReadVal`]; Write value: [`mbox::regs::ExecuteWriteVal`]
+    #[inline(always)]
     pub fn execute(&self) -> ureg::RegRef<crate::mbox::meta::Execute, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -163,6 +175,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// Status of the mailbox command
     ///
     /// Read value: [`mbox::regs::StatusReadVal`]; Write value: [`mbox::regs::StatusWriteVal`]
+    #[inline(always)]
     pub fn status(&self) -> ureg::RegRef<crate::mbox::meta::Status, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -176,6 +189,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// [br]SOC Access:      RO
     ///
     /// Read value: [`mbox::regs::UnlockReadVal`]; Write value: [`mbox::regs::UnlockWriteVal`]
+    #[inline(always)]
     pub fn unlock(&self) -> ureg::RegRef<crate::mbox::meta::Unlock, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -196,16 +210,19 @@ pub mod regs {
             ((self.0 >> 0) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
         pub fn modify(self) -> ExecuteWriteVal {
             ExecuteWriteVal(self.0)
         }
     }
     impl From<u32> for ExecuteReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<ExecuteReadVal> for u32 {
+        #[inline(always)]
         fn from(val: ExecuteReadVal) -> u32 {
             val.0
         }
@@ -220,11 +237,13 @@ pub mod regs {
         }
     }
     impl From<u32> for ExecuteWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<ExecuteWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: ExecuteWriteVal) -> u32 {
             val.0
         }
@@ -239,11 +258,13 @@ pub mod regs {
         }
     }
     impl From<u32> for LockReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<LockReadVal> for u32 {
+        #[inline(always)]
         fn from(val: LockReadVal) -> u32 {
             val.0
         }
@@ -298,16 +319,19 @@ pub mod regs {
             ((self.0 >> 9) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
         pub fn modify(self) -> StatusWriteVal {
             StatusWriteVal(self.0)
         }
     }
     impl From<u32> for StatusReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<StatusReadVal> for u32 {
+        #[inline(always)]
         fn from(val: StatusReadVal) -> u32 {
             val.0
         }
@@ -331,11 +355,13 @@ pub mod regs {
         }
     }
     impl From<u32> for StatusWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<StatusWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: StatusWriteVal) -> u32 {
             val.0
         }
@@ -349,16 +375,19 @@ pub mod regs {
             ((self.0 >> 0) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
         pub fn modify(self) -> UnlockWriteVal {
             UnlockWriteVal(self.0)
         }
     }
     impl From<u32> for UnlockReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<UnlockReadVal> for u32 {
+        #[inline(always)]
         fn from(val: UnlockReadVal) -> u32 {
             val.0
         }
@@ -373,11 +402,13 @@ pub mod regs {
         }
     }
     impl From<u32> for UnlockWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<UnlockWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: UnlockWriteVal) -> u32 {
             val.0
         }

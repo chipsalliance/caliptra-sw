@@ -20,11 +20,13 @@ impl EccReg {
     /// peripheral in the firmware is done so in a compatible
     /// way. The simplest way to enforce this is to only call
     /// this function once.
+    #[inline(always)]
     pub unsafe fn new() -> Self {
         Self { _priv: () }
     }
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
+    #[inline(always)]
     pub fn regs(&self) -> RegisterBlock<ureg::RealMmio> {
         RegisterBlock {
             ptr: Self::PTR,
@@ -33,6 +35,7 @@ impl EccReg {
     }
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
+    #[inline(always)]
     pub fn regs_mut(&mut self) -> RegisterBlock<ureg::RealMmioMut> {
         RegisterBlock {
             ptr: Self::PTR,
@@ -51,6 +54,7 @@ impl<TMmio: ureg::Mmio + core::default::Default> RegisterBlock<TMmio> {
     /// The caller is responsible for ensuring that ptr is valid for
     /// volatile reads and writes at any of the offsets in this register
     /// block.
+    #[inline(always)]
     pub unsafe fn new(ptr: *mut u32) -> Self {
         Self {
             ptr,
@@ -64,6 +68,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// The caller is responsible for ensuring that ptr is valid for
     /// volatile reads and writes at any of the offsets in this register
     /// block.
+    #[inline(always)]
     pub unsafe fn new_with_mmio(ptr: *mut u32, mmio: TMmio) -> Self {
         Self { ptr, mmio }
     }
@@ -72,6 +77,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// ECC_base_address + 0x0000_0000 and 0x0000_0004 addresses.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn name(&self) -> ureg::Array<2, ureg::RegRef<crate::ecc::meta::Name, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
@@ -85,6 +91,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// ECC_base_address + 0x0000_0008 and 0x0000_000C addresses.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn version(&self) -> ureg::Array<2, ureg::RegRef<crate::ecc::meta::Version, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
@@ -104,6 +111,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// [br] This register is located at ECC_base_address + 0x0000_0010.
     ///
     /// Read value: [`ecc::regs::CtrlReadVal`]; Write value: [`ecc::regs::CtrlWriteVal`]
+    #[inline(always)]
     pub fn ctrl(&self) -> ureg::RegRef<crate::ecc::meta::Ctrl, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -120,6 +128,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// This register is located at ECC_base_address + 0x0000_0018.
     ///
     /// Read value: [`ecc::regs::StatusReadVal`]; Write value: [`ecc::regs::StatusWriteVal`]
+    #[inline(always)]
     pub fn status(&self) -> ureg::RegRef<crate::ecc::meta::Status, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -134,6 +143,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// 0x0000_0080 to 0x0000_00AC in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn seed(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::Seed, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
@@ -149,6 +159,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// 0x0000_0100 to 0x0000_012C in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn msg(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::Msg, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
@@ -165,6 +176,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// 0x0000_0180 to 0x0000_01AC in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn privkey_out(
         &self,
     ) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::PrivkeyOut, &TMmio>> {
@@ -184,6 +196,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// 0x0000_0200 to 0x0000_022C in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn pubkey_x(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::PubkeyX, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
@@ -201,6 +214,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// 0x0000_0280 to 0x0000_02AC in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn pubkey_y(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::PubkeyY, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
@@ -221,6 +235,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// 0x0000_0300 to 0x0000_032C in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn sign_r(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::SignR, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
@@ -238,6 +253,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// 0x0000_0380 to 0x0000_03AC in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn sign_s(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::SignS, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
@@ -255,6 +271,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// 0x0000_0400 to 0x0000_042C in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn verify_r(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::VerifyR, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
@@ -271,6 +288,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// 0x0000_0480 to 0x0000_04AC in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn iv(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::Iv, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
@@ -285,6 +303,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// 0x0000_0500 to 0x0000_052C in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn nonce(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::Nonce, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
@@ -301,6 +320,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// 0x0000_0580 to 0x0000_05AC in big-endian representation.
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn privkey_in(&self) -> ureg::Array<12, ureg::RegRef<crate::ecc::meta::PrivkeyIn, &TMmio>> {
         unsafe {
             ureg::Array::new_with_mmio(
@@ -312,6 +332,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// Controls the Key Vault read access for this engine
     ///
     /// Read value: [`regs::KvReadCtrlRegReadVal`]; Write value: [`regs::KvReadCtrlRegWriteVal`]
+    #[inline(always)]
     pub fn kv_rd_pkey_ctrl(&self) -> ureg::RegRef<crate::ecc::meta::KvRdPkeyCtrl, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -323,6 +344,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// Reports the Key Vault flow status for this engine
     ///
     /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
+    #[inline(always)]
     pub fn kv_rd_pkey_status(&self) -> ureg::RegRef<crate::ecc::meta::KvRdPkeyStatus, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -334,6 +356,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// Controls the Key Vault read access for this engine
     ///
     /// Read value: [`regs::KvReadCtrlRegReadVal`]; Write value: [`regs::KvReadCtrlRegWriteVal`]
+    #[inline(always)]
     pub fn kv_rd_seed_ctrl(&self) -> ureg::RegRef<crate::ecc::meta::KvRdSeedCtrl, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -345,6 +368,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// Reports the Key Vault flow status for this engine
     ///
     /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
+    #[inline(always)]
     pub fn kv_rd_seed_status(&self) -> ureg::RegRef<crate::ecc::meta::KvRdSeedStatus, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -356,6 +380,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// Controls the Key Vault write access for this engine
     ///
     /// Read value: [`regs::KvWriteCtrlRegReadVal`]; Write value: [`regs::KvWriteCtrlRegWriteVal`]
+    #[inline(always)]
     pub fn kv_wr_pkey_ctrl(&self) -> ureg::RegRef<crate::ecc::meta::KvWrPkeyCtrl, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -367,6 +392,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
     /// Reports the Key Vault flow status for this engine
     ///
     /// Read value: [`regs::KvStatusRegReadVal`]; Write value: [`regs::KvStatusRegWriteVal`]
+    #[inline(always)]
     pub fn kv_wr_pkey_status(&self) -> ureg::RegRef<crate::ecc::meta::KvWrPkeyStatus, &TMmio> {
         unsafe {
             ureg::RegRef::new_with_mmio(
@@ -375,6 +401,7 @@ impl<TMmio: ureg::Mmio> RegisterBlock<TMmio> {
             )
         }
     }
+    #[inline(always)]
     pub fn intr_block_rf(&self) -> IntrBlockRfBlock<&TMmio> {
         IntrBlockRfBlock {
             ptr: unsafe { self.ptr.add(0x800 / core::mem::size_of::<u32>()) },
@@ -391,6 +418,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// Dedicated register with one bit for each event type that may produce an interrupt.
     ///
     /// Read value: [`sha512_acc::regs::GlobalIntrEnTReadVal`]; Write value: [`sha512_acc::regs::GlobalIntrEnTWriteVal`]
+    #[inline(always)]
     pub fn global_intr_en_r(
         &self,
     ) -> ureg::RegRef<crate::ecc::meta::IntrBlockRfGlobalIntrEnR, &TMmio> {
@@ -404,6 +432,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// Dedicated register with one bit for each event that may produce an interrupt.
     ///
     /// Read value: [`ecc::regs::ErrorIntrEnTReadVal`]; Write value: [`ecc::regs::ErrorIntrEnTWriteVal`]
+    #[inline(always)]
     pub fn error_intr_en_r(
         &self,
     ) -> ureg::RegRef<crate::ecc::meta::IntrBlockRfErrorIntrEnR, &TMmio> {
@@ -417,6 +446,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// Dedicated register with one bit for each event that may produce an interrupt.
     ///
     /// Read value: [`ecc::regs::NotifIntrEnTReadVal`]; Write value: [`ecc::regs::NotifIntrEnTWriteVal`]
+    #[inline(always)]
     pub fn notif_intr_en_r(
         &self,
     ) -> ureg::RegRef<crate::ecc::meta::IntrBlockRfNotifIntrEnR, &TMmio> {
@@ -438,6 +468,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// Nonsticky assertion.
     ///
     /// Read value: [`sha512_acc::regs::GlobalIntrTReadVal`]; Write value: [`sha512_acc::regs::GlobalIntrTWriteVal`]
+    #[inline(always)]
     pub fn error_global_intr_r(
         &self,
     ) -> ureg::RegRef<crate::ecc::meta::IntrBlockRfErrorGlobalIntrR, &TMmio> {
@@ -459,6 +490,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// Nonsticky assertion.
     ///
     /// Read value: [`sha512_acc::regs::GlobalIntrTReadVal`]; Write value: [`sha512_acc::regs::GlobalIntrTWriteVal`]
+    #[inline(always)]
     pub fn notif_global_intr_r(
         &self,
     ) -> ureg::RegRef<crate::ecc::meta::IntrBlockRfNotifGlobalIntrR, &TMmio> {
@@ -473,6 +505,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// Sticky, level assertion, write-1-to-clear.
     ///
     /// Read value: [`ecc::regs::ErrorIntrTReadVal`]; Write value: [`ecc::regs::ErrorIntrTWriteVal`]
+    #[inline(always)]
     pub fn error_internal_intr_r(
         &self,
     ) -> ureg::RegRef<crate::ecc::meta::IntrBlockRfErrorInternalIntrR, &TMmio> {
@@ -487,6 +520,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// Sticky, level assertion, write-1-to-clear.
     ///
     /// Read value: [`ecc::regs::NotifIntrTReadVal`]; Write value: [`ecc::regs::NotifIntrTWriteVal`]
+    #[inline(always)]
     pub fn notif_internal_intr_r(
         &self,
     ) -> ureg::RegRef<crate::ecc::meta::IntrBlockRfNotifInternalIntrR, &TMmio> {
@@ -502,6 +536,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// will pulse for 1 cycle then clear to 0.
     ///
     /// Read value: [`ecc::regs::ErrorIntrTrigTReadVal`]; Write value: [`ecc::regs::ErrorIntrTrigTWriteVal`]
+    #[inline(always)]
     pub fn error_intr_trig_r(
         &self,
     ) -> ureg::RegRef<crate::ecc::meta::IntrBlockRfErrorIntrTrigR, &TMmio> {
@@ -517,6 +552,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// will pulse for 1 cycle then clear to 0.
     ///
     /// Read value: [`ecc::regs::NotifIntrTrigTReadVal`]; Write value: [`ecc::regs::NotifIntrTrigTWriteVal`]
+    #[inline(always)]
     pub fn notif_intr_trig_r(
         &self,
     ) -> ureg::RegRef<crate::ecc::meta::IntrBlockRfNotifIntrTrigR, &TMmio> {
@@ -532,6 +568,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// Will not overflow ('incrsaturate').
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn error_internal_intr_count_r(
         &self,
     ) -> ureg::RegRef<crate::ecc::meta::IntrBlockRfErrorInternalIntrCountR, &TMmio> {
@@ -547,6 +584,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// Will not overflow ('incrsaturate').
     ///
     /// Read value: [`u32`]; Write value: [`u32`]
+    #[inline(always)]
     pub fn notif_cmd_done_intr_count_r(
         &self,
     ) -> ureg::RegRef<crate::ecc::meta::IntrBlockRfNotifCmdDoneIntrCountR, &TMmio> {
@@ -567,6 +605,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// decrement immediately on being set - resulting in a pulse
     ///
     /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
+    #[inline(always)]
     pub fn error_internal_intr_count_incr_r(
         &self,
     ) -> ureg::RegRef<crate::ecc::meta::IntrBlockRfErrorInternalIntrCountIncrR, &TMmio> {
@@ -587,6 +626,7 @@ impl<TMmio: ureg::Mmio> IntrBlockRfBlock<TMmio> {
     /// decrement immediately on being set - resulting in a pulse
     ///
     /// Read value: [`sha512_acc::regs::IntrCountIncrTReadVal`]; Write value: [`sha512_acc::regs::IntrCountIncrTWriteVal`]
+    #[inline(always)]
     pub fn notif_cmd_done_intr_count_incr_r(
         &self,
     ) -> ureg::RegRef<crate::ecc::meta::IntrBlockRfNotifCmdDoneIntrCountIncrR, &TMmio> {
@@ -623,11 +663,13 @@ pub mod regs {
         }
     }
     impl From<u32> for CtrlWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<CtrlWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: CtrlWriteVal) -> u32 {
             val.0
         }
@@ -647,11 +689,13 @@ pub mod regs {
         }
     }
     impl From<u32> for StatusReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<StatusReadVal> for u32 {
+        #[inline(always)]
         fn from(val: StatusReadVal) -> u32 {
             val.0
         }
@@ -665,16 +709,19 @@ pub mod regs {
             ((self.0 >> 0) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
         pub fn modify(self) -> ErrorIntrEnTWriteVal {
             ErrorIntrEnTWriteVal(self.0)
         }
     }
     impl From<u32> for ErrorIntrEnTReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<ErrorIntrEnTReadVal> for u32 {
+        #[inline(always)]
         fn from(val: ErrorIntrEnTReadVal) -> u32 {
             val.0
         }
@@ -689,11 +736,13 @@ pub mod regs {
         }
     }
     impl From<u32> for ErrorIntrEnTWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<ErrorIntrEnTWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: ErrorIntrEnTWriteVal) -> u32 {
             val.0
         }
@@ -707,16 +756,19 @@ pub mod regs {
             ((self.0 >> 0) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
         pub fn modify(self) -> ErrorIntrTWriteVal {
             ErrorIntrTWriteVal(self.0)
         }
     }
     impl From<u32> for ErrorIntrTReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<ErrorIntrTReadVal> for u32 {
+        #[inline(always)]
         fn from(val: ErrorIntrTReadVal) -> u32 {
             val.0
         }
@@ -731,11 +783,13 @@ pub mod regs {
         }
     }
     impl From<u32> for ErrorIntrTWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<ErrorIntrTWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: ErrorIntrTWriteVal) -> u32 {
             val.0
         }
@@ -749,16 +803,19 @@ pub mod regs {
             ((self.0 >> 0) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
         pub fn modify(self) -> ErrorIntrTrigTWriteVal {
             ErrorIntrTrigTWriteVal(self.0)
         }
     }
     impl From<u32> for ErrorIntrTrigTReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<ErrorIntrTrigTReadVal> for u32 {
+        #[inline(always)]
         fn from(val: ErrorIntrTrigTReadVal) -> u32 {
             val.0
         }
@@ -773,11 +830,13 @@ pub mod regs {
         }
     }
     impl From<u32> for ErrorIntrTrigTWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<ErrorIntrTrigTWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: ErrorIntrTrigTWriteVal) -> u32 {
             val.0
         }
@@ -791,16 +850,19 @@ pub mod regs {
             ((self.0 >> 0) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
         pub fn modify(self) -> NotifIntrEnTWriteVal {
             NotifIntrEnTWriteVal(self.0)
         }
     }
     impl From<u32> for NotifIntrEnTReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<NotifIntrEnTReadVal> for u32 {
+        #[inline(always)]
         fn from(val: NotifIntrEnTReadVal) -> u32 {
             val.0
         }
@@ -815,11 +877,13 @@ pub mod regs {
         }
     }
     impl From<u32> for NotifIntrEnTWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<NotifIntrEnTWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: NotifIntrEnTWriteVal) -> u32 {
             val.0
         }
@@ -833,16 +897,19 @@ pub mod regs {
             ((self.0 >> 0) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
         pub fn modify(self) -> NotifIntrTWriteVal {
             NotifIntrTWriteVal(self.0)
         }
     }
     impl From<u32> for NotifIntrTReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<NotifIntrTReadVal> for u32 {
+        #[inline(always)]
         fn from(val: NotifIntrTReadVal) -> u32 {
             val.0
         }
@@ -857,11 +924,13 @@ pub mod regs {
         }
     }
     impl From<u32> for NotifIntrTWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<NotifIntrTWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: NotifIntrTWriteVal) -> u32 {
             val.0
         }
@@ -875,16 +944,19 @@ pub mod regs {
             ((self.0 >> 0) & 1) != 0
         }
         /// Construct a WriteVal that can be used to modify the contents of this register value.
+        #[inline(always)]
         pub fn modify(self) -> NotifIntrTrigTWriteVal {
             NotifIntrTrigTWriteVal(self.0)
         }
     }
     impl From<u32> for NotifIntrTrigTReadVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<NotifIntrTrigTReadVal> for u32 {
+        #[inline(always)]
         fn from(val: NotifIntrTrigTReadVal) -> u32 {
             val.0
         }
@@ -899,11 +971,13 @@ pub mod regs {
         }
     }
     impl From<u32> for NotifIntrTrigTWriteVal {
+        #[inline(always)]
         fn from(val: u32) -> Self {
             Self(val)
         }
     }
     impl From<NotifIntrTrigTWriteVal> for u32 {
+        #[inline(always)]
         fn from(val: NotifIntrTrigTWriteVal) -> u32 {
             val.0
         }
