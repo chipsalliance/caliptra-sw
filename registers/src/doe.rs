@@ -992,12 +992,10 @@ pub mod enums {
         type Error = ();
         #[inline(always)]
         fn try_from(val: u32) -> Result<DoeCmdE, ()> {
-            match val {
-                0 => Ok(Self::DoeIdle),
-                1 => Ok(Self::DoeUds),
-                2 => Ok(Self::DoeFe),
-                3 => Ok(Self::DoeClearObfSecrets),
-                _ => Err(()),
+            if val < 4 {
+                Ok(unsafe { core::mem::transmute(val) })
+            } else {
+                Err(())
             }
         }
     }

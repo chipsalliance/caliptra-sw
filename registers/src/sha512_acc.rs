@@ -1212,12 +1212,10 @@ pub mod enums {
         type Error = ();
         #[inline(always)]
         fn try_from(val: u32) -> Result<ShaCmdE, ()> {
-            match val {
-                0 => Ok(Self::ShaStream384),
-                1 => Ok(Self::ShaStream512),
-                2 => Ok(Self::ShaMbox384),
-                3 => Ok(Self::ShaMbox512),
-                _ => Err(()),
+            if val < 4 {
+                Ok(unsafe { core::mem::transmute(val) })
+            } else {
+                Err(())
             }
         }
     }

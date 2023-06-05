@@ -427,16 +427,10 @@ pub mod enums {
         type Error = ();
         #[inline(always)]
         fn try_from(val: u32) -> Result<MboxFsmE, ()> {
-            match val {
-                0 => Ok(Self::MboxIdle),
-                1 => Ok(Self::MboxRdyForCmd),
-                2 => Ok(Self::MboxRdyForData),
-                3 => Ok(Self::MboxRdyForDlen),
-                4 => Ok(Self::MboxExecuteSoc),
-                5 => Ok(Self::Reserved5),
-                6 => Ok(Self::MboxExecuteUc),
-                7 => Ok(Self::Reserved7),
-                _ => Err(()),
+            if val < 8 {
+                Ok(unsafe { core::mem::transmute(val) })
+            } else {
+                Err(())
             }
         }
     }
@@ -487,24 +481,10 @@ pub mod enums {
         type Error = ();
         #[inline(always)]
         fn try_from(val: u32) -> Result<MboxStatusE, ()> {
-            match val {
-                0 => Ok(Self::CmdBusy),
-                1 => Ok(Self::DataReady),
-                2 => Ok(Self::CmdComplete),
-                3 => Ok(Self::CmdFailure),
-                4 => Ok(Self::Reserved4),
-                5 => Ok(Self::Reserved5),
-                6 => Ok(Self::Reserved6),
-                7 => Ok(Self::Reserved7),
-                8 => Ok(Self::Reserved8),
-                9 => Ok(Self::Reserved9),
-                10 => Ok(Self::Reserved10),
-                11 => Ok(Self::Reserved11),
-                12 => Ok(Self::Reserved12),
-                13 => Ok(Self::Reserved13),
-                14 => Ok(Self::Reserved14),
-                15 => Ok(Self::Reserved15),
-                _ => Err(()),
+            if val < 0x10 {
+                Ok(unsafe { core::mem::transmute(val) })
+            } else {
+                Err(())
             }
         }
     }

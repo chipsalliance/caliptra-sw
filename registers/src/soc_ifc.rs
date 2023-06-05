@@ -2857,12 +2857,10 @@ pub mod enums {
         type Error = ();
         #[inline(always)]
         fn try_from(val: u32) -> Result<DeviceLifecycleE, ()> {
-            match val {
-                0 => Ok(Self::DeviceUnprovisioned),
-                1 => Ok(Self::DeviceManufacturing),
-                2 => Ok(Self::Reserved2),
-                3 => Ok(Self::DeviceProduction),
-                _ => Err(()),
+            if val < 4 {
+                Ok(unsafe { core::mem::transmute(val) })
+            } else {
+                Err(())
             }
         }
     }
