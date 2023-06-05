@@ -313,6 +313,27 @@ impl FmcAliasLayer {
             manifest.fmc.load_addr,
             manifest.fmc.size
         );
+        cprintln!(
+            "[afmc] Loading Runtime at address 0x{:08x} len {}",
+            manifest.runtime.load_addr,
+            manifest.runtime.size
+        );
+
+        // Detect if FMC and RT address ranges overlap
+        // Load address of FMC <= End address of RT
+        // and End address of FMC >= Load address of RT
+        if manifest.fmc.load_addr <= manifest.runtime.load_addr + manifest.runtime.size
+            && manifest.fmc.load_addr + manifest.fmc.size >= manifest.runtime.load_addr
+        {
+            cprintln!(
+                "[afmc] FMC and Runtime address ranges overlap. FMC Load Address: 0x{:08x} FMC End Address: 0x{:08x} Runtime Load Address: 0x{:08x} Runtime End Address: 0x{:08x}",
+                manifest.fmc.load_addr,
+                manifest.fmc.load_addr + manifest.fmc.size,
+                manifest.runtime.load_addr,
+                manifest.runtime.load_addr + manifest.runtime.size
+            );
+            return Err(CaliptraError::FMC_ALIAS_FMC_RT_OVERLAP);
+        }
 
         let fmc_dest = unsafe {
             let addr = (manifest.fmc.load_addr) as *mut u32;
@@ -320,12 +341,6 @@ impl FmcAliasLayer {
         };
 
         txn.copy_request(fmc_dest)?;
-
-        cprintln!(
-            "[afmc] Loading Runtime at address 0x{:08x} len {}",
-            manifest.runtime.load_addr,
-            manifest.runtime.size
-        );
 
         let runtime_dest = unsafe {
             let addr = (manifest.runtime.load_addr) as *mut u32;

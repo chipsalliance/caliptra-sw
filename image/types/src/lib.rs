@@ -392,4 +392,13 @@ impl ImageTocEntry {
     pub fn image_size(&self) -> u32 {
         self.size
     }
+
+    pub fn overlaps(&self, other: &ImageTocEntry) -> bool {
+        if self.load_addr <= other.load_addr + other.size
+            && self.load_addr + self.size >= other.load_addr
+        {
+            return true;
+        }
+        false
+    }
 }

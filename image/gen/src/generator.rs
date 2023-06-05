@@ -60,6 +60,10 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         let offset = offset + fmc_toc.size;
         let (runtime_toc, runtime) = self.gen_image(&config.runtime, id, offset)?;
 
+        if fmc_toc.overlaps(&runtime_toc) {
+            bail!("FMC and Runtime TOC overlap");
+        }
+
         let ecc_key_idx = config.vendor_config.ecc_key_idx;
         let lms_key_idx = config.vendor_config.lms_key_idx;
 
