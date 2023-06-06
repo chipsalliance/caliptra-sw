@@ -126,7 +126,7 @@ impl HandOff {
 
         if !rt_entry.is_valid() {
             caliptra_common::report_handoff_error_and_halt(
-                "Invalid KeySlot DV Entry",
+                "Invalid RT Entry Point",
                 caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
             );
         }

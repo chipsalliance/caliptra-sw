@@ -29,8 +29,9 @@ use caliptra_x509::{NotAfter, NotBefore, RtAliasCertTbs, RtAliasCertTbsParams};
 
 const SHA384_HASH_SIZE: usize = 48;
 
+const RT_ALIAS_TBS_SIZE: usize = 0x1000;
 extern "C" {
-    static mut RTALIAS_TBS_ORG: u8;
+    static mut RTALIAS_TBS_ORG: [u8; RT_ALIAS_TBS_SIZE];
 }
 
 #[derive(Default)]
@@ -262,7 +263,11 @@ impl RtAliasLayer {
             core::slice::from_raw_parts_mut(ptr, tbs.len())
         };
 
-        dst[..tbs.len()].copy_from_slice(tbs);
+        if tbs.len() <= RT_ALIAS_TBS_SIZE {
+            dst[..tbs.len()].copy_from_slice(tbs);
+        } else {
+            return Err(CaliptraError::FMC_RT_ALIAS_TBS_SIZE_EXCEEDED);
+        }
 
         Ok(())
     }
