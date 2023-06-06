@@ -155,7 +155,7 @@ impl HandOff {
         }
     }
 
-    /// Retrieve runtime TCI (digest)
+    /// Retrieve runtime SVN.
     pub fn rt_svn(&self, env: &FmcEnv) -> u32 {
         let ds: DataStore = self.fht.rt_svn_dv_hdl.try_into().unwrap_or_else(|_| {
             caliptra_common::report_handoff_error_and_halt(
