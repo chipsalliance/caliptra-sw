@@ -1,12 +1,10 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::ImageOptions;
+use caliptra_error::CaliptraError;
 use caliptra_hw_model::{Fuses, HwModel, ModelError};
 
 pub mod helpers;
-
-// [TODO] Use the error codes from the common library.
-const INVALID_IMAGE_SIZE: u32 = 0x0102_0003;
 
 #[test]
 fn test_unknown_command_is_not_fatal() {
@@ -34,7 +32,9 @@ fn test_mailbox_command_aborted_after_report_error() {
     let (mut hw, image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
     assert_eq!(
-        Err(ModelError::MailboxCmdFailed(INVALID_IMAGE_SIZE)),
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::FMC_ALIAS_INVALID_IMAGE_SIZE.into()
+        )),
         hw.upload_firmware(&[])
     );
 
@@ -44,6 +44,8 @@ fn test_mailbox_command_aborted_after_report_error() {
     // The original failure reason should still be in the register
     assert_eq!(
         hw.upload_firmware(&image_bundle.to_bytes().unwrap()),
-        Err(ModelError::MailboxCmdFailed(INVALID_IMAGE_SIZE))
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::FMC_ALIAS_INVALID_IMAGE_SIZE.into()
+        ))
     );
 }
