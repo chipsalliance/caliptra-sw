@@ -21,28 +21,34 @@ mod elf_symbols;
 pub use elf_symbols::{elf_symbols, Symbol, SymbolBind, SymbolType, SymbolVisibility};
 use once_cell::sync::Lazy;
 
+pub const THIS_WORKSPACE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
+
 pub const ROM: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
     features: &[],
+    workspace_dir: None,
 };
 
 pub const ROM_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
     features: &["emu"],
+    workspace_dir: None,
 };
 
 pub const FMC_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
     features: &["emu"],
+    workspace_dir: None,
 };
 
 pub const APP_WITH_UART: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
     features: &["emu"],
+    workspace_dir: None,
 };
 
 fn other_err(e: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> io::Error {
@@ -100,10 +106,12 @@ pub struct FwId<'a> {
 
     // The features to use the build the binary
     pub features: &'a [&'a str],
+
+    // Path to the workspace dir to build from; defaults to this workspace.
+    pub workspace_dir: Option<&'a Path>,
 }
 
 pub fn build_firmware_elf_uncached(id: &FwId) -> io::Result<Vec<u8>> {
-    const WORKSPACE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
     const TARGET: &str = "riscv32imc-unknown-none-elf";
     const PROFILE: &str = "firmware";
 
@@ -115,8 +123,11 @@ pub fn build_firmware_elf_uncached(id: &FwId) -> io::Result<Vec<u8>> {
         features_csv.push_str("riscv");
     }
 
+    let workspace_dir = id
+        .workspace_dir
+        .unwrap_or_else(|| Path::new(THIS_WORKSPACE_DIR));
     let mut cmd = Command::new(env!("CARGO"));
-    cmd.current_dir(WORKSPACE_DIR);
+    cmd.current_dir(workspace_dir);
     if option_env!("GITHUB_ACTIONS").is_some() {
         // In continuous integration, warnings are always errors.
         cmd.arg("--config")
@@ -139,7 +150,7 @@ pub fn build_firmware_elf_uncached(id: &FwId) -> io::Result<Vec<u8>> {
             .arg(id.bin_name),
     )?;
     fs::read(
-        Path::new(WORKSPACE_DIR)
+        Path::new(workspace_dir)
             .join("target")
             .join(TARGET)
             .join(PROFILE)
@@ -296,6 +307,7 @@ mod test {
             crate_name: "caliptra-drivers-test-bin",
             bin_name: "test_success",
             features: &[],
+            workspace_dir: None,
         };
         // Ensure that we can build the ELF and elf2rom can parse it
         build_firmware_rom(&FWID).unwrap();
