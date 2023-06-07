@@ -15,6 +15,7 @@ exclude = [
 members = [
   "builder",
   "ci-tools/file-header-fix",
+  "ci-tools/size-history",
   "common",
   "cpu",
   "drivers",
