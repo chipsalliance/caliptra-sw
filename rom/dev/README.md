@@ -431,7 +431,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
 **Actions:**
 
-1.	PCR0 is the Journey PCR. PCR0 is locked for clear by the ROM at cold reset. Subsequent layers may continue to extend PCR0 as runtime updates are performed.
+1.	PCR0 is the Current PCR. PCR0 is locked for clear by the ROM on every reset. Subsequent layers may continue to extend PCR0 as runtime updates are performed.
 
 	`pcr_lock_clr(Pcr0)`
 	`pcr_extend(Pcr0, CPTRA_SECURITY_STATE.LIFECYCLE_STATE)`
