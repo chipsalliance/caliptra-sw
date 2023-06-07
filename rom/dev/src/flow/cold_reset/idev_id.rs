@@ -44,18 +44,17 @@ const MAX_CSR_SIZE: usize = 512;
 /// Dice Initial Device Identity (IDEVID) Layer
 pub enum InitDevIdLayer {}
 
-impl DiceLayer for InitDevIdLayer {
+impl InitDevIdLayer {
     /// Perform derivations for the DICE layer
     ///
     /// # Arguments
     ///
     /// * `env`   - ROM Environment
-    /// * `_input` - DICE layer input
     ///
     /// # Returns
     ///
     /// * `DiceOutput` - DICE layer output
-    fn derive(env: &mut RomEnv, _input: &DiceInput) -> CaliptraResult<DiceOutput> {
+    pub fn derive(env: &mut RomEnv) -> CaliptraResult<DiceOutput> {
         cprintln!("[idev] ++");
         cprintln!("[idev] CDI.KEYID = {}", KEY_ID_CDI as u8);
         cprintln!("[idev] SUBJECT.KEYID = {}", KEY_ID_IDEVID_PRIV_KEY as u8);
@@ -101,9 +100,7 @@ impl DiceLayer for InitDevIdLayer {
         // Return the DICE Layer Output
         Ok(output)
     }
-}
 
-impl InitDevIdLayer {
     /// Decrypt Unique Device Secret (UDS)
     ///
     /// # Arguments

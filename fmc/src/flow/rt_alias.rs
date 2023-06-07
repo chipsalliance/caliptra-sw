@@ -66,7 +66,7 @@ impl DiceLayer for RtAliasLayer {
         let nf = NotAfter::default();
 
         // Generate Rt Alias Certificate
-        Self::generate_cert_sig(env, hand_off, input, &output, &nb.not_before, &nf.not_after)?;
+        Self::generate_cert_sig(env, hand_off, input, &output, &nb.value, &nf.value)?;
         Ok(output)
     }
 }

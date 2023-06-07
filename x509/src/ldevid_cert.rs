@@ -56,8 +56,8 @@ mod tests {
                     issuer_key.sha1(),
                 )
                 .unwrap(),
-            not_before: &NotBefore::default().not_before,
-            not_after: &NotAfter::default().not_after,
+            not_before: &NotBefore::default().value,
+            not_after: &NotAfter::default().value,
         };
 
         let cert = LocalDevIdCertTbs::new(&params);

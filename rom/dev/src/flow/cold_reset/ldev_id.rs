@@ -29,7 +29,7 @@ use caliptra_x509::*;
 #[derive(Default)]
 pub struct LocalDevIdLayer {}
 
-impl DiceLayer for LocalDevIdLayer {
+impl LocalDevIdLayer {
     /// Perform derivations for the DICE layer
     ///
     /// # Arguments
@@ -40,7 +40,7 @@ impl DiceLayer for LocalDevIdLayer {
     /// # Returns
     ///
     /// * `DiceOutput` - key pair, subject identifier serial number, subject key identifier
-    fn derive(env: &mut RomEnv, input: &DiceInput) -> CaliptraResult<DiceOutput> {
+    pub fn derive(env: &mut RomEnv, input: &DiceInput) -> CaliptraResult<DiceOutput> {
         cprintln!("[ldev] ++");
         cprintln!("[ldev] CDI.KEYID = {}", KEY_ID_CDI as u8);
         cprintln!("[ldev] SUBJECT.KEYID = {}", KEY_ID_LDEVID_PRIV_KEY as u8);
@@ -84,9 +84,7 @@ impl DiceLayer for LocalDevIdLayer {
 
         Ok(output)
     }
-}
 
-impl LocalDevIdLayer {
     /// Derive Composite Device Identity (CDI) from field entropy
     ///
     /// # Arguments
@@ -157,8 +155,8 @@ impl LocalDevIdLayer {
             authority_key_id: input.auth_key_id,
             serial_number,
             public_key: &pub_key.to_der(),
-            not_before: &NotBefore::default().not_before,
-            not_after: &NotAfter::default().not_after,
+            not_before: &NotBefore::default().value,
+            not_after: &NotAfter::default().value,
         };
 
         // Generate the `To Be Signed` portion of the CSR
