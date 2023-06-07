@@ -75,6 +75,7 @@ fn test_pcr_log() {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
         features: &["emu"],
+        workspace_dir: None,
     };
 
     let fuses = Fuses {
@@ -211,6 +212,7 @@ fn test_fuse_log() {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
         features: &["emu"],
+        workspace_dir: None,
     };
 
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
@@ -333,6 +335,7 @@ fn test_fht_info() {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
         features: &["emu"],
+        workspace_dir: None,
     };
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {

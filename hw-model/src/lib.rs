@@ -774,6 +774,7 @@ mod tests {
             crate_name: "caliptra-hw-model-test-fw",
             bin_name: "mailbox_responder",
             features: &["emu"],
+            ..Default::default()
         })
         .unwrap();
 
@@ -833,6 +834,7 @@ mod tests {
             crate_name: "caliptra-hw-model-test-fw",
             bin_name: "mailbox_sender",
             features: &["emu"],
+            ..Default::default()
         })
         .unwrap();
 
@@ -887,6 +889,7 @@ mod tests {
             crate_name: "caliptra-hw-model-test-fw",
             bin_name: "mailbox_responder",
             features: &["emu"],
+            ..Default::default()
         })
         .unwrap();
 

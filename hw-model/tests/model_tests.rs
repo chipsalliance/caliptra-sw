@@ -8,6 +8,7 @@ const BASE_FWID: FwId = FwId {
     crate_name: "caliptra-hw-model-test-fw",
     bin_name: "",
     features: &["emu"],
+    workspace_dir: None,
 };
 
 fn run_fw_elf(elf: &[u8]) -> DefaultHwModel {
