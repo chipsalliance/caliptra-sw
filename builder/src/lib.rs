@@ -224,6 +224,27 @@ pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
     Ok(result)
 }
 
+pub fn elf_size(elf_bytes: &[u8]) -> io::Result<u64> {
+    let elf = elf::ElfBytes::<LittleEndian>::minimal_parse(elf_bytes).map_err(other_err)?;
+    let Some(segments) = elf.segments() else {
+        return Err(other_err("ELF file has no segments"))
+    };
+    let mut min_addr = u64::MAX;
+    let mut max_addr = u64::MIN;
+    for segment in segments {
+        if segment.p_type != elf::abi::PT_LOAD || segment.p_filesz == 0 {
+            continue;
+        }
+        min_addr = min_addr.min(segment.p_paddr);
+        max_addr = max_addr.max(segment.p_paddr + segment.p_filesz);
+    }
+    Ok(if max_addr >= min_addr {
+        max_addr - min_addr
+    } else {
+        0
+    })
+}
+
 pub struct ImageOptions {
     pub fmc_min_svn: u32,
     pub fmc_svn: u32,
@@ -317,6 +338,14 @@ mod test {
     fn test_elf2rom_golden() {
         let rom_bytes = elf2rom(include_bytes!("testdata/example.elf")).unwrap();
         assert_eq!(&rom_bytes, include_bytes!("testdata/example.rom.golden"));
+    }
+
+    #[test]
+    fn test_elf_size() {
+        assert_eq!(
+            elf_size(include_bytes!("testdata/example.elf")).unwrap(),
+            4096
+        );
     }
 
     #[test]
