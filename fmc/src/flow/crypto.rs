@@ -8,8 +8,9 @@ Abstract:
 use crate::fmc_env::FmcEnv;
 use caliptra_common::crypto::Ecc384KeyPair;
 use caliptra_drivers::{
-    Array4x12, Array4x5, Array4x8, CaliptraResult, Ecc384PrivKeyOut, Ecc384Seed, Hmac384Data,
-    Hmac384Key, Hmac384Tag, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
+    okref, Array4x12, Array4x5, Array4x8, CaliptraResult, Ecc384PrivKeyIn, Ecc384PrivKeyOut,
+    Ecc384PubKey, Ecc384Seed, Ecc384Signature, Hmac384Data, Hmac384Key, Hmac384Tag, KeyId,
+    KeyReadArgs, KeyUsage, KeyWriteArgs,
 };
 
 pub enum Crypto {}
@@ -115,5 +116,55 @@ impl Crypto {
             priv_key,
             pub_key: env.ecc384.key_pair(seed, &Array4x12::default(), key_out)?,
         })
+    }
+
+    /// Sign data using ECC Private Key
+    ///
+    /// This routine calculates the digest of the `data` and signs the hash
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - ROM Environment
+    /// * `priv_key` - Key slot to retrieve the private key
+    /// * `data` - Input data to hash
+    ///
+    /// # Returns
+    ///
+    /// * `Ecc384Signature` - Signature
+    pub fn ecdsa384_sign(
+        env: &mut FmcEnv,
+        priv_key: KeyId,
+        data: &[u8],
+    ) -> CaliptraResult<Ecc384Signature> {
+        let digest = Self::sha384_digest(env, data);
+        let digest = okref(&digest)?;
+        let priv_key_args = KeyReadArgs::new(priv_key);
+        let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
+        env.ecc384.sign(priv_key, digest)
+    }
+
+    /// Verify the ECC Signature
+    ///
+    /// This routine calculates the digest and verifies the signature
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - ROM Environment
+    /// * `pub_key` - Public key to verify the signature
+    /// * `data` - Input data to hash
+    /// * `sig` - Signature to verify
+    ///
+    /// # Returns
+    ///
+    /// * `bool` - True on success, false otherwise
+    pub fn ecdsa384_verify(
+        env: &mut FmcEnv,
+        pub_key: &Ecc384PubKey,
+        data: &[u8],
+        sig: &Ecc384Signature,
+    ) -> CaliptraResult<bool> {
+        let digest = Self::sha384_digest(env, data);
+        let digest = okref(&digest)?;
+        env.ecc384.verify(pub_key, digest, sig)
     }
 }

@@ -21,10 +21,18 @@ use crate::fmc_env::FmcEnv;
 use crate::HandOff;
 use caliptra_common::cprintln;
 use caliptra_common::crypto::Ecc384KeyPair;
+use caliptra_common::HexBytes;
 use caliptra_drivers::{
     okref, CaliptraError, CaliptraResult, Ecc384PubKey, Hmac384Data, Hmac384Key, KeyId, KeyReadArgs,
 };
+use caliptra_x509::{NotAfter, NotBefore, RtAliasCertTbs, RtAliasCertTbsParams};
+
 const SHA384_HASH_SIZE: usize = 48;
+
+const RT_ALIAS_TBS_SIZE: usize = 0x1000;
+extern "C" {
+    static mut RTALIAS_TBS_ORG: [u8; RT_ALIAS_TBS_SIZE];
+}
 
 #[derive(Default)]
 pub struct RtAliasLayer {}
@@ -54,8 +62,11 @@ impl DiceLayer for RtAliasLayer {
 
         let output = input.to_output(key_pair, subj_sn, subj_key_id);
 
-        // Generate Local Device ID Certificate
-        Self::generate_cert_sig(env, input, &output)?;
+        let nb = NotBefore::default();
+        let nf = NotAfter::default();
+
+        // Generate Rt Alias Certificate
+        Self::generate_cert_sig(env, hand_off, input, &output, &nb.not_before, &nf.not_after)?;
         Ok(output)
     }
 }
@@ -175,11 +186,89 @@ impl RtAliasLayer {
     /// * `input`  - DICE Input
     /// * `output` - DICE Output
     fn generate_cert_sig(
-        _env: &FmcEnv,
-        _input: &DiceInput,
-        _output: &DiceOutput,
+        env: &mut FmcEnv,
+        hand_off: &HandOff,
+        input: &DiceInput,
+        output: &DiceOutput,
+        not_before: &[u8; RtAliasCertTbsParams::NOT_BEFORE_LEN],
+        not_after: &[u8; RtAliasCertTbsParams::NOT_AFTER_LEN],
     ) -> CaliptraResult<()> {
-        // TODO: This will be implemented in a different PR. Issue #84
+        let auth_priv_key = input.auth_key_pair.priv_key;
+        let auth_pub_key = &input.auth_key_pair.pub_key;
+        let pub_key = &output.subj_key_pair.pub_key;
+
+        let serial_number = &X509::cert_sn(env, pub_key)?;
+
+        let rt_tci = Tci::rt_tci(env, hand_off);
+        let rt_tci: [u8; 48] = okref(&rt_tci)?.into();
+
+        let rt_svn = hand_off.rt_svn(env) as u8;
+
+        // Certificate `To Be Signed` Parameters
+        let params = RtAliasCertTbsParams {
+            // Do we need the UEID here?
+            ueid: &X509::ueid(env)?,
+            subject_sn: &output.subj_sn,
+            subject_key_id: &output.subj_key_id,
+            issuer_sn: &input.auth_sn,
+            authority_key_id: &input.auth_key_id,
+            serial_number,
+            public_key: &pub_key.to_der(),
+            not_before,
+            not_after,
+            tcb_info_rt_svn: &rt_svn.to_be_bytes(),
+            tcb_info_rt_tci: &rt_tci,
+            // Are there any fields missing?
+        };
+
+        // Generate the `To Be Signed` portion of the CSR
+        let tbs = RtAliasCertTbs::new(&params);
+
+        // Sign the the `To Be Signed` portion
+        cprintln!(
+            "[art] Signing Cert with AUTHO
+            RITY.KEYID = {}",
+            auth_priv_key as u8
+        );
+
+        let sig = Crypto::ecdsa384_sign(env, auth_priv_key, tbs.tbs());
+        let sig = okref(&sig)?;
+
+        let _pub_x: [u8; 48] = (&pub_key.x).into();
+        let _pub_y: [u8; 48] = (&pub_key.y).into();
+        cprintln!("[art] PUB.X = {}", HexBytes(&_pub_x));
+        cprintln!("[art] PUB.Y = {}", HexBytes(&_pub_y));
+
+        let _sig_r: [u8; 48] = (&sig.r).into();
+        let _sig_s: [u8; 48] = (&sig.s).into();
+        cprintln!("[art] SIG.R = {}", HexBytes(&_sig_r));
+        cprintln!("[art] SIG.S = {}", HexBytes(&_sig_s));
+
+        // Verify the signature of the `To Be Signed` portion
+        if !Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? {
+            return Err(CaliptraError::FMC_RT_ALIAS_CERT_VERIFY);
+        }
+
+        hand_off.set_rt_dice_signature(sig);
+
+        //  Copy TBS to DCCM.
+        Self::copy_tbs(tbs.tbs())?;
+
+        Ok(())
+    }
+
+    fn copy_tbs(tbs: &[u8]) -> CaliptraResult<()> {
+        let dst = unsafe {
+            let ptr = &mut RTALIAS_TBS_ORG as *mut u8;
+            core::slice::from_raw_parts_mut(ptr, tbs.len())
+        };
+
+        if tbs.len() <= RT_ALIAS_TBS_SIZE {
+            dst[..tbs.len()].copy_from_slice(tbs);
+        } else {
+            return Err(CaliptraError::FMC_RT_ALIAS_TBS_SIZE_EXCEEDED);
+        }
+
         Ok(())
     }
 }

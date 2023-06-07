@@ -15,7 +15,7 @@ use crate::flow::dice::DiceOutput;
 use crate::fmc_env::FmcEnv;
 use caliptra_common::DataStore::*;
 use caliptra_common::{DataStore, FirmwareHandoffTable};
-use caliptra_drivers::{Array4x12, KeyId};
+use caliptra_drivers::{Array4x12, Ecc384Signature, KeyId};
 use caliptra_error::CaliptraResult;
 
 #[cfg(feature = "riscv")]
@@ -126,7 +126,7 @@ impl HandOff {
 
         if !rt_entry.is_valid() {
             caliptra_common::report_handoff_error_and_halt(
-                "Invalid KeySlot DV Entry",
+                "Invalid RT Entry Point",
                 caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
             );
         }
@@ -153,6 +153,33 @@ impl HandOff {
                 );
             }
         }
+    }
+
+    /// Retrieve runtime SVN.
+    pub fn rt_svn(&self, env: &FmcEnv) -> u32 {
+        let ds: DataStore = self.fht.rt_svn_dv_hdl.try_into().unwrap_or_else(|_| {
+            caliptra_common::report_handoff_error_and_halt(
+                "Invalid RT SVN handle",
+                caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
+            )
+        });
+
+        // The data store is either a warm reset entry or a cold reset entry.
+        match ds {
+            DataVaultNonSticky4(dv_entry) => env.data_vault.read_warm_reset_entry4(dv_entry),
+            DataVaultSticky4(dv_entry) => env.data_vault.read_cold_reset_entry4(dv_entry),
+            _ => {
+                crate::report_error(
+                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
+                );
+            }
+        }
+    }
+
+    pub fn set_rt_dice_signature(&self, _sig: &Ecc384Signature) {
+        // TODO - implement
+        // Where should this be stored?
+        // No DV slots avaiable anymore.
     }
 
     /// Retrieve image manifest load address in DCCM
