@@ -295,39 +295,41 @@ impl CaliptraError {
     pub const ROM_LDEVID_CSR_VERIFICATION_FAILURE: CaliptraError =
         CaliptraError::new_const(0x01010001);
 
+    /// Firmware Processor Errors
+    pub const FW_PROC_MANIFEST_READ_FAILURE: CaliptraError = CaliptraError::new_const(0x01020001);
+    pub const FW_PROC_INVALID_IMAGE_SIZE: CaliptraError = CaliptraError::new_const(0x01020002);
+    pub const FW_PROC_MAILBOX_STATE_INCONSISTENT: CaliptraError =
+        CaliptraError::new_const(0x01020003);
+
     /// FMC Alias Layer : Certificate Verification Failure.
-    pub const FMC_ALIAS_CERT_VERIFY: CaliptraError = CaliptraError::new_const(0x01020001);
-    pub const FMC_ALIAS_MANIFEST_READ_FAILURE: CaliptraError = CaliptraError::new_const(0x01020002);
-    pub const FMC_ALIAS_INVALID_IMAGE_SIZE: CaliptraError = CaliptraError::new_const(0x01020003);
-    pub const FMC_ALIAS_MAILBOX_STATE_INCONSISTENT: CaliptraError =
-        CaliptraError::new_const(0x01020004);
+    pub const FMC_ALIAS_CERT_VERIFY: CaliptraError = CaliptraError::new_const(0x01030001);
 
     /// Update Reset Errors
     pub const ROM_UPDATE_RESET_FLOW_MANIFEST_READ_FAILURE: CaliptraError =
-        CaliptraError::new_const(0x01030002);
+        CaliptraError::new_const(0x01040002);
     pub const ROM_UPDATE_RESET_FLOW_INVALID_FIRMWARE_COMMAND: CaliptraError =
-        CaliptraError::new_const(0x01030003);
+        CaliptraError::new_const(0x01040003);
     pub const ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE: CaliptraError =
-        CaliptraError::new_const(0x01030004);
+        CaliptraError::new_const(0x01040004);
 
     /// ROM Global Errors
-    pub const ROM_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x01040001);
-    pub const ROM_GLOBAL_EXCEPTION: CaliptraError = CaliptraError::new_const(0x01040002);
-    pub const ROM_GLOBAL_PANIC: CaliptraError = CaliptraError::new_const(0x01040003);
+    pub const ROM_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x01050001);
+    pub const ROM_GLOBAL_EXCEPTION: CaliptraError = CaliptraError::new_const(0x01050002);
+    pub const ROM_GLOBAL_PANIC: CaliptraError = CaliptraError::new_const(0x01050003);
     pub const ROM_GLOBAL_PCR_LOG_INVALID_ENTRY_ID: CaliptraError =
-        CaliptraError::new_const(0x01040004);
+        CaliptraError::new_const(0x01050004);
     pub const ROM_GLOBAL_PCR_LOG_UNSUPPORTED_DATA_LENGTH: CaliptraError =
-        CaliptraError::new_const(0x01040005);
+        CaliptraError::new_const(0x01050005);
 
     pub const ROM_GLOBAL_FUSE_LOG_INVALID_ENTRY_ID: CaliptraError =
-        CaliptraError::new_const(0x01040006);
+        CaliptraError::new_const(0x01050006);
     pub const ROM_GLOBAL_FUSE_LOG_UNSUPPORTED_DATA_LENGTH: CaliptraError =
-        CaliptraError::new_const(0x01040007);
+        CaliptraError::new_const(0x01050007);
 
     pub const ROM_GLOBAL_UNSUPPORTED_LDEVID_TBS_SIZE: CaliptraError =
-        CaliptraError::new_const(0x01040008);
+        CaliptraError::new_const(0x01050008);
     pub const ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE: CaliptraError =
-        CaliptraError::new_const(0x01040009);
+        CaliptraError::new_const(0x01050009);
 
     /// ROM KAT Errors
     pub const ROM_KAT_SHA256_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90010001);

@@ -21,11 +21,11 @@ fn test_zero_firmware_size() {
     // Zero-sized firmware.
     assert_eq!(
         hw.upload_firmware(&[]).unwrap_err(),
-        ModelError::MailboxCmdFailed(0x01020003)
+        ModelError::MailboxCmdFailed(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into())
     );
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        CaliptraError::FMC_ALIAS_INVALID_IMAGE_SIZE.into()
+        CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()
     );
 }
 
@@ -54,7 +54,7 @@ fn test_firmware_gt_max_size() {
 
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        CaliptraError::FMC_ALIAS_INVALID_IMAGE_SIZE.into()
+        CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()
     );
 }
 

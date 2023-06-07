@@ -33,7 +33,7 @@ fn test_mailbox_command_aborted_after_report_error() {
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
     assert_eq!(
         Err(ModelError::MailboxCmdFailed(
-            CaliptraError::FMC_ALIAS_INVALID_IMAGE_SIZE.into()
+            CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()
         )),
         hw.upload_firmware(&[])
     );
@@ -45,7 +45,7 @@ fn test_mailbox_command_aborted_after_report_error() {
     assert_eq!(
         hw.upload_firmware(&image_bundle.to_bytes().unwrap()),
         Err(ModelError::MailboxCmdFailed(
-            CaliptraError::FMC_ALIAS_INVALID_IMAGE_SIZE.into()
+            CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()
         ))
     );
 }

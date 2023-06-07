@@ -71,17 +71,15 @@ fn test_status_reporting() {
         .is_ok());
 
     // [TODO] Don't use upload_firmware (whic returns only when the txn is complete); manually upload the firmware to test these boot statuses.
-    // step_until_boot_status(FmcAliasDownloadImageComplete);
-    // step_until_boot_status(FmcAliasManifestLoadComplete);
-    // step_until_boot_status(FmcAliasImageVerificationComplete);
-    // step_until_boot_status(FmcAliasPopulateDataVaultComplete);
-    // step_until_boot_status(FmcAliasExtendPcrComplete);
-    // step_until_boot_status(FmcAliasLoadImageComplete);
-    step_until_boot_status(&mut hw, FmcAliasFirmwareDownloadTxComplete);
+    // step_until_boot_status(FwProcessorDownloadImageComplete);
+    // step_until_boot_status(FwProcessorManifestLoadComplete);
+    // step_until_boot_status(FwProcessorImageVerificationComplete);
+    // step_until_boot_status(FwProcessorPopulateDataVaultComplete);
+    // step_until_boot_status(FwProcessorExtendPcrComplete);
+    // step_until_boot_status(FwProcessorLoadImageComplete);
+    step_until_boot_status(&mut hw, FwProcessorFirmwareDownloadTxComplete);
+    step_until_boot_status(&mut hw, FwProcessorComplete);
     step_until_boot_status(&mut hw, FmcAliasDeriveCdiComplete);
     step_until_boot_status(&mut hw, FmcAliasKeyPairDerivationComplete);
     step_until_boot_status(&mut hw, FmcAliasSubjIdSnGenerationComplete);
-    step_until_boot_status(&mut hw, FmcAliasSubjKeyIdGenerationComplete);
-    step_until_boot_status(&mut hw, FmcAliasCertSigGenerationComplete);
-    step_until_boot_status(&mut hw, FmcAliasDerivationComplete);
 }
