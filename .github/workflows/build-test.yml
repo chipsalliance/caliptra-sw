@@ -80,7 +80,7 @@ jobs:
 
       - name: Check license headers
         run: |
-          cargo run -p file-header-fix --locked -- --check
+          cargo run -p caliptra-file-header-fix --locked -- --check
 
       - name: Build
         run: |

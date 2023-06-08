@@ -1,6 +1,6 @@
 # Licensed under the Apache-2.0 license
 [package]
-name = "file-header-fix"
+name = "caliptra-file-header-fix"
 version = "0.1.0"
 edition = "2021"
 

@@ -10,10 +10,10 @@ license" in the header. Similar to cargo fmt.
 ```console
 $ cd ~/projects/caliptra-sw
 $ touch foo.rs bar.rs
-$ cargo run -p file-header-fix -- --check
+$ cargo run -p caliptra-file-header-fix -- --check
 File "./bar.rs" doesn't contain "Licensed under the Apache-2.0 license" in the first 3 lines
 File "./foo.rs" doesn't contain "Licensed under the Apache-2.0 license" in the first 3 lines
-To fix, run "cargo run --bin file-header-fix" in the workspace directory.
+To fix, run "cargo run --bin caliptra-file-header-fix" in the workspace directory.
 $ echo $?
 2
 ```
@@ -24,7 +24,7 @@ $ echo $?
 $ cd ~/projects/caliptra-sw
 $ echo "fn main() {}" > foo.rs
 $ touch bar.py
-$ cargo run -p file-header-fix
+$ cargo run -p caliptra-file-header-fix
 $ cat foo.rs
 // Licensed under the Apache-2.0 license
 
