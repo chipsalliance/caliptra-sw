@@ -60,6 +60,17 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         let offset = offset + fmc_toc.size;
         let (runtime_toc, runtime) = self.gen_image(&config.runtime, id, offset)?;
 
+        // Check if fmc and runtime image load address ranges don't overlap.
+        if fmc_toc.overlaps(&runtime_toc) {
+            bail!(
+                "FMC:[{0}:{1}] and Runtime:[{2}:{3}] load address ranges overlap",
+                fmc_toc.load_addr,
+                fmc_toc.load_addr + fmc_toc.size - 1,
+                runtime_toc.load_addr,
+                runtime_toc.load_addr + runtime_toc.size - 1
+            );
+        }
+
         let ecc_key_idx = config.vendor_config.ecc_key_idx;
         let lms_key_idx = config.vendor_config.lms_key_idx;
 
