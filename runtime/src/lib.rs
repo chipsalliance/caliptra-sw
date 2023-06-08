@@ -33,6 +33,9 @@ impl CommandId {
     pub const ECDSA384_VERIFY: Self = Self(0x53494756); // "SIGV"
     pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
     pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
+
+    pub const TEST_ONLY_GET_LDEV_CERT: Self = Self(0x4345524c); // "CERL"
+    pub const TEST_ONLY_GET_FMC_ALIAS_CERT: Self = Self(0x43455246); // "CERF"
 }
 impl From<u32> for CommandId {
     fn from(value: u32) -> Self {
@@ -120,6 +123,26 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         }
         CommandId::STASH_MEASUREMENT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::INVOKE_DPE => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        #[cfg(feature = "test_only_commands")]
+        CommandId::TEST_ONLY_GET_LDEV_CERT => {
+            let mut cert = [0u8; 1024];
+            let cert_len = dice::copy_ldevid_cert(&drivers.data_vault, &mut cert)?;
+            drivers.mbox.write_response(
+                cert.get(..cert_len)
+                    .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?,
+            )?;
+            Ok(MboxStatusE::DataReady)
+        }
+        #[cfg(feature = "test_only_commands")]
+        CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT => {
+            let mut cert = [0u8; 1024];
+            let cert_len = dice::copy_fmc_alias_cert(&drivers.data_vault, &mut cert)?;
+            drivers.mbox.write_response(
+                cert.get(..cert_len)
+                    .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?,
+            )?;
+            Ok(MboxStatusE::DataReady)
+        }
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }
 }

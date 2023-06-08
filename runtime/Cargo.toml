@@ -30,10 +30,11 @@ openssl = "0.10"
 
 [features]
 riscv = ["caliptra-cpu/riscv"]
-default = ["std"]
+default = ["std", "test_only_commands"]
 emu = [
     "caliptra_common/emu",
     "caliptra-drivers/emu"
 ]
 std = ["ufmt/std", "caliptra_common/std"]
+test_only_commands = []
 verilator = ["caliptra-hw-model/verilator"]
