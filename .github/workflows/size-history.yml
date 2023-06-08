@@ -12,7 +12,6 @@ jobs:
     runs-on: ubuntu-22.04
 
     env:
-      RUST_TOOLCHAIN_VERSION: 1.68.0
       CARGO_INCREMENTAL: 0
       CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
       PR_TITLE: ${{github.event.pull_request.title}}
@@ -34,11 +33,6 @@ jobs:
           script: |
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-
-      - name: Set Rust ${{ env.RUST_TOOLCHAIN_VERSION }} as the default toolchain.
-        run: |
-          rustup default ${RUST_TOOLCHAIN_VERSION}
-          rustup target add riscv32imc-unknown-none-elf
 
       - name: Run size analysis (look at workflow "Summary" tab for results)
         run: |
