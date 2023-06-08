@@ -93,9 +93,8 @@ impl DiceLayer for FmcAliasLayer {
         txn.complete(true)?;
         report_boot_status(FmcAliasFirmwareDownloadTxComplete.into());
 
-        // At this point PCR0 & PCR1 must have the same value. We use the value
-        // of PCR1 as the measurement for deriving the CDI
-        let measurement = env.pcr_bank.read_pcr(caliptra_drivers::PcrId::PcrId1);
+        // We use the value of PCR0 as the measurement for deriving the CDI.
+        let measurement = env.pcr_bank.read_pcr(caliptra_drivers::PcrId::PcrId0);
 
         // Derive the DICE CDI from decrypted UDS
         Self::derive_cdi(env, measurement, KEY_ID_CDI)?;
