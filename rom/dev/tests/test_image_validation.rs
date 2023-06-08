@@ -645,6 +645,90 @@ fn test_header_verify_owner_sig_zero_signature_s() {
 }
 
 #[test]
+fn test_header_verify_owner_sig_invalid_signature_r() {
+    let mut image_bundle = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
+    let gen = ImageGenerator::new(OsslCrypto::default());
+    let digest = gen
+        .owner_pubkey_digest(&image_bundle.manifest.preamble)
+        .unwrap();
+
+    let fuses = caliptra_hw_model::Fuses {
+        owner_pk_hash: digest,
+        ..Default::default()
+    };
+
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        fw_image: None,
+    })
+    .unwrap();
+
+    // Set an invalid owner_sig.r.
+    image_bundle.manifest.preamble.owner_sigs.ecc_sig.r.fill(1);
+
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID.into()
+        ),
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err()
+    );
+}
+
+#[test]
+fn test_header_verify_owner_sig_invalid_signature_s() {
+    let mut image_bundle = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
+    let gen = ImageGenerator::new(OsslCrypto::default());
+    let digest = gen
+        .owner_pubkey_digest(&image_bundle.manifest.preamble)
+        .unwrap();
+
+    let fuses = caliptra_hw_model::Fuses {
+        owner_pk_hash: digest,
+        ..Default::default()
+    };
+
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        fw_image: None,
+    })
+    .unwrap();
+
+    // Set an invalid owner_sig.s.
+    image_bundle.manifest.preamble.owner_sigs.ecc_sig.s.fill(1);
+
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID.into()
+        ),
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err()
+    );
+}
+
+#[test]
 fn test_toc_invalid_entry_count() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
