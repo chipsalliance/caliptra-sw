@@ -15,6 +15,7 @@ fn run_rom_test(test_bin_name: &'static str) -> DefaultHwModel {
         crate_name: "caliptra-runtime-test-bin",
         bin_name: test_bin_name,
         features: FEATURES,
+        ..Default::default()
     };
 
     let rom = caliptra_builder::build_firmware_rom(&runtime_fwid).unwrap();
@@ -37,6 +38,7 @@ fn run_rt_test(test_bin_name: Option<&'static str>) -> DefaultHwModel {
             crate_name: "caliptra-runtime-test-bin",
             bin_name: bin,
             features: &["emu", "riscv", "runtime"],
+            ..Default::default()
         },
         None => APP_WITH_UART,
     };

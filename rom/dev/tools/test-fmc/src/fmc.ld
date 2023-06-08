@@ -32,7 +32,7 @@ ESTACK_ORG       = 0x5001F800;
 NSTACK_ORG       = 0x5001FC00;
 
 MBOX_SIZE         = 128K;
-ICCM_SIZE         = 8K;
+ICCM_SIZE         = 128K;
 DCCM_SIZE         = 128K;
 MAN1_SIZE         = 4K;
 MAN2_SIZE         = 4K;

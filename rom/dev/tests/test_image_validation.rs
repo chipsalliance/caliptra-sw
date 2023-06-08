@@ -769,6 +769,37 @@ fn test_toc_fmc_range_incorrect_order() {
 }
 
 #[test]
+fn test_fmc_rt_load_address_range_overlap() {
+    // Case 1:
+    // [-FMC--]
+    //      [--RT--]
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let rt_new_load_addr = image_bundle.manifest.fmc.load_addr + 1;
+    let image = update_load_addr(&mut image_bundle, false, rt_new_load_addr);
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_LOAD_ADDR_OVERLAP.into()
+        ),
+        hw.upload_firmware(&image).unwrap_err()
+    );
+
+    // Case 2:
+    //      [-FMC--]
+    //  [--RT--]
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let fmc_new_load_addr = image_bundle.manifest.runtime.load_addr + 1;
+    let image = update_load_addr(&mut image_bundle, true, fmc_new_load_addr);
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_LOAD_ADDR_OVERLAP.into()
+        ),
+        hw.upload_firmware(&image).unwrap_err()
+    );
+}
+
+#[test]
 fn test_fmc_digest_mismatch() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
@@ -983,7 +1014,10 @@ fn test_runtime_invalid_load_addr_before_iccm() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
-    let image = update_load_addr(&mut image_bundle, false, ICCM_START_ADDR - 4);
+    let rt_new_load_addr = ICCM_START_ADDR
+        - (image_bundle.manifest.fmc.load_addr - ICCM_START_ADDR
+            + image_bundle.manifest.runtime.size);
+    let image = update_load_addr(&mut image_bundle, false, rt_new_load_addr);
     assert_eq!(
         ModelError::MailboxCmdFailed(
             CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID.into()
@@ -1166,6 +1200,7 @@ fn cert_test_with_custom_dates() {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
         features: &["emu"],
+        workspace_dir: None,
     };
 
     let fuses = Fuses::default();
@@ -1245,6 +1280,7 @@ fn cert_test() {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
         features: &["emu"],
+        workspace_dir: None,
     };
 
     let fuses = Fuses::default();

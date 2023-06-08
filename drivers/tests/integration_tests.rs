@@ -11,6 +11,7 @@ fn start_driver_test(test_bin_name: &'static str) -> Result<DefaultHwModel, Box<
         crate_name: "caliptra-drivers-test-bin",
         bin_name: test_bin_name,
         features: &["emu"],
+        ..Default::default()
     })
     .unwrap();
     caliptra_hw_model::new(BootParams {
@@ -332,6 +333,7 @@ fn test_csrng() {
         crate_name: "caliptra-drivers-test-bin",
         bin_name: "csrng",
         features: &["emu"],
+        ..Default::default()
     })
     .unwrap();
 

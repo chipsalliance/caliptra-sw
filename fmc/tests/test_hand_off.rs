@@ -10,6 +10,7 @@ fn test_hand_off() {
         crate_name: "caliptra-fmc-mock-rt",
         bin_name: "caliptra-fmc-mock-rt",
         features: &["emu"],
+        workspace_dir: None,
     };
 
     let image = caliptra_builder::build_and_sign_image(
