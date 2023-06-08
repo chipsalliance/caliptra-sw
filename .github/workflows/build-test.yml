@@ -14,27 +14,19 @@ jobs:
     runs-on: ubuntu-20.04
 
     env:
-      RUST_TOOLCHAIN_VERSION: 1.68.0
       CARGO_INCREMENTAL: 0
       SCCACHE_VERSION: 0.3.3
       SCCACHE_GHA_CACHE_TO: sccache-caliptra-sw
       SCCACHE_GHA_CACHE_FROM: sccache-caliptra-sw
 
       # Change this to a new random value if you suspect the cache is corrupted
-      SCCACHE_C_CUSTOM_CACHE_BUSTER: 68a6835b420c
+      SCCACHE_C_CUSTOM_CACHE_BUSTER: 4eeb97ca753a
 
       # Compiler warnings should fail to compile
       EXTRA_CARGO_CONFIG: "target.'cfg(all())'.rustflags = [\"-Dwarnings\"]"
 
     steps:
       - uses: actions/checkout@v3
-
-      - name: Restore Cargo index from cache
-        uses: actions/cache/restore@v3
-        id: cargo_index_restore
-        with:
-          path: ~/.cargo/registry/index
-          key: cargo-index-${{ env.SCCACHE_C_CUSTOM_CACHE_BUSTER }}-${{ hashFiles('Cargo.lock') }}
 
       - name: Restore sccache binary
         uses: actions/cache/restore@v3
@@ -65,14 +57,6 @@ jobs:
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
-      - name: Set Rust ${{ env.RUST_TOOLCHAIN_VERSION }} as the default toolchain.
-        run: |
-          rustup default ${RUST_TOOLCHAIN_VERSION}
-          rustup component add rustfmt clippy
-          rustc --version
-          cargo fmt --version
-          cargo clippy --version
-
       - name: Check that Cargo.lock doesn't need to be updated
           # Note: this isn't the same as checking that Cargo.lock is up to date
           # (cargo update --locked), which makes sure that every package is the
@@ -90,13 +74,6 @@ jobs:
             exit 1
           )
 
-      - name: Save Cargo index to cache
-        uses: actions/cache/save@v3
-        if: steps.cargo_index_restore.outputs.cache-hit != 'true'
-        with:
-          path: ~/.cargo/registry/index
-          key: cargo-index-${{ env.SCCACHE_C_CUSTOM_CACHE_BUSTER }}-${{ hashFiles('Cargo.lock') }}
-
       - name: Check source-code formatting (run "cargo fmt" if this fails)
         run: |
           cargo fmt --check --all
@@ -104,10 +81,6 @@ jobs:
       - name: Check license headers
         run: |
           cargo run -p file-header-fix --locked -- --check
-
-      - name: Install risv32imc target
-        run: |
-          rustup target add riscv32imc-unknown-none-elf
 
       - name: Build
         run: |

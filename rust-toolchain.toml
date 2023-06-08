@@ -1,0 +1,7 @@
+# Licensed under the Apache-2.0 license
+
+[toolchain]
+channel = "1.70"
+targets = ["riscv32imc-unknown-none-elf"]
+profile = "minimal"
+components = ["rustfmt", "clippy"]

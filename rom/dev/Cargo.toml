@@ -4,6 +4,7 @@
 name = "caliptra-rom"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.70"
 
 [dependencies]
 caliptra-drivers = { path = "../../drivers" }

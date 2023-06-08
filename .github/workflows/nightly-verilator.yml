@@ -5,7 +5,6 @@ on:
     # 2:11 AM PST tuesday-saturday
     - cron: '11 10 * * 2-6'
 
-
 jobs:
   smoke_test:
     name: Smoke Test
@@ -13,7 +12,6 @@ jobs:
     timeout-minutes: 360
 
     env:
-      RUST_TOOLCHAIN_VERSION: 1.68.0
       VERILATOR_VERSION: v5.006
       PKG_CONFIG_PATH: /opt/verilator/share/pkgconfig
         # Change this to a new random value if you suspect the cache is corrupted
@@ -23,14 +21,6 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
-
-      - name: Set Rust ${{ env.RUST_TOOLCHAIN_VERSION }} as the default toolchain.
-        run: |
-          rustup default ${RUST_TOOLCHAIN_VERSION}
-          rustup component add rustfmt clippy
-          rustc --version
-          cargo fmt --version
-          cargo clippy --version
 
       - name: Restore verilator dir
         uses: actions/cache/restore@v3
@@ -61,10 +51,6 @@ jobs:
       - name: Setup verilator path
         run: |
           echo /opt/verilator/bin >> $GITHUB_PATH
-
-      - name: Install risv32imc target
-        run: |
-          rustup target add riscv32imc-unknown-none-elf
 
       - name: Run smoke test inside verilator (will take hours)
         run: |
