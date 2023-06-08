@@ -7,7 +7,7 @@ use std::{
     process::Stdio,
 };
 
-const PROGRAM_BIN: &str = env!("CARGO_BIN_EXE_file-header-fix");
+const PROGRAM_BIN: &str = env!("CARGO_BIN_EXE_caliptra-file-header-fix");
 
 #[test]
 fn test_usage() {
