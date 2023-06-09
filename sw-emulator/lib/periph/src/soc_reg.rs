@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::helpers::{bytes_from_words_le, words_from_bytes_le};
+use crate::helpers::{bytes_from_words_be, words_from_bytes_be};
 use crate::root_bus::ReadyForFwCbArgs;
 use crate::{CaliptraRootBusArgs, Iccm, MailboxInternal};
 use caliptra_emu_bus::BusError::{LoadAccessFault, StoreAccessFault};
@@ -203,7 +203,7 @@ impl SocRegistersInternal {
     /// Get Unique device secret
     pub fn uds(&self) -> [u8; FUSE_UDS_SEED_SIZE] {
         if self.is_debug_locked() {
-            bytes_from_words_le(&self.regs.borrow().fuse_uds_seed)
+            bytes_from_words_be(&self.regs.borrow().fuse_uds_seed)
         } else {
             [0xff_u8; FUSE_UDS_SEED_SIZE]
         }
@@ -212,7 +212,7 @@ impl SocRegistersInternal {
     // Get field entropy
     pub fn field_entropy(&self) -> [u8; FUSE_FIELD_ENTROPY_SIZE] {
         if self.is_debug_locked() {
-            bytes_from_words_le(&self.regs.borrow().fuse_field_entropy)
+            bytes_from_words_be(&self.regs.borrow().fuse_field_entropy)
         } else {
             [0xff_u8; FUSE_FIELD_ENTROPY_SIZE]
         }
@@ -221,7 +221,7 @@ impl SocRegistersInternal {
     /// Get deobfuscation engine key
     pub fn doe_key(&self) -> [u8; INTERNAL_OBF_KEY_SIZE] {
         if self.is_debug_locked() {
-            bytes_from_words_le(&self.regs.borrow().internal_obf_key)
+            bytes_from_words_be(&self.regs.borrow().internal_obf_key)
         } else {
             [0xff_u8; INTERNAL_OBF_KEY_SIZE]
         }
@@ -533,7 +533,7 @@ impl SocRegistersImpl {
             cptra_clk_gating_en: ReadOnlyRegister::new(0),
             cptra_generic_input_wires: Default::default(),
             cptra_generic_output_wires: Default::default(),
-            fuse_uds_seed: words_from_bytes_le(&Self::UDS),
+            fuse_uds_seed: words_from_bytes_be(&Self::UDS),
             fuse_field_entropy: [0xffff_ffff; 8],
             fuse_vendor_pk_hash: Default::default(),
             fuse_vendor_pk_hash_mask: ReadWriteRegister::new(0),
