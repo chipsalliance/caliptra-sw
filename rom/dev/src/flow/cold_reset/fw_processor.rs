@@ -17,6 +17,8 @@ use crate::fuse::log_fuse_data;
 use crate::rom_env::RomEnv;
 use crate::{cprintln, verifier::RomImageVerificationEnv};
 use crate::{pcr, wdt};
+use caliptra_cfi_derive::cfi_impl_fn;
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::{cprint, memory_layout::MAN1_ORG, FuseLogEntryId, RomBootStatus::*};
 use caliptra_drivers::*;
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
@@ -50,13 +52,13 @@ impl FirmwareProcessor {
 
     pub fn process(env: &mut RomEnv) -> CaliptraResult<FwProcInfo> {
         // Disable the watchdog timer during firmware download.
-        wdt::stop_wdt(&mut env.soc_ifc);
+        wdt::WatchdogTimer::stop_wdt(&mut env.soc_ifc);
 
         // Download the image
         let mut txn = Self::download_image(&mut env.soc_ifc, &mut env.mbox)?;
 
         // Renable the watchdog timer.
-        wdt::start_wdt(&mut env.soc_ifc);
+        wdt::WatchdogTimer::start_wdt(&mut env.soc_ifc);
 
         // Load the manifest
         let manifest = Self::load_manifest(&mut txn);
@@ -82,7 +84,7 @@ impl FirmwareProcessor {
         Self::populate_data_vault(venv.data_vault, info);
 
         // Extend PCR0 and PCR1
-        pcr::extend_pcrs(&mut venv, info)?;
+        pcr::PcrExtender::extend_pcrs(&mut venv, info)?;
         report_boot_status(FwProcessorExtendPcrComplete.into());
 
         // Load the image
@@ -162,6 +164,7 @@ impl FirmwareProcessor {
     /// # Returns
     ///
     /// * `Manifest` - Caliptra Image Bundle Manifest
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn load_manifest(txn: &mut MailboxRecvTxn) -> CaliptraResult<ImageManifest> {
         let slice = unsafe {
             let ptr = MAN1_ORG as *mut u32;
@@ -170,10 +173,14 @@ impl FirmwareProcessor {
 
         txn.copy_request(slice)?;
 
-        if let Some(result) = ImageManifest::read_from(slice.as_bytes()) {
+        let opt = ImageManifest::read_from(slice.as_bytes());
+        let result = opt.is_some();
+        if cfi_launder(result) {
+            cfi_assert!(result);
             report_boot_status(FwProcessorManifestLoadComplete.into());
-            Ok(result)
+            Ok(opt.unwrap())
         } else {
+            cfi_assert!(!result);
             Err(CaliptraError::FW_PROC_MANIFEST_READ_FAILURE)
         }
     }
@@ -183,6 +190,7 @@ impl FirmwareProcessor {
     /// # Arguments
     ///
     /// * `env` - ROM Environment
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn verify_image(
         venv: &mut RomImageVerificationEnv,
         manifest: &ImageManifest,
@@ -213,6 +221,7 @@ impl FirmwareProcessor {
     ///
     /// # Returns
     /// * CaliptraResult
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn update_fuse_log(log_info: &ImageVerificationLogInfo) -> CaliptraResult<()> {
         // Log VendorPubKeyIndex
         log_fuse_data(
@@ -295,6 +304,7 @@ impl FirmwareProcessor {
     /// * `txn`      - Mailbox Receive Transaction
     // Inlined to reduce ROM size
     #[inline(always)]
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn load_image(manifest: &ImageManifest, txn: &mut MailboxRecvTxn) -> CaliptraResult<()> {
         cprintln!(
             "[afmc] Loading FMC at address 0x{:08x} len {}",
@@ -332,6 +342,7 @@ impl FirmwareProcessor {
     ///
     /// * `env`  - ROM Environment
     /// * `info` - Image Verification Info
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn populate_data_vault(data_vault: &mut DataVault, info: &ImageVerificationInfo) {
         data_vault.write_cold_reset_entry48(ColdResetEntry48::FmcTci, &info.fmc.digest.into());
 

@@ -33,7 +33,13 @@ pub const FMCALIAS_TBS_ORG: u32 = 0x50003C00;
 pub const RTALIAS_TBS_ORG: u32 = 0x50004000;
 pub const PCR_LOG_ORG: u32 = 0x50004400;
 pub const FUSE_LOG_ORG: u32 = 0x50004800;
-pub const BOOT_STATUS_ORG: u32 = 0x50004BFC;
+pub const BOOT_STATUS_ORG: u32 = 0x50004BE4;
+pub const CFI_VAL_ORG: u32 = 0x50004BE8;
+pub const CFI_MASK_ORG: u32 = 0x50004BEC;
+pub const CFI_XO_S0_ORG: u32 = 0x50004BF0;
+pub const CFI_XO_S1_ORG: u32 = 0x50004BF4;
+pub const CFI_XO_S2_ORG: u32 = 0x50004BF8;
+pub const CFI_XO_S3_ORG: u32 = 0x50004BFC;
 pub const DATA_ORG: u32 = 0x50004C00;
 pub const STACK_ORG: u32 = 0x5001A000;
 pub const ESTACK_ORG: u32 = 0x5001F800;
@@ -54,8 +60,7 @@ pub const LDEVID_TBS_SIZE: u32 = 1024;
 pub const FMCALIAS_TBS_SIZE: u32 = 1024;
 pub const RTALIAS_TBS_SIZE: u32 = 1024;
 pub const PCR_LOG_SIZE: usize = 1024;
-pub const FUSE_LOG_SIZE: usize = 1020;
-pub const BOOT_STATUS_SIZE: u32 = 4;
+pub const FUSE_LOG_SIZE: usize = 996;
 pub const DATA_SIZE: u32 = 85 * 1024;
 pub const STACK_SIZE: u32 = 22 * 1024;
 pub const ESTACK_SIZE: u32 = 1024;
@@ -106,12 +111,6 @@ fn mem_layout_test_pcrlog() {
 #[allow(clippy::assertions_on_constants)]
 fn mem_layout_test_fuselog() {
     assert_eq!((BOOT_STATUS_ORG - FUSE_LOG_ORG), FUSE_LOG_SIZE as u32);
-}
-
-#[test]
-#[allow(clippy::assertions_on_constants)]
-fn mem_layout_test_bootstatus() {
-    assert_eq!((DATA_ORG - BOOT_STATUS_ORG), BOOT_STATUS_SIZE);
 }
 
 #[test]

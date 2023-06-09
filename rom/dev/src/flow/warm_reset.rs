@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 use crate::{cprintln, rom_env::RomEnv};
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::FirmwareHandoffTable;
 use caliptra_error::CaliptraResult;
 
@@ -25,6 +26,7 @@ impl WarmResetFlow {
     ///
     /// * `env` - ROM Environment
     #[inline(never)]
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn run(_env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
         cprintln!("[warm-reset] ++");
         cprintln!("[warm-reset] --");

@@ -194,6 +194,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "caliptra-cfi-derive"
+version = "0.1.0"
+dependencies = [
+ "paste",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "caliptra-cfi-lib"
+version = "0.1.0"
+dependencies = [
+ "caliptra-cfi-derive",
+ "caliptra-drivers",
+ "caliptra-registers",
+ "caliptra_common",
+ "ufmt",
+]
+
+[[package]]
 name = "caliptra-cpu"
 version = "0.1.0"
 dependencies = [
@@ -537,6 +558,8 @@ name = "caliptra-rom"
 version = "0.1.0"
 dependencies = [
  "caliptra-builder",
+ "caliptra-cfi-derive",
+ "caliptra-cfi-lib",
  "caliptra-drivers",
  "caliptra-error",
  "caliptra-hw-model",

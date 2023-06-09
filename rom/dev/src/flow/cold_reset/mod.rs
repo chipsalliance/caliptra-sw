@@ -27,6 +27,7 @@ use crate::flow::cold_reset::fw_processor::FirmwareProcessor;
 use crate::flow::cold_reset::idev_id::InitDevIdLayer;
 use crate::flow::cold_reset::ldev_id::LocalDevIdLayer;
 use crate::{cprintln, rom_env::RomEnv};
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::RomBootStatus::*;
 use caliptra_common::{
     memory_layout::{FMCALIAS_TBS_ORG, FMCALIAS_TBS_SIZE, LDEVID_TBS_ORG, LDEVID_TBS_SIZE},
@@ -48,19 +49,20 @@ impl ColdResetFlow {
     ///
     /// * `env` - ROM Environment
     #[inline(never)]
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
         cprintln!("[cold-reset] ++");
         report_boot_status(ColdResetStarted.into());
 
         // Execute IDEVID layer
         let mut idevid_layer_output = InitDevIdLayer::derive(env)?;
-        let ldevid_layer_input = dice_input_from_output(&idevid_layer_output);
+        let ldevid_layer_input = Self::dice_input_from_output(&idevid_layer_output);
 
         // Execute LDEVID layer
         let result = LocalDevIdLayer::derive(env, &ldevid_layer_input);
         idevid_layer_output.zeroize();
         let mut ldevid_layer_output = result?;
-        let fmc_layer_input = dice_input_from_output(&ldevid_layer_output);
+        let fmc_layer_input = Self::dice_input_from_output(&ldevid_layer_output);
 
         // Download and validate firmware.
         let mut fw_proc_info = FirmwareProcessor::process(env)?;
@@ -75,52 +77,53 @@ impl ColdResetFlow {
 
         Ok(Some(fht::make_fht(env)))
     }
-}
 
-/// Copies the TBS to DCCM
-///
-/// # Arguments
-/// * `tbs` - TBS to copy
-/// * `tbs_type` - Type of TBS
-/// * `env` - ROM Environment
-///
-/// # Returns
-///     CaliptraResult
-pub fn copy_tbs(tbs: &[u8], tbs_type: TbsType, env: &mut RomEnv) -> CaliptraResult<()> {
-    let dst = match tbs_type {
-        TbsType::LdevidTbs => {
-            env.fht_data_store.ldevid_tbs_size = tbs.len() as u16;
-            unsafe {
-                let tbs_max_size = LDEVID_TBS_SIZE as usize;
-                if tbs.len() > tbs_max_size {
-                    return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_LDEVID_TBS_SIZE);
+    /// Copies the TBS to DCCM
+    ///
+    /// # Arguments
+    /// * `tbs` - TBS to copy
+    /// * `tbs_type` - Type of TBS
+    /// * `env` - ROM Environment
+    ///
+    /// # Returns
+    ///     CaliptraResult
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn copy_tbs(tbs: &[u8], tbs_type: TbsType, env: &mut RomEnv) -> CaliptraResult<()> {
+        let dst = match tbs_type {
+            TbsType::LdevidTbs => {
+                env.fht_data_store.ldevid_tbs_size = tbs.len() as u16;
+                unsafe {
+                    let tbs_max_size = LDEVID_TBS_SIZE as usize;
+                    if tbs.len() > tbs_max_size {
+                        return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_LDEVID_TBS_SIZE);
+                    }
+                    let ptr = LDEVID_TBS_ORG as *mut u8;
+                    core::slice::from_raw_parts_mut(ptr, tbs.len())
                 }
-                let ptr = LDEVID_TBS_ORG as *mut u8;
-                core::slice::from_raw_parts_mut(ptr, tbs.len())
             }
-        }
-        TbsType::FmcaliasTbs => {
-            env.fht_data_store.fmcalias_tbs_size = tbs.len() as u16;
-            unsafe {
-                let tbs_max_size = FMCALIAS_TBS_SIZE as usize;
-                if tbs.len() > tbs_max_size {
-                    return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE);
+            TbsType::FmcaliasTbs => {
+                env.fht_data_store.fmcalias_tbs_size = tbs.len() as u16;
+                unsafe {
+                    let tbs_max_size = FMCALIAS_TBS_SIZE as usize;
+                    if tbs.len() > tbs_max_size {
+                        return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE);
+                    }
+
+                    let ptr = FMCALIAS_TBS_ORG as *mut u8;
+                    core::slice::from_raw_parts_mut(ptr, tbs.len())
                 }
-
-                let ptr = FMCALIAS_TBS_ORG as *mut u8;
-                core::slice::from_raw_parts_mut(ptr, tbs.len())
             }
+        };
+
+        dst[..tbs.len()].copy_from_slice(tbs);
+        Ok(())
+    }
+
+    fn dice_input_from_output(dice_output: &DiceOutput) -> DiceInput {
+        DiceInput {
+            auth_key_pair: &dice_output.subj_key_pair,
+            auth_sn: &dice_output.subj_sn,
+            auth_key_id: &dice_output.subj_key_id,
         }
-    };
-
-    dst[..tbs.len()].copy_from_slice(tbs);
-    Ok(())
-}
-
-fn dice_input_from_output(dice_output: &DiceOutput) -> DiceInput {
-    DiceInput {
-        auth_key_pair: &dice_output.subj_key_pair,
-        auth_sn: &dice_output.subj_sn,
-        auth_key_id: &dice_output.subj_key_id,
     }
 }

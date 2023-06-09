@@ -16,6 +16,7 @@ Abstract:
 #![cfg_attr(feature = "val-rom", allow(unused_imports))]
 
 use crate::lock::lock_registers;
+use caliptra_cfi_lib::CfiCounter;
 use core::hint::black_box;
 
 use caliptra_drivers::{
@@ -54,6 +55,13 @@ Running Caliptra ROM ...
 pub extern "C" fn rom_entry() -> ! {
     cprintln!("{}", BANNER);
 
+    if !cfg!(feature = "no-cfi") {
+        cprintln!("[state] CFI Enabled");
+        CfiCounter::reset();
+    } else {
+        cprintln!("[state] CFI Disabled");
+    }
+
     let mut env = match unsafe { rom_env::RomEnv::new_from_registers() } {
         Ok(env) => env,
         Err(e) => handle_fatal_error(e.into()),
@@ -84,7 +92,7 @@ pub extern "C" fn rom_entry() -> ! {
     );
 
     // Start the watchdog timer
-    wdt::start_wdt(&mut env.soc_ifc);
+    wdt::WatchdogTimer::start_wdt(&mut env.soc_ifc);
 
     if !cfg!(feature = "val-rom") {
         let result = kat::execute_kat(&mut env);
@@ -117,7 +125,7 @@ pub extern "C" fn rom_entry() -> ! {
 
     // Stop the watchdog timer.
     // [TODO] Reset the watchdog timer and let FMC take ownership of it.
-    wdt::stop_wdt(&mut env.soc_ifc);
+    wdt::WatchdogTimer::stop_wdt(&mut env.soc_ifc);
 
     // Lock the datavault registers.
     lock_registers(&mut env, reset_reason);
@@ -190,6 +198,13 @@ fn rom_panic(_: &core::panic::PanicInfo) -> ! {
 fn handle_non_fatal_error(code: u32) {
     cprintln!("ROM Non-Fatal Error: 0x{:08X}", code);
     report_fw_error_non_fatal(code);
+}
+
+#[no_mangle]
+extern "C" fn cfi_panic_handler(code: u32) -> ! {
+    cprintln!("CFI Panic code=0x{:08X}", code);
+
+    handle_fatal_error(code);
 }
 
 #[allow(clippy::empty_loop)]

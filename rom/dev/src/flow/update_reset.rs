@@ -13,6 +13,7 @@ Abstract:
 --*/
 use crate::{cprintln, pcr, rom_env::RomEnv, verifier::RomImageVerificationEnv};
 
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::memory_layout::{MAN1_ORG, MAN2_ORG};
 use caliptra_common::FirmwareHandoffTable;
 
@@ -37,6 +38,7 @@ impl UpdateResetFlow {
     /// # Arguments
     ///
     /// * `env` - ROM Environment
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
         cprintln!("[update-reset] ++");
         report_boot_status(UpdateResetStarted.into());
@@ -69,7 +71,7 @@ impl UpdateResetFlow {
         report_boot_status(UpdateResetImageVerificationComplete.into());
 
         // Extend PCR0 and PCR1
-        pcr::extend_pcrs(&mut venv, info)?;
+        pcr::PcrExtender::extend_pcrs(&mut venv, info)?;
         report_boot_status(UpdateResetExtendPcrComplete.into());
 
         cprintln!(
@@ -80,7 +82,11 @@ impl UpdateResetFlow {
         // Populate data vault
         Self::populate_data_vault(venv.data_vault, info);
 
-        Self::load_image(&manifest, recv_txn)?;
+        Self::load_image(&manifest, &mut recv_txn)?;
+
+        // Drop the transaction and release the Mailbox lock after the image
+        // has been successfully verified and loaded in memory
+        drop(recv_txn);
         report_boot_status(UpdateResetLoadImageComplete.into());
 
         Self::copy_regions();
@@ -102,6 +108,7 @@ impl UpdateResetFlow {
     /// * `env` - ROM Environment
     /// * 'manifest'- Manifest
     ///
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn verify_image(
         env: &mut RomImageVerificationEnv,
         manifest: &ImageManifest,
@@ -121,6 +128,7 @@ impl UpdateResetFlow {
     ///
     /// * `manifest` - Manifest
     ///
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn copy_regions() {
         cprintln!("[update-reset] Copying MAN_2 To MAN_1");
 
@@ -144,7 +152,8 @@ impl UpdateResetFlow {
     /// * `env`      - ROM Environment
     /// * `manifest` - Manifest
     /// * `txn`      - Mailbox Receive Transaction
-    fn load_image(manifest: &ImageManifest, mut txn: MailboxRecvTxn) -> CaliptraResult<()> {
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn load_image(manifest: &ImageManifest, txn: &mut MailboxRecvTxn) -> CaliptraResult<()> {
         cprintln!(
             "[update-reset] Loading Runtime at address 0x{:08x} len {}",
             manifest.runtime.load_addr,
@@ -164,10 +173,6 @@ impl UpdateResetFlow {
         //Call the complete here to reset the execute bit
         txn.complete(true)?;
 
-        // Drop the transaction and release the Mailbox lock after the image
-        // has been successfully verified and loaded in memory
-        drop(txn);
-
         Ok(())
     }
 
@@ -176,6 +181,7 @@ impl UpdateResetFlow {
     /// # Returns
     ///
     /// * `Manifest` - Caliptra Image Bundle Manifest
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn load_manifest(txn: &mut MailboxRecvTxn) -> CaliptraResult<ImageManifest> {
         let slice = unsafe {
             let ptr = MAN2_ORG as *mut u32;
