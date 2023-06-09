@@ -19,6 +19,8 @@ exclude = [
 
 members = [
   "builder",
+  "cfi/lib",
+  "cfi/derive",
   "ci-tools/file-header-fix",
   "ci-tools/size-history",
   "common",
@@ -74,6 +76,8 @@ arrayref = "0.3.6"
 asn1 = "0.13.0"
 bitfield = "0.14.0"
 bitflags = "2.0.1"
+caliptra-cfi-lib = { path = "cfi/lib", default-features = false, features = ["cfi", "cfi-counter" ] }
+caliptra-cfi-derive = { path = "cfi/derive" }
 caliptra_common = { path = "common", default-features = false }
 caliptra-builder = { path = "builder" }
 caliptra-cpu = { path = "cpu" }

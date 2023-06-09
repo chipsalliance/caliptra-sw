@@ -22,6 +22,7 @@ Note:
 --*/
 
 use crate::verifier::RomImageVerificationEnv;
+use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_common::{
     memory_layout::{PCR_LOG_ORG, PCR_LOG_SIZE},
     pcr::{PCR_ID_FMC_CURRENT, PCR_ID_FMC_JOURNEY},
@@ -37,10 +38,13 @@ struct PcrExtender<'a> {
     sha384: &'a mut Sha384,
 }
 impl PcrExtender<'_> {
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn extend(&mut self, data: Array4x12, pcr_entry_id: PcrLogEntryId) -> CaliptraResult<()> {
         let bytes: &[u8; 48] = &data.into();
         self.extend_and_log(bytes, pcr_entry_id)
     }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn extend_u8(&mut self, data: u8, pcr_entry_id: PcrLogEntryId) -> CaliptraResult<()> {
         let bytes = &data.to_le_bytes();
         self.extend_and_log(bytes, pcr_entry_id)
@@ -61,6 +65,7 @@ impl PcrExtender<'_> {
 /// # Arguments
 ///
 /// * `env` - ROM Environment
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub(crate) fn extend_pcrs(
     env: &mut RomImageVerificationEnv,
     info: &ImageVerificationInfo,
@@ -122,6 +127,7 @@ pub(crate) fn extend_pcrs(
 /// * `Err(GlobalErr::PcrLogInvalidEntryId)` - Invalid PCR log entry ID
 /// * `Err(GlobalErr::PcrLogUpsupportedDataLength)` - Unsupported data length
 ///
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub fn log_pcr(
     pcr_bank: &mut PcrBank,
     pcr_entry_id: PcrLogEntryId,
