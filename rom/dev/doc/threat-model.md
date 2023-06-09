@@ -1,6 +1,6 @@
 # Outline
 
-The documentation’s purpose is to iterate threat that the Caliptra ROM will face from potential attackers, we will also look at the potential mitigations and the difficulty level of the attack. The goal for this document is to look at just the Caliptra ROM and what thread that it can potentially face.  There is a comprehensive [Caliptra Asset & Threats](https://github.com/chipsalliance/Caliptra/blob/main/doc/Caliptra.md#caliptra-assets--threats) writing currently in the Caliptra specification that covers Caliptra IP as a whole. 
+The documentation’s purpose is to iterate threat that the Caliptra ROM will face from potential attackers, we will also look at the potential mitigations and the difficulty level of the attack. The goal for this document is to look at just the Caliptra ROM and what threat that it can potentially face.  There is a comprehensive [Caliptra Asset & Threats](https://github.com/chipsalliance/Caliptra/blob/main/doc/Caliptra.md#caliptra-assets--threats) writing currently in the Caliptra specification that covers Caliptra IP as a whole. 
 The main area of attack surface that we will look at includes the following,
 
 -	ROM Confidentiality / Reverse Engineering Attack
@@ -51,10 +51,10 @@ For Caliptra ROM, this is especially something we need to worry about for ROM im
 
 ## Mitigation
 
-Mitigation will consist of either block the potential attacker (sending in image for authentication) from modifing the Caliptra-fw image prior to Caliptra ROM is to authenticate it, or have Caliptra ROM to load Caliptra-FW image into internal TCM prior to authentication.
+Mitigation will consist of either block the potential attacker (sending in image for authentication) from modifing the Caliptra-fw image prior to Caliptra ROM is to authenticate it, or have Caliptra ROM to load Caliptra-FW image into internal CCM prior to authentication.
 
 - Disable external entity ability to modify Caliptra mailbox content post mailbox command that triggers Caliptra ROM to act on mailbox data.
-- Have Caliptra ROM move mailbox content into TCM prior to authentication
+- Have Caliptra ROM move mailbox content into CCM prior to authentication
 
 # Physical Attacks (Glitching / Fault Injection)
 ## Attack Description
