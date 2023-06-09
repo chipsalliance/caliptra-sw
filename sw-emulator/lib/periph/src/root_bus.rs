@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::{
-    helpers::words_from_bytes_le,
+    helpers::words_from_bytes_be,
     iccm::Iccm,
     soc_reg::{DebugManufService, SocRegistersExternal},
     AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha384, KeyVault, MailboxExternal,
@@ -232,7 +232,7 @@ impl Default for CaliptraRootBusArgs {
             upload_update_fw: Default::default(),
             bootfsm_go_cb: Default::default(),
             download_idevid_csr_cb: Default::default(),
-            cptra_obf_key: words_from_bytes_le(&DEFAULT_DOE_KEY),
+            cptra_obf_key: words_from_bytes_be(&DEFAULT_DOE_KEY),
         }
     }
 }
