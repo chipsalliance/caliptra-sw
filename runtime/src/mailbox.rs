@@ -1,8 +1,8 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_drivers::{CaliptraError, CaliptraResult};
+use caliptra_drivers::CaliptraResult;
 use caliptra_registers::mbox::{enums::MboxStatusE, MboxCsr};
-use zerocopy::{LayoutVerified, Unalign};
+use zerocopy::{AsBytes, LayoutVerified, Unalign};
 
 pub struct Mailbox {
     mbox: MboxCsr,
@@ -56,14 +56,15 @@ impl Mailbox {
 
     /// Write a word-aligned `buf` to the mailbox
     pub fn write_response(&mut self, buf: &[u8]) -> CaliptraResult<()> {
-        let Some(buf_words) = LayoutVerified::new_slice_unaligned(buf) else {
-            // buf size is not a multiple of word size
-            return Err(CaliptraError::RUNTIME_INTERNAL);
-        };
-
+        let (buf_words, suffix) =
+            LayoutVerified::new_slice_unaligned_from_prefix(buf, buf.len() / 4).unwrap();
         self.set_dlen(buf.len() as u32);
         self.copy_to_mbox(&buf_words);
-
+        if !suffix.is_empty() {
+            let mut last_word = 0_u32;
+            last_word.as_bytes_mut()[..suffix.len()].copy_from_slice(suffix);
+            self.copy_to_mbox(&[Unalign::new(last_word)]);
+        }
         Ok(())
     }
 
