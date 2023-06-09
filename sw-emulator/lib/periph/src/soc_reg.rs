@@ -195,20 +195,36 @@ impl SocRegistersInternal {
             ))),
         }
     }
+    pub fn is_debug_locked(&self) -> bool {
+        let reg = &self.regs.borrow().cptra_security_state.reg;
+        reg.read(SecurityState::DEBUG_LOCKED) != 0
+    }
 
     /// Get Unique device secret
     pub fn uds(&self) -> [u8; FUSE_UDS_SEED_SIZE] {
-        bytes_from_words_le(&self.regs.borrow().fuse_uds_seed)
+        if self.is_debug_locked() {
+            bytes_from_words_le(&self.regs.borrow().fuse_uds_seed)
+        } else {
+            [0xff_u8; FUSE_UDS_SEED_SIZE]
+        }
     }
 
     // Get field entropy
     pub fn field_entropy(&self) -> [u8; FUSE_FIELD_ENTROPY_SIZE] {
-        bytes_from_words_le(&self.regs.borrow().fuse_field_entropy)
+        if self.is_debug_locked() {
+            bytes_from_words_le(&self.regs.borrow().fuse_field_entropy)
+        } else {
+            [0xff_u8; FUSE_FIELD_ENTROPY_SIZE]
+        }
     }
 
     /// Get deobfuscation engine key
     pub fn doe_key(&self) -> [u8; INTERNAL_OBF_KEY_SIZE] {
-        *self.regs.borrow().internal_obf_key.data()
+        if self.is_debug_locked() {
+            *self.regs.borrow().internal_obf_key.data()
+        } else {
+            [0xff_u8; INTERNAL_OBF_KEY_SIZE]
+        }
     }
 
     /// Clear secrets
@@ -1020,5 +1036,43 @@ mod tests {
         let _ = soc_reg.write(RvSize::Word, CPTRA_GENERIC_OUTPUT_WIRES_START, 0xff);
 
         assert_eq!(&*output.borrow(), &vec![b'h', b'i', 0xff]);
+    }
+
+    #[test]
+    fn test_secrets_when_debug_not_locked() {
+        use caliptra_hw_model_types::SecurityState;
+        let clock = Clock::new();
+        let soc = SocRegistersInternal::new(
+            &clock,
+            MailboxInternal::new(MailboxRam::new()),
+            Iccm::new(&clock),
+            CaliptraRootBusArgs {
+                security_state: *SecurityState::default().set_debug_locked(false),
+                ..CaliptraRootBusArgs::default()
+            },
+        );
+        soc.external_regs().regs.borrow_mut().fuse_field_entropy = [0x33333333; 8];
+        assert_eq!(soc.uds(), [0xff_u8; 48]);
+        assert_eq!(soc.field_entropy(), [0xff_u8; 32]);
+        assert_eq!(soc.doe_key(), [0xff_u8; 32]);
+    }
+
+    #[test]
+    fn test_secrets_when_debug_locked() {
+        use caliptra_hw_model_types::SecurityState;
+        let clock = Clock::new();
+        let soc = SocRegistersInternal::new(
+            &clock,
+            MailboxInternal::new(MailboxRam::new()),
+            Iccm::new(&clock),
+            CaliptraRootBusArgs {
+                security_state: *SecurityState::default().set_debug_locked(true),
+                ..CaliptraRootBusArgs::default()
+            },
+        );
+        soc.external_regs().regs.borrow_mut().fuse_field_entropy = [0x33333333; 8];
+        assert_eq!(soc.uds(), SocRegistersImpl::UDS);
+        assert_eq!(soc.field_entropy(), [0x33_u8; 32]);
+        assert_eq!(soc.doe_key(), SocRegistersImpl::DOE_KEY);
     }
 }
