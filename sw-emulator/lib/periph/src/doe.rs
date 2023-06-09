@@ -215,6 +215,7 @@ mod tests {
     use caliptra_emu_bus::Bus;
     use caliptra_emu_crypto::EndianessTransform;
     use caliptra_emu_types::RvAddr;
+    use caliptra_hw_model_types::SecurityState;
     use tock_registers::registers::InMemoryRegister;
 
     const OFFSET_IV: RvAddr = 0;
@@ -250,7 +251,10 @@ mod tests {
             &clock,
             MailboxInternal::new(MailboxRam::new()),
             Iccm::new(&clock),
-            CaliptraRootBusArgs::default(),
+            CaliptraRootBusArgs {
+                security_state: *SecurityState::default().set_debug_locked(true),
+                ..CaliptraRootBusArgs::default()
+            },
         );
         let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg);
 
@@ -309,7 +313,10 @@ mod tests {
             &clock,
             MailboxInternal::new(MailboxRam::new()),
             Iccm::new(&clock),
-            CaliptraRootBusArgs::default(),
+            CaliptraRootBusArgs {
+                security_state: *SecurityState::default().set_debug_locked(true),
+                ..CaliptraRootBusArgs::default()
+            },
         );
         let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg);
 
@@ -367,7 +374,10 @@ mod tests {
             &clock,
             MailboxInternal::new(MailboxRam::new()),
             Iccm::new(&clock),
-            CaliptraRootBusArgs::default(),
+            CaliptraRootBusArgs {
+                security_state: *SecurityState::default().set_debug_locked(true),
+                ..CaliptraRootBusArgs::default()
+            },
         );
         let mut doe = Doe::new(&clock, key_vault, soc_reg.clone());
         assert_ne!(soc_reg.uds(), expected_uds);
