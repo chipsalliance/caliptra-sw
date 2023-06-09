@@ -96,8 +96,16 @@ impl Sha256 {
             }
         }
 
-        let sha256 = self.sha256.regs();
-        Ok(Array4x8::read_from_reg(sha256.digest()))
+        let digest = Array4x8::read_from_reg(self.sha256.regs().digest());
+
+        self.zeroize();
+
+        Ok(digest)
+    }
+
+    /// Zeroize the hardware registers.
+    pub fn zeroize(&mut self) {
+        self.sha256.regs_mut().ctrl().write(|w| w.zeroize(true));
     }
 
     /// Copy digest to buffer

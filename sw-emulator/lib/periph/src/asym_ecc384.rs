@@ -290,18 +290,22 @@ impl AsymEcc384 {
         // Set the control register
         self.control.reg.set(val);
 
-        // Reset the Ready and Valid status bits
-        self.status
-            .reg
-            .modify(Status::READY::CLEAR + Status::VALID::CLEAR);
-
         match self.control.reg.read_as_enum(Control::CTRL) {
             Some(Control::CTRL::Value::GEN_KEY)
             | Some(Control::CTRL::Value::SIGN)
             | Some(Control::CTRL::Value::VERIFY) => {
+                // Reset the Ready and Valid status bits
+                self.status
+                    .reg
+                    .modify(Status::READY::CLEAR + Status::VALID::CLEAR);
+
                 self.op_complete_action = Some(self.timer.schedule_poll_in(ECC384_OP_TICKS));
             }
             _ => {}
+        }
+
+        if self.control.reg.is_set(Control::ZEROIZE) {
+            self.zeroize();
         }
 
         Ok(())
@@ -615,6 +619,21 @@ impl AsymEcc384 {
             },
         );
         self.verify_r = words_from_bytes_le(&verify_r);
+    }
+
+    // Clear registers
+    fn zeroize(&mut self) {
+        self.seed.as_mut().fill(0);
+        self.hash.as_mut().fill(0);
+        self.priv_key_out.as_mut().fill(0);
+        self.pub_key_x.as_mut().fill(0);
+        self.pub_key_y.as_mut().fill(0);
+        self.sig_r.as_mut().fill(0);
+        self.sig_s.as_mut().fill(0);
+        self.verify_r.as_mut().fill(0);
+        self.iv.as_mut().fill(0);
+        self.nonce.as_mut().fill(0);
+        self.priv_key_in.as_mut().fill(0);
     }
 }
 
