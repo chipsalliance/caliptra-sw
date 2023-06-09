@@ -129,6 +129,7 @@ pub struct BootParams<'a> {
     pub init_params: InitParams<'a>,
     pub fuses: Fuses,
     pub fw_image: Option<&'a [u8]>,
+    pub initial_dbg_manuf_service_reg: u32,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -294,6 +295,10 @@ pub trait HwModel {
         let mut hw: Self = HwModel::new_unbooted(run_params.init_params)?;
 
         hw.init_fuses(&run_params.fuses);
+
+        hw.soc_ifc()
+            .cptra_dbg_manuf_service_reg()
+            .write(|_| run_params.initial_dbg_manuf_service_reg);
 
         writeln!(hw.output().logger(), "writing to cptra_bootfsm_go")?;
         hw.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
