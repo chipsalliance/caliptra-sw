@@ -28,8 +28,8 @@ const DOE_IV_SIZE: usize = 16;
 /// The number of CPU clock cycles it takes to perform the hash update action.
 const DOE_OP_TICKS: u64 = 1000;
 
-// hmac_block_dest_valid
-const DOE_KEY_USAGE: u32 = 0x2;
+// hmac_key_dest_valid | hmac_block_dest_valid
+const DOE_KEY_USAGE: u32 = 0x3;
 
 register_bitfields! [
     u32,
@@ -284,23 +284,23 @@ mod tests {
             clock.increment_and_process_timer_actions(1, &mut doe);
         }
 
-        let mut key_usage = KeyUsage::default();
-        key_usage.set_hmac_data(true);
+        let mut ku_hmac_data = KeyUsage::default();
+        ku_hmac_data.set_hmac_data(true);
 
-        assert_eq!(
-            key_vault.read_key(2, key_usage).unwrap()[..48],
-            PLAIN_TEXT_UDS
-        );
+        let mut ku_hmac_key = KeyUsage::default();
+        ku_hmac_key.set_hmac_key(true);
+
+        assert_eq!(key_vault.read_key(2, ku_hmac_data).unwrap(), PLAIN_TEXT_UDS);
+        assert_eq!(key_vault.read_key(2, ku_hmac_key).unwrap(), PLAIN_TEXT_UDS);
     }
 
     #[test]
     fn test_deobfuscate_fe() {
-        const PLAIN_TEXT_FE: [u8; 64] = [
+        const PLAIN_TEXT_FE: [u8; 48] = [
             0xC6, 0x10, 0x65, 0x4D, 0xB4, 0xED, 0xA8, 0x53, 0xCF, 0x54, 0x6D, 0xEF, 0x52, 0x4E,
             0xC1, 0x5F, 0x39, 0xEF, 0x9A, 0xB2, 0x4B, 0x12, 0x57, 0xAC, 0x30, 0xAB, 0x92, 0x10,
             0xAD, 0xB1, 0x3E, 0xA0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
 
         let clock = Clock::new();
@@ -346,13 +346,14 @@ mod tests {
             clock.increment_and_process_timer_actions(1, &mut doe);
         }
 
-        let mut key_usage = KeyUsage::default();
-        key_usage.set_hmac_data(true);
+        let mut ku_hmac_data = KeyUsage::default();
+        ku_hmac_data.set_hmac_data(true);
 
-        assert_eq!(
-            key_vault.read_key(3, key_usage).unwrap(),
-            PLAIN_TEXT_FE[..KeyVault::KEY_SIZE]
-        );
+        let mut ku_hmac_key = KeyUsage::default();
+        ku_hmac_key.set_hmac_key(true);
+
+        assert_eq!(key_vault.read_key(3, ku_hmac_data).unwrap(), PLAIN_TEXT_FE);
+        assert_eq!(key_vault.read_key(3, ku_hmac_key).unwrap(), PLAIN_TEXT_FE);
     }
 
     #[test]
