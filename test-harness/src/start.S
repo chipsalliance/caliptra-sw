@@ -63,8 +63,16 @@ copy_data:
     j copy_data
 end_copy_data:
     
-    # Set side-effects in MRAC
-    li x1, 0xaaaaaaaa
+    # Setup MRAC
+    # ---------------------------------------------
+    # | Region       | Side Effect |  Cacheable   |      
+    # ---------------------------------------------
+    # | 0x0000_0000  |    0        |      1       |  
+    # | 0x4000_0000  |    0        |      0       |  
+    # | 0x5000_0000  |    0        |      0       |  
+    # | Others       |    1        |      0       |  
+    # ---------------------------------------------
+    li x1, 0xAAAAA0A9
     csrw 0x7c0, x1
 
     # call main entry point

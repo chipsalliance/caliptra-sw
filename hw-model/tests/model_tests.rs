@@ -46,7 +46,7 @@ fn test_iccm_byte_write_nmi_failure() {
     let nmi_info = harness::ExtErrorInfo::from(soc_ifc.cptra_fw_extended_error_info().read());
 
     // Exactly where the PC is when the NMI fires is a bit fuzzy...
-    assert!(nmi_info.mepc >= main_addr + 4 && nmi_info.mepc <= main_addr + 12);
+    assert!(nmi_info.mepc >= main_addr + 4 && nmi_info.mepc <= main_addr + 24);
     assert_eq!(nmi_info.mcause, harness::NMI_CAUSE_DBUS_STORE_ERROR);
 }
 
@@ -72,7 +72,7 @@ fn test_iccm_unaligned_write_nmi_failure() {
     let ext_info = harness::ExtErrorInfo::from(soc_ifc.cptra_fw_extended_error_info().read());
 
     // Exactly where the PC is when the NMI fires is a bit fuzzy...
-    assert!(ext_info.mepc >= main_addr + 4 && ext_info.mepc <= main_addr + 12);
+    assert!(ext_info.mepc >= main_addr + 4 && ext_info.mepc <= main_addr + 24);
     assert_eq!(ext_info.mcause, harness::NMI_CAUSE_DBUS_STORE_ERROR);
 }
 
