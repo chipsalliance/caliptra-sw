@@ -1,23 +1,24 @@
 name: HW Release (for now manually triggered)
 on:
+  pull_request:
   workflow_dispatch:
-    inputs:
-      versionNumber:
-        description: 'Version number (e.g 0.87)'
-        required: true
 
 jobs:
   smoke_test:
-    name: Smoke Test
+    name: HW Release Test
     runs-on: ubuntu-22.04
     timeout-minutes: 360
 
     steps:
       - uses: actions/checkout@v3
 
+      - name: Get current date
+        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+        id: date
+
       - name: Create Release Branch
         run: |
-          git checkout -b release/v${{ github.event.inputs.versionNumber }}
+          git checkout -b release/${{ steps.date.outputs.date }}
 
       - name: Update Submodule
         run: |
@@ -35,11 +36,12 @@ jobs:
 
       - name: Generate release zip
         run: |
-          cp target/riscv32imc-unknown-none-elf/firmware/caliptra-rom /tmp/hw_release_${{ github.event.inputs.versionNumber }}
+          mkdir /tmp/hw_release_${{ steps.date.outputs.date}}
+          cp target/riscv32imc-unknown-none-elf/firmware/caliptra-rom /tmp/hw_release_${{ steps.date.outputs.date}}
 
       - name: Upload release
         uses: actions/upload-artifact@v3
         with:
           name: release
-          path: /tmp/hw_release_${{ github.event.inputs.versionNumber }/caliptra-rom
+          path: /tmp/hw_release_${{ steps.date.outputs.date }}/caliptra-rom
 
