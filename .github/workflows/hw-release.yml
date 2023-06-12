@@ -1,0 +1,45 @@
+name: HW Release (for now manually triggered)
+on:
+  workflow_dispatch:
+    inputs:
+      versionNumber:
+        description: 'Version number (e.g 0.87)'
+        required: true
+
+jobs:
+  smoke_test:
+    name: Smoke Test
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Create Release Branch
+        run: |
+          git checkout -b release/v${{ github.event.inputs.versionNumber }}
+
+      - name: Update Submodule
+        run: |
+          git submodule update --remote hw-latest/caliptra-rtl
+
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.8'
+          architecture: 'x64'
+
+      - name: Run smoke test (for now use SW emulator to test on Github)
+        run: |
+          cargo test -j 1 -p caliptra-test smoke_test --release  -- --nocapture
+
+      - name: Generate release zip
+        run: |
+          cp target/riscv32imc-unknown-none-elf/firmware/caliptra-rom /tmp/hw_release_${{ github.event.inputs.versionNumber }}
+
+      - name: Upload release
+        uses: actions/upload-artifact@v3
+        with:
+          name: release
+          path: /tmp/hw_release_${{ github.event.inputs.versionNumber }/caliptra-rom
+
