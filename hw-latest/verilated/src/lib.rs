@@ -273,7 +273,10 @@ mod tests {
         if !cfg!(feature = "verilator") {
             return;
         }
-        let mut v = CaliptraVerilated::new(InitArgs { security_state: 0 });
+        let mut v = CaliptraVerilated::new(InitArgs {
+            security_state: 0,
+            cptra_obf_key: [0u32; 8],
+        });
 
         std::fs::remove_file("/tmp/caliptra_verilated_test.vcd").ok();
         std::fs::remove_file("/tmp/caliptra_verilated_test2.vcd").ok();

@@ -1,5 +1,14 @@
 // Licensed under the Apache-2.0 license
 
+// Rationale behind this choice
+//
+// * The constant should be easily recognizable in waveforms and debug logs
+// * Every word must be different to ensure that a "stuck word" bug is noticed.
+// * Each byte in a word must be unique to ensure an endianness bug is noticed.
+pub const DEFAULT_CPTRA_OBF_KEY: [u32; 8] = [
+    0xa0a1a2a3, 0xb0b1b2b3, 0xc0c1c2c3, 0xd0d1d2d3, 0xe0e1e2e3, 0xf0f1f2f3, 0xa4a5a6a7, 0xb4b5b6b7,
+];
+
 // Based on device_lifecycle_e from RTL
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum DeviceLifecycle {
