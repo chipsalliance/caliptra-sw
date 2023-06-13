@@ -125,11 +125,9 @@ fn test_kv_seed_from_input_msg_from_input() {
     //
     let seed = [0u8; 48];
     let nonce = Array4xN::default();
-    let mut key_usage = KeyUsage::default();
-    key_usage.set_ecc_private_key(true);
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId2,
-        usage: key_usage, // ecc_private_key
+        usage: KeyUsage::default().set_ecc_private_key_en(),
     };
     let result = ecc.key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
@@ -179,11 +177,9 @@ fn test_kv_seed_from_kv_msg_from_input() {
     //
     let seed = [0u8; 48];
     let nonce = Array4xN::default();
-    let mut key_usage = KeyUsage::default();
-    key_usage.set_ecc_key_gen_seed(true);
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
-        usage: key_usage,
+        usage: KeyUsage::default().set_ecc_key_gen_seed_en(),
     };
     let result = ecc.key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
@@ -218,11 +214,9 @@ fn test_kv_seed_from_kv_msg_from_input() {
         0x67, 0x1d, 0x8f,
     ];
     let key_in_seed = KeyReadArgs::new(KeyId::KeyId0);
-    let mut key_usage = KeyUsage::default();
-    key_usage.set_ecc_private_key(true);
     let key_out_priv_key = KeyWriteArgs {
         id: KeyId::KeyId1,
-        usage: key_usage,
+        usage: KeyUsage::default().set_ecc_private_key_en(),
     };
     let result = ecc.key_pair(
         Ecc384Seed::from(key_in_seed),
