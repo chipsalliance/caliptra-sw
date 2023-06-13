@@ -173,12 +173,7 @@ impl KeyVault {
     }
 
     /// Internal emulator interface to write key to key vault
-    pub fn write_key(
-        &mut self,
-        key_id: u32,
-        key: &[u8; KeyVault::KEY_SIZE],
-        key_usage: u32,
-    ) -> Result<(), BusError> {
+    pub fn write_key(&mut self, key_id: u32, key: &[u8], key_usage: u32) -> Result<(), BusError> {
         self.regs.borrow_mut().write_key(key_id, key, key_usage)
     }
 
@@ -194,6 +189,12 @@ impl KeyVault {
         pcr: &[u8; constants::PCR_SIZE_BYTES],
     ) -> Result<(), BusError> {
         self.regs.borrow_mut().write_pcr(pcr_id, pcr)
+    }
+
+    pub fn clear_keys_with_debug_values(&mut self, sel_debug_value: bool) {
+        self.regs
+            .borrow_mut()
+            .clear_with_debug_values(sel_debug_value);
     }
 }
 impl Default for KeyVault {
@@ -481,12 +482,10 @@ impl KeyVaultRegs {
         Ok(key)
     }
 
-    pub fn write_key(
-        &mut self,
-        key_id: u32,
-        key: &[u8; KeyVault::KEY_SIZE],
-        key_usage: u32,
-    ) -> Result<(), BusError> {
+    pub fn write_key(&mut self, key_id: u32, key: &[u8], key_usage: u32) -> Result<(), BusError> {
+        if key.len() > KeyVault::KEY_SIZE {
+            Err(BusError::StoreAccessFault)?
+        }
         let key_ctrl_reg = &mut self.key_control[key_id as usize];
         if key_ctrl_reg.read(KV_CONTROL::WRITE_LOCK) != 0
             || key_ctrl_reg.read(KV_CONTROL::USE_LOCK) != 0
@@ -494,13 +493,18 @@ impl KeyVaultRegs {
             Err(BusError::StoreAccessFault)?
         }
         let key_start = key_id as usize * KeyVault::KEY_SIZE;
-        let key_end = key_start + KeyVault::KEY_SIZE;
+        let key_end = key_start + key.len();
         self.keys.data_mut()[key_start..key_end].copy_from_slice(key);
 
         // Update the key usage.
         key_ctrl_reg.modify(KV_CONTROL::USAGE.val(key_usage));
 
         Ok(())
+    }
+
+    pub fn clear_with_debug_values(&mut self, sel_debug_value: bool) {
+        let fill_byte = if sel_debug_value { 0x55 } else { 0xaa };
+        self.keys.data_mut().fill(fill_byte);
     }
 
     pub fn read_pcr(&self, pcr_id: u32) -> [u8; constants::PCR_SIZE_BYTES] {
@@ -697,6 +701,19 @@ mod tests {
             let returned = vault.read_key(idx, key_usage).unwrap();
             assert_eq!(&returned, &expected);
         }
+    }
+
+    #[test]
+    fn test_key_clear_with_debug_values() {
+        let mut vault = KeyVault::new();
+
+        vault.clear_keys_with_debug_values(false);
+        let key_mem: Vec<u8> = vault.regs.borrow().keys.data().to_vec();
+        assert_eq!(key_mem, vec![0xaa; key_mem.len()]);
+
+        vault.clear_keys_with_debug_values(true);
+        let key_mem: Vec<u8> = vault.regs.borrow().keys.data().to_vec();
+        assert_eq!(key_mem, vec![0x55; key_mem.len()]);
     }
 
     #[test]
