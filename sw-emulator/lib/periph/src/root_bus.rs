@@ -294,12 +294,17 @@ impl CaliptraRootBus {
     pub const DCCM_SIZE: usize = 128 * 1024;
 
     pub fn new(clock: &Clock, mut args: CaliptraRootBusArgs) -> Self {
-        let key_vault = KeyVault::new();
+        let mut key_vault = KeyVault::new();
         let mailbox_ram = MailboxRam::new();
         let mailbox = MailboxInternal::new(mailbox_ram.clone());
         let rom = Rom::new(std::mem::take(&mut args.rom));
         let iccm = Iccm::new(clock);
         let soc_reg = SocRegistersInternal::new(clock, mailbox.clone(), iccm.clone(), args);
+        if !soc_reg.is_debug_locked() {
+            // When debug is possible, the key-vault is initialized with a debug value...
+            // This is necessary to match the behavior of the RTL.
+            key_vault.clear_keys_with_debug_values(false);
+        }
 
         Self {
             rom,
@@ -340,4 +345,73 @@ pub struct SocToCaliptraBus {
 
     #[peripheral(offset = 0x3003_0000, mask = 0x0000_ffff)]
     soc_ifc: SocRegistersExternal,
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::KeyUsage;
+
+    use super::*;
+
+    #[test]
+    fn test_keyvault_init_val_in_debug_unlocked_mode() {
+        let clock = Clock::new();
+        let mut root_bus = CaliptraRootBus::new(
+            &clock,
+            CaliptraRootBusArgs {
+                security_state: *SecurityState::default().set_debug_locked(false),
+                ..CaliptraRootBusArgs::default()
+            },
+        );
+        let mut key_usage = KeyUsage::default();
+        key_usage.set_hmac_key(true);
+
+        root_bus
+            .key_vault
+            .write_key(1, &[0x00, 0x11, 0x22, 0x33], key_usage.into())
+            .unwrap();
+
+        // The key-entry will still have the "init data" in the unwritten words.
+        // See chipsalliace/caliptra-rtl#114
+        assert_eq!(
+            root_bus.key_vault.read_key(1, key_usage).unwrap(),
+            [
+                0x00_u8, 0x11, 0x22, 0x33, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
+                0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
+                0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
+                0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa
+            ]
+        );
+    }
+
+    #[test]
+    fn test_keyvault_init_val_in_debug_locked_mode() {
+        let clock = Clock::new();
+        let mut root_bus = CaliptraRootBus::new(
+            &clock,
+            CaliptraRootBusArgs {
+                security_state: *SecurityState::default().set_debug_locked(true),
+                ..CaliptraRootBusArgs::default()
+            },
+        );
+        let mut key_usage = KeyUsage::default();
+        key_usage.set_hmac_key(true);
+
+        root_bus
+            .key_vault
+            .write_key(1, &[0x00, 0x11, 0x22, 0x33], key_usage.into())
+            .unwrap();
+
+        // The key-entry will still have the "init data" in the unwritten words.
+        // See chipsalliace/caliptra-rtl#114
+        assert_eq!(
+            root_bus.key_vault.read_key(1, key_usage).unwrap(),
+            [
+                0x00_u8, 0x11, 0x22, 0x33, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+            ]
+        );
+    }
 }

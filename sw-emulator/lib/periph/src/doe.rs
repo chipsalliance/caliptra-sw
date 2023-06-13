@@ -190,8 +190,8 @@ impl Doe {
     ///
     /// * `key_id` - Key index to store the field entropy
     fn unscramble_fe(&mut self, key_id: u32) {
+        let mut plain_fe = [0_u8; 32];
         let cipher_fe = self.soc_reg.field_entropy();
-        let mut plain_fe = [0u8; 48];
         Aes256Cbc::decrypt(
             &self.soc_reg.doe_key(),
             self.iv.data(),
