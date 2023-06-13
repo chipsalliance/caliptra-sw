@@ -27,10 +27,11 @@ LDEVID_TBS_ORG   = 0x50003000;
 FMCALIAS_TBS_ORG = 0x50003400;
 PCR_LOG_ORG      = 0x50003800;
 FUSE_LOG_ORG     = 0x50003C00;
-DATA_ORG         = 0x50004000;
+DATA_ORG  		 = 0x50004400;
 STACK_ORG        = 0x5001C000;
 ESTACK_ORG       = 0x5001F800;
 NSTACK_ORG       = 0x5001FC00;
+RTALIAS_TBS_ORG  = 0x50004000;
 
 /* Workaround https://github.com/llvm/llvm-project/issues/62423
  * by allowing lld to exceed the ROM size before relaxation optimizations are
@@ -49,7 +50,9 @@ LDEVID_TBS_SIZE   = 1K;
 FMCALIAS_TBS_SIZE = 1K;
 PCR_LOG_SIZE      = 1K;
 FUSE_LOG_SIZE     = 1K;
-DATA_SIZE         = 96K;
+RTALIAS_TBS_SIZE  = 1K;
+
+DATA_SIZE         = 95K;
 STACK_SIZE        = 14K;
 ESTACK_SIZE       = 1K;
 NSTACK_SIZE       = 1K;
@@ -66,6 +69,7 @@ MEMORY
 	FMCALIAS_TBS (rw) : ORIGIN = FMCALIAS_TBS_ORG, LENGTH = FMCALIAS_TBS_SIZE
 	PCR_LOG      (rw) : ORIGIN = PCR_LOG_ORG,      LENGTH = PCR_LOG_SIZE
 	FUSE_LOG     (rw) : ORIGIN = FUSE_LOG_ORG,     LENGTH = FUSE_LOG_SIZE
+	RTALIAS_TBS  (rw) : ORIGIN = RTALIAS_TBS_ORG,  LENGTH = RTALIAS_TBS_SIZE
 	DATA         (rw) : ORIGIN = DATA_ORG,         LENGTH = DATA_SIZE
 	STACK        (rw) : ORIGIN = STACK_ORG,        LENGTH = STACK_SIZE
 	ESTACK       (rw) : ORIGIN = ESTACK_ORG,       LENGTH = ESTACK_SIZE
