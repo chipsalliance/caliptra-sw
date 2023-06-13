@@ -87,6 +87,7 @@ impl crate::HwModel for ModelEmulated {
                 cpu_enabled_cloned.set(true);
             }),
             security_state: params.security_state,
+            cptra_obf_key: params.cptra_obf_key,
             ..CaliptraRootBusArgs::default()
         };
         let mut root_bus = CaliptraRootBus::new(&clock, bus_args);

@@ -17,8 +17,8 @@ use crate::root_bus::ReadyForFwCbArgs;
 use crate::{CaliptraRootBusArgs, Iccm, MailboxInternal};
 use caliptra_emu_bus::BusError::{LoadAccessFault, StoreAccessFault};
 use caliptra_emu_bus::{
-    ActionHandle, Bus, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteRegister,
-    Register, Timer, TimerAction,
+    ActionHandle, Bus, BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Register, Timer,
+    TimerAction,
 };
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
@@ -221,7 +221,7 @@ impl SocRegistersInternal {
     /// Get deobfuscation engine key
     pub fn doe_key(&self) -> [u8; INTERNAL_OBF_KEY_SIZE] {
         if self.is_debug_locked() {
-            *self.regs.borrow().internal_obf_key.data()
+            bytes_from_words_le(&self.regs.borrow().internal_obf_key)
         } else {
             [0xff_u8; INTERNAL_OBF_KEY_SIZE]
         }
@@ -432,7 +432,7 @@ struct SocRegistersImpl {
     fuse_life_cycle: u32,
 
     /// INTERNAL_OBF_KEY Register
-    internal_obf_key: ReadOnlyMemory<INTERNAL_OBF_KEY_SIZE>,
+    internal_obf_key: [u32; 8],
 
     /// INTERNAL_ICCM_LOCK Register
     #[register(offset = 0x0620, write_fn = on_write_iccm_lock)]
@@ -488,13 +488,6 @@ struct SocRegistersImpl {
 }
 
 impl SocRegistersImpl {
-    /// Default Deobfuscation engine key
-    const DOE_KEY: [u8; INTERNAL_OBF_KEY_SIZE] = [
-        0x60, 0x3D, 0xEB, 0x10, 0x15, 0xCA, 0x71, 0xBE, 0x2B, 0x73, 0xAE, 0xF0, 0x85, 0x7D, 0x77,
-        0x81, 0x1F, 0x35, 0x2C, 0x7, 0x3B, 0x61, 0x8, 0xD7, 0x2D, 0x98, 0x10, 0xA3, 0x9, 0x14,
-        0xDF, 0xF4,
-    ];
-
     /// Default unique device secret
     const UDS: [u8; FUSE_UDS_SEED_SIZE] = [
         0xF5, 0x8C, 0x4C, 0x4, 0xD6, 0xE5, 0xF1, 0xBA, 0x77, 0x9E, 0xAB, 0xFB, 0x5F, 0x7B, 0xFB,
@@ -551,7 +544,7 @@ impl SocRegistersImpl {
             fuse_idevid_cert_attr: Default::default(),
             fuse_idevid_manuf_hsm_id: Default::default(),
             fuse_life_cycle: Default::default(),
-            internal_obf_key: ReadOnlyMemory::new_with_data(Self::DOE_KEY),
+            internal_obf_key: args.cptra_obf_key,
             internal_iccm_lock: ReadWriteRegister::new(0),
             internal_fw_update_reset: ReadWriteRegister::new(0),
             internal_fw_update_reset_wait_cycles: ReadWriteRegister::new(0),
@@ -579,7 +572,7 @@ impl SocRegistersImpl {
     fn clear_secrets(&mut self) {
         self.fuse_uds_seed = [0u32; 12];
         self.fuse_field_entropy = [0u32; 8];
-        self.internal_obf_key.data_mut().fill(0);
+        self.internal_obf_key = [0u32; 8];
     }
 
     fn on_write_bootfsm_go(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
@@ -1073,6 +1066,6 @@ mod tests {
         soc.external_regs().regs.borrow_mut().fuse_field_entropy = [0x33333333; 8];
         assert_eq!(soc.uds(), SocRegistersImpl::UDS);
         assert_eq!(soc.field_entropy(), [0x33_u8; 32]);
-        assert_eq!(soc.doe_key(), SocRegistersImpl::DOE_KEY);
+        assert_eq!(soc.doe_key(), crate::root_bus::DEFAULT_DOE_KEY);
     }
 }

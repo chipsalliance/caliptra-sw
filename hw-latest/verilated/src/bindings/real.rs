@@ -55,6 +55,7 @@ pub struct caliptra_verilated_sig_out {
 #[derive(Debug, Default, Copy, Clone)]
 pub struct caliptra_verilated_init_args {
     pub security_state: u32,
+    pub cptra_obf_key: [u32; 8usize],
 }
 extern "C" {
     pub fn caliptra_verilated_new(

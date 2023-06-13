@@ -141,6 +141,7 @@ impl crate::HwModel for ModelVerilated {
         let mut v = CaliptraVerilated::with_callbacks(
             caliptra_verilated::InitArgs {
                 security_state: u32::from(params.security_state),
+                cptra_obf_key: params.cptra_obf_key,
             },
             generic_load_cb,
             ahb_cb,
