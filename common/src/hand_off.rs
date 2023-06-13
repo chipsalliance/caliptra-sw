@@ -252,12 +252,6 @@ pub struct FirmwareHandoffTable {
     /// Index of RT Public Alias Key Y Coordinate in the Data Vault.
     pub rt_pub_key_y_dv_hdl: HandOffDataHandle,
 
-    /// Index of RT Certificate Signature R Component in the Data Vault.
-    pub rt_cert_sig_r_dv_hdl: HandOffDataHandle,
-
-    /// Index of RT Certificate Signature S Component in the Data Vault.
-    pub rt_cert_sig_s_dv_hdl: HandOffDataHandle,
-
     /// Index of RT SVN value in the Data Vault
     pub rt_svn_dv_hdl: HandOffDataHandle,
 
@@ -279,8 +273,10 @@ pub struct FirmwareHandoffTable {
     /// Fuse log Address
     pub fuse_log_addr: u32,
 
+    pub rt_dice_sign: [u8; core::mem::size_of::<caliptra_drivers::Ecc384Signature>()],
+
     /// Reserved for future use.
-    pub reserved: [u8; 32],
+    pub reserved: [u8; 60],
 }
 
 impl Default for FirmwareHandoffTable {
@@ -306,16 +302,15 @@ impl Default for FirmwareHandoffTable {
             rt_priv_key_kv_hdl: FHT_INVALID_HANDLE,
             rt_pub_key_x_dv_hdl: FHT_INVALID_HANDLE,
             rt_pub_key_y_dv_hdl: FHT_INVALID_HANDLE,
-            rt_cert_sig_r_dv_hdl: FHT_INVALID_HANDLE,
-            rt_cert_sig_s_dv_hdl: FHT_INVALID_HANDLE,
             rt_svn_dv_hdl: FHT_INVALID_HANDLE,
             ldevid_tbs_size: 0,
             fmcalias_tbs_size: 0,
-            reserved: [0; 32],
+            reserved: [0u8; 60],
             ldevid_tbs_addr: 0,
             fmcalias_tbs_addr: 0,
             pcr_log_addr: 0,
             fuse_log_addr: 0,
+            rt_dice_sign: [0; core::mem::size_of::<caliptra_drivers::Ecc384Signature>()],
         }
     }
 }
@@ -376,14 +371,6 @@ pub fn print_fht(fht: &FirmwareHandoffTable) {
     crate::cprintln!(
         "RT Public Key Y DV Handle: 0x{:08x}",
         fht.rt_pub_key_y_dv_hdl.0
-    );
-    crate::cprintln!(
-        "RT Certificate Signature R DV Handle: 0x{:08x}",
-        fht.rt_cert_sig_r_dv_hdl.0
-    );
-    crate::cprintln!(
-        "RT Certificate Signature S DV Handle: 0x{:08x}",
-        fht.rt_cert_sig_s_dv_hdl.0
     );
     crate::cprintln!("RT SVN DV Handle: 0x{:08x}", fht.rt_svn_dv_hdl.0);
 
@@ -451,7 +438,7 @@ pub fn report_handoff_error_and_halt(msg: &str, code: u32) -> ! {
 mod tests {
     use super::*;
     use core::mem;
-    const FHT_SIZE: usize = 140;
+    const FHT_SIZE: usize = 256;
 
     fn rt_tci_store() -> HandOffDataHandle {
         HandOffDataHandle::from(DataStore::DataVaultNonSticky48(WarmResetEntry48::RtTci))

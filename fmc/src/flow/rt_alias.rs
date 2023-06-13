@@ -41,7 +41,7 @@ impl DiceLayer for RtAliasLayer {
     /// Perform derivations for the DICE layer
     fn derive(
         env: &mut FmcEnv,
-        hand_off: &HandOff,
+        hand_off: &mut HandOff,
         input: &DiceInput,
     ) -> CaliptraResult<DiceOutput> {
         cprintln!("[fmc] Derive CDI");
@@ -73,7 +73,7 @@ impl DiceLayer for RtAliasLayer {
 
 impl RtAliasLayer {
     #[inline(never)]
-    pub fn run(env: &mut FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
+    pub fn run(env: &mut FmcEnv, hand_off: &mut HandOff) -> CaliptraResult<()> {
         cprintln!("[fmc] Extend RT PCRs");
         Self::extend_pcrs(env, hand_off)?;
         cprintln!("[fmc] Extend RT PCRs Done");
@@ -187,7 +187,7 @@ impl RtAliasLayer {
     /// * `output` - DICE Output
     fn generate_cert_sig(
         env: &mut FmcEnv,
-        hand_off: &HandOff,
+        hand_off: &mut HandOff,
         input: &DiceInput,
         output: &DiceOutput,
         not_before: &[u8; RtAliasCertTbsParams::NOT_BEFORE_LEN],

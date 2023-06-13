@@ -167,8 +167,6 @@ pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
         rt_priv_key_kv_hdl: FHT_INVALID_HANDLE,
         rt_pub_key_x_dv_hdl: FHT_INVALID_HANDLE,
         rt_pub_key_y_dv_hdl: FHT_INVALID_HANDLE,
-        rt_cert_sig_r_dv_hdl: FHT_INVALID_HANDLE,
-        rt_cert_sig_s_dv_hdl: FHT_INVALID_HANDLE,
         rt_tci_dv_hdl: FhtDataStore::rt_tci_data_store(),
         rt_svn_dv_hdl: FhtDataStore::rt_svn_data_store(),
         ldevid_tbs_size: env.fht_data_store.ldevid_tbs_size,
