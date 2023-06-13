@@ -280,7 +280,7 @@ pub struct FirmwareHandoffTable {
     pub fuse_log_addr: u32,
 
     /// Reserved for future use.
-    pub reserved: [u8; 32],
+    pub reserved: [u8; 3988],
 }
 
 impl Default for FirmwareHandoffTable {
@@ -311,7 +311,7 @@ impl Default for FirmwareHandoffTable {
             rt_svn_dv_hdl: FHT_INVALID_HANDLE,
             ldevid_tbs_size: 0,
             fmcalias_tbs_size: 0,
-            reserved: [0; 32],
+            reserved: [0; 3988],
             ldevid_tbs_addr: 0,
             fmcalias_tbs_addr: 0,
             pcr_log_addr: 0,
@@ -451,7 +451,7 @@ pub fn report_handoff_error_and_halt(msg: &str, code: u32) -> ! {
 mod tests {
     use super::*;
     use core::mem;
-    const FHT_SIZE: usize = 140;
+    const FHT_SIZE: usize = 4096;
 
     fn rt_tci_store() -> HandOffDataHandle {
         HandOffDataHandle::from(DataStore::DataVaultNonSticky48(WarmResetEntry48::RtTci))
