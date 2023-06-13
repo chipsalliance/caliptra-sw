@@ -11,6 +11,8 @@ File Name:
         - Transfers control to the runtime firmware.
 ++*/
 
+use core::slice;
+
 use crate::flow::dice::DiceOutput;
 use crate::fmc_env::FmcEnv;
 use caliptra_common::DataStore::*;
@@ -176,10 +178,14 @@ impl HandOff {
         }
     }
 
-    pub fn set_rt_dice_signature(&self, _sig: &Ecc384Signature) {
-        // TODO - implement
-        // Where should this be stored?
-        // No DV slots avaiable anymore.
+    pub fn set_rt_dice_signature(&mut self, sig: &Ecc384Signature) {
+        let data = unsafe {
+            slice::from_raw_parts(
+                sig as *const Ecc384Signature as *const u8,
+                core::mem::size_of::<Ecc384Signature>(),
+            )
+        };
+        self.fht.rt_dice_sign.copy_from_slice(data);
     }
 
     /// Retrieve image manifest load address in DCCM

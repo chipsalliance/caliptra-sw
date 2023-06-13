@@ -130,8 +130,9 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | rt_pub_key_y_dv_hdl   | 1            | FMC        | Handle of RT Public Alias Key Y Coordinate in the Data Vault.                                             |
 | rt_cert_sig_r_dv_hdl  | 1            | FMC        | Handle of RT Certificate Signature R Component in the Data Vault.                                         |
 | rt_cert_sig_s_dv_hdl  | 1            | FMC        | Handle of RT Certificate Signature S Component in the Data Vault.                                         |
-| rt_svn_dv_hdl         | 1            | FMC        | Handle of RT SVN value in the Data Vault.                                                                 |
-| reserved              | 20           |            | Reserved for future use.                                                                                 |
+| rt_svn_dv_hdl         | 1            | FMC        | Handle of RT SVN value in the Data Vault.
+| rt_dice_sign          | 48           | FMC | RT Alias DICE signature                                                                  |
+| reserved              | 3892           |            | Reserved for future use.                                                                                 |
 
 *FHT is currently defined to be 60 bytes in length.*
 
@@ -216,6 +217,9 @@ These fields provide the indices into the Data Vault where the Cert<sub>RT</sub>
 ### rt_svn_dv_hdl
 
 This field provides the Handle into the Data Vault where the SVN<sub>RT</sub> is stored.
+
+### rt_dice_sign
+Storage area for RT Alias DICE signature
 
 ### reserved
 

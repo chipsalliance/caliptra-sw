@@ -279,8 +279,10 @@ pub struct FirmwareHandoffTable {
     /// Fuse log Address
     pub fuse_log_addr: u32,
 
+    pub rt_dice_sign: [u8; core::mem::size_of::<caliptra_drivers::Ecc384Signature>()],
+
     /// Reserved for future use.
-    pub reserved: [u8; 3988],
+    pub reserved: [u8; 3892],
 }
 
 impl Default for FirmwareHandoffTable {
@@ -311,7 +313,8 @@ impl Default for FirmwareHandoffTable {
             rt_svn_dv_hdl: FHT_INVALID_HANDLE,
             ldevid_tbs_size: 0,
             fmcalias_tbs_size: 0,
-            reserved: [0; 3988],
+            rt_dice_sign: [0; core::mem::size_of::<caliptra_drivers::Ecc384Signature>()],
+            reserved: [0; 3892],
             ldevid_tbs_addr: 0,
             fmcalias_tbs_addr: 0,
             pcr_log_addr: 0,
