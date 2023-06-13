@@ -172,6 +172,14 @@ impl KeyVault {
         self.regs.borrow().read_key(key_id, desired_usage)
     }
 
+    pub fn read_key_as_data(
+        &self,
+        key_id: u32,
+        desired_usage: KeyUsage,
+    ) -> Result<Vec<u8>, BusError> {
+        self.regs.borrow().read_key_as_data(key_id, desired_usage)
+    }
+
     /// Internal emulator interface to write key to key vault
     pub fn write_key(&mut self, key_id: u32, key: &[u8], key_usage: u32) -> Result<(), BusError> {
         self.regs.borrow_mut().write_key(key_id, key, key_usage)
@@ -482,10 +490,23 @@ impl KeyVaultRegs {
         Ok(key)
     }
 
+    pub fn read_key_as_data(
+        &self,
+        key_id: u32,
+        desired_usage: KeyUsage,
+    ) -> Result<Vec<u8>, BusError> {
+        let mut result: Vec<u8> = self.read_key(key_id, desired_usage)?.into();
+        let key_ctrl_reg = &self.key_control[key_id as usize];
+        let last_dword = key_ctrl_reg.read(KV_CONTROL::LAST_DWORD);
+        result.resize((last_dword + 1) as usize * 4, 0);
+        Ok(result)
+    }
+
     pub fn write_key(&mut self, key_id: u32, key: &[u8], key_usage: u32) -> Result<(), BusError> {
-        if key.len() > KeyVault::KEY_SIZE {
+        if key.len() > KeyVault::KEY_SIZE || key.len() % 4 != 0 {
             Err(BusError::StoreAccessFault)?
         }
+        let key_wordlen = key.len() / 4;
         let key_ctrl_reg = &mut self.key_control[key_id as usize];
         if key_ctrl_reg.read(KV_CONTROL::WRITE_LOCK) != 0
             || key_ctrl_reg.read(KV_CONTROL::USE_LOCK) != 0
@@ -498,6 +519,9 @@ impl KeyVaultRegs {
 
         // Update the key usage.
         key_ctrl_reg.modify(KV_CONTROL::USAGE.val(key_usage));
+
+        // Update the last dword in the key
+        key_ctrl_reg.modify(KV_CONTROL::LAST_DWORD.val(key_wordlen as u32 - 1));
 
         Ok(())
     }
@@ -700,6 +724,40 @@ mod tests {
                 .unwrap();
             let returned = vault.read_key(idx, key_usage).unwrap();
             assert_eq!(&returned, &expected);
+        }
+    }
+
+    #[test]
+    fn test_key_private_read_write_small() {
+        // In this case, only 8 of the total 12 words in the key-entry are
+        // written to, so when they are retrieved as data, only those 8 words
+        // should be returned.
+        let expected: [u8; 32] = [
+            0x11, 0x65, 0xb3, 0x40, 0x6f, 0xf0, 0xb5, 0x2a, 0x3d, 0x24, 0x72, 0x1f, 0x78, 0x54,
+            0x62, 0xca, 0x22, 0x76, 0xc9, 0xf4, 0x54, 0xa1, 0x16, 0xc2, 0xb2, 0xba, 0x20, 0x17,
+            0x1a, 0x79, 0x05, 0xea,
+        ];
+
+        let mut vault = KeyVault::new();
+        let mut key_usage = KeyUsage::default();
+        key_usage.set_hmac_data(true); // dummy usage.
+
+        for idx in 0..KeyVault::KEY_COUNT {
+            vault
+                .write_key(idx, &expected, u32::from(key_usage))
+                .unwrap();
+            let returned = vault.read_key_as_data(idx, key_usage).unwrap();
+            assert_eq!(&returned, &expected);
+
+            assert_eq!(
+                vault.read_key(idx, key_usage).unwrap(),
+                [
+                    0x11, 0x65, 0xb3, 0x40, 0x6f, 0xf0, 0xb5, 0x2a, 0x3d, 0x24, 0x72, 0x1f, 0x78,
+                    0x54, 0x62, 0xca, 0x22, 0x76, 0xc9, 0xf4, 0x54, 0xa1, 0x16, 0xc2, 0xb2, 0xba,
+                    0x20, 0x17, 0x1a, 0x79, 0x05, 0xea, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+                ]
+            );
         }
     }
 
