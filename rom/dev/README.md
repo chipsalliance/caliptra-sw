@@ -222,7 +222,6 @@ The following sections define the various cryptographic primitives used by Calip
 |----------|--------------|-------------|
 | DOE_UDS_IV | 16 | Initialization vector specified by the ROM for deobfuscating the UDS. |
 | DOE_FE_IV | 16 | Initialization vector specified by the ROM for deobfuscating Field Entropy. |
-| IDEVID_CDI_KEY | 48 | Key used as an input to the HMAC function used to derive the CDI for IDEVID. This HMAC operation is to condition the decrypted UDS. |
 <br>
 
 ## 9. Cold Reset Flow
@@ -230,6 +229,8 @@ The following sections define the various cryptographic primitives used by Calip
 ![COLD RESET](doc/svg/cold-reset.svg)
 
 ROM performs all the necessary crypto derivations on cold reset. No crypto derivations are performed during warm reset or update reset.
+
+Note that KvSlot3 is generally used as a temporary location for derived keying material during ECC keygen.
 
 ### 9.1 Initialization
 
@@ -290,9 +291,9 @@ Initial Device ID Layer is used to generate Manufactured CDI & Private Keys.  Th
 
 **Actions:**
 
-1.	Derive the CDI using ROM specified key (IDEVID_CDI_KEY) and UDS in Slot 0 as data and store the resultant mac in KeySlot6
+1.	Derive the CDI using ROM specified label and UDS in Slot 0 as data and store the resultant mac in KeySlot6
 
-	`hmac384_mac(IDEVID_CDI_KEY, KvSlot0, KvSlot6)`
+	`hmac384_kdf(KvSlot0, b"idevid_cdi", KvSlot6)`
 
 2.	Clear the UDS in key vault
 
@@ -300,7 +301,9 @@ Initial Device ID Layer is used to generate Manufactured CDI & Private Keys.  Th
 
 3.	Derive ECC Key Pair using CDI in Key Vault Slot6 and store the generated private key in KeySlot7
 
-    `IDevIdPubKey = ecc384_keygen(KvSlot6, KvSlot7)`
+    `IDevIDSeed = hmac384_kdf(KvSlot6, b"idevid_keygen", KvSlot3)`
+    `IDevIdPubKey = ecc384_keygen(KvSlot3, KvSlot7)`
+    `kv_clear(KvSlot3)`
 
 *(Note: Steps 4-7 are performed if CSR download is requested via CPTRA_DBG_MANUF_SERVICE_REG register)*
 
@@ -342,7 +345,10 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 
 1.	Derive the CDI using IDevID CDI in Key Vault Slot6 as HMAC Key and Field Entropy stored in Key Vault Slot1 as data. The resultant mac is stored back in Slot 6
 
+    `hmac384_mac(KvSlot6, b"ldevid_cdi", KvSlot6)`
 	`hmac384_mac(KvSlot6, KvSlot1, KvSlot6)`
+
+*(Note: this uses a pair of HMACs to incorporate the diversification label, rather than a single KDF invocation, due to hardware limitations when passing KV data to the HMAC hardware as a message.)*
 
 2.	Clear the Field Entropy in Key Vault Slot 1
 
@@ -350,7 +356,9 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 
 3.	Derive ECC Key Pair using CDI in Key Vault Slot6 and store the generated private key in KeySlot5.
 
-    `LDevIdPubKey = ecc384_keygen(KvSlot6, KvSlot5)`
+    `LDevIDSeed = hmac384_kdf(KvSlot6, b"ldevid_keygen", KvSlot3)`
+    `LDevIdPubKey = ecc384_keygen(KvSlot3, KvSlot5)`
+    `kv_clear(KvSlot3)`
 
 4.	Store and lock (for write) the LDevID Public Key in Data Vault (48 bytes) Slot 0 & Slot 1
 
@@ -446,11 +454,13 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 2.	CDI for Alias is derived from PCR0. For the Alias FMC CDI Derivation,  LDevID CDI in Key Vault Slot6 is used as HMAC Key and contents of PCR0 are used as data. The resultant mac is stored back in Slot 6
 
 	`Pcr0Measurement = pcr_read(Pcr0)`
-	`hmac384_mac(KvSlot6, Pcr0Measurement, KvSlot6)`
+    `hmac384_kdf(KvSlot6, b"fmc_alias_cdi", Pcr0Measurement, KvSlot6)`
 
 3.	Derive Alias FMC ECC Key Pair using CDI in Key Vault Slot6 and store the generated private key in KeySlot7.
 
-    `AliasFmcPubKey = ecc384_keygen(KvSlot6, KvSlot7)`
+    `AliasFmcSeed = hmac384_kdf(KvSlot6, b"fmc_alias_keygen", KvSlot3)`
+    `AliasFmcPubKey = ecc384_keygen(KvSlot3, KvSlot7)`
+    `kv_clear(KvSlot3)`
 
 4.	Store and lock (for write) the Alias FMC Public Key in Data Vault (48 bytes) Slot 4 & Slot 5
 
