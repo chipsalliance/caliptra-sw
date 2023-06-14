@@ -26,7 +26,7 @@ caliptra-image-gen = { path = "../image/gen" }
 caliptra-image-openssl = { path = "../image/openssl" }
 caliptra-image-serde = { path = "../image/serde" }
 caliptra-image-types = { path = "../image/types" }
-openssl = "0.10"
+openssl = { version = "0.10", features = ["vendored"] }
 
 [features]
 riscv = ["caliptra-cpu/riscv"]

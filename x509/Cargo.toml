@@ -13,7 +13,7 @@ doctest = false
 
 [build-dependencies]
 caliptra_common = { path = "../common" }
-openssl = "0.10.48"
+openssl = { version = "0.10", features = ["vendored"] }
 hex = "0.4.3"
 bitfield = "0.14.0"
 asn1 = "0.13.0"
@@ -22,7 +22,7 @@ convert_case = "0.6.0"
 quote = "1.0.23"
 
 [dev-dependencies]
-openssl = "0.10.48"
+openssl = { version = "0.10", features = ["vendored"] }
 hex = "0.4.3"
 
 [features]
