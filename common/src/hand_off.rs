@@ -1,8 +1,8 @@
 // Licensed under the Apache-2.0 license.
 use bitfield::{bitfield_bitrange, bitfield_fields};
 use caliptra_drivers::{
-    report_fw_error_non_fatal, ColdResetEntry4, ColdResetEntry48, KeyId, WarmResetEntry4,
-    WarmResetEntry48,
+    report_fw_error_non_fatal, ColdResetEntry4, ColdResetEntry48, Ecc384PubKey, Ecc384Signature,
+    KeyId, WarmResetEntry4, WarmResetEntry48,
 };
 use zerocopy::{AsBytes, FromBytes};
 extern "C" {
@@ -246,12 +246,6 @@ pub struct FirmwareHandoffTable {
     /// Index of RT Private Alias Key in the Key Vault.
     pub rt_priv_key_kv_hdl: HandOffDataHandle,
 
-    /// Index of RT Public Alias Key X Coordinate in the Data Vault.
-    pub rt_pub_key_x_dv_hdl: HandOffDataHandle,
-
-    /// Index of RT Public Alias Key Y Coordinate in the Data Vault.
-    pub rt_pub_key_y_dv_hdl: HandOffDataHandle,
-
     /// Index of RT SVN value in the Data Vault
     pub rt_svn_dv_hdl: HandOffDataHandle,
 
@@ -273,10 +267,12 @@ pub struct FirmwareHandoffTable {
     /// Fuse log Address
     pub fuse_log_addr: u32,
 
-    pub rt_dice_sign: [u8; core::mem::size_of::<caliptra_drivers::Ecc384Signature>()],
+    pub rt_dice_pub_key: Ecc384PubKey,
+
+    pub rt_dice_sign: Ecc384Signature,
 
     /// Reserved for future use.
-    pub reserved: [u8; 60],
+    pub reserved: [u8; 228],
 }
 
 impl Default for FirmwareHandoffTable {
@@ -300,17 +296,16 @@ impl Default for FirmwareHandoffTable {
             rt_tci_dv_hdl: FHT_INVALID_HANDLE,
             rt_cdi_kv_hdl: FHT_INVALID_HANDLE,
             rt_priv_key_kv_hdl: FHT_INVALID_HANDLE,
-            rt_pub_key_x_dv_hdl: FHT_INVALID_HANDLE,
-            rt_pub_key_y_dv_hdl: FHT_INVALID_HANDLE,
             rt_svn_dv_hdl: FHT_INVALID_HANDLE,
             ldevid_tbs_size: 0,
             fmcalias_tbs_size: 0,
-            reserved: [0u8; 60],
+            reserved: [0u8; 228],
             ldevid_tbs_addr: 0,
             fmcalias_tbs_addr: 0,
             pcr_log_addr: 0,
             fuse_log_addr: 0,
-            rt_dice_sign: [0; core::mem::size_of::<caliptra_drivers::Ecc384Signature>()],
+            rt_dice_sign: Ecc384Signature::default(),
+            rt_dice_pub_key: Ecc384PubKey::default(),
         }
     }
 }
@@ -363,14 +358,6 @@ pub fn print_fht(fht: &FirmwareHandoffTable) {
     crate::cprintln!(
         "RT Private Key KV Handle: 0x{:08x}",
         fht.rt_priv_key_kv_hdl.0
-    );
-    crate::cprintln!(
-        "RT Public Key X DV Handle: 0x{:08x}",
-        fht.rt_pub_key_x_dv_hdl.0
-    );
-    crate::cprintln!(
-        "RT Public Key Y DV Handle: 0x{:08x}",
-        fht.rt_pub_key_y_dv_hdl.0
     );
     crate::cprintln!("RT SVN DV Handle: 0x{:08x}", fht.rt_svn_dv_hdl.0);
 
@@ -438,7 +425,7 @@ pub fn report_handoff_error_and_halt(msg: &str, code: u32) -> ! {
 mod tests {
     use super::*;
     use core::mem;
-    const FHT_SIZE: usize = 256;
+    const FHT_SIZE: usize = 512;
 
     fn rt_tci_store() -> HandOffDataHandle {
         HandOffDataHandle::from(DataStore::DataVaultNonSticky48(WarmResetEntry48::RtTci))
