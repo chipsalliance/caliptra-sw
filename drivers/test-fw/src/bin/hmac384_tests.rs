@@ -94,11 +94,9 @@ fn test_hmac3() {
     //
     let seed = [0u8; 48];
     let nonce = Array4xN::default();
-    let mut key_usage = KeyUsage::default();
-    key_usage.set_hmac_key(true);
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
-        usage: key_usage, // hmac_key
+        usage: KeyUsage::default().set_hmac_key_en(),
     };
     let result = ecc.key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
@@ -138,11 +136,9 @@ fn test_hmac4() {
     //
     let seed = [0u8; 48];
     let nonce = Array4xN::default();
-    let mut key_usage = KeyUsage::default();
-    key_usage.set_hmac_key(true);
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
-        usage: key_usage, // hmac_key
+        usage: KeyUsage::default().set_hmac_key_en(),
     };
     let result = ecc.key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
@@ -187,11 +183,9 @@ fn test_hmac5() {
     //
     let seed = [0u8; 48];
     let nonce = Array4xN::default();
-    let mut key_usage = KeyUsage::default();
-    key_usage.set_hmac_key(true);
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
-        usage: key_usage, // hmac_key
+        usage: KeyUsage::default().set_hmac_key_en(),
     };
     let result = ecc.key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
@@ -254,11 +248,9 @@ fn test_hmac6() {
     //
     let seed = [0u8; 48];
     let nonce = Array4xN::default();
-    let mut key_usage = KeyUsage::default();
-    key_usage.set_hmac_key(true);
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
-        usage: key_usage, // hmac_key
+        usage: KeyUsage::default().set_hmac_key_en(),
     };
     let result = ecc.key_pair(
         Ecc384Seed::from(&Ecc384Scalar::from(seed)),
@@ -302,9 +294,7 @@ fn test_hmac6() {
     assert_eq!(hmac_step_1, Array4x12::from(step_1_result_expected));
 
     // Generate the Tag Of Original Data and put the tag In KV @5.  KV @5 will be used as data in the next step
-    let mut key_usage = KeyUsage::default();
-    key_usage.set_hmac_data(true);
-    let out_tag = KeyWriteArgs::new(KeyId::KeyId5, key_usage);
+    let out_tag = KeyWriteArgs::new(KeyId::KeyId5, KeyUsage::default().set_hmac_data_en());
     let actual = hmac384.hmac(key.into(), (&data).into(), out_tag.into());
     assert!(actual.is_ok());
 

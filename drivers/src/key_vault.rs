@@ -141,6 +141,33 @@ bitfield! {
     pub ecc_data, set_ecc_data:5;
 }
 
+impl KeyUsage {
+    pub fn set_hmac_key_en(&mut self) -> KeyUsage {
+        self.set_hmac_key(true);
+        *self
+    }
+    pub fn set_hmac_data_en(&mut self) -> KeyUsage {
+        self.set_hmac_data(true);
+        *self
+    }
+    pub fn set_sha_data_en(&mut self) -> KeyUsage {
+        self.set_sha_data(true);
+        *self
+    }
+    pub fn set_ecc_private_key_en(&mut self) -> KeyUsage {
+        self.set_ecc_private_key(true);
+        *self
+    }
+    pub fn set_ecc_key_gen_seed_en(&mut self) -> KeyUsage {
+        self.set_ecc_key_gen_seed(true);
+        *self
+    }
+    pub fn set_ecc_data_en(&mut self) -> KeyUsage {
+        self.set_ecc_data(true);
+        *self
+    }
+}
+
 /// Caliptra Key Vault
 pub struct KeyVault {
     kv: KvReg,
