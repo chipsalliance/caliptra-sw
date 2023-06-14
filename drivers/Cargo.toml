@@ -23,5 +23,8 @@ emu = []
 verilator = ["caliptra-hw-model/verilator"]
 
 [dev-dependencies]
+caliptra-drivers-test-bin = { path = "test-fw" }
 caliptra-hw-model = { path = "../hw-model" }
+caliptra-hw-model-types = { path = "../hw-model/types" }
 caliptra-builder = { path = "../builder" }
+openssl = "0.10"

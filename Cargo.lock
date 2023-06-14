@@ -164,11 +164,14 @@ dependencies = [
  "bitfield",
  "bitflags 2.0.2",
  "caliptra-builder",
+ "caliptra-drivers-test-bin",
  "caliptra-error",
  "caliptra-hw-model",
+ "caliptra-hw-model-types",
  "caliptra-lms-types",
  "caliptra-registers",
  "cfg-if",
+ "openssl",
  "ureg",
  "zerocopy",
 ]
@@ -178,6 +181,7 @@ name = "caliptra-drivers-test-bin"
 version = "0.1.0"
 dependencies = [
  "caliptra-drivers",
+ "caliptra-error",
  "caliptra-kat",
  "caliptra-lms-types",
  "caliptra-registers",
