@@ -8,6 +8,7 @@ edition = "2021"
 
 [dependencies]
 caliptra-drivers = { path = "..", features=["emu"] }
+caliptra-error = { path = "../../error", default_features = false }
 caliptra-registers = { path = "../../registers" }
 caliptra-kat = { path = "../../kat" }
 caliptra-lms-types = { path = "../../lms-types" }
