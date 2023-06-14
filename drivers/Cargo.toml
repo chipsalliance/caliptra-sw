@@ -21,6 +21,7 @@ caliptra-error = { version = "0.1.0", path = "../error" , default-features=false
 [features]
 emu = []
 verilator = ["caliptra-hw-model/verilator"]
+fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
 
 [dev-dependencies]
 caliptra-hw-model = { path = "../hw-model" }

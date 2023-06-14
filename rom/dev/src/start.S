@@ -67,15 +67,21 @@ _start:
     // ---------------------------------------------
     // | Region       | Side Effect |  Cacheable   |      
     // ---------------------------------------------
-    // | 0x0000_0000  |    0        |      1       |  
+    // | 0x0000_0000  |    0        |      0       |  
     // | 0x4000_0000  |    0        |      0       |  
     // | 0x5000_0000  |    0        |      0       |  
     // | Others       |    1        |      0       |  
     // ---------------------------------------------
     //
     // CSR MRAC = 0x7C0 
-    li x1, 0xAAAAA0A9
+    // Disable ROM caching for FPGA
+    li x1, 0xAAAAA0A8
     csrw 0x7C0, x1
+
+    // Disable branch prediction and pipelining for FPGA
+    // MFDC 0x7F9
+    li x1, 0x00070009
+    csrw 0x7F9, x1
 
     // Setup stack pointer   
     la sp, _sstack

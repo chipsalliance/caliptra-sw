@@ -8,7 +8,7 @@ version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "433cfd6710c9986c576a25ca913c39d66a6474107b406f34f91d4a8923395241"
 dependencies = [
- "cfg-if",
+ "cfg-if 1.0.0",
  "cipher",
  "cpufeatures",
 ]
@@ -154,7 +154,7 @@ version = "0.1.0"
 dependencies = [
  "caliptra-drivers",
  "caliptra-registers",
- "cfg-if",
+ "cfg-if 1.0.0",
 ]
 
 [[package]]
@@ -168,7 +168,7 @@ dependencies = [
  "caliptra-hw-model",
  "caliptra-lms-types",
  "caliptra-registers",
- "cfg-if",
+ "cfg-if 1.0.0",
  "ureg",
  "zerocopy",
 ]
@@ -182,7 +182,7 @@ dependencies = [
  "caliptra-lms-types",
  "caliptra-registers",
  "caliptra-test-harness",
- "cfg-if",
+ "cfg-if 1.0.0",
  "zerocopy",
 ]
 
@@ -284,7 +284,7 @@ dependencies = [
  "caliptra-registers",
  "caliptra-x509",
  "caliptra_common",
- "cfg-if",
+ "cfg-if 1.0.0",
  "ufmt",
  "zerocopy",
 ]
@@ -297,7 +297,7 @@ dependencies = [
  "caliptra-cpu",
  "caliptra-drivers",
  "caliptra_common",
- "cfg-if",
+ "cfg-if 1.0.0",
  "ufmt",
  "zerocopy",
 ]
@@ -312,10 +312,13 @@ dependencies = [
  "caliptra-emu-periph",
  "caliptra-emu-types",
  "caliptra-hw-model-types",
+ "caliptra-image-gen",
+ "caliptra-image-openssl",
  "caliptra-registers",
  "caliptra-test-harness-types",
  "caliptra-verilated",
  "rand",
+ "uio",
  "ureg",
  "zerocopy",
 ]
@@ -479,7 +482,7 @@ dependencies = [
  "caliptra-registers",
  "caliptra-x509",
  "caliptra_common",
- "cfg-if",
+ "cfg-if 1.0.0",
  "hex",
  "memoffset",
  "openssl",
@@ -496,7 +499,7 @@ dependencies = [
  "caliptra-registers",
  "caliptra-x509",
  "caliptra_common",
- "cfg-if",
+ "cfg-if 1.0.0",
  "ufmt",
  "ureg",
  "zerocopy",
@@ -508,7 +511,7 @@ version = "0.1.0"
 dependencies = [
  "caliptra-cpu",
  "caliptra-drivers",
- "cfg-if",
+ "cfg-if 1.0.0",
  "ufmt",
 ]
 
@@ -529,7 +532,7 @@ dependencies = [
  "caliptra-registers",
  "caliptra-x509",
  "caliptra_common",
- "cfg-if",
+ "cfg-if 1.0.0",
  "openssl",
  "ufmt",
  "zerocopy",
@@ -544,7 +547,7 @@ dependencies = [
  "caliptra-registers",
  "caliptra-runtime",
  "caliptra-test-harness",
- "cfg-if",
+ "cfg-if 1.0.0",
 ]
 
 [[package]]
@@ -567,6 +570,8 @@ version = "0.1.0"
 dependencies = [
  "caliptra-builder",
  "caliptra-hw-model",
+ "caliptra-image-gen",
+ "caliptra-image-openssl",
 ]
 
 [[package]]
@@ -574,7 +579,7 @@ name = "caliptra-test-harness"
 version = "0.1.0"
 dependencies = [
  "caliptra-drivers",
- "cfg-if",
+ "cfg-if 1.0.0",
 ]
 
 [[package]]
@@ -653,6 +658,12 @@ name = "cc"
 version = "1.0.79"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "50d30906286121d95be3d479533b458f87493b30a4b5f79a607db8f5d11aa91f"
+
+[[package]]
+name = "cfg-if"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"
 
 [[package]]
 name = "cfg-if"
@@ -948,13 +959,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b"
 
 [[package]]
+name = "fs2"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9564fc758e15025b46aa6643b1b77d047d1a56a1aea6e01002ac0c7026876213"
+dependencies = [
+ "libc",
+ "winapi",
+]
+
+[[package]]
 name = "gdbstub"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba4fddc6f9d12cbef29e395d9a6b48c128f513c8a2ded7048c97ed5c484e53e7"
 dependencies = [
  "bitflags 1.3.2",
- "cfg-if",
+ "cfg-if 1.0.0",
  "log",
  "managed",
  "num-traits",
@@ -987,7 +1008,7 @@ version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c05aeb6a22b8f62540c194aac980f2115af067bfe15a0734d7277a768d396b31"
 dependencies = [
- "cfg-if",
+ "cfg-if 1.0.0",
  "libc",
  "wasi 0.11.0+wasi-snapshot-preview1",
 ]
@@ -1104,7 +1125,7 @@ version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a5bbe824c507c5da5956355e86a746d82e0e1464f65d862cc5e71da70e94b2c"
 dependencies = [
- "cfg-if",
+ "cfg-if 1.0.0",
 ]
 
 [[package]]
@@ -1166,7 +1187,7 @@ version = "0.4.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "abb12e687cfb44aa40f41fc3978ef76448f9b6038cad6aef4259d3c095a2382e"
 dependencies = [
- "cfg-if",
+ "cfg-if 1.0.0",
 ]
 
 [[package]]
@@ -1188,6 +1209,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d61c719bcfbcf5d62b3a09efa6088de8c54bc0bfcd3ea7ae39fcc186108b8de1"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "nix"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "becb657d662f1cd2ef38c7ad480ec6b8cf9e96b27adb543e594f9cf0f2e6065c"
+dependencies = [
+ "bitflags 1.3.2",
+ "cc",
+ "cfg-if 0.1.10",
+ "libc",
+ "void",
 ]
 
 [[package]]
@@ -1222,7 +1256,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "518915b97df115dd36109bfa429a48b8f737bd05508cf9588977b599648926d2"
 dependencies = [
  "bitflags 1.3.2",
- "cfg-if",
+ "cfg-if 1.0.0",
  "foreign-types",
  "libc",
  "once_cell",
@@ -1462,7 +1496,7 @@ version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "82e6b795fe2e3b1e845bafcb27aa35405c4d47cdfc92af5fc8d3002f76cebdc0"
 dependencies = [
- "cfg-if",
+ "cfg-if 1.0.0",
  "cpufeatures",
  "digest",
 ]
@@ -1547,7 +1581,7 @@ version = "3.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9fbec84f381d5795b08656e4912bec604d162bff9291d6189a78f4c8ab87998"
 dependencies = [
- "cfg-if",
+ "cfg-if 1.0.0",
  "fastrand",
  "redox_syscall",
  "rustix",
@@ -1672,6 +1706,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e87a2ed6b42ec5e28cc3b94c09982969e9227600b2e3dcbc1db927a84c06bd69"
 
 [[package]]
+name = "uio"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5073b92c4a389c020d930424896f62c431b8cd858920519647aa1b1de5968fd1"
+dependencies = [
+ "fs2",
+ "libc",
+ "nix",
+]
+
+[[package]]
 name = "unicode-ident"
 version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1727,6 +1772,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
+name = "void"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
+
+[[package]]
 name = "wasi"
 version = "0.10.0+wasi-snapshot-preview1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1744,7 +1795,7 @@ version = "0.2.84"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "31f8dcbc21f30d9b8f2ea926ecb58f6b91192c17e9d33594b3df58b2007ca53b"
 dependencies = [
- "cfg-if",
+ "cfg-if 1.0.0",
  "wasm-bindgen-macro",
 ]
 

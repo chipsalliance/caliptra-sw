@@ -1,7 +1,9 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
-use caliptra_hw_model::{BootParams, HwModel, InitParams};
+use caliptra_hw_model::{BootParams, HwModel, InitParams, Fuses};
+use caliptra_image_gen::{ImageGenerator};
+use caliptra_image_openssl::OsslCrypto;
 use std::io::Write;
 
 #[track_caller]
@@ -21,13 +23,18 @@ fn smoke_test() {
         ImageOptions::default(),
     )
     .unwrap();
+    let gen = ImageGenerator::new(OsslCrypto::default());
+    let vendor_pubkey_digest = gen.vendor_pubkey_digest(&image.manifest.preamble).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
             ..Default::default()
         },
         fw_image: Some(&image.to_bytes().unwrap()),
-        ..Default::default()
+        fuses: Fuses {
+            key_manifest_pk_hash: vendor_pubkey_digest,
+            ..Default::default()
+        },
     })
     .unwrap();
     let mut output = vec![];
