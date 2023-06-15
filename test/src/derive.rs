@@ -6,8 +6,12 @@ pub struct DoeInput {
     pub doe_obf_key: [u32; 8],
 
     // The DOE initialization vector, as given to the DOE_IV register by the
-    // firmware.
-    pub doe_iv: [u32; 4],
+    // firmware when decrypting the UDS.
+    pub doe_uds_iv: [u32; 4],
+
+    // The DOE initialization vector, as given to the DOE_IV register by the
+    // firmware when decrypting the field entropy.
+    pub doe_fe_iv: [u32; 4],
 
     // The UDS seed, as stored in the fuses
     pub uds_seed: [u32; 12],
@@ -70,7 +74,7 @@ impl DoeOutput {
             .as_bytes_mut()
             .copy_from_slice(&aes256_decrypt_blocks(
                 swap_word_bytes(&input.doe_obf_key).as_bytes(),
-                swap_word_bytes(&input.doe_iv).as_bytes(),
+                swap_word_bytes(&input.doe_uds_iv).as_bytes(),
                 swap_word_bytes(&input.uds_seed).as_bytes(),
             ));
         swap_word_bytes_inplace(&mut result.uds);
@@ -79,7 +83,7 @@ impl DoeOutput {
             .as_bytes_mut()
             .copy_from_slice(&aes256_decrypt_blocks(
                 swap_word_bytes(&input.doe_obf_key).as_bytes(),
-                swap_word_bytes(&input.doe_iv).as_bytes(),
+                swap_word_bytes(&input.doe_fe_iv).as_bytes(),
                 swap_word_bytes(&input.field_entropy_seed).as_bytes(),
             ));
         swap_word_bytes_inplace(&mut result.field_entropy);
