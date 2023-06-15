@@ -45,6 +45,9 @@ module caliptra_wrapper_top (
     input wire debug_locked,
     input wire [1:0] device_lifecycle,
 
+    input wire cptra_error_fatal,
+    input wire cptra_error_non_fatal,
+
     input  wire [63:0] generic_input_wires,
     output wire [63:0] generic_output_wires,
 
@@ -167,8 +170,8 @@ caliptra_top caliptra_top_dut (
     .BootFSM_BrkPoint(BootFSM_BrkPoint),
 
     //SoC Interrupts
-    .cptra_error_fatal    (),
-    .cptra_error_non_fatal(),
+    .cptra_error_fatal    (cptra_error_fatal),
+    .cptra_error_non_fatal(cptra_error_non_fatal),
 
 `ifdef CALIPTRA_INTERNAL_TRNG
     .etrng_req             (etrng_req),

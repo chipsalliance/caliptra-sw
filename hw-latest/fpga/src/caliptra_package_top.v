@@ -29,11 +29,11 @@
 `define CALIPTRA_APB_DATA_WIDTH      32 // bit-width APB data
 `define CALIPTRA_APB_USER_WIDTH      32 // bit-width APB PAUSER field
 
-  `define CALIPTRA_IMEM_BYTE_SIZE   32768
-  `define CALIPTRA_IMEM_DATA_WIDTH  64
-  `define CALIPTRA_IMEM_DEPTH       `CALIPTRA_IMEM_BYTE_SIZE / (`CALIPTRA_IMEM_DATA_WIDTH/8)
-  `define CALIPTRA_IMEM_BYTE_ADDR_W $clog2(`CALIPTRA_IMEM_BYTE_SIZE)
-  `define CALIPTRA_IMEM_ADDR_WIDTH  $clog2(`CALIPTRA_IMEM_DEPTH)
+`define CALIPTRA_IMEM_BYTE_SIZE   32768
+`define CALIPTRA_IMEM_DATA_WIDTH  64
+`define CALIPTRA_IMEM_DEPTH       `CALIPTRA_IMEM_BYTE_SIZE / (`CALIPTRA_IMEM_DATA_WIDTH/8)
+`define CALIPTRA_IMEM_BYTE_ADDR_W $clog2(`CALIPTRA_IMEM_BYTE_SIZE)
+`define CALIPTRA_IMEM_ADDR_WIDTH  $clog2(`CALIPTRA_IMEM_DEPTH)
 
 module caliptra_package_top (
     input wire core_clk,
@@ -73,7 +73,7 @@ module caliptra_package_top (
     );
 
     assign gpio_out[31] = 1'b0;
-    assign gpio_out[27:25] = 3'h0;
+    assign gpio_out[25] = 1'h0;
     assign gpio_out[15:0] = 16'h0CA1;
 
     wire [`CALIPTRA_APB_USER_WIDTH-1:0] PAUSER;
@@ -83,9 +83,6 @@ module caliptra_package_top (
     wire [63:0] generic_output_wires;
     assign gpio_out[23:16] = generic_output_wires[7:0];
     assign gpio_out[24] = 0;//generic_output_wires[];
-
-    //assign fake_uart_data = cptra_wrapper.caliptra_top_dut.soc_ifc_top1.i_soc_ifc_reg.field_combo.CPTRA_GENERIC_OUTPUT_WIRES[0].generic_wires.next;
-    //assign fake_uart_wren = cptra_wrapper.caliptra_top_dut.soc_ifc_top1.i_soc_ifc_reg.field_combo.CPTRA_GENERIC_OUTPUT_WIRES[0].generic_wires.load_next;
 
 caliptra_wrapper_top cptra_wrapper (
     .core_clk(core_clk),
@@ -111,6 +108,9 @@ caliptra_wrapper_top cptra_wrapper (
     // Security state
     .debug_locked(gpio_in[6]),
     .device_lifecycle(gpio_in[5:4]),
+
+    .cptra_error_fatal(gpio_out[26]),
+    .cptra_error_non_fatal(gpio_out[27]),
 
     .generic_input_wires({56'h0, gpio_in[31:24]}),
     .generic_output_wires(generic_output_wires),
