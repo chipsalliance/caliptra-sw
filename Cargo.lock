@@ -170,6 +170,7 @@ dependencies = [
  "caliptra-hw-model-types",
  "caliptra-lms-types",
  "caliptra-registers",
+ "caliptra-test",
  "cfg-if",
  "openssl",
  "ureg",
@@ -573,6 +574,8 @@ version = "0.1.0"
 dependencies = [
  "caliptra-builder",
  "caliptra-hw-model",
+ "openssl",
+ "zerocopy",
 ]
 
 [[package]]
