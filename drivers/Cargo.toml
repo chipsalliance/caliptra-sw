@@ -27,4 +27,5 @@ caliptra-drivers-test-bin = { path = "test-fw" }
 caliptra-hw-model = { path = "../hw-model" }
 caliptra-hw-model-types = { path = "../hw-model/types" }
 caliptra-builder = { path = "../builder" }
+caliptra-test = { path = "../test" }
 openssl = { version = "0.10", features = ["vendored"] }

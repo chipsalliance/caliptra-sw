@@ -8,6 +8,7 @@ use caliptra_hw_model::{
     BootParams, DefaultHwModel, DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState,
 };
 use caliptra_registers::mbox::enums::MboxStatusE;
+use caliptra_test::derive::{DoeInput, DoeOutput};
 use openssl::{hash::MessageDigest, pkey::PKey};
 use zerocopy::{transmute, AsBytes, FromBytes};
 
@@ -38,31 +39,10 @@ fn run_driver_test(test_bin_name: &'static str) {
     model.step_until_exit_success().unwrap();
 }
 
-struct DoeInput {
-    // The DOE obfuscation key, as wired to caliptra_top
-    doe_obf_key: [u32; 8],
-
-    // The DOE initialization vector, as given to the DOE_IV register by the
-    // firmware.
-    doe_iv: [u8; 16],
-
-    // The UDS seed, as stored in the fuses
-    uds_seed: [u32; 12],
-
-    // The field entropy, as stored in the fuses
-    field_entropy_seed: [u32; 8],
-
-    // The initial value of key-vault entry words at startup
-    keyvault_initial_word_value: u32,
-}
-
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct DoeTestVectors {
-    // The decrypted UDS as stored in the key vault
-    uds: [u32; 12],
-
-    // The decrypted field entropy as stored in the key vault (with padding)
-    field_entropy: [u32; 12],
+    // The keys output by the DOE block (mostly for reference)
+    doe_output: DoeOutput,
 
     // The expected results of the HMAC operations performed by the test.
     expected_test_results: DoeTestResults,
@@ -73,7 +53,7 @@ impl DoeTestVectors {
     /// silicon secrets, using only openssl. This independent implementation is
     /// used to validate that the test-vector constants are correct.
     fn generate(input: &DoeInput) -> Self {
-        use openssl::{cipher::Cipher, cipher_ctx::CipherCtx, sign::Signer};
+        use openssl::sign::Signer;
 
         fn swap_word_bytes(words: &[u32]) -> Vec<u32> {
             words.iter().map(|word| word.swap_bytes()).collect()
@@ -91,66 +71,33 @@ impl DoeTestVectors {
             signer.sign(&mut result).unwrap();
             result
         }
-        fn aes256_decrypt_blocks(key: &[u8], iv: &[u8], input: &[u8]) -> Vec<u8> {
-            let cipher = Cipher::aes_256_cbc();
-            let mut ctx = CipherCtx::new().unwrap();
-            ctx.decrypt_init(Some(cipher), Some(key), Some(iv)).unwrap();
-            ctx.set_padding(false);
-            let mut result = vec![];
-            ctx.cipher_update_vec(input, &mut result).unwrap();
-            ctx.cipher_final_vec(&mut result).unwrap();
-            result
-        }
 
-        let mut result = Self::default();
-
-        result
-            .uds
-            .as_bytes_mut()
-            .copy_from_slice(&aes256_decrypt_blocks(
-                swap_word_bytes(&input.doe_obf_key).as_bytes(),
-                &input.doe_iv,
-                swap_word_bytes(&input.uds_seed).as_bytes(),
-            ));
-        swap_word_bytes_inplace(&mut result.uds);
+        let mut result = DoeTestVectors {
+            doe_output: DoeOutput::generate(input),
+            expected_test_results: Default::default(),
+        };
 
         result.expected_test_results.hmac_uds_as_key = transmute!(hmac384(
-            swap_word_bytes(&result.uds).as_bytes(),
+            swap_word_bytes(&result.doe_output.uds).as_bytes(),
             "Hello world!".as_bytes()
         ));
         swap_word_bytes_inplace(&mut result.expected_test_results.hmac_uds_as_key);
 
         result.expected_test_results.hmac_uds_as_data = transmute!(hmac384(
             swap_word_bytes(&caliptra_drivers_test_bin::DOE_TEST_HMAC_KEY).as_bytes(),
-            swap_word_bytes(&result.uds).as_bytes()
+            swap_word_bytes(&result.doe_output.uds).as_bytes()
         ));
         swap_word_bytes_inplace(&mut result.expected_test_results.hmac_uds_as_data);
 
-        // After reset, the key-vault registers are filled with a particular
-        // word, depending on the debug-locked mode.  The field entropy only
-        // takes up 8 of the 12 words, so the 4 remaining words keep their
-        // original value (their contents are used when the key-vault entry is
-        // used as a HMAC key, but not when used as HMAC
-        // data).
-        result.field_entropy = [input.keyvault_initial_word_value; 12];
-        result.field_entropy[0..8]
-            .as_bytes_mut()
-            .copy_from_slice(&aes256_decrypt_blocks(
-                swap_word_bytes(&input.doe_obf_key).as_bytes(),
-                &input.doe_iv,
-                swap_word_bytes(&input.field_entropy_seed).as_bytes(),
-            ));
-        swap_word_bytes_inplace(&mut result.field_entropy);
-
         result.expected_test_results.hmac_field_entropy_as_key = transmute!(hmac384(
-            swap_word_bytes(&result.field_entropy).as_bytes(),
+            swap_word_bytes(&result.doe_output.field_entropy).as_bytes(),
             "Hello world!".as_bytes()
         ));
         swap_word_bytes_inplace(&mut result.expected_test_results.hmac_field_entropy_as_key);
 
         result.expected_test_results.hmac_field_entropy_as_data = transmute!(hmac384(
             swap_word_bytes(&caliptra_drivers_test_bin::DOE_TEST_HMAC_KEY).as_bytes(),
-            swap_word_bytes(&result.field_entropy[0..8]).as_bytes()
+            swap_word_bytes(&result.doe_output.field_entropy[0..8]).as_bytes()
         ));
         swap_word_bytes_inplace(&mut result.expected_test_results.hmac_field_entropy_as_data);
         result
@@ -158,27 +105,29 @@ impl DoeTestVectors {
 }
 
 const DOE_TEST_VECTORS_DEBUG_MODE: DoeTestVectors = DoeTestVectors {
-    // The decrypted UDS as stored in the key vault
-    uds: [
-        0x34aa667c, 0x0a52c71f, 0x977a1de2, 0x701ef611, 0x0de19e21, 0x24b49b9d, 0xdf205ff6,
-        0xa9c04303, 0x0de19e21, 0x24b49b9d, 0xdf205ff6, 0xa9c04303,
-    ],
+    doe_output: DoeOutput {
+        // The decrypted UDS as stored in the key vault
+        uds: [
+            0x34aa667c, 0x0a52c71f, 0x977a1de2, 0x701ef611, 0x0de19e21, 0x24b49b9d, 0xdf205ff6,
+            0xa9c04303, 0x0de19e21, 0x24b49b9d, 0xdf205ff6, 0xa9c04303,
+        ],
 
-    // The decrypted field entropy as stored in the key vault (with padding)
-    field_entropy: [
-        0x34aa667c,
-        0x0a52c71f,
-        0x977a1de2,
-        0x701ef611,
-        0x0de19e21,
-        0x24b49b9d,
-        0xdf205ff6,
-        0xa9c04303,
-        0xaaaa_aaaa,
-        0xaaaa_aaaa,
-        0xaaaa_aaaa,
-        0xaaaa_aaaa,
-    ],
+        // The decrypted field entropy as stored in the key vault (with padding)
+        field_entropy: [
+            0x34aa667c,
+            0x0a52c71f,
+            0x977a1de2,
+            0x701ef611,
+            0x0de19e21,
+            0x24b49b9d,
+            0xdf205ff6,
+            0xa9c04303,
+            0xaaaa_aaaa,
+            0xaaaa_aaaa,
+            0xaaaa_aaaa,
+            0xaaaa_aaaa,
+        ],
+    },
 
     // The expected results of the HMAC operations performed by the test.
     expected_test_results: DoeTestResults {
@@ -242,14 +191,16 @@ fn test_doe_when_debug_not_locked() {
 }
 
 const DOE_TEST_VECTORS: DoeTestVectors = DoeTestVectors {
-    uds: [
-        0x0b21f10f, 0x6963005e, 0x4884d93f, 0x1f91037a, 0x2d37ffe0, 0x3727b5e8, 0xb78b9608,
-        0x7e0e58d2, 0x420ce5ae, 0x4b1f04f8, 0x33b7af81, 0x72156bd8,
-    ],
-    field_entropy: [
-        0x3d75d35e, 0xbc44a31e, 0xad27aee5, 0x75cdd170, 0xe51dcaf4, 0x09c096ae, 0xa70ff448,
-        0x64834722, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-    ],
+    doe_output: DoeOutput {
+        uds: [
+            0x0b21f10f, 0x6963005e, 0x4884d93f, 0x1f91037a, 0x2d37ffe0, 0x3727b5e8, 0xb78b9608,
+            0x7e0e58d2, 0x420ce5ae, 0x4b1f04f8, 0x33b7af81, 0x72156bd8,
+        ],
+        field_entropy: [
+            0x3d75d35e, 0xbc44a31e, 0xad27aee5, 0x75cdd170, 0xe51dcaf4, 0x09c096ae, 0xa70ff448,
+            0x64834722, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+        ],
+    },
     expected_test_results: DoeTestResults {
         hmac_uds_as_key: [
             0xf1e6eebe, 0x17718892, 0x6b3482a4, 0x6ebdd31a, 0x1a64b1df, 0xf832d618, 0x5d209aeb,
