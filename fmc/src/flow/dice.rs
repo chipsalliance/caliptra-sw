@@ -93,7 +93,7 @@ pub trait DiceLayer {
     /// * `DiceOutput` - DICE layer output
     fn derive(
         env: &mut FmcEnv,
-        hand_off: &HandOff,
+        hand_off: &mut HandOff,
         input: &DiceInput,
     ) -> CaliptraResult<DiceOutput>;
 }

@@ -11,12 +11,12 @@ Abstract:
     File contains API for ECC-384 Cryptography operations
 
 --*/
-
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::{
     array_concat3, wait, Array4x12, CaliptraError, CaliptraResult, KeyReadArgs, KeyWriteArgs,
 };
 use caliptra_registers::ecc::EccReg;
+use zerocopy::{AsBytes, FromBytes};
 
 /// ECC-384 Coordinate
 pub type Ecc384Scalar = Array4x12;
@@ -93,7 +93,8 @@ impl From<KeyReadArgs> for Ecc384PrivKeyIn<'_> {
 }
 
 /// ECC-384 Public Key
-#[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Debug, Default, Copy, Clone, Eq, PartialEq)]
 pub struct Ecc384PubKey {
     /// X coordinate
     pub x: Ecc384Scalar,
@@ -111,7 +112,8 @@ impl Ecc384PubKey {
 }
 
 /// ECC-384 Signature
-#[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
+#[repr(C)]
+#[derive(Debug, Default, AsBytes, FromBytes, Copy, Clone, Eq, PartialEq)]
 pub struct Ecc384Signature {
     /// Random point
     pub r: Ecc384Scalar,
