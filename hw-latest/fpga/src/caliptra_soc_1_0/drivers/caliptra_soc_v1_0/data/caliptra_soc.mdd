@@ -1,0 +1,10 @@
+
+
+OPTION psf_version = 2.1;
+
+BEGIN DRIVER caliptra_soc
+	OPTION supported_peripherals = (caliptra_soc);
+	OPTION copyfiles = all;
+	OPTION VERSION = 1.0;
+	OPTION NAME = caliptra_soc;
+END DRIVER
