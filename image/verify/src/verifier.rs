@@ -189,7 +189,6 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             (ZERO_DIGEST, None)
         };
 
-
         let info = HeaderInfo {
             vendor_ecc_pub_key_idx,
             vendor_lms_pub_key_idx,
