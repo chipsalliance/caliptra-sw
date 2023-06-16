@@ -29,6 +29,11 @@ name = "test_iccm_write_locked"
 path = "test_iccm_write_locked.rs"
 required-features = ["riscv"]
 
+[[bin]]
+name = "test_system_bus_invalid_access"
+path = "test_system_bus_invalid_access.rs"
+required-features = ["riscv"]
+
 
 [[bin]]
 name = "mailbox_responder"

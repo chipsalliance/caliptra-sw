@@ -94,3 +94,22 @@ fn test_iccm_write_locked_nmi_failure() {
     let ext_info = harness::ExtErrorInfo::from(soc_ifc.cptra_fw_extended_error_info().read());
     assert_eq!(ext_info.mcause, harness::NMI_CAUSE_DBUS_STORE_ERROR);
 }
+
+#[test]
+fn test_rom_write_access() {
+    let elf = caliptra_builder::build_firmware_elf(&FwId {
+        bin_name: "test_system_bus_invalid_access",
+        ..BASE_FWID
+    })
+    .unwrap();
+
+    let mut model = run_fw_elf(&elf);
+    model.step_until_exit_success().unwrap_err();
+    let soc_ifc: caliptra_registers::soc_ifc::RegisterBlock<_> = model.soc_ifc();
+    assert_eq!(
+        soc_ifc.cptra_fw_error_non_fatal().read(),
+        harness::ERROR_NMI
+    );
+    let ext_info = harness::ExtErrorInfo::from(soc_ifc.cptra_fw_extended_error_info().read());
+    assert_eq!(ext_info.mcause, harness::NMI_CAUSE_DBUS_STORE_ERROR);
+}
