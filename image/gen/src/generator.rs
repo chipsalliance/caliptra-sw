@@ -152,8 +152,15 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
                     &owner_config.pub_keys.ecc_pub_key,
                 )?;
                 owner_sigs.ecc_sig = sig;
+                let lms_sig = self.crypto.lms_sign(
+                    digest_owner,
+                    &priv_keys.lms_priv_key,
+                )?;
+                owner_sigs.lms_sig = lms_sig;
             }
+
         }
+
 
         let mut preamble = ImagePreamble {
             vendor_pub_keys: config.vendor_config.pub_keys,

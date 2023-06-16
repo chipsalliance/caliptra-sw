@@ -296,9 +296,11 @@ pub const VENDOR_CONFIG_KEY_3: ImageGeneratorVendorConfig = ImageGeneratorVendor
 pub const OWNER_CONFIG: ImageGeneratorOwnerConfig = ImageGeneratorOwnerConfig {
     pub_keys: ImageOwnerPubKeys {
         ecc_pub_key: OWNER_KEY_PUBLIC,
+        lms_pub_key: OWNER_LMS_KEY0_PUBLIC,
     },
     priv_keys: Some(ImageOwnerPrivKeys {
         ecc_priv_key: OWNER_KEY_PRIVATE,
+        lms_priv_key: OWNER_LMS_KEY0_PRIVATE,
     }),
     not_before: [0u8; 15],
     not_after: [0u8; 15],
