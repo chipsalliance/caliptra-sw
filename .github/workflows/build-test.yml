@@ -7,6 +7,11 @@ on:
     branches: ["main"]
   pull_request:
 
+  workflow_call:
+    inputs:
+      ref:
+        description: "Ref to checkout"
+        type: string
   workflow_dispatch:
 
 jobs:
@@ -26,7 +31,25 @@ jobs:
       EXTRA_CARGO_CONFIG: "target.'cfg(all())'.rustflags = [\"-Dwarnings\"]"
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Setup ref to use
+        id: ref
+        run: |
+          REF_REQ=${{ inputs.ref }}
+          echo "ref=${REF_REQ:-"Blah"}" >> $GITHUB_OUTPUT
+          echo ${REF_REQ:-"Blah"}
+
+      - name: Checkout repo default ref
+        uses: actions/checkout@v3
+        if: steps.ref.outputs.ref == 'Blah'
+        with:
+          submodules: 'true'
+
+      - name: Checkout specific repo ref
+        uses: actions/checkout@v3
+        if: steps.ref.outputs.ref != 'Blah'
+        with:
+          submodules: 'true'
+          ref: ${{ steps.ref.outputs.ref }}
 
       - name: Restore sccache binary
         uses: actions/cache/restore@v3
