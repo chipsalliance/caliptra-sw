@@ -42,7 +42,7 @@ pub trait ImageGenratorExecutable {
     fn size(&self) -> u32;
 }
 
-/// Image Gnerator Crypto Trait
+/// Image Generator Crypto Trait
 pub trait ImageGeneratorCrypto {
     /// Calculate SHA-384 digest
     fn sha384_digest(&self, data: &[u8]) -> anyhow::Result<ImageDigest>;

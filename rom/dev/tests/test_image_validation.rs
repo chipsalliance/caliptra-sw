@@ -11,10 +11,13 @@ use caliptra_hw_model::{
 use caliptra_image_elf::ElfExecutable;
 use caliptra_image_fake_keys::{
     VENDOR_CONFIG_KEY_0, VENDOR_CONFIG_KEY_1, VENDOR_CONFIG_KEY_2, VENDOR_CONFIG_KEY_3,
+    VENDOR_LMS_KEY1_PUBLIC,
 };
 use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig, ImageGeneratorVendorConfig};
 use caliptra_image_openssl::OsslCrypto;
-use caliptra_image_types::{ImageBundle, ImageManifest, VENDOR_ECC_KEY_COUNT};
+use caliptra_image_types::{
+    ImageBundle, ImageLmsSignature, ImageManifest, VENDOR_ECC_KEY_COUNT, VENDOR_LMS_KEY_COUNT,
+};
 use openssl::asn1::Asn1Integer;
 use openssl::asn1::Asn1Time;
 use openssl::bn::BigNum;
@@ -214,6 +217,22 @@ fn test_preamble_vendor_pubkey_out_of_bounds() {
 }
 
 #[test]
+fn test_preamble_vendor_lms_pubkey_out_of_bounds() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    image_bundle.manifest.preamble.vendor_lms_pub_key_idx = VENDOR_LMS_KEY_COUNT;
+
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VEN_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS
+                .into()
+        ),
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err()
+    );
+}
+
+#[test]
 fn test_header_verify_vendor_sig_zero_pubkey() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
@@ -342,6 +361,41 @@ fn test_header_verify_vendor_sig_mismatch() {
 }
 
 #[test]
+fn test_header_verify_vendor_lms_sig_mismatch() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let vendor_lms_pub_key_idx = image_bundle.manifest.preamble.vendor_lms_pub_key_idx as usize;
+
+    // Modify the vendor public key.
+    let lms_pub_key_backup =
+        image_bundle.manifest.preamble.vendor_pub_keys.lms_pub_keys[vendor_lms_pub_key_idx];
+
+    image_bundle.manifest.preamble.vendor_pub_keys.lms_pub_keys[vendor_lms_pub_key_idx] =
+        VENDOR_LMS_KEY1_PUBLIC;
+
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID.into()
+        ),
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err()
+    );
+
+    // restore the public key and change the signature
+    image_bundle.manifest.preamble.vendor_pub_keys.lms_pub_keys[vendor_lms_pub_key_idx] =
+        lms_pub_key_backup;
+    image_bundle.manifest.preamble.vendor_sigs.lms_sig = ImageLmsSignature::default();
+
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID.into()
+        ),
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err()
+    );
+}
+
+#[test]
 fn test_header_verify_vendor_pub_key_in_preamble_and_header() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
@@ -354,6 +408,25 @@ fn test_header_verify_vendor_pub_key_in_preamble_and_header() {
     assert_eq!(
         ModelError::MailboxCmdFailed(
             CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_MISMATCH.into()
+        ),
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err()
+    );
+}
+
+#[test]
+fn test_header_verify_vendor_lms_pub_key_in_preamble_and_header() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    // Change vendor pubkey index.
+    image_bundle.manifest.header.vendor_lms_pub_key_idx =
+        image_bundle.manifest.preamble.vendor_lms_pub_key_idx + 1;
+    update_header(&mut image_bundle);
+
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_MISMATCH.into()
         ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
