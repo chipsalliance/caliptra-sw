@@ -14,6 +14,13 @@ Abstract:
 --*/
 
 use core::mem::MaybeUninit;
+use zerocopy::{AsBytes, FromBytes};
+
+macro_rules! static_assert {
+    ($expression:expr) => {
+        const _: () = assert!($expression);
+    };
+}
 
 /// The `Array4xN` type represents large arrays in the native format of the Caliptra
 /// cryptographic hardware, and provides From traits for converting to/from byte arrays.
@@ -30,6 +37,18 @@ impl<const W: usize, const B: usize> Default for Array4xN<W, B> {
     fn default() -> Self {
         Self([0u32; W])
     }
+}
+
+//// Ensure there is no padding in the struct
+static_assert!(core::mem::size_of::<Array4xN<1, 4>>() == 4);
+unsafe impl<const W: usize, const B: usize> AsBytes for Array4xN<W, B> {
+    fn only_derive_is_allowed_to_implement_this_trait() {}
+}
+
+//// Ensure there is no padding in the struct
+static_assert!(core::mem::size_of::<Array4xN<1, 4>>() == 4);
+unsafe impl<const W: usize, const B: usize> FromBytes for Array4xN<W, B> {
+    fn only_derive_is_allowed_to_implement_this_trait() {}
 }
 
 impl<const W: usize, const B: usize> Array4xN<W, B> {

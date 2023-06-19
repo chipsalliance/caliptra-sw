@@ -8,6 +8,7 @@ use std::{
 };
 
 use caliptra_emu_bus::Bus;
+use caliptra_hw_model_types::DEFAULT_CPTRA_OBF_KEY;
 use zerocopy::{AsBytes, LayoutVerified, Unalign};
 
 use caliptra_registers::mbox;
@@ -106,6 +107,9 @@ pub struct InitParams<'a> {
 
     pub security_state: SecurityState,
 
+    // The silicon obfuscation key passed to caliptra_top.
+    pub cptra_obf_key: [u32; 8],
+
     pub trng_nibbles: Box<dyn Iterator<Item = u8>>,
 }
 
@@ -124,6 +128,7 @@ impl<'a> Default for InitParams<'a> {
             log_writer: Box::new(stdout()),
             security_state: *SecurityState::default()
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
+            cptra_obf_key: DEFAULT_CPTRA_OBF_KEY,
             trng_nibbles: rng,
         }
     }

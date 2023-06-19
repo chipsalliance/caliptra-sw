@@ -13,6 +13,7 @@ Abstract:
 --*/
 
 use crate::{
+    helpers::words_from_bytes_be,
     iccm::Iccm,
     soc_reg::{DebugManufService, SocRegistersExternal},
     AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha384, KeyVault, MailboxExternal,
@@ -23,6 +24,12 @@ use caliptra_emu_derive::Bus;
 use caliptra_hw_model_types::SecurityState;
 use std::path::PathBuf;
 use tock_registers::registers::InMemoryRegister;
+
+/// Default Deobfuscation engine key
+pub const DEFAULT_DOE_KEY: [u8; 32] = [
+    0x60, 0x3D, 0xEB, 0x10, 0x15, 0xCA, 0x71, 0xBE, 0x2B, 0x73, 0xAE, 0xF0, 0x85, 0x7D, 0x77, 0x81,
+    0x1F, 0x35, 0x2C, 0x7, 0x3B, 0x61, 0x8, 0xD7, 0x2D, 0x98, 0x10, 0xA3, 0x9, 0x14, 0xDF, 0xF4,
+];
 
 pub struct TbServicesCb(pub Box<dyn FnMut(u8)>);
 impl TbServicesCb {
@@ -196,7 +203,7 @@ impl From<Box<dyn FnMut() + 'static>> for ActionCb {
 }
 
 /// Caliptra Root Bus Arguments
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct CaliptraRootBusArgs {
     pub rom: Vec<u8>,
     pub log_dir: PathBuf,
@@ -210,6 +217,24 @@ pub struct CaliptraRootBusArgs {
     pub upload_update_fw: UploadUpdateFwCb,
     pub bootfsm_go_cb: ActionCb,
     pub download_idevid_csr_cb: DownloadIdevidCsrCb,
+
+    // The obfuscation key, as passed to caliptra-top
+    pub cptra_obf_key: [u32; 8],
+}
+impl Default for CaliptraRootBusArgs {
+    fn default() -> Self {
+        Self {
+            rom: Default::default(),
+            log_dir: Default::default(),
+            security_state: Default::default(),
+            tb_services_cb: Default::default(),
+            ready_for_fw_cb: Default::default(),
+            upload_update_fw: Default::default(),
+            bootfsm_go_cb: Default::default(),
+            download_idevid_csr_cb: Default::default(),
+            cptra_obf_key: words_from_bytes_be(&DEFAULT_DOE_KEY),
+        }
+    }
 }
 
 #[derive(Bus)]
@@ -269,12 +294,17 @@ impl CaliptraRootBus {
     pub const DCCM_SIZE: usize = 128 * 1024;
 
     pub fn new(clock: &Clock, mut args: CaliptraRootBusArgs) -> Self {
-        let key_vault = KeyVault::new();
+        let mut key_vault = KeyVault::new();
         let mailbox_ram = MailboxRam::new();
         let mailbox = MailboxInternal::new(mailbox_ram.clone());
         let rom = Rom::new(std::mem::take(&mut args.rom));
         let iccm = Iccm::new(clock);
         let soc_reg = SocRegistersInternal::new(clock, mailbox.clone(), iccm.clone(), args);
+        if !soc_reg.is_debug_locked() {
+            // When debug is possible, the key-vault is initialized with a debug value...
+            // This is necessary to match the behavior of the RTL.
+            key_vault.clear_keys_with_debug_values(false);
+        }
 
         Self {
             rom,
@@ -315,4 +345,73 @@ pub struct SocToCaliptraBus {
 
     #[peripheral(offset = 0x3003_0000, mask = 0x0000_ffff)]
     soc_ifc: SocRegistersExternal,
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::KeyUsage;
+
+    use super::*;
+
+    #[test]
+    fn test_keyvault_init_val_in_debug_unlocked_mode() {
+        let clock = Clock::new();
+        let mut root_bus = CaliptraRootBus::new(
+            &clock,
+            CaliptraRootBusArgs {
+                security_state: *SecurityState::default().set_debug_locked(false),
+                ..CaliptraRootBusArgs::default()
+            },
+        );
+        let mut key_usage = KeyUsage::default();
+        key_usage.set_hmac_key(true);
+
+        root_bus
+            .key_vault
+            .write_key(1, &[0x00, 0x11, 0x22, 0x33], key_usage.into())
+            .unwrap();
+
+        // The key-entry will still have the "init data" in the unwritten words.
+        // See chipsalliace/caliptra-rtl#114
+        assert_eq!(
+            root_bus.key_vault.read_key(1, key_usage).unwrap(),
+            [
+                0x00_u8, 0x11, 0x22, 0x33, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
+                0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
+                0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
+                0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa
+            ]
+        );
+    }
+
+    #[test]
+    fn test_keyvault_init_val_in_debug_locked_mode() {
+        let clock = Clock::new();
+        let mut root_bus = CaliptraRootBus::new(
+            &clock,
+            CaliptraRootBusArgs {
+                security_state: *SecurityState::default().set_debug_locked(true),
+                ..CaliptraRootBusArgs::default()
+            },
+        );
+        let mut key_usage = KeyUsage::default();
+        key_usage.set_hmac_key(true);
+
+        root_bus
+            .key_vault
+            .write_key(1, &[0x00, 0x11, 0x22, 0x33], key_usage.into())
+            .unwrap();
+
+        // The key-entry will still have the "init data" in the unwritten words.
+        // See chipsalliace/caliptra-rtl#114
+        assert_eq!(
+            root_bus.key_vault.read_key(1, key_usage).unwrap(),
+            [
+                0x00_u8, 0x11, 0x22, 0x33, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+            ]
+        );
+    }
 }

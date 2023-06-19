@@ -13,8 +13,8 @@ File Name:
 
 use crate::flow::dice::DiceOutput;
 use crate::fmc_env::FmcEnv;
-use caliptra_common::DataStore::*;
-use caliptra_common::{DataStore, FirmwareHandoffTable};
+use caliptra_common::{DataStore, FirmwareHandoffTable, HandOffDataHandle, Vault};
+use caliptra_common::{DataStore::*, FHT_INVALID_HANDLE};
 use caliptra_drivers::{Array4x12, Ecc384Signature, KeyId};
 use caliptra_error::CaliptraResult;
 
@@ -176,10 +176,9 @@ impl HandOff {
         }
     }
 
-    pub fn set_rt_dice_signature(&self, _sig: &Ecc384Signature) {
-        // TODO - implement
-        // Where should this be stored?
-        // No DV slots avaiable anymore.
+    /// Store runtime Dice Signature
+    pub fn set_rt_dice_signature(&mut self, sig: &Ecc384Signature) {
+        self.fht.rt_dice_sign = *sig;
     }
 
     /// Retrieve image manifest load address in DCCM
@@ -214,17 +213,23 @@ impl HandOff {
         }
     }
 
+    /// The FMC CDI is stored in a 32-bit DataVault sticky register.
+    fn rt_cdi_store(output: &DiceOutput) -> HandOffDataHandle {
+        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | output.cdi as u32)
+    }
+
+    fn rt_priv_key_store(output: &DiceOutput) -> HandOffDataHandle {
+        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | output.subj_key_pair.priv_key as u32)
+    }
+
     /// Update HandOff Table with RT Parameters
-    pub fn update(&self, _out: DiceOutput) -> CaliptraResult<()> {
-        // Todo in a different PR : Issue #84
+    pub fn update(&mut self, out: DiceOutput) -> CaliptraResult<()> {
         // update fht.rt_cdi_kv_hdl
-        // update fht.rt_priv_key_kv_hdl
-        // update fht.rt_pub_key_y_dv_hdl
-        // update fht.rt_cert_sig_r_dv_hdl
-        // update fht.rt_cert_sig_r_dv_hdl
-        //
-        // Invalidate fmc_cdi_kv_hdl
-        // Invalidate fmc_priv_key_kv_hdl
+        self.fht.rt_cdi_kv_hdl = Self::rt_cdi_store(&out);
+        self.fht.rt_priv_key_kv_hdl = Self::rt_priv_key_store(&out);
+        self.fht.rt_dice_pub_key = out.subj_key_pair.pub_key;
+        self.fht.fmc_cdi_kv_hdl = FHT_INVALID_HANDLE;
+        self.fht.fmc_priv_key_kv_hdl = FHT_INVALID_HANDLE;
         Ok(())
     }
 }

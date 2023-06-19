@@ -480,28 +480,23 @@ impl HmacSha384 {
         let mut key_usage = KeyUsage::default();
         key_usage.set_hmac_data(true);
 
-        let result = self.key_vault.read_key(key_id, key_usage);
-        let (block_read_result, data) = match result.err() {
-            Some(BusError::LoadAccessFault) | Some(BusError::LoadAddrMisaligned) => {
-                (KeyReadStatus::ERROR::KV_READ_FAIL.value, None)
+        let error_code = match self.key_vault.read_key_as_data(key_id, key_usage) {
+            Err(BusError::LoadAccessFault) | Err(BusError::LoadAddrMisaligned) => {
+                KeyReadStatus::ERROR::KV_READ_FAIL.value
             }
-            Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
-                (KeyReadStatus::ERROR::KV_WRITE_FAIL.value, None)
+            Err(BusError::StoreAccessFault) | Err(BusError::StoreAddrMisaligned) => {
+                KeyReadStatus::ERROR::KV_WRITE_FAIL.value
             }
-            None => (
-                KeyReadStatus::ERROR::KV_SUCCESS.value,
-                Some(result.unwrap()),
-            ),
+            Ok(data) => {
+                self.format_block(&data);
+                KeyReadStatus::ERROR::KV_SUCCESS.value
+            }
         };
-
-        if let Some(data) = &data {
-            self.format_block(data);
-        }
 
         self.block_read_status.reg.modify(
             KeyReadStatus::READY::SET
                 + KeyReadStatus::VALID::SET
-                + KeyReadStatus::ERROR.val(block_read_result),
+                + KeyReadStatus::ERROR.val(error_code),
         );
     }
 
@@ -516,7 +511,7 @@ impl HmacSha384 {
     /// # Error
     ///
     /// * `None`
-    fn format_block(&mut self, data: &[u8; KeyVault::KEY_SIZE]) {
+    fn format_block(&mut self, data: &[u8]) {
         let mut block_arr = [0u8; HMAC_BLOCK_SIZE];
         block_arr[..data.len()].copy_from_slice(&data[..data.len()]);
         block_arr.to_little_endian();
@@ -733,9 +728,7 @@ mod tests {
             }
         }
 
-        if block_via_kv {
-            assert_eq!(data.len(), HMAC_KEY_SIZE);
-        } else {
+        if !block_via_kv {
             // Compute the total bytes and total blocks required for the final message.
             block_arr[..data.len()].copy_from_slice(data);
             block_arr[data.len()] = 1 << 7;
@@ -789,13 +782,12 @@ mod tests {
         }
 
         if block_via_kv {
-            let mut block: [u8; KeyVault::KEY_SIZE] = [0; KeyVault::KEY_SIZE];
-            block[..data.len()].copy_from_slice(data);
-            block.to_big_endian(); // Keys are stored in big-endian format.
+            let mut data = data.to_vec();
+            data.to_big_endian(); // Keys are stored in big-endian format.
             let mut key_usage = KeyUsage::default();
             key_usage.set_hmac_data(true);
             key_vault
-                .write_key(block_id, &block, u32::from(key_usage))
+                .write_key(block_id, &data, u32::from(key_usage))
                 .unwrap();
 
             if block_read_disallowed {
@@ -1223,6 +1215,40 @@ mod tests {
             0x56, 0x18, 0x58, 0x72, 0xb2, 0x51, 0xeb, 0xc9, 0xe0, 0x00, 0x2e, 0x84, 0x0c, 0xc7,
             0x17, 0xb2, 0x39, 0xce, 0x09, 0x59, 0x9e, 0x78, 0x6c, 0x2f, 0x64, 0x79, 0x6f, 0xf9,
             0x5b, 0xc6, 0xec, 0xb6, 0xba, 0xa9,
+        ];
+
+        for key_id in 0..8 {
+            test_hmac(
+                &mut key.clone(),
+                &data,
+                &result,
+                &[KeyVaultAction::BlockFromVault(key_id)],
+            );
+        }
+    }
+
+    #[test]
+    fn test_hmac_sha384_kv_small_block_read() {
+        // This is similar to what happens when the 32-byte field-entropy is
+        // used as hmac data.
+        let key: [u8; 48] = [
+            0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
+            0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
+            0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
+            0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
+        ];
+
+        let data: [u8; 32] = [
+            0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
+            0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
+            0x4a, 0x65, 0x66, 0x65,
+        ];
+
+        let result: [u8; 48] = [
+            0x4f, 0x60, 0xdd, 0x1f, 0x5, 0xc1, 0x0, 0x1c, 0xfd, 0x14, 0x6f, 0x41, 0xb4, 0x4b, 0xaa,
+            0x80, 0x24, 0x65, 0xc, 0xd, 0xe9, 0x47, 0x3d, 0x9e, 0x16, 0x9d, 0x3b, 0x51, 0xf3, 0x3c,
+            0x6e, 0x83, 0xb2, 0xa9, 0x37, 0x5f, 0x37, 0x87, 0x9f, 0x75, 0x11, 0x87, 0x68, 0xa5,
+            0x68, 0x7c, 0x42, 0x49,
         ];
 
         for key_id in 0..8 {

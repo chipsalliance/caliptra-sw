@@ -126,14 +126,12 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | rt_tci_dv_hdl         | 1            | ROM        | Handle of RT TCI value in the Data Vault.                                                                 |
 | rt_cdi_kv_hdl         | 1            | FMC        | Handle of RT CDI value in the Key Vault.                                                                  |
 | rt_priv_key_kv_hdl    | 1            | FMC        | Handle of RT Private Alias Key in the Key Vault.                                                          |
-| rt_pub_key_x_dv_hdl   | 1            | FMC        | Handle of RT Public Alias Key X Coordinate in the Data Vault.                                             |
-| rt_pub_key_y_dv_hdl   | 1            | FMC        | Handle of RT Public Alias Key Y Coordinate in the Data Vault.                                             |
-| rt_cert_sig_r_dv_hdl  | 1            | FMC        | Handle of RT Certificate Signature R Component in the Data Vault.                                         |
-| rt_cert_sig_s_dv_hdl  | 1            | FMC        | Handle of RT Certificate Signature S Component in the Data Vault.                                         |
+Key Y Coordinate in the Data Vault.                                             |
 | rt_svn_dv_hdl         | 1            | FMC        | Handle of RT SVN value in the Data Vault.                                                                 |
-| reserved              | 20           |            | Reserved for future use.                                                                                 |
+| rt_dice_sign          | 96           | FMC        | RT Alias DICE signature.
+| reserved              | 52           |            | Reserved for future use.                                                                                 |
 
-*FHT is currently defined to be 60 bytes in length.*
+*FHT is currently defined to be 512 bytes in length.*
 
 ### fht_marker
 
@@ -185,10 +183,6 @@ This field provides the Handle into the Key Vault where the PrivateKey<sub>FMC</
 
 These fields provide the indices into the Data Vault where the PublicKey<sub>FMC</sub> X and Y coordinates are stored.
 
-### fmc_cert_sig_r_dv_hdl, fmc_cert_sig_s_dv_hdl
-
-These fields provide the indices into the Data Vault where the Cert<sub>FMC</sub> signature R and S components are stored.
-
 ### fmc_svn_dv_hdl
 
 This field provides the Handle into the Data Vault where the SVN<sub>FMC</sub> is stored.
@@ -204,10 +198,6 @@ This field provides the Handle into the Key Vault where the CDI<sub>RT</sub> is 
 ### rt_priv_key_kv_hdl
 
 This field provides the Handle into the Key Vault where the PrivateKey<sub>RT</sub> is stored.
-
-### rt_pub_key_x_dv_hdl, rt_pub_key_y_dv_hdl
-
-These fields provide the indices into the Data Vault where the PublicKey<sub>RT</sub> X and Y coordinates are stored.
 
 ### rt_cert_sig_r_dv_hdl, rt_cert_sig_s_dv_hdl
 

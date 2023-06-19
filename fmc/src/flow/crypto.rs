@@ -78,10 +78,12 @@ impl Crypto {
         tag: KeyId,
     ) -> CaliptraResult<KeyId> {
         // Tag
-        let mut usage = KeyUsage::default();
-        usage.set_hmac_key(true);
-        usage.set_ecc_key_gen_seed(true);
-        let tag_args = Hmac384Tag::Key(KeyWriteArgs::new(tag, usage));
+        let tag_args = Hmac384Tag::Key(KeyWriteArgs::new(
+            tag,
+            KeyUsage::default()
+                .set_hmac_key_en()
+                .set_ecc_key_gen_seed_en(),
+        ));
 
         // Calculate the CDI
         env.hmac384.hmac(key, data, tag_args)?;
@@ -107,10 +109,10 @@ impl Crypto {
     ) -> CaliptraResult<Ecc384KeyPair> {
         let seed = Ecc384Seed::Key(KeyReadArgs::new(seed));
 
-        let mut usage = KeyUsage::default();
-        usage.set_ecc_private_key(true);
-
-        let key_out = Ecc384PrivKeyOut::Key(KeyWriteArgs::new(priv_key, usage));
+        let key_out = Ecc384PrivKeyOut::Key(KeyWriteArgs::new(
+            priv_key,
+            KeyUsage::default().set_ecc_private_key_en(),
+        ));
 
         Ok(Ecc384KeyPair {
             priv_key,
