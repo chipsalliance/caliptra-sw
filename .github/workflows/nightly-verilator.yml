@@ -1,5 +1,6 @@
 name: Verilator Nightly
 on:
+  workflow_call:
   workflow_dispatch:
   schedule:
     # 2:11 AM PST tuesday-saturday
