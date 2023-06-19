@@ -10,7 +10,7 @@ on:
 
 jobs:
   build-test:
-    uses: amd-isaac/caliptra-sw/.github/workflows/build-test.yml@main
+    uses: amd-isaac/caliptra-sw/.github/workflows/build-test.yml@isaac_nightly_release
 
   hw-release-test:
     name: HW Release Test
@@ -55,11 +55,11 @@ jobs:
           git commit -a -m "${{ env.CI_COMMIT_MESSAGE }}"
 
       #- name: Run SW emulator tests
-      #  uses: amd-isaac/caliptra-sw/.github/workflows/build-test.yml@main
+      #  uses: amd-isaac/caliptra-sw/.github/workflows/build-test.yml@isaac_nightly_release
       #  if: ${{ steps.status.outputs.status }}
 
       #- name: Run Verilator abbreviated tests
-      #  uses: amd-isaac/caliptra-sw/.github/workflows/build-test-verilator.yml@main
+      #  uses: amd-isaac/caliptra-sw/.github/workflows/build-test-verilator.yml@isaac_nightly_release
       #  if: ${{ steps.status.outputs.status }}
 
       # If there's a new commit, push it now so we don't have to rerun the above tests again
@@ -69,7 +69,7 @@ jobs:
       # Make sure there are commits between current and last successful release
 
       #- name: Run Verilator full tests
-      #  uses: amd-isaac/caliptra-sw/.github/workflows/nightly-verilator.yml@main
+      #  uses: amd-isaac/caliptra-sw/.github/workflows/nightly-verilator.yml@isaac_nightly_release
 
       # FIXME: Use the correct release generation process here
       #- name: Generate release zip
