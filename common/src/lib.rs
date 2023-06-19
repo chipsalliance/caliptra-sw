@@ -8,6 +8,7 @@ pub mod hand_off;
 #[macro_use]
 pub mod printer;
 pub mod boot_status;
+pub mod checksum;
 pub mod fuse;
 pub mod pcr;
 
@@ -18,6 +19,7 @@ pub use hand_off::{
 };
 
 pub use boot_status::RomBootStatus;
+pub use checksum::{calc_checksum, verify_checksum};
 pub use fuse::{FuseLogEntry, FuseLogEntryId};
 pub use pcr::{PcrLogEntry, PcrLogEntryId};
 pub use printer::HexBytes;
