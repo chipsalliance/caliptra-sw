@@ -19,6 +19,7 @@ use core::hint::black_box;
 
 use caliptra_drivers::{
     report_fw_error_non_fatal, CaliptraError, Ecc384, Hmac384, Mailbox, Sha256, Sha384, Sha384Acc,
+    SocIfc,
 };
 use rom_env::RomEnv;
 
@@ -38,6 +39,7 @@ mod pcr;
 mod print;
 mod rom_env;
 mod verifier;
+mod wdt;
 
 #[cfg(feature = "std")]
 pub fn main() {}
@@ -72,6 +74,9 @@ pub extern "C" fn rom_entry() -> ! {
         }
     );
 
+    // Start the watchdog timer
+    wdt::start_wdt(&mut env.soc_ifc);
+
     let result = kat::execute_kat(&mut env);
     if let Err(err) = result {
         report_error(err.into());
@@ -88,6 +93,10 @@ pub extern "C" fn rom_entry() -> ! {
         }
         Err(err) => report_error(err.into()),
     }
+
+    // Stop the watchdog timer.
+    // [TODO] Reset the watchdog timer and let FMC take ownership of it.
+    wdt::stop_wdt(&mut env.soc_ifc);
 
     #[cfg(not(feature = "no-fmc"))]
     launch_fmc(&mut env);
@@ -166,6 +175,9 @@ fn report_error(code: u32) -> ! {
         Sha256::zeroize();
         Sha384::zeroize();
         Sha384Acc::zeroize();
+
+        // Stop the watchdog timer.
+        SocIfc::stop_wdt1();
     }
 
     loop {
