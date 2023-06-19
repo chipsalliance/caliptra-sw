@@ -30,7 +30,7 @@ jobs:
 
       - name: Run git status
         id: status
-        run: echo "status=$(git status -s)" >> $GITHUB_OUTPUT
+        run: echo "status=$(git status -s | head -1)" >> $GITHUB_OUTPUT
 
       # If there's a new HW release (submodule has been updated), add a commit to main branch
       - name: Commit and create pull request
