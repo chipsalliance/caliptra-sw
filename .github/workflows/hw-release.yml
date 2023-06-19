@@ -9,6 +9,9 @@ on:
   workflow_dispatch:
 
 jobs:
+  build-test:
+    uses: amd-isaac/caliptra-sw/.github/workflows/build-test.yml@main
+
   hw-release-test:
     name: HW Release Test
     runs-on: ubuntu-22.04
@@ -51,13 +54,13 @@ jobs:
           git config --global user.email "username@users.noreply.github.com"
           git commit -a -m "${{ env.CI_COMMIT_MESSAGE }}"
 
-      - name: Run SW emulator tests
-        uses: amd-isaac/caliptra-sw/.github/workflows/build-test.yml@main
-        if: ${{ steps.status.outputs.status }}
+      #- name: Run SW emulator tests
+      #  uses: amd-isaac/caliptra-sw/.github/workflows/build-test.yml@main
+      #  if: ${{ steps.status.outputs.status }}
 
-      - name: Run Verilator abbreviated tests
-        uses: amd-isaac/caliptra-sw/.github/workflows/build-test-verilator.yml@main
-        if: ${{ steps.status.outputs.status }}
+      #- name: Run Verilator abbreviated tests
+      #  uses: amd-isaac/caliptra-sw/.github/workflows/build-test-verilator.yml@main
+      #  if: ${{ steps.status.outputs.status }}
 
       # If there's a new commit, push it now so we don't have to rerun the above tests again
 
