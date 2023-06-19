@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use anyhow::Context;
-use caliptra_image_types::{VENDOR_ECC_KEY_COUNT, VENDOR_LMS_KEY_COUNT};
+use caliptra_image_types::{VENDOR_ECC_KEY_COUNT, VENDOR_LMS_KEY_COUNT, OWNER_LMS_KEY_COUNT};
 use serde_derive::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -35,6 +35,10 @@ pub(crate) struct OwnerKeyConfig {
     pub ecc_pub_key: String,
 
     pub ecc_priv_key: Option<String>,
+
+    pub lms_pub_keys: [String; OWNER_LMS_KEY_COUNT as usize],
+
+    pub lms_priv_keys: Option<[String; OWNER_LMS_KEY_COUNT as usize]>,
 }
 
 //Key Configuration

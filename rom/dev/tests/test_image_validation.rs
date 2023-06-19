@@ -1448,6 +1448,7 @@ fn update_header(image_bundle: &mut ImageBundle) {
             &config,
             image_bundle.manifest.preamble.vendor_ecc_pub_key_idx,
             image_bundle.manifest.preamble.vendor_lms_pub_key_idx,
+            image_bundle.manifest.preamble.owner_lms_pub_key_idx,
             &header_digest_vendor,
             &header_digest_owner,
         )
