@@ -168,7 +168,9 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let (owner_lms_pub_key_idx, owner_pub_keys_digest, owner_info, owner_lms_info) =
             if let Some(digest) = owner_pk_digest {
                 if preamble.owner_lms_pub_key_idx >= OWNER_LMS_KEY_COUNT {
-                    return Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUBKEY_INDEX_OUT_OF_BOUNDS);
+                    return Err(
+                        CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUBKEY_INDEX_OUT_OF_BOUNDS,
+                    );
                 }
 
                 (
@@ -197,6 +199,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             owner_lms_info,
             owner_pub_keys_digest,
             owner_info,
+            vendor_pub_key_revocation,
         };
 
         Ok(info)
@@ -470,12 +473,24 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             || runtime_range.contains(&fmc_range.start)
             || runtime_range.contains(&(fmc_range.end - 1))
         {
-            return Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_INCORRECT_ORDER);
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP)?;
         }
 
         // Ensure the fmc section is before the runtime section in the manifest.
         if fmc_range.end > runtime_range.start {
-            return Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_LOAD_ADDR_OVERLAP);
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_INCORRECT_ORDER)?;
+        }
+
+        // Check if fmc and runtime images don't overlap on loading in ICCM.
+        let fmc_load_addr_start = manifest.fmc.load_addr;
+        let fmc_load_addr_end = fmc_load_addr_start + manifest.fmc.image_size() - 1;
+        let runtime_load_addr_start = manifest.runtime.load_addr;
+        let runtime_load_addr_end = runtime_load_addr_start + manifest.runtime.image_size() - 1;
+
+        if fmc_load_addr_start <= runtime_load_addr_end
+            && fmc_load_addr_end >= runtime_load_addr_start
+        {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_LOAD_ADDR_OVERLAP)?;
         }
 
         let info = ImageInfo {
@@ -1057,9 +1072,13 @@ mod tests {
             owner_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
             owner_lms_info: Some((&owner_lms_pubkey, &owner_lms_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            vendor_pub_key_revocation: Default::default(),
         };
         let result = verifier.verify_header(&header, &header_info);
-        assert_eq!(result.err(), Some(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_MISMATCH));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_MISMATCH)
+        );
     }
 
     #[test]
@@ -1084,9 +1103,13 @@ mod tests {
             owner_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
             owner_lms_info: Some((&owner_lms_pubkey, &owner_lms_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            vendor_pub_key_revocation: Default::default(),
         };
         let result = verifier.verify_header(&header, &header_info);
-        assert_eq!(result.err(), Some(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_PUB_KEY_INDEX_MISMATCH));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_PUB_KEY_INDEX_MISMATCH)
+        );
     }
 
     #[test]
@@ -1111,9 +1134,13 @@ mod tests {
             owner_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
             owner_lms_info: Some((&owner_lms_pubkey, &owner_lms_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            vendor_pub_key_revocation: Default::default(),
         };
         let result = verifier.verify_header(&header, &header_info);
-        assert_eq!(result.err(), Some(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_INVALID_ARG));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_INVALID_ARG)
+        );
     }
 
     #[test]
@@ -1137,9 +1164,13 @@ mod tests {
             owner_info: Some((&OWNER_ECC_PUBKEY, &owner_ecc_sig)),
             owner_lms_info: Some((&owner_lms_pubkey, &owner_lms_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            vendor_pub_key_revocation: Default::default(),
         };
         let result = verifier.verify_header(&header, &header_info);
-        assert_eq!(result.err(), Some(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID_ARG));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID_ARG)
+        );
     }
 
     #[test]
@@ -1329,7 +1360,10 @@ mod tests {
             &toc_info,
             manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
         );
-        assert_eq!(result.err(), Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP));
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP)
+        );
     }
 
     #[test]
