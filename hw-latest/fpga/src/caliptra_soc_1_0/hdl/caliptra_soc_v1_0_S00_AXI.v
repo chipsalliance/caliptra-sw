@@ -15,6 +15,9 @@
 	)
 	(
 		// Users to add ports here
+        input  wire [31:0] gpio_in,
+        output wire [31:0] gpio_out,
+		output wire [31:0] pauser,
 
 		// User ports ends
 		// Do not modify the ports beyond this line
@@ -372,7 +375,7 @@
 	      case ( axi_araddr[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB] )
 	        2'h0   : reg_data_out <= slv_reg0;
 	        2'h1   : reg_data_out <= slv_reg1;
-	        2'h2   : reg_data_out <= slv_reg2;
+	        2'h2   : reg_data_out <= gpio_in;
 	        2'h3   : reg_data_out <= slv_reg3;
 	        default : reg_data_out <= 0;
 	      endcase
@@ -398,7 +401,8 @@
 	end    
 
 	// Add user logic here
-
+	assign gpio_out = slv_reg0;
+	assign pauser = slv_reg3;
 	// User logic ends
 
 	endmodule

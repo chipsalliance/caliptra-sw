@@ -52,18 +52,21 @@ Serial port settings for connection over USB.
     - `caliptra_build/caliptra_fpga_project.runs/impl_1/caliptra_fpga_project_bd_wrapper.bin`
 
 ### AXI Memory Map ###
- - GPIO Out -> Caliptra
-   - `0x80000000 [0] -> cptra_rst_b`
-   - `0x80000000 [1] -> cptra_pwrgood`
-   - `0x80000000 [5:4] -> device_lifecycle`
-   - `0x80000000 [6] -> debug_locked`
-   - `0x80000000 [31:24] -> generic_input_wires[7:0] for serial tag`
- - GPIO In <- Caliptra
-   - `0x80000008 [26] <- cptra_error_fatal`
-   - `0x80000008 [27] <- cptra_error_non_fatal`
-   - `0x80000008 [28] <- ready_for_fw_push`
-   - `0x80000008 [29] <- ready_for_runtime`
-   - `0x80000008 [30] <- ready_for_fuses`
+ - SOC adapter
+   - 0x80000000 - GPIO Out -> Caliptra
+     - `[0] -> cptra_rst_b`
+     - `[1] -> cptra_pwrgood`
+     - `[5:4] -> device_lifecycle`
+     - `[6] -> debug_locked`
+     - `[31:24] -> generic_input_wires[7:0] for serial tag`
+   - 0x80000008 - GPIO In <- Caliptra
+     - `[26] <- cptra_error_fatal`
+     - `[27] <- cptra_error_non_fatal`
+     - `[28] <- ready_for_fw_push`
+     - `[29] <- ready_for_runtime`
+     - `[30] <- ready_for_fuses`
+   - 0x8000000C - PAUSER
+     - `[31:0] -> PAUSER to Caliptra APB`
  - ROM Backdoor
    - `0x82000000 - 0x82007FFF`
  - Caliptra

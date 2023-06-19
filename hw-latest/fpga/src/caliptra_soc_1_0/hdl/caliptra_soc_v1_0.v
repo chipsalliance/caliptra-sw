@@ -8,13 +8,15 @@
 		// User parameters ends
 		// Do not modify the parameters beyond this line
 
-
 		// Parameters of Axi Slave Bus Interface S00_AXI
 		parameter integer C_S00_AXI_DATA_WIDTH	= 32,
 		parameter integer C_S00_AXI_ADDR_WIDTH	= 4
 	)
 	(
 		// Users to add ports here
+		input  wire [31:0] gpio_in,
+        output wire [31:0] gpio_out,
+		output wire [31:0] pauser,
 
 		// User ports ends
 		// Do not modify the ports beyond this line
@@ -68,7 +70,10 @@
 		.S_AXI_RDATA(s00_axi_rdata),
 		.S_AXI_RRESP(s00_axi_rresp),
 		.S_AXI_RVALID(s00_axi_rvalid),
-		.S_AXI_RREADY(s00_axi_rready)
+		.S_AXI_RREADY(s00_axi_rready),
+        .gpio_in(gpio_in),
+        .gpio_out(gpio_out),
+        .pauser(pauser)
 	);
 
 	// Add user logic here

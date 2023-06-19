@@ -52,7 +52,8 @@ module caliptra_package_top (
     input  wire [3:0]                 s_apb_pstrb, // Leave unconnected
     input  wire [`CALIPTRA_APB_DATA_WIDTH-1:0] s_apb_pwdata,
     input  wire                       s_apb_pwrite,
-    //input  wire [`CALIPTRA_APB_USER_WIDTH-1:0] PAUSER,
+
+    input  wire [`CALIPTRA_APB_USER_WIDTH-1:0] pauser,
 
 
     input  wire axi_bram_clk,
@@ -76,10 +77,6 @@ module caliptra_package_top (
     assign gpio_out[25] = 1'h0;
     assign gpio_out[15:0] = 16'h0CA1;
 
-    wire [`CALIPTRA_APB_USER_WIDTH-1:0] PAUSER;
-    assign PAUSER = `CALIPTRA_APB_USER_WIDTH'hFFFFFFFF;
-
-
     wire [63:0] generic_output_wires;
     assign gpio_out[23:16] = generic_output_wires[7:0];
     assign gpio_out[24] = 0;//generic_output_wires[];
@@ -89,7 +86,7 @@ caliptra_wrapper_top cptra_wrapper (
 
     .PADDR(s_apb_paddr[`CALIPTRA_APB_ADDR_WIDTH-1:0]),
     .PPROT(s_apb_pprot), // TODO: PPROT not provided?
-    .PAUSER(PAUSER),
+    .PAUSER(pauser),
     .PENABLE(s_apb_penable),
     .PRDATA(s_apb_prdata),
     .PREADY(s_apb_pready),
