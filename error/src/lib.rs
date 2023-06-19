@@ -223,7 +223,15 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0034);
     pub const IMAGE_VERIFIER_ERR_FMC_RUNTIME_LOAD_ADDR_OVERLAP: CaliptraError =
         CaliptraError::new_const(0x000b0035);
-    pub const RUNTIME_HANDOFF_FHT_NOT_LOADED: CaliptraError = CaliptraError::new_const(0x000b0036);
+    pub const IMAGE_VERIFIER_ERR_OWNER_LMS_PUB_KEY_INDEX_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x000b0036);
+    pub const IMAGE_VERIFIER_ERR_OWNER_LMS_VERIFY_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x000b0037);
+    pub const IMAGE_VERIFIER_ERR_OWNER_LMS_PUBKEY_INDEX_OUT_OF_BOUNDS: CaliptraError =
+        CaliptraError::new_const(0x000b0038);
+    pub const IMAGE_VERIFIER_ERR_OWNER_LMS_SIGNATURE_INVALID: CaliptraError =
+        CaliptraError::new_const(0x000b0039);
+    pub const RUNTIME_HANDOFF_FHT_NOT_LOADED: CaliptraError = CaliptraError::new_const(0x000b0040);
 
     /// Driver Error: LMS
     pub const DRIVER_LMS_INVALID_LMS_ALGO_TYPE: CaliptraError =
