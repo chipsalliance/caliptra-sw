@@ -323,6 +323,15 @@ pub const VENDOR_PUBLIC_KEYS: ImageVendorPubKeys = ImageVendorPubKeys {
     ],
 };
 
+pub const OWNER_PUBLIC_KEYS: ImageOwnerPubKeys = ImageOwnerPubKeys {
+    ecc_pub_key: OWNER_KEY_PUBLIC,
+    lms_pub_keys: [
+        OWNER_LMS_KEY0_PUBLIC,
+        OWNER_LMS_KEY1_PUBLIC,
+        OWNER_LMS_KEY2_PUBLIC,
+        OWNER_LMS_KEY3_PUBLIC,
+    ],
+};
 pub const VENDOR_PRIVATE_KEYS: ImageVendorPrivKeys = ImageVendorPrivKeys {
     ecc_priv_keys: [
         VENDOR_KEY_0_PRIVATE,
@@ -335,6 +344,16 @@ pub const VENDOR_PRIVATE_KEYS: ImageVendorPrivKeys = ImageVendorPrivKeys {
         VENDOR_LMS_KEY1_PRIVATE,
         VENDOR_LMS_KEY2_PRIVATE,
         VENDOR_LMS_KEY3_PRIVATE,
+    ],
+};
+
+pub const OWNER_PRIVATE_KEYS: ImageOwnerPrivKeys = ImageOwnerPrivKeys {
+    ecc_priv_key: OWNER_KEY_PRIVATE,
+    lms_priv_keys: [
+        OWNER_LMS_KEY0_PRIVATE,
+        OWNER_LMS_KEY1_PRIVATE,
+        OWNER_LMS_KEY2_PRIVATE,
+        OWNER_LMS_KEY3_PRIVATE,
     ],
 };
 
@@ -416,6 +435,32 @@ fn test_write_lms_keys() {
             ))
             .unwrap();
         file.write_all(VENDOR_PUBLIC_KEYS.lms_pub_keys[i].as_bytes())
+            .unwrap();
+    }
+    for i in 0..OWNER_PRIVATE_KEYS.lms_priv_keys.len() {
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(format!(
+                "../../target/riscv32imc-unknown-none-elf/firmware/own-lms-priv-key-{}.pem",
+                i
+            ))
+            .unwrap();
+        file.write_all(OWNER_PRIVATE_KEYS.lms_priv_keys[i].as_bytes())
+            .unwrap();
+    }
+    for i in 0..OWNER_PUBLIC_KEYS.lms_pub_keys.len() {
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(format!(
+                "../../target/riscv32imc-unknown-none-elf/firmware/own-lms-pub-key-{}.pem",
+                i
+            ))
+            .unwrap();
+        file.write_all(OWNER_PUBLIC_KEYS.lms_pub_keys[i].as_bytes())
             .unwrap();
     }
 }
