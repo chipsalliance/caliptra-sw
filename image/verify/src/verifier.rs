@@ -25,10 +25,12 @@ const ZERO_DIGEST: ImageDigest = [0u32; SHA384_DIGEST_WORD_SIZE];
 struct HeaderInfo<'a> {
     vendor_ecc_pub_key_idx: u32,
     vendor_lms_pub_key_idx: u32,
+    owner_lms_pub_key_idx: u32,
     vendor_pub_key_revocation: VendorPubKeyRevocation,
     vendor_info: (&'a ImageEccPubKey, &'a ImageEccSignature),
     vendor_lms_info: (&'a ImageLmsPublicKey, &'a ImageLmsSignature),
     owner_info: Option<(&'a ImageEccPubKey, &'a ImageEccSignature)>,
+    owner_lms_info: Option<(&'a ImageLmsPublicKey, &'a ImageLmsSignature)>,
     owner_pub_keys_digest: ImageDigest,
 }
 
@@ -166,7 +168,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let (owner_lms_pub_key_idx, owner_pub_keys_digest, owner_info, owner_lms_info) =
             if let Some(digest) = owner_pk_digest {
                 if preamble.owner_lms_pub_key_idx >= OWNER_LMS_KEY_COUNT {
-                    raise_err!(OwnerLmsPubKeyIndexOutOfBounds)
+                    return Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUBKEY_INDEX_OUT_OF_BOUNDS);
                 }
 
                 (
@@ -326,10 +328,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         if header.vendor_lms_pub_key_idx != info.vendor_lms_pub_key_idx {
             return Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_MISMATCH);
+        }
 
         if let Some((owner_lms_pub_key, owner_lms_sig)) = info.owner_lms_info {
             if header.owner_lms_pub_key_idx != info.owner_lms_pub_key_idx {
-                raise_err!(OwnerLmsPubKeyIndexMismatch)
+                return Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_PUB_KEY_INDEX_MISMATCH);
             }
 
             self.verify_owner_lms_sig(&digest_owner, owner_lms_pub_key, owner_lms_sig)?;
@@ -405,6 +408,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_VERIFY_FAILURE)?;
         if !result {
             return Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID);
+        }
+
+        Ok(())
+    }
 
     /// Verify owner LMS Signature
     fn verify_owner_lms_sig(
@@ -416,9 +423,9 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let result = self
             .env
             .lms_verify(digest, lms_pub_key, lms_sig)
-            .map_err(|_| err_u32!(OwnerLmsVerifyFailure))?;
+            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_VERIFY_FAILURE)?;
         if !result {
-            raise_err!(OwnerLmsSignatureInvalid)
+            return Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_SIGNATURE_INVALID);
         }
 
         Ok(())
@@ -463,12 +470,12 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             || runtime_range.contains(&fmc_range.start)
             || runtime_range.contains(&(fmc_range.end - 1))
         {
-            raise_err!(FmcRuntimeOverlap)
+            return Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_INCORRECT_ORDER);
         }
 
         // Ensure the fmc section is before the runtime section in the manifest.
         if fmc_range.end > runtime_range.start {
-            raise_err!(FmcRuntimeIncorrectOrder)
+            return Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_LOAD_ADDR_OVERLAP);
         }
 
         let info = ImageInfo {
@@ -1026,6 +1033,7 @@ mod tests {
             result.err(),
             Some(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_MISMATCH)
         );
+    }
 
     #[test]
     fn test_header_incorrect_lms_pubkey_index() {
@@ -1051,7 +1059,7 @@ mod tests {
             owner_pub_keys_digest: ImageDigest::default(),
         };
         let result = verifier.verify_header(&header, &header_info);
-        assert_eq!(result.err(), Some(err_u32!(VendorLmsPubKeyIndexMismatch)));
+        assert_eq!(result.err(), Some(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_MISMATCH));
     }
 
     #[test]
@@ -1078,7 +1086,7 @@ mod tests {
             owner_pub_keys_digest: ImageDigest::default(),
         };
         let result = verifier.verify_header(&header, &header_info);
-        assert_eq!(result.err(), Some(err_u32!(OwnerLmsPubKeyIndexMismatch)));
+        assert_eq!(result.err(), Some(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_PUB_KEY_INDEX_MISMATCH));
     }
 
     #[test]
@@ -1105,7 +1113,7 @@ mod tests {
             owner_pub_keys_digest: ImageDigest::default(),
         };
         let result = verifier.verify_header(&header, &header_info);
-        assert_eq!(result.err(), Some(err_u32!(OwnerPubKeyDigestInvalidArg)));
+        assert_eq!(result.err(), Some(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_INVALID_ARG));
     }
 
     #[test]
@@ -1131,7 +1139,7 @@ mod tests {
             owner_pub_keys_digest: ImageDigest::default(),
         };
         let result = verifier.verify_header(&header, &header_info);
-        assert_eq!(result.err(), Some(err_u32!(OwnerEccSignatureInvalidArg)));
+        assert_eq!(result.err(), Some(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID_ARG));
     }
 
     #[test]
@@ -1321,7 +1329,7 @@ mod tests {
             &toc_info,
             manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
         );
-        assert_eq!(result.err(), Some(err_u32!(FmcRuntimeOverlap)));
+        assert_eq!(result.err(), Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP));
     }
 
     #[test]
