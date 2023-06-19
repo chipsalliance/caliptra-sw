@@ -10,7 +10,7 @@ on:
 
 jobs:
   update-rtl:
-    name: HW Release Test
+    name: Update RTL Submodule
     runs-on: ubuntu-22.04
     outputs:
       ci_checks_needed: ${{ steps.status.outputs.status }}
@@ -23,6 +23,10 @@ jobs:
         run: |
           git submodule update --remote hw-latest/caliptra-rtl
           cargo run --release --manifest-path registers/bin/generator/Cargo.toml -- hw-latest/caliptra-rtl registers/src/
+
+      - name: Prevent repo building...
+        run: |
+          rm -rf Cargo.toml Cargo.lock
 
       - name: Run git status
         id: status
