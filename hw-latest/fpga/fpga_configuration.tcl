@@ -9,7 +9,7 @@ file mkdir $packageDir
 set rtlDir ../caliptra-rtl
 
 # JTAG enabled
-set JTAG 0
+set JTAG 1
 
 # Start the Vivado GUI for interactive debug
 start_gui
@@ -239,20 +239,8 @@ if {$JTAG == 0} {
   # Make the JTAG pins be external
   make_bd_pins_external  [get_bd_pins caliptra_package_top_0/jtag_tck] [get_bd_pins caliptra_package_top_0/jtag_tms] [get_bd_pins caliptra_package_top_0/jtag_tdo] [get_bd_pins caliptra_package_top_0/jtag_tdi] [get_bd_pins caliptra_package_top_0/jtag_trst_n]
 
-  # Assign JTAG signals to pins on PMOD0
-  set_property PACKAGE_PIN G7 [get_ports jtag_tck_0]
-  set_property PACKAGE_PIN G6 [get_ports jtag_tdi_0]
-  set_property PACKAGE_PIN G8 [get_ports jtag_tdo_0]
-  set_property PACKAGE_PIN H6 [get_ports jtag_tms_0]
-  set_property PACKAGE_PIN H8 [get_ports jtag_trst_n_0]
-  set_property IOSTANDARD LVCMOS33 [get_ports jtag_tck_0]
-  set_property IOSTANDARD LVCMOS33 [get_ports jtag_tdi_0]
-  set_property IOSTANDARD LVCMOS33 [get_ports jtag_tdo_0]
-  set_property IOSTANDARD LVCMOS33 [get_ports jtag_tms_0]
-  set_property IOSTANDARD LVCMOS33 [get_ports jtag_trst_n_0]
-
   # Add constraints for JTAG signals
-  #add_files -fileset constrs_1 ./src/jtag_constraints.xdc
+  add_files -fileset constrs_1 ./src/jtag_constraints.xdc
 }
 
 save_bd_design
@@ -274,10 +262,5 @@ set_property STEPS.WRITE_BITSTREAM.ARGS.BIN_FILE true [get_runs impl_1]
 
 # Add FPGA constraints
 add_files -fileset constrs_1 ./src/constraints.xdc
-
-if {$JTAG == 1} {
-  # Add constraints for JTAG signals
-  add_files -fileset constrs_1 ./src/jtag_constraints.xdc
-}
 
 }

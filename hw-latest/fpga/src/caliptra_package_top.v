@@ -106,6 +106,7 @@ caliptra_wrapper_top cptra_wrapper (
     .debug_locked(gpio_in[6]),
     .device_lifecycle(gpio_in[5:4]),
 
+    // Error signals
     .cptra_error_fatal(gpio_out[26]),
     .cptra_error_non_fatal(gpio_out[27]),
 
