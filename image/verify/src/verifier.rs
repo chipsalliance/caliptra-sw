@@ -216,27 +216,28 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         );
 
         // Owner Information
-        let (owner_lms_pub_key_idx, owner_pub_keys_digest, owner_info, owner_lms_info) = if let Some(digest) = owner_pk_digest {
+        let (owner_lms_pub_key_idx, owner_pub_keys_digest, owner_info, owner_lms_info) =
+            if let Some(digest) = owner_pk_digest {
+                if preamble.owner_lms_pub_key_idx >= OWNER_LMS_KEY_COUNT {
+                    raise_err!(OwnerLmsPubKeyIndexOutOfBounds)
+                }
 
-            if preamble.owner_lms_pub_key_idx >= OWNER_LMS_KEY_COUNT {
-                raise_err!(OwnerLmsPubKeyIndexOutOfBounds)
-            }
-
-            (
-                preamble.owner_lms_pub_key_idx,
-                digest,
-                Some((
-                    &preamble.owner_pub_keys.ecc_pub_key,
-                    &preamble.owner_sigs.ecc_sig,
-                )),
-                Some((
-                    &preamble.owner_pub_keys.lms_pub_keys[preamble.owner_lms_pub_key_idx as usize],
-                    &preamble.owner_sigs.lms_sig,
-                )),
-            )
-        } else {
-            (OWNER_LMS_KEY_COUNT, ZERO_DIGEST, None, None)
-        };
+                (
+                    preamble.owner_lms_pub_key_idx,
+                    digest,
+                    Some((
+                        &preamble.owner_pub_keys.ecc_pub_key,
+                        &preamble.owner_sigs.ecc_sig,
+                    )),
+                    Some((
+                        &preamble.owner_pub_keys.lms_pub_keys
+                            [preamble.owner_lms_pub_key_idx as usize],
+                        &preamble.owner_sigs.lms_sig,
+                    )),
+                )
+            } else {
+                (OWNER_LMS_KEY_COUNT, ZERO_DIGEST, None, None)
+            };
 
         let info = HeaderInfo {
             vendor_ecc_pub_key_idx,
@@ -470,7 +471,6 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         lms_pub_key: &ImageLmsPublicKey,
         lms_sig: &ImageLmsSignature,
     ) -> CaliptraResult<()> {
-
         let result = self
             .env
             .lms_verify(digest, lms_pub_key, lms_sig)

@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use anyhow::Context;
-use caliptra_image_types::{VENDOR_ECC_KEY_COUNT, VENDOR_LMS_KEY_COUNT, OWNER_LMS_KEY_COUNT};
+use caliptra_image_types::{OWNER_LMS_KEY_COUNT, VENDOR_ECC_KEY_COUNT, VENDOR_LMS_KEY_COUNT};
 use serde_derive::{Deserialize, Serialize};
 use std::path::PathBuf;
 

@@ -181,7 +181,13 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
             mfg_from_date,
             mfg_to_date,
         )?,
-        owner_config: owner_config(config_dir, &config.owner, *owner_lms_key_idx, own_from_date, own_to_date)?,
+        owner_config: owner_config(
+            config_dir,
+            &config.owner,
+            *owner_lms_key_idx,
+            own_from_date,
+            own_to_date,
+        )?,
         fmc,
         runtime,
     };
