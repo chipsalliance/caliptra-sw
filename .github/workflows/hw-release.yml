@@ -72,7 +72,8 @@ jobs:
   #  needs: update-rtl
   #  if: needs.update-rtl.outputs.ci_checks_needed
 
-  temp-123:
+  temp-job:
+    name: Temp job
     runs-on: ubuntu-22.04
     needs: [variables, update-rtl]
     steps:
