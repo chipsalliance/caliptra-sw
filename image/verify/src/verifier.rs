@@ -154,9 +154,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         let vendor_lms_pub_key_idx = preamble.vendor_lms_pub_key_idx;
         if vendor_lms_pub_key_idx >= VENDOR_LMS_KEY_COUNT {
-            return Err(
-                CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VEN_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS,
-            );
+            return Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUBKEY_INDEX_OUT_OF_BOUNDS);
         }
 
         let vendor_lms_info = (
@@ -169,7 +167,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             if let Some(digest) = owner_pk_digest {
                 if preamble.owner_lms_pub_key_idx >= OWNER_LMS_KEY_COUNT {
                     return Err(
-                        CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUBKEY_INDEX_OUT_OF_BOUNDS,
+                        CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_PUBKEY_INDEX_OUT_OF_BOUNDS,
                     );
                 }
 
