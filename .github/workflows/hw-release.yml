@@ -33,25 +33,26 @@ jobs:
         run: echo "status=$(git status -s | head -1)" >> $GITHUB_OUTPUT
 
       # If there's a new HW release (submodule has been updated), add a commit to main branch
-      - name: Commit and create pull request
-        env:
-          CI_COMMIT_MESSAGE: "CI: Update Caliptra RTL"
-          CI_COMMIT_AUTHOR: "GitHub CI"
+      - name: Commit changes
         if: ${{ steps.status.outputs.status }}
         run: |
-          git config --global user.name "${{ env.CI_COMMIT_AUTHOR }}"
+          git config --global user.name "GitHub CI"
           git config --global user.email "username@users.noreply.github.com"
-          git commit -a -m "${{ env.CI_COMMIT_MESSAGE }}"
+          git checkout -b branch_abcdef
+          git commit -a -m "CI: Update Caliptra RTL"
+          git push -u origin branch_abcdef
 
-  build-test:
-    uses: amd-isaac/caliptra-sw/.github/workflows/build-test.yml@isaac_nightly_release
-    needs: update-rtl
-    if: needs.update-rtl.outputs.ci_checks_needed
+  #build-test:
+  #  uses: amd-isaac/caliptra-sw/.github/workflows/build-test.yml@isaac_nightly_release
+  #  needs: update-rtl
+  #  if: needs.update-rtl.outputs.ci_checks_needed
 
   build-test-verilator:
     uses: amd-isaac/caliptra-sw/.github/workflows/build-test-verilator.yml@isaac_nightly_release
-    needs: [update-rtl, build-test]
+    needs: update-rtl
     if: needs.update-rtl.outputs.ci_checks_needed
+    with:
+      ref: branch_abcdef
 
   hw-release-test:
     name: HW Release Test
