@@ -37,6 +37,7 @@ jobs:
           git submodule update --remote hw-latest/caliptra-rtl
           cargo run --release --manifest-path registers/bin/generator/Cargo.toml -- hw-latest/caliptra-rtl registers/src/
 
+      # FIXME: Remove this
       - name: Prevent repo building...
         run: |
           rm -rf Cargo.toml Cargo.lock
@@ -44,11 +45,10 @@ jobs:
       - name: Find available branch name
         id: branch
         run: |
-          BRANCH_BASE=ci_run_${{ needs.variables.outputs.date_str }}
+          BRANCH_BASE=ci_rtl_${{ needs.variables.outputs.date_str }}
           INDEX=0
           while git ls-remote --exit-code --heads origin ${BRANCH_BASE}_${INDEX}
           do
-              echo Nope
               ((INDEX+=1))
           done
           echo "branch=${BRANCH_BASE}_${INDEX}" >> $GITHUB_OUTPUT
@@ -65,20 +65,14 @@ jobs:
           git config --global user.email "username@users.noreply.github.com"
           git checkout -b ${{ steps.branch.outputs.branch }}
           git commit -a -m "CI: Update Caliptra RTL"
-          git push -f -u origin ${{ steps.branch.outputs.branch }}
+          git push -u origin ${{ steps.branch.outputs.branch }}
 
-  #build-test:
-  #  uses: amd-isaac/caliptra-sw/.github/workflows/build-test.yml@isaac_nightly_release
-  #  needs: update-rtl
-  #  if: needs.update-rtl.outputs.ci_checks_needed
-
-  temp-job:
-    name: Temp job
-    runs-on: ubuntu-22.04
+  build-test:
+    uses: amd-isaac/caliptra-sw/.github/workflows/build-test.yml@isaac_nightly_release
     needs: [variables, update-rtl]
-    steps:
-      - name: Print
-        run: echo ${{ needs.update-rtl.outputs.branch_name }}
+    if: needs.update-rtl.outputs.ci_checks_needed
+    with:
+      ref: ${{ needs.update-rtl.outputs.branch_name }}
 
   build-test-verilator:
     uses: amd-isaac/caliptra-sw/.github/workflows/build-test-verilator.yml@isaac_nightly_release
@@ -87,37 +81,106 @@ jobs:
     with:
       ref: ${{ needs.update-rtl.outputs.branch_name }}
 
-  hw-release-test:
-    name: HW Release Test
+  merge-rtl-update:
+    name: Merge RTL Update
+    needs: [variables, update-rtl, build-test, build-test-verilator]
+    if: needs.update-rtl.outputs.ci_checks_needed
     runs-on: ubuntu-22.04
-    timeout-minutes: 360
 
     steps:
-      - name: Get current date
-        id: date
-        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+          ref: ${{ needs.update-rtl.outputs.branch_name }}
 
-      # If there's a new commit, push it now so we don't have to rerun the above tests again
+      - name: Merge RTL changes to main branch
+        run: |
+          git config --global user.name "GitHub CI"
+          git config --global user.email "username@users.noreply.github.com"
+          git checkout main
+          git merge ${{ needs.update-rtl.outputs.branch_name }}
+          git push origin main
+          git push origin --delete ${{ needs.update-rtl.outputs.branch_name }}
 
-      # Find the last successful release tag in the repo
+  find-latest-release:
+    name: Find Latest Release
+    needs: merge-rtl-update
+    runs-on: ubuntu-22.04
+    outputs:
+      create_release: ${{ steps.find.outputs.create_release }}
+      new_release_tag: ${{ steps.find.outputs.new_release_tag }}
+      release_ref: ${{ steps.find.outputs.release_ref }}
 
-      # Make sure there are commits between current and last successful release
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'true'
 
-      #- name: Run Verilator full tests
-      #  uses: amd-isaac/caliptra-sw/.github/workflows/nightly-verilator.yml@isaac_nightly_release
+      - name: Find latest release
+        id: find
+        run: |
+          git config --global user.name "GitHub CI"
+          git config --global user.email "username@users.noreply.github.com"
+          git checkout main
+          TAG_BASE=release_v
+          INDEX=0
+          MOST_RECENT_RELEASE=None
+          while git tag | grep ${TAG_BASE}${INDEX}
+          do
+              MOST_RECENT_RELEASE=$(git tag | grep ${TAG_BASE}${INDEX} | head -1)
+              ((INDEX+=1))
+          done
+          if [[ "$MOST_RECENT_RELEASE" == "None" ]]; then
+              echo "create_release=true" >> $GITHUB_OUTPUT
+          else
+              COMMITS_AFTER_LAST_RELEASE=$(git rev-list --count $MOST_RECENT_RELEASE..HEAD)
+              if [[ $COMMITS_AFTER_LAST_RELEASE -gt 0 ]]; then
+                  echo "create_release=true" >> $GITHUB_OUTPUT
+              else
+                  echo "create_release=false" >> $GITHUB_OUTPUT
+              fi
+          fi
+          echo "new_release_tag=${TAG_BASE}${INDEX}" >> $GITHUB_OUTPUT
+          echo "release_ref=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+  verilator-full-suite:
+    name: Nightly Verilator Suite
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: amd-isaac/caliptra-sw/.github/workflows/nightly-verilator.yml@isaac_nightly_release
+    with:
+      ref: ${{ needs.find-latest-release.outputs.release_ref }}
+
+  create-release:
+    name: Create New Release
+    needs: [variables, find-latest-release, verilator-full-suite]
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+          ref: ${{ needs.find-latest-release.outputs.release_ref }}
 
       # FIXME: Use the correct release generation process here
-      #- name: Generate release zip
-      #  run: |
-      #    mkdir /tmp/hw_release_${{ steps.date.outputs.date}}
-      #    cp target/riscv32imc-unknown-none-elf/firmware/caliptra-rom /tmp/hw_release_${{ steps.date.outputs.date}}
+      - name: Generate release zip
+        run: |
+          mkdir /tmp/hw_release_${{ needs.variables.outputs.date_str }}
+          cp target/riscv32imc-unknown-none-elf/firmware/caliptra-rom /tmp/hw_release_${{ needs.variables.outputs.date_str }}
 
       # FIXME: Tag with the correct "next release number"
-      #- name: Upload release
-      #  uses: actions/upload-artifact@v3
-      #  with:
-      #    name: release
-      #    path: /tmp/hw_release_${{ steps.date.outputs.date }}/caliptra-rom
+      - name: Upload release
+        uses: actions/upload-artifact@v3
+        with:
+          name: release
+          path: /tmp/hw_release_${{ needs.variables.outputs.date_str }}/caliptra-rom
 
-      # Add "next release number" to the repo as a tag, then push it
+      - name: Tag repo with new release number
+        run: |
+          git config --global user.name "GitHub CI"
+          git config --global user.email "username@users.noreply.github.com"
+          git checkout main
+          git tag ${{ needs.find-latest-release.outputs.new_release_tag }}
+          git push origin ${{ needs.find-latest-release.outputs.new_release_tag }}
+
 

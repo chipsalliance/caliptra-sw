@@ -40,7 +40,7 @@ jobs:
           echo "ref=${REF_REQ:-"Blah"}" >> $GITHUB_OUTPUT
           echo ${REF_REQ:-"Blah"}
 
-      - name: Checkout repo main branch
+      - name: Checkout repo default ref
         uses: actions/checkout@v3
         if: steps.ref.outputs.ref == 'Blah'
         with:
