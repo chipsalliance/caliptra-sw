@@ -63,9 +63,9 @@ jobs:
         run: |
           git config --global user.name "GitHub CI"
           git config --global user.email "username@users.noreply.github.com"
-          git checkout -b ci_failure_${{ needs.variables.outputs.date_str }}
+          git checkout -b ${{ steps.branch.outputs.branch }}
           git commit -a -m "CI: Update Caliptra RTL"
-          git push -f -u origin ci_failure_${{ needs.variables.outputs.date_str }}
+          git push -f -u origin ${{ steps.branch.outputs.branch }}
 
   #build-test:
   #  uses: amd-isaac/caliptra-sw/.github/workflows/build-test.yml@isaac_nightly_release
@@ -77,7 +77,7 @@ jobs:
     needs: [variables, update-rtl]
     if: needs.update-rtl.outputs.ci_checks_needed
     with:
-      ref: ci_failure_${{ needs.variables.outputs.date_str }}
+      ref: ${{ needs.update-rtl.outputs.branch_name }}
 
   hw-release-test:
     name: HW Release Test
