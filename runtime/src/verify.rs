@@ -6,13 +6,16 @@ use caliptra_drivers::{
 };
 use zerocopy::FromBytes;
 
+/// Start of payload (skips checksum field).
+const PAYLOAD_OFFSET: usize = 4;
+
 /// Handle the `ECDSA384_SIGNATURE_VERIFY` mailbox command
 pub(crate) fn handle_ecdsa_verify(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<()> {
     if let Some(cmd) = EcdsaVerifyCmd::read_from(cmd_args) {
         if !caliptra_common::checksum::verify_checksum(
             cmd.chksum,
             CommandId::ECDSA384_VERIFY.into(),
-            &cmd_args[4..],
+            &cmd_args[PAYLOAD_OFFSET..],
         ) {
             return Err(CaliptraError::RUNTIME_INVALID_CHECKSUM);
         }
