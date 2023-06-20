@@ -35,5 +35,6 @@ emu = [
     "caliptra_common/emu",
     "caliptra-drivers/emu"
 ]
+fpga_realtime = ["caliptra-drivers/fpga_realtime"]
 std = ["ufmt/std", "caliptra_common/std"]
 verilator = ["caliptra-hw-model/verilator"]

@@ -12,6 +12,9 @@ use crate::Output;
 // Static variable to keep track of the handshake with the "uart" code
 static mut TAG: u8 = 1;
 
+// TODO: Make this configurable
+const SOC_PAUSER: u32 = 0xffff_ffff;
+
 fn fmt_uio_error(err: UioError) -> String {
     format!("{err:?}")
 }
@@ -42,12 +45,16 @@ impl ModelFpgaRealtime {
             self.gpio.write_volatile(val);
         }
     }
-
     fn set_uart_tag(&mut self, tag: u8) {
         unsafe {
             let mut val = self.gpio.read_volatile();
             val = (val & 0x00FFFFFF) | ((tag as u32) << 24);
             self.gpio.write_volatile(val);
+        }
+    }
+    fn set_pauser(&mut self, pauser: u32) {
+        unsafe {
+            self.gpio.offset(3).write_volatile(pauser);
         }
     }
     fn set_gpio(&mut self, bit_index: u32, value: bool) {
@@ -97,6 +104,8 @@ impl HwModel for ModelFpgaRealtime {
         m.set_security_state(3); // TODO: Remove
         // Set initial tag to be non-zero
         unsafe { m.set_uart_tag(TAG) };
+        // Set initial PAUSER
+        m.set_pauser(SOC_PAUSER);
 
         // Write ROM
         let mut rom_driver = std::fs::OpenOptions::new().write(true).open("/dev/caliptra-rom-backdoor").unwrap();

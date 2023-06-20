@@ -46,6 +46,17 @@ impl Uart {
     /// # Arguments
     ///
     /// `byte` - Byte to write to UART
+    #[cfg(not(feature = "fpga_realtime"))]
+    pub fn write_byte(&mut self, byte: u8) {
+        // TODO: cleanup after final UART RTL definition is in place
+        const STDOUT: *mut u32 = 0x3003_00C8 as *mut u32;
+
+        unsafe {
+            ptr::write_volatile(STDOUT, byte as u32);
+        }
+    }
+
+    #[cfg(feature = "fpga_realtime")]
     pub fn write_byte(&mut self, byte: u8) {
         // Read TAG from test sw and include in write to generic_output write to inform sw there is new data
         const STDIN: *mut u32 = 0x3003_00C0 as *mut u32;

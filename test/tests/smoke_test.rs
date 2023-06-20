@@ -16,10 +16,21 @@ fn assert_output_contains(haystack: &str, needle: &str) {
 
 #[test]
 fn smoke_test() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut rom_copy = ROM_WITH_UART;
+    let mut fmc_copy = FMC_WITH_UART;
+    let mut app_copy = APP_WITH_UART;
+
+    #[cfg(feature = "fpga_realtime")]
+    {
+        rom_copy.features = &["emu fpga_realtime"];
+        fmc_copy.features = &["emu fpga_realtime"];
+        app_copy.features = &["emu fpga_realtime"];
+    }
+
+    let rom = caliptra_builder::build_firmware_rom(&rom_copy).unwrap();
     let image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART,
+        &fmc_copy,
+        &app_copy,
         ImageOptions::default(),
     )
     .unwrap();
