@@ -161,6 +161,16 @@ fn test_verify_cmd() {
         ],
     };
 
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::ECDSA384_VERIFY),
+        &cmd.as_bytes()[4..],
+    );
+
+    let cmd = EcdsaVerifyCmd {
+        chksum: checksum,
+        ..cmd
+    };
+
     let resp = model
         .mailbox_execute(u32::from(CommandId::ECDSA384_VERIFY), cmd.as_bytes())
         .unwrap();

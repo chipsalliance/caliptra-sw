@@ -8,6 +8,7 @@ pub mod hand_off;
 #[macro_use]
 pub mod printer;
 pub mod boot_status;
+pub mod checksum;
 pub mod fuse;
 pub mod pcr;
 
