@@ -37,15 +37,15 @@ jobs:
         id: ref
         run: |
           REF_REQ=${{ github.event.inputs.ref }}
-          echo "ref=${REF_REQ:-''}" >> $GITHUB_OUTPUT
+          echo "ref=${REF_REQ:-"Blah"}" >> $GITHUB_OUTPUT
 
       - uses: actions/checkout@v3
-        if: steps.ref.outputs.ref == ''
+        if: steps.ref.outputs.ref == 'Blah'
         with:
           submodules: 'true'
 
       - uses: actions/checkout@v3
-        if: steps.ref.outputs.ref != ''
+        if: steps.ref.outputs.ref != 'Blah'
         with:
           submodules: 'true'
           ref: ${{ steps.ref.outputs.ref }}
