@@ -36,7 +36,7 @@ jobs:
       - name: Setup ref to use
         id: ref
         run: |
-          REF_REQ=${{ github.event.inputs.ref }}
+          REF_REQ=${{ inputs.ref }}
           echo "ref=${REF_REQ:-"Blah"}" >> $GITHUB_OUTPUT
           echo ${REF_REQ:-"Blah"}
 
