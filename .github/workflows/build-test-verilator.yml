@@ -38,13 +38,16 @@ jobs:
         run: |
           REF_REQ=${{ github.event.inputs.ref }}
           echo "ref=${REF_REQ:-"Blah"}" >> $GITHUB_OUTPUT
+          echo ${REF_REQ:-"Blah"}
 
-      - uses: actions/checkout@v3
+      - name: Checkout repo main branch
+        uses: actions/checkout@v3
         if: steps.ref.outputs.ref == 'Blah'
         with:
           submodules: 'true'
 
-      - uses: actions/checkout@v3
+      - name: Checkout specific repo ref
+        uses: actions/checkout@v3
         if: steps.ref.outputs.ref != 'Blah'
         with:
           submodules: 'true'
