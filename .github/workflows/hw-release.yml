@@ -38,9 +38,9 @@ jobs:
           cargo run --release --manifest-path registers/bin/generator/Cargo.toml -- hw-latest/caliptra-rtl registers/src/
 
       # FIXME: Remove this
-      - name: Prevent repo building...
+      - name: Add a test change that will still let us build...
         run: |
-          rm -rf Cargo.toml Cargo.lock
+          echo "# This is a test" >> Cargo.toml
 
       - name: Find available branch name
         id: branch
