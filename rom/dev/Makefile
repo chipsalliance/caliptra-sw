@@ -59,6 +59,7 @@ build-fw-image: gen-certs build-test-fmc build-test-rt
 		--key-config $(TARGET_DIR)/keys.toml \
 		--ecc-pk-idx 3 \
 		--lms-pk-idx 3 \
+		--owner-lms-pk-idx 0 \
 		--fmc $(TARGET_DIR)/caliptra-rom-test-fmc \
 		--fmc-svn 0 \
 		--fmc-min-svn 0 \

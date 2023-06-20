@@ -19,7 +19,7 @@ use core::ops::Range;
 
 use crate::rom_env::RomEnv;
 
-/// ROM Verification Environemnt
+/// ROM Verification Environment
 pub(crate) struct RomImageVerificationEnv<'a> {
     pub(crate) sha256: &'a mut Sha256,
     pub(crate) sha384: &'a mut Sha384,

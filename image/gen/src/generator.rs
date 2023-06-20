@@ -73,6 +73,11 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
 
         let ecc_key_idx = config.vendor_config.ecc_key_idx;
         let lms_key_idx = config.vendor_config.lms_key_idx;
+        let owner_lms_key_idx = if let Some(owner_config) = &config.owner_config {
+            owner_config.lms_key_idx
+        } else {
+            OWNER_LMS_KEY_COUNT
+        };
 
         // Create Header
         let toc_digest = self.toc_digest(&fmc_toc, &runtime_toc)?;
@@ -80,6 +85,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             config,
             ecc_key_idx,
             lms_key_idx,
+            owner_lms_key_idx,
             Self::DEFAULT_FLAGS,
             toc_digest,
         )?;
@@ -91,6 +97,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             config,
             ecc_key_idx,
             lms_key_idx,
+            owner_lms_key_idx,
             &header_digest_vendor,
             &header_digest_owner,
         )?;
@@ -121,6 +128,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         config: &ImageGeneratorConfig<E>,
         ecc_key_idx: u32,
         lms_key_idx: u32,
+        owner_lms_key_idx: u32,
         digest_vendor: &ImageDigest,
         digest_owner: &ImageDigest,
     ) -> anyhow::Result<ImagePreamble>
@@ -152,9 +160,10 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
                     &owner_config.pub_keys.ecc_pub_key,
                 )?;
                 owner_sigs.ecc_sig = sig;
-                let lms_sig = self
-                    .crypto
-                    .lms_sign(digest_owner, &priv_keys.lms_priv_key)?;
+                let lms_sig = self.crypto.lms_sign(
+                    digest_owner,
+                    &priv_keys.lms_priv_keys[owner_lms_key_idx as usize],
+                )?;
                 owner_sigs.lms_sig = lms_sig;
             }
         }
@@ -163,6 +172,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             vendor_pub_keys: config.vendor_config.pub_keys,
             vendor_ecc_pub_key_idx: ecc_key_idx,
             vendor_lms_pub_key_idx: lms_key_idx,
+            owner_lms_pub_key_idx: owner_lms_key_idx,
             vendor_sigs,
             owner_sigs,
             ..Default::default()
@@ -181,6 +191,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         config: &ImageGeneratorConfig<E>,
         ecc_key_idx: u32,
         lms_key_idx: u32,
+        owner_lms_key_idx: u32,
         flags: u32,
         digest: ImageDigest,
     ) -> anyhow::Result<ImageHeader>
@@ -190,6 +201,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         let mut header = ImageHeader {
             vendor_ecc_pub_key_idx: ecc_key_idx,
             vendor_lms_pub_key_idx: lms_key_idx,
+            owner_lms_pub_key_idx: owner_lms_key_idx,
             flags,
             toc_len: MAX_TOC_ENTRY_COUNT,
             toc_digest: digest,
