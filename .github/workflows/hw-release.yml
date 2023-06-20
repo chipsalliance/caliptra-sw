@@ -32,10 +32,10 @@ jobs:
         with:
           submodules: 'true'
 
-      - name: Update the Caliptra RTL submodule and rebuild registers
-        run: |
-          git submodule update --remote hw-latest/caliptra-rtl
-          cargo run --release --manifest-path registers/bin/generator/Cargo.toml -- hw-latest/caliptra-rtl registers/src/
+      #- name: Update the Caliptra RTL submodule and rebuild registers
+      #  run: |
+      #    git submodule update --remote hw-latest/caliptra-rtl
+      #    cargo run --release --manifest-path registers/bin/generator/Cargo.toml -- hw-latest/caliptra-rtl registers/src/
 
       # FIXME: Remove this
       - name: Add a test change that will still let us build...
@@ -117,7 +117,7 @@ jobs:
           git config --global user.email "username@users.noreply.github.com"
           git checkout main
           git merge ${{ needs.update-rtl.outputs.branch_name }}
-          git push origin main
+          git push
           git push origin --delete ${{ needs.update-rtl.outputs.branch_name }}
 
   find-latest-release:
