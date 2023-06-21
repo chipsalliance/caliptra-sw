@@ -1,10 +1,6 @@
 name: Nightly Release
 
 on:
-  # Workflow runs when a main branch PR is created
-  #pull_request:
-  #  branches: [ main ]
-
   workflow_dispatch:
 
 jobs:

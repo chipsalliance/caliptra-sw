@@ -1,7 +1,6 @@
 name: RTL Repo Sync
 
 on:
-  push:
   workflow_call:
   workflow_dispatch:
 
