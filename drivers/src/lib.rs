@@ -67,6 +67,7 @@ pub use lms::{
     D_LEAF, D_MESG, D_PBLC,
 };
 pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
+pub use okref::okmutref;
 pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};

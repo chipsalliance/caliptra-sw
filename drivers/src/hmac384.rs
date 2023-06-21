@@ -126,7 +126,7 @@ impl Hmac384 {
     /// * `tag`  -  The calculated tag
     pub fn hmac_init<'a>(
         &'a mut self,
-        key: Hmac384Key,
+        key: &Hmac384Key,
         trng: &mut Trng,
         mut tag: Hmac384Tag<'a>,
     ) -> CaliptraResult<Hmac384Op> {
@@ -135,8 +135,8 @@ impl Hmac384 {
         // Configure the hardware so that the output tag is stored at a location specified by the
         // caller.
         match &mut tag {
-            Hmac384Tag::Array4x12(arr) => {
-                KvAccess::begin_copy_to_arr(hmac.kv_wr_status(), hmac.kv_wr_ctrl(), arr)?
+            Hmac384Tag::Array4x12(_arr) => {
+                KvAccess::begin_copy_to_arr(hmac.kv_wr_status(), hmac.kv_wr_ctrl())?
             }
             Hmac384Tag::Key(key) => {
                 KvAccess::begin_copy_to_kv(hmac.kv_wr_status(), hmac.kv_wr_ctrl(), *key)?
@@ -147,7 +147,7 @@ impl Hmac384 {
         match key {
             Hmac384Key::Array4x12(arr) => KvAccess::copy_from_arr(arr, hmac.key())?,
             Hmac384Key::Key(key) => {
-                KvAccess::copy_from_kv(key, hmac.kv_rd_key_status(), hmac.kv_rd_key_ctrl())
+                KvAccess::copy_from_kv(*key, hmac.kv_rd_key_status(), hmac.kv_rd_key_ctrl())
                     .map_err(|err| err.into_read_key_err())?
             }
         }
@@ -180,8 +180,8 @@ impl Hmac384 {
     /// * `tag`  -  The calculated tag
     pub fn hmac(
         &mut self,
-        key: Hmac384Key,
-        data: Hmac384Data,
+        key: &Hmac384Key,
+        data: &Hmac384Data,
         trng: &mut Trng,
         mut tag: Hmac384Tag,
     ) -> CaliptraResult<()> {
@@ -190,8 +190,8 @@ impl Hmac384 {
         // Configure the hardware so that the output tag is stored at a location specified by the
         // caller.
         match &mut tag {
-            Hmac384Tag::Array4x12(arr) => {
-                KvAccess::begin_copy_to_arr(hmac.kv_wr_status(), hmac.kv_wr_ctrl(), arr)?
+            Hmac384Tag::Array4x12(_arr) => {
+                KvAccess::begin_copy_to_arr(hmac.kv_wr_status(), hmac.kv_wr_ctrl())?
             }
             Hmac384Tag::Key(key) => {
                 KvAccess::begin_copy_to_kv(hmac.kv_wr_status(), hmac.kv_wr_ctrl(), *key)?
@@ -202,7 +202,7 @@ impl Hmac384 {
         match key {
             Hmac384Key::Array4x12(arr) => KvAccess::copy_from_arr(arr, hmac.key())?,
             Hmac384Key::Key(key) => {
-                KvAccess::copy_from_kv(key, hmac.kv_rd_key_status(), hmac.kv_rd_key_ctrl())
+                KvAccess::copy_from_kv(*key, hmac.kv_rd_key_status(), hmac.kv_rd_key_ctrl())
                     .map_err(|err| err.into_read_key_err())?
             }
         }
@@ -215,7 +215,7 @@ impl Hmac384 {
         // Calculate the hmac
         match data {
             Hmac384Data::Slice(buf) => self.hmac_buf(buf)?,
-            Hmac384Data::Key(key) => self.hmac_key(key)?,
+            Hmac384Data::Key(key) => self.hmac_key(*key)?,
         }
         let hmac = self.hmac.regs();
 

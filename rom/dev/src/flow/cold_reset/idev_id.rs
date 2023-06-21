@@ -154,8 +154,7 @@ impl InitDevIdLayer {
         // CDI Key
         let key = Hmac384Key::Array4x12(&IDEVID_CDI_KEY);
         let data = Hmac384Data::Key(KeyReadArgs::new(uds));
-        Crypto::hmac384_mac(env, key, data, cdi)?;
-
+        Crypto::hmac384_mac(env, &key, &data, cdi)?;
         cprintln!("[idev] Erasing UDS.KEYID = {}", uds as u8);
         env.key_vault.erase_key(uds)?;
         report_boot_status(IDevIdCdiDerivationComplete.into());
@@ -236,8 +235,8 @@ impl InitDevIdLayer {
         );
 
         // Sign the the `To Be Signed` portion
-        let sig = Crypto::ecdsa384_sign(env, key_pair.priv_key, tbs.tbs());
-        let sig = okref(&sig)?;
+        let mut sig = Crypto::ecdsa384_sign(env, key_pair.priv_key, tbs.tbs());
+        let sig = okmutref(&mut sig)?;
 
         // Verify the signature of the `To Be Signed` portion
         if !Crypto::ecdsa384_verify(env, &key_pair.pub_key, tbs.tbs(), sig)? {
@@ -272,7 +271,13 @@ impl InitDevIdLayer {
         report_boot_status(IDevIdMakeCsrComplete.into());
 
         // Execute Send CSR Flow
-        Self::send_csr(env, InitDevIdCsr::new(&csr, csr_len))
+        let result = Self::send_csr(env, InitDevIdCsr::new(&csr, csr_len));
+
+        // Zeroize locals.
+        sig.zeroize();
+        csr.fill(0);
+
+        result
     }
 
     /// Send Initial Device ID CSR to SOC

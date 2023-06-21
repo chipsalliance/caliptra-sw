@@ -40,3 +40,11 @@ pub struct DiceOutput {
     /// Subject Key Identifier
     pub subj_key_id: [u8; 20],
 }
+
+impl DiceOutput {
+    pub fn zeroize(&mut self) {
+        self.subj_key_pair.zeroize();
+        self.subj_sn.fill(0);
+        self.subj_key_id.fill(0);
+    }
+}

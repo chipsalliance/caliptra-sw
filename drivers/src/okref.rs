@@ -48,6 +48,13 @@ pub fn okref<T, E: Copy>(r: &Result<T, E>) -> Result<&T, E> {
     }
 }
 
+pub fn okmutref<T, E: Copy>(r: &mut Result<T, E>) -> Result<&mut T, E> {
+    match r {
+        Ok(r) => Ok(r),
+        Err(e) => Err(*e),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

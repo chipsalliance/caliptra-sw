@@ -110,6 +110,11 @@ impl Ecc384PubKey {
     pub fn to_der(&self) -> [u8; 97] {
         array_concat3([0x04], (&self.x).into(), (&self.y).into())
     }
+
+    pub fn zeroize(&mut self) {
+        self.x.0.fill(0);
+        self.y.0.fill(0);
+    }
 }
 
 /// ECC-384 Signature
@@ -121,6 +126,13 @@ pub struct Ecc384Signature {
 
     /// Proof
     pub s: Ecc384Scalar,
+}
+
+impl Ecc384Signature {
+    pub fn zeroize(&mut self) {
+        self.r.0.fill(0);
+        self.s.0.fill(0);
+    }
 }
 
 /// Elliptic Curve P-384 API
@@ -146,7 +158,7 @@ impl Ecc384 {
     /// * `Ecc384PubKey` - Generated ECC-384 Public Key
     pub fn key_pair(
         &mut self,
-        seed: Ecc384Seed,
+        seed: &Ecc384Seed,
         nonce: &Array4x12,
         trng: &mut Trng,
         mut priv_key: Ecc384PrivKeyOut,
@@ -158,8 +170,8 @@ impl Ecc384 {
 
         // Configure hardware to route keys to user specified hardware blocks
         match &mut priv_key {
-            Ecc384PrivKeyOut::Array4x12(arr) => {
-                KvAccess::begin_copy_to_arr(ecc.kv_wr_pkey_status(), ecc.kv_wr_pkey_ctrl(), arr)?
+            Ecc384PrivKeyOut::Array4x12(_arr) => {
+                KvAccess::begin_copy_to_arr(ecc.kv_wr_pkey_status(), ecc.kv_wr_pkey_ctrl())?
             }
             Ecc384PrivKeyOut::Key(key) => {
                 KvAccess::begin_copy_to_kv(ecc.kv_wr_pkey_status(), ecc.kv_wr_pkey_ctrl(), *key)?
@@ -170,7 +182,7 @@ impl Ecc384 {
         match seed {
             Ecc384Seed::Array4x12(arr) => KvAccess::copy_from_arr(arr, ecc.seed())?,
             Ecc384Seed::Key(key) => {
-                KvAccess::copy_from_kv(key, ecc.kv_rd_seed_status(), ecc.kv_rd_seed_ctrl())
+                KvAccess::copy_from_kv(*key, ecc.kv_rd_seed_status(), ecc.kv_rd_seed_ctrl())
                     .map_err(|err| err.into_read_seed_err())?
             }
         }
@@ -218,7 +230,7 @@ impl Ecc384 {
     /// * `Ecc384Signature` - Generate signature
     pub fn sign(
         &mut self,
-        priv_key: Ecc384PrivKeyIn,
+        priv_key: &Ecc384PrivKeyIn,
         data: &Ecc384Scalar,
         trng: &mut Trng,
     ) -> CaliptraResult<Ecc384Signature> {
@@ -231,7 +243,7 @@ impl Ecc384 {
         match priv_key {
             Ecc384PrivKeyIn::Array4x12(arr) => KvAccess::copy_from_arr(arr, ecc.privkey_in())?,
             Ecc384PrivKeyIn::Key(key) => {
-                KvAccess::copy_from_kv(key, ecc.kv_rd_pkey_status(), ecc.kv_rd_pkey_ctrl())
+                KvAccess::copy_from_kv(*key, ecc.kv_rd_pkey_status(), ecc.kv_rd_pkey_ctrl())
                     .map_err(|err| err.into_read_priv_key_err())?
             }
         }
