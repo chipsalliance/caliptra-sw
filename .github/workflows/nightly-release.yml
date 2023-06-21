@@ -94,7 +94,7 @@ jobs:
       - name: Upload release
         uses: actions/upload-artifact@v3
         with:
-          name: release
+          name: ${{ needs.find-latest-release.outputs.new_release_tag }}
           path: release_${{ steps.date.outputs.date }}
 
       - name: Tag repo with new release number
