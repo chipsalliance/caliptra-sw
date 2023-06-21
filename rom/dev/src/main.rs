@@ -56,7 +56,7 @@ pub extern "C" fn rom_entry() -> ! {
         caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",
         caliptra_drivers::Lifecycle::Manufacturing => "Manufacturing",
         caliptra_drivers::Lifecycle::Production => "Production",
-        caliptra_drivers::Lifecycle::Unknown => "Unknown",
+        caliptra_drivers::Lifecycle::Reserved2 => "Unknown",
     };
     cprintln!("[state] LifecycleState = {}", _lifecyle);
 
