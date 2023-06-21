@@ -50,6 +50,7 @@ jobs:
           fi
           echo "new_release_tag=${TAG_BASE}${INDEX}" >> $GITHUB_OUTPUT
           echo "release_ref=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "New release tag: ${TAG_BASE}${INDEX}"
 
   verilator-full-suite:
     name: Temp1
