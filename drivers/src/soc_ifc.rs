@@ -37,9 +37,9 @@ impl From<DeviceLifecycleE> for Lifecycle {
     /// Converts to this type from the input type.
     fn from(value: DeviceLifecycleE) -> Self {
         match value {
-            DeviceLifecycleE::DeviceUnprovisioned => Lifecycle::Unprovisioned,
-            DeviceLifecycleE::DeviceManufacturing => Lifecycle::Manufacturing,
-            DeviceLifecycleE::DeviceProduction => Lifecycle::Production,
+            DeviceLifecycleE::Unprovisioned => Lifecycle::Unprovisioned,
+            DeviceLifecycleE::Manufacturing => Lifecycle::Manufacturing,
+            DeviceLifecycleE::Production => Lifecycle::Production,
             _ => Lifecycle::Unknown,
         }
     }
