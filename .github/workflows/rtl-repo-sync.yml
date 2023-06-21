@@ -21,10 +21,10 @@ jobs:
           submodules: 'true'
           ref: 'main'
 
-      #- name: Update the Caliptra RTL submodule and rebuild registers
-      #  run: |
-      #    git submodule update --remote hw-latest/caliptra-rtl
-      #    cargo run --release --manifest-path registers/bin/generator/Cargo.toml -- hw-latest/caliptra-rtl registers/src/
+      - name: Update the Caliptra RTL submodule and rebuild registers
+        run: |
+          git submodule update --remote hw-latest/caliptra-rtl
+          cargo run --release --manifest-path registers/bin/generator/Cargo.toml -- hw-latest/caliptra-rtl registers/src/
 
       # FIXME: Remove this
       - name: Add a test change that will still let us build...
@@ -56,39 +56,39 @@ jobs:
           git commit -a -m "CI: Update Caliptra RTL"
           git push -u origin ${{ steps.branch.outputs.branch }}
 
-  build-test:
-    name: Temp1
-    runs-on: ubuntu-22.04
-    needs: update-rtl
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: 'true'
-          ref: 'main'
-
-  build-test-verilator:
-    name: Temp1
-    runs-on: ubuntu-22.04
-    needs: update-rtl
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: 'true'
-          ref: 'main'
-
   #build-test:
-  #  uses: ./.github/workflows/build-test.yml
+  #  name: Temp1
+  #  runs-on: ubuntu-22.04
   #  needs: update-rtl
-  #  if: needs.update-rtl.outputs.ci_checks_needed
-  #  with:
-  #    ref: ${{ needs.update-rtl.outputs.branch_name }}
+  #  steps:
+  #    - uses: actions/checkout@v3
+  #      with:
+  #        submodules: 'true'
+  #        ref: 'main'
 
   #build-test-verilator:
-  #  uses: ./.github/workflows/build-test-verilator.yml
+  #  name: Temp1
+  #  runs-on: ubuntu-22.04
   #  needs: update-rtl
-  #  if: needs.update-rtl.outputs.ci_checks_needed
-  #  with:
-  #    ref: ${{ needs.update-rtl.outputs.branch_name }}
+  #  steps:
+  #    - uses: actions/checkout@v3
+  #      with:
+  #        submodules: 'true'
+  #        ref: 'main'
+
+  build-test:
+    uses: ./.github/workflows/build-test.yml
+    needs: update-rtl
+    if: needs.update-rtl.outputs.ci_checks_needed
+    with:
+      ref: ${{ needs.update-rtl.outputs.branch_name }}
+
+  build-test-verilator:
+    uses: ./.github/workflows/build-test-verilator.yml
+    needs: update-rtl
+    if: needs.update-rtl.outputs.ci_checks_needed
+    with:
+      ref: ${{ needs.update-rtl.outputs.branch_name }}
 
   merge-rtl-update:
     name: Merge RTL Update

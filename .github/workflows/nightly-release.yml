@@ -53,23 +53,23 @@ jobs:
           echo "release_ref=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "New release tag: ${TAG_BASE}${INDEX}"
 
-  verilator-full-suite:
-    name: Temp1
-    runs-on: ubuntu-22.04
-    needs: find-latest-release
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: 'true'
-          ref: ${{ needs.find-latest-release.outputs.release_ref }}
-
   #verilator-full-suite:
-  #  name: Nightly Verilator Suite
+  #  name: Temp1
+  #  runs-on: ubuntu-22.04
   #  needs: find-latest-release
-  #  if: needs.find-latest-release.outputs.create_release
-  #  uses: ./.github/workflows/nightly-verilator.yml
-  #  with:
-  #    ref: ${{ needs.find-latest-release.outputs.release_ref }}
+  #  steps:
+  #    - uses: actions/checkout@v3
+  #      with:
+  #        submodules: 'true'
+  #        ref: ${{ needs.find-latest-release.outputs.release_ref }}
+
+  verilator-full-suite:
+    name: Nightly Verilator Suite
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/nightly-verilator.yml
+    with:
+      ref: ${{ needs.find-latest-release.outputs.release_ref }}
 
   create-release:
     name: Create New Release
@@ -95,12 +95,6 @@ jobs:
           cp caliptra_rom.hex release_${{ steps.date.outputs.date }}/
           zip -r release_${{ steps.date.outputs.date }}.zip release_${{ steps.date.outputs.date }}
 
-      #- name: Upload release
-      #  uses: actions/upload-artifact@v3
-      #  with:
-      #    name: ${{ needs.find-latest-release.outputs.new_release_tag }}
-      #    path: release_${{ steps.date.outputs.date }}
-
       - name: Tag repo with new release number
         run: |
           git config --global user.name "GitHub CI"
@@ -108,10 +102,8 @@ jobs:
           git tag ${{ needs.find-latest-release.outputs.new_release_tag }}
           git push origin ${{ needs.find-latest-release.outputs.new_release_tag }}
 
-      # FIXME: Add a "generate release" action
       - name: Upload release
         uses: softprops/action-gh-release@v1
         with:
-          files:
-            release_${{ steps.date.outputs.date }}.zip
+          files: release_${{ steps.date.outputs.date }}.zip
           tag_name: ${{ needs.find-latest-release.outputs.new_release_tag }}
