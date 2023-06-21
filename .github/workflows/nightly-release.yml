@@ -2,6 +2,7 @@ name: Nightly Release
 
 on:
   push:
+    branches: [ isaac_nightly_release ]
   workflow_dispatch:
 
 jobs:
@@ -86,15 +87,15 @@ jobs:
       # FIXME: Use the correct release generation process here
       - name: Generate release zip
         run: |
-          mkdir /tmp/hw_release_${{ steps.date.outputs.date }}
-          cp target/riscv32imc-unknown-none-elf/firmware/caliptra-rom /tmp/hw_release_${{ steps.date.outputs.date }}
+          mkdir release_${{ steps.date.outputs.date }}
+          cp image/elf/src/lib.rs release_${{ steps.date.outputs.date }}/
 
       # FIXME: Tag with the correct "next release number"
       - name: Upload release
         uses: actions/upload-artifact@v3
         with:
           name: release
-          path: /tmp/hw_release_${{ steps.date.outputs.date }}/caliptra-rom
+          path: release_${{ steps.date.outputs.date }}
 
       - name: Tag repo with new release number
         run: |
