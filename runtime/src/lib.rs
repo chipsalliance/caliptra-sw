@@ -10,6 +10,9 @@ pub mod mailbox;
 
 use mailbox::Mailbox;
 
+pub mod packet;
+use packet::Packet;
+
 use caliptra_common::cprintln;
 use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault, Ecc384};
 use caliptra_registers::{
@@ -66,7 +69,7 @@ impl Drivers {
 #[repr(C)]
 #[derive(AsBytes, FromBytes)]
 pub struct EcdsaVerifyCmd {
-    pub chksum: u32,
+    pub chksum: i32,
     pub pub_key_x: [u8; 48],
     pub pub_key_y: [u8; 48],
     pub signature_r: [u8; 48],
@@ -94,29 +97,18 @@ fn wait_for_cmd(_mbox: &mut Mailbox) {
 }
 
 fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
-    let mbox = &mut drivers.mbox;
+    let packet = Packet::copy_from_mbox(drivers)?;
 
-    let cmd_id = mbox.cmd();
-    let dlen = mbox.dlen() as usize;
-    let dlen_words = mbox.dlen_words() as usize;
-    let mut buf = [0u32; 1024];
-    mbox.copy_from_mbox(
-        buf.get_mut(..dlen_words)
-            .ok_or(CaliptraError::RUNTIME_INTERNAL)?,
+    cprintln!(
+        "[rt] Received command=0x{:x}, len={}",
+        packet.cmd,
+        packet.len
     );
 
-    if dlen > buf.len() * 4 {
-        // dlen larger than max message
-        Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
-    }
+    // Get the command bytes
+    let cmd_bytes = packet.as_bytes()?;
 
-    let cmd_bytes = buf
-        .as_bytes()
-        .get(..dlen)
-        .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
-
-    cprintln!("[rt] Received command=0x{:x}, len={}", cmd_id, mbox.dlen());
-    match CommandId::from(cmd_id) {
+    match CommandId::from(packet.cmd) {
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_IDEV_CSR => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_LDEV_CERT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
