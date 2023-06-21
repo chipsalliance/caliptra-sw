@@ -93,7 +93,7 @@ jobs:
           pwd
           cargo run --manifest-path=builder/Cargo.toml --bin image -- --rom caliptra_rom.bin --fw image_bundle.bin
           ls -a
-          objcopy -I binary -O verilog caliptra-rom.bin caliptra_rom.hex
+          objcopy -I binary -O verilog caliptra_rom.bin caliptra_rom.hex
           ls -a
           cp -a target/riscv32imc-unknown-none-elf/firmware/* release_${{ steps.date.outputs.date }}/
 
