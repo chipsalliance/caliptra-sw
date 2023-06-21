@@ -8,7 +8,7 @@ on:
 jobs:
   rtl-repo-sync:
     name: RTL Repo Sync
-    uses: ./.github/workflows/rtl-repo-sync.yml@isaac_nightly_release
+    uses: ./.github/workflows/rtl-repo-sync.yml
 
   find-latest-release:
     name: Find Latest Release
@@ -67,7 +67,7 @@ jobs:
   #  name: Nightly Verilator Suite
   #  needs: find-latest-release
   #  if: needs.find-latest-release.outputs.create_release
-  #  uses: ./.github/workflows/nightly-verilator.yml@isaac_nightly_release
+  #  uses: ./.github/workflows/nightly-verilator.yml
   #  with:
   #    ref: ${{ needs.find-latest-release.outputs.release_ref }}
 
