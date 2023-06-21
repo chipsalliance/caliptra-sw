@@ -86,24 +86,27 @@ jobs:
           submodules: 'true'
           ref: ${{ needs.find-latest-release.outputs.release_ref }}
 
-      # FIXME: Use the correct release generation process here
       - name: Generate release zip
         run: |
           mkdir release_${{ steps.date.outputs.date }}
-          pwd
           cargo run --manifest-path=builder/Cargo.toml --bin image -- --rom caliptra_rom.bin --fw image_bundle.bin
-          ls -a
           objcopy -I binary -O verilog caliptra_rom.bin caliptra_rom.hex
-          ls -a
           cp -a target/riscv32imc-unknown-none-elf/firmware/* release_${{ steps.date.outputs.date }}/
+          cp caliptra_rom.hex release_${{ steps.date.outputs.date }}/
+          zip -r release_${{ steps.date.outputs.date }}.zip release_${{ steps.date.outputs.date }}
 
-      - name: Upload release
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{ needs.find-latest-release.outputs.new_release_tag }}
-          path: release_${{ steps.date.outputs.date }}
+      #- name: Upload release
+      #  uses: actions/upload-artifact@v3
+      #  with:
+      #    name: ${{ needs.find-latest-release.outputs.new_release_tag }}
+      #    path: release_${{ steps.date.outputs.date }}
 
       # FIXME: Add a "generate release" action
+      - name: Upload release
+        uses: softprops/action-gh-release@v1
+        with:
+          files:
+            release_${{ steps.date.outputs.date }}.zip
 
       - name: Tag repo with new release number
         run: |
