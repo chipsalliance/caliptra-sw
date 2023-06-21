@@ -119,7 +119,7 @@ jobs:
         run: |
           git config --global user.name "GitHub CI"
           git config --global user.email "username@users.noreply.github.com"
-          git merge ${{ needs.update-rtl.outputs.branch_name }}
+          git merge origin/${{ needs.update-rtl.outputs.branch_name }}
           git push
           git push origin --delete ${{ needs.update-rtl.outputs.branch_name }}
 
