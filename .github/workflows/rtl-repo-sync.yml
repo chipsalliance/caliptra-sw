@@ -26,11 +26,6 @@ jobs:
           git submodule update --remote hw-latest/caliptra-rtl
           cargo run --release --manifest-path registers/bin/generator/Cargo.toml -- hw-latest/caliptra-rtl registers/src/
 
-      # FIXME: Remove this
-      #- name: Add a test change that will still let us build...
-      #  run: |
-      #    echo "# This is a test" >> Cargo.toml
-
       - name: Find available branch name
         id: branch
         run: |
@@ -55,26 +50,6 @@ jobs:
           git checkout -b ${{ steps.branch.outputs.branch }}
           git commit -a -m "CI: Update Caliptra RTL"
           git push -u origin ${{ steps.branch.outputs.branch }}
-
-  #build-test:
-  #  name: Temp1
-  #  runs-on: ubuntu-22.04
-  #  needs: update-rtl
-  #  steps:
-  #    - uses: actions/checkout@v3
-  #      with:
-  #        submodules: 'true'
-  #        ref: 'main'
-
-  #build-test-verilator:
-  #  name: Temp1
-  #  runs-on: ubuntu-22.04
-  #  needs: update-rtl
-  #  steps:
-  #    - uses: actions/checkout@v3
-  #      with:
-  #        submodules: 'true'
-  #        ref: 'main'
 
   build-test:
     uses: ./.github/workflows/build-test.yml
