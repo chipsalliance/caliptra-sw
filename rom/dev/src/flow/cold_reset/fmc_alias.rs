@@ -219,7 +219,7 @@ impl FmcAliasLayer {
             _ => 0,
         };
 
-        if debug_locked {
+        if !debug_locked {
             flags |= dice::FLAG_BIT_DEBUG;
         }
 

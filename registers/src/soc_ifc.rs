@@ -3044,23 +3044,23 @@ pub mod enums {
     #[derive(Clone, Copy, Eq, PartialEq)]
     #[repr(u32)]
     pub enum DeviceLifecycleE {
-        DeviceUnprovisioned = 0,
-        DeviceManufacturing = 1,
+        Unprovisioned = 0,
+        Manufacturing = 1,
         Reserved2 = 2,
-        DeviceProduction = 3,
+        Production = 3,
     }
     impl DeviceLifecycleE {
         #[inline(always)]
-        pub fn device_unprovisioned(&self) -> bool {
-            *self == Self::DeviceUnprovisioned
+        pub fn unprovisioned(&self) -> bool {
+            *self == Self::Unprovisioned
         }
         #[inline(always)]
-        pub fn device_manufacturing(&self) -> bool {
-            *self == Self::DeviceManufacturing
+        pub fn manufacturing(&self) -> bool {
+            *self == Self::Manufacturing
         }
         #[inline(always)]
-        pub fn device_production(&self) -> bool {
-            *self == Self::DeviceProduction
+        pub fn production(&self) -> bool {
+            *self == Self::Production
         }
     }
     impl TryFrom<u32> for DeviceLifecycleE {
@@ -3083,16 +3083,16 @@ pub mod enums {
         pub struct DeviceLifecycleESelector();
         impl DeviceLifecycleESelector {
             #[inline(always)]
-            pub fn device_unprovisioned(&self) -> super::DeviceLifecycleE {
-                super::DeviceLifecycleE::DeviceUnprovisioned
+            pub fn unprovisioned(&self) -> super::DeviceLifecycleE {
+                super::DeviceLifecycleE::Unprovisioned
             }
             #[inline(always)]
-            pub fn device_manufacturing(&self) -> super::DeviceLifecycleE {
-                super::DeviceLifecycleE::DeviceManufacturing
+            pub fn manufacturing(&self) -> super::DeviceLifecycleE {
+                super::DeviceLifecycleE::Manufacturing
             }
             #[inline(always)]
-            pub fn device_production(&self) -> super::DeviceLifecycleE {
-                super::DeviceLifecycleE::DeviceProduction
+            pub fn production(&self) -> super::DeviceLifecycleE {
+                super::DeviceLifecycleE::Production
             }
         }
     }
