@@ -101,16 +101,17 @@ jobs:
       #    name: ${{ needs.find-latest-release.outputs.new_release_tag }}
       #    path: release_${{ steps.date.outputs.date }}
 
-      # FIXME: Add a "generate release" action
-      - name: Upload release
-        uses: softprops/action-gh-release@v1
-        with:
-          files:
-            release_${{ steps.date.outputs.date }}.zip
-
       - name: Tag repo with new release number
         run: |
           git config --global user.name "GitHub CI"
           git config --global user.email "username@users.noreply.github.com"
           git tag ${{ needs.find-latest-release.outputs.new_release_tag }}
           git push origin ${{ needs.find-latest-release.outputs.new_release_tag }}
+
+      # FIXME: Add a "generate release" action
+      - name: Upload release
+        uses: softprops/action-gh-release@v1
+        with:
+          files:
+            release_${{ steps.date.outputs.date }}.zip
+          tag_name: ${{ needs.find-latest-release.outputs.new_release_tag }}
