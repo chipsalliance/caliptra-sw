@@ -5,11 +5,11 @@ on:
   #pull_request:
   #  branches: [ main ]
 
-  push:
   workflow_dispatch:
 
 jobs:
   rtl-repo-sync:
+    name: RTL Repo Sync
     uses: amd-isaac/caliptra-sw/.github/workflows/rtl-repo-sync.yml@isaac_nightly_release
 
   find-latest-release:
