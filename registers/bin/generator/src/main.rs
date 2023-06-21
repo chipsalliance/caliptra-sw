@@ -184,6 +184,13 @@ fn real_main() -> Result<(), Box<dyn Error>> {
                 &format!("{}_", block.name.to_ascii_lowercase()),
             );
         }
+        if block.name == "soc_ifc" {
+            block.rename_enum_variants(&[
+                ("DEVICE_UNPROVISIONED", "UNPROVISIONED"),
+                ("DEVICE_MANUFACTURING", "MANUFACTURING"),
+                ("DEVICE_PRODUCTION", "PRODUCTION"),
+            ]);
+        }
         let mut block = block.validate_and_dedup()?;
 
         if block.block().name == "ecc" {
