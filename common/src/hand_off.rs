@@ -5,9 +5,6 @@ use caliptra_drivers::{
     KeyId, WarmResetEntry4, WarmResetEntry48,
 };
 use zerocopy::{AsBytes, FromBytes};
-extern "C" {
-    static mut FHT_ORG: u32;
-}
 
 pub const FHT_MARKER: u32 = 0x54484643;
 pub const FHT_INVALID_ADDRESS: u32 = u32::MAX;
@@ -396,6 +393,9 @@ impl FirmwareHandoffTable {
     /// Load FHT from its fixed address and perform validity check of
     /// its data.
     pub fn try_load() -> Option<FirmwareHandoffTable> {
+        extern "C" {
+            static mut FHT_ORG: u32;
+        }
         let slice = unsafe {
             let ptr = &mut FHT_ORG as *mut u32;
             core::slice::from_raw_parts_mut(
@@ -411,6 +411,19 @@ impl FirmwareHandoffTable {
             return Some(fht);
         }
         None
+    }
+
+    pub fn save(fht: &FirmwareHandoffTable) {
+        extern "C" {
+            static mut FHT_ORG: u8;
+        }
+
+        let slice = unsafe {
+            let ptr = &mut FHT_ORG as *mut u8;
+            crate::cprintln!("[fht] Saving FHT @ 0x{:08X}", ptr as u32);
+            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
+        };
+        slice.copy_from_slice(fht.as_bytes());
     }
 }
 /// Report a non fatal firmware error and halt.
