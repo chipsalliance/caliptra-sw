@@ -101,7 +101,6 @@ impl HwModel for ModelFpgaRealtime {
 
         // Set Security State signal wires
         m.set_security_state(u32::from(params.security_state));
-        m.set_security_state(3); // TODO: Remove
         // Set initial tag to be non-zero
         unsafe { m.set_uart_tag(TAG) };
         // Set initial PAUSER

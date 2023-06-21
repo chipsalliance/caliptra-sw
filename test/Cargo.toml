@@ -10,8 +10,6 @@ edition = "2021"
 [dev-dependencies]
 caliptra-builder = { path = "../builder" }
 caliptra-hw-model = { path = "../hw-model" }
-caliptra-image-gen = { path = "../image/gen" }
-caliptra-image-openssl = { path = "../image/openssl" }
 
 [features]
 verilator = ["caliptra-hw-model/verilator"]
