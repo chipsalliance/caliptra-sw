@@ -31,6 +31,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
+          ref: 'main'
 
       #- name: Update the Caliptra RTL submodule and rebuild registers
       #  run: |
@@ -75,6 +76,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
+          ref: 'main'
 
   build-test-verilator:
     name: Temp1
@@ -84,6 +86,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
+          ref: 'main'
 
   #build-test:
   #  uses: amd-isaac/caliptra-sw/.github/workflows/build-test.yml@isaac_nightly_release
@@ -109,7 +112,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
-          ref: ${{ needs.update-rtl.outputs.branch_name }}
+          ref: 'main'
 
       - name: Merge RTL changes to main branch
         run: |
@@ -121,7 +124,7 @@ jobs:
 
   find-latest-release:
     name: Find Latest Release
-    needs: merge-rtl-update
+    needs: [update-rtl, merge-rtl-update]
     runs-on: ubuntu-22.04
     outputs:
       create_release: ${{ steps.find.outputs.create_release }}
@@ -132,6 +135,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
+          ref: 'main'
 
       - name: Find latest release
         id: find
