@@ -77,14 +77,14 @@ jobs:
           ref: 'main'
 
   #build-test:
-  #  uses: amd-isaac/caliptra-sw/.github/workflows/build-test.yml@isaac_nightly_release
+  #  uses: ./.github/workflows/build-test.yml@isaac_nightly_release
   #  needs: update-rtl
   #  if: needs.update-rtl.outputs.ci_checks_needed
   #  with:
   #    ref: ${{ needs.update-rtl.outputs.branch_name }}
 
   #build-test-verilator:
-  #  uses: amd-isaac/caliptra-sw/.github/workflows/build-test-verilator.yml@isaac_nightly_release
+  #  uses: ./.github/workflows/build-test-verilator.yml@isaac_nightly_release
   #  needs: update-rtl
   #  if: needs.update-rtl.outputs.ci_checks_needed
   #  with:

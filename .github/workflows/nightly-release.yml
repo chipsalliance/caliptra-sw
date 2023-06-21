@@ -8,7 +8,7 @@ on:
 jobs:
   rtl-repo-sync:
     name: RTL Repo Sync
-    uses: amd-isaac/caliptra-sw/.github/workflows/rtl-repo-sync.yml@isaac_nightly_release
+    uses: ./.github/workflows/rtl-repo-sync.yml@isaac_nightly_release
 
   find-latest-release:
     name: Find Latest Release
@@ -61,13 +61,13 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
-          ref: 'main'
+          ref: ${{ needs.find-latest-release.outputs.release_ref }}
 
   #verilator-full-suite:
   #  name: Nightly Verilator Suite
   #  needs: find-latest-release
   #  if: needs.find-latest-release.outputs.create_release
-  #  uses: amd-isaac/caliptra-sw/.github/workflows/nightly-verilator.yml@isaac_nightly_release
+  #  uses: ./.github/workflows/nightly-verilator.yml@isaac_nightly_release
   #  with:
   #    ref: ${{ needs.find-latest-release.outputs.release_ref }}
 
@@ -92,12 +92,13 @@ jobs:
           mkdir release_${{ steps.date.outputs.date }}
           cp image/elf/src/lib.rs release_${{ steps.date.outputs.date }}/
 
-      # FIXME: Tag with the correct "next release number"
       - name: Upload release
         uses: actions/upload-artifact@v3
         with:
           name: ${{ needs.find-latest-release.outputs.new_release_tag }}
           path: release_${{ steps.date.outputs.date }}
+
+      # FIXME: Add a "generate release" action
 
       - name: Tag repo with new release number
         run: |
@@ -105,5 +106,3 @@ jobs:
           git config --global user.email "username@users.noreply.github.com"
           git tag ${{ needs.find-latest-release.outputs.new_release_tag }}
           git push origin ${{ needs.find-latest-release.outputs.new_release_tag }}
-
-
