@@ -90,7 +90,13 @@ jobs:
       - name: Generate release zip
         run: |
           mkdir release_${{ steps.date.outputs.date }}
-          cp image/elf/src/lib.rs release_${{ steps.date.outputs.date }}/
+          pwd
+          ls -a
+          cargo run --manifest-path=builder/Cargo.toml -bin image -- --rom caliptra_rom.bin --fw image_bundle.bin
+          ls -a
+          objcopy -I binary -o verilog caliptra-rom.bin caliptra_rom.hex
+          ls -a
+          cp -a target/riscv32imc-unknown-none-elf/firmware/* release_${{ steps.date.outputs.date }}/
 
       - name: Upload release
         uses: actions/upload-artifact@v3
