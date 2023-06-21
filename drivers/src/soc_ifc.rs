@@ -17,33 +17,7 @@ use caliptra_registers::soc_ifc::{self, SocIfcReg};
 
 use crate::FuseBank;
 
-/// Device Life Cycle State
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum Lifecycle {
-    /// Unprovisioned
-    Unprovisioned = 0x0,
-
-    /// Manufacturing
-    Manufacturing = 0x1,
-
-    /// Production
-    Production = 0x2,
-
-    /// Unknown
-    Unknown = 0x3,
-}
-
-impl From<DeviceLifecycleE> for Lifecycle {
-    /// Converts to this type from the input type.
-    fn from(value: DeviceLifecycleE) -> Self {
-        match value {
-            DeviceLifecycleE::Unprovisioned => Lifecycle::Unprovisioned,
-            DeviceLifecycleE::Manufacturing => Lifecycle::Manufacturing,
-            DeviceLifecycleE::Production => Lifecycle::Production,
-            _ => Lifecycle::Unknown,
-        }
-    }
-}
+pub type Lifecycle = DeviceLifecycleE;
 
 pub fn report_boot_status(val: u32) {
     let mut soc_ifc = unsafe { soc_ifc::SocIfcReg::new() };
@@ -66,7 +40,6 @@ impl SocIfc {
             .cptra_security_state()
             .read()
             .device_lifecycle()
-            .into()
     }
 
     /// Check if device is locked for debug
