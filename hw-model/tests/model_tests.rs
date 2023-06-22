@@ -111,5 +111,8 @@ fn test_invalid_instruction_exception_failure() {
         harness::ERROR_EXCEPTION
     );
     let ext_info = harness::ExtErrorInfo::from(soc_ifc.cptra_fw_extended_error_info().read());
-    assert_eq!(ext_info.mcause, harness::NMI_CAUSE_ILLEGAL_INSTRUCTION_ERROR);
+    assert_eq!(
+        ext_info.mcause,
+        harness::NMI_CAUSE_ILLEGAL_INSTRUCTION_ERROR
+    );
 }
