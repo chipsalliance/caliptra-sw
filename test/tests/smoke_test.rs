@@ -2,6 +2,7 @@
 
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
+use caliptra_hw_model_types::{DeviceLifecycle, Fuses};
 use caliptra_test::{
     derive::{DoeInput, DoeOutput, FmcAliasKey, IDevId, LDevId, Pcr0, Pcr0Input},
     swap_word_bytes_inplace,
@@ -114,7 +115,9 @@ fn bytes_to_be_words_48(buf: &[u8; 48]) -> [u32; 12] {
 
 #[test]
 fn smoke_test() {
-    let security_state = *SecurityState::default().set_debug_locked(true);
+    let security_state = *SecurityState::default()
+        .set_debug_locked(true)
+        .set_device_lifecycle(DeviceLifecycle::Production);
     let idevid_pubkey = get_idevid_pubkey();
 
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
@@ -124,6 +127,8 @@ fn smoke_test() {
         ImageOptions::default(),
     )
     .unwrap();
+    let vendor_pk_hash =
+        bytes_to_be_words_48(&sha384(image.manifest.preamble.vendor_pub_keys.as_bytes()));
     let owner_pk_hash =
         bytes_to_be_words_48(&sha384(image.manifest.preamble.owner_pub_keys.as_bytes()));
 
@@ -131,6 +136,11 @@ fn smoke_test() {
         init_params: InitParams {
             rom: &rom,
             security_state,
+            ..Default::default()
+        },
+        fuses: Fuses {
+            key_manifest_pk_hash: vendor_pk_hash,
+            owner_pk_hash,
             ..Default::default()
         },
         fw_image: Some(&image.to_bytes().unwrap()),
@@ -205,7 +215,7 @@ fn smoke_test() {
         &Pcr0::derive(&Pcr0Input {
             security_state,
             fuse_anti_rollback_disable: false,
-            vendor_pub_key_hash: Default::default(),
+            vendor_pub_key_hash: vendor_pk_hash,
             // TODO: Is this right? Should this really be mixed in even if the fuses aren't set?
             owner_pub_key_hash: owner_pk_hash,
             vendor_pub_key_index: image.manifest.preamble.vendor_ecc_pub_key_idx,
