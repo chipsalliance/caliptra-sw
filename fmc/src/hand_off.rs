@@ -121,6 +121,8 @@ impl HandOff {
         extern "C" {
             fn transfer_control(entry: u32) -> !;
         }
+
+        FirmwareHandoffTable::save(&self.fht);
         // Retrieve runtime entry point
         let rt_entry = IccmAddress(self.rt_entry_point(env));
 
