@@ -43,7 +43,10 @@ pub extern "C" fn entry_point() -> ! {
 
         caliptra_drivers::ExitCtrl::exit(0)
     } else {
-        caliptra_drivers::ExitCtrl::exit(0xff)
+        caliptra_common::report_handoff_error_and_halt(
+            "Runtime can't load FHT",
+            caliptra_drivers::CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into(),
+        );
     }
 }
 
