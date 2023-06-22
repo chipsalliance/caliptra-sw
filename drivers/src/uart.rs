@@ -69,7 +69,7 @@ impl Uart {
             ptr::write_volatile(STDOUT, 0x8000_0000 | (tag << 16) | (byte as u32));
         }
         // Wait for test to acknowledge that it has read the byte.
-        while tag == unsafe {ptr::read_volatile(STDIN) } {}
+        while tag == unsafe { ptr::read_volatile(STDIN) } {}
     }
 }
 

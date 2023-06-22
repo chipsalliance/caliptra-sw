@@ -3,8 +3,8 @@ use std::{env, str::FromStr};
 use caliptra_emu_bus::{Bus, BusError};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::io::Write;
-use uio::{UioDevice, UioError};
 use std::time;
+use uio::{UioDevice, UioError};
 
 use crate::HwModel;
 use crate::Output;
@@ -107,7 +107,10 @@ impl HwModel for ModelFpgaRealtime {
         m.set_pauser(SOC_PAUSER);
 
         // Write ROM
-        let mut rom_driver = std::fs::OpenOptions::new().write(true).open("/dev/caliptra-rom-backdoor").unwrap();
+        let mut rom_driver = std::fs::OpenOptions::new()
+            .write(true)
+            .open("/dev/caliptra-rom-backdoor")
+            .unwrap();
         rom_driver.write_all(params.rom)?;
         rom_driver.sync_all()?;
 
@@ -126,15 +129,17 @@ impl HwModel for ModelFpgaRealtime {
 
     fn step(&mut self) {
         // Temporary UART handshake to get log messages from firmware
-        let generic = unsafe { self.soc_ifc.offset(0xC8/4).read_volatile() };
+        let generic = unsafe { self.soc_ifc.offset(0xC8 / 4).read_volatile() };
 
         // FW sets the generic_output register with the log character and the TAG from generic_input.
         let readtag = ((generic >> 16) & 0xFF) as u8;
 
         // If the TAG from FW matches what the hw-model set in the generic_input register there is new data.
-        if unsafe {(TAG & 0xFF) == readtag} {
+        if unsafe { (TAG & 0xFF) == readtag } {
             let uartchar = generic & 0xFF;
-            self.output().sink().push_uart_char(uartchar.try_into().unwrap());
+            self.output()
+                .sink()
+                .push_uart_char(uartchar.try_into().unwrap());
 
             // Increment tag and expose on generic_input to inform uart code we have recieved the byte
             unsafe {
@@ -145,13 +150,14 @@ impl HwModel for ModelFpgaRealtime {
     }
 
     fn output(&mut self) -> &mut crate::Output {
-        self.output.sink().set_now(self.start_time.elapsed().as_millis().try_into().unwrap());
+        self.output
+            .sink()
+            .set_now(self.start_time.elapsed().as_millis().try_into().unwrap());
         &mut self.output
     }
 
     fn ready_for_fw(&self) -> bool {
         unsafe { (self.gpio.offset(2).read_volatile() & 0x1000_0000) != 0 }
-
     }
 
     fn tracing_hint(&mut self, _enable: bool) {

@@ -33,12 +33,9 @@ fn smoke_test() {
     }
 
     let rom = caliptra_builder::build_firmware_rom(&rom_copy).unwrap();
-    let image = caliptra_builder::build_and_sign_image(
-        &fmc_copy,
-        &app_copy,
-        ImageOptions::default(),
-    )
-    .unwrap();
+    let image =
+        caliptra_builder::build_and_sign_image(&fmc_copy, &app_copy, ImageOptions::default())
+            .unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
