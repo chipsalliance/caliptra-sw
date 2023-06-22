@@ -572,6 +572,7 @@ version = "0.1.0"
 name = "caliptra-test"
 version = "0.1.0"
 dependencies = [
+ "asn1",
  "caliptra-builder",
  "caliptra-hw-model",
  "caliptra-hw-model-types",
