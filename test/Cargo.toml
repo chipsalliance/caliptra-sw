@@ -14,6 +14,7 @@ openssl = { version = "0.10", features = ["vendored"] }
 [dev-dependencies]
 caliptra-builder = { path = "../builder" }
 caliptra-hw-model = { path = "../hw-model" }
+openssl = { version = "0.10", features = ["vendored"] }
 
 [features]
 verilator = ["caliptra-hw-model/verilator"]
