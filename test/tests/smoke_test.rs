@@ -5,7 +5,8 @@ use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{DeviceLifecycle, Fuses};
 use caliptra_test::{
     derive::{DoeInput, DoeOutput, FmcAliasKey, IDevId, LDevId, Pcr0, Pcr0Input},
-    swap_word_bytes_inplace,
+    swap_word_bytes, swap_word_bytes_inplace,
+    x509::{DiceFwid, DiceTcbInfo},
 };
 use openssl::sha::sha384;
 use std::{io::Write, mem};
@@ -124,7 +125,11 @@ fn smoke_test() {
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
-        ImageOptions::default(),
+        ImageOptions {
+            fmc_min_svn: 5,
+            fmc_svn: 9,
+            ..Default::default()
+        },
     )
     .unwrap();
     let vendor_pk_hash =
@@ -141,6 +146,7 @@ fn smoke_test() {
         fuses: Fuses {
             key_manifest_pk_hash: vendor_pk_hash,
             owner_pk_hash,
+            fmc_key_manifest_svn: 0b1111111,
             ..Default::default()
         },
         fw_image: Some(&image.to_bytes().unwrap()),
@@ -211,17 +217,54 @@ fn smoke_test() {
         String::from_utf8_lossy(&fmc_alias_cert.to_text().unwrap())
     );
 
+    let dice_tcb_info = DiceTcbInfo::find_multiple_in_cert(&fmc_alias_cert_der).unwrap();
+    assert_eq!(
+        dice_tcb_info,
+        [
+            DiceTcbInfo {
+                vendor: Some("Caliptra".into()),
+                model: Some("Device".into()),
+                // This is from the SVN in the fuses (7 bits set)
+                svn: Some(0x107),
+
+                flags: Some(0x80000000),
+                ..Default::default()
+            },
+            DiceTcbInfo {
+                vendor: Some("Caliptra".into()),
+                model: Some("FMC".into()),
+                // This is from the SVN in the image (9)
+                svn: Some(0x109),
+                fwids: vec![
+                    DiceFwid {
+                        // FMC
+                        hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
+                        digest: swap_word_bytes(&image.manifest.fmc.digest)
+                            .as_bytes()
+                            .to_vec(),
+                    },
+                    DiceFwid {
+                        hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
+                        // TODO: Compute this...
+                        digest: sha384(image.manifest.preamble.owner_pub_keys.as_bytes()).to_vec(),
+                    },
+                ],
+                ..Default::default()
+            },
+        ]
+    );
+
     let expected_fmc_alias_key = FmcAliasKey::derive(
         &Pcr0::derive(&Pcr0Input {
             security_state,
             fuse_anti_rollback_disable: false,
             vendor_pub_key_hash: vendor_pk_hash,
-            // TODO: Is this right? Should this really be mixed in even if the fuses aren't set?
             owner_pub_key_hash: owner_pk_hash,
             vendor_pub_key_index: image.manifest.preamble.vendor_ecc_pub_key_idx,
             fmc_digest: image.manifest.fmc.digest,
             fmc_svn: image.manifest.fmc.svn,
-            fmc_fuse_svn: image.manifest.fmc.svn,
+            // This is from the SVN in the fuses (7 bits set)
+            fmc_fuse_svn: 7,
         }),
         &LDevId::derive(&DoeOutput::generate(&DoeInput::default())),
     );
