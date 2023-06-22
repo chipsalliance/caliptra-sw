@@ -45,6 +45,8 @@ module caliptra_verilated (
     input  bit [3:0]       itrng_data,
     input  bit             itrng_valid,
 
+    input bit [3:0] sram_error_injection_mode,
+
     output bit ready_for_fuses,
     output bit ready_for_fw_push,
 
@@ -188,7 +190,19 @@ assign uc_hrdata = caliptra_top_dut.rvtop.lsu_hrdata;
 assign uc_hready = caliptra_top_dut.rvtop.lsu_hready;
 assign uc_hresp = caliptra_top_dut.rvtop.lsu_hresp;
 
+// Decode:
+//  [0] - Single bit, ICCM Error Injection
+//  [1] - Double bit, ICCM Error Injection
+//  [2] - Single bit, DCCM Error Injection
+//  [3] - Double bit, DCCM Error Injection
+veer_sram_error_injection_mode_t veer_sram_error_injection_mode;
+assign veer_sram_error_injection_mode.iccm_single_bit_error = sram_error_injection_mode[0];
+assign veer_sram_error_injection_mode.iccm_double_bit_error = sram_error_injection_mode[1];
+assign veer_sram_error_injection_mode.dccm_single_bit_error = sram_error_injection_mode[2];
+assign veer_sram_error_injection_mode.dccm_double_bit_error = sram_error_injection_mode[3];
+
 caliptra_veer_sram_export veer_sram_export_inst (
+    .sram_error_injection_mode(sram_error_injection_mode),
     .el2_mem_export(el2_mem_export.top)
 );
 

@@ -228,4 +228,12 @@ impl crate::HwModel for ModelVerilated {
             }
         }
     }
+
+    fn ecc_error_injection(&mut self, enable: bool) {
+        if enable {
+            self.v.input.sram_error_injection_mode = 0x2;
+        } else {
+            self.v.input.sram_error_injection_mode = 0x0;
+        }
+    }
 }

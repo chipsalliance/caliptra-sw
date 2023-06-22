@@ -45,3 +45,8 @@ required-features = ["riscv"]
 name = "test_invalid_instruction"
 path = "test_invalid_instruction.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "test_iccm_double_bit_ecc"
+path = "test_iccm_double_bit_ecc.rs"
+required-features = ["riscv"]

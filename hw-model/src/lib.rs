@@ -472,6 +472,9 @@ pub trait HwModel {
 
     fn tracing_hint(&mut self, enable: bool);
 
+    fn ecc_error_injection(&mut self, _enable: bool) {
+    }
+
     /// Executes `cmd` with request data `buf`. Returns `Ok(Some(_))` if
     /// the uC responded with data, `Ok(None)` if the uC indicated success
     /// without data, Err(ModelError::MailboxCmdFailed) if the microcontroller
