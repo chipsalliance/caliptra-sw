@@ -271,8 +271,11 @@ pub struct FirmwareHandoffTable {
 
     pub rt_dice_sign: Ecc384Signature,
 
+    /// IDevID public key
+    pub idev_dice_pub_key: Ecc384PubKey,
+
     /// Reserved for future use.
-    pub reserved: [u8; 228],
+    pub reserved: [u8; 132],
 }
 
 impl Default for FirmwareHandoffTable {
@@ -299,13 +302,14 @@ impl Default for FirmwareHandoffTable {
             rt_svn_dv_hdl: FHT_INVALID_HANDLE,
             ldevid_tbs_size: 0,
             fmcalias_tbs_size: 0,
-            reserved: [0u8; 228],
+            reserved: [0u8; 132],
             ldevid_tbs_addr: 0,
             fmcalias_tbs_addr: 0,
             pcr_log_addr: 0,
             fuse_log_addr: 0,
             rt_dice_sign: Ecc384Signature::default(),
             rt_dice_pub_key: Ecc384PubKey::default(),
+            idev_dice_pub_key: Ecc384PubKey::default(),
         }
     }
 }
