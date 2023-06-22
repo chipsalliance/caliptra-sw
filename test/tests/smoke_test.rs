@@ -14,12 +14,19 @@ fn assert_output_contains(haystack: &str, needle: &str) {
 
 #[test]
 fn smoke_test() {
-    let mut rom_copy = ROM_WITH_UART;
-    let mut fmc_copy = FMC_WITH_UART;
-    let mut app_copy = APP_WITH_UART;
+    #[cfg(not(feature = "fpga_realtime"))]
+    {
+        let rom_copy = ROM_WITH_UART;
+        let fmc_copy = FMC_WITH_UART;
+        let app_copy = APP_WITH_UART;
+    }
 
     #[cfg(feature = "fpga_realtime")]
     {
+        let mut rom_copy = ROM_WITH_UART;
+        let mut fmc_copy = FMC_WITH_UART;
+        let mut app_copy = APP_WITH_UART;
+
         rom_copy.features = &["emu fpga_realtime"];
         fmc_copy.features = &["emu fpga_realtime"];
         app_copy.features = &["emu fpga_realtime"];
