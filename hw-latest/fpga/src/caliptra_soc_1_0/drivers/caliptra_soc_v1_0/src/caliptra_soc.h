@@ -1,3 +1,4 @@
+// Licensed under the Apache-2.0 license
 
 #ifndef CALIPTRA_SOC_H
 #define CALIPTRA_SOC_H
