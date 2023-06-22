@@ -10,6 +10,7 @@ edition = "2021"
 [dependencies]
 zerocopy = "0.6.1"
 openssl = { version = "0.10", features = ["vendored"] }
+caliptra-hw-model-types = { path = "../hw-model/types" }
 
 [dev-dependencies]
 caliptra-builder = { path = "../builder" }

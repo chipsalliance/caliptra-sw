@@ -1,5 +1,11 @@
 // Licensed under the Apache-2.0 license
 
+// The IV fed to the DOE when the ROM deobfuscates the UDS seed (as passed to doe registers)
+pub const DOE_UDS_IV: [u32; 4] = [0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e];
+
+// The IV fed to the DOE when the ROM deobfuscates the field entropy seed (as passed to doe registers)
+pub const DOE_FE_IV: [u32; 4] = [0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e];
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DoeInput {
     // The DOE obfuscation key, as wired to caliptra_top
@@ -21,6 +27,22 @@ pub struct DoeInput {
 
     // The initial value of key-vault entry words at startup
     pub keyvault_initial_word_value: u32,
+}
+impl Default for DoeInput {
+    fn default() -> Self {
+        Self {
+            doe_obf_key: caliptra_hw_model_types::DEFAULT_CPTRA_OBF_KEY,
+
+            doe_uds_iv: DOE_UDS_IV,
+            doe_fe_iv: DOE_FE_IV,
+
+            uds_seed: caliptra_hw_model_types::DEFAULT_UDS_SEED,
+            field_entropy_seed: caliptra_hw_model_types::DEFAULT_FIELD_ENTROPY,
+
+            // in debug-locked mode, this defaults to 0
+            keyvault_initial_word_value: 0x0000_0000,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -90,4 +112,38 @@ impl DoeOutput {
 
         result
     }
+}
+
+#[test]
+fn test_doe_output() {
+    let output = DoeOutput::generate(&crate::derive::DoeInput {
+        doe_obf_key: [
+            0x4f0b1c83, 0xb231c258, 0x7759c92b, 0xf22ac83f, 0x97c4e162, 0x3580ca0f, 0xb79529c2,
+            0x8a340dfd,
+        ],
+        doe_uds_iv: [0x455ba825, 0x45e16ca6, 0xf97d1f86, 0xb3718021],
+        doe_fe_iv: [0x848049fb, 0x4951e297, 0xbe60edba, 0xa24b77bb],
+        uds_seed: [
+            0x86c65f40, 0x04d45413, 0x5041da9a, 0x8580ec9a, 0xc7007ee6, 0xceb4a4b8, 0xce485f47,
+            0xbf6976b8, 0xc906de7b, 0xb0cd2dce, 0x8d2b8eed, 0xa537255f,
+        ],
+        field_entropy_seed: [
+            0x8531a3db, 0xc1725f07, 0x05f5a301, 0x047c1e27, 0xd0f18efa, 0x6a33e9d2, 0x3827ead4,
+            0x690aaee2,
+        ],
+        keyvault_initial_word_value: 0x5555_5555,
+    });
+    assert_eq!(
+        output,
+        DoeOutput {
+            uds: [
+                0x92121902, 0xbefa4497, 0x3d36f1db, 0x485a3ed6, 0x2d7b2eb3, 0x53929c34, 0x879e64ef,
+                0x6b25eaee, 0x0029fa17, 0x92f7f8da, 0x3b2ac8db, 0x21411551,
+            ],
+            field_entropy: [
+                0xdbca1cfa, 0x149c0355, 0x7ee48ddb, 0xb022238b, 0x057c9b49, 0x6c9e5b66, 0x119bcff5,
+                0xe82d50e0, 0x55555555, 0x55555555, 0x55555555, 0x55555555,
+            ],
+        }
+    );
 }
