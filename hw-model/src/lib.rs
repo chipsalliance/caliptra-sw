@@ -948,8 +948,6 @@ mod tests {
 
     #[test]
     fn test_sha512_acc() {
-        // This test doesn't rely on any firmware features. mailbox_responder
-        // image is sufficient
         let rom = caliptra_builder::build_firmware_rom(&FwId {
             crate_name: "caliptra-hw-model-test-fw",
             bin_name: "mailbox_responder",
@@ -966,6 +964,14 @@ mod tests {
             ..Default::default()
         })
         .unwrap();
+
+        assert_eq!(
+            model.compute_sha512_acc_digest(b"Hello", ShaAccMode::Sha384Stream),
+            Err(ModelError::UnableToLockSha512Acc)
+        );
+
+        // Ask firmware to unlock mailbox for sha512acc use.
+        model.mailbox_execute(0x5000_0000, &[]).unwrap();
 
         let tests = vec![
             Sha384Test {

@@ -45,9 +45,10 @@ impl Sha384Acc {
     pub fn try_start_operation(&mut self) -> Option<Sha384AccOp> {
         let sha_acc = self.sha512_acc.regs();
 
-        if sha_acc.lock().read().lock() {
+        if sha_acc.lock().read().lock() && sha_acc.status().read().soc_has_lock() {
             None
         } else {
+            // We acquired the lock, or we already have the lock (such as at startup)
             Some(Sha384AccOp {
                 sha512_acc: &mut self.sha512_acc,
             })
