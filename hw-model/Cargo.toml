@@ -10,6 +10,7 @@ edition = "2021"
 [features]
 default = []
 verilator = ["dep:caliptra-verilated"]
+itrng = ["caliptra-verilated?/itrng"]
 
 [dependencies]
 caliptra-emu-bus = { path = "../sw-emulator/lib/bus" }
