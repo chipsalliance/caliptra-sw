@@ -40,7 +40,10 @@ pub fn report_fw_error_fatal(val: u32) {
 /// * `val` - H/W error code.
 pub fn report_hw_error_non_fatal(val: u32) {
     let mut soc_ifc = unsafe { SocIfcReg::new() };
-    soc_ifc.regs_mut().cptra_hw_error_non_fatal().write(|_| val.into());
+    soc_ifc
+        .regs_mut()
+        .cptra_hw_error_non_fatal()
+        .write(|_| val.into());
 }
 
 /// Report fatal H/W error
@@ -50,5 +53,8 @@ pub fn report_hw_error_non_fatal(val: u32) {
 /// * `val` - H/W error code.
 pub fn report_hw_error_fatal(val: u32) {
     let mut soc_ifc = unsafe { SocIfcReg::new() };
-    soc_ifc.regs_mut().cptra_hw_error_fatal().write(|_| val.into());
+    soc_ifc
+        .regs_mut()
+        .cptra_hw_error_fatal()
+        .write(|_| val.into());
 }

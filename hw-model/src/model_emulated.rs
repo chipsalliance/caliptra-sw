@@ -165,4 +165,8 @@ impl crate::HwModel for ModelEmulated {
             writeln!(log, "pc=0x{pc:x}").unwrap();
         }))
     }
+
+    fn ecc_error_injection(&mut self, enable: bool) {
+        self.cpu.bus.bus.iccm.error_injection = enable;
+    }
 }
