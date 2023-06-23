@@ -125,3 +125,8 @@ required-features = ["riscv"]
 name = "csrng"
 path = "src/bin/csrng_tests.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "trng_driver_responder"
+path = "src/bin/trng_driver_responder.rs"
+required-features = ["riscv"]
