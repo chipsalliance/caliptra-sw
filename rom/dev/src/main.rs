@@ -66,7 +66,7 @@ pub extern "C" fn rom_entry() -> ! {
 
     let result = kat::execute_kat(&mut env);
     if let Err(err) = result {
-        report_error(err.into());
+        report_error(err.into(), &mut env);
     }
 
     let result = flow::run(&mut env);
@@ -78,7 +78,7 @@ pub extern "C" fn rom_entry() -> ! {
 
             fht::load_fht(fht);
         }
-        Err(err) => report_error(err.into()),
+        Err(err) => report_error(err.into(), &mut env),
     }
 
     #[cfg(not(feature = "no-fmc"))]
@@ -115,7 +115,8 @@ extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
 
     // TODO: Signal non-fatal error to SOC
 
-    report_error(CaliptraError::ROM_GLOBAL_EXCEPTION.into());
+    let mut env = unsafe { rom_env::RomEnv::new_from_registers() };
+    report_error(CaliptraError::ROM_GLOBAL_EXCEPTION.into(), &mut env);
 }
 
 #[no_mangle]
@@ -132,7 +133,8 @@ extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
     // - Signal Fatal error for ICCM/DCCM double bit faults
     // - Signal Non=-Fatal error for all other errors
 
-    report_error(CaliptraError::ROM_GLOBAL_NMI.into());
+    let mut env = unsafe { rom_env::RomEnv::new_from_registers() };
+    report_error(CaliptraError::ROM_GLOBAL_NMI.into(), &mut env);
 }
 
 #[panic_handler]
@@ -143,14 +145,21 @@ fn rom_panic(_: &core::panic::PanicInfo) -> ! {
     panic_is_possible();
 
     // TODO: Signal non-fatal error to SOC
-
-    report_error(CaliptraError::ROM_GLOBAL_PANIC.into());
+    let mut env = unsafe { rom_env::RomEnv::new_from_registers() };
+    report_error(CaliptraError::ROM_GLOBAL_PANIC.into(), &mut env);
 }
 
 #[allow(clippy::empty_loop)]
-fn report_error(code: u32) -> ! {
+fn report_error(code: u32, env: &mut RomEnv) -> ! {
     cprintln!("ROM Error: 0x{:08X}", code);
     report_fw_error_non_fatal(code);
+
+    // Zeroize the crypto blocks.
+    env.ecc384.zeroize();
+    env.hmac384.zeroize();
+    env.sha256.zeroize();
+    env.sha384.zeroize();
+    env.sha384_acc.zeroize();
 
     loop {
         // SoC firmware might be stuck waiting for Caliptra to finish

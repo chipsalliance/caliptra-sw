@@ -101,7 +101,16 @@ impl Sha384 {
                 }
             }
         }
-        Ok(self.read_digest())
+        let digest = self.read_digest();
+
+        self.zeroize();
+
+        Ok(digest)
+    }
+
+    /// Zeroize the hardware registers.
+    pub fn zeroize(&mut self) {
+        self.sha512.regs_mut().ctrl().write(|w| w.zeroize(true));
     }
 
     /// Copy digest to buffer
