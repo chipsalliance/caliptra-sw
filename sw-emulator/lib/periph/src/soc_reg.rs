@@ -22,6 +22,9 @@ use caliptra_emu_bus::{
 };
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
+use caliptra_hw_model_types::EtrngResponse;
+use caliptra_registers::soc_ifc::regs::CptraHwConfigReadVal;
+use caliptra_registers::soc_ifc_trng::regs::{CptraTrngStatusReadVal, CptraTrngStatusWriteVal};
 use std::cell::RefCell;
 use std::rc::Rc;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -258,6 +261,10 @@ impl SocRegistersInternal {
         self.regs.borrow_mut().clear_secrets();
     }
 
+    pub fn set_hw_config(&mut self, val: CptraHwConfigReadVal) {
+        self.regs.borrow_mut().cptra_hw_config = val.into();
+    }
+
     pub fn external_regs(&self) -> SocRegistersExternal {
         SocRegistersExternal {
             regs: self.regs.clone(),
@@ -400,8 +407,8 @@ struct SocRegistersImpl {
     #[register_array(offset = 0x0078)]
     cptra_trng_data: [u32; CPTRA_TRNG_DATA_SIZE / 4],
 
-    #[register(offset = 0x00a8)]
-    cptra_trng_status: ReadOnlyRegister<u32>,
+    #[register(offset = 0x00a8, write_fn = on_write_trng_status)]
+    cptra_trng_status: u32,
 
     #[register(offset = 0x00ac, write_fn = on_write_fuse_wr_done)]
     cptra_fuse_wr_done: u32,
@@ -423,6 +430,9 @@ struct SocRegistersImpl {
 
     #[register_array(offset = 0x00c8, write_fn = on_write_generic_output_wires)]
     cptra_generic_output_wires: [u32; CPTRA_GENERIC_OUTPUT_WIRES_SIZE / 4],
+
+    #[register(offset = 0x00dc, write_fn = write_disabled)]
+    cptra_hw_config: u32,
 
     #[register(offset = 0x00e0, write_fn = on_write_wdt_timer1_en)]
     cptra_wdt_timer1_en: ReadWriteRegister<u32, WdtEnable::Register>,
@@ -538,6 +548,10 @@ struct SocRegistersImpl {
 
     /// WDT Timer2 Expired action
     op_wdt_timer2_expired_action: Option<ActionHandle>,
+
+    etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
+    pending_etrng_response: Option<EtrngResponse>,
+    op_pending_etrng_response_action: Option<ActionHandle>,
 }
 
 impl SocRegistersImpl {
@@ -578,7 +592,7 @@ impl SocRegistersImpl {
             cptra_trng_valid_pauser: ReadWriteRegister::new(0),
             cptra_trng_pauser_lock: ReadWriteRegister::new(0),
             cptra_trng_data: Default::default(),
-            cptra_trng_status: ReadOnlyRegister::new(0),
+            cptra_trng_status: 0,
             cptra_fuse_wr_done: 0,
             cptra_timer_config: ReadWriteRegister::new(0),
             cptra_bootfsm_go: 0,
@@ -586,6 +600,7 @@ impl SocRegistersImpl {
             cptra_clk_gating_en: ReadOnlyRegister::new(0),
             cptra_generic_input_wires: Default::default(),
             cptra_generic_output_wires: Default::default(),
+            cptra_hw_config: 0,
             fuse_uds_seed: words_from_bytes_be(&Self::UDS),
             fuse_field_entropy: [0xffff_ffff; 8],
             fuse_vendor_pk_hash: Default::default(),
@@ -625,6 +640,10 @@ impl SocRegistersImpl {
             cptra_wdt_status: ReadOnlyRegister::new(0),
             op_wdt_timer1_expired_action: None,
             op_wdt_timer2_expired_action: None,
+
+            etrng_responses: args.etrng_responses,
+            pending_etrng_response: None,
+            op_pending_etrng_response_action: None,
         };
 
         regs
@@ -635,6 +654,10 @@ impl SocRegistersImpl {
         self.fuse_uds_seed = [0u32; 12];
         self.fuse_field_entropy = [0u32; 8];
         self.internal_obf_key = [0u32; 8];
+    }
+
+    fn write_disabled(&mut self, _size: RvSize, _val: RvData) -> Result<(), BusError> {
+        Err(BusError::StoreAccessFault)
     }
 
     fn on_write_bootfsm_go(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
@@ -867,6 +890,26 @@ impl SocRegistersImpl {
         Ok(())
     }
 
+    fn on_write_trng_status(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
+        let val = CptraTrngStatusReadVal::from(val);
+        if val.data_req() && self.pending_etrng_response.is_none() {
+            if let Some(next_response) = self.etrng_responses.next() {
+                self.op_pending_etrng_response_action =
+                    Some(self.timer.schedule_poll_in(next_response.delay.into()));
+                self.pending_etrng_response = Some(next_response);
+            }
+        }
+        self.cptra_trng_status = if !val.data_req() {
+            // Clear data_wr_done when data_req is cleared
+            CptraTrngStatusWriteVal::from(u32::from(val))
+                .data_wr_done(false)
+                .into()
+        } else {
+            val.into()
+        };
+        Ok(())
+    }
+
     fn reset_common(&mut self) {
         // Unlock the ICCM.
         self.iccm.unlock();
@@ -905,6 +948,15 @@ impl SocRegistersImpl {
                 &mut self.mailbox,
                 &mut self.cptra_dbg_manuf_service_reg.reg,
             );
+        }
+
+        if self.timer.fired(&mut self.op_pending_etrng_response_action) {
+            if let Some(etrng_response) = self.pending_etrng_response.take() {
+                self.cptra_trng_data = etrng_response.data;
+                self.cptra_trng_status = CptraTrngStatusWriteVal::from(self.cptra_trng_status)
+                    .data_wr_done(true)
+                    .into();
+            }
         }
 
         if self.timer.fired(&mut self.op_wdt_timer1_expired_action) {
