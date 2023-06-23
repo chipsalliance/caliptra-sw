@@ -53,6 +53,14 @@ impl Sha384Acc {
             })
         }
     }
+
+    /// Zeroize the hardware registers.
+    pub fn zeroize(&mut self) {
+        self.sha512_acc
+            .regs_mut()
+            .control()
+            .write(|w| w.zeroize(true));
+    }
 }
 
 pub struct Sha384AccOp<'a> {
@@ -108,6 +116,12 @@ impl Sha384AccOp<'_> {
         wait::until(|| sha_acc.status().read().valid());
 
         self.copy_digest_to_buf(digest)?;
+
+        // Zeroize the hardware registers.
+        self.sha512_acc
+            .regs_mut()
+            .control()
+            .write(|w| w.zeroize(true));
 
         Ok(())
     }

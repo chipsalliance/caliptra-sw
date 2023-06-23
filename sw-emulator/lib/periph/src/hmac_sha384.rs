@@ -260,23 +260,30 @@ impl HmacSha384 {
         // Set the control register
         self.control.reg.set(val);
 
-        // Reset the Ready and Valid status bits
-        self.status
-            .reg
-            .modify(Status::READY::CLEAR + Status::VALID::CLEAR);
+        if self.control.reg.is_set(Control::INIT) || self.control.reg.is_set(Control::NEXT) {
+            // Reset the Ready and Valid status bits
+            self.status
+                .reg
+                .modify(Status::READY::CLEAR + Status::VALID::CLEAR);
 
-        if self.control.reg.is_set(Control::INIT) {
-            // Initialize the HMAC engine with key and initial data block
-            self.hmac.init(self.key.data(), self.block.data());
+            if self.control.reg.is_set(Control::INIT) {
+                // Initialize the HMAC engine with key and initial data block
+                self.hmac.init(self.key.data(), self.block.data());
 
-            // Schedule a future call to poll() complete the operation.
-            self.op_complete_action = Some(self.timer.schedule_poll_in(INIT_TICKS));
-        } else if self.control.reg.is_set(Control::NEXT) {
-            // Update a HMAC engine with a new block
-            self.hmac.update(self.block.data());
+                // Schedule a future call to poll() complete the operation.
+                self.op_complete_action = Some(self.timer.schedule_poll_in(INIT_TICKS));
+            } else if self.control.reg.is_set(Control::NEXT) {
+                // Update a HMAC engine with a new block
+                self.hmac.update(self.block.data());
 
-            // Schedule a future call to poll() complete the operation.
-            self.op_complete_action = Some(self.timer.schedule_poll_in(UPDATE_TICKS));
+                // Schedule a future call to poll() complete the operation.
+                self.op_complete_action = Some(self.timer.schedule_poll_in(UPDATE_TICKS));
+            }
+        }
+
+        if self.control.reg.is_set(Control::ZEROIZE) {
+            // Zeroize the HMAC engine
+            self.zeroize();
         }
 
         Ok(())
@@ -555,6 +562,12 @@ impl HmacSha384 {
                 + TagWriteStatus::VALID::SET
                 + TagWriteStatus::ERROR.val(tag_write_result),
         );
+    }
+
+    fn zeroize(&mut self) {
+        self.key.data_mut().fill(0);
+        self.block.data_mut().fill(0);
+        self.tag.data_mut().fill(0);
     }
 }
 
