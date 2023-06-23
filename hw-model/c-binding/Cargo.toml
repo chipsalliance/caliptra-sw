@@ -14,6 +14,7 @@ caliptra-emu-bus = { path = "../../sw-emulator/lib/bus" }
 crate-type = ["staticlib"]
 
 [features]
+itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
 
 [build-dependencies]
