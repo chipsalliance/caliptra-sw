@@ -25,7 +25,6 @@ use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone)]
 pub struct Iccm {
-    pub error_injection: bool,
     iccm: Rc<IccmImpl>,
 }
 const ICCM_SIZE_BYTES: usize = 128 * 1024;
@@ -41,7 +40,6 @@ impl Iccm {
 
     pub fn new(clock: &Clock) -> Self {
         Self {
-            error_injection: false,
             iccm: Rc::new(IccmImpl::new(clock)),
         }
     }
@@ -70,20 +68,6 @@ impl IccmImpl {
 impl Bus for Iccm {
     /// Read data of specified size from given address
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
-        if self.error_injection {
-            return Err(BusError::InstrAccessFault);
-        }
-        //RvException::instr_access_fault(addr);
-
-        //const NMI_DELAY: u64 = 2;
-        //const NMI_CAUSE_ICCM_DOUBLE_BIT_ERROR: u32 = 0x0000_0001;
-        //self.iccm.timer.schedule_action_in(
-        //    NMI_DELAY,
-        //    TimerAction::Nmi {
-        //        mcause: NMI_CAUSE_ICCM_DOUBLE_BIT_ERROR,
-        //    },
-        //);
-
         self.iccm.ram.borrow_mut().read(size, addr)
     }
 

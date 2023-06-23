@@ -14,6 +14,7 @@ use caliptra_emu_periph::ActionCb;
 use caliptra_emu_periph::ReadyForFwCb;
 use caliptra_emu_periph::{CaliptraRootBus, CaliptraRootBusArgs, SocToCaliptraBus, TbServicesCb};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
+use caliptra_hw_model_types::ErrorInjectionMode;
 
 use crate::bus_logger::BusLogger;
 use crate::bus_logger::LogFile;
@@ -166,7 +167,18 @@ impl crate::HwModel for ModelEmulated {
         }))
     }
 
-    fn ecc_error_injection(&mut self, enable: bool) {
-        self.cpu.bus.bus.iccm.error_injection = enable;
+    fn ecc_error_injection(&mut self, mode: ErrorInjectionMode) {
+        match mode {
+            ErrorInjectionMode::None => {
+                self.cpu.bus.bus.iccm.ram().borrow_mut().error_injection = 0;
+                self.cpu.bus.bus.dccm.error_injection = 0;
+            }
+            ErrorInjectionMode::IccmDoubleBitEcc => {
+                self.cpu.bus.bus.iccm.ram().borrow_mut().error_injection = 2;
+            }
+            ErrorInjectionMode::DccmDoubleBitEcc => {
+                self.cpu.bus.bus.dccm.error_injection = 8;
+            }
+        }
     }
 }

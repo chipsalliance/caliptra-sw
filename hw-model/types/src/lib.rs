@@ -182,6 +182,14 @@ impl Default for Fuses {
     }
 }
 
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum ErrorInjectionMode {
+    #[default]
+    None,
+    IccmDoubleBitEcc,
+    DccmDoubleBitEcc,
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

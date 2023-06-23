@@ -3,6 +3,7 @@
 use crate::bus_logger::{BusLogger, LogFile, NullBus};
 use caliptra_emu_bus::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
+use caliptra_hw_model_types::ErrorInjectionMode;
 use caliptra_verilated::{AhbTxnType, CaliptraVerilated};
 use std::cell::RefCell;
 use std::io::Write;
@@ -229,11 +230,17 @@ impl crate::HwModel for ModelVerilated {
         }
     }
 
-    fn ecc_error_injection(&mut self, enable: bool) {
-        if enable {
-            self.v.input.sram_error_injection_mode = 0x2;
-        } else {
-            self.v.input.sram_error_injection_mode = 0x0;
+    fn ecc_error_injection(&mut self, mode: ErrorInjectionMode) {
+        match mode {
+            ErrorInjectionMode::None => {
+                self.v.input.sram_error_injection_mode = 0x0;
+            }
+            ErrorInjectionMode::IccmDoubleBitEcc => {
+                self.v.input.sram_error_injection_mode = 0x2;
+            }
+            ErrorInjectionMode::DccmDoubleBitEcc => {
+                self.v.input.sram_error_injection_mode = 0x8;
+            }
         }
     }
 }
