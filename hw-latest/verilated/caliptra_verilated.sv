@@ -135,7 +135,9 @@ caliptra_top caliptra_top_dut (
 
     .qspi_clk_o(),
     .qspi_cs_no(),
-    .qspi_d_io(),
+    .qspi_d_i(4'b0),
+    .qspi_d_o(),
+    .qspi_d_en_o(),
 
     .el2_mem_export(el2_mem_export),
 

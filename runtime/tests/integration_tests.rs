@@ -131,7 +131,10 @@ fn test_rom_certs() {
 fn test_verify_cmd() {
     let mut model = run_rom_test("mbox");
 
-    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+    model.step_until(|m| {
+        m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle()
+            && m.soc_ifc().cptra_boot_status().read() == 1
+    });
 
     // Message to hash
     let msg: &[u8] = &[
