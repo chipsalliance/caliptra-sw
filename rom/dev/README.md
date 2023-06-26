@@ -687,3 +687,6 @@ The following are the pre-conditions that should be satisfied:
         - The TOC hash will NOT match, skip the TOC hash validation.
         - We still need to make sure that the hash of the FMC which was stored in the data vault register at cold boot
           still matches the FMC code. This is the hash of the FMC image portion.
+    - If validation fails during ROM boot, the new image will not be copied from
+      the mailbox. ROM will boot the existing FMC/Runtime images. Validation
+      errors will be reported via the CPTRA_FW_ERROR_NON_FATAL register.
