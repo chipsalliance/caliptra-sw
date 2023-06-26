@@ -76,10 +76,6 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Get current date
-        id: date
-        run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
-
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
@@ -98,5 +94,5 @@ jobs:
       - name: Upload release
         uses: softprops/action-gh-release@v1
         with:
-          files: release_${{ steps.date.outputs.date }}.zip
+          files: release/release.zip
           tag_name: ${{ needs.find-latest-release.outputs.new_release_tag }}
