@@ -53,6 +53,7 @@ jobs:
 
   build-test:
     name: Temp
+    needs: update-rtl
     runs-on: ubuntu-22.04
     steps:
       - name: Get current date
@@ -60,6 +61,7 @@ jobs:
 
   build-test-verilator:
     name: Temp
+    needs: update-rtl
     runs-on: ubuntu-22.04
     steps:
       - name: Get current date

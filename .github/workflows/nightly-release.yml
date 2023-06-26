@@ -56,6 +56,7 @@ jobs:
 
   verilator-full-suite:
     name: Temp
+    needs: find-latest-release
     runs-on: ubuntu-22.04
     steps:
       - name: Get current date
@@ -85,7 +86,10 @@ jobs:
           ref: ${{ needs.find-latest-release.outputs.release_ref }}
 
       - name: Generate release zip
-        run: ./release/build_release.sh
+        run: |
+          pwd
+          ls
+          ./release/build_release.sh
 
       - name: Tag repo with new release number
         run: |
