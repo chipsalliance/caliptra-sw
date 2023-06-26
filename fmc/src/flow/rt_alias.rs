@@ -245,7 +245,9 @@ impl RtAliasLayer {
             "[alias rt] Erasing AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
-        env.key_vault.erase_key(auth_priv_key)?;
+        // FMC ensures that CDIFMC and PrivateKeyFMC are locked to block further usage until the next boot.
+        env.key_vault.set_key_use_lock(auth_priv_key);
+        env.key_vault.set_key_use_lock(output.cdi);
 
         let _pub_x: [u8; 48] = (&pub_key.x).into();
         let _pub_y: [u8; 48] = (&pub_key.y).into();
