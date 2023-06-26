@@ -51,13 +51,13 @@ jobs:
           git commit -a -m "CI: Update Caliptra RTL"
           git push -u origin ${{ steps.branch.outputs.branch }}
 
-  build-test:
-    name: Temp
-    needs: update-rtl
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Get current date
-        run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+  #build-test:
+  #  name: Temp
+  #  needs: update-rtl
+  #  runs-on: ubuntu-22.04
+  #  steps:
+  #    - name: Get current date
+  #      run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
 
   build-test-verilator:
     name: Temp
@@ -67,12 +67,12 @@ jobs:
       - name: Get current date
         run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
 
-  #build-test:
-  #  uses: ./.github/workflows/build-test.yml
-  #  needs: update-rtl
-  #  if: needs.update-rtl.outputs.ci_checks_needed
-  #  with:
-  #    ref: ${{ needs.update-rtl.outputs.branch_name }}
+  build-test:
+    uses: ./.github/workflows/build-test.yml
+    needs: update-rtl
+    if: needs.update-rtl.outputs.ci_checks_needed
+    with:
+      ref: ${{ needs.update-rtl.outputs.branch_name }}
 
   #build-test-verilator:
   #  uses: ./.github/workflows/build-test-verilator.yml
