@@ -137,7 +137,10 @@ fn test_iccm_double_bit_ecc_nmi_failure() {
         harness::ERROR_EXCEPTION
     );
     let ext_info = harness::ExtErrorInfo::from(soc_ifc.cptra_fw_extended_error_info().read());
-    assert_eq!(ext_info.mcause, harness::EXCEPTION_CAUSE_INSTRUCTION_ACCESS_FAULT);
+    assert_eq!(
+        ext_info.mcause,
+        harness::EXCEPTION_CAUSE_INSTRUCTION_ACCESS_FAULT
+    );
 }
 
 #[test]

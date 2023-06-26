@@ -8,7 +8,7 @@ use std::{
 };
 
 use caliptra_emu_bus::Bus;
-use caliptra_hw_model_types::{DEFAULT_CPTRA_OBF_KEY, ErrorInjectionMode};
+use caliptra_hw_model_types::{ErrorInjectionMode, DEFAULT_CPTRA_OBF_KEY};
 use zerocopy::{AsBytes, LayoutVerified, Unalign};
 
 use caliptra_registers::mbox;
