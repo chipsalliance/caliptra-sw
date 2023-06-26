@@ -27,18 +27,17 @@ jobs:
         id: ref
         run: |
           REF_REQ=${{ inputs.ref }}
-          echo "ref=${REF_REQ:-"Blah"}" >> $GITHUB_OUTPUT
-          echo ${REF_REQ:-"Blah"}
+          echo "ref=${REF_REQ:-"NoRefSpecified"}" >> $GITHUB_OUTPUT
 
       - name: Checkout repo default ref
         uses: actions/checkout@v3
-        if: steps.ref.outputs.ref == 'Blah'
+        if: steps.ref.outputs.ref == 'NoRefSpecified'
         with:
           submodules: 'true'
 
       - name: Checkout specific repo ref
         uses: actions/checkout@v3
-        if: steps.ref.outputs.ref != 'Blah'
+        if: steps.ref.outputs.ref != 'NoRefSpecified'
         with:
           submodules: 'true'
           ref: ${{ steps.ref.outputs.ref }}

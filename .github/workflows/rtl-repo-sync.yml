@@ -24,7 +24,7 @@ jobs:
       - name: Update the Caliptra RTL submodule and rebuild registers
         run: |
           git submodule update --remote hw-latest/caliptra-rtl
-          cargo run --release --manifest-path registers/bin/generator/Cargo.toml -- hw-latest/caliptra-rtl registers/src/
+          ./registers/update.sh
 
       - name: Find available branch name
         id: branch
