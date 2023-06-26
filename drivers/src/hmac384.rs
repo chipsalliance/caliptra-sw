@@ -212,17 +212,30 @@ impl Hmac384 {
                 .map_err(|err| err.into_write_tag_err()),
         };
 
-        self.zeroize();
+        self.zeroize_internal();
 
         result
     }
 
     /// Zeroize the hardware registers.
-    pub fn zeroize(&mut self) {
+    fn zeroize_internal(&mut self) {
         self.hmac.regs_mut().ctrl().write(|w| w.zeroize(true));
     }
+
+    /// Zeroize the hardware registers.
     ///
-    /// Calculate the hmac of the buffer provided as partoameter
+    /// This is useful to call from a fatal-error-handling routine.
+    ///
+    /// # Safety
+    ///
+    /// This function is safe to call from a trap handler.
+    pub unsafe fn zeroize() {
+        let mut hmac = HmacReg::new();
+        hmac.regs_mut().ctrl().write(|w| w.zeroize(true));
+    }
+
+    ///
+    /// Calculate the hmac of the buffer provided as parameter
     ///
     /// # Arguments
     ///

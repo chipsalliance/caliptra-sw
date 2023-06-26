@@ -55,11 +55,15 @@ impl Sha384Acc {
     }
 
     /// Zeroize the hardware registers.
-    pub fn zeroize(&mut self) {
-        self.sha512_acc
-            .regs_mut()
-            .control()
-            .write(|w| w.zeroize(true));
+    ///
+    /// This is useful to call from a fatal-error-handling routine.
+    ///
+    /// # Safety
+    ///
+    /// This function is safe to call from a trap handler.
+    pub unsafe fn zeroize() {
+        let mut sha512_acc = Sha512AccCsr::new();
+        sha512_acc.regs_mut().control().write(|w| w.zeroize(true));
     }
 }
 
