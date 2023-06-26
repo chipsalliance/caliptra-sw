@@ -206,13 +206,21 @@ impl Hmac384 {
         let hmac = self.hmac.regs();
 
         // Copy the tag to the specified location
-        match &mut tag {
+        let result = match &mut tag {
             Hmac384Tag::Array4x12(arr) => KvAccess::end_copy_to_arr(hmac.tag(), arr),
             Hmac384Tag::Key(key) => KvAccess::end_copy_to_kv(hmac.kv_wr_status(), *key)
                 .map_err(|err| err.into_write_tag_err()),
-        }
+        };
+
+        self.zeroize();
+
+        result
     }
 
+    /// Zeroize the hardware registers.
+    pub fn zeroize(&mut self) {
+        self.hmac.regs_mut().ctrl().write(|w| w.zeroize(true));
+    }
     ///
     /// Calculate the hmac of the buffer provided as partoameter
     ///

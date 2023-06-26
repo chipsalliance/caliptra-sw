@@ -26,6 +26,7 @@ mod error_reporter;
 mod exit_ctrl;
 mod fuse_bank;
 mod hmac384;
+mod hmac384_kdf;
 mod key_vault;
 mod kv_access;
 mod lms;
@@ -59,6 +60,7 @@ pub use error_reporter::{
 pub use exit_ctrl::ExitCtrl;
 pub use fuse_bank::{FuseBank, IdevidCertAttr, VendorPubKeyRevocation, X509KeyIdAlgo};
 pub use hmac384::{Hmac384, Hmac384Data, Hmac384Key, Hmac384Op, Hmac384Tag};
+pub use hmac384_kdf::hmac384_kdf;
 pub use key_vault::{KeyId, KeyUsage, KeyVault};
 pub use kv_access::{KeyReadArgs, KeyWriteArgs};
 pub use lms::{

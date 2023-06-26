@@ -1,0 +1,10 @@
+# Licensed under the Apache-2.0 license
+
+
+[package]
+name = "vector_gen"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+openssl = "0.10.48"

@@ -40,3 +40,8 @@ name = "mailbox_sender"
 path = "mailbox_sender.rs"
 required-features = ["riscv"]
 
+
+[[bin]]
+name = "test_invalid_instruction"
+path = "test_invalid_instruction.rs"
+required-features = ["riscv"]
