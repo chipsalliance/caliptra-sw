@@ -247,47 +247,53 @@ impl HashSha512 {
         // Set the control register
         self.control.reg.set(val);
 
-        // Reset the Ready and Valid status bits
-        self.status
-            .reg
-            .modify(Status::READY::CLEAR + Status::VALID::CLEAR);
+        if self.control.reg.is_set(Control::INIT) || self.control.reg.is_set(Control::NEXT) {
+            // Reset the Ready and Valid status bits
+            self.status
+                .reg
+                .modify(Status::READY::CLEAR + Status::VALID::CLEAR);
 
-        if self.control.reg.is_set(Control::INIT) {
-            // Initialize the SHA512 engine with the mode.
-            let mut mode = Sha512Mode::Sha512;
-            let modebits = self.control.reg.read(Control::MODE);
+            if self.control.reg.is_set(Control::INIT) {
+                // Initialize the SHA512 engine with the mode.
+                let mut mode = Sha512Mode::Sha512;
+                let modebits = self.control.reg.read(Control::MODE);
 
-            match modebits {
-                0 => {
-                    mode = Sha512Mode::Sha224;
+                match modebits {
+                    0 => {
+                        mode = Sha512Mode::Sha224;
+                    }
+                    1 => {
+                        mode = Sha512Mode::Sha256;
+                    }
+                    2 => {
+                        mode = Sha512Mode::Sha384;
+                    }
+                    3 => {
+                        mode = Sha512Mode::Sha512;
+                    }
+                    _ => Err(BusError::StoreAccessFault)?,
                 }
-                1 => {
-                    mode = Sha512Mode::Sha256;
-                }
-                2 => {
-                    mode = Sha512Mode::Sha384;
-                }
-                3 => {
-                    mode = Sha512Mode::Sha512;
-                }
-                _ => Err(BusError::StoreAccessFault)?,
+
+                self.sha512.reset(mode);
+
+                // Update the SHA512 engine with a new block
+                self.sha512
+                    .update(&sha512_block_bytes_from_words_le(&self.block));
+
+                // Schedule a future call to poll() complete the operation.
+                self.op_complete_action = Some(self.timer.schedule_poll_in(INIT_TICKS));
+            } else if self.control.reg.is_set(Control::NEXT) {
+                // Update the SHA512 engine with a new block
+                self.sha512
+                    .update(&sha512_block_bytes_from_words_le(&self.block));
+
+                // Schedule a future call to poll() complete the operation.
+                self.op_complete_action = Some(self.timer.schedule_poll_in(UPDATE_TICKS));
             }
+        }
 
-            self.sha512.reset(mode);
-
-            // Update the SHA512 engine with a new block
-            self.sha512
-                .update(&sha512_block_bytes_from_words_le(&self.block));
-
-            // Schedule a future call to poll() complete the operation.
-            self.op_complete_action = Some(self.timer.schedule_poll_in(INIT_TICKS));
-        } else if self.control.reg.is_set(Control::NEXT) {
-            // Update the SHA512 engine with a new block
-            self.sha512
-                .update(&sha512_block_bytes_from_words_le(&self.block));
-
-            // Schedule a future call to poll() complete the operation.
-            self.op_complete_action = Some(self.timer.schedule_poll_in(UPDATE_TICKS));
+        if self.control.reg.is_set(Control::ZEROIZE) {
+            self.zeroize();
         }
 
         Ok(())
@@ -553,6 +559,11 @@ impl HashSha512 {
 
     pub fn hash(&self) -> &[u8] {
         &self.hash.data()[..self.sha512.hash_len()]
+    }
+
+    fn zeroize(&mut self) {
+        self.block.as_mut().fill(0);
+        self.hash.data_mut().fill(0);
     }
 }
 

@@ -386,7 +386,9 @@ impl Sha512AcceleratorRegs {
         // Set the control register
         self.control.reg.set(val);
 
-        // [TODO] Zero out the SHA-ACC internal registers.
+        if self.control.reg.is_set(Control::ZEROIZE) {
+            self.zeroize();
+        }
 
         Ok(())
     }
@@ -519,6 +521,11 @@ impl Sha512AcceleratorRegs {
             .take(self.hash_len())
             .zip(hash_out)
             .for_each(|(src, dest)| *dest = src);
+    }
+
+    fn zeroize(&mut self) {
+        self.hash_lower.data_mut().fill(0);
+        self.hash_upper.data_mut().fill(0);
     }
 }
 
