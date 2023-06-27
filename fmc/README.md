@@ -239,6 +239,23 @@ The following list of steps are to be performed by FMC on each boot when ROM jum
 
 <center>
 
+**Pre-Conditions:**
+* Vault state as follows:
+
+| Slot | Key Vault | PCR Bank | Data Vault 48 Byte (Sticky) | Data Vault 4 Byte (Sticky) |
+|------|-----------|----------|-----------------------------|----------------------------|
+| 0 | | | 🔒LDevID Pub Key X | 🔒FMC SVN |
+| 1 | | | 🔒LDevID Pub Key Y | 🔒Manufacturer Public Key Index |
+| 2 | | | 🔒LDevID Cert Signature R |
+| 3 | | | 🔒LDevID Cert Signature S |
+| 4 | | | 🔒Alias FMC Pub Key X |
+| 5 | | | 🔒Alias FMC Pub Key Y |
+| 6 | Alias FMC CDI (48 bytes) | | 🔒Alias FMC Cert Signature R |
+| 7 | Alias FMC Private Key (48 bytes) | | 🔒Alias FMC Cert Signature S |
+| 8 |  | | 🔒FMC Digest |
+| 9 |  | | 🔒Owner PK Hash |
+
+
 <br> *FMC Boot Sequence*
 
 ```mermaid
@@ -288,6 +305,24 @@ sequenceDiagram
 ```
 
 </center>
+
+**Post-Conditions:**
+* Vault state as follows:
+
+| Slot | Key Vault | PCR Bank | Data Vault 48 Byte (Sticky) | Data Vault 4 Byte (Sticky) |
+|------|-----------|----------|-----------------------------|----------------------------|
+| 0 | | | 🔒LDevID Pub Key X | 🔒FMC SVN |
+| 1 | | | 🔒LDevID Pub Key Y | 🔒Manufacturer Public Key Index |
+| 2 | | | 🔒LDevID Cert Signature R |
+| 3 | | | 🔒LDevID Cert Signature S |
+| 4 | Alias RT CDI (48 bytes) | | 🔒Alias FMC Pub Key X |
+| 5 | Alias RT Private Key (48 bytes)| | 🔒Alias FMC Pub Key Y |
+| 6 | Alias FMC CDI (48 bytes) | | 🔒Alias FMC Cert Signature R |
+| 7 | Alias FMC Private Key (48 bytes) | | 🔒Alias FMC Cert Signature S |
+| 8 |  | | 🔒FMC Digest |
+| 9 |  | | 🔒Owner PK Hash |
+
+
 
 ## FMC Firmware Update Flow
 

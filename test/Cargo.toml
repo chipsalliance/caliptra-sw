@@ -7,9 +7,16 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[dependencies]
+zerocopy = "0.6.1"
+openssl = { version = "0.10", features = ["vendored"] }
+caliptra-hw-model-types = { path = "../hw-model/types" }
+asn1 = "0.13.0"
+
 [dev-dependencies]
 caliptra-builder = { path = "../builder" }
 caliptra-hw-model = { path = "../hw-model" }
+openssl = { version = "0.10", features = ["vendored"] }
 
 [features]
 verilator = ["caliptra-hw-model/verilator"]

@@ -92,7 +92,7 @@ fn test_pcr_log() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -223,7 +223,7 @@ fn test_fuse_log() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -344,7 +344,7 @@ fn test_fht_info() {
             ..Default::default()
         },
         fuses: Fuses::default(),
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 

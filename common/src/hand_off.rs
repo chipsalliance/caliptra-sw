@@ -23,6 +23,9 @@ impl HandOffDataHandle {
        vault, set_vault : 15, 12;
        reserved, _: 31, 16;
     }
+    pub fn is_valid(&self) -> bool {
+        self.0 != u32::MAX
+    }
 }
 
 #[repr(u32)]
@@ -268,8 +271,11 @@ pub struct FirmwareHandoffTable {
 
     pub rt_dice_sign: Ecc384Signature,
 
+    /// IDevID public key
+    pub idev_dice_pub_key: Ecc384PubKey,
+
     /// Reserved for future use.
-    pub reserved: [u8; 228],
+    pub reserved: [u8; 132],
 }
 
 impl Default for FirmwareHandoffTable {
@@ -296,13 +302,14 @@ impl Default for FirmwareHandoffTable {
             rt_svn_dv_hdl: FHT_INVALID_HANDLE,
             ldevid_tbs_size: 0,
             fmcalias_tbs_size: 0,
-            reserved: [0u8; 228],
+            reserved: [0u8; 132],
             ldevid_tbs_addr: 0,
             fmcalias_tbs_addr: 0,
             pcr_log_addr: 0,
             fuse_log_addr: 0,
             rt_dice_sign: Ecc384Signature::default(),
             rt_dice_pub_key: Ecc384PubKey::default(),
+            idev_dice_pub_key: Ecc384PubKey::default(),
         }
     }
 }
@@ -439,9 +446,23 @@ mod tests {
     use super::*;
     use core::mem;
     const FHT_SIZE: usize = 512;
+    const KEY_ID_FMC_PRIV_KEY: KeyId = KeyId::KeyId5;
 
     fn rt_tci_store() -> HandOffDataHandle {
         HandOffDataHandle::from(DataStore::DataVaultNonSticky48(WarmResetEntry48::RtTci))
+    }
+
+    fn fmc_priv_key_store() -> HandOffDataHandle {
+        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_FMC_PRIV_KEY as u32)
+    }
+
+    fn fmc_priv_key(fht: &FirmwareHandoffTable) -> KeyId {
+        let ds: DataStore = fht.fmc_priv_key_kv_hdl.try_into().unwrap();
+
+        match ds {
+            crate::DataStore::KeyVaultSlot(key_id) => key_id,
+            _ => panic!("Invalid FMC private key store"),
+        }
     }
 
     #[test]
@@ -461,5 +482,22 @@ mod tests {
             fht.rt_tci_dv_hdl.reg_type(),
             DataVaultRegister::NonSticky384BitReg as u32
         );
+    }
+
+    #[test]
+    fn test_fmc_priv_key_store() {
+        let fht = crate::hand_off::FirmwareHandoffTable {
+            fmc_priv_key_kv_hdl: fmc_priv_key_store(),
+            ..Default::default()
+        };
+        // Check that the key is stored in the KeyVault.
+        assert_eq!(fht.fmc_priv_key_kv_hdl.vault(), Vault::KeyVault as u32);
+        // Check the key slot is correct
+        assert_eq!(
+            fht.fmc_priv_key_kv_hdl.reg_num(),
+            KEY_ID_FMC_PRIV_KEY.into()
+        );
+
+        assert_eq!(fmc_priv_key(&fht), KEY_ID_FMC_PRIV_KEY);
     }
 }

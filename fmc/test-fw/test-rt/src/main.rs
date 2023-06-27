@@ -38,6 +38,7 @@ pub extern "C" fn entry_point() -> ! {
     if let Some(_fht) = caliptra_common::FirmwareHandoffTable::try_load() {
         caliptra_drivers::ExitCtrl::exit(0)
     } else {
+        cprintln!("FHT not loaded");
         caliptra_drivers::ExitCtrl::exit(0xff)
     }
 }

@@ -26,15 +26,16 @@ caliptra-image-gen = { path = "../image/gen" }
 caliptra-image-openssl = { path = "../image/openssl" }
 caliptra-image-serde = { path = "../image/serde" }
 caliptra-image-types = { path = "../image/types" }
-openssl = "0.10"
+openssl = { version = "0.10", features = ["vendored"] }
 
 [features]
 riscv = ["caliptra-cpu/riscv"]
-default = ["std"]
+default = ["std", "test_only_commands"]
 emu = [
     "caliptra_common/emu",
     "caliptra-drivers/emu"
 ]
 fpga_realtime = ["caliptra-drivers/fpga_realtime"]
 std = ["ufmt/std", "caliptra_common/std"]
+test_only_commands = []
 verilator = ["caliptra-hw-model/verilator"]

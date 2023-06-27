@@ -48,26 +48,11 @@ pub struct DiceInput {
     pub uds_key: KeyId,
 }
 
-impl DiceInput {
-    pub fn to_output(&self, key_pair: Ecc384KeyPair, sn: [u8; 64], key_id: [u8; 20]) -> DiceOutput {
-        DiceOutput {
-            cdi: self.cdi,
-            subj_key_pair: key_pair,
-            subj_sn: sn,
-            subj_key_id: key_id,
-        }
-    }
-}
-
 /// DICE Layer Output
 #[derive(Debug)]
 pub struct DiceOutput {
-    /// CDI generated for this layer
-    ///
-    /// This field points to the Key Vault slot that holds the CDI for the
-    /// current layer
+    /// CDI
     pub cdi: KeyId,
-
     /// Subject key pair for this layer
     pub subj_key_pair: Ecc384KeyPair,
 

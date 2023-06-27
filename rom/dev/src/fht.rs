@@ -16,7 +16,9 @@ use caliptra_common::{
     DataVaultRegister, FirmwareHandoffTable, HandOffDataHandle, Vault, FHT_INVALID_HANDLE,
     FHT_MARKER,
 };
-use caliptra_drivers::{ColdResetEntry4, ColdResetEntry48, WarmResetEntry4, WarmResetEntry48};
+use caliptra_drivers::{
+    ColdResetEntry4, ColdResetEntry48, Ecc384PubKey, WarmResetEntry4, WarmResetEntry48,
+};
 use zerocopy::AsBytes;
 
 use crate::{
@@ -42,6 +44,9 @@ pub struct FhtDataStore {
 
     /// FmcAlias TBS size
     pub fmcalias_tbs_size: u16,
+
+    /// IDevID public key
+    pub idev_pub: Ecc384PubKey,
 }
 
 impl FhtDataStore {
@@ -82,7 +87,7 @@ impl FhtDataStore {
 
     /// The FMC certificate signature S value is stored in a 384-bit DataVault
     /// sticky register.
-    pub fn fmc_cert_sig_s_store() -> HandOffDataHandle {
+    pub const fn fmc_cert_sig_s_store() -> HandOffDataHandle {
         HandOffDataHandle(
             ((Vault::DataVault as u32) << 12)
                 | (DataVaultRegister::Sticky384BitReg as u32) << 8
@@ -100,7 +105,7 @@ impl FhtDataStore {
     }
     /// FMC public key Y coordinate is stored in a 384-bit DataVault
     /// sticky register.
-    pub fn fmc_pub_key_y_store() -> HandOffDataHandle {
+    pub const fn fmc_pub_key_y_store() -> HandOffDataHandle {
         HandOffDataHandle(
             (Vault::DataVault as u32) << 12
                 | (DataVaultRegister::Sticky384BitReg as u32) << 8
@@ -108,7 +113,7 @@ impl FhtDataStore {
         )
     }
     /// The RT SVN is stored in a 32-bit DataVault non-sticky register.
-    pub fn rt_svn_data_store() -> HandOffDataHandle {
+    pub const fn rt_svn_data_store() -> HandOffDataHandle {
         HandOffDataHandle(
             ((Vault::DataVault as u32) << 12)
                 | (DataVaultRegister::NonSticky32BitReg as u32) << 8
@@ -116,7 +121,7 @@ impl FhtDataStore {
         )
     }
     /// The RT TCI is stored in a 384-bit DataVault non-sticky register.
-    pub fn rt_tci_data_store() -> HandOffDataHandle {
+    pub const fn rt_tci_data_store() -> HandOffDataHandle {
         HandOffDataHandle(
             ((Vault::DataVault as u32) << 12)
                 | (DataVaultRegister::NonSticky384BitReg as u32) << 8
@@ -173,6 +178,7 @@ pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
         fmcalias_tbs_addr,
         pcr_log_addr,
         fuse_log_addr,
+        idev_dice_pub_key: env.fht_data_store.idev_pub,
         ..Default::default()
     }
 }

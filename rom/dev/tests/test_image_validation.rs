@@ -172,7 +172,7 @@ fn test_preamble_vendor_pubkey_revocation() {
                 ..Default::default()
             },
             fuses,
-            fw_image: None,
+            ..Default::default()
         })
         .unwrap();
 
@@ -379,7 +379,7 @@ fn test_header_verify_owner_sig_zero_fuses() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -416,7 +416,7 @@ fn test_header_verify_owner_sig_zero_fuses_zero_pubkey_x() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -451,7 +451,7 @@ fn test_header_verify_owner_sig_corrupt_fuses() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -499,7 +499,7 @@ fn test_header_verify_owner_sig_zero_pubkey_x() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -547,7 +547,7 @@ fn test_header_verify_owner_sig_zero_pubkey_y() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -586,7 +586,7 @@ fn test_header_verify_owner_sig_zero_signature_r() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -628,7 +628,7 @@ fn test_header_verify_owner_sig_zero_signature_s() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -670,7 +670,7 @@ fn test_header_verify_owner_sig_invalid_signature_r() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -712,7 +712,7 @@ fn test_header_verify_owner_sig_invalid_signature_s() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -1296,7 +1296,7 @@ fn cert_test_with_custom_dates() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -1376,7 +1376,7 @@ fn cert_test() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
