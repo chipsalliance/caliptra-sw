@@ -282,6 +282,8 @@ impl CaliptraError {
     pub const FMC_RT_ALIAS_DERIVE_FAILURE: CaliptraError = CaliptraError::new_const(0x000F0005);
     pub const FMC_RT_ALIAS_CERT_VERIFY: CaliptraError = CaliptraError::new_const(0x000F0006);
     pub const FMC_RT_ALIAS_TBS_SIZE_EXCEEDED: CaliptraError = CaliptraError::new_const(0x000F0007);
+    pub const FMC_CDI_KV_COLLISION: CaliptraError = CaliptraError::new_const(0x000F0008);
+    pub const FMC_ALIAS_KV_COLLISION: CaliptraError = CaliptraError::new_const(0x000F0009);
 
     /// Initial Device ID Errors
     pub const ROM_IDEVID_CSR_BUILDER_INIT_FAILURE: CaliptraError =

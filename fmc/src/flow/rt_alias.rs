@@ -12,11 +12,11 @@ Abstract:
 
 --*/
 use crate::flow::crypto::Crypto;
-use crate::flow::dice::{DiceInput, DiceLayer, DiceOutput};
+use crate::flow::dice::{DiceInput, DiceOutput};
 use crate::flow::pcr::{extend_current_pcr, extend_journey_pcr};
 use crate::flow::tci::Tci;
 use crate::flow::x509::X509;
-use crate::flow::{KEY_ID_CDI, KEY_ID_RT_PRIV_KEY};
+use crate::flow::{KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY};
 use crate::fmc_env::FmcEnv;
 use crate::HandOff;
 use caliptra_common::cprintln;
@@ -37,7 +37,7 @@ extern "C" {
 #[derive(Default)]
 pub struct RtAliasLayer {}
 
-impl DiceLayer for RtAliasLayer {
+impl RtAliasLayer {
     /// Perform derivations for the DICE layer
     fn derive(
         env: &mut FmcEnv,
@@ -45,16 +45,27 @@ impl DiceLayer for RtAliasLayer {
         input: &DiceInput,
     ) -> CaliptraResult<DiceOutput> {
         cprintln!("[alias rt] Derive CDI");
-        cprintln!("[alias rt] Store in in slot 0x{:x}", KEY_ID_CDI as u8);
+        cprintln!("[alias rt] Store in in slot 0x{:x}", KEY_ID_RT_CDI as u8);
         // Derive CDI
-        let _ = *okref(&Self::derive_cdi(env, hand_off, input, KEY_ID_CDI))?;
+        let _ = *okref(&Self::derive_cdi(env, hand_off, input, KEY_ID_RT_CDI))?;
         cprintln!("[alias rt] Derive Key Pair");
         cprintln!(
             "[alias rt] Store priv key in slot 0x{:x}",
             KEY_ID_RT_PRIV_KEY as u8
         );
+
+        if input.cdi == KEY_ID_RT_CDI || input.cdi == KEY_ID_RT_PRIV_KEY {
+            return Err(CaliptraError::FMC_CDI_KV_COLLISION);
+        }
+
+        if input.auth_key_pair.priv_key == KEY_ID_RT_CDI
+            || input.auth_key_pair.priv_key == KEY_ID_RT_PRIV_KEY
+        {
+            return Err(CaliptraError::FMC_ALIAS_KV_COLLISION);
+        }
+
         // Derive DICE Key Pair from CDI
-        let key_pair = Self::derive_key_pair(env, KEY_ID_CDI, KEY_ID_RT_PRIV_KEY)?;
+        let key_pair = Self::derive_key_pair(env, KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY)?;
         cprintln!("[alias rt] Derive Key Pair - Done");
 
         // Generate the Subject Serial Number and Subject Key Identifier.
@@ -66,7 +77,7 @@ impl DiceLayer for RtAliasLayer {
 
         // Generate the output for next layer
         let output = DiceOutput {
-            cdi: KEY_ID_CDI,
+            cdi: KEY_ID_RT_CDI,
             subj_key_pair: key_pair,
             subj_sn,
             subj_key_id,
@@ -79,9 +90,7 @@ impl DiceLayer for RtAliasLayer {
         Self::generate_cert_sig(env, hand_off, input, &output, &nb.value, &nf.value)?;
         Ok(output)
     }
-}
 
-impl RtAliasLayer {
     #[inline(never)]
     pub fn run(env: &mut FmcEnv, hand_off: &mut HandOff) -> CaliptraResult<()> {
         cprintln!("[alias rt] Extend RT PCRs");
@@ -111,14 +120,12 @@ impl RtAliasLayer {
         // Create initial output
         let input = DiceInput {
             cdi: hand_off.fmc_cdi(),
-            subj_priv_key: KEY_ID_RT_PRIV_KEY,
             auth_key_pair: Ecc384KeyPair {
                 priv_key: hand_off.fmc_priv_key(),
                 pub_key: hand_off.fmc_pub_key(env),
             },
             auth_sn: [0u8; 64],
             auth_key_id: [0u8; 20],
-            uds_key: hand_off.fmc_cdi(),
         };
 
         Ok(input)
