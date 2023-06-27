@@ -21,10 +21,6 @@
 
 `default_nettype wire
 
-//`include "common_defines.sv"
-//`include "config_defines.svh"
-//`include "caliptra_reg_defines.svh"
-//`include "caliptra_macros.svh"
 `define CALIPTRA_APB_ADDR_WIDTH      32 // bit-width APB address
 `define CALIPTRA_APB_DATA_WIDTH      32 // bit-width APB data
 `define CALIPTRA_APB_USER_WIDTH      32 // bit-width APB PAUSER field
@@ -54,7 +50,6 @@ module caliptra_package_top (
     input  wire                       s_apb_pwrite,
 
     input  wire [`CALIPTRA_APB_USER_WIDTH-1:0] pauser,
-
 
     input  wire axi_bram_clk,
     input  wire axi_bram_en,

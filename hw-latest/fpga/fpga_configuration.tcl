@@ -81,14 +81,7 @@ remove_files [ glob $rtlDir/src/ecc/rtl/ecc_ram_tdp_file.sv ]
 # Key Vault is very large. Replacing KV with a version with the minimum number of entries.
 remove_files [ glob $rtlDir/src/keyvault/rtl/kv_reg.sv ]
 
-# TODO: These may no longer be needed
-# Replace Caliptra configuration defines TODO: How to modify includes properly?
-#remove_files [ glob $rtlDir/src/integration/rtl/config_defines.svh ]
-# Replace VEER configuration defines TODO: How to modify includes properly?
-#remove_files [ glob $rtlDir/src/riscv_core/veer_el2/rtl/common_defines.sv ]
-
 # Add FPGA specific sources
-#add_files [ glob ./src/*.svh]
 add_files [ glob ./src/*.sv]
 add_files [ glob ./src/*.v]
 
@@ -102,7 +95,7 @@ set_property file_type {Verilog Header} [get_files  $rtlDir/src/sha512/rtl/sha51
 # Exception: caliptra_package_top.v needs to be Verilog to be included in a Block Diagram.
 set_property file_type Verilog [get_files  ./src/caliptra_package_top.v]
 
-# TODO: testing if this allows for the header to be found
+# Add include paths
 set_property include_dirs $rtlDir/src/integration/rtl [current_fileset]
 
 
@@ -133,7 +126,7 @@ close_project
 # Close caliptra_package_project
 close_project
 
-# TODO: Consider splitting the script here.
+# Packaging complete
 
 # Create a project for the SOC connections
 create_project caliptra_fpga_project $outputDir -part xczu7ev-ffvc1156-2-e
@@ -156,18 +149,8 @@ set_property CONFIG.PSU__CRL_APB__PL0_REF_CTRL__FREQMHZ {1} [get_bd_cells zynq_u
 create_bd_cell -type ip -vlnv xilinx.com:ip:axi_interconnect:2.1 axi_interconnect_0
 set_property CONFIG.NUM_MI {3} [get_bd_cells axi_interconnect_0]
 
-# TODO: Remove GPIO once caliptra_soc is stable
-if 0 {
-  # Add AXI GPIO
-  create_bd_cell -type ip -vlnv xilinx.com:ip:axi_gpio:2.0 axi_gpio_0
-  set_property -dict [list \
-    CONFIG.C_ALL_INPUTS_2 {1} \
-    CONFIG.C_ALL_OUTPUTS {1} \
-    CONFIG.C_IS_DUAL {1} \
-  ] [get_bd_cells axi_gpio_0]
-} else {
-  create_bd_cell -type ip -vlnv design:user:caliptra_soc:1.0 caliptra_soc_0
-}
+# Add caliptra_soc
+create_bd_cell -type ip -vlnv design:user:caliptra_soc:1.0 caliptra_soc_0
 
 # Add AXI APB Bridge for Caliptra
 create_bd_cell -type ip -vlnv xilinx.com:ip:axi_apb_bridge:3.0 axi_apb_bridge_0
@@ -202,19 +185,11 @@ connect_bd_intf_net [get_bd_intf_pins axi_bram_ctrl_0/S_AXI] -boundary_type uppe
 connect_bd_intf_net [get_bd_intf_pins caliptra_package_top_0/axi_bram] [get_bd_intf_pins axi_bram_ctrl_0/BRAM_PORTA]
 
 # Create port connections
-if 0 {
-connect_bd_net -net axi_gpio_0_gpio_io_o [get_bd_pins axi_gpio_0/gpio_io_o] [get_bd_pins caliptra_package_top_0/gpio_in]
-connect_bd_net -net caliptra_package_top_0_gpio_out [get_bd_pins axi_gpio_0/gpio2_io_i] [get_bd_pins caliptra_package_top_0/gpio_out]
-connect_bd_net -net proc_sys_reset_0_peripheral_aresetn [get_bd_pins axi_apb_bridge_0/s_axi_aresetn] [get_bd_pins axi_gpio_0/s_axi_aresetn] [get_bd_pins axi_interconnect_0/ARESETN] [get_bd_pins axi_interconnect_0/M00_ARESETN] [get_bd_pins axi_interconnect_0/M01_ARESETN] [get_bd_pins axi_interconnect_0/S00_ARESETN] [get_bd_pins proc_sys_reset_0/peripheral_aresetn]
-connect_bd_net -net zynq_ultra_ps_e_0_pl_clk0 [get_bd_pins axi_apb_bridge_0/s_axi_aclk] [get_bd_pins axi_gpio_0/s_axi_aclk] [get_bd_pins axi_interconnect_0/ACLK] [get_bd_pins axi_interconnect_0/M00_ACLK] [get_bd_pins axi_interconnect_0/M01_ACLK] [get_bd_pins axi_interconnect_0/S00_ACLK] [get_bd_pins caliptra_package_top_0/core_clk] [get_bd_pins proc_sys_reset_0/slowest_sync_clk] [get_bd_pins zynq_ultra_ps_e_0/maxihpm0_lpd_aclk] [get_bd_pins zynq_ultra_ps_e_0/pl_clk0]
-} else {
 connect_bd_net -net proc_sys_reset_0_peripheral_aresetn [get_bd_pins axi_apb_bridge_0/s_axi_aresetn] [get_bd_pins caliptra_soc_0/s00_axi_aresetn] [get_bd_pins axi_interconnect_0/ARESETN] [get_bd_pins axi_interconnect_0/M00_ARESETN] [get_bd_pins axi_interconnect_0/M01_ARESETN] [get_bd_pins axi_interconnect_0/S00_ARESETN] [get_bd_pins proc_sys_reset_0/peripheral_aresetn]
 connect_bd_net -net zynq_ultra_ps_e_0_pl_clk0 [get_bd_pins axi_apb_bridge_0/s_axi_aclk] [get_bd_pins caliptra_soc_0/s00_axi_aclk] [get_bd_pins axi_interconnect_0/ACLK] [get_bd_pins axi_interconnect_0/M00_ACLK] [get_bd_pins axi_interconnect_0/M01_ACLK] [get_bd_pins axi_interconnect_0/S00_ACLK] [get_bd_pins caliptra_package_top_0/core_clk] [get_bd_pins proc_sys_reset_0/slowest_sync_clk] [get_bd_pins zynq_ultra_ps_e_0/maxihpm0_lpd_aclk] [get_bd_pins zynq_ultra_ps_e_0/pl_clk0]
 connect_bd_net [get_bd_pins caliptra_package_top_0/gpio_in] [get_bd_pins caliptra_soc_0/gpio_out]
 connect_bd_net [get_bd_pins caliptra_package_top_0/gpio_out] [get_bd_pins caliptra_soc_0/gpio_in]
 connect_bd_net [get_bd_pins caliptra_package_top_0/pauser] [get_bd_pins caliptra_soc_0/pauser]
-}
-
 
 connect_bd_net -net zynq_ultra_ps_e_0_pl_resetn0 [get_bd_pins proc_sys_reset_0/ext_reset_in] [get_bd_pins zynq_ultra_ps_e_0/pl_resetn0]
 connect_bd_net [get_bd_pins axi_bram_ctrl_0/s_axi_aclk] [get_bd_pins zynq_ultra_ps_e_0/pl_clk0]

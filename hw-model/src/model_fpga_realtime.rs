@@ -22,7 +22,6 @@ fn fmt_uio_error(err: UioError) -> String {
 }
 
 pub struct ModelFpgaRealtime {
-    _dev: UioDevice,
     gpio: *mut u32,
     mbox: *mut u32,
     soc_ifc: *mut u32,
@@ -85,7 +84,6 @@ impl HwModel for ModelFpgaRealtime {
         let start_time = time::Instant::now();
 
         let mut m = Self {
-            _dev: dev,
             gpio,
             mbox,
             soc_ifc,
@@ -108,7 +106,7 @@ impl HwModel for ModelFpgaRealtime {
         // Set initial PAUSER
         m.set_pauser(SOC_PAUSER);
 
-        // Write ROM
+        // Write ROM image over backdoor
         let mut rom_driver = std::fs::OpenOptions::new()
             .write(true)
             .open("/dev/caliptra-rom-backdoor")
@@ -198,7 +196,6 @@ impl<'a> Bus for FpgaRealtimeBus<'a> {
         addr: RvAddr,
         val: RvData,
     ) -> Result<(), caliptra_emu_bus::BusError> {
-        //writeln!(self.m.output().logger(), "write {:08X} to {:08X}", val, addr);
         if let Some(ptr) = self.ptr_for_addr(addr) {
             // TODO: support 16-bit and 8-bit writes
             unsafe { ptr.write_volatile(val) };

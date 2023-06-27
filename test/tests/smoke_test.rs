@@ -14,25 +14,13 @@ fn assert_output_contains(haystack: &str, needle: &str) {
 
 #[test]
 fn smoke_test() {
-    #[cfg(not(feature = "fpga_realtime"))]
-    let (rom, fmc, app) = { (ROM_WITH_UART, FMC_WITH_UART, APP_WITH_UART) };
-
-    #[cfg(feature = "fpga_realtime")]
-    let (rom, fmc, app) = {
-        let mut rom_copy = ROM_WITH_UART;
-        let mut fmc_copy = FMC_WITH_UART;
-        let mut app_copy = APP_WITH_UART;
-
-        rom_copy.features = &["emu fpga_realtime"];
-        fmc_copy.features = &["emu fpga_realtime"];
-        app_copy.features = &["emu test_only_commands fpga_realtime"];
-
-        (rom_copy, fmc_copy, app_copy)
-    };
-
-    let rom = caliptra_builder::build_firmware_rom(&rom).unwrap();
-    let image =
-        caliptra_builder::build_and_sign_image(&fmc, &app, ImageOptions::default()).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,

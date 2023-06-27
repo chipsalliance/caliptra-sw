@@ -77,6 +77,17 @@ _start:
     li x1, 0xAAAAA0A9
     csrw 0x7C0, x1
 
+#ifdef CARGO_FEATURE_FPGA_REALTIME
+    // Overwrite MRAC to disable ROM caching for FPGA
+    li x1, 0xAAAAA0A8
+    csrw 0x7C0, x1
+
+    // Disable branch prediction and pipelining for FPGA
+    // MFDC 0x7F9
+    li x1, 0x00070009
+    csrw 0x7F9, x1
+#endif
+
     // Setup stack pointer   
     la sp, _sstack
     
