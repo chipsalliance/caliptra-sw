@@ -283,22 +283,24 @@ impl HandOff {
     }
 
     /// The FMC CDI is stored in a 32-bit DataVault sticky register.
-    fn rt_cdi_store(output: &DiceOutput) -> HandOffDataHandle {
-        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | output.cdi as u32)
+    fn rt_cdi_store(rt_cdi: KeyId) -> HandOffDataHandle {
+        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | rt_cdi as u32)
     }
 
-    fn rt_priv_key_store(output: &DiceOutput) -> HandOffDataHandle {
-        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | output.subj_key_pair.priv_key as u32)
+    fn rt_priv_key_store(rt_priv_key: KeyId) -> HandOffDataHandle {
+        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | rt_priv_key as u32)
     }
 
     /// Update HandOff Table with RT Parameters
     pub fn update(&mut self, out: DiceOutput) -> CaliptraResult<()> {
         // update fht.rt_cdi_kv_hdl
-        self.fht.rt_cdi_kv_hdl = Self::rt_cdi_store(&out);
-        self.fht.rt_priv_key_kv_hdl = Self::rt_priv_key_store(&out);
+        self.fht.rt_cdi_kv_hdl = Self::rt_cdi_store(out.cdi);
+        self.fht.rt_priv_key_kv_hdl = Self::rt_priv_key_store(out.subj_key_pair.priv_key);
         self.fht.rt_dice_pub_key = out.subj_key_pair.pub_key;
         Ok(())
     }
+    /// Check if the HandOff Table is valid by ensuring RTAlias CDI and private key handles
+    /// are valid.
     pub fn is_valid(&self) -> bool {
         self.fht.rt_cdi_kv_hdl.is_valid() && self.fht.rt_priv_key_kv_hdl.is_valid()
     }

@@ -26,6 +26,7 @@ use crate::HandOff;
 use caliptra_drivers::CaliptraResult;
 use caliptra_drivers::KeyId;
 
+pub const KEY_ID_CDI: KeyId = KeyId::KeyId4;
 pub const KEY_ID_RT_PRIV_KEY: KeyId = KeyId::KeyId5;
 
 /// Execute FMC Flows based on reset resason

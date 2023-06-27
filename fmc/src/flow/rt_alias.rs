@@ -16,7 +16,7 @@ use crate::flow::dice::{DiceInput, DiceLayer, DiceOutput};
 use crate::flow::pcr::{extend_current_pcr, extend_journey_pcr};
 use crate::flow::tci::Tci;
 use crate::flow::x509::X509;
-use crate::flow::KEY_ID_RT_PRIV_KEY;
+use crate::flow::{KEY_ID_CDI, KEY_ID_RT_PRIV_KEY};
 use crate::fmc_env::FmcEnv;
 use crate::HandOff;
 use caliptra_common::cprintln;
@@ -45,16 +45,16 @@ impl DiceLayer for RtAliasLayer {
         input: &DiceInput,
     ) -> CaliptraResult<DiceOutput> {
         cprintln!("[alias rt] Derive CDI");
-        cprintln!("[alias rt] Store in in slot 0x{:x}", input.cdi as u8);
+        cprintln!("[alias rt] Store in in slot 0x{:x}", KEY_ID_CDI as u8);
         // Derive CDI
-        let cdi = *okref(&Self::derive_cdi(env, hand_off, input.cdi))?;
+        let _ = *okref(&Self::derive_cdi(env, hand_off, input, KEY_ID_CDI))?;
         cprintln!("[alias rt] Derive Key Pair");
         cprintln!(
             "[alias rt] Store priv key in slot 0x{:x}",
-            input.subj_priv_key as u8
+            KEY_ID_RT_PRIV_KEY as u8
         );
         // Derive DICE Key Pair from CDI
-        let key_pair = Self::derive_key_pair(env, cdi, input.subj_priv_key)?;
+        let key_pair = Self::derive_key_pair(env, KEY_ID_CDI, KEY_ID_RT_PRIV_KEY)?;
         cprintln!("[alias rt] Derive Key Pair - Done");
 
         // Generate the Subject Serial Number and Subject Key Identifier.
@@ -64,7 +64,13 @@ impl DiceLayer for RtAliasLayer {
         let subj_sn = X509::subj_sn(env, &key_pair.pub_key)?;
         let subj_key_id = X509::subj_key_id(env, &key_pair.pub_key)?;
 
-        let output = input.to_output(key_pair, subj_sn, subj_key_id);
+        // Generate the output for next layer
+        let output = DiceOutput {
+            cdi: KEY_ID_CDI,
+            subj_key_pair: key_pair,
+            subj_sn,
+            subj_key_id,
+        };
 
         let nb = NotBefore::default();
         let nf = NotAfter::default();
@@ -142,9 +148,14 @@ impl RtAliasLayer {
     /// # Returns
     ///
     /// * `KeyId` - KeySlot containing the DICE CDI
-    fn derive_cdi(env: &mut FmcEnv, hand_off: &HandOff, cdi: KeyId) -> CaliptraResult<KeyId> {
+    fn derive_cdi(
+        env: &mut FmcEnv,
+        hand_off: &HandOff,
+        input: &DiceInput,
+        cdi: KeyId,
+    ) -> CaliptraResult<KeyId> {
         // Get the HMAC Key from CDI
-        let key = Hmac384Key::Key(KeyReadArgs::new(cdi));
+        let key = Hmac384Key::Key(KeyReadArgs::new(input.cdi));
 
         // Compose FMC TCI (1. RT TCI, 2. Image Manifest Digest)
         let mut tci = [0u8; 2 * SHA384_HASH_SIZE];
@@ -247,7 +258,7 @@ impl RtAliasLayer {
         );
         // FMC ensures that CDIFMC and PrivateKeyFMC are locked to block further usage until the next boot.
         env.key_vault.set_key_use_lock(auth_priv_key);
-        env.key_vault.set_key_use_lock(output.cdi);
+        env.key_vault.set_key_use_lock(input.cdi);
 
         let _pub_x: [u8; 48] = (&pub_key.x).into();
         let _pub_y: [u8; 48] = (&pub_key.y).into();
