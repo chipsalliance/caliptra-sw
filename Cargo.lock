@@ -311,6 +311,7 @@ dependencies = [
 name = "caliptra-hw-model"
 version = "0.1.0"
 dependencies = [
+ "bitfield",
  "caliptra-builder",
  "caliptra-emu-bus",
  "caliptra-emu-cpu",

@@ -2,6 +2,7 @@
 
 use std::{env, str::FromStr};
 
+use bitfield::bitfield;
 use caliptra_emu_bus::{Bus, BusError};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use std::io::Write;
@@ -21,6 +22,32 @@ fn fmt_uio_error(err: UioError) -> String {
     format!("{err:?}")
 }
 
+// FPGA SOC wire register offsets
+const GPIO_OUTPUT_OFFSET: isize = 0;
+const GPIO_INPUT_OFFSET: isize = 2;
+const GPIO_PAUSER_OFFSET: isize = 3;
+
+bitfield! {
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+    /// GPIO SOC wires -> Caliptra
+    pub struct GpioOutput(u32);
+    cptra_rst_b, set_cptra_rst_b: 0, 0;
+    cptra_pwrgood, set_cptra_pwrgood: 1, 1;
+    security_state, set_security_state: 6, 4;
+    serial_tag, set_serial_tag: 31, 24;
+}
+
+bitfield! {
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+    /// GPIO SOC wires <- Caliptra
+    pub struct GpioInput(u32);
+    cptra_error_fatal, _: 26, 26;
+    cptra_error_non_fatal, _: 27, 27;
+    ready_for_fw, _: 28, 28;
+    ready_for_runtime, _: 29, 29;
+    ready_for_fuses, _: 30, 30;
+}
+
 pub struct ModelFpgaRealtime {
     gpio: *mut u32,
     mbox: *mut u32,
@@ -31,38 +58,41 @@ pub struct ModelFpgaRealtime {
 
 impl ModelFpgaRealtime {
     fn is_ready_for_fuses(&self) -> bool {
-        unsafe { (self.gpio.offset(2).read_volatile() & 0x4000_0000) != 0 }
+        unsafe {
+            GpioInput(self.gpio.offset(GPIO_INPUT_OFFSET).read_volatile()).ready_for_fuses() != 0
+        }
     }
     fn set_cptra_pwrgood(&mut self, value: bool) {
-        self.set_gpio(1, value);
+        unsafe {
+            let mut val = GpioOutput(self.gpio.offset(GPIO_OUTPUT_OFFSET).read_volatile());
+            val.set_cptra_pwrgood(value as u32);
+            self.gpio.offset(GPIO_OUTPUT_OFFSET).write_volatile(val.0);
+        }
     }
     fn set_cptra_rst_b(&mut self, value: bool) {
-        self.set_gpio(0, value);
+        unsafe {
+            let mut val = GpioOutput(self.gpio.offset(GPIO_OUTPUT_OFFSET).read_volatile());
+            val.set_cptra_rst_b(value as u32);
+            self.gpio.offset(GPIO_OUTPUT_OFFSET).write_volatile(val.0);
+        }
     }
     fn set_security_state(&mut self, value: u32) {
         unsafe {
-            let mut val = self.gpio.read_volatile();
-            val = (val & 0xFFFFFF0F) | (value << 4);
-            self.gpio.write_volatile(val);
+            let mut val = GpioOutput(self.gpio.offset(GPIO_OUTPUT_OFFSET).read_volatile());
+            val.set_security_state(value);
+            self.gpio.offset(GPIO_OUTPUT_OFFSET).write_volatile(val.0);
         }
     }
     fn set_uart_tag(&mut self, tag: u8) {
         unsafe {
-            let mut val = self.gpio.read_volatile();
-            val = (val & 0x00FFFFFF) | ((tag as u32) << 24);
-            self.gpio.write_volatile(val);
+            let mut val = GpioOutput(self.gpio.offset(GPIO_OUTPUT_OFFSET).read_volatile());
+            val.set_serial_tag(tag as u32);
+            self.gpio.offset(GPIO_OUTPUT_OFFSET).write_volatile(val.0);
         }
     }
     fn set_pauser(&mut self, pauser: u32) {
         unsafe {
-            self.gpio.offset(3).write_volatile(pauser);
-        }
-    }
-    fn set_gpio(&mut self, bit_index: u32, value: bool) {
-        unsafe {
-            let mut val = self.gpio.read_volatile();
-            val = (val & !(1 << bit_index)) | (u32::from(value) << bit_index);
-            self.gpio.write_volatile(val);
+            self.gpio.offset(GPIO_PAUSER_OFFSET).write_volatile(pauser);
         }
     }
 }
@@ -92,17 +122,15 @@ impl HwModel for ModelFpgaRealtime {
         };
 
         writeln!(m.output().logger(), "new_unbooted")?;
-        // Set pwrgood and rst_b to false to boot from scratch
+        // Set pwrgood and rst_b to 0 to boot from scratch
         m.set_cptra_pwrgood(false);
         m.set_cptra_rst_b(false);
-
-        // Initialize SOC->Caliptra GPIO wires to 0
-        unsafe { m.gpio.write_volatile(0) };
 
         // Set Security State signal wires
         m.set_security_state(u32::from(params.security_state));
         // Set initial tag to be non-zero
         unsafe { m.set_uart_tag(TAG) };
+
         // Set initial PAUSER
         m.set_pauser(SOC_PAUSER);
 
@@ -157,7 +185,9 @@ impl HwModel for ModelFpgaRealtime {
     }
 
     fn ready_for_fw(&self) -> bool {
-        unsafe { (self.gpio.offset(2).read_volatile() & 0x1000_0000) != 0 }
+        unsafe {
+            GpioInput(self.gpio.offset(GPIO_INPUT_OFFSET).read_volatile()).ready_for_fw() != 0
+        }
     }
 
     fn tracing_hint(&mut self, _enable: bool) {
