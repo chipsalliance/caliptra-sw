@@ -82,7 +82,7 @@ impl FhtDataStore {
 
     /// The FMC certificate signature S value is stored in a 384-bit DataVault
     /// sticky register.
-    pub fn fmc_cert_sig_s_store() -> HandOffDataHandle {
+    pub const fn fmc_cert_sig_s_store() -> HandOffDataHandle {
         HandOffDataHandle(
             ((Vault::DataVault as u32) << 12)
                 | (DataVaultRegister::Sticky384BitReg as u32) << 8
@@ -100,7 +100,7 @@ impl FhtDataStore {
     }
     /// FMC public key Y coordinate is stored in a 384-bit DataVault
     /// sticky register.
-    pub fn fmc_pub_key_y_store() -> HandOffDataHandle {
+    pub const fn fmc_pub_key_y_store() -> HandOffDataHandle {
         HandOffDataHandle(
             (Vault::DataVault as u32) << 12
                 | (DataVaultRegister::Sticky384BitReg as u32) << 8
@@ -108,7 +108,7 @@ impl FhtDataStore {
         )
     }
     /// The RT SVN is stored in a 32-bit DataVault non-sticky register.
-    pub fn rt_svn_data_store() -> HandOffDataHandle {
+    pub const fn rt_svn_data_store() -> HandOffDataHandle {
         HandOffDataHandle(
             ((Vault::DataVault as u32) << 12)
                 | (DataVaultRegister::NonSticky32BitReg as u32) << 8
@@ -116,7 +116,7 @@ impl FhtDataStore {
         )
     }
     /// The RT TCI is stored in a 384-bit DataVault non-sticky register.
-    pub fn rt_tci_data_store() -> HandOffDataHandle {
+    pub const fn rt_tci_data_store() -> HandOffDataHandle {
         HandOffDataHandle(
             ((Vault::DataVault as u32) << 12)
                 | (DataVaultRegister::NonSticky384BitReg as u32) << 8

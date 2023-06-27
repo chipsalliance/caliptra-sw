@@ -16,14 +16,14 @@ use crate::flow::dice::{DiceInput, DiceLayer, DiceOutput};
 use crate::flow::pcr::{extend_current_pcr, extend_journey_pcr};
 use crate::flow::tci::Tci;
 use crate::flow::x509::X509;
-use crate::flow::KEY_ID_FMC_PRIV_KEY;
+use crate::flow::{KEY_ID_CDI, KEY_ID_RT_PRIV_KEY};
 use crate::fmc_env::FmcEnv;
 use crate::HandOff;
 use caliptra_common::cprintln;
 use caliptra_common::crypto::Ecc384KeyPair;
 use caliptra_common::HexBytes;
 use caliptra_drivers::{
-    okref, CaliptraError, CaliptraResult, Ecc384PubKey, Hmac384Data, Hmac384Key, KeyId, KeyReadArgs,
+    okref, CaliptraError, CaliptraResult, Hmac384Data, Hmac384Key, KeyId, KeyReadArgs,
 };
 use caliptra_x509::{NotAfter, NotBefore, RtAliasCertTbs, RtAliasCertTbsParams};
 
@@ -44,14 +44,18 @@ impl DiceLayer for RtAliasLayer {
         hand_off: &mut HandOff,
         input: &DiceInput,
     ) -> CaliptraResult<DiceOutput> {
-        cprintln!("[fmc] Derive CDI");
+        cprintln!("[alias rt] Derive CDI");
+        cprintln!("[alias rt] Store in in slot 0x{:x}", KEY_ID_CDI as u8);
         // Derive CDI
-        let cdi = *okref(&Self::derive_cdi(env, hand_off, input.cdi))?;
-        cprintln!("[fmc] Derive Key Pair");
-
+        let _ = *okref(&Self::derive_cdi(env, hand_off, input, KEY_ID_CDI))?;
+        cprintln!("[alias rt] Derive Key Pair");
+        cprintln!(
+            "[alias rt] Store priv key in slot 0x{:x}",
+            KEY_ID_RT_PRIV_KEY as u8
+        );
         // Derive DICE Key Pair from CDI
-        let key_pair = Self::derive_key_pair(env, cdi, input.subj_priv_key)?;
-        cprintln!("[fmc] Derive Key Pair - Done");
+        let key_pair = Self::derive_key_pair(env, KEY_ID_CDI, KEY_ID_RT_PRIV_KEY)?;
+        cprintln!("[alias rt] Derive Key Pair - Done");
 
         // Generate the Subject Serial Number and Subject Key Identifier.
         //
@@ -60,7 +64,13 @@ impl DiceLayer for RtAliasLayer {
         let subj_sn = X509::subj_sn(env, &key_pair.pub_key)?;
         let subj_key_id = X509::subj_key_id(env, &key_pair.pub_key)?;
 
-        let output = input.to_output(key_pair, subj_sn, subj_key_id);
+        // Generate the output for next layer
+        let output = DiceOutput {
+            cdi: KEY_ID_CDI,
+            subj_key_pair: key_pair,
+            subj_sn,
+            subj_key_id,
+        };
 
         let nb = NotBefore::default();
         let nf = NotAfter::default();
@@ -74,12 +84,12 @@ impl DiceLayer for RtAliasLayer {
 impl RtAliasLayer {
     #[inline(never)]
     pub fn run(env: &mut FmcEnv, hand_off: &mut HandOff) -> CaliptraResult<()> {
-        cprintln!("[fmc] Extend RT PCRs");
+        cprintln!("[alias rt] Extend RT PCRs");
         Self::extend_pcrs(env, hand_off)?;
-        cprintln!("[fmc] Extend RT PCRs Done");
+        cprintln!("[alias rt] Extend RT PCRs Done");
 
         // Retrieve Dice Input Layer from Hand Off and Derive Key
-        match Self::dice_input_from_hand_off(hand_off) {
+        match Self::dice_input_from_hand_off(hand_off, env) {
             Ok(input) => {
                 let out = Self::derive(env, hand_off, &input)?;
                 hand_off.update(out)
@@ -97,14 +107,14 @@ impl RtAliasLayer {
     /// # Returns
     ///
     /// * `DiceInput` - DICE Layer Input
-    fn dice_input_from_hand_off(hand_off: &HandOff) -> CaliptraResult<DiceInput> {
+    fn dice_input_from_hand_off(hand_off: &HandOff, env: &FmcEnv) -> CaliptraResult<DiceInput> {
         // Create initial output
         let input = DiceInput {
             cdi: hand_off.fmc_cdi(),
-            subj_priv_key: hand_off.fmc_priv_key(),
+            subj_priv_key: KEY_ID_RT_PRIV_KEY,
             auth_key_pair: Ecc384KeyPair {
-                priv_key: KEY_ID_FMC_PRIV_KEY,
-                pub_key: Ecc384PubKey::default(),
+                priv_key: hand_off.fmc_priv_key(),
+                pub_key: hand_off.fmc_pub_key(env),
             },
             auth_sn: [0u8; 64],
             auth_key_id: [0u8; 20],
@@ -138,9 +148,14 @@ impl RtAliasLayer {
     /// # Returns
     ///
     /// * `KeyId` - KeySlot containing the DICE CDI
-    fn derive_cdi(env: &mut FmcEnv, hand_off: &HandOff, cdi: KeyId) -> CaliptraResult<KeyId> {
+    fn derive_cdi(
+        env: &mut FmcEnv,
+        hand_off: &HandOff,
+        input: &DiceInput,
+        cdi: KeyId,
+    ) -> CaliptraResult<KeyId> {
         // Get the HMAC Key from CDI
-        let key = Hmac384Key::Key(KeyReadArgs::new(cdi));
+        let key = Hmac384Key::Key(KeyReadArgs::new(input.cdi));
 
         // Compose FMC TCI (1. RT TCI, 2. Image Manifest Digest)
         let mut tci = [0u8; 2 * SHA384_HASH_SIZE];
@@ -226,23 +241,34 @@ impl RtAliasLayer {
 
         // Sign the the `To Be Signed` portion
         cprintln!(
-            "[art] Signing Cert with AUTHO
+            "[alias rt] Signing Cert with AUTHO
             RITY.KEYID = {}",
             auth_priv_key as u8
         );
 
+        // Sign the AliasRt To Be Signed DER Blob with AliasFMC Private Key in Key Vault Slot 7
+        // AliasRtTbsDigest = sha384_digest(AliasRtTbs) AliaRtTbsCertSig = ecc384_sign(KvSlot5, AliasFmcTbsDigest)
+
         let sig = Crypto::ecdsa384_sign(env, auth_priv_key, tbs.tbs());
         let sig = okref(&sig)?;
+        // Clear the authority private key
+        cprintln!(
+            "[alias rt] Erasing AUTHORITY.KEYID = {}",
+            auth_priv_key as u8
+        );
+        // FMC ensures that CDIFMC and PrivateKeyFMC are locked to block further usage until the next boot.
+        env.key_vault.set_key_use_lock(auth_priv_key);
+        env.key_vault.set_key_use_lock(input.cdi);
 
         let _pub_x: [u8; 48] = (&pub_key.x).into();
         let _pub_y: [u8; 48] = (&pub_key.y).into();
-        cprintln!("[art] PUB.X = {}", HexBytes(&_pub_x));
-        cprintln!("[art] PUB.Y = {}", HexBytes(&_pub_y));
+        cprintln!("[alias rt] PUB.X = {}", HexBytes(&_pub_x));
+        cprintln!("[alias rt] PUB.Y = {}", HexBytes(&_pub_y));
 
         let _sig_r: [u8; 48] = (&sig.r).into();
         let _sig_s: [u8; 48] = (&sig.s).into();
-        cprintln!("[art] SIG.R = {}", HexBytes(&_sig_r));
-        cprintln!("[art] SIG.S = {}", HexBytes(&_sig_s));
+        cprintln!("[alias rt] SIG.R = {}", HexBytes(&_sig_r));
+        cprintln!("[alias rt] SIG.S = {}", HexBytes(&_sig_s));
 
         // Verify the signature of the `To Be Signed` portion
         if !Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? {

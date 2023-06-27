@@ -41,8 +41,13 @@ pub extern "C" fn entry_point() -> ! {
             Err(e) => report_error(e.into()),
         };
 
-        if flow::run(&mut env, &mut hand_off).is_ok() {
-            hand_off.to_rt(&mut env)
+        match flow::run(&mut env, &mut hand_off) {
+            Ok(_) => {
+                if hand_off.is_valid() {
+                    hand_off.to_rt(&mut env);
+                }
+            }
+            Err(e) => report_error(e.into()),
         }
     }
     caliptra_drivers::ExitCtrl::exit(0xff)
