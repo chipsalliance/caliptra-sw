@@ -16,7 +16,9 @@ use caliptra_common::{
     DataVaultRegister, FirmwareHandoffTable, HandOffDataHandle, Vault, FHT_INVALID_HANDLE,
     FHT_MARKER,
 };
-use caliptra_drivers::{ColdResetEntry4, ColdResetEntry48, WarmResetEntry4, WarmResetEntry48};
+use caliptra_drivers::{
+    ColdResetEntry4, ColdResetEntry48, Ecc384PubKey, WarmResetEntry4, WarmResetEntry48,
+};
 use zerocopy::AsBytes;
 
 use crate::{
@@ -42,6 +44,9 @@ pub struct FhtDataStore {
 
     /// FmcAlias TBS size
     pub fmcalias_tbs_size: u16,
+
+    /// IDevID public key
+    pub idev_pub: Ecc384PubKey,
 }
 
 impl FhtDataStore {
@@ -173,6 +178,7 @@ pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
         fmcalias_tbs_addr,
         pcr_log_addr,
         fuse_log_addr,
+        idev_dice_pub_key: env.fht_data_store.idev_pub,
         ..Default::default()
     }
 }

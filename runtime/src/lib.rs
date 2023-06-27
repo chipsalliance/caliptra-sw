@@ -13,7 +13,7 @@ use mailbox::Mailbox;
 pub mod packet;
 use packet::Packet;
 
-use caliptra_common::cprintln;
+use caliptra_common::{cprintln, FirmwareHandoffTable};
 use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault, Ecc384};
 use caliptra_registers::{
     dv::DvReg,
@@ -45,24 +45,26 @@ impl From<CommandId> for u32 {
     }
 }
 
-pub struct Drivers {
+pub struct Drivers<'a> {
     pub mbox: Mailbox,
     pub sha_acc: Sha512AccCsr,
     pub ecdsa: Ecc384,
     pub data_vault: DataVault,
+    pub fht: &'a mut FirmwareHandoffTable,
 }
-impl Drivers {
+impl<'a> Drivers<'a> {
     /// # Safety
     ///
     /// Callers must ensure that this function is called only once, and that
     /// any concurrent access to these register blocks does not conflict with
     /// these drivers.
-    pub unsafe fn new_from_registers() -> Self {
+    pub unsafe fn new_from_registers(fht: &'a mut FirmwareHandoffTable) -> Self {
         Self {
             mbox: Mailbox::new(MboxCsr::new()),
             sha_acc: Sha512AccCsr::new(),
             ecdsa: Ecc384::new(EccReg::new()),
             data_vault: DataVault::new(DvReg::new()),
+            fht,
         }
     }
 }

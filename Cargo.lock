@@ -548,7 +548,9 @@ dependencies = [
  "caliptra-registers",
  "caliptra-runtime",
  "caliptra-test-harness",
+ "caliptra_common",
  "cfg-if",
+ "zerocopy",
 ]
 
 [[package]]

@@ -8,9 +8,11 @@
 use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_runtime::{dice, Drivers};
 use caliptra_test_harness::{runtime_handlers, test_suite};
+use zerocopy::AsBytes;
 
 fn mbox_responder() {
-    let drivers = unsafe { Drivers::new_from_registers() };
+    let mut fht = caliptra_common::FirmwareHandoffTable::try_load().unwrap();
+    let drivers = unsafe { Drivers::new_from_registers(&mut fht) };
     let mut mbox = drivers.mbox;
 
     loop {
@@ -32,6 +34,12 @@ fn mbox_responder() {
                 let mut fmc = [0u8; 1024];
                 dice::copy_fmc_alias_cert(&drivers.data_vault, &mut fmc).unwrap();
                 mbox.write_response(&fmc).unwrap();
+                mbox.set_status(MboxStatusE::DataReady);
+            }
+            // Send IDevID Public Key
+            0x3000_0000 => {
+                mbox.write_response(drivers.fht.idev_dice_pub_key.as_bytes())
+                    .unwrap();
                 mbox.set_status(MboxStatusE::DataReady);
             }
             _ => {
