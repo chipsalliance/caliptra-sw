@@ -237,7 +237,9 @@ Table: `ECDSA384_SIGNATURE_VERIFY` output arguments
 Make a measurement into the DPE default context. This command is intendend for
 callers who update infrequently and cannot tolerate a changing DPE API surface.
 
-Internally, this will call the DPE DeriveChild command.
+* Call the DPE DeriveChild command with the DefaultContext in the locality of
+  the PL0 PAUSER.
+* Extend the measurement into PCR31 (`PCR_ID_STASH_MEASUREMENT`).
 
 Command Code: `0x4D45_4153` ("MEAS")
 
@@ -292,6 +294,8 @@ Table: `DISABLE_ATTESTATION` output arguments
 
 ### INVOKE\_DPE\_COMMAND
 
+Invoke a serialized DPE command.
+
 Command Code: `0x4450_4543` ("DPEC")
 
 Table: `INVOKE_DPE_COMMAND` input arguments
@@ -311,6 +315,64 @@ Table: `INVOKE_DPE_COMMAND` output arguments
 | fips_status | u32           | Indicates if the command is FIPS approved or an error
 | data_size   | u32           | Length in bytes of the valid data in the data field
 | data        | u8[...]       | DPE response structure as defined in the DPE iRoT profile.
+
+### QUOTE\_PCRS
+
+Generate a signed quote over all Caliptra hardware PCRs using the Caliptra PCR quoting key.
+All PCR values are hashed together with the nonce to produce the quote.
+
+Command Code: `0x5043_5251` ("PCRQ")
+
+Table: `QUOTE_PCRS` input arguments
+
+| **Name**     | **Type**      | **Description**
+| --------     | --------      | ---------------
+| chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| nonce        | u8[32]        | Caller-supplied nonce to be included in signed data
+
+Table: `QUOTE_PCRS` output arguments
+
+PcrValue is defined as u8[48]
+
+| **Name**     | **Type**     | **Description**
+| --------     | --------     | ---------------
+| chksum       | u32          | Checksum over other output arguments, computed by Caliptra. Little endian.
+| PCRs         | PcrValue[32] | Values of all PCRs
+| reset\_ctrs  | u32[32]      | Reset counters for all PCRs
+| signature\_r | u8[48]       | R portion of the signature over the PCR quote.
+| signature\_s | u8[48]       | S portion of the signature over the PCR quote.
+
+### EXTEND\_PCR
+
+Extend a Caliptra hardware PCR
+
+Command Code: `0x5043_5245` ("PCRE")
+
+Table: `EXTEND_PCR` input arguments
+
+| **Name**     | **Type**      | **Description**
+| --------     | --------      | ---------------
+| chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| index        | u32           | Index of the PCR to extend
+| value        | u8[..]        | Value to extend into the PCR at `index`
+
+
+`EXTEND_PCR` returns no output arguments.
+
+### INCREMENT\_PCR\_RESET\_COUNTER
+
+Increment the reset counter for a PCR
+
+Command Code: `0x5043_5252` ("PCRR")
+
+Table: `INCREMENT_PCR_RESET_COUNTER` input arguments
+
+| **Name**     | **Type**      | **Description**
+| --------     | --------      | ---------------
+| chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| index        | u32           | Index of the PCR for which to increment the reset counter
+
+`INCREMENT_PCR_RESET_COUNTER` returns no output arguments.
 
 ## Checksum
 
@@ -455,11 +517,6 @@ Caliptra Runtime firmware is responsible for initializing DPE’s Default Contex
 *Note: the Runtime CDI (from KeyVault) will be used as-needed and will not be
 accessed during initialization.*
 
-### TCI Storage
-
-Caliptra SHALL set `MAX_TCI_NODES` to 24. DPE will hold these TCI nodes in DCCM
-which persists on warm/impactless updates.
-
 ### CDI Derivation
 
 The DPE Sign and CertifyKey commands derive an asymmetric key for that handle.
@@ -468,7 +525,7 @@ DPE will first collect measurements and concatenate them in a byte buffer
 `MEASUREMENT_DATA`:
 
 * LABEL parameter passed to Sign or CertifyKey.
-* The TCI values for each TCI node in the path from the current TCI node to the
+* The `TCI_NODE_DATA` structures in the path from the current TCI node to the
   root, inclusive, starting with the current node.
 
 To derive a CDI for a given context, DPE shall use KeyVault hardware with the
@@ -528,8 +585,8 @@ The DPE `GET_CERTIFICATE_CHAIN` command shall return the following certificates:
 | Serial Number                  |             | First 20 bytes of sha256 hash of DPE Alias public key
 | Issuer Name                    | CN          | Caliptra Runtime Alias
 |                                | serialNumber | First 20 bytes of sha384 hash of Runtime Alias public key
-| Validity                       | notBefore   | February 10th, 2023
-|                                | notAfter    | 99991231235959Z
+| Validity                       | notBefore   | notBefore from firmware manifest
+|                                | notAfter    | notAfter from firmware manifest
 | Subject Name                   | CN          | Caliptra DPE Leaf
 |                                | serialNumber | SHA384 hash of Subject public key
 | Subject Public Key Info        | Algorithm   | ecdsa-with-SHA384
@@ -553,14 +610,6 @@ The DPE `GET_CERTIFICATE_CHAIN` command shall return the following certificates:
 current TCI Node to the root. Max of 24.
 
 # Opens
-
-The following items are still under discussion in the Caliptra WG:
-
-* Expiration of DPE leaf certificates. See https://github.com/chipsalliance/caliptra-sw/issues/16
-* Should runtime firmware support a quote API for signing hardware PCRs with a
-  runtime alias key?
-* Should `ECDSA384_SIGNATURE_VERIFY` take an hash from the mailbox or use a
-  hash from the SHA block?
 
 Needs clarification or more details:
 
