@@ -60,6 +60,9 @@ impl Sha384Acc {
     ///
     /// # Safety
     ///
+    /// The caller must be certain that the results of any pending cryptographic
+    /// operations will not be used after this function is called.
+    ///
     /// This function is safe to call from a trap handler.
     pub unsafe fn zeroize() {
         let mut sha512_acc = Sha512AccCsr::new();
