@@ -19,4 +19,5 @@ caliptra-hw-model = { path = "../hw-model" }
 openssl = { version = "0.10", features = ["vendored"] }
 
 [features]
+itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]

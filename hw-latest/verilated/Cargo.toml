@@ -15,4 +15,7 @@ edition = "2021"
 # a workspace-wide "cargo build".
 verilator = []
 
+# Whether to build the verilog with CALIPTRA_INTERNAL_TRNG defined
+itrng = []
+
 [dependencies]

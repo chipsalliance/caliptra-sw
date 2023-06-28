@@ -21,7 +21,7 @@ use crate::{
 };
 use caliptra_emu_bus::{Clock, Ram, Rom};
 use caliptra_emu_derive::Bus;
-use caliptra_hw_model_types::SecurityState;
+use caliptra_hw_model_types::{EtrngResponse, RandomEtrngResponses, SecurityState};
 use std::path::PathBuf;
 use tock_registers::registers::InMemoryRegister;
 
@@ -203,7 +203,6 @@ impl From<Box<dyn FnMut() + 'static>> for ActionCb {
 }
 
 /// Caliptra Root Bus Arguments
-#[derive(Debug)]
 pub struct CaliptraRootBusArgs {
     pub rom: Vec<u8>,
     pub log_dir: PathBuf,
@@ -220,6 +219,8 @@ pub struct CaliptraRootBusArgs {
 
     // The obfuscation key, as passed to caliptra-top
     pub cptra_obf_key: [u32; 8],
+
+    pub etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
 }
 impl Default for CaliptraRootBusArgs {
     fn default() -> Self {
@@ -233,6 +234,7 @@ impl Default for CaliptraRootBusArgs {
             bootfsm_go_cb: Default::default(),
             download_idevid_csr_cb: Default::default(),
             cptra_obf_key: words_from_bytes_be(&DEFAULT_DOE_KEY),
+            etrng_responses: Box::new(RandomEtrngResponses::new_from_thread_rng()),
         }
     }
 }

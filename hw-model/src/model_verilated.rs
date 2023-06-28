@@ -1,6 +1,8 @@
 // Licensed under the Apache-2.0 license
 
 use crate::bus_logger::{BusLogger, LogFile, NullBus};
+use crate::EtrngResponse;
+use crate::{HwModel, TrngMode};
 use caliptra_emu_bus::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_verilated::{AhbTxnType, CaliptraVerilated};
@@ -31,6 +33,7 @@ impl<'a> Bus for VerilatedApbBus<'a> {
             .log
             .borrow_mut()
             .log_read("SoC", size, addr, result);
+        self.model.process_trng();
         result
     }
 
@@ -51,8 +54,15 @@ impl<'a> Bus for VerilatedApbBus<'a> {
             .log
             .borrow_mut()
             .log_write("SoC", size, addr, val, Ok(()));
+        self.model.process_trng();
         Ok(())
     }
+}
+
+// Like EtrngResponse, but with an absolute time
+struct AbsoluteEtrngResponse {
+    time: u64,
+    data: [u32; 12],
 }
 
 pub struct ModelVerilated {
@@ -61,8 +71,14 @@ pub struct ModelVerilated {
     output: Output,
     trace_enabled: bool,
 
-    trng_nibbles: Box<dyn Iterator<Item = u8>>,
-    trng_delay_remaining: u32,
+    trng_mode: TrngMode,
+
+    itrng_nibbles: Box<dyn Iterator<Item = u8>>,
+    itrng_delay_remaining: u32,
+
+    etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
+    etrng_response: Option<AbsoluteEtrngResponse>,
+    etrng_waiting_for_req_to_clear: bool,
 
     log: Rc<RefCell<BusLogger<NullBus>>>,
 }
@@ -138,6 +154,23 @@ impl crate::HwModel for ModelVerilated {
                 }
             },
         );
+        let compiled_trng_mode = if cfg!(feature = "itrng") {
+            TrngMode::Internal
+        } else {
+            TrngMode::External
+        };
+        let desired_trng_mode = TrngMode::resolve(params.trng_mode);
+        if desired_trng_mode != compiled_trng_mode {
+            let msg_suffix = match desired_trng_mode {
+                TrngMode::Internal => "try compiling with --features itrng",
+                TrngMode::External => "try compiling without --features itrng",
+            };
+            return Err(format!(
+                "HwModel InitParams asked for trng_mode={desired_trng_mode:?}, \
+                    but verilog was compiled with trng_mode={compiled_trng_mode:?}; {msg_suffix}"
+            )
+            .into());
+        }
         let mut v = CaliptraVerilated::with_callbacks(
             caliptra_verilated::InitArgs {
                 security_state: u32::from(params.security_state),
@@ -154,8 +187,14 @@ impl crate::HwModel for ModelVerilated {
             output,
             trace_enabled: false,
 
-            trng_nibbles: params.trng_nibbles,
-            trng_delay_remaining: TRNG_DELAY,
+            trng_mode: desired_trng_mode,
+
+            itrng_nibbles: params.itrng_nibbles,
+            itrng_delay_remaining: TRNG_DELAY,
+
+            etrng_responses: params.etrng_responses,
+            etrng_response: None,
+            etrng_waiting_for_req_to_clear: false,
 
             log,
         };
@@ -180,19 +219,9 @@ impl crate::HwModel for ModelVerilated {
     }
 
     fn step(&mut self) {
-        if self.v.output.etrng_req {
-            if self.trng_delay_remaining == 0 {
-                if let Some(val) = self.trng_nibbles.next() {
-                    self.v.input.itrng_valid = true;
-                    self.v.input.itrng_data = val & 0xf;
-                }
-                self.trng_delay_remaining = TRNG_DELAY;
-            } else {
-                self.trng_delay_remaining -= 1;
-            }
-        }
+        self.process_trng_start();
         self.v.next_cycle_high(1);
-        self.v.input.itrng_valid = false;
+        self.process_trng_end();
     }
 
     fn output(&mut self) -> &mut crate::Output {
@@ -226,6 +255,79 @@ impl crate::HwModel for ModelVerilated {
                     self.v.stop_tracing();
                 }
             }
+        }
+    }
+}
+impl ModelVerilated {
+    fn process_trng(&mut self) {
+        if self.process_trng_start() {
+            self.v.next_cycle_high(1);
+            self.process_trng_end();
+        }
+    }
+    fn process_trng_start(&mut self) -> bool {
+        match self.trng_mode {
+            TrngMode::Internal => self.process_itrng_start(),
+            TrngMode::External => self.process_etrng_start(),
+        }
+    }
+
+    fn process_trng_end(&mut self) {
+        match self.trng_mode {
+            TrngMode::Internal => self.process_itrng_end(),
+            TrngMode::External => {}
+        }
+    }
+
+    // Returns true if process_trng_end must be called after a clock cycle
+    fn process_etrng_start(&mut self) -> bool {
+        if self.etrng_waiting_for_req_to_clear && !self.v.output.etrng_req {
+            self.etrng_waiting_for_req_to_clear = false;
+        }
+        if self.v.output.etrng_req && !self.etrng_waiting_for_req_to_clear {
+            if self.etrng_response.is_none() {
+                if let Some(response) = self.etrng_responses.next() {
+                    self.etrng_response = Some(AbsoluteEtrngResponse {
+                        time: self.v.total_cycles() + u64::from(response.delay),
+                        data: response.data,
+                    });
+                }
+            }
+            if let Some(etrng_response) = &mut self.etrng_response {
+                if self.v.total_cycles().wrapping_sub(etrng_response.time) < 0x8000_0000_0000_0000 {
+                    self.etrng_waiting_for_req_to_clear = true;
+                    let etrng_response = self.etrng_response.take().unwrap();
+                    self.soc_ifc_trng()
+                        .cptra_trng_data()
+                        .write(&etrng_response.data);
+                    self.soc_ifc_trng()
+                        .cptra_trng_status()
+                        .write(|w| w.data_wr_done(true));
+                }
+            }
+        }
+        false
+    }
+    // Returns true if process_trng_end must be called after a clock cycle
+    fn process_itrng_start(&mut self) -> bool {
+        if self.v.output.etrng_req {
+            if self.itrng_delay_remaining == 0 {
+                if let Some(val) = self.itrng_nibbles.next() {
+                    self.v.input.itrng_valid = true;
+                    self.v.input.itrng_data = val & 0xf;
+                }
+                self.itrng_delay_remaining = TRNG_DELAY;
+            } else {
+                self.itrng_delay_remaining -= 1;
+            }
+            self.v.input.itrng_valid
+        } else {
+            false
+        }
+    }
+    fn process_itrng_end(&mut self) {
+        if self.v.input.itrng_valid {
+            self.v.input.itrng_valid = false;
         }
     }
 }

@@ -6,7 +6,9 @@ use caliptra_builder::FwId;
 use caliptra_drivers_test_bin::DoeTestResults;
 use caliptra_hw_model::{
     BootParams, DefaultHwModel, DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState,
+    TrngMode,
 };
+use caliptra_hw_model_types::EtrngResponse;
 use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_test::derive::{DoeInput, DoeOutput};
 use openssl::{hash::MessageDigest, pkey::PKey};
@@ -571,7 +573,7 @@ fn test_csrng() {
     let mut model = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
-            trng_nibbles: Box::new(trng_nibbles),
+            itrng_nibbles: Box::new(trng_nibbles),
             ..Default::default()
         },
         ..Default::default()
@@ -579,4 +581,100 @@ fn test_csrng() {
     .unwrap();
 
     model.step_until_exit_success().unwrap();
+}
+
+#[test]
+#[cfg_attr(all(feature = "verilator", not(feature = "itrng")), ignore)]
+fn test_trng_in_itrng_mode() {
+    // To run this test under verilator, use --features=verilator,itrng
+    let rom = build_test_rom("trng_driver_responder");
+
+    let mut model = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            itrng_nibbles: Box::new(
+                [
+                    0x7, 0x4, 0x9, 0xE, 0xD, 0x7, 0xB, 0x4, 0xE, 0x3, 0xD, 0xE, 0x4, 0xE, 0x7, 0x2,
+                    0xD, 0x5, 0xC, 0xF, 0x3, 0x6, 0x7, 0xF, 0xD, 0x9, 0xD, 0x1, 0x3, 0x7, 0x1, 0x1,
+                    0x3, 0x4, 0x9, 0x3, 0xB, 0x8, 0x0, 0xA, 0xA, 0xA, 0x6, 0x5, 0xC, 0xD, 0x1, 0x7,
+                    0xA, 0xB, 0xE, 0xB, 0xC, 0xE, 0x4, 0xF, 0xB, 0x4, 0xE, 0x8, 0x1, 0x5, 0x0, 0x1,
+                    0x0, 0x5, 0xC, 0xC, 0x3, 0x4, 0x7, 0xE, 0x0, 0x6, 0x5, 0x3, 0x9, 0x6, 0x5, 0x6,
+                    0x7, 0x8, 0x6, 0xD, 0xA, 0x7, 0x5, 0xF, 0x5, 0x6, 0xB, 0x3, 0x6, 0xF, 0x3, 0x3,
+                ]
+                .iter()
+                .copied(),
+            ),
+            trng_mode: Some(TrngMode::Internal),
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+    .unwrap();
+
+    let trng_block = model.mailbox_execute(0, &[]).unwrap();
+    assert_eq!(
+        trng_block,
+        Some(vec![
+            0x44, 0x2a, 0xeb, 0x15, 0xdd, 0x51, 0x08, 0x31, 0xab, 0x65, 0x13, 0xba, 0xf4, 0x22,
+            0x73, 0x4c, 0x31, 0x83, 0xb8, 0x6b, 0x50, 0xcc, 0x2e, 0x7a, 0x70, 0x34, 0x67, 0x82,
+            0x24, 0xf6, 0x1e, 0xd9, 0x5d, 0x26, 0xa9, 0xea, 0x4e, 0x9b, 0xbe, 0x60, 0x20, 0x7d,
+            0xf3, 0x7d, 0x2e, 0xa9, 0xee, 0x9d,
+        ])
+    );
+
+    let trng_block = model.mailbox_execute(0, &[]).unwrap();
+    assert_eq!(
+        trng_block,
+        Some(vec![
+            0x34, 0x75, 0x3b, 0xe9, 0xc9, 0xd4, 0x0b, 0x2d, 0xc1, 0x6d, 0x90, 0x9a, 0xb9, 0x5f,
+            0xa2, 0x26, 0x32, 0xdc, 0x93, 0xc1, 0x44, 0xed, 0x65, 0xae, 0xfe, 0x9f, 0xf9, 0xb0,
+            0x79, 0x42, 0xbb, 0xd8, 0xd4, 0xea, 0x3c, 0x4f, 0xfb, 0x8c, 0x32, 0xb5, 0x52, 0x08,
+            0x7f, 0xa6, 0x06, 0x4e, 0x37, 0xdd,
+        ])
+    );
+}
+
+#[test]
+#[cfg_attr(all(feature = "verilator", feature = "itrng"), ignore)]
+fn test_trng_in_etrng_mode() {
+    let block0: [u32; 12] = [
+        0x65b11c74, 0xd4bd4965, 0x5031ec6a, 0x2deaad1e, 0xc0c5508f, 0xe7258dc9, 0xa0af9e7f,
+        0x43e173f0, 0xc614d147, 0x3a31be1b, 0x91227cd7, 0xfe61ed6c,
+    ];
+    let block1: [u32; 12] = [
+        0x6e0780e0, 0x7f7e7385, 0xe43d14bb, 0x07faf8da, 0x0553a88e, 0x4b6bf699, 0x6e09b53a,
+        0x5d9c55c8, 0x0303cff9, 0xb9255124, 0x91f478c5, 0xdd186bc8,
+    ];
+
+    let rom = build_test_rom("trng_driver_responder");
+
+    let mut model = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            itrng_nibbles: Box::new([].iter().copied()),
+            etrng_responses: Box::new(
+                vec![
+                    EtrngResponse {
+                        delay: 10,
+                        data: block0,
+                    },
+                    EtrngResponse {
+                        delay: 20,
+                        data: block1,
+                    },
+                ]
+                .into_iter(),
+            ),
+            trng_mode: Some(TrngMode::External),
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+    .unwrap();
+
+    let trng_block = model.mailbox_execute(0, &[]).unwrap();
+    assert_eq!(trng_block, Some(block0.as_bytes().to_vec()));
+
+    let trng_block = model.mailbox_execute(0, &[]).unwrap();
+    assert_eq!(trng_block, Some(block1.as_bytes().to_vec()));
 }

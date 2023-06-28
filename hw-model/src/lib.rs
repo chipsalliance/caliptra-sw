@@ -8,7 +8,7 @@ use std::{
 };
 
 use caliptra_emu_bus::Bus;
-use caliptra_hw_model_types::DEFAULT_CPTRA_OBF_KEY;
+use caliptra_hw_model_types::{EtrngResponse, RandomEtrngResponses, DEFAULT_CPTRA_OBF_KEY};
 use zerocopy::{AsBytes, LayoutVerified, Unalign};
 
 use caliptra_registers::mbox;
@@ -83,6 +83,30 @@ impl<R: RngCore> Iterator for RandomNibbles<R> {
     }
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub enum TrngMode {
+    // soc_ifc_reg.CPTRA_HW_CONFIG.iTRNG_en will be true.
+    // When running with the verlated hw-model, the itrng compile-time feature
+    // must be enabled or initialization will fail.
+    Internal,
+
+    // soc_ifc_reg.CPTRA_HW_CONFIG.iTRNG_en will be false.
+    // When running with the verlated hw-model, the itrng compile-time feature
+    // must be disabled or initialization will fail.
+    External,
+}
+impl TrngMode {
+    pub fn resolve(mode: Option<Self>) -> Self {
+        if let Some(mode) = mode {
+            mode
+        } else if cfg!(feature = "itrng") {
+            TrngMode::Internal
+        } else {
+            TrngMode::External
+        }
+    }
+}
+
 pub struct InitParams<'a> {
     // The contents of the boot ROM
     pub rom: &'a [u8],
@@ -100,17 +124,33 @@ pub struct InitParams<'a> {
     // The silicon obfuscation key passed to caliptra_top.
     pub cptra_obf_key: [u32; 8],
 
-    pub trng_nibbles: Box<dyn Iterator<Item = u8>>,
+    // 4-bit nibbles of raw entropy to feed into the internal TRNG (ENTROPY_SRC
+    // peripheral).
+    pub itrng_nibbles: Box<dyn Iterator<Item = u8>>,
+
+    // Pre-conditioned TRNG responses to return over the soc_ifc CPTRA_TRNG_DATA
+    // registers in response to requests via CPTRA_TRNG_STATUS
+    pub etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
+
+    // When None, use the itrng compile-time feature to decide which mode to use.
+    pub trng_mode: Option<TrngMode>,
 }
 
 impl<'a> Default for InitParams<'a> {
     fn default() -> Self {
-        let rng: Box<dyn Iterator<Item = u8>> =
-            if let Ok(Ok(val)) = std::env::var("CPTRA_TRNG_SEED").map(|s| u64::from_str(&s)) {
-                Box::new(RandomNibbles(StdRng::seed_from_u64(val)))
-            } else {
-                Box::new(RandomNibbles(rand::thread_rng()))
-            };
+        let seed = std::env::var("CPTRA_TRNG_SEED")
+            .ok()
+            .and_then(|s| u64::from_str(&s).ok());
+        let itrng_nibbles: Box<dyn Iterator<Item = u8>> = if let Some(seed) = seed {
+            Box::new(RandomNibbles(StdRng::seed_from_u64(seed)))
+        } else {
+            Box::new(RandomNibbles(rand::thread_rng()))
+        };
+        let etrng_responses: Box<dyn Iterator<Item = EtrngResponse>> = if let Some(seed) = seed {
+            Box::new(RandomEtrngResponses(StdRng::seed_from_u64(seed)))
+        } else {
+            Box::new(RandomEtrngResponses::new_from_thread_rng())
+        };
         Self {
             rom: Default::default(),
             dccm: Default::default(),
@@ -119,7 +159,9 @@ impl<'a> Default for InitParams<'a> {
             security_state: *SecurityState::default()
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
             cptra_obf_key: DEFAULT_CPTRA_OBF_KEY,
-            trng_nibbles: rng,
+            itrng_nibbles,
+            etrng_responses,
+            trng_mode: Default::default(),
         }
     }
 }
@@ -445,6 +487,19 @@ pub trait HwModel {
     fn soc_ifc(&mut self) -> caliptra_registers::soc_ifc::RegisterBlock<BusMmio<Self::TBus<'_>>> {
         unsafe {
             caliptra_registers::soc_ifc::RegisterBlock::new_with_mmio(
+                0x3003_0000 as *mut u32,
+                BusMmio::new(self.apb_bus()),
+            )
+        }
+    }
+
+    /// A register block that can be used to manipulate the soc_ifc peripheral TRNG registers
+    /// over the simulated SoC->Caliptra APB bus.
+    fn soc_ifc_trng(
+        &mut self,
+    ) -> caliptra_registers::soc_ifc_trng::RegisterBlock<BusMmio<Self::TBus<'_>>> {
+        unsafe {
+            caliptra_registers::soc_ifc_trng::RegisterBlock::new_with_mmio(
                 0x3003_0000 as *mut u32,
                 BusMmio::new(self.apb_bus()),
             )
