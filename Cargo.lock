@@ -619,6 +619,7 @@ version = "0.1.0"
 dependencies = [
  "bitfield",
  "caliptra-drivers",
+ "caliptra-registers",
  "ufmt",
  "zerocopy",
 ]

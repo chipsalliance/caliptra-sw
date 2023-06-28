@@ -1,8 +1,9 @@
 // Licensed under the Apache-2.0 license.
+use crate::helpers::*;
 use bitfield::{bitfield_bitrange, bitfield_fields};
 use caliptra_drivers::{
     report_fw_error_non_fatal, ColdResetEntry4, ColdResetEntry48, Ecc384PubKey, Ecc384Signature,
-    KeyId, WarmResetEntry4, WarmResetEntry48,
+    KeyId, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
 use zerocopy::{AsBytes, FromBytes};
 
@@ -377,8 +378,12 @@ impl FirmwareHandoffTable {
     /// Perform valdity check of the table's data.
     /// The fields below should have been populated by ROM with
     /// valid data before it transfers control to mutable code.
+    /// This function can only be called from non test case environment
+    /// as this function accesses the registers to get the reset_reason.
     pub fn is_valid(&self) -> bool {
-        self.fht_marker == FHT_MARKER
+        let reset_reason = reset_reason();
+
+        let mut valid = self.fht_marker == FHT_MARKER
             && self.fmc_cdi_kv_hdl != FHT_INVALID_HANDLE
             && self.manifest_load_addr != FHT_INVALID_ADDRESS
             && self.fmc_pub_key_x_dv_hdl != FHT_INVALID_HANDLE
@@ -390,13 +395,21 @@ impl FirmwareHandoffTable {
             && self.rt_fw_entry_point_hdl != FHT_INVALID_HANDLE
             // This is for Gen1 POR.
             && self.fips_fw_load_addr_hdl == FHT_INVALID_HANDLE
-            && self.ldevid_tbs_size != 0
-            && self.fmcalias_tbs_size != 0
             && self.ldevid_tbs_addr != 0
             && self.fmcalias_tbs_addr != 0
             && self.pcr_log_addr != 0
-            && self.fuse_log_addr != 0
+            && self.fuse_log_addr != 0;
+
+        if valid
+            && reset_reason == ResetReason::ColdReset
+            && (self.ldevid_tbs_size == 0 || self.fmcalias_tbs_size == 0)
+        {
+            valid = false;
+        }
+
+        valid
     }
+
     /// Load FHT from its fixed address and perform validity check of
     /// its data.
     pub fn try_load() -> Option<FirmwareHandoffTable> {
@@ -467,10 +480,31 @@ mod tests {
 
     #[test]
     fn test_fht_is_valid() {
-        let fht = FirmwareHandoffTable::default();
-        assert!(!fht.is_valid());
+        let fht = crate::hand_off::FirmwareHandoffTable::default();
+
+        let valid = fht.fht_marker == FHT_MARKER
+            && fht.fmc_cdi_kv_hdl != FHT_INVALID_HANDLE
+            && fht.manifest_load_addr != FHT_INVALID_ADDRESS
+            && fht.fmc_pub_key_x_dv_hdl != FHT_INVALID_HANDLE
+            && fht.fmc_pub_key_y_dv_hdl != FHT_INVALID_HANDLE
+            && fht.fmc_cert_sig_r_dv_hdl != FHT_INVALID_HANDLE
+            && fht.fmc_cert_sig_s_dv_hdl != FHT_INVALID_HANDLE
+            && fht.rt_fw_load_addr_hdl != FHT_INVALID_HANDLE
+            && fht.rt_tci_dv_hdl != FHT_INVALID_HANDLE
+            && fht.rt_fw_entry_point_hdl != FHT_INVALID_HANDLE
+            // This is for Gen1 POR.
+            && fht.fips_fw_load_addr_hdl == FHT_INVALID_HANDLE
+            && fht.ldevid_tbs_size == 0
+            && fht.fmcalias_tbs_size == 0
+            && fht.ldevid_tbs_addr != 0
+            && fht.fmcalias_tbs_addr != 0
+            && fht.pcr_log_addr != 0
+            && fht.fuse_log_addr != 0;
+
+        assert!(!valid);
         assert_eq!(FHT_SIZE, mem::size_of::<FirmwareHandoffTable>());
     }
+
     #[test]
     fn test_dv_nonsticky_384bit_set() {
         let fht = crate::hand_off::FirmwareHandoffTable {

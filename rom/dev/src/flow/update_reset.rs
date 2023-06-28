@@ -76,7 +76,7 @@ impl UpdateResetFlow {
 
         Self::load_image(&manifest, recv_txn)?;
 
-        Self::copy_regions(&manifest);
+        Self::copy_regions();
         cprintln!("[update-reset Success] --");
         Ok(fht::make_fht(env))
     }
@@ -107,32 +107,18 @@ impl UpdateResetFlow {
     ///
     /// * `manifest` - Manifest
     ///
-    fn copy_regions(manifest: &ImageManifest) {
+    fn copy_regions() {
         cprintln!("[update-reset] Copying MAN_2 To MAN_1");
 
         let dst = unsafe {
             let ptr = &mut MAN1_ORG as *mut u32;
-            core::slice::from_raw_parts_mut(
-                ptr,
-                (core::mem::size_of::<ImageManifest>()
-                    + manifest.fmc.size as usize
-                    + manifest.runtime.size as usize
-                    + 3)
-                    / 4,
-            )
+            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>())
         };
 
         let src = unsafe {
             let ptr = &mut MAN2_ORG as *mut u32;
 
-            core::slice::from_raw_parts_mut(
-                ptr,
-                (core::mem::size_of::<ImageManifest>()
-                    + manifest.fmc.size as usize
-                    + manifest.runtime.size as usize
-                    + 3)
-                    / 4,
-            )
+            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>())
         };
         dst.clone_from_slice(src);
     }

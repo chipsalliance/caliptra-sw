@@ -183,14 +183,14 @@ pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
     }
 }
 
-pub fn load_fht(fht: FirmwareHandoffTable) {
+pub fn store(fht: FirmwareHandoffTable) {
     extern "C" {
         static mut FHT_ORG: u8;
     }
 
     let slice = unsafe {
         let ptr = &mut FHT_ORG as *mut u8;
-        cprintln!("[fht] Loading FHT @ 0x{:08X}", ptr as u32);
+        cprintln!("[fht] Storing FHT @ 0x{:08X}", ptr as u32);
         core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
     };
     caliptra_common::print_fht(&fht);
