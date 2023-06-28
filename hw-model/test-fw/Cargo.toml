@@ -45,3 +45,8 @@ required-features = ["riscv"]
 name = "test_invalid_instruction"
 path = "test_invalid_instruction.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "test_write_to_rom"
+path = "test_write_to_rom.rs"
+required-features = ["riscv"]
