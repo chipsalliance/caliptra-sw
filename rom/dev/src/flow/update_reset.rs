@@ -11,7 +11,7 @@ Abstract:
     File contains the implementation of update reset flow.
 
 --*/
-use crate::{cprintln, fht, rom_env::RomEnv, verifier::RomImageVerificationEnv, wdt};
+use crate::{cprintln, rom_env::RomEnv, verifier::RomImageVerificationEnv, wdt};
 
 use caliptra_common::memory_layout::{MAN1_ORG, MAN2_ORG};
 use caliptra_common::FirmwareHandoffTable;
@@ -81,9 +81,14 @@ impl UpdateResetFlow {
         Self::copy_regions();
         report_boot_status(UpdateResetOverwriteManifestComplete.into());
 
+        // Return the old FHT from DCCM
+        let fht = FirmwareHandoffTable::try_load()
+            .ok_or(CaliptraError::ROM_UPDATE_RESET_READ_FHT_FAILURE)?;
+
         cprintln!("[update-reset Success] --");
         report_boot_status(UpdateResetComplete.into());
-        Ok(fht::make_fht(env))
+
+        Ok(fht)
     }
 
     /// Verify the image
@@ -122,7 +127,6 @@ impl UpdateResetFlow {
 
         let src = unsafe {
             let ptr = MAN2_ORG as *mut u32;
-
             core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
         };
 
@@ -142,6 +146,9 @@ impl UpdateResetFlow {
             manifest.runtime.load_addr,
             manifest.runtime.size
         );
+
+        // Throw away the FMC portion of the image
+        txn.drop_words(manifest.fmc.size as usize / 4)?;
 
         let runtime_dest = unsafe {
             let addr = (manifest.runtime.load_addr) as *mut u32;

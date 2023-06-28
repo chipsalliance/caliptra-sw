@@ -19,7 +19,8 @@ ENTRY(_start)
 ROM_ORG          = 0x00000000;
 ICCM_ORG         = 0x40000000;
 DCCM_ORG         = 0x50000000;
-DATA_ORG         = 0x50004000;
+/* Avoid overlap with other long-lived DCCM structures */
+DATA_ORG         = 0x50004400;
 STACK_ORG        = 0x5001C000;
 ESTACK_ORG       = 0x5001F800;
 NSTACK_ORG       = 0x5001FC00;
@@ -33,7 +34,7 @@ ROM_RELAXATION_PADDING = 4k;
 ROM_SIZE          = 32K;
 ICCM_SIZE         = 128K;
 DCCM_SIZE         = 128K;
-DATA_SIZE         = 96K;
+DATA_SIZE         = 95K;
 STACK_SIZE        = 14K;
 ESTACK_SIZE       = 1K;
 NSTACK_SIZE       = 1K;
