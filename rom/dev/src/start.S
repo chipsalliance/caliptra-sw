@@ -83,6 +83,7 @@ _start:
     csrw 0x7C0, x1
 
     // Disable branch prediction and pipelining for FPGA
+    // https://github.com/chipsalliance/caliptra-sw/issues/436
     // MFDC 0x7F9
     li x1, 0x00070009
     csrw 0x7F9, x1
