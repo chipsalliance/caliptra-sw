@@ -17,7 +17,9 @@ Abstract:
 use crate::lock::lock_registers;
 use core::hint::black_box;
 
-use caliptra_drivers::{report_fw_error_non_fatal, CaliptraError, Mailbox};
+use caliptra_drivers::{
+    report_fw_error_non_fatal, CaliptraError, Ecc384, Hmac384, Mailbox, Sha256, Sha384, Sha384Acc,
+};
 use rom_env::RomEnv;
 
 #[cfg(not(feature = "std"))]
@@ -69,7 +71,7 @@ pub extern "C" fn rom_entry() -> ! {
 
     let result = kat::execute_kat(&mut env);
     if let Err(err) = result {
-        report_error(err.into(), &mut env);
+        report_error(err.into());
     }
 
     let result = flow::run(&mut env);
@@ -81,7 +83,7 @@ pub extern "C" fn rom_entry() -> ! {
 
             fht::load_fht(fht);
         }
-        Err(err) => report_error(err.into(), &mut env),
+        Err(err) => report_error(err.into()),
     }
 
     #[cfg(not(feature = "no-fmc"))]
@@ -102,7 +104,7 @@ fn launch_fmc(env: &mut RomEnv) -> ! {
 
     cprintln!("[exit] Launching FMC @ 0x{:08X}", entry);
 
-    // Exit ROM and jump to speicified entry point
+    // Exit ROM and jump to specified entry point
     unsafe { exit_rom(entry) }
 }
 
@@ -118,8 +120,7 @@ extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
 
     // TODO: Signal non-fatal error to SOC
 
-    let mut env = unsafe { rom_env::RomEnv::new_from_registers() };
-    report_error(CaliptraError::ROM_GLOBAL_EXCEPTION.into(), &mut env);
+    report_error(CaliptraError::ROM_GLOBAL_EXCEPTION.into());
 }
 
 #[no_mangle]
@@ -136,8 +137,7 @@ extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
     // - Signal Fatal error for ICCM/DCCM double bit faults
     // - Signal Non=-Fatal error for all other errors
 
-    let mut env = unsafe { rom_env::RomEnv::new_from_registers() };
-    report_error(CaliptraError::ROM_GLOBAL_NMI.into(), &mut env);
+    report_error(CaliptraError::ROM_GLOBAL_NMI.into());
 }
 
 #[panic_handler]
@@ -148,21 +148,22 @@ fn rom_panic(_: &core::panic::PanicInfo) -> ! {
     panic_is_possible();
 
     // TODO: Signal non-fatal error to SOC
-    let mut env = unsafe { rom_env::RomEnv::new_from_registers() };
-    report_error(CaliptraError::ROM_GLOBAL_PANIC.into(), &mut env);
+    report_error(CaliptraError::ROM_GLOBAL_PANIC.into());
 }
 
 #[allow(clippy::empty_loop)]
-fn report_error(code: u32, env: &mut RomEnv) -> ! {
+fn report_error(code: u32) -> ! {
     cprintln!("ROM Error: 0x{:08X}", code);
     report_fw_error_non_fatal(code);
 
     // Zeroize the crypto blocks.
-    env.ecc384.zeroize();
-    env.hmac384.zeroize();
-    env.sha256.zeroize();
-    env.sha384.zeroize();
-    env.sha384_acc.zeroize();
+    unsafe {
+        Ecc384::zeroize();
+        Hmac384::zeroize();
+        Sha256::zeroize();
+        Sha384::zeroize();
+        Sha384Acc::zeroize();
+    }
 
     loop {
         // SoC firmware might be stuck waiting for Caliptra to finish
