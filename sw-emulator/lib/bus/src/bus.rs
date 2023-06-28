@@ -28,8 +28,10 @@ pub enum BusError {
     /// Store address misaligned exception
     StoreAddrMisaligned,
 
-    /// Store access fault exception
+    /// Store access fault exception precise
     StoreAccessFault,
+    /// Store access fault exception imprecise
+    StoreAccessFaultImprecise,
 }
 
 /// Represents an abstract memory bus. Used to read and write from RAM and

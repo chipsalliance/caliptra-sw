@@ -394,19 +394,19 @@ fn test_write_dispatch() {
     );
     assert_eq!(
         bus.write(RvSize::Word, 0xf000_0000, 0).unwrap_err(),
-        BusError::StoreAccessFault
+        BusError::StoreAccessFaultImprecise
     );
     assert_eq!(
         bus.write(RvSize::Word, 0xaa03_0000, 0).unwrap_err(),
-        BusError::StoreAccessFault
+        BusError::StoreAccessFaultImprecise
     );
     assert_eq!(
         bus.write(RvSize::Word, 0xaa02_0900, 0).unwrap_err(),
-        BusError::StoreAccessFault
+        BusError::StoreAccessFaultImprecise
     );
     assert_eq!(
         bus.write(RvSize::Word, 0xbb41_0000, 0).unwrap_err(),
-        BusError::StoreAccessFault
+        BusError::StoreAccessFaultImprecise
     );
 
     bus.write(RvSize::Word, 0xcafe_f0d0, 0xd149_b445).unwrap();
@@ -431,7 +431,7 @@ fn test_write_dispatch() {
     assert_eq!(
         bus.write(RvSize::Word, 0xcafe_f0f0, 0xface_ff00)
             .unwrap_err(),
-        BusError::StoreAccessFault
+        BusError::StoreAccessFaultImprecise
     );
     bus.write(RvSize::Word, 0xcafe_f0f4, 0xface_0000).unwrap();
     bus.write(RvSize::Word, 0xcafe_f0f8, 0xface_0100).unwrap();
@@ -451,12 +451,12 @@ fn test_write_dispatch() {
     assert_eq!(
         bus.write(RvSize::Word, 0xcafe_f108, 0xface_f000)
             .unwrap_err(),
-        BusError::StoreAccessFault
+        BusError::StoreAccessFaultImprecise
     );
     assert_eq!(
         bus.write(RvSize::HalfWord, 0xcafe_f0f6, 0xface_f000)
             .unwrap_err(),
-        BusError::StoreAccessFault
+        BusError::StoreAccessFaultImprecise
     );
 
     bus.write(RvSize::Word, 0xcafe_f0e4, 0xbaf3_e991).unwrap();
@@ -487,7 +487,7 @@ fn test_write_dispatch() {
     assert_eq!(
         bus.write(RvSize::Word, 0xcafe_f130, 0xface_f000)
             .unwrap_err(),
-        BusError::StoreAccessFault
+        BusError::StoreAccessFaultImprecise
     );
     bus.write(RvSize::Word, 0xcafe_f134, 0xface_b0dd).unwrap();
     assert_eq!(
@@ -507,12 +507,12 @@ fn test_write_dispatch() {
     assert_eq!(
         bus.write(RvSize::Word, 0xcafe_f148, 0xface_f000)
             .unwrap_err(),
-        BusError::StoreAccessFault
+        BusError::StoreAccessFaultImprecise
     );
     assert_eq!(
         bus.write(RvSize::Byte, 0xcafe_f133, 0xface_f000)
             .unwrap_err(),
-        BusError::StoreAccessFault
+        BusError::StoreAccessFaultImprecise
     );
 }
 

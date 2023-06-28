@@ -15,7 +15,7 @@ Abstract:
 use crate::csr_file::{Csr, CsrFile};
 use crate::types::{RvInstr, RvMStatus};
 use crate::xreg_file::{XReg, XRegFile};
-use caliptra_emu_bus::{Bus, BusError, Clock, TimerAction};
+use caliptra_emu_bus::{Bus, BusError, Clock, Timer, TimerAction};
 use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
 
 pub type InstrTracer<'a> = dyn FnMut(u32, RvInstr) + 'a;
@@ -69,6 +69,8 @@ pub struct Cpu<TBus: Bus> {
 
     pub clock: Clock,
 
+    pub timer: Timer,
+
     // Track if Execution is in progress
     pub(crate) is_execute_instr: bool,
 
@@ -92,9 +94,13 @@ pub enum StepAction {
 impl<TBus: Bus> Cpu<TBus> {
     /// Default Program counter reset value
     const PC_RESET_VAL: RvData = 0;
+    const NMI_CAUSE_DBUS_STORE_ERROR: u32 = 0xf000_0000;
+    const NMI_DELAY: u64 = 2;
 
     /// Create a new RISCV CPU
     pub fn new(bus: TBus, clock: Clock) -> Self {
+        // Create timer
+        let timer = clock.timer();
         Self {
             xregs: XRegFile::new(),
             csrs: CsrFile::new(),
@@ -105,6 +111,7 @@ impl<TBus: Bus> Cpu<TBus> {
             is_execute_instr: false,
             watch_ptr_cfg: WatchPtrCfg::new(),
             nmivec: 0,
+            timer,
         }
     }
 
@@ -235,6 +242,9 @@ impl<TBus: Bus> Cpu<TBus> {
                 BusError::LoadAddrMisaligned => Err(RvException::load_addr_misaligned(addr)),
                 BusError::StoreAccessFault => Err(RvException::store_access_fault(addr)),
                 BusError::StoreAddrMisaligned => Err(RvException::store_addr_misaligned(addr)),
+                BusError::StoreAccessFaultImprecise => {
+                    panic!("Unexpected bus error");
+                }
             },
         }
     }
@@ -275,6 +285,15 @@ impl<TBus: Bus> Cpu<TBus> {
                 BusError::LoadAddrMisaligned => Err(RvException::load_addr_misaligned(addr)),
                 BusError::StoreAccessFault => Err(RvException::store_access_fault(addr)),
                 BusError::StoreAddrMisaligned => Err(RvException::store_addr_misaligned(addr)),
+                BusError::StoreAccessFaultImprecise => {
+                    self.timer.schedule_action_in(
+                        Self::NMI_DELAY,
+                        TimerAction::Nmi {
+                            mcause: Self::NMI_CAUSE_DBUS_STORE_ERROR,
+                        },
+                    );
+                    Ok(())
+                }
             },
         }
     }
@@ -301,6 +320,9 @@ impl<TBus: Bus> Cpu<TBus> {
                     BusError::LoadAddrMisaligned => Err(RvException::instr_addr_misaligned(addr)),
                     BusError::StoreAccessFault => Err(RvException::store_access_fault(addr)),
                     BusError::StoreAddrMisaligned => Err(RvException::store_addr_misaligned(addr)),
+                    BusError::StoreAccessFaultImprecise => {
+                        panic!("Unexpected bus error");
+                    }
                 },
             },
         }

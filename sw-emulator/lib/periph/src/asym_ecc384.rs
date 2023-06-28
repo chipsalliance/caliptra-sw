@@ -484,6 +484,9 @@ impl AsymEcc384 {
             Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
                 (KeyReadStatus::ERROR::KV_WRITE_FAIL.value, None)
             }
+            Some(BusError::StoreAccessFaultImprecise) => {
+                panic!("Imprecise StoreAccessFault on key read")
+            }
             None => (
                 KeyReadStatus::ERROR::KV_SUCCESS.value,
                 Some(result.unwrap()),
@@ -516,6 +519,9 @@ impl AsymEcc384 {
             | Some(BusError::InstrAccessFault) => (KeyReadStatus::ERROR::KV_READ_FAIL.value, None),
             Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
                 (KeyReadStatus::ERROR::KV_WRITE_FAIL.value, None)
+            }
+            Some(BusError::StoreAccessFaultImprecise) => {
+                panic!("Seed read failed with imprecise store access fault")
             }
             None => (
                 KeyReadStatus::ERROR::KV_SUCCESS.value,
@@ -554,6 +560,9 @@ impl AsymEcc384 {
             | Some(BusError::InstrAccessFault) => KeyWriteStatus::ERROR::KV_READ_FAIL.value,
             Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
                 KeyWriteStatus::ERROR::KV_WRITE_FAIL.value
+            }
+            Some(BusError::StoreAccessFaultImprecise) => {
+                panic!("Imprecise StoreAccessFault on key write")
             }
             None => KeyWriteStatus::ERROR::KV_SUCCESS.value,
         };

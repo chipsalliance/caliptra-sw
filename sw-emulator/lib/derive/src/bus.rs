@@ -84,7 +84,7 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
             fn write(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr, val: caliptra_emu_types::RvData) -> Result<(), caliptra_emu_bus::BusError> {
                 #write_reg_match_tokens
                 #write_bus_match_tokens
-                Err(caliptra_emu_bus::BusError::StoreAccessFault)
+                Err(caliptra_emu_bus::BusError::StoreAccessFaultImprecise)
             }
             fn poll(&mut self) {
                 #(self.#field_idents.poll();)*
@@ -759,7 +759,7 @@ mod tests {
                             },
                             _ => {}
                         }
-                        Err(caliptra_emu_bus::BusError::StoreAccessFault)
+                        Err(caliptra_emu_bus::BusError::StoreAccessFaultImprecise)
                     }
                     fn poll(&mut self) {
                         self.rom.poll();
@@ -813,7 +813,7 @@ mod tests {
                         Err(caliptra_emu_bus::BusError::LoadAccessFault)
                     }
                     fn write(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr, val: caliptra_emu_types::RvData) -> Result<(), caliptra_emu_bus::BusError> {
-                        Err(caliptra_emu_bus::BusError::StoreAccessFault)
+                        Err(caliptra_emu_bus::BusError::StoreAccessFaultImprecise)
                     }
                     fn poll(&mut self) {
                     }

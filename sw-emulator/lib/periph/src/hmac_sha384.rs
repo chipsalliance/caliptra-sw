@@ -469,6 +469,7 @@ impl HmacSha384 {
             Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
                 (KeyReadStatus::ERROR::KV_WRITE_FAIL.value, None)
             }
+            Some(BusError::StoreAccessFaultImprecise) => panic!("Imprecise Store Access Fault"),
             None => (
                 KeyReadStatus::ERROR::KV_SUCCESS.value,
                 Some(result.unwrap()),
@@ -502,6 +503,7 @@ impl HmacSha384 {
             Err(BusError::StoreAccessFault) | Err(BusError::StoreAddrMisaligned) => {
                 KeyReadStatus::ERROR::KV_WRITE_FAIL.value
             }
+            Err(BusError::StoreAccessFaultImprecise) => panic!("Imprecise Store Access Fault"),
             Ok(data) => {
                 self.format_block(&data);
                 KeyReadStatus::ERROR::KV_SUCCESS.value
@@ -562,6 +564,7 @@ impl HmacSha384 {
             Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
                 TagWriteStatus::ERROR::KV_WRITE_FAIL.value
             }
+            Some(BusError::StoreAccessFaultImprecise) => panic!("Imprecise store fault"),
             None => TagWriteStatus::ERROR::KV_SUCCESS.value,
         };
 
