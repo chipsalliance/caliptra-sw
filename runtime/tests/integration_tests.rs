@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license.
 pub mod common;
 
+use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART};
 use caliptra_drivers::Ecc384PubKey;
 use caliptra_hw_model::{HwModel, ModelError, ShaAccMode};
 use caliptra_runtime::{CommandId, EcdsaVerifyCmd};
@@ -20,6 +21,34 @@ fn test_standard() {
     // Ultimately, this will be useful for exercising Caliptra end-to-end
     // via the mailbox.
     let mut model = run_rt_test(None);
+
+    model
+        .step_until_output_contains("Caliptra RT listening for mailbox commands...")
+        .unwrap();
+}
+
+#[test]
+fn test_update() {
+    // Test that the normal runtime firmware boots.
+    // Ultimately, this will be useful for exercising Caliptra end-to-end
+    // via the mailbox.
+    let mut model = run_rt_test(None);
+
+    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+
+    // Make image to update to
+    let image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+
+    model
+        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &image)
+        .unwrap();
 
     model
         .step_until_output_contains("Caliptra RT listening for mailbox commands...")

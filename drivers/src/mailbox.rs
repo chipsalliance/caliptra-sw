@@ -347,6 +347,19 @@ impl MailboxRecvTxn<'_> {
         Ok(())
     }
 
+    /// Pulls at most `count` words from the mailbox and throws them away
+    pub fn drop_words(&mut self, count: usize) -> CaliptraResult<()> {
+        let mbox = self.mbox.regs_mut();
+        let dlen_bytes = mbox.dlen().read() as usize;
+        let dlen_words = (dlen_bytes + 3) / 4;
+        let words_to_read = min(count, dlen_words);
+        for _ in 0..words_to_read {
+            _ = mbox.dataout().read();
+        }
+
+        Ok(())
+    }
+
     /// Pulls at most `data.len()` words from the mailbox FIFO without performing state transition.
     ///
     /// # Arguments
@@ -356,7 +369,7 @@ impl MailboxRecvTxn<'_> {
     /// # Returns
     ///
     /// Status of Operation
-    ///   
+    ///
     pub fn copy_request(&mut self, data: &mut [u32]) -> CaliptraResult<()> {
         if self.state != MailboxOpState::Execute {
             return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
@@ -374,7 +387,7 @@ impl MailboxRecvTxn<'_> {
     /// # Returns
     ///
     /// Status of Operation
-    ///   
+    ///
     pub fn recv_request(&mut self, data: &mut [u32]) -> CaliptraResult<()> {
         self.copy_request(data)?;
         self.complete(true)?;

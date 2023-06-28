@@ -26,7 +26,7 @@ use caliptra_error::CaliptraError;
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-pub fn run(env: &mut RomEnv) -> CaliptraResult<FirmwareHandoffTable> {
+pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
     let reset_reason = env.soc_ifc.reset_reason();
     match reset_reason {
         // Cold Reset Flow

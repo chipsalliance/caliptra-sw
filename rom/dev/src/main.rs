@@ -86,10 +86,10 @@ pub extern "C" fn rom_entry() -> ! {
 
     let result = flow::run(&mut env);
     match result {
-        Ok(fht) => {
+        Ok(Some(fht)) => {
             fht::store(fht);
         }
-
+        Ok(None) => {}
         Err(err) => {
             //
             // For the update reset case, when we fail the image validation

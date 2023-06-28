@@ -28,7 +28,7 @@ impl WarmResetFlow {
     ///
     /// * `env` - ROM Environment
     #[inline(never)]
-    pub fn run(env: &mut RomEnv) -> CaliptraResult<FirmwareHandoffTable> {
+    pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
         cprintln!("[warm-reset] ++");
 
         // [TODO] Remove this when RTL bug is fixed.
@@ -49,7 +49,7 @@ impl WarmResetFlow {
 
         cprintln!("[warm-reset] --");
 
-        Ok(fht)
+        Ok(None)
     }
 
     fn load_manifest(manifest_load_addr: u32) -> CaliptraResult<ImageManifest> {

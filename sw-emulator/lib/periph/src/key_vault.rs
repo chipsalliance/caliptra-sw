@@ -448,6 +448,8 @@ impl KeyVaultRegs {
         Ok(())
     }
 
+    // Does not write to usage, usage bits aren't directly writable outside of
+    // key creation.
     fn write_key_ctrl(&mut self, _size: RvSize, index: usize, val: u32) -> Result<(), BusError> {
         let val = LocalRegisterCopy::<u32, KV_CONTROL::Register>::new(val);
         let key_ctrl_reg = &mut self.key_control[index];
@@ -461,8 +463,6 @@ impl KeyVaultRegs {
             KV_CONTROL::USE_LOCK
                 .val(key_ctrl_reg.read(KV_CONTROL::USE_LOCK) | val.read(KV_CONTROL::USE_LOCK)),
         );
-
-        key_ctrl_reg.modify(KV_CONTROL::USAGE.val(val.read(KV_CONTROL::USAGE)));
 
         if key_ctrl_reg.read(KV_CONTROL::WRITE_LOCK) == 0 && val.is_set(KV_CONTROL::CLEAR) {
             let key_min = index * KeyVault::KEY_SIZE;

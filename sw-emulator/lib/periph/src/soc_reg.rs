@@ -630,7 +630,7 @@ impl SocRegistersImpl {
             internal_obf_key: args.cptra_obf_key,
             internal_iccm_lock: ReadWriteRegister::new(0),
             internal_fw_update_reset: ReadWriteRegister::new(0),
-            internal_fw_update_reset_wait_cycles: ReadWriteRegister::new(0),
+            internal_fw_update_reset_wait_cycles: ReadWriteRegister::new(5),
             internal_nmi_vector: ReadWriteRegister::new(0),
             mailbox,
             iccm,
