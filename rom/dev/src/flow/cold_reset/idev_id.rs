@@ -94,6 +94,9 @@ impl InitDevIdLayer {
         // Generate the Initial DevID Certificate Signing Request (CSR)
         Self::generate_csr(env, &output)?;
 
+        // Write IDevID pub to FHT
+        env.fht_data_store.idev_pub = output.subj_key_pair.pub_key;
+
         cprintln!("[idev] --");
         report_boot_status(IDevIdDerivationComplete.into());
 

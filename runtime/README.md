@@ -11,16 +11,23 @@ The Runtime Firmware main function SHALL perform the following on Cold Boot rese
 
 For behavior during other types of reset, see "Runtime Firmware Updates".
 
+If `mailbox_flow_done` is not set during a "warm" "update" boot, it is assumed that Caliptra
+was reset while runtime firmware was executing an operation. If Runtime firmware detects
+this case, it will call `DISABLE_ATTESTATION`, since the internal state of Caliptra may
+be corrupted.
+
 ### Main Loop
 
 After booting, Caliptra Runtime firmware is responsible for the following:
 
 * Wait for mailbox interrupts
 * On mailbox interrupt
+    * Unset `mailbox_flow_done`
     * Write lock mailbox and set busy register
     * Read command from mailbox
     * Execute command
     * Write response to mailbox and set necessary status register(s)
+    * Set `mailbox_flow_done`
     * Sleep until next interrupt
 * On panic
     * Save diagnostic information
@@ -182,11 +189,17 @@ Table: `STASH_MEASUREMENT` output arguments
 ### DISABLE\_ATTESTATION
 
 Disable attestation by erasing the CDI and DICE key. This command is intended
-for callers who update infrequently and cannot tolerate a changing DPE API surface, and is intended for situations where Caliptra firmware cannot be loaded
+for callers who update infrequently and cannot tolerate a changing DPE API
+surface, and is intended for situations where Caliptra firmware cannot be loaded
 and the SoC must proceed with boot.
 
 Upon receipt of this command, Caliptra's current CDI is replaced with zeroes,
 and the associated DICE key is re-derived from the zeroed CDI.
+
+This command is intended to allow the SoC to continue booting for diagnostic
+and error reporting. All attestations produced in this mode are expected to
+fail certificate chain validation. Caliptra MUST undergo a cold reset in order
+to re-enable attestation.
 
 Command Code: `0x4453_424C` ("DSBL")
 
@@ -246,10 +259,6 @@ A Runtime Firmware update is triggered by the `CALIPTRA_FW_LOAD` command. Upon
 receiving this command, Runtime Firmware will:
 
 1. Write-lock mailbox
-1. Verify firmware image signature
-    1. Preserve hash for later steps
-1. Update the “Latest TCI” field of the TCI Node which contains the Runtime
-   Journey PCR (TYPE = RTJM, “Internal TCI” flag is set) with hash.
 1. Invoke “Impactless Reset”
 
 Once Impactless Reset has been invoked, FMC will load the hash of the image
@@ -257,6 +266,12 @@ from the verified Manifest into the necessary PCRs:
 
 1. Runtime Journey PCR
 1. Runtime Latest PCR
+
+If ROM validation of the image fails,
+
+* ROM SHALL not clear the "Runtime Latest" PCR. It SHALL still re-lock this
+  PCR with the existing value.
+* FMC SHALL NOT extend either of the Runtime PCRs.
 
 ### Boot Process After Update
 
@@ -271,6 +286,8 @@ this case, the new Runtime Firmware must:
    Runtime Journey PCR (TYPE = RTJM, “Internal TCI” flag is set) matches the
    “Latest” Runtime PCR value from PCRX
     1. Ensure `SHA384_HASH(0x00..00, TCI from SRAM) == PCR3 value`
+1. If any validations fail, runtime firmware will execute the
+   `DISABLE_ATTESTATION` command.
 
 ## DICE Protection Environment (DPE)
 

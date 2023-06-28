@@ -16,6 +16,7 @@ enum CertType {
 /// Copy LDevID certificate produced by ROM to `cert` buffer
 ///
 /// Returns the number of bytes written to `cert`
+#[inline(never)]
 pub fn copy_ldevid_cert(dv: &DataVault, cert: &mut [u8]) -> CaliptraResult<usize> {
     cert_from_dccm(dv, cert, CertType::LDevId)
 }
@@ -23,6 +24,7 @@ pub fn copy_ldevid_cert(dv: &DataVault, cert: &mut [u8]) -> CaliptraResult<usize
 /// Copy FMC Alias certificate produced by ROM to `cert` buffer
 ///
 /// Returns the number of bytes written to `cert`
+#[inline(never)]
 pub fn copy_fmc_alias_cert(dv: &DataVault, cert: &mut [u8]) -> CaliptraResult<usize> {
     cert_from_dccm(dv, cert, CertType::FmcAlias)
 }

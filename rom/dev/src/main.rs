@@ -23,7 +23,10 @@ use caliptra_drivers::{
 use rom_env::RomEnv;
 
 #[cfg(not(feature = "std"))]
-core::arch::global_asm!(include_str!("start.S"));
+core::arch::global_asm!(include_str!(concat!(
+    env!("OUT_DIR"),
+    "/start_preprocessed.S"
+)));
 
 mod exception;
 mod fht;
