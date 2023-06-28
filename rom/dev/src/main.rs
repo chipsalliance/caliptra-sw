@@ -18,8 +18,8 @@ use crate::lock::lock_registers;
 use core::hint::black_box;
 
 use caliptra_drivers::{
-    report_fw_error_non_fatal, CaliptraError, Ecc384, Hmac384, Mailbox, Sha256, Sha384, Sha384Acc,
-    SocIfc,
+    report_fw_error_non_fatal, CaliptraError, Ecc384, Hmac384, Mailbox, ResetReason, Sha256,
+    Sha384, Sha384Acc, SocIfc,
 };
 use rom_env::RomEnv;
 
@@ -82,21 +82,34 @@ pub extern "C" fn rom_entry() -> ! {
         report_error(err.into());
     }
 
+    let reset_reason = env.soc_ifc.reset_reason();
+
     let result = flow::run(&mut env);
     match result {
         Ok(fht) => {
-            // Lock the datavault registers.
-            let reset_reason = env.soc_ifc.reset_reason();
-            lock_registers(&mut env, reset_reason);
-
-            fht::load_fht(fht);
+            fht::store(fht);
         }
-        Err(err) => report_error(err.into()),
+
+        Err(err) => {
+            //
+            // For the update reset case, when we fail the image validation
+            // we will need to continue to jump to the FMC after
+            // reporting the error in the registers.
+            //
+            if reset_reason == ResetReason::UpdateReset {
+                report_error_update_reset(err.into());
+            } else {
+                report_error(err.into());
+            }
+        }
     }
 
     // Stop the watchdog timer.
     // [TODO] Reset the watchdog timer and let FMC take ownership of it.
     wdt::stop_wdt(&mut env.soc_ifc);
+
+    // Lock the datavault registers.
+    lock_registers(&mut env, reset_reason);
 
     #[cfg(not(feature = "no-fmc"))]
     launch_fmc(&mut env);
@@ -161,6 +174,20 @@ fn rom_panic(_: &core::panic::PanicInfo) -> ! {
 
     // TODO: Signal non-fatal error to SOC
     report_error(CaliptraError::ROM_GLOBAL_PANIC.into());
+}
+
+fn report_error_update_reset(code: u32) {
+    cprintln!("ROM Error: 0x{:08X}", code);
+    report_fw_error_non_fatal(code);
+
+    // Zeroize the crypto blocks.
+    unsafe {
+        Ecc384::zeroize();
+        Hmac384::zeroize();
+        Sha256::zeroize();
+        Sha384::zeroize();
+        Sha384Acc::zeroize();
+    }
 }
 
 #[allow(clippy::empty_loop)]

@@ -4,7 +4,7 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-	fmc.ld
+	rt.ld
 
 Abstract:
 
@@ -20,8 +20,8 @@ MBOX_ORG    = 0x30000000;
 ICCM_ORG    = 0x40004000; /* Range [0x40000000 - 0x40003FFF] is reserved for FMC */
 DCCM_ORG    = 0x50000000;
 MAN1_ORG    = 0x50000000;
-MAN2_ORG    = 0x50001000;
-FHT_ORG     = 0x50002000;
+MAN2_ORG    = 0x50001400;
+FHT_ORG     = 0x50002800;
 DATA_ORG    = 0x50003000;
 STACK_ORG   = 0x5001C000;
 ESTACK_ORG  = 0x5001F800;
@@ -30,9 +30,9 @@ NSTACK_ORG  = 0x5001FC00;
 MBOX_SIZE   = 128K;
 ICCM_SIZE   = 112K;
 DCCM_SIZE   = 128K;
-MAN1_SIZE   = 4K;
-MAN2_SIZE   = 4K;
-FHT_SIZE    = 4K;
+MAN1_SIZE   = 5K;
+MAN2_SIZE   = 5K;
+FHT_SIZE    = 2K;
 DATA_SIZE   = 100K;
 STACK_SIZE  = 14K;
 ESTACK_SIZE = 1K;

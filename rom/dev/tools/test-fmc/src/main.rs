@@ -25,8 +25,7 @@ extern "C" {
 use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::{FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
-use caliptra_drivers::DataVault;
-use caliptra_drivers::Mailbox;
+use caliptra_drivers::{DataVault, Mailbox};
 use caliptra_registers::dv::DvReg;
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
 use ureg::RealMmioMut;
