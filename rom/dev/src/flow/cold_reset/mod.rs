@@ -48,7 +48,7 @@ impl ColdResetFlow {
     ///
     /// * `env` - ROM Environment
     #[inline(never)]
-    pub fn run(env: &mut RomEnv) -> CaliptraResult<FirmwareHandoffTable> {
+    pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
         cprintln!("[cold-reset] ++");
         report_boot_status(ColdResetStarted.into());
 
@@ -73,7 +73,7 @@ impl ColdResetFlow {
         cprintln!("[cold-reset] --");
         report_boot_status(ColdResetComplete.into());
 
-        Ok(fht::make_fht(env))
+        Ok(Some(fht::make_fht(env)))
     }
 }
 

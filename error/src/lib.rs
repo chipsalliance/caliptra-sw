@@ -109,7 +109,7 @@ impl CaliptraError {
     pub const DRIVER_MAILBOX_INVALID_DATA_LEN: CaliptraError = CaliptraError::new_const(0x00080002);
     pub const DRIVER_MAILBOX_ENQUEUE_ERR: CaliptraError = CaliptraError::new_const(0x00080004);
 
-    /// SHA384ACC Errors.   
+    /// SHA384ACC Errors.
     pub const DRIVER_SHA384ACC_INDEX_OUT_OF_BOUNDS: CaliptraError =
         CaliptraError::new_const(0x00090003);
     /// SHA1 Errors.
@@ -268,6 +268,8 @@ impl CaliptraError {
     pub const RUNTIME_ECDSA_VERIFY_FAILED: CaliptraError = CaliptraError::new_const(0x000E0004);
     pub const RUNTIME_INVALID_CHECKSUM: CaliptraError = CaliptraError::new_const(0x000E0005);
     pub const RUNTIME_FIPS_UNIMPLEMENTED: CaliptraError = CaliptraError::new_const(0x000E0006);
+    pub const RUNTIME_UNEXPECTED_UPDATE_RETURN: CaliptraError =
+        CaliptraError::new_const(0x000E0007);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
@@ -317,6 +319,8 @@ impl CaliptraError {
         CaliptraError::new_const(0x01040003);
     pub const ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE: CaliptraError =
         CaliptraError::new_const(0x01040004);
+    pub const ROM_UPDATE_RESET_READ_FHT_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x01040005);
 
     /// Unknown Reset Error
     pub const ROM_UNKNOWN_RESET_FLOW: CaliptraError = CaliptraError::new_const(0x01040020);
