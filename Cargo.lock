@@ -348,6 +348,9 @@ dependencies = [
 [[package]]
 name = "caliptra-hw-model-types"
 version = "0.1.0"
+dependencies = [
+ "rand",
+]
 
 [[package]]
 name = "caliptra-image-app"

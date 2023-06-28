@@ -193,7 +193,7 @@ impl Ecc384 {
             y: Array4x12::read_from_reg(ecc.pubkey_y()),
         };
 
-        self.zeroize();
+        self.zeroize_internal();
 
         Ok(pub_key)
     }
@@ -242,7 +242,7 @@ impl Ecc384 {
             s: Array4x12::read_from_reg(ecc.sign_s()),
         };
 
-        self.zeroize();
+        self.zeroize_internal();
 
         Ok(signature)
     }
@@ -292,14 +292,29 @@ impl Ecc384 {
         // compare the hardware generate `r` with one in signature
         let result = verify_r == signature.r;
 
-        self.zeroize();
+        self.zeroize_internal();
 
         Ok(result)
     }
 
     /// Zeroize the hardware registers.
-    pub fn zeroize(&mut self) {
+    fn zeroize_internal(&mut self) {
         self.ecc.regs_mut().ctrl().write(|w| w.zeroize(true));
+    }
+
+    /// Zeroize the hardware registers.
+    ///
+    /// This is useful to call from a fatal-error-handling routine.
+    ///
+    /// # Safety
+    ///
+    /// The caller must be certain that the results of any pending cryptographic
+    /// operations will not be used after this function is called.
+    ///
+    /// This function is safe to call from a trap handler.
+    pub unsafe fn zeroize() {
+        let mut ecc = EccReg::new();
+        ecc.regs_mut().ctrl().write(|w| w.zeroize(true));
     }
 }
 
