@@ -569,7 +569,11 @@ pub trait HwModel {
             self.soc_mbox().execute().write(|w| w.execute(false));
             let soc_ifc = self.soc_ifc();
             return Err(ModelError::MailboxCmdFailed(
-                soc_ifc.cptra_fw_error_non_fatal().read(),
+                if soc_ifc.cptra_fw_error_fatal().read() != 0 {
+                    soc_ifc.cptra_fw_error_fatal().read()
+                } else {
+                    soc_ifc.cptra_fw_error_non_fatal().read()
+                },
             ));
         }
         if status.cmd_complete() {
