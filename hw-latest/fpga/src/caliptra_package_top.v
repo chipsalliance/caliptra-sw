@@ -36,6 +36,7 @@ module caliptra_package_top (
 
     input  wire [31:0] gpio_in,
     output wire [31:0] gpio_out,
+    input wire [255:0] cptra_obf_key,
 
     //APB Interface
     input  wire [39:0]                s_apb_paddr,
@@ -89,6 +90,8 @@ caliptra_wrapper_top cptra_wrapper (
     .PSLVERR(s_apb_pslverr),
     .PWDATA(s_apb_pwdata),
     .PWRITE(s_apb_pwrite),
+
+    .cptra_obf_key(cptra_obf_key),
 
     // SOC signals connected to GPIO
     .cptra_pwrgood              (gpio_in[1]),

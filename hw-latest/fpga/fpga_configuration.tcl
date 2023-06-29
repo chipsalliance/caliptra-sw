@@ -9,7 +9,7 @@ file mkdir $packageDir
 set rtlDir ../caliptra-rtl
 
 # JTAG enabled
-set JTAG 1
+set JTAG 0
 
 # Start the Vivado GUI for interactive debug
 start_gui
@@ -196,6 +196,8 @@ connect_bd_net [get_bd_pins axi_bram_ctrl_0/s_axi_aclk] [get_bd_pins zynq_ultra_
 connect_bd_net [get_bd_pins axi_bram_ctrl_0/s_axi_aresetn] [get_bd_pins proc_sys_reset_0/peripheral_aresetn]
 connect_bd_net [get_bd_pins axi_interconnect_0/M02_ACLK] [get_bd_pins zynq_ultra_ps_e_0/pl_clk0]
 connect_bd_net [get_bd_pins axi_interconnect_0/M02_ARESETN] [get_bd_pins proc_sys_reset_0/peripheral_aresetn]
+
+connect_bd_net [get_bd_pins caliptra_package_top_0/cptra_obf_key] [get_bd_pins caliptra_soc_0/cptra_obf_key]
 
 # Create address segments
 assign_bd_address -offset 0x80000000 -range 0x00010000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs caliptra_soc_0/S00_AXI/S00_AXI_reg] -force

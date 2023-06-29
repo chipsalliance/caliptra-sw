@@ -26,6 +26,7 @@ fn fmt_uio_error(err: UioError) -> String {
 const GPIO_OUTPUT_OFFSET: isize = 0;
 const GPIO_INPUT_OFFSET: isize = 2;
 const GPIO_PAUSER_OFFSET: isize = 3;
+const GPIO_DEOBF_KEY_OFFSET: isize = 4;
 
 bitfield! {
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -133,6 +134,11 @@ impl HwModel for ModelFpgaRealtime {
 
         // Set initial PAUSER
         m.set_pauser(SOC_PAUSER);
+
+        // Set deobfuscation key
+        for i in 0..8 {
+            unsafe { m.gpio.offset(GPIO_DEOBF_KEY_OFFSET + i).write_volatile(params.cptra_obf_key[i as usize]) };
+        }
 
         // Write ROM image over backdoor
         let mut rom_driver = std::fs::OpenOptions::new()
