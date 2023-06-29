@@ -191,6 +191,12 @@ register_bitfields! [
         T2_TIMEOUT OFFSET(1) NUMBITS(1) [],
         RSVD OFFSET(2) NUMBITS(30) [],
     ],
+
+    /// LMS Verify
+    LmsVerify [
+        LMS_VERIFY OFFSET(0) NUMBITS(1) [],
+        RSVD OFFSET(1) NUMBITS(31) [],
+    ],
 ];
 
 /// SOC Register peripheral
@@ -488,6 +494,12 @@ struct SocRegistersImpl {
     #[register(offset = 0x033c)]
     fuse_life_cycle: u32,
 
+    #[register(offset = 0x340)]
+    fuse_lms_verify: ReadWriteRegister<u32, LmsVerify::Register>,
+
+    #[register(offset = 0x344)]
+    fuse_lms_revocation: u32,
+
     /// INTERNAL_OBF_KEY Register
     internal_obf_key: [u32; 8],
 
@@ -612,6 +624,8 @@ impl SocRegistersImpl {
             fuse_idevid_cert_attr: Default::default(),
             fuse_idevid_manuf_hsm_id: Default::default(),
             fuse_life_cycle: Default::default(),
+            fuse_lms_verify: ReadWriteRegister::new(0),
+            fuse_lms_revocation: Default::default(),
             internal_obf_key: args.cptra_obf_key,
             internal_iccm_lock: ReadWriteRegister::new(0),
             internal_fw_update_reset: ReadWriteRegister::new(0),

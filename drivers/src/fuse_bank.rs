@@ -54,6 +54,11 @@ impl From<IdevidCertAttr> for usize {
     }
 }
 
+pub enum LmsVerifyConfig {
+    EcdsaOnly = 0,
+    EcdsaAndLms = 1,
+}
+
 impl FuseBank<'_> {
     /// Get the key id crypto algorithm.
     ///
@@ -232,5 +237,37 @@ impl FuseBank<'_> {
         64 - ((soc_ifc_regs.fuse_runtime_svn().at(1).read() as u64) << 32
             | soc_ifc_regs.fuse_runtime_svn().at(0).read() as u64)
             .leading_zeros()
+    }
+
+    /// Get the lms revocation bits.
+    ///
+    /// # Arguments
+    /// * None
+    ///
+    /// # Returns
+    ///     lms revocation bits
+    ///
+    pub fn lms_revocation(&self) -> u32 {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        soc_ifc_regs.fuse_lms_revocation().read()
+    }
+
+    /// Get the lms verification config.
+    ///
+    /// # Arguments
+    /// * None
+    ///
+    /// # Returns
+    ///     LmsVerifyConfig
+    ///         EcdsaOnly: Verify Caliptra firmware images with ECDSA-only
+    ///         EcdsaAndLms: Verify Caliptra firmware images with ECDSA and LMS
+    ///
+    pub fn lms_verify(&self) -> LmsVerifyConfig {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        if !soc_ifc_regs.fuse_lms_verify().read().lms_verify() {
+            LmsVerifyConfig::EcdsaOnly
+        } else {
+            LmsVerifyConfig::EcdsaAndLms
+        }
     }
 }
