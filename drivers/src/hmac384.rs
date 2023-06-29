@@ -14,7 +14,8 @@ Abstract:
 
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::{
-    array::Array4x32, wait, Array4x12, CaliptraError, CaliptraResult, KeyReadArgs, KeyWriteArgs,
+    array::Array4x32, wait, Array4x12, Array4x5, CaliptraError, CaliptraResult, KeyReadArgs,
+    KeyWriteArgs, Trng,
 };
 use caliptra_registers::hmac::HmacReg;
 use core::usize;
@@ -120,11 +121,13 @@ impl Hmac384 {
     /// # Arguments
     ///
     /// * `key`  - HMAC Key
+    /// * `trng` - TRNG driver instance
     ///
     /// * `tag`  -  The calculated tag
     pub fn hmac_init<'a>(
         &'a mut self,
         key: Hmac384Key,
+        trng: &mut Trng,
         mut tag: Hmac384Tag<'a>,
     ) -> CaliptraResult<Hmac384Op> {
         let hmac = self.hmac.regs_mut();
@@ -149,6 +152,11 @@ impl Hmac384 {
             }
         }
 
+        // Generate an LFSR seed.
+        let rand_data = trng.generate()?;
+        let iv: [u32; 5] = rand_data.0[..5].try_into().unwrap();
+        KvAccess::copy_from_arr(&Array4x5::from(iv), hmac.lfsr_seed())?;
+
         let op = Hmac384Op {
             hmac_engine: self,
             state: Hmac384OpState::Init,
@@ -166,14 +174,15 @@ impl Hmac384 {
     /// # Arguments
     ///
     /// * `key`  - HMAC Key
-    ///
     /// * `data` - Data to calculate the HMAC over
+    /// * `trng` - TRNG driver instance
     ///
     /// * `tag`  -  The calculated tag
     pub fn hmac(
         &mut self,
         key: Hmac384Key,
         data: Hmac384Data,
+        trng: &mut Trng,
         mut tag: Hmac384Tag,
     ) -> CaliptraResult<()> {
         let hmac = self.hmac.regs_mut();
@@ -197,6 +206,11 @@ impl Hmac384 {
                     .map_err(|err| err.into_read_key_err())?
             }
         }
+
+        // Generate an LFSR seed.
+        let rand_data = trng.generate()?;
+        let iv: [u32; 5] = rand_data.0[..5].try_into().unwrap();
+        KvAccess::copy_from_arr(&Array4x5::from(iv), hmac.lfsr_seed())?;
 
         // Calculate the hmac
         match data {
