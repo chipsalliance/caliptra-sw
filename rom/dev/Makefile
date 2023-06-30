@@ -98,7 +98,6 @@ objcopy:
 
 run: build-emu build-fw-image objcopy
 	cargo run \
-		--release \
 		-p caliptra-emu \
 		-- \
 		--req-idevid-csr \
@@ -109,7 +108,6 @@ run: build-emu build-fw-image objcopy
 
 run-update: build-emu build-fw-image objcopy
 		cargo run \
-		--release \
 		-p caliptra-emu \
 		-- \
 		--req-idevid-csr \
