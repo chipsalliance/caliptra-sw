@@ -30,16 +30,17 @@ jobs:
       - name: Find latest release
         id: find
         run: |
-          git config --global user.name "GitHub CI"
-          git config --global user.email "username@users.noreply.github.com"
-          TAG_BASE=release_v
+          DATE="$(date +'%Y%m%d')"
+          TAG_PREFIX="release_v"
+          TAG_BASE="${TAG_PREFIX}${DATE}_"
           INDEX=0
-          MOST_RECENT_RELEASE=None
-          while git tag | grep ${TAG_BASE}${INDEX}
-          do
-              MOST_RECENT_RELEASE=$(git tag | grep ${TAG_BASE}${INDEX} | head -1)
+          while git tag | grep ${TAG_BASE}${INDEX}; do
               ((INDEX+=1))
           done
+          MOST_RECENT_RELEASE=None
+          if git tag | grep ${TAG_PREFIX} > /dev/null; then
+              MOST_RECENT_RELEASE=$(git tag | grep ${TAG_PREFIX} | sort -r | head -1)
+          fi
           if [[ "$MOST_RECENT_RELEASE" == "None" ]]; then
               echo "create_release=true" >> $GITHUB_OUTPUT
           else
