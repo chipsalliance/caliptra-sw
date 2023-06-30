@@ -10,6 +10,7 @@ pub mod printer;
 pub mod boot_status;
 pub mod checksum;
 pub mod fuse;
+pub mod helpers;
 pub mod pcr;
 
 ///merge imports

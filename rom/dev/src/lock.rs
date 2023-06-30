@@ -28,10 +28,11 @@ pub fn lock_registers(env: &mut RomEnv, reset_reason: ResetReason) {
     cprintln!("[state] Locking Datavault");
     if reset_reason == ResetReason::ColdReset {
         lock_cold_reset_reg(env);
-        lock_warm_reset_reg(env);
-    } else if reset_reason == ResetReason::WarmReset {
-        lock_warm_reset_reg(env);
-    } else if reset_reason == ResetReason::UpdateReset {
+        lock_common_reg_set(env);
+    } else {
+        // For both UpdateReset and WarmReset, we lock the comm
+        // set of registers
+        lock_common_reg_set(env);
     }
 
     // Lock the PCR0 from clear
@@ -73,29 +74,29 @@ fn lock_cold_reset_reg(env: &mut RomEnv) {
         .lock_cold_reset_entry4(ColdResetEntry4::VendorPubKeyIndex);
 }
 
-/// Lock registers on a warm reset
+/// Lock all common registers across all reset types
 ///
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-fn lock_warm_reset_reg(env: &mut RomEnv) {
-    // Lock the Runtime TCI in data vault until next warm reset
+fn lock_common_reg_set(env: &mut RomEnv) {
+    // Lock the Runtime TCI in data vault until next reset
     env.data_vault
         .lock_warm_reset_entry48(WarmResetEntry48::RtTci);
 
-    // Lock the Runtime SVN  in data vault until next warm reset
+    // Lock the Runtime SVN  in data vault until next reset
     env.data_vault
         .lock_warm_reset_entry4(WarmResetEntry4::RtSvn);
 
-    // Lock the Runtime load address in data vault until next warm reset
+    // Lock the Runtime load address in data vault until next reset
     env.data_vault
         .lock_warm_reset_entry4(WarmResetEntry4::RtLoadAddr);
 
-    // Lock the Runtime entry point in data vault until next warm reset
+    // Lock the Runtime entry point in data vault until next reset
     env.data_vault
         .lock_warm_reset_entry4(WarmResetEntry4::RtEntryPoint);
 
-    // Lock the Manifest addr in data vault until next warm reset
+    // Lock the Manifest addr in data vault until next reset
     env.data_vault
         .lock_warm_reset_entry4(WarmResetEntry4::ManifestAddr);
 }
