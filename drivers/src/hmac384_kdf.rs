@@ -39,7 +39,7 @@ pub fn hmac384_kdf(
     trng: &mut Trng,
     output: Hmac384Tag,
 ) -> CaliptraResult<()> {
-    let mut hmac_op = hmac.hmac_init(key, trng, output)?;
+    let mut hmac_op = hmac.hmac_init(&key, trng, output)?;
 
     hmac_op.update(&1_u32.to_be_bytes())?;
     hmac_op.update(label)?;

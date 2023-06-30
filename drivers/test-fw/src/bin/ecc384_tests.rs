@@ -71,7 +71,7 @@ fn test_gen_key_pair() {
     let seed = [0u8; 48];
     let mut priv_key = Array4x12::default();
     let result = ecc.key_pair(
-        Ecc384Seed::from(&Ecc384Scalar::from(seed)),
+        &Ecc384Seed::from(&Ecc384Scalar::from(seed)),
         &Array4x12::default(),
         &mut trng,
         Ecc384PrivKeyOut::from(&mut priv_key),
@@ -135,7 +135,7 @@ fn test_gen_key_pair_with_iv() {
 
     let mut priv_key = Array4x12::default();
     let result = ecc.key_pair(
-        Ecc384Seed::from(&Ecc384Scalar::from(seed)),
+        &Ecc384Seed::from(&Ecc384Scalar::from(seed)),
         &Array4x12::from(nonce),
         &mut trng,
         Ecc384PrivKeyOut::from(&mut priv_key),
@@ -160,7 +160,7 @@ fn test_sign() {
     };
     let digest = Array4x12::new([0u32; 12]);
     let result = ecc.sign(
-        Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)),
+        &Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)),
         &digest,
         &mut trng,
     );
@@ -183,7 +183,7 @@ fn test_verify() {
     };
     let digest = Array4x12::new([0u32; 12]);
     let result = ecc.sign(
-        Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)),
+        &Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)),
         &digest,
         &mut trng,
     );
@@ -211,7 +211,7 @@ fn test_verify_failure() {
     };
     let digest = Array4x12::new([0u32; 12]);
     let result = ecc.sign(
-        Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)),
+        &Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)),
         &digest,
         &mut trng,
     );
@@ -247,7 +247,7 @@ fn test_kv_seed_from_input_msg_from_input() {
         usage: KeyUsage::default().set_ecc_private_key_en(),
     };
     let result = ecc.key_pair(
-        Ecc384Seed::from(&Ecc384Scalar::from(seed)),
+        &Ecc384Seed::from(&Ecc384Scalar::from(seed)),
         &Array4x12::default(),
         &mut trng,
         Ecc384PrivKeyOut::from(key_out_1),
@@ -263,7 +263,7 @@ fn test_kv_seed_from_input_msg_from_input() {
     let digest = Array4x12::new([0u32; 12]);
     let key_in_1 = KeyReadArgs::new(KeyId::KeyId2);
 
-    let result = ecc.sign(key_in_1.into(), &digest, &mut trng);
+    let result = ecc.sign(&key_in_1.into(), &digest, &mut trng);
     assert!(result.is_ok());
     let signature = result.unwrap();
     assert_eq!(signature.r, Ecc384Scalar::from(SIGNATURE_R));
@@ -308,7 +308,7 @@ fn test_kv_seed_from_kv_msg_from_input() {
         usage: KeyUsage::default().set_ecc_key_gen_seed_en(),
     };
     let result = ecc.key_pair(
-        Ecc384Seed::from(&Ecc384Scalar::from(seed)),
+        &Ecc384Seed::from(&Ecc384Scalar::from(seed)),
         &Array4x12::default(),
         &mut trng,
         Ecc384PrivKeyOut::from(key_out_1),
@@ -346,7 +346,7 @@ fn test_kv_seed_from_kv_msg_from_input() {
         usage: KeyUsage::default().set_ecc_private_key_en(),
     };
     let result = ecc.key_pair(
-        Ecc384Seed::from(key_in_seed),
+        &Ecc384Seed::from(key_in_seed),
         &Array4x12::default(),
         &mut trng,
         Ecc384PrivKeyOut::from(key_out_priv_key),
@@ -383,7 +383,7 @@ fn test_kv_seed_from_kv_msg_from_input() {
         0xe8, 0x8c, 0x10,
     ];
     let key_in_priv_key = KeyReadArgs::new(KeyId::KeyId1);
-    let result = ecc.sign(key_in_priv_key.into(), &Array4x12::from(msg), &mut trng);
+    let result = ecc.sign(&key_in_priv_key.into(), &Array4x12::from(msg), &mut trng);
     assert!(result.is_ok());
     let signature = result.unwrap();
     assert_eq!(signature.r, Ecc384Scalar::from(sig_r));

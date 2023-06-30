@@ -73,8 +73,8 @@ impl Crypto {
     /// * `KeyId` - Key Id inputted
     pub fn hmac384_mac(
         env: &mut FmcEnv,
-        key: Hmac384Key,
-        data: Hmac384Data,
+        key: &Hmac384Key,
+        data: &Hmac384Data,
         tag: KeyId,
     ) -> CaliptraResult<KeyId> {
         // Tag
@@ -118,7 +118,7 @@ impl Crypto {
             priv_key,
             pub_key: env
                 .ecc384
-                .key_pair(seed, &Array4x12::default(), &mut env.trng, key_out)?,
+                .key_pair(&seed, &Array4x12::default(), &mut env.trng, key_out)?,
         })
     }
 
@@ -144,7 +144,7 @@ impl Crypto {
         let digest = okref(&digest)?;
         let priv_key_args = KeyReadArgs::new(priv_key);
         let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
-        env.ecc384.sign(priv_key, digest, &mut env.trng)
+        env.ecc384.sign(&priv_key, digest, &mut env.trng)
     }
 
     /// Verify the ECC Signature

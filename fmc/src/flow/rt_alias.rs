@@ -177,7 +177,7 @@ impl RtAliasLayer {
 
         // Permute CDI from FMC TCI
         let data = Hmac384Data::Slice(&tci);
-        let cdi = Crypto::hmac384_mac(env, key, data, cdi)?;
+        let cdi = Crypto::hmac384_mac(env, &key, &data, cdi)?;
         Ok(cdi)
     }
 

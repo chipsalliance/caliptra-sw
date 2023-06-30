@@ -37,6 +37,14 @@ pub struct FwProcInfo {
     pub fmc_effective_fuse_svn: u32,
 }
 
+impl FwProcInfo {
+    pub fn zeroize(&mut self) {
+        self.fmc_cert_valid_not_before.value.fill(0);
+        self.fmc_cert_valid_not_after.value.fill(0);
+        self.fmc_effective_fuse_svn = 0;
+    }
+}
+
 pub struct FirmwareProcessor {}
 
 impl FirmwareProcessor {
