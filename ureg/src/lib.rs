@@ -11,13 +11,49 @@ Licensed under the Apache-2.0 license.
 
 use core::{default::Default, marker::PhantomData, mem::MaybeUninit};
 
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub enum UintType {
+    U8,
+    U16,
+    U32,
+    U64,
+}
+
+pub trait Uint: Clone + Copy + private::Sealed {
+    const TYPE: UintType;
+}
+
+mod private {
+    pub trait Sealed {}
+}
+
+impl Uint for u8 {
+    const TYPE: UintType = UintType::U8;
+}
+impl private::Sealed for u8 {}
+
+impl Uint for u16 {
+    const TYPE: UintType = UintType::U16;
+}
+impl private::Sealed for u16 {}
+
+impl Uint for u32 {
+    const TYPE: UintType = UintType::U32;
+}
+impl private::Sealed for u32 {}
+
+impl Uint for u64 {
+    const TYPE: UintType = UintType::U64;
+}
+impl private::Sealed for u64 {}
+
 /// The root trait for metadata describing a MMIO register.
 ///
 /// Implementors of this trait should also consider implementing
 /// [`ReadableReg`], [`ReadableReg`], and [`ResettableReg`].
 pub trait RegType {
     /// The raw type of the register: typically `u8`, `u16`, `u32`, or `u64`.
-    type Raw: Clone + Copy;
+    type Raw: Uint;
 }
 
 /// A trait used to describe an MMIO register with a reset value.
@@ -120,7 +156,7 @@ pub trait Mmio: Sized {
     /// # Safety
     ///
     /// Same as [`core::ptr::read_volatile`].
-    unsafe fn read_volatile<T: Clone + Copy>(&self, src: *const T) -> T;
+    unsafe fn read_volatile<T: Uint>(&self, src: *const T) -> T;
 
     /// # Safety
     ///
@@ -133,11 +169,7 @@ pub trait Mmio: Sized {
     /// [`core::ptr::write`] are met for every location between dst and
     /// `dst.add(LEN)`, and that dst.add(LEN) does not wrap around the address
     /// space.
-    unsafe fn read_volatile_array<const LEN: usize, T: Clone + Copy>(
-        &self,
-        dst: *mut T,
-        src: *mut T,
-    ) {
+    unsafe fn read_volatile_array<const LEN: usize, T: Uint>(&self, dst: *mut T, src: *mut T) {
         read_volatile_slice(self, dst, src, LEN);
     }
 }
@@ -151,7 +183,7 @@ pub trait MmioMut: Mmio {
     /// # Safety
     ///
     /// Same as [`core::ptr::write_volatile`].
-    unsafe fn write_volatile<T: Clone + Copy>(&self, dst: *mut T, src: T);
+    unsafe fn write_volatile<T: Uint>(&self, dst: *mut T, src: T);
 
     /// # Safety
     ///
@@ -159,7 +191,7 @@ pub trait MmioMut: Mmio {
     /// [`core::ptr::write_volatile`] are met for every location between dst and
     /// `dst.add(LEN)`, and that dst.add(LEN) does not wrap around the address
     /// space.
-    unsafe fn write_volatile_array<const LEN: usize, T: Clone + Copy>(
+    unsafe fn write_volatile_array<const LEN: usize, T: Uint>(
         &self,
         dst: *mut T,
         src: *const [T; LEN],
@@ -211,24 +243,20 @@ impl MmioMut for RealMmioMut<'_> {
 }
 impl<TMmio: Mmio> Mmio for &TMmio {
     #[inline(always)]
-    unsafe fn read_volatile<T: Clone + Copy>(&self, src: *const T) -> T {
+    unsafe fn read_volatile<T: Uint>(&self, src: *const T) -> T {
         (*self).read_volatile(src)
     }
-    unsafe fn read_volatile_array<const LEN: usize, T: Clone + Copy>(
-        &self,
-        dst: *mut T,
-        src: *mut T,
-    ) {
+    unsafe fn read_volatile_array<const LEN: usize, T: Uint>(&self, dst: *mut T, src: *mut T) {
         (*self).read_volatile_array::<LEN, T>(dst, src)
     }
 }
 impl<TMmio: MmioMut> MmioMut for &TMmio {
     #[inline(always)]
-    unsafe fn write_volatile<T: Clone + Copy>(&self, dst: *mut T, src: T) {
+    unsafe fn write_volatile<T: Uint>(&self, dst: *mut T, src: T) {
         (*self).write_volatile(dst, src)
     }
     #[inline(always)]
-    unsafe fn write_volatile_array<const LEN: usize, T: Clone + Copy>(
+    unsafe fn write_volatile_array<const LEN: usize, T: Uint>(
         &self,
         dst: *mut T,
         src: *const [T; LEN],
@@ -704,12 +732,8 @@ impl<const LEN: usize, TItem: FromMmioPtr> Array<LEN, TItem> {
     }
 }
 
-impl<
-        const LEN: usize,
-        TRaw: Clone + Copy,
-        TReg: ReadableReg<ReadVal = TRaw, Raw = TRaw>,
-        TMmio: Mmio,
-    > Array<LEN, RegRef<TReg, TMmio>>
+impl<const LEN: usize, TRaw: Uint, TReg: ReadableReg<ReadVal = TRaw, Raw = TRaw>, TMmio: Mmio>
+    Array<LEN, RegRef<TReg, TMmio>>
 {
     /// Reads the entire contents of the array from the underlying registers
     ///
@@ -752,7 +776,7 @@ impl<
 }
 
 #[inline(never)]
-unsafe fn read_volatile_slice<T: Clone + Copy, TMmio: Mmio>(
+unsafe fn read_volatile_slice<T: Uint, TMmio: Mmio>(
     mmio: &TMmio,
     dst: *mut T,
     src: *mut T,
@@ -764,11 +788,7 @@ unsafe fn read_volatile_slice<T: Clone + Copy, TMmio: Mmio>(
 }
 
 #[inline(never)]
-unsafe fn write_volatile_slice<T: Clone + Copy, TMmio: MmioMut>(
-    mmio: &TMmio,
-    dest: *mut T,
-    val: &[T],
-) {
+unsafe fn write_volatile_slice<T: Uint, TMmio: MmioMut>(mmio: &TMmio, dest: *mut T, val: &[T]) {
     #[allow(clippy::needless_range_loop)]
     for i in 0..val.len() {
         mmio.write_volatile(dest.add(i), val[i]);
@@ -777,7 +797,7 @@ unsafe fn write_volatile_slice<T: Clone + Copy, TMmio: MmioMut>(
 
 impl<
         const LEN: usize,
-        TRaw: Clone + Copy,
+        TRaw: Uint,
         TReg: WritableReg<WriteVal = TRaw, Raw = TRaw>,
         TMmio: MmioMut,
     > Array<LEN, RegRef<TReg, TMmio>>
