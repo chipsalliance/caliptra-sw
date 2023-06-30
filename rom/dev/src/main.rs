@@ -18,8 +18,8 @@ use crate::lock::lock_registers;
 use core::hint::black_box;
 
 use caliptra_drivers::{
-    report_fw_error_non_fatal, CaliptraError, Ecc384, Hmac384, Mailbox, ResetReason, Sha256,
-    Sha384, Sha384Acc, SocIfc,
+    report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError, Ecc384, Hmac384, Mailbox,
+    ResetReason, Sha256, Sha384, Sha384Acc, SocIfc,
 };
 use rom_env::RomEnv;
 
@@ -184,7 +184,7 @@ fn report_error_update_reset(code: u32) {
 #[allow(clippy::empty_loop)]
 fn report_error(code: u32) -> ! {
     cprintln!("ROM Error: 0x{:08X}", code);
-    report_fw_error_non_fatal(code);
+    report_fw_error_fatal(code);
 
     // Zeroize the crypto blocks.
     unsafe {
