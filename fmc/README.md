@@ -115,21 +115,28 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | fips_fw_load_addr_hdl | 4            | ROM        | Handle of base address of FIPS Module in ROM or ICCM SRAM. May be 0xFF if there is no discrete module.    |
 | rt_fw_load_addr_hdl   | 4            | ROM        | Handle of load address of Runtime FW Module value in data vault.SRAM.                                                 |
 | rt_fw_entry_point_hdl | 4            | ROM        | Handle of entry point of Runtime FW Module value in data vault. SRAM.                                                           |
-| fmc_tci_dv_hdl        | 1            | ROM        | Handle of FMC TCI value in the Data Vault.                                                                |
-| fmc_cdi_kv_hdl        | 1            | ROM        | Handle of FMC CDI value in the Key Vault. Value of 0xFF indicates not present.                            |
-| fmc_priv_key_kv_hdl   | 1            | ROM        | Handle of FMC Private Alias Key in the Key Vault.                                                         |
-| fmc_pub_key_x_dv_hdl  | 1            | ROM        | Handle of FMC Public Alias Key X Coordinate in the Data Vault.                                            |
-| fmc_pub_key_y_dv_hdl  | 1            | ROM        | Handle of FMC Public Alias Key Y Coordinate in the Data Vault                                             |
-| fmc_cert_sig_r_dv_hdl | 1            | ROM        | Handle of FMC Certificate Signature R Component in the Data Vault.                                        |
-| fmc_cert_sig_s_dv_hdl | 1            | ROM        | Handle of FMC Certificate Signature S Component in the Data Vault.                                        |
-| fmc_svn_dv_hdl        | 1            | ROM        | Handle of FMC SVN value in the Data Vault.                                                                |
-| rt_tci_dv_hdl         | 1            | ROM        | Handle of RT TCI value in the Data Vault.                                                                 |
-| rt_cdi_kv_hdl         | 1            | FMC        | Handle of RT CDI value in the Key Vault.                                                                  |
-| rt_priv_key_kv_hdl    | 1            | FMC        | Handle of RT Private Alias Key in the Key Vault.                                                          |
-Key Y Coordinate in the Data Vault.                                             |
-| rt_svn_dv_hdl         | 1            | FMC        | Handle of RT SVN value in the Data Vault.                                                                 |
+| fmc_tci_dv_hdl        | 4            | ROM        | Handle of FMC TCI value in the Data Vault.                                                                |
+| fmc_cdi_kv_hdl        | 4            | ROM        | Handle of FMC CDI value in the Key Vault. Value of 0xFF indicates not present.                            |
+| fmc_priv_key_kv_hdl   | 4            | ROM        | Handle of FMC Private Alias Key in the Key Vault.                                                         |
+| fmc_pub_key_x_dv_hdl  | 4            | ROM        | Handle of FMC Public Alias Key X Coordinate in the Data Vault.                                            |
+| fmc_pub_key_y_dv_hdl  | 4            | ROM        | Handle of FMC Public Alias Key Y Coordinate in the Data Vault                                             |
+| fmc_cert_sig_r_dv_hdl | 4            | ROM        | Handle of FMC Certificate Signature R Component in the Data Vault.                                        |
+| fmc_cert_sig_s_dv_hdl | 4            | ROM        | Handle of FMC Certificate Signature S Component in the Data Vault.                                        |
+| fmc_svn_dv_hdl        | 4            | ROM        | Handle of FMC SVN value in the Data Vault.                                                                |
+| rt_tci_dv_hdl         | 4            | ROM        | Handle of RT TCI value in the Data Vault.                                                                 |
+| rt_cdi_kv_hdl         | 4            | FMC        | Handle of RT CDI value in the Key Vault.                                                                  |
+| rt_priv_key_kv_hdl    | 4            | FMC        | Handle of RT Private Alias Key in the Key Vault.                                                          |
+| rt_svn_dv_hdl         | 4            | FMC        | Handle of RT SVN value in the Data Vault. 
+| ldevid_tbs_addr       | 4            | ROM        | Local Device ID TBS Address.                
+| fmcalias_tbs_addr     | 4            | ROM        | FMC Alias TBS Address.
+| ldevid_tbs_size       | 2            | ROM        | Local Device ID TBS Size.
+| fmcalias_tbs_size     | 2            | ROM        | FMC Alias TBS Size.  
+| pcr_log_addr          | 4            | ROM        | PCR Log Address.
+| fuse_log_addr         | 4            | ROM        | Fuse Log Address.                                    |
+| rt_dice_pub_key       | 96           | FMC        | RT Alias DICE Public Key.
 | rt_dice_sign          | 96           | FMC        | RT Alias DICE signature.
-| reserved              | 52           |            | Reserved for future use.                                                                                 |
+| idev_dice_pub_key     | 96           | ROM        | Initial Device ID Public Key.
+| reserved              | 132          |            | Reserved for future use.                                                                                 |
 
 *FHT is currently defined to be 512 bytes in length.*
 
@@ -198,10 +205,6 @@ This field provides the Handle into the Key Vault where the CDI<sub>RT</sub> is 
 ### rt_priv_key_kv_hdl
 
 This field provides the Handle into the Key Vault where the PrivateKey<sub>RT</sub> is stored.
-
-### rt_cert_sig_r_dv_hdl, rt_cert_sig_s_dv_hdl
-
-These fields provide the indices into the Data Vault where the Cert<sub>RT</sub> signature R and S components are stored.
 
 ### rt_svn_dv_hdl
 
