@@ -9,6 +9,9 @@ Licensed under the Apache-2.0 license.
 
 #![no_std]
 
+#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+mod opt_riscv;
+
 use core::{default::Default, marker::PhantomData, mem::MaybeUninit};
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -213,6 +216,11 @@ impl Mmio for RealMmio<'_> {
     unsafe fn read_volatile<T: Clone + Copy>(&self, src: *const T) -> T {
         core::ptr::read_volatile(src)
     }
+
+    #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+    unsafe fn read_volatile_array<const LEN: usize, T: Uint>(&self, dst: *mut T, src: *mut T) {
+        opt_riscv::read_volatile_array::<LEN, T>(dst, src)
+    }
 }
 
 /// A zero-sized type that implements the Mmio and MmioMut traits with real
@@ -239,6 +247,15 @@ impl MmioMut for RealMmioMut<'_> {
     #[inline(always)]
     unsafe fn write_volatile<T: Clone + Copy>(&self, dst: *mut T, src: T) {
         core::ptr::write_volatile(dst, src);
+    }
+
+    #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+    unsafe fn write_volatile_array<const LEN: usize, T: Uint>(
+        &self,
+        dst: *mut T,
+        src: *const [T; LEN],
+    ) {
+        opt_riscv::write_volatile_array::<LEN, T>(dst, src)
     }
 }
 impl<TMmio: Mmio> Mmio for &TMmio {
