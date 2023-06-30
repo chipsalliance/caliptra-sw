@@ -22,6 +22,8 @@ extern "C" {
     static mut FHT_ORG: u8;
 }
 
+use core::ptr;
+
 use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::{FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
@@ -57,8 +59,6 @@ pub extern "C" fn fmc_entry() -> ! {
 
     let fht = FirmwareHandoffTable::read_from(slice).unwrap();
     assert!(fht.is_valid());
-
-    create_certs();
 
     process_mailbox_commands();
 
@@ -111,7 +111,7 @@ fn fmc_panic(_: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 
-fn create_certs() {
+fn create_certs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     //
     // Create LDEVID cert.
     //
@@ -166,6 +166,8 @@ fn create_certs() {
             .unwrap();
     let _cert_len = builder.build(&mut cert).unwrap();
     cprint_slice_ref!("[fmc] FMCALIAS cert", &cert[.._cert_len]);
+
+    mbox.status().write(|w| w.status(|w| w.cmd_complete()));
 }
 
 fn copy_tbs(tbs: &mut [u8], ldevid_tbs: bool) {
@@ -210,7 +212,7 @@ fn process_mailbox_commands() {
             read_pcr_log(&mbox);
         }
         0x1000_0001 => {
-            // TODO: Generate certs
+            create_certs(&mbox);
         }
         0x1000_0002 => {
             read_fuse_log(&mbox);
@@ -218,7 +220,18 @@ fn process_mailbox_commands() {
         0x1000_0003 => {
             read_fht(&mbox);
         }
+        0x1000_0004 => {
+            trigger_update_reset(&mbox);
+        }
         _ => {}
+    }
+}
+
+fn trigger_update_reset(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    mbox.status().write(|w| w.status(|w| w.cmd_complete()));
+    const STDOUT: *mut u32 = 0x3003_0624 as *mut u32;
+    unsafe {
+        ptr::write_volatile(STDOUT, 1_u32);
     }
 }
 

@@ -1339,6 +1339,11 @@ fn cert_test_with_custom_dates() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
+    hw.step_until_output_contains("[exit] Launching FMC")
+        .unwrap();
+
+    hw.mailbox_execute(0x1000_0001, &[]).unwrap();
+
     let result = hw.copy_output_until_exit_success(&mut output);
     assert!(result.is_ok());
     let output = String::from_utf8_lossy(&output);
@@ -1401,6 +1406,12 @@ fn cert_test() {
     hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
+
+    hw.step_until_output_contains("[exit] Launching FMC")
+        .unwrap();
+
+    let result = hw.mailbox_execute(0x1000_0001, &[]);
+    assert!(result.is_ok());
 
     let result = hw.copy_output_until_exit_success(&mut output);
     assert!(result.is_ok());
