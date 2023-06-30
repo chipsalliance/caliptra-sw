@@ -114,13 +114,32 @@ impl<const RESET_VAL: u32, TReadVal: Copy + From<u32>, TWriteVal: Copy + From<u3
 /// A trait for performing volatile reads from a pointer. On real
 /// systems, [`RealMmio`] is typically used to implement this trait, but other
 /// implementations may be used for testing or simulation.
-pub trait Mmio {
+pub trait Mmio: Sized {
     /// Performs (or simulates) a volatile read from `src` and returns the read value.
     ///
     /// # Safety
     ///
     /// Same as [`core::ptr::read_volatile`].
     unsafe fn read_volatile<T: Clone + Copy>(&self, src: *const T) -> T;
+
+    /// # Safety
+    ///
+    /// Caller must ensure that the safety requirements of
+    /// [`core::ptr::read_volatile`] are met for every location between src and
+    /// `dst.add(LEN)`, and that src.add(LEN) does not wrap around the address
+    /// space.
+    ///
+    /// Also, the caller must ensure that the safety requirements of
+    /// [`core::ptr::write`] are met for every location between dst and
+    /// `dst.add(LEN)`, and that dst.add(LEN) does not wrap around the address
+    /// space.
+    unsafe fn read_volatile_array<const LEN: usize, T: Clone + Copy>(
+        &self,
+        dst: *mut T,
+        src: *mut T,
+    ) {
+        read_volatile_slice(self, dst, src, LEN);
+    }
 }
 
 /// A trait for performing volatile writes (or reads via Mmio supertrait) to/from a
@@ -133,6 +152,20 @@ pub trait MmioMut: Mmio {
     ///
     /// Same as [`core::ptr::write_volatile`].
     unsafe fn write_volatile<T: Clone + Copy>(&self, dst: *mut T, src: T);
+
+    /// # Safety
+    ///
+    /// Caller must ensure that the safety requirements of
+    /// [`core::ptr::write_volatile`] are met for every location between dst and
+    /// `dst.add(LEN)`, and that dst.add(LEN) does not wrap around the address
+    /// space.
+    unsafe fn write_volatile_array<const LEN: usize, T: Clone + Copy>(
+        &self,
+        dst: *mut T,
+        src: *const [T; LEN],
+    ) {
+        write_volatile_slice(self, dst, &*src);
+    }
 }
 
 /// A zero-sized type that implements the Mmio trait with real reads from the
@@ -181,11 +214,26 @@ impl<TMmio: Mmio> Mmio for &TMmio {
     unsafe fn read_volatile<T: Clone + Copy>(&self, src: *const T) -> T {
         (*self).read_volatile(src)
     }
+    unsafe fn read_volatile_array<const LEN: usize, T: Clone + Copy>(
+        &self,
+        dst: *mut T,
+        src: *mut T,
+    ) {
+        (*self).read_volatile_array::<LEN, T>(dst, src)
+    }
 }
 impl<TMmio: MmioMut> MmioMut for &TMmio {
     #[inline(always)]
     unsafe fn write_volatile<T: Clone + Copy>(&self, dst: *mut T, src: T) {
         (*self).write_volatile(dst, src)
+    }
+    #[inline(always)]
+    unsafe fn write_volatile_array<const LEN: usize, T: Clone + Copy>(
+        &self,
+        dst: *mut T,
+        src: *const [T; LEN],
+    ) {
+        (*self).write_volatile_array::<LEN, T>(dst, src)
     }
 }
 pub trait FromMmioPtr {
@@ -691,12 +739,8 @@ impl<
     pub fn read(&self) -> [TReg::ReadVal; LEN] {
         let mut result: MaybeUninit<[TReg::ReadVal; LEN]> = MaybeUninit::uninit();
         unsafe {
-            read_volatile_slice(
-                &self.mmio,
-                result.as_mut_ptr() as *mut TReg::Raw,
-                self.ptr,
-                LEN,
-            );
+            self.mmio
+                .read_volatile_array::<LEN, _>(result.as_mut_ptr() as *mut TReg::ReadVal, self.ptr);
             result.assume_init()
         }
     }
@@ -766,7 +810,7 @@ impl<
     #[inline(always)]
     pub fn write(&self, val: &[TRaw; LEN]) {
         unsafe {
-            write_volatile_slice(&self.mmio, self.ptr, val.as_slice());
+            self.mmio.write_volatile_array(self.ptr, val);
         }
     }
 }
