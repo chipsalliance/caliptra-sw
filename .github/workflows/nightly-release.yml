@@ -54,21 +54,21 @@ jobs:
           echo "release_ref=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "Current ref $(git rev-parse HEAD) will receive tag ${TAG_BASE}${INDEX} after tests"
 
-  #verilator-full-suite:
-  #  name: Temp
-  #  needs: find-latest-release
-  #  runs-on: ubuntu-22.04
-  #  steps:
-  #    - name: Get current date
-  #      run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
-
   verilator-full-suite:
-    name: Nightly Verilator Suite
+    name: Temp
     needs: find-latest-release
-    if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/nightly-verilator.yml
-    with:
-      ref: ${{ needs.find-latest-release.outputs.release_ref }}
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Get current date
+        run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+
+  #verilator-full-suite:
+  #  name: Nightly Verilator Suite
+  #  needs: find-latest-release
+  #  if: needs.find-latest-release.outputs.create_release
+  #  uses: ./.github/workflows/nightly-verilator.yml
+  #  with:
+  #    ref: ${{ needs.find-latest-release.outputs.release_ref }}
 
   create-release:
     name: Create New Release
