@@ -656,7 +656,13 @@ impl<const LEN: usize, TItem: FromMmioPtr> Array<LEN, TItem> {
     }
 }
 
-impl<const LEN: usize, TReg: ReadableReg, TMmio: Mmio> Array<LEN, RegRef<TReg, TMmio>> {
+impl<
+        const LEN: usize,
+        TRaw: Clone + Copy,
+        TReg: ReadableReg<ReadVal = TRaw, Raw = TRaw>,
+        TMmio: Mmio,
+    > Array<LEN, RegRef<TReg, TMmio>>
+{
     /// Reads the entire contents of the array from the underlying registers
     ///
     /// # Example
@@ -687,7 +693,7 @@ impl<const LEN: usize, TReg: ReadableReg, TMmio: Mmio> Array<LEN, RegRef<TReg, T
         unsafe {
             read_volatile_slice(
                 &self.mmio,
-                result.as_mut_ptr() as *mut TReg::ReadVal,
+                result.as_mut_ptr() as *mut TReg::Raw,
                 self.ptr,
                 LEN,
             );
@@ -702,30 +708,36 @@ impl<const LEN: usize, TReg: ReadableReg, TMmio: Mmio> Array<LEN, RegRef<TReg, T
 }
 
 #[inline(never)]
-unsafe fn read_volatile_slice<D: Copy, T: Copy + From<D>, TMmio: Mmio>(
+unsafe fn read_volatile_slice<T: Clone + Copy, TMmio: Mmio>(
     mmio: &TMmio,
     dst: *mut T,
-    src: *mut D,
+    src: *mut T,
     len: usize,
 ) {
     for i in 0..len {
-        dst.add(i).write(mmio.read_volatile(src.add(i)).into());
+        dst.add(i).write(mmio.read_volatile(src.add(i)));
     }
 }
 
 #[inline(never)]
-unsafe fn write_volatile_slice<D: Copy, T: Copy + Into<D>, TMmio: MmioMut>(
+unsafe fn write_volatile_slice<T: Clone + Copy, TMmio: MmioMut>(
     mmio: &TMmio,
-    dest: *mut D,
+    dest: *mut T,
     val: &[T],
 ) {
     #[allow(clippy::needless_range_loop)]
     for i in 0..val.len() {
-        mmio.write_volatile(dest.add(i), val[i].into());
+        mmio.write_volatile(dest.add(i), val[i]);
     }
 }
 
-impl<const LEN: usize, TReg: WritableReg, TMmio: MmioMut> Array<LEN, RegRef<TReg, TMmio>> {
+impl<
+        const LEN: usize,
+        TRaw: Clone + Copy,
+        TReg: WritableReg<WriteVal = TRaw, Raw = TRaw>,
+        TMmio: MmioMut,
+    > Array<LEN, RegRef<TReg, TMmio>>
+{
     /// Reads the entire contents of the array from the underlying registers
     ///
     /// # Example
@@ -752,7 +764,7 @@ impl<const LEN: usize, TReg: WritableReg, TMmio: MmioMut> Array<LEN, RegRef<TReg
     /// regs.value().write(&[0x10, 0x20, 0x30, 0x40]);
     /// ```
     #[inline(always)]
-    pub fn write(&self, val: &[TReg::WriteVal; LEN]) {
+    pub fn write(&self, val: &[TRaw; LEN]) {
         unsafe {
             write_volatile_slice(&self.mmio, self.ptr, val.as_slice());
         }
@@ -927,11 +939,12 @@ mod tests {
     #[test]
     pub fn test_reg_array() {
         let mut fake_mem = [0, 1, 2, 3, 4, 5, 6];
-        let reg_array =
-            unsafe { Array::<4, RegRef<ControlReg, RealMmioMut>>::new(fake_mem.as_mut_ptr()) };
-        assert_eq!(reg_array.read(), [0.into(), 1.into(), 2.into(), 3.into()]);
+        let reg_array = unsafe {
+            Array::<4, RegRef<ReadWriteReg32<0, u32, u32>, RealMmioMut>>::new(fake_mem.as_mut_ptr())
+        };
+        assert_eq!(reg_array.read(), [0, 1, 2, 3]);
 
-        reg_array.write(&[10.into(), 11.into(), 12.into(), 13.into()]);
+        reg_array.write(&[10, 11, 12, 13]);
         assert_eq!(&fake_mem, &[10, 11, 12, 13, 4, 5, 6]);
 
         assert_eq!(&fake_mem[0] as *const _, reg_array.at(0).ptr);
@@ -942,10 +955,11 @@ mod tests {
     #[test]
     pub fn test_reg_array_truncate() {
         let mut fake_mem = [0, 1, 2, 3, 4, 5, 6];
-        let reg_array =
-            unsafe { Array::<4, RegRef<ControlReg, RealMmioMut>>::new(fake_mem.as_mut_ptr()) };
+        let reg_array = unsafe {
+            Array::<4, RegRef<ReadWriteReg32<0, u32, u32>, RealMmioMut>>::new(fake_mem.as_mut_ptr())
+        };
         let truncated = reg_array.truncate::<3>();
-        assert_eq!(truncated.read(), [0.into(), 1.into(), 2.into()]);
+        assert_eq!(truncated.read(), [0, 1, 2]);
     }
 
     #[test]
