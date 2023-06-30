@@ -13,9 +13,9 @@ Abstract:
 --*/
 
 use crate::fuse::log_fuse_data;
-use crate::pcr;
 use crate::rom_env::RomEnv;
 use crate::{cprintln, verifier::RomImageVerificationEnv};
+use crate::{pcr, wdt};
 use caliptra_common::{cprint, FuseLogEntryId, RomBootStatus::*};
 use caliptra_drivers::*;
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
@@ -44,8 +44,14 @@ impl FirmwareProcessor {
     const MBOX_DOWNLOAD_FIRMWARE_CMD_ID: u32 = 0x46574C44;
 
     pub fn process(env: &mut RomEnv) -> CaliptraResult<FwProcInfo> {
+        // Disable the watchdog timer during firmware download.
+        wdt::stop_wdt(&mut env.soc_ifc);
+
         // Download the image
         let mut txn = Self::download_image(&mut env.soc_ifc, &mut env.mbox)?;
+
+        // Renable the watchdog timer.
+        wdt::start_wdt(&mut env.soc_ifc);
 
         // Load the manifest
         let manifest = Self::load_manifest(&mut txn);

@@ -288,6 +288,10 @@ impl CaliptraError {
     /// TRNG_EXT Errors
     pub const DRIVER_TRNG_EXT_TIMEOUT: CaliptraError = CaliptraError::new_const(0x00100001);
 
+    /// SOC_IFC driver Errors
+    pub const DRIVER_SOC_IFC_INVALID_TIMER_CONFIG: CaliptraError =
+        CaliptraError::new_const(0x00100001);
+
     /// Initial Device ID Errors
     pub const ROM_IDEVID_CSR_BUILDER_INIT_FAILURE: CaliptraError =
         CaliptraError::new_const(0x01000001);
