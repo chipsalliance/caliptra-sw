@@ -36,21 +36,19 @@ fn test_update_reset_success() {
     )
     .unwrap();
 
-    assert!(hw
-        .upload_firmware(&image_bundle.to_bytes().unwrap())
-        .is_ok());
+    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        .unwrap();
 
     hw.step_until_output_contains("[exit] Launching FMC")
         .unwrap();
 
-    let result = hw.mailbox_execute(TEST_FMC_CMD_RESET_FOR_UPDATE, &[]);
-    assert!(result.is_ok());
+    hw.mailbox_execute(TEST_FMC_CMD_RESET_FOR_UPDATE, &[])
+        .unwrap();
 
     hw.step_until_output_contains("[update-reset] ++").unwrap();
 
-    assert!(hw
-        .upload_firmware(&image_bundle.to_bytes().unwrap())
-        .is_ok());
+    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        .unwrap();
 
     hw.step_until_exit_success().unwrap();
 }
@@ -84,15 +82,14 @@ fn test_update_reset_no_mailbox_cmd() {
     )
     .unwrap();
 
-    assert!(hw
-        .upload_firmware(&image_bundle.to_bytes().unwrap())
-        .is_ok());
+    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        .unwrap();
 
     hw.step_until_output_contains("[exit] Launching FMC")
         .unwrap();
 
-    let result = hw.mailbox_execute(0x1000_0004, &[]);
-    assert!(result.is_ok());
+    hw.mailbox_execute(TEST_FMC_CMD_RESET_FOR_UPDATE, &[])
+        .unwrap();
 
     hw.step_until_output_contains("[update-reset] ++").unwrap();
 
@@ -138,15 +135,14 @@ fn test_update_reset_non_fw_load_cmd() {
     )
     .unwrap();
 
-    assert!(hw
-        .upload_firmware(&image_bundle.to_bytes().unwrap())
-        .is_ok());
+    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        .unwrap();
 
     hw.step_until_output_contains("[exit] Launching FMC")
         .unwrap();
 
-    let result = hw.mailbox_execute(0x1000_0004, &[]);
-    assert!(result.is_ok());
+    hw.mailbox_execute(TEST_FMC_CMD_RESET_FOR_UPDATE, &[])
+        .unwrap();
 
     hw.step_until_output_contains("[update-reset] ++").unwrap();
 
@@ -189,15 +185,14 @@ fn test_update_reset_verify_image_failure() {
     )
     .unwrap();
 
-    assert!(hw
-        .upload_firmware(&image_bundle.to_bytes().unwrap())
-        .is_ok());
+    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        .unwrap();
 
     hw.step_until_output_contains("[exit] Launching FMC")
         .unwrap();
 
-    let result = hw.mailbox_execute(0x1000_0004, &[]);
-    assert!(result.is_ok());
+    hw.mailbox_execute(TEST_FMC_CMD_RESET_FOR_UPDATE, &[])
+        .unwrap();
 
     hw.step_until_output_contains("[update-reset] ++").unwrap();
 

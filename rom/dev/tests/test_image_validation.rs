@@ -1410,8 +1410,7 @@ fn cert_test() {
     hw.step_until_output_contains("[exit] Launching FMC")
         .unwrap();
 
-    let result = hw.mailbox_execute(0x1000_0001, &[]);
-    assert!(result.is_ok());
+    hw.mailbox_execute(0x1000_0001, &[]).unwrap();
 
     let result = hw.copy_output_until_exit_success(&mut output);
     assert!(result.is_ok());
