@@ -10,4 +10,6 @@ cargo run --manifest-path=builder/Cargo.toml --bin image -- --rom caliptra_rom.b
 objcopy -I binary -O verilog caliptra_rom.bin release/workspace/caliptra_rom.hex
 cp -a target/riscv32imc-unknown-none-elf/firmware/* release/workspace/
 cp image_bundle.bin release/workspace/
-zip -r release/release.zip release/workspace
+
+cd ./release/workspace
+zip -r ../release.zip ./*

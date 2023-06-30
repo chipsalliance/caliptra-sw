@@ -83,7 +83,9 @@ jobs:
           ref: ${{ needs.find-latest-release.outputs.release_ref }}
 
       - name: Generate release zip
-        run: ./release/build_release.sh
+        run: |
+          ./release/build_release.sh
+          mv ./release/release.zip ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
 
       - name: Tag repo with new release number
         run: |
@@ -95,5 +97,5 @@ jobs:
       - name: Upload release
         uses: softprops/action-gh-release@v1
         with:
-          files: release/release.zip
+          files: ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
           tag_name: ${{ needs.find-latest-release.outputs.new_release_tag }}
