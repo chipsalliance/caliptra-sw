@@ -53,6 +53,7 @@ jobs:
           echo "new_release_tag=${TAG_BASE}${INDEX}" >> $GITHUB_OUTPUT
           echo "release_ref=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "New release tag: ${TAG_BASE}${INDEX}"
+          echo "Current ref $(git rev-parse HEAD) will receive tag ${TAG_BASE}${INDEX} after tests"
 
   verilator-full-suite:
     name: Temp
