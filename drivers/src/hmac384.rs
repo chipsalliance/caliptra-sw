@@ -336,7 +336,7 @@ impl Hmac384 {
         // PANIC-FREE: Following check optimizes the out of bounds
         // panic in copy_from_slice
         if slice.len() > block.len() - 1 {
-            return Err(CaliptraError::DRIVER_SHA384_INDEX_OUT_OF_BOUNDS);
+            return Err(CaliptraError::DRIVER_HMAC384_INDEX_OUT_OF_BOUNDS);
         }
         block[..slice.len()].copy_from_slice(slice);
         block[slice.len()] = 0b1000_0000;

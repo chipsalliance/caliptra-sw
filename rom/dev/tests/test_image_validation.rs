@@ -386,7 +386,7 @@ fn test_header_verify_owner_sig_zero_fuses() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
-    assert_eq!(hw.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
+    assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), 0);
 }
 
 #[test]
@@ -1273,7 +1273,7 @@ fn test_runtime_svn_less_than_fuse_svn() {
             .unwrap_err()
     );
     assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        hw.soc_ifc().cptra_fw_error_fatal().read(),
         CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE.into()
     );
 }
