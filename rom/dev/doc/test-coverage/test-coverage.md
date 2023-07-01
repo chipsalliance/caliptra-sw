@@ -47,7 +47,8 @@ Test Name | ROM Stage | Description | ROM Error Code
 **cert_test** | DICE Cert | <Placeholder> | N/A
 **cert_test_with_custom_dates** | DICE Cert | <Placeholder> | N/A
 <br><br>
-# **IDEVID Integration Tests**
+# **COLD BOOT Tests**
+## **IDEVID Integration Tests**
 Test Name | ROM Stage | Description | ROM Error Code
 ---|---|---|---
 **test_idev_subj_key_id_algo** | DICE - IDEVID | Tests with X509KeyIdAlgo::[SHA1/SHA256/SHA384/Fuse] for generating  Subject Key Identifier | N/A
@@ -61,15 +62,23 @@ Test Name | ROM Stage | Description | ROM Error Code
 **test_pcr_log** | FW Donwloader |  Checks if PCR log entries are correctly logged to DCCM  | N/A
 **ttest_fuse_log** | FW Donwloader |  Checks if Fuse log entries are correctly logged to DCCM  | N/A
 <br><br>
-# **FMCALIAS Integration Tests**
+## **FMCALIAS Integration Tests**
 Test Name | ROM Stage | Description | ROM Error Code
 ---|---|---|---
 **test_fht_info** | DICE - FMCALIAS | Checks if entries are correctly added in Firmware Handoff table | N/A
 <br><br>
-# **DICE E2E Integration Tests**
+## **DICE E2E Integration Tests**
 Test Name | ROM Stage | Description | ROM Error Code
 ---|---|---|---
 **test_status_reporting** | All layers | Checks if boot statuses are correctly reported | N/A
+<br><br>
+# **Update Reset Tests**
+Test Name |  Description | ROM Error Code
+---|---|---
+**test_update_reset_success** | Tests successful Update Reset flow  | N/A
+**test_update_reset_no_mailbox_cmd** | Tests update reset flow by not providing firmware image  | ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE
+**test_update_reset_non_fw_load_cmd** | Tests update reset flow by providing a non-fw load Mailbox command  | ROM_UPDATE_RESET_FLOW_INVALID_FIRMWARE_COMMAND
+**test_update_reset_verify_image_failure** | Tests update reset flow by providing non-compliant fw image  | IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH
 <br><br>
 # **Mailbox Tests**
 Test Name | ROM Stage | Description | ROM Error Code

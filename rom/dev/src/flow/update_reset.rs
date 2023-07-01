@@ -147,7 +147,7 @@ impl UpdateResetFlow {
         //Call the complete here to reset the execute bit
         txn.complete(true)?;
 
-        // Drop the tranaction and release the Mailbox lock after the image
+        // Drop the transaction and release the Mailbox lock after the image
         // has been successfully verified and loaded in memory
         drop(txn);
 
