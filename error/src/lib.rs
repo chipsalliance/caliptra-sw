@@ -317,6 +317,9 @@ impl CaliptraError {
     pub const ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE: CaliptraError =
         CaliptraError::new_const(0x01040004);
 
+    /// Unknown Reset Error
+    pub const ROM_UNKNOWN_RESET_FLOW: CaliptraError = CaliptraError::new_const(0x01040020);
+
     /// ROM Global Errors
     pub const ROM_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x01050001);
     pub const ROM_GLOBAL_EXCEPTION: CaliptraError = CaliptraError::new_const(0x01050002);
