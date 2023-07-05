@@ -3,9 +3,12 @@
 use std::mem;
 
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
+use caliptra_common::RomBootStatus;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
 use caliptra_hw_model::{DefaultHwModel, ModelError};
 use caliptra_image_types::ImageBundle;
+
+pub const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
 
 pub fn build_hw_model_and_image_bundle(
     fuses: Fuses,
@@ -60,6 +63,43 @@ pub fn change_dword_endianess(data: &mut [u8]) {
     for idx in (0..data.len()).step_by(4) {
         data.swap(idx, idx + 3);
         data.swap(idx + 1, idx + 2);
+    }
+}
+
+#[track_caller]
+pub fn step_until_boot_status(
+    hw: &mut DefaultHwModel,
+    expected_status: RomBootStatus,
+    ignore_intermediate_status: bool,
+) {
+    // Since the boot takes less than 20M cycles, we know something is wrong if
+    // we're stuck at the same state for that duration.
+    const MAX_WAIT_CYCLES: u32 = 20_000_000;
+
+    let mut cycle_count = 0u32;
+    let expected_status_u32: u32 = expected_status.into();
+    let initial_boot_status_u32 = hw.soc_ifc().cptra_boot_status().read();
+    loop {
+        let actual_status_u32 = hw.soc_ifc().cptra_boot_status().read();
+        if expected_status_u32 == actual_status_u32 {
+            break;
+        }
+
+        if !ignore_intermediate_status && actual_status_u32 != initial_boot_status_u32 {
+            panic!(
+                "Expected the next boot_status to be {expected_status:?} \
+                    ({expected_status_u32}), but status changed from \
+                    {initial_boot_status_u32} to {actual_status_u32})"
+            );
+        }
+        hw.step();
+        cycle_count += 1;
+        if cycle_count >= MAX_WAIT_CYCLES {
+            panic!(
+                "Expected boot_status to be {expected_status:?} \
+                    ({expected_status_u32}), but was stuck at ({actual_status_u32})"
+            );
+        }
     }
 }
 
