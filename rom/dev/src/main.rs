@@ -186,13 +186,16 @@ fn report_error(code: u32) -> ! {
     cprintln!("ROM Fatal Error: 0x{:08X}", code);
     report_fw_error_fatal(code);
 
-    // Zeroize the crypto blocks.
     unsafe {
+        // Zeroize the crypto blocks.
         Ecc384::zeroize();
         Hmac384::zeroize();
         Sha256::zeroize();
         Sha384::zeroize();
         Sha384Acc::zeroize();
+
+        // Lock the SHA Accelerator.
+        Sha384Acc::lock();
 
         // Stop the watchdog timer.
         // Note: This is an idempotent operation.
