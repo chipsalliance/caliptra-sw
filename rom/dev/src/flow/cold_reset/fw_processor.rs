@@ -16,17 +16,13 @@ use crate::fuse::log_fuse_data;
 use crate::rom_env::RomEnv;
 use crate::{cprintln, verifier::RomImageVerificationEnv};
 use crate::{pcr, wdt};
-use caliptra_common::{cprint, FuseLogEntryId, RomBootStatus::*};
+use caliptra_common::{cprint, memory_layout::MAN1_ORG, FuseLogEntryId, RomBootStatus::*};
 use caliptra_drivers::*;
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier};
 use caliptra_x509::{NotAfter, NotBefore};
 use core::mem::ManuallyDrop;
 use zerocopy::{AsBytes, FromBytes};
-
-extern "C" {
-    static mut MAN1_ORG: u32;
-}
 
 #[derive(Debug, Default)]
 pub struct FwProcInfo {
@@ -163,7 +159,7 @@ impl FirmwareProcessor {
     /// * `Manifest` - Caliptra Image Bundle Manifest
     fn load_manifest(txn: &mut MailboxRecvTxn) -> CaliptraResult<ImageManifest> {
         let slice = unsafe {
-            let ptr = &mut MAN1_ORG as *mut u32;
+            let ptr = MAN1_ORG as *mut u32;
             core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
         };
 
@@ -328,8 +324,8 @@ impl FirmwareProcessor {
         data_vault.write_warm_reset_entry4(WarmResetEntry4::RtEntryPoint, info.runtime.entry_point);
 
         // TODO: Need a better way to get the Manifest address
-        let slice = unsafe {
-            let ptr = &MAN1_ORG as *const u32;
+        let slice = {
+            let ptr = MAN1_ORG as *const u32;
             ptr as u32
         };
 
