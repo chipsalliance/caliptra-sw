@@ -53,7 +53,7 @@ set_property -dict [list \
   CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
 ] [get_ips fpga_ecc_ram_tdp_file]
 
-set_property verilog_define {TECH_SPECIFIC_ICG USER_ICG=fpga_fake_icg RV_FPGA_OPTIMIZE TEC_RV_ICG=clockhdr} [current_fileset]
+set_property verilog_define {TECH_SPECIFIC_ICG USER_ICG=fpga_fake_icg RV_FPGA_OPTIMIZE TEC_RV_ICG=clockhdr CALIPTRA_INTERNAL_TRNG} [current_fileset]
 
 # Add VEER Headers
 add_files $rtlDir/src/riscv_core/veer_el2/rtl/el2_param.vh
@@ -226,7 +226,7 @@ save_bd_design
 #     Make Caliptra use an icg that doesn't clock gate
 #     Make the VEER core be optimized for FPGA (no clock gating)
 #     Define VEER TEC_RV_ICG to allow beh_lib to synthesise without error
-set_property verilog_define {TECH_SPECIFIC_ICG USER_ICG=fpga_fake_icg RV_FPGA_OPTIMIZE TEC_RV_ICG=clockhdr} [current_fileset]
+set_property verilog_define {TECH_SPECIFIC_ICG USER_ICG=fpga_fake_icg RV_FPGA_OPTIMIZE TEC_RV_ICG=clockhdr CALIPTRA_INTERNAL_TRNG} [current_fileset]
 
 # Create the HDL wrapper for the block design and add it. This will be set as top.
 make_wrapper -files [get_files $outputDir/caliptra_fpga_project.srcs/sources_1/bd/caliptra_fpga_project_bd/caliptra_fpga_project_bd.bd] -top
