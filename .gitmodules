@@ -9,3 +9,6 @@
 	path = runtime/dpe
 	url = https://github.com/chipsalliance/caliptra-dpe.git
 	branch = main
+[submodule "hw-latest/caliptra-rtl-fpga"]
+	path = hw-latest/caliptra-rtl-fpga
+	url = git@github.com:chipsalliance/caliptra-rtl.git

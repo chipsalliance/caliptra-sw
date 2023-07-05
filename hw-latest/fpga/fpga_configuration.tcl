@@ -6,7 +6,7 @@ file mkdir $outputDir
 file mkdir $packageDir
 
 # Path to rtl
-set rtlDir ../caliptra-rtl
+set rtlDir ../caliptra-rtl-fpga
 
 # JTAG enabled
 set JTAG 0
