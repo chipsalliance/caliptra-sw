@@ -1,6 +1,8 @@
 // Licensed under the Apache-2.0 license
 
+use crate::helpers::step_until_boot_status;
 use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, ROM_WITH_UART};
+use caliptra_common::RomBootStatus::ColdResetComplete;
 use caliptra_common::{FirmwareHandoffTable, FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_error::CaliptraError;
@@ -110,8 +112,7 @@ fn test_pcr_log() {
         .upload_firmware(&image_bundle.to_bytes().unwrap())
         .is_ok());
 
-    hw.step_until_output_contains("[exit] Launching FMC")
-        .unwrap();
+    step_until_boot_status(&mut hw, ColdResetComplete, true);
 
     let result = hw.mailbox_execute(0x1000_0000, &[]);
     assert!(result.is_ok());
@@ -243,8 +244,7 @@ fn test_fuse_log() {
         .upload_firmware(&image_bundle.to_bytes().unwrap())
         .is_ok());
 
-    hw.step_until_output_contains("[exit] Launching FMC")
-        .unwrap();
+    step_until_boot_status(&mut hw, ColdResetComplete, true);
 
     let result = hw.mailbox_execute(0x1000_0002, &[]);
     assert!(result.is_ok());
@@ -358,8 +358,7 @@ fn test_fht_info() {
         .upload_firmware(&image_bundle.to_bytes().unwrap())
         .is_ok());
 
-    hw.step_until_output_contains("[exit] Launching FMC")
-        .unwrap();
+    step_until_boot_status(&mut hw, ColdResetComplete, true);
 
     let result = hw.mailbox_execute(0x1000_0003, &[]);
     assert!(result.is_ok());
