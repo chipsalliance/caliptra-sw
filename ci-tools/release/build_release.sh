@@ -3,8 +3,9 @@
 
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")"/..
+cd "$(dirname "${BASH_SOURCE[0]}")"/../..
 
+mkdir release
 mkdir release/workspace
 cargo run --manifest-path=builder/Cargo.toml --bin image -- --rom caliptra_rom.bin --fw image_bundle.bin
 objcopy -I binary -O verilog caliptra_rom.bin release/workspace/caliptra_rom.hex
