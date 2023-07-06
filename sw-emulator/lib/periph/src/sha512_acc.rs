@@ -229,11 +229,8 @@ impl Sha512AcceleratorRegs {
             self.execute.reg.set(0);
             self.data_in.reg.set(0);
             self.mode.reg.set(0);
-
-            Ok(())
-        } else {
-            Err(BusError::StoreAccessFault)?
         }
+        Ok(())
     }
 
     /// On Write callback for `mode` register

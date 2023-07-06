@@ -28,6 +28,7 @@ use crate::flow::cold_reset::idev_id::InitDevIdLayer;
 use crate::flow::cold_reset::ldev_id::LocalDevIdLayer;
 use crate::{cprintln, rom_env::RomEnv};
 use caliptra_common::FirmwareHandoffTable;
+use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
 
 pub const KEY_ID_UDS: KeyId = KeyId::KeyId0;
@@ -61,6 +62,7 @@ impl ColdResetFlow {
     #[inline(never)]
     pub fn run(env: &mut RomEnv) -> CaliptraResult<FirmwareHandoffTable> {
         cprintln!("[cold-reset] ++");
+        report_boot_status(ColdResetStarted.into());
 
         // Execute IDEVID layer
         let mut idevid_layer_output = InitDevIdLayer::derive(env)?;
@@ -81,6 +83,7 @@ impl ColdResetFlow {
         fw_proc_info.zeroize();
 
         cprintln!("[cold-reset] --");
+        report_boot_status(ColdResetComplete.into());
 
         Ok(fht::make_fht(env))
     }

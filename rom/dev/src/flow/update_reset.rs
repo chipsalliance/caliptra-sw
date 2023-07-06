@@ -14,7 +14,8 @@ Abstract:
 use crate::{cprintln, fht, rom_env::RomEnv, verifier::RomImageVerificationEnv, wdt};
 
 use caliptra_common::FirmwareHandoffTable;
-use caliptra_drivers::{MailboxRecvTxn, ResetReason};
+use caliptra_common::RomBootStatus::*;
+use caliptra_drivers::{report_boot_status, MailboxRecvTxn, ResetReason};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::ImageManifest;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
@@ -38,6 +39,7 @@ impl UpdateResetFlow {
     /// * `env` - ROM Environment
     pub fn run(env: &mut RomEnv) -> CaliptraResult<FirmwareHandoffTable> {
         cprintln!("[update-reset] ++");
+        report_boot_status(UpdateResetStarted.into());
 
         // Disable the watchdog timer during firmware download.
         wdt::stop_wdt(&mut env.soc_ifc);
@@ -56,6 +58,7 @@ impl UpdateResetFlow {
         wdt::start_wdt(&mut env.soc_ifc);
 
         let manifest = Self::load_manifest(&mut recv_txn)?;
+        report_boot_status(UpdateResetLoadManifestComplete.into());
 
         let mut venv = RomImageVerificationEnv {
             sha256: &mut env.sha256,
@@ -68,6 +71,7 @@ impl UpdateResetFlow {
         };
 
         let info = Self::verify_image(&mut venv, &manifest, recv_txn.dlen())?;
+        report_boot_status(UpdateResetImageVerificationComplete.into());
 
         cprintln!(
             "[update-reset] Image verified using Vendor ECC Key Index {}",
@@ -75,9 +79,13 @@ impl UpdateResetFlow {
         );
 
         Self::load_image(&manifest, recv_txn)?;
+        report_boot_status(UpdateResetLoadImageComplete.into());
 
         Self::copy_regions();
+        report_boot_status(UpdateResetOverwriteManifestComplete.into());
+
         cprintln!("[update-reset Success] --");
+        report_boot_status(UpdateResetComplete.into());
         Ok(fht::make_fht(env))
     }
 
