@@ -19,7 +19,7 @@ pub fn build_hw_model_and_image_bundle(
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 

@@ -42,4 +42,6 @@ caliptra-cpu = { version = "0.1.0", path = "../../cpu" }
 caliptra-registers = { path = "../../registers" }
 caliptra-runtime = { path = "..", default-features = false }
 caliptra-drivers = { path = "../../drivers" }
+caliptra_common = { path = "../../common", default-features = false }
 cfg-if = "1.0.0"
+zerocopy = "0.6.1"

@@ -63,7 +63,6 @@ impl CaliptraError {
         CaliptraError::new_const(0x00040008);
     pub const DRIVER_HMAC384_WRITE_TAG_KV_UNKNOWN: CaliptraError =
         CaliptraError::new_const(0x00040009);
-    pub const DRIVER_HMAC384_INVALID_KEY_SIZE: CaliptraError = CaliptraError::new_const(0x0004000a);
     pub const DRIVER_HMAC384_INVALID_STATE: CaliptraError = CaliptraError::new_const(0x0004000b);
     pub const DRIVER_HMAC384_MAX_DATA: CaliptraError = CaliptraError::new_const(0x0004000c);
     pub const DRIVER_HMAC384_INVALID_SLICE: CaliptraError = CaliptraError::new_const(0x0004000d);
@@ -108,12 +107,9 @@ impl CaliptraError {
     /// Mailbox Errors
     pub const DRIVER_MAILBOX_INVALID_STATE: CaliptraError = CaliptraError::new_const(0x00080001);
     pub const DRIVER_MAILBOX_INVALID_DATA_LEN: CaliptraError = CaliptraError::new_const(0x00080002);
-    pub const DRIVER_MAILBOX_NO_DATA_AVAIL: CaliptraError = CaliptraError::new_const(0x00080003);
     pub const DRIVER_MAILBOX_ENQUEUE_ERR: CaliptraError = CaliptraError::new_const(0x00080004);
-    pub const DRIVER_MAILBOX_DEQUEUE_ERR: CaliptraError = CaliptraError::new_const(0x00080005);
-    /// SHA384ACC Errors.
-    pub const DRIVER_SHA384ACC_INVALID_OP: CaliptraError = CaliptraError::new_const(0x00090001);
-    pub const DRIVER_SHA384ACC_MAX_DATA_ERR: CaliptraError = CaliptraError::new_const(0x00090002);
+
+    /// SHA384ACC Errors.   
     pub const DRIVER_SHA384ACC_INDEX_OUT_OF_BOUNDS: CaliptraError =
         CaliptraError::new_const(0x00090003);
     /// SHA1 Errors.
@@ -185,8 +181,6 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b001e);
     pub const IMAGE_VERIFIER_ERR_UPDATE_RESET_FMC_DIGEST_MISMATCH: CaliptraError =
         CaliptraError::new_const(0x000b001f);
-    pub const IMAGE_VERIFIER_ERR_UPDATE_RESET_VEN_PUB_KEY_IDX_OUT_OF_BOUNDS: CaliptraError =
-        CaliptraError::new_const(0x000b0020);
     pub const IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_INVALID: CaliptraError =
         CaliptraError::new_const(0x000b0021);
     pub const IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_UNALIGNED: CaliptraError =
@@ -225,10 +219,11 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0032);
     pub const IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID: CaliptraError =
         CaliptraError::new_const(0x000b0033);
-    pub const IMAGE_VERIFIER_ERR_UPDATE_RESET_VEN_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS: CaliptraError =
+    pub const IMAGE_VERIFIER_ERR_VEN_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS: CaliptraError =
         CaliptraError::new_const(0x000b0034);
     pub const IMAGE_VERIFIER_ERR_FMC_RUNTIME_LOAD_ADDR_OVERLAP: CaliptraError =
         CaliptraError::new_const(0x000b0035);
+    pub const RUNTIME_HANDOFF_FHT_NOT_LOADED: CaliptraError = CaliptraError::new_const(0x000b0036);
 
     /// Driver Error: LMS
     pub const DRIVER_LMS_INVALID_LMS_ALGO_TYPE: CaliptraError =
@@ -281,6 +276,15 @@ impl CaliptraError {
     pub const FMC_RT_ALIAS_DERIVE_FAILURE: CaliptraError = CaliptraError::new_const(0x000F0005);
     pub const FMC_RT_ALIAS_CERT_VERIFY: CaliptraError = CaliptraError::new_const(0x000F0006);
     pub const FMC_RT_ALIAS_TBS_SIZE_EXCEEDED: CaliptraError = CaliptraError::new_const(0x000F0007);
+    pub const FMC_CDI_KV_COLLISION: CaliptraError = CaliptraError::new_const(0x000F0008);
+    pub const FMC_ALIAS_KV_COLLISION: CaliptraError = CaliptraError::new_const(0x000F0009);
+
+    /// TRNG_EXT Errors
+    pub const DRIVER_TRNG_EXT_TIMEOUT: CaliptraError = CaliptraError::new_const(0x00100001);
+
+    /// SOC_IFC driver Errors
+    pub const DRIVER_SOC_IFC_INVALID_TIMER_CONFIG: CaliptraError =
+        CaliptraError::new_const(0x00100001);
 
     /// Initial Device ID Errors
     pub const ROM_IDEVID_CSR_BUILDER_INIT_FAILURE: CaliptraError =
@@ -356,8 +360,8 @@ impl CaliptraError {
     pub const ROM_KAT_SHA384_ACC_DIGEST_MISMATCH: CaliptraError =
         CaliptraError::new_const(0x90050003);
 
-    pub const ROM_KAT_SHA1_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90050001);
-    pub const ROM_KAT_SHA1_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90050002);
+    pub const ROM_KAT_SHA1_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90060001);
+    pub const ROM_KAT_SHA1_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90060002);
 
     pub const ROM_KAT_LMS_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90070001);
     pub const ROM_KAT_LMS_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90070002);

@@ -24,7 +24,7 @@ use caliptra_drivers::{CaliptraResult, ResetReason};
 pub use cold_reset::KEY_ID_CDI;
 pub use cold_reset::KEY_ID_FMC_PRIV_KEY;
 
-/// Execute ROM Flows based on reset resason
+/// Execute ROM Flows based on reset reason
 ///
 /// # Arguments
 ///

@@ -43,6 +43,10 @@ impl Sha384AccKat {
                 .digest(0, 0, false, &mut digest)
                 .map_err(|_| CaliptraError::ROM_KAT_SHA384_ACC_DIGEST_FAILURE)?;
             if digest != SHA384_EXPECTED_DIGEST {
+                // Don't drop the operation, since that will unlock the
+                // peripheral for SoC use, which we're not allowed to do if the
+                // KAT doesn't pass.
+                core::mem::forget(sha_acc_op);
                 Err(CaliptraError::ROM_KAT_SHA384_ACC_DIGEST_MISMATCH)?;
             }
         } else {

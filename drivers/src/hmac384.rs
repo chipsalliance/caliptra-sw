@@ -14,7 +14,8 @@ Abstract:
 
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::{
-    array::Array4x32, wait, Array4x12, CaliptraError, CaliptraResult, KeyReadArgs, KeyWriteArgs,
+    array::Array4x32, wait, Array4x12, Array4x5, CaliptraError, CaliptraResult, KeyReadArgs,
+    KeyWriteArgs, Trng,
 };
 use caliptra_registers::hmac::HmacReg;
 use core::usize;
@@ -120,11 +121,13 @@ impl Hmac384 {
     /// # Arguments
     ///
     /// * `key`  - HMAC Key
+    /// * `trng` - TRNG driver instance
     ///
     /// * `tag`  -  The calculated tag
     pub fn hmac_init<'a>(
         &'a mut self,
-        key: Hmac384Key,
+        key: &Hmac384Key,
+        trng: &mut Trng,
         mut tag: Hmac384Tag<'a>,
     ) -> CaliptraResult<Hmac384Op> {
         let hmac = self.hmac.regs_mut();
@@ -132,8 +135,8 @@ impl Hmac384 {
         // Configure the hardware so that the output tag is stored at a location specified by the
         // caller.
         match &mut tag {
-            Hmac384Tag::Array4x12(arr) => {
-                KvAccess::begin_copy_to_arr(hmac.kv_wr_status(), hmac.kv_wr_ctrl(), arr)?
+            Hmac384Tag::Array4x12(_arr) => {
+                KvAccess::begin_copy_to_arr(hmac.kv_wr_status(), hmac.kv_wr_ctrl())?
             }
             Hmac384Tag::Key(key) => {
                 KvAccess::begin_copy_to_kv(hmac.kv_wr_status(), hmac.kv_wr_ctrl(), *key)?
@@ -144,10 +147,15 @@ impl Hmac384 {
         match key {
             Hmac384Key::Array4x12(arr) => KvAccess::copy_from_arr(arr, hmac.key())?,
             Hmac384Key::Key(key) => {
-                KvAccess::copy_from_kv(key, hmac.kv_rd_key_status(), hmac.kv_rd_key_ctrl())
+                KvAccess::copy_from_kv(*key, hmac.kv_rd_key_status(), hmac.kv_rd_key_ctrl())
                     .map_err(|err| err.into_read_key_err())?
             }
         }
+
+        // Generate an LFSR seed.
+        let rand_data = trng.generate()?;
+        let iv: [u32; 5] = rand_data.0[..5].try_into().unwrap();
+        KvAccess::copy_from_arr(&Array4x5::from(iv), hmac.lfsr_seed())?;
 
         let op = Hmac384Op {
             hmac_engine: self,
@@ -166,14 +174,15 @@ impl Hmac384 {
     /// # Arguments
     ///
     /// * `key`  - HMAC Key
-    ///
     /// * `data` - Data to calculate the HMAC over
+    /// * `trng` - TRNG driver instance
     ///
     /// * `tag`  -  The calculated tag
     pub fn hmac(
         &mut self,
-        key: Hmac384Key,
-        data: Hmac384Data,
+        key: &Hmac384Key,
+        data: &Hmac384Data,
+        trng: &mut Trng,
         mut tag: Hmac384Tag,
     ) -> CaliptraResult<()> {
         let hmac = self.hmac.regs_mut();
@@ -181,8 +190,8 @@ impl Hmac384 {
         // Configure the hardware so that the output tag is stored at a location specified by the
         // caller.
         match &mut tag {
-            Hmac384Tag::Array4x12(arr) => {
-                KvAccess::begin_copy_to_arr(hmac.kv_wr_status(), hmac.kv_wr_ctrl(), arr)?
+            Hmac384Tag::Array4x12(_arr) => {
+                KvAccess::begin_copy_to_arr(hmac.kv_wr_status(), hmac.kv_wr_ctrl())?
             }
             Hmac384Tag::Key(key) => {
                 KvAccess::begin_copy_to_kv(hmac.kv_wr_status(), hmac.kv_wr_ctrl(), *key)?
@@ -193,15 +202,20 @@ impl Hmac384 {
         match key {
             Hmac384Key::Array4x12(arr) => KvAccess::copy_from_arr(arr, hmac.key())?,
             Hmac384Key::Key(key) => {
-                KvAccess::copy_from_kv(key, hmac.kv_rd_key_status(), hmac.kv_rd_key_ctrl())
+                KvAccess::copy_from_kv(*key, hmac.kv_rd_key_status(), hmac.kv_rd_key_ctrl())
                     .map_err(|err| err.into_read_key_err())?
             }
         }
 
+        // Generate an LFSR seed.
+        let rand_data = trng.generate()?;
+        let iv: [u32; 5] = rand_data.0[..5].try_into().unwrap();
+        KvAccess::copy_from_arr(&Array4x5::from(iv), hmac.lfsr_seed())?;
+
         // Calculate the hmac
         match data {
             Hmac384Data::Slice(buf) => self.hmac_buf(buf)?,
-            Hmac384Data::Key(key) => self.hmac_key(key)?,
+            Hmac384Data::Key(key) => self.hmac_key(*key)?,
         }
         let hmac = self.hmac.regs();
 
@@ -212,17 +226,33 @@ impl Hmac384 {
                 .map_err(|err| err.into_write_tag_err()),
         };
 
-        self.zeroize();
+        self.zeroize_internal();
 
         result
     }
 
     /// Zeroize the hardware registers.
-    pub fn zeroize(&mut self) {
+    fn zeroize_internal(&mut self) {
         self.hmac.regs_mut().ctrl().write(|w| w.zeroize(true));
     }
+
+    /// Zeroize the hardware registers.
     ///
-    /// Calculate the hmac of the buffer provided as partoameter
+    /// This is useful to call from a fatal-error-handling routine.
+    ///
+    /// # Safety
+    ///
+    /// The caller must be certain that the results of any pending cryptographic
+    /// operations will not be used after this function is called.
+    ///
+    /// This function is safe to call from a trap handler.
+    pub unsafe fn zeroize() {
+        let mut hmac = HmacReg::new();
+        hmac.regs_mut().ctrl().write(|w| w.zeroize(true));
+    }
+
+    ///
+    /// Calculate the hmac of the buffer provided as parameter
     ///
     /// # Arguments
     ///
@@ -306,7 +336,7 @@ impl Hmac384 {
         // PANIC-FREE: Following check optimizes the out of bounds
         // panic in copy_from_slice
         if slice.len() > block.len() - 1 {
-            return Err(CaliptraError::DRIVER_SHA384_INDEX_OUT_OF_BOUNDS);
+            return Err(CaliptraError::DRIVER_HMAC384_INDEX_OUT_OF_BOUNDS);
         }
         block[..slice.len()].copy_from_slice(slice);
         block[slice.len()] = 0b1000_0000;

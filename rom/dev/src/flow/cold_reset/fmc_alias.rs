@@ -50,10 +50,12 @@ impl FmcAliasLayer {
         );
 
         // We use the value of PCR0 as the measurement for deriving the CDI.
-        let measurement = env.pcr_bank.read_pcr(caliptra_drivers::PcrId::PcrId0);
+        let mut measurement = env.pcr_bank.read_pcr(caliptra_drivers::PcrId::PcrId0);
 
         // Derive the DICE CDI from decrypted UDS
-        Self::derive_cdi(env, measurement, KEY_ID_CDI)?;
+        let result = Self::derive_cdi(env, &measurement, KEY_ID_CDI);
+        measurement.0.fill(0);
+        result?;
 
         // Derive DICE Key Pair from CDI
         let key_pair = Self::derive_key_pair(env, KEY_ID_CDI, KEY_ID_FMC_PRIV_KEY)?;
@@ -70,7 +72,7 @@ impl FmcAliasLayer {
         report_boot_status(FmcAliasSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
-        let output = DiceOutput {
+        let mut output = DiceOutput {
             subj_key_pair: key_pair,
             subj_sn,
             subj_key_id,
@@ -78,6 +80,7 @@ impl FmcAliasLayer {
 
         // Generate Local Device ID Certificate
         Self::generate_cert_sig(env, input, &output, fw_proc_info)?;
+        output.zeroize();
 
         report_boot_status(FmcAliasDerivationComplete.into());
         cprintln!("[afmc] --");
@@ -92,12 +95,14 @@ impl FmcAliasLayer {
     /// * `env` - ROM Environment
     /// * `measurements` - Array containing the FMC measurements
     /// * `cdi` - Key Slot to store the generated CDI
-    fn derive_cdi(env: &mut RomEnv, measurements: Array4x12, cdi: KeyId) -> CaliptraResult<()> {
+    fn derive_cdi(env: &mut RomEnv, measurements: &Array4x12, cdi: KeyId) -> CaliptraResult<()> {
         // CDI Key
         let key = Hmac384Key::Key(KeyReadArgs::new(cdi));
-        let data: [u8; 48] = measurements.into();
-        let data = Hmac384Data::Slice(&data);
-        Crypto::hmac384_mac(env, key, data, cdi)?;
+        let mut measurements: [u8; 48] = measurements.into();
+        let data = Hmac384Data::Slice(&measurements);
+        let result = Crypto::hmac384_mac(env, &key, &data, cdi);
+        measurements.fill(0);
+        result?;
         report_boot_status(FmcAliasDeriveCdiComplete.into());
         Ok(())
     }

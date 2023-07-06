@@ -62,18 +62,22 @@ impl ColdResetFlow {
         cprintln!("[cold-reset] ++");
 
         // Execute IDEVID layer
-        let idevid_layer_output = InitDevIdLayer::derive(env)?;
+        let mut idevid_layer_output = InitDevIdLayer::derive(env)?;
         let ldevid_layer_input = dice_input_from_output(&idevid_layer_output);
 
         // Execute LDEVID layer
-        let ldevid_layer_output = LocalDevIdLayer::derive(env, &ldevid_layer_input)?;
+        let result = LocalDevIdLayer::derive(env, &ldevid_layer_input);
+        idevid_layer_output.zeroize();
+        let mut ldevid_layer_output = result?;
         let fmc_layer_input = dice_input_from_output(&ldevid_layer_output);
 
         // Download and validate firmware.
-        let fw_proc_info = FirmwareProcessor::process(env)?;
+        let mut fw_proc_info = FirmwareProcessor::process(env)?;
 
         // Execute FMCALIAS layer
         FmcAliasLayer::derive(env, &fmc_layer_input, &fw_proc_info)?;
+        ldevid_layer_output.zeroize();
+        fw_proc_info.zeroize();
 
         cprintln!("[cold-reset] --");
 

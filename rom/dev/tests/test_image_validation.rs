@@ -172,7 +172,7 @@ fn test_preamble_vendor_pubkey_revocation() {
                 ..Default::default()
             },
             fuses,
-            fw_image: None,
+            ..Default::default()
         })
         .unwrap();
 
@@ -379,14 +379,14 @@ fn test_header_verify_owner_sig_zero_fuses() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
-    assert_eq!(hw.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
+    assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), 0);
 }
 
 #[test]
@@ -416,7 +416,7 @@ fn test_header_verify_owner_sig_zero_fuses_zero_pubkey_x() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -451,7 +451,7 @@ fn test_header_verify_owner_sig_corrupt_fuses() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -499,7 +499,7 @@ fn test_header_verify_owner_sig_zero_pubkey_x() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -547,7 +547,7 @@ fn test_header_verify_owner_sig_zero_pubkey_y() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -586,7 +586,7 @@ fn test_header_verify_owner_sig_zero_signature_r() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -628,7 +628,7 @@ fn test_header_verify_owner_sig_zero_signature_s() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -670,7 +670,7 @@ fn test_header_verify_owner_sig_invalid_signature_r() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -712,7 +712,7 @@ fn test_header_verify_owner_sig_invalid_signature_s() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -1273,7 +1273,7 @@ fn test_runtime_svn_less_than_fuse_svn() {
             .unwrap_err()
     );
     assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        hw.soc_ifc().cptra_fw_error_fatal().read(),
         CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE.into()
     );
 }
@@ -1296,7 +1296,7 @@ fn cert_test_with_custom_dates() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -1339,6 +1339,11 @@ fn cert_test_with_custom_dates() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
+    hw.step_until_output_contains("[exit] Launching FMC")
+        .unwrap();
+
+    hw.mailbox_execute(0x1000_0001, &[]).unwrap();
+
     let result = hw.copy_output_until_exit_success(&mut output);
     assert!(result.is_ok());
     let output = String::from_utf8_lossy(&output);
@@ -1376,7 +1381,7 @@ fn cert_test() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -1401,6 +1406,11 @@ fn cert_test() {
     hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
+
+    hw.step_until_output_contains("[exit] Launching FMC")
+        .unwrap();
+
+    hw.mailbox_execute(0x1000_0001, &[]).unwrap();
 
     let result = hw.copy_output_until_exit_success(&mut output);
     assert!(result.is_ok());

@@ -38,6 +38,8 @@ mod sha256;
 mod sha384;
 mod sha384acc;
 mod soc_ifc;
+mod trng;
+mod trng_ext;
 
 pub use array::{Array4x12, Array4x4, Array4x5, Array4x8, Array4xN};
 pub use array_concat::array_concat3;
@@ -53,10 +55,7 @@ pub use ecc384::{
     Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Scalar, Ecc384Seed,
     Ecc384Signature,
 };
-pub use error_reporter::{
-    report_fw_error_fatal, report_fw_error_non_fatal, report_hw_error_fatal,
-    report_hw_error_non_fatal,
-};
+pub use error_reporter::{report_fw_error_fatal, report_fw_error_non_fatal};
 pub use exit_ctrl::ExitCtrl;
 pub use fuse_bank::{FuseBank, IdevidCertAttr, VendorPubKeyRevocation, X509KeyIdAlgo};
 pub use hmac384::{Hmac384, Hmac384Data, Hmac384Key, Hmac384Op, Hmac384Tag};
@@ -68,6 +67,7 @@ pub use lms::{
     D_LEAF, D_MESG, D_PBLC,
 };
 pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
+pub use okref::okmutref;
 pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
@@ -75,6 +75,8 @@ pub use sha256::{Sha256, Sha256DigestOp};
 pub use sha384::{Sha384, Sha384Digest, Sha384DigestOp};
 pub use sha384acc::{Sha384Acc, Sha384AccOp};
 pub use soc_ifc::{report_boot_status, Lifecycle, MfgFlags, ResetReason, SocIfc};
+pub use trng::Trng;
+
 cfg_if::cfg_if! {
     if #[cfg(feature = "emu")] {
         mod uart;

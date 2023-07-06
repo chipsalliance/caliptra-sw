@@ -1,5 +1,9 @@
 // Licensed under the Apache-2.0 license
 
+use std::array;
+
+use rand::{rngs::ThreadRng, RngCore};
+
 // Rationale behind this choice
 //
 // * The constant should be easily recognizable in waveforms and debug logs
@@ -179,6 +183,29 @@ impl Default for Fuses {
             idevid_manuf_hsm_id: Default::default(),
             life_cycle: Default::default(),
         }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub struct EtrngResponse {
+    pub delay: u32,
+    pub data: [u32; 12],
+}
+
+pub struct RandomEtrngResponses<R: RngCore>(pub R);
+impl RandomEtrngResponses<ThreadRng> {
+    pub fn new_from_thread_rng() -> Self {
+        Self(rand::thread_rng())
+    }
+}
+impl<R: RngCore> Iterator for RandomEtrngResponses<R> {
+    type Item = EtrngResponse;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        Some(EtrngResponse {
+            delay: 0,
+            data: array::from_fn(|_| self.0.next_u32()),
+        })
     }
 }
 

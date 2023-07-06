@@ -28,8 +28,6 @@ impl WarmResetFlow {
     pub fn run(env: &mut RomEnv) -> CaliptraResult<FirmwareHandoffTable> {
         cprintln!("[warm-reset] ++");
 
-        // TODO: Implement
-
         cprintln!("[warm-reset] --");
 
         Ok(fht::make_fht(env))

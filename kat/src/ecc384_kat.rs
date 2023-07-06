@@ -14,7 +14,7 @@ Abstract:
 
 use caliptra_drivers::{
     Array4x12, Array4xN, CaliptraError, CaliptraResult, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey,
-    Ecc384Signature,
+    Ecc384Signature, Trng,
 };
 
 const PRIV_KEY: Array4x12 = Array4x12::new([
@@ -60,15 +60,15 @@ impl Ecc384Kat {
     /// # Returns
     ///
     /// * `CaliptraResult` - Result denoting the KAT outcome.
-    pub fn execute(&self, ecc: &mut Ecc384) -> CaliptraResult<()> {
-        self.kat_signature_generate(ecc)?;
+    pub fn execute(&self, ecc: &mut Ecc384, trng: &mut Trng) -> CaliptraResult<()> {
+        self.kat_signature_generate(ecc, trng)?;
         self.kat_signature_verify(ecc)
     }
 
-    fn kat_signature_generate(&self, ecc: &mut Ecc384) -> CaliptraResult<()> {
+    fn kat_signature_generate(&self, ecc: &mut Ecc384, trng: &mut Trng) -> CaliptraResult<()> {
         let digest = Array4x12::new([0u32; 12]);
         let signature = ecc
-            .sign(Ecc384PrivKeyIn::from(&PRIV_KEY), &digest)
+            .sign(&Ecc384PrivKeyIn::from(&PRIV_KEY), &digest, trng)
             .map_err(|_| CaliptraError::ROM_KAT_ECC384_SIGNATURE_GENERATE_FAILURE)?;
 
         if signature != SIGNATURE {

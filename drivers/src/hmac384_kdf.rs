@@ -14,7 +14,7 @@ Abstract:
 
 use caliptra_error::CaliptraResult;
 
-use crate::{Hmac384, Hmac384Key, Hmac384Tag};
+use crate::{Hmac384, Hmac384Key, Hmac384Tag, Trng};
 
 /// Calculate HMAC-384-KDF
 ///
@@ -29,15 +29,17 @@ use crate::{Hmac384, Hmac384Key, Hmac384Tag};
 ///             the fixed input data.
 /// * `context` - Context for KDF. If present, a NULL byte is included between
 ///               the label and context.
+/// * `trng` - TRNG driver instance
 /// * `output` - Location to store the output
 pub fn hmac384_kdf(
     hmac: &mut Hmac384,
     key: Hmac384Key,
     label: &[u8],
     context: Option<&[u8]>,
+    trng: &mut Trng,
     output: Hmac384Tag,
 ) -> CaliptraResult<()> {
-    let mut hmac_op = hmac.hmac_init(key, output)?;
+    let mut hmac_op = hmac.hmac_init(&key, trng, output)?;
 
     hmac_op.update(&1_u32.to_be_bytes())?;
     hmac_op.update(label)?;

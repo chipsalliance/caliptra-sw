@@ -24,7 +24,7 @@ fn test_zero_firmware_size() {
         ModelError::MailboxCmdFailed(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into())
     );
     assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        hw.soc_ifc().cptra_fw_error_fatal().read(),
         CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()
     );
 }
@@ -53,7 +53,7 @@ fn test_firmware_gt_max_size() {
     hw.soc_mbox().execute().write(|w| w.execute(false));
 
     assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        hw.soc_ifc().cptra_fw_error_fatal().read(),
         CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()
     );
 }
@@ -92,7 +92,7 @@ fn test_pcr_log() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -223,7 +223,7 @@ fn test_fuse_log() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -344,7 +344,7 @@ fn test_fht_info() {
             ..Default::default()
         },
         fuses: Fuses::default(),
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 

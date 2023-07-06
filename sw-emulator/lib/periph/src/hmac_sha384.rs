@@ -103,6 +103,9 @@ const UPDATE_TICKS: u64 = 1000;
 /// The number of CPU clock cycles read and write keys from key vault
 const KEY_RW_TICKS: u64 = 100;
 
+/// LSFR Seed Size.
+const HMAC_LFSR_SEED_SIZE: usize = 20;
+
 /// HMAC-SHA-384 Peripheral
 #[derive(Bus)]
 #[poll_fn(poll)]
@@ -144,6 +147,10 @@ pub struct HmacSha384 {
     /// HMAC Tag Register
     #[peripheral(offset = 0x0000_0100, mask = 0x0000_00ff)]
     tag: ReadOnlyMemory<HMAC_TAG_SIZE>,
+
+    /// LSFR Seed Register
+    #[register_array(offset = 0x0000_0130)]
+    lfsr_seed: [u32; HMAC_LFSR_SEED_SIZE / 4],
 
     /// Key Read Control Register
     #[register(offset = 0x0000_0600, write_fn = on_write_key_read_control)]
@@ -226,6 +233,7 @@ impl HmacSha384 {
             key: WriteOnlyMemory::new(),
             block: ReadWriteMemory::new(),
             tag: ReadOnlyMemory::new(),
+            lfsr_seed: Default::default(),
             key_read_ctrl: ReadWriteRegister::new(0),
             key_read_status: ReadOnlyRegister::new(KeyReadStatus::READY::SET.value),
             block_read_ctrl: ReadWriteRegister::new(0),
