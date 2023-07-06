@@ -13,7 +13,6 @@ Abstract:
 --*/
 
 mod cold_reset;
-mod unknown_reset;
 mod update_reset;
 mod warm_reset;
 
@@ -21,6 +20,7 @@ use crate::rom_env::RomEnv;
 use caliptra_common::FirmwareHandoffTable;
 use caliptra_drivers::{CaliptraResult, ResetReason};
 
+use caliptra_error::CaliptraError;
 pub use cold_reset::KEY_ID_CDI;
 pub use cold_reset::KEY_ID_FMC_PRIV_KEY;
 
@@ -42,6 +42,6 @@ pub fn run(env: &mut RomEnv) -> CaliptraResult<FirmwareHandoffTable> {
         ResetReason::UpdateReset => update_reset::UpdateResetFlow::run(env),
 
         // Unknown/Spurious Reset Flow
-        ResetReason::Unknown => unknown_reset::UnknownResetFlow::run(env),
+        ResetReason::Unknown => Err(CaliptraError::ROM_UNKNOWN_RESET_FLOW),
     }
 }
