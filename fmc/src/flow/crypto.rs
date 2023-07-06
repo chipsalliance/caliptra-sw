@@ -60,7 +60,7 @@ impl Crypto {
         env.sha384.digest(data)
     }
 
-    /// Calculate HMAC-348 KDF
+    /// Calculate HMAC-384 KDF
     ///
     /// # Arguments
     ///
