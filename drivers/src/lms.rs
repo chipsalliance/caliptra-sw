@@ -34,6 +34,13 @@ pub struct Lms {}
 pub type Sha256Digest = HashValue<8>;
 pub type Sha192Digest = HashValue<6>;
 
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LmsResult {
+    Success = 0xCCCCCCCC,
+    SigVerifyFailed = 0x33333333,
+}
+
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HashValue<const N: usize>(pub [u32; N]);
@@ -376,7 +383,7 @@ impl Lms {
         input_string: &[u8],
         lms_public_key: &LmsPublicKey<N>,
         lms_sig: &LmsSignature<N, P, H>,
-    ) -> CaliptraResult<bool> {
+    ) -> CaliptraResult<LmsResult> {
         if lms_sig.ots.ots_type != lms_public_key.otstype {
             return Err(CaliptraError::DRIVER_LMS_SIGNATURE_LMOTS_DOESNT_MATCH_PUBKEY_LMOTS);
         }
@@ -458,10 +465,10 @@ impl Lms {
         }
         let candidate_key = &temp;
         if *candidate_key != HashValue::from(lms_public_key.digest) {
-            return Ok(false);
+            return Ok(LmsResult::SigVerifyFailed);
         }
         digest.0.fill(0);
         temp.0.fill(0);
-        Ok(true)
+        Ok(LmsResult::Success)
     }
 }

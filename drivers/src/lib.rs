@@ -52,8 +52,8 @@ pub use data_vault::{
 };
 pub use doe::DeobfuscationEngine;
 pub use ecc384::{
-    Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Scalar, Ecc384Seed,
-    Ecc384Signature,
+    Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
+    Ecc384Seed, Ecc384Signature,
 };
 pub use error_reporter::{report_fw_error_fatal, report_fw_error_non_fatal};
 pub use exit_ctrl::ExitCtrl;
@@ -65,8 +65,8 @@ pub use hmac384_kdf::hmac384_kdf;
 pub use key_vault::{KeyId, KeyUsage, KeyVault};
 pub use kv_access::{KeyReadArgs, KeyWriteArgs};
 pub use lms::{
-    get_lmots_parameters, get_lms_parameters, HashValue, Lms, Sha192Digest, Sha256Digest, D_INTR,
-    D_LEAF, D_MESG, D_PBLC,
+    get_lmots_parameters, get_lms_parameters, HashValue, Lms, LmsResult, Sha192Digest,
+    Sha256Digest, D_INTR, D_LEAF, D_MESG, D_PBLC,
 };
 pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
 pub use okref::okmutref;

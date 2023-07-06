@@ -15,7 +15,7 @@ File contains test cases for LMS signature verification using SHA256/192.
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{CaliptraError, Lms, Sha256};
+use caliptra_drivers::{CaliptraError, Lms, LmsResult, Sha256};
 use caliptra_lms_types::{
     bytes_to_words_6, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsIdentifier,
     LmsPublicKey, LmsSignature,
@@ -333,55 +333,55 @@ fn test_failures_lms_24() {
         otstype: LMOTS_TYPE,
     };
 
-    let success = Lms::default()
+    let result = Lms::default()
         .verify_lms_signature(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &lms_sig)
         .unwrap();
-    assert_eq!(success, true);
+    assert_eq!(result, LmsResult::Success);
 
     let new_message = "this is a different message".as_bytes();
-    let should_fail = Lms::default()
+    let result = Lms::default()
         .verify_lms_signature(&mut sha256, &new_message, &LMS_PUBLIC_KEY, &lms_sig)
         .unwrap();
-    assert_eq!(should_fail, false);
+    assert_ne!(result, LmsResult::Success);
 
     let new_lms: LmsIdentifier = [0u8; 16];
     let new_lms_public_key = LmsPublicKey {
         id: new_lms,
         ..LMS_PUBLIC_KEY
     };
-    let should_fail = Lms::default()
+    let result = Lms::default()
         .verify_lms_signature(&mut sha256, &MESSAGE, &new_lms_public_key, &lms_sig)
         .unwrap();
-    assert_eq!(should_fail, false);
+    assert_ne!(result, LmsResult::Success);
 
     let new_q = Q + 1;
     let new_lms_sig = LmsSignature {
         q: new_q.into(),
         ..lms_sig
     };
-    let should_fail = Lms::default()
+    let result = Lms::default()
         .verify_lms_signature(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &new_lms_sig)
         .unwrap();
-    assert_eq!(should_fail, false);
+    assert_ne!(result, LmsResult::Success);
 
     let new_public_key = LmsPublicKey {
         digest: [U32::ZERO; 6],
         ..LMS_PUBLIC_KEY
     };
-    let should_fail = Lms::default()
+    let result = Lms::default()
         .verify_lms_signature(&mut sha256, &MESSAGE, &new_public_key, &lms_sig)
         .unwrap();
-    assert_eq!(should_fail, false);
+    assert_ne!(result, LmsResult::Success);
 
     let new_lms_sig = LmsSignature {
         tree_path: [[U32::ZERO; 6]; 15],
         ..lms_sig
     };
 
-    let should_fail = Lms::default()
+    let result = Lms::default()
         .verify_lms_signature(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &new_lms_sig)
         .unwrap();
-    assert_eq!(should_fail, false);
+    assert_ne!(result, LmsResult::Success);
 
     assert_eq!(
         Lms::default().verify_lms_signature(

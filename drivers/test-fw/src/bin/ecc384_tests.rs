@@ -16,8 +16,8 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{
-    Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Scalar, Ecc384Seed,
-    KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Trng,
+    Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
+    Ecc384Seed, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Trng,
 };
 use caliptra_kat::Ecc384Kat;
 use caliptra_registers::csrng::CsrngReg;
@@ -195,7 +195,7 @@ fn test_verify() {
     };
     let result = ecc.verify(&pub_key, &Ecc384Scalar::from(digest), &signature);
     assert!(result.is_ok());
-    assert!(result.unwrap());
+    assert_eq!(result.unwrap(), Ecc384Result::Success);
 }
 
 fn test_verify_failure() {
@@ -224,7 +224,7 @@ fn test_verify_failure() {
     let hash = [0xFFu8; 48];
     let result = ecc.verify(&pub_key, &Ecc384Scalar::from(hash), &signature);
     assert!(result.is_ok());
-    assert!(!result.unwrap());
+    assert_eq!(result.unwrap(), Ecc384Result::SigVerifyFailed);
 }
 
 fn test_kv_seed_from_input_msg_from_input() {
@@ -278,7 +278,7 @@ fn test_kv_seed_from_input_msg_from_input() {
     };
     let result = ecc.verify(&pub_key, &Ecc384Scalar::from(digest), &signature);
     assert!(result.is_ok());
-    assert!(result.unwrap());
+    assert_eq!(result.unwrap(), Ecc384Result::Success);
 }
 
 fn test_kv_seed_from_kv_msg_from_input() {
@@ -397,7 +397,7 @@ fn test_kv_seed_from_kv_msg_from_input() {
         y: pub_key_y.into(),
     };
     let result = ecc.verify(&pub_key, &Ecc384Scalar::from(msg), &signature);
-    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), Ecc384Result::Success);
 }
 
 fn test_kat() {

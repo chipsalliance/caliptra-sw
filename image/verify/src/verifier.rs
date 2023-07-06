@@ -49,7 +49,7 @@ struct ImageInfo<'a> {
 
 /// Image Verifier
 pub struct ImageVerifier<Env: ImageVerificationEnv> {
-    /// Verifiaction Environment
+    /// Verification Environment
     env: Env,
 }
 
@@ -432,7 +432,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             .ecc384_verify(digest, pub_key, sig)
             .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_VERIFY_FAILURE)?;
 
-        if !result {
+        // [TODO][CFI]
+        if result != Ecc384Result::Success {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID)?;
         }
 
@@ -454,23 +455,24 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID_ARG)?;
         }
 
-        let mut result = self
+        let result = self
             .env
             .ecc384_verify(digest, ecc_pub_key, ecc_sig)
             .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_VERIFY_FAILURE)?;
 
-        if !result {
+        // [TODO][CFI]
+        if result != Ecc384Result::Success {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID)?;
         }
 
         if self.env.lms_verify_enabled() {
             if let Some(info) = lms_info {
                 let (lms_pub_key, lms_sig) = info;
-                result = self
+                let result = self
                     .env
                     .lms_verify(digest, lms_pub_key, lms_sig)
                     .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_VERIFY_FAILURE)?;
-                if !result {
+                if result != LmsResult::Success {
                     return Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID);
                 }
             }
@@ -490,7 +492,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             .env
             .lms_verify(digest, lms_pub_key, lms_sig)
             .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_VERIFY_FAILURE)?;
-        if !result {
+
+        if result != LmsResult::Success {
             return Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_SIGNATURE_INVALID);
         }
 
@@ -519,7 +522,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_MISMATCH)?;
         }
 
-        // Image length donot exceeed the Image Bundle size
+        // Image length does not exceed the Image Bundle size
         let img_len: u64 = manifest.size as u64
             + manifest.fmc.image_size() as u64
             + manifest.runtime.image_size() as u64;
@@ -1694,8 +1697,12 @@ mod tests {
             _digest: &ImageDigest,
             _pub_key: &ImageEccPubKey,
             _sig: &ImageEccSignature,
-        ) -> CaliptraResult<bool> {
-            Ok(self.verify_result)
+        ) -> CaliptraResult<Ecc384Result> {
+            if self.verify_result {
+                Ok(Ecc384Result::Success)
+            } else {
+                Ok(Ecc384Result::SigVerifyFailed)
+            }
         }
 
         fn lms_verify(
@@ -1703,8 +1710,12 @@ mod tests {
             _digest: &ImageDigest,
             _pub_key: &ImageLmsPublicKey,
             _sig: &ImageLmsSignature,
-        ) -> CaliptraResult<bool> {
-            Ok(self.verify_lms_result)
+        ) -> CaliptraResult<LmsResult> {
+            if self.verify_lms_result {
+                Ok(LmsResult::Success)
+            } else {
+                Ok(LmsResult::SigVerifyFailed)
+            }
         }
 
         fn vendor_pub_key_digest(&self) -> ImageDigest {
