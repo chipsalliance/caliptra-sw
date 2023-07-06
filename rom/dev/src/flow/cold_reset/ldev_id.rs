@@ -174,7 +174,8 @@ impl LocalDevIdLayer {
         env.key_vault.erase_key(auth_priv_key)?;
 
         // Verify the signature of the `To Be Signed` portion
-        if !Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? {
+        let result = Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)?;
+        if result != Ecc384Result::Success {
             return Err(CaliptraError::ROM_LDEVID_CSR_VERIFICATION_FAILURE);
         }
 

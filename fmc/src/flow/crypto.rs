@@ -9,7 +9,8 @@ use crate::fmc_env::FmcEnv;
 use caliptra_common::{crypto::Ecc384KeyPair, keyids::KEY_ID_TMP};
 use caliptra_drivers::{
     hmac384_kdf, okref, Array4x12, Array4x5, Array4x8, CaliptraResult, Ecc384PrivKeyIn,
-    Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Signature, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
+    Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Signature, KeyId, KeyReadArgs, KeyUsage,
+    KeyWriteArgs,
 };
 
 pub enum Crypto {}
@@ -173,7 +174,7 @@ impl Crypto {
         pub_key: &Ecc384PubKey,
         data: &[u8],
         sig: &Ecc384Signature,
-    ) -> CaliptraResult<bool> {
+    ) -> CaliptraResult<Ecc384Result> {
         let digest = Self::sha384_digest(env, data);
         let digest = okref(&digest)?;
         env.ecc384.verify(pub_key, digest, sig)
