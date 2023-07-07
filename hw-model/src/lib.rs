@@ -482,6 +482,41 @@ pub trait HwModel {
         Ok(())
     }
 
+    fn step_until_boot_status(
+        &mut self,
+        expected_status_u32: u32,
+        ignore_intermediate_status: bool,
+    ) {
+        // Since the boot takes less than 20M cycles, we know something is wrong if
+        // we're stuck at the same state for that duration.
+        const MAX_WAIT_CYCLES: u32 = 20_000_000;
+
+        let mut cycle_count = 0u32;
+        let initial_boot_status_u32 = self.soc_ifc().cptra_boot_status().read();
+        loop {
+            let actual_status_u32 = self.soc_ifc().cptra_boot_status().read();
+            if expected_status_u32 == actual_status_u32 {
+                break;
+            }
+
+            if !ignore_intermediate_status && actual_status_u32 != initial_boot_status_u32 {
+                panic!(
+                    "Expected the next boot_status to be  \
+                    ({expected_status_u32}), but status changed from \
+                    {initial_boot_status_u32} to {actual_status_u32})"
+                );
+            }
+            self.step();
+            cycle_count += 1;
+            if cycle_count >= MAX_WAIT_CYCLES {
+                panic!(
+                    "Expected boot_status to be  \
+                    ({expected_status_u32}), but was stuck at ({actual_status_u32})"
+                );
+            }
+        }
+    }
+
     /// A register block that can be used to manipulate the soc_ifc peripheral
     /// over the simulated SoC->Caliptra APB bus.
     fn soc_ifc(&mut self) -> caliptra_registers::soc_ifc::RegisterBlock<BusMmio<Self::TBus<'_>>> {
