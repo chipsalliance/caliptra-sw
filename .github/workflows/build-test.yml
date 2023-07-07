@@ -125,3 +125,6 @@ jobs:
           git submodule update --init
           (cd hw-model/c-binding/examples && make run)
 
+      - name: Caliptra C API Build/Link Test
+        run: |
+          (cd libcaliptra && make && make if_run)
