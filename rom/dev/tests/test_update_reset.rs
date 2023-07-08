@@ -4,7 +4,7 @@ use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, ROM_WITH_UART};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
 
-use crate::helpers::{step_until_boot_status, FW_LOAD_CMD_OPCODE};
+use crate::helpers::FW_LOAD_CMD_OPCODE;
 use caliptra_common::RomBootStatus::*;
 pub mod helpers;
 
@@ -42,12 +42,12 @@ fn test_update_reset_success() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
-    step_until_boot_status(&mut hw, ColdResetComplete, true);
+    hw.step_until_boot_status(ColdResetComplete.into(), true);
 
     hw.mailbox_execute(TEST_FMC_CMD_RESET_FOR_UPDATE, &[])
         .unwrap();
 
-    step_until_boot_status(&mut hw, UpdateResetStarted, false);
+    hw.step_until_boot_status(UpdateResetStarted.into(), false);
 
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
@@ -87,12 +87,12 @@ fn test_update_reset_no_mailbox_cmd() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
-    step_until_boot_status(&mut hw, ColdResetComplete, true);
+    hw.step_until_boot_status(ColdResetComplete.into(), true);
 
     hw.mailbox_execute(TEST_FMC_CMD_RESET_FOR_UPDATE, &[])
         .unwrap();
 
-    step_until_boot_status(&mut hw, UpdateResetStarted, false);
+    hw.step_until_boot_status(UpdateResetStarted.into(), false);
 
     // No command in the mailbox.
     hw.soc_mbox().cmd().write(|_| 0);
@@ -139,12 +139,12 @@ fn test_update_reset_non_fw_load_cmd() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
-    step_until_boot_status(&mut hw, ColdResetComplete, true);
+    hw.step_until_boot_status(ColdResetComplete.into(), true);
 
     hw.mailbox_execute(TEST_FMC_CMD_RESET_FOR_UPDATE, &[])
         .unwrap();
 
-    step_until_boot_status(&mut hw, UpdateResetStarted, false);
+    hw.step_until_boot_status(UpdateResetStarted.into(), false);
 
     // Send a non-fw load command
     let _ = hw.mailbox_execute(0xDEADBEEF, &[]);
@@ -188,12 +188,12 @@ fn test_update_reset_verify_image_failure() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
-    step_until_boot_status(&mut hw, ColdResetComplete, true);
+    hw.step_until_boot_status(ColdResetComplete.into(), true);
 
     hw.mailbox_execute(TEST_FMC_CMD_RESET_FOR_UPDATE, &[])
         .unwrap();
 
-    step_until_boot_status(&mut hw, UpdateResetStarted, false);
+    hw.step_until_boot_status(UpdateResetStarted.into(), false);
 
     // Upload invalid manifest
     let _ = hw.upload_firmware(&[0u8; 4]);
@@ -238,12 +238,12 @@ fn test_update_reset_boot_status() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
-    step_until_boot_status(&mut hw, FmcAliasDerivationComplete, true);
+    hw.step_until_boot_status(FmcAliasDerivationComplete.into(), true);
 
     hw.mailbox_execute(TEST_FMC_CMD_RESET_FOR_UPDATE, &[])
         .unwrap();
 
-    step_until_boot_status(&mut hw, UpdateResetStarted, false);
+    hw.step_until_boot_status(UpdateResetStarted.into(), false);
 
     // Manually put the firmware in the mailbox because
     // HwModel::upload_firmware returns only when the transaction is complete.
@@ -267,11 +267,11 @@ fn test_update_reset_boot_status() {
     }
     hw.soc_mbox().execute().write(|w| w.execute(true));
 
-    step_until_boot_status(&mut hw, UpdateResetLoadManifestComplete, false);
-    step_until_boot_status(&mut hw, UpdateResetImageVerificationComplete, false);
-    step_until_boot_status(&mut hw, UpdateResetLoadImageComplete, false);
-    step_until_boot_status(&mut hw, UpdateResetOverwriteManifestComplete, false);
-    step_until_boot_status(&mut hw, UpdateResetComplete, false);
+    hw.step_until_boot_status(UpdateResetLoadManifestComplete.into(), false);
+    hw.step_until_boot_status(UpdateResetImageVerificationComplete.into(), false);
+    hw.step_until_boot_status(UpdateResetLoadImageComplete.into(), false);
+    hw.step_until_boot_status(UpdateResetOverwriteManifestComplete.into(), false);
+    hw.step_until_boot_status(UpdateResetComplete.into(), false);
 
     hw.step_until_exit_success().unwrap();
 }
