@@ -288,6 +288,7 @@ dependencies = [
  "caliptra-cpu",
  "caliptra-drivers",
  "caliptra-error",
+ "caliptra-gen-linker-scripts",
  "caliptra-hw-model",
  "caliptra-image-types",
  "caliptra-registers",
@@ -310,6 +311,10 @@ dependencies = [
  "ufmt",
  "zerocopy",
 ]
+
+[[package]]
+name = "caliptra-gen-linker-scripts"
+version = "0.1.0"
 
 [[package]]
 name = "caliptra-hw-model"
@@ -531,6 +536,7 @@ dependencies = [
  "caliptra-builder",
  "caliptra-cpu",
  "caliptra-drivers",
+ "caliptra-gen-linker-scripts",
  "caliptra-hw-model",
  "caliptra-image-elf",
  "caliptra-image-fake-keys",
@@ -553,6 +559,7 @@ version = "0.1.0"
 dependencies = [
  "caliptra-cpu",
  "caliptra-drivers",
+ "caliptra-gen-linker-scripts",
  "caliptra-registers",
  "caliptra-runtime",
  "caliptra-test-harness",
