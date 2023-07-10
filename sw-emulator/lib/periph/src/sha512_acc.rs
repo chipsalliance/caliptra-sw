@@ -147,7 +147,7 @@ pub struct Sha512AcceleratorRegs {
 
 impl Sha512AcceleratorRegs {
     pub fn new(clock: &Clock, mailbox_ram: MailboxRam) -> Self {
-        Self {
+        let mut result = Self {
             status: ReadOnlyRegister::new(Status::VALID::CLEAR.value),
             hash_lower: ReadOnlyMemory::new(),
             hash_upper: ReadOnlyMemory::new(),
@@ -164,7 +164,13 @@ impl Sha512AcceleratorRegs {
             state_machine: StateMachine::new(Context::new()),
             control: ReadWriteRegister::new(0),
             sha_stream: Sha512::new(Sha512Mode::Sha512),
-        }
+        };
+        // The peripheral needs to be locked at boot by the uC.
+        result
+            .state_machine
+            .process_event(Events::RdLock(Owner(0)))
+            .unwrap();
+        result
     }
 
     /// On Read callback for `lock` register
@@ -223,11 +229,8 @@ impl Sha512AcceleratorRegs {
             self.execute.reg.set(0);
             self.data_in.reg.set(0);
             self.mode.reg.set(0);
-
-            Ok(())
-        } else {
-            Err(BusError::StoreAccessFault)?
         }
+        Ok(())
     }
 
     /// On Write callback for `mode` register
@@ -646,6 +649,8 @@ mod tests {
 
         let clock = Clock::new();
         let mut sha_accl = Sha512Accelerator::new(&clock, mb_ram.clone());
+        // Unlock the initial state
+        sha_accl.write(RvSize::Word, OFFSET_LOCK, 1).unwrap();
 
         // Acquire the accelerator lock.
         loop {
@@ -823,7 +828,10 @@ mod tests {
     #[test]
     fn test_sm_lock() {
         let clock = Clock::new();
-        let sha_accl = Sha512Accelerator::new(&clock, MailboxRam::new());
+        let mut sha_accl = Sha512Accelerator::new(&clock, MailboxRam::new());
+        assert_eq!(sha_accl.regs.borrow().state_machine.context.locked, 1);
+        // Unlock the initial state
+        sha_accl.write(RvSize::Word, OFFSET_LOCK, 1).unwrap();
         assert_eq!(sha_accl.regs.borrow().state_machine.context.locked, 0);
 
         let _ = sha_accl
@@ -863,6 +871,9 @@ mod tests {
         assert_eq!(sha_accl.read(RvSize::Word, OFFSET_MODE).unwrap(), 0);
         assert_eq!(sha_accl.read(RvSize::Word, OFFSET_STATUS).unwrap(), 0);
         assert_eq!(sha_accl.read(RvSize::Word, OFFSET_EXECUTE).unwrap(), 0);
+
+        // Unlock the initial state
+        sha_accl.write(RvSize::Word, OFFSET_LOCK, 1).unwrap();
 
         // Acquire the accelerator lock.
         loop {

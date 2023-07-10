@@ -492,6 +492,41 @@ pub trait HwModel {
         Ok(())
     }
 
+    fn step_until_boot_status(
+        &mut self,
+        expected_status_u32: u32,
+        ignore_intermediate_status: bool,
+    ) {
+        // Since the boot takes less than 20M cycles, we know something is wrong if
+        // we're stuck at the same state for that duration.
+        const MAX_WAIT_CYCLES: u32 = 20_000_000;
+
+        let mut cycle_count = 0u32;
+        let initial_boot_status_u32 = self.soc_ifc().cptra_boot_status().read();
+        loop {
+            let actual_status_u32 = self.soc_ifc().cptra_boot_status().read();
+            if expected_status_u32 == actual_status_u32 {
+                break;
+            }
+
+            if !ignore_intermediate_status && actual_status_u32 != initial_boot_status_u32 {
+                panic!(
+                    "Expected the next boot_status to be  \
+                    ({expected_status_u32}), but status changed from \
+                    {initial_boot_status_u32} to {actual_status_u32})"
+                );
+            }
+            self.step();
+            cycle_count += 1;
+            if cycle_count >= MAX_WAIT_CYCLES {
+                panic!(
+                    "Expected boot_status to be  \
+                    ({expected_status_u32}), but was stuck at ({actual_status_u32})"
+                );
+            }
+        }
+    }
+
     /// A register block that can be used to manipulate the soc_ifc peripheral
     /// over the simulated SoC->Caliptra APB bus.
     fn soc_ifc(&mut self) -> caliptra_registers::soc_ifc::RegisterBlock<BusMmio<Self::TBus<'_>>> {
@@ -579,7 +614,11 @@ pub trait HwModel {
             self.soc_mbox().execute().write(|w| w.execute(false));
             let soc_ifc = self.soc_ifc();
             return Err(ModelError::MailboxCmdFailed(
-                soc_ifc.cptra_fw_error_non_fatal().read(),
+                if soc_ifc.cptra_fw_error_fatal().read() != 0 {
+                    soc_ifc.cptra_fw_error_fatal().read()
+                } else {
+                    soc_ifc.cptra_fw_error_non_fatal().read()
+                },
             ));
         }
         if status.cmd_complete() {
@@ -958,8 +997,6 @@ mod tests {
 
     #[test]
     fn test_sha512_acc() {
-        // This test doesn't rely on any firmware features. mailbox_responder
-        // image is sufficient
         let rom = caliptra_builder::build_firmware_rom(&FwId {
             crate_name: "caliptra-hw-model-test-fw",
             bin_name: "mailbox_responder",
@@ -976,6 +1013,14 @@ mod tests {
             ..Default::default()
         })
         .unwrap();
+
+        assert_eq!(
+            model.compute_sha512_acc_digest(b"Hello", ShaAccMode::Sha384Stream),
+            Err(ModelError::UnableToLockSha512Acc)
+        );
+
+        // Ask firmware to unlock mailbox for sha512acc use.
+        model.mailbox_execute(0x5000_0000, &[]).unwrap();
 
         let tests = vec![
             Sha384Test {

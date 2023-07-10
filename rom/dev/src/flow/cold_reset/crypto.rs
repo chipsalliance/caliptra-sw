@@ -44,6 +44,12 @@ pub struct Ecc384KeyPair {
     pub pub_key: Ecc384PubKey,
 }
 
+impl Ecc384KeyPair {
+    pub fn zeroize(&mut self) {
+        self.pub_key.zeroize();
+    }
+}
+
 pub enum Crypto {}
 
 impl Crypto {
@@ -104,8 +110,8 @@ impl Crypto {
     /// * `KeyId` - Key Id inputted
     pub fn hmac384_mac(
         env: &mut RomEnv,
-        key: Hmac384Key,
-        data: Hmac384Data,
+        key: &Hmac384Key,
+        data: &Hmac384Data,
         tag: KeyId,
     ) -> CaliptraResult<KeyId> {
         // Tag
@@ -117,7 +123,7 @@ impl Crypto {
         ));
 
         // Calculate the CDI
-        env.hmac384.hmac(key, data, tag_args)?;
+        env.hmac384.hmac(key, data, &mut env.trng, tag_args)?;
 
         Ok(tag)
     }
@@ -138,7 +144,6 @@ impl Crypto {
         seed: KeyId,
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
-        // [TODO] Add Nonce to the ecc384_key_gen function
         let seed = Ecc384Seed::Key(KeyReadArgs::new(seed));
 
         let key_out = Ecc384PrivKeyOut::Key(KeyWriteArgs::new(
@@ -148,7 +153,9 @@ impl Crypto {
 
         Ok(Ecc384KeyPair {
             priv_key,
-            pub_key: env.ecc384.key_pair(seed, &Array4x12::default(), key_out)?,
+            pub_key: env
+                .ecc384
+                .key_pair(&seed, &Array4x12::default(), &mut env.trng, key_out)?,
         })
     }
 
@@ -170,11 +177,13 @@ impl Crypto {
         priv_key: KeyId,
         data: &[u8],
     ) -> CaliptraResult<Ecc384Signature> {
-        let digest = Self::sha384_digest(env, data);
-        let digest = okref(&digest)?;
+        let mut digest = Self::sha384_digest(env, data);
+        let digest = okmutref(&mut digest)?;
         let priv_key_args = KeyReadArgs::new(priv_key);
         let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
-        env.ecc384.sign(priv_key, digest)
+        let result = env.ecc384.sign(&priv_key, digest, &mut env.trng);
+        digest.0.fill(0);
+        result
     }
 
     /// Verify the ECC Signature
@@ -197,8 +206,10 @@ impl Crypto {
         data: &[u8],
         sig: &Ecc384Signature,
     ) -> CaliptraResult<bool> {
-        let digest = Self::sha384_digest(env, data);
-        let digest = okref(&digest)?;
-        env.ecc384.verify(pub_key, digest, sig)
+        let mut digest = Self::sha384_digest(env, data);
+        let digest = okmutref(&mut digest)?;
+        let result = env.ecc384.verify(pub_key, digest, sig);
+        digest.0.fill(0);
+        result
     }
 }

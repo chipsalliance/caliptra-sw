@@ -55,10 +55,7 @@ pub use ecc384::{
     Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Scalar, Ecc384Seed,
     Ecc384Signature,
 };
-pub use error_reporter::{
-    report_fw_error_fatal, report_fw_error_non_fatal, report_hw_error_fatal,
-    report_hw_error_non_fatal,
-};
+pub use error_reporter::{report_fw_error_fatal, report_fw_error_non_fatal};
 pub use exit_ctrl::ExitCtrl;
 pub use fuse_bank::{FuseBank, IdevidCertAttr, VendorPubKeyRevocation, X509KeyIdAlgo};
 pub use hmac384::{Hmac384, Hmac384Data, Hmac384Key, Hmac384Op, Hmac384Tag};
@@ -70,6 +67,7 @@ pub use lms::{
     D_LEAF, D_MESG, D_PBLC,
 };
 pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
+pub use okref::okmutref;
 pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};

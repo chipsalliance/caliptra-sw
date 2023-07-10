@@ -17,11 +17,15 @@ Abstract:
 
 use caliptra_drivers::{
     Array4x12, Array4x4, DeobfuscationEngine, Hmac384, Hmac384Data, Hmac384Key, Hmac384Tag, KeyId,
-    KeyReadArgs, Mailbox,
+    KeyReadArgs, Mailbox, Trng,
 };
 use caliptra_drivers_test_bin::{DoeTestResults, DOE_TEST_HMAC_KEY, DOE_TEST_IV};
 
-use caliptra_registers::{doe::DoeReg, hmac::HmacReg, mbox::MboxCsr};
+use caliptra_registers::soc_ifc::SocIfcReg;
+use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
+use caliptra_registers::{
+    csrng::CsrngReg, doe::DoeReg, entropy_src::EntropySrcReg, hmac::HmacReg, mbox::MboxCsr,
+};
 use caliptra_test_harness::test_suite;
 use zerocopy::AsBytes;
 
@@ -30,6 +34,15 @@ fn test_decrypt() {
 
     let mut hmac384 = Hmac384::new(unsafe { HmacReg::new() });
     let mut doe = unsafe { DeobfuscationEngine::new(DoeReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
     assert_eq!(
         doe.decrypt_uds(&Array4x4::from(DOE_TEST_IV), KeyId::KeyId0)
             .ok(),
@@ -39,8 +52,9 @@ fn test_decrypt() {
     let mut result = Array4x12::default();
     hmac384
         .hmac(
-            Hmac384Key::Key(KeyReadArgs { id: KeyId::KeyId0 }),
-            Hmac384Data::Slice("Hello world!".as_bytes()),
+            &Hmac384Key::Key(KeyReadArgs { id: KeyId::KeyId0 }),
+            &Hmac384Data::Slice("Hello world!".as_bytes()),
+            &mut trng,
             Hmac384Tag::Array4x12(&mut result),
         )
         .unwrap();
@@ -50,8 +64,9 @@ fn test_decrypt() {
     let mut result = Array4x12::default();
     hmac384
         .hmac(
-            Hmac384Key::Array4x12(&Array4x12::new(DOE_TEST_HMAC_KEY)),
-            Hmac384Data::Key(KeyReadArgs { id: KeyId::KeyId0 }),
+            &Hmac384Key::Array4x12(&Array4x12::new(DOE_TEST_HMAC_KEY)),
+            &Hmac384Data::Key(KeyReadArgs { id: KeyId::KeyId0 }),
+            &mut trng,
             Hmac384Tag::Array4x12(&mut result),
         )
         .unwrap();
@@ -64,8 +79,9 @@ fn test_decrypt() {
     let mut result = Array4x12::default();
     hmac384
         .hmac(
-            Hmac384Key::Key(KeyReadArgs { id: KeyId::KeyId1 }),
-            Hmac384Data::Slice("Hello world!".as_bytes()),
+            &Hmac384Key::Key(KeyReadArgs { id: KeyId::KeyId1 }),
+            &Hmac384Data::Slice("Hello world!".as_bytes()),
+            &mut trng,
             Hmac384Tag::Array4x12(&mut result),
         )
         .unwrap();
@@ -75,8 +91,9 @@ fn test_decrypt() {
     let mut result = Array4x12::default();
     hmac384
         .hmac(
-            Hmac384Key::Array4x12(&Array4x12::new(DOE_TEST_HMAC_KEY)),
-            Hmac384Data::Key(KeyReadArgs { id: KeyId::KeyId1 }),
+            &Hmac384Key::Array4x12(&Array4x12::new(DOE_TEST_HMAC_KEY)),
+            &Hmac384Data::Key(KeyReadArgs { id: KeyId::KeyId1 }),
+            &mut trng,
             Hmac384Tag::Array4x12(&mut result),
         )
         .unwrap();

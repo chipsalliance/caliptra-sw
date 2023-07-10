@@ -28,6 +28,7 @@ use crate::flow::cold_reset::idev_id::InitDevIdLayer;
 use crate::flow::cold_reset::ldev_id::LocalDevIdLayer;
 use crate::{cprintln, rom_env::RomEnv};
 use caliptra_common::FirmwareHandoffTable;
+use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
 
 pub const KEY_ID_UDS: KeyId = KeyId::KeyId0;
@@ -60,22 +61,28 @@ impl ColdResetFlow {
     #[inline(never)]
     pub fn run(env: &mut RomEnv) -> CaliptraResult<FirmwareHandoffTable> {
         cprintln!("[cold-reset] ++");
+        report_boot_status(ColdResetStarted.into());
 
         // Execute IDEVID layer
-        let idevid_layer_output = InitDevIdLayer::derive(env)?;
+        let mut idevid_layer_output = InitDevIdLayer::derive(env)?;
         let ldevid_layer_input = dice_input_from_output(&idevid_layer_output);
 
         // Execute LDEVID layer
-        let ldevid_layer_output = LocalDevIdLayer::derive(env, &ldevid_layer_input)?;
+        let result = LocalDevIdLayer::derive(env, &ldevid_layer_input);
+        idevid_layer_output.zeroize();
+        let mut ldevid_layer_output = result?;
         let fmc_layer_input = dice_input_from_output(&ldevid_layer_output);
 
         // Download and validate firmware.
-        let fw_proc_info = FirmwareProcessor::process(env)?;
+        let mut fw_proc_info = FirmwareProcessor::process(env)?;
 
         // Execute FMCALIAS layer
         FmcAliasLayer::derive(env, &fmc_layer_input, &fw_proc_info)?;
+        ldevid_layer_output.zeroize();
+        fw_proc_info.zeroize();
 
         cprintln!("[cold-reset] --");
+        report_boot_status(ColdResetComplete.into());
 
         Ok(fht::make_fht(env))
     }

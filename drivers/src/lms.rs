@@ -366,6 +366,7 @@ impl Lms {
         }
         hasher.finalize()?;
         let result = HashValue::<N>::from(digest);
+        digest.0.fill(0);
         Ok(result)
     }
 
@@ -453,11 +454,14 @@ impl Lms {
             temp = HashValue::<N>::from(digest);
             node_num /= 2;
             i += 1;
+            digest.0.fill(0);
         }
-        let candidate_key = temp;
-        if candidate_key != HashValue::from(lms_public_key.digest) {
+        let candidate_key = &temp;
+        if *candidate_key != HashValue::from(lms_public_key.digest) {
             return Ok(false);
         }
+        digest.0.fill(0);
+        temp.0.fill(0);
         Ok(true)
     }
 }

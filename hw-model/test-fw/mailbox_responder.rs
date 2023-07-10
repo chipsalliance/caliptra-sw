@@ -9,7 +9,7 @@
 #[allow(unused)]
 use caliptra_test_harness;
 
-use caliptra_registers::{self, mbox::MboxCsr, soc_ifc::SocIfcReg};
+use caliptra_registers::{self, mbox::MboxCsr, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg};
 
 #[panic_handler]
 pub fn panic(_info: &core::panic::PanicInfo) -> ! {
@@ -21,6 +21,9 @@ extern "C" fn main() {
     let mut soc_ifc = unsafe { SocIfcReg::new() };
     let mut mbox = unsafe { MboxCsr::new() };
     let mbox = mbox.regs_mut();
+
+    let mut sha512acc = unsafe { Sha512AccCsr::new() };
+    let sha512acc = sha512acc.regs_mut();
 
     soc_ifc
         .regs_mut()
@@ -65,6 +68,11 @@ extern "C" fn main() {
             }
             // Returns a success response; doesn't consume input.
             0x2000_0000 => {
+                mbox.status().write(|w| w.status(|w| w.cmd_complete()));
+            }
+            0x5000_0000 => {
+                // Unlock sha512acc peripheral by writing 1
+                sha512acc.lock().write(|w| w.lock(true));
                 mbox.status().write(|w| w.status(|w| w.cmd_complete()));
             }
             // Everything else returns a failure response; doesn't consume input.

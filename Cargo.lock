@@ -277,6 +277,10 @@ name = "caliptra-error"
 version = "0.1.0"
 
 [[package]]
+name = "caliptra-file-header-fix"
+version = "0.1.0"
+
+[[package]]
 name = "caliptra-fmc"
 version = "0.1.0"
 dependencies = [
@@ -621,6 +625,7 @@ version = "0.1.0"
 dependencies = [
  "bitfield",
  "caliptra-drivers",
+ "caliptra-registers",
  "ufmt",
  "zerocopy",
 ]
@@ -949,10 +954,6 @@ dependencies = [
  "rand_core",
  "subtle",
 ]
-
-[[package]]
-name = "file-header-fix"
-version = "0.1.0"
 
 [[package]]
 name = "foreign-types"
