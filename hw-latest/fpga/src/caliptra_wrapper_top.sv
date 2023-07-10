@@ -27,7 +27,7 @@ module caliptra_wrapper_top (
     output bit ready_for_fuses,
     output bit ready_for_fw_push,
     output bit ready_for_runtime,
-
+    
     //APB Interface
     input  wire [`CALIPTRA_APB_ADDR_WIDTH-1:0] PADDR,
     input  wire                       PENABLE,
@@ -95,13 +95,14 @@ module caliptra_wrapper_top (
         BootFSM_BrkPoint = 1'b1; //Set to 1 even before anything starts
     end
 
+`ifdef CALIPTRA_INTERNAL_TRNG
     logic itrng_valid;
     logic [3:0]itrng_data;
+`endif
 
-
-   //=========================================================================-
-   // DUT instance
-   //=========================================================================-
+//=========================================================================-
+// DUT instance
+//=========================================================================-
 caliptra_top caliptra_top_dut (
     .cptra_pwrgood              (cptra_pwrgood),
     .cptra_rst_b                (cptra_rst_b),
@@ -209,42 +210,5 @@ fpga_imem imem_inst1(
     .doutb(axi_bram_rddata),
     .rstb(axi_bram_rst)
 );
-
-
-// Pseudo-random data for itrng using fibonacci
-logic [3:0] fib_a;
-logic [3:0] fib_b;
-logic [4:0] fib_counter;
-always @(posedge core_clk)
-begin
-    if (!cptra_rst_b)
-    begin
-        fib_a <= 4'h1;
-        fib_b <= 4'h1;
-        fib_counter <= 5'h0;
-        itrng_data <= 4'h0;
-        itrng_valid <= 0;
-    end
-    else
-    begin
-        fib_b <= fib_a + fib_b;
-        fib_a <= fib_b;
-
-        // Expected otuput rate is 50KHz. Assuming core clock is 1Mhz output 1/20.
-        if (fib_counter == 4'd20)
-        begin
-            itrng_data <= fib_b;
-            itrng_valid <= 1;
-            fib_counter <= fib_counter + 1;
-        end
-        else if (fib_counter == 4'd21)
-        begin
-            itrng_valid <= 0;
-            fib_counter <= 0;
-        end
-        else
-            fib_counter <= fib_counter + 1;
-    end
-end
 
 endmodule

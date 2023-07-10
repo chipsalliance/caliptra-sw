@@ -9,7 +9,17 @@ file mkdir $packageDir
 set rtlDir ../caliptra-rtl-fpga
 
 # JTAG enabled
-set JTAG 0
+set JTAG 1
+
+# Set Verilog defines to:
+#     Make Caliptra use an icg that doesn't clock gate
+#     Make the VEER core be optimized for FPGA (no clock gating)
+#     Define VEER TEC_RV_ICG to allow beh_lib to synthesise without error
+set VERILOG_OPTIONS {TECH_SPECIFIC_ICG USER_ICG=fpga_fake_icg RV_FPGA_OPTIMIZE TEC_RV_ICG=clockhdr}
+if {FALSE} {
+  # Add option to use Caliptra's internal TRNG instead of ETRNG
+  lappend VERILOG_OPTIONS CALIPTRA_INTERNAL_TRNG
+}
 
 # Start the Vivado GUI for interactive debug
 start_gui
@@ -53,7 +63,7 @@ set_property -dict [list \
   CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
 ] [get_ips fpga_ecc_ram_tdp_file]
 
-set_property verilog_define {TECH_SPECIFIC_ICG USER_ICG=fpga_fake_icg RV_FPGA_OPTIMIZE TEC_RV_ICG=clockhdr CALIPTRA_INTERNAL_TRNG} [current_fileset]
+set_property verilog_define $VERILOG_OPTIONS [current_fileset]
 
 # Add VEER Headers
 add_files $rtlDir/src/riscv_core/veer_el2/rtl/el2_param.vh
@@ -143,7 +153,7 @@ create_bd_cell -type ip -vlnv design:user:caliptra_package_top:1.0 caliptra_pack
 
 # Add Zynq PS
 create_bd_cell -type ip -vlnv xilinx.com:ip:zynq_ultra_ps_e:3.4 zynq_ultra_ps_e_0
-set_property CONFIG.PSU__CRL_APB__PL0_REF_CTRL__FREQMHZ {1} [get_bd_cells zynq_ultra_ps_e_0]
+set_property CONFIG.PSU__CRL_APB__PL0_REF_CTRL__FREQMHZ {20} [get_bd_cells zynq_ultra_ps_e_0]
 
 # Add AXI Interconnect
 create_bd_cell -type ip -vlnv xilinx.com:ip:axi_interconnect:2.1 axi_interconnect_0
@@ -201,7 +211,6 @@ connect_bd_net [get_bd_pins caliptra_package_top_0/cptra_obf_key] [get_bd_pins c
 
 # Create address segments
 assign_bd_address -offset 0x80000000 -range 0x00010000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs caliptra_soc_0/S00_AXI/S00_AXI_reg] -force
-#assign_bd_address -offset 0x80000000 -range 0x00010000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs axi_gpio_0/S_AXI/Reg] -force
 assign_bd_address -offset 0x82000000 -range 0x00008000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs axi_bram_ctrl_0/S_AXI/Mem0] -force
 assign_bd_address -offset 0x90000000 -range 0x00100000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs caliptra_package_top_0/s_apb/Reg] -force
 
@@ -221,12 +230,7 @@ if {$JTAG == 0} {
 }
 
 save_bd_design
-
-# Set Verilog defines to:
-#     Make Caliptra use an icg that doesn't clock gate
-#     Make the VEER core be optimized for FPGA (no clock gating)
-#     Define VEER TEC_RV_ICG to allow beh_lib to synthesise without error
-set_property verilog_define {TECH_SPECIFIC_ICG USER_ICG=fpga_fake_icg RV_FPGA_OPTIMIZE TEC_RV_ICG=clockhdr CALIPTRA_INTERNAL_TRNG} [current_fileset]
+set_property verilog_define $VERILOG_OPTIONS [current_fileset]
 
 # Create the HDL wrapper for the block design and add it. This will be set as top.
 make_wrapper -files [get_files $outputDir/caliptra_fpga_project.srcs/sources_1/bd/caliptra_fpga_project_bd/caliptra_fpga_project_bd.bd] -top
