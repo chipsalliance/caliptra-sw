@@ -15,7 +15,7 @@ use crate::Output;
 // Static variable to keep track of the handshake with the "uart" code
 static mut TAG: u8 = 1;
 
-// TODO: Make this configurable
+// TODO: Make PAUSER configurable
 const SOC_PAUSER: u32 = 0xffff_ffff;
 
 fn fmt_uio_error(err: UioError) -> String {
@@ -129,6 +129,7 @@ impl HwModel for ModelFpgaRealtime {
 
         // Set Security State signal wires
         m.set_security_state(u32::from(params.security_state));
+
         // Set initial tag to be non-zero
         unsafe { m.set_uart_tag(TAG) };
 
@@ -137,7 +138,11 @@ impl HwModel for ModelFpgaRealtime {
 
         // Set deobfuscation key
         for i in 0..8 {
-            unsafe { m.gpio.offset(GPIO_DEOBF_KEY_OFFSET + i).write_volatile(params.cptra_obf_key[i as usize]) };
+            unsafe {
+                m.gpio
+                    .offset(GPIO_DEOBF_KEY_OFFSET + i)
+                    .write_volatile(params.cptra_obf_key[i as usize])
+            };
         }
 
         // Write ROM image over backdoor
@@ -179,6 +184,15 @@ impl HwModel for ModelFpgaRealtime {
             unsafe {
                 TAG = TAG.wrapping_add(1);
                 self.set_uart_tag(TAG);
+            }
+        }
+
+        // Handle etrng request
+        let etrng_req = unsafe { (self.soc_ifc.offset(0xA8).read_volatile() & 0x1) != 0 };
+        if etrng_req {
+            unsafe {
+                // Write CPTRA_TRNG_STATUS.DATA_WR_DONE
+                self.soc_ifc.offset(0xA8 / 4).write_volatile(0x2);
             }
         }
     }

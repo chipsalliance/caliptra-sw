@@ -52,7 +52,7 @@ Serial port settings for connection over USB.
     - `caliptra_build/caliptra_fpga_project.runs/impl_1/caliptra_fpga_project_bd_wrapper.bin`
 
 ### AXI Memory Map ###
- - SOC adapter
+ - SOC adapter for driving caliptra-top signals
    - 0x80000000 - GPIO Out -> Caliptra
      - `[0] -> cptra_rst_b`
      - `[1] -> cptra_pwrgood`
@@ -69,7 +69,7 @@ Serial port settings for connection over USB.
      - `[31:0] -> PAUSER to Caliptra APB`
  - ROM Backdoor
    - `0x82000000 - 0x82007FFF`
- - Caliptra
+ - Caliptra soc register interface
    - `0x90000000`
 
 ### Loading and Execution Steps: ###
@@ -84,5 +84,8 @@ Serial port settings for connection over USB.
       - `make`
       - `insmod io_module.ko`
       - `chmod 666 /dev/uio4`
+1. Set FPGA PLL frequency
+    - As root:
+      - `echo 20000000 > /sys/bus/platform/drivers/xilinx_fclk/fclk0/set_rate`
 1. Execute test targeting fpga_realtime
     - `CPTRA_UIO_NUM=4 cargo test -p caliptra-test --features=fpga_realtime smoke_test`

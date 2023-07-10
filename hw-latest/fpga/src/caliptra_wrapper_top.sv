@@ -42,7 +42,6 @@ module caliptra_wrapper_top (
 
     input wire [255:0]           cptra_obf_key,
 
-
     //device lifecycle
     input wire debug_locked,
     input wire [1:0] device_lifecycle,
