@@ -1,52 +1,27 @@
 // Licensed under the Apache-2.0 license
-
+use caliptra_common::cprintln;
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::CaliptraResult;
-use core::convert::TryFrom;
-
-use caliptra_drivers::KeyVault;
 use caliptra_registers::mbox::enums::MboxStatusE;
-/// FIPS module environment.
-pub struct FipsEnv<'a> {
-    pub key_vault: &'a mut KeyVault,
-}
 
-#[derive(PartialEq, Eq)]
-pub struct FipsModuleApi(pub u32);
+use crate::Drivers;
 
-/// FIPS module commands.
-impl FipsModuleApi {
-    /// The status command.
-    pub const VERSION: Self = Self(0x4650_5652); // "FPVR"
-    /// The self-test command.
-    pub const SELF_TEST: Self = Self(0x4650_4C54); // "FPST"
-    /// The shutdown command.
-    pub const SHUTDOWN: Self = Self(0x4650_5344); // "FPSD"
-}
+/// Fips command handler.
+pub struct FipsModule;
 
-impl TryFrom<u32> for FipsModuleApi {
-    type Error = CaliptraError;
-
-    fn try_from(value: u32) -> Result<Self, Self::Error> {
-        match value {
-            0x4650_5652 => Ok(Self::VERSION),   // "STAT"
-            0x4650_4C54 => Ok(Self::SELF_TEST), // "SELF"
-            0x4650_5344 => Ok(Self::SHUTDOWN),  // "SHDN"
-            _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-        }
+impl FipsModule {
+    pub fn version(_env: &Drivers) -> CaliptraResult<MboxStatusE> {
+        cprintln!("[rt] FIPS Version");
+        Err(CaliptraError::RUNTIME_FIPS_UNIMPLEMENTED)
     }
-}
 
-/// Convert the FipsModuleApi to a u32.
-impl From<FipsModuleApi> for u32 {
-    fn from(api: FipsModuleApi) -> Self {
-        api.0
+    pub fn self_test(_env: &Drivers) -> CaliptraResult<MboxStatusE> {
+        cprintln!("[rt] FIPS self test");
+        Err(CaliptraError::RUNTIME_FIPS_UNIMPLEMENTED)
     }
-}
 
-/// FIPS module trait.
-pub trait FipsManagement {
-    fn status(&self, fips_env: &FipsEnv) -> CaliptraResult<MboxStatusE>;
-    fn self_test(&self, fips_env: &FipsEnv) -> CaliptraResult<MboxStatusE>;
-    fn shutdown(&self, fips_env: &FipsEnv) -> CaliptraResult<MboxStatusE>;
+    pub fn shutdown(_env: &Drivers) -> CaliptraResult<MboxStatusE> {
+        cprintln!("[rt] FIPS shutdown");
+        Err(CaliptraError::RUNTIME_FIPS_UNIMPLEMENTED)
+    }
 }
