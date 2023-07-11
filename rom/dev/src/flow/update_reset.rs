@@ -117,13 +117,13 @@ impl UpdateResetFlow {
 
         let dst = unsafe {
             let ptr = MAN1_ORG as *mut u32;
-            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>())
+            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
         };
 
         let src = unsafe {
             let ptr = MAN2_ORG as *mut u32;
 
-            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>())
+            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
         };
 
         dst.clone_from_slice(src);
