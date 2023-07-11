@@ -2,24 +2,24 @@ Certificate:
     Data:
         Version: 3 (0x2)
         Serial Number:
-            3f:b8:02:3f:a9:1c:4d:48:5a:c0:72:20:31:fe:67:b5:3f:5a:0f:23
+            25:ee:ef:9a:4c:61:d4:b9:e3:d9:4b:ea:46:f9:a1:2a:c6:88:7c:e2
         Signature Algorithm: ecdsa-with-SHA384
-        Issuer: CN=Caliptra IDevID/serialNumber=D40A951BEF6B2258DF9248E581A860A077F61B6976B52866404B8FD1AD9EA62B
+        Issuer: CN=Caliptra IDevID/serialNumber=8E3C1A058F704A11821F7B48D340AEF99DDABADC1090D74D057FECCF73294ED6
         Validity
             Not Before: Jan  1 00:00:00 2023 GMT
             Not After : Dec 31 23:59:59 9999 GMT
-        Subject: CN=Caliptra LDevID/serialNumber=3BB8023FA91C4D485AC0722031FE67B53F5A0F23D695B589A5BB868983A04CB1
+        Subject: CN=Caliptra LDevID/serialNumber=21EEEF9A4C61D4B9E3D94BEA46F9A12AC6887CE2188559F40FF95777E8014889
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (384 bit)
                 pub:
-                    04:ee:5f:2d:29:de:f1:78:b0:49:e5:fc:b0:fc:a7:
-                    1f:0e:f8:6d:cb:fd:99:75:38:c2:8b:cf:00:85:2f:
-                    a5:52:2d:fb:86:b2:6d:73:54:a7:75:4f:0b:01:f7:
-                    2a:c7:f0:e1:ab:cc:9e:82:16:46:da:2e:6c:55:89:
-                    82:1b:94:7b:05:8d:8b:a8:95:f2:54:34:97:21:54:
-                    ba:ef:79:ec:23:1a:57:df:de:4a:15:56:05:23:af:
-                    c4:7e:0a:46:de:b4:d1
+                    04:84:2c:00:af:05:ac:cc:eb:14:51:4e:2d:37:b0:
+                    c3:aa:a2:18:f1:50:57:f1:dc:b8:24:a2:14:98:0b:
+                    74:46:88:a0:88:8a:02:97:fa:7d:c5:e1:ea:d8:ca:
+                    12:91:db:22:9c:28:eb:86:78:bc:e8:00:82:2c:07:
+                    22:8f:41:6a:e4:9d:21:8e:5d:a2:f2:d1:a8:a2:7d:
+                    c1:9a:df:66:8a:74:62:89:99:d2:22:b4:01:59:d8:
+                    07:6f:af:bb:8c:5e:db
                 ASN1 OID: secp384r1
                 NIST CURVE: P-384
         X509v3 extensions:
@@ -31,14 +31,14 @@ Certificate:
                 0
 ..........
             X509v3 Subject Key Identifier: 
-                3B:B8:02:3F:A9:1C:4D:48:5A:C0:72:20:31:FE:67:B5:3F:5A:0F:23
+                21:EE:EF:9A:4C:61:D4:B9:E3:D9:4B:EA:46:F9:A1:2A:C6:88:7C:E2
             X509v3 Authority Key Identifier: 
-                keyid:5C:93:99:6E:22:99:5D:7F:5D:E9:D9:A3:9C:96:11:A9:1E:AE:34:B5
+                keyid:42:4F:3A:C7:45:DD:BD:50:15:05:7F:5B:F8:3E:9C:D6:48:10:B0:41
 
     Signature Algorithm: ecdsa-with-SHA384
-         30:64:02:30:36:18:27:c2:c9:91:96:b7:5f:ef:bf:a1:88:b1:
-         64:d0:22:cc:3f:c7:da:db:bd:64:22:a9:63:d8:f8:c9:31:4e:
-         df:5c:b8:79:ea:25:46:b0:f7:59:f5:b7:49:99:31:e9:02:30:
-         6f:ea:0e:63:4f:66:54:ad:db:d4:9e:5c:c6:7f:b4:d6:1c:7d:
-         ee:fa:ab:d2:49:7b:da:85:10:1c:0c:30:65:f4:37:88:1b:62:
-         31:c8:92:3d:db:55:5e:7a:9f:ee:d8:ae
+         30:66:02:31:00:b3:ec:55:22:a2:15:25:dd:bc:b9:09:34:a0:
+         a5:c5:23:1f:e4:e1:33:97:d1:03:7e:a1:be:89:97:bd:cd:43:
+         2f:ac:7e:b9:f9:02:13:d3:b6:71:84:9b:e9:84:3a:2d:25:02:
+         31:00:c7:ef:e7:9b:46:76:1e:25:6b:03:83:5a:f4:3c:99:65:
+         5b:b1:63:93:40:41:da:24:a0:af:c5:df:f4:60:c9:1f:d3:75:
+         1c:ba:fa:16:90:b6:e6:85:72:d8:ff:aa:d1:63

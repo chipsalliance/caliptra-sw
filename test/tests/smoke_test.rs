@@ -81,8 +81,8 @@ fn test_golden_idevid_pubkey_matches_generated() {
     assert_eq!(
         generated_idevid.cdi,
         [
-            0xF2C43E5A, 0xEBC24CD1, 0xFDEE31C8, 0x07938708, 0x9A6ECCCD, 0xD78F1BA5, 0xE09DAE41,
-            0xDDA25182, 0x147C71D2, 0x63DBBE33, 0x1E76BEED, 0x76D6D71A
+            0x4443b819, 0x8ca0984a, 0x2d566eed, 0x40f94074, 0x0c7cc63b, 0x85f939ac, 0xa2df92bf,
+            0xb00f2f3e, 0x1e70ec47, 0x6736c596, 0x58a8a450, 0xeeac2f20,
         ]
     );
     assert!(generated_idevid
@@ -99,8 +99,8 @@ fn test_golden_ldevid_pubkey_matches_generated() {
     assert_eq!(
         generated_ldevid.cdi,
         [
-            0x2B75DEB2, 0x005324B8, 0xAB3757BC, 0x93B89D1A, 0xF1AD719C, 0xFA0E49E2, 0x8A5439A7,
-            0x4D09E317, 0x6C06648C, 0x92B92B1B, 0x21FB8788, 0x9E6270E0
+            0xf226cb0f, 0x1b527a8d, 0x9abeb5eb, 0xf407069a, 0xeda6909b, 0xad434d1d, 0x5f3586ff,
+            0xa4729b8c, 0xd9e34ef9, 0xcb4317aa, 0x596674e5, 0x7f3c0f5b,
         ]
     );
     assert!(generated_ldevid
@@ -204,6 +204,17 @@ fn smoke_test() {
 
     let ldev_pubkey = ldev_cert.public_key().unwrap();
 
+    let expected_ldevid_key = LDevId::derive(&DoeOutput::generate(&DoeInput::default()));
+
+    // Check that the LDevID key has all the field entropy input mixed into it
+    // If a firmware change causes this assertion to fail, it is likely that the
+    // logic in the ROM that derives LDevID has changed. Ensure this is
+    // intentional, and then make the same change to
+    // caliptra_test::LDevId::derive().
+    assert!(expected_ldevid_key
+        .derive_public_key()
+        .public_eq(&ldev_pubkey));
+
     println!("ldev-cert: {}", ldev_cert_txt);
 
     let fmc_alias_cert_der = hw
@@ -266,7 +277,7 @@ fn smoke_test() {
             // This is from the SVN in the fuses (7 bits set)
             fmc_fuse_svn: 7,
         }),
-        &LDevId::derive(&DoeOutput::generate(&DoeInput::default())),
+        &expected_ldevid_key,
     );
 
     // Check that the fmc-alias key has all the pcr0 input above mixed into it
