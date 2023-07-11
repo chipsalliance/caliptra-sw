@@ -14,22 +14,16 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
 
-extern "C" {
-    static mut LDEVID_TBS_ORG: u8;
-    static mut FMCALIAS_TBS_ORG: u8;
-    static mut PCR_LOG_ORG: u8;
-    static mut FUSE_LOG_ORG: u8;
-    static mut FHT_ORG: u8;
-}
-
-use core::ptr;
-
+use caliptra_common::memory_layout::{
+    FHT_ORG, FMCALIAS_TBS_ORG, FUSE_LOG_ORG, LDEVID_TBS_ORG, PCR_LOG_ORG,
+};
 use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::{FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_drivers::{DataVault, Mailbox};
 use caliptra_registers::dv::DvReg;
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
+use core::ptr;
 use ureg::RealMmioMut;
 use zerocopy::AsBytes;
 use zerocopy::FromBytes;
@@ -52,7 +46,7 @@ pub extern "C" fn fmc_entry() -> ! {
     cprintln!("{}", BANNER);
 
     let slice = unsafe {
-        let ptr = &mut FHT_ORG as *mut u8;
+        let ptr = FHT_ORG as *mut u8;
         cprintln!("[fmc] Loading FHT from 0x{:08X}", ptr as u32);
         core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
     };
@@ -174,12 +168,12 @@ fn copy_tbs(tbs: &mut [u8], ldevid_tbs: bool) {
     // Copy the tbs from DCCM
     let src = if ldevid_tbs {
         unsafe {
-            let ptr = &mut LDEVID_TBS_ORG as *mut u8;
+            let ptr = LDEVID_TBS_ORG as *mut u8;
             core::slice::from_raw_parts_mut(ptr, tbs.len())
         }
     } else {
         unsafe {
-            let ptr = &mut FMCALIAS_TBS_ORG as *mut u8;
+            let ptr = FMCALIAS_TBS_ORG as *mut u8;
             core::slice::from_raw_parts_mut(ptr, tbs.len())
         }
     };
@@ -193,7 +187,7 @@ fn get_pcr_entry(entry_index: usize) -> PcrLogEntry {
 
     let src = unsafe {
         let offset = core::mem::size_of::<PcrLogEntry>() * entry_index;
-        let ptr = (&mut PCR_LOG_ORG as *mut u8).add(offset);
+        let ptr = (PCR_LOG_ORG as *mut u8).add(offset);
         core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<PcrLogEntry>())
     };
 
@@ -282,7 +276,7 @@ fn get_fuse_entry(entry_index: usize) -> FuseLogEntry {
 
     let src = unsafe {
         let offset = core::mem::size_of::<FuseLogEntry>() * entry_index;
-        let ptr = (&mut FUSE_LOG_ORG as *mut u8).add(offset);
+        let ptr = (FUSE_LOG_ORG as *mut u8).add(offset);
         core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FuseLogEntry>())
     };
 
@@ -296,7 +290,7 @@ fn read_fht(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
         [0u8; core::mem::size_of::<FirmwareHandoffTable>()];
 
     let src = unsafe {
-        let ptr = &mut FHT_ORG as *mut u8;
+        let ptr = FHT_ORG as *mut u8;
         core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
     };
 
