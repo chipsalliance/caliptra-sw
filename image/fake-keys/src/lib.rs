@@ -222,78 +222,6 @@ pub const OWNER_LMS_KEY0_PUBLIC: ImageLmsPublicKey = ImageLmsPublicKey {
         0x56, 0x08, 0x6f, 0x8f, 0x8c, 0xfa, 0x05, 0xb5, 0xbb,
     ]),
 };
-pub const OWNER_LMS_KEY1_PRIVATE: ImageLmsPrivKey = ImageLmsPrivKey {
-    tree_type: IMAGE_LMS_TREE_TYPE,
-    otstype: IMAGE_LMS_OTS_TYPE,
-    id: [
-        0xac, 0x8f, 0x65, 0x00, 0x3c, 0xcf, 0x92, 0xbc, 0x54, 0x31, 0x15, 0x4e, 0x8c, 0x79, 0x0e,
-        0x1a,
-    ],
-    seed: bytes_to_words_6([
-        0x23, 0xc7, 0x8f, 0x08, 0x84, 0x97, 0x65, 0xed, 0x64, 0xbb, 0x16, 0x9b, 0x0a, 0xed, 0x08,
-        0x1a, 0xab, 0xa8, 0x07, 0xe0, 0x3e, 0x4b, 0x6b, 0x91,
-    ]),
-};
-pub const OWNER_LMS_KEY1_PUBLIC: ImageLmsPublicKey = ImageLmsPublicKey {
-    tree_type: IMAGE_LMS_TREE_TYPE,
-    otstype: IMAGE_LMS_OTS_TYPE,
-    id: [
-        0xac, 0x8f, 0x65, 0x00, 0x3c, 0xcf, 0x92, 0xbc, 0x54, 0x31, 0x15, 0x4e, 0x8c, 0x79, 0x0e,
-        0x1a,
-    ],
-    digest: bytes_to_words_6([
-        0xe4, 0x16, 0x40, 0x7c, 0xf1, 0x12, 0x2e, 0xbb, 0xda, 0x96, 0x0b, 0xf9, 0x37, 0x3c, 0x9e,
-        0x62, 0x92, 0xf5, 0x26, 0x03, 0xc9, 0xdd, 0x62, 0xff,
-    ]),
-};
-pub const OWNER_LMS_KEY2_PRIVATE: ImageLmsPrivKey = ImageLmsPrivKey {
-    tree_type: IMAGE_LMS_TREE_TYPE,
-    otstype: IMAGE_LMS_OTS_TYPE,
-    id: [
-        0xc8, 0x73, 0x01, 0x7c, 0x74, 0xa5, 0xcc, 0x3d, 0xc6, 0x98, 0xa0, 0x0f, 0x3a, 0x01, 0x91,
-        0x45,
-    ],
-    seed: bytes_to_words_6([
-        0x20, 0xda, 0x75, 0xd3, 0x41, 0x63, 0x85, 0x78, 0x82, 0xec, 0x47, 0xd4, 0xf6, 0xca, 0x29,
-        0xf4, 0x7f, 0xd1, 0x8c, 0xcd, 0x54, 0x38, 0x42, 0xb3,
-    ]),
-};
-pub const OWNER_LMS_KEY2_PUBLIC: ImageLmsPublicKey = ImageLmsPublicKey {
-    tree_type: IMAGE_LMS_TREE_TYPE,
-    otstype: IMAGE_LMS_OTS_TYPE,
-    id: [
-        0xc8, 0x73, 0x01, 0x7c, 0x74, 0xa5, 0xcc, 0x3d, 0xc6, 0x98, 0xa0, 0x0f, 0x3a, 0x01, 0x91,
-        0x45,
-    ],
-    digest: bytes_to_words_6([
-        0x32, 0x81, 0xaa, 0xc5, 0xc2, 0x04, 0x1c, 0xd3, 0x3b, 0x7b, 0x71, 0x70, 0x21, 0xdd, 0x72,
-        0x88, 0x6c, 0x86, 0x34, 0x3c, 0x3f, 0x77, 0x07, 0x7c,
-    ]),
-};
-pub const OWNER_LMS_KEY3_PRIVATE: ImageLmsPrivKey = ImageLmsPrivKey {
-    tree_type: IMAGE_LMS_TREE_TYPE,
-    otstype: IMAGE_LMS_OTS_TYPE,
-    id: [
-        0x08, 0xdc, 0xac, 0x8c, 0x91, 0x47, 0xb2, 0x5c, 0x53, 0x1d, 0x9b, 0x5e, 0x41, 0xce, 0x67,
-        0xf0,
-    ],
-    seed: bytes_to_words_6([
-        0xa7, 0x59, 0x03, 0x85, 0x98, 0x89, 0x6b, 0xa1, 0x4f, 0xf4, 0x3c, 0xd5, 0xde, 0x2d, 0xd5,
-        0x7c, 0x21, 0x41, 0x3b, 0xdb, 0x1a, 0x2b, 0x59, 0x7b,
-    ]),
-};
-pub const OWNER_LMS_KEY3_PUBLIC: ImageLmsPublicKey = ImageLmsPublicKey {
-    tree_type: IMAGE_LMS_TREE_TYPE,
-    otstype: IMAGE_LMS_OTS_TYPE,
-    id: [
-        0x08, 0xdc, 0xac, 0x8c, 0x91, 0x47, 0xb2, 0x5c, 0x53, 0x1d, 0x9b, 0x5e, 0x41, 0xce, 0x67,
-        0xf0,
-    ],
-    digest: bytes_to_words_6([
-        0x46, 0x24, 0xd5, 0x8b, 0x45, 0xf7, 0xa5, 0xa4, 0xc6, 0x32, 0x7f, 0x42, 0x03, 0x6f, 0x8a,
-        0x4c, 0xba, 0x07, 0x27, 0x82, 0x5b, 0x39, 0x43, 0x98,
-    ]),
-};
 pub const OWNER_KEY_PUBLIC: ImageEccPubKey = ImageEccPubKey {
     x: [
         0xc6f82e2b, 0xdcf3e157, 0xa162e7f3, 0x3eca35c4, 0x55ea08a9, 0x13811779, 0xb6f2646d,
@@ -325,12 +253,7 @@ pub const VENDOR_PUBLIC_KEYS: ImageVendorPubKeys = ImageVendorPubKeys {
 
 pub const OWNER_PUBLIC_KEYS: ImageOwnerPubKeys = ImageOwnerPubKeys {
     ecc_pub_key: OWNER_KEY_PUBLIC,
-    lms_pub_keys: [
-        OWNER_LMS_KEY0_PUBLIC,
-        OWNER_LMS_KEY1_PUBLIC,
-        OWNER_LMS_KEY2_PUBLIC,
-        OWNER_LMS_KEY3_PUBLIC,
-    ],
+    lms_pub_keys: [OWNER_LMS_KEY0_PUBLIC],
 };
 pub const VENDOR_PRIVATE_KEYS: ImageVendorPrivKeys = ImageVendorPrivKeys {
     ecc_priv_keys: [
@@ -349,12 +272,7 @@ pub const VENDOR_PRIVATE_KEYS: ImageVendorPrivKeys = ImageVendorPrivKeys {
 
 pub const OWNER_PRIVATE_KEYS: ImageOwnerPrivKeys = ImageOwnerPrivKeys {
     ecc_priv_key: OWNER_KEY_PRIVATE,
-    lms_priv_keys: [
-        OWNER_LMS_KEY0_PRIVATE,
-        OWNER_LMS_KEY1_PRIVATE,
-        OWNER_LMS_KEY2_PRIVATE,
-        OWNER_LMS_KEY3_PRIVATE,
-    ],
+    lms_priv_keys: [OWNER_LMS_KEY0_PRIVATE],
 };
 
 pub const VENDOR_CONFIG_KEY_0: ImageGeneratorVendorConfig = ImageGeneratorVendorConfig {
@@ -387,21 +305,11 @@ pub const VENDOR_CONFIG_KEY_3: ImageGeneratorVendorConfig = ImageGeneratorVendor
 pub const OWNER_CONFIG: ImageGeneratorOwnerConfig = ImageGeneratorOwnerConfig {
     pub_keys: ImageOwnerPubKeys {
         ecc_pub_key: OWNER_KEY_PUBLIC,
-        lms_pub_keys: [
-            OWNER_LMS_KEY0_PUBLIC,
-            OWNER_LMS_KEY1_PUBLIC,
-            OWNER_LMS_KEY2_PUBLIC,
-            OWNER_LMS_KEY3_PUBLIC,
-        ],
+        lms_pub_keys: [OWNER_LMS_KEY0_PUBLIC],
     },
     priv_keys: Some(ImageOwnerPrivKeys {
         ecc_priv_key: OWNER_KEY_PRIVATE,
-        lms_priv_keys: [
-            OWNER_LMS_KEY0_PRIVATE,
-            OWNER_LMS_KEY1_PRIVATE,
-            OWNER_LMS_KEY2_PRIVATE,
-            OWNER_LMS_KEY3_PRIVATE,
-        ],
+        lms_priv_keys: [OWNER_LMS_KEY0_PRIVATE],
     }),
     lms_key_idx: 0,
     not_before: [0u8; 15],

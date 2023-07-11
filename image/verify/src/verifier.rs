@@ -143,7 +143,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             self.verify_vendor_ecc_pk_idx(preamble, reason)?;
 
         if vendor_ecc_pub_key_idx >= VENDOR_ECC_KEY_COUNT {
-            Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VEN_PUB_KEY_IDX_OUT_OF_BOUNDS)?;
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS)?;
         }
 
         // Vendor Information
