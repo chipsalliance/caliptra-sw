@@ -6,15 +6,18 @@ pub mod dice;
 mod verify;
 
 // Used by runtime tests
+pub(crate) mod fips;
 pub mod mailbox;
 
 use mailbox::Mailbox;
 
 pub mod packet;
+pub use fips::{FipsEnv, FipsManagement, FipsModuleApi};
 use packet::Packet;
 
 use caliptra_common::{cprintln, FirmwareHandoffTable};
-use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault, Ecc384};
+use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault};
+use caliptra_registers::kv::KvReg;
 use caliptra_registers::{
     dv::DvReg,
     ecc::EccReg,
@@ -53,6 +56,7 @@ pub struct Drivers<'a> {
     pub sha_acc: Sha512AccCsr,
     pub ecdsa: Ecc384,
     pub data_vault: DataVault,
+    pub key_vault: KeyVault,
     pub fht: &'a mut FirmwareHandoffTable,
 }
 impl<'a> Drivers<'a> {
@@ -67,6 +71,7 @@ impl<'a> Drivers<'a> {
             sha_acc: Sha512AccCsr::new(),
             ecdsa: Ecc384::new(EccReg::new()),
             data_vault: DataVault::new(DvReg::new()),
+            key_vault: KeyVault::new(KvReg::new()),
             fht,
         }
     }
@@ -143,7 +148,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             )?;
             Ok(MboxStatusE::DataReady)
         }
-        _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        _ => FipsModule::default().handle_command(packet.cmd, cmd_bytes, drivers),
     }
 }
 
@@ -161,6 +166,48 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) {
                     drivers.mbox.set_status(MboxStatusE::CmdFailure);
                 }
             }
+        }
+    }
+}
+
+#[derive(Default)]
+struct FipsModule;
+
+impl FipsManagement for FipsModule {
+    fn status(&self, _env: &FipsEnv) -> CaliptraResult<MboxStatusE> {
+        cprintln!("[rt] FIPS status");
+        Err(CaliptraError::RUNTIME_FIPS_UNIMPLEMENTED)
+    }
+
+    fn self_test(&self, _env: &FipsEnv) -> CaliptraResult<MboxStatusE> {
+        cprintln!("[rt] FIPS self test");
+        Err(CaliptraError::RUNTIME_FIPS_UNIMPLEMENTED)
+    }
+
+    fn shutdown(&self, _env: &FipsEnv) -> CaliptraResult<MboxStatusE> {
+        cprintln!("[rt] FIPS shutdown");
+        Err(CaliptraError::RUNTIME_FIPS_UNIMPLEMENTED)
+    }
+}
+
+impl FipsModule {
+    pub fn handle_command(
+        &self,
+        command_id: u32,
+        _payload: &[u8],
+        drivers: &mut Drivers,
+    ) -> CaliptraResult<MboxStatusE> {
+        let env = FipsEnv {
+            key_vault: &mut drivers.key_vault,
+        };
+        match command_id.try_into() {
+            Ok(api) => match api {
+                FipsModuleApi::VERSION => self.status(&env),
+                FipsModuleApi::SELF_TEST => self.self_test(&env),
+                FipsModuleApi::SHUTDOWN => self.shutdown(&env),
+                _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+            },
+            Err(_) => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         }
     }
 }

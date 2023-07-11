@@ -3,7 +3,7 @@
 use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
 use caliptra_drivers::Ecc384PubKey;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode};
-use caliptra_runtime::{CommandId, EcdsaVerifyCmd};
+use caliptra_runtime::{CommandId, EcdsaVerifyCmd, FipsModuleApi};
 use openssl::{
     bn::BigNum,
     ec::{EcGroup, EcKey},
@@ -215,6 +215,30 @@ fn test_verify_cmd() {
         model.soc_ifc().cptra_fw_error_non_fatal().read(),
         caliptra_drivers::CaliptraError::RUNTIME_INVALID_CHECKSUM.into()
     );
+}
+
+#[test]
+fn test_fips_cmd_api() {
+    let mut model = run_rom_test("mbox");
+    let expected_err = Err(ModelError::MailboxCmdFailed(0x000E0006));
+
+    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+
+    let cmd = [0u8; 4];
+
+    let resp = model.mailbox_execute(u32::from(FipsModuleApi::VERSION), &cmd);
+    assert_eq!(resp, expected_err);
+
+    let resp = model.mailbox_execute(u32::from(FipsModuleApi::SHUTDOWN), &cmd);
+    assert_eq!(resp, expected_err);
+
+    let resp = model.mailbox_execute(u32::from(FipsModuleApi::SELF_TEST), &cmd);
+    assert_eq!(resp, expected_err);
+
+    let expected_err = Err(ModelError::MailboxCmdFailed(0xe0002));
+    // Send something that is not a valid RT command.
+    let resp = model.mailbox_execute(0xBABEFACE, &cmd);
+    assert_eq!(resp, expected_err);
 }
 
 #[test]
