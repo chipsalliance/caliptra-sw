@@ -16,6 +16,8 @@ use crate::rom_env::RomEnv;
 use caliptra_drivers::*;
 use caliptra_x509::Ecdsa384Signature;
 
+use super::KEY_ID_TMP;
+
 /// ECDSA-384 Signature Adapter
 ///
 /// TODO: This can be refactored and eliminated by X509 using `Ecc384Signature`
@@ -101,39 +103,67 @@ impl Crypto {
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    /// * `key` - HMAC384 key
+    /// * `key` - HMAC384 key slot
     /// * `data` - Input data to hash
     /// * `tag` - Key slot to store the tag
-    ///
-    /// # Returns
-    ///
-    /// * `KeyId` - Key Id inputted
     pub fn hmac384_mac(
         env: &mut RomEnv,
-        key: &Hmac384Key,
+        key: KeyId,
         data: &Hmac384Data,
         tag: KeyId,
-    ) -> CaliptraResult<KeyId> {
-        // Tag
-        let tag_args = Hmac384Tag::Key(KeyWriteArgs::new(
-            tag,
-            KeyUsage::default()
-                .set_hmac_key_en()
-                .set_ecc_key_gen_seed_en(),
-        ));
+    ) -> CaliptraResult<()> {
+        env.hmac384.hmac(
+            &KeyReadArgs::new(key).into(),
+            data,
+            &mut env.trng,
+            KeyWriteArgs::new(
+                tag,
+                KeyUsage::default()
+                    .set_hmac_key_en()
+                    .set_ecc_key_gen_seed_en(),
+            )
+            .into(),
+        )
+    }
 
-        // Calculate the CDI
-        env.hmac384.hmac(key, data, &mut env.trng, tag_args)?;
-
-        Ok(tag)
+    /// Calculate HMAC-348 KDF
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - ROM Environment
+    /// * `key` - HMAC384 key slot
+    /// * `label` - Input label
+    /// * `context` - Input context
+    /// * `output` - Key slot to store the output
+    pub fn hmac384_kdf(
+        env: &mut RomEnv,
+        key: KeyId,
+        label: &[u8],
+        context: Option<&[u8]>,
+        output: KeyId,
+    ) -> CaliptraResult<()> {
+        hmac384_kdf(
+            &mut env.hmac384,
+            KeyReadArgs::new(key).into(),
+            label,
+            context,
+            &mut env.trng,
+            KeyWriteArgs::new(
+                output,
+                KeyUsage::default()
+                    .set_hmac_key_en()
+                    .set_ecc_key_gen_seed_en(),
+            )
+            .into(),
+        )
     }
 
     /// Generate ECC Key Pair
     ///
     /// # Arguments
     ///
-    /// * `env`   - ROM Environment
-    /// * `seed` - Key slot to retrieve the seed from
+    /// * `env` - ROM Environment
+    /// * `cdi` - Key slot to retrieve the CDI from
     /// * `priv_key` - Key slot to store the private key
     ///
     /// # Returns
@@ -141,21 +171,28 @@ impl Crypto {
     /// * `Ecc384KeyPair` - Private Key slot id and public key pairs
     pub fn ecc384_key_gen(
         env: &mut RomEnv,
-        seed: KeyId,
+        cdi: KeyId,
+        label: &[u8],
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
-        let seed = Ecc384Seed::Key(KeyReadArgs::new(seed));
+        Crypto::hmac384_kdf(env, cdi, label, None, KEY_ID_TMP)?;
 
         let key_out = Ecc384PrivKeyOut::Key(KeyWriteArgs::new(
             priv_key,
             KeyUsage::default().set_ecc_private_key_en(),
         ));
 
+        let pub_key = env.ecc384.key_pair(
+            &KeyReadArgs::new(KEY_ID_TMP).into(),
+            &Array4x12::default(),
+            &mut env.trng,
+            key_out,
+        );
+        env.key_vault.erase_key(KEY_ID_TMP)?;
+
         Ok(Ecc384KeyPair {
             priv_key,
-            pub_key: env
-                .ecc384
-                .key_pair(&seed, &Array4x12::default(), &mut env.trng, key_out)?,
+            pub_key: pub_key?,
         })
     }
 

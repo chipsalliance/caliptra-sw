@@ -1,18 +1,18 @@
 Certificate Request:
     Data:
         Version: 1 (0x0)
-        Subject: CN=Caliptra IDevID/serialNumber=D40A951BEF6B2258DF9248E581A860A077F61B6976B52866404B8FD1AD9EA62B
+        Subject: CN=Caliptra IDevID/serialNumber=8E3C1A058F704A11821F7B48D340AEF99DDABADC1090D74D057FECCF73294ED6
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (384 bit)
                 pub:
-                    04:44:91:45:78:aa:33:a5:29:5c:21:24:4c:75:b7:
-                    a4:51:04:06:a8:b4:c4:93:66:0d:13:05:8f:e6:8a:
-                    71:22:63:25:22:2f:c6:4f:f6:56:69:97:53:21:fa:
-                    7e:39:34:ed:11:b1:b1:45:1a:6f:54:13:47:5c:50:
-                    0b:55:b9:ca:47:9b:0e:26:d3:7c:eb:74:5d:f2:a5:
-                    fa:55:96:2a:c5:94:6b:aa:2d:6b:d0:aa:b2:d4:d5:
-                    cb:db:b5:2a:35:ce:3c
+                    04:d7:b4:85:f2:9f:11:5c:1c:b3:04:6b:84:0b:45:
+                    89:b5:78:62:f5:eb:f9:9d:84:6f:be:3f:d2:d1:43:
+                    96:f5:f6:9a:37:9a:59:ac:c5:a2:ae:c8:36:9e:cb:
+                    65:90:44:37:b4:bc:7c:d9:a5:a8:40:3c:5b:b1:91:
+                    52:23:aa:86:be:f2:c1:bc:92:14:5f:fc:27:c1:25:
+                    c6:db:fa:d4:9c:91:e8:48:c5:44:ac:7f:0e:95:d6:
+                    cd:8c:ac:fb:92:3f:a6
                 ASN1 OID: secp384r1
                 NIST CURVE: P-384
         Attributes:
@@ -25,9 +25,9 @@ Certificate Request:
                 0
 ..........
     Signature Algorithm: ecdsa-with-SHA384
-         30:64:02:30:07:3a:ce:84:ac:4e:61:d7:db:44:65:bc:56:9a:
-         ed:9f:da:fe:7e:cf:17:71:ec:da:69:39:6e:f2:52:1c:0c:e1:
-         c1:f9:57:5d:c7:69:a6:d0:86:6f:2d:3f:dc:15:b4:66:02:30:
-         37:1b:14:ad:c8:37:0d:85:34:3f:0f:55:83:80:6f:14:aa:20:
-         24:bf:55:1f:cd:34:94:50:35:11:78:9e:f4:1a:51:e8:47:99:
-         43:53:ce:34:9b:e6:78:7e:dc:53:db:d6
+         30:66:02:31:00:87:26:aa:3a:0d:21:43:12:f3:17:70:d7:99:
+         b8:8d:3e:5c:ab:ee:1f:a8:16:cd:fb:7c:d2:a3:14:f2:a3:10:
+         7d:8c:b7:75:fa:5d:21:1a:f3:af:1d:6b:59:c2:9a:da:4a:02:
+         31:00:a9:40:61:0e:dd:a5:5c:00:61:0b:24:bd:ea:e0:79:c1:
+         95:00:fd:82:55:17:27:f5:23:97:48:b8:62:00:17:9e:18:c7:
+         ca:af:d9:aa:93:ba:f0:fa:59:ee:c7:cf:4c:65
