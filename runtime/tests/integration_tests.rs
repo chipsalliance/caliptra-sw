@@ -218,6 +218,30 @@ fn test_verify_cmd() {
 }
 
 #[test]
+fn test_fips_cmd_api() {
+    let mut model = run_rom_test("mbox");
+    let expected_err = Err(ModelError::MailboxCmdFailed(0x000E0006));
+
+    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+
+    let cmd = [0u8; 4];
+
+    let resp = model.mailbox_execute(u32::from(CommandId::VERSION), &cmd);
+    assert_eq!(resp, expected_err);
+
+    let resp = model.mailbox_execute(u32::from(CommandId::SHUTDOWN), &cmd);
+    assert_eq!(resp, expected_err);
+
+    let resp = model.mailbox_execute(u32::from(CommandId::SELF_TEST), &cmd);
+    assert_eq!(resp, expected_err);
+
+    let expected_err = Err(ModelError::MailboxCmdFailed(0xe0002));
+    // Send something that is not a valid RT command.
+    let resp = model.mailbox_execute(0xAABBCCDD, &cmd);
+    assert_eq!(resp, expected_err);
+}
+
+#[test]
 fn test_unimplemented_cmds() {
     let mut model = run_rom_test("mbox");
 
