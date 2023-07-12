@@ -8,10 +8,6 @@ on:
   pull_request:
 
   workflow_call:
-    inputs:
-      ref:
-        description: "Ref to checkout"
-        type: string
   workflow_dispatch:
 
 jobs:
@@ -31,24 +27,13 @@ jobs:
       EXTRA_CARGO_CONFIG: "target.'cfg(all())'.rustflags = [\"-Dwarnings\"]"
 
     steps:
-      - name: Setup ref to use
-        id: ref
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+      - name: Test commit name
         run: |
-          REF_REQ=${{ inputs.ref }}
-          echo "ref=${REF_REQ:-"NoRefSpecified"}" >> $GITHUB_OUTPUT
-
-      - name: Checkout repo default ref
-        uses: actions/checkout@v3
-        if: steps.ref.outputs.ref == 'NoRefSpecified'
-        with:
-          submodules: 'true'
-
-      - name: Checkout specific repo ref
-        uses: actions/checkout@v3
-        if: steps.ref.outputs.ref != 'NoRefSpecified'
-        with:
-          submodules: 'true'
-          ref: ${{ steps.ref.outputs.ref }}
+          echo "Build-Test: release_ref=$(git rev-parse HEAD)"
 
       - name: Restore sccache binary
         uses: actions/cache/restore@v3

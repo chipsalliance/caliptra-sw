@@ -24,6 +24,7 @@ jobs:
 
       - name: Update the Caliptra RTL submodule and rebuild registers
         run: |
+          echo "RTL-REPO-SYNC: release_ref=$(git rev-parse HEAD)"
           git submodule update --remote hw-latest/caliptra-rtl
           ./registers/update.sh
 
@@ -55,36 +56,14 @@ jobs:
           git push -u origin ${{ steps.branch.outputs.branch }}
 
   build-test:
-    name: Temp
+    uses: ./.github/workflows/build-test.yml
     needs: update-rtl
     if: needs.update-rtl.outputs.ci_checks_needed
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Get current date
-        run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
 
   build-test-verilator:
-    name: Temp
+    uses: ./.github/workflows/build-test-verilator.yml
     needs: update-rtl
     if: needs.update-rtl.outputs.ci_checks_needed
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Get current date
-        run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
-
-  #build-test:
-  #  uses: ./.github/workflows/build-test.yml
-  #  needs: update-rtl
-  #  if: needs.update-rtl.outputs.ci_checks_needed
-  #  with:
-  #    ref: ${{ needs.update-rtl.outputs.branch_name }}
-
-  #build-test-verilator:
-  #  uses: ./.github/workflows/build-test-verilator.yml
-  #  needs: update-rtl
-  #  if: needs.update-rtl.outputs.ci_checks_needed
-  #  with:
-  #    ref: ${{ needs.update-rtl.outputs.branch_name }}
 
   merge-rtl-update:
     name: Merge RTL Update
@@ -107,6 +86,5 @@ jobs:
               echo "Commit added to main after CI RTL branch test started; cannot auto-merge branch"
               exit 1
           fi
-          git merge origin/${{ needs.update-rtl.outputs.branch_name }}
-          git push
+          git push origin ${{ needs.update-rtl.outputs.branch_name }} main
           git push origin --delete ${{ needs.update-rtl.outputs.branch_name }}

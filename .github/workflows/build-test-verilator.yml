@@ -8,10 +8,6 @@ on:
   pull_request:
 
   workflow_call:
-    inputs:
-      ref:
-        description: "Ref to checkout"
-        type: string
   workflow_dispatch:
 
 jobs:
@@ -39,18 +35,10 @@ jobs:
           REF_REQ=${{ inputs.ref }}
           echo "ref=${REF_REQ:-"NoRefSpecified"}" >> $GITHUB_OUTPUT
 
-      - name: Checkout repo default ref
-        uses: actions/checkout@v3
-        if: steps.ref.outputs.ref == 'NoRefSpecified'
-        with:
-          submodules: 'true'
-
       - name: Checkout specific repo ref
         uses: actions/checkout@v3
-        if: steps.ref.outputs.ref != 'NoRefSpecified'
         with:
           submodules: 'true'
-          ref: ${{ steps.ref.outputs.ref }}
 
       - name: Restore sccache binary
         uses: actions/cache/restore@v3
