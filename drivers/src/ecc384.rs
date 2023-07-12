@@ -238,10 +238,22 @@ impl Ecc384 {
         wait::until(|| ecc.status().read().valid());
 
         // Copy the private key
+        let priv_key_pct: Ecc384PrivKeyIn;
+        let mut priv_key_buf: Array4x12 = Array4x12::default();
+        let mut perform_pct: bool = true;
+
         match &mut priv_key {
-            Ecc384PrivKeyOut::Array4x12(arr) => KvAccess::end_copy_to_arr(ecc.privkey_out(), arr)?,
-            Ecc384PrivKeyOut::Key(key) => KvAccess::end_copy_to_kv(ecc.kv_wr_pkey_status(), *key)
-                .map_err(|err| err.into_write_priv_key_err())?,
+            Ecc384PrivKeyOut::Array4x12(arr) => {
+                KvAccess::end_copy_to_arr(ecc.privkey_out(), arr)?;
+                priv_key_buf = Array4x12::from(arr.0);
+                priv_key_pct = Ecc384PrivKeyIn::from(&priv_key_buf);
+            }
+            Ecc384PrivKeyOut::Key(key) => {
+                KvAccess::end_copy_to_kv(ecc.kv_wr_pkey_status(), *key)
+                    .map_err(|err| err.into_write_priv_key_err())?;
+                priv_key_pct = Ecc384PrivKeyIn::from(KeyReadArgs::new(key.id));
+                perform_pct = key.usage.ecc_private_key();
+            }
         }
 
         let pub_key = Ecc384PubKey {
@@ -249,6 +261,18 @@ impl Ecc384 {
             y: Array4x12::read_from_reg(ecc.pubkey_y()),
         };
 
+        // Pairwise consistency check.
+        if perform_pct {
+            let digest = Array4x12::new([0u32; 12]);
+            let mut sig = self.sign(&priv_key_pct, &digest, trng)?;
+            let result = self.verify(&pub_key, &digest, &sig)?;
+            if result != Ecc384Result::Success {
+                return Err(CaliptraError::DRIVER_ECC384_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE);
+            }
+
+            priv_key_buf.0.fill(0);
+            sig.zeroize();
+        }
         self.zeroize_internal();
 
         Ok(pub_key)
