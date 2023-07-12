@@ -404,6 +404,11 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_manifest_size() {
+        assert_eq!(std::mem::size_of::<ImageManifest>() % 4, 0);
+    }
+
+    #[test]
     fn test_image_overlap() {
         let mut image1 = ImageTocEntry::default();
         let mut image2 = ImageTocEntry::default();

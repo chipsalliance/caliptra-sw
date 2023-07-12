@@ -13,18 +13,15 @@ Abstract:
 --*/
 use crate::{cprintln, fht, rom_env::RomEnv, verifier::RomImageVerificationEnv, wdt};
 
+use caliptra_common::memory_layout::{MAN1_ORG, MAN2_ORG};
 use caliptra_common::FirmwareHandoffTable;
+
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::{report_boot_status, MailboxRecvTxn, ResetReason};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::ImageManifest;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
 use zerocopy::{AsBytes, FromBytes};
-
-extern "C" {
-    static mut MAN2_ORG: u32;
-    static mut MAN1_ORG: u32;
-}
 
 #[derive(Default)]
 pub struct UpdateResetFlow {}
@@ -119,15 +116,16 @@ impl UpdateResetFlow {
         cprintln!("[update-reset] Copying MAN_2 To MAN_1");
 
         let dst = unsafe {
-            let ptr = &mut MAN1_ORG as *mut u32;
-            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>())
+            let ptr = MAN1_ORG as *mut u32;
+            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
         };
 
         let src = unsafe {
-            let ptr = &mut MAN2_ORG as *mut u32;
+            let ptr = MAN2_ORG as *mut u32;
 
-            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>())
+            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
         };
+
         dst.clone_from_slice(src);
     }
 
@@ -169,7 +167,7 @@ impl UpdateResetFlow {
     /// * `Manifest` - Caliptra Image Bundle Manifest
     fn load_manifest(txn: &mut MailboxRecvTxn) -> CaliptraResult<ImageManifest> {
         let slice = unsafe {
-            let ptr = &mut MAN2_ORG as *mut u32;
+            let ptr = MAN2_ORG as *mut u32;
             core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
         };
 

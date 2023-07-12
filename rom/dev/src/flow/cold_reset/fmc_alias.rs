@@ -24,10 +24,7 @@ use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 use caliptra_common::dice;
 use caliptra_common::RomBootStatus::*;
-use caliptra_drivers::{
-    okref, report_boot_status, Array4x12, CaliptraResult, Hmac384Data, Hmac384Key, KeyId,
-    KeyReadArgs, Lifecycle,
-};
+use caliptra_drivers::{okref, report_boot_status, Array4x12, CaliptraResult, KeyId, Lifecycle};
 use caliptra_error::CaliptraError;
 use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams};
 
@@ -96,13 +93,10 @@ impl FmcAliasLayer {
     /// * `measurements` - Array containing the FMC measurements
     /// * `cdi` - Key Slot to store the generated CDI
     fn derive_cdi(env: &mut RomEnv, measurements: &Array4x12, cdi: KeyId) -> CaliptraResult<()> {
-        // CDI Key
-        let key = Hmac384Key::Key(KeyReadArgs::new(cdi));
         let mut measurements: [u8; 48] = measurements.into();
-        let data = Hmac384Data::Slice(&measurements);
-        let result = Crypto::hmac384_mac(env, &key, &data, cdi);
+
+        Crypto::hmac384_kdf(env, cdi, b"fmc_alias_cdi", Some(&measurements), cdi)?;
         measurements.fill(0);
-        result?;
         report_boot_status(FmcAliasDeriveCdiComplete.into());
         Ok(())
     }
@@ -123,7 +117,7 @@ impl FmcAliasLayer {
         cdi: KeyId,
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
-        Crypto::ecc384_key_gen(env, cdi, priv_key)
+        Crypto::ecc384_key_gen(env, cdi, b"fmc_alias_keygen", priv_key)
     }
 
     /// Generate Local Device ID Certificate Signature

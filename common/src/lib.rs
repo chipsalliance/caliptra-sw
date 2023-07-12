@@ -11,6 +11,7 @@ pub mod boot_status;
 pub mod checksum;
 pub mod fuse;
 pub mod helpers;
+pub mod memory_layout;
 pub mod pcr;
 
 ///merge imports

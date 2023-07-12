@@ -286,9 +286,9 @@ sequenceDiagram
     rect rgba(0, 0, 200, .2)
     note over FIPS, FMC: DICE-related derivations will be<br> defined in greater detail later
 
-    FMC->>+FIPS: DeriveCdi(fht.FmcCdiKvhdl, RtTci)
+    FMC->>+FIPS: DeriveCdi(fht.FmcCdiKvhdl, "rt_alias_cdi", RtTci)
     FIPS-->>-FMC: return(fht.rt_cdi_kv_hdl)
-    FMC->>+FIPS: DeriveKeyPair(fht.rt_cdi_kv_hdl)
+    FMC->>+FIPS: DeriveKeyPair(fht.rt_cdi_kv_hdl, "rt_alias_keygen")
     FIPS-->>-FMC: return(fht.rt_priv_key_kv_hdl,<br> fht.rt_pub_key_x_dv_hdl,<br> fht.rt_pub_key_y_dv_hdl)
     FMC->>+FIPS: CertifyKey(fht.rt_pub_key_x_dv_hdl,<br> fht.rt_pub_key_y_dv_hdl,<br> fht.fmc_priv_key_kv_hdl)
     FIPS-->>-FMC: return(fht.rt_cert_sig_r_dv_hdl, fht.rt_cert_sig_s_dv_hdl)
