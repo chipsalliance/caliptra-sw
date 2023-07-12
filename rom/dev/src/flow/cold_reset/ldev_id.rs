@@ -93,10 +93,8 @@ impl LocalDevIdLayer {
     /// * `fe`  - Key slot holding the field entropy
     /// * `cdi` - Key Slot to store the generated CDI
     fn derive_cdi(env: &mut RomEnv, fe: KeyId, cdi: KeyId) -> CaliptraResult<()> {
-        // CDI Key
-        let key = Hmac384Key::Key(KeyReadArgs::new(cdi));
-        let data = Hmac384Data::Key(KeyReadArgs::new(fe));
-        Crypto::hmac384_mac(env, key, data, cdi)?;
+        Crypto::hmac384_mac(env, cdi, &b"ldevid_cdi".into(), cdi)?;
+        Crypto::hmac384_mac(env, cdi, &KeyReadArgs::new(fe).into(), cdi)?;
 
         cprintln!("[ldev] Erasing FE.KEYID = {}", fe as u8);
         env.key_vault.erase_key(fe)?;
@@ -120,7 +118,7 @@ impl LocalDevIdLayer {
         cdi: KeyId,
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
-        let result = Crypto::ecc384_key_gen(env, cdi, priv_key);
+        let result = Crypto::ecc384_key_gen(env, cdi, b"ldevid_keygen", priv_key);
         if result.is_ok() {
             report_boot_status(LDevIdKeyPairDerivationComplete.into());
         }
@@ -167,8 +165,8 @@ impl LocalDevIdLayer {
             "[ldev] Signing Cert with AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
-        let sig = Crypto::ecdsa384_sign(env, auth_priv_key, tbs.tbs());
-        let sig = okref(&sig)?;
+        let mut sig = Crypto::ecdsa384_sign(env, auth_priv_key, tbs.tbs());
+        let sig = okmutref(&mut sig)?;
 
         // Clear the authority private key
         //To-Do : Disabling The Print Temporarily
@@ -193,6 +191,7 @@ impl LocalDevIdLayer {
         // Lock the Local Device ID cert signature in data vault until
         // cold reset
         env.data_vault.set_ldev_dice_signature(sig);
+        sig.zeroize();
 
         // Lock the Local Device ID public keys in data vault until
         // cold reset

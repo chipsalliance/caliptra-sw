@@ -145,7 +145,13 @@ impl X509 {
         let data = pub_key.to_der();
         let digest = Crypto::sha256_digest(env, &data);
         let mut digest: [u8; 32] = okref(&digest)?.into();
+
+        // Ensure the encoded integer is positive, and that the first octet
+        // is non-zero (otherwise it will be considered padding, and the integer
+        // will fail to parse if the MSB of the second octet is zero).
         digest[0] &= !0x80;
+        digest[0] |= 0x04;
+
         Ok(digest[..20].try_into().unwrap())
     }
 

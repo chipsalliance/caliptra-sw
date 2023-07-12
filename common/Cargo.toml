@@ -10,6 +10,8 @@ edition = "2021"
 ufmt = "0.2.0"
 zerocopy = "0.6.1"
 caliptra-drivers = { path = "../drivers" }
+caliptra-registers = { path = "../registers" }
+caliptra-image-types = { path = "../image/types", default-features = false }
 bitfield = "0.14.0"
 
 

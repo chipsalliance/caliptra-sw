@@ -1,10 +1,17 @@
 // Licensed under the Apache-2.0 license.
 
 use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
+use caliptra_drivers::Ecc384PubKey;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode};
 use caliptra_runtime::{CommandId, EcdsaVerifyCmd};
-use openssl::x509::X509;
-use zerocopy::AsBytes;
+use openssl::{
+    bn::BigNum,
+    ec::{EcGroup, EcKey},
+    nid::Nid,
+    pkey::PKey,
+    x509::X509,
+};
+use zerocopy::{AsBytes, FromBytes};
 
 // Run test_bin as a ROM image. The is used for faster tests that can run
 // against verilator
@@ -101,18 +108,33 @@ fn test_rom_certs() {
     let ldev_cert: X509 = X509::from_der(ldevid).unwrap();
     let fmc_cert: X509 = X509::from_der(fmc).unwrap();
 
+    let idev_resp = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
+    let idev_pub = Ecc384PubKey::read_from(idev_resp.as_bytes()).unwrap();
+
     // Check the FMC is signed by LDevID
     assert!(fmc_cert.verify(&ldev_cert.public_key().unwrap()).unwrap());
 
-    // TODO: Check that LDevID is signed by IDevID
-    // Runtime does not currently have access to the IDevID public key.
+    // Check the LDevID is signed by IDevID
+    let group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
+    let x_bytes: [u8; 48] = idev_pub.x.into();
+    let y_bytes: [u8; 48] = idev_pub.y.into();
+    let idev_x = &BigNum::from_slice(&x_bytes).unwrap();
+    let idev_y = &BigNum::from_slice(&y_bytes).unwrap();
+
+    let idev_ec_key = EcKey::from_public_key_affine_coordinates(&group, idev_x, idev_y).unwrap();
+    assert!(ldev_cert
+        .verify(&PKey::from_ec_key(idev_ec_key).unwrap())
+        .unwrap());
 }
 
 #[test]
 fn test_verify_cmd() {
     let mut model = run_rom_test("mbox");
 
-    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+    model.step_until(|m| {
+        m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle()
+            && m.soc_ifc().cptra_boot_status().read() == 1
+    });
 
     // Message to hash
     let msg: &[u8] = &[
@@ -161,11 +183,38 @@ fn test_verify_cmd() {
         ],
     };
 
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::ECDSA384_VERIFY),
+        &cmd.as_bytes()[4..],
+    );
+
+    let cmd = EcdsaVerifyCmd {
+        chksum: checksum,
+        ..cmd
+    };
+
     let resp = model
         .mailbox_execute(u32::from(CommandId::ECDSA384_VERIFY), cmd.as_bytes())
         .unwrap();
     assert!(resp.is_none());
     assert_eq!(model.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
+
+    let cmd = EcdsaVerifyCmd { chksum: 0, ..cmd };
+
+    // Make sure the command execution fails.
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::ECDSA384_VERIFY), cmd.as_bytes())
+        .unwrap_err();
+    if let ModelError::MailboxCmdFailed(code) = resp {
+        assert_eq!(
+            code,
+            caliptra_drivers::CaliptraError::RUNTIME_INVALID_CHECKSUM.into()
+        );
+    }
+    assert_eq!(
+        model.soc_ifc().cptra_fw_error_non_fatal().read(),
+        caliptra_drivers::CaliptraError::RUNTIME_INVALID_CHECKSUM.into()
+    );
 }
 
 #[test]

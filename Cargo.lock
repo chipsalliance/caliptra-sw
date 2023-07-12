@@ -170,6 +170,7 @@ dependencies = [
  "caliptra-hw-model-types",
  "caliptra-lms-types",
  "caliptra-registers",
+ "caliptra-test",
  "cfg-if",
  "openssl",
  "ureg",
@@ -276,6 +277,10 @@ name = "caliptra-error"
 version = "0.1.0"
 
 [[package]]
+name = "caliptra-file-header-fix"
+version = "0.1.0"
+
+[[package]]
 name = "caliptra-fmc"
 version = "0.1.0"
 dependencies = [
@@ -345,6 +350,9 @@ dependencies = [
 [[package]]
 name = "caliptra-hw-model-types"
 version = "0.1.0"
+dependencies = [
+ "rand",
+]
 
 [[package]]
 name = "caliptra-image-app"
@@ -548,7 +556,9 @@ dependencies = [
  "caliptra-registers",
  "caliptra-runtime",
  "caliptra-test-harness",
+ "caliptra_common",
  "cfg-if",
+ "zerocopy",
 ]
 
 [[package]]
@@ -569,8 +579,12 @@ version = "0.1.0"
 name = "caliptra-test"
 version = "0.1.0"
 dependencies = [
+ "asn1",
  "caliptra-builder",
  "caliptra-hw-model",
+ "caliptra-hw-model-types",
+ "openssl",
+ "zerocopy",
 ]
 
 [[package]]
@@ -609,6 +623,8 @@ version = "0.1.0"
 dependencies = [
  "bitfield",
  "caliptra-drivers",
+ "caliptra-image-types",
+ "caliptra-registers",
  "ufmt",
  "zerocopy",
 ]
@@ -933,10 +949,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "file-header-fix"
-version = "0.1.0"
-
-[[package]]
 name = "foreign-types"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1246,6 +1258,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "openssl-src"
+version = "111.26.0+1.1.1u"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "efc62c9f12b22b8f5208c23a7200a442b2e5999f8bdf80233852122b5a4f6f37"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "openssl-sys"
 version = "0.9.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1254,6 +1275,7 @@ dependencies = [
  "autocfg",
  "cc",
  "libc",
+ "openssl-src",
  "pkg-config",
  "vcpkg",
 ]
@@ -1723,6 +1745,13 @@ name = "vcpkg"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
+
+[[package]]
+name = "vector_gen"
+version = "0.1.0"
+dependencies = [
+ "openssl",
+]
 
 [[package]]
 name = "version_check"

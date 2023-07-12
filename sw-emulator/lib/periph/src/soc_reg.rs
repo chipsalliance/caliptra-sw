@@ -22,9 +22,12 @@ use caliptra_emu_bus::{
 };
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
+use caliptra_hw_model_types::EtrngResponse;
+use caliptra_registers::soc_ifc::regs::CptraHwConfigReadVal;
+use caliptra_registers::soc_ifc_trng::regs::{CptraTrngStatusReadVal, CptraTrngStatusWriteVal};
 use std::cell::RefCell;
 use std::rc::Rc;
-use tock_registers::interfaces::{Readable, Writeable};
+use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 use tock_registers::registers::InMemoryRegister;
 
@@ -71,6 +74,13 @@ mod constants {
     pub const CPTRA_GENERIC_OUTPUT_WIRES_SIZE: usize = 8;
     pub const FUSE_UDS_SEED_SIZE: usize = 48;
     pub const FUSE_FIELD_ENTROPY_SIZE: usize = 32;
+    pub const CPTRA_WDT_TIMER1_EN_START: u32 = 0xe0;
+    pub const CPTRA_WDT_TIMER1_CTRL_START: u32 = 0xe4;
+    pub const CPTRA_WDT_TIMER1_TIMEOUT_PERIOD_START: u32 = 0xe8;
+    pub const CPTRA_WDT_TIMER2_EN_START: u32 = 0xf0;
+    pub const CPTRA_WDT_TIMER2_CTRL_START: u32 = 0xf4;
+    pub const CPTRA_WDT_TIMER2_TIMEOUT_PERIOD_START: u32 = 0xf8;
+    pub const CPTRA_WDT_STATUS_START: u32 = 0x100;
     pub const FUSE_VENDOR_PK_HASH_START: u32 = 0x250;
     pub const FUSE_VENDOR_PK_HASH_SIZE: usize = 48;
     pub const FUSE_VENDOR_PK_MASK_START: u32 = 0x280;
@@ -161,7 +171,32 @@ register_bitfields! [
         FW_UPD_RESET OFFSET(0) NUMBITS(1) [],
         WARM_RESET OFFSET(1) NUMBITS(1) [],
         RSVD OFFSET(2) NUMBITS(30) [],
-    ]
+    ],
+
+    /// WDT Enable
+    WdtEnable [
+        TIMER_EN OFFSET(0) NUMBITS(1) [],
+        RSVD OFFSET(1) NUMBITS(31) [],
+    ],
+
+    /// WDT Control
+    WdtControl [
+        TIMER_RESTART OFFSET(0) NUMBITS(1) [],
+        RSVD OFFSET(1) NUMBITS(31) [],
+    ],
+
+    /// WDT Status
+    WdtStatus [
+        T1_TIMEOUT OFFSET(0) NUMBITS(1) [],
+        T2_TIMEOUT OFFSET(1) NUMBITS(1) [],
+        RSVD OFFSET(2) NUMBITS(30) [],
+    ],
+
+    /// LMS Verify
+    LmsVerify [
+        LMS_VERIFY OFFSET(0) NUMBITS(1) [],
+        RSVD OFFSET(1) NUMBITS(31) [],
+    ],
 ];
 
 /// SOC Register peripheral
@@ -230,6 +265,10 @@ impl SocRegistersInternal {
     /// Clear secrets
     pub fn clear_secrets(&mut self) {
         self.regs.borrow_mut().clear_secrets();
+    }
+
+    pub fn set_hw_config(&mut self, val: CptraHwConfigReadVal) {
+        self.regs.borrow_mut().cptra_hw_config = val.into();
     }
 
     pub fn external_regs(&self) -> SocRegistersExternal {
@@ -374,8 +413,8 @@ struct SocRegistersImpl {
     #[register_array(offset = 0x0078)]
     cptra_trng_data: [u32; CPTRA_TRNG_DATA_SIZE / 4],
 
-    #[register(offset = 0x00a8)]
-    cptra_trng_status: ReadOnlyRegister<u32>,
+    #[register(offset = 0x00a8, write_fn = on_write_trng_status)]
+    cptra_trng_status: u32,
 
     #[register(offset = 0x00ac, write_fn = on_write_fuse_wr_done)]
     cptra_fuse_wr_done: u32,
@@ -397,6 +436,30 @@ struct SocRegistersImpl {
 
     #[register_array(offset = 0x00c8, write_fn = on_write_generic_output_wires)]
     cptra_generic_output_wires: [u32; CPTRA_GENERIC_OUTPUT_WIRES_SIZE / 4],
+
+    #[register(offset = 0x00dc, write_fn = write_disabled)]
+    cptra_hw_config: u32,
+
+    #[register(offset = 0x00e0, write_fn = on_write_wdt_timer1_en)]
+    cptra_wdt_timer1_en: ReadWriteRegister<u32, WdtEnable::Register>,
+
+    #[register(offset = 0x00e4, write_fn = on_write_wdt_timer1_ctrl)]
+    cptra_wdt_timer1_ctrl: ReadWriteRegister<u32, WdtControl::Register>,
+
+    #[register_array(offset = 0x00e8)]
+    cptra_wdt_timer1_timeout_period: [u32; 2],
+
+    #[register(offset = 0x00f0, write_fn = on_write_wdt_timer2_en)]
+    cptra_wdt_timer2_en: ReadWriteRegister<u32, WdtEnable::Register>,
+
+    #[register(offset = 0x00f4, write_fn = on_write_wdt_timer2_ctrl)]
+    cptra_wdt_timer2_ctrl: ReadWriteRegister<u32, WdtControl::Register>,
+
+    #[register_array(offset = 0x00f8)]
+    cptra_wdt_timer2_timeout_period: [u32; 2],
+
+    #[register(offset = 0x0100)]
+    cptra_wdt_status: ReadOnlyRegister<u32, WdtStatus::Register>,
 
     #[register_array(offset = 0x0200)]
     fuse_uds_seed: [u32; FUSE_UDS_SEED_SIZE / 4],
@@ -430,6 +493,12 @@ struct SocRegistersImpl {
 
     #[register(offset = 0x033c)]
     fuse_life_cycle: u32,
+
+    #[register(offset = 0x340)]
+    fuse_lms_verify: ReadWriteRegister<u32, LmsVerify::Register>,
+
+    #[register(offset = 0x344)]
+    fuse_lms_revocation: u32,
 
     /// INTERNAL_OBF_KEY Register
     internal_obf_key: [u32; 8],
@@ -485,6 +554,16 @@ struct SocRegistersImpl {
     fuses_can_be_written: bool,
 
     download_idevid_csr_cb: DownloadIdevidCsrCallback,
+
+    /// WDT Timer1 Expired action
+    op_wdt_timer1_expired_action: Option<ActionHandle>,
+
+    /// WDT Timer2 Expired action
+    op_wdt_timer2_expired_action: Option<ActionHandle>,
+
+    etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
+    pending_etrng_response: Option<EtrngResponse>,
+    op_pending_etrng_response_action: Option<ActionHandle>,
 }
 
 impl SocRegistersImpl {
@@ -525,7 +604,7 @@ impl SocRegistersImpl {
             cptra_trng_valid_pauser: ReadWriteRegister::new(0),
             cptra_trng_pauser_lock: ReadWriteRegister::new(0),
             cptra_trng_data: Default::default(),
-            cptra_trng_status: ReadOnlyRegister::new(0),
+            cptra_trng_status: 0,
             cptra_fuse_wr_done: 0,
             cptra_timer_config: ReadWriteRegister::new(0),
             cptra_bootfsm_go: 0,
@@ -533,6 +612,7 @@ impl SocRegistersImpl {
             cptra_clk_gating_en: ReadOnlyRegister::new(0),
             cptra_generic_input_wires: Default::default(),
             cptra_generic_output_wires: Default::default(),
+            cptra_hw_config: 0,
             fuse_uds_seed: words_from_bytes_be(&Self::UDS),
             fuse_field_entropy: [0xffff_ffff; 8],
             fuse_vendor_pk_hash: Default::default(),
@@ -544,6 +624,8 @@ impl SocRegistersImpl {
             fuse_idevid_cert_attr: Default::default(),
             fuse_idevid_manuf_hsm_id: Default::default(),
             fuse_life_cycle: Default::default(),
+            fuse_lms_verify: ReadWriteRegister::new(0),
+            fuse_lms_revocation: Default::default(),
             internal_obf_key: args.cptra_obf_key,
             internal_iccm_lock: ReadWriteRegister::new(0),
             internal_fw_update_reset: ReadWriteRegister::new(0),
@@ -563,6 +645,19 @@ impl SocRegistersImpl {
             fuses_can_be_written: true,
             bootfsm_go_cb: args.bootfsm_go_cb.take(),
             download_idevid_csr_cb: args.download_idevid_csr_cb.take(),
+            cptra_wdt_timer1_en: ReadWriteRegister::new(0),
+            cptra_wdt_timer1_ctrl: ReadWriteRegister::new(0),
+            cptra_wdt_timer1_timeout_period: [0xffff_ffff; 2],
+            cptra_wdt_timer2_en: ReadWriteRegister::new(0),
+            cptra_wdt_timer2_ctrl: ReadWriteRegister::new(0),
+            cptra_wdt_timer2_timeout_period: [0xffff_ffff; 2],
+            cptra_wdt_status: ReadOnlyRegister::new(0),
+            op_wdt_timer1_expired_action: None,
+            op_wdt_timer2_expired_action: None,
+
+            etrng_responses: args.etrng_responses,
+            pending_etrng_response: None,
+            op_pending_etrng_response_action: None,
         };
 
         regs
@@ -573,6 +668,10 @@ impl SocRegistersImpl {
         self.fuse_uds_seed = [0u32; 12];
         self.fuse_field_entropy = [0u32; 8];
         self.internal_obf_key = [0u32; 8];
+    }
+
+    fn write_disabled(&mut self, _size: RvSize, _val: RvData) -> Result<(), BusError> {
+        Err(BusError::StoreAccessFault)
     }
 
     fn on_write_bootfsm_go(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
@@ -725,6 +824,106 @@ impl SocRegistersImpl {
         Ok(())
     }
 
+    fn on_write_wdt_timer1_en(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
+        self.cptra_wdt_timer1_en.reg.set(val);
+
+        self.cptra_wdt_status
+            .reg
+            .modify(WdtStatus::T1_TIMEOUT::CLEAR);
+
+        // If timer is enabled, schedule a callback on expiry.
+        if self.cptra_wdt_timer1_en.reg.is_set(WdtEnable::TIMER_EN) {
+            let timer_period: u64 = (self.cptra_wdt_timer1_timeout_period[1] as u64) << 32
+                | self.cptra_wdt_timer1_timeout_period[0] as u64;
+
+            self.op_wdt_timer1_expired_action = Some(self.timer.schedule_poll_in(timer_period));
+        } else {
+            self.op_wdt_timer1_expired_action = None;
+        }
+        Ok(())
+    }
+
+    fn on_write_wdt_timer1_ctrl(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
+        self.cptra_wdt_timer1_ctrl.reg.set(val);
+
+        if self.cptra_wdt_timer1_en.reg.is_set(WdtEnable::TIMER_EN)
+            && self
+                .cptra_wdt_timer1_ctrl
+                .reg
+                .is_set(WdtControl::TIMER_RESTART)
+        {
+            self.cptra_wdt_status
+                .reg
+                .modify(WdtStatus::T1_TIMEOUT::CLEAR);
+
+            let timer_period: u64 = (self.cptra_wdt_timer1_timeout_period[1] as u64) << 32
+                | self.cptra_wdt_timer1_timeout_period[0] as u64;
+
+            self.op_wdt_timer1_expired_action = Some(self.timer.schedule_poll_in(timer_period));
+        }
+        Ok(())
+    }
+
+    fn on_write_wdt_timer2_en(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
+        self.cptra_wdt_timer2_en.reg.set(val);
+
+        self.cptra_wdt_status
+            .reg
+            .modify(WdtStatus::T2_TIMEOUT::CLEAR);
+
+        // If timer is enabled, schedule a callback on expiry.
+        if self.cptra_wdt_timer2_en.reg.is_set(WdtEnable::TIMER_EN) {
+            let timer_period: u64 = (self.cptra_wdt_timer2_timeout_period[1] as u64) << 32
+                | self.cptra_wdt_timer2_timeout_period[0] as u64;
+
+            self.op_wdt_timer2_expired_action = Some(self.timer.schedule_poll_in(timer_period));
+        } else {
+            self.op_wdt_timer2_expired_action = None;
+        }
+        Ok(())
+    }
+
+    fn on_write_wdt_timer2_ctrl(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
+        self.cptra_wdt_timer2_ctrl.reg.set(val);
+
+        if self.cptra_wdt_timer2_en.reg.is_set(WdtEnable::TIMER_EN)
+            && self
+                .cptra_wdt_timer2_ctrl
+                .reg
+                .is_set(WdtControl::TIMER_RESTART)
+        {
+            self.cptra_wdt_status
+                .reg
+                .modify(WdtStatus::T2_TIMEOUT::CLEAR);
+
+            let timer_period: u64 = (self.cptra_wdt_timer2_timeout_period[1] as u64) << 32
+                | self.cptra_wdt_timer2_timeout_period[0] as u64;
+
+            self.op_wdt_timer2_expired_action = Some(self.timer.schedule_poll_in(timer_period));
+        }
+        Ok(())
+    }
+
+    fn on_write_trng_status(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
+        let val = CptraTrngStatusReadVal::from(val);
+        if val.data_req() && self.pending_etrng_response.is_none() {
+            if let Some(next_response) = self.etrng_responses.next() {
+                self.op_pending_etrng_response_action =
+                    Some(self.timer.schedule_poll_in(next_response.delay.into()));
+                self.pending_etrng_response = Some(next_response);
+            }
+        }
+        self.cptra_trng_status = if !val.data_req() {
+            // Clear data_wr_done when data_req is cleared
+            CptraTrngStatusWriteVal::from(u32::from(val))
+                .data_wr_done(false)
+                .into()
+        } else {
+            val.into()
+        };
+        Ok(())
+    }
+
     fn reset_common(&mut self) {
         // Unlock the ICCM.
         self.iccm.unlock();
@@ -762,6 +961,54 @@ impl SocRegistersImpl {
             (self.download_idevid_csr_cb)(
                 &mut self.mailbox,
                 &mut self.cptra_dbg_manuf_service_reg.reg,
+            );
+        }
+
+        if self.timer.fired(&mut self.op_pending_etrng_response_action) {
+            if let Some(etrng_response) = self.pending_etrng_response.take() {
+                self.cptra_trng_data = etrng_response.data;
+                self.cptra_trng_status = CptraTrngStatusWriteVal::from(self.cptra_trng_status)
+                    .data_wr_done(true)
+                    .into();
+            }
+        }
+
+        if self.timer.fired(&mut self.op_wdt_timer1_expired_action) {
+            self.cptra_wdt_status.reg.modify(WdtStatus::T1_TIMEOUT::SET);
+
+            // If WDT2 is disabled, schedule a callback on it's expiry.
+            if !self.cptra_wdt_timer2_en.reg.is_set(WdtEnable::TIMER_EN) {
+                self.cptra_wdt_status
+                    .reg
+                    .modify(WdtStatus::T2_TIMEOUT::CLEAR);
+
+                let timer_period: u64 = (self.cptra_wdt_timer2_timeout_period[1] as u64) << 32
+                    | self.cptra_wdt_timer2_timeout_period[0] as u64;
+
+                self.op_wdt_timer2_expired_action = Some(self.timer.schedule_poll_in(timer_period));
+            }
+        }
+
+        if self.timer.fired(&mut self.op_wdt_timer2_expired_action) {
+            self.cptra_wdt_status.reg.modify(WdtStatus::T2_TIMEOUT::SET);
+
+            // If WDT2 was not scheduled due to WDT1 expiry (i.e WDT2 is disabled), schedule an NMI.
+            // Else, do nothing.
+            if self.cptra_wdt_timer2_en.reg.is_set(WdtEnable::TIMER_EN) {
+                return;
+            }
+
+            // Raise an NMI. NMIs don't fire immediately; a couple instructions is a fairly typicaly delay on VeeR.
+            const NMI_DELAY: u64 = 2;
+
+            // From RISC-V_VeeR_EL2_PRM.pdf
+            const NMI_CAUSE_WDT_TIMEOUT: u32 = 0xDEADBEEF; // [TODO] Need correct mcause value.
+
+            self.timer.schedule_action_in(
+                NMI_DELAY,
+                TimerAction::Nmi {
+                    mcause: NMI_CAUSE_WDT_TIMEOUT,
+                },
             );
         }
     }
@@ -1067,5 +1314,61 @@ mod tests {
         assert_eq!(soc.uds(), SocRegistersImpl::UDS);
         assert_eq!(soc.field_entropy(), [0x33_u8; 32]);
         assert_eq!(soc.doe_key(), crate::root_bus::DEFAULT_DOE_KEY);
+    }
+
+    fn next_action(clock: &Clock) -> Option<TimerAction> {
+        let mut actions = clock.increment(4);
+        match actions.len() {
+            0 => None,
+            1 => actions.drain().next(),
+            _ => panic!("More than one action scheduled; unexpected"),
+        }
+    }
+
+    #[test]
+    fn test_wdt() {
+        let clock = Clock::new();
+        let mailbox_ram = MailboxRam::new();
+        let mailbox = MailboxInternal::new(mailbox_ram);
+
+        let mut soc_reg: SocRegistersInternal = SocRegistersInternal::new(
+            &clock,
+            mailbox,
+            Iccm::new(&clock),
+            CaliptraRootBusArgs::default(),
+        );
+        soc_reg
+            .write(RvSize::Word, CPTRA_WDT_TIMER1_TIMEOUT_PERIOD_START, 4)
+            .unwrap();
+        soc_reg
+            .write(RvSize::Word, CPTRA_WDT_TIMER1_TIMEOUT_PERIOD_START + 4, 0)
+            .unwrap();
+        soc_reg
+            .write(RvSize::Word, CPTRA_WDT_TIMER2_TIMEOUT_PERIOD_START, 1)
+            .unwrap();
+        soc_reg
+            .write(RvSize::Word, CPTRA_WDT_TIMER2_TIMEOUT_PERIOD_START + 4, 0)
+            .unwrap();
+        soc_reg
+            .write(RvSize::Word, CPTRA_WDT_TIMER1_EN_START, 1)
+            .unwrap();
+
+        loop {
+            let status = InMemoryRegister::<u32, WdtStatus::Register>::new(
+                soc_reg.read(RvSize::Word, CPTRA_WDT_STATUS_START).unwrap(),
+            );
+            if status.is_set(WdtStatus::T2_TIMEOUT) {
+                break;
+            }
+
+            clock.increment_and_process_timer_actions(1, &mut soc_reg);
+        }
+
+        assert_eq!(
+            next_action(&clock),
+            Some(TimerAction::Nmi {
+                mcause: 0xDEAD_BEEF,
+            })
+        );
     }
 }

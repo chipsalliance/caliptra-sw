@@ -32,12 +32,6 @@ const DOE_UDS_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193
 /// Initialization Vector used by Deobfuscation Engine during Field Entropy decryption.
 const DOE_FE_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e]);
 
-/// Key used to derive the Composite Device Identity(CDI) for Initial Device Identity (IDEVID)
-const IDEVID_CDI_KEY: Array4x12 = Array4x12::new([
-    0x5bd3c575, 0x2ba359a2, 0x696c97f0, 0x56f594a3, 0x6130c106, 0xedcddddb, 0xd01044f6, 0xf2d302d8,
-    0xeeefec92, 0xa0ebfaa0, 0x36bf2d20, 0x0535df6f,
-]);
-
 /// Maximum Certificate Signing Request Size
 const MAX_CSR_SIZE: usize = 512;
 
@@ -94,6 +88,9 @@ impl InitDevIdLayer {
         // Generate the Initial DevID Certificate Signing Request (CSR)
         Self::generate_csr(env, &output)?;
 
+        // Write IDevID pub to FHT
+        env.fht_data_store.idev_pub = output.subj_key_pair.pub_key;
+
         cprintln!("[idev] --");
         report_boot_status(IDevIdDerivationComplete.into());
 
@@ -148,10 +145,7 @@ impl InitDevIdLayer {
     /// * `uds` - Key slot holding the UDS
     /// * `cdi` - Key Slot to store the generated CDI
     fn derive_cdi(env: &mut RomEnv, uds: KeyId, cdi: KeyId) -> CaliptraResult<()> {
-        // CDI Key
-        let key = Hmac384Key::Array4x12(&IDEVID_CDI_KEY);
-        let data = Hmac384Data::Key(KeyReadArgs::new(uds));
-        Crypto::hmac384_mac(env, key, data, cdi)?;
+        Crypto::hmac384_kdf(env, uds, b"idevid_cdi", None, cdi)?;
 
         cprintln!("[idev] Erasing UDS.KEYID = {}", uds as u8);
         env.key_vault.erase_key(uds)?;
@@ -175,7 +169,7 @@ impl InitDevIdLayer {
         cdi: KeyId,
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
-        let result = Crypto::ecc384_key_gen(env, cdi, priv_key);
+        let result = Crypto::ecc384_key_gen(env, cdi, b"idevid_keygen", priv_key);
         if result.is_ok() {
             report_boot_status(IDevIdKeyPairDerivationComplete.into());
         }
@@ -233,8 +227,8 @@ impl InitDevIdLayer {
         );
 
         // Sign the the `To Be Signed` portion
-        let sig = Crypto::ecdsa384_sign(env, key_pair.priv_key, tbs.tbs());
-        let sig = okref(&sig)?;
+        let mut sig = Crypto::ecdsa384_sign(env, key_pair.priv_key, tbs.tbs());
+        let sig = okmutref(&mut sig)?;
 
         // Verify the signature of the `To Be Signed` portion
         if !Crypto::ecdsa384_verify(env, &key_pair.pub_key, tbs.tbs(), sig)? {
@@ -269,7 +263,13 @@ impl InitDevIdLayer {
         report_boot_status(IDevIdMakeCsrComplete.into());
 
         // Execute Send CSR Flow
-        Self::send_csr(env, InitDevIdCsr::new(&csr, csr_len))
+        let result = Self::send_csr(env, InitDevIdCsr::new(&csr, csr_len));
+
+        // Zeroize locals.
+        sig.zeroize();
+        csr.fill(0);
+
+        result
     }
 
     /// Send Initial Device ID CSR to SOC

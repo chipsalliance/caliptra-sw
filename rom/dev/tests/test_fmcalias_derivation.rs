@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, ROM_WITH_UART};
+use caliptra_common::RomBootStatus::ColdResetComplete;
 use caliptra_common::{FirmwareHandoffTable, FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_error::CaliptraError;
@@ -24,7 +25,7 @@ fn test_zero_firmware_size() {
         ModelError::MailboxCmdFailed(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into())
     );
     assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        hw.soc_ifc().cptra_fw_error_fatal().read(),
         CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()
     );
 }
@@ -53,7 +54,7 @@ fn test_firmware_gt_max_size() {
     hw.soc_mbox().execute().write(|w| w.execute(false));
 
     assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        hw.soc_ifc().cptra_fw_error_fatal().read(),
         CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()
     );
 }
@@ -92,7 +93,7 @@ fn test_pcr_log() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -110,8 +111,7 @@ fn test_pcr_log() {
         .upload_firmware(&image_bundle.to_bytes().unwrap())
         .is_ok());
 
-    hw.step_until_output_contains("[exit] Launching FMC")
-        .unwrap();
+    hw.step_until_boot_status(ColdResetComplete.into(), true);
 
     let result = hw.mailbox_execute(0x1000_0000, &[]);
     assert!(result.is_ok());
@@ -223,7 +223,7 @@ fn test_fuse_log() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -243,8 +243,7 @@ fn test_fuse_log() {
         .upload_firmware(&image_bundle.to_bytes().unwrap())
         .is_ok());
 
-    hw.step_until_output_contains("[exit] Launching FMC")
-        .unwrap();
+    hw.step_until_boot_status(ColdResetComplete.into(), true);
 
     let result = hw.mailbox_execute(0x1000_0002, &[]);
     assert!(result.is_ok());
@@ -344,7 +343,7 @@ fn test_fht_info() {
             ..Default::default()
         },
         fuses: Fuses::default(),
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -358,8 +357,7 @@ fn test_fht_info() {
         .upload_firmware(&image_bundle.to_bytes().unwrap())
         .is_ok());
 
-    hw.step_until_output_contains("[exit] Launching FMC")
-        .unwrap();
+    hw.step_until_boot_status(ColdResetComplete.into(), true);
 
     let result = hw.mailbox_execute(0x1000_0003, &[]);
     assert!(result.is_ok());

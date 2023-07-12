@@ -35,15 +35,17 @@ const BANNER: &str = r#"
 #[no_mangle]
 pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
-    let mut drivers = unsafe { Drivers::new_from_registers() };
-
-    if let Some(_fht) = caliptra_common::FirmwareHandoffTable::try_load() {
+    if let Some(mut fht) = caliptra_common::FirmwareHandoffTable::try_load() {
+        let mut drivers = unsafe { Drivers::new_from_registers(&mut fht) };
         cprintln!("Caliptra RT listening for mailbox commands...");
         caliptra_runtime::handle_mailbox_commands(&mut drivers);
 
         caliptra_drivers::ExitCtrl::exit(0)
     } else {
-        caliptra_drivers::ExitCtrl::exit(0xff)
+        caliptra_common::report_handoff_error_and_halt(
+            "Runtime can't load FHT",
+            caliptra_drivers::CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into(),
+        );
     }
 }
 

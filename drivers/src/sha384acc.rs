@@ -45,13 +45,44 @@ impl Sha384Acc {
     pub fn try_start_operation(&mut self) -> Option<Sha384AccOp> {
         let sha_acc = self.sha512_acc.regs();
 
-        if sha_acc.lock().read().lock() {
+        if sha_acc.lock().read().lock() && sha_acc.status().read().soc_has_lock() {
             None
         } else {
+            // We acquired the lock, or we already have the lock (such as at startup)
             Some(Sha384AccOp {
                 sha512_acc: &mut self.sha512_acc,
             })
         }
+    }
+
+    /// Zeroize the hardware registers.
+    ///
+    /// This is useful to call from a fatal-error-handling routine.
+    ///
+    /// # Safety
+    ///
+    /// The caller must be certain that the results of any pending cryptographic
+    /// operations will not be used after this function is called.
+    ///
+    /// This function is safe to call from a trap handler.
+    pub unsafe fn zeroize() {
+        let mut sha512_acc = Sha512AccCsr::new();
+        sha512_acc.regs_mut().control().write(|w| w.zeroize(true));
+    }
+
+    /// Lock the accelerator.
+    ///
+    /// This is useful to call from a fatal-error-handling routine.
+    ///
+    /// # Safety
+    ///
+    /// The caller must be certain that the results of any pending cryptographic
+    /// operations will not be used after this function is called.
+    ///
+    /// This function is safe to call from a trap handler.
+    pub unsafe fn lock() {
+        let mut sha512_acc = Sha512AccCsr::new();
+        sha512_acc.regs_mut().lock().write(|w| w.lock(false)); // Writing 0 locks the accelerator.
     }
 }
 
@@ -108,6 +139,12 @@ impl Sha384AccOp<'_> {
         wait::until(|| sha_acc.status().read().valid());
 
         self.copy_digest_to_buf(digest)?;
+
+        // Zeroize the hardware registers.
+        self.sha512_acc
+            .regs_mut()
+            .control()
+            .write(|w| w.zeroize(true));
 
         Ok(())
     }

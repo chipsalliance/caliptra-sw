@@ -142,10 +142,6 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let (vendor_ecc_pub_key_idx, vendor_pub_key_revocation) =
             self.verify_vendor_ecc_pk_idx(preamble, reason)?;
 
-        if vendor_ecc_pub_key_idx >= VENDOR_ECC_KEY_COUNT {
-            Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VEN_PUB_KEY_IDX_OUT_OF_BOUNDS)?;
-        }
-
         // Vendor Information
         let vendor_info = (
             &preamble.vendor_pub_keys.ecc_pub_keys[vendor_ecc_pub_key_idx as usize],
@@ -154,9 +150,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         let vendor_lms_pub_key_idx = preamble.vendor_lms_pub_key_idx;
         if vendor_lms_pub_key_idx >= VENDOR_LMS_KEY_COUNT {
-            return Err(
-                CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VEN_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS,
-            );
+            return Err(CaliptraError::IMAGE_VERIFIER_ERR_VEN_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS);
         }
 
         let vendor_lms_info = (

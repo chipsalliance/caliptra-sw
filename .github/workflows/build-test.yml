@@ -80,12 +80,11 @@ jobs:
 
       - name: Check license headers
         run: |
-          cargo run -p file-header-fix --locked -- --check
+          cargo run -p caliptra-file-header-fix --locked -- --check
 
       - name: Build
         run: |
           cargo --config "$EXTRA_CARGO_CONFIG" build --locked
-          cargo --config "$EXTRA_CARGO_CONFIG" build --locked --release
           drivers/test-fw/build.sh
           (cd fmc && ./build.sh)
           (cd runtime && ./build.sh)
@@ -101,14 +100,13 @@ jobs:
       - name: Run tests
         run: |
           cargo --config "$EXTRA_CARGO_CONFIG" test --locked
-          cargo --config "$EXTRA_CARGO_CONFIG" test --locked --release
           sccache --show-stats
 
       - name: Run emulator conformance tests
         run: |
           sudo apt-get install gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
           (cd /tmp/ && git clone --depth 1 --branch old-framework-2.x https://github.com/riscv-non-isa/riscv-arch-test)
-          cargo run --locked -p compliance-test --release -- --test_root_path /tmp/riscv-arch-test
+          cargo run --locked -p compliance-test -- --test_root_path /tmp/riscv-arch-test
 
       - name: ROM Makefile
         run: |

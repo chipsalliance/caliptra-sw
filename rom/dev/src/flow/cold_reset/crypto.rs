@@ -16,6 +16,8 @@ use crate::rom_env::RomEnv;
 use caliptra_drivers::*;
 use caliptra_x509::Ecdsa384Signature;
 
+use super::KEY_ID_TMP;
+
 /// ECDSA-384 Signature Adapter
 ///
 /// TODO: This can be refactored and eliminated by X509 using `Ecc384Signature`
@@ -42,6 +44,12 @@ pub struct Ecc384KeyPair {
 
     /// Public Key
     pub pub_key: Ecc384PubKey,
+}
+
+impl Ecc384KeyPair {
+    pub fn zeroize(&mut self) {
+        self.pub_key.zeroize();
+    }
 }
 
 pub enum Crypto {}
@@ -95,39 +103,67 @@ impl Crypto {
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    /// * `key` - HMAC384 key
+    /// * `key` - HMAC384 key slot
     /// * `data` - Input data to hash
     /// * `tag` - Key slot to store the tag
-    ///
-    /// # Returns
-    ///
-    /// * `KeyId` - Key Id inputted
     pub fn hmac384_mac(
         env: &mut RomEnv,
-        key: Hmac384Key,
-        data: Hmac384Data,
+        key: KeyId,
+        data: &Hmac384Data,
         tag: KeyId,
-    ) -> CaliptraResult<KeyId> {
-        // Tag
-        let tag_args = Hmac384Tag::Key(KeyWriteArgs::new(
-            tag,
-            KeyUsage::default()
-                .set_hmac_key_en()
-                .set_ecc_key_gen_seed_en(),
-        ));
+    ) -> CaliptraResult<()> {
+        env.hmac384.hmac(
+            &KeyReadArgs::new(key).into(),
+            data,
+            &mut env.trng,
+            KeyWriteArgs::new(
+                tag,
+                KeyUsage::default()
+                    .set_hmac_key_en()
+                    .set_ecc_key_gen_seed_en(),
+            )
+            .into(),
+        )
+    }
 
-        // Calculate the CDI
-        env.hmac384.hmac(key, data, tag_args)?;
-
-        Ok(tag)
+    /// Calculate HMAC-348 KDF
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - ROM Environment
+    /// * `key` - HMAC384 key slot
+    /// * `label` - Input label
+    /// * `context` - Input context
+    /// * `output` - Key slot to store the output
+    pub fn hmac384_kdf(
+        env: &mut RomEnv,
+        key: KeyId,
+        label: &[u8],
+        context: Option<&[u8]>,
+        output: KeyId,
+    ) -> CaliptraResult<()> {
+        hmac384_kdf(
+            &mut env.hmac384,
+            KeyReadArgs::new(key).into(),
+            label,
+            context,
+            &mut env.trng,
+            KeyWriteArgs::new(
+                output,
+                KeyUsage::default()
+                    .set_hmac_key_en()
+                    .set_ecc_key_gen_seed_en(),
+            )
+            .into(),
+        )
     }
 
     /// Generate ECC Key Pair
     ///
     /// # Arguments
     ///
-    /// * `env`   - ROM Environment
-    /// * `seed` - Key slot to retrieve the seed from
+    /// * `env` - ROM Environment
+    /// * `cdi` - Key slot to retrieve the CDI from
     /// * `priv_key` - Key slot to store the private key
     ///
     /// # Returns
@@ -135,20 +171,28 @@ impl Crypto {
     /// * `Ecc384KeyPair` - Private Key slot id and public key pairs
     pub fn ecc384_key_gen(
         env: &mut RomEnv,
-        seed: KeyId,
+        cdi: KeyId,
+        label: &[u8],
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
-        // [TODO] Add Nonce to the ecc384_key_gen function
-        let seed = Ecc384Seed::Key(KeyReadArgs::new(seed));
+        Crypto::hmac384_kdf(env, cdi, label, None, KEY_ID_TMP)?;
 
         let key_out = Ecc384PrivKeyOut::Key(KeyWriteArgs::new(
             priv_key,
             KeyUsage::default().set_ecc_private_key_en(),
         ));
 
+        let pub_key = env.ecc384.key_pair(
+            &KeyReadArgs::new(KEY_ID_TMP).into(),
+            &Array4x12::default(),
+            &mut env.trng,
+            key_out,
+        );
+        env.key_vault.erase_key(KEY_ID_TMP)?;
+
         Ok(Ecc384KeyPair {
             priv_key,
-            pub_key: env.ecc384.key_pair(seed, &Array4x12::default(), key_out)?,
+            pub_key: pub_key?,
         })
     }
 
@@ -170,11 +214,13 @@ impl Crypto {
         priv_key: KeyId,
         data: &[u8],
     ) -> CaliptraResult<Ecc384Signature> {
-        let digest = Self::sha384_digest(env, data);
-        let digest = okref(&digest)?;
+        let mut digest = Self::sha384_digest(env, data);
+        let digest = okmutref(&mut digest)?;
         let priv_key_args = KeyReadArgs::new(priv_key);
         let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
-        env.ecc384.sign(priv_key, digest)
+        let result = env.ecc384.sign(&priv_key, digest, &mut env.trng);
+        digest.0.fill(0);
+        result
     }
 
     /// Verify the ECC Signature
@@ -197,8 +243,10 @@ impl Crypto {
         data: &[u8],
         sig: &Ecc384Signature,
     ) -> CaliptraResult<bool> {
-        let digest = Self::sha384_digest(env, data);
-        let digest = okref(&digest)?;
-        env.ecc384.verify(pub_key, digest, sig)
+        let mut digest = Self::sha384_digest(env, data);
+        let digest = okmutref(&mut digest)?;
+        let result = env.ecc384.verify(pub_key, digest, sig);
+        digest.0.fill(0);
+        result
     }
 }

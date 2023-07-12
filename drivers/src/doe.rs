@@ -80,7 +80,6 @@ impl DeobfuscationEngine {
     /// * Encrypted UDS
     /// * Encrypted Field entropy
     pub fn clear_secrets(&mut self) -> CaliptraResult<()> {
-        // Self::_execute_cmd(CONTROL::CMD::CLEAR_SECRETS.value, None, None);
         let doe = self.doe.regs_mut();
 
         // Wait for hardware ready
@@ -90,10 +89,7 @@ impl DeobfuscationEngine {
         doe.ctrl().write(|w| w.cmd(|w| w.doe_clear_obf_secrets()));
 
         // Wait for command to complete
-        //
-        // TODO: Uncomment following once the RTL is updated to set the
-        // valid bit for clear command.
-        // wait::until(|| doe.status().read().valid());
+        wait::until(|| doe.status().read().valid());
 
         Ok(())
     }

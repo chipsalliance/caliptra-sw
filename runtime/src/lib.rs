@@ -10,7 +10,10 @@ pub mod mailbox;
 
 use mailbox::Mailbox;
 
-use caliptra_common::cprintln;
+pub mod packet;
+use packet::Packet;
+
+use caliptra_common::{cprintln, FirmwareHandoffTable};
 use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault, Ecc384};
 use caliptra_registers::{
     dv::DvReg,
@@ -30,6 +33,9 @@ impl CommandId {
     pub const ECDSA384_VERIFY: Self = Self(0x53494756); // "SIGV"
     pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
     pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
+
+    pub const TEST_ONLY_GET_LDEV_CERT: Self = Self(0x4345524c); // "CERL"
+    pub const TEST_ONLY_GET_FMC_ALIAS_CERT: Self = Self(0x43455246); // "CERF"
 }
 impl From<u32> for CommandId {
     fn from(value: u32) -> Self {
@@ -42,31 +48,33 @@ impl From<CommandId> for u32 {
     }
 }
 
-pub struct Drivers {
+pub struct Drivers<'a> {
     pub mbox: Mailbox,
     pub sha_acc: Sha512AccCsr,
     pub ecdsa: Ecc384,
     pub data_vault: DataVault,
+    pub fht: &'a mut FirmwareHandoffTable,
 }
-impl Drivers {
+impl<'a> Drivers<'a> {
     /// # Safety
     ///
     /// Callers must ensure that this function is called only once, and that
     /// any concurrent access to these register blocks does not conflict with
     /// these drivers.
-    pub unsafe fn new_from_registers() -> Self {
+    pub unsafe fn new_from_registers(fht: &'a mut FirmwareHandoffTable) -> Self {
         Self {
             mbox: Mailbox::new(MboxCsr::new()),
             sha_acc: Sha512AccCsr::new(),
             ecdsa: Ecc384::new(EccReg::new()),
             data_vault: DataVault::new(DvReg::new()),
+            fht,
         }
     }
 }
 #[repr(C)]
 #[derive(AsBytes, FromBytes)]
 pub struct EcdsaVerifyCmd {
-    pub chksum: u32,
+    pub chksum: i32,
     pub pub_key_x: [u8; 48],
     pub pub_key_y: [u8; 48],
     pub signature_r: [u8; 48],
@@ -94,29 +102,18 @@ fn wait_for_cmd(_mbox: &mut Mailbox) {
 }
 
 fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
-    let mbox = &mut drivers.mbox;
+    let packet = Packet::copy_from_mbox(drivers)?;
 
-    let cmd_id = mbox.cmd();
-    let dlen = mbox.dlen() as usize;
-    let dlen_words = mbox.dlen_words() as usize;
-    let mut buf = [0u32; 1024];
-    mbox.copy_from_mbox(
-        buf.get_mut(..dlen_words)
-            .ok_or(CaliptraError::RUNTIME_INTERNAL)?,
+    cprintln!(
+        "[rt] Received command=0x{:x}, len={}",
+        packet.cmd,
+        packet.len
     );
 
-    if dlen > buf.len() * 4 {
-        // dlen larger than max message
-        Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
-    }
+    // Get the command bytes
+    let cmd_bytes = packet.as_bytes()?;
 
-    let cmd_bytes = buf
-        .as_bytes()
-        .get(..dlen)
-        .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
-
-    cprintln!("[rt] Received command=0x{:x}, len={}", cmd_id, mbox.dlen());
-    match CommandId::from(cmd_id) {
+    match CommandId::from(packet.cmd) {
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_IDEV_CSR => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_LDEV_CERT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
@@ -126,6 +123,26 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         }
         CommandId::STASH_MEASUREMENT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::INVOKE_DPE => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        #[cfg(feature = "test_only_commands")]
+        CommandId::TEST_ONLY_GET_LDEV_CERT => {
+            let mut cert = [0u8; 1024];
+            let cert_len = dice::copy_ldevid_cert(&drivers.data_vault, &mut cert)?;
+            drivers.mbox.write_response(
+                cert.get(..cert_len)
+                    .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?,
+            )?;
+            Ok(MboxStatusE::DataReady)
+        }
+        #[cfg(feature = "test_only_commands")]
+        CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT => {
+            let mut cert = [0u8; 1024];
+            let cert_len = dice::copy_fmc_alias_cert(&drivers.data_vault, &mut cert)?;
+            drivers.mbox.write_response(
+                cert.get(..cert_len)
+                    .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?,
+            )?;
+            Ok(MboxStatusE::DataReady)
+        }
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }
 }

@@ -17,11 +17,17 @@ Abstract:
 use crate::lock::lock_registers;
 use core::hint::black_box;
 
-use caliptra_drivers::{report_fw_error_non_fatal, CaliptraError, Mailbox};
+use caliptra_drivers::{
+    report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError, Ecc384, Hmac384, Mailbox,
+    ResetReason, Sha256, Sha384, Sha384Acc, SocIfc,
+};
 use rom_env::RomEnv;
 
 #[cfg(not(feature = "std"))]
-core::arch::global_asm!(include_str!("start.S"));
+core::arch::global_asm!(include_str!(concat!(
+    env!("OUT_DIR"),
+    "/start_preprocessed.S"
+)));
 
 mod exception;
 mod fht;
@@ -33,6 +39,7 @@ mod pcr;
 mod print;
 mod rom_env;
 mod verifier;
+mod wdt;
 
 #[cfg(feature = "std")]
 pub fn main() {}
@@ -45,13 +52,16 @@ Running Caliptra ROM ...
 pub extern "C" fn rom_entry() -> ! {
     cprintln!("{}", BANNER);
 
-    let mut env = unsafe { rom_env::RomEnv::new_from_registers() };
+    let mut env = match unsafe { rom_env::RomEnv::new_from_registers() } {
+        Ok(env) => env,
+        Err(e) => report_error(e.into()),
+    };
 
     let _lifecyle = match env.soc_ifc.lifecycle() {
         caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",
         caliptra_drivers::Lifecycle::Manufacturing => "Manufacturing",
         caliptra_drivers::Lifecycle::Production => "Production",
-        caliptra_drivers::Lifecycle::Unknown => "Unknown",
+        caliptra_drivers::Lifecycle::Reserved2 => "Unknown",
     };
     cprintln!("[state] LifecycleState = {}", _lifecyle);
 
@@ -64,22 +74,42 @@ pub extern "C" fn rom_entry() -> ! {
         }
     );
 
+    // Start the watchdog timer
+    wdt::start_wdt(&mut env.soc_ifc);
+
     let result = kat::execute_kat(&mut env);
     if let Err(err) = result {
         report_error(err.into());
     }
 
+    let reset_reason = env.soc_ifc.reset_reason();
+
     let result = flow::run(&mut env);
     match result {
         Ok(fht) => {
-            // Lock the datavault registers.
-            let reset_reason = env.soc_ifc.reset_reason();
-            lock_registers(&mut env, reset_reason);
-
-            fht::load_fht(fht);
+            fht::store(fht);
         }
-        Err(err) => report_error(err.into()),
+
+        Err(err) => {
+            //
+            // For the update reset case, when we fail the image validation
+            // we will need to continue to jump to the FMC after
+            // reporting the error in the registers.
+            //
+            if reset_reason == ResetReason::UpdateReset {
+                report_error_update_reset(err.into());
+            } else {
+                report_error(err.into());
+            }
+        }
     }
+
+    // Stop the watchdog timer.
+    // [TODO] Reset the watchdog timer and let FMC take ownership of it.
+    wdt::stop_wdt(&mut env.soc_ifc);
+
+    // Lock the datavault registers.
+    lock_registers(&mut env, reset_reason);
 
     #[cfg(not(feature = "no-fmc"))]
     launch_fmc(&mut env);
@@ -99,7 +129,7 @@ fn launch_fmc(env: &mut RomEnv) -> ! {
 
     cprintln!("[exit] Launching FMC @ 0x{:08X}", entry);
 
-    // Exit ROM and jump to speicified entry point
+    // Exit ROM and jump to specified entry point
     unsafe { exit_rom(entry) }
 }
 
@@ -143,14 +173,34 @@ fn rom_panic(_: &core::panic::PanicInfo) -> ! {
     panic_is_possible();
 
     // TODO: Signal non-fatal error to SOC
-
     report_error(CaliptraError::ROM_GLOBAL_PANIC.into());
+}
+
+fn report_error_update_reset(code: u32) {
+    cprintln!("ROM Non-Fatal Error: 0x{:08X}", code);
+    report_fw_error_non_fatal(code);
 }
 
 #[allow(clippy::empty_loop)]
 fn report_error(code: u32) -> ! {
-    cprintln!("ROM Error: 0x{:08X}", code);
-    report_fw_error_non_fatal(code);
+    cprintln!("ROM Fatal Error: 0x{:08X}", code);
+    report_fw_error_fatal(code);
+
+    unsafe {
+        // Zeroize the crypto blocks.
+        Ecc384::zeroize();
+        Hmac384::zeroize();
+        Sha256::zeroize();
+        Sha384::zeroize();
+        Sha384Acc::zeroize();
+
+        // Lock the SHA Accelerator.
+        Sha384Acc::lock();
+
+        // Stop the watchdog timer.
+        // Note: This is an idempotent operation.
+        SocIfc::stop_wdt1();
+    }
 
     loop {
         // SoC firmware might be stuck waiting for Caliptra to finish

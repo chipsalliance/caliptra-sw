@@ -16,17 +16,31 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{
-    Array4x12, Array4xN, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, Hmac384, KeyId,
-    KeyReadArgs, KeyUsage, KeyWriteArgs,
+    hmac384_kdf, Array4x12, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, Hmac384, KeyId,
+    KeyReadArgs, KeyUsage, KeyWriteArgs, Trng,
 };
 use caliptra_kat::Hmac384Kat;
+use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::ecc::EccReg;
+use caliptra_registers::entropy_src::EntropySrcReg;
 use caliptra_registers::hmac::HmacReg;
+use caliptra_registers::soc_ifc::SocIfcReg;
+use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
 
 use caliptra_test_harness::test_suite;
 
 fn test_hmac0() {
     let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
+
     let key: [u8; 48] = [
         0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
         0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b,
@@ -45,8 +59,9 @@ fn test_hmac0() {
 
     let mut out_tag = Array4x12::default();
     let actual = hmac384.hmac(
-        (&Array4x12::from(key)).into(),
-        (&data).into(),
+        &(&Array4x12::from(key)).into(),
+        &(&data).into(),
+        &mut trng,
         (&mut out_tag).into(),
     );
 
@@ -56,6 +71,15 @@ fn test_hmac0() {
 
 fn test_hmac1() {
     let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
     let key: [u8; 48] = [
         0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66,
         0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
@@ -77,8 +101,9 @@ fn test_hmac1() {
 
     let mut out_tag = Array4x12::default();
     let actual = hmac384.hmac(
-        (&Array4x12::from(key)).into(),
-        (&data).into(),
+        &(&Array4x12::from(key)).into(),
+        &(&data).into(),
+        &mut trng,
         (&mut out_tag).into(),
     );
 
@@ -89,18 +114,27 @@ fn test_hmac1() {
 fn test_hmac3() {
     let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
     //
     // Step 1: Place a key in the key-vault.
     //
     let seed = [0u8; 48];
-    let nonce = Array4xN::default();
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
         usage: KeyUsage::default().set_hmac_key_en(),
     };
     let result = ecc.key_pair(
-        Ecc384Seed::from(&Ecc384Scalar::from(seed)),
-        &nonce,
+        &Ecc384Seed::from(&Ecc384Scalar::from(seed)),
+        &Array4x12::default(),
+        &mut trng,
         Ecc384PrivKeyOut::from(key_out_1),
     );
     assert!(result.is_ok());
@@ -122,7 +156,12 @@ fn test_hmac3() {
 
     let mut out_tag = Array4x12::default();
     let key = KeyReadArgs::new(KeyId::KeyId0);
-    let actual = hmac384.hmac(key.into(), (&data).into(), (&mut out_tag).into());
+    let actual = hmac384.hmac(
+        &key.into(),
+        &(&data).into(),
+        &mut trng,
+        (&mut out_tag).into(),
+    );
 
     assert!(actual.is_ok());
     assert_eq!(out_tag, Array4x12::from(result));
@@ -131,18 +170,27 @@ fn test_hmac3() {
 fn test_hmac4() {
     let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
     //
     // Step 1: Place a key in the key-vault.
     //
     let seed = [0u8; 48];
-    let nonce = Array4xN::default();
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
         usage: KeyUsage::default().set_hmac_key_en(),
     };
     let result = ecc.key_pair(
-        Ecc384Seed::from(&Ecc384Scalar::from(seed)),
-        &nonce,
+        &Ecc384Seed::from(&Ecc384Scalar::from(seed)),
+        &Array4x12::default(),
+        &mut trng,
         Ecc384PrivKeyOut::from(key_out_1),
     );
     assert!(result.is_ok());
@@ -169,7 +217,12 @@ fn test_hmac4() {
     let mut out_tag = Array4x12::default();
     let key = KeyReadArgs::new(KeyId::KeyId0);
 
-    let actual = hmac384.hmac(key.into(), (&data).into(), (&mut out_tag).into());
+    let actual = hmac384.hmac(
+        &key.into(),
+        &(&data).into(),
+        &mut trng,
+        (&mut out_tag).into(),
+    );
 
     assert!(actual.is_ok());
     assert_eq!(out_tag, Array4x12::from(result));
@@ -178,18 +231,27 @@ fn test_hmac4() {
 fn test_hmac5() {
     let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
     //
     // Step 1: Place a key in the key-vault.
     //
     let seed = [0u8; 48];
-    let nonce = Array4xN::default();
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
         usage: KeyUsage::default().set_hmac_key_en(),
     };
     let result = ecc.key_pair(
-        Ecc384Seed::from(&Ecc384Scalar::from(seed)),
-        &nonce,
+        &Ecc384Seed::from(&Ecc384Scalar::from(seed)),
+        &Array4x12::default(),
+        &mut trng,
         Ecc384PrivKeyOut::from(key_out_1),
     );
     assert!(result.is_ok());
@@ -216,7 +278,12 @@ fn test_hmac5() {
 
     let mut out_tag = Array4x12::default();
     let key = KeyReadArgs::new(KeyId::KeyId0);
-    let actual = hmac384.hmac(key.into(), (&data).into(), (&mut out_tag).into());
+    let actual = hmac384.hmac(
+        &key.into(),
+        &(&data).into(),
+        &mut trng,
+        (&mut out_tag).into(),
+    );
 
     assert!(actual.is_ok());
     assert_eq!(out_tag, Array4x12::from(result));
@@ -239,6 +306,15 @@ fn test_hmac5() {
 fn test_hmac6() {
     let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
     //
     // Step 1: Place a key in the key-vault.
     //
@@ -247,14 +323,14 @@ fn test_hmac6() {
     //          0x87, 0x1c, 0x1a, 0xec, 0x3, 0x2c, 0x7a, 0x8b, 0x10, 0xb9, 0x3e, 0xe, 0xab, 0x89, 0x46, 0xd6,];
     //
     let seed = [0u8; 48];
-    let nonce = Array4xN::default();
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
         usage: KeyUsage::default().set_hmac_key_en(),
     };
     let result = ecc.key_pair(
-        Ecc384Seed::from(&Ecc384Scalar::from(seed)),
-        &nonce,
+        &Ecc384Seed::from(&Ecc384Scalar::from(seed)),
+        &Array4x12::default(),
+        &mut trng,
         Ecc384PrivKeyOut::from(key_out_1),
     );
     assert!(result.is_ok());
@@ -276,7 +352,12 @@ fn test_hmac6() {
 
     // Take the Data Generate the Tag in buffer
     let mut out_tag = Array4x12::default();
-    let actual = hmac384.hmac(key.into(), (&data).into(), (&mut out_tag).into());
+    let actual = hmac384.hmac(
+        &key.into(),
+        &(&data).into(),
+        &mut trng,
+        (&mut out_tag).into(),
+    );
     assert!(actual.is_ok());
     assert_eq!(out_tag, Array4x12::from(result));
 
@@ -289,27 +370,231 @@ fn test_hmac6() {
 
     // Generate the HMAC of the Tag in to a hmac_step_1
     let mut hmac_step_1 = Array4x12::default();
-    let actual = hmac384.hmac(key.into(), (&result).into(), (&mut hmac_step_1).into());
+    let actual = hmac384.hmac(
+        &key.into(),
+        &(&result).into(),
+        &mut trng,
+        (&mut hmac_step_1).into(),
+    );
     assert!(actual.is_ok());
     assert_eq!(hmac_step_1, Array4x12::from(step_1_result_expected));
 
     // Generate the Tag Of Original Data and put the tag In KV @5.  KV @5 will be used as data in the next step
     let out_tag = KeyWriteArgs::new(KeyId::KeyId5, KeyUsage::default().set_hmac_data_en());
-    let actual = hmac384.hmac(key.into(), (&data).into(), out_tag.into());
+    let actual = hmac384.hmac(&key.into(), &(&data).into(), &mut trng, out_tag.into());
     assert!(actual.is_ok());
 
     // Data From Key Vault generate HMAC in to output buffer
     let mut hmac_step_2 = Array4x12::default();
     let data_input: KeyReadArgs = KeyReadArgs::new(KeyId::KeyId5);
 
-    let actual = hmac384.hmac(key.into(), data_input.into(), (&mut hmac_step_2).into());
+    let actual = hmac384.hmac(
+        &key.into(),
+        &data_input.into(),
+        &mut trng,
+        (&mut hmac_step_2).into(),
+    );
 
     assert!(actual.is_ok());
     assert_eq!(hmac_step_1, hmac_step_2);
 }
 
+fn test_kdf(
+    key_0: &[u8; 48],
+    msg_0: &[u8],
+    label: &[u8],
+    context: Option<&[u8]>,
+    msg_1: &[u8],
+    out_key_id: KeyId,
+    out_value: &[u8; 48],
+) {
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
+
+    let key_0 = Array4x12::from(key_0);
+    let kdf_key_out = KeyWriteArgs::new(
+        KeyId::KeyId0,
+        KeyUsage::default().set_hmac_key_en().set_hmac_data_en(),
+    );
+    let kdf_key_in = KeyReadArgs::new(KeyId::KeyId0);
+
+    hmac384
+        .hmac(
+            &(&key_0).into(),
+            &(&msg_0.into()),
+            &mut trng,
+            kdf_key_out.into(),
+        )
+        .unwrap();
+
+    let kdf_out = KeyWriteArgs::new(out_key_id, KeyUsage::default().set_hmac_key_en());
+
+    hmac384_kdf(
+        &mut hmac384,
+        kdf_key_in.into(),
+        label,
+        context,
+        &mut trng,
+        kdf_out.into(),
+    )
+    .unwrap();
+
+    let mut out_tag = Array4x12::default();
+    let hmac_key = KeyReadArgs::new(out_key_id);
+    hmac384
+        .hmac(
+            &hmac_key.into(),
+            &(&msg_1.into()),
+            &mut trng,
+            (&mut out_tag).into(),
+        )
+        .unwrap();
+    assert_eq!(out_tag, Array4x12::from(out_value));
+}
+
+fn test_kdf0() {
+    let key_0 = [
+        0xe3, 0xb7, 0x20, 0xa1, 0x89, 0xb0, 0x5e, 0xd3, 0x07, 0x42, 0x68, 0x97, 0xb1, 0x16, 0x20,
+        0xd5, 0x8c, 0xee, 0xe5, 0x04, 0xb9, 0x52, 0xfc, 0xba, 0xb6, 0xe1, 0x93, 0x8a, 0xfe, 0x96,
+        0xb7, 0xba, 0x4d, 0x39, 0xb3, 0x38, 0x92, 0x2a, 0x5c, 0xcc, 0x7d, 0x5c, 0x6b, 0x37, 0x61,
+        0xfb, 0x54, 0xd5,
+    ];
+    let msg_0 = [
+        0x20, 0x04, 0x89, 0x82, 0x9b, 0x5b, 0x31, 0xfa, 0x3a, 0x4f, 0x6c, 0x02, 0x45, 0xe4, 0xc8,
+        0x76, 0xbb, 0x91, 0x8e, 0x7b, 0xae, 0xbb, 0x72, 0xd2, 0x4c, 0x0c, 0x10, 0x2f, 0x16, 0xaf,
+        0xe9, 0xea, 0x8c, 0x45, 0xfb, 0xb2, 0x2c, 0x4b, 0x1f, 0x8c, 0xde, 0x5b, 0x38, 0x00, 0xf5,
+        0x7b, 0x0b, 0x77,
+    ];
+    let label = [0x6c, 0x99, 0x02, 0x0e];
+    let context = [
+        0x24, 0xc4, 0x28, 0xc1, 0x34, 0x33, 0xb9, 0xf5, 0xeb, 0x02, 0xdb, 0x67, 0xa8, 0x0d, 0xba,
+        0x08, 0x80, 0x8b, 0xdb, 0xc5, 0xca, 0xe6, 0xb1, 0x16, 0x47, 0xef, 0xcd, 0x6e, 0x35, 0xb8,
+        0x38, 0x69, 0xb9, 0x01, 0x4a, 0x2a, 0xd8, 0x9b, 0xfc, 0xbf, 0x1c, 0x72, 0x9a, 0x11, 0xf3,
+        0x62, 0x7e, 0x90,
+    ];
+    let msg_1 = [
+        0xa9, 0x8c, 0xb4, 0xf6, 0x37, 0x61, 0x21, 0xd4, 0xf0, 0x06, 0xb1, 0x9e, 0x11, 0x9d, 0x2d,
+        0xe4, 0xe6, 0x96, 0x92, 0x90, 0xae, 0x2a, 0x5d, 0xad, 0x16, 0x8a, 0xf2, 0x96, 0xca, 0x7d,
+        0x94, 0x54, 0x34, 0x23, 0x46, 0xee, 0xd3, 0x10, 0x3c, 0x37, 0xec, 0xd3, 0x28, 0xcc, 0x6f,
+        0x6d, 0xeb, 0x0b,
+    ];
+    let out = [
+        0x4a, 0x98, 0x72, 0xb3, 0xe7, 0xb2, 0xec, 0xc0, 0xb5, 0x04, 0xdc, 0xe7, 0xaa, 0xbe, 0xc1,
+        0x94, 0xa9, 0x0b, 0xfa, 0x2c, 0x89, 0xcf, 0x6b, 0x66, 0x05, 0x18, 0x5e, 0x9a, 0xce, 0x83,
+        0x95, 0xf5, 0xdf, 0xf2, 0x24, 0x96, 0x77, 0xf2, 0xb2, 0x04, 0xa4, 0x15, 0xa9, 0xbf, 0x58,
+        0xb4, 0x79, 0x13,
+    ];
+
+    let out_key_id = KeyId::KeyId1;
+
+    test_kdf(
+        &key_0,
+        &msg_0,
+        &label,
+        Some(&context),
+        &msg_1,
+        out_key_id,
+        &out,
+    );
+}
+
+fn test_kdf1() {
+    let key_0 = [
+        0x14, 0xa5, 0xca, 0x00, 0x08, 0x8a, 0x6f, 0x52, 0xdc, 0x72, 0x60, 0xda, 0x6c, 0x97, 0xde,
+        0x83, 0x3b, 0x48, 0x34, 0xf8, 0x4f, 0xcc, 0x08, 0x78, 0x96, 0xd8, 0x62, 0xb7, 0xe4, 0xbd,
+        0xd6, 0x0e, 0xdb, 0x71, 0xea, 0xee, 0x6e, 0xf1, 0xf3, 0x2a, 0x36, 0x16, 0xf7, 0x07, 0x7f,
+        0xf8, 0x52, 0x85,
+    ];
+    let msg_0 = [
+        0x36, 0x75, 0x6e, 0xed, 0xa4, 0x06, 0x25, 0x18, 0xe2, 0x45, 0x4f, 0x7a, 0xc1, 0x15, 0xc7,
+        0x68, 0x12, 0x62, 0xa6, 0x15, 0xfe, 0x64, 0xc7, 0x4d, 0x69, 0x63, 0x5c, 0x69, 0xd0, 0x1c,
+        0xb6, 0x12, 0x16, 0x19, 0xf1, 0xe2, 0x9e, 0x3f, 0x2c, 0xa0, 0xd6, 0xc1, 0x47, 0x18, 0xcd,
+        0xf9, 0x79, 0x1e,
+    ];
+    let label = [0x9f, 0xf2, 0x5b, 0x47];
+    let msg_1 = [
+        0x6c, 0x98, 0x13, 0xcb, 0x0e, 0xaa, 0x04, 0x8f, 0xb7, 0x87, 0xfb, 0xf1, 0xe9, 0x4d, 0x27,
+        0xf8, 0x87, 0xbc, 0x38, 0x4a, 0x8a, 0xca, 0x26, 0xfc, 0x9c, 0xeb, 0xe9, 0xd5, 0x87, 0xb2,
+        0x4c, 0xfe, 0x5c, 0xf6, 0xbc, 0xad, 0xd4, 0x90, 0x3e, 0xa7, 0x2c, 0x96, 0x06, 0x4f, 0x6b,
+        0x37, 0xf8, 0xfc,
+    ];
+    let out = [
+        0xb8, 0x93, 0x71, 0x07, 0xd9, 0x25, 0xef, 0x6e, 0x6e, 0x01, 0xa9, 0x66, 0x80, 0x73, 0x2b,
+        0xcf, 0xa4, 0x9a, 0xa1, 0xce, 0xa1, 0x3e, 0x6e, 0x98, 0xfa, 0x8d, 0x25, 0xb7, 0xb3, 0xe6,
+        0x6c, 0x1a, 0x42, 0x54, 0x3a, 0x16, 0x26, 0xce, 0x29, 0x5c, 0x39, 0x68, 0x17, 0x8f, 0xbd,
+        0xb5, 0x27, 0x79,
+    ];
+
+    let out_key_id = KeyId::KeyId1;
+
+    test_kdf(&key_0, &msg_0, &label, None, &msg_1, out_key_id, &out);
+}
+
+// Test using a NIST vector.
+fn test_kdf2() {
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
+
+    let key = [
+        0xb5, 0x7d, 0xc5, 0x23, 0x54, 0xaf, 0xee, 0x11, 0xed, 0xb4, 0xc9, 0x05, 0x2a, 0x52, 0x83,
+        0x44, 0x34, 0x8b, 0x2c, 0x6b, 0x6c, 0x39, 0xf3, 0x21, 0x33, 0xed, 0x3b, 0xb7, 0x20, 0x35,
+        0xa4, 0xab, 0x55, 0xd6, 0x64, 0x8c, 0x15, 0x29, 0xef, 0x7a, 0x91, 0x70, 0xfe, 0xc9, 0xef,
+        0x26, 0xa8, 0x1e,
+    ];
+    let label = [
+        0x17, 0xe6, 0x41, 0x90, 0x9d, 0xed, 0xfe, 0xe4, 0x96, 0x8b, 0xb9, 0x5d, 0x7f, 0x77, 0x0e,
+        0x45, 0x57, 0xca, 0x34, 0x7a, 0x46, 0x61, 0x4c, 0xb3, 0x71, 0x42, 0x3f, 0x0d, 0x91, 0xdf,
+        0x3b, 0x58, 0xb5, 0x36, 0xed, 0x54, 0x53, 0x1f, 0xd2, 0xa2, 0xeb, 0x0b, 0x8b, 0x2a, 0x16,
+        0x34, 0xc2, 0x3c, 0x88, 0xfa, 0xd9, 0x70, 0x6c, 0x45, 0xdb, 0x44, 0x11, 0xa2, 0x3b, 0x89,
+    ];
+    let out = [
+        0x59, 0x49, 0xac, 0xf9, 0x63, 0x5a, 0x77, 0x29, 0x79, 0x28, 0xc1, 0xe1, 0x55, 0xd4, 0x3a,
+        0x4e, 0x4b, 0xca, 0x61, 0xb1, 0x36, 0x9a, 0x5e, 0xf5, 0x05, 0x30, 0x88, 0x85, 0x50, 0xba,
+        0x27, 0x0e, 0x26, 0xbe, 0x4a, 0x42, 0x1c, 0xdf, 0x80, 0xb7,
+    ];
+
+    let mut out_buf = Array4x12::default();
+
+    hmac384_kdf(
+        &mut hmac384,
+        (&Array4x12::from(&key)).into(),
+        &label,
+        None,
+        &mut trng,
+        (&mut out_buf).into(),
+    )
+    .unwrap();
+
+    assert_eq!(<[u8; 48]>::from(out_buf)[..out.len()], out);
+}
+
 fn test_hmac_multi_block() {
     let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
     let key: [u8; 48] = [
         0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61,
         0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61,
@@ -338,8 +623,9 @@ fn test_hmac_multi_block() {
 
     let mut out_tag = Array4x12::default();
     let actual = hmac384.hmac(
-        (&Array4x12::from(key)).into(),
-        (&data).into(),
+        &(&Array4x12::from(key)).into(),
+        &(&data).into(),
+        &mut trng,
         (&mut out_tag).into(),
     );
 
@@ -349,6 +635,15 @@ fn test_hmac_multi_block() {
 
 fn test_hmac_exact_single_block() {
     let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
     let key: [u8; 48] = [
         0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61,
         0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61,
@@ -377,8 +672,9 @@ fn test_hmac_exact_single_block() {
 
     let mut out_tag = Array4x12::default();
     let actual = hmac384.hmac(
-        (&Array4x12::from(key)).into(),
-        (&data).into(),
+        &(&Array4x12::from(key)).into(),
+        &(&data).into(),
+        &mut trng,
         (&mut out_tag).into(),
     );
 
@@ -388,6 +684,15 @@ fn test_hmac_exact_single_block() {
 
 fn test_hmac_multi_block_two_step() {
     let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
     let key: [u8; 48] = [
         0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61,
         0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61, 0x61,
@@ -416,7 +721,11 @@ fn test_hmac_multi_block_two_step() {
 
     let mut out_tag = Array4x12::default();
     let mut hmac_op = hmac384
-        .hmac_init((&Array4x12::from(key)).into(), (&mut out_tag).into())
+        .hmac_init(
+            &(&Array4x12::from(key)).into(),
+            &mut trng,
+            (&mut out_tag).into(),
+        )
         .unwrap();
     assert!(hmac_op.update(&data).is_ok());
     let actual = hmac_op.finalize();
@@ -426,7 +735,21 @@ fn test_hmac_multi_block_two_step() {
 
 fn test_kat() {
     let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
-    assert_eq!(Hmac384Kat::default().execute(&mut hmac384).is_ok(), true);
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
+    assert_eq!(
+        Hmac384Kat::default()
+            .execute(&mut hmac384, &mut trng)
+            .is_ok(),
+        true
+    );
 }
 
 test_suite! {
@@ -437,6 +760,9 @@ test_suite! {
     test_hmac4,
     test_hmac5,
     test_hmac6,
+    test_kdf0,
+    test_kdf1,
+    test_kdf2,
     test_hmac_multi_block,
     test_hmac_exact_single_block,
     test_hmac_multi_block_two_step,

@@ -13,20 +13,16 @@ Abstract:
 --*/
 
 use crate::fuse::log_fuse_data;
-use crate::pcr;
 use crate::rom_env::RomEnv;
 use crate::{cprintln, verifier::RomImageVerificationEnv};
-use caliptra_common::{cprint, FuseLogEntryId, RomBootStatus::*};
+use crate::{pcr, wdt};
+use caliptra_common::{cprint, memory_layout::MAN1_ORG, FuseLogEntryId, RomBootStatus::*};
 use caliptra_drivers::*;
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier};
 use caliptra_x509::{NotAfter, NotBefore};
 use core::mem::ManuallyDrop;
 use zerocopy::{AsBytes, FromBytes};
-
-extern "C" {
-    static mut MAN1_ORG: u32;
-}
 
 #[derive(Debug, Default)]
 pub struct FwProcInfo {
@@ -37,6 +33,14 @@ pub struct FwProcInfo {
     pub fmc_effective_fuse_svn: u32,
 }
 
+impl FwProcInfo {
+    pub fn zeroize(&mut self) {
+        self.fmc_cert_valid_not_before.value.fill(0);
+        self.fmc_cert_valid_not_after.value.fill(0);
+        self.fmc_effective_fuse_svn = 0;
+    }
+}
+
 pub struct FirmwareProcessor {}
 
 impl FirmwareProcessor {
@@ -44,8 +48,14 @@ impl FirmwareProcessor {
     const MBOX_DOWNLOAD_FIRMWARE_CMD_ID: u32 = 0x46574C44;
 
     pub fn process(env: &mut RomEnv) -> CaliptraResult<FwProcInfo> {
+        // Disable the watchdog timer during firmware download.
+        wdt::stop_wdt(&mut env.soc_ifc);
+
         // Download the image
         let mut txn = Self::download_image(&mut env.soc_ifc, &mut env.mbox)?;
+
+        // Renable the watchdog timer.
+        wdt::start_wdt(&mut env.soc_ifc);
 
         // Load the manifest
         let manifest = Self::load_manifest(&mut txn);
@@ -149,7 +159,7 @@ impl FirmwareProcessor {
     /// * `Manifest` - Caliptra Image Bundle Manifest
     fn load_manifest(txn: &mut MailboxRecvTxn) -> CaliptraResult<ImageManifest> {
         let slice = unsafe {
-            let ptr = &mut MAN1_ORG as *mut u32;
+            let ptr = MAN1_ORG as *mut u32;
             core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
         };
 
@@ -314,8 +324,8 @@ impl FirmwareProcessor {
         data_vault.write_warm_reset_entry4(WarmResetEntry4::RtEntryPoint, info.runtime.entry_point);
 
         // TODO: Need a better way to get the Manifest address
-        let slice = unsafe {
-            let ptr = &MAN1_ORG as *const u32;
+        let slice = {
+            let ptr = MAN1_ORG as *const u32;
             ptr as u32
         };
 

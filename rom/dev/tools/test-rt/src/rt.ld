@@ -4,7 +4,7 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-	fmc.ld
+	rt.ld
 
 Abstract:
 
@@ -16,23 +16,16 @@ OUTPUT_ARCH(riscv)
 OUTPUT_FORMAT("elf32-littleriscv", "elf32-littleriscv", "elf32-littleriscv")
 ENTRY(_start)
 
-MBOX_ORG    = 0x30000000;
+
 ICCM_ORG    = 0x40004000; /* Range [0x40000000 - 0x40003FFF] is reserved for FMC */
 DCCM_ORG    = 0x50000000;
-MAN1_ORG    = 0x50000000;
-MAN2_ORG    = 0x50001000;
-FHT_ORG     = 0x50002000;
 DATA_ORG    = 0x50003000;
 STACK_ORG   = 0x5001C000;
 ESTACK_ORG  = 0x5001F800;
 NSTACK_ORG  = 0x5001FC00;
 
-MBOX_SIZE   = 128K;
 ICCM_SIZE   = 112K;
 DCCM_SIZE   = 128K;
-MAN1_SIZE   = 4K;
-MAN2_SIZE   = 4K;
-FHT_SIZE    = 4K;
 DATA_SIZE   = 100K;
 STACK_SIZE  = 14K;
 ESTACK_SIZE = 1K;
@@ -40,11 +33,7 @@ NSTACK_SIZE = 1K;
 
 MEMORY
 {
-	MBOX   (rw) : ORIGIN = MBOX_ORG,   LENGTH = MBOX_SIZE
 	ICCM   (rx) : ORIGIN = ICCM_ORG,   LENGTH = ICCM_SIZE
-	MAN1   (rw) : ORIGIN = MAN1_ORG,   LENGTH = MAN1_SIZE
-	MAN2   (rw) : ORIGIN = MAN2_ORG,   LENGTH = MAN2_SIZE
-	FHT    (rw) : ORIGIN = FHT_ORG,    LENGTH = FHT_SIZE
 	DATA   (rw) : ORIGIN = DATA_ORG,   LENGTH = DATA_SIZE
 	STACK  (rw) : ORIGIN = STACK_ORG,  LENGTH = STACK_SIZE
 	ESTACK (rw) : ORIGIN = ESTACK_ORG, LENGTH = ESTACK_SIZE

@@ -8,7 +8,7 @@ use std::{
 };
 
 use caliptra_emu_bus::Bus;
-use caliptra_hw_model_types::DEFAULT_CPTRA_OBF_KEY;
+use caliptra_hw_model_types::{EtrngResponse, RandomEtrngResponses, DEFAULT_CPTRA_OBF_KEY};
 use zerocopy::{AsBytes, LayoutVerified, Unalign};
 
 use caliptra_registers::mbox;
@@ -83,6 +83,30 @@ impl<R: RngCore> Iterator for RandomNibbles<R> {
     }
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub enum TrngMode {
+    // soc_ifc_reg.CPTRA_HW_CONFIG.iTRNG_en will be true.
+    // When running with the verlated hw-model, the itrng compile-time feature
+    // must be enabled or initialization will fail.
+    Internal,
+
+    // soc_ifc_reg.CPTRA_HW_CONFIG.iTRNG_en will be false.
+    // When running with the verlated hw-model, the itrng compile-time feature
+    // must be disabled or initialization will fail.
+    External,
+}
+impl TrngMode {
+    pub fn resolve(mode: Option<Self>) -> Self {
+        if let Some(mode) = mode {
+            mode
+        } else if cfg!(feature = "itrng") {
+            TrngMode::Internal
+        } else {
+            TrngMode::External
+        }
+    }
+}
+
 pub struct InitParams<'a> {
     // The contents of the boot ROM
     pub rom: &'a [u8],
@@ -100,17 +124,33 @@ pub struct InitParams<'a> {
     // The silicon obfuscation key passed to caliptra_top.
     pub cptra_obf_key: [u32; 8],
 
-    pub trng_nibbles: Box<dyn Iterator<Item = u8>>,
+    // 4-bit nibbles of raw entropy to feed into the internal TRNG (ENTROPY_SRC
+    // peripheral).
+    pub itrng_nibbles: Box<dyn Iterator<Item = u8>>,
+
+    // Pre-conditioned TRNG responses to return over the soc_ifc CPTRA_TRNG_DATA
+    // registers in response to requests via CPTRA_TRNG_STATUS
+    pub etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
+
+    // When None, use the itrng compile-time feature to decide which mode to use.
+    pub trng_mode: Option<TrngMode>,
 }
 
 impl<'a> Default for InitParams<'a> {
     fn default() -> Self {
-        let rng: Box<dyn Iterator<Item = u8>> =
-            if let Ok(Ok(val)) = std::env::var("CPTRA_TRNG_SEED").map(|s| u64::from_str(&s)) {
-                Box::new(RandomNibbles(StdRng::seed_from_u64(val)))
-            } else {
-                Box::new(RandomNibbles(rand::thread_rng()))
-            };
+        let seed = std::env::var("CPTRA_TRNG_SEED")
+            .ok()
+            .and_then(|s| u64::from_str(&s).ok());
+        let itrng_nibbles: Box<dyn Iterator<Item = u8>> = if let Some(seed) = seed {
+            Box::new(RandomNibbles(StdRng::seed_from_u64(seed)))
+        } else {
+            Box::new(RandomNibbles(rand::thread_rng()))
+        };
+        let etrng_responses: Box<dyn Iterator<Item = EtrngResponse>> = if let Some(seed) = seed {
+            Box::new(RandomEtrngResponses(StdRng::seed_from_u64(seed)))
+        } else {
+            Box::new(RandomEtrngResponses::new_from_thread_rng())
+        };
         Self {
             rom: Default::default(),
             dccm: Default::default(),
@@ -119,7 +159,9 @@ impl<'a> Default for InitParams<'a> {
             security_state: *SecurityState::default()
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
             cptra_obf_key: DEFAULT_CPTRA_OBF_KEY,
-            trng_nibbles: rng,
+            itrng_nibbles,
+            etrng_responses,
+            trng_mode: Default::default(),
         }
     }
 }
@@ -129,6 +171,7 @@ pub struct BootParams<'a> {
     pub init_params: InitParams<'a>,
     pub fuses: Fuses,
     pub fw_image: Option<&'a [u8]>,
+    pub initial_dbg_manuf_service_reg: u32,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -295,6 +338,10 @@ pub trait HwModel {
 
         hw.init_fuses(&run_params.fuses);
 
+        hw.soc_ifc()
+            .cptra_dbg_manuf_service_reg()
+            .write(|_| run_params.initial_dbg_manuf_service_reg);
+
         writeln!(hw.output().logger(), "writing to cptra_bootfsm_go")?;
         hw.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
@@ -435,11 +482,59 @@ pub trait HwModel {
         Ok(())
     }
 
+    fn step_until_boot_status(
+        &mut self,
+        expected_status_u32: u32,
+        ignore_intermediate_status: bool,
+    ) {
+        // Since the boot takes less than 20M cycles, we know something is wrong if
+        // we're stuck at the same state for that duration.
+        const MAX_WAIT_CYCLES: u32 = 20_000_000;
+
+        let mut cycle_count = 0u32;
+        let initial_boot_status_u32 = self.soc_ifc().cptra_boot_status().read();
+        loop {
+            let actual_status_u32 = self.soc_ifc().cptra_boot_status().read();
+            if expected_status_u32 == actual_status_u32 {
+                break;
+            }
+
+            if !ignore_intermediate_status && actual_status_u32 != initial_boot_status_u32 {
+                panic!(
+                    "Expected the next boot_status to be  \
+                    ({expected_status_u32}), but status changed from \
+                    {initial_boot_status_u32} to {actual_status_u32})"
+                );
+            }
+            self.step();
+            cycle_count += 1;
+            if cycle_count >= MAX_WAIT_CYCLES {
+                panic!(
+                    "Expected boot_status to be  \
+                    ({expected_status_u32}), but was stuck at ({actual_status_u32})"
+                );
+            }
+        }
+    }
+
     /// A register block that can be used to manipulate the soc_ifc peripheral
     /// over the simulated SoC->Caliptra APB bus.
     fn soc_ifc(&mut self) -> caliptra_registers::soc_ifc::RegisterBlock<BusMmio<Self::TBus<'_>>> {
         unsafe {
             caliptra_registers::soc_ifc::RegisterBlock::new_with_mmio(
+                0x3003_0000 as *mut u32,
+                BusMmio::new(self.apb_bus()),
+            )
+        }
+    }
+
+    /// A register block that can be used to manipulate the soc_ifc peripheral TRNG registers
+    /// over the simulated SoC->Caliptra APB bus.
+    fn soc_ifc_trng(
+        &mut self,
+    ) -> caliptra_registers::soc_ifc_trng::RegisterBlock<BusMmio<Self::TBus<'_>>> {
+        unsafe {
+            caliptra_registers::soc_ifc_trng::RegisterBlock::new_with_mmio(
                 0x3003_0000 as *mut u32,
                 BusMmio::new(self.apb_bus()),
             )
@@ -509,7 +604,11 @@ pub trait HwModel {
             self.soc_mbox().execute().write(|w| w.execute(false));
             let soc_ifc = self.soc_ifc();
             return Err(ModelError::MailboxCmdFailed(
-                soc_ifc.cptra_fw_error_non_fatal().read(),
+                if soc_ifc.cptra_fw_error_fatal().read() != 0 {
+                    soc_ifc.cptra_fw_error_fatal().read()
+                } else {
+                    soc_ifc.cptra_fw_error_non_fatal().read()
+                },
             ));
         }
         if status.cmd_complete() {
@@ -888,8 +987,6 @@ mod tests {
 
     #[test]
     fn test_sha512_acc() {
-        // This test doesn't rely on any firmware features. mailbox_responder
-        // image is sufficient
         let rom = caliptra_builder::build_firmware_rom(&FwId {
             crate_name: "caliptra-hw-model-test-fw",
             bin_name: "mailbox_responder",
@@ -906,6 +1003,14 @@ mod tests {
             ..Default::default()
         })
         .unwrap();
+
+        assert_eq!(
+            model.compute_sha512_acc_digest(b"Hello", ShaAccMode::Sha384Stream),
+            Err(ModelError::UnableToLockSha512Acc)
+        );
+
+        // Ask firmware to unlock mailbox for sha512acc use.
+        model.mailbox_execute(0x5000_0000, &[]).unwrap();
 
         let tests = vec![
             Sha384Test {

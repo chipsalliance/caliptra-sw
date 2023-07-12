@@ -7,6 +7,8 @@ use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
 use caliptra_hw_model::{DefaultHwModel, ModelError};
 use caliptra_image_types::ImageBundle;
 
+pub const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
+
 pub fn build_hw_model_and_image_bundle(
     fuses: Fuses,
     image_options: ImageOptions,
@@ -19,7 +21,7 @@ pub fn build_hw_model_and_image_bundle(
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 

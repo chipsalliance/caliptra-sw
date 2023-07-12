@@ -96,8 +96,31 @@ impl Sha256 {
             }
         }
 
-        let sha256 = self.sha256.regs();
-        Ok(Array4x8::read_from_reg(sha256.digest()))
+        let digest = Array4x8::read_from_reg(self.sha256.regs().digest());
+
+        self.zeroize_internal();
+
+        Ok(digest)
+    }
+
+    /// Zeroize the hardware registers.
+    fn zeroize_internal(&mut self) {
+        self.sha256.regs_mut().ctrl().write(|w| w.zeroize(true));
+    }
+
+    /// Zeroize the hardware registers.
+    ///
+    /// This is useful to call from a fatal-error-handling routine.
+    ///
+    /// # Safety
+    ///
+    /// The caller must be certain that the results of any pending cryptographic
+    /// operations will not be used after this function is called.
+    ///
+    /// This function is safe to call from a trap handler.
+    pub unsafe fn zeroize() {
+        let mut sha256 = Sha256Reg::new();
+        sha256.regs_mut().ctrl().write(|w| w.zeroize(true));
     }
 
     /// Copy digest to buffer

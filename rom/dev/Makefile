@@ -99,9 +99,7 @@ objcopy:
 
 run: build-emu build-fw-image objcopy
 	cargo run \
-		--manifest-path ../../sw-emulator/Cargo.toml \
-		--release \
-		--bin caliptra-emu \
+		-p caliptra-emu \
 		-- \
 		--req-idevid-csr \
 		--idevid-key-id-algo sha1 \
@@ -111,9 +109,7 @@ run: build-emu build-fw-image objcopy
 
 run-update: build-emu build-fw-image objcopy
 		cargo run \
-		--manifest-path ../../sw-emulator/Cargo.toml \
-		--release \
-		--bin caliptra-emu \
+		-p caliptra-emu \
 		-- \
 		--req-idevid-csr \
 		--idevid-key-id-algo sha1 \
