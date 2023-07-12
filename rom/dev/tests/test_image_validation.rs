@@ -225,8 +225,7 @@ fn test_preamble_vendor_lms_pubkey_out_of_bounds() {
 
     assert_eq!(
         ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_VEN_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS
-                .into()
+            CaliptraError::IMAGE_VERIFIER_ERR_VEN_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS.into()
         ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
