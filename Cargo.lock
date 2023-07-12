@@ -315,6 +315,9 @@ dependencies = [
 [[package]]
 name = "caliptra-gen-linker-scripts"
 version = "0.1.0"
+dependencies = [
+ "caliptra_common",
+]
 
 [[package]]
 name = "caliptra-hw-model"
