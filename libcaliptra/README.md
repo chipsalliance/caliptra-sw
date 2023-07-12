@@ -6,15 +6,15 @@ libcaliptra is an abstraction layer between SoC applications and the Caliptra im
 
 ## Structure
 
-libcaliptra exists in two parts:
+libcaliptra exists in two parts, the API and the Interface.
 
-### Caliptra API
+### API
 
 Specified in caliptra_api.h and defined in caliptra_api.c
 
 Provides abstract APIs and functionality to SoC applications, independent of hardware details.
 
-### Caliptra IF
+### IF
 
 Specified in caliptra_if.h and used by caliptra_api.c
 
@@ -22,23 +22,20 @@ The caliptra implementation must supply the definitions for the functions named 
 
 ## Build
 
-The top level Makefile has a few targets:
+To compile the API, the following must be provided:
 
-debug
-release
+* Standard C headers
+* Access to the caliptra_top_reg.h header
 
-The default is debug (note: there is no difference between the two at this time)
+Run `make RTL_SOC_IFC_INCLUDE_PATH=<path>` to generate libcaliptra.a
 
-## Linking
-Applications will need to compile and link caliptra_api.c and the definitions for caliptra_if.hardware
+## Link
 
-# Notes
+To link the API, the following must be provided:
 
-This is an early check-in to ensure its presence upstream and to generate feedback going forward.
+* A main application utilizing these functions
+* An interface implementation
 
-* Expand available APIs
-* Interrupts?
-** Handling thereof?
-* Add a demonstration interface connecting to the hardware model
-* Add a demonstration interface to the software simulator (?)
-* Add support for building the caliptra interface implementation if present?
+## Implementation and consumer examples
+
+See examples/README.md for details on specific examples.

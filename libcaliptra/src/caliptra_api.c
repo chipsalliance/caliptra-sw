@@ -17,6 +17,8 @@ static inline uint32_t caliptra_read_status(void)
     uint32_t status;
 
     caliptra_read_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS, &status);
+   
+    return status;
 }
 
 /**
@@ -30,13 +32,16 @@ bool caliptra_ready_for_fuses(void)
 {
     uint32_t status;
 
-    while (((status = caliptra_read_status()) & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FUSES_MASK) == CALIPTRA_STATUS_NOT_READY)
+    status = caliptra_read_status();
+
+    if ((status & CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS)
+                == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FUSES_MASK)
     {
-        caliptra_wait();
+        return true;
     }
 
-    return true;
-}
+    return false;
+ }
 
 /**
  * caliptra_init_fuses
@@ -55,8 +60,12 @@ int caliptra_init_fuses(struct caliptra_fuses *fuses)
     }
 
     // Check whether caliptra is ready for fuses
-    if (!caliptra_ready_for_fuses())
-        return -EPERM;
+    // 
+    // This check is disabled until the below ticket is resolved.
+    // https://github.com/chipsalliance/caliptra-sw/issues/508
+    //
+    //if (!caliptra_ready_for_fuses())
+    //    return -EPERM;
 
     // Write Fuses
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_UDS_SEED_0, fuses->uds_seed, sizeof(fuses->uds_seed));
@@ -65,7 +74,7 @@ int caliptra_init_fuses(struct caliptra_fuses *fuses)
     caliptra_fuse_write(GENERIC_AND_FUSE_REG_FUSE_KEY_MANIFEST_PK_HASH_MASK, fuses->key_manifest_pk_hash_mask);
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_OWNER_PK_HASH_0, fuses->owner_pk_hash, sizeof(fuses->owner_pk_hash));
     caliptra_fuse_write(GENERIC_AND_FUSE_REG_FUSE_FMC_KEY_MANIFEST_SVN, fuses->fmc_key_manifest_svn);
-    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_FMC_KEY_MANIFEST_SVN, fuses->runtime_svn, sizeof(fuses->runtime_svn));
+    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_FMC_KEY_MANIFEST_SVN, fuses->runtime_svn, sizeof(fuses->runtime_svn)); // https://github.com/chipsalliance/caliptra-sw/issues/529 
     caliptra_fuse_write(GENERIC_AND_FUSE_REG_FUSE_ANTI_ROLLBACK_DISABLE, (uint32_t)fuses->anti_rollback_disable);
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_IDEVID_CERT_ATTR_0, fuses->idevid_cert_attr, sizeof(fuses->idevid_cert_attr));
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_IDEVID_MANUF_HSM_ID_0, fuses->idevid_manuf_hsm_id, sizeof(fuses->idevid_manuf_hsm_id));
@@ -74,7 +83,7 @@ int caliptra_init_fuses(struct caliptra_fuses *fuses)
     // Write to Caliptra Fuse Done
     caliptra_write_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FUSE_WR_DONE, 1);
 
-    // It shouldn`t be longer ready for fuses
+    // No longer ready for fuses
     if (caliptra_ready_for_fuses())
         return -EIO;
 
@@ -128,7 +137,7 @@ static int caliptra_mailbox_write_fifo(struct caliptra_buffer *buffer)
         remaining_len -= sizeof(uint32_t);
     }
 
-    // if un-aligned dword reminder...
+    // if un-aligned dword remainder...
     if (remaining_len) {
         uint32_t data = 0;
         memcpy(&data, data_dw, remaining_len);
@@ -150,6 +159,10 @@ static int caliptra_mailbox_write_fifo(struct caliptra_buffer *buffer)
 static int caliptra_mailbox_read_buffer(struct caliptra_buffer *buffer)
 {
     uint32_t remaining_len = caliptra_mbox_read_dlen();
+
+    // Check that the buffer is not null
+    if (buffer == NULL)
+        return -EINVAL;
 
     // Check we have enough room in the buffer
     if (buffer->len < remaining_len || !buffer->data)
@@ -231,11 +244,22 @@ int caliptra_mailbox_execute(uint32_t cmd, struct caliptra_buffer *mbox_tx_buffe
 bool caliptra_ready_for_firmware(void)
 {
     uint32_t status;
+    bool     ready;
 
-    while (((status = caliptra_read_status()) & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK) == CALIPTRA_STATUS_NOT_READY)
+    do
     {
-        caliptra_wait();
-    }
+        status = caliptra_read_status();
+
+        if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK) 
+                == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK)
+        {
+            ready = true;
+        }
+        else
+        {
+            caliptra_wait();
+        }
+    } while(ready == false);
 
     return true;
 }
@@ -247,7 +271,7 @@ bool caliptra_ready_for_firmware(void)
  * 
  * @param[in] fw_buffer Buffer containing Caliptra firmware
  *
- * @return See caliptra_mailbox_execute for possible results.
+ * @return See caliptra_mailbo, mb_resultx_execute for possible results.
  */
 int caliptra_upload_fw(struct caliptra_buffer *fw_buffer)
 {
