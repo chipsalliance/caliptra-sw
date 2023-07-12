@@ -342,7 +342,31 @@ _nmi_handler:
 .global exit_rom
 exit_rom:
     .cfi_startproc
-    jr a0
+
+    //
+    // Clear the stack
+    //
+    
+    // Save the FMC address
+    addi a3, a0, 0
+    la a0, STACK_ORG         // dest
+    la a1, STACK_SIZE        // len 
+    call _zero_mem256
+
+   // Clear all registers
+   li x1,  0; li x2,  0; li x3,  0; li x4,  0;
+   li x5,  0; li x6,  0; li x7,  0; li x8,  0;
+   li x9,  0; li x10, 0; li x11, 0; li x12, 0;
+   // Don't clear x13 as it contains the FMC address.
+   li x14, 0; li x15, 0; li x16, 0;
+   li x17, 0; li x18, 0; li x19, 0; li x20, 0;
+   li x21, 0; li x22, 0; li x23, 0; li x24, 0;
+   li x25, 0; li x26, 0; li x27, 0; li x28, 0;
+   li x29, 0; li x30, 0; li x31, 0;
+
+    // Jump to FMC
+    jr a3
 1:
     j 1b
     .cfi_endproc
+
