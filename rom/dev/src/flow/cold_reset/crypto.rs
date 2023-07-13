@@ -13,10 +13,9 @@ Abstract:
 --*/
 
 use crate::rom_env::RomEnv;
+use caliptra_common::keyids::KEY_ID_TMP;
 use caliptra_drivers::*;
 use caliptra_x509::Ecdsa384Signature;
-
-use super::KEY_ID_TMP;
 
 /// ECDSA-384 Signature Adapter
 ///

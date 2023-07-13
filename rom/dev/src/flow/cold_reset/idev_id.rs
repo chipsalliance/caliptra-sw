@@ -17,9 +17,9 @@ use super::crypto::*;
 use super::dice::*;
 use super::x509::*;
 use crate::cprintln;
-use crate::flow::cold_reset::{KEY_ID_CDI, KEY_ID_FE, KEY_ID_IDEVID_PRIV_KEY, KEY_ID_UDS};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
+use caliptra_common::keyids::{KEY_ID_FE, KEY_ID_IDEVID_PRIV_KEY, KEY_ID_ROM_FMC_CDI, KEY_ID_UDS};
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
 use caliptra_x509::*;
@@ -50,7 +50,7 @@ impl InitDevIdLayer {
     /// * `DiceOutput` - DICE layer output
     pub fn derive(env: &mut RomEnv) -> CaliptraResult<DiceOutput> {
         cprintln!("[idev] ++");
-        cprintln!("[idev] CDI.KEYID = {}", KEY_ID_CDI as u8);
+        cprintln!("[idev] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
         cprintln!("[idev] SUBJECT.KEYID = {}", KEY_ID_IDEVID_PRIV_KEY as u8);
         cprintln!("[idev] UDS.KEYID = {}", KEY_ID_UDS as u8);
 
@@ -64,10 +64,10 @@ impl InitDevIdLayer {
         Self::clear_doe_secrets(env)?;
 
         // Derive the DICE CDI from decrypted UDS
-        Self::derive_cdi(env, KEY_ID_UDS, KEY_ID_CDI)?;
+        Self::derive_cdi(env, KEY_ID_UDS, KEY_ID_ROM_FMC_CDI)?;
 
         // Derive DICE Key Pair from CDI
-        let key_pair = Self::derive_key_pair(env, KEY_ID_CDI, KEY_ID_IDEVID_PRIV_KEY)?;
+        let key_pair = Self::derive_key_pair(env, KEY_ID_ROM_FMC_CDI, KEY_ID_IDEVID_PRIV_KEY)?;
 
         // Generate the Subject Serial Number and Subject Key Identifier.
         // This information will be used by next DICE Layer while generating
