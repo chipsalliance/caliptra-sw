@@ -20,9 +20,23 @@ use crate::FuseBank;
 
 pub type Lifecycle = DeviceLifecycleE;
 
+// [TODO] Move memory layout out of the common crate
+// to avoid circular dependency with the drivers crate.
+pub const BOOT_STATUS_ORG: u32 = 0x500047FC;
+
 pub fn report_boot_status(val: u32) {
     let mut soc_ifc = unsafe { soc_ifc::SocIfcReg::new() };
-    soc_ifc.regs_mut().cptra_boot_status().write(|_| val);
+
+    // Save the boot status in DCCM.
+    unsafe {
+        let ptr = BOOT_STATUS_ORG as *mut u32;
+        *ptr = val;
+    };
+
+    // For testability, save the boot status in the boot status register only if debugging is enabled.
+    if !soc_ifc.regs().cptra_security_state().read().debug_locked() {
+        soc_ifc.regs_mut().cptra_boot_status().write(|_| val);
+    }
 }
 
 /// Device State

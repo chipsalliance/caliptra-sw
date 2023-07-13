@@ -3,7 +3,7 @@
 use caliptra_builder::FwId;
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
 use caliptra_common::memory_layout::{ICCM_ORG, ICCM_SIZE};
-use caliptra_common::RomBootStatus::ColdResetComplete;
+use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::Array4x12;
 use caliptra_drivers::MfgFlags;
 use caliptra_error::CaliptraError;
@@ -71,6 +71,11 @@ fn test_invalid_manifest_marker() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
 }
 
 #[test]
@@ -85,6 +90,11 @@ fn test_invalid_manifest_size() {
         ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
     );
 }
 
@@ -105,6 +115,11 @@ fn test_preamble_zero_vendor_pubkey_digest() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
 }
 
 #[test]
@@ -124,6 +139,11 @@ fn test_preamble_vendor_pubkey_digest_mismatch() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
 }
 
 #[test]
@@ -142,6 +162,11 @@ fn test_preamble_owner_pubkey_digest_mismatch() {
         ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
     );
 }
 
@@ -195,6 +220,11 @@ fn test_preamble_vendor_ecc_pubkey_revocation() {
                 ),
                 hw.upload_firmware(&image_bundle.to_bytes().unwrap())
                     .unwrap_err()
+            );
+
+            assert_eq!(
+                hw.soc_ifc().cptra_boot_status().read(),
+                FwProcessorManifestLoadComplete.into()
             );
         }
     }
@@ -307,6 +337,11 @@ fn test_preamble_vendor_ecc_pubkey_out_of_bounds() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
 }
 
 #[test]
@@ -364,6 +399,11 @@ fn test_header_verify_vendor_sig_zero_ecc_pubkey() {
             .unwrap_err()
     );
 
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
+
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
@@ -380,6 +420,11 @@ fn test_header_verify_vendor_sig_zero_ecc_pubkey() {
         ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
     );
 }
 
@@ -400,6 +445,11 @@ fn test_header_verify_vendor_sig_zero_ecc_signature() {
             .unwrap_err()
     );
 
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
+
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
@@ -413,6 +463,11 @@ fn test_header_verify_vendor_sig_zero_ecc_signature() {
         ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
     );
 }
 
@@ -439,6 +494,11 @@ fn test_header_verify_vendor_ecc_sig_mismatch() {
         ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
     );
 
     let (mut hw, mut image_bundle) =
@@ -468,6 +528,11 @@ fn test_header_verify_vendor_ecc_sig_mismatch() {
         ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
     );
 }
 
@@ -513,6 +578,11 @@ fn test_header_verify_vendor_lms_sig_mismatch() {
         ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
     );
 }
 
@@ -654,6 +724,11 @@ fn test_header_verify_vendor_ecc_pub_key_in_preamble_and_header() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
 }
 
 #[test]
@@ -773,6 +848,11 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_x() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
 }
 
 #[test]
@@ -821,6 +901,11 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_y() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
 }
 
 #[test]
@@ -862,6 +947,11 @@ fn test_header_verify_owner_ecc_sig_zero_signature_r() {
         ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
     );
 }
 
@@ -905,6 +995,11 @@ fn test_header_verify_owner_ecc_sig_zero_signature_s() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
 }
 
 #[test]
@@ -946,6 +1041,11 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_r() {
         ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
     );
 }
 
@@ -989,6 +1089,11 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_s() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
 }
 
 #[test]
@@ -1007,6 +1112,11 @@ fn test_toc_invalid_entry_count() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
 }
 
 #[test]
@@ -1022,6 +1132,11 @@ fn test_toc_invalid_toc_digest() {
         ModelError::MailboxCmdFailed(CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_MISMATCH.into()),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
     );
 }
 
@@ -1112,6 +1227,11 @@ fn test_toc_fmc_range_overlap() {
         ModelError::MailboxCmdFailed(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP.into()),
         hw.upload_firmware(&image).unwrap_err()
     );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
 }
 
 #[test]
@@ -1136,6 +1256,11 @@ fn test_toc_fmc_range_incorrect_order() {
         ),
         hw.upload_firmware(&image).unwrap_err()
     );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
 }
 
 #[test]
@@ -1154,6 +1279,11 @@ fn test_fmc_rt_load_address_range_overlap() {
         hw.upload_firmware(&image).unwrap_err()
     );
 
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
+
     // Case 2:
     //      [-FMC--]
     //  [--RT--]
@@ -1166,6 +1296,11 @@ fn test_fmc_rt_load_address_range_overlap() {
             CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_LOAD_ADDR_OVERLAP.into()
         ),
         hw.upload_firmware(&image).unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
     );
 }
 
@@ -1182,6 +1317,11 @@ fn test_fmc_digest_mismatch() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
 }
 
 #[test]
@@ -1196,6 +1336,11 @@ fn test_fmc_invalid_load_addr_before_iccm() {
         ),
         hw.upload_firmware(&image).unwrap_err()
     );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
 }
 
 #[test]
@@ -1209,6 +1354,11 @@ fn test_fmc_invalid_load_addr_after_iccm() {
             CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_INVALID.into()
         ),
         hw.upload_firmware(&image).unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
     );
 }
 
@@ -1238,6 +1388,11 @@ fn test_fmc_load_addr_unaligned() {
         ),
         hw.upload_firmware(&image).unwrap_err()
     );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
 }
 
 #[test]
@@ -1251,6 +1406,11 @@ fn test_fmc_invalid_entry_point_before_iccm() {
             CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID.into()
         ),
         hw.upload_firmware(&image).unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
     );
 }
 
@@ -1266,6 +1426,11 @@ fn test_fmc_invalid_entry_point_after_iccm() {
         ),
         hw.upload_firmware(&image).unwrap_err()
     );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
 }
 
 #[test]
@@ -1280,6 +1445,11 @@ fn test_fmc_entry_point_unaligned() {
             CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_UNALIGNED.into()
         ),
         hw.upload_firmware(&image).unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
     );
 }
 
@@ -1312,6 +1482,11 @@ fn test_fmc_svn_greater_than_32() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
 }
 
 #[test]
@@ -1342,6 +1517,11 @@ fn test_fmc_svn_less_than_min_svn() {
         ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
     );
 }
 
@@ -1374,6 +1554,11 @@ fn test_fmc_svn_less_than_fuse_svn() {
         ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
     );
 }
 
@@ -1416,6 +1601,11 @@ fn test_runtime_digest_mismatch() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
 }
 
 #[test]
@@ -1432,6 +1622,11 @@ fn test_runtime_invalid_load_addr_before_iccm() {
         ),
         hw.upload_firmware(&image).unwrap_err()
     );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
 }
 
 #[test]
@@ -1445,6 +1640,11 @@ fn test_runtime_invalid_load_addr_after_iccm() {
             CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID.into()
         ),
         hw.upload_firmware(&image).unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
     );
 }
 
@@ -1474,6 +1674,11 @@ fn test_runtime_load_addr_unaligned() {
         ),
         hw.upload_firmware(&image).unwrap_err()
     );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
 }
 
 #[test]
@@ -1487,6 +1692,11 @@ fn test_runtime_invalid_entry_point_before_iccm() {
             CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID.into()
         ),
         hw.upload_firmware(&image).unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
     );
 }
 
@@ -1502,6 +1712,11 @@ fn test_runtime_invalid_entry_point_after_iccm() {
         ),
         hw.upload_firmware(&image).unwrap_err()
     );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
+    );
 }
 
 #[test]
@@ -1515,6 +1730,11 @@ fn test_runtime_entry_point_unaligned() {
             CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_UNALIGNED.into()
         ),
         hw.upload_firmware(&image).unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
     );
 }
 
@@ -1545,6 +1765,11 @@ fn test_runtime_svn_greater_than_max() {
         ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
     );
 }
 
@@ -1577,6 +1802,11 @@ fn test_runtime_svn_less_than_min_svn() {
         ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
     );
 }
 
@@ -1613,6 +1843,11 @@ fn test_runtime_svn_less_than_fuse_svn() {
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_fatal().read(),
         CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE.into()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        FwProcessorManifestLoadComplete.into()
     );
 }
 
