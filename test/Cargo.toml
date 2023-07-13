@@ -19,5 +19,6 @@ caliptra-hw-model = { path = "../hw-model" }
 openssl = { version = "0.10", features = ["vendored"] }
 
 [features]
+fpga_realtime = ["caliptra-hw-model/fpga_realtime", "caliptra-builder/fpga_realtime"]
 itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]

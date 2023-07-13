@@ -49,6 +49,7 @@ std = [
   "ufmt/std",
 ]
 no-fmc = []
+fpga_realtime = ["caliptra-drivers/fpga_realtime"]
 
 [[bin]]
 name = "asm_tests"
