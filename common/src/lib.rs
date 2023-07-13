@@ -26,3 +26,10 @@ pub use fuse::{FuseLogEntry, FuseLogEntryId};
 pub use pcr::{PcrLogEntry, PcrLogEntryId};
 pub use printer::HexBytes;
 pub use printer::MutablePrinter;
+
+pub const FMC_ORG: u32 = 0x40000000;
+pub const FMC_SIZE: u32 = 16 * 1024;
+pub const RUNTIME_ORG: u32 = FMC_ORG + FMC_SIZE;
+pub const RUNTIME_SIZE: u32 = 96 * 1024;
+
+pub use memory_layout::{FHT_ORG, FHT_SIZE};

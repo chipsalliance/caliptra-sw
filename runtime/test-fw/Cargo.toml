@@ -35,6 +35,8 @@ required-features = ["riscv"]
 
 [build-dependencies]
 cfg-if = "1.0.0"
+caliptra_common = { path = "../../common", default-features = false }
+caliptra-gen-linker-scripts = { version = "0.1.0", path = "../../cpu/gen" }
 
 [dependencies]
 caliptra-test-harness = { path = "../../test-harness" }
