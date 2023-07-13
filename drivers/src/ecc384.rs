@@ -17,6 +17,7 @@ use crate::{
     array_concat3, wait, Array4x12, CaliptraError, CaliptraResult, KeyReadArgs, KeyWriteArgs, Trng,
 };
 use caliptra_registers::ecc::EccReg;
+use core::cmp::Ordering;
 use zerocopy::{AsBytes, FromBytes};
 
 /// ECC-384 Coordinate
@@ -144,6 +145,35 @@ impl Ecc384 {
     pub fn new(ecc: EccReg) -> Self {
         Self { ecc }
     }
+
+    // Check that `scalar` is in the range [1, n-1] for the P-384 curve
+    fn scalar_range_check(scalar: &Ecc384Scalar) -> bool {
+        // n-1 for The NIST P-384 curve
+        const SECP384_ORDER_MIN1: &[u32] = &[
+            0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xc7634d81,
+            0xf4372ddf, 0x581a0db2, 0x48b0a77a, 0xecec196a, 0xccc52972,
+        ];
+
+        // Check scalar <= n-1
+        for (i, word) in SECP384_ORDER_MIN1.iter().enumerate() {
+            match scalar.0[i].cmp(word) {
+                Ordering::Greater => return false,
+                Ordering::Less => break,
+                Ordering::Equal => continue,
+            }
+        }
+
+        // If scalar is non-zero, return true
+        for word in scalar.0 {
+            if word != 0 {
+                return true;
+            }
+        }
+
+        // scalar is zero
+        false
+    }
+
     /// Generate ECC-384 Key Pair
     ///
     /// # Arguments
@@ -289,6 +319,11 @@ impl Ecc384 {
         digest: &Ecc384Scalar,
         signature: &Ecc384Signature,
     ) -> CaliptraResult<bool> {
+        // If R or S are not in the range [1, N-1], signature check must fail
+        if !Self::scalar_range_check(&signature.r) || !Self::scalar_range_check(&signature.s) {
+            return Ok(false);
+        }
+
         let ecc = self.ecc.regs_mut();
 
         // Wait for hardware ready
