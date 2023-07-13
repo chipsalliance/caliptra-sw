@@ -16,17 +16,15 @@ use crate::flow::dice::{DiceInput, DiceOutput};
 use crate::flow::pcr::{extend_current_pcr, extend_journey_pcr};
 use crate::flow::tci::Tci;
 use crate::flow::x509::X509;
-use crate::flow::{KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY};
 use crate::fmc_env::FmcEnv;
 use crate::FmcBootStatus;
 use crate::HandOff;
 use caliptra_common::cprintln;
 use caliptra_common::crypto::Ecc384KeyPair;
+use caliptra_common::keyids::{KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY, KEY_ID_TMP};
 use caliptra_common::HexBytes;
 use caliptra_drivers::{okref, report_boot_status, CaliptraError, CaliptraResult, KeyId};
 use caliptra_x509::{NotAfter, NotBefore, RtAliasCertTbs, RtAliasCertTbsParams};
-
-use super::KEY_ID_TMP;
 
 const SHA384_HASH_SIZE: usize = 48;
 

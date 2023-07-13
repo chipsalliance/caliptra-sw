@@ -19,10 +19,7 @@ mod warm_reset;
 use crate::rom_env::RomEnv;
 use caliptra_common::FirmwareHandoffTable;
 use caliptra_drivers::{CaliptraResult, ResetReason};
-
 use caliptra_error::CaliptraError;
-pub use cold_reset::KEY_ID_CDI;
-pub use cold_reset::KEY_ID_FMC_PRIV_KEY;
 
 /// Execute ROM Flows based on reset reason
 ///

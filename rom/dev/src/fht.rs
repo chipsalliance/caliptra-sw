@@ -13,6 +13,7 @@ Abstract:
 --*/
 
 use caliptra_common::{
+    keyids::{KEY_ID_FMC_PRIV_KEY, KEY_ID_ROM_FMC_CDI},
     memory_layout::{FHT_ORG, FMCALIAS_TBS_ORG, FUSE_LOG_ORG, LDEVID_TBS_ORG, PCR_LOG_ORG},
     DataVaultRegister, FirmwareHandoffTable, HandOffDataHandle, Vault, FHT_INVALID_HANDLE,
     FHT_MARKER,
@@ -22,11 +23,7 @@ use caliptra_drivers::{
 };
 use zerocopy::AsBytes;
 
-use crate::{
-    cprintln,
-    flow::{KEY_ID_CDI, KEY_ID_FMC_PRIV_KEY},
-    rom_env::RomEnv,
-};
+use crate::{cprintln, rom_env::RomEnv};
 
 const FHT_MAJOR_VERSION: u16 = 1;
 const FHT_MINOR_VERSION: u16 = 0;
@@ -46,7 +43,7 @@ pub struct FhtDataStore {
 impl FhtDataStore {
     /// The FMC CDI is stored in a 32-bit DataVault sticky register.
     pub const fn fmc_cdi_store() -> HandOffDataHandle {
-        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_CDI as u32)
+        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_ROM_FMC_CDI as u32)
     }
     /// The FMC private key is stored in a 32-bit DataVault sticky register.
     pub const fn fmc_priv_key_store() -> HandOffDataHandle {
