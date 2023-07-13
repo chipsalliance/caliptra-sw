@@ -6,13 +6,11 @@ Abstract:
     Crypto helper routines
 --*/
 use crate::fmc_env::FmcEnv;
-use caliptra_common::crypto::Ecc384KeyPair;
+use caliptra_common::{crypto::Ecc384KeyPair, keyids::KEY_ID_TMP};
 use caliptra_drivers::{
     hmac384_kdf, okref, Array4x12, Array4x5, Array4x8, CaliptraResult, Ecc384PrivKeyIn,
     Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Signature, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
 };
-
-use super::KEY_ID_TMP;
 
 pub enum Crypto {}
 

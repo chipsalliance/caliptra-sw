@@ -11,7 +11,10 @@
 |            |         | Add details/clarifications in FMC Boot steps including where to store artifacts    |
 |            |         | Add Firmware Handoff Table (FHT) definition                                        |
 | 03/21/2023 | 0.5     | Additional fields added to FHT                                                     |
-| 03/29/2023 | 0.5     | Changed the value for invalid adress fields in FHT                                                     |
+| 03/29/2023 | 0.5.1   | Changed the value for invalid address fields in FHT                                |
+| 06/27/2023 | 0.7     | Add state of data and key vaults before/after FMC execution                        |
+| 06/30/2023 | 0.7.1   | Simplify reset/update/recovery sections                                            |
+|            |         | Add more PCR handling details                                                      |
 
 ## Scope
 
@@ -33,6 +36,7 @@ As an architecture specification for FMC, this document describes the following 
 | FMC                 | First Mutable Code                                                        |
 | FW                  | Firmware                                                                  |
 | ICCM                | Instruction Closely Coupled Memory                                        |
+| PCR                 | Platform Configuration Register                                           |
 | RoT                 | Root of Trust                                                             |
 | RT                  | Runtime                                                                   |
 | RTM                 | Root of Trust for Measurement                                             |
@@ -112,30 +116,30 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | fht_major_ver         | 2            | ROM        | Major version of FHT.                                                                                    |
 | fht_minor_ver         | 2            | ROM, FMC   | Minor version of FHT. Initially written by ROM but may be changed to a higher version by FMC.            |
 | manifest_load_addr    | 4            | ROM        | Physical base address of Manifest in DCCM SRAM.                                                          |
-| fips_fw_load_addr_hdl | 4            | ROM        | Handle of base address of FIPS Module in ROM or ICCM SRAM. May be 0xFF if there is no discrete module.    |
-| rt_fw_load_addr_hdl   | 4            | ROM        | Handle of load address of Runtime FW Module value in data vault.SRAM.                                                 |
-| rt_fw_entry_point_hdl | 4            | ROM        | Handle of entry point of Runtime FW Module value in data vault. SRAM.                                                           |
-| fmc_tci_dv_hdl        | 4            | ROM        | Handle of FMC TCI value in the Data Vault.                                                                |
-| fmc_cdi_kv_hdl        | 4            | ROM        | Handle of FMC CDI value in the Key Vault. Value of 0xFF indicates not present.                            |
-| fmc_priv_key_kv_hdl   | 4            | ROM        | Handle of FMC Private Alias Key in the Key Vault.                                                         |
-| fmc_pub_key_x_dv_hdl  | 4            | ROM        | Handle of FMC Public Alias Key X Coordinate in the Data Vault.                                            |
-| fmc_pub_key_y_dv_hdl  | 4            | ROM        | Handle of FMC Public Alias Key Y Coordinate in the Data Vault                                             |
-| fmc_cert_sig_r_dv_hdl | 4            | ROM        | Handle of FMC Certificate Signature R Component in the Data Vault.                                        |
-| fmc_cert_sig_s_dv_hdl | 4            | ROM        | Handle of FMC Certificate Signature S Component in the Data Vault.                                        |
-| fmc_svn_dv_hdl        | 4            | ROM        | Handle of FMC SVN value in the Data Vault.                                                                |
-| rt_tci_dv_hdl         | 4            | ROM        | Handle of RT TCI value in the Data Vault.                                                                 |
-| rt_cdi_kv_hdl         | 4            | FMC        | Handle of RT CDI value in the Key Vault.                                                                  |
-| rt_priv_key_kv_hdl    | 4            | FMC        | Handle of RT Private Alias Key in the Key Vault.                                                          |
-| rt_svn_dv_hdl         | 4            | FMC        | Handle of RT SVN value in the Data Vault. 
-| ldevid_tbs_addr       | 4            | ROM        | Local Device ID TBS Address.                
-| fmcalias_tbs_addr     | 4            | ROM        | FMC Alias TBS Address.
-| ldevid_tbs_size       | 2            | ROM        | Local Device ID TBS Size.
-| fmcalias_tbs_size     | 2            | ROM        | FMC Alias TBS Size.  
-| pcr_log_addr          | 4            | ROM        | PCR Log Address.
-| fuse_log_addr         | 4            | ROM        | Fuse Log Address.                                    |
-| rt_dice_pub_key       | 96           | FMC        | RT Alias DICE Public Key.
-| rt_dice_sign          | 96           | FMC        | RT Alias DICE signature.
-| idev_dice_pub_key     | 96           | ROM        | Initial Device ID Public Key.
+| fips_fw_load_addr_hdl | 4            | ROM        | Handle of base address of FIPS Module in ROM or ICCM SRAM. May be 0xFF if there is no discrete module.   |
+| rt_fw_load_addr_hdl   | 4            | ROM        | Handle of load address of Runtime FW Module value in data vault.SRAM.                                    |
+| rt_fw_entry_point_hdl | 4            | ROM        | Handle of entry point of Runtime FW Module value in data vault. SRAM.                                    |
+| fmc_tci_dv_hdl        | 4            | ROM        | Handle of FMC TCI value in the Data Vault.                                                               |
+| fmc_cdi_kv_hdl        | 4            | ROM        | Handle of FMC CDI value in the Key Vault. Value of 0xFF indicates not present.                           |
+| fmc_priv_key_kv_hdl   | 4            | ROM        | Handle of FMC Private Alias Key in the Key Vault.                                                        |
+| fmc_pub_key_x_dv_hdl  | 4            | ROM        | Handle of FMC Public Alias Key X Coordinate in the Data Vault.                                           |
+| fmc_pub_key_y_dv_hdl  | 4            | ROM        | Handle of FMC Public Alias Key Y Coordinate in the Data Vault                                            |
+| fmc_cert_sig_r_dv_hdl | 4            | ROM        | Handle of FMC Certificate Signature R Component in the Data Vault.                                       |
+| fmc_cert_sig_s_dv_hdl | 4            | ROM        | Handle of FMC Certificate Signature S Component in the Data Vault.                                       |
+| fmc_svn_dv_hdl        | 4            | ROM        | Handle of FMC SVN value in the Data Vault.                                                               |
+| rt_tci_dv_hdl         | 4            | ROM        | Handle of RT TCI value in the Data Vault.                                                                |
+| rt_cdi_kv_hdl         | 4            | FMC        | Handle of RT CDI value in the Key Vault.                                                                 |
+| rt_priv_key_kv_hdl    | 4            | FMC        | Handle of RT Private Alias Key in the Key Vault.                                                         |
+| rt_svn_dv_hdl         | 4            | FMC        | Handle of RT SVN value in the Data Vault.                                                                |
+| ldevid_tbs_addr       | 4            | ROM        | Local Device ID TBS Address.                                                                             |
+| fmcalias_tbs_addr     | 4            | ROM        | FMC Alias TBS Address.                                                                                   |
+| ldevid_tbs_size       | 2            | ROM        | Local Device ID TBS Size.                                                                                |
+| fmcalias_tbs_size     | 2            | ROM        | FMC Alias TBS Size.                                                                                      |
+| pcr_log_addr          | 4            | ROM        | PCR Log Address.                                                                                         |
+| fuse_log_addr         | 4            | ROM        | Fuse Log Address.                                                                                        |
+| rt_dice_pub_key       | 96           | FMC        | RT Alias DICE Public Key.                                                                                |
+| rt_dice_sign          | 96           | FMC        | RT Alias DICE signature.                                                                                 |
+| idev_dice_pub_key     | 96           | ROM        | Initial Device ID Public Key.                                                                            |
 | reserved              | 132          |            | Reserved for future use.                                                                                 |
 
 *FHT is currently defined to be 512 bytes in length.*
@@ -214,6 +218,13 @@ This field provides the Handle into the Data Vault where the SVN<sub>RT</sub> is
 
 This area is reserved for definition of additional fields that may be added during Minor version updates of the FHT.
 
+## PCR Registers
+
+FMC has the responsibility to update 2 PCR registers.<br>
+FMC updates PCR2 to reflect the firmware update Journey with measurements of RT firmware and FW Manifest. This register is only cleared on cold reset.<br>
+FMC updates PCR2 to reflect only the Current running firmware with measurements of RT firmware and FW Manifest. This register is cleared on all reset types.<br>
+FMC locks its PCR registers before handing control to RT firmware so that they may not be modified later in the boot.
+
 ## FMC Boot Flow
 
 The following list of steps are to be performed by FMC on each boot when ROM jumps to its entry point:
@@ -226,8 +237,10 @@ The following list of steps are to be performed by FMC on each boot when ROM jum
 1. FMC locates the Manifest at fht.manifest_load_addr.
 1. FMC reads the measurement of the Runtime FW Module, TCI<sub>RT</sub>, from the Data Vault that has previously been validated by ROM.
 1. FMC reads the manifest address of the Image Bundle from the the HandOff Table, and calculates the SHA-384 TCI<sub>MAN</sub>
-1. FMC extends Caliptra PCR registers with TCI<sub>RT</sub>.
-1. FMC extends Caliptra PCR registers with TCI<sub>MAN</sub>
+1. FMC clears Current PCR
+1. FMC extends Current and Journey PCR registers with TCI<sub>RT</sub>.
+1. FMC extends Current and Journey PCR registers with TCI<sub>MAN</sub>.
+1. FMC locks Current and Journey PCR registers.
 1. FMC derives CDI<sub>RT</sub> from CDI<sub>FMC</sub> mixed with TCI<sub>RT</sub> and TCI<sub>MAN</sub>, then stores it in the Key Vault.
 1. FMC updates fht.rt_cdi_kv_hdl in the FHT.
 1. FMC derives AliasKeyPair<sub>RT</sub> from CDI<sub>RT</sub>. The Private Key is stored in the Key Vault while the Public Key X and Y coordinates are stored
@@ -239,8 +252,6 @@ The following list of steps are to be performed by FMC on each boot when ROM jum
 1. FMC ensures that CDI<sub>FMC</sub> and PrivateKey<sub>FMC</sub> are locked to block further usage until the next boot.
 1. FMC locates the Runtime FW Module in ICCM at fht.rt_fw_load_addr.
 1. FMC jumps to the Runtime FW Module entry point at fht.rt_fw_entry_point.
-
-<center>
 
 **Pre-Conditions:**
 * Vault state as follows:
@@ -258,7 +269,7 @@ The following list of steps are to be performed by FMC on each boot when ROM jum
 | 8 |  | | 🔒FMC Digest |
 | 9 |  | | 🔒Owner PK Hash |
 
-
+<center>
 <br> *FMC Boot Sequence*
 
 ```mermaid
@@ -280,8 +291,21 @@ sequenceDiagram
     FIPS-->>-FMC: return()
     FMC->>FMC: LocateManifest(fht)
     FMC->>FMC: GetRtMeasurement(fht.rt_tci_dv_hdl)
-    FMC->>+FIPS: ExtendPcr(PCR_hdl_RT, RtTci)
+
+    rect rgba(0, 100, 200, .2)
+
+    FMC->>+FIPS: ClearPcr(RtCurrent)
     FIPS-->>-FMC: return()
+    FMC->>+FIPS: ExtendPcr(RtCurrent, PCR_hdl_RT, RtTci)
+    FIPS-->>-FMC: return()
+    FMC->>+FIPS: ExtendPcr(RtJourney, PCR_hdl_RT, RtTci)
+    FIPS-->>-FMC: return()
+    FMC->>+FIPS: LockPcr(RtCurrent)
+    FIPS-->>-FMC: return()
+    FMC->>+FIPS: LockPcr(RtJourney)
+    FIPS-->>-FMC: return()
+
+    end %% rect
 
     rect rgba(0, 0, 200, .2)
     note over FIPS, FMC: DICE-related derivations will be<br> defined in greater detail later
@@ -306,7 +330,6 @@ sequenceDiagram
     RT->>RT: RtFwInitFlow()
     deactivate RT
 ```
-
 </center>
 
 **Post-Conditions:**
@@ -325,24 +348,15 @@ sequenceDiagram
 | 8 |  | | 🔒FMC Digest |
 | 9 |  | | 🔒Owner PK Hash |
 
+## Resets
 
+FMC does not distinguish between cold boots or any other type of reset. Instead, FMC is designed such that it always performs the same set of operations
+regardless of which reset path caused it to be executed.
 
-## FMC Firmware Update Flow
+## Update and Recovery
 
-**TBD: Is this section needed?**
-
-## FMC Recovery Flow
-
-*Section to be filled in.*
-
-## Opens and ToDo Items
-
-- Document FW Update flow for FMC. TBD if there is any difference that is needed.
-  - Impact of Hitless update?
-- Determine which PCR registers should be used for RT measurement
-  - One for current FW
-  - One for journey
-- Document error handling and recovery flows (resiliency)
+FMC does not participate in Caliptra update/recovery flows. FMC is designed such that it does not perform any different steps during update
+and simply behaves the same as it does during other cold/warm resets.
 
 ## Future
 
