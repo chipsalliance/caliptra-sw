@@ -2,6 +2,7 @@
 
 use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, ROM_WITH_UART};
 use caliptra_common::RomBootStatus::ColdResetComplete;
+use caliptra_common::RomBootStatus::*;
 use caliptra_common::{FirmwareHandoffTable, FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_drivers::{ColdResetEntry4, RomVerifyConfig};
@@ -12,7 +13,6 @@ use caliptra_image_gen::ImageGenerator;
 use caliptra_image_openssl::OsslCrypto;
 use caliptra_image_types::IMAGE_BYTE_SIZE;
 use zerocopy::{AsBytes, FromBytes};
-
 pub mod helpers;
 
 #[test]
@@ -28,6 +28,10 @@ fn test_zero_firmware_size() {
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_fatal().read(),
         CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()
+    );
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        LDevIdDerivationComplete.into()
     );
 }
 
@@ -57,6 +61,10 @@ fn test_firmware_gt_max_size() {
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_fatal().read(),
         CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()
+    );
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        LDevIdDerivationComplete.into()
     );
 }
 
