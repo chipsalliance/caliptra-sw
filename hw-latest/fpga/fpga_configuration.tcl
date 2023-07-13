@@ -1,6 +1,6 @@
 # Clean and create output directory.
 set outputDir ./caliptra_build
-set packageDir $outputDir/caliptra_tcl_package
+set packageDir $outputDir/caliptra_package
 file delete -force $outputDir
 file mkdir $outputDir
 file mkdir $packageDir
@@ -8,21 +8,31 @@ file mkdir $packageDir
 # Path to rtl
 set rtlDir ../caliptra-rtl-fpga
 
-# JTAG enabled
-set JTAG 1
+# Simplistic processing of command line arguments to enable different features
+# Defaults:
+set BUILD FALSE
+set GUI   FALSE
+set JTAG  TRUE
+set ITRNG FALSE
+foreach arg $argv {
+    regexp {(.*)=(.*)} $arg fullmatch option value
+    set $option "$value"
+}
 
 # Set Verilog defines to:
 #     Make Caliptra use an icg that doesn't clock gate
 #     Make the VEER core be optimized for FPGA (no clock gating)
 #     Define VEER TEC_RV_ICG to allow beh_lib to synthesise without error
 set VERILOG_OPTIONS {TECH_SPECIFIC_ICG USER_ICG=fpga_fake_icg RV_FPGA_OPTIMIZE TEC_RV_ICG=clockhdr}
-if {FALSE} {
+if {$ITRNG} {
   # Add option to use Caliptra's internal TRNG instead of ETRNG
   lappend VERILOG_OPTIONS CALIPTRA_INTERNAL_TRNG
 }
 
 # Start the Vivado GUI for interactive debug
-start_gui
+if {$GUI} {
+  start_gui
+}
 
 # Create a project to package Caliptra.
 # Packaging Caliptra allows Vivado to recognize the APB bus as an endpoint for the memory map.
@@ -91,6 +101,9 @@ remove_files [ glob $rtlDir/src/ecc/rtl/ecc_ram_tdp_file.sv ]
 # Key Vault is very large. Replacing KV with a version with the minimum number of entries.
 remove_files [ glob $rtlDir/src/keyvault/rtl/kv_reg.sv ]
 
+# Add ICCM/DCCM definitions from testbench
+add_files [ glob $rtlDir/src/integration/tb/caliptra_veer_sram_export.sv ]
+
 # Add FPGA specific sources
 add_files [ glob ./src/*.sv]
 add_files [ glob ./src/*.v]
@@ -130,7 +143,7 @@ ipx::create_xgui_files [ipx::current_core]
 ipx::update_checksums [ipx::current_core]
 ipx::check_integrity [ipx::current_core]
 ipx::save_core [ipx::current_core]
-if 1 {
+
 # Close temp project
 close_project
 # Close caliptra_package_project
@@ -214,19 +227,19 @@ assign_bd_address -offset 0x80000000 -range 0x00010000 -target_address_space [ge
 assign_bd_address -offset 0x82000000 -range 0x00008000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs axi_bram_ctrl_0/S_AXI/Mem0] -force
 assign_bd_address -offset 0x90000000 -range 0x00100000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs caliptra_package_top_0/s_apb/Reg] -force
 
-if {$JTAG == 0} {
+if {$JTAG} {
+  # Make the JTAG pins be external
+  make_bd_pins_external  [get_bd_pins caliptra_package_top_0/jtag_tck] [get_bd_pins caliptra_package_top_0/jtag_tms] [get_bd_pins caliptra_package_top_0/jtag_tdo] [get_bd_pins caliptra_package_top_0/jtag_tdi] [get_bd_pins caliptra_package_top_0/jtag_trst_n]
+
+  # Add constraints for JTAG signals
+  add_files -fileset constrs_1 ./src/jtag_constraints.xdc
+} else {
   # Tie off JTAG inputs
   create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_0
   connect_bd_net [get_bd_pins xlconstant_0/dout] [get_bd_pins caliptra_package_top_0/jtag_tck]
   connect_bd_net [get_bd_pins xlconstant_0/dout] [get_bd_pins caliptra_package_top_0/jtag_tms]
   connect_bd_net [get_bd_pins xlconstant_0/dout] [get_bd_pins caliptra_package_top_0/jtag_tdi]
   connect_bd_net [get_bd_pins xlconstant_0/dout] [get_bd_pins caliptra_package_top_0/jtag_trst_n]
-} else {
-  # Make the JTAG pins be external
-  make_bd_pins_external  [get_bd_pins caliptra_package_top_0/jtag_tck] [get_bd_pins caliptra_package_top_0/jtag_tms] [get_bd_pins caliptra_package_top_0/jtag_tdo] [get_bd_pins caliptra_package_top_0/jtag_tdi] [get_bd_pins caliptra_package_top_0/jtag_trst_n]
-
-  # Add constraints for JTAG signals
-  add_files -fileset constrs_1 ./src/jtag_constraints.xdc
 }
 
 save_bd_design
@@ -244,4 +257,12 @@ set_property STEPS.WRITE_BITSTREAM.ARGS.BIN_FILE true [get_runs impl_1]
 # Add FPGA constraints
 add_files -fileset constrs_1 ./src/constraints.xdc
 
+# Start build
+if {$BUILD} {
+  launch_runs synth_1 -jobs 10
+  wait_on_runs synth_1
+  launch_runs impl_1 -jobs 10
+  wait_on_runs impl_1
+  open_run impl_1
+  write_bitstream -bin_file /tmp/caliptra_fpga
 }
