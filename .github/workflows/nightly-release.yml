@@ -5,6 +5,8 @@ on:
   push:
     branches: [ add_nightly_release ]
   workflow_dispatch:
+permissions:
+  contents: write
 
 jobs:
   rtl-repo-sync:
