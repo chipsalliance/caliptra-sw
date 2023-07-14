@@ -116,3 +116,19 @@ fn test_invalid_instruction_exception_failure() {
         harness::NMI_CAUSE_ILLEGAL_INSTRUCTION_ERROR
     );
 }
+
+#[test]
+fn test_write_to_rom() {
+    let elf = caliptra_builder::build_firmware_elf(&FwId {
+        bin_name: "test_write_to_rom",
+        ..BASE_FWID
+    })
+    .unwrap();
+    let mut model = run_fw_elf(&elf);
+    model.step_until_exit_success().unwrap_err();
+    let soc_ifc: caliptra_registers::soc_ifc::RegisterBlock<_> = model.soc_ifc();
+    assert_eq!(
+        soc_ifc.cptra_fw_error_non_fatal().read(),
+        harness::ERROR_EXCEPTION
+    );
+}
