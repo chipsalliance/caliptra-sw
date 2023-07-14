@@ -1,10 +1,10 @@
 name: Nightly Release
 
 on:
-  # TODO: Remove once this workflow is in the main branch
-  push:
-    branches: [ add_nightly_release ]
   workflow_dispatch:
+  schedule:
+  # 2:11 AM PST tuesday-saturday
+  - cron: '11 10 * * 2-6'
 permissions:
   contents: write
 
