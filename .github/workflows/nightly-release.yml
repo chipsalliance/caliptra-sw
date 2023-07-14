@@ -9,13 +9,14 @@ permissions:
   contents: write
 
 jobs:
-  rtl-repo-sync:
-    name: RTL Repo Sync
-    uses: ./.github/workflows/rtl-repo-sync.yml
+  # Disable RTL-Repo-Sync until manual fixes to work with the latest RTL are not made
+  #rtl-repo-sync:
+  #  name: RTL Repo Sync
+  #  uses: ./.github/workflows/rtl-repo-sync.yml
 
   find-latest-release:
     name: Find Latest Release
-    needs: rtl-repo-sync
+    #needs: rtl-repo-sync
     runs-on: ubuntu-22.04
     outputs:
       create_release: ${{ steps.find.outputs.create_release }}
@@ -63,6 +64,7 @@ jobs:
     needs: find-latest-release
     if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/nightly-verilator.yml
+
 
   create-release:
     name: Create New Release
