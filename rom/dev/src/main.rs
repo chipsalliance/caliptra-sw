@@ -177,24 +177,28 @@ fn rom_panic(_: &core::panic::PanicInfo) -> ! {
 }
 
 fn report_error_update_reset(code: u32) {
-    cprintln!("ROM Error: 0x{:08X}", code);
+    cprintln!("ROM Non-Fatal Error: 0x{:08X}", code);
     report_fw_error_non_fatal(code);
 }
 
 #[allow(clippy::empty_loop)]
 fn report_error(code: u32) -> ! {
-    cprintln!("ROM Error: 0x{:08X}", code);
+    cprintln!("ROM Fatal Error: 0x{:08X}", code);
     report_fw_error_fatal(code);
 
-    // Zeroize the crypto blocks.
     unsafe {
+        // Zeroize the crypto blocks.
         Ecc384::zeroize();
         Hmac384::zeroize();
         Sha256::zeroize();
         Sha384::zeroize();
         Sha384Acc::zeroize();
 
+        // Lock the SHA Accelerator.
+        Sha384Acc::lock();
+
         // Stop the watchdog timer.
+        // Note: This is an idempotent operation.
         SocIfc::stop_wdt1();
     }
 

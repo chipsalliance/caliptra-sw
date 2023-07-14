@@ -265,8 +265,9 @@ impl CaliptraError {
     pub const RUNTIME_INTERNAL: CaliptraError = CaliptraError::new_const(0x000E0001);
     pub const RUNTIME_UNIMPLEMENTED_COMMAND: CaliptraError = CaliptraError::new_const(0x000E0002);
     pub const RUNTIME_INSUFFICIENT_MEMORY: CaliptraError = CaliptraError::new_const(0x000E0003);
-    pub const RUNTIME_ECDSA_VERIF_FAILED: CaliptraError = CaliptraError::new_const(0x000E0004);
+    pub const RUNTIME_ECDSA_VERIFY_FAILED: CaliptraError = CaliptraError::new_const(0x000E0004);
     pub const RUNTIME_INVALID_CHECKSUM: CaliptraError = CaliptraError::new_const(0x000E0005);
+    pub const RUNTIME_FIPS_UNIMPLEMENTED: CaliptraError = CaliptraError::new_const(0x000E0006);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
@@ -316,6 +317,9 @@ impl CaliptraError {
         CaliptraError::new_const(0x01040003);
     pub const ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE: CaliptraError =
         CaliptraError::new_const(0x01040004);
+
+    /// Unknown Reset Error
+    pub const ROM_UNKNOWN_RESET_FLOW: CaliptraError = CaliptraError::new_const(0x01040020);
 
     /// ROM Global Errors
     pub const ROM_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x01050001);

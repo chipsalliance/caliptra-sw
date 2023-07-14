@@ -69,6 +69,21 @@ impl Sha384Acc {
         let mut sha512_acc = Sha512AccCsr::new();
         sha512_acc.regs_mut().control().write(|w| w.zeroize(true));
     }
+
+    /// Lock the accelerator.
+    ///
+    /// This is useful to call from a fatal-error-handling routine.
+    ///
+    /// # Safety
+    ///
+    /// The caller must be certain that the results of any pending cryptographic
+    /// operations will not be used after this function is called.
+    ///
+    /// This function is safe to call from a trap handler.
+    pub unsafe fn lock() {
+        let mut sha512_acc = Sha512AccCsr::new();
+        sha512_acc.regs_mut().lock().write(|w| w.lock(false)); // Writing 0 locks the accelerator.
+    }
 }
 
 pub struct Sha384AccOp<'a> {

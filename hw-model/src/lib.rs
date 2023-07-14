@@ -21,6 +21,10 @@ mod model_emulated;
 mod bus_logger;
 #[cfg(feature = "verilator")]
 mod model_verilated;
+
+#[cfg(feature = "fpga_realtime")]
+mod model_fpga_realtime;
+
 mod output;
 mod rv32_builder;
 
@@ -40,17 +44,23 @@ pub enum ShaAccMode {
     Sha512Stream,
 }
 
+#[cfg(feature = "fpga_realtime")]
+pub use model_fpga_realtime::ModelFpgaRealtime;
+
 /// Ideally, general-purpose functions would return `impl HwModel` instead of
 /// `DefaultHwModel` to prevent users from calling functions that aren't
 /// available on all HwModel implementations.  Unfortunately, rust-analyzer
 /// (used by IDEs) can't fully resolve associated types from `impl Trait`, so
 /// such functions should use `DefaultHwModel` until they fix that. Users should
 /// treat `DefaultHwModel` as if it were `impl HwModel`.
-#[cfg(not(feature = "verilator"))]
+#[cfg(all(not(feature = "verilator"), not(feature = "fpga_realtime")))]
 pub type DefaultHwModel = ModelEmulated;
 
 #[cfg(feature = "verilator")]
 pub type DefaultHwModel = ModelVerilated;
+
+#[cfg(feature = "fpga_realtime")]
+pub type DefaultHwModel = ModelFpgaRealtime;
 
 /// Constructs an HwModel based on the cargo features and environment
 /// variables. Most test cases that need to construct a HwModel should use this
@@ -480,6 +490,41 @@ pub trait HwModel {
         self.output().set_search_term(substr);
         self.step_until(|m| m.output().search_matched());
         Ok(())
+    }
+
+    fn step_until_boot_status(
+        &mut self,
+        expected_status_u32: u32,
+        ignore_intermediate_status: bool,
+    ) {
+        // Since the boot takes less than 20M cycles, we know something is wrong if
+        // we're stuck at the same state for that duration.
+        const MAX_WAIT_CYCLES: u32 = 20_000_000;
+
+        let mut cycle_count = 0u32;
+        let initial_boot_status_u32 = self.soc_ifc().cptra_boot_status().read();
+        loop {
+            let actual_status_u32 = self.soc_ifc().cptra_boot_status().read();
+            if expected_status_u32 == actual_status_u32 {
+                break;
+            }
+
+            if !ignore_intermediate_status && actual_status_u32 != initial_boot_status_u32 {
+                panic!(
+                    "Expected the next boot_status to be  \
+                    ({expected_status_u32}), but status changed from \
+                    {initial_boot_status_u32} to {actual_status_u32})"
+                );
+            }
+            self.step();
+            cycle_count += 1;
+            if cycle_count >= MAX_WAIT_CYCLES {
+                panic!(
+                    "Expected boot_status to be  \
+                    ({expected_status_u32}), but was stuck at ({actual_status_u32})"
+                );
+            }
+        }
     }
 
     /// A register block that can be used to manipulate the soc_ifc peripheral

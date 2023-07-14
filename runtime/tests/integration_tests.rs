@@ -1,9 +1,10 @@
 // Licensed under the Apache-2.0 license.
+pub mod common;
 
-use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
 use caliptra_drivers::Ecc384PubKey;
-use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode};
+use caliptra_hw_model::{HwModel, ModelError, ShaAccMode};
 use caliptra_runtime::{CommandId, EcdsaVerifyCmd};
+use common::{run_rom_test, run_rt_test};
 use openssl::{
     bn::BigNum,
     ec::{EcGroup, EcKey},
@@ -12,67 +13,6 @@ use openssl::{
     x509::X509,
 };
 use zerocopy::{AsBytes, FromBytes};
-
-// Run test_bin as a ROM image. The is used for faster tests that can run
-// against verilator
-fn run_rom_test(test_bin_name: &'static str) -> DefaultHwModel {
-    static FEATURES: &[&str] = &["emu", "riscv"];
-
-    let runtime_fwid = FwId {
-        crate_name: "caliptra-runtime-test-bin",
-        bin_name: test_bin_name,
-        features: FEATURES,
-        ..Default::default()
-    };
-
-    let rom = caliptra_builder::build_firmware_rom(&runtime_fwid).unwrap();
-
-    caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
-            rom: &rom,
-            ..Default::default()
-        },
-        ..Default::default()
-    })
-    .unwrap()
-}
-
-// Run a test which boots ROM -> FMC -> test_bin. If test_bin_name is None,
-// run the production runtime image.
-fn run_rt_test(test_bin_name: Option<&'static str>) -> DefaultHwModel {
-    let runtime_fwid = match test_bin_name {
-        Some(bin) => FwId {
-            crate_name: "caliptra-runtime-test-bin",
-            bin_name: bin,
-            features: &["emu", "riscv", "runtime"],
-            ..Default::default()
-        },
-        None => APP_WITH_UART,
-    };
-
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
-
-    let image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &runtime_fwid,
-        ImageOptions::default(),
-    )
-    .unwrap();
-
-    let mut model = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
-            rom: &rom,
-            ..Default::default()
-        },
-        fw_image: Some(&image.to_bytes().unwrap()),
-        ..Default::default()
-    })
-    .unwrap();
-
-    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
-
-    model
-}
 
 #[test]
 fn test_standard() {
@@ -215,6 +155,30 @@ fn test_verify_cmd() {
         model.soc_ifc().cptra_fw_error_non_fatal().read(),
         caliptra_drivers::CaliptraError::RUNTIME_INVALID_CHECKSUM.into()
     );
+}
+
+#[test]
+fn test_fips_cmd_api() {
+    let mut model = run_rom_test("mbox");
+    let expected_err = Err(ModelError::MailboxCmdFailed(0x000E0006));
+
+    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+
+    let cmd = [0u8; 4];
+
+    let resp = model.mailbox_execute(u32::from(CommandId::VERSION), &cmd);
+    assert_eq!(resp, expected_err);
+
+    let resp = model.mailbox_execute(u32::from(CommandId::SHUTDOWN), &cmd);
+    assert_eq!(resp, expected_err);
+
+    let resp = model.mailbox_execute(u32::from(CommandId::SELF_TEST), &cmd);
+    assert_eq!(resp, expected_err);
+
+    let expected_err = Err(ModelError::MailboxCmdFailed(0xe0002));
+    // Send something that is not a valid RT command.
+    let resp = model.mailbox_execute(0xAABBCCDD, &cmd);
+    assert_eq!(resp, expected_err);
 }
 
 #[test]
