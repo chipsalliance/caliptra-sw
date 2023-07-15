@@ -110,12 +110,8 @@ fn create_certs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     // Create LDEVID cert.
     //
 
-    // Retrieve the public key and signature from the data vault.
+    // Retrieve the signature from the data vault.
     let data_vault = unsafe { DataVault::new(DvReg::new()) };
-    let ldevid_pub_key = data_vault.ldev_dice_pub_key();
-    let mut _pub_der: [u8; 97] = ldevid_pub_key.to_der();
-    cprint_slice!("[fmc] LDEVID PUBLIC KEY DER", _pub_der);
-
     let sig = data_vault.ldev_dice_signature();
 
     let ecdsa_sig = Ecdsa384Signature {
@@ -139,11 +135,7 @@ fn create_certs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     // Create FMCALIAS cert.
     //
 
-    // Retrieve the public key and signature from the data vault.
-    let fmcalias_pub_key = data_vault.fmc_pub_key();
-    let _pub_der: [u8; 97] = fmcalias_pub_key.to_der();
-    cprint_slice!("[fmc] FMCALIAS PUBLIC KEY DER", _pub_der);
-
+    // Retrieve the signature from the data vault.
     let sig = data_vault.fmc_dice_signature();
     let ecdsa_sig = Ecdsa384Signature {
         r: sig.r.into(),

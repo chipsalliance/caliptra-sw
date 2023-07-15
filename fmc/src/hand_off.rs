@@ -16,7 +16,6 @@ use crate::fmc_env::FmcEnv;
 use caliptra_common::DataStore::*;
 use caliptra_common::{DataStore, FirmwareHandoffTable, HandOffDataHandle, Vault};
 use caliptra_drivers::{Array4x12, Ecc384Signature, KeyId};
-use caliptra_drivers::{Ecc384PubKey, Ecc384Scalar};
 use caliptra_error::CaliptraResult;
 
 #[cfg(feature = "riscv")]
@@ -98,66 +97,6 @@ impl HandOff {
                 "Invalid KeySlot DV Entry",
                 caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
             ),
-        }
-    }
-
-    fn fmc_pub_key_x(&self, env: &FmcEnv) -> Ecc384Scalar {
-        let ds: DataStore = self
-            .fht
-            .fmc_pub_key_x_dv_hdl
-            .try_into()
-            .unwrap_or_else(|_| {
-                caliptra_common::report_handoff_error_and_halt(
-                    "Invalid FMC ALias Public Key X DV handle",
-                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-                )
-            });
-
-        // The data store is either a warm reset entry or a cold reset entry.
-        match ds {
-            DataVaultNonSticky48(dv_entry) => env.data_vault.read_warm_reset_entry48(dv_entry),
-            DataVaultSticky48(dv_entry) => env.data_vault.read_cold_reset_entry48(dv_entry),
-            _ => {
-                crate::report_error(
-                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-                );
-            }
-        }
-    }
-
-    fn fmc_pub_key_y(&self, env: &FmcEnv) -> Ecc384Scalar {
-        let ds: DataStore = self
-            .fht
-            .fmc_pub_key_y_dv_hdl
-            .try_into()
-            .unwrap_or_else(|_| {
-                caliptra_common::report_handoff_error_and_halt(
-                    "Invalid FMC ALias Public Key Y DV handle",
-                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-                )
-            });
-
-        // The data store is either a warm reset entry or a cold reset entry.
-        match ds {
-            DataVaultNonSticky48(dv_entry) => env.data_vault.read_warm_reset_entry48(dv_entry),
-            DataVaultSticky48(dv_entry) => env.data_vault.read_cold_reset_entry48(dv_entry),
-            _ => {
-                crate::report_error(
-                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-                );
-            }
-        }
-    }
-
-    /// Get the fmc public key.
-    ///
-    /// # Returns
-    /// * fmc public key
-    ///
-    pub fn fmc_pub_key(&self, env: &FmcEnv) -> Ecc384PubKey {
-        Ecc384PubKey {
-            x: self.fmc_pub_key_x(env),
-            y: self.fmc_pub_key_y(env),
         }
     }
 

@@ -14,18 +14,18 @@ Abstract:
 
 use caliptra_registers::dv::DvReg;
 
-use crate::{Array4x12, Ecc384PubKey, Ecc384Signature};
+use crate::{Array4x12, Ecc384Signature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColdResetEntry48 {
     LDevDiceSigR = 0,
     LDevDiceSigS = 1,
-    LDevDicePubKeyX = 2,
-    LDevDicePubKeyY = 3,
+    Reserved0 = 2,
+    Reserved1 = 3,
     FmcDiceSigR = 4,
     FmcDiceSigS = 5,
-    FmcPubKeyX = 6,
-    FmcPubKeyY = 7,
+    Reserved2 = 6,
+    Reserved3 = 7,
     FmcTci = 8,
     OwnerPubKeyHash = 9,
 }
@@ -36,12 +36,8 @@ impl TryFrom<u8> for ColdResetEntry48 {
         match value {
             0 => Ok(ColdResetEntry48::LDevDiceSigR),
             1 => Ok(ColdResetEntry48::LDevDiceSigS),
-            2 => Ok(ColdResetEntry48::LDevDicePubKeyX),
-            3 => Ok(ColdResetEntry48::LDevDicePubKeyY),
             4 => Ok(ColdResetEntry48::FmcDiceSigR),
             5 => Ok(ColdResetEntry48::FmcDiceSigS),
-            6 => Ok(ColdResetEntry48::FmcPubKeyX),
-            7 => Ok(ColdResetEntry48::FmcPubKeyY),
             8 => Ok(ColdResetEntry48::FmcTci),
             9 => Ok(ColdResetEntry48::OwnerPubKeyHash),
             _ => Err(()),
@@ -211,28 +207,6 @@ impl DataVault {
         }
     }
 
-    /// Set the ldev dice public key.
-    ///
-    /// # Arguments
-    /// * `pub_key` - ldev dice public key
-    ///
-    pub fn set_ldev_dice_pub_key(&mut self, pub_key: &Ecc384PubKey) {
-        self.write_lock_cold_reset_entry48(ColdResetEntry48::LDevDicePubKeyX, &pub_key.x);
-        self.write_lock_cold_reset_entry48(ColdResetEntry48::LDevDicePubKeyY, &pub_key.y);
-    }
-
-    /// Get the ldev dice public key.
-    ///
-    /// # Returns
-    /// * ldev dice public key
-    ///
-    pub fn ldev_dice_pub_key(&self) -> Ecc384PubKey {
-        Ecc384PubKey {
-            x: self.read_cold_reset_entry48(ColdResetEntry48::LDevDicePubKeyX),
-            y: self.read_cold_reset_entry48(ColdResetEntry48::LDevDicePubKeyY),
-        }
-    }
-
     /// Set the fmc dice signature.
     ///
     /// # Arguments
@@ -252,28 +226,6 @@ impl DataVault {
         Ecc384Signature {
             r: self.read_cold_reset_entry48(ColdResetEntry48::FmcDiceSigR),
             s: self.read_cold_reset_entry48(ColdResetEntry48::FmcDiceSigS),
-        }
-    }
-
-    /// Set the fmc public key.
-    ///
-    /// # Arguments
-    /// * `pub_key` - fmc public key
-    ///
-    pub fn set_fmc_pub_key(&mut self, pub_key: &Ecc384PubKey) {
-        self.write_lock_cold_reset_entry48(ColdResetEntry48::FmcPubKeyX, &pub_key.x);
-        self.write_lock_cold_reset_entry48(ColdResetEntry48::FmcPubKeyY, &pub_key.y);
-    }
-
-    /// Get the fmc public key.
-    ///
-    /// # Returns
-    /// * fmc public key
-    ///
-    pub fn fmc_pub_key(&self) -> Ecc384PubKey {
-        Ecc384PubKey {
-            x: self.read_cold_reset_entry48(ColdResetEntry48::FmcPubKeyX),
-            y: self.read_cold_reset_entry48(ColdResetEntry48::FmcPubKeyY),
         }
     }
 

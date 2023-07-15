@@ -85,24 +85,6 @@ impl FhtDataStore {
                 | ColdResetEntry48::FmcDiceSigS as u32,
         )
     }
-    /// The FMC public key X coordinate is stored in a 384-bit DataVault
-    /// sticky register.
-    pub const fn fmc_pub_key_x_store() -> HandOffDataHandle {
-        HandOffDataHandle(
-            (Vault::DataVault as u32) << 12
-                | (DataVaultRegister::Sticky384BitReg as u32) << 8
-                | ColdResetEntry48::FmcPubKeyX as u32,
-        )
-    }
-    /// FMC public key Y coordinate is stored in a 384-bit DataVault
-    /// sticky register.
-    pub const fn fmc_pub_key_y_store() -> HandOffDataHandle {
-        HandOffDataHandle(
-            (Vault::DataVault as u32) << 12
-                | (DataVaultRegister::Sticky384BitReg as u32) << 8
-                | ColdResetEntry48::FmcPubKeyY as u32,
-        )
-    }
     /// The RT SVN is stored in a 32-bit DataVault non-sticky register.
     pub const fn rt_svn_data_store() -> HandOffDataHandle {
         HandOffDataHandle(
@@ -146,8 +128,6 @@ pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
         rt_fw_entry_point_hdl: FhtDataStore::rt_fw_entry_point(),
         fmc_cdi_kv_hdl: FhtDataStore::fmc_cdi_store(),
         fmc_priv_key_kv_hdl: FhtDataStore::fmc_priv_key_store(),
-        fmc_pub_key_x_dv_hdl: FhtDataStore::fmc_pub_key_x_store(),
-        fmc_pub_key_y_dv_hdl: FhtDataStore::fmc_pub_key_y_store(),
         fmc_cert_sig_r_dv_hdl: FhtDataStore::fmc_cert_sig_r_store(),
         fmc_cert_sig_s_dv_hdl: FhtDataStore::fmc_cert_sig_s_store(),
         fmc_tci_dv_hdl: FhtDataStore::fmc_tci_store(),

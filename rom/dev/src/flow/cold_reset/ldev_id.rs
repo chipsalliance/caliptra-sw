@@ -193,10 +193,6 @@ impl LocalDevIdLayer {
         env.data_vault.set_ldev_dice_signature(sig);
         sig.zeroize();
 
-        // Lock the Local Device ID public keys in data vault until
-        // cold reset
-        env.data_vault.set_ldev_dice_pub_key(pub_key);
-
         //  Copy TBS to DCCM.
         copy_tbs(tbs.tbs(), TbsType::LdevidTbs, env)?;
 

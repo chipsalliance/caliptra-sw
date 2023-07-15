@@ -360,32 +360,25 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
     `LDevIdPubKey = ecc384_keygen(KvSlot3, KvSlot5)`
     `kv_clear(KvSlot3)`
 
-4.	Store and lock (for write) the LDevID Public Key in Data Vault (48 bytes) Slot 0 & Slot 1
-
-    `dv48_store(LDevIdPubKey.X, Dv48Slot0)`
-    `dv48_lock_wr(Dv48Slot0)`
-    `dv48_store(LDevIdPubKey.Y, Dv48Slot1)`
-    `dv48_lock_wr(Dv48Slot1)`
-
-5.	Generate the `To Be Signed` DER Blob of the LDevId Certificate
+4.	Generate the `To Be Signed` DER Blob of the LDevId Certificate
 
 	`LDevIdTbs = gen_cert_tbs(LDEVID_CERT, IDevIdPubKey, LDevIdPubKey)`
 
-6.	Sign the LDevID `To Be Signed` DER Blob with IDevId Private Key in Key Vault Slot 7
+5.	Sign the LDevID `To Be Signed` DER Blob with IDevId Private Key in Key Vault Slot 7
 
 	`LDevIdTbsDigest = sha384_digest(LDevIdTbs)`
 	`LDevIdCertSig = ecc384_sign(KvSlot7, LDevIdTbsDigest)`
 
-7.	Clear the IDevId Private Key in Key Vault Slot 7
+6.	Clear the IDevId Private Key in Key Vault Slot 7
 
 	`kv_clear(KvSlot7)`
 
-8.	Verify the signature of LDevID `To Be Signed` Blob
+7.	Verify the signature of LDevID `To Be Signed` Blob
 
 	`LDevIdTbsDigest = sha384_digest(LDevIdTbs)`
 	`Result = ecc384_verify(LDevIdPubKey, LDevIdTbsDigest, LDevIdCertSig)`
 
-9.	Store and lock (for write) the LDevID Certificate Signature in the sticky Data Vault (48 bytes) Slot 2 & Slot 3
+8.	Store and lock (for write) the LDevID Certificate Signature in the sticky Data Vault (48 bytes) Slot 2 & Slot 3
 
 	`dv48_store(LDevIdCertSig.R, Dv48Slot2)`
     `dv48_lock_wr(Dv48Slot2)`
@@ -397,10 +390,8 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 
 | Slot | Key Vault | PCR Bank | Data Vault 48 Byte (Sticky) | Data Vault 4 Byte (Sticky) |
 |------|-----------|----------|-----------------------------|----------------------------|
-| 0 | | | 🔒LDevID Pub Key X |
-| 1 | | | 🔒LDevID Pub Key Y |
-| 2 | | | 🔒LDevID Cert Signature R |
-| 3 | | | 🔒LDevID Cert Signature S |
+| 0 | | | 🔒LDevID Cert Signature R |
+| 1 | | | 🔒LDevID Cert Signature S |
 | 5 | LDevID Private Key (48 bytes) |
 | 6 | LDevID CDI (48 bytes) |
 
@@ -462,32 +453,25 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
     `AliasFmcPubKey = ecc384_keygen(KvSlot3, KvSlot7)`
     `kv_clear(KvSlot3)`
 
-4.	Store and lock (for write) the Alias FMC Public Key in Data Vault (48 bytes) Slot 4 & Slot 5
-
-    `dv48_store(AliasFmcPubKey.X, Dv48Slot4)`
-    `dv48_lock_wr(Dv48Slot4)`
-    `dv48_store(AliasFmcPubKey.Y, Dv48Slot5)`
-    `dv48_lock_wr(Dv48Slot5)`
-
-5.	Generate the `To Be Signed` DER Blob of the Alias FMC Certificate
+4.	Generate the `To Be Signed` DER Blob of the Alias FMC Certificate
 
 	`AliasFmcTbs = gen_cert_tbs(ALIAS_FMC_CERT, LDevIdPubKey, AliasFmcPubKey)`
 
-6.	Sign the Alias FMC `To Be Signed` DER Blob with LDevId Private Key in Key Vault Slot 5
+5.	Sign the Alias FMC `To Be Signed` DER Blob with LDevId Private Key in Key Vault Slot 5
 
 	`AliasFmcTbsDigest = sha384_digest(AliasFmcTbs)`
 	`AliasFmcTbsCertSig = ecc384_sign(KvSlot5, AliasFmcTbsDigest)`
 
-7.	Clear the LDevId Private Key in Key Vault Slot 5
+6.	Clear the LDevId Private Key in Key Vault Slot 5
 
 	`kv_clear(KvSlot5)`
 
-8.	Verify the signature of Alias FMC `To Be Signed` Blob
+7.	Verify the signature of Alias FMC `To Be Signed` Blob
 
 	`AliasFmcTbsDigest = sha384_digest(AliasFmcTbs)`
 	`Result = ecc384_verify(AliasFmcPubKey, AliasFmcDigest , AliasFmcTbsCertSig)`
 
-9.	Store and lock (for write) the LDevID Certificate Signature in the sticky Data Vault (48 bytes) Slot 6 & Slot 7
+8.	Store and lock (for write) the LDevID Certificate Signature in the sticky Data Vault (48 bytes) Slot 6 & Slot 7
 
     `dv48_store(AliasFmcTbsCertSig.R, Dv48Slot6)`
     `dv48_lock_wr(Dv48Slot6)`
@@ -495,7 +479,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
     `dv48_store(AliasFmcTbsCertSig.S, Dv48Slot7)`
     `dv48_lock_wr(Dv48Slot7)`
 
-10.	Lock critical state needed for warm and update reset in Data Vault
+9.	Lock critical state needed for warm and update reset in Data Vault
 
 	`dv48_store(FMC_DIGEST, Dv48Slot8)`
     `dv48_lock_wr(Dv48Slot8)`
@@ -515,14 +499,12 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
 | Slot | Key Vault | PCR Bank | Data Vault 48 Byte (Sticky) | Data Vault 4 Byte (Sticky) |
 |------|-----------|----------|-----------------------------|----------------------------|
-| 0 | | | 🔒LDevID Pub Key X | 🔒FMC SVN |
-| 1 | | | 🔒LDevID Pub Key Y | 🔒Manufacturer Public Key Index |
-| 2 | | | 🔒LDevID Cert Signature R |
-| 3 | | | 🔒LDevID Cert Signature S |
-| 4 | | | 🔒Alias FMC Pub Key X |
-| 5 | | | 🔒Alias FMC Pub Key Y |
-| 6 | Alias FMC CDI (48 bytes) | | 🔒Alias FMC Cert Signature R |
-| 7 | Alias FMC Private Key (48 bytes) | | 🔒Alias FMC Cert Signature S |
+| 0 | | | 🔒LDevID Cert Signature R |
+| 1 | | | 🔒LDevID Cert Signature S |
+| 4 | | | 🔒Alias FMC Cert Signature R |
+| 5 | | | 🔒Alias FMC Cert Signature S |
+| 6 | Alias FMC CDI (48 bytes) |
+| 7 | Alias FMC Private Key (48 bytes) |
 | 8 |  | | 🔒FMC Digest |
 | 9 |  | | 🔒Owner PK Hash |
 
@@ -700,7 +682,7 @@ The following are the pre-conditions that should be satisfied:
             -  Validate the owner public key digest against the owner public key digest in data vault (value saved during cold boot). This makes sure that the owner key is not changed since last cold boot.
         - Validate the header exactly like in cold boot.
         - Validate the toc exactly like in cold boot.
-        - We still need to make sure that the digest of the FMC which was stored in the data vault register at cold boot
+        - Validate that the digest of the FMC which was stored in the data vault register at cold boot
           still matches the FMC image section. 
     - If validation fails during ROM boot, the new image will not be copied from
       the mailbox. ROM will boot the existing FMC/Runtime images. Validation

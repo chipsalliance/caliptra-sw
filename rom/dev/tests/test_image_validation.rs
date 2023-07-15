@@ -1653,19 +1653,6 @@ fn ldevid_cert(idevd_cert: &X509, output: &str) -> X509 {
         str::from_utf8(&ldevid_cert.to_text().unwrap()).unwrap()
     );
 
-    // Get ldevid public key
-    let pub_key_from_dv =
-        hex::decode(helpers::get_data("[fmc] LDEVID PUBLIC KEY DER = ", output)).unwrap();
-
-    // Verify the signature on the cert is valid.
-    let pub_key_from_cert = ldevid_cert
-        .public_key()
-        .as_ref()
-        .unwrap()
-        .public_key_to_der()
-        .unwrap();
-    assert_eq!(pub_key_from_dv, pub_key_from_cert[23..]);
-
     // Verify the ldevid cert using idevid cert's public key.
     assert!(ldevid_cert
         .verify(idevd_cert.public_key().as_ref().unwrap())
@@ -1683,22 +1670,6 @@ fn fmcalias_cert(ldevid_cert: &X509, output: &str) -> X509 {
         "FMCALIAS Cert:\n {}",
         str::from_utf8(&fmcalias_cert.to_text().unwrap()).unwrap()
     );
-
-    // Get fmclias public key
-    let pub_key_from_dv = hex::decode(helpers::get_data(
-        "[fmc] FMCALIAS PUBLIC KEY DER = ",
-        output,
-    ))
-    .unwrap();
-
-    // Verify the signature on the cert is valid.
-    let pub_key_from_cert = fmcalias_cert
-        .public_key()
-        .as_ref()
-        .unwrap()
-        .public_key_to_der()
-        .unwrap();
-    assert_eq!(pub_key_from_dv, pub_key_from_cert[23..]);
 
     // Verify the ldevid cert using idevid cert's public key.
     assert!(fmcalias_cert

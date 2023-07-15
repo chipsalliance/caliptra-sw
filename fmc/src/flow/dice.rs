@@ -27,8 +27,8 @@ pub struct DiceInput {
     /// * On output, this field will hold the CDI of the current layer.
     pub cdi: KeyId,
 
-    /// Authority Key Pair
-    pub auth_key_pair: Ecc384KeyPair,
+    /// Authority Private Key
+    pub auth_priv_key: KeyId,
 
     /// Authority Serial Number
     pub auth_sn: [u8; 64],

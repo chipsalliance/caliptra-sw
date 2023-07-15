@@ -47,7 +47,7 @@ impl RtAliasLayer {
             return Err(CaliptraError::FMC_CDI_KV_COLLISION);
         }
 
-        if Self::kv_slot_collides(input.auth_key_pair.priv_key) {
+        if Self::kv_slot_collides(input.auth_priv_key) {
             return Err(CaliptraError::FMC_ALIAS_KV_COLLISION);
         }
 
@@ -105,7 +105,7 @@ impl RtAliasLayer {
         cprintln!("[alias rt] Extend RT PCRs Done");
 
         // Retrieve Dice Input Layer from Hand Off and Derive Key
-        match Self::dice_input_from_hand_off(hand_off, env) {
+        match Self::dice_input_from_hand_off(hand_off) {
             Ok(input) => {
                 let out = Self::derive(env, hand_off, &input)?;
                 report_boot_status(crate::FmcBootStatus::RtAliasDerivationComplete as u32);
@@ -124,14 +124,11 @@ impl RtAliasLayer {
     /// # Returns
     ///
     /// * `DiceInput` - DICE Layer Input
-    fn dice_input_from_hand_off(hand_off: &HandOff, env: &FmcEnv) -> CaliptraResult<DiceInput> {
+    fn dice_input_from_hand_off(hand_off: &HandOff) -> CaliptraResult<DiceInput> {
         // Create initial output
         let input = DiceInput {
             cdi: hand_off.fmc_cdi(),
-            auth_key_pair: Ecc384KeyPair {
-                priv_key: hand_off.fmc_priv_key(),
-                pub_key: hand_off.fmc_pub_key(env),
-            },
+            auth_priv_key: hand_off.fmc_priv_key(),
             auth_sn: [0u8; 64],
             auth_key_id: [0u8; 20],
         };
@@ -217,8 +214,7 @@ impl RtAliasLayer {
         not_before: &[u8; RtAliasCertTbsParams::NOT_BEFORE_LEN],
         not_after: &[u8; RtAliasCertTbsParams::NOT_AFTER_LEN],
     ) -> CaliptraResult<()> {
-        let auth_priv_key = input.auth_key_pair.priv_key;
-        let auth_pub_key = &input.auth_key_pair.pub_key;
+        let auth_priv_key = input.auth_priv_key;
         let pub_key = &output.subj_key_pair.pub_key;
 
         let serial_number = &X509::cert_sn(env, pub_key)?;
@@ -278,11 +274,6 @@ impl RtAliasLayer {
         let _sig_s: [u8; 48] = (&sig.s).into();
         cprintln!("[alias rt] SIG.R = {}", HexBytes(&_sig_r));
         cprintln!("[alias rt] SIG.S = {}", HexBytes(&_sig_s));
-
-        // Verify the signature of the `To Be Signed` portion
-        if !Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? {
-            return Err(CaliptraError::FMC_RT_ALIAS_CERT_VERIFY);
-        }
 
         hand_off.set_rt_dice_signature(sig);
 

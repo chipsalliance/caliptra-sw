@@ -9,7 +9,7 @@ use crate::fmc_env::FmcEnv;
 use caliptra_common::{crypto::Ecc384KeyPair, keyids::KEY_ID_TMP};
 use caliptra_drivers::{
     hmac384_kdf, okref, Array4x12, Array4x5, Array4x8, CaliptraResult, Ecc384PrivKeyIn,
-    Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Signature, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
+    Ecc384PrivKeyOut, Ecc384Signature, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs,
 };
 
 pub enum Crypto {}
@@ -152,30 +152,5 @@ impl Crypto {
         let priv_key_args = KeyReadArgs::new(priv_key);
         let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
         env.ecc384.sign(&priv_key, digest, &mut env.trng)
-    }
-
-    /// Verify the ECC Signature
-    ///
-    /// This routine calculates the digest and verifies the signature
-    ///
-    /// # Arguments
-    ///
-    /// * `env` - ROM Environment
-    /// * `pub_key` - Public key to verify the signature
-    /// * `data` - Input data to hash
-    /// * `sig` - Signature to verify
-    ///
-    /// # Returns
-    ///
-    /// * `bool` - True on success, false otherwise
-    pub fn ecdsa384_verify(
-        env: &mut FmcEnv,
-        pub_key: &Ecc384PubKey,
-        data: &[u8],
-        sig: &Ecc384Signature,
-    ) -> CaliptraResult<bool> {
-        let digest = Self::sha384_digest(env, data);
-        let digest = okref(&digest)?;
-        env.ecc384.verify(pub_key, digest, sig)
     }
 }

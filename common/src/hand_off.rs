@@ -223,12 +223,6 @@ pub struct FirmwareHandoffTable {
     /// Index of FMC Private Alias Key in the Key Vault.
     pub fmc_priv_key_kv_hdl: HandOffDataHandle,
 
-    /// Index of FMC Public Alias Key X Coordinate in the Data Vault.
-    pub fmc_pub_key_x_dv_hdl: HandOffDataHandle,
-
-    /// Index of FMC Public Alias Key Y Coordinate in the Data Vault.
-    pub fmc_pub_key_y_dv_hdl: HandOffDataHandle,
-
     /// Index of FMC Certificate Signature R Component in the Data Vault.
     pub fmc_cert_sig_r_dv_hdl: HandOffDataHandle,
 
@@ -276,7 +270,7 @@ pub struct FirmwareHandoffTable {
     pub idev_dice_pub_key: Ecc384PubKey,
 
     /// Reserved for future use.
-    pub reserved: [u8; 132],
+    pub reserved: [u8; 140],
 }
 
 impl Default for FirmwareHandoffTable {
@@ -292,8 +286,6 @@ impl Default for FirmwareHandoffTable {
             fmc_tci_dv_hdl: FHT_INVALID_HANDLE,
             fmc_cdi_kv_hdl: FHT_INVALID_HANDLE,
             fmc_priv_key_kv_hdl: FHT_INVALID_HANDLE,
-            fmc_pub_key_x_dv_hdl: FHT_INVALID_HANDLE,
-            fmc_pub_key_y_dv_hdl: FHT_INVALID_HANDLE,
             fmc_cert_sig_r_dv_hdl: FHT_INVALID_HANDLE,
             fmc_cert_sig_s_dv_hdl: FHT_INVALID_HANDLE,
             fmc_svn_dv_hdl: FHT_INVALID_HANDLE,
@@ -303,7 +295,7 @@ impl Default for FirmwareHandoffTable {
             rt_svn_dv_hdl: FHT_INVALID_HANDLE,
             ldevid_tbs_size: 0,
             fmcalias_tbs_size: 0,
-            reserved: [0u8; 132],
+            reserved: [0u8; 140],
             ldevid_tbs_addr: 0,
             fmcalias_tbs_addr: 0,
             pcr_log_addr: 0,
@@ -342,14 +334,6 @@ pub fn print_fht(fht: &FirmwareHandoffTable) {
         fht.fmc_priv_key_kv_hdl.0
     );
     crate::cprintln!(
-        "FMC Public Key X DV Handle: 0x{:08x}",
-        fht.fmc_pub_key_x_dv_hdl.0
-    );
-    crate::cprintln!(
-        "FMC Public Key Y DV Handle: 0x{:08x}",
-        fht.fmc_pub_key_y_dv_hdl.0
-    );
-    crate::cprintln!(
         "FMC Certificate Signature R DV Handle: 0x{:08x}",
         fht.fmc_cert_sig_r_dv_hdl.0
     );
@@ -386,8 +370,6 @@ impl FirmwareHandoffTable {
         let mut valid = self.fht_marker == FHT_MARKER
             && self.fmc_cdi_kv_hdl != FHT_INVALID_HANDLE
             && self.manifest_load_addr != FHT_INVALID_ADDRESS
-            && self.fmc_pub_key_x_dv_hdl != FHT_INVALID_HANDLE
-            && self.fmc_pub_key_y_dv_hdl != FHT_INVALID_HANDLE
             && self.fmc_cert_sig_r_dv_hdl != FHT_INVALID_HANDLE
             && self.fmc_cert_sig_s_dv_hdl != FHT_INVALID_HANDLE
             && self.rt_fw_load_addr_hdl != FHT_INVALID_HANDLE
@@ -478,8 +460,6 @@ mod tests {
         let valid = fht.fht_marker == FHT_MARKER
             && fht.fmc_cdi_kv_hdl != FHT_INVALID_HANDLE
             && fht.manifest_load_addr != FHT_INVALID_ADDRESS
-            && fht.fmc_pub_key_x_dv_hdl != FHT_INVALID_HANDLE
-            && fht.fmc_pub_key_y_dv_hdl != FHT_INVALID_HANDLE
             && fht.fmc_cert_sig_r_dv_hdl != FHT_INVALID_HANDLE
             && fht.fmc_cert_sig_s_dv_hdl != FHT_INVALID_HANDLE
             && fht.rt_fw_load_addr_hdl != FHT_INVALID_HANDLE

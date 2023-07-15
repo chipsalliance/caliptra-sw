@@ -193,9 +193,6 @@ impl FmcAliasLayer {
         // Lock the FMC Certificate Signature in data vault until next boot
         env.data_vault.set_fmc_dice_signature(sig);
 
-        // Lock the FMC Public key in the data vault until next boot
-        env.data_vault.set_fmc_pub_key(pub_key);
-
         //  Copy TBS to DCCM.
         copy_tbs(tbs.tbs(), TbsType::FmcaliasTbs, env)?;
 

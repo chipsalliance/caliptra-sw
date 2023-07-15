@@ -122,8 +122,6 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | fmc_tci_dv_hdl        | 4            | ROM        | Handle of FMC TCI value in the Data Vault.                                                               |
 | fmc_cdi_kv_hdl        | 4            | ROM        | Handle of FMC CDI value in the Key Vault. Value of 0xFF indicates not present.                           |
 | fmc_priv_key_kv_hdl   | 4            | ROM        | Handle of FMC Private Alias Key in the Key Vault.                                                        |
-| fmc_pub_key_x_dv_hdl  | 4            | ROM        | Handle of FMC Public Alias Key X Coordinate in the Data Vault.                                           |
-| fmc_pub_key_y_dv_hdl  | 4            | ROM        | Handle of FMC Public Alias Key Y Coordinate in the Data Vault                                            |
 | fmc_cert_sig_r_dv_hdl | 4            | ROM        | Handle of FMC Certificate Signature R Component in the Data Vault.                                       |
 | fmc_cert_sig_s_dv_hdl | 4            | ROM        | Handle of FMC Certificate Signature S Component in the Data Vault.                                       |
 | fmc_svn_dv_hdl        | 4            | ROM        | Handle of FMC SVN value in the Data Vault.                                                               |
@@ -140,7 +138,7 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | rt_dice_pub_key       | 96           | FMC        | RT Alias DICE Public Key.                                                                                |
 | rt_dice_sign          | 96           | FMC        | RT Alias DICE signature.                                                                                 |
 | idev_dice_pub_key     | 96           | ROM        | Initial Device ID Public Key.                                                                            |
-| reserved              | 132          |            | Reserved for future use.                                                                                 |
+| reserved              | 140          |            | Reserved for future use.                                                                                 |
 
 *FHT is currently defined to be 512 bytes in length.*
 
