@@ -25,8 +25,7 @@ use crate::fmc_env::FmcEnv;
 use crate::HandOff;
 use caliptra_drivers::{okref, CaliptraResult, PcrId};
 
-const CURRENT_PCR: PcrId = PcrId::PcrId3;
-const JOURNEY_PCR: PcrId = PcrId::PcrId2;
+use caliptra_common::{RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR};
 
 /// Extend current PCR
 ///
@@ -34,7 +33,11 @@ const JOURNEY_PCR: PcrId = PcrId::PcrId2;
 ///
 /// * `env` - FMC Environment
 pub fn extend_current_pcr(env: &mut FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
-    extend_pcr_common(env, hand_off, CURRENT_PCR)
+    // Clear current PCR before extending it.
+    if env.soc_ifc.reset_reason() == caliptra_drivers::ResetReason::UpdateReset {
+        env.pcr_bank.erase_pcr(RT_FW_CURRENT_PCR)?;
+    }
+    extend_pcr_common(env, hand_off, RT_FW_CURRENT_PCR)
 }
 
 /// Extend journey PCR
@@ -43,7 +46,7 @@ pub fn extend_current_pcr(env: &mut FmcEnv, hand_off: &HandOff) -> CaliptraResul
 ///
 /// * `env` - FMC Environment
 pub fn extend_journey_pcr(env: &mut FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
-    extend_pcr_common(env, hand_off, JOURNEY_PCR)
+    extend_pcr_common(env, hand_off, RT_FW_JOURNEY_PCR)
 }
 
 /// Extend common data into PCR
