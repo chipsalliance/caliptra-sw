@@ -25,6 +25,7 @@ pub struct ImageGenerator<Crypto: ImageGeneratorCrypto> {
 
 impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
     const DEFAULT_FLAGS: u32 = 0;
+    const PL0_PAUSER_FLAG: u32 = (1 << 0);
 
     /// Create an instance `ImageGenerator`
     pub fn new(crypto: Crypto) -> Self {
@@ -76,13 +77,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
 
         // Create Header
         let toc_digest = self.toc_digest(&fmc_toc, &runtime_toc)?;
-        let header = self.gen_header(
-            config,
-            ecc_key_idx,
-            lms_key_idx,
-            Self::DEFAULT_FLAGS,
-            toc_digest,
-        )?;
+        let header = self.gen_header(config, ecc_key_idx, lms_key_idx, toc_digest)?;
 
         // Create Preamable
         let header_digest_vendor = self.header_digest_vendor(&header)?;
@@ -181,7 +176,6 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         config: &ImageGeneratorConfig<E>,
         ecc_key_idx: u32,
         lms_key_idx: u32,
-        flags: u32,
         digest: ImageDigest,
     ) -> anyhow::Result<ImageHeader>
     where
@@ -190,7 +184,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         let mut header = ImageHeader {
             vendor_ecc_pub_key_idx: ecc_key_idx,
             vendor_lms_pub_key_idx: lms_key_idx,
-            flags,
+            flags: Self::DEFAULT_FLAGS,
             toc_len: MAX_TOC_ENTRY_COUNT,
             toc_digest: digest,
             ..Default::default()
@@ -198,6 +192,11 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
 
         header.vendor_data.vendor_not_before = config.vendor_config.not_before;
         header.vendor_data.vendor_not_after = config.vendor_config.not_after;
+
+        if let Some(pauser) = config.vendor_config.pl0_pauser {
+            header.flags |= Self::PL0_PAUSER_FLAG;
+            header.pl0_pauser = pauser;
+        }
 
         if let Some(owner_config) = &config.owner_config {
             header.owner_data.owner_not_before = owner_config.not_before;

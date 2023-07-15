@@ -36,14 +36,15 @@ const BANNER: &str = r#"
 pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
     if let Some(mut fht) = caliptra_common::FirmwareHandoffTable::try_load() {
-        let mut drivers = unsafe { Drivers::new_from_registers(&mut fht) };
-
-        // Indicator to SOC that RT firmware is ready
-        drivers
-            .soc_ifc
-            .regs_mut()
-            .cptra_flow_status()
-            .write(|w| w.ready_for_runtime(true));
+        let mut drivers = match unsafe { Drivers::new_from_registers(&mut fht) } {
+            Ok(drivers) => drivers,
+            Err(e) => {
+                caliptra_common::report_handoff_error_and_halt(
+                    "Runtime can't load create drivers",
+                    e.into(),
+                );
+            }
+        };
 
         cprintln!("Caliptra RT listening for mailbox commands...");
         caliptra_runtime::handle_mailbox_commands(&mut drivers);

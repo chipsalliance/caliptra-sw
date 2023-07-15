@@ -4,7 +4,7 @@ pub mod common;
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART};
 use caliptra_drivers::Ecc384PubKey;
 use caliptra_hw_model::{HwModel, ModelError, ShaAccMode};
-use caliptra_runtime::{CommandId, EcdsaVerifyCmd, VersionResponse};
+use caliptra_runtime::{info::FwInfoResp, CommandId, EcdsaVerifyCmd, VersionResponse};
 use common::{run_rom_test, run_rt_test};
 use openssl::{
     bn::BigNum,
@@ -94,6 +94,19 @@ fn test_rom_certs() {
     assert!(ldev_cert
         .verify(&PKey::from_ec_key(idev_ec_key).unwrap())
         .unwrap());
+}
+
+#[test]
+fn test_fw_info() {
+    let mut model = run_rt_test(None);
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::FW_INFO), &[])
+        .unwrap()
+        .unwrap();
+
+    let info = FwInfoResp::read_from(resp.as_slice()).unwrap();
+    assert_eq!(info.pl0_pauser, 0xFFFF0000);
 }
 
 #[test]
