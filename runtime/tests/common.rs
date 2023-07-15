@@ -42,12 +42,11 @@ pub fn run_rt_test(test_bin_name: Option<&'static str>) -> DefaultHwModel {
 
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
 
-    let image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &runtime_fwid,
-        ImageOptions::default(),
-    )
-    .unwrap();
+    let mut image_options = ImageOptions::default();
+    image_options.vendor_config.pl0_pauser = Some(0xFFFF0000);
+    let image =
+        caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &runtime_fwid, image_options)
+            .unwrap();
 
     let mut model = caliptra_hw_model::new(BootParams {
         init_params: InitParams {

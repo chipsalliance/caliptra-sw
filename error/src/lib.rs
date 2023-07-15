@@ -275,6 +275,7 @@ impl CaliptraError {
     pub const RUNTIME_UNEXPECTED_UPDATE_RETURN: CaliptraError =
         CaliptraError::new_const(0x000E0007);
     pub const RUNTIME_SHUTDOWN: CaliptraError = CaliptraError::new_const(0x000E0008);
+    pub const RUNTIME_NO_MANIFEST: CaliptraError = CaliptraError::new_const(0x000E0009);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);

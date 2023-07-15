@@ -338,6 +338,7 @@ pub const VENDOR_CONFIG_KEY_0: ImageGeneratorVendorConfig = ImageGeneratorVendor
     priv_keys: Some(VENDOR_PRIVATE_KEYS),
     not_before: [0u8; 15],
     not_after: [0u8; 15],
+    pl0_pauser: None,
 };
 
 pub const VENDOR_CONFIG_KEY_1: ImageGeneratorVendorConfig = ImageGeneratorVendorConfig {

@@ -11,6 +11,7 @@ caliptra-drivers = { path = "../drivers" }
 caliptra-registers = { path = "../registers" }
 caliptra_common = { path = "../common", default-features = false }
 caliptra-x509 = { path = "../x509", default-features = false }
+caliptra-image-types = { path = "../image/types", default-features = false }
 ufmt = "0.2.0"
 zerocopy = "0.6.1"
 
@@ -27,7 +28,6 @@ caliptra-image-fake-keys = { path = "../image/fake-keys" }
 caliptra-image-gen = { path = "../image/gen" }
 caliptra-image-openssl = { path = "../image/openssl" }
 caliptra-image-serde = { path = "../image/serde" }
-caliptra-image-types = { path = "../image/types" }
 openssl = { version = "0.10", features = ["vendored"] }
 
 [features]

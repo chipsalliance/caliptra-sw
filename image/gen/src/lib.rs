@@ -77,6 +77,8 @@ pub struct ImageGeneratorVendorConfig {
     pub not_before: [u8; 15],
 
     pub not_after: [u8; 15],
+
+    pub pl0_pauser: Option<u32>,
 }
 
 /// Image Generator Owner Configuration

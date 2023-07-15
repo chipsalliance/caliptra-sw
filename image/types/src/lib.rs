@@ -307,10 +307,15 @@ pub struct ImageHeader {
     pub vendor_lms_pub_key_idx: u32,
 
     /// Flags
+    /// Bit 0: Interpret the pl0_pauser field. If not set, all PAUSERs are PL1.
     pub flags: u32,
 
     /// TOC Entry Count
     pub toc_len: u32,
+
+    /// The PAUSER with PL0 privileges. The SoC integration must choose
+    /// only one PAUSER to be PL0.
+    pub pl0_pauser: u32,
 
     /// TOC Digest
     pub toc_digest: ImageDigest,
