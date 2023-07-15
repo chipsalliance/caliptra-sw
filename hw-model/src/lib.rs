@@ -781,6 +781,7 @@ mod tests {
     #[test]
     fn test_apb() {
         let mut model = caliptra_hw_model::new_unbooted(InitParams {
+            rom: &gen_image_hi(),
             ..Default::default()
         })
         .unwrap();
@@ -812,6 +813,7 @@ mod tests {
     fn test_mbox() {
         // Same as test_apb, but uses higher-level register interface
         let mut model = caliptra_hw_model::new_unbooted(InitParams {
+            rom: &gen_image_hi(),
             ..Default::default()
         })
         .unwrap();
@@ -830,6 +832,7 @@ mod tests {
     /// Violate the mailbox protocol by having the sender trying to write to mailbox in execute state.
     fn test_mbox_negative() {
         let mut model = caliptra_hw_model::new_unbooted(InitParams {
+            rom: &gen_image_hi(),
             ..Default::default()
         })
         .unwrap();
