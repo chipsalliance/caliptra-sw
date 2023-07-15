@@ -117,7 +117,6 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | fht_minor_ver         | 2            | ROM, FMC   | Minor version of FHT. Initially written by ROM but may be changed to a higher version by FMC.            |
 | manifest_load_addr    | 4            | ROM        | Physical base address of Manifest in DCCM SRAM.                                                          |
 | fips_fw_load_addr_hdl | 4            | ROM        | Handle of base address of FIPS Module in ROM or ICCM SRAM. May be 0xFF if there is no discrete module.   |
-| rt_fw_load_addr_hdl   | 4            | ROM        | Handle of load address of Runtime FW Module value in data vault.SRAM.                                    |
 | rt_fw_entry_point_hdl | 4            | ROM        | Handle of entry point of Runtime FW Module value in data vault. SRAM.                                    |
 | fmc_tci_dv_hdl        | 4            | ROM        | Handle of FMC TCI value in the Data Vault.                                                               |
 | fmc_cdi_kv_hdl        | 4            | ROM        | Handle of FMC CDI value in the Key Vault. Value of 0xFF indicates not present.                           |
@@ -140,7 +139,7 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | rt_dice_pub_key       | 96           | FMC        | RT Alias DICE Public Key.                                                                                |
 | rt_dice_sign          | 96           | FMC        | RT Alias DICE signature.                                                                                 |
 | idev_dice_pub_key     | 96           | ROM        | Initial Device ID Public Key.                                                                            |
-| reserved              | 132          |            | Reserved for future use.                                                                                 |
+| reserved              | 136          |            | Reserved for future use.                                                                                 |
 
 *FHT is currently defined to be 512 bytes in length.*
 

@@ -301,8 +301,6 @@ impl FirmwareProcessor {
 
         data_vault.write_cold_reset_entry4(ColdResetEntry4::FmcSvn, info.fmc.svn);
 
-        data_vault.write_cold_reset_entry4(ColdResetEntry4::FmcLoadAddr, info.fmc.load_addr);
-
         data_vault.write_cold_reset_entry4(ColdResetEntry4::FmcEntryPoint, info.fmc.entry_point);
 
         data_vault.write_cold_reset_entry48(
@@ -318,8 +316,6 @@ impl FirmwareProcessor {
         data_vault.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime.digest.into());
 
         data_vault.write_warm_reset_entry4(WarmResetEntry4::RtSvn, info.runtime.svn);
-
-        data_vault.write_warm_reset_entry4(WarmResetEntry4::RtLoadAddr, info.runtime.load_addr);
 
         data_vault.write_warm_reset_entry4(WarmResetEntry4::RtEntryPoint, info.runtime.entry_point);
 

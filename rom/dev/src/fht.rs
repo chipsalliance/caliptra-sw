@@ -142,7 +142,6 @@ pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
         fht_minor_ver: FHT_MINOR_VERSION,
         manifest_load_addr: env.data_vault.manifest_addr(),
         fips_fw_load_addr_hdl: FHT_INVALID_HANDLE,
-        rt_fw_load_addr_hdl: FhtDataStore::rt_fw_entry_point(),
         rt_fw_entry_point_hdl: FhtDataStore::rt_fw_entry_point(),
         fmc_cdi_kv_hdl: FhtDataStore::fmc_cdi_store(),
         fmc_priv_key_kv_hdl: FhtDataStore::fmc_priv_key_store(),
