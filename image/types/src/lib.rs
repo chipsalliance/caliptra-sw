@@ -409,6 +409,17 @@ impl ImageTocEntry {
     }
 }
 
+/// Information about the ROM image.
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Default, Debug)]
+pub struct RomInfo {
+    // sha256 digest with big-endian words, where each 4-byte segment of the
+    // digested data has the bytes reversed.
+    pub sha256_digest: [u32; 8],
+    pub revision: ImageRevision,
+    pub flags: u32,
+}
+
 #[cfg(all(test, target_family = "unix"))]
 mod tests {
     use super::*;
