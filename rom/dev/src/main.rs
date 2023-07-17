@@ -87,7 +87,10 @@ pub extern "C" fn rom_entry() -> ! {
     let result = flow::run(&mut env);
     match result {
         Ok(fht) => {
-            fht::store(fht);
+            // Leave the FHT untouched in case of a warm reset.
+            if reset_reason != ResetReason::WarmReset {
+                fht::store(fht);
+            }
         }
 
         Err(err) => {

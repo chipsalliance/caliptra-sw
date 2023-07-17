@@ -11,7 +11,7 @@ Abstract:
     File contains the implementation of warm reset flow.
 
 --*/
-use crate::{cprintln, fht, rom_env::RomEnv};
+use crate::{cprintln, rom_env::RomEnv};
 use caliptra_common::FirmwareHandoffTable;
 use caliptra_drivers::CaliptraResult;
 
@@ -25,11 +25,12 @@ impl WarmResetFlow {
     ///
     /// * `env` - ROM Environment
     #[inline(never)]
-    pub fn run(env: &mut RomEnv) -> CaliptraResult<FirmwareHandoffTable> {
+    pub fn run(_env: &mut RomEnv) -> CaliptraResult<FirmwareHandoffTable> {
         cprintln!("[warm-reset] ++");
 
         cprintln!("[warm-reset] --");
 
-        Ok(fht::make_fht(env))
+        // Caller does not expect an FHT in the case of a warm reset.
+        Ok(FirmwareHandoffTable::default())
     }
 }
