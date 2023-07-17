@@ -16,9 +16,6 @@ use zerocopy::{AsBytes, FromBytes};
 
 // PcrLogEntryId is used to identify the PCR entry and
 // the size of the data in PcrLogEntry::pcr_data.
-//
-// For valid entries, it is also used as the index into the PCR log as per the formula:
-//      log_entry_index = pcr_entry_id - 1
 #[repr(u16)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PcrLogEntryId {
@@ -72,6 +69,27 @@ pub struct PcrLogEntry {
     pub pcr_data: [u32; 12],
 
     pub reserved1: [u8; 4],
+}
+
+impl PcrLogEntry {
+    pub fn measured_data(&self) -> &[u8] {
+        let data_len = match PcrLogEntryId::from(self.id) {
+            PcrLogEntryId::Invalid => 0,
+            PcrLogEntryId::DeviceLifecycle => 1,
+            PcrLogEntryId::DebugLocked => 1,
+            PcrLogEntryId::AntiRollbackDisabled => 1,
+            PcrLogEntryId::VendorPubKeyHash => 48,
+            PcrLogEntryId::OwnerPubKeyHash => 48,
+            PcrLogEntryId::EccVendorPubKeyIndex => 1,
+            PcrLogEntryId::FmcTci => 48,
+            PcrLogEntryId::FmcSvn => 1,
+            PcrLogEntryId::FmcFuseSvn => 1,
+            PcrLogEntryId::LmsVendorPubKeyIndex => 1,
+            PcrLogEntryId::RomVerifyConfig => 1,
+        };
+
+        &self.pcr_data.as_bytes()[..data_len]
+    }
 }
 
 pub const RT_FW_CURRENT_PCR: PcrId = PcrId::PcrId3;

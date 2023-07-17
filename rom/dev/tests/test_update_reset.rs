@@ -296,6 +296,7 @@ fn test_update_reset_boot_status() {
 
     hw.step_until_boot_status(UpdateResetLoadManifestComplete.into(), false);
     hw.step_until_boot_status(UpdateResetImageVerificationComplete.into(), false);
+    hw.step_until_boot_status(UpdateResetExtendPcrComplete.into(), false);
     hw.step_until_boot_status(UpdateResetPopulateDataVaultComplete.into(), false);
     hw.step_until_boot_status(UpdateResetLoadImageComplete.into(), false);
     hw.step_until_boot_status(UpdateResetOverwriteManifestComplete.into(), false);
