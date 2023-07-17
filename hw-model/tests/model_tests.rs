@@ -171,6 +171,12 @@ fn test_dccm_double_bit_ecc_nmi_failure() {
 
     model.ecc_error_injection(ErrorInjectionMode::DccmDoubleBitEcc);
 
+    model.step_until_exit_success().unwrap_err();
+    let soc_ifc: caliptra_registers::soc_ifc::RegisterBlock<_> = model.soc_ifc();
+    assert_eq!(
+        soc_ifc.cptra_fw_error_non_fatal().read(),
+        harness::ERROR_EXCEPTION
+    );
     let ext_info = harness::ExtErrorInfo::from(soc_ifc.cptra_fw_extended_error_info().read());
     assert_eq!(ext_info.mcause, harness::EXCEPTION_CAUSE_LOAD_ACCESS_FAULT);
 }
