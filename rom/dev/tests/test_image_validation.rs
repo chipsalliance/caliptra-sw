@@ -1487,6 +1487,7 @@ fn cert_test_with_custom_dates() {
         .unwrap();
 
     hw.mailbox_execute(0x1000_0001, &[]).unwrap();
+    hw.mailbox_execute(0x1000_000F, &[]).unwrap();
 
     let result = hw.copy_output_until_exit_success(&mut output);
     assert!(result.is_ok());
@@ -1555,6 +1556,7 @@ fn cert_test() {
         .unwrap();
 
     hw.mailbox_execute(0x1000_0001, &[]).unwrap();
+    hw.mailbox_execute(0x1000_000F, &[]).unwrap();
 
     let result = hw.copy_output_until_exit_success(&mut output);
     assert!(result.is_ok());

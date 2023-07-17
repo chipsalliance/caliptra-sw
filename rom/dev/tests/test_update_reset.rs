@@ -9,6 +9,7 @@ use caliptra_common::RomBootStatus::*;
 pub mod helpers;
 
 const TEST_FMC_CMD_RESET_FOR_UPDATE: u32 = 0x1000_0004;
+const TEST_FMC_CMD_EXIT: u32 = 0x1000_000F;
 
 #[test]
 fn test_update_reset_success() {
@@ -52,6 +53,7 @@ fn test_update_reset_success() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
+    hw.mailbox_execute(TEST_FMC_CMD_EXIT, &[]).unwrap();
     hw.step_until_exit_success().unwrap();
 }
 
@@ -99,6 +101,8 @@ fn test_update_reset_no_mailbox_cmd() {
     hw.step_until(|m| m.soc_ifc().cptra_fw_error_non_fatal().read() != 0);
 
     let _ = hw.mailbox_execute(0xDEADBEEF, &[]);
+
+    hw.mailbox_execute(TEST_FMC_CMD_EXIT, &[]).unwrap();
     hw.step_until_exit_success().unwrap();
 
     assert_eq!(
@@ -148,6 +152,8 @@ fn test_update_reset_non_fw_load_cmd() {
 
     // Send a non-fw load command
     let _ = hw.mailbox_execute(0xDEADBEEF, &[]);
+
+    hw.mailbox_execute(TEST_FMC_CMD_EXIT, &[]).unwrap();
     hw.step_until_exit_success().unwrap();
 
     assert_eq!(
@@ -198,6 +204,7 @@ fn test_update_reset_verify_image_failure() {
     // Upload invalid manifest
     let _ = hw.upload_firmware(&[0u8; 4]);
 
+    hw.mailbox_execute(TEST_FMC_CMD_EXIT, &[]).unwrap();
     hw.step_until_exit_success().unwrap();
 
     assert_eq!(
@@ -273,5 +280,7 @@ fn test_update_reset_boot_status() {
     hw.step_until_boot_status(UpdateResetOverwriteManifestComplete.into(), false);
     hw.step_until_boot_status(UpdateResetComplete.into(), false);
 
+    hw.soc_mbox().execute().write(|w| w.execute(false));
+    hw.mailbox_execute(TEST_FMC_CMD_EXIT, &[]).unwrap();
     hw.step_until_exit_success().unwrap();
 }

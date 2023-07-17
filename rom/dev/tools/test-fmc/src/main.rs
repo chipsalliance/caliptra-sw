@@ -199,26 +199,41 @@ fn process_mailbox_commands() {
     let mut mbox = unsafe { caliptra_registers::mbox::MboxCsr::new() };
     let mbox = mbox.regs_mut();
 
-    let cmd = mbox.cmd().read();
-    cprintln!("[fmc] Received command: 0x{:08X}", cmd);
-    match cmd {
-        0x1000_0000 => {
-            read_pcr_log(&mbox);
+    loop {
+        if mbox.status().read().mbox_fsm_ps().mbox_execute_uc() {
+            let cmd = mbox.cmd().read();
+            cprintln!("[fmc] Received command: 0x{:08X}", cmd);
+            match cmd {
+                0x1000_0000 => {
+                    read_pcr_log(&mbox);
+                }
+                0x1000_0001 => {
+                    create_certs(&mbox);
+                }
+                0x1000_0002 => {
+                    read_fuse_log(&mbox);
+                }
+                0x1000_0003 => {
+                    read_fht(&mbox);
+                }
+                0x1000_0004 => {
+                    trigger_update_reset(&mbox);
+                }
+                0x1000_000F => {
+                    give_empty_response(&mbox);
+                    break;
+                }
+                _ => {
+                    give_empty_response(&mbox);
+                }
+            }
         }
-        0x1000_0001 => {
-            create_certs(&mbox);
-        }
-        0x1000_0002 => {
-            read_fuse_log(&mbox);
-        }
-        0x1000_0003 => {
-            read_fht(&mbox);
-        }
-        0x1000_0004 => {
-            trigger_update_reset(&mbox);
-        }
-        _ => {}
     }
+}
+
+fn give_empty_response(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    mbox.dlen().write(|_| 0);
+    mbox.status().write(|w| w.status(|w| w.data_ready()));
 }
 
 fn trigger_update_reset(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
