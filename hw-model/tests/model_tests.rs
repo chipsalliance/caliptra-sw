@@ -174,4 +174,3 @@ fn test_dccm_double_bit_ecc_nmi_failure() {
     let ext_info = harness::ExtErrorInfo::from(soc_ifc.cptra_fw_extended_error_info().read());
     assert_eq!(ext_info.mcause, harness::EXCEPTION_CAUSE_LOAD_ACCESS_FAULT);
 }
-
