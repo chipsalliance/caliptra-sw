@@ -79,7 +79,7 @@ impl DeobfuscationEngine {
     /// * Deobfuscation Key
     /// * Encrypted UDS
     /// * Encrypted Field entropy
-    pub fn clear_secrets(&mut self) -> CaliptraResult<()> {
+    pub fn clear_secrets(&mut self) {
         let doe = self.doe.regs_mut();
 
         // Wait for hardware ready
@@ -90,7 +90,5 @@ impl DeobfuscationEngine {
 
         // Wait for command to complete
         wait::until(|| doe.status().read().valid());
-
-        Ok(())
     }
 }

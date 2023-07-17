@@ -108,7 +108,7 @@ fn test_decrypt() {
 
 fn test_clear_secrets() {
     let mut doe = unsafe { DeobfuscationEngine::new(DoeReg::new()) };
-    doe.clear_secrets().unwrap();
+    doe.clear_secrets();
 }
 
 test_suite! {

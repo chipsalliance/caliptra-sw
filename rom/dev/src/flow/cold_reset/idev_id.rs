@@ -61,7 +61,7 @@ impl InitDevIdLayer {
         Self::decrypt_field_entropy(env, KEY_ID_FE)?;
 
         // Clear Deobfuscation Engine Secrets
-        Self::clear_doe_secrets(env)?;
+        Self::clear_doe_secrets(env);
 
         // Derive the DICE CDI from decrypted UDS
         Self::derive_cdi(env, KEY_ID_UDS, KEY_ID_ROM_FMC_CDI)?;
@@ -129,12 +129,9 @@ impl InitDevIdLayer {
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    fn clear_doe_secrets(env: &mut RomEnv) -> CaliptraResult<()> {
-        let result = env.doe.clear_secrets();
-        if result.is_ok() {
-            report_boot_status(IDevIdClearDoeSecretsComplete.into());
-        }
-        result
+    fn clear_doe_secrets(env: &mut RomEnv) {
+        env.doe.clear_secrets();
+        report_boot_status(IDevIdClearDoeSecretsComplete.into());
     }
 
     /// Derive Composite Device Identity (CDI) from Unique Device Secret (UDS)
