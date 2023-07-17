@@ -1,5 +1,5 @@
 // Licensed under the Apache-2.0 license.
-use crate::helpers::*;
+use crate::{helpers::*, FHT_ORG};
 use bitfield::{bitfield_bitrange, bitfield_fields};
 use caliptra_drivers::{
     report_fw_error_non_fatal, ColdResetEntry4, ColdResetEntry48, Ecc384PubKey, Ecc384Signature,
@@ -413,11 +413,8 @@ impl FirmwareHandoffTable {
     /// Load FHT from its fixed address and perform validity check of
     /// its data.
     pub fn try_load() -> Option<FirmwareHandoffTable> {
-        extern "C" {
-            static mut FHT_ORG: u32;
-        }
         let slice = unsafe {
-            let ptr = &mut FHT_ORG as *mut u32;
+            let ptr = FHT_ORG as *mut u32;
             core::slice::from_raw_parts_mut(
                 ptr,
                 core::mem::size_of::<FirmwareHandoffTable>() / core::mem::size_of::<u32>(),
@@ -434,12 +431,8 @@ impl FirmwareHandoffTable {
     }
 
     pub fn save(fht: &FirmwareHandoffTable) {
-        extern "C" {
-            static mut FHT_ORG: u8;
-        }
-
         let slice = unsafe {
-            let ptr = &mut FHT_ORG as *mut u8;
+            let ptr = FHT_ORG as *mut u8;
             crate::cprintln!("[fht] Saving FHT @ 0x{:08X}", ptr as u32);
             core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
         };

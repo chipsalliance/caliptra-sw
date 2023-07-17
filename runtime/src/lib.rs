@@ -6,11 +6,13 @@ pub mod dice;
 mod verify;
 
 // Used by runtime tests
+pub(crate) mod fips;
 pub mod mailbox;
 
 use mailbox::Mailbox;
 
 pub mod packet;
+pub use fips::FipsModule;
 use packet::Packet;
 
 use caliptra_common::{cprintln, FirmwareHandoffTable};
@@ -36,6 +38,14 @@ impl CommandId {
 
     pub const TEST_ONLY_GET_LDEV_CERT: Self = Self(0x4345524c); // "CERL"
     pub const TEST_ONLY_GET_FMC_ALIAS_CERT: Self = Self(0x43455246); // "CERF"
+
+    /// FIPS module commands.
+    /// The status command.
+    pub const VERSION: Self = Self(0x4650_5652); // "FPVR"
+    /// The self-test command.
+    pub const SELF_TEST: Self = Self(0x4650_4C54); // "FPST"
+    /// The shutdown command.
+    pub const SHUTDOWN: Self = Self(0x4650_5344); // "FPSD"
 }
 impl From<u32> for CommandId {
     fn from(value: u32) -> Self {
@@ -143,6 +153,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             )?;
             Ok(MboxStatusE::DataReady)
         }
+        CommandId::VERSION => FipsModule::version(drivers),
+        CommandId::SELF_TEST => FipsModule::self_test(drivers),
+        CommandId::SHUTDOWN => FipsModule::shutdown(drivers),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }
 }

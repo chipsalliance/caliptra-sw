@@ -17,10 +17,12 @@ use core::hint::black_box;
 
 use caliptra_common::cprintln;
 use caliptra_drivers::{report_fw_error_non_fatal, Mailbox};
+mod boot_status;
 mod flow;
 pub mod fmc_env;
 mod hand_off;
 
+pub use boot_status::FmcBootStatus;
 use caliptra_cpu::TrapRecord;
 use hand_off::HandOff;
 

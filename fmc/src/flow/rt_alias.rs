@@ -16,15 +16,14 @@ use crate::flow::dice::{DiceInput, DiceOutput};
 use crate::flow::pcr::{extend_current_pcr, extend_journey_pcr};
 use crate::flow::tci::Tci;
 use crate::flow::x509::X509;
-use crate::flow::{KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY};
 use crate::fmc_env::FmcEnv;
+use crate::FmcBootStatus;
 use crate::HandOff;
 use caliptra_common::cprintln;
 use caliptra_common::crypto::Ecc384KeyPair;
+use caliptra_common::keyids::{KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY, KEY_ID_TMP};
 use caliptra_common::HexBytes;
-use caliptra_drivers::{
-    okref, CaliptraError, CaliptraResult, Hmac384Data, Hmac384Key, KeyId, KeyReadArgs,
-};
+use caliptra_drivers::{okref, report_boot_status, CaliptraError, CaliptraResult, KeyId};
 use caliptra_x509::{NotAfter, NotBefore, RtAliasCertTbs, RtAliasCertTbsParams};
 
 const SHA384_HASH_SIZE: usize = 48;
@@ -44,36 +43,40 @@ impl RtAliasLayer {
         hand_off: &mut HandOff,
         input: &DiceInput,
     ) -> CaliptraResult<DiceOutput> {
+        if Self::kv_slot_collides(input.cdi) {
+            return Err(CaliptraError::FMC_CDI_KV_COLLISION);
+        }
+
+        if Self::kv_slot_collides(input.auth_key_pair.priv_key) {
+            return Err(CaliptraError::FMC_ALIAS_KV_COLLISION);
+        }
+
         cprintln!("[alias rt] Derive CDI");
         cprintln!("[alias rt] Store in in slot 0x{:x}", KEY_ID_RT_CDI as u8);
+
         // Derive CDI
-        let _ = *okref(&Self::derive_cdi(env, hand_off, input, KEY_ID_RT_CDI))?;
+        Self::derive_cdi(env, hand_off, input.cdi, KEY_ID_RT_CDI)?;
+        report_boot_status(FmcBootStatus::RtAliasDeriveCdiComplete as u32);
         cprintln!("[alias rt] Derive Key Pair");
         cprintln!(
             "[alias rt] Store priv key in slot 0x{:x}",
             KEY_ID_RT_PRIV_KEY as u8
         );
 
-        if input.cdi == KEY_ID_RT_CDI || input.cdi == KEY_ID_RT_PRIV_KEY {
-            return Err(CaliptraError::FMC_CDI_KV_COLLISION);
-        }
-
-        if input.auth_key_pair.priv_key == KEY_ID_RT_CDI
-            || input.auth_key_pair.priv_key == KEY_ID_RT_PRIV_KEY
-        {
-            return Err(CaliptraError::FMC_ALIAS_KV_COLLISION);
-        }
-
         // Derive DICE Key Pair from CDI
         let key_pair = Self::derive_key_pair(env, KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY)?;
         cprintln!("[alias rt] Derive Key Pair - Done");
+        report_boot_status(FmcBootStatus::RtAliasKeyPairDerivationComplete as u32);
 
         // Generate the Subject Serial Number and Subject Key Identifier.
         //
         // This information will be used by next DICE Layer while generating
         // certificates
         let subj_sn = X509::subj_sn(env, &key_pair.pub_key)?;
+        report_boot_status(FmcBootStatus::RtAliasSubjIdSnGenerationComplete.into());
+
         let subj_key_id = X509::subj_key_id(env, &key_pair.pub_key)?;
+        report_boot_status(FmcBootStatus::RtAliasSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
         let output = DiceOutput {
@@ -91,6 +94,10 @@ impl RtAliasLayer {
         Ok(output)
     }
 
+    fn kv_slot_collides(slot: KeyId) -> bool {
+        slot == KEY_ID_RT_CDI || slot == KEY_ID_RT_PRIV_KEY || slot == KEY_ID_TMP
+    }
+
     #[inline(never)]
     pub fn run(env: &mut FmcEnv, hand_off: &mut HandOff) -> CaliptraResult<()> {
         cprintln!("[alias rt] Extend RT PCRs");
@@ -101,6 +108,7 @@ impl RtAliasLayer {
         match Self::dice_input_from_hand_off(hand_off, env) {
             Ok(input) => {
                 let out = Self::derive(env, hand_off, &input)?;
+                report_boot_status(crate::FmcBootStatus::RtAliasDerivationComplete as u32);
                 hand_off.update(out)
             }
             _ => Err(CaliptraError::FMC_RT_ALIAS_DERIVE_FAILURE),
@@ -150,20 +158,14 @@ impl RtAliasLayer {
     ///
     /// * `env` - ROM Environment
     /// * `hand_off` - HandOff
-    /// * `cdi` - Key Slot to store the generated CDI
-    ///
-    /// # Returns
-    ///
-    /// * `KeyId` - KeySlot containing the DICE CDI
+    /// * `rt_cdi` - Key Slot that holds the current CDI
+    /// * `fmc_cdi` - Key Slot to store the generated CDI
     fn derive_cdi(
         env: &mut FmcEnv,
         hand_off: &HandOff,
-        input: &DiceInput,
-        cdi: KeyId,
-    ) -> CaliptraResult<KeyId> {
-        // Get the HMAC Key from CDI
-        let key = Hmac384Key::Key(KeyReadArgs::new(input.cdi));
-
+        fmc_cdi: KeyId,
+        rt_cdi: KeyId,
+    ) -> CaliptraResult<()> {
         // Compose FMC TCI (1. RT TCI, 2. Image Manifest Digest)
         let mut tci = [0u8; 2 * SHA384_HASH_SIZE];
         let rt_tci = Tci::rt_tci(env, hand_off);
@@ -176,9 +178,9 @@ impl RtAliasLayer {
         tci[SHA384_HASH_SIZE..2 * SHA384_HASH_SIZE].copy_from_slice(&image_manifest_digest);
 
         // Permute CDI from FMC TCI
-        let data = Hmac384Data::Slice(&tci);
-        let cdi = Crypto::hmac384_mac(env, &key, &data, cdi)?;
-        Ok(cdi)
+        Crypto::hmac384_kdf(env, fmc_cdi, b"rt_alias_cdi", Some(&tci), rt_cdi)?;
+        report_boot_status(FmcBootStatus::RtAliasDeriveCdiComplete as u32);
+        Ok(())
     }
 
     /// Derive Dice Layer Key Pair
@@ -197,7 +199,7 @@ impl RtAliasLayer {
         cdi: KeyId,
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
-        Crypto::ecc384_key_gen(env, cdi, priv_key)
+        Crypto::ecc384_key_gen(env, cdi, b"rt_alias_keygen", priv_key)
     }
 
     /// Generate Local Device ID Certificate Signature
@@ -286,6 +288,8 @@ impl RtAliasLayer {
 
         //  Copy TBS to DCCM.
         Self::copy_tbs(tbs.tbs())?;
+
+        report_boot_status(FmcBootStatus::RtAliasCertSigGenerationComplete as u32);
 
         Ok(())
     }

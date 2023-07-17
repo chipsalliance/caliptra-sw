@@ -16,6 +16,8 @@ zerocopy = "0.6.1"
 
 [build-dependencies]
 cfg-if = "1.0.0"
+caliptra_common = { path = "../common", default-features = false }
+caliptra-gen-linker-scripts = { version = "0.1.0", path = "../cpu/gen" }
 
 [dev-dependencies]
 caliptra-hw-model = { path = "../hw-model" }
@@ -35,6 +37,7 @@ emu = [
     "caliptra_common/emu",
     "caliptra-drivers/emu"
 ]
+fpga_realtime = ["caliptra-drivers/fpga_realtime"]
 std = ["ufmt/std", "caliptra_common/std"]
 test_only_commands = []
 itrng = ["caliptra-hw-model/itrng"]

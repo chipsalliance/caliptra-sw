@@ -119,6 +119,22 @@ fn test_invalid_instruction_exception_failure() {
 }
 
 #[test]
+fn test_write_to_rom() {
+    let elf = caliptra_builder::build_firmware_elf(&FwId {
+        bin_name: "test_write_to_rom",
+        ..BASE_FWID
+    })
+    .unwrap();
+    let mut model = run_fw_elf(&elf);
+    model.step_until_exit_success().unwrap_err();
+    let soc_ifc: caliptra_registers::soc_ifc::RegisterBlock<_> = model.soc_ifc();
+    assert_eq!(
+        soc_ifc.cptra_fw_error_non_fatal().read(),
+        harness::ERROR_EXCEPTION
+    );
+}
+
+#[test]
 fn test_iccm_double_bit_ecc_nmi_failure() {
     let elf = caliptra_builder::build_firmware_elf(&FwId {
         bin_name: "test_iccm_double_bit_ecc",
@@ -155,12 +171,7 @@ fn test_dccm_double_bit_ecc_nmi_failure() {
 
     model.ecc_error_injection(ErrorInjectionMode::DccmDoubleBitEcc);
 
-    model.step_until_exit_success().unwrap_err();
-    let soc_ifc: caliptra_registers::soc_ifc::RegisterBlock<_> = model.soc_ifc();
-    assert_eq!(
-        soc_ifc.cptra_fw_error_non_fatal().read(),
-        harness::ERROR_EXCEPTION
-    );
     let ext_info = harness::ExtErrorInfo::from(soc_ifc.cptra_fw_extended_error_info().read());
     assert_eq!(ext_info.mcause, harness::EXCEPTION_CAUSE_LOAD_ACCESS_FAULT);
 }
+

@@ -47,6 +47,11 @@ path = "test_invalid_instruction.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "test_write_to_rom"
+path = "test_write_to_rom.rs"
+required-features = ["riscv"]
+
+[[bin]]
 name = "test_iccm_double_bit_ecc"
 path = "test_iccm_double_bit_ecc.rs"
 required-features = ["riscv"]
@@ -55,3 +60,4 @@ required-features = ["riscv"]
 name = "test_dccm_double_bit_ecc"
 path = "test_dccm_double_bit_ecc.rs"
 required-features = ["riscv"]
+

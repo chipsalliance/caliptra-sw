@@ -13,6 +13,8 @@ Abstract:
 --*/
 
 use caliptra_common::{
+    keyids::{KEY_ID_FMC_PRIV_KEY, KEY_ID_ROM_FMC_CDI},
+    memory_layout::{FHT_ORG, FMCALIAS_TBS_ORG, FUSE_LOG_ORG, LDEVID_TBS_ORG, PCR_LOG_ORG},
     DataVaultRegister, FirmwareHandoffTable, HandOffDataHandle, Vault, FHT_INVALID_HANDLE,
     FHT_MARKER,
 };
@@ -21,21 +23,10 @@ use caliptra_drivers::{
 };
 use zerocopy::AsBytes;
 
-use crate::{
-    cprintln,
-    flow::{KEY_ID_CDI, KEY_ID_FMC_PRIV_KEY},
-    rom_env::RomEnv,
-};
+use crate::{cprintln, rom_env::RomEnv};
 
 const FHT_MAJOR_VERSION: u16 = 1;
 const FHT_MINOR_VERSION: u16 = 0;
-
-extern "C" {
-    static mut LDEVID_TBS_ORG: u8;
-    static mut FMCALIAS_TBS_ORG: u8;
-    static mut PCR_LOG_ORG: u8;
-    static mut FUSE_LOG_ORG: u8;
-}
 
 #[derive(Debug, Default)]
 pub struct FhtDataStore {
@@ -52,7 +43,7 @@ pub struct FhtDataStore {
 impl FhtDataStore {
     /// The FMC CDI is stored in a 32-bit DataVault sticky register.
     pub const fn fmc_cdi_store() -> HandOffDataHandle {
-        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_CDI as u32)
+        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_ROM_FMC_CDI as u32)
     }
     /// The FMC private key is stored in a 32-bit DataVault sticky register.
     pub const fn fmc_priv_key_store() -> HandOffDataHandle {
@@ -140,17 +131,10 @@ impl FhtDataStore {
 }
 
 pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
-    let ldevid_tbs_addr: u32;
-    let fmcalias_tbs_addr: u32;
-    let pcr_log_addr: u32;
-    let fuse_log_addr: u32;
-
-    unsafe {
-        ldevid_tbs_addr = &LDEVID_TBS_ORG as *const u8 as u32;
-        fmcalias_tbs_addr = &FMCALIAS_TBS_ORG as *const u8 as u32;
-        pcr_log_addr = &PCR_LOG_ORG as *const u8 as u32;
-        fuse_log_addr = &FUSE_LOG_ORG as *const u8 as u32;
-    }
+    let ldevid_tbs_addr: u32 = LDEVID_TBS_ORG;
+    let fmcalias_tbs_addr: u32 = FMCALIAS_TBS_ORG;
+    let pcr_log_addr: u32 = PCR_LOG_ORG;
+    let fuse_log_addr: u32 = FUSE_LOG_ORG;
 
     FirmwareHandoffTable {
         fht_marker: FHT_MARKER,
@@ -184,12 +168,8 @@ pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
 }
 
 pub fn store(fht: FirmwareHandoffTable) {
-    extern "C" {
-        static mut FHT_ORG: u8;
-    }
-
     let slice = unsafe {
-        let ptr = &mut FHT_ORG as *mut u8;
+        let ptr = FHT_ORG as *mut u8;
         cprintln!("[fht] Storing FHT @ 0x{:08X}", ptr as u32);
         core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
     };

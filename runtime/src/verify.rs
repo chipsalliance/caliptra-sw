@@ -38,7 +38,7 @@ pub(crate) fn handle_ecdsa_verify(drivers: &mut Drivers, cmd_args: &[u8]) -> Cal
 
         let success = drivers.ecdsa.verify(&pubkey, &digest, &sig)?;
         if !success {
-            return Err(CaliptraError::RUNTIME_ECDSA_VERIF_FAILED);
+            return Err(CaliptraError::RUNTIME_ECDSA_VERIFY_FAILED);
         }
     } else {
         return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);

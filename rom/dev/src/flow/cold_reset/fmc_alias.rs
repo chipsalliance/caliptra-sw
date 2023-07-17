@@ -19,15 +19,12 @@ use super::fw_processor::FwProcInfo;
 use super::x509::X509;
 use crate::cprintln;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
-use crate::flow::cold_reset::{KEY_ID_CDI, KEY_ID_FMC_PRIV_KEY};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 use caliptra_common::dice;
+use caliptra_common::keyids::{KEY_ID_FMC_PRIV_KEY, KEY_ID_ROM_FMC_CDI};
 use caliptra_common::RomBootStatus::*;
-use caliptra_drivers::{
-    okref, report_boot_status, Array4x12, CaliptraResult, Hmac384Data, Hmac384Key, KeyId,
-    KeyReadArgs, Lifecycle,
-};
+use caliptra_drivers::{okref, report_boot_status, Array4x12, CaliptraResult, KeyId, Lifecycle};
 use caliptra_error::CaliptraError;
 use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams};
 
@@ -42,7 +39,7 @@ impl FmcAliasLayer {
         fw_proc_info: &FwProcInfo,
     ) -> CaliptraResult<()> {
         cprintln!("[afmc] ++");
-        cprintln!("[afmc] CDI.KEYID = {}", KEY_ID_CDI as u8);
+        cprintln!("[afmc] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
         cprintln!("[afmc] SUBJECT.KEYID = {}", KEY_ID_FMC_PRIV_KEY as u8);
         cprintln!(
             "[afmc] AUTHORITY.KEYID = {}",
@@ -53,12 +50,12 @@ impl FmcAliasLayer {
         let mut measurement = env.pcr_bank.read_pcr(caliptra_drivers::PcrId::PcrId0);
 
         // Derive the DICE CDI from decrypted UDS
-        let result = Self::derive_cdi(env, &measurement, KEY_ID_CDI);
+        let result = Self::derive_cdi(env, &measurement, KEY_ID_ROM_FMC_CDI);
         measurement.0.fill(0);
         result?;
 
         // Derive DICE Key Pair from CDI
-        let key_pair = Self::derive_key_pair(env, KEY_ID_CDI, KEY_ID_FMC_PRIV_KEY)?;
+        let key_pair = Self::derive_key_pair(env, KEY_ID_ROM_FMC_CDI, KEY_ID_FMC_PRIV_KEY)?;
         report_boot_status(FmcAliasKeyPairDerivationComplete.into());
 
         // Generate the Subject Serial Number and Subject Key Identifier.
@@ -96,13 +93,10 @@ impl FmcAliasLayer {
     /// * `measurements` - Array containing the FMC measurements
     /// * `cdi` - Key Slot to store the generated CDI
     fn derive_cdi(env: &mut RomEnv, measurements: &Array4x12, cdi: KeyId) -> CaliptraResult<()> {
-        // CDI Key
-        let key = Hmac384Key::Key(KeyReadArgs::new(cdi));
         let mut measurements: [u8; 48] = measurements.into();
-        let data = Hmac384Data::Slice(&measurements);
-        let result = Crypto::hmac384_mac(env, &key, &data, cdi);
+
+        Crypto::hmac384_kdf(env, cdi, b"fmc_alias_cdi", Some(&measurements), cdi)?;
         measurements.fill(0);
-        result?;
         report_boot_status(FmcAliasDeriveCdiComplete.into());
         Ok(())
     }
@@ -123,7 +117,7 @@ impl FmcAliasLayer {
         cdi: KeyId,
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
-        Crypto::ecc384_key_gen(env, cdi, priv_key)
+        Crypto::ecc384_key_gen(env, cdi, b"fmc_alias_keygen", priv_key)
     }
 
     /// Generate Local Device ID Certificate Signature

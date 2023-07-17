@@ -1,5 +1,6 @@
 name: Verilator Nightly
 on:
+  workflow_call:
   workflow_dispatch:
   schedule:
     # 2:11 AM PST tuesday-saturday
@@ -18,7 +19,8 @@ jobs:
       CACHE_BUSTER: 29334de42083
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v3
         with:
           submodules: 'true'
 

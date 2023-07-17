@@ -1,0 +1,96 @@
+name: Nightly Release
+
+on:
+  workflow_dispatch:
+  schedule:
+  # 2:11 AM PST tuesday-saturday
+  - cron: '11 10 * * 2-6'
+permissions:
+  contents: write
+
+jobs:
+  # Disable RTL-Repo-Sync until manual fixes to work with the latest RTL are not made
+  #rtl-repo-sync:
+  #  name: RTL Repo Sync
+  #  uses: ./.github/workflows/rtl-repo-sync.yml
+
+  find-latest-release:
+    name: Find Latest Release
+    #needs: rtl-repo-sync
+    runs-on: ubuntu-22.04
+    outputs:
+      create_release: ${{ steps.find.outputs.create_release }}
+      new_release_tag: ${{ steps.find.outputs.new_release_tag }}
+      release_ref: ${{ steps.find.outputs.release_ref }}
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+          ref: 'main'
+          fetch-depth: 0
+
+      - name: Find latest release
+        id: find
+        run: |
+          DATE="$(date +'%Y%m%d')"
+          TAG_PREFIX="release_v"
+          TAG_BASE="${TAG_PREFIX}${DATE}_"
+          INDEX=0
+          while git tag | grep ${TAG_BASE}${INDEX}; do
+              ((INDEX+=1))
+          done
+          MOST_RECENT_RELEASE=None
+          if git tag | grep ${TAG_PREFIX} > /dev/null; then
+              MOST_RECENT_RELEASE=$(git tag | grep ${TAG_PREFIX} | sort -r | head -1)
+          fi
+          if [[ "$MOST_RECENT_RELEASE" == "None" ]]; then
+              echo "create_release=true" >> $GITHUB_OUTPUT
+          else
+              COMMITS_AFTER_LAST_RELEASE=$(git rev-list --count $MOST_RECENT_RELEASE..HEAD)
+              if [[ $COMMITS_AFTER_LAST_RELEASE -gt 0 ]]; then
+                  echo "create_release=true" >> $GITHUB_OUTPUT
+              else
+                  echo "create_release=false" >> $GITHUB_OUTPUT
+              fi
+          fi
+          echo "new_release_tag=${TAG_BASE}${INDEX}" >> $GITHUB_OUTPUT
+          echo "release_ref=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "Current ref $(git rev-parse HEAD) will receive tag ${TAG_BASE}${INDEX} after tests"
+
+
+  verilator-full-suite:
+    name: Nightly Verilator Suite
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/nightly-verilator.yml
+
+
+  create-release:
+    name: Create New Release
+    needs: [find-latest-release, verilator-full-suite]
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+          ref: ${{ needs.find-latest-release.outputs.release_ref }}
+
+      - name: Generate release zip
+        run: |
+          ./ci-tools/release/build_release.sh ${{ needs.find-latest-release.outputs.new_release_tag }}
+          mv ./release/release.zip ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
+
+      - name: Tag repo with new release number
+        run: |
+          git config --global user.name "GitHub CI"
+          git config --global user.email "username@users.noreply.github.com"
+          git tag ${{ needs.find-latest-release.outputs.new_release_tag }}
+          git push origin ${{ needs.find-latest-release.outputs.new_release_tag }}
+
+      - name: Upload release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
+          tag_name: ${{ needs.find-latest-release.outputs.new_release_tag }}

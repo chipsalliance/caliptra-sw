@@ -7,6 +7,7 @@ on:
     branches: ["main"]
   pull_request:
 
+  workflow_call:
   workflow_dispatch:
 
 jobs:
@@ -28,7 +29,8 @@ jobs:
       EXTRA_CARGO_CONFIG: "target.'cfg(all())'.rustflags = [\"-Dwarnings\"]"
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v3
         with:
           submodules: 'true'
 
