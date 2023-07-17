@@ -351,13 +351,7 @@ impl FirmwareProcessor {
 
         data_vault.write_warm_reset_entry4(WarmResetEntry4::RtEntryPoint, info.runtime.entry_point);
 
-        // TODO: Need a better way to get the Manifest address
-        let slice = {
-            let ptr = MAN1_ORG as *const u32;
-            ptr as u32
-        };
-
-        data_vault.write_warm_reset_entry4(WarmResetEntry4::ManifestAddr, slice);
+        data_vault.write_warm_reset_entry4(WarmResetEntry4::ManifestAddr, MAN1_ORG);
         report_boot_status(FwProcessorPopulateDataVaultComplete.into());
     }
 
