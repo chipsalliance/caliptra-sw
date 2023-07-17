@@ -37,12 +37,14 @@ IMAGE_VERIFIER_ERR_VENDOR_LMS_PUBKEY_INDEX_OUT_OF_BOUNDS
 **test_header_verify_owner_ecc_sig_invalid_signature_s** | Image Verification - Header | Checks if owner ECC signature.s from Preamble and computed header signature match | IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID
 **test_toc_invalid_entry_count** | Image Verification - TOC | Checks if header.toc_count equals MAX_TOC_ENTRY_COUNT (2) | IMAGE_VERIFIER_ERR_TOC_ENTRY_COUNT_INVALID
 **test_toc_invalid_toc_digest** | Image Verification - TOC | Checks if digest of [manifest.fmc_toc | manifest.rt_toc] matches header.toc_digest | IMAGE_VERIFIER_ERR_TOC_DIGEST_MISMATCH
+**test_toc_fmc_size_zero** | Image Verification - TOC | Checks if FMC size if zero | IMAGE_VERIFIER_ERR_FMC_SIZE_ZERO
 **test_toc_fmc_range_overlap** | Image Verification - TOC | Checks if FMC and Runtime images don't overlap in the image bundle | IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP
 **test_toc_fmc_range_incorrect_order** | Image Verification - TOC | Checks if FMC image is before Runtime image in the image bundle | IMAGE_VERIFIER_ERR_FMC_RUNTIME_INCORRECT_ORDER
 **test_fmc_rt_load_address_range_overlap** | Image Verification - TOC | Checks if FMC and Runtime image load address range don't overlap | IMAGE_VERIFIER_ERR_FMC_RUNTIME_LOAD_ADDR_OVERLAP
 **test_fmc_digest_mismatch** | Image Verification - FMC | Checks if manifest.fmc_toc.digest matches FMC image digest | IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH
 **test_fmc_invalid_load_addr_before_iccm** | Image Verification - FMC | Checks if FMC load address is within ICCM range | IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_INVALID
 **test_fmc_invalid_load_addr_after_iccm** | Image Verification - FMC | Checks if FMC load address is within ICCM range | IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_INVALID
+**test_fmc_not_contained_in_iccm** | Image Verification - FMC | Checks if FMC is fully contained in the ICCM | IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_INVALID
 **test_fmc_load_addr_unaligned** | Image Verification - FMC | Checks if FMC load address is DWORD aligned | IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_UNALIGNED
 **test_fmc_invalid_entry_point_before_iccm** | Image Verification - FMC | Checks if FMC entry point is within ICCM range  | IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID
 **test_fmc_invalid_entry_point_after_iccm** | Image Verification - FMC | Checks if FMC entry point is within ICCM range  | IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID
@@ -50,9 +52,11 @@ IMAGE_VERIFIER_ERR_VENDOR_LMS_PUBKEY_INDEX_OUT_OF_BOUNDS
 **test_fmc_svn_greater_than_32** | Image Verification - FMC | Checks if FMC SVN is greater than max (32) | IMAGE_VERIFIER_ERR_FMC_SVN_GREATER_THAN_MAX_SUPPORTED
 **test_fmc_svn_less_than_min_svn** | Image Verification - FMC | Checks if FMC SVN is less than toc_fmc.min_svn | IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_MIN_SUPPORTED
 **test_fmc_svn_less_than_fuse_svn** | Image Verification - FMC | Checks if FMC SVN is less than fuse svn | IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_FUSE
+**test_toc_rt_size_zero** | Image Verification - RT | Checks if RT size if 0 | IMAGE_VERIFIER_ERR_RUNTIME_SIZE_ZERO
 **test_runtime_digest_mismatch** | Image Verification - RT | Checks if manifest.rt_toc.digest matches Runtime image digest | IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH
 **test_runtime_invalid_load_addr_before_iccm** | Image Verification - RT | Checks if RT load address is within ICCM range | IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID
 **test_runtime_invalid_load_addr_after_iccm** | Image Verification - RT | Checks if RT load address is within ICCM range | IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID
+**test_runtime_not_contained_in_iccm** | Image Verification - RT | Checks if RT is fully contained in the ICCM | IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID
 **test_runtime_load_addr_unaligned** | Image Verification - RT | Checks if RT load address is DWORD aligned | IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_UNALIGNED
 **test_runtime_invalid_entry_point_before_iccm** | Image Verification - RT | Checks if RT entry point is within ICCM range  | IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID
 **test_runtime_invalid_entry_point_after_iccm** | Image Verification - RT | Checks if RT entry point is within ICCM range  | IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID

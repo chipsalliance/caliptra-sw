@@ -232,6 +232,10 @@ impl CaliptraError {
     pub const RUNTIME_HANDOFF_FHT_NOT_LOADED: CaliptraError = CaliptraError::new_const(0x000b0039);
     pub const IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_REVOKED: CaliptraError =
         CaliptraError::new_const(0x000b0003a);
+    pub const IMAGE_VERIFIER_ERR_FMC_SIZE_ZERO: CaliptraError =
+        CaliptraError::new_const(0x000b003b);
+    pub const IMAGE_VERIFIER_ERR_RUNTIME_SIZE_ZERO: CaliptraError =
+        CaliptraError::new_const(0x000b003c);
 
     /// Driver Error: LMS
     pub const DRIVER_LMS_INVALID_LMS_ALGO_TYPE: CaliptraError =
