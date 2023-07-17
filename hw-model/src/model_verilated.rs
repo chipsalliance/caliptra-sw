@@ -5,6 +5,7 @@ use crate::EtrngResponse;
 use crate::{HwModel, TrngMode};
 use caliptra_emu_bus::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
+use caliptra_hw_model_types::ErrorInjectionMode;
 use caliptra_verilated::{AhbTxnType, CaliptraVerilated};
 use std::cell::RefCell;
 use std::io::Write;
@@ -254,6 +255,20 @@ impl crate::HwModel for ModelVerilated {
                 if self.log.borrow_mut().log.take().is_none() {
                     self.v.stop_tracing();
                 }
+            }
+        }
+    }
+
+    fn ecc_error_injection(&mut self, mode: ErrorInjectionMode) {
+        match mode {
+            ErrorInjectionMode::None => {
+                self.v.input.sram_error_injection_mode = 0x0;
+            }
+            ErrorInjectionMode::IccmDoubleBitEcc => {
+                self.v.input.sram_error_injection_mode = 0x2;
+            }
+            ErrorInjectionMode::DccmDoubleBitEcc => {
+                self.v.input.sram_error_injection_mode = 0x8;
             }
         }
     }
