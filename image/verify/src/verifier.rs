@@ -416,14 +416,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE)?;
         }
 
-        // Check if fmc and runtime section overlap.
+        // Check if fmc and runtime sections overlap in the image.
         let fmc_range = manifest.fmc.image_range();
         let runtime_range = manifest.runtime.image_range();
-        if fmc_range.contains(&runtime_range.start)
-            || fmc_range.contains(&(runtime_range.end - 1))
-            || runtime_range.contains(&fmc_range.start)
-            || runtime_range.contains(&(fmc_range.end - 1))
-        {
+        if fmc_range.start < runtime_range.end && fmc_range.end > runtime_range.start {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP)?;
         }
 
@@ -432,7 +428,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_INCORRECT_ORDER)?;
         }
 
-        // Check if fmc and runtime images don't overlap on loading in ICCM.
+        // Check if fmc and runtime images don't overlap on loading in the ICCM.
         let fmc_load_addr_start = manifest.fmc.load_addr;
         let fmc_load_addr_end = fmc_load_addr_start + manifest.fmc.image_size() - 1;
         let runtime_load_addr_start = manifest.runtime.load_addr;
