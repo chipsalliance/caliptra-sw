@@ -499,6 +499,16 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_MISMATCH)?;
         }
 
+        // Verify the FMC size is not zero.
+        if manifest.fmc.image_size() == 0 {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_SIZE_ZERO)?;
+        }
+
+        // Verify the Runtime size is not zero.
+        if manifest.runtime.image_size() == 0 {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SIZE_ZERO)?;
+        }
+
         // Image length does not exceed the Image Bundle size
         let img_len: u64 = manifest.size as u64
             + manifest.fmc.image_size() as u64
@@ -563,9 +573,12 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH)?;
         }
 
-        // TODO: Perform following Address check
-        // Entry Point is within the image
-        if !self.env.iccm_range().contains(&verify_info.load_addr) {
+        if !self.env.iccm_range().contains(&verify_info.load_addr)
+            || !self
+                .env
+                .iccm_range()
+                .contains(&(verify_info.load_addr + verify_info.size - 1))
+        {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_INVALID)?;
         }
         if verify_info.load_addr % 4 != 0 {
@@ -634,10 +647,12 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH)?;
         }
 
-        // TODO: Perform following Address checks
-        // 3. Entry Point is within the image
-
-        if !self.env.iccm_range().contains(&verify_info.load_addr) {
+        if !self.env.iccm_range().contains(&verify_info.load_addr)
+            || !self
+                .env
+                .iccm_range()
+                .contains(&(verify_info.load_addr + verify_info.size - 1))
+        {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID)?;
         }
         if verify_info.load_addr % 4 != 0 {
@@ -720,6 +735,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 #[cfg(all(test, target_family = "unix"))]
 mod tests {
     use super::*;
+    use caliptra_common::memory_layout::*;
 
     const DUMMY_DATA: [u32; 12] = [
         0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef,
@@ -813,8 +829,9 @@ mod tests {
 
         let verify_info = ImageTocEntry {
             digest: DUMMY_DATA,
-            load_addr: 0x40000000,
-            entry_point: 0x40000000,
+            load_addr: ICCM_ORG,
+            entry_point: ICCM_ORG,
+            size: 100,
             ..Default::default()
         };
 
@@ -835,8 +852,9 @@ mod tests {
         let mut verifier = ImageVerifier::new(test_env);
         let verify_info = ImageTocEntry {
             digest: DUMMY_DATA,
-            load_addr: 0x40000000,
-            entry_point: 0x40000000,
+            load_addr: ICCM_ORG,
+            entry_point: ICCM_ORG,
+            size: 100,
             ..Default::default()
         };
 
@@ -1406,6 +1424,28 @@ mod tests {
             digest: &ImageDigest::default(),
         };
 
+        // FMC size == 0
+        manifest.fmc.offset = 0;
+        manifest.fmc.size = 0;
+        manifest.runtime.offset = 100;
+        manifest.runtime.size = 200;
+        let result = verifier.verify_toc(&manifest, &toc_info, 500);
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_SIZE_ZERO)
+        );
+
+        // RT size == 0
+        manifest.fmc.offset = 0;
+        manifest.fmc.size = 100;
+        manifest.runtime.offset = 100;
+        manifest.runtime.size = 0;
+        let result = verifier.verify_toc(&manifest, &toc_info, 500);
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SIZE_ZERO)
+        );
+
         // [-FMC--]
         // [--RT--]
         manifest.fmc.offset = 0;
@@ -1525,6 +1565,34 @@ mod tests {
     }
 
     #[test]
+    fn test_fmc_contained_in_iccm() {
+        let test_env = TestEnv::default();
+        let mut verifier = ImageVerifier::new(test_env);
+        let verify_info = ImageTocEntry {
+            load_addr: ICCM_ORG,
+            entry_point: ICCM_ORG,
+            size: ICCM_SIZE + 1,
+            ..Default::default()
+        };
+
+        let result = verifier.verify_fmc(&verify_info, ResetReason::ColdReset);
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_INVALID)
+        );
+
+        let verify_info = ImageTocEntry {
+            load_addr: ICCM_ORG,
+            entry_point: ICCM_ORG,
+            size: ICCM_SIZE,
+            ..Default::default()
+        };
+
+        let result = verifier.verify_fmc(&verify_info, ResetReason::ColdReset);
+        assert_eq!(result.err(), None);
+    }
+
+    #[test]
     fn test_fmc_digest_mismatch() {
         let test_env = TestEnv::default();
         let mut verifier = ImageVerifier::new(test_env);
@@ -1544,8 +1612,8 @@ mod tests {
         let test_env = TestEnv::default();
         let mut verifier = ImageVerifier::new(test_env);
         let verify_info = ImageTocEntry {
-            load_addr: 0x40000000,
-            entry_point: 0x40000000,
+            load_addr: ICCM_ORG,
+            entry_point: ICCM_ORG,
             svn: 1,
             size: 100,
             ..Default::default()
@@ -1554,8 +1622,8 @@ mod tests {
         let result = verifier.verify_fmc(&verify_info, ResetReason::ColdReset);
         assert!(result.is_ok());
         let (info, _log_info) = result.unwrap();
-        assert_eq!(info.load_addr, 0x40000000);
-        assert_eq!(info.entry_point, 0x40000000);
+        assert_eq!(info.load_addr, ICCM_ORG);
+        assert_eq!(info.entry_point, ICCM_ORG);
         assert_eq!(info.svn, 1);
         assert_eq!(info.size, 100);
     }
@@ -1576,12 +1644,40 @@ mod tests {
     }
 
     #[test]
+    fn test_rt_contained_in_iccm() {
+        let test_env = TestEnv::default();
+        let mut verifier = ImageVerifier::new(test_env);
+        let verify_info = ImageTocEntry {
+            load_addr: ICCM_ORG,
+            entry_point: ICCM_ORG,
+            size: ICCM_SIZE + 1,
+            ..Default::default()
+        };
+
+        let result = verifier.verify_runtime(&verify_info);
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID)
+        );
+
+        let verify_info = ImageTocEntry {
+            load_addr: ICCM_ORG,
+            entry_point: ICCM_ORG,
+            size: ICCM_SIZE,
+            ..Default::default()
+        };
+
+        let result = verifier.verify_runtime(&verify_info);
+        assert_eq!(result.err(), None);
+    }
+
+    #[test]
     fn test_rt_success() {
         let test_env = TestEnv::default();
         let mut verifier = ImageVerifier::new(test_env);
         let verify_info = ImageTocEntry {
-            load_addr: 0x40000000,
-            entry_point: 0x40000000,
+            load_addr: ICCM_ORG,
+            entry_point: ICCM_ORG,
             svn: 1,
             size: 100,
             ..Default::default()
@@ -1589,8 +1685,8 @@ mod tests {
         let result = verifier.verify_runtime(&verify_info);
         assert!(result.is_ok());
         let (info, _log_info) = result.unwrap();
-        assert_eq!(info.load_addr, 0x40000000);
-        assert_eq!(info.entry_point, 0x40000000);
+        assert_eq!(info.load_addr, ICCM_ORG);
+        assert_eq!(info.entry_point, ICCM_ORG);
         assert_eq!(info.svn, 1);
         assert_eq!(info.size, 100);
     }
@@ -1700,8 +1796,8 @@ mod tests {
 
         fn iccm_range(&self) -> Range<u32> {
             Range {
-                start: 0x40000000,
-                end: 0x40000000 + (128 * 1024),
+                start: ICCM_ORG,
+                end: ICCM_ORG + ICCM_SIZE,
             }
         }
 
