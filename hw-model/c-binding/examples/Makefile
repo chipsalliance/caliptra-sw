@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+EXTRA_CARGO_CONFIG = target.'cfg(all())'.rustflags = [\"-Dwarnings\"]
 OUT = out
 TARGET = $(OUT)/smoke_test
 RTL_SOC_IFC_INCLUDE_PATH = ../../../hw-latest/caliptra-rtl/src/soc_ifc/rtl
@@ -28,7 +28,9 @@ OBJS := $(patsubst %.c,%.o, $(filter %.c,$(SOURCE)))
 
 all: $(TARGET)
 $(OUT)/caliptra_model.h:
-	cargo build --target-dir $(OUT)
+	cargo --config="$(EXTRA_CARGO_CONFIG)" build
+	mkdir -p $(OUT)/debug
+	cp ../../../target/debug/libcaliptra_hw_model_c_binding.a $(OUT)/debug/
 
 $(OUT)/%.o: $(SOURCE)
 	$(MKDIR)
@@ -41,6 +43,6 @@ clean:
 	$(RM) -rf $(OUT)
 
 run: $(TARGET)
-	cargo run --manifest-path=$(BUILDER_PATH)/Cargo.toml --bin image -- --rom $(OUT)/caliptra_rom.bin --fw $(OUT)/image_bundle.bin
+	cargo --config="$(EXTRA_CARGO_CONFIG)" run --manifest-path=$(BUILDER_PATH)/Cargo.toml --bin image -- --rom $(OUT)/caliptra_rom.bin --fw $(OUT)/image_bundle.bin
 	$(TARGET) -r $(OUT)/caliptra_rom.bin -f $(OUT)/image_bundle.bin
 
