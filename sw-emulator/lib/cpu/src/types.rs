@@ -53,6 +53,9 @@ emu_enum! {
 
         /// System Opcode
         System = 0b111_0011,
+
+        /// Fence Opcode
+        Fence = 0b000_1111,
     };
     Invalid
 }
@@ -245,6 +248,21 @@ emu_enum! {
         /// CSR Read and Clear bits Immediate
         Csrrci = 0b111,
 
+    };
+    Invalid
+}
+
+emu_enum! {
+    /// RISCV Fence Opcode Functions
+    #[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Clone, Copy)]
+    pub RvInstr32FenceFunct3;
+    u32;
+    {
+        /// FENCE
+        Fence =  0b000,
+
+        /// FENCE.I
+        FenceI = 0b001,
     };
     Invalid
 }

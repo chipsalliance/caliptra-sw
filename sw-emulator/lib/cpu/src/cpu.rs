@@ -230,6 +230,7 @@ impl<TBus: Bus> Cpu<TBus> {
         match self.bus.read(size, addr) {
             Ok(val) => Ok(val),
             Err(exception) => match exception {
+                BusError::InstrAccessFault => Err(RvException::instr_access_fault(addr)),
                 BusError::LoadAccessFault => Err(RvException::load_access_fault(addr)),
                 BusError::LoadAddrMisaligned => Err(RvException::load_addr_misaligned(addr)),
                 BusError::StoreAccessFault => Err(RvException::store_access_fault(addr)),
@@ -269,6 +270,7 @@ impl<TBus: Bus> Cpu<TBus> {
         match self.bus.write(size, addr, val) {
             Ok(val) => Ok(val),
             Err(exception) => match exception {
+                BusError::InstrAccessFault => Err(RvException::instr_access_fault(addr)),
                 BusError::LoadAccessFault => Err(RvException::load_access_fault(addr)),
                 BusError::LoadAddrMisaligned => Err(RvException::load_addr_misaligned(addr)),
                 BusError::StoreAccessFault => Err(RvException::store_access_fault(addr)),
@@ -294,6 +296,7 @@ impl<TBus: Bus> Cpu<TBus> {
             _ => match self.bus.read(size, addr) {
                 Ok(val) => Ok(val),
                 Err(exception) => match exception {
+                    BusError::InstrAccessFault => Err(RvException::instr_access_fault(addr)),
                     BusError::LoadAccessFault => Err(RvException::instr_access_fault(addr)),
                     BusError::LoadAddrMisaligned => Err(RvException::instr_addr_misaligned(addr)),
                     BusError::StoreAccessFault => Err(RvException::store_access_fault(addr)),

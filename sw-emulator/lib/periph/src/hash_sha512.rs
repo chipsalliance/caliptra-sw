@@ -474,7 +474,9 @@ impl HashSha512 {
             Ok(self.key_vault.read_pcr(key_id))
         };
         let (block_read_result, data) = match result.err() {
-            Some(BusError::LoadAccessFault) | Some(BusError::LoadAddrMisaligned) => {
+            Some(BusError::LoadAccessFault)
+            | Some(BusError::LoadAddrMisaligned)
+            | Some(BusError::InstrAccessFault) => {
                 (BlockReadStatus::ERROR::KV_READ_FAIL.value, None)
             }
             Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
@@ -541,9 +543,9 @@ impl HashSha512 {
             )
             .err()
         {
-            Some(BusError::LoadAccessFault) | Some(BusError::LoadAddrMisaligned) => {
-                HashWriteStatus::ERROR::KV_READ_FAIL.value
-            }
+            Some(BusError::LoadAccessFault)
+            | Some(BusError::LoadAddrMisaligned)
+            | Some(BusError::InstrAccessFault) => HashWriteStatus::ERROR::KV_READ_FAIL.value,
             Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
                 HashWriteStatus::ERROR::KV_WRITE_FAIL.value
             }

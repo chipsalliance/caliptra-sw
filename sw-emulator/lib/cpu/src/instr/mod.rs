@@ -18,6 +18,7 @@ References:
 mod auipc;
 mod branch;
 mod compression;
+mod fence;
 mod jal;
 mod jalr;
 mod load;
@@ -140,6 +141,7 @@ impl<TBus: Bus> Cpu<TBus> {
             RvInstr32Opcode::Jalr => self.exec_jalr_instr(instr)?,
             RvInstr32Opcode::Jal => self.exec_jal_instr(instr)?,
             RvInstr32Opcode::System => self.exec_system_instr(instr)?,
+            RvInstr32Opcode::Fence => self.exec_fence_instr(instr)?,
             _ => Err(RvException::illegal_instr(instr))?,
         }
         Ok(())

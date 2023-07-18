@@ -17,6 +17,8 @@ use caliptra_emu_types::{RvAddr, RvData, RvSize};
 
 /// Read Only Memory Device
 pub struct Ram {
+    /// Inject double-bit ECC errors on read
+    pub error_injection: u8,
     /// Read Only Data
     data: Mem,
 }
@@ -29,6 +31,7 @@ impl Ram {
     /// * `data` - Data to be stored in the RAM
     pub fn new(data: Vec<u8>) -> Self {
         Self {
+            error_injection: 0,
             data: Mem::new(data),
         }
     }
@@ -63,6 +66,12 @@ impl Bus for Ram {
     /// * `BusException` - Exception with cause `BusExceptionCause::LoadAccessFault`
     ///                   or `BusExceptionCause::LoadAddrMisaligned`
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+        if 2 == self.error_injection {
+            return Err(BusError::InstrAccessFault);
+        }
+        if 8 == self.error_injection {
+            return Err(BusError::LoadAccessFault);
+        }
         match self.data.read(size, addr) {
             Ok(data) => Ok(data),
             Err(error) => Err(error.into()),
