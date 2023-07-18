@@ -4,7 +4,7 @@
 
 set -e
 
-cargo test -p caliptra-image-fake-keys test_write_lms_keys -- --ignored >/dev/null
+cargo --config="target.'cfg(all())'.rustflags = [\"-Dwarnings\"]" test -p caliptra-image-fake-keys test_write_lms_keys -- --ignored >/dev/null
 
 for value in {0..3}
 do
