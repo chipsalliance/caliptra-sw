@@ -9,10 +9,9 @@ permissions:
   contents: write
 
 jobs:
-  # Disable RTL-Repo-Sync until manual fixes to work with the latest RTL are not made
-  #rtl-repo-sync:
-  #  name: RTL Repo Sync
-  #  uses: ./.github/workflows/rtl-repo-sync.yml
+  rtl-repo-sync:
+    name: RTL Repo Sync
+    uses: ./.github/workflows/rtl-repo-sync.yml
 
   find-latest-release:
     name: Find Latest Release

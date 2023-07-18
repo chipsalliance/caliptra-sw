@@ -65,26 +65,27 @@ jobs:
     needs: update-rtl
     if: needs.update-rtl.outputs.ci_checks_needed
 
-  merge-rtl-update:
-    name: Merge RTL Update
-    needs: [update-rtl, build-test, build-test-verilator]
-    if: needs.update-rtl.outputs.ci_checks_needed
-    runs-on: ubuntu-22.04
+  # Auto-Merging of RTL Update needs (without manual intervention) has to be re-discussed with Caliptra TAC members
+  #merge-rtl-update:
+    #name: Merge RTL Update
+    #needs: [update-rtl, build-test, build-test-verilator]
+    #if: needs.update-rtl.outputs.ci_checks_needed
+    #runs-on: ubuntu-22.04
 
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: 'true'
-          ref: 'main'
-          fetch-depth: 0
+    #steps:
+    #  - uses: actions/checkout@v3
+    #    with:
+    #      submodules: 'true'
+    #      ref: 'main'
+    #      fetch-depth: 0
 
-      - name: Merge RTL changes to main branch
-        run: |
-          git config --global user.name "GitHub CI"
-          git config --global user.email "username@users.noreply.github.com"
-          if [[ "${{ needs.update-rtl.outputs.branch_base_ref }}" != $(git rev-parse HEAD) ]]; then
-              echo "Commit added to main after CI RTL branch test started; cannot auto-merge branch"
-              exit 1
-          fi
-          git push origin ${{ needs.update-rtl.outputs.branch_name }} main
-          git push origin --delete ${{ needs.update-rtl.outputs.branch_name }}
+    #  - name: Merge RTL changes to main branch
+    #    run: |
+    #      git config --global user.name "GitHub CI"
+    #      git config --global user.email "username@users.noreply.github.com"
+    #      if [[ "${{ needs.update-rtl.outputs.branch_base_ref }}" != $(git rev-parse HEAD) ]]; then
+    #          echo "Commit added to main after CI RTL branch test started; cannot auto-merge branch"
+    #          exit 1
+    #      fi
+    #      git push origin ${{ needs.update-rtl.outputs.branch_name }} main
+    #      git push origin --delete ${{ needs.update-rtl.outputs.branch_name }}
