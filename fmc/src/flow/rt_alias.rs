@@ -23,7 +23,9 @@ use caliptra_common::cprintln;
 use caliptra_common::crypto::Ecc384KeyPair;
 use caliptra_common::keyids::{KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY, KEY_ID_TMP};
 use caliptra_common::HexBytes;
-use caliptra_drivers::{okref, report_boot_status, CaliptraError, CaliptraResult, KeyId};
+use caliptra_drivers::{
+    okref, report_boot_status, CaliptraError, CaliptraResult, KeyId, ResetReason,
+};
 use caliptra_x509::{NotAfter, NotBefore, RtAliasCertTbs, RtAliasCertTbsParams};
 
 const SHA384_HASH_SIZE: usize = 48;
@@ -104,6 +106,13 @@ impl RtAliasLayer {
         Self::extend_pcrs(env, hand_off)?;
         cprintln!("[alias rt] Extend RT PCRs Done");
 
+        cprintln!("[alias rt] Lock RT PCRs");
+        env.pcr_bank
+            .set_pcr_lock(caliptra_common::RT_FW_CURRENT_PCR);
+        env.pcr_bank
+            .set_pcr_lock(caliptra_common::RT_FW_JOURNEY_PCR);
+        cprintln!("[alias rt] Lock RT PCRs Done");
+
         // Retrieve Dice Input Layer from Hand Off and Derive Key
         match Self::dice_input_from_hand_off(hand_off, env) {
             Ok(input) => {
@@ -147,7 +156,10 @@ impl RtAliasLayer {
     /// * `hand_off` - HandOff
     pub fn extend_pcrs(env: &mut FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
         extend_current_pcr(env, hand_off)?;
-        extend_journey_pcr(env, hand_off)?;
+        match env.soc_ifc.reset_reason() {
+            ResetReason::ColdReset | ResetReason::UpdateReset => extend_journey_pcr(env, hand_off)?,
+            _ => cprintln!("[alias rt : skip journey pcr extension"),
+        }
         Ok(())
     }
 
