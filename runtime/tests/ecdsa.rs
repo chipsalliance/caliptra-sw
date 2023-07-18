@@ -1,8 +1,7 @@
 // Licensed under the Apache-2.0 license.
 pub mod common;
 
-use caliptra_drivers::CaliptraError;
-use caliptra_hw_model::{HwModel, ModelError, ShaAccMode};
+use caliptra_hw_model::{HwModel, ShaAccMode};
 use caliptra_runtime::{CommandId, EcdsaVerifyCmd};
 use common::run_rom_test;
 use zerocopy::AsBytes;
@@ -12,16 +11,8 @@ use zerocopy::AsBytes;
 // In the long term, this file should just run the entire Wycheproof test
 // vector file wycheproof/testvectors_v1/ecdsa_secp384r1_sha384_test.json
 
-struct EcdsaTestCase<'a> {
-    msg: &'a [u8],
-    pub_x: [u8; 48],
-    pub_y: [u8; 48],
-    sig_r: [u8; 48],
-    sig_s: [u8; 48],
-}
-
 #[test]
-fn test_r_s_ranges() {
+fn ecdsa_cmd_run_wycheproof() {
     let mut model = run_rom_test("mbox");
 
     model.step_until(|m| {
@@ -29,123 +20,118 @@ fn test_r_s_ranges() {
             && m.soc_ifc().cptra_boot_status().read() == 1
     });
 
-    let pub_key_x = [
-        0x2d, 0xa5, 0x7d, 0xda, 0x10, 0x89, 0x27, 0x6a, 0x54, 0x3f, 0x9f, 0xfd, 0xac, 0x0b, 0xff,
-        0x0d, 0x97, 0x6c, 0xad, 0x71, 0xeb, 0x72, 0x80, 0xe7, 0xd9, 0xbf, 0xd9, 0xfe, 0xe4, 0xbd,
-        0xb2, 0xf2, 0x0f, 0x47, 0xff, 0x88, 0x82, 0x74, 0x38, 0x97, 0x72, 0xd9, 0x8c, 0xc5, 0x75,
-        0x21, 0x38, 0xaa,
-    ];
-    let pub_key_y = [
-        0x4b, 0x6d, 0x05, 0x4d, 0x69, 0xdc, 0xf3, 0xe2, 0x5e, 0xc4, 0x9d, 0xf8, 0x70, 0x71, 0x5e,
-        0x34, 0x88, 0x3b, 0x18, 0x36, 0x19, 0x7d, 0x76, 0xf8, 0xad, 0x96, 0x2e, 0x78, 0xf6, 0x57,
-        0x1b, 0xbc, 0x74, 0x07, 0xb0, 0xd6, 0x09, 0x1f, 0x9e, 0x4d, 0x88, 0xf0, 0x14, 0x27, 0x44,
-        0x06, 0x17, 0x4f,
-    ];
-
-    let cases = [
-        // tcId: 168
-        // Signature with special case values r=0 and s=0
-        EcdsaTestCase {
-            msg: &[0x31, 0x32, 0x33, 0x34, 0x30, 0x30],
-            pub_x: pub_key_x,
-            pub_y: pub_key_y,
-            sig_r: [
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            ],
-            sig_s: [
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            ],
-        },
-        // tcId: 169
-        // Signature with special case values r=0 and s=1
-        EcdsaTestCase {
-            msg: &[0x31, 0x32, 0x33, 0x34, 0x30, 0x30],
-            pub_x: pub_key_x,
-            pub_y: pub_key_y,
-            sig_r: [
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            ],
-            sig_s: [
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-            ],
-        },
-        // tcId: 176
-        // Signature with special case values r=1 and s=0
-        EcdsaTestCase {
-            msg: &[0x31, 0x32, 0x33, 0x34, 0x30, 0x30],
-            pub_x: pub_key_x,
-            pub_y: pub_key_y,
-            sig_r: [
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-            ],
-            sig_s: [
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            ],
-        },
-        // tcId: 193
-        // Signature with special case values r=n and s=1
-        EcdsaTestCase {
-            msg: &[0x31, 0x32, 0x33, 0x34, 0x30, 0x30],
-            pub_x: pub_key_x,
-            pub_y: pub_key_y,
-            sig_r: [
-                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xc7, 0x63, 0x4d, 0x81,
-                0xf4, 0x37, 0x2d, 0xdf, 0x58, 0x1a, 0x0d, 0xb2, 0x48, 0xb0, 0xa7, 0x7a, 0xec, 0xec,
-                0x19, 0x6a, 0xcc, 0xc5, 0x29, 0x73,
-            ],
-            sig_s: [
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-            ],
-        },
-    ];
-
-    for c in cases {
-        // Stream to SHA ACC
-        model
-            .compute_sha512_acc_digest(c.msg, ShaAccMode::Sha384Stream)
+    #[allow(dead_code)]
+    #[derive(Debug)]
+    struct WycheproofResults {
+        id: usize,
+        comment: String,
+    }
+    // Collect all the errors and print at the end
+    let mut wyche_fail: Vec<WycheproofResults> = Vec::new();
+    let mut wyche_ran: Vec<WycheproofResults> = Vec::new();
+    let test_set =
+        wycheproof::ecdsa::TestSet::load(wycheproof::ecdsa::TestName::EcdsaSecp384r1Sha384)
             .unwrap();
+    // The mailbox has a fixed len for x and y so filter out untestable cases
+    let test_groups = test_set
+        .test_groups
+        .iter()
+        .filter(|x| x.key.affine_x.as_slice().len() <= 48)
+        .filter(|x| x.key.affine_y.as_slice().len() <= 48);
+    for test_group in test_groups {
+        for test in &test_group.tests {
+            // Since the mailbox uses R, S as input for signature use only tests with a valid signature
+            let Ok(signature) = openssl::ecdsa::EcdsaSig::from_der(test.sig.as_bytes()) else {
+                continue;
+            };
+            if signature.r().to_vec().len() > 48 || signature.s().to_vec().len() > 48 {
+                continue;
+            }
+            // openssl rust crates has problems parsing some DER signatures. Skip those as those can't be
+            // sent to the mailbox anyway.
+            if [
+                "Legacy: ASN encoding of s misses leading 0",
+                "length of sequence [r, s] uses long form encoding",
+                "length of sequence [r, s] contains a leading 0",
+                "appending unused 0's to sequence [r, s]",
+                "indefinite length",
+                "indefinite length with garbage",
+                "length of r uses long form encoding",
+                "length of r contains a leading 0",
+                "prepending 0's to r",
+                "length of s uses long form encoding",
+                "length of s contains a leading 0",
+                "prepending 0's to s",
+            ]
+            .contains(&test.comment.as_str())
+            {
+                continue;
+            }
 
-        let mut cmd = EcdsaVerifyCmd {
-            chksum: 0,
-            pub_key_x: c.pub_x,
-            pub_key_y: c.pub_y,
-            signature_r: c.sig_r,
-            signature_s: c.sig_s,
-        };
+            wyche_ran.push(WycheproofResults {
+                id: test.tc_id,
+                comment: test.comment.to_string(),
+            });
+            model
+                .compute_sha512_acc_digest(test.msg.as_slice(), ShaAccMode::Sha384Stream)
+                .unwrap();
 
-        cmd.chksum = caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::ECDSA384_VERIFY),
-            &cmd.as_bytes()[4..],
-        );
-
-        let resp = model.mailbox_execute(u32::from(CommandId::ECDSA384_VERIFY), cmd.as_bytes());
-        assert_eq!(
-            resp,
-            Err(ModelError::MailboxCmdFailed(
-                CaliptraError::RUNTIME_ECDSA_VERIFY_FAILED.into()
-            ))
+            let cmd = EcdsaVerifyCmd {
+                chksum: 0,
+                pub_key_x: test_group.key.affine_x.as_slice()[..].try_into().unwrap(),
+                pub_key_y: test_group.key.affine_y.as_slice()[..].try_into().unwrap(),
+                signature_r: signature
+                    .r()
+                    .to_vec_padded(48)
+                    .unwrap()
+                    .as_bytes()
+                    .try_into()
+                    .unwrap(),
+                signature_s: signature
+                    .s()
+                    .to_vec_padded(48)
+                    .unwrap()
+                    .as_bytes()
+                    .try_into()
+                    .unwrap(),
+                // Do tests on mailbox
+            };
+            let checksum = caliptra_common::checksum::calc_checksum(
+                u32::from(CommandId::ECDSA384_VERIFY),
+                &cmd.as_bytes()[4..],
+            );
+            let cmd = EcdsaVerifyCmd {
+                chksum: checksum,
+                ..cmd
+            };
+            let resp = model.mailbox_execute(u32::from(CommandId::ECDSA384_VERIFY), cmd.as_bytes());
+            match test.result {
+                wycheproof::TestResult::Valid | wycheproof::TestResult::Acceptable => match resp {
+                    Err(_) | Ok(Some(_)) => {
+                        wyche_fail.push(WycheproofResults {
+                            id: test.tc_id,
+                            comment: test.comment.to_string(),
+                        });
+                    }
+                    _ => {}
+                },
+                wycheproof::TestResult::Invalid => {
+                    if let Ok(None) = resp {
+                        wyche_fail.push(WycheproofResults {
+                            id: test.tc_id,
+                            comment: test.comment.to_string(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+    println!("Executed wycheproof tests:\n{:#?}", wyche_ran);
+    if !wyche_fail.is_empty() {
+        panic!(
+            "Number of failed tests {}:\n{:#?}",
+            wyche_fail.len(),
+            wyche_fail
         );
     }
 }

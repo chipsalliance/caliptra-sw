@@ -136,6 +136,7 @@ ureg = { path = "ureg" }
 ureg-codegen = { path = "ureg/lib/codegen" }
 ureg-schema = { path = "ureg/lib/schema" }
 ureg-systemrdl = { path = "ureg/lib/systemrdl" }
+wycheproof = "0.5.1"
 zerocopy = "0.6.1"
 
 [profile.firmware]
