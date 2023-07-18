@@ -3,6 +3,8 @@ name: RTL Repo Sync
 on:
   workflow_call:
   workflow_dispatch:
+permissions:
+  contents: write
 
 jobs:
   update-rtl:
@@ -43,7 +45,7 @@ jobs:
         id: status
         run: echo "status=$(git status -s | head -1)" >> $GITHUB_OUTPUT
 
-      # If there's a new HW release (submodule has been updated), add a commit to main branch
+      # If there's a new HW release (submodule has been updated), add a commit and generate a PR
       - name: Commit changes
         id: commit
         if: ${{ steps.status.outputs.status }}
@@ -51,41 +53,13 @@ jobs:
           git config --global user.name "GitHub CI"
           git config --global user.email "username@users.noreply.github.com"
           echo "branch_base_ref=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
-          git checkout -b ${{ steps.branch.outputs.branch }}
           git commit -a -m "CI: Update Caliptra RTL"
-          git push -u origin ${{ steps.branch.outputs.branch }}
 
-  build-test:
-    uses: ./.github/workflows/build-test.yml
-    needs: update-rtl
-    if: needs.update-rtl.outputs.ci_checks_needed
+      - name: Create Pull Request
+        id: pull_request
+        if: ${{ steps.status.outputs.status }}
+        uses: peter-evans/create-pull-request@v5
+        with:
+          branch: ${{ steps.branch.outputs.branch }}
 
-  build-test-verilator:
-    uses: ./.github/workflows/build-test-verilator.yml
-    needs: update-rtl
-    if: needs.update-rtl.outputs.ci_checks_needed
-
-  # Auto-Merging of RTL Update needs (without manual intervention) has to be re-discussed with Caliptra TAC members
-  #merge-rtl-update:
-    #name: Merge RTL Update
-    #needs: [update-rtl, build-test, build-test-verilator]
-    #if: needs.update-rtl.outputs.ci_checks_needed
-    #runs-on: ubuntu-22.04
-
-    #steps:
-    #  - uses: actions/checkout@v3
-    #    with:
-    #      submodules: 'true'
-    #      ref: 'main'
-    #      fetch-depth: 0
-
-    #  - name: Merge RTL changes to main branch
-    #    run: |
-    #      git config --global user.name "GitHub CI"
-    #      git config --global user.email "username@users.noreply.github.com"
-    #      if [[ "${{ needs.update-rtl.outputs.branch_base_ref }}" != $(git rev-parse HEAD) ]]; then
-    #          echo "Commit added to main after CI RTL branch test started; cannot auto-merge branch"
-    #          exit 1
-    #      fi
-    #      git push origin ${{ needs.update-rtl.outputs.branch_name }} main
-    #      git push origin --delete ${{ needs.update-rtl.outputs.branch_name }}
+      # In future this will be replaced by an automatic merge of the PR

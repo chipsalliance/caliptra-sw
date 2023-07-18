@@ -15,7 +15,7 @@ jobs:
 
   find-latest-release:
     name: Find Latest Release
-    #needs: rtl-repo-sync
+    needs: rtl-repo-sync
     runs-on: ubuntu-22.04
     outputs:
       create_release: ${{ steps.find.outputs.create_release }}
@@ -39,11 +39,13 @@ jobs:
           while git tag | grep ${TAG_BASE}${INDEX}; do
               ((INDEX+=1))
           done
+          git submodule update --remote hw-latest/caliptra-rtl
+          CHECK_RELEASE_SYNC=$(git status -s | head -1)"
           MOST_RECENT_RELEASE=None
           if git tag | grep ${TAG_PREFIX} > /dev/null; then
               MOST_RECENT_RELEASE=$(git tag | grep ${TAG_PREFIX} | sort -r | head -1)
           fi
-          if [[ "$MOST_RECENT_RELEASE" == "None" ]]; then
+          if [[ "$MOST_RECENT_RELEASE" == "None" && "$CHECK_RELEASE_SYNC" == "None"]]; then
               echo "create_release=true" >> $GITHUB_OUTPUT
           else
               COMMITS_AFTER_LAST_RELEASE=$(git rev-list --count $MOST_RECENT_RELEASE..HEAD)
