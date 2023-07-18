@@ -105,17 +105,14 @@ objdump:
 		--no-print-imm-hex \
 		--disassembler-options=no-aliases \
 
-objcopy:
-	riscv64-unknown-elf-objcopy \
-		--gap-fill 0x00 \
-		--pad-to 0xC000 \
-  		-j .text \
-  		-j .rodata \
-  		-O binary \
-  		$(TARGET_DIR)/caliptra-rom \
-  		$(TARGET_DIR)/caliptra-rom.bin \
+build-rom:
+	cargo \
+		"--config=$(EXTRA_CARGO_CONFIG)" \
+		run -p caliptra-builder -- \
+		--rom $(TARGET_DIR)/caliptra-rom.bin \
+		--fw /dev/null
 
-run: build-emu build-fw-image objcopy
+run: build-emu build-fw-image build-rom
 	cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		run \
@@ -127,7 +124,7 @@ run: build-emu build-fw-image objcopy
 		--firmware $(TARGET_DIR)/caliptra-rom-test-fw \
 		--device-lifecycle unprovisioned \
 
-run-update: build-emu build-fw-image objcopy
+run-update: build-emu build-fw-image build-rom
 		cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		run \
@@ -160,7 +157,7 @@ nm:
 		-- \
 		-v \
 
-hexdump: objcopy
+hexdump: build-rom
 	xxd $(TARGET_DIR)/caliptra-rom.bin \
 
 clean:
