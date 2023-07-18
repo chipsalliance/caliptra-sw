@@ -101,7 +101,9 @@ jobs:
       # build.
       - name: Clippy lint check
         run: |
-          cargo clippy --locked --all-targets -- -D warnings
+          # Clippy doesn't look at --config, so manually set RUSTFLAGS to the
+          # same as the build steps to avoid invalidating the cargo cache.
+          RUSTFLAGS="-Dwarnings" cargo clippy --locked --all-targets -- -D warnings
 
       - name: Run tests
         run: |
@@ -112,7 +114,7 @@ jobs:
         run: |
           sudo apt-get install gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
           (cd /tmp/ && git clone --depth 1 --branch old-framework-2.x https://github.com/riscv-non-isa/riscv-arch-test)
-          cargo run --locked -p compliance-test -- --test_root_path /tmp/riscv-arch-test
+          cargo --config "$EXTRA_CARGO_CONFIG" run --locked -p compliance-test -- --test_root_path /tmp/riscv-arch-test
 
       - name: ROM Makefile
         run: |
