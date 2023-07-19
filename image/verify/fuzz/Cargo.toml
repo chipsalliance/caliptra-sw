@@ -1,0 +1,59 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "caliptra-image-verify-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = { version = "0.4.6", optional = true }
+afl = { version = "0.13.3", optional = true }
+arbitrary = { version = "1.3.0", optional = true, features = ["derive"] }
+
+[patch.crates-io]
+byteorder = { git = "https://github.com/benjamindoron/byteorder.git", branch = "struct_aware-1.4.3" }
+zerocopy = { git = "https://github.com/benjamindoron/zerocopy.git", branch = "struct_aware-v0.6.3" }
+
+[dependencies.caliptra_common]
+path = "../../../common"
+default-features = false
+
+[dependencies.caliptra-lms-types]
+path = "../../../lms-types"
+features = ["arbitrary"]
+
+[dependencies.caliptra-image-types]
+path = "../../types"
+features = ["arbitrary"]
+
+[dependencies.caliptra-drivers]
+path = "../../../drivers"
+
+[dependencies.caliptra-image-verify]
+path = ".."
+
+[features]
+struct-aware = ["arbitrary"]
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "fuzz_target_coldreset"
+path = "src/fuzz_target_coldreset.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_target_updatereset"
+path = "src/fuzz_target_updatereset.rs"
+test = false
+doc = false
