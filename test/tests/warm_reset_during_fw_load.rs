@@ -4,6 +4,7 @@ use caliptra_builder::ROM_WITH_UART;
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{DeviceLifecycle, Fuses};
 
+#[cfg(any(feature = "verilator", feature = "fpga_realtime"))]
 #[test]
 fn warm_reset_during_fw_load() {
     let security_state = *SecurityState::default()

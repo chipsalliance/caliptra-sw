@@ -408,6 +408,11 @@ pub trait HwModel {
         panic!("warm_reset unimplemented");
     }
 
+    /// Toggle reset pins and wait for ready_for_fuses
+    fn warm_reset(&mut self) {
+        panic!("warm_reset unimplemented");
+    }
+
     /// Returns true if the microcontroller has signalled that it is ready for
     /// firmware to be written to the mailbox. For RTL implementations, this
     /// should come via a caliptra_top wire rather than an APB register.
