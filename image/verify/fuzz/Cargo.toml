@@ -1,0 +1,41 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "caliptra-image-verify-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "*"
+
+[dependencies.caliptra-image-types]
+path = "../../types"
+
+[dependencies.caliptra-drivers]
+path = "../../../drivers"
+
+[dependencies.caliptra-image-verify]
+path = ".."
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "fuzz_target_coldreset"
+path = "fuzz_targets/fuzz_target_coldreset.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_target_updatereset"
+path = "fuzz_targets/fuzz_target_updatereset.rs"
+test = false
+doc = false
