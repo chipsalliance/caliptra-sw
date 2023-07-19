@@ -189,6 +189,8 @@ pub struct HashSha512 {
 
     /// Hash write complete action
     op_hash_write_complete_action: Option<ActionHandle>,
+
+    pcr_present: bool,
 }
 
 impl HashSha512 {
@@ -225,6 +227,7 @@ impl HashSha512 {
             op_complete_action: None,
             op_block_read_complete_action: None,
             op_hash_write_complete_action: None,
+            pcr_present: false,
         }
     }
 
@@ -246,6 +249,9 @@ impl HashSha512 {
 
         // Set the control register
         self.control.reg.set(val);
+
+        // Reset the pcr_present flag.
+        self.pcr_present = false;
 
         if self.control.reg.is_set(Control::INIT) || self.control.reg.is_set(Control::NEXT) {
             // Reset the Ready and Valid status bits
@@ -310,14 +316,9 @@ impl HashSha512 {
     ///
     /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
     fn write_block(&mut self, _size: RvSize, word_index: usize, val: u32) -> Result<(), BusError> {
-        let pcr_hash_extend = self
-            .block_read_ctrl
-            .reg
-            .read(BlockReadControl::PCR_HASH_EXTEND);
-
-        // If PCR_HASH_EXTEND bit is set, skip updating the first 48 bytes in the block registers
+        // If pcr_present, skip updating the first 48 bytes in the block registers
         // as these contain the PCR retrieved from the PCR vault.
-        if pcr_hash_extend == 0 || word_index >= 12 {
+        if !self.pcr_present || word_index >= 12 {
             self.block[word_index] = val;
         }
         Ok(())
@@ -437,7 +438,13 @@ impl HashSha512 {
             );
 
             self.op_hash_write_complete_action = Some(self.timer.schedule_poll_in(KEY_RW_TICKS));
-        } else if self.control.reg.is_set(Control::LAST) {
+        } else if self.control.reg.is_set(Control::LAST)
+            && self
+                .block_read_ctrl
+                .reg
+                .is_set(BlockReadControl::PCR_HASH_EXTEND)
+        {
+            // Copy the hash to the PCR if this is the last block and PCR_HASH_EXTEND is set.
             let pcr_id = self.block_read_ctrl.reg.read(BlockReadControl::KEY_ID);
             self.key_vault
                 .write_pcr(pcr_id, array_ref![self.hash.data(), 0, KeyVault::KEY_SIZE])
@@ -448,12 +455,6 @@ impl HashSha512 {
         self.status
             .reg
             .modify(Status::READY::SET + Status::VALID::SET);
-
-        // Reset the pcr_hash_extend bit. This is done so the next round
-        // of block copy operation does not skip the first 48 bytes.
-        self.block_read_ctrl
-            .reg
-            .modify(BlockReadControl::PCR_HASH_EXTEND::CLEAR);
     }
 
     fn block_read_complete(&mut self) {
@@ -491,6 +492,7 @@ impl HashSha512 {
                 self.block[..KeyVault::KEY_SIZE / 4].copy_from_slice(&words_from_bytes_le(
                     &<[u8; KeyVault::KEY_SIZE]>::try_from(&data[..KeyVault::KEY_SIZE]).unwrap(),
                 ));
+                self.pcr_present = true;
             } else {
                 self.format_block(&data);
             }
@@ -1229,33 +1231,20 @@ mod tests {
                 last_block = true;
             }
 
-            if idx == 0 {
-                let control: ReadWriteRegister<u32, Control::Register> = ReadWriteRegister::new(0);
-                control.reg.modify(
-                    Control::MODE.val(Sha512Mode::Sha384.into())
-                        + Control::INIT.val(1)
-                        + Control::LAST.val(last_block as u32),
-                );
-                assert_eq!(
-                    sha512
-                        .write(RvSize::Word, OFFSET_CONTROL, control.reg.get())
-                        .ok(),
-                    Some(())
-                );
-            } else {
-                let control: ReadWriteRegister<u32, Control::Register> = ReadWriteRegister::new(0);
-                control
-                    .reg
-                    .modify(Control::NEXT.val(1) + Control::LAST.val(last_block as u32));
-
-                assert_eq!(
-                    sha512
-                        .write(RvSize::Word, OFFSET_CONTROL, control.reg.get())
-                        .ok(),
-                    Some(())
-                );
-            }
-
+            let first_block = idx == 0;
+            let control: ReadWriteRegister<u32, Control::Register> = ReadWriteRegister::new(0);
+            control.reg.modify(
+                Control::MODE.val(Sha512Mode::Sha384.into())
+                    + Control::INIT.val(first_block as u32)
+                    + Control::NEXT.val(!first_block as u32)
+                    + Control::LAST.val(last_block as u32),
+            );
+            assert_eq!(
+                sha512
+                    .write(RvSize::Word, OFFSET_CONTROL, control.reg.get())
+                    .ok(),
+                Some(())
+            );
             loop {
                 let status = InMemoryRegister::<u32, Status::Register>::new(
                     sha512.read(RvSize::Word, OFFSET_STATUS).unwrap(),
