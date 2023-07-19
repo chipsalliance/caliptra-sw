@@ -13,6 +13,7 @@ fn bytes_to_be_words_48(buf: &[u8; 48]) -> [u32; 12] {
     result
 }
 
+#[cfg(any(feature = "verilator", feature = "fpga_realtime"))]
 #[test]
 fn warm_reset() {
     let security_state = *SecurityState::default()
