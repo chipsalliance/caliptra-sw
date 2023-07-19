@@ -28,7 +28,7 @@ fn test_unknown_command_is_not_fatal() {
 }
 
 #[test]
-fn test_mailbox_command_aborted_after_report_error() {
+fn test_mailbox_command_aborted_after_handle_fatal_error() {
     let (mut hw, image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
     assert_eq!(

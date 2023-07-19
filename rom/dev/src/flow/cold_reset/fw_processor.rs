@@ -112,7 +112,7 @@ impl FirmwareProcessor {
     ///
     /// Mailbox transaction handle. This transaction is ManuallyDrop because we
     /// don't want the transaction to be completed with failure until after
-    /// report_error is called. This prevents a race condition where the SoC
+    /// handle_fatal_error is called. This prevents a race condition where the SoC
     /// reads FW_ERROR_NON_FATAL immediately after the mailbox transaction
     /// fails, but before caliptra has set the FW_ERROR_NON_FATAL register.
     fn download_image<'a>(
@@ -136,7 +136,7 @@ impl FirmwareProcessor {
                     .ok_or(CaliptraError::FW_PROC_MAILBOX_STATE_INCONSISTENT)?;
 
                 // This is a download-firmware command; don't drop this, as the
-                // transaction will be completed by either report_error() (on
+                // transaction will be completed by either handle_fatal_error() (on
                 // failure) or by a manual complete call upon success.
                 let txn = ManuallyDrop::new(txn.start_txn());
                 if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
