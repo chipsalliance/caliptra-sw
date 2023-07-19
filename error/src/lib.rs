@@ -321,6 +321,11 @@ impl CaliptraError {
     /// Unknown Reset Error
     pub const ROM_UNKNOWN_RESET_FLOW: CaliptraError = CaliptraError::new_const(0x01040020);
 
+    /// Warm Reset Errors
+    pub const ROM_WARM_RESET_FLOW_MANIFEST_READ_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x01040030);
+    pub const ROM_WARM_RESET_READ_FHT_FAILURE: CaliptraError = CaliptraError::new_const(0x01040031);
+
     /// ROM Global Errors
     pub const ROM_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x01050001);
     pub const ROM_GLOBAL_EXCEPTION: CaliptraError = CaliptraError::new_const(0x01050002);
