@@ -101,7 +101,7 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | FUSE_MANUFACTURER_PK_REVOCATION | 4            | Manufacturer Public Key Revocation Mask                 |
 | FUSE_OWNER_PK_HASH              | 384          | Owner Public Key Hash                                   |
 | FUSE_FMC_SVN                    | 32           | FMC Security Version Number                             |
-| FUSE_RUNTIME_SVN                | 64           | Runtime Security Version Number <br> *NOTE: Hardware reserves 128 fuse bits for this pupose. However, only 64 bits are supported by ROM at this time.* |
+| FUSE_RUNTIME_SVN                | 64           | Runtime Security Version Number                         |
 | FUSE_ANTI_ROLLBACK_DISABLE      | 1            | Disable SVN checking for FMC & Runtime when bit is set  |
 | FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR   |
 | CPTRA_DBG_MANUF_SERVICE_REG     | 32           | Manufacturing Services like IDEVID CSR upload           |

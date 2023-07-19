@@ -57,7 +57,7 @@ IMAGE_VERIFIER_ERR_VENDOR_LMS_PUBKEY_INDEX_OUT_OF_BOUNDS
 **test_runtime_invalid_entry_point_before_iccm** | Image Verification - RT | Checks if RT entry point is within ICCM range  | IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID
 **test_runtime_invalid_entry_point_after_iccm** | Image Verification - RT | Checks if RT entry point is within ICCM range  | IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID
 **test_runtime_entry_point_unaligned** | Image Verification - RT | Checks if RT entry point is DWORD aligned | IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_UNALIGNED
-**test_runtime_svn_greater_than_64** | Image Verification - RT | Checks if RT SVN is greater than max (64) | IMAGE_VERIFIER_ERR_RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED
+**test_runtime_svn_greater_than_max** | Image Verification - RT | Checks if RT SVN is greater than max (128) | IMAGE_VERIFIER_ERR_RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED
 **test_runtime_svn_less_than_min_svn** | Image Verification - RT | Checks if RT SVN is less than toc_rt.min_svn | IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_MIN_SUPPORTED
 **test_runtime_svn_less_than_fuse_svn** | Image Verification - RT | Checks if RT SVN is less than fuse svn | IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE
 **cert_test** | DICE Cert | <Placeholder> | N/A

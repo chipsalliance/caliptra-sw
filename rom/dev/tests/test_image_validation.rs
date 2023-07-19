@@ -1521,7 +1521,7 @@ fn test_runtime_entry_point_unaligned() {
 }
 
 #[test]
-fn test_runtime_svn_greater_than_64() {
+fn test_runtime_svn_greater_than_max() {
     let gen = ImageGenerator::new(OsslCrypto::default());
     let (_hw, image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
@@ -1536,7 +1536,7 @@ fn test_runtime_svn_greater_than_64() {
         ..Default::default()
     };
     let image_options = ImageOptions {
-        app_svn: 65,
+        app_svn: caliptra_image_verify::MAX_RUNTIME_SVN + 1,
         ..Default::default()
     };
 
