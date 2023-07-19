@@ -174,10 +174,14 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
 }
 
 pub fn handle_mailbox_commands(drivers: &mut Drivers) {
+    let mut soc_ifc = unsafe { SocIfcReg::new() };
     loop {
         wait_for_cmd(&mut drivers.mbox);
 
         if drivers.mbox.is_cmd_ready() {
+            // Unset mailbox_flow_done
+            soc_ifc.regs_mut().cptra_flow_status().write(|w| w.mailbox_flow_done(false));
+
             match handle_command(drivers) {
                 Ok(status) => {
                     drivers.mbox.set_status(status);
@@ -187,6 +191,8 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) {
                     drivers.mbox.set_status(MboxStatusE::CmdFailure);
                 }
             }
+            // Set mailbox_flow_done
+            soc_ifc.regs_mut().cptra_flow_status().write(|w| w.mailbox_flow_done(true));
         }
     }
 }

@@ -37,6 +37,16 @@ pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
     if let Some(mut fht) = caliptra_common::FirmwareHandoffTable::try_load() {
         let mut drivers = unsafe { Drivers::new_from_registers(&mut fht) };
+
+        // Check to see if reset happened while RT FW was executing an operation
+        let reset_reason = drivers.soc_ifc.regs().cptra_reset_reason().read();
+        if reset_reason.warm_reset() && !drivers.soc_ifc.regs().cptra_flow_status().read().mailbox_flow_done() {
+                cprintln!("Warm reset interrupted mailbox command. TODO: Call DISABLE_ATTESTATION");
+        }
+
+        // Indicator to SOC that RT firmware is ready
+        drivers.soc_ifc.regs_mut().cptra_flow_status().write(|w| w.ready_for_runtime(true));
+
         cprintln!("Caliptra RT listening for mailbox commands...");
         caliptra_runtime::handle_mailbox_commands(&mut drivers);
 

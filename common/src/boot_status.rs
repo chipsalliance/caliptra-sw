@@ -18,6 +18,7 @@ const FWPROCESSOR_BOOT_STATUS_BASE: u32 = 129;
 const FMCALIAS_BOOT_STATUS_BASE: u32 = 193;
 const COLD_RESET_BOOT_STATUS_BASE: u32 = 257;
 const UPDATE_RESET_BOOT_STATUS_BASE: u32 = 321;
+const WARM_RESET_BOOT_STATUS_BASE: u32 = 385;
 
 /// Statuses used by ROM to log dice derivation progress.
 #[repr(u32)]
@@ -72,6 +73,11 @@ pub enum RomBootStatus {
     UpdateResetLoadImageComplete = UPDATE_RESET_BOOT_STATUS_BASE + 3,
     UpdateResetOverwriteManifestComplete = UPDATE_RESET_BOOT_STATUS_BASE + 4,
     UpdateResetComplete = UPDATE_RESET_BOOT_STATUS_BASE + 5,
+
+    // Warm Reset Statuses
+    WarmResetStarted = WARM_RESET_BOOT_STATUS_BASE,
+    WarmResetLoadManifestComplete = WARM_RESET_BOOT_STATUS_BASE + 1,
+    WarmResetComplete = WARM_RESET_BOOT_STATUS_BASE + 2,
 }
 
 impl From<RomBootStatus> for u32 {
