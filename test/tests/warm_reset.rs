@@ -64,5 +64,4 @@ fn warm_reset() {
     while !hw.soc_ifc().cptra_flow_status().read().ready_for_runtime() {
         hw.step();
     }
-
 }
