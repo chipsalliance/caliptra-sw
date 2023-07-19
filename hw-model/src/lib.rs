@@ -402,7 +402,7 @@ pub trait HwModel {
             self.step();
         }
     }
-    
+
     /// Toggle reset pins and wait for ready_for_fuses
     fn warm_reset(&mut self) {
         panic!("warm_reset unimplemented");
