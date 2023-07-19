@@ -22,6 +22,7 @@ use caliptra_registers::{
     ecc::EccReg,
     mbox::{enums::MboxStatusE, MboxCsr},
     sha512_acc::Sha512AccCsr,
+    soc_ifc::SocIfcReg,
 };
 use zerocopy::{AsBytes, FromBytes};
 
@@ -63,6 +64,7 @@ pub struct Drivers<'a> {
     pub sha_acc: Sha512AccCsr,
     pub ecdsa: Ecc384,
     pub data_vault: DataVault,
+    pub soc_ifc: SocIfcReg,
     pub fht: &'a mut FirmwareHandoffTable,
 }
 impl<'a> Drivers<'a> {
@@ -77,6 +79,7 @@ impl<'a> Drivers<'a> {
             sha_acc: Sha512AccCsr::new(),
             ecdsa: Ecc384::new(EccReg::new()),
             data_vault: DataVault::new(DvReg::new()),
+            soc_ifc: SocIfcReg::new(),
             fht,
         }
     }

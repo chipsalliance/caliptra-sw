@@ -376,6 +376,14 @@ pub trait HwModel {
         Ok(hw)
     }
 
+    /// Trigger a warm reset and advance the boot
+    fn warm_reset_flow(&mut self) {
+        self.warm_reset();
+
+        self.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
+        self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+    }
+
     /// The APB bus from the SoC to Caliptra
     ///
     /// WARNING: Reading or writing to this bus may involve the Caliptra
@@ -393,6 +401,11 @@ pub trait HwModel {
         while !predicate(self) {
             self.step();
         }
+    }
+    
+    /// Toggle reset pins and wait for ready_for_fuses
+    fn warm_reset(&mut self) {
+        panic!("warm_reset unimplemented");
     }
 
     /// Returns true if the microcontroller has signalled that it is ready for
