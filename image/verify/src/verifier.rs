@@ -8,7 +8,7 @@ File Name:
 
 Abstract:
 
-    This file is the main implementaiton of Caliptra Image Verifier.
+    This file is the main implementation of Caliptra Image Verifier.
 
 --*/
 
@@ -675,7 +675,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         }
 
         if self.svn_check_required() {
-            if verify_info.svn > 64 {
+            if verify_info.svn > MAX_RUNTIME_SVN {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED)?;
             }
 

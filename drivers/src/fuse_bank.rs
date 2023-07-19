@@ -14,9 +14,15 @@ Abstract:
 
 use crate::Array4x12;
 use caliptra_registers::soc_ifc::SocIfcReg;
+use zerocopy::AsBytes;
 
 pub struct FuseBank<'a> {
     pub(crate) soc_ifc: &'a SocIfcReg,
+}
+
+fn first_set_msbit(num_le: &[u32; 4]) -> u32 {
+    let fuse: u128 = u128::from_le_bytes(num_le.as_bytes().try_into().unwrap());
+    128 - fuse.leading_zeros()
 }
 
 pub enum X509KeyIdAlgo {
@@ -248,9 +254,7 @@ impl FuseBank<'_> {
     ///
     pub fn runtime_fuse_svn(&self) -> u32 {
         let soc_ifc_regs = self.soc_ifc.regs();
-        64 - ((soc_ifc_regs.fuse_runtime_svn().at(1).read() as u64) << 32
-            | soc_ifc_regs.fuse_runtime_svn().at(0).read() as u64)
-            .leading_zeros()
+        first_set_msbit(&soc_ifc_regs.fuse_runtime_svn().read())
     }
 
     /// Get the lms revocation bits.
@@ -282,6 +286,27 @@ impl FuseBank<'_> {
             LmsVerifyConfig::EcdsaOnly
         } else {
             LmsVerifyConfig::EcdsaAndLms
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_first_set_msbit() {
+        let mut svn: u128 = 0;
+        let mut svn_arr: [u32; 4] = [0u32, 0u32, 0u32, 0u32];
+
+        for i in 0..128 {
+            for (idx, word) in svn_arr.iter_mut().enumerate() {
+                *word = u32::from_le_bytes(svn.as_bytes()[idx * 4..][..4].try_into().unwrap())
+            }
+            let result = first_set_msbit(&svn_arr);
+            assert_eq!(result, i);
+
+            svn = (svn << 1) | 1;
         }
     }
 }

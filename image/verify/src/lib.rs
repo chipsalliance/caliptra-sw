@@ -21,6 +21,8 @@ use core::ops::Range;
 
 pub use verifier::ImageVerifier;
 
+pub const MAX_RUNTIME_SVN: u32 = 128;
+
 /// Image Verifification Executable Info
 #[derive(Default, Debug)]
 pub struct ImageSvnLogInfo {
