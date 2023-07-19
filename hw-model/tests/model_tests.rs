@@ -180,3 +180,16 @@ fn test_dccm_double_bit_ecc_nmi_failure() {
     let ext_info = harness::ExtErrorInfo::from(soc_ifc.cptra_fw_extended_error_info().read());
     assert_eq!(ext_info.mcause, harness::EXCEPTION_CAUSE_LOAD_ACCESS_FAULT);
 }
+
+#[test]
+fn test_pcr_extend() {
+    let elf = caliptra_builder::build_firmware_elf(&FwId {
+        bin_name: "test_pcr_extend",
+        ..BASE_FWID
+    })
+    .unwrap();
+
+    let mut model = run_fw_elf(&elf);
+
+    model.step_until_exit_success().unwrap();
+}

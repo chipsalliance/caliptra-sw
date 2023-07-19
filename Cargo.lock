@@ -354,6 +354,7 @@ dependencies = [
 name = "caliptra-hw-model-test-fw"
 version = "0.1.0"
 dependencies = [
+ "caliptra-drivers",
  "caliptra-registers",
  "caliptra-test-harness",
 ]
