@@ -478,9 +478,9 @@ impl AsymEcc384 {
 
         let result = self.key_vault.read_key(key_id, key_usage);
         let (key_read_result, key) = match result.err() {
-            Some(BusError::LoadAccessFault) | Some(BusError::LoadAddrMisaligned) => {
-                (KeyReadStatus::ERROR::KV_READ_FAIL.value, None)
-            }
+            Some(BusError::LoadAccessFault)
+            | Some(BusError::LoadAddrMisaligned)
+            | Some(BusError::InstrAccessFault) => (KeyReadStatus::ERROR::KV_READ_FAIL.value, None),
             Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
                 (KeyReadStatus::ERROR::KV_WRITE_FAIL.value, None)
             }
@@ -511,9 +511,9 @@ impl AsymEcc384 {
 
         let result = self.key_vault.read_key(key_id, key_usage);
         let (seed_read_result, seed) = match result.err() {
-            Some(BusError::LoadAccessFault) | Some(BusError::LoadAddrMisaligned) => {
-                (KeyReadStatus::ERROR::KV_READ_FAIL.value, None)
-            }
+            Some(BusError::LoadAccessFault)
+            | Some(BusError::LoadAddrMisaligned)
+            | Some(BusError::InstrAccessFault) => (KeyReadStatus::ERROR::KV_READ_FAIL.value, None),
             Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
                 (KeyReadStatus::ERROR::KV_WRITE_FAIL.value, None)
             }
@@ -549,9 +549,9 @@ impl AsymEcc384 {
             )
             .err()
         {
-            Some(BusError::LoadAccessFault) | Some(BusError::LoadAddrMisaligned) => {
-                KeyWriteStatus::ERROR::KV_READ_FAIL.value
-            }
+            Some(BusError::LoadAccessFault)
+            | Some(BusError::LoadAddrMisaligned)
+            | Some(BusError::InstrAccessFault) => KeyWriteStatus::ERROR::KV_READ_FAIL.value,
             Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
                 KeyWriteStatus::ERROR::KV_WRITE_FAIL.value
             }

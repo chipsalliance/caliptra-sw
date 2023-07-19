@@ -209,6 +209,14 @@ impl<R: RngCore> Iterator for RandomEtrngResponses<R> {
     }
 }
 
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum ErrorInjectionMode {
+    #[default]
+    None,
+    IccmDoubleBitEcc,
+    DccmDoubleBitEcc,
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

@@ -8,7 +8,9 @@ use std::{
 };
 
 use caliptra_emu_bus::Bus;
-use caliptra_hw_model_types::{EtrngResponse, RandomEtrngResponses, DEFAULT_CPTRA_OBF_KEY};
+use caliptra_hw_model_types::{
+    ErrorInjectionMode, EtrngResponse, RandomEtrngResponses, DEFAULT_CPTRA_OBF_KEY,
+};
 use zerocopy::{AsBytes, LayoutVerified, Unalign};
 
 use caliptra_registers::mbox;
@@ -577,6 +579,8 @@ pub trait HwModel {
 
     fn tracing_hint(&mut self, enable: bool);
 
+    fn ecc_error_injection(&mut self, _mode: ErrorInjectionMode) {}
+
     /// Executes `cmd` with request data `buf`. Returns `Ok(Some(_))` if
     /// the uC responded with data, `Ok(None)` if the uC indicated success
     /// without data, Err(ModelError::MailboxCmdFailed) if the microcontroller
@@ -781,6 +785,7 @@ mod tests {
     #[test]
     fn test_apb() {
         let mut model = caliptra_hw_model::new_unbooted(InitParams {
+            rom: &gen_image_hi(),
             ..Default::default()
         })
         .unwrap();
@@ -812,6 +817,7 @@ mod tests {
     fn test_mbox() {
         // Same as test_apb, but uses higher-level register interface
         let mut model = caliptra_hw_model::new_unbooted(InitParams {
+            rom: &gen_image_hi(),
             ..Default::default()
         })
         .unwrap();
@@ -830,6 +836,7 @@ mod tests {
     /// Violate the mailbox protocol by having the sender trying to write to mailbox in execute state.
     fn test_mbox_negative() {
         let mut model = caliptra_hw_model::new_unbooted(InitParams {
+            rom: &gen_image_hi(),
             ..Default::default()
         })
         .unwrap();

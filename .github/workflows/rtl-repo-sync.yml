@@ -1,0 +1,91 @@
+name: RTL Repo Sync
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  update-rtl:
+    name: Update RTL Submodule
+    runs-on: ubuntu-22.04
+    outputs:
+      branch_name: ${{ steps.branch.outputs.branch }}
+      ci_checks_needed: ${{ steps.status.outputs.status }}
+      branch_base_ref: ${{ steps.commit.outputs.branch_base_ref }}
+    steps:
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+          ref: 'main'
+
+      - name: Update the Caliptra RTL submodule and rebuild registers
+        run: |
+          echo "RTL-REPO-SYNC: release_ref=$(git rev-parse HEAD)"
+          git submodule update --remote hw-latest/caliptra-rtl
+          ./registers/update.sh
+
+      - name: Find available branch name
+        id: branch
+        run: |
+          BRANCH_BASE=ci_rtl_${{ steps.date.outputs.date }}
+          INDEX=0
+          while git ls-remote --exit-code --heads origin ${BRANCH_BASE}_${INDEX}
+          do
+              ((INDEX+=1))
+          done
+          echo "branch=${BRANCH_BASE}_${INDEX}" >> $GITHUB_OUTPUT
+
+      - name: Run git status
+        id: status
+        run: echo "status=$(git status -s | head -1)" >> $GITHUB_OUTPUT
+
+      # If there's a new HW release (submodule has been updated), add a commit to main branch
+      - name: Commit changes
+        id: commit
+        if: ${{ steps.status.outputs.status }}
+        run: |
+          git config --global user.name "GitHub CI"
+          git config --global user.email "username@users.noreply.github.com"
+          echo "branch_base_ref=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          git checkout -b ${{ steps.branch.outputs.branch }}
+          git commit -a -m "CI: Update Caliptra RTL"
+          git push -u origin ${{ steps.branch.outputs.branch }}
+
+  build-test:
+    uses: ./.github/workflows/build-test.yml
+    needs: update-rtl
+    if: needs.update-rtl.outputs.ci_checks_needed
+
+  build-test-verilator:
+    uses: ./.github/workflows/build-test-verilator.yml
+    needs: update-rtl
+    if: needs.update-rtl.outputs.ci_checks_needed
+
+  # Auto-Merging of RTL Update needs (without manual intervention) has to be re-discussed with Caliptra TAC members
+  #merge-rtl-update:
+    #name: Merge RTL Update
+    #needs: [update-rtl, build-test, build-test-verilator]
+    #if: needs.update-rtl.outputs.ci_checks_needed
+    #runs-on: ubuntu-22.04
+
+    #steps:
+    #  - uses: actions/checkout@v3
+    #    with:
+    #      submodules: 'true'
+    #      ref: 'main'
+    #      fetch-depth: 0
+
+    #  - name: Merge RTL changes to main branch
+    #    run: |
+    #      git config --global user.name "GitHub CI"
+    #      git config --global user.email "username@users.noreply.github.com"
+    #      if [[ "${{ needs.update-rtl.outputs.branch_base_ref }}" != $(git rev-parse HEAD) ]]; then
+    #          echo "Commit added to main after CI RTL branch test started; cannot auto-merge branch"
+    #          exit 1
+    #      fi
+    #      git push origin ${{ needs.update-rtl.outputs.branch_name }} main
+    #      git push origin --delete ${{ needs.update-rtl.outputs.branch_name }}

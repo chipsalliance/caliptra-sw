@@ -126,9 +126,11 @@ caliptra_top caliptra_top_dut (
     .PWDATA(PWDATA),
     .PWRITE(PWRITE),
 
-    .qspi_clk_o(),
-    .qspi_cs_no(),
-    .qspi_d_io(),
+    .qspi_clk_o (),
+    .qspi_cs_no (),
+    .qspi_d_i   (),
+    .qspi_d_o   (),
+    .qspi_d_en_o(),
 
     .el2_mem_export(el2_mem_export),
 
