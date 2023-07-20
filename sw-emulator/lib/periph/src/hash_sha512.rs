@@ -449,6 +449,10 @@ impl HashSha512 {
             self.key_vault
                 .write_pcr(pcr_id, array_ref![self.hash.data(), 0, KeyVault::KEY_SIZE])
                 .unwrap();
+
+            self.block_read_ctrl
+                .reg
+                .modify(BlockReadControl::PCR_HASH_EXTEND::CLEAR);
         }
 
         // Update Ready and Valid status bits
