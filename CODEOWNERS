@@ -6,7 +6,7 @@
 /drivers/ @mhatrevi @ajisaxena @vsonims @korran
 /image/ @mhatrevi @ajisaxena @vsonims 
 /sw-emulator/ @korran @mhatrevi
-/x509/ @mhatrevi @ajisaxena @vsonims @jlmahowa-amd
+/x509/ @mhatrevi @ajisaxena @vsonims @jlmahowa-amd @jhand2
 /fmc/ @FerralCoder @rusty1968
 /runtime/ @jhand2 @fdamato @rusty1968
 /hw-model/ @korran @fdamato @jlmahowa-amd
