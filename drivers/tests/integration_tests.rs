@@ -434,6 +434,22 @@ fn test_mailbox_soc_to_uc() {
              buf: [04050607, 00000003]\n"
         );
     }
+
+    // Test drop_words
+    {
+        model
+            .mailbox_execute(
+                0x9000_0000,
+                &[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08],
+            )
+            .unwrap();
+        assert_eq!(
+            model.output().take(usize::MAX),
+            "cmd: 0x90000000\n\
+             dlen: 8\n\
+             buf: [08070605]\n"
+        );
+    }
 }
 
 #[test]

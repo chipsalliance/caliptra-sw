@@ -306,6 +306,7 @@ dependencies = [
  "caliptra-builder",
  "caliptra-cpu",
  "caliptra-drivers",
+ "caliptra-registers",
  "caliptra_common",
  "cfg-if 1.0.0",
  "ufmt",
@@ -353,6 +354,7 @@ dependencies = [
 name = "caliptra-hw-model-test-fw"
 version = "0.1.0"
 dependencies = [
+ "caliptra-drivers",
  "caliptra-registers",
  "caliptra-test-harness",
 ]

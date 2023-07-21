@@ -15,50 +15,62 @@
 TARGET_DIR=../../target/riscv32imc-unknown-none-elf/firmware
 CURRENT_DIR = $(shell pwd)
 GIT_REV = $(shell git rev-parse HEAD)
+EXTRA_CARGO_CONFIG = target.'cfg(all())'.rustflags = [\"-Dwarnings\"]
 
 default: build
 
 build:
-	cargo build \
+	cargo \
+		"--config=$(EXTRA_CARGO_CONFIG)" \
+		build \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
 
 build-emu:
-	cargo build \
+	cargo \
+		"--config=$(EXTRA_CARGO_CONFIG)" \
+		build \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu \
+		--features emu
 
 build-test-fmc:
-	cargo build \
+	cargo \
+		"--config=$(EXTRA_CARGO_CONFIG)" \
+		build \
 		--profile firmware \
 		--manifest-path tools/test-fmc/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu \
+		--features emu
 
 build-test-rt:
-	cargo build \
+	cargo \
+		"--config=$(EXTRA_CARGO_CONFIG)" \
+		build \
 		--profile firmware \
 		--manifest-path tools/test-rt/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu \
+		--features emu
 
 gen-certs:
 	$(shell bash $(CURRENT_DIR)/tools/scripts/gen_test_certs.sh $(TARGET_DIR))
 	$(shell cp $(CURRENT_DIR)/tools/keys.toml $(TARGET_DIR))
 
 build-fw-image: gen-certs build-test-fmc build-test-rt
-	cargo run \
+	cargo \
+		"--config=$(EXTRA_CARGO_CONFIG)" \
+		run \
 		--manifest-path ../../image/app/Cargo.toml \
 		-- \
 		create \
 		--key-config $(TARGET_DIR)/keys.toml \
 		--ecc-pk-idx 3 \
 		--lms-pk-idx 3 \
+		--owner-lms-pk-idx 0 \
 		--fmc $(TARGET_DIR)/caliptra-rom-test-fmc \
 		--fmc-svn 0 \
 		--fmc-min-svn 0 \
@@ -70,18 +82,22 @@ build-fw-image: gen-certs build-test-fmc build-test-rt
 		--out $(TARGET_DIR)/caliptra-rom-test-fw \
 
 bloat: build
-	 cargo bloat \
+	 cargo \
+		"--config=$(EXTRA_CARGO_CONFIG)" \
+		bloat \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
 		-n 1000 \
 
 objdump:
-	 cargo objdump \
+	 cargo \
+		"--config=$(EXTRA_CARGO_CONFIG)" \
+		objdump \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
- 		-- \
+		-- \
 		-d \
 		--no-print-imm-hex \
 		--disassembler-options=no-aliases \
@@ -97,7 +113,9 @@ objcopy:
   		$(TARGET_DIR)/caliptra-rom.bin \
 
 run: build-emu build-fw-image objcopy
-	cargo run \
+	cargo \
+		"--config=$(EXTRA_CARGO_CONFIG)" \
+		run \
 		-p caliptra-emu \
 		-- \
 		--req-idevid-csr \
@@ -107,7 +125,9 @@ run: build-emu build-fw-image objcopy
 		--device-lifecycle unprovisioned \
 
 run-update: build-emu build-fw-image objcopy
-		cargo run \
+		cargo \
+		"--config=$(EXTRA_CARGO_CONFIG)" \
+		run \
 		-p caliptra-emu \
 		-- \
 		--req-idevid-csr \
@@ -119,13 +139,17 @@ run-update: build-emu build-fw-image objcopy
 
 
 size:
-	 cargo size \
+	 cargo \
+		"--config=$(EXTRA_CARGO_CONFIG)" \
+		size \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
 
 nm:
-	 cargo nm \
+	 cargo \
+		"--config=$(EXTRA_CARGO_CONFIG)" \
+		nm \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \

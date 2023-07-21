@@ -108,9 +108,10 @@ register_bitfields! [
 
     /// Flow Status
     FlowStatus [
-        STATUS OFFSET(0) NUMBITS(26) [],
-        LDEVID_CERT_READY OFFSET(26) NUMBITS(1) [],
-        IDEVID_CSR_READY OFFSET(27) NUMBITS(1) [],
+        STATUS OFFSET(0) NUMBITS(23) [],
+        LDEVID_CERT_READY OFFSET(23) NUMBITS(1) [],
+        IDEVID_CSR_READY OFFSET(24) NUMBITS(1) [],
+        BOOT_FSM_PS OFFSET(25) NUMBITS(3) [],
         READY_FOR_FW OFFSET(28) NUMBITS(1) [],
         READY_FOR_RT OFFSET(29) NUMBITS(1) [],
         READY_FOR_FUSES OFFSET(30) NUMBITS(1) [],
@@ -629,7 +630,7 @@ impl SocRegistersImpl {
             internal_obf_key: args.cptra_obf_key,
             internal_iccm_lock: ReadWriteRegister::new(0),
             internal_fw_update_reset: ReadWriteRegister::new(0),
-            internal_fw_update_reset_wait_cycles: ReadWriteRegister::new(0),
+            internal_fw_update_reset_wait_cycles: ReadWriteRegister::new(5),
             internal_nmi_vector: ReadWriteRegister::new(0),
             mailbox,
             iccm,

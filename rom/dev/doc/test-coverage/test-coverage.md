@@ -8,10 +8,17 @@ Test Name | ROM Stage | Description | ROM Error Code
 **test_preamble_owner_pubkey_digest_mismatch** | Image Verification - Preamble | Checks if the owner public key hash from fuse is not zero and matches the hash of the owner public key in the Preamble | IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH
 **test_preamble_vendor_pubkey_revocation** | Image Verification - Preamble | * Checks revoking of key idx 0/1/2 <br> * Checks if last key (idx = 3) is revocable | IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_REVOKED
 **test_preamble_vendor_pubkey_out_of_bounds** | Image Verification - Preamble | Checks if key idx is >= 4 | IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS
+**test_preamble_vendor_lms_pubkey_out_of_bounds** | Image Verification - Preamble | Checks if LMS key idx is >= 4 | IMAGE_VERIFIER_ERR_VENDOR_LMS_PUBKEY_INDEX_OUT_OF_BOUNDS
+**test_preamble_owner_pubkey_out_of_bounds** | Image Verification - Preamble | Checks if key idx is >= 4 | IMAGE_VERIFIER_ERR_OWNER_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS
+**test_preamble_owner_lms_pubkey_out_of_bounds** | Image Verification - Preamble | Checks if LMS key idx is >= 4 | IMAGE_VERIFIER_ERR_OWNER_LMS_PUBKEY_INDEX_OUT_OF_BOUNDS
 **test_header_verify_vendor_sig_zero_pubkey** | Image Verification - Header | Checks if vendor ECC public key is non-zero | IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID_ARG
 **test_header_verify_vendor_sig_zero_signature** | Image Verification - Header | Checks if vendor signature is non-zero | IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID_ARG
 **test_header_verify_vendor_sig_mismatch** | Image Verification - Header | Checks if vendor ECC signature from Preamble and computed header signature match | IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID
+**test_header_verify_vendor_lms_sig_mismatch** | Image Verification - Header | Checks if vendor LMS signature from Preamble and computed header signature match | IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID
+**test_header_verify_owner_lms_sig_mismatch** | Image Verification - Header | Checks if owner LMS signature from Preamble and computed header signature match | IMAGE_VERIFIER_ERR_OWNER_LMS_SIGNATURE_INVALID
 **test_header_verify_vendor_pub_key_in_preamble_and_header** | Image Verification - Header | Checks if the vendor ECC public key index in Preamble and Header match | IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_MISMATCH
+**test_header_verify_vendor_lms_pub_key_in_preamble_and_header** | Image Verification - Header | Checks if the vendor LMS public key index in Preamble and Header match | IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_MISMATCH
+**test_header_verify_owner_lms_pub_key_in_preamble_and_header** | Image Verification - Header | Checks if the owner LMS public key index in Preamble and Header match | IMAGE_VERIFIER_ERR_OWNER_LMS_PUB_KEY_INDEX_MISMATCH
 **test_header_verify_owner_sig_zero_fuses_zero_pubkey_x** | Image Verification - Header | Checks if the owner ECC public key in Preamble is zero | IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_INVALID_ARG
 **test_header_verify_owner_sig_zero_pubkey_x** | Image Verification - Header | Checks if the owner ECC public key in Preamble is zero | IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_INVALID_ARG
 **test_header_verify_owner_sig_zero_pubkey_y** | Image Verification - Header | Checks if the owner ECC public key in Preamble is zero | IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_INVALID_ARG
