@@ -72,8 +72,6 @@ impl WarmResetFlow {
 
         data_vault.write_warm_reset_entry4(WarmResetEntry4::RtSvn, manifest.runtime.svn);
 
-        data_vault.write_warm_reset_entry4(WarmResetEntry4::RtLoadAddr, manifest.runtime.load_addr);
-
         data_vault
             .write_warm_reset_entry4(WarmResetEntry4::RtEntryPoint, manifest.runtime.entry_point);
 
