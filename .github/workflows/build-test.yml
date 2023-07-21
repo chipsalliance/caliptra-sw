@@ -125,3 +125,6 @@ jobs:
           git submodule update --init
           (cd hw-model/c-binding/examples && make run)
 
+      - name: Caliptra C API Hwmodel Integration Test
+        run: |
+          (cd libcaliptra/examples/hwmodel && make && ./hwmodel)
