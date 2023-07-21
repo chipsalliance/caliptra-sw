@@ -72,6 +72,12 @@ mod constants {
     pub const CPTRA_GENERIC_INPUT_WIRES_SIZE: usize = 8;
     pub const CPTRA_GENERIC_OUTPUT_WIRES_START: u32 = 0xc8;
     pub const CPTRA_GENERIC_OUTPUT_WIRES_SIZE: usize = 8;
+    /// https://chipsalliance.github.io/caliptra-rtl/main/external-regs/?p=caliptra_top_reg.generic_and_fuse_reg.CPTRA_HW_REV_ID
+    pub const CPTRA_HW_REV_ID_START: u32 = 0xd0;
+    pub const CPTRA_HW_REV_ID_SIZE: usize = 4;
+    /// https://chipsalliance.github.io/caliptra-rtl/main/external-regs/?p=caliptra_top_reg.generic_and_fuse_reg.CPTRA_FW_REV_ID%5B0%5D
+    pub const CPTRA_FW_REV_ID_START: u32 = 0xd4;
+    pub const CPTRA_FW_REV_ID_SIZE: usize = 8;
     pub const FUSE_UDS_SEED_SIZE: usize = 48;
     pub const FUSE_FIELD_ENTROPY_SIZE: usize = 32;
     pub const CPTRA_WDT_TIMER1_EN_START: u32 = 0xe0;
@@ -438,6 +444,12 @@ struct SocRegistersImpl {
     #[register_array(offset = 0x00c8, write_fn = on_write_generic_output_wires)]
     cptra_generic_output_wires: [u32; CPTRA_GENERIC_OUTPUT_WIRES_SIZE / 4],
 
+    #[register(offset = 0x00d0)]
+    cptra_hw_rev_id: u32,
+
+    #[register_array(offset = 0x00d4)]
+    cptra_fw_rev_id: [u32; CPTRA_FW_REV_ID_SIZE / 4],
+
     #[register(offset = 0x00dc, write_fn = write_disabled)]
     cptra_hw_config: u32,
 
@@ -616,6 +628,8 @@ impl SocRegistersImpl {
             cptra_clk_gating_en: ReadOnlyRegister::new(0),
             cptra_generic_input_wires: Default::default(),
             cptra_generic_output_wires: Default::default(),
+            cptra_hw_rev_id: 1, // Reset value matches verilator.
+            cptra_fw_rev_id: Default::default(),
             cptra_hw_config: 0,
             fuse_uds_seed: words_from_bytes_be(&Self::UDS),
             fuse_field_entropy: [0xffff_ffff; 8],
