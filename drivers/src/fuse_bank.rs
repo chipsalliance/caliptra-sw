@@ -54,6 +54,7 @@ impl From<IdevidCertAttr> for usize {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LmsVerifyConfig {
     EcdsaOnly = 0,
     EcdsaAndLms = 1,
@@ -167,19 +168,32 @@ impl FuseBank<'_> {
         Array4x12::read_from_reg(soc_ifc_regs.fuse_key_manifest_pk_hash())
     }
 
-    /// Get the vendor public key revocation mask.
+    /// Get the ecc vendor public key revocation mask.
     ///
     /// # Arguments
     /// * None
     ///
     /// # Returns
-    ///     vendor public key revocation mask
+    ///     ecc vendor public key revocation mask
     ///
-    pub fn vendor_pub_key_revocation(&self) -> VendorPubKeyRevocation {
+    pub fn vendor_ecc_pub_key_revocation(&self) -> VendorPubKeyRevocation {
         let soc_ifc_regs = self.soc_ifc.regs();
         VendorPubKeyRevocation::from_bits_truncate(
             soc_ifc_regs.fuse_key_manifest_pk_hash_mask().read().mask(),
         )
+    }
+
+    /// Get the lms vendor public key revocation mask.
+    ///
+    /// # Arguments
+    /// * None
+    ///
+    /// # Returns
+    ///     lms vendor public key revocation mask
+    ///
+    pub fn vendor_lms_pub_key_revocation(&self) -> VendorPubKeyRevocation {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        VendorPubKeyRevocation::from_bits_truncate(soc_ifc_regs.fuse_lms_revocation().read())
     }
 
     /// Get the owner public key hash.

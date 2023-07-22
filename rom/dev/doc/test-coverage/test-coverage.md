@@ -6,26 +6,35 @@ Test Name | ROM Stage | Description | ROM Error Code
 **test_preamble_zero_vendor_pubkey_digest** | Image Verification - Preamble | Checks if vendor public key digest is not zero in the fuse | IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID
 **test_preamble_vendor_pubkey_digest_mismatch** | Image Verification - Preamble | Checks if the vendor public key hash from fuse matches the hash of the vendor public keys in the Preamble | IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_MISMATCH
 **test_preamble_owner_pubkey_digest_mismatch** | Image Verification - Preamble | Checks if the owner public key hash from fuse is not zero and matches the hash of the owner public key in the Preamble | IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH
-**test_preamble_vendor_pubkey_revocation** | Image Verification - Preamble | * Checks revoking of key idx 0/1/2 <br> * Checks if last key (idx = 3) is revocable | IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_REVOKED
-**test_preamble_vendor_pubkey_out_of_bounds** | Image Verification - Preamble | Checks if key idx is >= 4 | IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS
-**test_preamble_vendor_lms_pubkey_out_of_bounds** | Image Verification - Preamble | Checks if LMS key idx is >= 4 | IMAGE_VERIFIER_ERR_VENDOR_LMS_PUBKEY_INDEX_OUT_OF_BOUNDS
-**test_preamble_owner_pubkey_out_of_bounds** | Image Verification - Preamble | Checks if key idx is >= 4 | IMAGE_VERIFIER_ERR_OWNER_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS
+**test_preamble_vendor_ecc_pubkey_revocation** | Image Verification - Preamble | Checks revoking of key idx 0/1/2 <br> * Checks if last key (idx = 3) is revocable | IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_REVOKED
+**test_preamble_vendor_lms_pubkey_revocation** | Image Verification - Preamble | Checks revoking of key idx 0/1/2 <br> * Checks if last key (idx = 3) is revocable | IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_REVOKED
+**test_preamble_vendor_lms_optional_no_pubkey_revocation_check** | Image Verification - Preamble | * Sets lms_verify fuse to false and checks vendor LMS key revocation | Success
+**test_preamble_vendor_ecc_pubkey_out_of_bounds** | Image Verification - Preamble | Checks if vendor ECC key idx is >= 4 | IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS
+**test_preamble_vendor_lms_pubkey_out_of_bounds** | Image Verification - Preamble | Checks if vendor LMS key idx is >= 4 | 
+IMAGE_VERIFIER_ERR_VENDOR_LMS_PUBKEY_INDEX_OUT_OF_BOUNDS
+**test_preamble_vendor_lms_optional_no_pubkey_out_of_bounds_check** | Image Verification - Preamble | Sets lms_verify fuse to false and checks if vendor LMS key idx is >= 4 |  Success
+IMAGE_VERIFIER_ERR_VENDOR_LMS_PUBKEY_INDEX_OUT_OF_BOUNDS
 **test_preamble_owner_lms_pubkey_out_of_bounds** | Image Verification - Preamble | Checks if LMS key idx is >= 4 | IMAGE_VERIFIER_ERR_OWNER_LMS_PUBKEY_INDEX_OUT_OF_BOUNDS
-**test_header_verify_vendor_sig_zero_pubkey** | Image Verification - Header | Checks if vendor ECC public key is non-zero | IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID_ARG
-**test_header_verify_vendor_sig_zero_signature** | Image Verification - Header | Checks if vendor signature is non-zero | IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID_ARG
-**test_header_verify_vendor_sig_mismatch** | Image Verification - Header | Checks if vendor ECC signature from Preamble and computed header signature match | IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID
+**test_preamble_owner_lms_optional_no_pubkey_out_of_bounds_check** | Image Verification - Preamble | Sets lms_verify fuse to false and checks if owner LMS key idx is >= 4 | Success
+**test_header_verify_vendor_sig_zero_ecc_pubkey** | Image Verification - Header | Checks if vendor ECC public key is non-zero | IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID_ARG
+**test_header_verify_vendor_sig_zero_ecc_signature** | Image Verification - Header | Checks if vendor signature is non-zero | IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID_ARG
+**test_header_verify_vendor_ecc_sig_mismatch** | Image Verification - Header | Checks if vendor ECC signature from Preamble and computed header signature match | IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID
 **test_header_verify_vendor_lms_sig_mismatch** | Image Verification - Header | Checks if vendor LMS signature from Preamble and computed header signature match | IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID
+**test_header_verify_vendor_lms_optional_no_sig_mismatch_check** | Image Verification - Header | Sets lms_verify fuse to false and checks if vendor LMS signature from Preamble and computed header signature match | Success
 **test_header_verify_owner_lms_sig_mismatch** | Image Verification - Header | Checks if owner LMS signature from Preamble and computed header signature match | IMAGE_VERIFIER_ERR_OWNER_LMS_SIGNATURE_INVALID
-**test_header_verify_vendor_pub_key_in_preamble_and_header** | Image Verification - Header | Checks if the vendor ECC public key index in Preamble and Header match | IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_MISMATCH
+**test_header_verify_owner_lms_optional_no_sig_mismatch_check** | Image Verification - Header | Sets lms_verify fuse to false and checks if owner LMS signature from Preamble and computed header signature match | Success
+**test_header_verify_vendor_ecc_pub_key_in_preamble_and_header** | Image Verification - Header | Checks if the vendor ECC public key index in Preamble and Header match | IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_MISMATCH
 **test_header_verify_vendor_lms_pub_key_in_preamble_and_header** | Image Verification - Header | Checks if the vendor LMS public key index in Preamble and Header match | IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_MISMATCH
+**test_header_verify_vendor_lms_optional_no_pub_key_in_preamble_and_header_check** | Image Verification - Header |  Sets lms_verify fuse to false and checks if the vendor LMS public key index in Preamble and Header match | Success
 **test_header_verify_owner_lms_pub_key_in_preamble_and_header** | Image Verification - Header | Checks if the owner LMS public key index in Preamble and Header match | IMAGE_VERIFIER_ERR_OWNER_LMS_PUB_KEY_INDEX_MISMATCH
+**test_header_verify_owner_lms_optional_no_pub_key_in_preamble_and_header_check** | Image Verification - Header | Sets lms_verify fuse to false and checks if the owner LMS public key index in Preamble and Header match | Success
 **test_header_verify_owner_sig_zero_fuses_zero_pubkey_x** | Image Verification - Header | Checks if the owner ECC public key in Preamble is zero | IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_INVALID_ARG
-**test_header_verify_owner_sig_zero_pubkey_x** | Image Verification - Header | Checks if the owner ECC public key in Preamble is zero | IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_INVALID_ARG
-**test_header_verify_owner_sig_zero_pubkey_y** | Image Verification - Header | Checks if the owner ECC public key in Preamble is zero | IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_INVALID_ARG
-**test_header_verify_owner_sig_zero_signature_r** | Image Verification - Header | Checks if the owner ECC signature in Preamble is zero | IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID_ARG
-**test_header_verify_owner_sig_zero_signature_s** | Image Verification - Header | Checks if the owner ECC signature in Preamble is zero | IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID_ARG
-**test_header_verify_owner_sig_invalid_signature_r** | Image Verification - Header | Checks if owner ECC signature from Preamble and computed header signature match | IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID
-**test_header_verify_owner_sig_invalid_signature_s** | Image Verification - Header | Checks if owner ECC signature from Preamble and computed header signature match | IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID
+**test_header_verify_owner_ecc_sig_zero_pubkey_x** | Image Verification - Header | Checks if the owner ECC public key.x in Preamble is zero | IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_INVALID_ARG
+**test_header_verify_owner_ecc_sig_zero_pubkey_y** | Image Verification - Header | Checks if the owner ECC public key.y in Preamble is zero | IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_INVALID_ARG
+**test_header_verify_owner_ecc_sig_zero_signature_r** | Image Verification - Header | Checks if the owner ECC signature.r in Preamble is zero | IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID_ARG
+**test_header_verify_owner_ecc_sig_zero_signature_s** | Image Verification - Header | Checks if the owner ECC signature.s in Preamble is zero | IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID_ARG
+**test_header_verify_owner_ecc_sig_invalid_signature_r** | Image Verification - Header | Checks if owner ECC signature.r from Preamble and computed header signature match | IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID
+**test_header_verify_owner_ecc_sig_invalid_signature_s** | Image Verification - Header | Checks if owner ECC signature.s from Preamble and computed header signature match | IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID
 **test_toc_invalid_entry_count** | Image Verification - TOC | Checks if header.toc_count equals MAX_TOC_ENTRY_COUNT (2) | IMAGE_VERIFIER_ERR_TOC_ENTRY_COUNT_INVALID
 **test_toc_invalid_toc_digest** | Image Verification - TOC | Checks if digest of [manifest.fmc_toc | manifest.rt_toc] matches header.toc_digest | IMAGE_VERIFIER_ERR_TOC_DIGEST_MISMATCH
 **test_toc_fmc_range_overlap** | Image Verification - TOC | Checks if FMC and Runtime images don't overlap in the image bundle | IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP
@@ -64,10 +73,10 @@ Test Name | ROM Stage | Description | ROM Error Code
 # **Firmware Downloader Integration Tests**
 Test Name | ROM Stage | Description | ROM Error Code
 ---|---|---|---
-**test_zero_firmware_size** | FW Donwloader | Checks if firmware is zero-sized | FW_PROC_INVALID_IMAGE_SIZE
-**test_firmware_gt_max_size** | FW Donwloader |  Checks if firmware is not more than max. size (128K)  | FW_PROC_INVALID_IMAGE_SIZE
-**test_pcr_log** | FW Donwloader |  Checks if PCR log entries are correctly logged to DCCM  | N/A
-**ttest_fuse_log** | FW Donwloader |  Checks if Fuse log entries are correctly logged to DCCM  | N/A
+**test_zero_firmware_size** | FW Downloader | Checks if firmware is zero-sized | FW_PROC_INVALID_IMAGE_SIZE
+**test_firmware_gt_max_size** | FW Downloader |  Checks if firmware is not more than max. size (128K)  | FW_PROC_INVALID_IMAGE_SIZE
+**test_pcr_log** | FW Downloader |  Checks if PCR log entries are correctly logged to DCCM  | N/A
+**ttest_fuse_log** | FW Downloader |  Checks if Fuse log entries are correctly logged to DCCM  | N/A
 <br><br>
 ## **FMCALIAS Integration Tests**
 Test Name | ROM Stage | Description | ROM Error Code
