@@ -94,6 +94,7 @@ objdump:
 	 cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		objdump \
+		--bin caliptra-rom \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
@@ -145,6 +146,7 @@ size:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
+		--bin caliptra-rom \
 
 nm:
 	 cargo \
