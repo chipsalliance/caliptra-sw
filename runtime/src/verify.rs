@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::{CommandId, Drivers, EcdsaVerifyCmd};
+use crate::{Drivers, EcdsaVerifyCmdReq};
 use caliptra_drivers::{
     Array4x12, CaliptraError, CaliptraResult, Ecc384PubKey, Ecc384Scalar, Ecc384Signature,
 };
@@ -11,14 +11,7 @@ const PAYLOAD_OFFSET: usize = 4;
 
 /// Handle the `ECDSA384_SIGNATURE_VERIFY` mailbox command
 pub(crate) fn handle_ecdsa_verify(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<()> {
-    if let Some(cmd) = EcdsaVerifyCmd::read_from(cmd_args) {
-        if !caliptra_common::checksum::verify_checksum(
-            cmd.chksum,
-            CommandId::ECDSA384_VERIFY.into(),
-            &cmd_args[PAYLOAD_OFFSET..],
-        ) {
-            return Err(CaliptraError::RUNTIME_INVALID_CHECKSUM);
-        }
+    if let Some(cmd) = EcdsaVerifyCmdReq::read_from(cmd_args) {
         // Won't panic, full_digest is always larger than digest
         let full_digest = drivers.sha_acc.regs().digest().read();
         let mut digest = Array4x12::default();
