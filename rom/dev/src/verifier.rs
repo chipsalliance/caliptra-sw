@@ -124,13 +124,13 @@ impl<'a> ImageVerificationEnv for &mut RomImageVerificationEnv<'a> {
     }
 
     // Get Fuse FMC Key Manifest SVN
-    fn fmc_svn(&self) -> u32 {
-        self.soc_ifc.fuse_bank().fmc_svn()
+    fn fmc_fuse_svn(&self) -> u32 {
+        self.soc_ifc.fuse_bank().fmc_fuse_svn()
     }
 
     // Get Runtime fuse SVN
-    fn runtime_svn(&self) -> u32 {
-        self.soc_ifc.fuse_bank().runtime_svn()
+    fn runtime_fuse_svn(&self) -> u32 {
+        self.soc_ifc.fuse_bank().runtime_fuse_svn()
     }
 
     fn iccm_range(&self) -> Range<u32> {

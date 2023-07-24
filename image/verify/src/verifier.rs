@@ -547,13 +547,13 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_MIN_SUPPORTED)?;
             }
 
-            if verify_info.svn < self.env.fmc_svn() {
+            if verify_info.svn < self.env.fmc_fuse_svn() {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_FUSE)?;
             }
         }
 
         let effective_fuse_svn =
-            Self::effective_fuse_svn(self.env.fmc_svn(), self.env.anti_rollback_disable());
+            Self::effective_fuse_svn(self.env.fmc_fuse_svn(), self.env.anti_rollback_disable());
 
         if reason == ResetReason::UpdateReset && actual != self.env.get_fmc_digest_dv() {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_FMC_DIGEST_MISMATCH)?;
@@ -571,7 +571,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let log_info: ImageSvnLogInfo = ImageSvnLogInfo {
             manifest_svn: verify_info.svn,
             manifest_min_svn: verify_info.min_svn,
-            fuse_svn: self.env.fmc_svn(),
+            fuse_svn: self.env.fmc_fuse_svn(),
         };
 
         Ok((info, log_info))
@@ -618,13 +618,15 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_MIN_SUPPORTED)?;
             }
 
-            if verify_info.svn < self.env.runtime_svn() {
+            if verify_info.svn < self.env.runtime_fuse_svn() {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE)?;
             }
         }
 
-        let effective_fuse_svn =
-            Self::effective_fuse_svn(self.env.runtime_svn(), self.env.anti_rollback_disable());
+        let effective_fuse_svn = Self::effective_fuse_svn(
+            self.env.runtime_fuse_svn(),
+            self.env.anti_rollback_disable(),
+        );
 
         let info = ImageVerificationExeInfo {
             load_addr: verify_info.load_addr,
@@ -638,7 +640,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let log_info: ImageSvnLogInfo = ImageSvnLogInfo {
             manifest_svn: verify_info.svn,
             manifest_min_svn: verify_info.min_svn,
-            fuse_svn: self.env.runtime_svn(),
+            fuse_svn: self.env.runtime_fuse_svn(),
         };
 
         Ok((info, log_info))
@@ -1644,11 +1646,11 @@ mod tests {
             self.fmc_digest
         }
 
-        fn fmc_svn(&self) -> u32 {
+        fn fmc_fuse_svn(&self) -> u32 {
             0
         }
 
-        fn runtime_svn(&self) -> u32 {
+        fn runtime_fuse_svn(&self) -> u32 {
             0
         }
 
