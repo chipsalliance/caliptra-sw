@@ -194,6 +194,86 @@ fn test_pcr_log() {
     assert_eq!(pcr_log_entry.id, PcrLogEntryId::FmcSvn as u16);
     assert_eq!(pcr_log_entry.pcr_id, 0);
     assert_eq!(pcr_log_entry.pcr_data[0] as u8, FMC_SVN as u8);
+
+    // Check PCR entry for FmcFuseSvn.
+    pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
+    let pcr_log_entry =
+        PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
+    assert_eq!(pcr_log_entry.id, PcrLogEntryId::FmcFuseSvn as u16);
+    assert_eq!(pcr_log_entry.pcr_id, 0);
+    assert_eq!(pcr_log_entry.pcr_data[0] as u8, 0); // anti_rollback_disable is true
+}
+
+#[test]
+fn test_pcr_log_fmc_fuse_svn() {
+    let gen = ImageGenerator::new(OsslCrypto::default());
+    let (_hw, image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let vendor_pubkey_digest = gen
+        .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+        .unwrap();
+
+    let owner_pubkey_digest = gen
+        .owner_pubkey_digest(&image_bundle.manifest.preamble)
+        .unwrap();
+
+    pub const TEST_FMC_WITH_UART: FwId = FwId {
+        crate_name: "caliptra-rom-test-fmc",
+        bin_name: "caliptra-rom-test-fmc",
+        features: &["emu"],
+        workspace_dir: None,
+    };
+
+    let fuses = Fuses {
+        anti_rollback_disable: false,
+        key_manifest_pk_hash: vendor_pubkey_digest,
+        owner_pk_hash: owner_pubkey_digest,
+        fmc_key_manifest_svn: 0b11, // FMC Fuse SVN = 2
+        ..Default::default()
+    };
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        ..Default::default()
+    })
+    .unwrap();
+
+    const FMC_SVN: u32 = 2;
+    let image_options = ImageOptions {
+        vendor_config: VENDOR_CONFIG_KEY_1,
+        fmc_svn: FMC_SVN,
+        ..Default::default()
+    };
+    let image_bundle =
+        caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)
+            .unwrap();
+
+    assert!(hw
+        .upload_firmware(&image_bundle.to_bytes().unwrap())
+        .is_ok());
+
+    hw.step_until_boot_status(ColdResetComplete.into(), true);
+
+    let result = hw.mailbox_execute(0x1000_0000, &[]);
+    assert!(result.is_ok());
+
+    let pcr_entry_arr = result.unwrap().unwrap();
+
+    // Check PCR entry for FmcFuseSvn.
+    let pcr_log_entry = PcrLogEntry::read_from_prefix(
+        pcr_entry_arr
+            [((PcrLogEntryId::FmcFuseSvn as usize - 1) * core::mem::size_of::<PcrLogEntry>())..]
+            .as_bytes(),
+    )
+    .unwrap();
+    assert_eq!(pcr_log_entry.id, PcrLogEntryId::FmcFuseSvn as u16);
+    assert_eq!(pcr_log_entry.pcr_id, 0);
+    assert_eq!(pcr_log_entry.pcr_data[0] as u8, FMC_SVN as u8); // anti_rollback_disable is false
 }
 
 #[test]
