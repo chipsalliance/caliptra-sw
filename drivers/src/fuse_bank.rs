@@ -191,9 +191,9 @@ impl FuseBank<'_> {
     /// # Returns
     ///     lms vendor public key revocation mask
     ///
-    pub fn vendor_lms_pub_key_revocation(&self) -> VendorPubKeyRevocation {
+    pub fn vendor_lms_pub_key_revocation(&self) -> u32 {
         let soc_ifc_regs = self.soc_ifc.regs();
-        VendorPubKeyRevocation::from_bits_truncate(soc_ifc_regs.fuse_lms_revocation().read())
+        soc_ifc_regs.fuse_lms_revocation().read()
     }
 
     /// Get the owner public key hash.

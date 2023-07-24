@@ -204,14 +204,14 @@ fn test_preamble_vendor_ecc_pubkey_revocation() {
 fn test_preamble_vendor_lms_pubkey_revocation() {
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     const LAST_KEY_IDX: u32 = VENDOR_LMS_KEY_COUNT - 1;
-    const VENDOR_CONFIG_LIST: [ImageGeneratorVendorConfig; VENDOR_LMS_KEY_COUNT as usize] = [
-        VENDOR_CONFIG_KEY_0,
-        VENDOR_CONFIG_KEY_1,
-        VENDOR_CONFIG_KEY_2,
-        VENDOR_CONFIG_KEY_3,
-    ];
 
-    for vendor_config in VENDOR_CONFIG_LIST {
+    for idx in 0..VENDOR_LMS_KEY_COUNT {
+        let vendor_config = ImageGeneratorVendorConfig {
+            ecc_key_idx: 3,
+            lms_key_idx: idx,
+            ..VENDOR_CONFIG_KEY_0
+        };
+
         let mut image_options = ImageOptions::default();
         let key_idx = vendor_config.lms_key_idx;
         image_options.vendor_config = vendor_config;
@@ -256,14 +256,13 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
 #[test]
 fn test_preamble_vendor_lms_optional_no_pubkey_revocation_check() {
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
-    const VENDOR_CONFIG_LIST: [ImageGeneratorVendorConfig; VENDOR_LMS_KEY_COUNT as usize] = [
-        VENDOR_CONFIG_KEY_0,
-        VENDOR_CONFIG_KEY_1,
-        VENDOR_CONFIG_KEY_2,
-        VENDOR_CONFIG_KEY_3,
-    ];
 
-    for vendor_config in VENDOR_CONFIG_LIST {
+    for idx in 0..VENDOR_LMS_KEY_COUNT {
+        let vendor_config = ImageGeneratorVendorConfig {
+            ecc_key_idx: 3,
+            lms_key_idx: idx,
+            ..VENDOR_CONFIG_KEY_0
+        };
         let image_options = caliptra_builder::ImageOptions {
             vendor_config,
             ..Default::default()

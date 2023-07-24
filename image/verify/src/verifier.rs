@@ -29,7 +29,7 @@ struct HeaderInfo<'a> {
     vendor_ecc_pub_key_revocation: VendorPubKeyRevocation,
     vendor_ecc_info: (&'a ImageEccPubKey, &'a ImageEccSignature),
     vendor_lms_info: Option<(&'a ImageLmsPublicKey, &'a ImageLmsSignature)>,
-    vendor_lms_pub_key_revocation: Option<VendorPubKeyRevocation>,
+    vendor_lms_pub_key_revocation: Option<u32>,
     owner_ecc_info: Option<(&'a ImageEccPubKey, &'a ImageEccSignature)>,
     owner_lms_info: Option<(&'a ImageLmsPublicKey, &'a ImageLmsSignature)>,
     owner_pub_keys_digest: ImageDigest,
@@ -157,7 +157,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         // Verify LMS Vendor Key Index
         let mut vendor_lms_pub_key_idx: Option<u32> = None;
         let mut vendor_lms_info: Option<(&ImageLmsPublicKey, &'a ImageLmsSignature)> = None;
-        let mut vendor_lms_pub_key_revocation: Option<VendorPubKeyRevocation> = None;
+        let mut vendor_lms_pub_key_revocation: Option<u32> = None;
 
         if self.env.lms_verify_enabled() {
             (vendor_lms_pub_key_idx, vendor_lms_pub_key_revocation) =
@@ -263,7 +263,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         &mut self,
         preamble: &ImagePreamble,
         _reason: ResetReason,
-    ) -> CaliptraResult<(Option<u32>, Option<VendorPubKeyRevocation>)> {
+    ) -> CaliptraResult<(Option<u32>, Option<u32>)> {
         const SECOND_LAST_KEY_IDX: u32 = VENDOR_LMS_KEY_COUNT - 2;
         const LAST_KEY_IDX: u32 = SECOND_LAST_KEY_IDX + 1;
 
@@ -272,8 +272,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         match key_idx {
             0..=SECOND_LAST_KEY_IDX => {
-                let key = VendorPubKeyRevocation::from_bits_truncate(0x01u32 << key_idx);
-                if revocation.contains(key) {
+                if (revocation & (0x01u32 << key_idx)) != 0 {
                     Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_REVOKED)?;
                 }
             }
@@ -1667,7 +1666,7 @@ mod tests {
         verify_lms_result: bool,
         vendor_pub_key_digest: ImageDigest,
         vendor_ecc_pub_key_revocation: VendorPubKeyRevocation,
-        vendor_lms_pub_key_revocation: VendorPubKeyRevocation,
+        vendor_lms_pub_key_revocation: u32,
         owner_pub_key_digest: ImageDigest,
         lifecycle: Lifecycle,
     }
@@ -1681,7 +1680,7 @@ mod tests {
                 verify_lms_result: false,
                 vendor_pub_key_digest: ImageDigest::default(),
                 vendor_ecc_pub_key_revocation: VendorPubKeyRevocation::default(),
-                vendor_lms_pub_key_revocation: VendorPubKeyRevocation::default(),
+                vendor_lms_pub_key_revocation: 0,
                 owner_pub_key_digest: ImageDigest::default(),
                 lifecycle: Lifecycle::Unprovisioned,
             }
@@ -1719,7 +1718,7 @@ mod tests {
             self.vendor_ecc_pub_key_revocation
         }
 
-        fn vendor_lms_pub_key_revocation(&self) -> VendorPubKeyRevocation {
+        fn vendor_lms_pub_key_revocation(&self) -> u32 {
             self.vendor_lms_pub_key_revocation
         }
 

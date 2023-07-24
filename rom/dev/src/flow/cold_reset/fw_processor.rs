@@ -267,7 +267,7 @@ impl FirmwareProcessor {
         {
             log_fuse_data(
                 FuseLogEntryId::VendorLmsPubKeyRevocation,
-                fuse_vendor_lms_pub_key_revocation.bits().as_bytes(),
+                fuse_vendor_lms_pub_key_revocation.as_bytes(),
             )?;
         }
 
