@@ -27,6 +27,7 @@ pub struct caliptra_verilated_sig_in {
     pub imem_wdata: u64,
     pub itrng_data: u8,
     pub itrng_valid: bool,
+    pub sram_error_injection_mode: u8,
 }
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
@@ -55,6 +56,7 @@ pub struct caliptra_verilated_sig_out {
 #[derive(Debug, Default, Copy, Clone)]
 pub struct caliptra_verilated_init_args {
     pub security_state: u32,
+    pub cptra_obf_key: [u32; 8usize],
 }
 extern "C" {
     pub fn caliptra_verilated_new(

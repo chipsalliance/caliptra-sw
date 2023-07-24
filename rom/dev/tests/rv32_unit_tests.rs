@@ -7,6 +7,7 @@ pub const FWID: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "",
     features: &["emu"],
+    workspace_dir: None,
 };
 
 #[test]

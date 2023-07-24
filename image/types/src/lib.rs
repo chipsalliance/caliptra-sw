@@ -26,6 +26,7 @@ use zerocopy::{AsBytes, FromBytes};
 pub const MANIFEST_MARKER: u32 = 0x4E414D43;
 pub const VENDOR_ECC_KEY_COUNT: u32 = 4;
 pub const VENDOR_LMS_KEY_COUNT: u32 = 4;
+pub const OWNER_LMS_KEY_COUNT: u32 = 1;
 pub const MAX_TOC_ENTRY_COUNT: u32 = 2;
 pub const IMAGE_REVISION_BYTE_SIZE: usize = 20;
 pub const ECC384_SCALAR_WORD_SIZE: usize = 12;
@@ -227,12 +228,14 @@ pub struct ImageVendorPrivKeys {
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
 pub struct ImageOwnerPubKeys {
     pub ecc_pub_key: ImageEccPubKey,
+    pub lms_pub_keys: [ImageLmsPublicKey; OWNER_LMS_KEY_COUNT as usize],
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
 pub struct ImageOwnerPrivKeys {
     pub ecc_priv_key: ImageEccPrivKey,
+    pub lms_priv_keys: [ImageLmsPrivKey; OWNER_LMS_KEY_COUNT as usize],
 }
 
 #[repr(C)]
@@ -260,6 +263,9 @@ pub struct ImagePreamble {
 
     /// Owner Public Key
     pub owner_pub_keys: ImageOwnerPubKeys,
+
+    /// Owner LMS Public Key Index
+    pub owner_lms_pub_key_idx: u32,
 
     /// Owner Signatures
     pub owner_sigs: ImageSignatures,
@@ -303,6 +309,9 @@ pub struct ImageHeader {
 
     /// Vendor LMS Public Key Index
     pub vendor_lms_pub_key_idx: u32,
+
+    /// Owner LMS Public Key Index
+    pub owner_lms_pub_key_idx: u32,
 
     /// Flags
     pub flags: u32,
@@ -391,5 +400,110 @@ impl ImageTocEntry {
 
     pub fn image_size(&self) -> u32 {
         self.size
+    }
+
+    pub fn overlaps(&self, other: &ImageTocEntry) -> bool {
+        self.load_addr < (other.load_addr + other.image_size())
+            && (self.load_addr + self.image_size()) > other.load_addr
+    }
+}
+
+#[cfg(all(test, target_family = "unix"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_manifest_size() {
+        assert_eq!(std::mem::size_of::<ImageManifest>() % 4, 0);
+    }
+
+    #[test]
+    fn test_image_overlap() {
+        let mut image1 = ImageTocEntry::default();
+        let mut image2 = ImageTocEntry::default();
+
+        // Case 1
+        image1.load_addr = 400;
+        image1.size = 100;
+        image2.load_addr = 450;
+        image2.size = 100;
+        assert!(image1.overlaps(&image2));
+
+        // Case 2
+        image1.load_addr = 450;
+        image1.size = 100;
+        image2.load_addr = 400;
+        image2.size = 100;
+        assert!(image1.overlaps(&image2));
+
+        // Case 3
+        image1.load_addr = 400;
+        image1.size = 100;
+        image2.load_addr = 499;
+        image2.size = 100;
+        assert!(image1.overlaps(&image2));
+
+        // Case 4
+        image1.load_addr = 499;
+        image1.size = 100;
+        image2.load_addr = 400;
+        image2.size = 100;
+        assert!(image1.overlaps(&image2));
+
+        // Case 5
+        image1.load_addr = 499;
+        image1.size = 1;
+        image2.load_addr = 400;
+        image2.size = 100;
+        assert!(image1.overlaps(&image2));
+
+        // Case 6
+        image1.load_addr = 400;
+        image1.size = 100;
+        image2.load_addr = 499;
+        image2.size = 1;
+        assert!(image1.overlaps(&image2));
+
+        // Case 7
+        image1.load_addr = 400;
+        image1.size = 1;
+        image2.load_addr = 400;
+        image2.size = 100;
+        assert!(image1.overlaps(&image2));
+
+        // Case 8
+        image1.load_addr = 400;
+        image1.size = 100;
+        image2.load_addr = 400;
+        image2.size = 1;
+        assert!(image1.overlaps(&image2));
+
+        // Case 9
+        image1.load_addr = 399;
+        image1.size = 1;
+        image2.load_addr = 400;
+        image2.size = 100;
+        assert!(!image1.overlaps(&image2));
+
+        // Case 10
+        image1.load_addr = 400;
+        image1.size = 100;
+        image2.load_addr = 399;
+        image2.size = 1;
+        assert!(!image1.overlaps(&image2));
+
+        // Case 11
+        image1.load_addr = 500;
+        image1.size = 100;
+        image2.load_addr = 400;
+        image2.size = 100;
+        assert!(!image1.overlaps(&image2));
+
+        // Case 12
+        image1.load_addr = 400;
+        image1.size = 100;
+        image2.load_addr = 500;
+        image2.size = 100;
+        assert!(!image1.overlaps(&image2));
     }
 }

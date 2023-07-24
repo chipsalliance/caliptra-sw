@@ -1,69 +1,19 @@
 // Licensed under the Apache-2.0 license.
+pub mod common;
 
-use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
-use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode};
+use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART};
+use caliptra_drivers::Ecc384PubKey;
+use caliptra_hw_model::{HwModel, ModelError, ShaAccMode};
 use caliptra_runtime::{CommandId, EcdsaVerifyCmd};
-use openssl::x509::X509;
-use zerocopy::AsBytes;
-
-// Run test_bin as a ROM image. The is used for faster tests that can run
-// against verilator
-fn run_rom_test(test_bin_name: &'static str) -> DefaultHwModel {
-    static FEATURES: &[&str] = &["emu", "riscv"];
-
-    let runtime_fwid = FwId {
-        crate_name: "caliptra-runtime-test-bin",
-        bin_name: test_bin_name,
-        features: FEATURES,
-    };
-
-    let rom = caliptra_builder::build_firmware_rom(&runtime_fwid).unwrap();
-
-    caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
-            rom: &rom,
-            ..Default::default()
-        },
-        ..Default::default()
-    })
-    .unwrap()
-}
-
-// Run a test which boots ROM -> FMC -> test_bin. If test_bin_name is None,
-// run the production runtime image.
-fn run_rt_test(test_bin_name: Option<&'static str>) -> DefaultHwModel {
-    let runtime_fwid = match test_bin_name {
-        Some(bin) => FwId {
-            crate_name: "caliptra-runtime-test-bin",
-            bin_name: bin,
-            features: &["emu", "riscv", "runtime"],
-        },
-        None => APP_WITH_UART,
-    };
-
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
-
-    let image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &runtime_fwid,
-        ImageOptions::default(),
-    )
-    .unwrap();
-
-    let mut model = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
-            rom: &rom,
-            ..Default::default()
-        },
-        fw_image: Some(&image.to_bytes().unwrap()),
-        ..Default::default()
-    })
-    .unwrap();
-
-    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
-
-    model
-}
+use common::{run_rom_test, run_rt_test};
+use openssl::{
+    bn::BigNum,
+    ec::{EcGroup, EcKey},
+    nid::Nid,
+    pkey::PKey,
+    x509::X509,
+};
+use zerocopy::{AsBytes, FromBytes};
 
 #[test]
 fn test_standard() {
@@ -71,6 +21,34 @@ fn test_standard() {
     // Ultimately, this will be useful for exercising Caliptra end-to-end
     // via the mailbox.
     let mut model = run_rt_test(None);
+
+    model
+        .step_until_output_contains("Caliptra RT listening for mailbox commands...")
+        .unwrap();
+}
+
+#[test]
+fn test_update() {
+    // Test that the normal runtime firmware boots.
+    // Ultimately, this will be useful for exercising Caliptra end-to-end
+    // via the mailbox.
+    let mut model = run_rt_test(None);
+
+    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+
+    // Make image to update to
+    let image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+
+    model
+        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &image)
+        .unwrap();
 
     model
         .step_until_output_contains("Caliptra RT listening for mailbox commands...")
@@ -99,18 +77,33 @@ fn test_rom_certs() {
     let ldev_cert: X509 = X509::from_der(ldevid).unwrap();
     let fmc_cert: X509 = X509::from_der(fmc).unwrap();
 
+    let idev_resp = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
+    let idev_pub = Ecc384PubKey::read_from(idev_resp.as_bytes()).unwrap();
+
     // Check the FMC is signed by LDevID
     assert!(fmc_cert.verify(&ldev_cert.public_key().unwrap()).unwrap());
 
-    // TODO: Check that LDevID is signed by IDevID
-    // Runtime does not currently have access to the IDevID public key.
+    // Check the LDevID is signed by IDevID
+    let group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
+    let x_bytes: [u8; 48] = idev_pub.x.into();
+    let y_bytes: [u8; 48] = idev_pub.y.into();
+    let idev_x = &BigNum::from_slice(&x_bytes).unwrap();
+    let idev_y = &BigNum::from_slice(&y_bytes).unwrap();
+
+    let idev_ec_key = EcKey::from_public_key_affine_coordinates(&group, idev_x, idev_y).unwrap();
+    assert!(ldev_cert
+        .verify(&PKey::from_ec_key(idev_ec_key).unwrap())
+        .unwrap());
 }
 
 #[test]
 fn test_verify_cmd() {
     let mut model = run_rom_test("mbox");
 
-    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+    model.step_until(|m| {
+        m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle()
+            && m.soc_ifc().cptra_boot_status().read() == 1
+    });
 
     // Message to hash
     let msg: &[u8] = &[
@@ -159,11 +152,62 @@ fn test_verify_cmd() {
         ],
     };
 
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::ECDSA384_VERIFY),
+        &cmd.as_bytes()[4..],
+    );
+
+    let cmd = EcdsaVerifyCmd {
+        chksum: checksum,
+        ..cmd
+    };
+
     let resp = model
         .mailbox_execute(u32::from(CommandId::ECDSA384_VERIFY), cmd.as_bytes())
         .unwrap();
     assert!(resp.is_none());
     assert_eq!(model.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
+
+    let cmd = EcdsaVerifyCmd { chksum: 0, ..cmd };
+
+    // Make sure the command execution fails.
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::ECDSA384_VERIFY), cmd.as_bytes())
+        .unwrap_err();
+    if let ModelError::MailboxCmdFailed(code) = resp {
+        assert_eq!(
+            code,
+            caliptra_drivers::CaliptraError::RUNTIME_INVALID_CHECKSUM.into()
+        );
+    }
+    assert_eq!(
+        model.soc_ifc().cptra_fw_error_non_fatal().read(),
+        caliptra_drivers::CaliptraError::RUNTIME_INVALID_CHECKSUM.into()
+    );
+}
+
+#[test]
+fn test_fips_cmd_api() {
+    let mut model = run_rom_test("mbox");
+    let expected_err = Err(ModelError::MailboxCmdFailed(0x000E0006));
+
+    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+
+    let cmd = [0u8; 4];
+
+    let resp = model.mailbox_execute(u32::from(CommandId::VERSION), &cmd);
+    assert_eq!(resp, expected_err);
+
+    let resp = model.mailbox_execute(u32::from(CommandId::SHUTDOWN), &cmd);
+    assert_eq!(resp, expected_err);
+
+    let resp = model.mailbox_execute(u32::from(CommandId::SELF_TEST), &cmd);
+    assert_eq!(resp, expected_err);
+
+    let expected_err = Err(ModelError::MailboxCmdFailed(0xe0002));
+    // Send something that is not a valid RT command.
+    let resp = model.mailbox_execute(0xAABBCCDD, &cmd);
+    assert_eq!(resp, expected_err);
 }
 
 #[test]

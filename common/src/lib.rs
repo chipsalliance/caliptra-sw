@@ -8,7 +8,11 @@ pub mod hand_off;
 #[macro_use]
 pub mod printer;
 pub mod boot_status;
+pub mod checksum;
 pub mod fuse;
+pub mod helpers;
+pub mod keyids;
+pub mod memory_layout;
 pub mod pcr;
 
 ///merge imports
@@ -19,5 +23,13 @@ pub use hand_off::{
 
 pub use boot_status::RomBootStatus;
 pub use fuse::{FuseLogEntry, FuseLogEntryId};
-pub use pcr::{PcrLogEntry, PcrLogEntryId};
+pub use pcr::{PcrLogEntry, PcrLogEntryId, RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR};
+pub use printer::HexBytes;
 pub use printer::MutablePrinter;
+
+pub const FMC_ORG: u32 = 0x40000000;
+pub const FMC_SIZE: u32 = 16 * 1024;
+pub const RUNTIME_ORG: u32 = FMC_ORG + FMC_SIZE;
+pub const RUNTIME_SIZE: u32 = 96 * 1024;
+
+pub use memory_layout::{FHT_ORG, FHT_SIZE};

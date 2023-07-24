@@ -10,16 +10,12 @@ Abstract:
     The file contains Fuse-related Implementations.
 
 --*/
-use caliptra_common::{FuseLogEntry, FuseLogEntryId};
+use caliptra_common::{
+    memory_layout::{FUSE_LOG_ORG, FUSE_LOG_SIZE},
+    FuseLogEntry, FuseLogEntryId,
+};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
-use core::mem::size_of;
 use zerocopy::AsBytes;
-
-const FUSE_LOG_SIZE: usize = 1024;
-
-extern "C" {
-    static mut FUSE_LOG_ORG: [FuseLogEntry; FUSE_LOG_SIZE / size_of::<FuseLogEntry>()];
-}
 
 /// Log Fuse data
 ///
@@ -48,7 +44,12 @@ pub fn log_fuse_data(entry_id: FuseLogEntryId, data: &[u8]) -> CaliptraResult<()
     };
     log_entry.log_data.as_bytes_mut()[..data.len()].copy_from_slice(data);
 
-    let dst = unsafe { &mut FUSE_LOG_ORG[..] };
+    let dst: &mut [FuseLogEntry] = unsafe {
+        let ptr = FUSE_LOG_ORG as *mut FuseLogEntry;
+        core::slice::from_raw_parts_mut(ptr, FUSE_LOG_SIZE / core::mem::size_of::<FuseLogEntry>())
+    };
+
+    // Store the log entry.
     dst[entry_id as usize - 1] = log_entry;
 
     Ok(())

@@ -29,6 +29,8 @@ struct caliptra_verilated_sig_in {
 
   uint8_t itrng_data;
   bool itrng_valid;
+
+  uint8_t sram_error_injection_mode;
 };
 
 struct caliptra_verilated_sig_out {
@@ -60,6 +62,7 @@ struct caliptra_verilated_sig_out {
 
 struct caliptra_verilated_init_args {
   uint32_t security_state;
+  uint32_t cptra_obf_key[8];
 };
 
 // Constructs a new model. Model must eventually be destroyed with

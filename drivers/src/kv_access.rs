@@ -84,17 +84,13 @@ impl KvAccess {
     ///
     /// * `status_reg` - Status register
     /// * `ctrl_reg` - Control register
-    /// * `arr` - Array to copy the key into
     pub(crate) fn begin_copy_to_arr<
-        const ARR_WORD_LEN: usize,
-        const ARR_BYTE_LEN: usize,
         StatusReg: ureg::ReadableReg<ReadVal = KvStatusRegReadVal>,
         CtrlReg: ureg::ResettableReg + ureg::WritableReg<WriteVal = KvWriteCtrlRegWriteVal>,
         TMmio: MmioMut,
     >(
         status_reg: ureg::RegRef<StatusReg, TMmio>,
         ctrl_reg: ureg::RegRef<CtrlReg, TMmio>,
-        _arr: &mut Array4xN<ARR_WORD_LEN, ARR_BYTE_LEN>,
     ) -> CaliptraResult<()> {
         wait::until(|| status_reg.read().ready());
         ctrl_reg.write(|w| w.write_en(false));
@@ -110,7 +106,7 @@ impl KvAccess {
     pub(crate) fn end_copy_to_arr<
         const ARR_WORD_LEN: usize,
         const ARR_BYTE_LEN: usize,
-        TReg: ureg::ReadableReg<ReadVal = u32>,
+        TReg: ureg::ReadableReg<ReadVal = u32, Raw = u32>,
         TMmio: Mmio + Copy,
     >(
         reg: ureg::Array<ARR_WORD_LEN, ureg::RegRef<TReg, TMmio>>,
@@ -180,7 +176,7 @@ impl KvAccess {
     pub(crate) fn copy_from_arr<
         const ARR_WORD_LEN: usize,
         const ARR_BYTE_LEN: usize,
-        TReg: ureg::ResettableReg + ureg::WritableReg<WriteVal = u32>,
+        TReg: ureg::ResettableReg + ureg::WritableReg<WriteVal = u32, Raw = u32>,
         TMmio: MmioMut + Copy,
     >(
         arr: &Array4xN<ARR_WORD_LEN, ARR_BYTE_LEN>,

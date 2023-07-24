@@ -70,7 +70,13 @@ fn main() {
         ),
     };
 
-    run_command(process::Command::new("make").current_dir(&manifest_dir));
+    let mut make_cmd = process::Command::new("make");
+    make_cmd.current_dir(&manifest_dir);
+    if std::env::var_os("CARGO_FEATURE_ITRNG").is_some() {
+        make_cmd.arg("EXTRA_VERILATOR_FLAGS=-DCALIPTRA_INTERNAL_TRNG");
+    }
+
+    run_command(&mut make_cmd);
 
     for p in DEP_FILES {
         println!("cargo:rerun-if-changed={}", manifest_dir.join(p).display());

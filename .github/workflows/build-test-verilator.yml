@@ -7,6 +7,7 @@ on:
     branches: ["main"]
   pull_request:
 
+  workflow_call:
   workflow_dispatch:
 
 jobs:
@@ -22,30 +23,16 @@ jobs:
       SCCACHE_GHA_CACHE_TO: sccache-verilator-10000
       SCCACHE_GHA_CACHE_FROM: sccache-verilator-
       # Change this to a new random value if you suspect the cache is corrupted
-      SCCACHE_C_CUSTOM_CACHE_BUSTER: f3e6951f0c1d
+      SCCACHE_C_CUSTOM_CACHE_BUSTER: 3962471045e8
 
       # Compiler warnings should fail to compile
       EXTRA_CARGO_CONFIG: "target.'cfg(all())'.rustflags = [\"-Dwarnings\"]"
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v3
         with:
           submodules: 'true'
-
-      - name: Set Rust ${{ env.RUST_TOOLCHAIN_VERSION }} as the default toolchain.
-        run: |
-          rustup default ${RUST_TOOLCHAIN_VERSION}
-          rustup component add rustfmt clippy
-          rustc --version
-          cargo fmt --version
-          cargo clippy --version
-
-      - name: Restore Cargo index from cache
-        uses: actions/cache/restore@v3
-        id: cargo_index_restore
-        with:
-          path: ~/.cargo/registry/index
-          key: cargo-index-${{ env.SCCACHE_C_CUSTOM_CACHE_BUSTER }}-${{ hashFiles('Cargo.lock') }}
 
       - name: Restore sccache binary
         uses: actions/cache/restore@v3
@@ -103,23 +90,12 @@ jobs:
         run: |
           echo /opt/verilator/bin >> $GITHUB_PATH
 
-      - name: Install risv32imc target
-        run: |
-          rustup target add riscv32imc-unknown-none-elf
-
       - name: Update Cargo index
         run: |
           cargo tree --locked > /dev/null || (
             echo "Please include required changes to Cargo.lock in your pull request"
             exit 1
           )
-
-      - name: Save Cargo index to cache
-        uses: actions/cache/save@v3
-        if: steps.cargo_index_restore.outputs.cache-hit != 'true'
-        with:
-          path: ~/.cargo/registry/index
-          key: cargo-index-${{ env.SCCACHE_C_CUSTOM_CACHE_BUSTER }}-${{ hashFiles('Cargo.lock') }}
 
       - name: Check that generated register code matches caliptra-rtl submodule
         run: |

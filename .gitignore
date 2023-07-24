@@ -14,3 +14,10 @@
 # Files created by tests
 rom/dev/caliptra_idevid_csr.der
 rom/dev/caliptra_ldevid_cert.der
+
+# Files created by FPGA build
+hw-latest/fpga/.Xil/
+hw-latest/fpga/caliptra_build/
+hw-latest/fpga/build_fpga.log
+hw-latest/fpga/vivado*.jou
+hw-latest/fpga/vivado*.log

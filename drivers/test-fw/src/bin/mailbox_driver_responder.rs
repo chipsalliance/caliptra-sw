@@ -54,6 +54,20 @@ extern "C" fn main() {
             0x8000_0000 => {
                 txn.complete(false).unwrap();
             }
+            // Test dropping first half of words and then printing the remaining words
+            0x9000_0000 => {
+                let dlen = txn.dlen() as usize;
+                let dlen_words = (dlen + 3) / 4;
+                println!("dlen: {dlen}");
+                txn.drop_words(dlen_words / 2).unwrap();
+                let rem_words = dlen_words / 2;
+                let mut buf = [0u32; 1];
+                for _ in 0..rem_words {
+                    txn.copy_request(&mut buf).unwrap();
+                    println!("buf: {:08x?}", buf);
+                }
+                txn.complete(true).unwrap();
+            }
             // Test transaction dropped immediately
             _ => {}
         }

@@ -59,6 +59,7 @@ out/Vcaliptra_verilated.h: ${VERILATED_DIR}/caliptra_verilated.sv out
 	  $(suppress) \
 	  -f $(CALIPTRA_RTL_DIR)/src/integration/config/caliptra_top_tb.vf \
 	  $(VERILATED_DIR)/caliptra_verilated.sv \
+	  $(EXTRA_VERILATOR_FLAGS) \
 	  --top-module caliptra_verilated
 
 out/Vcaliptra_verilated__ALL.a: out/Vcaliptra_verilated.h

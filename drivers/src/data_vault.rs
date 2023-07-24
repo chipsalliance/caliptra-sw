@@ -70,7 +70,7 @@ impl From<ColdResetEntry48> for usize {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColdResetEntry4 {
     FmcSvn = 0,
-    FmcLoadAddr = 1,
+    Reserved0 = 1,
     FmcEntryPoint = 2,
     VendorPubKeyIndex = 3,
 }
@@ -80,7 +80,6 @@ impl TryFrom<u8> for ColdResetEntry4 {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             0 => Ok(Self::FmcSvn),
-            1 => Ok(Self::FmcLoadAddr),
             2 => Ok(Self::FmcEntryPoint),
             3 => Ok(Self::VendorPubKeyIndex),
             _ => Err(()),
@@ -132,7 +131,7 @@ impl From<WarmResetEntry48> for usize {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WarmResetEntry4 {
     RtSvn = 0,
-    RtLoadAddr = 1,
+    Reserved0 = 1,
     RtEntryPoint = 2,
     ManifestAddr = 3,
 }
@@ -160,7 +159,6 @@ impl TryFrom<u8> for WarmResetEntry4 {
     fn try_from(original: u8) -> Result<Self, Self::Error> {
         match original {
             0 => Ok(Self::RtSvn),
-            1 => Ok(Self::RtLoadAddr),
             2 => Ok(Self::RtEntryPoint),
             3 => Ok(Self::ManifestAddr),
             _ => Err(()),
@@ -333,24 +331,6 @@ impl DataVault {
         self.read_cold_reset_entry4(ColdResetEntry4::FmcSvn)
     }
 
-    /// Set the fmc load address.
-    ///
-    /// # Arguments
-    ///
-    /// * `load_addr` - fmc load address
-    pub fn set_fmc_load_addr(&mut self, load_addr: u32) {
-        self.write_lock_cold_reset_entry4(ColdResetEntry4::FmcLoadAddr, load_addr);
-    }
-
-    /// Get the fmc load address.
-    ///
-    /// # Returns
-    ///
-    /// * fmc load address
-    pub fn fmc_load_addr(&self) -> u32 {
-        self.read_cold_reset_entry4(ColdResetEntry4::FmcLoadAddr)
-    }
-
     /// Set the fmc entry point.
     ///
     /// # Arguments
@@ -422,24 +402,6 @@ impl DataVault {
     ///
     pub fn rt_svn(&self) -> u32 {
         self.read_warm_reset_entry4(WarmResetEntry4::RtSvn)
-    }
-
-    /// Set the rt load address.
-    ///
-    /// # Arguments
-    ///
-    /// * `load_addr` - rt load address
-    pub fn set_rt_load_addr(&mut self, load_addr: u32) {
-        self.write_lock_warm_reset_entry4(WarmResetEntry4::RtLoadAddr, load_addr);
-    }
-
-    /// Get the rt load address.
-    ///
-    /// # Returns
-    ///
-    /// * rt load address
-    pub fn rt_load_addr(&self) -> u32 {
-        self.read_warm_reset_entry4(WarmResetEntry4::RtLoadAddr)
     }
 
     /// Set the rt entry point.

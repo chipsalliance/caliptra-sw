@@ -14,8 +14,9 @@ File Name:
 use crate::flow::dice::DiceOutput;
 use crate::fmc_env::FmcEnv;
 use caliptra_common::DataStore::*;
-use caliptra_common::{DataStore, FirmwareHandoffTable};
-use caliptra_drivers::{Array4x12, KeyId};
+use caliptra_common::{DataStore, FirmwareHandoffTable, HandOffDataHandle, Vault};
+use caliptra_drivers::{Array4x12, Ecc384Signature, KeyId};
+use caliptra_drivers::{Ecc384PubKey, Ecc384Scalar};
 use caliptra_error::CaliptraResult;
 
 #[cfg(feature = "riscv")]
@@ -89,11 +90,74 @@ impl HandOff {
         });
 
         match ds {
-            KeyVaultSlot(key_id) => key_id,
+            KeyVaultSlot(key_id) => {
+                caliptra_common::cprintln!("Handoff : FMC CDI: {:?}", key_id as u8);
+                key_id
+            }
             _ => caliptra_common::report_handoff_error_and_halt(
                 "Invalid KeySlot DV Entry",
                 caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
             ),
+        }
+    }
+
+    fn fmc_pub_key_x(&self, env: &FmcEnv) -> Ecc384Scalar {
+        let ds: DataStore = self
+            .fht
+            .fmc_pub_key_x_dv_hdl
+            .try_into()
+            .unwrap_or_else(|_| {
+                caliptra_common::report_handoff_error_and_halt(
+                    "Invalid FMC ALias Public Key X DV handle",
+                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
+                )
+            });
+
+        // The data store is either a warm reset entry or a cold reset entry.
+        match ds {
+            DataVaultNonSticky48(dv_entry) => env.data_vault.read_warm_reset_entry48(dv_entry),
+            DataVaultSticky48(dv_entry) => env.data_vault.read_cold_reset_entry48(dv_entry),
+            _ => {
+                crate::report_error(
+                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
+                );
+            }
+        }
+    }
+
+    fn fmc_pub_key_y(&self, env: &FmcEnv) -> Ecc384Scalar {
+        let ds: DataStore = self
+            .fht
+            .fmc_pub_key_y_dv_hdl
+            .try_into()
+            .unwrap_or_else(|_| {
+                caliptra_common::report_handoff_error_and_halt(
+                    "Invalid FMC ALias Public Key Y DV handle",
+                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
+                )
+            });
+
+        // The data store is either a warm reset entry or a cold reset entry.
+        match ds {
+            DataVaultNonSticky48(dv_entry) => env.data_vault.read_warm_reset_entry48(dv_entry),
+            DataVaultSticky48(dv_entry) => env.data_vault.read_cold_reset_entry48(dv_entry),
+            _ => {
+                crate::report_error(
+                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
+                );
+            }
+        }
+    }
+
+    /// Get the fmc public key.
+    ///
+    /// # Returns
+    /// * fmc public key
+    ///
+    pub fn fmc_pub_key(&self, env: &FmcEnv) -> Ecc384PubKey {
+        Ecc384PubKey {
+            x: self.fmc_pub_key_x(env),
+            y: self.fmc_pub_key_y(env),
         }
     }
 
@@ -107,7 +171,10 @@ impl HandOff {
         });
 
         match ds {
-            KeyVaultSlot(key_id) => key_id,
+            KeyVaultSlot(key_id) => {
+                caliptra_common::cprintln!("FMC Alias Private Key: {:?}", u32::from(key_id));
+                key_id
+            }
             _ => caliptra_common::report_handoff_error_and_halt(
                 "Invalid KeySlot DV Entry",
                 caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
@@ -121,12 +188,14 @@ impl HandOff {
         extern "C" {
             fn transfer_control(entry: u32) -> !;
         }
+
+        FirmwareHandoffTable::save(&self.fht);
         // Retrieve runtime entry point
         let rt_entry = IccmAddress(self.rt_entry_point(env));
 
         if !rt_entry.is_valid() {
             caliptra_common::report_handoff_error_and_halt(
-                "Invalid KeySlot DV Entry",
+                "Invalid RT Entry Point",
                 caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
             );
         }
@@ -153,6 +222,32 @@ impl HandOff {
                 );
             }
         }
+    }
+
+    /// Retrieve runtime SVN.
+    pub fn rt_svn(&self, env: &FmcEnv) -> u32 {
+        let ds: DataStore = self.fht.rt_svn_dv_hdl.try_into().unwrap_or_else(|_| {
+            caliptra_common::report_handoff_error_and_halt(
+                "Invalid RT SVN handle",
+                caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
+            )
+        });
+
+        // The data store is either a warm reset entry or a cold reset entry.
+        match ds {
+            DataVaultNonSticky4(dv_entry) => env.data_vault.read_warm_reset_entry4(dv_entry),
+            DataVaultSticky4(dv_entry) => env.data_vault.read_cold_reset_entry4(dv_entry),
+            _ => {
+                crate::report_error(
+                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
+                );
+            }
+        }
+    }
+
+    /// Store runtime Dice Signature
+    pub fn set_rt_dice_signature(&mut self, sig: &Ecc384Signature) {
+        self.fht.rt_dice_sign = *sig;
     }
 
     /// Retrieve image manifest load address in DCCM
@@ -187,17 +282,26 @@ impl HandOff {
         }
     }
 
+    /// The FMC CDI is stored in a 32-bit DataVault sticky register.
+    fn rt_cdi_store(rt_cdi: KeyId) -> HandOffDataHandle {
+        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | rt_cdi as u32)
+    }
+
+    fn rt_priv_key_store(rt_priv_key: KeyId) -> HandOffDataHandle {
+        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | rt_priv_key as u32)
+    }
+
     /// Update HandOff Table with RT Parameters
-    pub fn update(&self, _out: DiceOutput) -> CaliptraResult<()> {
-        // Todo in a different PR : Issue #84
+    pub fn update(&mut self, out: DiceOutput) -> CaliptraResult<()> {
         // update fht.rt_cdi_kv_hdl
-        // update fht.rt_priv_key_kv_hdl
-        // update fht.rt_pub_key_y_dv_hdl
-        // update fht.rt_cert_sig_r_dv_hdl
-        // update fht.rt_cert_sig_r_dv_hdl
-        //
-        // Invalidate fmc_cdi_kv_hdl
-        // Invalidate fmc_priv_key_kv_hdl
+        self.fht.rt_cdi_kv_hdl = Self::rt_cdi_store(out.cdi);
+        self.fht.rt_priv_key_kv_hdl = Self::rt_priv_key_store(out.subj_key_pair.priv_key);
+        self.fht.rt_dice_pub_key = out.subj_key_pair.pub_key;
         Ok(())
+    }
+    /// Check if the HandOff Table is valid by ensuring RTAlias CDI and private key handles
+    /// are valid.
+    pub fn is_valid(&self) -> bool {
+        self.fht.rt_cdi_kv_hdl.is_valid() && self.fht.rt_priv_key_kv_hdl.is_valid()
     }
 }

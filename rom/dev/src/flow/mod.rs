@@ -13,23 +13,20 @@ Abstract:
 --*/
 
 mod cold_reset;
-mod unknown_reset;
 mod update_reset;
 mod warm_reset;
 
 use crate::rom_env::RomEnv;
 use caliptra_common::FirmwareHandoffTable;
 use caliptra_drivers::{CaliptraResult, ResetReason};
+use caliptra_error::CaliptraError;
 
-pub use cold_reset::KEY_ID_CDI;
-pub use cold_reset::KEY_ID_FMC_PRIV_KEY;
-
-/// Execute ROM Flows based on reset resason
+/// Execute ROM Flows based on reset reason
 ///
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-pub fn run(env: &mut RomEnv) -> CaliptraResult<FirmwareHandoffTable> {
+pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
     let reset_reason = env.soc_ifc.reset_reason();
     match reset_reason {
         // Cold Reset Flow
@@ -42,6 +39,6 @@ pub fn run(env: &mut RomEnv) -> CaliptraResult<FirmwareHandoffTable> {
         ResetReason::UpdateReset => update_reset::UpdateResetFlow::run(env),
 
         // Unknown/Spurious Reset Flow
-        ResetReason::Unknown => unknown_reset::UnknownResetFlow::run(env),
+        ResetReason::Unknown => Err(CaliptraError::ROM_UNKNOWN_RESET_FLOW),
     }
 }

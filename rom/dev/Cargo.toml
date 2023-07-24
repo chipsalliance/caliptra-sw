@@ -4,6 +4,7 @@
 name = "caliptra-rom"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.70"
 
 [dependencies]
 caliptra-drivers = { path = "../../drivers" }
@@ -33,7 +34,7 @@ caliptra-image-elf = { path = "../../image/elf" }
 caliptra-image-fake-keys = { path = "../../image/fake-keys" }
 caliptra-image-types = { path = "../../image/types" }
 hex = "0.4.3"
-openssl = "0.10"
+openssl = { version = "0.10", features = ["vendored"] }
 memoffset = "0.8.0"
 
 [features]
@@ -48,6 +49,7 @@ std = [
   "ufmt/std",
 ]
 no-fmc = []
+fpga_realtime = ["caliptra-drivers/fpga_realtime"]
 
 [[bin]]
 name = "asm_tests"

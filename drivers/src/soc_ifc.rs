@@ -12,38 +12,13 @@ Abstract:
 
 --*/
 
+use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::soc_ifc::enums::DeviceLifecycleE;
 use caliptra_registers::soc_ifc::{self, SocIfcReg};
 
 use crate::FuseBank;
 
-/// Device Life Cycle State
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum Lifecycle {
-    /// Unprovisioned
-    Unprovisioned = 0x0,
-
-    /// Manufacturing
-    Manufacturing = 0x1,
-
-    /// Production
-    Production = 0x2,
-
-    /// Unknown
-    Unknown = 0x3,
-}
-
-impl From<DeviceLifecycleE> for Lifecycle {
-    /// Converts to this type from the input type.
-    fn from(value: DeviceLifecycleE) -> Self {
-        match value {
-            DeviceLifecycleE::DeviceUnprovisioned => Lifecycle::Unprovisioned,
-            DeviceLifecycleE::DeviceManufacturing => Lifecycle::Manufacturing,
-            DeviceLifecycleE::DeviceProduction => Lifecycle::Production,
-            _ => Lifecycle::Unknown,
-        }
-    }
-}
+pub type Lifecycle = DeviceLifecycleE;
 
 pub fn report_boot_status(val: u32) {
     let mut soc_ifc = unsafe { soc_ifc::SocIfcReg::new() };
@@ -66,7 +41,6 @@ impl SocIfc {
             .cptra_security_state()
             .read()
             .device_lifecycle()
-            .into()
     }
 
     /// Check if device is locked for debug
@@ -105,7 +79,7 @@ impl SocIfc {
     /// * None
     pub fn flow_status_set_idevid_csr_ready(&mut self) {
         let soc_ifc = self.soc_ifc.regs_mut();
-        soc_ifc.cptra_flow_status().write(|w| w.status(0x0800_0000));
+        soc_ifc.cptra_flow_status().write(|w| w.status(0x0100_0000));
     }
 
     /// Set ready for firmware
@@ -130,6 +104,88 @@ impl SocIfc {
         let soc_ifc_regs = self.soc_ifc.regs();
         let flags: MfgFlags = soc_ifc_regs.cptra_dbg_manuf_service_reg().read().into();
         flags.contains(MfgFlags::GENERATE_IDEVID_CSR)
+    }
+
+    /// Enable or disable WDT1
+    ///
+    /// # Arguments
+    /// * `enable` - Enable or disable WDT1
+    ///
+    pub fn configure_wdt1(&mut self, enable: bool) {
+        let soc_ifc_regs = self.soc_ifc.regs_mut();
+        soc_ifc_regs
+            .cptra_wdt_timer1_en()
+            .write(|w| w.timer1_en(enable));
+    }
+
+    /// Stop WDT1.
+    ///
+    /// This is useful to call from a fatal-error-handling routine.  
+    ///
+    ///  # Safety
+    ///
+    /// The caller must be certain that it is safe to stop the WDT1.
+    ///
+    /// This function is safe to call from a trap handler.
+    pub unsafe fn stop_wdt1() {
+        let mut soc_ifc = SocIfcReg::new();
+        soc_ifc
+            .regs_mut()
+            .cptra_wdt_timer1_en()
+            .write(|w| w.timer1_en(false));
+    }
+
+    pub fn get_cycle_count(&self, seconds: u32) -> CaliptraResult<u64> {
+        const GIGA_UNIT: u32 = 1_000_000_000;
+        let clock_period_picosecs = self.soc_ifc.regs().cptra_timer_config().read();
+        if clock_period_picosecs == 0 {
+            Err(CaliptraError::DRIVER_SOC_IFC_INVALID_TIMER_CONFIG)
+        } else {
+            // Dividing GIGA_UNIT by clock_period_picosecs gives frequency in KHz.
+            // This is being done to avoid 64-bit division (at the loss of precision)
+            Ok((seconds as u64) * ((GIGA_UNIT / clock_period_picosecs) as u64) * 1000)
+        }
+    }
+
+    /// Sets WDT1 timeout
+    ///
+    /// # Arguments
+    /// * `cycle_count` - Timeout period in cycles
+    ///
+    pub fn set_wdt1_timeout(&mut self, cycle_count: u64) {
+        let soc_ifc_regs = self.soc_ifc.regs_mut();
+        soc_ifc_regs
+            .cptra_wdt_timer1_timeout_period()
+            .at(0)
+            .write(|_| cycle_count as u32);
+        soc_ifc_regs
+            .cptra_wdt_timer1_timeout_period()
+            .at(1)
+            .write(|_| (cycle_count >> 32) as u32);
+    }
+
+    /// Sets WDT2 timeout
+    ///
+    /// # Arguments
+    /// * `cycle_count` - Timeout period in cycles
+    ///
+    pub fn set_wdt2_timeout(&mut self, cycle_count: u64) {
+        let soc_ifc_regs = self.soc_ifc.regs_mut();
+        soc_ifc_regs
+            .cptra_wdt_timer2_timeout_period()
+            .at(0)
+            .write(|_| cycle_count as u32);
+        soc_ifc_regs
+            .cptra_wdt_timer2_timeout_period()
+            .at(1)
+            .write(|_| (cycle_count >> 32) as u32);
+    }
+
+    pub fn reset_wdt1(&mut self) {
+        let soc_ifc_regs = self.soc_ifc.regs_mut();
+        soc_ifc_regs
+            .cptra_wdt_timer1_ctrl()
+            .write(|w| w.timer1_restart(true));
     }
 }
 

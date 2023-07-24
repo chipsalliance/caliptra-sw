@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use crate::helpers::bytes_swap_word_endian;
 use crate::{KeyVault, SocRegistersInternal};
 use caliptra_emu_bus::{
     ActionHandle, BusError, Clock, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister, Timer,
@@ -28,8 +29,8 @@ const DOE_IV_SIZE: usize = 16;
 /// The number of CPU clock cycles it takes to perform the hash update action.
 const DOE_OP_TICKS: u64 = 1000;
 
-// hmac_block_dest_valid
-const DOE_KEY_USAGE: u32 = 0x2;
+// hmac_key_dest_valid | hmac_block_dest_valid
+const DOE_KEY_USAGE: u32 = 0x3;
 
 register_bitfields! [
     u32,
@@ -179,7 +180,7 @@ impl Doe {
             &mut plain_uds[..cipher_uds.len()],
         );
         self.key_vault
-            .write_key(key_id, &plain_uds, DOE_KEY_USAGE)
+            .write_key(key_id, &bytes_swap_word_endian(&plain_uds), DOE_KEY_USAGE)
             .unwrap();
     }
 
@@ -189,8 +190,8 @@ impl Doe {
     ///
     /// * `key_id` - Key index to store the field entropy
     fn unscramble_fe(&mut self, key_id: u32) {
+        let mut plain_fe = [0_u8; 32];
         let cipher_fe = self.soc_reg.field_entropy();
-        let mut plain_fe = [0u8; 48];
         Aes256Cbc::decrypt(
             &self.soc_reg.doe_key(),
             self.iv.data(),
@@ -198,7 +199,7 @@ impl Doe {
             &mut plain_fe[..cipher_fe.len()],
         );
         self.key_vault
-            .write_key(key_id, &plain_fe, DOE_KEY_USAGE)
+            .write_key(key_id, &bytes_swap_word_endian(&plain_fe), DOE_KEY_USAGE)
             .unwrap();
     }
 
@@ -215,6 +216,7 @@ mod tests {
     use caliptra_emu_bus::Bus;
     use caliptra_emu_crypto::EndianessTransform;
     use caliptra_emu_types::RvAddr;
+    use caliptra_hw_model_types::SecurityState;
     use tock_registers::registers::InMemoryRegister;
 
     const OFFSET_IV: RvAddr = 0;
@@ -238,10 +240,10 @@ mod tests {
         iv.to_big_endian();
 
         const PLAIN_TEXT_UDS: [u8; 48] = [
-            0x6B, 0xC1, 0xBE, 0xE2, 0x2E, 0x40, 0x9F, 0x96, 0xE9, 0x3D, 0x7E, 0x11, 0x73, 0x93,
-            0x17, 0x2A, 0xAE, 0x2D, 0x8A, 0x57, 0x1E, 0x3, 0xAC, 0x9C, 0x9E, 0xB7, 0x6F, 0xAC,
-            0x45, 0xAF, 0x8E, 0x51, 0x30, 0xC8, 0x1C, 0x46, 0xA3, 0x5C, 0xE4, 0x11, 0xE5, 0xFB,
-            0xC1, 0x19, 0x1A, 0xA, 0x52, 0xEF,
+            0xE2, 0xBE, 0xC1, 0x6B, 0x96, 0x9F, 0x40, 0x2E, 0x11, 0x7E, 0x3D, 0xE9, 0x2A, 0x17,
+            0x93, 0x73, 0x57, 0x8A, 0x2D, 0xAE, 0x9C, 0xAC, 0x03, 0x1E, 0xAC, 0x6F, 0xB7, 0x9E,
+            0x51, 0x8E, 0xAF, 0x45, 0x46, 0x1C, 0xC8, 0x30, 0x11, 0xE4, 0x5C, 0xA3, 0x19, 0xC1,
+            0xFB, 0xE5, 0xEF, 0x52, 0x0A, 0x1A,
         ];
 
         let clock = Clock::new();
@@ -250,7 +252,10 @@ mod tests {
             &clock,
             MailboxInternal::new(MailboxRam::new()),
             Iccm::new(&clock),
-            CaliptraRootBusArgs::default(),
+            CaliptraRootBusArgs {
+                security_state: *SecurityState::default().set_debug_locked(true),
+                ..CaliptraRootBusArgs::default()
+            },
         );
         let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg);
 
@@ -284,32 +289,34 @@ mod tests {
             clock.increment_and_process_timer_actions(1, &mut doe);
         }
 
-        let mut key_usage = KeyUsage::default();
-        key_usage.set_hmac_data(true);
+        let mut ku_hmac_data = KeyUsage::default();
+        ku_hmac_data.set_hmac_data(true);
 
-        assert_eq!(
-            key_vault.read_key(2, key_usage).unwrap()[..48],
-            PLAIN_TEXT_UDS
-        );
+        let mut ku_hmac_key = KeyUsage::default();
+        ku_hmac_key.set_hmac_key(true);
+
+        assert_eq!(key_vault.read_key(2, ku_hmac_data).unwrap(), PLAIN_TEXT_UDS);
+        assert_eq!(key_vault.read_key(2, ku_hmac_key).unwrap(), PLAIN_TEXT_UDS);
     }
 
     #[test]
     fn test_deobfuscate_fe() {
-        const PLAIN_TEXT_FE: [u8; 64] = [
-            0xC6, 0x10, 0x65, 0x4D, 0xB4, 0xED, 0xA8, 0x53, 0xCF, 0x54, 0x6D, 0xEF, 0x52, 0x4E,
-            0xC1, 0x5F, 0x39, 0xEF, 0x9A, 0xB2, 0x4B, 0x12, 0x57, 0xAC, 0x30, 0xAB, 0x92, 0x10,
-            0xAD, 0xB1, 0x3E, 0xA0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        const PLAIN_TEXT_FE: [u8; 48] = [
+            0x4D, 0x65, 0x10, 0xC6, 0x53, 0xA8, 0xED, 0xB4, 0xEF, 0x6D, 0x54, 0xCF, 0x5F, 0xC1,
+            0x4E, 0x52, 0xB2, 0x9A, 0xEF, 0x39, 0xAC, 0x57, 0x12, 0x4B, 0x10, 0x92, 0xAB, 0x30,
+            0xA0, 0x3E, 0xB1, 0xAD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
-
         let clock = Clock::new();
         let key_vault = KeyVault::new();
         let soc_reg = SocRegistersInternal::new(
             &clock,
             MailboxInternal::new(MailboxRam::new()),
             Iccm::new(&clock),
-            CaliptraRootBusArgs::default(),
+            CaliptraRootBusArgs {
+                security_state: *SecurityState::default().set_debug_locked(true),
+                ..CaliptraRootBusArgs::default()
+            },
         );
         let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg);
 
@@ -346,13 +353,14 @@ mod tests {
             clock.increment_and_process_timer_actions(1, &mut doe);
         }
 
-        let mut key_usage = KeyUsage::default();
-        key_usage.set_hmac_data(true);
+        let mut ku_hmac_data = KeyUsage::default();
+        ku_hmac_data.set_hmac_data(true);
 
-        assert_eq!(
-            key_vault.read_key(3, key_usage).unwrap(),
-            PLAIN_TEXT_FE[..KeyVault::KEY_SIZE]
-        );
+        let mut ku_hmac_key = KeyUsage::default();
+        ku_hmac_key.set_hmac_key(true);
+
+        assert_eq!(key_vault.read_key(3, ku_hmac_data).unwrap(), PLAIN_TEXT_FE);
+        assert_eq!(key_vault.read_key(3, ku_hmac_key).unwrap(), PLAIN_TEXT_FE);
     }
 
     #[test]
@@ -366,7 +374,10 @@ mod tests {
             &clock,
             MailboxInternal::new(MailboxRam::new()),
             Iccm::new(&clock),
-            CaliptraRootBusArgs::default(),
+            CaliptraRootBusArgs {
+                security_state: *SecurityState::default().set_debug_locked(true),
+                ..CaliptraRootBusArgs::default()
+            },
         );
         let mut doe = Doe::new(&clock, key_vault, soc_reg.clone());
         assert_ne!(soc_reg.uds(), expected_uds);

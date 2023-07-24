@@ -15,13 +15,16 @@ Abstract:
 
 --*/
 
+use crate::fht::FhtDataStore;
 use caliptra_drivers::{
     DataVault, DeobfuscationEngine, Ecc384, Hmac384, KeyVault, Lms, Mailbox, PcrBank, Sha1, Sha256,
-    Sha384, Sha384Acc, SocIfc,
+    Sha384, Sha384Acc, SocIfc, Trng,
 };
+use caliptra_error::CaliptraResult;
 use caliptra_registers::{
-    doe::DoeReg, dv::DvReg, ecc::EccReg, hmac::HmacReg, kv::KvReg, mbox::MboxCsr, pv::PvReg,
-    sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg,
+    csrng::CsrngReg, doe::DoeReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg,
+    hmac::HmacReg, kv::KvReg, mbox::MboxCsr, pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg,
+    sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 use core::ops::Range;
 
@@ -68,6 +71,12 @@ pub struct RomEnv {
 
     /// PCR Bank
     pub pcr_bank: PcrBank,
+
+    /// FHT Data Store
+    pub fht_data_store: FhtDataStore,
+
+    /// Cryptographically Secure Random Number Generator
+    pub trng: Trng,
 }
 
 impl RomEnv {
@@ -76,8 +85,15 @@ impl RomEnv {
         end: ICCM_START + ICCM_SIZE,
     };
 
-    pub unsafe fn new_from_registers() -> Self {
-        Self {
+    pub unsafe fn new_from_registers() -> CaliptraResult<Self> {
+        let trng = Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )?;
+
+        Ok(Self {
             doe: DeobfuscationEngine::new(DoeReg::new()),
             sha1: Sha1::default(),
             sha256: Sha256::new(Sha256Reg::new()),
@@ -91,6 +107,8 @@ impl RomEnv {
             soc_ifc: SocIfc::new(SocIfcReg::new()),
             mbox: Mailbox::new(MboxCsr::new()),
             pcr_bank: PcrBank::new(PvReg::new()),
-        }
+            fht_data_store: FhtDataStore::default(),
+            trng,
+        })
     }
 }

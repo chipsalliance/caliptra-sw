@@ -1,0 +1,33 @@
+Certificate Request:
+    Data:
+        Version: 1 (0x0)
+        Subject: CN=Caliptra IDevID/serialNumber=8E3C1A058F704A11821F7B48D340AEF99DDABADC1090D74D057FECCF73294ED6
+        Subject Public Key Info:
+            Public Key Algorithm: id-ecPublicKey
+                Public-Key: (384 bit)
+                pub:
+                    04:d7:b4:85:f2:9f:11:5c:1c:b3:04:6b:84:0b:45:
+                    89:b5:78:62:f5:eb:f9:9d:84:6f:be:3f:d2:d1:43:
+                    96:f5:f6:9a:37:9a:59:ac:c5:a2:ae:c8:36:9e:cb:
+                    65:90:44:37:b4:bc:7c:d9:a5:a8:40:3c:5b:b1:91:
+                    52:23:aa:86:be:f2:c1:bc:92:14:5f:fc:27:c1:25:
+                    c6:db:fa:d4:9c:91:e8:48:c5:44:ac:7f:0e:95:d6:
+                    cd:8c:ac:fb:92:3f:a6
+                ASN1 OID: secp384r1
+                NIST CURVE: P-384
+        Attributes:
+        Requested Extensions:
+            X509v3 Basic Constraints: critical
+                CA:TRUE, pathlen:0
+            X509v3 Key Usage: 
+                Certificate Sign
+            2.23.133.5.4.4: 
+                0
+..........
+    Signature Algorithm: ecdsa-with-SHA384
+         30:66:02:31:00:87:26:aa:3a:0d:21:43:12:f3:17:70:d7:99:
+         b8:8d:3e:5c:ab:ee:1f:a8:16:cd:fb:7c:d2:a3:14:f2:a3:10:
+         7d:8c:b7:75:fa:5d:21:1a:f3:af:1d:6b:59:c2:9a:da:4a:02:
+         31:00:a9:40:61:0e:dd:a5:5c:00:61:0b:24:bd:ea:e0:79:c1:
+         95:00:fd:82:55:17:27:f5:23:97:48:b8:62:00:17:9e:18:c7:
+         ca:af:d9:aa:93:ba:f0:fa:59:ee:c7:cf:4c:65

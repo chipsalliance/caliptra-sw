@@ -1,5 +1,27 @@
 // Licensed under the Apache-2.0 license
 
+use std::array;
+
+use rand::{rngs::ThreadRng, RngCore};
+
+// Rationale behind this choice
+//
+// * The constant should be easily recognizable in waveforms and debug logs
+// * Every word must be different to ensure that a "stuck word" bug is noticed.
+// * Each byte in a word must be unique to ensure an endianness bug is noticed.
+pub const DEFAULT_UDS_SEED: [u32; 12] = [
+    0x00010203, 0x04050607, 0x08090a0b, 0x0c0d0e0f, 0x10111213, 0x14151617, 0x18191a1b, 0x1c1d1e1f,
+    0x20212223, 0x24252627, 0x28292a2b, 0x2c2d2e2f,
+];
+
+pub const DEFAULT_FIELD_ENTROPY: [u32; 8] = [
+    0x80818283, 0x84858687, 0x88898a8b, 0x8c8d8e8f, 0x90919293, 0x94959697, 0x98999a9b, 0x9c9d9e9f,
+];
+
+pub const DEFAULT_CPTRA_OBF_KEY: [u32; 8] = [
+    0xa0a1a2a3, 0xb0b1b2b3, 0xc0c1c2c3, 0xd0d1d2d3, 0xe0e1e2e3, 0xf0f1f2f3, 0xa4a5a6a7, 0xb4b5b6b7,
+];
+
 // Based on device_lifecycle_e from RTL
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum DeviceLifecycle {
@@ -133,7 +155,6 @@ impl TryFrom<u32> for U4 {
     }
 }
 
-#[derive(Default)]
 pub struct Fuses {
     pub uds_seed: [u32; 12],
     pub field_entropy: [u32; 8],
@@ -146,6 +167,54 @@ pub struct Fuses {
     pub idevid_cert_attr: [u32; 24],
     pub idevid_manuf_hsm_id: [u32; 4],
     pub life_cycle: DeviceLifecycle,
+}
+impl Default for Fuses {
+    fn default() -> Self {
+        Self {
+            uds_seed: DEFAULT_UDS_SEED,
+            field_entropy: DEFAULT_FIELD_ENTROPY,
+            key_manifest_pk_hash: Default::default(),
+            key_manifest_pk_hash_mask: Default::default(),
+            owner_pk_hash: Default::default(),
+            fmc_key_manifest_svn: Default::default(),
+            runtime_svn: Default::default(),
+            anti_rollback_disable: Default::default(),
+            idevid_cert_attr: Default::default(),
+            idevid_manuf_hsm_id: Default::default(),
+            life_cycle: Default::default(),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub struct EtrngResponse {
+    pub delay: u32,
+    pub data: [u32; 12],
+}
+
+pub struct RandomEtrngResponses<R: RngCore>(pub R);
+impl RandomEtrngResponses<ThreadRng> {
+    pub fn new_from_thread_rng() -> Self {
+        Self(rand::thread_rng())
+    }
+}
+impl<R: RngCore> Iterator for RandomEtrngResponses<R> {
+    type Item = EtrngResponse;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        Some(EtrngResponse {
+            delay: 0,
+            data: array::from_fn(|_| self.0.next_u32()),
+        })
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum ErrorInjectionMode {
+    #[default]
+    None,
+    IccmDoubleBitEcc,
+    DccmDoubleBitEcc,
 }
 
 #[cfg(test)]

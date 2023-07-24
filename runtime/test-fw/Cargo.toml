@@ -35,6 +35,8 @@ required-features = ["riscv"]
 
 [build-dependencies]
 cfg-if = "1.0.0"
+caliptra_common = { path = "../../common", default-features = false }
+caliptra-gen-linker-scripts = { version = "0.1.0", path = "../../cpu/gen" }
 
 [dependencies]
 caliptra-test-harness = { path = "../../test-harness" }
@@ -42,4 +44,6 @@ caliptra-cpu = { version = "0.1.0", path = "../../cpu" }
 caliptra-registers = { path = "../../registers" }
 caliptra-runtime = { path = "..", default-features = false }
 caliptra-drivers = { path = "../../drivers" }
+caliptra_common = { path = "../../common", default-features = false }
 cfg-if = "1.0.0"
+zerocopy = "0.6.1"

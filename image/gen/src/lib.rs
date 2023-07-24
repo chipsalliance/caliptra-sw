@@ -82,6 +82,8 @@ pub struct ImageGeneratorVendorConfig {
 /// Image Generator Owner Configuration
 #[derive(Default)]
 pub struct ImageGeneratorOwnerConfig {
+    pub lms_key_idx: u32,
+
     pub pub_keys: ImageOwnerPubKeys,
 
     pub priv_keys: Option<ImageOwnerPrivKeys>,

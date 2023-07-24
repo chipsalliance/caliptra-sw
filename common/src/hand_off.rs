@@ -1,13 +1,11 @@
 // Licensed under the Apache-2.0 license.
+use crate::{helpers::*, FHT_ORG};
 use bitfield::{bitfield_bitrange, bitfield_fields};
 use caliptra_drivers::{
-    report_fw_error_non_fatal, ColdResetEntry4, ColdResetEntry48, KeyId, WarmResetEntry4,
-    WarmResetEntry48,
+    report_fw_error_non_fatal, ColdResetEntry4, ColdResetEntry48, Ecc384PubKey, Ecc384Signature,
+    KeyId, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
 use zerocopy::{AsBytes, FromBytes};
-extern "C" {
-    static mut FHT_ORG: u32;
-}
 
 pub const FHT_MARKER: u32 = 0x54484643;
 pub const FHT_INVALID_ADDRESS: u32 = u32::MAX;
@@ -25,6 +23,9 @@ impl HandOffDataHandle {
        reg_type, set_reg_type: 11, 8;
        vault, set_vault : 15, 12;
        reserved, _: 31, 16;
+    }
+    pub fn is_valid(&self) -> bool {
+        self.0 != u32::MAX
     }
 }
 
@@ -207,9 +208,6 @@ pub struct FirmwareHandoffTable {
     /// May be NULL if there is no discrete module.
     pub fips_fw_load_addr_hdl: HandOffDataHandle,
 
-    /// Physical base address of Runtime FW Module in ICCM SRAM.
-    pub rt_fw_load_addr_hdl: HandOffDataHandle,
-
     /// Entry point of Runtime FW Module in ICCM SRAM.
     pub rt_fw_entry_point_hdl: HandOffDataHandle,
 
@@ -246,23 +244,36 @@ pub struct FirmwareHandoffTable {
     /// Index of RT Private Alias Key in the Key Vault.
     pub rt_priv_key_kv_hdl: HandOffDataHandle,
 
-    /// Index of RT Public Alias Key X Coordinate in the Data Vault.
-    pub rt_pub_key_x_dv_hdl: HandOffDataHandle,
-
-    /// Index of RT Public Alias Key Y Coordinate in the Data Vault.
-    pub rt_pub_key_y_dv_hdl: HandOffDataHandle,
-
-    /// Index of RT Certificate Signature R Component in the Data Vault.
-    pub rt_cert_sig_r_dv_hdl: HandOffDataHandle,
-
-    /// Index of RT Certificate Signature S Component in the Data Vault.
-    pub rt_cert_sig_s_dv_hdl: HandOffDataHandle,
-
     /// Index of RT SVN value in the Data Vault
     pub rt_svn_dv_hdl: HandOffDataHandle,
 
+    /// LdevId TBS Address
+    pub ldevid_tbs_addr: u32,
+
+    /// FmcAlias TBS Address
+    pub fmcalias_tbs_addr: u32,
+
+    /// LdevId TBS Size.
+    pub ldevid_tbs_size: u16,
+
+    /// FmcAlias TBS Size.
+    pub fmcalias_tbs_size: u16,
+
+    /// PCR log Address
+    pub pcr_log_addr: u32,
+
+    /// Fuse log Address
+    pub fuse_log_addr: u32,
+
+    pub rt_dice_pub_key: Ecc384PubKey,
+
+    pub rt_dice_sign: Ecc384Signature,
+
+    /// IDevID public key
+    pub idev_dice_pub_key: Ecc384PubKey,
+
     /// Reserved for future use.
-    pub reserved: [u8; 32],
+    pub reserved: [u8; 136],
 }
 
 impl Default for FirmwareHandoffTable {
@@ -273,7 +284,6 @@ impl Default for FirmwareHandoffTable {
             fht_minor_ver: 0,
             manifest_load_addr: FHT_INVALID_ADDRESS,
             fips_fw_load_addr_hdl: FHT_INVALID_HANDLE,
-            rt_fw_load_addr_hdl: FHT_INVALID_HANDLE,
             rt_fw_entry_point_hdl: FHT_INVALID_HANDLE,
             fmc_tci_dv_hdl: FHT_INVALID_HANDLE,
             fmc_cdi_kv_hdl: FHT_INVALID_HANDLE,
@@ -286,12 +296,17 @@ impl Default for FirmwareHandoffTable {
             rt_tci_dv_hdl: FHT_INVALID_HANDLE,
             rt_cdi_kv_hdl: FHT_INVALID_HANDLE,
             rt_priv_key_kv_hdl: FHT_INVALID_HANDLE,
-            rt_pub_key_x_dv_hdl: FHT_INVALID_HANDLE,
-            rt_pub_key_y_dv_hdl: FHT_INVALID_HANDLE,
-            rt_cert_sig_r_dv_hdl: FHT_INVALID_HANDLE,
-            rt_cert_sig_s_dv_hdl: FHT_INVALID_HANDLE,
             rt_svn_dv_hdl: FHT_INVALID_HANDLE,
-            reserved: [0; 32],
+            ldevid_tbs_size: 0,
+            fmcalias_tbs_size: 0,
+            reserved: [0u8; 136],
+            ldevid_tbs_addr: 0,
+            fmcalias_tbs_addr: 0,
+            pcr_log_addr: 0,
+            fuse_log_addr: 0,
+            rt_dice_sign: Ecc384Signature::default(),
+            rt_dice_pub_key: Ecc384PubKey::default(),
+            idev_dice_pub_key: Ecc384PubKey::default(),
         }
     }
 }
@@ -307,10 +322,6 @@ pub fn print_fht(fht: &FirmwareHandoffTable) {
     crate::cprintln!(
         "FIPS FW Load Address: 0x{:08x}",
         fht.fips_fw_load_addr_hdl.0
-    );
-    crate::cprintln!(
-        "Runtime FW Load Address: 0x{:08x}",
-        fht.rt_fw_load_addr_hdl.0
     );
     crate::cprintln!(
         "Runtime FW Entry Point: 0x{:08x}",
@@ -345,48 +356,56 @@ pub fn print_fht(fht: &FirmwareHandoffTable) {
         "RT Private Key KV Handle: 0x{:08x}",
         fht.rt_priv_key_kv_hdl.0
     );
-    crate::cprintln!(
-        "RT Public Key X DV Handle: 0x{:08x}",
-        fht.rt_pub_key_x_dv_hdl.0
-    );
-    crate::cprintln!(
-        "RT Public Key Y DV Handle: 0x{:08x}",
-        fht.rt_pub_key_y_dv_hdl.0
-    );
-    crate::cprintln!(
-        "RT Certificate Signature R DV Handle: 0x{:08x}",
-        fht.rt_cert_sig_r_dv_hdl.0
-    );
-    crate::cprintln!(
-        "RT Certificate Signature S DV Handle: 0x{:08x}",
-        fht.rt_cert_sig_s_dv_hdl.0
-    );
     crate::cprintln!("RT SVN DV Handle: 0x{:08x}", fht.rt_svn_dv_hdl.0);
+
+    crate::cprintln!("LdevId TBS Address: 0x{:08x}", fht.ldevid_tbs_addr);
+    crate::cprintln!("LdevId TBS Size: {} bytes", fht.ldevid_tbs_size);
+    crate::cprintln!("FmcAlias TBS Address: 0x{:08x}", fht.fmcalias_tbs_addr);
+    crate::cprintln!("FmcAlias TBS Size: {} bytes", fht.fmcalias_tbs_size);
+    crate::cprintln!("PCR log Address: 0x{:08x}", fht.pcr_log_addr);
+    crate::cprintln!("Fuse log Address: 0x{:08x}", fht.fuse_log_addr);
 }
 
 impl FirmwareHandoffTable {
     /// Perform valdity check of the table's data.
     /// The fields below should have been populated by ROM with
     /// valid data before it transfers control to mutable code.
+    /// This function can only be called from non test case environment
+    /// as this function accesses the registers to get the reset_reason.
     pub fn is_valid(&self) -> bool {
-        self.fht_marker == FHT_MARKER
+        let reset_reason = reset_reason();
+
+        let mut valid = self.fht_marker == FHT_MARKER
             && self.fmc_cdi_kv_hdl != FHT_INVALID_HANDLE
             && self.manifest_load_addr != FHT_INVALID_ADDRESS
             && self.fmc_pub_key_x_dv_hdl != FHT_INVALID_HANDLE
             && self.fmc_pub_key_y_dv_hdl != FHT_INVALID_HANDLE
             && self.fmc_cert_sig_r_dv_hdl != FHT_INVALID_HANDLE
             && self.fmc_cert_sig_s_dv_hdl != FHT_INVALID_HANDLE
-            && self.rt_fw_load_addr_hdl != FHT_INVALID_HANDLE
             && self.rt_tci_dv_hdl != FHT_INVALID_HANDLE
             && self.rt_fw_entry_point_hdl != FHT_INVALID_HANDLE
             // This is for Gen1 POR.
             && self.fips_fw_load_addr_hdl == FHT_INVALID_HANDLE
+            && self.ldevid_tbs_addr != 0
+            && self.fmcalias_tbs_addr != 0
+            && self.pcr_log_addr != 0
+            && self.fuse_log_addr != 0;
+
+        if valid
+            && reset_reason == ResetReason::ColdReset
+            && (self.ldevid_tbs_size == 0 || self.fmcalias_tbs_size == 0)
+        {
+            valid = false;
+        }
+
+        valid
     }
+
     /// Load FHT from its fixed address and perform validity check of
     /// its data.
     pub fn try_load() -> Option<FirmwareHandoffTable> {
         let slice = unsafe {
-            let ptr = &mut FHT_ORG as *mut u32;
+            let ptr = FHT_ORG as *mut u32;
             core::slice::from_raw_parts_mut(
                 ptr,
                 core::mem::size_of::<FirmwareHandoffTable>() / core::mem::size_of::<u32>(),
@@ -401,6 +420,15 @@ impl FirmwareHandoffTable {
         }
         None
     }
+
+    pub fn save(fht: &FirmwareHandoffTable) {
+        let slice = unsafe {
+            let ptr = FHT_ORG as *mut u8;
+            crate::cprintln!("[fht] Saving FHT @ 0x{:08X}", ptr as u32);
+            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
+        };
+        slice.copy_from_slice(fht.as_bytes());
+    }
 }
 /// Report a non fatal firmware error and halt.
 #[allow(clippy::empty_loop)]
@@ -414,19 +442,52 @@ pub fn report_handoff_error_and_halt(msg: &str, code: u32) -> ! {
 mod tests {
     use super::*;
     use core::mem;
-    // FHT is currently defined to be 60 bytes in length.
-    const FHT_SIZE: usize = 120;
+    const FHT_SIZE: usize = 512;
+    const KEY_ID_FMC_PRIV_KEY: KeyId = KeyId::KeyId5;
 
     fn rt_tci_store() -> HandOffDataHandle {
         HandOffDataHandle::from(DataStore::DataVaultNonSticky48(WarmResetEntry48::RtTci))
     }
 
+    fn fmc_priv_key_store() -> HandOffDataHandle {
+        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_FMC_PRIV_KEY as u32)
+    }
+
+    fn fmc_priv_key(fht: &FirmwareHandoffTable) -> KeyId {
+        let ds: DataStore = fht.fmc_priv_key_kv_hdl.try_into().unwrap();
+
+        match ds {
+            crate::DataStore::KeyVaultSlot(key_id) => key_id,
+            _ => panic!("Invalid FMC private key store"),
+        }
+    }
+
     #[test]
     fn test_fht_is_valid() {
-        let fht = FirmwareHandoffTable::default();
-        assert!(!fht.is_valid());
+        let fht = crate::hand_off::FirmwareHandoffTable::default();
+
+        let valid = fht.fht_marker == FHT_MARKER
+            && fht.fmc_cdi_kv_hdl != FHT_INVALID_HANDLE
+            && fht.manifest_load_addr != FHT_INVALID_ADDRESS
+            && fht.fmc_pub_key_x_dv_hdl != FHT_INVALID_HANDLE
+            && fht.fmc_pub_key_y_dv_hdl != FHT_INVALID_HANDLE
+            && fht.fmc_cert_sig_r_dv_hdl != FHT_INVALID_HANDLE
+            && fht.fmc_cert_sig_s_dv_hdl != FHT_INVALID_HANDLE
+            && fht.rt_tci_dv_hdl != FHT_INVALID_HANDLE
+            && fht.rt_fw_entry_point_hdl != FHT_INVALID_HANDLE
+            // This is for Gen1 POR.
+            && fht.fips_fw_load_addr_hdl == FHT_INVALID_HANDLE
+            && fht.ldevid_tbs_size == 0
+            && fht.fmcalias_tbs_size == 0
+            && fht.ldevid_tbs_addr != 0
+            && fht.fmcalias_tbs_addr != 0
+            && fht.pcr_log_addr != 0
+            && fht.fuse_log_addr != 0;
+
+        assert!(!valid);
         assert_eq!(FHT_SIZE, mem::size_of::<FirmwareHandoffTable>());
     }
+
     #[test]
     fn test_dv_nonsticky_384bit_set() {
         let fht = crate::hand_off::FirmwareHandoffTable {
@@ -438,5 +499,22 @@ mod tests {
             fht.rt_tci_dv_hdl.reg_type(),
             DataVaultRegister::NonSticky384BitReg as u32
         );
+    }
+
+    #[test]
+    fn test_fmc_priv_key_store() {
+        let fht = crate::hand_off::FirmwareHandoffTable {
+            fmc_priv_key_kv_hdl: fmc_priv_key_store(),
+            ..Default::default()
+        };
+        // Check that the key is stored in the KeyVault.
+        assert_eq!(fht.fmc_priv_key_kv_hdl.vault(), Vault::KeyVault as u32);
+        // Check the key slot is correct
+        assert_eq!(
+            fht.fmc_priv_key_kv_hdl.reg_num(),
+            KEY_ID_FMC_PRIV_KEY.into()
+        );
+
+        assert_eq!(fmc_priv_key(&fht), KEY_ID_FMC_PRIV_KEY);
     }
 }

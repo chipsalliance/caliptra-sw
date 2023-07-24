@@ -11,19 +11,17 @@ Abstract:
     File contains the implementation of update reset flow.
 
 --*/
-use crate::{cprintln, fht, rom_env::RomEnv, verifier::RomImageVerificationEnv};
+use crate::{cprintln, rom_env::RomEnv, verifier::RomImageVerificationEnv, wdt};
 
+use caliptra_common::memory_layout::{MAN1_ORG, MAN2_ORG};
 use caliptra_common::FirmwareHandoffTable;
-use caliptra_drivers::{MailboxRecvTxn, ResetReason};
+
+use caliptra_common::RomBootStatus::*;
+use caliptra_drivers::{report_boot_status, MailboxRecvTxn, ResetReason};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::ImageManifest;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
 use zerocopy::{AsBytes, FromBytes};
-
-extern "C" {
-    static mut MAN2_ORG: u32;
-    static mut MAN1_ORG: u32;
-}
 
 #[derive(Default)]
 pub struct UpdateResetFlow {}
@@ -36,8 +34,12 @@ impl UpdateResetFlow {
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    pub fn run(env: &mut RomEnv) -> CaliptraResult<FirmwareHandoffTable> {
+    pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
         cprintln!("[update-reset] ++");
+        report_boot_status(UpdateResetStarted.into());
+
+        // Disable the watchdog timer during firmware download.
+        wdt::stop_wdt(&mut env.soc_ifc);
 
         let Some(mut recv_txn) = env.mbox.try_start_recv_txn() else {
             cprintln!("Failed To Get Mailbox Transaction");
@@ -49,7 +51,11 @@ impl UpdateResetFlow {
             return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_INVALID_FIRMWARE_COMMAND);
         }
 
+        // Reenable the watchdog timer.
+        wdt::start_wdt(&mut env.soc_ifc);
+
         let manifest = Self::load_manifest(&mut recv_txn)?;
+        report_boot_status(UpdateResetLoadManifestComplete.into());
 
         let mut venv = RomImageVerificationEnv {
             sha256: &mut env.sha256,
@@ -62,6 +68,7 @@ impl UpdateResetFlow {
         };
 
         let info = Self::verify_image(&mut venv, &manifest, recv_txn.dlen())?;
+        report_boot_status(UpdateResetImageVerificationComplete.into());
 
         cprintln!(
             "[update-reset] Image verified using Vendor ECC Key Index {}",
@@ -69,10 +76,15 @@ impl UpdateResetFlow {
         );
 
         Self::load_image(&manifest, recv_txn)?;
+        report_boot_status(UpdateResetLoadImageComplete.into());
 
-        Self::copy_regions(&manifest);
+        Self::copy_regions();
+        report_boot_status(UpdateResetOverwriteManifestComplete.into());
+
         cprintln!("[update-reset Success] --");
-        Ok(fht::make_fht(env))
+        report_boot_status(UpdateResetComplete.into());
+
+        Ok(None)
     }
 
     /// Verify the image
@@ -101,33 +113,19 @@ impl UpdateResetFlow {
     ///
     /// * `manifest` - Manifest
     ///
-    fn copy_regions(manifest: &ImageManifest) {
+    fn copy_regions() {
         cprintln!("[update-reset] Copying MAN_2 To MAN_1");
 
         let dst = unsafe {
-            let ptr = &mut MAN1_ORG as *mut u32;
-            core::slice::from_raw_parts_mut(
-                ptr,
-                (core::mem::size_of::<ImageManifest>()
-                    + manifest.fmc.size as usize
-                    + manifest.runtime.size as usize
-                    + 3)
-                    / 4,
-            )
+            let ptr = MAN1_ORG as *mut u32;
+            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
         };
 
         let src = unsafe {
-            let ptr = &mut MAN2_ORG as *mut u32;
-
-            core::slice::from_raw_parts_mut(
-                ptr,
-                (core::mem::size_of::<ImageManifest>()
-                    + manifest.fmc.size as usize
-                    + manifest.runtime.size as usize
-                    + 3)
-                    / 4,
-            )
+            let ptr = MAN2_ORG as *mut u32;
+            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
         };
+
         dst.clone_from_slice(src);
     }
 
@@ -145,6 +143,9 @@ impl UpdateResetFlow {
             manifest.runtime.size
         );
 
+        // Throw away the FMC portion of the image
+        txn.drop_words(manifest.fmc.size as usize / 4)?;
+
         let runtime_dest = unsafe {
             let addr = (manifest.runtime.load_addr) as *mut u32;
             core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize / 4)
@@ -155,7 +156,7 @@ impl UpdateResetFlow {
         //Call the complete here to reset the execute bit
         txn.complete(true)?;
 
-        // Drop the tranaction and release the Mailbox lock after the image
+        // Drop the transaction and release the Mailbox lock after the image
         // has been successfully verified and loaded in memory
         drop(txn);
 
@@ -169,7 +170,7 @@ impl UpdateResetFlow {
     /// * `Manifest` - Caliptra Image Bundle Manifest
     fn load_manifest(txn: &mut MailboxRecvTxn) -> CaliptraResult<ImageManifest> {
         let slice = unsafe {
-            let ptr = &mut MAN2_ORG as *mut u32;
+            let ptr = MAN2_ORG as *mut u32;
             core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
         };
 

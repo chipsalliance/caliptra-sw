@@ -15,10 +15,12 @@ exclude = [
 members = [
   "builder",
   "ci-tools/file-header-fix",
+  "ci-tools/size-history",
   "common",
   "cpu",
   "drivers",
   "drivers/test-fw",
+  "drivers/test-fw/scripts/vector_gen",
   "fmc",
   "fmc/test-fw/test-rt",
   "hw-latest/verilated",

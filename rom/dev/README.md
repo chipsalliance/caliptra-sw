@@ -222,7 +222,6 @@ The following sections define the various cryptographic primitives used by Calip
 |----------|--------------|-------------|
 | DOE_UDS_IV | 16 | Initialization vector specified by the ROM for deobfuscating the UDS. |
 | DOE_FE_IV | 16 | Initialization vector specified by the ROM for deobfuscating Field Entropy. |
-| IDEVID_CDI_KEY | 48 | Key used as an input to the HMAC function used to derive the CDI for IDEVID. This HMAC operation is to condition the decrypted UDS. |
 <br>
 
 ## 9. Cold Reset Flow
@@ -230,6 +229,8 @@ The following sections define the various cryptographic primitives used by Calip
 ![COLD RESET](doc/svg/cold-reset.svg)
 
 ROM performs all the necessary crypto derivations on cold reset. No crypto derivations are performed during warm reset or update reset.
+
+Note that KvSlot3 is generally used as a temporary location for derived keying material during ECC keygen.
 
 ### 9.1 Initialization
 
@@ -290,9 +291,9 @@ Initial Device ID Layer is used to generate Manufactured CDI & Private Keys.  Th
 
 **Actions:**
 
-1.	Derive the CDI using ROM specified key (IDEVID_CDI_KEY) and UDS in Slot 0 as data and store the resultant mac in KeySlot6
+1.	Derive the CDI using ROM specified label and UDS in Slot 0 as data and store the resultant mac in KeySlot6
 
-	`hmac384_mac(IDEVID_CDI_KEY, KvSlot0, KvSlot6)`
+	`hmac384_kdf(KvSlot0, b"idevid_cdi", KvSlot6)`
 
 2.	Clear the UDS in key vault
 
@@ -300,7 +301,9 @@ Initial Device ID Layer is used to generate Manufactured CDI & Private Keys.  Th
 
 3.	Derive ECC Key Pair using CDI in Key Vault Slot6 and store the generated private key in KeySlot7
 
-    `IDevIdPubKey = ecc384_keygen(KvSlot6, KvSlot7)`
+    `IDevIDSeed = hmac384_kdf(KvSlot6, b"idevid_keygen", KvSlot3)`
+    `IDevIdPubKey = ecc384_keygen(KvSlot3, KvSlot7)`
+    `kv_clear(KvSlot3)`
 
 *(Note: Steps 4-7 are performed if CSR download is requested via CPTRA_DBG_MANUF_SERVICE_REG register)*
 
@@ -342,7 +345,10 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 
 1.	Derive the CDI using IDevID CDI in Key Vault Slot6 as HMAC Key and Field Entropy stored in Key Vault Slot1 as data. The resultant mac is stored back in Slot 6
 
+    `hmac384_mac(KvSlot6, b"ldevid_cdi", KvSlot6)`
 	`hmac384_mac(KvSlot6, KvSlot1, KvSlot6)`
+
+*(Note: this uses a pair of HMACs to incorporate the diversification label, rather than a single KDF invocation, due to hardware limitations when passing KV data to the HMAC hardware as a message.)*
 
 2.	Clear the Field Entropy in Key Vault Slot 1
 
@@ -350,7 +356,9 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 
 3.	Derive ECC Key Pair using CDI in Key Vault Slot6 and store the generated private key in KeySlot5.
 
-    `LDevIdPubKey = ecc384_keygen(KvSlot6, KvSlot5)`
+    `LDevIDSeed = hmac384_kdf(KvSlot6, b"ldevid_keygen", KvSlot3)`
+    `LDevIdPubKey = ecc384_keygen(KvSlot3, KvSlot5)`
+    `kv_clear(KvSlot3)`
 
 4.	Store and lock (for write) the LDevID Public Key in Data Vault (48 bytes) Slot 0 & Slot 1
 
@@ -431,7 +439,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
 **Actions:**
 
-1.	PCR0 is the Journey PCR. PCR0 is locked for clear by the ROM at cold reset. Subsequent layers may continue to extend PCR0 as runtime updates are performed.
+1.	PCR0 is the Current PCR. PCR0 is locked for clear by the ROM on every reset. Subsequent layers may continue to extend PCR0 as runtime updates are performed.
 
 	`pcr_lock_clr(Pcr0)`
 	`pcr_extend(Pcr0, CPTRA_SECURITY_STATE.LIFECYCLE_STATE)`
@@ -446,11 +454,13 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 2.	CDI for Alias is derived from PCR0. For the Alias FMC CDI Derivation,  LDevID CDI in Key Vault Slot6 is used as HMAC Key and contents of PCR0 are used as data. The resultant mac is stored back in Slot 6
 
 	`Pcr0Measurement = pcr_read(Pcr0)`
-	`hmac384_mac(KvSlot6, Pcr0Measurement, KvSlot6)`
+    `hmac384_kdf(KvSlot6, b"fmc_alias_cdi", Pcr0Measurement, KvSlot6)`
 
 3.	Derive Alias FMC ECC Key Pair using CDI in Key Vault Slot6 and store the generated private key in KeySlot7.
 
-    `AliasFmcPubKey = ecc384_keygen(KvSlot6, KvSlot7)`
+    `AliasFmcSeed = hmac384_kdf(KvSlot6, b"fmc_alias_keygen", KvSlot3)`
+    `AliasFmcPubKey = ecc384_keygen(KvSlot3, KvSlot7)`
+    `kv_clear(KvSlot3)`
 
 4.	Store and lock (for write) the Alias FMC Public Key in Data Vault (48 bytes) Slot 4 & Slot 5
 
@@ -674,16 +684,24 @@ The following are the pre-conditions that should be satisfied:
     - Validation of the entire image is done using the steps described above.
     - Save the hash of the FMC portion of the image in a separate register.
     - Copy the FMC and RT image's text and data section in the appropriate ICCM and DCCM memory regions.
+    - The data vault is saved with the following values:-
+        - Vendor public key index in the preamble is save in the data vault. 
+        - Digest of the owner public key portion of preamble. 
+        - Digest of the FMC part of the image.
 - Warm Boot Mode
     - In this mode there is no validation or load required for any parts of the image.
     - All the contents of ICCM and DCCM are preserved since this is a warm reboot.
 - Update Reset Mode
-    - The image is exactly the same as the initial image which was verified on the cold boot, except that
-      the RT part of the image is changed.
-    - This also implies that the TOC hash in the header will not match anymore and this will need to be skipped.
+    - The image is exactly the same as the initial image which was verified on the cold boot, except that the RT part of the image is changed.
+    - We need to validate the entire image exactly as described in the cold boot flow. In addition to that, also validate the image to make sure that no other part (except the RT image section) is altered. 
     - The validation flow will look like the following:
-        - Validate the preamble
-        - Validate the header
-        - The TOC hash will NOT match, skip the TOC hash validation.
-        - We still need to make sure that the hash of the FMC which was stored in the data vault register at cold boot
-          still matches the FMC code. This is the hash of the FMC image portion.
+        - Validate the preamble exactly like in cold boot flow. 
+            - Validate the vendor public key index from the value in data vault (value saved during cold boot). Fail the validation if there is a mismatch. This is done to make sure that the key being used is the same key that was used during cold boot.
+            -  Validate the owner public key digest against the owner public key digest in data vault (value saved during cold boot). This makes sure that the owner key is not changed since last cold boot.
+        - Validate the header exactly like in cold boot.
+        - Validate the toc exactly like in cold boot.
+        - We still need to make sure that the digest of the FMC which was stored in the data vault register at cold boot
+          still matches the FMC image section. 
+    - If validation fails during ROM boot, the new image will not be copied from
+      the mailbox. ROM will boot the existing FMC/Runtime images. Validation
+      errors will be reported via the CPTRA_FW_ERROR_NON_FATAL register.

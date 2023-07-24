@@ -101,7 +101,31 @@ impl Sha384 {
                 }
             }
         }
-        Ok(self.read_digest())
+        let digest = self.read_digest();
+
+        self.zeroize_internal();
+
+        Ok(digest)
+    }
+
+    /// Zeroize the hardware registers.
+    fn zeroize_internal(&mut self) {
+        self.sha512.regs_mut().ctrl().write(|w| w.zeroize(true));
+    }
+
+    /// Zeroize the hardware registers.
+    ///
+    /// This is useful to call from a fatal-error-handling routine.
+    ///
+    /// # Safety
+    ///
+    /// The caller must be certain that the results of any pending cryptographic
+    /// operations will not be used after this function is called.
+    ///
+    /// This function is safe to call from a trap handler.
+    pub unsafe fn zeroize() {
+        let mut sha384 = Sha512Reg::new();
+        sha384.regs_mut().ctrl().write(|w| w.zeroize(true));
     }
 
     /// Copy digest to buffer

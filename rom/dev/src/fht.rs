@@ -13,26 +13,37 @@ Abstract:
 --*/
 
 use caliptra_common::{
+    keyids::{KEY_ID_FMC_PRIV_KEY, KEY_ID_ROM_FMC_CDI},
+    memory_layout::{FHT_ORG, FMCALIAS_TBS_ORG, FUSE_LOG_ORG, LDEVID_TBS_ORG, PCR_LOG_ORG},
     DataVaultRegister, FirmwareHandoffTable, HandOffDataHandle, Vault, FHT_INVALID_HANDLE,
     FHT_MARKER,
 };
-use caliptra_drivers::{ColdResetEntry4, ColdResetEntry48, WarmResetEntry4, WarmResetEntry48};
+use caliptra_drivers::{
+    ColdResetEntry4, ColdResetEntry48, Ecc384PubKey, WarmResetEntry4, WarmResetEntry48,
+};
 use zerocopy::AsBytes;
 
-use crate::{
-    cprintln,
-    flow::{KEY_ID_CDI, KEY_ID_FMC_PRIV_KEY},
-    rom_env::RomEnv,
-};
+use crate::{cprintln, rom_env::RomEnv};
 
 const FHT_MAJOR_VERSION: u16 = 1;
 const FHT_MINOR_VERSION: u16 = 0;
 
-struct FhtDataStore {}
+#[derive(Debug, Default)]
+pub struct FhtDataStore {
+    /// LdevId TBS size
+    pub ldevid_tbs_size: u16,
+
+    /// FmcAlias TBS size
+    pub fmcalias_tbs_size: u16,
+
+    /// IDevID public key
+    pub idev_pub: Ecc384PubKey,
+}
+
 impl FhtDataStore {
     /// The FMC CDI is stored in a 32-bit DataVault sticky register.
     pub const fn fmc_cdi_store() -> HandOffDataHandle {
-        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_CDI as u32)
+        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | KEY_ID_ROM_FMC_CDI as u32)
     }
     /// The FMC private key is stored in a 32-bit DataVault sticky register.
     pub const fn fmc_priv_key_store() -> HandOffDataHandle {
@@ -67,7 +78,7 @@ impl FhtDataStore {
 
     /// The FMC certificate signature S value is stored in a 384-bit DataVault
     /// sticky register.
-    pub fn fmc_cert_sig_s_store() -> HandOffDataHandle {
+    pub const fn fmc_cert_sig_s_store() -> HandOffDataHandle {
         HandOffDataHandle(
             ((Vault::DataVault as u32) << 12)
                 | (DataVaultRegister::Sticky384BitReg as u32) << 8
@@ -85,7 +96,7 @@ impl FhtDataStore {
     }
     /// FMC public key Y coordinate is stored in a 384-bit DataVault
     /// sticky register.
-    pub fn fmc_pub_key_y_store() -> HandOffDataHandle {
+    pub const fn fmc_pub_key_y_store() -> HandOffDataHandle {
         HandOffDataHandle(
             (Vault::DataVault as u32) << 12
                 | (DataVaultRegister::Sticky384BitReg as u32) << 8
@@ -93,7 +104,7 @@ impl FhtDataStore {
         )
     }
     /// The RT SVN is stored in a 32-bit DataVault non-sticky register.
-    pub fn rt_svn_data_store() -> HandOffDataHandle {
+    pub const fn rt_svn_data_store() -> HandOffDataHandle {
         HandOffDataHandle(
             ((Vault::DataVault as u32) << 12)
                 | (DataVaultRegister::NonSticky32BitReg as u32) << 8
@@ -101,7 +112,7 @@ impl FhtDataStore {
         )
     }
     /// The RT TCI is stored in a 384-bit DataVault non-sticky register.
-    pub fn rt_tci_data_store() -> HandOffDataHandle {
+    pub const fn rt_tci_data_store() -> HandOffDataHandle {
         HandOffDataHandle(
             ((Vault::DataVault as u32) << 12)
                 | (DataVaultRegister::NonSticky384BitReg as u32) << 8
@@ -120,13 +131,17 @@ impl FhtDataStore {
 }
 
 pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
+    let ldevid_tbs_addr: u32 = LDEVID_TBS_ORG;
+    let fmcalias_tbs_addr: u32 = FMCALIAS_TBS_ORG;
+    let pcr_log_addr: u32 = PCR_LOG_ORG;
+    let fuse_log_addr: u32 = FUSE_LOG_ORG;
+
     FirmwareHandoffTable {
         fht_marker: FHT_MARKER,
         fht_major_ver: FHT_MAJOR_VERSION,
         fht_minor_ver: FHT_MINOR_VERSION,
         manifest_load_addr: env.data_vault.manifest_addr(),
         fips_fw_load_addr_hdl: FHT_INVALID_HANDLE,
-        rt_fw_load_addr_hdl: FhtDataStore::rt_fw_entry_point(),
         rt_fw_entry_point_hdl: FhtDataStore::rt_fw_entry_point(),
         fmc_cdi_kv_hdl: FhtDataStore::fmc_cdi_store(),
         fmc_priv_key_kv_hdl: FhtDataStore::fmc_priv_key_store(),
@@ -138,24 +153,23 @@ pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
         fmc_svn_dv_hdl: FhtDataStore::fmc_svn_store(),
         rt_cdi_kv_hdl: FHT_INVALID_HANDLE,
         rt_priv_key_kv_hdl: FHT_INVALID_HANDLE,
-        rt_pub_key_x_dv_hdl: FHT_INVALID_HANDLE,
-        rt_pub_key_y_dv_hdl: FHT_INVALID_HANDLE,
-        rt_cert_sig_r_dv_hdl: FHT_INVALID_HANDLE,
-        rt_cert_sig_s_dv_hdl: FHT_INVALID_HANDLE,
         rt_tci_dv_hdl: FhtDataStore::rt_tci_data_store(),
         rt_svn_dv_hdl: FhtDataStore::rt_svn_data_store(),
+        ldevid_tbs_size: env.fht_data_store.ldevid_tbs_size,
+        fmcalias_tbs_size: env.fht_data_store.fmcalias_tbs_size,
+        ldevid_tbs_addr,
+        fmcalias_tbs_addr,
+        pcr_log_addr,
+        fuse_log_addr,
+        idev_dice_pub_key: env.fht_data_store.idev_pub,
         ..Default::default()
     }
 }
 
-pub fn load_fht(fht: FirmwareHandoffTable) {
-    extern "C" {
-        static mut FHT_ORG: u8;
-    }
-
+pub fn store(fht: FirmwareHandoffTable) {
     let slice = unsafe {
-        let ptr = &mut FHT_ORG as *mut u8;
-        cprintln!("[fht] Loading FHT @ 0x{:08X}", ptr as u32);
+        let ptr = FHT_ORG as *mut u8;
+        cprintln!("[fht] Storing FHT @ 0x{:08X}", ptr as u32);
         core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
     };
     caliptra_common::print_fht(&fht);

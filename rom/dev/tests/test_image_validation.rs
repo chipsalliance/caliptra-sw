@@ -4,6 +4,7 @@ use caliptra_builder::FwId;
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
 use caliptra_drivers::Array4x12;
 use caliptra_drivers::MfgFlags;
+use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError, SecurityState, U4,
 };
@@ -13,7 +14,9 @@ use caliptra_image_fake_keys::{
 };
 use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig, ImageGeneratorVendorConfig};
 use caliptra_image_openssl::OsslCrypto;
-use caliptra_image_types::{ImageBundle, ImageManifest, VENDOR_ECC_KEY_COUNT};
+use caliptra_image_types::{
+    ImageBundle, ImageManifest, OWNER_LMS_KEY_COUNT, VENDOR_ECC_KEY_COUNT, VENDOR_LMS_KEY_COUNT,
+};
 use openssl::asn1::Asn1Integer;
 use openssl::asn1::Asn1Time;
 use openssl::bn::BigNum;
@@ -26,41 +29,6 @@ use std::str;
 use zerocopy::AsBytes;
 
 pub mod helpers;
-
-// [TODO] Use the error codes from the common library.
-const MANIFEST_MARKER_MISMATCH: u32 = 0x000B0001;
-const MANIFEST_SIZE_MISMATCH: u32 = 0x000B0002;
-const VENDOR_PUB_KEY_DIGEST_INVALID: u32 = 0x000B0003;
-const VENDOR_PUB_KEY_DIGEST_INVALID_ARG: u32 = 0x000B001B;
-const VENDOR_ECC_SIGNATURE_INVALID_ARG: u32 = 0x000B001C;
-const VENDOR_ECC_SIGNATURE_INVALID: u32 = 0x000B000C;
-const OWNER_ECC_SIGNATURE_INVALID_ARG: u32 = 0x000B001A;
-const TOC_ENTRY_COUNT_INVALID: u32 = 0x000B0010;
-const TOC_DIGEST_MISMATCH: u32 = 0x000B0012;
-const FMC_RUNTIME_OVERLAP: u32 = 0x000B0017;
-const FMC_RUNTIME_INCORRECT_ORDER: u32 = 0x000B0018;
-const FMC_DIGEST_MISMATCH: u32 = 0x000B0014;
-const RUNTIME_DIGEST_MISMATCH: u32 = 0x000B0016;
-const OWNER_PUB_KEY_DIGEST_INVALID_ARG: u32 = 0x000B0019;
-const OWNER_PUB_KEY_DIGEST_MISMATCH: u32 = 0x000B0007;
-const VENDOR_PUB_KEY_DIGEST_MISMATCH: u32 = 0x000B0005;
-const VENDOR_ECC_PUB_KEY_REVOKED: u32 = 0x000B0009;
-const VENDOR_ECC_PUB_KEY_INDEX_MISMATCH: u32 = 0x000B000D;
-const VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS: u32 = 0x000B0008;
-const FMC_LOAD_ADDR_INVALID: u32 = 0x000B0021;
-const FMC_LOAD_ADDR_UNALIGNED: u32 = 0x000B0022;
-const FMC_ENTRY_POINT_INVALID: u32 = 0x000B0023;
-const FMC_ENTRY_POINT_UNALIGNED: u32 = 0x000B0024;
-const FMC_SVN_GREATER_THAN_MAX_SUPPORTED: u32 = 0x000B0025;
-const FMC_SVN_LESS_THAN_MIN_SUPPORTED: u32 = 0x000B0026;
-const FMC_SVN_LESS_THAN_FUSE: u32 = 0x000B0027;
-const RUNTIME_LOAD_ADDR_INVALID: u32 = 0x000B0028;
-const RUNTIME_LOAD_ADDR_UNALIGNED: u32 = 0x000B0029;
-const RUNTIME_ENTRY_POINT_INVALID: u32 = 0x000B002A;
-const RUNTIME_ENTRY_POINT_UNALIGNED: u32 = 0x000B002B;
-const RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED: u32 = 0x000B002C;
-const RUNTIME_SVN_LESS_THAN_MIN_SUPPORTED: u32 = 0x000B002D;
-const RUNTIME_SVN_LESS_THAN_FUSE: u32 = 0x000B002E;
 
 const ICCM_START_ADDR: u32 = 0x40000000;
 const ICCM_END_ADDR: u32 = ICCM_START_ADDR + (128 * 1024) - 1;
@@ -96,7 +64,9 @@ fn test_invalid_manifest_marker() {
     image_bundle.manifest.marker = 0xDEADBEEF;
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(MANIFEST_MARKER_MISMATCH),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -109,7 +79,9 @@ fn test_invalid_manifest_size() {
     image_bundle.manifest.size = (core::mem::size_of::<ImageManifest>() - 1) as u32;
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(MANIFEST_SIZE_MISMATCH),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -126,7 +98,9 @@ fn test_preamble_zero_vendor_pubkey_digest() {
         helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(VENDOR_PUB_KEY_DIGEST_INVALID),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -143,7 +117,9 @@ fn test_preamble_vendor_pubkey_digest_mismatch() {
     let (mut hw, image_bundle) =
         helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
     assert_eq!(
-        ModelError::MailboxCmdFailed(VENDOR_PUB_KEY_DIGEST_MISMATCH),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_MISMATCH.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -160,7 +136,9 @@ fn test_preamble_owner_pubkey_digest_mismatch() {
         helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(OWNER_PUB_KEY_DIGEST_MISMATCH),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -196,7 +174,7 @@ fn test_preamble_vendor_pubkey_revocation() {
                 ..Default::default()
             },
             fuses,
-            fw_image: None,
+            ..Default::default()
         })
         .unwrap();
 
@@ -212,7 +190,9 @@ fn test_preamble_vendor_pubkey_revocation() {
                 .unwrap();
         } else {
             assert_eq!(
-                ModelError::MailboxCmdFailed(VENDOR_ECC_PUB_KEY_REVOKED),
+                ModelError::MailboxCmdFailed(
+                    CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_REVOKED.into()
+                ),
                 hw.upload_firmware(&image_bundle.to_bytes().unwrap())
                     .unwrap_err()
             );
@@ -227,7 +207,39 @@ fn test_preamble_vendor_pubkey_out_of_bounds() {
     image_bundle.manifest.preamble.vendor_ecc_pub_key_idx = VENDOR_ECC_KEY_COUNT;
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS.into()
+        ),
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err()
+    );
+}
+
+#[test]
+fn test_preamble_vendor_lms_pubkey_out_of_bounds() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    image_bundle.manifest.preamble.vendor_lms_pub_key_idx = VENDOR_LMS_KEY_COUNT;
+
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUBKEY_INDEX_OUT_OF_BOUNDS.into()
+        ),
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err()
+    );
+}
+
+#[test]
+fn test_preamble_owner_lms_pubkey_out_of_bounds() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    image_bundle.manifest.preamble.owner_lms_pub_key_idx = OWNER_LMS_KEY_COUNT;
+
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_PUBKEY_INDEX_OUT_OF_BOUNDS.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -247,7 +259,9 @@ fn test_header_verify_vendor_sig_zero_pubkey() {
         .fill(0);
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(VENDOR_PUB_KEY_DIGEST_INVALID_ARG),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID_ARG.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -263,7 +277,9 @@ fn test_header_verify_vendor_sig_zero_pubkey() {
         .fill(0);
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(VENDOR_PUB_KEY_DIGEST_INVALID_ARG),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_INVALID_ARG.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -279,7 +295,9 @@ fn test_header_verify_vendor_sig_zero_signature() {
     image_bundle.manifest.preamble.vendor_sigs.ecc_sig.r.fill(0);
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(VENDOR_ECC_SIGNATURE_INVALID_ARG),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID_ARG.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -292,7 +310,9 @@ fn test_header_verify_vendor_sig_zero_signature() {
     image_bundle.manifest.preamble.vendor_sigs.ecc_sig.s.fill(0);
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(VENDOR_ECC_SIGNATURE_INVALID_ARG),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID_ARG.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -316,7 +336,9 @@ fn test_header_verify_vendor_sig_mismatch() {
         .clone_from_slice(Array4x12::from(PUB_KEY_Y).0.as_slice());
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(VENDOR_ECC_SIGNATURE_INVALID),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -343,7 +365,83 @@ fn test_header_verify_vendor_sig_mismatch() {
         .clone_from_slice(Array4x12::from(SIGNATURE_S).0.as_slice());
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(VENDOR_ECC_SIGNATURE_INVALID),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID.into()
+        ),
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err()
+    );
+}
+
+#[test]
+fn test_header_verify_vendor_lms_sig_mismatch() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let vendor_lms_pub_key_idx = image_bundle.manifest.preamble.vendor_lms_pub_key_idx as usize;
+
+    // Modify the vendor public key.
+    let lms_pub_key_backup =
+        image_bundle.manifest.preamble.vendor_pub_keys.lms_pub_keys[vendor_lms_pub_key_idx];
+
+    image_bundle.manifest.preamble.vendor_pub_keys.lms_pub_keys[vendor_lms_pub_key_idx].digest =
+        [Default::default(); 6];
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID.into()
+        ),
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err()
+    );
+
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    // Modify the vendor signature.
+    image_bundle.manifest.preamble.vendor_pub_keys.lms_pub_keys[vendor_lms_pub_key_idx] =
+        lms_pub_key_backup;
+    image_bundle.manifest.preamble.vendor_sigs.lms_sig.tree_path[0] = [Default::default(); 6];
+
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID.into()
+        ),
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err()
+    );
+}
+
+#[test]
+fn test_header_verify_owner_lms_sig_mismatch() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let owner_lms_pub_key_idx = image_bundle.manifest.preamble.owner_lms_pub_key_idx as usize;
+
+    // Modify the owner public key.
+    let lms_pub_key_backup =
+        image_bundle.manifest.preamble.owner_pub_keys.lms_pub_keys[owner_lms_pub_key_idx];
+
+    image_bundle.manifest.preamble.owner_pub_keys.lms_pub_keys[owner_lms_pub_key_idx].digest =
+        [Default::default(); 6];
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_SIGNATURE_INVALID.into()
+        ),
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err()
+    );
+
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    // Modify the owner signature.
+    image_bundle.manifest.preamble.owner_pub_keys.lms_pub_keys[owner_lms_pub_key_idx] =
+        lms_pub_key_backup;
+    image_bundle.manifest.preamble.owner_sigs.lms_sig.tree_path[0] = [Default::default(); 6];
+
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_SIGNATURE_INVALID.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -360,7 +458,47 @@ fn test_header_verify_vendor_pub_key_in_preamble_and_header() {
     update_header(&mut image_bundle);
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(VENDOR_ECC_PUB_KEY_INDEX_MISMATCH),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_MISMATCH.into()
+        ),
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err()
+    );
+}
+
+#[test]
+fn test_header_verify_vendor_lms_pub_key_in_preamble_and_header() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    // Change vendor pubkey index.
+    image_bundle.manifest.header.vendor_lms_pub_key_idx =
+        image_bundle.manifest.preamble.vendor_lms_pub_key_idx + 1;
+    update_header(&mut image_bundle);
+
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_MISMATCH.into()
+        ),
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err()
+    );
+}
+
+#[test]
+fn test_header_verify_owner_lms_pub_key_in_preamble_and_header() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    // Change vendor pubkey index.
+    image_bundle.manifest.header.owner_lms_pub_key_idx =
+        image_bundle.manifest.preamble.owner_lms_pub_key_idx + 1;
+    update_header(&mut image_bundle);
+
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_PUB_KEY_INDEX_MISMATCH.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -385,14 +523,14 @@ fn test_header_verify_owner_sig_zero_fuses() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
-    assert_eq!(hw.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
+    assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), 0);
 }
 
 #[test]
@@ -422,12 +560,14 @@ fn test_header_verify_owner_sig_zero_fuses_zero_pubkey_x() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(OWNER_PUB_KEY_DIGEST_INVALID_ARG),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_INVALID_ARG.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -455,12 +595,14 @@ fn test_header_verify_owner_sig_corrupt_fuses() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(OWNER_PUB_KEY_DIGEST_MISMATCH),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -501,12 +643,14 @@ fn test_header_verify_owner_sig_zero_pubkey_x() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(OWNER_PUB_KEY_DIGEST_INVALID_ARG),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_INVALID_ARG.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -547,12 +691,14 @@ fn test_header_verify_owner_sig_zero_pubkey_y() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(OWNER_PUB_KEY_DIGEST_INVALID_ARG),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_INVALID_ARG.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -584,7 +730,7 @@ fn test_header_verify_owner_sig_zero_signature_r() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -592,7 +738,9 @@ fn test_header_verify_owner_sig_zero_signature_r() {
     image_bundle.manifest.preamble.owner_sigs.ecc_sig.r.fill(0);
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(OWNER_ECC_SIGNATURE_INVALID_ARG),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID_ARG.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -624,7 +772,7 @@ fn test_header_verify_owner_sig_zero_signature_s() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -632,7 +780,93 @@ fn test_header_verify_owner_sig_zero_signature_s() {
     image_bundle.manifest.preamble.owner_sigs.ecc_sig.s.fill(0);
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(OWNER_ECC_SIGNATURE_INVALID_ARG),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID_ARG.into()
+        ),
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err()
+    );
+}
+
+#[test]
+fn test_header_verify_owner_sig_invalid_signature_r() {
+    let mut image_bundle = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
+    let gen = ImageGenerator::new(OsslCrypto::default());
+    let digest = gen
+        .owner_pubkey_digest(&image_bundle.manifest.preamble)
+        .unwrap();
+
+    let fuses = caliptra_hw_model::Fuses {
+        owner_pk_hash: digest,
+        ..Default::default()
+    };
+
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        ..Default::default()
+    })
+    .unwrap();
+
+    // Set an invalid owner_sig.r.
+    image_bundle.manifest.preamble.owner_sigs.ecc_sig.r.fill(1);
+
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID.into()
+        ),
+        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+            .unwrap_err()
+    );
+}
+
+#[test]
+fn test_header_verify_owner_sig_invalid_signature_s() {
+    let mut image_bundle = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
+    let gen = ImageGenerator::new(OsslCrypto::default());
+    let digest = gen
+        .owner_pubkey_digest(&image_bundle.manifest.preamble)
+        .unwrap();
+
+    let fuses = caliptra_hw_model::Fuses {
+        owner_pk_hash: digest,
+        ..Default::default()
+    };
+
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        ..Default::default()
+    })
+    .unwrap();
+
+    // Set an invalid owner_sig.s.
+    image_bundle.manifest.preamble.owner_sigs.ecc_sig.s.fill(1);
+
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -648,7 +882,9 @@ fn test_toc_invalid_entry_count() {
     update_header(&mut image_bundle);
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(TOC_ENTRY_COUNT_INVALID),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_TOC_ENTRY_COUNT_INVALID.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -664,7 +900,7 @@ fn test_toc_invalid_toc_digest() {
     update_header(&mut image_bundle);
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(TOC_DIGEST_MISMATCH),
+        ModelError::MailboxCmdFailed(CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_MISMATCH.into()),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -689,7 +925,7 @@ fn test_toc_fmc_range_overlap() {
         runtime_new_size,
     );
     assert_eq!(
-        ModelError::MailboxCmdFailed(FMC_RUNTIME_OVERLAP),
+        ModelError::MailboxCmdFailed(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP.into()),
         hw.upload_firmware(&image).unwrap_err()
     );
 
@@ -710,7 +946,7 @@ fn test_toc_fmc_range_overlap() {
     );
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(FMC_RUNTIME_OVERLAP),
+        ModelError::MailboxCmdFailed(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP.into()),
         hw.upload_firmware(&image).unwrap_err()
     );
 
@@ -731,7 +967,7 @@ fn test_toc_fmc_range_overlap() {
     );
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(FMC_RUNTIME_OVERLAP),
+        ModelError::MailboxCmdFailed(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP.into()),
         hw.upload_firmware(&image).unwrap_err()
     );
 }
@@ -753,7 +989,40 @@ fn test_toc_fmc_range_incorrect_order() {
         runtime_new_size,
     );
     assert_eq!(
-        ModelError::MailboxCmdFailed(FMC_RUNTIME_INCORRECT_ORDER),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_INCORRECT_ORDER.into()
+        ),
+        hw.upload_firmware(&image).unwrap_err()
+    );
+}
+
+#[test]
+fn test_fmc_rt_load_address_range_overlap() {
+    // Case 1:
+    // [-FMC--]
+    //      [--RT--]
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let rt_new_load_addr = image_bundle.manifest.fmc.load_addr + 1;
+    let image = update_load_addr(&mut image_bundle, false, rt_new_load_addr);
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_LOAD_ADDR_OVERLAP.into()
+        ),
+        hw.upload_firmware(&image).unwrap_err()
+    );
+
+    // Case 2:
+    //      [-FMC--]
+    //  [--RT--]
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let fmc_new_load_addr = image_bundle.manifest.runtime.load_addr + 1;
+    let image = update_load_addr(&mut image_bundle, true, fmc_new_load_addr);
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_LOAD_ADDR_OVERLAP.into()
+        ),
         hw.upload_firmware(&image).unwrap_err()
     );
 }
@@ -767,7 +1036,7 @@ fn test_fmc_digest_mismatch() {
     image_bundle.fmc[0..4].copy_from_slice(0xDEADBEEFu32.as_bytes());
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(FMC_DIGEST_MISMATCH),
+        ModelError::MailboxCmdFailed(CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH.into()),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -780,7 +1049,9 @@ fn test_fmc_invalid_load_addr_before_iccm() {
 
     let image = update_load_addr(&mut image_bundle, true, ICCM_START_ADDR - 4);
     assert_eq!(
-        ModelError::MailboxCmdFailed(FMC_LOAD_ADDR_INVALID),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_INVALID.into()
+        ),
         hw.upload_firmware(&image).unwrap_err()
     );
 }
@@ -792,7 +1063,9 @@ fn test_fmc_invalid_load_addr_after_iccm() {
 
     let image = update_load_addr(&mut image_bundle, true, ICCM_END_ADDR + 1);
     assert_eq!(
-        ModelError::MailboxCmdFailed(FMC_LOAD_ADDR_INVALID),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_INVALID.into()
+        ),
         hw.upload_firmware(&image).unwrap_err()
     );
 }
@@ -804,7 +1077,9 @@ fn test_fmc_load_addr_unaligned() {
     let load_addr = image_bundle.manifest.fmc.load_addr;
     let image = update_load_addr(&mut image_bundle, true, load_addr + 1);
     assert_eq!(
-        ModelError::MailboxCmdFailed(FMC_LOAD_ADDR_UNALIGNED),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_UNALIGNED.into()
+        ),
         hw.upload_firmware(&image).unwrap_err()
     );
 }
@@ -816,7 +1091,9 @@ fn test_fmc_invalid_entry_point_before_iccm() {
 
     let image = update_entry_point(&mut image_bundle, true, ICCM_START_ADDR - 4);
     assert_eq!(
-        ModelError::MailboxCmdFailed(FMC_ENTRY_POINT_INVALID),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID.into()
+        ),
         hw.upload_firmware(&image).unwrap_err()
     );
 }
@@ -828,7 +1105,9 @@ fn test_fmc_invalid_entry_point_after_iccm() {
 
     let image = update_entry_point(&mut image_bundle, true, ICCM_END_ADDR + 1);
     assert_eq!(
-        ModelError::MailboxCmdFailed(FMC_ENTRY_POINT_INVALID),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID.into()
+        ),
         hw.upload_firmware(&image).unwrap_err()
     );
 }
@@ -841,7 +1120,9 @@ fn test_fmc_entry_point_unaligned() {
 
     let image = update_entry_point(&mut image_bundle, true, entry_point + 1);
     assert_eq!(
-        ModelError::MailboxCmdFailed(FMC_ENTRY_POINT_UNALIGNED),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_UNALIGNED.into()
+        ),
         hw.upload_firmware(&image).unwrap_err()
     );
 }
@@ -869,7 +1150,9 @@ fn test_fmc_svn_greater_than_32() {
 
     let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
     assert_eq!(
-        ModelError::MailboxCmdFailed(FMC_SVN_GREATER_THAN_MAX_SUPPORTED),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_GREATER_THAN_MAX_SUPPORTED.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -898,7 +1181,9 @@ fn test_fmc_svn_less_than_min_svn() {
     };
     let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
     assert_eq!(
-        ModelError::MailboxCmdFailed(FMC_SVN_LESS_THAN_MIN_SUPPORTED),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_MIN_SUPPORTED.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -928,7 +1213,9 @@ fn test_fmc_svn_less_than_fuse_svn() {
 
     let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
     assert_eq!(
-        ModelError::MailboxCmdFailed(FMC_SVN_LESS_THAN_FUSE),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_FUSE.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -942,7 +1229,9 @@ fn test_runtime_digest_mismatch() {
     // Change the FMC image.
     image_bundle.runtime[0..4].copy_from_slice(0xDEADBEEFu32.as_bytes());
     assert_eq!(
-        ModelError::MailboxCmdFailed(RUNTIME_DIGEST_MISMATCH),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -953,9 +1242,14 @@ fn test_runtime_invalid_load_addr_before_iccm() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
-    let image = update_load_addr(&mut image_bundle, false, ICCM_START_ADDR - 4);
+    let rt_new_load_addr = ICCM_START_ADDR
+        - (image_bundle.manifest.fmc.load_addr - ICCM_START_ADDR
+            + image_bundle.manifest.runtime.size);
+    let image = update_load_addr(&mut image_bundle, false, rt_new_load_addr);
     assert_eq!(
-        ModelError::MailboxCmdFailed(RUNTIME_LOAD_ADDR_INVALID),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID.into()
+        ),
         hw.upload_firmware(&image).unwrap_err()
     );
 }
@@ -967,7 +1261,9 @@ fn test_runtime_invalid_load_addr_after_iccm() {
 
     let image = update_load_addr(&mut image_bundle, false, ICCM_END_ADDR + 1);
     assert_eq!(
-        ModelError::MailboxCmdFailed(RUNTIME_LOAD_ADDR_INVALID),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID.into()
+        ),
         hw.upload_firmware(&image).unwrap_err()
     );
 }
@@ -979,7 +1275,9 @@ fn test_runtime_load_addr_unaligned() {
     let load_addr = image_bundle.manifest.runtime.load_addr;
     let image = update_load_addr(&mut image_bundle, false, load_addr + 1);
     assert_eq!(
-        ModelError::MailboxCmdFailed(RUNTIME_LOAD_ADDR_UNALIGNED),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_UNALIGNED.into()
+        ),
         hw.upload_firmware(&image).unwrap_err()
     );
 }
@@ -991,7 +1289,9 @@ fn test_runtime_invalid_entry_point_before_iccm() {
 
     let image = update_entry_point(&mut image_bundle, false, ICCM_START_ADDR - 4);
     assert_eq!(
-        ModelError::MailboxCmdFailed(RUNTIME_ENTRY_POINT_INVALID),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID.into()
+        ),
         hw.upload_firmware(&image).unwrap_err()
     );
 }
@@ -1003,7 +1303,9 @@ fn test_runtime_invalid_entry_point_after_iccm() {
 
     let image = update_entry_point(&mut image_bundle, false, ICCM_END_ADDR + 1);
     assert_eq!(
-        ModelError::MailboxCmdFailed(RUNTIME_ENTRY_POINT_INVALID),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID.into()
+        ),
         hw.upload_firmware(&image).unwrap_err()
     );
 }
@@ -1015,7 +1317,9 @@ fn test_runtime_entry_point_unaligned() {
     let entry_point = image_bundle.manifest.runtime.entry_point;
     let image = update_entry_point(&mut image_bundle, false, entry_point + 1);
     assert_eq!(
-        ModelError::MailboxCmdFailed(RUNTIME_ENTRY_POINT_UNALIGNED),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_UNALIGNED.into()
+        ),
         hw.upload_firmware(&image).unwrap_err()
     );
 }
@@ -1042,7 +1346,9 @@ fn test_runtime_svn_greater_than_64() {
 
     let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
     assert_eq!(
-        ModelError::MailboxCmdFailed(RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -1072,7 +1378,9 @@ fn test_runtime_svn_less_than_min_svn() {
     let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(RUNTIME_SVN_LESS_THAN_MIN_SUPPORTED),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_MIN_SUPPORTED.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
@@ -1102,13 +1410,15 @@ fn test_runtime_svn_less_than_fuse_svn() {
 
     let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
     assert_eq!(
-        ModelError::MailboxCmdFailed(RUNTIME_SVN_LESS_THAN_FUSE),
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE.into()
+        ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
     assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        RUNTIME_SVN_LESS_THAN_FUSE
+        hw.soc_ifc().cptra_fw_error_fatal().read(),
+        CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE.into()
     );
 }
 
@@ -1118,6 +1428,7 @@ fn cert_test_with_custom_dates() {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
         features: &["emu"],
+        workspace_dir: None,
     };
 
     let fuses = Fuses::default();
@@ -1129,7 +1440,7 @@ fn cert_test_with_custom_dates() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -1172,6 +1483,11 @@ fn cert_test_with_custom_dates() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
+    hw.step_until_output_contains("[exit] Launching FMC")
+        .unwrap();
+
+    hw.mailbox_execute(0x1000_0001, &[]).unwrap();
+
     let result = hw.copy_output_until_exit_success(&mut output);
     assert!(result.is_ok());
     let output = String::from_utf8_lossy(&output);
@@ -1197,6 +1513,7 @@ fn cert_test() {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
         features: &["emu"],
+        workspace_dir: None,
     };
 
     let fuses = Fuses::default();
@@ -1208,7 +1525,7 @@ fn cert_test() {
             ..Default::default()
         },
         fuses,
-        fw_image: None,
+        ..Default::default()
     })
     .unwrap();
 
@@ -1233,6 +1550,11 @@ fn cert_test() {
     hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
+
+    hw.step_until_output_contains("[exit] Launching FMC")
+        .unwrap();
+
+    hw.mailbox_execute(0x1000_0001, &[]).unwrap();
 
     let result = hw.copy_output_until_exit_success(&mut output);
     assert!(result.is_ok());
@@ -1270,6 +1592,7 @@ fn update_header(image_bundle: &mut ImageBundle) {
             &config,
             image_bundle.manifest.preamble.vendor_ecc_pub_key_idx,
             image_bundle.manifest.preamble.vendor_lms_pub_key_idx,
+            image_bundle.manifest.preamble.owner_lms_pub_key_idx,
             &header_digest_vendor,
             &header_digest_owner,
         )

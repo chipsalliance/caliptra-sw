@@ -103,6 +103,9 @@ const UPDATE_TICKS: u64 = 1000;
 /// The number of CPU clock cycles read and write keys from key vault
 const KEY_RW_TICKS: u64 = 100;
 
+/// LSFR Seed Size.
+const HMAC_LFSR_SEED_SIZE: usize = 20;
+
 /// HMAC-SHA-384 Peripheral
 #[derive(Bus)]
 #[poll_fn(poll)]
@@ -144,6 +147,10 @@ pub struct HmacSha384 {
     /// HMAC Tag Register
     #[peripheral(offset = 0x0000_0100, mask = 0x0000_00ff)]
     tag: ReadOnlyMemory<HMAC_TAG_SIZE>,
+
+    /// LSFR Seed Register
+    #[register_array(offset = 0x0000_0130)]
+    lfsr_seed: [u32; HMAC_LFSR_SEED_SIZE / 4],
 
     /// Key Read Control Register
     #[register(offset = 0x0000_0600, write_fn = on_write_key_read_control)]
@@ -226,6 +233,7 @@ impl HmacSha384 {
             key: WriteOnlyMemory::new(),
             block: ReadWriteMemory::new(),
             tag: ReadOnlyMemory::new(),
+            lfsr_seed: Default::default(),
             key_read_ctrl: ReadWriteRegister::new(0),
             key_read_status: ReadOnlyRegister::new(KeyReadStatus::READY::SET.value),
             block_read_ctrl: ReadWriteRegister::new(0),
@@ -260,23 +268,30 @@ impl HmacSha384 {
         // Set the control register
         self.control.reg.set(val);
 
-        // Reset the Ready and Valid status bits
-        self.status
-            .reg
-            .modify(Status::READY::CLEAR + Status::VALID::CLEAR);
+        if self.control.reg.is_set(Control::INIT) || self.control.reg.is_set(Control::NEXT) {
+            // Reset the Ready and Valid status bits
+            self.status
+                .reg
+                .modify(Status::READY::CLEAR + Status::VALID::CLEAR);
 
-        if self.control.reg.is_set(Control::INIT) {
-            // Initialize the HMAC engine with key and initial data block
-            self.hmac.init(self.key.data(), self.block.data());
+            if self.control.reg.is_set(Control::INIT) {
+                // Initialize the HMAC engine with key and initial data block
+                self.hmac.init(self.key.data(), self.block.data());
 
-            // Schedule a future call to poll() complete the operation.
-            self.op_complete_action = Some(self.timer.schedule_poll_in(INIT_TICKS));
-        } else if self.control.reg.is_set(Control::NEXT) {
-            // Update a HMAC engine with a new block
-            self.hmac.update(self.block.data());
+                // Schedule a future call to poll() complete the operation.
+                self.op_complete_action = Some(self.timer.schedule_poll_in(INIT_TICKS));
+            } else if self.control.reg.is_set(Control::NEXT) {
+                // Update a HMAC engine with a new block
+                self.hmac.update(self.block.data());
 
-            // Schedule a future call to poll() complete the operation.
-            self.op_complete_action = Some(self.timer.schedule_poll_in(UPDATE_TICKS));
+                // Schedule a future call to poll() complete the operation.
+                self.op_complete_action = Some(self.timer.schedule_poll_in(UPDATE_TICKS));
+            }
+        }
+
+        if self.control.reg.is_set(Control::ZEROIZE) {
+            // Zeroize the HMAC engine
+            self.zeroize();
         }
 
         Ok(())
@@ -448,9 +463,9 @@ impl HmacSha384 {
 
         let result = self.key_vault.read_key(key_id, key_usage);
         let (key_read_result, key) = match result.err() {
-            Some(BusError::LoadAccessFault) | Some(BusError::LoadAddrMisaligned) => {
-                (KeyReadStatus::ERROR::KV_READ_FAIL.value, None)
-            }
+            Some(BusError::LoadAccessFault)
+            | Some(BusError::LoadAddrMisaligned)
+            | Some(BusError::InstrAccessFault) => (KeyReadStatus::ERROR::KV_READ_FAIL.value, None),
             Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
                 (KeyReadStatus::ERROR::KV_WRITE_FAIL.value, None)
             }
@@ -480,28 +495,23 @@ impl HmacSha384 {
         let mut key_usage = KeyUsage::default();
         key_usage.set_hmac_data(true);
 
-        let result = self.key_vault.read_key(key_id, key_usage);
-        let (block_read_result, data) = match result.err() {
-            Some(BusError::LoadAccessFault) | Some(BusError::LoadAddrMisaligned) => {
-                (KeyReadStatus::ERROR::KV_READ_FAIL.value, None)
+        let error_code = match self.key_vault.read_key_as_data(key_id, key_usage) {
+            Err(BusError::LoadAccessFault)
+            | Err(BusError::LoadAddrMisaligned)
+            | Err(BusError::InstrAccessFault) => KeyReadStatus::ERROR::KV_READ_FAIL.value,
+            Err(BusError::StoreAccessFault) | Err(BusError::StoreAddrMisaligned) => {
+                KeyReadStatus::ERROR::KV_WRITE_FAIL.value
             }
-            Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
-                (KeyReadStatus::ERROR::KV_WRITE_FAIL.value, None)
+            Ok(data) => {
+                self.format_block(&data);
+                KeyReadStatus::ERROR::KV_SUCCESS.value
             }
-            None => (
-                KeyReadStatus::ERROR::KV_SUCCESS.value,
-                Some(result.unwrap()),
-            ),
         };
-
-        if let Some(data) = &data {
-            self.format_block(data);
-        }
 
         self.block_read_status.reg.modify(
             KeyReadStatus::READY::SET
                 + KeyReadStatus::VALID::SET
-                + KeyReadStatus::ERROR.val(block_read_result),
+                + KeyReadStatus::ERROR.val(error_code),
         );
     }
 
@@ -516,7 +526,7 @@ impl HmacSha384 {
     /// # Error
     ///
     /// * `None`
-    fn format_block(&mut self, data: &[u8; KeyVault::KEY_SIZE]) {
+    fn format_block(&mut self, data: &[u8]) {
         let mut block_arr = [0u8; HMAC_BLOCK_SIZE];
         block_arr[..data.len()].copy_from_slice(&data[..data.len()]);
         block_arr.to_little_endian();
@@ -546,9 +556,9 @@ impl HmacSha384 {
             )
             .err()
         {
-            Some(BusError::LoadAccessFault) | Some(BusError::LoadAddrMisaligned) => {
-                TagWriteStatus::ERROR::KV_READ_FAIL.value
-            }
+            Some(BusError::LoadAccessFault)
+            | Some(BusError::LoadAddrMisaligned)
+            | Some(BusError::InstrAccessFault) => TagWriteStatus::ERROR::KV_READ_FAIL.value,
             Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
                 TagWriteStatus::ERROR::KV_WRITE_FAIL.value
             }
@@ -560,6 +570,12 @@ impl HmacSha384 {
                 + TagWriteStatus::VALID::SET
                 + TagWriteStatus::ERROR.val(tag_write_result),
         );
+    }
+
+    fn zeroize(&mut self) {
+        self.key.data_mut().fill(0);
+        self.block.data_mut().fill(0);
+        self.tag.data_mut().fill(0);
     }
 }
 
@@ -733,9 +749,7 @@ mod tests {
             }
         }
 
-        if block_via_kv {
-            assert_eq!(data.len(), HMAC_KEY_SIZE);
-        } else {
+        if !block_via_kv {
             // Compute the total bytes and total blocks required for the final message.
             block_arr[..data.len()].copy_from_slice(data);
             block_arr[data.len()] = 1 << 7;
@@ -789,13 +803,12 @@ mod tests {
         }
 
         if block_via_kv {
-            let mut block: [u8; KeyVault::KEY_SIZE] = [0; KeyVault::KEY_SIZE];
-            block[..data.len()].copy_from_slice(data);
-            block.to_big_endian(); // Keys are stored in big-endian format.
+            let mut data = data.to_vec();
+            data.to_big_endian(); // Keys are stored in big-endian format.
             let mut key_usage = KeyUsage::default();
             key_usage.set_hmac_data(true);
             key_vault
-                .write_key(block_id, &block, u32::from(key_usage))
+                .write_key(block_id, &data, u32::from(key_usage))
                 .unwrap();
 
             if block_read_disallowed {
@@ -1223,6 +1236,40 @@ mod tests {
             0x56, 0x18, 0x58, 0x72, 0xb2, 0x51, 0xeb, 0xc9, 0xe0, 0x00, 0x2e, 0x84, 0x0c, 0xc7,
             0x17, 0xb2, 0x39, 0xce, 0x09, 0x59, 0x9e, 0x78, 0x6c, 0x2f, 0x64, 0x79, 0x6f, 0xf9,
             0x5b, 0xc6, 0xec, 0xb6, 0xba, 0xa9,
+        ];
+
+        for key_id in 0..8 {
+            test_hmac(
+                &mut key.clone(),
+                &data,
+                &result,
+                &[KeyVaultAction::BlockFromVault(key_id)],
+            );
+        }
+    }
+
+    #[test]
+    fn test_hmac_sha384_kv_small_block_read() {
+        // This is similar to what happens when the 32-byte field-entropy is
+        // used as hmac data.
+        let key: [u8; 48] = [
+            0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
+            0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
+            0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
+            0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
+        ];
+
+        let data: [u8; 32] = [
+            0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
+            0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
+            0x4a, 0x65, 0x66, 0x65,
+        ];
+
+        let result: [u8; 48] = [
+            0x4f, 0x60, 0xdd, 0x1f, 0x5, 0xc1, 0x0, 0x1c, 0xfd, 0x14, 0x6f, 0x41, 0xb4, 0x4b, 0xaa,
+            0x80, 0x24, 0x65, 0xc, 0xd, 0xe9, 0x47, 0x3d, 0x9e, 0x16, 0x9d, 0x3b, 0x51, 0xf3, 0x3c,
+            0x6e, 0x83, 0xb2, 0xa9, 0x37, 0x5f, 0x37, 0x87, 0x9f, 0x75, 0x11, 0x87, 0x68, 0xa5,
+            0x68, 0x7c, 0x42, 0x49,
         ];
 
         for key_id in 0..8 {

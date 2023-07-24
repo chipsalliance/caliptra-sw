@@ -59,8 +59,8 @@ mod tests {
             tcb_info_fmc_tci: &[0xB6u8; FmcAliasCertTbsParams::TCB_INFO_FMC_TCI_LEN],
             tcb_info_fmc_svn: &[0xB7],
             tcb_info_fmc_svn_fuses: &[0xB8],
-            not_before: &NotBefore::default().not_before,
-            not_after: &NotAfter::default().not_after,
+            not_before: &NotBefore::default().value,
+            not_after: &NotAfter::default().value,
         };
 
         let cert = FmcAliasCertTbs::new(&params);

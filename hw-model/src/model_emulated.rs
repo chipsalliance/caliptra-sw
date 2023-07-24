@@ -14,12 +14,14 @@ use caliptra_emu_periph::ActionCb;
 use caliptra_emu_periph::ReadyForFwCb;
 use caliptra_emu_periph::{CaliptraRootBus, CaliptraRootBusArgs, SocToCaliptraBus, TbServicesCb};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
+use caliptra_hw_model_types::ErrorInjectionMode;
 
 use crate::bus_logger::BusLogger;
 use crate::bus_logger::LogFile;
 use crate::InitParams;
 use crate::ModelError;
 use crate::Output;
+use crate::TrngMode;
 use caliptra_emu_bus::Bus;
 
 pub struct EmulatedApbBus<'a> {
@@ -87,9 +89,18 @@ impl crate::HwModel for ModelEmulated {
                 cpu_enabled_cloned.set(true);
             }),
             security_state: params.security_state,
+            cptra_obf_key: params.cptra_obf_key,
+
+            etrng_responses: params.etrng_responses,
             ..CaliptraRootBusArgs::default()
         };
         let mut root_bus = CaliptraRootBus::new(&clock, bus_args);
+
+        let trng_mode = TrngMode::resolve(params.trng_mode);
+        root_bus.soc_reg.set_hw_config(match trng_mode {
+            TrngMode::Internal => 1.into(),
+            TrngMode::External => 0.into(),
+        });
 
         {
             let mut iccm_ram = root_bus.iccm.ram().borrow_mut();
@@ -163,5 +174,20 @@ impl crate::HwModel for ModelEmulated {
         self.trace_fn = Some(Box::new(move |pc, _instr| {
             writeln!(log, "pc=0x{pc:x}").unwrap();
         }))
+    }
+
+    fn ecc_error_injection(&mut self, mode: ErrorInjectionMode) {
+        match mode {
+            ErrorInjectionMode::None => {
+                self.cpu.bus.bus.iccm.ram().borrow_mut().error_injection = 0;
+                self.cpu.bus.bus.dccm.error_injection = 0;
+            }
+            ErrorInjectionMode::IccmDoubleBitEcc => {
+                self.cpu.bus.bus.iccm.ram().borrow_mut().error_injection = 2;
+            }
+            ErrorInjectionMode::DccmDoubleBitEcc => {
+                self.cpu.bus.bus.dccm.error_injection = 8;
+            }
+        }
     }
 }

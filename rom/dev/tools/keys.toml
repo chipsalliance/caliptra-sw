@@ -29,3 +29,15 @@ lms_priv_keys = [
 [owner]
 ecc_pub_key = "own-pub-key.pem"
 ecc_priv_key = "own-priv-key.pem"
+lms_pub_keys = [
+  "own-lms-pub-key-0.pem",
+  "own-lms-pub-key-1.pem",
+  "own-lms-pub-key-2.pem",
+  "own-lms-pub-key-3.pem",
+]
+lms_priv_keys = [
+  "own-lms-priv-key-0.pem",
+  "own-lms-priv-key-1.pem",
+  "own-lms-priv-key-2.pem",
+  "own-lms-priv-key-3.pem",
+]

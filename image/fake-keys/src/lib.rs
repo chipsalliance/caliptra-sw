@@ -251,6 +251,10 @@ pub const VENDOR_PUBLIC_KEYS: ImageVendorPubKeys = ImageVendorPubKeys {
     ],
 };
 
+pub const OWNER_PUBLIC_KEYS: ImageOwnerPubKeys = ImageOwnerPubKeys {
+    ecc_pub_key: OWNER_KEY_PUBLIC,
+    lms_pub_keys: [OWNER_LMS_KEY0_PUBLIC],
+};
 pub const VENDOR_PRIVATE_KEYS: ImageVendorPrivKeys = ImageVendorPrivKeys {
     ecc_priv_keys: [
         VENDOR_KEY_0_PRIVATE,
@@ -264,6 +268,11 @@ pub const VENDOR_PRIVATE_KEYS: ImageVendorPrivKeys = ImageVendorPrivKeys {
         VENDOR_LMS_KEY2_PRIVATE,
         VENDOR_LMS_KEY3_PRIVATE,
     ],
+};
+
+pub const OWNER_PRIVATE_KEYS: ImageOwnerPrivKeys = ImageOwnerPrivKeys {
+    ecc_priv_key: OWNER_KEY_PRIVATE,
+    lms_priv_keys: [OWNER_LMS_KEY0_PRIVATE],
 };
 
 pub const VENDOR_CONFIG_KEY_0: ImageGeneratorVendorConfig = ImageGeneratorVendorConfig {
@@ -296,10 +305,13 @@ pub const VENDOR_CONFIG_KEY_3: ImageGeneratorVendorConfig = ImageGeneratorVendor
 pub const OWNER_CONFIG: ImageGeneratorOwnerConfig = ImageGeneratorOwnerConfig {
     pub_keys: ImageOwnerPubKeys {
         ecc_pub_key: OWNER_KEY_PUBLIC,
+        lms_pub_keys: [OWNER_LMS_KEY0_PUBLIC],
     },
     priv_keys: Some(ImageOwnerPrivKeys {
         ecc_priv_key: OWNER_KEY_PRIVATE,
+        lms_priv_keys: [OWNER_LMS_KEY0_PRIVATE],
     }),
+    lms_key_idx: 0,
     not_before: [0u8; 15],
     not_after: [0u8; 15],
 };
@@ -331,6 +343,32 @@ fn test_write_lms_keys() {
             ))
             .unwrap();
         file.write_all(VENDOR_PUBLIC_KEYS.lms_pub_keys[i].as_bytes())
+            .unwrap();
+    }
+    for i in 0..OWNER_PRIVATE_KEYS.lms_priv_keys.len() {
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(format!(
+                "../../target/riscv32imc-unknown-none-elf/firmware/own-lms-priv-key-{}.pem",
+                i
+            ))
+            .unwrap();
+        file.write_all(OWNER_PRIVATE_KEYS.lms_priv_keys[i].as_bytes())
+            .unwrap();
+    }
+    for i in 0..OWNER_PUBLIC_KEYS.lms_pub_keys.len() {
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(format!(
+                "../../target/riscv32imc-unknown-none-elf/firmware/own-lms-pub-key-{}.pem",
+                i
+            ))
+            .unwrap();
+        file.write_all(OWNER_PUBLIC_KEYS.lms_pub_keys[i].as_bytes())
             .unwrap();
     }
 }

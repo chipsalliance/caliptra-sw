@@ -7,6 +7,7 @@ on:
     branches: ["main"]
   pull_request:
 
+  workflow_call:
   workflow_dispatch:
 
 jobs:
@@ -14,27 +15,24 @@ jobs:
     runs-on: ubuntu-20.04
 
     env:
-      RUST_TOOLCHAIN_VERSION: 1.68.0
       CARGO_INCREMENTAL: 0
       SCCACHE_VERSION: 0.3.3
       SCCACHE_GHA_CACHE_TO: sccache-caliptra-sw
       SCCACHE_GHA_CACHE_FROM: sccache-caliptra-sw
 
       # Change this to a new random value if you suspect the cache is corrupted
-      SCCACHE_C_CUSTOM_CACHE_BUSTER: 68a6835b420c
+      SCCACHE_C_CUSTOM_CACHE_BUSTER: 4eeb97ca753a
 
       # Compiler warnings should fail to compile
       EXTRA_CARGO_CONFIG: "target.'cfg(all())'.rustflags = [\"-Dwarnings\"]"
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
-      - name: Restore Cargo index from cache
-        uses: actions/cache/restore@v3
-        id: cargo_index_restore
-        with:
-          path: ~/.cargo/registry/index
-          key: cargo-index-${{ env.SCCACHE_C_CUSTOM_CACHE_BUSTER }}-${{ hashFiles('Cargo.lock') }}
+      - name: Test commit name
+        run: |
+          echo "Build-Test: release_ref=$(git rev-parse HEAD)"
 
       - name: Restore sccache binary
         uses: actions/cache/restore@v3
@@ -65,14 +63,6 @@ jobs:
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
-      - name: Set Rust ${{ env.RUST_TOOLCHAIN_VERSION }} as the default toolchain.
-        run: |
-          rustup default ${RUST_TOOLCHAIN_VERSION}
-          rustup component add rustfmt clippy
-          rustc --version
-          cargo fmt --version
-          cargo clippy --version
-
       - name: Check that Cargo.lock doesn't need to be updated
           # Note: this isn't the same as checking that Cargo.lock is up to date
           # (cargo update --locked), which makes sure that every package is the
@@ -90,29 +80,17 @@ jobs:
             exit 1
           )
 
-      - name: Save Cargo index to cache
-        uses: actions/cache/save@v3
-        if: steps.cargo_index_restore.outputs.cache-hit != 'true'
-        with:
-          path: ~/.cargo/registry/index
-          key: cargo-index-${{ env.SCCACHE_C_CUSTOM_CACHE_BUSTER }}-${{ hashFiles('Cargo.lock') }}
-
       - name: Check source-code formatting (run "cargo fmt" if this fails)
         run: |
           cargo fmt --check --all
 
       - name: Check license headers
         run: |
-          cargo run -p file-header-fix --locked -- --check
-
-      - name: Install risv32imc target
-        run: |
-          rustup target add riscv32imc-unknown-none-elf
+          cargo run -p caliptra-file-header-fix --locked -- --check
 
       - name: Build
         run: |
           cargo --config "$EXTRA_CARGO_CONFIG" build --locked
-          cargo --config "$EXTRA_CARGO_CONFIG" build --locked --release
           drivers/test-fw/build.sh
           (cd fmc && ./build.sh)
           (cd runtime && ./build.sh)
@@ -123,19 +101,20 @@ jobs:
       # build.
       - name: Clippy lint check
         run: |
-          cargo clippy --locked --all-targets -- -D warnings
+          # Clippy doesn't look at --config, so manually set RUSTFLAGS to the
+          # same as the build steps to avoid invalidating the cargo cache.
+          RUSTFLAGS="-Dwarnings" cargo clippy --locked --all-targets -- -D warnings
 
       - name: Run tests
         run: |
           cargo --config "$EXTRA_CARGO_CONFIG" test --locked
-          cargo --config "$EXTRA_CARGO_CONFIG" test --locked --release
           sccache --show-stats
 
       - name: Run emulator conformance tests
         run: |
           sudo apt-get install gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
           (cd /tmp/ && git clone --depth 1 --branch old-framework-2.x https://github.com/riscv-non-isa/riscv-arch-test)
-          cargo run --locked -p compliance-test --release -- --test_root_path /tmp/riscv-arch-test
+          cargo --config "$EXTRA_CARGO_CONFIG" run --locked -p compliance-test -- --test_root_path /tmp/riscv-arch-test
 
       - name: ROM Makefile
         run: |
@@ -146,3 +125,6 @@ jobs:
           git submodule update --init
           (cd hw-model/c-binding/examples && make run)
 
+      - name: Caliptra C API Hwmodel Integration Test
+        run: |
+          (cd libcaliptra/examples/hwmodel && make && ./hwmodel)

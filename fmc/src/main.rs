@@ -17,10 +17,12 @@ use core::hint::black_box;
 
 use caliptra_common::cprintln;
 use caliptra_drivers::{report_fw_error_non_fatal, Mailbox};
+mod boot_status;
 mod flow;
 pub mod fmc_env;
 mod hand_off;
 
+pub use boot_status::FmcBootStatus;
 use caliptra_cpu::TrapRecord;
 use hand_off::HandOff;
 
@@ -41,8 +43,13 @@ pub extern "C" fn entry_point() -> ! {
             Err(e) => report_error(e.into()),
         };
 
-        if flow::run(&mut env, &mut hand_off).is_ok() {
-            hand_off.to_rt(&mut env)
+        match flow::run(&mut env, &mut hand_off) {
+            Ok(_) => {
+                if hand_off.is_valid() {
+                    hand_off.to_rt(&mut env);
+                }
+            }
+            Err(e) => report_error(e.into()),
         }
     }
     caliptra_drivers::ExitCtrl::exit(0xff)

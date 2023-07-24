@@ -47,7 +47,7 @@ impl Bus for NullBus {
 }
 
 pub struct BusLogger<TBus: Bus> {
-    bus: TBus,
+    pub bus: TBus,
     pub log: Option<LogFile>,
 }
 impl<TBus: Bus> BusLogger<TBus> {
