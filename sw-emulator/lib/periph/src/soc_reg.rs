@@ -588,6 +588,9 @@ impl SocRegistersImpl {
         iccm: Iccm,
         mut args: CaliptraRootBusArgs,
     ) -> Self {
+        let flow_status = InMemoryRegister::<u32, FlowStatus::Register>::new(0);
+        flow_status.write(FlowStatus::READY_FOR_FUSES.val(1));
+
         let regs = Self {
             cptra_hw_error_fatal: ReadWriteRegister::new(0),
             cptra_hw_error_non_fatal: ReadWriteRegister::new(0),
@@ -597,7 +600,7 @@ impl SocRegistersImpl {
             cptra_fw_error_enc: ReadWriteRegister::new(0),
             cptra_fw_extended_error_info: Default::default(),
             cptra_boot_status: ReadWriteRegister::new(0),
-            cptra_flow_status: ReadWriteRegister::new(0),
+            cptra_flow_status: ReadWriteRegister::new(flow_status.get()),
             cptra_reset_reason: ReadOnlyRegister::new(0),
             cptra_security_state: ReadOnlyRegister::new(args.security_state.into()),
             cptra_valid_pauser: Default::default(),
@@ -777,6 +780,10 @@ impl SocRegistersImpl {
         if (val & 1) != 0 {
             self.fuses_can_be_written = false;
             self.cptra_fuse_wr_done |= 1;
+
+            self.cptra_flow_status
+                .reg
+                .modify(FlowStatus::READY_FOR_FUSES::CLEAR);
         }
         Ok(())
     }

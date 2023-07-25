@@ -8,7 +8,7 @@ File Name:
 
 Abstract:
 
-    File contains data strucutres for the firmware image bundle.
+    File contains data structures for the firmware image bundle.
 
 --*/
 
