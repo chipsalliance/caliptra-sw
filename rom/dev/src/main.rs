@@ -18,8 +18,8 @@ use crate::lock::lock_registers;
 use core::hint::black_box;
 
 use caliptra_drivers::{
-    report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError, Ecc384, Hmac384, Mailbox,
-    ResetReason, Sha256, Sha384, Sha384Acc, SocIfc,
+    report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError, Ecc384, Hmac384, KeyVault,
+    Mailbox, ResetReason, Sha256, Sha384, Sha384Acc, SocIfc,
 };
 use rom_env::RomEnv;
 
@@ -54,7 +54,7 @@ pub extern "C" fn rom_entry() -> ! {
 
     let mut env = match unsafe { rom_env::RomEnv::new_from_registers() } {
         Ok(env) => env,
-        Err(e) => report_error(e.into()),
+        Err(e) => handle_fatal_error(e.into()),
     };
 
     let _lifecyle = match env.soc_ifc.lifecycle() {
@@ -79,7 +79,7 @@ pub extern "C" fn rom_entry() -> ! {
 
     let result = kat::execute_kat(&mut env);
     if let Err(err) = result {
-        report_error(err.into());
+        handle_fatal_error(err.into());
     }
 
     let reset_reason = env.soc_ifc.reset_reason();
@@ -97,9 +97,9 @@ pub extern "C" fn rom_entry() -> ! {
             // reporting the error in the registers.
             //
             if reset_reason == ResetReason::UpdateReset {
-                report_error_update_reset(err.into());
+                handle_non_fatal_error(err.into());
             } else {
-                report_error(err.into());
+                handle_fatal_error(err.into());
             }
         }
     }
@@ -145,7 +145,7 @@ extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
 
     // TODO: Signal non-fatal error to SOC
 
-    report_error(CaliptraError::ROM_GLOBAL_EXCEPTION.into());
+    handle_fatal_error(CaliptraError::ROM_GLOBAL_EXCEPTION.into());
 }
 
 #[no_mangle]
@@ -162,7 +162,7 @@ extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
     // - Signal Fatal error for ICCM/DCCM double bit faults
     // - Signal Non=-Fatal error for all other errors
 
-    report_error(CaliptraError::ROM_GLOBAL_NMI.into());
+    handle_fatal_error(CaliptraError::ROM_GLOBAL_NMI.into());
 }
 
 #[panic_handler]
@@ -173,16 +173,16 @@ fn rom_panic(_: &core::panic::PanicInfo) -> ! {
     panic_is_possible();
 
     // TODO: Signal non-fatal error to SOC
-    report_error(CaliptraError::ROM_GLOBAL_PANIC.into());
+    handle_fatal_error(CaliptraError::ROM_GLOBAL_PANIC.into());
 }
 
-fn report_error_update_reset(code: u32) {
+fn handle_non_fatal_error(code: u32) {
     cprintln!("ROM Non-Fatal Error: 0x{:08X}", code);
     report_fw_error_non_fatal(code);
 }
 
 #[allow(clippy::empty_loop)]
-fn report_error(code: u32) -> ! {
+fn handle_fatal_error(code: u32) -> ! {
     cprintln!("ROM Fatal Error: 0x{:08X}", code);
     report_fw_error_fatal(code);
 
@@ -193,6 +193,9 @@ fn report_error(code: u32) -> ! {
         Sha256::zeroize();
         Sha384::zeroize();
         Sha384Acc::zeroize();
+
+        // Zeroize the key vault.
+        KeyVault::zeroize();
 
         // Lock the SHA Accelerator.
         Sha384Acc::lock();
