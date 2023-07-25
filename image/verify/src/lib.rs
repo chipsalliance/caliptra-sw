@@ -54,11 +54,20 @@ pub struct ImageVerificationExeInfo {
 /// Information To Be Logged For The Verified Image
 #[derive(Default, Debug)]
 pub struct ImageVerificationLogInfo {
-    // Vendor Public Key Index To Log
+    // ECC Vendor Public Key Index To Log
     pub vendor_ecc_pub_key_idx: u32,
 
-    /// Vendor Public Key Revocation Fuse    
-    pub fuse_vendor_pub_key_revocation: VendorPubKeyRevocation,
+    /// Vendor ECC Public Key Revocation Fuse    
+    pub fuse_vendor_ecc_pub_key_revocation: VendorPubKeyRevocation,
+
+    // LMS Vendor Public Key Index
+    pub vendor_lms_pub_key_idx: Option<u32>,
+
+    // LMS Owner Public Key Index To Log
+    pub owner_lms_pub_key_idx: Option<u32>,
+
+    /// Vendor LMS Public Key Revocation Fuse
+    pub fuse_vendor_lms_pub_key_revocation: Option<VendorPubKeyRevocation>,
 
     /// First Mutable code's logging information
     pub fmc_log_info: ImageSvnLogInfo,
@@ -72,6 +81,12 @@ pub struct ImageVerificationLogInfo {
 pub struct ImageVerificationInfo {
     /// Vendor ECC public key index
     pub vendor_ecc_pub_key_idx: u32,
+
+    /// Vendor LMS public key index
+    pub vendor_lms_pub_key_idx: Option<u32>,
+
+    /// Owner LMS public key index
+    pub owner_lms_pub_key_idx: Option<u32>,
 
     /// Digest of vendor public keys that verified the image
     pub vendor_pub_keys_digest: ImageDigest,
@@ -113,8 +128,11 @@ pub trait ImageVerificationEnv {
     /// Get Vendor Public Key Digest
     fn vendor_pub_key_digest(&self) -> ImageDigest;
 
-    /// Get Vendor Public Key Revocation list
-    fn vendor_pub_key_revocation(&self) -> VendorPubKeyRevocation;
+    /// Get Vendor ECC Public Key Revocation list
+    fn vendor_ecc_pub_key_revocation(&self) -> VendorPubKeyRevocation;
+
+    /// Get Vendor LMS Public Key Revocation list
+    fn vendor_lms_pub_key_revocation(&self) -> VendorPubKeyRevocation;
 
     /// Get Owner Public Key Digest from fuses
     fn owner_pub_key_digest_fuses(&self) -> ImageDigest;
@@ -142,4 +160,7 @@ pub trait ImageVerificationEnv {
 
     // ICCM Range
     fn iccm_range(&self) -> Range<u32>;
+
+    // LMS Verification enabled
+    fn lms_verify_enabled(&self) -> bool;
 }

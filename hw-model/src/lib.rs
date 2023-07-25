@@ -443,6 +443,12 @@ pub trait HwModel {
         self.soc_ifc()
             .fuse_life_cycle()
             .write(|w| w.life_cycle(fuses.life_cycle.into()));
+        self.soc_ifc()
+            .fuse_lms_verify()
+            .write(|w| w.lms_verify(fuses.lms_verify));
+        self.soc_ifc()
+            .fuse_lms_revocation()
+            .write(|_| fuses.fuse_lms_revocation);
 
         self.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
         assert!(self.soc_ifc().cptra_fuse_wr_done().read().done());

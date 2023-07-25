@@ -204,14 +204,17 @@ impl FirmwareProcessor {
     fn update_fuse_log(log_info: &ImageVerificationLogInfo) -> CaliptraResult<()> {
         // Log VendorPubKeyIndex
         log_fuse_data(
-            FuseLogEntryId::VendorPubKeyIndex,
+            FuseLogEntryId::VendorEccPubKeyIndex,
             log_info.vendor_ecc_pub_key_idx.as_bytes(),
         )?;
 
         // Log VendorPubKeyRevocation
         log_fuse_data(
-            FuseLogEntryId::VendorPubKeyRevocation,
-            log_info.fuse_vendor_pub_key_revocation.bits().as_bytes(),
+            FuseLogEntryId::VendorEccPubKeyRevocation,
+            log_info
+                .fuse_vendor_ecc_pub_key_revocation
+                .bits()
+                .as_bytes(),
         )?;
 
         // Log ManifestFmcSvn
@@ -249,6 +252,33 @@ impl FirmwareProcessor {
             FuseLogEntryId::FuseRtSvn,
             log_info.rt_log_info.fuse_svn.as_bytes(),
         )?;
+
+        // Log VendorLmsPubKeyIndex
+        if let Some(vendor_lms_pub_key_idx) = log_info.vendor_lms_pub_key_idx {
+            log_fuse_data(
+                FuseLogEntryId::VendorLmsPubKeyIndex,
+                vendor_lms_pub_key_idx.as_bytes(),
+            )?;
+        }
+
+        // Log VendorLmsPubKeyRevocation
+        if let Some(fuse_vendor_lms_pub_key_revocation) =
+            log_info.fuse_vendor_lms_pub_key_revocation
+        {
+            log_fuse_data(
+                FuseLogEntryId::VendorLmsPubKeyRevocation,
+                fuse_vendor_lms_pub_key_revocation.bits().as_bytes(),
+            )?;
+        }
+
+        // Log OwnerLmsPubKeyIndex
+        if let Some(owner_lms_pub_key_idx) = log_info.owner_lms_pub_key_idx {
+            log_fuse_data(
+                FuseLogEntryId::OwnerLmsPubKeyIndex,
+                owner_lms_pub_key_idx.as_bytes(),
+            )?;
+        }
+
         Ok(())
     }
 
@@ -312,6 +342,8 @@ impl FirmwareProcessor {
             ColdResetEntry4::VendorPubKeyIndex,
             info.vendor_ecc_pub_key_idx,
         );
+
+        // [TODO] Write the Vendor and Owner Public key Indices of LMS keys.
 
         data_vault.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime.digest.into());
 
