@@ -168,7 +168,7 @@ impl HwModel for ModelFpgaRealtime {
 
     fn step(&mut self) {
         // Temporary UART handshake to get log messages from firmware
-        let generic = unsafe { self.soc_ifc.offset(0xC8 / 4).read_volatile() };
+        let generic = self.soc_ifc().cptra_generic_output_wires().read()[0];
 
         // FW sets the generic_output register with the log character and the TAG from generic_input.
         let readtag = ((generic >> 16) & 0xFF) as u8;
@@ -188,12 +188,11 @@ impl HwModel for ModelFpgaRealtime {
         }
 
         // Handle etrng request
-        let etrng_req = unsafe { (self.soc_ifc.offset(0xA8).read_volatile() & 0x1) != 0 };
-        if etrng_req {
-            unsafe {
-                // Write CPTRA_TRNG_STATUS.DATA_WR_DONE
-                self.soc_ifc.offset(0xA8 / 4).write_volatile(0x2);
-            }
+        if self.soc_ifc_trng().cptra_trng_status().read().data_req() {
+            // Write CPTRA_TRNG_STATUS.DATA_WR_DONE
+            self.soc_ifc_trng()
+                .cptra_trng_status()
+                .write(|w| w.data_wr_done(true));
         }
     }
 
