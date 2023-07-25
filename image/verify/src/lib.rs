@@ -135,10 +135,10 @@ pub trait ImageVerificationEnv {
     fn get_fmc_digest_dv(&self) -> ImageDigest;
 
     // Get Fuse FMC Key Manifest SVN
-    fn fmc_svn(&self) -> u32;
+    fn fmc_fuse_svn(&self) -> u32;
 
     // Get Runtime fuse SVN
-    fn runtime_svn(&self) -> u32;
+    fn runtime_fuse_svn(&self) -> u32;
 
     // ICCM Range
     fn iccm_range(&self) -> Range<u32>;

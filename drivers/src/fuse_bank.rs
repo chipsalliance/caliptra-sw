@@ -208,7 +208,7 @@ impl FuseBank<'_> {
         soc_ifc_regs.fuse_anti_rollback_disable().read().dis()
     }
 
-    /// Get the fmc security version number.
+    /// Get the fmc fuse security version number.
     ///
     /// # Arguments
     /// * None
@@ -216,7 +216,7 @@ impl FuseBank<'_> {
     /// # Returns
     ///     fmc security version number
     ///
-    pub fn fmc_svn(&self) -> u32 {
+    pub fn fmc_fuse_svn(&self) -> u32 {
         let soc_ifc_regs = self.soc_ifc.regs();
         32 - soc_ifc_regs
             .fuse_fmc_key_manifest_svn()
@@ -224,7 +224,7 @@ impl FuseBank<'_> {
             .leading_zeros()
     }
 
-    /// Get the runtime security version number.
+    /// Get the runtime fuse security version number.
     ///
     /// # Arguments
     /// * None
@@ -232,7 +232,7 @@ impl FuseBank<'_> {
     /// # Returns
     ///     runtime security version number
     ///
-    pub fn runtime_svn(&self) -> u32 {
+    pub fn runtime_fuse_svn(&self) -> u32 {
         let soc_ifc_regs = self.soc_ifc.regs();
         64 - ((soc_ifc_regs.fuse_runtime_svn().at(1).read() as u64) << 32
             | soc_ifc_regs.fuse_runtime_svn().at(0).read() as u64)
