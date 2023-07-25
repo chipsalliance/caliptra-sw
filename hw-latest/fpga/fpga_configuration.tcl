@@ -257,5 +257,7 @@ if {$BUILD} {
   launch_runs impl_1 -jobs 10
   wait_on_runs impl_1
   open_run impl_1
+  # Embed git hash in USR_ACCESS register for bitstream identification.
+  set_property BITSTREAM.CONFIG.USR_ACCESS 0x[exec git rev-parse --short HEAD] [current_design]
   write_bitstream -bin_file $outputDir/caliptra_fpga
 }
