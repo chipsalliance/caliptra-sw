@@ -5,18 +5,7 @@
 #include <stdbool.h>
 
 #include "caliptra_if.h"
-
-/**
- * caliptra_buffer
- *
- * Transfer buffer for Caliptra mailbox commands
- */
-#if !defined(HWMODEL)
-typedef struct caliptra_buffer {
-  const uint8_t *data; //< Pointer to a buffer with data to send/space to receive
-  uintptr_t len;       //< Size of the buffer
-} caliptra_buffer;
-#endif
+#include "caliptra_types.h"
 
 /**
  * DeviceLifecycle
@@ -50,11 +39,7 @@ struct caliptra_fuses {
     enum DeviceLifecycle life_cycle;
 };
 
-struct caliptra_fips_version {
-    uint32_t mode;
-    uint32_t fips_rev[3];
-    uint8_t name[12];
-};
+
 
 // Query if ROM is ready for fuses
 bool caliptra_ready_for_fuses(void);
@@ -65,14 +50,53 @@ int caliptra_init_fuses(struct caliptra_fuses *fuses);
 // Write into Caliptra BootFSM Go Register
 int caliptra_bootfsm_go();
 
-// Query if ROM is ready for firmware
+/**
+ * caliptra_ready_for_firmware
+ *
+ * Reports if the Caliptra hardware is ready for firmware upload
+ *
+ * @return bool True if ready, false otherwise
+ */
 bool caliptra_ready_for_firmware(void);
 
-// Upload Caliptra Firmware
+/**
+ * caliptra_upload_fw
+ *
+ * Upload firmware to the Caliptra device
+ *
+ * @param[in] fw_buffer Buffer containing Caliptra firmware
+ *
+ * @return See caliptra_mailbox, mb_resultx_execute for possible results.
+ */
 int caliptra_upload_fw(struct caliptra_buffer *fw_buffer);
 
-// Read Caliptra FIPS Version
+/**
+ * caliptra_get_fips_version
+ *
+ * Read Caliptra FIPS Version
+ *
+ * @param[out] version pointer to fips_version unsigned integer
+ *
+ * @return See caliptra_mailbox_execute for possible results.
+ */
 int caliptra_get_fips_version(struct caliptra_fips_version *version);
 
-// Execute Mailbox Command
-int caliptra_mailbox_execute(uint32_t cmd, struct caliptra_buffer *mbox_tx_buffer, struct caliptra_buffer *mbox_rx_buffer);
+// Retrieve the self-signed IDevID CSR
+// This command is available in ROM ONLY.
+int caliptra_get_idev_csr_rom(struct caliptra_buffer *buffer);
+
+// Retrieve the self-signed LDevID certificate.
+// This command is available in ROM ONLY.
+int caliptra_get_ldev_csr_rom(struct caliptra_buffer *buffer);
+
+/**
+ * caliptra_stash_measurement
+ *
+ * Perform a measurement in to the DPE context.
+ *
+ * @param[in] req Data to be measured and stored.
+ * @param[out] response DPE measurement result
+ *
+ * @return -EINVAL if the return checksum fails
+ */
+int caliptra_stash_measurement(struct stash_measurement_req *req, struct dpe_result *resp);

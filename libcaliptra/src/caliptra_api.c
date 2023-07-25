@@ -10,7 +10,22 @@
 #include "caliptra_fuses.h"
 #include "caliptra_mbox.h"
 
-#define CALIPTRA_STATUS_NOT_READY 0
+static inline uint32_t calculate_caliptra_checksum(enum mailbox_commands cmd, uint8_t *buffer, uint32_t len)
+{
+    uint32_t i, sum = 0;
+
+    for (i = 0; i < sizeof(enum mailbox_commands); i++)
+    {
+        sum += ((uint8_t*)(&cmd))[i];
+    }
+
+    for (i = 0; i < len; i++)
+    {
+        sum += buffer[i];
+    }
+
+    return (0 - sum);
+}
 
 static inline uint32_t caliptra_read_status(void)
 {
@@ -106,19 +121,17 @@ int caliptra_bootfsm_go()
  * @param[in] buffer Pointer to a valid caliptra_buffer struct
  *
  * @return int -EINVAL if the buffer is too large.
+ *         int -EINVAL if the buffer is NULL.
  */
 static int caliptra_mailbox_write_fifo(struct caliptra_buffer *buffer)
 {
-    // Check against max size
-    const uint32_t MBOX_SIZE = (128u * 1024u);
-
     // Check if buffer is not null.
     if (buffer == NULL)
     {
         return -EINVAL;
     }
 
-    if (buffer->len > MBOX_SIZE)
+    if (buffer->len > CALIPTRA_MAILBOX_MAX_SIZE)
     {
         return -EINVAL;
     }
@@ -212,12 +225,27 @@ static int caliptra_mailbox_read_buffer(struct caliptra_buffer *buffer)
  *
  * @return 0 if successful, -EBUSY if the mailbox is locked, -EIO if the command has failed or data is not available or the FSM is not include
  */
-int caliptra_mailbox_execute(uint32_t cmd, struct caliptra_buffer *mbox_tx_buffer, struct caliptra_buffer *mbox_rx_buffer)
+static int caliptra_mailbox_execute(uint32_t cmd, struct caliptra_buffer *mbox_tx_buffer, struct caliptra_buffer *mbox_rx_buffer)
 {
+    struct caliptra_buffer rxtx_buf_standin = {
+        .data = NULL,
+        .len = 0,
+    };
+
     // If mbox already locked return
     if (caliptra_mbox_is_lock())
     {
         return -EBUSY;
+    }
+
+    if (mbox_tx_buffer == NULL)
+    {
+        mbox_tx_buffer = &rxtx_buf_standin;
+    }
+
+    if (mbox_rx_buffer == NULL)
+    {
+        mbox_rx_buffer = &rxtx_buf_standin;
     }
 
     // Write Cmd and Tx Buffer
@@ -229,19 +257,22 @@ int caliptra_mailbox_execute(uint32_t cmd, struct caliptra_buffer *mbox_tx_buffe
 
     // Check the Mailbox Status
     uint32_t status = caliptra_mbox_read_status();
-    if (status == CALIPTRA_MBOX_STATUS_CMD_FAILURE)
+
+    switch(status)
     {
-        caliptra_mbox_write_execute(false);
-        return -EIO;
-    }
-    else if (status == CALIPTRA_MBOX_STATUS_CMD_COMPLETE)
-    {
-        caliptra_mbox_write_execute(false);
-        return 0;
-    }
-    else if (status != CALIPTRA_MBOX_STATUS_DATA_READY)
-    {
-        return -EIO;
+        case CALIPTRA_MBOX_STATUS_CMD_FAILURE:
+            caliptra_mbox_write_execute(false);
+            return -EIO;
+
+        case CALIPTRA_MBOX_STATUS_CMD_COMPLETE:
+            caliptra_mbox_write_execute(false);
+            return 0;
+
+        case CALIPTRA_MBOX_STATUS_DATA_READY:
+            break;
+
+        default:
+            return -EIO;
     }
 
     // Read Buffer
@@ -275,7 +306,7 @@ bool caliptra_ready_for_firmware(void)
     {
         status = caliptra_read_status();
 
-        if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK) == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK)
+        if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK) > 0)
         {
             ready = true;
         }
@@ -303,8 +334,37 @@ int caliptra_upload_fw(struct caliptra_buffer *fw_buffer)
     if (fw_buffer == NULL)
         return -EINVAL;
 
-    const uint32_t FW_LOAD_CMD_OPCODE = 0x46574C44u;
-    return caliptra_mailbox_execute(FW_LOAD_CMD_OPCODE, fw_buffer, NULL);
+    return caliptra_mailbox_execute(OP_CALIPTRA_FW_LOAD, fw_buffer, NULL);
+}
+
+int caliptra_get_idev_csr_rom(struct caliptra_buffer *buffer)
+{
+    // TODO: Identify if runtime is active and fail
+    // if (caliptra_runtime_active())
+    //     return -EINVAL;
+
+    return caliptra_mailbox_execute(OP_GET_IDEV_CSR, NULL, buffer);
+}
+
+int caliptra_get_ldev_csr_rom(struct caliptra_buffer *buffer)
+{
+    // TODO: Identify if runtime is active and fail
+    // if (caliptra_runtime_active())
+    //     return -EINVAL;
+
+    return caliptra_mailbox_execute(OP_GET_LDEV_CERT, NULL, buffer);
+}
+
+int caliptra_ecdsa384_signature_verify(struct ecdsa384_sigverify *buffer)
+{
+    struct caliptra_buffer b = {
+        .data = (uint8_t*)buffer,
+        .len = sizeof(struct ecdsa384_sigverify),
+    };
+
+    buffer->checksum = calculate_caliptra_checksum(OP_ECDSA384_SIGNATURE_VERIFY, (uint8_t*)(buffer + sizeof(caliptra_checksum)), sizeof(struct ecdsa384_sigverify));
+
+    return caliptra_mailbox_execute(OP_ECDSA384_SIGNATURE_VERIFY, &b, NULL);
 }
 
 /**
@@ -314,7 +374,7 @@ int caliptra_upload_fw(struct caliptra_buffer *fw_buffer)
  *
  * @param[out] version pointer to fips_version unsigned integer
  *
- * @return See caliptra_mailbox, mb_resultx_execute for possible results.
+ * @return See caliptra_mailbox_execute for possible results.
  */
 int caliptra_get_fips_version(struct caliptra_fips_version *version)
 {
@@ -322,16 +382,41 @@ int caliptra_get_fips_version(struct caliptra_fips_version *version)
     if (version == NULL)
         return -EINVAL;
 
-    uint32_t FIPS_VERSION_OPCODE = 0x46505652;
-
-    struct caliptra_buffer in_buf = {
-        .data = NULL,
-        .len = 0,
-    };
     struct caliptra_buffer out_buf = {
         .data = (uint8_t *)version,
         .len = sizeof(struct caliptra_fips_version),
     };
 
-    return caliptra_mailbox_execute(FIPS_VERSION_OPCODE, &in_buf, &out_buf);
+    return caliptra_mailbox_execute(OP_FIPS_VERSION, NULL, &out_buf);
+}
+
+int caliptra_stash_measurement(struct stash_measurement_req *req, struct dpe_result *resp)
+{
+    req->checksum = calculate_caliptra_checksum(OP_STASH_MEASUREMENT, (uint8_t*)req->metadata, sizeof(struct stash_measurement_req) - sizeof(caliptra_checksum));
+
+    struct caliptra_buffer in = {
+        .data = (uint8_t*)req,
+        .len  = sizeof(struct stash_measurement_req),
+    };
+
+    struct caliptra_buffer out = {
+        .data = (uint8_t*)resp,
+        .len  = sizeof(caliptra_checksum),
+    };
+
+    int status = caliptra_mailbox_execute(OP_STASH_MEASUREMENT, &in, &out);
+
+    if (status != 0)
+    {
+        return status;
+    }
+
+    uint32_t checksum_out = calculate_caliptra_checksum(OP_STASH_MEASUREMENT, (uint8_t*)&resp->result, sizeof(struct dpe_result) - sizeof(caliptra_checksum));
+
+    if (resp->checksum - checksum_out != 0)
+    {
+        return -EINVAL;
+    }
+
+    return 0;
 }

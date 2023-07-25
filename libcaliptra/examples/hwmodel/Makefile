@@ -3,7 +3,7 @@ TARGET = hwmodel
 .DEFAULT_GOAL = $(TARGET)
 
 LIBCALIPTRA_ROOT = ../../
-LIBCALIPTRA_INC  = 
+LIBCALIPTRA_INC  =
 
 OUTPUT_DIR = ../../../target/debug
 
@@ -60,6 +60,8 @@ $(HWMODEL_HEADER):
 	@echo "[CARGO] hw-model"
 	$(Q)cd ../../../hw-model
 	$(Q)cargo --config="$(EXTRA_CARGO_CONFIG)" build
+
+all: $(TARGET)
 
 run: $(TARGET)
 	@echo [RUN] $(TARGET)

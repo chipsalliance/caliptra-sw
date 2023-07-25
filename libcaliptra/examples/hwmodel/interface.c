@@ -96,7 +96,7 @@ int caliptra_write_u32(uint32_t address, uint32_t data)
 
     caliptra_model_step(m);
 
-    return result; 
+    return result;
 }
 
 /**
