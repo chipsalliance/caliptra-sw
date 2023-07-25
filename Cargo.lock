@@ -551,6 +551,7 @@ dependencies = [
  "caliptra-image-openssl",
  "caliptra-image-serde",
  "caliptra-image-types",
+ "caliptra-kat",
  "caliptra-registers",
  "caliptra-x509",
  "caliptra_common",
