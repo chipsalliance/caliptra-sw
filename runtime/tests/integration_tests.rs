@@ -197,16 +197,18 @@ fn test_fips_cmd_api() {
 
     let resp = model.mailbox_execute(u32::from(CommandId::VERSION), &cmd);
     assert_eq!(resp, expected_err);
-
-    let resp = model.mailbox_execute(u32::from(CommandId::SHUTDOWN), &cmd);
-    assert_eq!(resp, expected_err);
+    model.soc_ifc().cptra_fw_error_non_fatal().write(|_| 0);
 
     let resp = model.mailbox_execute(u32::from(CommandId::SELF_TEST), &cmd);
     assert_eq!(resp, expected_err);
+    model.soc_ifc().cptra_fw_error_non_fatal().write(|_| 0);
 
-    let expected_err = Err(ModelError::MailboxCmdFailed(0xe0002));
-    // Send something that is not a valid RT command.
-    let resp = model.mailbox_execute(0xAABBCCDD, &cmd);
+    let resp = model.mailbox_execute(u32::from(CommandId::SHUTDOWN), &cmd);
+    assert!(resp.is_ok());
+
+    // Check we are rejecting additional commands with the shutdown error code.
+    let expected_err = Err(ModelError::MailboxCmdFailed(0x000E0008));
+    let resp = model.mailbox_execute(u32::from(CommandId::VERSION), &cmd);
     assert_eq!(resp, expected_err);
 }
 
