@@ -13,7 +13,7 @@ pub mod mailbox;
 use mailbox::Mailbox;
 
 pub mod packet;
-pub use fips::FipsModule;
+pub use fips::{FipsModule, VersionResponse};
 use packet::Packet;
 
 use caliptra_common::memory_layout::{

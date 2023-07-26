@@ -17,7 +17,7 @@ static inline uint32_t caliptra_read_status(void)
     uint32_t status;
 
     caliptra_read_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS, &status);
-   
+
     return status;
 }
 
@@ -30,11 +30,12 @@ static inline uint32_t caliptra_read_status(void)
  */
 bool caliptra_ready_for_fuses(void)
 {
-    if ((caliptra_read_status() & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FUSES_MASK) != 0)
+    if ((caliptra_read_status() & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FUSES_MASK) != 0) {
         return true;
+    }
 
     return false;
- }
+}
 
 /**
  * caliptra_init_fuses
@@ -48,7 +49,8 @@ bool caliptra_ready_for_fuses(void)
 int caliptra_init_fuses(struct caliptra_fuses *fuses)
 {
     // Parameter check
-    if (!fuses) {
+    if (!fuses)
+    {
         return -EINVAL;
     }
 
@@ -63,7 +65,7 @@ int caliptra_init_fuses(struct caliptra_fuses *fuses)
     caliptra_fuse_write(GENERIC_AND_FUSE_REG_FUSE_KEY_MANIFEST_PK_HASH_MASK, fuses->key_manifest_pk_hash_mask);
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_OWNER_PK_HASH_0, fuses->owner_pk_hash, sizeof(fuses->owner_pk_hash));
     caliptra_fuse_write(GENERIC_AND_FUSE_REG_FUSE_FMC_KEY_MANIFEST_SVN, fuses->fmc_key_manifest_svn);
-    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_FMC_KEY_MANIFEST_SVN, fuses->runtime_svn, sizeof(fuses->runtime_svn)); // https://github.com/chipsalliance/caliptra-sw/issues/529 
+    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_FMC_KEY_MANIFEST_SVN, fuses->runtime_svn, sizeof(fuses->runtime_svn)); // https://github.com/chipsalliance/caliptra-sw/issues/529
     caliptra_fuse_write(GENERIC_AND_FUSE_REG_FUSE_ANTI_ROLLBACK_DISABLE, (uint32_t)fuses->anti_rollback_disable);
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_IDEVID_CERT_ATTR_0, fuses->idevid_cert_attr, sizeof(fuses->idevid_cert_attr));
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_IDEVID_MANUF_HSM_ID_0, fuses->idevid_manuf_hsm_id, sizeof(fuses->idevid_manuf_hsm_id));
@@ -91,7 +93,7 @@ int caliptra_bootfsm_go()
     // Write BOOTFSM_GO Register
     caliptra_write_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_BOOTFSM_GO, 1);
 
-    //TODO: Check registers/provide async completion mechanism
+    // TODO: Check registers/provide async completion mechanism
 
     return 0;
 }
@@ -110,24 +112,48 @@ static int caliptra_mailbox_write_fifo(struct caliptra_buffer *buffer)
     // Check against max size
     const uint32_t MBOX_SIZE = (128u * 1024u);
 
-    if (buffer->len > MBOX_SIZE) {
+    // Check if buffer is not null.
+    if (buffer == NULL)
+    {
         return -EINVAL;
     }
 
-    // Write DLEN
+    if (buffer->len > MBOX_SIZE)
+    {
+        return -EINVAL;
+    }
+
+    // Write DLEN to transition to the next state.
     caliptra_mbox_write_dlen(buffer->len);
+
+    if (buffer->len == 0)
+    {
+        // We can return early, there is no payload.
+        // dlen needs to be written to transition the state machine,
+        // even if it is zero.
+        return 0;
+    }
+
+    // We have data to write, better check if have a place to read it
+    // from.
+    if (buffer->data == NULL)
+    {
+        return -EINVAL;
+    }
 
     uint32_t remaining_len = buffer->len;
     uint32_t *data_dw = (uint32_t *)buffer->data;
 
     // Copy DWord multiples
-    while (remaining_len > sizeof(uint32_t)) {
+    while (remaining_len > sizeof(uint32_t))
+    {
         caliptra_mbox_write(MBOX_CSR_MBOX_DATAIN, *data_dw++);
         remaining_len -= sizeof(uint32_t);
     }
 
     // if un-aligned dword remainder...
-    if (remaining_len) {
+    if (remaining_len)
+    {
         uint32_t data = 0;
         memcpy(&data, data_dw, remaining_len);
         caliptra_mbox_write(MBOX_CSR_MBOX_DATAIN, data);
@@ -155,22 +181,23 @@ static int caliptra_mailbox_read_buffer(struct caliptra_buffer *buffer)
 
     // Check we have enough room in the buffer
     if (buffer->len < remaining_len || !buffer->data)
-       return -EINVAL;
+        return -EINVAL;
 
     uint32_t *data_dw = (uint32_t *)buffer->data;
 
     // Copy DWord multiples
-    while (remaining_len > sizeof(uint32_t)) {
+    while (remaining_len >= sizeof(uint32_t))
+    {
         *data_dw++ = caliptra_mbox_read(MBOX_CSR_MBOX_DATAOUT);
         remaining_len -= sizeof(uint32_t);
     }
 
     // if un-aligned dword reminder...
-    if (remaining_len) {
+    if (remaining_len)
+    {
         uint32_t data = caliptra_mbox_read(MBOX_CSR_MBOX_DATAOUT);
         memcpy(data_dw, &data, remaining_len);
     }
-
     return 0;
 }
 
@@ -188,34 +215,43 @@ static int caliptra_mailbox_read_buffer(struct caliptra_buffer *buffer)
 int caliptra_mailbox_execute(uint32_t cmd, struct caliptra_buffer *mbox_tx_buffer, struct caliptra_buffer *mbox_rx_buffer)
 {
     // If mbox already locked return
-    if (caliptra_mbox_is_lock()) {
+    if (caliptra_mbox_is_lock())
+    {
         return -EBUSY;
     }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
+
     // Write Cmd and Tx Buffer
     caliptra_mbox_write_cmd(cmd);
     caliptra_mailbox_write_fifo(mbox_tx_buffer);
 
     // Set Execute bit and wait
-    caliptra_mbox_write_execute_wait(true);
+    caliptra_mbox_write_execute_busy_wait(true);
 
     // Check the Mailbox Status
     uint32_t status = caliptra_mbox_read_status();
-    if (status == CALIPTRA_MBOX_STATUS_CMD_FAILURE) {
+    if (status == CALIPTRA_MBOX_STATUS_CMD_FAILURE)
+    {
         caliptra_mbox_write_execute(false);
         return -EIO;
-    } else if(status == CALIPTRA_MBOX_STATUS_CMD_COMPLETE) {
+    }
+    else if (status == CALIPTRA_MBOX_STATUS_CMD_COMPLETE)
+    {
         caliptra_mbox_write_execute(false);
         return 0;
-    } else if (status != CALIPTRA_MBOX_STATUS_DATA_READY) {
+    }
+    else if (status != CALIPTRA_MBOX_STATUS_DATA_READY)
+    {
         return -EIO;
     }
 
     // Read Buffer
     caliptra_mailbox_read_buffer(mbox_rx_buffer);
 
-    // Execute False and wait
-    caliptra_mbox_write_execute_wait(false);
+    // Execute False
+    caliptra_mbox_write_execute(false);
+
+    // Wait
+    caliptra_wait();
 
     if (caliptra_mbox_read_status_fsm() != CALIPTRA_MBOX_STATUS_FSM_IDLE)
         return -EIO;
@@ -226,21 +262,20 @@ int caliptra_mailbox_execute(uint32_t cmd, struct caliptra_buffer *mbox_tx_buffe
 /**
  * caliptra_ready_for_firmware
  *
- * Reports if the Caliptra hardware is ready for firmware upload 
+ * Reports if the Caliptra hardware is ready for firmware upload
  *
  * @return bool True if ready, false otherwise
  */
 bool caliptra_ready_for_firmware(void)
 {
     uint32_t status;
-    bool     ready;
+    bool ready;
 
     do
     {
         status = caliptra_read_status();
 
-        if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK) 
-                == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK)
+        if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK) == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FW_MASK)
         {
             ready = true;
         }
@@ -248,7 +283,7 @@ bool caliptra_ready_for_firmware(void)
         {
             caliptra_wait();
         }
-    } while(ready == false);
+    } while (ready == false);
 
     return true;
 }
@@ -257,13 +292,46 @@ bool caliptra_ready_for_firmware(void)
  * caliptra_upload_fw
  *
  * Upload firmware to the Caliptra device
- * 
+ *
  * @param[in] fw_buffer Buffer containing Caliptra firmware
  *
- * @return See caliptra_mailbo, mb_resultx_execute for possible results.
+ * @return See caliptra_mailbox, mb_resultx_execute for possible results.
  */
 int caliptra_upload_fw(struct caliptra_buffer *fw_buffer)
 {
+    // Parameter check
+    if (fw_buffer == NULL)
+        return -EINVAL;
+
     const uint32_t FW_LOAD_CMD_OPCODE = 0x46574C44u;
     return caliptra_mailbox_execute(FW_LOAD_CMD_OPCODE, fw_buffer, NULL);
+}
+
+/**
+ * caliptra_get_fips_version
+ *
+ * Read Caliptra FIPS Version
+ *
+ * @param[out] version pointer to fips_version unsigned integer
+ *
+ * @return See caliptra_mailbox, mb_resultx_execute for possible results.
+ */
+int caliptra_get_fips_version(struct caliptra_fips_version *version)
+{
+    // Parameter check
+    if (version == NULL)
+        return -EINVAL;
+
+    uint32_t FIPS_VERSION_OPCODE = 0x46505652;
+
+    struct caliptra_buffer in_buf = {
+        .data = NULL,
+        .len = 0,
+    };
+    struct caliptra_buffer out_buf = {
+        .data = (uint8_t *)version,
+        .len = sizeof(struct caliptra_fips_version),
+    };
+
+    return caliptra_mailbox_execute(FIPS_VERSION_OPCODE, &in_buf, &out_buf);
 }

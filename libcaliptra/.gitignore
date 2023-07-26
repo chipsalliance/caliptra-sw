@@ -1,5 +1,3 @@
 inc/caliptra_model.h
-src/caliptra_api.o
-libcaliptra/examples/generic/main.o
-libcaliptra/examples/hwmodel/hwmodel
-libcaliptra/examples/hwmodel/interface.o
+examples/hwmodel/hwmodel
+*.o

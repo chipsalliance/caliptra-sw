@@ -49,7 +49,7 @@ static inline void caliptra_mbox_write_execute(bool ex)
     caliptra_mbox_write(MBOX_CSR_MBOX_EXECUTE, ex);
 }
 
-static inline uint8_t caliptra_mbox_write_execute_wait(bool ex)
+static inline uint8_t caliptra_mbox_write_execute_busy_wait(bool ex)
 {
     caliptra_mbox_write(MBOX_CSR_MBOX_EXECUTE, ex);
     uint8_t status;
