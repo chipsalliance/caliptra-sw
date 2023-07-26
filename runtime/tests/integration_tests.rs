@@ -7,7 +7,7 @@ use caliptra_common::mailbox_api::{
     CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, InvokeDpeReq, InvokeDpeResp,
     MailboxReqHeader, MailboxRespHeader,
 };
-use caliptra_drivers::Ecc384PubKey;
+use caliptra_drivers::{CaliptraError, Ecc384PubKey};
 use caliptra_hw_model::{HwModel, ModelError, ShaAccMode};
 use caliptra_runtime::{FipsVersionCmd, RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
 use common::{run_rom_test, run_rt_test};
@@ -397,6 +397,35 @@ fn test_fips_cmd_api() {
     };
     let resp = model.mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes());
     assert_eq!(resp, expected_err);
+}
+
+/// When a successful command runs after a failed command, ensure the error
+/// register is cleared.
+#[test]
+fn test_error_cleared() {
+    let mut model = run_rom_test("mbox");
+
+    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+
+    // Send invalid command to cause failure
+    let resp = model.mailbox_execute(0xffffffff, &[]);
+    assert_eq!(
+        resp,
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS.into()
+        ))
+    );
+
+    // Succeed a command to make sure error gets cleared
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::VERSION), &[]),
+    };
+    let _ = model
+        .mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(model.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
 }
 
 #[test]
