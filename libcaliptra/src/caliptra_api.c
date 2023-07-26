@@ -30,12 +30,7 @@ static inline uint32_t caliptra_read_status(void)
  */
 bool caliptra_ready_for_fuses(void)
 {
-    uint32_t status;
-
-    status = caliptra_read_status();
-
-    if ((status & CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS) == GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FUSES_MASK)
-    {
+    if ((caliptra_read_status() & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FUSES_MASK) != 0) {
         return true;
     }
 
@@ -60,12 +55,8 @@ int caliptra_init_fuses(struct caliptra_fuses *fuses)
     }
 
     // Check whether caliptra is ready for fuses
-    //
-    // This check is disabled until the below ticket is resolved.
-    // https://github.com/chipsalliance/caliptra-sw/issues/508
-    //
-    // if (!caliptra_ready_for_fuses())
-    //    return -EPERM;
+    if (!caliptra_ready_for_fuses())
+        return -EPERM;
 
     // Write Fuses
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_UDS_SEED_0, fuses->uds_seed, sizeof(fuses->uds_seed));
