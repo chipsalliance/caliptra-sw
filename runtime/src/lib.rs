@@ -282,6 +282,9 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> ! {
             match handle_command(drivers) {
                 Ok(status) => {
                     drivers.mbox.set_status(status);
+
+                    // Clear any error code set by prior commands
+                    caliptra_drivers::report_fw_error_non_fatal(0);
                 }
                 Err(e) => {
                     caliptra_drivers::report_fw_error_non_fatal(e.into());

@@ -399,6 +399,28 @@ fn test_fips_cmd_api() {
     assert_eq!(resp, expected_err);
 }
 
+/// When a successful command runs after a failed command, ensure the error
+/// register is cleared.
+#[test]
+fn test_error_cleared() {
+    let mut model = run_rom_test("mbox");
+
+    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+
+    // Send invalid command to cause failure
+    let resp = model.mailbox_execute(0xffffffff, &[]);
+    assert_eq!(resp, Err(ModelError::MailboxCmdFailed(0xe0002)));
+
+    // Succeed a command to make sure error gets cleared
+    let cmd = [0u8; 4];
+    let _ = model
+        .mailbox_execute(u32::from(CommandId::VERSION), &cmd)
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(model.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
+}
+
 #[test]
 fn test_fw_version() {
     let mut model = run_rt_test(None);
