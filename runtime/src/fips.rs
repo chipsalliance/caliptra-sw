@@ -22,19 +22,11 @@ impl VersionResponse {
     pub const NAME: [u8; 12] = *b"Caliptra RTM";
     pub const MODE: u32 = 0x46495053;
 
-    pub fn new(env: &Drivers) -> Self {
-        let hw_rev: u32 = env.soc_ifc.regs().cptra_hw_rev_id().read();
-        let fw_rev = env.soc_ifc.regs().cptra_fw_rev_id().read();
-
-        let mut fips_rev: [u32; 3] = [0u32; 3];
-
-        fips_rev[0] = hw_rev;
-        fips_rev[1] = fw_rev[0];
-        fips_rev[2] = fw_rev[1];
-
+    pub fn new(_env: &Drivers) -> Self {
         Self {
             mode: Self::MODE,
-            fips_rev,
+            // Just return all zeroes for now.
+            fips_rev: [1, 0, 0],
             name: Self::NAME,
         }
     }

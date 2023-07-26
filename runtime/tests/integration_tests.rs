@@ -208,7 +208,7 @@ fn test_fips_cmd_api() {
     // Check values against expected.
     let fips_version = VersionResponse::read_from(fips_version_bytes.as_bytes()).unwrap();
     assert_eq!(fips_version.mode, VersionResponse::MODE);
-    assert_eq!(fips_version.fips_rev, [0x00, 0x00, 0x00]);
+    assert_eq!(fips_version.fips_rev, [0x01, 0x00, 0x00]);
     let name = &fips_version.name[..];
     assert_eq!(name, VersionResponse::NAME.as_bytes());
 
