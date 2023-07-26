@@ -10,17 +10,17 @@ use crate::Drivers;
 pub struct FipsModule;
 
 impl FipsModule {
-    pub fn version(_env: &Drivers) -> CaliptraResult<usize> {
+    pub fn version(_env: &Drivers) -> CaliptraResult<()> {
         cprintln!("[rt] FIPS Version");
         Err(CaliptraError::RUNTIME_FIPS_UNIMPLEMENTED)
     }
 
-    pub fn self_test(_env: &Drivers) -> CaliptraResult<usize> {
+    pub fn self_test(_env: &Drivers) -> CaliptraResult<()> {
         cprintln!("[rt] FIPS self test");
         Err(CaliptraError::RUNTIME_FIPS_UNIMPLEMENTED)
     }
 
-    pub fn shutdown(_env: &Drivers) -> CaliptraResult<usize> {
+    pub fn shutdown(_env: &Drivers) -> CaliptraResult<()> {
         cprintln!("[rt] FIPS shutdown");
         Err(CaliptraError::RUNTIME_FIPS_UNIMPLEMENTED)
     }

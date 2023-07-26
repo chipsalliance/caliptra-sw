@@ -4,12 +4,11 @@
 use caliptra_drivers::CaliptraResult;
 
 use caliptra_drivers::CaliptraError;
-use zerocopy::AsBytes;
+use zerocopy::{AsBytes, LayoutVerified};
 use crate::mailbox_api::{
-    cast_bytes_to_struct,
-    cast_bytes_to_struct_mut,
-    MailboxReqCommon,
-    MailboxRespCommon,
+    MailboxReqHeader,
+    MailboxRespHeader,
+    MailboxResp,
 };
 
 #[derive(Debug, Clone)]
@@ -56,17 +55,21 @@ impl Packet {
 
         // Verify incoming checksum
         // Make sure enough data was sent to even have a checksum
-        if packet.len < core::mem::size_of::<MailboxReqCommon>() {
+        if packet.len < core::mem::size_of::<MailboxReqHeader>() {
             return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)
         }
 
         // Assumes chksum is always offset 0
         let payload_bytes = packet.as_bytes()?;
-        let req_common: &MailboxReqCommon = cast_bytes_to_struct(payload_bytes)?;
+        let req_hdr: &MailboxReqHeader =
+            LayoutVerified::<&[u8], MailboxReqHeader>::new(&payload_bytes[..core::mem::size_of::<MailboxReqHeader>()])
+            .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?
+            .into_ref();
+
         if !caliptra_common::checksum::verify_checksum(
-            req_common.chksum,
+            req_hdr.chksum,
             packet.cmd,
-            &payload_bytes[core::mem::size_of_val(&req_common.chksum)..],
+            &payload_bytes[core::mem::size_of_val(&req_hdr.chksum)..],
         ) {
             return Err(CaliptraError::RUNTIME_INVALID_CHECKSUM);
         }
@@ -74,31 +77,24 @@ impl Packet {
         Ok(packet)
     }
 
-    pub fn copy_to_mbox(mut self, drivers: &mut crate::Drivers) -> CaliptraResult<()> {
+    pub fn copy_to_mbox(
+            drivers: &mut crate::Drivers,
+            resp: &mut MailboxResp,
+            resp_size_ovrd: Option<usize>
+    ) -> CaliptraResult<()> {
         let mbox = &mut drivers.mbox;
 
-        if self.len > (MAX_PAYLOAD_SIZE * 4) {
-            return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
-        }
-
-        // We always send back at least the common args
-        if self.len == 0 {
-            self.len = core::mem::size_of::<MailboxRespCommon>()
-        }
-
         // Generate response checksum
-        // Assumes chksum is always offset 0
-        // TODO: Having trouble getting the size/span of chksum without an actual instance
-        //       of the struct, need to remove this "4" constant
-        // No cmd associated a response, use 0 for checksum calc
-        let checksum = caliptra_common::checksum::calc_checksum(0, &self.as_bytes()?[4..]);
-
-        // Get the common fields as mutable and set checksum
-        let resp_common: &mut MailboxRespCommon = cast_bytes_to_struct_mut(self.as_bytes_mut()?)?;
-        resp_common.chksum = checksum;
+        resp.populate_chksum(resp_size_ovrd)?;
 
         // Send the payload
-        mbox.write_response(self.as_bytes()?)
+        // Use a slice if needed
+        let resp_bytes = match resp_size_ovrd {
+            Some(size) => &resp.as_bytes()[..size],
+            None => resp.as_bytes(),
+        };
+
+        mbox.write_response(resp_bytes)
     }
 
     pub fn as_bytes(&self) -> CaliptraResult<&[u8]> {

@@ -13,13 +13,10 @@ use mailbox::Mailbox;
 
 pub mod mailbox_api;
 pub use mailbox_api::{
-    cast_bytes_to_struct,
-    cast_bytes_to_struct_mut,
     CommandId,
-    MailboxReqCommon,
-    MailboxRespCommon,
-    FIPS_STATUS_APPROVED,
-    CaliptraFwLoadReq,
+    MailboxResp,
+    MailboxReqHeader,
+    MailboxRespHeader,
     GetIdevCsrResp,
     GetLdevCsrResp,
     EcdsaVerifyCmdReq,
@@ -27,6 +24,7 @@ pub use mailbox_api::{
     StashMeasurementResp,
     InvokeDpeCommandReq,
     InvokeDpeCommandResp,
+    TestGetCertResp,
 };
 
 pub mod packet;
@@ -42,7 +40,6 @@ use caliptra_registers::{
     sha512_acc::Sha512AccCsr,
     soc_ifc::SocIfcReg,
 };
-use zerocopy::{FromBytes, AsBytes};
 
 pub struct Drivers<'a> {
     pub mbox: Mailbox,
@@ -78,41 +75,6 @@ fn wait_for_cmd(_mbox: &mut Mailbox) {
     //}
 }
 
-fn call_handler(
-        drivers: &mut Drivers,
-        cmd_id: CommandId,
-        cmd_payload: &[u8],
-        resp_buf: &mut [u8]
-) -> CaliptraResult<usize> {
-    // Populate the FIPS Status, this can be overridden in specfic commands if needed
-    let resp_common: &mut mailbox_api::MailboxRespCommon = mailbox_api::cast_bytes_to_struct_mut(resp_buf)?;
-    resp_common.fips_status = mailbox_api::FIPS_STATUS_APPROVED;
-
-    match cmd_id {
-        CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-        CommandId::GET_IDEV_CSR => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-        CommandId::GET_LDEV_CERT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-        CommandId::ECDSA384_VERIFY => {
-            verify::handle_ecdsa_verify(drivers, cmd_payload)?;
-            Ok(0)
-        }
-        CommandId::STASH_MEASUREMENT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-        CommandId::INVOKE_DPE => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-        #[cfg(feature = "test_only_commands")]
-        CommandId::TEST_ONLY_GET_LDEV_CERT => {
-            dice::copy_ldevid_cert(&drivers.data_vault, resp_buf)
-        }
-        #[cfg(feature = "test_only_commands")]
-        CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT => {
-            dice::copy_fmc_alias_cert(&drivers.data_vault, resp_buf)
-        }
-        CommandId::VERSION => FipsModule::version(drivers),
-        CommandId::SELF_TEST => FipsModule::self_test(drivers),
-        CommandId::SHUTDOWN => FipsModule::shutdown(drivers),
-        _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-    }
-}
-
 fn handle_and_respond(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     // For firmware update, don't read data from the mailbox
     if drivers.mbox.cmd() == CommandId::FIRMWARE_LOAD.into() {
@@ -133,17 +95,54 @@ fn handle_and_respond(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         req_packet.len
     );
 
-    // Create a response packet
-    // TODO: OPEN: How big is our stack? We are throwing 8k on it between these 2 packets
-    let mut resp_packet = Packet::default();
-    // Get the full buffer regardless of the set packet length (we don't know it yet)
-    let resp_payload = &mut resp_packet.payload.as_bytes_mut();
+    // Some responses have a variable size
+    // Leave as None otherwise
+    let resp_size_ovrd: Option<usize> = None;
 
     // Handle the request and generate the response
-    resp_packet.len = call_handler(drivers, CommandId::from(req_packet.cmd), cmd_bytes, resp_payload)?;
+    let mut resp: Option<MailboxResp> = match CommandId::from(req_packet.cmd) {
+        CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        CommandId::GET_IDEV_CSR => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        CommandId::GET_LDEV_CERT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        CommandId::ECDSA384_VERIFY => {
+            verify::handle_ecdsa_verify(drivers, cmd_bytes)?;
+            Ok(None)
+        }
+        CommandId::STASH_MEASUREMENT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        CommandId::INVOKE_DPE => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        #[cfg(feature = "test_only_commands")]
+        CommandId::TEST_ONLY_GET_LDEV_CERT => {
+            let (payload, resp_size_ovrd) = dice::handle_get_ldevid_cert(&drivers.data_vault)?;
+            Ok(Some(MailboxResp::TestGetCert(payload)))
+        }
+        #[cfg(feature = "test_only_commands")]
+        CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT => {
+            let (payload, resp_size_ovrd) = dice::handle_get_fmc_alias_cert(&drivers.data_vault)?;
+            Ok(Some(MailboxResp::TestGetCert(payload)))
+        }
+        CommandId::VERSION => {
+            FipsModule::version(drivers)?;
+            Ok(None)
+        }
+        CommandId::SELF_TEST => {
+            FipsModule::self_test(drivers)?;
+            Ok(None)
+        }
+        CommandId::SHUTDOWN => {
+            FipsModule::shutdown(drivers)?;
+            Ok(None)
+        }
+        _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+    }?;
+
+    // If there was no reponse payload from the handler, still send back a header
+    let mut resp = match resp {
+        Some(resp) => resp,
+        None => MailboxResp::Header(MailboxRespHeader::default()),
+    };
 
     // Send the response
-    resp_packet.copy_to_mbox(drivers)?;
+    Packet::copy_to_mbox(drivers, &mut resp, resp_size_ovrd)?;
 
     Ok(MboxStatusE::DataReady)
 }

@@ -108,9 +108,15 @@ Table: `CALIPTRA_FW_LOAD` input arguments
 
 | **Name**  | **Type**      | **Description**
 | --------  | --------      | ---------------
+| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
 | data      | u8[...]       | Firmware image to load.
 
-`CALIPTRA_FW_LOAD` returns no output arguments.
+Table: `CALIPTRA_FW_LOAD` output arguments
+
+| **Name**    | **Type** | **Description**
+| --------    | -------- | ---------------
+| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32      | Indicates if the command is FIPS approved or an error
 
 ### GET\_IDEV\_CSR
 
@@ -119,13 +125,19 @@ GET\_IDEV\_CSR is not exposed by runtime firmware.
 
 Command Code: `0x4944_4556` ("IDEV")
 
-`GET_IDEV_CSR` takes no input arguments.
-
-Table: `GET_IDEV_CSR` output arguments
+Table: `GET_IDEV_CSR` input arguments
 
 | **Name**  | **Type**      | **Description**
 | --------  | --------      | ---------------
-| data      | u8[...]       | DER-encoded IDevID CSR
+| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+
+Table: `GET_IDEV_CSR` output arguments
+
+| **Name**    | **Type**   | **Description**
+| --------    | --------   | ---------------
+| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32        | Indicates if the command is FIPS approved or an error
+| data        | u8[...]    | DER-encoded IDevID CSR
 
 ### GET\_LDEV\_CERT
 
@@ -134,13 +146,19 @@ GET\_LDEV\_CERT is not exposed by runtime firmware.
 
 Command Code: `0x4C44_4556` ("LDEV")
 
-`GET_LDEV_CERT` takes no input arguments.
-
-Table: `GET_LDEV_CERT` output arguments
+Table: `GET_LDEV_CERT` input arguments
 
 | **Name**  | **Type**      | **Description**
 | --------  | --------      | ---------------
-| data      | u8[...]       | DER-encoded LDevID Certificate
+| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+
+Table: `GET_LDEV_CERT` output arguments
+
+| **Name**    | **Type**   | **Description**
+| --------    | --------   | ---------------
+| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32        | Indicates if the command is FIPS approved or an error
+| data        | u8[...]    | DER-encoded LDevID Certificate
 
 ### ECDSA384\_SIGNATURE\_VERIFY
 
@@ -159,7 +177,12 @@ Table: `ECDSA384_SIGNATURE_VERIFY` input arguments
 | signature\_r | u8[48]   | R portion of signature to verify
 | signature\_s | u8[48]   | S portion of signature to verify
 
-`ECDSA384_SIGNATURE_VERIFY` returns no output arguments.
+Table: `ECDSA384_SIGNATURE_VERIFY` output arguments
+
+| **Name**    | **Type** | **Description**
+| --------    | -------- | ---------------
+| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32      | Indicates if the command is FIPS approved or an error
 
 ### STASH\_MEASUREMENT
 
@@ -184,6 +207,7 @@ Table: `STASH_MEASUREMENT` output arguments
 | **Name**    | **Type** | **Description**
 | --------    | -------- | ---------------
 | chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32      | Indicates if the command is FIPS approved or an error
 | dpe\_result | u32      | Result code of DPE DeriveChild command. Little endian.
 
 ### DISABLE\_ATTESTATION
@@ -203,10 +227,18 @@ to re-enable attestation.
 
 Command Code: `0x4453_424C` ("DSBL")
 
-`DISABLE_ATTESTATION` takes no input arguments.
+Table: `DISABLE_ATTESTATION` input arguments
 
-`DISABLE_ATTESTATION` returns no output arguments.
+| **Name**  | **Type**      | **Description**
+| --------  | --------      | ---------------
+| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
 
+Table: `DISABLE_ATTESTATION` output arguments
+
+| **Name**    | **Type** | **Description**
+| --------    | -------- | ---------------
+| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32      | Indicates if the command is FIPS approved or an error
 
 ### INVOKE\_DPE\_COMMAND
 
@@ -225,13 +257,13 @@ Table: `INVOKE_DPE_COMMAND` output arguments
 | **Name**    | **Type**      | **Description**
 | --------    | --------      | ---------------
 | chksum      | u32           | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32           | Indicates if the command is FIPS approved or an error
 | data        | u8[...]       | DPE response structure as defined in the DPE iRoT profile.
 
 ## Checksum
 
-For every command input/output arguments which have a "chksum" field, the
-request and response feature a checksum. This mitigates glitches between clients
-and Caliptra.
+For every command, the request and response feature a checksum. This mitigates
+glitches between clients and Caliptra.
 
 The Checksum is a little-endian 32-bit value, defined as:
 
@@ -247,6 +279,18 @@ If Caliptra detects an invalid Checksum in input parameters, it will return
 
 Caliptra will also compute a Checksum over all responses and write it to the
 chksum field.
+
+## FIPS Status
+
+For every command, the firmware will respond with FIPS status of FIPS approved. There is
+currently no use-case for any other responses or error values.
+
+Table: FIPS status codes:
+
+| **Name**         | **Value**                   | Description
+| -------          | -----                       | -----------
+| `FIPS_APPROVED`  | `0x0000_0000`               | Status of command is FIPS approved
+| `RESERVED`       | `0x0000_0001 - 0xFFFF_FFFF` | Other values reservered, will not be sent by Caliptra
 
 ## Runtime Firmware Updates
 

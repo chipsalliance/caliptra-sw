@@ -36,56 +36,99 @@ impl From<CommandId> for u32 {
     }
 }
 
-// Helpers
-// Assumes given byte array is >= size_of T
-// Will return CaliptraError::RUNTIME_INTERNAL otherwise
-pub fn cast_bytes_to_struct<T: AsBytes + FromBytes>(bytes: &[u8]) -> CaliptraResult<&T> {
-    Ok(
-        LayoutVerified::<&[u8], T>::new(&bytes[..core::mem::size_of::<T>()])
-        .ok_or(CaliptraError::RUNTIME_INTERNAL)?
-        .into_ref()
-    )
-}
-pub fn cast_bytes_to_struct_mut<T: AsBytes + FromBytes>(bytes: &mut [u8]) -> CaliptraResult<&mut T> {
-    Ok(
-        LayoutVerified::<&mut [u8], T>::new(&mut bytes[..core::mem::size_of::<T>()])
-        .ok_or(CaliptraError::RUNTIME_INTERNAL)?
-        .into_mut()
-    )
+// Contains all the possible mailbox response structs
+#[cfg_attr(test, derive(PartialEq, Debug, Eq))]
+pub enum MailboxResp {
+    Header(MailboxRespHeader),
+    GetIdevCsr(GetIdevCsrResp),
+    GetLdevCsr(GetLdevCsrResp),
+    StashMeasurement(StashMeasurementResp),
+    InvokeDpeCommand(InvokeDpeCommandResp),
+    TestGetCert(TestGetCertResp),
 }
 
-// COMMON
+impl MailboxResp {
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            MailboxResp::Header(resp) => resp.as_bytes(),
+            MailboxResp::GetIdevCsr(resp) => resp.as_bytes(),
+            MailboxResp::GetLdevCsr(resp) => resp.as_bytes(),
+            MailboxResp::StashMeasurement(resp) => resp.as_bytes(),
+            MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes(),
+            MailboxResp::TestGetCert(resp) => resp.as_bytes(),
+        }
+    }
+
+    pub fn as_bytes_mut(&mut self) -> &mut [u8] {
+        match self {
+            MailboxResp::Header(resp) => resp.as_bytes_mut(),
+            MailboxResp::GetIdevCsr(resp) => resp.as_bytes_mut(),
+            MailboxResp::GetLdevCsr(resp) => resp.as_bytes_mut(),
+            MailboxResp::StashMeasurement(resp) => resp.as_bytes_mut(),
+            MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes_mut(),
+            MailboxResp::TestGetCert(resp) => resp.as_bytes_mut(),
+        }
+    }
+
+    /// Calculate and set the checksum for a response payload
+    /// Takes into account the size override for variable-lenth payloads
+    pub fn populate_chksum(&mut self, size_ovrd: Option<usize>) -> CaliptraResult<()> {
+        // Calc checksum, use the size override if provided
+        let checksum = match size_ovrd {
+            // No cmd associated a response, use 0 for checksum calc
+            // TODO: Fix this 4
+            Some(size) => caliptra_common::checksum::calc_checksum(0, &self.as_bytes()[4..size]),
+            None => caliptra_common::checksum::calc_checksum(0, &self.as_bytes()[4..]),
+        };
+
+        // cast as header struct
+        let hdr: &mut MailboxRespHeader =
+            LayoutVerified::<&mut [u8], MailboxRespHeader>::new(&mut self.as_bytes_mut()[..core::mem::size_of::<MailboxRespHeader>()])
+            .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?
+            .into_mut();
+
+        // Set the chksum field
+        hdr.chksum = checksum;
+
+        Ok(())
+    }
+
+}
+
+// HEADER
 #[repr(C)]
 #[derive(AsBytes, FromBytes)]
-pub struct MailboxReqCommon {
+pub struct MailboxReqHeader {
     pub chksum: i32,
 }
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes)]
-pub struct MailboxRespCommon {
+pub struct MailboxRespHeader {
     pub chksum: i32,
     pub fips_status: u32,
 }
 
-pub const FIPS_STATUS_APPROVED: u32 = 0;
-
-// CALIPTRA_FW_LOAD
-#[repr(C)]
-#[derive(AsBytes, FromBytes)]
-pub struct CaliptraFwLoadReq {
-    pub common: MailboxReqCommon,
-    pub data: [u8; 0], // variable length
+impl MailboxRespHeader {
+    pub const FIPS_STATUS_APPROVED: u32 = 0;
 }
-// No command-specific output args
+
+impl Default for MailboxRespHeader {
+    fn default() -> Self {
+        Self {
+            chksum: 0,
+            fips_status: MailboxRespHeader::FIPS_STATUS_APPROVED,
+        }
+    }
+}
 
 // GET_IDEV_CSR
 // No command-specific input args
 #[repr(C)]
 #[derive(AsBytes, FromBytes)]
 pub struct GetIdevCsrResp {
-    pub common: MailboxRespCommon,
-    pub data: [u8; 0], // variable length
+    pub hdr: MailboxRespHeader,
+    pub data: [u8; 1024], // variable length
 }
 
 // GET_LDEV_CERT
@@ -93,15 +136,15 @@ pub struct GetIdevCsrResp {
 #[repr(C)]
 #[derive(AsBytes, FromBytes)]
 pub struct GetLdevCsrResp {
-    pub common: MailboxRespCommon,
-    pub data: [u8; 0], // variable length
+    pub hdr: MailboxRespHeader,
+    pub data: [u8; 1024], // variable length
 }
 
 // ECDSA384_SIGNATURE_VERIFY
 #[repr(C)]
 #[derive(AsBytes, FromBytes)]
 pub struct EcdsaVerifyCmdReq {
-    pub common: MailboxReqCommon,
+    pub hdr: MailboxReqHeader,
     pub pub_key_x: [u8; 48],
     pub pub_key_y: [u8; 48],
     pub signature_r: [u8; 48],
@@ -113,7 +156,7 @@ pub struct EcdsaVerifyCmdReq {
 #[repr(C)]
 #[derive(AsBytes, FromBytes)]
 pub struct StashMeasurementReq {
-    pub common: MailboxReqCommon,
+    pub hdr: MailboxReqHeader,
     pub metadata: [u8; 4],
     pub measurement: [u8; 48],
 }
@@ -121,7 +164,7 @@ pub struct StashMeasurementReq {
 #[repr(C)]
 #[derive(AsBytes, FromBytes)]
 pub struct StashMeasurementResp {
-    pub common: MailboxRespCommon,
+    pub hdr: MailboxRespHeader,
     pub dpe_result: u32,
 }
 
@@ -133,15 +176,22 @@ pub struct StashMeasurementResp {
 #[repr(C)]
 #[derive(AsBytes, FromBytes)]
 pub struct InvokeDpeCommandReq {
-    pub common: MailboxReqCommon,
-    pub data: [u8; 0], // variable length
+    pub hdr: MailboxReqHeader,
+    pub data: [u8; 1024], // variable length
 }
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes)]
 pub struct InvokeDpeCommandResp {
-    pub common: MailboxRespCommon,
-    pub data: [u8; 0], // variable length
+    pub hdr: MailboxRespHeader,
+    pub data: [u8; 1024], // variable length
 }
 
-
+// TEST_ONLY_GET_CERT
+// No command-specific input args
+#[repr(C)]
+#[derive(AsBytes, FromBytes)]
+pub struct TestGetCertResp {
+    pub hdr: MailboxRespHeader,
+    pub data: [u8; 1024], // variable length
+}

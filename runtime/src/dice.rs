@@ -2,6 +2,7 @@
 
 use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault};
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
+use crate::{MailboxRespHeader, TestGetCertResp};
 
 extern "C" {
     static mut LDEVID_TBS_ORG: [u8; LocalDevIdCertTbs::TBS_TEMPLATE_LEN];
@@ -51,4 +52,32 @@ fn cert_from_dccm(dv: &DataVault, cert: &mut [u8], cert_type: CertType) -> Calip
     };
 
     Ok(size)
+}
+
+/// Handle the get ldev cert message
+///
+/// Returns a TestGetCertResp and optionally the response size
+pub fn handle_get_ldevid_cert(dv: &DataVault) -> CaliptraResult<(TestGetCertResp, Option<usize>)> {
+    let mut resp = TestGetCertResp {
+        hdr: MailboxRespHeader::default(),
+        data: [0u8; 1024],
+    };
+
+    let cert_size = copy_ldevid_cert(dv, &mut resp.data)?;
+
+    Ok((resp, Some(cert_size + core::mem::size_of::<MailboxRespHeader>())))
+}
+
+/// Handle the get fmc alias cert message
+///
+/// Returns a TestGetCertResp and optionally the response size
+pub fn handle_get_fmc_alias_cert(dv: &DataVault) -> CaliptraResult<(TestGetCertResp, Option<usize>)> {
+    let mut resp = TestGetCertResp {
+        hdr: MailboxRespHeader::default(),
+        data: [0u8; 1024],
+    };
+
+    let cert_size = copy_fmc_alias_cert(dv, &mut resp.data)?;
+
+    Ok((resp, Some(cert_size + core::mem::size_of::<MailboxRespHeader>())))
 }
