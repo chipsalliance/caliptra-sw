@@ -32,4 +32,4 @@ pub const FMC_SIZE: u32 = 16 * 1024;
 pub const RUNTIME_ORG: u32 = FMC_ORG + FMC_SIZE;
 pub const RUNTIME_SIZE: u32 = 96 * 1024;
 
-pub use memory_layout::{FHT_ORG, FHT_SIZE};
+pub use memory_layout::{DATA_ORG, FHT_ORG, FHT_SIZE, MAN1_ORG};
