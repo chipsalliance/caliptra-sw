@@ -20,8 +20,15 @@ impl FipsModule {
         Err(CaliptraError::RUNTIME_FIPS_UNIMPLEMENTED)
     }
 
-    pub fn shutdown(_env: &Drivers) -> CaliptraResult<MboxStatusE> {
-        cprintln!("[rt] FIPS shutdown");
-        Err(CaliptraError::RUNTIME_FIPS_UNIMPLEMENTED)
+    pub fn shutdown(env: &mut Drivers) -> CaliptraResult<MboxStatusE> {
+        Self::zeroize(env);
+        env.mbox.set_status(MboxStatusE::CmdComplete);
+
+        Err(CaliptraError::RUNTIME_SHUTDOWN)
+    }
+
+    /// Clear data structures in DCCM.  
+    fn zeroize(env: &mut Drivers) {
+        env.regions.zeroize();
     }
 }
