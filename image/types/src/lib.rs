@@ -369,6 +369,9 @@ pub struct ImageTocEntry {
     /// Commit revision
     pub revision: ImageRevision,
 
+    // Firmware release number
+    pub version: u32,
+
     /// Security Version Number
     pub svn: u32,
 

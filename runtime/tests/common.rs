@@ -44,6 +44,8 @@ pub fn run_rt_test(test_bin_name: Option<&'static str>) -> DefaultHwModel {
 
     let mut image_options = ImageOptions::default();
     image_options.vendor_config.pl0_pauser = Some(0xFFFF0000);
+    image_options.fmc_version = 0xaaaaaaaa;
+    image_options.app_version = 0xbbbbbbbb;
     let image =
         caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &runtime_fwid, image_options)
             .unwrap();

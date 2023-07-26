@@ -81,6 +81,9 @@ impl UpdateResetFlow {
         Self::copy_regions();
         report_boot_status(UpdateResetOverwriteManifestComplete.into());
 
+        // Set RT version. FMC does not change.
+        env.soc_ifc.set_rt_fw_rev_id(manifest.runtime.version);
+
         cprintln!("[update-reset Success] --");
         report_boot_status(UpdateResetComplete.into());
 
