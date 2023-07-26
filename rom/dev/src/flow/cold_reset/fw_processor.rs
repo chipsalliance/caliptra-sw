@@ -91,6 +91,10 @@ impl FirmwareProcessor {
         txn.complete(true)?;
         report_boot_status(FwProcessorFirmwareDownloadTxComplete.into());
 
+        // Update FW version registers
+        env.soc_ifc.set_fmc_fw_rev_id(manifest.fmc.version);
+        env.soc_ifc.set_rt_fw_rev_id(manifest.runtime.version);
+
         // Get the certificate validity info
         let (nb, nf) = Self::get_cert_validity_info(manifest);
 

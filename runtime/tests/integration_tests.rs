@@ -6,7 +6,7 @@ use caliptra_drivers::Ecc384PubKey;
 use caliptra_hw_model::{HwModel, ModelError, ShaAccMode};
 use caliptra_runtime::{
     CommandId, EcdsaVerifyReq, FipsVersionCmd, FipsVersionResp, FwInfoResp, MailboxReqHeader,
-    MailboxRespHeader,
+    MailboxRespHeader, RtBootStatus,
 };
 use common::{run_rom_test, run_rt_test};
 use openssl::{
@@ -39,15 +39,16 @@ fn test_update() {
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
+    let image_options = ImageOptions {
+        app_version: 0xaabbccdd,
+        ..Default::default()
+    };
     // Make image to update to
-    let image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap()
-    .to_bytes()
-    .unwrap();
+    let image =
+        caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
+            .unwrap()
+            .to_bytes()
+            .unwrap();
 
     model
         .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &image)
@@ -56,6 +57,10 @@ fn test_update() {
     model
         .step_until_output_contains("Caliptra RT listening for mailbox commands...")
         .unwrap();
+
+    let fw_rev = model.soc_ifc().cptra_fw_rev_id().read();
+    assert_eq!(fw_rev[0], 0xaaaaaaaa);
+    assert_eq!(fw_rev[1], 0xaabbccdd);
 }
 
 #[test]
@@ -302,6 +307,18 @@ fn test_fips_cmd_api() {
     };
     let resp = model.mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes());
     assert_eq!(resp, expected_err);
+}
+
+#[test]
+fn test_fw_version() {
+    let mut model = run_rt_test(None);
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == RtBootStatus::RtReadyForCommands.into()
+    });
+
+    let fw_rev = model.soc_ifc().cptra_fw_rev_id().read();
+    assert_eq!(fw_rev[0], 0xaaaaaaaa);
+    assert_eq!(fw_rev[1], 0xbbbbbbbb);
 }
 
 #[test]

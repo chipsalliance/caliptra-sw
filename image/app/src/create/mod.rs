@@ -80,6 +80,10 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         .get_one::<PathBuf>("fmc")
         .with_context(|| "fmc arg not specified")?;
 
+    let fmc_version: &u32 = args
+        .get_one::<u32>("fmc-version")
+        .with_context(|| "fmc-version arg not specified")?;
+
     let fmc_svn: &u32 = args
         .get_one::<u32>("fmc-svn")
         .with_context(|| "fmc-svn arg not specified")?;
@@ -95,6 +99,10 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
     let runtime_path: &PathBuf = args
         .get_one::<PathBuf>("rt")
         .with_context(|| "rt arg not specified")?;
+
+    let runtime_version: &u32 = args
+        .get_one::<u32>("rt-version")
+        .with_context(|| "rt-version arg not specified")?;
 
     let runtime_svn: &u32 = args
         .get_one::<u32>("rt-svn")
@@ -151,6 +159,7 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
     let fmc_rev = hex::decode(fmc_rev)?;
     let fmc = ElfExecutable::open(
         fmc_path,
+        *fmc_version,
         *fmc_svn,
         *fmc_min_svn,
         fmc_rev[..IMAGE_REVISION_BYTE_SIZE].try_into()?,
@@ -159,6 +168,7 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
     let runtime_rev = hex::decode(runtime_rev)?;
     let runtime = ElfExecutable::open(
         runtime_path,
+        *runtime_version,
         *runtime_svn,
         *runtime_min_svn,
         runtime_rev[..IMAGE_REVISION_BYTE_SIZE].try_into()?,

@@ -345,8 +345,10 @@ fn test_fuse_log() {
         owner_config: Some(OWNER_CONFIG),
         fmc_svn: FMC_SVN,
         fmc_min_svn: FMC_MIN_SVN,
+        fmc_version: 0,
         app_svn: FMC_SVN,
         app_min_svn: FMC_MIN_SVN,
+        app_version: 0,
     };
     let image_bundle =
         caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)

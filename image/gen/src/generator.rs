@@ -248,6 +248,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             id: id.into(),
             r#type: r#type.into(),
             revision: *image.rev(),
+            version: image.version(),
             svn: image.svn(),
             min_svn: image.min_svn(),
             load_addr: image.load_addr(),

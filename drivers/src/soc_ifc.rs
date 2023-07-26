@@ -136,7 +136,7 @@ impl SocIfc {
 
     /// Stop WDT1.
     ///
-    /// This is useful to call from a fatal-error-handling routine.  
+    /// This is useful to call from a fatal-error-handling routine.
     ///
     ///  # Safety
     ///
@@ -223,6 +223,16 @@ impl SocIfc {
             .regs_mut()
             .cptra_flow_status()
             .write(|w| w.ready_for_runtime(true));
+    }
+
+    pub fn set_fmc_fw_rev_id(&mut self, fmc_version: u32) {
+        let soc_ifc_regs = self.soc_ifc.regs_mut();
+        soc_ifc_regs.cptra_fw_rev_id().at(0).write(|_| fmc_version);
+    }
+
+    pub fn set_rt_fw_rev_id(&mut self, rt_version: u32) {
+        let soc_ifc_regs = self.soc_ifc.regs_mut();
+        soc_ifc_regs.cptra_fw_rev_id().at(1).write(|_| rt_version);
     }
 }
 
