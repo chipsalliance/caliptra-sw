@@ -230,6 +230,20 @@ impl crate::HwModel for ModelVerilated {
         &mut self.output
     }
 
+    fn warm_reset(&mut self) {
+        // Toggle reset pin
+        self.v.input.cptra_rst_b = false;
+        self.v.next_cycle_high(1);
+
+        self.v.input.cptra_rst_b = true;
+        self.v.next_cycle_high(1);
+
+        // Wait for ready_for_fuses
+        while !self.v.output.ready_for_fuses {
+            self.v.next_cycle_high(1);
+        }
+    }
+
     fn ready_for_fw(&self) -> bool {
         self.v.output.ready_for_fw_push
     }

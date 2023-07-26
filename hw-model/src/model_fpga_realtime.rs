@@ -203,6 +203,14 @@ impl HwModel for ModelFpgaRealtime {
         &mut self.output
     }
 
+    fn warm_reset(&mut self) {
+        // Toggle reset pin
+        self.set_cptra_rst_b(false);
+        self.set_cptra_rst_b(true);
+        // Wait for ready_for_fuses
+        while !self.is_ready_for_fuses() {}
+    }
+
     fn ready_for_fw(&self) -> bool {
         unsafe {
             GpioInput(self.gpio.offset(GPIO_INPUT_OFFSET).read_volatile()).ready_for_fw() != 0
