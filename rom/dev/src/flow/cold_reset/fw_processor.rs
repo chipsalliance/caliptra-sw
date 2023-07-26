@@ -112,7 +112,7 @@ impl FirmwareProcessor {
     ///
     /// Mailbox transaction handle. This transaction is ManuallyDrop because we
     /// don't want the transaction to be completed with failure until after
-    /// report_error is called. This prevents a race condition where the SoC
+    /// handle_fatal_error is called. This prevents a race condition where the SoC
     /// reads FW_ERROR_NON_FATAL immediately after the mailbox transaction
     /// fails, but before caliptra has set the FW_ERROR_NON_FATAL register.
     fn download_image<'a>(
@@ -136,7 +136,7 @@ impl FirmwareProcessor {
                     .ok_or(CaliptraError::FW_PROC_MAILBOX_STATE_INCONSISTENT)?;
 
                 // This is a download-firmware command; don't drop this, as the
-                // transaction will be completed by either report_error() (on
+                // transaction will be completed by either handle_fatal_error() (on
                 // failure) or by a manual complete call upon success.
                 let txn = ManuallyDrop::new(txn.start_txn());
                 if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
@@ -204,14 +204,17 @@ impl FirmwareProcessor {
     fn update_fuse_log(log_info: &ImageVerificationLogInfo) -> CaliptraResult<()> {
         // Log VendorPubKeyIndex
         log_fuse_data(
-            FuseLogEntryId::VendorPubKeyIndex,
+            FuseLogEntryId::VendorEccPubKeyIndex,
             log_info.vendor_ecc_pub_key_idx.as_bytes(),
         )?;
 
         // Log VendorPubKeyRevocation
         log_fuse_data(
-            FuseLogEntryId::VendorPubKeyRevocation,
-            log_info.fuse_vendor_pub_key_revocation.bits().as_bytes(),
+            FuseLogEntryId::VendorEccPubKeyRevocation,
+            log_info
+                .fuse_vendor_ecc_pub_key_revocation
+                .bits()
+                .as_bytes(),
         )?;
 
         // Log ManifestFmcSvn
@@ -249,6 +252,33 @@ impl FirmwareProcessor {
             FuseLogEntryId::FuseRtSvn,
             log_info.rt_log_info.fuse_svn.as_bytes(),
         )?;
+
+        // Log VendorLmsPubKeyIndex
+        if let Some(vendor_lms_pub_key_idx) = log_info.vendor_lms_pub_key_idx {
+            log_fuse_data(
+                FuseLogEntryId::VendorLmsPubKeyIndex,
+                vendor_lms_pub_key_idx.as_bytes(),
+            )?;
+        }
+
+        // Log VendorLmsPubKeyRevocation
+        if let Some(fuse_vendor_lms_pub_key_revocation) =
+            log_info.fuse_vendor_lms_pub_key_revocation
+        {
+            log_fuse_data(
+                FuseLogEntryId::VendorLmsPubKeyRevocation,
+                fuse_vendor_lms_pub_key_revocation.bits().as_bytes(),
+            )?;
+        }
+
+        // Log OwnerLmsPubKeyIndex
+        if let Some(owner_lms_pub_key_idx) = log_info.owner_lms_pub_key_idx {
+            log_fuse_data(
+                FuseLogEntryId::OwnerLmsPubKeyIndex,
+                owner_lms_pub_key_idx.as_bytes(),
+            )?;
+        }
+
         Ok(())
     }
 
@@ -301,8 +331,6 @@ impl FirmwareProcessor {
 
         data_vault.write_cold_reset_entry4(ColdResetEntry4::FmcSvn, info.fmc.svn);
 
-        data_vault.write_cold_reset_entry4(ColdResetEntry4::FmcLoadAddr, info.fmc.load_addr);
-
         data_vault.write_cold_reset_entry4(ColdResetEntry4::FmcEntryPoint, info.fmc.entry_point);
 
         data_vault.write_cold_reset_entry48(
@@ -315,21 +343,15 @@ impl FirmwareProcessor {
             info.vendor_ecc_pub_key_idx,
         );
 
+        // [TODO] Write the Vendor and Owner Public key Indices of LMS keys.
+
         data_vault.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime.digest.into());
 
         data_vault.write_warm_reset_entry4(WarmResetEntry4::RtSvn, info.runtime.svn);
 
-        data_vault.write_warm_reset_entry4(WarmResetEntry4::RtLoadAddr, info.runtime.load_addr);
-
         data_vault.write_warm_reset_entry4(WarmResetEntry4::RtEntryPoint, info.runtime.entry_point);
 
-        // TODO: Need a better way to get the Manifest address
-        let slice = {
-            let ptr = MAN1_ORG as *const u32;
-            ptr as u32
-        };
-
-        data_vault.write_warm_reset_entry4(WarmResetEntry4::ManifestAddr, slice);
+        data_vault.write_warm_reset_entry4(WarmResetEntry4::ManifestAddr, MAN1_ORG);
         report_boot_status(FwProcessorPopulateDataVaultComplete.into());
     }
 

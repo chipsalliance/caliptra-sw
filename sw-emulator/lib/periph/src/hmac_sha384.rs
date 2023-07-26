@@ -463,9 +463,9 @@ impl HmacSha384 {
 
         let result = self.key_vault.read_key(key_id, key_usage);
         let (key_read_result, key) = match result.err() {
-            Some(BusError::LoadAccessFault) | Some(BusError::LoadAddrMisaligned) => {
-                (KeyReadStatus::ERROR::KV_READ_FAIL.value, None)
-            }
+            Some(BusError::LoadAccessFault)
+            | Some(BusError::LoadAddrMisaligned)
+            | Some(BusError::InstrAccessFault) => (KeyReadStatus::ERROR::KV_READ_FAIL.value, None),
             Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
                 (KeyReadStatus::ERROR::KV_WRITE_FAIL.value, None)
             }
@@ -496,9 +496,9 @@ impl HmacSha384 {
         key_usage.set_hmac_data(true);
 
         let error_code = match self.key_vault.read_key_as_data(key_id, key_usage) {
-            Err(BusError::LoadAccessFault) | Err(BusError::LoadAddrMisaligned) => {
-                KeyReadStatus::ERROR::KV_READ_FAIL.value
-            }
+            Err(BusError::LoadAccessFault)
+            | Err(BusError::LoadAddrMisaligned)
+            | Err(BusError::InstrAccessFault) => KeyReadStatus::ERROR::KV_READ_FAIL.value,
             Err(BusError::StoreAccessFault) | Err(BusError::StoreAddrMisaligned) => {
                 KeyReadStatus::ERROR::KV_WRITE_FAIL.value
             }
@@ -556,9 +556,9 @@ impl HmacSha384 {
             )
             .err()
         {
-            Some(BusError::LoadAccessFault) | Some(BusError::LoadAddrMisaligned) => {
-                TagWriteStatus::ERROR::KV_READ_FAIL.value
-            }
+            Some(BusError::LoadAccessFault)
+            | Some(BusError::LoadAddrMisaligned)
+            | Some(BusError::InstrAccessFault) => TagWriteStatus::ERROR::KV_READ_FAIL.value,
             Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
                 TagWriteStatus::ERROR::KV_WRITE_FAIL.value
             }

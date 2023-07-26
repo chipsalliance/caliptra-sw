@@ -16,6 +16,9 @@ use caliptra_emu_types::{RvAddr, RvData, RvSize};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum BusError {
+    /// Instruction access exception
+    InstrAccessFault,
+
     /// Load address misaligned exception
     LoadAddrMisaligned,
 

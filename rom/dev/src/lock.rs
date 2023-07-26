@@ -57,10 +57,6 @@ fn lock_cold_reset_reg(env: &mut RomEnv) {
     env.data_vault
         .lock_cold_reset_entry4(ColdResetEntry4::FmcSvn);
 
-    // Lock the FMC load address in data vault until next cold reset
-    env.data_vault
-        .lock_cold_reset_entry4(ColdResetEntry4::FmcLoadAddr);
-
     // Lock the FMC entry point in data vault until next cold reset
     env.data_vault
         .lock_cold_reset_entry4(ColdResetEntry4::FmcEntryPoint);
@@ -87,10 +83,6 @@ fn lock_common_reg_set(env: &mut RomEnv) {
     // Lock the Runtime SVN  in data vault until next reset
     env.data_vault
         .lock_warm_reset_entry4(WarmResetEntry4::RtSvn);
-
-    // Lock the Runtime load address in data vault until next reset
-    env.data_vault
-        .lock_warm_reset_entry4(WarmResetEntry4::RtLoadAddr);
 
     // Lock the Runtime entry point in data vault until next reset
     env.data_vault

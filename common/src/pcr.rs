@@ -11,6 +11,7 @@ Abstract:
 
 --*/
 
+use caliptra_drivers::PcrId;
 use zerocopy::{AsBytes, FromBytes};
 
 // PcrLogEntryId is used to identify the PCR entry and
@@ -45,6 +46,7 @@ impl From<u16> for PcrLogEntryId {
             6 => PcrLogEntryId::VendorPubKeyIndex,
             7 => PcrLogEntryId::FmcTci,
             8 => PcrLogEntryId::FmcSvn,
+            9 => PcrLogEntryId::FmcFuseSvn,
             _ => PcrLogEntryId::Invalid,
         }
     }
@@ -65,3 +67,6 @@ pub struct PcrLogEntry {
 
     pub reserved: [u8; 4],
 }
+
+pub const RT_FW_CURRENT_PCR: PcrId = PcrId::PcrId3;
+pub const RT_FW_JOURNEY_PCR: PcrId = PcrId::PcrId2;

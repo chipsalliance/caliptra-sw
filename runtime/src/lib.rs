@@ -3,6 +3,7 @@
 #![no_std]
 
 pub mod dice;
+mod update;
 mod verify;
 
 // Used by runtime tests
@@ -22,6 +23,7 @@ use caliptra_registers::{
     ecc::EccReg,
     mbox::{enums::MboxStatusE, MboxCsr},
     sha512_acc::Sha512AccCsr,
+    soc_ifc::SocIfcReg,
 };
 use zerocopy::{AsBytes, FromBytes};
 
@@ -63,6 +65,7 @@ pub struct Drivers<'a> {
     pub sha_acc: Sha512AccCsr,
     pub ecdsa: Ecc384,
     pub data_vault: DataVault,
+    pub soc_ifc: SocIfcReg,
     pub fht: &'a mut FirmwareHandoffTable,
 }
 impl<'a> Drivers<'a> {
@@ -77,6 +80,7 @@ impl<'a> Drivers<'a> {
             sha_acc: Sha512AccCsr::new(),
             ecdsa: Ecc384::new(EccReg::new()),
             data_vault: DataVault::new(DvReg::new()),
+            soc_ifc: SocIfcReg::new(),
             fht,
         }
     }
@@ -112,7 +116,18 @@ fn wait_for_cmd(_mbox: &mut Mailbox) {
 }
 
 fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
+    // For firmware update, don't read data from the mailbox
+    if drivers.mbox.cmd() == CommandId::FIRMWARE_LOAD.into() {
+        update::handle_impactless_update(drivers)?;
+
+        // If the handler succeeds but does not invoke reset that is
+        // unexpected. Denote that the update failed.
+        return Err(CaliptraError::RUNTIME_UNEXPECTED_UPDATE_RETURN);
+    }
+
+    // Get the command bytes
     let packet = Packet::copy_from_mbox(drivers)?;
+    let cmd_bytes = packet.as_bytes()?;
 
     cprintln!(
         "[rt] Received command=0x{:x}, len={}",
@@ -120,11 +135,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         packet.len
     );
 
-    // Get the command bytes
-    let cmd_bytes = packet.as_bytes()?;
-
     match CommandId::from(packet.cmd) {
-        CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        // FIRMWARE_LOAD expected to already be handled
+        CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNEXPECTED_UPDATE_RETURN),
         CommandId::GET_IDEV_CSR => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_LDEV_CERT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::ECDSA384_VERIFY => {

@@ -68,6 +68,8 @@ void caliptra_verilated_eval(struct caliptra_verilated* model,
   v->itrng_data = in->itrng_data;
   v->itrng_valid = in->itrng_valid;
 
+  v->sram_error_injection_mode = in->sram_error_injection_mode;
+
   if (model->tfp.get()) {
     model->tfp->dump(model->sim_time++);
   }

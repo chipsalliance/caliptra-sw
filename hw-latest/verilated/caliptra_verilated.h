@@ -29,6 +29,8 @@ struct caliptra_verilated_sig_in {
 
   uint8_t itrng_data;
   bool itrng_valid;
+
+  uint8_t sram_error_injection_mode;
 };
 
 struct caliptra_verilated_sig_out {

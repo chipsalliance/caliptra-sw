@@ -6,7 +6,7 @@ file mkdir $outputDir
 file mkdir $packageDir
 
 # Path to rtl
-set rtlDir ../caliptra-rtl-fpga
+set rtlDir ../caliptra-rtl
 
 # Simplistic processing of command line arguments to enable different features
 # Defaults:
@@ -101,19 +101,12 @@ remove_files [ glob $rtlDir/src/ecc/rtl/ecc_ram_tdp_file.sv ]
 # Key Vault is very large. Replacing KV with a version with the minimum number of entries.
 remove_files [ glob $rtlDir/src/keyvault/rtl/kv_reg.sv ]
 
-# Add ICCM/DCCM definitions from testbench
-add_files [ glob $rtlDir/src/integration/tb/caliptra_veer_sram_export.sv ]
-
 # Add FPGA specific sources
 add_files [ glob ./src/*.sv]
 add_files [ glob ./src/*.v]
 
 # Mark all Verilog sources as SystemVerilog because some of them have SystemVerilog syntax.
 set_property file_type SystemVerilog [get_files *.v]
-
-# sha512_param.sv is actually a header that gets included. Issue #38.
-# Error without this: "Cannot open include file 'sha512_param.sv"
-set_property file_type {Verilog Header} [get_files  $rtlDir/src/sha512/rtl/sha512_param.sv]
 
 # Exception: caliptra_package_top.v needs to be Verilog to be included in a Block Diagram.
 set_property file_type Verilog [get_files  ./src/caliptra_package_top.v]
@@ -264,5 +257,5 @@ if {$BUILD} {
   launch_runs impl_1 -jobs 10
   wait_on_runs impl_1
   open_run impl_1
-  write_bitstream -bin_file /tmp/caliptra_fpga
+  write_bitstream -bin_file $outputDir/caliptra_fpga
 }

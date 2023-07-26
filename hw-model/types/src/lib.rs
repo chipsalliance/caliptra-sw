@@ -167,6 +167,8 @@ pub struct Fuses {
     pub idevid_cert_attr: [u32; 24],
     pub idevid_manuf_hsm_id: [u32; 4],
     pub life_cycle: DeviceLifecycle,
+    pub lms_verify: bool,
+    pub fuse_lms_revocation: u32,
 }
 impl Default for Fuses {
     fn default() -> Self {
@@ -182,6 +184,8 @@ impl Default for Fuses {
             idevid_cert_attr: Default::default(),
             idevid_manuf_hsm_id: Default::default(),
             life_cycle: Default::default(),
+            lms_verify: Default::default(),
+            fuse_lms_revocation: Default::default(),
         }
     }
 }
@@ -207,6 +211,14 @@ impl<R: RngCore> Iterator for RandomEtrngResponses<R> {
             data: array::from_fn(|_| self.0.next_u32()),
         })
     }
+}
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum ErrorInjectionMode {
+    #[default]
+    None,
+    IccmDoubleBitEcc,
+    DccmDoubleBitEcc,
 }
 
 #[cfg(test)]

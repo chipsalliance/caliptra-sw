@@ -195,30 +195,42 @@ fn get_pcr_entry(entry_index: usize) -> PcrLogEntry {
     PcrLogEntry::read_from_prefix(pcr_entry.as_bytes()).unwrap()
 }
 
-fn process_mailbox_commands() {
-    let mut mbox = unsafe { caliptra_registers::mbox::MboxCsr::new() };
-    let mbox = mbox.regs_mut();
-
+fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     let cmd = mbox.cmd().read();
     cprintln!("[fmc] Received command: 0x{:08X}", cmd);
     match cmd {
         0x1000_0000 => {
-            read_pcr_log(&mbox);
+            read_pcr_log(mbox);
         }
         0x1000_0001 => {
-            create_certs(&mbox);
+            create_certs(mbox);
         }
         0x1000_0002 => {
-            read_fuse_log(&mbox);
+            read_fuse_log(mbox);
         }
         0x1000_0003 => {
-            read_fht(&mbox);
+            read_fht(mbox);
         }
         0x1000_0004 => {
-            trigger_update_reset(&mbox);
+            trigger_update_reset(mbox);
         }
         _ => {}
     }
+}
+
+fn process_mailbox_commands() {
+    let mut mbox = unsafe { caliptra_registers::mbox::MboxCsr::new() };
+    let mbox = mbox.regs_mut();
+
+    #[cfg(feature = "interactive_test_fmc")]
+    loop {
+        if mbox.status().read().mbox_fsm_ps().mbox_execute_uc() {
+            process_mailbox_command(&mbox);
+        }
+    }
+
+    #[cfg(not(feature = "interactive_test_fmc"))]
+    process_mailbox_command(&mbox);
 }
 
 fn trigger_update_reset(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {

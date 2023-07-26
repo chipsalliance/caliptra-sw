@@ -27,6 +27,7 @@ pub struct caliptra_verilated_sig_in {
     pub imem_wdata: u64,
     pub itrng_data: u8,
     pub itrng_valid: bool,
+    pub sram_error_injection_mode: u8,
 }
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]

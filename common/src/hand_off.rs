@@ -208,9 +208,6 @@ pub struct FirmwareHandoffTable {
     /// May be NULL if there is no discrete module.
     pub fips_fw_load_addr_hdl: HandOffDataHandle,
 
-    /// Physical base address of Runtime FW Module in ICCM SRAM.
-    pub rt_fw_load_addr_hdl: HandOffDataHandle,
-
     /// Entry point of Runtime FW Module in ICCM SRAM.
     pub rt_fw_entry_point_hdl: HandOffDataHandle,
 
@@ -276,7 +273,7 @@ pub struct FirmwareHandoffTable {
     pub idev_dice_pub_key: Ecc384PubKey,
 
     /// Reserved for future use.
-    pub reserved: [u8; 132],
+    pub reserved: [u8; 136],
 }
 
 impl Default for FirmwareHandoffTable {
@@ -287,7 +284,6 @@ impl Default for FirmwareHandoffTable {
             fht_minor_ver: 0,
             manifest_load_addr: FHT_INVALID_ADDRESS,
             fips_fw_load_addr_hdl: FHT_INVALID_HANDLE,
-            rt_fw_load_addr_hdl: FHT_INVALID_HANDLE,
             rt_fw_entry_point_hdl: FHT_INVALID_HANDLE,
             fmc_tci_dv_hdl: FHT_INVALID_HANDLE,
             fmc_cdi_kv_hdl: FHT_INVALID_HANDLE,
@@ -303,7 +299,7 @@ impl Default for FirmwareHandoffTable {
             rt_svn_dv_hdl: FHT_INVALID_HANDLE,
             ldevid_tbs_size: 0,
             fmcalias_tbs_size: 0,
-            reserved: [0u8; 132],
+            reserved: [0u8; 136],
             ldevid_tbs_addr: 0,
             fmcalias_tbs_addr: 0,
             pcr_log_addr: 0,
@@ -326,10 +322,6 @@ pub fn print_fht(fht: &FirmwareHandoffTable) {
     crate::cprintln!(
         "FIPS FW Load Address: 0x{:08x}",
         fht.fips_fw_load_addr_hdl.0
-    );
-    crate::cprintln!(
-        "Runtime FW Load Address: 0x{:08x}",
-        fht.rt_fw_load_addr_hdl.0
     );
     crate::cprintln!(
         "Runtime FW Entry Point: 0x{:08x}",
@@ -390,7 +382,6 @@ impl FirmwareHandoffTable {
             && self.fmc_pub_key_y_dv_hdl != FHT_INVALID_HANDLE
             && self.fmc_cert_sig_r_dv_hdl != FHT_INVALID_HANDLE
             && self.fmc_cert_sig_s_dv_hdl != FHT_INVALID_HANDLE
-            && self.rt_fw_load_addr_hdl != FHT_INVALID_HANDLE
             && self.rt_tci_dv_hdl != FHT_INVALID_HANDLE
             && self.rt_fw_entry_point_hdl != FHT_INVALID_HANDLE
             // This is for Gen1 POR.
@@ -482,7 +473,6 @@ mod tests {
             && fht.fmc_pub_key_y_dv_hdl != FHT_INVALID_HANDLE
             && fht.fmc_cert_sig_r_dv_hdl != FHT_INVALID_HANDLE
             && fht.fmc_cert_sig_s_dv_hdl != FHT_INVALID_HANDLE
-            && fht.rt_fw_load_addr_hdl != FHT_INVALID_HANDLE
             && fht.rt_tci_dv_hdl != FHT_INVALID_HANDLE
             && fht.rt_fw_entry_point_hdl != FHT_INVALID_HANDLE
             // This is for Gen1 POR.

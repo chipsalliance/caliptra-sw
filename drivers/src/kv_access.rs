@@ -106,7 +106,7 @@ impl KvAccess {
     pub(crate) fn end_copy_to_arr<
         const ARR_WORD_LEN: usize,
         const ARR_BYTE_LEN: usize,
-        TReg: ureg::ReadableReg<ReadVal = u32>,
+        TReg: ureg::ReadableReg<ReadVal = u32, Raw = u32>,
         TMmio: Mmio + Copy,
     >(
         reg: ureg::Array<ARR_WORD_LEN, ureg::RegRef<TReg, TMmio>>,
@@ -176,7 +176,7 @@ impl KvAccess {
     pub(crate) fn copy_from_arr<
         const ARR_WORD_LEN: usize,
         const ARR_BYTE_LEN: usize,
-        TReg: ureg::ResettableReg + ureg::WritableReg<WriteVal = u32>,
+        TReg: ureg::ResettableReg + ureg::WritableReg<WriteVal = u32, Raw = u32>,
         TMmio: MmioMut + Copy,
     >(
         arr: &Array4xN<ARR_WORD_LEN, ARR_BYTE_LEN>,

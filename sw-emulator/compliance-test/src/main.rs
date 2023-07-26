@@ -42,7 +42,7 @@ static TESTS_TO_RUN: &[TestInfo] = &[
     TestInfo {extension: "I", name: "blt-01"},
     TestInfo {extension: "I", name: "bltu-01"},
     TestInfo {extension: "I", name: "bne-01"},
-    //TestInfo {extension: "I", name: "fence-01"},
+    TestInfo {extension: "I", name: "fence-01"},
     TestInfo {extension: "I", name: "jal-01"},
     TestInfo {extension: "I", name: "jalr-01"},
     TestInfo {extension: "I", name: "lb-align-01"},
