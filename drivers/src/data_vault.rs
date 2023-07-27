@@ -72,7 +72,8 @@ pub enum ColdResetEntry4 {
     FmcSvn = 0,
     Reserved0 = 1,
     FmcEntryPoint = 2,
-    VendorPubKeyIndex = 3,
+    EccVendorPubKeyIndex = 3,
+    LmsVendorPubKeyIndex = 4,
 }
 
 impl TryFrom<u8> for ColdResetEntry4 {
@@ -81,7 +82,8 @@ impl TryFrom<u8> for ColdResetEntry4 {
         match value {
             0 => Ok(Self::FmcSvn),
             2 => Ok(Self::FmcEntryPoint),
-            3 => Ok(Self::VendorPubKeyIndex),
+            3 => Ok(Self::EccVendorPubKeyIndex),
+            4 => Ok(Self::LmsVendorPubKeyIndex),
             _ => Err(()),
         }
     }
@@ -349,23 +351,42 @@ impl DataVault {
         self.read_cold_reset_entry4(ColdResetEntry4::FmcEntryPoint)
     }
 
-    /// Set the vendor public key index used for image verification
+    /// Set the Ecc vendor public key index used for image verification
     ///
     /// # Arguments
     ///
     /// * `pk_index` - Vendor public key index
     ///
-    pub fn set_vendor_pk_index(&mut self, pk_index: u32) {
-        self.write_lock_cold_reset_entry4(ColdResetEntry4::VendorPubKeyIndex, pk_index);
+    pub fn set_ecc_vendor_pk_index(&mut self, pk_index: u32) {
+        self.write_lock_cold_reset_entry4(ColdResetEntry4::EccVendorPubKeyIndex, pk_index);
     }
 
-    /// Get the vendor public key index used for image verification.
+    /// Get the Ecc vendor public key index used for image verification.
     ///
     /// # Returns
     ///
     /// * `u32` - Vendor public key index
-    pub fn vendor_pk_index(&self) -> u32 {
-        self.read_cold_reset_entry4(ColdResetEntry4::VendorPubKeyIndex)
+    pub fn ecc_vendor_pk_index(&self) -> u32 {
+        self.read_cold_reset_entry4(ColdResetEntry4::EccVendorPubKeyIndex)
+    }
+
+    /// Set the Lms vendor public key index used for image verification
+    ///
+    /// # Arguments
+    ///
+    /// * `pk_index` - Vendor public key index
+    ///
+    pub fn set_lms_vendor_pk_index(&mut self, pk_index: u32) {
+        self.write_lock_cold_reset_entry4(ColdResetEntry4::LmsVendorPubKeyIndex, pk_index);
+    }
+
+    /// Get the Lms vendor public key index used for image verification.
+    ///
+    /// # Returns
+    ///
+    /// * `u32` - Vendor public key index
+    pub fn lms_vendor_pk_index(&self) -> u32 {
+        self.read_cold_reset_entry4(ColdResetEntry4::LmsVendorPubKeyIndex)
     }
 
     /// Set the rt tcb component identifier.

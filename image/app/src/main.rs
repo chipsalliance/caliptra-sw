@@ -37,11 +37,6 @@ fn main() {
                 .value_parser(value_parser!(u32)),
         )
         .arg(
-            arg!(--"owner-lms-pk-idx" <U32> "Owner LMS Public Key Index")
-                .required(false)
-                .value_parser(value_parser!(u32)),
-        )
-        .arg(
             arg!(--"fmc" <FILE> "FMC ELF binary")
                 .required(true)
                 .value_parser(value_parser!(PathBuf)),
