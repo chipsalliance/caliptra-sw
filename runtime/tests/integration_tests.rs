@@ -4,16 +4,13 @@ pub mod common;
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART};
 use caliptra_drivers::Ecc384PubKey;
 use caliptra_hw_model::{HwModel, ModelError, ShaAccMode};
-<<<<<<< HEAD
-=======
-use caliptra_runtime::{CommandId, EcdsaVerifyCmd, VersionResponse};
->>>>>>> upstream/main
 use common::{run_rom_test, run_rt_test};
 use caliptra_runtime::{
     CommandId,
     MailboxReqHeader,
     MailboxRespHeader,
     EcdsaVerifyCmdReq,
+    FipsVersionResp,
 };
 use openssl::{
     bn::BigNum,
@@ -178,7 +175,7 @@ fn test_verify_cmd() {
     let resp = model
         .mailbox_execute(u32::from(CommandId::ECDSA384_VERIFY), cmd.as_bytes())
         .unwrap().expect("We should have received a response");
-    // TODO: Check the new response, the checksum and FIPS response of 0
+
     let resp_hdr: &MailboxRespHeader =
         LayoutVerified::<&[u8], MailboxRespHeader>::new(resp.as_bytes()).unwrap().into_ref();
 
@@ -221,7 +218,7 @@ fn test_fips_cmd_api() {
     let resp = model.mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes());
     assert!(resp.is_ok());
     let fips_version_resp = model
-        .mailbox_execute(u32::from(CommandId::VERSION), &cmd)
+        .mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes())
         .unwrap()
         .unwrap();
 
@@ -229,11 +226,16 @@ fn test_fips_cmd_api() {
     let fips_version_bytes: &[u8] = fips_version_resp.as_bytes();
 
     // Check values against expected.
-    let fips_version = VersionResponse::read_from(fips_version_bytes.as_bytes()).unwrap();
-    assert_eq!(fips_version.mode, VersionResponse::MODE);
+    let fips_version = FipsVersionResp::read_from(fips_version_bytes.as_bytes()).unwrap();
+    assert!(caliptra_common::checksum::verify_checksum(
+        fips_version.hdr.chksum,
+        0x0,
+        &fips_version.as_bytes()[core::mem::size_of_val(&fips_version.hdr.chksum)..],
+    ));
+    assert_eq!(fips_version.mode, FipsVersionResp::MODE);
     assert_eq!(fips_version.fips_rev, [0x01, 0x00, 0x00]);
     let name = &fips_version.name[..];
-    assert_eq!(name, VersionResponse::NAME.as_bytes());
+    assert_eq!(name, FipsVersionResp::NAME.as_bytes());
 
     // SELF_TEST
     let payload = MailboxReqHeader {
@@ -243,7 +245,7 @@ fn test_fips_cmd_api() {
     let resp = model.mailbox_execute(u32::from(CommandId::SELF_TEST), payload.as_bytes());
     assert_eq!(resp, expected_err);
     model.soc_ifc().cptra_fw_error_non_fatal().write(|_| 0);
-    
+
     // SHUTDOWN
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::SHUTDOWN), &[]),
@@ -254,7 +256,10 @@ fn test_fips_cmd_api() {
 
     // Check we are rejecting additional commands with the shutdown error code.
     let expected_err = Err(ModelError::MailboxCmdFailed(0x000E0008));
-    let resp = model.mailbox_execute(u32::from(CommandId::VERSION), &cmd);
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::VERSION), &[]),
+    };
+    let resp = model.mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes());
     assert_eq!(resp, expected_err);
 }
 

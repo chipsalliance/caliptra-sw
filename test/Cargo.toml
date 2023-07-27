@@ -11,6 +11,8 @@ edition = "2021"
 zerocopy = "0.6.1"
 openssl = { version = "0.10", features = ["vendored"] }
 caliptra-hw-model-types = { path = "../hw-model/types" }
+caliptra_common = { path = "../common", default-features = false }
+caliptra-runtime = { path = "../runtime", default-features = false }
 asn1 = "0.13.0"
 
 [dev-dependencies]

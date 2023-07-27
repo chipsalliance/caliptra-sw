@@ -137,6 +137,7 @@ Table: `GET_IDEV_CSR` output arguments
 | --------    | --------   | ---------------
 | chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips_status | u32        | Indicates if the command is FIPS approved or an error
+| data_size   | u32        | Length in bytes of the valid data in the data field
 | data        | u8[...]    | DER-encoded IDevID CSR
 
 ### GET\_LDEV\_CERT
@@ -158,6 +159,7 @@ Table: `GET_LDEV_CERT` output arguments
 | --------    | --------   | ---------------
 | chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips_status | u32        | Indicates if the command is FIPS approved or an error
+| data_size   | u32        | Length in bytes of the valid data in the data field
 | data        | u8[...]    | DER-encoded LDevID Certificate
 
 ### ECDSA384\_SIGNATURE\_VERIFY
@@ -249,6 +251,7 @@ Table: `INVOKE_DPE_COMMAND` input arguments
 | **Name**     | **Type**      | **Description**
 | --------     | --------      | ---------------
 | chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| data_size    | u32           | Length in bytes of the valid data in the data field
 | data         | u8[...]       | DPE command structure as defined in the DPE iRoT profile
 
 
@@ -258,6 +261,7 @@ Table: `INVOKE_DPE_COMMAND` output arguments
 | --------    | --------      | ---------------
 | chksum      | u32           | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips_status | u32           | Indicates if the command is FIPS approved or an error
+| data_size   | u32           | Length in bytes of the valid data in the data field
 | data        | u8[...]       | DPE response structure as defined in the DPE iRoT profile.
 
 ## Checksum

@@ -3,7 +3,7 @@ pub mod common;
 
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{HwModel, ModelError, ShaAccMode};
-use caliptra_runtime::{CommandId, EcdsaVerifyCmd};
+use caliptra_runtime::{CommandId, MailboxReqHeader, EcdsaVerifyCmdReq};
 use common::run_rom_test;
 use zerocopy::AsBytes;
 
@@ -127,15 +127,17 @@ fn test_r_s_ranges() {
             .compute_sha512_acc_digest(c.msg, ShaAccMode::Sha384Stream)
             .unwrap();
 
-        let mut cmd = EcdsaVerifyCmd {
-            chksum: 0,
+        let mut cmd = EcdsaVerifyCmdReq {
+            hdr: MailboxReqHeader{
+                chksum: 0,
+            },
             pub_key_x: c.pub_x,
             pub_key_y: c.pub_y,
             signature_r: c.sig_r,
             signature_s: c.sig_s,
         };
 
-        cmd.chksum = caliptra_common::checksum::calc_checksum(
+        cmd.hdr.chksum = caliptra_common::checksum::calc_checksum(
             u32::from(CommandId::ECDSA384_VERIFY),
             &cmd.as_bytes()[4..],
         );

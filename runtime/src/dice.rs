@@ -2,7 +2,7 @@
 
 use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault};
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
-use crate::{MailboxResp, MailboxRespHeader, GetLdevCsrResp, TestGetFmcAliasCertResp};
+use crate::{MailboxResp, MailboxRespHeader, GetLdevCertResp, TestGetFmcAliasCertResp};
 
 extern "C" {
     static mut LDEVID_TBS_ORG: [u8; LocalDevIdCertTbs::TBS_TEMPLATE_LEN];
@@ -58,11 +58,11 @@ fn cert_from_dccm(dv: &DataVault, cert: &mut [u8], cert_type: CertType) -> Calip
 ///
 /// Returns the response payload as MailboxResp
 pub fn handle_get_ldevid_cert(dv: &DataVault) -> CaliptraResult<MailboxResp> {
-    let mut cert = [0u8; GetLdevCsrResp::DATA_MAX_SIZE];
+    let mut cert = [0u8; GetLdevCertResp::DATA_MAX_SIZE];
 
     let cert_size = copy_ldevid_cert(dv, &mut cert)?;
 
-    Ok(MailboxResp::GetLdevCsr(GetLdevCsrResp {
+    Ok(MailboxResp::GetLdevCert(GetLdevCertResp {
         hdr: MailboxRespHeader::default(),
         data_size: cert_size as u32,
         data: cert,

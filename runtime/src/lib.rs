@@ -18,17 +18,18 @@ pub use mailbox_api::{
     MailboxReqHeader,
     MailboxRespHeader,
     GetIdevCsrResp,
-    GetLdevCsrResp,
+    GetLdevCertResp,
     EcdsaVerifyCmdReq,
     StashMeasurementReq,
     StashMeasurementResp,
     InvokeDpeCommandReq,
     InvokeDpeCommandResp,
     TestGetFmcAliasCertResp,
+    FipsVersionResp,
 };
 
 pub mod packet;
-pub use fips::{FipsModule, VersionResponse};
+pub use fips::FipsModule;
 use packet::Packet;
 
 use caliptra_common::memory_layout::{

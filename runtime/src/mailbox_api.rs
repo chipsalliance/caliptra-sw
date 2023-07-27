@@ -14,6 +14,7 @@ impl CommandId {
     pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
     pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
 
+    // TODO: Remove this and merge with GET_LDEV_CERT once that is implemented
     pub const TEST_ONLY_GET_LDEV_CERT: Self = Self(0x4345524c); // "CERL"
     pub const TEST_ONLY_GET_FMC_ALIAS_CERT: Self = Self(0x43455246); // "CERF"
 
@@ -41,10 +42,11 @@ impl From<CommandId> for u32 {
 pub enum MailboxResp {
     Header(MailboxRespHeader),
     GetIdevCsr(GetIdevCsrResp),
-    GetLdevCsr(GetLdevCsrResp),
+    GetLdevCert(GetLdevCertResp),
     StashMeasurement(StashMeasurementResp),
     InvokeDpeCommand(InvokeDpeCommandResp),
     TestGetFmcAliasCert(TestGetFmcAliasCertResp),
+    FipsVersion(FipsVersionResp),
 }
 
 impl MailboxResp {
@@ -52,10 +54,11 @@ impl MailboxResp {
         match self {
             MailboxResp::Header(resp) => resp.as_bytes(),
             MailboxResp::GetIdevCsr(resp) => resp.as_bytes(),
-            MailboxResp::GetLdevCsr(resp) => resp.as_bytes(),
+            MailboxResp::GetLdevCert(resp) => resp.as_bytes(),
             MailboxResp::StashMeasurement(resp) => resp.as_bytes(),
             MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes(),
             MailboxResp::TestGetFmcAliasCert(resp) => resp.as_bytes(),
+            MailboxResp::FipsVersion(resp) => resp.as_bytes(),
         }
     }
 
@@ -63,10 +66,11 @@ impl MailboxResp {
         match self {
             MailboxResp::Header(resp) => resp.as_bytes_mut(),
             MailboxResp::GetIdevCsr(resp) => resp.as_bytes_mut(),
-            MailboxResp::GetLdevCsr(resp) => resp.as_bytes_mut(),
+            MailboxResp::GetLdevCert(resp) => resp.as_bytes_mut(),
             MailboxResp::StashMeasurement(resp) => resp.as_bytes_mut(),
             MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes_mut(),
             MailboxResp::TestGetFmcAliasCert(resp) => resp.as_bytes_mut(),
+            MailboxResp::FipsVersion(resp) => resp.as_bytes_mut(),
         }
     }
 
@@ -97,13 +101,13 @@ impl Default for MailboxResp {
 
 // HEADER
 #[repr(C)]
-#[derive(AsBytes, FromBytes)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct MailboxReqHeader {
     pub chksum: i32,
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct MailboxRespHeader {
     pub chksum: i32,
     pub fips_status: u32,
@@ -125,7 +129,7 @@ impl Default for MailboxRespHeader {
 // GET_IDEV_CSR
 // No command-specific input args
 #[repr(C)]
-#[derive(AsBytes, FromBytes)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct GetIdevCsrResp {
     pub hdr: MailboxRespHeader,
     pub data_size: u32,
@@ -138,19 +142,19 @@ impl GetIdevCsrResp {
 // GET_LDEV_CERT
 // No command-specific input args
 #[repr(C)]
-#[derive(AsBytes, FromBytes)]
-pub struct GetLdevCsrResp {
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct GetLdevCertResp {
     pub hdr: MailboxRespHeader,
     pub data_size: u32,
-    pub data: [u8; GetLdevCsrResp::DATA_MAX_SIZE], // variable length
+    pub data: [u8; GetLdevCertResp::DATA_MAX_SIZE], // variable length
 }
-impl GetLdevCsrResp {
+impl GetLdevCertResp {
     pub const DATA_MAX_SIZE: usize = 1024;
 }
 
 // ECDSA384_SIGNATURE_VERIFY
 #[repr(C)]
-#[derive(AsBytes, FromBytes)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct EcdsaVerifyCmdReq {
     pub hdr: MailboxReqHeader,
     pub pub_key_x: [u8; 48],
@@ -162,7 +166,7 @@ pub struct EcdsaVerifyCmdReq {
 
 // STASH_MEASUREMENT
 #[repr(C)]
-#[derive(AsBytes, FromBytes)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct StashMeasurementReq {
     pub hdr: MailboxReqHeader,
     pub metadata: [u8; 4],
@@ -170,7 +174,7 @@ pub struct StashMeasurementReq {
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct StashMeasurementResp {
     pub hdr: MailboxRespHeader,
     pub dpe_result: u32,
@@ -182,7 +186,7 @@ pub struct StashMeasurementResp {
 
 // INVOKE_DPE_COMMAND
 #[repr(C)]
-#[derive(AsBytes, FromBytes)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct InvokeDpeCommandReq {
     pub hdr: MailboxReqHeader,
     pub data_size: u32,
@@ -193,7 +197,7 @@ impl InvokeDpeCommandReq {
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct InvokeDpeCommandResp {
     pub hdr: MailboxRespHeader,
     pub data_size: u32,
@@ -206,7 +210,7 @@ impl InvokeDpeCommandResp {
 // TEST_ONLY_GET_FMC_ALIAS_CERT
 // No command-specific input args
 #[repr(C)]
-#[derive(AsBytes, FromBytes)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct TestGetFmcAliasCertResp {
     pub hdr: MailboxRespHeader,
     pub data_size: u32,
@@ -214,4 +218,20 @@ pub struct TestGetFmcAliasCertResp {
 }
 impl TestGetFmcAliasCertResp {
     pub const DATA_MAX_SIZE: usize = 1024;
+}
+
+// FIPS_GET_VERSION
+// No command-specific input args
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct FipsVersionResp {
+    pub hdr: MailboxRespHeader,
+    pub mode: u32,
+    pub fips_rev: [u32; 3],
+    pub name: [u8; 12],
+}
+
+impl FipsVersionResp {
+    pub const NAME: [u8; 12] = *b"Caliptra RTM";
+    pub const MODE: u32 = 0x46495053;
 }

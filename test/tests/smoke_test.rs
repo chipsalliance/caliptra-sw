@@ -8,9 +8,15 @@ use caliptra_test::{
     swap_word_bytes, swap_word_bytes_inplace,
     x509::{DiceFwid, DiceTcbInfo},
 };
+use caliptra_runtime::{
+    CommandId,
+    MailboxReqHeader,
+    GetLdevCertResp,
+    TestGetFmcAliasCertResp,
+};
 use openssl::sha::sha384;
 use std::{io::Write, mem};
-use zerocopy::AsBytes;
+use zerocopy::{AsBytes, FromBytes};
 
 #[track_caller]
 fn assert_output_contains(haystack: &str, needle: &str) {
@@ -174,20 +180,27 @@ fn smoke_test() {
  \____\__,_|_|_| .__/ \__|_|  \__,_| |_| \_\|_|"#,
     );
 
-    // TODO: Can we just grab these from the shared API file now or is hardcoding them 
-    //       better for the test intent?
-    const TEST_ONLY_GET_LDEV_CERT: u32 = 0x4C444556; // "LDEV"
-    const TEST_ONLY_GET_FMC_ALIAS_CERT: u32 = 0x43455246; // "CERF"
-
-    let checksum = caliptra_common::checksum::calc_checksum(TEST_ONLY_GET_LDEV_CERT, &[]);
-    let cmd_payload = MailboxReqCommon {
-        chksum: checksum,
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::TEST_ONLY_GET_LDEV_CERT), &[]),
     };
 
-    let ldev_cert_der = hw
-        .mailbox_execute(TEST_ONLY_GET_LDEV_CERT, &[])
+    // Execute the command
+    let ldev_cert_resp = hw
+        .mailbox_execute(u32::from(CommandId::TEST_ONLY_GET_LDEV_CERT), payload.as_bytes())
         .unwrap()
         .unwrap();
+
+    let ldev_cert_resp = GetLdevCertResp::read_from(ldev_cert_resp.as_bytes()).unwrap();
+
+    // Verify checksum
+    assert!(caliptra_common::checksum::verify_checksum(
+        ldev_cert_resp.hdr.chksum,
+        0x0,
+        &ldev_cert_resp.as_bytes()[core::mem::size_of_val(&ldev_cert_resp.hdr.chksum)..],
+    ));
+
+    // Extract the certificate from the response
+    let ldev_cert_der = &ldev_cert_resp.data[..(ldev_cert_resp.data_size as usize)];
     let ldev_cert = openssl::x509::X509::from_der(&ldev_cert_der).unwrap();
     let ldev_cert_txt = String::from_utf8(ldev_cert.to_text().unwrap()).unwrap();
 
@@ -224,15 +237,27 @@ fn smoke_test() {
 
     println!("ldev-cert: {}", ldev_cert_txt);
 
-    let checksum = caliptra_common::checksum::calc_checksum(TEST_ONLY_GET_FMC_ALIAS_CERT, &[]);
-    let cmd_payload = MailboxReqCommon {
-        chksum: checksum,
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT), &[]),
     };
 
-    let fmc_alias_cert_der = hw
-        .mailbox_execute(TEST_ONLY_GET_FMC_ALIAS_CERT, cmd_payload.as_bytes())
-        .unwrap()
-        .unwrap();
+    // Execute command
+    let fmc_alias_cert_resp = hw
+    .mailbox_execute(u32::from(CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT), payload.as_bytes())
+    .unwrap()
+    .unwrap();
+
+    let fmc_alias_cert_resp = TestGetFmcAliasCertResp::read_from(fmc_alias_cert_resp.as_bytes()).unwrap();
+
+    // Verify checksum
+    assert!(caliptra_common::checksum::verify_checksum(
+        fmc_alias_cert_resp.hdr.chksum,
+        0x0,
+        &fmc_alias_cert_resp.as_bytes()[core::mem::size_of_val(&fmc_alias_cert_resp.hdr.chksum)..],
+    ));
+
+    // Extract the certificate from the response
+    let fmc_alias_cert_der = &fmc_alias_cert_resp.data[..(fmc_alias_cert_resp.data_size as usize)];
     let fmc_alias_cert = openssl::x509::X509::from_der(&fmc_alias_cert_der).unwrap();
 
     println!(
