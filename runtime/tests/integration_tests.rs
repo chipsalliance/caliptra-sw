@@ -4,6 +4,10 @@ pub mod common;
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART};
 use caliptra_drivers::Ecc384PubKey;
 use caliptra_hw_model::{HwModel, ModelError, ShaAccMode};
+<<<<<<< HEAD
+=======
+use caliptra_runtime::{CommandId, EcdsaVerifyCmd, VersionResponse};
+>>>>>>> upstream/main
 use common::{run_rom_test, run_rt_test};
 use caliptra_runtime::{
     CommandId,
@@ -215,15 +219,21 @@ fn test_fips_cmd_api() {
     };
 
     let resp = model.mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes());
-    assert_eq!(resp, expected_err);
+    assert!(resp.is_ok());
+    let fips_version_resp = model
+        .mailbox_execute(u32::from(CommandId::VERSION), &cmd)
+        .unwrap()
+        .unwrap();
 
-    // SHUTDOWN
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::SHUTDOWN), &[]),
-    };
+    // Check command size
+    let fips_version_bytes: &[u8] = fips_version_resp.as_bytes();
 
-    let resp = model.mailbox_execute(u32::from(CommandId::SHUTDOWN), payload.as_bytes());
-    assert_eq!(resp, expected_err);
+    // Check values against expected.
+    let fips_version = VersionResponse::read_from(fips_version_bytes.as_bytes()).unwrap();
+    assert_eq!(fips_version.mode, VersionResponse::MODE);
+    assert_eq!(fips_version.fips_rev, [0x01, 0x00, 0x00]);
+    let name = &fips_version.name[..];
+    assert_eq!(name, VersionResponse::NAME.as_bytes());
 
     // SELF_TEST
     let payload = MailboxReqHeader {
@@ -232,15 +242,19 @@ fn test_fips_cmd_api() {
 
     let resp = model.mailbox_execute(u32::from(CommandId::SELF_TEST), payload.as_bytes());
     assert_eq!(resp, expected_err);
-
-    // Send something that is not a valid RT command.
-    let expected_err = Err(ModelError::MailboxCmdFailed(0xe0002));
-    const INVALID_CMD: u32 = 0xAABBCCDD;
+    model.soc_ifc().cptra_fw_error_non_fatal().write(|_| 0);
+    
+    // SHUTDOWN
     let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(INVALID_CMD, &[]),
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::SHUTDOWN), &[]),
     };
 
-    let resp = model.mailbox_execute(INVALID_CMD, payload.as_bytes());
+    let resp = model.mailbox_execute(u32::from(CommandId::SHUTDOWN), payload.as_bytes());
+    assert!(resp.is_ok());
+
+    // Check we are rejecting additional commands with the shutdown error code.
+    let expected_err = Err(ModelError::MailboxCmdFailed(0x000E0008));
+    let resp = model.mailbox_execute(u32::from(CommandId::VERSION), &cmd);
     assert_eq!(resp, expected_err);
 }
 
@@ -282,5 +296,15 @@ fn test_unimplemented_cmds() {
     };
 
     resp = model.mailbox_execute(u32::from(CommandId::INVOKE_DPE), payload.as_bytes());
+    assert_eq!(resp, expected_err);
+
+    // Send something that is not a valid RT command.
+    let expected_err = Err(ModelError::MailboxCmdFailed(0xe0002));
+    const INVALID_CMD: u32 = 0xAABBCCDD;
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(INVALID_CMD, &[]),
+    };
+
+    let resp = model.mailbox_execute(INVALID_CMD, payload.as_bytes());
     assert_eq!(resp, expected_err);
 }

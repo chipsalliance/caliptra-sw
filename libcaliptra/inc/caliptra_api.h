@@ -50,6 +50,12 @@ struct caliptra_fuses {
     enum DeviceLifecycle life_cycle;
 };
 
+struct caliptra_fips_version {
+    uint32_t mode;
+    uint32_t fips_rev[3];
+    uint8_t name[12];
+};
+
 // Query if ROM is ready for fuses
 bool caliptra_ready_for_fuses(void);
 
@@ -64,6 +70,9 @@ bool caliptra_ready_for_firmware(void);
 
 // Upload Caliptra Firmware
 int caliptra_upload_fw(struct caliptra_buffer *fw_buffer);
+
+// Read Caliptra FIPS Version
+int caliptra_get_fips_version(struct caliptra_fips_version *version);
 
 // Execute Mailbox Command
 int caliptra_mailbox_execute(uint32_t cmd, struct caliptra_buffer *mbox_tx_buffer, struct caliptra_buffer *mbox_rx_buffer);
