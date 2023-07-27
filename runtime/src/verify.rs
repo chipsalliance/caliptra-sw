@@ -1,16 +1,13 @@
 // Licensed under the Apache-2.0 license
 
-use crate::{Drivers, EcdsaVerifyCmdReq};
+use crate::{Drivers, MailboxResp, EcdsaVerifyCmdReq};
 use caliptra_drivers::{
     Array4x12, CaliptraError, CaliptraResult, Ecc384PubKey, Ecc384Scalar, Ecc384Signature,
 };
 use zerocopy::FromBytes;
 
-/// Start of payload (skips checksum field).
-const PAYLOAD_OFFSET: usize = 4;
-
 /// Handle the `ECDSA384_SIGNATURE_VERIFY` mailbox command
-pub(crate) fn handle_ecdsa_verify(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<()> {
+pub(crate) fn handle_ecdsa_verify(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
     if let Some(cmd) = EcdsaVerifyCmdReq::read_from(cmd_args) {
         // Won't panic, full_digest is always larger than digest
         let full_digest = drivers.sha_acc.regs().digest().read();
@@ -37,5 +34,5 @@ pub(crate) fn handle_ecdsa_verify(drivers: &mut Drivers, cmd_args: &[u8]) -> Cal
         return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
     };
 
-    Ok(())
+    Ok(MailboxResp::default())
 }

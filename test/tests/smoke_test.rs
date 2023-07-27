@@ -174,8 +174,15 @@ fn smoke_test() {
  \____\__,_|_|_| .__/ \__|_|  \__,_| |_| \_\|_|"#,
     );
 
-    const TEST_ONLY_GET_LDEV_CERT: u32 = 0x4345524c; // "CERL"
+    // TODO: Can we just grab these from the shared API file now or is hardcoding them 
+    //       better for the test intent?
+    const TEST_ONLY_GET_LDEV_CERT: u32 = 0x4C444556; // "LDEV"
     const TEST_ONLY_GET_FMC_ALIAS_CERT: u32 = 0x43455246; // "CERF"
+
+    let checksum = caliptra_common::checksum::calc_checksum(TEST_ONLY_GET_LDEV_CERT, &[]);
+    let cmd_payload = MailboxReqCommon {
+        chksum: checksum,
+    };
 
     let ldev_cert_der = hw
         .mailbox_execute(TEST_ONLY_GET_LDEV_CERT, &[])
@@ -217,8 +224,13 @@ fn smoke_test() {
 
     println!("ldev-cert: {}", ldev_cert_txt);
 
+    let checksum = caliptra_common::checksum::calc_checksum(TEST_ONLY_GET_FMC_ALIAS_CERT, &[]);
+    let cmd_payload = MailboxReqCommon {
+        chksum: checksum,
+    };
+
     let fmc_alias_cert_der = hw
-        .mailbox_execute(TEST_ONLY_GET_FMC_ALIAS_CERT, &[])
+        .mailbox_execute(TEST_ONLY_GET_FMC_ALIAS_CERT, cmd_payload.as_bytes())
         .unwrap()
         .unwrap();
     let fmc_alias_cert = openssl::x509::X509::from_der(&fmc_alias_cert_der).unwrap();

@@ -2,25 +2,24 @@
 use caliptra_common::cprintln;
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::CaliptraResult;
-use caliptra_registers::mbox::enums::MboxStatusE;
 
-use crate::Drivers;
+use crate::{Drivers, MailboxResp};
 
 /// Fips command handler.
 pub struct FipsModule;
 
 impl FipsModule {
-    pub fn version(_env: &Drivers) -> CaliptraResult<()> {
+    pub fn version(_env: &Drivers) -> CaliptraResult<MailboxResp> {
         cprintln!("[rt] FIPS Version");
         Err(CaliptraError::RUNTIME_FIPS_UNIMPLEMENTED)
     }
 
-    pub fn self_test(_env: &Drivers) -> CaliptraResult<()> {
+    pub fn self_test(_env: &Drivers) -> CaliptraResult<MailboxResp> {
         cprintln!("[rt] FIPS self test");
         Err(CaliptraError::RUNTIME_FIPS_UNIMPLEMENTED)
     }
 
-    pub fn shutdown(_env: &Drivers) -> CaliptraResult<()> {
+    pub fn shutdown(_env: &Drivers) -> CaliptraResult<MailboxResp> {
         cprintln!("[rt] FIPS shutdown");
         Err(CaliptraError::RUNTIME_FIPS_UNIMPLEMENTED)
     }

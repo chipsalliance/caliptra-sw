@@ -44,7 +44,7 @@ pub enum MailboxResp {
     GetLdevCsr(GetLdevCsrResp),
     StashMeasurement(StashMeasurementResp),
     InvokeDpeCommand(InvokeDpeCommandResp),
-    TestGetCert(TestGetCertResp),
+    TestGetFmcAliasCert(TestGetFmcAliasCertResp),
 }
 
 impl MailboxResp {
@@ -55,7 +55,7 @@ impl MailboxResp {
             MailboxResp::GetLdevCsr(resp) => resp.as_bytes(),
             MailboxResp::StashMeasurement(resp) => resp.as_bytes(),
             MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes(),
-            MailboxResp::TestGetCert(resp) => resp.as_bytes(),
+            MailboxResp::TestGetFmcAliasCert(resp) => resp.as_bytes(),
         }
     }
 
@@ -66,20 +66,15 @@ impl MailboxResp {
             MailboxResp::GetLdevCsr(resp) => resp.as_bytes_mut(),
             MailboxResp::StashMeasurement(resp) => resp.as_bytes_mut(),
             MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes_mut(),
-            MailboxResp::TestGetCert(resp) => resp.as_bytes_mut(),
+            MailboxResp::TestGetFmcAliasCert(resp) => resp.as_bytes_mut(),
         }
     }
 
     /// Calculate and set the checksum for a response payload
     /// Takes into account the size override for variable-lenth payloads
-    pub fn populate_chksum(&mut self, size_ovrd: Option<usize>) -> CaliptraResult<()> {
+    pub fn populate_chksum(&mut self) -> CaliptraResult<()> {
         // Calc checksum, use the size override if provided
-        let checksum = match size_ovrd {
-            // No cmd associated a response, use 0 for checksum calc
-            // TODO: Fix this 4
-            Some(size) => caliptra_common::checksum::calc_checksum(0, &self.as_bytes()[4..size]),
-            None => caliptra_common::checksum::calc_checksum(0, &self.as_bytes()[4..]),
-        };
+        let checksum = caliptra_common::checksum::calc_checksum(0, &self.as_bytes()[4..]);
 
         // cast as header struct
         let hdr: &mut MailboxRespHeader =
@@ -92,7 +87,12 @@ impl MailboxResp {
 
         Ok(())
     }
+}
 
+impl Default for MailboxResp {
+    fn default() -> Self {
+        MailboxResp::Header(MailboxRespHeader::default())
+    }
 }
 
 // HEADER
@@ -128,7 +128,11 @@ impl Default for MailboxRespHeader {
 #[derive(AsBytes, FromBytes)]
 pub struct GetIdevCsrResp {
     pub hdr: MailboxRespHeader,
-    pub data: [u8; 1024], // variable length
+    pub data_size: u32,
+    pub data: [u8; GetIdevCsrResp::DATA_MAX_SIZE], // variable length
+}
+impl GetIdevCsrResp {
+    pub const DATA_MAX_SIZE: usize = 1024;
 }
 
 // GET_LDEV_CERT
@@ -137,7 +141,11 @@ pub struct GetIdevCsrResp {
 #[derive(AsBytes, FromBytes)]
 pub struct GetLdevCsrResp {
     pub hdr: MailboxRespHeader,
-    pub data: [u8; 1024], // variable length
+    pub data_size: u32,
+    pub data: [u8; GetLdevCsrResp::DATA_MAX_SIZE], // variable length
+}
+impl GetLdevCsrResp {
+    pub const DATA_MAX_SIZE: usize = 1024;
 }
 
 // ECDSA384_SIGNATURE_VERIFY
@@ -177,21 +185,33 @@ pub struct StashMeasurementResp {
 #[derive(AsBytes, FromBytes)]
 pub struct InvokeDpeCommandReq {
     pub hdr: MailboxReqHeader,
-    pub data: [u8; 1024], // variable length
+    pub data_size: u32,
+    pub data: [u8; InvokeDpeCommandReq::DATA_MAX_SIZE], // variable length
+}
+impl InvokeDpeCommandReq {
+    pub const DATA_MAX_SIZE: usize = 1024;
 }
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes)]
 pub struct InvokeDpeCommandResp {
     pub hdr: MailboxRespHeader,
-    pub data: [u8; 1024], // variable length
+    pub data_size: u32,
+    pub data: [u8; InvokeDpeCommandResp::DATA_MAX_SIZE], // variable length
+}
+impl InvokeDpeCommandResp {
+    pub const DATA_MAX_SIZE: usize = 1024;
 }
 
-// TEST_ONLY_GET_CERT
+// TEST_ONLY_GET_FMC_ALIAS_CERT
 // No command-specific input args
 #[repr(C)]
 #[derive(AsBytes, FromBytes)]
-pub struct TestGetCertResp {
+pub struct TestGetFmcAliasCertResp {
     pub hdr: MailboxRespHeader,
-    pub data: [u8; 1024], // variable length
+    pub data_size: u32,
+    pub data: [u8; TestGetFmcAliasCertResp::DATA_MAX_SIZE], // variable length
+}
+impl TestGetFmcAliasCertResp {
+    pub const DATA_MAX_SIZE: usize = 1024;
 }

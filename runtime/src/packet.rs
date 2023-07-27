@@ -7,7 +7,6 @@ use caliptra_drivers::CaliptraError;
 use zerocopy::{AsBytes, LayoutVerified};
 use crate::mailbox_api::{
     MailboxReqHeader,
-    MailboxRespHeader,
     MailboxResp,
 };
 
@@ -77,37 +76,24 @@ impl Packet {
         Ok(packet)
     }
 
-    pub fn copy_to_mbox(
-            drivers: &mut crate::Drivers,
-            resp: &mut MailboxResp,
-            resp_size_ovrd: Option<usize>
-    ) -> CaliptraResult<()> {
+    pub fn copy_to_mbox(drivers: &mut crate::Drivers, resp: &mut MailboxResp) -> CaliptraResult<()> {
         let mbox = &mut drivers.mbox;
 
         // Generate response checksum
-        resp.populate_chksum(resp_size_ovrd)?;
+        resp.populate_chksum()?;
 
         // Send the payload
-        // Use a slice if needed
-        let resp_bytes = match resp_size_ovrd {
-            Some(size) => &resp.as_bytes()[..size],
-            None => resp.as_bytes(),
-        };
-
-        mbox.write_response(resp_bytes)
+        // NOTE: Currently, any payloads with a variable sized field send the max size buffer and
+        //       it's up to the requestor to only use the valid portion of the data
+        //       This can be fixed if needed by implementing a function in MailboxResp that returns the
+        //       size taking into account the data size field. That can then be used to get a slice
+        mbox.write_response(resp.as_bytes())
     }
 
     pub fn as_bytes(&self) -> CaliptraResult<&[u8]> {
         self.payload
             .as_bytes()
             .get(..self.len)
-            .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
-    }
-
-    pub fn as_bytes_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        self.payload
-            .as_bytes_mut()
-            .get_mut(..self.len)
             .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
     }
 }
