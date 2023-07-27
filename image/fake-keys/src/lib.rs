@@ -41,7 +41,7 @@ use zerocopy::AsBytes;
 /// print_public_key("OWNER_KEY", "../../target/riscv32imc-unknown-none-elf/firmware/own-pub-key.pem");
 /// print_private_key("OWNER_KEY", "../../target/riscv32imc-unknown-none-elf/firmware/own-priv-key.pem");
 /// ```
-pub const VENDOR_KEY_0_PUBLIC: ImageEccPubKey = ImageEccPubKey {
+pub const VENDOR_ECC_KEY_0_PUBLIC: ImageEccPubKey = ImageEccPubKey {
     x: [
         0xc69fe67f, 0x97ea3e42, 0x21a7a603, 0x6c2e070d, 0x1657327b, 0xc3f1e7c1, 0x8dccb9e4,
         0xffda5c3f, 0x4db0a1c0, 0x567e0973, 0x17bf4484, 0x39696a07,
@@ -51,11 +51,11 @@ pub const VENDOR_KEY_0_PUBLIC: ImageEccPubKey = ImageEccPubKey {
         0x27789964, 0x7735fde8, 0x328afd84, 0xcd4d4aa8, 0x72d40b42,
     ],
 };
-pub const VENDOR_KEY_0_PRIVATE: ImageEccPrivKey = [
+pub const VENDOR_ECC_KEY_0_PRIVATE: ImageEccPrivKey = [
     0x29f939ea, 0x41746499, 0xd550c6fa, 0x6368b0d7, 0x61e09b4c, 0x75b21922, 0x86f96240, 0x00ea1d99,
     0xace94ba6, 0x7ae89b0e, 0x3f210cf1, 0x9a45b6b5,
 ];
-pub const VENDOR_KEY_1_PUBLIC: ImageEccPubKey = ImageEccPubKey {
+pub const VENDOR_ECC_KEY_1_PUBLIC: ImageEccPubKey = ImageEccPubKey {
     x: [
         0xa6309750, 0xf0a05ddb, 0x956a7f86, 0x2812ec4f, 0xec454e95, 0x3b53dbfb, 0x9eb54140,
         0x15ea7507, 0x084af93c, 0xb7fa33fe, 0x51811ad5, 0xe754232e,
@@ -65,11 +65,11 @@ pub const VENDOR_KEY_1_PUBLIC: ImageEccPubKey = ImageEccPubKey {
         0x58c39b86, 0x272ef548, 0xe572b937, 0x1ecf1994, 0x1b8d4ea7,
     ],
 };
-pub const VENDOR_KEY_1_PRIVATE: ImageEccPrivKey = [
+pub const VENDOR_ECC_KEY_1_PRIVATE: ImageEccPrivKey = [
     0xf2ee427b, 0x4412f46f, 0x8fb020a5, 0xc23b0154, 0xb3fcb201, 0xf93c2ee2, 0x923fd577, 0xf85320bb,
     0x289eb276, 0x2b6b21d3, 0x5cdb3925, 0xa57d5043,
 ];
-pub const VENDOR_KEY_2_PUBLIC: ImageEccPubKey = ImageEccPubKey {
+pub const VENDOR_ECC_KEY_2_PUBLIC: ImageEccPubKey = ImageEccPubKey {
     x: [
         0xa0d25693, 0xc4251e48, 0x185615b0, 0xa6c27f6d, 0xe62c39f5, 0xa9a32f75, 0x9553226a,
         0x4d1926c1, 0x7928910f, 0xb7adc1b6, 0x89996733, 0x10134881,
@@ -79,11 +79,11 @@ pub const VENDOR_KEY_2_PUBLIC: ImageEccPubKey = ImageEccPubKey {
         0x3fbd0501, 0x9bdc8118, 0x4be5f33c, 0xbb21b41d, 0x93a8c523,
     ],
 };
-pub const VENDOR_KEY_2_PRIVATE: ImageEccPrivKey = [
+pub const VENDOR_ECC_KEY_2_PRIVATE: ImageEccPrivKey = [
     0xaf72a74c, 0xfbbacc3c, 0x7ad2f9d9, 0xc969d1c9, 0x19c2d803, 0x0a53749a, 0xee730267, 0x7c11a52d,
     0xee63e4c8, 0x0b5c0293, 0x28d35c27, 0x5f959aee,
 ];
-pub const VENDOR_KEY_3_PUBLIC: ImageEccPubKey = ImageEccPubKey {
+pub const VENDOR_ECC_KEY_3_PUBLIC: ImageEccPubKey = ImageEccPubKey {
     x: [
         0x002a82b6, 0x8e03e9a0, 0xfd3b4c14, 0xca2cb3e8, 0x14350a71, 0x0e43956d, 0x21694fb4,
         0xf34485e8, 0xf0e33583, 0xf7ea142d, 0x50e16f8b, 0x0225bb95,
@@ -93,12 +93,12 @@ pub const VENDOR_KEY_3_PUBLIC: ImageEccPubKey = ImageEccPubKey {
         0x1abc25e7, 0x0b05c426, 0x843dcd6f, 0x944ef6ff, 0xfa53ec5b,
     ],
 };
-pub const VENDOR_KEY_3_PRIVATE: ImageEccPrivKey = [
+pub const VENDOR_ECC_KEY_3_PRIVATE: ImageEccPrivKey = [
     0xafbdfc7d, 0x36b54629, 0xd12c4cb5, 0x33926c30, 0x20611617, 0x86b50b23, 0x6046ff93, 0x17ea0144,
     0xbc900c70, 0xb8cb36ac, 0x268b8079, 0xe3aeaaaf,
 ];
 
-pub const VENDOR_LMS_KEY0_PRIVATE: ImageLmsPrivKey = ImageLmsPrivKey {
+pub const VENDOR_LMS_KEY_0_PRIVATE: ImageLmsPrivKey = ImageLmsPrivKey {
     tree_type: IMAGE_LMS_TREE_TYPE,
     otstype: IMAGE_LMS_OTS_TYPE,
     id: [
@@ -110,7 +110,7 @@ pub const VENDOR_LMS_KEY0_PRIVATE: ImageLmsPrivKey = ImageLmsPrivKey {
         0x73, 0x45, 0x86, 0xb0, 0x32, 0x86, 0xc7, 0x69, 0x74,
     ]),
 };
-pub const VENDOR_LMS_KEY0_PUBLIC: ImageLmsPublicKey = ImageLmsPublicKey {
+pub const VENDOR_LMS_KEY_0_PUBLIC: ImageLmsPublicKey = ImageLmsPublicKey {
     tree_type: IMAGE_LMS_TREE_TYPE,
     otstype: IMAGE_LMS_OTS_TYPE,
     id: [
@@ -123,7 +123,7 @@ pub const VENDOR_LMS_KEY0_PUBLIC: ImageLmsPublicKey = ImageLmsPublicKey {
     ]),
 };
 
-pub const VENDOR_LMS_KEY1_PRIVATE: ImageLmsPrivKey = ImageLmsPrivKey {
+pub const VENDOR_LMS_KEY_1_PRIVATE: ImageLmsPrivKey = ImageLmsPrivKey {
     tree_type: IMAGE_LMS_TREE_TYPE,
     otstype: IMAGE_LMS_OTS_TYPE,
     id: [
@@ -135,7 +135,7 @@ pub const VENDOR_LMS_KEY1_PRIVATE: ImageLmsPrivKey = ImageLmsPrivKey {
         0x56, 0x0c, 0x58, 0x1e, 0xbf, 0x7b, 0x50, 0xc5, 0x14,
     ]),
 };
-pub const VENDOR_LMS_KEY1_PUBLIC: ImageLmsPublicKey = ImageLmsPublicKey {
+pub const VENDOR_LMS_KEY_1_PUBLIC: ImageLmsPublicKey = ImageLmsPublicKey {
     tree_type: IMAGE_LMS_TREE_TYPE,
     otstype: IMAGE_LMS_OTS_TYPE,
     id: [
@@ -148,7 +148,7 @@ pub const VENDOR_LMS_KEY1_PUBLIC: ImageLmsPublicKey = ImageLmsPublicKey {
     ]),
 };
 
-pub const VENDOR_LMS_KEY2_PRIVATE: ImageLmsPrivKey = ImageLmsPrivKey {
+pub const VENDOR_LMS_KEY_2_PRIVATE: ImageLmsPrivKey = ImageLmsPrivKey {
     tree_type: IMAGE_LMS_TREE_TYPE,
     otstype: IMAGE_LMS_OTS_TYPE,
     id: [
@@ -160,7 +160,7 @@ pub const VENDOR_LMS_KEY2_PRIVATE: ImageLmsPrivKey = ImageLmsPrivKey {
         0xa9, 0x44, 0x44, 0x46, 0xbd, 0xe2, 0x86, 0xe5, 0xe6,
     ]),
 };
-pub const VENDOR_LMS_KEY2_PUBLIC: ImageLmsPublicKey = ImageLmsPublicKey {
+pub const VENDOR_LMS_KEY_2_PUBLIC: ImageLmsPublicKey = ImageLmsPublicKey {
     tree_type: IMAGE_LMS_TREE_TYPE,
     otstype: IMAGE_LMS_OTS_TYPE,
     id: [
@@ -173,7 +173,7 @@ pub const VENDOR_LMS_KEY2_PUBLIC: ImageLmsPublicKey = ImageLmsPublicKey {
     ]),
 };
 
-pub const VENDOR_LMS_KEY3_PRIVATE: ImageLmsPrivKey = ImageLmsPrivKey {
+pub const VENDOR_LMS_KEY_3_PRIVATE: ImageLmsPrivKey = ImageLmsPrivKey {
     tree_type: IMAGE_LMS_TREE_TYPE,
     otstype: IMAGE_LMS_OTS_TYPE,
     id: [
@@ -185,7 +185,7 @@ pub const VENDOR_LMS_KEY3_PRIVATE: ImageLmsPrivKey = ImageLmsPrivKey {
         0x90, 0xcb, 0x4f, 0xa1, 0xbc, 0x26, 0xbb, 0xa2, 0x34,
     ]),
 };
-pub const VENDOR_LMS_KEY3_PUBLIC: ImageLmsPublicKey = ImageLmsPublicKey {
+pub const VENDOR_LMS_KEY_3_PUBLIC: ImageLmsPublicKey = ImageLmsPublicKey {
     tree_type: IMAGE_LMS_TREE_TYPE,
     otstype: IMAGE_LMS_OTS_TYPE,
     id: [
@@ -198,7 +198,7 @@ pub const VENDOR_LMS_KEY3_PUBLIC: ImageLmsPublicKey = ImageLmsPublicKey {
     ]),
 };
 
-pub const OWNER_LMS_KEY0_PRIVATE: ImageLmsPrivKey = ImageLmsPrivKey {
+pub const OWNER_LMS_KEY_PRIVATE: ImageLmsPrivKey = ImageLmsPrivKey {
     tree_type: IMAGE_LMS_TREE_TYPE,
     otstype: IMAGE_LMS_OTS_TYPE,
     id: [
@@ -210,7 +210,7 @@ pub const OWNER_LMS_KEY0_PRIVATE: ImageLmsPrivKey = ImageLmsPrivKey {
         0x4d, 0x59, 0xd0, 0xb0, 0x83, 0x79, 0xa9, 0xf7, 0x5d,
     ]),
 };
-pub const OWNER_LMS_KEY0_PUBLIC: ImageLmsPublicKey = ImageLmsPublicKey {
+pub const OWNER_LMS_KEY_PUBLIC: ImageLmsPublicKey = ImageLmsPublicKey {
     tree_type: IMAGE_LMS_TREE_TYPE,
     otstype: IMAGE_LMS_OTS_TYPE,
     id: [
@@ -222,7 +222,7 @@ pub const OWNER_LMS_KEY0_PUBLIC: ImageLmsPublicKey = ImageLmsPublicKey {
         0x56, 0x08, 0x6f, 0x8f, 0x8c, 0xfa, 0x05, 0xb5, 0xbb,
     ]),
 };
-pub const OWNER_KEY_PUBLIC: ImageEccPubKey = ImageEccPubKey {
+pub const OWNER_ECC_KEY_PUBLIC: ImageEccPubKey = ImageEccPubKey {
     x: [
         0xc6f82e2b, 0xdcf3e157, 0xa162e7f3, 0x3eca35c4, 0x55ea08a9, 0x13811779, 0xb6f2646d,
         0x92c817cd, 0x4094bd1a, 0xdb215f62, 0xcf36f017, 0x012d5aeb,
@@ -232,103 +232,103 @@ pub const OWNER_KEY_PUBLIC: ImageEccPubKey = ImageEccPubKey {
         0xf9624bd7, 0x2733dcdd, 0xce24ec5e, 0x961c00e3, 0x4372ba17,
     ],
 };
-pub const OWNER_KEY_PRIVATE: ImageEccPrivKey = [
+pub const OWNER_ECC_KEY_PRIVATE: ImageEccPrivKey = [
     0x59fdf849, 0xe39f4256, 0x19342ed2, 0x81d28d3d, 0x45ab3219, 0x5174582c, 0xecb4e9df, 0x9cc2e991,
     0xb75f88fd, 0xfa4bc6a4, 0x6b88340f, 0x05dd8890,
 ];
 pub const VENDOR_PUBLIC_KEYS: ImageVendorPubKeys = ImageVendorPubKeys {
     ecc_pub_keys: [
-        VENDOR_KEY_0_PUBLIC,
-        VENDOR_KEY_1_PUBLIC,
-        VENDOR_KEY_2_PUBLIC,
-        VENDOR_KEY_3_PUBLIC,
+        VENDOR_ECC_KEY_0_PUBLIC,
+        VENDOR_ECC_KEY_1_PUBLIC,
+        VENDOR_ECC_KEY_2_PUBLIC,
+        VENDOR_ECC_KEY_3_PUBLIC,
     ],
     lms_pub_keys: [
-        VENDOR_LMS_KEY0_PUBLIC,
-        VENDOR_LMS_KEY1_PUBLIC,
-        VENDOR_LMS_KEY2_PUBLIC,
-        VENDOR_LMS_KEY3_PUBLIC,
-        VENDOR_LMS_KEY0_PUBLIC,
-        VENDOR_LMS_KEY1_PUBLIC,
-        VENDOR_LMS_KEY2_PUBLIC,
-        VENDOR_LMS_KEY3_PUBLIC,
-        VENDOR_LMS_KEY0_PUBLIC,
-        VENDOR_LMS_KEY1_PUBLIC,
-        VENDOR_LMS_KEY2_PUBLIC,
-        VENDOR_LMS_KEY3_PUBLIC,
-        VENDOR_LMS_KEY0_PUBLIC,
-        VENDOR_LMS_KEY1_PUBLIC,
-        VENDOR_LMS_KEY2_PUBLIC,
-        VENDOR_LMS_KEY3_PUBLIC,
-        VENDOR_LMS_KEY0_PUBLIC,
-        VENDOR_LMS_KEY1_PUBLIC,
-        VENDOR_LMS_KEY2_PUBLIC,
-        VENDOR_LMS_KEY3_PUBLIC,
-        VENDOR_LMS_KEY0_PUBLIC,
-        VENDOR_LMS_KEY1_PUBLIC,
-        VENDOR_LMS_KEY2_PUBLIC,
-        VENDOR_LMS_KEY3_PUBLIC,
-        VENDOR_LMS_KEY0_PUBLIC,
-        VENDOR_LMS_KEY1_PUBLIC,
-        VENDOR_LMS_KEY2_PUBLIC,
-        VENDOR_LMS_KEY3_PUBLIC,
-        VENDOR_LMS_KEY0_PUBLIC,
-        VENDOR_LMS_KEY1_PUBLIC,
-        VENDOR_LMS_KEY2_PUBLIC,
-        VENDOR_LMS_KEY3_PUBLIC,
+        VENDOR_LMS_KEY_0_PUBLIC,
+        VENDOR_LMS_KEY_1_PUBLIC,
+        VENDOR_LMS_KEY_2_PUBLIC,
+        VENDOR_LMS_KEY_3_PUBLIC,
+        VENDOR_LMS_KEY_0_PUBLIC,
+        VENDOR_LMS_KEY_1_PUBLIC,
+        VENDOR_LMS_KEY_2_PUBLIC,
+        VENDOR_LMS_KEY_3_PUBLIC,
+        VENDOR_LMS_KEY_0_PUBLIC,
+        VENDOR_LMS_KEY_1_PUBLIC,
+        VENDOR_LMS_KEY_2_PUBLIC,
+        VENDOR_LMS_KEY_3_PUBLIC,
+        VENDOR_LMS_KEY_0_PUBLIC,
+        VENDOR_LMS_KEY_1_PUBLIC,
+        VENDOR_LMS_KEY_2_PUBLIC,
+        VENDOR_LMS_KEY_3_PUBLIC,
+        VENDOR_LMS_KEY_0_PUBLIC,
+        VENDOR_LMS_KEY_1_PUBLIC,
+        VENDOR_LMS_KEY_2_PUBLIC,
+        VENDOR_LMS_KEY_3_PUBLIC,
+        VENDOR_LMS_KEY_0_PUBLIC,
+        VENDOR_LMS_KEY_1_PUBLIC,
+        VENDOR_LMS_KEY_2_PUBLIC,
+        VENDOR_LMS_KEY_3_PUBLIC,
+        VENDOR_LMS_KEY_0_PUBLIC,
+        VENDOR_LMS_KEY_1_PUBLIC,
+        VENDOR_LMS_KEY_2_PUBLIC,
+        VENDOR_LMS_KEY_3_PUBLIC,
+        VENDOR_LMS_KEY_0_PUBLIC,
+        VENDOR_LMS_KEY_1_PUBLIC,
+        VENDOR_LMS_KEY_2_PUBLIC,
+        VENDOR_LMS_KEY_3_PUBLIC,
     ],
 };
 
 pub const OWNER_PUBLIC_KEYS: ImageOwnerPubKeys = ImageOwnerPubKeys {
-    ecc_pub_key: OWNER_KEY_PUBLIC,
-    lms_pub_keys: [OWNER_LMS_KEY0_PUBLIC],
+    ecc_pub_key: OWNER_ECC_KEY_PUBLIC,
+    lms_pub_key: OWNER_LMS_KEY_PUBLIC,
 };
 pub const VENDOR_PRIVATE_KEYS: ImageVendorPrivKeys = ImageVendorPrivKeys {
     ecc_priv_keys: [
-        VENDOR_KEY_0_PRIVATE,
-        VENDOR_KEY_1_PRIVATE,
-        VENDOR_KEY_2_PRIVATE,
-        VENDOR_KEY_3_PRIVATE,
+        VENDOR_ECC_KEY_0_PRIVATE,
+        VENDOR_ECC_KEY_1_PRIVATE,
+        VENDOR_ECC_KEY_2_PRIVATE,
+        VENDOR_ECC_KEY_3_PRIVATE,
     ],
     lms_priv_keys: [
-        VENDOR_LMS_KEY0_PRIVATE,
-        VENDOR_LMS_KEY1_PRIVATE,
-        VENDOR_LMS_KEY2_PRIVATE,
-        VENDOR_LMS_KEY3_PRIVATE,
-        VENDOR_LMS_KEY0_PRIVATE,
-        VENDOR_LMS_KEY1_PRIVATE,
-        VENDOR_LMS_KEY2_PRIVATE,
-        VENDOR_LMS_KEY3_PRIVATE,
-        VENDOR_LMS_KEY0_PRIVATE,
-        VENDOR_LMS_KEY1_PRIVATE,
-        VENDOR_LMS_KEY2_PRIVATE,
-        VENDOR_LMS_KEY3_PRIVATE,
-        VENDOR_LMS_KEY0_PRIVATE,
-        VENDOR_LMS_KEY1_PRIVATE,
-        VENDOR_LMS_KEY2_PRIVATE,
-        VENDOR_LMS_KEY3_PRIVATE,
-        VENDOR_LMS_KEY0_PRIVATE,
-        VENDOR_LMS_KEY1_PRIVATE,
-        VENDOR_LMS_KEY2_PRIVATE,
-        VENDOR_LMS_KEY3_PRIVATE,
-        VENDOR_LMS_KEY0_PRIVATE,
-        VENDOR_LMS_KEY1_PRIVATE,
-        VENDOR_LMS_KEY2_PRIVATE,
-        VENDOR_LMS_KEY3_PRIVATE,
-        VENDOR_LMS_KEY0_PRIVATE,
-        VENDOR_LMS_KEY1_PRIVATE,
-        VENDOR_LMS_KEY2_PRIVATE,
-        VENDOR_LMS_KEY3_PRIVATE,
-        VENDOR_LMS_KEY0_PRIVATE,
-        VENDOR_LMS_KEY1_PRIVATE,
-        VENDOR_LMS_KEY2_PRIVATE,
-        VENDOR_LMS_KEY3_PRIVATE,
+        VENDOR_LMS_KEY_0_PRIVATE,
+        VENDOR_LMS_KEY_1_PRIVATE,
+        VENDOR_LMS_KEY_2_PRIVATE,
+        VENDOR_LMS_KEY_3_PRIVATE,
+        VENDOR_LMS_KEY_0_PRIVATE,
+        VENDOR_LMS_KEY_1_PRIVATE,
+        VENDOR_LMS_KEY_2_PRIVATE,
+        VENDOR_LMS_KEY_3_PRIVATE,
+        VENDOR_LMS_KEY_0_PRIVATE,
+        VENDOR_LMS_KEY_1_PRIVATE,
+        VENDOR_LMS_KEY_2_PRIVATE,
+        VENDOR_LMS_KEY_3_PRIVATE,
+        VENDOR_LMS_KEY_0_PRIVATE,
+        VENDOR_LMS_KEY_1_PRIVATE,
+        VENDOR_LMS_KEY_2_PRIVATE,
+        VENDOR_LMS_KEY_3_PRIVATE,
+        VENDOR_LMS_KEY_0_PRIVATE,
+        VENDOR_LMS_KEY_1_PRIVATE,
+        VENDOR_LMS_KEY_2_PRIVATE,
+        VENDOR_LMS_KEY_3_PRIVATE,
+        VENDOR_LMS_KEY_0_PRIVATE,
+        VENDOR_LMS_KEY_1_PRIVATE,
+        VENDOR_LMS_KEY_2_PRIVATE,
+        VENDOR_LMS_KEY_3_PRIVATE,
+        VENDOR_LMS_KEY_0_PRIVATE,
+        VENDOR_LMS_KEY_1_PRIVATE,
+        VENDOR_LMS_KEY_2_PRIVATE,
+        VENDOR_LMS_KEY_3_PRIVATE,
+        VENDOR_LMS_KEY_0_PRIVATE,
+        VENDOR_LMS_KEY_1_PRIVATE,
+        VENDOR_LMS_KEY_2_PRIVATE,
+        VENDOR_LMS_KEY_3_PRIVATE,
     ],
 };
 
 pub const OWNER_PRIVATE_KEYS: ImageOwnerPrivKeys = ImageOwnerPrivKeys {
-    ecc_priv_key: OWNER_KEY_PRIVATE,
-    lms_priv_keys: [OWNER_LMS_KEY0_PRIVATE],
+    ecc_priv_key: OWNER_ECC_KEY_PRIVATE,
+    lms_priv_key: OWNER_LMS_KEY_PRIVATE,
 };
 
 pub const VENDOR_CONFIG_KEY_0: ImageGeneratorVendorConfig = ImageGeneratorVendorConfig {
@@ -360,14 +360,13 @@ pub const VENDOR_CONFIG_KEY_3: ImageGeneratorVendorConfig = ImageGeneratorVendor
 
 pub const OWNER_CONFIG: ImageGeneratorOwnerConfig = ImageGeneratorOwnerConfig {
     pub_keys: ImageOwnerPubKeys {
-        ecc_pub_key: OWNER_KEY_PUBLIC,
-        lms_pub_keys: [OWNER_LMS_KEY0_PUBLIC],
+        ecc_pub_key: OWNER_ECC_KEY_PUBLIC,
+        lms_pub_key: OWNER_LMS_KEY_PUBLIC,
     },
     priv_keys: Some(ImageOwnerPrivKeys {
-        ecc_priv_key: OWNER_KEY_PRIVATE,
-        lms_priv_keys: [OWNER_LMS_KEY0_PRIVATE],
+        ecc_priv_key: OWNER_ECC_KEY_PRIVATE,
+        lms_priv_key: OWNER_LMS_KEY_PRIVATE,
     }),
-    lms_key_idx: 0,
     not_before: [0u8; 15],
     not_after: [0u8; 15],
 };
@@ -401,30 +400,21 @@ fn test_write_lms_keys() {
         file.write_all(VENDOR_PUBLIC_KEYS.lms_pub_keys[i].as_bytes())
             .unwrap();
     }
-    for i in 0..OWNER_PRIVATE_KEYS.lms_priv_keys.len() {
-        let mut file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(format!(
-                "../../target/riscv32imc-unknown-none-elf/firmware/own-lms-priv-key-{}.pem",
-                i
-            ))
-            .unwrap();
-        file.write_all(OWNER_PRIVATE_KEYS.lms_priv_keys[i].as_bytes())
-            .unwrap();
-    }
-    for i in 0..OWNER_PUBLIC_KEYS.lms_pub_keys.len() {
-        let mut file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(format!(
-                "../../target/riscv32imc-unknown-none-elf/firmware/own-lms-pub-key-{}.pem",
-                i
-            ))
-            .unwrap();
-        file.write_all(OWNER_PUBLIC_KEYS.lms_pub_keys[i].as_bytes())
-            .unwrap();
-    }
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open("../../target/riscv32imc-unknown-none-elf/firmware/own-lms-priv-key.pem")
+        .unwrap();
+    file.write_all(OWNER_PRIVATE_KEYS.lms_priv_key.as_bytes())
+        .unwrap();
+
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open("../../target/riscv32imc-unknown-none-elf/firmware/own-lms-pub-key.pem")
+        .unwrap();
+    file.write_all(OWNER_PUBLIC_KEYS.lms_pub_key.as_bytes())
+        .unwrap();
 }

@@ -65,9 +65,6 @@ pub struct ImageVerificationLogInfo {
     // LMS Vendor Public Key Index
     pub vendor_lms_pub_key_idx: Option<u32>,
 
-    // LMS Owner Public Key Index To Log
-    pub owner_lms_pub_key_idx: Option<u32>,
-
     /// Vendor LMS Public Key Revocation Fuse
     pub fuse_vendor_lms_pub_key_revocation: Option<u32>,
 
@@ -86,9 +83,6 @@ pub struct ImageVerificationInfo {
 
     /// Vendor LMS public key index
     pub vendor_lms_pub_key_idx: Option<u32>,
-
-    /// Owner LMS public key index
-    pub owner_lms_pub_key_idx: Option<u32>,
 
     /// Digest of vendor public keys that verified the image
     pub vendor_pub_keys_digest: ImageDigest,
