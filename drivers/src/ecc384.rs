@@ -23,6 +23,13 @@ use zerocopy::{AsBytes, FromBytes};
 /// ECC-384 Coordinate
 pub type Ecc384Scalar = Array4x12;
 
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ecc384Result {
+    Success = 0xAAAAAAAA,
+    SigVerifyFailed = 0x55555555,
+}
+
 /// ECC-384 Seed
 #[derive(Debug, Copy, Clone)]
 pub enum Ecc384Seed<'a> {
@@ -310,18 +317,20 @@ impl Ecc384 {
     /// * `digest` - digest to verify
     /// * `signature` - Signature to verify
     ///
+
+    ///
     /// # Result
     ///
-    /// *  `bool` - True if the signature verification passed else false
+    /// *  `Ecc384Result` - Ecc384Result::Success if the signature verification passed else an error code.
     pub fn verify(
         &mut self,
         pub_key: &Ecc384PubKey,
         digest: &Ecc384Scalar,
         signature: &Ecc384Signature,
-    ) -> CaliptraResult<bool> {
+    ) -> CaliptraResult<Ecc384Result> {
         // If R or S are not in the range [1, N-1], signature check must fail
         if !Self::scalar_range_check(&signature.r) || !Self::scalar_range_check(&signature.s) {
-            return Ok(false);
+            return Ok(Ecc384Result::SigVerifyFailed);
         }
 
         let ecc = self.ecc.regs_mut();
@@ -350,7 +359,11 @@ impl Ecc384 {
         let verify_r = Array4x12::read_from_reg(ecc.verify_r());
 
         // compare the hardware generate `r` with one in signature
-        let result = verify_r == signature.r;
+        let result = if verify_r == signature.r {
+            Ecc384Result::Success
+        } else {
+            Ecc384Result::SigVerifyFailed
+        };
 
         self.zeroize_internal();
 

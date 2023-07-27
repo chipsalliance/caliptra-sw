@@ -15,7 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{get_lms_parameters, HashValue, Lms, Sha256};
+use caliptra_drivers::{get_lms_parameters, HashValue, Lms, LmsResult, Sha256};
 use caliptra_lms_types::{
     bytes_to_words_6, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsIdentifier,
     LmsPublicKey, LmsSignature,
@@ -405,10 +405,10 @@ fn test_lms_24_height_15() {
         otstype: LMOTS_TYPE,
     };
 
-    let success = Lms::default()
+    let result = Lms::default()
         .verify_lms_signature(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &LMS_SIG)
         .unwrap();
-    assert_eq!(success, true);
+    assert_eq!(result, LmsResult::Success);
 }
 
 test_suite! {

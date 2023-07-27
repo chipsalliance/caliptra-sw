@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::{CaliptraError, CaliptraResult, Lms, Sha256};
+use caliptra_drivers::{CaliptraError, CaliptraResult, Lms, LmsResult, Sha256};
 use caliptra_lms_types::{
     bytes_to_words_6, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsIdentifier,
     LmsPublicKey, LmsSignature,
@@ -332,7 +332,7 @@ impl LmsKat {
 
         let success =
             lms.verify_lms_signature(sha256_driver, &MESSAGE, &LMS_PUBLIC_KEY, &LMS_SIG)?;
-        if !success {
+        if success != LmsResult::Success {
             Err(CaliptraError::ROM_KAT_LMS_DIGEST_MISMATCH)?;
         }
 
