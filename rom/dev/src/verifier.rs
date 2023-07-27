@@ -94,7 +94,7 @@ impl<'a> ImageVerificationEnv for &mut RomImageVerificationEnv<'a> {
     }
 
     /// Retrieve Vendor LMS Public Key Revocation Bitmask
-    fn vendor_lms_pub_key_revocation(&self) -> VendorPubKeyRevocation {
+    fn vendor_lms_pub_key_revocation(&self) -> u32 {
         self.soc_ifc.fuse_bank().vendor_lms_pub_key_revocation()
     }
 
