@@ -24,7 +24,7 @@ use caliptra_common::memory_layout::{
 };
 use caliptra_common::{cprintln, FirmwareHandoffTable};
 use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault, Ecc384};
-use caliptra_drivers::{Hmac384, Lms, Sha1, Sha256, Sha384, Sha384Acc, Trng};
+use caliptra_drivers::{Hmac384, Sha256, Sha384, Sha384Acc, Trng};
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_registers::{
@@ -94,9 +94,6 @@ pub struct Drivers<'a> {
     pub regions: MemoryRegions,
     pub sha256: Sha256,
 
-    // SHA1 Engine
-    pub sha1: Sha1,
-
     // SHA2-384 Engine
     pub sha384: Sha384,
 
@@ -108,8 +105,6 @@ pub struct Drivers<'a> {
 
     /// Cryptographically Secure Random Number Generator
     pub trng: Trng,
-
-    pub lms: Lms,
 
     /// Ecc384 Engine
     pub ecc384: Ecc384,
@@ -141,7 +136,6 @@ impl<'a> Drivers<'a> {
 
         Ok(Self {
             mbox: Mailbox::new(MboxCsr::new()),
-            sha1: Sha1::default(),
             sha_acc: Sha512AccCsr::new(),
             ecdsa: Ecc384::new(EccReg::new()),
             data_vault: DataVault::new(DvReg::new()),
@@ -152,7 +146,6 @@ impl<'a> Drivers<'a> {
             sha384_acc: Sha384Acc::new(Sha512AccCsr::new()),
             hmac384: Hmac384::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
-            lms: Lms::default(),
             trng,
             fht,
             manifest,
