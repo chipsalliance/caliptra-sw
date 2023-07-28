@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
 
     // Initialize FSM GO
     caliptra_bootfsm_go();
-    
+
     // Wait until ready for FW
     caliptra_ready_for_firmware();
 
@@ -34,29 +34,21 @@ int main(int argc, char *argv[])
     // FW_PATH is defined on the compiler command line
     caliptra_upload_fw(&image_bundle);
 
-    uint32_t FIPS_VERSION = 0x46505652;
-
-    int mb_result;
-    uint32_t fips_ver;
-    struct caliptra_buffer buf = {
-        .data = (uint8_t*)&fips_ver,
-        .len = sizeof(fips_ver),
-    };
-
     // Run Until RT is ready to receive commands
+    struct caliptra_fips_version version;
     while(1) {
         caliptra_wait();
-        mb_result = caliptra_mailbox_execute(FIPS_VERSION, &buf, NULL);
-
-        if (mb_result != -EIO)
+        status = caliptra_get_fips_version(&version);
+        if (status)
         {
-            printf("Caliptra C API Integration Test Failed: %x\n", mb_result);
-            return -1;
+            printf("Caliptra C API Integration Test Failed: %x\n", status);
+            return status;
         }
 
         break;
     }
-    printf("Caliptra C API Integration Test Passed \n");
+    printf("Caliptra C API Integration Test Passed: \n\tFIPS_VERSION = mode: 0x%x, fips_rev (0x%x, 0x%x, 0x%x), name %s \n", version.mode,
+                version.fips_rev[0], version.fips_rev[1], version.fips_rev[2], version.name);
     return 0;
 }
 

@@ -48,7 +48,7 @@ impl<'a> ImageVerificationEnv for &mut RomImageVerificationEnv<'a> {
         digest: &ImageDigest,
         pub_key: &ImageEccPubKey,
         sig: &ImageEccSignature,
-    ) -> CaliptraResult<bool> {
+    ) -> CaliptraResult<Ecc384Result> {
         // TODO: Remove following conversions after refactoring the driver ECC384PubKey
         // for use across targets
         let pub_key = Ecc384PubKey {
@@ -75,7 +75,7 @@ impl<'a> ImageVerificationEnv for &mut RomImageVerificationEnv<'a> {
         digest: &ImageDigest,
         pub_key: &ImageLmsPublicKey,
         sig: &ImageLmsSignature,
-    ) -> CaliptraResult<bool> {
+    ) -> CaliptraResult<LmsResult> {
         let mut message = [0u8; SHA384_DIGEST_BYTE_SIZE];
         for i in 0..digest.len() {
             message[i * 4..][..4].copy_from_slice(&digest[i].to_be_bytes());
@@ -88,9 +88,14 @@ impl<'a> ImageVerificationEnv for &mut RomImageVerificationEnv<'a> {
         self.soc_ifc.fuse_bank().vendor_pub_key_hash().into()
     }
 
-    /// Retrieve Vendor Public Key Revocation Bitmask
-    fn vendor_pub_key_revocation(&self) -> VendorPubKeyRevocation {
-        self.soc_ifc.fuse_bank().vendor_pub_key_revocation()
+    /// Retrieve Vendor ECC Public Key Revocation Bitmask
+    fn vendor_ecc_pub_key_revocation(&self) -> VendorPubKeyRevocation {
+        self.soc_ifc.fuse_bank().vendor_ecc_pub_key_revocation()
+    }
+
+    /// Retrieve Vendor LMS Public Key Revocation Bitmask
+    fn vendor_lms_pub_key_revocation(&self) -> u32 {
+        self.soc_ifc.fuse_bank().vendor_lms_pub_key_revocation()
     }
 
     /// Retrieve Owner Public Key Digest from fuses
@@ -124,16 +129,20 @@ impl<'a> ImageVerificationEnv for &mut RomImageVerificationEnv<'a> {
     }
 
     // Get Fuse FMC Key Manifest SVN
-    fn fmc_svn(&self) -> u32 {
-        self.soc_ifc.fuse_bank().fmc_svn()
+    fn fmc_fuse_svn(&self) -> u32 {
+        self.soc_ifc.fuse_bank().fmc_fuse_svn()
     }
 
     // Get Runtime fuse SVN
-    fn runtime_svn(&self) -> u32 {
-        self.soc_ifc.fuse_bank().runtime_svn()
+    fn runtime_fuse_svn(&self) -> u32 {
+        self.soc_ifc.fuse_bank().runtime_fuse_svn()
     }
 
     fn iccm_range(&self) -> Range<u32> {
         RomEnv::ICCM_RANGE
+    }
+
+    fn lms_verify_enabled(&self) -> bool {
+        self.soc_ifc.fuse_bank().lms_verify() == LmsVerifyConfig::EcdsaAndLms
     }
 }

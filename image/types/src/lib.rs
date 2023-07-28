@@ -8,7 +8,7 @@ File Name:
 
 Abstract:
 
-    File contains data strucutres for the firmware image bundle.
+    File contains data structures for the firmware image bundle.
 
 --*/
 
@@ -25,7 +25,7 @@ use zerocopy::{AsBytes, FromBytes};
 
 pub const MANIFEST_MARKER: u32 = 0x4E414D43;
 pub const VENDOR_ECC_KEY_COUNT: u32 = 4;
-pub const VENDOR_LMS_KEY_COUNT: u32 = 4;
+pub const VENDOR_LMS_KEY_COUNT: u32 = 32;
 pub const OWNER_LMS_KEY_COUNT: u32 = 1;
 pub const MAX_TOC_ENTRY_COUNT: u32 = 2;
 pub const IMAGE_REVISION_BYTE_SIZE: usize = 20;

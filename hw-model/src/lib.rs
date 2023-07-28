@@ -295,7 +295,10 @@ fn mbox_read_fifo(mbox: mbox::RegisterBlock<impl MmioMut>) -> Vec<u8> {
     result
 }
 
-fn mbox_write_fifo(mbox: &mbox::RegisterBlock<impl MmioMut>, buf: &[u8]) -> Result<(), ModelError> {
+pub fn mbox_write_fifo(
+    mbox: &mbox::RegisterBlock<impl MmioMut>,
+    buf: &[u8],
+) -> Result<(), ModelError> {
     const MAILBOX_SIZE: u32 = 128 * 1024;
 
     let Ok(input_len) = u32::try_from(buf.len()) else {
@@ -376,6 +379,14 @@ pub trait HwModel {
         Ok(hw)
     }
 
+    /// Trigger a warm reset and advance the boot
+    fn warm_reset_flow(&mut self, fuses: &Fuses) {
+        self.warm_reset();
+
+        self.init_fuses(fuses);
+        self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+    }
+
     /// The APB bus from the SoC to Caliptra
     ///
     /// WARNING: Reading or writing to this bus may involve the Caliptra
@@ -395,6 +406,12 @@ pub trait HwModel {
         }
     }
 
+    /// Toggle reset pins and wait for ready_for_fuses
+    fn warm_reset(&mut self) {
+        // sw-emulator lacks support: https://github.com/chipsalliance/caliptra-sw/issues/540
+        panic!("warm_reset unimplemented");
+    }
+
     /// Returns true if the microcontroller has signalled that it is ready for
     /// firmware to be written to the mailbox. For RTL implementations, this
     /// should come via a caliptra_top wire rather than an APB register.
@@ -409,10 +426,12 @@ pub trait HwModel {
     /// If the cptra_fuse_wr_done has already been written, or the
     /// hardware prevents cptra_fuse_wr_done from being set.
     fn init_fuses(&mut self, fuses: &Fuses) {
-        assert!(
-            !self.soc_ifc().cptra_fuse_wr_done().read().done(),
-            "Fuses are already locked in place (according to cptra_fuse_wr_done)"
-        );
+        if !self.soc_ifc().cptra_reset_reason().read().warm_reset() {
+            assert!(
+                !self.soc_ifc().cptra_fuse_wr_done().read().done(),
+                "Fuses are already locked in place (according to cptra_fuse_wr_done)"
+            );
+        }
 
         self.soc_ifc().fuse_uds_seed().write(&fuses.uds_seed);
         self.soc_ifc()
@@ -443,6 +462,12 @@ pub trait HwModel {
         self.soc_ifc()
             .fuse_life_cycle()
             .write(|w| w.life_cycle(fuses.life_cycle.into()));
+        self.soc_ifc()
+            .fuse_lms_verify()
+            .write(|w| w.lms_verify(fuses.lms_verify));
+        self.soc_ifc()
+            .fuse_lms_revocation()
+            .write(|_| fuses.fuse_lms_revocation);
 
         self.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
         assert!(self.soc_ifc().cptra_fuse_wr_done().read().done());

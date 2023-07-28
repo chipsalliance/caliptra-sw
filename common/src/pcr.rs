@@ -46,6 +46,7 @@ impl From<u16> for PcrLogEntryId {
             6 => PcrLogEntryId::VendorPubKeyIndex,
             7 => PcrLogEntryId::FmcTci,
             8 => PcrLogEntryId::FmcSvn,
+            9 => PcrLogEntryId::FmcFuseSvn,
             _ => PcrLogEntryId::Invalid,
         }
     }

@@ -24,7 +24,7 @@ use caliptra_common::crypto::Ecc384KeyPair;
 use caliptra_common::keyids::{KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY, KEY_ID_TMP};
 use caliptra_common::HexBytes;
 use caliptra_drivers::{
-    okref, report_boot_status, CaliptraError, CaliptraResult, KeyId, ResetReason,
+    okref, report_boot_status, CaliptraError, CaliptraResult, Ecc384Result, KeyId, ResetReason,
 };
 use caliptra_x509::{NotAfter, NotBefore, RtAliasCertTbs, RtAliasCertTbsParams};
 
@@ -292,7 +292,7 @@ impl RtAliasLayer {
         cprintln!("[alias rt] SIG.S = {}", HexBytes(&_sig_s));
 
         // Verify the signature of the `To Be Signed` portion
-        if !Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? {
+        if Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? != Ecc384Result::Success {
             return Err(CaliptraError::FMC_RT_ALIAS_CERT_VERIFY);
         }
 

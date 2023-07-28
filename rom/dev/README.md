@@ -101,7 +101,7 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | FUSE_MANUFACTURER_PK_REVOCATION | 4            | Manufacturer Public Key Revocation Mask                 |
 | FUSE_OWNER_PK_HASH              | 384          | Owner Public Key Hash                                   |
 | FUSE_FMC_SVN                    | 32           | FMC Security Version Number                             |
-| FUSE_RUNTIME_SVN                | 64           | Runtime Security Version Number <br> *NOTE: Hardware reserves 128 fuse bits for this pupose. However, only 64 bits are supported by ROM at this time.* |
+| FUSE_RUNTIME_SVN                | 64           | Runtime Security Version Number                         |
 | FUSE_ANTI_ROLLBACK_DISABLE      | 1            | Disable SVN checking for FMC & Runtime when bit is set  |
 | FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR   |
 | CPTRA_DBG_MANUF_SERVICE_REG     | 32           | Manufacturing Services like IDEVID CSR upload           |
@@ -203,7 +203,7 @@ The following sections define the various cryptographic primitives used by Calip
 |   | `hmac384_mac(kv_slot,data,mac_kv_slot)` | Calculate the mac using a caller provided key and data. The resultant mac is stored in key vault slot <br>**Input**: <br>***kv_slot*** - key vault slot to use the key from<br>***data*** - data<br>***mac_kv_slot*** - key vault slot to store the mac to |
 | Elliptic Curve Cryptography | `ecc384_keygen(seed_kv_slot, priv_kv_slot) -> pub_key`	| Generate ECC384 Key Pair.<br>**Input**:<br>***seed_key_slot*** - key vault slot to use as seed for key generation<br>***priv_kv_slot*** - key vault slot to store the private key to<br>**Output**:<br>***pub-key*** - public key associated with the private key |
 |   | `ecc384_sign(priv_kv_slot, data) -> sig` | ECC384 signing operation<br>**Input**:<br>***priv_kv_slot*** - key vault slot to use a private key from<br>***data*** - data to sign<br>**Output**:<br>***sig*** - signature |
-| | `ecc384_verify(pub_key, data, sig) -> bool` | ECC384 verify operation<br>**Input**:<br>***pub-key*** -public key<br>data - data to verify<br>sig - signature<br>**Output**:<br>***bool*** - true if signature verification succeeded else false |
+| | `ecc384_verify(pub_key, data, sig) -> Ecc384Result` | ECC384 verify operation<br>**Input**:<br>***pub-key*** -public key<br>data - data to verify<br>sig - signature<br>**Output**:<br>***Ecc384Result*** - Ecc384Result::Success if signature verification succeeded else an error |
 | Secure Hash Algorithm | `sha384_digest(data) -> digest` | Calculate the digest of the data<br>**Input**:<br>***data*** - data to verify<br>**Output**:<br>***digest*** - digest of the data |
 | Key Vault | `kv_clear(kv_slot)` | Key Vault slot to clear<br>**Input**:<br>***kv_slot*** - key vault slot to clear |
 | Data Vault | `dv48_store(data, dv_slot)` | Store the 48-byte data in the specified data vault slot<br>**Input**:<br>***data*** - data to store<br>***dv_slot*** - data vault slot |

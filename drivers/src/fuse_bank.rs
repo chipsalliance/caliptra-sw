@@ -14,9 +14,15 @@ Abstract:
 
 use crate::Array4x12;
 use caliptra_registers::soc_ifc::SocIfcReg;
+use zerocopy::AsBytes;
 
 pub struct FuseBank<'a> {
     pub(crate) soc_ifc: &'a SocIfcReg,
+}
+
+fn first_set_msbit(num_le: &[u32; 4]) -> u32 {
+    let fuse: u128 = u128::from_le_bytes(num_le.as_bytes().try_into().unwrap());
+    128 - fuse.leading_zeros()
 }
 
 pub enum X509KeyIdAlgo {
@@ -54,6 +60,7 @@ impl From<IdevidCertAttr> for usize {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LmsVerifyConfig {
     EcdsaOnly = 0,
     EcdsaAndLms = 1,
@@ -167,19 +174,32 @@ impl FuseBank<'_> {
         Array4x12::read_from_reg(soc_ifc_regs.fuse_key_manifest_pk_hash())
     }
 
-    /// Get the vendor public key revocation mask.
+    /// Get the ecc vendor public key revocation mask.
     ///
     /// # Arguments
     /// * None
     ///
     /// # Returns
-    ///     vendor public key revocation mask
+    ///     ecc vendor public key revocation mask
     ///
-    pub fn vendor_pub_key_revocation(&self) -> VendorPubKeyRevocation {
+    pub fn vendor_ecc_pub_key_revocation(&self) -> VendorPubKeyRevocation {
         let soc_ifc_regs = self.soc_ifc.regs();
         VendorPubKeyRevocation::from_bits_truncate(
             soc_ifc_regs.fuse_key_manifest_pk_hash_mask().read().mask(),
         )
+    }
+
+    /// Get the lms vendor public key revocation mask.
+    ///
+    /// # Arguments
+    /// * None
+    ///
+    /// # Returns
+    ///     lms vendor public key revocation mask
+    ///
+    pub fn vendor_lms_pub_key_revocation(&self) -> u32 {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        soc_ifc_regs.fuse_lms_revocation().read()
     }
 
     /// Get the owner public key hash.
@@ -208,7 +228,7 @@ impl FuseBank<'_> {
         soc_ifc_regs.fuse_anti_rollback_disable().read().dis()
     }
 
-    /// Get the fmc security version number.
+    /// Get the fmc fuse security version number.
     ///
     /// # Arguments
     /// * None
@@ -216,7 +236,7 @@ impl FuseBank<'_> {
     /// # Returns
     ///     fmc security version number
     ///
-    pub fn fmc_svn(&self) -> u32 {
+    pub fn fmc_fuse_svn(&self) -> u32 {
         let soc_ifc_regs = self.soc_ifc.regs();
         32 - soc_ifc_regs
             .fuse_fmc_key_manifest_svn()
@@ -224,7 +244,7 @@ impl FuseBank<'_> {
             .leading_zeros()
     }
 
-    /// Get the runtime security version number.
+    /// Get the runtime fuse security version number.
     ///
     /// # Arguments
     /// * None
@@ -232,11 +252,9 @@ impl FuseBank<'_> {
     /// # Returns
     ///     runtime security version number
     ///
-    pub fn runtime_svn(&self) -> u32 {
+    pub fn runtime_fuse_svn(&self) -> u32 {
         let soc_ifc_regs = self.soc_ifc.regs();
-        64 - ((soc_ifc_regs.fuse_runtime_svn().at(1).read() as u64) << 32
-            | soc_ifc_regs.fuse_runtime_svn().at(0).read() as u64)
-            .leading_zeros()
+        first_set_msbit(&soc_ifc_regs.fuse_runtime_svn().read())
     }
 
     /// Get the lms revocation bits.
@@ -268,6 +286,27 @@ impl FuseBank<'_> {
             LmsVerifyConfig::EcdsaOnly
         } else {
             LmsVerifyConfig::EcdsaAndLms
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_first_set_msbit() {
+        let mut svn: u128 = 0;
+        let mut svn_arr: [u32; 4] = [0u32, 0u32, 0u32, 0u32];
+
+        for i in 0..128 {
+            for (idx, word) in svn_arr.iter_mut().enumerate() {
+                *word = u32::from_le_bytes(svn.as_bytes()[idx * 4..][..4].try_into().unwrap())
+            }
+            let result = first_set_msbit(&svn_arr);
+            assert_eq!(result, i);
+
+            svn = (svn << 1) | 1;
         }
     }
 }

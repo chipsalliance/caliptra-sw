@@ -1,9 +1,11 @@
 # Clean and create output directory.
 set outputDir ./caliptra_build
 set packageDir $outputDir/caliptra_package
+set adapterDir $outputDir/soc_adapter_package
 file delete -force $outputDir
 file mkdir $outputDir
 file mkdir $packageDir
+file mkdir $adapterDir
 
 # Path to rtl
 set rtlDir ../caliptra-rtl
@@ -33,6 +35,28 @@ if {$ITRNG} {
 if {$GUI} {
   start_gui
 }
+
+# Create a project to package a module to connect SOC signals to
+create_project soc_adapter_package_project $outputDir -part xczu7ev-ffvc1156-2-e
+# Add source
+add_files [ glob ./src/soc_adapter.v ]
+
+# Package IP
+ipx::package_project -root_dir $adapterDir -vendor design -library user -taxonomy /UserIP -import_files -set_current false
+ipx::unload_core $adapterDir/component.xml
+ipx::edit_ip_in_project -upgrade true -name tmp_edit_project -directory $adapterDir $adapterDir/component.xml
+ipx::infer_bus_interfaces xilinx.com:interface:axi:1.0 [ipx::current_core]
+set_property core_revision 1 [ipx::current_core]
+ipx::update_source_project_archive -component [ipx::current_core]
+ipx::create_xgui_files [ipx::current_core]
+ipx::update_checksums [ipx::current_core]
+ipx::check_integrity [ipx::current_core]
+ipx::save_core [ipx::current_core]
+# Close temp project
+close_project
+# Close soc_adapter_package_project
+close_project
+
 
 # Create a project to package Caliptra.
 # Packaging Caliptra allows Vivado to recognize the APB bus as an endpoint for the memory map.
@@ -148,7 +172,7 @@ close_project
 create_project caliptra_fpga_project $outputDir -part xczu7ev-ffvc1156-2-e
 
 # Include the packaged IP
-set_property  ip_repo_paths  "$packageDir ./src/caliptra_soc_1_0" [current_project]
+set_property  ip_repo_paths  "$packageDir $adapterDir" [current_project]
 update_ip_catalog
 
 # Create SOC block design
@@ -166,7 +190,7 @@ create_bd_cell -type ip -vlnv xilinx.com:ip:axi_interconnect:2.1 axi_interconnec
 set_property CONFIG.NUM_MI {3} [get_bd_cells axi_interconnect_0]
 
 # Add caliptra_soc
-create_bd_cell -type ip -vlnv design:user:caliptra_soc:1.0 caliptra_soc_0
+create_bd_cell -type ip -vlnv design:user:soc_adapter:1.0 caliptra_soc_0
 
 # Add AXI APB Bridge for Caliptra
 create_bd_cell -type ip -vlnv xilinx.com:ip:axi_apb_bridge:3.0 axi_apb_bridge_0
@@ -194,18 +218,19 @@ set_property location {4 1335 456} [get_bd_cells caliptra_package_top_0]
 
 # Create interface connections
 connect_bd_intf_net -intf_net axi_apb_bridge_0_APB_M [get_bd_intf_pins axi_apb_bridge_0/APB_M] [get_bd_intf_pins caliptra_package_top_0/s_apb]
-connect_bd_intf_net -boundary_type upper [get_bd_intf_pins axi_interconnect_0/M00_AXI] [get_bd_intf_pins caliptra_soc_0/S00_AXI]
+connect_bd_intf_net -boundary_type upper [get_bd_intf_pins axi_interconnect_0/M00_AXI] [get_bd_intf_pins caliptra_soc_0/interface_aximm]
 connect_bd_intf_net -intf_net axi_interconnect_0_M01_AXI [get_bd_intf_pins axi_apb_bridge_0/AXI4_LITE] [get_bd_intf_pins axi_interconnect_0/M01_AXI]
 connect_bd_intf_net -intf_net zynq_ultra_ps_e_0_M_AXI_HPM0_LPD [get_bd_intf_pins axi_interconnect_0/S00_AXI] [get_bd_intf_pins zynq_ultra_ps_e_0/M_AXI_HPM0_LPD]
 connect_bd_intf_net [get_bd_intf_pins axi_bram_ctrl_0/S_AXI] -boundary_type upper [get_bd_intf_pins axi_interconnect_0/M02_AXI]
 connect_bd_intf_net [get_bd_intf_pins caliptra_package_top_0/axi_bram] [get_bd_intf_pins axi_bram_ctrl_0/BRAM_PORTA]
 
 # Create port connections
-connect_bd_net -net proc_sys_reset_0_peripheral_aresetn [get_bd_pins axi_apb_bridge_0/s_axi_aresetn] [get_bd_pins caliptra_soc_0/s00_axi_aresetn] [get_bd_pins axi_interconnect_0/ARESETN] [get_bd_pins axi_interconnect_0/M00_ARESETN] [get_bd_pins axi_interconnect_0/M01_ARESETN] [get_bd_pins axi_interconnect_0/S00_ARESETN] [get_bd_pins proc_sys_reset_0/peripheral_aresetn]
-connect_bd_net -net zynq_ultra_ps_e_0_pl_clk0 [get_bd_pins axi_apb_bridge_0/s_axi_aclk] [get_bd_pins caliptra_soc_0/s00_axi_aclk] [get_bd_pins axi_interconnect_0/ACLK] [get_bd_pins axi_interconnect_0/M00_ACLK] [get_bd_pins axi_interconnect_0/M01_ACLK] [get_bd_pins axi_interconnect_0/S00_ACLK] [get_bd_pins caliptra_package_top_0/core_clk] [get_bd_pins proc_sys_reset_0/slowest_sync_clk] [get_bd_pins zynq_ultra_ps_e_0/maxihpm0_lpd_aclk] [get_bd_pins zynq_ultra_ps_e_0/pl_clk0]
+connect_bd_net -net proc_sys_reset_0_peripheral_aresetn [get_bd_pins axi_apb_bridge_0/s_axi_aresetn] [get_bd_pins caliptra_soc_0/rstn] [get_bd_pins axi_interconnect_0/ARESETN] [get_bd_pins axi_interconnect_0/M00_ARESETN] [get_bd_pins axi_interconnect_0/M01_ARESETN] [get_bd_pins axi_interconnect_0/S00_ARESETN] [get_bd_pins proc_sys_reset_0/peripheral_aresetn]
+connect_bd_net -net zynq_ultra_ps_e_0_pl_clk0 [get_bd_pins axi_apb_bridge_0/s_axi_aclk] [get_bd_pins caliptra_soc_0/aclk] [get_bd_pins axi_interconnect_0/ACLK] [get_bd_pins axi_interconnect_0/M00_ACLK] [get_bd_pins axi_interconnect_0/M01_ACLK] [get_bd_pins axi_interconnect_0/S00_ACLK] [get_bd_pins caliptra_package_top_0/core_clk] [get_bd_pins proc_sys_reset_0/slowest_sync_clk] [get_bd_pins zynq_ultra_ps_e_0/maxihpm0_lpd_aclk] [get_bd_pins zynq_ultra_ps_e_0/pl_clk0]
 connect_bd_net [get_bd_pins caliptra_package_top_0/gpio_in] [get_bd_pins caliptra_soc_0/gpio_out]
 connect_bd_net [get_bd_pins caliptra_package_top_0/gpio_out] [get_bd_pins caliptra_soc_0/gpio_in]
 connect_bd_net [get_bd_pins caliptra_package_top_0/pauser] [get_bd_pins caliptra_soc_0/pauser]
+connect_bd_net [get_bd_pins caliptra_package_top_0/cptra_obf_key] [get_bd_pins caliptra_soc_0/cptra_obf_key]
 
 connect_bd_net -net zynq_ultra_ps_e_0_pl_resetn0 [get_bd_pins proc_sys_reset_0/ext_reset_in] [get_bd_pins zynq_ultra_ps_e_0/pl_resetn0]
 connect_bd_net [get_bd_pins axi_bram_ctrl_0/s_axi_aclk] [get_bd_pins zynq_ultra_ps_e_0/pl_clk0]
@@ -213,10 +238,9 @@ connect_bd_net [get_bd_pins axi_bram_ctrl_0/s_axi_aresetn] [get_bd_pins proc_sys
 connect_bd_net [get_bd_pins axi_interconnect_0/M02_ACLK] [get_bd_pins zynq_ultra_ps_e_0/pl_clk0]
 connect_bd_net [get_bd_pins axi_interconnect_0/M02_ARESETN] [get_bd_pins proc_sys_reset_0/peripheral_aresetn]
 
-connect_bd_net [get_bd_pins caliptra_package_top_0/cptra_obf_key] [get_bd_pins caliptra_soc_0/cptra_obf_key]
 
 # Create address segments
-assign_bd_address -offset 0x80000000 -range 0x00010000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs caliptra_soc_0/S00_AXI/S00_AXI_reg] -force
+assign_bd_address -offset 0x80000000 -range 0x00010000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs caliptra_soc_0/interface_aximm/reg0] -force
 assign_bd_address -offset 0x82000000 -range 0x00008000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs axi_bram_ctrl_0/S_AXI/Mem0] -force
 assign_bd_address -offset 0x90000000 -range 0x00100000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs caliptra_package_top_0/s_apb/Reg] -force
 
