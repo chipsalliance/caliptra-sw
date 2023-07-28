@@ -12,18 +12,18 @@ doctest = false
 [dependencies]
 
 [build-dependencies]
-caliptra_common = { path = "../common" }
-openssl = { version = "0.10", features = ["vendored"] }
-hex = "0.4.3"
-bitfield = "0.14.0"
-asn1 = "0.13.0"
-syn = "1.0.107"
-convert_case = "0.6.0"
-quote = "1.0.23"
+caliptra_common.workspace = true
+openssl.workspace = true
+hex.workspace = true
+bitfield.workspace = true
+asn1.workspace = true
+syn.workspace = true
+convert_case.workspace = true
+quote.workspace = true
 
 [dev-dependencies]
-openssl = { version = "0.10", features = ["vendored"] }
-hex = "0.4.3"
+openssl.workspace = true
+hex.workspace = true
 
 [features]
 default = ["std"]
