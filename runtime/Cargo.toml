@@ -15,6 +15,7 @@ caliptra-image-types = { path = "../image/types", default-features = false }
 ufmt = { workspace = true }
 zerocopy = "0.6.1"
 caliptra-kat = { version = "0.1.0", path = "../kat" }
+caliptra-image-verify = { version = "0.1.0", path = "../image/verify", default-features = false }
 
 [build-dependencies]
 cfg-if = "1.0.0"
