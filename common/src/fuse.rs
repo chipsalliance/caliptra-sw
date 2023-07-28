@@ -28,7 +28,6 @@ pub enum FuseLogEntryId {
     FuseRtSvn = 8,                  // 4 bytes
     VendorLmsPubKeyIndex = 9,       // 4 bytes  (From Manifest)
     VendorLmsPubKeyRevocation = 10, // 4 bytes  (From Fuse)
-    OwnerLmsPubKeyIndex = 11,       // 4 bytes  (From Manifest)
 }
 
 impl From<u32> for FuseLogEntryId {
@@ -44,7 +43,6 @@ impl From<u32> for FuseLogEntryId {
             8 => FuseLogEntryId::FuseRtSvn,
             9 => FuseLogEntryId::VendorLmsPubKeyIndex,
             10 => FuseLogEntryId::VendorLmsPubKeyRevocation,
-            11 => FuseLogEntryId::OwnerLmsPubKeyIndex,
             _ => FuseLogEntryId::Invalid,
         }
     }

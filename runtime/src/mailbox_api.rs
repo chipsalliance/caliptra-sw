@@ -5,7 +5,6 @@ use zerocopy::{AsBytes, FromBytes, LayoutVerified};
 
 #[derive(PartialEq, Eq)]
 pub struct CommandId(pub u32);
-
 impl CommandId {
     pub const FIRMWARE_LOAD: Self = Self(0x46574C44); // "FWLD"
     pub const GET_IDEV_CSR: Self = Self(0x49444556); // "IDEV"
@@ -13,6 +12,7 @@ impl CommandId {
     pub const ECDSA384_VERIFY: Self = Self(0x53494756); // "SIGV"
     pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
     pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
+    pub const FW_INFO: Self = Self(0x494E464F); // "INFO"
 
     // TODO: Remove this and merge with GET_LDEV_CERT once that is implemented
     pub const TEST_ONLY_GET_LDEV_CERT: Self = Self(0x4345524c); // "CERL"

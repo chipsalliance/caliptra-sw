@@ -65,9 +65,13 @@ fn lock_cold_reset_reg(env: &mut RomEnv) {
     env.data_vault
         .lock_cold_reset_entry48(ColdResetEntry48::OwnerPubKeyHash);
 
-    // Lock the Vendor Public Key Index in data vault until next cold reset
+    // Lock the Ecc Vendor Public Key Index in data vault until next cold reset
     env.data_vault
-        .lock_cold_reset_entry4(ColdResetEntry4::VendorPubKeyIndex);
+        .lock_cold_reset_entry4(ColdResetEntry4::EccVendorPubKeyIndex);
+
+    // Lock the Lms Vendor Public Key Index in data vault until next cold reset
+    env.data_vault
+        .lock_cold_reset_entry4(ColdResetEntry4::LmsVendorPubKeyIndex);
 }
 
 /// Lock all common registers across all reset types

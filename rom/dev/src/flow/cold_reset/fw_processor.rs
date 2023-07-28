@@ -267,15 +267,7 @@ impl FirmwareProcessor {
         {
             log_fuse_data(
                 FuseLogEntryId::VendorLmsPubKeyRevocation,
-                fuse_vendor_lms_pub_key_revocation.bits().as_bytes(),
-            )?;
-        }
-
-        // Log OwnerLmsPubKeyIndex
-        if let Some(owner_lms_pub_key_idx) = log_info.owner_lms_pub_key_idx {
-            log_fuse_data(
-                FuseLogEntryId::OwnerLmsPubKeyIndex,
-                owner_lms_pub_key_idx.as_bytes(),
+                fuse_vendor_lms_pub_key_revocation.as_bytes(),
             )?;
         }
 
@@ -339,11 +331,16 @@ impl FirmwareProcessor {
         );
 
         data_vault.write_cold_reset_entry4(
-            ColdResetEntry4::VendorPubKeyIndex,
+            ColdResetEntry4::EccVendorPubKeyIndex,
             info.vendor_ecc_pub_key_idx,
         );
 
-        // [TODO] Write the Vendor and Owner Public key Indices of LMS keys.
+        // If LMS is not enabled, write the max value to the data vault
+        // to indicate the index is invalid.
+        data_vault.write_cold_reset_entry4(
+            ColdResetEntry4::LmsVendorPubKeyIndex,
+            info.vendor_lms_pub_key_idx.unwrap_or(u32::MAX),
+        );
 
         data_vault.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime.digest.into());
 

@@ -2,7 +2,8 @@
 
 use crate::{Drivers, MailboxResp, EcdsaVerifyCmdReq};
 use caliptra_drivers::{
-    Array4x12, CaliptraError, CaliptraResult, Ecc384PubKey, Ecc384Scalar, Ecc384Signature,
+    Array4x12, CaliptraError, CaliptraResult, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
+    Ecc384Signature,
 };
 use zerocopy::FromBytes;
 
@@ -27,7 +28,7 @@ pub(crate) fn handle_ecdsa_verify(drivers: &mut Drivers, cmd_args: &[u8]) -> Cal
         };
 
         let success = drivers.ecdsa.verify(&pubkey, &digest, &sig)?;
-        if !success {
+        if success != Ecc384Result::Success {
             return Err(CaliptraError::RUNTIME_ECDSA_VERIFY_FAILED);
         }
     } else {

@@ -65,11 +65,8 @@ pub struct ImageVerificationLogInfo {
     // LMS Vendor Public Key Index
     pub vendor_lms_pub_key_idx: Option<u32>,
 
-    // LMS Owner Public Key Index To Log
-    pub owner_lms_pub_key_idx: Option<u32>,
-
     /// Vendor LMS Public Key Revocation Fuse
-    pub fuse_vendor_lms_pub_key_revocation: Option<VendorPubKeyRevocation>,
+    pub fuse_vendor_lms_pub_key_revocation: Option<u32>,
 
     /// First Mutable code's logging information
     pub fmc_log_info: ImageSvnLogInfo,
@@ -86,9 +83,6 @@ pub struct ImageVerificationInfo {
 
     /// Vendor LMS public key index
     pub vendor_lms_pub_key_idx: Option<u32>,
-
-    /// Owner LMS public key index
-    pub owner_lms_pub_key_idx: Option<u32>,
 
     /// Digest of vendor public keys that verified the image
     pub vendor_pub_keys_digest: ImageDigest,
@@ -117,7 +111,7 @@ pub trait ImageVerificationEnv {
         digest: &ImageDigest,
         pub_key: &ImageEccPubKey,
         sig: &ImageEccSignature,
-    ) -> CaliptraResult<bool>;
+    ) -> CaliptraResult<Ecc384Result>;
 
     /// Perform LMS Verification
     fn lms_verify(
@@ -125,7 +119,7 @@ pub trait ImageVerificationEnv {
         digest: &ImageDigest,
         pub_key: &ImageLmsPublicKey,
         sig: &ImageLmsSignature,
-    ) -> CaliptraResult<bool>;
+    ) -> CaliptraResult<LmsResult>;
 
     /// Get Vendor Public Key Digest
     fn vendor_pub_key_digest(&self) -> ImageDigest;
@@ -134,7 +128,7 @@ pub trait ImageVerificationEnv {
     fn vendor_ecc_pub_key_revocation(&self) -> VendorPubKeyRevocation;
 
     /// Get Vendor LMS Public Key Revocation list
-    fn vendor_lms_pub_key_revocation(&self) -> VendorPubKeyRevocation;
+    fn vendor_lms_pub_key_revocation(&self) -> u32;
 
     /// Get Owner Public Key Digest from fuses
     fn owner_pub_key_digest_fuses(&self) -> ImageDigest;

@@ -20,7 +20,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{HashValue, Lms, Sha256};
+use caliptra_drivers::{HashValue, Lms, LmsResult, Sha256};
 use caliptra_lms_types::{
     bytes_to_words_8, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsPublicKey,
     LmsSignature,
@@ -553,7 +553,7 @@ fn test_lms_lower_32() {
     let final_result = Lms::default()
         .verify_lms_signature(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &FINAL_LMS_SIG)
         .unwrap();
-    assert_eq!(final_result, true);
+    assert_eq!(final_result, LmsResult::Success);
 }
 
 // from https://www.rfc-editor.org/rfc/rfc8554#page-49
@@ -809,7 +809,7 @@ fn test_hss_upper_32() {
         otstype: LmotsAlgorithmType::LmotsSha256N32W8,
     };
 
-    let success = Lms::default()
+    let result = Lms::default()
         .verify_lms_signature(
             &mut sha256,
             &PUBLIC_BUFFER,
@@ -817,7 +817,7 @@ fn test_hss_upper_32() {
             &UPPER_SIGNATURE,
         )
         .unwrap();
-    assert_eq!(success, true);
+    assert_eq!(result, LmsResult::Success);
 }
 
 test_suite! {

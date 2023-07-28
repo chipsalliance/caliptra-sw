@@ -20,6 +20,7 @@ use caliptra_common::memory_layout::{
 use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::{FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
+use caliptra_drivers::ColdResetEntry4::*;
 use caliptra_drivers::{DataVault, Mailbox};
 use caliptra_registers::dv::DvReg;
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
@@ -214,6 +215,9 @@ fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMm
         0x1000_0004 => {
             trigger_update_reset(mbox);
         }
+        0x1000_0005 => {
+            read_datavault_coldresetentry4(mbox);
+        }
         _ => {}
     }
 }
@@ -231,6 +235,25 @@ fn process_mailbox_commands() {
 
     #[cfg(not(feature = "interactive_test_fmc"))]
     process_mailbox_command(&mbox);
+}
+
+fn read_datavault_coldresetentry4(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    let data_vault = unsafe { DataVault::new(DvReg::new()) };
+    send_to_mailbox(mbox, (FmcSvn as u32).as_bytes(), false);
+    send_to_mailbox(mbox, data_vault.fmc_svn().as_bytes(), false);
+
+    send_to_mailbox(mbox, (FmcEntryPoint as u32).as_bytes(), false);
+    send_to_mailbox(mbox, data_vault.fmc_entry_point().as_bytes(), false);
+
+    send_to_mailbox(mbox, (EccVendorPubKeyIndex as u32).as_bytes(), false);
+    send_to_mailbox(mbox, data_vault.ecc_vendor_pk_index().as_bytes(), false);
+
+    send_to_mailbox(mbox, (LmsVendorPubKeyIndex as u32).as_bytes(), false);
+    send_to_mailbox(mbox, data_vault.lms_vendor_pk_index().as_bytes(), false);
+
+    mbox.dlen()
+        .write(|_| (core::mem::size_of::<u32>() * 8).try_into().unwrap());
+    mbox.status().write(|w| w.status(|w| w.data_ready()));
 }
 
 fn trigger_update_reset(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {

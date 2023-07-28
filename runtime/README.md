@@ -370,6 +370,28 @@ details specific requirements for the Caliptra DPE implementation.
 | Supports Rotate Context    | Yes                            | Whether Caliptra supports the optional RotateContextHandle command.
 | CertifyKey Alias Key       | Caliptra Runtime Alias Key     | The key that will be used to sign certificates produced by the DPE CertifyKey command.
 
+### Supported DPE Commands
+
+Caliptra DPE supports the following commands
+
+* GetProfile
+* InitializeContext
+* DeriveChild
+* CertifyKey
+  * Caliptra DPE supports two formats for CertifyKey: X.509 and PKCS#10 CSR.
+    X.509 is only available to PL0 PAUSERs.
+* Sign
+* RotateContextHandle
+* DestroyContext
+* GetCertificateChain
+
+In addition, Caliptra supports the following profile-defined commands:
+
+* ExtendTci: Extend a TCI measurement made by DeriveChild to provide additional
+             measurement data.
+* TagTci: Associate a TCI node with a unique tag
+* GetTaggedTci: Look up the measurements in a TCI node by tag
+
 ### Initializing DPE
 
 Caliptra Runtime firmware is responsible for initializing DPE’s Default Context.
@@ -382,38 +404,13 @@ Caliptra Runtime firmware is responsible for initializing DPE’s Default Contex
 * Set flag in the TCI Node that this node was created by the DPE implementation.
   This will be used to set the VENDOR\_INFO field in TcbInfo to “VNDR”.
 
-*Note: the Runtime CDI will be read as-needed and will not be accessed during
-initialization.*
+*Note: the Runtime CDI (from KeyVault) will be used as-needed and will not be
+accessed during initialization.*
 
 ### TCI Storage
 
-Caliptra SHALL set `MAX_TCI_NODES` to 24. To support this, Caliptra will
-allocate 24 hardware PCRs to be exclusively used by DPE.
-
-These PCRs will store only the cumulative journey of the PCRs.
-
-#### PCR Properties
-
-* 48 bytes
-* Initial value of all zeros
-* Extend operation: `NEW_VALUE = SHA384_HASH(OLD_VALUE || MEASUREMENT)`
-* Clear operation: Resettable to initial value by Runtime Firmware
-
-#### DPE PCR Usage
-
-DPE will use one hardware PCR to store the TCI value for each TCI Node.
-
-The DPE DeriveChild command will exercise the following PCR operations:
-
-* `Extend(pcr_index, INPUT_DATA)`
-
-The DPE ExtendTci command will exercise the following PCR operations:
-
-* `Extend(pcr_index, INPUT_DATA)`
-
-The DPE DestroyContext command will exercise the following PCR operations:
-
-* `Clear(pcr_index)`
+Caliptra SHALL set `MAX_TCI_NODES` to 24. DPE will hold these TCI nodes in DCCM
+which persists on warm/impactless updates.
 
 ### CDI Derivation
 
@@ -423,86 +420,46 @@ DPE will first collect measurements and concatenate them in a byte buffer
 `MEASUREMENT_DATA`:
 
 * LABEL parameter passed to Sign or CertifyKey.
-* The PCR values for each TCI node in the path from the current TCI node to the
+* The TCI values for each TCI node in the path from the current TCI node to the
   root, inclusive, starting with the current node.
 
 To derive a CDI for a given context, DPE shall use KeyVault hardware with the
 following inputs:
 
-If `FIPS_MODE` is disabled for the DPE command OR Sign(SYMMETRIC=true), DPE will
-
 * CDI = Runtime Firmware CDI (from KeyVault)
 * Label = LABEL parameter provided to Sign or CertifyKey
 * Context = `MEASUREMENT_DATA`
 
-If `FIPS_MODE` is enabled for the DPE command AND Sign(SYMMETRIC=false), DPE will
-
-* CDI = Output from TRNG
-* Label = LABEL parameter provided to Sign or CertifyKey
-* Context = `MEASUREMENT_DATA`
-
-In either case, the CDI shall be loaded into KeyVault slot 0.
+The CDI shall be loaded into KeyVault slot 0.
 
 ### Leaf Key Derivation
 
-To derive an asymmetric key for Sign and CertifyKey
-
-If `FIPS_MODE` is disabled for the DPE command OR Sign(SYMMETRIC=true), DPE will
+To derive an asymmetric key for Sign and CertifyKey, RT will
 
 * Derive an ECC P384 keypair from KV slot 0 CDI into KV slot 1
 * For CertifyKey: Request the public key
 * For Sign: Sign passed data
 * Erase KeyVault slots 0 and 1
 
-If `FIPS_MODE` is enabled for the DPE command AND Sign(SYMMETRIC=false), DPE will
-
-* If the key has been derived before and is cached in KeyVault
-  * Use cached key from KeyVault
-* If key is not cached
-  * Derive an ECC P384 keypair from KV slot 0 CDI into the next available Runtime
-    KeyVault Slot
-  * If no slots are available, evict the oldest Runtime slot and use that slot.
-* For CertifyKey: Request the public key
-* For Sign: Sign passed data
-* Erase KeyVault slot 0
-
-### FIPS Mode Caching
-
-Caliptra has 32 KeyVault slots and a max of 24 DPE contexts. To accomodate
-FIPS-mode caching, each DPE context will have a dedicated KeyVault slot
-for caching FIPS-mode keys. This ensures that a cached key can live for
-as long as the context does.
-
-A context's cached FIPS-mode key will be invalidated under the following
-circumstances:
-
-* A new measurement is made (DeriveChild or ExtendTci)
-* The context is destroyed
-* Caliptra Runtime firmware is impactlessly updated to different firmware
-  leading to a change in the Runtime CDI.
-
-This gives FIPS-mode keys the following properties:
-
-* During a a steady-state boot, the FIPS-mode key WILL NOT change
-* During any type of Caliptra reset (including impactless), the FIPS-mode key
-  WILL change
-* If the component weilding the key resets or changes its measurements, its
-  FIPS-mode key WILL change
-
-For cases like signing attestation messages (SPDM, Confidential Compute) these
-properties are acceptable.
-
 ### Internal Representation of TCI Nodes
 
 | Byte Offset | Bits  | Name           | Description
 | ----------- | ----- | ------------   | -------------
-| 0x00        | 15:0  | PCR Index      | Index of the hardware PCR which holds the journey PCR for this TCI node
 | 0x02        | 15:0  | Parent Index   | Index of the TCI node that is the parent of this node. 0xFF if this node is the root.
 | 0x04        | 31:0  | Node Tag       | Tag of this node provided by the TagTci command.
 | 0x08        | 159:0 | Context Handle | DPE context handle referring to this node
 | 0x1C        | 31    | Internal TCI   | This TCI was measured by Runtime Firmware itself
 |             | 30:0  | Reserved       | Reserved flag bits
 | 0x20        | 383:0 | Latest TCI     | The latest `INPUT_DATA` extended into this TCI by ExtendTci or DeriveChild
+
+Table: `TCI_NODE_DATA` for `DPE_PROFILE_IROT_P384_SHA384`
+
+| **Byte Offset** | **Bits** | **Name**         | **Description**
+| -----           | ----     | ---------------- | -----------------------------------------------------
+| 0x00            | 383:0    | `TCI_CURRENT`    | "Current" TCI measurement value
+| 0x30            | 383:0    | `TCI_CUMULATIVE` | TCI measurement value
+| 0x60            | 31:0     | `TYPE`           | `TYPE` parameter to the DeriveChild call which created this node
+| 0x64            | 31:0     | `LOCALITY`       | `TARGET_LOCALITY` parameter to the DeriveChild call which created this node (PAUSER)
 
 ### Certificate Generation
 
@@ -552,7 +509,6 @@ current TCI Node to the root. Max of 24.
 The following items are still under discussion in the Caliptra WG:
 
 * Expiration of DPE leaf certificates. See https://github.com/chipsalliance/caliptra-sw/issues/16
-* Should hardware PCRs be clearable by runtime firmware?
 * Should runtime firmware support a quote API for signing hardware PCRs with a
   runtime alias key?
 * Should `ECDSA384_SIGNATURE_VERIFY` take an hash from the mailbox or use a

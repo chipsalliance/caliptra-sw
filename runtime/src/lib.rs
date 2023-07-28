@@ -3,6 +3,7 @@
 #![no_std]
 
 pub mod dice;
+pub mod info;
 mod update;
 mod verify;
 
@@ -30,6 +31,7 @@ pub use mailbox_api::{
 
 pub mod packet;
 pub use fips::FipsModule;
+use info::FwInfoCmd;
 use packet::Packet;
 
 use caliptra_common::memory_layout::{
@@ -39,6 +41,7 @@ use caliptra_common::memory_layout::{
 };
 use caliptra_common::{cprintln, FirmwareHandoffTable};
 use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault, Ecc384};
+use caliptra_image_types::ImageManifest;
 use caliptra_registers::{
     dv::DvReg,
     ecc::EccReg,
@@ -72,6 +75,9 @@ pub struct Drivers<'a> {
     pub soc_ifc: SocIfcReg,
     pub regions: MemoryRegions,
     pub fht: &'a mut FirmwareHandoffTable,
+
+    /// A copy of the ImageHeader for the currently running image
+    pub manifest: ImageManifest,
 }
 impl<'a> Drivers<'a> {
     /// # Safety
@@ -79,8 +85,15 @@ impl<'a> Drivers<'a> {
     /// Callers must ensure that this function is called only once, and that
     /// any concurrent access to these register blocks does not conflict with
     /// these drivers.
-    pub unsafe fn new_from_registers(fht: &'a mut FirmwareHandoffTable) -> Self {
-        Self {
+    pub unsafe fn new_from_registers(fht: &'a mut FirmwareHandoffTable) -> CaliptraResult<Self> {
+        let manifest_slice = unsafe {
+            let ptr = MAN1_ORG as *mut u32;
+            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
+        };
+        let manifest = ImageManifest::read_from(manifest_slice.as_bytes())
+            .ok_or(CaliptraError::RUNTIME_NO_MANIFEST)?;
+
+        Ok(Self {
             mbox: Mailbox::new(MboxCsr::new()),
             sha_acc: Sha512AccCsr::new(),
             ecdsa: Ecc384::new(EccReg::new()),
@@ -88,7 +101,8 @@ impl<'a> Drivers<'a> {
             soc_ifc: SocIfcReg::new(),
             regions: MemoryRegions::new(),
             fht,
-        }
+            manifest,
+        })
     }
 }
 
@@ -131,6 +145,12 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::ECDSA384_VERIFY => verify::handle_ecdsa_verify(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::INVOKE_DPE => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        CommandId::FW_INFO => {
+            let resp = FwInfoCmd::execute(drivers);
+            drivers.mbox.write_response(resp.as_bytes())?;
+            Ok(MboxStatusE::DataReady)
+        }
+
         #[cfg(feature = "test_only_commands")]
         CommandId::TEST_ONLY_GET_LDEV_CERT => dice::handle_get_ldevid_cert(&drivers.data_vault),
         #[cfg(feature = "test_only_commands")]
@@ -148,6 +168,12 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
 }
 
 pub fn handle_mailbox_commands(drivers: &mut Drivers) {
+    // Indicator to SOC that RT firmware is ready
+    drivers
+        .soc_ifc
+        .regs_mut()
+        .cptra_flow_status()
+        .write(|w| w.ready_for_runtime(true));
     caliptra_drivers::report_boot_status(RtBootStatus::RtReadyForCommands.into());
     loop {
         wait_for_cmd(&mut drivers.mbox);

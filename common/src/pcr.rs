@@ -23,15 +23,16 @@ use zerocopy::{AsBytes, FromBytes};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PcrLogEntryId {
     Invalid = 0,
-    DeviceLifecycle = 1,      // data size = 1 byte
-    DebugLocked = 2,          // data size = 1 byte
-    AntiRollbackDisabled = 3, // data size = 1 byte
-    VendorPubKeyHash = 4,     // data size = 48 bytes
-    OwnerPubKeyHash = 5,      // data size = 48 bytes
-    VendorPubKeyIndex = 6,    // data size = 1 byte
-    FmcTci = 7,               // data size = 48 bytes
-    FmcSvn = 8,               // data size = 1 byte
-    FmcFuseSvn = 9,           // data size = 1 byte
+    DeviceLifecycle = 1,       // data size = 1 byte
+    DebugLocked = 2,           // data size = 1 byte
+    AntiRollbackDisabled = 3,  // data size = 1 byte
+    VendorPubKeyHash = 4,      // data size = 48 bytes
+    OwnerPubKeyHash = 5,       // data size = 48 bytes
+    EccVendorPubKeyIndex = 6,  // data size = 1 byte
+    FmcTci = 7,                // data size = 48 bytes
+    FmcSvn = 8,                // data size = 1 byte
+    FmcFuseSvn = 9,            // data size = 1 byte
+    LmsVendorPubKeyIndex = 10, // data size = 1 byte
 }
 
 impl From<u16> for PcrLogEntryId {
@@ -43,10 +44,11 @@ impl From<u16> for PcrLogEntryId {
             3 => PcrLogEntryId::AntiRollbackDisabled,
             4 => PcrLogEntryId::VendorPubKeyHash,
             5 => PcrLogEntryId::OwnerPubKeyHash,
-            6 => PcrLogEntryId::VendorPubKeyIndex,
+            6 => PcrLogEntryId::EccVendorPubKeyIndex,
             7 => PcrLogEntryId::FmcTci,
             8 => PcrLogEntryId::FmcSvn,
             9 => PcrLogEntryId::FmcFuseSvn,
+            10 => PcrLogEntryId::LmsVendorPubKeyIndex,
             _ => PcrLogEntryId::Invalid,
         }
     }

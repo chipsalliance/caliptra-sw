@@ -25,8 +25,7 @@ use zerocopy::{AsBytes, FromBytes};
 
 pub const MANIFEST_MARKER: u32 = 0x4E414D43;
 pub const VENDOR_ECC_KEY_COUNT: u32 = 4;
-pub const VENDOR_LMS_KEY_COUNT: u32 = 4;
-pub const OWNER_LMS_KEY_COUNT: u32 = 1;
+pub const VENDOR_LMS_KEY_COUNT: u32 = 32;
 pub const MAX_TOC_ENTRY_COUNT: u32 = 2;
 pub const IMAGE_REVISION_BYTE_SIZE: usize = 20;
 pub const ECC384_SCALAR_WORD_SIZE: usize = 12;
@@ -228,14 +227,14 @@ pub struct ImageVendorPrivKeys {
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
 pub struct ImageOwnerPubKeys {
     pub ecc_pub_key: ImageEccPubKey,
-    pub lms_pub_keys: [ImageLmsPublicKey; OWNER_LMS_KEY_COUNT as usize],
+    pub lms_pub_key: ImageLmsPublicKey,
 }
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
 pub struct ImageOwnerPrivKeys {
     pub ecc_priv_key: ImageEccPrivKey,
-    pub lms_priv_keys: [ImageLmsPrivKey; OWNER_LMS_KEY_COUNT as usize],
+    pub lms_priv_key: ImageLmsPrivKey,
 }
 
 #[repr(C)]
@@ -263,9 +262,6 @@ pub struct ImagePreamble {
 
     /// Owner Public Key
     pub owner_pub_keys: ImageOwnerPubKeys,
-
-    /// Owner LMS Public Key Index
-    pub owner_lms_pub_key_idx: u32,
 
     /// Owner Signatures
     pub owner_sigs: ImageSignatures,
@@ -310,14 +306,16 @@ pub struct ImageHeader {
     /// Vendor LMS Public Key Index
     pub vendor_lms_pub_key_idx: u32,
 
-    /// Owner LMS Public Key Index
-    pub owner_lms_pub_key_idx: u32,
-
     /// Flags
+    /// Bit 0: Interpret the pl0_pauser field. If not set, all PAUSERs are PL1.
     pub flags: u32,
 
     /// TOC Entry Count
     pub toc_len: u32,
+
+    /// The PAUSER with PL0 privileges. The SoC integration must choose
+    /// only one PAUSER to be PL0.
+    pub pl0_pauser: u32,
 
     /// TOC Digest
     pub toc_digest: ImageDigest,

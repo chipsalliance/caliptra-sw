@@ -231,7 +231,8 @@ impl InitDevIdLayer {
         let sig = okmutref(&mut sig)?;
 
         // Verify the signature of the `To Be Signed` portion
-        if !Crypto::ecdsa384_verify(env, &key_pair.pub_key, tbs.tbs(), sig)? {
+        let result = Crypto::ecdsa384_verify(env, &key_pair.pub_key, tbs.tbs(), sig)?;
+        if result != Ecc384Result::Success {
             return Err(CaliptraError::ROM_IDEVID_CSR_VERIFICATION_FAILURE);
         }
 
