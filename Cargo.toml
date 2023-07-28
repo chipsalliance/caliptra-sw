@@ -62,6 +62,9 @@ members = [
   "test-harness/types",
 ]
 
+[workspace.dependencies]
+ufmt = { git = "https://github.com/korran/ufmt.git", rev = "1d0743c1ffffc68bc05ca8eeb81c166192863f33", features = ["inline"] }
+
 [profile.firmware]
 inherits = "release"
 panic = "abort"
