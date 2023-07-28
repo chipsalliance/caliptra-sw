@@ -182,6 +182,8 @@ impl InitDevIdLayer {
     ///
     /// * `env`    - ROM Environment
     /// * `output` - DICE Output
+    // Inlined to reduce ROM size
+    #[inline(always)]
     fn generate_csr(env: &mut RomEnv, output: &DiceOutput) -> CaliptraResult<()> {
         //
         // Generate the CSR if requested via Manufacturing Service Register
