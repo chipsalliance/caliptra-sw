@@ -6,18 +6,18 @@ version = "0.5.0"
 edition = "2021"
 
 [dependencies]
-caliptra-drivers = { path = "../../drivers" }
-caliptra-image-types = { path = "../types", features = ["std"] }
-caliptra-image-elf = { path = "../elf" }
-caliptra-image-gen = { path = "../gen" }
-caliptra-image-openssl = { path = "../openssl" }
-caliptra-image-serde = { path = "../serde" }
-serde = "1.0"
-toml = "0.7.0"
-serde_derive = "1.0.136"
-clap = { version = "3.2.14", default-features = false, features = ["std"] }
-openssl = { version = "0.10", features = ["vendored"] }
-zerocopy = "0.6.1"
-anyhow = "1.0.70"
-hex = "0.4.3"
-chrono = "0.4.24"
+caliptra-drivers.workspace = true
+caliptra-image-types = { workspace = true, features = ["std"] }
+caliptra-image-elf.workspace = true
+caliptra-image-gen.workspace = true
+caliptra-image-openssl.workspace = true
+caliptra-image-serde.workspace = true
+serde.workspace = true
+toml.workspace = true
+serde_derive.workspace = true
+clap.workspace = true
+openssl.workspace = true
+zerocopy.workspace = true
+anyhow.workspace = true
+hex.workspace = true
+chrono.workspace = true

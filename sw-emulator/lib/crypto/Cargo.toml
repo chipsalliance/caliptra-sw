@@ -8,8 +8,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-sha2 = { version = "0.10.2", default-features = false, features = ["compress"] }
-p384 = "0.11.2"
-rfc6979 = "0.3.0"
-aes = "0.8.2"
-cbc = "0.1.2"
+sha2.workspace = true
+p384.workspace = true
+rfc6979.workspace = true
+aes.workspace = true
+cbc.workspace = true

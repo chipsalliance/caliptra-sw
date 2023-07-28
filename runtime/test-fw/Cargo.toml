@@ -34,16 +34,16 @@ path = "src/cert_tests.rs"
 required-features = ["riscv"]
 
 [build-dependencies]
-cfg-if = "1.0.0"
-caliptra_common = { path = "../../common", default-features = false }
-caliptra-gen-linker-scripts = { version = "0.1.0", path = "../../cpu/gen" }
+cfg-if.workspace = true
+caliptra_common = { workspace = true, default-features = false }
+caliptra-gen-linker-scripts.workspace = true
 
 [dependencies]
-caliptra-test-harness = { path = "../../test-harness" }
-caliptra-cpu = { version = "0.1.0", path = "../../cpu" }
-caliptra-registers = { path = "../../registers" }
-caliptra-runtime = { path = "..", default-features = false }
-caliptra-drivers = { path = "../../drivers" }
-caliptra_common = { path = "../../common", default-features = false }
-cfg-if = "1.0.0"
-zerocopy = "0.6.1"
+caliptra-test-harness.workspace = true
+caliptra-cpu.workspace = true
+caliptra-registers.workspace = true
+caliptra-runtime = { workspace = true, default-features = false }
+caliptra-drivers.workspace = true
+caliptra_common = { workspace = true, default-features = false }
+cfg-if.workspace = true
+zerocopy.workspace = true

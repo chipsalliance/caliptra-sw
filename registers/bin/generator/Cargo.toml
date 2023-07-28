@@ -8,8 +8,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ureg-codegen = { path = "../../../ureg/lib/codegen" }
-ureg-schema = { path = "../../../ureg/lib/schema" }
-ureg-systemrdl = { path = "../../../ureg/lib/systemrdl" }
-caliptra-systemrdl = { path = "../../../systemrdl" }
-quote = "1.0"
+ureg-codegen.workspace = true
+ureg-schema.workspace = true
+ureg-systemrdl.workspace = true
+caliptra-systemrdl.workspace = true
+quote.workspace = true

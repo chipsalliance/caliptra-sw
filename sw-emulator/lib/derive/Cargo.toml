@@ -11,7 +11,7 @@ proc-macro = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-caliptra-emu-bus = { path = "../bus"}
-caliptra-emu-types = { path = "../types"}
-quote = "1.0"
-proc-macro2 = "1.0.66"
+caliptra-emu-bus.workspace = true
+caliptra-emu-types.workspace = true
+quote.workspace = true
+proc-macro2.workspace = true
