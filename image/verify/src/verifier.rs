@@ -389,6 +389,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     }
 
     /// Verify Owner Signature
+    // Inlined to reduce ROM size
+    #[inline(always)]
     fn verify_owner_ecc_sig(
         &mut self,
         digest: &ImageDigest,
@@ -688,6 +690,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     /// Calculates a digest of the vendor key that signed the image.
     ///
     /// TODO: include the LMS key in the digest.
+    // Inlined to reduce ROM size
+    #[inline(always)]
     fn make_vendor_key_digest(&mut self, info: &HeaderInfo) -> CaliptraResult<ImageDigest> {
         let range = ImageManifest::vendor_ecc_pub_key_range(info.vendor_ecc_pub_key_idx);
 
