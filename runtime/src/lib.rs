@@ -24,13 +24,13 @@ use caliptra_common::memory_layout::{
 };
 use caliptra_common::{cprintln, FirmwareHandoffTable};
 use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault, Ecc384};
+use caliptra_drivers::{Hmac384, Sha256, Sha384, Sha384Acc, Trng};
 use caliptra_image_types::ImageManifest;
+use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_registers::{
-    dv::DvReg,
-    ecc::EccReg,
-    mbox::{enums::MboxStatusE, MboxCsr},
-    sha512_acc::Sha512AccCsr,
-    soc_ifc::SocIfcReg,
+    csrng::CsrngReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg,
+    mbox::MboxCsr, sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr,
+    soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 use zerocopy::{AsBytes, FromBytes};
 
@@ -92,6 +92,23 @@ pub struct Drivers<'a> {
     pub data_vault: DataVault,
     pub soc_ifc: SocIfcReg,
     pub regions: MemoryRegions,
+    pub sha256: Sha256,
+
+    // SHA2-384 Engine
+    pub sha384: Sha384,
+
+    // SHA2-384 Accelerator
+    pub sha384_acc: Sha384Acc,
+
+    /// Hmac384 Engine
+    pub hmac384: Hmac384,
+
+    /// Cryptographically Secure Random Number Generator
+    pub trng: Trng,
+
+    /// Ecc384 Engine
+    pub ecc384: Ecc384,
+
     pub fht: &'a mut FirmwareHandoffTable,
 
     /// A copy of the ImageHeader for the currently running image
@@ -110,6 +127,12 @@ impl<'a> Drivers<'a> {
         };
         let manifest = ImageManifest::read_from(manifest_slice.as_bytes())
             .ok_or(CaliptraError::RUNTIME_NO_MANIFEST)?;
+        let trng = Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )?;
 
         Ok(Self {
             mbox: Mailbox::new(MboxCsr::new()),
@@ -118,6 +141,12 @@ impl<'a> Drivers<'a> {
             data_vault: DataVault::new(DvReg::new()),
             soc_ifc: SocIfcReg::new(),
             regions: MemoryRegions::new(),
+            sha256: Sha256::new(Sha256Reg::new()),
+            sha384: Sha384::new(Sha512Reg::new()),
+            sha384_acc: Sha384Acc::new(Sha512AccCsr::new()),
+            hmac384: Hmac384::new(HmacReg::new()),
+            ecc384: Ecc384::new(EccReg::new()),
+            trng,
             fht,
             manifest,
         })
