@@ -23,7 +23,7 @@ use caliptra_common::memory_layout::{
     PCR_LOG_SIZE,
 };
 use caliptra_common::{cprintln, FirmwareHandoffTable};
-use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault, Ecc384};
+use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault, Ecc384, SocIfc};
 use caliptra_drivers::{Hmac384, Sha256, Sha384, Sha384Acc, Trng};
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::mbox::enums::MboxStatusE;
@@ -90,7 +90,7 @@ pub struct Drivers<'a> {
     pub sha_acc: Sha512AccCsr,
     pub ecdsa: Ecc384,
     pub data_vault: DataVault,
-    pub soc_ifc: SocIfcReg,
+    pub soc_ifc: SocIfc,
     pub regions: MemoryRegions,
     pub sha256: Sha256,
 
@@ -139,7 +139,7 @@ impl<'a> Drivers<'a> {
             sha_acc: Sha512AccCsr::new(),
             ecdsa: Ecc384::new(EccReg::new()),
             data_vault: DataVault::new(DvReg::new()),
-            soc_ifc: SocIfcReg::new(),
+            soc_ifc: SocIfc::new(SocIfcReg::new()),
             regions: MemoryRegions::new(),
             sha256: Sha256::new(Sha256Reg::new()),
             sha384: Sha384::new(Sha512Reg::new()),
@@ -248,11 +248,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
 
 pub fn handle_mailbox_commands(drivers: &mut Drivers) {
     // Indicator to SOC that RT firmware is ready
-    drivers
-        .soc_ifc
-        .regs_mut()
-        .cptra_flow_status()
-        .write(|w| w.ready_for_runtime(true));
+    drivers.soc_ifc.assert_ready_for_runtime();
+
     caliptra_drivers::report_boot_status(RtBootStatus::RtReadyForCommands.into());
     loop {
         wait_for_cmd(&mut drivers.mbox);

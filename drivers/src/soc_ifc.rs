@@ -147,6 +147,27 @@ impl SocIfc {
         }
     }
 
+    pub fn internal_fw_update_reset_wait_cycles(&self) -> u32 {
+        self.soc_ifc
+            .regs()
+            .internal_fw_update_reset_wait_cycles()
+            .read()
+            .into()
+    }
+    pub fn assert_fw_update_reset(&mut self) {
+        self.soc_ifc
+            .regs_mut()
+            .internal_fw_update_reset()
+            .write(|w| w.core_rst(true));
+    }
+
+    pub fn assert_ready_for_runtime(&mut self) {
+        self.soc_ifc
+            .regs_mut()
+            .cptra_flow_status()
+            .write(|w| w.ready_for_runtime(true));
+    }
+
     /// Sets WDT1 timeout
     ///
     /// # Arguments
