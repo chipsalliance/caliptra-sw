@@ -21,7 +21,7 @@ use caliptra_x509::Ecdsa384Signature;
 ///
 /// TODO: This can be refactored and eliminated by X509 using `Ecc384Signature`
 pub trait Ecdsa384SignatureAdapter {
-    /// Convert to ECDSA Signatuure
+    /// Convert to ECDSA Signature
     fn to_ecdsa(&self) -> Ecdsa384Signature;
 }
 
@@ -235,17 +235,15 @@ impl Crypto {
     ///
     /// # Returns
     ///
-    /// * `bool` - True on success, false otherwise
+    /// `Ecc384Result` - Ecc384Result::Success if the signature verification passed else an error code.
     pub fn ecdsa384_verify(
         env: &mut RomEnv,
         pub_key: &Ecc384PubKey,
         data: &[u8],
         sig: &Ecc384Signature,
-    ) -> CaliptraResult<bool> {
+    ) -> CaliptraResult<Ecc384Result> {
         let mut digest = Self::sha384_digest(env, data);
         let digest = okmutref(&mut digest)?;
-        let result = env.ecc384.verify(pub_key, digest, sig);
-        digest.0.fill(0);
-        result
+        env.ecc384.verify(pub_key, digest, sig)
     }
 }

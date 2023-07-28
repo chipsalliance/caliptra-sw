@@ -48,7 +48,7 @@ impl<'a> ImageVerificationEnv for &mut RomImageVerificationEnv<'a> {
         digest: &ImageDigest,
         pub_key: &ImageEccPubKey,
         sig: &ImageEccSignature,
-    ) -> CaliptraResult<bool> {
+    ) -> CaliptraResult<Ecc384Result> {
         // TODO: Remove following conversions after refactoring the driver ECC384PubKey
         // for use across targets
         let pub_key = Ecc384PubKey {
@@ -75,7 +75,7 @@ impl<'a> ImageVerificationEnv for &mut RomImageVerificationEnv<'a> {
         digest: &ImageDigest,
         pub_key: &ImageLmsPublicKey,
         sig: &ImageLmsSignature,
-    ) -> CaliptraResult<bool> {
+    ) -> CaliptraResult<LmsResult> {
         let mut message = [0u8; SHA384_DIGEST_BYTE_SIZE];
         for i in 0..digest.len() {
             message[i * 4..][..4].copy_from_slice(&digest[i].to_be_bytes());
@@ -94,7 +94,7 @@ impl<'a> ImageVerificationEnv for &mut RomImageVerificationEnv<'a> {
     }
 
     /// Retrieve Vendor LMS Public Key Revocation Bitmask
-    fn vendor_lms_pub_key_revocation(&self) -> VendorPubKeyRevocation {
+    fn vendor_lms_pub_key_revocation(&self) -> u32 {
         self.soc_ifc.fuse_bank().vendor_lms_pub_key_revocation()
     }
 
