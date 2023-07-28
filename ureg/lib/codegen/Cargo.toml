@@ -10,4 +10,4 @@ edition = "2021"
 [dependencies]
 ureg-schema = { path = "../schema" }
 quote = "1.0"
-proc-macro2 = "1.0.40"
+proc-macro2 = "1.0.66"
