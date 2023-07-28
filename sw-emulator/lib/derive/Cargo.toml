@@ -14,4 +14,4 @@ proc-macro = true
 caliptra-emu-bus = { path = "../bus"}
 caliptra-emu-types = { path = "../types"}
 quote = "1.0"
-proc-macro2 = "1.0.43"
+proc-macro2 = "1.0.66"
