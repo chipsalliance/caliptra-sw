@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 caliptra-drivers = { path = "../../../../drivers" }
-ufmt = "0.2.0"
+ufmt = { workspace = true }
 caliptra-cpu = { version = "0.1.0", path = "../../../../cpu" }
 
 [build-dependencies]
