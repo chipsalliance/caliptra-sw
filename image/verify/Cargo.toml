@@ -9,11 +9,11 @@ edition = "2021"
 doctest = false
 
 [dependencies]
-caliptra-image-types = { workspace = true, default-features = false }
-caliptra-drivers.workspace = true
 bitflags.workspace = true
-zerocopy.workspace = true
+caliptra-drivers.workspace = true
+caliptra-image-types = { workspace = true, default-features = false }
 memoffset.workspace = true
+zerocopy.workspace = true
 
 [features]
 default = ["std"]

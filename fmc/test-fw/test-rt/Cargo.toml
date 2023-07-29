@@ -6,10 +6,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+caliptra_common = { workspace = true, default-features = false }
 caliptra-cpu.workspace = true
 caliptra-drivers.workspace = true
 caliptra-registers.workspace = true
-caliptra_common = { workspace = true, default-features = false }
 ufmt.workspace = true
 zerocopy.workspace = true
 
@@ -20,7 +20,7 @@ cfg-if.workspace = true
 caliptra-builder.workspace = true
 
 [features]
-riscv = ["caliptra-cpu/riscv"]
 default = ["std"]
 emu = ["caliptra_common/emu", "caliptra-drivers/emu"]
+riscv = ["caliptra-cpu/riscv"]
 std = ["ufmt/std", "caliptra_common/std"]

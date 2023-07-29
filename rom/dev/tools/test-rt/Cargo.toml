@@ -6,9 +6,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+caliptra-cpu.workspace = true
 caliptra-drivers.workspace = true
 ufmt.workspace = true
-caliptra-cpu.workspace = true
 
 [build-dependencies]
 cfg-if.workspace = true

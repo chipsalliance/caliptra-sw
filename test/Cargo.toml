@@ -8,10 +8,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-zerocopy.workspace = true
-openssl.workspace = true
-caliptra-hw-model-types.workspace = true
 asn1.workspace = true
+caliptra-hw-model-types.workspace = true
+openssl.workspace = true
+zerocopy.workspace = true
 
 [dev-dependencies]
 caliptra-builder.workspace = true
