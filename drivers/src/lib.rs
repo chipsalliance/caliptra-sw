@@ -79,7 +79,10 @@ pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
 pub use okref::okmutref;
 pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};
-pub use persistent::{FuseLogArray, PcrLogArray, PersistentData, PersistentDataAccessor};
+pub use persistent::{
+    FuseLogArray, PcrLogArray, PersistentData, PersistentDataAccessor, StashMeasurementArray,
+    MEASUREMENT_MAX_COUNT,
+};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
 pub use sha256::{Sha256, Sha256DigestOp};
 pub use sha384::{Sha384, Sha384Digest, Sha384DigestOp};
