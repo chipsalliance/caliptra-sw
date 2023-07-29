@@ -8,15 +8,15 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-elf.workspace = true
+anyhow.workspace = true
 caliptra-image-elf.workspace= true
 caliptra-image-fake-keys.workspace = true
 caliptra-image-gen.workspace = true
 caliptra-image-openssl.workspace = true
 caliptra-image-types.workspace = true
 clap.workspace = true
+elf.workspace = true
 hex.workspace = true
-anyhow.workspace = true
 once_cell.workspace = true
 
 [[bin]]

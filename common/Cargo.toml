@@ -7,15 +7,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+bitfield.workspace = true
+caliptra-drivers.workspace = true
+caliptra-image-types = { workspace = true, default-features = false }
+caliptra-registers.workspace = true
 ufmt.workspace = true
 zerocopy.workspace = true
-caliptra-drivers.workspace = true
-caliptra-registers.workspace = true
-caliptra-image-types = { workspace = true, default-features = false }
-bitfield.workspace = true
-
 
 [features]
 default = ["std"]
-std = []
 emu = ["caliptra-drivers/emu"]
+std = []

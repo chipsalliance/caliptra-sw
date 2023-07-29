@@ -9,5 +9,5 @@ edition = "2021"
 
 [dependencies]
 caliptra-emu-types.workspace = true
-ureg.workspace = true
 tock-registers.workspace = true
+ureg.workspace = true

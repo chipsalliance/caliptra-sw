@@ -10,8 +10,8 @@ doctest = false
 
 [dependencies]
 caliptra-lms-types.workspace = true
-zerocopy.workspace = true
 memoffset.workspace = true
+zerocopy.workspace = true
 
 [features]
 default = ["std"]

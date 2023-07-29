@@ -14,18 +14,18 @@ fpga_realtime = ["dep:uio"]
 itrng = ["caliptra-verilated?/itrng"]
 
 [dependencies]
+bitfield.workspace = true
 caliptra-emu-bus.workspace = true
 caliptra-emu-cpu.workspace = true
 caliptra-emu-periph.workspace = true
 caliptra-emu-types.workspace = true
 caliptra-hw-model-types.workspace = true
 caliptra-registers.workspace = true
-uio = { workspace = true, optional = true }
-ureg.workspace = true
 caliptra-verilated = { workspace = true, optional = true }
 rand.workspace = true
+uio = { workspace = true, optional = true }
+ureg.workspace = true
 zerocopy.workspace = true
-bitfield.workspace = true
 
 [dev-dependencies]
 caliptra-builder.workspace = true

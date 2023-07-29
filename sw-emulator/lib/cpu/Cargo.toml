@@ -9,6 +9,6 @@ edition = "2021"
 
 [dependencies]
 bitfield.workspace = true
-lazy_static.workspace = true
 caliptra-emu-bus.workspace = true
 caliptra-emu-types.workspace = true
+lazy_static.workspace = true

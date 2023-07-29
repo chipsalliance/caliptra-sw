@@ -6,9 +6,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-caliptra-hw-model.workspace = true
-caliptra-emu-types.workspace = true
 caliptra-emu-bus.workspace = true
+caliptra-emu-types.workspace = true
+caliptra-hw-model.workspace = true
 
 [lib]
 crate-type = ["staticlib"]

@@ -8,15 +8,15 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap.workspace = true
-caliptra-registers.workspace = true
 caliptra-emu-bus.workspace = true
 caliptra-emu-cpu.workspace = true
 caliptra-emu-periph.workspace = true
 caliptra-emu-types.workspace = true
-caliptra-hw-model.workspace = true
 caliptra-hw-model-types.workspace = true
-gdbstub.workspace = true
+caliptra-hw-model.workspace = true
+caliptra-registers.workspace = true
+clap.workspace = true
 gdbstub_arch.workspace = true
+gdbstub.workspace = true
 hex.workspace = true
 tock-registers.workspace = true

@@ -8,6 +8,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+aes.workspace = true
+arrayref.workspace = true
+bitfield.workspace = true
 caliptra-emu-bus.workspace = true
 caliptra-emu-cpu.workspace = true
 caliptra-emu-crypto.workspace = true
@@ -15,9 +18,6 @@ caliptra-emu-derive.workspace = true
 caliptra-emu-types.workspace = true
 caliptra-hw-model-types.workspace = true
 caliptra-registers.workspace = true
-tock-registers.workspace = true
-smlang.workspace = true
 lazy_static.workspace = true
-arrayref.workspace = true
-bitfield.workspace = true
-aes.workspace = true
+smlang.workspace = true
+tock-registers.workspace = true
