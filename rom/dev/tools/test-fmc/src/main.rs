@@ -14,10 +14,12 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
 
+use caliptra_common::pcr::PCR_ID_STASH_MEASUREMENT;
 use caliptra_common::{FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
-use caliptra_drivers::{ColdResetEntry4::*, PersistentDataAccessor};
-use caliptra_drivers::{DataVault, Mailbox, PcrBank, PcrId};
+use caliptra_drivers::{
+    ColdResetEntry4::*, DataVault, Mailbox, PcrBank, PcrId, PersistentDataAccessor,
+};
 use caliptra_registers::dv::DvReg;
 use caliptra_registers::pv::PvReg;
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
@@ -163,9 +165,14 @@ fn copy_tbs(tbs: &mut [u8], ldevid_tbs: bool) {
     tbs.copy_from_slice(&src[..tbs.len()]);
 }
 
-fn get_pcr_entry(entry_index: usize) -> PcrLogEntry {
+fn get_pcr_entry(entry_index: usize, read_measurement_log: bool) -> PcrLogEntry {
     let persistent_data = unsafe { PersistentDataAccessor::new() };
-    persistent_data.get().pcr_log[entry_index]
+
+    if read_measurement_log {
+        persistent_data.get().measurement_log[entry_index]
+    } else {
+        persistent_data.get().pcr_log[entry_index]
+    }
 }
 
 fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
@@ -199,6 +206,13 @@ fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMm
         0x1000_0008 => {
             read_rom_info(mbox);
         }
+        0x1000_0009 => {
+            read_pcr31(mbox);
+        }
+        0x1000_000A => {
+            read_measurement_log(mbox);
+        }
+
         _ => {}
     }
 }
@@ -216,6 +230,13 @@ fn process_mailbox_commands() {
 
     #[cfg(not(feature = "interactive_test_fmc"))]
     process_mailbox_command(&mbox);
+}
+
+fn read_pcr31(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    let pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
+    // Note: read_pcr returns PCR in big-endian; convert to little-endian before sending it to mailbox.
+    let pcr1: [u8; 48] = pcr_bank.read_pcr(PCR_ID_STASH_MEASUREMENT).into();
+    send_to_mailbox(mbox, &pcr1, true);
 }
 
 fn read_datavault_coldresetentry4(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
@@ -251,7 +272,7 @@ fn trigger_update_reset(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioM
 fn read_pcr_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     let mut pcr_entry_count = 0;
     loop {
-        let pcr_entry = get_pcr_entry(pcr_entry_count);
+        let pcr_entry = get_pcr_entry(pcr_entry_count, false);
         if PcrLogEntryId::from(pcr_entry.id) == PcrLogEntryId::Invalid {
             break;
         }
@@ -262,6 +283,26 @@ fn read_pcr_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
 
     mbox.dlen().write(|_| {
         (core::mem::size_of::<PcrLogEntry>() * pcr_entry_count)
+            .try_into()
+            .unwrap()
+    });
+    mbox.status().write(|w| w.status(|w| w.data_ready()));
+}
+
+fn read_measurement_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    let mut measurement_entry_count = 0;
+    loop {
+        let measurement_entry = get_pcr_entry(measurement_entry_count, true);
+        measurement_entry_count += 1;
+        send_to_mailbox(mbox, measurement_entry.as_bytes(), false);
+
+        if measurement_entry_count == 8 {
+            break;
+        }
+    }
+
+    mbox.dlen().write(|_| {
+        (core::mem::size_of::<PcrLogEntry>() * measurement_entry_count)
             .try_into()
             .unwrap()
     });
@@ -293,20 +334,20 @@ fn read_pcrs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
 //   - Whether PCR0 is locked
 //   - Whether PCR1 is locked
 //   - Whether PCR2 is unlocked
-//   - Whether PCR3 is unlocked
+//   - Whether PCR31 is locked
 fn try_to_reset_pcrs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     let mut pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
 
     let res0 = pcr_bank.erase_pcr(PcrId::PcrId0);
     let res1 = pcr_bank.erase_pcr(PcrId::PcrId1);
     let res2 = pcr_bank.erase_pcr(PcrId::PcrId2);
-    let res3 = pcr_bank.erase_pcr(PcrId::PcrId3);
+    let res31 = pcr_bank.erase_pcr(PcrId::PcrId31);
 
     let ret_vals: [u8; 4] = [
         if res0.is_err() { 0 } else { 1 },
         if res1.is_err() { 0 } else { 1 },
         if res2.is_ok() { 0 } else { 1 },
-        if res3.is_ok() { 0 } else { 1 },
+        if res31.is_err() { 0 } else { 1 },
     ];
 
     send_to_mailbox(mbox, &ret_vals, false);

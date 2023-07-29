@@ -372,6 +372,8 @@ impl CaliptraError {
     pub const FW_PROC_MAILBOX_STATE_INCONSISTENT: CaliptraError =
         CaliptraError::new_const(0x01020003);
     pub const FW_PROC_MAILBOX_INVALID_COMMAND: CaliptraError = CaliptraError::new_const(0x01020004);
+    pub const FW_PROC_STASH_MEASUREMENT_READ_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x01020005);
 
     /// FMC Alias Layer : Certificate Verification Failure.
     pub const FMC_ALIAS_CERT_VERIFY: CaliptraError = CaliptraError::new_const(0x01030001);
@@ -431,6 +433,9 @@ impl CaliptraError {
         CaliptraError::new_const(0x0105000B);
 
     pub const ROM_GLOBAL_WDT_EXPIRED: CaliptraError = CaliptraError::new_const(0x0105000C);
+
+    pub const ROM_GLOBAL_MEASUREMENT_LOG_EXHAUSTED: CaliptraError =
+        CaliptraError::new_const(0x010000D);
 
     /// ROM KAT Errors
     pub const ROM_KAT_SHA256_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90010001);
