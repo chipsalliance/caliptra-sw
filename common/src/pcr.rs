@@ -16,6 +16,7 @@ use zerocopy::{AsBytes, FromBytes};
 
 pub const PCR_ID_FMC_CURRENT: PcrId = PcrId::PcrId0;
 pub const PCR_ID_FMC_JOURNEY: PcrId = PcrId::PcrId1;
+pub const PCR_ID_STASH_MEASUREMENT: PcrId = PcrId::PcrId31;
 
 // PcrLogEntryId is used to identify the PCR entry and
 // the size of the data in PcrLogEntry::pcr_data.
@@ -34,6 +35,7 @@ pub enum PcrLogEntryId {
     FmcFuseSvn = 9,            // data size = 1 byte
     LmsVendorPubKeyIndex = 10, // data size = 1 byte
     RomVerifyConfig = 11,      // data size = 1 byte
+    StashMeasurement = 12,     // data size = 48 bytes
 }
 
 impl From<u16> for PcrLogEntryId {
@@ -51,6 +53,7 @@ impl From<u16> for PcrLogEntryId {
             9 => PcrLogEntryId::FmcFuseSvn,
             10 => PcrLogEntryId::LmsVendorPubKeyIndex,
             11 => PcrLogEntryId::RomVerifyConfig,
+            12 => PcrLogEntryId::StashMeasurement,
             _ => PcrLogEntryId::Invalid,
         }
     }
@@ -71,7 +74,8 @@ pub struct PcrLogEntry {
     // PCR data
     pub pcr_data: [u32; 12],
 
-    pub reserved1: [u8; 4],
+    // PCR Metadata
+    pub metadata: [u8; 4],
 }
 
 impl PcrLogEntry {
@@ -89,6 +93,7 @@ impl PcrLogEntry {
             PcrLogEntryId::FmcFuseSvn => 1,
             PcrLogEntryId::LmsVendorPubKeyIndex => 1,
             PcrLogEntryId::RomVerifyConfig => 1,
+            PcrLogEntryId::StashMeasurement => 48,
         };
 
         &self.pcr_data.as_bytes()[..data_len]

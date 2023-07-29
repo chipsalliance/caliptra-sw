@@ -9,6 +9,7 @@ pub mod dice;
 pub mod fuse;
 pub mod keyids;
 pub mod mailbox_api;
+pub mod measurement;
 pub mod pcr;
 pub mod wdt;
 
@@ -26,6 +27,7 @@ pub use caliptra_drivers::memory_layout;
 pub use caliptra_drivers::printer::HexBytes;
 pub use caliptra_drivers::printer::Printer;
 pub use fuse::{FuseLogEntry, FuseLogEntryId};
+pub use measurement::StashMeasurement;
 pub use pcr::{PcrLogEntry, PcrLogEntryId, RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR};
 
 pub const FMC_ORG: u32 = 0x40000000;

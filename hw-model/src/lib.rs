@@ -199,6 +199,7 @@ pub enum ModelError {
     ProvidedDccmTooLarge,
     UnexpectedMailboxFsmStatus { expected: u32, actual: u32 },
     UnableToLockSha512Acc,
+    UploadMeasurementUnexpectedResponse,
 }
 impl Error for ModelError {}
 impl Display for ModelError {
@@ -226,6 +227,12 @@ impl Display for ModelError {
                 "Expected mailbox FSM status to be {expected}, was {actual}"
             ),
             ModelError::UnableToLockSha512Acc => write!(f, "Unable to lock sha512acc"),
+            ModelError::UploadMeasurementUnexpectedResponse => {
+                write!(
+                    f,
+                    "Received unexpected response after uploading measurement"
+                )
+            }
         }
     }
 }
@@ -327,6 +334,9 @@ pub fn mbox_write_fifo(
 
 /// Firmware Load Command Opcode
 const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
+
+/// Stash Measurement Command Opcode.
+const STASH_MEASUREMENT_CMD_OPCODE: u32 = 0x4D45_4153;
 
 // Represents a emulator or simulation of the caliptra hardware, to be called
 // from tests. Typically, test cases should use [`crate::new()`] to create a model
@@ -801,6 +811,15 @@ pub trait HwModel {
             model: self,
             req: MailboxRequest { cmd, data },
         }))
+    }
+
+    /// Upload measurement to the mailbox.
+    fn upload_measurement(&mut self, measurement: &[u8]) -> Result<(), ModelError> {
+        let response = self.mailbox_execute(STASH_MEASUREMENT_CMD_OPCODE, measurement)?;
+        if response.is_some() {
+            return Err(ModelError::UploadMeasurementUnexpectedResponse);
+        }
+        Ok(())
     }
 }
 
