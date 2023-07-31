@@ -20,6 +20,8 @@ cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-fmc $WORKSPACE_DIR/ca
 cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-runtime $WORKSPACE_DIR/caliptra-runtime.elf
 # Copy RTL
 cp -rf hw-latest/caliptra-rtl $WORKSPACE_DIR/caliptra-rtl
+# Copy libcaliptra
+cp -rf libcaliptra $WORKSPACE_DIR/libcaliptra
 
 # Generate Notes
 echo -e "Caliptra HW Release Note " > $WORKSPACE_DIR/release_notes.txt
@@ -34,6 +36,7 @@ echo -e "\tROM ELF: caliptra-rom.elf" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tImage Bundle Bin: image-bundle.bin" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tFMC ELF: caliptra-fmc.elf" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tRTFW ELF: caliptra-runtime.elf" >> $WORKSPACE_DIR/release_notes.txt
+echo -e "\tLIBCaliptra: libcaliptra/" >> $WORKSPACE_DIR/release_notes.txt
 
 # Generate Zip
 cd ./release/workspace
