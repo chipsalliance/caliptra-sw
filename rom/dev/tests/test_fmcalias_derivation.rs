@@ -4,7 +4,7 @@ use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, ROM_WITH_UART};
 use caliptra_common::RomBootStatus::ColdResetComplete;
 use caliptra_common::{FirmwareHandoffTable, FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
-use caliptra_drivers::ColdResetEntry4;
+use caliptra_drivers::{ColdResetEntry4, RomVerifyConfig};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, SecurityState};
 use caliptra_image_fake_keys::{OWNER_CONFIG, VENDOR_CONFIG_KEY_1};
@@ -214,6 +214,17 @@ fn test_pcr_log() {
     assert_eq!(
         pcr_log_entry.pcr_data[0] as u8,
         VENDOR_CONFIG_KEY_1.lms_key_idx as u8
+    );
+
+    // Check Rom verify config
+    pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
+    let pcr_log_entry =
+        PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
+    assert_eq!(pcr_log_entry.id, PcrLogEntryId::RomVerifyConfig as u16);
+    assert_eq!(pcr_log_entry.pcr_id, 0);
+    assert_eq!(
+        pcr_log_entry.pcr_data[0] as u8,
+        RomVerifyConfig::EcdsaAndLms as u8
     );
 }
 

@@ -143,6 +143,6 @@ impl<'a> ImageVerificationEnv for &mut RomImageVerificationEnv<'a> {
     }
 
     fn lms_verify_enabled(&self) -> bool {
-        self.soc_ifc.fuse_bank().lms_verify() == LmsVerifyConfig::EcdsaAndLms
+        self.soc_ifc.fuse_bank().lms_verify() == RomVerifyConfig::EcdsaAndLms
     }
 }

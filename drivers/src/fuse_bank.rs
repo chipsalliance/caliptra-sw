@@ -61,7 +61,7 @@ impl From<IdevidCertAttr> for usize {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LmsVerifyConfig {
+pub enum RomVerifyConfig {
     EcdsaOnly = 0,
     EcdsaAndLms = 1,
 }
@@ -276,16 +276,16 @@ impl FuseBank<'_> {
     /// * None
     ///
     /// # Returns
-    ///     LmsVerifyConfig
+    ///     RomVerifyConfig
     ///         EcdsaOnly: Verify Caliptra firmware images with ECDSA-only
     ///         EcdsaAndLms: Verify Caliptra firmware images with ECDSA and LMS
     ///
-    pub fn lms_verify(&self) -> LmsVerifyConfig {
+    pub fn lms_verify(&self) -> RomVerifyConfig {
         let soc_ifc_regs = self.soc_ifc.regs();
         if !soc_ifc_regs.fuse_lms_verify().read().lms_verify() {
-            LmsVerifyConfig::EcdsaOnly
+            RomVerifyConfig::EcdsaOnly
         } else {
-            LmsVerifyConfig::EcdsaAndLms
+            RomVerifyConfig::EcdsaAndLms
         }
     }
 }

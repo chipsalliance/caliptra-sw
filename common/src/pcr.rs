@@ -33,6 +33,7 @@ pub enum PcrLogEntryId {
     FmcSvn = 8,                // data size = 1 byte
     FmcFuseSvn = 9,            // data size = 1 byte
     LmsVendorPubKeyIndex = 10, // data size = 1 byte
+    RomVerifyConfig = 11,      // data size = 1 byte
 }
 
 impl From<u16> for PcrLogEntryId {
@@ -49,6 +50,7 @@ impl From<u16> for PcrLogEntryId {
             8 => PcrLogEntryId::FmcSvn,
             9 => PcrLogEntryId::FmcFuseSvn,
             10 => PcrLogEntryId::LmsVendorPubKeyIndex,
+            11 => PcrLogEntryId::RomVerifyConfig,
             _ => PcrLogEntryId::Invalid,
         }
     }
