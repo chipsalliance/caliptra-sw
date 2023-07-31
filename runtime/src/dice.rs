@@ -58,28 +58,28 @@ fn cert_from_dccm(dv: &DataVault, cert: &mut [u8], cert_type: CertType) -> Calip
 ///
 /// Returns the response payload as MailboxResp
 pub fn handle_get_ldevid_cert(dv: &DataVault) -> CaliptraResult<MailboxResp> {
-    let mut cert = [0u8; GetLdevCertResp::DATA_MAX_SIZE];
-
-    let cert_size = copy_ldevid_cert(dv, &mut cert)?;
-
-    Ok(MailboxResp::GetLdevCert(GetLdevCertResp {
+    let mut resp = GetLdevCertResp {
         hdr: MailboxRespHeader::default(),
-        data_size: cert_size as u32,
-        data: cert,
-    }))
+        data_size: 0,
+        data: [0u8; GetLdevCertResp::DATA_MAX_SIZE],
+    };
+
+    resp.data_size = copy_ldevid_cert(dv, &mut resp.data)? as u32;
+
+    Ok(MailboxResp::GetLdevCert(resp))
 }
 
 /// Handle the get fmc alias cert message
 ///
 /// Returns the response payload as MailboxResp
 pub fn handle_get_fmc_alias_cert(dv: &DataVault) -> CaliptraResult<MailboxResp> {
-    let mut cert = [0u8; TestGetFmcAliasCertResp::DATA_MAX_SIZE];
-
-    let cert_size = copy_fmc_alias_cert(dv, &mut cert)?;
-
-    Ok(MailboxResp::TestGetFmcAliasCert(TestGetFmcAliasCertResp {
+    let mut resp = TestGetFmcAliasCertResp {
         hdr: MailboxRespHeader::default(),
-        data_size: cert_size as u32,
-        data: cert,
-    }))
+        data_size: 0,
+        data: [0u8; TestGetFmcAliasCertResp::DATA_MAX_SIZE],
+    };
+
+    resp.data_size = copy_fmc_alias_cert(dv, &mut resp.data)? as u32;
+
+    Ok(MailboxResp::TestGetFmcAliasCert(resp))
 }

@@ -2,6 +2,7 @@
 
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use zerocopy::{AsBytes, FromBytes, LayoutVerified};
+use core::mem::size_of;
 
 #[derive(PartialEq, Eq)]
 pub struct CommandId(pub u32);
@@ -47,6 +48,7 @@ pub enum MailboxResp {
     InvokeDpeCommand(InvokeDpeCommandResp),
     TestGetFmcAliasCert(TestGetFmcAliasCertResp),
     FipsVersion(FipsVersionResp),
+    FwInfo(FwInfoResp),
 }
 
 impl MailboxResp {
@@ -59,6 +61,7 @@ impl MailboxResp {
             MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes(),
             MailboxResp::TestGetFmcAliasCert(resp) => resp.as_bytes(),
             MailboxResp::FipsVersion(resp) => resp.as_bytes(),
+            MailboxResp::FwInfo(resp) => resp.as_bytes(),
         }
     }
 
@@ -71,6 +74,7 @@ impl MailboxResp {
             MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes_mut(),
             MailboxResp::TestGetFmcAliasCert(resp) => resp.as_bytes_mut(),
             MailboxResp::FipsVersion(resp) => resp.as_bytes_mut(),
+            MailboxResp::FwInfo(resp) => resp.as_bytes_mut(),
         }
     }
 
@@ -78,11 +82,11 @@ impl MailboxResp {
     /// Takes into account the size override for variable-lenth payloads
     pub fn populate_chksum(&mut self) -> CaliptraResult<()> {
         // Calc checksum, use the size override if provided
-        let checksum = caliptra_common::checksum::calc_checksum(0, &self.as_bytes()[4..]);
+        let checksum = caliptra_common::checksum::calc_checksum(0, &self.as_bytes()[size_of::<i32>()..]);
 
         // cast as header struct
         let hdr: &mut MailboxRespHeader =
-            LayoutVerified::<&mut [u8], MailboxRespHeader>::new(&mut self.as_bytes_mut()[..core::mem::size_of::<MailboxRespHeader>()])
+            LayoutVerified::<&mut [u8], MailboxRespHeader>::new(&mut self.as_bytes_mut()[..size_of::<MailboxRespHeader>()])
             .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?
             .into_mut();
 
@@ -155,7 +159,7 @@ impl GetLdevCertResp {
 // ECDSA384_SIGNATURE_VERIFY
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
-pub struct EcdsaVerifyCmdReq {
+pub struct EcdsaVerifyReq {
     pub hdr: MailboxReqHeader,
     pub pub_key_x: [u8; 48],
     pub pub_key_y: [u8; 48],
@@ -234,4 +238,13 @@ pub struct FipsVersionResp {
 impl FipsVersionResp {
     pub const NAME: [u8; 12] = *b"Caliptra RTM";
     pub const MODE: u32 = 0x46495053;
+}
+
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct FwInfoResp {
+    pub hdr: MailboxRespHeader,
+    pub pl0_pauser: u32,
+    // TODO: Decide what other information to report for general firmware
+    // status.
 }

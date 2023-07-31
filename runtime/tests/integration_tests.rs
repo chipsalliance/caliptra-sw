@@ -4,15 +4,15 @@ pub mod common;
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART};
 use caliptra_drivers::Ecc384PubKey;
 use caliptra_hw_model::{HwModel, ModelError, ShaAccMode};
-use caliptra_runtime::{info::FwInfoResp, CommandId, EcdsaVerifyCmd, VersionResponse};
-use common::{run_rom_test, run_rt_test};
 use caliptra_runtime::{
     CommandId,
     MailboxReqHeader,
     MailboxRespHeader,
-    EcdsaVerifyCmdReq,
+    EcdsaVerifyReq,
     FipsVersionResp,
+    FwInfoResp,
 };
+use common::{run_rom_test, run_rt_test};
 use openssl::{
     bn::BigNum,
     ec::{EcGroup, EcKey},
@@ -107,12 +107,24 @@ fn test_rom_certs() {
 fn test_fw_info() {
     let mut model = run_rt_test(None);
 
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::FW_INFO), &[]),
+    };
+
     let resp = model
-        .mailbox_execute(u32::from(CommandId::FW_INFO), &[])
+        .mailbox_execute(u32::from(CommandId::FW_INFO), payload.as_bytes())
         .unwrap()
         .unwrap();
 
     let info = FwInfoResp::read_from(resp.as_slice()).unwrap();
+    // Verify checksum and FIPS status
+    assert!(caliptra_common::checksum::verify_checksum(
+        info.hdr.chksum,
+        0x0,
+        &info.as_bytes()[core::mem::size_of_val(&info.hdr.chksum)..],
+    ));
+    assert_eq!(info.hdr.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
+    // Verify FW info
     assert_eq!(info.pl0_pauser, 0xFFFF0000);
 }
 
@@ -144,7 +156,7 @@ fn test_verify_cmd() {
         .unwrap();
 
     // ECDSAVS NIST test vector
-    let cmd = EcdsaVerifyCmdReq {
+    let cmd = EcdsaVerifyReq {
         hdr: MailboxReqHeader {
             chksum: 0,
         },
@@ -179,7 +191,7 @@ fn test_verify_cmd() {
         &cmd.as_bytes()[4..],
     );
 
-    let cmd = EcdsaVerifyCmdReq {
+    let cmd = EcdsaVerifyReq {
         hdr: MailboxReqHeader {
             chksum: checksum,
         },
@@ -199,7 +211,7 @@ fn test_verify_cmd() {
     assert_eq!(model.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
 
     // Test with a bad reqest chksum
-    let cmd = EcdsaVerifyCmdReq { hdr: MailboxReqHeader { chksum: 0, }, ..cmd };
+    let cmd = EcdsaVerifyReq { hdr: MailboxReqHeader { chksum: 0, }, ..cmd };
 
     // Make sure the command execution fails.
     let resp = model
@@ -229,8 +241,6 @@ fn test_fips_cmd_api() {
         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::VERSION), &[]),
     };
 
-    let resp = model.mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes());
-    assert!(resp.is_ok());
     let fips_version_resp = model
         .mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes())
         .unwrap()
@@ -246,6 +256,7 @@ fn test_fips_cmd_api() {
         0x0,
         &fips_version.as_bytes()[core::mem::size_of_val(&fips_version.hdr.chksum)..],
     ));
+    assert_eq!(fips_version.hdr.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
     assert_eq!(fips_version.mode, FipsVersionResp::MODE);
     assert_eq!(fips_version.fips_rev, [0x01, 0x00, 0x00]);
     let name = &fips_version.name[..];

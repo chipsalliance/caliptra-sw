@@ -11,6 +11,7 @@ use caliptra_test::{
 use caliptra_runtime::{
     CommandId,
     MailboxReqHeader,
+    MailboxRespHeader,
     GetLdevCertResp,
     TestGetFmcAliasCertResp,
 };
@@ -192,12 +193,13 @@ fn smoke_test() {
 
     let ldev_cert_resp = GetLdevCertResp::read_from(ldev_cert_resp.as_bytes()).unwrap();
 
-    // Verify checksum
+    // Verify checksum and FIPS approval
     assert!(caliptra_common::checksum::verify_checksum(
         ldev_cert_resp.hdr.chksum,
         0x0,
         &ldev_cert_resp.as_bytes()[core::mem::size_of_val(&ldev_cert_resp.hdr.chksum)..],
     ));
+    assert_eq!(ldev_cert_resp.hdr.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
 
     // Extract the certificate from the response
     let ldev_cert_der = &ldev_cert_resp.data[..(ldev_cert_resp.data_size as usize)];
@@ -249,12 +251,13 @@ fn smoke_test() {
 
     let fmc_alias_cert_resp = TestGetFmcAliasCertResp::read_from(fmc_alias_cert_resp.as_bytes()).unwrap();
 
-    // Verify checksum
+    // Verify checksum and FIPS approval
     assert!(caliptra_common::checksum::verify_checksum(
         fmc_alias_cert_resp.hdr.chksum,
         0x0,
         &fmc_alias_cert_resp.as_bytes()[core::mem::size_of_val(&fmc_alias_cert_resp.hdr.chksum)..],
     ));
+    assert_eq!(fmc_alias_cert_resp.hdr.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
 
     // Extract the certificate from the response
     let fmc_alias_cert_der = &fmc_alias_cert_resp.data[..(fmc_alias_cert_resp.data_size as usize)];

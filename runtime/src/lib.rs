@@ -20,18 +20,18 @@ pub use mailbox_api::{
     MailboxRespHeader,
     GetIdevCsrResp,
     GetLdevCertResp,
-    EcdsaVerifyCmdReq,
+    EcdsaVerifyReq,
     StashMeasurementReq,
     StashMeasurementResp,
     InvokeDpeCommandReq,
     InvokeDpeCommandResp,
     TestGetFmcAliasCertResp,
     FipsVersionResp,
+    FwInfoResp,
 };
 
 pub mod packet;
 pub use fips::FipsModule;
-use info::FwInfoCmd;
 use packet::Packet;
 
 use caliptra_common::memory_layout::{
@@ -49,6 +49,7 @@ use caliptra_registers::{
     sha512_acc::Sha512AccCsr,
     soc_ifc::SocIfcReg,
 };
+use zerocopy::{AsBytes, FromBytes};
 
 const RUNTIME_BOOT_STATUS_BASE: u32 = 0x600;
 
@@ -145,12 +146,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::ECDSA384_VERIFY => verify::handle_ecdsa_verify(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::INVOKE_DPE => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-        CommandId::FW_INFO => {
-            let resp = FwInfoCmd::execute(drivers);
-            drivers.mbox.write_response(resp.as_bytes())?;
-            Ok(MboxStatusE::DataReady)
-        }
-
+        CommandId::FW_INFO => FwInfoResp::execute(drivers),
         #[cfg(feature = "test_only_commands")]
         CommandId::TEST_ONLY_GET_LDEV_CERT => dice::handle_get_ldevid_cert(&drivers.data_vault),
         #[cfg(feature = "test_only_commands")]
