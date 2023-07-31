@@ -232,7 +232,6 @@ fn test_verify_cmd() {
 #[test]
 fn test_fips_cmd_api() {
     let mut model = run_rom_test("mbox");
-    let expected_err = Err(ModelError::MailboxCmdFailed(0x000E0006));
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
@@ -268,8 +267,8 @@ fn test_fips_cmd_api() {
     };
 
     let resp = model.mailbox_execute(u32::from(CommandId::SELF_TEST), payload.as_bytes());
-    assert_eq!(resp, expected_err);
-    model.soc_ifc().cptra_fw_error_non_fatal().write(|_| 0);
+    assert!(resp.is_ok());
+    // TODO: Check checksum and FIPS status
 
     // SHUTDOWN
     let payload = MailboxReqHeader {

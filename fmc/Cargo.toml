@@ -13,7 +13,7 @@ caliptra-registers = { path = "../registers" }
 caliptra-x509 = { version = "0.1.0", path = "../x509" , default-features = false }
 caliptra_common = { path = "../common", default-features = false }
 caliptra-image-types = { path = "../image/types",  default-features = false  }
-ufmt = "0.2.0"
+ufmt = { workspace = true }
 zerocopy = "0.6.1"
 
 [build-dependencies]

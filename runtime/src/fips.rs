@@ -3,6 +3,7 @@
 use caliptra_common::cprintln;
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::CaliptraResult;
+use caliptra_kat::{Ecc384Kat, Hmac384Kat, Sha256Kat, Sha384AccKat, Sha384Kat};
 use caliptra_registers::mbox::enums::MboxStatusE;
 
 use crate::{Drivers, MailboxResp, MailboxRespHeader, FipsVersionResp};
@@ -29,9 +30,11 @@ impl FipsModule {
         Ok(MailboxResp::FipsVersion(FipsVersionResp::new()))
     }
 
-    pub fn self_test(_env: &Drivers) -> CaliptraResult<MailboxResp> {
+    pub fn self_test(env: &mut Drivers) -> CaliptraResult<MailboxResp> {
         cprintln!("[rt] FIPS self test");
-        Err(CaliptraError::RUNTIME_FIPS_UNIMPLEMENTED)
+        Self::execute_kats(env)?;
+
+        Ok(MailboxResp::default())
     }
 
     pub fn shutdown(env: &mut Drivers) -> CaliptraResult<MailboxResp> {
@@ -44,5 +47,25 @@ impl FipsModule {
     /// Clear data structures in DCCM.  
     fn zeroize(env: &mut Drivers) {
         env.regions.zeroize();
+    }
+
+    /// Execute KAT for cryptographic algorithms implemented in H/W.
+    fn execute_kats(env: &mut Drivers) -> CaliptraResult<()> {
+        cprintln!("[kat] Executing SHA2-256 Engine KAT");
+        Sha256Kat::default().execute(&mut env.sha256)?;
+
+        cprintln!("[kat] Executing SHA2-384 Engine KAT");
+        Sha384Kat::default().execute(&mut env.sha384)?;
+
+        cprintln!("[kat] Executing SHA2-384 Accelerator KAT");
+        Sha384AccKat::default().execute(&mut env.sha384_acc)?;
+
+        cprintln!("[kat] Executing ECC-384 Engine KAT");
+        Ecc384Kat::default().execute(&mut env.ecc384, &mut env.trng)?;
+
+        cprintln!("[kat] Executing HMAC-384 Engine KAT");
+        Hmac384Kat::default().execute(&mut env.hmac384, &mut env.trng)?;
+
+        Ok(())
     }
 }

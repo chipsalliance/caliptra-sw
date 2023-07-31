@@ -10,7 +10,7 @@ caliptra-cpu = { version = "0.1.0", path = "../../../cpu" }
 caliptra-drivers = { path = "../../../drivers" }
 caliptra-registers = { version = "0.1.0", path = "../../../registers" }
 caliptra_common = { path = "../../../common", default-features = false }
-ufmt = "0.2.0"
+ufmt = { workspace = true }
 zerocopy = "0.6.1"
 
 [build-dependencies]
