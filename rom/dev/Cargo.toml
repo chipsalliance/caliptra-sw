@@ -50,6 +50,7 @@ std = [
 ]
 no-fmc = []
 fpga_realtime = ["caliptra-drivers/fpga_realtime"]
+no-kats = []
 
 [[bin]]
 name = "asm_tests"
