@@ -14,6 +14,7 @@ impl CommandId {
     pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
     pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
     pub const FW_INFO: Self = Self(0x494E464F); // "INFO"
+    pub const TEST_ONLY_HMAC384_VERIFY: Self = Self(0x484D4143); // "HMAC"
 
     // TODO: Remove this and merge with GET_LDEV_CERT once that is implemented
     pub const TEST_ONLY_GET_LDEV_CERT: Self = Self(0x4345524c); // "CERL"
@@ -167,6 +168,18 @@ pub struct EcdsaVerifyReq {
     pub pub_key_y: [u8; 48],
     pub signature_r: [u8; 48],
     pub signature_s: [u8; 48],
+}
+// No command-specific output args
+
+// TEST_ONLY_HMAC384_SIGNATURE_VERIFY
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct HmacVerifyReq {
+    pub hdr: MailboxReqHeader,
+    pub key: [u8; 48],
+    pub tag: [u8; 48],
+    pub len: u32,
+    pub msg: [u8; 256],
 }
 // No command-specific output args
 

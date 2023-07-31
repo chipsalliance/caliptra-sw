@@ -15,8 +15,8 @@ use mailbox::Mailbox;
 pub mod mailbox_api;
 pub use mailbox_api::{
     CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, GetIdevCsrResp, GetLdevCertResp,
-    InvokeDpeCommandReq, InvokeDpeCommandResp, MailboxReqHeader, MailboxResp, MailboxRespHeader,
-    StashMeasurementReq, StashMeasurementResp, TestGetFmcAliasCertResp,
+    HmacVerifyReq, InvokeDpeCommandReq, InvokeDpeCommandResp, MailboxReqHeader, MailboxResp,
+    MailboxRespHeader, StashMeasurementReq, StashMeasurementResp, TestGetFmcAliasCertResp,
 };
 
 #[cfg(feature = "test_only_commands")]
@@ -44,6 +44,9 @@ use caliptra_registers::{
 };
 use zerocopy::{AsBytes, FromBytes};
 
+#[cfg(feature = "test_only_commands")]
+use crate::verify::HmacVerifyCmd;
+
 const RUNTIME_BOOT_STATUS_BASE: u32 = 0x600;
 
 /// Statuses used by ROM to log dice derivation progress.
@@ -65,6 +68,7 @@ pub struct Drivers<'a> {
     pub mbox: Mailbox,
     pub sha_acc: Sha512AccCsr,
     pub ecdsa: Ecc384,
+    pub hmac: Hmac384,
     pub data_vault: DataVault,
     pub soc_ifc: SocIfcReg,
     pub regions: MemoryRegions,
@@ -114,6 +118,7 @@ impl<'a> Drivers<'a> {
             mbox: Mailbox::new(MboxCsr::new()),
             sha_acc: Sha512AccCsr::new(),
             ecdsa: Ecc384::new(EccReg::new()),
+            hmac: Hmac384::new(HmacReg::new()),
             data_vault: DataVault::new(DvReg::new()),
             soc_ifc: SocIfcReg::new(),
             regions: MemoryRegions::new(),
@@ -175,6 +180,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT => {
             TestGetFmcAliasCertCmd::execute(&drivers.data_vault)
         }
+        #[cfg(feature = "test_only_commands")]
+        CommandId::TEST_ONLY_HMAC384_VERIFY => HmacVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::VERSION => FipsVersionCmd::execute(drivers),
         CommandId::SELF_TEST => FipsSelfTestCmd::execute(drivers),
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
