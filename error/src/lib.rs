@@ -95,6 +95,8 @@ impl CaliptraError {
         CaliptraError::new_const(0x0005000b);
     pub const DRIVER_ECC384_READ_DATA_KV_UNKNOWN: CaliptraError =
         CaliptraError::new_const(0x0005000c);
+    pub const DRIVER_ECC384_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x0005000d);
 
     pub const DRIVER_KV_ERASE_USE_LOCK_SET_FAILURE: CaliptraError =
         CaliptraError::new_const(0x00060001);
