@@ -6,21 +6,21 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-caliptra-drivers = { path = "../../../../drivers" }
-caliptra_common = { path = "../../../../common", default-features = false }
-ufmt = { workspace = true }
-ureg = { path = "../../../../ureg" }
-zerocopy = "0.6.1"
-caliptra-x509 = { version = "0.1.0", path = "../../../../x509" , default-features = false }
-caliptra-cpu = { version = "0.1.0", path = "../../../../cpu" }
-caliptra-registers = { path = "../../../../registers" }
+caliptra_common = { workspace = true, default-features = false }
+caliptra-cpu.workspace = true
+caliptra-drivers.workspace = true
+caliptra-registers.workspace = true
+caliptra-x509 = { workspace = true, default-features = false }
+ufmt.workspace = true
+ureg.workspace = true
+zerocopy.workspace = true
 
 [build-dependencies]
-cfg-if = "1.0.0"
+cfg-if.workspace = true
 
 [features]
 default = ["std"]
 emu = ["caliptra-drivers/emu"]
+interactive_test_fmc = []
 riscv = ["caliptra-cpu/riscv"]
 std = ["ufmt/std", "caliptra_common/std"]
-interactive_test_fmc = []

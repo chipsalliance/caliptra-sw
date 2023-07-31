@@ -7,14 +7,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-caliptra-drivers = { path = "..", features=["emu"] }
-caliptra-error = { path = "../../error", default_features = false }
-caliptra-registers = { path = "../../registers" }
-caliptra-kat = { path = "../../kat" }
-caliptra-lms-types = { path = "../../lms-types" }
-caliptra-test-harness = { path = "../../test-harness" }
-cfg-if = "1.0.0"
-zerocopy = "0.6.1"
+caliptra-drivers = { workspace = true, features=["emu"] }
+caliptra-error = { workspace = true, default-features = false }
+caliptra-kat = { workspace = true }
+caliptra-lms-types = { workspace = true }
+caliptra-registers = { workspace = true }
+caliptra-test-harness = { workspace = true }
+cfg-if.workspace = true
+zerocopy.workspace = true
 
 [features]
 emu = ["caliptra-test-harness/emu"]

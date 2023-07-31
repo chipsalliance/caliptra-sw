@@ -9,9 +9,9 @@ edition = "2021"
 doctest = false
 
 [dependencies]
-caliptra-image-types = { path = "../types", features = ["std"] }
-caliptra-lms-types = { path = "../../lms-types" }
-bitflags = "2.0.1"
-zerocopy = "0.6.1"
-anyhow = "1.0.70"
-memoffset = "0.8.0"
+anyhow.workspace = true
+bitflags.workspace = true
+caliptra-image-types = { workspace = true, features = ["std"] }
+caliptra-lms-types.workspace = true
+memoffset.workspace = true
+zerocopy.workspace = true
