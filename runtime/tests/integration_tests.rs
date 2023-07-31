@@ -128,7 +128,7 @@ fn test_fw_info() {
 }
 
 #[test]
-fn test_verify_cmd() {
+fn test_ecdsa_verify_cmd() {
     let mut model = run_rom_test("mbox");
 
     model.step_until(|m| {
