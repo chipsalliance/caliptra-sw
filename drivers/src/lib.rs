@@ -58,7 +58,7 @@ pub use ecc384::{
 pub use error_reporter::{report_fw_error_fatal, report_fw_error_non_fatal};
 pub use exit_ctrl::ExitCtrl;
 pub use fuse_bank::{
-    FuseBank, IdevidCertAttr, LmsVerifyConfig, VendorPubKeyRevocation, X509KeyIdAlgo,
+    FuseBank, IdevidCertAttr, RomVerifyConfig, VendorPubKeyRevocation, X509KeyIdAlgo,
 };
 pub use hmac384::{Hmac384, Hmac384Data, Hmac384Key, Hmac384Op, Hmac384Tag};
 pub use hmac384_kdf::hmac384_kdf;
