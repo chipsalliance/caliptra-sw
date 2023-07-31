@@ -65,6 +65,7 @@ impl CommandId {
 
     pub const TEST_ONLY_GET_LDEV_CERT: Self = Self(0x4345524c); // "CERL"
     pub const TEST_ONLY_GET_FMC_ALIAS_CERT: Self = Self(0x43455246); // "CERF"
+    pub const TEST_ONLY_HMAC384_VERIFY: Self = Self(0x484D4143); // "HMAC"
 
     /// FIPS module commands.
     /// The status command.
@@ -89,6 +90,7 @@ pub struct Drivers<'a> {
     pub mbox: Mailbox,
     pub sha_acc: Sha512AccCsr,
     pub ecdsa: Ecc384,
+    pub hmac: Hmac384,
     pub data_vault: DataVault,
     pub soc_ifc: SocIfcReg,
     pub regions: MemoryRegions,
@@ -138,6 +140,7 @@ impl<'a> Drivers<'a> {
             mbox: Mailbox::new(MboxCsr::new()),
             sha_acc: Sha512AccCsr::new(),
             ecdsa: Ecc384::new(EccReg::new()),
+            hmac: Hmac384::new(HmacReg::new()),
             data_vault: DataVault::new(DvReg::new()),
             soc_ifc: SocIfcReg::new(),
             regions: MemoryRegions::new(),
@@ -170,6 +173,28 @@ impl Default for EcdsaVerifyCmd {
             pub_key_y: [0u8; 48],
             signature_r: [0u8; 48],
             signature_s: [0u8; 48],
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(AsBytes, FromBytes)]
+pub struct HmacVerifyCmd {
+    pub chksum: i32,
+    pub key: [u8; 48],
+    pub tag: [u8; 48],
+    pub len: u32,
+    pub msg: [u8; 256],
+}
+
+impl Default for HmacVerifyCmd {
+    fn default() -> Self {
+        Self {
+            chksum: 0,
+            key: [0u8; 48],
+            tag: [0u8; 48],
+            len: 0,
+            msg: [0u8; 256],
         }
     }
 }
@@ -239,6 +264,12 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             )?;
             Ok(MboxStatusE::DataReady)
         }
+        #[cfg(feature = "test_only_commands")]
+        CommandId::TEST_ONLY_HMAC384_VERIFY => {
+            verify::handle_hmac_verify(drivers, cmd_bytes)?;
+            Ok(MboxStatusE::CmdComplete)
+        }
+
         CommandId::VERSION => FipsModule::version(drivers),
         CommandId::SELF_TEST => FipsModule::self_test(drivers),
         CommandId::SHUTDOWN => FipsModule::shutdown(drivers),
