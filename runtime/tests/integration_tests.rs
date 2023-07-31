@@ -10,6 +10,7 @@ use caliptra_runtime::{
     MailboxRespHeader,
     EcdsaVerifyReq,
     FipsVersionResp,
+    FipsVersionCmd,
     FwInfoResp,
 };
 use common::{run_rom_test, run_rt_test};
@@ -256,10 +257,10 @@ fn test_fips_cmd_api() {
         &fips_version.as_bytes()[core::mem::size_of_val(&fips_version.hdr.chksum)..],
     ));
     assert_eq!(fips_version.hdr.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
-    assert_eq!(fips_version.mode, FipsVersionResp::MODE);
+    assert_eq!(fips_version.mode, FipsVersionCmd::MODE);
     assert_eq!(fips_version.fips_rev, [0x01, 0x00, 0x00]);
     let name = &fips_version.name[..];
-    assert_eq!(name, FipsVersionResp::NAME.as_bytes());
+    assert_eq!(name, FipsVersionCmd::NAME.as_bytes());
 
     // SELF_TEST
     let payload = MailboxReqHeader {

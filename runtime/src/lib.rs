@@ -2,13 +2,13 @@
 
 #![no_std]
 
+pub mod fips;
 pub mod dice;
 pub mod info;
 mod update;
 mod verify;
 
 // Used by runtime tests
-pub(crate) mod fips;
 pub mod mailbox;
 use mailbox::Mailbox;
 
@@ -30,8 +30,11 @@ pub use mailbox_api::{
     FwInfoResp,
 };
 
+pub use fips::{FipsVersionCmd, FipsSelfTestCmd, FipsShutdownCmd};
+pub use dice::{GetLdevCertCmd, TestGetFmcAliasCertCmd};
+pub use info::FwInfoCmd;
+pub use verify::EcdsaVerifyCmd;
 pub mod packet;
-pub use fips::FipsModule;
 use packet::Packet;
 
 use caliptra_common::memory_layout::{
@@ -172,17 +175,17 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_IDEV_CSR => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_LDEV_CERT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-        CommandId::ECDSA384_VERIFY => verify::handle_ecdsa_verify(drivers, cmd_bytes),
+        CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::INVOKE_DPE => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-        CommandId::FW_INFO => FwInfoResp::execute(drivers),
+        CommandId::FW_INFO => FwInfoCmd::execute(drivers),
         #[cfg(feature = "test_only_commands")]
-        CommandId::TEST_ONLY_GET_LDEV_CERT => dice::handle_get_ldevid_cert(&drivers.data_vault),
+        CommandId::TEST_ONLY_GET_LDEV_CERT => GetLdevCertCmd::execute(&drivers.data_vault),
         #[cfg(feature = "test_only_commands")]
-        CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT => dice::handle_get_fmc_alias_cert(&drivers.data_vault),
-        CommandId::VERSION => FipsModule::version(drivers),
-        CommandId::SELF_TEST => FipsModule::self_test(drivers),
-        CommandId::SHUTDOWN => FipsModule::shutdown(drivers),
+        CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT => TestGetFmcAliasCertCmd::execute(&drivers.data_vault),
+        CommandId::VERSION => FipsVersionCmd::execute(drivers),
+        CommandId::SELF_TEST => FipsSelfTestCmd::execute(drivers),
+        CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }?;
 

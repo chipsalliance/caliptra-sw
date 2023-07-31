@@ -3,7 +3,8 @@
 use caliptra_drivers::CaliptraResult;
 use crate::{Drivers, MailboxResp, MailboxRespHeader, FwInfoResp};
 
-impl FwInfoResp {
+pub struct FwInfoCmd;
+impl FwInfoCmd {
     pub(crate) fn execute(drivers: &Drivers) -> CaliptraResult<MailboxResp> {
         Ok(MailboxResp::FwInfo(FwInfoResp {
             hdr: MailboxRespHeader::default(),
@@ -11,4 +12,3 @@ impl FwInfoResp {
         }))
     }
 }
-

@@ -224,6 +224,10 @@ impl TestGetFmcAliasCertResp {
     pub const DATA_MAX_SIZE: usize = 1024;
 }
 
+// FIPS_SELF_TEST
+// No command-specific input args
+// No command-specific output args
+
 // FIPS_GET_VERSION
 // No command-specific input args
 #[repr(C)]
@@ -235,21 +239,8 @@ pub struct FipsVersionResp {
     pub name: [u8; 12],
 }
 
-impl FipsVersionResp {
-    pub const NAME: [u8; 12] = *b"Caliptra RTM";
-    pub const MODE: u32 = 0x46495053;
-
-    pub fn new() -> Self {
-        Self {
-            hdr: MailboxRespHeader::default(),
-            mode: Self::MODE,
-            // Just return all zeroes for now.
-            fips_rev: [1, 0, 0],
-            name: Self::NAME,
-        }
-    }
-}
-
+// FW_INFO
+// No command-specific input args
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct FwInfoResp {

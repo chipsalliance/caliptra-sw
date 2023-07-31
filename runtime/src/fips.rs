@@ -6,33 +6,13 @@ use caliptra_drivers::CaliptraResult;
 use caliptra_kat::{Ecc384Kat, Hmac384Kat, Sha256Kat, Sha384AccKat, Sha384Kat};
 use caliptra_registers::mbox::enums::MboxStatusE;
 
-use crate::{Drivers, MailboxResp, FipsVersionResp};
+use crate::{Drivers, MailboxResp, MailboxRespHeader, FipsVersionResp};
 
 pub struct FipsModule;
 
 /// Fips command handler.
 impl FipsModule {
-    pub fn version(_env: &Drivers) -> CaliptraResult<MailboxResp> {
-        cprintln!("[rt] FIPS Version");
-
-        Ok(MailboxResp::FipsVersion(FipsVersionResp::new()))
-    }
-
-    pub fn self_test(env: &mut Drivers) -> CaliptraResult<MailboxResp> {
-        cprintln!("[rt] FIPS self test");
-        Self::execute_kats(env)?;
-
-        Ok(MailboxResp::default())
-    }
-
-    pub fn shutdown(env: &mut Drivers) -> CaliptraResult<MailboxResp> {
-        Self::zeroize(env);
-        env.mbox.set_status(MboxStatusE::CmdComplete);
-
-        Err(CaliptraError::RUNTIME_SHUTDOWN)
-    }
-
-    /// Clear data structures in DCCM.  
+    /// Clear data structures in DCCM.
     fn zeroize(env: &mut Drivers) {
         env.regions.zeroize();
     }
@@ -55,5 +35,45 @@ impl FipsModule {
         Hmac384Kat::default().execute(&mut env.hmac384, &mut env.trng)?;
 
         Ok(())
+    }
+}
+
+pub struct FipsVersionCmd;
+impl FipsVersionCmd {
+    pub const NAME: [u8; 12] = *b"Caliptra RTM";
+    pub const MODE: u32 = 0x46495053;
+
+    pub(crate) fn execute(_env: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        cprintln!("[rt] FIPS Version");
+
+        let resp = FipsVersionResp {
+            hdr: MailboxRespHeader::default(),
+            mode: Self::MODE,
+            // Just return all zeroes for now.
+            fips_rev: [1, 0, 0],
+            name: Self::NAME,
+        };
+
+        Ok(MailboxResp::FipsVersion(resp))
+    }
+}
+
+pub struct FipsSelfTestCmd;
+impl FipsSelfTestCmd {
+    pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        cprintln!("[rt] FIPS self test");
+        FipsModule::execute_kats(env)?;
+
+        Ok(MailboxResp::default())
+    }
+}
+
+pub struct FipsShutdownCmd;
+impl FipsShutdownCmd {
+    pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        FipsModule::zeroize(env);
+        env.mbox.set_status(MboxStatusE::CmdComplete);
+
+        Err(CaliptraError::RUNTIME_SHUTDOWN)
     }
 }
