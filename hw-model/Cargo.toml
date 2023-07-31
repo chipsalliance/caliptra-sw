@@ -14,20 +14,20 @@ fpga_realtime = ["dep:uio"]
 itrng = ["caliptra-verilated?/itrng"]
 
 [dependencies]
-caliptra-emu-bus = { path = "../sw-emulator/lib/bus" }
-caliptra-emu-cpu = { path = "../sw-emulator/lib/cpu" }
-caliptra-emu-periph = { path = "../sw-emulator/lib/periph" }
-caliptra-emu-types = { path = "../sw-emulator/lib/types" }
-caliptra-hw-model-types = { path = "types" }
-caliptra-registers = { path = "../registers" }
-uio = { version = "0.2.0", optional = true }
-ureg = { path = "../ureg" }
-caliptra-verilated = { path = "../hw-latest/verilated", optional = true, features = ["verilator"] }
-rand = "0.8"
-zerocopy = "0.6.1"
-bitfield = "0.14.0"
+bitfield.workspace = true
+caliptra-emu-bus.workspace = true
+caliptra-emu-cpu.workspace = true
+caliptra-emu-periph.workspace = true
+caliptra-emu-types.workspace = true
+caliptra-hw-model-types.workspace = true
+caliptra-registers.workspace = true
+caliptra-verilated = { workspace = true, optional = true }
+rand.workspace = true
+uio = { workspace = true, optional = true }
+ureg.workspace = true
+zerocopy.workspace = true
 
 [dev-dependencies]
-caliptra-builder = { path = "../builder" }
-caliptra-registers = { path = "../registers" }
-caliptra-test-harness-types = { path = "../test-harness/types" }
+caliptra-builder.workspace = true
+caliptra-registers.workspace = true
+caliptra-test-harness-types.workspace = true

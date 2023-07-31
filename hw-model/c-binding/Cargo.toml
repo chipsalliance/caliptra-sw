@@ -6,9 +6,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-caliptra-hw-model = { path = "../" }
-caliptra-emu-types = { path = "../../sw-emulator/lib/types" }
-caliptra-emu-bus = { path = "../../sw-emulator/lib/bus" }
+caliptra-emu-bus.workspace = true
+caliptra-emu-types.workspace = true
+caliptra-hw-model.workspace = true
 
 [lib]
 crate-type = ["staticlib"]
@@ -18,4 +18,4 @@ itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
 
 [build-dependencies]
-cbindgen = "0.24.0"
+cbindgen.workspace = true
