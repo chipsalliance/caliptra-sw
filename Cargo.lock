@@ -557,6 +557,7 @@ dependencies = [
  "caliptra-image-openssl",
  "caliptra-image-serde",
  "caliptra-image-types",
+ "caliptra-kat",
  "caliptra-registers",
  "caliptra-x509",
  "caliptra_common",
@@ -1386,9 +1387,9 @@ checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.53"
+version = "1.0.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba466839c78239c09faf015484e5cc04860f88242cff4d03eb038f04b4699b73"
+checksum = "18fb31db3f9bddb2ea821cde30a9f70117e3f119938b5ee630b7403aa6e2ead9"
 dependencies = [
  "unicode-ident",
 ]
@@ -1723,8 +1724,7 @@ checksum = "497961ef93d974e23eb6f433eb5fe1b7930b659f06d12dec6fc44a8f554c0bba"
 [[package]]
 name = "ufmt"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a64846ec02b57e9108d6469d98d1648782ad6bb150a95a9baac26900bbeab9d"
+source = "git+https://github.com/korran/ufmt.git?rev=1d0743c1ffffc68bc05ca8eeb81c166192863f33#1d0743c1ffffc68bc05ca8eeb81c166192863f33"
 dependencies = [
  "ufmt-macros",
  "ufmt-write",
@@ -1733,8 +1733,7 @@ dependencies = [
 [[package]]
 name = "ufmt-macros"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d337d3be617449165cb4633c8dece429afd83f84051024079f97ad32a9663716"
+source = "git+https://github.com/korran/ufmt.git?rev=1d0743c1ffffc68bc05ca8eeb81c166192863f33#1d0743c1ffffc68bc05ca8eeb81c166192863f33"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1744,8 +1743,7 @@ dependencies = [
 [[package]]
 name = "ufmt-write"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e87a2ed6b42ec5e28cc3b94c09982969e9227600b2e3dcbc1db927a84c06bd69"
+source = "git+https://github.com/korran/ufmt.git?rev=1d0743c1ffffc68bc05ca8eeb81c166192863f33#1d0743c1ffffc68bc05ca8eeb81c166192863f33"
 
 [[package]]
 name = "uio"
