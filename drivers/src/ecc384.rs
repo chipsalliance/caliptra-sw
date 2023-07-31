@@ -23,6 +23,7 @@ use zerocopy::{AsBytes, FromBytes};
 /// ECC-384 Coordinate
 pub type Ecc384Scalar = Array4x12;
 
+#[must_use]
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ecc384Result {
