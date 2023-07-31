@@ -85,14 +85,19 @@ pub(crate) fn extend_pcr0(
         PcrLogEntryId::OwnerPubKeyHash,
     )?;
     pcr.extend_u8(
-        env.data_vault.vendor_pk_index() as u8,
-        PcrLogEntryId::VendorPubKeyIndex,
+        env.data_vault.ecc_vendor_pk_index() as u8,
+        PcrLogEntryId::EccVendorPubKeyIndex,
     )?;
     pcr.extend(env.data_vault.fmc_tci(), PcrLogEntryId::FmcTci)?;
     pcr.extend_u8(env.data_vault.fmc_svn() as u8, PcrLogEntryId::FmcSvn)?;
     pcr.extend_u8(info.fmc.effective_fuse_svn as u8, PcrLogEntryId::FmcFuseSvn)?;
+    if let Some(vendor_lms_pub_key_idx) = info.vendor_lms_pub_key_idx {
+        pcr.extend_u8(
+            vendor_lms_pub_key_idx as u8,
+            PcrLogEntryId::LmsVendorPubKeyIndex,
+        )?;
+    }
 
-    // TODO: Check PCR0 != 0
     Ok(())
 }
 

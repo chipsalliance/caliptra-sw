@@ -25,25 +25,25 @@ use crate::{cprintln, rom_env::RomEnv};
 pub fn execute_kat(env: &mut RomEnv) -> CaliptraResult<()> {
     cprintln!("[kat] ++");
 
-    cprintln!("[kat] Executing SHA1 Engine KAT");
+    cprintln!("[kat] sha1");
     Sha1Kat::default().execute(&mut env.sha1)?;
 
-    cprintln!("[kat] Executing SHA2-256 Engine KAT");
+    cprintln!("[kat] SHA2-256");
     Sha256Kat::default().execute(&mut env.sha256)?;
 
-    cprintln!("[kat] Executing SHA2-384 Engine KAT");
+    cprintln!("[kat] SHA2-384");
     Sha384Kat::default().execute(&mut env.sha384)?;
 
-    cprintln!("[kat] Executing SHA2-384 Accelerator KAT");
+    cprintln!("[kat] SHA2-384-ACC");
     Sha384AccKat::default().execute(&mut env.sha384_acc)?;
 
-    cprintln!("[kat] Executing ECC-384 Engine KAT");
+    cprintln!("[kat] ECC-384");
     Ecc384Kat::default().execute(&mut env.ecc384, &mut env.trng)?;
 
-    cprintln!("[kat] Executing HMAC-384 Engine KAT");
+    cprintln!("[kat] HMAC-384");
     Hmac384Kat::default().execute(&mut env.hmac384, &mut env.trng)?;
 
-    cprintln!("[kat] Executing LMS Engine KAT");
+    cprintln!("[kat] LMS");
     LmsKat::default().execute(&mut env.sha256, &env.lms)?;
 
     cprintln!("[kat] --");

@@ -4,7 +4,7 @@ pub mod common;
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART};
 use caliptra_drivers::Ecc384PubKey;
 use caliptra_hw_model::{HwModel, ModelError, ShaAccMode};
-use caliptra_runtime::{CommandId, EcdsaVerifyCmd, VersionResponse};
+use caliptra_runtime::{info::FwInfoResp, CommandId, EcdsaVerifyCmd, VersionResponse};
 use common::{run_rom_test, run_rt_test};
 use openssl::{
     bn::BigNum,
@@ -94,6 +94,19 @@ fn test_rom_certs() {
     assert!(ldev_cert
         .verify(&PKey::from_ec_key(idev_ec_key).unwrap())
         .unwrap());
+}
+
+#[test]
+fn test_fw_info() {
+    let mut model = run_rt_test(None);
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::FW_INFO), &[])
+        .unwrap()
+        .unwrap();
+
+    let info = FwInfoResp::read_from(resp.as_slice()).unwrap();
+    assert_eq!(info.pl0_pauser, 0xFFFF0000);
 }
 
 #[test]
@@ -189,7 +202,6 @@ fn test_verify_cmd() {
 #[test]
 fn test_fips_cmd_api() {
     let mut model = run_rom_test("mbox");
-    let expected_err = Err(ModelError::MailboxCmdFailed(0x000E0006));
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
@@ -213,8 +225,7 @@ fn test_fips_cmd_api() {
     assert_eq!(name, VersionResponse::NAME.as_bytes());
 
     let resp = model.mailbox_execute(u32::from(CommandId::SELF_TEST), &cmd);
-    assert_eq!(resp, expected_err);
-    model.soc_ifc().cptra_fw_error_non_fatal().write(|_| 0);
+    assert!(resp.is_ok());
 
     let resp = model.mailbox_execute(u32::from(CommandId::SHUTDOWN), &cmd);
     assert!(resp.is_ok());

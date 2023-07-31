@@ -16,7 +16,7 @@ use caliptra_image_fake_keys::{
 use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig, ImageGeneratorVendorConfig};
 use caliptra_image_openssl::OsslCrypto;
 use caliptra_image_types::{
-    ImageBundle, ImageManifest, OWNER_LMS_KEY_COUNT, VENDOR_ECC_KEY_COUNT, VENDOR_LMS_KEY_COUNT,
+    ImageBundle, ImageManifest, VENDOR_ECC_KEY_COUNT, VENDOR_LMS_KEY_COUNT,
 };
 use openssl::asn1::Asn1Integer;
 use openssl::asn1::Asn1Time;
@@ -344,40 +344,6 @@ fn test_preamble_vendor_lms_optional_no_pubkey_out_of_bounds_check() {
 }
 
 #[test]
-fn test_preamble_owner_lms_pubkey_out_of_bounds() {
-    let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
-        ..Default::default()
-    };
-    let (mut hw, mut image_bundle) =
-        helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
-    image_bundle.manifest.preamble.owner_lms_pub_key_idx = OWNER_LMS_KEY_COUNT;
-
-    assert_eq!(
-        ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS.into()
-        ),
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap_err()
-    );
-}
-
-#[test]
-fn test_preamble_owner_lms_optional_no_pubkey_out_of_bounds_check() {
-    let fuses = caliptra_hw_model::Fuses {
-        lms_verify: false,
-        ..Default::default()
-    };
-    let (mut hw, mut image_bundle) =
-        helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
-    image_bundle.manifest.preamble.owner_lms_pub_key_idx = OWNER_LMS_KEY_COUNT;
-
-    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-        .unwrap();
-    hw.step_until_boot_status(ColdResetComplete.into(), true);
-}
-
-#[test]
 fn test_header_verify_vendor_sig_zero_ecc_pubkey() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
@@ -595,14 +561,16 @@ fn test_header_verify_owner_lms_sig_mismatch() {
     };
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
-    let owner_lms_pub_key_idx = image_bundle.manifest.preamble.owner_lms_pub_key_idx as usize;
 
     // Modify the owner public key.
-    let lms_pub_key_backup =
-        image_bundle.manifest.preamble.owner_pub_keys.lms_pub_keys[owner_lms_pub_key_idx];
+    let lms_pub_key_backup = image_bundle.manifest.preamble.owner_pub_keys.lms_pub_key;
 
-    image_bundle.manifest.preamble.owner_pub_keys.lms_pub_keys[owner_lms_pub_key_idx].digest =
-        [Default::default(); 6];
+    image_bundle
+        .manifest
+        .preamble
+        .owner_pub_keys
+        .lms_pub_key
+        .digest = [Default::default(); 6];
     assert_eq!(
         ModelError::MailboxCmdFailed(
             CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_SIGNATURE_INVALID.into()
@@ -619,8 +587,7 @@ fn test_header_verify_owner_lms_sig_mismatch() {
         helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
 
     // Modify the owner signature.
-    image_bundle.manifest.preamble.owner_pub_keys.lms_pub_keys[owner_lms_pub_key_idx] =
-        lms_pub_key_backup;
+    image_bundle.manifest.preamble.owner_pub_keys.lms_pub_key = lms_pub_key_backup;
     image_bundle.manifest.preamble.owner_sigs.lms_sig.tree_path[0] = [Default::default(); 6];
 
     assert_eq!(
@@ -640,14 +607,16 @@ fn test_header_verify_owner_lms_optional_no_sig_mismatch_check() {
     };
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
-    let owner_lms_pub_key_idx = image_bundle.manifest.preamble.owner_lms_pub_key_idx as usize;
 
     // Modify the owner public key.
-    let lms_pub_key_backup =
-        image_bundle.manifest.preamble.owner_pub_keys.lms_pub_keys[owner_lms_pub_key_idx];
+    let lms_pub_key_backup = image_bundle.manifest.preamble.owner_pub_keys.lms_pub_key;
 
-    image_bundle.manifest.preamble.owner_pub_keys.lms_pub_keys[owner_lms_pub_key_idx].digest =
-        [Default::default(); 6];
+    image_bundle
+        .manifest
+        .preamble
+        .owner_pub_keys
+        .lms_pub_key
+        .digest = [Default::default(); 6];
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
     hw.step_until_boot_status(ColdResetComplete.into(), true);
@@ -660,8 +629,7 @@ fn test_header_verify_owner_lms_optional_no_sig_mismatch_check() {
         helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
 
     // Modify the owner signature.
-    image_bundle.manifest.preamble.owner_pub_keys.lms_pub_keys[owner_lms_pub_key_idx] =
-        lms_pub_key_backup;
+    image_bundle.manifest.preamble.owner_pub_keys.lms_pub_key = lms_pub_key_backup;
     image_bundle.manifest.preamble.owner_sigs.lms_sig.tree_path[0] = [Default::default(); 6];
 
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
@@ -723,50 +691,6 @@ fn test_header_verify_vendor_lms_optional_no_pub_key_in_preamble_and_header_chec
     // Change vendor pubkey index.
     image_bundle.manifest.header.vendor_lms_pub_key_idx =
         image_bundle.manifest.preamble.vendor_lms_pub_key_idx + 1;
-    update_header(&mut image_bundle);
-
-    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-        .unwrap();
-    hw.step_until_boot_status(ColdResetComplete.into(), true);
-}
-
-#[test]
-fn test_header_verify_owner_lms_pub_key_in_preamble_and_header() {
-    let fuses = caliptra_hw_model::Fuses {
-        lms_verify: true,
-        ..Default::default()
-    };
-
-    let (mut hw, mut image_bundle) =
-        helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
-
-    // Change vendor pubkey index.
-    image_bundle.manifest.header.owner_lms_pub_key_idx =
-        image_bundle.manifest.preamble.owner_lms_pub_key_idx + 1;
-    update_header(&mut image_bundle);
-
-    assert_eq!(
-        ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_PUB_KEY_INDEX_MISMATCH.into()
-        ),
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap_err()
-    );
-}
-
-#[test]
-fn test_header_verify_owner_lms_optional_no_pub_key_in_preamble_and_header_check() {
-    let fuses = caliptra_hw_model::Fuses {
-        lms_verify: false,
-        ..Default::default()
-    };
-
-    let (mut hw, mut image_bundle) =
-        helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
-
-    // Change vendor pubkey index.
-    image_bundle.manifest.header.owner_lms_pub_key_idx =
-        image_bundle.manifest.preamble.owner_lms_pub_key_idx + 1;
     update_header(&mut image_bundle);
 
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
@@ -1787,7 +1711,6 @@ fn update_header(image_bundle: &mut ImageBundle) {
             &config,
             image_bundle.manifest.preamble.vendor_ecc_pub_key_idx,
             image_bundle.manifest.preamble.vendor_lms_pub_key_idx,
-            image_bundle.manifest.preamble.owner_lms_pub_key_idx,
             &header_digest_vendor,
             &header_digest_owner,
         )

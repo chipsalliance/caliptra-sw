@@ -95,6 +95,8 @@ impl CaliptraError {
         CaliptraError::new_const(0x0005000b);
     pub const DRIVER_ECC384_READ_DATA_KV_UNKNOWN: CaliptraError =
         CaliptraError::new_const(0x0005000c);
+    pub const DRIVER_ECC384_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x0005000d);
 
     pub const DRIVER_KV_ERASE_USE_LOCK_SET_FAILURE: CaliptraError =
         CaliptraError::new_const(0x00060001);
@@ -221,12 +223,8 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0033);
     pub const IMAGE_VERIFIER_ERR_FMC_RUNTIME_LOAD_ADDR_OVERLAP: CaliptraError =
         CaliptraError::new_const(0x000b0034);
-    pub const IMAGE_VERIFIER_ERR_OWNER_LMS_PUB_KEY_INDEX_MISMATCH: CaliptraError =
-        CaliptraError::new_const(0x000b0035);
     pub const IMAGE_VERIFIER_ERR_OWNER_LMS_VERIFY_FAILURE: CaliptraError =
         CaliptraError::new_const(0x000b0036);
-    pub const IMAGE_VERIFIER_ERR_OWNER_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS: CaliptraError =
-        CaliptraError::new_const(0x000b0037);
     pub const IMAGE_VERIFIER_ERR_OWNER_LMS_SIGNATURE_INVALID: CaliptraError =
         CaliptraError::new_const(0x000b0038);
     pub const RUNTIME_HANDOFF_FHT_NOT_LOADED: CaliptraError = CaliptraError::new_const(0x000b0039);
@@ -279,6 +277,7 @@ impl CaliptraError {
     pub const RUNTIME_UNEXPECTED_UPDATE_RETURN: CaliptraError =
         CaliptraError::new_const(0x000E0007);
     pub const RUNTIME_SHUTDOWN: CaliptraError = CaliptraError::new_const(0x000E0008);
+    pub const RUNTIME_NO_MANIFEST: CaliptraError = CaliptraError::new_const(0x000E0009);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);

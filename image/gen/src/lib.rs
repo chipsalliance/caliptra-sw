@@ -77,13 +77,13 @@ pub struct ImageGeneratorVendorConfig {
     pub not_before: [u8; 15],
 
     pub not_after: [u8; 15],
+
+    pub pl0_pauser: Option<u32>,
 }
 
 /// Image Generator Owner Configuration
 #[derive(Default)]
 pub struct ImageGeneratorOwnerConfig {
-    pub lms_key_idx: u32,
-
     pub pub_keys: ImageOwnerPubKeys,
 
     pub priv_keys: Option<ImageOwnerPrivKeys>,
