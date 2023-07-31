@@ -6,19 +6,7 @@ use caliptra_drivers::CaliptraResult;
 use caliptra_kat::{Ecc384Kat, Hmac384Kat, Sha256Kat, Sha384AccKat, Sha384Kat};
 use caliptra_registers::mbox::enums::MboxStatusE;
 
-use crate::{Drivers, MailboxResp, MailboxRespHeader, FipsVersionResp};
-
-impl FipsVersionResp {
-    pub fn new() -> Self {
-        Self {
-            hdr: MailboxRespHeader::default(),
-            mode: Self::MODE,
-            // Just return all zeroes for now.
-            fips_rev: [1, 0, 0],
-            name: Self::NAME,
-        }
-    }
-}
+use crate::{Drivers, MailboxResp, FipsVersionResp};
 
 pub struct FipsModule;
 

@@ -238,6 +238,16 @@ pub struct FipsVersionResp {
 impl FipsVersionResp {
     pub const NAME: [u8; 12] = *b"Caliptra RTM";
     pub const MODE: u32 = 0x46495053;
+
+    pub fn new() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            mode: Self::MODE,
+            // Just return all zeroes for now.
+            fips_rev: [1, 0, 0],
+            name: Self::NAME,
+        }
+    }
 }
 
 #[repr(C)]
