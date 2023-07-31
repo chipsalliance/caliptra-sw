@@ -9,25 +9,25 @@ edition = "2021"
 doctest = false
 
 [dependencies]
-caliptra-lms-types = { path = "../lms-types" }
-caliptra-registers = { path = "../registers" }
-ureg = { path = "../ureg" }
-zerocopy = "0.6.1"
-cfg-if = "1.0.0"
-bitfield = "0.14.0"
-bitflags = "2.0.1"
-caliptra-error = { version = "0.1.0", path = "../error" , default-features=false}
+bitfield.workspace = true
+bitflags.workspace = true
+caliptra-error = { workspace = true, default-features = false }
+caliptra-lms-types.workspace = true
+caliptra-registers.workspace = true
+cfg-if.workspace = true
+ureg.workspace = true
+zerocopy.workspace = true
 
 [features]
 emu = []
+fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
 itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
-fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
 
 [dev-dependencies]
-caliptra-drivers-test-bin = { path = "test-fw" }
-caliptra-hw-model = { path = "../hw-model" }
-caliptra-hw-model-types = { path = "../hw-model/types" }
-caliptra-builder = { path = "../builder" }
-caliptra-test = { path = "../test" }
-openssl = { version = "0.10", features = ["vendored"] }
+caliptra-builder.workspace = true
+caliptra-drivers-test-bin.workspace = true
+caliptra-hw-model-types.workspace = true
+caliptra-hw-model.workspace = true
+caliptra-test.workspace = true
+openssl.workspace = true
