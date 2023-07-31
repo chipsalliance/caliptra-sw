@@ -12,9 +12,6 @@ use uio::{UioDevice, UioError};
 use crate::HwModel;
 use crate::Output;
 
-// Static variable to keep track of the handshake with the "uart" code
-static mut TAG: u8 = 1;
-
 // TODO: Make PAUSER configurable
 const SOC_PAUSER: u32 = 0xffff_ffff;
 
@@ -23,10 +20,11 @@ fn fmt_uio_error(err: UioError) -> String {
 }
 
 // FPGA SOC wire register offsets
-const GPIO_OUTPUT_OFFSET: isize = 0;
-const GPIO_INPUT_OFFSET: isize = 2;
-const GPIO_PAUSER_OFFSET: isize = 3;
-const GPIO_DEOBF_KEY_OFFSET: isize = 4;
+const GPIO_OUTPUT_OFFSET: isize = 0x0000 / 4;
+const GPIO_INPUT_OFFSET: isize = 0x0008 / 4;
+const GPIO_PAUSER_OFFSET: isize = 0x000C / 4;
+const GPIO_DEOBF_KEY_OFFSET: isize = 0x0010 / 4;
+const GPIO_LOG_FIFO_OFFSET: isize = 0x1000 / 4;
 
 bitfield! {
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -35,7 +33,6 @@ bitfield! {
     cptra_rst_b, set_cptra_rst_b: 0, 0;
     cptra_pwrgood, set_cptra_pwrgood: 1, 1;
     security_state, set_security_state: 6, 4;
-    serial_tag, set_serial_tag: 31, 24;
 }
 
 bitfield! {
@@ -47,6 +44,15 @@ bitfield! {
     ready_for_fw, _: 28, 28;
     ready_for_runtime, _: 29, 29;
     ready_for_fuses, _: 30, 30;
+}
+
+bitfield! {
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+    /// Log FIFO register
+    pub struct LogFifo(u32);
+    log_fifo_char, _: 7, 0;
+    log_fifo_empty, _: 8, 8;
+    log_fifo_full, _: 9, 9;
 }
 
 pub struct ModelFpgaRealtime {
@@ -81,13 +87,6 @@ impl ModelFpgaRealtime {
         unsafe {
             let mut val = GpioOutput(self.gpio.offset(GPIO_OUTPUT_OFFSET).read_volatile());
             val.set_security_state(value);
-            self.gpio.offset(GPIO_OUTPUT_OFFSET).write_volatile(val.0);
-        }
-    }
-    fn set_uart_tag(&mut self, tag: u8) {
-        unsafe {
-            let mut val = GpioOutput(self.gpio.offset(GPIO_OUTPUT_OFFSET).read_volatile());
-            val.set_serial_tag(tag as u32);
             self.gpio.offset(GPIO_OUTPUT_OFFSET).write_volatile(val.0);
         }
     }
@@ -130,9 +129,6 @@ impl HwModel for ModelFpgaRealtime {
         // Set Security State signal wires
         m.set_security_state(u32::from(params.security_state));
 
-        // Set initial tag to be non-zero
-        unsafe { m.set_uart_tag(TAG) };
-
         // Set initial PAUSER
         m.set_pauser(SOC_PAUSER);
 
@@ -167,23 +163,20 @@ impl HwModel for ModelFpgaRealtime {
     }
 
     fn step(&mut self) {
-        // Temporary UART handshake to get log messages from firmware
-        let generic = self.soc_ifc().cptra_generic_output_wires().read()[0];
-
-        // FW sets the generic_output register with the log character and the TAG from generic_input.
-        let readtag = ((generic >> 16) & 0xFF) as u8;
-
-        // If the TAG from FW matches what the hw-model set in the generic_input register there is new data.
-        if unsafe { (TAG & 0xFF) == readtag } {
-            let uartchar = generic & 0xFF;
-            self.output()
-                .sink()
-                .push_uart_char(uartchar.try_into().unwrap());
-
-            // Increment tag and expose on generic_input to inform uart code we have recieved the byte
-            unsafe {
-                TAG = TAG.wrapping_add(1);
-                self.set_uart_tag(TAG);
+        // Check and empty log FIFO
+        loop {
+            let uartreg =
+                unsafe { LogFifo(self.gpio.offset(GPIO_LOG_FIFO_OFFSET).read_volatile()) };
+            if uartreg.log_fifo_full() != 0 {
+                panic!("FPGA log FIFO overran");
+            }
+            // Check if data is valid (fifo not empty) and add to log
+            if uartreg.log_fifo_empty() == 0 {
+                self.output()
+                    .sink()
+                    .push_uart_char(uartreg.log_fifo_char().try_into().unwrap());
+            } else {
+                break;
             }
         }
 

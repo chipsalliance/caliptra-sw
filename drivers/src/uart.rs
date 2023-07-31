@@ -57,18 +57,12 @@ impl Uart {
 
     #[cfg(feature = "fpga_realtime")]
     pub fn write_byte(&mut self, byte: u8) {
-        // Read TAG from test sw and include in write to generic_output write to inform sw there is new data
-        const STDIN: *mut u32 = 0x3003_00C0 as *mut u32;
-        let tag = unsafe { ptr::read_volatile(STDIN) };
-
         // TODO: cleanup after final UART RTL definition is in place
         const STDOUT: *mut u32 = 0x3003_00C8 as *mut u32;
-
         unsafe {
-            ptr::write_volatile(STDOUT, 0x8000_0000 | (tag << 16) | (byte as u32));
+            let toggle = !(ptr::read_volatile(STDOUT)) & 0x100; // Toggle bit 8 from previous value to indicate write
+            ptr::write_volatile(STDOUT, toggle | (byte as u32));
         }
-        // Wait for test to acknowledge that it has read the byte.
-        while tag == unsafe { ptr::read_volatile(STDIN) } {}
     }
 }
 

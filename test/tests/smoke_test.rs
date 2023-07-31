@@ -155,7 +155,7 @@ fn smoke_test() {
     .unwrap();
     let mut output = vec![];
 
-    hw.step_until_output_contains("Caliptra RT listening for mailbox commands...")
+    hw.step_until_output_contains("Caliptra RT listening for mailbox commands...\n")
         .unwrap();
     output
         .write_all(hw.output().take(usize::MAX).as_bytes())
