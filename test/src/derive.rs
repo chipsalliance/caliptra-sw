@@ -306,10 +306,12 @@ pub struct Pcr0Input {
     pub fuse_anti_rollback_disable: bool,
     pub vendor_pub_key_hash: [u32; 12],
     pub owner_pub_key_hash: [u32; 12],
-    pub vendor_pub_key_index: u32,
+    pub ecc_vendor_pub_key_index: u32,
     pub fmc_digest: [u32; 12],
     pub fmc_svn: u32,
     pub fmc_fuse_svn: u32,
+    pub lms_vendor_pub_key_index: u32,
+    pub rom_verify_config: u32,
 }
 impl Pcr0Input {}
 
@@ -333,10 +335,12 @@ impl Pcr0 {
             &mut value,
             swap_word_bytes(&input.owner_pub_key_hash).as_bytes(),
         );
-        extend(&mut value, &[input.vendor_pub_key_index as u8]);
+        extend(&mut value, &[input.ecc_vendor_pub_key_index as u8]);
         extend(&mut value, swap_word_bytes(&input.fmc_digest).as_bytes());
         extend(&mut value, &[input.fmc_svn as u8]);
         extend(&mut value, &[input.fmc_fuse_svn as u8]);
+        extend(&mut value, &[input.lms_vendor_pub_key_index as u8]);
+        extend(&mut value, &[input.rom_verify_config as u8]);
 
         let mut result: [u32; 12] = zerocopy::transmute!(value);
         swap_word_bytes_inplace(&mut result);
@@ -359,19 +363,21 @@ fn test_derive_pcr0() {
             0xdc1a27ef, 0x0c08201a, 0x8b066094, 0x118c29fe, 0x0bc2270e, 0xbd965c43, 0xf7b9a68d,
             0x8eaf37fa, 0x968ca8d8, 0x13b2920b, 0x3b88b026, 0xf2f0ebb0,
         ],
-        vendor_pub_key_index: 0,
+        ecc_vendor_pub_key_index: 0,
         fmc_digest: [
             0xe44ea855, 0x9fcf4063, 0xd3110a9a, 0xd60579db, 0xe03e6dd7, 0x4556cd98, 0xb2b941f5,
             0x1bb5034b, 0x587eea1f, 0xfcdd0e0f, 0x8e88d406, 0x3327a3fe,
         ],
         fmc_svn: 5,
         fmc_fuse_svn: 2,
+        lms_vendor_pub_key_index: u32::MAX,
+        rom_verify_config: 1, // RomVerifyConfig::EcdsaAndLms
     });
     assert_eq!(
         pcr0,
         Pcr0([
-            0xd8f3fd4, 0x4698aaae, 0x7bacaf67, 0x714a8035, 0x9a8d3a51, 0x3fcde890, 0x8039f4c1,
-            0x77f9d5a9, 0x77b8ecd5, 0xf29b3fa9, 0x30e25097, 0xe1d82b14,
+            0xB38A7B77, 0xC68EB393, 0x868CF1B6, 0x86D1A737, 0x865E57CE, 0xC776EB1D, 0x48D45DCF,
+            0xD6C90BA0, 0x7B5F5D82, 0x8B2CCBFF, 0xC204B621, 0xAD1193D5
         ],)
     )
 }

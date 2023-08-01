@@ -11,9 +11,9 @@ riscv = ["caliptra-test-harness/riscv"]
 emu = ["caliptra-test-harness/emu"]
 
 [dependencies]
-caliptra-test-harness = { path = "../../test-harness" }
-caliptra-registers = { path = "../../registers" }
-caliptra-drivers = { path = "../../drivers" }
+caliptra-drivers.workspace = true
+caliptra-registers.workspace = true
+caliptra-test-harness.workspace = true
 
 [[bin]]
 name = "test_iccm_unaligned_write"

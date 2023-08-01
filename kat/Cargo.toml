@@ -10,6 +10,6 @@ test = false
 doctest = false
 
 [dependencies]
-caliptra-drivers = { path = "../drivers" }
-caliptra-lms-types = { path = "../lms-types" }
-zerocopy = "0.6.1"
+caliptra-drivers.workspace = true
+caliptra-lms-types.workspace = true
+zerocopy.workspace = true

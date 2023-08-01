@@ -280,11 +280,13 @@ fn smoke_test() {
             fuse_anti_rollback_disable: false,
             vendor_pub_key_hash: vendor_pk_hash,
             owner_pub_key_hash: owner_pk_hash,
-            vendor_pub_key_index: image.manifest.preamble.vendor_ecc_pub_key_idx,
+            ecc_vendor_pub_key_index: image.manifest.preamble.vendor_ecc_pub_key_idx,
             fmc_digest: image.manifest.fmc.digest,
             fmc_svn: image.manifest.fmc.svn,
             // This is from the SVN in the fuses (7 bits set)
             fmc_fuse_svn: 7,
+            lms_vendor_pub_key_index: u32::MAX,
+            rom_verify_config: 0, // RomVerifyConfig::EcdsaOnly
         }),
         &expected_ldevid_key,
     );

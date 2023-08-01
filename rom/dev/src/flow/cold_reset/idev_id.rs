@@ -229,7 +229,7 @@ impl InitDevIdLayer {
         );
 
         // Sign the the `To Be Signed` portion
-        let mut sig = Crypto::ecdsa384_sign(env, key_pair.priv_key, tbs.tbs());
+        let mut sig = Crypto::ecdsa384_sign(env, key_pair.priv_key, &key_pair.pub_key, tbs.tbs());
         let sig = okmutref(&mut sig)?;
 
         // Verify the signature of the `To Be Signed` portion
