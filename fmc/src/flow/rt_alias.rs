@@ -270,7 +270,7 @@ impl RtAliasLayer {
         // Sign the AliasRt To Be Signed DER Blob with AliasFMC Private Key in Key Vault Slot 7
         // AliasRtTbsDigest = sha384_digest(AliasRtTbs) AliaRtTbsCertSig = ecc384_sign(KvSlot5, AliasFmcTbsDigest)
 
-        let sig = Crypto::ecdsa384_sign(env, auth_priv_key, tbs.tbs());
+        let sig = Crypto::ecdsa384_sign(env, auth_priv_key, auth_pub_key, tbs.tbs());
         let sig = okref(&sig)?;
         // Clear the authority private key
         cprintln!(
