@@ -91,12 +91,14 @@ pub(crate) fn extend_pcr0(
     pcr.extend(env.data_vault.fmc_tci(), PcrLogEntryId::FmcTci)?;
     pcr.extend_u8(env.data_vault.fmc_svn() as u8, PcrLogEntryId::FmcSvn)?;
     pcr.extend_u8(info.fmc.effective_fuse_svn as u8, PcrLogEntryId::FmcFuseSvn)?;
-    if let Some(vendor_lms_pub_key_idx) = info.vendor_lms_pub_key_idx {
-        pcr.extend_u8(
-            vendor_lms_pub_key_idx as u8,
-            PcrLogEntryId::LmsVendorPubKeyIndex,
-        )?;
-    }
+    pcr.extend_u8(
+        env.data_vault.lms_vendor_pk_index() as u8,
+        PcrLogEntryId::LmsVendorPubKeyIndex,
+    )?;
+    pcr.extend_u8(
+        env.soc_ifc.fuse_bank().lms_verify() as u8,
+        PcrLogEntryId::RomVerifyConfig,
+    )?;
 
     Ok(())
 }
