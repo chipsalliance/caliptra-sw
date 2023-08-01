@@ -14,7 +14,8 @@ Abstract:
 
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::{
-    array_concat3, wait, Array4x12, CaliptraError, CaliptraResult, KeyReadArgs, KeyWriteArgs, Trng,
+    array_concat3, okmutref, wait, Array4x12, CaliptraError, CaliptraResult, KeyReadArgs,
+    KeyWriteArgs, Trng,
 };
 use caliptra_registers::ecc::EccReg;
 use core::cmp::Ordering;
@@ -266,30 +267,20 @@ impl Ecc384 {
         // Pairwise consistency check.
         if perform_pct {
             let digest = Array4x12::new([0u32; 12]);
-            let mut sig = self.sign(&priv_key.into(), &digest, trng)?;
-            let result = self.verify(&pub_key, &digest, &sig)?;
-            if result != Ecc384Result::Success {
-                return Err(CaliptraError::DRIVER_ECC384_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE);
+            match self.sign(&priv_key.into(), &pub_key, &digest, trng) {
+                Ok(mut sig) => sig.zeroize(),
+                Err(CaliptraError::DRIVER_ECC384_SIGN_VALIDATION_FAILED) => {
+                    return Err(CaliptraError::DRIVER_ECC384_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE)
+                }
+                Err(err) => return Err(err),
             }
-            sig.zeroize();
         }
         self.zeroize_internal();
 
         Ok(pub_key)
     }
 
-    /// Sign the digest with specified private key
-    ///
-    /// # Arguments
-    ///
-    /// * `priv_key` - Private key
-    /// * `data` - Digest to sign
-    /// * `trng` - TRNG driver instance
-    ///
-    /// # Returns
-    ///
-    /// * `Ecc384Signature` - Generate signature
-    pub fn sign(
+    fn sign_internal(
         &mut self,
         priv_key: &Ecc384PrivKeyIn,
         data: &Ecc384Scalar,
@@ -331,6 +322,39 @@ impl Ecc384 {
         self.zeroize_internal();
 
         Ok(signature)
+    }
+
+    /// Sign the digest with specified private key. To defend against glitching
+    /// attacks that could expose the private key, this function also verifies
+    /// the generated signature.
+    ///
+    /// # Arguments
+    ///
+    /// * `priv_key` - Private key
+    /// * `pub_key` - Public key to verify with
+    /// * `data` - Digest to sign
+    /// * `trng` - TRNG driver instance
+    ///
+    /// # Returns
+    ///
+    /// * `Ecc384Signature` - Generate signature
+    pub fn sign(
+        &mut self,
+        priv_key: &Ecc384PrivKeyIn,
+        pub_key: &Ecc384PubKey,
+        data: &Ecc384Scalar,
+        trng: &mut Trng,
+    ) -> CaliptraResult<Ecc384Signature> {
+        let mut sig_result = self.sign_internal(priv_key, data, trng);
+        let sig = okmutref(&mut sig_result)?;
+        match self.verify(pub_key, data, sig)? {
+            Ecc384Result::SigVerifyFailed => {
+                sig.zeroize();
+                return Err(CaliptraError::DRIVER_ECC384_SIGN_VALIDATION_FAILED);
+            }
+            Ecc384Result::Success => {}
+        };
+        sig_result
     }
 
     /// Verify signature with specified public key and digest
