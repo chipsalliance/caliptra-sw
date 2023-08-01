@@ -208,7 +208,7 @@ fn smoke_test() {
 
     // Extract the certificate from the response
     let ldev_cert_der = &ldev_cert_resp.data[..(ldev_cert_resp.data_size as usize)];
-    let ldev_cert = openssl::x509::X509::from_der(&ldev_cert_der).unwrap();
+    let ldev_cert = openssl::x509::X509::from_der(ldev_cert_der).unwrap();
     let ldev_cert_txt = String::from_utf8(ldev_cert.to_text().unwrap()).unwrap();
 
     // To update the ldev cert testdata:
@@ -276,14 +276,14 @@ fn smoke_test() {
 
     // Extract the certificate from the response
     let fmc_alias_cert_der = &fmc_alias_cert_resp.data[..(fmc_alias_cert_resp.data_size as usize)];
-    let fmc_alias_cert = openssl::x509::X509::from_der(&fmc_alias_cert_der).unwrap();
+    let fmc_alias_cert = openssl::x509::X509::from_der(fmc_alias_cert_der).unwrap();
 
     println!(
         "fmc-alias cert: {}",
         String::from_utf8_lossy(&fmc_alias_cert.to_text().unwrap())
     );
 
-    let dice_tcb_info = DiceTcbInfo::find_multiple_in_cert(&fmc_alias_cert_der).unwrap();
+    let dice_tcb_info = DiceTcbInfo::find_multiple_in_cert(fmc_alias_cert_der).unwrap();
     assert_eq!(
         dice_tcb_info,
         [
