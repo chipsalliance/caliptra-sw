@@ -14,6 +14,7 @@ pub mod helpers;
 pub mod keyids;
 pub mod memory_layout;
 pub mod pcr;
+pub mod wdt;
 
 ///merge imports
 pub use hand_off::{
@@ -33,3 +34,4 @@ pub const RUNTIME_ORG: u32 = FMC_ORG + FMC_SIZE;
 pub const RUNTIME_SIZE: u32 = 96 * 1024;
 
 pub use memory_layout::{DATA_ORG, FHT_ORG, FHT_SIZE, MAN1_ORG};
+pub use wdt::{restart_wdt, start_wdt, stop_wdt, WdtTimeout};

@@ -46,9 +46,9 @@ pub extern "C" fn entry_point() -> ! {
                 );
             }
         };
+        caliptra_common::wdt::stop_wdt(&mut drivers.soc_ifc);
         cprintln!("Caliptra RT listening for mailbox commands...");
         caliptra_runtime::handle_mailbox_commands(&mut drivers);
-        caliptra_drivers::ExitCtrl::exit(0)
     } else {
         caliptra_common::report_handoff_error_and_halt(
             "Runtime can't load FHT",
