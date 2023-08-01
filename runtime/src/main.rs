@@ -16,7 +16,8 @@ Abstract:
 
 use caliptra_common::cprintln;
 use caliptra_cpu::TrapRecord;
-use caliptra_drivers::{report_fw_error_non_fatal, Mailbox};
+use caliptra_drivers::{Ecc384, Hmac384, KeyVault, Mailbox, Sha256, Sha384, Sha384Acc, SocIfc};
+use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_runtime::Drivers;
 use core::hint::black_box;
 
@@ -68,7 +69,7 @@ extern "C" fn exception_handler(trap_record: &TrapRecord) {
     );
 
     // Signal non-fatal error to SOC
-    report_error(0xdead);
+    handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_GLOBAL_EXCEPTION.into());
 }
 
 #[no_mangle]
@@ -82,7 +83,7 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
         trap_record.mepc
     );
 
-    report_error(0xdead);
+    handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_GLOBAL_NMI.into());
 }
 
 #[panic_handler]
@@ -94,13 +95,43 @@ fn runtime_panic(_: &core::panic::PanicInfo) -> ! {
     panic_is_possible();
 
     // TODO: Signal non-fatal error to SOC
-    report_error(0xdead);
+    handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_GLOBAL_PANIC.into());
+}
+
+/// Report fatal F/W error
+///
+/// # Arguments
+///
+/// * `val` - F/W error code.
+fn report_fw_error_fatal(val: u32) {
+    let mut soc_ifc = unsafe { SocIfcReg::new() };
+    soc_ifc.regs_mut().cptra_fw_error_fatal().write(|_| val);
 }
 
 #[allow(clippy::empty_loop)]
-fn report_error(code: u32) -> ! {
-    cprintln!("RT Error: 0x{:08X}", code);
-    report_fw_error_non_fatal(code);
+fn handle_fatal_error(code: u32) -> ! {
+    cprintln!("RT Fatal Error: 0x{:08X}", code);
+    report_fw_error_fatal(code);
+
+    unsafe {
+        // Zeroize the crypto blocks.
+        Ecc384::zeroize();
+        Hmac384::zeroize();
+        Sha256::zeroize();
+        Sha384::zeroize();
+        Sha384Acc::zeroize();
+
+        // Zeroize the key vault.
+        KeyVault::zeroize();
+
+        // Lock the SHA Accelerator.
+        Sha384Acc::lock();
+
+        // Stop the watchdog timer.
+        // Note: This is an idempotent operation.
+        SocIfc::stop_wdt1();
+    }
+
     loop {
         // SoC firmware might be stuck waiting for Caliptra to finish
         // executing this pending mailbox transaction. Notify them that
