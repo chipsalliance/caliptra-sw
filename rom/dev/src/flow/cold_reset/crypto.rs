@@ -211,13 +211,14 @@ impl Crypto {
     pub fn ecdsa384_sign(
         env: &mut RomEnv,
         priv_key: KeyId,
+        pub_key: &Ecc384PubKey,
         data: &[u8],
     ) -> CaliptraResult<Ecc384Signature> {
         let mut digest = Self::sha384_digest(env, data);
         let digest = okmutref(&mut digest)?;
         let priv_key_args = KeyReadArgs::new(priv_key);
         let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
-        let result = env.ecc384.sign(&priv_key, digest, &mut env.trng);
+        let result = env.ecc384.sign(&priv_key, pub_key, digest, &mut env.trng);
         digest.0.fill(0);
         result
     }

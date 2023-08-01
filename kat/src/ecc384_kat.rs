@@ -68,13 +68,12 @@ impl Ecc384Kat {
     fn kat_signature_generate(&self, ecc: &mut Ecc384, trng: &mut Trng) -> CaliptraResult<()> {
         let digest = Array4x12::new([0u32; 12]);
         let signature = ecc
-            .sign(&Ecc384PrivKeyIn::from(&PRIV_KEY), &digest, trng)
+            .sign(&Ecc384PrivKeyIn::from(&PRIV_KEY), &PUB_KEY, &digest, trng)
             .map_err(|_| CaliptraError::ROM_KAT_ECC384_SIGNATURE_GENERATE_FAILURE)?;
 
         if signature != SIGNATURE {
             Err(CaliptraError::ROM_KAT_ECC384_SIGNATURE_GENERATE_FAILURE)?;
         }
-
         Ok(())
     }
 
