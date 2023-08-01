@@ -78,16 +78,9 @@ module caliptra_package_top (
 
     wire [63:0] generic_output_wires;
 
-    // generic_output_wires[7:0] contains a byte of log data for the log FIFO.
-    // generic_output_wires[8] changes value when a new byte is written to [7:0]
-    reg fifo_wr_reg;
-    always @(posedge core_clk)
-    begin
-        fifo_wr_reg <= generic_output_wires[8];
-    end
-
-    assign fifo_char[7:0] = generic_output_wires[7:0];
-    assign fifo_write_en = fifo_wr_reg != generic_output_wires[8];
+    // Hierarchical references to generic output wires register. Use as input to log FIFO.
+    assign fifo_write_en = cptra_wrapper.caliptra_top_dut.soc_ifc_top1.i_soc_ifc_reg.field_combo.CPTRA_GENERIC_OUTPUT_WIRES[0].generic_wires.load_next;
+    assign fifo_char[7:0] = cptra_wrapper.caliptra_top_dut.soc_ifc_top1.i_soc_ifc_reg.field_combo.CPTRA_GENERIC_OUTPUT_WIRES[0].generic_wires.next[7:0];
 
 
 caliptra_wrapper_top cptra_wrapper (

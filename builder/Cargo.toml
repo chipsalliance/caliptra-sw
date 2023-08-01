@@ -22,6 +22,3 @@ once_cell.workspace = true
 [[bin]]
 name = "image"
 path = "bin/image_gen.rs"
-
-[features]
-fpga_realtime = []
