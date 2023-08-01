@@ -164,6 +164,15 @@ fn smoke_test() {
     let output = String::from_utf8_lossy(&output);
     assert_output_contains(&output, "Running Caliptra ROM");
     assert_output_contains(&output, "[cold-reset]");
+    // Confirm KAT is running.
+    assert_output_contains(&output, "[kat] ++");
+    assert_output_contains(&output, "[kat] sha1");
+    assert_output_contains(&output, "[kat] SHA2-256");
+    assert_output_contains(&output, "[kat] SHA2-384");
+    assert_output_contains(&output, "[kat] SHA2-384-ACC");
+    assert_output_contains(&output, "[kat] HMAC-384");
+    assert_output_contains(&output, "[kat] LMS");
+    assert_output_contains(&output, "[kat] --");
     assert_output_contains(&output, "Running Caliptra FMC");
     assert_output_contains(
         &output,
