@@ -3,21 +3,18 @@
 // License by Apache-2.0
 use caliptra_drivers::CaliptraResult;
 
+use crate::mailbox_api::{MailboxReqHeader, MailboxResp};
 use caliptra_drivers::CaliptraError;
 use zerocopy::{AsBytes, LayoutVerified};
-use crate::mailbox_api::{
-    MailboxReqHeader,
-    MailboxResp,
-};
 
 #[derive(Debug, Clone)]
 pub struct Packet {
     pub cmd: u32,
     pub payload: [u32; MAX_PAYLOAD_SIZE],
-    pub len: usize,   // Length in bytes
+    pub len: usize, // Length in bytes
 }
 
-const MAX_PAYLOAD_SIZE: usize = 1024;   // in dwords
+const MAX_PAYLOAD_SIZE: usize = 1024; // in dwords
 
 impl Default for Packet {
     fn default() -> Self {
@@ -55,15 +52,16 @@ impl Packet {
         // Verify incoming checksum
         // Make sure enough data was sent to even have a checksum
         if packet.len < core::mem::size_of::<MailboxReqHeader>() {
-            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)
+            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
         }
 
         // Assumes chksum is always offset 0
         let payload_bytes = packet.as_bytes()?;
-        let req_hdr: &MailboxReqHeader =
-            LayoutVerified::<&[u8], MailboxReqHeader>::new(&payload_bytes[..core::mem::size_of::<MailboxReqHeader>()])
-            .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?
-            .into_ref();
+        let req_hdr: &MailboxReqHeader = LayoutVerified::<&[u8], MailboxReqHeader>::new(
+            &payload_bytes[..core::mem::size_of::<MailboxReqHeader>()],
+        )
+        .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?
+        .into_ref();
 
         if !caliptra_common::checksum::verify_checksum(
             req_hdr.chksum,
@@ -76,7 +74,10 @@ impl Packet {
         Ok(packet)
     }
 
-    pub fn copy_to_mbox(drivers: &mut crate::Drivers, resp: &mut MailboxResp) -> CaliptraResult<()> {
+    pub fn copy_to_mbox(
+        drivers: &mut crate::Drivers,
+        resp: &mut MailboxResp,
+    ) -> CaliptraResult<()> {
         let mbox = &mut drivers.mbox;
 
         // Generate response checksum

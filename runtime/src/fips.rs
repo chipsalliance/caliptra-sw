@@ -12,7 +12,7 @@ use caliptra_drivers::Sha384Acc;
 use caliptra_kat::{Ecc384Kat, Hmac384Kat, Sha256Kat, Sha384AccKat, Sha384Kat};
 use caliptra_registers::mbox::enums::MboxStatusE;
 
-use crate::{Drivers, MailboxResp, MailboxRespHeader, FipsVersionResp};
+use crate::{Drivers, FipsVersionResp, MailboxResp, MailboxRespHeader};
 
 pub struct FipsModule;
 

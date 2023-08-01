@@ -3,17 +3,13 @@
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{DeviceLifecycle, Fuses};
+use caliptra_runtime::{
+    CommandId, GetLdevCertResp, MailboxReqHeader, MailboxRespHeader, TestGetFmcAliasCertResp,
+};
 use caliptra_test::{
     derive::{DoeInput, DoeOutput, FmcAliasKey, IDevId, LDevId, Pcr0, Pcr0Input},
     swap_word_bytes, swap_word_bytes_inplace,
     x509::{DiceFwid, DiceTcbInfo},
-};
-use caliptra_runtime::{
-    CommandId,
-    MailboxReqHeader,
-    MailboxRespHeader,
-    GetLdevCertResp,
-    TestGetFmcAliasCertResp,
 };
 use openssl::sha::sha384;
 use std::{io::Write, mem};
@@ -182,12 +178,18 @@ fn smoke_test() {
     );
 
     let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::TEST_ONLY_GET_LDEV_CERT), &[]),
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::TEST_ONLY_GET_LDEV_CERT),
+            &[],
+        ),
     };
 
     // Execute the command
     let ldev_cert_resp = hw
-        .mailbox_execute(u32::from(CommandId::TEST_ONLY_GET_LDEV_CERT), payload.as_bytes())
+        .mailbox_execute(
+            u32::from(CommandId::TEST_ONLY_GET_LDEV_CERT),
+            payload.as_bytes(),
+        )
         .unwrap()
         .unwrap();
 
@@ -199,7 +201,10 @@ fn smoke_test() {
         0x0,
         &ldev_cert_resp.as_bytes()[core::mem::size_of_val(&ldev_cert_resp.hdr.chksum)..],
     ));
-    assert_eq!(ldev_cert_resp.hdr.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
+    assert_eq!(
+        ldev_cert_resp.hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
 
     // Extract the certificate from the response
     let ldev_cert_der = &ldev_cert_resp.data[..(ldev_cert_resp.data_size as usize)];
@@ -240,16 +245,23 @@ fn smoke_test() {
     println!("ldev-cert: {}", ldev_cert_txt);
 
     let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT), &[]),
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT),
+            &[],
+        ),
     };
 
     // Execute command
     let fmc_alias_cert_resp = hw
-    .mailbox_execute(u32::from(CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT), payload.as_bytes())
-    .unwrap()
-    .unwrap();
+        .mailbox_execute(
+            u32::from(CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT),
+            payload.as_bytes(),
+        )
+        .unwrap()
+        .unwrap();
 
-    let fmc_alias_cert_resp = TestGetFmcAliasCertResp::read_from(fmc_alias_cert_resp.as_bytes()).unwrap();
+    let fmc_alias_cert_resp =
+        TestGetFmcAliasCertResp::read_from(fmc_alias_cert_resp.as_bytes()).unwrap();
 
     // Verify checksum and FIPS approval
     assert!(caliptra_common::checksum::verify_checksum(
@@ -257,7 +269,10 @@ fn smoke_test() {
         0x0,
         &fmc_alias_cert_resp.as_bytes()[core::mem::size_of_val(&fmc_alias_cert_resp.hdr.chksum)..],
     ));
-    assert_eq!(fmc_alias_cert_resp.hdr.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
+    assert_eq!(
+        fmc_alias_cert_resp.hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
 
     // Extract the certificate from the response
     let fmc_alias_cert_der = &fmc_alias_cert_resp.data[..(fmc_alias_cert_resp.data_size as usize)];

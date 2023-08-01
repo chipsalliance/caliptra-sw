@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
+use crate::{Drivers, FwInfoResp, MailboxResp, MailboxRespHeader};
 use caliptra_drivers::CaliptraResult;
-use crate::{Drivers, MailboxResp, MailboxRespHeader, FwInfoResp};
 
 pub struct FwInfoCmd;
 impl FwInfoCmd {

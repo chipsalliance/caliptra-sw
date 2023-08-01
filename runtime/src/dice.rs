@@ -1,8 +1,8 @@
 // Licensed under the Apache-2.0 license
 
+use crate::{GetLdevCertResp, MailboxResp, MailboxRespHeader, TestGetFmcAliasCertResp};
 use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault};
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
-use crate::{MailboxResp, MailboxRespHeader, GetLdevCertResp, TestGetFmcAliasCertResp};
 
 extern "C" {
     static mut LDEVID_TBS_ORG: [u8; LocalDevIdCertTbs::TBS_TEMPLATE_LEN];
@@ -43,7 +43,6 @@ impl TestGetFmcAliasCertCmd {
         Ok(MailboxResp::TestGetFmcAliasCert(resp))
     }
 }
-
 
 /// Copy LDevID certificate produced by ROM to `cert` buffer
 ///

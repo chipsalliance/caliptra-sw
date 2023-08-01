@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::{Drivers, MailboxResp, EcdsaVerifyReq};
+use crate::{Drivers, EcdsaVerifyReq, MailboxResp};
 use caliptra_drivers::{
     Array4x12, CaliptraError, CaliptraResult, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
     Ecc384Signature,

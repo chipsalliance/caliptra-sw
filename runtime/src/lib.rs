@@ -2,8 +2,8 @@
 
 #![no_std]
 
-pub mod fips;
 pub mod dice;
+pub mod fips;
 pub mod info;
 mod update;
 mod verify;
@@ -14,24 +14,13 @@ use mailbox::Mailbox;
 
 pub mod mailbox_api;
 pub use mailbox_api::{
-    CommandId,
-    MailboxResp,
-    MailboxReqHeader,
-    MailboxRespHeader,
-    GetIdevCsrResp,
-    GetLdevCertResp,
-    EcdsaVerifyReq,
-    StashMeasurementReq,
-    StashMeasurementResp,
-    InvokeDpeCommandReq,
-    InvokeDpeCommandResp,
-    TestGetFmcAliasCertResp,
-    FipsVersionResp,
-    FwInfoResp,
+    CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, GetIdevCsrResp, GetLdevCertResp,
+    InvokeDpeCommandReq, InvokeDpeCommandResp, MailboxReqHeader, MailboxResp, MailboxRespHeader,
+    StashMeasurementReq, StashMeasurementResp, TestGetFmcAliasCertResp,
 };
 
-pub use fips::{FipsVersionCmd, FipsSelfTestCmd, FipsShutdownCmd};
 pub use dice::{GetLdevCertCmd, TestGetFmcAliasCertCmd};
+pub use fips::{FipsSelfTestCmd, FipsShutdownCmd, FipsVersionCmd};
 pub use info::FwInfoCmd;
 pub use verify::EcdsaVerifyCmd;
 pub mod packet;
@@ -182,7 +171,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         #[cfg(feature = "test_only_commands")]
         CommandId::TEST_ONLY_GET_LDEV_CERT => GetLdevCertCmd::execute(&drivers.data_vault),
         #[cfg(feature = "test_only_commands")]
-        CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT => TestGetFmcAliasCertCmd::execute(&drivers.data_vault),
+        CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT => {
+            TestGetFmcAliasCertCmd::execute(&drivers.data_vault)
+        }
         CommandId::VERSION => FipsVersionCmd::execute(drivers),
         CommandId::SELF_TEST => FipsSelfTestCmd::execute(drivers),
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),

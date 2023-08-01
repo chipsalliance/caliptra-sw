@@ -3,7 +3,7 @@ pub mod common;
 
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{HwModel, ModelError, ShaAccMode};
-use caliptra_runtime::{CommandId, MailboxReqHeader, EcdsaVerifyReq};
+use caliptra_runtime::{CommandId, EcdsaVerifyReq, MailboxReqHeader};
 use common::run_rom_test;
 use zerocopy::AsBytes;
 
@@ -128,9 +128,7 @@ fn test_r_s_ranges() {
             .unwrap();
 
         let mut cmd = EcdsaVerifyReq {
-            hdr: MailboxReqHeader{
-                chksum: 0,
-            },
+            hdr: MailboxReqHeader { chksum: 0 },
             pub_key_x: c.pub_x,
             pub_key_y: c.pub_y,
             signature_r: c.sig_r,
