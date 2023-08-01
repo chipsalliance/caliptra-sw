@@ -22,7 +22,13 @@ use caliptra_common::{FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_drivers::ColdResetEntry4::*;
 use caliptra_drivers::{DataVault, Mailbox};
+use caliptra_error::ToU32;
 use caliptra_registers::dv::DvReg;
+use caliptra_rom_exports::{
+    caliptra_rom_unimplemented_export_2, caliptra_rom_unimplemented_export_3,
+    caliptra_rom_unimplemented_export_4, caliptra_rom_unimplemented_export_5,
+    caliptra_rom_unimplemented_export_6, caliptra_rom_unimplemented_export_7,
+};
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
 use core::ptr;
 use ureg::RealMmioMut;
@@ -217,6 +223,48 @@ fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMm
         }
         0x1000_0005 => {
             read_datavault_coldresetentry4(mbox);
+        }
+        0x1001_0002 => {
+            send_to_mailbox(
+                mbox,
+                caliptra_rom_unimplemented_export_2().to_u32().as_bytes(),
+                true,
+            );
+        }
+        0x1001_0003 => {
+            send_to_mailbox(
+                mbox,
+                caliptra_rom_unimplemented_export_3().to_u32().as_bytes(),
+                true,
+            );
+        }
+        0x1001_0004 => {
+            send_to_mailbox(
+                mbox,
+                caliptra_rom_unimplemented_export_4().to_u32().as_bytes(),
+                true,
+            );
+        }
+        0x1001_0005 => {
+            send_to_mailbox(
+                mbox,
+                caliptra_rom_unimplemented_export_5().to_u32().as_bytes(),
+                true,
+            );
+        }
+        0x1001_0006 => {
+            send_to_mailbox(
+                mbox,
+                caliptra_rom_unimplemented_export_6().to_u32().as_bytes(),
+                true,
+            );
+        }
+        0x1001_0007 => {
+            send_to_mailbox(
+                mbox,
+                caliptra_rom_unimplemented_export_7().to_u32().as_bytes(),
+                true,
+            );
         }
         _ => {}
     }

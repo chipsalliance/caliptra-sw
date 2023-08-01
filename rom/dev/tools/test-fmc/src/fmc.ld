@@ -16,6 +16,7 @@ OUTPUT_ARCH(riscv)
 OUTPUT_FORMAT("elf32-littleriscv", "elf32-littleriscv", "elf32-littleriscv")
 ENTRY(_start)
 
+INCLUDE "../../../../../../rom/dev/exports/src/exports.ld"
 
 ICCM_ORG         = 0x40000000;
 DCCM_ORG         = 0x50000000;

@@ -55,6 +55,7 @@ members = [
   "image/fake-keys",
   "lms-types",
   "rom/dev",
+  "rom/dev/exports",
   "rom/dev/tools/test-fmc",
   "rom/dev/tools/test-rt",
   "test",
@@ -94,6 +95,7 @@ caliptra-image-verify = { path = "image/verify", default-features = false }
 caliptra-kat = { path = "kat" }
 caliptra-lms-types = { path = "lms-types" }
 caliptra-registers = { path = "registers" }
+caliptra-rom-exports = { path = "rom/dev/exports" }
 caliptra-runtime = { path = "runtime", default-features = false }
 caliptra-systemrdl = { path = "systemrdl" }
 caliptra-test = { path = "test" }

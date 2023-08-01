@@ -9,7 +9,9 @@ edition = "2021"
 caliptra_common = { workspace = true, default-features = false }
 caliptra-cpu.workspace = true
 caliptra-drivers.workspace = true
+caliptra-error.workspace = true
 caliptra-registers.workspace = true
+caliptra-rom-exports.workspace = true
 caliptra-x509 = { workspace = true, default-features = false }
 ufmt.workspace = true
 ureg.workspace = true

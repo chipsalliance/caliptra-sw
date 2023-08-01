@@ -17,6 +17,20 @@ Environment:
 --*/
 
 .section .init, "ax"
+.global _jump_table
+.option push
+.option norvc
+_jump_table:
+  j _start
+  j _start
+  j unimplemented_export
+  j unimplemented_export
+  j unimplemented_export
+  j unimplemented_export
+  j unimplemented_export
+  j unimplemented_export
+.option pop
+  
 .global _start
 _start:
    .cfi_startproc
@@ -370,3 +384,9 @@ exit_rom:
     j 1b
     .cfi_endproc
 
+.align 2
+.global unimplemented_export
+unimplemented_export:
+    // Error code: ROM_GLOBAL_unimplemented_export
+    li a0, 0x0105000a
+    ret
