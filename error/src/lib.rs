@@ -415,3 +415,53 @@ impl From<CaliptraError> for u32 {
 }
 
 pub type CaliptraResult<T> = Result<T, CaliptraError>;
+
+// Can't use From<u32> because this crate doesn't own Result
+pub trait FromU32 {
+    fn from_u32(value: u32) -> Self;
+}
+
+impl FromU32 for CaliptraResult<()> {
+    fn from_u32(value: u32) -> Self {
+        match NonZeroU32::try_from(value) {
+            Err(_) => Ok(()),
+            Ok(val) => Err(CaliptraError::from(val)),
+        }
+    }
+}
+
+pub trait ToU32 {
+    fn to_u32(self) -> u32;
+}
+
+impl ToU32 for CaliptraResult<()> {
+    fn to_u32(self) -> u32 {
+        match self {
+            Ok(()) => 0,
+            Err(err) => err.into(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_from_u32() {
+        assert_eq!(CaliptraResult::from_u32(0), Ok(()));
+        assert_eq!(
+            CaliptraResult::from_u32(0x00020001),
+            Err(CaliptraError::DRIVER_SHA256_INVALID_STATE),
+        );
+    }
+
+    #[test]
+    fn test_to_u32() {
+        assert_eq!(CaliptraResult::Ok(()).to_u32(), 0);
+        assert_eq!(
+            Err(CaliptraError::DRIVER_SHA256_INVALID_STATE).to_u32(),
+            0x00020001
+        );
+    }
+}
