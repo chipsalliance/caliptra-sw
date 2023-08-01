@@ -76,6 +76,9 @@ macro_rules! runtime_handlers {
                 trap_record.mcause, trap_record.mscause, trap_record.mepc
             );
 
+            // Signal non-fatal error to SOC
+            caliptra_drivers::report_fw_error_fatal(0xdead1);
+
             assert!(false);
         }
     };
