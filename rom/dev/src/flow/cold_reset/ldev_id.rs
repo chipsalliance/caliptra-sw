@@ -165,7 +165,7 @@ impl LocalDevIdLayer {
             "[ldev] Signing Cert with AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
-        let mut sig = Crypto::ecdsa384_sign(env, auth_priv_key, tbs.tbs());
+        let mut sig = Crypto::ecdsa384_sign(env, auth_priv_key, auth_pub_key, tbs.tbs());
         let sig = okmutref(&mut sig)?;
 
         // Clear the authority private key

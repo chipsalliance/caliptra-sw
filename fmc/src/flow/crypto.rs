@@ -146,13 +146,14 @@ impl Crypto {
     pub fn ecdsa384_sign(
         env: &mut FmcEnv,
         priv_key: KeyId,
+        pub_key: &Ecc384PubKey,
         data: &[u8],
     ) -> CaliptraResult<Ecc384Signature> {
         let digest = Self::sha384_digest(env, data);
         let digest = okref(&digest)?;
         let priv_key_args = KeyReadArgs::new(priv_key);
         let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
-        env.ecc384.sign(&priv_key, digest, &mut env.trng)
+        env.ecc384.sign(&priv_key, pub_key, digest, &mut env.trng)
     }
 
     /// Verify the ECC Signature
