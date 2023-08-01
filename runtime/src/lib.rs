@@ -19,6 +19,7 @@ pub use mailbox_api::{
     StashMeasurementReq, StashMeasurementResp, TestGetFmcAliasCertResp,
 };
 
+#[cfg(feature = "test_only_commands")]
 pub use dice::{GetLdevCertCmd, TestGetFmcAliasCertCmd};
 pub use fips::{FipsSelfTestCmd, FipsShutdownCmd, FipsVersionCmd};
 pub use info::FwInfoCmd;

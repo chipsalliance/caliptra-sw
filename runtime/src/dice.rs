@@ -1,5 +1,5 @@
 // Licensed under the Apache-2.0 license
-
+#[cfg(feature = "test_only_commands")]
 use crate::{GetLdevCertResp, MailboxResp, MailboxRespHeader, TestGetFmcAliasCertResp};
 use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault};
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
@@ -16,6 +16,7 @@ enum CertType {
 
 pub struct GetLdevCertCmd;
 impl GetLdevCertCmd {
+    #[cfg(feature = "test_only_commands")]
     pub(crate) fn execute(dv: &DataVault) -> CaliptraResult<MailboxResp> {
         let mut resp = GetLdevCertResp {
             hdr: MailboxRespHeader::default(),
@@ -31,6 +32,7 @@ impl GetLdevCertCmd {
 
 pub struct TestGetFmcAliasCertCmd;
 impl TestGetFmcAliasCertCmd {
+    #[cfg(feature = "test_only_commands")]
     pub(crate) fn execute(dv: &DataVault) -> CaliptraResult<MailboxResp> {
         let mut resp = TestGetFmcAliasCertResp {
             hdr: MailboxRespHeader::default(),
