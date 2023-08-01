@@ -281,6 +281,9 @@ impl CaliptraError {
     pub const RUNTIME_SHUTDOWN: CaliptraError = CaliptraError::new_const(0x000E0008);
     pub const RUNTIME_NO_MANIFEST: CaliptraError = CaliptraError::new_const(0x000E0009);
     pub const RUNTIME_MAILBOX_INVALID_PARAMS: CaliptraError = CaliptraError::new_const(0x000E000A);
+    pub const RUNTIME_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000E000B);
+    pub const RUNTIME_GLOBAL_EXCEPTION: CaliptraError = CaliptraError::new_const(0x000E000C);
+    pub const RUNTIME_GLOBAL_PANIC: CaliptraError = CaliptraError::new_const(0x000E000D);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
