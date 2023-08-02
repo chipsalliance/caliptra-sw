@@ -172,7 +172,13 @@ impl HwModel for ModelFpgaRealtime {
 
     fn step(&mut self) {
         // Check if the FIFO is full (which probably means there was an overrun)
-        let fifosts = unsafe { FifoStatus(self.gpio.offset(GPIO_LOG_FIFO_STATUS_OFFSET).read_volatile()) };
+        let fifosts = unsafe {
+            FifoStatus(
+                self.gpio
+                    .offset(GPIO_LOG_FIFO_STATUS_OFFSET)
+                    .read_volatile(),
+            )
+        };
         if fifosts.log_fifo_full() != 0 {
             panic!("FPGA log FIFO overran");
         }
