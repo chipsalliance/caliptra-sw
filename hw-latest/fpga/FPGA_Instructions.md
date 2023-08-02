@@ -83,11 +83,13 @@ Serial port settings for connection over USB.
      - `[30] <- ready_for_fuses`
    - 0x8000000C - PAUSER
      - `[31:0] -> PAUSER to Caliptra APB`
-   - 0x80000010-0x8000002C - Deobfuscation key (256 bit)
-   - 0x80001000 - Log FIFO register
-     - `[7:0] -> Next log character. Valid if fifo not empty.`
-     - `[8] -> Log FIFO empty`
-     - `[9] -> Log FIFO full`
+   - 0x80000020-0x8000003C - Deobfuscation key (256 bit)
+   - 0x80001000 - Log FIFO data. Reads pop data from FIFO.
+     - `[7:0] -> Next log character`
+     - `[8] -> Log character valid`
+   - 0x80001004 - Log FIFO register
+     - `[0] -> Log FIFO empty`
+     - `[1] -> Log FIFO full (probably overrun)`
  - ROM Backdoor - 32K
    - `0x82000000 - 0x82007FFF`
  - Caliptra soc register interface

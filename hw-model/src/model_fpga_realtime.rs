@@ -23,8 +23,9 @@ fn fmt_uio_error(err: UioError) -> String {
 const GPIO_OUTPUT_OFFSET: isize = 0x0000 / 4;
 const GPIO_INPUT_OFFSET: isize = 0x0008 / 4;
 const GPIO_PAUSER_OFFSET: isize = 0x000C / 4;
-const GPIO_DEOBF_KEY_OFFSET: isize = 0x0010 / 4;
-const GPIO_LOG_FIFO_OFFSET: isize = 0x1000 / 4;
+const GPIO_DEOBF_KEY_OFFSET: isize = 0x0020 / 4;
+const GPIO_LOG_FIFO_DATA_OFFSET: isize = 0x1000 / 4;
+const GPIO_LOG_FIFO_STATUS_OFFSET: isize = 0x1004 / 4;
 
 bitfield! {
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -48,11 +49,18 @@ bitfield! {
 
 bitfield! {
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-    /// Log FIFO register
-    pub struct LogFifo(u32);
+    /// Log FIFO data
+    pub struct FifoData(u32);
     log_fifo_char, _: 7, 0;
-    log_fifo_empty, _: 8, 8;
-    log_fifo_full, _: 9, 9;
+    log_fifo_valid, _: 8, 8;
+}
+
+bitfield! {
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+    /// Log FIFO status
+    pub struct FifoStatus(u32);
+    log_fifo_empty, _: 0, 0;
+    log_fifo_full, _: 1, 1;
 }
 
 pub struct ModelFpgaRealtime {
@@ -163,18 +171,20 @@ impl HwModel for ModelFpgaRealtime {
     }
 
     fn step(&mut self) {
+        // Check if the FIFO is full (which probably means there was an overrun)
+        let fifosts = unsafe { FifoStatus(self.gpio.offset(GPIO_LOG_FIFO_STATUS_OFFSET).read_volatile()) };
+        if fifosts.log_fifo_full() != 0 {
+            panic!("FPGA log FIFO overran");
+        }
         // Check and empty log FIFO
         loop {
-            let uartreg =
-                unsafe { LogFifo(self.gpio.offset(GPIO_LOG_FIFO_OFFSET).read_volatile()) };
-            if uartreg.log_fifo_full() != 0 {
-                panic!("FPGA log FIFO overran");
-            }
-            // Check if data is valid (fifo not empty) and add to log
-            if uartreg.log_fifo_empty() == 0 {
+            let fifodata =
+                unsafe { FifoData(self.gpio.offset(GPIO_LOG_FIFO_DATA_OFFSET).read_volatile()) };
+            // Add byte to log if it is valid
+            if fifodata.log_fifo_valid() != 0 {
                 self.output()
                     .sink()
-                    .push_uart_char(uartreg.log_fifo_char().try_into().unwrap());
+                    .push_uart_char(fifodata.log_fifo_char().try_into().unwrap());
             } else {
                 break;
             }

@@ -72,9 +72,15 @@ always @ ( posedge aclk) begin
         case (araddr[12:0])
             13'h8: memdata <= gpio_in;
             13'h1000: begin
-                // FIFO configured with first-word-fallthrough. Data on fifo_char is valid so long as fifo_empty is zero.
-                memdata <= { mem[araddr+3], mem[araddr+2], 2'h0, fifo_full, fifo_empty, fifo_char };
-                fifo_rd_reg <= ~fifo_empty; // Assert fifo_rd for one clock if there was a valid read (fifo not empty).
+                // Log FIFO data.
+                // FIFO configured with first-word-fallthrough.
+                memdata <= { mem[araddr+3], mem[araddr+2], 7'h0, ~fifo_empty, fifo_char };
+                // Pop the value we just read off the FIFO if it is not empty.
+                fifo_rd_reg <= ~fifo_empty;
+            end
+            13'h1004: begin
+                // Log FIFO status.
+                memdata <= { mem[araddr+3], mem[araddr+2], mem[araddr+1], 6'h0, fifo_full, fifo_empty };
             end
             default: memdata <= { mem[araddr+3], mem[araddr+2], mem[araddr+1], mem[araddr] };
         endcase
@@ -107,7 +113,7 @@ assign pauser = {mem[15], mem[14], mem[13], mem[12]};
 genvar i;
 generate
     for (i = 0; i < 32; i = i + 1) begin
-        assign cptra_obf_key[(i*8)+7:(i*8)]   = mem[16 + i];
+        assign cptra_obf_key[(i*8)+7:(i*8)]   = mem[32 + i];
     end
 endgenerate
 
