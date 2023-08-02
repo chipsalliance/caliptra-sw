@@ -37,6 +37,13 @@ pub const ROM_WITH_UART: FwId = FwId {
     workspace_dir: None,
 };
 
+pub const ROM_FAST_WITH_UART: FwId = FwId {
+    crate_name: "caliptra-rom",
+    bin_name: "caliptra-rom",
+    features: &["emu", "no-kats"],
+    workspace_dir: None,
+};
+
 pub const FMC_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
@@ -121,12 +128,6 @@ pub fn build_firmware_elf_uncached(id: &FwId) -> io::Result<Vec<u8>> {
             features_csv.push(',');
         }
         features_csv.push_str("riscv");
-    }
-    if cfg!(feature = "fpga_realtime") {
-        if !features_csv.is_empty() {
-            features_csv.push(',');
-        }
-        features_csv.push_str("fpga_realtime");
     }
 
     let workspace_dir = id

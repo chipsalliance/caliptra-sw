@@ -79,6 +79,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "349a06037c7bf932dd7e7d1f653678b2038b9ad46a74102f1fc7bd7872678cce"
 
 [[package]]
+name = "base64"
+version = "0.21.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "604178f6c5c21f02dc555784810edfb88d34ac2c73b2eae109655649ee73ce3d"
+
+[[package]]
 name = "base64ct"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -558,6 +564,7 @@ dependencies = [
  "cfg-if 1.0.0",
  "openssl",
  "ufmt",
+ "wycheproof",
  "zerocopy",
 ]
 
@@ -598,6 +605,8 @@ dependencies = [
  "caliptra-builder",
  "caliptra-hw-model",
  "caliptra-hw-model-types",
+ "caliptra-runtime",
+ "caliptra_common",
  "openssl",
  "zerocopy",
 ]
@@ -2062,6 +2071,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23d020b441f92996c80d94ae9166e8501e59c7bb56121189dc9eab3bd8216966"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "wycheproof"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e639f57253b80c6584b378011aec0fed61c4c21d7a4b97c4d9d7eaf35ca77d12"
+dependencies = [
+ "base64",
+ "hex",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

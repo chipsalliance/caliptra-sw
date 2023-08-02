@@ -29,7 +29,7 @@ int init_module(void)
     // GPIO for SOC connections
     uio_info.mem[0].name = "gpio";
     uio_info.mem[0].addr = 0x80000000;
-    uio_info.mem[0].size = 0x1000;
+    uio_info.mem[0].size = 0x2000;
     uio_info.mem[0].memtype = UIO_MEM_PHYS;
 
     // Caliptra Mailbox interface

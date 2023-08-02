@@ -323,10 +323,12 @@ int caliptra_get_fips_version(struct caliptra_fips_version *version)
         return -EINVAL;
 
     uint32_t FIPS_VERSION_OPCODE = 0x46505652;
+    // TODO: Remove this with the new caliptra API changes that add checksum support
+    int32_t checksum = 318;
 
     struct caliptra_buffer in_buf = {
-        .data = NULL,
-        .len = 0,
+        .data = (uint8_t *)&checksum,
+        .len = sizeof(checksum),
     };
     struct caliptra_buffer out_buf = {
         .data = (uint8_t *)version,

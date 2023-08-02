@@ -51,6 +51,8 @@ struct caliptra_fuses {
 };
 
 struct caliptra_fips_version {
+    uint32_t chksum;
+    uint32_t fips_status;
     uint32_t mode;
     uint32_t fips_rev[3];
     uint8_t name[12];

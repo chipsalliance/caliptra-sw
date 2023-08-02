@@ -3,18 +3,28 @@
 #![no_std]
 
 pub mod dice;
+pub mod fips;
 pub mod info;
 mod update;
 mod verify;
 
 // Used by runtime tests
-pub(crate) mod fips;
 pub mod mailbox;
-
 use mailbox::Mailbox;
+
+pub mod mailbox_api;
+pub use mailbox_api::{
+    CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, GetIdevCsrResp, GetLdevCertResp,
+    InvokeDpeCommandReq, InvokeDpeCommandResp, MailboxReqHeader, MailboxResp, MailboxRespHeader,
+    StashMeasurementReq, StashMeasurementResp, TestGetFmcAliasCertResp,
+};
+
+#[cfg(feature = "test_only_commands")]
+pub use dice::{GetLdevCertCmd, TestGetFmcAliasCertCmd};
+pub use fips::{FipsSelfTestCmd, FipsShutdownCmd, FipsVersionCmd};
+pub use info::FwInfoCmd;
+pub use verify::EcdsaVerifyCmd;
 pub mod packet;
-pub use fips::{FipsModule, VersionResponse};
-use info::FwInfoCmd;
 use packet::Packet;
 
 use caliptra_common::memory_layout::{
@@ -48,40 +58,6 @@ impl From<RtBootStatus> for u32 {
     /// Converts to this type from the input type.
     fn from(status: RtBootStatus) -> u32 {
         status as u32
-    }
-}
-
-#[derive(PartialEq, Eq)]
-pub struct CommandId(pub u32);
-
-impl CommandId {
-    pub const FIRMWARE_LOAD: Self = Self(0x46574C44); // "FWLD"
-    pub const GET_IDEV_CSR: Self = Self(0x49444556); // "IDEV"
-    pub const GET_LDEV_CERT: Self = Self(0x4C444556); // "LDEV"
-    pub const ECDSA384_VERIFY: Self = Self(0x53494756); // "SIGV"
-    pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
-    pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
-    pub const FW_INFO: Self = Self(0x494E464F); // "INFO"
-
-    pub const TEST_ONLY_GET_LDEV_CERT: Self = Self(0x4345524c); // "CERL"
-    pub const TEST_ONLY_GET_FMC_ALIAS_CERT: Self = Self(0x43455246); // "CERF"
-
-    /// FIPS module commands.
-    /// The status command.
-    pub const VERSION: Self = Self(0x4650_5652); // "FPVR"
-    /// The self-test command.
-    pub const SELF_TEST: Self = Self(0x4650_4C54); // "FPST"
-    /// The shutdown command.
-    pub const SHUTDOWN: Self = Self(0x4650_5344); // "FPSD"
-}
-impl From<u32> for CommandId {
-    fn from(value: u32) -> Self {
-        Self(value)
-    }
-}
-impl From<CommandId> for u32 {
-    fn from(value: CommandId) -> Self {
-        value.0
     }
 }
 
@@ -152,27 +128,6 @@ impl<'a> Drivers<'a> {
         })
     }
 }
-#[repr(C)]
-#[derive(AsBytes, FromBytes)]
-pub struct EcdsaVerifyCmd {
-    pub chksum: i32,
-    pub pub_key_x: [u8; 48],
-    pub pub_key_y: [u8; 48],
-    pub signature_r: [u8; 48],
-    pub signature_s: [u8; 48],
-}
-
-impl Default for EcdsaVerifyCmd {
-    fn default() -> Self {
-        Self {
-            chksum: 0,
-            pub_key_x: [0u8; 48],
-            pub_key_y: [0u8; 48],
-            signature_r: [0u8; 48],
-            signature_s: [0u8; 48],
-        }
-    }
-}
 
 fn wait_for_cmd(_mbox: &mut Mailbox) {
     // TODO: Enable interrupts?
@@ -182,6 +137,9 @@ fn wait_for_cmd(_mbox: &mut Mailbox) {
     //}
 }
 
+/// Handles the pending mailbox command and writes the repsonse back to the mailbox
+///
+/// Returns the mailbox status (DataReady when we send a response) or an error
 fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     // For firmware update, don't read data from the mailbox
     if drivers.mbox.cmd() == CommandId::FIRMWARE_LOAD.into() {
@@ -193,57 +151,40 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     }
 
     // Get the command bytes
-    let packet = Packet::copy_from_mbox(drivers)?;
-    let cmd_bytes = packet.as_bytes()?;
+    let req_packet = Packet::copy_from_mbox(drivers)?;
+    let cmd_bytes = req_packet.as_bytes()?;
 
     cprintln!(
         "[rt] Received command=0x{:x}, len={}",
-        packet.cmd,
-        packet.len
+        req_packet.cmd,
+        req_packet.len
     );
 
-    match CommandId::from(packet.cmd) {
-        // FIRMWARE_LOAD expected to already be handled
-        CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNEXPECTED_UPDATE_RETURN),
+    // Handle the request and generate the response
+    let mut resp = match CommandId::from(req_packet.cmd) {
+        CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_IDEV_CSR => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_LDEV_CERT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-        CommandId::ECDSA384_VERIFY => {
-            verify::handle_ecdsa_verify(drivers, cmd_bytes)?;
-            Ok(MboxStatusE::CmdComplete)
-        }
+        CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::INVOKE_DPE => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-        CommandId::FW_INFO => {
-            let resp = FwInfoCmd::execute(drivers);
-            drivers.mbox.write_response(resp.as_bytes())?;
-            Ok(MboxStatusE::DataReady)
-        }
-
+        CommandId::FW_INFO => FwInfoCmd::execute(drivers),
         #[cfg(feature = "test_only_commands")]
-        CommandId::TEST_ONLY_GET_LDEV_CERT => {
-            let mut cert = [0u8; 1024];
-            let cert_len = dice::copy_ldevid_cert(&drivers.data_vault, &mut cert)?;
-            drivers.mbox.write_response(
-                cert.get(..cert_len)
-                    .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?,
-            )?;
-            Ok(MboxStatusE::DataReady)
-        }
+        CommandId::TEST_ONLY_GET_LDEV_CERT => GetLdevCertCmd::execute(&drivers.data_vault),
         #[cfg(feature = "test_only_commands")]
         CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT => {
-            let mut cert = [0u8; 1024];
-            let cert_len = dice::copy_fmc_alias_cert(&drivers.data_vault, &mut cert)?;
-            drivers.mbox.write_response(
-                cert.get(..cert_len)
-                    .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?,
-            )?;
-            Ok(MboxStatusE::DataReady)
+            TestGetFmcAliasCertCmd::execute(&drivers.data_vault)
         }
-        CommandId::VERSION => FipsModule::version(drivers),
-        CommandId::SELF_TEST => FipsModule::self_test(drivers),
-        CommandId::SHUTDOWN => FipsModule::shutdown(drivers),
+        CommandId::VERSION => FipsVersionCmd::execute(drivers),
+        CommandId::SELF_TEST => FipsSelfTestCmd::execute(drivers),
+        CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-    }
+    }?;
+
+    // Send the response
+    Packet::copy_to_mbox(drivers, &mut resp)?;
+
+    Ok(MboxStatusE::DataReady)
 }
 
 pub fn handle_mailbox_commands(drivers: &mut Drivers) {
