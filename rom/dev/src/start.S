@@ -23,7 +23,7 @@ Environment:
 _jump_table:
   j _start
   j _start
-  j unimplemented_export
+  j caliptra_rom_run_fips_tests
   j unimplemented_export
   j unimplemented_export
   j unimplemented_export

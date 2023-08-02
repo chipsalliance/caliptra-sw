@@ -16,6 +16,7 @@ mod exception;
 mod print;
 
 use caliptra_drivers::ExitCtrl;
+use caliptra_error::CaliptraError;
 
 #[no_mangle]
 #[inline(never)]
@@ -116,4 +117,9 @@ pub extern "C" fn rom_entry() -> ! {
     }
 
     ExitCtrl::exit(0)
+}
+
+#[no_mangle]
+pub extern "C" fn caliptra_rom_run_fips_tests() -> u32 {
+    CaliptraError::ROM_GLOBAL_UNIMPLEMENTED_EXPORT.into()
 }

@@ -83,6 +83,16 @@ impl RomEnv {
         end: ICCM_ORG + ICCM_SIZE,
     };
 
+    pub unsafe fn assume_initialized() -> Self {
+        let trng = Trng::assume_initialized(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        );
+        Self::new_from_registers_common(trng)
+    }
+
     pub unsafe fn new_from_registers() -> CaliptraResult<Self> {
         let trng = Trng::new(
             CsrngReg::new(),
@@ -90,8 +100,12 @@ impl RomEnv {
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
         )?;
+        Ok(Self::new_from_registers_common(trng))
+    }
 
-        Ok(Self {
+    unsafe fn new_from_registers_common(trng: Trng) -> Self {
+        // These peripherals do no initialization in their constructor
+        Self {
             doe: DeobfuscationEngine::new(DoeReg::new()),
             sha1: Sha1::default(),
             sha256: Sha256::new(Sha256Reg::new()),
@@ -107,6 +121,6 @@ impl RomEnv {
             pcr_bank: PcrBank::new(PvReg::new()),
             fht_data_store: FhtDataStore::default(),
             trng,
-        })
+        }
     }
 }

@@ -26,6 +26,24 @@ impl Trng {
         }
     }
 
+    /// # Safety
+    ///
+    /// If the hardware itrng is enabled, the caller MUST ensure that the
+    /// peripheral is in a state where new entropy is accessible via the
+    /// generate command.
+    pub unsafe fn assume_initialized(
+        csrng: CsrngReg,
+        entropy_src: EntropySrcReg,
+        soc_ifc_trng: SocIfcTrngReg,
+        soc_ifc: &SocIfcReg,
+    ) -> Self {
+        if soc_ifc.regs().cptra_hw_config().read().i_trng_en() {
+            Self::Internal(Csrng::assume_initialized(csrng, entropy_src))
+        } else {
+            Self::External(TrngExt::new(soc_ifc_trng))
+        }
+    }
+
     pub fn generate(&mut self) -> CaliptraResult<Array4x12> {
         match self {
             Self::Internal(csrng) => {

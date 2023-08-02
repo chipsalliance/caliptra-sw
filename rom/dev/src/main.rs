@@ -22,6 +22,7 @@ use caliptra_drivers::{
     report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError, Ecc384, Hmac384, KeyVault,
     Mailbox, ResetReason, Sha256, Sha384, Sha384Acc, SocIfc,
 };
+use caliptra_error::ToU32;
 use rom_env::RomEnv;
 
 #[cfg(not(feature = "std"))]
@@ -222,4 +223,10 @@ fn panic_is_possible() {
     black_box(());
     // The existence of this symbol is used to inform test_panic_missing
     // that panics are possible. Do not remove or rename this symbol.
+}
+
+#[no_mangle]
+pub extern "C" fn caliptra_rom_run_fips_tests() -> u32 {
+    let mut env = unsafe { RomEnv::assume_initialized() };
+    kat::execute_kat(&mut env).to_u32()
 }

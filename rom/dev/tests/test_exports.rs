@@ -2,7 +2,7 @@
 
 use caliptra_builder::{FwId, APP_WITH_UART, ROM_WITH_UART};
 use caliptra_common::RomBootStatus;
-use caliptra_error::CaliptraError;
+use caliptra_error::{CaliptraError, CaliptraResult, ToU32};
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
 use zerocopy::FromBytes;
 
@@ -44,11 +44,18 @@ fn test_exports() {
 
     hw.step_until_boot_status(RomBootStatus::ColdResetComplete.into(), true);
 
-    //caliptra_rom_unimplemented_export_2
-    assert_eq!(
-        run_exported_func(&mut hw, 0x1001_0002),
-        u32::from(CaliptraError::ROM_GLOBAL_UNIMPLEMENTED_EXPORT)
-    );
+    // caliptra_rom_run_fips_tests
+    {
+        hw.output().take(usize::MAX);
+        assert_eq!(
+            run_exported_func(&mut hw, 0x1001_0002),
+            CaliptraResult::Ok(()).to_u32()
+        );
+        let log = hw.output().take(usize::MAX);
+        assert!(log.contains("[kat] ++"), "Expected '[kat] ++' in {log:?}");
+        assert!(log.contains("[kat] --"), "Expected '[kat] --' in {log:?}");
+    }
+
     //caliptra_rom_unimplemented_export_3
     assert_eq!(
         run_exported_func(&mut hw, 0x1001_0003),
