@@ -41,7 +41,7 @@ fn test_check_only_failure() {
     assert_eq!(std::str::from_utf8(&out.stdout), Ok(
         "File \"./foo.rs\" doesn't contain \"Licensed under the Apache-2.0 license\" in the first 3 lines\n\
          File \"./scripts/foo.sh\" doesn't contain \"Licensed under the Apache-2.0 license\" in the first 3 lines\n\
-         To fix, run \"cargo run --bin file-header-fix\" in the workspace directory.\n"));
+         To fix, run \"ci-tools/file-header-fix.sh\" from the repo root.\n"));
 
     // Make sure it didn't rewrite
     assert_eq!(tmp_dir.read("foo.rs"), "#![no_std]\n");
@@ -71,7 +71,7 @@ fn test_check_only_success() {
 
 #[test]
 fn test_fix() {
-    let tmp_dir = TmpDir::new("caliptra-file-header-fix").unwrap();
+    let tmp_dir = TmpDir::new("caliptra-file-header-fix-test").unwrap();
     tmp_dir.write("ignore.txt", "Hi!");
     tmp_dir.write("target/bar/foo.rs", "Ignore Me!");
     tmp_dir.write("hello.rs", "/* Licensed under the Apache-2.0 license. */\n");

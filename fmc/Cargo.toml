@@ -29,6 +29,5 @@ caliptra-image-types.workspace = true
 [features]
 default = ["std"]
 emu = ["caliptra_common/emu", "caliptra-drivers/emu"]
-fpga_realtime = ["caliptra-drivers/fpga_realtime"]
 riscv = ["caliptra-cpu/riscv"]
 std = ["ufmt/std", "caliptra_common/std"]
