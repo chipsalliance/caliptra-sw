@@ -38,6 +38,9 @@ module caliptra_package_top (
     output wire [31:0] gpio_out,
     input wire [255:0] cptra_obf_key,
 
+    output wire [7:0] fifo_char,
+    output wire fifo_write_en,
+
     //APB Interface
     input  wire [39:0]                s_apb_paddr,
     input  wire                       s_apb_penable,
@@ -69,19 +72,22 @@ module caliptra_package_top (
     output wire                       jtag_tdo     // JTAG tdo
     );
 
+    // Unused bits of soc adapter register
     assign gpio_out[31] = 1'b0;
-    assign gpio_out[25] = 1'h0;
-    assign gpio_out[15:0] = 16'h0CA1;
+    assign gpio_out[25:0] = 26'h0;
 
     wire [63:0] generic_output_wires;
-    assign gpio_out[23:16] = generic_output_wires[7:0];
-    assign gpio_out[24] = 0;//generic_output_wires[];
+
+    // Hierarchical references to generic output wires register. Use as input to log FIFO.
+    assign fifo_write_en = cptra_wrapper.caliptra_top_dut.soc_ifc_top1.i_soc_ifc_reg.field_combo.CPTRA_GENERIC_OUTPUT_WIRES[0].generic_wires.load_next;
+    assign fifo_char[7:0] = cptra_wrapper.caliptra_top_dut.soc_ifc_top1.i_soc_ifc_reg.field_combo.CPTRA_GENERIC_OUTPUT_WIRES[0].generic_wires.next[7:0];
+
 
 caliptra_wrapper_top cptra_wrapper (
     .core_clk(core_clk),
 
     .PADDR(s_apb_paddr[`CALIPTRA_APB_ADDR_WIDTH-1:0]),
-    .PPROT(s_apb_pprot), // TODO: PPROT not provided?
+    .PPROT(s_apb_pprot),
     .PAUSER(pauser),
     .PENABLE(s_apb_penable),
     .PRDATA(s_apb_prdata),
@@ -108,7 +114,7 @@ caliptra_wrapper_top cptra_wrapper (
     .cptra_error_fatal(gpio_out[26]),
     .cptra_error_non_fatal(gpio_out[27]),
 
-    .generic_input_wires({56'h0, gpio_in[31:24]}),
+    .generic_input_wires(),
     .generic_output_wires(generic_output_wires),
 
     // SOC access to program ROM

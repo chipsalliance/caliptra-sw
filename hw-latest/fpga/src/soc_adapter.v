@@ -39,14 +39,21 @@ output reg [TAGW-1:0]   bid,
 input  wire [31:0] gpio_in,
 output wire [31:0] gpio_out,
 output wire [31:0] pauser,
-output wire [255:0] cptra_obf_key
+output wire [255:0] cptra_obf_key,
+// Log FIFO signals
+input  wire [7:0]  fifo_char,
+input  wire        fifo_empty,
+input  wire        fifo_full,
+output wire        fifo_rd
 );
 
+// Array of 64 8 bit values
 reg [7:0] mem [63:0];
 reg [31:0] memdata;
+reg fifo_rd_reg;
 
-wire [5:0] awaddr_masked;
-assign awaddr_masked = awaddr[5:0];
+wire [12:0] awaddr_masked;
+assign awaddr_masked = awaddr[12:0];
 
 always @ ( posedge aclk) begin
     if(!rstn) begin
@@ -60,20 +67,34 @@ always @ ( posedge aclk) begin
         bvalid  <= awvalid;
     end
 
-    if(arvalid) memdata <= {mem[araddr+3], mem[araddr+2], mem[araddr+1], mem[araddr]};
-    if(awvalid) begin
-        if (awaddr_masked != 8) begin
-            if(wstrb[3]) mem[awaddr_masked+3] <= wdata[31:24];
-            if(wstrb[2]) mem[awaddr_masked+2] <= wdata[23:16];
-            if(wstrb[1]) mem[awaddr_masked+1] <= wdata[15:08];
-            if(wstrb[0]) mem[awaddr_masked+0] <= wdata[07:00];
-        end
+    // Handle read requests
+    if(arvalid) begin
+        case (araddr[12:0])
+            13'h8: memdata <= gpio_in;
+            13'h1000: begin
+                // Log FIFO data.
+                // FIFO configured with first-word-fallthrough.
+                memdata <= { mem[araddr+3], mem[araddr+2], 7'h0, ~fifo_empty, fifo_char };
+                // Pop the value we just read off the FIFO if it is not empty.
+                fifo_rd_reg <= ~fifo_empty;
+            end
+            13'h1004: begin
+                // Log FIFO status.
+                memdata <= { mem[araddr+3], mem[araddr+2], mem[araddr+1], 6'h0, fifo_full, fifo_empty };
+            end
+            default: memdata <= { mem[araddr+3], mem[araddr+2], mem[araddr+1], mem[araddr] };
+        endcase
+    end else begin
+        fifo_rd_reg <= 0;
     end
 
-    mem[8]  <= gpio_in[7:0];
-    mem[9]  <= gpio_in[15:8];
-    mem[10] <= gpio_in[23:16];
-    mem[11] <= gpio_in[31:24];
+    // Handle write requests
+    if(awvalid) begin
+        if(wstrb[3]) mem[awaddr_masked+3] <= wdata[31:24];
+        if(wstrb[2]) mem[awaddr_masked+2] <= wdata[23:16];
+        if(wstrb[1]) mem[awaddr_masked+1] <= wdata[15:08];
+        if(wstrb[0]) mem[awaddr_masked+0] <= wdata[07:00];
+    end
 end
 
 assign arready = 1'b1;
@@ -84,13 +105,15 @@ assign bresp   = 2'b0;
 assign rlast   = 1'b1;
 assign rdata   = memdata;
 
+assign fifo_rd = fifo_rd_reg;
+
 assign gpio_out = {mem[3], mem[2], mem[1], mem[0]};
 assign pauser = {mem[15], mem[14], mem[13], mem[12]};
 
 genvar i;
 generate
     for (i = 0; i < 32; i = i + 1) begin
-        assign cptra_obf_key[(i*8)+7:(i*8)]   = mem[16 + i];
+        assign cptra_obf_key[(i*8)+7:(i*8)]   = mem[32 + i];
     end
 endgenerate
 
