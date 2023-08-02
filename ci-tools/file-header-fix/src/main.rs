@@ -7,11 +7,12 @@ use std::{
 };
 
 const REQUIRED_TEXT: &str = "Licensed under the Apache-2.0 license";
-const EXTENSIONS: &[&str] = &["rs", "h", "c", "cpp", "cc", "toml", "sh", "py", "ld"];
+const EXTENSIONS: &[&str] = &["rs", "h", "c", "cpp", "cc", "toml", "sh", "py", "ld", "go"];
 
 const IGNORED_PATHS: &[&str] = &[
     // BSD-licensed
     "./sw-emulator/compliance-test/target-files/link.ld",
+    "./runtime/dpe",
 ];
 
 const IGNORED_DIRS: &[&str] = &[".git", "caliptra-rtl", "out", "target"];
@@ -119,7 +120,7 @@ fn main() {
         }
     }
     if failed {
-        println!("To fix, run \"cargo run --bin file-header-fix\" in the workspace directory.");
+        println!("To fix, run \"ci-tools/file-header-fix.sh\" from the repo root.");
         std::process::exit(2);
     }
 }
