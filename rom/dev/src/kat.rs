@@ -12,7 +12,8 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::CaliptraResult;
+use caliptra_common::RomBootStatus::*;
+use caliptra_drivers::{report_boot_status, CaliptraResult};
 use caliptra_kat::{Ecc384Kat, Hmac384Kat, LmsKat, Sha1Kat, Sha256Kat, Sha384AccKat, Sha384Kat};
 
 use crate::{cprintln, rom_env::RomEnv};
@@ -24,6 +25,7 @@ use crate::{cprintln, rom_env::RomEnv};
 /// * `env` - ROM Environment
 pub fn execute_kat(env: &mut RomEnv) -> CaliptraResult<()> {
     cprintln!("[kat] ++");
+    report_boot_status(KatStarted.into());
 
     cprintln!("[kat] sha1");
     Sha1Kat::default().execute(&mut env.sha1)?;
@@ -46,6 +48,7 @@ pub fn execute_kat(env: &mut RomEnv) -> CaliptraResult<()> {
     cprintln!("[kat] LMS");
     LmsKat::default().execute(&mut env.sha256, &env.lms)?;
 
+    report_boot_status(KatComplete.into());
     cprintln!("[kat] --");
 
     Ok(())

@@ -363,7 +363,7 @@ pub trait HwModel {
         hw.step();
 
         if let Some(fw_image) = run_params.fw_image {
-            const MAX_WAIT_CYCLES: u32 = 12_000_000;
+            const MAX_WAIT_CYCLES: u32 = 20_000_000;
             let mut cycles = 0;
             while !hw.ready_for_fw() {
                 hw.step();
@@ -524,9 +524,9 @@ pub trait HwModel {
         expected_status_u32: u32,
         ignore_intermediate_status: bool,
     ) {
-        // Since the boot takes less than 20M cycles, we know something is wrong if
+        // Since the boot takes less than 30M cycles, we know something is wrong if
         // we're stuck at the same state for that duration.
-        const MAX_WAIT_CYCLES: u32 = 20_000_000;
+        const MAX_WAIT_CYCLES: u32 = 30_000_000;
 
         let mut cycle_count = 0u32;
         let initial_boot_status_u32 = self.soc_ifc().cptra_boot_status().read();

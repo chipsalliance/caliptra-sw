@@ -39,6 +39,8 @@ fn test_update_reset_success() {
     )
     .unwrap();
 
+    hw.step_until_boot_status(KatStarted.into(), true);
+
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
@@ -46,6 +48,9 @@ fn test_update_reset_success() {
 
     hw.mailbox_execute(TEST_FMC_CMD_RESET_FOR_UPDATE, &[])
         .unwrap();
+
+    hw.step_until_boot_status(KatStarted.into(), true);
+    hw.step_until_boot_status(KatComplete.into(), true);
 
     hw.step_until_boot_status(UpdateResetStarted.into(), false);
 
@@ -92,6 +97,8 @@ fn test_update_reset_no_mailbox_cmd() {
     hw.mailbox_execute(TEST_FMC_CMD_RESET_FOR_UPDATE, &[])
         .unwrap();
 
+    hw.step_until_boot_status(KatStarted.into(), true);
+    hw.step_until_boot_status(KatComplete.into(), true);
     hw.step_until_boot_status(UpdateResetStarted.into(), false);
 
     // No command in the mailbox.
@@ -143,7 +150,8 @@ fn test_update_reset_non_fw_load_cmd() {
 
     hw.mailbox_execute(TEST_FMC_CMD_RESET_FOR_UPDATE, &[])
         .unwrap();
-
+    hw.step_until_boot_status(KatStarted.into(), true);
+    hw.step_until_boot_status(KatComplete.into(), true);
     hw.step_until_boot_status(UpdateResetStarted.into(), false);
 
     // Send a non-fw load command
@@ -192,6 +200,8 @@ fn test_update_reset_verify_image_failure() {
 
     hw.mailbox_execute(TEST_FMC_CMD_RESET_FOR_UPDATE, &[])
         .unwrap();
+    hw.step_until_boot_status(KatStarted.into(), true);
+    hw.step_until_boot_status(KatComplete.into(), true);
 
     hw.step_until_boot_status(UpdateResetStarted.into(), false);
 
@@ -242,6 +252,8 @@ fn test_update_reset_boot_status() {
 
     hw.mailbox_execute(TEST_FMC_CMD_RESET_FOR_UPDATE, &[])
         .unwrap();
+    hw.step_until_boot_status(KatStarted.into(), true);
+    hw.step_until_boot_status(KatComplete.into(), true);
 
     hw.step_until_boot_status(UpdateResetStarted.into(), false);
 
