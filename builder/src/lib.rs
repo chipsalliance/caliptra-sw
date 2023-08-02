@@ -129,12 +129,6 @@ pub fn build_firmware_elf_uncached(id: &FwId) -> io::Result<Vec<u8>> {
         }
         features_csv.push_str("riscv");
     }
-    if cfg!(feature = "fpga_realtime") {
-        if !features_csv.is_empty() {
-            features_csv.push(',');
-        }
-        features_csv.push_str("fpga_realtime");
-    }
 
     let workspace_dir = id
         .workspace_dir

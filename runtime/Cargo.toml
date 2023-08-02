@@ -35,7 +35,6 @@ wycheproof.workspace = true
 [features]
 default = ["std", "test_only_commands"]
 emu = ["caliptra_common/emu", "caliptra-drivers/emu"]
-fpga_realtime = ["caliptra-drivers/fpga_realtime"]
 itrng = ["caliptra-hw-model/itrng"]
 riscv = ["caliptra-cpu/riscv"]
 std = ["ufmt/std", "caliptra_common/std"]
