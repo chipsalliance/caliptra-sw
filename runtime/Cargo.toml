@@ -30,6 +30,7 @@ caliptra-image-gen.workspace = true
 caliptra-image-openssl.workspace = true
 caliptra-image-serde.workspace = true
 openssl.workspace = true
+wycheproof.workspace = true
 
 [features]
 default = ["std", "test_only_commands"]
