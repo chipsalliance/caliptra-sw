@@ -45,7 +45,7 @@ fn fix_file(path: &Path) -> Result<(), Error> {
     let wrap_err = add_path(path);
 
     let mut contents = Vec::from(match path.extension().and_then(|s| s.to_str()) {
-        Some("rs" | "h" | "c" | "cpp" | "cc") => format!("// {REQUIRED_TEXT}\n"),
+        Some("rs" | "h" | "c" | "cpp" | "cc" | "go") => format!("// {REQUIRED_TEXT}\n"),
         Some("toml" | "sh" | "py") => format!("# {REQUIRED_TEXT}\n"),
         Some("ld") => format!("/* {REQUIRED_TEXT} */\n"),
         other => {
