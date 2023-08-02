@@ -4,7 +4,10 @@ pub mod common;
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART};
 use caliptra_drivers::Ecc384PubKey;
 use caliptra_hw_model::{HwModel, ModelError, ShaAccMode};
-use caliptra_runtime::{info::FwInfoResp, CommandId, EcdsaVerifyCmd, VersionResponse};
+use caliptra_runtime::{
+    CommandId, EcdsaVerifyReq, FipsVersionCmd, FipsVersionResp, FwInfoResp, MailboxReqHeader,
+    MailboxRespHeader,
+};
 use common::{run_rom_test, run_rt_test};
 use openssl::{
     bn::BigNum,
@@ -13,7 +16,7 @@ use openssl::{
     pkey::PKey,
     x509::X509,
 };
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{AsBytes, FromBytes, LayoutVerified};
 
 #[test]
 fn test_standard() {
@@ -100,12 +103,27 @@ fn test_rom_certs() {
 fn test_fw_info() {
     let mut model = run_rt_test(None);
 
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::FW_INFO), &[]),
+    };
+
     let resp = model
-        .mailbox_execute(u32::from(CommandId::FW_INFO), &[])
+        .mailbox_execute(u32::from(CommandId::FW_INFO), payload.as_bytes())
         .unwrap()
         .unwrap();
 
     let info = FwInfoResp::read_from(resp.as_slice()).unwrap();
+    // Verify checksum and FIPS status
+    assert!(caliptra_common::checksum::verify_checksum(
+        info.hdr.chksum,
+        0x0,
+        &info.as_bytes()[core::mem::size_of_val(&info.hdr.chksum)..],
+    ));
+    assert_eq!(
+        info.hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
+    // Verify FW info
     assert_eq!(info.pl0_pauser, 0xFFFF0000);
 }
 
@@ -137,8 +155,8 @@ fn test_verify_cmd() {
         .unwrap();
 
     // ECDSAVS NIST test vector
-    let cmd = EcdsaVerifyCmd {
-        chksum: 0,
+    let cmd = EcdsaVerifyReq {
+        hdr: MailboxReqHeader { chksum: 0 },
         pub_key_x: [
             0xcb, 0x90, 0x8b, 0x1f, 0xd5, 0x16, 0xa5, 0x7b, 0x8e, 0xe1, 0xe1, 0x43, 0x83, 0x57,
             0x9b, 0x33, 0xcb, 0x15, 0x4f, 0xec, 0xe2, 0x0c, 0x50, 0x35, 0xe2, 0xb3, 0x76, 0x51,
@@ -170,18 +188,34 @@ fn test_verify_cmd() {
         &cmd.as_bytes()[4..],
     );
 
-    let cmd = EcdsaVerifyCmd {
-        chksum: checksum,
+    let cmd = EcdsaVerifyReq {
+        hdr: MailboxReqHeader { chksum: checksum },
         ..cmd
     };
 
     let resp = model
         .mailbox_execute(u32::from(CommandId::ECDSA384_VERIFY), cmd.as_bytes())
-        .unwrap();
-    assert!(resp.is_none());
+        .unwrap()
+        .expect("We should have received a response");
+
+    let resp_hdr: &MailboxRespHeader =
+        LayoutVerified::<&[u8], MailboxRespHeader>::new(resp.as_bytes())
+            .unwrap()
+            .into_ref();
+
+    assert_eq!(
+        resp_hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
+    // Checksum is just going to be 0 because FIPS_STATUS_APPROVED is 0
+    assert_eq!(resp_hdr.chksum, 0);
     assert_eq!(model.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
 
-    let cmd = EcdsaVerifyCmd { chksum: 0, ..cmd };
+    // Test with a bad reqest chksum
+    let cmd = EcdsaVerifyReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        ..cmd
+    };
 
     // Make sure the command execution fails.
     let resp = model
@@ -205,12 +239,13 @@ fn test_fips_cmd_api() {
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
-    let cmd = [0u8; 4];
+    // VERSION
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::VERSION), &[]),
+    };
 
-    let resp = model.mailbox_execute(u32::from(CommandId::VERSION), &cmd);
-    assert!(resp.is_ok());
     let fips_version_resp = model
-        .mailbox_execute(u32::from(CommandId::VERSION), &cmd)
+        .mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes())
         .unwrap()
         .unwrap();
 
@@ -218,21 +253,54 @@ fn test_fips_cmd_api() {
     let fips_version_bytes: &[u8] = fips_version_resp.as_bytes();
 
     // Check values against expected.
-    let fips_version = VersionResponse::read_from(fips_version_bytes.as_bytes()).unwrap();
-    assert_eq!(fips_version.mode, VersionResponse::MODE);
+    let fips_version = FipsVersionResp::read_from(fips_version_bytes).unwrap();
+    assert!(caliptra_common::checksum::verify_checksum(
+        fips_version.hdr.chksum,
+        0x0,
+        &fips_version.as_bytes()[core::mem::size_of_val(&fips_version.hdr.chksum)..],
+    ));
+    assert_eq!(
+        fips_version.hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
+    assert_eq!(fips_version.mode, FipsVersionCmd::MODE);
     assert_eq!(fips_version.fips_rev, [0x01, 0x00, 0x00]);
     let name = &fips_version.name[..];
-    assert_eq!(name, VersionResponse::NAME.as_bytes());
+    assert_eq!(name, FipsVersionCmd::NAME.as_bytes());
 
-    let resp = model.mailbox_execute(u32::from(CommandId::SELF_TEST), &cmd);
-    assert!(resp.is_ok());
+    // SELF_TEST
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::SELF_TEST), &[]),
+    };
 
-    let resp = model.mailbox_execute(u32::from(CommandId::SHUTDOWN), &cmd);
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::SELF_TEST), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+
+    let resp = MailboxRespHeader::read_from(resp.as_slice()).unwrap();
+    // Verify checksum and FIPS status
+    assert!(caliptra_common::checksum::verify_checksum(
+        resp.chksum,
+        0x0,
+        &resp.as_bytes()[core::mem::size_of_val(&resp.chksum)..],
+    ));
+    assert_eq!(resp.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
+
+    // SHUTDOWN
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::SHUTDOWN), &[]),
+    };
+
+    let resp = model.mailbox_execute(u32::from(CommandId::SHUTDOWN), payload.as_bytes());
     assert!(resp.is_ok());
 
     // Check we are rejecting additional commands with the shutdown error code.
     let expected_err = Err(ModelError::MailboxCmdFailed(0x000E0008));
-    let resp = model.mailbox_execute(u32::from(CommandId::VERSION), &cmd);
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::VERSION), &[]),
+    };
+    let resp = model.mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes());
     assert_eq!(resp, expected_err);
 }
 
@@ -242,19 +310,50 @@ fn test_unimplemented_cmds() {
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
-    let cmd = [0u8; 4];
-
     let expected_err = Err(ModelError::MailboxCmdFailed(0xe0002));
 
-    let mut resp = model.mailbox_execute(u32::from(CommandId::GET_IDEV_CSR), &cmd);
+    // GET_IDEV_CSR
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_IDEV_CSR), &[]),
+    };
+
+    let mut resp = model.mailbox_execute(u32::from(CommandId::GET_IDEV_CSR), payload.as_bytes());
     assert_eq!(resp, expected_err);
 
-    resp = model.mailbox_execute(u32::from(CommandId::GET_LDEV_CERT), &cmd);
+    // GET_LDEV_CERT
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_LDEV_CERT), &[]),
+    };
+
+    resp = model.mailbox_execute(u32::from(CommandId::GET_LDEV_CERT), payload.as_bytes());
     assert_eq!(resp, expected_err);
 
-    resp = model.mailbox_execute(u32::from(CommandId::STASH_MEASUREMENT), &cmd);
+    // STASH_MEASUREMENT
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::STASH_MEASUREMENT),
+            &[],
+        ),
+    };
+
+    resp = model.mailbox_execute(u32::from(CommandId::STASH_MEASUREMENT), payload.as_bytes());
     assert_eq!(resp, expected_err);
 
-    resp = model.mailbox_execute(u32::from(CommandId::INVOKE_DPE), &cmd);
+    // INVOKE_DPE
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::INVOKE_DPE), &[]),
+    };
+
+    resp = model.mailbox_execute(u32::from(CommandId::INVOKE_DPE), payload.as_bytes());
+    assert_eq!(resp, expected_err);
+
+    // Send something that is not a valid RT command.
+    let expected_err = Err(ModelError::MailboxCmdFailed(0xe0002));
+    const INVALID_CMD: u32 = 0xAABBCCDD;
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(INVALID_CMD, &[]),
+    };
+
+    let resp = model.mailbox_execute(INVALID_CMD, payload.as_bytes());
     assert_eq!(resp, expected_err);
 }

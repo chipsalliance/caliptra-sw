@@ -11,62 +11,14 @@ use caliptra_drivers::Sha384;
 use caliptra_drivers::Sha384Acc;
 use caliptra_kat::{Ecc384Kat, Hmac384Kat, Sha256Kat, Sha384AccKat, Sha384Kat};
 use caliptra_registers::mbox::enums::MboxStatusE;
-use zerocopy::{AsBytes, FromBytes};
 
-use crate::Drivers;
+use crate::{Drivers, FipsVersionResp, MailboxResp, MailboxRespHeader};
 
 pub struct FipsModule;
 
-#[repr(C)]
-#[derive(Clone, Debug, Default, AsBytes, FromBytes)]
-pub struct VersionResponse {
-    pub mode: u32,
-    pub fips_rev: [u32; 3],
-    pub name: [u8; 12],
-}
-
-impl VersionResponse {
-    pub const NAME: [u8; 12] = *b"Caliptra RTM";
-    pub const MODE: u32 = 0x46495053;
-
-    pub fn new(_env: &Drivers) -> Self {
-        Self {
-            mode: Self::MODE,
-            // Just return all zeroes for now.
-            fips_rev: [1, 0, 0],
-            name: Self::NAME,
-        }
-    }
-    pub fn copy_to_mbox(&self, env: &mut Drivers) -> CaliptraResult<()> {
-        let mbox = &mut env.mbox;
-        mbox.write_response(self.as_bytes())
-    }
-}
-
 /// Fips command handler.
 impl FipsModule {
-    pub fn version(env: &mut Drivers) -> CaliptraResult<MboxStatusE> {
-        cprintln!("[rt] FIPS Version");
-
-        VersionResponse::new(env).copy_to_mbox(env)?;
-        Ok(MboxStatusE::DataReady)
-    }
-
-    pub fn self_test(env: &mut Drivers) -> CaliptraResult<MboxStatusE> {
-        cprintln!("[rt] FIPS self test");
-        Self::execute_kats(env)?;
-
-        Ok(MboxStatusE::CmdComplete)
-    }
-
-    pub fn shutdown(env: &mut Drivers) -> CaliptraResult<MboxStatusE> {
-        Self::zeroize(env);
-        env.mbox.set_status(MboxStatusE::CmdComplete);
-
-        Err(CaliptraError::RUNTIME_SHUTDOWN)
-    }
-
-    /// Clear data structures in DCCM.  
+    /// Clear data structures in DCCM.
     fn zeroize(env: &mut Drivers) {
         unsafe {
             // Zeroize the crypto blocks.
@@ -104,5 +56,45 @@ impl FipsModule {
         Hmac384Kat::default().execute(&mut env.hmac384, &mut env.trng)?;
 
         Ok(())
+    }
+}
+
+pub struct FipsVersionCmd;
+impl FipsVersionCmd {
+    pub const NAME: [u8; 12] = *b"Caliptra RTM";
+    pub const MODE: u32 = 0x46495053;
+
+    pub(crate) fn execute(_env: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        cprintln!("[rt] FIPS Version");
+
+        let resp = FipsVersionResp {
+            hdr: MailboxRespHeader::default(),
+            mode: Self::MODE,
+            // Just return all zeroes for now.
+            fips_rev: [1, 0, 0],
+            name: Self::NAME,
+        };
+
+        Ok(MailboxResp::FipsVersion(resp))
+    }
+}
+
+pub struct FipsSelfTestCmd;
+impl FipsSelfTestCmd {
+    pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        cprintln!("[rt] FIPS self test");
+        FipsModule::execute_kats(env)?;
+
+        Ok(MailboxResp::default())
+    }
+}
+
+pub struct FipsShutdownCmd;
+impl FipsShutdownCmd {
+    pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        FipsModule::zeroize(env);
+        env.mbox.set_status(MboxStatusE::CmdComplete);
+
+        Err(CaliptraError::RUNTIME_SHUTDOWN)
     }
 }

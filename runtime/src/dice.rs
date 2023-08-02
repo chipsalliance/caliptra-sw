@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
-
+#[cfg(feature = "test_only_commands")]
+use crate::{GetLdevCertResp, MailboxResp, MailboxRespHeader, TestGetFmcAliasCertResp};
 use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault};
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
 
@@ -11,6 +12,38 @@ extern "C" {
 enum CertType {
     LDevId,
     FmcAlias,
+}
+
+pub struct GetLdevCertCmd;
+impl GetLdevCertCmd {
+    #[cfg(feature = "test_only_commands")]
+    pub(crate) fn execute(dv: &DataVault) -> CaliptraResult<MailboxResp> {
+        let mut resp = GetLdevCertResp {
+            hdr: MailboxRespHeader::default(),
+            data_size: 0,
+            data: [0u8; GetLdevCertResp::DATA_MAX_SIZE],
+        };
+
+        resp.data_size = copy_ldevid_cert(dv, &mut resp.data)? as u32;
+
+        Ok(MailboxResp::GetLdevCert(resp))
+    }
+}
+
+pub struct TestGetFmcAliasCertCmd;
+impl TestGetFmcAliasCertCmd {
+    #[cfg(feature = "test_only_commands")]
+    pub(crate) fn execute(dv: &DataVault) -> CaliptraResult<MailboxResp> {
+        let mut resp = TestGetFmcAliasCertResp {
+            hdr: MailboxRespHeader::default(),
+            data_size: 0,
+            data: [0u8; TestGetFmcAliasCertResp::DATA_MAX_SIZE],
+        };
+
+        resp.data_size = copy_fmc_alias_cert(dv, &mut resp.data)? as u32;
+
+        Ok(MailboxResp::TestGetFmcAliasCert(resp))
+    }
 }
 
 /// Copy LDevID certificate produced by ROM to `cert` buffer

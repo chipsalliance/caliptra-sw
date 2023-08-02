@@ -2,9 +2,9 @@
 pub mod common;
 
 use caliptra_hw_model::{HwModel, ShaAccMode};
-use caliptra_runtime::{CommandId, EcdsaVerifyCmd};
+use caliptra_runtime::{CommandId, EcdsaVerifyReq, MailboxReqHeader, MailboxRespHeader};
 use common::run_rom_test;
-use zerocopy::AsBytes;
+use zerocopy::{AsBytes, FromBytes};
 
 // This file includes some tests from Wycheproof to testing specific common
 // ECDSA problems.
@@ -76,8 +76,8 @@ fn ecdsa_cmd_run_wycheproof() {
                 .compute_sha512_acc_digest(test.msg.as_slice(), ShaAccMode::Sha384Stream)
                 .unwrap();
 
-            let cmd = EcdsaVerifyCmd {
-                chksum: 0,
+            let cmd = EcdsaVerifyReq {
+                hdr: MailboxReqHeader { chksum: 0 },
                 pub_key_x: test_group.key.affine_x.as_slice()[..].try_into().unwrap(),
                 pub_key_y: test_group.key.affine_y.as_slice()[..].try_into().unwrap(),
                 signature_r: signature
@@ -100,23 +100,32 @@ fn ecdsa_cmd_run_wycheproof() {
                 u32::from(CommandId::ECDSA384_VERIFY),
                 &cmd.as_bytes()[4..],
             );
-            let cmd = EcdsaVerifyCmd {
-                chksum: checksum,
+            let cmd = EcdsaVerifyReq {
+                hdr: MailboxReqHeader { chksum: checksum },
                 ..cmd
             };
             let resp = model.mailbox_execute(u32::from(CommandId::ECDSA384_VERIFY), cmd.as_bytes());
             match test.result {
                 wycheproof::TestResult::Valid | wycheproof::TestResult::Acceptable => match resp {
-                    Err(_) | Ok(Some(_)) => {
+                    Err(_) | Ok(None) => {
                         wyche_fail.push(WycheproofResults {
                             id: test.tc_id,
                             comment: test.comment.to_string(),
                         });
                     }
-                    _ => {}
+                    Ok(Some(resp)) => {
+                        // Verify the checksum and FIPS status
+                        let resp_hdr = MailboxRespHeader::read_from(resp.as_slice()).unwrap();
+                        assert_eq!(
+                            resp_hdr.fips_status,
+                            MailboxRespHeader::FIPS_STATUS_APPROVED
+                        );
+                        // Checksum is just going to be 0 because FIPS_STATUS_APPROVED is 0
+                        assert_eq!(resp_hdr.chksum, 0);
+                    }
                 },
                 wycheproof::TestResult::Invalid => {
-                    if let Ok(None) = resp {
+                    if resp.is_ok() {
                         wyche_fail.push(WycheproofResults {
                             id: test.tc_id,
                             comment: test.comment.to_string(),

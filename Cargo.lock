@@ -605,6 +605,8 @@ dependencies = [
  "caliptra-builder",
  "caliptra-hw-model",
  "caliptra-hw-model-types",
+ "caliptra-runtime",
+ "caliptra_common",
  "openssl",
  "zerocopy",
 ]
