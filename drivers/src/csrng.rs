@@ -55,6 +55,17 @@ impl Csrng {
         Self::with_seed(csrng, entropy_src, Seed::EntropySrc)
     }
 
+    /// # Safety
+    ///
+    /// The caller MUST ensure that the CSRNG peripheral is in a state where new
+    /// entropy is accessible via the generate command.
+    pub unsafe fn assume_initialized(
+        csrng: caliptra_registers::csrng::CsrngReg,
+        entropy_src: caliptra_registers::entropy_src::EntropySrcReg,
+    ) -> Self {
+        Self { csrng, entropy_src }
+    }
+
     /// Returns a handle to the CSRNG configured to use the provided [`Seed`].
     ///
     /// # Safety
