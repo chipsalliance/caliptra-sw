@@ -518,7 +518,7 @@ impl DataVault {
     ///
     pub fn read_warm_reset_entry48(&self, entry: WarmResetEntry48) -> Array4x12 {
         let dv = self.dv.regs();
-        Array4x12::read_from_reg(dv.nonsticky_data_vault_entry().at(entry.into()))
+        Array4x12::read_from_reg(dv.data_vault_entry().at(entry.into()))
     }
 
     /// Write and lock the warm reset entry.
@@ -540,7 +540,7 @@ impl DataVault {
     ///
     pub fn write_warm_reset_entry48(&mut self, entry: WarmResetEntry48, value: &Array4x12) {
         let dv = self.dv.regs_mut();
-        value.write_to_reg(dv.nonsticky_data_vault_entry().at(entry.into()));
+        value.write_to_reg(dv.data_vault_entry().at(entry.into()));
     }
 
     /// Lock the warm reset entry.
@@ -550,7 +550,7 @@ impl DataVault {
     ///
     pub fn lock_warm_reset_entry48(&mut self, entry: WarmResetEntry48) {
         let dv = self.dv.regs_mut();
-        dv.non_sticky_data_vault_ctrl()
+        dv.data_vault_ctrl()
             .at(entry.into())
             .write(|w| w.lock_entry(true));
     }
@@ -614,7 +614,7 @@ impl DataVault {
     ///
     pub fn read_warm_reset_entry4(&self, entry: WarmResetEntry4) -> u32 {
         let dv = self.dv.regs();
-        dv.non_sticky_lockable_scratch_reg().at(entry.into()).read()
+        dv.lockable_scratch_reg().at(entry.into()).read()
     }
 
     /// Write and lock the warm reset entry.
@@ -634,9 +634,7 @@ impl DataVault {
     /// * `value` - warm reset entry value
     pub fn write_warm_reset_entry4(&mut self, entry: WarmResetEntry4, value: u32) {
         let dv = self.dv.regs_mut();
-        dv.non_sticky_lockable_scratch_reg()
-            .at(entry.into())
-            .write(|_| value);
+        dv.lockable_scratch_reg().at(entry.into()).write(|_| value);
     }
 
     /// Lock the warm reset entry.
@@ -645,7 +643,7 @@ impl DataVault {
     /// * `entry` - warm reset entry
     pub fn lock_warm_reset_entry4(&mut self, entry: WarmResetEntry4) {
         let dv = self.dv.regs_mut();
-        dv.non_sticky_lockable_scratch_reg_ctrl()
+        dv.lockable_scratch_reg_ctrl()
             .at(entry.into())
             .write(|w| w.lock_entry(true));
     }

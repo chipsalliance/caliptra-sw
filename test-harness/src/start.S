@@ -131,4 +131,4 @@ exception_common:
     nop
 
 .section .data
-.equ  EMU_CTRL_EXIT, 0x300300C8
+.equ  EMU_CTRL_EXIT, 0x300300CC
