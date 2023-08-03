@@ -15,7 +15,9 @@ References:
 
 --*/
 
-use core::{fmt, ptr};
+use core::fmt;
+
+use caliptra_registers::soc_ifc::SocIfcReg;
 
 /// Caliptra UART
 #[derive(Default, Debug)]
@@ -48,10 +50,11 @@ impl Uart {
     /// `byte` - Byte to write to UART
     pub fn write_byte(&mut self, byte: u8) {
         // TODO: cleanup after final UART RTL definition is in place
-        const STDOUT: *mut u32 = 0x3003_00CC as *mut u32;
-        unsafe {
-            ptr::write_volatile(STDOUT, byte as u32);
-        }
+        let mut reg = unsafe { SocIfcReg::new() };
+        reg.regs_mut()
+            .cptra_generic_output_wires()
+            .at(0)
+            .write(|_| byte as u32);
     }
 }
 

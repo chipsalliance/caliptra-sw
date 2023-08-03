@@ -12,6 +12,8 @@ Abstract:
 
 --*/
 
+use caliptra_registers::soc_ifc::SocIfcReg;
+
 use crate::Mailbox;
 
 /// Exit control
@@ -29,10 +31,11 @@ impl ExitCtrl {
     /// This method does not return
     pub fn exit(exit_code: u32) -> ! {
         if cfg!(feature = "emu") {
-            const STDOUT: *mut u32 = 0x3003_00C8 as *mut u32;
-            unsafe {
-                core::ptr::write_volatile(STDOUT, if exit_code == 0 { 0xff } else { 0x01 });
-            }
+            let mut reg = unsafe { SocIfcReg::new() };
+            reg.regs_mut()
+                .cptra_generic_output_wires()
+                .at(0)
+                .write(|_| if exit_code == 0 { 0xff } else { 0x01 });
         }
 
         loop {
