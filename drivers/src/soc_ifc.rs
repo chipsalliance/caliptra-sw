@@ -79,7 +79,9 @@ impl SocIfc {
     /// * None
     pub fn flow_status_set_idevid_csr_ready(&mut self) {
         let soc_ifc = self.soc_ifc.regs_mut();
-        soc_ifc.cptra_flow_status().write(|w| w.status(0x0100_0000));
+        soc_ifc
+            .cptra_flow_status()
+            .write(|w| w.idevid_csr_ready(true));
     }
 
     /// Set ready for firmware
