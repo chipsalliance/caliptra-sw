@@ -2,6 +2,7 @@
 
 use caliptra_builder::FwId;
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
+use caliptra_common::memory_layout::{ICCM_ORG, ICCM_SIZE};
 use caliptra_common::RomBootStatus::ColdResetComplete;
 use caliptra_drivers::Array4x12;
 use caliptra_drivers::MfgFlags;
@@ -31,8 +32,7 @@ use zerocopy::AsBytes;
 
 pub mod helpers;
 
-const ICCM_START_ADDR: u32 = 0x40000000;
-const ICCM_END_ADDR: u32 = ICCM_START_ADDR + (128 * 1024) - 1;
+const ICCM_END_ADDR: u32 = ICCM_ORG + ICCM_SIZE - 1;
 
 const PUB_KEY_X: [u8; 48] = [
     0xD7, 0x9C, 0x6D, 0x97, 0x2B, 0x34, 0xA1, 0xDF, 0xC9, 0x16, 0xA7, 0xB6, 0xE0, 0xA9, 0x9B, 0x6B,
@@ -1026,6 +1026,29 @@ fn test_toc_invalid_toc_digest() {
 }
 
 #[test]
+fn test_toc_fmc_size_zero() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let fmc_new_size = 0;
+    // These are unchanged.
+    let fmc_new_offset = image_bundle.manifest.fmc.offset;
+    let runtime_new_offset = image_bundle.manifest.runtime.offset;
+    let runtime_new_size = image_bundle.manifest.runtime.size;
+
+    let image = update_fmc_runtime_ranges(
+        &mut image_bundle,
+        fmc_new_offset,
+        fmc_new_size,
+        runtime_new_offset,
+        runtime_new_size,
+    );
+    assert_eq!(
+        ModelError::MailboxCmdFailed(CaliptraError::IMAGE_VERIFIER_ERR_FMC_SIZE_ZERO.into()),
+        hw.upload_firmware(&image).unwrap_err()
+    );
+}
+
+#[test]
 fn test_toc_fmc_range_overlap() {
     // Case 1: FMC offset == Runtime offset
     let (mut hw, mut image_bundle) =
@@ -1166,7 +1189,7 @@ fn test_fmc_invalid_load_addr_before_iccm() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
-    let image = update_load_addr(&mut image_bundle, true, ICCM_START_ADDR - 4);
+    let image = update_load_addr(&mut image_bundle, true, ICCM_ORG - 4);
     assert_eq!(
         ModelError::MailboxCmdFailed(
             CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_INVALID.into()
@@ -1181,6 +1204,20 @@ fn test_fmc_invalid_load_addr_after_iccm() {
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
     let image = update_load_addr(&mut image_bundle, true, ICCM_END_ADDR + 1);
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_INVALID.into()
+        ),
+        hw.upload_firmware(&image).unwrap_err()
+    );
+}
+
+#[test]
+fn test_fmc_not_contained_in_iccm() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    let image = update_load_addr(&mut image_bundle, true, ICCM_END_ADDR - 4);
     assert_eq!(
         ModelError::MailboxCmdFailed(
             CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_INVALID.into()
@@ -1208,7 +1245,7 @@ fn test_fmc_invalid_entry_point_before_iccm() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
-    let image = update_entry_point(&mut image_bundle, true, ICCM_START_ADDR - 4);
+    let image = update_entry_point(&mut image_bundle, true, ICCM_ORG - 4);
     assert_eq!(
         ModelError::MailboxCmdFailed(
             CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID.into()
@@ -1341,6 +1378,31 @@ fn test_fmc_svn_less_than_fuse_svn() {
 }
 
 #[test]
+fn test_toc_rt_size_zero() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    let runtime_new_size = 0;
+
+    // These are unchanged.
+    let fmc_new_size = image_bundle.manifest.fmc.size;
+    let fmc_new_offset = image_bundle.manifest.fmc.offset;
+    let runtime_new_offset = image_bundle.manifest.runtime.offset;
+
+    let image = update_fmc_runtime_ranges(
+        &mut image_bundle,
+        fmc_new_offset,
+        fmc_new_size,
+        runtime_new_offset,
+        runtime_new_size,
+    );
+    assert_eq!(
+        ModelError::MailboxCmdFailed(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SIZE_ZERO.into()),
+        hw.upload_firmware(&image).unwrap_err()
+    );
+}
+
+#[test]
 fn test_runtime_digest_mismatch() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
@@ -1361,9 +1423,8 @@ fn test_runtime_invalid_load_addr_before_iccm() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
-    let rt_new_load_addr = ICCM_START_ADDR
-        - (image_bundle.manifest.fmc.load_addr - ICCM_START_ADDR
-            + image_bundle.manifest.runtime.size);
+    let rt_new_load_addr = ICCM_ORG
+        - (image_bundle.manifest.fmc.load_addr - ICCM_ORG + image_bundle.manifest.runtime.size);
     let image = update_load_addr(&mut image_bundle, false, rt_new_load_addr);
     assert_eq!(
         ModelError::MailboxCmdFailed(
@@ -1379,6 +1440,20 @@ fn test_runtime_invalid_load_addr_after_iccm() {
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
     let image = update_load_addr(&mut image_bundle, false, ICCM_END_ADDR + 1);
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID.into()
+        ),
+        hw.upload_firmware(&image).unwrap_err()
+    );
+}
+
+#[test]
+fn test_runtime_not_contained_in_iccm() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    let image = update_load_addr(&mut image_bundle, false, ICCM_END_ADDR - 3);
     assert_eq!(
         ModelError::MailboxCmdFailed(
             CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID.into()
@@ -1406,7 +1481,7 @@ fn test_runtime_invalid_entry_point_before_iccm() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
-    let image = update_entry_point(&mut image_bundle, false, ICCM_START_ADDR - 4);
+    let image = update_entry_point(&mut image_bundle, false, ICCM_ORG - 4);
     assert_eq!(
         ModelError::MailboxCmdFailed(
             CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID.into()
