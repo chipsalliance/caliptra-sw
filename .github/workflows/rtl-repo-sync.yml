@@ -54,6 +54,7 @@ jobs:
           git config --global user.name "GitHub CI"
           git config --global user.email "username@users.noreply.github.com"
           echo "branch_base_ref=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          git checkout -b ${{ steps.branch.outputs.branch }}
           git commit -a -m "CI: Update Caliptra RTL"
 
       - name: Create Pull Request
