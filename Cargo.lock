@@ -463,6 +463,7 @@ dependencies = [
  "bitflags 2.0.2",
  "caliptra-drivers",
  "caliptra-image-types",
+ "caliptra_common",
  "memoffset",
  "zerocopy",
 ]
