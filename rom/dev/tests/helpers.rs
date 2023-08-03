@@ -50,7 +50,7 @@ pub fn get_data<'a>(to_match: &str, haystack: &'a str) -> &'a str {
 }
 
 pub fn get_csr(hw: &mut DefaultHwModel) -> Result<Vec<u8>, ModelError> {
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().status() == 0x0100_0000);
+    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().idevid_csr_ready());
     let mut txn = hw.wait_for_mailbox_receive()?;
     let result = mem::take(&mut txn.req.data);
     txn.respond_success();
