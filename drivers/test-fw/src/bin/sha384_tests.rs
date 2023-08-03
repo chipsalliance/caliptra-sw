@@ -15,7 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{Array4x12, PcrBank, PcrId, Sha384};
+use caliptra_drivers::{Array4x12, PcrBank, PcrId, Sha384, Sha384Ctx};
 use caliptra_kat::Sha384Kat;
 use caliptra_registers::{pv::PvReg, sha512::Sha512Reg};
 
@@ -102,6 +102,12 @@ fn test_op1() {
     let actual = digest_op.finalize();
     assert!(actual.is_ok());
     assert_eq!(digest, Array4x12::from(expected));
+
+    // Try with ctx API
+    let mut ctx = Sha384Ctx::default();
+    let actual = sha384.finalize_ctx(&mut ctx);
+    assert!(actual.is_ok());
+    assert_eq!(actual.unwrap(), Array4x12::from(expected));
 }
 
 fn test_op2() {
@@ -120,6 +126,13 @@ fn test_op2() {
     let actual = digest_op.finalize();
     assert!(actual.is_ok());
     assert_eq!(digest, Array4x12::from(expected));
+
+    // Try with ctx API
+    let mut ctx = Sha384Ctx::default();
+    assert!(sha384.update_ctx(&mut ctx, data).is_ok());
+    let actual = sha384.finalize_ctx(&mut ctx);
+    assert!(actual.is_ok());
+    assert_eq!(actual.unwrap(), Array4x12::from(expected));
 }
 
 fn test_op3() {
@@ -137,6 +150,13 @@ fn test_op3() {
     let actual = digest_op.finalize();
     assert!(actual.is_ok());
     assert_eq!(digest, Array4x12::from(expected));
+
+    // Try with ctx API
+    let mut ctx = Sha384Ctx::default();
+    assert!(sha384.update_ctx(&mut ctx, data).is_ok());
+    let actual = sha384.finalize_ctx(&mut ctx);
+    assert!(actual.is_ok());
+    assert_eq!(actual.unwrap(), Array4x12::from(expected));
 }
 
 fn test_op4() {
@@ -154,6 +174,13 @@ fn test_op4() {
     let actual = digest_op.finalize();
     assert!(actual.is_ok());
     assert_eq!(digest, Array4x12::from(expected));
+
+    // Try with ctx API
+    let mut ctx = Sha384Ctx::default();
+    assert!(sha384.update_ctx(&mut ctx, data).is_ok());
+    let actual = sha384.finalize_ctx(&mut ctx);
+    assert!(actual.is_ok());
+    assert_eq!(actual.unwrap(), Array4x12::from(expected));
 }
 
 fn test_op5() {
@@ -173,6 +200,15 @@ fn test_op5() {
     let actual = digest_op.finalize();
     assert!(actual.is_ok());
     assert_eq!(digest, Array4x12::from(expected));
+
+    // Try with ctx API
+    let mut ctx = Sha384Ctx::default();
+    for _ in 0..1_000 {
+        assert!(sha384.update_ctx(&mut ctx, &DATA).is_ok());
+    }
+    let actual = sha384.finalize_ctx(&mut ctx);
+    assert!(actual.is_ok());
+    assert_eq!(actual.unwrap(), Array4x12::from(expected));
 }
 
 fn test_op6() {
@@ -192,6 +228,15 @@ fn test_op6() {
     let actual = digest_op.finalize();
     assert!(actual.is_ok());
     assert_eq!(digest, Array4x12::from(expected));
+
+    // Try with ctx API
+    let mut ctx = Sha384Ctx::default();
+    for idx in 0..data.len() {
+        assert!(sha384.update_ctx(&mut ctx, &data[idx..idx + 1]).is_ok());
+    }
+    let actual = sha384.finalize_ctx(&mut ctx);
+    assert!(actual.is_ok());
+    assert_eq!(actual.unwrap(), Array4x12::from(expected));
 }
 
 fn test_op7() {
@@ -211,6 +256,15 @@ fn test_op7() {
     let actual = digest_op.finalize();
     assert!(actual.is_ok());
     assert_eq!(digest, Array4x12::from(expected));
+
+    // Try with ctx API
+    let mut ctx = Sha384Ctx::default();
+    for idx in 0..data.len() {
+        assert!(sha384.update_ctx(&mut ctx, &data[idx..idx + 1]).is_ok());
+    }
+    let actual = sha384.finalize_ctx(&mut ctx);
+    assert!(actual.is_ok());
+    assert_eq!(actual.unwrap(), Array4x12::from(expected));
 }
 
 fn test_op8() {
@@ -230,6 +284,15 @@ fn test_op8() {
     let actual = digest_op.finalize();
     assert!(actual.is_ok());
     assert_eq!(digest, Array4x12::from(expected));
+
+    // Try with ctx API
+    let mut ctx = Sha384Ctx::default();
+    for idx in 0..data.len() {
+        assert!(sha384.update_ctx(&mut ctx, &data[idx..idx + 1]).is_ok());
+    }
+    let actual = sha384.finalize_ctx(&mut ctx);
+    assert!(actual.is_ok());
+    assert_eq!(actual.unwrap(), Array4x12::from(expected));
 }
 
 fn test_pcr_hash_extend_single_block() {

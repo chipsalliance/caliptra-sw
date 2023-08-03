@@ -32,6 +32,37 @@ pub struct Sha384 {
     sha512: Sha512Reg,
 }
 
+pub struct Sha384Ctx {
+    buf: [u8; SHA384_BLOCK_BYTE_SIZE],
+    buf_idx: usize,
+    data_size: usize,
+    state: Sha384DigestState,
+}
+
+impl Default for Sha384Ctx {
+    fn default() -> Self {
+        Self {
+            buf: [0u8; SHA384_BLOCK_BYTE_SIZE],
+            buf_idx: 0,
+            data_size: 0,
+            state: Sha384DigestState::Init,
+        }
+    }
+}
+
+impl Sha384Ctx {
+    pub fn reset_buf_state(&mut self) {
+        self.buf.fill(0);
+        self.buf_idx = 0;
+        self.state = Sha384DigestState::Pending;
+    }
+
+    /// Check if this the first digest operation
+    fn is_first(&self) -> bool {
+        self.state == Sha384DigestState::Init
+    }
+}
+
 impl Sha384 {
     pub fn new(sha512: Sha512Reg) -> Self {
         Self { sha512 }
@@ -55,6 +86,63 @@ impl Sha384 {
         };
 
         Ok(op)
+    }
+
+    /// Update the digest with data
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - Data to used to update the digest
+    pub fn update_ctx(&mut self, ctx: &mut Sha384Ctx, data: &[u8]) -> CaliptraResult<()> {
+        if ctx.state == Sha384DigestState::Final {
+            return Err(CaliptraError::DRIVER_SHA384_INVALID_STATE_ERR);
+        }
+
+        if ctx.data_size + data.len() > SHA384_MAX_DATA_SIZE {
+            return Err(CaliptraError::DRIVER_SHA384_MAX_DATA_ERR);
+        }
+
+        for byte in data {
+            ctx.data_size += 1;
+
+            // PANIC-FREE: Following check optimizes the out of bounds
+            // panic in indexing the `buf`
+            if ctx.buf_idx >= ctx.buf.len() {
+                return Err(CaliptraError::DRIVER_SHA384_INDEX_OUT_OF_BOUNDS);
+            }
+
+            // Copy the data to the buffer
+            ctx.buf[ctx.buf_idx] = *byte;
+            ctx.buf_idx += 1;
+
+            // If the buffer is full calculate the digest of accumulated data
+            if ctx.buf_idx == ctx.buf.len() {
+                self.digest_block(&ctx.buf, ctx.is_first(), false)?;
+                ctx.reset_buf_state();
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Finalize the digest operations
+    pub fn finalize_ctx(&mut self, ctx: &mut Sha384Ctx) -> CaliptraResult<Array4x12> {
+        if ctx.state == Sha384DigestState::Final {
+            return Err(CaliptraError::DRIVER_SHA384_INVALID_STATE_ERR);
+        }
+
+        if ctx.buf_idx > ctx.buf.len() {
+            return Err(CaliptraError::DRIVER_SHA384_INVALID_SLICE);
+        }
+
+        // Calculate the digest of the final block
+        let buf = &ctx.buf[..ctx.buf_idx];
+        self.digest_partial_block(buf, ctx.is_first(), ctx.data_size)?;
+
+        // Set the state of the operation to final
+        ctx.state = Sha384DigestState::Final;
+
+        Ok(self.read_digest())
     }
 
     /// Calculate the digest for specified data
