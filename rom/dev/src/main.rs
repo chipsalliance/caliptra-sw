@@ -13,7 +13,7 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
-#![cfg_attr(not(feature = "no-kats"), allow(unused_imports))]
+#![cfg_attr(not(feature = "fast-rom"), allow(unused_imports))]
 
 use crate::lock::lock_registers;
 use core::hint::black_box;
@@ -66,6 +66,13 @@ pub extern "C" fn rom_entry() -> ! {
     };
     cprintln!("[state] LifecycleState = {}", _lifecyle);
 
+    if cfg!(feature = "fast-rom")
+        && env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production
+    {
+        cprintln!("Fast ROM in Production lifecycle prohibited");
+        handle_fatal_error(CaliptraError::ROM_GLOBAL_FAST_ROM_IN_PRODUCTION.into());
+    }
+
     cprintln!(
         "[state] DebugLocked = {}",
         if env.soc_ifc.debug_locked() {
@@ -78,7 +85,7 @@ pub extern "C" fn rom_entry() -> ! {
     // Start the watchdog timer
     wdt::start_wdt(&mut env.soc_ifc);
 
-    if !cfg!(feature = "no-kats") {
+    if !cfg!(feature = "fast-rom") {
         let result = kat::execute_kat(&mut env);
         if let Err(err) = result {
             handle_fatal_error(err.into());
