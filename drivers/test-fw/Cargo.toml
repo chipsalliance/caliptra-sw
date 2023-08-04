@@ -127,6 +127,11 @@ path = "src/bin/csrng_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "csrng2"
+path = "src/bin/csrng_tests2.rs"
+required-features = ["riscv"]
+
+[[bin]]
 name = "trng_driver_responder"
 path = "src/bin/trng_driver_responder.rs"
 required-features = ["riscv"]
