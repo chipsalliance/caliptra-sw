@@ -39,6 +39,7 @@ mod lock;
 mod pcr;
 mod print;
 mod rom_env;
+#[cfg_attr(feature = "fast-rom", path = "verifier_fast_rom.rs")]
 mod verifier;
 mod wdt;
 
