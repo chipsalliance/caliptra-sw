@@ -12,25 +12,26 @@ impl Mailbox {
     pub fn new(mbox: MboxCsr) -> Self {
         Self { mbox }
     }
+
     /// Check if there is a new command to be executed
     pub fn is_cmd_ready(&mut self) -> bool {
         let mbox = self.mbox.regs();
         mbox.status().read().mbox_fsm_ps().mbox_execute_uc()
     }
 
-    // Get the length of the current mailbox data in bytes
+    /// Get the length of the current mailbox data in bytes
     pub fn dlen(&mut self) -> u32 {
         let mbox = self.mbox.regs();
         mbox.dlen().read()
     }
 
-    // Set the length of the current mailbox data in bytes
+    /// Set the length of the current mailbox data in bytes
     pub fn set_dlen(&mut self, len: u32) {
         let mbox = self.mbox.regs_mut();
         mbox.dlen().write(|_| len);
     }
 
-    // Get the length of the current mailbox data in words
+    /// Get the length of the current mailbox data in words
     pub fn dlen_words(&mut self) -> u32 {
         (self.dlen() + 3) / 4
     }
