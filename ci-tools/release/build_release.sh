@@ -22,6 +22,8 @@ cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-runtime $WORKSPACE_DI
 cp -rf hw-latest/caliptra-rtl $WORKSPACE_DIR/caliptra-rtl
 # Copy libcaliptra
 cp -rf libcaliptra $WORKSPACE_DIR/libcaliptra
+# Copy FPGA Model
+cp -rf hw-latest/fpga $WORKSPACE_DIR/fpga
 
 # Generate Notes
 echo -e "Caliptra HW Release Note " > $WORKSPACE_DIR/release_notes.txt
@@ -37,6 +39,7 @@ echo -e "\tImage Bundle Bin: image-bundle.bin" >> $WORKSPACE_DIR/release_notes.t
 echo -e "\tFMC ELF: caliptra-fmc.elf" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tRTFW ELF: caliptra-runtime.elf" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tLIBCaliptra: libcaliptra/" >> $WORKSPACE_DIR/release_notes.txt
+echo -e "\tFPGA Model: fpga/" >> $WORKSPACE_DIR/release_notes.txt
 
 # Generate Zip
 cd ./release/workspace
