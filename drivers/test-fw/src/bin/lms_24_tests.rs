@@ -15,7 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{get_lms_parameters, HashValue, Lms, LmsResult, Sha256};
+use caliptra_drivers::{get_lms_parameters, HashValue, Lms, LmsResult, Sha256HardwareDriver};
 use caliptra_lms_types::{
     bytes_to_words_6, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsIdentifier,
     LmsPublicKey, LmsSignature,
@@ -71,7 +71,7 @@ fn test_coefficient() {
 }
 
 fn test_hash_message_24() {
-    let mut sha256 = unsafe { Sha256::new(Sha256Reg::new()) };
+    let mut sha256 = unsafe { Sha256HardwareDriver::new(Sha256Reg::new()) };
     let message: [u8; 33] = [
         116, 104, 105, 115, 32, 105, 115, 32, 116, 104, 101, 32, 109, 101, 115, 115, 97, 103, 101,
         32, 73, 32, 119, 97, 110, 116, 32, 115, 105, 103, 110, 101, 100,
@@ -96,7 +96,7 @@ fn test_hash_message_24() {
 }
 
 fn test_lms_24_height_15() {
-    let mut sha256 = unsafe { Sha256::new(Sha256Reg::new()) };
+    let mut sha256 = unsafe { Sha256HardwareDriver::new(Sha256Reg::new()) };
     const MESSAGE: [u8; 33] = [
         116, 104, 105, 115, 32, 105, 115, 32, 116, 104, 101, 32, 109, 101, 115, 115, 97, 103, 101,
         32, 73, 32, 119, 97, 110, 116, 32, 115, 105, 103, 110, 101, 100,

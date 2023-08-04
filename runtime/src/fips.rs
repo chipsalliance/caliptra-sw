@@ -7,9 +7,9 @@ use caliptra_drivers::CaliptraResult;
 use caliptra_drivers::Ecc384;
 use caliptra_drivers::Hmac384;
 use caliptra_drivers::KeyVault;
-use caliptra_drivers::Sha256;
 use caliptra_drivers::Sha384;
 use caliptra_drivers::Sha384Acc;
+use caliptra_drivers::{Sha256, Sha256HardwareDriver};
 use caliptra_kat::{Ecc384Kat, Hmac384Kat, Sha256Kat, Sha384AccKat, Sha384Kat};
 use caliptra_registers::mbox::enums::MboxStatusE;
 
@@ -25,7 +25,7 @@ impl FipsModule {
             // Zeroize the crypto blocks.
             Ecc384::zeroize();
             Hmac384::zeroize();
-            Sha256::zeroize();
+            <Sha256HardwareDriver as Sha256>::zeroize();
             Sha384::zeroize();
             Sha384Acc::zeroize();
 

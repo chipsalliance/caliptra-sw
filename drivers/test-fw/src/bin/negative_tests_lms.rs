@@ -15,7 +15,7 @@ File contains test cases for LMS signature verification using SHA256/192.
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{CaliptraError, Lms, LmsResult, Sha256};
+use caliptra_drivers::{CaliptraError, Lms, LmsResult, Sha256HardwareDriver};
 use caliptra_lms_types::{
     bytes_to_words_6, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsIdentifier,
     LmsPublicKey, LmsSignature,
@@ -25,7 +25,7 @@ use caliptra_test_harness::test_suite;
 use zerocopy::{LittleEndian, U32};
 
 fn test_failures_lms_24() {
-    let mut sha256 = unsafe { Sha256::new(Sha256Reg::new()) };
+    let mut sha256 = unsafe { Sha256HardwareDriver::new(Sha256Reg::new()) };
     const MESSAGE: [u8; 33] = [
         116, 104, 105, 115, 32, 105, 115, 32, 116, 104, 101, 32, 109, 101, 115, 115, 97, 103, 101,
         32, 73, 32, 119, 97, 110, 116, 32, 115, 105, 103, 110, 101, 100,
