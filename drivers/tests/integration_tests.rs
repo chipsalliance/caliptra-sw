@@ -568,11 +568,18 @@ fn test_negative_lms() {
     run_driver_test("test_negative_lms");
 }
 
+fn trng_nibbles() -> impl Iterator<Item = u8> {
+    // reversed form of
+    // https://github.com/chipsalliance/caliptra-rtl/blob/fa91d66f30223899403f4e65a6f697a6f9100fd1/src/csrng/tb/csrng_tb.sv#L461
+    const TRNG_ENTROPY: &str = "749ED7B4E3DE4E72D5CF367FD9D137113493B80AAA65CD17ABEBCE4FB4E8150105CC347E06539656786DA75F56B36F33";
+
+    TRNG_ENTROPY
+        .chars()
+        .map(|b| b.to_digit(16).expect("bad nibble digit") as u8)
+}
+
 #[test]
 fn test_csrng() {
-    // https://github.com/chipsalliance/caliptra-rtl/blob/fa91d66f30223899403f4e65a6f697a6f9100fd1/src/csrng/tb/csrng_tb.sv#L461
-    const TRNG_ENTROPY: &str = "33F63B65F57AD68765693560E743CC5010518E4BF4ECBEBA71DC56AAA08B394311731D9DF763FC5D27E4ED3E4B7DE947";
-
     let rom = caliptra_builder::build_firmware_rom(&FwId {
         crate_name: "caliptra-drivers-test-bin",
         bin_name: "csrng",
@@ -581,15 +588,33 @@ fn test_csrng() {
     })
     .unwrap();
 
-    let trng_nibbles = TRNG_ENTROPY
-        .chars()
-        .rev()
-        .map(|b| b.to_digit(16).expect("bad nibble digit") as u8);
+    let mut model = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            itrng_nibbles: Box::new(trng_nibbles()),
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+    .unwrap();
+
+    model.step_until_exit_success().unwrap();
+}
+
+#[test]
+fn test_csrng2() {
+    let rom = caliptra_builder::build_firmware_rom(&FwId {
+        crate_name: "caliptra-drivers-test-bin",
+        bin_name: "csrng2",
+        features: &["emu"],
+        ..Default::default()
+    })
+    .unwrap();
 
     let mut model = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
-            itrng_nibbles: Box::new(trng_nibbles),
+            itrng_nibbles: Box::new(trng_nibbles()),
             ..Default::default()
         },
         ..Default::default()

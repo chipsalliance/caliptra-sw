@@ -160,10 +160,8 @@ impl Csrng {
             specific: e.alert_fail_counts().read(),
         }
     }
-}
 
-impl Drop for Csrng {
-    fn drop(&mut self) {
+    pub fn uninstantiate(mut self) {
         let _ = send_command(&mut self.csrng, Command::Uninstantiate);
     }
 }
