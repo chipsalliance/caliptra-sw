@@ -299,6 +299,9 @@ impl CaliptraError {
     pub const FMC_RT_ALIAS_TBS_SIZE_EXCEEDED: CaliptraError = CaliptraError::new_const(0x000F0007);
     pub const FMC_CDI_KV_COLLISION: CaliptraError = CaliptraError::new_const(0x000F0008);
     pub const FMC_ALIAS_KV_COLLISION: CaliptraError = CaliptraError::new_const(0x000F0009);
+    pub const FMC_PCR_LOG_INVALID_ENTRY_ID: CaliptraError = CaliptraError::new_const(0x000F000A);
+    pub const FMC_PCR_LOG_UNSUPPORTED_DATA_LENGTH: CaliptraError =
+        CaliptraError::new_const(0x000F000B);
 
     /// TRNG_EXT Errors
     pub const DRIVER_TRNG_EXT_TIMEOUT: CaliptraError = CaliptraError::new_const(0x00100001);

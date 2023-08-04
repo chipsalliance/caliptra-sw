@@ -34,6 +34,8 @@ pub enum PcrLogEntryId {
     FmcFuseSvn = 9,            // data size = 1 byte
     LmsVendorPubKeyIndex = 10, // data size = 1 byte
     RomVerifyConfig = 11,      // data size = 1 byte
+    RtTci = 12,                // data size = 48 bytes
+    ManifestDigest = 13,       // data size = 48 bytes
 }
 
 impl From<u16> for PcrLogEntryId {

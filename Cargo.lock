@@ -316,6 +316,7 @@ dependencies = [
  "caliptra_common",
  "cfg-if 1.0.0",
  "ufmt",
+ "ureg",
  "zerocopy",
 ]
 

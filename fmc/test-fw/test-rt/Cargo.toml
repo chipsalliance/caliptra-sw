@@ -11,6 +11,7 @@ caliptra-cpu.workspace = true
 caliptra-drivers.workspace = true
 caliptra-registers.workspace = true
 ufmt.workspace = true
+ureg.workspace = true
 zerocopy.workspace = true
 
 [build-dependencies]
