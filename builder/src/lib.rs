@@ -202,7 +202,7 @@ pub fn build_firmware_rom(id: &FwId<'static>) -> io::Result<Vec<u8>> {
 }
 
 pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
-    let mut result = vec![0u8; 0x8000];
+    let mut result = vec![0u8; 0xC000];
     let elf = elf::ElfBytes::<LittleEndian>::minimal_parse(elf_bytes).map_err(other_err)?;
 
     let Some(segments) = elf.segments() else {
