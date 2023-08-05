@@ -10,6 +10,7 @@ resolver = "2"
 exclude = [
   # Uses a custom .cargo/config
   "sw-emulator/example",
+  "dpe/*",
 ]
 
 members = [
