@@ -44,7 +44,7 @@ build-rom:
 objcopy-rom:
 	riscv64-unknown-elf-objcopy \
 		--gap-fill 0x00 \
-		--pad-to 0x8000 \
+		--pad-to 0xC000 \
   		-j .text \
   		-j .rodata \
   		-O binary \
@@ -101,7 +101,7 @@ objdump:
 objcopy:
 	riscv32imc-unknown-elf-objcopy \
 		--gap-fill 0x00 \
-		--pad-to 0x8000 \
+		--pad-to 0xC000 \
   		-j .text \
   		-j .rodata \
   		-O binary \
