@@ -41,7 +41,7 @@ pub const NSTACK_ORG: u32 = 0x5001FC00;
 // Memory Sizes In Bytes
 //
 pub const ROM_RELAXATION_PADDING: u32 = 4 * 1024;
-pub const ROM_SIZE: u32 = 32 * 1024;
+pub const ROM_SIZE: u32 = 48 * 1024;
 pub const MBOX_SIZE: u32 = 128 * 1024;
 pub const ICCM_SIZE: u32 = 128 * 1024;
 pub const DCCM_SIZE: u32 = 128 * 1024;
