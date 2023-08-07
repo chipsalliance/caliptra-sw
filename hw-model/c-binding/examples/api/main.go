@@ -68,7 +68,6 @@ func copySliceToCArray(dest *[12]C.uint32_t, src []byte) {
 }
 
 // Implement the Go wrapper functions for the C functions
-
 func caliptraInitFuses(model *caliptraModel, fuses *caliptraBuffer) int {
 	// Convert Go structs to C structs
 	cModel := (*C.struct_caliptra_model)(unsafe.Pointer(model))
@@ -76,14 +75,14 @@ func caliptraInitFuses(model *caliptraModel, fuses *caliptraBuffer) int {
 	// Call the C function
 	cFuses := C.struct_caliptra_fuses{}
 	copySliceToCArray(&cFuses.uds_seed, fuses.data)
-	copySliceToCArray(&cFuses.field_entropy, fuses.data[48:])
-	copySliceToCArray(&cFuses.key_manifest_pk_hash, fuses.data[80:])
-	copySliceToCArray(&cFuses.owner_pk_hash, fuses.data[112:])
+	copySliceToCArray(&cFuses.field_entropy, fuses.data[48:][:8]) // Adjust array size to 8
+	copySliceToCArray(&cFuses.key_manifest_pk_hash, fuses.data[80:][:12]) // Adjust array size to 12
+	copySliceToCArray(&cFuses.owner_pk_hash, fuses.data[112:][:12]) // Adjust array size to 12
 	cFuses.fmc_key_manifest_svn = C.uint32_t(binary.LittleEndian.Uint32(fuses.data[148:]))
-	copySliceToCArray(&cFuses.runtime_svn, fuses.data[152:])
+	copySliceToCArray(&cFuses.runtime_svn, fuses.data[152:][:4]) // Adjust array size to 4
 	cFuses.anti_rollback_disable = C._Bool(binary.LittleEndian.Uint32(fuses.data[184:]) != 0)
-	copySliceToCArray(&cFuses.idevid_cert_attr, fuses.data[188:])
-	copySliceToCArray(&cFuses.idevid_manuf_hsm_id, fuses.data[376:])
+	copySliceToCArray(&cFuses.idevid_cert_attr, fuses.data[188:][:24]) // Adjust array size to 24
+	copySliceToCArray(&cFuses.idevid_manuf_hsm_id, fuses.data[376:][:4]) // Adjust array size to 4
 	cFuses.life_cycle = C.enum_DeviceLifecycle(binary.LittleEndian.Uint32(fuses.data[392:]))
 
 	ret := C.caliptra_init_fuses(cModel, &cFuses)
