@@ -57,6 +57,40 @@ func main() {
 	fmt.Println("Mailbox command executed successfully!")
 }
 
+// Helper function to copy Go []byte to C array
+func copySliceToCArray(dest *[12]C.uint32_t, src []byte) {
+	if len(src) != 12*4 {
+		panic("Invalid source slice length")
+	}
+	for i := 0; i < 12; i++ {
+		dest[i] = C.uint32_t(binary.LittleEndian.Uint32(src[i*4:]))
+	}
+}
+
+// Implement the Go wrapper functions for the C functions
+
+func caliptraInitFuses(model *caliptraModel, fuses *caliptraBuffer) int {
+	// Convert Go structs to C structs
+	cModel := (*C.struct_caliptra_model)(unsafe.Pointer(model))
+
+	// Call the C function
+	cFuses := C.struct_caliptra_fuses{}
+	copySliceToCArray(&cFuses.uds_seed, fuses.data)
+	copySliceToCArray(&cFuses.field_entropy, fuses.data[48:])
+	copySliceToCArray(&cFuses.key_manifest_pk_hash, fuses.data[80:])
+	cFuses.key_manifest_pk_hash_mask = C.uint32_t(binary.LittleEndian.Uint32(fuses.data[144:]))
+	copySliceToCArray(&cFuses.owner_pk_hash, fuses.data[148:])
+	cFuses.fmc_key_manifest_svn = C.uint32_t(binary.LittleEndian.Uint32(fuses.data[244:]))
+	copySliceToCArray(&cFuses.runtime_svn, fuses.data[248:])
+	cFuses.anti_rollback_disable = C.bool(binary.LittleEndian.Uint32(fuses.data[280:]))
+	copySliceToCArray(&cFuses.idevid_cert_attr, fuses.data[284:])
+	copySliceToCArray(&cFuses.idevid_manuf_hsm_id, fuses.data[436:])
+	cFuses.life_cycle = C.enum_DeviceLifecycle(binary.LittleEndian.Uint32(fuses.data[452:]))
+
+	ret := C.caliptra_init_fuses(cModel, &cFuses)
+
+	return int(ret)
+}
 
 func caliptraBootFsmGo(model *caliptraModel) int {
 	// Convert Go structs to C structs
