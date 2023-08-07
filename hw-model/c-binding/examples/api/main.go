@@ -1,8 +1,8 @@
 package main
 
 /*  
-#cgo CFLAGS: -I./../out/debug
-#cgo LDFLAGS: -L./../out/debug -lcaliptra_hw_model_c_binding -ldl
+#cgo CFLAGS: -I./
+#cgo LDFLAGS: -L./ -lcaliptra_hw_model_c_binding -ldl
 #include "../caliptra-rtl/src/soc_ifc/rtl/caliptra_top_reg.h"
 #include "caliptra_api.h"
 #include "caliptra_fuses.h"
@@ -14,7 +14,6 @@ extern int caliptra_bootfsm_go(struct caliptra_model *model);
 extern int caliptra_mailbox_execute(struct caliptra_model *model, unsigned int cmd, struct caliptra_buffer *mbox_tx_buffer, struct caliptra_buffer *mbox_rx_buffer);
 extern int caliptra_upload_fw(struct caliptra_model *model, struct caliptra_buffer *fw_buffer;
 */
-
 import "C"
 
 import (
