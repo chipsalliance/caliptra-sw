@@ -12,6 +12,44 @@
 
 #define CALIPTRA_STATUS_NOT_READY 0
 
+/**
+ * calculate_caliptra_checksum
+ *
+ * This generates a checksum based on a sum of the command and the buffer, then
+ * subtracted from zero.
+ *
+ * @param[in] cmd The command being sent to the caliptra device
+ * @param[in] buffer A pointer, if applicable, to the buffer being sent
+ * @param[in] len The size of the buffer
+ */
+static uint32_t calculate_caliptra_checksum(uint32_t cmd, uint8_t *buffer, uint32_t len)
+{
+    uint32_t i, sum = 0;
+
+    if ((buffer == NULL) && (len != 0))
+    {
+        // Don't respect bad parameters
+        return 0;
+    }
+
+    for (i = 0; i < sizeof(uint32_t); i++)
+    {
+        sum += ((uint8_t*)(&cmd))[i];
+    }
+
+    for (i = 0; i < len; i++)
+    {
+        sum += buffer[i];
+    }
+
+    return (0 - sum);
+}
+
+static inline bool validate_caliptra_checksum(caliptra_checksum checksum, enum mailbox_command command, uint8_t *buffer, uint32_t length)
+{
+    return (checksum - calculate_caliptra_checksum(command, buffer, length) == 0);
+}
+
 static inline uint32_t caliptra_read_status(void)
 {
     uint32_t status;
@@ -318,8 +356,7 @@ int caliptra_get_fips_version(struct caliptra_fips_version *version)
     if (version == NULL)
         return -EINVAL;
 
-    // TODO: Remove this with the new caliptra API changes that add checksum support
-    int32_t checksum = 318;
+    caliptra_checksum checksum = calculate_caliptra_checksum(OP_FIPS_VERSION, NULL, 0);
 
     struct caliptra_buffer in_buf = {
         .data = (uint8_t *)&checksum,
@@ -330,5 +367,18 @@ int caliptra_get_fips_version(struct caliptra_fips_version *version)
         .len = sizeof(struct caliptra_fips_version),
     };
 
-    return caliptra_mailbox_execute(OP_FIPS_VERSION, &in_buf, &out_buf);
+    int status = caliptra_mailbox_execute(OP_FIPS_VERSION, &in_buf, &out_buf);
+
+    if (!status)
+    {
+        return status;
+    }
+
+    bool checksum_valid = validate_caliptra_checksum(version->cpl.checksum, OP_FIPS_VERSION, (uint8_t*)version, sizeof(struct caliptra_fips_version));
+    bool fips_approved  = version->cpl.fips != FIPS_STATUS_APPROVED;
+
+    if (!checksum_valid || !fips_approved)
+    {
+        return -EBADMSG;
+    }
 }

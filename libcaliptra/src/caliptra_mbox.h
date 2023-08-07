@@ -19,7 +19,7 @@ enum caliptra_mailbox_fsm_states {
     CALIPTRA_MBOX_STATUS_FSM_EXECUTE_UC     = 6,
 };
 
-enum mailbox_commands {
+enum mailbox_command {
     OP_CALIPTRA_FW_LOAD          = 0x46574C44, // "FWLD"
     OP_GET_IDEV_CSR              = 0x49444556, // "IDEV"
     OP_GET_LDEV_CERT             = 0x4C444556, // "LDEV"
