@@ -1,20 +1,11 @@
 package main
 
-/*  
-#cgo CFLAGS: -I./../out/debug
-#cgo LDFLAGS: -L./../out/debug -lcaliptra_hw_model_c_binding -ldl
-#include "../caliptra-rtl/src/soc_ifc/rtl/caliptra_top_reg.h"
-#include "caliptra_api.h"
-#include "caliptra_fuses.h"
-#include "caliptra_mbox.h"
-
-// Declare C functions directly in the C block
-extern int caliptra_init_fuses(struct caliptra_model *model, struct caliptra_fuses *fuses);
-extern int caliptra_bootfsm_go(struct caliptra_model *model);
-extern int caliptra_mailbox_execute(struct caliptra_model *model, unsigned int cmd, struct caliptra_buffer *mbox_tx_buffer, struct caliptra_buffer *mbox_rx_buffer);
-extern int caliptra_upload_fw(struct caliptra_model *model, struct caliptra_buffer *fw_buffer;
-*/
-
+// #cgo CFLAGS: -I./../out/debug
+// #cgo LDFLAGS: -L./../out/debug -lcaliptra_hw_model_c_binding -ldl
+// #include "../caliptra-rtl/src/soc_ifc/rtl/caliptra_top_reg.h"
+// #include "caliptra_api.h"
+// #include "caliptra_fuses.h"
+// #include "caliptra_mbox.h"
 import "C"
 
 import (
