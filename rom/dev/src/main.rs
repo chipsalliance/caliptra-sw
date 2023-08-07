@@ -32,6 +32,7 @@ core::arch::global_asm!(include_str!(concat!(
 
 mod exception;
 mod fht;
+#[cfg_attr(feature = "fast-rom", path = "flow_fast_rom.rs")]
 mod flow;
 mod fuse;
 mod kat;
