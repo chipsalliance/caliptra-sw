@@ -107,72 +107,75 @@ func caliptraMailboxRead(model *C.struct_caliptra_model, data []byte) error {
 }
 
 func caliptraMailboxExecute(model *C.struct_caliptra_model, cmd C.uint32_t, txBuffer, rxBuffer *CaliptraBuffer) error {
-	// Parameter check
-	if model == nil {
-		return fmt.Errorf("invalid model")
-	}
+    // Parameter check
+    if model == nil {
+        return fmt.Errorf("invalid model")
+    }
 
-	// If mbox already locked return
-	if C.caliptra_mbox_is_lock(model) != 0 {
-		return fmt.Errorf("mailbox is locked")
-	}
+    // If mbox already locked return
+    if bool(C.caliptra_mbox_is_lock(model)) {
+        return fmt.Errorf("mailbox is locked")
+    }
 
-	// Write Cmd and Tx Buffer
-	if err := caliptraMailboxWrite(model, uint32ToBytes(uint32(cmd))); err != nil {
-		return fmt.Errorf("failed to write command to mailbox: %w", err)
-	}
-	if err := caliptraMailboxWrite(model, C.GoBytes(unsafe.Pointer(txBuffer.data), C.int(txBuffer.len))); err != nil {
-		return fmt.Errorf("failed to write tx buffer to mailbox: %w", err)
-	}
+    // Write Cmd and Tx Buffer
+    if err := caliptraMailboxWrite(model, uint32ToBytes(uint32(cmd))); err != nil {
+        return fmt.Errorf("failed to write command to mailbox: %w", err)
+    }
+    if err := caliptraMailboxWrite(model, C.GoBytes(unsafe.Pointer(txBuffer.data), C.int(txBuffer.len))); err != nil {
+        return fmt.Errorf("failed to write tx buffer to mailbox: %w", err)
+    }
 
-	// Set Execute bit
-	C.caliptra_mbox_write_execute(model, C.bool(true))
+    // Set Execute bit
+    C.caliptra_mbox_write_execute(model, C.bool(true))
 
-	// Keep stepping until mbox status is busy
-	for C.caliptra_mbox_read_status(model) == CALIPTRA_MBOX_STATUS_BUSY {
-		// Implement stepping model.
-		// You need to replace this with the actual implementation to step the model.
-	}
+    // Keep stepping until mbox status is busy
+    for C.caliptra_mbox_read_status(model) == CALIPTRA_MBOX_STATUS_BUSY {
+        // Implement stepping model.
+        // You need to replace this with the actual implementation to step the model.
+    }
 
-	// Check the Mailbox Status
-	status := C.caliptra_mbox_read_status(model)
-	if status == CALIPTRA_MBOX_STATUS_CMD_FAILURE {
-		C.caliptra_mbox_write_execute(model, C.bool(false))
-		return fmt.Errorf("command execution failed")
-	} else if status == CALIPTRA_MBOX_STATUS_CMD_COMPLETE {
-		C.caliptra_mbox_write_execute(model, C.bool(false))
-		return nil
-	} else if status != CALIPTRA_MBOX_STATUS_DATA_READY {
-		return fmt.Errorf("unexpected mailbox status")
-	}
+    // Check the Mailbox Status
+    status := C.caliptra_mbox_read_status(model)
+    if status == CALIPTRA_MBOX_STATUS_CMD_FAILURE {
+        C.caliptra_mbox_write_execute(model, C.bool(false))
+        return fmt.Errorf("command execution failed")
+    } else if status == CALIPTRA_MBOX_STATUS_CMD_COMPLETE {
+        C.caliptra_mbox_write_execute(model, C.bool(false))
+        return nil
+    } else if status != CALIPTRA_MBOX_STATUS_DATA_READY {
+        return fmt.Errorf("unexpected mailbox status")
+    }
 
-	// Read Mbox out Data Len
-	dlenBytes := make([]byte, 4)
-	if err := caliptraMailboxRead(model, dlenBytes); err != nil {
-		return fmt.Errorf("failed to read mbox data length: %w", err)
-	}
-	dlen := binary.LittleEndian.Uint32(dlenBytes)
+    // Read Mbox out Data Len
+    dlenBytes := make([]byte, 4)
+    if err := caliptraMailboxRead(model, dlenBytes); err != nil {
+        return fmt.Errorf("failed to read mbox data length: %w", err)
+    }
+    dlen := binary.LittleEndian.Uint32(dlenBytes)
 
-	// Read Buffer
-	rxBuffer.data = (*C.uint8_t)(C.malloc(C.size_t(dlen)))
-	rxBuffer.len = dlen
-	if err := caliptraMailboxRead(model, C.GoBytes(unsafe.Pointer(rxBuffer.data), C.int(rxBuffer.len))); err != nil {
-		return fmt.Errorf("failed to read mbox rx buffer: %w", err)
-	}
+    // Convert dlen to C type (ulong)
+    dlenC := C.ulong(dlen)
 
-	// Execute False
-	C.caliptra_mbox_write_execute(model, C.bool(false))
+    // Read Buffer
+    rxBuffer.data = (*C.uint8_t)(C.malloc(C.size_t(dlenC)))
+    rxBuffer.len = dlenC
+    if err := caliptraMailboxRead(model, C.GoBytes(unsafe.Pointer(rxBuffer.data), C.int(rxBuffer.len))); err != nil {
+        return fmt.Errorf("failed to read mbox rx buffer: %w", err)
+    }
 
-	// mbox_fsm_ps isn't updated immediately after execute is cleared (!?),
-	// so step an extra clock cycle to wait for fm_ps to update
-	// Implement stepping model.
-	// You need to replace this with the actual implementation to step the model.
+    // Execute False
+    C.caliptra_mbox_write_execute(model, C.bool(false))
 
-	if C.caliptra_mbox_read_status_fsm(model) != CALIPTRA_MBOX_STATUS_FSM_IDLE {
-		return fmt.Errorf("unexpected mailbox fsm status")
-	}
+    // mbox_fsm_ps isn't updated immediately after execute is cleared (!?),
+    // so step an extra clock cycle to wait for fm_ps to update
+    // Implement stepping model.
+    // You need to replace this with the actual implementation to step the model.
 
-	return nil
+    if C.caliptra_mbox_read_status_fsm(model) != CALIPTRA_MBOX_STATUS_FSM_IDLE {
+        return fmt.Errorf("unexpected mailbox fsm status")
+    }
+
+    return nil
 }
 
 // Constants for mailbox status.
