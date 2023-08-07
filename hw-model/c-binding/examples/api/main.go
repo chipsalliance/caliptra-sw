@@ -113,9 +113,9 @@ func caliptraMailboxExecute(model *C.struct_caliptra_model, cmd C.uint32_t, txBu
     }
 
     // If mbox already locked return
-    if bool(C.caliptra_mbox_is_lock(model)) {
+ /*   if bool(C.caliptra_mbox_is_lock(model)) {
         return fmt.Errorf("mailbox is locked")
-    }
+    } */
 
     // Write Cmd and Tx Buffer
     if err := caliptraMailboxWrite(model, uint32ToBytes(uint32(cmd))); err != nil {
