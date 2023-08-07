@@ -11,6 +11,7 @@ import "C"
 import (
 	"fmt"
 	"unsafe"
+	"encoding/binary"
 )
 
 // Define the Go struct for caliptra_buffer
@@ -56,37 +57,18 @@ func main() {
 	fmt.Println("Mailbox command executed successfully!")
 }
 
-// Implement the Go wrapper function for caliptra_init_fuses C function
-func caliptraInitFuses(model *caliptraModel, fuses *caliptraBuffer) int {
-	// Convert Go structs to C structs
-	cModel := (*C.struct_caliptra_model)(unsafe.Pointer(model))
+root@ubun-build-sgx:/home/isecl-ami/prems/caliptra-sw/hw-model/c-binding/examples/api# go run main.go
+# command-line-arguments
+./main.go:67:20: cannot use (*[8]_Ctype_uint32_t)(unsafe.Pointer(&cFuses.field_entropy[0])) (value of type *[8]_Ctype_uint) as *[12]_Ctype_uint value in argument to copySliceToCArray
+./main.go:69:48: undefined: binary
+./main.go:69:9: cFuses.key_manifest_pk_hash_mask undefined (type _Ctype_struct_caliptra_fuses has no field or method key_manifest_pk_hash_mask)
+./main.go:71:43: undefined: binary
+./main.go:72:20: cannot use (*[4]_Ctype_uint32_t)(unsafe.Pointer(&cFuses.runtime_svn[0])) (value of type *[4]_Ctype_uint) as *[12]_Ctype_uint value in argument to copySliceToCArray
+./main.go:74:20: cannot use (*[24]_Ctype_uint32_t)(unsafe.Pointer(&cFuses.idevid_cert_attr[0])) (value of type *[24]_Ctype_uint) as *[12]_Ctype_uint value in argument to copySliceToCArray
+./main.go:75:20: cannot use (*[4]_Ctype_uint32_t)(unsafe.Pointer(&cFuses.idevid_manuf_hsm_id[0])) (value of type *[4]_Ctype_uint) as *[12]_Ctype_uint value in argument to copySliceToCArray
+./main.go:76:45: undefined: binary
+./main.go:87:24: undefined: binary
 
-	// Create a C version of the caliptra_fuses struct and copy the data
-	var cFuses C.struct_caliptra_fuses
-	copySliceToCArray((*[12]C.uint32_t)(unsafe.Pointer(&cFuses.uds_seed[0])), fuses.data, 12)
-	copySliceToCArray((*[8]C.uint32_t)(unsafe.Pointer(&cFuses.field_entropy[0])), fuses.data[48:], 8)
-	copySliceToCArray((*[12]C.uint32_t)(unsafe.Pointer(&cFuses.key_manifest_pk_hash[0])), fuses.data[80:], 12)
-	cFuses.key_manifest_pk_hash_mask = C.uint32_t(binary.LittleEndian.Uint32(fuses.data[176:]))
-	copySliceToCArray((*[12]C.uint32_t)(unsafe.Pointer(&cFuses.owner_pk_hash[0])), fuses.data[180:], 12)
-	cFuses.fmc_key_manifest_svn = C.uint32_t(binary.LittleEndian.Uint32(fuses.data[276:]))
-	copySliceToCArray((*[4]C.uint32_t)(unsafe.Pointer(&cFuses.runtime_svn[0])), fuses.data[280:], 4)
-	cFuses.anti_rollback_disable = C.bool(fuses.data[296] != 0)
-	copySliceToCArray((*[24]C.uint32_t)(unsafe.Pointer(&cFuses.idevid_cert_attr[0])), fuses.data[297:], 24)
-	copySliceToCArray((*[4]C.uint32_t)(unsafe.Pointer(&cFuses.idevid_manuf_hsm_id[0])), fuses.data[393:], 4)
-	cFuses.life_cycle = C.enum_DeviceLifecycle(binary.LittleEndian.Uint32(fuses.data[409:]))
-
-	// Call the C function
-	ret := C.caliptra_init_fuses(cModel, &cFuses)
-
-	return int(ret)
-}
-
-// Helper function to copy Go []byte to C array
-func copySliceToCArray(dest *[12]C.uint32_t, src []byte, length int) {
-	for i := 0; i < length; i++ {
-		dest[i] = C.uint32_t(binary.LittleEndian.Uint32(src[i*4:]))
-	}
-}
 
 func caliptraBootFsmGo(model *caliptraModel) int {
 	// Convert Go structs to C structs
