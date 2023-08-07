@@ -6,6 +6,9 @@ package main
 // #include "caliptra_api.h"
 // #include "caliptra_fuses.h"
 // #include "caliptra_mbox.h"
+
+import "C"
+
 import (
 	"fmt"
 	"unsafe"
