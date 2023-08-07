@@ -109,16 +109,13 @@ int caliptra_bootfsm_go()
  */
 static int caliptra_mailbox_write_fifo(struct caliptra_buffer *buffer)
 {
-    // Check against max size
-    const uint32_t MBOX_SIZE = (128u * 1024u);
-
     // Check if buffer is not null.
     if (buffer == NULL)
     {
         return -EINVAL;
     }
 
-    if (buffer->len > MBOX_SIZE)
+    if (buffer->len > CALIPTRA_MAILBOX_MAX_SIZE)
     {
         return -EINVAL;
     }
@@ -303,8 +300,7 @@ int caliptra_upload_fw(struct caliptra_buffer *fw_buffer)
     if (fw_buffer == NULL)
         return -EINVAL;
 
-    const uint32_t FW_LOAD_CMD_OPCODE = 0x46574C44u;
-    return caliptra_mailbox_execute(FW_LOAD_CMD_OPCODE, fw_buffer, NULL);
+    return caliptra_mailbox_execute(OP_CALIPTRA_FW_LOAD, fw_buffer, NULL);
 }
 
 /**
@@ -322,7 +318,6 @@ int caliptra_get_fips_version(struct caliptra_fips_version *version)
     if (version == NULL)
         return -EINVAL;
 
-    uint32_t FIPS_VERSION_OPCODE = 0x46505652;
     // TODO: Remove this with the new caliptra API changes that add checksum support
     int32_t checksum = 318;
 
@@ -335,5 +330,5 @@ int caliptra_get_fips_version(struct caliptra_fips_version *version)
         .len = sizeof(struct caliptra_fips_version),
     };
 
-    return caliptra_mailbox_execute(FIPS_VERSION_OPCODE, &in_buf, &out_buf);
+    return caliptra_mailbox_execute(OP_FIPS_VERSION, &in_buf, &out_buf);
 }
