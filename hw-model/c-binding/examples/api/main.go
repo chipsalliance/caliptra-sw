@@ -11,7 +11,6 @@ import "C"
 import (
 	"fmt"
 	"unsafe"
-	"encoding/binary"
 )
 
 // Define the Go struct for caliptra_buffer
@@ -59,16 +58,31 @@ func main() {
 
 // Implement the Go wrapper functions for the C functions
 
+// Implement the Go wrapper function for caliptra_init_fuses C function
 func caliptraInitFuses(model *caliptraModel, fuses *caliptraBuffer) int {
 	// Convert Go structs to C structs
 	cModel := (*C.struct_caliptra_model)(unsafe.Pointer(model))
-	cFuses := (*C.struct_caliptra_buffer)(unsafe.Pointer(fuses))
+
+	// Create a C version of the caliptra_fuses struct and copy the data
+	var cFuses C.struct_caliptra_fuses
+	copy(cFuses.uds_seed[:], fuses.data[:len(cFuses.uds_seed)*4])
+	copy(cFuses.field_entropy[:], fuses.data[len(cFuses.uds_seed)*4:len(cFuses.uds_seed)*4+len(cFuses.field_entropy)*4])
+	copy(cFuses.key_manifest_pk_hash[:], fuses.data[len(cFuses.uds_seed)*4+len(cFuses.field_entropy)*4:len(cFuses.uds_seed)*4+len(cFuses.field_entropy)*4+len(cFuses.key_manifest_pk_hash)*4])
+	cFuses.key_manifest_pk_hash_mask = C.uint32_t(binary.LittleEndian.Uint32(fuses.data[len(cFuses.uds_seed)*4+len(cFuses.field_entropy)*4+len(cFuses.key_manifest_pk_hash)*4:]))
+	copy(cFuses.owner_pk_hash[:], fuses.data[len(cFuses.uds_seed)*4+len(cFuses.field_entropy)*4+len(cFuses.key_manifest_pk_hash)*4+4:])
+	cFuses.fmc_key_manifest_svn = C.uint32_t(binary.LittleEndian.Uint32(fuses.data[len(cFuses.uds_seed)*4+len(cFuses.field_entropy)*4+len(cFuses.key_manifest_pk_hash)*4+4+len(cFuses.owner_pk_hash)*4:]))
+	copy(cFuses.runtime_svn[:], fuses.data[len(cFuses.uds_seed)*4+len(cFuses.field_entropy)*4+len(cFuses.key_manifest_pk_hash)*4+4+len(cFuses.owner_pk_hash)*4+len(cFuses.fmc_key_manifest_svn)*4:])
+	cFuses.anti_rollback_disable = C.bool(fuses.data[len(cFuses.uds_seed)*4+len(cFuses.field_entropy)*4+len(cFuses.key_manifest_pk_hash)*4+4+len(cFuses.owner_pk_hash)*4+len(cFuses.fmc_key_manifest_svn)*4+len(cFuses.runtime_svn)*4] != 0)
+	copy(cFuses.idevid_cert_attr[:], fuses.data[len(cFuses.uds_seed)*4+len(cFuses.field_entropy)*4+len(cFuses.key_manifest_pk_hash)*4+4+len(cFuses.owner_pk_hash)*4+len(cFuses.fmc_key_manifest_svn)*4+len(cFuses.runtime_svn)*4+1:])
+	copy(cFuses.idevid_manuf_hsm_id[:], fuses.data[len(cFuses.uds_seed)*4+len(cFuses.field_entropy)*4+len(cFuses.key_manifest_pk_hash)*4+4+len(cFuses.owner_pk_hash)*4+len(cFuses.fmc_key_manifest_svn)*4+len(cFuses.runtime_svn)*4+1+len(cFuses.idevid_cert_attr)*4:])
+	cFuses.life_cycle = C.enum_DeviceLifecycle(binary.LittleEndian.Uint32(fuses.data[len(cFuses.uds_seed)*4+len(cFuses.field_entropy)*4+len(cFuses.key_manifest_pk_hash)*4+4+len(cFuses.owner_pk_hash)*4+len(cFuses.fmc_key_manifest_svn)*4+len(cFuses.runtime_svn)*4+1+len(cFuses.idevid_cert_attr)*4+len(cFuses.idevid_manuf_hsm_id)*4:]))
 
 	// Call the C function
-	ret := C.caliptra_init_fuses(cModel, cFuses)
+	ret := C.caliptra_init_fuses(cModel, &cFuses)
 
 	return int(ret)
 }
+
 
 func caliptraBootFsmGo(model *caliptraModel) int {
 	// Convert Go structs to C structs
