@@ -17,7 +17,10 @@ use caliptra_common::memory_layout::{MAN1_ORG, MAN2_ORG};
 use caliptra_common::FirmwareHandoffTable;
 
 use caliptra_common::RomBootStatus::*;
-use caliptra_drivers::{report_boot_status, MailboxRecvTxn, ResetReason};
+use caliptra_drivers::DataVault;
+use caliptra_drivers::{
+    report_boot_status, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
+};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::ImageManifest;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
@@ -68,6 +71,9 @@ impl UpdateResetFlow {
             "[update-reset] Image verified using Vendor ECC Key Index {}",
             info.vendor_ecc_pub_key_idx
         );
+
+        // Populate data vault
+        Self::populate_data_vault(venv.data_vault, &info);
 
         Self::load_image(&manifest, recv_txn)?;
         report_boot_status(UpdateResetLoadImageComplete.into());
@@ -172,5 +178,21 @@ impl UpdateResetFlow {
 
         ImageManifest::read_from(slice.as_bytes())
             .ok_or(CaliptraError::ROM_UPDATE_RESET_FLOW_MANIFEST_READ_FAILURE)
+    }
+
+    /// Populate data vault
+    ///
+    /// # Arguments
+    ///
+    /// * `env`  - ROM Environment
+    /// * `info` - Image Verification Info
+    fn populate_data_vault(data_vault: &mut DataVault, info: &ImageVerificationInfo) {
+        data_vault.write_warm_reset_entry48(WarmResetEntry48::RtTci, &info.runtime.digest.into());
+
+        data_vault.write_warm_reset_entry4(WarmResetEntry4::RtSvn, info.runtime.svn);
+
+        data_vault.write_warm_reset_entry4(WarmResetEntry4::RtEntryPoint, info.runtime.entry_point);
+
+        report_boot_status(UpdateResetPopulateDataVaultComplete.into());
     }
 }
