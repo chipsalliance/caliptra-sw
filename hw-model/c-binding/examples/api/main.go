@@ -23,13 +23,6 @@ type caliptraModel struct {
 	// Add the necessary fields of caliptra_model if required
 }
 
-// Function declarations for the Go wrapper functions
-func caliptraInitFuses(model *caliptraModel, fuses *caliptraBuffer) int
-func caliptraBootFsmGo(model *caliptraModel) int
-func caliptraMailboxExecute(model *caliptraModel, cmd uint32, mboxTxBuffer *caliptraBuffer, mboxRxBuffer *caliptraBuffer) int
-func caliptraUploadFw(model *caliptraModel, fwBuffer *caliptraBuffer) int
-func mailboxExecute(model *caliptraModel, cmd uint32, mboxTxBuffer *caliptraBuffer, mboxRxBuffer *caliptraBuffer) int
-
 func main() {
 	// Create a dummy caliptraModel instance (replace this with the actual implementation)
 	model := &caliptraModel{}
