@@ -63,13 +63,15 @@ pub struct PcrLogEntry {
     /// Entry identifier
     pub id: u16,
 
-    /// PCR to which the data is being extended to.
-    pub pcr_id: u16,
+    pub reserved0: [u8; 2],
+
+    /// Bitmask indicating the PCRs to which the data is being extended to.
+    pub pcr_ids: u32,
 
     // PCR data
     pub pcr_data: [u32; 12],
 
-    pub reserved: [u8; 4],
+    pub reserved1: [u8; 4],
 }
 
 pub const RT_FW_CURRENT_PCR: PcrId = PcrId::PcrId3;

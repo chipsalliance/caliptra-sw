@@ -124,7 +124,7 @@ fn test_pcr_log() {
     let pcr_log_entry =
         PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(pcr_log_entry.id, PcrLogEntryId::DeviceLifecycle as u16);
-    assert_eq!(pcr_log_entry.pcr_id, 0);
+    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
     let device_lifecycle = hw
         .soc_ifc()
         .cptra_security_state()
@@ -137,7 +137,7 @@ fn test_pcr_log() {
     let pcr_log_entry =
         PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(pcr_log_entry.id, PcrLogEntryId::DebugLocked as u16);
-    assert_eq!(pcr_log_entry.pcr_id, 0);
+    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
     let debug_locked = hw.soc_ifc().cptra_security_state().read().debug_locked();
     assert_eq!((pcr_log_entry.pcr_data[0] as u8) != 0, debug_locked);
 
@@ -146,7 +146,7 @@ fn test_pcr_log() {
     let pcr_log_entry =
         PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(pcr_log_entry.id, PcrLogEntryId::AntiRollbackDisabled as u16);
-    assert_eq!(pcr_log_entry.pcr_id, 0);
+    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
     let anti_rollback_disable = hw.soc_ifc().fuse_anti_rollback_disable().read().dis();
     assert_eq!(
         (pcr_log_entry.pcr_data[0] as u8) != 0,
@@ -158,7 +158,7 @@ fn test_pcr_log() {
     let pcr_log_entry =
         PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(pcr_log_entry.id, PcrLogEntryId::VendorPubKeyHash as u16);
-    assert_eq!(pcr_log_entry.pcr_id, 0);
+    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
     helpers::change_dword_endianess(vendor_pubkey_digest.as_bytes_mut());
     assert_eq!(pcr_log_entry.pcr_data, vendor_pubkey_digest);
 
@@ -167,7 +167,7 @@ fn test_pcr_log() {
     let pcr_log_entry =
         PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(pcr_log_entry.id, PcrLogEntryId::OwnerPubKeyHash as u16);
-    assert_eq!(pcr_log_entry.pcr_id, 0);
+    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
     helpers::change_dword_endianess(owner_pubkey_digest.as_bytes_mut());
     assert_eq!(pcr_log_entry.pcr_data, owner_pubkey_digest);
 
@@ -176,7 +176,7 @@ fn test_pcr_log() {
     let pcr_log_entry =
         PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(pcr_log_entry.id, PcrLogEntryId::EccVendorPubKeyIndex as u16);
-    assert_eq!(pcr_log_entry.pcr_id, 0);
+    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
     assert_eq!(
         pcr_log_entry.pcr_data[0] as u8,
         VENDOR_CONFIG_KEY_1.ecc_key_idx as u8
@@ -187,14 +187,14 @@ fn test_pcr_log() {
     let pcr_log_entry =
         PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(pcr_log_entry.id, PcrLogEntryId::FmcTci as u16);
-    assert_eq!(pcr_log_entry.pcr_id, 0);
+    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
 
     // Check PCR entry for FmcSvn.
     pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
     let pcr_log_entry =
         PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(pcr_log_entry.id, PcrLogEntryId::FmcSvn as u16);
-    assert_eq!(pcr_log_entry.pcr_id, 0);
+    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
     assert_eq!(pcr_log_entry.pcr_data[0] as u8, FMC_SVN as u8);
 
     // Check PCR entry for FmcFuseSvn.
@@ -202,7 +202,7 @@ fn test_pcr_log() {
     let pcr_log_entry =
         PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(pcr_log_entry.id, PcrLogEntryId::FmcFuseSvn as u16);
-    assert_eq!(pcr_log_entry.pcr_id, 0);
+    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
     assert_eq!(pcr_log_entry.pcr_data[0] as u8, 0); // anti_rollback_disable is true
 
     // Check PCR entry for LmsVendorPubKeyIndex.
@@ -210,7 +210,7 @@ fn test_pcr_log() {
     let pcr_log_entry =
         PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(pcr_log_entry.id, PcrLogEntryId::LmsVendorPubKeyIndex as u16);
-    assert_eq!(pcr_log_entry.pcr_id, 0);
+    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
     assert_eq!(
         pcr_log_entry.pcr_data[0] as u8,
         VENDOR_CONFIG_KEY_1.lms_key_idx as u8
@@ -221,7 +221,7 @@ fn test_pcr_log() {
     let pcr_log_entry =
         PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(pcr_log_entry.id, PcrLogEntryId::RomVerifyConfig as u16);
-    assert_eq!(pcr_log_entry.pcr_id, 0);
+    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
     assert_eq!(
         pcr_log_entry.pcr_data[0] as u8,
         RomVerifyConfig::EcdsaAndLms as u8
@@ -296,7 +296,7 @@ fn test_pcr_log_fmc_fuse_svn() {
     )
     .unwrap();
     assert_eq!(pcr_log_entry.id, PcrLogEntryId::FmcFuseSvn as u16);
-    assert_eq!(pcr_log_entry.pcr_id, 0);
+    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
     assert_eq!(pcr_log_entry.pcr_data[0] as u8, FMC_SVN as u8); // anti_rollback_disable is false
 }
 

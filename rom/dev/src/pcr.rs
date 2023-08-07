@@ -127,7 +127,7 @@ pub fn log_pcr(pcr_entry_id: PcrLogEntryId, pcr_id: PcrId, data: &[u8]) -> Calip
     // Create a PCR log entry
     let mut pcr_log_entry = PcrLogEntry {
         id: pcr_entry_id as u16,
-        pcr_id: pcr_id as u16,
+        pcr_ids: 1 << (pcr_id as u8),
         ..Default::default()
     };
     pcr_log_entry.pcr_data.as_bytes_mut()[..data.len()].copy_from_slice(data);
