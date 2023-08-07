@@ -27,10 +27,10 @@ NSTACK_ORG       = 0x5001FC00;
 /* Workaround https://github.com/llvm/llvm-project/issues/62423
  * by allowing lld to exceed the ROM size before relaxation optimizations are
  * applied. To prevent legitimate overflows, caliptra_builder::elf2rom() will
- * ensure that the sections fit within the true 32k ROM size.
+ * ensure that the sections fit within the true 48k ROM size.
  */
 ROM_RELAXATION_PADDING = 4k;
-ROM_SIZE          = 32K;
+ROM_SIZE          = 48K;
 ICCM_SIZE         = 128K;
 DCCM_SIZE         = 128K;
 DATA_SIZE         = 94K;

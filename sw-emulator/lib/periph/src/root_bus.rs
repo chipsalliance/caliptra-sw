@@ -291,7 +291,7 @@ pub struct CaliptraRootBus {
 }
 
 impl CaliptraRootBus {
-    pub const ROM_SIZE: usize = 32 * 1024;
+    pub const ROM_SIZE: usize = 48 * 1024;
     pub const ICCM_SIZE: usize = 128 * 1024;
     pub const DCCM_SIZE: usize = 128 * 1024;
 
