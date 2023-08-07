@@ -1,5 +1,8 @@
 Q=@
 
+CC=$(CROSS_COMPILE)gcc
+AR=$(CROSS_COMPILE)ar
+
 SOURCE += ../generic/main.c ../../src/caliptra_api.c
 
 LIBCALIPTRA_ROOT = ../..
