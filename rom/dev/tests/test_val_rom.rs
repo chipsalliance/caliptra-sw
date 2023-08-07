@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::ROM_FAST_WITH_UART;
+use caliptra_builder::ROM_VAL_WITH_UART;
 use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART};
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, SecurityState};
@@ -9,7 +9,7 @@ pub mod helpers;
 
 #[test]
 fn test_skip_kats() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_FAST_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_VAL_WITH_UART).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -27,11 +27,11 @@ fn test_skip_kats() {
 }
 
 #[test]
-fn test_fast_rom_production_error() {
+fn test_val_rom_production_error() {
     let security_state =
         *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_FAST_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_VAL_WITH_UART).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -48,12 +48,12 @@ fn test_fast_rom_production_error() {
     // Make sure we see the right fatal error
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_fatal().read(),
-        CaliptraError::ROM_GLOBAL_FAST_ROM_IN_PRODUCTION.into()
+        CaliptraError::ROM_GLOBAL_VAL_ROM_IN_PRODUCTION.into()
     );
 }
 
 #[test]
-fn test_fast_rom_fw_load() {
+fn test_val_rom_fw_load() {
     pub const TEST_FMC_WITH_UART: FwId = FwId {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
@@ -62,7 +62,7 @@ fn test_fast_rom_fw_load() {
     };
 
     let fuses = Fuses::default();
-    let rom = caliptra_builder::build_firmware_rom(&ROM_FAST_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_VAL_WITH_UART).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,

@@ -4,7 +4,7 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    verifier_fast_rom.rs
+    verifier_val_rom.rs
 
 Abstract:
 
@@ -13,8 +13,8 @@ Abstract:
 
 --*/
 
-#[cfg(not(feature = "fast-rom"))]
-compile_error!("This file should NEVER be included except for the fast-rom feature");
+#[cfg(not(feature = "val-rom"))]
+compile_error!("This file should NEVER be included except for the val-rom feature");
 
 use caliptra_drivers::*;
 use caliptra_image_types::*;

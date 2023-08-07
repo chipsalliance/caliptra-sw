@@ -13,7 +13,7 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
-#![cfg_attr(not(feature = "fast-rom"), allow(unused_imports))]
+#![cfg_attr(not(feature = "val-rom"), allow(unused_imports))]
 
 use crate::lock::lock_registers;
 use core::hint::black_box;
@@ -32,7 +32,7 @@ core::arch::global_asm!(include_str!(concat!(
 
 mod exception;
 mod fht;
-#[cfg_attr(feature = "fast-rom", path = "flow_fast_rom.rs")]
+#[cfg_attr(feature = "val-rom", path = "flow_val_rom.rs")]
 mod flow;
 mod fuse;
 mod kat;
@@ -40,7 +40,7 @@ mod lock;
 mod pcr;
 mod print;
 mod rom_env;
-#[cfg_attr(feature = "fast-rom", path = "verifier_fast_rom.rs")]
+#[cfg_attr(feature = "val-rom", path = "verifier_val_rom.rs")]
 mod verifier;
 mod wdt;
 
@@ -68,11 +68,11 @@ pub extern "C" fn rom_entry() -> ! {
     };
     cprintln!("[state] LifecycleState = {}", _lifecyle);
 
-    if cfg!(feature = "fast-rom")
+    if cfg!(feature = "val-rom")
         && env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production
     {
-        cprintln!("Fast ROM in Production lifecycle prohibited");
-        handle_fatal_error(CaliptraError::ROM_GLOBAL_FAST_ROM_IN_PRODUCTION.into());
+        cprintln!("Val ROM in Production lifecycle prohibited");
+        handle_fatal_error(CaliptraError::ROM_GLOBAL_VAL_ROM_IN_PRODUCTION.into());
     }
 
     cprintln!(
@@ -87,7 +87,7 @@ pub extern "C" fn rom_entry() -> ! {
     // Start the watchdog timer
     wdt::start_wdt(&mut env.soc_ifc);
 
-    if !cfg!(feature = "fast-rom") {
+    if !cfg!(feature = "val-rom") {
         let result = kat::execute_kat(&mut env);
         if let Err(err) = result {
             handle_fatal_error(err.into());

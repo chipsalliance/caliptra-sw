@@ -8,7 +8,7 @@ File Name:
 
 Abstract:
 
-    File contains the implementation of the fast ROM reset flows
+    File contains the implementation of the val ROM reset flows
 
 --*/
 
@@ -34,7 +34,7 @@ pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
     match reset_reason {
         // Cold Reset Flow
         ResetReason::ColdReset => {
-            cprintln!("[fast-rom-cold-reset] ++");
+            cprintln!("[val-rom-cold-reset] ++");
             report_boot_status(ColdResetStarted.into());
 
             // SKIP Execute IDEVID layer
@@ -45,7 +45,7 @@ pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
 
             // SKIP Execute FMCALIAS layer
 
-            cprintln!("[fast-rom-cold-reset] --");
+            cprintln!("[val-rom-cold-reset] --");
             report_boot_status(ColdResetComplete.into());
 
             Ok(Some(fht::make_fht(env)))
