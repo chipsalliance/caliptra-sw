@@ -57,18 +57,6 @@ func main() {
 	fmt.Println("Mailbox command executed successfully!")
 }
 
-root@ubun-build-sgx:/home/isecl-ami/prems/caliptra-sw/hw-model/c-binding/examples/api# go run main.go
-# command-line-arguments
-./main.go:67:20: cannot use (*[8]_Ctype_uint32_t)(unsafe.Pointer(&cFuses.field_entropy[0])) (value of type *[8]_Ctype_uint) as *[12]_Ctype_uint value in argument to copySliceToCArray
-./main.go:69:48: undefined: binary
-./main.go:69:9: cFuses.key_manifest_pk_hash_mask undefined (type _Ctype_struct_caliptra_fuses has no field or method key_manifest_pk_hash_mask)
-./main.go:71:43: undefined: binary
-./main.go:72:20: cannot use (*[4]_Ctype_uint32_t)(unsafe.Pointer(&cFuses.runtime_svn[0])) (value of type *[4]_Ctype_uint) as *[12]_Ctype_uint value in argument to copySliceToCArray
-./main.go:74:20: cannot use (*[24]_Ctype_uint32_t)(unsafe.Pointer(&cFuses.idevid_cert_attr[0])) (value of type *[24]_Ctype_uint) as *[12]_Ctype_uint value in argument to copySliceToCArray
-./main.go:75:20: cannot use (*[4]_Ctype_uint32_t)(unsafe.Pointer(&cFuses.idevid_manuf_hsm_id[0])) (value of type *[4]_Ctype_uint) as *[12]_Ctype_uint value in argument to copySliceToCArray
-./main.go:76:45: undefined: binary
-./main.go:87:24: undefined: binary
-
 
 func caliptraBootFsmGo(model *caliptraModel) int {
 	// Convert Go structs to C structs
