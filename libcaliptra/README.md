@@ -29,6 +29,8 @@ To compile the API, the following must be provided:
 
 Run `make RTL_SOC_IFC_INCLUDE_PATH=<path>` to generate libcaliptra.a
 
+Run `make CROSS_COMPILE=<prefix> RTL_SOC_IFC_INCLUDE_PATH=<path>` to cross compile libcaliptra.a for a different target.
+
 ## Link
 
 To link the API, the following must be provided:
