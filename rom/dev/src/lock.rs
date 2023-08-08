@@ -35,9 +35,10 @@ pub fn lock_registers(env: &mut RomEnv, reset_reason: ResetReason) {
         lock_common_reg_set(env);
     }
 
-    // Lock the PCR0 from clear
-    cprintln!("[state] Locking PCR0");
+    // Lock PCR0 and PCR1 from clear
+    cprintln!("[state] Locking PCR0 and PCR1");
     env.pcr_bank.set_pcr_lock(caliptra_drivers::PcrId::PcrId0);
+    env.pcr_bank.set_pcr_lock(caliptra_drivers::PcrId::PcrId1);
 
     cprintln!("[state] Locking ICCM");
     env.soc_ifc.set_iccm_lock(true);

@@ -11,7 +11,7 @@ Abstract:
     File contains the implementation of update reset flow.
 
 --*/
-use crate::{cprintln, rom_env::RomEnv, verifier::RomImageVerificationEnv};
+use crate::{cprintln, pcr, rom_env::RomEnv, verifier::RomImageVerificationEnv};
 
 use caliptra_common::memory_layout::{MAN1_ORG, MAN2_ORG};
 use caliptra_common::FirmwareHandoffTable;
@@ -19,7 +19,7 @@ use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::DataVault;
 use caliptra_drivers::{
-    report_boot_status, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
+    okref, report_boot_status, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::ImageManifest;
@@ -64,8 +64,13 @@ impl UpdateResetFlow {
             pcr_bank: &mut env.pcr_bank,
         };
 
-        let info = Self::verify_image(&mut venv, &manifest, recv_txn.dlen())?;
+        let info = Self::verify_image(&mut venv, &manifest, recv_txn.dlen());
+        let info = okref(&info)?;
         report_boot_status(UpdateResetImageVerificationComplete.into());
+
+        // Extend PCR0 and PCR1
+        pcr::extend_pcrs(&mut venv, info)?;
+        report_boot_status(UpdateResetExtendPcrComplete.into());
 
         cprintln!(
             "[update-reset] Image verified using Vendor ECC Key Index {}",
@@ -73,7 +78,7 @@ impl UpdateResetFlow {
         );
 
         // Populate data vault
-        Self::populate_data_vault(venv.data_vault, &info);
+        Self::populate_data_vault(venv.data_vault, info);
 
         Self::load_image(&manifest, recv_txn)?;
         report_boot_status(UpdateResetLoadImageComplete.into());

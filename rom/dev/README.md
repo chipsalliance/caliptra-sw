@@ -212,7 +212,8 @@ The following sections define the various cryptographic primitives used by Calip
 | | `dv4_lock_wr(dv_slot)` | Write Lock the 4-byte data vault slot<br>Input<br>***dv_slot*** - data vault slot |
 | Platform Configuration Registers | `pcr_extend(pcr_slot, data)` | Perform PCR extend operation on a PCR with specified data<br>**Input**:<br>***pc_slot*** - PCR slot to hash extend<br>***data*** – data |
 | | `pcr_read(pcr_slot) -> measurement` | Read the PCR slot<br>**Input**:<br>***pc_slot*** - PCR slot to read<br>**Output**:<br>***measurement*** - Accumulated measurement |
-| | `pcr_lock_clr(pcr_slot)` | Lock for Clear PCR slot<br>**Input**:<br>***pcr_slot*** - pcr slot |
+| | `pcr_lock_clear(pcr_slot)` | Lock for Clear PCR slot<br>**Input**:<br>***pcr_slot*** - pcr slot |
+| | `pcr_clear(pcr_slot)` | Clear PCR slot<br>**Input**:<br>***pcr_slot*** - pcr slot |
 | X509 | `gen_tbs(type, pub_key) -> tbs` | Generate X509 Certificate or CSR `To Be Signed` portion<br>**Input**:<br>***type*** - Can be IDEVID_CSR, LDEVID_CERT or ALIAS_FMC_CERT<br>pub-key -public key<br>**Output**:<br>***tbs*** - DER encoded `To Be Signed` portion |
 <br>
 
@@ -439,17 +440,20 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
 **Actions:**
 
-1.	PCR0 is the Current PCR. PCR0 is locked for clear by the ROM on every reset. Subsequent layers may continue to extend PCR0 as runtime updates are performed.
+1.	PCR0 is the Current PCR. PCR 1 is the Journey PCR. PCR0 is cleared by ROM upon each warm reset, before it is extended with FMC measurements. PCR0 and PCR1 are locked for clear by the ROM on every reset. Subsequent layers may continue to extend PCR0 as runtime updates are performed.
 
-	`pcr_lock_clr(Pcr0)`
-	`pcr_extend(Pcr0, CPTRA_SECURITY_STATE.LIFECYCLE_STATE)`
-    `pcr_extend(Pcr0, CPTRA_SECURITY_STATE.DEBUG_ENABLED)`
-    `pcr_extend(Pcr0, FUSE_ANTI_ROLLBACK_DISABLE)`
-    `pcr_extend(Pcr0, MANUFACTURER_PK)`
-    `pcr_extend(Pcr0, FUSE_OWNER_PK_HASH)`
-    `pcr_extend(Pcr0, FMC_DIGEST)`
-    `pcr_extend(Pcr0, FMC_SVN)`
-    `pcr_extend(Pcr0, FMC_FUSE_SVN)` (or 0 if `FUSE_ANTI_ROLLBACK_DISABLE`)
+    `pcr_clear(Pcr0)`
+    `pcr_extend(Pcr0 && Pcr1, CPTRA_SECURITY_STATE.LIFECYCLE_STATE)`
+    `pcr_extend(Pcr0 && Pcr1, CPTRA_SECURITY_STATE.DEBUG_ENABLED)`
+    `pcr_extend(Pcr0 && Pcr1, FUSE_ANTI_ROLLBACK_DISABLE)`
+    `pcr_extend(Pcr0 && Pcr1, MANUFACTURER_PK)`
+    `pcr_extend(Pcr0 && Pcr1, FUSE_OWNER_PK_HASH)`
+    `pcr_extend(Pcr0 && Pcr1, FMC_DIGEST)`
+    `pcr_extend(Pcr0 && Pcr1, FMC_SVN)`
+    `pcr_extend(Pcr0 && Pcr1, FMC_FUSE_SVN)` (or 0 if `FUSE_ANTI_ROLLBACK_DISABLE`)
+    `pcr_extend(Pcr0 && Pcr1, LMS_VENDOR_PK_INDEX)`
+    `pcr_extend(Pcr0 && Pcr1, ROM_VERIFY_CONFIG)`
+    `pcr_lock_clear(Pcr0 && Pcr1)`
 
 2.	CDI for Alias is derived from PCR0. For the Alias FMC CDI Derivation,  LDevID CDI in Key Vault Slot6 is used as HMAC Key and contents of PCR0 are used as data. The resultant mac is stored back in Slot 6
 

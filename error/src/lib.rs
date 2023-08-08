@@ -352,16 +352,17 @@ impl CaliptraError {
         CaliptraError::new_const(0x01050004);
     pub const ROM_GLOBAL_PCR_LOG_UNSUPPORTED_DATA_LENGTH: CaliptraError =
         CaliptraError::new_const(0x01050005);
+    pub const ROM_GLOBAL_PCR_LOG_EXHAUSTED: CaliptraError = CaliptraError::new_const(0x01050006);
 
     pub const ROM_GLOBAL_FUSE_LOG_INVALID_ENTRY_ID: CaliptraError =
-        CaliptraError::new_const(0x01050006);
-    pub const ROM_GLOBAL_FUSE_LOG_UNSUPPORTED_DATA_LENGTH: CaliptraError =
         CaliptraError::new_const(0x01050007);
+    pub const ROM_GLOBAL_FUSE_LOG_UNSUPPORTED_DATA_LENGTH: CaliptraError =
+        CaliptraError::new_const(0x01050008);
 
     pub const ROM_GLOBAL_UNSUPPORTED_LDEVID_TBS_SIZE: CaliptraError =
-        CaliptraError::new_const(0x01050008);
-    pub const ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE: CaliptraError =
         CaliptraError::new_const(0x01050009);
+    pub const ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE: CaliptraError =
+        CaliptraError::new_const(0x0105000A);
 
     /// ROM KAT Errors
     pub const ROM_KAT_SHA256_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90010001);

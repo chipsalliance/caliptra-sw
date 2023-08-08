@@ -80,8 +80,8 @@ impl FirmwareProcessor {
         // Populate data vault
         Self::populate_data_vault(venv.data_vault, info);
 
-        // Extend PCR0
-        pcr::extend_pcr0(&mut venv, info)?;
+        // Extend PCR0 and PCR1
+        pcr::extend_pcrs(&mut venv, info)?;
         report_boot_status(FwProcessorExtendPcrComplete.into());
 
         // Load the image
