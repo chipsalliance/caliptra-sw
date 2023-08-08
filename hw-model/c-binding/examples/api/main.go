@@ -73,8 +73,8 @@ func caliptraInitFuses(model *caliptraModel, fuses *caliptraBuffer) int {
 	cModel := (*C.struct_caliptra_model)(unsafe.Pointer(model))
 
 	// Call the C function
-/*	cFuses := C.struct_caliptra_fuses{}
-	copySliceToCArray(&cFuses.uds_seed, fuses.data, 12)
+	cFuses := C.struct_caliptra_fuses{}
+	/*copySliceToCArray(&cFuses.uds_seed, fuses.data, 12)
 	copySliceToCArray(&cFuses.field_entropy, fuses.data[48:], 8)
 	copySliceToCArray(&cFuses.key_manifest_pk_hash, fuses.data[80:], 12)
 	copySliceToCArray(&cFuses.owner_pk_hash, fuses.data[112:], 12)
