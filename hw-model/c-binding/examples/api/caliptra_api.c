@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-#include <caliptra_top_reg.h>
+#include "/home/isecl-ami/prems/new/caliptra-sw/hw-model/c-binding/examples/caliptra-rtl/src/soc_ifc/rtl/caliptra_top_reg.h"
 #include "caliptra_api.h"
 #include "caliptra_fuses.h"
 #include "caliptra_mbox.h"
