@@ -39,6 +39,21 @@ pub fn report_boot_status(val: u32) {
     }
 }
 
+pub fn reset_reason() -> ResetReason {
+    let soc_ifc = unsafe { SocIfcReg::new() };
+
+    let soc_ifc_regs = soc_ifc.regs();
+    let bit0 = soc_ifc_regs.cptra_reset_reason().read().fw_upd_reset();
+    let bit1 = soc_ifc_regs.cptra_reset_reason().read().warm_reset();
+
+    match (bit0, bit1) {
+        (true, true) => ResetReason::Unknown,
+        (false, true) => ResetReason::WarmReset,
+        (true, false) => ResetReason::UpdateReset,
+        (false, false) => ResetReason::ColdReset,
+    }
+}
+
 /// Device State
 pub struct SocIfc {
     soc_ifc: SocIfcReg,
@@ -75,15 +90,7 @@ impl SocIfc {
 
     /// Retrieve reset reason
     pub fn reset_reason(&mut self) -> ResetReason {
-        let soc_ifc_regs = self.soc_ifc.regs();
-        let bit0 = soc_ifc_regs.cptra_reset_reason().read().fw_upd_reset();
-        let bit1 = soc_ifc_regs.cptra_reset_reason().read().warm_reset();
-        match (bit0, bit1) {
-            (true, true) => ResetReason::Unknown,
-            (false, true) => ResetReason::WarmReset,
-            (true, false) => ResetReason::UpdateReset,
-            (false, false) => ResetReason::ColdReset,
-        }
+        reset_reason()
     }
 
     /// Set IDEVID CSR ready

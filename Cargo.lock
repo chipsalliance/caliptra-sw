@@ -174,11 +174,13 @@ dependencies = [
  "caliptra-error",
  "caliptra-hw-model",
  "caliptra-hw-model-types",
+ "caliptra-image-types",
  "caliptra-lms-types",
  "caliptra-registers",
  "caliptra-test",
  "cfg-if 1.0.0",
  "openssl",
+ "ufmt",
  "ureg",
  "zerocopy",
 ]

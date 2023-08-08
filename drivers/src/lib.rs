@@ -25,14 +25,17 @@ mod ecc384;
 mod error_reporter;
 mod exit_ctrl;
 mod fuse_bank;
+pub mod hand_off;
 mod hmac384;
 mod hmac384_kdf;
 mod key_vault;
 mod kv_access;
 mod lms;
 mod mailbox;
+pub mod memory_layout;
 mod okref;
 mod pcr_bank;
+pub mod printer;
 mod sha1;
 mod sha256;
 mod sha384;
@@ -60,6 +63,7 @@ pub use exit_ctrl::ExitCtrl;
 pub use fuse_bank::{
     FuseBank, IdevidCertAttr, RomVerifyConfig, VendorPubKeyRevocation, X509KeyIdAlgo,
 };
+pub use hand_off::FirmwareHandoffTable;
 pub use hmac384::{Hmac384, Hmac384Data, Hmac384Key, Hmac384Op, Hmac384Tag};
 pub use hmac384_kdf::hmac384_kdf;
 pub use key_vault::{KeyId, KeyUsage, KeyVault};
