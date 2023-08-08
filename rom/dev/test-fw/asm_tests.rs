@@ -12,9 +12,7 @@ core::arch::global_asm!(include_str!("../src/start.S"));
 #[path = "../src/exception.rs"]
 mod exception;
 
-#[path = "../src/print.rs"]
-mod print;
-
+use caliptra_drivers::cprintln;
 use caliptra_drivers::ExitCtrl;
 
 #[no_mangle]
