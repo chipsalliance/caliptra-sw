@@ -68,6 +68,23 @@ extern "C" fn main() {
                 }
                 txn.complete(true).unwrap();
             }
+            // Test responding with copy_response
+            0xA000_0000 => {
+                let length = txn.copy_response(&[0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67]);
+                txn.complete(true).unwrap();
+            }
+            // Test responding with send_response and receiving request data
+            0xB000_0000 => {
+                let mut buf = [0u32; 2];
+                let dlen = txn.dlen() as usize;
+                let dlen_words = (dlen + 3) / 4;
+                println!("dlen: {dlen}");
+                for _ in 0..((dlen_words + (buf.len() - 1)) / buf.len()) {
+                    txn.copy_request(&mut buf).unwrap();
+                    println!("buf: {:08x?}", buf);
+                }
+                let length = txn.send_response(&[0x98, 0x76]);
+            }
             // Test transaction dropped immediately
             _ => {}
         }
