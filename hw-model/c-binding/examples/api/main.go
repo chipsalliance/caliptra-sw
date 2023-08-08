@@ -44,23 +44,25 @@ func main() {
 	fmt.Println("Mailbox command executed successfully!")
 }
 
-
 // Implement the Go wrapper function for the mailbox_execute C function
 func mailboxExecute(model *C.struct_caliptra_model, cmd uint32, mboxTxBuffer *caliptraBuffer, mboxRxBuffer *caliptraBuffer) int {
-	// Convert Go structs to C structs
 	cModel := model
-	cMboxTxBuffer := (*C.struct_caliptra_buffer)(unsafe.Pointer(mboxTxBuffer))
+	cMboxTxBuffer := (*C.struct_caliptra_buffer)(unsafe.Pointer(nil))
 	var cMboxRxBuffer *C.struct_caliptra_buffer
+
+	if mboxTxBuffer != nil {
+		cMboxTxBuffer = (*C.struct_caliptra_buffer)(unsafe.Pointer(&mboxTxBuffer.data[0]))
+	}
 
 	if mboxRxBuffer != nil {
 		cMboxRxBuffer = (*C.struct_caliptra_buffer)(unsafe.Pointer(mboxRxBuffer))
 	}
 
-	// Call the C function
 	ret := C.caliptra_mailbox_execute(cModel, C.uint32_t(cmd), cMboxTxBuffer, cMboxRxBuffer)
 
 	return int(ret)
 }
+
 
 func caliptraUploadFw(model *caliptraModel, fwBuffer *caliptraBuffer) int {
 	// Convert Go structs to C structs
