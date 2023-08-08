@@ -43,10 +43,10 @@ func main() {
 	} */
 
 	// Start the boot FSM
-	if err := caliptraBootFsmGo(model); err != 0 {
+/*	if err := caliptraBootFsmGo(model); err != 0 {
 		fmt.Printf("Error starting boot FSM: %d\n", err)
 		return
-	}
+	} */
 
 	// Execute the mailbox command
 	if err := mailboxExecute(model, 0x12345678, fwBuffer, nil); err != 0 {
