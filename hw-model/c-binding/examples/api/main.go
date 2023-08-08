@@ -10,15 +10,28 @@ import "C"
 
 import (
 	"fmt"
+	"unsafe"
 )
 
+// Define the Go struct for caliptra_buffer
+type caliptraBuffer struct {
+	data *C.uint8_t
+	len  C.uintptr_t
+}
+
+// Define the Go struct for caliptra_model
+type caliptraModel struct {
+	_unused [0]byte
+}
+
 func main() {
-	var model *C.caliptra_model
+	// Initialize caliptraModel
+	var model *C.struct_caliptra_model
 
 	// Create a dummy buffer for firmware data (replace this with the actual data)
 	fwData := []byte{0x01, 0x02, 0x03, 0x04, 0x05}
 	fwBuffer := &caliptraBuffer{
-		data: (*C.uint8_t)(&fwData[0]),
+		data: (*C.uint8_t)(unsafe.Pointer(&fwData[0])),
 		len:  C.uintptr_t(len(fwData)),
 	}
 
@@ -31,19 +44,13 @@ func main() {
 	fmt.Println("Mailbox command executed successfully!")
 }
 
-// Define the Go struct for caliptra_buffer
-type caliptraBuffer struct {
-	data *C.uint8_t
-	len  C.uintptr_t
-}
-
 // Implement the Go wrapper function for the mailbox_execute C function
-func mailboxExecute(model *C.caliptra_model, cmd uint32, mboxTxBuffer *caliptraBuffer, mboxRxBuffer *caliptraBuffer) int {
-	cMboxTxBuffer := (*C.caliptra_buffer)(mboxTxBuffer)
-	var cMboxRxBuffer *C.caliptra_buffer
+func mailboxExecute(model *C.struct_caliptra_model, cmd uint32, mboxTxBuffer *caliptraBuffer, mboxRxBuffer *caliptraBuffer) int {
+	cMboxTxBuffer := mboxTxBuffer
+	var cMboxRxBuffer *caliptraBuffer
 
 	if mboxRxBuffer != nil {
-		cMboxRxBuffer = (*C.caliptra_buffer)(mboxRxBuffer)
+		cMboxRxBuffer = mboxRxBuffer
 	}
 
 	// Call the C function
