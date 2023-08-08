@@ -14,6 +14,9 @@ Abstract:
 use caliptra_drivers::PcrId;
 use zerocopy::{AsBytes, FromBytes};
 
+pub const PCR_ID_FMC_CURRENT: PcrId = PcrId::PcrId0;
+pub const PCR_ID_FMC_JOURNEY: PcrId = PcrId::PcrId1;
+
 // PcrLogEntryId is used to identify the PCR entry and
 // the size of the data in PcrLogEntry::pcr_data.
 #[repr(u16)]

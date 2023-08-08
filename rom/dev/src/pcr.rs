@@ -24,9 +24,10 @@ Note:
 use crate::verifier::RomImageVerificationEnv;
 use caliptra_common::{
     memory_layout::{PCR_LOG_ORG, PCR_LOG_SIZE},
+    pcr::{PCR_ID_FMC_CURRENT, PCR_ID_FMC_JOURNEY},
     PcrLogEntry, PcrLogEntryId,
 };
-use caliptra_drivers::{Array4x12, CaliptraError, CaliptraResult, PcrBank, PcrId, Sha384};
+use caliptra_drivers::{Array4x12, CaliptraError, CaliptraResult, PcrBank, Sha384};
 use caliptra_image_verify::ImageVerificationInfo;
 
 use zerocopy::AsBytes;
@@ -45,10 +46,12 @@ impl PcrExtender<'_> {
         self.extend_and_log(bytes, pcr_entry_id)
     }
     fn extend_and_log(&mut self, data: &[u8], pcr_entry_id: PcrLogEntryId) -> CaliptraResult<()> {
-        self.pcr_bank.extend_pcr(PcrId::PcrId0, self.sha384, data)?;
-        self.pcr_bank.extend_pcr(PcrId::PcrId1, self.sha384, data)?;
+        self.pcr_bank
+            .extend_pcr(PCR_ID_FMC_CURRENT, self.sha384, data)?;
+        self.pcr_bank
+            .extend_pcr(PCR_ID_FMC_JOURNEY, self.sha384, data)?;
 
-        let pcr_ids: u32 = (1 << PcrId::PcrId0 as u8) | (1 << PcrId::PcrId1 as u8);
+        let pcr_ids: u32 = (1 << PCR_ID_FMC_CURRENT as u8) | (1 << PCR_ID_FMC_JOURNEY as u8);
         log_pcr(self.pcr_bank, pcr_entry_id, pcr_ids, data)
     }
 }
@@ -63,7 +66,7 @@ pub(crate) fn extend_pcrs(
     info: &ImageVerificationInfo,
 ) -> CaliptraResult<()> {
     // Clear the Current PCR, but do not clear the Journey PCR
-    env.pcr_bank.erase_pcr(caliptra_drivers::PcrId::PcrId0)?;
+    env.pcr_bank.erase_pcr(PCR_ID_FMC_CURRENT)?;
 
     let mut pcr = PcrExtender {
         pcr_bank: env.pcr_bank,
