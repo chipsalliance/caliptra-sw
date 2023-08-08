@@ -13,26 +13,14 @@ import (
 	"unsafe"
 )
 
-// Define the Go struct for caliptra_buffer
-type caliptraBuffer struct {
-	data []byte
-	len  uint32
-}
-
-// Define the Go struct for caliptra_model
-type caliptraModel struct {
-	// Add the necessary fields of caliptra_model if required
-}
-
 func main() {
-	// Initialize caliptraModel
-	model := &C.caliptra_model{} // Create an instance of the C struct
+	var model *C.caliptra_model
 
 	// Create a dummy buffer for firmware data (replace this with the actual data)
 	fwData := []byte{0x01, 0x02, 0x03, 0x04, 0x05}
 	fwBuffer := &caliptraBuffer{
-		data: fwData,
-		len:  uint32(len(fwData)),
+		data: (*C.uint8_t)(&fwData[0]),
+		len:  C.uintptr_t(len(fwData)),
 	}
 
 	// Execute the mailbox command
@@ -44,33 +32,23 @@ func main() {
 	fmt.Println("Mailbox command executed successfully!")
 }
 
-// Implement the Go wrapper function for the mailbox_execute C function
-func mailboxExecute(model *C.caliptra_model, cmd uint32, mboxTxBuffer *caliptraBuffer, mboxRxBuffer *caliptraBuffer) int {
-	cModel := model
-	cMboxTxBuffer := (*C.caliptra_buffer)(unsafe.Pointer(nil))
-	var cMboxRxBuffer *C.caliptra_buffer
-
-	if mboxTxBuffer != nil {
-		cMboxTxBuffer = (*C.caliptra_buffer)(unsafe.Pointer(&mboxTxBuffer.data[0]))
-	}
-
-	if mboxRxBuffer != nil {
-		cMboxRxBuffer = (*C.caliptra_buffer)(unsafe.Pointer(mboxRxBuffer))
-	}
-
-	ret := C.caliptra_mailbox_execute(cModel, C.uint32_t(cmd), cMboxTxBuffer, cMboxRxBuffer)
-
-	return int(ret)
+// Define the Go struct for caliptra_buffer
+type caliptraBuffer struct {
+	data *C.uint8_t
+	len  C.uintptr_t
 }
 
+// Implement the Go wrapper function for the mailbox_execute C function
+func mailboxExecute(model *C.caliptra_model, cmd uint32, mboxTxBuffer *caliptraBuffer, mboxRxBuffer *caliptraBuffer) int {
+	cMboxTxBuffer := (*C.caliptra_buffer)(mboxTxBuffer)
+	var cMboxRxBuffer *C.caliptra_buffer
 
-func caliptraUploadFw(model *caliptraModel, fwBuffer *caliptraBuffer) int {
-	// Convert Go structs to C structs
-	cModel := (*C.caliptra_model)(unsafe.Pointer(model))
-	cFwBuffer := (*C.caliptra_buffer)(unsafe.Pointer(fwBuffer))
+	if mboxRxBuffer != nil {
+		cMboxRxBuffer = (*C.caliptra_buffer)(mboxRxBuffer)
+	}
 
 	// Call the C function
-	ret := C.caliptra_upload_fw(cModel, cFwBuffer)
+	ret := C.caliptra_mailbox_execute(model, C.uint32_t(cmd), cMboxTxBuffer, cMboxRxBuffer)
 
 	return int(ret)
 }
