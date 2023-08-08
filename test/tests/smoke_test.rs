@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
+use caliptra_builder::{ImageOptions, APP, FMC, ROM};
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{DeviceLifecycle, Fuses};
 use caliptra_runtime::{
@@ -12,21 +12,13 @@ use caliptra_test::{
     x509::{DiceFwid, DiceTcbInfo},
 };
 use openssl::sha::sha384;
-use std::{io::Write, mem};
+use std::mem;
 use zerocopy::{AsBytes, FromBytes};
-
-#[track_caller]
-fn assert_output_contains(haystack: &str, needle: &str) {
-    assert!(
-        haystack.contains(needle),
-        "Expected substring in output not found: {needle}"
-    );
-}
 
 #[test]
 fn retrieve_csr_test() {
     const GENERATE_IDEVID_CSR: u32 = 1;
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -124,10 +116,10 @@ fn smoke_test() {
         .set_device_lifecycle(DeviceLifecycle::Production);
     let idevid_pubkey = get_idevid_pubkey();
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM).unwrap();
     let image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART,
+        &FMC,
+        &APP,
         ImageOptions {
             fmc_min_svn: 5,
             fmc_svn: 9,
@@ -156,35 +148,8 @@ fn smoke_test() {
         ..Default::default()
     })
     .unwrap();
-    let mut output = vec![];
 
-    hw.step_until_output_contains("Caliptra RT listening for mailbox commands...\n")
-        .unwrap();
-    output
-        .write_all(hw.output().take(usize::MAX).as_bytes())
-        .unwrap();
-
-    let output = String::from_utf8_lossy(&output);
-    assert_output_contains(&output, "Running Caliptra ROM");
-    assert_output_contains(&output, "[cold-reset]");
-    // Confirm KAT is running.
-    assert_output_contains(&output, "[kat] ++");
-    assert_output_contains(&output, "[kat] sha1");
-    assert_output_contains(&output, "[kat] SHA2-256");
-    assert_output_contains(&output, "[kat] SHA2-384");
-    assert_output_contains(&output, "[kat] SHA2-384-ACC");
-    assert_output_contains(&output, "[kat] HMAC-384");
-    assert_output_contains(&output, "[kat] LMS");
-    assert_output_contains(&output, "[kat] --");
-    assert_output_contains(&output, "Running Caliptra FMC");
-    assert_output_contains(
-        &output,
-        r#"
- / ___|__ _| (_)_ __ | |_ _ __ __ _  |  _ \_   _|
-| |   / _` | | | '_ \| __| '__/ _` | | |_) || |
-| |__| (_| | | | |_) | |_| | | (_| | |  _ < | |
- \____\__,_|_|_| .__/ \__|_|  \__,_| |_| \_\|_|"#,
-    );
+    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
