@@ -103,7 +103,7 @@ Test Name |  Description | ROM Error Code
 # **Mailbox Tests**
 Test Name | ROM Stage | Description | ROM Error Code
 ---|---|---|---
-**test_unknown_command_is_not_fatal** | FW Downloader | Checks for sending invalid commands to the mailbox | N/A
+**test_unknown_command_is_fatal** | FW Downloader | Checks for sending invalid commands to the mailbox | N/A
 **test_mailbox_command_aborted_after_handle_fatal_error** | FW Downloader | Checks for sending an invalid fw image followed by a valid one | FW_PROC_INVALID_IMAGE_SIZE
 <br><br>
 # **General Integration Tests**

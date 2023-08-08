@@ -132,7 +132,7 @@ impl FirmwareProcessor {
                 if txn.cmd() != Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID {
                     cprintln!("Invalid command 0x{:08x} received", txn.cmd());
                     txn.start_txn().complete(false)?;
-                    continue;
+                    return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND);
                 }
 
                 // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
