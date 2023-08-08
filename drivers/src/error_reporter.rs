@@ -11,7 +11,7 @@ Abstract:
     File contains API for Error Reporting via Soc Iface.
 
 --*/
-use crate::soc_ifc::BOOT_STATUS_ORG;
+use crate::memory_layout::BOOT_STATUS_ORG;
 use caliptra_registers::soc_ifc::SocIfcReg;
 
 /// Report non fatal F/W error

@@ -16,20 +16,16 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::soc_ifc::enums::DeviceLifecycleE;
 use caliptra_registers::soc_ifc::{self, SocIfcReg};
 
-use crate::FuseBank;
+use crate::{memory_layout, FuseBank};
 
 pub type Lifecycle = DeviceLifecycleE;
-
-// [TODO] Move memory layout out of the common crate
-// to avoid circular dependency with the drivers crate.
-pub const BOOT_STATUS_ORG: u32 = 0x500047FC;
 
 pub fn report_boot_status(val: u32) {
     let mut soc_ifc = unsafe { soc_ifc::SocIfcReg::new() };
 
     // Save the boot status in DCCM.
     unsafe {
-        let ptr = BOOT_STATUS_ORG as *mut u32;
+        let ptr = memory_layout::BOOT_STATUS_ORG as *mut u32;
         *ptr = val;
     };
 
