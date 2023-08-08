@@ -37,10 +37,10 @@ func main() {
 	}
 
 	// Initialize fuses
-	if err := caliptraInitFuses(model, fwBuffer); err != 0 {
+/*	if err := caliptraInitFuses(model, fwBuffer); err != 0 {
 		fmt.Printf("Error initializing fuses: %d\n", err)
 		return
-	}
+	} */
 
 	// Start the boot FSM
 	if err := caliptraBootFsmGo(model); err != 0 {
