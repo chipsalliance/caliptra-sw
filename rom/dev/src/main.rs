@@ -19,8 +19,8 @@ use crate::lock::lock_registers;
 use core::hint::black_box;
 
 use caliptra_drivers::{
-    report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError, Ecc384, Hmac384, KeyVault,
-    Mailbox, ResetReason, Sha256, Sha384, Sha384Acc, SocIfc,
+    cprintln, report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError, Ecc384, Hmac384,
+    KeyVault, Mailbox, ResetReason, Sha256, Sha384, Sha384Acc, SocIfc,
 };
 use rom_env::RomEnv;
 
@@ -37,10 +37,11 @@ mod fuse;
 mod kat;
 mod lock;
 mod pcr;
-mod print;
 mod rom_env;
 mod verifier;
 mod wdt;
+
+use caliptra_drivers::printer as print;
 
 #[cfg(feature = "std")]
 pub fn main() {}
