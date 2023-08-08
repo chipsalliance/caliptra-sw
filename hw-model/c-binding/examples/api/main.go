@@ -73,7 +73,7 @@ func caliptraInitFuses(model *caliptraModel, fuses *caliptraBuffer) int {
 	cModel := (*C.struct_caliptra_model)(unsafe.Pointer(model))
 
 	// Call the C function
-	cFuses := C.struct_caliptra_fuses{}
+/*	cFuses := C.struct_caliptra_fuses{}
 	copySliceToCArray(&cFuses.uds_seed, fuses.data, 12)
 	copySliceToCArray(&cFuses.field_entropy, fuses.data[48:], 8)
 	copySliceToCArray(&cFuses.key_manifest_pk_hash, fuses.data[80:], 12)
@@ -83,7 +83,7 @@ func caliptraInitFuses(model *caliptraModel, fuses *caliptraBuffer) int {
 	cFuses.anti_rollback_disable = C._Bool(binary.LittleEndian.Uint32(fuses.data[184:]) != 0)
 	copySliceToCArray(&cFuses.idevid_cert_attr, fuses.data[188:], 24)
 	copySliceToCArray(&cFuses.idevid_manuf_hsm_id, fuses.data[376:], 4)
-	cFuses.life_cycle = C.enum_DeviceLifecycle(binary.LittleEndian.Uint32(fuses.data[392:]))
+	cFuses.life_cycle = C.enum_DeviceLifecycle(binary.LittleEndian.Uint32(fuses.data[392:])) */
 
 	ret := C.caliptra_init_fuses(cModel, &cFuses)
 
