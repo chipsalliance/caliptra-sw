@@ -13,24 +13,24 @@ import (
 	"unsafe"
 )
 
-// Define the Go struct for caliptra_buffer
 type caliptraBuffer struct {
-	data []byte
-	len  uintptr
+	data *C.uint8_t
+	len  C.uintptr_t
+}
+
+type caliptraModel struct {
+	_unused [0]byte
 }
 
 func main() {
-	// Initialize caliptraModel
-	var model *C.caliptra_model
+	model := &caliptraModel{} // Create an instance of the Go struct
 
-	// Create a dummy buffer for firmware data (replace this with the actual data)
-	fwData := []byte{0x01, 0x02, 0x03, 0x04, 0x05}
-	fwBuffer := &caliptraBuffer{
-		data: fwData,
-		len:  uintptr(len(fwData)),
+	fwData := []C.uint8_t{0x01, 0x02, 0x03, 0x04, 0x05}
+	fwBuffer := caliptraBuffer{
+		data: (*C.uint8_t)(&fwData[0]),
+		len:  C.uintptr_t(len(fwData)),
 	}
 
-	// Execute the mailbox command
 	if err := mailboxExecute(model, 0x12345678, fwBuffer, nil); err != 0 {
 		fmt.Printf("Error executing mailbox command: %d\n", err)
 		return
@@ -39,23 +39,12 @@ func main() {
 	fmt.Println("Mailbox command executed successfully!")
 }
 
-// Implement the Go wrapper function for the mailbox_execute C function
-func mailboxExecute(model *C.caliptra_model, cmd uint32, mboxTxBuffer *caliptraBuffer, mboxRxBuffer *caliptraBuffer) int {
-	cMboxTxBuffer := &C.caliptra_buffer{
-		data: (*C.uint8_t)(unsafe.Pointer(&mboxTxBuffer.data[0])),
-		len:  C.uintptr_t(mboxTxBuffer.len),
-	}
-	var cMboxRxBuffer *C.caliptra_buffer
+func mailboxExecute(model *caliptraModel, cmd C.uint32_t, mboxTxBuffer caliptraBuffer, mboxRxBuffer *caliptraBuffer) int {
+	ret := C.caliptra_mailbox_execute((*C.struct_caliptra_model)(model), cmd, mboxTxBuffer, mboxRxBuffer)
+	return int(ret)
+}
 
-	if mboxRxBuffer != nil {
-		cMboxRxBuffer = &C.caliptra_buffer{
-			data: (*C.uint8_t)(unsafe.Pointer(&mboxRxBuffer.data[0])),
-			len:  C.uintptr_t(mboxRxBuffer.len),
-		}
-	}
-
-	// Call the C function
-	ret := C.caliptra_mailbox_execute(model, C.uint32_t(cmd), cMboxTxBuffer, cMboxRxBuffer)
-
+func caliptraUploadFw(model *caliptraModel, fwBuffer caliptraBuffer) int {
+	ret := C.caliptra_upload_fw((*C.struct_caliptra_model)(model), fwBuffer)
 	return int(ret)
 }
