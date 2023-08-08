@@ -450,6 +450,28 @@ fn test_mailbox_soc_to_uc() {
              buf: [08070605]\n"
         );
     }
+
+    // Test response via copy_response
+    {
+        let resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
+        assert_eq!(model.output().take(usize::MAX), "cmd: 0xa0000000\n");
+        assert_eq!(resp, [0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67]);
+    }
+
+    // Test response via send_response and request data
+    {
+        let resp = model
+            .mailbox_execute(0xB000_0000, &[0x0f, 0x0e, 0x0d, 0x0c, 0x0b, 0xa])
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            model.output().take(usize::MAX),
+            "cmd: 0xb0000000\n\
+             dlen: 6\n\
+             buf: [0c0d0e0f, 00000a0b]\n"
+        );
+        assert_eq!(resp, [0x98, 0x76]);
+    }
 }
 
 #[test]
