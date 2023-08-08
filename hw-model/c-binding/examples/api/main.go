@@ -11,7 +11,6 @@ import "C"
 import (
 	"fmt"
 	"unsafe"
-	"encoding/binary"
 )
 
 // Define the Go struct for caliptra_buffer
