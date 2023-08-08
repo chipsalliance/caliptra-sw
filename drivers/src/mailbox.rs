@@ -376,6 +376,27 @@ impl MailboxRecvTxn<'_> {
         Ok(())
     }
 
+    /// Writes buf.len() bytes to the mailbox datain reg as dwords
+    fn enqueue(&mut self, buf: &[u8]) -> CaliptraResult<()> {
+        MailboxTxFifo::try_enqueue(self.mbox, buf)
+    }
+
+    /// Writes number of bytes to data length register.
+    pub fn write_dlen(&mut self, dlen: u32) -> CaliptraResult<()> {
+        if self.state != MailboxOpState::RdyForDlen {
+            return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
+        }
+        let mbox = self.mbox.regs_mut();
+
+        if dlen > MAX_MAILBOX_LEN {
+            return Err(CaliptraError::DRIVER_MAILBOX_INVALID_DATA_LEN);
+        }
+
+        // Write Len in Bytes
+        mbox.dlen().write(|_| dlen);
+        Ok(())
+    }
+
     /// Pulls at most `data.len()` words from the mailbox FIFO without performing state transition.
     ///
     /// # Arguments
@@ -410,15 +431,60 @@ impl MailboxRecvTxn<'_> {
         Ok(())
     }
 
+    /// Sends `data.len()` bytes to the mailbox FIFO
+    /// Transitions from Execute --> RdyForData
     ///
-    /// Transitions from Execute --> Idle
+    /// # Arguments
     ///
-    pub fn complete(&mut self, success: bool) -> CaliptraResult<()> {
+    /// * `data` - data buffer.
+    ///
+    /// # Returns
+    ///
+    /// Status of Operation
+    ///
+    pub fn copy_response(&mut self, data: &[u8]) -> CaliptraResult<()> {
         if self.state != MailboxOpState::Execute {
             return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
         }
+
+        self.state = MailboxOpState::RdyForDlen;
+        // Set dlen
+        self.write_dlen(data.len() as u32)?;
+
+        self.state = MailboxOpState::RdyForData;
+        // Copy the data
+        self.enqueue(data)
+    }
+
+    /// Sends `data.len()` bytes to the mailbox FIFO.
+    /// Transitions from Execute --> Idle (releases the lock)
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - data buffer.
+    ///
+    /// # Returns
+    ///
+    /// Status of Operation
+    ///
+    pub fn send_response(&mut self, data: &[u8]) -> CaliptraResult<()> {
+        self.copy_response(data)?;
+        self.complete(true)
+    }
+
+    ///
+    /// Transitions from Execute or RdyForData-> Idle
+    ///
+    pub fn complete(&mut self, success: bool) -> CaliptraResult<()> {
+        if self.state != MailboxOpState::Execute && self.state != MailboxOpState::RdyForData {
+            return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
+        }
         let status = if success {
-            MboxStatusE::CmdComplete
+            if self.state == MailboxOpState::RdyForData {
+                MboxStatusE::DataReady
+            } else {
+                MboxStatusE::CmdComplete
+            }
         } else {
             MboxStatusE::CmdFailure
         };
