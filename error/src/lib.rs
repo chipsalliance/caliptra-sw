@@ -327,6 +327,7 @@ impl CaliptraError {
     pub const FW_PROC_INVALID_IMAGE_SIZE: CaliptraError = CaliptraError::new_const(0x01020002);
     pub const FW_PROC_MAILBOX_STATE_INCONSISTENT: CaliptraError =
         CaliptraError::new_const(0x01020003);
+    pub const FW_PROC_MAILBOX_INVALID_COMMAND: CaliptraError = CaliptraError::new_const(0x01020004);
 
     /// FMC Alias Layer : Certificate Verification Failure.
     pub const FMC_ALIAS_CERT_VERIFY: CaliptraError = CaliptraError::new_const(0x01030001);
