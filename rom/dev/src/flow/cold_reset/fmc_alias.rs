@@ -23,6 +23,7 @@ use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 use caliptra_common::dice;
 use caliptra_common::keyids::{KEY_ID_FMC_PRIV_KEY, KEY_ID_ROM_FMC_CDI};
+use caliptra_common::pcr::PCR_ID_FMC_CURRENT;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::{
     okmutref, report_boot_status, Array4x12, CaliptraResult, Ecc384Result, KeyId, Lifecycle,
@@ -49,7 +50,7 @@ impl FmcAliasLayer {
         );
 
         // We use the value of PCR0 as the measurement for deriving the CDI.
-        let mut measurement = env.pcr_bank.read_pcr(caliptra_drivers::PcrId::PcrId0);
+        let mut measurement = env.pcr_bank.read_pcr(PCR_ID_FMC_CURRENT);
 
         // Derive the DICE CDI from decrypted UDS
         let result = Self::derive_cdi(env, &measurement, KEY_ID_ROM_FMC_CDI);
