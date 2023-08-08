@@ -54,11 +54,11 @@ fn test_op1() {
     const DATA: [u8; 1000] = [0x61; 1000];
     let mut digest = Array4x5::default();
     let mut sha = Sha1::default();
-    let mut digest_op = sha.digest_init(&mut digest).unwrap();
+    let mut digest_op = sha.digest_init().unwrap();
     for _ in 0..1_000 {
         assert!(digest_op.update(&DATA).is_ok());
     }
-    let actual = digest_op.finalize();
+    let actual = digest_op.finalize(&mut digest);
     assert!(actual.is_ok());
     assert_eq!(digest, expected);
 }

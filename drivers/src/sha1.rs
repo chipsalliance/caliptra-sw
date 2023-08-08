@@ -31,17 +31,13 @@ impl Sha1 {
     /// # Returns
     ///
     /// * `Sha1Digest` - Object representing the digest operation
-    pub fn digest_init<'a>(
-        &'a mut self,
-        digest: Sha1Digest<'a>,
-    ) -> CaliptraResult<Sha1DigestOp<'a>> {
+    pub fn digest_init(&mut self) -> CaliptraResult<Sha1DigestOp<'_>> {
         let op = Sha1DigestOp {
             sha: self,
             state: Sha1DigestState::Init,
             buf: [0u8; SHA1_BLOCK_BYTE_SIZE],
             buf_idx: 0,
             data_size: 0,
-            digest,
         };
 
         Ok(op)
@@ -200,9 +196,6 @@ pub struct Sha1DigestOp<'a> {
 
     /// Data size
     data_size: usize,
-
-    /// Digest
-    digest: Sha1Digest<'a>,
 }
 
 impl<'a> Sha1DigestOp<'a> {
@@ -244,7 +237,7 @@ impl<'a> Sha1DigestOp<'a> {
     }
 
     /// Finalize the digest operations
-    pub fn finalize(&mut self) -> CaliptraResult<()> {
+    pub fn finalize(mut self, digest: &mut Array4x5) -> CaliptraResult<()> {
         if self.state == Sha1DigestState::Final {
             return Err(CaliptraError::DRIVER_SHA1_INVALID_STATE);
         }
@@ -262,7 +255,7 @@ impl<'a> Sha1DigestOp<'a> {
         self.state = Sha1DigestState::Final;
 
         // Copy digest
-        self.sha.copy_digest_to_buf(self.digest)?;
+        self.sha.copy_digest_to_buf(digest)?;
 
         Ok(())
     }
