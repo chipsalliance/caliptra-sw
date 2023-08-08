@@ -26,6 +26,26 @@ type caliptraModel struct {
 }
 
 func main() {
+	// Initialize caliptraModel
+	model := &C.struct_caliptra_model{} // Create an instance of the C struct
+
+	// Create a dummy buffer for firmware data (replace this with the actual data)
+	fwData := []byte{0x01, 0x02, 0x03, 0x04, 0x05}
+	fwBuffer := &caliptraBuffer{
+		data: fwData,
+		len:  uint32(len(fwData)),
+	}
+
+	// Execute the mailbox command
+	if err := mailboxExecute(model, 0x12345678, fwBuffer, nil); err != 0 {
+		fmt.Printf("Error executing mailbox command: %d\n", err)
+		return
+	}
+
+	fmt.Println("Mailbox command executed successfully!")
+}
+
+/* func main() {
 	// Create a dummy caliptraModel instance (replace this with the actual implementation)
 	model := &caliptraModel{}
 
@@ -37,16 +57,16 @@ func main() {
 	}
 
 	// Initialize fuses
-/*	if err := caliptraInitFuses(model, fwBuffer); err != 0 {
+	if err := caliptraInitFuses(model, fwBuffer); err != 0 {
 		fmt.Printf("Error initializing fuses: %d\n", err)
 		return
-	} */
+	} 
 
 	// Start the boot FSM
-/*	if err := caliptraBootFsmGo(model); err != 0 {
+	if err := caliptraBootFsmGo(model); err != 0 {
 		fmt.Printf("Error starting boot FSM: %d\n", err)
 		return
-	} */
+	} 
 
 	// Execute the mailbox command
 	if err := mailboxExecute(model, 0x12345678, fwBuffer, nil); err != 0 {
@@ -55,7 +75,7 @@ func main() {
 	}
 
 	fmt.Println("Mailbox command executed successfully!")
-}
+} */
 
 // Helper function to copy Go []byte to C array
 func copySliceToCArray(dest *[12]C.uint32_t, src []byte, size int) {
