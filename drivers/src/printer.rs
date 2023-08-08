@@ -25,7 +25,7 @@ impl uWrite for MutablePrinter {
     #[inline(never)]
     fn write_str(&mut self, _str: &str) -> Result<(), Self::Error> {
         #[cfg(feature = "emu")]
-        caliptra_drivers::Uart::default().write(_str);
+        crate::Uart::default().write(_str);
         Ok(())
     }
 

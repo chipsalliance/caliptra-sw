@@ -1,10 +1,10 @@
 // Licensed under the Apache-2.0 license.
-use crate::{helpers::*, FHT_ORG};
-use bitfield::{bitfield_bitrange, bitfield_fields};
-use caliptra_drivers::{
+use crate::{memory_layout::FHT_ORG, soc_ifc};
+use crate::{
     report_fw_error_non_fatal, ColdResetEntry4, ColdResetEntry48, Ecc384PubKey, Ecc384Signature,
     KeyId, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
+use bitfield::{bitfield_bitrange, bitfield_fields};
 use zerocopy::{AsBytes, FromBytes};
 
 pub const FHT_MARKER: u32 = 0x54484643;
@@ -373,7 +373,7 @@ impl FirmwareHandoffTable {
     /// This function can only be called from non test case environment
     /// as this function accesses the registers to get the reset_reason.
     pub fn is_valid(&self) -> bool {
-        let reset_reason = reset_reason();
+        let reset_reason = soc_ifc::reset_reason();
 
         let mut valid = self.fht_marker == FHT_MARKER
             && self.fmc_cdi_kv_hdl != FHT_INVALID_HANDLE
@@ -457,7 +457,7 @@ mod tests {
         let ds: DataStore = fht.fmc_priv_key_kv_hdl.try_into().unwrap();
 
         match ds {
-            crate::DataStore::KeyVaultSlot(key_id) => key_id,
+            DataStore::KeyVaultSlot(key_id) => key_id,
             _ => panic!("Invalid FMC private key store"),
         }
     }
