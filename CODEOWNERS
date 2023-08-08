@@ -8,6 +8,6 @@
 /sw-emulator/ @korran @mhatrevi @ajisaxena
 /x509/ @mhatrevi @ajisaxena @vsonims @jlmahowa-amd @jhand2
 /fmc/ @FerralCoder @rusty1968 @bluegate010
-/runtime/ @jhand2 @fdamato @rusty1968
+/runtime/ @jhand2 @fdamato @rusty1968 @bluegate010
 /hw-model/ @korran @fdamato @jlmahowa-amd
 /libcaliptra/ @fdamato @wmaroneAMD
