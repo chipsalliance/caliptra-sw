@@ -184,35 +184,7 @@ impl MailboxSendTxn<'_> {
     }
 
     fn enqueue(&mut self, buf: &[u8]) -> CaliptraResult<()> {
-        let remainder = buf.len() % size_of::<u32>();
-        let n = buf.len() - remainder;
-
-        let mbox = self.mbox.regs_mut();
-
-        for idx in (0..n).step_by(size_of::<u32>()) {
-            let bytes = buf
-                .get(idx..idx + size_of::<u32>())
-                .ok_or(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR)?;
-            mbox.datain()
-                .write(|_| u32::from_le_bytes(bytes.try_into().unwrap()));
-        }
-
-        // Handle the remainder.
-        if remainder > 0 {
-            let mut block_part =
-                *buf.get(n)
-                    .ok_or(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR)? as u32;
-            for idx in 1..remainder {
-                block_part |= (*buf
-                    .get(n + idx)
-                    .ok_or(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR)?
-                    as u32)
-                    << (idx << 3);
-            }
-            mbox.datain().write(|_| block_part);
-        }
-
-        Ok(())
+        MailboxTxFifo::try_enqueue(self.mbox, buf)
     }
 
     ///
@@ -314,6 +286,57 @@ impl<'a> MailboxRecvPeek<'a> {
     }
 }
 
+/// Mailbox Fifo abstraction
+pub struct MailboxTxFifo<'a> {
+    mbox: &'a mut MboxCsr,
+}
+
+impl<'a> MailboxTxFifo<'a> {
+    pub fn try_enqueue(mbox: &'a mut MboxCsr, buf: &[u8]) -> CaliptraResult<()> {
+        let mbox_regs = mbox.regs();
+        match mbox_regs.status().read().mbox_fsm_ps() {
+            MboxFsmE::MboxRdyForData | MboxFsmE::MboxExecuteUc => {
+                let mut fifo = MailboxTxFifo { mbox: mbox };
+                fifo.enqueue(buf)
+            }
+            _ => Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE),
+        }
+    }
+
+    /// Writes buf.len() bytes to the mailbox datain reg as dwords
+    fn enqueue(&mut self, buf: &[u8]) -> CaliptraResult<()> {
+        let remainder = buf.len() % size_of::<u32>();
+        let n = buf.len() - remainder;
+
+        let mbox = self.mbox.regs_mut();
+
+        for idx in (0..n).step_by(size_of::<u32>()) {
+            let bytes = buf
+                .get(idx..idx + size_of::<u32>())
+                .ok_or(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR)?;
+            mbox.datain()
+                .write(|_| u32::from_le_bytes(bytes.try_into().unwrap()));
+        }
+
+        // Handle the remainder.
+        if remainder > 0 {
+            let mut block_part =
+                *buf.get(n)
+                    .ok_or(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR)? as u32;
+            for idx in 1..remainder {
+                block_part |= (*buf
+                    .get(n + idx)
+                    .ok_or(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR)?
+                    as u32)
+                    << (idx << 3);
+            }
+            mbox.datain().write(|_| block_part);
+        }
+
+        Ok(())
+    }
+}
+
 /// Mailbox recveive protocol abstraction
 pub struct MailboxRecvTxn<'a> {
     /// Current state of transaction
@@ -362,39 +385,7 @@ impl MailboxRecvTxn<'_> {
 
     /// Writes buf.len() bytes to the mailbox datain reg as dwords
     fn enqueue(&mut self, buf: &[u8]) -> CaliptraResult<()> {
-        if self.state != MailboxOpState::RdyForData {
-            return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
-        }
-
-        let remainder = buf.len() % size_of::<u32>();
-        let n = buf.len() - remainder;
-
-        let mbox = self.mbox.regs_mut();
-
-        for idx in (0..n).step_by(size_of::<u32>()) {
-            let bytes = buf
-                .get(idx..idx + size_of::<u32>())
-                .ok_or(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR)?;
-            mbox.datain()
-                .write(|_| u32::from_le_bytes(bytes.try_into().unwrap()));
-        }
-
-        // Handle the remainder.
-        if remainder > 0 {
-            let mut block_part =
-                *buf.get(n)
-                    .ok_or(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR)? as u32;
-            for idx in 1..remainder {
-                block_part |= (*buf
-                    .get(n + idx)
-                    .ok_or(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR)?
-                    as u32)
-                    << (idx << 3);
-            }
-            mbox.datain().write(|_| block_part);
-        }
-
-        Ok(())
+        MailboxTxFifo::try_enqueue(self.mbox, buf)
     }
 
     /// Writes number of bytes to data length register.
