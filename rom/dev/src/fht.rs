@@ -172,6 +172,5 @@ pub fn store(fht: FirmwareHandoffTable) {
         cprintln!("[fht] Storing FHT @ 0x{:08X}", ptr as u32);
         core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
     };
-    caliptra_common::print_fht(&fht);
     slice.copy_from_slice(fht.as_bytes());
 }
