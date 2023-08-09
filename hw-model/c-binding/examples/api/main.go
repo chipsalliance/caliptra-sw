@@ -27,8 +27,8 @@ type caliptraModel struct {
 
 func caliptraMailboxWriteFifo(model *caliptraModel, buffer *caliptraBuffer) int {
 	ret := C.caliptra_mailbox_write_fifo(
-		(*C.struct_caliptra_model)(unsafe.Pointer(model)),
-		(*C.struct_caliptra_buffer)(unsafe.Pointer(buffer)),
+		(*C.caliptra_model)(unsafe.Pointer(model)),
+		(*C.caliptra_buffer)(unsafe.Pointer(buffer)),
 	)
 	return int(ret)
 }
