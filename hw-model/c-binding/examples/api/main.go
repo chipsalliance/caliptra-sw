@@ -18,6 +18,7 @@ import (
 type caliptraBuffer struct {
 	data *C.uint8_t
 	len  C.uintptr_t
+	ptr  unsafe.Pointer
 }
 
 // Define the Go struct for caliptra_model
@@ -26,10 +27,15 @@ type caliptraModel struct {
 }
 
 func caliptraMailboxWriteFifo(model *caliptraModel, buffer *caliptraBuffer) int {
+	// Dereference the pointer field in the Go struct
+	cBuffer := (*C.caliptra_buffer)(buffer.ptr)
+
+	// Call the C function
 	ret := C.caliptra_mailbox_write_fifo(
 		(*C.caliptra_model)(unsafe.Pointer(model)),
-		(*C.caliptra_buffer)(unsafe.Pointer(buffer)),
+		cBuffer,
 	)
+
 	return int(ret)
 }
 
@@ -42,6 +48,7 @@ func main() {
 	buffer := &caliptraBuffer{
 		data: (*C.uint8_t)(unsafe.Pointer(&bufferData[0])),
 		len:  C.uintptr_t(len(bufferData)),
+		ptr:  unsafe.Pointer(&buffer),
 	}
 
 	// Call caliptraMailboxWriteFifo
