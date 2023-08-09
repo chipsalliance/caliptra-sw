@@ -32,14 +32,12 @@ core::arch::global_asm!(include_str!(concat!(
 
 mod exception;
 mod fht;
-#[cfg_attr(feature = "val-rom", path = "flow_val_rom.rs")]
 mod flow;
 mod fuse;
 mod kat;
 mod lock;
 mod pcr;
 mod rom_env;
-#[cfg_attr(feature = "val-rom", path = "verifier_val_rom.rs")]
 mod verifier;
 mod wdt;
 
