@@ -6,6 +6,7 @@ package main
 // #include "caliptra_api.h"
 // #include "caliptra_fuses.h"
 // #include "caliptra_mbox.h"
+//extern int caliptra_mailbox_write_fifo_wrapper(struct caliptra_model *model, struct caliptra_buffer *buffer);
 import "C"
 
 import (
@@ -13,38 +14,42 @@ import (
 	"unsafe"
 )
 
+// Define the Go struct for caliptra_buffer
 type caliptraBuffer struct {
 	data *C.uint8_t
 	len  C.uintptr_t
 }
 
+// Define the Go struct for caliptra_model
 type caliptraModel struct {
 	_unused [0]byte
 }
 
-func main() {
-	model := &caliptraModel{} // Create an instance of the Go struct
+func caliptraMailboxWriteFifo(model *caliptraModel, buffer *caliptraBuffer) int {
+	ret := C.caliptra_mailbox_write_fifo_wrapper(
+		(*C.struct_caliptra_model)(unsafe.Pointer(model)),
+		(*C.struct_caliptra_buffer)(unsafe.Pointer(buffer)),
+	)
+	return int(ret)
+}
 
-	fwData := []C.uint8_t{0x01, 0x02, 0x03, 0x04, 0x05}
-	fwBuffer := caliptraBuffer{
-		data: (*C.uint8_t)(&fwData[0]),
-		len:  C.uintptr_t(len(fwData)),
+func main() {
+	// Initialize caliptraModel (replace this with your actual initialization logic)
+	var model caliptraModel
+
+	// Create a buffer for mailbox data (replace this with your actual data)
+	bufferData := []byte{0x01, 0x02, 0x03, 0x04, 0x05}
+	buffer := &caliptraBuffer{
+		data: (*C.uint8_t)(unsafe.Pointer(&bufferData[0])),
+		len:  C.uintptr_t(len(bufferData)),
 	}
 
-	if err := mailboxExecute(model, 0x12345678, fwBuffer, nil); err != 0 {
-		fmt.Printf("Error executing mailbox command: %d\n", err)
+	// Call caliptraMailboxWriteFifo
+	result := caliptraMailboxWriteFifo(&model, buffer)
+	if result != 0 {
+		fmt.Printf("Error writing to mailbox: %d\n", result)
 		return
 	}
 
-	fmt.Println("Mailbox command executed successfully!")
-}
-
-func mailboxExecute(model *caliptraModel, cmd C.uint32_t, mboxTxBuffer caliptraBuffer, mboxRxBuffer *caliptraBuffer) int {
-	ret := C.caliptra_mailbox_execute((*C.struct_caliptra_model)(model), cmd, mboxTxBuffer, mboxRxBuffer)
-	return int(ret)
-}
-
-func caliptraUploadFw(model *caliptraModel, fwBuffer caliptraBuffer) int {
-	ret := C.caliptra_upload_fw((*C.struct_caliptra_model)(model), fwBuffer)
-	return int(ret)
+	fmt.Println("Mailbox write successful!")
 }
