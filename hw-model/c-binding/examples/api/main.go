@@ -6,10 +6,10 @@ package main
 // #include "caliptra_api.h"
 // #include "caliptra_fuses.h"
 // #include "caliptra_mbox.h"
-//extern int caliptra_mailbox_write_fifo(struct caliptra_model *model, struct caliptra_buffer *buffer);
+//extern int caliptra_mailbox_write_fifo_wrapper(struct caliptra_model *model, struct caliptra_buffer *buffer);
 import "C"
 
-import (
+/* import (
 	"fmt"
 	"unsafe"
 )
@@ -18,7 +18,6 @@ import (
 type caliptraBuffer struct {
 	data *C.uint8_t
 	len  C.uintptr_t
-	ptr  unsafe.Pointer
 }
 
 // Define the Go struct for caliptra_model
@@ -27,15 +26,10 @@ type caliptraModel struct {
 }
 
 func caliptraMailboxWriteFifo(model *caliptraModel, buffer *caliptraBuffer) int {
-	// Dereference the pointer field in the Go struct
-	cBuffer := (*C.caliptra_buffer)(buffer.ptr)
-
-	// Call the C function
 	ret := C.caliptra_mailbox_write_fifo(
-		(*C.caliptra_model)(unsafe.Pointer(model)),
-		cBuffer,
+		(*C.struct_caliptra_model)(unsafe.Pointer(model)),
+		(*C.struct_caliptra_buffer)(unsafe.Pointer(buffer)),
 	)
-
 	return int(ret)
 }
 
@@ -48,7 +42,6 @@ func main() {
 	buffer := &caliptraBuffer{
 		data: (*C.uint8_t)(unsafe.Pointer(&bufferData[0])),
 		len:  C.uintptr_t(len(bufferData)),
-		ptr:  unsafe.Pointer(&buffer),
 	}
 
 	// Call caliptraMailboxWriteFifo
@@ -59,4 +52,17 @@ func main() {
 	}
 
 	fmt.Println("Mailbox write successful!")
+} */
+
+import "fmt"
+
+func main() {
+  // Create a C struct
+  var me C.struct_person
+  me.name = C.CString("Bard")
+  me.age = 23
+
+  // Call the C function
+  a := C.greet(&me)
+  fmt.Println(a);
 }
