@@ -25,11 +25,13 @@
 `define CALIPTRA_APB_DATA_WIDTH      32 // bit-width APB data
 `define CALIPTRA_APB_USER_WIDTH      32 // bit-width APB PAUSER field
 
-`define CALIPTRA_IMEM_BYTE_SIZE   32768
+`define CALIPTRA_IMEM_BYTE_SIZE   (48*1024)
 `define CALIPTRA_IMEM_DATA_WIDTH  64
 `define CALIPTRA_IMEM_DEPTH       `CALIPTRA_IMEM_BYTE_SIZE / (`CALIPTRA_IMEM_DATA_WIDTH/8)
 `define CALIPTRA_IMEM_BYTE_ADDR_W $clog2(`CALIPTRA_IMEM_BYTE_SIZE)
 `define CALIPTRA_IMEM_ADDR_WIDTH  $clog2(`CALIPTRA_IMEM_DEPTH)
+
+`define IMEM_BRAM_ADDR_WIDTH  $clog2(`CALIPTRA_IMEM_BYTE_SIZE)
 
 module caliptra_package_top (
     input wire core_clk,
@@ -58,7 +60,7 @@ module caliptra_package_top (
     input  wire axi_bram_clk,
     input  wire axi_bram_en,
     input  wire [3:0] axi_bram_we,
-    input  wire [14:0] axi_bram_addr, // 12:0
+    input  wire [`CALIPTRA_IMEM_BYTE_SIZE-1:0] axi_bram_addr,
     input  wire [31:0] axi_bram_din,
     output wire [31:0] axi_bram_dout,
     input  wire axi_bram_rst,
@@ -121,7 +123,7 @@ caliptra_wrapper_top cptra_wrapper (
     .axi_bram_clk(axi_bram_clk),
     .axi_bram_en(axi_bram_en),
     .axi_bram_we(axi_bram_we),
-    .axi_bram_addr(axi_bram_addr[14:2]),
+    .axi_bram_addr(axi_bram_addr[`CALIPTRA_IMEM_BYTE_SIZE-1:2]),
     .axi_bram_wrdata(axi_bram_din),
     .axi_bram_rddata(axi_bram_dout),
     .axi_bram_rst(axi_bram_rst),
