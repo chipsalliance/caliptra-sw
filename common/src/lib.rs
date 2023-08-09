@@ -23,7 +23,7 @@ pub use caliptra_drivers::cprintln;
 pub use caliptra_drivers::hand_off;
 pub use caliptra_drivers::memory_layout;
 pub use caliptra_drivers::printer::HexBytes;
-pub use caliptra_drivers::printer::MutablePrinter;
+pub use caliptra_drivers::printer::Printer;
 pub use fuse::{FuseLogEntry, FuseLogEntryId};
 pub use pcr::{PcrLogEntry, PcrLogEntryId, RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR};
 
