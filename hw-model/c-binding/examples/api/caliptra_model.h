@@ -27,7 +27,7 @@ struct person {
   int age;
 };
 
-int greet(struct person *p)
+int greet(struct person *p);
 
 /**
  * # Safety
