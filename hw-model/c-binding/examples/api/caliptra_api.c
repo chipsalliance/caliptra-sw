@@ -54,7 +54,7 @@ int caliptra_bootfsm_go(struct caliptra_model *model)
     return 0;
 }
 
-static int caliptra_mailbox_write_fifo(struct caliptra_model *model, struct caliptra_buffer *buffer)
+int caliptra_mailbox_write_fifo(struct caliptra_model *model, struct caliptra_buffer *buffer)
 {
 
     // Check against max size
