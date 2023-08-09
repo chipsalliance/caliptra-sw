@@ -56,7 +56,7 @@ module caliptra_wrapper_top (
     input  logic axi_bram_clk,
     input  logic axi_bram_en,
     input  logic [3:0] axi_bram_we,
-    input  logic [12:0] axi_bram_addr,
+    input  logic [13:0] axi_bram_addr,
     input  logic [31:0] axi_bram_wrdata,
     output logic [31:0] axi_bram_rddata,
     input  logic axi_bram_rst,

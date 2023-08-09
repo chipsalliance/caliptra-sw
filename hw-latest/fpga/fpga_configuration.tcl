@@ -16,6 +16,7 @@ set BUILD FALSE
 set GUI   FALSE
 set JTAG  TRUE
 set ITRNG FALSE
+set VERSION [exec git rev-parse --short HEAD]
 foreach arg $argv {
     regexp {(.*)=(.*)} $arg fullmatch option value
     set $option "$value"
@@ -62,11 +63,11 @@ close_project
 # Packaging Caliptra allows Vivado to recognize the APB bus as an endpoint for the memory map.
 create_project caliptra_package_project $outputDir -part xczu7ev-ffvc1156-2-e
 
-# Generate IRAM
+# Generate ROM
 create_ip -name blk_mem_gen -vendor xilinx.com -library ip -version 8.4 -module_name fpga_imem -dir $outputDir
 set_property -dict [list \
   CONFIG.Memory_Type {True_Dual_Port_RAM} \
-  CONFIG.Write_Depth_A {4096} \
+  CONFIG.Write_Depth_A {6144} \
   CONFIG.Write_Width_A {64} \
   CONFIG.Write_Width_B {32} \
   CONFIG.Use_RSTB_Pin {true} \
@@ -262,7 +263,7 @@ connect_bd_net [get_bd_pins fifo_generator_0/prog_full] [get_bd_pins zynq_ultra_
 
 # Create address segments
 assign_bd_address -offset 0x80000000 -range 0x00002000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs caliptra_soc_0/interface_aximm/reg0] -force
-assign_bd_address -offset 0x82000000 -range 0x00008000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs axi_bram_ctrl_0/S_AXI/Mem0] -force
+assign_bd_address -offset 0x82000000 -range 0x00010000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs axi_bram_ctrl_0/S_AXI/Mem0] -force
 assign_bd_address -offset 0x90000000 -range 0x00100000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs caliptra_package_top_0/s_apb/Reg] -force
 
 if {$JTAG} {
@@ -303,6 +304,6 @@ if {$BUILD} {
   wait_on_runs impl_1
   open_run impl_1
   # Embed git hash in USR_ACCESS register for bitstream identification.
-  set_property BITSTREAM.CONFIG.USR_ACCESS 0x[exec git rev-parse --short HEAD] [current_design]
+  set_property BITSTREAM.CONFIG.USR_ACCESS 0x$VERSION [current_design]
   write_bitstream -bin_file $outputDir/caliptra_fpga
 }
