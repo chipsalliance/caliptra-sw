@@ -17,6 +17,7 @@ use caliptra_emu_bus::{Bus, BusMmio, Ram};
 use caliptra_emu_bus::{BusError, ReadOnlyRegister, ReadWriteRegister, WriteOnlyRegister};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
+use std::f32::consts::E;
 use std::{cell::RefCell, rc::Rc};
 use tock_registers::interfaces::Writeable;
 use tock_registers::{register_bitfields, LocalRegisterCopy};
@@ -540,6 +541,8 @@ impl StateMachineContext for Context {
     fn dequeue(&mut self) {
         if let Ok(data_out) = self.fifo.dequeue() {
             self.data_out = data_out;
+        } else {
+            self.data_out = 0;
         }
     }
     fn enqueue(&mut self, data_in: &DataIn) {

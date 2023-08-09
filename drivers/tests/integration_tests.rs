@@ -382,7 +382,7 @@ fn test_mailbox_soc_to_uc() {
             "cmd: 0x60000000\n\
              dlen: 12\n\
              buf: [67452301, efcdab89]\n\
-             buf: [33221100, 33221100]\n"
+             buf: [33221100, 00000000]\n"
         );
         // TODO: It is not optimal that the driver copies the last word in the
         // FIFO to the extra array location.
