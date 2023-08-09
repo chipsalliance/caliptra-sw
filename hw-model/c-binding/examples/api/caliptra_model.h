@@ -22,6 +22,13 @@ typedef struct caliptra_model {
   uint8_t _unused[0];
 } caliptra_model;
 
+struct person {
+  char *name;
+  int age;
+};
+
+int greet(struct person *p)
+
 /**
  * # Safety
  */

@@ -54,11 +54,6 @@ int caliptra_bootfsm_go(struct caliptra_model *model)
     return 0;
 }
 
-struct person {
-  char *name;
-  int age;
-};
-
 int greet(struct person *p) {
   printf("Hello, %s! You are %d years old.\n", p->name, p->age);
   return 4;
