@@ -4,39 +4,84 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    verifier_val_rom.rs
+    val.rs
 
 Abstract:
 
-    Image Verification support routines
-    Mock ECC and LMS functionality to speed boot for verificaiton environments
+    File contains the implementation of the validation ROM reset flows
 
 --*/
 
-#[cfg(not(feature = "val-rom"))]
-compile_error!("This file should NEVER be included except for the val-rom feature");
+#[allow(dead_code)]
+#[path = "cold_reset/fw_processor.rs"]
+mod fw_processor;
 
+use crate::fht;
+use crate::rom_env::RomEnv;
+use caliptra_common::FirmwareHandoffTable;
+use caliptra_common::RomBootStatus::*;
+use caliptra_drivers::cprintln;
+use caliptra_drivers::Lifecycle;
+use caliptra_drivers::LmsResult;
+use caliptra_drivers::VendorPubKeyRevocation;
 use caliptra_drivers::*;
+use caliptra_error::CaliptraError;
 use caliptra_image_types::*;
 use caliptra_image_verify::ImageVerificationEnv;
 use core::ops::Range;
+use fw_processor::FirmwareProcessor;
 
-use crate::rom_env::RomEnv;
+pub struct ValRomFlow {}
 
-/// ROM Verification Environemnt
-pub(crate) struct RomImageVerificationEnv<'a> {
-    #[allow(dead_code)]
-    pub(crate) sha256: &'a mut Sha256,
-    pub(crate) sha384: &'a mut Sha384,
-    pub(crate) sha384_acc: &'a mut Sha384Acc,
-    pub(crate) soc_ifc: &'a mut SocIfc,
-    #[allow(dead_code)]
-    pub(crate) ecc384: &'a mut Ecc384,
-    pub(crate) data_vault: &'a mut DataVault,
-    pub(crate) pcr_bank: &'a mut PcrBank,
+impl ValRomFlow {
+    /// Execute ROM Flows based on reset reason
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - ROM Environment
+    #[inline(never)]
+    pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
+        let reset_reason = env.soc_ifc.reset_reason();
+        match reset_reason {
+            // Cold Reset Flow
+            ResetReason::ColdReset => {
+                cprintln!("[val-rom-cold-reset] ++");
+                report_boot_status(ColdResetStarted.into());
+
+                // SKIP Execute IDEVID layer
+                // SKIP Execute LDEVID layer
+
+                // Download and validate firmware.
+                _ = FirmwareProcessor::process(env)?;
+
+                // SKIP Execute FMCALIAS layer
+
+                cprintln!("[val-rom-cold-reset] --");
+                report_boot_status(ColdResetComplete.into());
+
+                Ok(Some(fht::make_fht(env)))
+            }
+
+            // TODO: Warm Reset Flow
+            ResetReason::WarmReset => Err(CaliptraError::ROM_UNKNOWN_RESET_FLOW),
+
+            // TODO: Update Reset Flow
+            ResetReason::UpdateReset => Err(CaliptraError::ROM_UNKNOWN_RESET_FLOW),
+
+            // Unknown/Spurious Reset Flow
+            ResetReason::Unknown => Err(CaliptraError::ROM_UNKNOWN_RESET_FLOW),
+        }
+    }
 }
 
-impl<'a> ImageVerificationEnv for &mut RomImageVerificationEnv<'a> {
+// ROM Verification Environemnt
+pub(crate) struct ValRomImageVerificationEnv<'a> {
+    pub(crate) sha384_acc: &'a mut Sha384Acc,
+    pub(crate) soc_ifc: &'a mut SocIfc,
+    pub(crate) data_vault: &'a mut DataVault,
+}
+
+impl<'a> ImageVerificationEnv for &mut ValRomImageVerificationEnv<'a> {
     /// Calculate Digest using SHA-384 Accelerator
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest> {
         loop {

@@ -11,7 +11,8 @@ Abstract:
     File contains the code to download and validate the firmware.
 
 --*/
-
+#[cfg(feature = "val-rom")]
+use crate::flow::val::ValRomImageVerificationEnv;
 use crate::fuse::log_fuse_data;
 use crate::rom_env::RomEnv;
 use crate::{cprintln, verifier::RomImageVerificationEnv};
@@ -187,6 +188,13 @@ impl FirmwareProcessor {
         manifest: &ImageManifest,
         img_bundle_sz: u32,
     ) -> CaliptraResult<ImageVerificationInfo> {
+        #[cfg(feature = "val-rom")]
+        let venv = &mut ValRomImageVerificationEnv {
+            sha384_acc: venv.sha384_acc,
+            soc_ifc: venv.soc_ifc,
+            data_vault: venv.data_vault,
+        };
+
         let mut verifier = ImageVerifier::new(venv);
         let info = verifier.verify(manifest, img_bundle_sz, ResetReason::ColdReset)?;
 
