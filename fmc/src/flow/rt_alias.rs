@@ -291,6 +291,15 @@ impl RtAliasLayer {
         cprintln!("[alias rt] SIG.R = {}", HexBytes(&_sig_r));
         cprintln!("[alias rt] SIG.S = {}", HexBytes(&_sig_s));
 
+        if !cfg!(feature = "skip-verify") {
+            // Verify the signature of the `To Be Signed` portion
+            cprintln!("[alias rt] verify");
+            if Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? != Ecc384Result::Success
+            {
+                return Err(CaliptraError::FMC_RT_ALIAS_CERT_VERIFY);
+            }
+        }
+
         // Verify the signature of the `To Be Signed` portion
         if Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? != Ecc384Result::Success {
             return Err(CaliptraError::FMC_RT_ALIAS_CERT_VERIFY);
