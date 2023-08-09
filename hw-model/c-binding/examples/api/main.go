@@ -6,7 +6,7 @@ package main
 // #include "caliptra_api.h"
 // #include "caliptra_fuses.h"
 // #include "caliptra_mbox.h"
-//extern int caliptra_mailbox_write_fifo_wrapper(struct caliptra_model *model, struct caliptra_buffer *buffer);
+//extern int caliptra_mailbox_write_fifo(struct caliptra_model *model, struct caliptra_buffer *buffer);
 import "C"
 
 import (
@@ -26,7 +26,7 @@ type caliptraModel struct {
 }
 
 func caliptraMailboxWriteFifo(model *caliptraModel, buffer *caliptraBuffer) int {
-	ret := C.caliptra_mailbox_write_fifo_wrapper(
+	ret := C.caliptra_mailbox_write_fifo(
 		(*C.struct_caliptra_model)(unsafe.Pointer(model)),
 		(*C.struct_caliptra_buffer)(unsafe.Pointer(buffer)),
 	)
