@@ -53,7 +53,7 @@ pub struct Csrng {
 }
 
 impl Csrng {
-    pub fn new() -> Self {
+    pub fn new(_itrng_nibbles: Box<dyn Iterator<Item = u8>>) -> Self {
         Self {
             // TODO(rkr35): implement CTRL, CONF, and MODULE_ENABLE register logic.
             ctrl: ReadWriteRegister::new(0x999),
@@ -168,12 +168,6 @@ impl Csrng {
 
     fn genbits_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
         Ok(self.words.next().unwrap_or(0xCAFE_F00D))
-    }
-}
-
-impl Default for Csrng {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
