@@ -663,7 +663,6 @@ fn test_csrng2() {
 }
 
 #[test]
-#[cfg_attr(not(feature = "verilator"), ignore)]
 fn test_csrng_failing_health_checks() {
     fn test(test_binary: &'static str, itrng_nibbles: Box<dyn Iterator<Item = u8>>) {
         let rom = build_test_rom(test_binary);

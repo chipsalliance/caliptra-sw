@@ -1,3 +1,5 @@
+// Licensed under the Apache-2.0 license
+
 //! Unverified implementation of CTR_DRBG AES-256
 //! Section 10.2 (page 48) of https://doi.org/10.6028/NIST.SP.800-90Ar1
 
@@ -13,6 +15,18 @@ const SEED_LEN_BYTES: usize = BLOCK_LEN_BYTES + KEY_LEN_BYTES;
 pub type Block = [u8; BLOCK_LEN_BYTES];
 type Key = [u8; KEY_LEN_BYTES];
 pub type Seed = [u8; SEED_LEN_BYTES];
+
+#[derive(Copy, Clone)]
+pub enum Instantiate<'a> {
+    Words(&'a [u32]),
+    Bytes(&'a Seed),
+}
+
+impl Default for Instantiate<'_> {
+    fn default() -> Self {
+        Self::Bytes(&[0; SEED_LEN_BYTES])
+    }
+}
 
 pub struct CtrDrbg {
     v: Block,
@@ -47,9 +61,12 @@ impl CtrDrbg {
         self.v.copy_from_slice(&temp[KEY_LEN_BYTES..]);
     }
 
-    pub fn instantiate(&mut self, seed: &[u32]) {
+    pub fn instantiate(&mut self, seed: Instantiate) {
         // Section 10.2.1.3 (page 52).
-        let seed_material = massage_seed(seed);
+        let seed_material = match seed {
+            Instantiate::Words(words) => massage_seed(words),
+            Instantiate::Bytes(bytes) => *bytes,
+        };
         self.key = [0; KEY_LEN_BYTES];
         self.v = [0; BLOCK_LEN_BYTES];
         self.update(seed_material);
