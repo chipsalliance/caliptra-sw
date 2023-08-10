@@ -12,6 +12,9 @@ Abstract:
 
 --*/
 
+#[cfg(not(feature = "val-rom"))]
+compile_error!("This file should NEVER be included except for the val-rom feature");
+
 #[allow(dead_code)]
 #[path = "cold_reset/fw_processor.rs"]
 mod fw_processor;

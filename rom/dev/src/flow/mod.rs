@@ -47,19 +47,17 @@ pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
             ResetReason::Unknown => Err(CaliptraError::ROM_UNKNOWN_RESET_FLOW),
         }
     } else {
-        #[allow(unused_mut)]
-        let mut result: CaliptraResult<Option<FirmwareHandoffTable>> =
-            Err(CaliptraError::ROM_GLOBAL_VAL_ROM_IN_PRODUCTION);
+        let _result: CaliptraResult<Option<FirmwareHandoffTable>> =
+            Err(CaliptraError::ROM_GLOBAL_PANIC);
 
         if env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production {
             cprintln!("Validation ROM in Production lifecycle prohibited");
             handle_fatal_error(CaliptraError::ROM_GLOBAL_VAL_ROM_IN_PRODUCTION.into());
         }
-        #[cfg(feature = "val-rom")]
-        {
-            result = val::ValRomFlow::run(env);
-        }
 
-        result
+        #[cfg(feature = "val-rom")]
+        let _result = val::ValRomFlow::run(env);
+
+        _result
     }
 }
