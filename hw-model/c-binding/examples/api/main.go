@@ -33,7 +33,7 @@ func main() {
 
 	// Create a caliptra_model struct
 	var model C.caliptra_model
-	model._unused = [1]C.uint8_t{} // Initialize as needed
+	//model._unused = [1]C.uint8_t{} // Initialize as needed
 
 	// Call the caliptra_mailbox_write_fifo function
 	ret := C.caliptra_mailbox_write_fifo(&model, &rom)
