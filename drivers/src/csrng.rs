@@ -320,16 +320,13 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
         }
     }
 
-    let acmd = acmd & 0xf;
-    let clen = (clen as u32) & 0xf;
-    let flag0 = (flag0 as u32) & 0xf;
-    let glen = (glen as u32) & 0x1fff;
-
     // Write mandatory 32-bit command header.
-    csrng
-        .regs_mut()
-        .cmd_req()
-        .write(|_| ((glen << 12) | (flag0 << 8) | (clen << 4) | acmd).into());
+    csrng.regs_mut().cmd_req().write(|w| {
+        w.acmd(acmd)
+            .clen(clen as u32)
+            .flag0(flag0 as u32)
+            .glen(glen as u32)
+    });
 
     // Write optional extra words.
     for &word in extra_words {
@@ -341,8 +338,8 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
         let reg = csrng.regs().sw_cmd_sts().read();
 
         // Order matters. Check for errors first.
-        if reg.cmd_sts() {
-            // TODO(rkr35): Somehow convey additional error information found in
+        if reg.cmd_sts() || u32::from(csrng.regs().err_code().read()) != 0 {
+            // TODO: Somehow convey additional error information found in
             // the ERR_CODE register.
             return Err(err);
         }

@@ -27,6 +27,9 @@ pub struct Csrng {
     #[register(offset = 0x24, read_fn = genbits_read)]
     genbits: ReadOnlyRegister<u32>,
 
+    #[register(offset = 0x38)]
+    err_code: ReadOnlyRegister<u32>,
+
     // Entropy Source registers
     #[register(offset = 0x1020)]
     module_enable: ReadWriteRegister<u32>,
@@ -61,6 +64,7 @@ impl Csrng {
             sw_cmd_sts: ReadOnlyRegister::new(0b01),
             genbits_vld: ReadOnlyRegister::new(0b01),
             genbits: ReadOnlyRegister::new(0),
+            err_code: ReadOnlyRegister::new(0),
 
             module_enable: ReadWriteRegister::new(0x9),
             conf: ReadWriteRegister::new(0x909099),
