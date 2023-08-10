@@ -273,6 +273,6 @@ pub struct FwInfoResp {
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct GetSvnResp {
-    pub runtime_svn: [u32; 4],
+    pub runtime_svn: u32,
     pub fmc_manifest_svn: u32,
 }

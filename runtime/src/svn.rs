@@ -3,10 +3,10 @@ use caliptra_drivers::CaliptraResult;
 use crate::{mailbox_api::GetSvnResp, Drivers, MailboxResp};
 
 pub fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
-    let registers = drivers.soc_ifc.regs();
+    let fuse_bank = drivers.soc_ifc.fuse_bank();
 
-    let runtime_svn = registers.fuse_runtime_svn().read();
-    let fmc_manifest_svn = registers.fuse_fmc_key_manifest_svn().read();
+    let runtime_svn = fuse_bank.runtime_fuse_svn();
+    let fmc_manifest_svn = fuse_bank.fmc_fuse_svn();
 
     Ok(MailboxResp::GetSvn(GetSvnResp {
         runtime_svn,
