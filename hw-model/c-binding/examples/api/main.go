@@ -37,7 +37,9 @@ func main() {
 	//model._unused = [1]C.uint8_t{} // Initialize as needed
 
 	// Call the caliptra_mailbox_write_fifo function
-	ret := C.caliptra_mailbox_write_fifo(&model, &rom)
+	//ret := C.caliptra_mailbox_write_fifo(&model, &rom)
+
+	ret := C.caliptra_init_fuses(&model,&rom);
 
 	fmt.Println(ret)
 }
