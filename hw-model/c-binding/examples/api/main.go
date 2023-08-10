@@ -39,7 +39,9 @@ func main() {
 	// Call the caliptra_mailbox_write_fifo function
 	//ret := C.caliptra_mailbox_write_fifo(&model, &rom)
 
-	ret := C.caliptra_init_fuses(&model,&rom);
+	value := C.uint32_t(0xe0002000)
+
+	ret := C.caliptra_mailbox_execute(&model,value,&rom,&rom);
 
 	fmt.Println(ret)
 }
