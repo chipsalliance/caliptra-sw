@@ -74,7 +74,7 @@ func main() {
   var model C.caliptra_model
   model._unused = [0]uint8{}
 
-  data1 = C.caliptra_mailbox_write_fifo(&rom,&model);
+  ret := C.caliptra_mailbox_write_fifo(&rom,&model);
 
-  fmt.Println(data);
+  fmt.Println(ret);
 }
