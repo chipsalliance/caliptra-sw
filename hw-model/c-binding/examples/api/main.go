@@ -78,4 +78,7 @@ func main() {
   ret := C.caliptra_mailbox_write_fifo(&rom,&model);
 
   fmt.Println(ret);
+
 }
+
+  // #cgo CFLAGS: -std=c99
