@@ -53,14 +53,11 @@ fn test_ctr_drbg_ctr0_smoke() {
     assert_eq!(output, EXPECTED_OUTPUT);
 }
 
-// Requires the hardware model to have been seeded with the TRNG nibbles found here:
-// https://github.com/chipsalliance/caliptra-rtl/blob/fa91d66f30223899403f4e65a6f697a6f9100fd1/src/csrng/tb/csrng_tb.sv#L461
 fn test_entropy_src_seed() {
     let csrng_reg = unsafe { CsrngReg::new() };
     let entropy_src_reg = unsafe { EntropySrcReg::new() };
 
-    const EXPECTED_OUTPUT: [u32; 4] = [0x15eb2a44, 0x310851dd, 0xba1365ab, 0x4c7322f4];
-
+    const EXPECTED_OUTPUT: [u32; 4] = [0xca3d3c2f, 0x552adb53, 0xa9749c5d, 0xdabbe4c3];
     let mut csrng = Csrng::new(csrng_reg, entropy_src_reg).expect("construct CSRSNG");
     let mut output = [0; EXPECTED_OUTPUT.len()];
     let num_words = NonZeroUsize::new(output.len()).expect("non-zero num_words");

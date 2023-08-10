@@ -22,7 +22,10 @@ Abstract:
 
 --*/
 use crate::{wait, CaliptraError, CaliptraResult};
-use caliptra_registers::{csrng::CsrngReg, entropy_src::regs::AlertFailCountsReadVal};
+use caliptra_registers::csrng::CsrngReg;
+use caliptra_registers::entropy_src::{
+    regs::AlertFailCountsReadVal, EntropySrcReg,
+};
 use core::{iter::FusedIterator, num::NonZeroUsize};
 
 // https://opentitan.org/book/hw/ip/csrng/doc/theory_of_operation.html#command-description
@@ -32,8 +35,8 @@ const WORDS_PER_GENERATE_BLOCK: usize = 4;
 
 /// A unique handle to the underlying CSRNG peripheral.
 pub struct Csrng {
-    csrng: caliptra_registers::csrng::CsrngReg,
-    entropy_src: caliptra_registers::entropy_src::EntropySrcReg,
+    csrng: CsrngReg,
+    entropy_src: EntropySrcReg,
 }
 
 impl Csrng {
@@ -48,10 +51,7 @@ impl Csrng {
     /// # Errors
     ///
     /// Returns an error if the internal seed command fails.
-    pub fn new(
-        csrng: caliptra_registers::csrng::CsrngReg,
-        entropy_src: caliptra_registers::entropy_src::EntropySrcReg,
-    ) -> CaliptraResult<Self> {
+    pub fn new(csrng: CsrngReg, entropy_src: EntropySrcReg) -> CaliptraResult<Self> {
         Self::with_seed(csrng, entropy_src, Seed::EntropySrc)
     }
 
@@ -76,8 +76,8 @@ impl Csrng {
     ///
     /// Returns an error if the internal seed command fails.
     pub fn with_seed(
-        csrng: caliptra_registers::csrng::CsrngReg,
-        entropy_src: caliptra_registers::entropy_src::EntropySrcReg,
+        csrng: CsrngReg,
+        entropy_src: EntropySrcReg,
         seed: Seed,
     ) -> CaliptraResult<Self> {
         const FALSE: u32 = MultiBitBool::False as u32;
@@ -90,10 +90,15 @@ impl Csrng {
         let e = result.entropy_src.regs_mut();
 
         if e.module_enable().read().module_enable() == FALSE {
-            e.conf()
-                .write(|w| w.fips_enable(FALSE).entropy_data_reg_enable(FALSE));
+            e.conf().write(|w| {
+                w.fips_enable(TRUE)
+                    .entropy_data_reg_enable(FALSE)
+                    .threshold_scope(TRUE)
+                    .rng_bit_enable(FALSE)
+            });
             e.module_enable().write(|w| w.module_enable(TRUE));
-            wait::until(|| e.debug_status().read().main_sm_boot_done());
+            const CONT_HT_RUNNING: u32 = 0x1a2;
+            wait::until(|| e.main_sm_state().read().main_sm_state() == CONT_HT_RUNNING);
         }
 
         if c.ctrl().read().enable() == FALSE {

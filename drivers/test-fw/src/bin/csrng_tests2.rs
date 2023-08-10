@@ -17,16 +17,16 @@ fn test_assume_initialized() {
 
     let one = NonZeroUsize::new(1).unwrap();
 
-    assert_eq!(csrng0.generate(one).unwrap().next().unwrap(), 0x15eb2a44);
+    assert_eq!(csrng0.generate(one).unwrap().next().unwrap(), 0xca3d3c2f);
 
     {
         let mut csrng1 =
             unsafe { Csrng::assume_initialized(CsrngReg::new(), EntropySrcReg::new()) };
 
-        assert_eq!(csrng1.generate(one).unwrap().next().unwrap(), 0xb5848d3a);
+        assert_eq!(csrng1.generate(one).unwrap().next().unwrap(), 0xedb5da59);
     }
 
-    assert_eq!(csrng0.generate(one).unwrap().next().unwrap(), 0x22a79509);
+    assert_eq!(csrng0.generate(one).unwrap().next().unwrap(), 0xf3ff9bfe);
 }
 
 test_suite! {

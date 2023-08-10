@@ -40,8 +40,8 @@ pub struct Csrng {
     #[register(offset = 0x10a8)]
     alert_fail_counts: ReadOnlyRegister<u32>,
 
-    #[register(offset = 0x10d0)]
-    debug_status: ReadOnlyRegister<u32>,
+    #[register(offset = 0x10e0)]
+    main_sm_state: ReadOnlyRegister<u32>,
 
     cmd_req_state: CmdReqState,
 
@@ -66,7 +66,7 @@ impl Csrng {
             conf: ReadWriteRegister::new(0x909099),
             alert_summary_fail_counts: ReadOnlyRegister::new(0),
             alert_fail_counts: ReadOnlyRegister::new(0),
-            debug_status: ReadOnlyRegister::new(1 << 17),
+            main_sm_state: ReadOnlyRegister::new(0x1a2),
 
             cmd_req_state: CmdReqState::ExpectNewCommand,
             seed: vec![],
