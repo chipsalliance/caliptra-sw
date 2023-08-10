@@ -6,79 +6,33 @@ package main
 // #include "caliptra_api.h"
 // #include "caliptra_fuses.h"
 // #include "caliptra_mbox.h"
-//extern int caliptra_mailbox_write_fifo(struct caliptra_model *model, struct caliptra_buffer *buffer);
 import "C"
 
-/* import (
+import (
 	"fmt"
 	"unsafe"
 )
 
-// Define the Go struct for caliptra_buffer
-type caliptraBuffer struct {
-	data *C.uint8_t
-	len  C.uintptr_t
-}
-
-// Define the Go struct for caliptra_model
-type caliptraModel struct {
-	_unused [0]byte
-}
-
-func caliptraMailboxWriteFifo(model *caliptraModel, buffer *caliptraBuffer) int {
-	ret := C.caliptra_mailbox_write_fifo(
-		(*C.struct_caliptra_model)(unsafe.Pointer(model)),
-		(*C.struct_caliptra_buffer)(unsafe.Pointer(buffer)),
-	)
-	return int(ret)
-}
-
 func main() {
-	// Initialize caliptraModel (replace this with your actual initialization logic)
-	var model caliptraModel
+	// Create a C struct
+	var me C.struct_person
+	me.name = C.CString("Tony")
+	me.age = 23
 
-	// Create a buffer for mailbox data (replace this with your actual data)
-	bufferData := []byte{0x01, 0x02, 0x03, 0x04, 0x05}
-	buffer := &caliptraBuffer{
-		data: (*C.uint8_t)(unsafe.Pointer(&bufferData[0])),
-		len:  C.uintptr_t(len(bufferData)),
+	// Call the C function
+	a := C.greet(&me)
+	fmt.Println(a)
+
+	// Create a caliptra_buffer struct
+	romData := "This is the ROM data."
+	rom := C.caliptra_buffer{
+		data: (*C.uint8_t)(unsafe.Pointer(C.CString(romData))),
+		len:  C.uintptr_t(len(romData)),
 	}
 
-	// Call caliptraMailboxWriteFifo
-	result := caliptraMailboxWriteFifo(&model, buffer)
-	if result != 0 {
-		fmt.Printf("Error writing to mailbox: %d\n", result)
-		return
-	}
+	// Call the caliptra_mailbox_write_fifo function
+	var model C.caliptra_model
+	ret := C.caliptra_mailbox_write_fifo(&model, &rom)
 
-	fmt.Println("Mailbox write successful!")
-} */
-
-import "fmt"
-
-func main() {
-  // Create a C struct
-  var me C.struct_person
-  me.name = C.CString("Tony")
-  me.age = 23
-
-  // Call the C function
-  a := C.greet(&me)
-  fmt.Println(a);
-
-  // Create a caliptra_buffer struct
-  var rom C.caliptra_buffer
-  rom.data = C.CString("This is the ROM data.")
-  rom.len = C.uint32_t(12)
-
-  // Create a caliptra_model struct
-  var model C.caliptra_model
-  model._unused = [0]uint8{}
-
-  ret := C.caliptra_mailbox_write_fifo(&rom,&model);
-
-  fmt.Println(ret);
-
+	fmt.Println(ret)
 }
-
-  // #cgo CFLAGS: -std=c99
