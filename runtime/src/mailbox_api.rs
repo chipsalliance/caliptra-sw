@@ -15,6 +15,7 @@ impl CommandId {
     pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
     pub const FW_INFO: Self = Self(0x494E464F); // "INFO"
     pub const TEST_ONLY_HMAC384_VERIFY: Self = Self(0x484D4143); // "HMAC"
+    pub const GET_SVN: Self = Self(0x4753564E); // "GSVN"
 
     // TODO: Remove this and merge with GET_LDEV_CERT once that is implemented
     pub const TEST_ONLY_GET_LDEV_CERT: Self = Self(0x4345524c); // "CERL"
@@ -50,6 +51,7 @@ pub enum MailboxResp {
     TestGetFmcAliasCert(TestGetFmcAliasCertResp),
     FipsVersion(FipsVersionResp),
     FwInfo(FwInfoResp),
+    GetSvn(GetSvnResp),
 }
 
 impl MailboxResp {
@@ -63,6 +65,7 @@ impl MailboxResp {
             MailboxResp::TestGetFmcAliasCert(resp) => resp.as_bytes(),
             MailboxResp::FipsVersion(resp) => resp.as_bytes(),
             MailboxResp::FwInfo(resp) => resp.as_bytes(),
+            MailboxResp::GetSvn(resp) => resp.as_bytes(),
         }
     }
 
@@ -76,6 +79,7 @@ impl MailboxResp {
             MailboxResp::TestGetFmcAliasCert(resp) => resp.as_bytes_mut(),
             MailboxResp::FipsVersion(resp) => resp.as_bytes_mut(),
             MailboxResp::FwInfo(resp) => resp.as_bytes_mut(),
+            MailboxResp::GetSvn(resp) => resp.as_bytes_mut(),
         }
     }
 
@@ -263,4 +267,12 @@ pub struct FwInfoResp {
     pub pl0_pauser: u32,
     // TODO: Decide what other information to report for general firmware
     // status.
+}
+
+/// SVN response
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct GetSvnResp {
+    pub runtime_svn: [u32; 4],
+    pub fmc_manifest_svn: u32,
 }

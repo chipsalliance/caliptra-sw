@@ -4,6 +4,8 @@ use caliptra_drivers::CaliptraResult;
 use caliptra_registers::mbox::{enums::MboxStatusE, MboxCsr};
 use zerocopy::{AsBytes, LayoutVerified, Unalign};
 
+use crate::CommandId;
+
 pub struct Mailbox {
     mbox: MboxCsr,
 }
@@ -36,9 +38,11 @@ impl Mailbox {
         (self.dlen() + 3) / 4
     }
 
-    pub fn cmd(&self) -> u32 {
+    pub fn cmd(&self) -> CommandId {
         let mbox = self.mbox.regs();
-        mbox.cmd().read()
+        let cmd_code = mbox.cmd().read();
+
+        CommandId(cmd_code)
     }
 
     pub fn copy_from_mbox(&mut self, buf: &mut [u32]) {
