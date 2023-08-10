@@ -26,11 +26,13 @@ func main() {
 
 	// Create a caliptra_buffer struct from a []byte
 	romData := []byte{0x01, 0x02, 0x03, 0x04, 0x05}
+	romDataPtr := C.CBytes(romData)
+	defer C.free(romDataPtr) // Release the allocated memory
+
 	rom := C.caliptra_buffer{
-		data: (*C.uint8_t)(unsafe.Pointer(romData[0])),
+		data: (*C.uint8_t)(romDataPtr),
 		len:  C.uintptr_t(len(romData)),
 	}
-
 	// Create a caliptra_model struct
 	var model C.caliptra_model
 	//model._unused = [1]C.uint8_t{} // Initialize as needed
