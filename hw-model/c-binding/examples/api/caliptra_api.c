@@ -61,18 +61,24 @@ int greet(struct person *p) {
 
 int caliptra_mailbox_write_fifo(struct caliptra_model *model, struct caliptra_buffer *buffer)
 {
-
+    printf("******************************Test1");
     // Check against max size
     const uint32_t MBOX_SIZE = (128u * 1024u);
     if (buffer->len > MBOX_SIZE) {
         return -EINVAL;
     }
 
+    printf("******************************Test2");
+
     // Write DLEN
     caliptra_mbox_write_dlen(model, buffer->len);
 
+    printf("******************************Test3");
+
     uint32_t remaining_len = buffer->len;
     uint32_t *data_dw = (uint32_t *)buffer->data;
+
+    printf("******************************Test4");
 
     // Copy DWord multiples
     while (remaining_len > sizeof(uint32_t)) {
@@ -80,12 +86,16 @@ int caliptra_mailbox_write_fifo(struct caliptra_model *model, struct caliptra_bu
         remaining_len -= sizeof(uint32_t);
     }
 
+    printf("******************************Test5");
+
     // if un-aligned dword reminder...
     if (remaining_len) {
         uint32_t data = 0;
         memcpy(&data, data_dw, remaining_len);
         caliptra_mbox_write(model, MBOX_CSR_MBOX_DATAIN, data);
     }
+
+    printf("******************************Test6");
 
     return 0;
 }
