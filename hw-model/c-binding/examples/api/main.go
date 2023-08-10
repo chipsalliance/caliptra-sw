@@ -59,10 +59,22 @@ import "fmt"
 func main() {
   // Create a C struct
   var me C.struct_person
-  me.name = C.CString("Bard")
+  me.name = C.CString("Tony")
   me.age = 23
 
   // Call the C function
   a := C.greet(&me)
   fmt.Println(a);
+
+  var rom C.caliptra_buffer
+  rom.data = C.CString("This is the ROM data.")
+  rom.len = C.uintptr_t(12)
+
+  // Create a caliptra_model struct
+  var model C.caliptra_model
+  model._unused = [0]uint8{}
+
+  data1 = C.caliptra_mailbox_write_fifo(&rom,&model);
+
+  fmt.Println(data);
 }
