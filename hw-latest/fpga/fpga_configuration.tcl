@@ -1,14 +1,16 @@
-# Clean and create output directory.
-set outputDir ./caliptra_build
+# Create path variables
+set fpgaDir [file dirname [info script]]
+set outputDir $fpgaDir/caliptra_build
 set packageDir $outputDir/caliptra_package
 set adapterDir $outputDir/soc_adapter_package
+# Clean and create output directory.
 file delete -force $outputDir
 file mkdir $outputDir
 file mkdir $packageDir
 file mkdir $adapterDir
 
 # Path to rtl
-set rtlDir ../caliptra-rtl
+set rtlDir $fpgaDir/../caliptra-rtl
 
 # Simplistic processing of command line arguments to enable different features
 # Defaults:
@@ -16,10 +18,14 @@ set BUILD FALSE
 set GUI   FALSE
 set JTAG  TRUE
 set ITRNG FALSE
-set VERSION [exec git rev-parse --short HEAD]
 foreach arg $argv {
     regexp {(.*)=(.*)} $arg fullmatch option value
     set $option "$value"
+}
+# If VERSION was not set by tclargs, set it from the commit ID.
+# This assumes it is run from within caliptra-sw. If building from outside caliptra-sw call with "VERSION=[hex number]"
+if {[info exists VERSION] == 0} {
+  set VERSION [exec git rev-parse --short HEAD]
 }
 
 # Set Verilog defines to:
@@ -40,7 +46,7 @@ if {$GUI} {
 # Create a project to package a module to connect SOC signals to
 create_project soc_adapter_package_project $outputDir -part xczu7ev-ffvc1156-2-e
 # Add source
-add_files [ glob ./src/soc_adapter.v ]
+add_files [ glob $fpgaDir/src/soc_adapter.v ]
 
 # Package IP
 ipx::package_project -root_dir $adapterDir -vendor design -library user -taxonomy /UserIP -import_files -set_current false
@@ -127,14 +133,14 @@ remove_files [ glob $rtlDir/src/ecc/rtl/ecc_ram_tdp_file.sv ]
 remove_files [ glob $rtlDir/src/keyvault/rtl/kv_reg.sv ]
 
 # Add FPGA specific sources
-add_files [ glob ./src/*.sv]
-add_files [ glob ./src/*.v]
+add_files [ glob $fpgaDir/src/*.sv]
+add_files [ glob $fpgaDir/src/*.v]
 
 # Mark all Verilog sources as SystemVerilog because some of them have SystemVerilog syntax.
 set_property file_type SystemVerilog [get_files *.v]
 
 # Exception: caliptra_package_top.v needs to be Verilog to be included in a Block Diagram.
-set_property file_type Verilog [get_files  ./src/caliptra_package_top.v]
+set_property file_type Verilog [get_files  $fpgaDir/src/caliptra_package_top.v]
 
 # Add include paths
 set_property include_dirs $rtlDir/src/integration/rtl [current_fileset]
@@ -271,7 +277,7 @@ if {$JTAG} {
   make_bd_pins_external  [get_bd_pins caliptra_package_top_0/jtag_tck] [get_bd_pins caliptra_package_top_0/jtag_tms] [get_bd_pins caliptra_package_top_0/jtag_tdo] [get_bd_pins caliptra_package_top_0/jtag_tdi] [get_bd_pins caliptra_package_top_0/jtag_trst_n]
 
   # Add constraints for JTAG signals
-  add_files -fileset constrs_1 ./src/jtag_constraints.xdc
+  add_files -fileset constrs_1 $fpgaDir/src/jtag_constraints.xdc
 } else {
   # Tie off JTAG inputs
   create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_0
@@ -294,7 +300,7 @@ update_compile_order -fileset sources_1
 set_property STEPS.WRITE_BITSTREAM.ARGS.BIN_FILE true [get_runs impl_1]
 
 # Add FPGA constraints
-add_files -fileset constrs_1 ./src/constraints.xdc
+add_files -fileset constrs_1 $fpgaDir/src/constraints.xdc
 
 # Start build
 if {$BUILD} {
