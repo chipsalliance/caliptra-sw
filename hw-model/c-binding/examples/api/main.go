@@ -11,7 +11,6 @@ import "C"
 
 import (
 	"fmt"
-	"unsafe"
 )
 
 func main() {
