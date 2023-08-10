@@ -23,9 +23,7 @@ Abstract:
 --*/
 use crate::{wait, CaliptraError, CaliptraResult};
 use caliptra_registers::csrng::CsrngReg;
-use caliptra_registers::entropy_src::{
-    regs::AlertFailCountsReadVal, EntropySrcReg,
-};
+use caliptra_registers::entropy_src::{self, regs::AlertFailCountsReadVal, EntropySrcReg};
 use core::{iter::FusedIterator, num::NonZeroUsize};
 
 // https://opentitan.org/book/hw/ip/csrng/doc/theory_of_operation.html#command-description
@@ -83,13 +81,13 @@ impl Csrng {
         const FALSE: u32 = MultiBitBool::False as u32;
         const TRUE: u32 = MultiBitBool::True as u32;
 
-        // Configure and enable entropy_src if needed.
-
         let mut result = Self { csrng, entropy_src };
-        let c = result.csrng.regs_mut();
         let e = result.entropy_src.regs_mut();
 
+        // Configure and enable entropy_src if needed.
         if e.module_enable().read().module_enable() == FALSE {
+            set_health_check_thresholds(e);
+
             e.conf().write(|w| {
                 w.fips_enable(TRUE)
                     .entropy_data_reg_enable(FALSE)
@@ -97,9 +95,10 @@ impl Csrng {
                     .rng_bit_enable(FALSE)
             });
             e.module_enable().write(|w| w.module_enable(TRUE));
-            const CONT_HT_RUNNING: u32 = 0x1a2;
-            wait::until(|| e.main_sm_state().read().main_sm_state() == CONT_HT_RUNNING);
+            check_for_alert_state(result.entropy_src.regs())?;
         }
+
+        let c = result.csrng.regs_mut();
 
         if c.ctrl().read().enable() == FALSE {
             c.ctrl()
@@ -136,6 +135,8 @@ impl Csrng {
     /// }
     /// ```
     pub fn generate(&mut self, num_words: NonZeroUsize) -> CaliptraResult<Iter> {
+        check_for_alert_state(self.entropy_src.regs())?;
+
         // Round up to nearest multiple of 128-bit block.
         let num_128_bit_blocks = (num_words.get() + 3) / 4;
         let num_words = num_128_bit_blocks * WORDS_PER_GENERATE_BLOCK;
@@ -157,7 +158,7 @@ impl Csrng {
     }
 
     /// Returns the number of failing health checks.
-    pub fn health_counts(&self) -> HealthFailCounts {
+    pub fn health_fail_counts(&self) -> HealthFailCounts {
         let e = self.entropy_src.regs();
 
         HealthFailCounts {
@@ -168,6 +169,42 @@ impl Csrng {
 
     pub fn uninstantiate(mut self) {
         let _ = send_command(&mut self.csrng, Command::Uninstantiate);
+    }
+}
+
+fn check_for_alert_state(
+    entropy_src: entropy_src::RegisterBlock<ureg::RealMmio>,
+) -> CaliptraResult<()> {
+    // https://opentitan.org/book/hw/ip/entropy_src/doc/theory_of_operation.html#main-state-machine-diagram
+    // https://github.com/chipsalliance/caliptra-rtl/blob/main/src/entropy_src/rtl/entropy_src_main_sm_pkg.sv
+    const ALERT_HANG: u32 = 0x15c;
+    const CONT_HT_RUNNING: u32 = 0x1a2;
+    const BOOT_PHASE_DONE: u32 = 0x8e;
+
+    loop {
+        match entropy_src.main_sm_state().read().main_sm_state() {
+            ALERT_HANG => {
+                let alert_counts = entropy_src.alert_fail_counts().read();
+
+                if alert_counts.repcnt_fail_count() > 0 {
+                    return Err(CaliptraError::DRIVER_CSRNG_REPCNT_HEALTH_CHECK_FAILED);
+                }
+
+                if alert_counts.adaptp_lo_fail_count() > 0
+                    || alert_counts.adaptp_hi_fail_count() > 0
+                {
+                    return Err(CaliptraError::DRIVER_CSRNG_ADAPTP_HEALTH_CHECK_FAILED);
+                }
+
+                return Err(CaliptraError::DRIVER_CSRNG_OTHER_HEALTH_CHECK_FAILED);
+            }
+
+            CONT_HT_RUNNING | BOOT_PHASE_DONE => {
+                return Ok(());
+            }
+
+            _ => (),
+        }
     }
 }
 
@@ -245,9 +282,9 @@ impl Drop for Iter<'_> {
 
 /// Contains counts of failing health checks.
 ///
-/// This struct is returned by the [`health_counts`] method on [`Csrng`].
+/// This struct is returned by the [`health_fail_counts`] function on [`Csrng`].
 ///
-/// [`health_counts`]: Csrng::health_counts
+/// [`health_fail_counts`]: Csrng::health_fail_counts
 pub struct HealthFailCounts {
     /// The total number of failing health check alerts.
     pub total: u32,
@@ -348,4 +385,59 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
             return Ok(());
         }
     }
+}
+
+fn set_health_check_thresholds(e: entropy_src::RegisterBlock<ureg::RealMmioMut>) {
+    // Configure thresholds for the two approved NIST health checks:
+    //  1. Repetition Count Test
+    //  2. Adaptive Proportion Test
+    //
+    // The Repetition Count test fails if:
+    //  * An RNG wire repeats the same bit THRESHOLD times in a row.
+    //
+    // We pick as our threshold a cutoff value C such that the probability that
+    // a C consecutive-run of the most likely bit is less than some "very small"
+    // probability. The idea is that a catastrophic failure in the entropy
+    // source would easily trip this threshold, but a healthy entropy source,
+    // over the course of normal operation, would "almost certainly" not.
+    //
+    // We calculate the cutoff value using the formula in 4.4.1 of NIST SP
+    // 800-90B:
+    //
+    // C = 1 + ceil(-lg(false_positive_probability) / min_entropy_estimate)
+    //
+    // where the false_positive_probability is 2^-40 (one false positive for
+    // every 128 GiB harvested).
+    // Therefore, C = 1 + ceil(40 / min_entropy_estimate)
+    //
+    // TODO: We need a min-entropy estimate of the physical source to calculate
+    // more accurate thresholds. For now, we'll use a min-entropy estimate of 1,
+    // which assumes that a '0' and '1' bit are equally likely to be produced by
+    // the itrng. Alternatively, parameterize thresholds in `Csrng::new()` and
+    // `Csrng::with_seed()`.
+    const REPETITION_COUNT_THRESHOLD: u32 = 41;
+
+    e.repcnt_thresholds()
+        .write(|w| w.fips_thresh(REPETITION_COUNT_THRESHOLD));
+
+    // The Adaptive Proportion test fails if:
+    //  * Any window has more than the HI threshold of 1's; or,
+    //  * Any window has less than the LO threshold of 1's.
+    //
+    // Given a window size W and a min-entropy estimate (H) of the physical
+    // source, we'd expect each window to have W/2^H of the most likely bit and
+    // W*(1 - 1/2^H) of the least likely bit.
+    //
+    // TODO: Adjust thresholds based on min-entropy. Since we don't have
+    // a min-entropy estimate or know which bit is most likely, we'll use a
+    // conservative 75% and 25% of the window size for the HI and LO thresholds
+    // respectively.
+    const TRNG_BITS_PER_CYCLE: u32 = 4;
+    let window_size_bits = e.health_test_windows().read().fips_window() * TRNG_BITS_PER_CYCLE;
+    let threshold_hi = 3 * (window_size_bits / 4);
+    let threshold_lo = window_size_bits / 4;
+    e.adaptp_hi_thresholds()
+        .write(|w| w.fips_thresh(threshold_hi));
+    e.adaptp_lo_thresholds()
+        .write(|w| w.fips_thresh(threshold_lo));
 }

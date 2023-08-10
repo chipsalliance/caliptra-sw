@@ -74,7 +74,7 @@ fn test_zero_health_fails() {
     let entropy_src_reg = unsafe { EntropySrcReg::new() };
 
     let csrng = Csrng::new(csrng_reg, entropy_src_reg).expect("construct CSRNG");
-    let counts = csrng.health_counts();
+    let counts = csrng.health_fail_counts();
     assert_eq!(counts.total, 0, "Expected zero total health check fails");
     assert_eq!(
         u32::from(counts.specific),

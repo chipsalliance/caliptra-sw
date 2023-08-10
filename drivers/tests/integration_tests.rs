@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use std::error::Error;
+use std::iter;
 
 use caliptra_builder::FwId;
 use caliptra_drivers_test_bin::DoeTestResults;
@@ -659,6 +660,49 @@ fn test_csrng2() {
     .unwrap();
 
     model.step_until_exit_success().unwrap();
+}
+
+#[test]
+#[cfg_attr(not(feature = "verilator"), ignore)]
+fn test_csrng_failing_health_checks() {
+    fn test(test_binary: &'static str, itrng_nibbles: Box<dyn Iterator<Item = u8>>) {
+        let rom = build_test_rom(test_binary);
+
+        let mut model = caliptra_hw_model::new(BootParams {
+            init_params: InitParams {
+                rom: &rom,
+                itrng_nibbles,
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .unwrap();
+
+        model.step_until_exit_success().unwrap();
+    }
+
+    // Tests for Repetition Count health check.
+    test("csrng_repcnt_tests", Box::new(iter::repeat(0b1111)));
+    test("csrng_repcnt_tests", Box::new(iter::repeat(0b0000)));
+    test("csrng_repcnt_tests", {
+        // The third bit is stuck at zero.
+        Box::new([0b1011, 0b1010, 0b1000, 0b0000].into_iter().cycle())
+    });
+
+    // Tests for Adaptive Proportion health check.
+    // Assumes the CSRNG configures the adaptive proportion's LO and HI
+    // thresholds to 25% and 75% of the FIPS health window size, i.e.,
+    // 512 and 1536 respectively for a 2048 bit window size.
+    test("csrng_adaptp_tests", {
+        // 80% of bits generated are 1's.
+        // Should trip HI threshold.
+        Box::new([0b1111, 0b1111, 0b1111, 0b1111, 0b0000].into_iter().cycle())
+    });
+    test("csrng_adaptp_tests", {
+        // 20% of bits generated are 1's.
+        // Should trip LO threshold.
+        Box::new([0b0000, 0b0000, 0b0000, 0b0000, 0b1111].into_iter().cycle())
+    });
 }
 
 #[test]
