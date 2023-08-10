@@ -27,7 +27,7 @@ func main() {
 	// Create a caliptra_buffer struct from a []byte
 	romData := []byte{0x01, 0x02, 0x03, 0x04, 0x05}
 	rom := C.caliptra_buffer{
-		data: (*C.uint8_t)(unsafe.Pointer(&romData[0])),
+		data: (*C.uint8_t)(unsafe.Pointer(romData[0])),
 		len:  C.uintptr_t(len(romData)),
 	}
 
