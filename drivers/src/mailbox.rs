@@ -18,6 +18,7 @@ use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_registers::mbox::MboxCsr;
 use core::cmp::min;
 use core::mem::size_of;
+use zerocopy::{AsBytes, LayoutVerified, Unalign};
 
 #[derive(Copy, Clone, Default, Eq, PartialEq)]
 /// Malbox operational states
@@ -302,35 +303,27 @@ impl<'a> MailboxTxFifo<'a> {
             _ => Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE),
         }
     }
+    pub fn copy_to_mbox(&mut self, buf: &[Unalign<u32>]) {
+        let mbox = self.mbox.regs_mut();
+        for word in buf {
+            mbox.datain().write(|_| word.get());
+        }
+    }
 
     /// Writes buf.len() bytes to the mailbox datain reg as dwords
     fn enqueue(&mut self, buf: &[u8]) -> CaliptraResult<()> {
-        let remainder = buf.len() % size_of::<u32>();
-        let n = buf.len() - remainder;
-
-        let mbox = self.mbox.regs_mut();
-
-        for idx in (0..n).step_by(size_of::<u32>()) {
-            let bytes = buf
-                .get(idx..idx + size_of::<u32>())
-                .ok_or(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR)?;
-            mbox.datain()
-                .write(|_| u32::from_le_bytes(bytes.try_into().unwrap()));
+        if self.mbox.regs().dlen().read() as usize != buf.len() {
+            return Err(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR);
         }
 
-        // Handle the remainder.
-        if remainder > 0 {
-            let mut block_part =
-                *buf.get(n)
-                    .ok_or(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR)? as u32;
-            for idx in 1..remainder {
-                block_part |= (*buf
-                    .get(n + idx)
-                    .ok_or(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR)?
-                    as u32)
-                    << (idx << 3);
-            }
-            mbox.datain().write(|_| block_part);
+        let (buf_words, suffix) =
+            LayoutVerified::new_slice_unaligned_from_prefix(buf, buf.len() / size_of::<u32>())
+                .unwrap();
+        self.copy_to_mbox(&buf_words);
+        if !suffix.is_empty() {
+            let mut last_word = 0_u32;
+            last_word.as_bytes_mut()[..suffix.len()].copy_from_slice(suffix);
+            self.copy_to_mbox(&[Unalign::new(last_word)]);
         }
 
         Ok(())
