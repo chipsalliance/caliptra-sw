@@ -247,8 +247,8 @@ pub fn make_basic_constraints_ext(ca: bool, path_len: u32) -> X509Extension {
 
 /// Make Key Usage Extension
 pub fn make_key_usage_ext(key_usage: KeyUsage) -> X509Extension {
-    let usage: Usage = key_usage.into();
-    usage.build().unwrap()
+    let mut usage: Usage = key_usage.into();
+    usage.critical().build().unwrap()
 }
 
 /// Make TCG UEID extension

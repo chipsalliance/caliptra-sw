@@ -1,5 +1,7 @@
 TARGET = hwmodel
 
+CROSS_COMPILE ?=
+
 .DEFAULT_GOAL = $(TARGET)
 
 LIBCALIPTRA_ROOT = ../../

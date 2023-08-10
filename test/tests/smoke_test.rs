@@ -222,7 +222,7 @@ fn smoke_test() {
 
     // To update the ldev cert testdata:
     // std::fs::write("tests/smoke_testdata/ldevid_cert.txt", &ldev_cert_txt).unwrap();
-    // std::fs::write("tests/smoke_testdata/ldevid_cert.der", &ldev_cert_der).unwrap();
+    // std::fs::write("tests/smoke_testdata/ldevid_cert.der", ldev_cert_der).unwrap();
 
     assert_eq!(
         ldev_cert_txt.as_str(),
