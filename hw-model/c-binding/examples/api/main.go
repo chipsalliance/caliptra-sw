@@ -66,9 +66,10 @@ func main() {
   a := C.greet(&me)
   fmt.Println(a);
 
+  // Create a caliptra_buffer struct
   var rom C.caliptra_buffer
   rom.data = C.CString("This is the ROM data.")
-  rom.len = C.uintptr_t(12)
+  rom.len = C.uint32(12)
 
   // Create a caliptra_model struct
   var model C.caliptra_model
