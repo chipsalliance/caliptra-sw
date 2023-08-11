@@ -6,6 +6,12 @@ package main
 // #include "caliptra_api.h"
 // #include "caliptra_fuses.h"
 // #include "caliptra_mbox.h"
+// #include <stdlib.h>
+// #include <stdio.h>
+// #include <stdint.h>
+// #include <string.h>
+// #include <errno.h>
+// #include <unistd.h>
 // extern int caliptra_mailbox_write_fifo(struct caliptra_model *model, struct caliptra_buffer *buffer);
 import "C"
 
