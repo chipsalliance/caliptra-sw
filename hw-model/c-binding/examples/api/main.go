@@ -6,6 +6,7 @@ package main
 // #include "caliptra_api.h"
 // #include "caliptra_fuses.h"
 // #include "caliptra_mbox.h"
+// #include "caliptra_model.h"
 // #include <stdlib.h>
 // #include <stdio.h>
 // #include <stdint.h>
