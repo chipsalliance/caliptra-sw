@@ -25,7 +25,7 @@ func read_file_or_die(path *C.char) C.struct_caliptra_buffer {
     // Open File in Read Only Mode
     fp := C.fopen(path, C.CString("r"))
     if fp == nil {
-        C.printf(C.CString("Cannot find file %s \n"), path)
+       // C.printf(C.CString("Cannot find file %s \n"), path)
         os.Exit(int(C.ENOENT))
     }
 
