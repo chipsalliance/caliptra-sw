@@ -55,17 +55,17 @@ Running Caliptra ROM ...
 pub extern "C" fn rom_entry() -> ! {
     cprintln!("{}", BANNER);
 
-    if !cfg!(feature = "no-cfi") {
-        cprintln!("[state] CFI Enabled");
-        CfiCounter::reset();
-    } else {
-        cprintln!("[state] CFI Disabled");
-    }
-
     let mut env = match unsafe { rom_env::RomEnv::new_from_registers() } {
         Ok(env) => env,
         Err(e) => handle_fatal_error(e.into()),
     };
+
+    if !cfg!(feature = "no-cfi") {
+        cprintln!("[state] CFI Enabled");
+        CfiCounter::reset(&mut env.trng);
+    } else {
+        cprintln!("[state] CFI Disabled");
+    }
 
     let _lifecyle = match env.soc_ifc.lifecycle() {
         caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",

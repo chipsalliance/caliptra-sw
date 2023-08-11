@@ -17,7 +17,7 @@ References:
 --*/
 
 use crate::cfi::{cfi_panic, CfiPanicInfo};
-use crate::xoshiro::{Xoshiro128, Xoshiro128Reg};
+use crate::xoshiro::Xoshiro128;
 #[cfg(not(feature = "cfi-test"))]
 use caliptra_common::memory_layout::{CFI_MASK_ORG, CFI_VAL_ORG};
 use core::default::Default;
@@ -67,14 +67,33 @@ impl Default for CfiInt {
     }
 }
 
+fn prng() -> &'static Xoshiro128 {
+    use caliptra_drivers::memory_layout::CFI_XO_S0_ORG;
+    if cfg!(feature = "cfi-test") {
+        static mut STATE: Xoshiro128 = Xoshiro128::new_unseeded();
+        unsafe { &STATE }
+    } else {
+        unsafe { Xoshiro128::from_address(CFI_XO_S0_ORG) }
+    }
+}
+
 /// CFI counter
 pub enum CfiCounter {}
 
 impl CfiCounter {
     /// Reset counter
     #[inline(never)]
-    pub fn reset() {
-        Xoshiro128::new(Xoshiro128Reg);
+    pub fn reset(trng: &mut caliptra_drivers::Trng) {
+        prng().seed_from_trng(trng);
+        Self::reset_internal();
+    }
+
+    #[cfg(feature = "cfi-test")]
+    pub fn reset_for_test() {
+        Self::reset_internal()
+    }
+
+    fn reset_internal() {
         Self::write(CfiInt::default());
     }
 
@@ -152,7 +171,7 @@ impl CfiCounter {
     pub fn delay() {
         #[cfg(all(target_arch = "riscv32", feature = "cfi", feature = "cfi-counter"))]
         unsafe {
-            let cycles = Xoshiro128::assume_init(Xoshiro128Reg).next() % 256;
+            let cycles = prng().next() % 256;
             let real_cyc = 1 + cycles / 2;
             core::arch::asm!(
                 "1:",

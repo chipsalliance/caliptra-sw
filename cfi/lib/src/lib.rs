@@ -17,4 +17,4 @@ mod xoshiro;
 
 pub use cfi::*;
 pub use cfi_ctr::{CfiCounter, CfiInt};
-pub use xoshiro::{Xoshiro128, Xoshiro128Reg};
+pub use xoshiro::Xoshiro128;
