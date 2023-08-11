@@ -24,12 +24,11 @@ Abstract:
 use crate::{wait, CaliptraError, CaliptraResult};
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::entropy_src::{self, regs::AlertFailCountsReadVal, EntropySrcReg};
-use core::{iter::FusedIterator, num::NonZeroUsize};
+use core::array;
 
 // https://opentitan.org/book/hw/ip/csrng/doc/theory_of_operation.html#command-description
 const MAX_SEED_WORDS: usize = 12;
-const MAX_GENERATE_BLOCKS: usize = 4096;
-const WORDS_PER_GENERATE_BLOCK: usize = 4;
+const WORDS_PER_BLOCK: usize = 4;
 
 /// A unique handle to the underlying CSRNG peripheral.
 pub struct Csrng {
@@ -111,9 +110,7 @@ impl Csrng {
         Ok(result)
     }
 
-    /// Returns an iterator over `num_words` random [`u32`]s.
-    ///
-    /// This function will round up to the nearest multiple of four words.
+    /// Return 12 randomly generated [`u32`]s.
     ///
     /// # Errors
     ///
@@ -124,29 +121,55 @@ impl Csrng {
     /// ```no_run
     /// let mut csrng = ...;
     ///
-    /// let num_words = NonZeroUsize::new(1).unwrap();
-    /// let mut random_words = csrng.generate(num_words)?;
-    ///
-    /// // Rounds up to nearest multiple of four.
-    /// assert_eq!(random_words.len(), 4);
+    /// let random_words: [u32; 12] = csrng.generate()?;
     ///
     /// for word in random_words {
     ///     // Do something with `word`.
     /// }
     /// ```
-    pub fn generate(&mut self, num_words: NonZeroUsize) -> CaliptraResult<Iter> {
+    pub fn generate12(&mut self) -> CaliptraResult<[u32; 12]> {
+        self.generate()
+    }
+
+    /// Return 16 randomly generated [`u32`]s.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the internal generate command fails.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// let mut csrng = ...;
+    ///
+    /// let random_words: [u32; 16] = csrng.generate()?;
+    ///
+    /// for word in random_words {
+    ///     // Do something with `word`.
+    /// }
+    /// ```
+    pub fn generate16(&mut self) -> CaliptraResult<[u32; 16]> {
+        self.generate()
+    }
+
+    fn generate<const N: usize>(&mut self) -> CaliptraResult<[u32; N]> {
         check_for_alert_state(self.entropy_src.regs())?;
 
-        // Round up to nearest multiple of 128-bit block.
-        let num_128_bit_blocks = (num_words.get() + 3) / 4;
-        let num_words = num_128_bit_blocks * WORDS_PER_GENERATE_BLOCK;
+        send_command(
+            &mut self.csrng,
+            Command::Generate {
+                num_128_bit_blocks: N / WORDS_PER_BLOCK,
+            },
+        )?;
 
-        send_command(&mut self.csrng, Command::Generate { num_128_bit_blocks })?;
+        Ok(array::from_fn(|i| {
+            if i % WORDS_PER_BLOCK == 0 {
+                // Wait for CSRNG to generate next block of words.
+                wait::until(|| self.csrng.regs().genbits_vld().read().genbits_vld());
+            }
 
-        Ok(Iter {
-            csrng: &mut self.csrng,
-            num_words_left: num_words,
-        })
+            self.csrng.regs().genbits().read()
+        }))
     }
 
     pub fn reseed(&mut self, seed: Seed) -> CaliptraResult<()> {
@@ -232,54 +255,6 @@ enum MultiBitBool {
     True = 6,
 }
 
-/// An iterator over random [`u32`]s.
-///
-/// This struct is created by the [`generate`] method on [`Csrng`].
-///
-/// [`generate`]: Csrng::generate
-pub struct Iter<'a> {
-    // It's not clear what reseeding or updating the CSRNG state would do
-    // to an existing generate request. Prevent these operations from happening
-    // concurrent to this iterator's life.
-    csrng: &'a mut CsrngReg,
-    num_words_left: usize,
-}
-
-impl Iterator for Iter<'_> {
-    type Item = u32;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let csrng = self.csrng.regs();
-        if self.num_words_left == 0 {
-            None
-        } else {
-            if self.num_words_left % WORDS_PER_GENERATE_BLOCK == 0 {
-                // Wait for CSRNG to generate next block of 4 words.
-                wait::until(|| csrng.genbits_vld().read().genbits_vld());
-            }
-
-            self.num_words_left -= 1;
-
-            Some(csrng.genbits().read())
-        }
-    }
-}
-
-impl ExactSizeIterator for Iter<'_> {
-    fn len(&self) -> usize {
-        self.num_words_left
-    }
-}
-
-impl FusedIterator for Iter<'_> {}
-
-impl Drop for Iter<'_> {
-    fn drop(&mut self) {
-        // Exhaust this generate request.
-        for _ in self {}
-    }
-}
-
 /// Contains counts of failing health checks.
 ///
 /// This struct is returned by the [`health_fail_counts`] function on [`Csrng`].
@@ -333,7 +308,7 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
             acmd = 3;
             clen = 0;
             flag0 = MultiBitBool::False;
-            glen = num_128_bit_blocks.min(MAX_GENERATE_BLOCKS);
+            glen = num_128_bit_blocks;
             extra_words = &[];
             err = CaliptraError::DRIVER_CSRNG_GENERATE;
         }
