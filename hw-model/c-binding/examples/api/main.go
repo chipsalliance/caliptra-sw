@@ -13,7 +13,6 @@ package main
 // #include <errno.h>
 // #include <unistd.h>
 // extern int caliptra_mailbox_write_fifo(struct caliptra_model *model, struct caliptra_buffer *buffer);
-// extern struct caliptra_fuses;
 import "C"
 
 import (
@@ -82,7 +81,7 @@ func main() {
     C.caliptra_model_step(model)
 
     // Step until ready for FW
-    for C.caliptra_model_ready_for_fw(model) == 0 {
+    for (C.caliptra_model_ready_for_fw(model)) {
         C.caliptra_model_step(model)
     }
 
