@@ -303,7 +303,8 @@ impl<'a> MailboxTxFifo<'a> {
             _ => Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE),
         }
     }
-    pub fn copy_to_mbox(&mut self, buf: &[Unalign<u32>]) {
+
+    fn enqueue_words(&mut self, buf: &[Unalign<u32>]) {
         let mbox = self.mbox.regs_mut();
         for word in buf {
             mbox.datain().write(|_| word.get());
@@ -319,11 +320,11 @@ impl<'a> MailboxTxFifo<'a> {
         let (buf_words, suffix) =
             LayoutVerified::new_slice_unaligned_from_prefix(buf, buf.len() / size_of::<u32>())
                 .unwrap();
-        self.copy_to_mbox(&buf_words);
+        self.enqueue_words(&buf_words);
         if !suffix.is_empty() {
             let mut last_word = 0_u32;
             last_word.as_bytes_mut()[..suffix.len()].copy_from_slice(suffix);
-            self.copy_to_mbox(&[Unalign::new(last_word)]);
+            self.enqueue_words(&[Unalign::new(last_word)]);
         }
 
         Ok(())
@@ -382,7 +383,7 @@ impl MailboxRecvTxn<'_> {
     }
 
     /// Writes number of bytes to data length register.
-    pub fn write_dlen(&mut self, dlen: u32) -> CaliptraResult<()> {
+    fn write_dlen(&mut self, dlen: u32) -> CaliptraResult<()> {
         if self.state != MailboxOpState::RdyForDlen {
             return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
         }
@@ -427,8 +428,7 @@ impl MailboxRecvTxn<'_> {
     ///
     pub fn recv_request(&mut self, data: &mut [u32]) -> CaliptraResult<()> {
         self.copy_request(data)?;
-        self.complete(true)?;
-        Ok(())
+        self.complete(true)
     }
 
     /// Sends `data.len()` bytes to the mailbox FIFO
@@ -442,18 +442,23 @@ impl MailboxRecvTxn<'_> {
     ///
     /// Status of Operation
     ///
-    pub fn copy_response(&mut self, data: &[u8]) -> CaliptraResult<()> {
+    fn copy_response(&mut self, data: &[u8]) -> CaliptraResult<()> {
         if self.state != MailboxOpState::Execute {
             return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
         }
 
-        self.state = MailboxOpState::RdyForDlen;
-        // Set dlen
-        self.write_dlen(data.len() as u32)?;
+        if !data.is_empty() {
+            self.state = MailboxOpState::RdyForDlen;
+            // Set dlen
+            self.write_dlen(data.len() as u32)?;
 
-        self.state = MailboxOpState::RdyForData;
-        // Copy the data
-        self.enqueue(data)
+            self.state = MailboxOpState::RdyForData;
+            // Copy the data
+            self.enqueue(data)
+        } else {
+            // Do not change state if no data was provided
+            Ok(())
+        }
     }
 
     /// Sends `data.len()` bytes to the mailbox FIFO.

@@ -451,14 +451,14 @@ fn test_mailbox_soc_to_uc() {
         );
     }
 
-    // Test response via copy_response
+    // Test 4 byte response with no request data
     {
         let resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
         assert_eq!(model.output().take(usize::MAX), "cmd: 0xa0000000\n");
-        assert_eq!(resp, [0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67]);
+        assert_eq!(resp, [0x12, 0x34, 0x56, 0x78]);
     }
 
-    // Test response via send_response and request data
+    // Test 2 byte response with request data
     {
         let resp = model
             .mailbox_execute(0xB000_0000, &[0x0f, 0x0e, 0x0d, 0x0c, 0x0b, 0xa])
@@ -471,6 +471,20 @@ fn test_mailbox_soc_to_uc() {
              buf: [0c0d0e0f, 00000a0b]\n"
         );
         assert_eq!(resp, [0x98, 0x76]);
+    }
+
+    // Test 9 byte reponse
+    {
+        let resp = model.mailbox_execute(0xC000_0000, &[]).unwrap().unwrap();
+        assert_eq!(model.output().take(usize::MAX), "cmd: 0xc0000000\n");
+        assert_eq!(resp, [0x0A, 0x0B, 0x0C, 0x0D, 0x05, 0x04, 0x03, 0x02, 0x01]);
+    }
+
+    // Test reponse with 0 bytes (still calls copy_response)
+    {
+        let resp = model.mailbox_execute(0xD000_0000, &[]).unwrap();
+        assert_eq!(model.output().take(usize::MAX), "cmd: 0xd0000000\n");
+        assert_eq!(resp, None);
     }
 }
 
