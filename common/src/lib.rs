@@ -8,6 +8,7 @@ pub mod crypto;
 pub mod dice;
 pub mod fuse;
 pub mod keyids;
+pub mod mailbox;
 pub mod pcr;
 pub mod wdt;
 

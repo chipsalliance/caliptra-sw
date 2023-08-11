@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::ImageOptions;
+use caliptra_common::mailbox::*;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{Fuses, HwModel, ModelError};
 
@@ -25,6 +26,28 @@ fn test_unknown_command_is_fatal() {
         CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND.into(),
         MAX_WAIT_CYCLES,
     );
+}
+
+#[test]
+fn test_reserved_commands() {
+    let (mut hw, image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    for &cmd in &[
+        MBOX_CMD_ID_RESERVED_O,
+        MBOX_CMD_ID_RESERVED_1,
+        MBOX_CMD_ID_RESERVED_2,
+    ] {
+        assert_eq!(
+            hw.mailbox_execute(cmd, &[]),
+            Err(ModelError::MailboxCmdFailed(0))
+        );
+    }
+
+    // Make sure we can still upload new firmware after the reserved
+    // commands.
+    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        .unwrap();
 }
 
 #[test]

@@ -19,7 +19,9 @@ use crate::{cprintln, verifier::RomImageVerificationEnv};
 use crate::{pcr, wdt};
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
-use caliptra_common::{cprint, memory_layout::MAN1_ORG, FuseLogEntryId, RomBootStatus::*};
+use caliptra_common::{
+    cprint, mailbox::*, memory_layout::MAN1_ORG, FuseLogEntryId, RomBootStatus::*,
+};
 use caliptra_drivers::*;
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier};
@@ -47,9 +49,6 @@ impl FwProcInfo {
 pub struct FirmwareProcessor {}
 
 impl FirmwareProcessor {
-    /// Download firmware mailbox command ID.
-    const MBOX_DOWNLOAD_FIRMWARE_CMD_ID: u32 = 0x46574C44;
-
     pub fn process(env: &mut RomEnv) -> CaliptraResult<FwProcInfo> {
         // Disable the watchdog timer during firmware download.
         wdt::stop_wdt(&mut env.soc_ifc);
@@ -131,30 +130,43 @@ impl FirmwareProcessor {
         cprint!("[afmc] Waiting for Image ");
         loop {
             if let Some(txn) = mbox.peek_recv() {
-                if txn.cmd() != Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID {
-                    cprintln!("Invalid command 0x{:08x} received", txn.cmd());
-                    txn.start_txn().complete(false)?;
-                    return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND);
+                match txn.cmd() {
+                    MBOX_CMD_ID_DOWNLOAD_FIRMWARE => {
+                        // Re-borrow mailbox to work around
+                        // https://github.com/rust-lang/rust/issues/54663
+                        let txn = mbox
+                            .peek_recv()
+                            .ok_or(CaliptraError::FW_PROC_MAILBOX_STATE_INCONSISTENT)?;
+
+                        // This is a download-firmware command; don't drop this, as
+                        // the transaction will be completed by either
+                        // handle_fatal_error() (on failure) or by a manual complete
+                        // call upon success.
+                        let txn = ManuallyDrop::new(txn.start_txn());
+                        if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
+                            cprintln!("Invalid Image of size {} bytes" txn.dlen());
+                            return Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE);
+                        }
+
+                        cprintln!("");
+                        cprintln!("[afmc] Received Image of size {} bytes" txn.dlen());
+                        report_boot_status(FwProcessorDownloadImageComplete.into());
+                        return Ok(txn);
+                    }
+                    MBOX_CMD_ID_RESERVED_O | MBOX_CMD_ID_RESERVED_1 | MBOX_CMD_ID_RESERVED_2 => {
+                        cprintln!("Reserved command 0x{:08x} received", txn.cmd());
+                        report_fw_error_non_fatal(
+                            CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND.into(),
+                        );
+                        txn.start_txn().complete(false)?;
+                        continue;
+                    }
+                    _ => {
+                        cprintln!("Invalid command 0x{:08x} received", txn.cmd());
+                        txn.start_txn().complete(false)?;
+                        return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND);
+                    }
                 }
-
-                // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
-                let txn = mbox
-                    .peek_recv()
-                    .ok_or(CaliptraError::FW_PROC_MAILBOX_STATE_INCONSISTENT)?;
-
-                // This is a download-firmware command; don't drop this, as the
-                // transaction will be completed by either handle_fatal_error() (on
-                // failure) or by a manual complete call upon success.
-                let txn = ManuallyDrop::new(txn.start_txn());
-                if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
-                    cprintln!("Invalid Image of size {} bytes" txn.dlen());
-                    return Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE);
-                }
-
-                cprintln!("");
-                cprintln!("[afmc] Received Image of size {} bytes" txn.dlen());
-                report_boot_status(FwProcessorDownloadImageComplete.into());
-                return Ok(txn);
             }
         }
     }
