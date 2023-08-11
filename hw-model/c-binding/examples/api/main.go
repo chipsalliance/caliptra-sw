@@ -19,9 +19,10 @@ import (
     "flag"
     "os"
     "unsafe"
+	"fmt"
 )
 
-func read_file_or_die(path *C.char) C.struct_caliptra_buffer {
+func read_file_or_die(path *C.char) C.caliptra_buffer {
     // Open File in Read Only Mode
     fp := C.fopen(path, C.CString("r"))
     if fp == nil {
@@ -29,7 +30,7 @@ func read_file_or_die(path *C.char) C.struct_caliptra_buffer {
         os.Exit(int(C.ENOENT))
     }
 
-    var buffer C.struct_caliptra_buffer
+    var buffer C.caliptra_buffer
 
     // Get File Size
     C.fseek(fp, 0, C.SEEK_END)
@@ -61,18 +62,18 @@ func main() {
     }
 
     // Initialize Params
-    initParams := C.struct_caliptra_model_init_params{
+    initParams := C.caliptra_model_init_params{
         rom: read_file_or_die(C.CString(*romPath)),
-        dccm: C.struct_caliptra_buffer{data: nil, len: 0},
-        iccm: C.struct_caliptra_buffer{data: nil, len: 0},
+        dccm: C.caliptra_buffer{data: nil, len: 0},
+        iccm: C.caliptra_buffer{data: nil, len: 0},
     }
 
     // Initialize Model
-    var model *C.struct_caliptra_model
+    var model *C.caliptra_model
     C.caliptra_model_init_default(initParams, &model)
 
     // Initialize Fuses (Todo: Set real fuse values)
-    var fuses C.struct_caliptra_fuses
+    var fuses C.caliptra_fuses
     C.caliptra_init_fuses(model, &fuses)
 
     // Initialize FSM GO
@@ -90,7 +91,7 @@ func main() {
 
     // Run Until RT is ready to receive commands
     for {
-        C.caliptra_model_step(model)
+    C.caliptra_model_step(model)
         buffer := C.caliptra_model_output_peek(model)
         if C.strstr(buffer.data, C.CString("Caliptra RT listening for mailbox commands...")) != nil {
             break
