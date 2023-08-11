@@ -13,6 +13,7 @@ package main
 // #include <errno.h>
 // #include <unistd.h>
 // extern int caliptra_mailbox_write_fifo(struct caliptra_model *model, struct caliptra_buffer *buffer);
+// extern struct caliptra_fuses fuses;
 import "C"
 
 import (
@@ -73,7 +74,7 @@ func main() {
     C.caliptra_model_init_default(initParams, &model)
 
     // Initialize Fuses (Todo: Set real fuse values)
-    var fuses C.caliptra_fuses
+    //var fuses C.caliptra_fuses
     C.caliptra_init_fuses(model, &fuses)
 
     // Initialize FSM GO
