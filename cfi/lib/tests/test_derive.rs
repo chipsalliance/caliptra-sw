@@ -9,7 +9,7 @@ File Name:
 --*/
 
 use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
-use caliptra_cfi_lib::{CfiCounter, Xoshiro128, Xoshiro128Reg};
+use caliptra_cfi_lib::{CfiCounter, Xoshiro128};
 
 #[cfi_mod_fn]
 fn test1<T>(val: T) -> T {
@@ -57,7 +57,7 @@ fn test_with_not_initialized_counter() {
 
 #[test]
 fn test_with_initialized_counter() {
-    CfiCounter::reset();
+    CfiCounter::reset_for_test();
     assert_eq!(test1(10), 10);
 
     assert_eq!(Test::test1(10), 10);
@@ -67,25 +67,7 @@ fn test_with_initialized_counter() {
 }
 
 #[test]
-fn test_rand_seed_read_write() {
-    let reg = Xoshiro128Reg;
-    reg.set_s0(1);
-    assert_eq!(reg.s0(), 1);
-
-    reg.set_s1(2);
-    assert_eq!(reg.s1(), 2);
-
-    reg.set_s2(3);
-    assert_eq!(reg.s2(), 3);
-
-    reg.set_s3(4);
-    assert_eq!(reg.s3(), 4);
-}
-
-#[test]
 fn test_rand() {
-    let reg = Xoshiro128Reg;
-
     // Expected random numbers generated from a modified implementation of:
     // https://github.com/dotnet/runtime/blob/main/src/libraries/System.Private.CoreLib/src/System/Random.Xoshiro128StarStarImpl.cs
     let expected_rand_num: [u32; 20] = [
@@ -93,26 +75,16 @@ fn test_rand() {
         4258142804, 337829053, 2142557243, 3576906021, 2006103318, 3870238204, 1001584594,
         3804789018, 2299676403, 3571406116, 2962224741,
     ];
-    reg.set_s0(1);
-    reg.set_s1(2);
-    reg.set_s2(3);
-    reg.set_s3(4);
+    let prng = Xoshiro128::new_with_seed(1, 2, 3, 4);
     for expected_rand_num in expected_rand_num.iter() {
-        assert_eq!(
-            Xoshiro128::assume_init(Xoshiro128Reg).next(),
-            *expected_rand_num
-        );
+        assert_eq!(prng.next(), *expected_rand_num);
     }
 }
 
 #[test]
 fn test_rand_stress() {
-    let reg = Xoshiro128Reg;
-    reg.set_s0(1);
-    reg.set_s1(2);
-    reg.set_s2(3);
-    reg.set_s3(4);
+    let prng = Xoshiro128::new_with_seed(1, 2, 3, 4);
     for _idx in 0..1000 {
-        let _ = Xoshiro128::assume_init(Xoshiro128Reg).next();
+        prng.next();
     }
 }
