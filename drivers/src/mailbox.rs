@@ -177,15 +177,11 @@ impl MailboxSendTxn<'_> {
         self.write_dlen(data.len() as u32)?;
 
         // Copy data to mailbox
-        self.enqueue(data)?;
+        fifo::enqueue(self.mbox, data)?;
 
         self.state = MailboxOpState::RdyForData;
 
         Ok(())
-    }
-
-    fn enqueue(&mut self, buf: &[u8]) -> CaliptraResult<()> {
-        MailboxTxFifo::try_enqueue(self.mbox, buf)
     }
 
     ///
@@ -288,43 +284,30 @@ impl<'a> MailboxRecvPeek<'a> {
 }
 
 /// Mailbox Fifo abstraction
-pub struct MailboxTxFifo<'a> {
-    mbox: &'a mut MboxCsr,
-}
+mod fifo {
+    use super::*;
 
-impl<'a> MailboxTxFifo<'a> {
-    pub fn try_enqueue(mbox: &'a mut MboxCsr, buf: &[u8]) -> CaliptraResult<()> {
-        let mbox_regs = mbox.regs();
-        match mbox_regs.status().read().mbox_fsm_ps() {
-            MboxFsmE::MboxRdyForData | MboxFsmE::MboxExecuteUc => {
-                let mut fifo = MailboxTxFifo { mbox };
-                fifo.enqueue(buf)
-            }
-            _ => Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE),
-        }
-    }
-
-    fn enqueue_words(&mut self, buf: &[Unalign<u32>]) {
-        let mbox = self.mbox.regs_mut();
+    fn enqueue_words(mbox: &mut MboxCsr, buf: &[Unalign<u32>]) {
+        let mbox = mbox.regs_mut();
         for word in buf {
             mbox.datain().write(|_| word.get());
         }
     }
 
     /// Writes buf.len() bytes to the mailbox datain reg as dwords
-    fn enqueue(&mut self, buf: &[u8]) -> CaliptraResult<()> {
-        if self.mbox.regs().dlen().read() as usize != buf.len() {
+    pub fn enqueue(mbox: &mut MboxCsr, buf: &[u8]) -> CaliptraResult<()> {
+        if mbox.regs().dlen().read() as usize != buf.len() {
             return Err(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR);
         }
 
         let (buf_words, suffix) =
             LayoutVerified::new_slice_unaligned_from_prefix(buf, buf.len() / size_of::<u32>())
                 .unwrap();
-        self.enqueue_words(&buf_words);
+        enqueue_words(mbox, &buf_words);
         if !suffix.is_empty() {
             let mut last_word = 0_u32;
             last_word.as_bytes_mut()[..suffix.len()].copy_from_slice(suffix);
-            self.enqueue_words(&[Unalign::new(last_word)]);
+            enqueue_words(mbox, &[Unalign::new(last_word)]);
         }
 
         Ok(())
@@ -375,11 +358,6 @@ impl MailboxRecvTxn<'_> {
         }
 
         Ok(())
-    }
-
-    /// Writes buf.len() bytes to the mailbox datain reg as dwords
-    fn enqueue(&mut self, buf: &[u8]) -> CaliptraResult<()> {
-        MailboxTxFifo::try_enqueue(self.mbox, buf)
     }
 
     /// Writes number of bytes to data length register.
@@ -454,7 +432,7 @@ impl MailboxRecvTxn<'_> {
 
             self.state = MailboxOpState::RdyForData;
             // Copy the data
-            self.enqueue(data)
+            fifo::enqueue(self.mbox, data)
         } else {
             // Do not change state if no data was provided
             Ok(())
