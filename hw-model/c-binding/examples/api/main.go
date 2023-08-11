@@ -25,7 +25,7 @@ func read_file_or_die(path *C.char) C.struct_caliptra_buffer {
     // Open File in Read Only Mode
     fp := C.fopen(path, C.CString("r"))
     if fp == nil {
-       // C.printf(C.CString("Cannot find file %s \n"), path)
+        fmt.Printf("Cannot find file %s \n", path)
         os.Exit(int(C.ENOENT))
     }
 
@@ -39,7 +39,7 @@ func read_file_or_die(path *C.char) C.struct_caliptra_buffer {
     // Allocate Buffer Memory
     buffer.data = C.malloc(C.size_t(buffer.len))
     if buffer.data == nil {
-        C.printf(C.CString("Cannot allocate memory for buffer->data \n"))
+        fmt.Println("Cannot allocate memory for buffer->data \n")
         os.Exit(int(C.ENOMEM))
     }
 
@@ -96,5 +96,5 @@ func main() {
             break
         }
     }
-    C.printf(C.CString("Caliptra C Smoke Test Passed \n"))
+    fmt.Println("Caliptra C Smoke Test Passed \n")
 }
