@@ -12,7 +12,7 @@ enum DeviceLifecycle {
     Production = 3,
 };
 
-extern struct caliptra_fuses {
+struct caliptra_fuses {
     uint32_t uds_seed[12];
     uint32_t field_entropy[8];
     uint32_t key_manifest_pk_hash[12];
