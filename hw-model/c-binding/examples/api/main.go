@@ -34,11 +34,11 @@ func read_file_or_die(path *C.char) C.caliptra_buffer {
 
     // Get File Size
     C.fseek(fp, 0, C.SEEK_END)
-    buffer.len = C.ftell(fp)
+    buffer.len = C.ulong(C.ftell(fp))
     C.fseek(fp, 0, C.SEEK_SET)
 
     // Allocate Buffer Memory
-    buffer.data = C.malloc(C.size_t(buffer.len))
+    buffer.data = (*C.uchar)(C.malloc(C.size_t(buffer.len)))
     if buffer.data == nil {
         fmt.Println("Cannot allocate memory for buffer->data \n")
         os.Exit(int(C.ENOMEM))
@@ -93,7 +93,7 @@ func main() {
     for {
     C.caliptra_model_step(model)
         buffer := C.caliptra_model_output_peek(model)
-        if C.strstr(buffer.data, C.CString("Caliptra RT listening for mailbox commands...")) != nil {
+        if C.strstr((*C.char)(buffer.data), C.CString("Caliptra RT listening for mailbox commands...")) != nil {
             break
         }
     }
