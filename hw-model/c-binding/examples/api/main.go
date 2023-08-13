@@ -93,7 +93,7 @@ func main() {
     for {
     C.caliptra_model_step(model)
         buffer := C.caliptra_model_output_peek(model)
-        if C.strstr((*C.char)(buffer.data), C.CString("Caliptra RT listening for mailbox commands...")) != nil {
+        if C.strstr((*C.char)(unsafe.Pointer(buffer.data)), C.CString("Caliptra RT listening for mailbox commands...")) != nil {
             break
         }
     }
