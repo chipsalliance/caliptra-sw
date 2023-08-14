@@ -62,6 +62,7 @@ unsafe fn copy_16words(dest: *mut u32, val: *const u32) {
         tmp1 = out(reg) _,
         tmp2 = out(reg) _,
         tmp3 = out(reg) _,
+        options(nostack),
     );
 }
 
@@ -98,6 +99,7 @@ unsafe fn copy_12words(dest: *mut u32, val: *const u32) {
         tmp1 = out(reg) _,
         tmp2 = out(reg) _,
         tmp3 = out(reg) _,
+        options(nostack),
     );
 }
 
