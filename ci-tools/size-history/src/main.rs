@@ -118,6 +118,7 @@ fn real_main() -> io::Result<()> {
             commit.id, commit.title
         );
         worktree.checkout(&commit.id)?;
+        worktree.submodule_update()?;
 
         let sizes = match compute_size(
             &worktree,
