@@ -94,7 +94,7 @@ func main() {
     C.caliptra_model_step(model)
         buffer := C.caliptra_model_output_peek(model)
         if C.strstr((*C.char)(unsafe.Pointer(buffer.data)), C.CString("Caliptra RT listening for mailbox commands...")) != nil {
-            const C.uint32_t Get_PROFILE_OPCODE = 0x020446574C4404
+            const C.uint32_t Get_PROFILE_OPCODE = 0x020446574C4404;
             C.caliptra_mailbox_execute(model,Get_PROFILE_OPCODE, &imageBundle, nil)
             break
         }
