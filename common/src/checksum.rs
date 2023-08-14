@@ -16,7 +16,7 @@ pub fn calc_checksum(cmd: u32, data: &[u8]) -> i32 {
         checksum += *d as i32;
     }
 
-    checksum
+    0 - checksum
 }
 
 #[cfg(all(test, target_family = "unix"))]

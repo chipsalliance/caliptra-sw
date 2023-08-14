@@ -287,6 +287,7 @@ impl CaliptraError {
     pub const FW_PROC_MANIFEST_READ_FAILURE: CaliptraError = CaliptraError::new(0x01020001);
     pub const FW_PROC_INVALID_IMAGE_SIZE: CaliptraError = CaliptraError::new(0x01020002);
     pub const FW_PROC_MAILBOX_STATE_INCONSISTENT: CaliptraError = CaliptraError::new(0x01020003);
+    pub const FW_PROC_MAILBOX_INVALID_COMMAND: CaliptraError = CaliptraError::new(0x01020004);
 
     /// FMC Alias Layer : Certificate Verification Failure.
     pub const FMC_ALIAS_CERT_VERIFY: CaliptraError = CaliptraError::new(0x01030001);
@@ -321,6 +322,9 @@ impl CaliptraError {
     pub const ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE: CaliptraError =
         CaliptraError::new(0x0105000A);
 
+    pub const ROM_GLOBAL_VAL_ROM_IN_PRODUCTION: CaliptraError =
+        CaliptraError::new_const(0x0105000A);
+
     /// ROM KAT Errors
     pub const ROM_KAT_SHA256_DIGEST_FAILURE: CaliptraError = CaliptraError::new(0x90010001);
     pub const ROM_KAT_SHA256_DIGEST_MISMATCH: CaliptraError = CaliptraError::new(0x90010002);
@@ -349,7 +353,7 @@ impl CaliptraError {
     pub const ROM_KAT_LMS_DIGEST_MISMATCH: CaliptraError = CaliptraError::new(0x90070002);
 }
 
-impl From<core::num::NonZeroU32> for crate::CaliptraError {
+impl From<core::num::NonZeroU32> for crate::CaliptraError { error/src/lib.rs 
     fn from(val: core::num::NonZeroU32) -> Self {
         crate::CaliptraError(val)
     }
