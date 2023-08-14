@@ -168,7 +168,7 @@ impl LocalDevIdLayer {
         // Generate the `To Be Signed` portion of the CSR
         let tbs = LocalDevIdCertTbs::new(&params);
 
-        // Sign the the `To Be Signed` portion
+        // Sign the `To Be Signed` portion
         cprintln!(
             "[ldev] Signing Cert with AUTHORITY.KEYID = {}",
             auth_priv_key as u8
@@ -177,8 +177,6 @@ impl LocalDevIdLayer {
         let sig = okmutref(&mut sig)?;
 
         // Clear the authority private key
-        //To-Do : Disabling The Print Temporarily
-        //cprintln!("[ldev] Erasing AUTHORITY.KEYID = {}", auth_priv_key as u8);
         env.key_vault.erase_key(auth_priv_key)?;
 
         let _pub_x: [u8; 48] = (&pub_key.x).into();
@@ -196,7 +194,7 @@ impl LocalDevIdLayer {
         env.data_vault.set_ldev_dice_signature(sig);
         sig.zeroize();
 
-        // Lock the Local Device ID public keys in data vault until
+        // Lock the Local Device ID public key in data vault until
         // cold reset
         env.data_vault.set_ldev_dice_pub_key(pub_key);
 

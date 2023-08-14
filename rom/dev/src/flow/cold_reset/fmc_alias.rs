@@ -52,7 +52,7 @@ impl FmcAliasLayer {
         // We use the value of PCR0 as the measurement for deriving the CDI.
         let mut measurement = env.pcr_bank.read_pcr(PCR_ID_FMC_CURRENT);
 
-        // Derive the DICE CDI from decrypted UDS
+        // Derive the DICE CDI from the measurement
         let result = Self::derive_cdi(env, &measurement, KEY_ID_ROM_FMC_CDI);
         measurement.0.fill(0);
         result?;
