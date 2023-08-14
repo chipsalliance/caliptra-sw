@@ -62,6 +62,16 @@ pub struct WorkTree<'a> {
 impl<'a> WorkTree<'a> {
     pub fn new(path: &'a Path) -> io::Result<Self> {
         run_cmd(Command::new("git").arg("worktree").arg("add").arg(path))?;
+
+        // See `checkout` for why this is necessary
+        run_cmd(
+            Command::new("git")
+                .current_dir(path)
+                .arg("config")
+                .arg("submodule.recurse")
+                .arg("false"),
+        )?;
+
         Ok(Self { path })
     }
 
@@ -94,9 +104,29 @@ impl<'a> WorkTree<'a> {
             Command::new("git")
                 .current_dir(self.path)
                 .arg("checkout")
-                .arg("--no-recurse-submodule")
                 .arg("--quiet")
                 .arg(commit_id),
+            None,
+        )?;
+
+        // Manually update the DPE submodule
+        // If submodules changes path locations (are are deleted) in subsequent
+        // commits (as is the case with DPE),
+        // `git submodule --recurse-submodules` fails. Thi is because the
+        // submodule was not initialized, so when the commit with the deleted
+        // submodule is checked out, git does not think it is a submoudule and
+        // the checkout fails.
+        //
+        // Instead, first checkout the commit and then update the submodules.
+        // They must must be initialized each time because new submodules will
+        // come up (the deleted ones).
+        run_cmd_stdout(
+            Command::new("git")
+                .current_dir(self.path)
+                .arg("submodule")
+                .arg("update")
+                .arg("--recursive")
+                .arg("--init"),
             None,
         )?;
         Ok(())
@@ -183,6 +213,8 @@ impl Drop for WorkTree<'_> {
             Command::new("git")
                 .arg("worktree")
                 .arg("remove")
+                // Worktree must be force removed because it contains submodules
+                .arg("--force")
                 .arg(self.path),
         );
     }
