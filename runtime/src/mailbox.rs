@@ -40,6 +40,11 @@ impl Mailbox {
         mbox.cmd().read()
     }
 
+    pub fn user(&self) -> u32 {
+        let mbox = self.mbox.regs();
+        mbox.user().read()
+    }
+
     pub fn copy_from_mbox(&mut self, buf: &mut [u32]) {
         let mbox = self.mbox.regs_mut();
         for word in buf {
