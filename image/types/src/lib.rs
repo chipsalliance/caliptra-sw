@@ -50,6 +50,7 @@ pub type ImageEccPrivKey = ImageScalar;
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageEccPubKey {
     /// X Coordinate
     pub x: ImageScalar,
@@ -63,6 +64,7 @@ pub type ImageLmsPrivKey = LmsPrivateKey<SHA192_DIGEST_WORD_SIZE>;
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageEccSignature {
     /// Random point
     pub r: ImageScalar,
@@ -128,6 +130,7 @@ impl ImageBundle {
 /// Calipatra Image Manifest
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Clone, Copy, Debug)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageManifest {
     /// Marker
     pub marker: u32,
@@ -211,6 +214,7 @@ impl ImageManifest {
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageVendorPubKeys {
     pub ecc_pub_keys: [ImageEccPubKey; VENDOR_ECC_KEY_COUNT as usize],
     pub lms_pub_keys: [ImageLmsPublicKey; VENDOR_LMS_KEY_COUNT as usize],
@@ -225,6 +229,7 @@ pub struct ImageVendorPrivKeys {
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageOwnerPubKeys {
     pub ecc_pub_key: ImageEccPubKey,
     pub lms_pub_key: ImageLmsPublicKey,
@@ -239,6 +244,7 @@ pub struct ImageOwnerPrivKeys {
 
 #[repr(C)]
 #[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageSignatures {
     pub ecc_sig: ImageEccSignature,
     pub lms_sig: ImageLmsSignature,
@@ -247,6 +253,7 @@ pub struct ImageSignatures {
 /// Calipatra Image Bundle Preamble
 #[repr(C)]
 #[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImagePreamble {
     /// Vendor  Public Keys
     pub vendor_pub_keys: ImageVendorPubKeys,
@@ -271,6 +278,7 @@ pub struct ImagePreamble {
 
 #[repr(C)]
 #[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct VendorSignedData {
     /// Vendor Start Date [ASN1 Time Format] For LDEV-Id certificate.
     pub vendor_not_before: [u8; 15],
@@ -283,6 +291,7 @@ pub struct VendorSignedData {
 
 #[repr(C)]
 #[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct OwnerSignedData {
     /// Owner Start Date [ASN1 Time Format] For LDEV-Id certificate: Takes Preference over vendor start date
     pub owner_not_before: [u8; 15],
@@ -296,6 +305,7 @@ pub struct OwnerSignedData {
 /// Caliptra Image header
 #[repr(C)]
 #[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageHeader {
     /// Revision
     pub revision: [u32; 2],
@@ -359,6 +369,7 @@ impl From<ImageTocEntryId> for u32 {
 /// Caliptra Table of contents entry
 #[repr(C)]
 #[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageTocEntry {
     /// ID
     pub id: u32,
