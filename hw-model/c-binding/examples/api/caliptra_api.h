@@ -14,6 +14,8 @@ int caliptra_bootfsm_go(struct caliptra_model *model);
 // Upload Caliptra Firmware
 int caliptra_upload_fw(struct caliptra_model *model, struct caliptra_buffer *fw_buffer);
 
+int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *fw_buffer);
+
 // Execute Mailbox Command
 int caliptra_mailbox_execute(struct caliptra_model *model, uint32_t cmd, struct caliptra_buffer *mbox_tx_buffer, struct caliptra_buffer *mbox_rx_buffer);
 

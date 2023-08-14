@@ -191,3 +191,9 @@ int caliptra_upload_fw(struct caliptra_model *model, struct caliptra_buffer *fw_
     const uint32_t FW_LOAD_CMD_OPCODE = 0x46574C44u;
     return caliptra_mailbox_execute(model, FW_LOAD_CMD_OPCODE, fw_buffer, NULL);
 }
+
+int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *fw_buffer)
+{
+    const uint32_t GET_PROFILE_OPCODE = 0x020446574C4404;
+    return caliptra_mailbox_execute(model,GET_PROFILE_OPCODE, fw_buffer, NULL);
+}
