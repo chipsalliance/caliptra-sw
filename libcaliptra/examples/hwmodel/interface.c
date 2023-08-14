@@ -55,6 +55,7 @@ struct caliptra_model* hwmod_get_or_init(void)
 {
     const char *rom_path = ROM_PATH;
     const char *fw_path = FW_PATH;
+
     static struct caliptra_model *model = NULL;
 
     if (model == NULL)
@@ -68,9 +69,21 @@ struct caliptra_model* hwmod_get_or_init(void)
           .iccm = {.data = NULL, .len = 0},
         };
 
+        int status = caliptra_model_init_default(init_params, &model);
+
         image_bundle = (struct caliptra_buffer)read_file_or_exit(fw_path);
 
-        int status = caliptra_model_init_default(init_params, &model);
+        if (image_bundle.data == NULL)
+        {
+            return NULL;
+        }
+
+        struct caliptra_image_manifest *image = (struct caliptra_image_manifest *)image_bundle.data;
+
+        if (status = set_fuses(image))
+        {
+            return NULL;
+        }
     }
 
     return model;

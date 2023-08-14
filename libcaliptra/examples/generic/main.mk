@@ -10,6 +10,8 @@ LIBCALIPTRA_INC  = $(LIBCALIPTRA_ROOT)/inc
 
 OBJS := $(patsubst %.c,%.o, $(filter %.c,$(SOURCE)))
 
+CFLAGS += -lssl -lcrypto
+
 # SOC REFERENCE
 RTL_SOC_IFC_INCLUDE_PATH = ../../../hw-latest/caliptra-rtl/src/soc_ifc/rtl
 
