@@ -11,7 +11,7 @@ on:
 
 jobs:
   build_and_test:
-    runs-on: ubuntu-20.04
+    runs-on: [e2-standard-2]
 
     env:
       RUST_TOOLCHAIN_VERSION: 1.68.0
