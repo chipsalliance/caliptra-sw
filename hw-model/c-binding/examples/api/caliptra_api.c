@@ -159,9 +159,13 @@ int caliptra_mailbox_execute(struct caliptra_model *model, uint32_t cmd, struct 
     uint32_t status = caliptra_mbox_read_status(model);
     if (status == CALIPTRA_MBOX_STATUS_CMD_FAILURE) {
         caliptra_mbox_write_execute(model, false);
+            printf("******************************Mailbox1\n");
+    fflush(stdout);
         return -EIO;
     } else if(status == CALIPTRA_MBOX_STATUS_CMD_COMPLETE) {
         caliptra_mbox_write_execute(model, false);
+                printf("******************************Mailbox2\n");
+    fflush(stdout);
         return 0;
     } else if (status != CALIPTRA_MBOX_STATUS_DATA_READY) {
         return -EIO;
