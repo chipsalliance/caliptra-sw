@@ -198,6 +198,12 @@ int caliptra_upload_fw(struct caliptra_model *model, struct caliptra_buffer *fw_
 
 int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *fw_buffer)
 {
-    const uint32_t GET_PROFILE_OPCODE = 0x20u;
-    return caliptra_mailbox_execute(model,GET_PROFILE_OPCODE, fw_buffer, NULL);
+    const uint32_t GET_PROFILE_OPCODE = 0x44504543u;
+    uint32_t status;
+    int mStatus;
+    const uint32_t error_code = 0x3003000c;
+    mStatus = caliptra_mailbox_execute(model,GET_PROFILE_OPCODE, fw_buffer, NULL);
+    caliptra_read_u32(error_code, &status);
+    printf("%s",status);
+    return mStatus;
 }
