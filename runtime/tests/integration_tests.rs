@@ -78,6 +78,13 @@ fn test_boot() {
 }
 
 #[test]
+fn test_keyvault() {
+    let mut model = run_rt_test(Some("keyvault"));
+
+    model.step_until_exit_success().unwrap();
+}
+
+#[test]
 fn test_rom_certs() {
     let mut model = run_rt_test(Some("cert"));
 
@@ -184,6 +191,32 @@ fn test_invoke_dpe_get_profile_cmd() {
     assert_eq!(profile.vendor_id, VENDOR_ID);
     assert_eq!(profile.vendor_sku, VENDOR_SKU);
     assert_eq!(profile.flags, DPE_SUPPORT.get_flags());
+}
+
+#[test]
+fn test_disable_attestation_cmd() {
+    let mut model = run_rt_test(None);
+
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::DISABLE_ATTESTATION),
+            &[],
+        ),
+    };
+    // once DPE APIs are enabled, ensure that the RT alias key in the cert is different from the key that signs DPE certs
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::DISABLE_ATTESTATION),
+            payload.as_bytes(),
+        )
+        .unwrap()
+        .unwrap();
+
+    let resp_hdr = MailboxRespHeader::read_from(resp.as_bytes()).unwrap();
+    assert_eq!(
+        resp_hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
 }
 
 #[test]

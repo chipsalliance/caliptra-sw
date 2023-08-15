@@ -15,6 +15,7 @@ impl CommandId {
     pub const ECDSA384_VERIFY: Self = Self(0x53494756); // "SIGV"
     pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
     pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
+    pub const DISABLE_ATTESTATION: Self = Self(0x4453424C); // "DSBL"
     pub const FW_INFO: Self = Self(0x494E464F); // "INFO"
 
     // TODO: Remove this and merge with GET_LDEV_CERT once that is implemented
