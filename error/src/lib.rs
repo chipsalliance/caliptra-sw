@@ -291,6 +291,8 @@ impl CaliptraError {
     pub const RUNTIME_HMAC_VERIFY_FAILED: CaliptraError = CaliptraError::new_const(0x000E000E);
     pub const RUNTIME_INVOKE_DPE_FAILED: CaliptraError = CaliptraError::new_const(0x000E000F);
     pub const RUNTIME_INITIALIZE_DPE_FAILED: CaliptraError = CaliptraError::new_const(0x000E0010);
+    pub const RUNTIME_DISABLE_ATTESTATION_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E0011);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
