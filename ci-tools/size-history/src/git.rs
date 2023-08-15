@@ -101,6 +101,16 @@ impl<'a> WorkTree<'a> {
         )?;
         Ok(())
     }
+    pub fn submodule_update(&self) -> io::Result<()> {
+        run_cmd_stdout(
+            Command::new("git")
+                .current_dir(self.path)
+                .arg("submodule")
+                .arg("update"),
+            None,
+        )?;
+        Ok(())
+    }
     pub fn head_commit_id(&self) -> io::Result<String> {
         Ok(to_utf8(run_cmd_stdout(
             Command::new("git")

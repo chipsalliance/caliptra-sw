@@ -27,6 +27,7 @@ use crate::flow::cold_reset::fw_processor::FirmwareProcessor;
 use crate::flow::cold_reset::idev_id::InitDevIdLayer;
 use crate::flow::cold_reset::ldev_id::LocalDevIdLayer;
 use crate::{cprintln, rom_env::RomEnv};
+use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_common::RomBootStatus::*;
 use caliptra_common::{
     memory_layout::{FMCALIAS_TBS_ORG, FMCALIAS_TBS_SIZE, LDEVID_TBS_ORG, LDEVID_TBS_SIZE},
@@ -48,6 +49,7 @@ impl ColdResetFlow {
     ///
     /// * `env` - ROM Environment
     #[inline(never)]
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
         cprintln!("[cold-reset] ++");
         report_boot_status(ColdResetStarted.into());
@@ -86,6 +88,7 @@ impl ColdResetFlow {
 ///
 /// # Returns
 ///     CaliptraResult
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub fn copy_tbs(tbs: &[u8], tbs_type: TbsType, env: &mut RomEnv) -> CaliptraResult<()> {
     let dst = match tbs_type {
         TbsType::LdevidTbs => {

@@ -86,6 +86,7 @@ bloat: build
 	 cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		bloat \
+		--bin caliptra-rom \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \

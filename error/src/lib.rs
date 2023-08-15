@@ -255,6 +255,7 @@ impl CaliptraError {
     pub const RUNTIME_GLOBAL_EXCEPTION: CaliptraError = CaliptraError::new(0x000E000C);
     pub const RUNTIME_GLOBAL_PANIC: CaliptraError = CaliptraError::new(0x000E000D);
     pub const RUNTIME_HMAC_VERIFY_FAILED: CaliptraError = CaliptraError::new(0x000E000E);
+    pub const RUNTIME_INVOKE_DPE_FAILED: CaliptraError = CaliptraError::new(0x000E000F);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new(0x000F0001);
@@ -303,6 +304,20 @@ impl CaliptraError {
 
     /// Unknown Reset Error
     pub const ROM_UNKNOWN_RESET_FLOW: CaliptraError = CaliptraError::new(0x01040020);
+
+    /// ROM CFI Errors
+    pub const ROM_CFI_PANIC_UNKNOWN: CaliptraError = CaliptraError::new_const(0x1040050);
+    pub const ROM_CFI_PANIC_COUNTER_CORRUPT: CaliptraError = CaliptraError::new_const(0x1040051);
+    pub const ROM_CFI_PANIC_COUNTER_OVERFLOW: CaliptraError = CaliptraError::new_const(0x1040052);
+    pub const ROM_CFI_PANIC_COUNTER_UNDERFLOW: CaliptraError = CaliptraError::new_const(0x1040053);
+    pub const ROM_CFI_PANIC_COUNTER_MISMATCH: CaliptraError = CaliptraError::new_const(0x1040054);
+    pub const ROM_CFI_PANIC_ASSERT_EQ_FAILURE: CaliptraError = CaliptraError::new_const(0x1040055);
+    pub const ROM_CFI_PANIC_ASSERT_NE_FAILURE: CaliptraError = CaliptraError::new_const(0x1040056);
+    pub const ROM_CFI_PANIC_ASSERT_GT_FAILURE: CaliptraError = CaliptraError::new_const(0x1040057);
+    pub const ROM_CFI_PANIC_ASSERT_LT_FAILURE: CaliptraError = CaliptraError::new_const(0x1040058);
+    pub const ROM_CFI_PANIC_ASSERT_GE_FAILURE: CaliptraError = CaliptraError::new_const(0x1040059);
+    pub const ROM_CFI_PANIC_ASSERT_LE_FAILURE: CaliptraError = CaliptraError::new_const(0x104005A);
+    pub const ROM_CFI_PANIC_TRNG_FAILURE: CaliptraError = CaliptraError::new_const(0x104005B);
 
     /// ROM Global Errors
     pub const ROM_GLOBAL_NMI: CaliptraError = CaliptraError::new(0x01050001);

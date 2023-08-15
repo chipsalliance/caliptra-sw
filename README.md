@@ -41,7 +41,9 @@ toolchain for all continuous integration.
 ## Checkout and build
 
 ```shell
-git clone https://github.com/chipsalliance/caliptra-sw --config submodule.recurse=true
+git clone https://github.com/chipsalliance/caliptra-sw \
+    --config submodule.recurse=true \
+    --recurse-submodules=dpe
 cd caliptra-sw
 cargo build
 ```

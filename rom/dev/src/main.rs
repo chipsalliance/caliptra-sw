@@ -16,6 +16,7 @@ Abstract:
 #![cfg_attr(feature = "val-rom", allow(unused_imports))]
 
 use crate::lock::lock_registers;
+use caliptra_cfi_lib::CfiCounter;
 use core::hint::black_box;
 
 use caliptra_drivers::{
@@ -58,6 +59,13 @@ pub extern "C" fn rom_entry() -> ! {
         Ok(env) => env,
         Err(e) => handle_fatal_error(e.into()),
     };
+
+    if !cfg!(feature = "no-cfi") {
+        cprintln!("[state] CFI Enabled");
+        CfiCounter::reset(&mut env.trng);
+    } else {
+        cprintln!("[state] CFI Disabled");
+    }
 
     let _lifecyle = match env.soc_ifc.lifecycle() {
         caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",
@@ -190,6 +198,13 @@ fn rom_panic(_: &core::panic::PanicInfo) -> ! {
 fn handle_non_fatal_error(code: u32) {
     cprintln!("ROM Non-Fatal Error: 0x{:08X}", code);
     report_fw_error_non_fatal(code);
+}
+
+#[no_mangle]
+extern "C" fn cfi_panic_handler(code: u32) -> ! {
+    cprintln!("CFI Panic code=0x{:08X}", code);
+
+    handle_fatal_error(code);
 }
 
 #[allow(clippy::empty_loop)]
