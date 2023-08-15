@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_common::{
     keyids::{KEY_ID_FMC_PRIV_KEY, KEY_ID_ROM_FMC_CDI},
     memory_layout::{FHT_ORG, FMCALIAS_TBS_ORG, FUSE_LOG_ORG, LDEVID_TBS_ORG, PCR_LOG_ORG},
@@ -166,6 +167,7 @@ pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
     }
 }
 
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub fn store(fht: FirmwareHandoffTable) {
     let slice = unsafe {
         let ptr = FHT_ORG as *mut u8;
