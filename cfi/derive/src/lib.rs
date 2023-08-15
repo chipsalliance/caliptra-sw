@@ -61,13 +61,21 @@ fn cfi_fn(mod_fn: bool, input: TokenStream) -> TokenStream {
 
     wrapper_fn.block.stmts.clear();
     wrapper_fn.block.stmts = parse_quote!(
-        let saved_ctr = caliptra_cfi_lib::CfiCounter::increment();
+        let saved_ctr = caliptra_cfi_lib::CfiCounter::read();
         caliptra_cfi_lib::CfiCounter::delay();
         let ret = #fn_call;
         caliptra_cfi_lib::CfiCounter::delay();
         let new_ctr = caliptra_cfi_lib::CfiCounter::decrement();
         caliptra_cfi_lib::CfiCounter::assert_eq(saved_ctr, new_ctr);
         ret
+    );
+
+    // Add CFI counter increment statement to the beginning of the original function.
+    orig_fn.block.stmts.insert(
+        0,
+        parse_quote!(
+            caliptra_cfi_lib::CfiCounter::increment();
+        ),
     );
 
     let code = quote! {

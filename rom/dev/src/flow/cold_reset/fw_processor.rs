@@ -176,11 +176,11 @@ impl FirmwareProcessor {
         let opt = ImageManifest::read_from(slice.as_bytes());
         let result = opt.is_some();
         if cfi_launder(result) {
-            cfi_assert!(result);
+            cfi_assert!(opt.is_some());
             report_boot_status(FwProcessorManifestLoadComplete.into());
             Ok(opt.unwrap())
         } else {
-            cfi_assert!(!result);
+            cfi_assert!(opt.is_none());
             Err(CaliptraError::FW_PROC_MANIFEST_READ_FAILURE)
         }
     }
