@@ -5,7 +5,6 @@
 pub mod dice;
 pub mod fips;
 pub mod info;
-pub mod svn;
 mod update;
 mod verify;
 
@@ -175,7 +174,6 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::STASH_MEASUREMENT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::INVOKE_DPE => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::FW_INFO => FwInfoCmd::execute(drivers),
-        CommandId::GET_SVN => svn::execute(drivers),
         #[cfg(feature = "test_only_commands")]
         CommandId::TEST_ONLY_GET_LDEV_CERT => GetLdevCertCmd::execute(&drivers.data_vault),
         #[cfg(feature = "test_only_commands")]
