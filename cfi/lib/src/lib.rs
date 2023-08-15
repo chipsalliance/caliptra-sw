@@ -12,9 +12,9 @@ File Name:
 extern crate core;
 
 mod cfi;
-mod cfi_ctr;
+mod cfi_counter;
 mod xoshiro;
 
 pub use cfi::*;
-pub use cfi_ctr::{CfiCounter, CfiInt};
+pub use cfi_counter::{CfiCounter, CfiInt};
 pub use xoshiro::Xoshiro128;

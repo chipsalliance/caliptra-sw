@@ -169,22 +169,22 @@ impl CfiCounter {
 
     #[inline(never)]
     pub fn delay() {
+        let cycles = prng().next() % 256;
+        let _real_cyc = 1 + cycles / 2;
         #[cfg(all(target_arch = "riscv32", feature = "cfi", feature = "cfi-counter"))]
         unsafe {
-            let cycles = prng().next() % 256;
-            let real_cyc = 1 + cycles / 2;
             core::arch::asm!(
                 "1:",
                 "addi {0}, {0}, -1",
                 "bne {0}, zero, 1b",
-                inout(reg) real_cyc => _,
+                inout(reg) _real_cyc => _,
                 options(nomem, nostack),
             );
         }
     }
 
     /// Read counter value
-    fn read() -> CfiInt {
+    pub fn read() -> CfiInt {
         unsafe {
             #[cfg(feature = "cfi-test")]
             {
