@@ -8,7 +8,7 @@ use crate::{
     Cache,
 };
 
-const VERSION: &str = "caliptra-size-history-cache0";
+const VERSION: &str = "caliptra-size-history-cache1";
 
 pub struct GithubActionCache {
     prefix: String,
