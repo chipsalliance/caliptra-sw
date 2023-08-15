@@ -53,8 +53,10 @@ pub extern "C" fn fmc_entry() -> ! {
         core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
     };
 
-    let fht = FirmwareHandoffTable::read_from(slice).unwrap();
-    assert!(fht.is_valid());
+    if cfg!(not(feature = "val-fmc")) {
+        let fht = FirmwareHandoffTable::read_from(slice).unwrap();
+        assert!(fht.is_valid());
+    }
 
     process_mailbox_commands();
 
