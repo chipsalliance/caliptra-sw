@@ -306,18 +306,18 @@ impl CaliptraError {
     pub const ROM_UNKNOWN_RESET_FLOW: CaliptraError = CaliptraError::new(0x01040020);
 
     /// ROM CFI Errors
-    pub const ROM_CFI_PANIC_UNKNOWN: CaliptraError = CaliptraError::new_const(0x1040050);
-    pub const ROM_CFI_PANIC_COUNTER_CORRUPT: CaliptraError = CaliptraError::new_const(0x1040051);
-    pub const ROM_CFI_PANIC_COUNTER_OVERFLOW: CaliptraError = CaliptraError::new_const(0x1040052);
-    pub const ROM_CFI_PANIC_COUNTER_UNDERFLOW: CaliptraError = CaliptraError::new_const(0x1040053);
-    pub const ROM_CFI_PANIC_COUNTER_MISMATCH: CaliptraError = CaliptraError::new_const(0x1040054);
-    pub const ROM_CFI_PANIC_ASSERT_EQ_FAILURE: CaliptraError = CaliptraError::new_const(0x1040055);
-    pub const ROM_CFI_PANIC_ASSERT_NE_FAILURE: CaliptraError = CaliptraError::new_const(0x1040056);
-    pub const ROM_CFI_PANIC_ASSERT_GT_FAILURE: CaliptraError = CaliptraError::new_const(0x1040057);
-    pub const ROM_CFI_PANIC_ASSERT_LT_FAILURE: CaliptraError = CaliptraError::new_const(0x1040058);
-    pub const ROM_CFI_PANIC_ASSERT_GE_FAILURE: CaliptraError = CaliptraError::new_const(0x1040059);
-    pub const ROM_CFI_PANIC_ASSERT_LE_FAILURE: CaliptraError = CaliptraError::new_const(0x104005A);
-    pub const ROM_CFI_PANIC_TRNG_FAILURE: CaliptraError = CaliptraError::new_const(0x104005B);
+    pub const ROM_CFI_PANIC_UNKNOWN: CaliptraError = CaliptraError::new(0x1040050);
+    pub const ROM_CFI_PANIC_COUNTER_CORRUPT: CaliptraError = CaliptraError::new(0x1040051);
+    pub const ROM_CFI_PANIC_COUNTER_OVERFLOW: CaliptraError = CaliptraError::new(0x1040052);
+    pub const ROM_CFI_PANIC_COUNTER_UNDERFLOW: CaliptraError = CaliptraError::new(0x1040053);
+    pub const ROM_CFI_PANIC_COUNTER_MISMATCH: CaliptraError = CaliptraError::new(0x1040054);
+    pub const ROM_CFI_PANIC_ASSERT_EQ_FAILURE: CaliptraError = CaliptraError::new(0x1040055);
+    pub const ROM_CFI_PANIC_ASSERT_NE_FAILURE: CaliptraError = CaliptraError::new(0x1040056);
+    pub const ROM_CFI_PANIC_ASSERT_GT_FAILURE: CaliptraError = CaliptraError::new(0x1040057);
+    pub const ROM_CFI_PANIC_ASSERT_LT_FAILURE: CaliptraError = CaliptraError::new(0x1040058);
+    pub const ROM_CFI_PANIC_ASSERT_GE_FAILURE: CaliptraError = CaliptraError::new(0x1040059);
+    pub const ROM_CFI_PANIC_ASSERT_LE_FAILURE: CaliptraError = CaliptraError::new(0x104005A);
+    pub const ROM_CFI_PANIC_TRNG_FAILURE: CaliptraError = CaliptraError::new(0x104005B);
 
     /// ROM Global Errors
     pub const ROM_GLOBAL_NMI: CaliptraError = CaliptraError::new(0x01050001);
@@ -337,8 +337,7 @@ impl CaliptraError {
     pub const ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE: CaliptraError =
         CaliptraError::new(0x0105000A);
 
-    pub const ROM_GLOBAL_VAL_ROM_IN_PRODUCTION: CaliptraError =
-        CaliptraError::new_const(0x0105000A);
+    pub const ROM_GLOBAL_VAL_ROM_IN_PRODUCTION: CaliptraError = CaliptraError::new(0x0105000A);
 
     /// ROM KAT Errors
     pub const ROM_KAT_SHA256_DIGEST_FAILURE: CaliptraError = CaliptraError::new(0x90010001);
@@ -368,16 +367,18 @@ impl CaliptraError {
     pub const ROM_KAT_LMS_DIGEST_MISMATCH: CaliptraError = CaliptraError::new(0x90070002);
 }
 
-impl From<core::num::NonZeroU32> for crate::CaliptraError { error/src/lib.rs 
+impl From<core::num::NonZeroU32> for crate::CaliptraError {
     fn from(val: core::num::NonZeroU32) -> Self {
         crate::CaliptraError(val)
     }
 }
+
 impl From<CaliptraError> for core::num::NonZeroU32 {
     fn from(val: CaliptraError) -> Self {
         val.0
     }
 }
+
 impl From<CaliptraError> for u32 {
     fn from(val: CaliptraError) -> Self {
         core::num::NonZeroU32::from(val).get()
