@@ -6,6 +6,8 @@
 #include "caliptra_api.h"
 #include "caliptra_fuses.h"
 #include "caliptra_mbox.h"
+// Check with jordan
+#include "../../../../libcaliptra/inc/caliptra_if.h"
 
 int caliptra_init_fuses(struct caliptra_model *model, struct caliptra_fuses *fuses)
 {
