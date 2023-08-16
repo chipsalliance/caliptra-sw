@@ -198,7 +198,7 @@ int caliptra_upload_fw(struct caliptra_model *model, struct caliptra_buffer *fw_
     return caliptra_mailbox_execute(model, FW_LOAD_CMD_OPCODE, fw_buffer, NULL);
 }
 
-int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *fw_buffer)
+int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *fw_buffer,uint32_t statusCheckRead)
 {
     const uint32_t GET_PROFILE_OPCODE = 0x44504543u;
     uint32_t *status;
@@ -207,7 +207,8 @@ int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *f
     mStatus = caliptra_mailbox_execute(model,GET_PROFILE_OPCODE, fw_buffer, NULL);
     status = (uint32_t *)malloc(10 * sizeof(uint32_t));
     caliptra_model_apb_read_u32(model,error_code, status);
-    printf("%s",status);
+    printf("%d\n",status);
     fflush(stdout);
+    statusCheckRead = *status;
     return mStatus;
 }
