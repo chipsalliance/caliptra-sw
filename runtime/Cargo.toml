@@ -13,6 +13,9 @@ caliptra-image-types = { workspace = true, default-features = false }
 caliptra-kat.workspace = true
 caliptra-registers.workspace = true
 caliptra-x509 = { workspace = true, default-features = false }
+dpe.workspace = true
+crypto.workspace = true
+platform.workspace = true
 ufmt.workspace = true
 zerocopy.workspace = true
 

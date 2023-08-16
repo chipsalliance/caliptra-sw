@@ -37,7 +37,7 @@ impl EcdsaVerifyCmd {
                 s: Ecc384Scalar::from(cmd.signature_s),
             };
 
-            let success = drivers.ecdsa.verify(&pubkey, &digest, &sig)?;
+            let success = drivers.ecc384.verify(&pubkey, &digest, &sig)?;
             if success != Ecc384Result::Success {
                 return Err(CaliptraError::RUNTIME_ECDSA_VERIFY_FAILED);
             }
@@ -77,7 +77,7 @@ impl HmacVerifyCmd {
             }?;
 
             drivers
-                .hmac
+                .hmac384
                 .hmac(&key, &data, &mut trng, (&mut out_tag).into())?;
 
             if out_tag != Array4x12::from(cmd.tag) {

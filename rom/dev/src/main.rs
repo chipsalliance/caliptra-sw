@@ -13,9 +13,10 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
-#![cfg_attr(not(feature = "no-kats"), allow(unused_imports))]
+#![cfg_attr(feature = "val-rom", allow(unused_imports))]
 
 use crate::lock::lock_registers;
+use caliptra_cfi_lib::CfiCounter;
 use core::hint::black_box;
 
 use caliptra_drivers::{
@@ -59,6 +60,13 @@ pub extern "C" fn rom_entry() -> ! {
         Err(e) => handle_fatal_error(e.into()),
     };
 
+    if !cfg!(feature = "no-cfi") {
+        cprintln!("[state] CFI Enabled");
+        CfiCounter::reset(&mut env.trng);
+    } else {
+        cprintln!("[state] CFI Disabled");
+    }
+
     let _lifecyle = match env.soc_ifc.lifecycle() {
         caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",
         caliptra_drivers::Lifecycle::Manufacturing => "Manufacturing",
@@ -66,6 +74,13 @@ pub extern "C" fn rom_entry() -> ! {
         caliptra_drivers::Lifecycle::Reserved2 => "Unknown",
     };
     cprintln!("[state] LifecycleState = {}", _lifecyle);
+
+    if cfg!(feature = "val-rom")
+        && env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production
+    {
+        cprintln!("Val ROM in Production lifecycle prohibited");
+        handle_fatal_error(CaliptraError::ROM_GLOBAL_VAL_ROM_IN_PRODUCTION.into());
+    }
 
     cprintln!(
         "[state] DebugLocked = {}",
@@ -79,7 +94,7 @@ pub extern "C" fn rom_entry() -> ! {
     // Start the watchdog timer
     wdt::start_wdt(&mut env.soc_ifc);
 
-    if !cfg!(feature = "no-kats") {
+    if !cfg!(feature = "val-rom") {
         let result = kat::execute_kat(&mut env);
         if let Err(err) = result {
             handle_fatal_error(err.into());
@@ -183,6 +198,13 @@ fn rom_panic(_: &core::panic::PanicInfo) -> ! {
 fn handle_non_fatal_error(code: u32) {
     cprintln!("ROM Non-Fatal Error: 0x{:08X}", code);
     report_fw_error_non_fatal(code);
+}
+
+#[no_mangle]
+extern "C" fn cfi_panic_handler(code: u32) -> ! {
+    cprintln!("CFI Panic code=0x{:08X}", code);
+
+    handle_fatal_error(code);
 }
 
 #[allow(clippy::empty_loop)]

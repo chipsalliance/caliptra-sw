@@ -554,6 +554,33 @@ pub trait HwModel {
         }
     }
 
+    fn step_until_fatal_error(&mut self, expected_error: u32, max_wait_cycles: u32) {
+        let mut cycle_count = 0u32;
+        let initial_error = self.soc_ifc().cptra_fw_error_fatal().read();
+        loop {
+            let actual_error = self.soc_ifc().cptra_fw_error_fatal().read();
+            if actual_error == expected_error {
+                break;
+            }
+
+            if actual_error != initial_error {
+                panic!(
+                    "Expected the fatal error to be  \
+                    ({expected_error}), but error changed from \
+                    {initial_error} to {actual_error})"
+                );
+            }
+            self.step();
+            cycle_count += 1;
+            if cycle_count >= max_wait_cycles {
+                panic!(
+                    "Expected fatal error to be  \
+                    ({expected_error}), but was stuck at ({initial_error})"
+                );
+            }
+        }
+    }
+
     /// A register block that can be used to manipulate the soc_ifc peripheral
     /// over the simulated SoC->Caliptra APB bus.
     fn soc_ifc(&mut self) -> caliptra_registers::soc_ifc::RegisterBlock<BusMmio<Self::TBus<'_>>> {

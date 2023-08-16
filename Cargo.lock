@@ -194,6 +194,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "caliptra-cfi-derive"
+version = "0.1.0"
+dependencies = [
+ "paste",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "caliptra-cfi-lib"
+version = "0.1.0"
+dependencies = [
+ "caliptra-cfi-derive",
+ "caliptra-drivers",
+ "caliptra-registers",
+ "caliptra_common",
+ "ufmt",
+]
+
+[[package]]
 name = "caliptra-cpu"
 version = "0.1.0"
 dependencies = [
@@ -537,6 +558,8 @@ name = "caliptra-rom"
 version = "0.1.0"
 dependencies = [
  "caliptra-builder",
+ "caliptra-cfi-derive",
+ "caliptra-cfi-lib",
  "caliptra-drivers",
  "caliptra-error",
  "caliptra-hw-model",
@@ -604,7 +627,10 @@ dependencies = [
  "caliptra-x509",
  "caliptra_common",
  "cfg-if 1.0.0",
+ "crypto",
+ "dpe",
  "openssl",
+ "platform",
  "ufmt",
  "wycheproof",
  "zerocopy",
@@ -854,6 +880,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "crypto"
+version = "0.1.0"
+dependencies = [
+ "openssl",
+]
+
+[[package]]
 name = "crypto-bigint"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -976,6 +1009,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.28",
+]
+
+[[package]]
+name = "dpe"
+version = "0.1.0"
+dependencies = [
+ "crypto",
+ "platform",
+ "zerocopy",
 ]
 
 [[package]]
@@ -1496,6 +1538,10 @@ name = "pkg-config"
 version = "0.3.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ac9a59f73473f1b8d852421e59e64809f025994837ef743615c6d0c5b305160"
+
+[[package]]
+name = "platform"
+version = "0.1.0"
 
 [[package]]
 name = "ppv-lite86"

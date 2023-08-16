@@ -290,13 +290,13 @@ impl Lms {
         nonce: &[U32<LittleEndian>; N],
     ) -> CaliptraResult<HashValue<N>> {
         let mut digest = Array4x8::default();
-        let mut hasher = sha256_driver.digest_init(&mut digest)?;
+        let mut hasher = sha256_driver.digest_init()?;
         hasher.update(lms_identifier)?;
         hasher.update(q)?;
         hasher.update(&D_MESG.to_be_bytes())?;
         hasher.update(nonce.as_bytes())?;
         hasher.update(message)?;
-        hasher.finalize()?;
+        hasher.finalize(&mut digest)?;
         Ok(HashValue::from(digest))
     }
 
@@ -348,7 +348,7 @@ impl Lms {
             hash_block[20..22].clone_from_slice(&(i as u16).to_be_bytes());
             for j in a..upper {
                 let mut digest = Array4x8::default();
-                let mut hasher = sha256_driver.digest_init(&mut digest)?;
+                let mut hasher = sha256_driver.digest_init()?;
                 hash_block[22] = j;
                 let mut i = 23;
                 for val in tmp.0.iter().take(N) {
@@ -356,13 +356,13 @@ impl Lms {
                     i += 4;
                 }
                 hasher.update(&hash_block[0..23 + N * 4])?;
-                hasher.finalize()?;
+                hasher.finalize(&mut digest)?;
                 tmp = HashValue::<N>::from(digest);
             }
             *val = tmp;
         }
         let mut digest = Array4x8::default();
-        let mut hasher = sha256_driver.digest_init(&mut digest)?;
+        let mut hasher = sha256_driver.digest_init()?;
         hasher.update(lms_identifier)?;
         hasher.update(q)?;
         hasher.update(&D_PBLC.to_be_bytes())?;
@@ -371,7 +371,7 @@ impl Lms {
                 hasher.update(&val.to_be_bytes())?;
             }
         }
-        hasher.finalize()?;
+        hasher.finalize(&mut digest)?;
         let result = HashValue::<N>::from(digest);
         digest.0.fill(0);
         Ok(result)
@@ -420,19 +420,19 @@ impl Lms {
         }
 
         let mut digest = Array4x8::default();
-        let mut hasher = sha256_driver.digest_init(&mut digest)?;
+        let mut hasher = sha256_driver.digest_init()?;
         hasher.update(&lms_public_key.id)?;
         hasher.update(&node_num.to_be_bytes())?;
         hasher.update(&D_LEAF.to_be_bytes())?;
         for val in candidate_key.0.iter() {
             hasher.update(&val.to_be_bytes())?;
         }
-        hasher.finalize()?;
+        hasher.finalize(&mut digest)?;
         let mut temp = HashValue::<N>::from(digest);
         let mut i = 0;
         while node_num > 1 {
             let mut digest = Array4x8::default();
-            let mut hasher = sha256_driver.digest_init(&mut digest)?;
+            let mut hasher = sha256_driver.digest_init()?;
             hasher.update(&lms_public_key.id)?;
             hasher.update(&(node_num / 2).to_be_bytes())?;
             hasher.update(&D_INTR.to_be_bytes())?;
@@ -457,7 +457,7 @@ impl Lms {
                         .as_bytes(),
                 )?;
             }
-            hasher.finalize()?;
+            hasher.finalize(&mut digest)?;
             temp = HashValue::<N>::from(digest);
             node_num /= 2;
             i += 1;

@@ -3,6 +3,8 @@
 #![no_std]
 
 pub mod dice;
+mod dpe_crypto;
+mod dpe_platform;
 pub mod fips;
 pub mod info;
 mod update;
@@ -15,9 +17,12 @@ use mailbox::Mailbox;
 pub mod mailbox_api;
 pub use mailbox_api::{
     CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, GetIdevCsrResp, GetLdevCertResp,
-    HmacVerifyReq, InvokeDpeCommandReq, InvokeDpeCommandResp, MailboxReqHeader, MailboxResp,
-    MailboxRespHeader, StashMeasurementReq, StashMeasurementResp, TestGetFmcAliasCertResp,
+    HmacVerifyReq, InvokeDpeReq, InvokeDpeResp, MailboxReqHeader, MailboxResp, MailboxRespHeader,
+    StashMeasurementReq, StashMeasurementResp, TestGetFmcAliasCertResp,
 };
+
+use dpe_crypto::DpeCrypto;
+use dpe_platform::DpePlatform;
 
 #[cfg(feature = "test_only_commands")]
 pub use dice::{GetLdevCertCmd, TestGetFmcAliasCertCmd};
@@ -42,6 +47,10 @@ use caliptra_registers::{
     mbox::MboxCsr, sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr,
     soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
+use dpe::{
+    dpe_instance::{DpeEnv, DpeInstance, DpeTypes},
+    support::Support,
+};
 use zerocopy::{AsBytes, FromBytes};
 
 #[cfg(feature = "test_only_commands")]
@@ -64,11 +73,25 @@ impl From<RtBootStatus> for u32 {
     }
 }
 
+pub const DPE_SUPPORT: Support = Support {
+    simulation: true,
+    extend_tci: true,
+    auto_init: true,
+    tagging: true,
+    rotate_context: true,
+    x509: true,
+    csr: true,
+    is_symmetric: true,
+    internal_info: true,
+    internal_dice: true,
+    is_ca: true,
+};
+
+pub const DPE_LOCALITY: u32 = 0x0;
+
 pub struct Drivers<'a> {
     pub mbox: Mailbox,
     pub sha_acc: Sha512AccCsr,
-    pub ecdsa: Ecc384,
-    pub hmac: Hmac384,
     pub data_vault: DataVault,
     pub soc_ifc: SocIfc,
     pub regions: MemoryRegions,
@@ -93,7 +116,17 @@ pub struct Drivers<'a> {
 
     /// A copy of the ImageHeader for the currently running image
     pub manifest: ImageManifest,
+
+    pub dpe: DpeInstance,
 }
+
+pub struct CptraDpeTypes;
+
+impl DpeTypes for CptraDpeTypes {
+    type Crypto<'a> = DpeCrypto<'a>;
+    type Platform = DpePlatform;
+}
+
 impl<'a> Drivers<'a> {
     /// # Safety
     ///
@@ -114,22 +147,30 @@ impl<'a> Drivers<'a> {
             &SocIfcReg::new(),
         )?;
 
+        let mut sha384 = Sha384::new(Sha512Reg::new());
+
+        let mut env = DpeEnv::<CptraDpeTypes> {
+            crypto: DpeCrypto::new(&mut sha384),
+            platform: DpePlatform,
+        };
+        let dpe = DpeInstance::new(&mut env, DPE_SUPPORT)
+            .map_err(|_| CaliptraError::RUNTIME_INVOKE_DPE_FAILED)?;
+
         Ok(Self {
             mbox: Mailbox::new(MboxCsr::new()),
             sha_acc: Sha512AccCsr::new(),
-            ecdsa: Ecc384::new(EccReg::new()),
-            hmac: Hmac384::new(HmacReg::new()),
             data_vault: DataVault::new(DvReg::new()),
             soc_ifc: SocIfc::new(SocIfcReg::new()),
             regions: MemoryRegions::new(),
             sha256: Sha256::new(Sha256Reg::new()),
-            sha384: Sha384::new(Sha512Reg::new()),
+            sha384,
             sha384_acc: Sha384Acc::new(Sha512AccCsr::new()),
             hmac384: Hmac384::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
             trng,
             fht,
             manifest,
+            dpe,
         })
     }
 }
@@ -170,9 +211,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_IDEV_CSR => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_LDEV_CERT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        CommandId::INVOKE_DPE => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-        CommandId::INVOKE_DPE => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::FW_INFO => FwInfoCmd::execute(drivers),
         #[cfg(feature = "test_only_commands")]
         CommandId::TEST_ONLY_GET_LDEV_CERT => GetLdevCertCmd::execute(&drivers.data_vault),

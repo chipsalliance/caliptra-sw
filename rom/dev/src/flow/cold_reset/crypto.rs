@@ -13,6 +13,7 @@ Abstract:
 --*/
 
 use crate::rom_env::RomEnv;
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::keyids::KEY_ID_TMP;
 use caliptra_drivers::*;
 use caliptra_x509::Ecdsa384Signature;
@@ -64,6 +65,7 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Array4x5` - Digest
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn sha1_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x5> {
         env.sha1.digest(data)
     }
@@ -79,6 +81,7 @@ impl Crypto {
     ///
     /// * `Array4x8` - Digest
     #[inline(always)]
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn sha256_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x8> {
         env.sha256.digest(data)
     }
@@ -93,6 +96,7 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Array4x12` - Digest
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn sha384_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x12> {
         env.sha384.digest(data)
     }
@@ -105,6 +109,7 @@ impl Crypto {
     /// * `key` - HMAC384 key slot
     /// * `data` - Input data to hash
     /// * `tag` - Key slot to store the tag
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn hmac384_mac(
         env: &mut RomEnv,
         key: KeyId,
@@ -134,6 +139,7 @@ impl Crypto {
     /// * `label` - Input label
     /// * `context` - Input context
     /// * `output` - Key slot to store the output
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn hmac384_kdf(
         env: &mut RomEnv,
         key: KeyId,
@@ -168,6 +174,7 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Ecc384KeyPair` - Private Key slot id and public key pairs
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn ecc384_key_gen(
         env: &mut RomEnv,
         cdi: KeyId,
@@ -208,6 +215,7 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Ecc384Signature` - Signature
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn ecdsa384_sign(
         env: &mut RomEnv,
         priv_key: KeyId,
@@ -237,6 +245,7 @@ impl Crypto {
     /// # Returns
     ///
     /// `Ecc384Result` - Ecc384Result::Success if the signature verification passed else an error code.
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn ecdsa384_verify(
         env: &mut RomEnv,
         pub_key: &Ecc384PubKey,

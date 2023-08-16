@@ -11,11 +11,14 @@ Abstract:
     File contains the code to download and validate the firmware.
 
 --*/
-
+#[cfg(feature = "val-rom")]
+use crate::flow::val::ValRomImageVerificationEnv;
 use crate::fuse::log_fuse_data;
 use crate::rom_env::RomEnv;
 use crate::{cprintln, verifier::RomImageVerificationEnv};
 use crate::{pcr, wdt};
+use caliptra_cfi_derive::cfi_impl_fn;
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::{cprint, memory_layout::MAN1_ORG, FuseLogEntryId, RomBootStatus::*};
 use caliptra_drivers::*;
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
@@ -131,7 +134,7 @@ impl FirmwareProcessor {
                 if txn.cmd() != Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID {
                     cprintln!("Invalid command 0x{:08x} received", txn.cmd());
                     txn.start_txn().complete(false)?;
-                    continue;
+                    return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND);
                 }
 
                 // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
@@ -161,6 +164,7 @@ impl FirmwareProcessor {
     /// # Returns
     ///
     /// * `Manifest` - Caliptra Image Bundle Manifest
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn load_manifest(txn: &mut MailboxRecvTxn) -> CaliptraResult<ImageManifest> {
         let slice = unsafe {
             let ptr = MAN1_ORG as *mut u32;
@@ -169,10 +173,14 @@ impl FirmwareProcessor {
 
         txn.copy_request(slice)?;
 
-        if let Some(result) = ImageManifest::read_from(slice.as_bytes()) {
+        let opt = ImageManifest::read_from(slice.as_bytes());
+        let result = opt.is_some();
+        if cfi_launder(result) {
+            cfi_assert!(result);
             report_boot_status(FwProcessorManifestLoadComplete.into());
-            Ok(result)
+            Ok(opt.unwrap())
         } else {
+            cfi_assert!(!result);
             Err(CaliptraError::FW_PROC_MANIFEST_READ_FAILURE)
         }
     }
@@ -182,11 +190,19 @@ impl FirmwareProcessor {
     /// # Arguments
     ///
     /// * `env` - ROM Environment
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn verify_image(
         venv: &mut RomImageVerificationEnv,
         manifest: &ImageManifest,
         img_bundle_sz: u32,
     ) -> CaliptraResult<ImageVerificationInfo> {
+        #[cfg(feature = "val-rom")]
+        let venv = &mut ValRomImageVerificationEnv {
+            sha384_acc: venv.sha384_acc,
+            soc_ifc: venv.soc_ifc,
+            data_vault: venv.data_vault,
+        };
+
         let mut verifier = ImageVerifier::new(venv);
         let info = verifier.verify(manifest, img_bundle_sz, ResetReason::ColdReset)?;
 
@@ -205,6 +221,7 @@ impl FirmwareProcessor {
     ///
     /// # Returns
     /// * CaliptraResult
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn update_fuse_log(log_info: &ImageVerificationLogInfo) -> CaliptraResult<()> {
         // Log VendorPubKeyIndex
         log_fuse_data(
@@ -287,6 +304,7 @@ impl FirmwareProcessor {
     /// * `txn`      - Mailbox Receive Transaction
     // Inlined to reduce ROM size
     #[inline(always)]
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn load_image(manifest: &ImageManifest, txn: &mut MailboxRecvTxn) -> CaliptraResult<()> {
         cprintln!(
             "[afmc] Loading FMC at address 0x{:08x} len {}",
@@ -324,6 +342,7 @@ impl FirmwareProcessor {
     ///
     /// * `env`  - ROM Environment
     /// * `info` - Image Verification Info
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn populate_data_vault(data_vault: &mut DataVault, info: &ImageVerificationInfo) {
         data_vault.write_cold_reset_entry48(ColdResetEntry48::FmcTci, &info.fmc.digest.into());
 

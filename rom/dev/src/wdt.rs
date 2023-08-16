@@ -16,6 +16,7 @@ Environment:
 
 --*/
 
+use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_drivers::SocIfc;
 use core::cmp::max;
 
@@ -30,8 +31,7 @@ const WDT2_TIMEOUT_CYCLES: u64 = 1; // Fire immediately after WDT1 expiry
 /// # Arguments
 ///
 /// * `soc_ifc` - SOC Interface
-///
-///
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub fn start_wdt(soc_ifc: &mut SocIfc) {
     cprintln!("[state] Starting the Watchdog Timer");
 
@@ -69,7 +69,7 @@ pub fn start_wdt(soc_ifc: &mut SocIfc) {
 /// # Arguments
 ///
 /// * `soc_ifc` - SOC Interface
-///
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub fn stop_wdt(soc_ifc: &mut SocIfc) {
     cprintln!("[state] Stopping the Watchdog Timer");
     soc_ifc.configure_wdt1(false);
