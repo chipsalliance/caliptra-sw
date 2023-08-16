@@ -3,10 +3,12 @@
 #![no_std]
 
 pub mod dice;
+mod disable;
 mod dpe_crypto;
 mod dpe_platform;
 pub mod fips;
 pub mod info;
+mod invoke_dpe;
 mod update;
 mod verify;
 
@@ -22,12 +24,14 @@ pub use mailbox_api::{
 };
 
 use dpe_crypto::DpeCrypto;
-use dpe_platform::DpePlatform;
+pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
 
 #[cfg(feature = "test_only_commands")]
 pub use dice::{GetLdevCertCmd, TestGetFmcAliasCertCmd};
+pub use disable::DisableAttestationCmd;
 pub use fips::{FipsSelfTestCmd, FipsShutdownCmd, FipsVersionCmd};
 pub use info::FwInfoCmd;
+pub use invoke_dpe::InvokeDpeCmd;
 pub use verify::EcdsaVerifyCmd;
 pub mod packet;
 use packet::Packet;
@@ -38,18 +42,21 @@ use caliptra_common::memory_layout::{
     PCR_LOG_SIZE,
 };
 use caliptra_common::{cprintln, FirmwareHandoffTable};
-use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault, Ecc384, SocIfc};
-use caliptra_drivers::{Hmac384, Sha256, Sha384, Sha384Acc, Trng};
+use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault, SocIfc};
+use caliptra_drivers::{Hmac384, PcrBank, PcrId, Sha256, Sha384, Sha384Acc, Trng};
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_registers::{
-    csrng::CsrngReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg,
-    mbox::MboxCsr, sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr,
+    csrng::CsrngReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg,
+    mbox::MboxCsr, pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr,
     soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 use dpe::{
+    commands::{CommandExecution, DeriveChildCmd},
+    context::ContextHandle,
     dpe_instance::{DpeEnv, DpeInstance, DpeTypes},
     support::Support,
+    DPE_PROFILE,
 };
 use zerocopy::{AsBytes, FromBytes};
 
@@ -93,6 +100,7 @@ pub struct Drivers<'a> {
     pub mbox: Mailbox,
     pub sha_acc: Sha512AccCsr,
     pub data_vault: DataVault,
+    pub key_vault: KeyVault,
     pub soc_ifc: SocIfc,
     pub regions: MemoryRegions,
     pub sha256: Sha256,
@@ -118,6 +126,8 @@ pub struct Drivers<'a> {
     pub manifest: ImageManifest,
 
     pub dpe: DpeInstance,
+
+    pub pcr_bank: PcrBank,
 }
 
 pub struct CptraDpeTypes;
@@ -149,17 +159,18 @@ impl<'a> Drivers<'a> {
 
         let mut sha384 = Sha384::new(Sha512Reg::new());
 
-        let mut env = DpeEnv::<CptraDpeTypes> {
+        let env = DpeEnv::<CptraDpeTypes> {
             crypto: DpeCrypto::new(&mut sha384),
             platform: DpePlatform,
         };
-        let dpe = DpeInstance::new(&mut env, DPE_SUPPORT)
-            .map_err(|_| CaliptraError::RUNTIME_INVOKE_DPE_FAILED)?;
+        let mut pcr_bank = PcrBank::new(PvReg::new());
+        let dpe = Self::initialize_dpe(env, &mut pcr_bank)?;
 
         Ok(Self {
             mbox: Mailbox::new(MboxCsr::new()),
             sha_acc: Sha512AccCsr::new(),
             data_vault: DataVault::new(DvReg::new()),
+            key_vault: KeyVault::new(KvReg::new()),
             soc_ifc: SocIfc::new(SocIfcReg::new()),
             regions: MemoryRegions::new(),
             sha256: Sha256::new(Sha256Reg::new()),
@@ -171,7 +182,34 @@ impl<'a> Drivers<'a> {
             fht,
             manifest,
             dpe,
+            pcr_bank,
         })
+    }
+
+    fn initialize_dpe(
+        mut env: DpeEnv<CptraDpeTypes>,
+        pcr_bank: &mut PcrBank,
+    ) -> CaliptraResult<DpeInstance> {
+        let mut dpe = DpeInstance::new(&mut env, DPE_SUPPORT)
+            .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
+
+        // TODO: Set target_locality to SoC's initial locality
+        const TARGET_LOCALITY: u32 = 0;
+        let data = <[u8; DPE_PROFILE.get_hash_size()]>::from(&pcr_bank.read_pcr(PcrId::PcrId1));
+        DeriveChildCmd {
+            handle: ContextHandle::default(),
+            data,
+            flags: DeriveChildCmd::MAKE_DEFAULT
+                | DeriveChildCmd::CHANGE_LOCALITY
+                | DeriveChildCmd::INPUT_ALLOW_CA
+                | DeriveChildCmd::INPUT_ALLOW_X509,
+            tci_type: u32::from_be_bytes(*b"RTJM"),
+            target_locality: TARGET_LOCALITY,
+        }
+        .execute(&mut dpe, &mut env, DPE_LOCALITY)
+        .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
+
+        Ok(dpe)
     }
 }
 
@@ -188,7 +226,7 @@ fn wait_for_cmd(_mbox: &mut Mailbox) {
 /// Returns the mailbox status (DataReady when we send a response) or an error
 fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     // For firmware update, don't read data from the mailbox
-    if drivers.mbox.cmd() == CommandId::FIRMWARE_LOAD.into() {
+    if drivers.mbox.cmd() == CommandId::FIRMWARE_LOAD {
         update::handle_impactless_update(drivers)?;
 
         // If the handler succeeds but does not invoke reset that is
@@ -211,9 +249,14 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_IDEV_CSR => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_LDEV_CERT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-        CommandId::INVOKE_DPE => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        CommandId::INVOKE_DPE => {
+            let mut resp = InvokeDpeCmd::execute(drivers, cmd_bytes)?;
+            resp.write_to_mbox(drivers)?;
+            Ok(resp)
+        }
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),
         CommandId::FW_INFO => FwInfoCmd::execute(drivers),
         #[cfg(feature = "test_only_commands")]
         CommandId::TEST_ONLY_GET_LDEV_CERT => GetLdevCertCmd::execute(&drivers.data_vault),
