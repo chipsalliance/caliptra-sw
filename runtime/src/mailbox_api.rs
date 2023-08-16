@@ -4,6 +4,8 @@ use caliptra_drivers::{CaliptraError, CaliptraResult};
 use core::mem::size_of;
 use zerocopy::{AsBytes, FromBytes, LayoutVerified};
 
+use crate::{mailbox::Mailbox, packet::Packet, Drivers};
+
 #[derive(PartialEq, Eq)]
 pub struct CommandId(pub u32);
 impl CommandId {
@@ -100,6 +102,13 @@ impl MailboxResp {
         hdr.chksum = checksum;
 
         Ok(())
+    }
+
+    pub fn write_to_mbox(&mut self, drivers: &mut Drivers) -> CaliptraResult<()> {
+        match self {
+            MailboxResp::InvokeDpeCommand(resp) => resp.write_to_mbox(&mut drivers.mbox),
+            _ => Packet::copy_to_mbox(drivers, self),
+        }
     }
 }
 
@@ -216,7 +225,7 @@ pub struct InvokeDpeReq {
 }
 
 impl InvokeDpeReq {
-    pub const DATA_MAX_SIZE: usize = 1024;
+    pub const DATA_MAX_SIZE: usize = 512;
 }
 
 impl Default for InvokeDpeReq {
@@ -238,7 +247,12 @@ pub struct InvokeDpeResp {
 }
 
 impl InvokeDpeResp {
-    pub const DATA_MAX_SIZE: usize = 4096;
+    pub const DATA_MAX_SIZE: usize = 2500;
+
+    fn write_to_mbox(&self, mbox: &mut Mailbox) -> CaliptraResult<()> {
+        mbox.write_response(&self.data[..self.data_size as usize])?;
+        Ok(())
+    }
 }
 
 impl Default for InvokeDpeResp {
@@ -246,7 +260,7 @@ impl Default for InvokeDpeResp {
         Self {
             hdr: MailboxRespHeader::default(),
             data_size: 0,
-            data: [0u8; 4096],
+            data: [0u8; InvokeDpeResp::DATA_MAX_SIZE],
         }
     }
 }
