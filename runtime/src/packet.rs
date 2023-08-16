@@ -37,7 +37,7 @@ impl Packet {
         }
 
         let mut packet = Packet {
-            cmd,
+            cmd: cmd.into(),
             len: mbox.dlen() as usize,
             ..Default::default()
         };

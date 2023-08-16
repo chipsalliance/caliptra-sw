@@ -16,11 +16,11 @@ impl CommandId {
     pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
     pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
     pub const FW_INFO: Self = Self(0x494E464F); // "INFO"
-    pub const TEST_ONLY_HMAC384_VERIFY: Self = Self(0x484D4143); // "HMAC"
 
     // TODO: Remove this and merge with GET_LDEV_CERT once that is implemented
     pub const TEST_ONLY_GET_LDEV_CERT: Self = Self(0x4345524c); // "CERL"
     pub const TEST_ONLY_GET_FMC_ALIAS_CERT: Self = Self(0x43455246); // "CERF"
+    pub const TEST_ONLY_HMAC384_VERIFY: Self = Self(0x484D4143); // "HMAC"
 
     /// FIPS module commands.
     /// The status command.
@@ -30,11 +30,13 @@ impl CommandId {
     /// The shutdown command.
     pub const SHUTDOWN: Self = Self(0x4650_5344); // "FPSD"
 }
+
 impl From<u32> for CommandId {
     fn from(value: u32) -> Self {
         Self(value)
     }
 }
+
 impl From<CommandId> for u32 {
     fn from(value: CommandId) -> Self {
         value.0
@@ -298,6 +300,8 @@ pub struct FipsVersionResp {
 pub struct FwInfoResp {
     pub hdr: MailboxRespHeader,
     pub pl0_pauser: u32,
+    pub runtime_svn: u32,
+    pub fmc_manifest_svn: u32,
     // TODO: Decide what other information to report for general firmware
     // status.
 }

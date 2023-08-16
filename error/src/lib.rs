@@ -420,11 +420,13 @@ impl From<core::num::NonZeroU32> for crate::CaliptraError {
         crate::CaliptraError(val)
     }
 }
+
 impl From<CaliptraError> for core::num::NonZeroU32 {
     fn from(val: CaliptraError) -> Self {
         val.0
     }
 }
+
 impl From<CaliptraError> for u32 {
     fn from(val: CaliptraError) -> Self {
         core::num::NonZeroU32::from(val).get()
