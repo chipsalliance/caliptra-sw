@@ -253,12 +253,10 @@ impl InitDevIdLayer {
             return Err(CaliptraError::ROM_IDEVID_CSR_VERIFICATION_FAILURE);
         }
 
-        // [TODO] Due to printing of the CSR, rom sections are hitting max limits.
-        // Add this back when CSR printing is removed from here and added to test cases.
-        // let _pub_x: [u8; 48] = key_pair.pub_key.x.into();
-        // let _pub_y: [u8; 48] = key_pair.pub_key.y.into();
-        // cprint_slice!("[idev] PUB.X", _pub_x);
-        // cprint_slice!("[idev] PUB.Y", _pub_y);
+        let _pub_x: [u8; 48] = key_pair.pub_key.x.into();
+        let _pub_y: [u8; 48] = key_pair.pub_key.y.into();
+        cprintln!("[idev] PUB.X = {}", HexBytes(&_pub_x));
+        cprintln!("[idev] PUB.Y = {}", HexBytes(&_pub_y));
 
         let _sig_r: [u8; 48] = (&sig.r).into();
         let _sig_s: [u8; 48] = (&sig.s).into();

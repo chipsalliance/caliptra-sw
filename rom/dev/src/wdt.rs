@@ -50,20 +50,6 @@ pub fn start_wdt(soc_ifc: &mut SocIfc) {
     soc_ifc.configure_wdt1(true);
 }
 
-/// Restart the Watchdog Timer
-///
-/// # Arguments
-///
-/// * `env` - ROM Environment
-///
-// [TODO] Enable this once WDT ownership tp FMC is resolved.
-// pub fn restart_wdt(soc_ifc: &mut SocIfc) {
-//     cprintln!("[state] Restarting the Watchdog Timer");
-
-//     // Only restart WDT1. WDT2 is automatically scheduled (since it is disabled) on WDT1 expiry.
-//     soc_ifc.reset_wdt1();
-// }
-
 /// Stop the Watchdog Timer
 ///
 /// # Arguments

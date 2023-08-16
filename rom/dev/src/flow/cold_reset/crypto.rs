@@ -20,7 +20,6 @@ use caliptra_x509::Ecdsa384Signature;
 
 /// ECDSA-384 Signature Adapter
 ///
-/// TODO: This can be refactored and eliminated by X509 using `Ecc384Signature`
 pub trait Ecdsa384SignatureAdapter {
     /// Convert to ECDSA Signature
     fn to_ecdsa(&self) -> Ecdsa384Signature;
