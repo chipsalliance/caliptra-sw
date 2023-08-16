@@ -49,19 +49,13 @@ impl<'a> ImageVerificationEnv for &mut RomImageVerificationEnv<'a> {
         pub_key: &ImageEccPubKey,
         sig: &ImageEccSignature,
     ) -> CaliptraResult<Ecc384Result> {
-        // TODO: Remove following conversions after refactoring the driver ECC384PubKey
-        // for use across targets
         let pub_key = Ecc384PubKey {
             x: pub_key.x.into(),
             y: pub_key.y.into(),
         };
 
-        // TODO: Remove following conversions after refactoring the driver SHA384Digest
-        // for use across targets
         let digest: Array4x12 = digest.into();
 
-        // TODO: Remove following conversions after refactoring the driver ECC384Signature
-        // for use across targets
         let sig = Ecc384Signature {
             r: sig.r.into(),
             s: sig.s.into(),
