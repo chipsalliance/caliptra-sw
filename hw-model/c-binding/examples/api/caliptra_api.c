@@ -205,7 +205,7 @@ int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *f
     int mStatus;
     const uint32_t error_code = 0x3003000c;
     mStatus = caliptra_mailbox_execute(model,GET_PROFILE_OPCODE, fw_buffer, NULL);
-    caliptra_read_u32(error_code, &status);
+    caliptra_model_apb_read_u32(model,error_code, &status);
     printf("%s",status);
     return mStatus;
 }
