@@ -203,8 +203,9 @@ int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *f
     const uint32_t GET_PROFILE_OPCODE = 0x44504543u;
     uint32_t *status;
     int mStatus;
-    const uint32_t error_code = 0x3003000c;
-    mStatus = caliptra_mailbox_execute(model,GET_PROFILE_OPCODE, fw_buffer, NULL);
+    const uint32_t error_code = 0x3003003c;
+    caliptra_buffer *test = (caliptra_buffer *)malloc(sizeof(caliptra_buffer));
+    mStatus = caliptra_mailbox_execute(model,GET_PROFILE_OPCODE, fw_buffer, test);
     status = (uint32_t *)malloc(10 * sizeof(uint32_t));
     caliptra_model_apb_read_u32(model,error_code, status);
     printf("%x\n",*status);
