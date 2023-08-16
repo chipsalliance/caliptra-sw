@@ -208,5 +208,6 @@ int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *f
     status = (uint32_t *)malloc(10 * sizeof(uint32_t));
     caliptra_model_apb_read_u32(model,error_code, status);
     printf("%s",status);
+    fflush(stdout);
     return mStatus;
 }
