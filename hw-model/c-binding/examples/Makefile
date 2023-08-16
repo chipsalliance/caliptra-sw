@@ -37,7 +37,7 @@ $(OUT)/%.o: $(SOURCE)
 	$(CC) ${CFLAGS} -g -c $< -o $@
 
 $(TARGET): $(OUT)/caliptra_model.h $(OBJS)
-	$(CC) -o $(TARGET) $(OBJS) $(CFLAGS) -Wl,-L$(OUT)/debug -lcaliptra_hw_model_c_binding -lpthread -lstdc++ -ldl -lm
+	$(CC) -o $(TARGET) $(OBJS) $(CFLAGS) -Wl,-L$(OUT)/debug -lcaliptra_hw_model_c_binding -lcaliptra -lpthread -lstdc++ -ldl -lm
 
 clean:
 	$(RM) -rf $(OUT)
