@@ -94,8 +94,10 @@ func main() {
     C.caliptra_model_step(model)
         buffer := C.caliptra_model_output_peek(model)
         if C.strstr((*C.char)(unsafe.Pointer(buffer.data)), C.CString("Caliptra RT listening for mailbox commands...")) != nil {
-            profile := C.caliptra_get_profile(model, &imageBundle)
+            C.uint32_t test;
+            profile := C.caliptra_get_profile(model, &imageBundle,test)
             fmt.Println(profile)
+            fmt.Println(test)
             break
         }
     }
