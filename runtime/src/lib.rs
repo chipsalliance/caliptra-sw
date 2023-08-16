@@ -188,7 +188,7 @@ fn wait_for_cmd(_mbox: &mut Mailbox) {
 /// Returns the mailbox status (DataReady when we send a response) or an error
 fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     // For firmware update, don't read data from the mailbox
-    if drivers.mbox.cmd() == CommandId::FIRMWARE_LOAD.into() {
+    if drivers.mbox.cmd() == CommandId::FIRMWARE_LOAD {
         update::handle_impactless_update(drivers)?;
 
         // If the handler succeeds but does not invoke reset that is
