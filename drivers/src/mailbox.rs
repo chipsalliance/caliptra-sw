@@ -425,18 +425,13 @@ impl MailboxRecvTxn<'_> {
             return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
         }
 
-        if !data.is_empty() {
-            self.state = MailboxOpState::RdyForDlen;
-            // Set dlen
-            self.write_dlen(data.len() as u32)?;
+        self.state = MailboxOpState::RdyForDlen;
+        // Set dlen
+        self.write_dlen(data.len() as u32)?;
 
-            self.state = MailboxOpState::RdyForData;
-            // Copy the data
-            fifo::enqueue(self.mbox, data)
-        } else {
-            // Do not change state if no data was provided
-            Ok(())
-        }
+        self.state = MailboxOpState::RdyForData;
+        // Copy the data
+        fifo::enqueue(self.mbox, data)
     }
 
     /// Sends `data.len()` bytes to the mailbox FIFO.
@@ -458,6 +453,7 @@ impl MailboxRecvTxn<'_> {
     ///
     /// Transitions from Execute or RdyForData-> Idle
     ///
+    /// Does not take ownership of self, unlike complete()
     pub fn complete(&mut self, success: bool) -> CaliptraResult<()> {
         if self.state != MailboxOpState::Execute && self.state != MailboxOpState::RdyForData {
             return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);

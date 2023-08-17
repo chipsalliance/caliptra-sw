@@ -288,7 +288,7 @@ fn test_mailbox_soc_to_uc() {
 
     // Test MailboxRecvTxn::recv_request()
     {
-        model
+        let resp = model
             .mailbox_execute(
                 0x5000_0000,
                 &[0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef],
@@ -306,9 +306,10 @@ fn test_mailbox_soc_to_uc() {
             )
             .unwrap();
         model.output().take(usize::MAX);
+        assert_eq!(resp, None);
 
         // Try again, but with a non-multiple-of-4 size
-        model
+        let resp = model
             .mailbox_execute(0x5000_0000, &[0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd])
             .unwrap();
         model
@@ -319,9 +320,10 @@ fn test_mailbox_soc_to_uc() {
             )
             .unwrap();
         model.output().take(usize::MAX);
+        assert_eq!(resp, None);
 
         // Try again, but with no data in the FIFO
-        model.mailbox_execute(0x5000_0000, &[]).unwrap();
+        let resp = model.mailbox_execute(0x5000_0000, &[]).unwrap();
         model
             .step_until_output(
                 "cmd: 0x50000000\n\
@@ -330,11 +332,12 @@ fn test_mailbox_soc_to_uc() {
             )
             .unwrap();
         model.output().take(usize::MAX);
+        assert_eq!(resp, None);
     }
 
     // Test MailboxRecvTxn::copy_request
     {
-        model
+        let resp = model
             .mailbox_execute(
                 0x6000_0000,
                 &[
@@ -350,9 +353,10 @@ fn test_mailbox_soc_to_uc() {
              buf: [67452301, efcdab89]\n\
              buf: [33221100, 77665544]\n"
         );
+        assert_eq!(resp, None);
 
         // Try again, but with a non-multiple-of-4 size
-        model
+        let resp = model
             .mailbox_execute(
                 0x6000_0000,
                 &[
@@ -367,9 +371,10 @@ fn test_mailbox_soc_to_uc() {
              buf: [67452301, efcdab89]\n\
              buf: [33221100, 00000044]\n"
         );
+        assert_eq!(resp, None);
 
         // Try again, but where the buffer is larger than the last chunk
-        model
+        let resp = model
             .mailbox_execute(
                 0x6000_0000,
                 &[
@@ -384,27 +389,30 @@ fn test_mailbox_soc_to_uc() {
              buf: [67452301, efcdab89]\n\
              buf: [33221100, 33221100]\n"
         );
+        assert_eq!(resp, None);
         // TODO: It is not optimal that the driver copies the last word in the
         // FIFO to the extra array location.
 
         // Try again, but with no data in the FIFO
-        model.mailbox_execute(0x6000_0000, &[]).unwrap();
+        let resp = model.mailbox_execute(0x6000_0000, &[]).unwrap();
         assert_eq!(
             model.output().take(usize::MAX),
             "cmd: 0x60000000\n\
              dlen: 0\n"
         );
+        assert_eq!(resp, None);
     }
 
     // Test MailboxRecvTxn completed with success without draining the FIFO
     {
-        model
+        let resp = model
             .mailbox_execute(0x7000_0000, &[0x88, 0x99, 0xaa, 0xbb])
             .unwrap();
         assert_eq!(model.output().take(usize::MAX), "cmd: 0x70000000\n");
+        assert_eq!(resp, None);
 
         // Make sure the next command doesn't see the FIFO from the previous command
-        model
+        let resp = model
             .mailbox_execute(0x6000_0000, &[0x07, 0x06, 0x05, 0x04, 0x03])
             .unwrap();
         assert_eq!(
@@ -413,6 +421,7 @@ fn test_mailbox_soc_to_uc() {
              dlen: 5\n\
              buf: [04050607, 00000003]\n"
         );
+        assert_eq!(resp, None);
     }
 
     // Test MailboxRecvTxn completed with failure without draining the FIFO
@@ -424,7 +433,7 @@ fn test_mailbox_soc_to_uc() {
         assert_eq!(model.output().take(usize::MAX), "cmd: 0x80000000\n");
 
         // Make sure the next command doesn't see the FIFO from the previous command
-        model
+        let resp = model
             .mailbox_execute(0x6000_0000, &[0x07, 0x06, 0x05, 0x04, 0x03])
             .unwrap();
         assert_eq!(
@@ -433,11 +442,12 @@ fn test_mailbox_soc_to_uc() {
              dlen: 5\n\
              buf: [04050607, 00000003]\n"
         );
+        assert_eq!(resp, None);
     }
 
     // Test drop_words
     {
-        model
+        let resp = model
             .mailbox_execute(
                 0x9000_0000,
                 &[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08],
@@ -449,6 +459,7 @@ fn test_mailbox_soc_to_uc() {
              dlen: 8\n\
              buf: [08070605]\n"
         );
+        assert_eq!(resp, None);
     }
 
     // Test 4 byte response with no request data
@@ -482,9 +493,9 @@ fn test_mailbox_soc_to_uc() {
 
     // Test reponse with 0 bytes (still calls copy_response)
     {
-        let resp = model.mailbox_execute(0xD000_0000, &[]).unwrap();
+        let resp = model.mailbox_execute(0xD000_0000, &[]).unwrap().unwrap();
         assert_eq!(model.output().take(usize::MAX), "cmd: 0xd0000000\n");
-        assert_eq!(resp, None);
+        assert_eq!(resp, []);
     }
 }
 
