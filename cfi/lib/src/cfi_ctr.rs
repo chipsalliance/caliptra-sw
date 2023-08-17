@@ -97,7 +97,7 @@ impl CfiCounter {
         Self::write(CfiInt::default());
     }
 
-    // Zero the counter
+    /// Zero the counter
     pub fn corrupt() {
         Self::write(CfiInt {
             val: 0,

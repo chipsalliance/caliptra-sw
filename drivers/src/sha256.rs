@@ -75,7 +75,7 @@ impl Sha256 {
                     }
                 }
                 _ => {
-                    // PANIC-FREE: Use buf.get() instead if buf[] as the compiler
+                    // PANIC-FREE: Use buf.get() instead of buf[] as the compiler
                     // cannot reason about `offset` parameter to optimize out
                     // the panic call.
                     if let Some(slice) = buf.get(offset..offset + SHA256_BLOCK_BYTE_SIZE) {
