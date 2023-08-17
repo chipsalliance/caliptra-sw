@@ -8,21 +8,11 @@
 
 #include "caliptra_api.h"
 
-// Interface defined values
-extern struct caliptra_fuses  fuses;        // Device-specific location of Caliptra fuse data
-extern struct caliptra_buffer image_bundle; // Device-specific location of Caliptra firmware
+extern struct caliptra_buffer image_bundle;
 
 int main(int argc, char *argv[])
 {
     int status;
-
-    fuses = (struct caliptra_fuses){0};
-
-    if ((status = caliptra_init_fuses(&fuses)) != 0)
-    {
-        printf("Failed to init fuses: %d\n", status);
-        return status;
-    }
 
     // Initialize FSM GO
     caliptra_bootfsm_go();

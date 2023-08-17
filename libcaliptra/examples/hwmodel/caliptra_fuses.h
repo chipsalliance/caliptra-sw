@@ -13,8 +13,10 @@ static inline void caliptra_fuse_write(uint32_t offset, uint32_t data)
     caliptra_write_u32((offset + CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_BASE_ADDR), data);
 }
 
-static inline void caliptra_fuse_array_write(uint32_t offset, uint32_t *data, uint32_t size)
+static inline void caliptra_fuse_array_write(uint32_t offset, uint32_t *data, size_t size)
 {
-    for (uint32_t idx= 0; idx < size; idx +=sizeof(uint32_t))
-        caliptra_fuse_write((offset + idx ), data[idx]);
+    for (uint32_t idx = 0; idx < size; idx ++)
+    {
+        caliptra_fuse_write((offset + (idx * sizeof(uint32_t))), data[idx]);
+    }
 }
