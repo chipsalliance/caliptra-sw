@@ -22,6 +22,34 @@ import (
 	"fmt"
 )
 
+type CommandHdr struct {
+	Magic   uint32
+	Cmd     CommandCode
+	Profile Profile
+}
+
+type Profile struct {
+	MajorVersion uint16
+	MinorVersion uint16
+}
+
+type CommandCode uint32
+
+const (
+	CommandGetProfile        CommandCode = 0x1
+	CommandInitializeContext CommandCode = 0x7
+	CommandCertifyKey        CommandCode = 0x9
+	CommandDestroyContext    CommandCode = 0xf
+	CommandTagTCI            CommandCode = 0x82
+	CommandGetTaggedTCI      CommandCode = 0x83
+)
+
+const (
+	CmdMagic  uint32 = 0x44504543
+	CURRENT_PROFILE_MAJOR_VERSION uint16 = 0
+	CURRENT_PROFILE_MINOR_VERSION uint16 = 8
+)
+
 func read_file_or_die(path *C.char) C.caliptra_buffer {
     // Open File in Read Only Mode
     fp := C.fopen(path, C.CString("r"))
@@ -95,7 +123,20 @@ func main() {
         buffer := C.caliptra_model_output_peek(model)
         if C.strstr((*C.char)(unsafe.Pointer(buffer.data)), C.CString("Caliptra RT listening for mailbox commands...")) != nil {
             var test C.uint32_t
-            profile := C.caliptra_get_profile(model, &imageBundle,test)
+            cmdHdr := CommandHdr{
+                Magic: CmdMagic,
+                Cmd:   CommandCode(CommandGetProfile),
+                Profile: Profile{
+                    MajorVersion: CURRENT_PROFILE_MAJOR_VERSION,
+                    MinorVersion: CURRENT_PROFILE_MINOR_VERSION,
+                },
+            }
+        
+            var profileBuffer C.caliptra_buffer
+            profileBuffer.data = (*C.uint8_t)(unsafe.Pointer(&cmdHdr))
+            profileBuffer.len = C.uintptr_t(unsafe.Sizeof(cmdHdr))
+
+            profile := C.caliptra_get_profile(model, &profileBuffer,test)
             fmt.Println(profile)
             fmt.Println(test)
             break
