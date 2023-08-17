@@ -47,8 +47,8 @@ const (
 
 const (
 	CmdMagic  uint32 = 0x44504543
-	CURRENT_PROFILE_MAJOR_VERSION uint16 = 0
-	CURRENT_PROFILE_MINOR_VERSION uint16 = 8
+	CURRENT_PROFILE_MAJOR_VERSION uint16 = 1
+	CURRENT_PROFILE_MINOR_VERSION uint16 = 0
 )
 
 func read_file_or_die(path *C.char) C.caliptra_buffer {
