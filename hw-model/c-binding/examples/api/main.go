@@ -1,7 +1,7 @@
 package main
 
 // #cgo CFLAGS: -I./../out/debug -std=c99
-// #cgo LDFLAGS: -L./../out/debug -lcaliptra_hw_model_c_binding -lcaliptra -ldl
+// #cgo LDFLAGS: -L./../out/debug -lcaliptra_hw_model_c_binding -lcaliptra -lc_wrapper -ldl
 // #include "../caliptra-rtl/src/soc_ifc/rtl/caliptra_top_reg.h"
 // #include "caliptra_api.h"
 // #include "caliptra_fuses.h"
@@ -123,18 +123,7 @@ func main() {
         buffer := C.caliptra_model_output_peek(model)
         if C.strstr((*C.char)(unsafe.Pointer(buffer.data)), C.CString("Caliptra RT listening for mailbox commands...")) != nil {
             var test C.uint32_t
-            cmdHdr := CommandHdr{
-                Magic: CmdMagic,
-                Cmd:   CommandCode(CommandGetProfile),
-                Profile: Profile{
-                    MajorVersion: CURRENT_PROFILE_MAJOR_VERSION,
-                    MinorVersion: CURRENT_PROFILE_MINOR_VERSION,
-                },
-            }
-        
-            var profileBuffer C.caliptra_buffer
-            profileBuffer.data = (*C.uint8_t)(unsafe.Pointer(&cmdHdr))
-            profileBuffer.len = C.uintptr_t(unsafe.Sizeof(cmdHdr))
+            profileBuffer := C.create_command_hdr(C.uint32_t(CmdMagic), C.uint32_t(CommandGetProfile), C.uint16_t(CURRENT_PROFILE_MAJOR_VERSION), C.uint16_t(CURRENT_PROFILE_MINOR_VERSION))
 
             profile := C.caliptra_get_profile(model, &profileBuffer,test)
             fmt.Println(profile)
