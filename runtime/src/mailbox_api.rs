@@ -4,8 +4,6 @@ use caliptra_drivers::{CaliptraError, CaliptraResult};
 use core::mem::size_of;
 use zerocopy::{AsBytes, FromBytes, LayoutVerified};
 
-use crate::{mailbox::Mailbox, packet::Packet, Drivers};
-
 #[derive(PartialEq, Eq)]
 pub struct CommandId(pub u32);
 impl CommandId {
@@ -65,7 +63,7 @@ impl MailboxResp {
             MailboxResp::GetIdevCsr(resp) => resp.as_bytes(),
             MailboxResp::GetLdevCert(resp) => resp.as_bytes(),
             MailboxResp::StashMeasurement(resp) => resp.as_bytes(),
-            MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes(),
+            MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes_partial(),
             MailboxResp::TestGetFmcAliasCert(resp) => resp.as_bytes(),
             MailboxResp::FipsVersion(resp) => resp.as_bytes(),
             MailboxResp::FwInfo(resp) => resp.as_bytes(),
@@ -78,7 +76,7 @@ impl MailboxResp {
             MailboxResp::GetIdevCsr(resp) => resp.as_bytes_mut(),
             MailboxResp::GetLdevCert(resp) => resp.as_bytes_mut(),
             MailboxResp::StashMeasurement(resp) => resp.as_bytes_mut(),
-            MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes_mut(),
+            MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::TestGetFmcAliasCert(resp) => resp.as_bytes_mut(),
             MailboxResp::FipsVersion(resp) => resp.as_bytes_mut(),
             MailboxResp::FwInfo(resp) => resp.as_bytes_mut(),
@@ -103,13 +101,6 @@ impl MailboxResp {
         hdr.chksum = checksum;
 
         Ok(())
-    }
-
-    pub fn write_to_mbox(&mut self, drivers: &mut Drivers) -> CaliptraResult<()> {
-        match self {
-            MailboxResp::InvokeDpeCommand(resp) => resp.write_to_mbox(&mut drivers.mbox),
-            _ => Packet::copy_to_mbox(drivers, self),
-        }
     }
 }
 
@@ -250,9 +241,14 @@ pub struct InvokeDpeResp {
 impl InvokeDpeResp {
     pub const DATA_MAX_SIZE: usize = 2500;
 
-    fn write_to_mbox(&self, mbox: &mut Mailbox) -> CaliptraResult<()> {
-        mbox.write_response(&self.data[..self.data_size as usize])?;
-        Ok(())
+    fn as_bytes_partial(&self) -> &[u8] {
+        let unused_byte_count = Self::DATA_MAX_SIZE.saturating_sub(self.data_size as usize);
+        &self.as_bytes()[..size_of::<Self>() - unused_byte_count]
+    }
+
+    fn as_bytes_partial_mut(&mut self) -> &mut [u8] {
+        let unused_byte_count = Self::DATA_MAX_SIZE.saturating_sub(self.data_size as usize);
+        &mut self.as_bytes_mut()[..size_of::<Self>() - unused_byte_count]
     }
 }
 
