@@ -6,7 +6,7 @@ caliptra_buffer create_command_hdr(uint32_t magic, uint32_t cmd, uint32_t profil
     struct CommandHdr {
         uint32_t magic;
         uint32_t cmd;
-        uint32_t profile
+        uint32_t profile;
     };
     
     struct CommandHdr* cmdHdr = (struct CommandHdr*)malloc(sizeof(struct CommandHdr));
