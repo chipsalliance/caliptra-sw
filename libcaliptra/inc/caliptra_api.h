@@ -10,12 +10,6 @@
 
 #define ARRAY_SIZE(array) ((size_t)(sizeof(array) / sizeof(array[0])))
 
-// Query if ROM is ready for fuses
-bool caliptra_ready_for_fuses(void);
-
-// Initialize Caliptra fuses prior to boot
-int caliptra_init_fuses(struct caliptra_fuses *fuses);
-
 // Write into Caliptra BootFSM Go Register
 int caliptra_bootfsm_go();
 
