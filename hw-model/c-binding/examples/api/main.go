@@ -47,9 +47,13 @@ const (
 
 const (
 	CmdMagic  uint32 = 0x44504543
-	CURRENT_PROFILE_MAJOR_VERSION uint16 = 1
-	CURRENT_PROFILE_MINOR_VERSION uint16 = 0
 )
+
+func stringToUint32(s string) uint32 {
+	h := fnv.New32a()
+	h.Write([]byte(s))
+	return h.Sum32()
+}
 
 func read_file_or_die(path *C.char) C.caliptra_buffer {
     // Open File in Read Only Mode
@@ -124,7 +128,9 @@ func main() {
         buffer := C.caliptra_model_output_peek(model)
         if C.strstr((*C.char)(unsafe.Pointer(buffer.data)), C.CString("Caliptra RT listening for mailbox commands...")) != nil {
             var test C.uint32_t
-            profileBuffer := C.create_command_hdr(C.uint32_t(CmdMagic), C.uint32_t(CommandGetProfile), C.uint16_t(CURRENT_PROFILE_MAJOR_VERSION), C.uint16_t(CURRENT_PROFILE_MINOR_VERSION))
+            profileString := "DPE_PROFILE_IROT_P256_SHA256"
+	        profile := stringToUint32(profileString)
+            profileBuffer := C.create_command_hdr(C.uint32_t(CmdMagic), C.uint32_t(CommandGetProfile),C.uint32_t(profile))
 
             profile := C.caliptra_get_profile(model, &profileBuffer,test)
             fmt.Println(profile)
