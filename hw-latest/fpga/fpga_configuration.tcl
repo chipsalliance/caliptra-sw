@@ -1,14 +1,16 @@
-# Clean and create output directory.
-set outputDir ./caliptra_build
+# Create path variables
+set fpgaDir [file dirname [info script]]
+set outputDir $fpgaDir/caliptra_build
 set packageDir $outputDir/caliptra_package
 set adapterDir $outputDir/soc_adapter_package
+# Clean and create output directory.
 file delete -force $outputDir
 file mkdir $outputDir
 file mkdir $packageDir
 file mkdir $adapterDir
 
 # Path to rtl
-set rtlDir ../caliptra-rtl
+set rtlDir $fpgaDir/../caliptra-rtl
 
 # Simplistic processing of command line arguments to enable different features
 # Defaults:
@@ -19,6 +21,11 @@ set ITRNG FALSE
 foreach arg $argv {
     regexp {(.*)=(.*)} $arg fullmatch option value
     set $option "$value"
+}
+# If VERSION was not set by tclargs, set it from the commit ID.
+# This assumes it is run from within caliptra-sw. If building from outside caliptra-sw call with "VERSION=[hex number]"
+if {[info exists VERSION] == 0} {
+  set VERSION [exec git rev-parse --short HEAD]
 }
 
 # Set Verilog defines to:
@@ -39,7 +46,7 @@ if {$GUI} {
 # Create a project to package a module to connect SOC signals to
 create_project soc_adapter_package_project $outputDir -part xczu7ev-ffvc1156-2-e
 # Add source
-add_files [ glob ./src/soc_adapter.v ]
+add_files [ glob $fpgaDir/src/soc_adapter.v ]
 
 # Package IP
 ipx::package_project -root_dir $adapterDir -vendor design -library user -taxonomy /UserIP -import_files -set_current false
@@ -62,11 +69,11 @@ close_project
 # Packaging Caliptra allows Vivado to recognize the APB bus as an endpoint for the memory map.
 create_project caliptra_package_project $outputDir -part xczu7ev-ffvc1156-2-e
 
-# Generate IRAM
+# Generate ROM
 create_ip -name blk_mem_gen -vendor xilinx.com -library ip -version 8.4 -module_name fpga_imem -dir $outputDir
 set_property -dict [list \
   CONFIG.Memory_Type {True_Dual_Port_RAM} \
-  CONFIG.Write_Depth_A {4096} \
+  CONFIG.Write_Depth_A {6144} \
   CONFIG.Write_Width_A {64} \
   CONFIG.Write_Width_B {32} \
   CONFIG.Use_RSTB_Pin {true} \
@@ -126,14 +133,14 @@ remove_files [ glob $rtlDir/src/ecc/rtl/ecc_ram_tdp_file.sv ]
 remove_files [ glob $rtlDir/src/keyvault/rtl/kv_reg.sv ]
 
 # Add FPGA specific sources
-add_files [ glob ./src/*.sv]
-add_files [ glob ./src/*.v]
+add_files [ glob $fpgaDir/src/*.sv]
+add_files [ glob $fpgaDir/src/*.v]
 
 # Mark all Verilog sources as SystemVerilog because some of them have SystemVerilog syntax.
 set_property file_type SystemVerilog [get_files *.v]
 
 # Exception: caliptra_package_top.v needs to be Verilog to be included in a Block Diagram.
-set_property file_type Verilog [get_files  ./src/caliptra_package_top.v]
+set_property file_type Verilog [get_files  $fpgaDir/src/caliptra_package_top.v]
 
 # Add include paths
 set_property include_dirs $rtlDir/src/integration/rtl [current_fileset]
@@ -262,7 +269,7 @@ connect_bd_net [get_bd_pins fifo_generator_0/prog_full] [get_bd_pins zynq_ultra_
 
 # Create address segments
 assign_bd_address -offset 0x80000000 -range 0x00002000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs caliptra_soc_0/interface_aximm/reg0] -force
-assign_bd_address -offset 0x82000000 -range 0x00008000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs axi_bram_ctrl_0/S_AXI/Mem0] -force
+assign_bd_address -offset 0x82000000 -range 0x00010000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs axi_bram_ctrl_0/S_AXI/Mem0] -force
 assign_bd_address -offset 0x90000000 -range 0x00100000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs caliptra_package_top_0/s_apb/Reg] -force
 
 if {$JTAG} {
@@ -270,7 +277,7 @@ if {$JTAG} {
   make_bd_pins_external  [get_bd_pins caliptra_package_top_0/jtag_tck] [get_bd_pins caliptra_package_top_0/jtag_tms] [get_bd_pins caliptra_package_top_0/jtag_tdo] [get_bd_pins caliptra_package_top_0/jtag_tdi] [get_bd_pins caliptra_package_top_0/jtag_trst_n]
 
   # Add constraints for JTAG signals
-  add_files -fileset constrs_1 ./src/jtag_constraints.xdc
+  add_files -fileset constrs_1 $fpgaDir/src/jtag_constraints.xdc
 } else {
   # Tie off JTAG inputs
   create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_0
@@ -293,7 +300,7 @@ update_compile_order -fileset sources_1
 set_property STEPS.WRITE_BITSTREAM.ARGS.BIN_FILE true [get_runs impl_1]
 
 # Add FPGA constraints
-add_files -fileset constrs_1 ./src/constraints.xdc
+add_files -fileset constrs_1 $fpgaDir/src/constraints.xdc
 
 # Start build
 if {$BUILD} {
@@ -303,6 +310,6 @@ if {$BUILD} {
   wait_on_runs impl_1
   open_run impl_1
   # Embed git hash in USR_ACCESS register for bitstream identification.
-  set_property BITSTREAM.CONFIG.USR_ACCESS 0x[exec git rev-parse --short HEAD] [current_design]
+  set_property BITSTREAM.CONFIG.USR_ACCESS 0x$VERSION [current_design]
   write_bitstream -bin_file $outputDir/caliptra_fpga
 }

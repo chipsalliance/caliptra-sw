@@ -1,14 +1,21 @@
 // Licensed under the Apache-2.0 license.
+
 pub mod common;
 
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART};
 use caliptra_drivers::Ecc384PubKey;
 use caliptra_hw_model::{HwModel, ModelError, ShaAccMode};
 use caliptra_runtime::{
-    CommandId, EcdsaVerifyReq, FipsVersionCmd, FipsVersionResp, FwInfoResp, MailboxReqHeader,
-    MailboxRespHeader,
+    CommandId, EcdsaVerifyReq, FipsVersionCmd, FipsVersionResp, FwInfoResp, InvokeDpeReq,
+    InvokeDpeResp, MailboxReqHeader, MailboxRespHeader, RtBootStatus, DPE_SUPPORT, VENDOR_ID,
+    VENDOR_SKU,
 };
 use common::{run_rom_test, run_rt_test};
+use dpe::{
+    commands::{Command, CommandHdr},
+    response::GetProfileResp,
+    DPE_PROFILE,
+};
 use openssl::{
     bn::BigNum,
     ec::{EcGroup, EcKey},
@@ -39,15 +46,16 @@ fn test_update() {
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
+    let image_options = ImageOptions {
+        app_version: 0xaabbccdd,
+        ..Default::default()
+    };
     // Make image to update to
-    let image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap()
-    .to_bytes()
-    .unwrap();
+    let image =
+        caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
+            .unwrap()
+            .to_bytes()
+            .unwrap();
 
     model
         .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &image)
@@ -56,11 +64,22 @@ fn test_update() {
     model
         .step_until_output_contains("Caliptra RT listening for mailbox commands...")
         .unwrap();
+
+    let fw_rev = model.soc_ifc().cptra_fw_rev_id().read();
+    assert_eq!(fw_rev[0], 0xaaaaaaaa);
+    assert_eq!(fw_rev[1], 0xaabbccdd);
 }
 
 #[test]
 fn test_boot() {
     let mut model = run_rt_test(Some("boot"));
+
+    model.step_until_exit_success().unwrap();
+}
+
+#[test]
+fn test_keyvault() {
+    let mut model = run_rt_test(Some("keyvault"));
 
     model.step_until_exit_success().unwrap();
 }
@@ -128,7 +147,80 @@ fn test_fw_info() {
 }
 
 #[test]
-fn test_verify_cmd() {
+fn test_invoke_dpe_get_profile_cmd() {
+    let mut model = run_rt_test(None);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == RtBootStatus::RtReadyForCommands.into()
+    });
+
+    let mut data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
+    let cmd_hdr = CommandHdr::new_for_test(Command::GetProfile);
+    let cmd_hdr_buf = cmd_hdr.as_bytes();
+    data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
+    let cmd = InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        data,
+        data_size: cmd_hdr_buf.len() as u32,
+    };
+
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::INVOKE_DPE),
+        &cmd.as_bytes()[4..],
+    );
+
+    let cmd = InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..cmd
+    };
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::INVOKE_DPE), cmd.as_bytes())
+        .unwrap()
+        .expect("We should have received a response");
+
+    let resp_hdr: &InvokeDpeResp = LayoutVerified::<&[u8], InvokeDpeResp>::new(resp.as_bytes())
+        .unwrap()
+        .into_ref();
+
+    let get_profile_resp =
+        GetProfileResp::read_from(resp_hdr.data[..resp_hdr.data_size as usize].as_bytes());
+    assert!(get_profile_resp.is_some());
+    let profile = get_profile_resp.unwrap();
+    assert_eq!(profile.resp_hdr.profile, DPE_PROFILE as u32);
+    assert_eq!(profile.vendor_id, VENDOR_ID);
+    assert_eq!(profile.vendor_sku, VENDOR_SKU);
+    assert_eq!(profile.flags, DPE_SUPPORT.get_flags());
+}
+
+#[test]
+fn test_disable_attestation_cmd() {
+    let mut model = run_rt_test(None);
+
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::DISABLE_ATTESTATION),
+            &[],
+        ),
+    };
+    // once DPE APIs are enabled, ensure that the RT alias key in the cert is different from the key that signs DPE certs
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::DISABLE_ATTESTATION),
+            payload.as_bytes(),
+        )
+        .unwrap()
+        .unwrap();
+
+    let resp_hdr = MailboxRespHeader::read_from(resp.as_bytes()).unwrap();
+    assert_eq!(
+        resp_hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
+}
+
+#[test]
+fn test_ecdsa_verify_cmd() {
     let mut model = run_rom_test("mbox");
 
     model.step_until(|m| {
@@ -305,6 +397,18 @@ fn test_fips_cmd_api() {
 }
 
 #[test]
+fn test_fw_version() {
+    let mut model = run_rt_test(None);
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == RtBootStatus::RtReadyForCommands.into()
+    });
+
+    let fw_rev = model.soc_ifc().cptra_fw_rev_id().read();
+    assert_eq!(fw_rev[0], 0xaaaaaaaa);
+    assert_eq!(fw_rev[1], 0xbbbbbbbb);
+}
+
+#[test]
 fn test_unimplemented_cmds() {
     let mut model = run_rom_test("mbox");
 
@@ -337,14 +441,6 @@ fn test_unimplemented_cmds() {
     };
 
     resp = model.mailbox_execute(u32::from(CommandId::STASH_MEASUREMENT), payload.as_bytes());
-    assert_eq!(resp, expected_err);
-
-    // INVOKE_DPE
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::INVOKE_DPE), &[]),
-    };
-
-    resp = model.mailbox_execute(u32::from(CommandId::INVOKE_DPE), payload.as_bytes());
     assert_eq!(resp, expected_err);
 
     // Send something that is not a valid RT command.

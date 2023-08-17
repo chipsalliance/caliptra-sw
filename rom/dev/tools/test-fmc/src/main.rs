@@ -21,8 +21,9 @@ use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::{FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_drivers::ColdResetEntry4::*;
-use caliptra_drivers::{DataVault, Mailbox};
+use caliptra_drivers::{DataVault, Mailbox, PcrBank, PcrId};
 use caliptra_registers::dv::DvReg;
+use caliptra_registers::pv::PvReg;
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
 use core::ptr;
 use ureg::RealMmioMut;
@@ -218,6 +219,12 @@ fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMm
         0x1000_0005 => {
             read_datavault_coldresetentry4(mbox);
         }
+        0x1000_0006 => {
+            read_pcrs(mbox);
+        }
+        0x1000_0007 => {
+            try_to_reset_pcrs(mbox);
+        }
         _ => {}
     }
 }
@@ -281,6 +288,52 @@ fn read_pcr_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
             .try_into()
             .unwrap()
     });
+    mbox.status().write(|w| w.status(|w| w.data_ready()));
+}
+
+fn swap_word_bytes_inplace(words: &mut [u32]) {
+    for word in words.iter_mut() {
+        *word = word.swap_bytes()
+    }
+}
+
+fn read_pcrs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    let pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
+    const PCR_COUNT: usize = 32;
+    for i in 0..PCR_COUNT {
+        let pcr = pcr_bank.read_pcr(PcrId::try_from(i as u8).unwrap());
+        let mut pcr_bytes: [u32; 12] = pcr.try_into().unwrap();
+
+        swap_word_bytes_inplace(&mut pcr_bytes);
+        send_to_mailbox(mbox, pcr.as_bytes(), false);
+    }
+
+    mbox.dlen().write(|_| (48 * PCR_COUNT).try_into().unwrap());
+    mbox.status().write(|w| w.status(|w| w.data_ready()));
+}
+
+// Returns a list of u8 values, 0 on success, 1 on failure:
+//   - Whether PCR0 is locked
+//   - Whether PCR1 is locked
+//   - Whether PCR2 is unlocked
+//   - Whether PCR3 is unlocked
+fn try_to_reset_pcrs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    let mut pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
+
+    let res0 = pcr_bank.erase_pcr(PcrId::PcrId0);
+    let res1 = pcr_bank.erase_pcr(PcrId::PcrId1);
+    let res2 = pcr_bank.erase_pcr(PcrId::PcrId2);
+    let res3 = pcr_bank.erase_pcr(PcrId::PcrId3);
+
+    let ret_vals: [u8; 4] = [
+        if res0.is_err() { 0 } else { 1 },
+        if res1.is_err() { 0 } else { 1 },
+        if res2.is_ok() { 0 } else { 1 },
+        if res3.is_ok() { 0 } else { 1 },
+    ];
+
+    send_to_mailbox(mbox, &ret_vals, false);
+    mbox.dlen().write(|_| ret_vals.len().try_into().unwrap());
     mbox.status().write(|w| w.status(|w| w.data_ready()));
 }
 

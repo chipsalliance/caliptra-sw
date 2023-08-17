@@ -41,17 +41,13 @@ impl Sha384 {
     /// # Returns
     ///
     /// * `Sha384Digest` - Object representing the digest operation
-    pub fn digest_init<'a>(
-        &'a mut self,
-        digest: Sha384Digest<'a>,
-    ) -> CaliptraResult<Sha384DigestOp<'a>> {
+    pub fn digest_init(&mut self) -> CaliptraResult<Sha384DigestOp<'_>> {
         let op = Sha384DigestOp {
             sha: self,
             state: Sha384DigestState::Init,
             buf: [0u8; SHA384_BLOCK_BYTE_SIZE],
             buf_idx: 0,
             data_size: 0,
-            digest,
         };
 
         Ok(op)
@@ -306,9 +302,6 @@ pub struct Sha384DigestOp<'a> {
 
     /// Data size
     data_size: usize,
-
-    /// Digest
-    digest: Sha384Digest<'a>,
 }
 
 impl<'a> Sha384DigestOp<'a> {
@@ -350,7 +343,7 @@ impl<'a> Sha384DigestOp<'a> {
     }
 
     /// Finalize the digest operations
-    pub fn finalize(&mut self) -> CaliptraResult<()> {
+    pub fn finalize(mut self, digest: &mut Array4x12) -> CaliptraResult<()> {
         if self.state == Sha384DigestState::Final {
             return Err(CaliptraError::DRIVER_SHA384_INVALID_STATE_ERR);
         }
@@ -368,7 +361,7 @@ impl<'a> Sha384DigestOp<'a> {
         self.state = Sha384DigestState::Final;
 
         // Copy digest
-        *self.digest = self.sha.read_digest();
+        *digest = self.sha.read_digest();
 
         Ok(())
     }

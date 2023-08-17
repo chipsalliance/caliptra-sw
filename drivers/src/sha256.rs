@@ -21,8 +21,6 @@ const SHA256_BLOCK_BYTE_SIZE: usize = 64;
 const SHA256_BLOCK_LEN_OFFSET: usize = 56;
 const SHA256_MAX_DATA_SIZE: usize = 1024 * 1024;
 
-pub type Sha256Digest<'a> = &'a mut Array4x8;
-
 pub struct Sha256 {
     sha256: Sha256Reg,
 }
@@ -36,17 +34,13 @@ impl Sha256 {
     /// # Returns
     ///
     /// * `Sha256Digest` - Object representing the digest operation
-    pub fn digest_init<'a>(
-        &'a mut self,
-        digest: Sha256Digest<'a>,
-    ) -> CaliptraResult<Sha256DigestOp<'a>> {
+    pub fn digest_init(&mut self) -> CaliptraResult<Sha256DigestOp<'_>> {
         let op = Sha256DigestOp {
             sha: self,
             state: Sha256DigestState::Init,
             buf: [0u8; SHA256_BLOCK_BYTE_SIZE],
             buf_idx: 0,
             data_size: 0,
-            digest,
         };
 
         Ok(op)
@@ -251,9 +245,6 @@ pub struct Sha256DigestOp<'a> {
 
     /// Data size
     data_size: usize,
-
-    /// Digest
-    digest: Sha256Digest<'a>,
 }
 
 impl<'a> Sha256DigestOp<'a> {
@@ -295,7 +286,7 @@ impl<'a> Sha256DigestOp<'a> {
     }
 
     /// Finalize the digest operations
-    pub fn finalize(&mut self) -> CaliptraResult<()> {
+    pub fn finalize(mut self, digest: &mut Array4x8) -> CaliptraResult<()> {
         if self.state == Sha256DigestState::Final {
             return Err(CaliptraError::DRIVER_SHA256_INVALID_STATE);
         }
@@ -313,7 +304,7 @@ impl<'a> Sha256DigestOp<'a> {
         self.state = Sha256DigestState::Final;
 
         // Copy digest
-        self.sha.copy_digest_to_buf(self.digest)?;
+        self.sha.copy_digest_to_buf(digest)?;
 
         Ok(())
     }

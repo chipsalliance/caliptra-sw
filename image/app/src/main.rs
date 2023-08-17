@@ -47,6 +47,11 @@ fn main() {
                 .value_parser(value_parser!(String)),
         )
         .arg(
+            arg!(--"fmc-version" <U32> "FMC Firmware Version Number")
+                .required(true)
+                .value_parser(value_parser!(u32)),
+        )
+        .arg(
             arg!(--"fmc-svn" <U32> "FMC Security Version Number")
                 .required(true)
                 .value_parser(value_parser!(u32)),
@@ -65,6 +70,11 @@ fn main() {
             arg!(--"rt-rev" <SHA256HASH> "Runtime GIT Revision")
                 .required(false)
                 .value_parser(value_parser!(String)),
+        )
+        .arg(
+            arg!(--"rt-version" <U32> "Runtime Firmware Version Number")
+                .required(true)
+                .value_parser(value_parser!(u32)),
         )
         .arg(
             arg!(--"rt-svn" <U32> "Runtime Security Version Number")

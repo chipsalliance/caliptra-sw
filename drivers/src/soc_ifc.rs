@@ -16,13 +16,38 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::soc_ifc::enums::DeviceLifecycleE;
 use caliptra_registers::soc_ifc::{self, SocIfcReg};
 
-use crate::FuseBank;
+use crate::{memory_layout, FuseBank};
 
 pub type Lifecycle = DeviceLifecycleE;
 
 pub fn report_boot_status(val: u32) {
     let mut soc_ifc = unsafe { soc_ifc::SocIfcReg::new() };
-    soc_ifc.regs_mut().cptra_boot_status().write(|_| val);
+
+    // Save the boot status in DCCM.
+    unsafe {
+        let ptr = memory_layout::BOOT_STATUS_ORG as *mut u32;
+        *ptr = val;
+    };
+
+    // For testability, save the boot status in the boot status register only if debugging is enabled.
+    if !soc_ifc.regs().cptra_security_state().read().debug_locked() {
+        soc_ifc.regs_mut().cptra_boot_status().write(|_| val);
+    }
+}
+
+pub fn reset_reason() -> ResetReason {
+    let soc_ifc = unsafe { SocIfcReg::new() };
+
+    let soc_ifc_regs = soc_ifc.regs();
+    let bit0 = soc_ifc_regs.cptra_reset_reason().read().fw_upd_reset();
+    let bit1 = soc_ifc_regs.cptra_reset_reason().read().warm_reset();
+
+    match (bit0, bit1) {
+        (true, true) => ResetReason::Unknown,
+        (false, true) => ResetReason::WarmReset,
+        (true, false) => ResetReason::UpdateReset,
+        (false, false) => ResetReason::ColdReset,
+    }
 }
 
 /// Device State
@@ -61,15 +86,7 @@ impl SocIfc {
 
     /// Retrieve reset reason
     pub fn reset_reason(&mut self) -> ResetReason {
-        let soc_ifc_regs = self.soc_ifc.regs();
-        let bit0 = soc_ifc_regs.cptra_reset_reason().read().fw_upd_reset();
-        let bit1 = soc_ifc_regs.cptra_reset_reason().read().warm_reset();
-        match (bit0, bit1) {
-            (true, true) => ResetReason::Unknown,
-            (false, true) => ResetReason::WarmReset,
-            (true, false) => ResetReason::UpdateReset,
-            (false, false) => ResetReason::ColdReset,
-        }
+        reset_reason()
     }
 
     /// Set IDEVID CSR ready
@@ -122,7 +139,7 @@ impl SocIfc {
 
     /// Stop WDT1.
     ///
-    /// This is useful to call from a fatal-error-handling routine.  
+    /// This is useful to call from a fatal-error-handling routine.
     ///
     ///  # Safety
     ///
@@ -188,6 +205,37 @@ impl SocIfc {
         soc_ifc_regs
             .cptra_wdt_timer1_ctrl()
             .write(|w| w.timer1_restart(true));
+    }
+
+    pub fn internal_fw_update_reset_wait_cycles(&self) -> u32 {
+        self.soc_ifc
+            .regs()
+            .internal_fw_update_reset_wait_cycles()
+            .read()
+            .into()
+    }
+    pub fn assert_fw_update_reset(&mut self) {
+        self.soc_ifc
+            .regs_mut()
+            .internal_fw_update_reset()
+            .write(|w| w.core_rst(true));
+    }
+
+    pub fn assert_ready_for_runtime(&mut self) {
+        self.soc_ifc
+            .regs_mut()
+            .cptra_flow_status()
+            .write(|w| w.ready_for_runtime(true));
+    }
+
+    pub fn set_fmc_fw_rev_id(&mut self, fmc_version: u32) {
+        let soc_ifc_regs = self.soc_ifc.regs_mut();
+        soc_ifc_regs.cptra_fw_rev_id().at(0).write(|_| fmc_version);
+    }
+
+    pub fn set_rt_fw_rev_id(&mut self, rt_version: u32) {
+        let soc_ifc_regs = self.soc_ifc.regs_mut();
+        soc_ifc_regs.cptra_fw_rev_id().at(1).write(|_| rt_version);
     }
 }
 

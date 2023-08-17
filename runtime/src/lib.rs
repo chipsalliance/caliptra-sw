@@ -3,8 +3,12 @@
 #![no_std]
 
 pub mod dice;
+mod disable;
+mod dpe_crypto;
+mod dpe_platform;
 pub mod fips;
 pub mod info;
+mod invoke_dpe;
 mod update;
 mod verify;
 
@@ -15,14 +19,19 @@ use mailbox::Mailbox;
 pub mod mailbox_api;
 pub use mailbox_api::{
     CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, GetIdevCsrResp, GetLdevCertResp,
-    InvokeDpeCommandReq, InvokeDpeCommandResp, MailboxReqHeader, MailboxResp, MailboxRespHeader,
+    HmacVerifyReq, InvokeDpeReq, InvokeDpeResp, MailboxReqHeader, MailboxResp, MailboxRespHeader,
     StashMeasurementReq, StashMeasurementResp, TestGetFmcAliasCertResp,
 };
 
+use dpe_crypto::DpeCrypto;
+pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
+
 #[cfg(feature = "test_only_commands")]
 pub use dice::{GetLdevCertCmd, TestGetFmcAliasCertCmd};
+pub use disable::DisableAttestationCmd;
 pub use fips::{FipsSelfTestCmd, FipsShutdownCmd, FipsVersionCmd};
 pub use info::FwInfoCmd;
+pub use invoke_dpe::InvokeDpeCmd;
 pub use verify::EcdsaVerifyCmd;
 pub mod packet;
 use packet::Packet;
@@ -33,16 +42,26 @@ use caliptra_common::memory_layout::{
     PCR_LOG_SIZE,
 };
 use caliptra_common::{cprintln, FirmwareHandoffTable};
-use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault, Ecc384};
-use caliptra_drivers::{Hmac384, Sha256, Sha384, Sha384Acc, Trng};
+use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault, SocIfc};
+use caliptra_drivers::{Hmac384, PcrBank, PcrId, Sha256, Sha384, Sha384Acc, Trng};
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_registers::{
-    csrng::CsrngReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg,
-    mbox::MboxCsr, sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr,
+    csrng::CsrngReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg,
+    mbox::MboxCsr, pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr,
     soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
+use dpe::{
+    commands::{CommandExecution, DeriveChildCmd},
+    context::ContextHandle,
+    dpe_instance::{DpeEnv, DpeInstance, DpeTypes},
+    support::Support,
+    DPE_PROFILE,
+};
 use zerocopy::{AsBytes, FromBytes};
+
+#[cfg(feature = "test_only_commands")]
+use crate::verify::HmacVerifyCmd;
 
 const RUNTIME_BOOT_STATUS_BASE: u32 = 0x600;
 
@@ -61,12 +80,28 @@ impl From<RtBootStatus> for u32 {
     }
 }
 
+pub const DPE_SUPPORT: Support = Support {
+    simulation: true,
+    extend_tci: true,
+    auto_init: true,
+    tagging: true,
+    rotate_context: true,
+    x509: true,
+    csr: true,
+    is_symmetric: true,
+    internal_info: true,
+    internal_dice: true,
+    is_ca: true,
+};
+
+pub const DPE_LOCALITY: u32 = 0x0;
+
 pub struct Drivers<'a> {
     pub mbox: Mailbox,
     pub sha_acc: Sha512AccCsr,
-    pub ecdsa: Ecc384,
     pub data_vault: DataVault,
-    pub soc_ifc: SocIfcReg,
+    pub key_vault: KeyVault,
+    pub soc_ifc: SocIfc,
     pub regions: MemoryRegions,
     pub sha256: Sha256,
 
@@ -89,7 +124,19 @@ pub struct Drivers<'a> {
 
     /// A copy of the ImageHeader for the currently running image
     pub manifest: ImageManifest,
+
+    pub dpe: DpeInstance,
+
+    pub pcr_bank: PcrBank,
 }
+
+pub struct CptraDpeTypes;
+
+impl DpeTypes for CptraDpeTypes {
+    type Crypto<'a> = DpeCrypto<'a>;
+    type Platform = DpePlatform;
+}
+
 impl<'a> Drivers<'a> {
     /// # Safety
     ///
@@ -110,22 +157,59 @@ impl<'a> Drivers<'a> {
             &SocIfcReg::new(),
         )?;
 
+        let mut sha384 = Sha384::new(Sha512Reg::new());
+
+        let env = DpeEnv::<CptraDpeTypes> {
+            crypto: DpeCrypto::new(&mut sha384),
+            platform: DpePlatform,
+        };
+        let mut pcr_bank = PcrBank::new(PvReg::new());
+        let dpe = Self::initialize_dpe(env, &mut pcr_bank)?;
+
         Ok(Self {
             mbox: Mailbox::new(MboxCsr::new()),
             sha_acc: Sha512AccCsr::new(),
-            ecdsa: Ecc384::new(EccReg::new()),
             data_vault: DataVault::new(DvReg::new()),
-            soc_ifc: SocIfcReg::new(),
+            key_vault: KeyVault::new(KvReg::new()),
+            soc_ifc: SocIfc::new(SocIfcReg::new()),
             regions: MemoryRegions::new(),
             sha256: Sha256::new(Sha256Reg::new()),
-            sha384: Sha384::new(Sha512Reg::new()),
+            sha384,
             sha384_acc: Sha384Acc::new(Sha512AccCsr::new()),
             hmac384: Hmac384::new(HmacReg::new()),
             ecc384: Ecc384::new(EccReg::new()),
             trng,
             fht,
             manifest,
+            dpe,
+            pcr_bank,
         })
+    }
+
+    fn initialize_dpe(
+        mut env: DpeEnv<CptraDpeTypes>,
+        pcr_bank: &mut PcrBank,
+    ) -> CaliptraResult<DpeInstance> {
+        let mut dpe = DpeInstance::new(&mut env, DPE_SUPPORT)
+            .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
+
+        // TODO: Set target_locality to SoC's initial locality
+        const TARGET_LOCALITY: u32 = 0;
+        let data = <[u8; DPE_PROFILE.get_hash_size()]>::from(&pcr_bank.read_pcr(PcrId::PcrId1));
+        DeriveChildCmd {
+            handle: ContextHandle::default(),
+            data,
+            flags: DeriveChildCmd::MAKE_DEFAULT
+                | DeriveChildCmd::CHANGE_LOCALITY
+                | DeriveChildCmd::INPUT_ALLOW_CA
+                | DeriveChildCmd::INPUT_ALLOW_X509,
+            tci_type: u32::from_be_bytes(*b"RTJM"),
+            target_locality: TARGET_LOCALITY,
+        }
+        .execute(&mut dpe, &mut env, DPE_LOCALITY)
+        .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
+
+        Ok(dpe)
     }
 }
 
@@ -142,7 +226,7 @@ fn wait_for_cmd(_mbox: &mut Mailbox) {
 /// Returns the mailbox status (DataReady when we send a response) or an error
 fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     // For firmware update, don't read data from the mailbox
-    if drivers.mbox.cmd() == CommandId::FIRMWARE_LOAD.into() {
+    if drivers.mbox.cmd() == CommandId::FIRMWARE_LOAD {
         update::handle_impactless_update(drivers)?;
 
         // If the handler succeeds but does not invoke reset that is
@@ -165,9 +249,14 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_IDEV_CSR => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_LDEV_CERT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        CommandId::INVOKE_DPE => {
+            let mut resp = InvokeDpeCmd::execute(drivers, cmd_bytes)?;
+            resp.write_to_mbox(drivers)?;
+            Ok(resp)
+        }
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-        CommandId::INVOKE_DPE => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),
         CommandId::FW_INFO => FwInfoCmd::execute(drivers),
         #[cfg(feature = "test_only_commands")]
         CommandId::TEST_ONLY_GET_LDEV_CERT => GetLdevCertCmd::execute(&drivers.data_vault),
@@ -175,6 +264,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT => {
             TestGetFmcAliasCertCmd::execute(&drivers.data_vault)
         }
+        #[cfg(feature = "test_only_commands")]
+        CommandId::TEST_ONLY_HMAC384_VERIFY => HmacVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::VERSION => FipsVersionCmd::execute(drivers),
         CommandId::SELF_TEST => FipsSelfTestCmd::execute(drivers),
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
@@ -187,18 +278,18 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     Ok(MboxStatusE::DataReady)
 }
 
-pub fn handle_mailbox_commands(drivers: &mut Drivers) {
+pub fn handle_mailbox_commands(drivers: &mut Drivers) -> ! {
     // Indicator to SOC that RT firmware is ready
-    drivers
-        .soc_ifc
-        .regs_mut()
-        .cptra_flow_status()
-        .write(|w| w.ready_for_runtime(true));
+    drivers.soc_ifc.assert_ready_for_runtime();
     caliptra_drivers::report_boot_status(RtBootStatus::RtReadyForCommands.into());
     loop {
         wait_for_cmd(&mut drivers.mbox);
-
         if drivers.mbox.is_cmd_ready() {
+            // TODO : Move start/stop WDT to wait_for_cmd when NMI is implemented.
+            caliptra_common::wdt::start_wdt(
+                &mut drivers.soc_ifc,
+                caliptra_common::WdtTimeout::default(),
+            );
             match handle_command(drivers) {
                 Ok(status) => {
                     drivers.mbox.set_status(status);
@@ -208,6 +299,7 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) {
                     drivers.mbox.set_status(MboxStatusE::CmdFailure);
                 }
             }
+            caliptra_common::wdt::stop_wdt(&mut drivers.soc_ifc);
         }
     }
 }

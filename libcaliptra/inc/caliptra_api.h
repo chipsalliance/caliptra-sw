@@ -6,6 +6,8 @@
 
 #include "caliptra_if.h"
 
+typedef uint32_t caliptra_checksum;
+
 /**
  * caliptra_buffer
  *
@@ -19,15 +21,24 @@ typedef struct caliptra_buffer {
 #endif
 
 /**
- * DeviceLifecycle
+ * device_lifecycle
  *
  * Device life cycle states
  */
-enum DeviceLifecycle {
+enum device_lifecycle {
     Unprovisioned = 0,
     Manufacturing = 1,
     Reserved2 = 2,
     Production = 3,
+};
+
+/**
+ * fips_status
+ *
+ * All valid FIPS status codes.
+ */
+enum fips_status {
+    FIPS_STATUS_APPROVED = 0,
 };
 
 /**
@@ -47,12 +58,16 @@ struct caliptra_fuses {
     bool anti_rollback_disable;
     uint32_t idevid_cert_attr[24];
     uint32_t idevid_manuf_hsm_id[4];
-    enum DeviceLifecycle life_cycle;
+    enum device_lifecycle life_cycle;
+};
+
+struct caliptra_completion {
+    caliptra_checksum checksum;
+    enum fips_status fips;
 };
 
 struct caliptra_fips_version {
-    uint32_t chksum;
-    uint32_t fips_status;
+    struct caliptra_completion cpl;
     uint32_t mode;
     uint32_t fips_rev[3];
     uint8_t name[12];

@@ -442,6 +442,12 @@ struct SocRegistersImpl {
     #[register_array(offset = 0x00cc, write_fn = on_write_generic_output_wires)]
     cptra_generic_output_wires: [u32; CPTRA_GENERIC_OUTPUT_WIRES_SIZE / 4],
 
+    #[register(offset = 0x00d4)]
+    cptra_hw_rev_id: ReadOnlyRegister<u32>,
+
+    #[register_array(offset = 0x00d8)]
+    cptra_fw_rev_id: [u32; 2],
+
     #[register(offset = 0x00e0, write_fn = write_disabled)]
     cptra_hw_config: u32,
 
@@ -621,6 +627,8 @@ impl SocRegistersImpl {
             cptra_clk_gating_en: ReadOnlyRegister::new(0),
             cptra_generic_input_wires: Default::default(),
             cptra_generic_output_wires: Default::default(),
+            cptra_hw_rev_id: ReadOnlyRegister::new(0),
+            cptra_fw_rev_id: Default::default(),
             cptra_hw_config: 0,
             fuse_uds_seed: words_from_bytes_be(&Self::UDS),
             fuse_field_entropy: [0xffff_ffff; 8],

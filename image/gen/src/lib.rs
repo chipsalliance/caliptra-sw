@@ -20,6 +20,9 @@ use caliptra_image_types::*;
 
 /// Image Generator Executable
 pub trait ImageGenratorExecutable {
+    /// Executable Version Number
+    fn version(&self) -> u32;
+
     /// Executable Security Version Number
     fn svn(&self) -> u32;
 

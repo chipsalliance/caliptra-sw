@@ -15,9 +15,9 @@ use core::convert::Infallible;
 use ufmt::{uDisplay, uWrite};
 
 #[derive(Default)]
-pub struct MutablePrinter;
+pub struct Printer;
 
-impl uWrite for MutablePrinter {
+impl uWrite for Printer {
     type Error = Infallible;
 
     /// Writes a string slice into this writer, returning whether the write succeeded.
@@ -25,7 +25,7 @@ impl uWrite for MutablePrinter {
     #[inline(never)]
     fn write_str(&mut self, _str: &str) -> Result<(), Self::Error> {
         #[cfg(feature = "emu")]
-        caliptra_drivers::Uart::default().write(_str);
+        crate::Uart::default().write(_str);
         Ok(())
     }
 
@@ -40,14 +40,14 @@ impl uWrite for MutablePrinter {
 #[macro_export]
 macro_rules! cprint {
     ($($tt:tt)*) => {{
-        let _ = ufmt::uwrite!(&mut $crate::printer::MutablePrinter::default(), $($tt)*);
+        let _ = ufmt::uwrite!(&mut $crate::printer::Printer::default(), $($tt)*);
     }}
 }
 
 #[macro_export]
 macro_rules! cprintln {
     ($($tt:tt)*) => {{
-        let _ = ufmt::uwriteln!(&mut $crate::printer::MutablePrinter::default(), $($tt)*);
+        let _ = ufmt::uwriteln!(&mut $crate::printer::Printer::default(), $($tt)*);
     }}
 }
 

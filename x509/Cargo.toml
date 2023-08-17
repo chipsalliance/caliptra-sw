@@ -24,6 +24,7 @@ syn.workspace = true
 [dev-dependencies]
 hex.workspace = true
 openssl.workspace = true
+x509-parser.workspace = true
 
 [features]
 default = ["std"]

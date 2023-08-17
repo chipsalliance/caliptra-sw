@@ -2,17 +2,18 @@
 
 use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, ROM_WITH_UART};
 use caliptra_common::RomBootStatus::ColdResetComplete;
+use caliptra_common::RomBootStatus::*;
 use caliptra_common::{FirmwareHandoffTable, FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
-use caliptra_drivers::{ColdResetEntry4, RomVerifyConfig};
+use caliptra_drivers::{ColdResetEntry4, PcrId, RomVerifyConfig};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, SecurityState};
 use caliptra_image_fake_keys::{OWNER_CONFIG, VENDOR_CONFIG_KEY_1};
 use caliptra_image_gen::ImageGenerator;
 use caliptra_image_openssl::OsslCrypto;
 use caliptra_image_types::IMAGE_BYTE_SIZE;
+use openssl::hash::{Hasher, MessageDigest};
 use zerocopy::{AsBytes, FromBytes};
-
 pub mod helpers;
 
 #[test]
@@ -28,6 +29,10 @@ fn test_zero_firmware_size() {
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_fatal().read(),
         CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()
+    );
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        LDevIdDerivationComplete.into()
     );
 }
 
@@ -58,6 +63,34 @@ fn test_firmware_gt_max_size() {
         hw.soc_ifc().cptra_fw_error_fatal().read(),
         CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()
     );
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        LDevIdDerivationComplete.into()
+    );
+}
+
+const PCR_COUNT: usize = 32;
+const PCR_ENTRY_SIZE: usize = core::mem::size_of::<PcrLogEntry>();
+
+// Checks entries for both PCR0 and PCR1. Skips checking `data` if empty.
+fn check_pcr_log_entry(
+    pcr_entry_arr: &[u8],
+    pcr_entry_index: usize,
+    entry_id: PcrLogEntryId,
+    data: &[u8],
+) {
+    let offset = pcr_entry_index * PCR_ENTRY_SIZE;
+    let entry = PcrLogEntry::read_from_prefix(pcr_entry_arr[offset..].as_bytes()).unwrap();
+
+    assert_eq!(entry.id, entry_id as u16);
+    assert_eq!(
+        entry.pcr_ids,
+        (1 << PcrId::PcrId0 as u8) | (1 << PcrId::PcrId1 as u8)
+    );
+
+    if !data.is_empty() {
+        assert_eq!(entry.measured_data(), data);
+    }
 }
 
 #[test]
@@ -76,7 +109,7 @@ fn test_pcr_log() {
     pub const TEST_FMC_WITH_UART: FwId = FwId {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
-        features: &["emu"],
+        features: &["emu", "interactive_test_fmc"],
         workspace_dir: None,
     };
 
@@ -115,116 +148,82 @@ fn test_pcr_log() {
 
     hw.step_until_boot_status(ColdResetComplete.into(), true);
 
-    let result = hw.mailbox_execute(0x1000_0000, &[]);
-    assert!(result.is_ok());
+    let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
 
-    let pcr_entry_arr = result.unwrap().unwrap();
-    let mut pcr_log_entry_offset = 0;
-    // Check PCR entry for DeviceLifecycle.
-    let pcr_log_entry =
-        PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(pcr_log_entry.id, PcrLogEntryId::DeviceLifecycle as u16);
-    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
     let device_lifecycle = hw
         .soc_ifc()
         .cptra_security_state()
         .read()
         .device_lifecycle();
-    assert_eq!(pcr_log_entry.pcr_data[0] as u8, device_lifecycle as u8);
 
-    // Check PCR entry for DebugLocked
-    pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
-    let pcr_log_entry =
-        PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(pcr_log_entry.id, PcrLogEntryId::DebugLocked as u16);
-    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
+    check_pcr_log_entry(
+        &pcr_entry_arr,
+        0,
+        PcrLogEntryId::DeviceLifecycle,
+        &[device_lifecycle as u8],
+    );
+
     let debug_locked = hw.soc_ifc().cptra_security_state().read().debug_locked();
-    assert_eq!((pcr_log_entry.pcr_data[0] as u8) != 0, debug_locked);
 
-    // Check PCR entry for AntiRollbackDisabled.
-    pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
-    let pcr_log_entry =
-        PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(pcr_log_entry.id, PcrLogEntryId::AntiRollbackDisabled as u16);
-    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
+    check_pcr_log_entry(
+        &pcr_entry_arr,
+        1,
+        PcrLogEntryId::DebugLocked,
+        &[debug_locked as u8],
+    );
+
     let anti_rollback_disable = hw.soc_ifc().fuse_anti_rollback_disable().read().dis();
-    assert_eq!(
-        (pcr_log_entry.pcr_data[0] as u8) != 0,
-        anti_rollback_disable
+
+    check_pcr_log_entry(
+        &pcr_entry_arr,
+        2,
+        PcrLogEntryId::AntiRollbackDisabled,
+        &[anti_rollback_disable as u8],
     );
 
-    // Check PCR entry for VendorPubKeyHash.
-    pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
-    let pcr_log_entry =
-        PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(pcr_log_entry.id, PcrLogEntryId::VendorPubKeyHash as u16);
-    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
     helpers::change_dword_endianess(vendor_pubkey_digest.as_bytes_mut());
-    assert_eq!(pcr_log_entry.pcr_data, vendor_pubkey_digest);
 
-    // Check PCR entry for OwnerPubKeyHash.
-    pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
-    let pcr_log_entry =
-        PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(pcr_log_entry.id, PcrLogEntryId::OwnerPubKeyHash as u16);
-    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
+    check_pcr_log_entry(
+        &pcr_entry_arr,
+        3,
+        PcrLogEntryId::VendorPubKeyHash,
+        vendor_pubkey_digest.as_bytes(),
+    );
+
     helpers::change_dword_endianess(owner_pubkey_digest.as_bytes_mut());
-    assert_eq!(pcr_log_entry.pcr_data, owner_pubkey_digest);
 
-    // Check PCR entry for VendorPubKeyIndex.
-    pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
-    let pcr_log_entry =
-        PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(pcr_log_entry.id, PcrLogEntryId::EccVendorPubKeyIndex as u16);
-    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
-    assert_eq!(
-        pcr_log_entry.pcr_data[0] as u8,
-        VENDOR_CONFIG_KEY_1.ecc_key_idx as u8
+    check_pcr_log_entry(
+        &pcr_entry_arr,
+        4,
+        PcrLogEntryId::OwnerPubKeyHash,
+        owner_pubkey_digest.as_bytes(),
     );
 
-    // Check PCR entry for FmcTci.
-    pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
-    let pcr_log_entry =
-        PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(pcr_log_entry.id, PcrLogEntryId::FmcTci as u16);
-    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
-
-    // Check PCR entry for FmcSvn.
-    pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
-    let pcr_log_entry =
-        PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(pcr_log_entry.id, PcrLogEntryId::FmcSvn as u16);
-    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
-    assert_eq!(pcr_log_entry.pcr_data[0] as u8, FMC_SVN as u8);
-
-    // Check PCR entry for FmcFuseSvn.
-    pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
-    let pcr_log_entry =
-        PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(pcr_log_entry.id, PcrLogEntryId::FmcFuseSvn as u16);
-    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
-    assert_eq!(pcr_log_entry.pcr_data[0] as u8, 0); // anti_rollback_disable is true
-
-    // Check PCR entry for LmsVendorPubKeyIndex.
-    pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
-    let pcr_log_entry =
-        PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(pcr_log_entry.id, PcrLogEntryId::LmsVendorPubKeyIndex as u16);
-    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
-    assert_eq!(
-        pcr_log_entry.pcr_data[0] as u8,
-        VENDOR_CONFIG_KEY_1.lms_key_idx as u8
+    check_pcr_log_entry(
+        &pcr_entry_arr,
+        5,
+        PcrLogEntryId::EccVendorPubKeyIndex,
+        &[VENDOR_CONFIG_KEY_1.ecc_key_idx as u8],
     );
 
-    // Check Rom verify config
-    pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
-    let pcr_log_entry =
-        PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
-    assert_eq!(pcr_log_entry.id, PcrLogEntryId::RomVerifyConfig as u16);
-    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
-    assert_eq!(
-        pcr_log_entry.pcr_data[0] as u8,
-        RomVerifyConfig::EcdsaAndLms as u8
+    check_pcr_log_entry(&pcr_entry_arr, 6, PcrLogEntryId::FmcTci, &[]);
+
+    check_pcr_log_entry(&pcr_entry_arr, 7, PcrLogEntryId::FmcSvn, &[FMC_SVN as u8]);
+
+    check_pcr_log_entry(&pcr_entry_arr, 8, PcrLogEntryId::FmcFuseSvn, &[0_u8]);
+
+    check_pcr_log_entry(
+        &pcr_entry_arr,
+        9,
+        PcrLogEntryId::LmsVendorPubKeyIndex,
+        &[VENDOR_CONFIG_KEY_1.lms_key_idx as u8],
+    );
+
+    check_pcr_log_entry(
+        &pcr_entry_arr,
+        10,
+        PcrLogEntryId::RomVerifyConfig,
+        &[RomVerifyConfig::EcdsaAndLms as u8],
     );
 }
 
@@ -244,15 +243,18 @@ fn test_pcr_log_fmc_fuse_svn() {
     pub const TEST_FMC_WITH_UART: FwId = FwId {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
-        features: &["emu"],
+        features: &["emu", "interactive_test_fmc"],
         workspace_dir: None,
     };
+
+    const FMC_SVN: u32 = 3;
+    const FMC_FUSE_SVN: u32 = 2;
 
     let fuses = Fuses {
         anti_rollback_disable: false,
         key_manifest_pk_hash: vendor_pubkey_digest,
         owner_pk_hash: owner_pubkey_digest,
-        fmc_key_manifest_svn: 0b11, // FMC Fuse SVN = 2
+        fmc_key_manifest_svn: FMC_FUSE_SVN,
         ..Default::default()
     };
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
@@ -267,7 +269,6 @@ fn test_pcr_log_fmc_fuse_svn() {
     })
     .unwrap();
 
-    const FMC_SVN: u32 = 2;
     let image_options = ImageOptions {
         vendor_config: VENDOR_CONFIG_KEY_1,
         fmc_svn: FMC_SVN,
@@ -283,21 +284,163 @@ fn test_pcr_log_fmc_fuse_svn() {
 
     hw.step_until_boot_status(ColdResetComplete.into(), true);
 
-    let result = hw.mailbox_execute(0x1000_0000, &[]);
-    assert!(result.is_ok());
+    let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
 
-    let pcr_entry_arr = result.unwrap().unwrap();
+    check_pcr_log_entry(&pcr_entry_arr, 7, PcrLogEntryId::FmcSvn, &[FMC_SVN as u8]);
 
-    // Check PCR entry for FmcFuseSvn.
-    let pcr_log_entry = PcrLogEntry::read_from_prefix(
-        pcr_entry_arr
-            [((PcrLogEntryId::FmcFuseSvn as usize - 1) * core::mem::size_of::<PcrLogEntry>())..]
-            .as_bytes(),
-    )
+    check_pcr_log_entry(
+        &pcr_entry_arr,
+        8,
+        PcrLogEntryId::FmcFuseSvn,
+        &[FMC_FUSE_SVN as u8],
+    );
+}
+
+// Computes the PCR from the log.
+fn hash_pcr_log_entries(initial_pcr: &[u8; 48], pcr_entry_arr: &[u8], pcr_id: PcrId) -> [u8; 48] {
+    let mut offset: usize = 0;
+    let mut pcr: [u8; 48] = *initial_pcr;
+
+    assert_eq!(pcr_entry_arr.len() % PCR_ENTRY_SIZE, 0);
+
+    loop {
+        if offset == pcr_entry_arr.len() {
+            break;
+        }
+
+        let entry = PcrLogEntry::read_from_prefix(pcr_entry_arr[offset..].as_bytes()).unwrap();
+        offset += PCR_ENTRY_SIZE;
+
+        if (entry.pcr_ids & (1 << pcr_id as u8)) == 0 {
+            continue;
+        }
+
+        let mut hasher = Hasher::new(MessageDigest::sha384()).unwrap();
+        hasher.update(&pcr).unwrap();
+        hasher.update(entry.measured_data()).unwrap();
+        let digest: &[u8] = &hasher.finish().unwrap();
+
+        pcr.copy_from_slice(digest);
+    }
+
+    pcr
+}
+
+#[test]
+fn test_pcr_log_across_update_reset() {
+    let gen = ImageGenerator::new(OsslCrypto::default());
+    let (_hw, image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let vendor_pubkey_digest = gen
+        .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+        .unwrap();
+
+    let owner_pubkey_digest = gen
+        .owner_pubkey_digest(&image_bundle.manifest.preamble)
+        .unwrap();
+
+    pub const TEST_FMC_WITH_UART: FwId = FwId {
+        crate_name: "caliptra-rom-test-fmc",
+        bin_name: "caliptra-rom-test-fmc",
+        features: &["emu", "interactive_test_fmc"],
+        workspace_dir: None,
+    };
+
+    const FMC_SVN: u32 = 2;
+    const FMC_FUSE_SVN: u32 = 1;
+
+    let fuses = Fuses {
+        anti_rollback_disable: false,
+        fmc_key_manifest_svn: FMC_FUSE_SVN,
+        key_manifest_pk_hash: vendor_pubkey_digest,
+        owner_pk_hash: owner_pubkey_digest,
+        ..Default::default()
+    };
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        ..Default::default()
+    })
     .unwrap();
-    assert_eq!(pcr_log_entry.id, PcrLogEntryId::FmcFuseSvn as u16);
-    assert_eq!(pcr_log_entry.pcr_ids, 1 << 0);
-    assert_eq!(pcr_log_entry.pcr_data[0] as u8, FMC_SVN as u8); // anti_rollback_disable is false
+
+    let image_options = ImageOptions {
+        vendor_config: VENDOR_CONFIG_KEY_1,
+        fmc_svn: FMC_SVN,
+        ..Default::default()
+    };
+    let image_bundle =
+        caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)
+            .unwrap();
+
+    assert!(hw
+        .upload_firmware(&image_bundle.to_bytes().unwrap())
+        .is_ok());
+
+    hw.step_until_boot_status(ColdResetComplete.into(), true);
+
+    let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
+
+    // Fetch and validate PCR values against the log.
+
+    let pcrs = hw.mailbox_execute(0x1000_0006, &[]).unwrap().unwrap();
+    assert_eq!(pcrs.len(), PCR_COUNT * 48);
+
+    let mut pcr0_from_hw: [u8; 48] = pcrs[0..48].try_into().unwrap();
+    let mut pcr1_from_hw: [u8; 48] = pcrs[48..96].try_into().unwrap();
+
+    helpers::change_dword_endianess(&mut pcr0_from_hw);
+    helpers::change_dword_endianess(&mut pcr1_from_hw);
+
+    let pcr0_from_log = hash_pcr_log_entries(&[0; 48], &pcr_entry_arr, PcrId::PcrId0);
+    let pcr1_from_log = hash_pcr_log_entries(&[0; 48], &pcr_entry_arr, PcrId::PcrId1);
+
+    assert_eq!(pcr0_from_log, pcr0_from_hw);
+    assert_eq!(pcr1_from_log, pcr1_from_hw);
+
+    // Ensure all other PCRs are empty.
+    for i in 2..PCR_COUNT {
+        let offset = i * 48;
+        assert_eq!(pcrs[offset..offset + 48], [0; 48]);
+    }
+
+    // Trigger an update reset.
+    hw.mailbox_execute(0x1000_0004, &[]).unwrap();
+    hw.step_until_boot_status(UpdateResetStarted.into(), true);
+    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        .unwrap();
+    hw.step_until_boot_status(UpdateResetComplete.into(), true);
+
+    let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
+
+    // Fetch and validate PCR values against the log. PCR0 should represent the
+    // latest boot, while PCR1 should represent the whole journey.
+
+    let pcrs_after_reset = hw.mailbox_execute(0x1000_0006, &[]).unwrap().unwrap();
+    assert_eq!(pcrs_after_reset.len(), PCR_COUNT * 48);
+
+    let mut new_pcr0_from_hw: [u8; 48] = pcrs_after_reset[0..48].try_into().unwrap();
+    let mut new_pcr1_from_hw: [u8; 48] = pcrs_after_reset[48..96].try_into().unwrap();
+
+    helpers::change_dword_endianess(&mut new_pcr0_from_hw);
+    helpers::change_dword_endianess(&mut new_pcr1_from_hw);
+
+    let new_pcr0_from_log = hash_pcr_log_entries(&[0; 48], &pcr_entry_arr, PcrId::PcrId0);
+    let new_pcr1_from_log = hash_pcr_log_entries(&pcr1_from_log, &pcr_entry_arr, PcrId::PcrId1);
+
+    assert_eq!(new_pcr0_from_log, new_pcr0_from_hw);
+    assert_eq!(new_pcr1_from_log, new_pcr1_from_hw);
+
+    // Also ensure PCR locks are configured correctly.
+    let reset_checks = hw.mailbox_execute(0x1000_0007, &[]).unwrap().unwrap();
+    assert_eq!(reset_checks, [0; 4]);
+
+    let pcrs_after_clear = hw.mailbox_execute(0x1000_0006, &[]).unwrap().unwrap();
+    assert_eq!(pcrs_after_clear, pcrs_after_reset);
 }
 
 #[test]
@@ -337,8 +480,10 @@ fn test_fuse_log() {
         owner_config: Some(OWNER_CONFIG),
         fmc_svn: FMC_SVN,
         fmc_min_svn: FMC_MIN_SVN,
+        fmc_version: 0,
         app_svn: FMC_SVN,
         app_min_svn: FMC_MIN_SVN,
+        app_version: 0,
     };
     let image_bundle =
         caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)
@@ -489,12 +634,12 @@ fn test_fht_info() {
 
     let data = result.unwrap().unwrap();
     let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
-    assert_eq!(fht.ldevid_tbs_size, 530);
-    assert_eq!(fht.fmcalias_tbs_size, 742);
+    assert_eq!(fht.ldevid_tbs_size, 533);
+    assert_eq!(fht.fmcalias_tbs_size, 745);
     assert_eq!(fht.ldevid_tbs_addr, 0x50003800);
     assert_eq!(fht.fmcalias_tbs_addr, 0x50003C00);
-    assert_eq!(fht.pcr_log_addr, 0x50004000);
-    assert_eq!(fht.fuse_log_addr, 0x50004400);
+    assert_eq!(fht.pcr_log_addr, 0x50004400);
+    assert_eq!(fht.fuse_log_addr, 0x50004800);
 
     // [TODO] Expand test to validate additional FHT fields.
 }

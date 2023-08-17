@@ -33,6 +33,16 @@ name = "cert"
 path = "src/cert_tests.rs"
 required-features = ["riscv"]
 
+[[bin]]
+name = "wdt"
+path = "src/wdt_timeout_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "keyvault"
+path = "src/keyvault_tests.rs"
+required-features = ["riscv"]
+
 [build-dependencies]
 caliptra_common = { workspace = true, default-features = false }
 caliptra-gen-linker-scripts.workspace = true

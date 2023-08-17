@@ -70,10 +70,13 @@ pub enum RomBootStatus {
     UpdateResetStarted = UPDATE_RESET_BOOT_STATUS_BASE,
     UpdateResetLoadManifestComplete = UPDATE_RESET_BOOT_STATUS_BASE + 1,
     UpdateResetImageVerificationComplete = UPDATE_RESET_BOOT_STATUS_BASE + 2,
-    UpdateResetLoadImageComplete = UPDATE_RESET_BOOT_STATUS_BASE + 3,
-    UpdateResetOverwriteManifestComplete = UPDATE_RESET_BOOT_STATUS_BASE + 4,
-    UpdateResetComplete = UPDATE_RESET_BOOT_STATUS_BASE + 5,
+    UpdateResetExtendPcrComplete = UPDATE_RESET_BOOT_STATUS_BASE + 3,
+    UpdateResetPopulateDataVaultComplete = UPDATE_RESET_BOOT_STATUS_BASE + 4,
+    UpdateResetLoadImageComplete = UPDATE_RESET_BOOT_STATUS_BASE + 5,
+    UpdateResetOverwriteManifestComplete = UPDATE_RESET_BOOT_STATUS_BASE + 6,
+    UpdateResetComplete = UPDATE_RESET_BOOT_STATUS_BASE + 7,
 
+    // ROM Global Boot Statues
     KatStarted = ROM_GLOBAL_BOOT_STATUS_BASE,
     KatComplete = ROM_GLOBAL_BOOT_STATUS_BASE + 1,
 }

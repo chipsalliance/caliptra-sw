@@ -22,11 +22,13 @@ Note:
 --*/
 
 use crate::verifier::RomImageVerificationEnv;
+use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_common::{
     memory_layout::{PCR_LOG_ORG, PCR_LOG_SIZE},
+    pcr::{PCR_ID_FMC_CURRENT, PCR_ID_FMC_JOURNEY},
     PcrLogEntry, PcrLogEntryId,
 };
-use caliptra_drivers::{Array4x12, CaliptraError, CaliptraResult, PcrBank, PcrId, Sha384};
+use caliptra_drivers::{Array4x12, CaliptraError, CaliptraResult, PcrBank, Sha384};
 use caliptra_image_verify::ImageVerificationInfo;
 
 use zerocopy::AsBytes;
@@ -36,31 +38,40 @@ struct PcrExtender<'a> {
     sha384: &'a mut Sha384,
 }
 impl PcrExtender<'_> {
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn extend(&mut self, data: Array4x12, pcr_entry_id: PcrLogEntryId) -> CaliptraResult<()> {
         let bytes: &[u8; 48] = &data.into();
-        self.pcr_bank
-            .extend_pcr(PcrId::PcrId0, self.sha384, bytes)?;
-        log_pcr(pcr_entry_id, PcrId::PcrId0, bytes)
+        self.extend_and_log(bytes, pcr_entry_id)
     }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn extend_u8(&mut self, data: u8, pcr_entry_id: PcrLogEntryId) -> CaliptraResult<()> {
         let bytes = &data.to_le_bytes();
+        self.extend_and_log(bytes, pcr_entry_id)
+    }
+    fn extend_and_log(&mut self, data: &[u8], pcr_entry_id: PcrLogEntryId) -> CaliptraResult<()> {
         self.pcr_bank
-            .extend_pcr(PcrId::PcrId0, self.sha384, bytes)?;
-        log_pcr(pcr_entry_id, PcrId::PcrId0, bytes)
+            .extend_pcr(PCR_ID_FMC_CURRENT, self.sha384, data)?;
+        self.pcr_bank
+            .extend_pcr(PCR_ID_FMC_JOURNEY, self.sha384, data)?;
+
+        let pcr_ids: u32 = (1 << PCR_ID_FMC_CURRENT as u8) | (1 << PCR_ID_FMC_JOURNEY as u8);
+        log_pcr(self.pcr_bank, pcr_entry_id, pcr_ids, data)
     }
 }
 
-/// Extend PCR0
+/// Extend PCR0 and PCR1
 ///
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-pub(crate) fn extend_pcr0(
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+pub(crate) fn extend_pcrs(
     env: &mut RomImageVerificationEnv,
     info: &ImageVerificationInfo,
 ) -> CaliptraResult<()> {
-    // Clear the PCR
-    env.pcr_bank.erase_pcr(caliptra_drivers::PcrId::PcrId0)?;
+    // Clear the Current PCR, but do not clear the Journey PCR
+    env.pcr_bank.erase_pcr(PCR_ID_FMC_CURRENT)?;
 
     let mut pcr = PcrExtender {
         pcr_bank: env.pcr_bank,
@@ -106,8 +117,9 @@ pub(crate) fn extend_pcr0(
 /// Log PCR data
 ///
 /// # Arguments
+/// * `pcr_bank` - PCR bank
 /// * `pcr_entry_id` - PCR log entry ID
-/// * `pcr_id` - PCR ID
+/// * `pcr_ids` - bitmask of PCR indices
 /// * `data` - PCR data
 ///
 /// # Return Value
@@ -115,7 +127,13 @@ pub(crate) fn extend_pcr0(
 /// * `Err(GlobalErr::PcrLogInvalidEntryId)` - Invalid PCR log entry ID
 /// * `Err(GlobalErr::PcrLogUpsupportedDataLength)` - Unsupported data length
 ///
-pub fn log_pcr(pcr_entry_id: PcrLogEntryId, pcr_id: PcrId, data: &[u8]) -> CaliptraResult<()> {
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+pub fn log_pcr(
+    pcr_bank: &mut PcrBank,
+    pcr_entry_id: PcrLogEntryId,
+    pcr_ids: u32,
+    data: &[u8],
+) -> CaliptraResult<()> {
     if pcr_entry_id == PcrLogEntryId::Invalid {
         return Err(CaliptraError::ROM_GLOBAL_PCR_LOG_INVALID_ENTRY_ID);
     }
@@ -124,21 +142,27 @@ pub fn log_pcr(pcr_entry_id: PcrLogEntryId, pcr_id: PcrId, data: &[u8]) -> Calip
         return Err(CaliptraError::ROM_GLOBAL_PCR_LOG_UNSUPPORTED_DATA_LENGTH);
     }
 
+    if pcr_bank.log_index * core::mem::size_of::<PcrLogEntry>() > PCR_LOG_SIZE {
+        return Err(CaliptraError::ROM_GLOBAL_PCR_LOG_EXHAUSTED);
+    }
+
     // Create a PCR log entry
     let mut pcr_log_entry = PcrLogEntry {
         id: pcr_entry_id as u16,
-        pcr_ids: 1 << (pcr_id as u8),
+        pcr_ids,
         ..Default::default()
     };
     pcr_log_entry.pcr_data.as_bytes_mut()[..data.len()].copy_from_slice(data);
 
     let dst: &mut [PcrLogEntry] = unsafe {
         let ptr = PCR_LOG_ORG as *mut PcrLogEntry;
-        core::slice::from_raw_parts_mut(ptr, PCR_LOG_SIZE / core::mem::size_of::<PcrLogEntry>())
+        let entry_ptr = ptr.add(pcr_bank.log_index);
+        pcr_bank.log_index += 1;
+        core::slice::from_raw_parts_mut(entry_ptr, 1)
     };
 
     // Store the log entry.
-    dst[pcr_entry_id as usize - 1] = pcr_log_entry;
+    dst[0] = pcr_log_entry;
 
     Ok(())
 }

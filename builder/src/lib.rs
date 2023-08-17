@@ -37,10 +37,10 @@ pub const ROM_WITH_UART: FwId = FwId {
     workspace_dir: None,
 };
 
-pub const ROM_FAST_WITH_UART: FwId = FwId {
+pub const ROM_VAL_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["emu", "no-kats"],
+    features: &["emu", "val-rom"],
     workspace_dir: None,
 };
 
@@ -253,8 +253,10 @@ pub fn elf_size(elf_bytes: &[u8]) -> io::Result<u64> {
 }
 
 pub struct ImageOptions {
+    pub fmc_version: u32,
     pub fmc_min_svn: u32,
     pub fmc_svn: u32,
+    pub app_version: u32,
     pub app_min_svn: u32,
     pub app_svn: u32,
     pub vendor_config: ImageGeneratorVendorConfig,
@@ -263,8 +265,10 @@ pub struct ImageOptions {
 impl Default for ImageOptions {
     fn default() -> Self {
         Self {
+            fmc_version: Default::default(),
             fmc_min_svn: Default::default(),
             fmc_svn: Default::default(),
+            app_version: Default::default(),
             app_min_svn: Default::default(),
             app_svn: Default::default(),
             vendor_config: caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0,
@@ -284,12 +288,14 @@ pub fn build_and_sign_image(
     let image = gen.generate(&ImageGeneratorConfig {
         fmc: ElfExecutable::new(
             &fmc_elf,
+            opts.fmc_version,
             opts.fmc_svn,
             opts.fmc_min_svn,
             image_revision_from_git_repo()?,
         )?,
         runtime: ElfExecutable::new(
             &app_elf,
+            opts.app_version,
             opts.app_svn,
             opts.app_min_svn,
             image_revision_from_git_repo()?,
