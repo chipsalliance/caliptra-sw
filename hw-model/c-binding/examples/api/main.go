@@ -21,6 +21,7 @@ import (
     "os"
     "unsafe"
 	"fmt"
+    "hash/fnv"
 )
 
 type CommandHdr struct {
@@ -49,10 +50,10 @@ const (
 	CmdMagic  uint32 = 0x44504543
 )
 
-func stringToUint32(s string) uint32 {
+func stringToUint32(s string) C.uint32_t {
 	h := fnv.New32a()
 	h.Write([]byte(s))
-	return h.Sum32()
+	return C.uint32_t(h.Sum32())
 }
 
 func read_file_or_die(path *C.char) C.caliptra_buffer {
@@ -129,8 +130,8 @@ func main() {
         if C.strstr((*C.char)(unsafe.Pointer(buffer.data)), C.CString("Caliptra RT listening for mailbox commands...")) != nil {
             var test C.uint32_t
             profileString := "DPE_PROFILE_IROT_P256_SHA256"
-	        profile := stringToUint32(profileString)
-            profileBuffer := C.create_command_hdr(C.uint32_t(CmdMagic), C.uint32_t(CommandGetProfile),C.uint32_t(profile))
+            profile := stringToUint32(profileString)
+            profileBuffer := C.create_command_hdr(C.uint32_t(CmdMagic), C.uint32_t(CommandGetProfile),profile)
 
             profile := C.caliptra_get_profile(model, &profileBuffer,test)
             fmt.Println(profile)
