@@ -5,8 +5,9 @@
 #![no_main]
 #![no_std]
 
+use caliptra_common::mailbox_api::CommandId;
 use caliptra_registers::mbox::enums::MboxStatusE;
-use caliptra_runtime::{dice, CommandId, Drivers};
+use caliptra_runtime::{dice, Drivers};
 use caliptra_test_harness::{runtime_handlers, test_suite};
 use zerocopy::AsBytes;
 

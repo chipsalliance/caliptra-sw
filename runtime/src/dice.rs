@@ -1,6 +1,8 @@
 // Licensed under the Apache-2.0 license
 #[cfg(feature = "test_only_commands")]
-use crate::{GetLdevCertResp, MailboxResp, MailboxRespHeader, TestGetFmcAliasCertResp};
+use caliptra_common::mailbox_api::{
+    GetLdevCertResp, MailboxResp, MailboxRespHeader, TestGetFmcAliasCertResp,
+};
 use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault};
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
 
