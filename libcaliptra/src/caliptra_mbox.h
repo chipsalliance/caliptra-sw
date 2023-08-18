@@ -30,6 +30,14 @@ enum mailbox_command {
     OP_FIPS_VERSION              = 0x46505652, // "FPVR"
 };
 
+struct parcel {
+    enum mailbox_command  command;
+    uint8_t              *tx_buffer;
+    size_t                tx_bytes;
+    uint8_t              *rx_buffer;
+    size_t                rx_bytes;
+};
+
 enum mailbox_results {
     SUCCESS        = 0x00000000,
     BAD_VENDOR_SIG = 0x56534947, // "VSIG"
