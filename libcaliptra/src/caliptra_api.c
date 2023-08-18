@@ -341,11 +341,7 @@ int caliptra_upload_fw(struct caliptra_buffer *fw_buffer)
     return caliptra_mailbox_execute(OP_CALIPTRA_FW_LOAD, fw_buffer, NULL);
 }
 
-<<<<<<< HEAD
-static int check_command_response(struct caliptra_completion *cpl, uint8_t *buffer, size_t buffer_size)
-=======
 static inline int check_command_response(struct caliptra_completion *cpl, uint8_t *buffer, size_t buffer_size)
->>>>>>> aff9fb5 (DPE Command Support)
 {
     uint32_t calc_checksum = calculate_caliptra_checksum(0, buffer + sizeof(uint32_t), buffer_size - sizeof(uint32_t));
 
@@ -360,11 +356,17 @@ static inline int check_command_response(struct caliptra_completion *cpl, uint8_
     return 0;
 }
 
-<<<<<<< HEAD
-=======
 static int pack_and_send_command(struct parcel *parcel)
 {
     if (parcel == NULL)
+    {
+        return -EINVAL;
+    }
+
+    // Parcels will always have, at a minimum:
+    //  > 4 byte tx buffer, for the checksum
+    //  > 8 byte rx buffer, for the checksum and FIPS status
+    if (!parcel->tx_buffer || !parcel->rx_buffer)
     {
         return -EINVAL;
     }
@@ -393,7 +395,6 @@ static int pack_and_send_command(struct parcel *parcel)
     return check_command_response(cpl, parcel->rx_buffer, parcel->rx_bytes);
 }
 
->>>>>>> aff9fb5 (DPE Command Support)
 /**
  * caliptra_get_fips_version
  *
@@ -407,7 +408,9 @@ int caliptra_get_fips_version(struct caliptra_fips_version *version)
 {
     // Parameter check
     if (version == NULL)
+    {
         return -EINVAL;
+    }
 
     caliptra_checksum checksum = 0;
 
@@ -430,7 +433,7 @@ int caliptra_stash_measurement(struct caliptra_stash_measurement_req *req, struc
     }
 
     struct parcel p = {
-        .command   = OP_FIPS_VERSION,
+        .command   = OP_STASH_MEASUREMENT,
         .tx_buffer = (uint8_t*)req,
         .tx_bytes  = sizeof(struct caliptra_stash_measurement_req),
         .rx_buffer = (uint8_t*)resp,
@@ -440,9 +443,9 @@ int caliptra_stash_measurement(struct caliptra_stash_measurement_req *req, struc
     return pack_and_send_command(&p);
 }
 
-int caliptra_get_idev_csr(struct caliptra_get_idev_csr_cpl *cpl)
+int caliptra_get_idev_csr(struct caliptra_get_idev_csr_resp *resp)
 {
-    if (!cpl)
+    if (!resp)
     {
         return -EINVAL;
     }
@@ -453,16 +456,16 @@ int caliptra_get_idev_csr(struct caliptra_get_idev_csr_cpl *cpl)
         .command   = OP_GET_IDEV_CSR,
         .tx_buffer = (uint8_t*)&checksum,
         .tx_bytes  = sizeof(caliptra_checksum),
-        .rx_buffer = (uint8_t*)cpl,
-        .rx_bytes  = sizeof(struct caliptra_get_idev_csr_cpl),
+        .rx_buffer = (uint8_t*)resp,
+        .rx_bytes  = sizeof(struct caliptra_get_idev_csr_resp),
     };
 
     return pack_and_send_command(&p);
 }
 
-int caliptra_get_ldev_cert(struct caliptra_get_ldev_cert_cpl *cpl)
+int caliptra_get_ldev_cert(struct caliptra_get_ldev_cert_resp *resp)
 {
-    if (!cpl)
+    if (!resp)
     {
         return -EINVAL;
     }
@@ -473,8 +476,8 @@ int caliptra_get_ldev_cert(struct caliptra_get_ldev_cert_cpl *cpl)
         .command   = OP_GET_LDEV_CERT,
         .tx_buffer = (uint8_t*)&checksum,
         .tx_bytes  = sizeof(caliptra_checksum),
-        .rx_buffer = (uint8_t*)cpl,
-        .rx_bytes  = sizeof(struct caliptra_get_ldev_cert_cpl),
+        .rx_buffer = (uint8_t*)resp,
+        .rx_bytes  = sizeof(struct caliptra_get_ldev_cert_resp),
     };
 
     return pack_and_send_command(&p);

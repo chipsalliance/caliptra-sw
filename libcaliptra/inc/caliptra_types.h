@@ -64,6 +64,18 @@ struct caliptra_stash_measurement_resp {
     uint32_t                   dpe_result;
 };
 
+struct caliptra_get_idev_csr_resp {
+    struct caliptra_completion cpl;
+    uint32_t                   data_size;
+    uint8_t                    data[1024];
+};
+
+struct caliptra_get_ldev_cert_resp {
+    struct caliptra_completion cpl;
+    uint32_t                   data_size;
+    uint8_t                    data[1024];
+};
+
 // The below fields are placeholders to set up the baseline
 // required for communication of DPE commands to Caliptra
 // firmware.
@@ -148,9 +160,9 @@ struct dpe_get_certificate_chain_response {
 };
 
 struct caliptra_dpe_req {
-    caliptra_checksum  checksum;
-    uint32_t           data_size;
-    uint8_t            data[DPE_DATA_MAX];
+    caliptra_checksum checksum;
+    uint32_t          data_size;
+    uint8_t           data[DPE_DATA_MAX];
 };
 
 struct caliptra_dpe_resp {
