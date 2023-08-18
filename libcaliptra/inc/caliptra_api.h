@@ -4,80 +4,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "caliptra_types.h"
+#include "caliptra_enums.h"
 #include "caliptra_if.h"
 
-typedef uint32_t caliptra_checksum;
-
-/**
- * caliptra_buffer
- *
- * Transfer buffer for Caliptra mailbox commands
- */
-#if !defined(HWMODEL)
-typedef struct caliptra_buffer {
-  const uint8_t *data; //< Pointer to a buffer with data to send/space to receive
-  uintptr_t len;       //< Size of the buffer
-} caliptra_buffer;
-#endif
-
-/**
- * device_lifecycle
- *
- * Device life cycle states
- */
-enum device_lifecycle {
-    Unprovisioned = 0,
-    Manufacturing = 1,
-    Reserved2 = 2,
-    Production = 3,
-};
-
-/**
- * fips_status
- *
- * All valid FIPS status codes.
- */
-enum fips_status {
-    FIPS_STATUS_APPROVED = 0,
-};
-
-/**
- * caliptra_fuses
- *
- * Fuse data to be written to Caliptra registers
- */
-struct caliptra_fuses {
-    uint32_t uds_seed[12];
-    uint32_t field_entropy[8];
-    uint32_t key_manifest_pk_hash[12];
-    uint32_t key_manifest_pk_hash_mask : 4;
-    uint32_t rsvd : 28;
-    uint32_t owner_pk_hash[12];
-    uint32_t fmc_key_manifest_svn;
-    uint32_t runtime_svn[4];
-    bool anti_rollback_disable;
-    uint32_t idevid_cert_attr[24];
-    uint32_t idevid_manuf_hsm_id[4];
-    enum device_lifecycle life_cycle;
-};
-
-struct caliptra_completion {
-    caliptra_checksum checksum;
-    enum fips_status fips;
-};
-
-struct caliptra_fips_version {
-    struct caliptra_completion cpl;
-    uint32_t mode;
-    uint32_t fips_rev[3];
-    uint8_t name[12];
-};
-
-// Query if ROM is ready for fuses
-bool caliptra_ready_for_fuses(void);
-
-// Initialize Caliptra fuses prior to boot
-int caliptra_init_fuses(struct caliptra_fuses *fuses);
+#define ARRAY_SIZE(array) ((size_t)(sizeof(array) / sizeof(array[0])))
 
 // Write into Caliptra BootFSM Go Register
 int caliptra_bootfsm_go();

@@ -13,13 +13,16 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "std"), no_std)]
 use core::convert::From;
-use core::num::NonZeroU32;
+use core::num::{NonZeroU32, TryFromIntError};
 
 /// Caliptra Error Type
 /// Derives debug, copy, clone, eq, and partial eq
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct CaliptraError(pub NonZeroU32);
 impl CaliptraError {
+    /// Create a caliptra error; intended to only be used from const contexts, as we don't want
+    /// runtime panics if val is zero. The preferred way to get a CaliptraError from a u32 is to
+    /// use `CaliptraError::try_from()` from the `TryFrom` trait impl.
     const fn new_const(val: u32) -> Self {
         match NonZeroU32::new(val) {
             Some(val) => Self(val),
@@ -290,6 +293,9 @@ impl CaliptraError {
     pub const RUNTIME_GLOBAL_PANIC: CaliptraError = CaliptraError::new_const(0x000E000D);
     pub const RUNTIME_HMAC_VERIFY_FAILED: CaliptraError = CaliptraError::new_const(0x000E000E);
     pub const RUNTIME_INVOKE_DPE_FAILED: CaliptraError = CaliptraError::new_const(0x000E000F);
+    pub const RUNTIME_INITIALIZE_DPE_FAILED: CaliptraError = CaliptraError::new_const(0x000E0010);
+    pub const RUNTIME_DISABLE_ATTESTATION_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E0011);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
@@ -419,15 +425,41 @@ impl From<core::num::NonZeroU32> for crate::CaliptraError {
         crate::CaliptraError(val)
     }
 }
+
 impl From<CaliptraError> for core::num::NonZeroU32 {
     fn from(val: CaliptraError) -> Self {
         val.0
     }
 }
+
 impl From<CaliptraError> for u32 {
     fn from(val: CaliptraError) -> Self {
         core::num::NonZeroU32::from(val).get()
     }
 }
 
+impl TryFrom<u32> for CaliptraError {
+    type Error = TryFromIntError;
+    fn try_from(val: u32) -> Result<Self, TryFromIntError> {
+        match NonZeroU32::try_from(val) {
+            Ok(val) => Ok(CaliptraError(val)),
+            Err(err) => Err(err),
+        }
+    }
+}
+
 pub type CaliptraResult<T> = Result<T, CaliptraError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_try_from() {
+        assert!(CaliptraError::try_from(0).is_err());
+        assert_eq!(
+            Ok(CaliptraError::DRIVER_SHA256_INVALID_STATE),
+            CaliptraError::try_from(0x00020001)
+        );
+    }
+}

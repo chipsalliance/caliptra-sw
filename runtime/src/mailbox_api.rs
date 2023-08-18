@@ -4,6 +4,8 @@ use caliptra_drivers::{CaliptraError, CaliptraResult};
 use core::mem::size_of;
 use zerocopy::{AsBytes, FromBytes, LayoutVerified};
 
+use crate::{mailbox::Mailbox, packet::Packet, Drivers};
+
 #[derive(PartialEq, Eq)]
 pub struct CommandId(pub u32);
 impl CommandId {
@@ -13,12 +15,13 @@ impl CommandId {
     pub const ECDSA384_VERIFY: Self = Self(0x53494756); // "SIGV"
     pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
     pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
+    pub const DISABLE_ATTESTATION: Self = Self(0x4453424C); // "DSBL"
     pub const FW_INFO: Self = Self(0x494E464F); // "INFO"
-    pub const TEST_ONLY_HMAC384_VERIFY: Self = Self(0x484D4143); // "HMAC"
 
     // TODO: Remove this and merge with GET_LDEV_CERT once that is implemented
     pub const TEST_ONLY_GET_LDEV_CERT: Self = Self(0x4345524c); // "CERL"
     pub const TEST_ONLY_GET_FMC_ALIAS_CERT: Self = Self(0x43455246); // "CERF"
+    pub const TEST_ONLY_HMAC384_VERIFY: Self = Self(0x484D4143); // "HMAC"
 
     /// FIPS module commands.
     /// The status command.
@@ -28,11 +31,13 @@ impl CommandId {
     /// The shutdown command.
     pub const SHUTDOWN: Self = Self(0x4650_5344); // "FPSD"
 }
+
 impl From<u32> for CommandId {
     fn from(value: u32) -> Self {
         Self(value)
     }
 }
+
 impl From<CommandId> for u32 {
     fn from(value: CommandId) -> Self {
         value.0
@@ -98,6 +103,13 @@ impl MailboxResp {
         hdr.chksum = checksum;
 
         Ok(())
+    }
+
+    pub fn write_to_mbox(&mut self, drivers: &mut Drivers) -> CaliptraResult<()> {
+        match self {
+            MailboxResp::InvokeDpeCommand(resp) => resp.write_to_mbox(&mut drivers.mbox),
+            _ => Packet::copy_to_mbox(drivers, self),
+        }
     }
 }
 
@@ -214,7 +226,7 @@ pub struct InvokeDpeReq {
 }
 
 impl InvokeDpeReq {
-    pub const DATA_MAX_SIZE: usize = 1024;
+    pub const DATA_MAX_SIZE: usize = 512;
 }
 
 impl Default for InvokeDpeReq {
@@ -236,7 +248,12 @@ pub struct InvokeDpeResp {
 }
 
 impl InvokeDpeResp {
-    pub const DATA_MAX_SIZE: usize = 4096;
+    pub const DATA_MAX_SIZE: usize = 2500;
+
+    fn write_to_mbox(&self, mbox: &mut Mailbox) -> CaliptraResult<()> {
+        mbox.write_response(&self.data[..self.data_size as usize])?;
+        Ok(())
+    }
 }
 
 impl Default for InvokeDpeResp {
@@ -244,7 +261,7 @@ impl Default for InvokeDpeResp {
         Self {
             hdr: MailboxRespHeader::default(),
             data_size: 0,
-            data: [0u8; 4096],
+            data: [0u8; InvokeDpeResp::DATA_MAX_SIZE],
         }
     }
 }
@@ -284,6 +301,8 @@ pub struct FipsVersionResp {
 pub struct FwInfoResp {
     pub hdr: MailboxRespHeader,
     pub pl0_pauser: u32,
+    pub runtime_svn: u32,
+    pub fmc_manifest_svn: u32,
     // TODO: Decide what other information to report for general firmware
     // status.
 }

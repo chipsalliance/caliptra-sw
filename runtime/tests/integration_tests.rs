@@ -1,14 +1,21 @@
 // Licensed under the Apache-2.0 license.
+
 pub mod common;
 
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART};
 use caliptra_drivers::Ecc384PubKey;
 use caliptra_hw_model::{HwModel, ModelError, ShaAccMode};
 use caliptra_runtime::{
-    CommandId, EcdsaVerifyReq, FipsVersionCmd, FipsVersionResp, FwInfoResp, MailboxReqHeader,
-    MailboxRespHeader, RtBootStatus,
+    CommandId, EcdsaVerifyReq, FipsVersionCmd, FipsVersionResp, FwInfoResp, InvokeDpeReq,
+    InvokeDpeResp, MailboxReqHeader, MailboxRespHeader, RtBootStatus, DPE_SUPPORT, VENDOR_ID,
+    VENDOR_SKU,
 };
 use common::{run_rom_test, run_rt_test};
+use dpe::{
+    commands::{Command, CommandHdr},
+    response::GetProfileResp,
+    DPE_PROFILE,
+};
 use openssl::{
     bn::BigNum,
     ec::{EcGroup, EcKey},
@@ -66,6 +73,13 @@ fn test_update() {
 #[test]
 fn test_boot() {
     let mut model = run_rt_test(Some("boot"));
+
+    model.step_until_exit_success().unwrap();
+}
+
+#[test]
+fn test_keyvault() {
+    let mut model = run_rt_test(Some("keyvault"));
 
     model.step_until_exit_success().unwrap();
 }
@@ -130,6 +144,79 @@ fn test_fw_info() {
     );
     // Verify FW info
     assert_eq!(info.pl0_pauser, 0xFFFF0000);
+}
+
+#[test]
+fn test_invoke_dpe_get_profile_cmd() {
+    let mut model = run_rt_test(None);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == RtBootStatus::RtReadyForCommands.into()
+    });
+
+    let mut data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
+    let cmd_hdr = CommandHdr::new_for_test(Command::GetProfile);
+    let cmd_hdr_buf = cmd_hdr.as_bytes();
+    data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
+    let cmd = InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        data,
+        data_size: cmd_hdr_buf.len() as u32,
+    };
+
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::INVOKE_DPE),
+        &cmd.as_bytes()[4..],
+    );
+
+    let cmd = InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..cmd
+    };
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::INVOKE_DPE), cmd.as_bytes())
+        .unwrap()
+        .expect("We should have received a response");
+
+    let resp_hdr: &InvokeDpeResp = LayoutVerified::<&[u8], InvokeDpeResp>::new(resp.as_bytes())
+        .unwrap()
+        .into_ref();
+
+    let get_profile_resp =
+        GetProfileResp::read_from(resp_hdr.data[..resp_hdr.data_size as usize].as_bytes());
+    assert!(get_profile_resp.is_some());
+    let profile = get_profile_resp.unwrap();
+    assert_eq!(profile.resp_hdr.profile, DPE_PROFILE as u32);
+    assert_eq!(profile.vendor_id, VENDOR_ID);
+    assert_eq!(profile.vendor_sku, VENDOR_SKU);
+    assert_eq!(profile.flags, DPE_SUPPORT.get_flags());
+}
+
+#[test]
+fn test_disable_attestation_cmd() {
+    let mut model = run_rt_test(None);
+
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::DISABLE_ATTESTATION),
+            &[],
+        ),
+    };
+    // once DPE APIs are enabled, ensure that the RT alias key in the cert is different from the key that signs DPE certs
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::DISABLE_ATTESTATION),
+            payload.as_bytes(),
+        )
+        .unwrap()
+        .unwrap();
+
+    let resp_hdr = MailboxRespHeader::read_from(resp.as_bytes()).unwrap();
+    assert_eq!(
+        resp_hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
 }
 
 #[test]
@@ -354,14 +441,6 @@ fn test_unimplemented_cmds() {
     };
 
     resp = model.mailbox_execute(u32::from(CommandId::STASH_MEASUREMENT), payload.as_bytes());
-    assert_eq!(resp, expected_err);
-
-    // INVOKE_DPE
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::INVOKE_DPE), &[]),
-    };
-
-    resp = model.mailbox_execute(u32::from(CommandId::INVOKE_DPE), payload.as_bytes());
     assert_eq!(resp, expected_err);
 
     // Send something that is not a valid RT command.
