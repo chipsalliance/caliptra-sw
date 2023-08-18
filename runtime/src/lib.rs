@@ -249,11 +249,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_IDEV_CSR => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_LDEV_CERT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-        CommandId::INVOKE_DPE => {
-            let mut resp = InvokeDpeCmd::execute(drivers, cmd_bytes)?;
-            resp.write_to_mbox(drivers)?;
-            Ok(resp)
-        }
+        CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes),
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),

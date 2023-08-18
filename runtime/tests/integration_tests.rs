@@ -179,14 +179,17 @@ fn test_invoke_dpe_get_profile_cmd() {
         .unwrap()
         .expect("We should have received a response");
 
-    let resp_hdr: &InvokeDpeResp = LayoutVerified::<&[u8], InvokeDpeResp>::new(resp.as_bytes())
-        .unwrap()
-        .into_ref();
+    assert!(resp.len() <= std::mem::size_of::<InvokeDpeResp>());
+    let mut resp_hdr = InvokeDpeResp::default();
+    resp_hdr.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
 
-    let get_profile_resp =
-        GetProfileResp::read_from(resp_hdr.data[..resp_hdr.data_size as usize].as_bytes());
-    assert!(get_profile_resp.is_some());
-    let profile = get_profile_resp.unwrap();
+    assert!(caliptra_common::checksum::verify_checksum(
+        resp_hdr.hdr.chksum,
+        0x0,
+        &resp[core::mem::size_of_val(&resp_hdr.hdr.chksum)..],
+    ));
+
+    let profile = GetProfileResp::read_from(&resp_hdr.data[..resp_hdr.data_size as usize]).unwrap();
     assert_eq!(profile.resp_hdr.profile, DPE_PROFILE as u32);
     assert_eq!(profile.vendor_id, VENDOR_ID);
     assert_eq!(profile.vendor_sku, VENDOR_SKU);
