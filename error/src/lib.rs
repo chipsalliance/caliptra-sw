@@ -13,13 +13,16 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "std"), no_std)]
 use core::convert::From;
-use core::num::NonZeroU32;
+use core::num::{NonZeroU32, TryFromIntError};
 
 /// Caliptra Error Type
 /// Derives debug, copy, clone, eq, and partial eq
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct CaliptraError(pub NonZeroU32);
 impl CaliptraError {
+    /// Create a caliptra error; intended to only be used from const contexts, as we don't want
+    /// runtime panics if val is zero. The preferred way to get a CaliptraError from a u32 is to
+    /// use `CaliptraError::try_from()` from the `TryFrom` trait impl.
     const fn new_const(val: u32) -> Self {
         match NonZeroU32::new(val) {
             Some(val) => Self(val),
@@ -435,4 +438,28 @@ impl From<CaliptraError> for u32 {
     }
 }
 
+impl TryFrom<u32> for CaliptraError {
+    type Error = TryFromIntError;
+    fn try_from(val: u32) -> Result<Self, TryFromIntError> {
+        match NonZeroU32::try_from(val) {
+            Ok(val) => Ok(CaliptraError(val)),
+            Err(err) => Err(err),
+        }
+    }
+}
+
 pub type CaliptraResult<T> = Result<T, CaliptraError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_try_from() {
+        assert!(CaliptraError::try_from(0).is_err());
+        assert_eq!(
+            Ok(CaliptraError::DRIVER_SHA256_INVALID_STATE),
+            CaliptraError::try_from(0x00020001)
+        );
+    }
+}
