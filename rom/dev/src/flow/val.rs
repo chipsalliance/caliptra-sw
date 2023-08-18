@@ -20,6 +20,8 @@ compile_error!("This file should NEVER be included except for the val-rom featur
 mod fw_processor;
 
 use crate::fht;
+use crate::flow::update_reset;
+use crate::flow::warm_reset;
 use crate::rom_env::RomEnv;
 use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::RomBootStatus::*;
@@ -65,11 +67,11 @@ impl ValRomFlow {
                 Ok(Some(fht::make_fht(env)))
             }
 
-            // TODO: Warm Reset Flow
-            ResetReason::WarmReset => Err(CaliptraError::ROM_UNKNOWN_RESET_FLOW),
+            // Warm Reset Flow
+            ResetReason::WarmReset => warm_reset::WarmResetFlow::run(env),
 
-            // TODO: Update Reset Flow
-            ResetReason::UpdateReset => Err(CaliptraError::ROM_UNKNOWN_RESET_FLOW),
+            // Update Reset Flow
+            ResetReason::UpdateReset => update_reset::UpdateResetFlow::run(env),
 
             // Unknown/Spurious Reset Flow
             ResetReason::Unknown => Err(CaliptraError::ROM_UNKNOWN_RESET_FLOW),
