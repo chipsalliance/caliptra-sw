@@ -3,13 +3,13 @@
 pub mod common;
 
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART};
+use caliptra_common::mailbox_api::{
+    CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, InvokeDpeReq, InvokeDpeResp,
+    MailboxReqHeader, MailboxRespHeader,
+};
 use caliptra_drivers::Ecc384PubKey;
 use caliptra_hw_model::{HwModel, ModelError, ShaAccMode};
-use caliptra_runtime::{
-    CommandId, EcdsaVerifyReq, FipsVersionCmd, FipsVersionResp, FwInfoResp, InvokeDpeReq,
-    InvokeDpeResp, MailboxReqHeader, MailboxRespHeader, RtBootStatus, DPE_SUPPORT, VENDOR_ID,
-    VENDOR_SKU,
-};
+use caliptra_runtime::{FipsVersionCmd, RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
 use common::{run_rom_test, run_rt_test};
 use dpe::{
     commands::{Command, CommandHdr},

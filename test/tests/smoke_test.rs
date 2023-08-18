@@ -1,11 +1,11 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
-use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
-use caliptra_hw_model_types::{DeviceLifecycle, Fuses};
-use caliptra_runtime::{
+use caliptra_common::mailbox_api::{
     CommandId, GetLdevCertResp, MailboxReqHeader, MailboxRespHeader, TestGetFmcAliasCertResp,
 };
+use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
+use caliptra_hw_model_types::{DeviceLifecycle, Fuses};
 use caliptra_test::{
     derive::{DoeInput, DoeOutput, FmcAliasKey, IDevId, LDevId, Pcr0, Pcr0Input},
     swap_word_bytes, swap_word_bytes_inplace,

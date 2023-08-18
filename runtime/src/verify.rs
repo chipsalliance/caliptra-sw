@@ -1,8 +1,9 @@
 // Licensed under the Apache-2.0 license
 
+use crate::Drivers;
 #[cfg(feature = "test_only_commands")]
-use crate::HmacVerifyReq;
-use crate::{Drivers, EcdsaVerifyReq, MailboxResp};
+use caliptra_common::mailbox_api::HmacVerifyReq;
+use caliptra_common::mailbox_api::{EcdsaVerifyReq, MailboxResp};
 use caliptra_drivers::{
     Array4x12, CaliptraError, CaliptraResult, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
     Ecc384Signature,

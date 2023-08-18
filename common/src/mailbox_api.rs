@@ -87,8 +87,7 @@ impl MailboxResp {
     /// Takes into account the size override for variable-lenth payloads
     pub fn populate_chksum(&mut self) -> CaliptraResult<()> {
         // Calc checksum, use the size override if provided
-        let checksum =
-            caliptra_common::checksum::calc_checksum(0, &self.as_bytes()[size_of::<i32>()..]);
+        let checksum = crate::checksum::calc_checksum(0, &self.as_bytes()[size_of::<i32>()..]);
 
         // cast as header struct
         let hdr: &mut MailboxRespHeader = LayoutVerified::<&mut [u8], MailboxRespHeader>::new(

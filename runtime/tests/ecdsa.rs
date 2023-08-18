@@ -1,8 +1,10 @@
 // Licensed under the Apache-2.0 license.
 pub mod common;
 
+use caliptra_common::mailbox_api::{
+    CommandId, EcdsaVerifyReq, MailboxReqHeader, MailboxRespHeader,
+};
 use caliptra_hw_model::{HwModel, ShaAccMode};
-use caliptra_runtime::{CommandId, EcdsaVerifyReq, MailboxReqHeader, MailboxRespHeader};
 use common::run_rom_test;
 use zerocopy::{AsBytes, FromBytes};
 

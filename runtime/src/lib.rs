@@ -16,19 +16,11 @@ mod verify;
 pub mod mailbox;
 use mailbox::Mailbox;
 
-pub mod mailbox_api;
-pub use mailbox_api::{
-    CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, GetIdevCsrResp, GetLdevCertResp,
-    HmacVerifyReq, InvokeDpeReq, InvokeDpeResp, MailboxReqHeader, MailboxResp, MailboxRespHeader,
-    StashMeasurementReq, StashMeasurementResp, TestGetFmcAliasCertResp,
-};
-
-use dpe_crypto::DpeCrypto;
-pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
-
 #[cfg(feature = "test_only_commands")]
 pub use dice::{GetLdevCertCmd, TestGetFmcAliasCertCmd};
 pub use disable::DisableAttestationCmd;
+use dpe_crypto::DpeCrypto;
+pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
 pub use fips::{FipsSelfTestCmd, FipsShutdownCmd, FipsVersionCmd};
 pub use info::FwInfoCmd;
 pub use invoke_dpe::InvokeDpeCmd;
@@ -36,6 +28,7 @@ pub use verify::EcdsaVerifyCmd;
 pub mod packet;
 use packet::Packet;
 
+use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::memory_layout::{
     FHT_ORG, FHT_SIZE, FMCALIAS_TBS_ORG, FMCALIAS_TBS_SIZE, FUSE_LOG_ORG, FUSE_LOG_SIZE,
     LDEVID_TBS_ORG, LDEVID_TBS_SIZE, MAN1_ORG, MAN1_SIZE, MAN2_ORG, MAN2_SIZE, PCR_LOG_ORG,
