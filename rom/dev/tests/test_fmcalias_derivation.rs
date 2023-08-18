@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, ROM_WITH_UART};
+use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::RomBootStatus::ColdResetComplete;
 use caliptra_common::RomBootStatus::*;
 use caliptra_common::{FirmwareHandoffTable, FuseLogEntry, FuseLogEntryId};
@@ -38,8 +39,6 @@ fn test_zero_firmware_size() {
 
 #[test]
 fn test_firmware_gt_max_size() {
-    const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
-
     // Firmware size > 128 KB.
 
     let (mut hw, _image_bundle) =
@@ -48,7 +47,9 @@ fn test_firmware_gt_max_size() {
     // Manually put the oversize data in the mailbox because
     // HwModel::upload_firmware won't let us.
     assert!(!hw.soc_mbox().lock().read().lock());
-    hw.soc_mbox().cmd().write(|_| FW_LOAD_CMD_OPCODE);
+    hw.soc_mbox()
+        .cmd()
+        .write(|_| CommandId::FIRMWARE_LOAD.into());
     hw.soc_mbox().dlen().write(|_| (IMAGE_BYTE_SIZE + 1) as u32);
     for i in 0..((IMAGE_BYTE_SIZE + 1 + 3) / 4) {
         hw.soc_mbox().datain().write(|_| i as u32);

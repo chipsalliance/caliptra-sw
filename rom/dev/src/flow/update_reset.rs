@@ -16,9 +16,9 @@ use crate::flow::val::ValRomImageVerificationEnv;
 use crate::{cprintln, pcr, rom_env::RomEnv, verifier::RomImageVerificationEnv};
 
 use caliptra_cfi_derive::cfi_impl_fn;
+use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::memory_layout::{MAN1_ORG, MAN2_ORG};
 use caliptra_common::FirmwareHandoffTable;
-
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::DataVault;
 use caliptra_drivers::{
@@ -33,8 +33,6 @@ use zerocopy::{AsBytes, FromBytes};
 pub struct UpdateResetFlow {}
 
 impl UpdateResetFlow {
-    const MBOX_DOWNLOAD_FIRMWARE_CMD_ID: u32 = 0x46574C44;
-
     /// Execute update reset flow
     ///
     /// # Arguments
@@ -50,7 +48,7 @@ impl UpdateResetFlow {
             return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE);
         };
 
-        if recv_txn.cmd() != Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID {
+        if recv_txn.cmd() != CommandId::FIRMWARE_LOAD.into() {
             cprintln!("Invalid command 0x{:08x} received", recv_txn.cmd());
             return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_INVALID_FIRMWARE_COMMAND);
         }

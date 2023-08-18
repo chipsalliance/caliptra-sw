@@ -19,6 +19,7 @@ use crate::{cprintln, verifier::RomImageVerificationEnv};
 use crate::{pcr, wdt};
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
+use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::{cprint, memory_layout::MAN1_ORG, FuseLogEntryId, RomBootStatus::*};
 use caliptra_drivers::*;
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
@@ -47,15 +48,12 @@ impl FwProcInfo {
 pub struct FirmwareProcessor {}
 
 impl FirmwareProcessor {
-    /// Download firmware mailbox command ID.
-    const MBOX_DOWNLOAD_FIRMWARE_CMD_ID: u32 = 0x46574C44;
-
     pub fn process(env: &mut RomEnv) -> CaliptraResult<FwProcInfo> {
-        // Disable the watchdog timer during firmware download.
+        // Disable the watchdog timer during processing mailbox commands.
         wdt::stop_wdt(&mut env.soc_ifc);
 
-        // Download the image
-        let mut txn = Self::download_image(&mut env.soc_ifc, &mut env.mbox)?;
+        // Process mailbox commands.
+        let mut txn = Self::process_mailbox_commands(&mut env.soc_ifc, &mut env.mbox)?;
 
         // Renable the watchdog timer.
         wdt::start_wdt(&mut env.soc_ifc);
@@ -109,52 +107,62 @@ impl FirmwareProcessor {
         })
     }
 
-    /// Download the image
+    /// Process mailbox commands
     ///
     /// # Arguments
     ///
-    /// * `env` - ROM Environment
+    /// * `soc_ifc` - SOC Interface
+    /// * `mbox` - Mailbox
     ///
     /// # Returns
     ///
-    /// Mailbox transaction handle. This transaction is ManuallyDrop because we
-    /// don't want the transaction to be completed with failure until after
-    /// handle_fatal_error is called. This prevents a race condition where the SoC
-    /// reads FW_ERROR_NON_FATAL immediately after the mailbox transaction
-    /// fails, but before caliptra has set the FW_ERROR_NON_FATAL register.
-    fn download_image<'a>(
+    /// Mailbox transaction handle (returned only for the FIRMWARE_LOAD command).
+    /// This transaction is ManuallyDrop because we don't want the transaction
+    /// to be completed with failure until after handle_fatal_error is called.
+    /// This prevents a race condition where the SoC reads FW_ERROR_NON_FATAL
+    /// immediately after the mailbox transaction fails,
+    ///  but before caliptra has set the FW_ERROR_NON_FATAL register.
+    fn process_mailbox_commands<'a>(
         soc_ifc: &mut SocIfc,
         mbox: &'a mut Mailbox,
     ) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn<'a>>> {
         soc_ifc.flow_status_set_ready_for_firmware();
 
-        cprint!("[afmc] Waiting for Image ");
+        cprint!("[afmc] Waiting for Commands...");
         loop {
             if let Some(txn) = mbox.peek_recv() {
-                if txn.cmd() != Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID {
-                    cprintln!("Invalid command 0x{:08x} received", txn.cmd());
-                    txn.start_txn().complete(false)?;
-                    return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND);
+                match CommandId::from(txn.cmd()) {
+                    CommandId::SELF_TEST | CommandId::VERSION | CommandId::SHUTDOWN => {
+                        // [TODO] Placeholder for FIPS ROM commands.
+                        txn.start_txn().complete(false)?;
+                        continue;
+                    }
+                    CommandId::FIRMWARE_LOAD => {
+                        // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
+                        let txn = mbox
+                            .peek_recv()
+                            .ok_or(CaliptraError::FW_PROC_MAILBOX_STATE_INCONSISTENT)?;
+
+                        // This is a download-firmware command; don't drop this, as the
+                        // transaction will be completed by either handle_fatal_error() (on
+                        // failure) or by a manual complete call upon success.
+                        let txn = ManuallyDrop::new(txn.start_txn());
+                        if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
+                            cprintln!("Invalid Image of size {} bytes" txn.dlen());
+                            return Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE);
+                        }
+
+                        cprintln!("");
+                        cprintln!("[afmc] Received Image of size {} bytes" txn.dlen());
+                        report_boot_status(FwProcessorDownloadImageComplete.into());
+                        return Ok(txn);
+                    }
+                    _ => {
+                        cprintln!("Invalid command 0x{:08x} received", txn.cmd());
+                        txn.start_txn().complete(false)?;
+                        return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND);
+                    }
                 }
-
-                // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
-                let txn = mbox
-                    .peek_recv()
-                    .ok_or(CaliptraError::FW_PROC_MAILBOX_STATE_INCONSISTENT)?;
-
-                // This is a download-firmware command; don't drop this, as the
-                // transaction will be completed by either handle_fatal_error() (on
-                // failure) or by a manual complete call upon success.
-                let txn = ManuallyDrop::new(txn.start_txn());
-                if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
-                    cprintln!("Invalid Image of size {} bytes" txn.dlen());
-                    return Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE);
-                }
-
-                cprintln!("");
-                cprintln!("[afmc] Received Image of size {} bytes" txn.dlen());
-                report_boot_status(FwProcessorDownloadImageComplete.into());
-                return Ok(txn);
             }
         }
     }
