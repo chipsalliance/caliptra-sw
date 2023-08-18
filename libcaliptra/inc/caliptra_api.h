@@ -28,5 +28,8 @@ int caliptra_upload_fw(struct caliptra_buffer *fw_buffer);
 // Read Caliptra FIPS Version
 int caliptra_get_fips_version(struct caliptra_fips_version *version);
 
+// Stash Measurement command
+int caliptra_stash_measurement(struct caliptra_stash_measurement_req *req, struct caliptra_stash_measurement_resp *resp);
+
 // Execute Mailbox Command
 int caliptra_mailbox_execute(uint32_t cmd, struct caliptra_buffer *mbox_tx_buffer, struct caliptra_buffer *mbox_rx_buffer);

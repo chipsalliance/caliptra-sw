@@ -52,3 +52,14 @@ struct caliptra_fips_version {
     uint8_t name[12];
 };
 
+struct caliptra_stash_measurement_req {
+    caliptra_checksum checksum;
+    uint8_t           metadata[4];
+    uint8_t           measurement[48];
+    uint32_t          svn;
+};
+
+struct caliptra_stash_measurement_resp {
+    struct caliptra_completion cpl;
+    uint32_t                   dpe_result;
+};
