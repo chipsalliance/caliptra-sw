@@ -23,7 +23,7 @@ enum mailbox_command {
     OP_CALIPTRA_FW_LOAD          = 0x46574C44, // "FWLD"
     OP_GET_IDEV_CSR              = 0x49444556, // "IDEV"
     OP_GET_LDEV_CERT             = 0x4C444556, // "LDEV"
-    OP_ECDSA384_SIGNATURE_VERIFY = 0x53494756, // "SIGV"
+    OP_ECDSA384_VERIFY           = 0x53494756, // "SIGV"
     OP_STASH_MEASUREMENT         = 0x4D454153, // "MEAS"
     OP_DISABLE_ATTESTATION       = 0x4453424C, // "DSBL"
     OP_INVOKE_DPE_COMMAND        = 0x44504543, // "DPEC"
