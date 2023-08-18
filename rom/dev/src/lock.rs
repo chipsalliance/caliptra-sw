@@ -90,9 +90,11 @@ fn lock_common_reg_set(env: &mut RomEnv) {
     env.data_vault
         .lock_warm_reset_entry48(WarmResetEntry48::RtTci);
 
-    // Lock the Runtime SVN  in data vault until next reset
+    // Lock the Runtime SVN in data vault until next reset
     env.data_vault
         .lock_warm_reset_entry4(WarmResetEntry4::RtSvn);
+
+    // Do not lock Runtime minimum SVN; FMC will manage this.
 
     // Lock the Runtime entry point in data vault until next reset
     env.data_vault

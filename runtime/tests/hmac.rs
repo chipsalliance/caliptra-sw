@@ -8,7 +8,7 @@ use zerocopy::{AsBytes, FromBytes};
 
 #[test]
 fn hmac_cmd_run_wycheproof() {
-    let mut model = run_rt_test(None);
+    let mut model = run_rt_test(None, None);
 
     model
         .step_until_output_contains("Caliptra RT listening for mailbox commands...")

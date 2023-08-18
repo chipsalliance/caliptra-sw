@@ -7,6 +7,7 @@ mod disable;
 mod dpe_crypto;
 mod dpe_platform;
 pub mod fips;
+pub mod handoff;
 pub mod info;
 mod invoke_dpe;
 mod stash_measurement;
