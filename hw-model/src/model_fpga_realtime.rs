@@ -5,6 +5,8 @@ use std::{env, str::FromStr};
 use bitfield::bitfield;
 use caliptra_emu_bus::{Bus, BusError};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
+use libc;
+use nix;
 use std::io::Write;
 use std::time;
 use uio::{UioDevice, UioError};
@@ -15,6 +17,11 @@ use crate::Output;
 
 // TODO: Make PAUSER configurable
 const SOC_PAUSER: u32 = 0xffff_ffff;
+
+// UIO mapping indices
+const GPIO_MAPPING: usize = 0;
+const MBOX_MAPPING: usize = 1;
+const SOC_IFC_MAPPING: usize = 2;
 
 fn fmt_uio_error(err: UioError) -> String {
     format!("{err:?}")
@@ -65,6 +72,7 @@ bitfield! {
 }
 
 pub struct ModelFpgaRealtime {
+    dev: UioDevice,
     gpio: *mut u32,
     mbox: *mut u32,
     soc_ifc: *mut u32,
@@ -157,6 +165,15 @@ impl ModelFpgaRealtime {
             }
         }
     }
+
+    // UIO crate doesn't provide a way to unmap memory.
+    fn unmap_mapping(&self, addr: *mut u32, mapping: usize) {
+        let map_size = self.dev.map_size(mapping).unwrap();
+
+        unsafe {
+            nix::sys::mman::munmap(addr as *mut libc::c_void, map_size.into()).unwrap();
+        }
+    }
 }
 
 impl HwModel for ModelFpgaRealtime {
@@ -170,17 +187,19 @@ impl HwModel for ModelFpgaRealtime {
         let uio_num = usize::from_str(&env::var("CPTRA_UIO_NUM")?)?;
         let dev = UioDevice::new(uio_num)?;
 
-        let gpio = dev.map_mapping(0).map_err(fmt_uio_error)? as *mut u32;
-        let mbox = dev.map_mapping(1).map_err(fmt_uio_error)? as *mut u32;
-        let soc_ifc = dev.map_mapping(2).map_err(fmt_uio_error)? as *mut u32;
+        let gpio = dev.map_mapping(GPIO_MAPPING).map_err(fmt_uio_error)? as *mut u32;
+        let mbox = dev.map_mapping(MBOX_MAPPING).map_err(fmt_uio_error)? as *mut u32;
+        let soc_ifc = dev.map_mapping(SOC_IFC_MAPPING).map_err(fmt_uio_error)? as *mut u32;
         let start_time = time::Instant::now();
 
         let mut m = Self {
+            dev,
             gpio,
             mbox,
             soc_ifc,
             output,
             start_time,
+
             etrng_responses: params.etrng_responses,
             etrng_response: None,
             etrng_waiting_for_req_to_clear: false,
@@ -257,6 +276,14 @@ impl HwModel for ModelFpgaRealtime {
 
     fn tracing_hint(&mut self, _enable: bool) {
         // Do nothing; we don't support tracing yet
+    }
+}
+impl Drop for ModelFpgaRealtime {
+    fn drop(&mut self) {
+        // Unmap UIO memory space so that the file lock is released
+        self.unmap_mapping(self.gpio, GPIO_MAPPING);
+        self.unmap_mapping(self.mbox, MBOX_MAPPING);
+        self.unmap_mapping(self.soc_ifc, SOC_IFC_MAPPING);
     }
 }
 

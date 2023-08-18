@@ -26,6 +26,8 @@ rand.workspace = true
 uio = { workspace = true, optional = true }
 ureg.workspace = true
 zerocopy.workspace = true
+nix = "0.26.2"
+libc = "0.2"
 
 [dev-dependencies]
 caliptra-builder.workspace = true
