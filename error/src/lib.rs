@@ -106,6 +106,8 @@ impl CaliptraError {
         CaliptraError::new_const(0x0005000d);
     pub const DRIVER_ECC384_SIGN_VALIDATION_FAILED: CaliptraError =
         CaliptraError::new_const(0x0005000e);
+    pub const DRIVER_ECC384_SCALAR_RANGE_CHECK_FAILED: CaliptraError =
+        CaliptraError::new_const(0x0005000f);
 
     pub const DRIVER_KV_ERASE_USE_LOCK_SET_FAILURE: CaliptraError =
         CaliptraError::new_const(0x00060001);

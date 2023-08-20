@@ -103,20 +103,20 @@ impl<'a> ImageVerificationEnv for &mut ValRomImageVerificationEnv<'a> {
         &mut self,
         _digest: &ImageDigest,
         _pub_key: &ImageEccPubKey,
-        _sig: &ImageEccSignature,
-    ) -> CaliptraResult<Ecc384Result> {
+        sig: &ImageEccSignature,
+    ) -> CaliptraResult<Array4xN<12, 48>> {
         // Mock verify, just always return success
-        Ok(Ecc384Result::Success)
+        Ok(Array4x12::from(sig.r))
     }
 
     fn lms_verify(
         &mut self,
         _digest: &ImageDigest,
-        _pub_key: &ImageLmsPublicKey,
+        pub_key: &ImageLmsPublicKey,
         _sig: &ImageLmsSignature,
-    ) -> CaliptraResult<LmsResult> {
+    ) -> CaliptraResult<HashValue<SHA192_DIGEST_WORD_SIZE>> {
         // Mock verify, just always return success
-        Ok(LmsResult::Success)
+        Ok(HashValue::from(pub_key.digest))
     }
 
     /// Retrieve Vendor Public Key Digest
