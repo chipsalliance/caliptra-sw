@@ -10,6 +10,7 @@ File Name:
 
 use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_cfi_lib::{CfiCounter, Xoshiro128};
+use serial_test::serial;
 
 #[cfi_mod_fn]
 fn test1<T>(val: T) -> T {
@@ -48,6 +49,7 @@ impl Test {
 }
 
 #[test]
+#[serial]
 #[cfg(feature = "cfi-counter")]
 #[should_panic(expected = "CFI Panic = CounterCorrupt")]
 fn test_with_not_initialized_counter() {
@@ -56,6 +58,7 @@ fn test_with_not_initialized_counter() {
 }
 
 #[test]
+#[serial]
 fn test_with_initialized_counter() {
     CfiCounter::reset_for_test();
     assert_eq!(test1(10), 10);

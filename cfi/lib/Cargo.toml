@@ -16,6 +16,7 @@ ufmt.workspace = true
 
 [dev-dependencies]
 caliptra-cfi-derive.workspace = true
+serial_test.workspace = true
 
 [features]
 default = ["cfi", "cfi-counter", "cfi-test"]
