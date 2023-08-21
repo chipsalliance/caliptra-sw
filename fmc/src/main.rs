@@ -18,7 +18,7 @@ use core::hint::black_box;
 use caliptra_common::cprintln;
 use caliptra_drivers::{
     report_fw_error_non_fatal, Ecc384, Hmac384, KeyVault, Mailbox, Sha256, Sha384, Sha384Acc,
-    SocIfc,
+    SocIfc, report_fw_error_fatal,
 };
 mod boot_status;
 mod flow;
@@ -27,7 +27,6 @@ mod hand_off;
 
 pub use boot_status::FmcBootStatus;
 use caliptra_cpu::TrapRecord;
-use caliptra_registers::soc_ifc::SocIfcReg;
 use hand_off::HandOff;
 
 #[cfg(feature = "std")]
@@ -108,16 +107,6 @@ fn report_error(code: u32) -> ! {
         // we've failed.
         unsafe { Mailbox::abort_pending_soc_to_uc_transactions() };
     }
-}
-
-/// Report fatal F/W error
-///
-/// # Arguments
-///
-/// * `val` - F/W error code.
-fn report_fw_error_fatal(val: u32) {
-    let mut soc_ifc = unsafe { SocIfcReg::new() };
-    soc_ifc.regs_mut().cptra_fw_error_fatal().write(|_| val);
 }
 
 #[allow(clippy::empty_loop)]

@@ -16,8 +16,10 @@ Abstract:
 
 use caliptra_common::cprintln;
 use caliptra_cpu::TrapRecord;
-use caliptra_drivers::{Ecc384, Hmac384, KeyVault, Mailbox, Sha256, Sha384, Sha384Acc, SocIfc};
-use caliptra_registers::soc_ifc::SocIfcReg;
+use caliptra_drivers::{
+    report_fw_error_fatal, report_fw_error_non_fatal, Ecc384, Hmac384, KeyVault, Mailbox, Sha256,
+    Sha384, Sha384Acc, SocIfc,
+};
 use caliptra_runtime::Drivers;
 use core::hint::black_box;
 
@@ -90,16 +92,6 @@ fn runtime_panic(_: &core::panic::PanicInfo) -> ! {
 
     // TODO: Signal non-fatal error to SOC
     handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_GLOBAL_PANIC.into());
-}
-
-/// Report fatal F/W error
-///
-/// # Arguments
-///
-/// * `val` - F/W error code.
-fn report_fw_error_fatal(val: u32) {
-    let mut soc_ifc = unsafe { SocIfcReg::new() };
-    soc_ifc.regs_mut().cptra_fw_error_fatal().write(|_| val);
 }
 
 #[allow(clippy::empty_loop)]
