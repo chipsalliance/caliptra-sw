@@ -130,6 +130,11 @@ pub extern "C" fn rom_entry() -> ! {
     // Lock the datavault registers.
     lock_registers(&mut env, reset_reason);
 
+    // Reset the CFI counter.
+    if !cfg!(feature = "no-cfi") {
+        CfiCounter::corrupt();
+    }
+
     #[cfg(not(feature = "no-fmc"))]
     launch_fmc(&mut env);
 
