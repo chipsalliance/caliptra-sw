@@ -52,8 +52,6 @@ extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
         exception.mepc
     );
 
-    // TODO: Signal non-fatal error to SOC
-
     loop {
         unsafe { Mailbox::abort_pending_soc_to_uc_transactions() };
     }
@@ -81,8 +79,5 @@ extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
 #[allow(clippy::empty_loop)]
 fn fmc_panic(_: &core::panic::PanicInfo) -> ! {
     cprintln!("RT Panic!!");
-
-    // TODO: Signal non-fatal error to SOC
-
     loop {}
 }

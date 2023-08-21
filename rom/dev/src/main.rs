@@ -162,8 +162,6 @@ extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
         exception.mepc
     );
 
-    // TODO: Signal non-fatal error to SOC
-
     handle_fatal_error(CaliptraError::ROM_GLOBAL_EXCEPTION.into());
 }
 
@@ -177,10 +175,6 @@ extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
         exception.mepc
     );
 
-    // TODO: Signal error to SOC
-    // - Signal Fatal error for ICCM/DCCM double bit faults
-    // - Signal Non=-Fatal error for all other errors
-
     handle_fatal_error(CaliptraError::ROM_GLOBAL_NMI.into());
 }
 
@@ -191,7 +185,6 @@ fn rom_panic(_: &core::panic::PanicInfo) -> ! {
     cprintln!("Panic!!");
     panic_is_possible();
 
-    // TODO: Signal non-fatal error to SOC
     handle_fatal_error(CaliptraError::ROM_GLOBAL_PANIC.into());
 }
 
