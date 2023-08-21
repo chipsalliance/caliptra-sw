@@ -9,6 +9,7 @@ use std::io::Write;
 use std::time;
 use uio::{UioDevice, UioError};
 
+use crate::EtrngResponse;
 use crate::HwModel;
 use crate::Output;
 
@@ -69,6 +70,10 @@ pub struct ModelFpgaRealtime {
     soc_ifc: *mut u32,
     output: Output,
     start_time: time::Instant,
+
+    etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
+    etrng_response: Option<[u32; 12]>,
+    etrng_waiting_for_req_to_clear: bool,
 }
 
 impl ModelFpgaRealtime {
@@ -127,6 +132,9 @@ impl HwModel for ModelFpgaRealtime {
             soc_ifc,
             output,
             start_time,
+            etrng_responses: params.etrng_responses,
+            etrng_response: None,
+            etrng_waiting_for_req_to_clear: false,
         };
 
         writeln!(m.output().logger(), "new_unbooted")?;
@@ -197,11 +205,24 @@ impl HwModel for ModelFpgaRealtime {
         }
 
         // Handle etrng request
-        if self.soc_ifc_trng().cptra_trng_status().read().data_req() {
-            // Write CPTRA_TRNG_STATUS.DATA_WR_DONE
-            self.soc_ifc_trng()
-                .cptra_trng_status()
-                .write(|w| w.data_wr_done(true));
+        let trng_status = self.soc_ifc_trng().cptra_trng_status().read();
+        if self.etrng_waiting_for_req_to_clear && !trng_status.data_req() {
+            self.etrng_waiting_for_req_to_clear = false;
+        }
+        if trng_status.data_req() && !self.etrng_waiting_for_req_to_clear {
+            if self.etrng_response.is_none() {
+                if let Some(response) = self.etrng_responses.next() {
+                    self.etrng_response = Some(response.data);
+                }
+            }
+            if let Some(_) = &mut self.etrng_response {
+                self.etrng_waiting_for_req_to_clear = true;
+                let etrng_response = self.etrng_response.take().unwrap();
+                self.soc_ifc_trng().cptra_trng_data().write(&etrng_response);
+                self.soc_ifc_trng()
+                    .cptra_trng_status()
+                    .write(|w| w.data_wr_done(true));
+            }
         }
     }
 
