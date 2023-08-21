@@ -108,6 +108,55 @@ impl ModelFpgaRealtime {
             self.gpio.offset(GPIO_PAUSER_OFFSET).write_volatile(pauser);
         }
     }
+
+    fn handle_log(&mut self) {
+        // Check if the FIFO is full (which probably means there was an overrun)
+        let fifosts = unsafe {
+            FifoStatus(
+                self.gpio
+                    .offset(GPIO_LOG_FIFO_STATUS_OFFSET)
+                    .read_volatile(),
+            )
+        };
+        if fifosts.log_fifo_full() != 0 {
+            panic!("FPGA log FIFO overran");
+        }
+        // Check and empty log FIFO
+        loop {
+            let fifodata =
+                unsafe { FifoData(self.gpio.offset(GPIO_LOG_FIFO_DATA_OFFSET).read_volatile()) };
+            // Add byte to log if it is valid
+            if fifodata.log_fifo_valid() != 0 {
+                self.output()
+                    .sink()
+                    .push_uart_char(fifodata.log_fifo_char().try_into().unwrap());
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn handle_etrng(&mut self) {
+        let trng_status = self.soc_ifc_trng().cptra_trng_status().read();
+        if self.etrng_waiting_for_req_to_clear && !trng_status.data_req() {
+            self.etrng_waiting_for_req_to_clear = false;
+        }
+        if trng_status.data_req() && !self.etrng_waiting_for_req_to_clear {
+            if self.etrng_response.is_none() {
+                if let Some(response) = self.etrng_responses.next() {
+                    self.etrng_response = Some(response.data);
+                }
+            }
+            if let Some(_) = &mut self.etrng_response {
+                self.etrng_waiting_for_req_to_clear = true;
+                let etrng_response = self.etrng_response.take().unwrap();
+                self.soc_ifc_trng().cptra_trng_data().write(&etrng_response);
+                self.soc_ifc_trng()
+                    .cptra_trng_status()
+                    .write(|w| w.data_wr_done(true));
+            }
+        }
+    }
 }
 
 impl HwModel for ModelFpgaRealtime {
@@ -179,51 +228,10 @@ impl HwModel for ModelFpgaRealtime {
     }
 
     fn step(&mut self) {
-        // Check if the FIFO is full (which probably means there was an overrun)
-        let fifosts = unsafe {
-            FifoStatus(
-                self.gpio
-                    .offset(GPIO_LOG_FIFO_STATUS_OFFSET)
-                    .read_volatile(),
-            )
-        };
-        if fifosts.log_fifo_full() != 0 {
-            panic!("FPGA log FIFO overran");
-        }
-        // Check and empty log FIFO
-        loop {
-            let fifodata =
-                unsafe { FifoData(self.gpio.offset(GPIO_LOG_FIFO_DATA_OFFSET).read_volatile()) };
-            // Add byte to log if it is valid
-            if fifodata.log_fifo_valid() != 0 {
-                self.output()
-                    .sink()
-                    .push_uart_char(fifodata.log_fifo_char().try_into().unwrap());
-            } else {
-                break;
-            }
-        }
+        self.handle_log();
 
-        // Handle etrng request
-        let trng_status = self.soc_ifc_trng().cptra_trng_status().read();
-        if self.etrng_waiting_for_req_to_clear && !trng_status.data_req() {
-            self.etrng_waiting_for_req_to_clear = false;
-        }
-        if trng_status.data_req() && !self.etrng_waiting_for_req_to_clear {
-            if self.etrng_response.is_none() {
-                if let Some(response) = self.etrng_responses.next() {
-                    self.etrng_response = Some(response.data);
-                }
-            }
-            if let Some(_) = &mut self.etrng_response {
-                self.etrng_waiting_for_req_to_clear = true;
-                let etrng_response = self.etrng_response.take().unwrap();
-                self.soc_ifc_trng().cptra_trng_data().write(&etrng_response);
-                self.soc_ifc_trng()
-                    .cptra_trng_status()
-                    .write(|w| w.data_wr_done(true));
-            }
-        }
+        // FPGA only supports ETRNG for now and needs to be checked frequently.
+        self.handle_etrng();
     }
 
     fn output(&mut self) -> &mut crate::Output {
