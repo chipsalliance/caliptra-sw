@@ -106,6 +106,11 @@ fn report_fw_error_fatal(val: u32) {
 fn handle_fatal_error(code: u32) -> ! {
     cprintln!("RT Fatal Error: 0x{:08X}", code);
     report_fw_error_fatal(code);
+    // Populate the non-fatal error code too; if there was a
+    // non-fatal error stored here before we don't want somebody
+    // mistakenly thinking that was the reason for their mailbox
+    // command failure.
+    report_fw_error_non_fatal(code);
 
     unsafe {
         // Zeroize the crypto blocks.
