@@ -17,8 +17,8 @@ use core::hint::black_box;
 
 use caliptra_common::cprintln;
 use caliptra_drivers::{
-    report_fw_error_non_fatal, Ecc384, Hmac384, KeyVault, Mailbox, Sha256, Sha384, Sha384Acc,
-    SocIfc, report_fw_error_fatal,
+    report_fw_error_fatal, report_fw_error_non_fatal, Ecc384, Hmac384, KeyVault, Mailbox, Sha256,
+    Sha384, Sha384Acc, SocIfc,
 };
 mod boot_status;
 mod flow;
