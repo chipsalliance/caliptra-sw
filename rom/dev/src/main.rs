@@ -15,7 +15,7 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_main)]
 #![cfg_attr(feature = "val-rom", allow(unused_imports))]
 
-use crate::lock::lock_registers;
+use crate::{lock::lock_registers, print::HexBytes};
 use caliptra_cfi_lib::CfiCounter;
 use core::hint::black_box;
 
@@ -23,6 +23,8 @@ use caliptra_drivers::{
     cprintln, report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError, Ecc384, Hmac384,
     KeyVault, Mailbox, ResetReason, Sha256, Sha384, Sha384Acc, SocIfc,
 };
+use caliptra_error::CaliptraResult;
+use caliptra_image_types::RomInfo;
 use rom_env::RomEnv;
 
 #[cfg(not(feature = "std"))]
@@ -51,6 +53,10 @@ const BANNER: &str = r#"
 Running Caliptra ROM ...
 "#;
 
+extern "C" {
+    static CALIPTRA_ROM_INFO: RomInfo;
+}
+
 #[no_mangle]
 pub extern "C" fn rom_entry() -> ! {
     cprintln!("{}", BANNER);
@@ -66,6 +72,8 @@ pub extern "C" fn rom_entry() -> ! {
     } else {
         cprintln!("[state] CFI Disabled");
     }
+
+    let rom_info = unsafe { &CALIPTRA_ROM_INFO };
 
     let _lifecyle = match env.soc_ifc.lifecycle() {
         caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",
@@ -95,7 +103,7 @@ pub extern "C" fn rom_entry() -> ! {
     wdt::start_wdt(&mut env.soc_ifc);
 
     if !cfg!(feature = "val-rom") {
-        let result = kat::execute_kat(&mut env);
+        let result = run_fips_tests(&mut env, rom_info);
         if let Err(err) = result {
             handle_fatal_error(err.into());
         }
@@ -130,11 +138,39 @@ pub extern "C" fn rom_entry() -> ! {
     // Lock the datavault registers.
     lock_registers(&mut env, reset_reason);
 
+    // Reset the CFI counter.
+    if !cfg!(feature = "no-cfi") {
+        CfiCounter::corrupt();
+    }
+
     #[cfg(not(feature = "no-fmc"))]
     launch_fmc(&mut env);
 
     #[cfg(feature = "no-fmc")]
     caliptra_drivers::ExitCtrl::exit(0);
+}
+
+fn run_fips_tests(env: &mut RomEnv, rom_info: &RomInfo) -> CaliptraResult<()> {
+    rom_integrity_test(env, &rom_info.sha256_digest)?;
+    kat::execute_kat(env)
+}
+
+fn rom_integrity_test(env: &mut RomEnv, expected_digest: &[u32; 8]) -> CaliptraResult<()> {
+    // WARNING: It is undefined behavior to dereference a zero (null) pointer in
+    // rust code. This is only safe because the dereference is being done by an
+    // an assembly routine ([`ureg::opt_riscv::copy_16_words`]) rather
+    // than dereferencing directly in Rust.
+    #[allow(clippy::zero_ptr)]
+    let rom_start = 0 as *const [u32; 16];
+
+    let n_blocks = unsafe { &CALIPTRA_ROM_INFO as *const RomInfo as usize / 64 };
+    let digest = unsafe { env.sha256.digest_blocks_raw(rom_start, n_blocks)? };
+    cprintln!("ROM Digest: {}", HexBytes(&<[u8; 32]>::from(digest)));
+    if digest.0 != *expected_digest {
+        cprintln!("ROM integrity test failed");
+        return Err(CaliptraError::ROM_INTEGRITY_FAILURE);
+    }
+    Ok(())
 }
 
 fn launch_fmc(env: &mut RomEnv) -> ! {

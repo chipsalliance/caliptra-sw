@@ -151,6 +151,7 @@ ureg-systemrdl = { path = "ureg/lib/systemrdl" }
 wycheproof = "0.5.1"
 x509-parser = "0.15.0"
 zerocopy = "0.6.1"
+serial_test = "2.0.0"
 
 [profile.firmware]
 inherits = "release"

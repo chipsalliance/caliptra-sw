@@ -418,6 +418,8 @@ impl CaliptraError {
 
     pub const ROM_KAT_LMS_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90070001);
     pub const ROM_KAT_LMS_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90070002);
+
+    pub const ROM_INTEGRITY_FAILURE: CaliptraError = CaliptraError::new_const(0x90080001);
 }
 
 impl From<core::num::NonZeroU32> for crate::CaliptraError {
