@@ -5,7 +5,7 @@ pub mod common;
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART};
 use caliptra_common::mailbox_api::{
     CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, InvokeDpeReq, InvokeDpeResp,
-    MailboxReqHeader, MailboxRespHeader,
+    MailboxReqHeader, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_drivers::Ecc384PubKey;
 use caliptra_hw_model::{HwModel, ModelError, ShaAccMode};
@@ -143,7 +143,45 @@ fn test_fw_info() {
         MailboxRespHeader::FIPS_STATUS_APPROVED
     );
     // Verify FW info
-    assert_eq!(info.pl0_pauser, 0xFFFF0000);
+    assert_eq!(info.pl0_pauser, 0x1);
+}
+
+#[test]
+fn test_stash_measurement() {
+    let mut model = run_rt_test(None);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == RtBootStatus::RtReadyForCommands.into()
+    });
+
+    let cmd = StashMeasurementReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        metadata: [0u8; 4],
+        measurement: [0u8; 48],
+        svn: 0,
+    };
+
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::STASH_MEASUREMENT),
+        &cmd.as_bytes()[4..],
+    );
+
+    let cmd = StashMeasurementReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..cmd
+    };
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::STASH_MEASUREMENT), cmd.as_bytes())
+        .unwrap()
+        .expect("We should have received a response");
+
+    let resp_hdr: &StashMeasurementResp =
+        LayoutVerified::<&[u8], StashMeasurementResp>::new(resp.as_bytes())
+            .unwrap()
+            .into_ref();
+
+    assert_eq!(resp_hdr.dpe_result, 0);
 }
 
 #[test]
@@ -433,17 +471,6 @@ fn test_unimplemented_cmds() {
     };
 
     resp = model.mailbox_execute(u32::from(CommandId::GET_LDEV_CERT), payload.as_bytes());
-    assert_eq!(resp, expected_err);
-
-    // STASH_MEASUREMENT
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::STASH_MEASUREMENT),
-            &[],
-        ),
-    };
-
-    resp = model.mailbox_execute(u32::from(CommandId::STASH_MEASUREMENT), payload.as_bytes());
     assert_eq!(resp, expected_err);
 
     // Send something that is not a valid RT command.
