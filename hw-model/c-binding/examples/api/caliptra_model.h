@@ -10,7 +10,6 @@
 typedef struct caliptra_buffer {
   const uint8_t *data;
   uintptr_t len;
-  uint32_t chksum;
 } caliptra_buffer;
 
 enum DeviceLifecycle {

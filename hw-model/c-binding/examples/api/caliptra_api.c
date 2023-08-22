@@ -9,28 +9,7 @@
 // Check with jordan
 #include "../../../../libcaliptra/inc/caliptra_if.h"
 
-static uint32_t calculate_caliptra_checksum(uint32_t cmd, uint8_t *buffer, uint32_t len)
-{
-    uint32_t i, sum = 0;
 
-    if ((buffer == NULL) && (len != 0))
-    {
-        // Don't respect bad parameters
-        return 0;
-    }
-
-    for (i = 0; i < sizeof(uint32_t); i++)
-    {
-        sum += ((uint8_t*)(&cmd))[i];
-    }
-
-    for (i = 0; i < len; i++)
-    {
-        sum += buffer[i];
-    }
-
-    return (0 - sum);
-}
 
 int caliptra_init_fuses(struct caliptra_model *model, struct caliptra_fuses *fuses)
 {

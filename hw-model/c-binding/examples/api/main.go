@@ -129,8 +129,8 @@ func main() {
         buffer := C.caliptra_model_output_peek(model)
         if C.strstr((*C.char)(unsafe.Pointer(buffer.data)), C.CString("Caliptra RT listening for mailbox commands...")) != nil {
             var test C.uint32_t
-            profileString := "DPE_PROFILE_IROT_P256_SHA256"
-            profileBuffer := C.create_command_hdr(C.uint32_t(CmdMagic), C.uint32_t(CommandGetProfile),stringToUint32(profileString))
+            profileString := "DPE_PROFILE_IROT_P384_SHA384"
+            profileBuffer := C.create_invoke_dpe_command(C.uint32_t(CmdMagic), C.uint32_t(CommandGetProfile),stringToUint32(profileString))
             profile := C.caliptra_get_profile(model, &profileBuffer,test)
             fmt.Println(profile)
             fmt.Println(test)
