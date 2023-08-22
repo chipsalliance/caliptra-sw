@@ -64,6 +64,9 @@ caliptra_buffer create_invoke_dpe_command(uint32_t magic, uint32_t cmd, uint32_t
         
     }
 
+    printf("Checksum : %x\n", invokeCmd->chksum);
+    printf("data size : %x\n", invokeCmd->data_size);
+
     caliptra_buffer buffer = {
         .data = (const uint8_t*)invokeCmd,
         .len = sizeof(INVOKE_DPE_COMMAND) + data_size
