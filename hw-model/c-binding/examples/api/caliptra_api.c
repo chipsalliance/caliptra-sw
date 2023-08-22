@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-#include "../../../hw-latest/caliptra-rtl/src/soc_ifc/rtl/caliptra_top_reg.h"
+#include "../../../../hw-latest/caliptra-rtl/src/soc_ifc/rtl/caliptra_top_reg.h"
 #include "caliptra_api.h"
 #include "caliptra_fuses.h"
 #include "caliptra_mbox.h"
