@@ -40,7 +40,7 @@ pub fn run_rt_test(test_bin_name: Option<&'static str>) -> DefaultHwModel {
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
 
     let mut image_options = ImageOptions::default();
-    image_options.vendor_config.pl0_pauser = Some(0xFFFF0000);
+    image_options.vendor_config.pl0_pauser = Some(0x1);
     image_options.fmc_version = 0xaaaaaaaa;
     image_options.app_version = 0xbbbbbbbb;
     let image =
