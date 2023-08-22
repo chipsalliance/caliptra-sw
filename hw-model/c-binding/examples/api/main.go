@@ -2,7 +2,7 @@ package main
 
 // #cgo CFLAGS: -I./../out/debug -std=c99
 // #cgo LDFLAGS: -L./../out/debug -lcaliptra_hw_model_c_binding -lc_wrapper -ldl
-// #include "../../../hw-latest/caliptra-rtl/src/soc_ifc/rtl/caliptra_top_reg.h"
+// #include "../../../../hw-latest/caliptra-rtl/src/soc_ifc/rtl/caliptra_top_reg.h"
 // #include "caliptra_api.h"
 // #include "caliptra_fuses.h"
 // #include "caliptra_mbox.h"
