@@ -17,7 +17,7 @@ typedef struct  {
 } CommandHdr;
 
 
-CommandHdr create_command_hdr(uint32_t magic, uint32_t cmd, uint32_t profile);
+void create_command_hdr(uint32_t magic, uint32_t cmd, uint32_t profile, CommandHdr* cmdHdr);
 caliptra_buffer create_invoke_dpe_command(uint32_t magic, uint32_t cmd, uint32_t profile);
 
 #endif
