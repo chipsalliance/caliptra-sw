@@ -52,12 +52,9 @@ caliptra_buffer create_invoke_dpe_command(uint32_t magic, uint32_t cmd, uint32_t
           fflush(stdout);
         invokeCmd->data_size = sizeof(CommandHdr);
         invokeCmd->chksum = calculate_caliptra_checksum(0x44504543u, (uint8_t*)&cmdHdr, sizeof(CommandHdr));
-        printf("*********************\n");
+        printf("*********INVOKE 4************\n");
           fflush(stdout);
-        printf("%s",invokeCmd->chksum);
-          fflush(stdout);
-        printf("*********************\n");
-          fflush(stdout);
+
         memcpy(invokeCmd->data, &cmdHdr, sizeof(CommandHdr));
     }
 
