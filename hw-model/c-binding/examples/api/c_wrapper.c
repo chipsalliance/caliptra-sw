@@ -38,17 +38,23 @@ CommandHdr create_command_hdr(uint32_t magic, uint32_t cmd, uint32_t profile) {
 
 caliptra_buffer create_invoke_dpe_command(uint32_t magic, uint32_t cmd, uint32_t profile) {
     printf("****INVOKE 1**********");
+    fflush(stdout);
     CommandHdr cmdHdr = create_command_hdr(magic, cmd, profile);
     printf("****INVOKE 2**********");
+    fflush(stdout);
 
     INVOKE_DPE_COMMAND* invokeCmd = (INVOKE_DPE_COMMAND*)malloc(sizeof(INVOKE_DPE_COMMAND) + sizeof(CommandHdr));
     if (invokeCmd != NULL) {
         printf("****INVOKE 3**********");
+          fflush(stdout);
         invokeCmd->data_size = sizeof(CommandHdr);
         invokeCmd->chksum = calculate_caliptra_checksum(0x44504543u, (uint8_t*)&cmdHdr, sizeof(CommandHdr));
         printf("*********************");
+          fflush(stdout);
         printf("%s",invokeCmd->chksum);
+          fflush(stdout);
         printf("*********************");
+          fflush(stdout);
         memcpy(invokeCmd->data, &cmdHdr, sizeof(CommandHdr));
     }
 
