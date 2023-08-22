@@ -28,21 +28,22 @@ uint32_t calculate_caliptra_checksum(uint32_t cmd, uint8_t *buffer, uint32_t len
     return (0 - sum);
 }
 
-CommandHdr create_command_hdr(uint32_t magic, uint32_t cmd, uint32_t profile) {
-    CommandHdr* cmdHdr = (CommandHdr*)malloc(sizeof(CommandHdr));
+void create_command_hdr(uint32_t magic, uint32_t cmd, uint32_t profile, CommandHdr* cmdHdr) {
+    
     if (cmdHdr != NULL) {
         cmdHdr->magic = magic;
         cmdHdr->cmd = cmd;
         cmdHdr->profile = profile;
     }
 
-    return *cmdHdr;
+    //return *cmdHdr;
 }
 
 caliptra_buffer create_invoke_dpe_command(uint32_t magic, uint32_t cmd, uint32_t profile) {
     printf("****INVOKE 1**********\n");
     fflush(stdout);
-    CommandHdr cmdHdr = create_command_hdr(magic, cmd, profile);
+    CommandHdr cmdHdr;
+    create_command_hdr(magic, cmd, profile, &cmdHdr);
     printf("****INVOKE 2**********\n");
     fflush(stdout);
 
@@ -59,14 +60,8 @@ caliptra_buffer create_invoke_dpe_command(uint32_t magic, uint32_t cmd, uint32_t
         printf("*********INVOKE 4************\n");
         fflush(stdout);
 
-        invokeCmd->data = (uint8_t*)malloc(data_size);
-        if (invokeCmd->data != NULL) {
-            memcpy(invokeCmd->data, &cmdHdr, data_size);
-        } else {
-            // Handle memory allocation error
-            free(invokeCmd);
-            invokeCmd = NULL;
-        }
+        invokeCmd->data = &cmdHdr;
+        
     }
 
     caliptra_buffer buffer = {
