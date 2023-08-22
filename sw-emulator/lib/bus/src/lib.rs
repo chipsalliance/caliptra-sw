@@ -16,6 +16,7 @@ mod clock;
 mod dynamic_bus;
 mod mem;
 mod mmio;
+mod pic;
 mod ram;
 mod register;
 mod register_array;
@@ -26,6 +27,7 @@ pub use crate::bus::{Bus, BusError};
 pub use crate::clock::{ActionHandle, Clock, Timer, TimerAction};
 pub use crate::dynamic_bus::DynamicBus;
 pub use crate::mmio::BusMmio;
+pub use crate::pic::{Pic, PicMmioRegisters};
 pub use crate::ram::Ram;
 pub use crate::register::{
     ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory, ReadWriteRegister, Register,

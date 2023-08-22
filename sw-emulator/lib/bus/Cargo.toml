@@ -8,6 +8,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+caliptra-emu-derive.workspace = true
 caliptra-emu-types.workspace = true
 tock-registers.workspace = true
 ureg.workspace = true

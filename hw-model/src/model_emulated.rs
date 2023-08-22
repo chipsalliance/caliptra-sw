@@ -8,6 +8,7 @@ use std::path::Path;
 use std::rc::Rc;
 
 use caliptra_emu_bus::Clock;
+use caliptra_emu_bus::Pic;
 use caliptra_emu_cpu::Cpu;
 use caliptra_emu_cpu::InstrTracer;
 use caliptra_emu_periph::ActionCb;
@@ -64,6 +65,7 @@ impl crate::HwModel for ModelEmulated {
         Self: Sized,
     {
         let clock = Clock::new();
+        let pic = Pic::new();
         let timer = clock.timer();
 
         let ready_for_fw = Rc::new(Cell::new(false));
@@ -94,7 +96,7 @@ impl crate::HwModel for ModelEmulated {
             etrng_responses: params.etrng_responses,
             ..CaliptraRootBusArgs::default()
         };
-        let mut root_bus = CaliptraRootBus::new(&clock, bus_args);
+        let mut root_bus = CaliptraRootBus::new(&clock, &pic, bus_args);
 
         let trng_mode = TrngMode::resolve(params.trng_mode);
         root_bus.soc_reg.set_hw_config(match trng_mode {
@@ -115,7 +117,7 @@ impl crate::HwModel for ModelEmulated {
             dccm_dest.copy_from_slice(params.dccm);
         }
         let soc_to_caliptra_bus = root_bus.soc_to_caliptra_bus();
-        let cpu = Cpu::new(BusLogger::new(root_bus), clock);
+        let cpu = Cpu::new(BusLogger::new(root_bus), clock, pic);
 
         let mut m = ModelEmulated {
             output,

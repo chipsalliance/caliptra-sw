@@ -15,7 +15,7 @@ Abstract:
 use crate::csr_file::{Csr, CsrFile};
 use crate::types::{RvInstr, RvMStatus};
 use crate::xreg_file::{XReg, XRegFile};
-use caliptra_emu_bus::{Bus, BusError, Clock, TimerAction};
+use caliptra_emu_bus::{Bus, BusError, Clock, Pic, TimerAction};
 use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
 
 pub type InstrTracer<'a> = dyn FnMut(u32, RvInstr) + 'a;
@@ -74,6 +74,9 @@ pub struct Cpu<TBus: Bus> {
 
     // This is used to track watchpointers
     pub(crate) watch_ptr_cfg: WatchPtrCfg,
+
+    #[allow(unused)]
+    pic: Pic,
 }
 
 /// Cpu instruction step action
@@ -94,7 +97,7 @@ impl<TBus: Bus> Cpu<TBus> {
     const PC_RESET_VAL: RvData = 0;
 
     /// Create a new RISCV CPU
-    pub fn new(bus: TBus, clock: Clock) -> Self {
+    pub fn new(bus: TBus, clock: Clock, pic: Pic) -> Self {
         Self {
             xregs: XRegFile::new(),
             csrs: CsrFile::new(),
@@ -105,6 +108,7 @@ impl<TBus: Bus> Cpu<TBus> {
             is_execute_instr: false,
             watch_ptr_cfg: WatchPtrCfg::new(),
             nmivec: 0,
+            pic,
         }
     }
 
@@ -326,6 +330,9 @@ impl<TBus: Bus> Cpu<TBus> {
                 _ => {}
             }
         }
+        if let Some(_irq_id) = self.pic.highest_priority_irq(0) {
+            // TODO: Lookup  irq_id in the external interrupt vector and dispatch to it
+        }
 
         match self.exec_instr(instr_tracer) {
             Ok(result) => result,
@@ -425,20 +432,20 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let cpu = Cpu::new(DynamicBus::new(), Clock::new());
+        let cpu = Cpu::new(DynamicBus::new(), Clock::new(), Pic::new());
         assert_eq!(cpu.read_pc(), 0);
     }
 
     #[test]
     fn test_pc() {
-        let mut cpu = Cpu::new(DynamicBus::new(), Clock::new());
+        let mut cpu = Cpu::new(DynamicBus::new(), Clock::new(), Pic::new());
         cpu.write_pc(0xFF);
         assert_eq!(cpu.read_pc(), 0xFF);
     }
 
     #[test]
     fn test_xreg() {
-        let mut cpu = Cpu::new(DynamicBus::new(), Clock::new());
+        let mut cpu = Cpu::new(DynamicBus::new(), Clock::new(), Pic::new());
         for reg in 1..32u32 {
             assert_eq!(cpu.write_xreg(reg.into(), 0xFF).ok(), Some(()));
             assert_eq!(cpu.read_xreg(reg.into()).ok(), Some(0xFF));
@@ -468,7 +475,7 @@ mod tests {
 
         let mut action0 = Some(timer.schedule_poll_in(31));
 
-        let mut cpu = Cpu::new(bus, clock);
+        let mut cpu = Cpu::new(bus, clock, Pic::new());
         for i in 0..30 {
             assert_eq!(cpu.clock.now(), i);
             assert_eq!(cpu.step(None), StepAction::Continue);
