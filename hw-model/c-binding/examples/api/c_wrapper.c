@@ -68,7 +68,7 @@ caliptra_buffer create_invoke_dpe_command(uint32_t magic, uint32_t cmd, uint32_t
 
     caliptra_buffer buffer = {
         .data = (const uint8_t*)invokeCmd,
-        .len = sizeof(INVOKE_DPE_COMMAND) + data_size
+        .len = sizeof(INVOKE_DPE_COMMAND)
     };
 
     return buffer;
