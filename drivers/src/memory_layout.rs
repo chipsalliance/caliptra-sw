@@ -40,6 +40,10 @@ pub const CFI_XO_S0_ORG: u32 = 0x50004BF0;
 pub const CFI_XO_S1_ORG: u32 = 0x50004BF4;
 pub const CFI_XO_S2_ORG: u32 = 0x50004BF8;
 pub const CFI_XO_S3_ORG: u32 = 0x50004BFC;
+
+// Note: ROM DATA_ORG begins at 0x50018000. So FMC/RT are free to claim
+// any space between here and that address without fear of it being overwritten
+// by ROM on warm/update reset.
 pub const DATA_ORG: u32 = 0x50004C00;
 pub const STACK_ORG: u32 = 0x5001A000;
 pub const ESTACK_ORG: u32 = 0x5001F800;
@@ -61,7 +65,7 @@ pub const FMCALIAS_TBS_SIZE: u32 = 1024;
 pub const RTALIAS_TBS_SIZE: u32 = 1024;
 pub const PCR_LOG_SIZE: usize = 1024;
 pub const FUSE_LOG_SIZE: usize = 996;
-pub const DATA_SIZE: u32 = 85 * 1024;
+pub const DATA_SIZE: u32 = 81 * 1024;
 pub const STACK_SIZE: u32 = 22 * 1024;
 pub const ESTACK_SIZE: u32 = 1024;
 pub const NSTACK_SIZE: u32 = 1024;
