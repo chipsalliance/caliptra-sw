@@ -7,6 +7,7 @@
 #include <caliptra_top_reg.h>
 #include "caliptra_if.h"
 #include "caliptra_api.h"
+#include "caliptra_fuses.h"
 #include "caliptra_mbox.h"
 
 #define CALIPTRA_STATUS_NOT_READY 0
@@ -74,6 +75,71 @@ int caliptra_bootfsm_go()
 
     return 0;
 }
+
+/**
+ * caliptra_ready_for_fuses
+ *
+ * Reports if the Caliptra hardware is ready for fuse data
+ *
+ * @return bool True if ready, false otherwise
+ */
+bool caliptra_ready_for_fuses(void)
+{
+    uint32_t status;
+
+    caliptra_read_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS, &status);
+
+    if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FUSES_MASK) != 0) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * caliptra_init_fuses
+ *
+ * Initialize fuses based on contents of "fuses" argument
+ *
+ * @param[in] fuses Valid caliptra_fuses structure
+ *
+ * @return int 0 if successful, -EINVAL if fuses is null, -EPERM if caliptra is not ready for fuses, -EIO if still ready after fuses are written
+ */
+int caliptra_init_fuses(struct caliptra_fuses *fuses)
+{
+    // Parameter check
+    if (!fuses)
+    {
+        return -EINVAL;
+    }
+
+    // Check whether caliptra is ready for fuses
+    if (!caliptra_ready_for_fuses())
+        return -EPERM;
+
+    // Write Fuses
+    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_UDS_SEED_0, fuses->uds_seed, ARRAY_SIZE(fuses->uds_seed));
+    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_FIELD_ENTROPY_0, fuses->field_entropy, ARRAY_SIZE(fuses->field_entropy));
+    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_KEY_MANIFEST_PK_HASH_0, fuses->key_manifest_pk_hash, ARRAY_SIZE(fuses->key_manifest_pk_hash));
+    caliptra_fuse_write(GENERIC_AND_FUSE_REG_FUSE_KEY_MANIFEST_PK_HASH_MASK, fuses->key_manifest_pk_hash_mask);
+    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_OWNER_PK_HASH_0, fuses->owner_pk_hash, ARRAY_SIZE(fuses->owner_pk_hash));
+    caliptra_fuse_write(GENERIC_AND_FUSE_REG_FUSE_FMC_KEY_MANIFEST_SVN, fuses->fmc_key_manifest_svn);
+    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_RUNTIME_SVN_0, fuses->runtime_svn, ARRAY_SIZE(fuses->runtime_svn));
+    caliptra_fuse_write(GENERIC_AND_FUSE_REG_FUSE_ANTI_ROLLBACK_DISABLE, (uint32_t)fuses->anti_rollback_disable);
+    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_IDEVID_CERT_ATTR_0, fuses->idevid_cert_attr, ARRAY_SIZE(fuses->idevid_cert_attr));
+    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_IDEVID_MANUF_HSM_ID_0, fuses->idevid_manuf_hsm_id, ARRAY_SIZE(fuses->idevid_manuf_hsm_id));
+    caliptra_fuse_write(GENERIC_AND_FUSE_REG_FUSE_LIFE_CYCLE, (uint32_t)fuses->life_cycle);
+
+    // Write to Caliptra Fuse Done
+    caliptra_write_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FUSE_WR_DONE, 1);
+
+    // No longer ready for fuses
+    if (caliptra_ready_for_fuses())
+        return -EIO;
+
+    return 0;
+}
+
 
 /**
  * caliptra_mailbox_write_fifo

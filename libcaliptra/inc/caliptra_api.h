@@ -13,6 +13,12 @@
 // Write into Caliptra BootFSM Go Register
 int caliptra_bootfsm_go();
 
+// Determine if Caliptra is ready to program fuses
+bool caliptra_ready_for_fuses(void);
+
+// Program calpitra_fuse object contents to caliptra fuses
+int caliptra_init_fuses(struct caliptra_fuses *fuses);
+
 // Query if ROM is ready for firmware
 bool caliptra_ready_for_firmware(void);
 
