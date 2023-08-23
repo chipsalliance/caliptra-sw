@@ -55,12 +55,11 @@ caliptra_buffer create_invoke_dpe_command(uint32_t magic, uint32_t cmd, uint32_t
         printf("****INVOKE 3**********\n");
         fflush(stdout);
         invokeCmd->data_size = data_size;
-        invokeCmd->chksum = calculate_caliptra_checksum(OP_INVOKE_DPE_COMMAND, (uint8_t*)invokeCmd, sizeof(INVOKE_DPE_COMMAND) - sizeof(uint32_t));
+         // Copy cmdHdr data into invokeCmd->data
+        memcpy(invokeCmd->data, &cmdHdr, data_size);
+        invokeCmd->chksum = calculate_caliptra_checksum(OP_INVOKE_DPE_COMMAND, (uint8_t*)invokeCmd->data_size, sizeof(INVOKE_DPE_COMMAND) - sizeof(uint32_t));
         printf("*********INVOKE 4************\n");
         fflush(stdout);
-  
-        // Copy cmdHdr data into invokeCmd->data
-        memcpy(invokeCmd->data, &cmdHdr, data_size);
     }
 
     printf("Checksum : %x\n", invokeCmd->chksum);
