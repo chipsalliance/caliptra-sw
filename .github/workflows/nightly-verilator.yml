@@ -9,14 +9,12 @@ on:
 jobs:
   smoke_test:
     name: Smoke Test
-    runs-on: ubuntu-22.04
-    timeout-minutes: 360
+    runs-on: e2-standard-2
+    timeout-minutes: 720
 
     env:
       VERILATOR_VERSION: v5.006
       PKG_CONFIG_PATH: /opt/verilator/share/pkgconfig
-        # Change this to a new random value if you suspect the cache is corrupted
-      CACHE_BUSTER: 29334de42083
 
     steps:
       - name: Checkout repo
@@ -24,16 +22,12 @@ jobs:
         with:
           submodules: 'true'
 
-      - name: Restore verilator dir
-        uses: actions/cache/restore@v3
-        id: verilator_restore
-        with:
-          path: /opt/verilator
-          key: verilator-${{ env.VERILATOR_VERSION }}-${{ env.CACHE_BUSTER }}
-
       - name: Install verilator
-        if: steps.verilator_restore.outputs.cache-hit != 'true'
         run: |
+          if [ -d "/opt/verilator" ]; then
+            # The GCP runners already have verilator installed
+            exit
+          fi
           sudo apt-get install flex bison libfl2 libfl-dev help2man
           cd /tmp/
           git clone -b "${VERILATOR_VERSION}" https://github.com/verilator/verilator
@@ -42,13 +36,6 @@ jobs:
           ./configure --prefix=/opt/verilator
           make -j6
           sudo make install
-
-      - name: Save verilator dir
-        uses: actions/cache/save@v3
-        if: steps.verilator_restore.outputs.cache-hit != 'true'
-        with:
-          path: /opt/verilator
-          key: verilator-${{ env.VERILATOR_VERSION }}-${{ env.CACHE_BUSTER }}
 
       - name: Setup verilator path
         run: |
