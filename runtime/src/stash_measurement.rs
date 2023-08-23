@@ -6,7 +6,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use dpe::{
-    commands::{CommandExecution, DeriveChildCmd},
+    commands::{CommandExecution, DeriveChildCmd, DeriveChildFlags},
     context::ContextHandle,
     dpe_instance::DpeEnv,
     response::DpeErrorCode,
@@ -18,17 +18,24 @@ impl StashMeasurementCmd {
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if let Some(cmd) = StashMeasurementReq::read_from(cmd_args) {
             let mut env = DpeEnv::<CptraDpeTypes> {
-                crypto: DpeCrypto::new(&mut drivers.sha384, &mut drivers.trng),
+                crypto: DpeCrypto::new(
+                    &mut drivers.sha384,
+                    &mut drivers.trng,
+                    &mut drivers.ecc384,
+                    &mut drivers.hmac384,
+                    &mut drivers.key_vault,
+                    drivers.fht.rt_dice_pub_key,
+                ),
                 platform: DpePlatform::new(drivers.manifest.header.pl0_pauser),
             };
             let locality = drivers.mbox.user();
             let derive_child_resp = DeriveChildCmd {
                 handle: ContextHandle::default(),
                 data: cmd.measurement,
-                flags: DeriveChildCmd::MAKE_DEFAULT
-                    | DeriveChildCmd::CHANGE_LOCALITY
-                    | DeriveChildCmd::INPUT_ALLOW_CA
-                    | DeriveChildCmd::INPUT_ALLOW_X509,
+                flags: DeriveChildFlags::MAKE_DEFAULT
+                    | DeriveChildFlags::CHANGE_LOCALITY
+                    | DeriveChildFlags::INPUT_ALLOW_CA
+                    | DeriveChildFlags::INPUT_ALLOW_X509,
                 tci_type: u32::from_be_bytes(cmd.metadata),
                 target_locality: locality,
             }

@@ -35,6 +35,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b4930d2cb77ce62f89ee5d5289b4ac049559b1c45539271f5ed4fdc7db34545"
 
 [[package]]
+name = "arrayvec"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
+
+[[package]]
 name = "asn1"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -143,9 +149,9 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "bitflags"
-version = "2.0.2"
+version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "487f1e0fcbe47deb8b0574e646def1c903389d95241dd1bbcc6ce4a715dfc0c1"
+checksum = "b4682ae6287fcf752ecaabbfcc7b6f9b72aa33933dc23a554d853aea8eea8635"
 
 [[package]]
 name = "block-buffer"
@@ -231,7 +237,7 @@ name = "caliptra-drivers"
 version = "0.1.0"
 dependencies = [
  "bitfield",
- "bitflags 2.0.2",
+ "bitflags 2.4.0",
  "caliptra-builder",
  "caliptra-drivers-test-bin",
  "caliptra-error",
@@ -486,7 +492,7 @@ name = "caliptra-image-gen"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bitflags 2.0.2",
+ "bitflags 2.4.0",
  "caliptra-image-types",
  "caliptra-lms-types",
  "memoffset 0.8.0",
@@ -527,7 +533,7 @@ dependencies = [
 name = "caliptra-image-verify"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.0.2",
+ "bitflags 2.4.0",
  "caliptra-drivers",
  "caliptra-image-types",
  "caliptra_common",
@@ -721,7 +727,7 @@ name = "caliptra_common"
 version = "0.1.0"
 dependencies = [
  "bitfield",
- "bitflags 2.0.2",
+ "bitflags 2.4.0",
  "caliptra-drivers",
  "caliptra-image-types",
  "caliptra-registers",
@@ -889,6 +895,9 @@ dependencies = [
 [[package]]
 name = "crypto"
 version = "0.1.0"
+dependencies = [
+ "arrayvec",
+]
 
 [[package]]
 name = "crypto-bigint"
@@ -1032,6 +1041,7 @@ dependencies = [
 name = "dpe"
 version = "0.1.0"
 dependencies = [
+ "bitflags 2.4.0",
  "crypto",
  "platform",
  "zerocopy",

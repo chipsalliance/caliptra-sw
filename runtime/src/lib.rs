@@ -48,7 +48,7 @@ use caliptra_registers::{
     soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 use dpe::{
-    commands::{CommandExecution, DeriveChildCmd},
+    commands::{CommandExecution, DeriveChildCmd, DeriveChildFlags},
     context::ContextHandle,
     dpe_instance::{DpeEnv, DpeInstance, DpeTypes},
     support::Support,
@@ -76,19 +76,7 @@ impl From<RtBootStatus> for u32 {
     }
 }
 
-pub const DPE_SUPPORT: Support = Support {
-    simulation: true,
-    extend_tci: true,
-    auto_init: true,
-    tagging: true,
-    rotate_context: true,
-    x509: true,
-    csr: true,
-    is_symmetric: true,
-    internal_info: true,
-    internal_dice: true,
-    is_ca: true,
-};
+pub const DPE_SUPPORT: Support = Support::all();
 
 pub struct Drivers<'a> {
     pub mbox: Mailbox,
@@ -155,10 +143,20 @@ impl<'a> Drivers<'a> {
         )?;
 
         let mut sha384 = Sha384::new(Sha512Reg::new());
+        let mut ecc384 = Ecc384::new(EccReg::new());
+        let mut hmac384 = Hmac384::new(HmacReg::new());
+        let mut key_vault = KeyVault::new(KvReg::new());
 
         let locality = manifest.header.pl0_pauser;
         let env = DpeEnv::<CptraDpeTypes> {
-            crypto: DpeCrypto::new(&mut sha384, &mut trng),
+            crypto: DpeCrypto::new(
+                &mut sha384,
+                &mut trng,
+                &mut ecc384,
+                &mut hmac384,
+                &mut key_vault,
+                fht.rt_dice_pub_key,
+            ),
             platform: DpePlatform::new(locality),
         };
         let mut pcr_bank = PcrBank::new(PvReg::new());
@@ -168,14 +166,14 @@ impl<'a> Drivers<'a> {
             mbox: Mailbox::new(MboxCsr::new()),
             sha_acc: Sha512AccCsr::new(),
             data_vault: DataVault::new(DvReg::new()),
-            key_vault: KeyVault::new(KvReg::new()),
+            key_vault,
             soc_ifc: SocIfc::new(SocIfcReg::new()),
             regions: MemoryRegions::new(),
             sha256: Sha256::new(Sha256Reg::new()),
             sha384,
             sha384_acc: Sha384Acc::new(Sha512AccCsr::new()),
-            hmac384: Hmac384::new(HmacReg::new()),
-            ecc384: Ecc384::new(EccReg::new()),
+            hmac384,
+            ecc384,
             trng,
             fht,
             manifest,
@@ -195,10 +193,10 @@ impl<'a> Drivers<'a> {
         DeriveChildCmd {
             handle: ContextHandle::default(),
             data,
-            flags: DeriveChildCmd::MAKE_DEFAULT
-                | DeriveChildCmd::CHANGE_LOCALITY
-                | DeriveChildCmd::INPUT_ALLOW_CA
-                | DeriveChildCmd::INPUT_ALLOW_X509,
+            flags: DeriveChildFlags::MAKE_DEFAULT
+                | DeriveChildFlags::CHANGE_LOCALITY
+                | DeriveChildFlags::INPUT_ALLOW_CA
+                | DeriveChildFlags::INPUT_ALLOW_X509,
             tci_type: u32::from_be_bytes(*b"RTJM"),
             target_locality: locality,
         }

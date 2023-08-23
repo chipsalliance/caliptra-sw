@@ -10,7 +10,14 @@ impl InvokeDpeCmd {
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if let Some(cmd) = InvokeDpeReq::read_from(cmd_args) {
             let mut env = DpeEnv::<CptraDpeTypes> {
-                crypto: DpeCrypto::new(&mut drivers.sha384, &mut drivers.trng),
+                crypto: DpeCrypto::new(
+                    &mut drivers.sha384,
+                    &mut drivers.trng,
+                    &mut drivers.ecc384,
+                    &mut drivers.hmac384,
+                    &mut drivers.key_vault,
+                    drivers.fht.rt_dice_pub_key,
+                ),
                 platform: DpePlatform::new(drivers.manifest.header.pl0_pauser),
             };
             match drivers
