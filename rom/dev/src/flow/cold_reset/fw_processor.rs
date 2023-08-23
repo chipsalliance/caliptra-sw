@@ -19,6 +19,7 @@ use crate::{cprintln, verifier::RomImageVerificationEnv};
 use crate::{pcr, wdt};
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
+use caliptra_common::capabilities::Capabilities;
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::{cprint, memory_layout::MAN1_ORG, FuseLogEntryId, RomBootStatus::*};
 use caliptra_drivers::*;
@@ -135,6 +136,13 @@ impl FirmwareProcessor {
                     CommandId::SELF_TEST | CommandId::VERSION | CommandId::SHUTDOWN => {
                         // [TODO] Placeholder for FIPS ROM commands.
                         txn.start_txn().complete(false)?;
+                        continue;
+                    }
+                    CommandId::CAPABILITIES => {
+                        let mut capabilities = Capabilities::default();
+                        capabilities |= Capabilities::ROM_BASE;
+
+                        txn.start_txn().send_response(&capabilities.to_bytes())?;
                         continue;
                     }
                     CommandId::FIRMWARE_LOAD => {
