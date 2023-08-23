@@ -29,6 +29,10 @@ impl CaliptraError {
             None => panic!("CaliptraError cannot be 0"),
         }
     }
+
+    pub const DRIVER_BAD_DATASTORE_VAULT_TYPE: CaliptraError = CaliptraError::new_const(0x00010001);
+    pub const DRIVER_BAD_DATASTORE_REG_TYPE: CaliptraError = CaliptraError::new_const(0x00010002);
+
     pub const DRIVER_SHA256_INVALID_STATE: CaliptraError = CaliptraError::new_const(0x00020001);
     pub const DRIVER_SHA256_MAX_DATA: CaliptraError = CaliptraError::new_const(0x00020002);
     pub const DRIVER_SHA256_INVALID_SLICE: CaliptraError = CaliptraError::new_const(0x00020003);
@@ -296,6 +300,7 @@ impl CaliptraError {
     pub const RUNTIME_INITIALIZE_DPE_FAILED: CaliptraError = CaliptraError::new_const(0x000E0010);
     pub const RUNTIME_DISABLE_ATTESTATION_FAILED: CaliptraError =
         CaliptraError::new_const(0x000E0011);
+    pub const RUNTIME_HANDOFF_INVALID_PARM: CaliptraError = CaliptraError::new_const(0x000E0012);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);

@@ -202,6 +202,7 @@ Table: `STASH_MEASUREMENT` input arguments
 | chksum       | u32      | Checksum over other input arguments, computed by the caller. Little endian.
 | metadata     | u8[4]    | 4-byte measurement identifier.
 | measurement  | u8[48]   | Data to measure into DPE.
+| svn          | u32      | SVN passed to to DPE to be used in derive child.
 
 
 Table: `STASH_MEASUREMENT` output arguments

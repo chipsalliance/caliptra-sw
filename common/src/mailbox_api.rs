@@ -193,6 +193,7 @@ pub struct StashMeasurementReq {
     pub hdr: MailboxReqHeader,
     pub metadata: [u8; 4],
     pub measurement: [u8; 48],
+    pub svn: u32,
 }
 
 #[repr(C)]
@@ -238,7 +239,7 @@ pub struct InvokeDpeResp {
 }
 
 impl InvokeDpeResp {
-    pub const DATA_MAX_SIZE: usize = 2500;
+    pub const DATA_MAX_SIZE: usize = 2200;
 
     fn as_bytes_partial(&self) -> &[u8] {
         let unused_byte_count = Self::DATA_MAX_SIZE.saturating_sub(self.data_size as usize);
@@ -297,6 +298,7 @@ pub struct FwInfoResp {
     pub hdr: MailboxRespHeader,
     pub pl0_pauser: u32,
     pub runtime_svn: u32,
+    pub min_runtime_svn: u32,
     pub fmc_manifest_svn: u32,
     // TODO: Decide what other information to report for general firmware
     // status.
