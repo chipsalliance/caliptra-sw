@@ -4,10 +4,12 @@
 #include <stdint.h>
 #include "caliptra_api.h"
 
+#define DPE_REQ_MAX_SIZE 512
+
 typedef struct {
     uint32_t chksum;
     uint32_t data_size;
-    uint8_t* data; // Using a pointer for flexible array member
+    uint8_t data[DPE_REQ_MAX_SIZE];
 } INVOKE_DPE_COMMAND;
 
 typedef struct  {
