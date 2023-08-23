@@ -298,6 +298,7 @@ pub struct FwInfoResp {
     pub hdr: MailboxRespHeader,
     pub pl0_pauser: u32,
     pub runtime_svn: u32,
+    pub min_runtime_svn: u32,
     pub fmc_manifest_svn: u32,
     // TODO: Decide what other information to report for general firmware
     // status.

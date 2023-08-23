@@ -271,6 +271,7 @@ pub fn elf_size(elf_bytes: &[u8]) -> io::Result<u64> {
     })
 }
 
+#[derive(Clone)]
 pub struct ImageOptions {
     pub fmc_version: u32,
     pub fmc_min_svn: u32,

@@ -7,12 +7,13 @@ const RTALIAS_BOOT_STATUS_BASE: u32 = 0x400;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FmcBootStatus {
     // RtAlias Statuses
-    RtAliasDeriveCdiComplete = RTALIAS_BOOT_STATUS_BASE,
-    RtAliasKeyPairDerivationComplete = RTALIAS_BOOT_STATUS_BASE + 1,
-    RtAliasSubjIdSnGenerationComplete = RTALIAS_BOOT_STATUS_BASE + 2,
-    RtAliasSubjKeyIdGenerationComplete = RTALIAS_BOOT_STATUS_BASE + 3,
-    RtAliasCertSigGenerationComplete = RTALIAS_BOOT_STATUS_BASE + 4,
-    RtAliasDerivationComplete = RTALIAS_BOOT_STATUS_BASE + 5,
+    RtMeasurementComplete = RTALIAS_BOOT_STATUS_BASE,
+    RtAliasDeriveCdiComplete = RTALIAS_BOOT_STATUS_BASE + 1,
+    RtAliasKeyPairDerivationComplete = RTALIAS_BOOT_STATUS_BASE + 2,
+    RtAliasSubjIdSnGenerationComplete = RTALIAS_BOOT_STATUS_BASE + 3,
+    RtAliasSubjKeyIdGenerationComplete = RTALIAS_BOOT_STATUS_BASE + 4,
+    RtAliasCertSigGenerationComplete = RTALIAS_BOOT_STATUS_BASE + 5,
+    RtAliasDerivationComplete = RTALIAS_BOOT_STATUS_BASE + 6,
 }
 
 impl From<FmcBootStatus> for u32 {

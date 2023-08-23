@@ -67,7 +67,7 @@ pub trait ImageGeneratorCrypto {
 }
 
 /// Image Generator Vendor Configuration
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct ImageGeneratorVendorConfig {
     pub pub_keys: ImageVendorPubKeys,
 
@@ -85,7 +85,7 @@ pub struct ImageGeneratorVendorConfig {
 }
 
 /// Image Generator Owner Configuration
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct ImageGeneratorOwnerConfig {
     pub pub_keys: ImageOwnerPubKeys,
 
