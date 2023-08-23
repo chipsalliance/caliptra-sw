@@ -619,6 +619,7 @@ dependencies = [
  "caliptra-builder",
  "caliptra-cpu",
  "caliptra-drivers",
+ "caliptra-error",
  "caliptra-gen-linker-scripts",
  "caliptra-hw-model",
  "caliptra-image-elf",

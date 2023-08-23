@@ -245,6 +245,49 @@ impl HandOff {
         }
     }
 
+    /// Retrieve runtime minimum SVN.
+    pub fn rt_min_svn(&self, env: &FmcEnv) -> u32 {
+        let ds: DataStore = self.fht.rt_min_svn_dv_hdl.try_into().unwrap_or_else(|_| {
+            caliptra_common::report_handoff_error_and_halt(
+                "Invalid RT Min SVN handle",
+                caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
+            )
+        });
+
+        // The data store must be a warm reset entry.
+        match ds {
+            DataVaultNonSticky4(dv_entry) => env.data_vault.read_warm_reset_entry4(dv_entry),
+            _ => {
+                crate::report_error(
+                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
+                );
+            }
+        }
+    }
+
+    pub fn set_and_lock_rt_min_svn(&self, env: &mut FmcEnv, min_svn: u32) -> CaliptraResult<()> {
+        let ds: DataStore = self.fht.rt_min_svn_dv_hdl.try_into().unwrap_or_else(|_| {
+            caliptra_common::report_handoff_error_and_halt(
+                "Invalid RT Min SVN handle",
+                caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
+            )
+        });
+
+        // The data store must be a warm reset entry.
+        match ds {
+            DataVaultNonSticky4(dv_entry) => {
+                env.data_vault.write_warm_reset_entry4(dv_entry, min_svn);
+                env.data_vault.lock_warm_reset_entry4(dv_entry);
+                Ok(())
+            }
+            _ => {
+                crate::report_error(
+                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
+                );
+            }
+        }
+    }
+
     /// Store runtime Dice Signature
     pub fn set_rt_dice_signature(&mut self, sig: &Ecc384Signature) {
         self.fht.rt_dice_sign = *sig;

@@ -9,7 +9,6 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
-#include <openssl/evp.h>
 
 #include <caliptra_top_reg.h>
 
@@ -24,13 +23,13 @@
 
 struct caliptra_model_init_params init_params;
 struct caliptra_fuses fuses = {0};
+
+__attribute__((section("VPK_HASH"))) uint8_t vpk_hash[48];
+__attribute__((section("OPK_HASH"))) uint8_t opk_hash[48];
+
 struct caliptra_buffer image_bundle;
 
 static bool caliptra_model_init_complete = false;
-
-// Interface defined values
-extern struct caliptra_fuses  fuses;        // Device-specific location of Caliptra fuse data
-extern struct caliptra_buffer image_bundle; // Device-specific location of Caliptra firmware
 
 static const uint32_t default_uds_seed[] = { 0x00010203, 0x04050607, 0x08090a0b, 0x0c0d0e0f,
                                              0x10111213, 0x14151617, 0x18191a1b, 0x1c1d1e1f,
@@ -117,55 +116,17 @@ static int set_fuses(struct caliptra_image_manifest *image)
 {
     int status;
 
-    const EVP_MD *md;
-    EVP_MD_CTX *ctx;
-
-    uint32_t md_vendor_pubkey[SHA384_DIGEST_WORD_SIZE];
-    uint32_t md_owner_pubkey[SHA384_DIGEST_WORD_SIZE];
-    int      mdlen;
-
-    OpenSSL_add_all_digests();
-
-    md = EVP_get_digestbyname("SHA384");
-
-    if (!md)
-    {
-        printf("Failed to acquire SHA384 digest\n");
-        return -1;
-    }
-
-    ctx = EVP_MD_CTX_create();
-    EVP_DigestInit_ex(ctx, md, NULL);
-    EVP_DigestUpdate(ctx, &image->preamble.vendor_pub_keys, sizeof(struct image_vendor_pubkeys));
-    EVP_DigestFinal_ex(ctx, (unsigned char*)md_vendor_pubkey, &mdlen);
-    EVP_MD_CTX_destroy(ctx);
-
-    if (mdlen != SHA384_DIGEST_BYTE_SIZE)
-    {
-        printf("SHA384 digest from OpenSSL is not the correct size! e: %u a: %u", SHA384_DIGEST_BYTE_SIZE, mdlen);
-    }
-
-    ctx = EVP_MD_CTX_create();
-    EVP_DigestInit_ex(ctx, md, NULL);
-    EVP_DigestUpdate(ctx, &image->preamble.owner_pub_keys, sizeof(struct image_owner_pubkeys));
-    EVP_DigestFinal_ex(ctx, (unsigned char*)md_owner_pubkey, &mdlen);
-    EVP_MD_CTX_destroy(ctx);
-
-    if (mdlen != SHA384_DIGEST_BYTE_SIZE)
-    {
-        printf("SHA384 digest from OpenSSL is not the correct size! e: %u a: %u", SHA384_DIGEST_BYTE_SIZE, mdlen);
-    }
-
     fuses = (struct caliptra_fuses){0};
 
     memcpy(&fuses.uds_seed, &default_uds_seed, sizeof(default_uds_seed));
     memcpy(&fuses.field_entropy, &default_field_entropy, sizeof(default_field_entropy));
-    memcpy(&fuses.key_manifest_pk_hash, &md_vendor_pubkey, SHA384_DIGEST_BYTE_SIZE);
 
     for (int x = 0; x < SHA384_DIGEST_WORD_SIZE; x++)
     {
-        fuses.owner_pk_hash[x] = __builtin_bswap32(((uint32_t*)md_owner_pubkey)[x]);
+        fuses.owner_pk_hash[x] = __builtin_bswap32(((uint32_t*)opk_hash)[x]);
     }
+
+    memcpy(&fuses.key_manifest_pk_hash, &vpk_hash, SHA384_DIGEST_BYTE_SIZE);
 
     if ((status = caliptra_init_fuses(&fuses)) != 0)
     {

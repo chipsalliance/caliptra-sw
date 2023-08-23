@@ -2,11 +2,18 @@
 
 use platform::{Platform, PlatformError, MAX_CHUNK_SIZE};
 
-pub struct DpePlatform;
+pub struct DpePlatform {
+    auto_init_locality: u32,
+}
 
 pub const VENDOR_ID: u32 = u32::from_be_bytes(*b"CTRA");
 pub const VENDOR_SKU: u32 = u32::from_be_bytes(*b"CTRA");
-pub const AUTO_INIT_LOCALITY: u32 = 0;
+
+impl DpePlatform {
+    pub fn new(auto_init_locality: u32) -> Self {
+        Self { auto_init_locality }
+    }
+}
 
 impl Platform for DpePlatform {
     fn get_certificate_chain(
@@ -27,7 +34,7 @@ impl Platform for DpePlatform {
     }
 
     fn get_auto_init_locality(&mut self) -> Result<u32, PlatformError> {
-        Ok(AUTO_INIT_LOCALITY)
+        Ok(self.auto_init_locality)
     }
 
     fn get_issuer_name(&mut self, out: &mut [u8; MAX_CHUNK_SIZE]) -> Result<usize, PlatformError> {
