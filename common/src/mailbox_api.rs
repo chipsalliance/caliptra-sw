@@ -28,6 +28,9 @@ impl CommandId {
     pub const SELF_TEST: Self = Self(0x4650_4C54); // "FPST"
     /// The shutdown command.
     pub const SHUTDOWN: Self = Self(0x4650_5344); // "FPSD"
+
+    // The capabilities command.
+    pub const CAPABILITIES: Self = Self(0x4341_5053); // "CAPS"
 }
 
 impl From<u32> for CommandId {

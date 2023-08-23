@@ -3,6 +3,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod boot_status;
+pub mod capabilities;
 pub mod checksum;
 pub mod crypto;
 pub mod dice;

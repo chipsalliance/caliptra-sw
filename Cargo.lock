@@ -721,6 +721,7 @@ name = "caliptra_common"
 version = "0.1.0"
 dependencies = [
  "bitfield",
+ "bitflags 2.0.2",
  "caliptra-drivers",
  "caliptra-image-types",
  "caliptra-registers",
