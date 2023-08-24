@@ -25,7 +25,9 @@ pub use dice::{GetLdevCertCmd, TestGetFmcAliasCertCmd};
 pub use disable::DisableAttestationCmd;
 use dpe_crypto::DpeCrypto;
 pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
-pub use fips::{FipsSelfTestCmd, FipsShutdownCmd, FipsVersionCmd};
+#[cfg(feature = "fips_self_test")]
+pub use fips::fips_self_test_cmd;
+pub use fips::{FipsShutdownCmd, FipsVersionCmd};
 pub use info::{FwInfoCmd, IDevIdCertCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
 pub use stash_measurement::StashMeasurementCmd;
@@ -36,8 +38,8 @@ use packet::Packet;
 use caliptra_common::cprintln;
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_drivers::{
-    report_fw_error_non_fatal, CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault,
-    PersistentDataAccessor, SocIfc,
+    CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault, Lms, PersistentDataAccessor, Sha1,
+    SocIfc,
 };
 use caliptra_drivers::{Hmac384, PcrBank, PcrId, Sha256, Sha384, Sha384Acc, Trng};
 use caliptra_registers::mbox::enums::MboxStatusE;
@@ -101,6 +103,10 @@ pub struct Drivers {
     pub ecc384: Ecc384,
 
     pub persistent_data: PersistentDataAccessor,
+
+    pub lms: Lms,
+
+    pub sha1: Sha1,
 
     pub dpe: DpeInstance,
 
@@ -171,6 +177,8 @@ impl Drivers {
             sha384_acc: Sha384Acc::new(Sha512AccCsr::new()),
             hmac384,
             ecc384,
+            sha1: Sha1::default(),
+            lms: Lms::default(),
             trng,
             persistent_data,
             dpe,
@@ -295,7 +303,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         #[cfg(feature = "test_only_commands")]
         CommandId::TEST_ONLY_HMAC384_VERIFY => HmacVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::VERSION => FipsVersionCmd::execute(drivers),
-        CommandId::SELF_TEST => FipsSelfTestCmd::execute(drivers),
+        #[cfg(feature = "fips_self_test")]
+        CommandId::SELF_TEST => fips_self_test_cmd::execute(drivers),
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }?;
@@ -318,7 +327,7 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> ! {
                 &mut drivers.soc_ifc,
                 caliptra_common::WdtTimeout::default(),
             );
-            report_fw_error_non_fatal(0);
+            caliptra_drivers::report_fw_error_non_fatal(0);
             match handle_command(drivers) {
                 Ok(status) => {
                     drivers.mbox.set_status(status);

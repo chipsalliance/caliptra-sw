@@ -12,11 +12,10 @@ Abstract:
 
 --*/
 
-use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::{report_boot_status, CaliptraResult};
-use caliptra_kat::{Ecc384Kat, Hmac384Kat, LmsKat, Sha1Kat, Sha256Kat, Sha384AccKat, Sha384Kat};
 
-use crate::{cprintln, rom_env::RomEnv};
+use crate::rom_env::RomEnv;
+use caliptra_common::RomBootStatus::{KatComplete, KatStarted};
 
 /// Execute Known Answer Tests
 ///
@@ -24,32 +23,34 @@ use crate::{cprintln, rom_env::RomEnv};
 ///
 /// * `env` - ROM Environment
 pub fn execute_kat(env: &mut RomEnv) -> CaliptraResult<()> {
-    cprintln!("[kat] ++");
+    let mut kats_env = caliptra_kat::KatsEnv {
+        // SHA1 Engine
+        sha1: &mut env.sha1,
+
+        // sha256
+        sha256: &mut env.sha256,
+
+        // SHA2-384 Engine
+        sha384: &mut env.sha384,
+
+        // SHA2-384 Accelerator
+        sha384_acc: &mut env.sha384_acc,
+
+        // Hmac384 Engine
+        hmac384: &mut env.hmac384,
+
+        /// Cryptographically Secure Random Number Generator
+        trng: &mut env.trng,
+
+        // LMS Engine
+        lms: &mut env.lms,
+
+        /// Ecc384 Engine
+        ecc384: &mut env.ecc384,
+    };
+
     report_boot_status(KatStarted.into());
-
-    cprintln!("[kat] sha1");
-    Sha1Kat::default().execute(&mut env.sha1)?;
-
-    cprintln!("[kat] SHA2-256");
-    Sha256Kat::default().execute(&mut env.sha256)?;
-
-    cprintln!("[kat] SHA2-384");
-    Sha384Kat::default().execute(&mut env.sha384)?;
-
-    cprintln!("[kat] SHA2-384-ACC");
-    Sha384AccKat::default().execute(&mut env.sha384_acc)?;
-
-    cprintln!("[kat] ECC-384");
-    Ecc384Kat::default().execute(&mut env.ecc384, &mut env.trng)?;
-
-    cprintln!("[kat] HMAC-384");
-    Hmac384Kat::default().execute(&mut env.hmac384, &mut env.trng)?;
-
-    cprintln!("[kat] LMS");
-    LmsKat::default().execute(&mut env.sha256, &env.lms)?;
-
+    caliptra_kat::execute_kat(&mut kats_env)?;
     report_boot_status(KatComplete.into());
-    cprintln!("[kat] --");
-
     Ok(())
 }
