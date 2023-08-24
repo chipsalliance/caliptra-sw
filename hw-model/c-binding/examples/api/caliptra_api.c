@@ -202,13 +202,13 @@ int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *f
     int mStatus;
     const uint32_t error_code = 0x3003000c;
     mStatus = caliptra_mailbox_execute(model,OP_INVOKE_DPE_COMMAND, fw_buffer, test);
-    printf("*********************\n");
+    printf("***********Profile 1**********\n");
     fflush(stdout);
     printf("%u\n", test->data);
     fflush(stdout);
     printf("%u\n", test->len);
     fflush(stdout);
-    printf("*********************\n");
+    printf("***********profile 2**********\n");
     fflush(stdout);
     status = (uint32_t *)malloc(10 * sizeof(uint32_t));
     caliptra_model_apb_read_u32(model,error_code, status);
