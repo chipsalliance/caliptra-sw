@@ -13,7 +13,8 @@ Abstract:
 --*/
 #[cfg(feature = "fake-rom")]
 use crate::flow::fake::FakeRomImageVerificationEnv;
-use crate::{cprintln, pcr, rom_env::RomEnv, verifier::RomImageVerificationEnv};
+use crate::{cprintln, pcr, rom_env::RomEnv};
+use caliptra_common::verifier::FirmwareImageVerificationEnv;
 
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::CommandId;
@@ -56,7 +57,7 @@ impl UpdateResetFlow {
         let manifest = Self::load_manifest(&mut recv_txn)?;
         report_boot_status(UpdateResetLoadManifestComplete.into());
 
-        let mut venv = RomImageVerificationEnv {
+        let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha384: &mut env.sha384,
             sha384_acc: &mut env.sha384_acc,
@@ -110,7 +111,7 @@ impl UpdateResetFlow {
     ///
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn verify_image(
-        env: &mut RomImageVerificationEnv,
+        env: &mut FirmwareImageVerificationEnv,
         manifest: &ImageManifest,
         img_bundle_sz: u32,
     ) -> CaliptraResult<ImageVerificationInfo> {

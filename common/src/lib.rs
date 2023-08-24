@@ -9,6 +9,7 @@ pub mod crypto;
 pub mod dice;
 pub mod keyids;
 pub mod mailbox_api;
+pub mod verifier;
 pub mod wdt;
 
 ///merge imports

@@ -41,7 +41,6 @@ mod kat;
 mod lock;
 mod pcr;
 mod rom_env;
-mod verifier;
 mod wdt;
 
 use caliptra_drivers::printer as print;
