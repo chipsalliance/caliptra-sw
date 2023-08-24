@@ -688,7 +688,7 @@ fn test_check_no_lms_info_in_datavault_on_lms_unavailable() {
     assert!(result.is_ok());
 
     let coldresetentry4_array = result.unwrap().unwrap();
-    let mut coldresetentry4_offset = core::mem::size_of::<u32>() * 6; // Skip first 3 entries
+    let mut coldresetentry4_offset = core::mem::size_of::<u32>() * 8; // Skip first 4 entries
 
     // Check LmsVendorPubKeyIndex datavault value.
     let coldresetentry4_id =
@@ -701,4 +701,64 @@ fn test_check_no_lms_info_in_datavault_on_lms_unavailable() {
     let coldresetentry4_value =
         u32::read_from_prefix(coldresetentry4_array[coldresetentry4_offset..].as_bytes()).unwrap();
     assert_eq!(coldresetentry4_value, u32::MAX);
+}
+
+#[test]
+fn test_check_rom_cold_boot_status_reg() {
+    let (_hw, _image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    pub const TEST_FMC_WITH_UART: FwId = FwId {
+        crate_name: "caliptra-rom-test-fmc",
+        bin_name: "caliptra-rom-test-fmc",
+        features: &["emu"],
+        workspace_dir: None,
+    };
+
+    let fuses = Fuses {
+        lms_verify: false,
+        ..Default::default()
+    };
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &TEST_FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
+
+    assert!(hw
+        .upload_firmware(&image_bundle.to_bytes().unwrap())
+        .is_ok());
+
+    hw.step_until_boot_status(ColdResetComplete.into(), true);
+
+    let result = hw.mailbox_execute(0x1000_0005, &[]);
+    assert!(result.is_ok());
+
+    let coldresetentry4_array = result.unwrap().unwrap();
+    let mut coldresetentry4_offset = core::mem::size_of::<u32>() * 2; // Skip first entry
+
+    // Check RomColdBootStatus datavault value.
+    let coldresetentry4_id =
+        u32::read_from_prefix(coldresetentry4_array[coldresetentry4_offset..].as_bytes()).unwrap();
+    assert_eq!(
+        coldresetentry4_id,
+        ColdResetEntry4::RomColdBootStatus as u32
+    );
+    coldresetentry4_offset += core::mem::size_of::<u32>();
+    let coldresetentry4_value =
+        u32::read_from_prefix(coldresetentry4_array[coldresetentry4_offset..].as_bytes()).unwrap();
+    assert_eq!(coldresetentry4_value, ColdResetComplete.into());
 }

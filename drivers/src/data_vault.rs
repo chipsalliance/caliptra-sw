@@ -70,7 +70,7 @@ impl From<ColdResetEntry48> for usize {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColdResetEntry4 {
     FmcSvn = 0,
-    Reserved0 = 1,
+    RomColdBootStatus = 1,
     FmcEntryPoint = 2,
     EccVendorPubKeyIndex = 3,
     LmsVendorPubKeyIndex = 4,
@@ -388,6 +388,25 @@ impl DataVault {
     /// * `u32` - Vendor public key index
     pub fn lms_vendor_pk_index(&self) -> u32 {
         self.read_cold_reset_entry4(ColdResetEntry4::LmsVendorPubKeyIndex)
+    }
+
+    /// Set and lock the rom cold boot status.
+    ///
+    /// # Arguments
+    ///
+    /// * `status` - Rom Cold Boot Status
+    ///
+    pub fn set_rom_cold_boot_status(&mut self, status: u32) {
+        self.write_lock_cold_reset_entry4(ColdResetEntry4::RomColdBootStatus, status);
+    }
+
+    /// Get the rom cold boot status.
+    ///
+    /// # Returns
+    ///
+    /// * `u32` - Rom Cold Boot Status
+    pub fn rom_cold_boot_status(&self) -> u32 {
+        self.read_cold_reset_entry4(ColdResetEntry4::RomColdBootStatus)
     }
 
     /// Set the rt tcb component identifier.
