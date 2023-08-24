@@ -329,6 +329,10 @@ impl CaliptraError {
     pub const DRIVER_SOC_IFC_INVALID_TIMER_CONFIG: CaliptraError =
         CaliptraError::new_const(0x00100001);
 
+    /// Bounded address Errors
+    pub const ADDRESS_MISALIGNED: CaliptraError = CaliptraError::new_const(0x00110000);
+    pub const ADDRESS_NOT_IN_ROM: CaliptraError = CaliptraError::new_const(0x00110001);
+
     /// Initial Device ID Errors
     pub const ROM_IDEVID_CSR_BUILDER_INIT_FAILURE: CaliptraError =
         CaliptraError::new_const(0x01000001);
