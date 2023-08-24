@@ -204,10 +204,13 @@ int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *f
     mStatus = caliptra_mailbox_execute(model,OP_INVOKE_DPE_COMMAND, fw_buffer, test);
     printf("***********Profile 1**********\n");
     fflush(stdout);
-    printf("%u\n", test->data);
+   for (size_t i = 0; i < test->len; i++) {
+    printf("%02x ", test->data[i]); // Printing bytes as hexadecimal
     fflush(stdout);
-    printf("%u\n", test->len);
+}
+printf("\n");
     fflush(stdout);
+    
     printf("***********profile 2**********\n");
     fflush(stdout);
     status = (uint32_t *)malloc(10 * sizeof(uint32_t));
