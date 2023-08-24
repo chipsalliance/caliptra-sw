@@ -194,3 +194,93 @@ int caliptra_upload_fw(struct caliptra_model *model, struct caliptra_buffer *fw_
     const uint32_t FW_LOAD_CMD_OPCODE = 0x46574C44u;
     return caliptra_mailbox_execute(model, FW_LOAD_CMD_OPCODE, fw_buffer, NULL);
 }
+
+static uint32_t calculate_caliptra_checksum(uint32_t cmd, uint8_t *buffer, uint32_t len)
+{
+    uint32_t i, sum = 0;
+
+    if ((buffer == NULL) && (len != 0))
+    {
+        // Don't respect bad parameters
+        return 0;
+    }
+
+    for (i = 0; i < sizeof(uint32_t); i++)
+    {
+        sum += ((uint8_t*)(&cmd))[i];
+    }
+
+    for (i = 0; i < len; i++)
+    {
+        sum += buffer[i];
+    }
+
+    return (0 - sum);
+}
+
+int caliptra_get_fips_version(struct caliptra_model *model,struct caliptra_fips_version *version)
+{
+    // Parameter check
+    if (version == NULL)
+        return -EINVAL;
+
+    const uint32_t OP_FIPS_VERSION= 0x46505652;
+    int checksum = calculate_caliptra_checksum(OP_FIPS_VERSION, NULL, 0);
+
+    struct caliptra_buffer in_buf = {
+        .data = (uint8_t *)&checksum,
+        .len = sizeof(checksum),
+    };
+    struct caliptra_buffer out_buf = {
+        .data = (uint8_t *)version,
+        .len = sizeof(struct caliptra_fips_version),
+    };
+
+    int status = caliptra_mailbox_execute(model,OP_FIPS_VERSION, &in_buf, &out_buf);
+
+    if (!status)
+    {
+        return status;
+    }
+
+    return status;
+}
+
+int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *fw_buffer,uint32_t statusCheckRead, struct caliptra_output *test)
+{
+    const uint32_t OP_INVOKE_DPE_COMMAND = 0x44504543;
+    uint32_t *status;
+    int mStatus;
+    const uint32_t error_code = 0x3003000c;
+       struct caliptra_buffer out_buf = {
+        .data = (uint8_t *)test,
+        .len = sizeof(struct caliptra_output),
+    };
+    mStatus = caliptra_mailbox_execute(model,OP_INVOKE_DPE_COMMAND, fw_buffer, &out_buf);
+    printf("***********Profile 1**********\n");
+    fflush(stdout);
+   for (size_t i = 0; i < out_buf.len; i++) {
+    printf("%02x ", out_buf.data[i]); // Printing bytes as hexadecimal
+    fflush(stdout);
+}
+printf("\n");
+    fflush(stdout);
+     struct caliptra_fips_version fips_version;
+     caliptra_get_fips_version(model,&fips_version);
+    printf("Checksum: 0x%08x\n", fips_version.cpl.checksum);
+    fflush(stdout);
+    printf("Mode: %u\n", fips_version.mode);
+    fflush(stdout);
+    printf("FIPS Revision: %u.%u.%u\n", fips_version.fips_rev[0], fips_version.fips_rev[1], fips_version.fips_rev[2]);
+    fflush(stdout);
+    printf("Name: %s\n", fips_version.name);
+    fflush(stdout);
+    printf("***********profile 2**********\n");
+    fflush(stdout);
+    status = (uint32_t *)malloc(10 * sizeof(uint32_t));
+    caliptra_model_apb_read_u32(model,error_code, status);
+    printf("%x\n",*status);
+    fflush(stdout);
+    statusCheckRead = *status;
+    return mStatus;
+}
