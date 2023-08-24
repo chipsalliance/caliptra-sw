@@ -18,6 +18,7 @@ mod array;
 mod array_concat;
 mod wait;
 
+mod bounded_address;
 mod csrng;
 mod data_vault;
 mod doe;
