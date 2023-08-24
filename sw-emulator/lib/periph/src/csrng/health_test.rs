@@ -84,7 +84,7 @@ impl RepetitionCountTester {
         Self {
             threshold: 0xffff,
             prev_nibble: [None; BITS_PER_NIBBLE],
-            repetition_count: [0; BITS_PER_NIBBLE],
+            repetition_count: [1; BITS_PER_NIBBLE], // the hardware starts the counter at 1
             failures: 0,
         }
     }
@@ -119,7 +119,7 @@ impl RepetitionCountTester {
                     self.failures += 1;
                 }
             } else {
-                self.repetition_count[i] = 0;
+                self.repetition_count[i] = 1;
                 self.prev_nibble[i] = Some(bit);
             }
         }
