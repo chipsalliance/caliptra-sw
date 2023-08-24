@@ -204,7 +204,9 @@ int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *f
     test = (caliptra_buffer *)malloc(sizeof(caliptra_buffer));
     mStatus = caliptra_mailbox_execute(model,OP_INVOKE_DPE_COMMAND, fw_buffer, test);
     printf("%u", test->data);
+    fflush(stdout);
     printf("%u", test->len);
+    fflush(stdout);
     status = (uint32_t *)malloc(10 * sizeof(uint32_t));
     caliptra_model_apb_read_u32(model,error_code, status);
     printf("%x\n",*status);
