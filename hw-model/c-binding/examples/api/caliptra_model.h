@@ -49,6 +49,24 @@ struct person {
   int age;
 };
 
+typedef uint32_t caliptra_checksum;
+
+enum fips_status {
+    FIPS_STATUS_APPROVED = 0,
+};
+
+struct caliptra_completion {
+    uint32_t checksum;
+    enum fips_status fips;
+};
+
+struct caliptra_fips_version {
+    struct caliptra_completion cpl;
+    uint32_t mode;
+    uint32_t fips_rev[3];
+    uint8_t name[12];
+};
+
 int greet(struct person *p);
 
 /**
