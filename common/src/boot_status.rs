@@ -64,7 +64,7 @@ pub enum RomBootStatus {
 
     // Cold Reset Statuses
     ColdResetStarted = COLD_RESET_BOOT_STATUS_BASE,
-    ColdResetComplete = COLD_RESET_BOOT_STATUS_BASE + 1,
+    ColdResetComplete = UPDATE_RESET_BOOT_STATUS_BASE - 1,
 
     // Update Reset Statuses
     UpdateResetStarted = UPDATE_RESET_BOOT_STATUS_BASE,

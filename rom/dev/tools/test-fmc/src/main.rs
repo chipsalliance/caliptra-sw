@@ -246,6 +246,9 @@ fn read_datavault_coldresetentry4(mbox: &caliptra_registers::mbox::RegisterBlock
     send_to_mailbox(mbox, (FmcSvn as u32).as_bytes(), false);
     send_to_mailbox(mbox, data_vault.fmc_svn().as_bytes(), false);
 
+    send_to_mailbox(mbox, (RomColdBootStatus as u32).as_bytes(), false);
+    send_to_mailbox(mbox, data_vault.rom_cold_boot_status().as_bytes(), false);
+
     send_to_mailbox(mbox, (FmcEntryPoint as u32).as_bytes(), false);
     send_to_mailbox(mbox, data_vault.fmc_entry_point().as_bytes(), false);
 
@@ -256,7 +259,7 @@ fn read_datavault_coldresetentry4(mbox: &caliptra_registers::mbox::RegisterBlock
     send_to_mailbox(mbox, data_vault.lms_vendor_pk_index().as_bytes(), false);
 
     mbox.dlen()
-        .write(|_| (core::mem::size_of::<u32>() * 8).try_into().unwrap());
+        .write(|_| (core::mem::size_of::<u32>() * 10).try_into().unwrap());
     mbox.status().write(|w| w.status(|w| w.data_ready()));
 }
 
