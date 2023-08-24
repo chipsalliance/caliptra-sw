@@ -731,6 +731,7 @@ dependencies = [
  "bitflags 2.4.0",
  "caliptra-drivers",
  "caliptra-image-types",
+ "caliptra-image-verify",
  "caliptra-registers",
  "ufmt",
  "zerocopy",

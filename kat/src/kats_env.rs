@@ -1,3 +1,5 @@
+// Licensed under the Apache-2.0 license
+
 use caliptra_drivers::Ecc384;
 use caliptra_drivers::{Hmac384, Lms, Sha1, Sha256, Sha384, Sha384Acc, Trng};
 

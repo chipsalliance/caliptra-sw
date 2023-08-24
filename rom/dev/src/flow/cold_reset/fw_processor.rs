@@ -15,12 +15,12 @@ Abstract:
 use crate::flow::val::ValRomImageVerificationEnv;
 use crate::fuse::log_fuse_data;
 use crate::rom_env::RomEnv;
-use crate::{cprintln, verifier::RomImageVerificationEnv};
 use crate::{pcr, wdt};
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::capabilities::Capabilities;
 use caliptra_common::mailbox_api::CommandId;
+use caliptra_common::verifier::FirmwareImageVerificationEnv;
 use caliptra_common::{cprint, memory_layout::MAN1_ORG, FuseLogEntryId, RomBootStatus::*};
 use caliptra_drivers::*;
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
@@ -63,7 +63,7 @@ impl FirmwareProcessor {
         let manifest = Self::load_manifest(&mut txn);
         let manifest = okref(&manifest)?;
 
-        let mut venv = RomImageVerificationEnv {
+        let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha384: &mut env.sha384,
             sha384_acc: &mut env.sha384_acc,
@@ -208,7 +208,7 @@ impl FirmwareProcessor {
     /// * `env` - ROM Environment
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn verify_image(
-        venv: &mut RomImageVerificationEnv,
+        venv: &mut FirmwareImageVerificationEnv,
         manifest: &ImageManifest,
         img_bundle_sz: u32,
     ) -> CaliptraResult<ImageVerificationInfo> {

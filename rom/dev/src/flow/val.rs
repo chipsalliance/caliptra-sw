@@ -175,7 +175,7 @@ impl<'a> ImageVerificationEnv for &mut ValRomImageVerificationEnv<'a> {
     }
 
     fn iccm_range(&self) -> Range<u32> {
-        RomEnv::ICCM_RANGE
+        caliptra_common::memory_layout::ICCM_RANGE
     }
 
     fn lms_verify_enabled(&self) -> bool {

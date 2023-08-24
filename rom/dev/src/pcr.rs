@@ -21,8 +21,8 @@ Note:
 
 --*/
 
-use crate::verifier::RomImageVerificationEnv;
 use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
+use caliptra_common::verifier::FirmwareImageVerificationEnv;
 use caliptra_common::{
     memory_layout::{PCR_LOG_ORG, PCR_LOG_SIZE},
     pcr::{PCR_ID_FMC_CURRENT, PCR_ID_FMC_JOURNEY},
@@ -67,7 +67,7 @@ impl PcrExtender<'_> {
 /// * `env` - ROM Environment
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub(crate) fn extend_pcrs(
-    env: &mut RomImageVerificationEnv,
+    env: &mut FirmwareImageVerificationEnv,
     info: &ImageVerificationInfo,
 ) -> CaliptraResult<()> {
     // Clear the Current PCR, but do not clear the Journey PCR

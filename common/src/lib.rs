@@ -11,6 +11,7 @@ pub mod fuse;
 pub mod keyids;
 pub mod mailbox_api;
 pub mod pcr;
+pub mod verifier;
 pub mod wdt;
 
 ///merge imports
