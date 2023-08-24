@@ -1,11 +1,13 @@
 // Licensed under the Apache-2.0 license.
-use crate::{memory_layout::FHT_ORG, soc_ifc};
+
 use crate::{
-    report_fw_error_non_fatal, ColdResetEntry4, ColdResetEntry48, Ecc384PubKey, Ecc384Signature,
-    KeyId, ResetReason, WarmResetEntry4, WarmResetEntry48,
+    memory_layout, report_fw_error_non_fatal, ColdResetEntry4, ColdResetEntry48, Ecc384PubKey,
+    Ecc384Signature, KeyId, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
+use crate::{memory_layout::FHT_ORG, soc_ifc};
 use bitfield::{bitfield_bitrange, bitfield_fields};
 use caliptra_error::CaliptraError;
+use core::mem::size_of;
 use zerocopy::{AsBytes, FromBytes};
 
 pub const FHT_MARKER: u32 = 0x54484643;
@@ -188,6 +190,8 @@ impl From<DataStore> for HandOffDataHandle {
 /// The Firmware Handoff Table is a data structure that is resident at a well-known
 /// location in DCCM. It is initially populated by ROM and modified by FMC as a way
 /// to pass parameters and configuration information from one firmware layer to the next.
+const _: () = assert!(size_of::<FirmwareHandoffTable>() == 512);
+const _: () = assert!(size_of::<FirmwareHandoffTable>() <= memory_layout::FHT_SIZE as usize);
 #[repr(C)]
 #[derive(Clone, Debug, AsBytes, FromBytes)]
 pub struct FirmwareHandoffTable {
