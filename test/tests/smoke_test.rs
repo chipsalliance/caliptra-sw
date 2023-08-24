@@ -362,3 +362,54 @@ fn smoke_test() {
 
     // TODO: Validate the rest of the fmc_alias certificate fields
 }
+
+#[test]
+fn test_fips_verify() {
+    let fuses = Fuses::default();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
+
+    hw.tracing_hint(false);
+
+    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        .unwrap();
+
+    hw.step_until_boot_status(
+        caliptra_runtime::RtBootStatus::RtReadyForCommands.into(),
+        true,
+    );
+
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::SELF_TEST), &[]),
+    };
+
+    let resp = hw
+        .mailbox_execute(u32::from(CommandId::SELF_TEST), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+
+    let resp = MailboxRespHeader::read_from(resp.as_slice()).unwrap();
+    // Verify checksum and FIPS status
+    assert!(caliptra_common::checksum::verify_checksum(
+        resp.chksum,
+        0x0,
+        &resp.as_bytes()[core::mem::size_of_val(&resp.chksum)..],
+    ));
+    assert_eq!(resp.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
+}
