@@ -222,6 +222,9 @@ fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMm
         0x1000_0007 => {
             try_to_reset_pcrs(mbox);
         }
+        0x1000_0008 => {
+            read_rom_info(mbox);
+        }
         _ => {}
     }
 }
@@ -335,6 +338,11 @@ fn try_to_reset_pcrs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>
     send_to_mailbox(mbox, &ret_vals, false);
     mbox.dlen().write(|_| ret_vals.len().try_into().unwrap());
     mbox.status().write(|w| w.status(|w| w.data_ready()));
+}
+
+fn read_rom_info(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    let fht = unsafe { &*(FHT_ORG as *const FirmwareHandoffTable) };
+    send_to_mailbox(mbox, fht.rom_info_addr.get().unwrap().as_bytes(), true);
 }
 
 fn read_fuse_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
