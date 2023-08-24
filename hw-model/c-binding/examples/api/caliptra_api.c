@@ -195,24 +195,6 @@ int caliptra_upload_fw(struct caliptra_model *model, struct caliptra_buffer *fw_
     return caliptra_mailbox_execute(model, FW_LOAD_CMD_OPCODE, fw_buffer, NULL);
 }
 
-typedef uint32_t caliptra_checksum;
-
-enum fips_status {
-    FIPS_STATUS_APPROVED = 0,
-};
-
-struct caliptra_completion {
-    uint32_t checksum;
-    enum fips_status fips;
-};
-
-struct caliptra_fips_version {
-    struct caliptra_completion cpl;
-    uint32_t mode;
-    uint32_t fips_rev[3];
-    uint8_t name[12];
-};
-
 uint32_t calculate_caliptra_checksum(uint32_t cmd, uint8_t *buffer, uint32_t len)
 {
     uint32_t i, sum = 0;
