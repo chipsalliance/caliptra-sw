@@ -207,6 +207,37 @@ struct caliptra_fips_version {
     uint8_t name[12];
 };
 
+enum fips_status {
+    FIPS_STATUS_APPROVED = 0,
+};
+
+int caliptra_get_fips_version(struct caliptra_model *model,struct caliptra_fips_version *version)
+{
+    // Parameter check
+    if (version == NULL)
+        return -EINVAL;
+
+    int checksum = calculate_caliptra_checksum(OP_FIPS_VERSION, NULL, 0);
+
+    struct caliptra_buffer in_buf = {
+        .data = (uint8_t *)&checksum,
+        .len = sizeof(checksum),
+    };
+    struct caliptra_buffer out_buf = {
+        .data = (uint8_t *)version,
+        .len = sizeof(struct caliptra_fips_version),
+    };
+
+    const OP_FIPS_VERSION              = 0x46505652;
+    int status = caliptra_mailbox_execute(model,OP_FIPS_VERSION, &in_buf, &out_buf);
+
+    if (!status)
+    {
+        return status;
+    }
+
+    return status;
+}
 
 int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *fw_buffer,uint32_t statusCheckRead,caliptra_buffer *test)
 {
@@ -227,8 +258,6 @@ printf("\n");
      caliptra_get_fips_version(model,&fips_version);
     printf("Checksum: 0x%08x\n", fips_version.cpl.checksum);
     fflush(stdout);
-    printf("FIPS Status: %s\n", fips_version.cpl.fips == FIPS_ENABLED ? "Enabled" : "Disabled");
-    fflush(stdout);
     printf("Mode: %u\n", fips_version.mode);
     fflush(stdout);
     printf("FIPS Revision: %u.%u.%u\n", fips_version.fips_rev[0], fips_version.fips_rev[1], fips_version.fips_rev[2]);
@@ -245,29 +274,3 @@ printf("\n");
     return mStatus;
 }
 
-int caliptra_get_fips_version(struct caliptra_model *model,struct caliptra_fips_version *version)
-{
-    // Parameter check
-    if (version == NULL)
-        return -EINVAL;
-
-    caliptra_checksum checksum = calculate_caliptra_checksum(OP_FIPS_VERSION, NULL, 0);
-
-    struct caliptra_buffer in_buf = {
-        .data = (uint8_t *)&checksum,
-        .len = sizeof(checksum),
-    };
-    struct caliptra_buffer out_buf = {
-        .data = (uint8_t *)version,
-        .len = sizeof(struct caliptra_fips_version),
-    };
-
-    int status = caliptra_mailbox_execute(model,OP_FIPS_VERSION, &in_buf, &out_buf);
-
-    if (!status)
-    {
-        return status;
-    }
-
-    return status;
-}
