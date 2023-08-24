@@ -224,6 +224,7 @@ int caliptra_get_fips_version(struct caliptra_model *model,struct caliptra_fips_
     if (version == NULL)
         return -EINVAL;
 
+    const uint32_t OP_FIPS_VERSION= 0x46505652;
     int checksum = calculate_caliptra_checksum(OP_FIPS_VERSION, NULL, 0);
 
     struct caliptra_buffer in_buf = {
@@ -235,7 +236,6 @@ int caliptra_get_fips_version(struct caliptra_model *model,struct caliptra_fips_
         .len = sizeof(struct caliptra_fips_version),
     };
 
-    const uint32_t OP_FIPS_VERSION= 0x46505652;
     int status = caliptra_mailbox_execute(model,OP_FIPS_VERSION, &in_buf, &out_buf);
 
     if (!status)
