@@ -21,7 +21,6 @@ import (
     "os"
     "unsafe"
 	"fmt"
-    "hash/fnv"
 )
 
 type CommandHdr struct {
