@@ -133,10 +133,10 @@ func main() {
             profileBuffer := C.create_invoke_dpe_command(C.uint32_t(CmdMagic), C.uint32_t(CommandGetProfile),stringToUint32(profileString))
             fmt.Println(profileBuffer)
             var Check *C.caliptra_buffer
-            profile := C.caliptra_get_profile(model, &profileBuffer,test,check)
+            profile := C.caliptra_get_profile(model, &profileBuffer,test,Check)
             fmt.Println(profile)
             fmt.Println(test)
-            fmt.Println(check)
+            fmt.Println(Check)
             break
         }
     }
