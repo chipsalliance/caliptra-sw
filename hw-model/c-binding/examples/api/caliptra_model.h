@@ -67,12 +67,12 @@ struct caliptra_fips_version {
     uint8_t name[12];
 };
 
-struct caliptra_output {
+typedef struct caliptra_output {
     caliptra_checksum chksum;
     enum fips_status fips;
     uint32_t data_size;
     uint8_t data[]; // Flexible array member, size depends on usage
-};
+}caliptra_output;
 
 int greet(struct person *p);
 
