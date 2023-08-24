@@ -246,7 +246,7 @@ int caliptra_get_fips_version(struct caliptra_model *model,struct caliptra_fips_
     return status;
 }
 
-int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *fw_buffer,uint32_t statusCheckRead,caliptra_output *test)
+int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *fw_buffer,uint32_t statusCheckRead, struct caliptra_output *test)
 {
     const uint32_t OP_INVOKE_DPE_COMMAND = 0x44504543;
     uint32_t *status;
