@@ -3,7 +3,7 @@
 // License by Apache-2.0
 use caliptra_drivers::CaliptraResult;
 
-use crate::mailbox_api::{MailboxReqHeader, MailboxResp};
+use caliptra_common::mailbox_api::{MailboxReqHeader, MailboxResp};
 use caliptra_drivers::CaliptraError;
 use zerocopy::{AsBytes, LayoutVerified};
 

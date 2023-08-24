@@ -53,8 +53,10 @@ pub extern "C" fn fmc_entry() -> ! {
         core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
     };
 
-    let fht = FirmwareHandoffTable::read_from(slice).unwrap();
-    assert!(fht.is_valid());
+    if cfg!(not(feature = "val-fmc")) {
+        let fht = FirmwareHandoffTable::read_from(slice).unwrap();
+        assert!(fht.is_valid());
+    }
 
     process_mailbox_commands();
 
@@ -71,8 +73,6 @@ extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
         exception.mscause,
         exception.mepc
     );
-
-    // TODO: Signal non-fatal error to SOC
 
     loop {
         unsafe { Mailbox::abort_pending_soc_to_uc_transactions() };
@@ -101,9 +101,6 @@ extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
 #[allow(clippy::empty_loop)]
 fn fmc_panic(_: &core::panic::PanicInfo) -> ! {
     cprintln!("FMC Panic!!");
-
-    // TODO: Signal non-fatal error to SOC
-
     loop {}
 }
 

@@ -15,6 +15,7 @@ References:
 
 --*/
 
+use crate::CfiCounter;
 use caliptra_drivers::CaliptraError;
 use core::cfg;
 use core::cmp::{Eq, Ord, PartialEq, PartialOrd};
@@ -154,6 +155,7 @@ macro_rules! cfi_assert_macro {
             T: $trait1 + $trait2,
         {
             if cfg!(feature = "cfi") {
+                CfiCounter::delay();
                 if !(lhs $op rhs) {
                     cfi_panic(CfiPanicInfo::$panic_info);
                 }

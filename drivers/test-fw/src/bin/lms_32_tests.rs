@@ -554,6 +554,11 @@ fn test_lms_lower_32() {
         .verify_lms_signature(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &FINAL_LMS_SIG)
         .unwrap();
     assert_eq!(final_result, LmsResult::Success);
+
+    let candidate_key = Lms::default()
+        .verify_lms_signature_cfi(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &FINAL_LMS_SIG)
+        .unwrap();
+    assert_eq!(candidate_key, HashValue::from(LMS_PUBLIC_KEY.digest));
 }
 
 // from https://www.rfc-editor.org/rfc/rfc8554#page-49

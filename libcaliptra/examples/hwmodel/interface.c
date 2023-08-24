@@ -6,21 +6,23 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <string.h>
 #include <errno.h>
 #include <unistd.h>
 
+#include <caliptra_top_reg.h>
+
 #include "caliptra_model.h"
 #include "caliptra_api.h"
+#include "caliptra_image.h"
 
 #define CALIPTRA_STATUS_OK 0
 
 // Implementation specifics
 
 struct caliptra_model_init_params init_params;
-struct caliptra_fuses fuses = {0};
-struct caliptra_buffer image_bundle;
 
-static bool caliptra_model_init_complete = false;
+extern struct caliptra_buffer image_bundle;
 
 static struct caliptra_buffer read_file_or_exit(const char* path)
 {
@@ -55,6 +57,7 @@ struct caliptra_model* hwmod_get_or_init(void)
 {
     const char *rom_path = ROM_PATH;
     const char *fw_path = FW_PATH;
+
     static struct caliptra_model *model = NULL;
 
     if (model == NULL)
@@ -63,14 +66,19 @@ struct caliptra_model* hwmod_get_or_init(void)
         // HW model only
         // ROM_PATH is defined on the compiler command line
         struct caliptra_model_init_params init_params = {
-          .rom = read_file_or_exit(rom_path),
-          .dccm = {.data = NULL, .len = 0},
-          .iccm = {.data = NULL, .len = 0},
+            .rom = read_file_or_exit(rom_path),
+            .dccm = {.data = NULL, .len = 0},
+            .iccm = {.data = NULL, .len = 0},
         };
+
+        int status = caliptra_model_init_default(init_params, &model);
 
         image_bundle = (struct caliptra_buffer)read_file_or_exit(fw_path);
 
-        int status = caliptra_model_init_default(init_params, &model);
+        if (image_bundle.data == NULL)
+        {
+            return NULL;
+        }
     }
 
     return model;

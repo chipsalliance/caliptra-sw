@@ -112,6 +112,14 @@ impl FhtDataStore {
                 | WarmResetEntry4::RtSvn as u32,
         )
     }
+    /// The RT Min SVN is stored in a 32-bit DataVault non-sticky register.
+    pub const fn rt_min_svn_data_store() -> HandOffDataHandle {
+        HandOffDataHandle(
+            ((Vault::DataVault as u32) << 12)
+                | (DataVaultRegister::NonSticky32BitReg as u32) << 8
+                | WarmResetEntry4::RtMinSvn as u32,
+        )
+    }
     /// The RT TCI is stored in a 384-bit DataVault non-sticky register.
     pub const fn rt_tci_data_store() -> HandOffDataHandle {
         HandOffDataHandle(
@@ -156,6 +164,7 @@ pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
         rt_priv_key_kv_hdl: FHT_INVALID_HANDLE,
         rt_tci_dv_hdl: FhtDataStore::rt_tci_data_store(),
         rt_svn_dv_hdl: FhtDataStore::rt_svn_data_store(),
+        rt_min_svn_dv_hdl: FhtDataStore::rt_min_svn_data_store(),
         ldevid_tbs_size: env.fht_data_store.ldevid_tbs_size,
         fmcalias_tbs_size: env.fht_data_store.fmcalias_tbs_size,
         ldevid_tbs_addr,

@@ -246,6 +246,38 @@ fn test_verify() {
     assert_eq!(result.unwrap(), Ecc384Result::Success);
 }
 
+fn test_verify_r() {
+    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
+    let digest = Array4x12::new([0u32; 12]);
+    let result = ecc.sign(
+        &Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)),
+        &Ecc384PubKey {
+            x: Ecc384Scalar::from(PUB_KEY_X),
+            y: Ecc384Scalar::from(PUB_KEY_Y),
+        },
+        &digest,
+        &mut trng,
+    );
+    assert!(result.is_ok());
+    let signature = result.unwrap();
+    let pub_key = Ecc384PubKey {
+        x: Ecc384Scalar::from(PUB_KEY_X),
+        y: Ecc384Scalar::from(PUB_KEY_Y),
+    };
+    let result = ecc.verify_r(&pub_key, &Ecc384Scalar::from(digest), &signature);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), signature.r);
+}
+
 fn test_verify_failure() {
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
     let mut trng = unsafe {
@@ -481,6 +513,7 @@ test_suite! {
     test_sign,
     test_sign_validation_failure,
     test_verify,
+    test_verify_r,
     test_verify_failure,
     test_kv_seed_from_input_msg_from_input,
     test_kv_seed_from_kv_msg_from_input,

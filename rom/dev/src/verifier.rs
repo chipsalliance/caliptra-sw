@@ -48,26 +48,20 @@ impl<'a> ImageVerificationEnv for &mut RomImageVerificationEnv<'a> {
         digest: &ImageDigest,
         pub_key: &ImageEccPubKey,
         sig: &ImageEccSignature,
-    ) -> CaliptraResult<Ecc384Result> {
-        // TODO: Remove following conversions after refactoring the driver ECC384PubKey
-        // for use across targets
+    ) -> CaliptraResult<Array4xN<12, 48>> {
         let pub_key = Ecc384PubKey {
             x: pub_key.x.into(),
             y: pub_key.y.into(),
         };
 
-        // TODO: Remove following conversions after refactoring the driver SHA384Digest
-        // for use across targets
         let digest: Array4x12 = digest.into();
 
-        // TODO: Remove following conversions after refactoring the driver ECC384Signature
-        // for use across targets
         let sig = Ecc384Signature {
             r: sig.r.into(),
             s: sig.s.into(),
         };
 
-        self.ecc384.verify(&pub_key, &digest, &sig)
+        self.ecc384.verify_r(&pub_key, &digest, &sig)
     }
 
     fn lms_verify(
@@ -75,12 +69,12 @@ impl<'a> ImageVerificationEnv for &mut RomImageVerificationEnv<'a> {
         digest: &ImageDigest,
         pub_key: &ImageLmsPublicKey,
         sig: &ImageLmsSignature,
-    ) -> CaliptraResult<LmsResult> {
+    ) -> CaliptraResult<HashValue<SHA192_DIGEST_WORD_SIZE>> {
         let mut message = [0u8; SHA384_DIGEST_BYTE_SIZE];
         for i in 0..digest.len() {
             message[i * 4..][..4].copy_from_slice(&digest[i].to_be_bytes());
         }
-        Lms::default().verify_lms_signature(self.sha256, &message, pub_key, sig)
+        Lms::default().verify_lms_signature_cfi(self.sha256, &message, pub_key, sig)
     }
 
     /// Retrieve Vendor Public Key Digest

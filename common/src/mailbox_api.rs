@@ -4,8 +4,6 @@ use caliptra_drivers::{CaliptraError, CaliptraResult};
 use core::mem::size_of;
 use zerocopy::{AsBytes, FromBytes, LayoutVerified};
 
-use crate::{mailbox::Mailbox, packet::Packet, Drivers};
-
 #[derive(PartialEq, Eq)]
 pub struct CommandId(pub u32);
 impl CommandId {
@@ -65,7 +63,7 @@ impl MailboxResp {
             MailboxResp::GetIdevCsr(resp) => resp.as_bytes(),
             MailboxResp::GetLdevCert(resp) => resp.as_bytes(),
             MailboxResp::StashMeasurement(resp) => resp.as_bytes(),
-            MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes(),
+            MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes_partial(),
             MailboxResp::TestGetFmcAliasCert(resp) => resp.as_bytes(),
             MailboxResp::FipsVersion(resp) => resp.as_bytes(),
             MailboxResp::FwInfo(resp) => resp.as_bytes(),
@@ -78,7 +76,7 @@ impl MailboxResp {
             MailboxResp::GetIdevCsr(resp) => resp.as_bytes_mut(),
             MailboxResp::GetLdevCert(resp) => resp.as_bytes_mut(),
             MailboxResp::StashMeasurement(resp) => resp.as_bytes_mut(),
-            MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes_mut(),
+            MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::TestGetFmcAliasCert(resp) => resp.as_bytes_mut(),
             MailboxResp::FipsVersion(resp) => resp.as_bytes_mut(),
             MailboxResp::FwInfo(resp) => resp.as_bytes_mut(),
@@ -89,8 +87,7 @@ impl MailboxResp {
     /// Takes into account the size override for variable-lenth payloads
     pub fn populate_chksum(&mut self) -> CaliptraResult<()> {
         // Calc checksum, use the size override if provided
-        let checksum =
-            caliptra_common::checksum::calc_checksum(0, &self.as_bytes()[size_of::<i32>()..]);
+        let checksum = crate::checksum::calc_checksum(0, &self.as_bytes()[size_of::<i32>()..]);
 
         // cast as header struct
         let hdr: &mut MailboxRespHeader = LayoutVerified::<&mut [u8], MailboxRespHeader>::new(
@@ -103,13 +100,6 @@ impl MailboxResp {
         hdr.chksum = checksum;
 
         Ok(())
-    }
-
-    pub fn write_to_mbox(&mut self, drivers: &mut Drivers) -> CaliptraResult<()> {
-        match self {
-            MailboxResp::InvokeDpeCommand(resp) => resp.write_to_mbox(&mut drivers.mbox),
-            _ => Packet::copy_to_mbox(drivers, self),
-        }
     }
 }
 
@@ -203,6 +193,7 @@ pub struct StashMeasurementReq {
     pub hdr: MailboxReqHeader,
     pub metadata: [u8; 4],
     pub measurement: [u8; 48],
+    pub svn: u32,
 }
 
 #[repr(C)]
@@ -248,11 +239,16 @@ pub struct InvokeDpeResp {
 }
 
 impl InvokeDpeResp {
-    pub const DATA_MAX_SIZE: usize = 2500;
+    pub const DATA_MAX_SIZE: usize = 2200;
 
-    fn write_to_mbox(&self, mbox: &mut Mailbox) -> CaliptraResult<()> {
-        mbox.write_response(&self.data[..self.data_size as usize])?;
-        Ok(())
+    fn as_bytes_partial(&self) -> &[u8] {
+        let unused_byte_count = Self::DATA_MAX_SIZE.saturating_sub(self.data_size as usize);
+        &self.as_bytes()[..size_of::<Self>() - unused_byte_count]
+    }
+
+    fn as_bytes_partial_mut(&mut self) -> &mut [u8] {
+        let unused_byte_count = Self::DATA_MAX_SIZE.saturating_sub(self.data_size as usize);
+        &mut self.as_bytes_mut()[..size_of::<Self>() - unused_byte_count]
     }
 }
 
@@ -302,6 +298,7 @@ pub struct FwInfoResp {
     pub hdr: MailboxRespHeader,
     pub pl0_pauser: u32,
     pub runtime_svn: u32,
+    pub min_runtime_svn: u32,
     pub fmc_manifest_svn: u32,
     // TODO: Decide what other information to report for general firmware
     // status.

@@ -1,7 +1,8 @@
 // Licensed under the Apache-2.0 license
 
-use crate::{Drivers, MailboxResp};
+use crate::Drivers;
 use caliptra_common::keyids::{KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY};
+use caliptra_common::mailbox_api::MailboxResp;
 use caliptra_drivers::{
     hmac384_kdf, CaliptraError, CaliptraResult, KeyReadArgs, KeyUsage, KeyWriteArgs,
 };

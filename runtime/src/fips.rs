@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_common::cprintln;
+use caliptra_common::mailbox_api::{FipsVersionResp, MailboxResp, MailboxRespHeader};
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::CaliptraResult;
 use caliptra_drivers::Ecc384;
@@ -12,7 +13,7 @@ use caliptra_drivers::Sha384Acc;
 use caliptra_kat::{Ecc384Kat, Hmac384Kat, Sha256Kat, Sha384AccKat, Sha384Kat};
 use caliptra_registers::mbox::enums::MboxStatusE;
 
-use crate::{Drivers, FipsVersionResp, MailboxResp, MailboxRespHeader};
+use crate::Drivers;
 
 pub struct FipsModule;
 

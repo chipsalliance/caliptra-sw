@@ -3,6 +3,7 @@
 #![cfg(any(feature = "verilator", feature = "fpga_realtime"))]
 
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
+use caliptra_common::mailbox_api::CommandId;
 use caliptra_hw_model::{mbox_write_fifo, BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{DeviceLifecycle, Fuses};
 use caliptra_test::swap_word_bytes_inplace;
@@ -120,7 +121,9 @@ fn warm_reset_during_fw_load() {
     // Lock the mailbox
     assert!(!hw.soc_mbox().lock().read().lock());
     // Write load firmware command and data
-    hw.soc_mbox().cmd().write(|_| 0x4657_4C44);
+    hw.soc_mbox()
+        .cmd()
+        .write(|_| CommandId::FIRMWARE_LOAD.into());
     let buf = &image.to_bytes().unwrap();
     assert!(!mbox_write_fifo(&hw.soc_mbox(), buf).is_err());
     // Ask the microcontroller to execute this command

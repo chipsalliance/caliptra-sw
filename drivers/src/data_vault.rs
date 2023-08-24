@@ -133,9 +133,9 @@ impl From<WarmResetEntry48> for usize {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WarmResetEntry4 {
     RtSvn = 0,
-    Reserved0 = 1,
-    RtEntryPoint = 2,
-    ManifestAddr = 3,
+    RtEntryPoint = 1,
+    ManifestAddr = 2,
+    RtMinSvn = 3,
 }
 
 impl From<WarmResetEntry4> for u8 {
@@ -161,8 +161,9 @@ impl TryFrom<u8> for WarmResetEntry4 {
     fn try_from(original: u8) -> Result<Self, Self::Error> {
         match original {
             0 => Ok(Self::RtSvn),
-            2 => Ok(Self::RtEntryPoint),
-            3 => Ok(Self::ManifestAddr),
+            1 => Ok(Self::RtEntryPoint),
+            2 => Ok(Self::ManifestAddr),
+            3 => Ok(Self::RtMinSvn),
             _ => Err(()),
         }
     }
@@ -423,6 +424,24 @@ impl DataVault {
     ///
     pub fn rt_svn(&self) -> u32 {
         self.read_warm_reset_entry4(WarmResetEntry4::RtSvn)
+    }
+
+    /// Set the rt security minimum SVN.
+    ///
+    /// # Arguments
+    /// * `min_svn` - min rt security version number
+    ///
+    pub fn set_rt_min_svn(&mut self, min_svn: u32) {
+        self.write_lock_warm_reset_entry4(WarmResetEntry4::RtMinSvn, min_svn);
+    }
+
+    /// Get the rt minimum security version number.
+    ///
+    /// # Returns
+    /// * rt minimum security version number
+    ///
+    pub fn rt_min_svn(&self) -> u32 {
+        self.read_warm_reset_entry4(WarmResetEntry4::RtMinSvn)
     }
 
     /// Set the rt entry point.

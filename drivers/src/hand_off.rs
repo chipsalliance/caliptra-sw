@@ -5,6 +5,7 @@ use crate::{
     KeyId, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
 use bitfield::{bitfield_bitrange, bitfield_fields};
+use caliptra_error::CaliptraError;
 use zerocopy::{AsBytes, FromBytes};
 
 pub const FHT_MARKER: u32 = 0x54484643;
@@ -82,7 +83,7 @@ pub enum DataVaultRegister {
 }
 
 impl TryInto<DataStore> for HandOffDataHandle {
-    type Error = ();
+    type Error = CaliptraError;
     fn try_into(self) -> Result<DataStore, Self::Error> {
         let vault = Vault::try_from(self.vault())
             .unwrap_or_else(|_| report_handoff_error_and_halt("Invalid Vault", 0xbadbad));
@@ -129,9 +130,9 @@ impl TryInto<DataStore> for HandOffDataHandle {
                     Ok(entry)
                 }
 
-                _ => Err(()),
+                _ => Err(CaliptraError::DRIVER_BAD_DATASTORE_REG_TYPE),
             },
-            _ => Err(()),
+            _ => Err(CaliptraError::DRIVER_BAD_DATASTORE_VAULT_TYPE),
         }
     }
 }
@@ -247,6 +248,9 @@ pub struct FirmwareHandoffTable {
     /// Index of RT SVN value in the Data Vault
     pub rt_svn_dv_hdl: HandOffDataHandle,
 
+    /// Index of RT Min SVN value in the Data Vault
+    pub rt_min_svn_dv_hdl: HandOffDataHandle,
+
     /// LdevId TBS Address
     pub ldevid_tbs_addr: u32,
 
@@ -273,7 +277,7 @@ pub struct FirmwareHandoffTable {
     pub idev_dice_pub_key: Ecc384PubKey,
 
     /// Reserved for future use.
-    pub reserved: [u8; 136],
+    pub reserved: [u8; 132],
 }
 
 impl Default for FirmwareHandoffTable {
@@ -297,9 +301,10 @@ impl Default for FirmwareHandoffTable {
             rt_cdi_kv_hdl: FHT_INVALID_HANDLE,
             rt_priv_key_kv_hdl: FHT_INVALID_HANDLE,
             rt_svn_dv_hdl: FHT_INVALID_HANDLE,
+            rt_min_svn_dv_hdl: FHT_INVALID_HANDLE,
             ldevid_tbs_size: 0,
             fmcalias_tbs_size: 0,
-            reserved: [0u8; 136],
+            reserved: [0u8; 132],
             ldevid_tbs_addr: 0,
             fmcalias_tbs_addr: 0,
             pcr_log_addr: 0,
@@ -357,6 +362,7 @@ pub fn print_fht(fht: &FirmwareHandoffTable) {
         fht.rt_priv_key_kv_hdl.0
     );
     crate::cprintln!("RT SVN DV Handle: 0x{:08x}", fht.rt_svn_dv_hdl.0);
+    crate::cprintln!("RT Min SVN DV Handle: 0x{:08x}", fht.rt_min_svn_dv_hdl.0);
 
     crate::cprintln!("LdevId TBS Address: 0x{:08x}", fht.ldevid_tbs_addr);
     crate::cprintln!("LdevId TBS Size: {} bytes", fht.ldevid_tbs_size);

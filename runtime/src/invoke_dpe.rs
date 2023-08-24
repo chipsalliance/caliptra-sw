@@ -1,9 +1,7 @@
 // Licensed under the Apache-2.0 license
 
-use crate::{
-    CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, InvokeDpeReq, InvokeDpeResp,
-    MailboxResp, MailboxRespHeader,
-};
+use crate::{CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers};
+use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp, MailboxRespHeader};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use zerocopy::FromBytes;
 
@@ -13,8 +11,8 @@ impl InvokeDpeCmd {
         if let Some(cmd) = InvokeDpeReq::read_from(cmd_args) {
             let mut response_buf = [0u8; InvokeDpeResp::DATA_MAX_SIZE];
             let mut env = DpeEnv::<CptraDpeTypes> {
-                crypto: DpeCrypto::new(&mut drivers.sha384),
-                platform: DpePlatform,
+                crypto: DpeCrypto::new(&mut drivers.sha384, &mut drivers.trng),
+                platform: DpePlatform::new(drivers.manifest.header.pl0_pauser),
             };
             match drivers
                 .dpe

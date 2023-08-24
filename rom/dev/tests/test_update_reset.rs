@@ -1,11 +1,10 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, ROM_WITH_UART};
+use caliptra_common::mailbox_api::CommandId;
+use caliptra_common::RomBootStatus::*;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
-
-use crate::helpers::FW_LOAD_CMD_OPCODE;
-use caliptra_common::RomBootStatus::*;
 pub mod helpers;
 
 const TEST_FMC_CMD_RESET_FOR_UPDATE: u32 = 0x1000_0004;
@@ -277,7 +276,9 @@ fn test_update_reset_boot_status() {
     // This is too late for this test.
     let buf: &[u8] = &image_bundle.to_bytes().unwrap();
     assert!(!hw.soc_mbox().lock().read().lock());
-    hw.soc_mbox().cmd().write(|_| FW_LOAD_CMD_OPCODE);
+    hw.soc_mbox()
+        .cmd()
+        .write(|_| CommandId::FIRMWARE_LOAD.into());
     hw.soc_mbox().dlen().write(|_| buf.len() as u32);
     let mut remaining = buf;
     while remaining.len() >= 4 {

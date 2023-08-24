@@ -27,9 +27,7 @@ use caliptra_common::dice;
 use caliptra_common::keyids::{KEY_ID_FMC_PRIV_KEY, KEY_ID_ROM_FMC_CDI};
 use caliptra_common::pcr::PCR_ID_FMC_CURRENT;
 use caliptra_common::RomBootStatus::*;
-use caliptra_drivers::{
-    okmutref, report_boot_status, Array4x12, CaliptraResult, Ecc384Result, KeyId, Lifecycle,
-};
+use caliptra_drivers::{okmutref, report_boot_status, Array4x12, CaliptraResult, KeyId, Lifecycle};
 use caliptra_error::CaliptraError;
 use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams};
 
@@ -191,13 +189,13 @@ impl FmcAliasLayer {
         env.key_vault.erase_key(auth_priv_key)?;
 
         // Verify the signature of the `To Be Signed` portion
-        let result = Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)?;
-        if cfi_launder(result) == Ecc384Result::Success {
-            cfi_assert!(result == Ecc384Result::Success);
-        } else {
-            cfi_assert!(result != Ecc384Result::Success);
+        let mut verify_r = Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)?;
+        if cfi_launder(&verify_r) != &sig.r {
             return Err(CaliptraError::FMC_ALIAS_CERT_VERIFY);
+        } else {
+            cfi_assert!(cfi_launder(&verify_r) == &sig.r);
         }
+        verify_r.0.fill(0);
 
         let _pub_x: [u8; 48] = (&pub_key.x).into();
         let _pub_y: [u8; 48] = (&pub_key.y).into();

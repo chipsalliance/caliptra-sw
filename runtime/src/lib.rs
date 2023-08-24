@@ -7,8 +7,10 @@ mod disable;
 mod dpe_crypto;
 mod dpe_platform;
 pub mod fips;
+pub mod handoff;
 pub mod info;
 mod invoke_dpe;
+mod stash_measurement;
 mod update;
 mod verify;
 
@@ -16,26 +18,20 @@ mod verify;
 pub mod mailbox;
 use mailbox::Mailbox;
 
-pub mod mailbox_api;
-pub use mailbox_api::{
-    CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, GetIdevCsrResp, GetLdevCertResp,
-    HmacVerifyReq, InvokeDpeReq, InvokeDpeResp, MailboxReqHeader, MailboxResp, MailboxRespHeader,
-    StashMeasurementReq, StashMeasurementResp, TestGetFmcAliasCertResp,
-};
-
-use dpe_crypto::DpeCrypto;
-pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
-
 #[cfg(feature = "test_only_commands")]
 pub use dice::{GetLdevCertCmd, TestGetFmcAliasCertCmd};
 pub use disable::DisableAttestationCmd;
+use dpe_crypto::DpeCrypto;
+pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
 pub use fips::{FipsSelfTestCmd, FipsShutdownCmd, FipsVersionCmd};
 pub use info::FwInfoCmd;
 pub use invoke_dpe::InvokeDpeCmd;
+pub use stash_measurement::StashMeasurementCmd;
 pub use verify::EcdsaVerifyCmd;
 pub mod packet;
 use packet::Packet;
 
+use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::memory_layout::{
     FHT_ORG, FHT_SIZE, FMCALIAS_TBS_ORG, FMCALIAS_TBS_SIZE, FUSE_LOG_ORG, FUSE_LOG_SIZE,
     LDEVID_TBS_ORG, LDEVID_TBS_SIZE, MAN1_ORG, MAN1_SIZE, MAN2_ORG, MAN2_SIZE, PCR_LOG_ORG,
@@ -94,8 +90,6 @@ pub const DPE_SUPPORT: Support = Support {
     is_ca: true,
 };
 
-pub const DPE_LOCALITY: u32 = 0x0;
-
 pub struct Drivers<'a> {
     pub mbox: Mailbox,
     pub sha_acc: Sha512AccCsr,
@@ -150,7 +144,7 @@ impl<'a> Drivers<'a> {
         };
         let manifest = ImageManifest::read_from(manifest_slice.as_bytes())
             .ok_or(CaliptraError::RUNTIME_NO_MANIFEST)?;
-        let trng = Trng::new(
+        let mut trng = Trng::new(
             CsrngReg::new(),
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
@@ -159,12 +153,13 @@ impl<'a> Drivers<'a> {
 
         let mut sha384 = Sha384::new(Sha512Reg::new());
 
+        let locality = manifest.header.pl0_pauser;
         let env = DpeEnv::<CptraDpeTypes> {
-            crypto: DpeCrypto::new(&mut sha384),
-            platform: DpePlatform,
+            crypto: DpeCrypto::new(&mut sha384, &mut trng),
+            platform: DpePlatform::new(locality),
         };
         let mut pcr_bank = PcrBank::new(PvReg::new());
-        let dpe = Self::initialize_dpe(env, &mut pcr_bank)?;
+        let dpe = Self::initialize_dpe(env, &mut pcr_bank, locality)?;
 
         Ok(Self {
             mbox: Mailbox::new(MboxCsr::new()),
@@ -189,12 +184,10 @@ impl<'a> Drivers<'a> {
     fn initialize_dpe(
         mut env: DpeEnv<CptraDpeTypes>,
         pcr_bank: &mut PcrBank,
+        locality: u32,
     ) -> CaliptraResult<DpeInstance> {
         let mut dpe = DpeInstance::new(&mut env, DPE_SUPPORT)
             .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
-
-        // TODO: Set target_locality to SoC's initial locality
-        const TARGET_LOCALITY: u32 = 0;
         let data = <[u8; DPE_PROFILE.get_hash_size()]>::from(&pcr_bank.read_pcr(PcrId::PcrId1));
         DeriveChildCmd {
             handle: ContextHandle::default(),
@@ -204,11 +197,10 @@ impl<'a> Drivers<'a> {
                 | DeriveChildCmd::INPUT_ALLOW_CA
                 | DeriveChildCmd::INPUT_ALLOW_X509,
             tci_type: u32::from_be_bytes(*b"RTJM"),
-            target_locality: TARGET_LOCALITY,
+            target_locality: locality,
         }
-        .execute(&mut dpe, &mut env, DPE_LOCALITY)
+        .execute(&mut dpe, &mut env, locality)
         .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
-
         Ok(dpe)
     }
 }
@@ -249,13 +241,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_IDEV_CSR => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_LDEV_CERT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
-        CommandId::INVOKE_DPE => {
-            let mut resp = InvokeDpeCmd::execute(drivers, cmd_bytes)?;
-            resp.write_to_mbox(drivers)?;
-            Ok(resp)
-        }
+        CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes),
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
-        CommandId::STASH_MEASUREMENT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers, cmd_bytes),
         CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),
         CommandId::FW_INFO => FwInfoCmd::execute(drivers),
         #[cfg(feature = "test_only_commands")]

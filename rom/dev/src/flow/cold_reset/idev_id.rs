@@ -245,20 +245,18 @@ impl InitDevIdLayer {
         let sig = okmutref(&mut sig)?;
 
         // Verify the signature of the `To Be Signed` portion
-        let result = Crypto::ecdsa384_verify(env, &key_pair.pub_key, tbs.tbs(), sig)?;
-        if cfi_launder(result) == Ecc384Result::Success {
-            cfi_assert!(result == Ecc384Result::Success);
-        } else {
-            cfi_assert!(result != Ecc384Result::Success);
+        let mut verify_r = Crypto::ecdsa384_verify(env, &key_pair.pub_key, tbs.tbs(), sig)?;
+        if cfi_launder(&verify_r) != &sig.r {
             return Err(CaliptraError::ROM_IDEVID_CSR_VERIFICATION_FAILURE);
+        } else {
+            cfi_assert!(cfi_launder(&verify_r) == &sig.r);
         }
+        verify_r.0.fill(0);
 
-        // [TODO] Due to printing of the CSR, rom sections are hitting max limits.
-        // Add this back when CSR printing is removed from here and added to test cases.
-        // let _pub_x: [u8; 48] = key_pair.pub_key.x.into();
-        // let _pub_y: [u8; 48] = key_pair.pub_key.y.into();
-        // cprint_slice!("[idev] PUB.X", _pub_x);
-        // cprint_slice!("[idev] PUB.Y", _pub_y);
+        let _pub_x: [u8; 48] = key_pair.pub_key.x.into();
+        let _pub_y: [u8; 48] = key_pair.pub_key.y.into();
+        cprintln!("[idev] PUB.X = {}", HexBytes(&_pub_x));
+        cprintln!("[idev] PUB.Y = {}", HexBytes(&_pub_y));
 
         let _sig_r: [u8; 48] = (&sig.r).into();
         let _sig_s: [u8; 48] = (&sig.s).into();

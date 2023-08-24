@@ -1,15 +1,18 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_drivers::{Array4x12, KeyId, Sha384, Sha384DigestOp};
+use core::cmp::min;
+
+use caliptra_drivers::{Array4x12, KeyId, Sha384, Sha384DigestOp, Trng};
 use crypto::{AlgLen, Crypto, CryptoError, Digest, EcdsaPub, EcdsaSig, Hasher, HmacSig};
 
 pub struct DpeCrypto<'a> {
     sha384: &'a mut Sha384,
+    trng: &'a mut Trng,
 }
 
 impl<'a> DpeCrypto<'a> {
-    pub fn new(sha384: &'a mut Sha384) -> Self {
-        Self { sha384 }
+    pub fn new(sha384: &'a mut Sha384, trng: &'a mut Trng) -> Self {
+        Self { sha384, trng }
     }
 }
 
@@ -45,8 +48,19 @@ impl<'a> Crypto for DpeCrypto<'a> {
     type Hasher<'b> = DpeHasher<'b> where Self: 'b;
     type PrivKey = KeyId;
 
-    fn rand_bytes(&mut self, _dst: &mut [u8]) -> Result<(), CryptoError> {
-        Err(CryptoError::NotImplemented)
+    fn rand_bytes(&mut self, dst: &mut [u8]) -> Result<(), CryptoError> {
+        let mut curr_idx = 0;
+        while curr_idx < dst.len() {
+            let trng_bytes = <[u8; 48]>::from(
+                self.trng
+                    .generate()
+                    .map_err(|_| CryptoError::CryptoLibError)?,
+            );
+            let bytes_to_write = min(dst.len() - curr_idx, trng_bytes.len());
+            dst[curr_idx..curr_idx + bytes_to_write].copy_from_slice(&trng_bytes[..bytes_to_write]);
+            curr_idx += bytes_to_write;
+        }
+        Ok(())
     }
 
     fn hash_initialize(&mut self, algs: AlgLen) -> Result<Self::Hasher<'_>, CryptoError> {
