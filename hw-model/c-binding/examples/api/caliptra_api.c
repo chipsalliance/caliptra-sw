@@ -195,7 +195,7 @@ int caliptra_upload_fw(struct caliptra_model *model, struct caliptra_buffer *fw_
     return caliptra_mailbox_execute(model, FW_LOAD_CMD_OPCODE, fw_buffer, NULL);
 }
 
-uint32_t calculate_caliptra_checksum(uint32_t cmd, uint8_t *buffer, uint32_t len)
+static uint32_t calculate_caliptra_checksum(uint32_t cmd, uint8_t *buffer, uint32_t len)
 {
     uint32_t i, sum = 0;
 
@@ -218,7 +218,7 @@ uint32_t calculate_caliptra_checksum(uint32_t cmd, uint8_t *buffer, uint32_t len
     return (0 - sum);
 }
 
-static int caliptra_get_fips_version(struct caliptra_model *model,struct caliptra_fips_version *version)
+int caliptra_get_fips_version(struct caliptra_model *model,struct caliptra_fips_version *version)
 {
     // Parameter check
     if (version == NULL)
