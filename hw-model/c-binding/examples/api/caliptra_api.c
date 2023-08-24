@@ -246,13 +246,17 @@ int caliptra_get_fips_version(struct caliptra_model *model,struct caliptra_fips_
     return status;
 }
 
-int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *fw_buffer,uint32_t statusCheckRead,caliptra_buffer *test)
+int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *fw_buffer,uint32_t statusCheckRead,caliptra_output *test)
 {
     const uint32_t OP_INVOKE_DPE_COMMAND = 0x44504543;
     uint32_t *status;
     int mStatus;
     const uint32_t error_code = 0x3003000c;
-    mStatus = caliptra_mailbox_execute(model,OP_INVOKE_DPE_COMMAND, fw_buffer, test);
+       struct caliptra_buffer out_buf = {
+        .data = (uint8_t *)test,
+        .len = sizeof(struct caliptra_output),
+    };
+    mStatus = caliptra_mailbox_execute(model,OP_INVOKE_DPE_COMMAND, fw_buffer, &out_buf);
     printf("***********Profile 1**********\n");
     fflush(stdout);
    for (size_t i = 0; i < test->len; i++) {

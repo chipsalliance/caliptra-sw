@@ -132,7 +132,7 @@ func main() {
             profileString := "DPE_PROFILE_IROT_P384_SHA384"
             profileBuffer := C.create_invoke_dpe_command(C.uint32_t(CmdMagic), C.uint32_t(CommandGetProfile),stringToUint32(profileString))
             fmt.Println(profileBuffer)
-            var Check C.caliptra_buffer
+            var Check C.caliptra_output
             profile := C.caliptra_get_profile(model, &profileBuffer,test,&Check)
             fmt.Println(profile)
             fmt.Println(test)
