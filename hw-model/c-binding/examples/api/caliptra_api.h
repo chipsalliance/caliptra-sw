@@ -16,7 +16,7 @@ int caliptra_upload_fw(struct caliptra_model *model, struct caliptra_buffer *fw_
 
 int caliptra_get_fips_version(struct caliptra_model *model,struct caliptra_fips_version *version);
 
-int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *fw_buffer,uint32_t statusCheckRead,caliptra_buffer *test);
+int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *fw_buffer,uint32_t statusCheckRead, struct caliptra_output *test);
 
 // Execute Mailbox Command
 int caliptra_mailbox_execute(struct caliptra_model *model, uint32_t cmd, struct caliptra_buffer *mbox_tx_buffer, struct caliptra_buffer *mbox_rx_buffer);
