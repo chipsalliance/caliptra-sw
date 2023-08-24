@@ -140,7 +140,8 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | rt_dice_pub_key       | 96           | FMC        | RT Alias DICE Public Key.                                                                                |
 | rt_dice_sign          | 96           | FMC        | RT Alias DICE signature.                                                                                 |
 | idev_dice_pub_key     | 96           | ROM        | Initial Device ID Public Key.                                                                            |
-| reserved              | 132          |            | Reserved for future use.                                                                                 |
+| rom_info_addr         | 4            | ROM        | Address of ROMInfo struct describing the ROM digest and git commit.                                      |
+| reserved              | 128          |            | Reserved for future use.                                                                                 |
 
 *FHT is currently defined to be 512 bytes in length.*
 
