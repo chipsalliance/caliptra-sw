@@ -202,7 +202,7 @@ enum fips_status {
 };
 
 struct caliptra_completion {
-    caliptra_checksum checksum;
+    uint32_t checksum;
     enum fips_status fips;
 };
 
