@@ -10,7 +10,6 @@ use caliptra_drivers::KeyVault;
 use caliptra_drivers::Sha256;
 use caliptra_drivers::Sha384;
 use caliptra_drivers::Sha384Acc;
-use caliptra_kat::{Ecc384Kat, Hmac384Kat, Sha256Kat, Sha384AccKat, Sha384Kat};
 use caliptra_registers::mbox::enums::MboxStatusE;
 
 use crate::Drivers;
@@ -38,26 +37,6 @@ impl FipsModule {
 
         env.regions.zeroize();
     }
-
-    /// Execute KAT for cryptographic algorithms implemented in H/W.
-    fn execute_kats(env: &mut Drivers) -> CaliptraResult<()> {
-        cprintln!("[kat] Executing SHA2-256 Engine KAT");
-        Sha256Kat::default().execute(&mut env.sha256)?;
-
-        cprintln!("[kat] Executing SHA2-384 Engine KAT");
-        Sha384Kat::default().execute(&mut env.sha384)?;
-
-        cprintln!("[kat] Executing SHA2-384 Accelerator KAT");
-        Sha384AccKat::default().execute(&mut env.sha384_acc)?;
-
-        cprintln!("[kat] Executing ECC-384 Engine KAT");
-        Ecc384Kat::default().execute(&mut env.ecc384, &mut env.trng)?;
-
-        cprintln!("[kat] Executing HMAC-384 Engine KAT");
-        Hmac384Kat::default().execute(&mut env.hmac384, &mut env.trng)?;
-
-        Ok(())
-    }
 }
 
 pub struct FipsVersionCmd;
@@ -80,13 +59,46 @@ impl FipsVersionCmd {
     }
 }
 
-pub struct FipsSelfTestCmd;
-impl FipsSelfTestCmd {
+pub mod fips_self_test_cmd {
+    use super::*;
+
     pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<MailboxResp> {
         cprintln!("[rt] FIPS self test");
-        FipsModule::execute_kats(env)?;
+        execute_kats(env)?;
 
         Ok(MailboxResp::default())
+    }
+
+    /// Execute KAT for cryptographic algorithms implemented in H/W.
+    fn execute_kats(env: &mut Drivers) -> CaliptraResult<()> {
+        let mut kats_env = caliptra_kat::KatsEnv {
+            // SHA1 Engine
+            sha1: &mut env.sha1,
+
+            // sha256
+            sha256: &mut env.sha256,
+
+            // SHA2-384 Engine
+            sha384: &mut env.sha384,
+
+            // SHA2-384 Accelerator
+            sha384_acc: &mut env.sha384_acc,
+
+            // Hmac384 Engine
+            hmac384: &mut env.hmac384,
+
+            /// Cryptographically Secure Random Number Generator
+            trng: &mut env.trng,
+
+            // LMS Engine
+            lms: &mut env.lms,
+
+            /// Ecc384 Engine
+            ecc384: &mut env.ecc384,
+        };
+
+        caliptra_kat::execute_kat(&mut kats_env)?;
+        Ok(())
     }
 }
 

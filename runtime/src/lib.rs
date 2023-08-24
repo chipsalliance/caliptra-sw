@@ -23,7 +23,7 @@ pub use dice::{GetLdevCertCmd, TestGetFmcAliasCertCmd};
 pub use disable::DisableAttestationCmd;
 use dpe_crypto::DpeCrypto;
 pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
-pub use fips::{FipsSelfTestCmd, FipsShutdownCmd, FipsVersionCmd};
+pub use fips::{fips_self_test_cmd, FipsShutdownCmd, FipsVersionCmd};
 pub use info::FwInfoCmd;
 pub use invoke_dpe::InvokeDpeCmd;
 pub use stash_measurement::StashMeasurementCmd;
@@ -38,7 +38,9 @@ use caliptra_common::memory_layout::{
     PCR_LOG_SIZE,
 };
 use caliptra_common::{cprintln, FirmwareHandoffTable};
-use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault, SocIfc};
+use caliptra_drivers::{
+    CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault, Lms, Sha1, SocIfc,
+};
 use caliptra_drivers::{Hmac384, PcrBank, PcrId, Sha256, Sha384, Sha384Acc, Trng};
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::mbox::enums::MboxStatusE;
@@ -101,6 +103,10 @@ pub struct Drivers<'a> {
 
     /// Ecc384 Engine
     pub ecc384: Ecc384,
+
+    pub lms: Lms,
+
+    pub sha1: Sha1,
 
     pub fht: &'a mut FirmwareHandoffTable,
 
@@ -174,6 +180,8 @@ impl<'a> Drivers<'a> {
             sha384_acc: Sha384Acc::new(Sha512AccCsr::new()),
             hmac384,
             ecc384,
+            sha1: Sha1::default(),
+            lms: Lms::default(),
             trng,
             fht,
             manifest,
@@ -256,7 +264,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         #[cfg(feature = "test_only_commands")]
         CommandId::TEST_ONLY_HMAC384_VERIFY => HmacVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::VERSION => FipsVersionCmd::execute(drivers),
-        CommandId::SELF_TEST => FipsSelfTestCmd::execute(drivers),
+        CommandId::SELF_TEST => fips_self_test_cmd::execute(drivers),
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }?;
