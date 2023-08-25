@@ -20,8 +20,8 @@ use caliptra_runtime::Drivers;
 use caliptra_test_harness::test_suite;
 
 fn test_mbox_cmd() {
-    let mut fht = caliptra_common::FirmwareHandoffTable::default();
-    let mut drivers = unsafe { Drivers::new_from_registers(&mut fht).unwrap() };
+    let fht = caliptra_common::FirmwareHandoffTable::default();
+    let mut drivers = unsafe { Drivers::new_from_registers(&fht).unwrap() };
     let mut soc_ifc = unsafe { SocIfcReg::new() };
 
     // Unlock the sha_acc peripheral for use by the SoC

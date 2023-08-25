@@ -6,7 +6,7 @@ use crate::{
 };
 use bitfield::{bitfield_bitrange, bitfield_fields};
 use caliptra_error::CaliptraError;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{AsBytes, FromBytes, LayoutVerified};
 
 pub const FHT_MARKER: u32 = 0x54484643;
 pub const FHT_INVALID_ADDRESS: u32 = u32::MAX;
@@ -422,6 +422,26 @@ impl FirmwareHandoffTable {
 
         if fht.is_valid() {
             print_fht(&fht);
+            return Some(fht);
+        }
+        None
+    }
+
+    pub fn try_into_ref() -> Option<&'static FirmwareHandoffTable> {
+        let slice = unsafe {
+            let ptr = FHT_ORG as *mut u32;
+            core::slice::from_raw_parts_mut(
+                ptr,
+                core::mem::size_of::<FirmwareHandoffTable>() / core::mem::size_of::<u32>(),
+            )
+        };
+
+        let fht = LayoutVerified::<_, FirmwareHandoffTable>::new(slice.as_bytes())
+            .unwrap()
+            .into_ref();
+
+        if fht.is_valid() {
+            print_fht(fht);
             return Some(fht);
         }
         None

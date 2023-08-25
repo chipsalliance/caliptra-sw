@@ -114,7 +114,7 @@ pub struct Drivers<'a> {
     /// Ecc384 Engine
     pub ecc384: Ecc384,
 
-    pub fht: &'a mut FirmwareHandoffTable,
+    pub fht: &'a FirmwareHandoffTable,
 
     /// A copy of the ImageHeader for the currently running image
     pub manifest: ImageManifest,
@@ -137,7 +137,7 @@ impl<'a> Drivers<'a> {
     /// Callers must ensure that this function is called only once, and that
     /// any concurrent access to these register blocks does not conflict with
     /// these drivers.
-    pub unsafe fn new_from_registers(fht: &'a mut FirmwareHandoffTable) -> CaliptraResult<Self> {
+    pub unsafe fn new_from_registers(fht: &'a FirmwareHandoffTable) -> CaliptraResult<Self> {
         let manifest_slice = unsafe {
             let ptr = MAN1_ORG as *mut u32;
             core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
