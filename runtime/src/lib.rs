@@ -54,7 +54,7 @@ use dpe::{
     support::Support,
     DPE_PROFILE,
 };
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{AsBytes, LayoutVerified};
 
 #[cfg(feature = "test_only_commands")]
 use crate::verify::HmacVerifyCmd;
@@ -116,8 +116,8 @@ pub struct Drivers<'a> {
 
     pub fht: &'a mut FirmwareHandoffTable,
 
-    /// A copy of the ImageHeader for the currently running image
-    pub manifest: ImageManifest,
+    /// ImageManifest for the currently running image
+    pub manifest: &'a ImageManifest,
 
     pub dpe: DpeInstance,
 
@@ -138,12 +138,15 @@ impl<'a> Drivers<'a> {
     /// any concurrent access to these register blocks does not conflict with
     /// these drivers.
     pub unsafe fn new_from_registers(fht: &'a mut FirmwareHandoffTable) -> CaliptraResult<Self> {
+        // Read current image manifest
         let manifest_slice = unsafe {
             let ptr = MAN1_ORG as *mut u32;
             core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
         };
-        let manifest = ImageManifest::read_from(manifest_slice.as_bytes())
-            .ok_or(CaliptraError::RUNTIME_NO_MANIFEST)?;
+        let manifest = LayoutVerified::<_, ImageManifest>::new(manifest_slice.as_bytes())
+            .ok_or(CaliptraError::RUNTIME_NO_MANIFEST)?
+            .into_ref();
+
         let mut trng = Trng::new(
             CsrngReg::new(),
             EntropySrcReg::new(),
