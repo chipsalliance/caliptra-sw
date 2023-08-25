@@ -7,7 +7,6 @@ pub mod capabilities;
 pub mod checksum;
 pub mod crypto;
 pub mod dice;
-pub mod fuse;
 pub mod keyids;
 pub mod mailbox_api;
 pub mod wdt;
@@ -21,6 +20,7 @@ pub use hand_off::{
 pub use boot_status::RomBootStatus;
 pub use caliptra_drivers::cprint;
 pub use caliptra_drivers::cprintln;
+pub use caliptra_drivers::fuse_log as fuse;
 pub use caliptra_drivers::hand_off;
 pub use caliptra_drivers::memory_layout;
 pub use caliptra_drivers::pcr_log as pcr;

@@ -25,6 +25,7 @@ mod ecc384;
 mod error_reporter;
 mod exit_ctrl;
 mod fuse_bank;
+pub mod fuse_log;
 pub mod hand_off;
 mod hmac384;
 mod hmac384_kdf;
