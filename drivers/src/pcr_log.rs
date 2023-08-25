@@ -11,7 +11,7 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::PcrId;
+use crate::PcrId;
 use zerocopy::{AsBytes, FromBytes};
 
 pub const PCR_ID_FMC_CURRENT: PcrId = PcrId::PcrId0;

@@ -35,6 +35,7 @@ mod mailbox;
 pub mod memory_layout;
 mod okref;
 mod pcr_bank;
+pub mod pcr_log;
 pub mod printer;
 mod sha1;
 mod sha256;
