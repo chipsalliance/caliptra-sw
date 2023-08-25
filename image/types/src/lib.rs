@@ -278,7 +278,7 @@ pub struct VendorSignedData {
     /// Vendor End Date [ASN1 Time Format] For FMC alias certificate.
     pub vendor_not_after: [u8; 15],
 
-    reserved: [u8; 2],
+    reserved: [u8; 10],
 }
 
 #[repr(C)]
@@ -290,7 +290,7 @@ pub struct OwnerSignedData {
     /// Owner End Date [ASN1 Time Format] For FMC alias certificate: Takes Preference over vendor end date
     pub owner_not_after: [u8; 15],
 
-    reserved: [u8; 2],
+    reserved: [u8; 10],
 }
 
 /// Caliptra Image header
