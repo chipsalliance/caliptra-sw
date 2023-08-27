@@ -364,7 +364,7 @@ fn smoke_test() {
 }
 
 #[test]
-fn test_fips_verify() {
+fn fips_self_test() {
     let fuses = Fuses::default();
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {

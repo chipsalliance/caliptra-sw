@@ -23,7 +23,10 @@ pub use dice::{GetLdevCertCmd, TestGetFmcAliasCertCmd};
 pub use disable::DisableAttestationCmd;
 use dpe_crypto::DpeCrypto;
 pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
-pub use fips::{fips_self_test_cmd, FipsShutdownCmd, FipsVersionCmd};
+#[cfg(feature = "fips_self_test")]
+pub use fips::fips_self_test_cmd;
+pub use fips::{FipsShutdownCmd, FipsVersionCmd};
+
 pub use info::FwInfoCmd;
 pub use invoke_dpe::InvokeDpeCmd;
 pub use stash_measurement::StashMeasurementCmd;
@@ -264,6 +267,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         #[cfg(feature = "test_only_commands")]
         CommandId::TEST_ONLY_HMAC384_VERIFY => HmacVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::VERSION => FipsVersionCmd::execute(drivers),
+        #[cfg(feature = "fips_self_test")]
         CommandId::SELF_TEST => fips_self_test_cmd::execute(drivers),
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
