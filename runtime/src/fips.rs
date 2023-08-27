@@ -60,10 +60,74 @@ impl FipsVersionCmd {
 #[cfg(feature = "fips_self_test")]
 pub mod fips_self_test_cmd {
     use super::*;
+    use caliptra_common::{verifier::FirmwareImageVerificationEnv, FMC_ORG, RUNTIME_ORG};
+    use caliptra_drivers::ResetReason;
+    use caliptra_image_verify::ImageVerifier;
+    use zerocopy::AsBytes;
+
+    // Helper function to create a mutable slice from a memory region
+    unsafe fn create_slice(org: u32, size: usize) -> &'static mut [u8] {
+        let ptr = org as *mut u8;
+        core::slice::from_raw_parts_mut(ptr, size)
+    }
+
+    fn copy_and_verify_image(env: &mut Drivers) -> CaliptraResult<()> {
+        cprintln!("set dlen");
+        env.mbox.set_dlen(
+            env.persistent_data.get().manifest1.size
+                + env.persistent_data.get().manifest1.fmc.size
+                + env.persistent_data.get().manifest1.runtime.size,
+        );
+
+        cprintln!("copy manifest");
+        env.mbox
+            .copy_bytes_to_mbox(env.persistent_data.get().manifest1.as_bytes())?;
+
+        cprintln!("copy fmc");
+        let fmc = unsafe {
+            create_slice(
+                FMC_ORG,
+                env.persistent_data.get().manifest1.fmc.size as usize,
+            )
+        };
+        env.mbox.copy_bytes_to_mbox(fmc.as_bytes())?;
+        cprintln!("copy rt");
+        let rt = unsafe {
+            create_slice(
+                RUNTIME_ORG,
+                env.persistent_data.get().manifest1.runtime.size as usize,
+            )
+        };
+        env.mbox.copy_bytes_to_mbox(rt.as_bytes())?;
+
+        let mut venv = FirmwareImageVerificationEnv {
+            sha256: &mut env.sha256,
+            sha384: &mut env.sha384,
+            sha384_acc: &mut env.sha384_acc,
+            soc_ifc: &mut env.soc_ifc,
+            ecc384: &mut env.ecc384,
+            data_vault: &mut env.data_vault,
+            pcr_bank: &mut env.pcr_bank,
+        };
+
+        let mut verifier = ImageVerifier::new(&mut venv);
+        cprintln!("verify");
+        let _info = verifier.verify(
+            &env.persistent_data.get().manifest1,
+            env.persistent_data.get().manifest1.size
+                + env.persistent_data.get().manifest1.fmc.size
+                + env.persistent_data.get().manifest1.runtime.size,
+            ResetReason::UpdateReset,
+        )?;
+        cprintln!("verify done");
+        Ok(())
+    }
 
     pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<MailboxResp> {
         cprintln!("[rt] FIPS self test");
+        caliptra_common::wdt::stop_wdt(&mut env.soc_ifc);
         execute_kats(env)?;
+        copy_and_verify_image(env)?;
 
         Ok(MailboxResp::default())
     }

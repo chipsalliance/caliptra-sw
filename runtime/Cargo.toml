@@ -20,6 +20,7 @@ platform.workspace = true
 ufmt.workspace = true
 zerocopy.workspace = true
 arrayvec.workspace = true
+caliptra-image-verify.workspace = true
 
 [build-dependencies]
 caliptra_common = { workspace = true, default-features = false }
@@ -45,3 +46,4 @@ riscv = ["caliptra-cpu/riscv"]
 std = ["ufmt/std", "caliptra_common/std"]
 test_only_commands = []
 verilator = ["caliptra-hw-model/verilator"]
+fips_self_test=[]
