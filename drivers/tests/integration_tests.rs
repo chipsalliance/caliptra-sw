@@ -334,6 +334,51 @@ fn test_mailbox_soc_to_uc() {
             .unwrap();
         model.output().take(usize::MAX);
         assert_eq!(resp, None);
+
+        // Try again, but with a non-multiple-of-4 dest buffer (0x5000_0001)
+        let resp = model
+            .mailbox_execute(0x5000_0001, &[0x01, 0x23, 0x45, 0x67, 0x89])
+            .unwrap();
+        model
+            .step_until_output(
+                "cmd: 0x50000001\n\
+                 dlen: 5\n\
+                 buf: [01, 23, 45, 67, 89]\n",
+            )
+            .unwrap();
+        model.output().take(usize::MAX);
+        assert_eq!(resp, None);
+
+        // Try again, but with one more byte than will fit in the dest buffer
+        let resp = model
+            .mailbox_execute(0x5000_0001, &[0x01, 0x23, 0x45, 0x67, 0x89, 0xab])
+            .unwrap();
+        model
+            .step_until_output(
+                "cmd: 0x50000001\n\
+                 dlen: 6\n\
+                 buf: [01, 23, 45, 67, 89]\n",
+            )
+            .unwrap();
+        model.output().take(usize::MAX);
+        assert_eq!(resp, None);
+
+        // Try again, but with 4 more bytes than will fit in the dest buffer
+        let resp = model
+            .mailbox_execute(
+                0x5000_0001,
+                &[0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x11],
+            )
+            .unwrap();
+        model
+            .step_until_output(
+                "cmd: 0x50000001\n\
+                 dlen: 9\n\
+                 buf: [01, 23, 45, 67, 89]\n",
+            )
+            .unwrap();
+        model.output().take(usize::MAX);
+        assert_eq!(resp, None);
     }
 
     // Test MailboxRecvTxn::copy_request
