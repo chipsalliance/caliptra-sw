@@ -35,8 +35,7 @@ impl FipsModule {
             // Lock the SHA Accelerator.
             Sha384Acc::lock();
         }
-
-        env.regions.zeroize();
+        env.persistent_data.get_mut().zeroize();
     }
 
     /// Execute KAT for cryptographic algorithms implemented in H/W.

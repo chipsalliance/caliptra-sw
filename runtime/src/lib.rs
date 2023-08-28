@@ -32,16 +32,12 @@ pub use verify::EcdsaVerifyCmd;
 pub mod packet;
 use packet::Packet;
 
+use caliptra_common::cprintln;
 use caliptra_common::mailbox_api::CommandId;
-use caliptra_common::memory_layout::{
-    FHT_ORG, FHT_SIZE, FMCALIAS_TBS_ORG, FMCALIAS_TBS_SIZE, FUSE_LOG_ORG, FUSE_LOG_SIZE,
-    LDEVID_TBS_ORG, LDEVID_TBS_SIZE, MAN1_ORG, MAN1_SIZE, MAN2_ORG, MAN2_SIZE, PCR_LOG_ORG,
-    PCR_LOG_SIZE,
+use caliptra_drivers::{
+    CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault, PersistentDataAccessor, SocIfc,
 };
-use caliptra_common::{cprintln, FirmwareHandoffTable};
-use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault, SocIfc};
 use caliptra_drivers::{Hmac384, PcrBank, PcrId, Sha256, Sha384, Sha384Acc, Trng};
-use caliptra_image_types::ImageManifest;
 use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_registers::{
     csrng::CsrngReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg,
@@ -55,7 +51,6 @@ use dpe::{
     support::Support,
     DPE_PROFILE,
 };
-use zerocopy::{AsBytes, LayoutVerified};
 
 #[cfg(feature = "test_only_commands")]
 use crate::verify::HmacVerifyCmd;
@@ -79,13 +74,12 @@ impl From<RtBootStatus> for u32 {
 
 pub const DPE_SUPPORT: Support = Support::all();
 
-pub struct Drivers<'a> {
+pub struct Drivers {
     pub mbox: Mailbox,
     pub sha_acc: Sha512AccCsr,
     pub data_vault: DataVault,
     pub key_vault: KeyVault,
     pub soc_ifc: SocIfc,
-    pub regions: MemoryRegions,
     pub sha256: Sha256,
 
     // SHA2-384 Engine
@@ -103,10 +97,7 @@ pub struct Drivers<'a> {
     /// Ecc384 Engine
     pub ecc384: Ecc384,
 
-    pub fht: &'a mut FirmwareHandoffTable,
-
-    /// ImageManifest for the currently running image
-    pub manifest: &'a ImageManifest,
+    pub persistent_data: PersistentDataAccessor,
 
     pub dpe: DpeInstance,
 
@@ -120,22 +111,13 @@ impl DpeTypes for CptraDpeTypes {
     type Platform<'a> = DpePlatform;
 }
 
-impl<'a> Drivers<'a> {
+impl Drivers {
     /// # Safety
     ///
     /// Callers must ensure that this function is called only once, and that
     /// any concurrent access to these register blocks does not conflict with
     /// these drivers.
-    pub unsafe fn new_from_registers(fht: &'a mut FirmwareHandoffTable) -> CaliptraResult<Self> {
-        // Read current image manifest
-        let manifest_slice = unsafe {
-            let ptr = MAN1_ORG as *mut u32;
-            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
-        };
-        let manifest = LayoutVerified::<_, ImageManifest>::new(manifest_slice.as_bytes())
-            .ok_or(CaliptraError::RUNTIME_NO_MANIFEST)?
-            .into_ref();
-
+    pub unsafe fn new_from_registers() -> CaliptraResult<Self> {
         let mut trng = Trng::new(
             CsrngReg::new(),
             EntropySrcReg::new(),
@@ -148,8 +130,10 @@ impl<'a> Drivers<'a> {
         let mut hmac384 = Hmac384::new(HmacReg::new());
         let mut key_vault = KeyVault::new(KvReg::new());
 
-        let locality = manifest.header.pl0_pauser;
-        let rt_pub_key = fht.rt_dice_pub_key;
+        let persistent_data = PersistentDataAccessor::new();
+
+        let locality = persistent_data.get().manifest1.header.pl0_pauser;
+        let rt_pub_key = persistent_data.get().fht.rt_dice_pub_key;
         let mut crypto = DpeCrypto::new(
             &mut sha384,
             &mut trng,
@@ -175,15 +159,13 @@ impl<'a> Drivers<'a> {
             data_vault: DataVault::new(DvReg::new()),
             key_vault,
             soc_ifc: SocIfc::new(SocIfcReg::new()),
-            regions: MemoryRegions::new(),
             sha256: Sha256::new(Sha256Reg::new()),
             sha384,
             sha384_acc: Sha384Acc::new(Sha512AccCsr::new()),
             hmac384,
             ecc384,
             trng,
-            fht,
-            manifest,
+            persistent_data,
             dpe,
             pcr_bank,
         })
@@ -255,11 +237,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),
         CommandId::FW_INFO => FwInfoCmd::execute(drivers),
         #[cfg(feature = "test_only_commands")]
-        CommandId::TEST_ONLY_GET_LDEV_CERT => GetLdevCertCmd::execute(&drivers.data_vault),
+        CommandId::TEST_ONLY_GET_LDEV_CERT => GetLdevCertCmd::execute(drivers),
         #[cfg(feature = "test_only_commands")]
-        CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT => {
-            TestGetFmcAliasCertCmd::execute(&drivers.data_vault)
-        }
+        CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT => TestGetFmcAliasCertCmd::execute(drivers),
         #[cfg(feature = "test_only_commands")]
         CommandId::TEST_ONLY_HMAC384_VERIFY => HmacVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::VERSION => FipsVersionCmd::execute(drivers),
@@ -298,44 +278,4 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> ! {
             caliptra_common::wdt::stop_wdt(&mut drivers.soc_ifc);
         }
     }
-}
-
-pub struct MemoryRegions {
-    man1: &'static mut [u8],
-    man2: &'static mut [u8],
-    fht: &'static mut [u8],
-    ldevid_tbs: &'static mut [u8],
-    fmcalias_tbs: &'static mut [u8],
-    pcr_log: &'static mut [u8],
-    fuse_log: &'static mut [u8],
-}
-
-impl MemoryRegions {
-    // Create a new instance of MemoryRegions with slices based on memory addresses and sizes
-    fn new() -> Self {
-        Self {
-            man1: unsafe { create_slice(MAN1_ORG, MAN1_SIZE as usize) },
-            man2: unsafe { create_slice(MAN2_ORG, MAN2_SIZE as usize) },
-            fht: unsafe { create_slice(FHT_ORG, FHT_SIZE as usize) },
-            ldevid_tbs: unsafe { create_slice(LDEVID_TBS_ORG, LDEVID_TBS_SIZE as usize) },
-            fmcalias_tbs: unsafe { create_slice(FMCALIAS_TBS_ORG, FMCALIAS_TBS_SIZE as usize) },
-            pcr_log: unsafe { create_slice(PCR_LOG_ORG, PCR_LOG_SIZE) },
-            fuse_log: unsafe { create_slice(FUSE_LOG_ORG, FUSE_LOG_SIZE) },
-        }
-    }
-    fn zeroize(&mut self) {
-        self.man1.fill(0);
-        self.man2.fill(0);
-        self.fht.fill(0);
-        self.ldevid_tbs.fill(0);
-        self.fmcalias_tbs.fill(0);
-        self.pcr_log.fill(0);
-        self.fuse_log.fill(0);
-    }
-}
-
-// Helper function to create a mutable slice from a memory region
-unsafe fn create_slice(org: u32, size: usize) -> &'static mut [u8] {
-    let ptr = org as *mut u8;
-    core::slice::from_raw_parts_mut(ptr, size)
 }
