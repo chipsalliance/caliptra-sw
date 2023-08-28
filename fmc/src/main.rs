@@ -40,13 +40,12 @@ Running Caliptra FMC ...
 #[no_mangle]
 pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
+    let mut env = match unsafe { fmc_env::FmcEnv::new_from_registers() } {
+        Ok(env) => env,
+        Err(e) => report_error(e.into()),
+    };
 
-    if let Some(mut hand_off) = HandOff::from_previous() {
-        let mut env = match unsafe { fmc_env::FmcEnv::new_from_registers() } {
-            Ok(env) => env,
-            Err(e) => report_error(e.into()),
-        };
-
+    if let Some(mut hand_off) = HandOff::from_previous(&env.persistent_data) {
         match flow::run(&mut env, &mut hand_off) {
             Ok(_) => {
                 if hand_off.is_valid() {
