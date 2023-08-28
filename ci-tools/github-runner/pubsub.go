@@ -6,15 +6,14 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 
 	pubsub "cloud.google.com/go/pubsub/apiv1"
 	"cloud.google.com/go/pubsub/apiv1/pubsubpb"
 	"github.com/google/go-github/v53/github"
 )
 
-func PublishJitConfig(ctx context.Context, client *github.Client) error {
-	runner, err := GitHubRegisterRunner(ctx, client, os.Args[2])
+func PublishJitConfig(ctx context.Context, client *github.Client, labels []string) error {
+	runner, err := GitHubRegisterRunner(ctx, client, labels)
 	if err != nil {
 		return err
 	}
@@ -63,7 +62,7 @@ func ReceiveJitConfig(ctx context.Context) (string, error) {
 				},
 			})
 			if err != nil {
-				return "", fmt.Errorf("Acknowledge failed %v", err)
+				return "", fmt.Errorf("acknowledge failed %v", err)
 			}
 			return string(msg.GetMessage().GetData()), nil
 		}

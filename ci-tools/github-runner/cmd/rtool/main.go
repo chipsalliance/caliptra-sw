@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	// Blank-import the function package so the init() runs
 	hello "caliptra.org/github-runner"
@@ -15,7 +16,7 @@ import (
 )
 
 func usage() {
-	fmt.Println("Usage: this_cmd [serve|build_image|cleanup|jitconfig]")
+	fmt.Println("Usage: this_cmd [launch|serve|build_image|cleanup|jitconfig]")
 }
 
 func main() {
@@ -60,13 +61,13 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-
+		labels := strings.Split(os.Args[2], ",")
 		if os.Args[1] == "launch" {
-			err = hello.Launch(ctx, client, os.Args[2])
+			err = hello.Launch(ctx, client, labels)
 		} else if os.Args[1] == "publish_jitconfig" {
-			err = hello.PublishJitConfig(ctx, client)
+			err = hello.PublishJitConfig(ctx, client, labels)
 		} else {
-			runner, err := hello.GitHubRegisterRunner(ctx, client, os.Args[2])
+			runner, err := hello.GitHubRegisterRunner(ctx, client, labels)
 			if err == nil {
 				log.Println(runner.JitConfig)
 			}
