@@ -72,7 +72,7 @@ impl HandOff {
     /// Create a new `HandOff` from the FHT table.
     pub fn from_previous() -> Option<HandOff> {
         // try_load performs basic sanity check of the FHT (check FHT marker, valid indices, etc.)
-        if let Some(fht) = FirmwareHandoffTable::try_load() {
+        if let Some(fht) = unsafe { FirmwareHandoffTable::try_load() } {
             let me = Self { fht };
 
             return Some(me);
@@ -189,7 +189,7 @@ impl HandOff {
             fn transfer_control(entry: u32) -> !;
         }
 
-        FirmwareHandoffTable::save(&self.fht);
+        unsafe { FirmwareHandoffTable::save(&self.fht) };
         // Retrieve runtime entry point
         let rt_entry = IccmAddress(self.rt_entry_point(env));
 

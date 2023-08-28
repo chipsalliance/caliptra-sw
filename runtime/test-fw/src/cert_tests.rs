@@ -12,7 +12,7 @@ use caliptra_test_harness::{runtime_handlers, test_suite};
 use zerocopy::AsBytes;
 
 fn mbox_responder() {
-    let mut fht = caliptra_common::FirmwareHandoffTable::try_load().unwrap();
+    let mut fht = unsafe { caliptra_common::FirmwareHandoffTable::try_load().unwrap() };
     let drivers = unsafe { Drivers::new_from_registers(&mut fht).unwrap() };
     let mut mbox = drivers.mbox;
 
