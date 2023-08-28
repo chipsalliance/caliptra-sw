@@ -10,7 +10,8 @@ pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if let Some(cmd) = InvokeDpeReq::read_from(cmd_args) {
-            let rt_pub_key = drivers.fht.rt_dice_pub_key;
+            let pdata = drivers.persistent_data.get();
+            let rt_pub_key = pdata.fht.rt_dice_pub_key;
             let mut crypto = DpeCrypto::new(
                 &mut drivers.sha384,
                 &mut drivers.trng,
@@ -24,7 +25,7 @@ impl InvokeDpeCmd {
                 .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
             let mut env = DpeEnv::<CptraDpeTypes> {
                 crypto,
-                platform: DpePlatform::new(drivers.manifest.header.pl0_pauser, hashed_rt_pub_key),
+                platform: DpePlatform::new(pdata.manifest1.header.pl0_pauser, hashed_rt_pub_key),
             };
 
             match drivers

@@ -12,8 +12,8 @@ use caliptra_test_harness::{runtime_handlers, test_suite};
 use zerocopy::AsBytes;
 
 fn mbox_responder() {
-    let mut fht = unsafe { caliptra_common::FirmwareHandoffTable::try_load().unwrap() };
-    let drivers = unsafe { Drivers::new_from_registers(&mut fht).unwrap() };
+    let drivers = unsafe { Drivers::new_from_registers().unwrap() };
+    assert!(drivers.persistent_data.get().fht.is_valid());
     let mut mbox = drivers.mbox;
 
     loop {
@@ -26,21 +26,38 @@ fn mbox_responder() {
             // Send LDevID Cert
             CommandId(0x1000_0000) => {
                 let mut ldev = [0u8; 1024];
-                dice::copy_ldevid_cert(&drivers.data_vault, &mut ldev).unwrap();
+                dice::copy_ldevid_cert(
+                    &drivers.data_vault,
+                    drivers.persistent_data.get(),
+                    &mut ldev,
+                )
+                .unwrap();
                 mbox.write_response(&ldev).unwrap();
                 mbox.set_status(MboxStatusE::DataReady);
             }
             // Send FMC Alias Cert
             CommandId(0x2000_0000) => {
                 let mut fmc = [0u8; 1024];
-                dice::copy_fmc_alias_cert(&drivers.data_vault, &mut fmc).unwrap();
+                dice::copy_fmc_alias_cert(
+                    &drivers.data_vault,
+                    drivers.persistent_data.get(),
+                    &mut fmc,
+                )
+                .unwrap();
                 mbox.write_response(&fmc).unwrap();
                 mbox.set_status(MboxStatusE::DataReady);
             }
             // Send IDevID Public Key
             CommandId(0x3000_0000) => {
-                mbox.write_response(drivers.fht.idev_dice_pub_key.as_bytes())
-                    .unwrap();
+                mbox.write_response(
+                    drivers
+                        .persistent_data
+                        .get()
+                        .fht
+                        .idev_dice_pub_key
+                        .as_bytes(),
+                )
+                .unwrap();
                 mbox.set_status(MboxStatusE::DataReady);
             }
             _ => {

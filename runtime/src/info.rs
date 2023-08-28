@@ -7,9 +7,11 @@ use caliptra_drivers::CaliptraResult;
 pub struct FwInfoCmd;
 impl FwInfoCmd {
     pub(crate) fn execute(drivers: &Drivers) -> CaliptraResult<MailboxResp> {
+        let pdata = drivers.persistent_data.get();
+
         let handoff = RtHandoff {
             data_vault: &drivers.data_vault,
-            fht: drivers.fht,
+            fht: &pdata.fht,
         };
 
         let runtime_svn = handoff.rt_svn()?;
@@ -18,7 +20,7 @@ impl FwInfoCmd {
 
         Ok(MailboxResp::FwInfo(FwInfoResp {
             hdr: MailboxRespHeader::default(),
-            pl0_pauser: drivers.manifest.header.pl0_pauser,
+            pl0_pauser: pdata.manifest1.header.pl0_pauser,
             runtime_svn,
             min_runtime_svn,
             fmc_manifest_svn,
