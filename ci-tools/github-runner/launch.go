@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	_ "embed"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -45,14 +46,16 @@ type RunnerInfo struct {
 	JitConfig string
 }
 
-func GitHubRegisterRunner(ctx context.Context, client *github.Client, machineTypeLabel string) (RunnerInfo, error) {
+type MachineConfig struct {
+	MachineTypeLabel string
+}
+
+func GitHubRegisterRunner(ctx context.Context, client *github.Client, labels []string) (RunnerInfo, error) {
 	name := fmt.Sprintf("gce-github-runner-%v", randId())
 	jitConfig, response, err := client.Actions.GenerateOrgJITConfig(ctx, githubOrg, &github.GenerateJITConfigRequest{
 		Name:          name,
 		RunnerGroupID: 1,
-		Labels: []string{
-			machineTypeLabel,
-		},
+		Labels:        labels,
 	})
 	if err != nil {
 		if response != nil {
@@ -67,9 +70,67 @@ func GitHubRegisterRunner(ctx context.Context, client *github.Client, machineTyp
 	}, nil
 }
 
+func isMachineType(label string) bool {
+	switch label {
+	case "e2-standard-2":
+		return true
+	case "e2-standard-4":
+		return true
+	case "e2-standard-8":
+		return true
+	case "e2-standard-16":
+		return true
+	case "e2-standard-32":
+		return true
+	case "e2-highcpu-2":
+		return true
+	case "e2-highcpu-4":
+		return true
+	case "e2-highcpu-8":
+		return true
+	case "e2-highcpu-16":
+		return true
+	case "e2-highcpu-32":
+		return true
+	default:
+		return false
+	}
+}
+
+type MachineInfo struct {
+	machineType  string
+	hasFpgaTools bool
+}
+
+func MachineInfoFromLabels(labels []string) (MachineInfo, error) {
+	result := MachineInfo{}
+
+	for _, item := range labels {
+		if isMachineType(item) {
+			if result.machineType != "" {
+				return result, fmt.Errorf("multiple machine type labels: %v, %v", result.machineType, item)
+			}
+			result.machineType = item
+		}
+		if item == "fpga-tools" {
+			result.hasFpgaTools = true
+		}
+	}
+	if result.machineType == "" {
+		return result, errors.New("missing machine type label")
+	}
+
+	return result, nil
+}
+
 // helloHTTP is an HTTP Cloud Function with a request parameter.
-func Launch(ctx context.Context, client *github.Client, machineTypeLabel string) error {
-	runner, err := GitHubRegisterRunner(ctx, client, machineTypeLabel)
+func Launch(ctx context.Context, client *github.Client, labels []string) error {
+	machineInfo, err := MachineInfoFromLabels(labels)
+	if err != nil {
+		return err
+	}
+
+	runner, err := GitHubRegisterRunner(ctx, client, labels)
 	if err != nil {
 		return err
 	}
@@ -79,6 +140,12 @@ func Launch(ctx context.Context, client *github.Client, machineTypeLabel string)
 		return err
 	}
 	disks := singleDisk("global/images/family/github-runner", 16)
+	if machineInfo.hasFpgaTools {
+		disks = append(disks, &computepb.AttachedDisk{
+			Source: proto.String(fmt.Sprintf("zones/%s/disks/fpga-tools", gcpZone)),
+			Mode:   proto.String("READ_ONLY"),
+		})
+	}
 
 	script := strings.ReplaceAll(launchStartupScript, "${JITCONFIG}", runner.JitConfig)
 
@@ -88,7 +155,7 @@ func Launch(ctx context.Context, client *github.Client, machineTypeLabel string)
 		InstanceResource: &computepb.Instance{
 			Name:        proto.String(runner.Name),
 			Disks:       disks,
-			MachineType: proto.String(fmt.Sprintf("zones/%v/machineTypes/%v", gcpZone, machineTypeLabel)),
+			MachineType: proto.String(fmt.Sprintf("zones/%v/machineTypes/%v", gcpZone, machineInfo.machineType)),
 			Metadata: metadata(map[string]string{
 				"enable-guest-attributes": "TRUE",
 				"serial-port-enable":      "TRUE",
