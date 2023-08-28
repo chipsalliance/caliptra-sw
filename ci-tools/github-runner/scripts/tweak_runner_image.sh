@@ -24,7 +24,8 @@ set -x
     # Install some commonly used packages
     apt-get -y install build-essential autoconf automake libtool manpages-dev flex \
         bison libfl2 libfl-dev help2man git gcc-riscv64-unknown-elf \
-        binutils-riscv64-unknown-elf pkg-config libssl-dev jq
+        binutils-riscv64-unknown-elf pkg-config libssl-dev jq libtinfo5 \
+        gcc-aarch64-linux-gnu squashfs-tools
 
     echo Retrieving latest GHA runner version
     RUNNER_VERSION="$(curl https://api.github.com/repos/actions/runner/releases/latest | jq -r '.tag_name[1:]')"
