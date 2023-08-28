@@ -188,7 +188,7 @@ impl FirmwareProcessor {
             core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
         };
 
-        txn.copy_request(slice)?;
+        txn.copy_request(slice.as_bytes_mut())?;
 
         let opt = ImageManifest::read_from(slice.as_bytes());
         let result = opt.is_some();
@@ -334,7 +334,7 @@ impl FirmwareProcessor {
             core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize / 4)
         };
 
-        txn.copy_request(fmc_dest)?;
+        txn.copy_request(fmc_dest.as_bytes_mut())?;
 
         cprintln!(
             "[afmc] Loading Runtime at address 0x{:08x} len {}",
@@ -347,7 +347,7 @@ impl FirmwareProcessor {
             core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize / 4)
         };
 
-        txn.copy_request(runtime_dest)?;
+        txn.copy_request(runtime_dest.as_bytes_mut())?;
 
         report_boot_status(FwProcessorLoadImageComplete.into());
         Ok(())

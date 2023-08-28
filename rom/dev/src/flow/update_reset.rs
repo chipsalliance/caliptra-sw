@@ -175,7 +175,7 @@ impl UpdateResetFlow {
             core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize / 4)
         };
 
-        txn.copy_request(runtime_dest)?;
+        txn.copy_request(runtime_dest.as_bytes_mut())?;
 
         //Call the complete here to reset the execute bit
         txn.complete(true)?;
@@ -195,7 +195,7 @@ impl UpdateResetFlow {
             core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
         };
 
-        txn.copy_request(slice)?;
+        txn.copy_request(slice.as_bytes_mut())?;
 
         ImageManifest::read_from(slice.as_bytes())
             .ok_or(CaliptraError::ROM_UPDATE_RESET_FLOW_MANIFEST_READ_FAILURE)
