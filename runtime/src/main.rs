@@ -36,7 +36,7 @@ const BANNER: &str = r#"
 #[no_mangle]
 pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
-    if let Some(mut fht) = caliptra_common::FirmwareHandoffTable::try_load() {
+    if let Some(mut fht) = unsafe { caliptra_common::FirmwareHandoffTable::try_load() } {
         let mut drivers = unsafe { Drivers::new_from_registers(&mut fht) }.unwrap_or_else(|e| {
             caliptra_common::report_handoff_error_and_halt("Runtime can't load drivers", e.into())
         });
