@@ -58,7 +58,7 @@ impl From<u16> for PcrLogEntryId {
 
 /// PCR log entry
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, Debug, Default, FromBytes)]
 pub struct PcrLogEntry {
     /// Entry identifier
     pub id: u16,
