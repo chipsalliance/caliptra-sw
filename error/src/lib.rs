@@ -398,7 +398,7 @@ impl CaliptraError {
         CaliptraError::new_const(0x0105000A);
 
     pub const ROM_GLOBAL_VAL_ROM_IN_PRODUCTION: CaliptraError =
-        CaliptraError::new_const(0x0105000A);
+        CaliptraError::new_const(0x0105000B);
 
     /// ROM KAT Errors
     pub const ROM_KAT_SHA256_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90010001);
