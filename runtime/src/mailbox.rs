@@ -1,7 +1,11 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_drivers::CaliptraResult;
-use caliptra_registers::mbox::{enums::MboxStatusE, MboxCsr};
+use caliptra_error::CaliptraError;
+use caliptra_registers::mbox::{
+    enums::{MboxFsmE, MboxStatusE},
+    MboxCsr,
+};
 use zerocopy::{AsBytes, LayoutVerified, Unalign};
 
 use crate::CommandId;
@@ -43,6 +47,26 @@ impl Mailbox {
         let cmd_code = mbox.cmd().read();
 
         CommandId(cmd_code)
+    }
+
+    pub fn lock(&mut self) -> bool {
+        let mbox = self.mbox.regs();
+        mbox.lock().read().lock()
+    }
+    pub fn unlock(&mut self) {
+        let mbox = self.mbox.regs_mut();
+        mbox.unlock().write(|_| 1.into());
+    }
+
+    pub fn write_cmd(&mut self, cmd: u32) -> CaliptraResult<()> {
+        let mbox = self.mbox.regs_mut();
+        match mbox.status().read().mbox_fsm_ps() {
+            MboxFsmE::MboxRdyForCmd => {
+                mbox.cmd().write(|_| cmd);
+                Ok(())
+            }
+            _ => Err(CaliptraError::RUNTIME_INTERNAL),
+        }
     }
 
     pub fn user(&self) -> u32 {
