@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_emu_bus::Clock;
+use caliptra_emu_bus::{Clock, Pic};
 use caliptra_emu_cpu::{Cpu, RvInstr, StepAction};
 use caliptra_emu_periph::soc_reg::DebugManufService;
 use caliptra_emu_periph::{
@@ -222,6 +222,7 @@ fn main() -> io::Result<()> {
 
     let log_dir = Rc::new(args_log_dir.to_path_buf());
 
+    let pic = Pic::new();
     let clock = Clock::new();
 
     let req_idevid_csr = args.get_flag("req-idevid-csr");
@@ -270,7 +271,7 @@ fn main() -> io::Result<()> {
         ..Default::default()
     };
 
-    let root_bus = CaliptraRootBus::new(&clock, bus_args);
+    let root_bus = CaliptraRootBus::new(&clock, &pic, bus_args);
     let soc_ifc = unsafe {
         caliptra_registers::soc_ifc::RegisterBlock::new_with_mmio(
             0x3003_0000 as *mut u32,
@@ -348,7 +349,7 @@ fn main() -> io::Result<()> {
         soc_ifc.fuse_idevid_cert_attr().write(&cert);
     }
 
-    let cpu = Cpu::new(root_bus, clock);
+    let cpu = Cpu::new(root_bus, clock, pic);
 
     // Check if Optional GDB Port is passed
     match args.get_one::<String>("gdb-port") {

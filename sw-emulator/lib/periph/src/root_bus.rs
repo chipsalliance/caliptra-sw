@@ -19,7 +19,7 @@ use crate::{
     AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha384, KeyVault, MailboxExternal,
     MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
 };
-use caliptra_emu_bus::{Clock, Ram, Rom};
+use caliptra_emu_bus::{Clock, Pic, PicMmioRegisters, Ram, Rom};
 use caliptra_emu_derive::Bus;
 use caliptra_hw_model_types::{EtrngResponse, RandomEtrngResponses, SecurityState};
 use std::path::PathBuf;
@@ -288,6 +288,9 @@ pub struct CaliptraRootBus {
 
     #[peripheral(offset = 0x5000_0000, mask = 0x0fff_ffff)]
     pub dccm: Ram,
+
+    #[peripheral(offset = 0xf00c_0000, mask = 0x0000_ffff)]
+    pub pic_regs: PicMmioRegisters,
 }
 
 impl CaliptraRootBus {
@@ -295,7 +298,7 @@ impl CaliptraRootBus {
     pub const ICCM_SIZE: usize = 128 * 1024;
     pub const DCCM_SIZE: usize = 128 * 1024;
 
-    pub fn new(clock: &Clock, mut args: CaliptraRootBusArgs) -> Self {
+    pub fn new(clock: &Clock, pic: &Pic, mut args: CaliptraRootBusArgs) -> Self {
         let mut key_vault = KeyVault::new();
         let mailbox_ram = MailboxRam::new();
         let mailbox = MailboxInternal::new(mailbox_ram.clone());
@@ -325,6 +328,7 @@ impl CaliptraRootBus {
             mailbox,
             sha512_acc: Sha512Accelerator::new(clock, mailbox_ram),
             csrng: Csrng::new(),
+            pic_regs: pic.mmio_regs(),
         }
     }
 
@@ -358,8 +362,10 @@ mod tests {
     #[test]
     fn test_keyvault_init_val_in_debug_unlocked_mode() {
         let clock = Clock::new();
+        let pic = Pic::new();
         let mut root_bus = CaliptraRootBus::new(
             &clock,
+            &pic,
             CaliptraRootBusArgs {
                 security_state: *SecurityState::default().set_debug_locked(false),
                 ..CaliptraRootBusArgs::default()
@@ -389,8 +395,10 @@ mod tests {
     #[test]
     fn test_keyvault_init_val_in_debug_locked_mode() {
         let clock = Clock::new();
+        let pic = Pic::new();
         let mut root_bus = CaliptraRootBus::new(
             &clock,
+            &pic,
             CaliptraRootBusArgs {
                 security_state: *SecurityState::default().set_debug_locked(true),
                 ..CaliptraRootBusArgs::default()
