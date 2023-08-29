@@ -412,4 +412,32 @@ fn fips_self_test() {
         &resp.as_bytes()[core::mem::size_of_val(&resp.chksum)..],
     ));
     assert_eq!(resp.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
+
+    // Confirm we can't re-start the FIPS self test.
+    hw.step_until_boot_status(
+        caliptra_runtime::RtBootStatus::RtFipSelfTestStarted.into(),
+        true,
+    );
+    let _resp = hw
+        .mailbox_execute(u32::from(CommandId::SELF_TEST), payload.as_bytes())
+        .unwrap_err();
+
+    hw.step_until_boot_status(
+        caliptra_runtime::RtBootStatus::RtFipSelfTestComplete.into(),
+        true,
+    );
+
+    let resp = hw
+        .mailbox_execute(u32::from(CommandId::SELF_TEST), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+
+    let resp = MailboxRespHeader::read_from(resp.as_slice()).unwrap();
+    // Verify checksum and FIPS status
+    assert!(caliptra_common::checksum::verify_checksum(
+        resp.chksum,
+        0x0,
+        &resp.as_bytes()[core::mem::size_of_val(&resp.chksum)..],
+    ));
+    assert_eq!(resp.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
 }

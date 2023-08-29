@@ -60,6 +60,7 @@ impl FipsVersionCmd {
 #[cfg(feature = "fips_self_test")]
 pub mod fips_self_test_cmd {
     use super::*;
+    use crate::RtBootStatus::{RtFipSelfTestComplete, RtFipSelfTestStarted};
     use caliptra_common::{verifier::FirmwareImageVerificationEnv, FMC_ORG, RUNTIME_ORG};
     use caliptra_drivers::ResetReason;
     use caliptra_image_verify::ImageVerifier;
@@ -70,8 +71,15 @@ pub mod fips_self_test_cmd {
         let ptr = org as *mut u8;
         core::slice::from_raw_parts_mut(ptr, size)
     }
+    pub enum SelfTestStatus {
+        Idle,
+        InProgress(fn(&mut Drivers) -> CaliptraResult<()>),
+        Done,
+    }
 
     fn copy_and_verify_image(env: &mut Drivers) -> CaliptraResult<()> {
+        cprintln!("write dummy cmd");
+        env.mbox.write_cmd(0)?;
         cprintln!("set dlen");
         env.mbox.set_dlen(
             env.persistent_data.get().manifest1.size
@@ -111,7 +119,7 @@ pub mod fips_self_test_cmd {
         };
 
         let mut verifier = ImageVerifier::new(&mut venv);
-        cprintln!("verify");
+        cprintln!("Verify started");
         let _info = verifier.verify(
             &env.persistent_data.get().manifest1,
             env.persistent_data.get().manifest1.size
@@ -119,17 +127,18 @@ pub mod fips_self_test_cmd {
                 + env.persistent_data.get().manifest1.runtime.size,
             ResetReason::UpdateReset,
         )?;
-        cprintln!("verify done");
+        env.mbox.unlock();
+        cprintln!("[rt] Verify complete");
         Ok(())
     }
 
-    pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<MailboxResp> {
+    pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<()> {
+        caliptra_drivers::report_boot_status(RtFipSelfTestStarted.into());
         cprintln!("[rt] FIPS self test");
-        caliptra_common::wdt::stop_wdt(&mut env.soc_ifc);
-        execute_kats(env)?;
         copy_and_verify_image(env)?;
-
-        Ok(MailboxResp::default())
+        execute_kats(env)?;
+        caliptra_drivers::report_boot_status(RtFipSelfTestComplete.into());
+        Ok(())
     }
 
     /// Execute KAT for cryptographic algorithms implemented in H/W.

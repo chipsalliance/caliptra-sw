@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 #![no_std]
+#![cfg_attr(not(feature = "fip-self-test"), allow(unused))]
 
 pub mod dice;
 mod disable;
@@ -26,17 +27,21 @@ pub use disable::DisableAttestationCmd;
 use dpe_crypto::DpeCrypto;
 pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
 #[cfg(feature = "fips_self_test")]
-pub use fips::fips_self_test_cmd;
+pub use fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
+
 pub use fips::{FipsShutdownCmd, FipsVersionCmd};
 pub use info::{FwInfoCmd, IDevIdCertCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::EcdsaVerifyCmd;
 pub mod packet;
+use caliptra_common::mailbox_api::CommandId;
 use packet::Packet;
 
 use caliptra_common::cprintln;
-use caliptra_common::mailbox_api::CommandId;
+#[cfg(feature = "fips_self_test")]
+use caliptra_common::mailbox_api::MailboxResp;
+
 use caliptra_drivers::{
     CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault, Lms, PersistentDataAccessor, Sha1,
     SocIfc,
@@ -67,6 +72,8 @@ const RUNTIME_BOOT_STATUS_BASE: u32 = 0x600;
 pub enum RtBootStatus {
     // RtAlias Statuses
     RtReadyForCommands = RUNTIME_BOOT_STATUS_BASE,
+    RtFipSelfTestStarted = RUNTIME_BOOT_STATUS_BASE + 1,
+    RtFipSelfTestComplete = RUNTIME_BOOT_STATUS_BASE + 2,
 }
 
 impl From<RtBootStatus> for u32 {
@@ -113,6 +120,9 @@ pub struct Drivers {
     pub pcr_bank: PcrBank,
 
     pub cert_chain: ArrayVec<u8, MAX_CERT_CHAIN_SIZE>,
+
+    #[cfg(feature = "fips_self_test")]
+    pub self_test_status: SelfTestStatus,
 }
 
 pub struct CptraDpeTypes;
@@ -183,6 +193,8 @@ impl Drivers {
             persistent_data,
             dpe,
             pcr_bank,
+            #[cfg(feature = "fips_self_test")]
+            self_test_status: SelfTestStatus::Idle,
             cert_chain,
         })
     }
@@ -253,7 +265,19 @@ impl Drivers {
     }
 }
 
-fn wait_for_cmd(_mbox: &mut Mailbox) {
+/// Run pending jobs and enter low power mode.
+fn goto_idle(drivers: &mut Drivers) {
+    // Run pending jobs before entering low power mode.
+    #[cfg(feature = "fips_self_test")]
+    if let SelfTestStatus::InProgress(execute) = drivers.self_test_status {
+        if drivers.mbox.lock() == false {
+            match execute(drivers) {
+                Ok(_) => drivers.self_test_status = SelfTestStatus::Done,
+                Err(e) => caliptra_drivers::report_fw_error_non_fatal(e.into()),
+            }
+        }
+    }
+
     // TODO: Enable interrupts?
     //#[cfg(feature = "riscv")]
     //unsafe {
@@ -304,7 +328,17 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::TEST_ONLY_HMAC384_VERIFY => HmacVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::VERSION => FipsVersionCmd::execute(drivers),
         #[cfg(feature = "fips_self_test")]
-        CommandId::SELF_TEST => fips_self_test_cmd::execute(drivers),
+        CommandId::SELF_TEST => match drivers.self_test_status {
+            SelfTestStatus::Idle => {
+                drivers.self_test_status = SelfTestStatus::InProgress(fips_self_test_cmd::execute);
+                Ok(MailboxResp::default())
+            }
+            SelfTestStatus::Done => {
+                drivers.self_test_status = SelfTestStatus::Idle;
+                Ok(MailboxResp::default())
+            }
+            _ => Err(CaliptraError::RUNTIME_SELF_TEST_IN_PROGREESS),
+        },
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }?;
@@ -320,7 +354,7 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> ! {
     drivers.soc_ifc.assert_ready_for_runtime();
     caliptra_drivers::report_boot_status(RtBootStatus::RtReadyForCommands.into());
     loop {
-        wait_for_cmd(&mut drivers.mbox);
+        goto_idle(drivers);
         if drivers.mbox.is_cmd_ready() {
             // TODO : Move start/stop WDT to wait_for_cmd when NMI is implemented.
             caliptra_common::wdt::start_wdt(
@@ -338,6 +372,7 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> ! {
                 }
             }
             caliptra_common::wdt::stop_wdt(&mut drivers.soc_ifc);
+        } else {
         }
     }
 }
