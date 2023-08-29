@@ -59,10 +59,8 @@ typedef struct caliptra_output {
     caliptra_checksum chksum;
     enum fips_status fips;
     uint32_t data_size;
-    uint8_t data[]; // Flexible array member, size depends on usage
+    uint8_t data[512]; 
 }caliptra_output;
-
-int greet(struct person *p);
 
 /**
  * # Safety
