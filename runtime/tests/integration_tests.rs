@@ -4,8 +4,9 @@ pub mod common;
 
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART};
 use caliptra_common::mailbox_api::{
-    CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, InvokeDpeReq, InvokeDpeResp,
-    MailboxReqHeader, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp, GetIdevInfoResp
+    CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, GetIdevCertReq, GetIdevCertResp,
+    GetIdevInfoResp, InvokeDpeReq, InvokeDpeResp, MailboxReqHeader, MailboxRespHeader,
+    StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_drivers::Ecc384PubKey;
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError, ShaAccMode};
@@ -720,3 +721,37 @@ fn test_idev_id_info() {
     GetIdevInfoResp::read_from(resp.as_slice()).unwrap();
 }
 
+#[test]
+fn test_idev_id_cert() {
+    let mut model = run_rt_test(None, None);
+
+    let fake_tbs = [0xef, 0xbe, 0xad, 0xde];
+
+    let mut tbs: [u8; GetIdevCertReq::DATA_MAX_SIZE] = [0; GetIdevCertReq::DATA_MAX_SIZE];
+    tbs[..fake_tbs.len()].copy_from_slice(&fake_tbs);
+    let cmd = GetIdevCertReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        tbs,
+        signature_r: [0; 48],
+        signature_s: [0; 48],
+        tbs_size: fake_tbs.len().try_into().unwrap(),
+    };
+
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::GET_IDEV_CERT),
+        &cmd.as_bytes()[4..],
+    );
+
+    let cmd = GetIdevCertReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..cmd
+    };
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::GET_IDEV_CERT), cmd.as_bytes())
+        .unwrap()
+        .expect("We expected a response");
+
+    let cert = GetIdevCertResp::read_from(resp.as_slice()).unwrap();
+    assert!(cmd.tbs_size < cert.cert_size);
+}

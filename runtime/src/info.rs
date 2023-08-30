@@ -1,8 +1,12 @@
 // Licensed under the Apache-2.0 license
 
 use crate::{handoff::RtHandoff, Drivers};
-use caliptra_common::mailbox_api::{FwInfoResp, MailboxResp, MailboxRespHeader, GetIdevInfoResp};
-use caliptra_drivers::CaliptraResult;
+use caliptra_common::mailbox_api::{
+    FwInfoResp, GetIdevCertReq, GetIdevCertResp, GetIdevInfoResp, MailboxResp, MailboxRespHeader,
+};
+use caliptra_drivers::{CaliptraError, CaliptraResult};
+use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature};
+use zerocopy::FromBytes;
 
 pub struct FwInfoCmd;
 impl FwInfoCmd {
@@ -42,3 +46,42 @@ impl IDevIdInfoCmd {
     }
 }
 
+pub struct IDevIdCertCmd;
+impl IDevIdCertCmd {
+    pub(crate) fn execute(cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+        if let Some(cmd) = GetIdevCertReq::read_from(cmd_args) {
+            // Validate tbs
+            let Ok(in_len) = usize::try_from(cmd.tbs_size) else {
+                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+            };
+            if in_len > cmd.tbs.len() {
+                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+            }
+
+            let sig = Ecdsa384Signature {
+                r: cmd.signature_r,
+                s: cmd.signature_s,
+            };
+
+            let Some(builder) = Ecdsa384CertBuilder::new(&cmd.tbs[..in_len], &sig) else {
+                return Err(CaliptraError::RUNTIME_GET_DEVID_CERT_FAILED);
+            };
+
+            let mut cert = [0; GetIdevCertResp::DATA_MAX_SIZE];
+            let Some(cert_size) = builder.build(&mut cert) else {
+                return Err(CaliptraError::RUNTIME_GET_DEVID_CERT_FAILED);
+            };
+            let Ok(cert_size) = u32::try_from(cert_size) else {
+                return Err(CaliptraError::RUNTIME_GET_DEVID_CERT_FAILED);
+            };
+
+            Ok(MailboxResp::GetIdevCert(GetIdevCertResp {
+                hdr: MailboxRespHeader::default(),
+                cert_size,
+                cert,
+            }))
+        } else {
+            Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
+        }
+    }
+}
