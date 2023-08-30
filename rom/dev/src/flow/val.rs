@@ -81,9 +81,11 @@ impl ValRomFlow {
 
 // ROM Verification Environemnt
 pub(crate) struct ValRomImageVerificationEnv<'a> {
+    pub(crate) sha256: &'a mut Sha256,
     pub(crate) sha384_acc: &'a mut Sha384Acc,
     pub(crate) soc_ifc: &'a mut SocIfc,
     pub(crate) data_vault: &'a mut DataVault,
+    pub(crate) ecc384: &'a mut Ecc384,
 }
 
 impl<'a> ImageVerificationEnv for &mut ValRomImageVerificationEnv<'a> {
@@ -101,22 +103,52 @@ impl<'a> ImageVerificationEnv for &mut ValRomImageVerificationEnv<'a> {
     /// ECC-384 Verification routine
     fn ecc384_verify(
         &mut self,
-        _digest: &ImageDigest,
-        _pub_key: &ImageEccPubKey,
+        digest: &ImageDigest,
+        pub_key: &ImageEccPubKey,
         sig: &ImageEccSignature,
     ) -> CaliptraResult<Array4xN<12, 48>> {
-        // Mock verify, just always return success
-        Ok(Array4x12::from(sig.r))
+        let real_verify = self.soc_ifc.verify_in_val_mode();
+        cprintln!("cptra_dbg_manuf_service_reg val is {}", real_verify);
+
+        if real_verify {
+            let pub_key = Ecc384PubKey {
+                x: pub_key.x.into(),
+                y: pub_key.y.into(),
+            };
+
+            let digest: Array4x12 = digest.into();
+
+            let sig = Ecc384Signature {
+                r: sig.r.into(),
+                s: sig.s.into(),
+            };
+
+            self.ecc384.verify_r(&pub_key, &digest, &sig)
+        } else {
+            // Mock verify, just always return success
+            Ok(Array4x12::from(sig.r))
+        }
     }
 
     fn lms_verify(
         &mut self,
-        _digest: &ImageDigest,
+        digest: &ImageDigest,
         pub_key: &ImageLmsPublicKey,
-        _sig: &ImageLmsSignature,
+        sig: &ImageLmsSignature,
     ) -> CaliptraResult<HashValue<SHA192_DIGEST_WORD_SIZE>> {
-        // Mock verify, just always return success
-        Ok(HashValue::from(pub_key.digest))
+        let real_verify = self.soc_ifc.verify_in_val_mode();
+        cprintln!("cptra_dbg_manuf_service_reg val is {}", real_verify);
+
+        if real_verify {
+            let mut message = [0u8; SHA384_DIGEST_BYTE_SIZE];
+            for i in 0..digest.len() {
+                message[i * 4..][..4].copy_from_slice(&digest[i].to_be_bytes());
+            }
+            Lms::default().verify_lms_signature_cfi(self.sha256, &message, pub_key, sig)
+        } else {
+            // Mock verify, just always return success
+            Ok(HashValue::from(pub_key.digest))
+        }
     }
 
     /// Retrieve Vendor Public Key Digest
