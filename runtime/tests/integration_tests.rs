@@ -5,7 +5,7 @@ pub mod common;
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART};
 use caliptra_common::mailbox_api::{
     CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, InvokeDpeReq, InvokeDpeResp,
-    MailboxReqHeader, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
+    MailboxReqHeader, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp, GetIdevInfoResp
 };
 use caliptra_drivers::Ecc384PubKey;
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError, ShaAccMode};
@@ -703,3 +703,20 @@ fn test_unimplemented_cmds() {
     let resp = model.mailbox_execute(INVALID_CMD, payload.as_bytes());
     assert_eq!(resp, expected_err);
 }
+
+#[test]
+fn test_idev_id_info() {
+    let mut model = run_rt_test(None, None);
+
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_IDEV_INFO), &[]),
+    };
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::GET_IDEV_INFO), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+
+    GetIdevInfoResp::read_from(resp.as_slice()).unwrap();
+}
+
