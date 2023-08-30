@@ -551,12 +551,12 @@ fn test_lms_lower_32() {
     };
 
     let final_result = Lms::default()
-        .verify_lms_signature(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &FINAL_LMS_SIG)
+        .verify_lms_signature_generic(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &FINAL_LMS_SIG)
         .unwrap();
     assert_eq!(final_result, LmsResult::Success);
 
     let candidate_key = Lms::default()
-        .verify_lms_signature_cfi(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &FINAL_LMS_SIG)
+        .verify_lms_signature_cfi_generic(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &FINAL_LMS_SIG)
         .unwrap();
     assert_eq!(candidate_key, HashValue::from(LMS_PUBLIC_KEY.digest));
 }
@@ -815,7 +815,7 @@ fn test_hss_upper_32() {
     };
 
     let result = Lms::default()
-        .verify_lms_signature(
+        .verify_lms_signature_generic(
             &mut sha256,
             &PUBLIC_BUFFER,
             &HSS_PUBLIC_KEY,
