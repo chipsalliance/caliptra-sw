@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use crate::{handoff::RtHandoff, Drivers};
-use caliptra_common::mailbox_api::{FwInfoResp, MailboxResp, MailboxRespHeader};
+use caliptra_common::mailbox_api::{FwInfoResp, MailboxResp, MailboxRespHeader, GetIdevInfoResp};
 use caliptra_drivers::CaliptraResult;
 
 pub struct FwInfoCmd;
@@ -27,3 +27,18 @@ impl FwInfoCmd {
         }))
     }
 }
+
+pub struct IDevIdInfoCmd;
+impl IDevIdInfoCmd {
+    pub(crate) fn execute(drivers: &Drivers) -> CaliptraResult<MailboxResp> {
+        let pdata = drivers.persistent_data.get();
+        let pub_key = pdata.fht.idev_dice_pub_key;
+
+        Ok(MailboxResp::GetIdevInfo(GetIdevInfoResp {
+            hdr: MailboxRespHeader::default(),
+            idev_pub_x: pub_key.x.into(),
+            idev_pub_y: pub_key.y.into(),
+        }))
+    }
+}
+
