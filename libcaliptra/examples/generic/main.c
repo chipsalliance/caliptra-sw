@@ -93,6 +93,39 @@ int main(int argc, char *argv[])
             printf("Stash measurement: OK\n");
         }
 
+        // Call DPE GetProfile
+        struct dpe_get_profile {
+            uint32_t magic;
+            uint32_t cmd;
+            uint32_t profile;
+        };
+
+
+        struct dpe_get_profile dpe_cmd = {
+            .magic = 0x44504543,
+            .cmd = 0x1,
+        };
+        struct caliptra_dpe_req req = {0};
+        struct caliptra_dpe_resp resp = {0};
+
+        // DPE caliptra commands should always use the full data buffer
+        req.data_size = sizeof(req.data);
+        memcpy(req.data, &dpe_cmd, sizeof(dpe_cmd));
+
+        status = caliptra_dpe_command(&req, &resp);
+        if (status)
+        {
+            printf("GetProfile failed! %d\n", status);
+        }
+        else
+        {
+            printf("GetProfile: OK\n");
+            printf("\tmajor version: %d\n", resp.get_profile.major_version);
+            printf("\tminor version: %d\n", resp.get_profile.minor_version);
+            printf("\tvendor id: %d\n", resp.get_profile.vendor_id);
+            printf("\tvendor sku: %d\n", resp.get_profile.vendor_sku);
+        }
+
         break;
     }
 
