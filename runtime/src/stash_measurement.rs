@@ -33,7 +33,11 @@ impl StashMeasurementCmd {
                 .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
             let mut env = DpeEnv::<CptraDpeTypes> {
                 crypto,
-                platform: DpePlatform::new(pdata.manifest1.header.pl0_pauser, hashed_rt_pub_key),
+                platform: DpePlatform::new(
+                    pdata.manifest1.header.pl0_pauser,
+                    hashed_rt_pub_key,
+                    &mut drivers.cert_chain,
+                ),
             };
 
             let locality = drivers.mbox.user();

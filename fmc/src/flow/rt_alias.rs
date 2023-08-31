@@ -318,8 +318,9 @@ impl RtAliasLayer {
 
         hand_off.set_rt_dice_signature(sig);
 
-        //  Copy TBS to DCCM.
+        //  Copy TBS to DCCM and set size in FHT.
         Self::copy_tbs(tbs.tbs(), env.persistent_data.get_mut())?;
+        hand_off.set_rtalias_tbs_size(tbs.tbs().len());
 
         report_boot_status(FmcBootStatus::RtAliasCertSigGenerationComplete as u32);
 

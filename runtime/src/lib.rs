@@ -16,6 +16,7 @@ mod verify;
 
 // Used by runtime tests
 pub mod mailbox;
+use arrayvec::ArrayVec;
 use crypto::{AlgLen, Crypto};
 use mailbox::Mailbox;
 
@@ -74,6 +75,7 @@ impl From<RtBootStatus> for u32 {
 }
 
 pub const DPE_SUPPORT: Support = Support::all();
+pub const MAX_CERT_CHAIN_SIZE: usize = 4096;
 
 pub struct Drivers {
     pub mbox: Mailbox,
@@ -103,13 +105,15 @@ pub struct Drivers {
     pub dpe: DpeInstance,
 
     pub pcr_bank: PcrBank,
+
+    pub cert_chain: ArrayVec<u8, MAX_CERT_CHAIN_SIZE>,
 }
 
 pub struct CptraDpeTypes;
 
 impl DpeTypes for CptraDpeTypes {
     type Crypto<'a> = DpeCrypto<'a>;
-    type Platform<'a> = DpePlatform;
+    type Platform<'a> = DpePlatform<'a>;
 }
 
 impl Drivers {
@@ -131,7 +135,7 @@ impl Drivers {
         let mut hmac384 = Hmac384::new(HmacReg::new());
         let mut key_vault = KeyVault::new(KvReg::new());
 
-        let persistent_data = PersistentDataAccessor::new();
+        let mut persistent_data = PersistentDataAccessor::new();
 
         let locality = persistent_data.get().manifest1.header.pl0_pauser;
         let rt_pub_key = persistent_data.get().fht.rt_dice_pub_key;
@@ -147,9 +151,11 @@ impl Drivers {
         let hashed_rt_pub_key = crypto
             .hash(AlgLen::Bit384, &rt_pub_key.to_der()[1..])
             .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
+        let mut data_vault = DataVault::new(DvReg::new());
+        let mut cert_chain = Self::create_cert_chain(&mut data_vault, &mut persistent_data)?;
         let env = DpeEnv::<CptraDpeTypes> {
             crypto,
-            platform: DpePlatform::new(locality, hashed_rt_pub_key),
+            platform: DpePlatform::new(locality, hashed_rt_pub_key, &mut cert_chain),
         };
         let mut pcr_bank = PcrBank::new(PvReg::new());
         let dpe = Self::initialize_dpe(env, &mut pcr_bank, locality)?;
@@ -157,7 +163,7 @@ impl Drivers {
         Ok(Self {
             mbox: Mailbox::new(MboxCsr::new()),
             sha_acc: Sha512AccCsr::new(),
-            data_vault: DataVault::new(DvReg::new()),
+            data_vault,
             key_vault,
             soc_ifc: SocIfc::new(SocIfcReg::new()),
             sha256: Sha256::new(Sha256Reg::new()),
@@ -169,6 +175,7 @@ impl Drivers {
             persistent_data,
             dpe,
             pcr_bank,
+            cert_chain,
         })
     }
 
@@ -193,6 +200,48 @@ impl Drivers {
         .execute(&mut dpe, &mut env, locality)
         .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
         Ok(dpe)
+    }
+
+    fn create_cert_chain(
+        data_vault: &mut DataVault,
+        persistent_data: &mut PersistentDataAccessor,
+    ) -> CaliptraResult<ArrayVec<u8, MAX_CERT_CHAIN_SIZE>> {
+        let mut cert = [0u8; MAX_CERT_CHAIN_SIZE];
+        let ldevid_cert_size = dice::copy_ldevid_cert(data_vault, persistent_data.get(), &mut cert)
+            .map_err(|_| CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?;
+        if ldevid_cert_size > cert.len() {
+            return Err(CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED);
+        }
+        let fmcalias_cert_size = dice::copy_fmc_alias_cert(
+            data_vault,
+            persistent_data.get(),
+            &mut cert[ldevid_cert_size..],
+        )
+        .map_err(|_| CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?;
+        if ldevid_cert_size + fmcalias_cert_size > cert.len() {
+            return Err(CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED);
+        }
+        let rtalias_cert_size = dice::copy_rt_alias_cert(
+            data_vault,
+            persistent_data.get(),
+            &mut cert[ldevid_cert_size + fmcalias_cert_size..],
+        )
+        .map_err(|_| CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?;
+        let cert_chain_size = ldevid_cert_size + fmcalias_cert_size + rtalias_cert_size;
+        if cert_chain_size > cert.len() {
+            return Err(CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED);
+        }
+        let mut cert_chain = ArrayVec::<u8, MAX_CERT_CHAIN_SIZE>::new();
+        for i in 0..cert_chain_size {
+            cert_chain
+                .try_push(
+                    *cert
+                        .get(i)
+                        .ok_or(CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?,
+                )
+                .map_err(|_| CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?;
+        }
+        Ok(cert_chain)
     }
 }
 

@@ -310,6 +310,8 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E0011);
     pub const RUNTIME_HANDOFF_INVALID_PARM: CaliptraError = CaliptraError::new_const(0x000E0012);
     pub const RUNTIME_GET_DEVID_CERT_FAILED: CaliptraError = CaliptraError::new_const(0x000E0013);
+    pub const RUNTIME_CERT_CHAIN_CREATION_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E0014);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
