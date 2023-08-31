@@ -538,9 +538,7 @@ impl StateMachineContext for Context {
         self.status.set(0);
     }
     fn dequeue(&mut self) {
-        if let Ok(data_out) = self.fifo.dequeue() {
-            self.data_out = data_out;
-        }
+        self.data_out = self.fifo.dequeue().unwrap_or(0);
     }
     fn enqueue(&mut self, data_in: &DataIn) {
         self.fifo.enqueue(data_in.0);
@@ -886,16 +884,15 @@ mod tests {
             (MAX_MAILBOX_CAPACITY_BYTES + 4) as u32
         );
 
-        let mut data_out = 0;
         for data_in in (0..MAX_MAILBOX_CAPACITY_BYTES).step_by(4) {
             // Read dataout
-            data_out = uc_regs.dataout().read();
+            let data_out = uc_regs.dataout().read();
             // compare with queued data.
             assert_eq!(data_in as u32, data_out);
         }
 
-        // Read an additional DWORD. This should return the last word
-        assert_eq!(uc_regs.dataout().read(), data_out);
+        // Read an additional DWORD. This should return zero
+        assert_eq!(uc_regs.dataout().read(), 0);
 
         uc_regs.status().write(|w| w.status(|w| w.cmd_complete()));
 
