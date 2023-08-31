@@ -634,6 +634,7 @@ dependencies = [
 name = "caliptra-runtime"
 version = "0.1.0"
 dependencies = [
+ "arrayvec",
  "caliptra-builder",
  "caliptra-cpu",
  "caliptra-drivers",

@@ -289,6 +289,10 @@ impl HandOff {
         self.fht.rt_dice_sign = *sig;
     }
 
+    pub fn set_rtalias_tbs_size(&mut self, rtalias_tbs_size: usize) {
+        self.fht.rtalias_tbs_size = rtalias_tbs_size as u16;
+    }
+
     /// Retrieve image manifest load address in DCCM
     pub fn image_manifest_address(&self, _env: &FmcEnv) -> u32 {
         if !DccmAddress(self.fht.manifest_load_addr).is_valid() {

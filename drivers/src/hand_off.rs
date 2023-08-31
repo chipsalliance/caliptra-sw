@@ -285,8 +285,11 @@ pub struct FirmwareHandoffTable {
     // Address of RomInfo struct
     pub rom_info_addr: RomAddr<RomInfo>,
 
+    /// RtAlias TBS Size.
+    pub rtalias_tbs_size: u16,
+
     /// Reserved for future use.
-    pub reserved: [u8; 128],
+    pub reserved: [u8; 126],
 }
 
 impl Default for FirmwareHandoffTable {
@@ -313,7 +316,8 @@ impl Default for FirmwareHandoffTable {
             rt_min_svn_dv_hdl: FHT_INVALID_HANDLE,
             ldevid_tbs_size: 0,
             fmcalias_tbs_size: 0,
-            reserved: [0u8; 128],
+            rtalias_tbs_size: 0,
+            reserved: [0u8; 126],
             ldevid_tbs_addr: 0,
             fmcalias_tbs_addr: 0,
             pcr_log_addr: 0,
@@ -378,6 +382,7 @@ pub fn print_fht(fht: &FirmwareHandoffTable) {
     crate::cprintln!("LdevId TBS Size: {} bytes", fht.ldevid_tbs_size);
     crate::cprintln!("FmcAlias TBS Address: 0x{:08x}", fht.fmcalias_tbs_addr);
     crate::cprintln!("FmcAlias TBS Size: {} bytes", fht.fmcalias_tbs_size);
+    crate::cprintln!("RtAlias TBS Size: {} bytes", fht.rtalias_tbs_size);
     crate::cprintln!("PCR log Address: 0x{:08x}", fht.pcr_log_addr);
     crate::cprintln!("Fuse log Address: 0x{:08x}", fht.fuse_log_addr);
 }
@@ -507,6 +512,7 @@ mod tests {
             && fht.fips_fw_load_addr_hdl == FHT_INVALID_HANDLE
             && fht.ldevid_tbs_size == 0
             && fht.fmcalias_tbs_size == 0
+            && fht.rtalias_tbs_size == 0
             && fht.ldevid_tbs_addr != 0
             && fht.fmcalias_tbs_addr != 0
             && fht.pcr_log_addr != 0

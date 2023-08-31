@@ -19,6 +19,7 @@ crypto.workspace = true
 platform.workspace = true
 ufmt.workspace = true
 zerocopy.workspace = true
+arrayvec.workspace = true
 
 [build-dependencies]
 caliptra_common = { workspace = true, default-features = false }
