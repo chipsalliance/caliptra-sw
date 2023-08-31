@@ -16,6 +16,7 @@ mod verify;
 
 // Used by runtime tests
 pub mod mailbox;
+use crypto::{AlgLen, Crypto};
 use mailbox::Mailbox;
 
 #[cfg(feature = "test_only_commands")]
@@ -116,7 +117,7 @@ pub struct CptraDpeTypes;
 
 impl DpeTypes for CptraDpeTypes {
     type Crypto<'a> = DpeCrypto<'a>;
-    type Platform = DpePlatform;
+    type Platform<'a> = DpePlatform;
 }
 
 impl<'a> Drivers<'a> {
@@ -148,16 +149,22 @@ impl<'a> Drivers<'a> {
         let mut key_vault = KeyVault::new(KvReg::new());
 
         let locality = manifest.header.pl0_pauser;
+        let rt_pub_key = fht.rt_dice_pub_key;
+        let mut crypto = DpeCrypto::new(
+            &mut sha384,
+            &mut trng,
+            &mut ecc384,
+            &mut hmac384,
+            &mut key_vault,
+            rt_pub_key,
+        );
+        // Skip hashing first 0x04 byte of der encoding
+        let hashed_rt_pub_key = crypto
+            .hash(AlgLen::Bit384, &rt_pub_key.to_der()[1..])
+            .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
         let env = DpeEnv::<CptraDpeTypes> {
-            crypto: DpeCrypto::new(
-                &mut sha384,
-                &mut trng,
-                &mut ecc384,
-                &mut hmac384,
-                &mut key_vault,
-                fht.rt_dice_pub_key,
-            ),
-            platform: DpePlatform::new(locality),
+            crypto,
+            platform: DpePlatform::new(locality, hashed_rt_pub_key),
         };
         let mut pcr_bank = PcrBank::new(PvReg::new());
         let dpe = Self::initialize_dpe(env, &mut pcr_bank, locality)?;
