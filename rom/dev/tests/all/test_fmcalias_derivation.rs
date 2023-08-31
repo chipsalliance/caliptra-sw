@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use crate::helpers;
 use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, ROM_WITH_UART};
 use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, StashMeasurementReq};
 use caliptra_common::memory_layout::*;
@@ -17,7 +18,6 @@ use caliptra_image_openssl::OsslCrypto;
 use caliptra_image_types::IMAGE_BYTE_SIZE;
 use openssl::hash::{Hasher, MessageDigest};
 use zerocopy::{AsBytes, FromBytes};
-pub mod helpers;
 
 const PCR0_AND_PCR1_EXTENDED_ID: u32 = (1 << PcrId::PcrId0 as u8) | (1 << PcrId::PcrId1 as u8);
 const PCR31_EXTENDED_ID: u32 = 1 << PcrId::PcrId31 as u8;

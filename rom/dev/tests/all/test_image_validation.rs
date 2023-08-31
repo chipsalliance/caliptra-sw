@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use crate::helpers;
 use caliptra_builder::FwId;
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
 use caliptra_common::memory_layout::{ICCM_ORG, ICCM_SIZE};
@@ -29,8 +30,6 @@ use openssl::x509::X509Req;
 use openssl::x509::X509;
 use std::str;
 use zerocopy::AsBytes;
-
-pub mod helpers;
 
 const ICCM_END_ADDR: u32 = ICCM_ORG + ICCM_SIZE - 1;
 

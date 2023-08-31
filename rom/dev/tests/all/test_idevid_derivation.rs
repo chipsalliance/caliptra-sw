@@ -1,11 +1,10 @@
 // Licensed under the Apache-2.0 license
 
+use crate::helpers;
 use caliptra_builder::ImageOptions;
 use caliptra_drivers::{IdevidCertAttr, MfgFlags, X509KeyIdAlgo};
 use caliptra_hw_model::{Fuses, HwModel};
 use std::io::Write;
-
-pub mod helpers;
 
 #[test]
 fn test_generate_csr() {

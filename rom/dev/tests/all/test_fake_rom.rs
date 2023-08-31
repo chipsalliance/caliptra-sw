@@ -8,8 +8,6 @@ use caliptra_hw_model::{
     BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError, SecurityState,
 };
 
-pub mod helpers;
-
 const TEST_FMC_CMD_RESET_FOR_UPDATE: u32 = 0x1000_0004;
 
 const PUB_KEY_X: [u8; 48] = [
