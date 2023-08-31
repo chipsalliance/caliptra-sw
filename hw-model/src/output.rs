@@ -253,6 +253,22 @@ impl Output {
     }
 }
 
+// A std::io::Write implementation that redirects to print!(). This is different
+// than std::io::stdout() because the cargo test infrastructure will capture the
+// output and only display it when a test fails.
+#[derive(Default)]
+pub struct PrintWriter {}
+impl std::io::Write for PrintWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        print!("{}", String::from_utf8_lossy(buf));
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
