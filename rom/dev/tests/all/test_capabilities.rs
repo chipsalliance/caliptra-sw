@@ -1,11 +1,10 @@
 // Licensed under the Apache-2.0 license
 
+use crate::helpers;
 use caliptra_builder::ImageOptions;
 use caliptra_common::{capabilities::Capabilities, mailbox_api::CommandId};
 use caliptra_hw_model::{Fuses, HwModel};
 use zerocopy::AsBytes;
-
-pub mod helpers;
 
 #[test]
 fn test_capabilities() {

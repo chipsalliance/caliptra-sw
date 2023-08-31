@@ -1,12 +1,11 @@
 // Licensed under the Apache-2.0 license
 
+use crate::helpers;
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::RomBootStatus::*;
 use caliptra_hw_model::Fuses;
 use caliptra_hw_model::HwModel;
-
-pub mod helpers;
 
 #[test]
 fn test_cold_reset_status_reporting() {
