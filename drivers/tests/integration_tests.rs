@@ -433,11 +433,9 @@ fn test_mailbox_soc_to_uc() {
             "cmd: 0x60000000\n\
              dlen: 12\n\
              buf: [67452301, efcdab89]\n\
-             buf: [33221100, 33221100]\n"
+             buf: [33221100, 00000000]\n"
         );
         assert_eq!(resp, None);
-        // TODO: It is not optimal that the driver copies the last word in the
-        // FIFO to the extra array location.
 
         // Try again, but with no data in the FIFO
         let resp = model.mailbox_execute(0x6000_0000, &[]).unwrap();
