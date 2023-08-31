@@ -586,7 +586,7 @@ fn test_mailbox_uc_to_soc() {
 }
 
 #[test]
-fn test_mailbox_negative_tests() {
+fn test_uc_to_soc_error_state() {
     let mut model = start_driver_test("mailbox_driver_negative_tests").unwrap();
     let txn = model.wait_for_mailbox_receive().unwrap();
 
@@ -600,18 +600,27 @@ fn test_mailbox_negative_tests() {
     // Check we can't release the lock on the receiver side.
     model.soc_mbox().execute().write(|w| w.execute(false));
 
-    assert!(model
-        .soc_mbox()
-        .status()
-        .read()
-        .mbox_fsm_ps()
-        .mbox_execute_soc());
+    assert!(model.soc_mbox().status().read().mbox_fsm_ps().mbox_error());
 
-    // Finally, respond :
+    // Try to respond...
     model
         .soc_mbox()
         .status()
         .write(|w| w.status(|_| MboxStatusE::DataReady));
+
+    // But we're still in the error state
+    assert!(model.soc_mbox().status().read().mbox_fsm_ps().mbox_error());
+
+    // Wait for the test-case to force unlock the mailbox
+    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+
+    let _txn = model.wait_for_mailbox_receive().unwrap();
+    model.soc_mbox().execute().write(|w| w.execute(true));
+
+    assert!(model.soc_mbox().status().read().mbox_fsm_ps().mbox_error());
+
+    // Wait for the test-case to force unlock the mailbox
+    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 }
 
 #[test]
