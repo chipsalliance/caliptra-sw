@@ -373,6 +373,7 @@ dependencies = [
  "caliptra-x509",
  "caliptra_common",
  "cfg-if 1.0.0",
+ "openssl",
  "ufmt",
  "zerocopy",
 ]
@@ -388,6 +389,7 @@ dependencies = [
  "caliptra_common",
  "cfg-if 1.0.0",
  "ufmt",
+ "ureg",
  "zerocopy",
 ]
 

@@ -15,7 +15,7 @@ use crate::flow::dice::DiceOutput;
 use crate::fmc_env::FmcEnv;
 use caliptra_common::DataStore::*;
 use caliptra_common::{DataStore, FirmwareHandoffTable, HandOffDataHandle, Vault};
-use caliptra_drivers::{memory_layout, Array4x12, Ecc384Signature, KeyId, PersistentDataAccessor};
+use caliptra_drivers::{memory_layout, Array4x12, Ecc384Signature, KeyId};
 use caliptra_drivers::{Ecc384PubKey, Ecc384Scalar};
 use caliptra_error::CaliptraResult;
 
@@ -66,12 +66,13 @@ pub struct HandOff {
 
 impl HandOff {
     /// Create a new `HandOff` from the FHT table.
-    pub fn from_previous(persistent_data: &PersistentDataAccessor) -> Option<HandOff> {
-        let fht = &persistent_data.get().fht;
+    pub fn from_previous(env: &mut FmcEnv) -> Option<HandOff> {
+        let fht = &env.persistent_data.get().fht;
         // Perform basic sanity check of the FHT (check FHT marker, valid indices, etc.)
         if !fht.is_valid() {
             return None;
         }
+        env.pcr_bank.log_index = fht.pcr_log_index as usize;
         Some(Self { fht: fht.clone() })
     }
 

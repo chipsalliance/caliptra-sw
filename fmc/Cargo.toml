@@ -16,6 +16,7 @@ caliptra-x509 = { workspace = true, default-features = false }
 ufmt.workspace = true
 zerocopy.workspace = true
 
+
 [build-dependencies]
 caliptra_common = { workspace = true, default-features = false }
 caliptra-gen-linker-scripts.workspace = true
@@ -25,6 +26,7 @@ cfg-if.workspace = true
 caliptra-builder.workspace = true
 caliptra-hw-model.workspace = true
 caliptra-image-types.workspace = true
+openssl.workspace = true
 
 [features]
 default = ["std"]

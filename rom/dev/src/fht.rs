@@ -170,6 +170,7 @@ pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
         ldevid_tbs_addr,
         fmcalias_tbs_addr,
         pcr_log_addr,
+        pcr_log_index: env.pcr_bank.log_index as u32,
         fuse_log_addr,
         idev_dice_pub_key: env.fht_data_store.idev_pub,
         ..Default::default()

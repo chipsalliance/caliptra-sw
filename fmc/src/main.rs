@@ -13,6 +13,7 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
+
 use core::hint::black_box;
 
 use caliptra_common::cprintln;
@@ -45,7 +46,7 @@ pub extern "C" fn entry_point() -> ! {
         Err(e) => report_error(e.into()),
     };
 
-    if let Some(mut hand_off) = HandOff::from_previous(&env.persistent_data) {
+    if let Some(mut hand_off) = HandOff::from_previous(&mut env) {
         // Jump straight to RT for val-FMC for now
         if cfg!(feature = "val-fmc") {
             hand_off.to_rt(&mut env);
@@ -59,6 +60,7 @@ pub extern "C" fn entry_point() -> ! {
             Err(e) => report_error(e.into()),
         }
     }
+
     caliptra_drivers::ExitCtrl::exit(0xff)
 }
 
