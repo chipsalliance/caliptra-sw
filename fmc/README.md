@@ -136,6 +136,7 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | ldevid_tbs_size       | 2            | ROM        | Local Device ID TBS Size.                                                                                |
 | fmcalias_tbs_size     | 2            | ROM        | FMC Alias TBS Size.                                                                                      |
 | pcr_log_addr          | 4            | ROM        | PCR Log Address.                                                                                         |
+| pcr_log_index         | 4            | ROM        | Last empty PCR log entry slot index.                                                                     |
 | fuse_log_addr         | 4            | ROM        | Fuse Log Address.                                                                                        |
 | rt_dice_pub_key       | 96           | FMC        | RT Alias DICE Public Key.                                                                                |
 | rt_dice_sign          | 96           | FMC        | RT Alias DICE signature.                                                                                 |
