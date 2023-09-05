@@ -9,13 +9,13 @@ use std::{
 
 use caliptra_emu_bus::Bus;
 use caliptra_hw_model_types::{
-    ErrorInjectionMode, EtrngResponse, RandomEtrngResponses, DEFAULT_CPTRA_OBF_KEY,
+    ErrorInjectionMode, EtrngResponse, RandomEtrngResponses, RandomNibbles, DEFAULT_CPTRA_OBF_KEY,
 };
 use zerocopy::{AsBytes, LayoutVerified, Unalign};
 
 use caliptra_registers::mbox;
 use caliptra_registers::mbox::enums::{MboxFsmE, MboxStatusE};
-use rand::{rngs::StdRng, RngCore, SeedableRng};
+use rand::{rngs::StdRng, SeedableRng};
 
 pub mod mmio;
 mod model_emulated;
@@ -83,16 +83,6 @@ pub fn new_unbooted(params: InitParams) -> Result<DefaultHwModel, Box<dyn Error>
 /// [`crate::new_unbooted`].
 pub fn new(params: BootParams) -> Result<DefaultHwModel, Box<dyn Error>> {
     DefaultHwModel::new(params)
-}
-
-struct RandomNibbles<R: RngCore>(pub R);
-
-impl<R: RngCore> Iterator for RandomNibbles<R> {
-    type Item = u8;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        Some((self.0.next_u32() & 0xf) as u8)
-    }
 }
 
 #[derive(Debug, Eq, PartialEq)]

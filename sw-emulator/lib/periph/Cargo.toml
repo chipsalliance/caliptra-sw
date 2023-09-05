@@ -19,5 +19,6 @@ caliptra-emu-types.workspace = true
 caliptra-hw-model-types.workspace = true
 caliptra-registers.workspace = true
 lazy_static.workspace = true
+sha3.workspace = true
 smlang.workspace = true
 tock-registers.workspace = true
