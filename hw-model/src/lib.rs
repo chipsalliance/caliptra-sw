@@ -16,6 +16,10 @@ use zerocopy::{AsBytes, FromBytes, LayoutVerified, Unalign};
 
 use caliptra_registers::mbox;
 use caliptra_registers::mbox::enums::{MboxFsmE, MboxStatusE};
+use caliptra_registers::soc_ifc::regs::{
+    CptraItrngEntropyConfig0WriteVal, CptraItrngEntropyConfig1WriteVal,
+};
+
 use rand::{rngs::StdRng, SeedableRng};
 
 pub mod mmio;
@@ -180,6 +184,8 @@ pub struct BootParams<'a> {
     pub fuses: Fuses,
     pub fw_image: Option<&'a [u8]>,
     pub initial_dbg_manuf_service_reg: u32,
+    pub initial_repcnt_thresh_reg: Option<CptraItrngEntropyConfig1WriteVal>,
+    pub initial_adaptp_thresh_reg: Option<CptraItrngEntropyConfig0WriteVal>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -370,6 +376,14 @@ pub trait HwModel {
             .cptra_wdt_cfg()
             .at(1)
             .write(|_| (wdt_timeout_cycles >> 32) as u32);
+
+        if let Some(reg) = run_params.initial_repcnt_thresh_reg {
+            hw.soc_ifc().cptra_i_trng_entropy_config_1().write(|_| reg);
+        }
+
+        if let Some(reg) = run_params.initial_adaptp_thresh_reg {
+            hw.soc_ifc().cptra_i_trng_entropy_config_0().write(|_| reg);
+        }
 
         writeln!(hw.output().logger(), "writing to cptra_bootfsm_go")?;
         hw.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));

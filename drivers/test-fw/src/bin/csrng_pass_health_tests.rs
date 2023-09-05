@@ -15,14 +15,15 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::Csrng;
-use caliptra_registers::{csrng::CsrngReg, entropy_src::EntropySrcReg};
+use caliptra_registers::{csrng::CsrngReg, entropy_src::EntropySrcReg, soc_ifc::SocIfcReg};
 use caliptra_test_harness::test_suite;
 
 fn test_boot_and_generate_pass() {
     let csrng_reg = unsafe { CsrngReg::new() };
     let entropy_src_reg = unsafe { EntropySrcReg::new() };
-    let mut csrng =
-        Csrng::new(csrng_reg, entropy_src_reg).expect("CSRNG should pass boot-time health test");
+    let soc_ifc_reg = unsafe { SocIfcReg::new() };
+    let mut csrng = Csrng::new(csrng_reg, entropy_src_reg, &soc_ifc_reg)
+        .expect("CSRNG should pass boot-time health test");
     let _ = csrng
         .generate12()
         .expect("CSRNG should pass continuous health tests (first generate)");
