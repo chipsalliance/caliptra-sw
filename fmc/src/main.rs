@@ -47,6 +47,11 @@ pub extern "C" fn entry_point() -> ! {
             Err(e) => report_error(e.into()),
         };
 
+        // Jump straight to RT for val-FMC for now
+        if cfg!(feature = "val-fmc") {
+            hand_off.to_rt(&mut env);
+        }
+
         match flow::run(&mut env, &mut hand_off) {
             Ok(_) => {
                 if hand_off.is_valid() {
