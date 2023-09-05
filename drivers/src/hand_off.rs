@@ -409,7 +409,13 @@ impl FirmwareHandoffTable {
 
     /// Load FHT from its fixed address and perform validity check of
     /// its data.
-    pub fn try_load() -> Option<FirmwareHandoffTable> {
+    ///
+    /// # Safety
+    ///
+    /// This function must not be called while any references returned from
+    /// PersistentDataAccessor are still around. Prefer to use
+    /// PersistentDataAccessor over this function.
+    pub unsafe fn try_load() -> Option<FirmwareHandoffTable> {
         let slice = unsafe {
             let ptr = FHT_ORG as *mut u32;
             core::slice::from_raw_parts_mut(
@@ -427,7 +433,12 @@ impl FirmwareHandoffTable {
         None
     }
 
-    pub fn save(fht: &FirmwareHandoffTable) {
+    /// # Safety
+    ///
+    /// This function must not be called while any references returned from
+    /// PersistentDataAccessor are still around. Prefer to use
+    /// PersistentDataAccessor over this function.
+    pub unsafe fn save(fht: &FirmwareHandoffTable) {
         let slice = unsafe {
             let ptr = FHT_ORG as *mut u8;
             crate::cprintln!("[fht] Saving FHT @ 0x{:08X}", ptr as u32);

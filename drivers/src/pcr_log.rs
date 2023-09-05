@@ -11,7 +11,7 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::PcrId;
+use crate::PcrId;
 use zerocopy::{AsBytes, FromBytes};
 
 pub const PCR_ID_FMC_CURRENT: PcrId = PcrId::PcrId0;
@@ -58,7 +58,7 @@ impl From<u16> for PcrLogEntryId {
 
 /// PCR log entry
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, Debug, Default, FromBytes)]
 pub struct PcrLogEntry {
     /// Entry identifier
     pub id: u16,

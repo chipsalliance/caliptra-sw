@@ -36,7 +36,7 @@ const BANNER: &str = r#"
 pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
 
-    if let Some(_fht) = caliptra_common::FirmwareHandoffTable::try_load() {
+    if let Some(_fht) = unsafe { caliptra_common::FirmwareHandoffTable::try_load() } {
         // Test PCR is locked.
         let mut pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
         // Test erasing pcr. This should fail.

@@ -4,16 +4,18 @@ pub mod common;
 
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART};
 use caliptra_common::mailbox_api::{
-    CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, InvokeDpeReq, InvokeDpeResp,
-    MailboxReqHeader, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
+    CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, GetIdevCertReq, GetIdevCertResp,
+    GetIdevInfoResp, InvokeDpeReq, InvokeDpeResp, MailboxReqHeader, MailboxRespHeader,
+    StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_drivers::Ecc384PubKey;
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError, ShaAccMode};
 use caliptra_runtime::{FipsVersionCmd, RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
 use common::{run_rom_test, run_rt_test};
 use dpe::{
-    commands::{Command, CommandHdr},
-    response::GetProfileResp,
+    commands::{CertifyKeyCmd, CertifyKeyFlags, Command, CommandHdr, SignCmd, SignFlags},
+    context::ContextHandle,
+    response::{CertifyKeyResp, GetProfileResp, SignResp},
     DPE_PROFILE,
 };
 use openssl::{
@@ -304,7 +306,153 @@ fn test_invoke_dpe_get_profile_cmd() {
     assert_eq!(profile.resp_hdr.profile, DPE_PROFILE as u32);
     assert_eq!(profile.vendor_id, VENDOR_ID);
     assert_eq!(profile.vendor_sku, VENDOR_SKU);
-    assert_eq!(profile.flags, DPE_SUPPORT.get_flags());
+    assert_eq!(profile.flags, DPE_SUPPORT.bits());
+}
+
+#[test]
+fn test_invoke_dpe_sign_and_certify_key_cmds() {
+    let mut model = run_rt_test(None, None);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == RtBootStatus::RtReadyForCommands.into()
+    });
+
+    let test_label = [
+        48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26,
+        25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
+    ];
+    let test_digest = [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+        26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
+    ];
+    let mut data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
+    let sign_cmd = SignCmd {
+        handle: ContextHandle::default(),
+        label: test_label,
+        flags: SignFlags::empty(),
+        digest: test_digest,
+    };
+    let sign_cmd_hdr = CommandHdr::new_for_test(Command::Sign(sign_cmd));
+    let sign_cmd_hdr_buf = sign_cmd_hdr.as_bytes();
+    data[..sign_cmd_hdr_buf.len()].copy_from_slice(sign_cmd_hdr_buf);
+    let sign_mbox_cmd = InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        data,
+        data_size: sign_cmd_hdr_buf.len() as u32,
+    };
+
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::INVOKE_DPE),
+        &sign_mbox_cmd.as_bytes()[4..],
+    );
+
+    let sign_mbox_cmd = InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..sign_mbox_cmd
+    };
+
+    let sign_resp_buf = model
+        .mailbox_execute(u32::from(CommandId::INVOKE_DPE), sign_mbox_cmd.as_bytes())
+        .unwrap()
+        .expect("We should have received a response");
+
+    assert!(sign_resp_buf.len() <= std::mem::size_of::<InvokeDpeResp>());
+    let mut sign_resp_hdr = InvokeDpeResp::default();
+    sign_resp_hdr.as_bytes_mut()[..sign_resp_buf.len()].copy_from_slice(&sign_resp_buf);
+
+    assert!(caliptra_common::checksum::verify_checksum(
+        sign_resp_hdr.hdr.chksum,
+        0x0,
+        &sign_resp_buf[core::mem::size_of_val(&sign_resp_hdr.hdr.chksum)..],
+    ));
+
+    let sign_resp =
+        SignResp::read_from(&sign_resp_hdr.data[..sign_resp_hdr.data_size as usize]).unwrap();
+
+    let certify_key_cmd = CertifyKeyCmd {
+        handle: ContextHandle::default(),
+        label: test_label,
+        flags: CertifyKeyFlags::empty(),
+        format: CertifyKeyCmd::FORMAT_X509,
+    };
+    let certify_key_cmd_hdr = CommandHdr::new_for_test(Command::CertifyKey(certify_key_cmd));
+    let certify_key_cmd_hdr_buf = certify_key_cmd_hdr.as_bytes();
+    data[..certify_key_cmd_hdr_buf.len()].copy_from_slice(certify_key_cmd_hdr_buf);
+    let certify_key_mbox_cmd = InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        data,
+        data_size: certify_key_cmd_hdr_buf.len() as u32,
+    };
+
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::INVOKE_DPE),
+        &certify_key_mbox_cmd.as_bytes()[4..],
+    );
+
+    let certify_key_mbox_cmd = InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..certify_key_mbox_cmd
+    };
+
+    let certify_key_resp_buf = model
+        .mailbox_execute(
+            u32::from(CommandId::INVOKE_DPE),
+            certify_key_mbox_cmd.as_bytes(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    assert!(certify_key_resp_buf.len() <= std::mem::size_of::<InvokeDpeResp>());
+    let mut certify_key_resp_hdr = InvokeDpeResp::default();
+    certify_key_resp_hdr.as_bytes_mut()[..certify_key_resp_buf.len()]
+        .copy_from_slice(&certify_key_resp_buf);
+
+    assert!(caliptra_common::checksum::verify_checksum(
+        certify_key_resp_hdr.hdr.chksum,
+        0x0,
+        &certify_key_resp_buf[core::mem::size_of_val(&certify_key_resp_hdr.hdr.chksum)..],
+    ));
+
+    let certify_key_resp = CertifyKeyResp::read_from(
+        &certify_key_resp_hdr.data[..certify_key_resp_hdr.data_size as usize],
+    )
+    .unwrap();
+
+    let cmd = EcdsaVerifyReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        pub_key_x: certify_key_resp.derived_pubkey_x,
+        pub_key_y: certify_key_resp.derived_pubkey_y,
+        signature_r: sign_resp.sig_r_or_hmac,
+        signature_s: sign_resp.sig_s,
+    };
+
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::ECDSA384_VERIFY),
+        &cmd.as_bytes()[4..],
+    );
+
+    let cmd = EcdsaVerifyReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..cmd
+    };
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::ECDSA384_VERIFY), cmd.as_bytes())
+        .unwrap()
+        .expect("We should have received a response");
+
+    let resp_hdr: &MailboxRespHeader =
+        LayoutVerified::<&[u8], MailboxRespHeader>::new(resp.as_bytes())
+            .unwrap()
+            .into_ref();
+
+    assert_eq!(
+        resp_hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
+    // Checksum is just going to be 0 because FIPS_STATUS_APPROVED is 0
+    assert_eq!(resp_hdr.chksum, 0);
+    assert_eq!(model.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
 }
 
 #[test]
@@ -555,4 +703,55 @@ fn test_unimplemented_cmds() {
 
     let resp = model.mailbox_execute(INVALID_CMD, payload.as_bytes());
     assert_eq!(resp, expected_err);
+}
+
+#[test]
+fn test_idev_id_info() {
+    let mut model = run_rt_test(None, None);
+
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_IDEV_INFO), &[]),
+    };
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::GET_IDEV_INFO), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+
+    GetIdevInfoResp::read_from(resp.as_slice()).unwrap();
+}
+
+#[test]
+fn test_idev_id_cert() {
+    let mut model = run_rt_test(None, None);
+
+    let fake_tbs = [0xef, 0xbe, 0xad, 0xde];
+
+    let mut tbs: [u8; GetIdevCertReq::DATA_MAX_SIZE] = [0; GetIdevCertReq::DATA_MAX_SIZE];
+    tbs[..fake_tbs.len()].copy_from_slice(&fake_tbs);
+    let cmd = GetIdevCertReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        tbs,
+        signature_r: [0; 48],
+        signature_s: [0; 48],
+        tbs_size: fake_tbs.len().try_into().unwrap(),
+    };
+
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::GET_IDEV_CERT),
+        &cmd.as_bytes()[4..],
+    );
+
+    let cmd = GetIdevCertReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..cmd
+    };
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::GET_IDEV_CERT), cmd.as_bytes())
+        .unwrap()
+        .expect("We expected a response");
+
+    let cert = GetIdevCertResp::read_from(resp.as_slice()).unwrap();
+    assert!(cmd.tbs_size < cert.cert_size);
 }

@@ -309,6 +309,7 @@ impl CaliptraError {
     pub const RUNTIME_DISABLE_ATTESTATION_FAILED: CaliptraError =
         CaliptraError::new_const(0x000E0011);
     pub const RUNTIME_HANDOFF_INVALID_PARM: CaliptraError = CaliptraError::new_const(0x000E0012);
+    pub const RUNTIME_GET_DEVID_CERT_FAILED: CaliptraError = CaliptraError::new_const(0x000E0013);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
@@ -362,6 +363,10 @@ impl CaliptraError {
     pub const ROM_UPDATE_RESET_READ_FHT_FAILURE: CaliptraError =
         CaliptraError::new_const(0x01040005);
 
+    // Warm Reset Errors
+    pub const ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_COLD_RESET: CaliptraError =
+        CaliptraError::new_const(0x01040010);
+
     /// Unknown Reset Error
     pub const ROM_UNKNOWN_RESET_FLOW: CaliptraError = CaliptraError::new_const(0x01040020);
 
@@ -400,7 +405,7 @@ impl CaliptraError {
         CaliptraError::new_const(0x0105000A);
 
     pub const ROM_GLOBAL_VAL_ROM_IN_PRODUCTION: CaliptraError =
-        CaliptraError::new_const(0x0105000A);
+        CaliptraError::new_const(0x0105000B);
 
     /// ROM KAT Errors
     pub const ROM_KAT_SHA256_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90010001);
