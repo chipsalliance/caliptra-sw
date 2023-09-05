@@ -45,7 +45,7 @@ pub extern "C" fn entry_point() -> ! {
         Err(e) => report_error(e.into()),
     };
 
-    if let Some(mut hand_off) = HandOff::from_previous() {
+    if let Some(mut hand_off) = HandOff::from_previous(&env.persistent_data) {
         // Jump straight to RT for val-FMC for now
         if cfg!(feature = "val-fmc") {
             hand_off.to_rt(&mut env);
