@@ -281,6 +281,12 @@ impl CaliptraError {
     pub const DRIVER_CSRNG_RESEED: CaliptraError = CaliptraError::new_const(0x000d0003);
     pub const DRIVER_CSRNG_GENERATE: CaliptraError = CaliptraError::new_const(0x000d0004);
     pub const DRIVER_CSRNG_UPDATE: CaliptraError = CaliptraError::new_const(0x000d0005);
+    pub const DRIVER_CSRNG_OTHER_HEALTH_CHECK_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000d0006);
+    pub const DRIVER_CSRNG_REPCNT_HEALTH_CHECK_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000d0007);
+    pub const DRIVER_CSRNG_ADAPTP_HEALTH_CHECK_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000d0008);
 
     /// Runtime Errors
     pub const RUNTIME_INTERNAL: CaliptraError = CaliptraError::new_const(0x000E0001);
