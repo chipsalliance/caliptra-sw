@@ -46,7 +46,6 @@ pub extern "C" fn entry_point() -> ! {
     };
 
     if let Some(mut hand_off) = HandOff::from_previous() {
-
         // Jump straight to RT for val-FMC for now
         if cfg!(feature = "val-fmc") {
             hand_off.to_rt(&mut env);
