@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_VAL_WITH_UART, ROM_VAL_WITH_UART};
+use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_FAKE_WITH_UART, ROM_FAKE_WITH_UART};
 use caliptra_common::mailbox_api::{
     CommandId, GetLdevCertResp, MailboxReqHeader, MailboxRespHeader, TestGetFmcAliasCertResp,
 };
@@ -42,13 +42,13 @@ fn bytes_to_be_words_48(buf: &[u8; 48]) -> [u32; 12] {
 }
 
 #[test]
-fn val_boot_test() {
+fn fake_boot_test() {
     let security_state = *SecurityState::default().set_debug_locked(true);
     let idevid_pubkey = get_idevid_pubkey();
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_VAL_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
     let image = caliptra_builder::build_and_sign_image(
-        &FMC_VAL_WITH_UART,
+        &FMC_FAKE_WITH_UART,
         &APP_WITH_UART,
         ImageOptions {
             fmc_min_svn: 5,
@@ -88,7 +88,7 @@ fn val_boot_test() {
 
     let output = String::from_utf8_lossy(&output);
     assert_output_contains(&output, "Running Caliptra ROM");
-    assert_output_contains(&output, "[val-rom-cold-reset]");
+    assert_output_contains(&output, "[fake-rom-cold-reset]");
     assert_output_contains(&output, "Running Caliptra FMC");
     assert_output_contains(
         &output,

@@ -4,16 +4,16 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    val.rs
+    fake.rs
 
 Abstract:
 
-    File contains the implementation of the validation ROM reset flows
+    File contains the implementation of the fake ROM reset flows
 
 --*/
 
-#[cfg(not(feature = "val-rom"))]
-compile_error!("This file should NEVER be included except for the val-rom feature");
+#[cfg(not(feature = "fake-rom"))]
+compile_error!("This file should NEVER be included except for the fake-rom feature");
 
 #[allow(dead_code)]
 #[path = "cold_reset/fw_processor.rs"]
@@ -40,7 +40,7 @@ use caliptra_image_verify::ImageVerificationEnv;
 use core::ops::Range;
 use fw_processor::FirmwareProcessor;
 
-const VAL_LDEV_TBS: [u8; 533] = [
+const FAKE_LDEV_TBS: [u8; 533] = [
     0x30, 0x82, 0x02, 0x11, 0xA0, 0x03, 0x02, 0x01, 0x02, 0x02, 0x14, 0x25, 0xEE, 0xEF, 0x9A, 0x4C,
     0x61, 0xD4, 0xB9, 0xE3, 0xD9, 0x4B, 0xEA, 0x46, 0xF9, 0xA1, 0x2A, 0xC6, 0x88, 0x7C, 0xE2, 0x30,
     0x0A, 0x06, 0x08, 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x04, 0x03, 0x03, 0x30, 0x65, 0x31, 0x18, 0x30,
@@ -76,7 +76,7 @@ const VAL_LDEV_TBS: [u8; 533] = [
     0x14, 0x42, 0x4F, 0x3A, 0xC7, 0x45, 0xDD, 0xBD, 0x50, 0x15, 0x05, 0x7F, 0x5B, 0xF8, 0x3E, 0x9C,
     0xD6, 0x48, 0x10, 0xB0, 0x41,
 ];
-const VAL_LDEV_PUB_KEY: Ecc384PubKey = Ecc384PubKey {
+const FAKE_LDEV_PUB_KEY: Ecc384PubKey = Ecc384PubKey {
     x: Array4xN([
         0x842C00AF, 0x05ACCCEB, 0x14514E2D, 0x37B0C3AA, 0xA218F150, 0x57F1DCB8, 0x24A21498,
         0x0B744688, 0xA0888A02, 0x97FA7DC5, 0xE1EAD8CA, 0x1291DB22,
@@ -86,7 +86,7 @@ const VAL_LDEV_PUB_KEY: Ecc384PubKey = Ecc384PubKey {
         0xDF668A74, 0x628999D2, 0x22B40159, 0xD8076FAF, 0xBB8C5EDB,
     ]),
 };
-const VAL_LDEV_SIG: Ecc384Signature = Ecc384Signature {
+const FAKE_LDEV_SIG: Ecc384Signature = Ecc384Signature {
     r: Array4xN([
         0x0C1B9586, 0x1ADA0DF5, 0x72438E88, 0xB23DDD5B, 0x2C24C974, 0xDF359988, 0xCC54E39E,
         0x3145635A, 0x94E3D819, 0x6B49164C, 0xAD991714, 0xC2B18892,
@@ -97,7 +97,7 @@ const VAL_LDEV_SIG: Ecc384Signature = Ecc384Signature {
     ]),
 };
 
-const VAL_FMC_ALIAS_TBS: [u8; 745] = [
+const FAKE_FMC_ALIAS_TBS: [u8; 745] = [
     0x30, 0x82, 0x02, 0xe5, 0xa0, 0x03, 0x02, 0x01, 0x02, 0x02, 0x14, 0x06, 0xb0, 0xfb, 0xb6, 0x60,
     0x59, 0xb8, 0x54, 0x55, 0xea, 0xc8, 0x95, 0x65, 0xc0, 0xc3, 0x7b, 0x67, 0x0f, 0xb1, 0x87, 0x30,
     0x0a, 0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x04, 0x03, 0x03, 0x30, 0x65, 0x31, 0x18, 0x30,
@@ -147,7 +147,7 @@ const VAL_FMC_ALIAS_TBS: [u8; 745] = [
     0xea, 0x46, 0xf9, 0xa1, 0x2a, 0xc6, 0x88, 0x7c, 0xe2,
 ];
 
-const VAL_FMC_ALIAS_PUB_KEY: Ecc384PubKey = Ecc384PubKey {
+const FAKE_FMC_ALIAS_PUB_KEY: Ecc384PubKey = Ecc384PubKey {
     x: Array4xN([
         0xD74C25C3, 0x71BB0F48, 0x9B1E202C, 0x6757CF47, 0xD282C528, 0x70C99A55, 0xFCD06276,
         0x1F83A4C3, 0x8B518216, 0x01CD2BAB, 0x15FFE666, 0xE2ED62A4,
@@ -157,7 +157,7 @@ const VAL_FMC_ALIAS_PUB_KEY: Ecc384PubKey = Ecc384PubKey {
         0xF1703A56, 0x348BD106, 0xE99CF7D2, 0x48B63F0F, 0x8604BCD0,
     ]),
 };
-const VAL_FMC_ALIAS_SIG: Ecc384Signature = Ecc384Signature {
+const FAKE_FMC_ALIAS_SIG: Ecc384Signature = Ecc384Signature {
     r: Array4xN([
         0x5BA93B47, 0x21912443, 0x9475C1EB, 0xD4029FA6, 0x3C81D138, 0xE8B7F4A5, 0x55F39BF2,
         0x2233DD74, 0x93CE6FA8, 0xDCF70CD7, 0x00581DFF, 0x12427FF5,
@@ -168,9 +168,9 @@ const VAL_FMC_ALIAS_SIG: Ecc384Signature = Ecc384Signature {
     ]),
 };
 
-pub struct ValRomFlow {}
+pub struct FakeRomFlow {}
 
-impl ValRomFlow {
+impl FakeRomFlow {
     /// Execute ROM Flows based on reset reason
     ///
     /// # Arguments
@@ -182,7 +182,7 @@ impl ValRomFlow {
         match reset_reason {
             // Cold Reset Flow
             ResetReason::ColdReset => {
-                cprintln!("[val-rom-cold-reset] ++");
+                cprintln!("[fake-rom-cold-reset] ++");
                 report_boot_status(ColdResetStarted.into());
 
                 // SKIP Execute IDEVID layer
@@ -195,7 +195,7 @@ impl ValRomFlow {
                 // FMC Alias Cert
                 copy_canned_fmc_alias_cert(env)?;
 
-                cprintln!("[val-rom-cold-reset] --");
+                cprintln!("[fake-rom-cold-reset] --");
                 report_boot_status(ColdResetComplete.into());
 
                 Ok(Some(fht::make_fht(env)))
@@ -215,13 +215,13 @@ impl ValRomFlow {
 
 pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
     // Store signature
-    env.data_vault.set_ldev_dice_signature(&VAL_LDEV_SIG);
+    env.data_vault.set_ldev_dice_signature(&FAKE_LDEV_SIG);
 
     // Store pub key
-    env.data_vault.set_ldev_dice_pub_key(&VAL_LDEV_PUB_KEY);
+    env.data_vault.set_ldev_dice_pub_key(&FAKE_LDEV_PUB_KEY);
 
     // Copy TBS to DCCM
-    let tbs = &VAL_LDEV_TBS;
+    let tbs = &FAKE_LDEV_TBS;
     env.fht_data_store.ldevid_tbs_size = u16::try_from(tbs.len()).unwrap();
     let dst = unsafe {
         let tbs_max_size = LDEVID_TBS_SIZE as usize;
@@ -238,13 +238,13 @@ pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
 
 pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
     // Store signature
-    env.data_vault.set_fmc_dice_signature(&VAL_FMC_ALIAS_SIG);
+    env.data_vault.set_fmc_dice_signature(&FAKE_FMC_ALIAS_SIG);
 
     // Store pub key
-    env.data_vault.set_fmc_pub_key(&VAL_FMC_ALIAS_PUB_KEY);
+    env.data_vault.set_fmc_pub_key(&FAKE_FMC_ALIAS_PUB_KEY);
 
     // Copy TBS to DCCM
-    let tbs = &VAL_FMC_ALIAS_TBS;
+    let tbs = &FAKE_FMC_ALIAS_TBS;
     env.fht_data_store.fmcalias_tbs_size = u16::try_from(tbs.len()).unwrap();
     let dst = unsafe {
         let tbs_max_size = FMCALIAS_TBS_SIZE as usize;
@@ -261,13 +261,13 @@ pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
 }
 
 // ROM Verification Environemnt
-pub(crate) struct ValRomImageVerificationEnv<'a> {
+pub(crate) struct FakeRomImageVerificationEnv<'a> {
     pub(crate) sha384_acc: &'a mut Sha384Acc,
     pub(crate) soc_ifc: &'a mut SocIfc,
     pub(crate) data_vault: &'a mut DataVault,
 }
 
-impl<'a> ImageVerificationEnv for &mut ValRomImageVerificationEnv<'a> {
+impl<'a> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a> {
     /// Calculate Digest using SHA-384 Accelerator
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest> {
         loop {

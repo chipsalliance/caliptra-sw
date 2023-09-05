@@ -47,8 +47,8 @@ pub extern "C" fn entry_point() -> ! {
             Err(e) => report_error(e.into()),
         };
 
-        // Jump straight to RT for val-FMC for now
-        if cfg!(feature = "val-fmc") {
+        // Jump straight to RT for fake-FMC for now
+        if cfg!(feature = "fake-fmc") {
             hand_off.to_rt(&mut env);
         }
 

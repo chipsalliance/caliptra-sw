@@ -13,7 +13,7 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
-#![cfg_attr(feature = "val-rom", allow(unused_imports))]
+#![cfg_attr(feature = "fake-rom", allow(unused_imports))]
 
 use crate::{lock::lock_registers, print::HexBytes};
 use caliptra_cfi_lib::CfiCounter;
@@ -83,11 +83,11 @@ pub extern "C" fn rom_entry() -> ! {
     };
     cprintln!("[state] LifecycleState = {}", _lifecyle);
 
-    if cfg!(feature = "val-rom")
+    if cfg!(feature = "fake-rom")
         && env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production
     {
-        cprintln!("Val ROM in Production lifecycle prohibited");
-        handle_fatal_error(CaliptraError::ROM_GLOBAL_VAL_ROM_IN_PRODUCTION.into());
+        cprintln!("Fake ROM in Production lifecycle prohibited");
+        handle_fatal_error(CaliptraError::ROM_GLOBAL_FAKE_ROM_IN_PRODUCTION.into());
     }
 
     cprintln!(
@@ -102,7 +102,7 @@ pub extern "C" fn rom_entry() -> ! {
     // Start the watchdog timer
     wdt::start_wdt(&mut env.soc_ifc);
 
-    if !cfg!(feature = "val-rom") {
+    if !cfg!(feature = "fake-rom") {
         let result = run_fips_tests(&mut env, rom_info);
         if let Err(err) = result {
             handle_fatal_error(err.into());

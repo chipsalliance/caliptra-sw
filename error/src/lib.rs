@@ -404,7 +404,7 @@ impl CaliptraError {
     pub const ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE: CaliptraError =
         CaliptraError::new_const(0x0105000A);
 
-    pub const ROM_GLOBAL_VAL_ROM_IN_PRODUCTION: CaliptraError =
+    pub const ROM_GLOBAL_FAKE_ROM_IN_PRODUCTION: CaliptraError =
         CaliptraError::new_const(0x0105000B);
 
     /// ROM KAT Errors
