@@ -2273,6 +2273,9 @@ name = "vector_gen"
 version = "0.1.0"
 dependencies = [
  "openssl",
+ "p384",
+ "rfc6979",
+ "sha2",
 ]
 
 [[package]]
