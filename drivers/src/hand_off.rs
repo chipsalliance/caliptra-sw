@@ -1,11 +1,15 @@
 // Licensed under the Apache-2.0 license.
-use crate::{memory_layout::FHT_ORG, soc_ifc};
+
+use crate::bounded_address::RomAddr;
 use crate::{
-    report_fw_error_non_fatal, ColdResetEntry4, ColdResetEntry48, Ecc384PubKey, Ecc384Signature,
-    KeyId, ResetReason, WarmResetEntry4, WarmResetEntry48,
+    memory_layout, report_fw_error_non_fatal, ColdResetEntry4, ColdResetEntry48, Ecc384PubKey,
+    Ecc384Signature, KeyId, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
+use crate::{memory_layout::FHT_ORG, soc_ifc};
 use bitfield::{bitfield_bitrange, bitfield_fields};
 use caliptra_error::CaliptraError;
+use caliptra_image_types::RomInfo;
+use core::mem::size_of;
 use zerocopy::{AsBytes, FromBytes};
 
 pub const FHT_MARKER: u32 = 0x54484643;
@@ -188,6 +192,8 @@ impl From<DataStore> for HandOffDataHandle {
 /// The Firmware Handoff Table is a data structure that is resident at a well-known
 /// location in DCCM. It is initially populated by ROM and modified by FMC as a way
 /// to pass parameters and configuration information from one firmware layer to the next.
+const _: () = assert!(size_of::<FirmwareHandoffTable>() == 512);
+const _: () = assert!(size_of::<FirmwareHandoffTable>() <= memory_layout::FHT_SIZE as usize);
 #[repr(C)]
 #[derive(Clone, Debug, AsBytes, FromBytes)]
 pub struct FirmwareHandoffTable {
@@ -276,8 +282,11 @@ pub struct FirmwareHandoffTable {
     /// IDevID public key
     pub idev_dice_pub_key: Ecc384PubKey,
 
+    // Address of RomInfo struct
+    pub rom_info_addr: RomAddr<RomInfo>,
+
     /// Reserved for future use.
-    pub reserved: [u8; 132],
+    pub reserved: [u8; 128],
 }
 
 impl Default for FirmwareHandoffTable {
@@ -304,7 +313,7 @@ impl Default for FirmwareHandoffTable {
             rt_min_svn_dv_hdl: FHT_INVALID_HANDLE,
             ldevid_tbs_size: 0,
             fmcalias_tbs_size: 0,
-            reserved: [0u8; 132],
+            reserved: [0u8; 128],
             ldevid_tbs_addr: 0,
             fmcalias_tbs_addr: 0,
             pcr_log_addr: 0,
@@ -312,6 +321,7 @@ impl Default for FirmwareHandoffTable {
             rt_dice_sign: Ecc384Signature::default(),
             rt_dice_pub_key: Ecc384PubKey::default(),
             idev_dice_pub_key: Ecc384PubKey::default(),
+            rom_info_addr: RomAddr::new(FHT_INVALID_ADDRESS),
         }
     }
 }
@@ -395,7 +405,8 @@ impl FirmwareHandoffTable {
             && self.ldevid_tbs_addr != 0
             && self.fmcalias_tbs_addr != 0
             && self.pcr_log_addr != 0
-            && self.fuse_log_addr != 0;
+            && self.fuse_log_addr != 0
+            && self.rom_info_addr.is_valid();
 
         if valid
             && reset_reason == ResetReason::ColdReset

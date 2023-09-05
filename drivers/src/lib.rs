@@ -18,6 +18,7 @@ mod array;
 mod array_concat;
 mod wait;
 
+mod bounded_address;
 mod csrng;
 mod data_vault;
 mod doe;
@@ -49,6 +50,7 @@ mod trng_ext;
 
 pub use array::{Array4x12, Array4x4, Array4x5, Array4x8, Array4xN};
 pub use array_concat::array_concat3;
+pub use bounded_address::RomAddr;
 pub use caliptra_error::{CaliptraError, CaliptraResult};
 pub use csrng::{Csrng, HealthFailCounts as CsrngHealthFailCounts, Seed as CsrngSeed};
 pub use data_vault::{

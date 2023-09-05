@@ -1,8 +1,10 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::ROM_WITH_UART;
+use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, ROM_WITH_UART};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, HwModel, InitParams};
+use caliptra_image_types::RomInfo;
+use zerocopy::{AsBytes, FromBytes};
 
 fn find_rom_info_offset(rom: &[u8]) -> usize {
     for i in (0..rom.len()).step_by(64).rev() {
@@ -44,4 +46,46 @@ fn test_rom_integrity_failure() {
             break;
         }
     }
+}
+
+#[test]
+fn test_read_rom_info_from_fmc() {
+    pub const TEST_FMC_WITH_UART: FwId = FwId {
+        crate_name: "caliptra-rom-test-fmc",
+        bin_name: "caliptra-rom-test-fmc",
+        features: &["emu"],
+        workspace_dir: None,
+    };
+
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom_info_from_image =
+        RomInfo::read_from_prefix(&rom[find_rom_info_offset(&rom)..]).unwrap();
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &TEST_FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            ..Default::default()
+        },
+        fw_image: Some(&image_bundle),
+        ..Default::default()
+    })
+    .unwrap();
+
+    // 0x1000_0008 is test-fmc/read_rom_info()
+    let rom_info_from_fw = RomInfo::read_from(
+        hw.mailbox_execute(0x1000_0008, &[])
+            .unwrap()
+            .unwrap()
+            .as_slice(),
+    )
+    .unwrap();
+    assert_eq!(rom_info_from_fw.as_bytes(), rom_info_from_image.as_bytes());
 }
