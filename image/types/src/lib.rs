@@ -127,7 +127,7 @@ impl ImageBundle {
 
 /// Calipatra Image Manifest
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Debug)]
+#[derive(AsBytes, FromBytes, Clone, Copy, Debug)]
 pub struct ImageManifest {
     /// Marker
     pub marker: u32,
@@ -238,7 +238,7 @@ pub struct ImageOwnerPrivKeys {
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
 pub struct ImageSignatures {
     pub ecc_sig: ImageEccSignature,
     pub lms_sig: ImageLmsSignature,
@@ -246,7 +246,7 @@ pub struct ImageSignatures {
 
 /// Calipatra Image Bundle Preamble
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
 pub struct ImagePreamble {
     /// Vendor  Public Keys
     pub vendor_pub_keys: ImageVendorPubKeys,
@@ -270,7 +270,7 @@ pub struct ImagePreamble {
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
 pub struct VendorSignedData {
     /// Vendor Start Date [ASN1 Time Format] For FMC alias certificate.
     pub vendor_not_before: [u8; 15],
@@ -282,7 +282,7 @@ pub struct VendorSignedData {
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
 pub struct OwnerSignedData {
     /// Owner Start Date [ASN1 Time Format] For FMC alias certificate: Takes Preference over vendor start date
     pub owner_not_before: [u8; 15],
@@ -295,7 +295,7 @@ pub struct OwnerSignedData {
 
 /// Caliptra Image header
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
 pub struct ImageHeader {
     /// Revision
     pub revision: [u32; 2],
@@ -358,7 +358,7 @@ impl From<ImageTocEntryId> for u32 {
 
 /// Caliptra Table of contents entry
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
 pub struct ImageTocEntry {
     /// ID
     pub id: u32,

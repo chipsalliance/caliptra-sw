@@ -54,6 +54,13 @@ pub const FMC_WITH_UART: FwId = FwId {
     workspace_dir: None,
 };
 
+pub const FMC_VAL_WITH_UART: FwId = FwId {
+    crate_name: "caliptra-fmc",
+    bin_name: "caliptra-fmc",
+    features: &["emu", "val-fmc"],
+    workspace_dir: None,
+};
+
 pub const APP_WITH_UART: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",

@@ -49,7 +49,7 @@ impl Default for Ecdsa384Signature {
 
 impl Ecdsa384Signature {
     /// ECDSA Coordinate length
-    const ECDSA_COORD_LEN: usize = 48;
+    pub const ECDSA_COORD_LEN: usize = 48;
 
     /// Get the length of DER encoded unsigned integer
     #[inline(never)]
