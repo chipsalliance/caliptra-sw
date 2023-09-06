@@ -21,7 +21,7 @@ use core::hint::black_box;
 
 use caliptra_drivers::{
     cprintln, report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError, Ecc384, Hmac384,
-    KeyVault, Mailbox, ResetReason, Sha256, Sha384, Sha384Acc, SocIfc,
+    KeyVault, Mailbox, ResetReason, RomAddr, Sha256, Sha384, Sha384Acc, SocIfc,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_image_types::RomInfo;
@@ -113,7 +113,8 @@ pub extern "C" fn rom_entry() -> ! {
 
     let result = flow::run(&mut env);
     match result {
-        Ok(Some(fht)) => {
+        Ok(Some(mut fht)) => {
+            fht.rom_info_addr = RomAddr::from(rom_info);
             fht::store(fht);
         }
         Ok(None) => {}

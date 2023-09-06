@@ -15,7 +15,7 @@ use crate::flow::dice::DiceOutput;
 use crate::fmc_env::FmcEnv;
 use caliptra_common::DataStore::*;
 use caliptra_common::{DataStore, FirmwareHandoffTable, HandOffDataHandle, Vault};
-use caliptra_drivers::{Array4x12, Ecc384Signature, KeyId};
+use caliptra_drivers::{memory_layout, Array4x12, Ecc384Signature, KeyId, PersistentDataAccessor};
 use caliptra_drivers::{Ecc384PubKey, Ecc384Scalar};
 use caliptra_error::CaliptraResult;
 
@@ -37,11 +37,9 @@ impl MemoryRegion {
 }
 
 impl IccmAddress {
-    const ICCM_ORG: u32 = 0x40000000;
-    const ICCM_SIZE: u32 = 128 << 10;
     const ICCM: MemoryRegion = MemoryRegion {
-        start: Self::ICCM_ORG,
-        size: Self::ICCM_SIZE,
+        start: memory_layout::ICCM_ORG,
+        size: memory_layout::ICCM_SIZE,
     };
 
     /// Validate that the address is within the ICCM region.
@@ -51,11 +49,9 @@ impl IccmAddress {
 }
 
 impl DccmAddress {
-    const DCCM_ORG: u32 = 0x50000000;
-    const DCCM_SIZE: u32 = 128 << 10;
     const DCCM: MemoryRegion = MemoryRegion {
-        start: Self::DCCM_ORG,
-        size: Self::DCCM_SIZE,
+        start: memory_layout::DCCM_ORG,
+        size: memory_layout::DCCM_SIZE,
     };
 
     /// Validate that the address is within the ICCM region.
@@ -70,14 +66,13 @@ pub struct HandOff {
 
 impl HandOff {
     /// Create a new `HandOff` from the FHT table.
-    pub fn from_previous() -> Option<HandOff> {
-        // try_load performs basic sanity check of the FHT (check FHT marker, valid indices, etc.)
-        if let Some(fht) = unsafe { FirmwareHandoffTable::try_load() } {
-            let me = Self { fht };
-
-            return Some(me);
+    pub fn from_previous(persistent_data: &PersistentDataAccessor) -> Option<HandOff> {
+        let fht = &persistent_data.get().fht;
+        // Perform basic sanity check of the FHT (check FHT marker, valid indices, etc.)
+        if !fht.is_valid() {
+            return None;
         }
-        None
+        Some(Self { fht: fht.clone() })
     }
 
     /// Retrieve FMC CDI
@@ -189,7 +184,8 @@ impl HandOff {
             fn transfer_control(entry: u32) -> !;
         }
 
-        unsafe { FirmwareHandoffTable::save(&self.fht) };
+        env.persistent_data.get_mut().fht = self.fht.clone();
+
         // Retrieve runtime entry point
         let rt_entry = IccmAddress(self.rt_entry_point(env));
 
