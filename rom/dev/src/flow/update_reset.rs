@@ -116,9 +116,11 @@ impl UpdateResetFlow {
     ) -> CaliptraResult<ImageVerificationInfo> {
         #[cfg(feature = "fake-rom")]
         let env = &mut FakeRomImageVerificationEnv {
+            sha256: env.sha256,
             sha384_acc: env.sha384_acc,
             soc_ifc: env.soc_ifc,
             data_vault: env.data_vault,
+            ecc384: env.ecc384,
         };
 
         let mut verifier = ImageVerifier::new(env);

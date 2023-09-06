@@ -121,8 +121,17 @@ impl SocIfc {
     /// Signing Request (CSR)
     pub fn mfg_flag_gen_idev_id_csr(&mut self) -> bool {
         let soc_ifc_regs = self.soc_ifc.regs();
-        let flags: MfgFlags = soc_ifc_regs.cptra_dbg_manuf_service_reg().read().into();
+        // Lower 16 bits are for mfg flags
+        let flags: MfgFlags = (soc_ifc_regs.cptra_dbg_manuf_service_reg().read() & 0xffff).into();
         flags.contains(MfgFlags::GENERATE_IDEVID_CSR)
+    }
+
+    /// Check if verification is turned on for fake-rom
+    pub fn verify_in_fake_mode(&self) -> bool {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        let val = soc_ifc_regs.cptra_dbg_manuf_service_reg().read();
+        // Bit 31 indicates to perform verification flow in fake ROM
+        ((val >> 31) & 1) != 0
     }
 
     /// Enable or disable WDT1
