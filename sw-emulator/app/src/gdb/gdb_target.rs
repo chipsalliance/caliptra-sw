@@ -52,7 +52,7 @@ impl GdbTarget {
     // Conditional Run (Private function)
     fn cond_run(&mut self) -> SingleThreadStopReason<u32> {
         loop {
-            match self.cpu.step(None) {
+            match self.cpu.step(None, None) {
                 StepAction::Continue => {
                     if self.breakpoints.contains(&self.cpu.read_pc()) {
                         return SingleThreadStopReason::SwBreak(());
@@ -80,7 +80,7 @@ impl GdbTarget {
     pub fn run(&mut self) -> SingleThreadStopReason<u32> {
         match self.exec_mode {
             ExecMode::Step => {
-                self.cpu.step(None);
+                self.cpu.step(None, None);
                 SingleThreadStopReason::DoneStep
             }
             ExecMode::Continue => self.cond_run(),

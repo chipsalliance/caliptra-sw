@@ -106,7 +106,7 @@ mod tests {
     fn test_ecall() {
         let mut cpu = isa_test_cpu!(0x0000 => text![ecall();], 0x1000 => vec![0]);
         assert_eq!(
-            cpu.exec_instr(None).err(),
+            cpu.exec_instr(None, None).err(),
             Some(RvException::environment_call())
         );
     }
@@ -115,7 +115,7 @@ mod tests {
     fn test_ebreak() {
         let mut cpu = isa_test_cpu!(0x0000 => text![ebreak();], 0x1000 => vec![0]);
         assert_eq!(
-            cpu.exec_instr(None).err(),
+            cpu.exec_instr(None, None).err(),
             Some(RvException::breakpoint(0x0000))
         );
     }

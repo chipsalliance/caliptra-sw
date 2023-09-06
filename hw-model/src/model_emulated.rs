@@ -8,6 +8,7 @@ use std::path::Path;
 use std::rc::Rc;
 
 use caliptra_emu_bus::Clock;
+use caliptra_emu_cpu::cpu::CodeCoverage;
 use caliptra_emu_cpu::Cpu;
 use caliptra_emu_cpu::InstrTracer;
 use caliptra_emu_periph::ActionCb;
@@ -54,6 +55,7 @@ pub struct ModelEmulated {
     trace_fn: Option<Box<InstrTracer<'static>>>,
     ready_for_fw: Rc<Cell<bool>>,
     cpu_enabled: Rc<Cell<bool>>,
+    code_coverage: CodeCoverage,
 }
 
 impl crate::HwModel for ModelEmulated {
@@ -125,6 +127,7 @@ impl crate::HwModel for ModelEmulated {
             trace_fn: None,
             ready_for_fw,
             cpu_enabled,
+            code_coverage: CodeCoverage::new(params.rom.len() + params.iccm.len()),
         };
         // Turn tracing on if CPTRA_TRACE_PATH environment variable is set
         m.tracing_hint(true);
@@ -141,7 +144,8 @@ impl crate::HwModel for ModelEmulated {
 
     fn step(&mut self) {
         if self.cpu_enabled.get() {
-            self.cpu.step(self.trace_fn.as_deref_mut());
+            self.cpu
+                .step(self.trace_fn.as_deref_mut(), Some(&mut self.code_coverage));
         }
     }
 

@@ -165,7 +165,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut cpu = Cpu::new(Ram::new(binary), Clock::new());
         cpu.write_pc(0x3000);
         while !is_test_complete(&mut cpu.bus) {
-            match cpu.step(None) {
+            match cpu.step(None, None) {
                 StepAction::Continue => continue,
                 _ => break,
             }

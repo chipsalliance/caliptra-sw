@@ -30,7 +30,7 @@ mod system;
 mod test_encoder;
 mod test_macros;
 
-use crate::cpu::{Cpu, InstrTracer, StepAction};
+use crate::cpu::{CodeCoverage, Cpu, InstrTracer, StepAction};
 use crate::types::{RvInstr, RvInstr32, RvInstr32Opcode};
 use caliptra_emu_bus::Bus;
 use caliptra_emu_types::{RvException, RvSize};
@@ -54,10 +54,16 @@ impl<TBus: Bus> Cpu<TBus> {
     pub(crate) fn exec_instr(
         &mut self,
         instr_tracer: Option<&mut InstrTracer>,
+        code_coverage: Option<&mut CodeCoverage>,
     ) -> Result<StepAction, RvException> {
         // Set In Execution Mode and remove Hit
         self.is_execute_instr = true;
         self.watch_ptr_cfg.hit = None;
+
+        // Code coverage here.
+        if let Some(&mut ref mut code_coverage) = code_coverage {
+            code_coverage.log_execution(self.read_pc());
+        }
 
         match self.fetch()? {
             Instr::Compressed(instr) => {

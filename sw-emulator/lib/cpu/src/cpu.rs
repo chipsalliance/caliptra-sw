@@ -15,10 +15,35 @@ Abstract:
 use crate::csr_file::{Csr, CsrFile};
 use crate::types::{RvInstr, RvMStatus};
 use crate::xreg_file::{XReg, XRegFile};
+use bit_vec::BitVec;
 use caliptra_emu_bus::{Bus, BusError, Clock, TimerAction};
 use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
 
 pub type InstrTracer<'a> = dyn FnMut(u32, RvInstr) + 'a;
+
+#[derive(Clone)]
+pub struct CodeCoverage {
+    bit_vec: bit_vec::BitVec,
+}
+impl CodeCoverage {
+    pub fn new(capacity_in_bits: usize) -> Self {
+        Self {
+            bit_vec: BitVec::from_elem(capacity_in_bits, false),
+        }
+    }
+    pub fn log_execution(&mut self, pc: RvData) {
+        if (pc as usize) < self.bit_vec.len() {
+            self.bit_vec.set(pc as usize, true);
+        }
+    }
+    pub fn count_executed_instructions(&self) -> usize {
+        self.bit_vec.iter().filter(|&executed| executed).count()
+    }
+
+    pub fn calculate_coverage_percentage(&self) -> f64 {
+        (self.count_executed_instructions() as f64 / self.bit_vec.len() as f64) * 100.0
+    }
+}
 
 #[derive(PartialEq)]
 pub enum WatchPtrKind {
@@ -47,6 +72,11 @@ impl WatchPtrCfg {
     }
 }
 
+impl Default for WatchPtrCfg {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 /// RISCV CPU
 pub struct Cpu<TBus: Bus> {
     /// General Purpose register file
@@ -307,7 +337,11 @@ impl<TBus: Bus> Cpu<TBus> {
     }
 
     /// Step a single instruction
-    pub fn step(&mut self, instr_tracer: Option<&mut InstrTracer>) -> StepAction {
+    pub fn step(
+        &mut self,
+        instr_tracer: Option<&mut InstrTracer>,
+        code_coverage: Option<&mut CodeCoverage>,
+    ) -> StepAction {
         let fired_action_types = self
             .clock
             .increment_and_process_timer_actions(1, &mut self.bus);
@@ -327,7 +361,7 @@ impl<TBus: Bus> Cpu<TBus> {
             }
         }
 
-        match self.exec_instr(instr_tracer) {
+        match self.exec_instr(instr_tracer, code_coverage) {
             Ok(result) => result,
             Err(exception) => self.handle_exception(exception),
         }
@@ -471,15 +505,26 @@ mod tests {
         let mut cpu = Cpu::new(bus, clock);
         for i in 0..30 {
             assert_eq!(cpu.clock.now(), i);
-            assert_eq!(cpu.step(None), StepAction::Continue);
+            assert_eq!(cpu.step(None, None), StepAction::Continue);
         }
         assert_eq!(fake_bus_log.take(), "");
         assert!(!timer.fired(&mut action0));
 
-        assert_eq!(cpu.step(None), StepAction::Continue);
+        assert_eq!(cpu.step(None, None), StepAction::Continue);
         assert_eq!(fake_bus_log.take(), "poll()\n");
         assert!(timer.fired(&mut action0));
 
         assert_eq!(cpu.read_pc(), 31 * 4);
+    }
+
+    #[test]
+    fn test_coverage() {
+        let mut coverage = CodeCoverage::new(100);
+        assert_eq!(coverage.count_executed_instructions(), 0);
+        assert_eq!(coverage.calculate_coverage_percentage(), 0.0);
+
+        coverage.log_execution(0);
+        assert_eq!(coverage.count_executed_instructions(), 1);
+        assert_eq!(coverage.calculate_coverage_percentage(), 1.);
     }
 }
