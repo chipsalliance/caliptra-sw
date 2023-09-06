@@ -14,13 +14,9 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
 
-use caliptra_common::memory_layout::{
-    FHT_ORG, FMCALIAS_TBS_ORG, FUSE_LOG_ORG, LDEVID_TBS_ORG, PCR_LOG_ORG,
-};
-use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::{FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
-use caliptra_drivers::ColdResetEntry4::*;
+use caliptra_drivers::{ColdResetEntry4::*, PersistentDataAccessor};
 use caliptra_drivers::{DataVault, Mailbox, PcrBank, PcrId};
 use caliptra_registers::dv::DvReg;
 use caliptra_registers::pv::PvReg;
@@ -28,7 +24,6 @@ use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, Loc
 use core::ptr;
 use ureg::RealMmioMut;
 use zerocopy::AsBytes;
-use zerocopy::FromBytes;
 
 #[cfg(not(feature = "std"))]
 core::arch::global_asm!(include_str!("start.S"));
@@ -47,15 +42,9 @@ Running Caliptra FMC ...
 pub extern "C" fn fmc_entry() -> ! {
     cprintln!("{}", BANNER);
 
-    let slice = unsafe {
-        let ptr = FHT_ORG as *mut u8;
-        cprintln!("[fmc] Loading FHT from 0x{:08X}", ptr as u32);
-        core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
-    };
-
     if cfg!(not(feature = "fake-fmc")) {
-        let fht = FirmwareHandoffTable::read_from(slice).unwrap();
-        assert!(fht.is_valid());
+        let persistent_data = unsafe { PersistentDataAccessor::new() };
+        assert!(persistent_data.get().fht.is_valid());
     }
 
     process_mailbox_commands();
@@ -164,34 +153,19 @@ fn create_certs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
 }
 
 fn copy_tbs(tbs: &mut [u8], ldevid_tbs: bool) {
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
     // Copy the tbs from DCCM
     let src = if ldevid_tbs {
-        unsafe {
-            let ptr = LDEVID_TBS_ORG as *mut u8;
-            core::slice::from_raw_parts_mut(ptr, tbs.len())
-        }
+        &persistent_data.get().ldevid_tbs
     } else {
-        unsafe {
-            let ptr = FMCALIAS_TBS_ORG as *mut u8;
-            core::slice::from_raw_parts_mut(ptr, tbs.len())
-        }
+        &persistent_data.get().fmcalias_tbs
     };
-    tbs.copy_from_slice(src);
+    tbs.copy_from_slice(&src[..tbs.len()]);
 }
 
 fn get_pcr_entry(entry_index: usize) -> PcrLogEntry {
-    // Copy the pcr log entry from DCCM
-    let mut pcr_entry: [u8; core::mem::size_of::<PcrLogEntry>()] =
-        [0u8; core::mem::size_of::<PcrLogEntry>()];
-
-    let src = unsafe {
-        let offset = core::mem::size_of::<PcrLogEntry>() * entry_index;
-        let ptr = (PCR_LOG_ORG as *mut u8).add(offset);
-        core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<PcrLogEntry>())
-    };
-
-    pcr_entry.copy_from_slice(src);
-    PcrLogEntry::read_from_prefix(pcr_entry.as_bytes()).unwrap()
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
+    persistent_data.get().pcr_log[entry_index]
 }
 
 fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
@@ -341,8 +315,18 @@ fn try_to_reset_pcrs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>
 }
 
 fn read_rom_info(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
-    let fht = unsafe { &*(FHT_ORG as *const FirmwareHandoffTable) };
-    send_to_mailbox(mbox, fht.rom_info_addr.get().unwrap().as_bytes(), true);
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
+    send_to_mailbox(
+        mbox,
+        persistent_data
+            .get()
+            .fht
+            .rom_info_addr
+            .get()
+            .unwrap()
+            .as_bytes(),
+        true,
+    );
 }
 
 fn read_fuse_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
@@ -366,33 +350,13 @@ fn read_fuse_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
 }
 
 fn get_fuse_entry(entry_index: usize) -> FuseLogEntry {
-    // Copy the Fuse log entry from DCCM
-    let mut fuse_entry: [u8; core::mem::size_of::<FuseLogEntry>()] =
-        [0u8; core::mem::size_of::<FuseLogEntry>()];
-
-    let src = unsafe {
-        let offset = core::mem::size_of::<FuseLogEntry>() * entry_index;
-        let ptr = (FUSE_LOG_ORG as *mut u8).add(offset);
-        core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FuseLogEntry>())
-    };
-
-    fuse_entry.copy_from_slice(src);
-    FuseLogEntry::read_from_prefix(fuse_entry.as_bytes()).unwrap()
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
+    persistent_data.get().fuse_log[entry_index]
 }
 
 fn read_fht(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
-    // Copy the FHT from DCCM
-    let mut fht: [u8; core::mem::size_of::<FirmwareHandoffTable>()] =
-        [0u8; core::mem::size_of::<FirmwareHandoffTable>()];
-
-    let src = unsafe {
-        let ptr = FHT_ORG as *mut u8;
-        core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
-    };
-
-    fht.copy_from_slice(src);
-
-    send_to_mailbox(mbox, fht.as_bytes(), true);
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
+    send_to_mailbox(mbox, persistent_data.get().fht.as_bytes(), true);
 }
 
 fn send_to_mailbox(
