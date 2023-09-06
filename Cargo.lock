@@ -353,6 +353,7 @@ dependencies = [
  "sha3",
  "smlang",
  "tock-registers",
+ "zerocopy",
 ]
 
 [[package]]

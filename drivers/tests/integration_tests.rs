@@ -188,11 +188,21 @@ fn test_doe_when_debug_not_locked() {
     .unwrap();
 
     let txn = model.wait_for_mailbox_receive().unwrap();
+
+    // The hardware no longer reveals HMAC results to the CPU that use data from
+    // the key-vault, replacing them with zeroes. Used to be
+    // DOE_TEST_VECTORS_DEBUG_MODE.expected_test_results
+    // TODO: Do an ECDSA keygen operation instead to ensure the key-vault
+    // contents are as expected
+    let expected_test_results = DoeTestResults {
+        hmac_uds_as_key: [0u32; 12],
+        hmac_uds_as_data: [0u32; 12],
+        hmac_field_entropy_as_key: [0u32; 12],
+        hmac_field_entropy_as_data: [0u32; 12],
+    };
+
     let test_results = DoeTestResults::read_from(txn.req.data.as_slice()).unwrap();
-    assert_eq!(
-        test_results,
-        DOE_TEST_VECTORS_DEBUG_MODE.expected_test_results
-    )
+    assert_eq!(test_results, expected_test_results)
 }
 
 const DOE_TEST_VECTORS: DoeTestVectors = DoeTestVectors {
@@ -260,7 +270,19 @@ fn test_doe_when_debug_locked() {
 
     let txn = model.wait_for_mailbox_receive().unwrap();
     let test_results = DoeTestResults::read_from(txn.req.data.as_slice()).unwrap();
-    assert_eq!(test_results, DOE_TEST_VECTORS.expected_test_results)
+
+    // The hardware no longer reveals HMAC results that use data from the
+    // key-vault, replacing them with zeroes. Used to be DOE_TEST_VECTORS.expected_test_results
+    // TODO: Do an ECDSA keygen operation instead to ensure the key-vault
+    // contents are as expected
+    let expected_test_results = DoeTestResults {
+        hmac_uds_as_key: [0u32; 12],
+        hmac_uds_as_data: [0u32; 12],
+        hmac_field_entropy_as_key: [0u32; 12],
+        hmac_field_entropy_as_data: [0u32; 12],
+    };
+
+    assert_eq!(test_results, expected_test_results);
 }
 
 #[test]
