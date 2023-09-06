@@ -28,6 +28,7 @@ pub(crate) struct RomImageVerificationEnv<'a> {
     pub(crate) ecc384: &'a mut Ecc384,
     pub(crate) data_vault: &'a mut DataVault,
     pub(crate) pcr_bank: &'a mut PcrBank,
+    pub(crate) persistent_data: &'a mut PersistentDataAccessor,
 }
 
 impl<'a> ImageVerificationEnv for &mut RomImageVerificationEnv<'a> {
