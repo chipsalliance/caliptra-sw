@@ -35,8 +35,8 @@ fn main() {
     println!("  let msg_0 = {};", hex_arr(&vec_c48.msg_0));
     println!("  let label = {};", hex_arr(&vec_c48.label));
     println!("  let context = {};", hex_arr(&vec_c48.context));
-    println!("  let msg_1 = {};", hex_arr(&vec_c48.msg_1));
-    println!("  let out = {};", hex_arr(&vec_c48.out));
+    println!("  let out_pub_x = {};", hex_arr(&vec_c48.out_pub_x));
+    println!("  let out_pub_y = {};", hex_arr(&vec_c48.out_pub_y));
     println!();
 
     let vec_c0: Hmac384KdfVector = gen_vector(4, 0);
@@ -45,7 +45,7 @@ fn main() {
     println!("  let key_0 = {};", hex_arr(&vec_c0.key_0));
     println!("  let msg_0 = {};", hex_arr(&vec_c0.msg_0));
     println!("  let label = {};", hex_arr(&vec_c0.label));
-    println!("  let msg_1 = {};", hex_arr(&vec_c0.msg_1));
-    println!("  let out = {};", hex_arr(&vec_c0.out));
+    println!("  let out_pub_x = {};", hex_arr(&vec_c0.out_pub_x));
+    println!("  let out_pub_y = {};", hex_arr(&vec_c0.out_pub_y));
     println!();
 }

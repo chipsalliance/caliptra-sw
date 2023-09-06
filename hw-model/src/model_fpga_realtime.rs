@@ -5,15 +5,23 @@ use std::{env, str::FromStr};
 use bitfield::bitfield;
 use caliptra_emu_bus::{Bus, BusError};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
+use libc;
+use nix;
 use std::io::Write;
 use std::time;
 use uio::{UioDevice, UioError};
 
+use crate::EtrngResponse;
 use crate::HwModel;
 use crate::Output;
 
 // TODO: Make PAUSER configurable
 const SOC_PAUSER: u32 = 0xffff_ffff;
+
+// UIO mapping indices
+const GPIO_MAPPING: usize = 0;
+const MBOX_MAPPING: usize = 1;
+const SOC_IFC_MAPPING: usize = 2;
 
 fn fmt_uio_error(err: UioError) -> String {
     format!("{err:?}")
@@ -64,11 +72,16 @@ bitfield! {
 }
 
 pub struct ModelFpgaRealtime {
+    dev: UioDevice,
     gpio: *mut u32,
     mbox: *mut u32,
     soc_ifc: *mut u32,
     output: Output,
     start_time: time::Instant,
+
+    etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
+    etrng_response: Option<[u32; 12]>,
+    etrng_waiting_for_req_to_clear: bool,
 }
 
 impl ModelFpgaRealtime {
@@ -103,6 +116,64 @@ impl ModelFpgaRealtime {
             self.gpio.offset(GPIO_PAUSER_OFFSET).write_volatile(pauser);
         }
     }
+
+    fn handle_log(&mut self) {
+        // Check if the FIFO is full (which probably means there was an overrun)
+        let fifosts = unsafe {
+            FifoStatus(
+                self.gpio
+                    .offset(GPIO_LOG_FIFO_STATUS_OFFSET)
+                    .read_volatile(),
+            )
+        };
+        if fifosts.log_fifo_full() != 0 {
+            panic!("FPGA log FIFO overran");
+        }
+        // Check and empty log FIFO
+        loop {
+            let fifodata =
+                unsafe { FifoData(self.gpio.offset(GPIO_LOG_FIFO_DATA_OFFSET).read_volatile()) };
+            // Add byte to log if it is valid
+            if fifodata.log_fifo_valid() != 0 {
+                self.output()
+                    .sink()
+                    .push_uart_char(fifodata.log_fifo_char().try_into().unwrap());
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn handle_etrng(&mut self) {
+        let trng_status = self.soc_ifc_trng().cptra_trng_status().read();
+        if self.etrng_waiting_for_req_to_clear && !trng_status.data_req() {
+            self.etrng_waiting_for_req_to_clear = false;
+        }
+        if trng_status.data_req() && !self.etrng_waiting_for_req_to_clear {
+            if self.etrng_response.is_none() {
+                if let Some(response) = self.etrng_responses.next() {
+                    self.etrng_response = Some(response.data);
+                }
+            }
+            if let Some(_) = &mut self.etrng_response {
+                self.etrng_waiting_for_req_to_clear = true;
+                let etrng_response = self.etrng_response.take().unwrap();
+                self.soc_ifc_trng().cptra_trng_data().write(&etrng_response);
+                self.soc_ifc_trng()
+                    .cptra_trng_status()
+                    .write(|w| w.data_wr_done(true));
+            }
+        }
+    }
+
+    // UIO crate doesn't provide a way to unmap memory.
+    fn unmap_mapping(&self, addr: *mut u32, mapping: usize) {
+        let map_size = self.dev.map_size(mapping).unwrap();
+
+        unsafe {
+            nix::sys::mman::munmap(addr as *mut libc::c_void, map_size.into()).unwrap();
+        }
+    }
 }
 
 impl HwModel for ModelFpgaRealtime {
@@ -116,17 +187,22 @@ impl HwModel for ModelFpgaRealtime {
         let uio_num = usize::from_str(&env::var("CPTRA_UIO_NUM")?)?;
         let dev = UioDevice::new(uio_num)?;
 
-        let gpio = dev.map_mapping(0).map_err(fmt_uio_error)? as *mut u32;
-        let mbox = dev.map_mapping(1).map_err(fmt_uio_error)? as *mut u32;
-        let soc_ifc = dev.map_mapping(2).map_err(fmt_uio_error)? as *mut u32;
+        let gpio = dev.map_mapping(GPIO_MAPPING).map_err(fmt_uio_error)? as *mut u32;
+        let mbox = dev.map_mapping(MBOX_MAPPING).map_err(fmt_uio_error)? as *mut u32;
+        let soc_ifc = dev.map_mapping(SOC_IFC_MAPPING).map_err(fmt_uio_error)? as *mut u32;
         let start_time = time::Instant::now();
 
         let mut m = Self {
+            dev,
             gpio,
             mbox,
             soc_ifc,
             output,
             start_time,
+
+            etrng_responses: params.etrng_responses,
+            etrng_response: None,
+            etrng_waiting_for_req_to_clear: false,
         };
 
         writeln!(m.output().logger(), "new_unbooted")?;
@@ -171,38 +247,10 @@ impl HwModel for ModelFpgaRealtime {
     }
 
     fn step(&mut self) {
-        // Check if the FIFO is full (which probably means there was an overrun)
-        let fifosts = unsafe {
-            FifoStatus(
-                self.gpio
-                    .offset(GPIO_LOG_FIFO_STATUS_OFFSET)
-                    .read_volatile(),
-            )
-        };
-        if fifosts.log_fifo_full() != 0 {
-            panic!("FPGA log FIFO overran");
-        }
-        // Check and empty log FIFO
-        loop {
-            let fifodata =
-                unsafe { FifoData(self.gpio.offset(GPIO_LOG_FIFO_DATA_OFFSET).read_volatile()) };
-            // Add byte to log if it is valid
-            if fifodata.log_fifo_valid() != 0 {
-                self.output()
-                    .sink()
-                    .push_uart_char(fifodata.log_fifo_char().try_into().unwrap());
-            } else {
-                break;
-            }
-        }
+        self.handle_log();
 
-        // Handle etrng request
-        if self.soc_ifc_trng().cptra_trng_status().read().data_req() {
-            // Write CPTRA_TRNG_STATUS.DATA_WR_DONE
-            self.soc_ifc_trng()
-                .cptra_trng_status()
-                .write(|w| w.data_wr_done(true));
-        }
+        // FPGA only supports ETRNG for now and needs to be checked frequently.
+        self.handle_etrng();
     }
 
     fn output(&mut self) -> &mut crate::Output {
@@ -228,6 +276,14 @@ impl HwModel for ModelFpgaRealtime {
 
     fn tracing_hint(&mut self, _enable: bool) {
         // Do nothing; we don't support tracing yet
+    }
+}
+impl Drop for ModelFpgaRealtime {
+    fn drop(&mut self) {
+        // Unmap UIO memory space so that the file lock is released
+        self.unmap_mapping(self.gpio, GPIO_MAPPING);
+        self.unmap_mapping(self.mbox, MBOX_MAPPING);
+        self.unmap_mapping(self.soc_ifc, SOC_IFC_MAPPING);
     }
 }
 

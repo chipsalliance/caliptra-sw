@@ -9,6 +9,8 @@ pub struct CommandId(pub u32);
 impl CommandId {
     pub const FIRMWARE_LOAD: Self = Self(0x46574C44); // "FWLD"
     pub const GET_IDEV_CSR: Self = Self(0x49444556); // "IDEV"
+    pub const GET_IDEV_CERT: Self = Self(0x49444543); // IDEC
+    pub const GET_IDEV_INFO: Self = Self(0x49444549); // IDEI
     pub const GET_LDEV_CERT: Self = Self(0x4C444556); // "LDEV"
     pub const ECDSA384_VERIFY: Self = Self(0x53494756); // "SIGV"
     pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
@@ -28,6 +30,9 @@ impl CommandId {
     pub const SELF_TEST: Self = Self(0x4650_4C54); // "FPST"
     /// The shutdown command.
     pub const SHUTDOWN: Self = Self(0x4650_5344); // "FPSD"
+
+    // The capabilities command.
+    pub const CAPABILITIES: Self = Self(0x4341_5053); // "CAPS"
 }
 
 impl From<u32> for CommandId {
@@ -47,7 +52,9 @@ impl From<CommandId> for u32 {
 #[allow(clippy::large_enum_variant)]
 pub enum MailboxResp {
     Header(MailboxRespHeader),
+    GetIdevCert(GetIdevCertResp),
     GetIdevCsr(GetIdevCsrResp),
+    GetIdevInfo(GetIdevInfoResp),
     GetLdevCert(GetLdevCertResp),
     StashMeasurement(StashMeasurementResp),
     InvokeDpeCommand(InvokeDpeResp),
@@ -60,7 +67,9 @@ impl MailboxResp {
     pub fn as_bytes(&self) -> &[u8] {
         match self {
             MailboxResp::Header(resp) => resp.as_bytes(),
+            MailboxResp::GetIdevCert(resp) => resp.as_bytes(),
             MailboxResp::GetIdevCsr(resp) => resp.as_bytes(),
+            MailboxResp::GetIdevInfo(resp) => resp.as_bytes(),
             MailboxResp::GetLdevCert(resp) => resp.as_bytes(),
             MailboxResp::StashMeasurement(resp) => resp.as_bytes(),
             MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes_partial(),
@@ -73,7 +82,9 @@ impl MailboxResp {
     pub fn as_bytes_mut(&mut self) -> &mut [u8] {
         match self {
             MailboxResp::Header(resp) => resp.as_bytes_mut(),
+            MailboxResp::GetIdevCert(resp) => resp.as_bytes_mut(),
             MailboxResp::GetIdevCsr(resp) => resp.as_bytes_mut(),
+            MailboxResp::GetIdevInfo(resp) => resp.as_bytes_mut(),
             MailboxResp::GetLdevCert(resp) => resp.as_bytes_mut(),
             MailboxResp::StashMeasurement(resp) => resp.as_bytes_mut(),
             MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes_partial_mut(),
@@ -149,6 +160,41 @@ impl GetIdevCsrResp {
     pub const DATA_MAX_SIZE: usize = 1024;
 }
 
+// GET_IDEV_CERT
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct GetIdevCertReq {
+    pub hdr: MailboxReqHeader,
+    pub tbs_size: u32,
+    pub signature_r: [u8; 48],
+    pub signature_s: [u8; 48],
+    pub tbs: [u8; GetIdevCertReq::DATA_MAX_SIZE], // variable length
+}
+impl GetIdevCertReq {
+    pub const DATA_MAX_SIZE: usize = 916; // Req max size = Resp max size - MAX_ECDSA384_SIG_LEN
+}
+
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct GetIdevCertResp {
+    pub hdr: MailboxRespHeader,
+    pub cert_size: u32,
+    pub cert: [u8; GetIdevCertResp::DATA_MAX_SIZE], // variable length
+}
+impl GetIdevCertResp {
+    pub const DATA_MAX_SIZE: usize = 1024;
+}
+
+// GET_IDEV_INFO
+// No command-specific input args
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct GetIdevInfoResp {
+    pub hdr: MailboxRespHeader,
+    pub idev_pub_x: [u8; 48],
+    pub idev_pub_y: [u8; 48],
+}
+
 // GET_LDEV_CERT
 // No command-specific input args
 #[repr(C)]
@@ -193,6 +239,7 @@ pub struct StashMeasurementReq {
     pub hdr: MailboxReqHeader,
     pub metadata: [u8; 4],
     pub measurement: [u8; 48],
+    pub svn: u32,
 }
 
 #[repr(C)]
@@ -238,7 +285,7 @@ pub struct InvokeDpeResp {
 }
 
 impl InvokeDpeResp {
-    pub const DATA_MAX_SIZE: usize = 2500;
+    pub const DATA_MAX_SIZE: usize = 2200;
 
     fn as_bytes_partial(&self) -> &[u8] {
         let unused_byte_count = Self::DATA_MAX_SIZE.saturating_sub(self.data_size as usize);
@@ -297,6 +344,7 @@ pub struct FwInfoResp {
     pub hdr: MailboxRespHeader,
     pub pl0_pauser: u32,
     pub runtime_svn: u32,
+    pub min_runtime_svn: u32,
     pub fmc_manifest_svn: u32,
     // TODO: Decide what other information to report for general firmware
     // status.

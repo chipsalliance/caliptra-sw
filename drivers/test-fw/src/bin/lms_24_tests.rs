@@ -409,6 +409,11 @@ fn test_lms_24_height_15() {
         .verify_lms_signature(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &LMS_SIG)
         .unwrap();
     assert_eq!(result, LmsResult::Success);
+
+    let candidate_key = Lms::default()
+        .verify_lms_signature_cfi(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &LMS_SIG)
+        .unwrap();
+    assert_eq!(candidate_key, HashValue::from(LMS_PUBLIC_KEY.digest));
 }
 
 test_suite! {

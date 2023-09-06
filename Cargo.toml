@@ -137,6 +137,7 @@ serde = "1.0"
 serde_derive = "1.0.136"
 serde_json = "1.0"
 sha2 = { version = "0.10.2", default-features = false, features = ["compress"] }
+sha3 = "0.10.8"
 smlang = "0.6.0"
 syn = "1.0.107"
 tinytemplate = "1.1"
@@ -151,6 +152,9 @@ ureg-systemrdl = { path = "ureg/lib/systemrdl" }
 wycheproof = "0.5.1"
 x509-parser = "0.15.0"
 zerocopy = "0.6.1"
+serial_test = "2.0.0"
+nix = "0.26.2"
+libc = "0.2"
 
 [profile.firmware]
 inherits = "release"

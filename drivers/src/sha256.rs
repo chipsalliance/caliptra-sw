@@ -97,6 +97,31 @@ impl Sha256 {
         Ok(digest)
     }
 
+    /// Take a raw sha256 digest of 0 or more 64-byte blocks of memory. Unlike
+    /// digest(), the each word is passed to the sha256 peripheral without
+    /// byte-swapping to reverse the peripheral's big-endian words. This means the
+    /// hash will be measured with the byte-swapped value of each word.
+    ///
+    /// # Safety
+    ///
+    /// The caller is responsible for ensuring that the safety requirements of
+    /// [`core::ptr::read`] are valid for every value between `ptr.add(0)` and
+    /// `ptr.add(n_blocks - 1)`.
+    #[inline(always)]
+    pub unsafe fn digest_blocks_raw(
+        &mut self,
+        mut ptr: *const [u32; 16],
+        n_blocks: usize,
+    ) -> CaliptraResult<Array4x8> {
+        for i in 0..n_blocks {
+            self.sha256.regs_mut().block().write_ptr(ptr);
+            self.digest_op(i == 0)?;
+            ptr = ptr.wrapping_add(1);
+        }
+        self.digest_partial_block(&[], n_blocks == 0, n_blocks * 64)?;
+        Ok(Array4x8::read_from_reg(self.sha256.regs_mut().digest()))
+    }
+
     /// Zeroize the hardware registers.
     fn zeroize_internal(&mut self) {
         self.sha256.regs_mut().ctrl().write(|w| w.zeroize(true));

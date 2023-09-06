@@ -127,7 +127,7 @@ impl ImageBundle {
 
 /// Calipatra Image Manifest
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Debug)]
+#[derive(AsBytes, FromBytes, Clone, Copy, Debug)]
 pub struct ImageManifest {
     /// Marker
     pub marker: u32,
@@ -238,7 +238,7 @@ pub struct ImageOwnerPrivKeys {
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
 pub struct ImageSignatures {
     pub ecc_sig: ImageEccSignature,
     pub lms_sig: ImageLmsSignature,
@@ -246,7 +246,7 @@ pub struct ImageSignatures {
 
 /// Calipatra Image Bundle Preamble
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
 pub struct ImagePreamble {
     /// Vendor  Public Keys
     pub vendor_pub_keys: ImageVendorPubKeys,
@@ -270,32 +270,32 @@ pub struct ImagePreamble {
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
 pub struct VendorSignedData {
-    /// Vendor Start Date [ASN1 Time Format] For LDEV-Id certificate.
+    /// Vendor Start Date [ASN1 Time Format] For FMC alias certificate.
     pub vendor_not_before: [u8; 15],
 
-    /// Vendor End Date [ASN1 Time Format] For LDEV-Id certificate.
+    /// Vendor End Date [ASN1 Time Format] For FMC alias certificate.
     pub vendor_not_after: [u8; 15],
 
-    reserved: [u8; 2],
+    reserved: [u8; 10],
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
 pub struct OwnerSignedData {
-    /// Owner Start Date [ASN1 Time Format] For LDEV-Id certificate: Takes Preference over vendor start date
+    /// Owner Start Date [ASN1 Time Format] For FMC alias certificate: Takes Preference over vendor start date
     pub owner_not_before: [u8; 15],
 
-    /// Owner End Date [ASN1 Time Format] For LDEV-Id certificate: Takes Preference over vendor end date
+    /// Owner End Date [ASN1 Time Format] For FMC alias certificate: Takes Preference over vendor end date
     pub owner_not_after: [u8; 15],
 
-    reserved: [u8; 2],
+    reserved: [u8; 10],
 }
 
 /// Caliptra Image header
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
 pub struct ImageHeader {
     /// Revision
     pub revision: [u32; 2],
@@ -358,7 +358,7 @@ impl From<ImageTocEntryId> for u32 {
 
 /// Caliptra Table of contents entry
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
 pub struct ImageTocEntry {
     /// ID
     pub id: u32,
@@ -407,6 +407,17 @@ impl ImageTocEntry {
         self.load_addr < (other.load_addr + other.image_size())
             && (self.load_addr + self.image_size()) > other.load_addr
     }
+}
+
+/// Information about the ROM image.
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Default, Debug)]
+pub struct RomInfo {
+    // sha256 digest with big-endian words, where each 4-byte segment of the
+    // digested data has the bytes reversed.
+    pub sha256_digest: [u32; 8],
+    pub revision: ImageRevision,
+    pub flags: u32,
 }
 
 #[cfg(all(test, target_family = "unix"))]

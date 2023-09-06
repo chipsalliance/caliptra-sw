@@ -16,8 +16,8 @@ Abstract:
 --*/
 
 use caliptra_drivers::{
-    CaliptraResult, DataVault, Ecc384, Hmac384, KeyVault, Mailbox, PcrBank, Sha1, Sha256, Sha384,
-    Sha384Acc, SocIfc, Trng,
+    CaliptraResult, DataVault, Ecc384, Hmac384, KeyVault, Mailbox, PcrBank, PersistentDataAccessor,
+    Sha1, Sha256, Sha384, Sha384Acc, SocIfc, Trng,
 };
 use caliptra_registers::{
     csrng::CsrngReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg,
@@ -62,6 +62,9 @@ pub struct FmcEnv {
 
     /// Cryptographically Secure Random Number Generator
     pub trng: Trng,
+
+    /// Persistent Data
+    pub persistent_data: PersistentDataAccessor,
 }
 
 impl FmcEnv {
@@ -93,6 +96,7 @@ impl FmcEnv {
             mbox: Mailbox::new(MboxCsr::new()),
             pcr_bank: PcrBank::new(PvReg::new()),
             trng,
+            persistent_data: PersistentDataAccessor::new(),
         })
     }
 }

@@ -130,6 +130,7 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | rt_cdi_kv_hdl         | 4            | FMC        | Handle of RT CDI value in the Key Vault.                                                                 |
 | rt_priv_key_kv_hdl    | 4            | FMC        | Handle of RT Private Alias Key in the Key Vault.                                                         |
 | rt_svn_dv_hdl         | 4            | FMC        | Handle of RT SVN value in the Data Vault.                                                                |
+| rt_min_svn_dv_hdl     | 4            | FMC        | Handle of Min RT SVN value in the Data Vault.                                                            |
 | ldevid_tbs_addr       | 4            | ROM        | Local Device ID TBS Address.                                                                             |
 | fmcalias_tbs_addr     | 4            | ROM        | FMC Alias TBS Address.                                                                                   |
 | ldevid_tbs_size       | 2            | ROM        | Local Device ID TBS Size.                                                                                |
@@ -139,7 +140,8 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | rt_dice_pub_key       | 96           | FMC        | RT Alias DICE Public Key.                                                                                |
 | rt_dice_sign          | 96           | FMC        | RT Alias DICE signature.                                                                                 |
 | idev_dice_pub_key     | 96           | ROM        | Initial Device ID Public Key.                                                                            |
-| reserved              | 136          |            | Reserved for future use.                                                                                 |
+| rom_info_addr         | 4            | ROM        | Address of ROMInfo struct describing the ROM digest and git commit.                                      |
+| reserved              | 128          |            | Reserved for future use.                                                                                 |
 
 *FHT is currently defined to be 512 bytes in length.*
 
@@ -212,6 +214,10 @@ This field provides the Handle into the Key Vault where the PrivateKey<sub>RT</s
 ### rt_svn_dv_hdl
 
 This field provides the Handle into the Data Vault where the SVN<sub>RT</sub> is stored.
+
+### rt_min_svn_dv_hdl
+
+This field provides the Handle into the Data Vault where the Min-SVN<sub>RT</sub> is stored. Upon cold-boot this is set to SVN<sub>RT</sub>. On subsequent boots this is set to MIN(SVN<sub>RT</sub>, Min-SVN<sub>RT</sub>).
 
 ### reserved
 

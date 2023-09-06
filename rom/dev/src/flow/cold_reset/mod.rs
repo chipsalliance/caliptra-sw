@@ -53,6 +53,8 @@ impl ColdResetFlow {
     pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
         cprintln!("[cold-reset] ++");
         report_boot_status(ColdResetStarted.into());
+        env.data_vault
+            .write_cold_reset_entry4(ColdResetEntry4::RomColdBootStatus, ColdResetStarted.into());
 
         // Execute IDEVID layer
         let mut idevid_layer_output = InitDevIdLayer::derive(env)?;
@@ -72,8 +74,14 @@ impl ColdResetFlow {
         ldevid_layer_output.zeroize();
         fw_proc_info.zeroize();
 
-        cprintln!("[cold-reset] --");
+        // Indicate Cold-Reset successful completion.
+        // This is used by the Warm-Reset flow to confirm that the Cold-Reset was successful.
+        env.data_vault
+            .set_rom_cold_boot_status(ColdResetComplete.into());
+
         report_boot_status(ColdResetComplete.into());
+
+        cprintln!("[cold-reset] --");
 
         Ok(Some(fht::make_fht(env)))
     }

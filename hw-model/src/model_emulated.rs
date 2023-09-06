@@ -91,6 +91,7 @@ impl crate::HwModel for ModelEmulated {
             security_state: params.security_state,
             cptra_obf_key: params.cptra_obf_key,
 
+            itrng_nibbles: Some(params.itrng_nibbles),
             etrng_responses: params.etrng_responses,
             ..CaliptraRootBusArgs::default()
         };

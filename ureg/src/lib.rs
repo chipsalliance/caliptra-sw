@@ -819,7 +819,7 @@ impl<
         TMmio: MmioMut,
     > Array<LEN, RegRef<TReg, TMmio>>
 {
-    /// Reads the entire contents of the array from the underlying registers
+    /// Writes the entire contents of the array to the underlying registers
     ///
     /// # Example
     ///
@@ -849,6 +849,18 @@ impl<
         unsafe {
             self.mmio.write_volatile_array(self.ptr, val);
         }
+    }
+
+    /// Writes the entire contents of the `val` array pointer to the underlying
+    /// registers.
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure that the safety requirements of
+    /// [`core::ptr::read`] are met for every element of the `val array`, and that
+    /// `val.add(1)` does not wrap around the address space.
+    pub unsafe fn write_ptr(&self, val: *const [TRaw; LEN]) {
+        self.mmio.write_volatile_array(self.ptr, val);
     }
 }
 

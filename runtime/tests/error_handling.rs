@@ -6,7 +6,7 @@ use common::run_rt_test;
 pub const TIMER_CONFIG_IN_PICOSSECONDS: u32 = 1000000000; // 1ms
 #[test]
 fn test_wdt_timeout() {
-    let mut model = run_rt_test(Some("wdt"));
+    let mut model = run_rt_test(Some("wdt"), None);
 
     model
         .soc_ifc()

@@ -77,6 +77,10 @@ fn lock_cold_reset_reg(env: &mut RomEnv) {
     // Lock the Lms Vendor Public Key Index in data vault until next cold reset
     env.data_vault
         .lock_cold_reset_entry4(ColdResetEntry4::LmsVendorPubKeyIndex);
+
+    // Lock Cold Reset Status register in data vault until next cold reset
+    env.data_vault
+        .lock_cold_reset_entry4(ColdResetEntry4::RomColdBootStatus);
 }
 
 /// Lock all common registers across all reset types
@@ -90,9 +94,11 @@ fn lock_common_reg_set(env: &mut RomEnv) {
     env.data_vault
         .lock_warm_reset_entry48(WarmResetEntry48::RtTci);
 
-    // Lock the Runtime SVN  in data vault until next reset
+    // Lock the Runtime SVN in data vault until next reset
     env.data_vault
         .lock_warm_reset_entry4(WarmResetEntry4::RtSvn);
+
+    // Do not lock Runtime minimum SVN; FMC will manage this.
 
     // Lock the Runtime entry point in data vault until next reset
     env.data_vault

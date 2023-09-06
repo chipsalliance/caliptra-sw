@@ -15,7 +15,7 @@ use crate::flow::dice::DiceOutput;
 use crate::fmc_env::FmcEnv;
 use caliptra_common::DataStore::*;
 use caliptra_common::{DataStore, FirmwareHandoffTable, HandOffDataHandle, Vault};
-use caliptra_drivers::{Array4x12, Ecc384Signature, KeyId};
+use caliptra_drivers::{memory_layout, Array4x12, Ecc384Signature, KeyId, PersistentDataAccessor};
 use caliptra_drivers::{Ecc384PubKey, Ecc384Scalar};
 use caliptra_error::CaliptraResult;
 
@@ -37,11 +37,9 @@ impl MemoryRegion {
 }
 
 impl IccmAddress {
-    const ICCM_ORG: u32 = 0x40000000;
-    const ICCM_SIZE: u32 = 128 << 10;
     const ICCM: MemoryRegion = MemoryRegion {
-        start: Self::ICCM_ORG,
-        size: Self::ICCM_SIZE,
+        start: memory_layout::ICCM_ORG,
+        size: memory_layout::ICCM_SIZE,
     };
 
     /// Validate that the address is within the ICCM region.
@@ -51,11 +49,9 @@ impl IccmAddress {
 }
 
 impl DccmAddress {
-    const DCCM_ORG: u32 = 0x50000000;
-    const DCCM_SIZE: u32 = 128 << 10;
     const DCCM: MemoryRegion = MemoryRegion {
-        start: Self::DCCM_ORG,
-        size: Self::DCCM_SIZE,
+        start: memory_layout::DCCM_ORG,
+        size: memory_layout::DCCM_SIZE,
     };
 
     /// Validate that the address is within the ICCM region.
@@ -70,14 +66,13 @@ pub struct HandOff {
 
 impl HandOff {
     /// Create a new `HandOff` from the FHT table.
-    pub fn from_previous() -> Option<HandOff> {
-        // try_load performs basic sanity check of the FHT (check FHT marker, valid indices, etc.)
-        if let Some(fht) = FirmwareHandoffTable::try_load() {
-            let me = Self { fht };
-
-            return Some(me);
+    pub fn from_previous(persistent_data: &PersistentDataAccessor) -> Option<HandOff> {
+        let fht = &persistent_data.get().fht;
+        // Perform basic sanity check of the FHT (check FHT marker, valid indices, etc.)
+        if !fht.is_valid() {
+            return None;
         }
-        None
+        Some(Self { fht: fht.clone() })
     }
 
     /// Retrieve FMC CDI
@@ -189,7 +184,8 @@ impl HandOff {
             fn transfer_control(entry: u32) -> !;
         }
 
-        FirmwareHandoffTable::save(&self.fht);
+        env.persistent_data.get_mut().fht = self.fht.clone();
+
         // Retrieve runtime entry point
         let rt_entry = IccmAddress(self.rt_entry_point(env));
 
@@ -237,6 +233,49 @@ impl HandOff {
         match ds {
             DataVaultNonSticky4(dv_entry) => env.data_vault.read_warm_reset_entry4(dv_entry),
             DataVaultSticky4(dv_entry) => env.data_vault.read_cold_reset_entry4(dv_entry),
+            _ => {
+                crate::report_error(
+                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
+                );
+            }
+        }
+    }
+
+    /// Retrieve runtime minimum SVN.
+    pub fn rt_min_svn(&self, env: &FmcEnv) -> u32 {
+        let ds: DataStore = self.fht.rt_min_svn_dv_hdl.try_into().unwrap_or_else(|_| {
+            caliptra_common::report_handoff_error_and_halt(
+                "Invalid RT Min SVN handle",
+                caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
+            )
+        });
+
+        // The data store must be a warm reset entry.
+        match ds {
+            DataVaultNonSticky4(dv_entry) => env.data_vault.read_warm_reset_entry4(dv_entry),
+            _ => {
+                crate::report_error(
+                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
+                );
+            }
+        }
+    }
+
+    pub fn set_and_lock_rt_min_svn(&self, env: &mut FmcEnv, min_svn: u32) -> CaliptraResult<()> {
+        let ds: DataStore = self.fht.rt_min_svn_dv_hdl.try_into().unwrap_or_else(|_| {
+            caliptra_common::report_handoff_error_and_halt(
+                "Invalid RT Min SVN handle",
+                caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
+            )
+        });
+
+        // The data store must be a warm reset entry.
+        match ds {
+            DataVaultNonSticky4(dv_entry) => {
+                env.data_vault.write_warm_reset_entry4(dv_entry, min_svn);
+                env.data_vault.lock_warm_reset_entry4(dv_entry);
+                Ok(())
+            }
             _ => {
                 crate::report_error(
                     caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),

@@ -112,6 +112,9 @@
 | Driver | CSRNG | Reseed Error |0x000d0003 |
 | Driver | CSRNG | Generate Error |0x000d0004 |
 | Driver | CSRNG | Update Error |0x000d0005 |
+| Driver | CSRNG | Other Health Check Failed |0x000d0006 |
+| Driver | CSRNG | Repetition Count Health Check Failed |0x000d0007 |
+| Driver | CSRNG | Adaptive Proportion Health Check Failed |0x000d0008 |
 | Runtime | Command Handler | Internal Error  |0x000e0001 |
 | Runtime | Command Handler | Unimplemented Command  |0x000e0002 |
 | Runtime | Command Handler | Insufficient Memory  |0x000e0003 |

@@ -222,6 +222,9 @@ fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMm
         0x1000_0007 => {
             try_to_reset_pcrs(mbox);
         }
+        0x1000_0008 => {
+            read_rom_info(mbox);
+        }
         _ => {}
     }
 }
@@ -246,6 +249,9 @@ fn read_datavault_coldresetentry4(mbox: &caliptra_registers::mbox::RegisterBlock
     send_to_mailbox(mbox, (FmcSvn as u32).as_bytes(), false);
     send_to_mailbox(mbox, data_vault.fmc_svn().as_bytes(), false);
 
+    send_to_mailbox(mbox, (RomColdBootStatus as u32).as_bytes(), false);
+    send_to_mailbox(mbox, data_vault.rom_cold_boot_status().as_bytes(), false);
+
     send_to_mailbox(mbox, (FmcEntryPoint as u32).as_bytes(), false);
     send_to_mailbox(mbox, data_vault.fmc_entry_point().as_bytes(), false);
 
@@ -256,7 +262,7 @@ fn read_datavault_coldresetentry4(mbox: &caliptra_registers::mbox::RegisterBlock
     send_to_mailbox(mbox, data_vault.lms_vendor_pk_index().as_bytes(), false);
 
     mbox.dlen()
-        .write(|_| (core::mem::size_of::<u32>() * 8).try_into().unwrap());
+        .write(|_| (core::mem::size_of::<u32>() * 10).try_into().unwrap());
     mbox.status().write(|w| w.status(|w| w.data_ready()));
 }
 
@@ -332,6 +338,11 @@ fn try_to_reset_pcrs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>
     send_to_mailbox(mbox, &ret_vals, false);
     mbox.dlen().write(|_| ret_vals.len().try_into().unwrap());
     mbox.status().write(|w| w.status(|w| w.data_ready()));
+}
+
+fn read_rom_info(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    let fht = unsafe { &*(FHT_ORG as *const FirmwareHandoffTable) };
+    send_to_mailbox(mbox, fht.rom_info_addr.get().unwrap().as_bytes(), true);
 }
 
 fn read_fuse_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
