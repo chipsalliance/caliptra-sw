@@ -223,15 +223,10 @@ pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
     // Copy TBS to DCCM
     let tbs = &FAKE_LDEV_TBS;
     env.fht_data_store.ldevid_tbs_size = u16::try_from(tbs.len()).unwrap();
-    let dst = unsafe {
-        let tbs_max_size = LDEVID_TBS_SIZE as usize;
-        if tbs.len() > tbs_max_size {
-            return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_LDEVID_TBS_SIZE);
-        }
-        let ptr = LDEVID_TBS_ORG as *mut u8;
-        core::slice::from_raw_parts_mut(ptr, tbs.len())
+    let Some(dst) = env.persistent_data.get_mut().ldevid_tbs.get_mut(..tbs.len()) else {
+        return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_LDEVID_TBS_SIZE);
     };
-    dst[..tbs.len()].copy_from_slice(tbs);
+    dst.copy_from_slice(tbs);
 
     Ok(())
 }
@@ -246,17 +241,10 @@ pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
     // Copy TBS to DCCM
     let tbs = &FAKE_FMC_ALIAS_TBS;
     env.fht_data_store.fmcalias_tbs_size = u16::try_from(tbs.len()).unwrap();
-    let dst = unsafe {
-        let tbs_max_size = FMCALIAS_TBS_SIZE as usize;
-        if tbs.len() > tbs_max_size {
-            return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE);
-        }
-
-        let ptr = FMCALIAS_TBS_ORG as *mut u8;
-        core::slice::from_raw_parts_mut(ptr, tbs.len())
+    let Some(dst) = env.persistent_data.get_mut().fmcalias_tbs.get_mut(..tbs.len()) else {
+        return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE);
     };
-    dst[..tbs.len()].copy_from_slice(tbs);
-
+    dst.copy_from_slice(tbs);
     Ok(())
 }
 

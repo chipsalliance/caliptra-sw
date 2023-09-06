@@ -18,16 +18,15 @@ use crate::rom_env::RomEnv;
 use crate::{cprintln, verifier::RomImageVerificationEnv};
 use crate::{pcr, wdt};
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::capabilities::Capabilities;
 use caliptra_common::mailbox_api::CommandId;
-use caliptra_common::{cprint, memory_layout::MAN1_ORG, FuseLogEntryId, RomBootStatus::*};
+use caliptra_common::{cprint, FuseLogEntryId, RomBootStatus::*};
 use caliptra_drivers::*;
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier};
 use caliptra_x509::{NotAfter, NotBefore};
 use core::mem::ManuallyDrop;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::AsBytes;
 
 #[derive(Debug, Default)]
 pub struct FwProcInfo {
@@ -60,7 +59,7 @@ impl FirmwareProcessor {
         wdt::start_wdt(&mut env.soc_ifc);
 
         // Load the manifest
-        let manifest = Self::load_manifest(&mut txn);
+        let manifest = Self::load_manifest(&mut env.persistent_data, &mut txn);
         let manifest = okref(&manifest)?;
 
         let mut venv = RomImageVerificationEnv {
@@ -71,16 +70,17 @@ impl FirmwareProcessor {
             ecc384: &mut env.ecc384,
             data_vault: &mut env.data_vault,
             pcr_bank: &mut env.pcr_bank,
+            persistent_data: &mut env.persistent_data,
         };
 
         // Verify the image
         let info = Self::verify_image(&mut venv, manifest, txn.dlen());
         let info = okref(&info)?;
 
-        Self::update_fuse_log(&info.log_info)?;
+        Self::update_fuse_log(&mut venv.persistent_data.get_mut().fuse_log, &info.log_info)?;
 
         // Populate data vault
-        Self::populate_data_vault(venv.data_vault, info);
+        Self::populate_data_vault(venv.data_vault, info, venv.persistent_data);
 
         // Extend PCR0 and PCR1
         pcr::extend_pcrs(&mut venv, info)?;
@@ -182,24 +182,14 @@ impl FirmwareProcessor {
     ///
     /// * `Manifest` - Caliptra Image Bundle Manifest
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn load_manifest(txn: &mut MailboxRecvTxn) -> CaliptraResult<ImageManifest> {
-        let slice = unsafe {
-            let ptr = MAN1_ORG as *mut u32;
-            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
-        };
-
-        txn.copy_request(slice.as_bytes_mut())?;
-
-        let opt = ImageManifest::read_from(slice.as_bytes());
-        let result = opt.is_some();
-        if cfi_launder(result) {
-            cfi_assert!(opt.is_some());
-            report_boot_status(FwProcessorManifestLoadComplete.into());
-            Ok(opt.unwrap())
-        } else {
-            cfi_assert!(opt.is_none());
-            Err(CaliptraError::FW_PROC_MANIFEST_READ_FAILURE)
-        }
+    fn load_manifest(
+        persistent_data: &mut PersistentDataAccessor,
+        txn: &mut MailboxRecvTxn,
+    ) -> CaliptraResult<ImageManifest> {
+        let manifest = &mut persistent_data.get_mut().manifest1;
+        txn.copy_request(manifest.as_bytes_mut())?;
+        report_boot_status(FwProcessorManifestLoadComplete.into());
+        Ok(*manifest)
     }
 
     /// Verify the image
@@ -239,15 +229,20 @@ impl FirmwareProcessor {
     /// # Returns
     /// * CaliptraResult
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn update_fuse_log(log_info: &ImageVerificationLogInfo) -> CaliptraResult<()> {
+    fn update_fuse_log(
+        log: &mut FuseLogArray,
+        log_info: &ImageVerificationLogInfo,
+    ) -> CaliptraResult<()> {
         // Log VendorPubKeyIndex
         log_fuse_data(
+            log,
             FuseLogEntryId::VendorEccPubKeyIndex,
             log_info.vendor_ecc_pub_key_idx.as_bytes(),
         )?;
 
         // Log VendorPubKeyRevocation
         log_fuse_data(
+            log,
             FuseLogEntryId::VendorEccPubKeyRevocation,
             log_info
                 .fuse_vendor_ecc_pub_key_revocation
@@ -257,36 +252,42 @@ impl FirmwareProcessor {
 
         // Log ManifestFmcSvn
         log_fuse_data(
+            log,
             FuseLogEntryId::ManifestFmcSvn,
             log_info.fmc_log_info.manifest_svn.as_bytes(),
         )?;
 
         // Log ManifestFmcMinSvn
         log_fuse_data(
+            log,
             FuseLogEntryId::ManifestFmcMinSvn,
             log_info.fmc_log_info.manifest_min_svn.as_bytes(),
         )?;
 
         // Log FuseFmcSvn
         log_fuse_data(
+            log,
             FuseLogEntryId::FuseFmcSvn,
             log_info.fmc_log_info.fuse_svn.as_bytes(),
         )?;
 
         // Log ManifestRtSvn
         log_fuse_data(
+            log,
             FuseLogEntryId::ManifestRtSvn,
             log_info.rt_log_info.manifest_svn.as_bytes(),
         )?;
 
         // Log ManifestRtMinSvn
         log_fuse_data(
+            log,
             FuseLogEntryId::ManifestRtMinSvn,
             log_info.rt_log_info.manifest_min_svn.as_bytes(),
         )?;
 
         // Log FuseRtSvn
         log_fuse_data(
+            log,
             FuseLogEntryId::FuseRtSvn,
             log_info.rt_log_info.fuse_svn.as_bytes(),
         )?;
@@ -294,6 +295,7 @@ impl FirmwareProcessor {
         // Log VendorLmsPubKeyIndex
         if let Some(vendor_lms_pub_key_idx) = log_info.vendor_lms_pub_key_idx {
             log_fuse_data(
+                log,
                 FuseLogEntryId::VendorLmsPubKeyIndex,
                 vendor_lms_pub_key_idx.as_bytes(),
             )?;
@@ -304,6 +306,7 @@ impl FirmwareProcessor {
             log_info.fuse_vendor_lms_pub_key_revocation
         {
             log_fuse_data(
+                log,
                 FuseLogEntryId::VendorLmsPubKeyRevocation,
                 fuse_vendor_lms_pub_key_revocation.as_bytes(),
             )?;
@@ -360,7 +363,11 @@ impl FirmwareProcessor {
     /// * `env`  - ROM Environment
     /// * `info` - Image Verification Info
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn populate_data_vault(data_vault: &mut DataVault, info: &ImageVerificationInfo) {
+    fn populate_data_vault(
+        data_vault: &mut DataVault,
+        info: &ImageVerificationInfo,
+        persistent_data: &PersistentDataAccessor,
+    ) {
         data_vault.write_cold_reset_entry48(ColdResetEntry48::FmcTci, &info.fmc.digest.into());
 
         data_vault.write_cold_reset_entry4(ColdResetEntry4::FmcSvn, info.fmc.svn);
@@ -390,7 +397,10 @@ impl FirmwareProcessor {
 
         data_vault.write_warm_reset_entry4(WarmResetEntry4::RtEntryPoint, info.runtime.entry_point);
 
-        data_vault.write_warm_reset_entry4(WarmResetEntry4::ManifestAddr, MAN1_ORG);
+        data_vault.write_warm_reset_entry4(
+            WarmResetEntry4::ManifestAddr,
+            &persistent_data.get().manifest1 as *const _ as u32,
+        );
         report_boot_status(FwProcessorPopulateDataVaultComplete.into());
     }
 
