@@ -25,6 +25,7 @@ use caliptra_drivers::{
 };
 use caliptra_error::CaliptraResult;
 use caliptra_image_types::RomInfo;
+use caliptra_kat::KatsEnv;
 use rom_env::RomEnv;
 
 #[cfg(not(feature = "std"))]
@@ -102,7 +103,32 @@ pub extern "C" fn rom_entry() -> ! {
     wdt::start_wdt(&mut env.soc_ifc);
 
     if !cfg!(feature = "fake-rom") {
-        let result = run_fips_tests(&mut env, rom_info);
+        let mut kats_env = caliptra_kat::KatsEnv {
+            // SHA1 Engine
+            sha1: &mut env.sha1,
+
+            // sha256
+            sha256: &mut env.sha256,
+
+            // SHA2-384 Engine
+            sha384: &mut env.sha384,
+
+            // SHA2-384 Accelerator
+            sha384_acc: &mut env.sha384_acc,
+
+            // Hmac384 Engine
+            hmac384: &mut env.hmac384,
+
+            /// Cryptographically Secure Random Number Generator
+            trng: &mut env.trng,
+
+            // LMS Engine
+            lms: &mut env.lms,
+
+            /// Ecc384 Engine
+            ecc384: &mut env.ecc384,
+        };
+        let result = run_fips_tests(&mut kats_env, rom_info);
         if let Err(err) = result {
             handle_fatal_error(err.into());
         }
@@ -150,12 +176,12 @@ pub extern "C" fn rom_entry() -> ! {
     caliptra_drivers::ExitCtrl::exit(0);
 }
 
-fn run_fips_tests(env: &mut RomEnv, rom_info: &RomInfo) -> CaliptraResult<()> {
+fn run_fips_tests(env: &mut KatsEnv, rom_info: &RomInfo) -> CaliptraResult<()> {
     rom_integrity_test(env, &rom_info.sha256_digest)?;
     kat::execute_kat(env)
 }
 
-fn rom_integrity_test(env: &mut RomEnv, expected_digest: &[u32; 8]) -> CaliptraResult<()> {
+fn rom_integrity_test(env: &mut KatsEnv, expected_digest: &[u32; 8]) -> CaliptraResult<()> {
     // WARNING: It is undefined behavior to dereference a zero (null) pointer in
     // rust code. This is only safe because the dereference is being done by an
     // an assembly routine ([`ureg::opt_riscv::copy_16_words`]) rather

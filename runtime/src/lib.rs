@@ -21,15 +21,16 @@ use arrayvec::ArrayVec;
 use crypto::{AlgLen, Crypto};
 use mailbox::Mailbox;
 
+pub use caliptra_common::fips::FipsVersionCmd;
 #[cfg(feature = "test_only_commands")]
 pub use dice::{GetLdevCertCmd, TestGetFmcAliasCertCmd};
 pub use disable::DisableAttestationCmd;
 use dpe_crypto::DpeCrypto;
 pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
+pub use fips::FipsShutdownCmd;
 #[cfg(feature = "fips_self_test")]
 pub use fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
 
-pub use fips::{FipsShutdownCmd, FipsVersionCmd};
 pub use info::{FwInfoCmd, IDevIdCertCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
 pub use stash_measurement::StashMeasurementCmd;
@@ -326,7 +327,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT => TestGetFmcAliasCertCmd::execute(drivers),
         #[cfg(feature = "test_only_commands")]
         CommandId::TEST_ONLY_HMAC384_VERIFY => HmacVerifyCmd::execute(drivers, cmd_bytes),
-        CommandId::VERSION => FipsVersionCmd::execute(drivers),
+        CommandId::VERSION => FipsVersionCmd::execute(&drivers.soc_ifc),
         #[cfg(feature = "fips_self_test")]
         CommandId::SELF_TEST_START => match drivers.self_test_status {
             SelfTestStatus::Idle => {
@@ -341,7 +342,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                 drivers.self_test_status = SelfTestStatus::Idle;
                 Ok(MailboxResp::default())
             }
-            _ => Err(CaliptraError::RUNTIME_SELF_TEST_IN_PROGRESS),
+            _ => Err(CaliptraError::RUNTIME_SELF_TEST_NOT_STARTED),
         },
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),

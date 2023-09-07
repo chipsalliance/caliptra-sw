@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_common::cprintln;
-use caliptra_common::mailbox_api::{FipsVersionResp, MailboxResp, MailboxRespHeader};
+use caliptra_common::mailbox_api::{MailboxResp, MailboxRespHeader};
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::CaliptraResult;
 use caliptra_drivers::Ecc384;
@@ -38,25 +38,6 @@ impl FipsModule {
     }
 }
 
-pub struct FipsVersionCmd;
-impl FipsVersionCmd {
-    pub const NAME: [u8; 12] = *b"Caliptra RTM";
-    pub const MODE: u32 = 0x46495053;
-
-    pub(crate) fn execute(_env: &mut Drivers) -> CaliptraResult<MailboxResp> {
-        cprintln!("[rt] FIPS Version");
-
-        let resp = FipsVersionResp {
-            hdr: MailboxRespHeader::default(),
-            mode: Self::MODE,
-            // Just return all zeroes for now.
-            fips_rev: [1, 0, 0],
-            name: Self::NAME,
-        };
-
-        Ok(MailboxResp::FipsVersion(resp))
-    }
-}
 #[cfg(feature = "fips_self_test")]
 pub mod fips_self_test_cmd {
     use super::*;

@@ -7,6 +7,7 @@ pub mod capabilities;
 pub mod checksum;
 pub mod crypto;
 pub mod dice;
+pub mod fips;
 pub mod keyids;
 pub mod mailbox_api;
 pub mod verifier;

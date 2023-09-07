@@ -313,6 +313,7 @@ impl CaliptraError {
     pub const RUNTIME_CERT_CHAIN_CREATION_FAILED: CaliptraError =
         CaliptraError::new_const(0x000E0014);
     pub const RUNTIME_SELF_TEST_IN_PROGRESS: CaliptraError = CaliptraError::new_const(0x000E0015);
+    pub const RUNTIME_SELF_TEST_NOT_STARTED: CaliptraError = CaliptraError::new_const(0x000E0016);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
