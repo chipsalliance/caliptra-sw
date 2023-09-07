@@ -21,7 +21,7 @@ use crate::{
 };
 use caliptra_emu_bus::{Clock, Ram, Rom};
 use caliptra_emu_derive::Bus;
-use caliptra_hw_model_types::{EtrngResponse, RandomEtrngResponses, SecurityState};
+use caliptra_hw_model_types::{EtrngResponse, RandomEtrngResponses, RandomNibbles, SecurityState};
 use std::path::PathBuf;
 use tock_registers::registers::InMemoryRegister;
 
@@ -220,6 +220,7 @@ pub struct CaliptraRootBusArgs {
     // The obfuscation key, as passed to caliptra-top
     pub cptra_obf_key: [u32; 8],
 
+    pub itrng_nibbles: Option<Box<dyn Iterator<Item = u8>>>,
     pub etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
 }
 impl Default for CaliptraRootBusArgs {
@@ -234,6 +235,7 @@ impl Default for CaliptraRootBusArgs {
             bootfsm_go_cb: Default::default(),
             download_idevid_csr_cb: Default::default(),
             cptra_obf_key: words_from_bytes_be(&DEFAULT_DOE_KEY),
+            itrng_nibbles: Some(Box::new(RandomNibbles::new_from_thread_rng())),
             etrng_responses: Box::new(RandomEtrngResponses::new_from_thread_rng()),
         }
     }
@@ -301,6 +303,7 @@ impl CaliptraRootBus {
         let mailbox = MailboxInternal::new(mailbox_ram.clone());
         let rom = Rom::new(std::mem::take(&mut args.rom));
         let iccm = Iccm::new(clock);
+        let itrng_nibbles = args.itrng_nibbles.take();
         let soc_reg = SocRegistersInternal::new(clock, mailbox.clone(), iccm.clone(), args);
         if !soc_reg.is_debug_locked() {
             // When debug is possible, the key-vault is initialized with a debug value...
@@ -324,7 +327,7 @@ impl CaliptraRootBus {
             mailbox_sram: mailbox_ram.clone(),
             mailbox,
             sha512_acc: Sha512Accelerator::new(clock, mailbox_ram),
-            csrng: Csrng::new(),
+            csrng: Csrng::new(itrng_nibbles.unwrap()),
         }
     }
 

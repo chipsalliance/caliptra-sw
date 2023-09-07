@@ -280,26 +280,26 @@ pub struct ImagePreamble {
 #[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct VendorSignedData {
-    /// Vendor Start Date [ASN1 Time Format] For LDEV-Id certificate.
+    /// Vendor Start Date [ASN1 Time Format] For FMC alias certificate.
     pub vendor_not_before: [u8; 15],
 
-    /// Vendor End Date [ASN1 Time Format] For LDEV-Id certificate.
+    /// Vendor End Date [ASN1 Time Format] For FMC alias certificate.
     pub vendor_not_after: [u8; 15],
 
-    reserved: [u8; 2],
+    reserved: [u8; 10],
 }
 
 #[repr(C)]
 #[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct OwnerSignedData {
-    /// Owner Start Date [ASN1 Time Format] For LDEV-Id certificate: Takes Preference over vendor start date
+    /// Owner Start Date [ASN1 Time Format] For FMC alias certificate: Takes Preference over vendor start date
     pub owner_not_before: [u8; 15],
 
-    /// Owner End Date [ASN1 Time Format] For LDEV-Id certificate: Takes Preference over vendor end date
+    /// Owner End Date [ASN1 Time Format] For FMC alias certificate: Takes Preference over vendor end date
     pub owner_not_after: [u8; 15],
 
-    reserved: [u8; 2],
+    reserved: [u8; 10],
 }
 
 /// Caliptra Image header
