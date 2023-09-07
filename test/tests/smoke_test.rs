@@ -396,11 +396,14 @@ fn fips_self_test() {
     );
 
     let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::SELF_TEST), &[]),
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::SELF_TEST_START),
+            &[],
+        ),
     };
 
     let resp = hw
-        .mailbox_execute(u32::from(CommandId::SELF_TEST), payload.as_bytes())
+        .mailbox_execute(u32::from(CommandId::SELF_TEST_START), payload.as_bytes())
         .unwrap()
         .unwrap();
 
@@ -419,7 +422,7 @@ fn fips_self_test() {
         true,
     );
     let _resp = hw
-        .mailbox_execute(u32::from(CommandId::SELF_TEST), payload.as_bytes())
+        .mailbox_execute(u32::from(CommandId::SELF_TEST_START), payload.as_bytes())
         .unwrap_err();
 
     hw.step_until_boot_status(
@@ -428,7 +431,7 @@ fn fips_self_test() {
     );
 
     let resp = hw
-        .mailbox_execute(u32::from(CommandId::SELF_TEST), payload.as_bytes())
+        .mailbox_execute(u32::from(CommandId::SELF_TEST_START), payload.as_bytes())
         .unwrap()
         .unwrap();
 

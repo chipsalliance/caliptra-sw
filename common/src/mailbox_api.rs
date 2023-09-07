@@ -27,7 +27,7 @@ impl CommandId {
     /// The status command.
     pub const VERSION: Self = Self(0x4650_5652); // "FPVR"
     /// The self-test command.
-    pub const SELF_TEST: Self = Self(0x4650_4C54); // "FPST"
+    pub const SELF_TEST_START: Self = Self(0x4650_4C54); // "FPST"
     /// The shutdown command.
     pub const SHUTDOWN: Self = Self(0x4650_5344); // "FPSD"
 

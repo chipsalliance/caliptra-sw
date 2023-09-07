@@ -134,7 +134,7 @@ impl FirmwareProcessor {
             if let Some(txn) = mbox.peek_recv() {
                 report_fw_error_non_fatal(0);
                 match CommandId::from(txn.cmd()) {
-                    CommandId::SELF_TEST | CommandId::VERSION | CommandId::SHUTDOWN => {
+                    CommandId::SELF_TEST_START | CommandId::VERSION | CommandId::SHUTDOWN => {
                         // [TODO] Placeholder for FIPS ROM commands.
                         txn.start_txn().complete(false)?;
                         continue;
