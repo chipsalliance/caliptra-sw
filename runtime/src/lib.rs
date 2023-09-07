@@ -35,7 +35,8 @@ use packet::Packet;
 use caliptra_common::cprintln;
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_drivers::{
-    CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault, PersistentDataAccessor, SocIfc,
+    report_fw_error_non_fatal, CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault,
+    PersistentDataAccessor, SocIfc,
 };
 use caliptra_drivers::{Hmac384, PcrBank, PcrId, Sha256, Sha384, Sha384Acc, Trng};
 use caliptra_registers::mbox::enums::MboxStatusE;
@@ -268,6 +269,7 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> ! {
                 &mut drivers.soc_ifc,
                 caliptra_common::WdtTimeout::default(),
             );
+            report_fw_error_non_fatal(0);
             match handle_command(drivers) {
                 Ok(status) => {
                     drivers.mbox.set_status(status);
