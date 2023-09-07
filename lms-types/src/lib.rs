@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-#![cfg_attr(not(test), no_std)]
+#![cfg_attr(all(not(test), not(fuzzing)), no_std)]
 
 use core::mem::size_of;
 
@@ -16,6 +16,7 @@ macro_rules! static_assert {
 
 #[repr(transparent)]
 #[derive(AsBytes, FromBytes, Copy, Clone, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct LmsAlgorithmType(pub U32<BigEndian>);
 impl LmsAlgorithmType {
     #![allow(non_upper_case_globals)]
@@ -38,6 +39,7 @@ impl LmsAlgorithmType {
 
 #[repr(transparent)]
 #[derive(AsBytes, FromBytes, Debug, Default, PartialEq, Eq, Hash, Clone, Copy)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct LmotsAlgorithmType(pub U32<BigEndian>);
 
 impl LmotsAlgorithmType {
@@ -58,6 +60,7 @@ impl LmotsAlgorithmType {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[repr(C)]
 pub struct LmsPublicKey<const N: usize> {
     pub tree_type: LmsAlgorithmType,
@@ -91,6 +94,7 @@ unsafe impl<const N: usize> FromBytes for LmsPublicKey<N> {
     fn only_derive_is_allowed_to_implement_this_trait() {}
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(C)]
 pub struct LmotsSignature<const N: usize, const P: usize> {
@@ -124,6 +128,7 @@ unsafe impl<const N: usize, const P: usize> FromBytes for LmotsSignature<N, P> {
     fn only_derive_is_allowed_to_implement_this_trait() {}
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(C)]
 pub struct LmsSignature<const N: usize, const P: usize, const H: usize> {
