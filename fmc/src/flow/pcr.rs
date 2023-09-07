@@ -16,8 +16,8 @@ Environment:
 
 Note:
 
-    PCR2 - Journey PCR unlocked and cleared on cold reset
-    PCR3 - Current PCR unlocked and cleared on any reset
+    PCR2 - Current PCR unlocked and cleared on any reset
+    PCR3 - Journey PCR unlocked and cleared on cold reset
 
 --*/
 use crate::flow::tci::Tci;

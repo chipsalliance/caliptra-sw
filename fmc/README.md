@@ -227,9 +227,9 @@ This area is reserved for definition of additional fields that may be added duri
 ## PCR Registers
 
 FMC has the responsibility to update 2 PCR registers.<br>
-FMC updates PCR2 to reflect the firmware update Journey with measurements of RT firmware and FW Manifest. This register is only cleared on cold reset.<br>
+FMC updates PCR3 to reflect the firmware update Journey with measurements of RT firmware and FW Manifest. This register is only cleared on cold reset.<br>
 FMC updates PCR2 to reflect only the Current running firmware with measurements of RT firmware and FW Manifest. This register is cleared on all reset types.<br>
-FMC locks its PCR registers before handing control to RT firmware so that they may not be modified later in the boot.
+FMC locks its PCR registers before handing control to RT firmware so that they may not be cleared later in the boot.
 
 ## FMC Boot Flow
 
