@@ -266,7 +266,7 @@ impl Drivers {
 }
 
 /// Run pending jobs and enter low power mode.
-fn goto_idle(drivers: &mut Drivers) {
+fn enter_idle(drivers: &mut Drivers) {
     // Run pending jobs before entering low power mode.
     #[cfg(feature = "fips_self_test")]
     if let SelfTestStatus::InProgress(execute) = drivers.self_test_status {
@@ -354,7 +354,7 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> ! {
     drivers.soc_ifc.assert_ready_for_runtime();
     caliptra_drivers::report_boot_status(RtBootStatus::RtReadyForCommands.into());
     loop {
-        goto_idle(drivers);
+        enter_idle(drivers);
         if drivers.mbox.is_cmd_ready() {
             // TODO : Move start/stop WDT to wait_for_cmd when NMI is implemented.
             caliptra_common::wdt::start_wdt(
