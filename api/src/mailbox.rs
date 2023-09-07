@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_drivers::Array4x12;
 use caliptra_error::{CaliptraError, CaliptraResult};
 use core::mem::size_of;
 use zerocopy::{AsBytes, FromBytes, LayoutVerified};
@@ -18,6 +19,7 @@ impl CommandId {
     pub const DISABLE_ATTESTATION: Self = Self(0x4453424C); // "DSBL"
     pub const FW_INFO: Self = Self(0x494E464F); // "INFO"
     pub const INCREMENT_PCR_RESET_COUNTER: Self = Self(0x50435252); // "PCRR"
+    pub const QUOTE_PCRS: Self = Self(0x50435251); // "PCRQ"
 
     // TODO: Remove this and merge with GET_LDEV_CERT once that is implemented
     pub const TEST_ONLY_GET_LDEV_CERT: Self = Self(0x4345524c); // "CERL"
@@ -212,6 +214,26 @@ pub struct GetLdevCertResp {
 }
 impl GetLdevCertResp {
     pub const DATA_MAX_SIZE: usize = 1024;
+}
+
+/// QUOTE_PCRS input arguments
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct QuotePcrsReq {
+    pub hdr: MailboxReqHeader,
+    pub nonce: [u8; 32],
+}
+
+/// QUOTE_PCRS output
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct QuotePcrsResp {
+    pub hdr: MailboxRespHeader,
+    /// The PCR values
+    pub pcrs: [Array4x12; 32],
+    pub reset_ctrs: [u32; 32],
+    pub signature_r: [u8; 48],
+    pub signature_s: [u8; 48],
 }
 
 // ECDSA384_SIGNATURE_VERIFY

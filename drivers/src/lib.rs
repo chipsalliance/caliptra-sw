@@ -44,6 +44,7 @@ mod sha1;
 mod sha256;
 mod sha384;
 mod sha384acc;
+mod sha512;
 mod soc_ifc;
 mod trng;
 mod trng_ext;
