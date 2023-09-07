@@ -7,6 +7,9 @@ use zerocopy::{AsBytes, FromBytes};
 
 use crate::{fuse_log::FuseLogEntry, memory_layout, pcr_log::PcrLogEntry, FirmwareHandoffTable};
 
+pub type PcrLogArray = [PcrLogEntry; 17];
+pub type FuseLogArray = [FuseLogEntry; 62];
+
 #[derive(FromBytes, AsBytes)]
 #[repr(C)]
 pub struct PersistentData {
@@ -25,10 +28,10 @@ pub struct PersistentData {
     pub fmcalias_tbs: [u8; memory_layout::FMCALIAS_TBS_SIZE as usize],
     pub rtalias_tbs: [u8; memory_layout::RTALIAS_TBS_SIZE as usize],
 
-    pub pcr_log: [PcrLogEntry; 17],
+    pub pcr_log: PcrLogArray,
     reserved3: [u8; 4],
 
-    pub fuse_log: [FuseLogEntry; 62],
+    pub fuse_log: FuseLogArray,
     reserved4: [u8; 4],
 }
 impl PersistentData {
