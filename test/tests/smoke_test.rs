@@ -430,8 +430,18 @@ fn fips_self_test() {
         true,
     );
 
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::SELF_TEST_GET_RESULTS),
+            &[],
+        ),
+    };
+
     let resp = hw
-        .mailbox_execute(u32::from(CommandId::SELF_TEST_START), payload.as_bytes())
+        .mailbox_execute(
+            u32::from(CommandId::SELF_TEST_GET_RESULTS),
+            payload.as_bytes(),
+        )
         .unwrap()
         .unwrap();
 

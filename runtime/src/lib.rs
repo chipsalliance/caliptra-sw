@@ -328,11 +328,15 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::TEST_ONLY_HMAC384_VERIFY => HmacVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::VERSION => FipsVersionCmd::execute(drivers),
         #[cfg(feature = "fips_self_test")]
-        CommandId::SELF_TEST => match drivers.self_test_status {
+        CommandId::SELF_TEST_START => match drivers.self_test_status {
             SelfTestStatus::Idle => {
                 drivers.self_test_status = SelfTestStatus::InProgress(fips_self_test_cmd::execute);
                 Ok(MailboxResp::default())
             }
+            _ => Err(CaliptraError::RUNTIME_SELF_TEST_IN_PROGRESS),
+        },
+        #[cfg(feature = "fips_self_test")]
+        CommandId::SELF_TEST_GET_RESULTS => match drivers.self_test_status {
             SelfTestStatus::Done => {
                 drivers.self_test_status = SelfTestStatus::Idle;
                 Ok(MailboxResp::default())
