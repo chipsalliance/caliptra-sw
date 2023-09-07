@@ -49,7 +49,7 @@ std = [
   "ufmt/std",
 ]
 no-fmc = []
-val-rom = []
+fake-rom = []
 no-cfi = []
 
 [[bin]]
