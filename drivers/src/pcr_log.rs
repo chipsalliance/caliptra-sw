@@ -95,5 +95,5 @@ impl PcrLogEntry {
     }
 }
 
-pub const RT_FW_CURRENT_PCR: PcrId = PcrId::PcrId3;
-pub const RT_FW_JOURNEY_PCR: PcrId = PcrId::PcrId2;
+pub const RT_FW_CURRENT_PCR: PcrId = PcrId::PcrId2;
+pub const RT_FW_JOURNEY_PCR: PcrId = PcrId::PcrId3;
