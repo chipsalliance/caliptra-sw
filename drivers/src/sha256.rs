@@ -21,14 +21,40 @@ const SHA256_BLOCK_BYTE_SIZE: usize = 64;
 const SHA256_BLOCK_LEN_OFFSET: usize = 56;
 const SHA256_MAX_DATA_SIZE: usize = 1024 * 1024;
 
-pub trait Sha256: Sized {
+pub trait Sha256DigestOp<'a> {
+    fn update(&mut self, data: &[u8]) -> CaliptraResult<()>;
+    fn finalize(self, digest: &mut Array4x8) -> CaliptraResult<()>;
+}
+
+pub trait Sha256 {
+    type DigestOp<'a>: Sha256DigestOp<'a>
+    where
+        Self: 'a;
+
+    fn digest_init(&mut self) -> CaliptraResult<Self::DigestOp<'_>>;
+    fn digest(&mut self, buf: &[u8]) -> CaliptraResult<Array4x8>;
+}
+
+pub struct Sha256Hw {
+    sha256: Sha256Reg,
+}
+
+impl Sha256Hw {
+    pub fn new(sha256: Sha256Reg) -> Self {
+        Self { sha256 }
+    }
+}
+
+impl Sha256 for Sha256Hw {
+    type DigestOp<'a> = Sha256DigestOpHw<'a>;
+
     /// Initialize multi step digest operation
     ///
     /// # Returns
     ///
     /// * `Sha256Digest` - Object representing the digest operation
-    fn digest_init(&mut self) -> CaliptraResult<Sha256DigestOp<'_, Self>> {
-        let op = Sha256DigestOp {
+    fn digest_init(&mut self) -> CaliptraResult<Sha256DigestOpHw<'_>> {
+        let op = Sha256DigestOpHw {
             sha: self,
             state: Sha256DigestState::Init,
             buf: [0u8; SHA256_BLOCK_BYTE_SIZE],
@@ -83,12 +109,42 @@ pub trait Sha256: Sized {
             }
         }
 
-        let mut digest = Array4x8::default();
-        let _ = self.copy_digest_to_buf(&mut digest);
+        let digest = Array4x8::read_from_reg(self.sha256.regs().digest());
 
         self.zeroize_internal();
 
         Ok(digest)
+    }
+}
+impl Sha256Hw {
+    /// Take a raw sha256 digest of 0 or more 64-byte blocks of memory. Unlike
+    /// digest(), the each word is passed to the sha256 peripheral without
+    /// byte-swapping to reverse the peripheral's big-endian words. This means the
+    /// hash will be measured with the byte-swapped value of each word.
+    ///
+    /// # Safety
+    ///
+    /// The caller is responsible for ensuring that the safety requirements of
+    /// [`core::ptr::read`] are valid for every value between `ptr.add(0)` and
+    /// `ptr.add(n_blocks - 1)`.
+    #[inline(always)]
+    pub unsafe fn digest_blocks_raw(
+        &mut self,
+        mut ptr: *const [u32; 16],
+        n_blocks: usize,
+    ) -> CaliptraResult<Array4x8> {
+        for i in 0..n_blocks {
+            self.sha256.regs_mut().block().write_ptr(ptr);
+            self.digest_op(i == 0)?;
+            ptr = ptr.wrapping_add(1);
+        }
+        self.digest_partial_block(&[], n_blocks == 0, n_blocks * 64)?;
+        Ok(Array4x8::read_from_reg(self.sha256.regs_mut().digest()))
+    }
+
+    /// Zeroize the hardware registers.
+    fn zeroize_internal(&mut self) {
+        self.sha256.regs_mut().ctrl().write(|w| w.zeroize(true));
     }
 
     /// Zeroize the hardware registers.
@@ -101,26 +157,21 @@ pub trait Sha256: Sized {
     /// operations will not be used after this function is called.
     ///
     /// This function is safe to call from a trap handler.
-    unsafe fn zeroize();
-
-    /// Zeroize the hardware registers.
-    ///
-    /// This is useful to call from a fatal-error-handling routine.
-    ///
-    /// # Safety
-    ///
-    /// The caller must be certain that the results of any pending cryptographic
-    /// operations will not be used after this function is called.
-    ///
-    /// This function is safe to call from a trap handler.
-    fn zeroize_internal(&mut self);
+    pub unsafe fn zeroize() {
+        let mut sha256 = Sha256Reg::new();
+        sha256.regs_mut().ctrl().write(|w| w.zeroize(true));
+    }
 
     /// Copy digest to buffer
     ///
     /// # Arguments
     ///
     /// * `buf` - Digest buffer
-    fn copy_digest_to_buf(&mut self, buf: &mut Array4x8) -> CaliptraResult<()>;
+    fn copy_digest_to_buf(&mut self, buf: &mut Array4x8) -> CaliptraResult<()> {
+        let sha256 = self.sha256.regs();
+        *buf = Array4x8::read_from_reg(sha256.digest());
+        Ok(())
+    }
 
     /// Calculate the digest of the last block
     ///
@@ -178,74 +229,10 @@ pub trait Sha256: Sized {
         &mut self,
         block: &[u8; SHA256_BLOCK_BYTE_SIZE],
         first: bool,
-    ) -> CaliptraResult<()>;
-
-    /// Take a raw sha256 digest of 0 or more 64-byte blocks of memory. Unlike
-    /// digest(), the each word is passed to the sha256 peripheral without
-    /// byte-swapping to reverse the peripheral's big-endian words. This means the
-    /// hash will be measured with the byte-swapped value of each word.
-    ///
-    /// # Safety
-    ///
-    /// The caller is responsible for ensuring that the safety requirements of
-    /// [`core::ptr::read`] are valid for every value between `ptr.add(0)` and
-    /// `ptr.add(n_blocks - 1)`.
-    unsafe fn digest_blocks_raw(
-        &mut self,
-        ptr: *const [u32; 16],
-        n_blocks: usize,
-    ) -> CaliptraResult<Array4x8>;
-}
-
-pub struct Sha256HardwareDriver {
-    sha256: Sha256Reg,
-}
-
-impl Sha256 for Sha256HardwareDriver {
-    unsafe fn zeroize() {
-        let mut sha256 = Sha256Reg::new();
-        sha256.regs_mut().ctrl().write(|w| w.zeroize(true));
-    }
-
-    fn zeroize_internal(&mut self) {
-        self.sha256.regs_mut().ctrl().write(|w| w.zeroize(true));
-    }
-
-    fn copy_digest_to_buf(&mut self, buf: &mut Array4x8) -> CaliptraResult<()> {
-        let sha256 = self.sha256.regs();
-        *buf = Array4x8::read_from_reg(sha256.digest());
-        Ok(())
-    }
-
-    fn digest_block(
-        &mut self,
-        block: &[u8; SHA256_BLOCK_BYTE_SIZE],
-        first: bool,
     ) -> CaliptraResult<()> {
         let sha256 = self.sha256.regs_mut();
         Array4x16::from(block).write_to_reg(sha256.block());
         self.digest_op(first)
-    }
-
-    #[inline(always)]
-    unsafe fn digest_blocks_raw(
-        &mut self,
-        mut ptr: *const [u32; 16],
-        n_blocks: usize,
-    ) -> CaliptraResult<Array4x8> {
-        for i in 0..n_blocks {
-            self.sha256.regs_mut().block().write_ptr(ptr);
-            self.digest_op(i == 0)?;
-            ptr = ptr.wrapping_add(1);
-        }
-        self.digest_partial_block(&[], n_blocks == 0, n_blocks * 64)?;
-        Ok(Array4x8::read_from_reg(self.sha256.regs_mut().digest()))
-    }
-}
-
-impl Sha256HardwareDriver {
-    pub fn new(sha256: Sha256Reg) -> Self {
-        Self { sha256 }
     }
 
     // Perform the digest operation in the hardware
@@ -288,12 +275,9 @@ enum Sha256DigestState {
 }
 
 /// Multi step SHA-256 digest operation
-pub struct Sha256DigestOp<'a, T>
-where
-    T: Sha256,
-{
+pub struct Sha256DigestOpHw<'a> {
     /// SHA-256 Engine
-    sha: &'a mut T,
+    sha: &'a mut Sha256Hw,
 
     /// State
     state: Sha256DigestState,
@@ -308,16 +292,13 @@ where
     data_size: usize,
 }
 
-impl<'a, T> Sha256DigestOp<'a, T>
-where
-    T: Sha256,
-{
+impl<'a> Sha256DigestOp<'a> for Sha256DigestOpHw<'a> {
     /// Update the digest with data
     ///
     /// # Arguments
     ///
     /// * `data` - Data to used to update the digest
-    pub fn update(&mut self, data: &[u8]) -> CaliptraResult<()> {
+    fn update(&mut self, data: &[u8]) -> CaliptraResult<()> {
         if self.state == Sha256DigestState::Final {
             return Err(CaliptraError::DRIVER_SHA256_INVALID_STATE);
         }
@@ -350,7 +331,7 @@ where
     }
 
     /// Finalize the digest operations
-    pub fn finalize(mut self, digest: &mut Array4x8) -> CaliptraResult<()> {
+    fn finalize(mut self, digest: &mut Array4x8) -> CaliptraResult<()> {
         if self.state == Sha256DigestState::Final {
             return Err(CaliptraError::DRIVER_SHA256_INVALID_STATE);
         }
@@ -372,7 +353,8 @@ where
 
         Ok(())
     }
-
+}
+impl<'a> Sha256DigestOpHw<'a> {
     /// Check if this the first digest operation
     fn is_first(&self) -> bool {
         self.state == Sha256DigestState::Init

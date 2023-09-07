@@ -16,9 +16,7 @@ Abstract:
 
 use caliptra_common::cprintln;
 use caliptra_cpu::TrapRecord;
-use caliptra_drivers::{
-    Ecc384, Hmac384, KeyVault, Mailbox, Sha256, Sha256HardwareDriver, Sha384, Sha384Acc, SocIfc,
-};
+use caliptra_drivers::{Ecc384, Hmac384, KeyVault, Mailbox, Sha256Hw, Sha384, Sha384Acc, SocIfc};
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_runtime::Drivers;
 use core::hint::black_box;
@@ -111,7 +109,7 @@ fn handle_fatal_error(code: u32) -> ! {
         // Zeroize the crypto blocks.
         Ecc384::zeroize();
         Hmac384::zeroize();
-        <Sha256HardwareDriver as Sha256>::zeroize();
+        Sha256Hw::zeroize();
         Sha384::zeroize();
         Sha384Acc::zeroize();
 

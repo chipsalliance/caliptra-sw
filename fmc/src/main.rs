@@ -17,8 +17,8 @@ use core::hint::black_box;
 
 use caliptra_common::cprintln;
 use caliptra_drivers::{
-    report_fw_error_non_fatal, Ecc384, Hmac384, KeyVault, Mailbox, Sha256, Sha256HardwareDriver,
-    Sha384, Sha384Acc, SocIfc,
+    report_fw_error_non_fatal, Ecc384, Hmac384, KeyVault, Mailbox, Sha256Hw, Sha384, Sha384Acc,
+    SocIfc,
 };
 mod boot_status;
 mod flow;
@@ -132,7 +132,7 @@ fn handle_fatal_error(code: u32) -> ! {
         // Zeroize the crypto blocks.
         Ecc384::zeroize();
         Hmac384::zeroize();
-        <Sha256HardwareDriver as Sha256>::zeroize();
+        Sha256Hw::zeroize();
         Sha384::zeroize();
         Sha384Acc::zeroize();
 

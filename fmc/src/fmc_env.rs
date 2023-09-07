@@ -17,7 +17,7 @@ Abstract:
 
 use caliptra_drivers::{
     CaliptraResult, DataVault, Ecc384, Hmac384, KeyVault, Mailbox, PcrBank, PersistentDataAccessor,
-    Sha1, Sha256HardwareDriver, Sha384, Sha384Acc, SocIfc, Trng,
+    Sha1, Sha256Hw, Sha384, Sha384Acc, SocIfc, Trng,
 };
 use caliptra_registers::{
     csrng::CsrngReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg,
@@ -31,7 +31,7 @@ pub struct FmcEnv {
     pub sha1: Sha1,
 
     // SHA2-256 Engine
-    pub sha256: Sha256HardwareDriver,
+    pub sha256: Sha256Hw,
 
     // SHA2-384 Engine
     pub sha384: Sha384,
@@ -85,7 +85,7 @@ impl FmcEnv {
 
         Ok(Self {
             sha1: Sha1::default(),
-            sha256: Sha256HardwareDriver::new(Sha256Reg::new()),
+            sha256: Sha256Hw::new(Sha256Reg::new()),
             sha384: Sha384::new(Sha512Reg::new()),
             sha384_acc: Sha384Acc::new(Sha512AccCsr::new()),
             hmac384: Hmac384::new(HmacReg::new()),

@@ -21,7 +21,7 @@ use crate::rom_env::RomEnv;
 
 /// ROM Verification Environemnt
 pub(crate) struct RomImageVerificationEnv<'a> {
-    pub(crate) sha256: &'a mut Sha256HardwareDriver,
+    pub(crate) sha256: &'a mut Sha256Hw,
     pub(crate) sha384: &'a mut Sha384,
     pub(crate) sha384_acc: &'a mut Sha384Acc,
     pub(crate) soc_ifc: &'a mut SocIfc,
