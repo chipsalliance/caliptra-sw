@@ -158,7 +158,6 @@ pub extern "C" fn rom_entry() -> ! {
     }
 
     // Stop the watchdog timer.
-    // [TODO] Reset the watchdog timer and let FMC take ownership of it.
     wdt::stop_wdt(&mut env.soc_ifc);
 
     // Lock the datavault registers.
@@ -237,7 +236,17 @@ extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
         exception.mepc
     );
 
-    handle_fatal_error(CaliptraError::ROM_GLOBAL_NMI.into());
+    // Check if the NMI was due to WDT expiry.
+    let mut error = CaliptraError::ROM_GLOBAL_NMI;
+    const WDT_EXPIRY_MASK: u32 = 0b11;
+
+    let wdt_status = unsafe { SocIfc::wdt_status() };
+    if (wdt_status & WDT_EXPIRY_MASK) == WDT_EXPIRY_MASK {
+        cprintln!("WDT Expired");
+        error = CaliptraError::ROM_GLOBAL_WDT_EXPIRED;
+    }
+
+    handle_fatal_error(error.into());
 }
 
 #[panic_handler]

@@ -14,10 +14,10 @@ Abstract:
 #[cfg(feature = "fake-rom")]
 use crate::flow::fake::FakeRomImageVerificationEnv;
 use crate::fuse::log_fuse_data;
+use crate::pcr;
 use crate::rom_env::RomEnv;
 use crate::run_fips_tests;
 use crate::CALIPTRA_ROM_INFO;
-use crate::{pcr, wdt};
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::capabilities::Capabilities;
 use caliptra_common::fips::FipsVersionCmd;
@@ -54,9 +54,6 @@ pub struct FirmwareProcessor {}
 
 impl FirmwareProcessor {
     pub fn process(env: &mut RomEnv) -> CaliptraResult<FwProcInfo> {
-        // Disable the watchdog timer during processing mailbox commands.
-        wdt::stop_wdt(&mut env.soc_ifc);
-
         let mut kats_env = caliptra_kat::KatsEnv {
             // SHA1 Engine
             sha1: &mut env.sha1,
@@ -85,9 +82,6 @@ impl FirmwareProcessor {
         // Process mailbox commands.
         let mut txn =
             Self::process_mailbox_commands(&mut env.soc_ifc, &mut env.mbox, &mut kats_env)?;
-
-        // Renable the watchdog timer.
-        wdt::start_wdt(&mut env.soc_ifc);
 
         // Load the manifest
         let manifest = Self::load_manifest(&mut env.persistent_data, &mut txn);

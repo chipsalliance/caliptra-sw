@@ -154,6 +154,18 @@ impl SocIfc {
             .write(|w| w.timer1_en(false));
     }
 
+    /// Get the WDT status.
+    ///
+    /// This is useful to call from a fatal-error-handling routine.
+    ///
+    ///  # Safety
+    ///
+    /// This function is safe to call from a trap handler.
+    pub unsafe fn wdt_status() -> u32 {
+        let soc_ifc = SocIfcReg::new();
+        soc_ifc.regs().cptra_wdt_status().read().into()
+    }
+
     pub fn get_cycle_count(&self, seconds: u32) -> CaliptraResult<u64> {
         const GIGA_UNIT: u32 = 1_000_000_000;
         let clock_period_picosecs = self.soc_ifc.regs().cptra_timer_config().read();
@@ -205,6 +217,12 @@ impl SocIfc {
         soc_ifc_regs
             .cptra_wdt_timer1_ctrl()
             .write(|w| w.timer1_restart(true));
+    }
+
+    pub fn wdt1_timeout_cycle_count(&self) -> u64 {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        soc_ifc_regs.cptra_wdt_cfg().at(0).read() as u64
+            | ((soc_ifc_regs.cptra_wdt_cfg().at(1).read() as u64) << 32)
     }
 
     pub fn internal_fw_update_reset_wait_cycles(&self) -> u32 {
