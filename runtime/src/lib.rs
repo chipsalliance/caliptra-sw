@@ -337,7 +337,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                 drivers.self_test_status = SelfTestStatus::Idle;
                 Ok(MailboxResp::default())
             }
-            _ => Err(CaliptraError::RUNTIME_SELF_TEST_IN_PROGREESS),
+            _ => Err(CaliptraError::RUNTIME_SELF_TEST_IN_PROGRESS),
         },
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
