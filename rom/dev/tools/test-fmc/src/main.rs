@@ -53,7 +53,7 @@ pub extern "C" fn fmc_entry() -> ! {
         core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
     };
 
-    if cfg!(not(feature = "val-fmc")) {
+    if cfg!(not(feature = "fake-fmc")) {
         let fht = FirmwareHandoffTable::read_from(slice).unwrap();
         assert!(fht.is_valid());
     }

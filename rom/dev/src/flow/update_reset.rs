@@ -11,8 +11,8 @@ Abstract:
     File contains the implementation of update reset flow.
 
 --*/
-#[cfg(feature = "val-rom")]
-use crate::flow::val::ValRomImageVerificationEnv;
+#[cfg(feature = "fake-rom")]
+use crate::flow::fake::FakeRomImageVerificationEnv;
 use crate::{cprintln, pcr, rom_env::RomEnv, verifier::RomImageVerificationEnv};
 
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -114,8 +114,8 @@ impl UpdateResetFlow {
         manifest: &ImageManifest,
         img_bundle_sz: u32,
     ) -> CaliptraResult<ImageVerificationInfo> {
-        #[cfg(feature = "val-rom")]
-        let env = &mut ValRomImageVerificationEnv {
+        #[cfg(feature = "fake-rom")]
+        let env = &mut FakeRomImageVerificationEnv {
             sha384_acc: env.sha384_acc,
             soc_ifc: env.soc_ifc,
             data_vault: env.data_vault,
