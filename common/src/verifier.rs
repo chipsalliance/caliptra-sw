@@ -28,7 +28,6 @@ pub struct FirmwareImageVerificationEnv<'a> {
     pub ecc384: &'a mut Ecc384,
     pub data_vault: &'a mut DataVault,
     pub pcr_bank: &'a mut PcrBank,
-    pub persistent_data: &'a mut PersistentDataAccessor,
 }
 
 impl<'a> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a> {

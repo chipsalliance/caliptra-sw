@@ -27,7 +27,9 @@ use caliptra_common::{
     pcr::{PCR_ID_FMC_CURRENT, PCR_ID_FMC_JOURNEY},
     PcrLogEntry, PcrLogEntryId,
 };
-use caliptra_drivers::{Array4x12, CaliptraError, CaliptraResult, PcrBank, PcrLogArray, Sha384};
+use caliptra_drivers::{
+    Array4x12, CaliptraError, CaliptraResult, PcrBank, PcrLogArray, PersistentDataAccessor, Sha384,
+};
 use caliptra_image_verify::ImageVerificationInfo;
 
 use zerocopy::AsBytes;
@@ -69,12 +71,13 @@ impl PcrExtender<'_> {
 pub(crate) fn extend_pcrs(
     env: &mut FirmwareImageVerificationEnv,
     info: &ImageVerificationInfo,
+    persistent_data: &mut PersistentDataAccessor,
 ) -> CaliptraResult<()> {
     // Clear the Current PCR, but do not clear the Journey PCR
     env.pcr_bank.erase_pcr(PCR_ID_FMC_CURRENT)?;
 
     let mut pcr = PcrExtender {
-        pcr_log: &mut env.persistent_data.get_mut().pcr_log,
+        pcr_log: &mut persistent_data.get_mut().pcr_log,
         pcr_bank: env.pcr_bank,
         sha384: env.sha384,
     };

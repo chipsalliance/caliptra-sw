@@ -70,20 +70,19 @@ impl FirmwareProcessor {
             ecc384: &mut env.ecc384,
             data_vault: &mut env.data_vault,
             pcr_bank: &mut env.pcr_bank,
-            persistent_data: &mut env.persistent_data,
         };
 
         // Verify the image
         let info = Self::verify_image(&mut venv, manifest, txn.dlen());
         let info = okref(&info)?;
 
-        Self::update_fuse_log(&mut venv.persistent_data.get_mut().fuse_log, &info.log_info)?;
+        Self::update_fuse_log(&mut env.persistent_data.get_mut().fuse_log, &info.log_info)?;
 
         // Populate data vault
-        Self::populate_data_vault(venv.data_vault, info, venv.persistent_data);
+        Self::populate_data_vault(venv.data_vault, info, &env.persistent_data);
 
         // Extend PCR0 and PCR1
-        pcr::extend_pcrs(&mut venv, info)?;
+        pcr::extend_pcrs(&mut venv, info, &mut env.persistent_data)?;
         report_boot_status(FwProcessorExtendPcrComplete.into());
 
         // Load the image
@@ -188,7 +187,7 @@ impl FirmwareProcessor {
     ) -> CaliptraResult<ImageManifest> {
         let manifest = &mut persistent_data.get_mut().manifest1;
         txn.copy_request(manifest.as_bytes_mut())?;
-            report_boot_status(FwProcessorManifestLoadComplete.into());
+        report_boot_status(FwProcessorManifestLoadComplete.into());
         Ok(*manifest)
     }
 

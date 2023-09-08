@@ -64,7 +64,6 @@ impl UpdateResetFlow {
             ecc384: &mut env.ecc384,
             data_vault: &mut env.data_vault,
             pcr_bank: &mut env.pcr_bank,
-            persistent_data: &mut env.persistent_data,
         };
 
         let info = Self::verify_image(&mut venv, &manifest, recv_txn.dlen());
@@ -72,7 +71,7 @@ impl UpdateResetFlow {
         report_boot_status(UpdateResetImageVerificationComplete.into());
 
         // Extend PCR0 and PCR1
-        pcr::extend_pcrs(&mut venv, info)?;
+        pcr::extend_pcrs(&mut venv, info, &mut env.persistent_data)?;
         report_boot_status(UpdateResetExtendPcrComplete.into());
 
         cprintln!(
