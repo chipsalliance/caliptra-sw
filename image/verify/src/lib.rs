@@ -139,8 +139,11 @@ pub trait ImageVerificationEnv {
     // Get Device Lifecycle state
     fn dev_lifecycle(&self) -> Lifecycle;
 
-    // Get the vendor key index saved on cold boot in data vault
-    fn vendor_pub_key_idx_dv(&self) -> u32;
+    // Get the vendor ECC key index saved on cold boot in data vault
+    fn vendor_ecc_pub_key_idx_dv(&self) -> u32;
+
+    // Get the vendor LMS key index saved on cold boot in data vault
+    fn vendor_lms_pub_key_idx_dv(&self) -> u32;
 
     // Get the owner key digest saved on cold boot in data vault
     fn owner_pub_key_digest_dv(&self) -> ImageDigest;
