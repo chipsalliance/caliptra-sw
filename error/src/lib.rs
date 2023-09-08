@@ -288,6 +288,17 @@ impl CaliptraError {
     pub const DRIVER_CSRNG_ADAPTP_HEALTH_CHECK_FAILED: CaliptraError =
         CaliptraError::new_const(0x000d0008);
 
+    pub const DRIVER_HANDOFF_INVALID_VAULT: CaliptraError = CaliptraError::new_const(0x000D100);
+    pub const DRIVER_HANDOFF_INVALID_KEY_ID: CaliptraError = CaliptraError::new_const(0x000D101);
+    pub const DRIVER_HANDOFF_INVALID_COLD_RESET_ENTRY4: CaliptraError =
+        CaliptraError::new_const(0x000D102);
+    pub const DRIVER_HANDOFF_INVALID_COLD_RESET_ENTRY48: CaliptraError =
+        CaliptraError::new_const(0x000D103);
+    pub const DRIVER_HANDOFF_INVALID_WARM_RESET_ENTRY4: CaliptraError =
+        CaliptraError::new_const(0x000D104);
+    pub const DRIVER_HANDOFF_INVALID_WARM_RESET_ENTRY48: CaliptraError =
+        CaliptraError::new_const(0x000D104);
+
     /// Runtime Errors
     pub const RUNTIME_INTERNAL: CaliptraError = CaliptraError::new_const(0x000E0001);
     pub const RUNTIME_UNIMPLEMENTED_COMMAND: CaliptraError = CaliptraError::new_const(0x000E0002);

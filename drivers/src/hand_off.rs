@@ -89,18 +89,29 @@ pub enum DataVaultRegister {
 impl TryInto<DataStore> for HandOffDataHandle {
     type Error = CaliptraError;
     fn try_into(self) -> Result<DataStore, Self::Error> {
-        let vault = Vault::try_from(self.vault())
-            .unwrap_or_else(|_| report_handoff_error_and_halt("Invalid Vault", 0xbadbad));
+        let vault = Vault::try_from(self.vault()).unwrap_or_else(|_| {
+            report_handoff_error_and_halt(
+                "Invalid Vault",
+                CaliptraError::DRIVER_HANDOFF_INVALID_VAULT.into(),
+            )
+        });
         match vault {
             Vault::KeyVault => Ok(DataStore::KeyVaultSlot(
-                KeyId::try_from(self.reg_num() as u8)
-                    .unwrap_or_else(|_| report_handoff_error_and_halt("Invalid KeyId", 0xbadbad)),
+                KeyId::try_from(self.reg_num() as u8).unwrap_or_else(|_| {
+                    report_handoff_error_and_halt(
+                        "Invalid KeyId",
+                        CaliptraError::DRIVER_HANDOFF_INVALID_KEY_ID.into(),
+                    )
+                }),
             )),
             Vault::DataVault => match self.reg_type() {
                 1 => {
                     let entry = DataStore::DataVaultSticky4(
                         ColdResetEntry4::try_from(self.reg_num() as u8).unwrap_or_else(|_| {
-                            report_handoff_error_and_halt("Invalid ColdResetEntry4", 0xbadbad)
+                            report_handoff_error_and_halt(
+                                "Invalid ColdResetEntry4",
+                                CaliptraError::DRIVER_HANDOFF_INVALID_COLD_RESET_ENTRY4.into(),
+                            )
                         }),
                     );
                     Ok(entry)
@@ -109,7 +120,10 @@ impl TryInto<DataStore> for HandOffDataHandle {
                 2 => {
                     let entry = DataStore::DataVaultSticky48(
                         ColdResetEntry48::try_from(self.reg_num() as u8).unwrap_or_else(|_| {
-                            report_handoff_error_and_halt("Invalid ColdResetEntry48", 0xbadbad)
+                            report_handoff_error_and_halt(
+                                "Invalid ColdResetEntry48",
+                                CaliptraError::DRIVER_HANDOFF_INVALID_COLD_RESET_ENTRY48.into(),
+                            )
                         }),
                     );
                     Ok(entry)
@@ -118,7 +132,10 @@ impl TryInto<DataStore> for HandOffDataHandle {
                 3 => {
                     let entry =
                         WarmResetEntry4::try_from(self.reg_num() as u8).unwrap_or_else(|_| {
-                            report_handoff_error_and_halt("Invalid WarmResetEntry4", 0xbadbad)
+                            report_handoff_error_and_halt(
+                                "Invalid WarmResetEntry4",
+                                CaliptraError::DRIVER_HANDOFF_INVALID_WARM_RESET_ENTRY4.into(),
+                            )
                         });
 
                     let ds = DataStore::DataVaultNonSticky4(entry);
@@ -128,7 +145,10 @@ impl TryInto<DataStore> for HandOffDataHandle {
                 4 => {
                     let entry = DataStore::DataVaultNonSticky48(
                         WarmResetEntry48::try_from(self.reg_num() as u8).unwrap_or_else(|_| {
-                            report_handoff_error_and_halt("Invalid WarmResetEntry48", 0xbadbad)
+                            report_handoff_error_and_halt(
+                                "Invalid WarmResetEntry48",
+                                CaliptraError::DRIVER_HANDOFF_INVALID_WARM_RESET_ENTRY48.into(),
+                            )
                         }),
                     );
                     Ok(entry)

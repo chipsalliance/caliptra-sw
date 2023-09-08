@@ -42,10 +42,12 @@ impl FipsModule {
 pub mod fips_self_test_cmd {
     use super::*;
     use crate::RtBootStatus::{RtFipSelfTestComplete, RtFipSelfTestStarted};
+    use caliptra_common::HexBytes;
     use caliptra_common::{
         verifier::FirmwareImageVerificationEnv, FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
     };
     use caliptra_drivers::ResetReason;
+    use caliptra_image_types::RomInfo;
     use caliptra_image_verify::ImageVerifier;
     use zerocopy::AsBytes;
 
@@ -110,6 +112,7 @@ pub mod fips_self_test_cmd {
     pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<()> {
         caliptra_drivers::report_boot_status(RtFipSelfTestStarted.into());
         cprintln!("[rt] FIPS self test");
+        rom_integrity_test(env)?;
         execute_kats(env)?;
         copy_and_verify_image(env)?;
         caliptra_drivers::report_boot_status(RtFipSelfTestComplete.into());
@@ -147,8 +150,32 @@ pub mod fips_self_test_cmd {
         caliptra_kat::execute_kat(&mut kats_env)?;
         Ok(())
     }
-}
 
+    fn rom_integrity_test(env: &mut Drivers) -> CaliptraResult<()> {
+        // Extract the expected has from the fht.
+        let rom_info = env.persistent_data.get().fht.rom_info_addr.get()?;
+
+        // WARNING: It is undefined behavior to dereference a zero (null) pointer in
+        // rust code. This is only safe because the dereference is being done by an
+        // an assembly routine ([`ureg::opt_riscv::copy_16_words`]) rather
+        // than dereferencing directly in Rust.
+        #[allow(clippy::zero_ptr)]
+        let rom_start = 0 as *const [u32; 16];
+
+        let n_blocks =
+            env.persistent_data.get().fht.rom_info_addr.get()? as *const RomInfo as usize / 64;
+
+        let digest = unsafe { env.sha256.digest_blocks_raw(rom_start, n_blocks)? };
+        cprintln!("ROM Digest: {}", HexBytes(&<[u8; 32]>::from(digest)));
+        if digest.0 != rom_info.sha256_digest {
+            cprintln!("ROM integrity test failed");
+            return Err(CaliptraError::ROM_INTEGRITY_FAILURE);
+        }
+
+        // Run digest function and compare with expected hash.
+        Ok(())
+    }
+}
 pub struct FipsShutdownCmd;
 impl FipsShutdownCmd {
     pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<MailboxResp> {
