@@ -111,7 +111,7 @@ impl Mailbox {
     /// Write a word-aligned `buf` to the mailbox
     pub fn write_response(&mut self, buf: &[u8]) -> CaliptraResult<()> {
         self.set_dlen(buf.len() as u32);
-        self.copy_bytes_to_mbox(&buf);
+        self.copy_bytes_to_mbox(buf);
         Ok(())
     }
 

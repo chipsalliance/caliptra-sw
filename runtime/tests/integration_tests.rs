@@ -4,8 +4,9 @@ pub mod common;
 
 use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART};
 use caliptra_common::mailbox_api::{
-    CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, InvokeDpeReq, InvokeDpeResp,
-    MailboxReqHeader, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
+    CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, GetIdevCertReq, GetIdevCertResp,
+    GetIdevInfoResp, InvokeDpeReq, InvokeDpeResp, MailboxReqHeader, MailboxRespHeader,
+    StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_drivers::{CaliptraError, Ecc384PubKey};
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError, ShaAccMode};
