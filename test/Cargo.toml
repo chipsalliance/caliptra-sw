@@ -13,6 +13,9 @@ caliptra_common = { workspace = true, default-features = false }
 caliptra-hw-model-types.workspace = true
 caliptra-runtime = { workspace = true, default-features = false }
 openssl.workspace = true
+p384.workspace = true
+rfc6979.workspace = true
+sha2.workspace = true
 zerocopy.workspace = true
 
 [dev-dependencies]

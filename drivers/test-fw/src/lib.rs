@@ -2,6 +2,8 @@
 
 #![no_std]
 
+use caliptra_drivers::Ecc384PubKey;
+
 /// Code shared between the caliptra-drivers integration_test.rs (running on the
 /// host) and the test binaries (running inside the hw-model).
 use core::fmt::Debug;
@@ -14,53 +16,35 @@ pub const DOE_TEST_HMAC_KEY: [u32; 12] = [
     0xc6879874, 0x0aa49a0f, 0x4e740e9c, 0x2c9f9aad,
 ];
 
-pub struct HexWord(u32);
-impl Debug for HexWord {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "0x{:08x}", self.0)
-    }
-}
-
-pub struct HexWordSlice<'a>(&'a [u32]);
-impl Debug for HexWordSlice<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let mut l = f.debug_list();
-        for val in self.0 {
-            l.entry(&HexWord(*val));
-        }
-        l.finish()
-    }
-}
-
 #[derive(AsBytes, Clone, Copy, Default, Eq, PartialEq, FromBytes)]
 #[repr(C)]
 pub struct DoeTestResults {
     /// HMAC result of the UDS as key, and b"Hello world!" as data.
-    pub hmac_uds_as_key: [u32; 12],
+    pub hmac_uds_as_key_out_pub: Ecc384PubKey,
 
     /// HMAC result of HMAC_KEY as key, and UDS as data.
-    pub hmac_uds_as_data: [u32; 12],
+    pub hmac_uds_as_data_out_pub: Ecc384PubKey,
 
     // HMAC result of of the field entropy (including padding) as key, and
     // b"Hello world" as data.
-    pub hmac_field_entropy_as_key: [u32; 12],
+    pub hmac_field_entropy_as_key_out_pub: Ecc384PubKey,
 
     /// HMAC result of HMAC_KEY as key, and field entropy (excluding padding) as
     /// data.
-    pub hmac_field_entropy_as_data: [u32; 12],
+    pub hmac_field_entropy_as_data_out_pub: Ecc384PubKey,
 }
 impl Debug for DoeTestResults {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("DoeTestResults")
-            .field("hmac_uds_as_key", &HexWordSlice(&self.hmac_uds_as_key))
-            .field("hmac_uds_as_data", &HexWordSlice(&self.hmac_uds_as_data))
+            .field("hmac_uds_as_key_out_pub", &self.hmac_uds_as_key_out_pub)
+            .field("hmac_uds_as_data_out_pub", &self.hmac_uds_as_data_out_pub)
             .field(
-                "hmac_field_entropy_as_key",
-                &HexWordSlice(&self.hmac_field_entropy_as_key),
+                "hmac_field_entropy_as_key_out_pub",
+                &self.hmac_field_entropy_as_key_out_pub,
             )
             .field(
-                "hmac_field_entropy_as_data",
-                &HexWordSlice(&self.hmac_field_entropy_as_data),
+                "hmac_field_entropy_as_data_out_pub",
+                &self.hmac_field_entropy_as_data_out_pub,
             )
             .finish()
     }
