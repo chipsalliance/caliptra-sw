@@ -17,13 +17,28 @@ pub fn panic(_info: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 
+fn mbox_fsm_error() -> bool {
+    let mbox = unsafe { MboxCsr::new() };
+    mbox.regs().status().read().mbox_fsm_ps().mbox_error()
+}
+
 #[no_mangle]
 extern "C" fn main() {
     // 0 byte request
     // The SoC will try to corrupt the CMD opcode and the Dlen field.
-    let mut mbox = unsafe { Mailbox::new(MboxCsr::new()) };
-    let mut txn = mbox.try_start_send_txn().unwrap();
-    txn.send_request(0xa000_0000, b"").unwrap();
-    while !txn.is_response_ready() {}
-    txn.complete().unwrap();
+    loop {
+        let mut mbox = unsafe { Mailbox::new(MboxCsr::new()) };
+        let mut txn = mbox.try_start_send_txn().unwrap();
+        txn.send_request(0xa000_0000, b"").unwrap();
+        // TODO: get rid of mbox_fsm_error() and make the driver handle this correctly (see #718)
+        while !txn.is_response_ready() && !mbox_fsm_error() {}
+        txn.complete().unwrap();
+        drop(txn);
+        drop(mbox);
+
+        // Clear any error states
+        // TODO: This should probably be done in the driver
+        let mut reg = unsafe { MboxCsr::new() };
+        reg.regs_mut().unlock().write(|w| w.unlock(true));
+    }
 }

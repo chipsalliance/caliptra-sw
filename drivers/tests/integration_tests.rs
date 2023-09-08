@@ -188,11 +188,21 @@ fn test_doe_when_debug_not_locked() {
     .unwrap();
 
     let txn = model.wait_for_mailbox_receive().unwrap();
+
+    // The hardware no longer reveals HMAC results to the CPU that use data from
+    // the key-vault, replacing them with zeroes. Used to be
+    // DOE_TEST_VECTORS_DEBUG_MODE.expected_test_results
+    // TODO: Do an ECDSA keygen operation instead to ensure the key-vault
+    // contents are as expected
+    let expected_test_results = DoeTestResults {
+        hmac_uds_as_key: [0u32; 12],
+        hmac_uds_as_data: [0u32; 12],
+        hmac_field_entropy_as_key: [0u32; 12],
+        hmac_field_entropy_as_data: [0u32; 12],
+    };
+
     let test_results = DoeTestResults::read_from(txn.req.data.as_slice()).unwrap();
-    assert_eq!(
-        test_results,
-        DOE_TEST_VECTORS_DEBUG_MODE.expected_test_results
-    )
+    assert_eq!(test_results, expected_test_results)
 }
 
 const DOE_TEST_VECTORS: DoeTestVectors = DoeTestVectors {
@@ -260,7 +270,19 @@ fn test_doe_when_debug_locked() {
 
     let txn = model.wait_for_mailbox_receive().unwrap();
     let test_results = DoeTestResults::read_from(txn.req.data.as_slice()).unwrap();
-    assert_eq!(test_results, DOE_TEST_VECTORS.expected_test_results)
+
+    // The hardware no longer reveals HMAC results that use data from the
+    // key-vault, replacing them with zeroes. Used to be DOE_TEST_VECTORS.expected_test_results
+    // TODO: Do an ECDSA keygen operation instead to ensure the key-vault
+    // contents are as expected
+    let expected_test_results = DoeTestResults {
+        hmac_uds_as_key: [0u32; 12],
+        hmac_uds_as_data: [0u32; 12],
+        hmac_field_entropy_as_key: [0u32; 12],
+        hmac_field_entropy_as_data: [0u32; 12],
+    };
+
+    assert_eq!(test_results, expected_test_results);
 }
 
 #[test]
@@ -334,6 +356,51 @@ fn test_mailbox_soc_to_uc() {
             .unwrap();
         model.output().take(usize::MAX);
         assert_eq!(resp, None);
+
+        // Try again, but with a non-multiple-of-4 dest buffer (0x5000_0001)
+        let resp = model
+            .mailbox_execute(0x5000_0001, &[0x01, 0x23, 0x45, 0x67, 0x89])
+            .unwrap();
+        model
+            .step_until_output(
+                "cmd: 0x50000001\n\
+                 dlen: 5\n\
+                 buf: [01, 23, 45, 67, 89]\n",
+            )
+            .unwrap();
+        model.output().take(usize::MAX);
+        assert_eq!(resp, None);
+
+        // Try again, but with one more byte than will fit in the dest buffer
+        let resp = model
+            .mailbox_execute(0x5000_0001, &[0x01, 0x23, 0x45, 0x67, 0x89, 0xab])
+            .unwrap();
+        model
+            .step_until_output(
+                "cmd: 0x50000001\n\
+                 dlen: 6\n\
+                 buf: [01, 23, 45, 67, 89]\n",
+            )
+            .unwrap();
+        model.output().take(usize::MAX);
+        assert_eq!(resp, None);
+
+        // Try again, but with 4 more bytes than will fit in the dest buffer
+        let resp = model
+            .mailbox_execute(
+                0x5000_0001,
+                &[0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x11],
+            )
+            .unwrap();
+        model
+            .step_until_output(
+                "cmd: 0x50000001\n\
+                 dlen: 9\n\
+                 buf: [01, 23, 45, 67, 89]\n",
+            )
+            .unwrap();
+        model.output().take(usize::MAX);
+        assert_eq!(resp, None);
     }
 
     // Test MailboxRecvTxn::copy_request
@@ -388,11 +455,9 @@ fn test_mailbox_soc_to_uc() {
             "cmd: 0x60000000\n\
              dlen: 12\n\
              buf: [67452301, efcdab89]\n\
-             buf: [33221100, 33221100]\n"
+             buf: [33221100, 00000000]\n"
         );
         assert_eq!(resp, None);
-        // TODO: It is not optimal that the driver copies the last word in the
-        // FIFO to the extra array location.
 
         // Try again, but with no data in the FIFO
         let resp = model.mailbox_execute(0x6000_0000, &[]).unwrap();
@@ -543,7 +608,7 @@ fn test_mailbox_uc_to_soc() {
 }
 
 #[test]
-fn test_mailbox_negative_tests() {
+fn test_uc_to_soc_error_state() {
     let mut model = start_driver_test("mailbox_driver_negative_tests").unwrap();
     let txn = model.wait_for_mailbox_receive().unwrap();
 
@@ -557,18 +622,27 @@ fn test_mailbox_negative_tests() {
     // Check we can't release the lock on the receiver side.
     model.soc_mbox().execute().write(|w| w.execute(false));
 
-    assert!(model
-        .soc_mbox()
-        .status()
-        .read()
-        .mbox_fsm_ps()
-        .mbox_execute_soc());
+    assert!(model.soc_mbox().status().read().mbox_fsm_ps().mbox_error());
 
-    // Finally, respond :
+    // Try to respond...
     model
         .soc_mbox()
         .status()
         .write(|w| w.status(|_| MboxStatusE::DataReady));
+
+    // But we're still in the error state
+    assert!(model.soc_mbox().status().read().mbox_fsm_ps().mbox_error());
+
+    // Wait for the test-case to force unlock the mailbox
+    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+
+    let _txn = model.wait_for_mailbox_receive().unwrap();
+    model.soc_mbox().execute().write(|w| w.execute(true));
+
+    assert!(model.soc_mbox().status().read().mbox_fsm_ps().mbox_error());
+
+    // Wait for the test-case to force unlock the mailbox
+    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 }
 
 #[test]

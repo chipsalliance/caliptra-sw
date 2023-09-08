@@ -114,7 +114,7 @@ pub extern "C" fn rom_entry() -> ! {
     match result {
         Ok(Some(mut fht)) => {
             fht.rom_info_addr = RomAddr::from(rom_info);
-            fht::store(fht);
+            fht::store(&mut env, fht);
         }
         Ok(None) => {}
         Err(err) => {
