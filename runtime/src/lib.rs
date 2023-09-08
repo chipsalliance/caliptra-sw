@@ -144,6 +144,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::GET_LDEV_CERT => GetLdevCertCmd::execute(drivers),
         CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes),
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
+        CommandId::EXTEND_PCR => ExtendPcrCmd::execute(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers, cmd_bytes),
         CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),
         CommandId::FW_INFO => FwInfoCmd::execute(drivers),

@@ -43,7 +43,7 @@ mod persistent;
 pub mod printer;
 mod sha1;
 mod sha256;
-mod sha384;
+pub mod sha384;
 mod sha384acc;
 mod soc_ifc;
 mod trng;

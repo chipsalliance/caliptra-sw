@@ -176,6 +176,12 @@ impl Sha384 {
         }
     }
 
+    /// Extend data into PCR Register
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - ID of PCR register to extend data into
+    /// * `data` - Data to extend into PCR register
     pub fn pcr_extend(&mut self, id: PcrId, data: &[u8]) -> CaliptraResult<()> {
         let total_bytes = data.len() + SHA384_HASH_SIZE;
         if total_bytes > (SHA384_BLOCK_BYTE_SIZE - 1) {

@@ -23,6 +23,7 @@ impl CommandId {
     pub const DPE_GET_TAGGED_TCI: Self = Self(0x47544744); // "GTGD"
     pub const INCREMENT_PCR_RESET_COUNTER: Self = Self(0x50435252); // "PCRR"
     pub const QUOTE_PCRS: Self = Self(0x50435251); // "PCRQ"
+    pub const EXTEND_PCR: Self = Self(0x50435245); // "PCRE"
 
     pub const TEST_ONLY_HMAC384_VERIFY: Self = Self(0x484D4143); // "HMAC"
 
@@ -602,6 +603,45 @@ impl Request for InvokeDpeReq {
     const ID: CommandId = CommandId::INVOKE_DPE;
     type Resp = InvokeDpeResp;
 }
+
+// EXTEND_PCR
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct ExtendPcrReq {
+    pub hdr: MailboxReqHeader,
+    pub pcr_idx: u32,
+    pub data_size: u32,
+    pub data: [u8; ExtendPcrReq::DATA_MAX_SIZE],
+    _pad: [u8; 4 - (ExtendPcrReq::DATA_MAX_SIZE % 4) % 4],
+}
+pub type ExtendPcrReqErr = ();
+impl ExtendPcrReq {
+    // pub const DATA_MAX_SIZE: usize = sha384::SHA384_BLOCK_BYTE_SIZE - sha384::SHA384_HASH_SIZE - 1;
+    pub const DATA_MAX_SIZE: usize = 192;
+
+    pub fn new(
+        hdr: MailboxReqHeader,
+        pcr_idx: u32,
+        data_size: u32,
+        data: [u8; ExtendPcrReq::DATA_MAX_SIZE],
+    ) -> Result<Self, ExtendPcrReqErr> {
+        let data_size = match data_size {
+            0 | 255 => {
+                return Err(());
+            }
+            ds => ds,
+        };
+
+        Ok(ExtendPcrReq {
+            hdr,
+            pcr_idx,
+            data_size,
+            data,
+            _pad: [0u8; 4 - (ExtendPcrReq::DATA_MAX_SIZE % 4)],
+        })
+    }
+}
+// No command-specific output args
 
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
