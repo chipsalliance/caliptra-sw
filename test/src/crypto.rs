@@ -13,6 +13,29 @@ use openssl::{
     nid::Nid,
     pkey::{PKey, Public},
 };
+use p384::ecdsa::SigningKey;
+use rfc6979::HmacDrbg;
+use sha2::Sha384;
+
+// Derives a key using a DRBG. Returns (priv, pub_x, pub_y)
+pub fn derive_ecdsa_keypair(seed: &[u8]) -> ([u8; 48], [u8; 48], [u8; 48]) {
+    let mut drbg = HmacDrbg::<Sha384>::new(seed, &[0_u8; 48], &[]);
+    let mut priv_key = [0u8; 48];
+    drbg.fill_bytes(&mut priv_key);
+
+    let ecc_point = SigningKey::from_bytes(&priv_key)
+        .unwrap()
+        .verifying_key()
+        .to_encoded_point(false);
+
+    let mut pub_x = [0u8; 48];
+    let mut pub_y = [0u8; 48];
+
+    pub_x.copy_from_slice(ecc_point.x().unwrap().as_slice());
+    pub_y.copy_from_slice(ecc_point.y().unwrap().as_slice());
+
+    (priv_key, pub_x, pub_y)
+}
 
 pub(crate) fn derive_ecdsa_key(priv_bytes: &[u8; 48]) -> PKey<Public> {
     let group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();

@@ -4,6 +4,7 @@ use std::error::Error;
 use std::iter;
 
 use caliptra_builder::FwId;
+use caliptra_drivers::{Array4x12, Array4xN, Ecc384PubKey};
 use caliptra_drivers_test_bin::DoeTestResults;
 use caliptra_hw_model::{
     BootParams, DefaultHwModel, DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState,
@@ -11,9 +12,12 @@ use caliptra_hw_model::{
 };
 use caliptra_hw_model_types::EtrngResponse;
 use caliptra_registers::mbox::enums::MboxStatusE;
-use caliptra_test::derive::{DoeInput, DoeOutput};
+use caliptra_test::{
+    crypto::derive_ecdsa_keypair,
+    derive::{DoeInput, DoeOutput},
+};
 use openssl::{hash::MessageDigest, pkey::PKey};
-use zerocopy::{transmute, AsBytes, FromBytes};
+use zerocopy::{AsBytes, FromBytes};
 
 fn build_test_rom(test_bin_name: &'static str) -> Vec<u8> {
     caliptra_builder::build_firmware_rom(&FwId {
@@ -61,11 +65,6 @@ impl DoeTestVectors {
         fn swap_word_bytes(words: &[u32]) -> Vec<u32> {
             words.iter().map(|word| word.swap_bytes()).collect()
         }
-        fn swap_word_bytes_inplace(words: &mut [u32]) {
-            for word in words.iter_mut() {
-                *word = word.swap_bytes()
-            }
-        }
         fn hmac384(key: &[u8], data: &[u8]) -> [u8; 48] {
             let pkey = PKey::hmac(key).unwrap();
             let mut signer = Signer::new(MessageDigest::sha384(), &pkey).unwrap();
@@ -74,35 +73,42 @@ impl DoeTestVectors {
             signer.sign(&mut result).unwrap();
             result
         }
+        fn ecdsa_keygen(seed: &[u8]) -> Ecc384PubKey {
+            let (_, pub_x, pub_y) = derive_ecdsa_keypair(seed);
+            Ecc384PubKey {
+                x: Array4x12::from(pub_x),
+                y: Array4x12::from(pub_y),
+            }
+        }
 
         let mut result = DoeTestVectors {
             doe_output: DoeOutput::generate(input),
             expected_test_results: Default::default(),
         };
 
-        result.expected_test_results.hmac_uds_as_key = transmute!(hmac384(
+        result.expected_test_results.hmac_uds_as_key_out_pub = ecdsa_keygen(&hmac384(
             swap_word_bytes(&result.doe_output.uds).as_bytes(),
-            "Hello world!".as_bytes()
+            "Hello world!".as_bytes(),
         ));
-        swap_word_bytes_inplace(&mut result.expected_test_results.hmac_uds_as_key);
 
-        result.expected_test_results.hmac_uds_as_data = transmute!(hmac384(
+        result.expected_test_results.hmac_uds_as_data_out_pub = ecdsa_keygen(&hmac384(
             swap_word_bytes(&caliptra_drivers_test_bin::DOE_TEST_HMAC_KEY).as_bytes(),
-            swap_word_bytes(&result.doe_output.uds).as_bytes()
+            swap_word_bytes(&result.doe_output.uds).as_bytes(),
         ));
-        swap_word_bytes_inplace(&mut result.expected_test_results.hmac_uds_as_data);
 
-        result.expected_test_results.hmac_field_entropy_as_key = transmute!(hmac384(
+        result
+            .expected_test_results
+            .hmac_field_entropy_as_key_out_pub = ecdsa_keygen(&hmac384(
             swap_word_bytes(&result.doe_output.field_entropy).as_bytes(),
-            "Hello world!".as_bytes()
+            "Hello world!".as_bytes(),
         ));
-        swap_word_bytes_inplace(&mut result.expected_test_results.hmac_field_entropy_as_key);
 
-        result.expected_test_results.hmac_field_entropy_as_data = transmute!(hmac384(
+        result
+            .expected_test_results
+            .hmac_field_entropy_as_data_out_pub = ecdsa_keygen(&hmac384(
             swap_word_bytes(&caliptra_drivers_test_bin::DOE_TEST_HMAC_KEY).as_bytes(),
-            swap_word_bytes(&result.doe_output.field_entropy[0..8]).as_bytes()
+            swap_word_bytes(&result.doe_output.field_entropy[0..8]).as_bytes(),
         ));
-        swap_word_bytes_inplace(&mut result.expected_test_results.hmac_field_entropy_as_data);
         result
     }
 }
@@ -134,22 +140,46 @@ const DOE_TEST_VECTORS_DEBUG_MODE: DoeTestVectors = DoeTestVectors {
 
     // The expected results of the HMAC operations performed by the test.
     expected_test_results: DoeTestResults {
-        hmac_uds_as_key: [
-            0x4446d380, 0xd2cb5d96, 0xcf745d40, 0xbfe7dcdb, 0x58a8befe, 0x2ddc1eac, 0xbc93b36c,
-            0xccc277ab, 0xedc67ae7, 0x7e4e12a4, 0x106e0e34, 0xb065b021,
-        ],
-        hmac_uds_as_data: [
-            0xe507101b, 0xb5fc57e0, 0xa02d2cdf, 0xb5b4d5ba, 0x69535616, 0xcb9d3ab8, 0x5a571a66,
-            0xb5e76d47, 0x802e86ba, 0x2969e838, 0x36869873, 0xb6847c27,
-        ],
-        hmac_field_entropy_as_key: [
-            0x683285f1, 0x27d26fc8, 0xe9e716c2, 0x0dc9c7fb, 0x9cad8b4c, 0xaeb167c5, 0xb402cf3b,
-            0x2e2c1745, 0x560bb884, 0xf592628f, 0x66db5c8f, 0x883086eb,
-        ],
-        hmac_field_entropy_as_data: [
-            0x4d2aec76, 0x7c73efbe, 0xb50aa67c, 0x89a684e3, 0x823834c4, 0x3429dea2, 0xf35cfdb0,
-            0xbfef4e6a, 0xa40dc572, 0xea82be07, 0xc93ef76a, 0xf955f845,
-        ],
+        hmac_uds_as_key_out_pub: Ecc384PubKey {
+            x: Array4xN([
+                1687789458, 142258272, 2190842666, 3455247989, 3888056521, 676567898, 1336470794,
+                2772318121, 1868025422, 1214582545, 729740624, 3009942988,
+            ]),
+            y: Array4xN([
+                1187075527, 1937696016, 725517213, 1501324878, 2274800079, 3298049249, 2385708560,
+                2858668788, 4158119455, 4066756829, 2930473191, 2541516328,
+            ]),
+        },
+        hmac_uds_as_data_out_pub: Ecc384PubKey {
+            x: Array4xN([
+                1188012951, 2101019468, 4151111246, 321995737, 1268508043, 3206177196, 2277418785,
+                4218900656, 3094045372, 3331153533, 899404842, 3401413295,
+            ]),
+            y: Array4xN([
+                702032169, 1819712272, 2174275591, 1110824269, 2866416596, 1313004867, 1300179142,
+                494318965, 3282077418, 3576834306, 1944338607, 495846318,
+            ]),
+        },
+        hmac_field_entropy_as_key_out_pub: Ecc384PubKey {
+            x: Array4xN([
+                2239914737, 538068278, 2639025677, 1218690763, 2952038842, 1448164004, 2126938572,
+                1397119203, 3400164743, 1553307000, 1579829226, 1671197033,
+            ]),
+            y: Array4xN([
+                3709694348, 821080470, 4215236444, 3339301837, 1042205687, 3394791030, 4205793518,
+                3991744897, 1399279513, 2065955491, 4026223323, 2237883749,
+            ]),
+        },
+        hmac_field_entropy_as_data_out_pub: Ecc384PubKey {
+            x: Array4xN([
+                16127504, 1807623126, 1448292055, 4052217305, 961911699, 747606231, 2311165349,
+                1941850149, 1401263727, 2590911470, 4055801696, 960530379,
+            ]),
+            y: Array4xN([
+                1246980440, 861204768, 2361057385, 1637522451, 1778431949, 1653325401, 3260666418,
+                2934023501, 2085910263, 534236754, 4209071048, 1469026788,
+            ]),
+        },
     },
 };
 
@@ -188,21 +218,11 @@ fn test_doe_when_debug_not_locked() {
     .unwrap();
 
     let txn = model.wait_for_mailbox_receive().unwrap();
-
-    // The hardware no longer reveals HMAC results to the CPU that use data from
-    // the key-vault, replacing them with zeroes. Used to be
-    // DOE_TEST_VECTORS_DEBUG_MODE.expected_test_results
-    // TODO: Do an ECDSA keygen operation instead to ensure the key-vault
-    // contents are as expected
-    let expected_test_results = DoeTestResults {
-        hmac_uds_as_key: [0u32; 12],
-        hmac_uds_as_data: [0u32; 12],
-        hmac_field_entropy_as_key: [0u32; 12],
-        hmac_field_entropy_as_data: [0u32; 12],
-    };
-
     let test_results = DoeTestResults::read_from(txn.req.data.as_slice()).unwrap();
-    assert_eq!(test_results, expected_test_results)
+    assert_eq!(
+        test_results,
+        DOE_TEST_VECTORS_DEBUG_MODE.expected_test_results
+    )
 }
 
 const DOE_TEST_VECTORS: DoeTestVectors = DoeTestVectors {
@@ -217,22 +237,46 @@ const DOE_TEST_VECTORS: DoeTestVectors = DoeTestVectors {
         ],
     },
     expected_test_results: DoeTestResults {
-        hmac_uds_as_key: [
-            0xf1e6eebe, 0x17718892, 0x6b3482a4, 0x6ebdd31a, 0x1a64b1df, 0xf832d618, 0x5d209aeb,
-            0x3e22c6a5, 0xaf18b9da, 0x78767e58, 0x143b5932, 0xb94caa30,
-        ],
-        hmac_uds_as_data: [
-            0x255b90d3, 0xce58a455, 0x72ca9fbb, 0xb6f963b8, 0x8a9e809c, 0x101dadf8, 0x1e35d99c,
-            0x459e5648, 0x44ad895a, 0x6342b793, 0x73b5d82a, 0xa65a9e8a,
-        ],
-        hmac_field_entropy_as_key: [
-            0x4c904ff4, 0xe1b642b7, 0xdaf61d5c, 0x0ae649ad, 0x22411ddd, 0x288e0902, 0x2911effc,
-            0xd76b38f1, 0x0c6ea42e, 0xd1b53612, 0xf77d2515, 0x954d9088,
-        ],
-        hmac_field_entropy_as_data: [
-            0x9f6024ff, 0x68fd825a, 0xbad1ce52, 0x18ed486d, 0x4dd1edc2, 0xeacfeb0b, 0x8d5d8873,
-            0x896be4f5, 0x8f30e6fa, 0xcc1b11c3, 0x0df0bc6e, 0x8fa6b5ba,
-        ],
+        hmac_uds_as_key_out_pub: Ecc384PubKey {
+            x: Array4xN([
+                1178783211, 2409029871, 3242977838, 333888818, 19263069, 1643510496, 1837442823,
+                239210134, 2976376890, 240016293, 1829920246, 604673977,
+            ]),
+            y: Array4xN([
+                3252295486, 3312576043, 2990063596, 1387770200, 3920640176, 2062006057, 1799980987,
+                899709785, 2852029226, 637830070, 1807068751, 2015236177,
+            ]),
+        },
+        hmac_uds_as_data_out_pub: Ecc384PubKey {
+            x: Array4xN([
+                3780642049, 3453182999, 1751644139, 920456889, 4050113670, 3873779394, 1297921973,
+                3724333193, 605901499, 147322750, 1094142208, 3700945418,
+            ]),
+            y: Array4xN([
+                2845240412, 3607790903, 3082786107, 2959038213, 2725359626, 3735269183, 1394565180,
+                1096277179, 3492117743, 640718895, 588857878, 1545505434,
+            ]),
+        },
+        hmac_field_entropy_as_key_out_pub: Ecc384PubKey {
+            x: Array4xN([
+                4052491145, 4186721582, 3342395483, 1632463994, 3193016662, 2204970242, 3835027544,
+                2485671111, 2469363717, 1330346930, 2623488737, 1958899419,
+            ]),
+            y: Array4xN([
+                869015362, 1303913274, 842048451, 2998827085, 1486265410, 3771523089, 3956677016,
+                2319947800, 4167697556, 3174143636, 820486910, 130118441,
+            ]),
+        },
+        hmac_field_entropy_as_data_out_pub: Ecc384PubKey {
+            x: Array4xN([
+                735969067, 3049012269, 857888742, 684684485, 4194103772, 1793570427, 1430366021,
+                731826037, 58870749, 3416840020, 1596867363, 2600165352,
+            ]),
+            y: Array4xN([
+                3945293618, 150193248, 768912283, 1992928474, 552325555, 2348526265, 299333051,
+                253904886, 3695053587, 1856777670, 4185130766, 2902538852,
+            ]),
+        },
     },
 };
 
@@ -250,7 +294,7 @@ fn test_generate_doe_vectors_when_debug_locked() {
         // in debug-locked mode, this defaults to 0
         keyvault_initial_word_value: 0x0000_0000,
     });
-    assert_eq!(DOE_TEST_VECTORS, vectors);
+    assert_eq!(vectors, DOE_TEST_VECTORS);
 }
 
 #[test]
@@ -270,19 +314,7 @@ fn test_doe_when_debug_locked() {
 
     let txn = model.wait_for_mailbox_receive().unwrap();
     let test_results = DoeTestResults::read_from(txn.req.data.as_slice()).unwrap();
-
-    // The hardware no longer reveals HMAC results that use data from the
-    // key-vault, replacing them with zeroes. Used to be DOE_TEST_VECTORS.expected_test_results
-    // TODO: Do an ECDSA keygen operation instead to ensure the key-vault
-    // contents are as expected
-    let expected_test_results = DoeTestResults {
-        hmac_uds_as_key: [0u32; 12],
-        hmac_uds_as_data: [0u32; 12],
-        hmac_field_entropy_as_key: [0u32; 12],
-        hmac_field_entropy_as_data: [0u32; 12],
-    };
-
-    assert_eq!(test_results, expected_test_results);
+    assert_eq!(test_results, DOE_TEST_VECTORS.expected_test_results);
 }
 
 #[test]

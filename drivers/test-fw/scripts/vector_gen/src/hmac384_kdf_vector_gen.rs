@@ -12,10 +12,8 @@ Abstract:
 
 --*/
 
+use caliptra_test::crypto::derive_ecdsa_keypair;
 use openssl::{hash::MessageDigest, pkey::PKey, sign::Signer};
-use p384::ecdsa::SigningKey;
-use rfc6979::HmacDrbg;
-use sha2::Sha384;
 
 pub struct Hmac384KdfVector {
     pub key_0: [u8; 48],
@@ -54,20 +52,6 @@ fn hmac(key: &[u8], msg: &[u8], tag: &mut [u8]) {
     signer.sign(tag).unwrap();
 }
 
-fn ecdsa_keygen(key: &[u8], out_pub_x: &mut [u8; 48], out_pub_y: &mut [u8; 48]) {
-    let mut drbg = HmacDrbg::<Sha384>::new(key, &[0_u8; 48], &[]);
-    let mut priv_key = [0u8; 48];
-    drbg.fill_bytes(&mut priv_key);
-
-    let ecc_point = SigningKey::from_bytes(&priv_key)
-        .unwrap()
-        .verifying_key()
-        .to_encoded_point(false);
-
-    out_pub_x.copy_from_slice(ecc_point.x().unwrap().as_slice());
-    out_pub_y.copy_from_slice(ecc_point.y().unwrap().as_slice());
-}
-
 fn kdf(key: &[u8], label: &[u8], context: Option<&[u8]>, output: &mut [u8; 48]) {
     let ctr_be = 1_u32.to_be_bytes();
 
@@ -102,7 +86,7 @@ pub fn gen_vector(label_len: usize, context_len: usize) -> Hmac384KdfVector {
 
     hmac(&vec.key_0, &vec.msg_0, &mut vec.kdf_key);
     kdf(&vec.kdf_key, &vec.label[..], context, &mut vec.kdf_out);
-    ecdsa_keygen(&vec.kdf_out, &mut vec.out_pub_x, &mut vec.out_pub_y);
+    (_, vec.out_pub_x, vec.out_pub_y) = derive_ecdsa_keypair(&vec.kdf_out);
 
     vec
 }

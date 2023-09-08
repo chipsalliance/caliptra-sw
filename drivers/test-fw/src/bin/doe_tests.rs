@@ -16,11 +16,12 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{
-    Array4x12, Array4x4, DeobfuscationEngine, Hmac384, Hmac384Data, Hmac384Key, Hmac384Tag, KeyId,
-    KeyReadArgs, Mailbox, Trng,
+    Array4x12, Array4x4, DeobfuscationEngine, Ecc384, Ecc384PubKey, Hmac384, Hmac384Data,
+    Hmac384Key, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Mailbox, Trng,
 };
 use caliptra_drivers_test_bin::{DoeTestResults, DOE_TEST_HMAC_KEY, DOE_TEST_IV};
 
+use caliptra_registers::ecc::EccReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
 use caliptra_registers::{
@@ -29,9 +30,20 @@ use caliptra_registers::{
 use caliptra_test_harness::test_suite;
 use zerocopy::AsBytes;
 
+fn export_result_from_kv(ecc: &mut Ecc384, trng: &mut Trng, key_id: KeyId) -> Ecc384PubKey {
+    ecc.key_pair(
+        &KeyReadArgs::new(key_id).into(),
+        &Array4x12::default(),
+        trng,
+        KeyWriteArgs::new(KeyId::KeyId3, KeyUsage::default()).into(),
+    )
+    .unwrap()
+}
+
 fn test_decrypt() {
     let mut test_results = DoeTestResults::default();
 
+    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
     let mut hmac384 = Hmac384::new(unsafe { HmacReg::new() });
     let mut doe = unsafe { DeobfuscationEngine::new(DoeReg::new()) };
     let mut trng = unsafe {
@@ -48,56 +60,58 @@ fn test_decrypt() {
             .ok(),
         Some(())
     );
+
+    let key_out_id = KeyId::KeyId2;
+    let key_out = KeyWriteArgs::new(key_out_id, KeyUsage::default().set_ecc_key_gen_seed_en());
+
     // Make sure the UDS can be used as a HMAC key
-    let mut result = Array4x12::default();
     hmac384
         .hmac(
-            &Hmac384Key::Key(KeyReadArgs { id: KeyId::KeyId0 }),
+            &KeyReadArgs::new(KeyId::KeyId0).into(),
             &Hmac384Data::Slice("Hello world!".as_bytes()),
             &mut trng,
-            Hmac384Tag::Array4x12(&mut result),
+            key_out.into(),
         )
         .unwrap();
-    test_results.hmac_uds_as_key = result.0;
+    test_results.hmac_uds_as_key_out_pub = export_result_from_kv(&mut ecc, &mut trng, key_out_id);
 
     // Make sure the UDS can be used as HMAC data
-    let mut result = Array4x12::default();
     hmac384
         .hmac(
             &Hmac384Key::Array4x12(&Array4x12::new(DOE_TEST_HMAC_KEY)),
             &Hmac384Data::Key(KeyReadArgs { id: KeyId::KeyId0 }),
             &mut trng,
-            Hmac384Tag::Array4x12(&mut result),
+            key_out.into(),
         )
         .unwrap();
-    test_results.hmac_uds_as_data = result.0;
+    test_results.hmac_uds_as_data_out_pub = export_result_from_kv(&mut ecc, &mut trng, key_out_id);
 
     doe.decrypt_field_entropy(&Array4x4::from(DOE_TEST_IV), KeyId::KeyId1)
         .unwrap();
 
     // Make sure the FE can be used as a HMAC key
-    let mut result = Array4x12::default();
     hmac384
         .hmac(
             &Hmac384Key::Key(KeyReadArgs { id: KeyId::KeyId1 }),
             &Hmac384Data::Slice("Hello world!".as_bytes()),
             &mut trng,
-            Hmac384Tag::Array4x12(&mut result),
+            key_out.into(),
         )
         .unwrap();
-    test_results.hmac_field_entropy_as_key = result.0;
+    test_results.hmac_field_entropy_as_key_out_pub =
+        export_result_from_kv(&mut ecc, &mut trng, key_out_id);
 
     // Make sure the FE can be used as HMAC data
-    let mut result = Array4x12::default();
     hmac384
         .hmac(
             &Hmac384Key::Array4x12(&Array4x12::new(DOE_TEST_HMAC_KEY)),
             &Hmac384Data::Key(KeyReadArgs { id: KeyId::KeyId1 }),
             &mut trng,
-            Hmac384Tag::Array4x12(&mut result),
+            key_out.into(),
         )
         .unwrap();
-    test_results.hmac_field_entropy_as_data = result.0;
+    test_results.hmac_field_entropy_as_data_out_pub =
+        export_result_from_kv(&mut ecc, &mut trng, key_out_id);
 
     let mut mbox = Mailbox::new(unsafe { MboxCsr::new() });
     mbox.try_start_send_txn()
