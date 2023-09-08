@@ -13,28 +13,26 @@ use openssl::{
     nid::Nid,
     pkey::{PKey, Public},
 };
-use p384::ecdsa::SigningKey;
-use rfc6979::HmacDrbg;
-use sha2::Sha384;
 
 // Derives a key using a DRBG. Returns (priv, pub_x, pub_y)
 pub fn derive_ecdsa_keypair(seed: &[u8]) -> ([u8; 48], [u8; 48], [u8; 48]) {
-    let mut drbg = HmacDrbg::<Sha384>::new(seed, &[0_u8; 48], &[]);
-    let mut priv_key = [0u8; 48];
-    drbg.fill_bytes(&mut priv_key);
+    let priv_key = hmac384_drbg_keygen(seed, &[0; 48]);
+    let pub_key = derive_ecdsa_key(&priv_key);
+    let ec_key = EcKey::try_from(pub_key).unwrap();
 
-    let ecc_point = SigningKey::from_bytes(&priv_key)
-        .unwrap()
-        .verifying_key()
-        .to_encoded_point(false);
-
-    let mut pub_x = [0u8; 48];
-    let mut pub_y = [0u8; 48];
-
-    pub_x.copy_from_slice(ecc_point.x().unwrap().as_slice());
-    pub_y.copy_from_slice(ecc_point.y().unwrap().as_slice());
-
-    (priv_key, pub_x, pub_y)
+    let group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
+    let mut bn_ctx = BigNumContext::new().unwrap();
+    let mut pub_x = BigNum::new().unwrap();
+    let mut pub_y = BigNum::new().unwrap();
+    ec_key
+        .public_key()
+        .affine_coordinates(&group, &mut pub_x, &mut pub_y, &mut bn_ctx)
+        .unwrap();
+    (
+        priv_key,
+        pub_x.to_vec_padded(48).unwrap().try_into().unwrap(),
+        pub_y.to_vec_padded(48).unwrap().try_into().unwrap(),
+    )
 }
 
 #[test]
