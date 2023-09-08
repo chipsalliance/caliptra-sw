@@ -31,7 +31,8 @@ mod tests {
     use x509_parser::prelude::X509CertificateParser;
     use x509_parser::x509::X509Version;
 
-    const TEST_OWNER_PK_HASH: &[u8] = &[0xCDu8; FmcAliasCertTbsParams::TCB_INFO_OWNER_PK_HASH_LEN];
+    const TEST_DEVICE_INFO_HASH: &[u8] =
+        &[0xCDu8; FmcAliasCertTbsParams::TCB_INFO_DEVICE_INFO_HASH_LEN];
     const TEST_FMC_HASH: &[u8] = &[0xEFu8; FmcAliasCertTbsParams::TCB_INFO_FMC_TCI_LEN];
     const TEST_UEID: &[u8] = &[0xABu8; FmcAliasCertTbsParams::UEID_LEN];
     const TEST_TCB_INFO_FLAGS: &[u8] = &[0xB0, 0xB1, 0xB2, 0xB3];
@@ -58,7 +59,7 @@ mod tests {
             subject_key_id: &subject_key.sha1(),
             authority_key_id: &issuer_key.sha1(),
             tcb_info_flags: TEST_TCB_INFO_FLAGS.try_into().unwrap(),
-            tcb_info_owner_pk_hash: &TEST_OWNER_PK_HASH.try_into().unwrap(),
+            tcb_info_device_info_hash: &TEST_DEVICE_INFO_HASH.try_into().unwrap(),
             tcb_info_fmc_tci: &TEST_FMC_HASH.try_into().unwrap(),
             tcb_info_fmc_svn: &TEST_TCB_INFO_FMC_SVN.try_into().unwrap(),
             tcb_info_fmc_svn_fuses: &TEST_TCB_INFO_FMC_SVN_FUSES.try_into().unwrap(),
@@ -121,10 +122,10 @@ mod tests {
             TEST_TCB_INFO_FLAGS,
         );
         assert_eq!(
-            &cert.tbs()[FmcAliasCertTbs::TCB_INFO_OWNER_PK_HASH_OFFSET
-                ..FmcAliasCertTbs::TCB_INFO_OWNER_PK_HASH_OFFSET
-                    + FmcAliasCertTbs::TCB_INFO_OWNER_PK_HASH_LEN],
-            TEST_OWNER_PK_HASH,
+            &cert.tbs()[FmcAliasCertTbs::TCB_INFO_DEVICE_INFO_HASH_OFFSET
+                ..FmcAliasCertTbs::TCB_INFO_DEVICE_INFO_HASH_OFFSET
+                    + FmcAliasCertTbs::TCB_INFO_DEVICE_INFO_HASH_LEN],
+            TEST_DEVICE_INFO_HASH,
         );
         assert_eq!(
             &cert.tbs()[FmcAliasCertTbs::TCB_INFO_FMC_TCI_OFFSET
