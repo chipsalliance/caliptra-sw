@@ -118,6 +118,31 @@ Table: `CALIPTRA_FW_LOAD` output arguments
 | chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips_status | u32      | Indicates if the command is FIPS approved or an error
 
+### GET\_IDEV\_CERT
+
+Exposes a command to reconstruct the IDEVID CERT
+
+Command Code: `0x4944_4543` ("IDEC")
+
+Table: `GET_IDEV_CERT` input arguments
+
+| **Name**    | **Type**      | **Description**
+| --------    | --------      | ---------------
+| chksum      | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| signature_r | u8[48]        | R portion of signature of the cert
+| signature_s | u8[48]        | S portion of signature of the cert
+| tbs_size    | u32           | Size of the TBS
+| tbs         | u8[916]       | TBS, with a maximum size of 916. Only bytes up to tbs_size are used.
+
+Table: `GET_IDEV_CERT` output arguments
+
+| **Name**    | **Type**   | **Description**
+| --------    | --------   | ---------------
+| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32        | Indicates if the command is FIPS approved or an error
+| cert_size   | u32        | Length in bytes of the cert field in use for the IDevId certificate
+| cert        | u8[1024]   | DER-encoded IDevID CERT
+
 ### GET\_IDEV\_CSR
 
 ROM exposes a command to get a self-signed IDEVID CSR.
@@ -139,6 +164,27 @@ Table: `GET_IDEV_CSR` output arguments
 | fips_status | u32        | Indicates if the command is FIPS approved or an error
 | data_size   | u32        | Length in bytes of the valid data in the data field
 | data        | u8[...]    | DER-encoded IDevID CSR
+
+### GET\_IDEV\_INFO
+
+Exposes a command to get a IDEVID public key.
+
+Command Code: `0x4944_4549` ("IDEI")
+
+Table: `GET_IDEV_INFO` input arguments
+
+| **Name**  | **Type**      | **Description**
+| --------  | --------      | ---------------
+| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+
+Table: `GET_IDEV_INFO` output arguments
+
+| **Name**    | **Type**   | **Description**
+| --------    | --------   | ---------------
+| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32        | Indicates if the command is FIPS approved or an error
+| idev_pub_x  | u8[48]     | X portion of ECDSA IDevId key
+| idev_pub_y  | u8[48]     | Y portion of ECDSA IDevId key
 
 ### GET\_LDEV\_CERT
 
@@ -202,6 +248,7 @@ Table: `STASH_MEASUREMENT` input arguments
 | chksum       | u32      | Checksum over other input arguments, computed by the caller. Little endian.
 | metadata     | u8[4]    | 4-byte measurement identifier.
 | measurement  | u8[48]   | Data to measure into DPE.
+| svn          | u32      | SVN passed to to DPE to be used in derive child.
 
 
 Table: `STASH_MEASUREMENT` output arguments

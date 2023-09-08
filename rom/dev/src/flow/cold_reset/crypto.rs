@@ -243,16 +243,16 @@ impl Crypto {
     ///
     /// # Returns
     ///
-    /// `Ecc384Result` - Ecc384Result::Success if the signature verification passed else an error code.
+    /// * `Array4xN<12, 48>` - verify R value
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn ecdsa384_verify(
         env: &mut RomEnv,
         pub_key: &Ecc384PubKey,
         data: &[u8],
         sig: &Ecc384Signature,
-    ) -> CaliptraResult<Ecc384Result> {
+    ) -> CaliptraResult<Array4xN<12, 48>> {
         let mut digest = Self::sha384_digest(env, data);
         let digest = okmutref(&mut digest)?;
-        env.ecc384.verify(pub_key, digest, sig)
+        env.ecc384.verify_r(pub_key, digest, sig)
     }
 }

@@ -8,6 +8,7 @@ edition = "2021"
 
 [dependencies]
 bitfield.workspace = true
+bitflags.workspace = true
 caliptra-drivers.workspace = true
 caliptra-image-types = { workspace = true, default-features = false }
 caliptra-registers.workspace = true

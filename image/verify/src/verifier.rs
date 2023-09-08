@@ -404,13 +404,12 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID_ARG)?;
         }
 
-        let result = self
+        let verify_r = self
             .env
             .ecc384_verify(digest, pub_key, sig)
             .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_VERIFY_FAILURE)?;
 
-        // [TODO][CFI]
-        if result != Ecc384Result::Success {
+        if verify_r != caliptra_drivers::Array4xN(sig.r) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID)?;
         }
 
@@ -432,24 +431,23 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID_ARG)?;
         }
 
-        let result = self
+        let verify_r = self
             .env
             .ecc384_verify(digest, ecc_pub_key, ecc_sig)
             .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_VERIFY_FAILURE)?;
 
-        // [TODO][CFI]
-        if result != Ecc384Result::Success {
+        if verify_r != caliptra_drivers::Array4xN(ecc_sig.r) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID)?;
         }
 
         if self.env.lms_verify_enabled() {
             if let Some(info) = lms_info {
                 let (lms_pub_key, lms_sig) = info;
-                let result = self
+                let candidate_key = self
                     .env
                     .lms_verify(digest, lms_pub_key, lms_sig)
                     .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_VERIFY_FAILURE)?;
-                if result != LmsResult::Success {
+                if candidate_key != HashValue::from(lms_pub_key.digest) {
                     return Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID);
                 }
             }
@@ -465,12 +463,12 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         lms_pub_key: &ImageLmsPublicKey,
         lms_sig: &ImageLmsSignature,
     ) -> CaliptraResult<()> {
-        let result = self
+        let candidate_key = self
             .env
             .lms_verify(digest, lms_pub_key, lms_sig)
             .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_VERIFY_FAILURE)?;
 
-        if result != LmsResult::Success {
+        if candidate_key != HashValue::from(lms_pub_key.digest) {
             return Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_SIGNATURE_INVALID);
         }
 
@@ -1728,25 +1726,25 @@ mod tests {
             &mut self,
             _digest: &ImageDigest,
             _pub_key: &ImageEccPubKey,
-            _sig: &ImageEccSignature,
-        ) -> CaliptraResult<Ecc384Result> {
+            sig: &ImageEccSignature,
+        ) -> CaliptraResult<Array4xN<12, 48>> {
             if self.verify_result {
-                Ok(Ecc384Result::Success)
+                Ok(Array4x12::from(sig.r))
             } else {
-                Ok(Ecc384Result::SigVerifyFailed)
+                Ok(Array4x12::from(&[0xFF; 48]))
             }
         }
 
         fn lms_verify(
             &mut self,
             _digest: &ImageDigest,
-            _pub_key: &ImageLmsPublicKey,
+            pub_key: &ImageLmsPublicKey,
             _sig: &ImageLmsSignature,
-        ) -> CaliptraResult<LmsResult> {
+        ) -> CaliptraResult<HashValue<SHA192_DIGEST_WORD_SIZE>> {
             if self.verify_lms_result {
-                Ok(LmsResult::Success)
+                Ok(HashValue::from(pub_key.digest))
             } else {
-                Ok(LmsResult::SigVerifyFailed)
+                Ok(HashValue::from(&[0xDEADBEEF; 6]))
             }
         }
 

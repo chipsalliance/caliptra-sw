@@ -7,6 +7,7 @@
 #include <caliptra_top_reg.h>
 #include "caliptra_if.h"
 #include "caliptra_api.h"
+#include "caliptra_fuses.h"
 #include "caliptra_mbox.h"
 
 #define CALIPTRA_STATUS_NOT_READY 0
@@ -44,11 +45,6 @@ static uint32_t calculate_caliptra_checksum(uint32_t cmd, uint8_t *buffer, uint3
     return (0 - sum);
 }
 
-static inline bool validate_caliptra_checksum(caliptra_checksum checksum, enum mailbox_command command, uint8_t *buffer, uint32_t length)
-{
-    return (checksum - calculate_caliptra_checksum(command, buffer, length) == 0);
-}
-
 static inline uint32_t caliptra_read_status(void)
 {
     uint32_t status;
@@ -74,6 +70,71 @@ int caliptra_bootfsm_go()
 
     return 0;
 }
+
+/**
+ * caliptra_ready_for_fuses
+ *
+ * Reports if the Caliptra hardware is ready for fuse data
+ *
+ * @return bool True if ready, false otherwise
+ */
+bool caliptra_ready_for_fuses(void)
+{
+    uint32_t status;
+
+    caliptra_read_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS, &status);
+
+    if ((status & GENERIC_AND_FUSE_REG_CPTRA_FLOW_STATUS_READY_FOR_FUSES_MASK) != 0) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * caliptra_init_fuses
+ *
+ * Initialize fuses based on contents of "fuses" argument
+ *
+ * @param[in] fuses Valid caliptra_fuses structure
+ *
+ * @return int 0 if successful, -EINVAL if fuses is null, -EPERM if caliptra is not ready for fuses, -EIO if still ready after fuses are written
+ */
+int caliptra_init_fuses(struct caliptra_fuses *fuses)
+{
+    // Parameter check
+    if (!fuses)
+    {
+        return -EINVAL;
+    }
+
+    // Check whether caliptra is ready for fuses
+    if (!caliptra_ready_for_fuses())
+        return -EPERM;
+
+    // Write Fuses
+    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_UDS_SEED_0, fuses->uds_seed, ARRAY_SIZE(fuses->uds_seed));
+    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_FIELD_ENTROPY_0, fuses->field_entropy, ARRAY_SIZE(fuses->field_entropy));
+    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_KEY_MANIFEST_PK_HASH_0, fuses->key_manifest_pk_hash, ARRAY_SIZE(fuses->key_manifest_pk_hash));
+    caliptra_fuse_write(GENERIC_AND_FUSE_REG_FUSE_KEY_MANIFEST_PK_HASH_MASK, fuses->key_manifest_pk_hash_mask);
+    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_OWNER_PK_HASH_0, fuses->owner_pk_hash, ARRAY_SIZE(fuses->owner_pk_hash));
+    caliptra_fuse_write(GENERIC_AND_FUSE_REG_FUSE_FMC_KEY_MANIFEST_SVN, fuses->fmc_key_manifest_svn);
+    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_RUNTIME_SVN_0, fuses->runtime_svn, ARRAY_SIZE(fuses->runtime_svn));
+    caliptra_fuse_write(GENERIC_AND_FUSE_REG_FUSE_ANTI_ROLLBACK_DISABLE, (uint32_t)fuses->anti_rollback_disable);
+    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_IDEVID_CERT_ATTR_0, fuses->idevid_cert_attr, ARRAY_SIZE(fuses->idevid_cert_attr));
+    caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_IDEVID_MANUF_HSM_ID_0, fuses->idevid_manuf_hsm_id, ARRAY_SIZE(fuses->idevid_manuf_hsm_id));
+    caliptra_fuse_write(GENERIC_AND_FUSE_REG_FUSE_LIFE_CYCLE, (uint32_t)fuses->life_cycle);
+
+    // Write to Caliptra Fuse Done
+    caliptra_write_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FUSE_WR_DONE, 1);
+
+    // No longer ready for fuses
+    if (caliptra_ready_for_fuses())
+        return -EIO;
+
+    return 0;
+}
+
 
 /**
  * caliptra_mailbox_write_fifo
@@ -280,6 +341,21 @@ int caliptra_upload_fw(struct caliptra_buffer *fw_buffer)
     return caliptra_mailbox_execute(OP_CALIPTRA_FW_LOAD, fw_buffer, NULL);
 }
 
+static int check_command_response(struct caliptra_completion *cpl, uint8_t *buffer, size_t buffer_size)
+{
+    uint32_t calc_checksum = calculate_caliptra_checksum(0, buffer + sizeof(uint32_t), buffer_size - sizeof(uint32_t));
+
+    bool checksum_valid = !(cpl->checksum - calc_checksum);
+    bool fips_approved  = (cpl->fips == FIPS_STATUS_APPROVED);
+
+    if ((checksum_valid == false) || (fips_approved == false))
+    {
+        return -EBADMSG;
+    }
+
+    return 0;
+}
+
 /**
  * caliptra_get_fips_version
  *
@@ -308,16 +384,39 @@ int caliptra_get_fips_version(struct caliptra_fips_version *version)
 
     int status = caliptra_mailbox_execute(OP_FIPS_VERSION, &in_buf, &out_buf);
 
-    if (!status)
+    if (status)
     {
         return status;
     }
 
-    bool checksum_valid = validate_caliptra_checksum(version->cpl.checksum, OP_FIPS_VERSION, (uint8_t*)version, sizeof(struct caliptra_fips_version));
-    bool fips_approved  = version->cpl.fips != FIPS_STATUS_APPROVED;
+    return check_command_response(&version->cpl, (uint8_t*)version, sizeof(struct caliptra_fips_version));
+}
 
-    if (!checksum_valid || !fips_approved)
+int caliptra_stash_measurement(struct caliptra_stash_measurement_req *req, struct caliptra_stash_measurement_resp *resp)
+{
+    if (!req || !resp)
     {
-        return -EBADMSG;
+        return -EINVAL;
     }
+
+    struct caliptra_buffer in_buf = {
+        .data = (uint8_t*)req,
+        .len  = sizeof(struct caliptra_stash_measurement_req),
+    };
+
+    struct caliptra_buffer out_buf = {
+        .data = (uint8_t*)resp,
+        .len  = sizeof(struct caliptra_stash_measurement_resp),
+    };
+
+    req->checksum = calculate_caliptra_checksum(OP_STASH_MEASUREMENT, (uint8_t*)req, sizeof(struct caliptra_stash_measurement_req));
+
+    int status = caliptra_mailbox_execute(OP_STASH_MEASUREMENT, &in_buf, &out_buf);
+
+    if (status)
+    {
+        return status;
+    }
+
+    return check_command_response(&resp->cpl, (uint8_t*)resp, sizeof(struct caliptra_stash_measurement_resp));
 }

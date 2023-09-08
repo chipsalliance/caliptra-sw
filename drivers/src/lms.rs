@@ -377,6 +377,8 @@ impl Lms {
         Ok(result)
     }
 
+    ///  Note: Use this function only if glitch protection is not needed.
+    ///        If glitch protection is needed, use `verify_lms_signature_cfi` instead.
     pub fn verify_lms_signature<const N: usize, const P: usize, const H: usize>(
         &self,
         sha256_driver: &mut Sha256,
@@ -384,6 +386,24 @@ impl Lms {
         lms_public_key: &LmsPublicKey<N>,
         lms_sig: &LmsSignature<N, P, H>,
     ) -> CaliptraResult<LmsResult> {
+        let mut candidate_key =
+            self.verify_lms_signature_cfi(sha256_driver, input_string, lms_public_key, lms_sig)?;
+        let result = if candidate_key != HashValue::from(lms_public_key.digest) {
+            Ok(LmsResult::SigVerifyFailed)
+        } else {
+            Ok(LmsResult::Success)
+        };
+        candidate_key.0.fill(0);
+        result
+    }
+
+    pub fn verify_lms_signature_cfi<const N: usize, const P: usize, const H: usize>(
+        &self,
+        sha256_driver: &mut Sha256,
+        input_string: &[u8],
+        lms_public_key: &LmsPublicKey<N>,
+        lms_sig: &LmsSignature<N, P, H>,
+    ) -> CaliptraResult<HashValue<N>> {
         if lms_sig.ots.ots_type != lms_public_key.otstype {
             return Err(CaliptraError::DRIVER_LMS_SIGNATURE_LMOTS_DOESNT_MATCH_PUBKEY_LMOTS);
         }
@@ -463,12 +483,7 @@ impl Lms {
             i += 1;
             digest.0.fill(0);
         }
-        let candidate_key = &temp;
-        if *candidate_key != HashValue::from(lms_public_key.digest) {
-            return Ok(LmsResult::SigVerifyFailed);
-        }
         digest.0.fill(0);
-        temp.0.fill(0);
-        Ok(LmsResult::Success)
+        Ok(temp)
     }
 }

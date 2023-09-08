@@ -12,11 +12,9 @@ Abstract:
 
 --*/
 
+use crate::helpers::bytes_from_words_le;
 use crate::{KeyUsage, KeyVault};
-use caliptra_emu_bus::{
-    ActionHandle, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory,
-    ReadWriteRegister, Timer, WriteOnlyMemory,
-};
+use caliptra_emu_bus::{ActionHandle, BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Timer};
 use caliptra_emu_crypto::EndianessTransform;
 use caliptra_emu_crypto::{Hmac512, Hmac512Mode};
 use caliptra_emu_derive::Bus;
@@ -24,6 +22,7 @@ use caliptra_emu_types::{RvData, RvSize};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 use tock_registers::registers::InMemoryRegister;
+use zerocopy::AsBytes;
 
 register_bitfields! [
     u32,
@@ -137,16 +136,16 @@ pub struct HmacSha384 {
     status: ReadOnlyRegister<u32, Status::Register>,
 
     /// HMAC Key Register
-    #[peripheral(offset = 0x0000_0040, mask = 0x0000_003f)]
-    key: WriteOnlyMemory<HMAC_KEY_SIZE>,
+    #[register_array(offset = 0x0000_0040, item_size = 4, len = 12, read_fn = read_access_fault, write_fn = on_write_key)]
+    key: [u32; HMAC_KEY_SIZE / 4],
 
     /// HMAC Block Register
-    #[peripheral(offset = 0x0000_0080, mask = 0x0000_007f)]
-    block: ReadWriteMemory<HMAC_BLOCK_SIZE>,
+    #[register_array(offset = 0x0000_0080, item_size = 4, len = 32, read_fn = read_access_fault, write_fn = on_write_block)]
+    block: [u32; HMAC_BLOCK_SIZE / 4],
 
     /// HMAC Tag Register
-    #[peripheral(offset = 0x0000_0100, mask = 0x0000_00ff)]
-    tag: ReadOnlyMemory<HMAC_TAG_SIZE>,
+    #[register_array(offset = 0x0000_0100, item_size = 4, len = 12, read_fn = on_read_tag, write_fn = write_access_fault)]
+    tag: [u32; HMAC_TAG_SIZE / 4],
 
     /// LSFR Seed Register
     #[register_array(offset = 0x0000_0130)]
@@ -175,6 +174,15 @@ pub struct HmacSha384 {
     /// Tag Write Status Register
     #[register(offset = 0x0000_0614)]
     tag_write_status: ReadOnlyRegister<u32, TagWriteStatus::Register>,
+
+    // True if the current key was read from the key-vault
+    key_from_kv: bool,
+
+    // True if the current block was read from the key-vault
+    block_from_kv: bool,
+
+    // True if the tag should be hidden from the CPU
+    hide_tag_from_cpu: bool,
 
     /// HMAC engine
     hmac: Hmac512<HMAC_KEY_SIZE>,
@@ -230,9 +238,9 @@ impl HmacSha384 {
             version1: ReadOnlyRegister::new(Self::VERSION1_VAL),
             control: ReadWriteRegister::new(0),
             status: ReadOnlyRegister::new(Status::READY::SET.value),
-            key: WriteOnlyMemory::new(),
-            block: ReadWriteMemory::new(),
-            tag: ReadOnlyMemory::new(),
+            key: Default::default(),
+            block: Default::default(),
+            tag: Default::default(),
             lfsr_seed: Default::default(),
             key_read_ctrl: ReadWriteRegister::new(0),
             key_read_status: ReadOnlyRegister::new(KeyReadStatus::READY::SET.value),
@@ -242,11 +250,52 @@ impl HmacSha384 {
             tag_write_status: ReadOnlyRegister::new(TagWriteStatus::READY::SET.value),
             key_vault,
             timer: Timer::new(clock),
+            key_from_kv: false,
+            block_from_kv: false,
+            hide_tag_from_cpu: false,
             op_complete_action: None,
             op_key_read_complete_action: None,
             op_block_read_complete_action: None,
             op_tag_write_complete_action: None,
         }
+    }
+
+    fn read_access_fault(&mut self, _size: RvSize, _index: usize) -> Result<u32, BusError> {
+        Err(BusError::LoadAccessFault)
+    }
+
+    fn write_access_fault(
+        &mut self,
+        _size: RvSize,
+        _index: usize,
+        _val: RvData,
+    ) -> Result<(), BusError> {
+        Err(BusError::StoreAccessFault)
+    }
+
+    fn on_write_key(&mut self, _size: RvSize, index: usize, val: RvData) -> Result<(), BusError> {
+        if self.key_from_kv {
+            self.key_from_kv = false;
+            self.key.fill(0);
+        }
+        self.key[index] = val;
+        Ok(())
+    }
+
+    fn on_write_block(&mut self, _size: RvSize, index: usize, val: RvData) -> Result<(), BusError> {
+        if self.block_from_kv {
+            self.block_from_kv = false;
+            self.block.fill(0);
+        }
+        self.block[index] = val;
+        Ok(())
+    }
+
+    fn on_read_tag(&mut self, _size: RvSize, index: usize) -> Result<RvData, BusError> {
+        if self.hide_tag_from_cpu {
+            return Ok(0);
+        }
+        Ok(self.tag[index])
     }
 
     /// On Write callback for `control` register
@@ -276,13 +325,16 @@ impl HmacSha384 {
 
             if self.control.reg.is_set(Control::INIT) {
                 // Initialize the HMAC engine with key and initial data block
-                self.hmac.init(self.key.data(), self.block.data());
+                self.hmac.init(
+                    &bytes_from_words_le(&self.key),
+                    &bytes_from_words_le(&self.block),
+                );
 
                 // Schedule a future call to poll() complete the operation.
                 self.op_complete_action = Some(self.timer.schedule_poll_in(INIT_TICKS));
             } else if self.control.reg.is_set(Control::NEXT) {
                 // Update a HMAC engine with a new block
-                self.hmac.update(self.block.data());
+                self.hmac.update(&bytes_from_words_le(&self.block));
 
                 // Schedule a future call to poll() complete the operation.
                 self.op_complete_action = Some(self.timer.schedule_poll_in(UPDATE_TICKS));
@@ -432,7 +484,10 @@ impl HmacSha384 {
 
     fn op_complete(&mut self) {
         // Retrieve the tag
-        self.hmac.tag(self.tag.data_mut());
+        self.hmac.tag(self.tag.as_bytes_mut());
+        // Don't reveal the tag to the CPU if the inputs came from the
+        // key-vault.
+        self.hide_tag_from_cpu = self.block_from_kv || self.key_from_kv;
 
         // Check if tag control is enabled.
         if self
@@ -476,7 +531,10 @@ impl HmacSha384 {
         };
 
         if let Some(key) = &key {
-            self.key.data_mut().copy_from_slice(&key[..HMAC_KEY_SIZE]);
+            self.key_from_kv = true;
+            self.key
+                .as_bytes_mut()
+                .copy_from_slice(&key[..HMAC_KEY_SIZE]);
         }
 
         self.key_read_status.reg.modify(
@@ -490,7 +548,7 @@ impl HmacSha384 {
         let key_id = self.block_read_ctrl.reg.read(KeyReadControl::KEY_ID);
 
         // Clear the block
-        self.block.data_mut().fill(0);
+        self.block.fill(0);
 
         let mut key_usage = KeyUsage::default();
         key_usage.set_hmac_data(true);
@@ -504,6 +562,7 @@ impl HmacSha384 {
             }
             Ok(data) => {
                 self.format_block(&data);
+                self.block_from_kv = true;
                 KeyReadStatus::ERROR::KV_SUCCESS.value
             }
         };
@@ -539,7 +598,7 @@ impl HmacSha384 {
         block_arr[HMAC_BLOCK_SIZE - 16..].copy_from_slice(&len.to_be_bytes());
 
         block_arr.to_big_endian();
-        self.block.data_mut().copy_from_slice(&block_arr);
+        self.block.as_bytes_mut().copy_from_slice(&block_arr);
     }
 
     fn tag_write_complete(&mut self) {
@@ -551,7 +610,7 @@ impl HmacSha384 {
             .key_vault
             .write_key(
                 key_id,
-                self.tag.data(),
+                self.tag.as_bytes(),
                 self.tag_write_ctrl.reg.read(TagWriteControl::USAGE),
             )
             .err()
@@ -573,9 +632,9 @@ impl HmacSha384 {
     }
 
     fn zeroize(&mut self) {
-        self.key.data_mut().fill(0);
-        self.block.data_mut().fill(0);
-        self.tag.data_mut().fill(0);
+        self.key.fill(0);
+        self.block.fill(0);
+        self.tag.fill(0);
     }
 }
 
@@ -660,7 +719,10 @@ mod tests {
         let mut hmac = HmacSha384::new(&Clock::new(), KeyVault::new());
         for addr in (OFFSET_BLOCK..(OFFSET_BLOCK + HMAC_BLOCK_SIZE as u32)).step_by(4) {
             assert_eq!(hmac.write(RvSize::Word, addr, u32::MAX).ok(), Some(()));
-            assert_eq!(hmac.read(RvSize::Word, addr).ok(), Some(u32::MAX));
+            assert_eq!(
+                hmac.read(RvSize::Word, addr),
+                Err(BusError::LoadAccessFault)
+            );
         }
     }
 
@@ -1020,7 +1082,7 @@ mod tests {
                 &hmac.key_vault.read_key(tag_id, key_usage).unwrap()[..HMAC_TAG_SIZE],
             );
         } else {
-            tag_le.clone_from_slice(hmac.tag.data());
+            tag_le.clone_from_slice(hmac.tag.as_bytes());
         }
 
         tag_le.to_little_endian();

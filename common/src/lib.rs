@@ -3,13 +3,12 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod boot_status;
+pub mod capabilities;
 pub mod checksum;
 pub mod crypto;
 pub mod dice;
-pub mod fuse;
 pub mod keyids;
 pub mod mailbox_api;
-pub mod pcr;
 pub mod wdt;
 
 ///merge imports
@@ -21,8 +20,10 @@ pub use hand_off::{
 pub use boot_status::RomBootStatus;
 pub use caliptra_drivers::cprint;
 pub use caliptra_drivers::cprintln;
+pub use caliptra_drivers::fuse_log as fuse;
 pub use caliptra_drivers::hand_off;
 pub use caliptra_drivers::memory_layout;
+pub use caliptra_drivers::pcr_log as pcr;
 pub use caliptra_drivers::printer::HexBytes;
 pub use caliptra_drivers::printer::Printer;
 pub use fuse::{FuseLogEntry, FuseLogEntryId};

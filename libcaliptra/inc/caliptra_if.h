@@ -39,11 +39,3 @@ int caliptra_read_u32(uint32_t address, uint32_t *data);
  */
 void caliptra_wait(void);
 
-/**
- * caliptra_if_init
- *
- * Initialization step for the Caliptra interface implementation, if required.
- *
- * @return bool True if the interface initialized itself successfully.
- */
-bool caliptra_if_init(void);

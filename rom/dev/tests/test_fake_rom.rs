@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::ROM_VAL_WITH_UART;
+use caliptra_builder::ROM_FAKE_WITH_UART;
 use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART};
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::CaliptraError;
@@ -10,16 +10,16 @@ pub mod helpers;
 
 const TEST_FMC_CMD_RESET_FOR_UPDATE: u32 = 0x1000_0004;
 
-const VAL_TEST_FMC_WITH_UART: FwId = FwId {
+const FAKE_TEST_FMC_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom-test-fmc",
     bin_name: "caliptra-rom-test-fmc",
-    features: &["emu", "val-fmc"],
+    features: &["emu", "fake-fmc"],
     workspace_dir: None,
 };
 
 #[test]
 fn test_skip_kats() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_VAL_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -37,11 +37,11 @@ fn test_skip_kats() {
 }
 
 #[test]
-fn test_val_rom_production_error() {
+fn test_fake_rom_production_error() {
     let security_state =
         *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_VAL_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -58,14 +58,14 @@ fn test_val_rom_production_error() {
     // Make sure we see the right fatal error
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_fatal().read(),
-        CaliptraError::ROM_GLOBAL_VAL_ROM_IN_PRODUCTION.into()
+        CaliptraError::ROM_GLOBAL_FAKE_ROM_IN_PRODUCTION.into()
     );
 }
 
 #[test]
-fn test_val_rom_fw_load() {
+fn test_fake_rom_fw_load() {
     let fuses = Fuses::default();
-    let rom = caliptra_builder::build_firmware_rom(&ROM_VAL_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -79,7 +79,7 @@ fn test_val_rom_fw_load() {
 
     // Build the image we are going to send to ROM to load
     let image_bundle = caliptra_builder::build_and_sign_image(
-        &VAL_TEST_FMC_WITH_UART,
+        &FAKE_TEST_FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions::default(),
     )
@@ -100,9 +100,9 @@ fn test_val_rom_fw_load() {
 }
 
 #[test]
-fn test_val_rom_update_reset() {
+fn test_fake_rom_update_reset() {
     let fuses = Fuses::default();
-    let rom = caliptra_builder::build_firmware_rom(&ROM_VAL_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -115,7 +115,7 @@ fn test_val_rom_update_reset() {
     .unwrap();
 
     let image_bundle = caliptra_builder::build_and_sign_image(
-        &VAL_TEST_FMC_WITH_UART,
+        &FAKE_TEST_FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions::default(),
     )

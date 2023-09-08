@@ -29,10 +29,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7de8ce5e0f9f8d88245311066a578d72b7af3e7088f32783804676302df237e4"
 
 [[package]]
+name = "arbitrary"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2d098ff73c1ca148721f37baad5ea6a465a13f9573aba8641fbbbae8164a54e"
+dependencies = [
+ "derive_arbitrary",
+]
+
+[[package]]
 name = "arrayref"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b4930d2cb77ce62f89ee5d5289b4ac049559b1c45539271f5ed4fdc7db34545"
+
+[[package]]
+name = "arrayvec"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
 
 [[package]]
 name = "asn1"
@@ -143,9 +158,9 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "bitflags"
-version = "2.0.2"
+version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "487f1e0fcbe47deb8b0574e646def1c903389d95241dd1bbcc6ce4a715dfc0c1"
+checksum = "b4682ae6287fcf752ecaabbfcc7b6f9b72aa33933dc23a554d853aea8eea8635"
 
 [[package]]
 name = "block-buffer"
@@ -231,7 +246,7 @@ name = "caliptra-drivers"
 version = "0.1.0"
 dependencies = [
  "bitfield",
- "bitflags 2.0.2",
+ "bitflags 2.4.0",
  "caliptra-builder",
  "caliptra-drivers-test-bin",
  "caliptra-error",
@@ -335,8 +350,10 @@ dependencies = [
  "caliptra-hw-model-types",
  "caliptra-registers",
  "lazy_static",
+ "sha3",
  "smlang",
  "tock-registers",
+ "zerocopy",
 ]
 
 [[package]]
@@ -405,6 +422,8 @@ dependencies = [
  "caliptra-registers",
  "caliptra-test-harness-types",
  "caliptra-verilated",
+ "libc",
+ "nix 0.26.2",
  "rand",
  "uio",
  "ureg",
@@ -484,10 +503,10 @@ name = "caliptra-image-gen"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bitflags 2.0.2",
+ "bitflags 2.4.0",
  "caliptra-image-types",
  "caliptra-lms-types",
- "memoffset",
+ "memoffset 0.8.0",
  "zerocopy",
 ]
 
@@ -516,8 +535,9 @@ dependencies = [
 name = "caliptra-image-types"
 version = "0.1.0"
 dependencies = [
+ "arbitrary",
  "caliptra-lms-types",
- "memoffset",
+ "memoffset 0.8.0",
  "zerocopy",
 ]
 
@@ -525,11 +545,11 @@ dependencies = [
 name = "caliptra-image-verify"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.0.2",
+ "bitflags 2.4.0",
  "caliptra-drivers",
  "caliptra-image-types",
  "caliptra_common",
- "memoffset",
+ "memoffset 0.8.0",
  "zerocopy",
 ]
 
@@ -546,6 +566,7 @@ dependencies = [
 name = "caliptra-lms-types"
 version = "0.1.0"
 dependencies = [
+ "arbitrary",
  "zerocopy",
 ]
 
@@ -579,7 +600,7 @@ dependencies = [
  "caliptra_common",
  "cfg-if 1.0.0",
  "hex",
- "memoffset",
+ "memoffset 0.8.0",
  "openssl",
  "ufmt",
  "zerocopy",
@@ -614,9 +635,11 @@ dependencies = [
 name = "caliptra-runtime"
 version = "0.1.0"
 dependencies = [
+ "arrayvec",
  "caliptra-builder",
  "caliptra-cpu",
  "caliptra-drivers",
+ "caliptra-error",
  "caliptra-gen-linker-scripts",
  "caliptra-hw-model",
  "caliptra-image-elf",
@@ -718,6 +741,7 @@ name = "caliptra_common"
 version = "0.1.0"
 dependencies = [
  "bitfield",
+ "bitflags 2.4.0",
  "caliptra-drivers",
  "caliptra-image-types",
  "caliptra-registers",
@@ -885,6 +909,9 @@ dependencies = [
 [[package]]
 name = "crypto"
 version = "0.1.0"
+dependencies = [
+ "arrayvec",
+]
 
 [[package]]
 name = "crypto-bigint"
@@ -1003,6 +1030,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7684a49fb1af197853ef7b2ee694bc1f5b4179556f1e5710e1760c5db6f5e929"
 
 [[package]]
+name = "derive_arbitrary"
+version = "1.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53e0efad4403bfc52dc201159c4b842a246a14b98c64b55dfd0f2d89729dfeb8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.28",
+]
+
+[[package]]
 name = "digest"
 version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1028,6 +1066,7 @@ dependencies = [
 name = "dpe"
 version = "0.1.0"
 dependencies = [
+ "bitflags 2.4.0",
  "crypto",
  "platform",
  "zerocopy",
@@ -1402,6 +1441,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "keccak"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f6d5ed8676d904364de097082f4e7d240b571b67989ced0240f08b7f966f940"
+dependencies = [
+ "cpufeatures",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1461,6 +1509,15 @@ checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
 
 [[package]]
 name = "memoffset"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5de893c32cde5f383baa4c04c5d6dbdd735cfd4a794b0debdb2bb1b421da5ff4"
+dependencies = [
+ "autocfg",
+]
+
+[[package]]
+name = "memoffset"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d61c719bcfbcf5d62b3a09efa6088de8c54bc0bfcd3ea7ae39fcc186108b8de1"
@@ -1485,6 +1542,20 @@ dependencies = [
  "cfg-if 0.1.10",
  "libc",
  "void",
+]
+
+[[package]]
+name = "nix"
+version = "0.26.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bfdda3d196821d6af13126e40375cdf7da646a96114af134d5f417a9a1dc8e1a"
+dependencies = [
+ "bitflags 1.3.2",
+ "cfg-if 1.0.0",
+ "libc",
+ "memoffset 0.7.1",
+ "pin-utils",
+ "static_assertions",
 ]
 
 [[package]]
@@ -1884,6 +1955,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha3"
+version = "0.10.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75872d278a8f37ef87fa0ddbda7802605cb18344497949862c0d4dcb291eba60"
+dependencies = [
+ "digest",
+ "keccak",
+]
+
+[[package]]
 name = "signature"
 version = "1.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1937,6 +2018,12 @@ dependencies = [
  "base64ct",
  "der",
 ]
+
+[[package]]
+name = "static_assertions"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "strsim"
@@ -2167,7 +2254,7 @@ checksum = "5073b92c4a389c020d930424896f62c431b8cd858920519647aa1b1de5968fd1"
 dependencies = [
  "fs2",
  "libc",
- "nix",
+ "nix 0.11.1",
 ]
 
 [[package]]
@@ -2230,6 +2317,9 @@ name = "vector_gen"
 version = "0.1.0"
 dependencies = [
  "openssl",
+ "p384",
+ "rfc6979",
+ "sha2",
 ]
 
 [[package]]

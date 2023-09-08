@@ -111,7 +111,7 @@ pub trait ImageVerificationEnv {
         digest: &ImageDigest,
         pub_key: &ImageEccPubKey,
         sig: &ImageEccSignature,
-    ) -> CaliptraResult<Ecc384Result>;
+    ) -> CaliptraResult<Array4xN<12, 48>>;
 
     /// Perform LMS Verification
     fn lms_verify(
@@ -119,7 +119,7 @@ pub trait ImageVerificationEnv {
         digest: &ImageDigest,
         pub_key: &ImageLmsPublicKey,
         sig: &ImageLmsSignature,
-    ) -> CaliptraResult<LmsResult>;
+    ) -> CaliptraResult<HashValue<SHA192_DIGEST_WORD_SIZE>>;
 
     /// Get Vendor Public Key Digest
     fn vendor_pub_key_digest(&self) -> ImageDigest;

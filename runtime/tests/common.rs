@@ -29,7 +29,10 @@ pub fn run_rom_test(test_bin_name: &'static str) -> DefaultHwModel {
 
 // Run a test which boots ROM -> FMC -> test_bin. If test_bin_name is None,
 // run the production runtime image.
-pub fn run_rt_test(test_bin_name: Option<&'static str>) -> DefaultHwModel {
+pub fn run_rt_test(
+    test_bin_name: Option<&'static str>,
+    test_image_options: Option<ImageOptions>,
+) -> DefaultHwModel {
     let runtime_fwid = test_bin_name.map_or(APP_WITH_UART, |bin| FwId {
         crate_name: "caliptra-runtime-test-bin",
         bin_name: bin,
@@ -39,10 +42,13 @@ pub fn run_rt_test(test_bin_name: Option<&'static str>) -> DefaultHwModel {
 
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
 
-    let mut image_options = ImageOptions::default();
-    image_options.vendor_config.pl0_pauser = Some(0xFFFF0000);
-    image_options.fmc_version = 0xaaaaaaaa;
-    image_options.app_version = 0xbbbbbbbb;
+    let image_options = test_image_options.unwrap_or_else(|| {
+        let mut opts = ImageOptions::default();
+        opts.vendor_config.pl0_pauser = Some(0x1);
+        opts.fmc_version = 0xaaaaaaaa;
+        opts.app_version = 0xbbbbbbbb;
+        opts
+    });
     let image =
         caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &runtime_fwid, image_options)
             .unwrap();

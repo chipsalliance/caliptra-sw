@@ -44,6 +44,7 @@ register_bitfields! [
             MBOX_RDY_FOR_DATA = 0x2,
             MBOX_EXECUTE_UC = 0x6,
             MBOX_EXECUTE_SOC = 0x4,
+            MBOX_ERROR = 0x7,
         ],
         SOC_HAS_LOCK OFFSET(9) NUMBITS(1) [],
         RSVD OFFSET(10) NUMBITS(22) [],
@@ -323,6 +324,7 @@ impl MailboxRegs {
     pub fn write_ex(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
         // Only the lock owner can clear the execute bit.
         if self.requester != self.state_machine.context.user {
+            let _ = self.state_machine.process_event(Events::Error);
             return Ok(());
         }
 
@@ -367,13 +369,13 @@ impl MailboxRegs {
     pub fn read_status(&self, _size: RvSize) -> Result<u32, BusError> {
         let mut result = self.state_machine.context.status;
         result.modify(match self.state_machine.state {
-            // TODO: What about MBOX_EXECUTE_SOC?
             States::ExecUc => Status::MBOX_FSM_PS::MBOX_EXECUTE_UC,
             States::ExecSoc => Status::MBOX_FSM_PS::MBOX_EXECUTE_SOC,
             States::Idle => Status::MBOX_FSM_PS::MBOX_IDLE,
             States::RdyForCmd => Status::MBOX_FSM_PS::MBOX_RDY_FOR_CMD,
             States::RdyForData => Status::MBOX_FSM_PS::MBOX_RDY_FOR_DATA,
             States::RdyForDlen => Status::MBOX_FSM_PS::MBOX_RDY_FOR_DLEN,
+            States::Error => Status::MBOX_FSM_PS::MBOX_ERROR,
         });
         Ok(result.get())
     }
@@ -441,8 +443,11 @@ statemachine! {
         ExecSoc + DataWrite(DataIn) / enqueue = ExecSoc,
         ExecSoc + UcExecClear [is_locked] / unlock = Idle,
         ExecSoc + SocExecClear [is_locked] / unlock = Idle,
+        ExecSoc + Error = Error,
         ExecSoc + SetStatus = ExecUc,
         ExecSoc + WrUnlock  / unlock_and_reset = Idle,
+
+        Error + WrUnlock  / unlock_and_reset = Idle,
 
     }
 }
@@ -538,9 +543,7 @@ impl StateMachineContext for Context {
         self.status.set(0);
     }
     fn dequeue(&mut self) {
-        if let Ok(data_out) = self.fifo.dequeue() {
-            self.data_out = data_out;
-        }
+        self.data_out = self.fifo.dequeue().unwrap_or(0);
     }
     fn enqueue(&mut self, data_in: &DataIn) {
         self.fifo.enqueue(data_in.0);
@@ -886,16 +889,15 @@ mod tests {
             (MAX_MAILBOX_CAPACITY_BYTES + 4) as u32
         );
 
-        let mut data_out = 0;
         for data_in in (0..MAX_MAILBOX_CAPACITY_BYTES).step_by(4) {
             // Read dataout
-            data_out = uc_regs.dataout().read();
+            let data_out = uc_regs.dataout().read();
             // compare with queued data.
             assert_eq!(data_in as u32, data_out);
         }
 
-        // Read an additional DWORD. This should return the last word
-        assert_eq!(uc_regs.dataout().read(), data_out);
+        // Read an additional DWORD. This should return zero
+        assert_eq!(uc_regs.dataout().read(), 0);
 
         uc_regs.status().write(|w| w.status(|w| w.cmd_complete()));
 

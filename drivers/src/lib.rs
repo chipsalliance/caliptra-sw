@@ -18,6 +18,7 @@ mod array;
 mod array_concat;
 mod wait;
 
+mod bounded_address;
 mod csrng;
 mod data_vault;
 mod doe;
@@ -25,6 +26,7 @@ mod ecc384;
 mod error_reporter;
 mod exit_ctrl;
 mod fuse_bank;
+pub mod fuse_log;
 pub mod hand_off;
 mod hmac384;
 mod hmac384_kdf;
@@ -35,6 +37,8 @@ mod mailbox;
 pub mod memory_layout;
 mod okref;
 mod pcr_bank;
+pub mod pcr_log;
+mod persistent;
 pub mod printer;
 mod sha1;
 mod sha256;
@@ -46,10 +50,9 @@ mod trng_ext;
 
 pub use array::{Array4x12, Array4x4, Array4x5, Array4x8, Array4xN};
 pub use array_concat::array_concat3;
+pub use bounded_address::RomAddr;
 pub use caliptra_error::{CaliptraError, CaliptraResult};
-pub use csrng::{
-    Csrng, HealthFailCounts as CsrngHealthFailCounts, Iter as CsrngIter, Seed as CsrngSeed,
-};
+pub use csrng::{Csrng, HealthFailCounts as CsrngHealthFailCounts, Seed as CsrngSeed};
 pub use data_vault::{
     ColdResetEntry4, ColdResetEntry48, DataVault, WarmResetEntry4, WarmResetEntry48,
 };
@@ -76,6 +79,7 @@ pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
 pub use okref::okmutref;
 pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};
+pub use persistent::{FuseLogArray, PcrLogArray, PersistentData, PersistentDataAccessor};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
 pub use sha256::{Sha256, Sha256DigestOp};
 pub use sha384::{Sha384, Sha384Digest, Sha384DigestOp};

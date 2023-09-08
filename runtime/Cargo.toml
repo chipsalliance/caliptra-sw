@@ -9,6 +9,7 @@ edition = "2021"
 caliptra_common = { workspace = true, default-features = false }
 caliptra-cpu.workspace = true
 caliptra-drivers.workspace = true
+caliptra-error = { workspace = true, default-features = false }
 caliptra-image-types = { workspace = true, default-features = false }
 caliptra-kat.workspace = true
 caliptra-registers.workspace = true
@@ -18,6 +19,7 @@ crypto.workspace = true
 platform.workspace = true
 ufmt.workspace = true
 zerocopy.workspace = true
+arrayvec.workspace = true
 
 [build-dependencies]
 caliptra_common = { workspace = true, default-features = false }

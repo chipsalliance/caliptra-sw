@@ -43,6 +43,11 @@ name = "keyvault"
 path = "src/keyvault_tests.rs"
 required-features = ["riscv"]
 
+[[bin]]
+name = "locked_dv"
+path = "src/locked_dv_test.rs"
+required-features = ["riscv"]
+
 [build-dependencies]
 caliptra_common = { workspace = true, default-features = false }
 caliptra-gen-linker-scripts.workspace = true

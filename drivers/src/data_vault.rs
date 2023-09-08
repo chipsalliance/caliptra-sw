@@ -70,7 +70,7 @@ impl From<ColdResetEntry48> for usize {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColdResetEntry4 {
     FmcSvn = 0,
-    Reserved0 = 1,
+    RomColdBootStatus = 1,
     FmcEntryPoint = 2,
     EccVendorPubKeyIndex = 3,
     LmsVendorPubKeyIndex = 4,
@@ -133,9 +133,9 @@ impl From<WarmResetEntry48> for usize {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WarmResetEntry4 {
     RtSvn = 0,
-    Reserved0 = 1,
-    RtEntryPoint = 2,
-    ManifestAddr = 3,
+    RtEntryPoint = 1,
+    ManifestAddr = 2,
+    RtMinSvn = 3,
 }
 
 impl From<WarmResetEntry4> for u8 {
@@ -161,8 +161,9 @@ impl TryFrom<u8> for WarmResetEntry4 {
     fn try_from(original: u8) -> Result<Self, Self::Error> {
         match original {
             0 => Ok(Self::RtSvn),
-            2 => Ok(Self::RtEntryPoint),
-            3 => Ok(Self::ManifestAddr),
+            1 => Ok(Self::RtEntryPoint),
+            2 => Ok(Self::ManifestAddr),
+            3 => Ok(Self::RtMinSvn),
             _ => Err(()),
         }
     }
@@ -389,6 +390,25 @@ impl DataVault {
         self.read_cold_reset_entry4(ColdResetEntry4::LmsVendorPubKeyIndex)
     }
 
+    /// Set and lock the rom cold boot status.
+    ///
+    /// # Arguments
+    ///
+    /// * `status` - Rom Cold Boot Status
+    ///
+    pub fn set_rom_cold_boot_status(&mut self, status: u32) {
+        self.write_lock_cold_reset_entry4(ColdResetEntry4::RomColdBootStatus, status);
+    }
+
+    /// Get the rom cold boot status.
+    ///
+    /// # Returns
+    ///
+    /// * `u32` - Rom Cold Boot Status
+    pub fn rom_cold_boot_status(&self) -> u32 {
+        self.read_cold_reset_entry4(ColdResetEntry4::RomColdBootStatus)
+    }
+
     /// Set the rt tcb component identifier.
     ///
     /// # Arguments
@@ -423,6 +443,24 @@ impl DataVault {
     ///
     pub fn rt_svn(&self) -> u32 {
         self.read_warm_reset_entry4(WarmResetEntry4::RtSvn)
+    }
+
+    /// Set the rt security minimum SVN.
+    ///
+    /// # Arguments
+    /// * `min_svn` - min rt security version number
+    ///
+    pub fn set_rt_min_svn(&mut self, min_svn: u32) {
+        self.write_lock_warm_reset_entry4(WarmResetEntry4::RtMinSvn, min_svn);
+    }
+
+    /// Get the rt minimum security version number.
+    ///
+    /// # Returns
+    /// * rt minimum security version number
+    ///
+    pub fn rt_min_svn(&self) -> u32 {
+        self.read_warm_reset_entry4(WarmResetEntry4::RtMinSvn)
     }
 
     /// Set the rt entry point.

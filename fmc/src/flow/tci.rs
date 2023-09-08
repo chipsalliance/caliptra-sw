@@ -36,6 +36,7 @@ impl Tci {
         env: &mut FmcEnv,
         hand_off: &HandOff,
     ) -> CaliptraResult<Array4x12> {
+        // TODO: Should compare this address to env.
         let image_manifest_bytes = unsafe {
             core::slice::from_raw_parts_mut(
                 hand_off.image_manifest_address(env) as *mut u8,

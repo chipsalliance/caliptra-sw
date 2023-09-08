@@ -25,9 +25,11 @@ fn harness(data: &[u8]) {
     }
 
     // TODO: Alternatively, use structure-aware fuzzing, input comprising arguments
+    // The corpus is seeded with TBS blobs, so parse the input as TBS first
+    let tbs_len = data.len() - size_of::<Ecdsa384Signature>();
     unsafe {
-        tbs = &data[size_of::<Ecdsa384Signature>()..];
-        sig = &*(data.as_ptr() as *const Ecdsa384Signature);
+        tbs = &data[..tbs_len];
+        sig = &*(data[tbs_len..].as_ptr() as *const Ecdsa384Signature);
     }
 
     let builder = Ecdsa384CertBuilder::new(tbs, sig).unwrap();

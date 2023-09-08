@@ -18,8 +18,8 @@ Abstract:
 use crate::fht::FhtDataStore;
 use caliptra_common::memory_layout::*;
 use caliptra_drivers::{
-    DataVault, DeobfuscationEngine, Ecc384, Hmac384, KeyVault, Lms, Mailbox, PcrBank, Sha1, Sha256,
-    Sha384, Sha384Acc, SocIfc, Trng,
+    DataVault, DeobfuscationEngine, Ecc384, Hmac384, KeyVault, Lms, Mailbox, PcrBank,
+    PersistentDataAccessor, Sha1, Sha256, Sha384, Sha384Acc, SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_registers::{
@@ -75,6 +75,9 @@ pub struct RomEnv {
 
     /// Cryptographically Secure Random Number Generator
     pub trng: Trng,
+
+    // Mechanism to access the persistent data safely
+    pub persistent_data: PersistentDataAccessor,
 }
 
 impl RomEnv {
@@ -107,6 +110,7 @@ impl RomEnv {
             pcr_bank: PcrBank::new(PvReg::new()),
             fht_data_store: FhtDataStore::default(),
             trng,
+            persistent_data: PersistentDataAccessor::new(),
         })
     }
 }
