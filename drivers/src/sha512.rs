@@ -1,4 +1,7 @@
+use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::sha512::Sha512Reg;
+
+use crate::Array4x12;
 
 pub struct Sha512 {
     sha512: Sha512Reg,
@@ -9,13 +12,13 @@ impl Sha512 {
         Self { sha512 }
     }
 
-    pub fn gen_pcr_hash(&mut self, nonce: [u32; 8]) -> [u32; 12] {
+    pub fn gen_pcr_hash(&mut self, nonce: [u32; 8]) -> CaliptraResult<Array4x12> {
         let reg = self.sha512.regs_mut();
 
-        let status = reg.gen_pcr_hash_status().read();
+        let status_reg = reg.gen_pcr_hash_status();
 
         // Wait for the registers to be ready
-        while !status.ready() {}
+        while !status_reg.read().ready() {}
 
         // Write the nonce into the register
         reg.gen_pcr_hash_nonce().write(&nonce);
@@ -24,12 +27,12 @@ impl Sha512 {
         reg.gen_pcr_hash_ctrl().write(|ctrl| ctrl.start(true));
 
         // Wait for the registers to be ready
-        while !status.ready() {}
+        while !status_reg.read().ready() {}
 
-        if status.valid() {
-            reg.gen_pcr_hash_digest().read()
+        if status_reg.read().valid() {
+            Ok(reg.gen_pcr_hash_digest().read().into())
         } else {
-            [0; 12] // TODO: This has to return a proper Result<T, E> type
+            Err(CaliptraError::DRIVER_SHA384_INVALID_STATE_ERR)
         }
     }
 }
