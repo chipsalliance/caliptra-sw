@@ -318,9 +318,14 @@ impl<'a> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a> {
         self.soc_ifc.lifecycle()
     }
 
-    /// Get the vendor key index saved in data vault on cold boot
-    fn vendor_pub_key_idx_dv(&self) -> u32 {
+    /// Get the vendor ECC key index saved in data vault on cold boot
+    fn vendor_ecc_pub_key_idx_dv(&self) -> u32 {
         self.data_vault.ecc_vendor_pk_index()
+    }
+
+    /// Get the vendor LMS key index saved in data vault on cold boot
+    fn vendor_lms_pub_key_idx_dv(&self) -> u32 {
+        self.data_vault.lms_vendor_pk_index()
     }
 
     /// Get the owner public key digest saved in the dv on cold boot

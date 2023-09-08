@@ -231,9 +231,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         }
 
         if reason == ResetReason::UpdateReset {
-            let expected = self.env.vendor_pub_key_idx_dv();
+            let expected = self.env.vendor_ecc_pub_key_idx_dv();
             if expected != key_idx {
-                Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_PUB_KEY_IDX_MISMATCH)?;
+                Err(
+                    CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_ECC_PUB_KEY_IDX_MISMATCH,
+                )?;
             }
         }
 
@@ -244,7 +246,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     fn verify_vendor_lms_pk_idx(
         &mut self,
         preamble: &ImagePreamble,
-        _reason: ResetReason,
+        reason: ResetReason,
     ) -> CaliptraResult<(Option<u32>, Option<u32>)> {
         const SECOND_LAST_KEY_IDX: u32 = VENDOR_LMS_KEY_COUNT - 2;
         const LAST_KEY_IDX: u32 = SECOND_LAST_KEY_IDX + 1;
@@ -264,13 +266,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             _ => Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS)?,
         }
 
-        // [TODO] Need to put the Vendor pub key index in datavault
-        // if reason == ResetReason::UpdateReset {
-        //     let expected = self.env.vendor_pub_key_idx_dv();
-        //     if expected != key_idx {
-        //         Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_PUB_KEY_IDX_MISMATCH)?;
-        //     }
-        // }
+        if reason == ResetReason::UpdateReset {
+            let expected = self.env.vendor_lms_pub_key_idx_dv();
+            if expected != key_idx {
+                Err(
+                    CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_LMS_PUB_KEY_IDX_MISMATCH,
+                )?;
+            }
+        }
 
         Ok((Some(key_idx), Some(revocation)))
     }
@@ -791,7 +794,7 @@ mod tests {
         let result = verifier.verify_vendor_ecc_pk_idx(&preamble, ResetReason::UpdateReset);
         assert_eq!(
             result.err(),
-            Some(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_PUB_KEY_IDX_MISMATCH)
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_ECC_PUB_KEY_IDX_MISMATCH)
         );
     }
 
@@ -1772,7 +1775,11 @@ mod tests {
             self.lifecycle
         }
 
-        fn vendor_pub_key_idx_dv(&self) -> u32 {
+        fn vendor_ecc_pub_key_idx_dv(&self) -> u32 {
+            0
+        }
+
+        fn vendor_lms_pub_key_idx_dv(&self) -> u32 {
             0
         }
 
