@@ -15,15 +15,20 @@ Abstract:
 use crate::flow::fake::FakeRomImageVerificationEnv;
 use crate::fuse::log_fuse_data;
 use crate::rom_env::RomEnv;
-use crate::{cprintln, verifier::RomImageVerificationEnv};
+use crate::run_fips_tests;
+use crate::CALIPTRA_ROM_INFO;
 use crate::{pcr, wdt};
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::capabilities::Capabilities;
+use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::CommandId;
-use caliptra_common::{cprint, FuseLogEntryId, RomBootStatus::*};
+use caliptra_common::mailbox_api::MailboxResp;
+use caliptra_common::verifier::FirmwareImageVerificationEnv;
+use caliptra_common::{FuseLogEntryId, RomBootStatus::*};
 use caliptra_drivers::*;
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier};
+use caliptra_kat::KatsEnv;
 use caliptra_x509::{NotAfter, NotBefore};
 use core::mem::ManuallyDrop;
 use zerocopy::AsBytes;
@@ -52,8 +57,34 @@ impl FirmwareProcessor {
         // Disable the watchdog timer during processing mailbox commands.
         wdt::stop_wdt(&mut env.soc_ifc);
 
+        let mut kats_env = caliptra_kat::KatsEnv {
+            // SHA1 Engine
+            sha1: &mut env.sha1,
+
+            // sha256
+            sha256: &mut env.sha256,
+
+            // SHA2-384 Engine
+            sha384: &mut env.sha384,
+
+            // SHA2-384 Accelerator
+            sha384_acc: &mut env.sha384_acc,
+
+            // Hmac384 Engine
+            hmac384: &mut env.hmac384,
+
+            /// Cryptographically Secure Random Number Generator
+            trng: &mut env.trng,
+
+            // LMS Engine
+            lms: &mut env.lms,
+
+            /// Ecc384 Engine
+            ecc384: &mut env.ecc384,
+        };
         // Process mailbox commands.
-        let mut txn = Self::process_mailbox_commands(&mut env.soc_ifc, &mut env.mbox)?;
+        let mut txn =
+            Self::process_mailbox_commands(&mut env.soc_ifc, &mut env.mbox, &mut kats_env)?;
 
         // Renable the watchdog timer.
         wdt::start_wdt(&mut env.soc_ifc);
@@ -62,7 +93,7 @@ impl FirmwareProcessor {
         let manifest = Self::load_manifest(&mut env.persistent_data, &mut txn);
         let manifest = okref(&manifest)?;
 
-        let mut venv = RomImageVerificationEnv {
+        let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha384: &mut env.sha384,
             sha384_acc: &mut env.sha384_acc,
@@ -70,20 +101,19 @@ impl FirmwareProcessor {
             ecc384: &mut env.ecc384,
             data_vault: &mut env.data_vault,
             pcr_bank: &mut env.pcr_bank,
-            persistent_data: &mut env.persistent_data,
         };
 
         // Verify the image
         let info = Self::verify_image(&mut venv, manifest, txn.dlen());
         let info = okref(&info)?;
 
-        Self::update_fuse_log(&mut venv.persistent_data.get_mut().fuse_log, &info.log_info)?;
+        Self::update_fuse_log(&mut env.persistent_data.get_mut().fuse_log, &info.log_info)?;
 
         // Populate data vault
-        Self::populate_data_vault(venv.data_vault, info, venv.persistent_data);
+        Self::populate_data_vault(venv.data_vault, info, &env.persistent_data);
 
         // Extend PCR0 and PCR1
-        pcr::extend_pcrs(&mut venv, info)?;
+        pcr::extend_pcrs(&mut venv, info, &mut env.persistent_data)?;
         report_boot_status(FwProcessorExtendPcrComplete.into());
 
         // Load the image
@@ -126,18 +156,53 @@ impl FirmwareProcessor {
     fn process_mailbox_commands<'a>(
         soc_ifc: &mut SocIfc,
         mbox: &'a mut Mailbox,
+        env: &mut KatsEnv,
     ) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn<'a>>> {
         soc_ifc.flow_status_set_ready_for_firmware();
 
-        cprint!("[afmc] Waiting for Commands...");
+        let mut self_test_in_progress = false;
+
+        cprintln!("[afmc] Waiting for Commands...");
         loop {
             if let Some(txn) = mbox.peek_recv() {
                 report_fw_error_non_fatal(0);
                 match CommandId::from(txn.cmd()) {
-                    CommandId::SELF_TEST | CommandId::VERSION | CommandId::SHUTDOWN => {
-                        // [TODO] Placeholder for FIPS ROM commands.
-                        txn.start_txn().complete(false)?;
-                        continue;
+                    CommandId::VERSION => {
+                        let mut resp = FipsVersionCmd::execute(soc_ifc)?;
+                        resp.populate_chksum()?;
+                        txn.start_txn().send_response(resp.as_bytes())?;
+                    }
+                    CommandId::SELF_TEST_START => {
+                        cprintln!("[afmc] FIPS self test");
+                        if self_test_in_progress {
+                            txn.start_txn().complete(false)?;
+                        } else {
+                            let rom_info = unsafe { &CALIPTRA_ROM_INFO };
+                            run_fips_tests(env, rom_info)?;
+                            let mut resp = MailboxResp::default();
+                            resp.populate_chksum()?;
+                            txn.start_txn().send_response(resp.as_bytes())?;
+                            self_test_in_progress = true;
+                        }
+                    }
+                    CommandId::SELF_TEST_GET_RESULTS => {
+                        if !self_test_in_progress {
+                            txn.start_txn().complete(false)?;
+                        } else {
+                            let mut resp = MailboxResp::default();
+                            resp.populate_chksum()?;
+                            txn.start_txn().send_response(resp.as_bytes())?;
+                            self_test_in_progress = false;
+                        }
+                    }
+                    CommandId::SHUTDOWN => {
+                        cprintln!("[afmc] FIPS shutdown");
+                        let mut resp = MailboxResp::default();
+                        resp.populate_chksum()?;
+                        txn.start_txn().send_response(resp.as_bytes())?;
+
+                        // Causing a ROM Fatal Error will zeroize the module
+                        return Err(CaliptraError::RUNTIME_SHUTDOWN);
                     }
                     CommandId::CAPABILITIES => {
                         let mut capabilities = Capabilities::default();
@@ -199,7 +264,7 @@ impl FirmwareProcessor {
     /// * `env` - ROM Environment
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn verify_image(
-        venv: &mut RomImageVerificationEnv,
+        venv: &mut FirmwareImageVerificationEnv,
         manifest: &ImageManifest,
         img_bundle_sz: u32,
     ) -> CaliptraResult<ImageVerificationInfo> {

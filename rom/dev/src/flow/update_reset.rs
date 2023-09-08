@@ -13,7 +13,8 @@ Abstract:
 --*/
 #[cfg(feature = "fake-rom")]
 use crate::flow::fake::FakeRomImageVerificationEnv;
-use crate::{cprintln, pcr, rom_env::RomEnv, verifier::RomImageVerificationEnv};
+use crate::{cprintln, pcr, rom_env::RomEnv};
+use caliptra_common::verifier::FirmwareImageVerificationEnv;
 
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::CommandId;
@@ -55,7 +56,7 @@ impl UpdateResetFlow {
         let manifest = Self::load_manifest(env.persistent_data.get_mut(), &mut recv_txn)?;
         report_boot_status(UpdateResetLoadManifestComplete.into());
 
-        let mut venv = RomImageVerificationEnv {
+        let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha384: &mut env.sha384,
             sha384_acc: &mut env.sha384_acc,
@@ -63,7 +64,6 @@ impl UpdateResetFlow {
             ecc384: &mut env.ecc384,
             data_vault: &mut env.data_vault,
             pcr_bank: &mut env.pcr_bank,
-            persistent_data: &mut env.persistent_data,
         };
 
         let info = Self::verify_image(&mut venv, &manifest, recv_txn.dlen());
@@ -71,7 +71,7 @@ impl UpdateResetFlow {
         report_boot_status(UpdateResetImageVerificationComplete.into());
 
         // Extend PCR0 and PCR1
-        pcr::extend_pcrs(&mut venv, info)?;
+        pcr::extend_pcrs(&mut venv, info, &mut env.persistent_data)?;
         report_boot_status(UpdateResetExtendPcrComplete.into());
 
         cprintln!(
@@ -112,7 +112,7 @@ impl UpdateResetFlow {
     ///
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn verify_image(
-        env: &mut RomImageVerificationEnv,
+        env: &mut FirmwareImageVerificationEnv,
         manifest: &ImageManifest,
         img_bundle_sz: u32,
     ) -> CaliptraResult<ImageVerificationInfo> {

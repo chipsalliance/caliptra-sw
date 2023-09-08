@@ -16,7 +16,6 @@ Abstract:
 --*/
 
 use crate::fht::FhtDataStore;
-use caliptra_common::memory_layout::*;
 use caliptra_drivers::{
     DataVault, DeobfuscationEngine, Ecc384, Hmac384, KeyVault, Lms, Mailbox, PcrBank,
     PersistentDataAccessor, Sha1, Sha256, Sha384, Sha384Acc, SocIfc, Trng,
@@ -27,7 +26,6 @@ use caliptra_registers::{
     hmac::HmacReg, kv::KvReg, mbox::MboxCsr, pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg,
     sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
-use core::ops::Range;
 
 /// Rom Context
 pub struct RomEnv {
@@ -81,11 +79,6 @@ pub struct RomEnv {
 }
 
 impl RomEnv {
-    pub const ICCM_RANGE: Range<u32> = Range {
-        start: ICCM_ORG,
-        end: ICCM_ORG + ICCM_SIZE,
-    };
-
     pub unsafe fn new_from_registers() -> CaliptraResult<Self> {
         let trng = Trng::new(
             CsrngReg::new(),

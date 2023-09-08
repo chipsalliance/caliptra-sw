@@ -665,25 +665,6 @@ fn test_fips_cmd_api() {
     let name = &fips_version.name[..];
     assert_eq!(name, FipsVersionCmd::NAME.as_bytes());
 
-    // SELF_TEST
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::SELF_TEST), &[]),
-    };
-
-    let resp = model
-        .mailbox_execute(u32::from(CommandId::SELF_TEST), payload.as_bytes())
-        .unwrap()
-        .unwrap();
-
-    let resp = MailboxRespHeader::read_from(resp.as_slice()).unwrap();
-    // Verify checksum and FIPS status
-    assert!(caliptra_common::checksum::verify_checksum(
-        resp.chksum,
-        0x0,
-        &resp.as_bytes()[core::mem::size_of_val(&resp.chksum)..],
-    ));
-    assert_eq!(resp.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
-
     // SHUTDOWN
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::SHUTDOWN), &[]),
