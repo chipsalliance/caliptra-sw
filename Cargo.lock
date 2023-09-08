@@ -704,9 +704,6 @@ dependencies = [
  "caliptra-runtime",
  "caliptra_common",
  "openssl",
- "p384",
- "rfc6979",
- "sha2",
  "zerocopy",
 ]
 
