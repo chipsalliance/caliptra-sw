@@ -110,15 +110,8 @@ impl Mailbox {
 
     /// Write a word-aligned `buf` to the mailbox
     pub fn write_response(&mut self, buf: &[u8]) -> CaliptraResult<()> {
-        let (buf_words, suffix) =
-            LayoutVerified::new_slice_unaligned_from_prefix(buf, buf.len() / 4).unwrap();
         self.set_dlen(buf.len() as u32);
-        self.copy_words_to_mbox(&buf_words);
-        if !suffix.is_empty() {
-            let mut last_word = 0_u32;
-            last_word.as_bytes_mut()[..suffix.len()].copy_from_slice(suffix);
-            self.copy_words_to_mbox(&[Unalign::new(last_word)]);
-        }
+        self.copy_bytes_to_mbox(&buf);
         Ok(())
     }
 

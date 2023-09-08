@@ -377,7 +377,6 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> ! {
                 }
             }
             caliptra_common::wdt::stop_wdt(&mut drivers.soc_ifc);
-        } else {
         }
     }
 }
