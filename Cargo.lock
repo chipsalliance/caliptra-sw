@@ -704,6 +704,9 @@ dependencies = [
  "caliptra-runtime",
  "caliptra_common",
  "openssl",
+ "p384",
+ "rfc6979",
+ "sha2",
  "zerocopy",
 ]
 
@@ -2319,10 +2322,8 @@ checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 name = "vector_gen"
 version = "0.1.0"
 dependencies = [
+ "caliptra-test",
  "openssl",
- "p384",
- "rfc6979",
- "sha2",
 ]
 
 [[package]]

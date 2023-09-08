@@ -12,10 +12,8 @@ Abstract:
 
 --*/
 
+use caliptra_test::crypto::derive_ecdsa_keypair;
 use openssl::{hash::MessageDigest, pkey::PKey, sign::Signer};
-use p384::ecdsa::SigningKey;
-use rfc6979::HmacDrbg;
-use sha2::Sha384;
 
 pub struct Hmac384Vector {
     pub seed: [u8; 48],
@@ -48,26 +46,6 @@ fn hmac(key: &[u8], msg: &[u8], tag: &mut [u8]) {
     signer.sign(tag).unwrap();
 }
 
-// Returns (priv, pub_x, pub_y)
-fn ecdsa_keygen(key: &[u8]) -> ([u8; 48], [u8; 48], [u8; 48]) {
-    let mut drbg = HmacDrbg::<Sha384>::new(key, &[0_u8; 48], &[]);
-    let mut priv_key = [0u8; 48];
-    drbg.fill_bytes(&mut priv_key);
-
-    let ecc_point = SigningKey::from_bytes(&priv_key)
-        .unwrap()
-        .verifying_key()
-        .to_encoded_point(false);
-
-    let mut pub_x = [0u8; 48];
-    let mut pub_y = [0u8; 48];
-
-    pub_x.copy_from_slice(ecc_point.x().unwrap().as_slice());
-    pub_y.copy_from_slice(ecc_point.y().unwrap().as_slice());
-
-    (priv_key, pub_x, pub_y)
-}
-
 pub fn gen_vector(data_len: usize) -> Hmac384Vector {
     let mut vec = Hmac384Vector::default();
 
@@ -76,11 +54,11 @@ pub fn gen_vector(data_len: usize) -> Hmac384Vector {
     rand_bytes(&mut vec.seed);
     rand_bytes(&mut vec.data[..]);
 
-    let (key, _, _) = ecdsa_keygen(&vec.seed);
+    let (key, _, _) = derive_ecdsa_keypair(&vec.seed);
 
     let mut out_0 = [0u8; 48];
     hmac(&key, &vec.data[..], &mut out_0);
-    (_, vec.out_pub_x, vec.out_pub_y) = ecdsa_keygen(&out_0);
+    (_, vec.out_pub_x, vec.out_pub_y) = derive_ecdsa_keypair(&out_0);
 
     vec
 }
