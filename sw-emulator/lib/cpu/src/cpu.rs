@@ -13,6 +13,7 @@ Abstract:
 --*/
 
 use crate::csr_file::{Csr, CsrFile};
+use crate::instr::Instr;
 use crate::types::{RvInstr, RvMStatus};
 use crate::xreg_file::{XReg, XRegFile};
 use bit_vec::BitVec;
@@ -23,25 +24,39 @@ pub type InstrTracer<'a> = dyn FnMut(u32, RvInstr) + 'a;
 
 #[derive(Clone)]
 pub struct CodeCoverage {
-    bit_vec: bit_vec::BitVec,
+    bit_vec: BitVec,
 }
+
 impl CodeCoverage {
-    pub fn new(capacity_in_bits: usize) -> Self {
+    pub fn new(capacity_in_bytes: usize) -> Self {
         Self {
-            bit_vec: BitVec::from_elem(capacity_in_bits, false),
+            bit_vec: BitVec::from_elem(capacity_in_bytes, false),
         }
     }
-    pub fn log_execution(&mut self, pc: RvData) {
+
+    pub fn log_execution(&mut self, pc: RvData, instr: &Instr) {
         if (pc as usize) < self.bit_vec.len() {
-            self.bit_vec.set(pc as usize, true);
+            let num_bytes = match instr {
+                Instr::Compressed(_) => 2,
+                Instr::General(_) => 4,
+            };
+
+            // Mark the bytes corresponding to the executed instruction as true.
+            for i in 0..num_bytes {
+                let byte_index = (pc as usize) + i;
+                if byte_index < self.bit_vec.len() {
+                    self.bit_vec.set(byte_index, true);
+                }
+            }
         }
     }
-    pub fn count_executed_instructions(&self) -> usize {
+
+    pub fn count_executed(&self) -> usize {
         self.bit_vec.iter().filter(|&executed| executed).count()
     }
 
     pub fn calculate_coverage_percentage(&self) -> f64 {
-        (self.count_executed_instructions() as f64 / self.bit_vec.len() as f64) * 100.0
+        self.count_executed() as f64 / (self.bit_vec.len() as f64) * 100.0
     }
 }
 
@@ -519,12 +534,25 @@ mod tests {
 
     #[test]
     fn test_coverage() {
-        let mut coverage = CodeCoverage::new(100);
-        assert_eq!(coverage.count_executed_instructions(), 0);
+        // represent program as an array of 16-bit and 32-bit instructions
+        let instructions = vec![
+            Instr::Compressed(0x1234),
+            Instr::Compressed(0xABCD),
+            Instr::General(0xDEADBEEF),
+        ];
+
+        // Instantiate coverage with a capacity for the mix of instructions above
+        let mut coverage = CodeCoverage::new(8);
+        assert_eq!(coverage.count_executed(), 0);
         assert_eq!(coverage.calculate_coverage_percentage(), 0.0);
 
-        coverage.log_execution(0);
-        assert_eq!(coverage.count_executed_instructions(), 1);
-        assert_eq!(coverage.calculate_coverage_percentage(), 1.);
+        // Log execution of the instructions above
+        coverage.log_execution(0, &instructions[0]);
+        coverage.log_execution(2, &instructions[1]);
+        coverage.log_execution(4, &instructions[2]);
+
+        // Check for expected values
+        assert_eq!(coverage.count_executed(), 8);
+        assert_eq!(coverage.calculate_coverage_percentage(), 100.0);
     }
 }
