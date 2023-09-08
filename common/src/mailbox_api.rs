@@ -17,6 +17,7 @@ impl CommandId {
     pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
     pub const DISABLE_ATTESTATION: Self = Self(0x4453424C); // "DSBL"
     pub const FW_INFO: Self = Self(0x494E464F); // "INFO"
+    pub const EXTEND_PCR: Self = Self(0x50435245); // "PCRE"
 
     // TODO: Remove this and merge with GET_LDEV_CERT once that is implemented
     pub const TEST_ONLY_GET_LDEV_CERT: Self = Self(0x4345524c); // "CERL"
@@ -53,6 +54,7 @@ impl From<CommandId> for u32 {
 #[cfg_attr(test, derive(PartialEq, Debug, Eq))]
 #[allow(clippy::large_enum_variant)]
 pub enum MailboxResp {
+    // ExtendPCR(ExtendPCRResp), // ExtendPCR does not return a response
     Header(MailboxRespHeader),
     GetIdevCert(GetIdevCertResp),
     GetIdevCsr(GetIdevCsrResp),
@@ -289,6 +291,29 @@ impl Default for InvokeDpeReq {
             hdr: MailboxReqHeader::default(),
             data_size: 0,
             data: [0u8; InvokeDpeReq::DATA_MAX_SIZE],
+        }
+    }
+}
+
+// EXTEND_PCR
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct ExtendPcrReq {
+    pub hdr: MailboxReqHeader,
+    pub pcr_idx: u32,
+    pub value: [u8; ExtendPcrReq::DATA_MAX_SIZE], // variable length
+}
+// No command-specific output args
+impl ExtendPcrReq {
+    pub const DATA_MAX_SIZE: usize = 512;
+}
+
+impl Default for ExtendPcrReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            pcr_idx: 0,
+            value: [0u8; ExtendPcrReq::DATA_MAX_SIZE],
         }
     }
 }
