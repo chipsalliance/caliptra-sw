@@ -2,7 +2,7 @@
 
 use std::mem;
 
-use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
+use caliptra_builder::{firmware, ImageOptions};
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
 use caliptra_hw_model::{DefaultHwModel, ModelError};
 use caliptra_image_types::ImageBundle;
@@ -11,7 +11,7 @@ pub fn build_hw_model_and_image_bundle(
     fuses: Fuses,
     image_options: ImageOptions,
 ) -> (DefaultHwModel, ImageBundle) {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
     let hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -23,9 +23,12 @@ pub fn build_hw_model_and_image_bundle(
     })
     .unwrap();
 
-    let image_bundle =
-        caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
-            .unwrap();
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &firmware::FMC_WITH_UART,
+        &firmware::APP_WITH_UART,
+        image_options,
+    )
+    .unwrap();
 
     (hw, image_bundle)
 }

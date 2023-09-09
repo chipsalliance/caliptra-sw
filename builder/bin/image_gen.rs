@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
+use caliptra_builder::firmware;
+use caliptra_builder::ImageOptions;
 use clap::{arg, value_parser, Command};
 use std::io::Write;
 use std::path::PathBuf;
@@ -15,12 +16,12 @@ fn main() {
     let fw_path = args.get_one::<PathBuf>("fw").unwrap();
 
     // Generate ROM Image
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
 
     // Generate Image Bundle
     let image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART,
+        &firmware::FMC_WITH_UART,
+        &firmware::APP_WITH_UART,
         ImageOptions::default(),
     )
     .unwrap();

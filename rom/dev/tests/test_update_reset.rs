@@ -1,6 +1,9 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, ROM_WITH_UART};
+use caliptra_builder::{
+    firmware::{rom_tests::TEST_FMC_WITH_UART, APP_WITH_UART, ROM_WITH_UART},
+    ImageOptions,
+};
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::RomBootStatus::*;
 use caliptra_error::CaliptraError;
@@ -14,13 +17,6 @@ const TEST_FMC_CMD_RESET_FOR_UPDATE_KEEP_MBOX_CMD: u32 = 0x1000_000B;
 
 #[test]
 fn test_update_reset_success() {
-    pub const TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu"],
-        workspace_dir: None,
-    };
-
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let image_bundle = caliptra_builder::build_and_sign_image(
         &TEST_FMC_WITH_UART,
@@ -61,13 +57,6 @@ fn test_update_reset_success() {
 
 #[test]
 fn test_update_reset_no_mailbox_cmd() {
-    pub const TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu"],
-        workspace_dir: None,
-    };
-
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let image_bundle = caliptra_builder::build_and_sign_image(
         &TEST_FMC_WITH_UART,
@@ -114,13 +103,6 @@ fn test_update_reset_no_mailbox_cmd() {
 
 #[test]
 fn test_update_reset_non_fw_load_cmd() {
-    pub const TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu"],
-        workspace_dir: None,
-    };
-
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let image_bundle = caliptra_builder::build_and_sign_image(
         &TEST_FMC_WITH_UART,
@@ -164,13 +146,6 @@ fn test_update_reset_non_fw_load_cmd() {
 
 #[test]
 fn test_update_reset_verify_image_failure() {
-    pub const TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu"],
-        workspace_dir: None,
-    };
-
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let image_bundle = caliptra_builder::build_and_sign_image(
         &TEST_FMC_WITH_UART,
@@ -220,13 +195,6 @@ fn test_update_reset_verify_image_failure() {
 
 #[test]
 fn test_update_reset_boot_status() {
-    pub const TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu"],
-        workspace_dir: None,
-    };
-
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let image_bundle = caliptra_builder::build_and_sign_image(
         &TEST_FMC_WITH_UART,
@@ -271,13 +239,6 @@ fn test_update_reset_boot_status() {
 
 #[test]
 fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
-    pub const TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu"],
-        workspace_dir: None,
-    };
-
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let vendor_config_cold_boot = ImageGeneratorVendorConfig {
         ecc_key_idx: 3,
@@ -341,13 +302,6 @@ fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
 
 #[test]
 fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
-    pub const TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu"],
-        workspace_dir: None,
-    };
-
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let vendor_config_cold_boot = ImageGeneratorVendorConfig {
         lms_key_idx: 3,

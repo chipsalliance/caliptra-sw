@@ -1,22 +1,11 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::FwId;
+use caliptra_builder::firmware;
 use caliptra_hw_model::{BootParams, HwModel, InitParams};
-
-pub const FWID: FwId = FwId {
-    crate_name: "caliptra-rom",
-    bin_name: "",
-    features: &["emu"],
-    workspace_dir: None,
-};
 
 #[test]
 fn test_asm() {
-    let rom = caliptra_builder::build_firmware_rom(&FwId {
-        bin_name: "asm_tests",
-        ..FWID
-    })
-    .unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&firmware::rom_tests::ASM_TESTS).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
