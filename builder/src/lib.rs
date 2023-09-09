@@ -87,6 +87,25 @@ pub struct FwId<'a> {
     pub features: &'a [&'a str],
 }
 
+impl FwId<'_> {
+    /// A reasonably unique filename to be used for saving elf files containing
+    /// this firmware.
+    pub fn elf_filename(&self) -> String {
+        use std::fmt::Write;
+
+        let mut result = String::new();
+        write!(&mut result, "{}", self.crate_name).unwrap();
+        if self.bin_name != self.crate_name {
+            write!(&mut result, "--{}", self.bin_name).unwrap();
+        }
+        if !self.features.is_empty() {
+            write!(&mut result, "--{}", self.features.join("-")).unwrap();
+        }
+        write!(&mut result, ".elf").unwrap();
+        result
+    }
+}
+
 /// Calls out to Cargo to build a firmware elf file. `workspace_dir` is the
 /// workspace dir to build from; defaults to this workspace. `id` is the id of
 /// the firmware to build. The result is the raw elf bytes.
@@ -647,5 +666,45 @@ mod test {
                 .to_string()
                 .contains("Duplicate FwId"));
         }
+    }
+
+    #[test]
+    fn test_fwid_elf_filename() {
+        assert_eq!(
+            FwId {
+                crate_name: "caliptra-rom",
+                bin_name: "caliptra-rom",
+                features: &[]
+            }
+            .elf_filename(),
+            "caliptra-rom.elf"
+        );
+        assert_eq!(
+            FwId {
+                crate_name: "caliptra-rom",
+                bin_name: "caliptra-rom",
+                features: &["uart", "debug"]
+            }
+            .elf_filename(),
+            "caliptra-rom--uart-debug.elf"
+        );
+        assert_eq!(
+            &FwId {
+                crate_name: "caliptra-test",
+                bin_name: "smoke_test",
+                features: &[]
+            }
+            .elf_filename(),
+            "caliptra-test--smoke_test.elf"
+        );
+        assert_eq!(
+            &FwId {
+                crate_name: "caliptra-test",
+                bin_name: "smoke_test",
+                features: &["uart", "debug"]
+            }
+            .elf_filename(),
+            "caliptra-test--smoke_test--uart-debug.elf"
+        );
     }
 }
