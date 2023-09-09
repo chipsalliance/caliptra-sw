@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs::{self, File};
 use std::io::{self, ErrorKind};
@@ -74,13 +74,13 @@ fn run_cmd_stdout(cmd: &mut Command, input: Option<&[u8]>) -> io::Result<String>
 }
 
 // Represent the Cargo identity of a firmware binary.
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq, Ord, PartialOrd)]
 pub struct FwId<'a> {
     // The crate name (For example, "caliptra-rom")
     pub crate_name: &'a str,
 
-    // If the crate contains multiple binaries, the name of the binary. Leave
-    // empty to build the crate's default binary.
+    // The name of the binary inside the crate. Set to the same as crate_name
+    // for a binary crate.
     pub bin_name: &'a str,
 
     // The features to use the build the binary
@@ -91,35 +91,56 @@ pub struct FwId<'a> {
 /// workspace dir to build from; defaults to this workspace. `id` is the id of
 /// the firmware to build. The result is the raw elf bytes.
 pub fn build_firmware_elf_uncached(workspace_dir: Option<&Path>, id: &FwId) -> io::Result<Vec<u8>> {
+    let fwids = [id];
+    let result = build_firmware_elfs_uncached(workspace_dir, &fwids)?;
+    if result.len() != 1 {
+        panic!("Bug: build_firmware_elfs_uncached built more firmware than expected");
+    }
+    Ok(result.into_iter().next().unwrap().1)
+}
+
+/// Calls out to Cargo to build a firmware elf file, combining targets to
+/// extract as much parallelism as possible. `workspace_dir` is the workspace
+/// dir to build from; defaults to this workspace. `fwids` are the ids of the
+/// firmware to build. The results will be returned in the same order as fwids,
+/// with any duplicates filtered out.
+pub fn build_firmware_elfs_uncached<'a>(
+    workspace_dir: Option<&Path>,
+    fwids: &'a [&'a FwId<'a>],
+) -> io::Result<Vec<(&'a FwId<'a>, Vec<u8>)>> {
     const TARGET: &str = "riscv32imc-unknown-none-elf";
     const PROFILE: &str = "firmware";
 
-    let mut features_csv = id.features.join(",");
-    if !id.features.contains(&"riscv") {
-        if !features_csv.is_empty() {
-            features_csv.push(',');
+    let cargo_invocations = cargo_invocations_from_fwids(fwids)?;
+
+    let mut result_map = HashMap::new();
+
+    for invocation in cargo_invocations {
+        let mut features_csv = invocation.features.join(",");
+        if !invocation.features.contains(&"riscv") {
+            if !features_csv.is_empty() {
+                features_csv.push(',');
+            }
+            features_csv.push_str("riscv");
         }
-        features_csv.push_str("riscv");
-    }
 
-    let workspace_dir = workspace_dir.unwrap_or_else(|| Path::new(THIS_WORKSPACE_DIR));
+        let workspace_dir = workspace_dir.unwrap_or_else(|| Path::new(THIS_WORKSPACE_DIR));
 
-    // To prevent a race condition with concurrent calls to caliptra-builder
-    // from other threads or processes, hold a lock until we've read the output
-    // binary from the filesystem (it's possible that another thread will build
-    // the same binary with different features before we get a chance to read it).
-    let _ = fs::create_dir(workspace_dir.join("target"));
-    let lock = File::create(workspace_dir.join("target/.caliptra-builder.lock"))?;
-    nix::fcntl::flock(lock.as_raw_fd(), FlockArg::LockExclusive)?;
+        // To prevent a race condition with concurrent calls to caliptra-builder
+        // from other threads or processes, hold a lock until we've read the output
+        // binary from the filesystem (it's possible that another thread will build
+        // the same binary with different features before we get a chance to read it).
+        let _ = fs::create_dir(workspace_dir.join("target"));
+        let lock = File::create(workspace_dir.join("target/.caliptra-builder.lock"))?;
+        nix::fcntl::flock(lock.as_raw_fd(), FlockArg::LockExclusive)?;
 
-    let mut cmd = Command::new(env!("CARGO"));
-    cmd.current_dir(workspace_dir);
-    if option_env!("GITHUB_ACTIONS").is_some() {
-        // In continuous integration, warnings are always errors.
-        cmd.arg("--config")
-            .arg("target.'cfg(all())'.rustflags = [\"-Dwarnings\"]");
-    }
-    run_cmd(
+        let mut cmd = Command::new(env!("CARGO"));
+        cmd.current_dir(workspace_dir);
+        if option_env!("GITHUB_ACTIONS").is_some() {
+            // In continuous integration, warnings are always errors.
+            cmd.arg("--config")
+                .arg("target.'cfg(all())'.rustflags = [\"-Dwarnings\"]");
+        }
         cmd.arg("build")
             .arg("--quiet")
             .arg("--locked")
@@ -129,19 +150,107 @@ pub fn build_firmware_elf_uncached(workspace_dir: Option<&Path>, id: &FwId) -> i
             .arg(features_csv)
             .arg("--no-default-features")
             .arg("--profile")
-            .arg(PROFILE)
-            .arg("-p")
-            .arg(id.crate_name)
-            .arg("--bin")
-            .arg(id.bin_name),
-    )?;
-    fs::read(
-        Path::new(workspace_dir)
-            .join("target")
-            .join(TARGET)
-            .join(PROFILE)
-            .join(id.bin_name),
-    )
+            .arg(PROFILE);
+
+        cmd.arg("-p").arg(invocation.crate_name);
+        for &fwid in invocation.fwids.iter() {
+            cmd.arg("--bin").arg(fwid.bin_name);
+        }
+        run_cmd(&mut cmd)?;
+
+        for &fwid in invocation.fwids.iter() {
+            result_map.insert(
+                fwid,
+                fs::read(
+                    Path::new(workspace_dir)
+                        .join("target")
+                        .join(TARGET)
+                        .join(PROFILE)
+                        .join(fwid.bin_name),
+                )?,
+            );
+        }
+    }
+    Ok(fwids
+        .iter()
+        .map(|&fwid| {
+            (
+                fwid,
+                result_map.remove(fwid).expect(
+                    "Bug: cargo_invocations_from_fwid did not complain about duplicate fwid",
+                ),
+            )
+        })
+        .collect())
+}
+
+/// Compute the minimum number of cargo invocations to build all the specified
+/// fwids.
+fn cargo_invocations_from_fwids<'a>(
+    fwids: &'a [&'a FwId<'a>],
+) -> io::Result<Vec<CargoInvocation<'a>>> {
+    {
+        let mut fwid_set = HashSet::new();
+        for fwid in fwids {
+            if !fwid_set.insert(fwid) {
+                return Err(other_err(format!("Duplicate FwId: {fwid:?}")));
+            }
+        }
+    }
+    let mut result = vec![];
+    let mut remaining_fwids = fwids.to_vec();
+    while !remaining_fwids.is_empty() {
+        // Maps (crate_name, features) to CargoInvocation
+        let mut invocation_map: HashMap<(&str, &[&str]), CargoInvocation> = HashMap::new();
+
+        remaining_fwids.retain(|&fwid| {
+            let invocation = invocation_map
+                .entry((fwid.crate_name, fwid.features))
+                .or_insert_with(|| CargoInvocation::new(fwid.crate_name, fwid.features));
+            if invocation
+                .fwids
+                .iter()
+                .any(|&x| x.bin_name == fwid.bin_name)
+            {
+                // The binary filenames will collide in the target directory;
+                // keep fwid in remaining_fwids and build this one in a separate
+                // cargo invocation.
+                return true;
+            }
+            invocation.fwids.push(fwid);
+
+            // remove fwid from remaining_fwids
+            false
+        });
+        result.extend(invocation_map.into_values());
+    }
+    // Make the result order consistent for unit tests, and run the largest invocations first.
+    result.sort_unstable_by(|a, b| {
+        b.fwids
+            .len()
+            .cmp(&a.fwids.len())
+            .then_with(|| a.crate_name.cmp(b.crate_name))
+            .then_with(|| a.features.cmp(b.features))
+            .then_with(|| a.fwids.cmp(&b.fwids))
+    });
+
+    Ok(result)
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct CargoInvocation<'a> {
+    features: &'a [&'a str],
+    crate_name: &'a str,
+    fwids: Vec<&'a FwId<'a>>,
+}
+impl<'a> CargoInvocation<'a> {
+    fn new(crate_name: &'a str, features: &'a [&'a str]) -> Self {
+        Self {
+            features,
+            crate_name,
+            fwids: Vec::new(),
+        }
+    }
 }
 
 pub fn build_firmware_elf(id: &FwId<'static>) -> io::Result<Arc<Vec<u8>>> {
@@ -398,5 +507,145 @@ mod test {
             image_revision_from_str("d6a462a63a9cf2dafa5bbc6cf78b1fccc30800", false).unwrap_err().to_string(),
             "Unable to decode git commit \"d6a462a63a9cf2dafa5bbc6cf78b1fccc30800\": Invalid string length");
         assert!(image_revision_from_str("d6a462a63a9cf2dafa5bbc6cf78b1fccc308009g", true).is_err());
+    }
+
+    mod cargo_invocations_from_fwid {
+        use super::*;
+
+        #[test]
+        fn test_success() {
+            let fwids = [
+                &FwId {
+                    crate_name: "initech-firmware",
+                    bin_name: "initech-firmware",
+                    features: &["pc-load-letter"],
+                },
+                &FwId {
+                    crate_name: "initech-firmware",
+                    bin_name: "initech-firmware",
+                    features: &["pc-load-letter", "uart"],
+                },
+                &FwId {
+                    crate_name: "test-fw",
+                    bin_name: "test1",
+                    features: &["pc-load-letter"],
+                },
+                &FwId {
+                    crate_name: "test-fw",
+                    bin_name: "test2",
+                    features: &["pc-load-letter"],
+                },
+                &FwId {
+                    crate_name: "test-fw",
+                    bin_name: "test2",
+                    features: &["pc-load-letter", "uart"],
+                },
+                &FwId {
+                    crate_name: "test-fw",
+                    bin_name: "test3",
+                    features: &["pc-load-letter"],
+                },
+                &FwId {
+                    crate_name: "test-fw2",
+                    bin_name: "test1",
+                    features: &["pc-load-letter"],
+                },
+                &FwId {
+                    crate_name: "test-fw2",
+                    bin_name: "test4",
+                    features: &["pc-load-letter"],
+                },
+            ];
+
+            assert_eq!(
+                vec![
+                    CargoInvocation {
+                        features: &["pc-load-letter",],
+                        crate_name: "test-fw",
+                        fwids: vec![
+                            &FwId {
+                                crate_name: "test-fw",
+                                bin_name: "test1",
+                                features: &["pc-load-letter",],
+                            },
+                            &FwId {
+                                crate_name: "test-fw",
+                                bin_name: "test2",
+                                features: &["pc-load-letter",],
+                            },
+                            &FwId {
+                                crate_name: "test-fw",
+                                bin_name: "test3",
+                                features: &["pc-load-letter",],
+                            },
+                        ]
+                    },
+                    CargoInvocation {
+                        features: &["pc-load-letter",],
+                        crate_name: "test-fw2",
+                        fwids: vec![
+                            &FwId {
+                                crate_name: "test-fw2",
+                                bin_name: "test1",
+                                features: &["pc-load-letter",],
+                            },
+                            &FwId {
+                                crate_name: "test-fw2",
+                                bin_name: "test4",
+                                features: &["pc-load-letter",],
+                            },
+                        ],
+                    },
+                    CargoInvocation {
+                        features: &["pc-load-letter",],
+                        crate_name: "initech-firmware",
+                        fwids: vec![&FwId {
+                            crate_name: "initech-firmware",
+                            bin_name: "initech-firmware",
+                            features: &["pc-load-letter"],
+                        },],
+                    },
+                    CargoInvocation {
+                        features: &["pc-load-letter", "uart",],
+                        crate_name: "initech-firmware",
+                        fwids: vec![&FwId {
+                            crate_name: "initech-firmware",
+                            bin_name: "initech-firmware",
+                            features: &["pc-load-letter", "uart",],
+                        },]
+                    },
+                    CargoInvocation {
+                        features: &["pc-load-letter", "uart",],
+                        crate_name: "test-fw",
+                        fwids: vec![&FwId {
+                            crate_name: "test-fw",
+                            bin_name: "test2",
+                            features: &["pc-load-letter", "uart",],
+                        },],
+                    },
+                ],
+                cargo_invocations_from_fwids(&fwids).unwrap()
+            )
+        }
+
+        #[test]
+        fn test_duplicate() {
+            let fwids = [
+                &FwId {
+                    crate_name: "initech-firmware",
+                    bin_name: "initech-firmware",
+                    features: &["pc-load-letter"],
+                },
+                &FwId {
+                    crate_name: "initech-firmware",
+                    bin_name: "initech-firmware",
+                    features: &["pc-load-letter"],
+                },
+            ];
+            assert!(cargo_invocations_from_fwids(&fwids)
+                .unwrap_err()
+                .to_string()
+                .contains("Duplicate FwId"));
+        }
     }
 }
