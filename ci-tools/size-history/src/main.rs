@@ -164,10 +164,8 @@ fn real_main() -> io::Result<()> {
 fn compute_size(worktree: &git::WorkTree, commit_id: &str) -> Sizes {
     // TODO: consider using caliptra_builder from the same repo as the firmware
     let fwid_elf_size = |fwid: &FwId| -> io::Result<u64> {
-        let elf_bytes = caliptra_builder::build_firmware_elf_uncached(&FwId {
-            workspace_dir: Some(worktree.path),
-            ..*fwid
-        })?;
+        let workspace_dir = Some(worktree.path);
+        let elf_bytes = caliptra_builder::build_firmware_elf_uncached(workspace_dir, fwid)?;
         elf_size(&elf_bytes)
     };
     let fwid_elf_size_or_none = |fwid: &FwId| -> Option<u64> {

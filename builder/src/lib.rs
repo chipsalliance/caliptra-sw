@@ -85,12 +85,12 @@ pub struct FwId<'a> {
 
     // The features to use the build the binary
     pub features: &'a [&'a str],
-
-    // Path to the workspace dir to build from; defaults to this workspace.
-    pub workspace_dir: Option<&'a Path>,
 }
 
-pub fn build_firmware_elf_uncached(id: &FwId) -> io::Result<Vec<u8>> {
+/// Calls out to Cargo to build a firmware elf file. `workspace_dir` is the
+/// workspace dir to build from; defaults to this workspace. `id` is the id of
+/// the firmware to build. The result is the raw elf bytes.
+pub fn build_firmware_elf_uncached(workspace_dir: Option<&Path>, id: &FwId) -> io::Result<Vec<u8>> {
     const TARGET: &str = "riscv32imc-unknown-none-elf";
     const PROFILE: &str = "firmware";
 
@@ -102,9 +102,7 @@ pub fn build_firmware_elf_uncached(id: &FwId) -> io::Result<Vec<u8>> {
         features_csv.push_str("riscv");
     }
 
-    let workspace_dir = id
-        .workspace_dir
-        .unwrap_or_else(|| Path::new(THIS_WORKSPACE_DIR));
+    let workspace_dir = workspace_dir.unwrap_or_else(|| Path::new(THIS_WORKSPACE_DIR));
 
     // To prevent a race condition with concurrent calls to caliptra-builder
     // from other threads or processes, hold a lock until we've read the output
@@ -178,7 +176,7 @@ pub fn build_firmware_elf(id: &FwId<'static>) -> io::Result<Arc<Vec<u8>>> {
             }
         }
     }
-    let result = Arc::new(build_firmware_elf_uncached(id)?);
+    let result = Arc::new(build_firmware_elf_uncached(None, id)?);
     *result_mutex_guard = result.clone();
     Ok(result)
 }
@@ -351,7 +349,6 @@ mod test {
             crate_name: "caliptra-drivers-test-bin",
             bin_name: "test_success2",
             features: &[],
-            workspace_dir: None,
         };
         // Ensure that we can build the ELF and elf2rom can parse it
         let err = build_firmware_rom(&FWID).unwrap_err();

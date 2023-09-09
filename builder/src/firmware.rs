@@ -9,42 +9,36 @@ pub const ROM: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
     features: &[],
-    workspace_dir: None,
 };
 
 pub const ROM_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
     features: &["emu"],
-    workspace_dir: None,
 };
 
 pub const ROM_FAKE_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
     features: &["emu", "fake-rom"],
-    workspace_dir: None,
 };
 
 pub const FMC_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
     features: &["emu"],
-    workspace_dir: None,
 };
 
 pub const FMC_FAKE_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
     features: &["emu", "fake-fmc"],
-    workspace_dir: None,
 };
 
 pub const APP_WITH_UART: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
     features: &["emu", "test_only_commands", "fips_self_test"],
-    workspace_dir: None,
 };
 
 pub mod caliptra_builder_tests {
@@ -54,7 +48,6 @@ pub mod caliptra_builder_tests {
         crate_name: "caliptra-drivers-test-bin",
         bin_name: "test_success",
         features: &[],
-        workspace_dir: None,
     };
 }
 
@@ -65,7 +58,6 @@ pub mod hw_model_tests {
         crate_name: "caliptra-hw-model-test-fw",
         bin_name: "",
         features: &["emu"],
-        workspace_dir: None,
     };
 
     pub const MAILBOX_RESPONDER: FwId = FwId {
@@ -126,7 +118,6 @@ pub mod driver_tests {
         crate_name: "caliptra-drivers-test-bin",
         bin_name: "",
         features: &["emu"],
-        workspace_dir: None,
     };
 
     pub const DOE: FwId = FwId {
@@ -267,7 +258,6 @@ pub mod rom_tests {
         crate_name: "caliptra-rom",
         bin_name: "",
         features: &["emu"],
-        workspace_dir: None,
     };
 
     pub const ASM_TESTS: FwId = FwId {
@@ -279,21 +269,18 @@ pub mod rom_tests {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
         features: &["emu"],
-        workspace_dir: None,
     };
 
     pub const FAKE_TEST_FMC_WITH_UART: FwId = FwId {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
         features: &["emu", "fake-fmc"],
-        workspace_dir: None,
     };
 
     pub const TEST_FMC_INTERACTIVE: FwId = FwId {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
         features: &["emu", "interactive_test_fmc"],
-        workspace_dir: None,
     };
 }
 
@@ -304,13 +291,11 @@ pub mod fmc_tests {
         crate_name: "caliptra-fmc-mock-rt",
         bin_name: "caliptra-fmc-mock-rt",
         features: &["emu"],
-        workspace_dir: None,
     };
     pub const MOCK_RT_INTERACTIVE: FwId = FwId {
         crate_name: "caliptra-fmc-mock-rt",
         bin_name: "caliptra-fmc-mock-rt",
         features: &["emu", "interactive_test"],
-        workspace_dir: None,
     };
 }
 
@@ -321,7 +306,6 @@ pub mod runtime_tests {
         crate_name: "caliptra-runtime-test-bin",
         bin_name: "",
         features: &["emu", "riscv", "runtime"],
-        workspace_dir: None,
     };
 
     pub const BOOT: FwId = FwId {
