@@ -6,7 +6,7 @@ use std::{
     path::Path,
 };
 
-use caliptra_builder::{elf_size, FwId};
+use caliptra_builder::{elf_size, firmware, FwId};
 use serde::{Deserialize, Serialize};
 
 mod cache;
@@ -181,10 +181,10 @@ fn compute_size(worktree: &git::WorkTree, commit_id: &str) -> Sizes {
     };
 
     Sizes {
-        rom_size_with_uart: fwid_elf_size_or_none(&caliptra_builder::ROM_WITH_UART),
-        rom_size_prod: fwid_elf_size_or_none(&caliptra_builder::ROM),
-        fmc_size_with_uart: fwid_elf_size_or_none(&caliptra_builder::FMC_WITH_UART),
-        app_size_with_uart: fwid_elf_size_or_none(&caliptra_builder::APP_WITH_UART),
+        rom_size_with_uart: fwid_elf_size_or_none(&firmware::ROM_WITH_UART),
+        rom_size_prod: fwid_elf_size_or_none(&firmware::ROM),
+        fmc_size_with_uart: fwid_elf_size_or_none(&firmware::FMC_WITH_UART),
+        app_size_with_uart: fwid_elf_size_or_none(&firmware::APP_WITH_UART),
     }
 }
 

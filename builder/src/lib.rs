@@ -2,6 +2,7 @@
 
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::env;
 use std::fs::{self, File};
 use std::io::{self, ErrorKind};
 use std::mem::size_of;
@@ -21,54 +22,13 @@ use nix::fcntl::FlockArg;
 use zerocopy::AsBytes;
 
 mod elf_symbols;
+pub mod firmware;
 mod sha256;
 
 pub use elf_symbols::{elf_symbols, Symbol, SymbolBind, SymbolType, SymbolVisibility};
 use once_cell::sync::Lazy;
 
 pub const THIS_WORKSPACE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
-
-pub const ROM: FwId = FwId {
-    crate_name: "caliptra-rom",
-    bin_name: "caliptra-rom",
-    features: &[],
-    workspace_dir: None,
-};
-
-pub const ROM_WITH_UART: FwId = FwId {
-    crate_name: "caliptra-rom",
-    bin_name: "caliptra-rom",
-    features: &["emu"],
-    workspace_dir: None,
-};
-
-pub const ROM_FAKE_WITH_UART: FwId = FwId {
-    crate_name: "caliptra-rom",
-    bin_name: "caliptra-rom",
-    features: &["emu", "fake-rom"],
-    workspace_dir: None,
-};
-
-pub const FMC_WITH_UART: FwId = FwId {
-    crate_name: "caliptra-fmc",
-    bin_name: "caliptra-fmc",
-    features: &["emu"],
-    workspace_dir: None,
-};
-
-pub const FMC_FAKE_WITH_UART: FwId = FwId {
-    crate_name: "caliptra-fmc",
-    bin_name: "caliptra-fmc",
-    features: &["emu", "fake-fmc"],
-    workspace_dir: None,
-};
-
-pub const APP_WITH_UART: FwId = FwId {
-    crate_name: "caliptra-runtime",
-    bin_name: "caliptra-runtime",
-    features: &["emu", "test_only_commands", "fips_self_test"],
-    workspace_dir: None,
-};
 
 fn other_err(e: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> io::Error {
     io::Error::new(ErrorKind::Other, e)
@@ -114,7 +74,7 @@ fn run_cmd_stdout(cmd: &mut Command, input: Option<&[u8]>) -> io::Result<String>
 }
 
 // Represent the Cargo identity of a firmware binary.
-#[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub struct FwId<'a> {
     // The crate name (For example, "caliptra-rom")
     pub crate_name: &'a str,
@@ -188,7 +148,13 @@ pub fn build_firmware_elf_uncached(id: &FwId) -> io::Result<Vec<u8>> {
 
 pub fn build_firmware_elf(id: &FwId<'static>) -> io::Result<Arc<Vec<u8>>> {
     type CacheEntry = Arc<Mutex<Arc<Vec<u8>>>>;
-    static CACHE: Lazy<Mutex<HashMap<FwId, CacheEntry>>> = Lazy::new(Default::default);
+    static CACHE: Lazy<Mutex<HashMap<FwId, CacheEntry>>> = Lazy::new(|| {
+        let result = HashMap::new();
+        Mutex::new(result)
+    });
+    if !crate::firmware::REGISTERED_FW.contains(&id) {
+        return Err(other_err(format!("FwId has not been registered. Make sure it has been added to the REGISTERED_FW array: {id:?}")));
+    }
 
     let result_mutex: Arc<Mutex<Arc<Vec<u8>>>>;
     let mut result_mutex_guard;
@@ -375,14 +341,23 @@ mod test {
 
     #[test]
     fn test_build_firmware() {
+        // Ensure that we can build the ELF and elf2rom can parse it
+        build_firmware_rom(&firmware::caliptra_builder_tests::FWID).unwrap();
+    }
+
+    #[test]
+    fn test_build_firmware_not_registered() {
         static FWID: FwId = FwId {
             crate_name: "caliptra-drivers-test-bin",
-            bin_name: "test_success",
+            bin_name: "test_success2",
             features: &[],
             workspace_dir: None,
         };
         // Ensure that we can build the ELF and elf2rom can parse it
-        build_firmware_rom(&FWID).unwrap();
+        let err = build_firmware_rom(&FWID).unwrap_err();
+        assert!(err.to_string().contains(
+            "FwId has not been registered. Make sure it has been added to the REGISTERED_FW array"
+        ));
     }
 
     #[test]

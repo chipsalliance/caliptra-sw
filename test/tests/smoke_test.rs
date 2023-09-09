@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
+use caliptra_builder::{firmware, ImageOptions};
 use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::{
     CommandId, FipsVersionResp, GetLdevCertResp, MailboxReqHeader, MailboxRespHeader,
@@ -28,7 +28,7 @@ fn assert_output_contains(haystack: &str, needle: &str) {
 #[test]
 fn retrieve_csr_test() {
     const GENERATE_IDEVID_CSR: u32 = 1;
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -126,10 +126,10 @@ fn smoke_test() {
         .set_device_lifecycle(DeviceLifecycle::Production);
     let idevid_pubkey = get_idevid_pubkey();
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
     let image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART,
+        &firmware::FMC_WITH_UART,
+        &firmware::APP_WITH_UART,
         ImageOptions {
             fmc_min_svn: 5,
             fmc_svn: 9,
@@ -506,7 +506,7 @@ fn fips_cmd_test_rom() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
 
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
@@ -540,10 +540,10 @@ fn fips_cmd_test_rt() {
         .set_debug_locked(false)
         .set_device_lifecycle(DeviceLifecycle::Unprovisioned);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
     let image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART,
+        &firmware::FMC_WITH_UART,
+        &firmware::APP_WITH_UART,
         ImageOptions {
             fmc_version: FMC_VERSION,
             fmc_min_svn: 5,

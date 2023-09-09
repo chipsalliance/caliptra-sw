@@ -1,6 +1,9 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_FAKE_WITH_UART, ROM_FAKE_WITH_UART};
+use caliptra_builder::{
+    firmware::{APP_WITH_UART, FMC_FAKE_WITH_UART, ROM_FAKE_WITH_UART},
+    ImageOptions,
+};
 use caliptra_common::mailbox_api::{
     CommandId, GetLdevCertResp, MailboxReqHeader, MailboxRespHeader, TestGetFmcAliasCertResp,
 };
