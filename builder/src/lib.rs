@@ -177,16 +177,16 @@ pub fn build_firmware_elfs_uncached<'a>(
         }
         run_cmd(&mut cmd)?;
 
+        let target_dir = if let Some(dir) = std::env::var_os("CARGO_TARGET_DIR") {
+            PathBuf::from(dir)
+        } else {
+            Path::new(workspace_dir).join("target")
+        };
+
         for &fwid in invocation.fwids.iter() {
             result_map.insert(
                 fwid,
-                fs::read(
-                    Path::new(workspace_dir)
-                        .join("target")
-                        .join(TARGET)
-                        .join(PROFILE)
-                        .join(fwid.bin_name),
-                )?,
+                fs::read(target_dir.join(TARGET).join(PROFILE).join(fwid.bin_name))?,
             );
         }
     }
