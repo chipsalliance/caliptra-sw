@@ -7,7 +7,7 @@ use std::fs::{self, File};
 use std::io::{self, ErrorKind};
 use std::mem::size_of;
 use std::os::fd::AsRawFd;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 
@@ -272,15 +272,33 @@ impl<'a> CargoInvocation<'a> {
     }
 }
 
+// TODO: Rename this get_firmware_elf, as it doesn't build when the
+// CALIPTRA_PREBUILT_FW_DIR environment variable is set.
 pub fn build_firmware_elf(id: &FwId<'static>) -> io::Result<Arc<Vec<u8>>> {
+    if !crate::firmware::REGISTERED_FW.contains(&id) {
+        return Err(other_err(format!("FwId has not been registered. Make sure it has been added to the REGISTERED_FW array: {id:?}")));
+    }
+
+    if let Some(fw_dir) = std::env::var_os("CALIPTRA_PREBUILT_FW_DIR") {
+        let path = PathBuf::from(fw_dir).join(id.elf_filename());
+        let result = std::fs::read(&path).map_err(|e| {
+            io::Error::new(
+                e.kind(),
+                format!(
+                    "CALIPTRA_PREBUILT_FW_DIR environment variable was set, while reading {}, {}",
+                    path.display(),
+                    e
+                ),
+            )
+        })?;
+        return Ok(Arc::new(result));
+    }
+
     type CacheEntry = Arc<Mutex<Arc<Vec<u8>>>>;
     static CACHE: Lazy<Mutex<HashMap<FwId, CacheEntry>>> = Lazy::new(|| {
         let result = HashMap::new();
         Mutex::new(result)
     });
-    if !crate::firmware::REGISTERED_FW.contains(&id) {
-        return Err(other_err(format!("FwId has not been registered. Make sure it has been added to the REGISTERED_FW array: {id:?}")));
-    }
 
     let result_mutex: Arc<Mutex<Arc<Vec<u8>>>>;
     let mut result_mutex_guard;
