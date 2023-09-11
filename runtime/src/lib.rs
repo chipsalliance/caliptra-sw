@@ -10,6 +10,7 @@ pub mod fips;
 pub mod handoff;
 pub mod info;
 mod invoke_dpe;
+mod pcr_quote;
 mod pcr_reset;
 mod stash_measurement;
 mod update;
@@ -52,6 +53,7 @@ use dpe::{
     DPE_PROFILE,
 };
 
+use crate::pcr_quote::get_pcr_quote;
 use crate::pcr_reset::IncrementPcrResetCounter;
 #[cfg(feature = "test_only_commands")]
 use crate::verify::HmacVerifyCmd;
@@ -139,6 +141,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             IncrementPcrResetCounter::execute(drivers, cmd_bytes)
         }
         CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes),
+        CommandId::QUOTE_PCRS => get_pcr_quote(drivers, cmd_bytes),
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers, cmd_bytes),
         CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),
