@@ -238,10 +238,9 @@ extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
 
     // Check if the NMI was due to WDT expiry.
     let mut error = CaliptraError::ROM_GLOBAL_NMI;
-    const WDT_EXPIRY_MASK: u32 = 0b11;
 
     let wdt_status = unsafe { SocIfc::wdt_status() };
-    if (wdt_status & WDT_EXPIRY_MASK) == WDT_EXPIRY_MASK {
+    if wdt_status.t1_timeout() || wdt_status.t2_timeout() {
         cprintln!("WDT Expired");
         error = CaliptraError::ROM_GLOBAL_WDT_EXPIRED;
     }
