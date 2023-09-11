@@ -1156,3 +1156,8 @@ fn test_trng_in_etrng_mode() {
     let trng_block = model.mailbox_execute(0, &[]).unwrap();
     assert_eq!(trng_block, Some(block1.as_bytes().to_vec()));
 }
+
+#[test]
+fn test_persistent() {
+    run_driver_test("persistent");
+}
