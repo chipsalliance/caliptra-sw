@@ -241,6 +241,7 @@ pub struct StashMeasurementReq {
     pub hdr: MailboxReqHeader,
     pub metadata: [u8; 4],
     pub measurement: [u8; 48],
+    pub context: [u8; 48],
     pub svn: u32,
 }
 
