@@ -12,19 +12,16 @@ Abstract:
 
 --*/
 
+use crate::rom_env::RomEnv;
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_common::{
     keyids::{KEY_ID_FMC_PRIV_KEY, KEY_ID_ROM_FMC_CDI},
-    memory_layout::{FHT_ORG, FMCALIAS_TBS_ORG, FUSE_LOG_ORG, LDEVID_TBS_ORG, PCR_LOG_ORG},
     DataVaultRegister, FirmwareHandoffTable, HandOffDataHandle, Vault, FHT_INVALID_HANDLE,
     FHT_MARKER,
 };
 use caliptra_drivers::{
-    ColdResetEntry4, ColdResetEntry48, Ecc384PubKey, WarmResetEntry4, WarmResetEntry48,
+    cprintln, ColdResetEntry4, ColdResetEntry48, Ecc384PubKey, WarmResetEntry4, WarmResetEntry48,
 };
-use zerocopy::AsBytes;
-
-use crate::{cprintln, rom_env::RomEnv};
 
 const FHT_MAJOR_VERSION: u16 = 1;
 const FHT_MINOR_VERSION: u16 = 0;
@@ -140,10 +137,11 @@ impl FhtDataStore {
 }
 
 pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
-    let ldevid_tbs_addr: u32 = LDEVID_TBS_ORG;
-    let fmcalias_tbs_addr: u32 = FMCALIAS_TBS_ORG;
-    let pcr_log_addr: u32 = PCR_LOG_ORG;
-    let fuse_log_addr: u32 = FUSE_LOG_ORG;
+    let pdata = &env.persistent_data.get();
+    let ldevid_tbs_addr: u32 = &pdata.ldevid_tbs as *const _ as u32;
+    let fmcalias_tbs_addr: u32 = &pdata.fmcalias_tbs as *const _ as u32;
+    let pcr_log_addr: u32 = &pdata.pcr_log as *const _ as u32;
+    let fuse_log_addr: u32 = &pdata.fuse_log as *const _ as u32;
 
     FirmwareHandoffTable {
         fht_marker: FHT_MARKER,
@@ -177,11 +175,10 @@ pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
 }
 
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
-pub fn store(fht: FirmwareHandoffTable) {
-    let slice = unsafe {
-        let ptr = FHT_ORG as *mut u8;
-        cprintln!("[fht] Storing FHT @ 0x{:08X}", ptr as u32);
-        core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
-    };
-    slice.copy_from_slice(fht.as_bytes());
+pub fn store(env: &mut RomEnv, fht: FirmwareHandoffTable) {
+    cprintln!(
+        "[fht] Storing FHT @ 0x{:08X}",
+        &env.persistent_data.get().fht as *const _ as usize
+    );
+    env.persistent_data.get_mut().fht = fht;
 }

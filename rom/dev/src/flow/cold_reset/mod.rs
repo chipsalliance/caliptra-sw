@@ -28,11 +28,8 @@ use crate::flow::cold_reset::idev_id::InitDevIdLayer;
 use crate::flow::cold_reset::ldev_id::LocalDevIdLayer;
 use crate::{cprintln, rom_env::RomEnv};
 use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
+use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::RomBootStatus::*;
-use caliptra_common::{
-    memory_layout::{FMCALIAS_TBS_ORG, FMCALIAS_TBS_SIZE, LDEVID_TBS_ORG, LDEVID_TBS_SIZE},
-    FirmwareHandoffTable,
-};
 use caliptra_drivers::*;
 
 pub enum TbsType {
@@ -101,30 +98,22 @@ pub fn copy_tbs(tbs: &[u8], tbs_type: TbsType, env: &mut RomEnv) -> CaliptraResu
     let dst = match tbs_type {
         TbsType::LdevidTbs => {
             env.fht_data_store.ldevid_tbs_size = tbs.len() as u16;
-            unsafe {
-                let tbs_max_size = LDEVID_TBS_SIZE as usize;
-                if tbs.len() > tbs_max_size {
-                    return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_LDEVID_TBS_SIZE);
-                }
-                let ptr = LDEVID_TBS_ORG as *mut u8;
-                core::slice::from_raw_parts_mut(ptr, tbs.len())
-            }
+            env.persistent_data
+                .get_mut()
+                .ldevid_tbs
+                .get_mut(..tbs.len())
+                .ok_or(CaliptraError::ROM_GLOBAL_UNSUPPORTED_LDEVID_TBS_SIZE)?
         }
         TbsType::FmcaliasTbs => {
             env.fht_data_store.fmcalias_tbs_size = tbs.len() as u16;
-            unsafe {
-                let tbs_max_size = FMCALIAS_TBS_SIZE as usize;
-                if tbs.len() > tbs_max_size {
-                    return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE);
-                }
-
-                let ptr = FMCALIAS_TBS_ORG as *mut u8;
-                core::slice::from_raw_parts_mut(ptr, tbs.len())
-            }
+            env.persistent_data
+                .get_mut()
+                .fmcalias_tbs
+                .get_mut(..tbs.len())
+                .ok_or(CaliptraError::ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE)?
         }
     };
-
-    dst[..tbs.len()].copy_from_slice(tbs);
+    dst.copy_from_slice(tbs);
     Ok(())
 }
 

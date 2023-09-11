@@ -190,7 +190,7 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b001c);
     pub const IMAGE_VERIFIER_ERR_UPDATE_RESET_OWNER_DIGEST_FAILURE: CaliptraError =
         CaliptraError::new_const(0x000b001d);
-    pub const IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_PUB_KEY_IDX_MISMATCH: CaliptraError =
+    pub const IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_ECC_PUB_KEY_IDX_MISMATCH: CaliptraError =
         CaliptraError::new_const(0x000b001e);
     pub const IMAGE_VERIFIER_ERR_UPDATE_RESET_FMC_DIGEST_MISMATCH: CaliptraError =
         CaliptraError::new_const(0x000b001f);
@@ -245,6 +245,8 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b003b);
     pub const IMAGE_VERIFIER_ERR_RUNTIME_SIZE_ZERO: CaliptraError =
         CaliptraError::new_const(0x000b003c);
+    pub const IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_LMS_PUB_KEY_IDX_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x000b003d);
 
     /// Driver Error: LMS
     pub const DRIVER_LMS_INVALID_LMS_ALGO_TYPE: CaliptraError =
@@ -288,6 +290,17 @@ impl CaliptraError {
     pub const DRIVER_CSRNG_ADAPTP_HEALTH_CHECK_FAILED: CaliptraError =
         CaliptraError::new_const(0x000d0008);
 
+    pub const DRIVER_HANDOFF_INVALID_VAULT: CaliptraError = CaliptraError::new_const(0x000D100);
+    pub const DRIVER_HANDOFF_INVALID_KEY_ID: CaliptraError = CaliptraError::new_const(0x000D101);
+    pub const DRIVER_HANDOFF_INVALID_COLD_RESET_ENTRY4: CaliptraError =
+        CaliptraError::new_const(0x000D102);
+    pub const DRIVER_HANDOFF_INVALID_COLD_RESET_ENTRY48: CaliptraError =
+        CaliptraError::new_const(0x000D103);
+    pub const DRIVER_HANDOFF_INVALID_WARM_RESET_ENTRY4: CaliptraError =
+        CaliptraError::new_const(0x000D104);
+    pub const DRIVER_HANDOFF_INVALID_WARM_RESET_ENTRY48: CaliptraError =
+        CaliptraError::new_const(0x000D104);
+
     /// Runtime Errors
     pub const RUNTIME_INTERNAL: CaliptraError = CaliptraError::new_const(0x000E0001);
     pub const RUNTIME_UNIMPLEMENTED_COMMAND: CaliptraError = CaliptraError::new_const(0x000E0002);
@@ -310,6 +323,12 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E0011);
     pub const RUNTIME_HANDOFF_INVALID_PARM: CaliptraError = CaliptraError::new_const(0x000E0012);
     pub const RUNTIME_GET_DEVID_CERT_FAILED: CaliptraError = CaliptraError::new_const(0x000E0013);
+    pub const RUNTIME_CERT_CHAIN_CREATION_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E0014);
+    pub const RUNTIME_SELF_TEST_IN_PROGRESS: CaliptraError = CaliptraError::new_const(0x000E0015);
+    pub const RUNTIME_SELF_TEST_NOT_STARTED: CaliptraError = CaliptraError::new_const(0x000E0016);
+    pub const RUNTIME_INVALID_FMC_SIZE: CaliptraError = CaliptraError::new_const(0x000E0017);
+    pub const RUNTIME_INVALID_RUNTIME_SIZE: CaliptraError = CaliptraError::new_const(0x000E0018);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);

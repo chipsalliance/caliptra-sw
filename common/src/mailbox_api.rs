@@ -27,7 +27,9 @@ impl CommandId {
     /// The status command.
     pub const VERSION: Self = Self(0x4650_5652); // "FPVR"
     /// The self-test command.
-    pub const SELF_TEST: Self = Self(0x4650_4C54); // "FPST"
+    pub const SELF_TEST_START: Self = Self(0x4650_4C54); // "FPST"
+    /// The self-test get results.
+    pub const SELF_TEST_GET_RESULTS: Self = Self(0x4650_4C67); // "FPGR"
     /// The shutdown command.
     pub const SHUTDOWN: Self = Self(0x4650_5344); // "FPSD"
 
@@ -239,6 +241,7 @@ pub struct StashMeasurementReq {
     pub hdr: MailboxReqHeader,
     pub metadata: [u8; 4],
     pub measurement: [u8; 48],
+    pub context: [u8; 48],
     pub svn: u32,
 }
 

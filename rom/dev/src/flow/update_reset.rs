@@ -13,21 +13,21 @@ Abstract:
 --*/
 #[cfg(feature = "fake-rom")]
 use crate::flow::fake::FakeRomImageVerificationEnv;
-use crate::{cprintln, pcr, rom_env::RomEnv, verifier::RomImageVerificationEnv};
+use crate::{cprintln, pcr, rom_env::RomEnv};
+use caliptra_common::verifier::FirmwareImageVerificationEnv;
 
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::CommandId;
-use caliptra_common::memory_layout::{MAN1_ORG, MAN2_ORG};
 use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::RomBootStatus::*;
-use caliptra_drivers::DataVault;
 use caliptra_drivers::{
     okref, report_boot_status, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
+use caliptra_drivers::{DataVault, PersistentData};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::ImageManifest;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::AsBytes;
 
 #[derive(Default)]
 pub struct UpdateResetFlow {}
@@ -53,10 +53,10 @@ impl UpdateResetFlow {
             return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_INVALID_FIRMWARE_COMMAND);
         }
 
-        let manifest = Self::load_manifest(&mut recv_txn)?;
+        let manifest = Self::load_manifest(env.persistent_data.get_mut(), &mut recv_txn)?;
         report_boot_status(UpdateResetLoadManifestComplete.into());
 
-        let mut venv = RomImageVerificationEnv {
+        let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha384: &mut env.sha384,
             sha384_acc: &mut env.sha384_acc,
@@ -70,17 +70,17 @@ impl UpdateResetFlow {
         let info = okref(&info)?;
         report_boot_status(UpdateResetImageVerificationComplete.into());
 
+        // Populate data vault
+        Self::populate_data_vault(venv.data_vault, info);
+
         // Extend PCR0 and PCR1
-        pcr::extend_pcrs(&mut venv, info)?;
+        pcr::extend_pcrs(&mut venv, info, &mut env.persistent_data)?;
         report_boot_status(UpdateResetExtendPcrComplete.into());
 
         cprintln!(
             "[update-reset] Image verified using Vendor ECC Key Index {}",
             info.vendor_ecc_pub_key_idx
         );
-
-        // Populate data vault
-        Self::populate_data_vault(venv.data_vault, info);
 
         Self::load_image(&manifest, &mut recv_txn)?;
 
@@ -89,7 +89,9 @@ impl UpdateResetFlow {
         drop(recv_txn);
         report_boot_status(UpdateResetLoadImageComplete.into());
 
-        Self::copy_regions();
+        let persistent_data = env.persistent_data.get_mut();
+        cprintln!("[update-reset] Copying MAN_2 To MAN_1");
+        persistent_data.manifest1 = persistent_data.manifest2;
         report_boot_status(UpdateResetOverwriteManifestComplete.into());
 
         // Set RT version. FMC does not change.
@@ -110,7 +112,7 @@ impl UpdateResetFlow {
     ///
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn verify_image(
-        env: &mut RomImageVerificationEnv,
+        env: &mut FirmwareImageVerificationEnv,
         manifest: &ImageManifest,
         img_bundle_sz: u32,
     ) -> CaliptraResult<ImageVerificationInfo> {
@@ -126,30 +128,6 @@ impl UpdateResetFlow {
         let info = verifier.verify(manifest, img_bundle_sz, ResetReason::UpdateReset)?;
 
         Ok(info)
-    }
-
-    ///
-    /// Copy the verified MAN_2 region to MAN_1
-    ///
-    /// # Arguments
-    ///
-    /// * `manifest` - Manifest
-    ///
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn copy_regions() {
-        cprintln!("[update-reset] Copying MAN_2 To MAN_1");
-
-        let dst = unsafe {
-            let ptr = MAN1_ORG as *mut u32;
-            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
-        };
-
-        let src = unsafe {
-            let ptr = MAN2_ORG as *mut u32;
-            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
-        };
-
-        dst.clone_from_slice(src);
     }
 
     /// Load the image to ICCM & DCCM
@@ -175,7 +153,7 @@ impl UpdateResetFlow {
             core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize / 4)
         };
 
-        txn.copy_request(runtime_dest)?;
+        txn.copy_request(runtime_dest.as_bytes_mut())?;
 
         //Call the complete here to reset the execute bit
         txn.complete(true)?;
@@ -189,16 +167,12 @@ impl UpdateResetFlow {
     ///
     /// * `Manifest` - Caliptra Image Bundle Manifest
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn load_manifest(txn: &mut MailboxRecvTxn) -> CaliptraResult<ImageManifest> {
-        let slice = unsafe {
-            let ptr = MAN2_ORG as *mut u32;
-            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
-        };
-
-        txn.copy_request(slice)?;
-
-        ImageManifest::read_from(slice.as_bytes())
-            .ok_or(CaliptraError::ROM_UPDATE_RESET_FLOW_MANIFEST_READ_FAILURE)
+    fn load_manifest(
+        persistent_data: &mut PersistentData,
+        txn: &mut MailboxRecvTxn,
+    ) -> CaliptraResult<ImageManifest> {
+        txn.copy_request(persistent_data.manifest2.as_bytes_mut())?;
+        Ok(persistent_data.manifest2)
     }
 
     /// Populate data vault

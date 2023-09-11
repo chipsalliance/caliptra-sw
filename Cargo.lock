@@ -353,6 +353,7 @@ dependencies = [
  "sha3",
  "smlang",
  "tock-registers",
+ "zerocopy",
 ]
 
 [[package]]
@@ -558,6 +559,7 @@ version = "0.1.0"
 dependencies = [
  "caliptra-drivers",
  "caliptra-lms-types",
+ "ufmt",
  "zerocopy",
 ]
 
@@ -634,6 +636,7 @@ dependencies = [
 name = "caliptra-runtime"
 version = "0.1.0"
 dependencies = [
+ "arrayvec",
  "caliptra-builder",
  "caliptra-cpu",
  "caliptra-drivers",
@@ -646,6 +649,7 @@ dependencies = [
  "caliptra-image-openssl",
  "caliptra-image-serde",
  "caliptra-image-types",
+ "caliptra-image-verify",
  "caliptra-kat",
  "caliptra-registers",
  "caliptra-x509",
@@ -742,6 +746,7 @@ dependencies = [
  "bitflags 2.4.0",
  "caliptra-drivers",
  "caliptra-image-types",
+ "caliptra-image-verify",
  "caliptra-registers",
  "ufmt",
  "zerocopy",
@@ -2314,10 +2319,8 @@ checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 name = "vector_gen"
 version = "0.1.0"
 dependencies = [
+ "caliptra-test",
  "openssl",
- "p384",
- "rfc6979",
- "sha2",
 ]
 
 [[package]]

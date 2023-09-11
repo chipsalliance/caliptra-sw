@@ -99,6 +99,8 @@ Test Name |  Description | ROM Error Code
 **test_update_reset_no_mailbox_cmd** | Tests update reset flow by not providing firmware image  | ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE
 **test_update_reset_non_fw_load_cmd** | Tests update reset flow by providing a non-fw load Mailbox command  | ROM_UPDATE_RESET_FLOW_INVALID_FIRMWARE_COMMAND
 **test_update_reset_verify_image_failure** | Tests update reset flow by providing non-compliant fw image  | IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH
+**test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch** | Tests update reset flow by providing a different vendor ECC public key index in the image | IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_ECC_PUB_KEY_IDX_MISMATCH
+**test_update_reset_vendor_lms_pub_key_idx_dv_mismatch** | Tests update reset flow by providing a different vendor LMS public key index in the image | IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_LMS_PUB_KEY_IDX_MISMATCH
 <br><br>
 # **Mailbox Tests**
 Test Name | ROM Stage | Description | ROM Error Code
