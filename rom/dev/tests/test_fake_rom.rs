@@ -159,6 +159,7 @@ fn test_fake_rom_update_reset() {
 
 #[test]
 fn test_image_verify() {
+    const DBG_MANUF_FAKE_ROM_IMAGE_VERIFY: u32 = 0x1 << 31; // BIT 31 turns on image verify
     let fuses = Fuses::default();
     let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
@@ -168,6 +169,7 @@ fn test_image_verify() {
             ..Default::default()
         },
         fuses,
+        initial_dbg_manuf_service_reg: DBG_MANUF_FAKE_ROM_IMAGE_VERIFY,
         ..Default::default()
     })
     .unwrap();
@@ -178,14 +180,6 @@ fn test_image_verify() {
         ImageOptions::default(),
     )
     .unwrap();
-
-    // Turn on verification in fake mode
-    // Write to bit 31 of DBG_MANUF_SERVICE_REG
-    let mut dbg_manuf_service_reg_val: u32 = hw.soc_ifc().cptra_dbg_manuf_service_reg().read();
-    dbg_manuf_service_reg_val |= 0x1 << 31;
-    hw.soc_ifc()
-        .cptra_dbg_manuf_service_reg()
-        .write(|_| dbg_manuf_service_reg_val);
 
     let vendor_ecc_pub_key_idx = image_bundle.manifest.preamble.vendor_ecc_pub_key_idx as usize;
 
