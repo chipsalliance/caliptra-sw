@@ -15,19 +15,23 @@ Abstract:
 use crate::flow::fake::FakeRomImageVerificationEnv;
 use crate::fuse::log_fuse_data;
 use crate::rom_env::RomEnv;
-use crate::{cprintln, verifier::RomImageVerificationEnv};
+use crate::run_fips_tests;
+use crate::CALIPTRA_ROM_INFO;
 use crate::{pcr, wdt};
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::capabilities::Capabilities;
+use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::CommandId;
-use caliptra_common::{cprint, memory_layout::MAN1_ORG, FuseLogEntryId, RomBootStatus::*};
+use caliptra_common::mailbox_api::MailboxResp;
+use caliptra_common::verifier::FirmwareImageVerificationEnv;
+use caliptra_common::{FuseLogEntryId, RomBootStatus::*};
 use caliptra_drivers::*;
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier};
+use caliptra_kat::KatsEnv;
 use caliptra_x509::{NotAfter, NotBefore};
 use core::mem::ManuallyDrop;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::AsBytes;
 
 #[derive(Debug, Default)]
 pub struct FwProcInfo {
@@ -53,17 +57,43 @@ impl FirmwareProcessor {
         // Disable the watchdog timer during processing mailbox commands.
         wdt::stop_wdt(&mut env.soc_ifc);
 
+        let mut kats_env = caliptra_kat::KatsEnv {
+            // SHA1 Engine
+            sha1: &mut env.sha1,
+
+            // sha256
+            sha256: &mut env.sha256,
+
+            // SHA2-384 Engine
+            sha384: &mut env.sha384,
+
+            // SHA2-384 Accelerator
+            sha384_acc: &mut env.sha384_acc,
+
+            // Hmac384 Engine
+            hmac384: &mut env.hmac384,
+
+            /// Cryptographically Secure Random Number Generator
+            trng: &mut env.trng,
+
+            // LMS Engine
+            lms: &mut env.lms,
+
+            /// Ecc384 Engine
+            ecc384: &mut env.ecc384,
+        };
         // Process mailbox commands.
-        let mut txn = Self::process_mailbox_commands(&mut env.soc_ifc, &mut env.mbox)?;
+        let mut txn =
+            Self::process_mailbox_commands(&mut env.soc_ifc, &mut env.mbox, &mut kats_env)?;
 
         // Renable the watchdog timer.
         wdt::start_wdt(&mut env.soc_ifc);
 
         // Load the manifest
-        let manifest = Self::load_manifest(&mut txn);
+        let manifest = Self::load_manifest(&mut env.persistent_data, &mut txn);
         let manifest = okref(&manifest)?;
 
-        let mut venv = RomImageVerificationEnv {
+        let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha384: &mut env.sha384,
             sha384_acc: &mut env.sha384_acc,
@@ -77,13 +107,13 @@ impl FirmwareProcessor {
         let info = Self::verify_image(&mut venv, manifest, txn.dlen());
         let info = okref(&info)?;
 
-        Self::update_fuse_log(&info.log_info)?;
+        Self::update_fuse_log(&mut env.persistent_data.get_mut().fuse_log, &info.log_info)?;
 
         // Populate data vault
-        Self::populate_data_vault(venv.data_vault, info);
+        Self::populate_data_vault(venv.data_vault, info, &env.persistent_data);
 
         // Extend PCR0 and PCR1
-        pcr::extend_pcrs(&mut venv, info)?;
+        pcr::extend_pcrs(&mut venv, info, &mut env.persistent_data)?;
         report_boot_status(FwProcessorExtendPcrComplete.into());
 
         // Load the image
@@ -126,17 +156,53 @@ impl FirmwareProcessor {
     fn process_mailbox_commands<'a>(
         soc_ifc: &mut SocIfc,
         mbox: &'a mut Mailbox,
+        env: &mut KatsEnv,
     ) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn<'a>>> {
         soc_ifc.flow_status_set_ready_for_firmware();
 
-        cprint!("[afmc] Waiting for Commands...");
+        let mut self_test_in_progress = false;
+
+        cprintln!("[afmc] Waiting for Commands...");
         loop {
             if let Some(txn) = mbox.peek_recv() {
+                report_fw_error_non_fatal(0);
                 match CommandId::from(txn.cmd()) {
-                    CommandId::SELF_TEST | CommandId::VERSION | CommandId::SHUTDOWN => {
-                        // [TODO] Placeholder for FIPS ROM commands.
-                        txn.start_txn().complete(false)?;
-                        continue;
+                    CommandId::VERSION => {
+                        let mut resp = FipsVersionCmd::execute(soc_ifc)?;
+                        resp.populate_chksum()?;
+                        txn.start_txn().send_response(resp.as_bytes())?;
+                    }
+                    CommandId::SELF_TEST_START => {
+                        cprintln!("[afmc] FIPS self test");
+                        if self_test_in_progress {
+                            txn.start_txn().complete(false)?;
+                        } else {
+                            let rom_info = unsafe { &CALIPTRA_ROM_INFO };
+                            run_fips_tests(env, rom_info)?;
+                            let mut resp = MailboxResp::default();
+                            resp.populate_chksum()?;
+                            txn.start_txn().send_response(resp.as_bytes())?;
+                            self_test_in_progress = true;
+                        }
+                    }
+                    CommandId::SELF_TEST_GET_RESULTS => {
+                        if !self_test_in_progress {
+                            txn.start_txn().complete(false)?;
+                        } else {
+                            let mut resp = MailboxResp::default();
+                            resp.populate_chksum()?;
+                            txn.start_txn().send_response(resp.as_bytes())?;
+                            self_test_in_progress = false;
+                        }
+                    }
+                    CommandId::SHUTDOWN => {
+                        cprintln!("[afmc] FIPS shutdown");
+                        let mut resp = MailboxResp::default();
+                        resp.populate_chksum()?;
+                        txn.start_txn().send_response(resp.as_bytes())?;
+
+                        // Causing a ROM Fatal Error will zeroize the module
+                        return Err(CaliptraError::RUNTIME_SHUTDOWN);
                     }
                     CommandId::CAPABILITIES => {
                         let mut capabilities = Capabilities::default();
@@ -181,24 +247,14 @@ impl FirmwareProcessor {
     ///
     /// * `Manifest` - Caliptra Image Bundle Manifest
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn load_manifest(txn: &mut MailboxRecvTxn) -> CaliptraResult<ImageManifest> {
-        let slice = unsafe {
-            let ptr = MAN1_ORG as *mut u32;
-            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
-        };
-
-        txn.copy_request(slice)?;
-
-        let opt = ImageManifest::read_from(slice.as_bytes());
-        let result = opt.is_some();
-        if cfi_launder(result) {
-            cfi_assert!(opt.is_some());
-            report_boot_status(FwProcessorManifestLoadComplete.into());
-            Ok(opt.unwrap())
-        } else {
-            cfi_assert!(opt.is_none());
-            Err(CaliptraError::FW_PROC_MANIFEST_READ_FAILURE)
-        }
+    fn load_manifest(
+        persistent_data: &mut PersistentDataAccessor,
+        txn: &mut MailboxRecvTxn,
+    ) -> CaliptraResult<ImageManifest> {
+        let manifest = &mut persistent_data.get_mut().manifest1;
+        txn.copy_request(manifest.as_bytes_mut())?;
+        report_boot_status(FwProcessorManifestLoadComplete.into());
+        Ok(*manifest)
     }
 
     /// Verify the image
@@ -208,7 +264,7 @@ impl FirmwareProcessor {
     /// * `env` - ROM Environment
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn verify_image(
-        venv: &mut RomImageVerificationEnv,
+        venv: &mut FirmwareImageVerificationEnv,
         manifest: &ImageManifest,
         img_bundle_sz: u32,
     ) -> CaliptraResult<ImageVerificationInfo> {
@@ -240,15 +296,20 @@ impl FirmwareProcessor {
     /// # Returns
     /// * CaliptraResult
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn update_fuse_log(log_info: &ImageVerificationLogInfo) -> CaliptraResult<()> {
+    fn update_fuse_log(
+        log: &mut FuseLogArray,
+        log_info: &ImageVerificationLogInfo,
+    ) -> CaliptraResult<()> {
         // Log VendorPubKeyIndex
         log_fuse_data(
+            log,
             FuseLogEntryId::VendorEccPubKeyIndex,
             log_info.vendor_ecc_pub_key_idx.as_bytes(),
         )?;
 
         // Log VendorPubKeyRevocation
         log_fuse_data(
+            log,
             FuseLogEntryId::VendorEccPubKeyRevocation,
             log_info
                 .fuse_vendor_ecc_pub_key_revocation
@@ -258,36 +319,42 @@ impl FirmwareProcessor {
 
         // Log ManifestFmcSvn
         log_fuse_data(
+            log,
             FuseLogEntryId::ManifestFmcSvn,
             log_info.fmc_log_info.manifest_svn.as_bytes(),
         )?;
 
         // Log ManifestFmcMinSvn
         log_fuse_data(
+            log,
             FuseLogEntryId::ManifestFmcMinSvn,
             log_info.fmc_log_info.manifest_min_svn.as_bytes(),
         )?;
 
         // Log FuseFmcSvn
         log_fuse_data(
+            log,
             FuseLogEntryId::FuseFmcSvn,
             log_info.fmc_log_info.fuse_svn.as_bytes(),
         )?;
 
         // Log ManifestRtSvn
         log_fuse_data(
+            log,
             FuseLogEntryId::ManifestRtSvn,
             log_info.rt_log_info.manifest_svn.as_bytes(),
         )?;
 
         // Log ManifestRtMinSvn
         log_fuse_data(
+            log,
             FuseLogEntryId::ManifestRtMinSvn,
             log_info.rt_log_info.manifest_min_svn.as_bytes(),
         )?;
 
         // Log FuseRtSvn
         log_fuse_data(
+            log,
             FuseLogEntryId::FuseRtSvn,
             log_info.rt_log_info.fuse_svn.as_bytes(),
         )?;
@@ -295,6 +362,7 @@ impl FirmwareProcessor {
         // Log VendorLmsPubKeyIndex
         if let Some(vendor_lms_pub_key_idx) = log_info.vendor_lms_pub_key_idx {
             log_fuse_data(
+                log,
                 FuseLogEntryId::VendorLmsPubKeyIndex,
                 vendor_lms_pub_key_idx.as_bytes(),
             )?;
@@ -305,6 +373,7 @@ impl FirmwareProcessor {
             log_info.fuse_vendor_lms_pub_key_revocation
         {
             log_fuse_data(
+                log,
                 FuseLogEntryId::VendorLmsPubKeyRevocation,
                 fuse_vendor_lms_pub_key_revocation.as_bytes(),
             )?;
@@ -335,7 +404,7 @@ impl FirmwareProcessor {
             core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize / 4)
         };
 
-        txn.copy_request(fmc_dest)?;
+        txn.copy_request(fmc_dest.as_bytes_mut())?;
 
         cprintln!(
             "[afmc] Loading Runtime at address 0x{:08x} len {}",
@@ -348,7 +417,7 @@ impl FirmwareProcessor {
             core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize / 4)
         };
 
-        txn.copy_request(runtime_dest)?;
+        txn.copy_request(runtime_dest.as_bytes_mut())?;
 
         report_boot_status(FwProcessorLoadImageComplete.into());
         Ok(())
@@ -361,7 +430,11 @@ impl FirmwareProcessor {
     /// * `env`  - ROM Environment
     /// * `info` - Image Verification Info
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn populate_data_vault(data_vault: &mut DataVault, info: &ImageVerificationInfo) {
+    fn populate_data_vault(
+        data_vault: &mut DataVault,
+        info: &ImageVerificationInfo,
+        persistent_data: &PersistentDataAccessor,
+    ) {
         data_vault.write_cold_reset_entry48(ColdResetEntry48::FmcTci, &info.fmc.digest.into());
 
         data_vault.write_cold_reset_entry4(ColdResetEntry4::FmcSvn, info.fmc.svn);
@@ -391,7 +464,10 @@ impl FirmwareProcessor {
 
         data_vault.write_warm_reset_entry4(WarmResetEntry4::RtEntryPoint, info.runtime.entry_point);
 
-        data_vault.write_warm_reset_entry4(WarmResetEntry4::ManifestAddr, MAN1_ORG);
+        data_vault.write_warm_reset_entry4(
+            WarmResetEntry4::ManifestAddr,
+            &persistent_data.get().manifest1 as *const _ as u32,
+        );
         report_boot_status(FwProcessorPopulateDataVaultComplete.into());
     }
 

@@ -17,20 +17,20 @@ use caliptra_image_types::*;
 use caliptra_image_verify::ImageVerificationEnv;
 use core::ops::Range;
 
-use crate::rom_env::RomEnv;
+use caliptra_drivers::memory_layout::ICCM_RANGE;
 
 /// ROM Verification Environemnt
-pub(crate) struct RomImageVerificationEnv<'a> {
-    pub(crate) sha256: &'a mut Sha256,
-    pub(crate) sha384: &'a mut Sha384,
-    pub(crate) sha384_acc: &'a mut Sha384Acc,
-    pub(crate) soc_ifc: &'a mut SocIfc,
-    pub(crate) ecc384: &'a mut Ecc384,
-    pub(crate) data_vault: &'a mut DataVault,
-    pub(crate) pcr_bank: &'a mut PcrBank,
+pub struct FirmwareImageVerificationEnv<'a> {
+    pub sha256: &'a mut Sha256,
+    pub sha384: &'a mut Sha384,
+    pub sha384_acc: &'a mut Sha384Acc,
+    pub soc_ifc: &'a mut SocIfc,
+    pub ecc384: &'a mut Ecc384,
+    pub data_vault: &'a mut DataVault,
+    pub pcr_bank: &'a mut PcrBank,
 }
 
-impl<'a> ImageVerificationEnv for &mut RomImageVerificationEnv<'a> {
+impl<'a> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a> {
     /// Calculate Digest using SHA-384 Accelerator
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest> {
         loop {
@@ -133,7 +133,7 @@ impl<'a> ImageVerificationEnv for &mut RomImageVerificationEnv<'a> {
     }
 
     fn iccm_range(&self) -> Range<u32> {
-        RomEnv::ICCM_RANGE
+        ICCM_RANGE
     }
 
     fn lms_verify_enabled(&self) -> bool {

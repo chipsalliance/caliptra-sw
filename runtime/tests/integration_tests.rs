@@ -8,19 +8,23 @@ use caliptra_common::mailbox_api::{
     GetIdevInfoResp, InvokeDpeReq, InvokeDpeResp, MailboxReqHeader, MailboxRespHeader,
     StashMeasurementReq, StashMeasurementResp,
 };
-use caliptra_drivers::Ecc384PubKey;
+use caliptra_drivers::{CaliptraError, Ecc384PubKey};
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError, ShaAccMode};
 use caliptra_runtime::{FipsVersionCmd, RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
 use common::{run_rom_test, run_rt_test};
 use dpe::{
-    commands::{CertifyKeyCmd, CertifyKeyFlags, Command, CommandHdr, SignCmd, SignFlags},
+    commands::{
+        CertifyKeyCmd, CertifyKeyFlags, Command, CommandHdr, GetCertificateChainCmd, SignCmd,
+        SignFlags,
+    },
     context::ContextHandle,
-    response::{CertifyKeyResp, GetProfileResp, SignResp},
+    response::{CertifyKeyResp, GetCertificateChainResp, GetProfileResp, SignResp},
     DPE_PROFILE,
 };
 use openssl::{
     bn::BigNum,
     ec::{EcGroup, EcKey},
+    ecdsa::EcdsaSig,
     nid::Nid,
     pkey::PKey,
     x509::X509,
@@ -268,7 +272,7 @@ fn test_invoke_dpe_get_profile_cmd() {
     });
 
     let mut data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
-    let cmd_hdr = CommandHdr::new_for_test(Command::GetProfile);
+    let cmd_hdr = CommandHdr::new_for_test(Command::GET_PROFILE);
     let cmd_hdr_buf = cmd_hdr.as_bytes();
     data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
     let cmd = InvokeDpeReq {
@@ -310,6 +314,61 @@ fn test_invoke_dpe_get_profile_cmd() {
 }
 
 #[test]
+fn test_invoke_dpe_get_certificate_chain_cmd() {
+    let mut model = run_rt_test(None, None);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == RtBootStatus::RtReadyForCommands.into()
+    });
+
+    let mut data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
+    let get_cert_chain_cmd = GetCertificateChainCmd {
+        offset: 0,
+        size: 2048,
+    };
+    let cmd_hdr = CommandHdr::new_for_test(Command::GET_CERTIFICATE_CHAIN);
+    let cmd_hdr_buf = cmd_hdr.as_bytes();
+    data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
+    let dpe_cmd_buf = get_cert_chain_cmd.as_bytes();
+    data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
+    let cmd = InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        data,
+        data_size: cmd_hdr_buf.len() as u32,
+    };
+
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::INVOKE_DPE),
+        &cmd.as_bytes()[4..],
+    );
+
+    let cmd = InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..cmd
+    };
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::INVOKE_DPE), cmd.as_bytes())
+        .unwrap()
+        .expect("We should have received a response");
+
+    assert!(resp.len() <= std::mem::size_of::<InvokeDpeResp>());
+    let mut resp_hdr = InvokeDpeResp::default();
+    resp_hdr.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
+
+    assert!(caliptra_common::checksum::verify_checksum(
+        resp_hdr.hdr.chksum,
+        0x0,
+        &resp[core::mem::size_of_val(&resp_hdr.hdr.chksum)..],
+    ));
+
+    let cert_chain =
+        GetCertificateChainResp::read_from(&resp_hdr.data[..resp_hdr.data_size as usize]).unwrap();
+    assert_eq!(cert_chain.certificate_size, 2048);
+    assert_ne!([0u8; 2048], cert_chain.certificate_chain);
+}
+
+#[test]
 fn test_invoke_dpe_sign_and_certify_key_cmds() {
     let mut model = run_rt_test(None, None);
 
@@ -332,9 +391,12 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
         flags: SignFlags::empty(),
         digest: test_digest,
     };
-    let sign_cmd_hdr = CommandHdr::new_for_test(Command::Sign(sign_cmd));
+    let sign_cmd_hdr = CommandHdr::new_for_test(Command::SIGN);
     let sign_cmd_hdr_buf = sign_cmd_hdr.as_bytes();
     data[..sign_cmd_hdr_buf.len()].copy_from_slice(sign_cmd_hdr_buf);
+    let sign_cmd_buf = sign_cmd.as_bytes();
+    data[sign_cmd_hdr_buf.len()..sign_cmd_hdr_buf.len() + sign_cmd_buf.len()]
+        .copy_from_slice(sign_cmd_buf);
     let sign_mbox_cmd = InvokeDpeReq {
         hdr: MailboxReqHeader { chksum: 0 },
         data,
@@ -375,9 +437,12 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
         flags: CertifyKeyFlags::empty(),
         format: CertifyKeyCmd::FORMAT_X509,
     };
-    let certify_key_cmd_hdr = CommandHdr::new_for_test(Command::CertifyKey(certify_key_cmd));
+    let certify_key_cmd_hdr = CommandHdr::new_for_test(Command::CERTIFY_KEY);
     let certify_key_cmd_hdr_buf = certify_key_cmd_hdr.as_bytes();
     data[..certify_key_cmd_hdr_buf.len()].copy_from_slice(certify_key_cmd_hdr_buf);
+    let certify_key_cmd_buf = certify_key_cmd.as_bytes();
+    data[certify_key_cmd_hdr_buf.len()..certify_key_cmd_hdr_buf.len() + certify_key_cmd_buf.len()]
+        .copy_from_slice(certify_key_cmd_buf);
     let certify_key_mbox_cmd = InvokeDpeReq {
         hdr: MailboxReqHeader { chksum: 0 },
         data,
@@ -418,41 +483,19 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
     )
     .unwrap();
 
-    let cmd = EcdsaVerifyReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        pub_key_x: certify_key_resp.derived_pubkey_x,
-        pub_key_y: certify_key_resp.derived_pubkey_y,
-        signature_r: sign_resp.sig_r_or_hmac,
-        signature_s: sign_resp.sig_s,
-    };
+    let sig = EcdsaSig::from_private_components(
+        BigNum::from_slice(&sign_resp.sig_r_or_hmac).unwrap(),
+        BigNum::from_slice(&sign_resp.sig_s).unwrap(),
+    )
+    .unwrap();
 
-    let checksum = caliptra_common::checksum::calc_checksum(
-        u32::from(CommandId::ECDSA384_VERIFY),
-        &cmd.as_bytes()[4..],
-    );
-
-    let cmd = EcdsaVerifyReq {
-        hdr: MailboxReqHeader { chksum: checksum },
-        ..cmd
-    };
-
-    let resp = model
-        .mailbox_execute(u32::from(CommandId::ECDSA384_VERIFY), cmd.as_bytes())
-        .unwrap()
-        .expect("We should have received a response");
-
-    let resp_hdr: &MailboxRespHeader =
-        LayoutVerified::<&[u8], MailboxRespHeader>::new(resp.as_bytes())
-            .unwrap()
-            .into_ref();
-
-    assert_eq!(
-        resp_hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_APPROVED
-    );
-    // Checksum is just going to be 0 because FIPS_STATUS_APPROVED is 0
-    assert_eq!(resp_hdr.chksum, 0);
-    assert_eq!(model.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
+    let ecc_pub_key = EcKey::from_public_key_affine_coordinates(
+        &EcGroup::from_curve_name(Nid::SECP384R1).unwrap(),
+        &BigNum::from_slice(&certify_key_resp.derived_pubkey_x).unwrap(),
+        &BigNum::from_slice(&certify_key_resp.derived_pubkey_y).unwrap(),
+    )
+    .unwrap();
+    assert!(sig.verify(&test_digest, &ecc_pub_key).unwrap());
 }
 
 #[test]
@@ -622,25 +665,6 @@ fn test_fips_cmd_api() {
     let name = &fips_version.name[..];
     assert_eq!(name, FipsVersionCmd::NAME.as_bytes());
 
-    // SELF_TEST
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::SELF_TEST), &[]),
-    };
-
-    let resp = model
-        .mailbox_execute(u32::from(CommandId::SELF_TEST), payload.as_bytes())
-        .unwrap()
-        .unwrap();
-
-    let resp = MailboxRespHeader::read_from(resp.as_slice()).unwrap();
-    // Verify checksum and FIPS status
-    assert!(caliptra_common::checksum::verify_checksum(
-        resp.chksum,
-        0x0,
-        &resp.as_bytes()[core::mem::size_of_val(&resp.chksum)..],
-    ));
-    assert_eq!(resp.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
-
     // SHUTDOWN
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::SHUTDOWN), &[]),
@@ -656,6 +680,35 @@ fn test_fips_cmd_api() {
     };
     let resp = model.mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes());
     assert_eq!(resp, expected_err);
+}
+
+/// When a successful command runs after a failed command, ensure the error
+/// register is cleared.
+#[test]
+fn test_error_cleared() {
+    let mut model = run_rom_test("mbox");
+
+    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+
+    // Send invalid command to cause failure
+    let resp = model.mailbox_execute(0xffffffff, &[]);
+    assert_eq!(
+        resp,
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS.into()
+        ))
+    );
+
+    // Succeed a command to make sure error gets cleared
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::VERSION), &[]),
+    };
+    let _ = model
+        .mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(model.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
 }
 
 #[test]

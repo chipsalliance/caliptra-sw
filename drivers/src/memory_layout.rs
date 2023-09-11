@@ -66,6 +66,11 @@ pub const STACK_SIZE: u32 = 22 * 1024;
 pub const ESTACK_SIZE: u32 = 1024;
 pub const NSTACK_SIZE: u32 = 1024;
 
+pub const ICCM_RANGE: core::ops::Range<u32> = core::ops::Range {
+    start: ICCM_ORG,
+    end: ICCM_ORG + ICCM_SIZE,
+};
+
 #[test]
 #[allow(clippy::assertions_on_constants)]
 fn mem_layout_test_manifest() {

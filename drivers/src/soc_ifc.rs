@@ -246,6 +246,14 @@ impl SocIfc {
         let soc_ifc_regs = self.soc_ifc.regs_mut();
         soc_ifc_regs.cptra_fw_rev_id().at(1).write(|_| rt_version);
     }
+
+    pub fn get_version(&self) -> [u32; 3] {
+        [
+            u32::from(self.soc_ifc.regs().cptra_hw_rev_id().read()),
+            self.soc_ifc.regs().cptra_fw_rev_id().at(0).read(),
+            self.soc_ifc.regs().cptra_fw_rev_id().at(1).read(),
+        ]
+    }
 }
 
 bitflags::bitflags! {

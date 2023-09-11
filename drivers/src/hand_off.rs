@@ -89,18 +89,29 @@ pub enum DataVaultRegister {
 impl TryInto<DataStore> for HandOffDataHandle {
     type Error = CaliptraError;
     fn try_into(self) -> Result<DataStore, Self::Error> {
-        let vault = Vault::try_from(self.vault())
-            .unwrap_or_else(|_| report_handoff_error_and_halt("Invalid Vault", 0xbadbad));
+        let vault = Vault::try_from(self.vault()).unwrap_or_else(|_| {
+            report_handoff_error_and_halt(
+                "Invalid Vault",
+                CaliptraError::DRIVER_HANDOFF_INVALID_VAULT.into(),
+            )
+        });
         match vault {
             Vault::KeyVault => Ok(DataStore::KeyVaultSlot(
-                KeyId::try_from(self.reg_num() as u8)
-                    .unwrap_or_else(|_| report_handoff_error_and_halt("Invalid KeyId", 0xbadbad)),
+                KeyId::try_from(self.reg_num() as u8).unwrap_or_else(|_| {
+                    report_handoff_error_and_halt(
+                        "Invalid KeyId",
+                        CaliptraError::DRIVER_HANDOFF_INVALID_KEY_ID.into(),
+                    )
+                }),
             )),
             Vault::DataVault => match self.reg_type() {
                 1 => {
                     let entry = DataStore::DataVaultSticky4(
                         ColdResetEntry4::try_from(self.reg_num() as u8).unwrap_or_else(|_| {
-                            report_handoff_error_and_halt("Invalid ColdResetEntry4", 0xbadbad)
+                            report_handoff_error_and_halt(
+                                "Invalid ColdResetEntry4",
+                                CaliptraError::DRIVER_HANDOFF_INVALID_COLD_RESET_ENTRY4.into(),
+                            )
                         }),
                     );
                     Ok(entry)
@@ -109,7 +120,10 @@ impl TryInto<DataStore> for HandOffDataHandle {
                 2 => {
                     let entry = DataStore::DataVaultSticky48(
                         ColdResetEntry48::try_from(self.reg_num() as u8).unwrap_or_else(|_| {
-                            report_handoff_error_and_halt("Invalid ColdResetEntry48", 0xbadbad)
+                            report_handoff_error_and_halt(
+                                "Invalid ColdResetEntry48",
+                                CaliptraError::DRIVER_HANDOFF_INVALID_COLD_RESET_ENTRY48.into(),
+                            )
                         }),
                     );
                     Ok(entry)
@@ -118,7 +132,10 @@ impl TryInto<DataStore> for HandOffDataHandle {
                 3 => {
                     let entry =
                         WarmResetEntry4::try_from(self.reg_num() as u8).unwrap_or_else(|_| {
-                            report_handoff_error_and_halt("Invalid WarmResetEntry4", 0xbadbad)
+                            report_handoff_error_and_halt(
+                                "Invalid WarmResetEntry4",
+                                CaliptraError::DRIVER_HANDOFF_INVALID_WARM_RESET_ENTRY4.into(),
+                            )
                         });
 
                     let ds = DataStore::DataVaultNonSticky4(entry);
@@ -128,7 +145,10 @@ impl TryInto<DataStore> for HandOffDataHandle {
                 4 => {
                     let entry = DataStore::DataVaultNonSticky48(
                         WarmResetEntry48::try_from(self.reg_num() as u8).unwrap_or_else(|_| {
-                            report_handoff_error_and_halt("Invalid WarmResetEntry48", 0xbadbad)
+                            report_handoff_error_and_halt(
+                                "Invalid WarmResetEntry48",
+                                CaliptraError::DRIVER_HANDOFF_INVALID_WARM_RESET_ENTRY48.into(),
+                            )
                         }),
                     );
                     Ok(entry)
@@ -285,8 +305,11 @@ pub struct FirmwareHandoffTable {
     // Address of RomInfo struct
     pub rom_info_addr: RomAddr<RomInfo>,
 
+    /// RtAlias TBS Size.
+    pub rtalias_tbs_size: u16,
+
     /// Reserved for future use.
-    pub reserved: [u8; 128],
+    pub reserved: [u8; 126],
 }
 
 impl Default for FirmwareHandoffTable {
@@ -313,7 +336,8 @@ impl Default for FirmwareHandoffTable {
             rt_min_svn_dv_hdl: FHT_INVALID_HANDLE,
             ldevid_tbs_size: 0,
             fmcalias_tbs_size: 0,
-            reserved: [0u8; 128],
+            rtalias_tbs_size: 0,
+            reserved: [0u8; 126],
             ldevid_tbs_addr: 0,
             fmcalias_tbs_addr: 0,
             pcr_log_addr: 0,
@@ -378,6 +402,7 @@ pub fn print_fht(fht: &FirmwareHandoffTable) {
     crate::cprintln!("LdevId TBS Size: {} bytes", fht.ldevid_tbs_size);
     crate::cprintln!("FmcAlias TBS Address: 0x{:08x}", fht.fmcalias_tbs_addr);
     crate::cprintln!("FmcAlias TBS Size: {} bytes", fht.fmcalias_tbs_size);
+    crate::cprintln!("RtAlias TBS Size: {} bytes", fht.rtalias_tbs_size);
     crate::cprintln!("PCR log Address: 0x{:08x}", fht.pcr_log_addr);
     crate::cprintln!("Fuse log Address: 0x{:08x}", fht.fuse_log_addr);
 }
@@ -507,6 +532,7 @@ mod tests {
             && fht.fips_fw_load_addr_hdl == FHT_INVALID_HANDLE
             && fht.ldevid_tbs_size == 0
             && fht.fmcalias_tbs_size == 0
+            && fht.rtalias_tbs_size == 0
             && fht.ldevid_tbs_addr != 0
             && fht.fmcalias_tbs_addr != 0
             && fht.pcr_log_addr != 0

@@ -14,6 +14,7 @@ use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature};
 enum CertType {
     LDevId,
     FmcAlias,
+    RtAlias,
 }
 
 pub struct GetLdevCertCmd;
@@ -80,6 +81,18 @@ pub fn copy_fmc_alias_cert(
     cert_from_dccm(dv, persistent_data, cert, CertType::FmcAlias)
 }
 
+/// Copy RT Alias certificate produced by ROM to `cert` buffer
+///
+/// Returns the number of bytes written to `cert`
+#[inline(never)]
+pub fn copy_rt_alias_cert(
+    dv: &DataVault,
+    persistent_data: &PersistentData,
+    cert: &mut [u8],
+) -> CaliptraResult<usize> {
+    cert_from_dccm(dv, persistent_data, cert, CertType::RtAlias)
+}
+
 /// Copy a certificate from `dccm_offset`, append signature, and write the
 /// output to `cert`.
 fn cert_from_dccm(
@@ -100,6 +113,12 @@ fn cert_from_dccm(
                 .fmcalias_tbs
                 .get(..persistent_data.fht.fmcalias_tbs_size.into()),
             dv.fmc_dice_signature(),
+        ),
+        CertType::RtAlias => (
+            persistent_data
+                .rtalias_tbs
+                .get(..persistent_data.fht.rtalias_tbs_size.into()),
+            persistent_data.fht.rt_dice_sign,
         ),
     };
     let Some(tbs) = tbs else {

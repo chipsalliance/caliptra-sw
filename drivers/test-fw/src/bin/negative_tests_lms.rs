@@ -436,7 +436,7 @@ fn test_failures_lms_24() {
     );
 
     assert_eq!(
-        Lms::default().verify_lms_signature(
+        Lms::default().verify_lms_signature_generic(
             &mut sha256,
             &MESSAGE,
             &LmsPublicKey {
