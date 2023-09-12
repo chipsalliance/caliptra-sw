@@ -1,6 +1,8 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_common::mailbox_api::{MailboxResp, MailboxRespHeader, QuotePcrsReq, QuotePcrsResp};
+use caliptra_common::mailbox_api::{
+    MailboxResp, MailboxRespHeader, PcrValue, QuotePcrsReq, QuotePcrsResp,
+};
 use caliptra_drivers::{hand_off::DataStore, Ecc384PrivKeyIn, KeyReadArgs};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use zerocopy::{transmute, FromBytes};
@@ -11,7 +13,7 @@ pub fn get_pcr_quote(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<
     let args: QuotePcrsReq =
         QuotePcrsReq::read_from(cmd_bytes).ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
-    let pcr_hash = drivers.sha512.gen_pcr_hash(transmute!(args.nonce))?;
+    let pcr_hash = drivers.sha512.gen_pcr_hash(args.nonce.into())?;
 
     let priv_key_datastore: DataStore = drivers
         .persistent_data
@@ -33,11 +35,21 @@ pub fn get_pcr_quote(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<
         .ecc384
         .sign(&priv_key, &pub_key, &pcr_hash, &mut drivers.trng)?;
 
-    let pcrs = drivers.pcr_bank.read_all_pcrs();
+    let raw_pcrs = drivers.pcr_bank.read_all_pcrs();
+
+    let pcrs_as_bytes = raw_pcrs
+        .iter()
+        .map(|raw_pcr_value| raw_pcr_value.into())
+        .enumerate()
+        .fold([[0; 48]; 32], |mut acc, (idx, next)| {
+            acc[idx] = next;
+
+            acc
+        });
 
     Ok(MailboxResp::QuotePcrs(QuotePcrsResp {
         hdr: MailboxRespHeader::default(),
-        pcrs,
+        pcrs: pcrs_as_bytes,
         reset_ctrs: [0; 32], // TODO: implement and return reset counters
         signature_r: signature.r.into(),
         signature_s: signature.s.into(),
