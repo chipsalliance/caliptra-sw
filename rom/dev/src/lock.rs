@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use caliptra_cfi_derive::cfi_mod_fn;
-use caliptra_common::pcr::{PCR_ID_FMC_CURRENT, PCR_ID_FMC_JOURNEY};
+use caliptra_common::pcr::{PCR_ID_FMC_CURRENT, PCR_ID_FMC_JOURNEY, PCR_ID_STASH_MEASUREMENT};
 use caliptra_drivers::{
     ColdResetEntry4, ColdResetEntry48, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
@@ -38,10 +38,10 @@ pub fn lock_registers(env: &mut RomEnv, reset_reason: ResetReason) {
         lock_common_reg_set(env);
     }
 
-    // Lock PCR0 and PCR1 from clear
-    cprintln!("[state] Locking PCR0 and PCR1");
+    cprintln!("[state] Locking PCR0, PCR1 and PCR31");
     env.pcr_bank.set_pcr_lock(PCR_ID_FMC_CURRENT);
     env.pcr_bank.set_pcr_lock(PCR_ID_FMC_JOURNEY);
+    env.pcr_bank.set_pcr_lock(PCR_ID_STASH_MEASUREMENT);
 
     cprintln!("[state] Locking ICCM");
     env.soc_ifc.set_iccm_lock(true);
