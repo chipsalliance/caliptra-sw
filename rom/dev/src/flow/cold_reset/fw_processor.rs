@@ -325,9 +325,11 @@ impl FirmwareProcessor {
     ) -> CaliptraResult<ImageVerificationInfo> {
         #[cfg(feature = "fake-rom")]
         let venv = &mut FakeRomImageVerificationEnv {
+            sha256: venv.sha256,
             sha384_acc: venv.sha384_acc,
             soc_ifc: venv.soc_ifc,
             data_vault: venv.data_vault,
+            ecc384: venv.ecc384,
         };
 
         // Random delays for CFI glitch protection.
