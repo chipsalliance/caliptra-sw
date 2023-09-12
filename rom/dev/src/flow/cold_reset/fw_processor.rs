@@ -24,7 +24,7 @@ use caliptra_common::capabilities::Capabilities;
 use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::mailbox_api::MailboxResp;
-use caliptra_common::mailbox_api::{MailboxReqHeader, StashMeasurementReq};
+use caliptra_common::mailbox_api::StashMeasurementReq;
 use caliptra_common::pcr::PCR_ID_STASH_MEASUREMENT;
 use caliptra_common::verifier::FirmwareImageVerificationEnv;
 use caliptra_common::PcrLogEntry;
@@ -252,10 +252,7 @@ impl FirmwareProcessor {
                         if measurement_count == 0 {
                             let fake_measurement = StashMeasurementReq {
                                 measurement: [0xFF; 48],
-                                hdr: MailboxReqHeader { chksum: 0 },
-                                metadata: [0u8; 4],
-                                context: [0u8; 48],
-                                svn: 0,
+                                ..Default::default()
                             };
                             Self::extend_measurement(
                                 pcr_bank,
@@ -579,13 +576,7 @@ impl FirmwareProcessor {
         txn: &mut MailboxRecvTxn,
         log_index: u32,
     ) -> CaliptraResult<()> {
-        let mut measurement = StashMeasurementReq {
-            hdr: MailboxReqHeader { chksum: 0 },
-            metadata: [0u8; 4],
-            measurement: [0u8; 48],
-            context: [0u8; 48],
-            svn: 0,
-        };
+        let mut measurement = StashMeasurementReq::default();
         if txn.dlen() as usize != measurement.as_bytes().len() {
             return Err(CaliptraError::FW_PROC_STASH_MEASUREMENT_READ_FAILURE);
         }
