@@ -113,7 +113,7 @@ pub struct PcrBank {
 }
 
 impl PcrBank {
-    const ALL_PCR_IDS: [PcrId; 32] = [
+    pub const ALL_PCR_IDS: [PcrId; 32] = [
         PcrId::PcrId0,
         PcrId::PcrId1,
         PcrId::PcrId2,

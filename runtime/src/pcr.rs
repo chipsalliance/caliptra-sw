@@ -89,10 +89,19 @@ pub fn get_pcr_quote(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<
             acc
         });
 
+    let reset_ctrs = PcrBank::ALL_PCR_IDS
+        .iter()
+        .map(|pcr_id| drivers.pcr_reset.get(*pcr_id))
+        .enumerate()
+        .fold([0; 32], |mut acc, (idx, reset_cnt)| {
+            acc[idx] = reset_cnt;
+            acc
+        });
+
     Ok(MailboxResp::QuotePcrs(QuotePcrsResp {
         hdr: MailboxRespHeader::default(),
         pcrs: pcrs_as_bytes,
-        reset_ctrs: [0; 32], // TODO: implement and return reset counters
+        reset_ctrs,
         signature_r: signature.r.into(),
         signature_s: signature.s.into(),
     }))
