@@ -166,6 +166,7 @@ fn test_fw_info() {
             info.hdr.fips_status,
             MailboxRespHeader::FIPS_STATUS_APPROVED
         );
+        assert_eq!(info.attestation_disabled, 0);
         info
     };
 
