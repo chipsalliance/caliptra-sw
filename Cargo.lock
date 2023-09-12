@@ -422,6 +422,7 @@ dependencies = [
  "caliptra-registers",
  "caliptra-test-harness-types",
  "caliptra-verilated",
+ "caliptra_common",
  "libc",
  "nix 0.26.2",
  "rand",

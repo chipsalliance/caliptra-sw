@@ -244,7 +244,11 @@ impl FirmwareProcessor {
                             measurement_count,
                         )?;
                         measurement_count += 1;
-                        txn.complete(true)?;
+
+                        // Generate and send response (with FIPS approved status)
+                        let mut resp = MailboxResp::default();
+                        resp.populate_chksum()?;
+                        txn.send_response(resp.as_bytes())?;
                     }
 
                     CommandId::FIRMWARE_LOAD => {
