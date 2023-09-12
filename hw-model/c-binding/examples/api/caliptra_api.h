@@ -5,6 +5,20 @@
 #include <stdint.h>
 #include "caliptra_model.h"
 
+typedef uint32_t caliptra_checksum;
+
+enum fips_status {
+    FIPS_STATUS_APPROVED = 0,
+};
+
+typedef struct caliptra_output {
+    caliptra_checksum chksum;
+    enum fips_status fips;
+    uint32_t data_size;
+    uint8_t data[512]; 
+}caliptra_output;
+
+
 enum DeviceLifecycle {
     Unprovisioned = 0,
     Manufacturing = 1,
@@ -12,7 +26,7 @@ enum DeviceLifecycle {
     Production = 3,
 };
 
-struct caliptra_fuses {
+typedef struct caliptra_fuses {
     uint32_t uds_seed[12];
     uint32_t field_entropy[8];
     uint32_t key_manifest_pk_hash[12];
@@ -25,7 +39,9 @@ struct caliptra_fuses {
     uint32_t idevid_cert_attr[24];
     uint32_t idevid_manuf_hsm_id[4];
     enum DeviceLifecycle life_cycle;
-};
+}caliptra_fuses;
+
+int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *fw_buffer,uint32_t statusCheckRead, struct caliptra_output *test);
 
 // Initialize Caliptra fuses prior to boot
 int caliptra_init_fuses(struct caliptra_model *model, struct caliptra_fuses *fuses);

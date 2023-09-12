@@ -170,3 +170,16 @@ int caliptra_upload_fw(struct caliptra_model *model, struct caliptra_buffer *fw_
     const uint32_t FW_LOAD_CMD_OPCODE = 0x46574C44u;
     return caliptra_mailbox_execute(model, FW_LOAD_CMD_OPCODE, fw_buffer, NULL);
 }
+
+int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *fw_buffer,uint32_t statusCheckRead, struct caliptra_output *test)
+{
+    const uint32_t OP_INVOKE_DPE_COMMAND = 0x44504543;
+    int mStatus;
+    struct caliptra_buffer out_buf = {
+        .data = (uint8_t *)test,
+        .len = sizeof(struct caliptra_output),
+    };
+    mStatus = caliptra_mailbox_execute(model,OP_INVOKE_DPE_COMMAND, fw_buffer, &out_buf);
+ 
+    return mStatus;
+}
