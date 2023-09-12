@@ -56,7 +56,7 @@ fn harness_unstructured(data: &[u8]) {
     offset += size_of::<ImageLmsSignature>();
     let input = &data[offset..];
 
-    let _result = Lms::default().verify_lms_signature(
+    let _result = Lms::default().verify_lms_signature_generic(
         &mut Sha256SoftwareDriver::new(),
         input,
         &pub_key,
