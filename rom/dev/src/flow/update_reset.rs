@@ -70,6 +70,9 @@ impl UpdateResetFlow {
         let info = okref(&info)?;
         report_boot_status(UpdateResetImageVerificationComplete.into());
 
+        // Populate data vault
+        Self::populate_data_vault(venv.data_vault, info);
+
         // Extend PCR0 and PCR1
         pcr::extend_pcrs(&mut venv, info, &mut env.persistent_data)?;
         report_boot_status(UpdateResetExtendPcrComplete.into());
@@ -78,9 +81,6 @@ impl UpdateResetFlow {
             "[update-reset] Image verified using Vendor ECC Key Index {}",
             info.vendor_ecc_pub_key_idx
         );
-
-        // Populate data vault
-        Self::populate_data_vault(venv.data_vault, info);
 
         Self::load_image(&manifest, &mut recv_txn)?;
 

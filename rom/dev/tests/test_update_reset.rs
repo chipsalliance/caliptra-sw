@@ -5,6 +5,8 @@ use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::RomBootStatus::*;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
+use caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0;
+use caliptra_image_gen::ImageGeneratorVendorConfig;
 pub mod helpers;
 
 const TEST_FMC_CMD_RESET_FOR_UPDATE: u32 = 0x1000_0004;
@@ -297,11 +299,152 @@ fn test_update_reset_boot_status() {
 
     hw.step_until_boot_status(UpdateResetLoadManifestComplete.into(), false);
     hw.step_until_boot_status(UpdateResetImageVerificationComplete.into(), false);
-    hw.step_until_boot_status(UpdateResetExtendPcrComplete.into(), false);
     hw.step_until_boot_status(UpdateResetPopulateDataVaultComplete.into(), false);
+    hw.step_until_boot_status(UpdateResetExtendPcrComplete.into(), false);
     hw.step_until_boot_status(UpdateResetLoadImageComplete.into(), false);
     hw.step_until_boot_status(UpdateResetOverwriteManifestComplete.into(), false);
     hw.step_until_boot_status(UpdateResetComplete.into(), false);
 
     hw.step_until_exit_success().unwrap();
+}
+
+#[test]
+fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
+    pub const TEST_FMC_WITH_UART: FwId = FwId {
+        crate_name: "caliptra-rom-test-fmc",
+        bin_name: "caliptra-rom-test-fmc",
+        features: &["emu"],
+        workspace_dir: None,
+    };
+
+    let fuses = Fuses::default();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let vendor_config_cold_boot = ImageGeneratorVendorConfig {
+        ecc_key_idx: 3,
+        ..VENDOR_CONFIG_KEY_0
+    };
+    let image_options = ImageOptions {
+        vendor_config: vendor_config_cold_boot,
+        ..Default::default()
+    };
+
+    let image_bundle =
+        caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)
+            .unwrap();
+
+    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        .unwrap();
+
+    hw.step_until_boot_status(ColdResetComplete.into(), true);
+
+    hw.mailbox_execute(TEST_FMC_CMD_RESET_FOR_UPDATE, &[])
+        .unwrap();
+    hw.step_until_boot_status(UpdateResetStarted.into(), true);
+
+    // Upload firmware with a different vendor ECC key index.
+    let vendor_config_update_reset = ImageGeneratorVendorConfig {
+        ecc_key_idx: 2,
+        ..VENDOR_CONFIG_KEY_0
+    };
+    let image_options = ImageOptions {
+        vendor_config: vendor_config_update_reset,
+        ..Default::default()
+    };
+
+    let image_bundle =
+        caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)
+            .unwrap();
+
+    let _ = hw.upload_firmware(&image_bundle.to_bytes().unwrap());
+
+    hw.step_until_exit_success().unwrap();
+
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_ECC_PUB_KEY_IDX_MISMATCH.into()
+    );
+}
+
+#[test]
+fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
+    pub const TEST_FMC_WITH_UART: FwId = FwId {
+        crate_name: "caliptra-rom-test-fmc",
+        bin_name: "caliptra-rom-test-fmc",
+        features: &["emu"],
+        workspace_dir: None,
+    };
+
+    let fuses = caliptra_hw_model::Fuses {
+        lms_verify: true,
+        ..Default::default()
+    };
+
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let vendor_config_cold_boot = ImageGeneratorVendorConfig {
+        lms_key_idx: 3,
+        ..VENDOR_CONFIG_KEY_0
+    };
+    let image_options = ImageOptions {
+        vendor_config: vendor_config_cold_boot,
+        ..Default::default()
+    };
+
+    let image_bundle =
+        caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)
+            .unwrap();
+
+    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        .unwrap();
+
+    hw.step_until_boot_status(ColdResetComplete.into(), true);
+
+    hw.mailbox_execute(TEST_FMC_CMD_RESET_FOR_UPDATE, &[])
+        .unwrap();
+
+    hw.step_until_boot_status(UpdateResetStarted.into(), true);
+
+    // Upload firmware with a different vendor LMS key index.
+    let vendor_config_update_reset = ImageGeneratorVendorConfig {
+        lms_key_idx: 2,
+        ..VENDOR_CONFIG_KEY_0
+    };
+    let image_options = ImageOptions {
+        vendor_config: vendor_config_update_reset,
+        ..Default::default()
+    };
+
+    let image_bundle =
+        caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)
+            .unwrap();
+
+    let _ = hw.upload_firmware(&image_bundle.to_bytes().unwrap());
+
+    hw.step_until_exit_success().unwrap();
+
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_LMS_PUB_KEY_IDX_MISMATCH.into()
+    );
 }

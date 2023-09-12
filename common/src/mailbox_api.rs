@@ -241,7 +241,19 @@ pub struct StashMeasurementReq {
     pub hdr: MailboxReqHeader,
     pub metadata: [u8; 4],
     pub measurement: [u8; 48],
+    pub context: [u8; 48],
     pub svn: u32,
+}
+impl Default for StashMeasurementReq {
+    fn default() -> Self {
+        Self {
+            hdr: Default::default(),
+            metadata: Default::default(),
+            measurement: [0u8; 48],
+            context: [0u8; 48],
+            svn: Default::default(),
+        }
+    }
 }
 
 #[repr(C)]
