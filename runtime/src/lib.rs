@@ -31,9 +31,9 @@ pub use fips::FipsShutdownCmd;
 #[cfg(feature = "fips_self_test")]
 pub use fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
 
+pub use crate::pcr::{get_pcr_quote, IncrementPcrResetCounter, PcrResetCounter};
 pub use info::{FwInfoCmd, IDevIdCertCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
-pub use pcr_reset::PcrResetCounter;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::EcdsaVerifyCmd;
 pub mod packet;
