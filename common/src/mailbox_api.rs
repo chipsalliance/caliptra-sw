@@ -244,6 +244,17 @@ pub struct StashMeasurementReq {
     pub context: [u8; 48],
     pub svn: u32,
 }
+impl Default for StashMeasurementReq {
+    fn default() -> Self {
+        Self {
+            hdr: Default::default(),
+            metadata: Default::default(),
+            measurement: [0u8; 48],
+            context: [0u8; 48],
+            svn: Default::default(),
+        }
+    }
+}
 
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
