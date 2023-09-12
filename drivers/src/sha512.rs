@@ -3,7 +3,7 @@
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::sha512::Sha512Reg;
 
-use crate::Array4x12;
+use crate::{Array4x12, Array4x8};
 
 pub struct Sha512 {
     sha512: Sha512Reg,
@@ -14,7 +14,7 @@ impl Sha512 {
         Self { sha512 }
     }
 
-    pub fn gen_pcr_hash(&mut self, nonce: [u32; 8]) -> CaliptraResult<Array4x12> {
+    pub fn gen_pcr_hash(&mut self, nonce: Array4x8) -> CaliptraResult<Array4x12> {
         let reg = self.sha512.regs_mut();
 
         let status_reg = reg.gen_pcr_hash_status();
@@ -23,7 +23,7 @@ impl Sha512 {
         while !status_reg.read().ready() {}
 
         // Write the nonce into the register
-        reg.gen_pcr_hash_nonce().write(&nonce);
+        reg.gen_pcr_hash_nonce().write(&nonce.into());
 
         // Use the start command to start the digesting process
         reg.gen_pcr_hash_ctrl().write(|ctrl| ctrl.start(true));

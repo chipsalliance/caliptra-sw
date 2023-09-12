@@ -1,6 +1,5 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_drivers::Array4x12;
 use caliptra_error::{CaliptraError, CaliptraResult};
 use core::mem::size_of;
 use zerocopy::{AsBytes, FromBytes, LayoutVerified};
@@ -227,13 +226,15 @@ pub struct QuotePcrsReq {
     pub nonce: [u8; 32],
 }
 
+pub type PcrValue = [u8; 48];
+
 /// QUOTE_PCRS output
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct QuotePcrsResp {
     pub hdr: MailboxRespHeader,
     /// The PCR values
-    pub pcrs: [Array4x12; 32],
+    pub pcrs: [PcrValue; 32],
     pub reset_ctrs: [u32; 32],
     pub signature_r: [u8; 48],
     pub signature_s: [u8; 48],
