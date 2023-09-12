@@ -17,6 +17,7 @@ impl CommandId {
     pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
     pub const DISABLE_ATTESTATION: Self = Self(0x4453424C); // "DSBL"
     pub const FW_INFO: Self = Self(0x494E464F); // "INFO"
+    pub const INCREMENT_PCR_RESET_COUNTER: Self = Self(0x50435252); // "PCRR"
 
     // TODO: Remove this and merge with GET_LDEV_CERT once that is implemented
     pub const TEST_ONLY_GET_LDEV_CERT: Self = Self(0x4345524c); // "CERL"
@@ -269,6 +270,14 @@ pub struct StashMeasurementResp {
 // DISABLE_ATTESTATION
 // No command-specific input args
 // No command-specific output args
+
+// INCREMENT_PCR_RESET_COUNTER
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct IncrementPcrResetCounterReq {
+    pub hdr: MailboxReqHeader,
+    pub index: u32,
+}
 
 // INVOKE_DPE_COMMAND
 #[repr(C)]

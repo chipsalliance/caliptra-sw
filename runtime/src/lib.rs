@@ -10,6 +10,7 @@ pub mod fips;
 pub mod handoff;
 pub mod info;
 mod invoke_dpe;
+mod pcr_reset;
 mod stash_measurement;
 mod update;
 mod verify;
@@ -31,6 +32,7 @@ pub use fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
 
 pub use info::{FwInfoCmd, IDevIdCertCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
+pub use pcr_reset::PcrResetCounter;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::EcdsaVerifyCmd;
 pub mod packet;
@@ -50,6 +52,7 @@ use dpe::{
     DPE_PROFILE,
 };
 
+use crate::pcr_reset::IncrementPcrResetCounter;
 #[cfg(feature = "test_only_commands")]
 use crate::verify::HmacVerifyCmd;
 
@@ -132,6 +135,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::GET_IDEV_CSR => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_IDEV_INFO => IDevIdInfoCmd::execute(drivers),
         CommandId::GET_LDEV_CERT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        CommandId::INCREMENT_PCR_RESET_COUNTER => {
+            IncrementPcrResetCounter::execute(drivers, cmd_bytes)
+        }
         CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes),
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers, cmd_bytes),
