@@ -109,6 +109,8 @@ impl TrngMode {
     }
 }
 
+const EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES: u64 = 40_000_000; // 40 million cycles
+
 pub struct InitParams<'a> {
     // The contents of the boot ROM
     pub rom: &'a [u8],
@@ -136,6 +138,8 @@ pub struct InitParams<'a> {
 
     // When None, use the itrng compile-time feature to decide which mode to use.
     pub trng_mode: Option<TrngMode>,
+
+    pub wdt_timeout_cycles: u64,
 }
 
 impl<'a> Default for InitParams<'a> {
@@ -164,6 +168,7 @@ impl<'a> Default for InitParams<'a> {
             itrng_nibbles,
             etrng_responses,
             trng_mode: Default::default(),
+            wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
         }
     }
 }
@@ -339,6 +344,7 @@ pub trait HwModel {
     where
         Self: Sized,
     {
+        let wdt_timeout_cycles = run_params.init_params.wdt_timeout_cycles;
         let mut hw: Self = HwModel::new_unbooted(run_params.init_params)?;
 
         hw.init_fuses(&run_params.fuses);
@@ -346,6 +352,16 @@ pub trait HwModel {
         hw.soc_ifc()
             .cptra_dbg_manuf_service_reg()
             .write(|_| run_params.initial_dbg_manuf_service_reg);
+
+        hw.soc_ifc()
+            .cptra_wdt_cfg()
+            .at(0)
+            .write(|_| wdt_timeout_cycles as u32);
+
+        hw.soc_ifc()
+            .cptra_wdt_cfg()
+            .at(1)
+            .write(|_| (wdt_timeout_cycles >> 32) as u32);
 
         writeln!(hw.output().logger(), "writing to cptra_bootfsm_go")?;
         hw.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));

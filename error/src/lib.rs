@@ -430,6 +430,8 @@ impl CaliptraError {
     pub const ROM_GLOBAL_FAKE_ROM_IN_PRODUCTION: CaliptraError =
         CaliptraError::new_const(0x0105000B);
 
+    pub const ROM_GLOBAL_WDT_EXPIRED: CaliptraError = CaliptraError::new_const(0x0105000C);
+
     /// ROM KAT Errors
     pub const ROM_KAT_SHA256_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90010001);
     pub const ROM_KAT_SHA256_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90010002);
