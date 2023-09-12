@@ -1,3 +1,5 @@
+// Licensed under the Apache-2.0 license
+
 use caliptra_common::mailbox_api::{MailboxResp, MailboxRespHeader, QuotePcrsReq, QuotePcrsResp};
 use caliptra_drivers::{hand_off::DataStore, Ecc384PrivKeyIn, KeyReadArgs};
 use caliptra_error::{CaliptraError, CaliptraResult};

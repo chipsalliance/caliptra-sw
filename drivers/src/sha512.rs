@@ -1,3 +1,5 @@
+// Licensed under the Apache-2.0 license
+
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::sha512::Sha512Reg;
 
