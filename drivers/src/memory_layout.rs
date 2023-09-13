@@ -60,9 +60,9 @@ pub const FHT_SIZE: u32 = 2 * 1024;
 pub const LDEVID_TBS_SIZE: u32 = 1024;
 pub const FMCALIAS_TBS_SIZE: u32 = 1024;
 pub const RTALIAS_TBS_SIZE: u32 = 1024;
-pub const PCR_LOG_SIZE: usize = 1024;
-pub const MEASUREMENT_LOG_SIZE: usize = 1024;
-pub const FUSE_LOG_SIZE: usize = 1024;
+pub const PCR_LOG_SIZE: u32 = 1024;
+pub const MEASUREMENT_LOG_SIZE: u32 = 1024;
+pub const FUSE_LOG_SIZE: u32 = 1024;
 pub const DATA_SIZE: u32 = 83 * 1024;
 pub const STACK_SIZE: u32 = 22 * 1024;
 pub const ESTACK_SIZE: u32 = 1024;
@@ -111,22 +111,19 @@ fn mem_layout_test_rtalias() {
 #[test]
 #[allow(clippy::assertions_on_constants)]
 fn mem_layout_test_pcr_log() {
-    assert_eq!((MEASUREMENT_LOG_ORG - PCR_LOG_ORG), PCR_LOG_SIZE as u32);
+    assert_eq!((MEASUREMENT_LOG_ORG - PCR_LOG_ORG), PCR_LOG_SIZE);
 }
 
 #[test]
 #[allow(clippy::assertions_on_constants)]
 fn mem_layout_test_measurement_log() {
-    assert_eq!(
-        (FUSE_LOG_ORG - MEASUREMENT_LOG_ORG),
-        MEASUREMENT_LOG_SIZE as u32
-    );
+    assert_eq!((FUSE_LOG_ORG - MEASUREMENT_LOG_ORG), MEASUREMENT_LOG_SIZE);
 }
 
 #[test]
 #[allow(clippy::assertions_on_constants)]
 fn mem_layout_test_fuselog() {
-    assert_eq!((BOOT_STATUS_ORG - FUSE_LOG_ORG), FUSE_LOG_SIZE as u32);
+    assert_eq!((BOOT_STATUS_ORG - FUSE_LOG_ORG), FUSE_LOG_SIZE);
 }
 
 #[test]

@@ -13,7 +13,7 @@ use caliptra_test::{
     swap_word_bytes, swap_word_bytes_inplace,
     x509::{DiceFwid, DiceTcbInfo},
 };
-use openssl::sha::sha384;
+use openssl::sha::{sha384, Sha384};
 use std::{io::Write, mem};
 use zerocopy::{AsBytes, FromBytes};
 
@@ -137,23 +137,24 @@ fn smoke_test() {
         },
     )
     .unwrap();
-    let vendor_pk_hash =
-        bytes_to_be_words_48(&sha384(image.manifest.preamble.vendor_pub_keys.as_bytes()));
-    let owner_pk_hash =
-        bytes_to_be_words_48(&sha384(image.manifest.preamble.owner_pub_keys.as_bytes()));
+    let vendor_pk_hash = sha384(image.manifest.preamble.vendor_pub_keys.as_bytes());
+    let owner_pk_hash = sha384(image.manifest.preamble.owner_pub_keys.as_bytes());
+    let vendor_pk_hash_words = bytes_to_be_words_48(&vendor_pk_hash);
+    let owner_pk_hash_words = bytes_to_be_words_48(&owner_pk_hash);
 
+    let fuses = Fuses {
+        key_manifest_pk_hash: vendor_pk_hash_words,
+        owner_pk_hash: owner_pk_hash_words,
+        fmc_key_manifest_svn: 0b1111111,
+        ..Default::default()
+    };
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
             security_state,
             ..Default::default()
         },
-        fuses: Fuses {
-            key_manifest_pk_hash: vendor_pk_hash,
-            owner_pk_hash,
-            fmc_key_manifest_svn: 0b1111111,
-            ..Default::default()
-        },
+        fuses,
         fw_image: Some(&image.to_bytes().unwrap()),
         ..Default::default()
     })
@@ -294,6 +295,17 @@ fn smoke_test() {
         String::from_utf8_lossy(&fmc_alias_cert.to_text().unwrap())
     );
 
+    let mut hasher = Sha384::new();
+    hasher.update(&[security_state.device_lifecycle() as u8]);
+    hasher.update(&[security_state.debug_locked() as u8]);
+    hasher.update(&[fuses.anti_rollback_disable as u8]);
+    hasher.update(&vendor_pk_hash);
+    hasher.update(&owner_pk_hash);
+    hasher.update(/*ecc_vendor_pk_index=*/ &[0u8]); // No keys are revoked
+    hasher.update(/*lms_vendor_pk_index=*/ &[255u8]); // Because LMS is disabled
+    hasher.update(&[fuses.lms_verify as u8]);
+    let device_info_hash = hasher.finish();
+
     let dice_tcb_info = DiceTcbInfo::find_multiple_in_cert(fmc_alias_cert_der).unwrap();
     assert_eq!(
         dice_tcb_info,
@@ -303,8 +315,13 @@ fn smoke_test() {
                 model: Some("Device".into()),
                 // This is from the SVN in the fuses (7 bits set)
                 svn: Some(0x107),
+                fwids: vec![DiceFwid {
+                    hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
+                    digest: device_info_hash.to_vec(),
+                },],
 
                 flags: Some(0x80000000),
+                ty: Some(b"DEVICE_INFO".to_vec()),
                 ..Default::default()
             },
             DiceTcbInfo {
@@ -312,20 +329,14 @@ fn smoke_test() {
                 model: Some("FMC".into()),
                 // This is from the SVN in the image (9)
                 svn: Some(0x109),
-                fwids: vec![
-                    DiceFwid {
-                        // FMC
-                        hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
-                        digest: swap_word_bytes(&image.manifest.fmc.digest)
-                            .as_bytes()
-                            .to_vec(),
-                    },
-                    DiceFwid {
-                        hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
-                        // TODO: Compute this...
-                        digest: sha384(image.manifest.preamble.owner_pub_keys.as_bytes()).to_vec(),
-                    },
-                ],
+                fwids: vec![DiceFwid {
+                    // FMC
+                    hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
+                    digest: swap_word_bytes(&image.manifest.fmc.digest)
+                        .as_bytes()
+                        .to_vec(),
+                },],
+                ty: Some(b"FMC_INFO".to_vec()),
                 ..Default::default()
             },
         ]
@@ -335,8 +346,8 @@ fn smoke_test() {
         &Pcr0::derive(&Pcr0Input {
             security_state,
             fuse_anti_rollback_disable: false,
-            vendor_pub_key_hash: vendor_pk_hash,
-            owner_pub_key_hash: owner_pk_hash,
+            vendor_pub_key_hash: vendor_pk_hash_words,
+            owner_pub_key_hash: owner_pk_hash_words,
             ecc_vendor_pub_key_index: image.manifest.preamble.vendor_ecc_pub_key_idx,
             fmc_digest: image.manifest.fmc.digest,
             fmc_svn: image.manifest.fmc.svn,
