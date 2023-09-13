@@ -26,7 +26,7 @@ set -x
         bison libfl2 libfl-dev help2man git gcc-riscv64-unknown-elf \
         binutils-riscv64-unknown-elf pkg-config libssl-dev
 
-    su runner -c "curl -o /tmp/actions-runner.tar.gz -L https://github.com/actions/runner/releases/download/v2.307.1/actions-runner-linux-x64-2.307.1.tar.gz"
+    su runner -c "curl -o /tmp/actions-runner.tar.gz -L https://github.com/actions/runner/releases/download/v2.309.0/actions-runner-linux-x64-2.309.0.tar.gz"
     su runner -c "mkdir /home/runner/actions-runner"
     su runner -c "cd /home/runner/actions-runner && tar xzf /tmp/actions-runner.tar.gz"
     rm /tmp/actions-runner.tar.gz
