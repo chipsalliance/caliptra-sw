@@ -933,6 +933,10 @@ fn test_upload_measurement_limit() {
     // Upload a 9th measurement, which should fail.
     let result = hw.upload_measurement(measurement.as_bytes());
     assert!(result.is_err());
+    assert!(matches!(
+        result.unwrap_err(),
+        ModelError::MailboxCmdFailed(_)
+    ));
 
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
