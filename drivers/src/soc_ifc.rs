@@ -14,6 +14,7 @@ Abstract:
 
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::soc_ifc::enums::DeviceLifecycleE;
+use caliptra_registers::soc_ifc::regs::CptraWdtStatusReadVal;
 use caliptra_registers::soc_ifc::{self, SocIfcReg};
 
 use crate::{memory_layout, FuseBank};
@@ -121,8 +122,17 @@ impl SocIfc {
     /// Signing Request (CSR)
     pub fn mfg_flag_gen_idev_id_csr(&mut self) -> bool {
         let soc_ifc_regs = self.soc_ifc.regs();
-        let flags: MfgFlags = soc_ifc_regs.cptra_dbg_manuf_service_reg().read().into();
+        // Lower 16 bits are for mfg flags
+        let flags: MfgFlags = (soc_ifc_regs.cptra_dbg_manuf_service_reg().read() & 0xffff).into();
         flags.contains(MfgFlags::GENERATE_IDEVID_CSR)
+    }
+
+    /// Check if verification is turned on for fake-rom
+    pub fn verify_in_fake_mode(&self) -> bool {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        let val = soc_ifc_regs.cptra_dbg_manuf_service_reg().read();
+        // Bit 31 indicates to perform verification flow in fake ROM
+        ((val >> 31) & 1) != 0
     }
 
     /// Enable or disable WDT1
@@ -152,6 +162,18 @@ impl SocIfc {
             .regs_mut()
             .cptra_wdt_timer1_en()
             .write(|w| w.timer1_en(false));
+    }
+
+    /// Get the WDT status.
+    ///
+    /// This is useful to call from a fatal-error-handling routine.
+    ///
+    ///  # Safety
+    ///
+    /// This function is safe to call from a trap handler.
+    pub unsafe fn wdt_status() -> CptraWdtStatusReadVal {
+        let soc_ifc = SocIfcReg::new();
+        soc_ifc.regs().cptra_wdt_status().read()
     }
 
     pub fn get_cycle_count(&self, seconds: u32) -> CaliptraResult<u64> {
@@ -205,6 +227,12 @@ impl SocIfc {
         soc_ifc_regs
             .cptra_wdt_timer1_ctrl()
             .write(|w| w.timer1_restart(true));
+    }
+
+    pub fn wdt1_timeout_cycle_count(&self) -> u64 {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        soc_ifc_regs.cptra_wdt_cfg().at(0).read() as u64
+            | ((soc_ifc_regs.cptra_wdt_cfg().at(1).read() as u64) << 32)
     }
 
     pub fn internal_fw_update_reset_wait_cycles(&self) -> u32 {

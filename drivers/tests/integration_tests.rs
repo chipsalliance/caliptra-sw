@@ -12,11 +12,16 @@ use caliptra_hw_model::{
 };
 use caliptra_hw_model_types::EtrngResponse;
 use caliptra_registers::mbox::enums::MboxStatusE;
+use caliptra_registers::soc_ifc::{
+    meta::{CptraItrngEntropyConfig0, CptraItrngEntropyConfig1},
+    regs::{CptraItrngEntropyConfig0WriteVal, CptraItrngEntropyConfig1WriteVal},
+};
 use caliptra_test::{
     crypto::derive_ecdsa_keypair,
     derive::{DoeInput, DoeOutput},
 };
 use openssl::{hash::MessageDigest, pkey::PKey};
+use ureg::ResettableReg;
 use zerocopy::{AsBytes, FromBytes};
 
 fn build_test_rom(test_bin_name: &'static str) -> Vec<u8> {
@@ -766,35 +771,52 @@ fn test_csrng2() {
 #[test]
 fn test_csrng_repetition_count() {
     // Tests for Repetition Count Test (RCT).
-    fn test_repcnt_finite_repeats(test_binary: &'static str, repeat: usize) {
-        test_csrng_with_nibbles(
-            test_binary,
-            Box::new({
-                // The boot-time health testing requires two consecutive windows of 2048-bits to
-                // pass or fail health tests. So let's set up our windows to begin with the
-                // repeated bits followed by known good entropy bits.
-                const NUM_TEST_WINDOW_NIBBLES: usize = 2048 / 4;
-                let num_good_entropy_nibbles = NUM_TEST_WINDOW_NIBBLES.saturating_sub(repeat + 2);
+    fn test_repcnt_finite_repeats(
+        test_binary: &'static str,
+        repeat: usize,
+        soc_repcnt_threshold: Option<CptraItrngEntropyConfig1WriteVal>,
+    ) {
+        let rom = build_test_rom(test_binary);
 
-                iter::repeat(0b1111)
-                    .take(repeat)
-                    .chain(iter::once(0b0000)) // Break repetition
-                    .chain(trng_nibbles().take(num_good_entropy_nibbles))
-                    .chain(iter::once(0b0000)) // Break repetition
-                    .cycle()
-            }),
-        );
+        let itrng_nibbles = Box::new({
+            // The boot-time health testing requires two consecutive windows of 2048-bits to
+            // pass or fail health tests. So let's set up our windows to begin with the
+            // repeated bits followed by known good entropy bits.
+            const NUM_TEST_WINDOW_NIBBLES: usize = 2048 / 4;
+            let num_good_entropy_nibbles = NUM_TEST_WINDOW_NIBBLES.saturating_sub(repeat + 2);
+
+            iter::repeat(0b1111)
+                .take(repeat)
+                .chain(iter::once(0b0000)) // Break repetition
+                .chain(trng_nibbles().take(num_good_entropy_nibbles))
+                .chain(iter::once(0b0000)) // Break repetition
+                .cycle()
+        });
+
+        let mut model = caliptra_hw_model::new(BootParams {
+            init_params: InitParams {
+                rom: &rom,
+                itrng_nibbles,
+                ..Default::default()
+            },
+            initial_repcnt_thresh_reg: soc_repcnt_threshold,
+            ..Default::default()
+        })
+        .unwrap();
+
+        model.step_until_exit_success().unwrap();
     }
-    // The following tests assumes the CSRNG driver configures the RCT threshold to 41.
+
+    // The following tests assumes the CSRNG driver will use this default threshold value.
     const THRESHOLD: usize = 41;
     const PASS: &str = "csrng_pass_health_tests";
     const FAIL: &str = "csrng_fail_repcnt_tests";
 
     // Bits that repeat up to (but excluding) the threshold times should PASS the RCT.
-    test_repcnt_finite_repeats(PASS, THRESHOLD - 1);
+    test_repcnt_finite_repeats(PASS, THRESHOLD - 1, None);
 
     // Bits that repeat at least threshold times should FAIL the RCT.
-    test_repcnt_finite_repeats(FAIL, THRESHOLD);
+    test_repcnt_finite_repeats(FAIL, THRESHOLD, None);
 
     // If at least one RNG wire has a stuck bit, RCT should fail.
     test_csrng_with_nibbles(FAIL, Box::new(iter::repeat(0b1111)));
@@ -806,6 +828,18 @@ fn test_csrng_repetition_count() {
             [0b1011, 0b1010, 0b1000, 0b0000].into_iter().cycle()
         }),
     );
+
+    {
+        // Test finite repeats again, but this time, exercise the logic to read and set thresholds from
+        // SoC registers.
+        const THRESHOLD: usize = 20;
+        let soc_repcnt_threshold = Some(
+            CptraItrngEntropyConfig1WriteVal::from(CptraItrngEntropyConfig1::RESET_VAL)
+                .repetition_count(THRESHOLD as u32),
+        );
+        test_repcnt_finite_repeats(PASS, THRESHOLD - 1, soc_repcnt_threshold);
+        test_repcnt_finite_repeats(FAIL, THRESHOLD, soc_repcnt_threshold);
+    }
 }
 
 #[test]
@@ -819,127 +853,22 @@ fn test_csrng_adaptive_proportion() {
     // range [512, 1536]. Note, inclusive bounds
     const PASS: &str = "csrng_pass_health_tests";
 
-    // 512 ones; 1536 zeroes
+    // 512 ones; 1536 zeros - should pass inclusive LO threshold.
     test_csrng_with_nibbles(
         PASS,
         Box::new({
-            const W: [u8; 512] = [
-                0b1000, 0b0000, 0b0001, 0b0000, 0b0001, 0b1000, 0b1000, 0b0010, 0b0100, 0b0000,
-                0b0101, 0b0101, 0b0010, 0b1100, 0b1001, 0b0000, 0b0001, 0b0000, 0b1111, 0b0001,
-                0b0101, 0b0000, 0b0001, 0b1011, 0b0100, 0b1000, 0b1101, 0b0000, 0b0111, 0b0001,
-                0b1110, 0b0001, 0b0000, 0b0010, 0b0000, 0b0000, 0b1010, 0b1000, 0b0011, 0b1101,
-                0b1110, 0b0100, 0b0011, 0b0000, 0b1000, 0b1000, 0b1000, 0b0011, 0b0000, 0b0100,
-                0b0000, 0b1010, 0b0010, 0b0000, 0b1000, 0b0001, 0b0000, 0b0000, 0b0000, 0b0100,
-                0b0100, 0b0000, 0b1000, 0b0000, 0b0000, 0b0000, 0b1000, 0b0100, 0b0000, 0b1000,
-                0b0100, 0b1100, 0b1001, 0b0000, 0b1011, 0b0011, 0b0100, 0b0010, 0b0000, 0b0101,
-                0b0000, 0b0000, 0b0000, 0b0000, 0b1000, 0b1101, 0b1000, 0b0001, 0b1100, 0b0000,
-                0b0010, 0b0001, 0b1000, 0b0001, 0b0010, 0b0100, 0b0111, 0b0000, 0b0000, 0b0000,
-                0b1000, 0b0000, 0b1000, 0b0100, 0b0000, 0b0100, 0b0001, 0b0000, 0b0000, 0b0000,
-                0b0001, 0b0100, 0b0010, 0b1001, 0b1111, 0b0000, 0b1100, 0b0000, 0b0000, 0b1000,
-                0b0101, 0b0101, 0b0000, 0b1000, 0b0010, 0b0100, 0b0000, 0b1000, 0b0000, 0b1000,
-                0b1000, 0b1010, 0b1010, 0b0001, 0b1010, 0b0000, 0b0111, 0b1000, 0b0011, 0b0110,
-                0b1000, 0b0100, 0b1100, 0b0000, 0b0000, 0b0001, 0b0000, 0b0000, 0b0000, 0b0000,
-                0b0010, 0b0001, 0b1000, 0b0001, 0b0110, 0b0010, 0b0110, 0b0000, 0b0000, 0b0010,
-                0b0000, 0b1100, 0b0000, 0b0000, 0b1000, 0b1100, 0b1001, 0b0001, 0b0110, 0b0100,
-                0b0000, 0b0011, 0b1000, 0b0001, 0b0010, 0b0011, 0b0000, 0b0010, 0b0100, 0b0100,
-                0b0000, 0b0011, 0b0000, 0b0100, 0b0100, 0b0101, 0b0100, 0b0101, 0b0100, 0b0100,
-                0b1001, 0b0000, 0b1000, 0b0011, 0b0110, 0b0011, 0b1111, 0b0100, 0b0001, 0b0010,
-                0b0010, 0b1000, 0b0100, 0b0001, 0b0000, 0b1000, 0b1010, 0b0110, 0b0000, 0b0001,
-                0b0001, 0b1000, 0b0000, 0b1100, 0b0100, 0b0000, 0b1000, 0b0000, 0b0000, 0b0100,
-                0b0000, 0b0101, 0b0000, 0b0001, 0b0001, 0b0000, 0b0010, 0b0001, 0b0000, 0b0000,
-                0b0101, 0b0000, 0b0010, 0b0000, 0b0000, 0b0001, 0b0100, 0b1100, 0b0101, 0b0000,
-                0b1001, 0b1000, 0b0001, 0b0000, 0b0000, 0b0101, 0b0110, 0b0001, 0b0001, 0b1000,
-                0b0110, 0b1001, 0b0100, 0b0000, 0b0010, 0b1100, 0b0101, 0b0000, 0b0000, 0b0000,
-                0b0011, 0b1010, 0b1001, 0b1010, 0b0010, 0b0000, 0b0000, 0b0101, 0b1011, 0b0001,
-                0b0010, 0b0000, 0b0000, 0b0100, 0b0100, 0b0011, 0b0000, 0b0100, 0b0110, 0b0100,
-                0b0110, 0b1110, 0b0000, 0b1100, 0b0001, 0b1000, 0b0000, 0b0001, 0b0000, 0b1101,
-                0b1000, 0b0001, 0b0010, 0b0100, 0b0001, 0b1001, 0b0001, 0b1000, 0b0000, 0b1001,
-                0b0001, 0b1101, 0b0010, 0b0110, 0b0011, 0b0011, 0b1010, 0b1000, 0b1000, 0b0000,
-                0b0000, 0b0000, 0b0000, 0b0000, 0b0100, 0b0000, 0b1001, 0b0100, 0b0001, 0b0000,
-                0b0000, 0b0001, 0b0000, 0b0000, 0b1000, 0b1100, 0b0110, 0b1001, 0b1010, 0b0100,
-                0b1100, 0b0010, 0b0001, 0b0000, 0b0001, 0b0100, 0b0011, 0b0000, 0b0000, 0b0100,
-                0b0001, 0b0001, 0b0000, 0b0000, 0b1000, 0b0001, 0b0010, 0b0000, 0b0000, 0b0001,
-                0b0100, 0b0000, 0b1011, 0b1000, 0b0011, 0b0000, 0b0000, 0b0000, 0b0001, 0b0000,
-                0b0010, 0b1000, 0b0010, 0b0100, 0b0001, 0b0000, 0b0000, 0b0100, 0b0110, 0b0000,
-                0b0111, 0b0000, 0b0100, 0b0111, 0b1000, 0b0000, 0b0011, 0b0100, 0b0100, 0b0000,
-                0b0000, 0b0000, 0b0001, 0b0010, 0b1000, 0b0000, 0b0001, 0b1000, 0b0101, 0b0000,
-                0b0000, 0b1010, 0b0100, 0b0101, 0b0010, 0b0011, 0b0100, 0b0001, 0b0000, 0b1000,
-                0b0001, 0b0000, 0b0000, 0b0000, 0b1000, 0b1000, 0b1001, 0b0000, 0b0001, 0b0010,
-                0b0001, 0b0001, 0b0000, 0b1001, 0b0000, 0b1101, 0b0100, 0b0010, 0b1010, 0b0100,
-                0b0011, 0b0000, 0b0000, 0b0000, 0b0000, 0b0010, 0b1110, 0b0010, 0b0100, 0b0100,
-                0b1000, 0b0100, 0b1010, 0b0100, 0b0000, 0b1001, 0b0000, 0b0010, 0b0000, 0b0010,
-                0b1100, 0b0100, 0b0000, 0b0000, 0b1001, 0b1000, 0b1000, 0b0001, 0b1000, 0b0100,
-                0b0000, 0b0010, 0b0000, 0b0001, 0b0000, 0b1010, 0b1100, 0b0000, 0b1010, 0b0010,
-                0b0000, 0b0100, 0b0100, 0b1101, 0b0000, 0b1001, 0b0001, 0b0001, 0b0001, 0b0001,
-                0b0100, 0b0000, 0b1100, 0b0000, 0b0000, 0b0000, 0b0010, 0b1000, 0b1010, 0b0000,
-                0b0110, 0b1001, 0b0001, 0b0100, 0b0000, 0b1101, 0b0111, 0b0100, 0b1010, 0b1001,
-                0b1000, 0b0110, 0b1000, 0b0010, 0b0001, 0b0101, 0b1000, 0b0000, 0b0000, 0b0000,
-                0b0001, 0b1010, 0b0001, 0b1000, 0b0000, 0b0001, 0b0000, 0b0100, 0b0100, 0b1000,
-                0b0100, 0b0000,
-            ];
-            W.iter().copied().chain(W)
+            const WINDOW: [u8; 512] = *include_bytes!("test_data/csrng/512_ones_1536_zeros");
+            // Boot-time health checks require testing two 2048 bit windows.
+            WINDOW.into_iter().chain(WINDOW)
         }),
     );
 
-    // 1536 ones; 512 zeroes
+    // 1536 ones; 512 zeros - should pass inclusive HI threshold.
     test_csrng_with_nibbles(
         PASS,
         Box::new({
-            const W: [u8; 512] = [
-                0b0111, 0b1111, 0b1110, 0b1111, 0b1110, 0b0111, 0b0111, 0b1101, 0b1011, 0b1111,
-                0b1010, 0b1010, 0b1101, 0b0011, 0b0110, 0b1111, 0b1110, 0b1111, 0b0000, 0b1110,
-                0b1010, 0b1111, 0b1110, 0b0100, 0b1011, 0b0111, 0b0010, 0b1111, 0b1000, 0b1110,
-                0b0001, 0b1110, 0b1111, 0b1101, 0b1111, 0b1111, 0b0101, 0b0111, 0b1100, 0b0010,
-                0b0001, 0b1011, 0b1100, 0b1111, 0b0111, 0b0111, 0b0111, 0b1100, 0b1111, 0b1011,
-                0b1111, 0b0101, 0b1101, 0b1111, 0b0111, 0b1110, 0b1111, 0b1111, 0b1111, 0b1011,
-                0b1011, 0b1111, 0b0111, 0b1111, 0b1111, 0b1111, 0b0111, 0b1011, 0b1111, 0b0111,
-                0b1011, 0b0011, 0b0110, 0b1111, 0b0100, 0b1100, 0b1011, 0b1101, 0b1111, 0b1010,
-                0b1111, 0b1111, 0b1111, 0b1111, 0b0111, 0b0010, 0b0111, 0b1110, 0b0011, 0b1111,
-                0b1101, 0b1110, 0b0111, 0b1110, 0b1101, 0b1011, 0b1000, 0b1111, 0b1111, 0b1111,
-                0b0111, 0b1111, 0b0111, 0b1011, 0b1111, 0b1011, 0b1110, 0b1111, 0b1111, 0b1111,
-                0b1110, 0b1011, 0b1101, 0b0110, 0b0000, 0b1111, 0b0011, 0b1111, 0b1111, 0b0111,
-                0b1010, 0b1010, 0b1111, 0b0111, 0b1101, 0b1011, 0b1111, 0b0111, 0b1111, 0b0111,
-                0b0111, 0b0101, 0b0101, 0b1110, 0b0101, 0b1111, 0b1000, 0b0111, 0b1100, 0b1001,
-                0b0111, 0b1011, 0b0011, 0b1111, 0b1111, 0b1110, 0b1111, 0b1111, 0b1111, 0b1111,
-                0b1101, 0b1110, 0b0111, 0b1110, 0b1001, 0b1101, 0b1001, 0b1111, 0b1111, 0b1101,
-                0b1111, 0b0011, 0b1111, 0b1111, 0b0111, 0b0011, 0b0110, 0b1110, 0b1001, 0b1011,
-                0b1111, 0b1100, 0b0111, 0b1110, 0b1101, 0b1100, 0b1111, 0b1101, 0b1011, 0b1011,
-                0b1111, 0b1100, 0b1111, 0b1011, 0b1011, 0b1010, 0b1011, 0b1010, 0b1011, 0b1011,
-                0b0110, 0b1111, 0b0111, 0b1100, 0b1001, 0b1100, 0b0000, 0b1011, 0b1110, 0b1101,
-                0b1101, 0b0111, 0b1011, 0b1110, 0b1111, 0b0111, 0b0101, 0b1001, 0b1111, 0b1110,
-                0b1110, 0b0111, 0b1111, 0b0011, 0b1011, 0b1111, 0b0111, 0b1111, 0b1111, 0b1011,
-                0b1111, 0b1010, 0b1111, 0b1110, 0b1110, 0b1111, 0b1101, 0b1110, 0b1111, 0b1111,
-                0b1010, 0b1111, 0b1101, 0b1111, 0b1111, 0b1110, 0b1011, 0b0011, 0b1010, 0b1111,
-                0b0110, 0b0111, 0b1110, 0b1111, 0b1111, 0b1010, 0b1001, 0b1110, 0b1110, 0b0111,
-                0b1001, 0b0110, 0b1011, 0b1111, 0b1101, 0b0011, 0b1010, 0b1111, 0b1111, 0b1111,
-                0b1100, 0b0101, 0b0110, 0b0101, 0b1101, 0b1111, 0b1111, 0b1010, 0b0100, 0b1110,
-                0b1101, 0b1111, 0b1111, 0b1011, 0b1011, 0b1100, 0b1111, 0b1011, 0b1001, 0b1011,
-                0b1001, 0b0001, 0b1111, 0b0011, 0b1110, 0b0111, 0b1111, 0b1110, 0b1111, 0b0010,
-                0b0111, 0b1110, 0b1101, 0b1011, 0b1110, 0b0110, 0b1110, 0b0111, 0b1111, 0b0110,
-                0b1110, 0b0010, 0b1101, 0b1001, 0b1100, 0b1100, 0b0101, 0b0111, 0b0111, 0b1111,
-                0b1111, 0b1111, 0b1111, 0b1111, 0b1011, 0b1111, 0b0110, 0b1011, 0b1110, 0b1111,
-                0b1111, 0b1110, 0b1111, 0b1111, 0b0111, 0b0011, 0b1001, 0b0110, 0b0101, 0b1011,
-                0b0011, 0b1101, 0b1110, 0b1111, 0b1110, 0b1011, 0b1100, 0b1111, 0b1111, 0b1011,
-                0b1110, 0b1110, 0b1111, 0b1111, 0b0111, 0b1110, 0b1101, 0b1111, 0b1111, 0b1110,
-                0b1011, 0b1111, 0b0100, 0b0111, 0b1100, 0b1111, 0b1111, 0b1111, 0b1110, 0b1111,
-                0b1101, 0b0111, 0b1101, 0b1011, 0b1110, 0b1111, 0b1111, 0b1011, 0b1001, 0b1111,
-                0b1000, 0b1111, 0b1011, 0b1000, 0b0111, 0b1111, 0b1100, 0b1011, 0b1011, 0b1111,
-                0b1111, 0b1111, 0b1110, 0b1101, 0b0111, 0b1111, 0b1110, 0b0111, 0b1010, 0b1111,
-                0b1111, 0b0101, 0b1011, 0b1010, 0b1101, 0b1100, 0b1011, 0b1110, 0b1111, 0b0111,
-                0b1110, 0b1111, 0b1111, 0b1111, 0b0111, 0b0111, 0b0110, 0b1111, 0b1110, 0b1101,
-                0b1110, 0b1110, 0b1111, 0b0110, 0b1111, 0b0010, 0b1011, 0b1101, 0b0101, 0b1011,
-                0b1100, 0b1111, 0b1111, 0b1111, 0b1111, 0b1101, 0b0001, 0b1101, 0b1011, 0b1011,
-                0b0111, 0b1011, 0b0101, 0b1011, 0b1111, 0b0110, 0b1111, 0b1101, 0b1111, 0b1101,
-                0b0011, 0b1011, 0b1111, 0b1111, 0b0110, 0b0111, 0b0111, 0b1110, 0b0111, 0b1011,
-                0b1111, 0b1101, 0b1111, 0b1110, 0b1111, 0b0101, 0b0011, 0b1111, 0b0101, 0b1101,
-                0b1111, 0b1011, 0b1011, 0b0010, 0b1111, 0b0110, 0b1110, 0b1110, 0b1110, 0b1110,
-                0b1011, 0b1111, 0b0011, 0b1111, 0b1111, 0b1111, 0b1101, 0b0111, 0b0101, 0b1111,
-                0b1001, 0b0110, 0b1110, 0b1011, 0b1111, 0b0010, 0b1000, 0b1011, 0b0101, 0b0110,
-                0b0111, 0b1001, 0b0111, 0b1101, 0b1110, 0b1010, 0b0111, 0b1111, 0b1111, 0b1111,
-                0b1110, 0b0101, 0b1110, 0b0111, 0b1111, 0b1110, 0b1111, 0b1011, 0b1011, 0b0111,
-                0b1011, 0b1111,
-            ];
-            W.iter().copied().chain(W)
+            const WINDOW: [u8; 512] = *include_bytes!("test_data/csrng/1536_ones_512_zeros");
+            WINDOW.into_iter().chain(WINDOW)
         }),
     );
 
@@ -947,129 +876,63 @@ fn test_csrng_adaptive_proportion() {
     // the HI threshold.
     const FAIL: &str = "csrng_fail_adaptp_tests";
 
-    // 511 ones; 1537 zeroes; should fail LO threshold.
+    // 511 ones; 1537 zeros - should fail LO threshold.
     test_csrng_with_nibbles(
         FAIL,
         Box::new({
-            const W: [u8; 512] = [
-                0b0000, 0b0000, 0b0001, 0b0000, 0b0001, 0b1000, 0b1000, 0b0010, 0b0100, 0b0000,
-                0b0101, 0b0101, 0b0010, 0b1100, 0b1001, 0b0000, 0b0001, 0b0000, 0b1111, 0b0001,
-                0b0101, 0b0000, 0b0001, 0b1011, 0b0100, 0b1000, 0b1101, 0b0000, 0b0111, 0b0001,
-                0b1110, 0b0001, 0b0000, 0b0010, 0b0000, 0b0000, 0b1010, 0b1000, 0b0011, 0b1101,
-                0b1110, 0b0100, 0b0011, 0b0000, 0b1000, 0b1000, 0b1000, 0b0011, 0b0000, 0b0100,
-                0b0000, 0b1010, 0b0010, 0b0000, 0b1000, 0b0001, 0b0000, 0b0000, 0b0000, 0b0100,
-                0b0100, 0b0000, 0b1000, 0b0000, 0b0000, 0b0000, 0b1000, 0b0100, 0b0000, 0b1000,
-                0b0100, 0b1100, 0b1001, 0b0000, 0b1011, 0b0011, 0b0100, 0b0010, 0b0000, 0b0101,
-                0b0000, 0b0000, 0b0000, 0b0000, 0b1000, 0b1101, 0b1000, 0b0001, 0b1100, 0b0000,
-                0b0010, 0b0001, 0b1000, 0b0001, 0b0010, 0b0100, 0b0111, 0b0000, 0b0000, 0b0000,
-                0b1000, 0b0000, 0b1000, 0b0100, 0b0000, 0b0100, 0b0001, 0b0000, 0b0000, 0b0000,
-                0b0001, 0b0100, 0b0010, 0b1001, 0b1111, 0b0000, 0b1100, 0b0000, 0b0000, 0b1000,
-                0b0101, 0b0101, 0b0000, 0b1000, 0b0010, 0b0100, 0b0000, 0b1000, 0b0000, 0b1000,
-                0b1000, 0b1010, 0b1010, 0b0001, 0b1010, 0b0000, 0b0111, 0b1000, 0b0011, 0b0110,
-                0b1000, 0b0100, 0b1100, 0b0000, 0b0000, 0b0001, 0b0000, 0b0000, 0b0000, 0b0000,
-                0b0010, 0b0001, 0b1000, 0b0001, 0b0110, 0b0010, 0b0110, 0b0000, 0b0000, 0b0010,
-                0b0000, 0b1100, 0b0000, 0b0000, 0b1000, 0b1100, 0b1001, 0b0001, 0b0110, 0b0100,
-                0b0000, 0b0011, 0b1000, 0b0001, 0b0010, 0b0011, 0b0000, 0b0010, 0b0100, 0b0100,
-                0b0000, 0b0011, 0b0000, 0b0100, 0b0100, 0b0101, 0b0100, 0b0101, 0b0100, 0b0100,
-                0b1001, 0b0000, 0b1000, 0b0011, 0b0110, 0b0011, 0b1111, 0b0100, 0b0001, 0b0010,
-                0b0010, 0b1000, 0b0100, 0b0001, 0b0000, 0b1000, 0b1010, 0b0110, 0b0000, 0b0001,
-                0b0001, 0b1000, 0b0000, 0b1100, 0b0100, 0b0000, 0b1000, 0b0000, 0b0000, 0b0100,
-                0b0000, 0b0101, 0b0000, 0b0001, 0b0001, 0b0000, 0b0010, 0b0001, 0b0000, 0b0000,
-                0b0101, 0b0000, 0b0010, 0b0000, 0b0000, 0b0001, 0b0100, 0b1100, 0b0101, 0b0000,
-                0b1001, 0b1000, 0b0001, 0b0000, 0b0000, 0b0101, 0b0110, 0b0001, 0b0001, 0b1000,
-                0b0110, 0b1001, 0b0100, 0b0000, 0b0010, 0b1100, 0b0101, 0b0000, 0b0000, 0b0000,
-                0b0011, 0b1010, 0b1001, 0b1010, 0b0010, 0b0000, 0b0000, 0b0101, 0b1011, 0b0001,
-                0b0010, 0b0000, 0b0000, 0b0100, 0b0100, 0b0011, 0b0000, 0b0100, 0b0110, 0b0100,
-                0b0110, 0b1110, 0b0000, 0b1100, 0b0001, 0b1000, 0b0000, 0b0001, 0b0000, 0b1101,
-                0b1000, 0b0001, 0b0010, 0b0100, 0b0001, 0b1001, 0b0001, 0b1000, 0b0000, 0b1001,
-                0b0001, 0b1101, 0b0010, 0b0110, 0b0011, 0b0011, 0b1010, 0b1000, 0b1000, 0b0000,
-                0b0000, 0b0000, 0b0000, 0b0000, 0b0100, 0b0000, 0b1001, 0b0100, 0b0001, 0b0000,
-                0b0000, 0b0001, 0b0000, 0b0000, 0b1000, 0b1100, 0b0110, 0b1001, 0b1010, 0b0100,
-                0b1100, 0b0010, 0b0001, 0b0000, 0b0001, 0b0100, 0b0011, 0b0000, 0b0000, 0b0100,
-                0b0001, 0b0001, 0b0000, 0b0000, 0b1000, 0b0001, 0b0010, 0b0000, 0b0000, 0b0001,
-                0b0100, 0b0000, 0b1011, 0b1000, 0b0011, 0b0000, 0b0000, 0b0000, 0b0001, 0b0000,
-                0b0010, 0b1000, 0b0010, 0b0100, 0b0001, 0b0000, 0b0000, 0b0100, 0b0110, 0b0000,
-                0b0111, 0b0000, 0b0100, 0b0111, 0b1000, 0b0000, 0b0011, 0b0100, 0b0100, 0b0000,
-                0b0000, 0b0000, 0b0001, 0b0010, 0b1000, 0b0000, 0b0001, 0b1000, 0b0101, 0b0000,
-                0b0000, 0b1010, 0b0100, 0b0101, 0b0010, 0b0011, 0b0100, 0b0001, 0b0000, 0b1000,
-                0b0001, 0b0000, 0b0000, 0b0000, 0b1000, 0b1000, 0b1001, 0b0000, 0b0001, 0b0010,
-                0b0001, 0b0001, 0b0000, 0b1001, 0b0000, 0b1101, 0b0100, 0b0010, 0b1010, 0b0100,
-                0b0011, 0b0000, 0b0000, 0b0000, 0b0000, 0b0010, 0b1110, 0b0010, 0b0100, 0b0100,
-                0b1000, 0b0100, 0b1010, 0b0100, 0b0000, 0b1001, 0b0000, 0b0010, 0b0000, 0b0010,
-                0b1100, 0b0100, 0b0000, 0b0000, 0b1001, 0b1000, 0b1000, 0b0001, 0b1000, 0b0100,
-                0b0000, 0b0010, 0b0000, 0b0001, 0b0000, 0b1010, 0b1100, 0b0000, 0b1010, 0b0010,
-                0b0000, 0b0100, 0b0100, 0b1101, 0b0000, 0b1001, 0b0001, 0b0001, 0b0001, 0b0001,
-                0b0100, 0b0000, 0b1100, 0b0000, 0b0000, 0b0000, 0b0010, 0b1000, 0b1010, 0b0000,
-                0b0110, 0b1001, 0b0001, 0b0100, 0b0000, 0b1101, 0b0111, 0b0100, 0b1010, 0b1001,
-                0b1000, 0b0110, 0b1000, 0b0010, 0b0001, 0b0101, 0b1000, 0b0000, 0b0000, 0b0000,
-                0b0001, 0b1010, 0b0001, 0b1000, 0b0000, 0b0001, 0b0000, 0b0100, 0b0100, 0b1000,
-                0b0100, 0b0000,
-            ];
-            W.iter().copied().chain(W)
+            const WINDOW: [u8; 512] = *include_bytes!("test_data/csrng/511_ones_1537_zeros");
+            WINDOW.into_iter().chain(WINDOW)
         }),
     );
 
-    // 1537 ones; 511 zeroes; should fail HI threshold.
+    // 1537 ones; 511 zeros - should fail HI threshold.
     test_csrng_with_nibbles(
         FAIL,
         Box::new({
-            const W: [u8; 512] = [
-                0b1111, 0b1111, 0b1110, 0b1111, 0b1110, 0b0111, 0b0111, 0b1101, 0b1011, 0b1111,
-                0b1010, 0b1010, 0b1101, 0b0011, 0b0110, 0b1111, 0b1110, 0b1111, 0b0000, 0b1110,
-                0b1010, 0b1111, 0b1110, 0b0100, 0b1011, 0b0111, 0b0010, 0b1111, 0b1000, 0b1110,
-                0b0001, 0b1110, 0b1111, 0b1101, 0b1111, 0b1111, 0b0101, 0b0111, 0b1100, 0b0010,
-                0b0001, 0b1011, 0b1100, 0b1111, 0b0111, 0b0111, 0b0111, 0b1100, 0b1111, 0b1011,
-                0b1111, 0b0101, 0b1101, 0b1111, 0b0111, 0b1110, 0b1111, 0b1111, 0b1111, 0b1011,
-                0b1011, 0b1111, 0b0111, 0b1111, 0b1111, 0b1111, 0b0111, 0b1011, 0b1111, 0b0111,
-                0b1011, 0b0011, 0b0110, 0b1111, 0b0100, 0b1100, 0b1011, 0b1101, 0b1111, 0b1010,
-                0b1111, 0b1111, 0b1111, 0b1111, 0b0111, 0b0010, 0b0111, 0b1110, 0b0011, 0b1111,
-                0b1101, 0b1110, 0b0111, 0b1110, 0b1101, 0b1011, 0b1000, 0b1111, 0b1111, 0b1111,
-                0b0111, 0b1111, 0b0111, 0b1011, 0b1111, 0b1011, 0b1110, 0b1111, 0b1111, 0b1111,
-                0b1110, 0b1011, 0b1101, 0b0110, 0b0000, 0b1111, 0b0011, 0b1111, 0b1111, 0b0111,
-                0b1010, 0b1010, 0b1111, 0b0111, 0b1101, 0b1011, 0b1111, 0b0111, 0b1111, 0b0111,
-                0b0111, 0b0101, 0b0101, 0b1110, 0b0101, 0b1111, 0b1000, 0b0111, 0b1100, 0b1001,
-                0b0111, 0b1011, 0b0011, 0b1111, 0b1111, 0b1110, 0b1111, 0b1111, 0b1111, 0b1111,
-                0b1101, 0b1110, 0b0111, 0b1110, 0b1001, 0b1101, 0b1001, 0b1111, 0b1111, 0b1101,
-                0b1111, 0b0011, 0b1111, 0b1111, 0b0111, 0b0011, 0b0110, 0b1110, 0b1001, 0b1011,
-                0b1111, 0b1100, 0b0111, 0b1110, 0b1101, 0b1100, 0b1111, 0b1101, 0b1011, 0b1011,
-                0b1111, 0b1100, 0b1111, 0b1011, 0b1011, 0b1010, 0b1011, 0b1010, 0b1011, 0b1011,
-                0b0110, 0b1111, 0b0111, 0b1100, 0b1001, 0b1100, 0b0000, 0b1011, 0b1110, 0b1101,
-                0b1101, 0b0111, 0b1011, 0b1110, 0b1111, 0b0111, 0b0101, 0b1001, 0b1111, 0b1110,
-                0b1110, 0b0111, 0b1111, 0b0011, 0b1011, 0b1111, 0b0111, 0b1111, 0b1111, 0b1011,
-                0b1111, 0b1010, 0b1111, 0b1110, 0b1110, 0b1111, 0b1101, 0b1110, 0b1111, 0b1111,
-                0b1010, 0b1111, 0b1101, 0b1111, 0b1111, 0b1110, 0b1011, 0b0011, 0b1010, 0b1111,
-                0b0110, 0b0111, 0b1110, 0b1111, 0b1111, 0b1010, 0b1001, 0b1110, 0b1110, 0b0111,
-                0b1001, 0b0110, 0b1011, 0b1111, 0b1101, 0b0011, 0b1010, 0b1111, 0b1111, 0b1111,
-                0b1100, 0b0101, 0b0110, 0b0101, 0b1101, 0b1111, 0b1111, 0b1010, 0b0100, 0b1110,
-                0b1101, 0b1111, 0b1111, 0b1011, 0b1011, 0b1100, 0b1111, 0b1011, 0b1001, 0b1011,
-                0b1001, 0b0001, 0b1111, 0b0011, 0b1110, 0b0111, 0b1111, 0b1110, 0b1111, 0b0010,
-                0b0111, 0b1110, 0b1101, 0b1011, 0b1110, 0b0110, 0b1110, 0b0111, 0b1111, 0b0110,
-                0b1110, 0b0010, 0b1101, 0b1001, 0b1100, 0b1100, 0b0101, 0b0111, 0b0111, 0b1111,
-                0b1111, 0b1111, 0b1111, 0b1111, 0b1011, 0b1111, 0b0110, 0b1011, 0b1110, 0b1111,
-                0b1111, 0b1110, 0b1111, 0b1111, 0b0111, 0b0011, 0b1001, 0b0110, 0b0101, 0b1011,
-                0b0011, 0b1101, 0b1110, 0b1111, 0b1110, 0b1011, 0b1100, 0b1111, 0b1111, 0b1011,
-                0b1110, 0b1110, 0b1111, 0b1111, 0b0111, 0b1110, 0b1101, 0b1111, 0b1111, 0b1110,
-                0b1011, 0b1111, 0b0100, 0b0111, 0b1100, 0b1111, 0b1111, 0b1111, 0b1110, 0b1111,
-                0b1101, 0b0111, 0b1101, 0b1011, 0b1110, 0b1111, 0b1111, 0b1011, 0b1001, 0b1111,
-                0b1000, 0b1111, 0b1011, 0b1000, 0b0111, 0b1111, 0b1100, 0b1011, 0b1011, 0b1111,
-                0b1111, 0b1111, 0b1110, 0b1101, 0b0111, 0b1111, 0b1110, 0b0111, 0b1010, 0b1111,
-                0b1111, 0b0101, 0b1011, 0b1010, 0b1101, 0b1100, 0b1011, 0b1110, 0b1111, 0b0111,
-                0b1110, 0b1111, 0b1111, 0b1111, 0b0111, 0b0111, 0b0110, 0b1111, 0b1110, 0b1101,
-                0b1110, 0b1110, 0b1111, 0b0110, 0b1111, 0b0010, 0b1011, 0b1101, 0b0101, 0b1011,
-                0b1100, 0b1111, 0b1111, 0b1111, 0b1111, 0b1101, 0b0001, 0b1101, 0b1011, 0b1011,
-                0b0111, 0b1011, 0b0101, 0b1011, 0b1111, 0b0110, 0b1111, 0b1101, 0b1111, 0b1101,
-                0b0011, 0b1011, 0b1111, 0b1111, 0b0110, 0b0111, 0b0111, 0b1110, 0b0111, 0b1011,
-                0b1111, 0b1101, 0b1111, 0b1110, 0b1111, 0b0101, 0b0011, 0b1111, 0b0101, 0b1101,
-                0b1111, 0b1011, 0b1011, 0b0010, 0b1111, 0b0110, 0b1110, 0b1110, 0b1110, 0b1110,
-                0b1011, 0b1111, 0b0011, 0b1111, 0b1111, 0b1111, 0b1101, 0b0111, 0b0101, 0b1111,
-                0b1001, 0b0110, 0b1110, 0b1011, 0b1111, 0b0010, 0b1000, 0b1011, 0b0101, 0b0110,
-                0b0111, 0b1001, 0b0111, 0b1101, 0b1110, 0b1010, 0b0111, 0b1111, 0b1111, 0b1111,
-                0b1110, 0b0101, 0b1110, 0b0111, 0b1111, 0b1110, 0b1111, 0b1011, 0b1011, 0b0111,
-                0b1011, 0b1111,
-            ];
-            W.iter().copied().chain(W)
+            const WINDOW: [u8; 512] = *include_bytes!("test_data/csrng/1537_ones_511_zeros");
+            WINDOW.into_iter().chain(WINDOW)
         }),
     );
+
+    // Test the logic of reading thresholds from SoC registers.
+    // The SoC will set the HI and LO thresholds to 1224 and 824 respectively (+- 200 of 1024,
+    // which is half the test window size).
+    fn test_with_soc_threshold(test_binary: &'static str, window: &'static [u8; 512]) {
+        const HI_THRESHOLD: u32 = 1224;
+        const LO_THRESHOLD: u32 = 824;
+
+        let rom = build_test_rom(test_binary);
+        let itrng_nibbles = Box::new(window.iter().chain(window).copied());
+        let threshold_reg =
+            CptraItrngEntropyConfig0WriteVal::from(CptraItrngEntropyConfig0::RESET_VAL)
+                .high_threshold(HI_THRESHOLD)
+                .low_threshold(LO_THRESHOLD);
+
+        let mut model = caliptra_hw_model::new(BootParams {
+            init_params: InitParams {
+                rom: &rom,
+                itrng_nibbles,
+                ..Default::default()
+            },
+            initial_adaptp_thresh_reg: Some(threshold_reg),
+            ..Default::default()
+        })
+        .unwrap();
+
+        model.step_until_exit_success().unwrap();
+    }
+
+    // 824 ones; 1224 zeros - should pass inclusive LO threshold.
+    test_with_soc_threshold(PASS, include_bytes!("test_data/csrng/824_ones_1224_zeros"));
+
+    // 1224 ones; 824 zeros - should pass inclusive HI threshold.
+    test_with_soc_threshold(PASS, include_bytes!("test_data/csrng/1224_ones_824_zeros"));
+
+    // 823 ones; 1225 zeros - should fail LO threshold.
+    test_with_soc_threshold(FAIL, include_bytes!("test_data/csrng/823_ones_1225_zeros"));
+
+    // 1225 ones; 823 zeros - should fail HI threshold.
+    test_with_soc_threshold(FAIL, include_bytes!("test_data/csrng/1225_ones_823_zeros"));
 }
 
 #[test]
