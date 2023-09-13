@@ -1,0 +1,157 @@
+name: Fuzz Testing PR
+on:
+  pull_request:
+  workflow_dispatch:
+
+
+jobs:
+  image_verify_seed_corpus:
+    name: Build Image Verifier seed corpus
+    runs-on: ubuntu-22.04
+
+    env:
+      # Change this to a new random value if you suspect the cache is corrupted
+      CACHE_BUSTER: 6542f37bb328
+
+    steps:
+      - name: Restore seed corpus
+        uses: actions/cache/restore@v3
+        id: image_bundle_restore
+        with:
+          path: ./image/verify/fuzz/common_corpus/
+          key: image_verify-common_corpus-${{ env.CACHE_BUSTER }}
+
+      - name: Build seed corpus
+        if: steps.image_bundle_restore.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p image/verify/fuzz/common_corpus
+          for x in $(seq 01 04); do
+            cargo run -j$(nproc) --manifest-path=builder/Cargo.toml --release --bin image -- --rom elf2rom_built.rom --fw caliptra-builder_built_fw.bundle; \
+            mv caliptra-builder_built_fw.bundle image/verify/fuzz/common_corpus/${x}; \
+            rm elf2rom_built.rom; cargo clean; \
+          done
+
+      - name: Save seed corpus
+        uses: actions/cache/save@v3
+        if: steps.image_bundle_restore.outputs.cache-hit != 'true'
+        with:
+          path: ./image/verify/fuzz/common_corpus/
+          key: image_verify-common_corpus-${{ env.CACHE_BUSTER }}
+
+  dpe_libfuzzer:
+    uses: ./.github/workflows/reusable-libfuzzer.yml
+    with:
+      name: dpe
+      fuzz_target_path: dpe/dpe/fuzz
+      fuzz_target_name: fuzz_target_1
+      fuzz_target_max_len: 512
+      fuzzer_features:
+      fuzzer_sanitiser: address
+
+  dpe_afl:
+    uses: ./.github/workflows/reusable-aflplusplus.yml
+    with:
+      name: dpe
+      fuzz_target_path: dpe/dpe/fuzz
+      fuzz_target_name: fuzz_target_1
+      fuzz_target_max_len: 512
+      fuzzer_features:
+
+  image_verify_libfuzzer_unstructured:
+    needs: image_verify_seed_corpus
+    uses: ./.github/workflows/reusable-libfuzzer.yml
+    with:
+      name: image_verify
+      fuzz_target_path: image/verify/fuzz
+      fuzz_target_name: fuzz_target_coldreset
+      fuzz_target_max_len: 23692
+      fuzzer_features:
+      fuzzer_sanitiser: address
+
+  image_verify_libfuzzer_structured:
+    needs: image_verify_seed_corpus
+    uses: ./.github/workflows/reusable-libfuzzer.yml
+    with:
+      name: image_verify
+      fuzz_target_path: image/verify/fuzz
+      fuzz_target_name: fuzz_target_coldreset
+      fuzz_target_max_len: 23692
+      fuzzer_features: struct-aware
+      fuzzer_sanitiser: address
+
+  image_verify_afl_unstructured:
+    needs: image_verify_seed_corpus
+    uses: ./.github/workflows/reusable-aflplusplus.yml
+    with:
+      name: image_verify
+      fuzz_target_path: image/verify/fuzz
+      fuzz_target_name: fuzz_target_coldreset
+      fuzz_target_max_len: 23692
+      fuzzer_features:
+
+  image_verify_afl_structured:
+    needs: image_verify_seed_corpus
+    uses: ./.github/workflows/reusable-aflplusplus.yml
+    with:
+      name: image_verify
+      fuzz_target_path: image/verify/fuzz
+      fuzz_target_name: fuzz_target_coldreset
+      fuzz_target_max_len: 23692
+      fuzzer_features: struct-aware
+
+  lms_libfuzzer_unstructured:
+    uses: ./.github/workflows/reusable-libfuzzer.yml
+    with:
+      name: lms
+      fuzz_target_path: drivers/fuzz
+      fuzz_target_name: fuzz_target_lms
+      fuzz_target_max_len: 16384
+      fuzzer_features:
+      fuzzer_sanitiser: address
+
+  lms_libfuzzer_structured:
+    uses: ./.github/workflows/reusable-libfuzzer.yml
+    with:
+      name: lms
+      fuzz_target_path: drivers/fuzz
+      fuzz_target_name: fuzz_target_lms
+      fuzz_target_max_len: 16384
+      fuzzer_features: struct-aware
+      fuzzer_sanitiser: address
+
+  lms_afl_unstructured:
+    uses: ./.github/workflows/reusable-aflplusplus.yml
+    with:
+      name: lms
+      fuzz_target_path: drivers/fuzz
+      fuzz_target_name: fuzz_target_lms
+      fuzz_target_max_len: 16384
+      fuzzer_features:
+
+  lms_afl_structured:
+    uses: ./.github/workflows/reusable-aflplusplus.yml
+    with:
+      name: lms
+      fuzz_target_path: drivers/fuzz
+      fuzz_target_name: fuzz_target_lms
+      fuzz_target_max_len: 16384
+      fuzzer_features: struct-aware
+
+  x509_libfuzzer:
+    uses: ./.github/workflows/reusable-libfuzzer.yml
+    with:
+      name: x509
+      fuzz_target_path: x509/fuzz
+      fuzz_target_name: fuzz_target_1
+      fuzz_target_max_len: 8192
+      fuzzer_features:
+      fuzzer_sanitiser: address
+
+  x509_afl:
+    uses: ./.github/workflows/reusable-aflplusplus.yml
+    with:
+      name: x509
+      fuzz_target_path: x509/fuzz
+      fuzz_target_name: fuzz_target_1
+      fuzz_target_max_len: 8192
+      fuzzer_features:
