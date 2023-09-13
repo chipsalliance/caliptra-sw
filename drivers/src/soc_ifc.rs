@@ -14,7 +14,6 @@ Abstract:
 
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::soc_ifc::enums::DeviceLifecycleE;
-use caliptra_registers::soc_ifc::regs::CptraWdtStatusReadVal;
 use caliptra_registers::soc_ifc::{self, SocIfcReg};
 
 use crate::{memory_layout, FuseBank};
@@ -162,18 +161,6 @@ impl SocIfc {
             .regs_mut()
             .cptra_wdt_timer1_en()
             .write(|w| w.timer1_en(false));
-    }
-
-    /// Get the WDT status.
-    ///
-    /// This is useful to call from a fatal-error-handling routine.
-    ///
-    ///  # Safety
-    ///
-    /// This function is safe to call from a trap handler.
-    pub unsafe fn wdt_status() -> CptraWdtStatusReadVal {
-        let soc_ifc = SocIfcReg::new();
-        soc_ifc.regs().cptra_wdt_status().read()
     }
 
     pub fn get_cycle_count(&self, seconds: u32) -> CaliptraResult<u64> {
