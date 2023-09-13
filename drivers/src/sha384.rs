@@ -137,8 +137,16 @@ impl Sha384 {
         Array4x12::read_from_reg(sha.digest().truncate::<12>())
     }
 
-    pub fn pcr_extend(&mut self, id: PcrId, data: &[u8]) -> CaliptraResult<()> {
-        let total_bytes = data.len() + SHA384_HASH_SIZE;
+    /// Extend data to PCR
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - ID of PCR to extend
+    /// * `data0` - First data block to extend
+    /// * `data1` - Second data block to extend; concatenated with data0
+    pub fn pcr_extend(&mut self, id: PcrId, data0: &[u8], data1: &[u8]) -> CaliptraResult<()> {
+        let bytes_with_data0 = SHA384_HASH_SIZE + data0.len();
+        let total_bytes = bytes_with_data0 + data1.len();
         if total_bytes > (SHA384_BLOCK_BYTE_SIZE - 1) {
             return Err(CaliptraError::DRIVER_SHA384_MAX_DATA_ERR);
         }
@@ -156,7 +164,8 @@ impl Sha384 {
         if SHA384_HASH_SIZE > total_bytes || total_bytes > block.len() {
             return Err(CaliptraError::DRIVER_SHA384_MAX_DATA_ERR);
         }
-        block[SHA384_HASH_SIZE..total_bytes].copy_from_slice(data);
+        block[SHA384_HASH_SIZE..bytes_with_data0].copy_from_slice(data0);
+        block[bytes_with_data0..total_bytes].copy_from_slice(data1);
 
         if let Some(slice) = block.get(..total_bytes) {
             self.digest_partial_block(slice, true, total_bytes)?;

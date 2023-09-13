@@ -320,27 +320,33 @@ pub struct Pcr0(pub [u32; 12]);
 impl Pcr0 {
     pub fn derive(input: &Pcr0Input) -> Self {
         let mut value = [0u8; 48];
-        let extend = |value: &mut [u8; 48], buf: &[u8]| {
-            *value = sha384(&[value.as_slice(), buf].concat());
+        let extend = |value: &mut [u8; 48], entry_id: u16, buf: &[u8]| {
+            *value = sha384(&[value.as_slice(), entry_id.to_be().as_bytes(), buf].concat());
         };
 
-        extend(&mut value, &[input.security_state.device_lifecycle() as u8]);
-        extend(&mut value, &[input.security_state.debug_locked() as u8]);
-        extend(&mut value, &[input.fuse_anti_rollback_disable as u8]);
         extend(
             &mut value,
+            1,
+            &[input.security_state.device_lifecycle() as u8],
+        );
+        extend(&mut value, 2, &[input.security_state.debug_locked() as u8]);
+        extend(&mut value, 3, &[input.fuse_anti_rollback_disable as u8]);
+        extend(
+            &mut value,
+            4,
             swap_word_bytes(&input.vendor_pub_key_hash).as_bytes(),
         );
         extend(
             &mut value,
+            5,
             swap_word_bytes(&input.owner_pub_key_hash).as_bytes(),
         );
-        extend(&mut value, &[input.ecc_vendor_pub_key_index as u8]);
-        extend(&mut value, swap_word_bytes(&input.fmc_digest).as_bytes());
-        extend(&mut value, &[input.fmc_svn as u8]);
-        extend(&mut value, &[input.fmc_fuse_svn as u8]);
-        extend(&mut value, &[input.lms_vendor_pub_key_index as u8]);
-        extend(&mut value, &[input.rom_verify_config as u8]);
+        extend(&mut value, 6, &[input.ecc_vendor_pub_key_index as u8]);
+        extend(&mut value, 7, swap_word_bytes(&input.fmc_digest).as_bytes());
+        extend(&mut value, 8, &[input.fmc_svn as u8]);
+        extend(&mut value, 9, &[input.fmc_fuse_svn as u8]);
+        extend(&mut value, 10, &[input.lms_vendor_pub_key_index as u8]);
+        extend(&mut value, 11, &[input.rom_verify_config as u8]);
 
         let mut result: [u32; 12] = zerocopy::transmute!(value);
         swap_word_bytes_inplace(&mut result);

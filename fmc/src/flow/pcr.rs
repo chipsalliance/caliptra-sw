@@ -59,13 +59,15 @@ fn extend_pcr_common(env: &mut FmcEnv, hand_off: &HandOff, pcr_id: PcrId) -> Cal
     // Extend RT TCI (Hash over runtime code)
     let rt_tci = Tci::rt_tci(env, hand_off);
     let rt_tci: [u8; 48] = okref(&rt_tci)?.into();
-    env.pcr_bank.extend_pcr(pcr_id, &mut env.sha384, &rt_tci)?;
+    let entry_id = []; // TODO: pull this from PcrLogEntryId.
+    env.pcr_bank
+        .extend_pcr(pcr_id, &mut env.sha384, &entry_id, &rt_tci)?;
 
     // Extend FW Image Manifest
     let manifest_digest = Tci::image_manifest_digest(env, hand_off);
     let manifest_digest: [u8; 48] = okref(&manifest_digest)?.into();
     env.pcr_bank
-        .extend_pcr(pcr_id, &mut env.sha384, &manifest_digest)?;
+        .extend_pcr(pcr_id, &mut env.sha384, &entry_id, &manifest_digest)?;
 
     Ok(())
 }

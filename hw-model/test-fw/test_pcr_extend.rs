@@ -21,7 +21,7 @@ extern "C" fn main() {
     let pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
 
     pcr_bank
-        .extend_pcr(PcrId::PcrId1, &mut sha384, &[0_u8; 4])
+        .extend_pcr(PcrId::PcrId1, &mut sha384, &[0_u8; 0], &[0_u8; 4])
         .unwrap();
 
     let pcr1 = pcr_bank.read_pcr(PcrId::PcrId1);

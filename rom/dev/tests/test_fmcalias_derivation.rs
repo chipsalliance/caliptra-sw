@@ -374,6 +374,7 @@ fn hash_pcr_log_entries(initial_pcr: &[u8; 48], pcr_entry_arr: &[u8], pcr_id: Pc
 
         let mut hasher = Hasher::new(MessageDigest::sha384()).unwrap();
         hasher.update(&pcr).unwrap();
+        hasher.update(entry.id.to_be().as_bytes()).unwrap();
         hasher.update(entry.measured_data()).unwrap();
         let digest: &[u8] = &hasher.finish().unwrap();
 
@@ -852,8 +853,9 @@ fn test_upload_single_measurement() {
     let pcr31 = hw.mailbox_execute(0x1000_0009, &[]).unwrap().unwrap();
 
     // Check that the measurement was extended to PCR31.
-    let mut data: [u8; 96] = [0u8; 96];
-    data[48..].copy_from_slice(measurement.measurement.as_bytes());
+    let mut data: [u8; 98] = [0u8; 98];
+    data[48..50].copy_from_slice((PcrLogEntryId::StashMeasurement as u16).to_be().as_bytes());
+    data[50..].copy_from_slice(measurement.measurement.as_bytes());
     let out = openssl::sha::sha384(&data);
     assert_eq!(pcr31.as_bytes(), out);
 
@@ -926,11 +928,12 @@ fn test_upload_measurement_limit() {
 
     // Check that only 8 measurements were extended to PCR31
     let mut out: [u8; 48] = [0u8; 48];
-    let mut data: [u8; 96] = [0u8; 96];
+    let mut data: [u8; 98] = [0u8; 98];
     for idx in 0..8 {
         data[0..48].copy_from_slice(&out);
         measurement.measurement[0] = idx;
-        data[48..].copy_from_slice(measurement.measurement.as_bytes());
+        data[48..50].copy_from_slice((PcrLogEntryId::StashMeasurement as u16).to_be().as_bytes());
+        data[50..].copy_from_slice(measurement.measurement.as_bytes());
         out = openssl::sha::sha384(&data);
     }
     assert_eq!(pcr31.as_bytes(), out);
@@ -987,9 +990,10 @@ fn test_upload_no_measurement() {
     let pcr31 = hw.mailbox_execute(0x1000_0009, &[]).unwrap().unwrap();
 
     let mut out: [u8; 48] = [0u8; 48];
-    let mut data: [u8; 96] = [0u8; 96];
+    let mut data: [u8; 98] = [0u8; 98];
     data[0..48].copy_from_slice(&out);
-    data[48..].copy_from_slice(&[0xFFu8; 48]);
+    data[48..50].copy_from_slice((PcrLogEntryId::StashMeasurement as u16).to_be().as_bytes());
+    data[50..].copy_from_slice(&[0xFFu8; 48]);
     out = openssl::sha::sha384(&data);
     assert_eq!(pcr31.as_bytes(), out);
 

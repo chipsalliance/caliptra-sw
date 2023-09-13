@@ -52,10 +52,18 @@ impl PcrExtender<'_> {
         self.extend_and_log(bytes, pcr_entry_id)
     }
     fn extend_and_log(&mut self, data: &[u8], pcr_entry_id: PcrLogEntryId) -> CaliptraResult<()> {
-        self.pcr_bank
-            .extend_pcr(PCR_ID_FMC_CURRENT, self.sha384, data)?;
-        self.pcr_bank
-            .extend_pcr(PCR_ID_FMC_JOURNEY, self.sha384, data)?;
+        self.pcr_bank.extend_pcr(
+            PCR_ID_FMC_CURRENT,
+            self.sha384,
+            (pcr_entry_id as u16).to_be().as_bytes(),
+            data,
+        )?;
+        self.pcr_bank.extend_pcr(
+            PCR_ID_FMC_JOURNEY,
+            self.sha384,
+            (pcr_entry_id as u16).to_be().as_bytes(),
+            data,
+        )?;
 
         let pcr_ids: u32 = (1 << PCR_ID_FMC_CURRENT as u8) | (1 << PCR_ID_FMC_JOURNEY as u8);
         log_pcr(self.pcr_log, self.pcr_bank, pcr_entry_id, pcr_ids, data)

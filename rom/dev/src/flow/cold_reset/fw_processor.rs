@@ -618,6 +618,7 @@ impl FirmwareProcessor {
         pcr_bank.extend_pcr(
             PCR_ID_STASH_MEASUREMENT,
             sha384,
+            (PcrLogEntryId::StashMeasurement as u16).to_be().as_bytes(),
             stash_measurement.measurement.as_bytes(),
         )?;
 
