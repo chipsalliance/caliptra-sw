@@ -1,16 +1,15 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_drivers::{Array4x8, CaliptraResult, Sha256Alg, Sha256DigestOp};
+use std::marker::PhantomData;
 
 use sha2::Digest;
-
-const SHA256_BLOCK_BYTE_SIZE: usize = 64;
 
 #[derive(Default)]
 pub struct Sha256SoftwareDriver {}
 
 pub struct Sha256DigestOpSw<'a> {
-    driver: &'a mut Sha256SoftwareDriver,
+    driver: PhantomData<&'a mut Sha256SoftwareDriver>,
     digest: sha2::Sha256,
 }
 impl<'a> Sha256DigestOp<'a> for Sha256DigestOpSw<'a> {
@@ -35,7 +34,7 @@ impl Sha256Alg for Sha256SoftwareDriver {
 
     fn digest_init(&mut self) -> CaliptraResult<Self::DigestOp<'_>> {
         Ok(Sha256DigestOpSw {
-            driver: self,
+            driver: PhantomData::default(),
             digest: sha2::Sha256::new(),
         })
     }
