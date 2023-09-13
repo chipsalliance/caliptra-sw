@@ -34,7 +34,7 @@ struct StructuredInput<'a> {
 
 #[cfg(feature = "struct-aware")]
 fn harness_structured(args: StructuredInput) {
-    let _result = Lms::default().verify_lms_signature(
+    let _result = Lms::default().verify_lms_signature_generic(
         &mut Sha256SoftwareDriver::new(),
         args.input,
         &args.pub_key,

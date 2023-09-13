@@ -2,8 +2,6 @@
 
 use caliptra_drivers::{Array4x8, CaliptraResult, Sha256, Sha256DigestOp};
 
-use sha2::digest::block_buffer::Block;
-use sha2::digest::consts::U64;
 use sha2::Digest;
 
 const SHA256_BLOCK_BYTE_SIZE: usize = 64;
