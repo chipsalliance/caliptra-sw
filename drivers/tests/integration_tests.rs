@@ -195,8 +195,7 @@ fn test_generate_doe_vectors_when_debug_not_locked() {
     let vectors = DoeTestVectors::generate(&DoeInput {
         doe_obf_key: [0xffff_ffff_u32; 8],
 
-        doe_uds_iv: caliptra_drivers_test_bin::DOE_TEST_IV,
-        doe_fe_iv: caliptra_drivers_test_bin::DOE_TEST_IV,
+        doe_iv: caliptra_drivers_test_bin::DOE_TEST_IV,
 
         uds_seed: [0xffff_ffff_u32; 12],
         field_entropy_seed: [0xffff_ffff_u32; 8],
@@ -290,8 +289,7 @@ fn test_generate_doe_vectors_when_debug_locked() {
     let vectors = DoeTestVectors::generate(&DoeInput {
         doe_obf_key: caliptra_hw_model_types::DEFAULT_CPTRA_OBF_KEY,
 
-        doe_uds_iv: caliptra_drivers_test_bin::DOE_TEST_IV,
-        doe_fe_iv: caliptra_drivers_test_bin::DOE_TEST_IV,
+        doe_iv: caliptra_drivers_test_bin::DOE_TEST_IV,
 
         uds_seed: caliptra_hw_model_types::DEFAULT_UDS_SEED,
         field_entropy_seed: caliptra_hw_model_types::DEFAULT_FIELD_ENTROPY,
