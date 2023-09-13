@@ -4,10 +4,12 @@ use caliptra_emu_bus::{BusError, ReadOnlyRegister, WriteOnlyRegister};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
 use caliptra_registers::entropy_src::regs::{
-    AdaptpHiThresholdsReadVal, AdaptpLoThresholdsReadVal, ConfReadVal, RepcntThresholdsReadVal,
+    AdaptpHiThresholdsReadVal, AdaptpLoThresholdsReadVal, ConfReadVal, HealthTestWindowsReadVal,
+    RepcntThresholdsReadVal,
 };
 use sha3::{Digest, Sha3_384};
 use std::mem;
+use tock_registers::interfaces::Readable;
 
 mod health_test;
 use health_test::HealthTester;
@@ -230,7 +232,7 @@ impl Csrng {
                 match [flag0, clen] {
                     [FALSE, 0] => {
                         // Seed from entropy_src.
-                        let seed = get_conditioned_seed(&mut self.health_tester);
+                        let seed = self.get_conditioned_seed();
                         self.ctr_drbg.instantiate(Instantiate::Bytes(&seed));
                     }
 
@@ -264,31 +266,41 @@ impl Csrng {
             }
         }
     }
-}
 
-fn get_conditioned_seed(mut itrng_nibbles: impl Iterator<Item = u8>) -> Seed {
-    // Replicate the logic in caliptra-rtl/src/entropy_src/rtl/entropy_src_core.sv.
-    let mut hasher = Sha3_384::new();
+    fn get_conditioned_seed(&mut self) -> Seed {
+        // Replicate the logic in caliptra-rtl/src/entropy_src/rtl/entropy_src_core.sv.
+        const NUM_TEST_WINDOWS: usize = 2;
+        const BITS_PER_CYCLE: usize = 4;
+        const BITS_PER_BLOCK: usize = 8 * mem::size_of::<u64>();
 
-    for _ in 0..64 {
-        // Update the hasher in 64-bit packed entropy blocks.
-        const NUM_NIBBLES: usize = 8 * mem::size_of::<u64>() / BITS_PER_NIBBLE;
+        let window_size_bits = {
+            let w = HealthTestWindowsReadVal::from(self.health_test_windows.reg.get());
+            BITS_PER_CYCLE * w.fips_window() as usize
+        };
+        let num_blocks = NUM_TEST_WINDOWS * window_size_bits / BITS_PER_BLOCK;
 
-        let packed_entropy = (0..NUM_NIBBLES).fold(0, |packed, i| {
-            let nibble = itrng_nibbles
-                .next()
-                .expect("itrng iterator should provide at least 1024 nibbles in FIPS mode");
-            packed | u64::from(nibble) << (i * BITS_PER_NIBBLE)
-        });
-        hasher.update(packed_entropy.to_le_bytes());
+        let mut hasher = Sha3_384::new();
+
+        for _ in 0..num_blocks {
+            // Update the hasher in 64-bit packed entropy blocks.
+            const NUM_NIBBLES: usize = BITS_PER_BLOCK / BITS_PER_NIBBLE;
+
+            let packed_entropy = (0..NUM_NIBBLES).fold(0, |packed, i| {
+                let nibble = self.health_tester.next().expect(
+                    "itrng iterator should provide at least two 2048 bit windows in FIPS mode",
+                );
+                packed | u64::from(nibble) << (i * BITS_PER_NIBBLE)
+            });
+            hasher.update(packed_entropy.to_le_bytes());
+        }
+
+        let mut digest = hasher.finalize();
+        digest.as_mut_slice().reverse();
+        digest
+            .as_slice()
+            .try_into()
+            .expect("SHA3-384 should generate a 384 bit seed from raw entropy nibbles")
     }
-
-    let mut digest = hasher.finalize();
-    digest.as_mut_slice().reverse();
-    digest
-        .as_slice()
-        .try_into()
-        .expect("SHA3-384 should generate a 384 bit seed from raw entropy nibbles")
 }
 
 #[derive(Default)]

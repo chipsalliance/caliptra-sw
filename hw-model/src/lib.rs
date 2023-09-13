@@ -7,14 +7,19 @@ use std::{
     io::{stdout, ErrorKind, Write},
 };
 
+use caliptra_common::mailbox_api;
 use caliptra_emu_bus::Bus;
 use caliptra_hw_model_types::{
     ErrorInjectionMode, EtrngResponse, RandomEtrngResponses, RandomNibbles, DEFAULT_CPTRA_OBF_KEY,
 };
-use zerocopy::{AsBytes, LayoutVerified, Unalign};
+use zerocopy::{AsBytes, FromBytes, LayoutVerified, Unalign};
 
 use caliptra_registers::mbox;
 use caliptra_registers::mbox::enums::{MboxFsmE, MboxStatusE};
+use caliptra_registers::soc_ifc::regs::{
+    CptraItrngEntropyConfig0WriteVal, CptraItrngEntropyConfig1WriteVal,
+};
+
 use rand::{rngs::StdRng, SeedableRng};
 
 pub mod mmio;
@@ -179,6 +184,8 @@ pub struct BootParams<'a> {
     pub fuses: Fuses,
     pub fw_image: Option<&'a [u8]>,
     pub initial_dbg_manuf_service_reg: u32,
+    pub initial_repcnt_thresh_reg: Option<CptraItrngEntropyConfig1WriteVal>,
+    pub initial_adaptp_thresh_reg: Option<CptraItrngEntropyConfig0WriteVal>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -194,7 +201,7 @@ pub enum ModelError {
     ProvidedDccmTooLarge,
     UnexpectedMailboxFsmStatus { expected: u32, actual: u32 },
     UnableToLockSha512Acc,
-    UploadMeasurementUnexpectedResponse,
+    UploadMeasurementResponseError,
 }
 impl Error for ModelError {}
 impl Display for ModelError {
@@ -222,11 +229,8 @@ impl Display for ModelError {
                 "Expected mailbox FSM status to be {expected}, was {actual}"
             ),
             ModelError::UnableToLockSha512Acc => write!(f, "Unable to lock sha512acc"),
-            ModelError::UploadMeasurementUnexpectedResponse => {
-                write!(
-                    f,
-                    "Received unexpected response after uploading measurement"
-                )
+            ModelError::UploadMeasurementResponseError => {
+                write!(f, "Error in response after uploading measurement")
             }
         }
     }
@@ -372,6 +376,14 @@ pub trait HwModel {
             .cptra_wdt_cfg()
             .at(1)
             .write(|_| (wdt_timeout_cycles >> 32) as u32);
+
+        if let Some(reg) = run_params.initial_repcnt_thresh_reg {
+            hw.soc_ifc().cptra_i_trng_entropy_config_1().write(|_| reg);
+        }
+
+        if let Some(reg) = run_params.initial_adaptp_thresh_reg {
+            hw.soc_ifc().cptra_i_trng_entropy_config_0().write(|_| reg);
+        }
 
         writeln!(hw.output().logger(), "writing to cptra_bootfsm_go")?;
         hw.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
@@ -822,9 +834,27 @@ pub trait HwModel {
     /// Upload measurement to the mailbox.
     fn upload_measurement(&mut self, measurement: &[u8]) -> Result<(), ModelError> {
         let response = self.mailbox_execute(STASH_MEASUREMENT_CMD_OPCODE, measurement)?;
-        if response.is_some() {
-            return Err(ModelError::UploadMeasurementUnexpectedResponse);
+
+        // We expect a response
+        let response = response.ok_or(ModelError::UploadMeasurementResponseError)?;
+
+        // Get response as a response header struct
+        let response = mailbox_api::MailboxRespHeader::read_from(response.as_slice())
+            .ok_or(ModelError::UploadMeasurementResponseError)?;
+
+        // Verify checksum and FIPS status
+        if !caliptra_common::checksum::verify_checksum(
+            response.chksum,
+            0x0,
+            &response.as_bytes()[core::mem::size_of_val(&response.chksum)..],
+        ) {
+            return Err(ModelError::UploadMeasurementResponseError);
         }
+
+        if response.fips_status != mailbox_api::MailboxRespHeader::FIPS_STATUS_APPROVED {
+            return Err(ModelError::UploadMeasurementResponseError);
+        }
+
         Ok(())
     }
 }
