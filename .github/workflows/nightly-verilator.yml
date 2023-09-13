@@ -9,7 +9,7 @@ on:
 jobs:
   smoke_test:
     name: Smoke Test
-    runs-on: e2-standard-2
+    runs-on: e2-highcpu-32
     timeout-minutes: 720
 
     env:
@@ -34,14 +34,17 @@ jobs:
           cd verilator
           autoconf
           ./configure --prefix=/opt/verilator
-          make -j6
+          make -j32
           sudo make install
+
+      - name: Install nextest
+        run: |
+          cargo install cargo-nextest --locked
 
       - name: Setup verilator path
         run: |
           echo /opt/verilator/bin >> $GITHUB_PATH
 
-      - name: Run smoke test inside verilator (will take hours)
+      - name: Run all tests inside verilator (will take hours)
         run: |
-          export CALIPTRA_VERILATOR_JOBS=2
-          cargo test -j 1 -p caliptra-test smoke_test --features=verilator --release  -- --nocapture
+          cargo nextest run --no-fail-fast --features=verilator,itrng --release
