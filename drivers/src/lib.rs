@@ -81,7 +81,7 @@ pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};
 pub use persistent::{
     FuseLogArray, PcrLogArray, PersistentData, PersistentDataAccessor, StashMeasurementArray,
-    MEASUREMENT_MAX_COUNT,
+    FUSE_LOG_MAX_COUNT, MEASUREMENT_MAX_COUNT, PCR_LOG_MAX_COUNT,
 };
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
 pub use sha256::{Sha256, Sha256DigestOp};
