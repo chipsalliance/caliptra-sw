@@ -15,7 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{Array4x8, Sha256Alg, Sha256DigestOp, Sha256};
+use caliptra_drivers::{Array4x8, Sha256, Sha256Alg, Sha256DigestOp};
 use caliptra_kat::Sha256Kat;
 use caliptra_registers::sha256::Sha256Reg;
 

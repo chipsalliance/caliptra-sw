@@ -16,7 +16,7 @@ Abstract:
 
 use core::mem::MaybeUninit;
 
-use crate::{sha256::Sha256Alg, Array4x8, CaliptraResult, Sha256DigestOp, Sha256};
+use crate::{sha256::Sha256Alg, Array4x8, CaliptraResult, Sha256, Sha256DigestOp};
 use caliptra_error::CaliptraError;
 use caliptra_lms_types::{
     LmotsAlgorithmType, LmsAlgorithmType, LmsIdentifier, LmsPublicKey, LmsSignature,
