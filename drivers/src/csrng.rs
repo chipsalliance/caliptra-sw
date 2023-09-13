@@ -24,6 +24,8 @@ Abstract:
 use crate::{wait, CaliptraError, CaliptraResult};
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::entropy_src::{self, regs::AlertFailCountsReadVal, EntropySrcReg};
+use caliptra_registers::soc_ifc::{self, SocIfcReg};
+
 use core::array;
 
 // https://opentitan.org/book/hw/ip/csrng/doc/theory_of_operation.html#command-description
@@ -48,18 +50,19 @@ impl Csrng {
     /// # Errors
     ///
     /// Returns an error if the internal seed command fails.
-    pub fn new(csrng: CsrngReg, entropy_src: EntropySrcReg) -> CaliptraResult<Self> {
-        Self::with_seed(csrng, entropy_src, Seed::EntropySrc)
+    pub fn new(
+        csrng: CsrngReg,
+        entropy_src: EntropySrcReg,
+        soc_ifc: &SocIfcReg,
+    ) -> CaliptraResult<Self> {
+        Self::with_seed(csrng, entropy_src, soc_ifc, Seed::EntropySrc)
     }
 
     /// # Safety
     ///
     /// The caller MUST ensure that the CSRNG peripheral is in a state where new
     /// entropy is accessible via the generate command.
-    pub unsafe fn assume_initialized(
-        csrng: caliptra_registers::csrng::CsrngReg,
-        entropy_src: caliptra_registers::entropy_src::EntropySrcReg,
-    ) -> Self {
+    pub unsafe fn assume_initialized(csrng: CsrngReg, entropy_src: EntropySrcReg) -> Self {
         Self { csrng, entropy_src }
     }
 
@@ -75,6 +78,7 @@ impl Csrng {
     pub fn with_seed(
         csrng: CsrngReg,
         entropy_src: EntropySrcReg,
+        soc_ifc: &SocIfcReg,
         seed: Seed,
     ) -> CaliptraResult<Self> {
         const FALSE: u32 = MultiBitBool::False as u32;
@@ -85,7 +89,7 @@ impl Csrng {
 
         // Configure and enable entropy_src if needed.
         if e.module_enable().read().module_enable() == FALSE {
-            set_health_check_thresholds(e);
+            set_health_check_thresholds(e, soc_ifc.regs());
 
             e.conf().write(|w| {
                 w.fips_enable(TRUE)
@@ -362,57 +366,73 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
     }
 }
 
-fn set_health_check_thresholds(e: entropy_src::RegisterBlock<ureg::RealMmioMut>) {
+fn set_health_check_thresholds(
+    e: entropy_src::RegisterBlock<ureg::RealMmioMut>,
+    soc_ifc: soc_ifc::RegisterBlock<ureg::RealMmio>,
+) {
     // Configure thresholds for the two approved NIST health checks:
     //  1. Repetition Count Test
     //  2. Adaptive Proportion Test
-    //
-    // The Repetition Count test fails if:
-    //  * An RNG wire repeats the same bit THRESHOLD times in a row.
-    //
-    // We pick as our threshold a cutoff value C such that the probability that
-    // a C consecutive-run of the most likely bit is less than some "very small"
-    // probability. The idea is that a catastrophic failure in the entropy
-    // source would easily trip this threshold, but a healthy entropy source,
-    // over the course of normal operation, would "almost certainly" not.
-    //
-    // We calculate the cutoff value using the formula in 4.4.1 of NIST SP
-    // 800-90B:
-    //
-    // C = 1 + ceil(-lg(false_positive_probability) / min_entropy_estimate)
-    //
-    // where the false_positive_probability is 2^-40 (one false positive for
-    // every 128 GiB harvested).
-    // Therefore, C = 1 + ceil(40 / min_entropy_estimate)
-    //
-    // TODO: We need a min-entropy estimate of the physical source to calculate
-    // more accurate thresholds. For now, we'll use a min-entropy estimate of 1,
-    // which assumes that a '0' and '1' bit are equally likely to be produced by
-    // the itrng. Alternatively, parameterize thresholds in `Csrng::new()` and
-    // `Csrng::with_seed()`.
-    const REPETITION_COUNT_THRESHOLD: u32 = 41;
 
-    e.repcnt_thresholds()
-        .write(|w| w.fips_thresh(REPETITION_COUNT_THRESHOLD));
+    {
+        // The Repetition Count test fails if:
+        //  * An RNG wire repeats the same bit THRESHOLD times in a row.
+        // See section 4.4.1 of NIST.SP.800-90B for more information of about this test.
 
-    // The Adaptive Proportion test fails if:
-    //  * Any window has more than the HI threshold of 1's; or,
-    //  * Any window has less than the LO threshold of 1's.
-    //
-    // Given a window size W and a min-entropy estimate (H) of the physical
-    // source, we'd expect each window to have W/2^H of the most likely bit and
-    // W*(1 - 1/2^H) of the least likely bit.
-    //
-    // TODO: Adjust thresholds based on min-entropy. Since we don't have
-    // a min-entropy estimate or know which bit is most likely, we'll use a
-    // conservative 75% and 25% of the window size for the HI and LO thresholds
-    // respectively.
-    const TRNG_BITS_PER_CYCLE: u32 = 4;
-    let window_size_bits = e.health_test_windows().read().fips_window() * TRNG_BITS_PER_CYCLE;
-    let threshold_hi = 3 * (window_size_bits / 4);
-    let threshold_lo = window_size_bits / 4;
-    e.adaptp_hi_thresholds()
-        .write(|w| w.fips_thresh(threshold_hi));
-    e.adaptp_lo_thresholds()
-        .write(|w| w.fips_thresh(threshold_lo));
+        // If the SOC doesn't specify a threshold, use this default, which assumes a min-entropy of 1.
+        const DEFAULT_THRESHOLD: u32 = 41;
+
+        let threshold = soc_ifc
+            .cptra_i_trng_entropy_config_1()
+            .read()
+            .repetition_count();
+
+        e.repcnt_thresholds().write(|w| {
+            w.fips_thresh(if threshold == 0 {
+                DEFAULT_THRESHOLD
+            } else {
+                threshold
+            })
+        });
+    }
+
+    {
+        // The Adaptive Proportion test fails if:
+        //  * Any window has more than the HI threshold of 1's; or,
+        //  * Any window has less than the LO threshold of 1's.
+        // See section 4.4.2 of NIST.SP.800-90B for more information of about this test.
+
+        // Use 75% and 25% of the 2048 bit FIPS window size for the default HI and LO thresholds
+        // respectively.
+        const WINDOW_SIZE_BITS: u32 = 2048;
+        const DEFAULT_HI: u32 = 3 * (WINDOW_SIZE_BITS / 4);
+        const DEFAULT_LO: u32 = WINDOW_SIZE_BITS / 4;
+
+        // TODO: What to do if HI <= LO?
+        let threshold_hi = soc_ifc
+            .cptra_i_trng_entropy_config_0()
+            .read()
+            .high_threshold();
+
+        let threshold_lo = soc_ifc
+            .cptra_i_trng_entropy_config_0()
+            .read()
+            .low_threshold();
+
+        e.adaptp_hi_thresholds().write(|w| {
+            w.fips_thresh(if threshold_hi == 0 {
+                DEFAULT_HI
+            } else {
+                threshold_hi
+            })
+        });
+
+        e.adaptp_lo_thresholds().write(|w| {
+            w.fips_thresh(if threshold_lo == 0 {
+                DEFAULT_LO
+            } else {
+                threshold_lo
+            })
+        });
+    }
 }

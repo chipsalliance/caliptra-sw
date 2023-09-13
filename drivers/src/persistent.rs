@@ -5,10 +5,20 @@ use core::{marker::PhantomData, mem::size_of, ptr::addr_of};
 use caliptra_image_types::ImageManifest;
 use zerocopy::{AsBytes, FromBytes};
 
-use crate::{fuse_log::FuseLogEntry, memory_layout, pcr_log::PcrLogEntry, FirmwareHandoffTable};
+use crate::{
+    fuse_log::FuseLogEntry,
+    memory_layout,
+    pcr_log::{MeasurementLogEntry, PcrLogEntry},
+    FirmwareHandoffTable,
+};
 
-pub type PcrLogArray = [PcrLogEntry; 17];
-pub type FuseLogArray = [FuseLogEntry; 62];
+pub const PCR_LOG_MAX_COUNT: usize = 17;
+pub const FUSE_LOG_MAX_COUNT: usize = 62;
+pub const MEASUREMENT_MAX_COUNT: usize = 8;
+
+pub type PcrLogArray = [PcrLogEntry; PCR_LOG_MAX_COUNT];
+pub type FuseLogArray = [FuseLogEntry; FUSE_LOG_MAX_COUNT];
+pub type StashMeasurementArray = [MeasurementLogEntry; MEASUREMENT_MAX_COUNT];
 
 #[derive(FromBytes, AsBytes)]
 #[repr(C)]
@@ -29,10 +39,14 @@ pub struct PersistentData {
     pub rtalias_tbs: [u8; memory_layout::RTALIAS_TBS_SIZE as usize],
 
     pub pcr_log: PcrLogArray,
-    reserved3: [u8; 4],
+    reserved3: [u8; memory_layout::PCR_LOG_SIZE as usize - size_of::<PcrLogArray>()],
+
+    pub measurement_log: StashMeasurementArray,
+    reserved4:
+        [u8; memory_layout::MEASUREMENT_LOG_SIZE as usize - size_of::<StashMeasurementArray>()],
 
     pub fuse_log: FuseLogArray,
-    reserved4: [u8; 4],
+    reserved5: [u8; memory_layout::FUSE_LOG_SIZE as usize - size_of::<FuseLogArray>()],
 }
 impl PersistentData {
     pub fn assert_matches_layout() {
@@ -46,6 +60,10 @@ impl PersistentData {
             assert_eq!(addr_of!((*P).fmcalias_tbs) as u32, layout::FMCALIAS_TBS_ORG);
             assert_eq!(addr_of!((*P).rtalias_tbs) as u32, layout::RTALIAS_TBS_ORG);
             assert_eq!(addr_of!((*P).pcr_log) as u32, memory_layout::PCR_LOG_ORG);
+            assert_eq!(
+                addr_of!((*P).measurement_log) as u32,
+                memory_layout::MEASUREMENT_LOG_ORG
+            );
             assert_eq!(addr_of!((*P).fuse_log) as u32, memory_layout::FUSE_LOG_ORG);
             assert_eq!(P.add(1) as u32, memory_layout::BOOT_STATUS_ORG);
         }

@@ -85,14 +85,22 @@ impl<Algo: SigningAlgorithm> CertTemplateBuilder<Algo> {
         self
     }
 
-    pub fn add_fmc_dice_tcb_info_ext(mut self, fwids: &[FwidParam]) -> Self {
+    pub fn add_fmc_dice_tcb_info_ext(
+        mut self,
+        device_fwids: &[FwidParam],
+        fmc_fwids: &[FwidParam],
+    ) -> Self {
         let flags: u32 = 0xC0C1C2C3;
         let svn: u8 = 0xC4;
         let svn_fuses: u8 = 0xC5;
 
         self.exts
             .push(x509::make_fmc_dice_tcb_info_ext(
-                flags, svn, svn_fuses, fwids,
+                flags,
+                svn,
+                svn_fuses,
+                device_fwids,
+                fmc_fwids,
             ))
             .unwrap();
 
@@ -115,7 +123,7 @@ impl<Algo: SigningAlgorithm> CertTemplateBuilder<Algo> {
             needle: svn_fuses.to_be_bytes().to_vec(),
         });
 
-        for fwid in fwids.iter() {
+        for fwid in device_fwids.iter().chain(fmc_fwids.iter()) {
             self.params.push(CertTemplateParam {
                 tbs_param: TbsParam::new(fwid.name, 0, fwid.fwid.digest.len()),
                 needle: fwid.fwid.digest.to_vec(),

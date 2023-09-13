@@ -237,6 +237,7 @@ fn test_stash_measurement() {
         hdr: MailboxReqHeader { chksum: 0 },
         metadata: [0u8; 4],
         measurement: [0u8; 48],
+        context: [0u8; 48],
         svn: 0,
     };
 

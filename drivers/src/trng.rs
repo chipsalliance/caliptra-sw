@@ -20,7 +20,7 @@ impl Trng {
         soc_ifc: &SocIfcReg,
     ) -> CaliptraResult<Self> {
         if soc_ifc.regs().cptra_hw_config().read().i_trng_en() {
-            Ok(Self::Internal(Csrng::new(csrng, entropy_src)?))
+            Ok(Self::Internal(Csrng::new(csrng, entropy_src, soc_ifc)?))
         } else {
             Ok(Self::External(TrngExt::new(soc_ifc_trng)))
         }
