@@ -261,21 +261,6 @@ impl FirmwareProcessor {
                     }
 
                     CommandId::FIRMWARE_LOAD => {
-                        // If no measurement was received, extend a well-known measurement.
-                        if measurement_count == 0 {
-                            let fake_measurement = StashMeasurementReq {
-                                measurement: [0xFF; 48],
-                                ..Default::default()
-                            };
-                            Self::extend_measurement(
-                                pcr_bank,
-                                env.sha384,
-                                measurement_log,
-                                &fake_measurement,
-                                0_usize,
-                            )?;
-                        }
-
                         // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
                         let txn = mbox
                             .peek_recv()
