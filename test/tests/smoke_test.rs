@@ -146,6 +146,7 @@ fn smoke_test() {
         key_manifest_pk_hash: vendor_pk_hash_words,
         owner_pk_hash: owner_pk_hash_words,
         fmc_key_manifest_svn: 0b1111111,
+        lms_verify: true,
         ..Default::default()
     };
     let mut hw = caliptra_hw_model::new(BootParams {
@@ -302,7 +303,7 @@ fn smoke_test() {
     hasher.update(&vendor_pk_hash);
     hasher.update(&owner_pk_hash);
     hasher.update(/*ecc_vendor_pk_index=*/ &[0u8]); // No keys are revoked
-    hasher.update(/*lms_vendor_pk_index=*/ &[255u8]); // Because LMS is disabled
+    hasher.update(&[image.manifest.header.vendor_lms_pub_key_idx as u8]);
     hasher.update(&[fuses.lms_verify as u8]);
     let device_info_hash = hasher.finish();
 
@@ -353,8 +354,8 @@ fn smoke_test() {
             fmc_svn: image.manifest.fmc.svn,
             // This is from the SVN in the fuses (7 bits set)
             fmc_fuse_svn: 7,
-            lms_vendor_pub_key_index: u32::MAX,
-            rom_verify_config: 0, // RomVerifyConfig::EcdsaOnly
+            lms_vendor_pub_key_index: image.manifest.header.vendor_lms_pub_key_idx,
+            rom_verify_config: 1, // RomVerifyConfig::EcdsaAndLms
         }),
         &expected_ldevid_key,
     );
