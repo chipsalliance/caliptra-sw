@@ -30,6 +30,7 @@ use caliptra_common::verifier::FirmwareImageVerificationEnv;
 use caliptra_common::PcrLogEntry;
 use caliptra_common::PcrLogEntryId;
 use caliptra_common::{FuseLogEntryId, RomBootStatus::*};
+use caliptra_drivers::pcr_log::MeasurementLogEntry;
 use caliptra_drivers::*;
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier};
@@ -580,7 +581,7 @@ impl FirmwareProcessor {
         sha384: &mut Sha384,
         measurement_log: &mut StashMeasurementArray,
         txn: &mut MailboxRecvTxn,
-        log_index: u32,
+        log_index: usize,
     ) -> CaliptraResult<()> {
         let mut measurement = StashMeasurementReq::default();
         if txn.dlen() as usize != measurement.as_bytes().len() {
@@ -589,13 +590,7 @@ impl FirmwareProcessor {
         txn.copy_request(measurement.as_bytes_mut())?;
 
         // Extend measurement into PCR31.
-        Self::extend_measurement(
-            pcr_bank,
-            sha384,
-            measurement_log,
-            &measurement,
-            log_index as usize,
-        )?;
+        Self::extend_measurement(pcr_bank, sha384, measurement_log, &measurement, log_index)?;
 
         Ok(())
     }
@@ -652,17 +647,18 @@ impl FirmwareProcessor {
         return Err(CaliptraError::ROM_GLOBAL_MEASUREMENT_LOG_EXHAUSTED);
     };
 
-        // Create a PCR log entry
-        let pcr_log_entry = PcrLogEntry {
-            id: PcrLogEntryId::StashMeasurement as u16,
-            pcr_ids: 1 << (PCR_ID_STASH_MEASUREMENT as u8),
-            pcr_data: zerocopy::transmute!(stash_measurement.measurement),
+        *dst = MeasurementLogEntry {
+            pcr_entry: PcrLogEntry {
+                id: PcrLogEntryId::StashMeasurement as u16,
+                reserved0: [0u8; 2],
+                pcr_ids: 1 << (PCR_ID_STASH_MEASUREMENT as u8),
+                pcr_data: zerocopy::transmute!(stash_measurement.measurement),
+            },
             metadata: stash_measurement.metadata,
-            ..Default::default()
+            context: zerocopy::transmute!(stash_measurement.context),
+            svn: stash_measurement.svn,
+            reserved0: [0u8; 4],
         };
-
-        // Store the log entry.
-        *dst = pcr_log_entry;
 
         Ok(())
     }

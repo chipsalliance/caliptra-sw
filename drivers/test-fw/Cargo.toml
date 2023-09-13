@@ -82,6 +82,11 @@ path = "src/bin/pcrbank_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "persistent"
+path = "src/bin/persistent_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
 name = "sha384acc"
 path = "src/bin/sha384acc_tests.rs"
 required-features = ["riscv"]

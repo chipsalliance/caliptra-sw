@@ -73,9 +73,6 @@ pub struct PcrLogEntry {
 
     // PCR data
     pub pcr_data: [u32; 12],
-
-    // PCR Metadata
-    pub metadata: [u8; 4],
 }
 
 impl PcrLogEntry {
@@ -98,6 +95,17 @@ impl PcrLogEntry {
 
         &self.pcr_data.as_bytes()[..data_len]
     }
+}
+
+/// Measurement log entry
+#[repr(C)]
+#[derive(AsBytes, Clone, Copy, Debug, Default, FromBytes)]
+pub struct MeasurementLogEntry {
+    pub pcr_entry: PcrLogEntry,
+    pub metadata: [u8; 4],
+    pub context: [u32; 12],
+    pub svn: u32,
+    pub reserved0: [u8; 4],
 }
 
 pub const RT_FW_CURRENT_PCR: PcrId = PcrId::PcrId2;

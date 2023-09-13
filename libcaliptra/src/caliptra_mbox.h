@@ -23,11 +23,19 @@ enum mailbox_command {
     OP_CALIPTRA_FW_LOAD          = 0x46574C44, // "FWLD"
     OP_GET_IDEV_CSR              = 0x49444556, // "IDEV"
     OP_GET_LDEV_CERT             = 0x4C444556, // "LDEV"
-    OP_ECDSA384_SIGNATURE_VERIFY = 0x53494756, // "SIGV"
+    OP_ECDSA384_VERIFY           = 0x53494756, // "SIGV"
     OP_STASH_MEASUREMENT         = 0x4D454153, // "MEAS"
     OP_DISABLE_ATTESTATION       = 0x4453424C, // "DSBL"
     OP_INVOKE_DPE_COMMAND        = 0x44504543, // "DPEC"
     OP_FIPS_VERSION              = 0x46505652, // "FPVR"
+};
+
+struct parcel {
+    enum mailbox_command  command;
+    uint8_t              *tx_buffer;
+    size_t                tx_bytes;
+    uint8_t              *rx_buffer;
+    size_t                rx_bytes;
 };
 
 enum mailbox_results {
