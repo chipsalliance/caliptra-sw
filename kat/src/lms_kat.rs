@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::{CaliptraError, CaliptraResult, Lms, LmsResult, Sha256Hw};
+use caliptra_drivers::{CaliptraError, CaliptraResult, Lms, LmsResult, Sha256};
 use caliptra_lms_types::{
     bytes_to_words_6, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsIdentifier,
     LmsPublicKey, LmsSignature,
@@ -24,11 +24,11 @@ pub struct LmsKat {}
 
 impl LmsKat {
     /// This function executes the Known Answer Tests (aka KAT) for LMS.
-    pub fn execute(&self, sha256_driver: &mut Sha256Hw, lms: &Lms) -> CaliptraResult<()> {
+    pub fn execute(&self, sha256_driver: &mut Sha256, lms: &Lms) -> CaliptraResult<()> {
         self.kat_lms_24(sha256_driver, lms)
     }
 
-    fn kat_lms_24(&self, sha256_driver: &mut Sha256Hw, lms: &Lms) -> CaliptraResult<()> {
+    fn kat_lms_24(&self, sha256_driver: &mut Sha256, lms: &Lms) -> CaliptraResult<()> {
         const MESSAGE: [u8; 8] = [0, 0, 30, 76, 217, 179, 51, 230];
         const LMS_TYPE: LmsAlgorithmType = LmsAlgorithmType::LmsSha256N24H15;
         const LMOTS_TYPE: LmotsAlgorithmType = LmotsAlgorithmType::LmotsSha256N24W4;

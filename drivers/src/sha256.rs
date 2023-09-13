@@ -26,7 +26,7 @@ pub trait Sha256DigestOp<'a> {
     fn finalize(self, digest: &mut Array4x8) -> CaliptraResult<()>;
 }
 
-pub trait Sha256 {
+pub trait Sha256Alg {
     type DigestOp<'a>: Sha256DigestOp<'a>
     where
         Self: 'a;
@@ -35,17 +35,17 @@ pub trait Sha256 {
     fn digest(&mut self, buf: &[u8]) -> CaliptraResult<Array4x8>;
 }
 
-pub struct Sha256Hw {
+pub struct Sha256 {
     sha256: Sha256Reg,
 }
 
-impl Sha256Hw {
+impl Sha256 {
     pub fn new(sha256: Sha256Reg) -> Self {
         Self { sha256 }
     }
 }
 
-impl Sha256 for Sha256Hw {
+impl Sha256Alg for Sha256 {
     type DigestOp<'a> = Sha256DigestOpHw<'a>;
 
     /// Initialize multi step digest operation
@@ -116,7 +116,7 @@ impl Sha256 for Sha256Hw {
         Ok(digest)
     }
 }
-impl Sha256Hw {
+impl Sha256 {
     /// Take a raw sha256 digest of 0 or more 64-byte blocks of memory. Unlike
     /// digest(), the each word is passed to the sha256 peripheral without
     /// byte-swapping to reverse the peripheral's big-endian words. This means the
@@ -277,7 +277,7 @@ enum Sha256DigestState {
 /// Multi step SHA-256 digest operation
 pub struct Sha256DigestOpHw<'a> {
     /// SHA-256 Engine
-    sha: &'a mut Sha256Hw,
+    sha: &'a mut Sha256,
 
     /// State
     state: Sha256DigestState,

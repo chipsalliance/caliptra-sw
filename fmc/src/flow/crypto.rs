@@ -10,7 +10,7 @@ use caliptra_common::{crypto::Ecc384KeyPair, keyids::KEY_ID_TMP};
 use caliptra_drivers::{
     hmac384_kdf, okref, Array4x12, Array4x5, Array4x8, CaliptraResult, Ecc384PrivKeyIn,
     Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Signature, KeyId, KeyReadArgs, KeyUsage,
-    KeyWriteArgs, Sha256,
+    KeyWriteArgs, Sha256Alg,
 };
 
 pub enum Crypto {}

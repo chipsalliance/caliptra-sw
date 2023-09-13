@@ -20,7 +20,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{HashValue, Lms, LmsResult, Sha256Hw};
+use caliptra_drivers::{HashValue, Lms, LmsResult, Sha256};
 use caliptra_lms_types::{
     bytes_to_words_8, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsPublicKey,
     LmsSignature,
@@ -30,7 +30,7 @@ use caliptra_test_harness::test_suite;
 use zerocopy::{BigEndian, LittleEndian, U32};
 
 fn test_hash_message_32() {
-    let mut sha256 = unsafe { Sha256Hw::new(Sha256Reg::new()) };
+    let mut sha256 = unsafe { Sha256::new(Sha256Reg::new()) };
     const MESSAGE: [u8; 162] = [
         0x54, 0x68, 0x65, 0x20, 0x70, 0x6f, 0x77, 0x65, 0x72, 0x73, 0x20, 0x6e, 0x6f, 0x74, 0x20,
         0x64, 0x65, 0x6c, 0x65, 0x67, 0x61, 0x74, 0x65, 0x64, 0x20, 0x74, 0x6f, 0x20, 0x74, 0x68,
@@ -68,7 +68,7 @@ fn test_hash_message_32() {
 }
 
 fn test_ots_32() {
-    let mut sha256 = unsafe { Sha256Hw::new(Sha256Reg::new()) };
+    let mut sha256 = unsafe { Sha256::new(Sha256Reg::new()) };
     const MESSAGE: [u8; 162] = [
         0x54, 0x68, 0x65, 0x20, 0x70, 0x6f, 0x77, 0x65, 0x72, 0x73, 0x20, 0x6e, 0x6f, 0x74, 0x20,
         0x64, 0x65, 0x6c, 0x65, 0x67, 0x61, 0x74, 0x65, 0x64, 0x20, 0x74, 0x6f, 0x20, 0x74, 0x68,
@@ -301,7 +301,7 @@ fn test_ots_32() {
 // from https://www.rfc-editor.org/rfc/rfc8554#page-52
 // this is the lower part of the HSS tree
 fn test_lms_lower_32() {
-    let mut sha256 = unsafe { Sha256Hw::new(Sha256Reg::new()) };
+    let mut sha256 = unsafe { Sha256::new(Sha256Reg::new()) };
     const MESSAGE: [u8; 162] = [
         0x54, 0x68, 0x65, 0x20, 0x70, 0x6f, 0x77, 0x65, 0x72, 0x73, 0x20, 0x6e, 0x6f, 0x74, 0x20,
         0x64, 0x65, 0x6c, 0x65, 0x67, 0x61, 0x74, 0x65, 0x64, 0x20, 0x74, 0x6f, 0x20, 0x74, 0x68,
@@ -564,7 +564,7 @@ fn test_lms_lower_32() {
 // from https://www.rfc-editor.org/rfc/rfc8554#page-49
 // this tests the upper part of that HSS tree
 fn test_hss_upper_32() {
-    let mut sha256 = unsafe { Sha256Hw::new(Sha256Reg::new()) };
+    let mut sha256 = unsafe { Sha256::new(Sha256Reg::new()) };
     const IDENTIFIER: [u8; 16] = [
         0x61, 0xa5, 0xd5, 0x7d, 0x37, 0xf5, 0xe4, 0x6b, 0xfb, 0x75, 0x20, 0x80, 0x6b, 0x07, 0xa1,
         0xb8,

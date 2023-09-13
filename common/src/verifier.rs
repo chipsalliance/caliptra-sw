@@ -21,7 +21,7 @@ use caliptra_drivers::memory_layout::ICCM_RANGE;
 
 /// ROM Verification Environemnt
 pub struct FirmwareImageVerificationEnv<'a> {
-    pub sha256: &'a mut Sha256Hw,
+    pub sha256: &'a mut Sha256,
     pub sha384: &'a mut Sha384,
     pub sha384_acc: &'a mut Sha384Acc,
     pub soc_ifc: &'a mut SocIfc,

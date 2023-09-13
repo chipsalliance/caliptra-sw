@@ -47,7 +47,7 @@ use caliptra_drivers::{
     CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault, Lms, PersistentDataAccessor, Sha1,
     SocIfc,
 };
-use caliptra_drivers::{Hmac384, PcrBank, PcrId, Sha256Hw, Sha384, Sha384Acc, Trng};
+use caliptra_drivers::{Hmac384, PcrBank, PcrId, Sha256, Sha384, Sha384Acc, Trng};
 use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_registers::{
     csrng::CsrngReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg,
@@ -93,7 +93,7 @@ pub struct Drivers {
     pub data_vault: DataVault,
     pub key_vault: KeyVault,
     pub soc_ifc: SocIfc,
-    pub sha256: Sha256Hw,
+    pub sha256: Sha256,
 
     // SHA2-384 Engine
     pub sha384: Sha384,
@@ -183,7 +183,7 @@ impl Drivers {
             data_vault,
             key_vault,
             soc_ifc: SocIfc::new(SocIfcReg::new()),
-            sha256: Sha256Hw::new(Sha256Reg::new()),
+            sha256: Sha256::new(Sha256Reg::new()),
             sha384,
             sha384_acc: Sha384Acc::new(Sha512AccCsr::new()),
             hmac384,

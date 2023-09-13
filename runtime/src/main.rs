@@ -17,7 +17,7 @@ Abstract:
 use caliptra_common::cprintln;
 use caliptra_cpu::TrapRecord;
 use caliptra_drivers::{
-    report_fw_error_fatal, report_fw_error_non_fatal, Ecc384, Hmac384, KeyVault, Mailbox, Sha256Hw,
+    report_fw_error_fatal, report_fw_error_non_fatal, Ecc384, Hmac384, KeyVault, Mailbox, Sha256,
     Sha384, Sha384Acc, SocIfc,
 };
 use caliptra_runtime::Drivers;
@@ -106,7 +106,7 @@ fn handle_fatal_error(code: u32) -> ! {
         // Zeroize the crypto blocks.
         Ecc384::zeroize();
         Hmac384::zeroize();
-        Sha256Hw::zeroize();
+        Sha256::zeroize();
         Sha384::zeroize();
         Sha384Acc::zeroize();
 

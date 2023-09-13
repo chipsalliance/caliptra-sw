@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_drivers::{Array4x8, CaliptraResult, Sha256, Sha256DigestOp};
+use caliptra_drivers::{Array4x8, CaliptraResult, Sha256Alg, Sha256DigestOp};
 
 use sha2::Digest;
 
@@ -25,7 +25,7 @@ impl<'a> Sha256DigestOp<'a> for Sha256DigestOpSw<'a> {
     }
 }
 
-impl Sha256 for Sha256SoftwareDriver {
+impl Sha256Alg for Sha256SoftwareDriver {
     type DigestOp<'a> = Sha256DigestOpSw<'a>;
 
     fn digest(&mut self, buf: &[u8]) -> CaliptraResult<Array4x8> {

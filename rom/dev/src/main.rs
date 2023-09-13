@@ -21,7 +21,7 @@ use core::hint::black_box;
 
 use caliptra_drivers::{
     cprintln, report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError, Ecc384, Hmac384,
-    KeyVault, Mailbox, ResetReason, RomAddr, Sha256Hw, Sha384, Sha384Acc, SocIfc,
+    KeyVault, Mailbox, ResetReason, RomAddr, Sha256, Sha384, Sha384Acc, SocIfc,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_image_types::RomInfo;
@@ -276,7 +276,7 @@ fn handle_fatal_error(code: u32) -> ! {
         // Zeroize the crypto blocks.
         Ecc384::zeroize();
         Hmac384::zeroize();
-        Sha256Hw::zeroize();
+        Sha256::zeroize();
         Sha384::zeroize();
         Sha384Acc::zeroize();
 

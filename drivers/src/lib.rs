@@ -81,7 +81,7 @@ pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};
 pub use persistent::{FuseLogArray, PcrLogArray, PersistentData, PersistentDataAccessor};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
-pub use sha256::{Sha256, Sha256DigestOp, Sha256Hw};
+pub use sha256::{Sha256Alg, Sha256DigestOp, Sha256};
 pub use sha384::{Sha384, Sha384Digest, Sha384DigestOp};
 pub use sha384acc::{Sha384Acc, Sha384AccOp};
 pub use soc_ifc::{report_boot_status, Lifecycle, MfgFlags, ResetReason, SocIfc};
