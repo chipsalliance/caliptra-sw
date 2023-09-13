@@ -84,7 +84,7 @@ pub use persistent::{
     FUSE_LOG_MAX_COUNT, MEASUREMENT_MAX_COUNT, PCR_LOG_MAX_COUNT,
 };
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
-pub use sha256::{Sha256, Sha256DigestOp};
+pub use sha256::{Sha256, Sha256Alg, Sha256DigestOp};
 pub use sha384::{Sha384, Sha384Digest, Sha384DigestOp};
 pub use sha384acc::{Sha384Acc, Sha384AccOp};
 pub use soc_ifc::{report_boot_status, Lifecycle, MfgFlags, ResetReason, SocIfc};

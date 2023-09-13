@@ -21,6 +21,20 @@ const SHA256_BLOCK_BYTE_SIZE: usize = 64;
 const SHA256_BLOCK_LEN_OFFSET: usize = 56;
 const SHA256_MAX_DATA_SIZE: usize = 1024 * 1024;
 
+pub trait Sha256DigestOp<'a> {
+    fn update(&mut self, data: &[u8]) -> CaliptraResult<()>;
+    fn finalize(self, digest: &mut Array4x8) -> CaliptraResult<()>;
+}
+
+pub trait Sha256Alg {
+    type DigestOp<'a>: Sha256DigestOp<'a>
+    where
+        Self: 'a;
+
+    fn digest_init(&mut self) -> CaliptraResult<Self::DigestOp<'_>>;
+    fn digest(&mut self, buf: &[u8]) -> CaliptraResult<Array4x8>;
+}
+
 pub struct Sha256 {
     sha256: Sha256Reg,
 }
@@ -29,13 +43,18 @@ impl Sha256 {
     pub fn new(sha256: Sha256Reg) -> Self {
         Self { sha256 }
     }
+}
+
+impl Sha256Alg for Sha256 {
+    type DigestOp<'a> = Sha256DigestOpHw<'a>;
+
     /// Initialize multi step digest operation
     ///
     /// # Returns
     ///
     /// * `Sha256Digest` - Object representing the digest operation
-    pub fn digest_init(&mut self) -> CaliptraResult<Sha256DigestOp<'_>> {
-        let op = Sha256DigestOp {
+    fn digest_init(&mut self) -> CaliptraResult<Sha256DigestOpHw<'_>> {
+        let op = Sha256DigestOpHw {
             sha: self,
             state: Sha256DigestState::Init,
             buf: [0u8; SHA256_BLOCK_BYTE_SIZE],
@@ -51,7 +70,7 @@ impl Sha256 {
     /// # Arguments
     ///
     /// * `buf` - Buffer to calculate the digest over
-    pub fn digest(&mut self, buf: &[u8]) -> CaliptraResult<Array4x8> {
+    fn digest(&mut self, buf: &[u8]) -> CaliptraResult<Array4x8> {
         // Check if the buffer is not large
         if buf.len() > SHA256_MAX_DATA_SIZE {
             return Err(CaliptraError::DRIVER_SHA256_MAX_DATA);
@@ -96,7 +115,8 @@ impl Sha256 {
 
         Ok(digest)
     }
-
+}
+impl Sha256 {
     /// Take a raw sha256 digest of 0 or more 64-byte blocks of memory. Unlike
     /// digest(), the each word is passed to the sha256 peripheral without
     /// byte-swapping to reverse the peripheral's big-endian words. This means the
@@ -255,7 +275,7 @@ enum Sha256DigestState {
 }
 
 /// Multi step SHA-256 digest operation
-pub struct Sha256DigestOp<'a> {
+pub struct Sha256DigestOpHw<'a> {
     /// SHA-256 Engine
     sha: &'a mut Sha256,
 
@@ -272,13 +292,13 @@ pub struct Sha256DigestOp<'a> {
     data_size: usize,
 }
 
-impl<'a> Sha256DigestOp<'a> {
+impl<'a> Sha256DigestOp<'a> for Sha256DigestOpHw<'a> {
     /// Update the digest with data
     ///
     /// # Arguments
     ///
     /// * `data` - Data to used to update the digest
-    pub fn update(&mut self, data: &[u8]) -> CaliptraResult<()> {
+    fn update(&mut self, data: &[u8]) -> CaliptraResult<()> {
         if self.state == Sha256DigestState::Final {
             return Err(CaliptraError::DRIVER_SHA256_INVALID_STATE);
         }
@@ -311,7 +331,7 @@ impl<'a> Sha256DigestOp<'a> {
     }
 
     /// Finalize the digest operations
-    pub fn finalize(mut self, digest: &mut Array4x8) -> CaliptraResult<()> {
+    fn finalize(mut self, digest: &mut Array4x8) -> CaliptraResult<()> {
         if self.state == Sha256DigestState::Final {
             return Err(CaliptraError::DRIVER_SHA256_INVALID_STATE);
         }
@@ -333,7 +353,8 @@ impl<'a> Sha256DigestOp<'a> {
 
         Ok(())
     }
-
+}
+impl<'a> Sha256DigestOpHw<'a> {
     /// Check if this the first digest operation
     fn is_first(&self) -> bool {
         self.state == Sha256DigestState::Init

@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::{Array4x8, CaliptraError, CaliptraResult, Sha256};
+use caliptra_drivers::{Array4x8, CaliptraError, CaliptraResult, Sha256, Sha256Alg};
 
 const EXPECTED_DIGEST: Array4x8 = Array4x8::new([
     0xe3b0c442, 0x98fc1c14, 0x9afbf4c8, 0x996fb924, 0x27ae41e4, 0x649b934c, 0xa495991b, 0x7852b855,
