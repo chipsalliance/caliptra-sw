@@ -156,14 +156,13 @@ impl RtAliasLayer {
     /// * `env` - FMC Environment
     /// * `hand_off` - HandOff
     pub fn extend_pcrs(env: &mut FmcEnv, hand_off: &mut HandOff) -> CaliptraResult<()> {
-        let extend_journey_pcr: bool = match env.soc_ifc.reset_reason() {
-            ResetReason::ColdReset | ResetReason::UpdateReset => true,
+        match env.soc_ifc.reset_reason() {
+            ResetReason::ColdReset | ResetReason::UpdateReset => extend_pcr_common(env, hand_off),
             _ => {
-                cprintln!("[alias rt : skip journey pcr extension");
-                false
+                cprintln!("[alias rt : skip pcr extension");
+                Ok(())
             }
-        };
-        extend_pcr_common(env, hand_off, extend_journey_pcr)
+        }
     }
 
     /// Populate Data Vault

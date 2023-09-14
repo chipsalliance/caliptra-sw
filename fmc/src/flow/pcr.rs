@@ -39,19 +39,9 @@ use zerocopy::AsBytes;
 ///
 /// * `env` - FMC Environment
 /// * `pcr_id` - PCR slot to extend the data into
-/// * `extend_journey` - Whether to extend into the journey PCR
 ///
 /// TODO: Add CFI instrumentation
-pub fn extend_pcr_common(
-    env: &mut FmcEnv,
-    hand_off: &mut HandOff,
-    extend_journey: bool,
-) -> CaliptraResult<()> {
-    // Clear current PCR before extending it.
-    if env.soc_ifc.reset_reason() == caliptra_drivers::ResetReason::UpdateReset {
-        env.pcr_bank.erase_pcr(RT_FW_CURRENT_PCR)?;
-    }
-
+pub fn extend_pcr_common(env: &mut FmcEnv, hand_off: &mut HandOff) -> CaliptraResult<()> {
     // Calculate RT TCI (Hash over runtime code)
     let rt_tci = Tci::rt_tci(env, hand_off);
     let rt_tci: [u8; 48] = okref(&rt_tci)?.into();
@@ -60,38 +50,30 @@ pub fn extend_pcr_common(
     let manifest_digest = Tci::image_manifest_digest(env, hand_off);
     let manifest_digest: [u8; 48] = okref(&manifest_digest)?.into();
 
-    let mut pcr_ids: u32 = 1 << RT_FW_CURRENT_PCR as u8;
+    // Clear current PCR before extending it.
+    env.pcr_bank.erase_pcr(RT_FW_CURRENT_PCR)?;
 
-    env.pcr_bank
-        .extend_pcr(RT_FW_CURRENT_PCR, &mut env.sha384, &rt_tci)?;
-    env.pcr_bank
-        .extend_pcr(RT_FW_CURRENT_PCR, &mut env.sha384, &manifest_digest)?;
-
-    if extend_journey {
-        pcr_ids |= 1 << RT_FW_JOURNEY_PCR as u8;
-        env.pcr_bank
-            .extend_pcr(RT_FW_JOURNEY_PCR, &mut env.sha384, &rt_tci)?;
-        env.pcr_bank
-            .extend_pcr(RT_FW_JOURNEY_PCR, &mut env.sha384, &manifest_digest)?;
-    }
-
-    log_pcr(
-        &mut env.persistent_data.get_mut().pcr_log,
-        &mut env.pcr_bank,
-        PcrLogEntryId::RtTci,
-        pcr_ids,
-        &rt_tci,
-    )?;
-
-    log_pcr(
-        &mut env.persistent_data.get_mut().pcr_log,
-        &mut env.pcr_bank,
-        PcrLogEntryId::FwImageManifest,
-        pcr_ids,
-        &manifest_digest,
-    )?;
+    extend_and_log(env, PcrLogEntryId::RtTci, &rt_tci)?;
+    extend_and_log(env, PcrLogEntryId::FwImageManifest, &manifest_digest)?;
 
     Ok(())
+}
+
+/// Extend `data` into both the current and journey PCRs, and updates the PCR log.
+/// TODO: Add CFI instrumentation
+fn extend_and_log(env: &mut FmcEnv, entry_id: PcrLogEntryId, data: &[u8]) -> CaliptraResult<()> {
+    env.pcr_bank
+        .extend_pcr(RT_FW_CURRENT_PCR, &mut env.sha384, data)?;
+    env.pcr_bank
+        .extend_pcr(RT_FW_JOURNEY_PCR, &mut env.sha384, data)?;
+
+    log_pcr(
+        &mut env.persistent_data.get_mut().pcr_log,
+        &mut env.pcr_bank,
+        entry_id,
+        (1 << RT_FW_CURRENT_PCR as u8) | (1 << RT_FW_JOURNEY_PCR as u8),
+        data,
+    )
 }
 
 // TODO: Add CFI instrumentation
