@@ -685,8 +685,6 @@ fn test_fht_info() {
     assert_eq!(fht.fmcalias_tbs_addr, FMCALIAS_TBS_ORG);
     assert_eq!(fht.pcr_log_addr, PCR_LOG_ORG);
     assert_eq!(fht.fuse_log_addr, FUSE_LOG_ORG);
-
-    // [TODO] Expand test to validate additional FHT fields.
 }
 
 #[test]
