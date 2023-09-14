@@ -15,6 +15,7 @@ use caliptra_image_fake_keys::{OWNER_CONFIG, VENDOR_CONFIG_KEY_1};
 use caliptra_image_gen::ImageGenerator;
 use caliptra_image_openssl::OsslCrypto;
 use caliptra_image_types::IMAGE_BYTE_SIZE;
+use caliptra_test::swap_word_bytes;
 use openssl::hash::{Hasher, MessageDigest};
 use zerocopy::{AsBytes, FromBytes};
 pub mod helpers;
@@ -80,7 +81,6 @@ const PCR_ENTRY_SIZE: usize = core::mem::size_of::<PcrLogEntry>();
 const MEASUREMENT_ENTRY_SIZE: usize = core::mem::size_of::<MeasurementLogEntry>();
 const MEASUREMENT_MAX_COUNT: usize = 8;
 
-// Skips checking `data` if empty.
 fn check_pcr_log_entry(
     pcr_entry_arr: &[u8],
     pcr_entry_index: usize,
@@ -93,10 +93,7 @@ fn check_pcr_log_entry(
 
     assert_eq!(entry.id, entry_id as u16);
     assert_eq!(entry.pcr_ids, pcr_ids);
-
-    if !pcr_data.is_empty() {
-        assert_eq!(entry.measured_data(), pcr_data);
-    }
+    assert_eq!(entry.measured_data(), pcr_data);
 }
 
 fn check_measurement_log_entry(
@@ -242,7 +239,7 @@ fn test_pcr_log() {
         6,
         PcrLogEntryId::FmcTci,
         PCR0_AND_PCR1_EXTENDED_ID,
-        &[],
+        swap_word_bytes(&image_bundle.manifest.fmc.digest).as_bytes(),
     );
 
     check_pcr_log_entry(
@@ -688,8 +685,6 @@ fn test_fht_info() {
     assert_eq!(fht.fmcalias_tbs_addr, FMCALIAS_TBS_ORG);
     assert_eq!(fht.pcr_log_addr, PCR_LOG_ORG);
     assert_eq!(fht.fuse_log_addr, FUSE_LOG_ORG);
-
-    // [TODO] Expand test to validate additional FHT fields.
 }
 
 #[test]
