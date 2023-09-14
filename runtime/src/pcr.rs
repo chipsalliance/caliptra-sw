@@ -26,11 +26,11 @@ impl PcrResetCounter {
     }
 
     pub fn get(&self, id: PcrId) -> u32 {
-        self.counter[id.into()]
+        self.counter[usize::from(id)]
     }
 
     pub fn increment(&mut self, id: PcrId) {
-        self.counter[id.into()] += 1;
+        self.counter[usize::from(id)] += 1;
     }
 }
 
