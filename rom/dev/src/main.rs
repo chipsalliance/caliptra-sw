@@ -17,6 +17,7 @@ Abstract:
 
 use crate::{lock::lock_registers, print::HexBytes};
 use caliptra_cfi_lib::CfiCounter;
+use caliptra_registers::soc_ifc::SocIfcReg;
 use core::hint::black_box;
 
 use caliptra_drivers::{
@@ -217,11 +218,22 @@ fn launch_fmc(env: &mut RomEnv) -> ! {
 #[inline(never)]
 extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
     cprintln!(
-        "EXCEPTION mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
+        "EXCEPTION mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X} ra=0x{:08X}",
         exception.mcause,
         exception.mscause,
-        exception.mepc
+        exception.mepc,
+        exception.ra
     );
+
+    {
+        let mut soc_ifc = unsafe { SocIfcReg::new() };
+        let soc_ifc = soc_ifc.regs_mut();
+        let ext_info = soc_ifc.cptra_fw_extended_error_info();
+        ext_info.at(0).write(|_| exception.mcause);
+        ext_info.at(1).write(|_| exception.mscause);
+        ext_info.at(2).write(|_| exception.mepc);
+        ext_info.at(3).write(|_| exception.ra);
+    }
 
     handle_fatal_error(CaliptraError::ROM_GLOBAL_EXCEPTION.into());
 }
@@ -229,17 +241,41 @@ extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
 #[no_mangle]
 #[inline(never)]
 extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
+    let mut soc_ifc = unsafe { SocIfcReg::new() };
+
+    // If the NMI was fired by caliptra instead of the uC, this register
+    // contains the reason(s)
+    let err_interrupt_status = u32::from(
+        soc_ifc
+            .regs()
+            .intr_block_rf()
+            .error_internal_intr_r()
+            .read(),
+    );
+
     cprintln!(
-        "NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
+        "NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X} ra=0x{:08X} error_internal_intr_r={:08X}",
         exception.mcause,
         exception.mscause,
-        exception.mepc
+        exception.mepc,
+        exception.ra,
+        err_interrupt_status,
     );
+
+    {
+        let soc_ifc = soc_ifc.regs_mut();
+        let ext_info = soc_ifc.cptra_fw_extended_error_info();
+        ext_info.at(0).write(|_| exception.mcause);
+        ext_info.at(1).write(|_| exception.mscause);
+        ext_info.at(2).write(|_| exception.mepc);
+        ext_info.at(3).write(|_| exception.ra);
+        ext_info.at(4).write(|_| err_interrupt_status);
+    }
 
     // Check if the NMI was due to WDT expiry.
     let mut error = CaliptraError::ROM_GLOBAL_NMI;
 
-    let wdt_status = unsafe { SocIfc::wdt_status() };
+    let wdt_status = soc_ifc.regs().cptra_wdt_status().read();
     if wdt_status.t1_timeout() || wdt_status.t2_timeout() {
         cprintln!("WDT Expired");
         error = CaliptraError::ROM_GLOBAL_WDT_EXPIRED;
