@@ -174,13 +174,14 @@ impl FirmwareProcessor {
         let mut self_test_in_progress = false;
         let mut measurement_count = 0;
 
-        cprintln!("[afmc] Waiting for Commands...");
+        cprintln!("[fwproc] Waiting for Commands...");
         loop {
             // Random delay for CFI glitch protection.
             CfiCounter::delay();
 
             if let Some(txn) = mbox.peek_recv() {
                 report_fw_error_non_fatal(0);
+                cprintln!("[fwproc] Received command 0x{:08x}", txn.cmd());
                 match CommandId::from(txn.cmd()) {
                     CommandId::VERSION => {
                         let mut resp = FipsVersionCmd::execute(soc_ifc)?;
@@ -188,7 +189,6 @@ impl FirmwareProcessor {
                         txn.start_txn().send_response(resp.as_bytes())?;
                     }
                     CommandId::SELF_TEST_START => {
-                        cprintln!("[afmc] FIPS self test");
                         if self_test_in_progress {
                             txn.start_txn().complete(false)?;
                         } else {
@@ -211,7 +211,6 @@ impl FirmwareProcessor {
                         }
                     }
                     CommandId::SHUTDOWN => {
-                        cprintln!("[afmc] FIPS shutdown");
                         let mut resp = MailboxResp::default();
                         resp.populate_chksum()?;
                         txn.start_txn().send_response(resp.as_bytes())?;
@@ -237,7 +236,7 @@ impl FirmwareProcessor {
                     CommandId::STASH_MEASUREMENT => {
                         if measurement_count == MEASUREMENT_MAX_COUNT {
                             cprintln!(
-                                "[afmc] Maximum supported number of measurements already received, ignoring."
+                                "[fwproc] Maximum supported number of measurements already received, ignoring."
                             );
                             txn.start_txn().complete(false)?;
                             continue;
@@ -289,13 +288,12 @@ impl FirmwareProcessor {
                             return Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE);
                         }
 
-                        cprintln!("");
-                        cprintln!("[afmc] Received Image of size {} bytes" txn.dlen());
+                        cprintln!("[fwproc] Received Image of size {} bytes" txn.dlen());
                         report_boot_status(FwProcessorDownloadImageComplete.into());
                         return Ok(txn);
                     }
                     _ => {
-                        cprintln!("Invalid command 0x{:08x} received", txn.cmd());
+                        cprintln!("[fwproc] Invalid command received");
                         txn.start_txn().complete(false)?;
                         return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND);
                     }
@@ -348,7 +346,7 @@ impl FirmwareProcessor {
         let info = verifier.verify(manifest, img_bundle_sz, ResetReason::ColdReset)?;
 
         cprintln!(
-            "[afmc] Image verified using Vendor ECC Key Index {}",
+            "[fwproc] Image verified using Vendor ECC Key Index {}",
             info.vendor_ecc_pub_key_idx,
         );
         report_boot_status(FwProcessorImageVerificationComplete.into());
@@ -461,7 +459,7 @@ impl FirmwareProcessor {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn load_image(manifest: &ImageManifest, txn: &mut MailboxRecvTxn) -> CaliptraResult<()> {
         cprintln!(
-            "[afmc] Loading FMC at address 0x{:08x} len {}",
+            "[fwproc] Loading FMC at address 0x{:08x} len {}",
             manifest.fmc.load_addr,
             manifest.fmc.size
         );
@@ -474,7 +472,7 @@ impl FirmwareProcessor {
         txn.copy_request(fmc_dest.as_bytes_mut())?;
 
         cprintln!(
-            "[afmc] Loading Runtime at address 0x{:08x} len {}",
+            "[fwproc] Loading Runtime at address 0x{:08x} len {}",
             manifest.runtime.load_addr,
             manifest.runtime.size
         );
