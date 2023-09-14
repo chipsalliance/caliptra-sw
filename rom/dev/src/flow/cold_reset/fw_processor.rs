@@ -190,6 +190,7 @@ impl FirmwareProcessor {
                     }
                     CommandId::SELF_TEST_START => {
                         if self_test_in_progress {
+                            // TODO: set non-fatal error register?
                             txn.start_txn().complete(false)?;
                         } else {
                             let rom_info = unsafe { &CALIPTRA_ROM_INFO };
@@ -202,6 +203,7 @@ impl FirmwareProcessor {
                     }
                     CommandId::SELF_TEST_GET_RESULTS => {
                         if !self_test_in_progress {
+                            // TODO: set non-fatal error register?
                             txn.start_txn().complete(false)?;
                         } else {
                             let mut resp = MailboxResp::default();
@@ -294,7 +296,9 @@ impl FirmwareProcessor {
                     }
                     _ => {
                         cprintln!("[fwproc] Invalid command received");
-                        txn.start_txn().complete(false)?;
+                        // Don't complete the transaction here; let the fatal
+                        // error handler do it to prevent a race condition
+                        // setting the error code.
                         return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND);
                     }
                 }
