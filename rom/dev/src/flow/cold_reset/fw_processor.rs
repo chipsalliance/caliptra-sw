@@ -22,9 +22,9 @@ use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_common::capabilities::Capabilities;
 use caliptra_common::fips::FipsVersionCmd;
-use caliptra_common::mailbox_api::CommandId;
-use caliptra_common::mailbox_api::MailboxResp;
-use caliptra_common::mailbox_api::StashMeasurementReq;
+use caliptra_common::mailbox_api::{
+    CapabilitiesResp, CommandId, MailboxResp, MailboxRespHeader, StashMeasurementReq,
+};
 use caliptra_common::pcr::PCR_ID_STASH_MEASUREMENT;
 use caliptra_common::verifier::FirmwareImageVerificationEnv;
 use caliptra_common::PcrLogEntry;
@@ -223,7 +223,14 @@ impl FirmwareProcessor {
                         let mut capabilities = Capabilities::default();
                         capabilities |= Capabilities::ROM_BASE;
 
-                        txn.start_txn().send_response(&capabilities.to_bytes())?;
+                        let mut resp = MailboxResp::Capabilities(CapabilitiesResp {
+                            hdr: MailboxRespHeader::default(),
+                            capabilities: capabilities.to_bytes(),
+                        });
+
+                        resp.populate_chksum()?;
+
+                        txn.start_txn().send_response(resp.as_bytes())?;
                         continue;
                     }
 
