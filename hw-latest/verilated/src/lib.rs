@@ -43,7 +43,7 @@ impl AhbTxnType {
     }
 }
 
-pub type GenericLoadCallbackFn = dyn Fn(&CaliptraVerilated, u8);
+pub type GenericOutputWiresChangedCallbackFn = dyn Fn(&CaliptraVerilated, u64);
 pub type AhbCallbackFn = dyn Fn(&CaliptraVerilated, AhbTxnType, u32, u64);
 
 struct AhbPendingTxn {
@@ -66,7 +66,8 @@ pub struct CaliptraVerilated {
     v: *mut bindings::caliptra_verilated,
     pub input: SigIn,
     pub output: SigOut,
-    generic_load_cb: Box<GenericLoadCallbackFn>,
+    prev_generic_output_wires: Option<u64>,
+    generic_output_wires_changed_cb: Box<GenericOutputWiresChangedCallbackFn>,
     ahb_cb: Box<AhbCallbackFn>,
     total_cycles: u64,
     ahb_txn: Option<AhbPendingTxn>,
@@ -83,7 +84,7 @@ impl CaliptraVerilated {
     #[allow(clippy::type_complexity)]
     pub fn with_callbacks(
         mut args: InitArgs,
-        generic_load_cb: Box<GenericLoadCallbackFn>,
+        generic_output_wires_changed_cb: Box<GenericOutputWiresChangedCallbackFn>,
         ahb_cb: Box<AhbCallbackFn>,
     ) -> Self {
         unsafe {
@@ -91,7 +92,8 @@ impl CaliptraVerilated {
                 v: bindings::caliptra_verilated_new(&mut args),
                 input: Default::default(),
                 output: Default::default(),
-                generic_load_cb,
+                generic_output_wires_changed_cb,
+                prev_generic_output_wires: None,
                 ahb_cb,
                 total_cycles: 0,
                 ahb_txn: None,
@@ -129,8 +131,9 @@ impl CaliptraVerilated {
         if !self.input.core_clk {
             return;
         }
-        if self.output.generic_load_en {
-            (self.generic_load_cb)(self, self.output.generic_load_data as u8);
+        if Some(self.output.generic_output_wires) != self.prev_generic_output_wires {
+            self.prev_generic_output_wires = Some(self.output.generic_output_wires);
+            (self.generic_output_wires_changed_cb)(self, self.output.generic_output_wires);
         }
         if let Some(ahb_txn) = &self.ahb_txn {
             if self.output.uc_hready {

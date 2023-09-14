@@ -54,8 +54,7 @@ module caliptra_verilated (
     output bit pslverr,
     output bit [`CALIPTRA_APB_DATA_WIDTH-1:0] prdata,
 
-    output bit generic_load_en,
-    output bit [31:0] generic_load_data,
+    output bit [63:0] generic_output_wires,
 
     output bit etrng_req,
 
@@ -162,7 +161,7 @@ caliptra_top caliptra_top_dut (
     .BootFSM_BrkPoint('x), //FIXME TIE-OFF
 
     .generic_input_wires('x), //FIXME TIE-OFF
-    .generic_output_wires(),
+    .generic_output_wires(generic_output_wires),
 
     .scan_mode(),
 
@@ -175,9 +174,6 @@ caliptra_top caliptra_top_dut (
 
     .security_state(security_state)
 );
-
-assign generic_load_en = caliptra_top_dut.soc_ifc_top1.i_soc_ifc_reg.field_combo.CPTRA_GENERIC_OUTPUT_WIRES[0].generic_wires.load_next;
-assign generic_load_data = caliptra_top_dut.soc_ifc_top1.i_soc_ifc_reg.field_combo.CPTRA_GENERIC_OUTPUT_WIRES[0].generic_wires.next;
 
 assign uc_haddr = caliptra_top_dut.rvtop.lsu_haddr;
 assign uc_hburst = caliptra_top_dut.rvtop.lsu_hburst;
