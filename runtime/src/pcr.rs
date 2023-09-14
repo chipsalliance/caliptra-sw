@@ -26,11 +26,11 @@ impl PcrResetCounter {
     }
 
     pub fn get(&self, id: PcrId) -> u32 {
-        self.counter[usize::from(id)]
+        self.counter[id.into()]
     }
 
     pub fn increment(&mut self, id: PcrId) {
-        self.counter[usize::from(id)] += 1;
+        self.counter[id.into()] += 1;
     }
 }
 
@@ -83,9 +83,8 @@ pub fn get_pcr_quote(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<
         .iter()
         .map(|raw_pcr_value| raw_pcr_value.into())
         .enumerate()
-        .fold([[0; 48]; 32], |mut acc, (idx, next)| {
-            acc[idx] = next;
-
+        .fold([[0; 48]; 32], |mut acc, (idx, pcr_value)| {
+            acc[idx] = pcr_value;
             acc
         });
 

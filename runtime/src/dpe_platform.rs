@@ -1,7 +1,5 @@
 // Licensed under the Apache-2.0 license
 
-use core::cmp::min;
-
 use arrayvec::ArrayVec;
 use caliptra_drivers::cprintln;
 use crypto::Digest;
@@ -48,7 +46,7 @@ impl Platform for DpePlatform<'_> {
             return Err(PlatformError::CertificateChainError);
         }
 
-        let cert_chunk_range_end = min(offset + size, len);
+        let cert_chunk_range_end = (offset + size).min(len);
         let bytes_written = cert_chunk_range_end - offset;
         if bytes_written as usize > MAX_CHUNK_SIZE {
             return Err(PlatformError::CertificateChainError);
