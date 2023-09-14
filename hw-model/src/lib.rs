@@ -671,6 +671,16 @@ pub trait HwModel {
         cmd: u32,
         buf: &[u8],
     ) -> std::result::Result<Option<Vec<u8>>, ModelError> {
+        self.start_mailbox_execute(cmd, buf)?;
+        self.finish_mailbox_execute()
+    }
+
+    /// Send a command to the mailbox but don't wait for the response
+    fn start_mailbox_execute(
+        &mut self,
+        cmd: u32,
+        buf: &[u8],
+    ) -> std::result::Result<(), ModelError> {
         if self.soc_mbox().lock().read().lock() {
             return Err(ModelError::UnableToLockMailbox);
         }
@@ -688,6 +698,11 @@ pub trait HwModel {
         // Ask the microcontroller to execute this command
         self.soc_mbox().execute().write(|w| w.execute(true));
 
+        Ok(())
+    }
+
+    /// Wait for the response to a previous call to `start_mailbox_execute()`.
+    fn finish_mailbox_execute(&mut self) -> std::result::Result<Option<Vec<u8>>, ModelError> {
         // Wait for the microcontroller to finish executing
         while self.soc_mbox().status().read().status().cmd_busy() {
             self.step();
