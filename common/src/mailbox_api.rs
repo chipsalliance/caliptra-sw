@@ -63,6 +63,7 @@ pub enum MailboxResp {
     TestGetFmcAliasCert(TestGetFmcAliasCertResp),
     FipsVersion(FipsVersionResp),
     FwInfo(FwInfoResp),
+    Capabilities(CapabilitiesResp),
 }
 
 impl MailboxResp {
@@ -78,6 +79,7 @@ impl MailboxResp {
             MailboxResp::TestGetFmcAliasCert(resp) => resp.as_bytes(),
             MailboxResp::FipsVersion(resp) => resp.as_bytes(),
             MailboxResp::FwInfo(resp) => resp.as_bytes(),
+            MailboxResp::Capabilities(resp) => resp.as_bytes(),
         }
     }
 
@@ -93,6 +95,7 @@ impl MailboxResp {
             MailboxResp::TestGetFmcAliasCert(resp) => resp.as_bytes_mut(),
             MailboxResp::FipsVersion(resp) => resp.as_bytes_mut(),
             MailboxResp::FwInfo(resp) => resp.as_bytes_mut(),
+            MailboxResp::Capabilities(resp) => resp.as_bytes_mut(),
         }
     }
 
@@ -362,4 +365,13 @@ pub struct FwInfoResp {
     pub fmc_manifest_svn: u32,
     // TODO: Decide what other information to report for general firmware
     // status.
+}
+
+// CAPABILITIES
+// No command-specific input args
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct CapabilitiesResp {
+    pub hdr: MailboxRespHeader,
+    pub capabilities: [u8; crate::capabilities::Capabilities::SIZE_IN_BYTES],
 }

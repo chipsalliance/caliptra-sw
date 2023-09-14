@@ -13,6 +13,8 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
+#![cfg_attr(feature = "interactive_test", allow(unused_imports))]
+mod interactive_test;
 
 use caliptra_common::cprintln;
 use caliptra_cpu::TrapRecord;
@@ -50,6 +52,10 @@ pub extern "C" fn entry_point() -> ! {
     assert!(pcr_bank
         .erase_pcr(caliptra_common::RT_FW_JOURNEY_PCR)
         .is_err());
+
+    if cfg!(feature = "interactive_test") {
+        interactive_test::process_mailbox_commands();
+    }
     caliptra_drivers::ExitCtrl::exit(0)
 }
 
