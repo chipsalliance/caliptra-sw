@@ -94,10 +94,10 @@ fn test_fht_info() {
     let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
     assert_eq!(fht.ldevid_tbs_size, 533);
     assert_eq!(fht.fmcalias_tbs_size, 769);
-    assert_eq!(fht.ldevid_tbs_addr, 0x50003800);
-    assert_eq!(fht.fmcalias_tbs_addr, 0x50003C00);
-    assert_eq!(fht.pcr_log_addr, 0x50004400);
-    assert_eq!(fht.fuse_log_addr, 0x50004C00);
+    assert_eq!(fht.ldevid_tbs_addr, 0x50003C00);
+    assert_eq!(fht.fmcalias_tbs_addr, 0x50004000);
+    assert_eq!(fht.pcr_log_addr, 0x50004800);
+    assert_eq!(fht.fuse_log_addr, 0x50005000);
 }
 
 #[test]
