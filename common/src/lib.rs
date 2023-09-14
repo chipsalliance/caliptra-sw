@@ -32,7 +32,7 @@ pub use fuse::{FuseLogEntry, FuseLogEntryId};
 pub use pcr::{PcrLogEntry, PcrLogEntryId, RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR};
 
 pub const FMC_ORG: u32 = 0x40000000;
-pub const FMC_SIZE: u32 = 16 * 1024;
+pub const FMC_SIZE: u32 = 18 * 1024;
 pub const RUNTIME_ORG: u32 = FMC_ORG + FMC_SIZE;
 pub const RUNTIME_SIZE: u32 = 96 * 1024;
 
