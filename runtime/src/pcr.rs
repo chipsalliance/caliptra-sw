@@ -1,25 +1,25 @@
 // Licensed under the Apache-2.0 license
 
-use crate::{Drivers};
-use caliptra_common::mailbox_api::{MailboxResp, ExtendPcrReq};
-use caliptra_drivers::{CaliptraError, CaliptraResult, PcrId, Sha384};
-use caliptra_registers::sha512::Sha512Reg;
+use crate::Drivers;
+use caliptra_common::mailbox_api::{ExtendPcrReq, MailboxResp};
+use caliptra_drivers::{CaliptraError, CaliptraResult, PcrId};
 use zerocopy::FromBytes;
 
 pub struct ExtendPcrCmd;
 impl ExtendPcrCmd {
-    pub(crate) fn execute(drivers: &Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        if let Some(cmd) = ExtendPcrReq::read_from(cmd_args) {
-            // let sha384_engine: &mut Sha384 = &mut drivers.sha384.;
-            let pcr_sha384_engine: &mut Sha384 = unsafe { &mut Sha384::new(Sha512Reg::new())} ;
-            let pcr_value: [u8; ExtendPcrReq::DATA_MAX_SIZE] = cmd.value;
-            let pcr_index: PcrId = PcrId::try_from(u8::try_from(cmd.pcr_idx).unwrap()).unwrap();
+    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+        let cmd =
+            ExtendPcrReq::read_from(cmd_args).ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
 
-            drivers.pcr_bank.extend_pcr( pcr_index, pcr_sha384_engine, &pcr_value)?;
-        } else {
-            return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
-        }
-        
+        let idx =
+            u8::try_from(cmd.pcr_idx).map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        let pcr_index: PcrId =
+            PcrId::try_from(idx).map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+
+        drivers
+            .pcr_bank
+            .extend_pcr(pcr_index, &mut drivers.sha384, &cmd.value)?;
+
         Ok(MailboxResp::default())
     }
 }

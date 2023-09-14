@@ -54,7 +54,6 @@ impl From<CommandId> for u32 {
 #[cfg_attr(test, derive(PartialEq, Debug, Eq))]
 #[allow(clippy::large_enum_variant)]
 pub enum MailboxResp {
-    // ExtendPCR(ExtendPCRResp), // ExtendPCR does not return a response
     Header(MailboxRespHeader),
     GetIdevCert(GetIdevCertResp),
     GetIdevCsr(GetIdevCsrResp),
