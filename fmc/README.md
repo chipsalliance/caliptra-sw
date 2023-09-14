@@ -221,6 +221,54 @@ This field provides the Handle into the Data Vault where the SVN<sub>RT</sub> is
 
 This field provides the Handle into the Data Vault where the Min-SVN<sub>RT</sub> is stored. Upon cold-boot this is set to SVN<sub>RT</sub>. On subsequent boots this is set to MIN(SVN<sub>RT</sub>, Min-SVN<sub>RT</sub>).
 
+### ldevid_tbs_addr
+
+TODO
+
+### fmcalias_tbs_addr
+
+TODO
+
+### ldevid_tbs_size
+
+TODO
+
+### fmcalias_tbs_size
+
+TODO
+
+### pcr_log_addr
+
+Address in DCCM of the PCR log
+
+### pcr_log_index
+
+Index within the PCR log of the next available log entry
+
+### fuse_log_addr
+
+TODO
+
+### rt_dice_pub_key
+
+TODO
+
+### rt_dice_sign
+
+TODO
+
+### idev_dice_pub_key
+
+TODO
+
+### rom_info_addr
+
+TODO
+
+### rtalias_tbs_size
+
+TODO
+
 ### reserved
 
 This area is reserved for definition of additional fields that may be added during Minor version updates of the FHT.
