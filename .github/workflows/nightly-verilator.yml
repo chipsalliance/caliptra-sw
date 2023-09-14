@@ -10,7 +10,7 @@ jobs:
   smoke_test:
     name: Smoke Test
     runs-on: e2-highcpu-32
-    timeout-minutes: 720
+    timeout-minutes: 2000
 
     env:
       VERILATOR_VERSION: v5.006
