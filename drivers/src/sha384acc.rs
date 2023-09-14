@@ -81,8 +81,25 @@ impl Sha384Acc {
     ///
     /// This function is safe to call from a trap handler.
     pub unsafe fn lock() {
-        let mut sha512_acc = Sha512AccCsr::new();
-        sha512_acc.regs_mut().lock().write(|w| w.lock(false)); // Writing 0 locks the accelerator.
+        let sha512_acc = Sha512AccCsr::new();
+        while sha512_acc.regs().lock().read().lock()
+            && sha512_acc.regs().status().read().soc_has_lock()
+        {}
+    }
+
+    /// Try to acquire the accelerator lock.
+    ///
+    /// This is useful to call from a fatal-error-handling routine.
+    ///
+    /// # Safety
+    ///
+    /// The caller must be certain that the results of any pending cryptographic
+    /// operations will not be used after this function is called.
+    ///
+    /// This function is safe to call from a trap handler.
+    pub unsafe fn try_lock() {
+        let sha512_acc = Sha512AccCsr::new();
+        sha512_acc.regs().lock().read().lock();
     }
 }
 
