@@ -24,7 +24,7 @@ use crate::flow::tci::Tci;
 use crate::fmc_env::FmcEnv;
 use crate::HandOff;
 use caliptra_drivers::{
-    cprintln, okref,
+    okref,
     pcr_log::{PcrLogEntry, PcrLogEntryId},
     CaliptraResult, PcrBank, PcrLogArray,
 };
@@ -33,7 +33,7 @@ use caliptra_common::{RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR};
 use caliptra_error::CaliptraError;
 use zerocopy::AsBytes;
 
-/// Extend common data into the current and journey PCRs
+/// Extend common data into the RT current and journey PCRs
 ///
 /// # Arguments
 ///
@@ -89,8 +89,6 @@ fn log_pcr(
     };
 
     // Create a PCR log entry
-    cprintln!("pcr_entry_id: {:?}", pcr_entry_id as u16);
-    cprintln!("FMC log_index: {:?}", pcr_bank.log_index as u16);
     let mut pcr_log_entry = PcrLogEntry {
         id: pcr_entry_id as u16,
         pcr_ids,
