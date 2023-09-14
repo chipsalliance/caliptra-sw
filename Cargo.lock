@@ -257,6 +257,7 @@ dependencies = [
  "caliptra-registers",
  "caliptra-test",
  "cfg-if 1.0.0",
+ "dpe",
  "openssl",
  "ufmt",
  "ureg",

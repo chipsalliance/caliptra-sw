@@ -42,7 +42,8 @@ pub const RTALIAS_TBS_ORG: u32 = 0x50004400;
 pub const PCR_LOG_ORG: u32 = 0x50004800;
 pub const MEASUREMENT_LOG_ORG: u32 = 0x50004C00;
 pub const FUSE_LOG_ORG: u32 = 0x50005000;
-pub const DATA_ORG: u32 = 0x50005400;
+pub const DPE_ORG: u32 = 0x50005400;
+pub const DATA_ORG: u32 = 0x50006400;
 pub const STACK_ORG: u32 = 0x5001A000;
 pub const ESTACK_ORG: u32 = 0x5001F800;
 pub const NSTACK_ORG: u32 = 0x5001FC00;
@@ -64,7 +65,8 @@ pub const RTALIAS_TBS_SIZE: u32 = 1024;
 pub const PCR_LOG_SIZE: u32 = 1024;
 pub const MEASUREMENT_LOG_SIZE: u32 = 1024;
 pub const FUSE_LOG_SIZE: u32 = 1024;
-pub const DATA_SIZE: u32 = 83 * 1024;
+pub const DPE_SIZE: u32 = 4 * 1024;
+pub const DATA_SIZE: u32 = 79 * 1024;
 pub const STACK_SIZE: u32 = 22 * 1024;
 pub const ESTACK_SIZE: u32 = 1024;
 pub const NSTACK_SIZE: u32 = 1024;
@@ -124,7 +126,13 @@ fn mem_layout_test_measurement_log() {
 #[test]
 #[allow(clippy::assertions_on_constants)]
 fn mem_layout_test_fuselog() {
-    assert_eq!((DATA_ORG - FUSE_LOG_ORG), FUSE_LOG_SIZE);
+    assert_eq!((DPE_ORG - FUSE_LOG_ORG), FUSE_LOG_SIZE);
+}
+
+#[test]
+#[allow(clippy::assertions_on_constants)]
+fn mem_layout_test_dpe() {
+    assert_eq!((DATA_ORG - DPE_ORG), DPE_SIZE);
 }
 
 #[test]
