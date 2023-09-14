@@ -22,7 +22,7 @@ use core::hint::black_box;
 
 use caliptra_drivers::{
     cprintln, report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError, Ecc384, Hmac384,
-    KeyVault, Mailbox, ResetReason, RomAddr, Sha256, Sha384, Sha384Acc, SocIfc,
+    KeyVault, Mailbox, ResetReason, Sha256, Sha384, Sha384Acc, SocIfc,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_image_types::RomInfo;
@@ -73,8 +73,6 @@ pub extern "C" fn rom_entry() -> ! {
     } else {
         cprintln!("[state] CFI Disabled");
     }
-
-    let rom_info = unsafe { &CALIPTRA_ROM_INFO };
 
     let _lifecyle = match env.soc_ifc.lifecycle() {
         caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",
@@ -129,7 +127,7 @@ pub extern "C" fn rom_entry() -> ! {
             /// Ecc384 Engine
             ecc384: &mut env.ecc384,
         };
-        let result = run_fips_tests(&mut kats_env, rom_info);
+        let result = run_fips_tests(&mut kats_env);
         if let Err(err) = result {
             handle_fatal_error(err.into());
         }
@@ -137,24 +135,16 @@ pub extern "C" fn rom_entry() -> ! {
 
     let reset_reason = env.soc_ifc.reset_reason();
 
-    let result = flow::run(&mut env);
-    match result {
-        Ok(Some(mut fht)) => {
-            fht.rom_info_addr = RomAddr::from(rom_info);
-            fht::store(&mut env, fht);
-        }
-        Ok(None) => {}
-        Err(err) => {
-            //
-            // For the update reset case, when we fail the image validation
-            // we will need to continue to jump to the FMC after
-            // reporting the error in the registers.
-            //
-            if reset_reason == ResetReason::UpdateReset {
-                handle_non_fatal_error(err.into());
-            } else {
-                handle_fatal_error(err.into());
-            }
+    if let Err(err) = flow::run(&mut env) {
+        //
+        // For the update reset case, when we fail the image validation
+        // we will need to continue to jump to the FMC after
+        // reporting the error in the registers.
+        //
+        if reset_reason == ResetReason::UpdateReset {
+            handle_non_fatal_error(err.into());
+        } else {
+            handle_fatal_error(err.into());
         }
     }
 
@@ -176,7 +166,8 @@ pub extern "C" fn rom_entry() -> ! {
     caliptra_drivers::ExitCtrl::exit(0);
 }
 
-fn run_fips_tests(env: &mut KatsEnv, rom_info: &RomInfo) -> CaliptraResult<()> {
+fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<()> {
+    let rom_info = unsafe { &CALIPTRA_ROM_INFO };
     rom_integrity_test(env, &rom_info.sha256_digest)?;
     kat::execute_kat(env)
 }

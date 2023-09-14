@@ -28,7 +28,6 @@ use crate::flow::cold_reset::idev_id::InitDevIdLayer;
 use crate::flow::cold_reset::ldev_id::LocalDevIdLayer;
 use crate::{cprintln, rom_env::RomEnv};
 use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
-use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
 
@@ -47,11 +46,14 @@ impl ColdResetFlow {
     /// * `env` - ROM Environment
     #[inline(never)]
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
+    pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
         cprintln!("[cold-reset] ++");
         report_boot_status(ColdResetStarted.into());
         env.data_vault
             .write_cold_reset_entry4(ColdResetEntry4::RomColdBootStatus, ColdResetStarted.into());
+
+        // Initialize FHT
+        fht::initialize_fht(env);
 
         // Execute IDEVID layer
         let mut idevid_layer_output = InitDevIdLayer::derive(env)?;
@@ -80,7 +82,7 @@ impl ColdResetFlow {
 
         cprintln!("[cold-reset] --");
 
-        Ok(Some(fht::make_fht(env)))
+        Ok(())
     }
 }
 
@@ -95,19 +97,18 @@ impl ColdResetFlow {
 ///     CaliptraResult
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub fn copy_tbs(tbs: &[u8], tbs_type: TbsType, env: &mut RomEnv) -> CaliptraResult<()> {
+    let mut persistent_data = env.persistent_data.get_mut();
     let dst = match tbs_type {
         TbsType::LdevidTbs => {
-            env.fht_data_store.ldevid_tbs_size = tbs.len() as u16;
-            env.persistent_data
-                .get_mut()
+            persistent_data.fht.ldevid_tbs_size = tbs.len() as u16;
+            persistent_data
                 .ldevid_tbs
                 .get_mut(..tbs.len())
                 .ok_or(CaliptraError::ROM_GLOBAL_UNSUPPORTED_LDEVID_TBS_SIZE)?
         }
         TbsType::FmcaliasTbs => {
-            env.fht_data_store.fmcalias_tbs_size = tbs.len() as u16;
-            env.persistent_data
-                .get_mut()
+            persistent_data.fht.fmcalias_tbs_size = tbs.len() as u16;
+            persistent_data
                 .fmcalias_tbs
                 .get_mut(..tbs.len())
                 .ok_or(CaliptraError::ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE)?

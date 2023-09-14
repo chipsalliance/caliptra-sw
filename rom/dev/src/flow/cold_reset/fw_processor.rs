@@ -17,7 +17,6 @@ use crate::fuse::log_fuse_data;
 use crate::pcr;
 use crate::rom_env::RomEnv;
 use crate::run_fips_tests;
-use crate::CALIPTRA_ROM_INFO;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_common::capabilities::Capabilities;
@@ -228,8 +227,7 @@ impl FirmwareProcessor {
                             // TODO: set non-fatal error register?
                             txn.complete(false)?;
                         } else {
-                            let rom_info = unsafe { &CALIPTRA_ROM_INFO };
-                            run_fips_tests(env, rom_info)?;
+                            run_fips_tests(env)?;
                             let mut resp = MailboxResp::default();
                             resp.populate_chksum()?;
                             txn.send_response(resp.as_bytes())?;

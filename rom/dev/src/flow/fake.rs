@@ -177,13 +177,15 @@ impl FakeRomFlow {
     ///
     /// * `env` - ROM Environment
     #[inline(never)]
-    pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
+    pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
         let reset_reason = env.soc_ifc.reset_reason();
         match reset_reason {
             // Cold Reset Flow
             ResetReason::ColdReset => {
                 cprintln!("[fake-rom-cold-reset] ++");
                 report_boot_status(ColdResetStarted.into());
+
+                fht::initialize_fht(env);
 
                 // SKIP Execute IDEVID layer
                 // LDEVID cert
@@ -198,7 +200,7 @@ impl FakeRomFlow {
                 cprintln!("[fake-rom-cold-reset] --");
                 report_boot_status(ColdResetComplete.into());
 
-                Ok(Some(fht::make_fht(env)))
+                Ok(())
             }
 
             // Warm Reset Flow
@@ -222,7 +224,7 @@ pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
 
     // Copy TBS to DCCM
     let tbs = &FAKE_LDEV_TBS;
-    env.fht_data_store.ldevid_tbs_size = u16::try_from(tbs.len()).unwrap();
+    env.persistent_data.get_mut().fht.ldevid_tbs_size = u16::try_from(tbs.len()).unwrap();
     let Some(dst) = env.persistent_data.get_mut().ldevid_tbs.get_mut(..tbs.len()) else {
         return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_LDEVID_TBS_SIZE);
     };
@@ -240,7 +242,7 @@ pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
 
     // Copy TBS to DCCM
     let tbs = &FAKE_FMC_ALIAS_TBS;
-    env.fht_data_store.fmcalias_tbs_size = u16::try_from(tbs.len()).unwrap();
+    env.persistent_data.get_mut().fht.fmcalias_tbs_size = u16::try_from(tbs.len()).unwrap();
     let Some(dst) = env.persistent_data.get_mut().fmcalias_tbs.get_mut(..tbs.len()) else {
         return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE);
     };
