@@ -328,15 +328,9 @@ impl Pcr0 {
                 input.rom_verify_config as u8,
             ],
         );
-        extend(
-            &mut value,
-            swap_word_bytes(&input.vendor_pub_key_hash).as_bytes(),
-        );
-        extend(
-            &mut value,
-            swap_word_bytes(&input.owner_pub_key_hash).as_bytes(),
-        );
-        extend(&mut value, swap_word_bytes(&input.fmc_digest).as_bytes());
+        extend(&mut value, input.vendor_pub_key_hash.as_bytes());
+        extend(&mut value, input.owner_pub_key_hash.as_bytes());
+        extend(&mut value, input.fmc_digest.as_bytes());
 
         let mut result: [u32; 12] = zerocopy::transmute!(value);
         swap_word_bytes_inplace(&mut result);
@@ -372,8 +366,8 @@ fn test_derive_pcr0() {
     assert_eq!(
         pcr0,
         Pcr0([
-            334368099, 4101058832, 257564511, 2070344457, 1515946830, 1149528795, 3857446926,
-            3563986624, 336259629, 3599082754, 3226667919, 2430588663
+            2159100819, 2531475347, 3835048241, 3707234396, 908604529, 2761635294, 4133365160,
+            4016423326, 7045090, 2404229332, 2928558728, 4001536946
         ])
     )
 }

@@ -86,17 +86,14 @@ pub(crate) fn extend_pcrs(
     pcr.extend(&device_status, PcrLogEntryId::DeviceStatus)?;
 
     pcr.extend(
-        &<[u8; 48]>::from(&env.soc_ifc.fuse_bank().vendor_pub_key_hash()),
+        env.soc_ifc.fuse_bank().vendor_pub_key_hash().as_bytes(),
         PcrLogEntryId::VendorPubKeyHash,
     )?;
     pcr.extend(
-        &<[u8; 48]>::from(&env.data_vault.owner_pk_hash()),
+        env.data_vault.owner_pk_hash().as_bytes(),
         PcrLogEntryId::OwnerPubKeyHash,
     )?;
-    pcr.extend(
-        &<[u8; 48]>::from(&env.data_vault.fmc_tci()),
-        PcrLogEntryId::FmcTci,
-    )?;
+    pcr.extend(env.data_vault.fmc_tci().as_bytes(), PcrLogEntryId::FmcTci)?;
 
     Ok(())
 }

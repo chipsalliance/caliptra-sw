@@ -15,7 +15,6 @@ use caliptra_image_fake_keys::{OWNER_CONFIG, VENDOR_CONFIG_KEY_1};
 use caliptra_image_gen::ImageGenerator;
 use caliptra_image_openssl::OsslCrypto;
 use caliptra_image_types::IMAGE_BYTE_SIZE;
-use caliptra_test::swap_word_bytes;
 use openssl::hash::{Hasher, MessageDigest};
 use zerocopy::{AsBytes, FromBytes};
 pub mod helpers;
@@ -204,7 +203,7 @@ fn test_pcr_log() {
         1,
         PcrLogEntryId::VendorPubKeyHash,
         PCR0_AND_PCR1_EXTENDED_ID,
-        swap_word_bytes(&vendor_pubkey_digest).as_bytes(),
+        vendor_pubkey_digest.as_bytes(),
     );
 
     check_pcr_log_entry(
@@ -212,7 +211,7 @@ fn test_pcr_log() {
         2,
         PcrLogEntryId::OwnerPubKeyHash,
         PCR0_AND_PCR1_EXTENDED_ID,
-        swap_word_bytes(&owner_pubkey_digest).as_bytes(),
+        owner_pubkey_digest.as_bytes(),
     );
 
     check_pcr_log_entry(
@@ -220,7 +219,7 @@ fn test_pcr_log() {
         3,
         PcrLogEntryId::FmcTci,
         PCR0_AND_PCR1_EXTENDED_ID,
-        swap_word_bytes(&image_bundle.manifest.fmc.digest).as_bytes(),
+        image_bundle.manifest.fmc.digest.as_bytes(),
     );
 }
 
