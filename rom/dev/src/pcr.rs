@@ -28,7 +28,7 @@ use caliptra_common::{
     PcrLogEntry, PcrLogEntryId,
 };
 use caliptra_drivers::{
-    Array4x12, CaliptraError, CaliptraResult, PcrBank, PcrLogArray, PersistentDataAccessor, Sha384,
+    CaliptraError, CaliptraResult, PcrBank, PcrLogArray, PersistentDataAccessor, Sha384,
 };
 use caliptra_image_verify::ImageVerificationInfo;
 
@@ -41,17 +41,7 @@ struct PcrExtender<'a> {
 }
 impl PcrExtender<'_> {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn extend(&mut self, data: Array4x12, pcr_entry_id: PcrLogEntryId) -> CaliptraResult<()> {
-        let bytes: &[u8; 48] = &data.into();
-        self.extend_and_log(bytes, pcr_entry_id)
-    }
-
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    fn extend_u8(&mut self, data: u8, pcr_entry_id: PcrLogEntryId) -> CaliptraResult<()> {
-        let bytes = &data.to_le_bytes();
-        self.extend_and_log(bytes, pcr_entry_id)
-    }
-    fn extend_and_log(&mut self, data: &[u8], pcr_entry_id: PcrLogEntryId) -> CaliptraResult<()> {
+    fn extend(&mut self, data: &[u8], pcr_entry_id: PcrLogEntryId) -> CaliptraResult<()> {
         self.pcr_bank
             .extend_pcr(PCR_ID_FMC_CURRENT, self.sha384, data)?;
         self.pcr_bank
@@ -82,37 +72,30 @@ pub(crate) fn extend_pcrs(
         sha384: env.sha384,
     };
 
-    pcr.extend_u8(
+    let device_status: [u8; 8] = [
         env.soc_ifc.lifecycle() as u8,
-        PcrLogEntryId::DeviceLifecycle,
-    )?;
-    pcr.extend_u8(env.soc_ifc.debug_locked() as u8, PcrLogEntryId::DebugLocked)?;
-    pcr.extend_u8(
+        env.soc_ifc.debug_locked() as u8,
         env.soc_ifc.fuse_bank().anti_rollback_disable() as u8,
-        PcrLogEntryId::AntiRollbackDisabled,
-    )?;
+        env.data_vault.ecc_vendor_pk_index() as u8,
+        env.data_vault.fmc_svn() as u8,
+        info.fmc.effective_fuse_svn as u8,
+        env.data_vault.lms_vendor_pk_index() as u8,
+        env.soc_ifc.fuse_bank().lms_verify() as u8,
+    ];
+
+    pcr.extend(&device_status, PcrLogEntryId::DeviceStatus)?;
+
     pcr.extend(
-        env.soc_ifc.fuse_bank().vendor_pub_key_hash(),
+        &<[u8; 48]>::from(&env.soc_ifc.fuse_bank().vendor_pub_key_hash()),
         PcrLogEntryId::VendorPubKeyHash,
     )?;
     pcr.extend(
-        env.data_vault.owner_pk_hash(),
+        &<[u8; 48]>::from(&env.data_vault.owner_pk_hash()),
         PcrLogEntryId::OwnerPubKeyHash,
     )?;
-    pcr.extend_u8(
-        env.data_vault.ecc_vendor_pk_index() as u8,
-        PcrLogEntryId::EccVendorPubKeyIndex,
-    )?;
-    pcr.extend(env.data_vault.fmc_tci(), PcrLogEntryId::FmcTci)?;
-    pcr.extend_u8(env.data_vault.fmc_svn() as u8, PcrLogEntryId::FmcSvn)?;
-    pcr.extend_u8(info.fmc.effective_fuse_svn as u8, PcrLogEntryId::FmcFuseSvn)?;
-    pcr.extend_u8(
-        env.data_vault.lms_vendor_pk_index() as u8,
-        PcrLogEntryId::LmsVendorPubKeyIndex,
-    )?;
-    pcr.extend_u8(
-        env.soc_ifc.fuse_bank().lms_verify() as u8,
-        PcrLogEntryId::RomVerifyConfig,
+    pcr.extend(
+        &<[u8; 48]>::from(&env.data_vault.fmc_tci()),
+        PcrLogEntryId::FmcTci,
     )?;
 
     Ok(())
