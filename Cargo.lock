@@ -380,9 +380,11 @@ dependencies = [
  "caliptra-hw-model",
  "caliptra-image-types",
  "caliptra-registers",
+ "caliptra-test",
  "caliptra-x509",
  "caliptra_common",
  "cfg-if 1.0.0",
+ "openssl",
  "ufmt",
  "zerocopy",
 ]
@@ -398,6 +400,7 @@ dependencies = [
  "caliptra_common",
  "cfg-if 1.0.0",
  "ufmt",
+ "ureg",
  "zerocopy",
 ]
 
@@ -598,6 +601,7 @@ dependencies = [
  "caliptra-kat",
  "caliptra-lms-types",
  "caliptra-registers",
+ "caliptra-test",
  "caliptra-x509",
  "caliptra_common",
  "cfg-if 1.0.0",

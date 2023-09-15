@@ -221,8 +221,7 @@ The following sections define the various cryptographic primitives used by Calip
 
 | Constant | Size (bytes) | Description |
 |----------|--------------|-------------|
-| DOE_UDS_IV | 16 | Initialization vector specified by the ROM for deobfuscating the UDS. |
-| DOE_FE_IV | 16 | Initialization vector specified by the ROM for deobfuscating Field Entropy. |
+| DOE_IV | 16 | Initialization vector specified by the ROM for deobfuscating the UDS and Field Entropy. |
 <br>
 
 ## 9. Cold Reset Flow
@@ -263,11 +262,11 @@ Both UDS and Field Entropy are available only during cold reset of Caliptra.
 **Actions:**
 1.	Decrypt UDS to Key Vault Slot 0
 
-    `doe_decrypt_uds(KvSlot0, DOE_UDS_IV)`
+    `doe_decrypt_uds(KvSlot0, DOE_IV)`
 
 2.	Decrypt Field Entropy to Key Vault Slot 1
 
-	`doe_decrypt_uds(KvSlot1, DOE_FE_IV)`
+	`doe_decrypt_uds(KvSlot1, DOE_IV)`
 
 3.	Clear class secrets (Clears UDS, Field Entropy and Obfuscation Key cleared)
 

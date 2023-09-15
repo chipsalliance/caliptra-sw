@@ -19,11 +19,8 @@ use crate::{
     swap_word_bytes, swap_word_bytes_inplace,
 };
 
-// The IV fed to the DOE when the ROM deobfuscates the UDS seed (as passed to doe registers)
-pub const DOE_UDS_IV: [u32; 4] = [0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e];
-
-// The IV fed to the DOE when the ROM deobfuscates the field entropy seed (as passed to doe registers)
-pub const DOE_FE_IV: [u32; 4] = [0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e];
+// The IV fed to the DOE when the ROM deobfuscates the UDS seed / field entropy (as passed to doe registers)
+pub const DOE_IV: [u32; 4] = [0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e];
 
 pub const ECDSA_KEYGEN_NONCE: [u32; 12] = [0u32; 12];
 
@@ -33,12 +30,8 @@ pub struct DoeInput {
     pub doe_obf_key: [u32; 8],
 
     // The DOE initialization vector, as given to the DOE_IV register by the
-    // firmware when decrypting the UDS.
-    pub doe_uds_iv: [u32; 4],
-
-    // The DOE initialization vector, as given to the DOE_IV register by the
-    // firmware when decrypting the field entropy.
-    pub doe_fe_iv: [u32; 4],
+    // firmware when decrypting the UDS and field entropy.
+    pub doe_iv: [u32; 4],
 
     // The UDS seed, as stored in the fuses
     pub uds_seed: [u32; 12],
@@ -54,8 +47,7 @@ impl Default for DoeInput {
         Self {
             doe_obf_key: caliptra_hw_model_types::DEFAULT_CPTRA_OBF_KEY,
 
-            doe_uds_iv: DOE_UDS_IV,
-            doe_fe_iv: DOE_FE_IV,
+            doe_iv: DOE_IV,
 
             uds_seed: caliptra_hw_model_types::DEFAULT_UDS_SEED,
             field_entropy_seed: caliptra_hw_model_types::DEFAULT_FIELD_ENTROPY,
@@ -108,7 +100,7 @@ impl DoeOutput {
             .as_bytes_mut()
             .copy_from_slice(&aes256_decrypt_blocks(
                 swap_word_bytes(&input.doe_obf_key).as_bytes(),
-                swap_word_bytes(&input.doe_uds_iv).as_bytes(),
+                swap_word_bytes(&input.doe_iv).as_bytes(),
                 swap_word_bytes(&input.uds_seed).as_bytes(),
             ));
         swap_word_bytes_inplace(&mut result.uds);
@@ -117,7 +109,7 @@ impl DoeOutput {
             .as_bytes_mut()
             .copy_from_slice(&aes256_decrypt_blocks(
                 swap_word_bytes(&input.doe_obf_key).as_bytes(),
-                swap_word_bytes(&input.doe_fe_iv).as_bytes(),
+                swap_word_bytes(&input.doe_iv).as_bytes(),
                 swap_word_bytes(&input.field_entropy_seed).as_bytes(),
             ));
         swap_word_bytes_inplace(&mut result.field_entropy);
@@ -133,8 +125,7 @@ fn test_doe_output() {
             0x4f0b1c83, 0xb231c258, 0x7759c92b, 0xf22ac83f, 0x97c4e162, 0x3580ca0f, 0xb79529c2,
             0x8a340dfd,
         ],
-        doe_uds_iv: [0x455ba825, 0x45e16ca6, 0xf97d1f86, 0xb3718021],
-        doe_fe_iv: [0x848049fb, 0x4951e297, 0xbe60edba, 0xa24b77bb],
+        doe_iv: [0x455ba825, 0x45e16ca6, 0xf97d1f86, 0xb3718021],
         uds_seed: [
             0x86c65f40, 0x04d45413, 0x5041da9a, 0x8580ec9a, 0xc7007ee6, 0xceb4a4b8, 0xce485f47,
             0xbf6976b8, 0xc906de7b, 0xb0cd2dce, 0x8d2b8eed, 0xa537255f,
@@ -149,13 +140,13 @@ fn test_doe_output() {
         output,
         DoeOutput {
             uds: [
-                0x92121902, 0xbefa4497, 0x3d36f1db, 0x485a3ed6, 0x2d7b2eb3, 0x53929c34, 0x879e64ef,
-                0x6b25eaee, 0x0029fa17, 0x92f7f8da, 0x3b2ac8db, 0x21411551,
+                2450659586, 3204072599, 1027011035, 1213873878, 763047603, 1402117172, 2275304687,
+                1797647086, 2750999, 2465724634, 992659675, 557913425
             ],
             field_entropy: [
-                0xdbca1cfa, 0x149c0355, 0x7ee48ddb, 0xb022238b, 0x057c9b49, 0x6c9e5b66, 0x119bcff5,
-                0xe82d50e0, 0x55555555, 0x55555555, 0x55555555, 0x55555555,
-            ],
+                437386532, 405572964, 972652519, 2702758929, 92052297, 1822317414, 295423989,
+                3895283936, 1431655765, 1431655765, 1431655765, 1431655765
+            ]
         }
     );
 }

@@ -50,7 +50,7 @@ pub struct PersistentData {
 }
 impl PersistentData {
     pub fn assert_matches_layout() {
-        const P: *const PersistentData = memory_layout::DCCM_ORG as *const PersistentData;
+        const P: *const PersistentData = memory_layout::MAN1_ORG as *const PersistentData;
         use memory_layout as layout;
         unsafe {
             assert_eq!(addr_of!((*P).manifest1) as u32, layout::MAN1_ORG);
@@ -65,7 +65,10 @@ impl PersistentData {
                 memory_layout::MEASUREMENT_LOG_ORG
             );
             assert_eq!(addr_of!((*P).fuse_log) as u32, memory_layout::FUSE_LOG_ORG);
-            assert_eq!(P.add(1) as u32, memory_layout::BOOT_STATUS_ORG);
+            assert_eq!(
+                P.add(1) as u32,
+                memory_layout::FUSE_LOG_ORG + memory_layout::FUSE_LOG_SIZE
+            );
         }
     }
 
@@ -98,7 +101,7 @@ impl PersistentDataAccessor {
     pub fn get(&self) -> &PersistentData {
         // WARNING: The returned lifetime elided from `self` is critical for
         // safety. Do not change this API without review by a Rust expert.
-        unsafe { ref_from_addr(memory_layout::DCCM_ORG) }
+        unsafe { ref_from_addr(memory_layout::MAN1_ORG) }
     }
 
     /// # Safety
@@ -109,7 +112,7 @@ impl PersistentDataAccessor {
     pub fn get_mut(&mut self) -> &mut PersistentData {
         // WARNING: The returned lifetime elided from `self` is critical for
         // safety. Do not change this API without review by a Rust expert.
-        unsafe { ref_mut_from_addr(memory_layout::DCCM_ORG) }
+        unsafe { ref_mut_from_addr(memory_layout::MAN1_ORG) }
     }
 }
 

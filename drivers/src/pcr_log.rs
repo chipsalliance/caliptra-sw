@@ -36,6 +36,8 @@ pub enum PcrLogEntryId {
     LmsVendorPubKeyIndex = 10, // data size = 1 byte
     RomVerifyConfig = 11,      // data size = 1 byte
     StashMeasurement = 12,     // data size = 48 bytes
+    RtTci = 13,                // data size = 48 bytes
+    FwImageManifest = 14,      // data size = 48 bytes
 }
 
 impl From<u16> for PcrLogEntryId {
@@ -54,6 +56,8 @@ impl From<u16> for PcrLogEntryId {
             10 => PcrLogEntryId::LmsVendorPubKeyIndex,
             11 => PcrLogEntryId::RomVerifyConfig,
             12 => PcrLogEntryId::StashMeasurement,
+            13 => PcrLogEntryId::RtTci,
+            14 => PcrLogEntryId::FwImageManifest,
             _ => PcrLogEntryId::Invalid,
         }
     }
@@ -91,6 +95,8 @@ impl PcrLogEntry {
             PcrLogEntryId::LmsVendorPubKeyIndex => 1,
             PcrLogEntryId::RomVerifyConfig => 1,
             PcrLogEntryId::StashMeasurement => 48,
+            PcrLogEntryId::RtTci => 48,
+            PcrLogEntryId::FwImageManifest => 48,
         };
 
         &self.pcr_data.as_bytes()[..data_len]
