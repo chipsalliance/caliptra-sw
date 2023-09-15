@@ -18,7 +18,9 @@ fn test_unknown_command_is_fatal() {
     // This command does not exist
     assert_eq!(
         hw.mailbox_execute(0xabcd_1234, &[]),
-        Err(ModelError::MailboxCmdFailed(0))
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND.into()
+        ))
     );
 
     hw.step_until_fatal_error(
