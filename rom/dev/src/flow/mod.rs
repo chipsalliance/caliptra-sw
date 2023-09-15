@@ -13,9 +13,9 @@ Abstract:
 --*/
 
 mod cold_reset;
+#[cfg(feature = "fake-rom")]
+mod fake;
 mod update_reset;
-#[cfg(feature = "val-rom")]
-mod val;
 mod warm_reset;
 
 use crate::cprintln;
@@ -35,7 +35,7 @@ use caliptra_error::CaliptraError;
 pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
     let reset_reason = env.soc_ifc.reset_reason();
 
-    if cfg!(not(feature = "val-rom")) {
+    if cfg!(not(feature = "fake-rom")) {
         match reset_reason {
             // Cold Reset Flow
             ResetReason::ColdReset => {
@@ -66,12 +66,12 @@ pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
             Err(CaliptraError::ROM_GLOBAL_PANIC);
 
         if env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production {
-            cprintln!("Validation ROM in Production lifecycle prohibited");
-            handle_fatal_error(CaliptraError::ROM_GLOBAL_VAL_ROM_IN_PRODUCTION.into());
+            cprintln!("Fake ROM in Production lifecycle prohibited");
+            handle_fatal_error(CaliptraError::ROM_GLOBAL_FAKE_ROM_IN_PRODUCTION.into());
         }
 
-        #[cfg(feature = "val-rom")]
-        let _result = val::ValRomFlow::run(env);
+        #[cfg(feature = "fake-rom")]
+        let _result = fake::FakeRomFlow::run(env);
 
         _result
     }

@@ -13,7 +13,7 @@ Abstract:
 --*/
 use crate::flow::crypto::Crypto;
 use crate::flow::dice::{DiceInput, DiceOutput};
-use crate::flow::pcr::{extend_current_pcr, extend_journey_pcr};
+use crate::flow::pcr::extend_pcr_common;
 use crate::flow::tci::Tci;
 use crate::flow::x509::X509;
 use crate::fmc_env::FmcEnv;
@@ -24,16 +24,12 @@ use caliptra_common::crypto::Ecc384KeyPair;
 use caliptra_common::keyids::{KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY, KEY_ID_TMP};
 use caliptra_common::HexBytes;
 use caliptra_drivers::{
-    okref, report_boot_status, CaliptraError, CaliptraResult, Ecc384Result, KeyId, ResetReason,
+    okref, report_boot_status, CaliptraError, CaliptraResult, Ecc384Result, KeyId, PersistentData,
+    ResetReason,
 };
 use caliptra_x509::{NotAfter, NotBefore, RtAliasCertTbs, RtAliasCertTbsParams};
 
 const SHA384_HASH_SIZE: usize = 48;
-
-const RT_ALIAS_TBS_SIZE: usize = 0x1000;
-extern "C" {
-    static mut RTALIAS_TBS_ORG: [u8; RT_ALIAS_TBS_SIZE];
-}
 
 #[derive(Default)]
 pub struct RtAliasLayer {}
@@ -159,13 +155,14 @@ impl RtAliasLayer {
     ///
     /// * `env` - FMC Environment
     /// * `hand_off` - HandOff
-    pub fn extend_pcrs(env: &mut FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
-        extend_current_pcr(env, hand_off)?;
+    pub fn extend_pcrs(env: &mut FmcEnv, hand_off: &mut HandOff) -> CaliptraResult<()> {
         match env.soc_ifc.reset_reason() {
-            ResetReason::ColdReset | ResetReason::UpdateReset => extend_journey_pcr(env, hand_off)?,
-            _ => cprintln!("[alias rt : skip journey pcr extension"),
+            ResetReason::ColdReset | ResetReason::UpdateReset => extend_pcr_common(env, hand_off),
+            _ => {
+                cprintln!("[alias rt : skip pcr extension");
+                Ok(())
+            }
         }
-        Ok(())
     }
 
     /// Populate Data Vault
@@ -322,26 +319,20 @@ impl RtAliasLayer {
 
         hand_off.set_rt_dice_signature(sig);
 
-        //  Copy TBS to DCCM.
-        Self::copy_tbs(tbs.tbs())?;
+        //  Copy TBS to DCCM and set size in FHT.
+        Self::copy_tbs(tbs.tbs(), env.persistent_data.get_mut())?;
+        hand_off.set_rtalias_tbs_size(tbs.tbs().len());
 
         report_boot_status(FmcBootStatus::RtAliasCertSigGenerationComplete as u32);
 
         Ok(())
     }
 
-    fn copy_tbs(tbs: &[u8]) -> CaliptraResult<()> {
-        let dst = unsafe {
-            let ptr = &mut RTALIAS_TBS_ORG as *mut u8;
-            core::slice::from_raw_parts_mut(ptr, tbs.len())
-        };
-
-        if tbs.len() <= RT_ALIAS_TBS_SIZE {
-            dst[..tbs.len()].copy_from_slice(tbs);
-        } else {
+    fn copy_tbs(tbs: &[u8], persistent_data: &mut PersistentData) -> CaliptraResult<()> {
+        let Some(dest) = persistent_data.rtalias_tbs.get_mut(..tbs.len()) else {
             return Err(CaliptraError::FMC_RT_ALIAS_TBS_SIZE_EXCEEDED);
-        }
-
+        };
+        dest.copy_from_slice(tbs);
         Ok(())
     }
 }

@@ -22,18 +22,20 @@ Abstract:
 
 --*/
 use crate::{wait, CaliptraError, CaliptraResult};
-use caliptra_registers::{csrng::CsrngReg, entropy_src::regs::AlertFailCountsReadVal};
-use core::{iter::FusedIterator, num::NonZeroUsize};
+use caliptra_registers::csrng::CsrngReg;
+use caliptra_registers::entropy_src::{self, regs::AlertFailCountsReadVal, EntropySrcReg};
+use caliptra_registers::soc_ifc::{self, SocIfcReg};
+
+use core::array;
 
 // https://opentitan.org/book/hw/ip/csrng/doc/theory_of_operation.html#command-description
 const MAX_SEED_WORDS: usize = 12;
-const MAX_GENERATE_BLOCKS: usize = 4096;
-const WORDS_PER_GENERATE_BLOCK: usize = 4;
+const WORDS_PER_BLOCK: usize = 4;
 
 /// A unique handle to the underlying CSRNG peripheral.
 pub struct Csrng {
-    csrng: caliptra_registers::csrng::CsrngReg,
-    entropy_src: caliptra_registers::entropy_src::EntropySrcReg,
+    csrng: CsrngReg,
+    entropy_src: EntropySrcReg,
 }
 
 impl Csrng {
@@ -49,20 +51,18 @@ impl Csrng {
     ///
     /// Returns an error if the internal seed command fails.
     pub fn new(
-        csrng: caliptra_registers::csrng::CsrngReg,
-        entropy_src: caliptra_registers::entropy_src::EntropySrcReg,
+        csrng: CsrngReg,
+        entropy_src: EntropySrcReg,
+        soc_ifc: &SocIfcReg,
     ) -> CaliptraResult<Self> {
-        Self::with_seed(csrng, entropy_src, Seed::EntropySrc)
+        Self::with_seed(csrng, entropy_src, soc_ifc, Seed::EntropySrc)
     }
 
     /// # Safety
     ///
     /// The caller MUST ensure that the CSRNG peripheral is in a state where new
     /// entropy is accessible via the generate command.
-    pub unsafe fn assume_initialized(
-        csrng: caliptra_registers::csrng::CsrngReg,
-        entropy_src: caliptra_registers::entropy_src::EntropySrcReg,
-    ) -> Self {
+    pub unsafe fn assume_initialized(csrng: CsrngReg, entropy_src: EntropySrcReg) -> Self {
         Self { csrng, entropy_src }
     }
 
@@ -76,25 +76,32 @@ impl Csrng {
     ///
     /// Returns an error if the internal seed command fails.
     pub fn with_seed(
-        csrng: caliptra_registers::csrng::CsrngReg,
-        entropy_src: caliptra_registers::entropy_src::EntropySrcReg,
+        csrng: CsrngReg,
+        entropy_src: EntropySrcReg,
+        soc_ifc: &SocIfcReg,
         seed: Seed,
     ) -> CaliptraResult<Self> {
         const FALSE: u32 = MultiBitBool::False as u32;
         const TRUE: u32 = MultiBitBool::True as u32;
 
-        // Configure and enable entropy_src if needed.
-
         let mut result = Self { csrng, entropy_src };
-        let c = result.csrng.regs_mut();
         let e = result.entropy_src.regs_mut();
 
+        // Configure and enable entropy_src if needed.
         if e.module_enable().read().module_enable() == FALSE {
-            e.conf()
-                .write(|w| w.fips_enable(FALSE).entropy_data_reg_enable(FALSE));
+            set_health_check_thresholds(e, soc_ifc.regs());
+
+            e.conf().write(|w| {
+                w.fips_enable(TRUE)
+                    .entropy_data_reg_enable(FALSE)
+                    .threshold_scope(TRUE)
+                    .rng_bit_enable(FALSE)
+            });
             e.module_enable().write(|w| w.module_enable(TRUE));
-            wait::until(|| e.debug_status().read().main_sm_boot_done());
+            check_for_alert_state(result.entropy_src.regs())?;
         }
+
+        let c = result.csrng.regs_mut();
 
         if c.ctrl().read().enable() == FALSE {
             c.ctrl()
@@ -107,9 +114,7 @@ impl Csrng {
         Ok(result)
     }
 
-    /// Returns an iterator over `num_words` random [`u32`]s.
-    ///
-    /// This function will round up to the nearest multiple of four words.
+    /// Return 12 randomly generated [`u32`]s.
     ///
     /// # Errors
     ///
@@ -120,27 +125,55 @@ impl Csrng {
     /// ```no_run
     /// let mut csrng = ...;
     ///
-    /// let num_words = NonZeroUsize::new(1).unwrap();
-    /// let mut random_words = csrng.generate(num_words)?;
-    ///
-    /// // Rounds up to nearest multiple of four.
-    /// assert_eq!(random_words.len(), 4);
+    /// let random_words: [u32; 12] = csrng.generate()?;
     ///
     /// for word in random_words {
     ///     // Do something with `word`.
     /// }
     /// ```
-    pub fn generate(&mut self, num_words: NonZeroUsize) -> CaliptraResult<Iter> {
-        // Round up to nearest multiple of 128-bit block.
-        let num_128_bit_blocks = (num_words.get() + 3) / 4;
-        let num_words = num_128_bit_blocks * WORDS_PER_GENERATE_BLOCK;
+    pub fn generate12(&mut self) -> CaliptraResult<[u32; 12]> {
+        self.generate()
+    }
 
-        send_command(&mut self.csrng, Command::Generate { num_128_bit_blocks })?;
+    /// Return 16 randomly generated [`u32`]s.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the internal generate command fails.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// let mut csrng = ...;
+    ///
+    /// let random_words: [u32; 16] = csrng.generate()?;
+    ///
+    /// for word in random_words {
+    ///     // Do something with `word`.
+    /// }
+    /// ```
+    pub fn generate16(&mut self) -> CaliptraResult<[u32; 16]> {
+        self.generate()
+    }
 
-        Ok(Iter {
-            csrng: &mut self.csrng,
-            num_words_left: num_words,
-        })
+    fn generate<const N: usize>(&mut self) -> CaliptraResult<[u32; N]> {
+        check_for_alert_state(self.entropy_src.regs())?;
+
+        send_command(
+            &mut self.csrng,
+            Command::Generate {
+                num_128_bit_blocks: N / WORDS_PER_BLOCK,
+            },
+        )?;
+
+        Ok(array::from_fn(|i| {
+            if i % WORDS_PER_BLOCK == 0 {
+                // Wait for CSRNG to generate next block of words.
+                wait::until(|| self.csrng.regs().genbits_vld().read().genbits_vld());
+            }
+
+            self.csrng.regs().genbits().read()
+        }))
     }
 
     pub fn reseed(&mut self, seed: Seed) -> CaliptraResult<()> {
@@ -152,7 +185,7 @@ impl Csrng {
     }
 
     /// Returns the number of failing health checks.
-    pub fn health_counts(&self) -> HealthFailCounts {
+    pub fn health_fail_counts(&self) -> HealthFailCounts {
         let e = self.entropy_src.regs();
 
         HealthFailCounts {
@@ -163,6 +196,42 @@ impl Csrng {
 
     pub fn uninstantiate(mut self) {
         let _ = send_command(&mut self.csrng, Command::Uninstantiate);
+    }
+}
+
+fn check_for_alert_state(
+    entropy_src: entropy_src::RegisterBlock<ureg::RealMmio>,
+) -> CaliptraResult<()> {
+    // https://opentitan.org/book/hw/ip/entropy_src/doc/theory_of_operation.html#main-state-machine-diagram
+    // https://github.com/chipsalliance/caliptra-rtl/blob/main/src/entropy_src/rtl/entropy_src_main_sm_pkg.sv
+    const ALERT_HANG: u32 = 0x15c;
+    const CONT_HT_RUNNING: u32 = 0x1a2;
+    const BOOT_PHASE_DONE: u32 = 0x8e;
+
+    loop {
+        match entropy_src.main_sm_state().read().main_sm_state() {
+            ALERT_HANG => {
+                let alert_counts = entropy_src.alert_fail_counts().read();
+
+                if alert_counts.repcnt_fail_count() > 0 {
+                    return Err(CaliptraError::DRIVER_CSRNG_REPCNT_HEALTH_CHECK_FAILED);
+                }
+
+                if alert_counts.adaptp_lo_fail_count() > 0
+                    || alert_counts.adaptp_hi_fail_count() > 0
+                {
+                    return Err(CaliptraError::DRIVER_CSRNG_ADAPTP_HEALTH_CHECK_FAILED);
+                }
+
+                return Err(CaliptraError::DRIVER_CSRNG_OTHER_HEALTH_CHECK_FAILED);
+            }
+
+            CONT_HT_RUNNING | BOOT_PHASE_DONE => {
+                return Ok(());
+            }
+
+            _ => (),
+        }
     }
 }
 
@@ -190,59 +259,11 @@ enum MultiBitBool {
     True = 6,
 }
 
-/// An iterator over random [`u32`]s.
-///
-/// This struct is created by the [`generate`] method on [`Csrng`].
-///
-/// [`generate`]: Csrng::generate
-pub struct Iter<'a> {
-    // It's not clear what reseeding or updating the CSRNG state would do
-    // to an existing generate request. Prevent these operations from happening
-    // concurrent to this iterator's life.
-    csrng: &'a mut CsrngReg,
-    num_words_left: usize,
-}
-
-impl Iterator for Iter<'_> {
-    type Item = u32;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let csrng = self.csrng.regs();
-        if self.num_words_left == 0 {
-            None
-        } else {
-            if self.num_words_left % WORDS_PER_GENERATE_BLOCK == 0 {
-                // Wait for CSRNG to generate next block of 4 words.
-                wait::until(|| csrng.genbits_vld().read().genbits_vld());
-            }
-
-            self.num_words_left -= 1;
-
-            Some(csrng.genbits().read())
-        }
-    }
-}
-
-impl ExactSizeIterator for Iter<'_> {
-    fn len(&self) -> usize {
-        self.num_words_left
-    }
-}
-
-impl FusedIterator for Iter<'_> {}
-
-impl Drop for Iter<'_> {
-    fn drop(&mut self) {
-        // Exhaust this generate request.
-        for _ in self {}
-    }
-}
-
 /// Contains counts of failing health checks.
 ///
-/// This struct is returned by the [`health_counts`] method on [`Csrng`].
+/// This struct is returned by the [`health_fail_counts`] function on [`Csrng`].
 ///
-/// [`health_counts`]: Csrng::health_counts
+/// [`health_fail_counts`]: Csrng::health_fail_counts
 pub struct HealthFailCounts {
     /// The total number of failing health check alerts.
     pub total: u32,
@@ -291,7 +312,7 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
             acmd = 3;
             clen = 0;
             flag0 = MultiBitBool::False;
-            glen = num_128_bit_blocks.min(MAX_GENERATE_BLOCKS);
+            glen = num_128_bit_blocks;
             extra_words = &[];
             err = CaliptraError::DRIVER_CSRNG_GENERATE;
         }
@@ -315,16 +336,13 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
         }
     }
 
-    let acmd = acmd & 0xf;
-    let clen = (clen as u32) & 0xf;
-    let flag0 = (flag0 as u32) & 0xf;
-    let glen = (glen as u32) & 0x1fff;
-
     // Write mandatory 32-bit command header.
-    csrng
-        .regs_mut()
-        .cmd_req()
-        .write(|_| ((glen << 12) | (flag0 << 8) | (clen << 4) | acmd).into());
+    csrng.regs_mut().cmd_req().write(|w| {
+        w.acmd(acmd)
+            .clen(clen as u32)
+            .flag0(flag0 as u32)
+            .glen(glen as u32)
+    });
 
     // Write optional extra words.
     for &word in extra_words {
@@ -336,8 +354,8 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
         let reg = csrng.regs().sw_cmd_sts().read();
 
         // Order matters. Check for errors first.
-        if reg.cmd_sts() {
-            // TODO(rkr35): Somehow convey additional error information found in
+        if reg.cmd_sts() || u32::from(csrng.regs().err_code().read()) != 0 {
+            // TODO: Somehow convey additional error information found in
             // the ERR_CODE register.
             return Err(err);
         }
@@ -345,5 +363,76 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
         if reg.cmd_rdy() {
             return Ok(());
         }
+    }
+}
+
+fn set_health_check_thresholds(
+    e: entropy_src::RegisterBlock<ureg::RealMmioMut>,
+    soc_ifc: soc_ifc::RegisterBlock<ureg::RealMmio>,
+) {
+    // Configure thresholds for the two approved NIST health checks:
+    //  1. Repetition Count Test
+    //  2. Adaptive Proportion Test
+
+    {
+        // The Repetition Count test fails if:
+        //  * An RNG wire repeats the same bit THRESHOLD times in a row.
+        // See section 4.4.1 of NIST.SP.800-90B for more information of about this test.
+
+        // If the SOC doesn't specify a threshold, use this default, which assumes a min-entropy of 1.
+        const DEFAULT_THRESHOLD: u32 = 41;
+
+        let threshold = soc_ifc
+            .cptra_i_trng_entropy_config_1()
+            .read()
+            .repetition_count();
+
+        e.repcnt_thresholds().write(|w| {
+            w.fips_thresh(if threshold == 0 {
+                DEFAULT_THRESHOLD
+            } else {
+                threshold
+            })
+        });
+    }
+
+    {
+        // The Adaptive Proportion test fails if:
+        //  * Any window has more than the HI threshold of 1's; or,
+        //  * Any window has less than the LO threshold of 1's.
+        // See section 4.4.2 of NIST.SP.800-90B for more information of about this test.
+
+        // Use 75% and 25% of the 2048 bit FIPS window size for the default HI and LO thresholds
+        // respectively.
+        const WINDOW_SIZE_BITS: u32 = 2048;
+        const DEFAULT_HI: u32 = 3 * (WINDOW_SIZE_BITS / 4);
+        const DEFAULT_LO: u32 = WINDOW_SIZE_BITS / 4;
+
+        // TODO: What to do if HI <= LO?
+        let threshold_hi = soc_ifc
+            .cptra_i_trng_entropy_config_0()
+            .read()
+            .high_threshold();
+
+        let threshold_lo = soc_ifc
+            .cptra_i_trng_entropy_config_0()
+            .read()
+            .low_threshold();
+
+        e.adaptp_hi_thresholds().write(|w| {
+            w.fips_thresh(if threshold_hi == 0 {
+                DEFAULT_HI
+            } else {
+                threshold_hi
+            })
+        });
+
+        e.adaptp_lo_thresholds().write(|w| {
+            w.fips_thresh(if threshold_lo == 0 {
+                DEFAULT_LO
+            } else {
+                threshold_lo
+            })
+        });
     }
 }

@@ -155,6 +155,7 @@ impl TryFrom<u32> for U4 {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Fuses {
     pub uds_seed: [u32; 12],
     pub field_entropy: [u32; 8],
@@ -187,6 +188,22 @@ impl Default for Fuses {
             lms_verify: Default::default(),
             fuse_lms_revocation: Default::default(),
         }
+    }
+}
+
+pub struct RandomNibbles<R: RngCore>(pub R);
+
+impl RandomNibbles<ThreadRng> {
+    pub fn new_from_thread_rng() -> Self {
+        Self(rand::thread_rng())
+    }
+}
+
+impl<R: RngCore> Iterator for RandomNibbles<R> {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        Some((self.0.next_u32() & 0xf) as u8)
     }
 }
 

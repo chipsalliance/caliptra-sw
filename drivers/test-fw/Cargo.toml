@@ -82,6 +82,11 @@ path = "src/bin/pcrbank_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "persistent"
+path = "src/bin/persistent_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
 name = "sha384acc"
 path = "src/bin/sha384acc_tests.rs"
 required-features = ["riscv"]
@@ -129,6 +134,21 @@ required-features = ["riscv"]
 [[bin]]
 name = "csrng2"
 path = "src/bin/csrng_tests2.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "csrng_fail_repcnt_tests"
+path = "src/bin/csrng_fail_repcnt_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "csrng_pass_health_tests"
+path = "src/bin/csrng_pass_health_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "csrng_fail_adaptp_tests"
+path = "src/bin/csrng_fail_adaptp_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]

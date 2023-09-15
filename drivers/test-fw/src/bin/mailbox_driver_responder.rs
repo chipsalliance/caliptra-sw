@@ -11,6 +11,7 @@ use caliptra_test_harness::{self, println};
 
 use caliptra_drivers::{self, Mailbox};
 use caliptra_registers::mbox::MboxCsr;
+use zerocopy::AsBytes;
 
 #[panic_handler]
 pub fn panic(_info: &core::panic::PanicInfo) -> ! {
@@ -31,8 +32,16 @@ extern "C" fn main() {
                 let mut buf = [0u32; 4];
                 let dlen = txn.dlen();
                 println!("dlen: {dlen}");
-                txn.recv_request(&mut buf).unwrap();
+                txn.recv_request(buf.as_bytes_mut()).unwrap();
                 println!("buf: {:08x?}", buf);
+            }
+            // Test recv_request with non-multiple-of-4 result buffer
+            0x5000_0001 => {
+                let mut buf = [0u8; 5];
+                let dlen = txn.dlen();
+                println!("dlen: {dlen}");
+                txn.recv_request(&mut buf).unwrap();
+                println!("buf: {:02x?}", buf);
             }
             // Test copy_request function
             0x6000_0000 => {
@@ -41,7 +50,7 @@ extern "C" fn main() {
                 let dlen_words = (dlen + 3) / 4;
                 println!("dlen: {dlen}");
                 for _ in 0..((dlen_words + (buf.len() - 1)) / buf.len()) {
-                    txn.copy_request(&mut buf).unwrap();
+                    txn.copy_request(buf.as_bytes_mut()).unwrap();
                     println!("buf: {:08x?}", buf);
                 }
                 txn.complete(true).unwrap();
@@ -63,7 +72,7 @@ extern "C" fn main() {
                 let rem_words = dlen_words / 2;
                 let mut buf = [0u32; 1];
                 for _ in 0..rem_words {
-                    txn.copy_request(&mut buf).unwrap();
+                    txn.copy_request(buf.as_bytes_mut()).unwrap();
                     println!("buf: {:08x?}", buf);
                 }
                 txn.complete(true).unwrap();
@@ -79,7 +88,7 @@ extern "C" fn main() {
                 let dlen_words = (dlen + 3) / 4;
                 println!("dlen: {dlen}");
                 for _ in 0..((dlen_words + (buf.len() - 1)) / buf.len()) {
-                    txn.copy_request(&mut buf).unwrap();
+                    txn.copy_request(buf.as_bytes_mut()).unwrap();
                     println!("buf: {:08x?}", buf);
                 }
                 txn.send_response(&[0x98, 0x76]).unwrap();

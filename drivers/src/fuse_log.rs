@@ -50,7 +50,7 @@ impl From<u32> for FuseLogEntryId {
 
 /// Fuse log entry
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, Debug, Default, FromBytes)]
 pub struct FuseLogEntry {
     /// Entry identifier
     pub entry_id: u32,

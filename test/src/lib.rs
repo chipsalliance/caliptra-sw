@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-mod crypto;
+pub mod crypto;
 pub mod derive;
 pub mod x509;
 

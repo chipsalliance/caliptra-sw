@@ -42,6 +42,8 @@ const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
 /// The number of CPU clock cycles it takes to write the firmware to the mailbox.
 const FW_WRITE_TICKS: u64 = 1000;
 
+const EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES: u64 = 20_000_000; // 20 million cycles
+
 // CPU Main Loop (free_run no GDB)
 fn free_run(mut cpu: Cpu<CaliptraRootBus>, trace_path: Option<PathBuf>) {
     if let Some(path) = trace_path {
@@ -144,6 +146,12 @@ fn main() -> io::Result<()> {
                 .value_parser(value_parser!(String))
                 .default_value("unprovisioned"),
         )
+        .arg(
+            arg!(--"wdt-timeout" <U64> "Watchdog Timer Timeout in CPU Clock Cycles")
+                .required(false)
+                .value_parser(value_parser!(u64))
+                .default_value(&(EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES.to_string()))
+        )
         .get_matches();
 
     let args_rom = args.get_one::<PathBuf>("rom").unwrap();
@@ -152,6 +160,7 @@ fn main() -> io::Result<()> {
     let args_log_dir = args.get_one::<PathBuf>("log-dir").unwrap();
     let args_idevid_key_id_algo = args.get_one::<String>("idevid-key-id-algo").unwrap();
     let args_ueid = args.get_one::<u64>("ueid").unwrap();
+    let wdt_timeout = args.get_one::<u64>("wdt-timeout").unwrap();
     let mut mfg_pk_hash = match hex::decode(args.get_one::<String>("mfg-pk-hash").unwrap()) {
         Ok(mfg_pk_hash) => mfg_pk_hash,
         Err(_) => {
@@ -346,6 +355,15 @@ fn main() -> io::Result<()> {
         cert[7] = (*args_ueid >> 32) as u32;
 
         soc_ifc.fuse_idevid_cert_attr().write(&cert);
+    }
+
+    // Populate cptra_wdt_cfg
+    {
+        soc_ifc.cptra_wdt_cfg().at(0).write(|_| *wdt_timeout as u32);
+        soc_ifc
+            .cptra_wdt_cfg()
+            .at(1)
+            .write(|_| (*wdt_timeout >> 32) as u32);
     }
 
     let cpu = Cpu::new(root_bus, clock);

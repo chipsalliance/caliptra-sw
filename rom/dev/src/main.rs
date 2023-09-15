@@ -13,18 +13,20 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
-#![cfg_attr(feature = "val-rom", allow(unused_imports))]
+#![cfg_attr(feature = "fake-rom", allow(unused_imports))]
 
 use crate::{lock::lock_registers, print::HexBytes};
 use caliptra_cfi_lib::CfiCounter;
+use caliptra_registers::soc_ifc::SocIfcReg;
 use core::hint::black_box;
 
 use caliptra_drivers::{
     cprintln, report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError, Ecc384, Hmac384,
-    KeyVault, Mailbox, ResetReason, Sha256, Sha384, Sha384Acc, SocIfc,
+    KeyVault, Mailbox, ResetReason, RomAddr, Sha256, Sha384, Sha384Acc, SocIfc,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_image_types::RomInfo;
+use caliptra_kat::KatsEnv;
 use rom_env::RomEnv;
 
 #[cfg(not(feature = "std"))]
@@ -41,7 +43,6 @@ mod kat;
 mod lock;
 mod pcr;
 mod rom_env;
-mod verifier;
 mod wdt;
 
 use caliptra_drivers::printer as print;
@@ -83,11 +84,11 @@ pub extern "C" fn rom_entry() -> ! {
     };
     cprintln!("[state] LifecycleState = {}", _lifecyle);
 
-    if cfg!(feature = "val-rom")
+    if cfg!(feature = "fake-rom")
         && env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production
     {
-        cprintln!("Val ROM in Production lifecycle prohibited");
-        handle_fatal_error(CaliptraError::ROM_GLOBAL_VAL_ROM_IN_PRODUCTION.into());
+        cprintln!("Fake ROM in Production lifecycle prohibited");
+        handle_fatal_error(CaliptraError::ROM_GLOBAL_FAKE_ROM_IN_PRODUCTION.into());
     }
 
     cprintln!(
@@ -102,8 +103,33 @@ pub extern "C" fn rom_entry() -> ! {
     // Start the watchdog timer
     wdt::start_wdt(&mut env.soc_ifc);
 
-    if !cfg!(feature = "val-rom") {
-        let result = run_fips_tests(&mut env, rom_info);
+    if !cfg!(feature = "fake-rom") {
+        let mut kats_env = caliptra_kat::KatsEnv {
+            // SHA1 Engine
+            sha1: &mut env.sha1,
+
+            // sha256
+            sha256: &mut env.sha256,
+
+            // SHA2-384 Engine
+            sha384: &mut env.sha384,
+
+            // SHA2-384 Accelerator
+            sha384_acc: &mut env.sha384_acc,
+
+            // Hmac384 Engine
+            hmac384: &mut env.hmac384,
+
+            /// Cryptographically Secure Random Number Generator
+            trng: &mut env.trng,
+
+            // LMS Engine
+            lms: &mut env.lms,
+
+            /// Ecc384 Engine
+            ecc384: &mut env.ecc384,
+        };
+        let result = run_fips_tests(&mut kats_env, rom_info);
         if let Err(err) = result {
             handle_fatal_error(err.into());
         }
@@ -113,8 +139,9 @@ pub extern "C" fn rom_entry() -> ! {
 
     let result = flow::run(&mut env);
     match result {
-        Ok(Some(fht)) => {
-            fht::store(fht);
+        Ok(Some(mut fht)) => {
+            fht.rom_info_addr = RomAddr::from(rom_info);
+            fht::store(&mut env, fht);
         }
         Ok(None) => {}
         Err(err) => {
@@ -132,7 +159,6 @@ pub extern "C" fn rom_entry() -> ! {
     }
 
     // Stop the watchdog timer.
-    // [TODO] Reset the watchdog timer and let FMC take ownership of it.
     wdt::stop_wdt(&mut env.soc_ifc);
 
     // Lock the datavault registers.
@@ -150,12 +176,12 @@ pub extern "C" fn rom_entry() -> ! {
     caliptra_drivers::ExitCtrl::exit(0);
 }
 
-fn run_fips_tests(env: &mut RomEnv, rom_info: &RomInfo) -> CaliptraResult<()> {
+fn run_fips_tests(env: &mut KatsEnv, rom_info: &RomInfo) -> CaliptraResult<()> {
     rom_integrity_test(env, &rom_info.sha256_digest)?;
     kat::execute_kat(env)
 }
 
-fn rom_integrity_test(env: &mut RomEnv, expected_digest: &[u32; 8]) -> CaliptraResult<()> {
+fn rom_integrity_test(env: &mut KatsEnv, expected_digest: &[u32; 8]) -> CaliptraResult<()> {
     // WARNING: It is undefined behavior to dereference a zero (null) pointer in
     // rust code. This is only safe because the dereference is being done by an
     // an assembly routine ([`ureg::opt_riscv::copy_16_words`]) rather
@@ -192,11 +218,22 @@ fn launch_fmc(env: &mut RomEnv) -> ! {
 #[inline(never)]
 extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
     cprintln!(
-        "EXCEPTION mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
+        "EXCEPTION mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X} ra=0x{:08X}",
         exception.mcause,
         exception.mscause,
-        exception.mepc
+        exception.mepc,
+        exception.ra
     );
+
+    {
+        let mut soc_ifc = unsafe { SocIfcReg::new() };
+        let soc_ifc = soc_ifc.regs_mut();
+        let ext_info = soc_ifc.cptra_fw_extended_error_info();
+        ext_info.at(0).write(|_| exception.mcause);
+        ext_info.at(1).write(|_| exception.mscause);
+        ext_info.at(2).write(|_| exception.mepc);
+        ext_info.at(3).write(|_| exception.ra);
+    }
 
     handle_fatal_error(CaliptraError::ROM_GLOBAL_EXCEPTION.into());
 }
@@ -204,14 +241,47 @@ extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
 #[no_mangle]
 #[inline(never)]
 extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
-    cprintln!(
-        "NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
-        exception.mcause,
-        exception.mscause,
-        exception.mepc
+    let mut soc_ifc = unsafe { SocIfcReg::new() };
+
+    // If the NMI was fired by caliptra instead of the uC, this register
+    // contains the reason(s)
+    let err_interrupt_status = u32::from(
+        soc_ifc
+            .regs()
+            .intr_block_rf()
+            .error_internal_intr_r()
+            .read(),
     );
 
-    handle_fatal_error(CaliptraError::ROM_GLOBAL_NMI.into());
+    cprintln!(
+        "NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X} ra=0x{:08X} error_internal_intr_r={:08X}",
+        exception.mcause,
+        exception.mscause,
+        exception.mepc,
+        exception.ra,
+        err_interrupt_status,
+    );
+
+    {
+        let soc_ifc = soc_ifc.regs_mut();
+        let ext_info = soc_ifc.cptra_fw_extended_error_info();
+        ext_info.at(0).write(|_| exception.mcause);
+        ext_info.at(1).write(|_| exception.mscause);
+        ext_info.at(2).write(|_| exception.mepc);
+        ext_info.at(3).write(|_| exception.ra);
+        ext_info.at(4).write(|_| err_interrupt_status);
+    }
+
+    // Check if the NMI was due to WDT expiry.
+    let mut error = CaliptraError::ROM_GLOBAL_NMI;
+
+    let wdt_status = soc_ifc.regs().cptra_wdt_status().read();
+    if wdt_status.t1_timeout() || wdt_status.t2_timeout() {
+        cprintln!("WDT Expired");
+        error = CaliptraError::ROM_GLOBAL_WDT_EXPIRED;
+    }
+
+    handle_fatal_error(error.into());
 }
 
 #[panic_handler]
@@ -240,6 +310,11 @@ extern "C" fn cfi_panic_handler(code: u32) -> ! {
 fn handle_fatal_error(code: u32) -> ! {
     cprintln!("ROM Fatal Error: 0x{:08X}", code);
     report_fw_error_fatal(code);
+    // Populate the non-fatal error code too; if there was a
+    // non-fatal error stored here before we don't want somebody
+    // mistakenly thinking that was the reason for their mailbox
+    // command failure.
+    report_fw_error_non_fatal(code);
 
     unsafe {
         // Zeroize the crypto blocks.

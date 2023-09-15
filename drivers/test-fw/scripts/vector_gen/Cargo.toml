@@ -8,3 +8,4 @@ edition = "2021"
 
 [dependencies]
 openssl.workspace = true
+caliptra-test.workspace = true

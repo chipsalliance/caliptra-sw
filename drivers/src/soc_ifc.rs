@@ -121,8 +121,17 @@ impl SocIfc {
     /// Signing Request (CSR)
     pub fn mfg_flag_gen_idev_id_csr(&mut self) -> bool {
         let soc_ifc_regs = self.soc_ifc.regs();
-        let flags: MfgFlags = soc_ifc_regs.cptra_dbg_manuf_service_reg().read().into();
+        // Lower 16 bits are for mfg flags
+        let flags: MfgFlags = (soc_ifc_regs.cptra_dbg_manuf_service_reg().read() & 0xffff).into();
         flags.contains(MfgFlags::GENERATE_IDEVID_CSR)
+    }
+
+    /// Check if verification is turned on for fake-rom
+    pub fn verify_in_fake_mode(&self) -> bool {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        let val = soc_ifc_regs.cptra_dbg_manuf_service_reg().read();
+        // Bit 31 indicates to perform verification flow in fake ROM
+        ((val >> 31) & 1) != 0
     }
 
     /// Enable or disable WDT1
@@ -207,6 +216,12 @@ impl SocIfc {
             .write(|w| w.timer1_restart(true));
     }
 
+    pub fn wdt1_timeout_cycle_count(&self) -> u64 {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        soc_ifc_regs.cptra_wdt_cfg().at(0).read() as u64
+            | ((soc_ifc_regs.cptra_wdt_cfg().at(1).read() as u64) << 32)
+    }
+
     pub fn internal_fw_update_reset_wait_cycles(&self) -> u32 {
         self.soc_ifc
             .regs()
@@ -236,6 +251,14 @@ impl SocIfc {
     pub fn set_rt_fw_rev_id(&mut self, rt_version: u32) {
         let soc_ifc_regs = self.soc_ifc.regs_mut();
         soc_ifc_regs.cptra_fw_rev_id().at(1).write(|_| rt_version);
+    }
+
+    pub fn get_version(&self) -> [u32; 3] {
+        [
+            u32::from(self.soc_ifc.regs().cptra_hw_rev_id().read()),
+            self.soc_ifc.regs().cptra_fw_rev_id().at(0).read(),
+            self.soc_ifc.regs().cptra_fw_rev_id().at(1).read(),
+        ]
     }
 }
 

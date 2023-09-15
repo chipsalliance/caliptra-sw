@@ -33,6 +33,7 @@ caliptra-image-fake-keys.workspace = true
 caliptra-image-gen.workspace = true
 caliptra-image-openssl.workspace = true
 caliptra-image-types.workspace = true
+caliptra-test.workspace = true
 hex.workspace = true
 memoffset.workspace = true
 openssl.workspace = true
@@ -49,7 +50,7 @@ std = [
   "ufmt/std",
 ]
 no-fmc = []
-val-rom = []
+fake-rom = []
 no-cfi = []
 
 [[bin]]

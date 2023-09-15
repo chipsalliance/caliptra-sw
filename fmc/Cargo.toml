@@ -24,10 +24,13 @@ cfg-if.workspace = true
 [dev-dependencies]
 caliptra-builder.workspace = true
 caliptra-hw-model.workspace = true
+caliptra-test.workspace = true
 caliptra-image-types.workspace = true
+openssl.workspace = true
 
 [features]
 default = ["std"]
 emu = ["caliptra_common/emu", "caliptra-drivers/emu"]
 riscv = ["caliptra-cpu/riscv"]
 std = ["ufmt/std", "caliptra_common/std"]
+fake-fmc = []

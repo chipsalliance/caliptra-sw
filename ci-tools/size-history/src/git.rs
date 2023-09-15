@@ -61,7 +61,13 @@ pub struct WorkTree<'a> {
 }
 impl<'a> WorkTree<'a> {
     pub fn new(path: &'a Path) -> io::Result<Self> {
-        run_cmd(Command::new("git").arg("worktree").arg("add").arg(path))?;
+        run_cmd(
+            Command::new("git")
+                .arg("worktree")
+                .arg("add")
+                .arg(path)
+                .arg("HEAD"),
+        )?;
         Ok(Self { path })
     }
 

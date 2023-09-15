@@ -3,23 +3,35 @@
 use crate::{CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers};
 use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp, MailboxRespHeader};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
+use crypto::{AlgLen, Crypto};
 use zerocopy::FromBytes;
 
 pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if let Some(cmd) = InvokeDpeReq::read_from(cmd_args) {
+            let pdata = drivers.persistent_data.get();
+            let rt_pub_key = pdata.fht.rt_dice_pub_key;
+            let mut crypto = DpeCrypto::new(
+                &mut drivers.sha384,
+                &mut drivers.trng,
+                &mut drivers.ecc384,
+                &mut drivers.hmac384,
+                &mut drivers.key_vault,
+                rt_pub_key,
+            );
+            let hashed_rt_pub_key = crypto
+                .hash(AlgLen::Bit384, &rt_pub_key.to_der()[1..])
+                .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
             let mut env = DpeEnv::<CptraDpeTypes> {
-                crypto: DpeCrypto::new(
-                    &mut drivers.sha384,
-                    &mut drivers.trng,
-                    &mut drivers.ecc384,
-                    &mut drivers.hmac384,
-                    &mut drivers.key_vault,
-                    drivers.fht.rt_dice_pub_key,
+                crypto,
+                platform: DpePlatform::new(
+                    pdata.manifest1.header.pl0_pauser,
+                    hashed_rt_pub_key,
+                    &mut drivers.cert_chain,
                 ),
-                platform: DpePlatform::new(drivers.manifest.header.pl0_pauser),
             };
+
             match drivers
                 .dpe
                 .execute_serialized_command(&mut env, drivers.mbox.user(), &cmd.data)

@@ -21,7 +21,8 @@ bitflags::bitflags! {
 }
 
 impl Capabilities {
-    pub fn to_bytes(&self) -> [u8; 16] {
+    pub const SIZE_IN_BYTES: usize = 16;
+    pub fn to_bytes(&self) -> [u8; Capabilities::SIZE_IN_BYTES] {
         self.bits().to_be_bytes()
     }
 }
@@ -29,7 +30,7 @@ impl Capabilities {
 impl TryFrom<&[u8]> for Capabilities {
     type Error = ();
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        if value.len() != 16 {
+        if value.len() != Capabilities::SIZE_IN_BYTES {
             Err(())
         } else {
             let capabilities = u128::from_be_bytes(value.try_into().unwrap());

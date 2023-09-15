@@ -1,9 +1,10 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::ImageOptions;
-use caliptra_common::{capabilities::Capabilities, mailbox_api::CommandId};
+use caliptra_common::capabilities::Capabilities;
+use caliptra_common::mailbox_api::{CapabilitiesResp, CommandId, MailboxRespHeader};
 use caliptra_hw_model::{Fuses, HwModel};
-use zerocopy::AsBytes;
+use zerocopy::{AsBytes, FromBytes};
 
 pub mod helpers;
 
@@ -17,7 +18,22 @@ fn test_capabilities() {
         .unwrap()
         .unwrap();
 
-    let caps = Capabilities::try_from(response.as_bytes()).unwrap();
+    let capabilities_resp = CapabilitiesResp::read_from(response.as_bytes()).unwrap();
 
+    // Verify response checksum
+    assert!(caliptra_common::checksum::verify_checksum(
+        capabilities_resp.hdr.chksum,
+        0x0,
+        &capabilities_resp.as_bytes()[core::mem::size_of_val(&capabilities_resp.hdr.chksum)..],
+    ));
+
+    // Verify FIPS status
+    assert_eq!(
+        capabilities_resp.hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
+
+    // Verify Capabilities
+    let caps = Capabilities::try_from(capabilities_resp.capabilities.as_bytes()).unwrap();
     assert!(caps.contains(Capabilities::ROM_BASE));
 }

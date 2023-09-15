@@ -16,8 +16,10 @@ Abstract:
 
 use caliptra_common::cprintln;
 use caliptra_cpu::TrapRecord;
-use caliptra_drivers::{Ecc384, Hmac384, KeyVault, Mailbox, Sha256, Sha384, Sha384Acc, SocIfc};
-use caliptra_registers::soc_ifc::SocIfcReg;
+use caliptra_drivers::{
+    report_fw_error_fatal, report_fw_error_non_fatal, Ecc384, Hmac384, KeyVault, Mailbox, Sha256,
+    Sha384, Sha384Acc, SocIfc,
+};
 use caliptra_runtime::Drivers;
 use core::hint::black_box;
 
@@ -36,19 +38,17 @@ const BANNER: &str = r#"
 #[no_mangle]
 pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
-    if let Some(mut fht) = caliptra_common::FirmwareHandoffTable::try_load() {
-        let mut drivers = unsafe { Drivers::new_from_registers(&mut fht) }.unwrap_or_else(|e| {
-            caliptra_common::report_handoff_error_and_halt("Runtime can't load drivers", e.into())
-        });
-
-        cprintln!("Caliptra RT listening for mailbox commands...");
-        caliptra_runtime::handle_mailbox_commands(&mut drivers);
-    } else {
+    let mut drivers = unsafe { Drivers::new_from_registers() }.unwrap_or_else(|e| {
+        caliptra_common::report_handoff_error_and_halt("Runtime can't load drivers", e.into())
+    });
+    if !drivers.persistent_data.get().fht.is_valid() {
         caliptra_common::report_handoff_error_and_halt(
             "Runtime can't load FHT",
             caliptra_drivers::CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into(),
         );
     }
+    cprintln!("Caliptra RT listening for mailbox commands...");
+    caliptra_runtime::handle_mailbox_commands(&mut drivers);
 }
 
 #[no_mangle]
@@ -92,20 +92,15 @@ fn runtime_panic(_: &core::panic::PanicInfo) -> ! {
     handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_GLOBAL_PANIC.into());
 }
 
-/// Report fatal F/W error
-///
-/// # Arguments
-///
-/// * `val` - F/W error code.
-fn report_fw_error_fatal(val: u32) {
-    let mut soc_ifc = unsafe { SocIfcReg::new() };
-    soc_ifc.regs_mut().cptra_fw_error_fatal().write(|_| val);
-}
-
 #[allow(clippy::empty_loop)]
 fn handle_fatal_error(code: u32) -> ! {
     cprintln!("RT Fatal Error: 0x{:08X}", code);
     report_fw_error_fatal(code);
+    // Populate the non-fatal error code too; if there was a
+    // non-fatal error stored here before we don't want somebody
+    // mistakenly thinking that was the reason for their mailbox
+    // command failure.
+    report_fw_error_non_fatal(code);
 
     unsafe {
         // Zeroize the crypto blocks.

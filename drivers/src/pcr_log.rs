@@ -11,11 +11,12 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::PcrId;
+use crate::PcrId;
 use zerocopy::{AsBytes, FromBytes};
 
 pub const PCR_ID_FMC_CURRENT: PcrId = PcrId::PcrId0;
 pub const PCR_ID_FMC_JOURNEY: PcrId = PcrId::PcrId1;
+pub const PCR_ID_STASH_MEASUREMENT: PcrId = PcrId::PcrId31;
 
 // PcrLogEntryId is used to identify the PCR entry and
 // the size of the data in PcrLogEntry::pcr_data.
@@ -34,6 +35,9 @@ pub enum PcrLogEntryId {
     FmcFuseSvn = 9,            // data size = 1 byte
     LmsVendorPubKeyIndex = 10, // data size = 1 byte
     RomVerifyConfig = 11,      // data size = 1 byte
+    StashMeasurement = 12,     // data size = 48 bytes
+    RtTci = 13,                // data size = 48 bytes
+    FwImageManifest = 14,      // data size = 48 bytes
 }
 
 impl From<u16> for PcrLogEntryId {
@@ -51,6 +55,9 @@ impl From<u16> for PcrLogEntryId {
             9 => PcrLogEntryId::FmcFuseSvn,
             10 => PcrLogEntryId::LmsVendorPubKeyIndex,
             11 => PcrLogEntryId::RomVerifyConfig,
+            12 => PcrLogEntryId::StashMeasurement,
+            13 => PcrLogEntryId::RtTci,
+            14 => PcrLogEntryId::FwImageManifest,
             _ => PcrLogEntryId::Invalid,
         }
     }
@@ -58,7 +65,7 @@ impl From<u16> for PcrLogEntryId {
 
 /// PCR log entry
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, Debug, Default, FromBytes)]
 pub struct PcrLogEntry {
     /// Entry identifier
     pub id: u16,
@@ -70,8 +77,6 @@ pub struct PcrLogEntry {
 
     // PCR data
     pub pcr_data: [u32; 12],
-
-    pub reserved1: [u8; 4],
 }
 
 impl PcrLogEntry {
@@ -89,11 +94,25 @@ impl PcrLogEntry {
             PcrLogEntryId::FmcFuseSvn => 1,
             PcrLogEntryId::LmsVendorPubKeyIndex => 1,
             PcrLogEntryId::RomVerifyConfig => 1,
+            PcrLogEntryId::StashMeasurement => 48,
+            PcrLogEntryId::RtTci => 48,
+            PcrLogEntryId::FwImageManifest => 48,
         };
 
         &self.pcr_data.as_bytes()[..data_len]
     }
 }
 
-pub const RT_FW_CURRENT_PCR: PcrId = PcrId::PcrId3;
-pub const RT_FW_JOURNEY_PCR: PcrId = PcrId::PcrId2;
+/// Measurement log entry
+#[repr(C)]
+#[derive(AsBytes, Clone, Copy, Debug, Default, FromBytes)]
+pub struct MeasurementLogEntry {
+    pub pcr_entry: PcrLogEntry,
+    pub metadata: [u8; 4],
+    pub context: [u32; 12],
+    pub svn: u32,
+    pub reserved0: [u8; 4],
+}
+
+pub const RT_FW_CURRENT_PCR: PcrId = PcrId::PcrId2;
+pub const RT_FW_JOURNEY_PCR: PcrId = PcrId::PcrId3;

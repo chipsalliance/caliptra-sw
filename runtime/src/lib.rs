@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 #![no_std]
+#![cfg_attr(not(feature = "fip-self-test"), allow(unused))]
 
 pub mod dice;
 mod disable;
@@ -16,31 +17,37 @@ mod verify;
 
 // Used by runtime tests
 pub mod mailbox;
+use arrayvec::ArrayVec;
+use crypto::{AlgLen, Crypto};
 use mailbox::Mailbox;
 
+pub use caliptra_common::fips::FipsVersionCmd;
 #[cfg(feature = "test_only_commands")]
 pub use dice::{GetLdevCertCmd, TestGetFmcAliasCertCmd};
 pub use disable::DisableAttestationCmd;
 use dpe_crypto::DpeCrypto;
 pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
-pub use fips::{FipsSelfTestCmd, FipsShutdownCmd, FipsVersionCmd};
-pub use info::FwInfoCmd;
+pub use fips::FipsShutdownCmd;
+#[cfg(feature = "fips_self_test")]
+pub use fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
+
+pub use info::{FwInfoCmd, IDevIdCertCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::EcdsaVerifyCmd;
 pub mod packet;
+use caliptra_common::mailbox_api::CommandId;
 use packet::Packet;
 
-use caliptra_common::mailbox_api::CommandId;
-use caliptra_common::memory_layout::{
-    FHT_ORG, FHT_SIZE, FMCALIAS_TBS_ORG, FMCALIAS_TBS_SIZE, FUSE_LOG_ORG, FUSE_LOG_SIZE,
-    LDEVID_TBS_ORG, LDEVID_TBS_SIZE, MAN1_ORG, MAN1_SIZE, MAN2_ORG, MAN2_SIZE, PCR_LOG_ORG,
-    PCR_LOG_SIZE,
+use caliptra_common::cprintln;
+#[cfg(feature = "fips_self_test")]
+use caliptra_common::mailbox_api::MailboxResp;
+
+use caliptra_drivers::{
+    CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault, Lms, PersistentDataAccessor, Sha1,
+    SocIfc,
 };
-use caliptra_common::{cprintln, FirmwareHandoffTable};
-use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault, SocIfc};
 use caliptra_drivers::{Hmac384, PcrBank, PcrId, Sha256, Sha384, Sha384Acc, Trng};
-use caliptra_image_types::ImageManifest;
 use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_registers::{
     csrng::CsrngReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg,
@@ -54,7 +61,6 @@ use dpe::{
     support::Support,
     DPE_PROFILE,
 };
-use zerocopy::{AsBytes, LayoutVerified};
 
 #[cfg(feature = "test_only_commands")]
 use crate::verify::HmacVerifyCmd;
@@ -67,6 +73,8 @@ const RUNTIME_BOOT_STATUS_BASE: u32 = 0x600;
 pub enum RtBootStatus {
     // RtAlias Statuses
     RtReadyForCommands = RUNTIME_BOOT_STATUS_BASE,
+    RtFipSelfTestStarted = RUNTIME_BOOT_STATUS_BASE + 1,
+    RtFipSelfTestComplete = RUNTIME_BOOT_STATUS_BASE + 2,
 }
 
 impl From<RtBootStatus> for u32 {
@@ -77,14 +85,14 @@ impl From<RtBootStatus> for u32 {
 }
 
 pub const DPE_SUPPORT: Support = Support::all();
+pub const MAX_CERT_CHAIN_SIZE: usize = 4096;
 
-pub struct Drivers<'a> {
+pub struct Drivers {
     pub mbox: Mailbox,
     pub sha_acc: Sha512AccCsr,
     pub data_vault: DataVault,
     pub key_vault: KeyVault,
     pub soc_ifc: SocIfc,
-    pub regions: MemoryRegions,
     pub sha256: Sha256,
 
     // SHA2-384 Engine
@@ -102,39 +110,36 @@ pub struct Drivers<'a> {
     /// Ecc384 Engine
     pub ecc384: Ecc384,
 
-    pub fht: &'a mut FirmwareHandoffTable,
+    pub persistent_data: PersistentDataAccessor,
 
-    /// ImageManifest for the currently running image
-    pub manifest: &'a ImageManifest,
+    pub lms: Lms,
+
+    pub sha1: Sha1,
 
     pub dpe: DpeInstance,
 
     pub pcr_bank: PcrBank,
+
+    pub cert_chain: ArrayVec<u8, MAX_CERT_CHAIN_SIZE>,
+
+    #[cfg(feature = "fips_self_test")]
+    pub self_test_status: SelfTestStatus,
 }
 
 pub struct CptraDpeTypes;
 
 impl DpeTypes for CptraDpeTypes {
     type Crypto<'a> = DpeCrypto<'a>;
-    type Platform = DpePlatform;
+    type Platform<'a> = DpePlatform<'a>;
 }
 
-impl<'a> Drivers<'a> {
+impl Drivers {
     /// # Safety
     ///
     /// Callers must ensure that this function is called only once, and that
     /// any concurrent access to these register blocks does not conflict with
     /// these drivers.
-    pub unsafe fn new_from_registers(fht: &'a mut FirmwareHandoffTable) -> CaliptraResult<Self> {
-        // Read current image manifest
-        let manifest_slice = unsafe {
-            let ptr = MAN1_ORG as *mut u32;
-            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
-        };
-        let manifest = LayoutVerified::<_, ImageManifest>::new(manifest_slice.as_bytes())
-            .ok_or(CaliptraError::RUNTIME_NO_MANIFEST)?
-            .into_ref();
-
+    pub unsafe fn new_from_registers() -> CaliptraResult<Self> {
         let mut trng = Trng::new(
             CsrngReg::new(),
             EntropySrcReg::new(),
@@ -147,17 +152,27 @@ impl<'a> Drivers<'a> {
         let mut hmac384 = Hmac384::new(HmacReg::new());
         let mut key_vault = KeyVault::new(KvReg::new());
 
-        let locality = manifest.header.pl0_pauser;
+        let mut persistent_data = PersistentDataAccessor::new();
+
+        let locality = persistent_data.get().manifest1.header.pl0_pauser;
+        let rt_pub_key = persistent_data.get().fht.rt_dice_pub_key;
+        let mut crypto = DpeCrypto::new(
+            &mut sha384,
+            &mut trng,
+            &mut ecc384,
+            &mut hmac384,
+            &mut key_vault,
+            rt_pub_key,
+        );
+        // Skip hashing first 0x04 byte of der encoding
+        let hashed_rt_pub_key = crypto
+            .hash(AlgLen::Bit384, &rt_pub_key.to_der()[1..])
+            .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
+        let mut data_vault = DataVault::new(DvReg::new());
+        let mut cert_chain = Self::create_cert_chain(&mut data_vault, &mut persistent_data)?;
         let env = DpeEnv::<CptraDpeTypes> {
-            crypto: DpeCrypto::new(
-                &mut sha384,
-                &mut trng,
-                &mut ecc384,
-                &mut hmac384,
-                &mut key_vault,
-                fht.rt_dice_pub_key,
-            ),
-            platform: DpePlatform::new(locality),
+            crypto,
+            platform: DpePlatform::new(locality, hashed_rt_pub_key, &mut cert_chain),
         };
         let mut pcr_bank = PcrBank::new(PvReg::new());
         let dpe = Self::initialize_dpe(env, &mut pcr_bank, locality)?;
@@ -165,20 +180,23 @@ impl<'a> Drivers<'a> {
         Ok(Self {
             mbox: Mailbox::new(MboxCsr::new()),
             sha_acc: Sha512AccCsr::new(),
-            data_vault: DataVault::new(DvReg::new()),
+            data_vault,
             key_vault,
             soc_ifc: SocIfc::new(SocIfcReg::new()),
-            regions: MemoryRegions::new(),
             sha256: Sha256::new(Sha256Reg::new()),
             sha384,
             sha384_acc: Sha384Acc::new(Sha512AccCsr::new()),
             hmac384,
             ecc384,
+            sha1: Sha1::default(),
+            lms: Lms::default(),
             trng,
-            fht,
-            manifest,
+            persistent_data,
             dpe,
             pcr_bank,
+            #[cfg(feature = "fips_self_test")]
+            self_test_status: SelfTestStatus::Idle,
+            cert_chain,
         })
     }
 
@@ -204,9 +222,63 @@ impl<'a> Drivers<'a> {
         .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
         Ok(dpe)
     }
+
+    fn create_cert_chain(
+        data_vault: &mut DataVault,
+        persistent_data: &mut PersistentDataAccessor,
+    ) -> CaliptraResult<ArrayVec<u8, MAX_CERT_CHAIN_SIZE>> {
+        let mut cert = [0u8; MAX_CERT_CHAIN_SIZE];
+        let ldevid_cert_size = dice::copy_ldevid_cert(data_vault, persistent_data.get(), &mut cert)
+            .map_err(|_| CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?;
+        if ldevid_cert_size > cert.len() {
+            return Err(CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED);
+        }
+        let fmcalias_cert_size = dice::copy_fmc_alias_cert(
+            data_vault,
+            persistent_data.get(),
+            &mut cert[ldevid_cert_size..],
+        )
+        .map_err(|_| CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?;
+        if ldevid_cert_size + fmcalias_cert_size > cert.len() {
+            return Err(CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED);
+        }
+        let rtalias_cert_size = dice::copy_rt_alias_cert(
+            data_vault,
+            persistent_data.get(),
+            &mut cert[ldevid_cert_size + fmcalias_cert_size..],
+        )
+        .map_err(|_| CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?;
+        let cert_chain_size = ldevid_cert_size + fmcalias_cert_size + rtalias_cert_size;
+        if cert_chain_size > cert.len() {
+            return Err(CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED);
+        }
+        let mut cert_chain = ArrayVec::<u8, MAX_CERT_CHAIN_SIZE>::new();
+        for i in 0..cert_chain_size {
+            cert_chain
+                .try_push(
+                    *cert
+                        .get(i)
+                        .ok_or(CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?,
+                )
+                .map_err(|_| CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?;
+        }
+        Ok(cert_chain)
+    }
 }
 
-fn wait_for_cmd(_mbox: &mut Mailbox) {
+/// Run pending jobs and enter low power mode.
+fn enter_idle(drivers: &mut Drivers) {
+    // Run pending jobs before entering low power mode.
+    #[cfg(feature = "fips_self_test")]
+    if let SelfTestStatus::InProgress(execute) = drivers.self_test_status {
+        if drivers.mbox.lock() == false {
+            match execute(drivers) {
+                Ok(_) => drivers.self_test_status = SelfTestStatus::Done,
+                Err(e) => caliptra_drivers::report_fw_error_non_fatal(e.into()),
+            }
+        }
+    }
+
     // TODO: Enable interrupts?
     //#[cfg(feature = "riscv")]
     //unsafe {
@@ -240,7 +312,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     // Handle the request and generate the response
     let mut resp = match CommandId::from(req_packet.cmd) {
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        CommandId::GET_IDEV_CERT => IDevIdCertCmd::execute(cmd_bytes),
         CommandId::GET_IDEV_CSR => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        CommandId::GET_IDEV_INFO => IDevIdInfoCmd::execute(drivers),
         CommandId::GET_LDEV_CERT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes),
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
@@ -248,15 +322,28 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),
         CommandId::FW_INFO => FwInfoCmd::execute(drivers),
         #[cfg(feature = "test_only_commands")]
-        CommandId::TEST_ONLY_GET_LDEV_CERT => GetLdevCertCmd::execute(&drivers.data_vault),
+        CommandId::TEST_ONLY_GET_LDEV_CERT => GetLdevCertCmd::execute(drivers),
         #[cfg(feature = "test_only_commands")]
-        CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT => {
-            TestGetFmcAliasCertCmd::execute(&drivers.data_vault)
-        }
+        CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT => TestGetFmcAliasCertCmd::execute(drivers),
         #[cfg(feature = "test_only_commands")]
         CommandId::TEST_ONLY_HMAC384_VERIFY => HmacVerifyCmd::execute(drivers, cmd_bytes),
-        CommandId::VERSION => FipsVersionCmd::execute(drivers),
-        CommandId::SELF_TEST => FipsSelfTestCmd::execute(drivers),
+        CommandId::VERSION => FipsVersionCmd::execute(&drivers.soc_ifc),
+        #[cfg(feature = "fips_self_test")]
+        CommandId::SELF_TEST_START => match drivers.self_test_status {
+            SelfTestStatus::Idle => {
+                drivers.self_test_status = SelfTestStatus::InProgress(fips_self_test_cmd::execute);
+                Ok(MailboxResp::default())
+            }
+            _ => Err(CaliptraError::RUNTIME_SELF_TEST_IN_PROGRESS),
+        },
+        #[cfg(feature = "fips_self_test")]
+        CommandId::SELF_TEST_GET_RESULTS => match drivers.self_test_status {
+            SelfTestStatus::Done => {
+                drivers.self_test_status = SelfTestStatus::Idle;
+                Ok(MailboxResp::default())
+            }
+            _ => Err(CaliptraError::RUNTIME_SELF_TEST_NOT_STARTED),
+        },
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }?;
@@ -272,13 +359,14 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> ! {
     drivers.soc_ifc.assert_ready_for_runtime();
     caliptra_drivers::report_boot_status(RtBootStatus::RtReadyForCommands.into());
     loop {
-        wait_for_cmd(&mut drivers.mbox);
+        enter_idle(drivers);
         if drivers.mbox.is_cmd_ready() {
             // TODO : Move start/stop WDT to wait_for_cmd when NMI is implemented.
             caliptra_common::wdt::start_wdt(
                 &mut drivers.soc_ifc,
                 caliptra_common::WdtTimeout::default(),
             );
+            caliptra_drivers::report_fw_error_non_fatal(0);
             match handle_command(drivers) {
                 Ok(status) => {
                     drivers.mbox.set_status(status);
@@ -291,44 +379,4 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> ! {
             caliptra_common::wdt::stop_wdt(&mut drivers.soc_ifc);
         }
     }
-}
-
-pub struct MemoryRegions {
-    man1: &'static mut [u8],
-    man2: &'static mut [u8],
-    fht: &'static mut [u8],
-    ldevid_tbs: &'static mut [u8],
-    fmcalias_tbs: &'static mut [u8],
-    pcr_log: &'static mut [u8],
-    fuse_log: &'static mut [u8],
-}
-
-impl MemoryRegions {
-    // Create a new instance of MemoryRegions with slices based on memory addresses and sizes
-    fn new() -> Self {
-        Self {
-            man1: unsafe { create_slice(MAN1_ORG, MAN1_SIZE as usize) },
-            man2: unsafe { create_slice(MAN2_ORG, MAN2_SIZE as usize) },
-            fht: unsafe { create_slice(FHT_ORG, FHT_SIZE as usize) },
-            ldevid_tbs: unsafe { create_slice(LDEVID_TBS_ORG, LDEVID_TBS_SIZE as usize) },
-            fmcalias_tbs: unsafe { create_slice(FMCALIAS_TBS_ORG, FMCALIAS_TBS_SIZE as usize) },
-            pcr_log: unsafe { create_slice(PCR_LOG_ORG, PCR_LOG_SIZE) },
-            fuse_log: unsafe { create_slice(FUSE_LOG_ORG, FUSE_LOG_SIZE) },
-        }
-    }
-    fn zeroize(&mut self) {
-        self.man1.fill(0);
-        self.man2.fill(0);
-        self.fht.fill(0);
-        self.ldevid_tbs.fill(0);
-        self.fmcalias_tbs.fill(0);
-        self.pcr_log.fill(0);
-        self.fuse_log.fill(0);
-    }
-}
-
-// Helper function to create a mutable slice from a memory region
-unsafe fn create_slice(org: u32, size: usize) -> &'static mut [u8] {
-    let ptr = org as *mut u8;
-    core::slice::from_raw_parts_mut(ptr, size)
 }

@@ -363,6 +363,14 @@ static int pack_and_send_command(struct parcel *parcel)
         return -EINVAL;
     }
 
+    // Parcels will always have, at a minimum:
+    //  > 4 byte tx buffer, for the checksum
+    //  > 8 byte rx buffer, for the checksum and FIPS status
+    if (!parcel->tx_buffer || !parcel->rx_buffer)
+    {
+        return -EINVAL;
+    }
+
     struct caliptra_buffer in_buf = {
         .data = parcel->tx_buffer,
         .len  = parcel->tx_bytes,

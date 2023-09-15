@@ -16,7 +16,7 @@ Abstract:
 
 use core::mem::MaybeUninit;
 
-use crate::{Array4x8, CaliptraResult, Sha256};
+use crate::{sha256::Sha256Alg, Array4x8, CaliptraResult, Sha256, Sha256DigestOp};
 use caliptra_error::CaliptraError;
 use caliptra_lms_types::{
     LmotsAlgorithmType, LmsAlgorithmType, LmsIdentifier, LmsPublicKey, LmsSignature,
@@ -283,7 +283,7 @@ impl Lms {
 
     pub fn hash_message<const N: usize>(
         &self,
-        sha256_driver: &mut Sha256,
+        sha256_driver: &mut impl Sha256Alg,
         message: &[u8],
         lms_identifier: &LmsIdentifier,
         q: &[u8; 4],
@@ -302,7 +302,7 @@ impl Lms {
 
     pub fn candidate_ots_signature<const N: usize, const P: usize>(
         &self,
-        sha256_driver: &mut Sha256,
+        sha256_driver: &mut impl Sha256Alg,
         lms_identifier: &LmsIdentifier,
         algo_type: LmotsAlgorithmType,
         q: &[u8; 4],
@@ -379,12 +379,12 @@ impl Lms {
 
     ///  Note: Use this function only if glitch protection is not needed.
     ///        If glitch protection is needed, use `verify_lms_signature_cfi` instead.
-    pub fn verify_lms_signature<const N: usize, const P: usize, const H: usize>(
+    pub fn verify_lms_signature(
         &self,
         sha256_driver: &mut Sha256,
         input_string: &[u8],
-        lms_public_key: &LmsPublicKey<N>,
-        lms_sig: &LmsSignature<N, P, H>,
+        lms_public_key: &LmsPublicKey<6>,
+        lms_sig: &LmsSignature<6, 51, 15>,
     ) -> CaliptraResult<LmsResult> {
         let mut candidate_key =
             self.verify_lms_signature_cfi(sha256_driver, input_string, lms_public_key, lms_sig)?;
@@ -397,9 +397,52 @@ impl Lms {
         result
     }
 
-    pub fn verify_lms_signature_cfi<const N: usize, const P: usize, const H: usize>(
+    ///  Note: Use this function only if glitch protection is not needed.
+    ///        If glitch protection is needed, use `verify_lms_signature_cfi_generic` instead.
+    pub fn verify_lms_signature_generic<const N: usize, const P: usize, const H: usize>(
+        &self,
+        sha256_driver: &mut impl Sha256Alg,
+        input_string: &[u8],
+        lms_public_key: &LmsPublicKey<N>,
+        lms_sig: &LmsSignature<N, P, H>,
+    ) -> CaliptraResult<LmsResult> {
+        let mut candidate_key = self.verify_lms_signature_cfi_generic(
+            sha256_driver,
+            input_string,
+            lms_public_key,
+            lms_sig,
+        )?;
+        let result = if candidate_key != HashValue::from(lms_public_key.digest) {
+            Ok(LmsResult::SigVerifyFailed)
+        } else {
+            Ok(LmsResult::Success)
+        };
+        candidate_key.0.fill(0);
+        result
+    }
+
+    // When callers from separate crates call a function like
+    // verify_lms_signature_cfi_generic(), Rustc 1.70
+    // may build multiple versions (depending on optimizer heuristics), even when all the
+    // generic parameters are identical. This is bad, as it can bloat the binary and the
+    // second copy violates the FIPS requirements that the same machine code be used for the
+    // KAT as the actual implementation. To defend against it, we provide this non-generic
+    // function that production firmware should call instead.
+    #[inline(never)]
+    pub fn verify_lms_signature_cfi(
         &self,
         sha256_driver: &mut Sha256,
+        input_string: &[u8],
+        lms_public_key: &LmsPublicKey<6>,
+        lms_sig: &LmsSignature<6, 51, 15>,
+    ) -> CaliptraResult<HashValue<6>> {
+        self.verify_lms_signature_cfi_generic(sha256_driver, input_string, lms_public_key, lms_sig)
+    }
+
+    #[inline(always)]
+    pub fn verify_lms_signature_cfi_generic<const N: usize, const P: usize, const H: usize>(
+        &self,
+        sha256_driver: &mut impl Sha256Alg,
         input_string: &[u8],
         lms_public_key: &LmsPublicKey<N>,
         lms_sig: &LmsSignature<N, P, H>,

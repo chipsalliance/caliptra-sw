@@ -40,10 +40,10 @@ pub const ROM_WITH_UART: FwId = FwId {
     workspace_dir: None,
 };
 
-pub const ROM_VAL_WITH_UART: FwId = FwId {
+pub const ROM_FAKE_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["emu", "val-rom"],
+    features: &["emu", "fake-rom"],
     workspace_dir: None,
 };
 
@@ -54,10 +54,17 @@ pub const FMC_WITH_UART: FwId = FwId {
     workspace_dir: None,
 };
 
+pub const FMC_FAKE_WITH_UART: FwId = FwId {
+    crate_name: "caliptra-fmc",
+    bin_name: "caliptra-fmc",
+    features: &["emu", "fake-fmc"],
+    workspace_dir: None,
+};
+
 pub const APP_WITH_UART: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["emu", "test_only_commands"],
+    features: &["emu", "test_only_commands", "fips_self_test"],
     workspace_dir: None,
 };
 

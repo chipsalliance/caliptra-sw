@@ -14,21 +14,20 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
 
-use caliptra_common::memory_layout::{
-    FHT_ORG, FMCALIAS_TBS_ORG, FUSE_LOG_ORG, LDEVID_TBS_ORG, PCR_LOG_ORG,
-};
-use caliptra_common::FirmwareHandoffTable;
+use caliptra_common::pcr::PCR_ID_STASH_MEASUREMENT;
 use caliptra_common::{FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
-use caliptra_drivers::ColdResetEntry4::*;
-use caliptra_drivers::{DataVault, Mailbox, PcrBank, PcrId};
+use caliptra_drivers::pcr_log::MeasurementLogEntry;
+use caliptra_drivers::{
+    ColdResetEntry4::*, DataVault, Mailbox, PcrBank, PcrId, PersistentDataAccessor,
+    MEASUREMENT_MAX_COUNT, PCR_LOG_MAX_COUNT,
+};
 use caliptra_registers::dv::DvReg;
 use caliptra_registers::pv::PvReg;
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
 use core::ptr;
 use ureg::RealMmioMut;
 use zerocopy::AsBytes;
-use zerocopy::FromBytes;
 
 #[cfg(not(feature = "std"))]
 core::arch::global_asm!(include_str!("start.S"));
@@ -47,15 +46,9 @@ Running Caliptra FMC ...
 pub extern "C" fn fmc_entry() -> ! {
     cprintln!("{}", BANNER);
 
-    let slice = unsafe {
-        let ptr = FHT_ORG as *mut u8;
-        cprintln!("[fmc] Loading FHT from 0x{:08X}", ptr as u32);
-        core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
-    };
-
-    if cfg!(not(feature = "val-fmc")) {
-        let fht = FirmwareHandoffTable::read_from(slice).unwrap();
-        assert!(fht.is_valid());
+    if cfg!(not(feature = "fake-fmc")) {
+        let persistent_data = unsafe { PersistentDataAccessor::new() };
+        assert!(persistent_data.get().fht.is_valid());
     }
 
     process_mailbox_commands();
@@ -164,34 +157,24 @@ fn create_certs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
 }
 
 fn copy_tbs(tbs: &mut [u8], ldevid_tbs: bool) {
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
     // Copy the tbs from DCCM
     let src = if ldevid_tbs {
-        unsafe {
-            let ptr = LDEVID_TBS_ORG as *mut u8;
-            core::slice::from_raw_parts_mut(ptr, tbs.len())
-        }
+        &persistent_data.get().ldevid_tbs
     } else {
-        unsafe {
-            let ptr = FMCALIAS_TBS_ORG as *mut u8;
-            core::slice::from_raw_parts_mut(ptr, tbs.len())
-        }
+        &persistent_data.get().fmcalias_tbs
     };
-    tbs.copy_from_slice(src);
+    tbs.copy_from_slice(&src[..tbs.len()]);
 }
 
 fn get_pcr_entry(entry_index: usize) -> PcrLogEntry {
-    // Copy the pcr log entry from DCCM
-    let mut pcr_entry: [u8; core::mem::size_of::<PcrLogEntry>()] =
-        [0u8; core::mem::size_of::<PcrLogEntry>()];
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
+    persistent_data.get().pcr_log[entry_index]
+}
 
-    let src = unsafe {
-        let offset = core::mem::size_of::<PcrLogEntry>() * entry_index;
-        let ptr = (PCR_LOG_ORG as *mut u8).add(offset);
-        core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<PcrLogEntry>())
-    };
-
-    pcr_entry.copy_from_slice(src);
-    PcrLogEntry::read_from_prefix(pcr_entry.as_bytes()).unwrap()
+fn get_measurement_entry(entry_index: usize) -> MeasurementLogEntry {
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
+    persistent_data.get().measurement_log[entry_index]
 }
 
 fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
@@ -222,6 +205,16 @@ fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMm
         0x1000_0007 => {
             try_to_reset_pcrs(mbox);
         }
+        0x1000_0008 => {
+            read_rom_info(mbox);
+        }
+        0x1000_0009 => {
+            read_pcr31(mbox);
+        }
+        0x1000_000A => {
+            read_measurement_log(mbox);
+        }
+
         _ => {}
     }
 }
@@ -239,6 +232,12 @@ fn process_mailbox_commands() {
 
     #[cfg(not(feature = "interactive_test_fmc"))]
     process_mailbox_command(&mbox);
+}
+
+fn read_pcr31(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    let pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
+    let pcr31: [u8; 48] = pcr_bank.read_pcr(PCR_ID_STASH_MEASUREMENT).into();
+    send_to_mailbox(mbox, &pcr31, true);
 }
 
 fn read_datavault_coldresetentry4(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
@@ -274,7 +273,12 @@ fn trigger_update_reset(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioM
 fn read_pcr_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     let mut pcr_entry_count = 0;
     loop {
+        if pcr_entry_count == PCR_LOG_MAX_COUNT {
+            break;
+        }
+
         let pcr_entry = get_pcr_entry(pcr_entry_count);
+
         if PcrLogEntryId::from(pcr_entry.id) == PcrLogEntryId::Invalid {
             break;
         }
@@ -285,6 +289,31 @@ fn read_pcr_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
 
     mbox.dlen().write(|_| {
         (core::mem::size_of::<PcrLogEntry>() * pcr_entry_count)
+            .try_into()
+            .unwrap()
+    });
+    mbox.status().write(|w| w.status(|w| w.data_ready()));
+}
+
+fn read_measurement_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    let mut measurement_entry_count = 0;
+    loop {
+        if measurement_entry_count == MEASUREMENT_MAX_COUNT {
+            break;
+        }
+
+        let measurement_entry = get_measurement_entry(measurement_entry_count);
+
+        if PcrLogEntryId::from(measurement_entry.pcr_entry.id) == PcrLogEntryId::Invalid {
+            break;
+        }
+
+        measurement_entry_count += 1;
+        send_to_mailbox(mbox, measurement_entry.as_bytes(), false);
+    }
+
+    mbox.dlen().write(|_| {
+        (core::mem::size_of::<MeasurementLogEntry>() * measurement_entry_count)
             .try_into()
             .unwrap()
     });
@@ -316,25 +345,40 @@ fn read_pcrs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
 //   - Whether PCR0 is locked
 //   - Whether PCR1 is locked
 //   - Whether PCR2 is unlocked
-//   - Whether PCR3 is unlocked
+//   - Whether PCR31 is locked
 fn try_to_reset_pcrs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     let mut pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
 
     let res0 = pcr_bank.erase_pcr(PcrId::PcrId0);
     let res1 = pcr_bank.erase_pcr(PcrId::PcrId1);
     let res2 = pcr_bank.erase_pcr(PcrId::PcrId2);
-    let res3 = pcr_bank.erase_pcr(PcrId::PcrId3);
+    let res31 = pcr_bank.erase_pcr(PcrId::PcrId31);
 
     let ret_vals: [u8; 4] = [
         if res0.is_err() { 0 } else { 1 },
         if res1.is_err() { 0 } else { 1 },
         if res2.is_ok() { 0 } else { 1 },
-        if res3.is_ok() { 0 } else { 1 },
+        if res31.is_err() { 0 } else { 1 },
     ];
 
     send_to_mailbox(mbox, &ret_vals, false);
     mbox.dlen().write(|_| ret_vals.len().try_into().unwrap());
     mbox.status().write(|w| w.status(|w| w.data_ready()));
+}
+
+fn read_rom_info(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
+    send_to_mailbox(
+        mbox,
+        persistent_data
+            .get()
+            .fht
+            .rom_info_addr
+            .get()
+            .unwrap()
+            .as_bytes(),
+        true,
+    );
 }
 
 fn read_fuse_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
@@ -358,33 +402,13 @@ fn read_fuse_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
 }
 
 fn get_fuse_entry(entry_index: usize) -> FuseLogEntry {
-    // Copy the Fuse log entry from DCCM
-    let mut fuse_entry: [u8; core::mem::size_of::<FuseLogEntry>()] =
-        [0u8; core::mem::size_of::<FuseLogEntry>()];
-
-    let src = unsafe {
-        let offset = core::mem::size_of::<FuseLogEntry>() * entry_index;
-        let ptr = (FUSE_LOG_ORG as *mut u8).add(offset);
-        core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FuseLogEntry>())
-    };
-
-    fuse_entry.copy_from_slice(src);
-    FuseLogEntry::read_from_prefix(fuse_entry.as_bytes()).unwrap()
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
+    persistent_data.get().fuse_log[entry_index]
 }
 
 fn read_fht(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
-    // Copy the FHT from DCCM
-    let mut fht: [u8; core::mem::size_of::<FirmwareHandoffTable>()] =
-        [0u8; core::mem::size_of::<FirmwareHandoffTable>()];
-
-    let src = unsafe {
-        let ptr = FHT_ORG as *mut u8;
-        core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
-    };
-
-    fht.copy_from_slice(src);
-
-    send_to_mailbox(mbox, fht.as_bytes(), true);
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
+    send_to_mailbox(mbox, persistent_data.get().fht.as_bytes(), true);
 }
 
 fn send_to_mailbox(

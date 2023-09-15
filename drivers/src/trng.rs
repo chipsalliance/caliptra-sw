@@ -20,7 +20,7 @@ impl Trng {
         soc_ifc: &SocIfcReg,
     ) -> CaliptraResult<Self> {
         if soc_ifc.regs().cptra_hw_config().read().i_trng_en() {
-            Ok(Self::Internal(Csrng::new(csrng, entropy_src)?))
+            Ok(Self::Internal(Csrng::new(csrng, entropy_src, soc_ifc)?))
         } else {
             Ok(Self::External(TrngExt::new(soc_ifc_trng)))
         }
@@ -46,12 +46,7 @@ impl Trng {
 
     pub fn generate(&mut self) -> CaliptraResult<Array4x12> {
         match self {
-            Self::Internal(csrng) => {
-                let mut iter = csrng.generate(12.try_into().unwrap())?;
-                Ok(Array4x12::new(core::array::from_fn(|_| {
-                    iter.next().unwrap()
-                })))
-            }
+            Self::Internal(csrng) => Ok(csrng.generate12()?.into()),
             Self::External(trng_ext) => trng_ext.generate(),
         }
     }

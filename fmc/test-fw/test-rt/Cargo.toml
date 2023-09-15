@@ -12,6 +12,7 @@ caliptra-drivers.workspace = true
 caliptra-registers.workspace = true
 ufmt.workspace = true
 zerocopy.workspace = true
+ureg.workspace = true
 
 [build-dependencies]
 cfg-if.workspace = true
@@ -24,3 +25,4 @@ default = ["std"]
 emu = ["caliptra_common/emu", "caliptra-drivers/emu"]
 riscv = ["caliptra-cpu/riscv"]
 std = ["ufmt/std", "caliptra_common/std"]
+interactive_test = []
