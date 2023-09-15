@@ -56,7 +56,7 @@ $(HWMODEL_BINDING_LIB_OBJ):
 
 EXTRA_CARGO_CONFIG = target.'cfg(all())'.rustflags = [\"-Dwarnings\"]
 
-$(TARGET): $(ROM_FILE) $(FW_FILE)
+#$(TARGET): $(ROM_FILE) $(FW_FILE)
 
 $(HWMODEL_HEADER):
 	@echo "[CARGO] hw-model"

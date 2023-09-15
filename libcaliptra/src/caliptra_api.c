@@ -373,9 +373,27 @@ static int pack_and_send_command(struct parcel *parcel)
         .len  = parcel->rx_bytes,
     };
 
-    *((caliptra_checksum*)parcel->tx_buffer) = calculate_caliptra_checksum(parcel->command, parcel->tx_buffer, parcel->tx_bytes);
+    printf("********************GEN 1**************************\n");
+
+    *((caliptra_checksum*)parcel->tx_buffer) = calculate_caliptra_checksum(parcel->command, parcel->tx_buffer, parcel->tx_bytes-sizeof(caliptra_checksum));
+
+    printf("caliptra_checksum: %u\n", *((caliptra_checksum*)parcel->tx_buffer));
+    fflush(stdout);
 
     int status = caliptra_mailbox_execute(parcel->command, &in_buf, &out_buf);
+
+    uint32_t status1;
+    int mStatus;
+    const uint32_t error_code = 0x3003000c;
+
+    caliptra_read_u32(error_code, &status1);
+    printf("**********************************");
+    fflush(stdout);
+    printf("%x\n",status1);
+    fflush(stdout);
+    printf("**********************************");
+    fflush(stdout);
+  
 
     if (status)
     {
@@ -482,6 +500,9 @@ int caliptra_dpe_command(struct caliptra_dpe_req *req, struct caliptra_dpe_resp 
         return -EINVAL;
     }
 
+    printf("************INVOKE 1***********************");
+    fflush(stdout);
+
     // While it will likely cause no harm, there's no sense in writing more
     // to the FIFO than is absolutely required. This command can have a variable
     // data buffer.
@@ -494,6 +515,9 @@ int caliptra_dpe_command(struct caliptra_dpe_req *req, struct caliptra_dpe_resp 
         .rx_buffer = (uint8_t*)resp,
         .rx_bytes  = sizeof(struct caliptra_dpe_resp),
     };
+
+    printf("************INVOKE 3***********************");
+    fflush(stdout);
 
     return pack_and_send_command(&p);
 }

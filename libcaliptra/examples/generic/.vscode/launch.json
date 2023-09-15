@@ -1,0 +1,17 @@
+// .vscode/launch.json
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch with Delve",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}",
+            "args": [],
+            "showLog": true,
+            "trace": "verbose",
+            "dlvToolPath": "${workspaceFolder}/bin/dlv"
+        }
+    ]
+}

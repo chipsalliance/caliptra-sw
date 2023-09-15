@@ -21,7 +21,7 @@ static const uint32_t default_uds_seed[] = { 0x00010203, 0x04050607, 0x08090a0b,
 
 static const uint32_t default_field_entropy[] = { 0x80818283, 0x84858687, 0x88898a8b, 0x8c8d8e8f,
                                                   0x90919293, 0x94959697, 0x98999a9b, 0x9c9d9e9f };
-
+uint8_t test[512];
 static int set_fuses()
 {
     int status;
@@ -109,21 +109,41 @@ int main(int argc, char *argv[])
         struct caliptra_dpe_resp resp = {0};
 
         // DPE caliptra commands should always use the full data buffer
+        uint8_t test[512]  = {
+    67, 69, 80, 68, 9, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
         req.data_size = sizeof(req.data);
-        memcpy(req.data, &dpe_cmd, sizeof(dpe_cmd));
+        memcpy(req.data, test, 84);
 
         status = caliptra_dpe_command(&req, &resp);
+        //req.data_size = sizeof(req.data);
         if (status)
         {
             printf("GetProfile failed! %d\n", status);
         }
         else
         {
-            printf("GetProfile: OK\n");
-            printf("\tmajor version: %d\n", resp.get_profile.major_version);
-            printf("\tminor version: %d\n", resp.get_profile.minor_version);
+            printf("GetCertifyKey: OK\n");
+            printf("\tresp hdr status: %d\n", resp.certify_key.resp_hdr.status);
+         /* printf("\tminor version: %d\n", resp.get_profile.minor_version);
             printf("\tvendor id: %d\n", resp.get_profile.vendor_id);
-            printf("\tvendor sku: %d\n", resp.get_profile.vendor_sku);
+            printf("\tvendor sku: %d\n", resp.get_profile.vendor_sku);*/
         }
 
         break;

@@ -24,7 +24,7 @@ struct caliptra_model_init_params init_params;
 
 extern struct caliptra_buffer image_bundle;
 
-static struct caliptra_buffer read_file_or_exit(const char* path)
+struct caliptra_buffer read_file_or_exit(const char* path)
 {
     // Open File in Read Only Mode
     FILE *fp = fopen(path, "r");
@@ -55,8 +55,8 @@ static struct caliptra_buffer read_file_or_exit(const char* path)
 
 struct caliptra_model* hwmod_get_or_init(void)
 {
-    const char *rom_path = ROM_PATH;
-    const char *fw_path = FW_PATH;
+    const char *rom_path = "../out/caliptra_rom.bin";
+    const char *fw_path = "../out/image_bundle.bin";
 
     static struct caliptra_model *model = NULL;
 

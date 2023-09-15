@@ -1,4 +1,7 @@
 // Licensed under the Apache-2.0 license
+#ifndef CALIPTRA_API_H_
+#define CALIPTRA_API_H_
+
 #pragma once
 
 #include <stdint.h>
@@ -11,7 +14,7 @@
 #define ARRAY_SIZE(array) ((size_t)(sizeof(array) / sizeof(array[0])))
 
 // Write into Caliptra BootFSM Go Register
-int caliptra_bootfsm_go();
+extern int caliptra_bootfsm_go();
 
 // Determine if Caliptra is ready to program fuses
 bool caliptra_ready_for_fuses(void);
@@ -43,3 +46,5 @@ int caliptra_dpe_command(struct caliptra_dpe_req *req, struct caliptra_dpe_resp 
 
 // Execute Mailbox Command
 int caliptra_mailbox_execute(uint32_t cmd, struct caliptra_buffer *mbox_tx_buffer, struct caliptra_buffer *mbox_rx_buffer);
+
+#endif // CALIPTRA_API_H_
