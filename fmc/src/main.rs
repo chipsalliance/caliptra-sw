@@ -44,7 +44,7 @@ pub extern "C" fn entry_point() -> ! {
         Err(e) => report_error(e.into()),
     };
 
-    if let Some(mut hand_off) = HandOff::from_previous(&env.persistent_data) {
+    if let Some(mut hand_off) = HandOff::from_previous(&mut env) {
         // Jump straight to RT for val-FMC for now
         if cfg!(feature = "fake-fmc") {
             hand_off.to_rt(&mut env);
@@ -58,6 +58,7 @@ pub extern "C" fn entry_point() -> ! {
             Err(e) => report_error(e.into()),
         }
     }
+
     caliptra_drivers::ExitCtrl::exit(0xff)
 }
 

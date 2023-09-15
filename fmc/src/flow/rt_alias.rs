@@ -13,7 +13,7 @@ Abstract:
 --*/
 use crate::flow::crypto::Crypto;
 use crate::flow::dice::{DiceInput, DiceOutput};
-use crate::flow::pcr::{extend_current_pcr, extend_journey_pcr};
+use crate::flow::pcr::extend_pcr_common;
 use crate::flow::tci::Tci;
 use crate::flow::x509::X509;
 use crate::fmc_env::FmcEnv;
@@ -155,13 +155,14 @@ impl RtAliasLayer {
     ///
     /// * `env` - FMC Environment
     /// * `hand_off` - HandOff
-    pub fn extend_pcrs(env: &mut FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
-        extend_current_pcr(env, hand_off)?;
+    pub fn extend_pcrs(env: &mut FmcEnv, hand_off: &mut HandOff) -> CaliptraResult<()> {
         match env.soc_ifc.reset_reason() {
-            ResetReason::ColdReset | ResetReason::UpdateReset => extend_journey_pcr(env, hand_off)?,
-            _ => cprintln!("[alias rt : skip journey pcr extension"),
+            ResetReason::ColdReset | ResetReason::UpdateReset => extend_pcr_common(env, hand_off),
+            _ => {
+                cprintln!("[alias rt : skip pcr extension");
+                Ok(())
+            }
         }
-        Ok(())
     }
 
     /// Populate Data Vault
