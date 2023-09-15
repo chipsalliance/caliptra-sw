@@ -58,7 +58,6 @@ impl Sha384 {
     /// # Arguments
     ///
     /// * `data` - Data to used to update the digest
-    ///
     pub fn digest(&mut self, buf: &[u8]) -> CaliptraResult<Array4x12> {
         // Check if the buffer is not large
         if buf.len() > SHA384_MAX_DATA_SIZE {
@@ -137,6 +136,12 @@ impl Sha384 {
         Array4x12::read_from_reg(sha.digest().truncate::<12>())
     }
 
+    /// Extend data into PCR Register
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - ID of PCR register to extend data into
+    /// * `data` - Data to extend into PCR register
     pub fn pcr_extend(&mut self, id: PcrId, data: &[u8]) -> CaliptraResult<()> {
         let total_bytes = data.len() + SHA384_HASH_SIZE;
         if total_bytes > (SHA384_BLOCK_BYTE_SIZE - 1) {
