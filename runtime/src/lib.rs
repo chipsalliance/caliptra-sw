@@ -244,7 +244,6 @@ impl Drivers {
             return Err(CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED);
         }
         let rtalias_cert_size = dice::copy_rt_alias_cert(
-            data_vault,
             persistent_data.get(),
             &mut cert[ldevid_cert_size + fmcalias_cert_size..],
         )
