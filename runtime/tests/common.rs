@@ -5,7 +5,7 @@ use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
 
 // Run test_bin as a ROM image. The is used for faster tests that can run
 // against verilator
-pub fn run_rom_test(test_bin_name: &'static str) -> DefaultHwModel {
+pub fn _run_rom_test(test_bin_name: &'static str) -> DefaultHwModel {
     static FEATURES: &[&str] = &["emu", "riscv"];
 
     let runtime_fwid = FwId {

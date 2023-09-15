@@ -140,12 +140,14 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | fuse_log_addr         | 4            | ROM        | Fuse Log Address.                                                                                        |
 | rt_dice_pub_key       | 96           | FMC        | RT Alias DICE Public Key.                                                                                |
 | rt_dice_sign          | 96           | FMC        | RT Alias DICE signature.                                                                                 |
+| ldevid_cert_sig_r_dv_hdl | 4         | ROM        | Handle of LDevId Certificate Signature R Component in the Data Vault.                                       |
+| ldevid_cert_sig_s_dv_hdl | 4            | ROM        | Handle of LDevId Certificate Signature S Component in the Data Vault.                                       |
 | idev_dice_pub_key     | 96           | ROM        | Initial Device ID Public Key.                                                                            |
 | rom_info_addr         | 4            | ROM        | Address of ROMInfo struct describing the ROM digest and git commit.                                      |
 | rtalias_tbs_size      | 2            | FMC        | RT Alias TBS Size.                                                                                      |
-| reserved              | 128          |            | Reserved for future use.                                                                                 |
+| reserved              | 1650         |            | Reserved for future use.                                                                                 |
 
-*FHT is currently defined to be 512 bytes in length.*
+*FHT is currently defined to be 2048 bytes in length.*
 
 ### fht_marker
 
@@ -268,6 +270,10 @@ TODO
 ### rtalias_tbs_size
 
 TODO
+
+### ldevid_cert_sig_r_dv_hdl, ldevid_cert_sig_s_dv_hdl
+
+These fields provide the indices into the Data Vault where the Signature<sub>LDevId</sub> R and S coordinates are stored.
 
 ### reserved
 

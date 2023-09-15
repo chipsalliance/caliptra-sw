@@ -134,6 +134,26 @@ impl FhtDataStore {
                 | WarmResetEntry4::RtEntryPoint as u32,
         )
     }
+
+    /// The LDevId certificate signature R value is stored in a 384-bit DataVault
+    /// sticky register.
+    pub const fn ldevid_cert_sig_r_store() -> HandOffDataHandle {
+        HandOffDataHandle(
+            ((Vault::DataVault as u32) << 12)
+                | (DataVaultRegister::Sticky384BitReg as u32) << 8
+                | ColdResetEntry48::LDevDiceSigR as u32,
+        )
+    }
+
+    /// The LDevId certificate signature S value is stored in a 384-bit DataVault
+    /// sticky register.
+    pub const fn ldevid_cert_sig_s_store() -> HandOffDataHandle {
+        HandOffDataHandle(
+            ((Vault::DataVault as u32) << 12)
+                | (DataVaultRegister::Sticky384BitReg as u32) << 8
+                | ColdResetEntry48::LDevDiceSigS as u32,
+        )
+    }
 }
 
 pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
@@ -172,6 +192,8 @@ pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
         pcr_log_index: env.pcr_bank.log_index as u32,
         fuse_log_addr,
         idev_dice_pub_key: env.fht_data_store.idev_pub,
+        ldevid_cert_sig_r_dv_hdl: FhtDataStore::ldevid_cert_sig_r_store(),
+        ldevid_cert_sig_s_dv_hdl: FhtDataStore::ldevid_cert_sig_s_store(),
         ..Default::default()
     }
 }
