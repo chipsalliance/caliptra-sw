@@ -3,6 +3,8 @@
 use core::{marker::PhantomData, mem::size_of, ptr::addr_of};
 
 use caliptra_image_types::ImageManifest;
+#[cfg(feature = "runtime")]
+use dpe::DpeInstance;
 use zerocopy::{AsBytes, FromBytes};
 
 use crate::{
@@ -47,6 +49,13 @@ pub struct PersistentData {
 
     pub fuse_log: FuseLogArray,
     reserved5: [u8; memory_layout::FUSE_LOG_SIZE as usize - size_of::<FuseLogArray>()],
+
+    #[cfg(feature = "runtime")]
+    pub dpe: DpeInstance,
+    #[cfg(feature = "runtime")]
+    reserved6: [u8; memory_layout::DPE_SIZE as usize - size_of::<DpeInstance>()],
+    #[cfg(not(feature = "runtime"))]
+    dpe: [u8; memory_layout::DPE_SIZE as usize],
 }
 impl PersistentData {
     pub fn assert_matches_layout() {
@@ -65,9 +74,10 @@ impl PersistentData {
                 memory_layout::MEASUREMENT_LOG_ORG
             );
             assert_eq!(addr_of!((*P).fuse_log) as u32, memory_layout::FUSE_LOG_ORG);
+            assert_eq!(addr_of!((*P).dpe) as u32, memory_layout::DPE_ORG);
             assert_eq!(
                 P.add(1) as u32,
-                memory_layout::FUSE_LOG_ORG + memory_layout::FUSE_LOG_SIZE
+                memory_layout::DPE_ORG + memory_layout::DPE_SIZE
             );
         }
     }

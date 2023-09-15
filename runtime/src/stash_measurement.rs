@@ -51,7 +51,11 @@ impl StashMeasurementCmd {
                 tci_type: u32::from_be_bytes(cmd.metadata),
                 target_locality: locality,
             }
-            .execute(&mut drivers.dpe, &mut env, locality);
+            .execute(
+                &mut drivers.persistent_data.get_mut().dpe,
+                &mut env,
+                locality,
+            );
 
             let dpe_result = match derive_child_resp {
                 Ok(_) => DpeErrorCode::NoError,
