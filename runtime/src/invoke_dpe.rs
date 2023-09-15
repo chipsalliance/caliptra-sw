@@ -33,6 +33,8 @@ impl InvokeDpeCmd {
             };
 
             match drivers
+                .persistent_data
+                .get_mut()
                 .dpe
                 .execute_serialized_command(&mut env, drivers.mbox.user(), &cmd.data)
             {
