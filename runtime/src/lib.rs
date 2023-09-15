@@ -44,8 +44,8 @@ use caliptra_common::cprintln;
 use caliptra_common::mailbox_api::MailboxResp;
 
 use caliptra_drivers::{
-    CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault, Lms, PersistentDataAccessor, Sha1,
-    SocIfc,
+    CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault, Lms, PersistentDataAccessor,
+    ResetReason, Sha1, SocIfc,
 };
 use caliptra_drivers::{Hmac384, PcrBank, PcrId, Sha256, Sha384, Sha384Acc, Trng};
 use caliptra_registers::mbox::enums::MboxStatusE;
@@ -116,8 +116,6 @@ pub struct Drivers {
 
     pub sha1: Sha1,
 
-    pub dpe: DpeInstance,
-
     pub pcr_bank: PcrBank,
 
     pub cert_chain: ArrayVec<u8, MAX_CERT_CHAIN_SIZE>,
@@ -154,35 +152,39 @@ impl Drivers {
 
         let mut persistent_data = PersistentDataAccessor::new();
 
-        let locality = persistent_data.get().manifest1.header.pl0_pauser;
         let rt_pub_key = persistent_data.get().fht.rt_dice_pub_key;
-        let mut crypto = DpeCrypto::new(
-            &mut sha384,
-            &mut trng,
-            &mut ecc384,
-            &mut hmac384,
-            &mut key_vault,
-            rt_pub_key,
-        );
-        // Skip hashing first 0x04 byte of der encoding
-        let hashed_rt_pub_key = crypto
-            .hash(AlgLen::Bit384, &rt_pub_key.to_der()[1..])
-            .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
         let mut data_vault = DataVault::new(DvReg::new());
         let mut cert_chain = Self::create_cert_chain(&mut data_vault, &mut persistent_data)?;
-        let env = DpeEnv::<CptraDpeTypes> {
-            crypto,
-            platform: DpePlatform::new(locality, hashed_rt_pub_key, &mut cert_chain),
-        };
         let mut pcr_bank = PcrBank::new(PvReg::new());
-        let dpe = Self::initialize_dpe(env, &mut pcr_bank, locality)?;
+        let mut soc_ifc = SocIfc::new(SocIfcReg::new());
+        if soc_ifc.reset_reason() == ResetReason::ColdReset {
+            let locality = persistent_data.get().manifest1.header.pl0_pauser;
+            let mut crypto = DpeCrypto::new(
+                &mut sha384,
+                &mut trng,
+                &mut ecc384,
+                &mut hmac384,
+                &mut key_vault,
+                rt_pub_key,
+            );
+            // Skip hashing first 0x04 byte of der encoding
+            let hashed_rt_pub_key = crypto
+                .hash(AlgLen::Bit384, &rt_pub_key.to_der()[1..])
+                .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
+            let env = DpeEnv::<CptraDpeTypes> {
+                crypto,
+                platform: DpePlatform::new(locality, hashed_rt_pub_key, &mut cert_chain),
+            };
+            let dpe = Self::initialize_dpe(env, &mut pcr_bank, locality)?;
+            persistent_data.get_mut().dpe = dpe;
+        }
 
         Ok(Self {
             mbox: Mailbox::new(MboxCsr::new()),
             sha_acc: Sha512AccCsr::new(),
             data_vault,
             key_vault,
-            soc_ifc: SocIfc::new(SocIfcReg::new()),
+            soc_ifc,
             sha256: Sha256::new(Sha256Reg::new()),
             sha384,
             sha384_acc: Sha384Acc::new(Sha512AccCsr::new()),
@@ -192,7 +194,6 @@ impl Drivers {
             lms: Lms::default(),
             trng,
             persistent_data,
-            dpe,
             pcr_bank,
             #[cfg(feature = "fips_self_test")]
             self_test_status: SelfTestStatus::Idle,
