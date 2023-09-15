@@ -3,10 +3,24 @@ Q=@
 CC=$(CROSS_COMPILE)gcc
 AR=$(CROSS_COMPILE)ar
 
-SOURCE += ../generic/main.c ../../src/caliptra_api.c
+
+LIBCALIPTRA = libinterface.a
+SOURCE += ../../src/caliptra_api.c
+OBJS_A := $(patsubst %.c,%.o, $(filter %.c,$(SOURCE)))
+
+RTL_SOC_IFC_INCLUDE_PATH=../hw-latest/caliptra-rtl/src/soc_ifc/rtl/
+INCLUDES  = -I$(RTL_SOC_IFC_INCLUDE_PATH)
+INCLUDES += -I../../inc
+
+$(LIBCALIPTRA): $(OBJS_A)
+	@echo [AR] $@
+	$(Q)$(AR) -cq $@ $(OBJS_A)
+
 
 LIBCALIPTRA_ROOT = ../..
 LIBCALIPTRA_INC  = $(LIBCALIPTRA_ROOT)/inc
+
+SOURCE += ../generic/main.c 
 
 OBJS := $(patsubst %.c,%.o, $(filter %.c,$(SOURCE)))
 

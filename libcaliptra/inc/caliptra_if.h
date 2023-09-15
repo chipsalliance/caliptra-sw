@@ -1,4 +1,7 @@
 //Licensed under the Apache-2.0 license
+#ifndef CALIPTRA_IF_H_
+#define CALIPTRA_IF_H_
+
 #pragma once
 
 #include <stdint.h>
@@ -39,3 +42,6 @@ int caliptra_read_u32(uint32_t address, uint32_t *data);
  */
 void caliptra_wait(void);
 
+struct caliptra_buffer read_file_or_exit(const char* path);
+
+#endif // CALIPTRA_IF_H_

@@ -1,4 +1,7 @@
 // Licensed under the Apache-2.0 license
+#ifndef CALIPTRA_API_H_
+#define CALIPTRA_API_H_
+
 #pragma once
 
 #include <stdint.h>
@@ -38,5 +41,10 @@ int caliptra_get_idev_csr(struct caliptra_get_idev_csr_resp *resp);
 // Get LDEV Cert
 int caliptra_get_ldev_cert(struct caliptra_get_ldev_cert_resp *resp);
 
+// Run DPE command
+int caliptra_dpe_command(struct caliptra_dpe_req *req, struct caliptra_dpe_resp *resp);
+
 // Execute Mailbox Command
 int caliptra_mailbox_execute(uint32_t cmd, struct caliptra_buffer *mbox_tx_buffer, struct caliptra_buffer *mbox_rx_buffer);
+
+#endif // CALIPTRA_API_H_
