@@ -7,9 +7,9 @@ use caliptra_builder::{
     ImageOptions,
 };
 use caliptra_common::mailbox_api::{
-    CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, GetIdevCertReq, GetIdevCertResp,
-    GetIdevInfoResp, InvokeDpeReq, InvokeDpeResp, MailboxReqHeader, MailboxRespHeader,
-    StashMeasurementReq, StashMeasurementResp,
+    CommandId, EcdsaVerifyReq, ExtendPcrReq, FipsVersionResp, FwInfoResp, GetIdevCertReq,
+    GetIdevCertResp, GetIdevInfoResp, InvokeDpeReq, InvokeDpeResp, MailboxReqHeader,
+    MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_drivers::{CaliptraError, Ecc384PubKey};
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError, ShaAccMode};
@@ -873,4 +873,32 @@ fn test_idev_id_cert() {
         model.soc_ifc().cptra_fw_error_non_fatal().read(),
         caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS.into()
     );
+}
+
+#[test]
+fn test_extend_pcr_cmd() {
+    let mut model = run_rt_test(None, None);
+
+    let payload_data = [0u8; 80];
+
+    let cmd = ExtendPcrReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        pcr_idx: 0,
+        data: payload_data,
+        // data_size: (payload_data.len() - 1) as u32,
+        data_size: (payload_data.len() - 1) as u32,
+    };
+
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::EXTEND_PCR),
+        &cmd.as_bytes()[4..],
+    );
+
+    let cmd = ExtendPcrReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..cmd
+    };
+
+    let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
+    assert!(res.is_ok());
 }

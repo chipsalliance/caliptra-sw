@@ -300,21 +300,12 @@ impl Default for InvokeDpeReq {
 pub struct ExtendPcrReq {
     pub hdr: MailboxReqHeader,
     pub pcr_idx: u32,
-    pub value: [u8; ExtendPcrReq::DATA_MAX_SIZE], // variable length
+    pub data_size: u32,
+    pub data: [u8; ExtendPcrReq::DATA_MAX_SIZE],
 }
 // No command-specific output args
 impl ExtendPcrReq {
-    pub const DATA_MAX_SIZE: usize = 512;
-}
-
-impl Default for ExtendPcrReq {
-    fn default() -> Self {
-        Self {
-            hdr: MailboxReqHeader::default(),
-            pcr_idx: 0,
-            value: [0u8; ExtendPcrReq::DATA_MAX_SIZE],
-        }
-    }
+    pub const DATA_MAX_SIZE: usize = 80; // Req max size = (SHA384_BLOCK_BYTE_SIZE - SHA384_HASH_SIZE - 1)
 }
 
 #[repr(C)]

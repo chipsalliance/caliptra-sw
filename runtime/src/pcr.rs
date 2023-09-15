@@ -16,9 +16,11 @@ impl ExtendPcrCmd {
         let pcr_index: PcrId =
             PcrId::try_from(idx).map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
-        drivers
-            .pcr_bank
-            .extend_pcr(pcr_index, &mut drivers.sha384, &cmd.value)?;
+        drivers.pcr_bank.extend_pcr(
+            pcr_index,
+            &mut drivers.sha384,
+            &cmd.data[..cmd.data_size as usize],
+        )?;
 
         Ok(MailboxResp::default())
     }
