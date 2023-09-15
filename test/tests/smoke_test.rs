@@ -303,6 +303,7 @@ fn smoke_test() {
     hasher.update(/*ecc_vendor_pk_index=*/ &[0u8]); // No keys are revoked
     hasher.update(&[image.manifest.header.vendor_lms_pub_key_idx as u8]);
     hasher.update(&[fuses.lms_verify as u8]);
+    hasher.update(&[true as u8]);
     hasher.update(&vendor_pk_hash);
     hasher.update(&owner_pk_hash);
     let device_info_hash = hasher.finish();
@@ -349,6 +350,7 @@ fn smoke_test() {
             fuse_anti_rollback_disable: false,
             vendor_pub_key_hash: vendor_pk_hash_words,
             owner_pub_key_hash: owner_pk_hash_words,
+            owner_pub_key_hash_from_fuses: true,
             ecc_vendor_pub_key_index: image.manifest.preamble.vendor_ecc_pub_key_idx,
             fmc_digest: image.manifest.fmc.digest,
             fmc_svn: image.manifest.fmc.svn,

@@ -164,6 +164,7 @@ impl FmcAliasLayer {
             env.data_vault.ecc_vendor_pk_index() as u8,
             env.data_vault.lms_vendor_pk_index() as u8,
             env.soc_ifc.fuse_bank().lms_verify() as u8,
+            fw_proc_info.owner_pub_keys_digest_in_fuses as u8,
         ])?;
         hasher.update(&<[u8; 48]>::from(
             env.soc_ifc.fuse_bank().vendor_pub_key_hash(),

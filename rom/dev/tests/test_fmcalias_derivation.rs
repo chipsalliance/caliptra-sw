@@ -196,6 +196,7 @@ fn test_pcr_log() {
             0_u8,
             VENDOR_CONFIG_KEY_1.lms_key_idx as u8,
             RomVerifyConfig::EcdsaAndLms as u8,
+            true as u8,
         ],
     );
 
@@ -221,6 +222,95 @@ fn test_pcr_log() {
         PcrLogEntryId::FmcTci,
         PCR0_AND_PCR1_EXTENDED_ID,
         swap_word_bytes(&image_bundle.manifest.fmc.digest).as_bytes(),
+    );
+}
+
+#[test]
+fn test_pcr_log_no_owner_key_digest_fuse() {
+    let gen = ImageGenerator::new(OsslCrypto::default());
+    let (_hw, image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    let owner_pubkey_digest = gen
+        .owner_pubkey_digest(&image_bundle.manifest.preamble)
+        .unwrap();
+
+    pub const TEST_FMC_WITH_UART: FwId = FwId {
+        crate_name: "caliptra-rom-test-fmc",
+        bin_name: "caliptra-rom-test-fmc",
+        features: &["emu", "interactive_test_fmc"],
+        workspace_dir: None,
+    };
+
+    let fuses = Fuses {
+        anti_rollback_disable: true,
+        lms_verify: true,
+        key_manifest_pk_hash: gen
+            .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+            .unwrap(),
+        ..Default::default()
+    };
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let image_options = ImageOptions {
+        vendor_config: VENDOR_CONFIG_KEY_1,
+        ..Default::default()
+    };
+    let image_bundle =
+        caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)
+            .unwrap();
+
+    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        .unwrap();
+
+    hw.step_until_boot_status(ColdResetComplete.into(), true);
+
+    let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
+
+    let device_lifecycle = hw
+        .soc_ifc()
+        .cptra_security_state()
+        .read()
+        .device_lifecycle();
+
+    let debug_locked = hw.soc_ifc().cptra_security_state().read().debug_locked();
+
+    let anti_rollback_disable = hw.soc_ifc().fuse_anti_rollback_disable().read().dis();
+
+    check_pcr_log_entry(
+        &pcr_entry_arr,
+        0,
+        PcrLogEntryId::DeviceStatus,
+        PCR0_AND_PCR1_EXTENDED_ID,
+        &[
+            device_lifecycle as u8,
+            debug_locked as u8,
+            anti_rollback_disable as u8,
+            VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
+            0_u8,
+            0_u8,
+            VENDOR_CONFIG_KEY_1.lms_key_idx as u8,
+            RomVerifyConfig::EcdsaAndLms as u8,
+            false as u8,
+        ],
+    );
+
+    check_pcr_log_entry(
+        &pcr_entry_arr,
+        2,
+        PcrLogEntryId::OwnerPubKeyHash,
+        PCR0_AND_PCR1_EXTENDED_ID,
+        swap_word_bytes(&owner_pubkey_digest).as_bytes(),
     );
 }
 
@@ -306,6 +396,7 @@ fn test_pcr_log_fmc_fuse_svn() {
             FMC_FUSE_SVN as u8,
             u8::MAX,
             RomVerifyConfig::EcdsaOnly as u8,
+            true as u8,
         ],
     );
 }

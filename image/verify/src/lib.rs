@@ -90,6 +90,9 @@ pub struct ImageVerificationInfo {
     /// Digest of owner public keys that verified the image
     pub owner_pub_keys_digest: ImageDigest,
 
+    /// Whether `owner_pub_keys_digest` was in fuses
+    pub owner_pub_keys_digest_in_fuses: bool,
+
     /// First mutable code
     pub fmc: ImageVerificationExeInfo,
 
