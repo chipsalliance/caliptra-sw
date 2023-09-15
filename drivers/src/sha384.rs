@@ -20,10 +20,10 @@ use crate::{array::Array4x32, wait, Array4x12};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::sha512::Sha512Reg;
 
-const SHA384_BLOCK_BYTE_SIZE: usize = 128;
+pub const SHA384_BLOCK_BYTE_SIZE: usize = 128;
 const SHA384_BLOCK_LEN_OFFSET: usize = 112;
 const SHA384_MAX_DATA_SIZE: usize = 1024 * 1024;
-const SHA384_HASH_SIZE: usize = 48;
+pub const SHA384_HASH_SIZE: usize = 48;
 
 /// SHA-384 Digest
 pub type Sha384Digest<'a> = &'a mut Array4x12;
