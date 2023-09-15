@@ -2,7 +2,9 @@
 
 use caliptra_builder::ImageOptions;
 use caliptra_common::capabilities::Capabilities;
-use caliptra_common::mailbox_api::{CapabilitiesResp, CommandId, MailboxRespHeader};
+use caliptra_common::mailbox_api::{
+    CapabilitiesResp, CommandId, MailboxReqHeader, MailboxRespHeader,
+};
 use caliptra_hw_model::{Fuses, HwModel};
 use zerocopy::{AsBytes, FromBytes};
 
@@ -13,8 +15,12 @@ fn test_capabilities() {
     let (mut hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::CAPABILITIES), &[]),
+    };
+
     let response = hw
-        .mailbox_execute(CommandId::CAPABILITIES.into(), &[])
+        .mailbox_execute(CommandId::CAPABILITIES.into(), payload.as_bytes())
         .unwrap()
         .unwrap();
 
