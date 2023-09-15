@@ -217,7 +217,12 @@ fn test_update_reset_verify_image_failure() {
     hw.step_until_boot_status(UpdateResetStarted.into(), false);
 
     // Upload invalid manifest
-    let _ = hw.upload_firmware(&[0u8; 4]);
+    assert_eq!(
+        hw.upload_firmware(&[0u8; 4]),
+        Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH.into()
+        ))
+    );
 
     hw.step_until_exit_success().unwrap();
 

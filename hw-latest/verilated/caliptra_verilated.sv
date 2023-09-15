@@ -141,7 +141,7 @@ caliptra_top caliptra_top_dut (
     .qspi_d_o(),
     .qspi_d_en_o(),
 
-    .el2_mem_export(el2_mem_export),
+    .el2_mem_export(el2_mem_export.veer_sram_src),
 
     .ready_for_fuses(ready_for_fuses),
     .ready_for_fw_push(ready_for_fw_push),
@@ -205,7 +205,7 @@ assign veer_sram_error_injection_mode.dccm_double_bit_error = sram_error_injecti
 
 caliptra_veer_sram_export veer_sram_export_inst (
     .sram_error_injection_mode(sram_error_injection_mode),
-    .el2_mem_export(el2_mem_export.top)
+    .el2_mem_export(el2_mem_export.veer_sram_sink)
 );
 
 //SRAM for mbox (preload raw data here)
