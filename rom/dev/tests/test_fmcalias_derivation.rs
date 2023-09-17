@@ -759,6 +759,7 @@ fn test_fht_info() {
     assert_eq!(fht.ldevid_tbs_addr, LDEVID_TBS_ORG);
     assert_eq!(fht.fmcalias_tbs_addr, FMCALIAS_TBS_ORG);
     assert_eq!(fht.pcr_log_addr, PCR_LOG_ORG);
+    assert_eq!(fht.meas_log_addr, MEASUREMENT_LOG_ORG);
     assert_eq!(fht.fuse_log_addr, FUSE_LOG_ORG);
 }
 
@@ -941,6 +942,10 @@ fn test_upload_single_measurement() {
     // Check that the measurement was extended to PCR31.
     let expected_pcr = hash_measurement_log_entries(&measurement_log);
     assert_eq!(pcr31.as_bytes(), expected_pcr);
+
+    let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
+    let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
+    assert_eq!(fht.meas_log_index, 1);
 }
 
 #[test]
@@ -1031,6 +1036,10 @@ fn test_upload_measurement_limit() {
     // Check that the measurement was extended to PCR31.
     let expected_pcr = hash_measurement_log_entries(&measurement_log);
     assert_eq!(pcr31.as_bytes(), expected_pcr);
+
+    let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
+    let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
+    assert_eq!(fht.meas_log_index, MEASUREMENT_MAX_COUNT as u32);
 }
 
 #[test]
@@ -1074,4 +1083,8 @@ fn test_upload_no_measurement() {
     // Check whether the fake measurement is in the measurement log.
     let measurement_log = hw.mailbox_execute(0x1000_000A, &[]).unwrap().unwrap();
     assert_eq!(measurement_log.len(), 0);
+
+    let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
+    let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
+    assert_eq!(fht.meas_log_index, 0);
 }

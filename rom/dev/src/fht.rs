@@ -182,6 +182,7 @@ pub fn initialize_fht(env: &mut RomEnv) {
         ldevid_tbs_addr: &pdata.ldevid_tbs as *const _ as u32,
         fmcalias_tbs_addr: &pdata.fmcalias_tbs as *const _ as u32,
         pcr_log_addr: &pdata.pcr_log as *const _ as u32,
+        meas_log_addr: &pdata.measurement_log as *const _ as u32,
         fuse_log_addr: &pdata.fuse_log as *const _ as u32,
         ..Default::default()
     };

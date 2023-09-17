@@ -295,6 +295,12 @@ pub struct FirmwareHandoffTable {
     /// Last empty PCR log entry slot index
     pub pcr_log_index: u32,
 
+    /// Measurement log Address
+    pub meas_log_addr: u32,
+
+    // Last empty measurement log entry slot index
+    pub meas_log_index: u32,
+
     /// Fuse log Address
     pub fuse_log_addr: u32,
 
@@ -320,7 +326,7 @@ pub struct FirmwareHandoffTable {
     pub rtalias_tbs_size: u16,
 
     /// Reserved for future use.
-    pub reserved: [u8; 1650],
+    pub reserved: [u8; 1642],
 }
 
 impl Default for FirmwareHandoffTable {
@@ -348,11 +354,13 @@ impl Default for FirmwareHandoffTable {
             ldevid_tbs_size: 0,
             fmcalias_tbs_size: 0,
             rtalias_tbs_size: 0,
-            reserved: [0u8; 1650],
+            reserved: [0u8; 1642],
             ldevid_tbs_addr: 0,
             fmcalias_tbs_addr: 0,
             pcr_log_addr: 0,
             pcr_log_index: 0,
+            meas_log_addr: 0,
+            meas_log_index: 0,
             fuse_log_addr: 0,
             ldevid_cert_sig_r_dv_hdl: FHT_INVALID_HANDLE,
             ldevid_cert_sig_s_dv_hdl: FHT_INVALID_HANDLE,
@@ -426,6 +434,9 @@ pub fn print_fht(fht: &FirmwareHandoffTable) {
     crate::cprintln!("FmcAlias TBS Size: {} bytes", fht.fmcalias_tbs_size);
     crate::cprintln!("RtAlias TBS Size: {} bytes", fht.rtalias_tbs_size);
     crate::cprintln!("PCR log Address: 0x{:08x}", fht.pcr_log_addr);
+    crate::cprintln!("PCR log Index: {}", fht.pcr_log_index);
+    crate::cprintln!("Measurement log Address: {}", fht.meas_log_addr);
+    crate::cprintln!("Measurement log Index: {}", fht.meas_log_index);
     crate::cprintln!("Fuse log Address: 0x{:08x}", fht.fuse_log_addr);
 }
 
@@ -452,6 +463,7 @@ impl FirmwareHandoffTable {
             && self.ldevid_tbs_addr != 0
             && self.fmcalias_tbs_addr != 0
             && self.pcr_log_addr != 0
+            && self.meas_log_addr != 0
             && self.fuse_log_addr != 0
             && self.rom_info_addr.is_valid()
             && self.ldevid_cert_sig_r_dv_hdl != FHT_INVALID_HANDLE
@@ -560,6 +572,7 @@ mod tests {
             && fht.ldevid_tbs_addr != 0
             && fht.fmcalias_tbs_addr != 0
             && fht.pcr_log_addr != 0
+            && fht.meas_log_addr != 0
             && fht.fuse_log_addr != 0;
 
         assert!(!valid);
