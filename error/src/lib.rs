@@ -164,7 +164,7 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b000f);
     pub const IMAGE_VERIFIER_ERR_TOC_ENTRY_COUNT_INVALID: CaliptraError =
         CaliptraError::new_const(0x000b0010);
-    pub const IMAGE_VERIFIER_ERR_TOC_DIGEST_FAILURES: CaliptraError =
+    pub const IMAGE_VERIFIER_ERR_TOC_DIGEST_FAILURE: CaliptraError =
         CaliptraError::new_const(0x000b0011);
     pub const IMAGE_VERIFIER_ERR_TOC_DIGEST_MISMATCH: CaliptraError =
         CaliptraError::new_const(0x000b0012);

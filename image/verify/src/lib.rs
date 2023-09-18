@@ -162,4 +162,7 @@ pub trait ImageVerificationEnv {
 
     // LMS Verification enabled
     fn lms_verify_enabled(&self) -> bool;
+
+    // Set the extended error code
+    fn set_fw_extended_error(&mut self, err: u32);
 }
