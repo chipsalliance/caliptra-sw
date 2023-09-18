@@ -144,8 +144,7 @@ impl crate::HwModel for ModelEmulated {
 
     fn step(&mut self) {
         if self.cpu_enabled.get() {
-            self.cpu
-                .step(self.trace_fn.as_deref_mut(), Some(&mut self.code_coverage));
+            self.cpu.step(self.trace_fn.as_deref_mut());
         }
     }
 

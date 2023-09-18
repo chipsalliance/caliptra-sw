@@ -45,11 +45,7 @@ const FW_WRITE_TICKS: u64 = 1000;
 const EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES: u64 = 20_000_000; // 20 million cycles
 
 // CPU Main Loop (free_run no GDB)
-fn free_run(
-    mut cpu: Cpu<CaliptraRootBus>,
-    trace_path: Option<PathBuf>,
-    code_coverage_params: Option<(usize, PathBuf)>,
-) {
+fn free_run(mut cpu: Cpu<CaliptraRootBus>, trace_path: Option<PathBuf>) {
     if let Some(path) = trace_path {
         let mut f = File::create(path).unwrap();
         let trace_fn: &mut dyn FnMut(u32, RvInstr) = &mut |pc, instr| {
@@ -64,17 +60,10 @@ fn free_run(
             }
         };
 
-        // Instantiate code coverage data collector
-        if let Some((_, _)) = code_coverage_params {
-            let mut code_coverage =
-                caliptra_emu_cpu::cpu::CodeCoverage::new(CaliptraRootBus::ROM_SIZE);
-            // Need to have the loop in the same scope as trace_fn to prevent borrowing rules violation
-            while let StepAction::Continue = cpu.step(Some(trace_fn), Some(&mut code_coverage)) {}
-        } else {
-            while let StepAction::Continue = cpu.step(Some(trace_fn), None) {}
-        }
+        // Need to have the loop in the same scope as trace_fn to prevent borrowing rules violation
+        while let StepAction::Continue = cpu.step(Some(trace_fn)) {}
     } else {
-        while let StepAction::Continue = cpu.step(None, None) {}
+        while let StepAction::Continue = cpu.step(None) {}
     };
 }
 
@@ -398,7 +387,7 @@ fn main() -> io::Result<()> {
             };
 
             // If no GDB Port is passed, Free Run
-            free_run(cpu, instr_trace, None);
+            free_run(cpu, instr_trace);
         }
     }
 

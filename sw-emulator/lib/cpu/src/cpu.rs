@@ -119,6 +119,8 @@ pub struct Cpu<TBus: Bus> {
 
     // This is used to track watchpointers
     pub(crate) watch_ptr_cfg: WatchPtrCfg,
+
+    pub code_coverage: CodeCoverage,
 }
 
 /// Cpu instruction step action
@@ -150,6 +152,7 @@ impl<TBus: Bus> Cpu<TBus> {
             is_execute_instr: false,
             watch_ptr_cfg: WatchPtrCfg::new(),
             nmivec: 0,
+            code_coverage: CodeCoverage::new(caliptra_drivers::memory_layout::ROM_SIZE as usize),
         }
     }
 
@@ -352,11 +355,7 @@ impl<TBus: Bus> Cpu<TBus> {
     }
 
     /// Step a single instruction
-    pub fn step(
-        &mut self,
-        instr_tracer: Option<&mut InstrTracer>,
-        code_coverage: Option<&mut CodeCoverage>,
-    ) -> StepAction {
+    pub fn step(&mut self, instr_tracer: Option<&mut InstrTracer>) -> StepAction {
         let fired_action_types = self
             .clock
             .increment_and_process_timer_actions(1, &mut self.bus);
@@ -376,7 +375,7 @@ impl<TBus: Bus> Cpu<TBus> {
             }
         }
 
-        match self.exec_instr(instr_tracer, code_coverage) {
+        match self.exec_instr(instr_tracer) {
             Ok(result) => result,
             Err(exception) => self.handle_exception(exception),
         }
@@ -520,12 +519,12 @@ mod tests {
         let mut cpu = Cpu::new(bus, clock);
         for i in 0..30 {
             assert_eq!(cpu.clock.now(), i);
-            assert_eq!(cpu.step(None, None), StepAction::Continue);
+            assert_eq!(cpu.step(None), StepAction::Continue);
         }
         assert_eq!(fake_bus_log.take(), "");
         assert!(!timer.fired(&mut action0));
 
-        assert_eq!(cpu.step(None, None), StepAction::Continue);
+        assert_eq!(cpu.step(None), StepAction::Continue);
         assert_eq!(fake_bus_log.take(), "poll()\n");
         assert!(timer.fired(&mut action0));
 
