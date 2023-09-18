@@ -900,6 +900,10 @@ mod tests {
             .cptra_generic_output_wires()
             .at(0)
             .write(|_| b'i'.into());
+        soc_ifc
+            .cptra_generic_output_wires()
+            .at(0)
+            .write(|_| 0x100 | u32::from(b'i'));
         soc_ifc.cptra_generic_output_wires().at(0).write(|_| 0xff);
         rv32_gen.build()
     }
@@ -990,7 +994,7 @@ mod tests {
             ..Default::default()
         })
         .unwrap();
-        model.step_until_output("hi").unwrap();
+        model.step_until_output("hii").unwrap();
     }
 
     #[test]
