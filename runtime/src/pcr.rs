@@ -55,7 +55,7 @@ pub fn get_pcr_quote(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<
     let args: QuotePcrsReq =
         QuotePcrsReq::read_from(cmd_bytes).ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
-    let pcr_hash = drivers.sha512.gen_pcr_hash(args.nonce.into())?;
+    let pcr_hash = drivers.sha384.gen_pcr_hash(args.nonce.into())?;
 
     let priv_key_datastore: DataStore = drivers
         .persistent_data

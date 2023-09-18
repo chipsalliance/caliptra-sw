@@ -15,8 +15,8 @@ Abstract:
 use core::usize;
 
 use crate::kv_access::{KvAccess, KvAccessErr};
-use crate::PcrId;
 use crate::{array::Array4x32, wait, Array4x12};
+use crate::{Array4x8, PcrId};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::sha512::Sha512Reg;
 
@@ -24,6 +24,7 @@ const SHA384_BLOCK_BYTE_SIZE: usize = 128;
 const SHA384_BLOCK_LEN_OFFSET: usize = 112;
 const SHA384_MAX_DATA_SIZE: usize = 1024 * 1024;
 const SHA384_HASH_SIZE: usize = 48;
+const MODE_SHA384: u32 = 0b10;
 
 /// SHA-384 Digest
 pub type Sha384Digest<'a> = &'a mut Array4x12;
@@ -135,6 +136,32 @@ impl Sha384 {
         // command; the result register may not be valid yet
         wait::until(|| sha.status().read().valid());
         Array4x12::read_from_reg(sha.digest().truncate::<12>())
+    }
+
+    pub fn gen_pcr_hash(&mut self, nonce: Array4x8) -> CaliptraResult<Array4x12> {
+        let reg = self.sha512.regs_mut();
+
+        let status_reg = reg.gen_pcr_hash_status();
+
+        // Wait for the registers to be ready
+        while !status_reg.read().ready() {}
+
+        reg.ctrl().write(|ctrl| ctrl.mode(MODE_SHA384));
+
+        // Write the nonce into the register
+        reg.gen_pcr_hash_nonce().write(&nonce.into());
+
+        // Use the start command to start the digesting process
+        reg.gen_pcr_hash_ctrl().write(|ctrl| ctrl.start(true));
+
+        // Wait for the registers to be ready
+        while !status_reg.read().ready() {}
+
+        if status_reg.read().valid() {
+            Ok(reg.gen_pcr_hash_digest().read().into())
+        } else {
+            Err(CaliptraError::DRIVER_SHA384_INVALID_STATE_ERR)
+        }
     }
 
     pub fn pcr_extend(&mut self, id: PcrId, data: &[u8]) -> CaliptraResult<()> {
@@ -255,8 +282,6 @@ impl Sha384 {
     /// * `first` - Flag indicating if this is the first block
     /// * `last` - Flag indicating if this is the last block
     fn digest_op(&mut self, first: bool, last: bool) -> CaliptraResult<()> {
-        const MODE_SHA384: u32 = 0b10;
-
         let sha = self.sha512.regs_mut();
 
         // Wait for the hardware to be ready
