@@ -80,7 +80,7 @@ pub fn get_pcr_quote(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<
     let raw_pcrs = drivers.pcr_bank.read_all_pcrs();
 
     let pcrs_as_bytes = raw_pcrs
-        .iter()
+        .into_iter()
         .map(|raw_pcr_value| raw_pcr_value.into())
         .enumerate()
         .fold([[0; 48]; 32], |mut acc, (idx, pcr_value)| {
@@ -89,8 +89,8 @@ pub fn get_pcr_quote(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<
         });
 
     let reset_ctrs = PcrBank::ALL_PCR_IDS
-        .iter()
-        .map(|pcr_id| drivers.pcr_reset.get(*pcr_id))
+        .into_iter()
+        .map(|pcr_id| drivers.pcr_reset.get(pcr_id))
         .enumerate()
         .fold([0; 32], |mut acc, (idx, reset_cnt)| {
             acc[idx] = reset_cnt;
