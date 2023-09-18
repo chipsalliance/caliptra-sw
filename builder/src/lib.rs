@@ -4,6 +4,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, ErrorKind};
+use std::mem::size_of;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -13,10 +14,12 @@ use caliptra_image_gen::{
     ImageGenerator, ImageGeneratorConfig, ImageGeneratorOwnerConfig, ImageGeneratorVendorConfig,
 };
 use caliptra_image_openssl::OsslCrypto;
-use caliptra_image_types::{ImageBundle, ImageRevision};
+use caliptra_image_types::{ImageBundle, ImageRevision, RomInfo};
 use elf::endian::LittleEndian;
+use zerocopy::AsBytes;
 
 mod elf_symbols;
+mod sha256;
 
 pub use elf_symbols::{elf_symbols, Symbol, SymbolBind, SymbolType, SymbolVisibility};
 use once_cell::sync::Lazy;
@@ -37,6 +40,13 @@ pub const ROM_WITH_UART: FwId = FwId {
     workspace_dir: None,
 };
 
+pub const ROM_FAKE_WITH_UART: FwId = FwId {
+    crate_name: "caliptra-rom",
+    bin_name: "caliptra-rom",
+    features: &["emu", "fake-rom"],
+    workspace_dir: None,
+};
+
 pub const FMC_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
@@ -44,10 +54,17 @@ pub const FMC_WITH_UART: FwId = FwId {
     workspace_dir: None,
 };
 
+pub const FMC_FAKE_WITH_UART: FwId = FwId {
+    crate_name: "caliptra-fmc",
+    bin_name: "caliptra-fmc",
+    features: &["emu", "fake-fmc"],
+    workspace_dir: None,
+};
+
 pub const APP_WITH_UART: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["emu", "test_only_commands"],
+    features: &["emu", "test_only_commands", "fips_self_test"],
     workspace_dir: None,
 };
 
@@ -122,12 +139,6 @@ pub fn build_firmware_elf_uncached(id: &FwId) -> io::Result<Vec<u8>> {
         }
         features_csv.push_str("riscv");
     }
-    if cfg!(feature = "fpga_realtime") {
-        if !features_csv.is_empty() {
-            features_csv.push(',');
-        }
-        features_csv.push_str("fpga_realtime");
-    }
 
     let workspace_dir = id
         .workspace_dir
@@ -201,7 +212,7 @@ pub fn build_firmware_rom(id: &FwId<'static>) -> io::Result<Vec<u8>> {
 }
 
 pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
-    let mut result = vec![0u8; 0x8000];
+    let mut result = vec![0u8; 0xC000];
     let elf = elf::ElfBytes::<LittleEndian>::minimal_parse(elf_bytes).map_err(other_err)?;
 
     let Some(segments) = elf.segments() else {
@@ -227,6 +238,22 @@ pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
         };
         dest_bytes.copy_from_slice(src_bytes);
     }
+
+    let symbols = elf_symbols(elf_bytes)?;
+    if let Some(rom_info_sym) = symbols.iter().find(|s| s.name == "CALIPTRA_ROM_INFO") {
+        let rom_info_start = rom_info_sym.value as usize;
+
+        let rom_info = RomInfo {
+            sha256_digest: sha256::sha256_word_reversed(&result[0..rom_info_start]),
+            revision: image_revision_from_git_repo()?,
+            flags: 0,
+        };
+        let rom_info_dest = result
+            .get_mut(rom_info_start..rom_info_start + size_of::<RomInfo>())
+            .ok_or_else(|| other_err("No space in ROM for CALIPTRA_ROM_INFO"))?;
+        rom_info_dest.copy_from_slice(rom_info.as_bytes());
+    }
+
     Ok(result)
 }
 
@@ -251,9 +278,12 @@ pub fn elf_size(elf_bytes: &[u8]) -> io::Result<u64> {
     })
 }
 
+#[derive(Clone)]
 pub struct ImageOptions {
+    pub fmc_version: u32,
     pub fmc_min_svn: u32,
     pub fmc_svn: u32,
+    pub app_version: u32,
     pub app_min_svn: u32,
     pub app_svn: u32,
     pub vendor_config: ImageGeneratorVendorConfig,
@@ -262,8 +292,10 @@ pub struct ImageOptions {
 impl Default for ImageOptions {
     fn default() -> Self {
         Self {
+            fmc_version: Default::default(),
             fmc_min_svn: Default::default(),
             fmc_svn: Default::default(),
+            app_version: Default::default(),
             app_min_svn: Default::default(),
             app_svn: Default::default(),
             vendor_config: caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0,
@@ -283,12 +315,14 @@ pub fn build_and_sign_image(
     let image = gen.generate(&ImageGeneratorConfig {
         fmc: ElfExecutable::new(
             &fmc_elf,
+            opts.fmc_version,
             opts.fmc_svn,
             opts.fmc_min_svn,
             image_revision_from_git_repo()?,
         )?,
         runtime: ElfExecutable::new(
             &app_elf,
+            opts.app_version,
             opts.app_svn,
             opts.app_min_svn,
             image_revision_from_git_repo()?,

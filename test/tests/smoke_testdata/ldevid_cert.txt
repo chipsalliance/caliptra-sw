@@ -25,7 +25,7 @@ Certificate:
         X509v3 extensions:
             X509v3 Basic Constraints: critical
                 CA:TRUE, pathlen:0
-            X509v3 Key Usage: 
+            X509v3 Key Usage: critical
                 Certificate Sign
             2.23.133.5.4.4: 
                 0
@@ -36,9 +36,9 @@ Certificate:
                 keyid:42:4F:3A:C7:45:DD:BD:50:15:05:7F:5B:F8:3E:9C:D6:48:10:B0:41
 
     Signature Algorithm: ecdsa-with-SHA384
-         30:66:02:31:00:b3:ec:55:22:a2:15:25:dd:bc:b9:09:34:a0:
-         a5:c5:23:1f:e4:e1:33:97:d1:03:7e:a1:be:89:97:bd:cd:43:
-         2f:ac:7e:b9:f9:02:13:d3:b6:71:84:9b:e9:84:3a:2d:25:02:
-         31:00:c7:ef:e7:9b:46:76:1e:25:6b:03:83:5a:f4:3c:99:65:
-         5b:b1:63:93:40:41:da:24:a0:af:c5:df:f4:60:c9:1f:d3:75:
-         1c:ba:fa:16:90:b6:e6:85:72:d8:ff:aa:d1:63
+         30:64:02:30:0c:1b:95:86:1a:da:0d:f5:72:43:8e:88:b2:3d:
+         dd:5b:2c:24:c9:74:df:35:99:88:cc:54:e3:9e:31:45:63:5a:
+         94:e3:d8:19:6b:49:16:4c:ad:99:17:14:c2:b1:88:92:02:30:
+         4b:ed:f2:a7:de:c9:40:59:64:ad:f4:94:98:19:fa:de:2c:d7:
+         85:cd:03:07:07:8f:74:ea:4e:5c:dd:f8:d1:fa:e5:38:05:07:
+         ab:09:87:13:44:ca:28:8f:a6:96:15:32

@@ -247,8 +247,8 @@ pub fn make_basic_constraints_ext(ca: bool, path_len: u32) -> X509Extension {
 
 /// Make Key Usage Extension
 pub fn make_key_usage_ext(key_usage: KeyUsage) -> X509Extension {
-    let usage: Usage = key_usage.into();
-    usage.build().unwrap()
+    let mut usage: Usage = key_usage.into();
+    usage.critical().build().unwrap()
 }
 
 /// Make TCG UEID extension
@@ -308,7 +308,8 @@ pub fn make_fmc_dice_tcb_info_ext(
     flags: u32,
     svn: u8,
     svn_fuses: u8,
-    fwids: &[FwidParam],
+    device_fwids: &[FwidParam],
+    fmc_fwids: &[FwidParam],
 ) -> X509Extension {
     let wide_svn = fixed_width_svn(svn);
     let wide_svn_fuses = fixed_width_svn(svn_fuses);
@@ -316,6 +317,7 @@ pub fn make_fmc_dice_tcb_info_ext(
     let be_flags = flags.to_be_bytes();
     let be_flags_mask = FLAG_MASK.to_be_bytes();
 
+    let device_asn1_fwids: Vec<&Fwid> = device_fwids.iter().map(|f| &f.fwid).collect();
     let device_info = TcbInfo {
         vendor: Some(asn1::Utf8String::new("Caliptra")),
         model: Some(asn1::Utf8String::new("Device")),
@@ -323,15 +325,14 @@ pub fn make_fmc_dice_tcb_info_ext(
         svn: Some(wide_svn_fuses.into()),
         layer: None,
         index: None,
-        fwids: None,
+        fwids: Some(asn1::SequenceOfWriter::new(&device_asn1_fwids)),
         flags: asn1::BitString::new(be_flags.as_ref(), 0),
         vendor_info: None,
-        tcb_type: None,
+        tcb_type: Some(b"DEVICE_INFO"),
         flags_mask: asn1::BitString::new(be_flags_mask.as_ref(), 0),
     };
 
-    let asn1_fwids: Vec<&Fwid> = fwids.iter().map(|f| &f.fwid).collect();
-
+    let fmc_asn1_fwids: Vec<&Fwid> = fmc_fwids.iter().map(|f| &f.fwid).collect();
     let fmc_info = TcbInfo {
         vendor: Some(asn1::Utf8String::new("Caliptra")),
         model: Some(asn1::Utf8String::new("FMC")),
@@ -339,10 +340,10 @@ pub fn make_fmc_dice_tcb_info_ext(
         svn: Some(wide_svn.into()),
         layer: None,
         index: None,
-        fwids: Some(asn1::SequenceOfWriter::new(&asn1_fwids)),
+        fwids: Some(asn1::SequenceOfWriter::new(&fmc_asn1_fwids)),
         flags: None,
         vendor_info: None,
-        tcb_type: None,
+        tcb_type: Some(b"FMC_INFO"),
         flags_mask: None,
     };
 

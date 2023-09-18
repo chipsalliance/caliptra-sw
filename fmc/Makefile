@@ -44,7 +44,7 @@ build-rom:
 objcopy-rom:
 	riscv64-unknown-elf-objcopy \
 		--gap-fill 0x00 \
-		--pad-to 0x8000 \
+		--pad-to 0xC000 \
   		-j .text \
   		-j .rodata \
   		-O binary \
@@ -71,12 +71,13 @@ build-fw-image: gen-certs build-emu build-test-rt
 		--key-config $(TARGET_DIR)/keys.toml \
 		--ecc-pk-idx 3 \
 		--lms-pk-idx 3 \
-		--owner-lms-pk-idx 0 \
 		--fmc $(TARGET_DIR)/caliptra-fmc \
+		--fmc-version 0 \
 		--fmc-svn 0 \
 		--fmc-min-svn 0 \
 		--fmc-rev $(GIT_REV) \
 		--rt $(TARGET_DIR)/caliptra-runtime \
+		--rt-version 0 \
 		--rt-svn 0 \
 		--rt-min-svn 0 \
 		--rt-rev $(GIT_REV) \
@@ -102,7 +103,7 @@ objdump:
 objcopy:
 	riscv32imc-unknown-elf-objcopy \
 		--gap-fill 0x00 \
-		--pad-to 0x8000 \
+		--pad-to 0xC000 \
   		-j .text \
   		-j .rodata \
   		-O binary \

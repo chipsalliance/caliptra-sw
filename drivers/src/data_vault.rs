@@ -70,9 +70,10 @@ impl From<ColdResetEntry48> for usize {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColdResetEntry4 {
     FmcSvn = 0,
-    Reserved0 = 1,
+    RomColdBootStatus = 1,
     FmcEntryPoint = 2,
-    VendorPubKeyIndex = 3,
+    EccVendorPubKeyIndex = 3,
+    LmsVendorPubKeyIndex = 4,
 }
 
 impl TryFrom<u8> for ColdResetEntry4 {
@@ -81,7 +82,8 @@ impl TryFrom<u8> for ColdResetEntry4 {
         match value {
             0 => Ok(Self::FmcSvn),
             2 => Ok(Self::FmcEntryPoint),
-            3 => Ok(Self::VendorPubKeyIndex),
+            3 => Ok(Self::EccVendorPubKeyIndex),
+            4 => Ok(Self::LmsVendorPubKeyIndex),
             _ => Err(()),
         }
     }
@@ -131,9 +133,9 @@ impl From<WarmResetEntry48> for usize {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WarmResetEntry4 {
     RtSvn = 0,
-    Reserved0 = 1,
-    RtEntryPoint = 2,
-    ManifestAddr = 3,
+    RtEntryPoint = 1,
+    ManifestAddr = 2,
+    RtMinSvn = 3,
 }
 
 impl From<WarmResetEntry4> for u8 {
@@ -159,8 +161,9 @@ impl TryFrom<u8> for WarmResetEntry4 {
     fn try_from(original: u8) -> Result<Self, Self::Error> {
         match original {
             0 => Ok(Self::RtSvn),
-            2 => Ok(Self::RtEntryPoint),
-            3 => Ok(Self::ManifestAddr),
+            1 => Ok(Self::RtEntryPoint),
+            2 => Ok(Self::ManifestAddr),
+            3 => Ok(Self::RtMinSvn),
             _ => Err(()),
         }
     }
@@ -349,23 +352,61 @@ impl DataVault {
         self.read_cold_reset_entry4(ColdResetEntry4::FmcEntryPoint)
     }
 
-    /// Set the vendor public key index used for image verification
+    /// Set the Ecc vendor public key index used for image verification
     ///
     /// # Arguments
     ///
     /// * `pk_index` - Vendor public key index
     ///
-    pub fn set_vendor_pk_index(&mut self, pk_index: u32) {
-        self.write_lock_cold_reset_entry4(ColdResetEntry4::VendorPubKeyIndex, pk_index);
+    pub fn set_ecc_vendor_pk_index(&mut self, pk_index: u32) {
+        self.write_lock_cold_reset_entry4(ColdResetEntry4::EccVendorPubKeyIndex, pk_index);
     }
 
-    /// Get the vendor public key index used for image verification.
+    /// Get the Ecc vendor public key index used for image verification.
     ///
     /// # Returns
     ///
     /// * `u32` - Vendor public key index
-    pub fn vendor_pk_index(&self) -> u32 {
-        self.read_cold_reset_entry4(ColdResetEntry4::VendorPubKeyIndex)
+    pub fn ecc_vendor_pk_index(&self) -> u32 {
+        self.read_cold_reset_entry4(ColdResetEntry4::EccVendorPubKeyIndex)
+    }
+
+    /// Set the Lms vendor public key index used for image verification
+    ///
+    /// # Arguments
+    ///
+    /// * `pk_index` - Vendor public key index
+    ///
+    pub fn set_lms_vendor_pk_index(&mut self, pk_index: u32) {
+        self.write_lock_cold_reset_entry4(ColdResetEntry4::LmsVendorPubKeyIndex, pk_index);
+    }
+
+    /// Get the Lms vendor public key index used for image verification.
+    ///
+    /// # Returns
+    ///
+    /// * `u32` - Vendor public key index
+    pub fn lms_vendor_pk_index(&self) -> u32 {
+        self.read_cold_reset_entry4(ColdResetEntry4::LmsVendorPubKeyIndex)
+    }
+
+    /// Set and lock the rom cold boot status.
+    ///
+    /// # Arguments
+    ///
+    /// * `status` - Rom Cold Boot Status
+    ///
+    pub fn set_rom_cold_boot_status(&mut self, status: u32) {
+        self.write_lock_cold_reset_entry4(ColdResetEntry4::RomColdBootStatus, status);
+    }
+
+    /// Get the rom cold boot status.
+    ///
+    /// # Returns
+    ///
+    /// * `u32` - Rom Cold Boot Status
+    pub fn rom_cold_boot_status(&self) -> u32 {
+        self.read_cold_reset_entry4(ColdResetEntry4::RomColdBootStatus)
     }
 
     /// Set the rt tcb component identifier.
@@ -402,6 +443,24 @@ impl DataVault {
     ///
     pub fn rt_svn(&self) -> u32 {
         self.read_warm_reset_entry4(WarmResetEntry4::RtSvn)
+    }
+
+    /// Set the rt security minimum SVN.
+    ///
+    /// # Arguments
+    /// * `min_svn` - min rt security version number
+    ///
+    pub fn set_rt_min_svn(&mut self, min_svn: u32) {
+        self.write_lock_warm_reset_entry4(WarmResetEntry4::RtMinSvn, min_svn);
+    }
+
+    /// Get the rt minimum security version number.
+    ///
+    /// # Returns
+    /// * rt minimum security version number
+    ///
+    pub fn rt_min_svn(&self) -> u32 {
+        self.read_warm_reset_entry4(WarmResetEntry4::RtMinSvn)
     }
 
     /// Set the rt entry point.
@@ -497,7 +556,7 @@ impl DataVault {
     ///
     pub fn read_warm_reset_entry48(&self, entry: WarmResetEntry48) -> Array4x12 {
         let dv = self.dv.regs();
-        Array4x12::read_from_reg(dv.nonsticky_data_vault_entry().at(entry.into()))
+        Array4x12::read_from_reg(dv.data_vault_entry().at(entry.into()))
     }
 
     /// Write and lock the warm reset entry.
@@ -519,7 +578,7 @@ impl DataVault {
     ///
     pub fn write_warm_reset_entry48(&mut self, entry: WarmResetEntry48, value: &Array4x12) {
         let dv = self.dv.regs_mut();
-        value.write_to_reg(dv.nonsticky_data_vault_entry().at(entry.into()));
+        value.write_to_reg(dv.data_vault_entry().at(entry.into()));
     }
 
     /// Lock the warm reset entry.
@@ -529,7 +588,7 @@ impl DataVault {
     ///
     pub fn lock_warm_reset_entry48(&mut self, entry: WarmResetEntry48) {
         let dv = self.dv.regs_mut();
-        dv.non_sticky_data_vault_ctrl()
+        dv.data_vault_ctrl()
             .at(entry.into())
             .write(|w| w.lock_entry(true));
     }
@@ -593,7 +652,7 @@ impl DataVault {
     ///
     pub fn read_warm_reset_entry4(&self, entry: WarmResetEntry4) -> u32 {
         let dv = self.dv.regs();
-        dv.non_sticky_lockable_scratch_reg().at(entry.into()).read()
+        dv.lockable_scratch_reg().at(entry.into()).read()
     }
 
     /// Write and lock the warm reset entry.
@@ -613,9 +672,7 @@ impl DataVault {
     /// * `value` - warm reset entry value
     pub fn write_warm_reset_entry4(&mut self, entry: WarmResetEntry4, value: u32) {
         let dv = self.dv.regs_mut();
-        dv.non_sticky_lockable_scratch_reg()
-            .at(entry.into())
-            .write(|_| value);
+        dv.lockable_scratch_reg().at(entry.into()).write(|_| value);
     }
 
     /// Lock the warm reset entry.
@@ -624,7 +681,7 @@ impl DataVault {
     /// * `entry` - warm reset entry
     pub fn lock_warm_reset_entry4(&mut self, entry: WarmResetEntry4) {
         let dv = self.dv.regs_mut();
-        dv.non_sticky_lockable_scratch_reg_ctrl()
+        dv.lockable_scratch_reg_ctrl()
             .at(entry.into())
             .write(|w| w.lock_entry(true));
     }

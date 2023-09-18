@@ -20,6 +20,9 @@ use caliptra_image_types::*;
 
 /// Image Generator Executable
 pub trait ImageGenratorExecutable {
+    /// Executable Version Number
+    fn version(&self) -> u32;
+
     /// Executable Security Version Number
     fn svn(&self) -> u32;
 
@@ -64,7 +67,7 @@ pub trait ImageGeneratorCrypto {
 }
 
 /// Image Generator Vendor Configuration
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct ImageGeneratorVendorConfig {
     pub pub_keys: ImageVendorPubKeys,
 
@@ -77,13 +80,13 @@ pub struct ImageGeneratorVendorConfig {
     pub not_before: [u8; 15],
 
     pub not_after: [u8; 15],
+
+    pub pl0_pauser: Option<u32>,
 }
 
 /// Image Generator Owner Configuration
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct ImageGeneratorOwnerConfig {
-    pub lms_key_idx: u32,
-
     pub pub_keys: ImageOwnerPubKeys,
 
     pub priv_keys: Option<ImageOwnerPrivKeys>,

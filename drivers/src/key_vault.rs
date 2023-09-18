@@ -324,4 +324,17 @@ impl KeyVault {
         let val = kv.key_ctrl().at(id.into()).read();
         KeyUsage(val.dest_valid())
     }
+
+    /// Erase the key vault
+    /// This is useful to call from a fatal-error-handling routine.
+    ///
+    /// # Safety
+    ///
+    /// The caller must be certain that the results of any pending cryptographic
+    /// operations will not be used after this function is called.
+    ///
+    /// This function is safe to call from a trap handler.
+    pub unsafe fn zeroize() {
+        KeyVault::new(unsafe { KvReg::new() }).erase_all_keys()
+    }
 }

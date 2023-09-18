@@ -62,25 +62,26 @@ mod constants {
     pub const CPTRA_TRNG_PAUSER_LOCK_START: u32 = 0x74;
     pub const CPTRA_TRNG_DATA_START: u32 = 0x78;
     pub const CPTRA_TRNG_DATA_SIZE: usize = 48;
-    pub const CPTRA_TRNG_STATUS_START: u32 = 0xa8;
-    pub const CPTRA_FUSE_WR_DONE_START: u32 = 0xac;
-    pub const CPTRA_TIMER_CONFIG_START: u32 = 0xb0;
-    pub const CPTRA_BOOTFSM_GO_START: u32 = 0xb4;
-    pub const CPTRA_DBG_MANUF_SERVICE_REG_START: u32 = 0xb8;
-    pub const CPTRA_CLK_GATING_EN_START: u32 = 0xbc;
-    pub const CPTRA_GENERIC_INPUT_WIRES_START: u32 = 0xc0;
+    pub const CPTRA_TRNG_CTRL_START: u32 = 0xa8;
+    pub const CPTRA_TRNG_STATUS_START: u32 = 0xac;
+    pub const CPTRA_FUSE_WR_DONE_START: u32 = 0xb0;
+    pub const CPTRA_TIMER_CONFIG_START: u32 = 0xb4;
+    pub const CPTRA_BOOTFSM_GO_START: u32 = 0xb8;
+    pub const CPTRA_DBG_MANUF_SERVICE_REG_START: u32 = 0xbc;
+    pub const CPTRA_CLK_GATING_EN_START: u32 = 0xc0;
+    pub const CPTRA_GENERIC_INPUT_WIRES_START: u32 = 0xc4;
     pub const CPTRA_GENERIC_INPUT_WIRES_SIZE: usize = 8;
-    pub const CPTRA_GENERIC_OUTPUT_WIRES_START: u32 = 0xc8;
+    pub const CPTRA_GENERIC_OUTPUT_WIRES_START: u32 = 0xcc;
     pub const CPTRA_GENERIC_OUTPUT_WIRES_SIZE: usize = 8;
     pub const FUSE_UDS_SEED_SIZE: usize = 48;
     pub const FUSE_FIELD_ENTROPY_SIZE: usize = 32;
-    pub const CPTRA_WDT_TIMER1_EN_START: u32 = 0xe0;
-    pub const CPTRA_WDT_TIMER1_CTRL_START: u32 = 0xe4;
-    pub const CPTRA_WDT_TIMER1_TIMEOUT_PERIOD_START: u32 = 0xe8;
-    pub const CPTRA_WDT_TIMER2_EN_START: u32 = 0xf0;
-    pub const CPTRA_WDT_TIMER2_CTRL_START: u32 = 0xf4;
-    pub const CPTRA_WDT_TIMER2_TIMEOUT_PERIOD_START: u32 = 0xf8;
-    pub const CPTRA_WDT_STATUS_START: u32 = 0x100;
+    pub const CPTRA_WDT_TIMER1_EN_START: u32 = 0xe4;
+    pub const CPTRA_WDT_TIMER1_CTRL_START: u32 = 0xe8;
+    pub const CPTRA_WDT_TIMER1_TIMEOUT_PERIOD_START: u32 = 0xec;
+    pub const CPTRA_WDT_TIMER2_EN_START: u32 = 0xf4;
+    pub const CPTRA_WDT_TIMER2_CTRL_START: u32 = 0xf8;
+    pub const CPTRA_WDT_TIMER2_TIMEOUT_PERIOD_START: u32 = 0xfc;
+    pub const CPTRA_WDT_STATUS_START: u32 = 0x104;
     pub const FUSE_VENDOR_PK_HASH_START: u32 = 0x250;
     pub const FUSE_VENDOR_PK_HASH_SIZE: usize = 48;
     pub const FUSE_VENDOR_PK_MASK_START: u32 = 0x280;
@@ -415,55 +416,73 @@ struct SocRegistersImpl {
     cptra_trng_data: [u32; CPTRA_TRNG_DATA_SIZE / 4],
 
     #[register(offset = 0x00a8, write_fn = on_write_trng_status)]
+    cptra_trng_ctrl: u32,
+
+    #[register(offset = 0x00ac, write_fn = on_write_trng_status)]
     cptra_trng_status: u32,
 
-    #[register(offset = 0x00ac, write_fn = on_write_fuse_wr_done)]
+    #[register(offset = 0x00b0, write_fn = on_write_fuse_wr_done)]
     cptra_fuse_wr_done: u32,
 
-    #[register(offset = 0x00b0)]
+    #[register(offset = 0x00b4)]
     cptra_timer_config: ReadWriteRegister<u32>,
 
-    #[register(offset = 0x00b4, write_fn = on_write_bootfsm_go)]
+    #[register(offset = 0x00b8, write_fn = on_write_bootfsm_go)]
     cptra_bootfsm_go: u32,
 
-    #[register(offset = 0x00b8)]
+    #[register(offset = 0x00bc)]
     cptra_dbg_manuf_service_reg: ReadWriteRegister<u32, DebugManufService::Register>,
 
-    #[register(offset = 0x00bc)]
+    #[register(offset = 0x00c0)]
     cptra_clk_gating_en: ReadOnlyRegister<u32>,
 
-    #[register_array(offset = 0x00c0)]
+    #[register_array(offset = 0x00c4)]
     cptra_generic_input_wires: [u32; CPTRA_GENERIC_INPUT_WIRES_SIZE / 4],
 
-    #[register_array(offset = 0x00c8, write_fn = on_write_generic_output_wires)]
+    #[register_array(offset = 0x00cc, write_fn = on_write_generic_output_wires)]
     cptra_generic_output_wires: [u32; CPTRA_GENERIC_OUTPUT_WIRES_SIZE / 4],
 
-    #[register(offset = 0x00dc, write_fn = write_disabled)]
+    #[register(offset = 0x00d4)]
+    cptra_hw_rev_id: ReadOnlyRegister<u32>,
+
+    #[register_array(offset = 0x00d8)]
+    cptra_fw_rev_id: [u32; 2],
+
+    #[register(offset = 0x00e0, write_fn = write_disabled)]
     cptra_hw_config: u32,
 
-    #[register(offset = 0x00e0, write_fn = on_write_wdt_timer1_en)]
+    #[register(offset = 0x00e4, write_fn = on_write_wdt_timer1_en)]
     cptra_wdt_timer1_en: ReadWriteRegister<u32, WdtEnable::Register>,
 
-    #[register(offset = 0x00e4, write_fn = on_write_wdt_timer1_ctrl)]
+    #[register(offset = 0x00e8, write_fn = on_write_wdt_timer1_ctrl)]
     cptra_wdt_timer1_ctrl: ReadWriteRegister<u32, WdtControl::Register>,
 
-    #[register_array(offset = 0x00e8)]
+    #[register_array(offset = 0x00ec)]
     cptra_wdt_timer1_timeout_period: [u32; 2],
 
-    #[register(offset = 0x00f0, write_fn = on_write_wdt_timer2_en)]
+    #[register(offset = 0x00f4, write_fn = on_write_wdt_timer2_en)]
     cptra_wdt_timer2_en: ReadWriteRegister<u32, WdtEnable::Register>,
 
-    #[register(offset = 0x00f4, write_fn = on_write_wdt_timer2_ctrl)]
+    #[register(offset = 0x00f8, write_fn = on_write_wdt_timer2_ctrl)]
     cptra_wdt_timer2_ctrl: ReadWriteRegister<u32, WdtControl::Register>,
 
-    #[register_array(offset = 0x00f8)]
+    #[register_array(offset = 0x00fc)]
     cptra_wdt_timer2_timeout_period: [u32; 2],
 
-    #[register(offset = 0x0100)]
+    #[register(offset = 0x0104)]
     cptra_wdt_status: ReadOnlyRegister<u32, WdtStatus::Register>,
+
+    #[register(offset = 0x0118)]
+    cptra_i_trng_entropy_config_0: u32,
+
+    #[register(offset = 0x011c)]
+    cptra_i_trng_entropy_config_1: u32,
 
     #[register_array(offset = 0x0200)]
     fuse_uds_seed: [u32; FUSE_UDS_SEED_SIZE / 4],
+
+    #[register_array(offset = 0x110)]
+    cptra_wdt_cfg: [u32; 2],
 
     #[register_array(offset = 0x0230)]
     fuse_field_entropy: [u32; FUSE_FIELD_ENTROPY_SIZE / 4],
@@ -588,6 +607,9 @@ impl SocRegistersImpl {
         iccm: Iccm,
         mut args: CaliptraRootBusArgs,
     ) -> Self {
+        let flow_status = InMemoryRegister::<u32, FlowStatus::Register>::new(0);
+        flow_status.write(FlowStatus::READY_FOR_FUSES.val(1));
+
         let regs = Self {
             cptra_hw_error_fatal: ReadWriteRegister::new(0),
             cptra_hw_error_non_fatal: ReadWriteRegister::new(0),
@@ -597,7 +619,7 @@ impl SocRegistersImpl {
             cptra_fw_error_enc: ReadWriteRegister::new(0),
             cptra_fw_extended_error_info: Default::default(),
             cptra_boot_status: ReadWriteRegister::new(0),
-            cptra_flow_status: ReadWriteRegister::new(0),
+            cptra_flow_status: ReadWriteRegister::new(flow_status.get()),
             cptra_reset_reason: ReadOnlyRegister::new(0),
             cptra_security_state: ReadOnlyRegister::new(args.security_state.into()),
             cptra_valid_pauser: Default::default(),
@@ -605,6 +627,7 @@ impl SocRegistersImpl {
             cptra_trng_valid_pauser: ReadWriteRegister::new(0),
             cptra_trng_pauser_lock: ReadWriteRegister::new(0),
             cptra_trng_data: Default::default(),
+            cptra_trng_ctrl: 0,
             cptra_trng_status: 0,
             cptra_fuse_wr_done: 0,
             cptra_timer_config: ReadWriteRegister::new(0),
@@ -613,6 +636,8 @@ impl SocRegistersImpl {
             cptra_clk_gating_en: ReadOnlyRegister::new(0),
             cptra_generic_input_wires: Default::default(),
             cptra_generic_output_wires: Default::default(),
+            cptra_hw_rev_id: ReadOnlyRegister::new(1),
+            cptra_fw_rev_id: Default::default(),
             cptra_hw_config: 0,
             fuse_uds_seed: words_from_bytes_be(&Self::UDS),
             fuse_field_entropy: [0xffff_ffff; 8],
@@ -653,12 +678,14 @@ impl SocRegistersImpl {
             cptra_wdt_timer2_ctrl: ReadWriteRegister::new(0),
             cptra_wdt_timer2_timeout_period: [0xffff_ffff; 2],
             cptra_wdt_status: ReadOnlyRegister::new(0),
+            cptra_i_trng_entropy_config_0: 0,
+            cptra_i_trng_entropy_config_1: 0,
             op_wdt_timer1_expired_action: None,
             op_wdt_timer2_expired_action: None,
-
             etrng_responses: args.etrng_responses,
             pending_etrng_response: None,
             op_pending_etrng_response_action: None,
+            cptra_wdt_cfg: [0x0; 2],
         };
 
         regs
@@ -777,6 +804,10 @@ impl SocRegistersImpl {
         if (val & 1) != 0 {
             self.fuses_can_be_written = false;
             self.cptra_fuse_wr_done |= 1;
+
+            self.cptra_flow_status
+                .reg
+                .modify(FlowStatus::READY_FOR_FUSES::CLEAR);
         }
         Ok(())
     }

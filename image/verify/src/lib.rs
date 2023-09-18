@@ -21,6 +21,8 @@ use core::ops::Range;
 
 pub use verifier::ImageVerifier;
 
+pub const MAX_RUNTIME_SVN: u32 = 128;
+
 /// Image Verifification Executable Info
 #[derive(Default, Debug)]
 pub struct ImageSvnLogInfo {
@@ -54,11 +56,17 @@ pub struct ImageVerificationExeInfo {
 /// Information To Be Logged For The Verified Image
 #[derive(Default, Debug)]
 pub struct ImageVerificationLogInfo {
-    // Vendor Public Key Index To Log
+    // ECC Vendor Public Key Index To Log
     pub vendor_ecc_pub_key_idx: u32,
 
-    /// Vendor Public Key Revocation Fuse    
-    pub fuse_vendor_pub_key_revocation: VendorPubKeyRevocation,
+    /// Vendor ECC Public Key Revocation Fuse    
+    pub fuse_vendor_ecc_pub_key_revocation: VendorPubKeyRevocation,
+
+    // LMS Vendor Public Key Index
+    pub vendor_lms_pub_key_idx: Option<u32>,
+
+    /// Vendor LMS Public Key Revocation Fuse
+    pub fuse_vendor_lms_pub_key_revocation: Option<u32>,
 
     /// First Mutable code's logging information
     pub fmc_log_info: ImageSvnLogInfo,
@@ -72,6 +80,9 @@ pub struct ImageVerificationLogInfo {
 pub struct ImageVerificationInfo {
     /// Vendor ECC public key index
     pub vendor_ecc_pub_key_idx: u32,
+
+    /// Vendor LMS public key index
+    pub vendor_lms_pub_key_idx: Option<u32>,
 
     /// Digest of vendor public keys that verified the image
     pub vendor_pub_keys_digest: ImageDigest,
@@ -100,7 +111,7 @@ pub trait ImageVerificationEnv {
         digest: &ImageDigest,
         pub_key: &ImageEccPubKey,
         sig: &ImageEccSignature,
-    ) -> CaliptraResult<bool>;
+    ) -> CaliptraResult<Array4xN<12, 48>>;
 
     /// Perform LMS Verification
     fn lms_verify(
@@ -108,13 +119,16 @@ pub trait ImageVerificationEnv {
         digest: &ImageDigest,
         pub_key: &ImageLmsPublicKey,
         sig: &ImageLmsSignature,
-    ) -> CaliptraResult<bool>;
+    ) -> CaliptraResult<HashValue<SHA192_DIGEST_WORD_SIZE>>;
 
     /// Get Vendor Public Key Digest
     fn vendor_pub_key_digest(&self) -> ImageDigest;
 
-    /// Get Vendor Public Key Revocation list
-    fn vendor_pub_key_revocation(&self) -> VendorPubKeyRevocation;
+    /// Get Vendor ECC Public Key Revocation list
+    fn vendor_ecc_pub_key_revocation(&self) -> VendorPubKeyRevocation;
+
+    /// Get Vendor LMS Public Key Revocation list
+    fn vendor_lms_pub_key_revocation(&self) -> u32;
 
     /// Get Owner Public Key Digest from fuses
     fn owner_pub_key_digest_fuses(&self) -> ImageDigest;
@@ -125,8 +139,11 @@ pub trait ImageVerificationEnv {
     // Get Device Lifecycle state
     fn dev_lifecycle(&self) -> Lifecycle;
 
-    // Get the vendor key index saved on cold boot in data vault
-    fn vendor_pub_key_idx_dv(&self) -> u32;
+    // Get the vendor ECC key index saved on cold boot in data vault
+    fn vendor_ecc_pub_key_idx_dv(&self) -> u32;
+
+    // Get the vendor LMS key index saved on cold boot in data vault
+    fn vendor_lms_pub_key_idx_dv(&self) -> u32;
 
     // Get the owner key digest saved on cold boot in data vault
     fn owner_pub_key_digest_dv(&self) -> ImageDigest;
@@ -135,11 +152,14 @@ pub trait ImageVerificationEnv {
     fn get_fmc_digest_dv(&self) -> ImageDigest;
 
     // Get Fuse FMC Key Manifest SVN
-    fn fmc_svn(&self) -> u32;
+    fn fmc_fuse_svn(&self) -> u32;
 
     // Get Runtime fuse SVN
-    fn runtime_svn(&self) -> u32;
+    fn runtime_fuse_svn(&self) -> u32;
 
     // ICCM Range
     fn iccm_range(&self) -> Range<u32>;
+
+    // LMS Verification enabled
+    fn lms_verify_enabled(&self) -> bool;
 }

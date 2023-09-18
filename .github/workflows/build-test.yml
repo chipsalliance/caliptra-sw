@@ -21,7 +21,7 @@ jobs:
       SCCACHE_GHA_CACHE_FROM: sccache-caliptra-sw
 
       # Change this to a new random value if you suspect the cache is corrupted
-      SCCACHE_C_CUSTOM_CACHE_BUSTER: 4eeb97ca753a
+      SCCACHE_C_CUSTOM_CACHE_BUSTER: 8b42a6e70ec4
 
       # Compiler warnings should fail to compile
       EXTRA_CARGO_CONFIG: "target.'cfg(all())'.rustflags = [\"-Dwarnings\"]"
@@ -33,6 +33,10 @@ jobs:
       - name: Test commit name
         run: |
           echo "Build-Test: release_ref=$(git rev-parse HEAD)"
+
+      - name: Pull dpe submodule
+        run: |
+          git submodule update --init dpe
 
       - name: Restore sccache binary
         uses: actions/cache/restore@v3

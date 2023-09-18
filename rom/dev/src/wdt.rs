@@ -16,61 +16,51 @@ Environment:
 
 --*/
 
+use caliptra_cfi_derive::cfi_mod_fn;
+use caliptra_common::WdtTimeout;
 use caliptra_drivers::SocIfc;
-use core::cmp::max;
 
 use crate::cprintln;
 
-const EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES: u64 = 20_000_000; // 20 million cycles
-const WDT1_TIMEOUT_SECS: u32 = 5;
-const WDT2_TIMEOUT_CYCLES: u64 = 1; // Fire immediately after WDT1 expiry
-
 /// Start the Watchdog Timer
+/// Note: WDT is configured only if the device is in non-debug mode (i.e debug_locked = 1)
 ///
 /// # Arguments
 ///
 /// * `soc_ifc` - SOC Interface
-///
-///
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub fn start_wdt(soc_ifc: &mut SocIfc) {
-    cprintln!("[state] Starting the Watchdog Timer");
-
-    let wdt1_timeout_cycles: u64 = match soc_ifc.get_cycle_count(WDT1_TIMEOUT_SECS) {
-        Ok(cycle_count) => max(EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES * 10, cycle_count),
-        Err(_) => EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES * 10,
-    };
-
-    // Set WDT1 period.
-    soc_ifc.set_wdt1_timeout(wdt1_timeout_cycles);
-
-    // Set WDT2 period.
-    soc_ifc.set_wdt2_timeout(WDT2_TIMEOUT_CYCLES);
-
-    // Enable WDT1 only. WDT2 is automatically scheduled (since it is disabled) on WDT1 expiry.
-    soc_ifc.configure_wdt1(true);
+    if soc_ifc.debug_locked() {
+        cprintln!("[state] Starting the Watchdog Timer");
+        let mut wdt_timeout_cycles = soc_ifc.wdt1_timeout_cycle_count();
+        if wdt_timeout_cycles == 0 {
+            wdt_timeout_cycles = 1;
+        }
+        caliptra_common::wdt::start_wdt(
+            soc_ifc,
+            WdtTimeout::from(core::num::NonZeroU64::new(wdt_timeout_cycles).unwrap()),
+        );
+    } else {
+        cprintln!(
+            "[state] Watchdog Timer is not started because the device is not locked for debugging"
+        );
+    }
 }
 
-/// Restart the Watchdog Timer
-///
-/// # Arguments
-///
-/// * `env` - ROM Environment
-///
-// [TODO] Enable this once WDT ownership tp FMC is resolved.
-// pub fn restart_wdt(soc_ifc: &mut SocIfc) {
-//     cprintln!("[state] Restarting the Watchdog Timer");
-
-//     // Only restart WDT1. WDT2 is automatically scheduled (since it is disabled) on WDT1 expiry.
-//     soc_ifc.reset_wdt1();
-// }
-
 /// Stop the Watchdog Timer
+/// Note: WDT is configured only if the device is in non-debug mode (i.e debug_locked = 1)
 ///
 /// # Arguments
 ///
 /// * `soc_ifc` - SOC Interface
-///
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub fn stop_wdt(soc_ifc: &mut SocIfc) {
-    cprintln!("[state] Stopping the Watchdog Timer");
-    soc_ifc.configure_wdt1(false);
+    if soc_ifc.debug_locked() {
+        cprintln!("[state] Stopping the Watchdog Timer");
+        caliptra_common::wdt::stop_wdt(soc_ifc);
+    } else {
+        cprintln!(
+            "[state] Watchdog Timer is not stopped because the device is not locked for debugging"
+        );
+    }
 }

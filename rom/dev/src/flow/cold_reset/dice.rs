@@ -14,6 +14,7 @@ Abstract:
 --*/
 
 use super::crypto::Ecc384KeyPair;
+use caliptra_cfi_derive::cfi_impl_fn;
 
 /// DICE Layer Input
 #[derive(Debug)]
@@ -42,6 +43,7 @@ pub struct DiceOutput {
 }
 
 impl DiceOutput {
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn zeroize(&mut self) {
         self.subj_key_pair.zeroize();
         self.subj_sn.fill(0);

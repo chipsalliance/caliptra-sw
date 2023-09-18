@@ -15,7 +15,9 @@ References:
 
 --*/
 
-use core::{fmt, ptr};
+use core::fmt;
+
+use caliptra_registers::soc_ifc::SocIfcReg;
 
 /// Caliptra UART
 #[derive(Default, Debug)]
@@ -33,42 +35,25 @@ impl Uart {
     ///
     /// `str` - String to write to UART
     pub fn write(&mut self, str: &str) {
-        for byte in str.bytes() {
-            match byte {
-                0x20..=0x7e | b'\n' | b'\t' => self.write_byte(byte),
-                _ => self.write_byte(0xfe),
-            }
+        let mut reg = unsafe { SocIfcReg::new() };
+        let reg = reg.regs_mut();
+        let output_reg = reg.cptra_generic_output_wires().at(0);
+
+        let mut val = output_reg.read();
+
+        for ch in str.bytes() {
+            val = u32::from(match ch {
+                0x20..=0x7e | b'\n' | b'\t' => ch,
+                _ => 0xfe,
+            }) | (val & 0xffff_ff00);
+
+            // Toggle bit 8 every time a character is written, so the outside
+            // world can tell when we've written a new character without having
+            // to introspect internal signals.
+            val ^= 0x100;
+
+            output_reg.write(|_| val);
         }
-    }
-
-    /// Write the byte to UART
-    ///
-    /// # Arguments
-    ///
-    /// `byte` - Byte to write to UART
-    #[cfg(not(feature = "fpga_realtime"))]
-    pub fn write_byte(&mut self, byte: u8) {
-        // TODO: cleanup after final UART RTL definition is in place
-        const STDOUT: *mut u32 = 0x3003_00C8 as *mut u32;
-        unsafe {
-            ptr::write_volatile(STDOUT, byte as u32);
-        }
-    }
-
-    #[cfg(feature = "fpga_realtime")]
-    pub fn write_byte(&mut self, byte: u8) {
-        // Read TAG from test sw and include in write to generic_output write to inform sw there is new data
-        const STDIN: *mut u32 = 0x3003_00C0 as *mut u32;
-        let tag = unsafe { ptr::read_volatile(STDIN) };
-
-        // TODO: cleanup after final UART RTL definition is in place
-        const STDOUT: *mut u32 = 0x3003_00C8 as *mut u32;
-
-        unsafe {
-            ptr::write_volatile(STDOUT, 0x8000_0000 | (tag << 16) | (byte as u32));
-        }
-        // Wait for test to acknowledge that it has read the byte.
-        while tag == unsafe { ptr::read_volatile(STDIN) } {}
     }
 }
 

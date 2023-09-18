@@ -4,18 +4,9 @@ use crate::Drivers;
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 
 pub(crate) fn handle_impactless_update(drivers: &mut Drivers) -> CaliptraResult<()> {
-    let cycles = drivers
-        .soc_ifc
-        .regs_mut()
-        .internal_fw_update_reset_wait_cycles()
-        .read()
-        .into();
+    let cycles = drivers.soc_ifc.internal_fw_update_reset_wait_cycles();
     for _ in 0..cycles {
-        drivers
-            .soc_ifc
-            .regs_mut()
-            .internal_fw_update_reset()
-            .write(|w| w.core_rst(true));
+        drivers.soc_ifc.assert_fw_update_reset();
     }
 
     Err(CaliptraError::RUNTIME_UNEXPECTED_UPDATE_RETURN)

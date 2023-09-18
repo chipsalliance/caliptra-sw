@@ -130,18 +130,24 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | rt_cdi_kv_hdl         | 4            | FMC        | Handle of RT CDI value in the Key Vault.                                                                 |
 | rt_priv_key_kv_hdl    | 4            | FMC        | Handle of RT Private Alias Key in the Key Vault.                                                         |
 | rt_svn_dv_hdl         | 4            | FMC        | Handle of RT SVN value in the Data Vault.                                                                |
+| rt_min_svn_dv_hdl     | 4            | FMC        | Handle of Min RT SVN value in the Data Vault.                                                            |
 | ldevid_tbs_addr       | 4            | ROM        | Local Device ID TBS Address.                                                                             |
 | fmcalias_tbs_addr     | 4            | ROM        | FMC Alias TBS Address.                                                                                   |
 | ldevid_tbs_size       | 2            | ROM        | Local Device ID TBS Size.                                                                                |
 | fmcalias_tbs_size     | 2            | ROM        | FMC Alias TBS Size.                                                                                      |
 | pcr_log_addr          | 4            | ROM        | PCR Log Address.                                                                                         |
+| pcr_log_index         | 4            | ROM        | Last empty PCR log entry slot index.                                                                     |
 | fuse_log_addr         | 4            | ROM        | Fuse Log Address.                                                                                        |
 | rt_dice_pub_key       | 96           | FMC        | RT Alias DICE Public Key.                                                                                |
 | rt_dice_sign          | 96           | FMC        | RT Alias DICE signature.                                                                                 |
+| ldevid_cert_sig_r_dv_hdl | 4         | ROM        | Handle of LDevId Certificate Signature R Component in the Data Vault.                                       |
+| ldevid_cert_sig_s_dv_hdl | 4            | ROM        | Handle of LDevId Certificate Signature S Component in the Data Vault.                                       |
 | idev_dice_pub_key     | 96           | ROM        | Initial Device ID Public Key.                                                                            |
-| reserved              | 136          |            | Reserved for future use.                                                                                 |
+| rom_info_addr         | 4            | ROM        | Address of ROMInfo struct describing the ROM digest and git commit.                                      |
+| rtalias_tbs_size      | 2            | FMC        | RT Alias TBS Size.                                                                                      |
+| reserved              | 1650         |            | Reserved for future use.                                                                                 |
 
-*FHT is currently defined to be 512 bytes in length.*
+*FHT is currently defined to be 2048 bytes in length.*
 
 ### fht_marker
 
@@ -213,6 +219,62 @@ This field provides the Handle into the Key Vault where the PrivateKey<sub>RT</s
 
 This field provides the Handle into the Data Vault where the SVN<sub>RT</sub> is stored.
 
+### rt_min_svn_dv_hdl
+
+This field provides the Handle into the Data Vault where the Min-SVN<sub>RT</sub> is stored. Upon cold-boot this is set to SVN<sub>RT</sub>. On subsequent boots this is set to MIN(SVN<sub>RT</sub>, Min-SVN<sub>RT</sub>).
+
+### ldevid_tbs_addr
+
+TODO
+
+### fmcalias_tbs_addr
+
+TODO
+
+### ldevid_tbs_size
+
+TODO
+
+### fmcalias_tbs_size
+
+TODO
+
+### pcr_log_addr
+
+Address in DCCM of the PCR log
+
+### pcr_log_index
+
+Index within the PCR log of the next available log entry
+
+### fuse_log_addr
+
+TODO
+
+### rt_dice_pub_key
+
+TODO
+
+### rt_dice_sign
+
+TODO
+
+### idev_dice_pub_key
+
+TODO
+
+### rom_info_addr
+
+TODO
+
+### rtalias_tbs_size
+
+TODO
+
+### ldevid_cert_sig_r_dv_hdl, ldevid_cert_sig_s_dv_hdl
+
+These fields provide the indices into the Data Vault where the Signature<sub>LDevId</sub> R and S coordinates are stored.
+
 ### reserved
 
 This area is reserved for definition of additional fields that may be added during Minor version updates of the FHT.
@@ -220,9 +282,9 @@ This area is reserved for definition of additional fields that may be added duri
 ## PCR Registers
 
 FMC has the responsibility to update 2 PCR registers.<br>
-FMC updates PCR2 to reflect the firmware update Journey with measurements of RT firmware and FW Manifest. This register is only cleared on cold reset.<br>
+FMC updates PCR3 to reflect the firmware update Journey with measurements of RT firmware and FW Manifest. This register is only cleared on cold reset.<br>
 FMC updates PCR2 to reflect only the Current running firmware with measurements of RT firmware and FW Manifest. This register is cleared on all reset types.<br>
-FMC locks its PCR registers before handing control to RT firmware so that they may not be modified later in the boot.
+FMC locks its PCR registers before handing control to RT firmware so that they may not be cleared later in the boot.
 
 ## FMC Boot Flow
 

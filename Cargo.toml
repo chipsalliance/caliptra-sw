@@ -10,10 +10,17 @@ resolver = "2"
 exclude = [
   # Uses a custom .cargo/config
   "sw-emulator/example",
+  "dpe/dpe",
+  "dpe/crypto",
+  "dpe/platform",
+  "dpe/simulator",
+  "dpe/tools",
 ]
 
 members = [
   "builder",
+  "cfi/lib",
+  "cfi/derive",
   "ci-tools/file-header-fix",
   "ci-tools/size-history",
   "common",
@@ -61,6 +68,96 @@ members = [
   "test-harness",
   "test-harness/types",
 ]
+
+[workspace.dependencies]
+aes = "0.8.2"
+anyhow = "1.0.70"
+arbitrary = { version = "1.3.0", features = ["derive"] }
+arrayref = "0.3.6"
+arrayvec = { version = "0.7.4", default-features = false }
+asn1 = "0.13.0"
+bitfield = "0.14.0"
+bitflags = "2.0.1"
+bit-vec = "0.6.3"
+caliptra-cfi-lib = { path = "cfi/lib", default-features = false, features = ["cfi", "cfi-counter" ] }
+caliptra-cfi-derive = { path = "cfi/derive" }
+caliptra_common = { path = "common", default-features = false }
+caliptra-builder = { path = "builder" }
+caliptra-cpu = { path = "cpu" }
+caliptra-drivers = { path = "drivers" }
+caliptra-drivers-test-bin = { path = "drivers/test-fw" }
+caliptra-emu-bus = { path = "sw-emulator/lib/bus" }
+caliptra-emu-cpu = { path = "sw-emulator/lib/cpu" }
+caliptra-emu-crypto = { path = "sw-emulator/lib/crypto" }
+caliptra-emu-derive = { path = "sw-emulator/lib/derive" }
+caliptra-emu-periph = { path = "sw-emulator/lib/periph" }
+caliptra-emu-types = { path = "sw-emulator/lib/types" }
+caliptra-error = { path = "error", default-features = false }
+caliptra-gen-linker-scripts = { path = "cpu/gen" }
+caliptra-hw-model = { path = "hw-model" }
+caliptra-hw-model-types = { path = "hw-model/types" }
+caliptra-image-elf = { path = "image/elf" }
+caliptra-image-fake-keys = { path = "image/fake-keys" }
+caliptra-image-gen = { path = "image/gen" }
+caliptra-image-openssl = { path = "image/openssl" }
+caliptra-image-serde = { path = "image/serde" }
+caliptra-image-types = { path = "image/types", default-features = false }
+caliptra-image-verify = { path = "image/verify", default-features = false }
+caliptra-kat = { path = "kat" }
+caliptra-lms-types = { path = "lms-types" }
+caliptra-registers = { path = "registers" }
+caliptra-runtime = { path = "runtime", default-features = false }
+caliptra-systemrdl = { path = "systemrdl" }
+caliptra-test = { path = "test" }
+caliptra-test-harness = { path = "test-harness" }
+caliptra-test-harness-types = { path = "test-harness/types" }
+caliptra-verilated = { path = "hw-latest/verilated",  features = ["verilator"] }
+caliptra-x509 = { path = "x509", default-features = false }
+cbc = "0.1.2"
+cbindgen = "0.24.0"
+cfg-if = "1.0.0"
+chrono = "0.4.24"
+clap = { version = "3.2.14", default-features = false, features = ["std"] }
+convert_case = "0.6.0"
+dpe = { path = "dpe/dpe", default-features = false, features = ["dpe_profile_p384_sha384"] }
+crypto = { path = "dpe/crypto", default-features = false }
+platform = { path = "dpe/platform", default-features = false }
+elf = "0.7.2"
+gdbstub = "0.6.3"
+gdbstub_arch = "0.2.4"
+getrandom = "0.2"
+hex = "0.4.3"
+lazy_static = "1.4.0"
+memoffset = "0.8.0"
+once_cell = "1.13"
+openssl = { version = "0.10", features = ["vendored"] }
+p384 = "0.11.2"
+proc-macro2 = "1.0.66"
+quote = "1.0"
+rand = "0.8"
+rfc6979 = "0.3.0"
+serde = "1.0"
+serde_derive = "1.0.136"
+serde_json = "1.0"
+sha2 = { version = "0.10.2", default-features = false, features = ["compress"] }
+sha3 = "0.10.8"
+smlang = "0.6.0"
+syn = "1.0.107"
+tinytemplate = "1.1"
+tock-registers = { git = "https://github.com/tock/tock.git"}
+toml = "0.7.0"
+ufmt = { git = "https://github.com/korran/ufmt.git", rev = "1d0743c1ffffc68bc05ca8eeb81c166192863f33", features = ["inline"] }
+uio = { version = "0.2.0" }
+ureg = { path = "ureg" }
+ureg-codegen = { path = "ureg/lib/codegen" }
+ureg-schema = { path = "ureg/lib/schema" }
+ureg-systemrdl = { path = "ureg/lib/systemrdl" }
+wycheproof = "0.5.1"
+x509-parser = "0.15.0"
+zerocopy = "0.6.1"
+serial_test = "2.0.0"
+nix = "0.26.2"
+libc = "0.2"
 
 [profile.firmware]
 inherits = "release"

@@ -13,7 +13,7 @@ Abstract:
 --*/
 use crate::flow::crypto::Crypto;
 use crate::flow::dice::{DiceInput, DiceOutput};
-use crate::flow::pcr::{extend_current_pcr, extend_journey_pcr};
+use crate::flow::pcr::extend_pcr_common;
 use crate::flow::tci::Tci;
 use crate::flow::x509::X509;
 use crate::fmc_env::FmcEnv;
@@ -24,16 +24,12 @@ use caliptra_common::crypto::Ecc384KeyPair;
 use caliptra_common::keyids::{KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY, KEY_ID_TMP};
 use caliptra_common::HexBytes;
 use caliptra_drivers::{
-    okref, report_boot_status, CaliptraError, CaliptraResult, KeyId, ResetReason,
+    okref, report_boot_status, CaliptraError, CaliptraResult, Ecc384Result, KeyId, PersistentData,
+    ResetReason,
 };
 use caliptra_x509::{NotAfter, NotBefore, RtAliasCertTbs, RtAliasCertTbsParams};
 
 const SHA384_HASH_SIZE: usize = 48;
-
-const RT_ALIAS_TBS_SIZE: usize = 0x1000;
-extern "C" {
-    static mut RTALIAS_TBS_ORG: [u8; RT_ALIAS_TBS_SIZE];
-}
 
 #[derive(Default)]
 pub struct RtAliasLayer {}
@@ -113,6 +109,11 @@ impl RtAliasLayer {
             .set_pcr_lock(caliptra_common::RT_FW_JOURNEY_PCR);
         cprintln!("[alias rt] Lock RT PCRs Done");
 
+        cprintln!("[alias rt] Populate DV");
+        Self::populate_dv(env, hand_off)?;
+        cprintln!("[alias rt] Populate DV Done");
+        report_boot_status(crate::FmcBootStatus::RtMeasurementComplete as u32);
+
         // Retrieve Dice Input Layer from Hand Off and Derive Key
         match Self::dice_input_from_hand_off(hand_off, env) {
             Ok(input) => {
@@ -154,13 +155,33 @@ impl RtAliasLayer {
     ///
     /// * `env` - FMC Environment
     /// * `hand_off` - HandOff
-    pub fn extend_pcrs(env: &mut FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
-        extend_current_pcr(env, hand_off)?;
+    pub fn extend_pcrs(env: &mut FmcEnv, hand_off: &mut HandOff) -> CaliptraResult<()> {
         match env.soc_ifc.reset_reason() {
-            ResetReason::ColdReset | ResetReason::UpdateReset => extend_journey_pcr(env, hand_off)?,
-            _ => cprintln!("[alias rt : skip journey pcr extension"),
+            ResetReason::ColdReset | ResetReason::UpdateReset => extend_pcr_common(env, hand_off),
+            _ => {
+                cprintln!("[alias rt : skip pcr extension");
+                Ok(())
+            }
         }
-        Ok(())
+    }
+
+    /// Populate Data Vault
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - FMC Environment
+    /// * `hand_off` - HandOff
+    pub fn populate_dv(env: &mut FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
+        let rt_svn = hand_off.rt_svn(env);
+        let reset_reason = env.soc_ifc.reset_reason();
+
+        let rt_min_svn = if reset_reason == ResetReason::ColdReset {
+            rt_svn
+        } else {
+            core::cmp::min(rt_svn, hand_off.rt_min_svn(env))
+        };
+
+        hand_off.set_and_lock_rt_min_svn(env, rt_min_svn)
     }
 
     /// Permute Composite Device Identity (CDI) using Rt TCI and Image Manifest Digest
@@ -270,7 +291,7 @@ impl RtAliasLayer {
         // Sign the AliasRt To Be Signed DER Blob with AliasFMC Private Key in Key Vault Slot 7
         // AliasRtTbsDigest = sha384_digest(AliasRtTbs) AliaRtTbsCertSig = ecc384_sign(KvSlot5, AliasFmcTbsDigest)
 
-        let sig = Crypto::ecdsa384_sign(env, auth_priv_key, tbs.tbs());
+        let sig = Crypto::ecdsa384_sign(env, auth_priv_key, auth_pub_key, tbs.tbs());
         let sig = okref(&sig)?;
         // Clear the authority private key
         cprintln!(
@@ -292,32 +313,26 @@ impl RtAliasLayer {
         cprintln!("[alias rt] SIG.S = {}", HexBytes(&_sig_s));
 
         // Verify the signature of the `To Be Signed` portion
-        if !Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? {
+        if Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? != Ecc384Result::Success {
             return Err(CaliptraError::FMC_RT_ALIAS_CERT_VERIFY);
         }
 
         hand_off.set_rt_dice_signature(sig);
 
-        //  Copy TBS to DCCM.
-        Self::copy_tbs(tbs.tbs())?;
+        //  Copy TBS to DCCM and set size in FHT.
+        Self::copy_tbs(tbs.tbs(), env.persistent_data.get_mut())?;
+        hand_off.set_rtalias_tbs_size(tbs.tbs().len());
 
         report_boot_status(FmcBootStatus::RtAliasCertSigGenerationComplete as u32);
 
         Ok(())
     }
 
-    fn copy_tbs(tbs: &[u8]) -> CaliptraResult<()> {
-        let dst = unsafe {
-            let ptr = &mut RTALIAS_TBS_ORG as *mut u8;
-            core::slice::from_raw_parts_mut(ptr, tbs.len())
-        };
-
-        if tbs.len() <= RT_ALIAS_TBS_SIZE {
-            dst[..tbs.len()].copy_from_slice(tbs);
-        } else {
+    fn copy_tbs(tbs: &[u8], persistent_data: &mut PersistentData) -> CaliptraResult<()> {
+        let Some(dest) = persistent_data.rtalias_tbs.get_mut(..tbs.len()) else {
             return Err(CaliptraError::FMC_RT_ALIAS_TBS_SIZE_EXCEEDED);
-        }
-
+        };
+        dest.copy_from_slice(tbs);
         Ok(())
     }
 }

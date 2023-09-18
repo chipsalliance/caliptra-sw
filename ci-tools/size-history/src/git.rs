@@ -61,7 +61,13 @@ pub struct WorkTree<'a> {
 }
 impl<'a> WorkTree<'a> {
     pub fn new(path: &'a Path) -> io::Result<Self> {
-        run_cmd(Command::new("git").arg("worktree").arg("add").arg(path))?;
+        run_cmd(
+            Command::new("git")
+                .arg("worktree")
+                .arg("add")
+                .arg(path)
+                .arg("HEAD"),
+        )?;
         Ok(Self { path })
     }
 
@@ -97,6 +103,16 @@ impl<'a> WorkTree<'a> {
                 .arg("--no-recurse-submodule")
                 .arg("--quiet")
                 .arg(commit_id),
+            None,
+        )?;
+        Ok(())
+    }
+    pub fn submodule_update(&self) -> io::Result<()> {
+        run_cmd_stdout(
+            Command::new("git")
+                .current_dir(self.path)
+                .arg("submodule")
+                .arg("update"),
             None,
         )?;
         Ok(())

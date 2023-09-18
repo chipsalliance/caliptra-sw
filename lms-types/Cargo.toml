@@ -8,4 +8,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-zerocopy = "0.6.1"
+arbitrary = { workspace = true, optional = true }
+zerocopy.workspace = true

@@ -10,11 +10,9 @@ Abstract:
     The file contains Fuse-related Implementations.
 
 --*/
-use caliptra_common::{
-    memory_layout::{FUSE_LOG_ORG, FUSE_LOG_SIZE},
-    FuseLogEntry, FuseLogEntryId,
-};
-use caliptra_drivers::{CaliptraError, CaliptraResult};
+use caliptra_cfi_derive::cfi_mod_fn;
+use caliptra_common::{FuseLogEntry, FuseLogEntryId};
+use caliptra_drivers::{CaliptraError, CaliptraResult, FuseLogArray};
 use zerocopy::AsBytes;
 
 /// Log Fuse data
@@ -28,13 +26,14 @@ use zerocopy::AsBytes;
 /// * `Err(GlobalErr::FuseLogInvalidEntryId)` - Invalid Fuse log entry ID
 /// * `Err(GlobalErr::FuseLogUpsupportedDataLength)` - Unsupported data length
 ///
-pub fn log_fuse_data(entry_id: FuseLogEntryId, data: &[u8]) -> CaliptraResult<()> {
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+pub fn log_fuse_data(
+    log: &mut FuseLogArray,
+    entry_id: FuseLogEntryId,
+    data: &[u8],
+) -> CaliptraResult<()> {
     if entry_id == FuseLogEntryId::Invalid {
         return Err(CaliptraError::ROM_GLOBAL_FUSE_LOG_INVALID_ENTRY_ID);
-    }
-
-    if data.len() > 4 {
-        return Err(CaliptraError::ROM_GLOBAL_FUSE_LOG_UNSUPPORTED_DATA_LENGTH);
     }
 
     // Create a FUSE log entry
@@ -42,15 +41,15 @@ pub fn log_fuse_data(entry_id: FuseLogEntryId, data: &[u8]) -> CaliptraResult<()
         entry_id: entry_id as u32,
         ..Default::default()
     };
-    log_entry.log_data.as_bytes_mut()[..data.len()].copy_from_slice(data);
-
-    let dst: &mut [FuseLogEntry] = unsafe {
-        let ptr = FUSE_LOG_ORG as *mut FuseLogEntry;
-        core::slice::from_raw_parts_mut(ptr, FUSE_LOG_SIZE / core::mem::size_of::<FuseLogEntry>())
+    let Some(data_dest) = log_entry.log_data.as_bytes_mut().get_mut(..data.len()) else {
+        return Err(CaliptraError::ROM_GLOBAL_FUSE_LOG_UNSUPPORTED_DATA_LENGTH);
     };
+    data_dest.copy_from_slice(data);
 
-    // Store the log entry.
-    dst[entry_id as usize - 1] = log_entry;
+    // Compiler will optimize out the bounds check because the largest
+    // FuseLogEntryId is well within the bounds of the array. (double-checked
+    // via panic_is_possible)
+    log[entry_id as usize - 1] = log_entry;
 
     Ok(())
 }

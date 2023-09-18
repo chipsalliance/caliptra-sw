@@ -25,11 +25,13 @@
 `define CALIPTRA_APB_DATA_WIDTH      32 // bit-width APB data
 `define CALIPTRA_APB_USER_WIDTH      32 // bit-width APB PAUSER field
 
-`define CALIPTRA_IMEM_BYTE_SIZE   32768
+`define CALIPTRA_IMEM_BYTE_SIZE   (48*1024)
 `define CALIPTRA_IMEM_DATA_WIDTH  64
 `define CALIPTRA_IMEM_DEPTH       `CALIPTRA_IMEM_BYTE_SIZE / (`CALIPTRA_IMEM_DATA_WIDTH/8)
 `define CALIPTRA_IMEM_BYTE_ADDR_W $clog2(`CALIPTRA_IMEM_BYTE_SIZE)
 `define CALIPTRA_IMEM_ADDR_WIDTH  $clog2(`CALIPTRA_IMEM_DEPTH)
+
+`define IMEM_BRAM_ADDR_WIDTH  $clog2(`CALIPTRA_IMEM_BYTE_SIZE)
 
 module caliptra_package_top (
     input wire core_clk,
@@ -37,6 +39,9 @@ module caliptra_package_top (
     input  wire [31:0] gpio_in,
     output wire [31:0] gpio_out,
     input wire [255:0] cptra_obf_key,
+
+    output wire [7:0] fifo_char,
+    output wire fifo_write_en,
 
     //APB Interface
     input  wire [39:0]                s_apb_paddr,
@@ -55,7 +60,7 @@ module caliptra_package_top (
     input  wire axi_bram_clk,
     input  wire axi_bram_en,
     input  wire [3:0] axi_bram_we,
-    input  wire [14:0] axi_bram_addr, // 12:0
+    input  wire [`CALIPTRA_IMEM_BYTE_SIZE-1:0] axi_bram_addr,
     input  wire [31:0] axi_bram_din,
     output wire [31:0] axi_bram_dout,
     input  wire axi_bram_rst,
@@ -69,19 +74,22 @@ module caliptra_package_top (
     output wire                       jtag_tdo     // JTAG tdo
     );
 
+    // Unused bits of soc adapter register
     assign gpio_out[31] = 1'b0;
-    assign gpio_out[25] = 1'h0;
-    assign gpio_out[15:0] = 16'h0CA1;
+    assign gpio_out[25:0] = 26'h0;
 
     wire [63:0] generic_output_wires;
-    assign gpio_out[23:16] = generic_output_wires[7:0];
-    assign gpio_out[24] = 0;//generic_output_wires[];
+
+    // Hierarchical references to generic output wires register. Use as input to log FIFO.
+    assign fifo_write_en = cptra_wrapper.caliptra_top_dut.soc_ifc_top1.i_soc_ifc_reg.field_combo.CPTRA_GENERIC_OUTPUT_WIRES[0].generic_wires.load_next;
+    assign fifo_char[7:0] = cptra_wrapper.caliptra_top_dut.soc_ifc_top1.i_soc_ifc_reg.field_combo.CPTRA_GENERIC_OUTPUT_WIRES[0].generic_wires.next[7:0];
+
 
 caliptra_wrapper_top cptra_wrapper (
     .core_clk(core_clk),
 
     .PADDR(s_apb_paddr[`CALIPTRA_APB_ADDR_WIDTH-1:0]),
-    .PPROT(s_apb_pprot), // TODO: PPROT not provided?
+    .PPROT(s_apb_pprot),
     .PAUSER(pauser),
     .PENABLE(s_apb_penable),
     .PRDATA(s_apb_prdata),
@@ -108,14 +116,14 @@ caliptra_wrapper_top cptra_wrapper (
     .cptra_error_fatal(gpio_out[26]),
     .cptra_error_non_fatal(gpio_out[27]),
 
-    .generic_input_wires({56'h0, gpio_in[31:24]}),
+    .generic_input_wires(),
     .generic_output_wires(generic_output_wires),
 
     // SOC access to program ROM
     .axi_bram_clk(axi_bram_clk),
     .axi_bram_en(axi_bram_en),
     .axi_bram_we(axi_bram_we),
-    .axi_bram_addr(axi_bram_addr[14:2]),
+    .axi_bram_addr(axi_bram_addr[`CALIPTRA_IMEM_BYTE_SIZE-1:2]),
     .axi_bram_wrdata(axi_bram_din),
     .axi_bram_rddata(axi_bram_dout),
     .axi_bram_rst(axi_bram_rst),

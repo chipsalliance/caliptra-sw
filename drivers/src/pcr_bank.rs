@@ -66,14 +66,56 @@ impl From<PcrId> for usize {
     }
 }
 
+impl TryFrom<u8> for PcrId {
+    type Error = ();
+    fn try_from(original: u8) -> Result<Self, Self::Error> {
+        match original {
+            0 => Ok(Self::PcrId0),
+            1 => Ok(Self::PcrId1),
+            2 => Ok(Self::PcrId2),
+            3 => Ok(Self::PcrId3),
+            4 => Ok(Self::PcrId4),
+            5 => Ok(Self::PcrId5),
+            6 => Ok(Self::PcrId6),
+            7 => Ok(Self::PcrId7),
+            8 => Ok(Self::PcrId8),
+            9 => Ok(Self::PcrId9),
+            10 => Ok(Self::PcrId10),
+            11 => Ok(Self::PcrId11),
+            12 => Ok(Self::PcrId12),
+            13 => Ok(Self::PcrId13),
+            14 => Ok(Self::PcrId14),
+            15 => Ok(Self::PcrId15),
+            16 => Ok(Self::PcrId16),
+            17 => Ok(Self::PcrId17),
+            18 => Ok(Self::PcrId18),
+            19 => Ok(Self::PcrId19),
+            20 => Ok(Self::PcrId20),
+            21 => Ok(Self::PcrId21),
+            22 => Ok(Self::PcrId22),
+            23 => Ok(Self::PcrId23),
+            24 => Ok(Self::PcrId24),
+            25 => Ok(Self::PcrId25),
+            26 => Ok(Self::PcrId26),
+            27 => Ok(Self::PcrId27),
+            28 => Ok(Self::PcrId28),
+            29 => Ok(Self::PcrId29),
+            30 => Ok(Self::PcrId30),
+            31 => Ok(Self::PcrId31),
+            _ => Err(()),
+        }
+    }
+}
+
 /// Platform Configuration Register (PCR) Bank
 pub struct PcrBank {
     pv: PvReg,
+    pub log_index: usize, // The index of the next PCR log to be written to DCCM.
 }
 
 impl PcrBank {
     pub fn new(pv: PvReg) -> Self {
-        Self { pv }
+        Self { pv, log_index: 0 }
     }
     /// Erase all the pcrs in the pcr vault
     ///

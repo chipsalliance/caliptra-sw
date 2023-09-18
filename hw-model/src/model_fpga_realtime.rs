@@ -5,28 +5,35 @@ use std::{env, str::FromStr};
 use bitfield::bitfield;
 use caliptra_emu_bus::{Bus, BusError};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
+use libc;
+use nix;
 use std::io::Write;
 use std::time;
 use uio::{UioDevice, UioError};
 
+use crate::EtrngResponse;
 use crate::HwModel;
 use crate::Output;
 
-// Static variable to keep track of the handshake with the "uart" code
-static mut TAG: u8 = 1;
-
 // TODO: Make PAUSER configurable
 const SOC_PAUSER: u32 = 0xffff_ffff;
+
+// UIO mapping indices
+const GPIO_MAPPING: usize = 0;
+const MBOX_MAPPING: usize = 1;
+const SOC_IFC_MAPPING: usize = 2;
 
 fn fmt_uio_error(err: UioError) -> String {
     format!("{err:?}")
 }
 
 // FPGA SOC wire register offsets
-const GPIO_OUTPUT_OFFSET: isize = 0;
-const GPIO_INPUT_OFFSET: isize = 2;
-const GPIO_PAUSER_OFFSET: isize = 3;
-const GPIO_DEOBF_KEY_OFFSET: isize = 4;
+const GPIO_OUTPUT_OFFSET: isize = 0x0000 / 4;
+const GPIO_INPUT_OFFSET: isize = 0x0008 / 4;
+const GPIO_PAUSER_OFFSET: isize = 0x000C / 4;
+const GPIO_DEOBF_KEY_OFFSET: isize = 0x0020 / 4;
+const GPIO_LOG_FIFO_DATA_OFFSET: isize = 0x1000 / 4;
+const GPIO_LOG_FIFO_STATUS_OFFSET: isize = 0x1004 / 4;
 
 bitfield! {
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -35,7 +42,6 @@ bitfield! {
     cptra_rst_b, set_cptra_rst_b: 0, 0;
     cptra_pwrgood, set_cptra_pwrgood: 1, 1;
     security_state, set_security_state: 6, 4;
-    serial_tag, set_serial_tag: 31, 24;
 }
 
 bitfield! {
@@ -49,12 +55,33 @@ bitfield! {
     ready_for_fuses, _: 30, 30;
 }
 
+bitfield! {
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+    /// Log FIFO data
+    pub struct FifoData(u32);
+    log_fifo_char, _: 7, 0;
+    log_fifo_valid, _: 8, 8;
+}
+
+bitfield! {
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+    /// Log FIFO status
+    pub struct FifoStatus(u32);
+    log_fifo_empty, _: 0, 0;
+    log_fifo_full, _: 1, 1;
+}
+
 pub struct ModelFpgaRealtime {
+    dev: UioDevice,
     gpio: *mut u32,
     mbox: *mut u32,
     soc_ifc: *mut u32,
     output: Output,
     start_time: time::Instant,
+
+    etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
+    etrng_response: Option<[u32; 12]>,
+    etrng_waiting_for_req_to_clear: bool,
 }
 
 impl ModelFpgaRealtime {
@@ -84,16 +111,67 @@ impl ModelFpgaRealtime {
             self.gpio.offset(GPIO_OUTPUT_OFFSET).write_volatile(val.0);
         }
     }
-    fn set_uart_tag(&mut self, tag: u8) {
-        unsafe {
-            let mut val = GpioOutput(self.gpio.offset(GPIO_OUTPUT_OFFSET).read_volatile());
-            val.set_serial_tag(tag as u32);
-            self.gpio.offset(GPIO_OUTPUT_OFFSET).write_volatile(val.0);
-        }
-    }
     fn set_pauser(&mut self, pauser: u32) {
         unsafe {
             self.gpio.offset(GPIO_PAUSER_OFFSET).write_volatile(pauser);
+        }
+    }
+
+    fn handle_log(&mut self) {
+        // Check if the FIFO is full (which probably means there was an overrun)
+        let fifosts = unsafe {
+            FifoStatus(
+                self.gpio
+                    .offset(GPIO_LOG_FIFO_STATUS_OFFSET)
+                    .read_volatile(),
+            )
+        };
+        if fifosts.log_fifo_full() != 0 {
+            panic!("FPGA log FIFO overran");
+        }
+        // Check and empty log FIFO
+        loop {
+            let fifodata =
+                unsafe { FifoData(self.gpio.offset(GPIO_LOG_FIFO_DATA_OFFSET).read_volatile()) };
+            // Add byte to log if it is valid
+            if fifodata.log_fifo_valid() != 0 {
+                self.output()
+                    .sink()
+                    .push_uart_char(fifodata.log_fifo_char().try_into().unwrap());
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn handle_etrng(&mut self) {
+        let trng_status = self.soc_ifc_trng().cptra_trng_status().read();
+        if self.etrng_waiting_for_req_to_clear && !trng_status.data_req() {
+            self.etrng_waiting_for_req_to_clear = false;
+        }
+        if trng_status.data_req() && !self.etrng_waiting_for_req_to_clear {
+            if self.etrng_response.is_none() {
+                if let Some(response) = self.etrng_responses.next() {
+                    self.etrng_response = Some(response.data);
+                }
+            }
+            if let Some(_) = &mut self.etrng_response {
+                self.etrng_waiting_for_req_to_clear = true;
+                let etrng_response = self.etrng_response.take().unwrap();
+                self.soc_ifc_trng().cptra_trng_data().write(&etrng_response);
+                self.soc_ifc_trng()
+                    .cptra_trng_status()
+                    .write(|w| w.data_wr_done(true));
+            }
+        }
+    }
+
+    // UIO crate doesn't provide a way to unmap memory.
+    fn unmap_mapping(&self, addr: *mut u32, mapping: usize) {
+        let map_size = self.dev.map_size(mapping).unwrap();
+
+        unsafe {
+            nix::sys::mman::munmap(addr as *mut libc::c_void, map_size.into()).unwrap();
         }
     }
 }
@@ -109,17 +187,22 @@ impl HwModel for ModelFpgaRealtime {
         let uio_num = usize::from_str(&env::var("CPTRA_UIO_NUM")?)?;
         let dev = UioDevice::new(uio_num)?;
 
-        let gpio = dev.map_mapping(0).map_err(fmt_uio_error)? as *mut u32;
-        let mbox = dev.map_mapping(1).map_err(fmt_uio_error)? as *mut u32;
-        let soc_ifc = dev.map_mapping(2).map_err(fmt_uio_error)? as *mut u32;
+        let gpio = dev.map_mapping(GPIO_MAPPING).map_err(fmt_uio_error)? as *mut u32;
+        let mbox = dev.map_mapping(MBOX_MAPPING).map_err(fmt_uio_error)? as *mut u32;
+        let soc_ifc = dev.map_mapping(SOC_IFC_MAPPING).map_err(fmt_uio_error)? as *mut u32;
         let start_time = time::Instant::now();
 
         let mut m = Self {
+            dev,
             gpio,
             mbox,
             soc_ifc,
             output,
             start_time,
+
+            etrng_responses: params.etrng_responses,
+            etrng_response: None,
+            etrng_waiting_for_req_to_clear: false,
         };
 
         writeln!(m.output().logger(), "new_unbooted")?;
@@ -129,9 +212,6 @@ impl HwModel for ModelFpgaRealtime {
 
         // Set Security State signal wires
         m.set_security_state(u32::from(params.security_state));
-
-        // Set initial tag to be non-zero
-        unsafe { m.set_uart_tag(TAG) };
 
         // Set initial PAUSER
         m.set_pauser(SOC_PAUSER);
@@ -167,34 +247,10 @@ impl HwModel for ModelFpgaRealtime {
     }
 
     fn step(&mut self) {
-        // Temporary UART handshake to get log messages from firmware
-        let generic = unsafe { self.soc_ifc.offset(0xC8 / 4).read_volatile() };
+        self.handle_log();
 
-        // FW sets the generic_output register with the log character and the TAG from generic_input.
-        let readtag = ((generic >> 16) & 0xFF) as u8;
-
-        // If the TAG from FW matches what the hw-model set in the generic_input register there is new data.
-        if unsafe { (TAG & 0xFF) == readtag } {
-            let uartchar = generic & 0xFF;
-            self.output()
-                .sink()
-                .push_uart_char(uartchar.try_into().unwrap());
-
-            // Increment tag and expose on generic_input to inform uart code we have recieved the byte
-            unsafe {
-                TAG = TAG.wrapping_add(1);
-                self.set_uart_tag(TAG);
-            }
-        }
-
-        // Handle etrng request
-        let etrng_req = unsafe { (self.soc_ifc.offset(0xA8).read_volatile() & 0x1) != 0 };
-        if etrng_req {
-            unsafe {
-                // Write CPTRA_TRNG_STATUS.DATA_WR_DONE
-                self.soc_ifc.offset(0xA8 / 4).write_volatile(0x2);
-            }
-        }
+        // FPGA only supports ETRNG for now and needs to be checked frequently.
+        self.handle_etrng();
     }
 
     fn output(&mut self) -> &mut crate::Output {
@@ -202,6 +258,14 @@ impl HwModel for ModelFpgaRealtime {
             .sink()
             .set_now(self.start_time.elapsed().as_millis().try_into().unwrap());
         &mut self.output
+    }
+
+    fn warm_reset(&mut self) {
+        // Toggle reset pin
+        self.set_cptra_rst_b(false);
+        self.set_cptra_rst_b(true);
+        // Wait for ready_for_fuses
+        while !self.is_ready_for_fuses() {}
     }
 
     fn ready_for_fw(&self) -> bool {
@@ -212,6 +276,14 @@ impl HwModel for ModelFpgaRealtime {
 
     fn tracing_hint(&mut self, _enable: bool) {
         // Do nothing; we don't support tracing yet
+    }
+}
+impl Drop for ModelFpgaRealtime {
+    fn drop(&mut self) {
+        // Unmap UIO memory space so that the file lock is released
+        self.unmap_mapping(self.gpio, GPIO_MAPPING);
+        self.unmap_mapping(self.mbox, MBOX_MAPPING);
+        self.unmap_mapping(self.soc_ifc, SOC_IFC_MAPPING);
     }
 }
 

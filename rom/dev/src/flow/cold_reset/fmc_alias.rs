@@ -21,10 +21,13 @@ use crate::cprintln;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
+use caliptra_cfi_derive::cfi_impl_fn;
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::dice;
 use caliptra_common::keyids::{KEY_ID_FMC_PRIV_KEY, KEY_ID_ROM_FMC_CDI};
+use caliptra_common::pcr::PCR_ID_FMC_CURRENT;
 use caliptra_common::RomBootStatus::*;
-use caliptra_drivers::{okref, report_boot_status, Array4x12, CaliptraResult, KeyId, Lifecycle};
+use caliptra_drivers::{okmutref, report_boot_status, Array4x12, CaliptraResult, KeyId, Lifecycle};
 use caliptra_error::CaliptraError;
 use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams};
 
@@ -33,6 +36,7 @@ pub struct FmcAliasLayer {}
 
 impl FmcAliasLayer {
     /// Perform derivations for the DICE layer
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn derive(
         env: &mut RomEnv,
         input: &DiceInput,
@@ -47,7 +51,7 @@ impl FmcAliasLayer {
         );
 
         // We use the value of PCR0 as the measurement for deriving the CDI.
-        let mut measurement = env.pcr_bank.read_pcr(caliptra_drivers::PcrId::PcrId0);
+        let mut measurement = env.pcr_bank.read_pcr(PCR_ID_FMC_CURRENT);
 
         // Derive the DICE CDI from decrypted UDS
         let result = Self::derive_cdi(env, &measurement, KEY_ID_ROM_FMC_CDI);
@@ -56,7 +60,6 @@ impl FmcAliasLayer {
 
         // Derive DICE Key Pair from CDI
         let key_pair = Self::derive_key_pair(env, KEY_ID_ROM_FMC_CDI, KEY_ID_FMC_PRIV_KEY)?;
-        report_boot_status(FmcAliasKeyPairDerivationComplete.into());
 
         // Generate the Subject Serial Number and Subject Key Identifier.
         //
@@ -92,6 +95,7 @@ impl FmcAliasLayer {
     /// * `env` - ROM Environment
     /// * `measurements` - Array containing the FMC measurements
     /// * `cdi` - Key Slot to store the generated CDI
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_cdi(env: &mut RomEnv, measurements: &Array4x12, cdi: KeyId) -> CaliptraResult<()> {
         let mut measurements: [u8; 48] = measurements.into();
 
@@ -112,12 +116,20 @@ impl FmcAliasLayer {
     /// # Returns
     ///
     /// * `Ecc384KeyPair` - Derive DICE Layer Key Pair
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_key_pair(
         env: &mut RomEnv,
         cdi: KeyId,
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
-        Crypto::ecc384_key_gen(env, cdi, b"fmc_alias_keygen", priv_key)
+        let result = Crypto::ecc384_key_gen(env, cdi, b"fmc_alias_keygen", priv_key);
+        if cfi_launder(result.is_ok()) {
+            cfi_assert!(result.is_ok());
+            report_boot_status(FmcAliasKeyPairDerivationComplete.into());
+        } else {
+            cfi_assert!(result.is_err());
+        }
+        result
     }
 
     /// Generate Local Device ID Certificate Signature
@@ -127,6 +139,7 @@ impl FmcAliasLayer {
     /// * `env`    - ROM Environment
     /// * `input`  - DICE Input
     /// * `output` - DICE Output
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn generate_cert_sig(
         env: &mut RomEnv,
         input: &DiceInput,
@@ -142,6 +155,22 @@ impl FmcAliasLayer {
         let svn = env.data_vault.fmc_svn() as u8;
         let fuse_svn = fw_proc_info.fmc_effective_fuse_svn as u8;
 
+        let mut fuse_info_digest = Array4x12::default();
+        let mut hasher = env.sha384.digest_init()?;
+        hasher.update(&[
+            env.soc_ifc.lifecycle() as u8,
+            env.soc_ifc.debug_locked() as u8,
+            env.soc_ifc.fuse_bank().anti_rollback_disable() as u8,
+            env.data_vault.ecc_vendor_pk_index() as u8,
+            env.data_vault.lms_vendor_pk_index() as u8,
+            env.soc_ifc.fuse_bank().lms_verify() as u8,
+        ])?;
+        hasher.update(&<[u8; 48]>::from(
+            env.soc_ifc.fuse_bank().vendor_pub_key_hash(),
+        ))?;
+        hasher.update(&<[u8; 48]>::from(env.data_vault.owner_pk_hash()))?;
+        hasher.finalize(&mut fuse_info_digest)?;
+
         // Certificate `To Be Signed` Parameters
         let params = FmcAliasCertTbsParams {
             ueid: &X509::ueid(env)?,
@@ -152,7 +181,7 @@ impl FmcAliasLayer {
             serial_number: &X509::cert_sn(env, pub_key)?,
             public_key: &pub_key.to_der(),
             tcb_info_fmc_tci: &(&env.data_vault.fmc_tci()).into(),
-            tcb_info_owner_pk_hash: &(&env.data_vault.owner_pk_hash()).into(),
+            tcb_info_device_info_hash: &fuse_info_digest.into(),
             tcb_info_flags: &flags,
             tcb_info_fmc_svn: &svn.to_be_bytes(),
             tcb_info_fmc_svn_fuses: &fuse_svn.to_be_bytes(),
@@ -168,17 +197,21 @@ impl FmcAliasLayer {
             "[afmc] Signing Cert with AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
-        let sig = Crypto::ecdsa384_sign(env, auth_priv_key, tbs.tbs());
-        let sig = okref(&sig)?;
+        let mut sig = Crypto::ecdsa384_sign(env, auth_priv_key, auth_pub_key, tbs.tbs());
+        let sig = okmutref(&mut sig)?;
 
         // Clear the authority private key
         cprintln!("[afmc] Erasing AUTHORITY.KEYID = {}", auth_priv_key as u8);
         env.key_vault.erase_key(auth_priv_key)?;
 
         // Verify the signature of the `To Be Signed` portion
-        if !Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? {
+        let mut verify_r = Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)?;
+        if cfi_launder(&verify_r) != &sig.r {
             return Err(CaliptraError::FMC_ALIAS_CERT_VERIFY);
+        } else {
+            cfi_assert!(cfi_launder(&verify_r) == &sig.r);
         }
+        verify_r.0.fill(0);
 
         let _pub_x: [u8; 48] = (&pub_key.x).into();
         let _pub_y: [u8; 48] = (&pub_key.y).into();
@@ -192,6 +225,7 @@ impl FmcAliasLayer {
 
         // Lock the FMC Certificate Signature in data vault until next boot
         env.data_vault.set_fmc_dice_signature(sig);
+        sig.zeroize();
 
         // Lock the FMC Public key in the data vault until next boot
         env.data_vault.set_fmc_pub_key(pub_key);

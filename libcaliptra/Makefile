@@ -1,5 +1,8 @@
 Q=@
 
+CC=$(CROSS_COMPILE)gcc
+AR=$(CROSS_COMPILE)ar
+
 ifneq ($(MAKECMDGOALS),clean)
 ifndef RTL_SOC_IFC_INCLUDE_PATH
 $(error RTL_SOC_IFC_INCLUDE_PATH must be defined and point to a location where caliptra_top_reg.h can be found)
@@ -16,7 +19,7 @@ INCLUDES += -Iinc
 
 $(LIBCALIPTRA): $(OBJS)
 	@echo [AR] $@
-	$(Q)ar -cq $@ $(OBJS)
+	$(Q)$(AR) -cq $@ $(OBJS)
 
 %.o: %.c
 	@echo [CC] $< \-\> $@

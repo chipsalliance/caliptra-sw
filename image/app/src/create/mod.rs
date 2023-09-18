@@ -80,6 +80,10 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         .get_one::<PathBuf>("fmc")
         .with_context(|| "fmc arg not specified")?;
 
+    let fmc_version: &u32 = args
+        .get_one::<u32>("fmc-version")
+        .with_context(|| "fmc-version arg not specified")?;
+
     let fmc_svn: &u32 = args
         .get_one::<u32>("fmc-svn")
         .with_context(|| "fmc-svn arg not specified")?;
@@ -95,6 +99,10 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
     let runtime_path: &PathBuf = args
         .get_one::<PathBuf>("rt")
         .with_context(|| "rt arg not specified")?;
+
+    let runtime_version: &u32 = args
+        .get_one::<u32>("rt-version")
+        .with_context(|| "rt-version arg not specified")?;
 
     let runtime_svn: &u32 = args
         .get_one::<u32>("rt-svn")
@@ -115,10 +123,6 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
     let lms_key_idx: &u32 = args
         .get_one::<u32>("lms-pk-idx")
         .with_context(|| "lms-pk-idx arg not specified")?;
-
-    let owner_lms_key_idx: &u32 = args
-        .get_one::<u32>("owner-lms-pk-idx")
-        .with_context(|| "owner-lms-pk-idx arg not specified")?;
 
     let out_path: &PathBuf = args
         .get_one::<PathBuf>("out")
@@ -155,6 +159,7 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
     let fmc_rev = hex::decode(fmc_rev)?;
     let fmc = ElfExecutable::open(
         fmc_path,
+        *fmc_version,
         *fmc_svn,
         *fmc_min_svn,
         fmc_rev[..IMAGE_REVISION_BYTE_SIZE].try_into()?,
@@ -163,6 +168,7 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
     let runtime_rev = hex::decode(runtime_rev)?;
     let runtime = ElfExecutable::open(
         runtime_path,
+        *runtime_version,
         *runtime_svn,
         *runtime_min_svn,
         runtime_rev[..IMAGE_REVISION_BYTE_SIZE].try_into()?,
@@ -181,13 +187,7 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
             mfg_from_date,
             mfg_to_date,
         )?,
-        owner_config: owner_config(
-            config_dir,
-            &config.owner,
-            *owner_lms_key_idx,
-            own_from_date,
-            own_to_date,
-        )?,
+        owner_config: owner_config(config_dir, &config.owner, own_from_date, own_to_date)?,
         fmc,
         runtime,
     };
@@ -277,7 +277,6 @@ fn vendor_config(
 fn owner_config(
     path: &Path,
     config: &Option<OwnerKeyConfig>,
-    lms_key_idx: u32,
     from_date: [u8; 15],
     to_date: [u8; 15],
 ) -> anyhow::Result<Option<ImageGeneratorOwnerConfig>> {
@@ -288,16 +287,10 @@ fn owner_config(
         let pub_key_path = path.join(pem_file);
         gen_config.pub_keys.ecc_pub_key = ecc_pub_key_from_pem(&pub_key_path)?;
 
-        let lms_pub_keys = &config.lms_pub_keys;
+        let pem_file = &config.lms_pub_key;
 
-        for (i, pem_file) in lms_pub_keys
-            .iter()
-            .enumerate()
-            .take(OWNER_LMS_KEY_COUNT as usize)
-        {
-            let pub_key_path = path.join(pem_file);
-            gen_config.pub_keys.lms_pub_keys[i] = lms_pub_key_from_pem(&pub_key_path)?;
-        }
+        let pub_key_path = path.join(pem_file);
+        gen_config.pub_keys.lms_pub_key = lms_pub_key_from_pem(&pub_key_path)?;
 
         let mut priv_keys = ImageOwnerPrivKeys::default();
         if let Some(pem_file) = &config.ecc_priv_key {
@@ -306,18 +299,11 @@ fn owner_config(
             gen_config.priv_keys = Some(priv_keys);
         }
 
-        if let Some(lms_priv_keys) = &config.lms_priv_keys {
-            for (i, pem_file) in lms_priv_keys
-                .iter()
-                .enumerate()
-                .take(OWNER_LMS_KEY_COUNT as usize)
-            {
-                let priv_key_path = path.join(pem_file);
-                priv_keys.lms_priv_keys[i] = lms_priv_key_from_pem(&priv_key_path)?;
-            }
+        if let Some(pem_file) = &config.lms_priv_key {
+            let priv_key_path = path.join(pem_file);
+            priv_keys.lms_priv_key = lms_priv_key_from_pem(&priv_key_path)?;
             gen_config.priv_keys = Some(priv_keys);
         }
-        gen_config.lms_key_idx = lms_key_idx;
         gen_config.not_before = from_date;
         gen_config.not_after = to_date;
 

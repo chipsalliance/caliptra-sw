@@ -7,15 +7,20 @@ use std::{
     io::{stdout, ErrorKind, Write},
 };
 
+use caliptra_common::mailbox_api;
 use caliptra_emu_bus::Bus;
 use caliptra_hw_model_types::{
-    ErrorInjectionMode, EtrngResponse, RandomEtrngResponses, DEFAULT_CPTRA_OBF_KEY,
+    ErrorInjectionMode, EtrngResponse, RandomEtrngResponses, RandomNibbles, DEFAULT_CPTRA_OBF_KEY,
 };
-use zerocopy::{AsBytes, LayoutVerified, Unalign};
+use zerocopy::{AsBytes, FromBytes, LayoutVerified, Unalign};
 
 use caliptra_registers::mbox;
 use caliptra_registers::mbox::enums::{MboxFsmE, MboxStatusE};
-use rand::{rngs::StdRng, RngCore, SeedableRng};
+use caliptra_registers::soc_ifc::regs::{
+    CptraItrngEntropyConfig0WriteVal, CptraItrngEntropyConfig1WriteVal,
+};
+
+use rand::{rngs::StdRng, SeedableRng};
 
 pub mod mmio;
 mod model_emulated;
@@ -85,16 +90,6 @@ pub fn new(params: BootParams) -> Result<DefaultHwModel, Box<dyn Error>> {
     DefaultHwModel::new(params)
 }
 
-struct RandomNibbles<R: RngCore>(pub R);
-
-impl<R: RngCore> Iterator for RandomNibbles<R> {
-    type Item = u8;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        Some((self.0.next_u32() & 0xf) as u8)
-    }
-}
-
 #[derive(Debug, Eq, PartialEq)]
 pub enum TrngMode {
     // soc_ifc_reg.CPTRA_HW_CONFIG.iTRNG_en will be true.
@@ -118,6 +113,8 @@ impl TrngMode {
         }
     }
 }
+
+const EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES: u64 = 40_000_000; // 40 million cycles
 
 pub struct InitParams<'a> {
     // The contents of the boot ROM
@@ -146,6 +143,8 @@ pub struct InitParams<'a> {
 
     // When None, use the itrng compile-time feature to decide which mode to use.
     pub trng_mode: Option<TrngMode>,
+
+    pub wdt_timeout_cycles: u64,
 }
 
 impl<'a> Default for InitParams<'a> {
@@ -174,6 +173,7 @@ impl<'a> Default for InitParams<'a> {
             itrng_nibbles,
             etrng_responses,
             trng_mode: Default::default(),
+            wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
         }
     }
 }
@@ -184,6 +184,8 @@ pub struct BootParams<'a> {
     pub fuses: Fuses,
     pub fw_image: Option<&'a [u8]>,
     pub initial_dbg_manuf_service_reg: u32,
+    pub initial_repcnt_thresh_reg: Option<CptraItrngEntropyConfig1WriteVal>,
+    pub initial_adaptp_thresh_reg: Option<CptraItrngEntropyConfig0WriteVal>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -199,6 +201,7 @@ pub enum ModelError {
     ProvidedDccmTooLarge,
     UnexpectedMailboxFsmStatus { expected: u32, actual: u32 },
     UnableToLockSha512Acc,
+    UploadMeasurementResponseError,
 }
 impl Error for ModelError {}
 impl Display for ModelError {
@@ -226,6 +229,9 @@ impl Display for ModelError {
                 "Expected mailbox FSM status to be {expected}, was {actual}"
             ),
             ModelError::UnableToLockSha512Acc => write!(f, "Unable to lock sha512acc"),
+            ModelError::UploadMeasurementResponseError => {
+                write!(f, "Error in response after uploading measurement")
+            }
         }
     }
 }
@@ -295,7 +301,10 @@ fn mbox_read_fifo(mbox: mbox::RegisterBlock<impl MmioMut>) -> Vec<u8> {
     result
 }
 
-fn mbox_write_fifo(mbox: &mbox::RegisterBlock<impl MmioMut>, buf: &[u8]) -> Result<(), ModelError> {
+pub fn mbox_write_fifo(
+    mbox: &mbox::RegisterBlock<impl MmioMut>,
+    buf: &[u8],
+) -> Result<(), ModelError> {
     const MAILBOX_SIZE: u32 = 128 * 1024;
 
     let Ok(input_len) = u32::try_from(buf.len()) else {
@@ -325,6 +334,9 @@ fn mbox_write_fifo(mbox: &mbox::RegisterBlock<impl MmioMut>, buf: &[u8]) -> Resu
 /// Firmware Load Command Opcode
 const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
 
+/// Stash Measurement Command Opcode.
+const STASH_MEASUREMENT_CMD_OPCODE: u32 = 0x4D45_4153;
+
 // Represents a emulator or simulation of the caliptra hardware, to be called
 // from tests. Typically, test cases should use [`crate::new()`] to create a model
 // based on the cargo features (and any model-specific environment variables).
@@ -346,6 +358,7 @@ pub trait HwModel {
     where
         Self: Sized,
     {
+        let wdt_timeout_cycles = run_params.init_params.wdt_timeout_cycles;
         let mut hw: Self = HwModel::new_unbooted(run_params.init_params)?;
 
         hw.init_fuses(&run_params.fuses);
@@ -354,13 +367,31 @@ pub trait HwModel {
             .cptra_dbg_manuf_service_reg()
             .write(|_| run_params.initial_dbg_manuf_service_reg);
 
+        hw.soc_ifc()
+            .cptra_wdt_cfg()
+            .at(0)
+            .write(|_| wdt_timeout_cycles as u32);
+
+        hw.soc_ifc()
+            .cptra_wdt_cfg()
+            .at(1)
+            .write(|_| (wdt_timeout_cycles >> 32) as u32);
+
+        if let Some(reg) = run_params.initial_repcnt_thresh_reg {
+            hw.soc_ifc().cptra_i_trng_entropy_config_1().write(|_| reg);
+        }
+
+        if let Some(reg) = run_params.initial_adaptp_thresh_reg {
+            hw.soc_ifc().cptra_i_trng_entropy_config_0().write(|_| reg);
+        }
+
         writeln!(hw.output().logger(), "writing to cptra_bootfsm_go")?;
         hw.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
         hw.step();
 
         if let Some(fw_image) = run_params.fw_image {
-            const MAX_WAIT_CYCLES: u32 = 12_000_000;
+            const MAX_WAIT_CYCLES: u32 = 20_000_000;
             let mut cycles = 0;
             while !hw.ready_for_fw() {
                 hw.step();
@@ -374,6 +405,14 @@ pub trait HwModel {
         }
 
         Ok(hw)
+    }
+
+    /// Trigger a warm reset and advance the boot
+    fn warm_reset_flow(&mut self, fuses: &Fuses) {
+        self.warm_reset();
+
+        self.init_fuses(fuses);
+        self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
     }
 
     /// The APB bus from the SoC to Caliptra
@@ -395,6 +434,12 @@ pub trait HwModel {
         }
     }
 
+    /// Toggle reset pins and wait for ready_for_fuses
+    fn warm_reset(&mut self) {
+        // sw-emulator lacks support: https://github.com/chipsalliance/caliptra-sw/issues/540
+        panic!("warm_reset unimplemented");
+    }
+
     /// Returns true if the microcontroller has signalled that it is ready for
     /// firmware to be written to the mailbox. For RTL implementations, this
     /// should come via a caliptra_top wire rather than an APB register.
@@ -409,10 +454,12 @@ pub trait HwModel {
     /// If the cptra_fuse_wr_done has already been written, or the
     /// hardware prevents cptra_fuse_wr_done from being set.
     fn init_fuses(&mut self, fuses: &Fuses) {
-        assert!(
-            !self.soc_ifc().cptra_fuse_wr_done().read().done(),
-            "Fuses are already locked in place (according to cptra_fuse_wr_done)"
-        );
+        if !self.soc_ifc().cptra_reset_reason().read().warm_reset() {
+            assert!(
+                !self.soc_ifc().cptra_fuse_wr_done().read().done(),
+                "Fuses are already locked in place (according to cptra_fuse_wr_done)"
+            );
+        }
 
         self.soc_ifc().fuse_uds_seed().write(&fuses.uds_seed);
         self.soc_ifc()
@@ -443,6 +490,12 @@ pub trait HwModel {
         self.soc_ifc()
             .fuse_life_cycle()
             .write(|w| w.life_cycle(fuses.life_cycle.into()));
+        self.soc_ifc()
+            .fuse_lms_verify()
+            .write(|w| w.lms_verify(fuses.lms_verify));
+        self.soc_ifc()
+            .fuse_lms_revocation()
+            .write(|_| fuses.fuse_lms_revocation);
 
         self.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
         assert!(self.soc_ifc().cptra_fuse_wr_done().read().done());
@@ -499,9 +552,9 @@ pub trait HwModel {
         expected_status_u32: u32,
         ignore_intermediate_status: bool,
     ) {
-        // Since the boot takes less than 20M cycles, we know something is wrong if
+        // Since the boot takes less than 30M cycles, we know something is wrong if
         // we're stuck at the same state for that duration.
-        const MAX_WAIT_CYCLES: u32 = 20_000_000;
+        const MAX_WAIT_CYCLES: u32 = 30_000_000;
 
         let mut cycle_count = 0u32;
         let initial_boot_status_u32 = self.soc_ifc().cptra_boot_status().read();
@@ -524,6 +577,33 @@ pub trait HwModel {
                 panic!(
                     "Expected boot_status to be  \
                     ({expected_status_u32}), but was stuck at ({actual_status_u32})"
+                );
+            }
+        }
+    }
+
+    fn step_until_fatal_error(&mut self, expected_error: u32, max_wait_cycles: u32) {
+        let mut cycle_count = 0u32;
+        let initial_error = self.soc_ifc().cptra_fw_error_fatal().read();
+        loop {
+            let actual_error = self.soc_ifc().cptra_fw_error_fatal().read();
+            if actual_error == expected_error {
+                break;
+            }
+
+            if actual_error != initial_error {
+                panic!(
+                    "Expected the fatal error to be  \
+                    ({expected_error}), but error changed from \
+                    {initial_error} to {actual_error})"
+                );
+            }
+            self.step();
+            cycle_count += 1;
+            if cycle_count >= max_wait_cycles {
+                panic!(
+                    "Expected fatal error to be  \
+                    ({expected_error}), but was stuck at ({initial_error})"
                 );
             }
         }
@@ -591,6 +671,16 @@ pub trait HwModel {
         cmd: u32,
         buf: &[u8],
     ) -> std::result::Result<Option<Vec<u8>>, ModelError> {
+        self.start_mailbox_execute(cmd, buf)?;
+        self.finish_mailbox_execute()
+    }
+
+    /// Send a command to the mailbox but don't wait for the response
+    fn start_mailbox_execute(
+        &mut self,
+        cmd: u32,
+        buf: &[u8],
+    ) -> std::result::Result<(), ModelError> {
         if self.soc_mbox().lock().read().lock() {
             return Err(ModelError::UnableToLockMailbox);
         }
@@ -608,6 +698,11 @@ pub trait HwModel {
         // Ask the microcontroller to execute this command
         self.soc_mbox().execute().write(|w| w.execute(true));
 
+        Ok(())
+    }
+
+    /// Wait for the response to a previous call to `start_mailbox_execute()`.
+    fn finish_mailbox_execute(&mut self) -> std::result::Result<Option<Vec<u8>>, ModelError> {
         // Wait for the microcontroller to finish executing
         while self.soc_mbox().status().read().status().cmd_busy() {
             self.step();
@@ -750,6 +845,33 @@ pub trait HwModel {
             req: MailboxRequest { cmd, data },
         }))
     }
+
+    /// Upload measurement to the mailbox.
+    fn upload_measurement(&mut self, measurement: &[u8]) -> Result<(), ModelError> {
+        let response = self.mailbox_execute(STASH_MEASUREMENT_CMD_OPCODE, measurement)?;
+
+        // We expect a response
+        let response = response.ok_or(ModelError::UploadMeasurementResponseError)?;
+
+        // Get response as a response header struct
+        let response = mailbox_api::MailboxRespHeader::read_from(response.as_slice())
+            .ok_or(ModelError::UploadMeasurementResponseError)?;
+
+        // Verify checksum and FIPS status
+        if !caliptra_common::checksum::verify_checksum(
+            response.chksum,
+            0x0,
+            &response.as_bytes()[core::mem::size_of_val(&response.chksum)..],
+        ) {
+            return Err(ModelError::UploadMeasurementResponseError);
+        }
+
+        if response.fips_status != mailbox_api::MailboxRespHeader::FIPS_STATUS_APPROVED {
+            return Err(ModelError::UploadMeasurementResponseError);
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -778,6 +900,10 @@ mod tests {
             .cptra_generic_output_wires()
             .at(0)
             .write(|_| b'i'.into());
+        soc_ifc
+            .cptra_generic_output_wires()
+            .at(0)
+            .write(|_| 0x100 | u32::from(b'i'));
         soc_ifc.cptra_generic_output_wires().at(0).write(|_| 0xff);
         rv32_gen.build()
     }
@@ -868,7 +994,7 @@ mod tests {
             ..Default::default()
         })
         .unwrap();
-        model.step_until_output("hi").unwrap();
+        model.step_until_output("hii").unwrap();
     }
 
     #[test]

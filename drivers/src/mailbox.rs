@@ -18,6 +18,7 @@ use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_registers::mbox::MboxCsr;
 use core::cmp::min;
 use core::mem::size_of;
+use zerocopy::{AsBytes, LayoutVerified, Unalign};
 
 #[derive(Copy, Clone, Default, Eq, PartialEq)]
 /// Malbox operational states
@@ -176,41 +177,9 @@ impl MailboxSendTxn<'_> {
         self.write_dlen(data.len() as u32)?;
 
         // Copy data to mailbox
-        self.enqueue(data)?;
+        fifo::enqueue(self.mbox, data)?;
 
         self.state = MailboxOpState::RdyForData;
-
-        Ok(())
-    }
-
-    fn enqueue(&mut self, buf: &[u8]) -> CaliptraResult<()> {
-        let remainder = buf.len() % size_of::<u32>();
-        let n = buf.len() - remainder;
-
-        let mbox = self.mbox.regs_mut();
-
-        for idx in (0..n).step_by(size_of::<u32>()) {
-            let bytes = buf
-                .get(idx..idx + size_of::<u32>())
-                .ok_or(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR)?;
-            mbox.datain()
-                .write(|_| u32::from_le_bytes(bytes.try_into().unwrap()));
-        }
-
-        // Handle the remainder.
-        if remainder > 0 {
-            let mut block_part =
-                *buf.get(n)
-                    .ok_or(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR)? as u32;
-            for idx in 1..remainder {
-                block_part |= (*buf
-                    .get(n + idx)
-                    .ok_or(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR)?
-                    as u32)
-                    << (idx << 3);
-            }
-            mbox.datain().write(|_| block_part);
-        }
 
         Ok(())
     }
@@ -314,6 +283,63 @@ impl<'a> MailboxRecvPeek<'a> {
     }
 }
 
+/// Mailbox Fifo abstraction
+mod fifo {
+    use super::*;
+
+    fn dequeue_words(mbox: &mut MboxCsr, buf: &mut [Unalign<u32>]) {
+        let mbox = mbox.regs_mut();
+        for word in buf.iter_mut() {
+            *word = Unalign::new(mbox.dataout().read());
+        }
+    }
+    pub fn dequeue(mbox: &mut MboxCsr, mut buf: &mut [u8]) {
+        let dlen_bytes = mbox.regs().dlen().read() as usize;
+        if dlen_bytes < buf.len() {
+            buf = &mut buf[..dlen_bytes];
+        }
+
+        let len_words = buf.len() / size_of::<u32>();
+        let (mut buf_words, suffix) =
+            LayoutVerified::new_slice_unaligned_from_prefix(buf, len_words).unwrap();
+
+        dequeue_words(mbox, &mut buf_words);
+        if !suffix.is_empty() {
+            let last_word = mbox.regs().dataout().read();
+            let suffix_len = suffix.len();
+            suffix
+                .as_bytes_mut()
+                .copy_from_slice(&last_word.as_bytes()[..suffix_len]);
+        }
+    }
+
+    fn enqueue_words(mbox: &mut MboxCsr, buf: &[Unalign<u32>]) {
+        let mbox = mbox.regs_mut();
+        for word in buf {
+            mbox.datain().write(|_| word.get());
+        }
+    }
+
+    /// Writes buf.len() bytes to the mailbox datain reg as dwords
+    pub fn enqueue(mbox: &mut MboxCsr, buf: &[u8]) -> CaliptraResult<()> {
+        if mbox.regs().dlen().read() as usize != buf.len() {
+            return Err(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR);
+        }
+
+        let (buf_words, suffix) =
+            LayoutVerified::new_slice_unaligned_from_prefix(buf, buf.len() / size_of::<u32>())
+                .unwrap();
+        enqueue_words(mbox, &buf_words);
+        if !suffix.is_empty() {
+            let mut last_word = 0_u32;
+            last_word.as_bytes_mut()[..suffix.len()].copy_from_slice(suffix);
+            enqueue_words(mbox, &[Unalign::new(last_word)]);
+        }
+
+        Ok(())
+    }
+}
+
 /// Mailbox recveive protocol abstraction
 pub struct MailboxRecvTxn<'a> {
     /// Current state of transaction
@@ -336,17 +362,6 @@ impl MailboxRecvTxn<'_> {
         mbox.dlen().read()
     }
 
-    fn dequeue(&mut self, buf: &mut [u32]) -> CaliptraResult<()> {
-        let mbox = self.mbox.regs_mut();
-        let dlen_bytes = mbox.dlen().read() as usize;
-        let dlen_words = (dlen_bytes + 3) / 4;
-        let words_to_read = min(buf.len(), dlen_words);
-        for dest_word in buf[0..words_to_read].iter_mut() {
-            *dest_word = mbox.dataout().read();
-        }
-        Ok(())
-    }
-
     /// Pulls at most `count` words from the mailbox and throws them away
     pub fn drop_words(&mut self, count: usize) -> CaliptraResult<()> {
         let mbox = self.mbox.regs_mut();
@@ -360,7 +375,24 @@ impl MailboxRecvTxn<'_> {
         Ok(())
     }
 
-    /// Pulls at most `data.len()` words from the mailbox FIFO without performing state transition.
+    /// Writes number of bytes to data length register.
+    fn write_dlen(&mut self, dlen: u32) -> CaliptraResult<()> {
+        if self.state != MailboxOpState::RdyForDlen {
+            return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
+        }
+        let mbox = self.mbox.regs_mut();
+
+        if dlen > MAX_MAILBOX_LEN {
+            return Err(CaliptraError::DRIVER_MAILBOX_INVALID_DATA_LEN);
+        }
+
+        // Write Len in Bytes
+        mbox.dlen().write(|_| dlen);
+        Ok(())
+    }
+
+    /// Pulls at most `(data.len() + 3) / 4` words from the mailbox FIFO without
+    /// performing state transition.
     ///
     /// # Arguments
     ///
@@ -370,14 +402,15 @@ impl MailboxRecvTxn<'_> {
     ///
     /// Status of Operation
     ///
-    pub fn copy_request(&mut self, data: &mut [u32]) -> CaliptraResult<()> {
+    pub fn copy_request(&mut self, data: &mut [u8]) -> CaliptraResult<()> {
         if self.state != MailboxOpState::Execute {
             return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
         }
-        self.dequeue(data)
+        fifo::dequeue(self.mbox, data);
+        Ok(())
     }
 
-    /// Pulls at most `data.len()` words from the mailbox FIFO.
+    /// Pulls at most `(data.len() + 3) / 4` words from the mailbox FIFO.
     /// Transitions from Execute --> Idle (releases the lock)
     ///
     /// # Arguments
@@ -388,21 +421,66 @@ impl MailboxRecvTxn<'_> {
     ///
     /// Status of Operation
     ///
-    pub fn recv_request(&mut self, data: &mut [u32]) -> CaliptraResult<()> {
+    pub fn recv_request(&mut self, data: &mut [u8]) -> CaliptraResult<()> {
         self.copy_request(data)?;
-        self.complete(true)?;
-        Ok(())
+        self.complete(true)
     }
 
+    /// Sends `data.len()` bytes to the mailbox FIFO
+    /// Transitions from Execute --> RdyForData
     ///
-    /// Transitions from Execute --> Idle
+    /// # Arguments
     ///
-    pub fn complete(&mut self, success: bool) -> CaliptraResult<()> {
+    /// * `data` - data buffer.
+    ///
+    /// # Returns
+    ///
+    /// Status of Operation
+    ///
+    fn copy_response(&mut self, data: &[u8]) -> CaliptraResult<()> {
         if self.state != MailboxOpState::Execute {
             return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
         }
+
+        self.state = MailboxOpState::RdyForDlen;
+        // Set dlen
+        self.write_dlen(data.len() as u32)?;
+
+        self.state = MailboxOpState::RdyForData;
+        // Copy the data
+        fifo::enqueue(self.mbox, data)
+    }
+
+    /// Sends `data.len()` bytes to the mailbox FIFO.
+    /// Transitions from Execute --> Idle (releases the lock)
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - data buffer.
+    ///
+    /// # Returns
+    ///
+    /// Status of Operation
+    ///
+    pub fn send_response(&mut self, data: &[u8]) -> CaliptraResult<()> {
+        self.copy_response(data)?;
+        self.complete(true)
+    }
+
+    ///
+    /// Transitions from Execute or RdyForData-> Idle
+    ///
+    /// Does not take ownership of self, unlike complete()
+    pub fn complete(&mut self, success: bool) -> CaliptraResult<()> {
+        if self.state != MailboxOpState::Execute && self.state != MailboxOpState::RdyForData {
+            return Err(CaliptraError::DRIVER_MAILBOX_INVALID_STATE);
+        }
         let status = if success {
-            MboxStatusE::CmdComplete
+            if self.state == MailboxOpState::RdyForData {
+                MboxStatusE::DataReady
+            } else {
+                MboxStatusE::CmdComplete
+            }
         } else {
             MboxStatusE::CmdFailure
         };

@@ -17,8 +17,8 @@ Abstract:
 
 use crate::fht::FhtDataStore;
 use caliptra_drivers::{
-    DataVault, DeobfuscationEngine, Ecc384, Hmac384, KeyVault, Lms, Mailbox, PcrBank, Sha1, Sha256,
-    Sha384, Sha384Acc, SocIfc, Trng,
+    DataVault, DeobfuscationEngine, Ecc384, Hmac384, KeyVault, Lms, Mailbox, PcrBank,
+    PersistentDataAccessor, Sha1, Sha256, Sha384, Sha384Acc, SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_registers::{
@@ -26,10 +26,6 @@ use caliptra_registers::{
     hmac::HmacReg, kv::KvReg, mbox::MboxCsr, pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg,
     sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
-use core::ops::Range;
-
-const ICCM_START: u32 = 0x40000000;
-const ICCM_SIZE: u32 = 128 << 10;
 
 /// Rom Context
 pub struct RomEnv {
@@ -77,14 +73,12 @@ pub struct RomEnv {
 
     /// Cryptographically Secure Random Number Generator
     pub trng: Trng,
+
+    // Mechanism to access the persistent data safely
+    pub persistent_data: PersistentDataAccessor,
 }
 
 impl RomEnv {
-    pub const ICCM_RANGE: Range<u32> = Range {
-        start: ICCM_START,
-        end: ICCM_START + ICCM_SIZE,
-    };
-
     pub unsafe fn new_from_registers() -> CaliptraResult<Self> {
         let trng = Trng::new(
             CsrngReg::new(),
@@ -109,6 +103,7 @@ impl RomEnv {
             pcr_bank: PcrBank::new(PvReg::new()),
             fht_data_store: FhtDataStore::default(),
             trng,
+            persistent_data: PersistentDataAccessor::new(),
         })
     }
 }

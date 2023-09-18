@@ -21,86 +21,92 @@ Note:
 
 --*/
 
-use crate::verifier::RomImageVerificationEnv;
+use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
+use caliptra_common::verifier::FirmwareImageVerificationEnv;
 use caliptra_common::{
-    memory_layout::{PCR_LOG_ORG, PCR_LOG_SIZE},
+    pcr::{PCR_ID_FMC_CURRENT, PCR_ID_FMC_JOURNEY},
     PcrLogEntry, PcrLogEntryId,
 };
-use caliptra_drivers::{Array4x12, CaliptraError, CaliptraResult, PcrBank, PcrId, Sha384};
+use caliptra_drivers::{
+    CaliptraError, CaliptraResult, PcrBank, PcrLogArray, PersistentDataAccessor, Sha384,
+};
 use caliptra_image_verify::ImageVerificationInfo;
 
 use zerocopy::AsBytes;
 
 struct PcrExtender<'a> {
+    pcr_log: &'a mut PcrLogArray,
     pcr_bank: &'a mut PcrBank,
     sha384: &'a mut Sha384,
 }
 impl PcrExtender<'_> {
-    fn extend(&mut self, data: Array4x12, pcr_entry_id: PcrLogEntryId) -> CaliptraResult<()> {
-        let bytes: &[u8; 48] = &data.into();
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn extend(&mut self, data: &[u8], pcr_entry_id: PcrLogEntryId) -> CaliptraResult<()> {
         self.pcr_bank
-            .extend_pcr(PcrId::PcrId0, self.sha384, bytes)?;
-        log_pcr(pcr_entry_id, PcrId::PcrId0, bytes)
-    }
-    fn extend_u8(&mut self, data: u8, pcr_entry_id: PcrLogEntryId) -> CaliptraResult<()> {
-        let bytes = &data.to_le_bytes();
+            .extend_pcr(PCR_ID_FMC_CURRENT, self.sha384, data)?;
         self.pcr_bank
-            .extend_pcr(PcrId::PcrId0, self.sha384, bytes)?;
-        log_pcr(pcr_entry_id, PcrId::PcrId0, bytes)
+            .extend_pcr(PCR_ID_FMC_JOURNEY, self.sha384, data)?;
+
+        let pcr_ids: u32 = (1 << PCR_ID_FMC_CURRENT as u8) | (1 << PCR_ID_FMC_JOURNEY as u8);
+        log_pcr(self.pcr_log, self.pcr_bank, pcr_entry_id, pcr_ids, data)
     }
 }
 
-/// Extend PCR0
+/// Extend PCR0 and PCR1
 ///
 /// # Arguments
 ///
 /// * `env` - ROM Environment
-pub(crate) fn extend_pcr0(
-    env: &mut RomImageVerificationEnv,
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+pub(crate) fn extend_pcrs(
+    env: &mut FirmwareImageVerificationEnv,
     info: &ImageVerificationInfo,
+    persistent_data: &mut PersistentDataAccessor,
 ) -> CaliptraResult<()> {
-    // Clear the PCR
-    env.pcr_bank.erase_pcr(caliptra_drivers::PcrId::PcrId0)?;
+    // Clear the Current PCR, but do not clear the Journey PCR
+    env.pcr_bank.erase_pcr(PCR_ID_FMC_CURRENT)?;
 
     let mut pcr = PcrExtender {
+        pcr_log: &mut persistent_data.get_mut().pcr_log,
         pcr_bank: env.pcr_bank,
         sha384: env.sha384,
     };
 
-    pcr.extend_u8(
+    let device_status: [u8; 8] = [
         env.soc_ifc.lifecycle() as u8,
-        PcrLogEntryId::DeviceLifecycle,
-    )?;
-    pcr.extend_u8(env.soc_ifc.debug_locked() as u8, PcrLogEntryId::DebugLocked)?;
-    pcr.extend_u8(
+        env.soc_ifc.debug_locked() as u8,
         env.soc_ifc.fuse_bank().anti_rollback_disable() as u8,
-        PcrLogEntryId::AntiRollbackDisabled,
-    )?;
+        env.data_vault.ecc_vendor_pk_index() as u8,
+        env.data_vault.fmc_svn() as u8,
+        info.fmc.effective_fuse_svn as u8,
+        env.data_vault.lms_vendor_pk_index() as u8,
+        env.soc_ifc.fuse_bank().lms_verify() as u8,
+    ];
+
+    pcr.extend(&device_status, PcrLogEntryId::DeviceStatus)?;
+
     pcr.extend(
-        env.soc_ifc.fuse_bank().vendor_pub_key_hash(),
+        &<[u8; 48]>::from(&env.soc_ifc.fuse_bank().vendor_pub_key_hash()),
         PcrLogEntryId::VendorPubKeyHash,
     )?;
     pcr.extend(
-        env.data_vault.owner_pk_hash(),
+        &<[u8; 48]>::from(&env.data_vault.owner_pk_hash()),
         PcrLogEntryId::OwnerPubKeyHash,
     )?;
-    pcr.extend_u8(
-        env.data_vault.vendor_pk_index() as u8,
-        PcrLogEntryId::VendorPubKeyIndex,
+    pcr.extend(
+        &<[u8; 48]>::from(&env.data_vault.fmc_tci()),
+        PcrLogEntryId::FmcTci,
     )?;
-    pcr.extend(env.data_vault.fmc_tci(), PcrLogEntryId::FmcTci)?;
-    pcr.extend_u8(env.data_vault.fmc_svn() as u8, PcrLogEntryId::FmcSvn)?;
-    pcr.extend_u8(info.fmc.effective_fuse_svn as u8, PcrLogEntryId::FmcFuseSvn)?;
 
-    // TODO: Check PCR0 != 0
     Ok(())
 }
 
 /// Log PCR data
 ///
 /// # Arguments
+/// * `pcr_bank` - PCR bank
 /// * `pcr_entry_id` - PCR log entry ID
-/// * `pcr_id` - PCR ID
+/// * `pcr_ids` - bitmask of PCR indices
 /// * `data` - PCR data
 ///
 /// # Return Value
@@ -108,30 +114,35 @@ pub(crate) fn extend_pcr0(
 /// * `Err(GlobalErr::PcrLogInvalidEntryId)` - Invalid PCR log entry ID
 /// * `Err(GlobalErr::PcrLogUpsupportedDataLength)` - Unsupported data length
 ///
-pub fn log_pcr(pcr_entry_id: PcrLogEntryId, pcr_id: PcrId, data: &[u8]) -> CaliptraResult<()> {
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+pub fn log_pcr(
+    pcr_log: &mut PcrLogArray,
+    pcr_bank: &mut PcrBank,
+    pcr_entry_id: PcrLogEntryId,
+    pcr_ids: u32,
+    data: &[u8],
+) -> CaliptraResult<()> {
     if pcr_entry_id == PcrLogEntryId::Invalid {
         return Err(CaliptraError::ROM_GLOBAL_PCR_LOG_INVALID_ENTRY_ID);
     }
 
-    if data.len() > 48 {
-        return Err(CaliptraError::ROM_GLOBAL_PCR_LOG_UNSUPPORTED_DATA_LENGTH);
-    }
+    let Some(dst) = pcr_log.get_mut(pcr_bank.log_index) else {
+        return Err(CaliptraError::ROM_GLOBAL_PCR_LOG_EXHAUSTED);
+    };
 
     // Create a PCR log entry
     let mut pcr_log_entry = PcrLogEntry {
         id: pcr_entry_id as u16,
-        pcr_id: pcr_id as u16,
+        pcr_ids,
         ..Default::default()
     };
-    pcr_log_entry.pcr_data.as_bytes_mut()[..data.len()].copy_from_slice(data);
-
-    let dst: &mut [PcrLogEntry] = unsafe {
-        let ptr = PCR_LOG_ORG as *mut PcrLogEntry;
-        core::slice::from_raw_parts_mut(ptr, PCR_LOG_SIZE / core::mem::size_of::<PcrLogEntry>())
+    let Some(dest_data) = pcr_log_entry.pcr_data.as_bytes_mut().get_mut(..data.len()) else {
+        return Err(CaliptraError::ROM_GLOBAL_PCR_LOG_UNSUPPORTED_DATA_LENGTH);
     };
+    dest_data.copy_from_slice(data);
 
-    // Store the log entry.
-    dst[pcr_entry_id as usize - 1] = pcr_log_entry;
+    pcr_bank.log_index += 1;
+    *dst = pcr_log_entry;
 
     Ok(())
 }

@@ -12,18 +12,16 @@ Abstract:
 
 --*/
 
+use crate::rom_env::RomEnv;
+use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_common::{
     keyids::{KEY_ID_FMC_PRIV_KEY, KEY_ID_ROM_FMC_CDI},
-    memory_layout::{FHT_ORG, FMCALIAS_TBS_ORG, FUSE_LOG_ORG, LDEVID_TBS_ORG, PCR_LOG_ORG},
     DataVaultRegister, FirmwareHandoffTable, HandOffDataHandle, Vault, FHT_INVALID_HANDLE,
     FHT_MARKER,
 };
 use caliptra_drivers::{
-    ColdResetEntry4, ColdResetEntry48, Ecc384PubKey, WarmResetEntry4, WarmResetEntry48,
+    cprintln, ColdResetEntry4, ColdResetEntry48, Ecc384PubKey, WarmResetEntry4, WarmResetEntry48,
 };
-use zerocopy::AsBytes;
-
-use crate::{cprintln, rom_env::RomEnv};
 
 const FHT_MAJOR_VERSION: u16 = 1;
 const FHT_MINOR_VERSION: u16 = 0;
@@ -111,6 +109,14 @@ impl FhtDataStore {
                 | WarmResetEntry4::RtSvn as u32,
         )
     }
+    /// The RT Min SVN is stored in a 32-bit DataVault non-sticky register.
+    pub const fn rt_min_svn_data_store() -> HandOffDataHandle {
+        HandOffDataHandle(
+            ((Vault::DataVault as u32) << 12)
+                | (DataVaultRegister::NonSticky32BitReg as u32) << 8
+                | WarmResetEntry4::RtMinSvn as u32,
+        )
+    }
     /// The RT TCI is stored in a 384-bit DataVault non-sticky register.
     pub const fn rt_tci_data_store() -> HandOffDataHandle {
         HandOffDataHandle(
@@ -128,13 +134,34 @@ impl FhtDataStore {
                 | WarmResetEntry4::RtEntryPoint as u32,
         )
     }
+
+    /// The LDevId certificate signature R value is stored in a 384-bit DataVault
+    /// sticky register.
+    pub const fn ldevid_cert_sig_r_store() -> HandOffDataHandle {
+        HandOffDataHandle(
+            ((Vault::DataVault as u32) << 12)
+                | (DataVaultRegister::Sticky384BitReg as u32) << 8
+                | ColdResetEntry48::LDevDiceSigR as u32,
+        )
+    }
+
+    /// The LDevId certificate signature S value is stored in a 384-bit DataVault
+    /// sticky register.
+    pub const fn ldevid_cert_sig_s_store() -> HandOffDataHandle {
+        HandOffDataHandle(
+            ((Vault::DataVault as u32) << 12)
+                | (DataVaultRegister::Sticky384BitReg as u32) << 8
+                | ColdResetEntry48::LDevDiceSigS as u32,
+        )
+    }
 }
 
 pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
-    let ldevid_tbs_addr: u32 = LDEVID_TBS_ORG;
-    let fmcalias_tbs_addr: u32 = FMCALIAS_TBS_ORG;
-    let pcr_log_addr: u32 = PCR_LOG_ORG;
-    let fuse_log_addr: u32 = FUSE_LOG_ORG;
+    let pdata = &env.persistent_data.get();
+    let ldevid_tbs_addr: u32 = &pdata.ldevid_tbs as *const _ as u32;
+    let fmcalias_tbs_addr: u32 = &pdata.fmcalias_tbs as *const _ as u32;
+    let pcr_log_addr: u32 = &pdata.pcr_log as *const _ as u32;
+    let fuse_log_addr: u32 = &pdata.fuse_log as *const _ as u32;
 
     FirmwareHandoffTable {
         fht_marker: FHT_MARKER,
@@ -155,23 +182,27 @@ pub fn make_fht(env: &RomEnv) -> FirmwareHandoffTable {
         rt_priv_key_kv_hdl: FHT_INVALID_HANDLE,
         rt_tci_dv_hdl: FhtDataStore::rt_tci_data_store(),
         rt_svn_dv_hdl: FhtDataStore::rt_svn_data_store(),
+        rt_min_svn_dv_hdl: FhtDataStore::rt_min_svn_data_store(),
         ldevid_tbs_size: env.fht_data_store.ldevid_tbs_size,
         fmcalias_tbs_size: env.fht_data_store.fmcalias_tbs_size,
         ldevid_tbs_addr,
         fmcalias_tbs_addr,
         pcr_log_addr,
+        // TODO: remove `pcr_bank.log_index` and just increment `fht.pcr_log_index`
+        pcr_log_index: env.pcr_bank.log_index as u32,
         fuse_log_addr,
         idev_dice_pub_key: env.fht_data_store.idev_pub,
+        ldevid_cert_sig_r_dv_hdl: FhtDataStore::ldevid_cert_sig_r_store(),
+        ldevid_cert_sig_s_dv_hdl: FhtDataStore::ldevid_cert_sig_s_store(),
         ..Default::default()
     }
 }
 
-pub fn store(fht: FirmwareHandoffTable) {
-    let slice = unsafe {
-        let ptr = FHT_ORG as *mut u8;
-        cprintln!("[fht] Storing FHT @ 0x{:08X}", ptr as u32);
-        core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
-    };
-    caliptra_common::print_fht(&fht);
-    slice.copy_from_slice(fht.as_bytes());
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+pub fn store(env: &mut RomEnv, fht: FirmwareHandoffTable) {
+    cprintln!(
+        "[fht] Storing FHT @ 0x{:08X}",
+        &env.persistent_data.get().fht as *const _ as usize
+    );
+    env.persistent_data.get_mut().fht = fht;
 }

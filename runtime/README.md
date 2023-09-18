@@ -108,9 +108,40 @@ Table: `CALIPTRA_FW_LOAD` input arguments
 
 | **Name**  | **Type**      | **Description**
 | --------  | --------      | ---------------
+| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
 | data      | u8[...]       | Firmware image to load.
 
-`CALIPTRA_FW_LOAD` returns no output arguments.
+Table: `CALIPTRA_FW_LOAD` output arguments
+
+| **Name**    | **Type** | **Description**
+| --------    | -------- | ---------------
+| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32      | Indicates if the command is FIPS approved or an error
+
+### GET\_IDEV\_CERT
+
+Exposes a command to reconstruct the IDEVID CERT
+
+Command Code: `0x4944_4543` ("IDEC")
+
+Table: `GET_IDEV_CERT` input arguments
+
+| **Name**    | **Type**      | **Description**
+| --------    | --------      | ---------------
+| chksum      | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| signature_r | u8[48]        | R portion of signature of the cert
+| signature_s | u8[48]        | S portion of signature of the cert
+| tbs_size    | u32           | Size of the TBS
+| tbs         | u8[916]       | TBS, with a maximum size of 916. Only bytes up to tbs_size are used.
+
+Table: `GET_IDEV_CERT` output arguments
+
+| **Name**    | **Type**   | **Description**
+| --------    | --------   | ---------------
+| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32        | Indicates if the command is FIPS approved or an error
+| cert_size   | u32        | Length in bytes of the cert field in use for the IDevId certificate
+| cert        | u8[1024]   | DER-encoded IDevID CERT
 
 ### GET\_IDEV\_CSR
 
@@ -119,13 +150,41 @@ GET\_IDEV\_CSR is not exposed by runtime firmware.
 
 Command Code: `0x4944_4556` ("IDEV")
 
-`GET_IDEV_CSR` takes no input arguments.
-
-Table: `GET_IDEV_CSR` output arguments
+Table: `GET_IDEV_CSR` input arguments
 
 | **Name**  | **Type**      | **Description**
 | --------  | --------      | ---------------
-| data      | u8[...]       | DER-encoded IDevID CSR
+| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+
+Table: `GET_IDEV_CSR` output arguments
+
+| **Name**    | **Type**   | **Description**
+| --------    | --------   | ---------------
+| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32        | Indicates if the command is FIPS approved or an error
+| data_size   | u32        | Length in bytes of the valid data in the data field
+| data        | u8[...]    | DER-encoded IDevID CSR
+
+### GET\_IDEV\_INFO
+
+Exposes a command to get a IDEVID public key.
+
+Command Code: `0x4944_4549` ("IDEI")
+
+Table: `GET_IDEV_INFO` input arguments
+
+| **Name**  | **Type**      | **Description**
+| --------  | --------      | ---------------
+| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+
+Table: `GET_IDEV_INFO` output arguments
+
+| **Name**    | **Type**   | **Description**
+| --------    | --------   | ---------------
+| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32        | Indicates if the command is FIPS approved or an error
+| idev_pub_x  | u8[48]     | X portion of ECDSA IDevId key
+| idev_pub_y  | u8[48]     | Y portion of ECDSA IDevId key
 
 ### GET\_LDEV\_CERT
 
@@ -134,13 +193,20 @@ GET\_LDEV\_CERT is not exposed by runtime firmware.
 
 Command Code: `0x4C44_4556` ("LDEV")
 
-`GET_LDEV_CERT` takes no input arguments.
-
-Table: `GET_LDEV_CERT` output arguments
+Table: `GET_LDEV_CERT` input arguments
 
 | **Name**  | **Type**      | **Description**
 | --------  | --------      | ---------------
-| data      | u8[...]       | DER-encoded LDevID Certificate
+| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+
+Table: `GET_LDEV_CERT` output arguments
+
+| **Name**    | **Type**   | **Description**
+| --------    | --------   | ---------------
+| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32        | Indicates if the command is FIPS approved or an error
+| data_size   | u32        | Length in bytes of the valid data in the data field
+| data        | u8[...]    | DER-encoded LDevID Certificate
 
 ### ECDSA384\_SIGNATURE\_VERIFY
 
@@ -159,14 +225,21 @@ Table: `ECDSA384_SIGNATURE_VERIFY` input arguments
 | signature\_r | u8[48]   | R portion of signature to verify
 | signature\_s | u8[48]   | S portion of signature to verify
 
-`ECDSA384_SIGNATURE_VERIFY` returns no output arguments.
+Table: `ECDSA384_SIGNATURE_VERIFY` output arguments
+
+| **Name**    | **Type** | **Description**
+| --------    | -------- | ---------------
+| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32      | Indicates if the command is FIPS approved or an error
 
 ### STASH\_MEASUREMENT
 
 Make a measurement into the DPE default context. This command is intendend for
 callers who update infrequently and cannot tolerate a changing DPE API surface.
 
-Internally, this will call the DPE DeriveChild command.
+* Call the DPE DeriveChild command with the DefaultContext in the locality of
+  the PL0 PAUSER.
+* Extend the measurement into PCR31 (`PCR_ID_STASH_MEASUREMENT`).
 
 Command Code: `0x4D45_4153` ("MEAS")
 
@@ -177,6 +250,8 @@ Table: `STASH_MEASUREMENT` input arguments
 | chksum       | u32      | Checksum over other input arguments, computed by the caller. Little endian.
 | metadata     | u8[4]    | 4-byte measurement identifier.
 | measurement  | u8[48]   | Data to measure into DPE.
+| context      | u8[48]   | Context field for `svn`, e.g. a hash of the public key that authenticated the SVN.
+| svn          | u32      | SVN passed to to DPE to be used in derive child.
 
 
 Table: `STASH_MEASUREMENT` output arguments
@@ -184,6 +259,7 @@ Table: `STASH_MEASUREMENT` output arguments
 | **Name**    | **Type** | **Description**
 | --------    | -------- | ---------------
 | chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32      | Indicates if the command is FIPS approved or an error
 | dpe\_result | u32      | Result code of DPE DeriveChild command. Little endian.
 
 ### DISABLE\_ATTESTATION
@@ -203,12 +279,22 @@ to re-enable attestation.
 
 Command Code: `0x4453_424C` ("DSBL")
 
-`DISABLE_ATTESTATION` takes no input arguments.
+Table: `DISABLE_ATTESTATION` input arguments
 
-`DISABLE_ATTESTATION` returns no output arguments.
+| **Name**  | **Type**      | **Description**
+| --------  | --------      | ---------------
+| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
 
+Table: `DISABLE_ATTESTATION` output arguments
+
+| **Name**    | **Type** | **Description**
+| --------    | -------- | ---------------
+| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32      | Indicates if the command is FIPS approved or an error
 
 ### INVOKE\_DPE\_COMMAND
+
+Invoke a serialized DPE command.
 
 Command Code: `0x4450_4543` ("DPEC")
 
@@ -217,6 +303,7 @@ Table: `INVOKE_DPE_COMMAND` input arguments
 | **Name**     | **Type**      | **Description**
 | --------     | --------      | ---------------
 | chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| data_size    | u32           | Length in bytes of the valid data in the data field
 | data         | u8[...]       | DPE command structure as defined in the DPE iRoT profile
 
 
@@ -225,13 +312,72 @@ Table: `INVOKE_DPE_COMMAND` output arguments
 | **Name**    | **Type**      | **Description**
 | --------    | --------      | ---------------
 | chksum      | u32           | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32           | Indicates if the command is FIPS approved or an error
+| data_size   | u32           | Length in bytes of the valid data in the data field
 | data        | u8[...]       | DPE response structure as defined in the DPE iRoT profile.
+
+### QUOTE\_PCRS
+
+Generate a signed quote over all Caliptra hardware PCRs using the Caliptra PCR quoting key.
+All PCR values are hashed together with the nonce to produce the quote.
+
+Command Code: `0x5043_5251` ("PCRQ")
+
+Table: `QUOTE_PCRS` input arguments
+
+| **Name**     | **Type**      | **Description**
+| --------     | --------      | ---------------
+| chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| nonce        | u8[32]        | Caller-supplied nonce to be included in signed data
+
+Table: `QUOTE_PCRS` output arguments
+
+PcrValue is defined as u8[48]
+
+| **Name**     | **Type**     | **Description**
+| --------     | --------     | ---------------
+| chksum       | u32          | Checksum over other output arguments, computed by Caliptra. Little endian.
+| PCRs         | PcrValue[32] | Values of all PCRs
+| reset\_ctrs  | u32[32]      | Reset counters for all PCRs
+| signature\_r | u8[48]       | R portion of the signature over the PCR quote.
+| signature\_s | u8[48]       | S portion of the signature over the PCR quote.
+
+### EXTEND\_PCR
+
+Extend a Caliptra hardware PCR
+
+Command Code: `0x5043_5245` ("PCRE")
+
+Table: `EXTEND_PCR` input arguments
+
+| **Name**     | **Type**      | **Description**
+| --------     | --------      | ---------------
+| chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| index        | u32           | Index of the PCR to extend
+| value        | u8[..]        | Value to extend into the PCR at `index`
+
+
+`EXTEND_PCR` returns no output arguments.
+
+### INCREMENT\_PCR\_RESET\_COUNTER
+
+Increment the reset counter for a PCR
+
+Command Code: `0x5043_5252` ("PCRR")
+
+Table: `INCREMENT_PCR_RESET_COUNTER` input arguments
+
+| **Name**     | **Type**      | **Description**
+| --------     | --------      | ---------------
+| chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| index        | u32           | Index of the PCR for which to increment the reset counter
+
+`INCREMENT_PCR_RESET_COUNTER` returns no output arguments.
 
 ## Checksum
 
-For every command input/output arguments which have a "chksum" field, the
-request and response feature a checksum. This mitigates glitches between clients
-and Caliptra.
+For every command, the request and response feature a checksum. This mitigates
+glitches between clients and Caliptra.
 
 The Checksum is a little-endian 32-bit value, defined as:
 
@@ -247,6 +393,18 @@ If Caliptra detects an invalid Checksum in input parameters, it will return
 
 Caliptra will also compute a Checksum over all responses and write it to the
 chksum field.
+
+## FIPS Status
+
+For every command, the firmware will respond with FIPS status of FIPS approved. There is
+currently no use-case for any other responses or error values.
+
+Table: FIPS status codes:
+
+| **Name**         | **Value**                   | Description
+| -------          | -----                       | -----------
+| `FIPS_APPROVED`  | `0x0000_0000`               | Status of command is FIPS approved
+| `RESERVED`       | `0x0000_0001 - 0xFFFF_FFFF` | Other values reservered, will not be sent by Caliptra
 
 ## Runtime Firmware Updates
 
@@ -322,6 +480,28 @@ details specific requirements for the Caliptra DPE implementation.
 | Supports Rotate Context    | Yes                            | Whether Caliptra supports the optional RotateContextHandle command.
 | CertifyKey Alias Key       | Caliptra Runtime Alias Key     | The key that will be used to sign certificates produced by the DPE CertifyKey command.
 
+### Supported DPE Commands
+
+Caliptra DPE supports the following commands
+
+* GetProfile
+* InitializeContext
+* DeriveChild
+* CertifyKey
+  * Caliptra DPE supports two formats for CertifyKey: X.509 and PKCS#10 CSR.
+    X.509 is only available to PL0 PAUSERs.
+* Sign
+* RotateContextHandle
+* DestroyContext
+* GetCertificateChain
+
+In addition, Caliptra supports the following profile-defined commands:
+
+* ExtendTci: Extend a TCI measurement made by DeriveChild to provide additional
+             measurement data.
+* TagTci: Associate a TCI node with a unique tag
+* GetTaggedTci: Look up the measurements in a TCI node by tag
+
 ### Initializing DPE
 
 Caliptra Runtime firmware is responsible for initializing DPE’s Default Context.
@@ -334,38 +514,8 @@ Caliptra Runtime firmware is responsible for initializing DPE’s Default Contex
 * Set flag in the TCI Node that this node was created by the DPE implementation.
   This will be used to set the VENDOR\_INFO field in TcbInfo to “VNDR”.
 
-*Note: the Runtime CDI will be read as-needed and will not be accessed during
-initialization.*
-
-### TCI Storage
-
-Caliptra SHALL set `MAX_TCI_NODES` to 24. To support this, Caliptra will
-allocate 24 hardware PCRs to be exclusively used by DPE.
-
-These PCRs will store only the cumulative journey of the PCRs.
-
-#### PCR Properties
-
-* 48 bytes
-* Initial value of all zeros
-* Extend operation: `NEW_VALUE = SHA384_HASH(OLD_VALUE || MEASUREMENT)`
-* Clear operation: Resettable to initial value by Runtime Firmware
-
-#### DPE PCR Usage
-
-DPE will use one hardware PCR to store the TCI value for each TCI Node.
-
-The DPE DeriveChild command will exercise the following PCR operations:
-
-* `Extend(pcr_index, INPUT_DATA)`
-
-The DPE ExtendTci command will exercise the following PCR operations:
-
-* `Extend(pcr_index, INPUT_DATA)`
-
-The DPE DestroyContext command will exercise the following PCR operations:
-
-* `Clear(pcr_index)`
+*Note: the Runtime CDI (from KeyVault) will be used as-needed and will not be
+accessed during initialization.*
 
 ### CDI Derivation
 
@@ -375,86 +525,46 @@ DPE will first collect measurements and concatenate them in a byte buffer
 `MEASUREMENT_DATA`:
 
 * LABEL parameter passed to Sign or CertifyKey.
-* The PCR values for each TCI node in the path from the current TCI node to the
+* The `TCI_NODE_DATA` structures in the path from the current TCI node to the
   root, inclusive, starting with the current node.
 
 To derive a CDI for a given context, DPE shall use KeyVault hardware with the
 following inputs:
 
-If `FIPS_MODE` is disabled for the DPE command OR Sign(SYMMETRIC=true), DPE will
-
 * CDI = Runtime Firmware CDI (from KeyVault)
 * Label = LABEL parameter provided to Sign or CertifyKey
 * Context = `MEASUREMENT_DATA`
 
-If `FIPS_MODE` is enabled for the DPE command AND Sign(SYMMETRIC=false), DPE will
-
-* CDI = Output from TRNG
-* Label = LABEL parameter provided to Sign or CertifyKey
-* Context = `MEASUREMENT_DATA`
-
-In either case, the CDI shall be loaded into KeyVault slot 0.
+The CDI shall be loaded into KeyVault slot 0.
 
 ### Leaf Key Derivation
 
-To derive an asymmetric key for Sign and CertifyKey
-
-If `FIPS_MODE` is disabled for the DPE command OR Sign(SYMMETRIC=true), DPE will
+To derive an asymmetric key for Sign and CertifyKey, RT will
 
 * Derive an ECC P384 keypair from KV slot 0 CDI into KV slot 1
 * For CertifyKey: Request the public key
 * For Sign: Sign passed data
 * Erase KeyVault slots 0 and 1
 
-If `FIPS_MODE` is enabled for the DPE command AND Sign(SYMMETRIC=false), DPE will
-
-* If the key has been derived before and is cached in KeyVault
-  * Use cached key from KeyVault
-* If key is not cached
-  * Derive an ECC P384 keypair from KV slot 0 CDI into the next available Runtime
-    KeyVault Slot
-  * If no slots are available, evict the oldest Runtime slot and use that slot.
-* For CertifyKey: Request the public key
-* For Sign: Sign passed data
-* Erase KeyVault slot 0
-
-### FIPS Mode Caching
-
-Caliptra has 32 KeyVault slots and a max of 24 DPE contexts. To accomodate
-FIPS-mode caching, each DPE context will have a dedicated KeyVault slot
-for caching FIPS-mode keys. This ensures that a cached key can live for
-as long as the context does.
-
-A context's cached FIPS-mode key will be invalidated under the following
-circumstances:
-
-* A new measurement is made (DeriveChild or ExtendTci)
-* The context is destroyed
-* Caliptra Runtime firmware is impactlessly updated to different firmware
-  leading to a change in the Runtime CDI.
-
-This gives FIPS-mode keys the following properties:
-
-* During a a steady-state boot, the FIPS-mode key WILL NOT change
-* During any type of Caliptra reset (including impactless), the FIPS-mode key
-  WILL change
-* If the component weilding the key resets or changes its measurements, its
-  FIPS-mode key WILL change
-
-For cases like signing attestation messages (SPDM, Confidential Compute) these
-properties are acceptable.
-
 ### Internal Representation of TCI Nodes
 
 | Byte Offset | Bits  | Name           | Description
 | ----------- | ----- | ------------   | -------------
-| 0x00        | 15:0  | PCR Index      | Index of the hardware PCR which holds the journey PCR for this TCI node
 | 0x02        | 15:0  | Parent Index   | Index of the TCI node that is the parent of this node. 0xFF if this node is the root.
 | 0x04        | 31:0  | Node Tag       | Tag of this node provided by the TagTci command.
 | 0x08        | 159:0 | Context Handle | DPE context handle referring to this node
 | 0x1C        | 31    | Internal TCI   | This TCI was measured by Runtime Firmware itself
 |             | 30:0  | Reserved       | Reserved flag bits
 | 0x20        | 383:0 | Latest TCI     | The latest `INPUT_DATA` extended into this TCI by ExtendTci or DeriveChild
+
+Table: `TCI_NODE_DATA` for `DPE_PROFILE_IROT_P384_SHA384`
+
+| **Byte Offset** | **Bits** | **Name**         | **Description**
+| -----           | ----     | ---------------- | -----------------------------------------------------
+| 0x00            | 383:0    | `TCI_CURRENT`    | "Current" TCI measurement value
+| 0x30            | 383:0    | `TCI_CUMULATIVE` | TCI measurement value
+| 0x60            | 31:0     | `TYPE`           | `TYPE` parameter to the DeriveChild call which created this node
+| 0x64            | 31:0     | `LOCALITY`       | `TARGET_LOCALITY` parameter to the DeriveChild call which created this node (PAUSER)
 
 ### Certificate Generation
 
@@ -475,8 +585,8 @@ The DPE `GET_CERTIFICATE_CHAIN` command shall return the following certificates:
 | Serial Number                  |             | First 20 bytes of sha256 hash of DPE Alias public key
 | Issuer Name                    | CN          | Caliptra Runtime Alias
 |                                | serialNumber | First 20 bytes of sha384 hash of Runtime Alias public key
-| Validity                       | notBefore   | February 10th, 2023
-|                                | notAfter    | 99991231235959Z
+| Validity                       | notBefore   | notBefore from firmware manifest
+|                                | notAfter    | notAfter from firmware manifest
 | Subject Name                   | CN          | Caliptra DPE Leaf
 |                                | serialNumber | SHA384 hash of Subject public key
 | Subject Public Key Info        | Algorithm   | ecdsa-with-SHA384
@@ -500,15 +610,6 @@ The DPE `GET_CERTIFICATE_CHAIN` command shall return the following certificates:
 current TCI Node to the root. Max of 24.
 
 # Opens
-
-The following items are still under discussion in the Caliptra WG:
-
-* Expiration of DPE leaf certificates. See https://github.com/chipsalliance/caliptra-sw/issues/16
-* Should hardware PCRs be clearable by runtime firmware?
-* Should runtime firmware support a quote API for signing hardware PCRs with a
-  runtime alias key?
-* Should `ECDSA384_SIGNATURE_VERIFY` take an hash from the mailbox or use a
-  hash from the SHA block?
 
 Needs clarification or more details:
 

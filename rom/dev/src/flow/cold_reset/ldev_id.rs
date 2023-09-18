@@ -20,6 +20,8 @@ use crate::cprintln;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
+use caliptra_cfi_derive::cfi_impl_fn;
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::keyids::{KEY_ID_FE, KEY_ID_LDEVID_PRIV_KEY, KEY_ID_ROM_FMC_CDI};
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
@@ -40,6 +42,7 @@ impl LocalDevIdLayer {
     /// # Returns
     ///
     /// * `DiceOutput` - key pair, subject identifier serial number, subject key identifier
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn derive(env: &mut RomEnv, input: &DiceInput) -> CaliptraResult<DiceOutput> {
         cprintln!("[ldev] ++");
         cprintln!("[ldev] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
@@ -92,6 +95,7 @@ impl LocalDevIdLayer {
     /// * `env` - ROM Environment
     /// * `fe`  - Key slot holding the field entropy
     /// * `cdi` - Key Slot to store the generated CDI
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_cdi(env: &mut RomEnv, fe: KeyId, cdi: KeyId) -> CaliptraResult<()> {
         Crypto::hmac384_mac(env, cdi, &b"ldevid_cdi".into(), cdi)?;
         Crypto::hmac384_mac(env, cdi, &KeyReadArgs::new(fe).into(), cdi)?;
@@ -113,14 +117,18 @@ impl LocalDevIdLayer {
     /// # Returns
     ///
     /// * `Ecc384KeyPair` - Derive DICE Layer Key Pair
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_key_pair(
         env: &mut RomEnv,
         cdi: KeyId,
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
         let result = Crypto::ecc384_key_gen(env, cdi, b"ldevid_keygen", priv_key);
-        if result.is_ok() {
+        if cfi_launder(result.is_ok()) {
+            cfi_assert!(result.is_ok());
             report_boot_status(LDevIdKeyPairDerivationComplete.into());
+        } else {
+            cfi_assert!(result.is_err());
         }
         result
     }
@@ -132,6 +140,7 @@ impl LocalDevIdLayer {
     /// * `env`    - ROM Environment
     /// * `input`  - DICE Input
     /// * `output` - DICE Output
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn generate_cert_sig(
         env: &mut RomEnv,
         input: &DiceInput,
@@ -165,7 +174,7 @@ impl LocalDevIdLayer {
             "[ldev] Signing Cert with AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
-        let mut sig = Crypto::ecdsa384_sign(env, auth_priv_key, tbs.tbs());
+        let mut sig = Crypto::ecdsa384_sign(env, auth_priv_key, auth_pub_key, tbs.tbs());
         let sig = okmutref(&mut sig)?;
 
         // Clear the authority private key
@@ -174,9 +183,13 @@ impl LocalDevIdLayer {
         env.key_vault.erase_key(auth_priv_key)?;
 
         // Verify the signature of the `To Be Signed` portion
-        if !Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? {
+        let mut verify_r = Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)?;
+        if cfi_launder(&verify_r) != &sig.r {
             return Err(CaliptraError::ROM_LDEVID_CSR_VERIFICATION_FAILURE);
+        } else {
+            cfi_assert!(cfi_launder(&verify_r) == &sig.r);
         }
+        verify_r.0.fill(0);
 
         let _pub_x: [u8; 48] = (&pub_key.x).into();
         let _pub_y: [u8; 48] = (&pub_key.y).into();

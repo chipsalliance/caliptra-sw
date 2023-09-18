@@ -16,7 +16,7 @@ Abstract:
 
 use core::mem::MaybeUninit;
 
-use crate::{Array4x8, CaliptraResult, Sha256};
+use crate::{sha256::Sha256Alg, Array4x8, CaliptraResult, Sha256, Sha256DigestOp};
 use caliptra_error::CaliptraError;
 use caliptra_lms_types::{
     LmotsAlgorithmType, LmsAlgorithmType, LmsIdentifier, LmsPublicKey, LmsSignature,
@@ -33,6 +33,13 @@ pub struct Lms {}
 
 pub type Sha256Digest = HashValue<8>;
 pub type Sha192Digest = HashValue<6>;
+
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LmsResult {
+    Success = 0xCCCCCCCC,
+    SigVerifyFailed = 0x33333333,
+}
 
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -276,26 +283,26 @@ impl Lms {
 
     pub fn hash_message<const N: usize>(
         &self,
-        sha256_driver: &mut Sha256,
+        sha256_driver: &mut impl Sha256Alg,
         message: &[u8],
         lms_identifier: &LmsIdentifier,
         q: &[u8; 4],
         nonce: &[U32<LittleEndian>; N],
     ) -> CaliptraResult<HashValue<N>> {
         let mut digest = Array4x8::default();
-        let mut hasher = sha256_driver.digest_init(&mut digest)?;
+        let mut hasher = sha256_driver.digest_init()?;
         hasher.update(lms_identifier)?;
         hasher.update(q)?;
         hasher.update(&D_MESG.to_be_bytes())?;
         hasher.update(nonce.as_bytes())?;
         hasher.update(message)?;
-        hasher.finalize()?;
+        hasher.finalize(&mut digest)?;
         Ok(HashValue::from(digest))
     }
 
     pub fn candidate_ots_signature<const N: usize, const P: usize>(
         &self,
-        sha256_driver: &mut Sha256,
+        sha256_driver: &mut impl Sha256Alg,
         lms_identifier: &LmsIdentifier,
         algo_type: LmotsAlgorithmType,
         q: &[u8; 4],
@@ -341,7 +348,7 @@ impl Lms {
             hash_block[20..22].clone_from_slice(&(i as u16).to_be_bytes());
             for j in a..upper {
                 let mut digest = Array4x8::default();
-                let mut hasher = sha256_driver.digest_init(&mut digest)?;
+                let mut hasher = sha256_driver.digest_init()?;
                 hash_block[22] = j;
                 let mut i = 23;
                 for val in tmp.0.iter().take(N) {
@@ -349,13 +356,13 @@ impl Lms {
                     i += 4;
                 }
                 hasher.update(&hash_block[0..23 + N * 4])?;
-                hasher.finalize()?;
+                hasher.finalize(&mut digest)?;
                 tmp = HashValue::<N>::from(digest);
             }
             *val = tmp;
         }
         let mut digest = Array4x8::default();
-        let mut hasher = sha256_driver.digest_init(&mut digest)?;
+        let mut hasher = sha256_driver.digest_init()?;
         hasher.update(lms_identifier)?;
         hasher.update(q)?;
         hasher.update(&D_PBLC.to_be_bytes())?;
@@ -364,19 +371,82 @@ impl Lms {
                 hasher.update(&val.to_be_bytes())?;
             }
         }
-        hasher.finalize()?;
+        hasher.finalize(&mut digest)?;
         let result = HashValue::<N>::from(digest);
         digest.0.fill(0);
         Ok(result)
     }
 
-    pub fn verify_lms_signature<const N: usize, const P: usize, const H: usize>(
+    ///  Note: Use this function only if glitch protection is not needed.
+    ///        If glitch protection is needed, use `verify_lms_signature_cfi` instead.
+    pub fn verify_lms_signature(
         &self,
         sha256_driver: &mut Sha256,
         input_string: &[u8],
+        lms_public_key: &LmsPublicKey<6>,
+        lms_sig: &LmsSignature<6, 51, 15>,
+    ) -> CaliptraResult<LmsResult> {
+        let mut candidate_key =
+            self.verify_lms_signature_cfi(sha256_driver, input_string, lms_public_key, lms_sig)?;
+        let result = if candidate_key != HashValue::from(lms_public_key.digest) {
+            Ok(LmsResult::SigVerifyFailed)
+        } else {
+            Ok(LmsResult::Success)
+        };
+        candidate_key.0.fill(0);
+        result
+    }
+
+    ///  Note: Use this function only if glitch protection is not needed.
+    ///        If glitch protection is needed, use `verify_lms_signature_cfi_generic` instead.
+    pub fn verify_lms_signature_generic<const N: usize, const P: usize, const H: usize>(
+        &self,
+        sha256_driver: &mut impl Sha256Alg,
+        input_string: &[u8],
         lms_public_key: &LmsPublicKey<N>,
         lms_sig: &LmsSignature<N, P, H>,
-    ) -> CaliptraResult<bool> {
+    ) -> CaliptraResult<LmsResult> {
+        let mut candidate_key = self.verify_lms_signature_cfi_generic(
+            sha256_driver,
+            input_string,
+            lms_public_key,
+            lms_sig,
+        )?;
+        let result = if candidate_key != HashValue::from(lms_public_key.digest) {
+            Ok(LmsResult::SigVerifyFailed)
+        } else {
+            Ok(LmsResult::Success)
+        };
+        candidate_key.0.fill(0);
+        result
+    }
+
+    // When callers from separate crates call a function like
+    // verify_lms_signature_cfi_generic(), Rustc 1.70
+    // may build multiple versions (depending on optimizer heuristics), even when all the
+    // generic parameters are identical. This is bad, as it can bloat the binary and the
+    // second copy violates the FIPS requirements that the same machine code be used for the
+    // KAT as the actual implementation. To defend against it, we provide this non-generic
+    // function that production firmware should call instead.
+    #[inline(never)]
+    pub fn verify_lms_signature_cfi(
+        &self,
+        sha256_driver: &mut Sha256,
+        input_string: &[u8],
+        lms_public_key: &LmsPublicKey<6>,
+        lms_sig: &LmsSignature<6, 51, 15>,
+    ) -> CaliptraResult<HashValue<6>> {
+        self.verify_lms_signature_cfi_generic(sha256_driver, input_string, lms_public_key, lms_sig)
+    }
+
+    #[inline(always)]
+    pub fn verify_lms_signature_cfi_generic<const N: usize, const P: usize, const H: usize>(
+        &self,
+        sha256_driver: &mut impl Sha256Alg,
+        input_string: &[u8],
+        lms_public_key: &LmsPublicKey<N>,
+        lms_sig: &LmsSignature<N, P, H>,
+    ) -> CaliptraResult<HashValue<N>> {
         if lms_sig.ots.ots_type != lms_public_key.otstype {
             return Err(CaliptraError::DRIVER_LMS_SIGNATURE_LMOTS_DOESNT_MATCH_PUBKEY_LMOTS);
         }
@@ -413,19 +483,19 @@ impl Lms {
         }
 
         let mut digest = Array4x8::default();
-        let mut hasher = sha256_driver.digest_init(&mut digest)?;
+        let mut hasher = sha256_driver.digest_init()?;
         hasher.update(&lms_public_key.id)?;
         hasher.update(&node_num.to_be_bytes())?;
         hasher.update(&D_LEAF.to_be_bytes())?;
         for val in candidate_key.0.iter() {
             hasher.update(&val.to_be_bytes())?;
         }
-        hasher.finalize()?;
+        hasher.finalize(&mut digest)?;
         let mut temp = HashValue::<N>::from(digest);
         let mut i = 0;
         while node_num > 1 {
             let mut digest = Array4x8::default();
-            let mut hasher = sha256_driver.digest_init(&mut digest)?;
+            let mut hasher = sha256_driver.digest_init()?;
             hasher.update(&lms_public_key.id)?;
             hasher.update(&(node_num / 2).to_be_bytes())?;
             hasher.update(&D_INTR.to_be_bytes())?;
@@ -450,18 +520,13 @@ impl Lms {
                         .as_bytes(),
                 )?;
             }
-            hasher.finalize()?;
+            hasher.finalize(&mut digest)?;
             temp = HashValue::<N>::from(digest);
             node_num /= 2;
             i += 1;
             digest.0.fill(0);
         }
-        let candidate_key = &temp;
-        if *candidate_key != HashValue::from(lms_public_key.digest) {
-            return Ok(false);
-        }
         digest.0.fill(0);
-        temp.0.fill(0);
-        Ok(true)
+        Ok(temp)
     }
 }

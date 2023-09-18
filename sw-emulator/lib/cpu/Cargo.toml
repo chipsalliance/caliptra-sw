@@ -8,7 +8,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bitfield = "0.14.0"
-lazy_static = "1.4.0"
-caliptra-emu-bus = { path = "../bus" }
-caliptra-emu-types = { path = "../types" }
+bitfield.workspace = true
+bit-vec.workspace = true
+caliptra-drivers.workspace = true
+caliptra-emu-bus.workspace = true
+caliptra-emu-types.workspace = true
+lazy_static.workspace = true

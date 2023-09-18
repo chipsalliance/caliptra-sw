@@ -38,3 +38,4 @@ int caliptra_read_u32(uint32_t address, uint32_t *data);
  * Pend the current operation.
  */
 void caliptra_wait(void);
+

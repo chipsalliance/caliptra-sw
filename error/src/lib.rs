@@ -13,19 +13,26 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "std"), no_std)]
 use core::convert::From;
-use core::num::NonZeroU32;
+use core::num::{NonZeroU32, TryFromIntError};
 
 /// Caliptra Error Type
 /// Derives debug, copy, clone, eq, and partial eq
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct CaliptraError(pub NonZeroU32);
 impl CaliptraError {
+    /// Create a caliptra error; intended to only be used from const contexts, as we don't want
+    /// runtime panics if val is zero. The preferred way to get a CaliptraError from a u32 is to
+    /// use `CaliptraError::try_from()` from the `TryFrom` trait impl.
     const fn new_const(val: u32) -> Self {
         match NonZeroU32::new(val) {
             Some(val) => Self(val),
             None => panic!("CaliptraError cannot be 0"),
         }
     }
+
+    pub const DRIVER_BAD_DATASTORE_VAULT_TYPE: CaliptraError = CaliptraError::new_const(0x00010001);
+    pub const DRIVER_BAD_DATASTORE_REG_TYPE: CaliptraError = CaliptraError::new_const(0x00010002);
+
     pub const DRIVER_SHA256_INVALID_STATE: CaliptraError = CaliptraError::new_const(0x00020001);
     pub const DRIVER_SHA256_MAX_DATA: CaliptraError = CaliptraError::new_const(0x00020002);
     pub const DRIVER_SHA256_INVALID_SLICE: CaliptraError = CaliptraError::new_const(0x00020003);
@@ -95,6 +102,12 @@ impl CaliptraError {
         CaliptraError::new_const(0x0005000b);
     pub const DRIVER_ECC384_READ_DATA_KV_UNKNOWN: CaliptraError =
         CaliptraError::new_const(0x0005000c);
+    pub const DRIVER_ECC384_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x0005000d);
+    pub const DRIVER_ECC384_SIGN_VALIDATION_FAILED: CaliptraError =
+        CaliptraError::new_const(0x0005000e);
+    pub const DRIVER_ECC384_SCALAR_RANGE_CHECK_FAILED: CaliptraError =
+        CaliptraError::new_const(0x0005000f);
 
     pub const DRIVER_KV_ERASE_USE_LOCK_SET_FAILURE: CaliptraError =
         CaliptraError::new_const(0x00060001);
@@ -167,7 +180,7 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0017);
     pub const IMAGE_VERIFIER_ERR_FMC_RUNTIME_INCORRECT_ORDER: CaliptraError =
         CaliptraError::new_const(0x000b0018);
-    pub const IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_INVALID_ARG: CaliptraError =
+    pub const IMAGE_VERIFIER_ERR_OWNER_ECC_PUB_KEY_INVALID_ARG: CaliptraError =
         CaliptraError::new_const(0x000b0019);
     pub const IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID_ARG: CaliptraError =
         CaliptraError::new_const(0x000b001a);
@@ -177,7 +190,7 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b001c);
     pub const IMAGE_VERIFIER_ERR_UPDATE_RESET_OWNER_DIGEST_FAILURE: CaliptraError =
         CaliptraError::new_const(0x000b001d);
-    pub const IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_PUB_KEY_IDX_MISMATCH: CaliptraError =
+    pub const IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_ECC_PUB_KEY_IDX_MISMATCH: CaliptraError =
         CaliptraError::new_const(0x000b001e);
     pub const IMAGE_VERIFIER_ERR_UPDATE_RESET_FMC_DIGEST_MISMATCH: CaliptraError =
         CaliptraError::new_const(0x000b001f);
@@ -215,21 +228,25 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0030);
     pub const IMAGE_VERIFIER_ERR_VENDOR_LMS_VERIFY_FAILURE: CaliptraError =
         CaliptraError::new_const(0x000b0031);
-    pub const IMAGE_VERIFIER_ERR_VENDOR_LMS_PUBKEY_INDEX_OUT_OF_BOUNDS: CaliptraError =
+    pub const IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_INDEX_OUT_OF_BOUNDS: CaliptraError =
         CaliptraError::new_const(0x000b0032);
     pub const IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID: CaliptraError =
         CaliptraError::new_const(0x000b0033);
     pub const IMAGE_VERIFIER_ERR_FMC_RUNTIME_LOAD_ADDR_OVERLAP: CaliptraError =
         CaliptraError::new_const(0x000b0034);
-    pub const IMAGE_VERIFIER_ERR_OWNER_LMS_PUB_KEY_INDEX_MISMATCH: CaliptraError =
-        CaliptraError::new_const(0x000b0035);
     pub const IMAGE_VERIFIER_ERR_OWNER_LMS_VERIFY_FAILURE: CaliptraError =
         CaliptraError::new_const(0x000b0036);
-    pub const IMAGE_VERIFIER_ERR_OWNER_LMS_PUBKEY_INDEX_OUT_OF_BOUNDS: CaliptraError =
-        CaliptraError::new_const(0x000b0037);
     pub const IMAGE_VERIFIER_ERR_OWNER_LMS_SIGNATURE_INVALID: CaliptraError =
         CaliptraError::new_const(0x000b0038);
     pub const RUNTIME_HANDOFF_FHT_NOT_LOADED: CaliptraError = CaliptraError::new_const(0x000b0039);
+    pub const IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_REVOKED: CaliptraError =
+        CaliptraError::new_const(0x000b0003a);
+    pub const IMAGE_VERIFIER_ERR_FMC_SIZE_ZERO: CaliptraError =
+        CaliptraError::new_const(0x000b003b);
+    pub const IMAGE_VERIFIER_ERR_RUNTIME_SIZE_ZERO: CaliptraError =
+        CaliptraError::new_const(0x000b003c);
+    pub const IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_LMS_PUB_KEY_IDX_MISMATCH: CaliptraError =
+        CaliptraError::new_const(0x000b003d);
 
     /// Driver Error: LMS
     pub const DRIVER_LMS_INVALID_LMS_ALGO_TYPE: CaliptraError =
@@ -266,6 +283,23 @@ impl CaliptraError {
     pub const DRIVER_CSRNG_RESEED: CaliptraError = CaliptraError::new_const(0x000d0003);
     pub const DRIVER_CSRNG_GENERATE: CaliptraError = CaliptraError::new_const(0x000d0004);
     pub const DRIVER_CSRNG_UPDATE: CaliptraError = CaliptraError::new_const(0x000d0005);
+    pub const DRIVER_CSRNG_OTHER_HEALTH_CHECK_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000d0006);
+    pub const DRIVER_CSRNG_REPCNT_HEALTH_CHECK_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000d0007);
+    pub const DRIVER_CSRNG_ADAPTP_HEALTH_CHECK_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000d0008);
+
+    pub const DRIVER_HANDOFF_INVALID_VAULT: CaliptraError = CaliptraError::new_const(0x000D100);
+    pub const DRIVER_HANDOFF_INVALID_KEY_ID: CaliptraError = CaliptraError::new_const(0x000D101);
+    pub const DRIVER_HANDOFF_INVALID_COLD_RESET_ENTRY4: CaliptraError =
+        CaliptraError::new_const(0x000D102);
+    pub const DRIVER_HANDOFF_INVALID_COLD_RESET_ENTRY48: CaliptraError =
+        CaliptraError::new_const(0x000D103);
+    pub const DRIVER_HANDOFF_INVALID_WARM_RESET_ENTRY4: CaliptraError =
+        CaliptraError::new_const(0x000D104);
+    pub const DRIVER_HANDOFF_INVALID_WARM_RESET_ENTRY48: CaliptraError =
+        CaliptraError::new_const(0x000D104);
 
     /// Runtime Errors
     pub const RUNTIME_INTERNAL: CaliptraError = CaliptraError::new_const(0x000E0001);
@@ -276,6 +310,26 @@ impl CaliptraError {
     pub const RUNTIME_FIPS_UNIMPLEMENTED: CaliptraError = CaliptraError::new_const(0x000E0006);
     pub const RUNTIME_UNEXPECTED_UPDATE_RETURN: CaliptraError =
         CaliptraError::new_const(0x000E0007);
+    pub const RUNTIME_SHUTDOWN: CaliptraError = CaliptraError::new_const(0x000E0008);
+    pub const RUNTIME_NO_MANIFEST: CaliptraError = CaliptraError::new_const(0x000E0009);
+    pub const RUNTIME_MAILBOX_INVALID_PARAMS: CaliptraError = CaliptraError::new_const(0x000E000A);
+    pub const RUNTIME_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000E000B);
+    pub const RUNTIME_GLOBAL_EXCEPTION: CaliptraError = CaliptraError::new_const(0x000E000C);
+    pub const RUNTIME_GLOBAL_PANIC: CaliptraError = CaliptraError::new_const(0x000E000D);
+    pub const RUNTIME_HMAC_VERIFY_FAILED: CaliptraError = CaliptraError::new_const(0x000E000E);
+    pub const RUNTIME_INVOKE_DPE_FAILED: CaliptraError = CaliptraError::new_const(0x000E000F);
+    pub const RUNTIME_INITIALIZE_DPE_FAILED: CaliptraError = CaliptraError::new_const(0x000E0010);
+    pub const RUNTIME_DISABLE_ATTESTATION_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E0011);
+    pub const RUNTIME_HANDOFF_INVALID_PARM: CaliptraError = CaliptraError::new_const(0x000E0012);
+    pub const RUNTIME_GET_DEVID_CERT_FAILED: CaliptraError = CaliptraError::new_const(0x000E0013);
+    pub const RUNTIME_CERT_CHAIN_CREATION_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E0014);
+    pub const RUNTIME_SELF_TEST_IN_PROGRESS: CaliptraError = CaliptraError::new_const(0x000E0015);
+    pub const RUNTIME_SELF_TEST_NOT_STARTED: CaliptraError = CaliptraError::new_const(0x000E0016);
+    pub const RUNTIME_INVALID_FMC_SIZE: CaliptraError = CaliptraError::new_const(0x000E0017);
+    pub const RUNTIME_INVALID_RUNTIME_SIZE: CaliptraError = CaliptraError::new_const(0x000E0018);
+    pub const RUNTIME_FMC_CERT_HANDOFF_FAILED: CaliptraError = CaliptraError::new_const(0x000E0019);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
@@ -287,6 +341,7 @@ impl CaliptraError {
     pub const FMC_RT_ALIAS_TBS_SIZE_EXCEEDED: CaliptraError = CaliptraError::new_const(0x000F0007);
     pub const FMC_CDI_KV_COLLISION: CaliptraError = CaliptraError::new_const(0x000F0008);
     pub const FMC_ALIAS_KV_COLLISION: CaliptraError = CaliptraError::new_const(0x000F0009);
+    pub const FMC_GLOBAL_PCR_LOG_EXHAUSTED: CaliptraError = CaliptraError::new_const(0x000F000A);
 
     /// TRNG_EXT Errors
     pub const DRIVER_TRNG_EXT_TIMEOUT: CaliptraError = CaliptraError::new_const(0x00100001);
@@ -294,6 +349,10 @@ impl CaliptraError {
     /// SOC_IFC driver Errors
     pub const DRIVER_SOC_IFC_INVALID_TIMER_CONFIG: CaliptraError =
         CaliptraError::new_const(0x00100001);
+
+    /// Bounded address Errors
+    pub const ADDRESS_MISALIGNED: CaliptraError = CaliptraError::new_const(0x00110000);
+    pub const ADDRESS_NOT_IN_ROM: CaliptraError = CaliptraError::new_const(0x00110001);
 
     /// Initial Device ID Errors
     pub const ROM_IDEVID_CSR_BUILDER_INIT_FAILURE: CaliptraError =
@@ -314,6 +373,9 @@ impl CaliptraError {
     pub const FW_PROC_INVALID_IMAGE_SIZE: CaliptraError = CaliptraError::new_const(0x01020002);
     pub const FW_PROC_MAILBOX_STATE_INCONSISTENT: CaliptraError =
         CaliptraError::new_const(0x01020003);
+    pub const FW_PROC_MAILBOX_INVALID_COMMAND: CaliptraError = CaliptraError::new_const(0x01020004);
+    pub const FW_PROC_STASH_MEASUREMENT_READ_FAILURE: CaliptraError =
+        CaliptraError::new_const(0x01020005);
 
     /// FMC Alias Layer : Certificate Verification Failure.
     pub const FMC_ALIAS_CERT_VERIFY: CaliptraError = CaliptraError::new_const(0x01030001);
@@ -328,13 +390,26 @@ impl CaliptraError {
     pub const ROM_UPDATE_RESET_READ_FHT_FAILURE: CaliptraError =
         CaliptraError::new_const(0x01040005);
 
+    // Warm Reset Errors
+    pub const ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_COLD_RESET: CaliptraError =
+        CaliptraError::new_const(0x01040010);
+
     /// Unknown Reset Error
     pub const ROM_UNKNOWN_RESET_FLOW: CaliptraError = CaliptraError::new_const(0x01040020);
 
-    /// Warm Reset Errors
-    pub const ROM_WARM_RESET_FLOW_MANIFEST_READ_FAILURE: CaliptraError =
-        CaliptraError::new_const(0x01040030);
-    pub const ROM_WARM_RESET_READ_FHT_FAILURE: CaliptraError = CaliptraError::new_const(0x01040031);
+    /// ROM CFI Errors
+    pub const ROM_CFI_PANIC_UNKNOWN: CaliptraError = CaliptraError::new_const(0x1040050);
+    pub const ROM_CFI_PANIC_COUNTER_CORRUPT: CaliptraError = CaliptraError::new_const(0x1040051);
+    pub const ROM_CFI_PANIC_COUNTER_OVERFLOW: CaliptraError = CaliptraError::new_const(0x1040052);
+    pub const ROM_CFI_PANIC_COUNTER_UNDERFLOW: CaliptraError = CaliptraError::new_const(0x1040053);
+    pub const ROM_CFI_PANIC_COUNTER_MISMATCH: CaliptraError = CaliptraError::new_const(0x1040054);
+    pub const ROM_CFI_PANIC_ASSERT_EQ_FAILURE: CaliptraError = CaliptraError::new_const(0x1040055);
+    pub const ROM_CFI_PANIC_ASSERT_NE_FAILURE: CaliptraError = CaliptraError::new_const(0x1040056);
+    pub const ROM_CFI_PANIC_ASSERT_GT_FAILURE: CaliptraError = CaliptraError::new_const(0x1040057);
+    pub const ROM_CFI_PANIC_ASSERT_LT_FAILURE: CaliptraError = CaliptraError::new_const(0x1040058);
+    pub const ROM_CFI_PANIC_ASSERT_GE_FAILURE: CaliptraError = CaliptraError::new_const(0x1040059);
+    pub const ROM_CFI_PANIC_ASSERT_LE_FAILURE: CaliptraError = CaliptraError::new_const(0x104005A);
+    pub const ROM_CFI_PANIC_TRNG_FAILURE: CaliptraError = CaliptraError::new_const(0x104005B);
 
     /// ROM Global Errors
     pub const ROM_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x01050001);
@@ -344,16 +419,25 @@ impl CaliptraError {
         CaliptraError::new_const(0x01050004);
     pub const ROM_GLOBAL_PCR_LOG_UNSUPPORTED_DATA_LENGTH: CaliptraError =
         CaliptraError::new_const(0x01050005);
+    pub const ROM_GLOBAL_PCR_LOG_EXHAUSTED: CaliptraError = CaliptraError::new_const(0x01050006);
 
     pub const ROM_GLOBAL_FUSE_LOG_INVALID_ENTRY_ID: CaliptraError =
-        CaliptraError::new_const(0x01050006);
-    pub const ROM_GLOBAL_FUSE_LOG_UNSUPPORTED_DATA_LENGTH: CaliptraError =
         CaliptraError::new_const(0x01050007);
+    pub const ROM_GLOBAL_FUSE_LOG_UNSUPPORTED_DATA_LENGTH: CaliptraError =
+        CaliptraError::new_const(0x01050008);
 
     pub const ROM_GLOBAL_UNSUPPORTED_LDEVID_TBS_SIZE: CaliptraError =
-        CaliptraError::new_const(0x01050008);
-    pub const ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE: CaliptraError =
         CaliptraError::new_const(0x01050009);
+    pub const ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE: CaliptraError =
+        CaliptraError::new_const(0x0105000A);
+
+    pub const ROM_GLOBAL_FAKE_ROM_IN_PRODUCTION: CaliptraError =
+        CaliptraError::new_const(0x0105000B);
+
+    pub const ROM_GLOBAL_WDT_EXPIRED: CaliptraError = CaliptraError::new_const(0x0105000C);
+
+    pub const ROM_GLOBAL_MEASUREMENT_LOG_EXHAUSTED: CaliptraError =
+        CaliptraError::new_const(0x010000D);
 
     /// ROM KAT Errors
     pub const ROM_KAT_SHA256_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90010001);
@@ -384,6 +468,8 @@ impl CaliptraError {
 
     pub const ROM_KAT_LMS_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90070001);
     pub const ROM_KAT_LMS_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90070002);
+
+    pub const ROM_INTEGRITY_FAILURE: CaliptraError = CaliptraError::new_const(0x90080001);
 }
 
 impl From<core::num::NonZeroU32> for crate::CaliptraError {
@@ -391,15 +477,41 @@ impl From<core::num::NonZeroU32> for crate::CaliptraError {
         crate::CaliptraError(val)
     }
 }
+
 impl From<CaliptraError> for core::num::NonZeroU32 {
     fn from(val: CaliptraError) -> Self {
         val.0
     }
 }
+
 impl From<CaliptraError> for u32 {
     fn from(val: CaliptraError) -> Self {
         core::num::NonZeroU32::from(val).get()
     }
 }
 
+impl TryFrom<u32> for CaliptraError {
+    type Error = TryFromIntError;
+    fn try_from(val: u32) -> Result<Self, TryFromIntError> {
+        match NonZeroU32::try_from(val) {
+            Ok(val) => Ok(CaliptraError(val)),
+            Err(err) => Err(err),
+        }
+    }
+}
+
 pub type CaliptraResult<T> = Result<T, CaliptraError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_try_from() {
+        assert!(CaliptraError::try_from(0).is_err());
+        assert_eq!(
+            Ok(CaliptraError::DRIVER_SHA256_INVALID_STATE),
+            CaliptraError::try_from(0x00020001)
+        );
+    }
+}

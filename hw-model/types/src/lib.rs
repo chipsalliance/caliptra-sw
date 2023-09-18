@@ -155,6 +155,7 @@ impl TryFrom<u32> for U4 {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Fuses {
     pub uds_seed: [u32; 12],
     pub field_entropy: [u32; 8],
@@ -167,6 +168,8 @@ pub struct Fuses {
     pub idevid_cert_attr: [u32; 24],
     pub idevid_manuf_hsm_id: [u32; 4],
     pub life_cycle: DeviceLifecycle,
+    pub lms_verify: bool,
+    pub fuse_lms_revocation: u32,
 }
 impl Default for Fuses {
     fn default() -> Self {
@@ -182,7 +185,25 @@ impl Default for Fuses {
             idevid_cert_attr: Default::default(),
             idevid_manuf_hsm_id: Default::default(),
             life_cycle: Default::default(),
+            lms_verify: Default::default(),
+            fuse_lms_revocation: Default::default(),
         }
+    }
+}
+
+pub struct RandomNibbles<R: RngCore>(pub R);
+
+impl RandomNibbles<ThreadRng> {
+    pub fn new_from_thread_rng() -> Self {
+        Self(rand::thread_rng())
+    }
+}
+
+impl<R: RngCore> Iterator for RandomNibbles<R> {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        Some((self.0.next_u32() & 0xf) as u8)
     }
 }
 

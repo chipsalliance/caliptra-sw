@@ -1,0 +1,26 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "caliptra-cfi-lib"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+doctest = false
+
+[dependencies]
+caliptra_common = { workspace = true, default-features = false }
+caliptra-drivers.workspace = true
+caliptra-registers.workspace = true
+ufmt.workspace = true
+
+[dev-dependencies]
+caliptra-cfi-derive.workspace = true
+serial_test.workspace = true
+
+[features]
+default = ["cfi", "cfi-counter", "cfi-test"]
+cfi = []
+cfi-counter = []
+cfi-test = []
+

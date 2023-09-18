@@ -6,39 +6,44 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-caliptra-cpu = { version = "0.1.0", path = "../cpu" }
-caliptra-drivers = { path = "../drivers" }
-caliptra-registers = { path = "../registers" }
-caliptra_common = { path = "../common", default-features = false }
-caliptra-x509 = { path = "../x509", default-features = false }
-ufmt = "0.2.0"
-zerocopy = "0.6.1"
+caliptra_common = { workspace = true, default-features = false }
+caliptra-cpu.workspace = true
+caliptra-drivers = { workspace = true, features = ["runtime"] }
+caliptra-error = { workspace = true, default-features = false }
+caliptra-image-types = { workspace = true, default-features = false }
+caliptra-kat.workspace = true
+caliptra-registers.workspace = true
+caliptra-x509 = { workspace = true, default-features = false }
+dpe.workspace = true
+crypto.workspace = true
+platform.workspace = true
+ufmt.workspace = true
+zerocopy.workspace = true
+arrayvec.workspace = true
+caliptra-image-verify.workspace = true
 
 [build-dependencies]
-cfg-if = "1.0.0"
-caliptra_common = { path = "../common", default-features = false }
-caliptra-gen-linker-scripts = { version = "0.1.0", path = "../cpu/gen" }
+caliptra_common = { workspace = true, default-features = false }
+caliptra-gen-linker-scripts.workspace = true
+cfg-if.workspace = true
 
 [dev-dependencies]
-caliptra-hw-model = { path = "../hw-model" }
-caliptra-builder = { path = "../builder" }
-caliptra-image-elf = { path = "../image/elf" }
-caliptra-image-fake-keys = { path = "../image/fake-keys" }
-caliptra-image-gen = { path = "../image/gen" }
-caliptra-image-openssl = { path = "../image/openssl" }
-caliptra-image-serde = { path = "../image/serde" }
-caliptra-image-types = { path = "../image/types" }
-openssl = { version = "0.10", features = ["vendored"] }
+caliptra-builder.workspace = true
+caliptra-hw-model.workspace = true
+caliptra-image-elf.workspace = true
+caliptra-image-fake-keys.workspace = true
+caliptra-image-gen.workspace = true
+caliptra-image-openssl.workspace = true
+caliptra-image-serde.workspace = true
+openssl.workspace = true
+wycheproof.workspace = true
 
 [features]
-riscv = ["caliptra-cpu/riscv"]
 default = ["std", "test_only_commands"]
-emu = [
-    "caliptra_common/emu",
-    "caliptra-drivers/emu"
-]
-fpga_realtime = ["caliptra-drivers/fpga_realtime"]
+emu = ["caliptra_common/emu", "caliptra-drivers/emu"]
+itrng = ["caliptra-hw-model/itrng"]
+riscv = ["caliptra-cpu/riscv"]
 std = ["ufmt/std", "caliptra_common/std"]
 test_only_commands = []
-itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
+fips_self_test=[]

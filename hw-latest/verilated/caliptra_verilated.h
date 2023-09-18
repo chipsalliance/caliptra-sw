@@ -41,8 +41,7 @@ struct caliptra_verilated_sig_out {
   bool pslverr;
   uint32_t prdata;
 
-  bool generic_load_en;
-  uint32_t generic_load_data;
+  uint64_t generic_output_wires;
 
   bool etrng_req;
 

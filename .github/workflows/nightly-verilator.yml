@@ -3,20 +3,19 @@ on:
   workflow_call:
   workflow_dispatch:
   schedule:
-    # 2:11 AM PST tuesday-saturday
-    - cron: '11 10 * * 2-6'
+    # cron format "minutes hours day-of-month month day-of-week"
+    # 5:30 PM Pacific monday-friday
+    - cron: '30 0 * * 2-6'
 
 jobs:
   smoke_test:
     name: Smoke Test
-    runs-on: ubuntu-22.04
-    timeout-minutes: 360
+    runs-on: e2-highcpu-32
+    timeout-minutes: 2000
 
     env:
       VERILATOR_VERSION: v5.006
       PKG_CONFIG_PATH: /opt/verilator/share/pkgconfig
-        # Change this to a new random value if you suspect the cache is corrupted
-      CACHE_BUSTER: 29334de42083
 
     steps:
       - name: Checkout repo
@@ -24,37 +23,29 @@ jobs:
         with:
           submodules: 'true'
 
-      - name: Restore verilator dir
-        uses: actions/cache/restore@v3
-        id: verilator_restore
-        with:
-          path: /opt/verilator
-          key: verilator-${{ env.VERILATOR_VERSION }}-${{ env.CACHE_BUSTER }}
-
       - name: Install verilator
-        if: steps.verilator_restore.outputs.cache-hit != 'true'
         run: |
+          if [ -d "/opt/verilator" ]; then
+            # The GCP runners already have verilator installed
+            exit
+          fi
           sudo apt-get install flex bison libfl2 libfl-dev help2man
           cd /tmp/
           git clone -b "${VERILATOR_VERSION}" https://github.com/verilator/verilator
           cd verilator
           autoconf
           ./configure --prefix=/opt/verilator
-          make -j6
+          make -j32
           sudo make install
 
-      - name: Save verilator dir
-        uses: actions/cache/save@v3
-        if: steps.verilator_restore.outputs.cache-hit != 'true'
-        with:
-          path: /opt/verilator
-          key: verilator-${{ env.VERILATOR_VERSION }}-${{ env.CACHE_BUSTER }}
+      - name: Install nextest
+        run: |
+          cargo install cargo-nextest --locked
 
       - name: Setup verilator path
         run: |
           echo /opt/verilator/bin >> $GITHUB_PATH
 
-      - name: Run smoke test inside verilator (will take hours)
+      - name: Run all tests inside verilator (will take hours)
         run: |
-          export CALIPTRA_VERILATOR_JOBS=2
-          cargo test -j 1 -p caliptra-test smoke_test --features=verilator --release  -- --nocapture
+          cargo nextest run --no-fail-fast --features=verilator,itrng --release

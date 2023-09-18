@@ -7,14 +7,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-caliptra-drivers = { path = "..", features=["emu"] }
-caliptra-error = { path = "../../error", default_features = false }
-caliptra-registers = { path = "../../registers" }
-caliptra-kat = { path = "../../kat" }
-caliptra-lms-types = { path = "../../lms-types" }
-caliptra-test-harness = { path = "../../test-harness" }
-cfg-if = "1.0.0"
-zerocopy = "0.6.1"
+caliptra-drivers = { workspace = true, features=["emu"] }
+caliptra-error = { workspace = true, default-features = false }
+caliptra-kat = { workspace = true }
+caliptra-lms-types = { workspace = true }
+caliptra-registers = { workspace = true }
+caliptra-test-harness = { workspace = true }
+cfg-if.workspace = true
+zerocopy.workspace = true
 
 [features]
 emu = ["caliptra-test-harness/emu"]
@@ -82,6 +82,11 @@ path = "src/bin/pcrbank_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "persistent"
+path = "src/bin/persistent_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
 name = "sha384acc"
 path = "src/bin/sha384acc_tests.rs"
 required-features = ["riscv"]
@@ -107,6 +112,11 @@ path = "src/bin/test_failure.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "test_uart"
+path = "src/bin/test_uart.rs"
+required-features = ["riscv"]
+
+[[bin]]
 name = "test_lms_24"
 path = "src/bin/lms_24_tests.rs"
 required-features = ["riscv"]
@@ -124,6 +134,26 @@ required-features = ["riscv"]
 [[bin]]
 name = "csrng"
 path = "src/bin/csrng_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "csrng2"
+path = "src/bin/csrng_tests2.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "csrng_fail_repcnt_tests"
+path = "src/bin/csrng_fail_repcnt_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "csrng_pass_health_tests"
+path = "src/bin/csrng_pass_health_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "csrng_fail_adaptp_tests"
+path = "src/bin/csrng_fail_adaptp_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]

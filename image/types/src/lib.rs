@@ -8,7 +8,7 @@ File Name:
 
 Abstract:
 
-    File contains data strucutres for the firmware image bundle.
+    File contains data structures for the firmware image bundle.
 
 --*/
 
@@ -25,8 +25,7 @@ use zerocopy::{AsBytes, FromBytes};
 
 pub const MANIFEST_MARKER: u32 = 0x4E414D43;
 pub const VENDOR_ECC_KEY_COUNT: u32 = 4;
-pub const VENDOR_LMS_KEY_COUNT: u32 = 4;
-pub const OWNER_LMS_KEY_COUNT: u32 = 1;
+pub const VENDOR_LMS_KEY_COUNT: u32 = 32;
 pub const MAX_TOC_ENTRY_COUNT: u32 = 2;
 pub const IMAGE_REVISION_BYTE_SIZE: usize = 20;
 pub const ECC384_SCALAR_WORD_SIZE: usize = 12;
@@ -51,6 +50,7 @@ pub type ImageEccPrivKey = ImageScalar;
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageEccPubKey {
     /// X Coordinate
     pub x: ImageScalar,
@@ -64,6 +64,7 @@ pub type ImageLmsPrivKey = LmsPrivateKey<SHA192_DIGEST_WORD_SIZE>;
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageEccSignature {
     /// Random point
     pub r: ImageScalar,
@@ -128,7 +129,8 @@ impl ImageBundle {
 
 /// Calipatra Image Manifest
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Debug)]
+#[derive(AsBytes, FromBytes, Clone, Copy, Debug)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageManifest {
     /// Marker
     pub marker: u32,
@@ -212,6 +214,7 @@ impl ImageManifest {
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageVendorPubKeys {
     pub ecc_pub_keys: [ImageEccPubKey; VENDOR_ECC_KEY_COUNT as usize],
     pub lms_pub_keys: [ImageLmsPublicKey; VENDOR_LMS_KEY_COUNT as usize],
@@ -226,20 +229,22 @@ pub struct ImageVendorPrivKeys {
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageOwnerPubKeys {
     pub ecc_pub_key: ImageEccPubKey,
-    pub lms_pub_keys: [ImageLmsPublicKey; OWNER_LMS_KEY_COUNT as usize],
+    pub lms_pub_key: ImageLmsPublicKey,
 }
 
 #[repr(C)]
 #[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
 pub struct ImageOwnerPrivKeys {
     pub ecc_priv_key: ImageEccPrivKey,
-    pub lms_priv_keys: [ImageLmsPrivKey; OWNER_LMS_KEY_COUNT as usize],
+    pub lms_priv_key: ImageLmsPrivKey,
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageSignatures {
     pub ecc_sig: ImageEccSignature,
     pub lms_sig: ImageLmsSignature,
@@ -247,7 +252,8 @@ pub struct ImageSignatures {
 
 /// Calipatra Image Bundle Preamble
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImagePreamble {
     /// Vendor  Public Keys
     pub vendor_pub_keys: ImageVendorPubKeys,
@@ -264,9 +270,6 @@ pub struct ImagePreamble {
     /// Owner Public Key
     pub owner_pub_keys: ImageOwnerPubKeys,
 
-    /// Owner LMS Public Key Index
-    pub owner_lms_pub_key_idx: u32,
-
     /// Owner Signatures
     pub owner_sigs: ImageSignatures,
 
@@ -274,32 +277,35 @@ pub struct ImagePreamble {
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct VendorSignedData {
-    /// Vendor Start Date [ASN1 Time Format] For LDEV-Id certificate.
+    /// Vendor Start Date [ASN1 Time Format] For FMC alias certificate.
     pub vendor_not_before: [u8; 15],
 
-    /// Vendor End Date [ASN1 Time Format] For LDEV-Id certificate.
+    /// Vendor End Date [ASN1 Time Format] For FMC alias certificate.
     pub vendor_not_after: [u8; 15],
 
-    reserved: [u8; 2],
+    reserved: [u8; 10],
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct OwnerSignedData {
-    /// Owner Start Date [ASN1 Time Format] For LDEV-Id certificate: Takes Preference over vendor start date
+    /// Owner Start Date [ASN1 Time Format] For FMC alias certificate: Takes Preference over vendor start date
     pub owner_not_before: [u8; 15],
 
-    /// Owner End Date [ASN1 Time Format] For LDEV-Id certificate: Takes Preference over vendor end date
+    /// Owner End Date [ASN1 Time Format] For FMC alias certificate: Takes Preference over vendor end date
     pub owner_not_after: [u8; 15],
 
-    reserved: [u8; 2],
+    reserved: [u8; 10],
 }
 
 /// Caliptra Image header
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageHeader {
     /// Revision
     pub revision: [u32; 2],
@@ -310,14 +316,16 @@ pub struct ImageHeader {
     /// Vendor LMS Public Key Index
     pub vendor_lms_pub_key_idx: u32,
 
-    /// Owner LMS Public Key Index
-    pub owner_lms_pub_key_idx: u32,
-
     /// Flags
+    /// Bit 0: Interpret the pl0_pauser field. If not set, all PAUSERs are PL1.
     pub flags: u32,
 
     /// TOC Entry Count
     pub toc_len: u32,
+
+    /// The PAUSER with PL0 privileges. The SoC integration must choose
+    /// only one PAUSER to be PL0.
+    pub pl0_pauser: u32,
 
     /// TOC Digest
     pub toc_digest: ImageDigest,
@@ -360,7 +368,8 @@ impl From<ImageTocEntryId> for u32 {
 
 /// Caliptra Table of contents entry
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageTocEntry {
     /// ID
     pub id: u32,
@@ -370,6 +379,9 @@ pub struct ImageTocEntry {
 
     /// Commit revision
     pub revision: ImageRevision,
+
+    // Firmware release number
+    pub version: u32,
 
     /// Security Version Number
     pub svn: u32,
@@ -406,6 +418,17 @@ impl ImageTocEntry {
         self.load_addr < (other.load_addr + other.image_size())
             && (self.load_addr + self.image_size()) > other.load_addr
     }
+}
+
+/// Information about the ROM image.
+#[repr(C)]
+#[derive(AsBytes, FromBytes, Default, Debug)]
+pub struct RomInfo {
+    // sha256 digest with big-endian words, where each 4-byte segment of the
+    // digested data has the bytes reversed.
+    pub sha256_digest: [u32; 8],
+    pub revision: ImageRevision,
+    pub flags: u32,
 }
 
 #[cfg(all(test, target_family = "unix"))]

@@ -7,8 +7,6 @@ use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
 use caliptra_hw_model::{DefaultHwModel, ModelError};
 use caliptra_image_types::ImageBundle;
 
-pub const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
-
 pub fn build_hw_model_and_image_bundle(
     fuses: Fuses,
     image_options: ImageOptions,
@@ -50,7 +48,7 @@ pub fn get_data<'a>(to_match: &str, haystack: &'a str) -> &'a str {
 }
 
 pub fn get_csr(hw: &mut DefaultHwModel) -> Result<Vec<u8>, ModelError> {
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().status() == 0x0100_0000);
+    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().idevid_csr_ready());
     let mut txn = hw.wait_for_mailbox_receive()?;
     let result = mem::take(&mut txn.req.data);
     txn.respond_success();

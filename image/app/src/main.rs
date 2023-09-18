@@ -37,11 +37,6 @@ fn main() {
                 .value_parser(value_parser!(u32)),
         )
         .arg(
-            arg!(--"owner-lms-pk-idx" <U32> "Owner LMS Public Key Index")
-                .required(false)
-                .value_parser(value_parser!(u32)),
-        )
-        .arg(
             arg!(--"fmc" <FILE> "FMC ELF binary")
                 .required(true)
                 .value_parser(value_parser!(PathBuf)),
@@ -50,6 +45,11 @@ fn main() {
             arg!(--"fmc-rev" <SHA256HASH> "FMC GIT Revision")
                 .required(false)
                 .value_parser(value_parser!(String)),
+        )
+        .arg(
+            arg!(--"fmc-version" <U32> "FMC Firmware Version Number")
+                .required(true)
+                .value_parser(value_parser!(u32)),
         )
         .arg(
             arg!(--"fmc-svn" <U32> "FMC Security Version Number")
@@ -70,6 +70,11 @@ fn main() {
             arg!(--"rt-rev" <SHA256HASH> "Runtime GIT Revision")
                 .required(false)
                 .value_parser(value_parser!(String)),
+        )
+        .arg(
+            arg!(--"rt-version" <U32> "Runtime Firmware Version Number")
+                .required(true)
+                .value_parser(value_parser!(u32)),
         )
         .arg(
             arg!(--"rt-svn" <U32> "Runtime Security Version Number")

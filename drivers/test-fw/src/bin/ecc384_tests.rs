@@ -16,9 +16,10 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{
-    Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Scalar, Ecc384Seed,
-    KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Trng,
+    Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
+    Ecc384Seed, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Trng,
 };
+use caliptra_error::CaliptraError;
 use caliptra_kat::Ecc384Kat;
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::ecc::EccReg;
@@ -161,6 +162,10 @@ fn test_sign() {
     let digest = Array4x12::new([0u32; 12]);
     let result = ecc.sign(
         &Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)),
+        &Ecc384PubKey {
+            x: Ecc384Scalar::from(PUB_KEY_X),
+            y: Ecc384Scalar::from(PUB_KEY_Y),
+        },
         &digest,
         &mut trng,
     );
@@ -168,6 +173,45 @@ fn test_sign() {
     let signature = result.unwrap();
     assert_eq!(signature.r, Ecc384Scalar::from(SIGNATURE_R));
     assert_eq!(signature.s, Ecc384Scalar::from(SIGNATURE_S));
+}
+
+fn test_sign_validation_failure() {
+    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
+    let wrong_pub_key = Ecc384PubKey {
+        x: Ecc384Scalar::from([
+            0xD7, 0x9C, 0x6D, 0x97, 0x2B, 0x34, 0xA1, 0xDF, 0xC9, 0x16, 0xA7, 0xB6, 0xE0, 0xA9,
+            0x9B, 0x6B, 0x53, 0x87, 0xB3, 0x4D, 0xA2, 0x18, 0x76, 0x07, 0xC1, 0xAD, 0x0A, 0x4D,
+            0x1A, 0x8C, 0x2E, 0x41, 0x72, 0xAB, 0x5F, 0xA5, 0xD9, 0xAB, 0x58, 0xFE, 0x45, 0xE4,
+            0x3F, 0x56, 0xBB, 0xB6, 0x6B, 0xA4,
+        ]),
+        y: Ecc384Scalar::from([
+            0x5A, 0x73, 0x63, 0x93, 0x2B, 0x06, 0xB4, 0xF2, 0x23, 0xBE, 0xF0, 0xB6, 0x0A, 0x63,
+            0x90, 0x26, 0x51, 0x12, 0xDB, 0xBD, 0x0A, 0xAE, 0x67, 0xFE, 0xF2, 0x6B, 0x46, 0x5B,
+            0xE9, 0x35, 0xB4, 0x8E, 0x45, 0x1E, 0x68, 0xD1, 0x6F, 0x11, 0x18, 0xF2, 0xB3, 0x2B,
+            0x4C, 0x28, 0x60, 0x87, 0x49, 0xED,
+        ]),
+    };
+
+    let digest = Array4x12::new([0u32; 12]);
+    let result = ecc.sign(
+        &Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)),
+        &wrong_pub_key,
+        &digest,
+        &mut trng,
+    );
+    assert_eq!(
+        result,
+        Err(CaliptraError::DRIVER_ECC384_SIGN_VALIDATION_FAILED)
+    );
 }
 
 fn test_verify() {
@@ -184,6 +228,10 @@ fn test_verify() {
     let digest = Array4x12::new([0u32; 12]);
     let result = ecc.sign(
         &Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)),
+        &Ecc384PubKey {
+            x: Ecc384Scalar::from(PUB_KEY_X),
+            y: Ecc384Scalar::from(PUB_KEY_Y),
+        },
         &digest,
         &mut trng,
     );
@@ -195,7 +243,39 @@ fn test_verify() {
     };
     let result = ecc.verify(&pub_key, &Ecc384Scalar::from(digest), &signature);
     assert!(result.is_ok());
-    assert!(result.unwrap());
+    assert_eq!(result.unwrap(), Ecc384Result::Success);
+}
+
+fn test_verify_r() {
+    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
+    let digest = Array4x12::new([0u32; 12]);
+    let result = ecc.sign(
+        &Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)),
+        &Ecc384PubKey {
+            x: Ecc384Scalar::from(PUB_KEY_X),
+            y: Ecc384Scalar::from(PUB_KEY_Y),
+        },
+        &digest,
+        &mut trng,
+    );
+    assert!(result.is_ok());
+    let signature = result.unwrap();
+    let pub_key = Ecc384PubKey {
+        x: Ecc384Scalar::from(PUB_KEY_X),
+        y: Ecc384Scalar::from(PUB_KEY_Y),
+    };
+    let result = ecc.verify_r(&pub_key, &Ecc384Scalar::from(digest), &signature);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), signature.r);
 }
 
 fn test_verify_failure() {
@@ -212,6 +292,10 @@ fn test_verify_failure() {
     let digest = Array4x12::new([0u32; 12]);
     let result = ecc.sign(
         &Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)),
+        &Ecc384PubKey {
+            x: Ecc384Scalar::from(PUB_KEY_X),
+            y: Ecc384Scalar::from(PUB_KEY_Y),
+        },
         &digest,
         &mut trng,
     );
@@ -224,7 +308,7 @@ fn test_verify_failure() {
     let hash = [0xFFu8; 48];
     let result = ecc.verify(&pub_key, &Ecc384Scalar::from(hash), &signature);
     assert!(result.is_ok());
-    assert!(!result.unwrap());
+    assert_eq!(result.unwrap(), Ecc384Result::SigVerifyFailed);
 }
 
 fn test_kv_seed_from_input_msg_from_input() {
@@ -263,7 +347,7 @@ fn test_kv_seed_from_input_msg_from_input() {
     let digest = Array4x12::new([0u32; 12]);
     let key_in_1 = KeyReadArgs::new(KeyId::KeyId2);
 
-    let result = ecc.sign(&key_in_1.into(), &digest, &mut trng);
+    let result = ecc.sign(&key_in_1.into(), &pub_key, &digest, &mut trng);
     assert!(result.is_ok());
     let signature = result.unwrap();
     assert_eq!(signature.r, Ecc384Scalar::from(SIGNATURE_R));
@@ -278,7 +362,7 @@ fn test_kv_seed_from_input_msg_from_input() {
     };
     let result = ecc.verify(&pub_key, &Ecc384Scalar::from(digest), &signature);
     assert!(result.is_ok());
-    assert!(result.unwrap());
+    assert_eq!(result.unwrap(), Ecc384Result::Success);
 }
 
 fn test_kv_seed_from_kv_msg_from_input() {
@@ -383,7 +467,12 @@ fn test_kv_seed_from_kv_msg_from_input() {
         0xe8, 0x8c, 0x10,
     ];
     let key_in_priv_key = KeyReadArgs::new(KeyId::KeyId1);
-    let result = ecc.sign(&key_in_priv_key.into(), &Array4x12::from(msg), &mut trng);
+    let result = ecc.sign(
+        &key_in_priv_key.into(),
+        &pub_key,
+        &Array4x12::from(msg),
+        &mut trng,
+    );
     assert!(result.is_ok());
     let signature = result.unwrap();
     assert_eq!(signature.r, Ecc384Scalar::from(sig_r));
@@ -397,7 +486,7 @@ fn test_kv_seed_from_kv_msg_from_input() {
         y: pub_key_y.into(),
     };
     let result = ecc.verify(&pub_key, &Ecc384Scalar::from(msg), &signature);
-    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), Ecc384Result::Success);
 }
 
 fn test_kat() {
@@ -422,7 +511,9 @@ test_suite! {
     test_gen_key_pair,
     test_gen_key_pair_with_iv,
     test_sign,
+    test_sign_validation_failure,
     test_verify,
+    test_verify_r,
     test_verify_failure,
     test_kv_seed_from_input_msg_from_input,
     test_kv_seed_from_kv_msg_from_input,

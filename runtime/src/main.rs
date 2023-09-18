@@ -16,7 +16,10 @@ Abstract:
 
 use caliptra_common::cprintln;
 use caliptra_cpu::TrapRecord;
-use caliptra_drivers::{report_fw_error_non_fatal, Mailbox};
+use caliptra_drivers::{
+    report_fw_error_fatal, report_fw_error_non_fatal, Ecc384, Hmac384, KeyVault, Mailbox, Sha256,
+    Sha384, Sha384Acc, SocIfc,
+};
 use caliptra_runtime::Drivers;
 use core::hint::black_box;
 
@@ -35,18 +38,17 @@ const BANNER: &str = r#"
 #[no_mangle]
 pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
-    if let Some(mut fht) = caliptra_common::FirmwareHandoffTable::try_load() {
-        let mut drivers = unsafe { Drivers::new_from_registers(&mut fht) };
-        cprintln!("Caliptra RT listening for mailbox commands...");
-        caliptra_runtime::handle_mailbox_commands(&mut drivers);
-
-        caliptra_drivers::ExitCtrl::exit(0)
-    } else {
+    let mut drivers = unsafe { Drivers::new_from_registers() }.unwrap_or_else(|e| {
+        caliptra_common::report_handoff_error_and_halt("Runtime can't load drivers", e.into())
+    });
+    if !drivers.persistent_data.get().fht.is_valid() {
         caliptra_common::report_handoff_error_and_halt(
             "Runtime can't load FHT",
             caliptra_drivers::CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into(),
         );
     }
+    cprintln!("Caliptra RT listening for mailbox commands...");
+    caliptra_runtime::handle_mailbox_commands(&mut drivers);
 }
 
 #[no_mangle]
@@ -61,7 +63,7 @@ extern "C" fn exception_handler(trap_record: &TrapRecord) {
     );
 
     // Signal non-fatal error to SOC
-    report_error(0xdead);
+    handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_GLOBAL_EXCEPTION.into());
 }
 
 #[no_mangle]
@@ -75,7 +77,7 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
         trap_record.mepc
     );
 
-    report_error(0xdead);
+    handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_GLOBAL_NMI.into());
 }
 
 #[panic_handler]
@@ -87,13 +89,38 @@ fn runtime_panic(_: &core::panic::PanicInfo) -> ! {
     panic_is_possible();
 
     // TODO: Signal non-fatal error to SOC
-    report_error(0xdead);
+    handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_GLOBAL_PANIC.into());
 }
 
 #[allow(clippy::empty_loop)]
-fn report_error(code: u32) -> ! {
-    cprintln!("RT Error: 0x{:08X}", code);
+fn handle_fatal_error(code: u32) -> ! {
+    cprintln!("RT Fatal Error: 0x{:08X}", code);
+    report_fw_error_fatal(code);
+    // Populate the non-fatal error code too; if there was a
+    // non-fatal error stored here before we don't want somebody
+    // mistakenly thinking that was the reason for their mailbox
+    // command failure.
     report_fw_error_non_fatal(code);
+
+    unsafe {
+        // Zeroize the crypto blocks.
+        Ecc384::zeroize();
+        Hmac384::zeroize();
+        Sha256::zeroize();
+        Sha384::zeroize();
+        Sha384Acc::zeroize();
+
+        // Zeroize the key vault.
+        KeyVault::zeroize();
+
+        // Lock the SHA Accelerator.
+        Sha384Acc::lock();
+
+        // Stop the watchdog timer.
+        // Note: This is an idempotent operation.
+        SocIfc::stop_wdt1();
+    }
+
     loop {
         // SoC firmware might be stuck waiting for Caliptra to finish
         // executing this pending mailbox transaction. Notify them that

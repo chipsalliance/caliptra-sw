@@ -22,18 +22,28 @@ use crate::{cache_gha::GithubActionCache, util::other_err};
 
 // Increment with non-backwards-compatible changes are made to the cache record
 // format
-const CACHE_FORMAT_VERSION: &str = "v0";
+const CACHE_FORMAT_VERSION: &str = "v1";
 
-#[derive(Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Default, Eq, PartialEq, Serialize, Deserialize)]
 struct Sizes {
-    size_with_uart: u64,
-    size_prod: u64,
+    rom_size_with_uart: Option<u64>,
+    rom_size_prod: Option<u64>,
+    fmc_size_with_uart: Option<u64>,
+    app_size_with_uart: Option<u64>,
+}
+impl Sizes {
+    fn update_from(&mut self, other: &Sizes) {
+        self.rom_size_with_uart = other.rom_size_with_uart.or(self.rom_size_with_uart);
+        self.rom_size_prod = other.rom_size_prod.or(self.rom_size_prod);
+        self.fmc_size_with_uart = other.fmc_size_with_uart.or(self.fmc_size_with_uart);
+        self.app_size_with_uart = other.app_size_with_uart.or(self.app_size_with_uart);
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
 struct SizeRecord {
     commit: git::CommitInfo,
-    sizes: Option<Sizes>,
+    sizes: Sizes,
 }
 
 fn main() {
@@ -118,22 +128,11 @@ fn real_main() -> io::Result<()> {
             commit.id, commit.title
         );
         worktree.checkout(&commit.id)?;
-
-        let sizes = match compute_size(
-            &worktree,
-            &caliptra_builder::ROM_WITH_UART,
-            &caliptra_builder::ROM,
-        ) {
-            Ok(size_info) => Some(size_info),
-            Err(err) => {
-                println!("Error building commit {}: {err}", commit.id);
-                None
-            }
-        };
+        worktree.submodule_update()?;
 
         records.push(SizeRecord {
             commit: commit.clone(),
-            sizes,
+            sizes: compute_size(&worktree, &commit.id),
         });
     }
     for (i, record) in records.iter().enumerate() {
@@ -162,26 +161,31 @@ fn real_main() -> io::Result<()> {
     Ok(())
 }
 
-fn compute_size(
-    worktree: &git::WorkTree,
-    with_uart_fwid: &FwId,
-    prod_fwid: &FwId,
-) -> io::Result<Sizes> {
+fn compute_size(worktree: &git::WorkTree, commit_id: &str) -> Sizes {
     // TODO: consider using caliptra_builder from the same repo as the firmware
-    let rom_with_uart_elf = caliptra_builder::build_firmware_elf_uncached(&FwId {
-        workspace_dir: Some(worktree.path),
-        ..*with_uart_fwid
-    })?;
+    let fwid_elf_size = |fwid: &FwId| -> io::Result<u64> {
+        let elf_bytes = caliptra_builder::build_firmware_elf_uncached(&FwId {
+            workspace_dir: Some(worktree.path),
+            ..*fwid
+        })?;
+        elf_size(&elf_bytes)
+    };
+    let fwid_elf_size_or_none = |fwid: &FwId| -> Option<u64> {
+        match fwid_elf_size(fwid) {
+            Ok(result) => Some(result),
+            Err(err) => {
+                println!("Error building commit {}: {err}", commit_id);
+                None
+            }
+        }
+    };
 
-    let rom_prod_elf = caliptra_builder::build_firmware_elf_uncached(&FwId {
-        workspace_dir: Some(worktree.path),
-        ..*prod_fwid
-    })?;
-
-    Ok(Sizes {
-        size_with_uart: elf_size(&rom_with_uart_elf)?,
-        size_prod: elf_size(&rom_prod_elf)?,
-    })
+    Sizes {
+        rom_size_with_uart: fwid_elf_size_or_none(&caliptra_builder::ROM_WITH_UART),
+        rom_size_prod: fwid_elf_size_or_none(&caliptra_builder::ROM),
+        fmc_size_with_uart: fwid_elf_size_or_none(&caliptra_builder::FMC_WITH_UART),
+        app_size_with_uart: fwid_elf_size_or_none(&caliptra_builder::APP_WITH_UART),
+    }
 }
 
 fn box_cache(val: impl Cache + 'static) -> Box<dyn Cache> {

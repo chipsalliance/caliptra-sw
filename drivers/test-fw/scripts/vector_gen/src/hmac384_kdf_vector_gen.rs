@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use caliptra_test::crypto::derive_ecdsa_keypair;
 use openssl::{hash::MessageDigest, pkey::PKey, sign::Signer};
 
 pub struct Hmac384KdfVector {
@@ -20,9 +21,9 @@ pub struct Hmac384KdfVector {
     pub kdf_key: [u8; 48], // HMAC(key=key_0, msg=msg_0)
     pub label: Vec<u8>,
     pub context: Vec<u8>,
-    pub kdf_out: [u8; 48], // KDF(key=kdf_key, label=label, context=context)
-    pub msg_1: [u8; 48],
-    pub out: [u8; 48], // HMAC(key=kdf_out, msg=msg_1)
+    pub kdf_out: [u8; 48],   // KDF(key=kdf_key, label=label, context=context)
+    pub out_pub_x: [u8; 48], // ECDSA_KEYGEN(kdf_out).pub.x
+    pub out_pub_y: [u8; 48], // ECDSA_KEYGEN(kdf_out).pub.y
 }
 
 impl Default for Hmac384KdfVector {
@@ -34,8 +35,8 @@ impl Default for Hmac384KdfVector {
             label: Vec::<u8>::default(),
             context: Vec::<u8>::default(),
             kdf_out: [0; 48],
-            msg_1: [0; 48],
-            out: [0; 48],
+            out_pub_x: [0; 48],
+            out_pub_y: [0; 48],
         }
     }
 }
@@ -74,7 +75,6 @@ pub fn gen_vector(label_len: usize, context_len: usize) -> Hmac384KdfVector {
     rand_bytes(&mut vec.key_0);
     rand_bytes(&mut vec.msg_0);
     rand_bytes(&mut vec.label[..]);
-    rand_bytes(&mut vec.msg_1);
 
     let context = if context_len == 0 {
         None
@@ -86,7 +86,7 @@ pub fn gen_vector(label_len: usize, context_len: usize) -> Hmac384KdfVector {
 
     hmac(&vec.key_0, &vec.msg_0, &mut vec.kdf_key);
     kdf(&vec.kdf_key, &vec.label[..], context, &mut vec.kdf_out);
-    hmac(&vec.kdf_out, &vec.msg_1, &mut vec.out);
+    (_, vec.out_pub_x, vec.out_pub_y) = derive_ecdsa_keypair(&vec.kdf_out);
 
     vec
 }

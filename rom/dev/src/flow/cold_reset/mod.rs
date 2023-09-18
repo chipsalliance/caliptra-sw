@@ -27,11 +27,9 @@ use crate::flow::cold_reset::fw_processor::FirmwareProcessor;
 use crate::flow::cold_reset::idev_id::InitDevIdLayer;
 use crate::flow::cold_reset::ldev_id::LocalDevIdLayer;
 use crate::{cprintln, rom_env::RomEnv};
+use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
+use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::RomBootStatus::*;
-use caliptra_common::{
-    memory_layout::{FMCALIAS_TBS_ORG, FMCALIAS_TBS_SIZE, LDEVID_TBS_ORG, LDEVID_TBS_SIZE},
-    FirmwareHandoffTable,
-};
 use caliptra_drivers::*;
 
 pub enum TbsType {
@@ -48,9 +46,12 @@ impl ColdResetFlow {
     ///
     /// * `env` - ROM Environment
     #[inline(never)]
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
         cprintln!("[cold-reset] ++");
         report_boot_status(ColdResetStarted.into());
+        env.data_vault
+            .write_cold_reset_entry4(ColdResetEntry4::RomColdBootStatus, ColdResetStarted.into());
 
         // Execute IDEVID layer
         let mut idevid_layer_output = InitDevIdLayer::derive(env)?;
@@ -70,8 +71,14 @@ impl ColdResetFlow {
         ldevid_layer_output.zeroize();
         fw_proc_info.zeroize();
 
-        cprintln!("[cold-reset] --");
+        // Indicate Cold-Reset successful completion.
+        // This is used by the Warm-Reset flow to confirm that the Cold-Reset was successful.
+        env.data_vault
+            .set_rom_cold_boot_status(ColdResetComplete.into());
+
         report_boot_status(ColdResetComplete.into());
+
+        cprintln!("[cold-reset] --");
 
         Ok(Some(fht::make_fht(env)))
     }
@@ -86,34 +93,27 @@ impl ColdResetFlow {
 ///
 /// # Returns
 ///     CaliptraResult
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub fn copy_tbs(tbs: &[u8], tbs_type: TbsType, env: &mut RomEnv) -> CaliptraResult<()> {
     let dst = match tbs_type {
         TbsType::LdevidTbs => {
             env.fht_data_store.ldevid_tbs_size = tbs.len() as u16;
-            unsafe {
-                let tbs_max_size = LDEVID_TBS_SIZE as usize;
-                if tbs.len() > tbs_max_size {
-                    return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_LDEVID_TBS_SIZE);
-                }
-                let ptr = LDEVID_TBS_ORG as *mut u8;
-                core::slice::from_raw_parts_mut(ptr, tbs.len())
-            }
+            env.persistent_data
+                .get_mut()
+                .ldevid_tbs
+                .get_mut(..tbs.len())
+                .ok_or(CaliptraError::ROM_GLOBAL_UNSUPPORTED_LDEVID_TBS_SIZE)?
         }
         TbsType::FmcaliasTbs => {
             env.fht_data_store.fmcalias_tbs_size = tbs.len() as u16;
-            unsafe {
-                let tbs_max_size = FMCALIAS_TBS_SIZE as usize;
-                if tbs.len() > tbs_max_size {
-                    return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE);
-                }
-
-                let ptr = FMCALIAS_TBS_ORG as *mut u8;
-                core::slice::from_raw_parts_mut(ptr, tbs.len())
-            }
+            env.persistent_data
+                .get_mut()
+                .fmcalias_tbs
+                .get_mut(..tbs.len())
+                .ok_or(CaliptraError::ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE)?
         }
     };
-
-    dst[..tbs.len()].copy_from_slice(tbs);
+    dst.copy_from_slice(tbs);
     Ok(())
 }
 

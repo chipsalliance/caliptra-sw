@@ -9,9 +9,10 @@ edition = "2021"
 doctest = false
 
 [dependencies]
-caliptra-lms-types = { path = "../../lms-types" }
-zerocopy = "0.6.1"
-memoffset = "0.8.0"
+arbitrary = { workspace = true, optional = true }
+caliptra-lms-types.workspace = true
+memoffset.workspace = true
+zerocopy.workspace = true
 
 [features]
 default = ["std"]

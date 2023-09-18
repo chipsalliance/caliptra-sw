@@ -70,12 +70,13 @@ build-fw-image: gen-certs build-test-fmc build-test-rt
 		--key-config $(TARGET_DIR)/keys.toml \
 		--ecc-pk-idx 3 \
 		--lms-pk-idx 3 \
-		--owner-lms-pk-idx 0 \
 		--fmc $(TARGET_DIR)/caliptra-rom-test-fmc \
+		--fmc-version 0 \
 		--fmc-svn 0 \
 		--fmc-min-svn 0 \
 		--fmc-rev $(GIT_REV) \
 		--rt $(TARGET_DIR)/caliptra-rom-test-rt \
+		--rt-version 0 \
 		--rt-svn 0 \
 		--rt-min-svn 0 \
 		--rt-rev $(GIT_REV) \
@@ -85,6 +86,7 @@ bloat: build
 	 cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		bloat \
+		--bin caliptra-rom \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
@@ -94,6 +96,7 @@ objdump:
 	 cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		objdump \
+		--bin caliptra-rom \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
@@ -102,17 +105,14 @@ objdump:
 		--no-print-imm-hex \
 		--disassembler-options=no-aliases \
 
-objcopy:
-	riscv64-unknown-elf-objcopy \
-		--gap-fill 0x00 \
-		--pad-to 0x8000 \
-  		-j .text \
-  		-j .rodata \
-  		-O binary \
-  		$(TARGET_DIR)/caliptra-rom \
-  		$(TARGET_DIR)/caliptra-rom.bin \
+build-rom:
+	cargo \
+		"--config=$(EXTRA_CARGO_CONFIG)" \
+		run -p caliptra-builder -- \
+		--rom $(TARGET_DIR)/caliptra-rom.bin \
+		--fw /dev/null
 
-run: build-emu build-fw-image objcopy
+run: build-emu build-fw-image build-rom
 	cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		run \
@@ -124,7 +124,7 @@ run: build-emu build-fw-image objcopy
 		--firmware $(TARGET_DIR)/caliptra-rom-test-fw \
 		--device-lifecycle unprovisioned \
 
-run-update: build-emu build-fw-image objcopy
+run-update: build-emu build-fw-image build-rom
 		cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		run \
@@ -145,6 +145,7 @@ size:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
+		--bin caliptra-rom \
 
 nm:
 	 cargo \
@@ -156,7 +157,7 @@ nm:
 		-- \
 		-v \
 
-hexdump: objcopy
+hexdump: build-rom
 	xxd $(TARGET_DIR)/caliptra-rom.bin \
 
 clean:

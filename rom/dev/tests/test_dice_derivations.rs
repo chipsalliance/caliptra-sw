@@ -1,11 +1,10 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::ImageOptions;
+use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::RomBootStatus::*;
 use caliptra_hw_model::Fuses;
 use caliptra_hw_model::HwModel;
-
-use crate::helpers::FW_LOAD_CMD_OPCODE;
 
 pub mod helpers;
 
@@ -14,6 +13,8 @@ fn test_cold_reset_status_reporting() {
     let (mut hw, image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
+    hw.step_until_boot_status(KatStarted.into(), false);
+    hw.step_until_boot_status(KatComplete.into(), false);
     hw.step_until_boot_status(ColdResetStarted.into(), false);
     hw.step_until_boot_status(IDevIdDecryptUdsComplete.into(), false);
     hw.step_until_boot_status(IDevIdDecryptFeComplete.into(), false);
@@ -40,7 +41,9 @@ fn test_cold_reset_status_reporting() {
     // This is too late for this test.
     let buf: &[u8] = &image_bundle.to_bytes().unwrap();
     assert!(!hw.soc_mbox().lock().read().lock());
-    hw.soc_mbox().cmd().write(|_| FW_LOAD_CMD_OPCODE);
+    hw.soc_mbox()
+        .cmd()
+        .write(|_| CommandId::FIRMWARE_LOAD.into());
     hw.soc_mbox().dlen().write(|_| buf.len() as u32);
     let mut remaining = buf;
     while remaining.len() >= 4 {

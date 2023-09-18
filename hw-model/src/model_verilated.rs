@@ -7,7 +7,7 @@ use caliptra_emu_bus::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::ErrorInjectionMode;
 use caliptra_verilated::{AhbTxnType, CaliptraVerilated};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::io::Write;
 use std::path::Path;
 use std::rc::Rc;
@@ -113,10 +113,22 @@ impl crate::HwModel for ModelVerilated {
 
         let output_sink = output.sink().clone();
 
-        let generic_load_cb = Box::new(move |v: &CaliptraVerilated, ch: u8| {
-            output_sink.set_now(v.total_cycles());
-            output_sink.push_uart_char(ch);
-        });
+        let generic_output_wires_changed_cb = {
+            let prev_uout = Cell::new(None);
+            Box::new(move |v: &CaliptraVerilated, out_wires| {
+                if Some(out_wires & 0x1ff) != prev_uout.get() {
+                    // bit #8 toggles whenever the Uart driver writes a byte, so
+                    // by including it in the comparison we can tell when the
+                    // same character has been written a second time
+                    if prev_uout.get().is_some() {
+                        // Don't print out a character for the initial state
+                        output_sink.set_now(v.total_cycles());
+                        output_sink.push_uart_char((out_wires & 0xff) as u8);
+                    }
+                    prev_uout.set(Some(out_wires & 0x1ff));
+                }
+            })
+        };
 
         let log = Rc::new(RefCell::new(BusLogger::new(NullBus())));
         let bus_log = log.clone();
@@ -177,7 +189,7 @@ impl crate::HwModel for ModelVerilated {
                 security_state: u32::from(params.security_state),
                 cptra_obf_key: params.cptra_obf_key,
             },
-            generic_load_cb,
+            generic_output_wires_changed_cb,
             ahb_cb,
         );
 
@@ -228,6 +240,20 @@ impl crate::HwModel for ModelVerilated {
     fn output(&mut self) -> &mut crate::Output {
         self.output.sink().set_now(self.v.total_cycles());
         &mut self.output
+    }
+
+    fn warm_reset(&mut self) {
+        // Toggle reset pin
+        self.v.input.cptra_rst_b = false;
+        self.v.next_cycle_high(1);
+
+        self.v.input.cptra_rst_b = true;
+        self.v.next_cycle_high(1);
+
+        // Wait for ready_for_fuses
+        while !self.v.output.ready_for_fuses {
+            self.v.next_cycle_high(1);
+        }
     }
 
     fn ready_for_fw(&self) -> bool {

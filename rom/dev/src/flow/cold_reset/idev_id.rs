@@ -19,6 +19,8 @@ use super::x509::*;
 use crate::cprintln;
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
+use caliptra_cfi_derive::cfi_impl_fn;
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::keyids::{KEY_ID_FE, KEY_ID_IDEVID_PRIV_KEY, KEY_ID_ROM_FMC_CDI, KEY_ID_UDS};
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
@@ -26,11 +28,8 @@ use caliptra_x509::*;
 
 type InitDevIdCsr<'a> = Certificate<'a, { MAX_CSR_SIZE }>;
 
-/// Initialization Vector used by Deobfuscation Engine during Unique Device Secret (UDS) decryption.
-const DOE_UDS_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e]);
-
-/// Initialization Vector used by Deobfuscation Engine during Field Entropy decryption.
-const DOE_FE_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e]);
+/// Initialization Vector used by Deobfuscation Engine during UDS / field entropy decryption.
+const DOE_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e]);
 
 /// Maximum Certificate Signing Request Size
 const MAX_CSR_SIZE: usize = 512;
@@ -48,6 +47,7 @@ impl InitDevIdLayer {
     /// # Returns
     ///
     /// * `DiceOutput` - DICE layer output
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn derive(env: &mut RomEnv) -> CaliptraResult<DiceOutput> {
         cprintln!("[idev] ++");
         cprintln!("[idev] CDI.KEYID = {}", KEY_ID_ROM_FMC_CDI as u8);
@@ -104,9 +104,10 @@ impl InitDevIdLayer {
     ///
     /// * `env` - ROM Environment
     /// * `uds` - Key Vault slot to store the decrypted UDS in
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn decrypt_uds(env: &mut RomEnv, uds: KeyId) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
-        env.doe.decrypt_uds(&DOE_UDS_IV, uds)?;
+        env.doe.decrypt_uds(&DOE_IV, uds)?;
         report_boot_status(IDevIdDecryptUdsComplete.into());
         Ok(())
     }
@@ -117,9 +118,10 @@ impl InitDevIdLayer {
     ///
     /// * `env` - ROM Environment
     /// * `slot` - Key Vault slot to store the decrypted UDS in
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn decrypt_field_entropy(env: &mut RomEnv, fe: KeyId) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
-        env.doe.decrypt_field_entropy(&DOE_FE_IV, fe)?;
+        env.doe.decrypt_field_entropy(&DOE_IV, fe)?;
         report_boot_status(IDevIdDecryptFeComplete.into());
         Ok(())
     }
@@ -129,6 +131,7 @@ impl InitDevIdLayer {
     /// # Arguments
     ///
     /// * `env` - ROM Environment
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn clear_doe_secrets(env: &mut RomEnv) -> CaliptraResult<()> {
         let result = env.doe.clear_secrets();
         if result.is_ok() {
@@ -144,6 +147,7 @@ impl InitDevIdLayer {
     /// * `env` - ROM Environment
     /// * `uds` - Key slot holding the UDS
     /// * `cdi` - Key Slot to store the generated CDI
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_cdi(env: &mut RomEnv, uds: KeyId, cdi: KeyId) -> CaliptraResult<()> {
         Crypto::hmac384_kdf(env, uds, b"idevid_cdi", None, cdi)?;
 
@@ -164,14 +168,18 @@ impl InitDevIdLayer {
     /// # Returns
     ///
     /// * `Ecc384KeyPair` - Derive DICE Layer Key Pair
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_key_pair(
         env: &mut RomEnv,
         cdi: KeyId,
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
         let result = Crypto::ecc384_key_gen(env, cdi, b"idevid_keygen", priv_key);
-        if result.is_ok() {
+        if cfi_launder(result.is_ok()) {
+            cfi_assert!(result.is_ok());
             report_boot_status(IDevIdKeyPairDerivationComplete.into());
+        } else {
+            cfi_assert!(result.is_err());
         }
         result
     }
@@ -182,6 +190,8 @@ impl InitDevIdLayer {
     ///
     /// * `env`    - ROM Environment
     /// * `output` - DICE Output
+    // Inlined to reduce ROM size
+    #[inline(always)]
     fn generate_csr(env: &mut RomEnv, output: &DiceOutput) -> CaliptraResult<()> {
         //
         // Generate the CSR if requested via Manufacturing Service Register
@@ -203,6 +213,7 @@ impl InitDevIdLayer {
     ///
     /// * `env`    - ROM Environment
     /// * `output` - DICE Output
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn make_csr(env: &mut RomEnv, output: &DiceOutput) -> CaliptraResult<()> {
         let key_pair = &output.subj_key_pair;
 
@@ -227,20 +238,22 @@ impl InitDevIdLayer {
         );
 
         // Sign the the `To Be Signed` portion
-        let mut sig = Crypto::ecdsa384_sign(env, key_pair.priv_key, tbs.tbs());
+        let mut sig = Crypto::ecdsa384_sign(env, key_pair.priv_key, &key_pair.pub_key, tbs.tbs());
         let sig = okmutref(&mut sig)?;
 
         // Verify the signature of the `To Be Signed` portion
-        if !Crypto::ecdsa384_verify(env, &key_pair.pub_key, tbs.tbs(), sig)? {
+        let mut verify_r = Crypto::ecdsa384_verify(env, &key_pair.pub_key, tbs.tbs(), sig)?;
+        if cfi_launder(&verify_r) != &sig.r {
             return Err(CaliptraError::ROM_IDEVID_CSR_VERIFICATION_FAILURE);
+        } else {
+            cfi_assert!(cfi_launder(&verify_r) == &sig.r);
         }
+        verify_r.0.fill(0);
 
-        // [TODO] Due to printing of the CSR, rom sections are hitting max limits.
-        // Add this back when CSR printing is removed from here and added to test cases.
-        // let _pub_x: [u8; 48] = key_pair.pub_key.x.into();
-        // let _pub_y: [u8; 48] = key_pair.pub_key.y.into();
-        // cprint_slice!("[idev] PUB.X", _pub_x);
-        // cprint_slice!("[idev] PUB.Y", _pub_y);
+        let _pub_x: [u8; 48] = key_pair.pub_key.x.into();
+        let _pub_y: [u8; 48] = key_pair.pub_key.y.into();
+        cprintln!("[idev] PUB.X = {}", HexBytes(&_pub_x));
+        cprintln!("[idev] PUB.Y = {}", HexBytes(&_pub_y));
 
         let _sig_r: [u8; 48] = (&sig.r).into();
         let _sig_s: [u8; 48] = (&sig.s).into();

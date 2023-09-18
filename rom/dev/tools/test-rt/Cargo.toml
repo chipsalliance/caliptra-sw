@@ -6,12 +6,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-caliptra-drivers = { path = "../../../../drivers" }
-ufmt = "0.2.0"
-caliptra-cpu = { version = "0.1.0", path = "../../../../cpu" }
+caliptra-cpu.workspace = true
+caliptra-drivers.workspace = true
+ufmt.workspace = true
 
 [build-dependencies]
-cfg-if = "1.0.0"
+cfg-if.workspace = true
 
 [features]
 default = ["std"]

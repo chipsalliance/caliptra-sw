@@ -56,6 +56,10 @@ Serial port settings for connection over USB.
 ### FPGA Build Steps: ###
  - Build FPGA image without GUI
     - `vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE`
+    - Above command creates a bitstream located at: caliptra_build/caliptra_fpga.bin
+    - To check the git revision a bitstream was generated with
+      - `xxd -s 0x88 -l 8 caliptra_build/caliptra_fpga.bin`
+      - Result should be `3001 a001 xxxx xxxx`. 3001 a001 is a command to write the USR_ACCESS register and the rest is the hash.
  - Launch Vivado with GUI
     - `vivado -mode batch -source fpga_configuration.tcl -tclargs GUI=TRUE`
     - Run Synthesis: `launch_runs synth_1`
@@ -63,15 +67,15 @@ Serial port settings for connection over USB.
     - Run Implementation: `launch_runs impl_1`
     - Generate Bitstream: `write_bitstream -bin_file \tmp\caliptra_fpga`
 
-### AXI Memory Map ###
+### Processing System - Programmable Logic Interfaces ###
+#### AXI Memory Map ####
  - SOC adapter for driving caliptra-top signals
-   - 0x80000000 - GPIO Out -> Caliptra
+   - 0x80000000 - SOC Adapter Out -> Caliptra
      - `[0] -> cptra_rst_b`
      - `[1] -> cptra_pwrgood`
      - `[5:4] -> device_lifecycle`
      - `[6] -> debug_locked`
-     - `[31:24] -> generic_input_wires[7:0] for serial tag`
-   - 0x80000008 - GPIO In <- Caliptra
+   - 0x80000008 - SOC Adapter In <- Caliptra
      - `[26] <- cptra_error_fatal`
      - `[27] <- cptra_error_non_fatal`
      - `[28] <- ready_for_fw_push`
@@ -79,10 +83,19 @@ Serial port settings for connection over USB.
      - `[30] <- ready_for_fuses`
    - 0x8000000C - PAUSER
      - `[31:0] -> PAUSER to Caliptra APB`
- - ROM Backdoor
+   - 0x80000020-0x8000003C - Deobfuscation key (256 bit)
+   - 0x80001000 - Log FIFO data. Reads pop data from FIFO.
+     - `[7:0] -> Next log character`
+     - `[8] -> Log character valid`
+   - 0x80001004 - Log FIFO register
+     - `[0] -> Log FIFO empty`
+     - `[1] -> Log FIFO full (probably overrun)`
+ - ROM Backdoor - 32K
    - `0x82000000 - 0x82007FFF`
  - Caliptra soc register interface
    - `0x90000000`
+#### Interrupts ####
+ - 89 - Log FIFO half full.
 
 ### Loading and Execution Steps: ###
 1. Install FPGA image

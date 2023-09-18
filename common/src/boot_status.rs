@@ -18,6 +18,7 @@ const FWPROCESSOR_BOOT_STATUS_BASE: u32 = 129;
 const FMCALIAS_BOOT_STATUS_BASE: u32 = 193;
 const COLD_RESET_BOOT_STATUS_BASE: u32 = 257;
 const UPDATE_RESET_BOOT_STATUS_BASE: u32 = 321;
+const ROM_GLOBAL_BOOT_STATUS_BASE: u32 = 385;
 
 /// Statuses used by ROM to log dice derivation progress.
 #[repr(u32)]
@@ -63,15 +64,21 @@ pub enum RomBootStatus {
 
     // Cold Reset Statuses
     ColdResetStarted = COLD_RESET_BOOT_STATUS_BASE,
-    ColdResetComplete = COLD_RESET_BOOT_STATUS_BASE + 1,
+    ColdResetComplete = UPDATE_RESET_BOOT_STATUS_BASE - 1,
 
     // Update Reset Statuses
     UpdateResetStarted = UPDATE_RESET_BOOT_STATUS_BASE,
     UpdateResetLoadManifestComplete = UPDATE_RESET_BOOT_STATUS_BASE + 1,
     UpdateResetImageVerificationComplete = UPDATE_RESET_BOOT_STATUS_BASE + 2,
-    UpdateResetLoadImageComplete = UPDATE_RESET_BOOT_STATUS_BASE + 3,
-    UpdateResetOverwriteManifestComplete = UPDATE_RESET_BOOT_STATUS_BASE + 4,
-    UpdateResetComplete = UPDATE_RESET_BOOT_STATUS_BASE + 5,
+    UpdateResetPopulateDataVaultComplete = UPDATE_RESET_BOOT_STATUS_BASE + 3,
+    UpdateResetExtendPcrComplete = UPDATE_RESET_BOOT_STATUS_BASE + 4,
+    UpdateResetLoadImageComplete = UPDATE_RESET_BOOT_STATUS_BASE + 5,
+    UpdateResetOverwriteManifestComplete = UPDATE_RESET_BOOT_STATUS_BASE + 6,
+    UpdateResetComplete = UPDATE_RESET_BOOT_STATUS_BASE + 7,
+
+    // ROM Global Boot Statues
+    KatStarted = ROM_GLOBAL_BOOT_STATUS_BASE,
+    KatComplete = ROM_GLOBAL_BOOT_STATUS_BASE + 1,
 }
 
 impl From<RomBootStatus> for u32 {

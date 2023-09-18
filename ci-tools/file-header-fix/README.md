@@ -13,7 +13,7 @@ $ touch foo.rs bar.rs
 $ cargo run -p caliptra-file-header-fix -- --check
 File "./bar.rs" doesn't contain "Licensed under the Apache-2.0 license" in the first 3 lines
 File "./foo.rs" doesn't contain "Licensed under the Apache-2.0 license" in the first 3 lines
-To fix, run "cargo run --bin caliptra-file-header-fix" in the workspace directory.
+To fix, run \"ci-tools/file-header-fix.sh\" from the repo root.
 $ echo $?
 2
 ```

@@ -14,7 +14,8 @@ Abstract:
 
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::{
-    array_concat3, wait, Array4x12, CaliptraError, CaliptraResult, KeyReadArgs, KeyWriteArgs, Trng,
+    array_concat3, okmutref, wait, Array4x12, Array4xN, CaliptraError, CaliptraResult, KeyReadArgs,
+    KeyWriteArgs, Trng,
 };
 use caliptra_registers::ecc::EccReg;
 use core::cmp::Ordering;
@@ -22,6 +23,14 @@ use zerocopy::{AsBytes, FromBytes};
 
 /// ECC-384 Coordinate
 pub type Ecc384Scalar = Array4x12;
+
+#[must_use]
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ecc384Result {
+    Success = 0xAAAAAAAA,
+    SigVerifyFailed = 0x55555555,
+}
 
 /// ECC-384 Seed
 #[derive(Debug, Copy, Clone)]
@@ -91,6 +100,14 @@ impl From<KeyReadArgs> for Ecc384PrivKeyIn<'_> {
     /// Converts to this type from the input type.
     fn from(value: KeyReadArgs) -> Self {
         Self::Key(value)
+    }
+}
+impl<'a> From<Ecc384PrivKeyOut<'a>> for Ecc384PrivKeyIn<'a> {
+    fn from(value: Ecc384PrivKeyOut<'a>) -> Self {
+        match value {
+            Ecc384PrivKeyOut::Array4x12(arr) => Ecc384PrivKeyIn::Array4x12(arr),
+            Ecc384PrivKeyOut::Key(key) => Ecc384PrivKeyIn::Key(KeyReadArgs { id: key.id }),
+        }
     }
 }
 
@@ -201,10 +218,10 @@ impl Ecc384 {
         // Configure hardware to route keys to user specified hardware blocks
         match &mut priv_key {
             Ecc384PrivKeyOut::Array4x12(_arr) => {
-                KvAccess::begin_copy_to_arr(ecc.kv_wr_pkey_status(), ecc.kv_wr_pkey_ctrl())?
+                KvAccess::begin_copy_to_arr(ecc.kv_wr_pkey_status(), ecc.kv_wr_pkey_ctrl())?;
             }
             Ecc384PrivKeyOut::Key(key) => {
-                KvAccess::begin_copy_to_kv(ecc.kv_wr_pkey_status(), ecc.kv_wr_pkey_ctrl(), *key)?
+                KvAccess::begin_copy_to_kv(ecc.kv_wr_pkey_status(), ecc.kv_wr_pkey_ctrl(), *key)?;
             }
         }
 
@@ -230,11 +247,16 @@ impl Ecc384 {
         // Wait for command to complete
         wait::until(|| ecc.status().read().valid());
 
+        let mut perform_pct: bool = true;
+
         // Copy the private key
         match &mut priv_key {
             Ecc384PrivKeyOut::Array4x12(arr) => KvAccess::end_copy_to_arr(ecc.privkey_out(), arr)?,
-            Ecc384PrivKeyOut::Key(key) => KvAccess::end_copy_to_kv(ecc.kv_wr_pkey_status(), *key)
-                .map_err(|err| err.into_write_priv_key_err())?,
+            Ecc384PrivKeyOut::Key(key) => {
+                KvAccess::end_copy_to_kv(ecc.kv_wr_pkey_status(), *key)
+                    .map_err(|err| err.into_write_priv_key_err())?;
+                perform_pct = key.usage.ecc_private_key();
+            }
         }
 
         let pub_key = Ecc384PubKey {
@@ -242,23 +264,23 @@ impl Ecc384 {
             y: Array4x12::read_from_reg(ecc.pubkey_y()),
         };
 
+        // Pairwise consistency check.
+        if perform_pct {
+            let digest = Array4x12::new([0u32; 12]);
+            match self.sign(&priv_key.into(), &pub_key, &digest, trng) {
+                Ok(mut sig) => sig.zeroize(),
+                Err(CaliptraError::DRIVER_ECC384_SIGN_VALIDATION_FAILED) => {
+                    return Err(CaliptraError::DRIVER_ECC384_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE)
+                }
+                Err(err) => return Err(err),
+            }
+        }
         self.zeroize_internal();
 
         Ok(pub_key)
     }
 
-    /// Sign the digest with specified private key
-    ///
-    /// # Arguments
-    ///
-    /// * `priv_key` - Private key
-    /// * `data` - Digest to sign
-    /// * `trng` - TRNG driver instance
-    ///
-    /// # Returns
-    ///
-    /// * `Ecc384Signature` - Generate signature
-    pub fn sign(
+    fn sign_internal(
         &mut self,
         priv_key: &Ecc384PrivKeyIn,
         data: &Ecc384Scalar,
@@ -302,7 +324,77 @@ impl Ecc384 {
         Ok(signature)
     }
 
+    /// Sign the digest with specified private key. To defend against glitching
+    /// attacks that could expose the private key, this function also verifies
+    /// the generated signature.
+    ///
+    /// # Arguments
+    ///
+    /// * `priv_key` - Private key
+    /// * `pub_key` - Public key to verify with
+    /// * `data` - Digest to sign
+    /// * `trng` - TRNG driver instance
+    ///
+    /// # Returns
+    ///
+    /// * `Ecc384Signature` - Generate signature
+    pub fn sign(
+        &mut self,
+        priv_key: &Ecc384PrivKeyIn,
+        pub_key: &Ecc384PubKey,
+        data: &Ecc384Scalar,
+        trng: &mut Trng,
+    ) -> CaliptraResult<Ecc384Signature> {
+        let mut sig_result = self.sign_internal(priv_key, data, trng);
+        let sig = okmutref(&mut sig_result)?;
+        match self.verify(pub_key, data, sig)? {
+            Ecc384Result::SigVerifyFailed => {
+                sig.zeroize();
+                return Err(CaliptraError::DRIVER_ECC384_SIGN_VALIDATION_FAILED);
+            }
+            Ecc384Result::Success => {}
+        };
+        sig_result
+    }
+
     /// Verify signature with specified public key and digest
+    ///
+    /// # Arguments
+    ///
+    /// * `pub_key` - Public key
+    /// * `digest` - digest to verify
+    /// * `signature` - Signature to verify
+    ///
+    ///  Note: Use this function only if glitch protection is not needed.
+    ///        If glitch protection is needed, use `verify_r` instead.
+    ///
+    ///
+    /// # Result
+    ///
+    /// *  `Ecc384Result` - Ecc384Result::Success if the signature verification passed else an error code.
+    pub fn verify(
+        &mut self,
+        pub_key: &Ecc384PubKey,
+        digest: &Ecc384Scalar,
+        signature: &Ecc384Signature,
+    ) -> CaliptraResult<Ecc384Result> {
+        // Get the verify r result
+        let mut verify_r = self.verify_r(pub_key, digest, signature)?;
+
+        // compare the hardware generate `r` with one in signature
+        let result = if verify_r == signature.r {
+            Ecc384Result::Success
+        } else {
+            Ecc384Result::SigVerifyFailed
+        };
+
+        verify_r.0.fill(0);
+        Ok(result)
+    }
+
+    /// Returns the R value of the signature with specified public key and digest.
+    ///  Caller is expected to compare the returned R value against the provided signature's
+    ///  R value to determine whether the signature is valid.
     ///
     /// # Arguments
     ///
@@ -312,16 +404,16 @@ impl Ecc384 {
     ///
     /// # Result
     ///
-    /// *  `bool` - True if the signature verification passed else false
-    pub fn verify(
+    /// *  `Array4xN<12, 48>` - verify R value
+    pub fn verify_r(
         &mut self,
         pub_key: &Ecc384PubKey,
         digest: &Ecc384Scalar,
         signature: &Ecc384Signature,
-    ) -> CaliptraResult<bool> {
+    ) -> CaliptraResult<Array4xN<12, 48>> {
         // If R or S are not in the range [1, N-1], signature check must fail
         if !Self::scalar_range_check(&signature.r) || !Self::scalar_range_check(&signature.s) {
-            return Ok(false);
+            return Err(CaliptraError::DRIVER_ECC384_SCALAR_RANGE_CHECK_FAILED);
         }
 
         let ecc = self.ecc.regs_mut();
@@ -349,12 +441,9 @@ impl Ecc384 {
         // Copy the random value
         let verify_r = Array4x12::read_from_reg(ecc.verify_r());
 
-        // compare the hardware generate `r` with one in signature
-        let result = verify_r == signature.r;
-
         self.zeroize_internal();
 
-        Ok(result)
+        Ok(verify_r)
     }
 
     /// Zeroize the hardware registers.
