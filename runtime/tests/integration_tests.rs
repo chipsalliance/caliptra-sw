@@ -878,26 +878,26 @@ fn test_idev_id_cert() {
 #[test]
 fn test_extend_pcr_cmd() {
     let mut model = run_rt_test(None, None);
+    let payload_data = [0u8; 79];
 
-    let payload_data = [0u8; 80];
-
-    let cmd = ExtendPcrReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        pcr_idx: 0,
-        data: payload_data,
-        // data_size: (payload_data.len() - 1) as u32,
-        data_size: (payload_data.len() - 1) as u32,
-    };
+    let cmd = ExtendPcrReq::new(
+        MailboxReqHeader { chksum: 0 },
+        0,
+        (payload_data.len() - 1) as u32,
+        payload_data,
+    );
 
     let checksum = caliptra_common::checksum::calc_checksum(
         u32::from(CommandId::EXTEND_PCR),
         &cmd.as_bytes()[4..],
     );
 
-    let cmd = ExtendPcrReq {
-        hdr: MailboxReqHeader { chksum: checksum },
-        ..cmd
-    };
+    let cmd = ExtendPcrReq::new(
+        MailboxReqHeader { chksum: checksum },
+        cmd.pcr_idx,
+        cmd.data_size,
+        cmd.data,
+    );
 
     let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
     assert!(res.is_ok());

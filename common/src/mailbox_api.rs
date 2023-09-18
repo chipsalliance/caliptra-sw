@@ -302,10 +302,26 @@ pub struct ExtendPcrReq {
     pub pcr_idx: u32,
     pub data_size: u32,
     pub data: [u8; ExtendPcrReq::DATA_MAX_SIZE],
+    _pad: [u8; 4 - (ExtendPcrReq::DATA_MAX_SIZE % 4)],
 }
 // No command-specific output args
 impl ExtendPcrReq {
-    pub const DATA_MAX_SIZE: usize = sha384::SHA384_BLOCK_BYTE_SIZE - sha384::SHA384_HASH_SIZE;
+    pub const DATA_MAX_SIZE: usize = sha384::SHA384_BLOCK_BYTE_SIZE - sha384::SHA384_HASH_SIZE - 1;
+
+    pub fn new(
+        hdr: MailboxReqHeader,
+        pcr_idx: u32,
+        data_size: u32,
+        data: [u8; ExtendPcrReq::DATA_MAX_SIZE],
+    ) -> Self {
+        ExtendPcrReq {
+            hdr,
+            pcr_idx,
+            data_size,
+            data,
+            _pad: [0u8; 4 - (ExtendPcrReq::DATA_MAX_SIZE % 4)],
+        }
+    }
 }
 
 #[repr(C)]
