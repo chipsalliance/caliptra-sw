@@ -2,6 +2,7 @@
 
 use caliptra_builder::ROM_FAKE_WITH_UART;
 use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART};
+use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::{Array4x12, CaliptraError};
 use caliptra_hw_model::{
@@ -9,8 +10,6 @@ use caliptra_hw_model::{
 };
 
 pub mod helpers;
-
-const TEST_FMC_CMD_RESET_FOR_UPDATE: u32 = 0x1000_0004;
 
 const PUB_KEY_X: [u8; 48] = [
     0xD7, 0x9C, 0x6D, 0x97, 0x2B, 0x34, 0xA1, 0xDF, 0xC9, 0x16, 0xA7, 0xB6, 0xE0, 0xA9, 0x9B, 0x6B,
@@ -142,18 +141,19 @@ fn test_fake_rom_update_reset() {
 
     hw.step_until_boot_status(ColdResetComplete.into(), true);
 
-    // Send command to test FMC to initiate a reset for update
-    hw.mailbox_execute(TEST_FMC_CMD_RESET_FOR_UPDATE, &[])
-        .unwrap();
+    // Upload FW again
+    hw.start_mailbox_execute(
+        CommandId::FIRMWARE_LOAD.into(),
+        &image_bundle.to_bytes().unwrap(),
+    )
+    .unwrap();
 
     hw.step_until_boot_status(UpdateResetStarted.into(), true);
 
-    // Upload FW again
-    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
-    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-        .unwrap();
-
     hw.step_until_boot_status(UpdateResetComplete.into(), true);
+
+    assert_eq!(hw.finish_mailbox_execute(), Ok(None));
+
     hw.step_until_exit_success().unwrap();
 }
 
