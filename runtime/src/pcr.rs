@@ -57,25 +57,7 @@ pub fn get_pcr_quote(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<
 
     let pcr_hash = drivers.sha384.gen_pcr_hash(args.nonce.into())?;
 
-    let priv_key_datastore: DataStore = drivers
-        .persistent_data
-        .get()
-        .fht
-        .fmc_priv_key_kv_hdl
-        .try_into()?;
-
-    let DataStore::KeyVaultSlot(key_id) = priv_key_datastore else {
-        return Err(CaliptraError::DRIVER_BAD_DATASTORE_VAULT_TYPE);
-    };
-
-    let pub_key = drivers.data_vault.fmc_pub_key();
-
-    let priv_key_args = KeyReadArgs::new(key_id);
-    let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
-
-    let signature = drivers
-        .ecc384
-        .sign(&priv_key, &pub_key, &pcr_hash, &mut drivers.trng)?;
+    let signature = drivers.ecc384.pcr_sign_flow(&pcr_hash, &mut drivers.trng)?;
 
     let raw_pcrs = drivers.pcr_bank.read_all_pcrs();
 

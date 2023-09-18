@@ -269,6 +269,39 @@ impl Ecc384 {
         Ok(pub_key)
     }
 
+    pub fn pcr_sign_flow(
+        &mut self,
+        data: &Ecc384Scalar,
+        trng: &mut Trng,
+    ) -> CaliptraResult<Ecc384Signature> {
+        let ecc = self.ecc.regs_mut();
+
+        // Wait for hardware ready
+        wait::until(|| ecc.status().read().ready());
+
+        // Copy digest
+        KvAccess::copy_from_arr(data, ecc.msg())?;
+
+        // Generate an IV.
+        let iv = trng.generate()?;
+        KvAccess::copy_from_arr(&iv, ecc.iv())?;
+
+        ecc.ctrl().write(|w| w.pcr_sign(true));
+
+        // Wait for command to complete
+        wait::until(|| ecc.status().read().valid());
+
+        // Copy signature
+        let signature = Ecc384Signature {
+            r: Array4x12::read_from_reg(ecc.sign_r()),
+            s: Array4x12::read_from_reg(ecc.sign_s()),
+        };
+
+        self.zeroize_internal();
+
+        Ok(signature)
+    }
+
     fn sign_internal(
         &mut self,
         priv_key: &Ecc384PrivKeyIn,
