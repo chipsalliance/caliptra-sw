@@ -448,8 +448,6 @@ fn test_pcr_log_across_update_reset() {
     }
 
     // Trigger an update reset.
-    hw.mailbox_execute(0x1000_0004, &[]).unwrap();
-    hw.step_until_boot_status(UpdateResetStarted.into(), true);
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
     hw.step_until_boot_status(UpdateResetComplete.into(), true);

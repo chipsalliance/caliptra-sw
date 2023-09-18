@@ -81,8 +81,7 @@ void caliptra_verilated_eval(struct caliptra_verilated* model,
   out->pslverr = v->pslverr;
   out->prdata = v->prdata;
 
-  out->generic_load_en = v->generic_load_en;
-  out->generic_load_data = v->generic_load_data;
+  out->generic_output_wires = v->generic_output_wires;
 
   out->etrng_req = v->etrng_req;
 
