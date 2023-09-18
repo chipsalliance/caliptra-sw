@@ -36,7 +36,7 @@ use caliptra_emu_bus::Bus;
 use caliptra_emu_types::{RvException, RvSize};
 
 /// Instruction
-enum Instr {
+pub enum Instr {
     Compressed(u16),
     General(u32),
 }
@@ -59,7 +59,11 @@ impl<TBus: Bus> Cpu<TBus> {
         self.is_execute_instr = true;
         self.watch_ptr_cfg.hit = None;
 
-        match self.fetch()? {
+        let instr = self.fetch()?;
+        // Code coverage here.
+        self.code_coverage.log_execution(self.read_pc(), &instr);
+
+        match instr {
             Instr::Compressed(instr) => {
                 self.set_next_pc(self.read_pc().wrapping_add(2));
                 self.exec_instr16(instr, instr_tracer)?;
