@@ -315,9 +315,19 @@ impl Pcr0 {
             *value = sha384(&[value.as_slice(), buf].concat());
         };
 
-        extend(&mut value, &[input.security_state.device_lifecycle() as u8]);
-        extend(&mut value, &[input.security_state.debug_locked() as u8]);
-        extend(&mut value, &[input.fuse_anti_rollback_disable as u8]);
+        extend(
+            &mut value,
+            &[
+                input.security_state.device_lifecycle() as u8,
+                input.security_state.debug_locked() as u8,
+                input.fuse_anti_rollback_disable as u8,
+                input.ecc_vendor_pub_key_index as u8,
+                input.fmc_svn as u8,
+                input.fmc_fuse_svn as u8,
+                input.lms_vendor_pub_key_index as u8,
+                input.rom_verify_config as u8,
+            ],
+        );
         extend(
             &mut value,
             swap_word_bytes(&input.vendor_pub_key_hash).as_bytes(),
@@ -326,12 +336,7 @@ impl Pcr0 {
             &mut value,
             swap_word_bytes(&input.owner_pub_key_hash).as_bytes(),
         );
-        extend(&mut value, &[input.ecc_vendor_pub_key_index as u8]);
         extend(&mut value, swap_word_bytes(&input.fmc_digest).as_bytes());
-        extend(&mut value, &[input.fmc_svn as u8]);
-        extend(&mut value, &[input.fmc_fuse_svn as u8]);
-        extend(&mut value, &[input.lms_vendor_pub_key_index as u8]);
-        extend(&mut value, &[input.rom_verify_config as u8]);
 
         let mut result: [u32; 12] = zerocopy::transmute!(value);
         swap_word_bytes_inplace(&mut result);
@@ -367,9 +372,9 @@ fn test_derive_pcr0() {
     assert_eq!(
         pcr0,
         Pcr0([
-            0xB38A7B77, 0xC68EB393, 0x868CF1B6, 0x86D1A737, 0x865E57CE, 0xC776EB1D, 0x48D45DCF,
-            0xD6C90BA0, 0x7B5F5D82, 0x8B2CCBFF, 0xC204B621, 0xAD1193D5
-        ],)
+            334368099, 4101058832, 257564511, 2070344457, 1515946830, 1149528795, 3857446926,
+            3563986624, 336259629, 3599082754, 3226667919, 2430588663
+        ])
     )
 }
 

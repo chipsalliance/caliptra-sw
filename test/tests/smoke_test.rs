@@ -300,11 +300,11 @@ fn smoke_test() {
     hasher.update(&[security_state.device_lifecycle() as u8]);
     hasher.update(&[security_state.debug_locked() as u8]);
     hasher.update(&[fuses.anti_rollback_disable as u8]);
-    hasher.update(&vendor_pk_hash);
-    hasher.update(&owner_pk_hash);
     hasher.update(/*ecc_vendor_pk_index=*/ &[0u8]); // No keys are revoked
     hasher.update(&[image.manifest.header.vendor_lms_pub_key_idx as u8]);
     hasher.update(&[fuses.lms_verify as u8]);
+    hasher.update(&vendor_pk_hash);
+    hasher.update(&owner_pk_hash);
     let device_info_hash = hasher.finish();
 
     let dice_tcb_info = DiceTcbInfo::find_multiple_in_cert(fmc_alias_cert_der).unwrap();
