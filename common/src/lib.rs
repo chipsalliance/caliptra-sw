@@ -15,7 +15,7 @@ pub mod wdt;
 
 ///merge imports
 pub use hand_off::{
-    print_fht, report_handoff_error_and_halt, DataStore, DataVaultRegister, FirmwareHandoffTable,
+    report_handoff_error_and_halt, DataStore, DataVaultRegister, FirmwareHandoffTable,
     HandOffDataHandle, Vault, FHT_INVALID_HANDLE, FHT_MARKER,
 };
 
