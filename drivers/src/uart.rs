@@ -35,26 +35,25 @@ impl Uart {
     ///
     /// `str` - String to write to UART
     pub fn write(&mut self, str: &str) {
-        for byte in str.bytes() {
-            match byte {
-                0x20..=0x7e | b'\n' | b'\t' => self.write_byte(byte),
-                _ => self.write_byte(0xfe),
-            }
-        }
-    }
-
-    /// Write the byte to UART
-    ///
-    /// # Arguments
-    ///
-    /// `byte` - Byte to write to UART
-    pub fn write_byte(&mut self, byte: u8) {
-        // TODO: cleanup after final UART RTL definition is in place
         let mut reg = unsafe { SocIfcReg::new() };
-        reg.regs_mut()
-            .cptra_generic_output_wires()
-            .at(0)
-            .write(|_| byte as u32);
+        let reg = reg.regs_mut();
+        let output_reg = reg.cptra_generic_output_wires().at(0);
+
+        let mut val = output_reg.read();
+
+        for ch in str.bytes() {
+            val = u32::from(match ch {
+                0x20..=0x7e | b'\n' | b'\t' => ch,
+                _ => 0xfe,
+            }) | (val & 0xffff_ff00);
+
+            // Toggle bit 8 every time a character is written, so the outside
+            // world can tell when we've written a new character without having
+            // to introspect internal signals.
+            val ^= 0x100;
+
+            output_reg.write(|_| val);
+        }
     }
 }
 

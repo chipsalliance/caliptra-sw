@@ -1022,3 +1022,12 @@ fn test_trng_in_etrng_mode() {
 fn test_persistent() {
     run_driver_test("persistent");
 }
+
+#[test]
+fn test_uart() {
+    let mut model = start_driver_test("test_uart").unwrap();
+
+    let mut output = Vec::new();
+    model.copy_output_until_exit_success(&mut output).unwrap();
+    assert_eq!(&output, b"aaaaaahello");
+}

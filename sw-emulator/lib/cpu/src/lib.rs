@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-mod cpu;
+pub mod cpu;
 mod csr_file;
 mod instr;
 mod types;
