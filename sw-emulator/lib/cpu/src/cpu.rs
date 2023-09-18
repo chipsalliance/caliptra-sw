@@ -50,14 +50,6 @@ impl CodeCoverage {
             }
         }
     }
-
-    pub fn count_executed(&self) -> usize {
-        self.bit_vec.iter().filter(|&executed| executed).count()
-    }
-
-    pub fn calculate_coverage_percentage(&self) -> f64 {
-        self.count_executed() as f64 / (self.bit_vec.len() as f64) * 100.0
-    }
 }
 
 #[derive(PartialEq)]
@@ -531,6 +523,10 @@ mod tests {
         assert_eq!(cpu.read_pc(), 31 * 4);
     }
 
+    pub fn count_executed(coverage: &CodeCoverage) -> usize {
+        coverage.bit_vec.iter().filter(|&executed| executed).count()
+    }
+
     #[test]
     fn test_coverage() {
         // represent program as an array of 16-bit and 32-bit instructions
@@ -542,8 +538,6 @@ mod tests {
 
         // Instantiate coverage with a capacity for the mix of instructions above
         let mut coverage = CodeCoverage::new(8);
-        assert_eq!(coverage.count_executed(), 0);
-        assert_eq!(coverage.calculate_coverage_percentage(), 0.0);
 
         // Log execution of the instructions above
         coverage.log_execution(0, &instructions[0]);
@@ -551,7 +545,6 @@ mod tests {
         coverage.log_execution(4, &instructions[2]);
 
         // Check for expected values
-        assert_eq!(coverage.count_executed(), 8);
-        assert_eq!(coverage.calculate_coverage_percentage(), 100.0);
+        assert_eq!(count_executed(&coverage), 8);
     }
 }
