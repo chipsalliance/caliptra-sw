@@ -310,6 +310,15 @@ fn test_pcr_log_fmc_fuse_svn() {
     );
 }
 
+fn hash_pcr_log_entry(entry: &PcrLogEntry, pcr: &mut [u8; 48]) {
+    let mut hasher = Hasher::new(MessageDigest::sha384()).unwrap();
+    hasher.update(pcr).unwrap();
+    hasher.update(entry.measured_data()).unwrap();
+    let digest: &[u8] = &hasher.finish().unwrap();
+
+    pcr.copy_from_slice(digest);
+}
+
 // Computes the PCR from the log.
 fn hash_pcr_log_entries(initial_pcr: &[u8; 48], pcr_entry_arr: &[u8], pcr_id: PcrId) -> [u8; 48] {
     let mut offset: usize = 0;
@@ -329,12 +338,29 @@ fn hash_pcr_log_entries(initial_pcr: &[u8; 48], pcr_entry_arr: &[u8], pcr_id: Pc
             continue;
         }
 
-        let mut hasher = Hasher::new(MessageDigest::sha384()).unwrap();
-        hasher.update(&pcr).unwrap();
-        hasher.update(entry.measured_data()).unwrap();
-        let digest: &[u8] = &hasher.finish().unwrap();
+        hash_pcr_log_entry(&entry, &mut pcr);
+    }
 
-        pcr.copy_from_slice(digest);
+    pcr
+}
+
+fn hash_measurement_log_entries(measurement_entry_arr: &[u8]) -> [u8; 48] {
+    let mut offset: usize = 0;
+    let mut pcr = [0u8; 48];
+
+    assert_eq!(measurement_entry_arr.len() % MEASUREMENT_ENTRY_SIZE, 0);
+
+    loop {
+        if offset == measurement_entry_arr.len() {
+            break;
+        }
+
+        let entry =
+            MeasurementLogEntry::read_from_prefix(measurement_entry_arr[offset..].as_bytes())
+                .unwrap();
+        offset += MEASUREMENT_ENTRY_SIZE;
+
+        hash_pcr_log_entry(&entry.pcr_entry, &mut pcr);
     }
 
     pcr
@@ -801,20 +827,18 @@ fn test_upload_single_measurement() {
 
     hw.step_until_boot_status(ColdResetComplete.into(), true);
 
-    // Get PCR31
-    let pcr31 = hw.mailbox_execute(0x1000_0009, &[]).unwrap().unwrap();
-
-    // Check that the measurement was extended to PCR31.
-    let mut data: [u8; 96] = [0u8; 96];
-    data[48..].copy_from_slice(measurement.measurement.as_bytes());
-    let out = openssl::sha::sha384(&data);
-    assert_eq!(pcr31.as_bytes(), out);
-
     // Check if the measurement was present in the measurement log.
     let measurement_log = hw.mailbox_execute(0x1000_000A, &[]).unwrap().unwrap();
 
     assert_eq!(measurement_log.len(), MEASUREMENT_ENTRY_SIZE);
     check_measurement_log_entry(&measurement_log, 0, &measurement);
+
+    // Get PCR31
+    let pcr31 = hw.mailbox_execute(0x1000_0009, &[]).unwrap().unwrap();
+
+    // Check that the measurement was extended to PCR31.
+    let expected_pcr = hash_measurement_log_entries(&measurement_log);
+    assert_eq!(pcr31.as_bytes(), expected_pcr);
 }
 
 #[test]
@@ -875,20 +899,7 @@ fn test_upload_measurement_limit() {
 
     hw.step_until_boot_status(ColdResetComplete.into(), true);
 
-    let pcr31 = hw.mailbox_execute(0x1000_0009, &[]).unwrap().unwrap();
-
-    // Check that only 8 measurements were extended to PCR31
-    let mut out: [u8; 48] = [0u8; 48];
-    let mut data: [u8; 96] = [0u8; 96];
-    for idx in 0..8 {
-        data[0..48].copy_from_slice(&out);
-        measurement.measurement[0] = idx;
-        data[48..].copy_from_slice(measurement.measurement.as_bytes());
-        out = openssl::sha::sha384(&data);
-    }
-    assert_eq!(pcr31.as_bytes(), out);
-
-    // Check the Mesaurement log.
+    // Check the measurement log.
     let measurement_log = hw.mailbox_execute(0x1000_000A, &[]).unwrap().unwrap();
     assert_eq!(
         measurement_log.len(),
@@ -900,6 +911,13 @@ fn test_upload_measurement_limit() {
         measurement.svn = idx as u32;
         check_measurement_log_entry(&measurement_log, idx as usize, &measurement);
     }
+
+    // Get PCR31
+    let pcr31 = hw.mailbox_execute(0x1000_0009, &[]).unwrap().unwrap();
+
+    // Check that the measurement was extended to PCR31.
+    let expected_pcr = hash_measurement_log_entries(&measurement_log);
+    assert_eq!(pcr31.as_bytes(), expected_pcr);
 }
 
 #[test]
@@ -938,27 +956,9 @@ fn test_upload_no_measurement() {
 
     // Check whether the fake measurement was extended to PCR31.
     let pcr31 = hw.mailbox_execute(0x1000_0009, &[]).unwrap().unwrap();
-
-    let mut out: [u8; 48] = [0u8; 48];
-    let mut data: [u8; 96] = [0u8; 96];
-    data[0..48].copy_from_slice(&out);
-    data[48..].copy_from_slice(&[0xFFu8; 48]);
-    out = openssl::sha::sha384(&data);
-    assert_eq!(pcr31.as_bytes(), out);
+    assert_eq!(pcr31.as_bytes(), [0u8; 48]);
 
     // Check whether the fake measurement is in the measurement log.
     let measurement_log = hw.mailbox_execute(0x1000_000A, &[]).unwrap().unwrap();
-    assert_eq!(measurement_log.len(), MEASUREMENT_ENTRY_SIZE);
-
-    check_measurement_log_entry(
-        &measurement_log,
-        0,
-        &StashMeasurementReq {
-            measurement: [0xFFu8; 48],
-            metadata: [0u8; 4],
-            context: [0u8; 48],
-            svn: 0,
-            ..Default::default()
-        },
-    );
+    assert_eq!(measurement_log.len(), 0);
 }
