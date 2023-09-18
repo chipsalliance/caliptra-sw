@@ -327,19 +327,25 @@ fn handle_fatal_error(code: u32) -> ! {
         // Zeroize the key vault.
         KeyVault::zeroize();
 
-        // Lock the SHA Accelerator.
-        Sha384Acc::lock();
-
         // Stop the watchdog timer.
         // Note: This is an idempotent operation.
         SocIfc::stop_wdt1();
     }
 
     loop {
-        // SoC firmware might be stuck waiting for Caliptra to finish
-        // executing this pending mailbox transaction. Notify them that
-        // we've failed.
-        unsafe { Mailbox::abort_pending_soc_to_uc_transactions() };
+        unsafe {
+            // SoC firmware might be stuck waiting for Caliptra to finish
+            // executing this pending mailbox transaction. Notify them that
+            // we've failed.
+            Mailbox::abort_pending_soc_to_uc_transactions();
+
+            // The SHA accelerator may still be in use by the SoC;
+            // try to lock it as soon as possible.
+            //
+            // WDT is disabled at this point so there is no issue
+            // of it firing due to the lock taking too long.
+            Sha384Acc::try_lock();
+        }
     }
 }
 

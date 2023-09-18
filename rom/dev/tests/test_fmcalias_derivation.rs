@@ -121,11 +121,11 @@ fn test_pcr_log() {
     let gen = ImageGenerator::new(OsslCrypto::default());
     let (_hw, image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let mut vendor_pubkey_digest = gen
+    let vendor_pubkey_digest = gen
         .vendor_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
 
-    let mut owner_pubkey_digest = gen
+    let owner_pubkey_digest = gen
         .owner_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
 
@@ -178,100 +178,49 @@ fn test_pcr_log() {
         .read()
         .device_lifecycle();
 
-    check_pcr_log_entry(
-        &pcr_entry_arr,
-        0,
-        PcrLogEntryId::DeviceLifecycle,
-        PCR0_AND_PCR1_EXTENDED_ID,
-        &[device_lifecycle as u8],
-    );
-
     let debug_locked = hw.soc_ifc().cptra_security_state().read().debug_locked();
-
-    check_pcr_log_entry(
-        &pcr_entry_arr,
-        1,
-        PcrLogEntryId::DebugLocked,
-        PCR0_AND_PCR1_EXTENDED_ID,
-        &[debug_locked as u8],
-    );
 
     let anti_rollback_disable = hw.soc_ifc().fuse_anti_rollback_disable().read().dis();
 
     check_pcr_log_entry(
         &pcr_entry_arr,
-        2,
-        PcrLogEntryId::AntiRollbackDisabled,
+        0,
+        PcrLogEntryId::DeviceStatus,
         PCR0_AND_PCR1_EXTENDED_ID,
-        &[anti_rollback_disable as u8],
+        &[
+            device_lifecycle as u8,
+            debug_locked as u8,
+            anti_rollback_disable as u8,
+            VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
+            FMC_SVN as u8,
+            0_u8,
+            VENDOR_CONFIG_KEY_1.lms_key_idx as u8,
+            RomVerifyConfig::EcdsaAndLms as u8,
+        ],
     );
 
-    helpers::change_dword_endianess(vendor_pubkey_digest.as_bytes_mut());
+    check_pcr_log_entry(
+        &pcr_entry_arr,
+        1,
+        PcrLogEntryId::VendorPubKeyHash,
+        PCR0_AND_PCR1_EXTENDED_ID,
+        swap_word_bytes(&vendor_pubkey_digest).as_bytes(),
+    );
+
+    check_pcr_log_entry(
+        &pcr_entry_arr,
+        2,
+        PcrLogEntryId::OwnerPubKeyHash,
+        PCR0_AND_PCR1_EXTENDED_ID,
+        swap_word_bytes(&owner_pubkey_digest).as_bytes(),
+    );
 
     check_pcr_log_entry(
         &pcr_entry_arr,
         3,
-        PcrLogEntryId::VendorPubKeyHash,
-        PCR0_AND_PCR1_EXTENDED_ID,
-        vendor_pubkey_digest.as_bytes(),
-    );
-
-    helpers::change_dword_endianess(owner_pubkey_digest.as_bytes_mut());
-
-    check_pcr_log_entry(
-        &pcr_entry_arr,
-        4,
-        PcrLogEntryId::OwnerPubKeyHash,
-        PCR0_AND_PCR1_EXTENDED_ID,
-        owner_pubkey_digest.as_bytes(),
-    );
-
-    check_pcr_log_entry(
-        &pcr_entry_arr,
-        5,
-        PcrLogEntryId::EccVendorPubKeyIndex,
-        PCR0_AND_PCR1_EXTENDED_ID,
-        &[VENDOR_CONFIG_KEY_1.ecc_key_idx as u8],
-    );
-
-    check_pcr_log_entry(
-        &pcr_entry_arr,
-        6,
         PcrLogEntryId::FmcTci,
         PCR0_AND_PCR1_EXTENDED_ID,
         swap_word_bytes(&image_bundle.manifest.fmc.digest).as_bytes(),
-    );
-
-    check_pcr_log_entry(
-        &pcr_entry_arr,
-        7,
-        PcrLogEntryId::FmcSvn,
-        PCR0_AND_PCR1_EXTENDED_ID,
-        &[FMC_SVN as u8],
-    );
-
-    check_pcr_log_entry(
-        &pcr_entry_arr,
-        8,
-        PcrLogEntryId::FmcFuseSvn,
-        PCR0_AND_PCR1_EXTENDED_ID,
-        &[0_u8],
-    );
-
-    check_pcr_log_entry(
-        &pcr_entry_arr,
-        9,
-        PcrLogEntryId::LmsVendorPubKeyIndex,
-        PCR0_AND_PCR1_EXTENDED_ID,
-        &[VENDOR_CONFIG_KEY_1.lms_key_idx as u8],
-    );
-
-    check_pcr_log_entry(
-        &pcr_entry_arr,
-        10,
-        PcrLogEntryId::RomVerifyConfig,
-        PCR0_AND_PCR1_EXTENDED_ID,
-        &[RomVerifyConfig::EcdsaAndLms as u8],
     );
 }
 
@@ -333,20 +282,31 @@ fn test_pcr_log_fmc_fuse_svn() {
 
     let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
 
-    check_pcr_log_entry(
-        &pcr_entry_arr,
-        7,
-        PcrLogEntryId::FmcSvn,
-        PCR0_AND_PCR1_EXTENDED_ID,
-        &[FMC_SVN as u8],
-    );
+    let device_lifecycle = hw
+        .soc_ifc()
+        .cptra_security_state()
+        .read()
+        .device_lifecycle();
+
+    let debug_locked = hw.soc_ifc().cptra_security_state().read().debug_locked();
+
+    let anti_rollback_disable = hw.soc_ifc().fuse_anti_rollback_disable().read().dis();
 
     check_pcr_log_entry(
         &pcr_entry_arr,
-        8,
-        PcrLogEntryId::FmcFuseSvn,
+        0,
+        PcrLogEntryId::DeviceStatus,
         PCR0_AND_PCR1_EXTENDED_ID,
-        &[FMC_FUSE_SVN as u8],
+        &[
+            device_lifecycle as u8,
+            debug_locked as u8,
+            anti_rollback_disable as u8,
+            VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
+            FMC_SVN as u8,
+            FMC_FUSE_SVN as u8,
+            u8::MAX,
+            RomVerifyConfig::EcdsaOnly as u8,
+        ],
     );
 }
 
@@ -462,8 +422,6 @@ fn test_pcr_log_across_update_reset() {
     }
 
     // Trigger an update reset.
-    hw.mailbox_execute(0x1000_0004, &[]).unwrap();
-    hw.step_until_boot_status(UpdateResetStarted.into(), true);
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
     hw.step_until_boot_status(UpdateResetComplete.into(), true);

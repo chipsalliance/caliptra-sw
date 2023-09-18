@@ -5,7 +5,8 @@ use caliptra_common::mailbox_api::{
     CommandId, EcdsaVerifyReq, MailboxReqHeader, MailboxRespHeader,
 };
 use caliptra_hw_model::{HwModel, ShaAccMode};
-use common::run_rom_test;
+use caliptra_runtime::RtBootStatus;
+use common::run_rt_test;
 use zerocopy::{AsBytes, FromBytes};
 
 // This file includes some tests from Wycheproof to testing specific common
@@ -15,11 +16,11 @@ use zerocopy::{AsBytes, FromBytes};
 
 #[test]
 fn ecdsa_cmd_run_wycheproof() {
-    let mut model = run_rom_test("mbox");
+    let mut model = run_rt_test(None, None);
 
     model.step_until(|m| {
-        m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle()
-            && m.soc_ifc().cptra_boot_status().read() == 1
+        m.soc_ifc().cptra_boot_status().read()
+            == <RtBootStatus as Into<u32>>::into(RtBootStatus::RtReadyForCommands)
     });
 
     #[allow(dead_code)]

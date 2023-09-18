@@ -161,16 +161,14 @@ impl FmcAliasLayer {
             env.soc_ifc.lifecycle() as u8,
             env.soc_ifc.debug_locked() as u8,
             env.soc_ifc.fuse_bank().anti_rollback_disable() as u8,
+            env.data_vault.ecc_vendor_pk_index() as u8,
+            env.data_vault.lms_vendor_pk_index() as u8,
+            env.soc_ifc.fuse_bank().lms_verify() as u8,
         ])?;
         hasher.update(&<[u8; 48]>::from(
             env.soc_ifc.fuse_bank().vendor_pub_key_hash(),
         ))?;
         hasher.update(&<[u8; 48]>::from(env.data_vault.owner_pk_hash()))?;
-        hasher.update(&[
-            env.data_vault.ecc_vendor_pk_index() as u8,
-            env.data_vault.lms_vendor_pk_index() as u8,
-            env.soc_ifc.fuse_bank().lms_verify() as u8,
-        ])?;
         hasher.finalize(&mut fuse_info_digest)?;
 
         // Certificate `To Be Signed` Parameters
