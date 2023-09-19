@@ -31,9 +31,9 @@ pub use fips::FipsShutdownCmd;
 #[cfg(feature = "fips_self_test")]
 pub use fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
 
-pub use crate::pcr::{get_pcr_quote, IncrementPcrResetCounter, PcrResetCounter};
 pub use info::{FwInfoCmd, IDevIdCertCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
+pub use pcr::{GetPcrQuoteCmd, IncrementPcrResetCounter, PcrResetCounter};
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::EcdsaVerifyCmd;
 pub mod packet;
@@ -141,7 +141,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             IncrementPcrResetCounter::execute(drivers, cmd_bytes)
         }
         CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes),
-        CommandId::QUOTE_PCRS => get_pcr_quote(drivers, cmd_bytes),
+        CommandId::QUOTE_PCRS => GetPcrQuoteCmd::execute(drivers, cmd_bytes),
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers, cmd_bytes),
         CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),

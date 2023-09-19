@@ -51,39 +51,42 @@ impl IncrementPcrResetCounter {
     }
 }
 
-pub fn get_pcr_quote(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<MailboxResp> {
-    let args: QuotePcrsReq =
-        QuotePcrsReq::read_from(cmd_bytes).ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+pub struct GetPcrQuoteCmd;
+impl GetPcrQuoteCmd {
+    pub(crate) fn execute(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<MailboxResp> {
+        let args: QuotePcrsReq = QuotePcrsReq::read_from(cmd_bytes)
+            .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
-    let pcr_hash = drivers.sha384.gen_pcr_hash(args.nonce.into())?;
+        let pcr_hash = drivers.sha384.gen_pcr_hash(args.nonce.into())?;
 
-    let signature = drivers.ecc384.pcr_sign_flow(&pcr_hash, &mut drivers.trng)?;
+        let signature = drivers.ecc384.pcr_sign_flow(&pcr_hash, &mut drivers.trng)?;
 
-    let raw_pcrs = drivers.pcr_bank.read_all_pcrs();
+        let raw_pcrs = drivers.pcr_bank.read_all_pcrs();
 
-    let pcrs_as_bytes = raw_pcrs
-        .into_iter()
-        .map(|raw_pcr_value| raw_pcr_value.into())
-        .enumerate()
-        .fold([[0; 48]; 32], |mut acc, (idx, pcr_value)| {
-            acc[idx] = pcr_value;
-            acc
-        });
+        let pcrs_as_bytes = raw_pcrs
+            .into_iter()
+            .map(|raw_pcr_value| raw_pcr_value.into())
+            .enumerate()
+            .fold([[0; 48]; 32], |mut acc, (idx, pcr_value)| {
+                acc[idx] = pcr_value;
+                acc
+            });
 
-    let reset_ctrs = PcrBank::ALL_PCR_IDS
-        .into_iter()
-        .map(|pcr_id| drivers.pcr_reset.get(pcr_id))
-        .enumerate()
-        .fold([0; 32], |mut acc, (idx, reset_cnt)| {
-            acc[idx] = reset_cnt;
-            acc
-        });
+        let reset_ctrs = PcrBank::ALL_PCR_IDS
+            .into_iter()
+            .map(|pcr_id| drivers.pcr_reset.get(pcr_id))
+            .enumerate()
+            .fold([0; 32], |mut acc, (idx, reset_cnt)| {
+                acc[idx] = reset_cnt;
+                acc
+            });
 
-    Ok(MailboxResp::QuotePcrs(QuotePcrsResp {
-        hdr: MailboxRespHeader::default(),
-        pcrs: pcrs_as_bytes,
-        reset_ctrs,
-        signature_r: signature.r.into(),
-        signature_s: signature.s.into(),
-    }))
+        Ok(MailboxResp::QuotePcrs(QuotePcrsResp {
+            hdr: MailboxRespHeader::default(),
+            pcrs: pcrs_as_bytes,
+            reset_ctrs,
+            signature_r: signature.r.into(),
+            signature_s: signature.s.into(),
+        }))
+    }
 }
