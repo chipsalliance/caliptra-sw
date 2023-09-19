@@ -84,9 +84,6 @@ pub struct ImageVerificationInfo {
     /// Vendor LMS public key index
     pub vendor_lms_pub_key_idx: Option<u32>,
 
-    /// Digest of vendor public keys that verified the image
-    pub vendor_pub_keys_digest: ImageDigest,
-
     /// Digest of owner public keys that verified the image
     pub owner_pub_keys_digest: ImageDigest,
 

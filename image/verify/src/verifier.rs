@@ -113,7 +113,6 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let info = ImageVerificationInfo {
             vendor_ecc_pub_key_idx: header_info.vendor_ecc_pub_key_idx,
             vendor_lms_pub_key_idx: header_info.vendor_lms_pub_key_idx,
-            vendor_pub_keys_digest: self.make_vendor_key_digest(header_info)?,
             owner_pub_keys_digest: header_info.owner_pub_keys_digest,
             owner_pub_keys_digest_in_fuses: header_info.owner_pub_keys_digest_in_fuses,
             fmc: fmc_info,
@@ -698,23 +697,6 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         };
 
         Ok((info, log_info))
-    }
-
-    /// Calculates a digest of the vendor key that signed the image.
-    ///
-    /// TODO: include the LMS key in the digest.
-    // Inlined to reduce ROM size
-    #[inline(always)]
-    fn make_vendor_key_digest(&mut self, info: &HeaderInfo) -> CaliptraResult<ImageDigest> {
-        let range = ImageManifest::vendor_ecc_pub_key_range(info.vendor_ecc_pub_key_idx);
-
-        if range.is_empty() {
-            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS)?;
-        }
-
-        self.env
-            .sha384_digest(range.start, range.len() as u32)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE)
     }
 
     /// Calculates the effective fuse SVN.
