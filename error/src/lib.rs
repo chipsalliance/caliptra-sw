@@ -336,6 +336,8 @@ impl CaliptraError {
     pub const RUNTIME_INVALID_FMC_SIZE: CaliptraError = CaliptraError::new_const(0x000E0017);
     pub const RUNTIME_INVALID_RUNTIME_SIZE: CaliptraError = CaliptraError::new_const(0x000E0018);
     pub const RUNTIME_FMC_CERT_HANDOFF_FAILED: CaliptraError = CaliptraError::new_const(0x000E0019);
+    pub const RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL: CaliptraError =
+        CaliptraError::new_const(0x000E001A);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
