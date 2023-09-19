@@ -18,7 +18,6 @@ use caliptra_common::verifier::FirmwareImageVerificationEnv;
 
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::CommandId;
-use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::report_fw_error_non_fatal;
 use caliptra_drivers::{
@@ -40,7 +39,7 @@ impl UpdateResetFlow {
     ///
     /// * `env` - ROM Environment
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
+    pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
         cprintln!("[update-reset] ++");
         report_boot_status(UpdateResetStarted.into());
 
@@ -112,7 +111,7 @@ impl UpdateResetFlow {
         cprintln!("[update-reset Success] --");
         report_boot_status(UpdateResetComplete.into());
 
-        Ok(None)
+        Ok(())
     }
 
     /// Verify the image

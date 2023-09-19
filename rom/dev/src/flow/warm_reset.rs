@@ -14,7 +14,6 @@ Abstract:
 use crate::{cprintln, rom_env::RomEnv};
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
-use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::RomBootStatus::ColdResetComplete;
 use caliptra_error::{CaliptraError, CaliptraResult};
 
@@ -29,7 +28,7 @@ impl WarmResetFlow {
     /// * `env` - ROM Environment
     #[inline(never)]
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
+    pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
         cprintln!("[warm-reset] ++");
 
         // Check if previous Cold-Reset was successful.
@@ -42,6 +41,6 @@ impl WarmResetFlow {
 
         cprintln!("[warm-reset] --");
 
-        Ok(None)
+        Ok(())
     }
 }
