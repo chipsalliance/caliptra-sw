@@ -72,7 +72,7 @@ pub(crate) fn extend_pcrs(
         sha384: env.sha384,
     };
 
-    let device_status: [u8; 8] = [
+    let device_status: [u8; 9] = [
         env.soc_ifc.lifecycle() as u8,
         env.soc_ifc.debug_locked() as u8,
         env.soc_ifc.fuse_bank().anti_rollback_disable() as u8,
@@ -81,6 +81,7 @@ pub(crate) fn extend_pcrs(
         info.fmc.effective_fuse_svn as u8,
         env.data_vault.lms_vendor_pk_index() as u8,
         env.soc_ifc.fuse_bank().lms_verify() as u8,
+        info.owner_pub_keys_digest_in_fuses as u8,
     ];
 
     pcr.extend(&device_status, PcrLogEntryId::DeviceStatus)?;

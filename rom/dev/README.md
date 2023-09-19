@@ -451,7 +451,8 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
         FMC_SVN,
         FMC_FUSE_SVN (or 0 if `FUSE_ANTI_ROLLBACK_DISABLE`),
         LMS_VENDOR_PK_INDEX,
-        ROM_VERIFY_CONFIG
+        ROM_VERIFY_CONFIG,
+        OWNER_PK_HASH_FROM_FUSES (0 or 1),
     ])
     pcr_extend(Pcr0 && Pcr1, MANUFACTURER_PK)
     pcr_extend(Pcr0 && Pcr1, OWNER_PK)

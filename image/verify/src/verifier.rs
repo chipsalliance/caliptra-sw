@@ -32,6 +32,7 @@ struct HeaderInfo<'a> {
     owner_ecc_info: (&'a ImageEccPubKey, &'a ImageEccSignature),
     owner_lms_info: Option<(&'a ImageLmsPublicKey, &'a ImageLmsSignature)>,
     owner_pub_keys_digest: ImageDigest,
+    owner_pub_keys_digest_in_fuses: bool,
 }
 
 /// TOC Info
@@ -113,6 +114,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             vendor_ecc_pub_key_idx: header_info.vendor_ecc_pub_key_idx,
             vendor_lms_pub_key_idx: header_info.vendor_lms_pub_key_idx,
             owner_pub_keys_digest: header_info.owner_pub_keys_digest,
+            owner_pub_keys_digest_in_fuses: header_info.owner_pub_keys_digest_in_fuses,
             fmc: fmc_info,
             runtime: runtime_info,
             log_info: ImageVerificationLogInfo {
@@ -138,7 +140,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         self.verify_vendor_pk_digest()?;
 
         // Verify Owner Public Key Digest
-        let owner_pub_keys_digest = self.verify_owner_pk_digest(reason)?;
+        let (owner_pub_keys_digest, owner_pub_keys_digest_in_fuses) =
+            self.verify_owner_pk_digest(reason)?;
 
         // Verify ECC Vendor Key Index
         let (vendor_ecc_pub_key_idx, vendor_ecc_pub_key_revocation) =
@@ -189,6 +192,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             vendor_lms_info,
             owner_lms_info,
             owner_pub_keys_digest,
+            owner_pub_keys_digest_in_fuses,
             owner_ecc_info,
             vendor_ecc_pub_key_revocation,
             vendor_lms_pub_key_revocation,
@@ -299,8 +303,12 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         Ok(())
     }
 
-    /// Verify owner public key digest
-    fn verify_owner_pk_digest(&mut self, reason: ResetReason) -> CaliptraResult<ImageDigest> {
+    /// Verify owner public key digest.
+    /// Returns a bool indicating whether the digest was in fuses.
+    fn verify_owner_pk_digest(
+        &mut self,
+        reason: ResetReason,
+    ) -> CaliptraResult<(ImageDigest, bool)> {
         let range = ImageManifest::owner_pub_key_range();
 
         let actual = self
@@ -321,7 +329,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             }
         }
 
-        Ok(actual)
+        Ok((actual, fuses_digest != ZERO_DIGEST))
     }
 
     /// Verify Header
@@ -951,6 +959,7 @@ mod tests {
             owner_ecc_info: (&ecc_pubkey, &ecc_sig),
             owner_lms_info: Some((&owner_lms_pubkey, &owner_lms_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            owner_pub_keys_digest_in_fuses: false,
             vendor_ecc_pub_key_revocation: Default::default(),
             vendor_lms_pub_key_revocation: Default::default(),
         };
@@ -980,6 +989,7 @@ mod tests {
             owner_ecc_info: (&owner_ecc_pubkey, &owner_ecc_sig),
             owner_lms_info: Some((&owner_lms_pubkey, &owner_lms_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            owner_pub_keys_digest_in_fuses: false,
             vendor_ecc_pub_key_revocation: Default::default(),
             vendor_lms_pub_key_revocation: Default::default(),
         };
@@ -1015,6 +1025,7 @@ mod tests {
             owner_ecc_info: (&owner_ecc_pubkey, &owner_ecc_sig),
             owner_lms_info: Some((&owner_lms_pubkey, &owner_lms_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            owner_pub_keys_digest_in_fuses: false,
             vendor_ecc_pub_key_revocation: Default::default(),
             vendor_lms_pub_key_revocation: Default::default(),
         };
@@ -1051,6 +1062,7 @@ mod tests {
             owner_ecc_info: (&owner_ecc_pubkey, &owner_ecc_sig),
             owner_lms_info: Some((&owner_lms_pubkey, &owner_lms_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            owner_pub_keys_digest_in_fuses: false,
             vendor_lms_pub_key_revocation: Default::default(),
         };
         let result = verifier.verify_header(&header, &header_info);
@@ -1083,6 +1095,7 @@ mod tests {
             owner_ecc_info: (&owner_ecc_pubkey, &owner_ecc_sig),
             owner_lms_info: Some((&owner_lms_pubkey, &owner_lms_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            owner_pub_keys_digest_in_fuses: false,
             vendor_ecc_pub_key_revocation: Default::default(),
             vendor_lms_pub_key_revocation: Default::default(),
         };
@@ -1116,6 +1129,7 @@ mod tests {
             owner_ecc_info: (&owner_ecc_pubkey, &owner_ecc_sig),
             owner_lms_info: Some((&owner_lms_pubkey, &owner_lms_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            owner_pub_keys_digest_in_fuses: false,
             vendor_ecc_pub_key_revocation: Default::default(),
             vendor_lms_pub_key_revocation: Default::default(),
         };
@@ -1149,6 +1163,7 @@ mod tests {
             owner_ecc_info: (&owner_ecc_pubkey, &owner_ecc_sig),
             owner_lms_info: Some((&owner_lms_pubkey, &owner_lms_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            owner_pub_keys_digest_in_fuses: false,
             vendor_ecc_pub_key_revocation: Default::default(),
             vendor_lms_pub_key_revocation: Default::default(),
         };
@@ -1181,6 +1196,7 @@ mod tests {
             owner_ecc_info: (&OWNER_ECC_PUBKEY, &owner_ecc_sig),
             owner_lms_info: Some((&owner_lms_pubkey, &owner_lms_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            owner_pub_keys_digest_in_fuses: false,
             vendor_ecc_pub_key_revocation: Default::default(),
             vendor_lms_pub_key_revocation: Default::default(),
         };
@@ -1216,6 +1232,7 @@ mod tests {
             owner_ecc_info: (&OWNER_ECC_PUBKEY, &OWNER_ECC_SIG),
             owner_lms_info: Some((&owner_lms_pubkey, &owner_lms_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            owner_pub_keys_digest_in_fuses: false,
             vendor_ecc_pub_key_revocation: Default::default(),
             vendor_lms_pub_key_revocation: Default::default(),
         };
