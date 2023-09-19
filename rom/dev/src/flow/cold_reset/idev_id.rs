@@ -89,7 +89,7 @@ impl InitDevIdLayer {
         Self::generate_csr(env, &output)?;
 
         // Write IDevID pub to FHT
-        env.fht_data_store.idev_pub = output.subj_key_pair.pub_key;
+        env.persistent_data.get_mut().fht.idev_dice_pub_key = output.subj_key_pair.pub_key;
 
         cprintln!("[idev] --");
         report_boot_status(IDevIdDerivationComplete.into());
