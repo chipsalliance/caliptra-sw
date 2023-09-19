@@ -50,6 +50,10 @@ impl CodeCoverage {
             }
         }
     }
+
+    pub fn code_coverage_bitmap(&self) -> &BitVec {
+        &self.bit_vec
+    }
 }
 
 #[derive(PartialEq)]
