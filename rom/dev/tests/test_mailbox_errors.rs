@@ -89,3 +89,65 @@ fn test_mailbox_invalid_checksum() {
         ))
     );
 }
+
+#[test]
+fn test_mailbox_invalid_req_size_large() {
+    let (mut hw, _image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    // Upload measurement.
+    let payload = StashMeasurementReq {
+        measurement: [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap(),
+        hdr: MailboxReqHeader { chksum: 0 },
+        metadata: [0xAB; 4],
+        context: [0xCD; 48],
+        svn: 0xEF01,
+    };
+
+    // Send too much data (stash measurement is bigger than capabilities)
+    assert_eq!(
+        hw.mailbox_execute(CommandId::CAPABILITIES.into(), payload.as_bytes()),
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH.into()
+        ))
+    );
+}
+
+#[test]
+fn test_mailbox_invalid_req_size_small() {
+    let (mut hw, _image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    // Upload measurement.
+    let payload = StashMeasurementReq {
+        measurement: [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap(),
+        hdr: MailboxReqHeader { chksum: 0 },
+        metadata: [0xAB; 4],
+        context: [0xCD; 48],
+        svn: 0xEF01,
+    };
+
+    // Drop a dword
+    assert_eq!(
+        hw.mailbox_execute(
+            CommandId::STASH_MEASUREMENT.into(),
+            &payload.as_bytes()[4..]
+        ),
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH.into()
+        ))
+    );
+}
+
+#[test]
+fn test_mailbox_invalid_req_size_zero() {
+    let (mut hw, _image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    assert_eq!(
+        hw.mailbox_execute(CommandId::CAPABILITIES.into(), &[]),
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH.into()
+        ))
+    );
+}
