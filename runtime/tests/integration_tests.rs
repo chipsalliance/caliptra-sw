@@ -7,11 +7,12 @@ use caliptra_builder::{
     ImageOptions,
 };
 use caliptra_common::mailbox_api::{
-    CommandId, EcdsaVerifyReq, ExtendPcrReq, FipsVersionResp, FwInfoResp, GetIdevCertReq,
-    GetIdevCertResp, GetIdevInfoResp, InvokeDpeReq, InvokeDpeResp, MailboxReqHeader,
-    MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
+    CommandId, EcdsaVerifyReq, ExtendPcrReq, ExtendPcrReqErr, FipsVersionResp, FwInfoResp,
+    GetIdevCertReq, GetIdevCertResp, GetIdevInfoResp, InvokeDpeReq, InvokeDpeResp,
+    MailboxReqHeader, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
 };
-use caliptra_drivers::{CaliptraError, Ecc384PubKey};
+use caliptra_common::{PcrLogEntry, PcrLogEntryId};
+use caliptra_drivers::{CaliptraError, Ecc384PubKey, PcrId};
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError, ShaAccMode};
 use caliptra_runtime::{FipsVersionCmd, RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
 use common::run_rt_test;
@@ -877,28 +878,68 @@ fn test_idev_id_cert() {
 
 #[test]
 fn test_extend_pcr_cmd() {
+    fn generate_mailbox_extend_pcr_req(
+        pcr_idx: u32,
+        data_size: usize,
+        payload: [u8; ExtendPcrReq::DATA_MAX_SIZE],
+    ) -> Result<ExtendPcrReq, ExtendPcrReqErr> {
+        let cmd = ExtendPcrReq::new(
+            MailboxReqHeader { chksum: 0 },
+            pcr_idx,
+            data_size as u32,
+            payload,
+        )?;
+
+        let checksum = caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::EXTEND_PCR),
+            &cmd.as_bytes()[4..],
+        );
+
+        ExtendPcrReq::new(
+            MailboxReqHeader { chksum: checksum },
+            cmd.pcr_idx,
+            cmd.data_size,
+            cmd.data,
+        )
+    }
+
     let mut model = run_rt_test(None, None);
     let payload_data = [0u8; 79];
 
-    let cmd = ExtendPcrReq::new(
-        MailboxReqHeader { chksum: 0 },
-        0,
-        (payload_data.len() - 1) as u32,
-        payload_data,
-    );
-
-    let checksum = caliptra_common::checksum::calc_checksum(
-        u32::from(CommandId::EXTEND_PCR),
-        &cmd.as_bytes()[4..],
-    );
-
-    let cmd = ExtendPcrReq::new(
-        MailboxReqHeader { chksum: checksum },
-        cmd.pcr_idx,
-        cmd.data_size,
-        cmd.data,
-    );
-
+    // Valid data should run ok
+    let cmd = generate_mailbox_extend_pcr_req(4, payload_data.len(), payload_data).unwrap();
     let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
     assert!(res.is_ok());
+
+    // Invalid PCR index
+    let cmd = generate_mailbox_extend_pcr_req(33, payload_data.len(), payload_data).unwrap();
+    let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
+    assert_eq!(
+        res,
+        Err(ModelError::MailboxCmdFailed(
+            // error_code
+            917526
+        ))
+    );
+
+    // Ensure reserved PCR range
+    let reserved_pcrs = [PcrId::PcrId0, PcrId::PcrId1, PcrId::PcrId2, PcrId::PcrId3];
+    for test_pcr_index_reserved in reserved_pcrs {
+        let cmd = generate_mailbox_extend_pcr_req(
+            test_pcr_index_reserved.into(),
+            payload_data.len(),
+            payload_data,
+        )
+        .unwrap();
+
+        let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
+        // let error_code: u32 = CaliptraError::RUNTIME_PCR_INVALID_INDEX.0.get();
+        assert_eq!(
+            res,
+            Err(ModelError::MailboxCmdFailed(
+                // error_code
+                917525
+            ))
+        );
+    }
 }
