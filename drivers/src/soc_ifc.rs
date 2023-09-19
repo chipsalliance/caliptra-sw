@@ -260,6 +260,12 @@ impl SocIfc {
             self.soc_ifc.regs().cptra_fw_rev_id().at(1).read(),
         ]
     }
+
+    pub fn set_fw_extended_error(&mut self, err: u32) {
+        let soc_ifc_regs = self.soc_ifc.regs_mut();
+        let ext_info = soc_ifc_regs.cptra_fw_extended_error_info();
+        ext_info.at(0).write(|_| err);
+    }
 }
 
 bitflags::bitflags! {

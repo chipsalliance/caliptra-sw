@@ -383,4 +383,8 @@ impl<'a> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a> {
     fn lms_verify_enabled(&self) -> bool {
         self.soc_ifc.fuse_bank().lms_verify() == RomVerifyConfig::EcdsaAndLms
     }
+
+    fn set_fw_extended_error(&mut self, err: u32) {
+        self.soc_ifc.set_fw_extended_error(err);
+    }
 }

@@ -164,7 +164,7 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b000f);
     pub const IMAGE_VERIFIER_ERR_TOC_ENTRY_COUNT_INVALID: CaliptraError =
         CaliptraError::new_const(0x000b0010);
-    pub const IMAGE_VERIFIER_ERR_TOC_DIGEST_FAILURES: CaliptraError =
+    pub const IMAGE_VERIFIER_ERR_TOC_DIGEST_FAILURE: CaliptraError =
         CaliptraError::new_const(0x000b0011);
     pub const IMAGE_VERIFIER_ERR_TOC_DIGEST_MISMATCH: CaliptraError =
         CaliptraError::new_const(0x000b0012);
@@ -247,6 +247,12 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b003c);
     pub const IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_LMS_PUB_KEY_IDX_MISMATCH: CaliptraError =
         CaliptraError::new_const(0x000b003d);
+    pub const IMAGE_VERIFIER_ERR_FMC_LOAD_ADDRESS_IMAGE_SIZE_ARITHMETIC_OVERFLOW: CaliptraError =
+        CaliptraError::new_const(0x000b003e);
+    pub const IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDRESS_IMAGE_SIZE_ARITHMETIC_OVERFLOW:
+        CaliptraError = CaliptraError::new_const(0x000b003f);
+    pub const IMAGE_VERIFIER_ERR_TOC_ENTRY_RANGE_ARITHMETIC_OVERFLOW: CaliptraError =
+        CaliptraError::new_const(0x000b0040);
 
     /// Driver Error: LMS
     pub const DRIVER_LMS_INVALID_LMS_ALGO_TYPE: CaliptraError =

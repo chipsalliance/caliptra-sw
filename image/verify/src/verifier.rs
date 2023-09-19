@@ -294,7 +294,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let actual = self
             .env
             .sha384_digest(range.start, range.len() as u32)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE)?;
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE
+            })?;
 
         if expected != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_MISMATCH)?;
@@ -314,7 +317,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let actual = self
             .env
             .sha384_digest(range.start, range.len() as u32)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_FAILURE)?;
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_FAILURE
+            })?;
 
         let fuses_digest = self.env.owner_pub_key_digest_fuses();
 
@@ -346,12 +352,18 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let digest_vendor = self
             .env
             .sha384_digest(range.start, vendor_header_len as u32)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE)?;
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE
+            })?;
 
         let digest_owner = self
             .env
             .sha384_digest(range.start, range.len() as u32)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE)?;
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE
+            })?;
 
         // Verify vendor signature
         self.verify_vendor_sig(&digest_vendor, info.vendor_ecc_info, info.vendor_lms_info)?;
@@ -406,7 +418,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let verify_r = self
             .env
             .ecc384_verify(digest, pub_key, sig)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_VERIFY_FAILURE)?;
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_VERIFY_FAILURE
+            })?;
 
         if verify_r != caliptra_drivers::Array4xN(sig.r) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID)?;
@@ -433,7 +448,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let verify_r = self
             .env
             .ecc384_verify(digest, ecc_pub_key, ecc_sig)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_VERIFY_FAILURE)?;
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_VERIFY_FAILURE
+            })?;
 
         if verify_r != caliptra_drivers::Array4xN(ecc_sig.r) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID)?;
@@ -442,10 +460,13 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         if self.env.lms_verify_enabled() {
             if let Some(info) = lms_info {
                 let (lms_pub_key, lms_sig) = info;
-                let candidate_key = self
-                    .env
-                    .lms_verify(digest, lms_pub_key, lms_sig)
-                    .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_VERIFY_FAILURE)?;
+                let candidate_key =
+                    self.env
+                        .lms_verify(digest, lms_pub_key, lms_sig)
+                        .map_err(|err| {
+                            self.env.set_fw_extended_error(err.into());
+                            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_VERIFY_FAILURE
+                        })?;
                 if candidate_key != HashValue::from(lms_pub_key.digest) {
                     return Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID);
                 }
@@ -465,7 +486,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let candidate_key = self
             .env
             .lms_verify(digest, lms_pub_key, lms_sig)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_VERIFY_FAILURE)?;
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_VERIFY_FAILURE
+            })?;
 
         if candidate_key != HashValue::from(lms_pub_key.digest) {
             return Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_SIGNATURE_INVALID);
@@ -490,7 +514,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let actual = self
             .env
             .sha384_digest(range.start, range.len() as u32)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_FAILURES)?;
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_FAILURE
+            })?;
 
         if *verify_info.digest != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_MISMATCH)?;
@@ -516,8 +543,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         }
 
         // Check if fmc and runtime sections overlap in the image.
-        let fmc_range = manifest.fmc.image_range();
-        let runtime_range = manifest.runtime.image_range();
+        let fmc_range = manifest.fmc.image_range()?;
+        let runtime_range = manifest.runtime.image_range()?;
         if fmc_range.start < runtime_range.end && fmc_range.end > runtime_range.start {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP)?;
         }
@@ -529,9 +556,18 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // Check if fmc and runtime images don't overlap on loading in the ICCM.
         let fmc_load_addr_start = manifest.fmc.load_addr;
-        let fmc_load_addr_end = fmc_load_addr_start + manifest.fmc.image_size() - 1;
+        let (fmc_load_addr_end, overflow) =
+            fmc_load_addr_start.overflowing_add(manifest.fmc.image_size() - 1);
+        if overflow {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDRESS_IMAGE_SIZE_ARITHMETIC_OVERFLOW)?;
+        }
+
         let runtime_load_addr_start = manifest.runtime.load_addr;
-        let runtime_load_addr_end = runtime_load_addr_start + manifest.runtime.image_size() - 1;
+        let (runtime_load_addr_end, overflow) =
+            runtime_load_addr_start.overflowing_add(manifest.runtime.image_size() - 1);
+        if overflow {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDRESS_IMAGE_SIZE_ARITHMETIC_OVERFLOW)?;
+        }
 
         if fmc_load_addr_start <= runtime_load_addr_end
             && fmc_load_addr_end >= runtime_load_addr_start
@@ -559,17 +595,21 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         verify_info: &ImageTocEntry,
         reason: ResetReason,
     ) -> CaliptraResult<(ImageVerificationExeInfo, ImageSvnLogInfo)> {
-        let range = verify_info.image_range();
+        let range = verify_info.image_range()?;
 
         let actual = self
             .env
             .sha384_digest(range.start, range.len() as u32)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_FAILURE)?;
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_FAILURE
+            })?;
 
         if verify_info.digest != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH)?;
         }
 
+        // Overflow/underflow is checked in verify_toc
         if !self.env.iccm_range().contains(&verify_info.load_addr)
             || !self
                 .env
@@ -633,17 +673,21 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         &mut self,
         verify_info: &ImageTocEntry,
     ) -> CaliptraResult<(ImageVerificationExeInfo, ImageSvnLogInfo)> {
-        let range = verify_info.image_range();
+        let range = verify_info.image_range()?;
 
         let actual = self
             .env
             .sha384_digest(range.start, range.len() as u32)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_FAILURE)?;
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_FAILURE
+            })?;
 
         if verify_info.digest != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH)?;
         }
 
+        // Overflow/underflow is checked in verify_toc
         if !self.env.iccm_range().contains(&verify_info.load_addr)
             || !self
                 .env
@@ -1797,5 +1841,7 @@ mod tests {
         fn lms_verify_enabled(&self) -> bool {
             true
         }
+
+        fn set_fw_extended_error(&mut self, _err: u32) {}
     }
 }

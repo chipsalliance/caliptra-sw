@@ -550,6 +550,7 @@ name = "caliptra-image-types"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
+ "caliptra-error",
  "caliptra-lms-types",
  "memoffset 0.8.0",
  "zerocopy",

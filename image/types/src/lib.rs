@@ -14,6 +14,7 @@ Abstract:
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use caliptra_error::{CaliptraError, CaliptraResult};
 use core::mem::size_of;
 use core::ops::Range;
 
@@ -385,8 +386,10 @@ pub struct ImageTocEntry {
 }
 
 impl ImageTocEntry {
-    pub fn image_range(&self) -> Range<u32> {
-        self.offset..self.offset + self.size
+    pub fn image_range(&self) -> CaliptraResult<Range<u32>> {
+        let err = CaliptraError::IMAGE_VERIFIER_ERR_TOC_ENTRY_RANGE_ARITHMETIC_OVERFLOW;
+        let end = self.offset.checked_add(self.size).ok_or(err)?;
+        Ok(self.offset..end)
     }
 
     pub fn image_size(&self) -> u32 {
