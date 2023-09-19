@@ -911,6 +911,17 @@ fn test_upload_single_measurement() {
         context: [0xCD; 48],
         svn: 0xEF01,
     };
+
+    // Calc and update checksum
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::STASH_MEASUREMENT),
+        &measurement.as_bytes()[4..],
+    );
+    let measurement = StashMeasurementReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..measurement
+    };
+
     hw.upload_measurement(measurement.as_bytes()).unwrap();
 
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
@@ -974,6 +985,17 @@ fn test_upload_measurement_limit() {
         measurement.measurement[0] = idx;
         measurement.context[1] = idx;
         measurement.svn = idx as u32;
+
+        // Calc and update checksum
+        let checksum = caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::STASH_MEASUREMENT),
+            &measurement.as_bytes()[4..],
+        );
+        let measurement = StashMeasurementReq {
+            hdr: MailboxReqHeader { chksum: checksum },
+            ..measurement
+        };
+
         hw.upload_measurement(measurement.as_bytes()).unwrap();
     }
 
