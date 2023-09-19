@@ -211,6 +211,7 @@ dependencies = [
  "clap",
  "elf",
  "hex",
+ "nix 0.26.2",
  "once_cell",
  "openssl",
  "zerocopy",

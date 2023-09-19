@@ -47,6 +47,8 @@ pub struct FwProcInfo {
     pub fmc_cert_valid_not_after: NotAfter,
 
     pub fmc_effective_fuse_svn: u32,
+
+    pub owner_pub_keys_digest_in_fuses: bool,
 }
 
 impl FwProcInfo {
@@ -141,6 +143,7 @@ impl FirmwareProcessor {
             fmc_cert_valid_not_before: nb,
             fmc_cert_valid_not_after: nf,
             fmc_effective_fuse_svn: info.fmc.effective_fuse_svn,
+            owner_pub_keys_digest_in_fuses: info.owner_pub_keys_digest_in_fuses,
         })
     }
 

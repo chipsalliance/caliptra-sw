@@ -2,9 +2,10 @@
 
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::fs;
+use std::fs::{self, File};
 use std::io::{self, ErrorKind};
 use std::mem::size_of;
+use std::os::fd::AsRawFd;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -16,6 +17,7 @@ use caliptra_image_gen::{
 use caliptra_image_openssl::OsslCrypto;
 use caliptra_image_types::{ImageBundle, ImageRevision, RomInfo};
 use elf::endian::LittleEndian;
+use nix::fcntl::FlockArg;
 use zerocopy::AsBytes;
 
 mod elf_symbols;
@@ -143,6 +145,14 @@ pub fn build_firmware_elf_uncached(id: &FwId) -> io::Result<Vec<u8>> {
     let workspace_dir = id
         .workspace_dir
         .unwrap_or_else(|| Path::new(THIS_WORKSPACE_DIR));
+
+    // To prevent a race condition with concurrent calls to caliptra-builder
+    // from other threads or processes, hold a lock until we've read the output
+    // binary from the filesystem (it's possible that another thread will build
+    // the same binary with different features before we get a chance to read it).
+    let lock = File::create(workspace_dir.join("target/.caliptra-builder.lock"))?;
+    nix::fcntl::flock(lock.as_raw_fd(), FlockArg::LockExclusive)?;
+
     let mut cmd = Command::new(env!("CARGO"));
     cmd.current_dir(workspace_dir);
     if option_env!("GITHUB_ACTIONS").is_some() {
