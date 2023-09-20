@@ -16,6 +16,11 @@ impl InvokeDpeCmd {
 
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if let Some(cmd) = InvokeDpeReq::read_from(cmd_args) {
+            // Validate data length
+            if cmd.data_size as usize > cmd.data.len() {
+                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+            }
+
             let pdata = drivers.persistent_data.get();
             let rt_pub_key = pdata.fht.rt_dice_pub_key;
             let mut crypto = DpeCrypto::new(
@@ -37,7 +42,7 @@ impl InvokeDpeCmd {
             };
 
             let locality = drivers.mbox.user();
-            let command = Command::deserialize(&cmd.data)
+            let command = Command::deserialize(&cmd.data[..cmd.data_size as usize])
                 .map_err(|_| CaliptraError::RUNTIME_INVOKE_DPE_FAILED)?;
             let flags = pdata.manifest1.header.flags;
             let mut dpe = &mut drivers.persistent_data.get_mut().dpe;

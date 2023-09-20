@@ -313,6 +313,37 @@ fn test_invoke_dpe_get_profile_cmd() {
     assert_eq!(profile.vendor_id, VENDOR_ID);
     assert_eq!(profile.vendor_sku, VENDOR_SKU);
     assert_eq!(profile.flags, DPE_SUPPORT.bits());
+
+    // Test with data_size too big.
+    let cmd = InvokeDpeReq {
+        data_size: InvokeDpeReq::DATA_MAX_SIZE as u32 + 1,
+        ..cmd
+    };
+
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::INVOKE_DPE),
+        &cmd.as_bytes()[4..],
+    );
+
+    let cmd = InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..cmd
+    };
+
+    // Make sure the command execution fails.
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::INVOKE_DPE), cmd.as_bytes())
+        .unwrap_err();
+    if let ModelError::MailboxCmdFailed(code) = resp {
+        assert_eq!(
+            code,
+            caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS.into()
+        );
+    }
+    assert_eq!(
+        model.soc_ifc().cptra_fw_error_non_fatal().read(),
+        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS.into()
+    );
 }
 
 #[test]
@@ -336,7 +367,7 @@ fn test_invoke_dpe_get_certificate_chain_cmd() {
     let cmd = InvokeDpeReq {
         hdr: MailboxReqHeader { chksum: 0 },
         data,
-        data_size: cmd_hdr_buf.len() as u32,
+        data_size: (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32,
     };
 
     let checksum = caliptra_common::checksum::calc_checksum(
@@ -402,7 +433,7 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
     let sign_mbox_cmd = InvokeDpeReq {
         hdr: MailboxReqHeader { chksum: 0 },
         data,
-        data_size: sign_cmd_hdr_buf.len() as u32,
+        data_size: (sign_cmd_hdr_buf.len() + sign_cmd_buf.len()) as u32,
     };
 
     let checksum = caliptra_common::checksum::calc_checksum(
@@ -448,7 +479,7 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
     let certify_key_mbox_cmd = InvokeDpeReq {
         hdr: MailboxReqHeader { chksum: 0 },
         data,
-        data_size: certify_key_cmd_hdr_buf.len() as u32,
+        data_size: (certify_key_cmd_hdr_buf.len() + certify_key_cmd_buf.len()) as u32,
     };
 
     let checksum = caliptra_common::checksum::calc_checksum(
@@ -808,4 +839,35 @@ fn test_idev_id_cert() {
 
     let cert = GetIdevCertResp::read_from(resp.as_slice()).unwrap();
     assert!(cmd.tbs_size < cert.cert_size);
+
+    // Test with tbs_size too big.
+    let cmd = GetIdevCertReq {
+        tbs_size: GetIdevCertReq::DATA_MAX_SIZE as u32 + 1,
+        ..cmd
+    };
+
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::GET_IDEV_CERT),
+        &cmd.as_bytes()[4..],
+    );
+
+    let cmd = GetIdevCertReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..cmd
+    };
+
+    // Make sure the command execution fails.
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::GET_IDEV_CERT), cmd.as_bytes())
+        .unwrap_err();
+    if let ModelError::MailboxCmdFailed(code) = resp {
+        assert_eq!(
+            code,
+            caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS.into()
+        );
+    }
+    assert_eq!(
+        model.soc_ifc().cptra_fw_error_non_fatal().read(),
+        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS.into()
+    );
 }
