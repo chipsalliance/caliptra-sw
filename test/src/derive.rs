@@ -297,6 +297,7 @@ pub struct Pcr0Input {
     pub fuse_anti_rollback_disable: bool,
     pub vendor_pub_key_hash: [u32; 12],
     pub owner_pub_key_hash: [u32; 12],
+    pub owner_pub_key_hash_from_fuses: bool,
     pub ecc_vendor_pub_key_index: u32,
     pub fmc_digest: [u32; 12],
     pub fmc_svn: u32,
@@ -326,6 +327,7 @@ impl Pcr0 {
                 input.fmc_fuse_svn as u8,
                 input.lms_vendor_pub_key_index as u8,
                 input.rom_verify_config as u8,
+                input.owner_pub_key_hash_from_fuses as u8,
             ],
         );
         extend(
@@ -359,6 +361,7 @@ fn test_derive_pcr0() {
             0xdc1a27ef, 0x0c08201a, 0x8b066094, 0x118c29fe, 0x0bc2270e, 0xbd965c43, 0xf7b9a68d,
             0x8eaf37fa, 0x968ca8d8, 0x13b2920b, 0x3b88b026, 0xf2f0ebb0,
         ],
+        owner_pub_key_hash_from_fuses: true,
         ecc_vendor_pub_key_index: 0,
         fmc_digest: [
             0xe44ea855, 0x9fcf4063, 0xd3110a9a, 0xd60579db, 0xe03e6dd7, 0x4556cd98, 0xb2b941f5,
@@ -372,8 +375,8 @@ fn test_derive_pcr0() {
     assert_eq!(
         pcr0,
         Pcr0([
-            334368099, 4101058832, 257564511, 2070344457, 1515946830, 1149528795, 3857446926,
-            3563986624, 336259629, 3599082754, 3226667919, 2430588663
+            132444429, 987394663, 2275449643, 2729083116, 322701188, 1268620383, 68534608,
+            1944581982, 1207702945, 1427901733, 3489811836, 435454516
         ])
     )
 }

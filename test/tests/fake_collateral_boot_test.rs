@@ -253,6 +253,7 @@ fn fake_boot_test() {
             fuse_anti_rollback_disable: false,
             vendor_pub_key_hash: vendor_pk_hash,
             owner_pub_key_hash: owner_pk_hash,
+            owner_pub_key_from_fuses: true,
             ecc_vendor_pub_key_index: image.manifest.preamble.vendor_ecc_pub_key_idx,
             fmc_digest: FMC_CANNED_DIGEST,
             fmc_svn: image.manifest.fmc.svn,

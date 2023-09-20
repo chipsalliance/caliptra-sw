@@ -196,6 +196,7 @@ fn test_pcr_log() {
             0_u8,
             VENDOR_CONFIG_KEY_1.lms_key_idx as u8,
             RomVerifyConfig::EcdsaAndLms as u8,
+            true as u8,
         ],
     );
 
@@ -221,6 +222,95 @@ fn test_pcr_log() {
         PcrLogEntryId::FmcTci,
         PCR0_AND_PCR1_EXTENDED_ID,
         swap_word_bytes(&image_bundle.manifest.fmc.digest).as_bytes(),
+    );
+}
+
+#[test]
+fn test_pcr_log_no_owner_key_digest_fuse() {
+    let gen = ImageGenerator::new(OsslCrypto::default());
+    let (_hw, image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    let owner_pubkey_digest = gen
+        .owner_pubkey_digest(&image_bundle.manifest.preamble)
+        .unwrap();
+
+    pub const TEST_FMC_WITH_UART: FwId = FwId {
+        crate_name: "caliptra-rom-test-fmc",
+        bin_name: "caliptra-rom-test-fmc",
+        features: &["emu", "interactive_test_fmc"],
+        workspace_dir: None,
+    };
+
+    let fuses = Fuses {
+        anti_rollback_disable: true,
+        lms_verify: true,
+        key_manifest_pk_hash: gen
+            .vendor_pubkey_digest(&image_bundle.manifest.preamble)
+            .unwrap(),
+        ..Default::default()
+    };
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let image_options = ImageOptions {
+        vendor_config: VENDOR_CONFIG_KEY_1,
+        ..Default::default()
+    };
+    let image_bundle =
+        caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)
+            .unwrap();
+
+    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        .unwrap();
+
+    hw.step_until_boot_status(ColdResetComplete.into(), true);
+
+    let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
+
+    let device_lifecycle = hw
+        .soc_ifc()
+        .cptra_security_state()
+        .read()
+        .device_lifecycle();
+
+    let debug_locked = hw.soc_ifc().cptra_security_state().read().debug_locked();
+
+    let anti_rollback_disable = hw.soc_ifc().fuse_anti_rollback_disable().read().dis();
+
+    check_pcr_log_entry(
+        &pcr_entry_arr,
+        0,
+        PcrLogEntryId::DeviceStatus,
+        PCR0_AND_PCR1_EXTENDED_ID,
+        &[
+            device_lifecycle as u8,
+            debug_locked as u8,
+            anti_rollback_disable as u8,
+            VENDOR_CONFIG_KEY_1.ecc_key_idx as u8,
+            0_u8,
+            0_u8,
+            VENDOR_CONFIG_KEY_1.lms_key_idx as u8,
+            RomVerifyConfig::EcdsaAndLms as u8,
+            false as u8,
+        ],
+    );
+
+    check_pcr_log_entry(
+        &pcr_entry_arr,
+        2,
+        PcrLogEntryId::OwnerPubKeyHash,
+        PCR0_AND_PCR1_EXTENDED_ID,
+        swap_word_bytes(&owner_pubkey_digest).as_bytes(),
     );
 }
 
@@ -306,8 +396,18 @@ fn test_pcr_log_fmc_fuse_svn() {
             FMC_FUSE_SVN as u8,
             u8::MAX,
             RomVerifyConfig::EcdsaOnly as u8,
+            true as u8,
         ],
     );
+}
+
+fn hash_pcr_log_entry(entry: &PcrLogEntry, pcr: &mut [u8; 48]) {
+    let mut hasher = Hasher::new(MessageDigest::sha384()).unwrap();
+    hasher.update(pcr).unwrap();
+    hasher.update(entry.measured_data()).unwrap();
+    let digest: &[u8] = &hasher.finish().unwrap();
+
+    pcr.copy_from_slice(digest);
 }
 
 // Computes the PCR from the log.
@@ -329,12 +429,29 @@ fn hash_pcr_log_entries(initial_pcr: &[u8; 48], pcr_entry_arr: &[u8], pcr_id: Pc
             continue;
         }
 
-        let mut hasher = Hasher::new(MessageDigest::sha384()).unwrap();
-        hasher.update(&pcr).unwrap();
-        hasher.update(entry.measured_data()).unwrap();
-        let digest: &[u8] = &hasher.finish().unwrap();
+        hash_pcr_log_entry(&entry, &mut pcr);
+    }
 
-        pcr.copy_from_slice(digest);
+    pcr
+}
+
+fn hash_measurement_log_entries(measurement_entry_arr: &[u8]) -> [u8; 48] {
+    let mut offset: usize = 0;
+    let mut pcr = [0u8; 48];
+
+    assert_eq!(measurement_entry_arr.len() % MEASUREMENT_ENTRY_SIZE, 0);
+
+    loop {
+        if offset == measurement_entry_arr.len() {
+            break;
+        }
+
+        let entry =
+            MeasurementLogEntry::read_from_prefix(measurement_entry_arr[offset..].as_bytes())
+                .unwrap();
+        offset += MEASUREMENT_ENTRY_SIZE;
+
+        hash_pcr_log_entry(&entry.pcr_entry, &mut pcr);
     }
 
     pcr
@@ -422,8 +539,6 @@ fn test_pcr_log_across_update_reset() {
     }
 
     // Trigger an update reset.
-    hw.mailbox_execute(0x1000_0004, &[]).unwrap();
-    hw.step_until_boot_status(UpdateResetStarted.into(), true);
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
     hw.step_until_boot_status(UpdateResetComplete.into(), true);
@@ -796,6 +911,17 @@ fn test_upload_single_measurement() {
         context: [0xCD; 48],
         svn: 0xEF01,
     };
+
+    // Calc and update checksum
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::STASH_MEASUREMENT),
+        &measurement.as_bytes()[4..],
+    );
+    let measurement = StashMeasurementReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..measurement
+    };
+
     hw.upload_measurement(measurement.as_bytes()).unwrap();
 
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
@@ -803,20 +929,18 @@ fn test_upload_single_measurement() {
 
     hw.step_until_boot_status(ColdResetComplete.into(), true);
 
-    // Get PCR31
-    let pcr31 = hw.mailbox_execute(0x1000_0009, &[]).unwrap().unwrap();
-
-    // Check that the measurement was extended to PCR31.
-    let mut data: [u8; 96] = [0u8; 96];
-    data[48..].copy_from_slice(measurement.measurement.as_bytes());
-    let out = openssl::sha::sha384(&data);
-    assert_eq!(pcr31.as_bytes(), out);
-
     // Check if the measurement was present in the measurement log.
     let measurement_log = hw.mailbox_execute(0x1000_000A, &[]).unwrap().unwrap();
 
     assert_eq!(measurement_log.len(), MEASUREMENT_ENTRY_SIZE);
     check_measurement_log_entry(&measurement_log, 0, &measurement);
+
+    // Get PCR31
+    let pcr31 = hw.mailbox_execute(0x1000_0009, &[]).unwrap().unwrap();
+
+    // Check that the measurement was extended to PCR31.
+    let expected_pcr = hash_measurement_log_entries(&measurement_log);
+    assert_eq!(pcr31.as_bytes(), expected_pcr);
 }
 
 #[test]
@@ -861,6 +985,17 @@ fn test_upload_measurement_limit() {
         measurement.measurement[0] = idx;
         measurement.context[1] = idx;
         measurement.svn = idx as u32;
+
+        // Calc and update checksum
+        let checksum = caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::STASH_MEASUREMENT),
+            &measurement.as_bytes()[4..],
+        );
+        let measurement = StashMeasurementReq {
+            hdr: MailboxReqHeader { chksum: checksum },
+            ..measurement
+        };
+
         hw.upload_measurement(measurement.as_bytes()).unwrap();
     }
 
@@ -877,20 +1012,7 @@ fn test_upload_measurement_limit() {
 
     hw.step_until_boot_status(ColdResetComplete.into(), true);
 
-    let pcr31 = hw.mailbox_execute(0x1000_0009, &[]).unwrap().unwrap();
-
-    // Check that only 8 measurements were extended to PCR31
-    let mut out: [u8; 48] = [0u8; 48];
-    let mut data: [u8; 96] = [0u8; 96];
-    for idx in 0..8 {
-        data[0..48].copy_from_slice(&out);
-        measurement.measurement[0] = idx;
-        data[48..].copy_from_slice(measurement.measurement.as_bytes());
-        out = openssl::sha::sha384(&data);
-    }
-    assert_eq!(pcr31.as_bytes(), out);
-
-    // Check the Mesaurement log.
+    // Check the measurement log.
     let measurement_log = hw.mailbox_execute(0x1000_000A, &[]).unwrap().unwrap();
     assert_eq!(
         measurement_log.len(),
@@ -902,6 +1024,13 @@ fn test_upload_measurement_limit() {
         measurement.svn = idx as u32;
         check_measurement_log_entry(&measurement_log, idx as usize, &measurement);
     }
+
+    // Get PCR31
+    let pcr31 = hw.mailbox_execute(0x1000_0009, &[]).unwrap().unwrap();
+
+    // Check that the measurement was extended to PCR31.
+    let expected_pcr = hash_measurement_log_entries(&measurement_log);
+    assert_eq!(pcr31.as_bytes(), expected_pcr);
 }
 
 #[test]
@@ -940,27 +1069,9 @@ fn test_upload_no_measurement() {
 
     // Check whether the fake measurement was extended to PCR31.
     let pcr31 = hw.mailbox_execute(0x1000_0009, &[]).unwrap().unwrap();
-
-    let mut out: [u8; 48] = [0u8; 48];
-    let mut data: [u8; 96] = [0u8; 96];
-    data[0..48].copy_from_slice(&out);
-    data[48..].copy_from_slice(&[0xFFu8; 48]);
-    out = openssl::sha::sha384(&data);
-    assert_eq!(pcr31.as_bytes(), out);
+    assert_eq!(pcr31.as_bytes(), [0u8; 48]);
 
     // Check whether the fake measurement is in the measurement log.
     let measurement_log = hw.mailbox_execute(0x1000_000A, &[]).unwrap().unwrap();
-    assert_eq!(measurement_log.len(), MEASUREMENT_ENTRY_SIZE);
-
-    check_measurement_log_entry(
-        &measurement_log,
-        0,
-        &StashMeasurementReq {
-            measurement: [0xFFu8; 48],
-            metadata: [0u8; 4],
-            context: [0u8; 48],
-            svn: 0,
-            ..Default::default()
-        },
-    );
+    assert_eq!(measurement_log.len(), 0);
 }

@@ -145,6 +145,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 
 [[package]]
+name = "bit-vec"
+version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "349f9b6a179ed607305526ca489b34ad0a41aed5f7980fa90eb03160b69598fb"
+
+[[package]]
 name = "bitfield"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -205,6 +211,7 @@ dependencies = [
  "clap",
  "elf",
  "hex",
+ "nix 0.26.2",
  "once_cell",
  "openssl",
  "zerocopy",
@@ -309,7 +316,9 @@ dependencies = [
 name = "caliptra-emu-cpu"
 version = "0.1.0"
 dependencies = [
+ "bit-vec",
  "bitfield",
+ "caliptra-drivers",
  "caliptra-emu-bus",
  "caliptra-emu-types",
  "lazy_static",
@@ -541,6 +550,7 @@ name = "caliptra-image-types"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
+ "caliptra-error",
  "caliptra-lms-types",
  "memoffset 0.8.0",
  "zerocopy",
