@@ -1,27 +1,29 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_drivers::memory_layout::{FHT_ORG, PCR_LOG_ORG};
 use caliptra_drivers::pcr_log::{PcrLogEntry, PcrLogEntryId};
-use caliptra_drivers::{cprintln, FirmwareHandoffTable, PcrBank, PcrId};
+use caliptra_drivers::{cprintln, PcrBank, PcrId, PersistentDataAccessor};
 use caliptra_registers::pv::PvReg;
 use ureg::RealMmioMut;
 
 use core::convert::TryInto;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::AsBytes;
 
 pub const TEST_CMD_READ_PCR_LOG: u32 = 0x1000_0000;
 pub const TEST_CMD_READ_FHT: u32 = 0x1000_0001;
 pub const TEST_CMD_READ_PCRS: u32 = 0x1000_0002;
 
-fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+fn process_mailbox_command(
+    persistent_data: &PersistentDataAccessor,
+    mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>,
+) {
     let cmd = mbox.cmd().read();
     cprintln!("[fmc-test-harness] Received command: 0x{:08X}", cmd);
     match cmd {
         TEST_CMD_READ_PCR_LOG => {
-            read_pcr_log(mbox);
+            read_pcr_log(persistent_data, mbox);
         }
         TEST_CMD_READ_FHT => {
-            read_fht(mbox);
+            read_fht(persistent_data, mbox);
         }
         TEST_CMD_READ_PCRS => {
             read_pcrs(mbox);
@@ -33,30 +35,23 @@ fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMm
 }
 
 pub fn process_mailbox_commands() {
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
     let mut mbox = unsafe { caliptra_registers::mbox::MboxCsr::new() };
     let mbox = mbox.regs_mut();
 
     cprintln!("Waiting for mailbox commands...");
     loop {
         if mbox.status().read().mbox_fsm_ps().mbox_execute_uc() {
-            process_mailbox_command(&mbox);
+            process_mailbox_command(&persistent_data, &mbox);
         }
     }
 }
 
-fn read_fht(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
-    // Copy the FHT from DCCM
-    let mut fht: [u8; core::mem::size_of::<FirmwareHandoffTable>()] =
-        [0u8; core::mem::size_of::<FirmwareHandoffTable>()];
-
-    let src = unsafe {
-        let ptr = FHT_ORG as *mut u8;
-        core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
-    };
-
-    fht.copy_from_slice(src);
-
-    send_to_mailbox(mbox, fht.as_bytes(), true);
+fn read_fht(
+    persistent_data: &PersistentDataAccessor,
+    mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>,
+) {
+    send_to_mailbox(mbox, persistent_data.get().fht.as_bytes(), true);
 }
 
 fn send_to_mailbox(
@@ -87,10 +82,13 @@ fn send_to_mailbox(
     }
 }
 
-fn read_pcr_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+fn read_pcr_log(
+    persistent_data: &PersistentDataAccessor,
+    mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>,
+) {
     let mut pcr_entry_count = 0;
     loop {
-        let pcr_entry = get_pcr_entry(pcr_entry_count);
+        let pcr_entry = persistent_data.get().pcr_log[pcr_entry_count];
         if PcrLogEntryId::from(pcr_entry.id) == PcrLogEntryId::Invalid {
             break;
         }
@@ -105,21 +103,6 @@ fn read_pcr_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
             .unwrap()
     });
     mbox.status().write(|w| w.status(|w| w.data_ready()));
-}
-
-fn get_pcr_entry(entry_index: usize) -> PcrLogEntry {
-    // Copy the pcr log entry from DCCM
-    let mut pcr_entry: [u8; core::mem::size_of::<PcrLogEntry>()] =
-        [0u8; core::mem::size_of::<PcrLogEntry>()];
-
-    let src = unsafe {
-        let offset = core::mem::size_of::<PcrLogEntry>() * entry_index;
-        let ptr = (PCR_LOG_ORG as *mut u8).add(offset);
-        core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<PcrLogEntry>())
-    };
-
-    pcr_entry.copy_from_slice(src);
-    PcrLogEntry::read_from_prefix(pcr_entry.as_bytes()).unwrap()
 }
 
 fn read_pcrs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {

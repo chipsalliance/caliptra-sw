@@ -120,6 +120,8 @@ pub struct Drivers {
 
     pub cert_chain: ArrayVec<u8, MAX_CERT_CHAIN_SIZE>,
 
+    pub attestation_disabled: bool,
+
     #[cfg(feature = "fips_self_test")]
     pub self_test_status: SelfTestStatus,
 }
@@ -198,6 +200,7 @@ impl Drivers {
             #[cfg(feature = "fips_self_test")]
             self_test_status: SelfTestStatus::Idle,
             cert_chain,
+            attestation_disabled: false,
         })
     }
 
@@ -354,10 +357,23 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     Ok(MboxStatusE::DataReady)
 }
 
-pub fn handle_mailbox_commands(drivers: &mut Drivers) -> ! {
+pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
     // Indicator to SOC that RT firmware is ready
     drivers.soc_ifc.assert_ready_for_runtime();
     caliptra_drivers::report_boot_status(RtBootStatus::RtReadyForCommands.into());
+    // Disable attestation if in the middle of executing an mbox cmd during warm reset
+    if drivers.mbox.cmd_busy() {
+        let reset_reason = drivers.soc_ifc.reset_reason();
+        if reset_reason == ResetReason::WarmReset {
+            let mut result = DisableAttestationCmd::execute(drivers);
+            if result.is_ok() {
+                cprintln!("Disabled attestation due to cmd busy during warm reset");
+                drivers.mbox.set_status(MboxStatusE::DataReady);
+            } else {
+                return Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION);
+            }
+        }
+    }
     loop {
         enter_idle(drivers);
         if drivers.mbox.is_cmd_ready() {
@@ -379,4 +395,5 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> ! {
             caliptra_common::wdt::stop_wdt(&mut drivers.soc_ifc);
         }
     }
+    Ok(())
 }

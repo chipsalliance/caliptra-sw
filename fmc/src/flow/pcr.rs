@@ -41,13 +41,14 @@ use zerocopy::AsBytes;
 /// * `pcr_id` - PCR slot to extend the data into
 ///
 /// TODO: Add CFI instrumentation
-pub fn extend_pcr_common(env: &mut FmcEnv, hand_off: &mut HandOff) -> CaliptraResult<()> {
+pub fn extend_pcr_common(env: &mut FmcEnv) -> CaliptraResult<()> {
+    env.pcr_bank.log_index = env.persistent_data.get().fht.pcr_log_index as usize;
+
     // Calculate RT TCI (Hash over runtime code)
-    let rt_tci = Tci::rt_tci(env, hand_off);
-    let rt_tci: [u8; 48] = okref(&rt_tci)?.into();
+    let rt_tci: [u8; 48] = HandOff::rt_tci(env).into();
 
     // Calculate FW Image Manifest digest
-    let manifest_digest = Tci::image_manifest_digest(env, hand_off);
+    let manifest_digest = Tci::image_manifest_digest(env);
     let manifest_digest: [u8; 48] = okref(&manifest_digest)?.into();
 
     // Clear current PCR before extending it.

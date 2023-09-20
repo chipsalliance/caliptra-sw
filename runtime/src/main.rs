@@ -36,6 +36,7 @@ const BANNER: &str = r#"
 "#;
 
 #[no_mangle]
+#[allow(clippy::empty_loop)]
 pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
     let mut drivers = unsafe { Drivers::new_from_registers() }.unwrap_or_else(|e| {
@@ -48,7 +49,10 @@ pub extern "C" fn entry_point() -> ! {
         );
     }
     cprintln!("Caliptra RT listening for mailbox commands...");
-    caliptra_runtime::handle_mailbox_commands(&mut drivers);
+    if let Err(e) = caliptra_runtime::handle_mailbox_commands(&mut drivers) {
+        handle_fatal_error(e.into());
+    }
+    loop {}
 }
 
 #[no_mangle]

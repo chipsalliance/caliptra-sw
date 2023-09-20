@@ -44,15 +44,15 @@ pub extern "C" fn entry_point() -> ! {
         Err(e) => report_error(e.into()),
     };
 
-    if let Some(mut hand_off) = HandOff::from_previous(&mut env) {
+    if env.persistent_data.get().fht.is_valid() {
         // Jump straight to RT for val-FMC for now
         if cfg!(feature = "fake-fmc") {
-            hand_off.to_rt(&mut env);
+            HandOff::to_rt(&env);
         }
-        match flow::run(&mut env, &mut hand_off) {
+        match flow::run(&mut env) {
             Ok(_) => {
-                if hand_off.is_valid() {
-                    hand_off.to_rt(&mut env);
+                if HandOff::is_ready_for_rt(&env) {
+                    HandOff::to_rt(&env);
                 }
             }
             Err(e) => report_error(e.into()),

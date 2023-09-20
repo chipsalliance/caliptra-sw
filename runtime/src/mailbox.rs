@@ -25,6 +25,12 @@ impl Mailbox {
         mbox.status().read().mbox_fsm_ps().mbox_execute_uc()
     }
 
+    /// Check if we are currently executing a mailbox command
+    pub fn cmd_busy(&mut self) -> bool {
+        let mbox = self.mbox.regs();
+        mbox.status().read().status().cmd_busy()
+    }
+
     /// Get the length of the current mailbox data in bytes
     pub fn dlen(&mut self) -> u32 {
         let mbox = self.mbox.regs();

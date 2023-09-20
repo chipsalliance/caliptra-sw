@@ -363,6 +363,7 @@ pub struct FwInfoResp {
     pub runtime_svn: u32,
     pub min_runtime_svn: u32,
     pub fmc_manifest_svn: u32,
+    pub attestation_disabled: u32,
     // TODO: Decide what other information to report for general firmware
     // status.
 }
