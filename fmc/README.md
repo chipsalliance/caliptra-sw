@@ -140,11 +140,11 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | fuse_log_addr         | 4            | ROM        | Fuse Log Address.                                                                                        |
 | rt_dice_pub_key       | 96           | FMC        | RT Alias DICE Public Key.                                                                                |
 | rt_dice_sign          | 96           | FMC        | RT Alias DICE signature.                                                                                 |
-| ldevid_cert_sig_r_dv_hdl | 4         | ROM        | Handle of LDevId Certificate Signature R Component in the Data Vault.                                       |
-| ldevid_cert_sig_s_dv_hdl | 4            | ROM        | Handle of LDevId Certificate Signature S Component in the Data Vault.                                       |
+| ldevid_cert_sig_r_dv_hdl | 4         | ROM        | Handle of LDevId Certificate Signature R Component in the Data Vault.                                    |
+| ldevid_cert_sig_s_dv_hdl | 4         | ROM        | Handle of LDevId Certificate Signature S Component in the Data Vault.                                    |
 | idev_dice_pub_key     | 96           | ROM        | Initial Device ID Public Key.                                                                            |
 | rom_info_addr         | 4            | ROM        | Address of ROMInfo struct describing the ROM digest and git commit.                                      |
-| rtalias_tbs_size      | 2            | FMC        | RT Alias TBS Size.                                                                                      |
+| rtalias_tbs_size      | 2            | FMC        | RT Alias TBS Size.                                                                                       |
 | reserved              | 1650         |            | Reserved for future use.                                                                                 |
 
 *FHT is currently defined to be 2048 bytes in length.*
@@ -175,10 +175,6 @@ is able to re-run firmware integrity checks on-demand (required by FIPS 140-3).
 discrete FIPS module does not exist, then this field shall be 0xFF and ROM, FMC, and RT FW must all carry their own code for accessing crypto resources and
 keys.
 
-### rt_fw_load_addr_hdl
-
-This field provides the Handle of the DV entry that stores the physical address of the location in ICCM SRAM where ROM has placed the authenticated Runtime Firmware module.
-
 ### rt_fw_entry_point_hdl
 
 This field provides the Handle of the DV entry that stores the physical address of the Entry Point of Runtime FW Module in ICCM SRAM.
@@ -198,6 +194,10 @@ This field provides the Handle into the Key Vault where the PrivateKey<sub>FMC</
 ### fmc_pub_key_x_dv_hdl, fmc_pub_key_y_dv_hdl
 
 These fields provide the indices into the Data Vault where the PublicKey<sub>FMC</sub> X and Y coordinates are stored.
+
+### fmc_cert_sig_r_dv_hdl, fmc_cert_sig_s_dv_hdl
+
+These fields provide the indices into the Data Vault where the Signature<sub>FMC</sub> R and S coordinates are stored.
 
 ### fmc_svn_dv_hdl
 
@@ -225,19 +225,19 @@ This field provides the Handle into the Data Vault where the Min-SVN<sub>RT</sub
 
 ### ldevid_tbs_addr
 
-TODO
+This field provides the address of the *To Be Signed* portion of the LDevID certificate.
 
 ### fmcalias_tbs_addr
 
-TODO
+This field provides the address of the *To Be Signed* portion of the FMC Alias certificate.
 
 ### ldevid_tbs_size
 
-TODO
+This field provides the size of the *To Be Signed* portion of the LDevID certificate.
 
 ### fmcalias_tbs_size
 
-TODO
+This field provides the size of the *To Be Signed* portion of the FMC Alias certificate.
 
 ### pcr_log_addr
 
@@ -249,31 +249,31 @@ Index within the PCR log of the next available log entry
 
 ### fuse_log_addr
 
-TODO
+This field provides the address of the Fuse Log
 
 ### rt_dice_pub_key
 
-TODO
+This field provides the Runtime Alias Public Key.
 
 ### rt_dice_sign
 
-TODO
-
-### idev_dice_pub_key
-
-TODO
-
-### rom_info_addr
-
-TODO
-
-### rtalias_tbs_size
-
-TODO
+This field provides the Runtime Alias certificate signature.
 
 ### ldevid_cert_sig_r_dv_hdl, ldevid_cert_sig_s_dv_hdl
 
 These fields provide the indices into the Data Vault where the Signature<sub>LDevId</sub> R and S coordinates are stored.
+
+### idev_dice_pub_key
+
+This field provides the IDevID Public Key.
+
+### rom_info_addr
+
+This field provides the address of the RomInfo structure.
+
+### rtalias_tbs_size
+
+This field provides the size of the *To Be Signed* portion of the Runtime Alias certificate.
 
 ### reserved
 
