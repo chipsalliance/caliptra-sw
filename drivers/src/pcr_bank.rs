@@ -110,12 +110,11 @@ impl TryFrom<u8> for PcrId {
 /// Platform Configuration Register (PCR) Bank
 pub struct PcrBank {
     pv: PvReg,
-    pub log_index: usize, // The index of the next PCR log to be written to DCCM.
 }
 
 impl PcrBank {
     pub fn new(pv: PvReg) -> Self {
-        Self { pv, log_index: 0 }
+        Self { pv }
     }
     /// Erase all the pcrs in the pcr vault
     ///
