@@ -1031,3 +1031,8 @@ fn test_uart() {
     model.copy_output_until_exit_success(&mut output).unwrap();
     assert_eq!(&output, b"aaaaaahello");
 }
+
+#[test]
+fn test_mailbox_txn_drop() {
+    run_driver_test("mbox_send_txn_drop");
+}
