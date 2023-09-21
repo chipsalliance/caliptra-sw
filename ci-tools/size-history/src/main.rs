@@ -22,7 +22,7 @@ use crate::{cache_gha::GithubActionCache, util::other_err};
 
 // Increment with non-backwards-compatible changes are made to the cache record
 // format
-const CACHE_FORMAT_VERSION: &str = "v1";
+const CACHE_FORMAT_VERSION: &str = "v2";
 
 #[derive(Clone, Copy, Default, Eq, PartialEq, Serialize, Deserialize)]
 struct Sizes {
