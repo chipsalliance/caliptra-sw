@@ -181,6 +181,7 @@ impl FipsShutdownCmd {
     pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<MailboxResp> {
         FipsModule::zeroize(env);
         env.mbox.set_status(MboxStatusE::CmdComplete);
+        env.is_shutdown = true;
 
         Err(CaliptraError::RUNTIME_SHUTDOWN)
     }

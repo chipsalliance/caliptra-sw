@@ -481,13 +481,23 @@ fn test_fips<T: HwModel>(hw: &mut T, fmc_version: u32, app_version: u32) {
     let resp = hw.mailbox_execute(u32::from(CommandId::SHUTDOWN), payload.as_bytes());
     assert!(resp.is_ok());
 
-    // Check we are rejecting additional commands with the shutdown error code.
-    let expected_err = Err(ModelError::MailboxCmdFailed(0x000E0008));
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::VERSION), &[]),
-    };
-    let resp = hw.mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes());
-    assert_eq!(resp, expected_err);
+    assert_eq!(
+        hw.mailbox_execute(
+            u32::from(CommandId::SELF_TEST_GET_RESULTS),
+            payload.as_bytes()
+        ),
+        Err(ModelError::MailboxCmdFailed(0x000E0008))
+    );
+
+    // Check we are rejecting additional commands.
+    assert_eq!(
+        hw.mailbox_execute(u32::from(CommandId::SHUTDOWN), payload.as_bytes()),
+        Err(ModelError::MailboxCmdFailed(0x000E0008))
+    );
+    assert_eq!(
+        hw.mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes()),
+        Err(ModelError::MailboxCmdFailed(0x000E0008))
+    );
 }
 
 #[test]
