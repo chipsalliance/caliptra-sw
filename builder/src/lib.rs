@@ -155,6 +155,12 @@ pub fn build_firmware_elfs_uncached<'a>(
 
         let mut cmd = Command::new(env!("CARGO"));
         cmd.current_dir(workspace_dir);
+
+        cmd.env(
+            "RUSTC_WRAPPER",
+            workspace_dir.join("builder/no_meta_rustc_wrapper.sh"),
+        );
+
         if option_env!("GITHUB_ACTIONS").is_some() {
             // In continuous integration, warnings are always errors.
             cmd.arg("--config")
