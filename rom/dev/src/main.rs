@@ -130,9 +130,14 @@ pub extern "C" fn rom_entry() -> ! {
             ecc384: &mut env.ecc384,
 
             /// SHA Acc lock state.
+<<<<<<< HEAD
             /// SHA Acc is guaranteed to be locked on Cold and Warm Resets;
             /// On an Update Reset, it is expected to be unlocked.
             /// Not having it unlocked will result in a fatal error.
+=======
+            /// SHA Acc is locked on Cold and Warm Resets;
+            /// it is unlocked on Update Reset.
+>>>>>>> fa5a075b ([fix] TOCTOU Condition in SHA-512 Accelerator Lock Acquisition)
             sha_acc_lock_state: if reset_reason == ResetReason::UpdateReset {
                 ShaAccLockState::NotAcquired
             } else {

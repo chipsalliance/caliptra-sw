@@ -31,6 +31,13 @@ pub enum ShaAccLockState {
     NotAcquired = 0x5555_555A,
 }
 
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShaAccLockState {
+    AssumedLockState = 0xAAAA_AAA5,
+    NotAcquired = 0x5555_555A,
+}
+
 pub struct Sha384Acc {
     sha512_acc: Sha512AccCsr,
 }
