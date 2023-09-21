@@ -46,7 +46,7 @@ pub mod fips_self_test_cmd {
     use caliptra_common::{
         verifier::FirmwareImageVerificationEnv, FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
     };
-    use caliptra_drivers::ResetReason;
+    use caliptra_drivers::{ResetReason, ShaAccLockState};
     use caliptra_image_types::RomInfo;
     use caliptra_image_verify::ImageVerifier;
     use zerocopy::AsBytes;
@@ -145,6 +145,9 @@ pub mod fips_self_test_cmd {
 
             /// Ecc384 Engine
             ecc384: &mut env.ecc384,
+
+            /// SHA Acc Lock State
+            sha_acc_lock_state: ShaAccLockState::NotAcquired,
         };
 
         caliptra_kat::execute_kat(&mut kats_env)?;
