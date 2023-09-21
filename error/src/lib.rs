@@ -52,6 +52,10 @@ impl CaliptraError {
     pub const DRIVER_SHA384_INDEX_OUT_OF_BOUNDS: CaliptraError =
         CaliptraError::new_const(0x0003000B);
 
+    /// Driver Error: SHA384ACC
+    pub const DRIVER_SHA384ACC_UNEXPECTED_ACQUIRED_LOCK_STATE: CaliptraError =
+        CaliptraError::new_const(0x00038000);
+
     /// Driver Error: HMAC384
     pub const DRIVER_HMAC384_READ_KEY_KV_READ: CaliptraError = CaliptraError::new_const(0x00040001);
     pub const DRIVER_HMAC384_READ_KEY_KV_WRITE: CaliptraError =

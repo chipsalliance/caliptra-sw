@@ -22,7 +22,7 @@ use core::hint::black_box;
 
 use caliptra_drivers::{
     cprintln, report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError, Ecc384, Hmac384,
-    KeyVault, Mailbox, ResetReason, Sha256, Sha384, Sha384Acc, SocIfc,
+    KeyVault, Mailbox, ResetReason, Sha256, Sha384, Sha384Acc, ShaAccLockState, SocIfc,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_image_types::RomInfo;
@@ -101,6 +101,8 @@ pub extern "C" fn rom_entry() -> ! {
     // Start the watchdog timer
     wdt::start_wdt(&mut env.soc_ifc);
 
+    let reset_reason = env.soc_ifc.reset_reason();
+
     if !cfg!(feature = "fake-rom") {
         let mut kats_env = caliptra_kat::KatsEnv {
             // SHA1 Engine
@@ -126,14 +128,22 @@ pub extern "C" fn rom_entry() -> ! {
 
             /// Ecc384 Engine
             ecc384: &mut env.ecc384,
+
+            /// SHA Acc lock state.
+            /// SHA Acc is guaranteed to be locked on Cold and Warm Resets;
+            /// On an Update Reset, it is expected to be unlocked.
+            /// Not having it unlocked will result in a fatal error.
+            sha_acc_lock_state: if reset_reason == ResetReason::UpdateReset {
+                ShaAccLockState::NotAcquired
+            } else {
+                ShaAccLockState::AssumedLockState
+            },
         };
         let result = run_fips_tests(&mut kats_env);
         if let Err(err) = result {
             handle_fatal_error(err.into());
         }
     }
-
-    let reset_reason = env.soc_ifc.reset_reason();
 
     if let Err(err) = flow::run(&mut env) {
         //
