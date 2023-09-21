@@ -62,10 +62,10 @@ impl HmacVerifyCmd {
             let key = Hmac384Key::from(&key);
             let mut out_tag = Array4x12::default();
             let Ok(len) = usize::try_from(cmd.len) else {
-                return Err(CaliptraError::RUNTIME_HMAC_VERIFY_FAILED);
+                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             };
             if len > cmd.msg.len() {
-                return Err(CaliptraError::RUNTIME_HMAC_VERIFY_FAILED);
+                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
             let data = Hmac384Data::from(&cmd.msg[0..len]);
             let mut trng = unsafe {

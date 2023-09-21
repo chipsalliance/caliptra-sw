@@ -137,6 +137,8 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | fmcalias_tbs_size     | 2            | ROM        | FMC Alias TBS Size.                                                                                      |
 | pcr_log_addr          | 4            | ROM        | PCR Log Address.                                                                                         |
 | pcr_log_index         | 4            | ROM        | Last empty PCR log entry slot index.                                                                     |
+| meas_log_addr         | 4            | ROM        | Measurement Log Address.                                                                                 |
+| meas_log_index        | 4            | ROM        | Last empty Measurement log entry slot index.                                                             |
 | fuse_log_addr         | 4            | ROM        | Fuse Log Address.                                                                                        |
 | rt_dice_pub_key       | 96           | FMC        | RT Alias DICE Public Key.                                                                                |
 | rt_dice_sign          | 96           | FMC        | RT Alias DICE signature.                                                                                 |
@@ -246,6 +248,14 @@ Address in DCCM of the PCR log
 ### pcr_log_index
 
 Index within the PCR log of the next available log entry
+
+### meas_log_addr
+
+Address in DCCM of the stashed measurement log
+
+### meas_log_index
+
+Index within the measurement log of the next available log entry
 
 ### fuse_log_addr
 

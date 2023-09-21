@@ -93,7 +93,7 @@ impl FirmwareProcessor {
             &mut env.mbox,
             &mut env.pcr_bank,
             &mut kats_env,
-            &mut env.persistent_data.get_mut().measurement_log,
+            env.persistent_data.get_mut(),
         )?;
 
         // Load the manifest
@@ -154,7 +154,7 @@ impl FirmwareProcessor {
     /// * `mbox` - Mailbox
     /// * `pcr_bank` - PCR Bank
     /// * `sha384` - SHA384
-    /// * `measurement_log` - Measurement Log
+    /// * `persistent_data` - Persistent data
     ///
     /// # Returns
     /// * `MailboxRecvTxn` - Mailbox Receive Transaction
@@ -170,12 +170,11 @@ impl FirmwareProcessor {
         mbox: &'a mut Mailbox,
         pcr_bank: &mut PcrBank,
         env: &mut KatsEnv,
-        measurement_log: &mut StashMeasurementArray,
+        persistent_data: &mut PersistentData,
     ) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn<'a>>> {
         soc_ifc.flow_status_set_ready_for_firmware();
 
         let mut self_test_in_progress = false;
-        let mut measurement_count = 0;
 
         cprintln!("[fwproc] Waiting for Commands...");
         loop {
@@ -275,7 +274,7 @@ impl FirmwareProcessor {
                         continue;
                     }
                     CommandId::STASH_MEASUREMENT => {
-                        if measurement_count == MEASUREMENT_MAX_COUNT {
+                        if persistent_data.fht.meas_log_index == MEASUREMENT_MAX_COUNT as u32 {
                             cprintln!(
                                 "[fwproc] Maximum supported number of measurements already received, ignoring."
                             );
@@ -283,14 +282,7 @@ impl FirmwareProcessor {
                             continue;
                         }
 
-                        Self::stash_measurement(
-                            pcr_bank,
-                            env.sha384,
-                            measurement_log,
-                            &mut txn,
-                            measurement_count,
-                        )?;
-                        measurement_count += 1;
+                        Self::stash_measurement(pcr_bank, env.sha384, persistent_data, &mut txn)?;
 
                         // Generate and send response (with FIPS approved status)
                         let mut resp = MailboxResp::default();
@@ -620,7 +612,7 @@ impl FirmwareProcessor {
     /// # Arguments
     /// * `pcr_bank` - PCR Bank
     /// * `sha384` - SHA384
-    /// * `measurement_log` - Measurement Log
+    /// * `persistent_data` - Persistent data
     /// * `txn` - Mailbox Receive Transaction
     ///
     /// # Returns
@@ -629,15 +621,14 @@ impl FirmwareProcessor {
     fn stash_measurement(
         pcr_bank: &mut PcrBank,
         sha384: &mut Sha384,
-        measurement_log: &mut StashMeasurementArray,
+        persistent_data: &mut PersistentData,
         txn: &mut MailboxRecvTxn,
-        log_index: usize,
     ) -> CaliptraResult<()> {
         let mut measurement = StashMeasurementReq::default();
         Self::copy_req_verify_chksum(txn, measurement.as_bytes_mut())?;
 
         // Extend measurement into PCR31.
-        Self::extend_measurement(pcr_bank, sha384, measurement_log, &measurement, log_index)?;
+        Self::extend_measurement(pcr_bank, sha384, persistent_data, &measurement)?;
 
         Ok(())
     }
@@ -647,9 +638,8 @@ impl FirmwareProcessor {
     /// # Arguments
     /// * `pcr_bank` - PCR Bank
     /// * `sha384` - SHA384
-    /// * `measurement_log` - Measurement Log
-    /// * `measurement` - Measurement
-    /// * `log_index` - Log index
+    /// * `persistent_data` - Persistent data
+    /// * `stash_measurement` - Measurement
     ///
     /// # Returns
     /// * `()` - Ok
@@ -657,9 +647,8 @@ impl FirmwareProcessor {
     fn extend_measurement(
         pcr_bank: &mut PcrBank,
         sha384: &mut Sha384,
-        measurement_log: &mut StashMeasurementArray,
+        persistent_data: &mut PersistentData,
         stash_measurement: &StashMeasurementReq,
-        log_index: usize,
     ) -> CaliptraResult<()> {
         // Extend measurement into PCR31.
         pcr_bank.extend_pcr(
@@ -669,30 +658,27 @@ impl FirmwareProcessor {
         )?;
 
         // Log measurement to the measurement log.
-        Self::log_measurement(measurement_log, stash_measurement, log_index)?;
-
-        Ok(())
+        Self::log_measurement(persistent_data, stash_measurement)
     }
 
     /// Log mesaure data to the Stash Measurement log
     ///
     /// # Arguments
-    /// * `data` - PCR data
-    /// * `log_index` - Log index
+    /// * `persistent_data` - Persistent data
+    /// * `stash_measurement` - Measurement
     ///
     /// # Return Value
     /// * `Ok(())` - Success
-    /// * `Err(GlobalErr::PcrLogUpsupportedDataLength)` - Unsupported data length
     /// * `Err(GlobalErr::MeasurementLogExhausted)` - Measurement log exhausted
     ///
     pub fn log_measurement(
-        measurement_log: &mut StashMeasurementArray,
+        persistent_data: &mut PersistentData,
         stash_measurement: &StashMeasurementReq,
-        log_index: usize,
     ) -> CaliptraResult<()> {
-        let Some(dst) = measurement_log.get_mut(log_index) else {
-        return Err(CaliptraError::ROM_GLOBAL_MEASUREMENT_LOG_EXHAUSTED);
-    };
+        let fht = &mut persistent_data.fht;
+        let Some(dst) = persistent_data.measurement_log.get_mut(fht.meas_log_index as usize) else {
+            return Err(CaliptraError::ROM_GLOBAL_MEASUREMENT_LOG_EXHAUSTED);
+        };
 
         *dst = MeasurementLogEntry {
             pcr_entry: PcrLogEntry {
@@ -706,6 +692,8 @@ impl FirmwareProcessor {
             svn: stash_measurement.svn,
             reserved0: [0u8; 4],
         };
+
+        fht.meas_log_index += 1;
 
         Ok(())
     }

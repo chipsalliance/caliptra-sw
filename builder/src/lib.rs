@@ -150,6 +150,7 @@ pub fn build_firmware_elf_uncached(id: &FwId) -> io::Result<Vec<u8>> {
     // from other threads or processes, hold a lock until we've read the output
     // binary from the filesystem (it's possible that another thread will build
     // the same binary with different features before we get a chance to read it).
+    let _ = fs::create_dir(workspace_dir.join("target"));
     let lock = File::create(workspace_dir.join("target/.caliptra-builder.lock"))?;
     nix::fcntl::flock(lock.as_raw_fd(), FlockArg::LockExclusive)?;
 
