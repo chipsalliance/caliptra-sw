@@ -191,6 +191,14 @@ impl FakeRomFlow {
                 // LDEVID cert
                 copy_canned_ldev_cert(env)?;
 
+                // Unlock the SHA Acc by creating a SHA Acc operation and dropping it.
+                // In real ROM, this is done as part of executing the SHA-ACC KAT.
+                let sha_op = env
+                    .sha384_acc
+                    .try_start_operation(ShaAccLockState::AssumedLocked)?
+                    .unwrap();
+                drop(sha_op);
+
                 // Download and validate firmware.
                 _ = FirmwareProcessor::process(env)?;
 
@@ -263,7 +271,10 @@ impl<'a> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a> {
     /// Calculate Digest using SHA-384 Accelerator
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest> {
         loop {
-            if let Some(mut txn) = self.sha384_acc.try_start_operation() {
+            if let Some(mut txn) = self
+                .sha384_acc
+                .try_start_operation(ShaAccLockState::NotAcquired)?
+            {
                 let mut digest = Array4x12::default();
                 txn.digest(len, offset, false, &mut digest)?;
                 return Ok(digest.0);

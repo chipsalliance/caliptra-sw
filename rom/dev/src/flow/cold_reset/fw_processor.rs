@@ -86,6 +86,9 @@ impl FirmwareProcessor {
 
             /// Ecc384 Engine
             ecc384: &mut env.ecc384,
+
+            /// SHA Acc lock state
+            sha_acc_lock_state: ShaAccLockState::NotAcquired,
         };
         // Process mailbox commands.
         let mut txn = Self::process_mailbox_commands(
