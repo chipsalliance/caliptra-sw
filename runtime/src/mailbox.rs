@@ -1,6 +1,8 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_drivers::CaliptraResult;
+use core::slice;
+
+use caliptra_drivers::{memory_layout, CaliptraResult};
 use caliptra_error::CaliptraError;
 use caliptra_registers::mbox::{
     enums::{MboxFsmE, MboxStatusE},
@@ -124,5 +126,14 @@ impl Mailbox {
     pub fn set_status(&mut self, status: MboxStatusE) {
         let mbox = self.mbox.regs_mut();
         mbox.status().write(|w| w.status(|_| status));
+    }
+
+    pub fn raw_mailbox_contents(&self) -> &[u8] {
+        unsafe {
+            slice::from_raw_parts(
+                memory_layout::MBOX_ORG as *const u8,
+                memory_layout::MBOX_SIZE as usize,
+            )
+        }
     }
 }

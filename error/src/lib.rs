@@ -257,6 +257,8 @@ impl CaliptraError {
         CaliptraError = CaliptraError::new_const(0x000b003f);
     pub const IMAGE_VERIFIER_ERR_TOC_ENTRY_RANGE_ARITHMETIC_OVERFLOW: CaliptraError =
         CaliptraError::new_const(0x000b0040);
+    pub const IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS: CaliptraError =
+        CaliptraError::new_const(0x000b0041);
 
     /// Driver Error: LMS
     pub const DRIVER_LMS_INVALID_LMS_ALGO_TYPE: CaliptraError =
