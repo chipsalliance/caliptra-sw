@@ -103,10 +103,22 @@ impl FirmwareProcessor {
         let manifest = Self::load_manifest(&mut env.persistent_data, &mut txn);
         let manifest = okref(&manifest)?;
 
+        // Create a SHA Accelerator Operation. This operation is used for all hashing requests by the image verifier.
+        let sha_acc_op = {
+            loop {
+                if let Some(txn) = env
+                    .sha384_acc
+                    .try_start_operation(ShaAccLockState::NotAcquired)?
+                {
+                    break txn;
+                }
+            }
+        };
+
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha384: &mut env.sha384,
-            sha384_acc: &mut env.sha384_acc,
+            sha384_acc_op: sha_acc_op,
             soc_ifc: &mut env.soc_ifc,
             ecc384: &mut env.ecc384,
             data_vault: &mut env.data_vault,
@@ -134,8 +146,8 @@ impl FirmwareProcessor {
         report_boot_status(FwProcessorFirmwareDownloadTxComplete.into());
 
         // Update FW version registers
-        env.soc_ifc.set_fmc_fw_rev_id(manifest.fmc.version);
-        env.soc_ifc.set_rt_fw_rev_id(manifest.runtime.version);
+        venv.soc_ifc.set_fmc_fw_rev_id(manifest.fmc.version);
+        venv.soc_ifc.set_rt_fw_rev_id(manifest.runtime.version);
 
         // Get the certificate validity info
         let (nb, nf) = Self::get_cert_validity_info(manifest);
@@ -334,7 +346,7 @@ impl FirmwareProcessor {
         #[cfg(feature = "fake-rom")]
         let venv = &mut FakeRomImageVerificationEnv {
             sha256: venv.sha256,
-            sha384_acc: venv.sha384_acc,
+            sha384_acc_op: &mut venv.sha384_acc_op,
             soc_ifc: venv.soc_ifc,
             data_vault: venv.data_vault,
             ecc384: venv.ecc384,

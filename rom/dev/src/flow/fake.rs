@@ -261,7 +261,7 @@ pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
 // ROM Verification Environemnt
 pub(crate) struct FakeRomImageVerificationEnv<'a> {
     pub(crate) sha256: &'a mut Sha256,
-    pub(crate) sha384_acc: &'a mut Sha384Acc,
+    pub(crate) sha384_acc_op: &'a mut Sha384AccOp<'a>,
     pub(crate) soc_ifc: &'a mut SocIfc,
     pub(crate) data_vault: &'a mut DataVault,
     pub(crate) ecc384: &'a mut Ecc384,
@@ -270,16 +270,9 @@ pub(crate) struct FakeRomImageVerificationEnv<'a> {
 impl<'a> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a> {
     /// Calculate Digest using SHA-384 Accelerator
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest> {
-        loop {
-            if let Some(mut txn) = self
-                .sha384_acc
-                .try_start_operation(ShaAccLockState::NotAcquired)?
-            {
-                let mut digest = Array4x12::default();
-                txn.digest(len, offset, false, &mut digest)?;
-                return Ok(digest.0);
-            }
-        }
+        let mut digest = Array4x12::default();
+        self.sha384_acc_op.digest(len, offset, false, &mut digest)?;
+        return Ok(digest.0);
     }
 
     /// ECC-384 Verification routine

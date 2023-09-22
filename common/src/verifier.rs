@@ -23,7 +23,7 @@ use caliptra_drivers::memory_layout::ICCM_RANGE;
 pub struct FirmwareImageVerificationEnv<'a> {
     pub sha256: &'a mut Sha256,
     pub sha384: &'a mut Sha384,
-    pub sha384_acc: &'a mut Sha384Acc,
+    pub sha384_acc_op: Sha384AccOp<'a>,
     pub soc_ifc: &'a mut SocIfc,
     pub ecc384: &'a mut Ecc384,
     pub data_vault: &'a mut DataVault,
@@ -33,16 +33,9 @@ pub struct FirmwareImageVerificationEnv<'a> {
 impl<'a> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a> {
     /// Calculate Digest using SHA-384 Accelerator
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest> {
-        loop {
-            if let Some(mut txn) = self
-                .sha384_acc
-                .try_start_operation(ShaAccLockState::NotAcquired)?
-            {
-                let mut digest = Array4x12::default();
-                txn.digest(len, offset, false, &mut digest)?;
-                return Ok(digest.0);
-            }
-        }
+        let mut digest = Array4x12::default();
+        self.sha384_acc_op.digest(len, offset, false, &mut digest)?;
+        return Ok(digest.0);
     }
 
     /// ECC-384 Verification routine

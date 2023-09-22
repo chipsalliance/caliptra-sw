@@ -86,10 +86,22 @@ pub mod fips_self_test_cmd {
         let rt = unsafe { create_slice(RUNTIME_ORG, runtime_size as usize) };
         env.mbox.copy_bytes_to_mbox(rt.as_bytes())?;
 
+        // Create a SHA Accelerator Operation. This operation is used for all hashing requests by the image verifier.
+        let sha_acc_op = {
+            loop {
+                if let Some(txn) = env
+                    .sha384_acc
+                    .try_start_operation(ShaAccLockState::NotAcquired)?
+                {
+                    break txn;
+                }
+            }
+        };
+
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha384: &mut env.sha384,
-            sha384_acc: &mut env.sha384_acc,
+            sha384_acc_op: sha_acc_op,
             soc_ifc: &mut env.soc_ifc,
             ecc384: &mut env.ecc384,
             data_vault: &mut env.data_vault,

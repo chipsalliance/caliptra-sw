@@ -19,10 +19,10 @@ use caliptra_common::verifier::FirmwareImageVerificationEnv;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::RomBootStatus::*;
-use caliptra_drivers::report_fw_error_non_fatal;
 use caliptra_drivers::{
     okref, report_boot_status, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
+use caliptra_drivers::{report_fw_error_non_fatal, ShaAccLockState};
 use caliptra_drivers::{DataVault, PersistentData};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::ImageManifest;
@@ -57,10 +57,22 @@ impl UpdateResetFlow {
             let manifest = Self::load_manifest(env.persistent_data.get_mut(), &mut recv_txn)?;
             report_boot_status(UpdateResetLoadManifestComplete.into());
 
+            // Create a SHA Accelerator Operation. This operation is used for all hashing requests by the image verifier.
+            let sha_acc_op = {
+                loop {
+                    if let Some(txn) = env
+                        .sha384_acc
+                        .try_start_operation(ShaAccLockState::NotAcquired)?
+                    {
+                        break txn;
+                    }
+                }
+            };
+
             let mut venv = FirmwareImageVerificationEnv {
                 sha256: &mut env.sha256,
                 sha384: &mut env.sha384,
-                sha384_acc: &mut env.sha384_acc,
+                sha384_acc_op: sha_acc_op,
                 soc_ifc: &mut env.soc_ifc,
                 ecc384: &mut env.ecc384,
                 data_vault: &mut env.data_vault,
@@ -130,7 +142,7 @@ impl UpdateResetFlow {
         #[cfg(feature = "fake-rom")]
         let env = &mut FakeRomImageVerificationEnv {
             sha256: env.sha256,
-            sha384_acc: env.sha384_acc,
+            sha384_acc_op: &mut env.sha384_acc_op,
             soc_ifc: env.soc_ifc,
             data_vault: env.data_vault,
             ecc384: env.ecc384,
