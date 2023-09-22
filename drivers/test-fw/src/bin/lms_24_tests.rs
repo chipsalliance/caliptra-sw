@@ -23,6 +23,7 @@ use caliptra_lms_types::{
 use caliptra_registers::sha256::Sha256Reg;
 use caliptra_test_harness::test_suite;
 use zerocopy::{BigEndian, LittleEndian, U32};
+use caliptra_error::CaliptraError;
 
 fn test_get_lms_parameters() {
     // Full size SHA256 hashes
@@ -414,6 +415,26 @@ fn test_lms_24_height_15() {
         .verify_lms_signature_cfi(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &LMS_SIG)
         .unwrap();
     assert_eq!(candidate_key, HashValue::from(LMS_PUBLIC_KEY.digest));
+
+    // add a test that uses an invalid q value
+    // in this case we are using the maximum value for q
+    let invalid_q_sig = LmsSignature { q: <U32<BigEndian>>::from(32767u32) ,
+        ..LMS_SIG };
+    let result = Lms::default()
+        .verify_lms_signature(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &invalid_q_sig)
+        .unwrap();
+    assert_eq!(result, LmsResult::SigVerifyFailed);
+
+
+    // add a test that uses an invalid p value
+    // in this case we are using one greater than the maximum value for Q
+    // this should result in an invalid p value error (meaning the path is invalid)
+    let invalid_q_sig = LmsSignature { q: <U32<BigEndian>>::from(32768u32) ,
+        ..LMS_SIG };
+    let result = Lms::default()
+        .verify_lms_signature(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &invalid_q_sig);
+    assert_eq!(result, Err(CaliptraError::DRIVER_LMS_INVALID_PVALUE));
+
 }
 
 test_suite! {

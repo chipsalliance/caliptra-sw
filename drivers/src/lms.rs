@@ -454,7 +454,7 @@ impl Lms {
         let q_str = <[u8; 4]>::from(lms_sig.q);
         let (_, tree_height) = get_lms_parameters(lms_sig.tree_type)?;
         let mut node_num: u32 = (1 << tree_height) + lms_sig.q.get();
-        if node_num > 2 << tree_height {
+        if node_num >= 2 << tree_height {
             return Err(CaliptraError::DRIVER_LMS_INVALID_PVALUE);
         }
         let message_digest = self.hash_message(
