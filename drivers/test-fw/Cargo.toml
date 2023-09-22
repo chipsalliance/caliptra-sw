@@ -27,6 +27,11 @@ emu = ["caliptra-test-harness/emu"]
 riscv = ["caliptra-test-harness/riscv"]
 
 [[bin]]
+name = "mbox_send_txn_drop"
+path = "src/bin/mbox_send_txn_drop.rs"
+required-features = ["riscv"]
+
+[[bin]]
 name = "sha1"
 path = "src/bin/sha1_tests.rs"
 required-features = ["riscv"]
@@ -160,3 +165,4 @@ required-features = ["riscv"]
 name = "trng_driver_responder"
 path = "src/bin/trng_driver_responder.rs"
 required-features = ["riscv"]
+
