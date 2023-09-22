@@ -140,7 +140,7 @@ fn test_pcr_log() {
 
     assert_eq!(
         pcr_entry_arr.len(),
-        (fht.pcr_log_index as usize + 2) * PCR_ENTRY_SIZE
+        (fht.pcr_log_index as usize) * PCR_ENTRY_SIZE
     );
 
     let rt_tci1 = swap_word_bytes(&image1.manifest.runtime.digest);
@@ -148,7 +148,7 @@ fn test_pcr_log() {
 
     check_pcr_log_entry(
         &pcr_entry_arr,
-        fht.pcr_log_index,
+        fht.pcr_log_index - 2,
         PcrLogEntryId::RtTci,
         PCR2_AND_PCR3_EXTENDED_ID,
         rt_tci1.as_bytes(),
@@ -156,7 +156,7 @@ fn test_pcr_log() {
 
     check_pcr_log_entry(
         &pcr_entry_arr,
-        fht.pcr_log_index + 1,
+        fht.pcr_log_index - 1,
         PcrLogEntryId::FwImageManifest,
         PCR2_AND_PCR3_EXTENDED_ID,
         &manifest_digest1,
@@ -202,7 +202,7 @@ fn test_pcr_log() {
 
     assert_eq!(
         pcr_entry_arr.len(),
-        (fht.pcr_log_index as usize + 2) * PCR_ENTRY_SIZE
+        (fht.pcr_log_index as usize) * PCR_ENTRY_SIZE
     );
 
     let rt_tci2 = swap_word_bytes(&image2.manifest.runtime.digest);
@@ -210,7 +210,7 @@ fn test_pcr_log() {
 
     check_pcr_log_entry(
         &pcr_entry_arr,
-        fht.pcr_log_index,
+        fht.pcr_log_index - 2,
         PcrLogEntryId::RtTci,
         PCR2_AND_PCR3_EXTENDED_ID,
         rt_tci2.as_bytes(),
@@ -218,7 +218,7 @@ fn test_pcr_log() {
 
     check_pcr_log_entry(
         &pcr_entry_arr,
-        fht.pcr_log_index + 1,
+        fht.pcr_log_index - 1,
         PcrLogEntryId::FwImageManifest,
         PCR2_AND_PCR3_EXTENDED_ID,
         &manifest_digest2,
