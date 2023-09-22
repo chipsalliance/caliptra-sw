@@ -15,16 +15,31 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{Array4x12, Mailbox, Sha384Acc};
+use caliptra_drivers::{Array4x12, Mailbox, Sha384Acc, Trng};
 use caliptra_kat::Sha384AccKat;
+use caliptra_registers::csrng::CsrngReg;
+use caliptra_registers::entropy_src::EntropySrcReg;
 use caliptra_registers::mbox::MboxCsr;
 use caliptra_registers::sha512_acc::Sha512AccCsr;
+use caliptra_registers::soc_ifc::SocIfcReg;
+use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
 use caliptra_test_harness::test_suite;
 
 const MAX_MAILBOX_CAPACITY_BYTES: usize = 128 << 10;
 const SHA384_HASH_SIZE: usize = 48;
 
+unsafe fn make_trng() -> Trng {
+    Trng::new(
+        CsrngReg::new(),
+        EntropySrcReg::new(),
+        SocIfcTrngReg::new(),
+        &SocIfcReg::new(),
+    )
+    .unwrap()
+}
+
 fn test_digest0() {
+    let mut trng = unsafe { make_trng() };
     let mut sha_acc = unsafe { Sha384Acc::new(Sha512AccCsr::new()) };
     let mut mbox = unsafe { Mailbox::new(MboxCsr::new()) };
     let data = "abcd".as_bytes();
@@ -41,7 +56,7 @@ fn test_digest0() {
         assert!(txn.send_request(CMD, &data).is_ok());
 
         let mut digest = Array4x12::default();
-        if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
+        if let Some(mut sha_acc_op) = sha_acc.try_start_operation(&mut trng).unwrap() {
             let result = sha_acc_op.digest(data.len() as u32, 0, false, (&mut digest).into());
             assert!(result.is_ok());
             assert_eq!(digest, Array4x12::from(expected));
@@ -54,6 +69,7 @@ fn test_digest0() {
 }
 
 fn test_digest1() {
+    let mut trng = unsafe { make_trng() };
     let mut sha_acc = unsafe { Sha384Acc::new(Sha512AccCsr::new()) };
     let mut mbox = unsafe { Mailbox::new(MboxCsr::new()) };
 
@@ -70,7 +86,7 @@ fn test_digest1() {
         assert!(txn.send_request(CMD, &data).is_ok());
 
         let mut digest = Array4x12::default();
-        if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
+        if let Some(mut sha_acc_op) = sha_acc.try_start_operation(&mut trng).unwrap() {
             let result = sha_acc_op.digest(data.len() as u32, 0, false, (&mut digest).into());
             assert!(result.is_ok());
             assert_eq!(digest, Array4x12::from(expected));
@@ -83,6 +99,7 @@ fn test_digest1() {
 }
 
 fn test_digest2() {
+    let mut trng = unsafe { make_trng() };
     let mut sha_acc = unsafe { Sha384Acc::new(Sha512AccCsr::new()) };
     let mut mbox = unsafe { Mailbox::new(MboxCsr::new()) };
 
@@ -100,7 +117,7 @@ fn test_digest2() {
         const CMD: u32 = 0x1c;
         assert!(txn.send_request(CMD, &data).is_ok());
 
-        if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
+        if let Some(mut sha_acc_op) = sha_acc.try_start_operation(&mut trng).unwrap() {
             let result = sha_acc_op.digest(data.len() as u32, 0, false, (&mut digest).into());
             assert!(result.is_ok());
             assert_eq!(digest, Array4x12::from(expected));
@@ -113,6 +130,7 @@ fn test_digest2() {
 }
 
 fn test_digest_offset() {
+    let mut trng = unsafe { make_trng() };
     let mut sha_acc = unsafe { Sha384Acc::new(Sha512AccCsr::new()) };
     let mut mbox = unsafe { Mailbox::new(MboxCsr::new()) };
 
@@ -130,7 +148,7 @@ fn test_digest_offset() {
         const CMD: u32 = 0x1c;
         assert!(txn.send_request(CMD, &data).is_ok());
 
-        if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
+        if let Some(mut sha_acc_op) = sha_acc.try_start_operation(&mut trng).unwrap() {
             let result = sha_acc_op.digest(8, 4, false, (&mut digest).into());
             assert!(result.is_ok());
             assert_eq!(digest, Array4x12::from(expected));
@@ -143,6 +161,7 @@ fn test_digest_offset() {
 }
 
 fn test_digest_zero_size_buffer() {
+    let mut trng = unsafe { make_trng() };
     let mut sha_acc = unsafe { Sha384Acc::new(Sha512AccCsr::new()) };
 
     let expected: [u8; SHA384_HASH_SIZE] = [
@@ -153,7 +172,7 @@ fn test_digest_zero_size_buffer() {
     ];
 
     let mut digest = Array4x12::default();
-    if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
+    if let Some(mut sha_acc_op) = sha_acc.try_start_operation(&mut trng).unwrap() {
         let result = sha_acc_op.digest(0, 0, true, (&mut digest).into());
         assert!(result.is_ok());
         assert_eq!(digest, Array4x12::from(expected));
@@ -164,6 +183,7 @@ fn test_digest_zero_size_buffer() {
 }
 
 fn test_digest_max_mailbox_size() {
+    let mut trng = unsafe { make_trng() };
     let mut sha_acc = unsafe { Sha384Acc::new(Sha512AccCsr::new()) };
 
     let expected: [u8; SHA384_HASH_SIZE] = [
@@ -174,7 +194,7 @@ fn test_digest_max_mailbox_size() {
     ];
 
     let mut digest = Array4x12::default();
-    if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
+    if let Some(mut sha_acc_op) = sha_acc.try_start_operation(&mut trng).unwrap() {
         let result = sha_acc_op.digest(
             MAX_MAILBOX_CAPACITY_BYTES as u32,
             0,
@@ -190,8 +210,14 @@ fn test_digest_max_mailbox_size() {
 }
 
 fn test_kat() {
+    let mut trng = unsafe { make_trng() };
     let mut sha_acc = unsafe { Sha384Acc::new(Sha512AccCsr::new()) };
-    assert_eq!(Sha384AccKat::default().execute(&mut sha_acc).is_ok(), true);
+    assert_eq!(
+        Sha384AccKat::default()
+            .execute(&mut sha_acc, &mut trng)
+            .is_ok(),
+        true
+    );
 }
 
 test_suite! {

@@ -28,13 +28,14 @@ pub struct FirmwareImageVerificationEnv<'a> {
     pub ecc384: &'a mut Ecc384,
     pub data_vault: &'a mut DataVault,
     pub pcr_bank: &'a mut PcrBank,
+    pub trng: &'a mut Trng,
 }
 
 impl<'a> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a> {
     /// Calculate Digest using SHA-384 Accelerator
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest> {
         loop {
-            if let Some(mut txn) = self.sha384_acc.try_start_operation() {
+            if let Some(mut txn) = self.sha384_acc.try_start_operation(self.trng)? {
                 let mut digest = Array4x12::default();
                 txn.digest(len, offset, false, &mut digest)?;
                 return Ok(digest.0);

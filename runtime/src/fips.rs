@@ -94,6 +94,7 @@ pub mod fips_self_test_cmd {
             ecc384: &mut env.ecc384,
             data_vault: &mut env.data_vault,
             pcr_bank: &mut env.pcr_bank,
+            trng: &mut env.trng,
         };
 
         let mut verifier = ImageVerifier::new(&mut venv);

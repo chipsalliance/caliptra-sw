@@ -108,6 +108,7 @@ impl FirmwareProcessor {
             ecc384: &mut env.ecc384,
             data_vault: &mut env.data_vault,
             pcr_bank: &mut env.pcr_bank,
+            trng: &mut env.trng,
         };
 
         // Verify the image
@@ -335,6 +336,7 @@ impl FirmwareProcessor {
             soc_ifc: venv.soc_ifc,
             data_vault: venv.data_vault,
             ecc384: venv.ecc384,
+            trng: venv.trng,
         };
 
         // Random delays for CFI glitch protection.

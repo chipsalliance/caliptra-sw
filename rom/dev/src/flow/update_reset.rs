@@ -65,6 +65,7 @@ impl UpdateResetFlow {
                 ecc384: &mut env.ecc384,
                 data_vault: &mut env.data_vault,
                 pcr_bank: &mut env.pcr_bank,
+                trng: &mut env.trng,
             };
 
             let info = Self::verify_image(&mut venv, &manifest, recv_txn.dlen());
@@ -134,6 +135,7 @@ impl UpdateResetFlow {
             soc_ifc: env.soc_ifc,
             data_vault: env.data_vault,
             ecc384: env.ecc384,
+            trng: env.trng,
         };
 
         let mut verifier = ImageVerifier::new(env);

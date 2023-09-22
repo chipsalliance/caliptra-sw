@@ -11,9 +11,11 @@ Abstract:
     File contains API for SHA384 accelerator operations
 
 --*/
+
 use crate::wait;
 use crate::Array4x12;
 use crate::CaliptraResult;
+use crate::Trng;
 
 use caliptra_error::CaliptraError;
 use caliptra_registers::sha512_acc::regs::ExecuteWriteVal;
@@ -42,17 +44,28 @@ impl Sha384Acc {
     ///
     /// * `Sha384AccOp` - On, success, an object representing the SHA384 accelerator operation.
     /// * 'None' - On failure to acquire the SHA384 Accelerator lock.
-    pub fn try_start_operation(&mut self) -> Option<Sha384AccOp> {
-        let sha_acc = self.sha512_acc.regs();
+    pub fn try_start_operation(&mut self, trng: &mut Trng) -> CaliptraResult<Option<Sha384AccOp>> {
+        let sha_acc = self.sha512_acc.regs_mut();
 
-        if sha_acc.lock().read().lock() && sha_acc.status().read().soc_has_lock() {
-            None
-        } else {
-            // We acquired the lock, or we already have the lock (such as at startup)
-            Some(Sha384AccOp {
-                sha512_acc: &mut self.sha512_acc,
-            })
+        if sha_acc.lock().read().lock() {
+            // We may already have the lock, but we're not sure
+            let data = trng.generate()?;
+            for val in data.0 {
+                let val = val & 0x1ffff;
+                sha_acc.dlen().write(|_| val);
+                if sha_acc.dlen().read() != val {
+                    // We do not have exclusive access to this peripheral.
+                    return Ok(None);
+                }
+            }
+            // We have good confidence that we have the lock, as the SoC would
+            // have had to correctly guess 204 bits of entropy for us to get
+            // this far.
         }
+        // We acquired the lock, or we already have the lock (such as at startup)
+        Ok(Some(Sha384AccOp {
+            sha512_acc: &mut self.sha512_acc,
+        }))
     }
 
     /// Zeroize the hardware registers.
