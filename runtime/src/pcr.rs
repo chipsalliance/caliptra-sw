@@ -6,8 +6,8 @@ use crate::Drivers;
 use caliptra_common::mailbox_api::{ExtendPcrReq, MailboxResp};
 use caliptra_common::pcr::{PCR_ID_FMC_CURRENT, PCR_ID_FMC_JOURNEY};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
-use caliptra_drivers::{cprint, CaliptraError, CaliptraResult, PcrId};
-use zerocopy::{transmute, AsBytes, FromBytes};
+use caliptra_drivers::{CaliptraError, CaliptraResult, PcrId};
+use zerocopy::FromBytes;
 
 pub struct ExtendPcrCmd;
 impl ExtendPcrCmd {
@@ -27,10 +27,12 @@ impl ExtendPcrCmd {
                 pcr_id => pcr_id,
             };
 
-        drivers.pcr_bank.extend_pcr(
+        drivers.pcr_bank.extend_pcr_variable(
             pcr_index,
             &mut drivers.sha384,
-            &cmd.data[..cmd.data_size as usize],
+            &cmd.data
+                .get(..cmd.data_size as usize)
+                .ok_or(CaliptraError::DRIVER_PCR_BANK_EXTEND_INVALID_SIZE)?,
         )?;
 
         // 2. Add log entry

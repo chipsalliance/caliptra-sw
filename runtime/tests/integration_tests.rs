@@ -11,7 +11,6 @@ use caliptra_common::mailbox_api::{
     GetIdevCertReq, GetIdevCertResp, GetIdevInfoResp, InvokeDpeReq, InvokeDpeResp,
     MailboxReqHeader, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
 };
-use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_drivers::{CaliptraError, Ecc384PubKey, PcrId};
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError, ShaAccMode};
 use caliptra_runtime::{FipsVersionCmd, RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
@@ -904,22 +903,35 @@ fn test_extend_pcr_cmd() {
     }
 
     let mut model = run_rt_test(None, None);
-    let payload_data = [0u8; 79];
+    let payload_data = [0u8; ExtendPcrReq::DATA_MAX_SIZE];
 
-    // Valid data should run ok
     let cmd = generate_mailbox_extend_pcr_req(4, payload_data.len(), payload_data).unwrap();
     let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
     assert!(res.is_ok());
+
+    // Smaller size
+    let cmd = generate_mailbox_extend_pcr_req(4, payload_data.len() - 0xf, payload_data).unwrap();
+    let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
+    assert!(res.is_ok());
+
+    // Invalid size
+    let cmd = generate_mailbox_extend_pcr_req(4, payload_data.len() + 0xf, payload_data).unwrap();
+    let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
+    assert_eq!(
+        res,
+        Err(ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::DRIVER_PCR_BANK_EXTEND_INVALID_SIZE
+        )))
+    );
 
     // Invalid PCR index
     let cmd = generate_mailbox_extend_pcr_req(33, payload_data.len(), payload_data).unwrap();
     let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
     assert_eq!(
         res,
-        Err(ModelError::MailboxCmdFailed(
-            // error_code
-            917526
-        ))
+        Err(ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::RUNTIME_PCR_INVALID_INDEX
+        )))
     );
 
     // Ensure reserved PCR range
@@ -936,10 +948,9 @@ fn test_extend_pcr_cmd() {
         // let error_code: u32 = CaliptraError::RUNTIME_PCR_INVALID_INDEX.0.get();
         assert_eq!(
             res,
-            Err(ModelError::MailboxCmdFailed(
-                // error_code
-                917525
-            ))
+            Err(ModelError::MailboxCmdFailed(u32::from(
+                CaliptraError::RUNTIME_PCR_RESERVED
+            )))
         );
     }
 }

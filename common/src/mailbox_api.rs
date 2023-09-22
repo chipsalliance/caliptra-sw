@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_drivers::{sha384, CaliptraError, CaliptraResult};
+use caliptra_drivers::{CaliptraError, CaliptraResult};
 use core::mem::size_of;
 use zerocopy::{AsBytes, FromBytes, LayoutVerified};
 
@@ -306,7 +306,8 @@ pub struct ExtendPcrReq {
 }
 pub type ExtendPcrReqErr = ();
 impl ExtendPcrReq {
-    pub const DATA_MAX_SIZE: usize = sha384::SHA384_BLOCK_BYTE_SIZE - sha384::SHA384_HASH_SIZE - 1;
+    // pub const DATA_MAX_SIZE: usize = sha384::SHA384_BLOCK_BYTE_SIZE - sha384::SHA384_HASH_SIZE - 1;
+    pub const DATA_MAX_SIZE: usize = 192;
 
     pub fn new(
         hdr: MailboxReqHeader,
