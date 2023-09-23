@@ -436,7 +436,7 @@ fn test_lms_24_height_15() {
     };
     let result =
         Lms::default().verify_lms_signature(&mut sha256, &MESSAGE, &LMS_PUBLIC_KEY, &invalid_q_sig);
-    assert_eq!(result, Err(CaliptraError::DRIVER_LMS_INVALID_PVALUE));
+    assert_eq!(result, Err(CaliptraError::DRIVER_LMS_INVALID_Q_VALUE));
 }
 
 test_suite! {
