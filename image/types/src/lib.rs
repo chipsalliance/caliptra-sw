@@ -14,6 +14,7 @@ Abstract:
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use caliptra_error::{CaliptraError, CaliptraResult};
 use core::mem::size_of;
 use core::ops::Range;
 
@@ -169,27 +170,6 @@ impl ImageManifest {
         let offset = offset_of!(ImageManifest, preamble) as u32;
         let span = span_of!(ImagePreamble, vendor_pub_keys);
         span.start as u32 + offset..span.end as u32 + offset
-    }
-
-    /// Returns the `Range<u32>` containing the specified vendor public key,
-    /// or an empty range if the index is invalid.
-    pub fn vendor_ecc_pub_key_range(vendor_ecc_pub_key_idx: u32) -> Range<u32> {
-        if vendor_ecc_pub_key_idx > VENDOR_ECC_KEY_COUNT {
-            return 0..0;
-        }
-
-        let pub_key_size = (2 * 4 * ECC384_SCALAR_WORD_SIZE) as u32;
-        let range = Self::vendor_pub_keys_range();
-
-        // Sanity check
-        if (range.len() as u32) < VENDOR_ECC_KEY_COUNT * pub_key_size {
-            return 0..0;
-        }
-
-        let offset = (offset_of!(ImageVendorPubKeys, ecc_pub_keys) as u32)
-            + vendor_ecc_pub_key_idx * pub_key_size;
-
-        range.start + offset..range.start + offset + pub_key_size
     }
 
     /// Returns `Range<u32>` containing the owner public key
@@ -406,8 +386,10 @@ pub struct ImageTocEntry {
 }
 
 impl ImageTocEntry {
-    pub fn image_range(&self) -> Range<u32> {
-        self.offset..self.offset + self.size
+    pub fn image_range(&self) -> CaliptraResult<Range<u32>> {
+        let err = CaliptraError::IMAGE_VERIFIER_ERR_TOC_ENTRY_RANGE_ARITHMETIC_OVERFLOW;
+        let end = self.offset.checked_add(self.size).ok_or(err)?;
+        Ok(self.offset..end)
     }
 
     pub fn image_size(&self) -> u32 {

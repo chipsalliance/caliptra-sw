@@ -15,16 +15,17 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_main)]
 
 use caliptra_common::pcr::PCR_ID_STASH_MEASUREMENT;
-use caliptra_common::{FuseLogEntry, FuseLogEntryId};
+use caliptra_common::{mailbox_api, FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
+use caliptra_drivers::pcr_log::MeasurementLogEntry;
 use caliptra_drivers::{
     ColdResetEntry4::*, DataVault, Mailbox, PcrBank, PcrId, PersistentDataAccessor,
-    MEASUREMENT_MAX_COUNT,
+    MEASUREMENT_MAX_COUNT, PCR_LOG_MAX_COUNT,
 };
 use caliptra_registers::dv::DvReg;
 use caliptra_registers::pv::PvReg;
+use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
-use core::ptr;
 use ureg::RealMmioMut;
 use zerocopy::AsBytes;
 
@@ -33,6 +34,8 @@ core::arch::global_asm!(include_str!("start.S"));
 
 mod exception;
 mod print;
+
+const FW_LOAD_CMD_OPCODE: u32 = mailbox_api::CommandId::FIRMWARE_LOAD.0;
 
 #[cfg(feature = "std")]
 pub fn main() {}
@@ -166,17 +169,20 @@ fn copy_tbs(tbs: &mut [u8], ldevid_tbs: bool) {
     tbs.copy_from_slice(&src[..tbs.len()]);
 }
 
-fn get_pcr_entry(entry_index: usize, read_measurement_log: bool) -> PcrLogEntry {
+fn get_pcr_entry(entry_index: usize) -> PcrLogEntry {
     let persistent_data = unsafe { PersistentDataAccessor::new() };
+    persistent_data.get().pcr_log[entry_index]
+}
 
-    if read_measurement_log {
-        persistent_data.get().measurement_log[entry_index]
-    } else {
-        persistent_data.get().pcr_log[entry_index]
-    }
+fn get_measurement_entry(entry_index: usize) -> MeasurementLogEntry {
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
+    persistent_data.get().measurement_log[entry_index]
 }
 
 fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    if !mbox.status().read().mbox_fsm_ps().mbox_execute_uc() {
+        return;
+    }
     let cmd = mbox.cmd().read();
     cprintln!("[fmc] Received command: 0x{:08X}", cmd);
     match cmd {
@@ -193,8 +199,11 @@ fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMm
             read_fht(mbox);
         }
         0x1000_0004 => {
-            trigger_update_reset(mbox);
+            mbox.status().write(|w| w.status(|w| w.cmd_complete()));
+            // Reset the CPU with no command in the mailbox
+            trigger_update_reset();
         }
+
         0x1000_0005 => {
             read_datavault_coldresetentry4(mbox);
         }
@@ -213,7 +222,14 @@ fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMm
         0x1000_000A => {
             read_measurement_log(mbox);
         }
-
+        0x1000_000B => {
+            // Reset the CPU with an unknown command in the mailbox
+            trigger_update_reset();
+        }
+        FW_LOAD_CMD_OPCODE => {
+            // Reset the CPU with the firmware-update command in the mailbox
+            trigger_update_reset();
+        }
         _ => {}
     }
 }
@@ -261,18 +277,22 @@ fn read_datavault_coldresetentry4(mbox: &caliptra_registers::mbox::RegisterBlock
     mbox.status().write(|w| w.status(|w| w.data_ready()));
 }
 
-fn trigger_update_reset(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
-    mbox.status().write(|w| w.status(|w| w.cmd_complete()));
-    const STDOUT: *mut u32 = 0x3003_0624 as *mut u32;
-    unsafe {
-        ptr::write_volatile(STDOUT, 1_u32);
-    }
+fn trigger_update_reset() {
+    unsafe { SocIfcReg::new() }
+        .regs_mut()
+        .internal_fw_update_reset()
+        .write(|w| w.core_rst(true));
 }
 
 fn read_pcr_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     let mut pcr_entry_count = 0;
     loop {
-        let pcr_entry = get_pcr_entry(pcr_entry_count, false);
+        if pcr_entry_count == PCR_LOG_MAX_COUNT {
+            break;
+        }
+
+        let pcr_entry = get_pcr_entry(pcr_entry_count);
+
         if PcrLogEntryId::from(pcr_entry.id) == PcrLogEntryId::Invalid {
             break;
         }
@@ -292,17 +312,22 @@ fn read_pcr_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
 fn read_measurement_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     let mut measurement_entry_count = 0;
     loop {
-        let measurement_entry = get_pcr_entry(measurement_entry_count, true);
-        measurement_entry_count += 1;
-        send_to_mailbox(mbox, measurement_entry.as_bytes(), false);
-
-        if measurement_entry_count == MEASUREMENT_MAX_COUNT as usize {
+        if measurement_entry_count == MEASUREMENT_MAX_COUNT {
             break;
         }
+
+        let measurement_entry = get_measurement_entry(measurement_entry_count);
+
+        if PcrLogEntryId::from(measurement_entry.pcr_entry.id) == PcrLogEntryId::Invalid {
+            break;
+        }
+
+        measurement_entry_count += 1;
+        send_to_mailbox(mbox, measurement_entry.as_bytes(), false);
     }
 
     mbox.dlen().write(|_| {
-        (core::mem::size_of::<PcrLogEntry>() * measurement_entry_count)
+        (core::mem::size_of::<MeasurementLogEntry>() * measurement_entry_count)
             .try_into()
             .unwrap()
     });

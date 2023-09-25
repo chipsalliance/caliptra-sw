@@ -34,7 +34,10 @@ impl<'a> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a> {
     /// Calculate Digest using SHA-384 Accelerator
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest> {
         loop {
-            if let Some(mut txn) = self.sha384_acc.try_start_operation() {
+            if let Some(mut txn) = self
+                .sha384_acc
+                .try_start_operation(ShaAccLockState::NotAcquired)?
+            {
                 let mut digest = Array4x12::default();
                 txn.digest(len, offset, false, &mut digest)?;
                 return Ok(digest.0);
@@ -143,5 +146,9 @@ impl<'a> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a> {
 
     fn lms_verify_enabled(&self) -> bool {
         self.soc_ifc.fuse_bank().lms_verify() == RomVerifyConfig::EcdsaAndLms
+    }
+
+    fn set_fw_extended_error(&mut self, err: u32) {
+        self.soc_ifc.set_fw_extended_error(err);
     }
 }

@@ -21,7 +21,7 @@ jobs:
       SCCACHE_GHA_CACHE_FROM: sccache-caliptra-sw
 
       # Change this to a new random value if you suspect the cache is corrupted
-      SCCACHE_C_CUSTOM_CACHE_BUSTER: 4eeb97ca753a
+      SCCACHE_C_CUSTOM_CACHE_BUSTER: 8b42a6e70ec4
 
       # Compiler warnings should fail to compile
       EXTRA_CARGO_CONFIG: "target.'cfg(all())'.rustflags = [\"-Dwarnings\"]"

@@ -177,7 +177,7 @@ impl FakeRomFlow {
     ///
     /// * `env` - ROM Environment
     #[inline(never)]
-    pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
+    pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
         let reset_reason = env.soc_ifc.reset_reason();
         match reset_reason {
             // Cold Reset Flow
@@ -185,9 +185,19 @@ impl FakeRomFlow {
                 cprintln!("[fake-rom-cold-reset] ++");
                 report_boot_status(ColdResetStarted.into());
 
+                fht::initialize_fht(env);
+
                 // SKIP Execute IDEVID layer
                 // LDEVID cert
                 copy_canned_ldev_cert(env)?;
+
+                // Unlock the SHA Acc by creating a SHA Acc operation and dropping it.
+                // In real ROM, this is done as part of executing the SHA-ACC KAT.
+                let sha_op = env
+                    .sha384_acc
+                    .try_start_operation(ShaAccLockState::AssumedLocked)?
+                    .unwrap();
+                drop(sha_op);
 
                 // Download and validate firmware.
                 _ = FirmwareProcessor::process(env)?;
@@ -198,7 +208,7 @@ impl FakeRomFlow {
                 cprintln!("[fake-rom-cold-reset] --");
                 report_boot_status(ColdResetComplete.into());
 
-                Ok(Some(fht::make_fht(env)))
+                Ok(())
             }
 
             // Warm Reset Flow
@@ -222,7 +232,7 @@ pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
 
     // Copy TBS to DCCM
     let tbs = &FAKE_LDEV_TBS;
-    env.fht_data_store.ldevid_tbs_size = u16::try_from(tbs.len()).unwrap();
+    env.persistent_data.get_mut().fht.ldevid_tbs_size = u16::try_from(tbs.len()).unwrap();
     let Some(dst) = env.persistent_data.get_mut().ldevid_tbs.get_mut(..tbs.len()) else {
         return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_LDEVID_TBS_SIZE);
     };
@@ -240,7 +250,7 @@ pub fn copy_canned_fmc_alias_cert(env: &mut RomEnv) -> CaliptraResult<()> {
 
     // Copy TBS to DCCM
     let tbs = &FAKE_FMC_ALIAS_TBS;
-    env.fht_data_store.fmcalias_tbs_size = u16::try_from(tbs.len()).unwrap();
+    env.persistent_data.get_mut().fht.fmcalias_tbs_size = u16::try_from(tbs.len()).unwrap();
     let Some(dst) = env.persistent_data.get_mut().fmcalias_tbs.get_mut(..tbs.len()) else {
         return Err(CaliptraError::ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE);
     };
@@ -261,7 +271,10 @@ impl<'a> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a> {
     /// Calculate Digest using SHA-384 Accelerator
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest> {
         loop {
-            if let Some(mut txn) = self.sha384_acc.try_start_operation() {
+            if let Some(mut txn) = self
+                .sha384_acc
+                .try_start_operation(ShaAccLockState::NotAcquired)?
+            {
                 let mut digest = Array4x12::default();
                 txn.digest(len, offset, false, &mut digest)?;
                 return Ok(digest.0);
@@ -380,5 +393,9 @@ impl<'a> ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'a> {
 
     fn lms_verify_enabled(&self) -> bool {
         self.soc_ifc.fuse_bank().lms_verify() == RomVerifyConfig::EcdsaAndLms
+    }
+
+    fn set_fw_extended_error(&mut self, err: u32) {
+        self.soc_ifc.set_fw_extended_error(err);
     }
 }

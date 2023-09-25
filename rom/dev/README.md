@@ -42,7 +42,7 @@ following topics:
 
 | Term                | Description                                                               |
 | :------------------ | :------------------------------------------------------------------------ |
-| CDI                 | Composite Device Identity                                                 |
+| CDI                 | Compound Device Identity                                                 |
 | CSR                 | Certificate Signing Request                                               |
 | DCCM                | Data Closely Coupled Memory                                               |
 | DICE                | Device Identifier Composition Engine                                      |
@@ -210,8 +210,8 @@ The following sections define the various cryptographic primitives used by Calip
 | | `dv48_lock_wr(dv_slot)` | Write Lock the 48-byte data vault slot<br>Input<br>***dv_slot*** - data vault slot |
 | | `dv4_store(data, dv_slot)` | Store the 4- byte data in the specified data vault slot<br>Input<br>***data*** - data to store<br>***dv_slot*** - data vault slot |
 | | `dv4_lock_wr(dv_slot)` | Write Lock the 4-byte data vault slot<br>Input<br>***dv_slot*** - data vault slot |
-| Platform Configuration Registers | `pcr_extend(pcr_slot, data)` | Perform PCR extend operation on a PCR with specified data<br>**Input**:<br>***pc_slot*** - PCR slot to hash extend<br>***data*** – data |
-| | `pcr_read(pcr_slot) -> measurement` | Read the PCR slot<br>**Input**:<br>***pc_slot*** - PCR slot to read<br>**Output**:<br>***measurement*** - Accumulated measurement |
+| Platform Configuration Registers | `pcr_extend(pcr_slot, data)` | Perform PCR extend operation on a PCR with specified data<br>**Input**:<br>***pcr_slot*** - PCR slot to hash extend<br>***data*** – data |
+| | `pcr_read(pcr_slot) -> measurement` | Read the PCR slot<br>**Input**:<br>***pcr_slot*** - PCR slot to read<br>**Output**:<br>***measurement*** - Accumulated measurement |
 | | `pcr_lock_clear(pcr_slot)` | Lock for Clear PCR slot<br>**Input**:<br>***pcr_slot*** - pcr slot |
 | | `pcr_clear(pcr_slot)` | Clear PCR slot<br>**Input**:<br>***pcr_slot*** - pcr slot |
 | X509 | `gen_tbs(type, pub_key) -> tbs` | Generate X509 Certificate or CSR `To Be Signed` portion<br>**Input**:<br>***type*** - Can be IDEVID_CSR, LDEVID_CERT or ALIAS_FMC_CERT<br>pub-key -public key<br>**Output**:<br>***tbs*** - DER encoded `To Be Signed` portion |
@@ -221,8 +221,7 @@ The following sections define the various cryptographic primitives used by Calip
 
 | Constant | Size (bytes) | Description |
 |----------|--------------|-------------|
-| DOE_UDS_IV | 16 | Initialization vector specified by the ROM for deobfuscating the UDS. |
-| DOE_FE_IV | 16 | Initialization vector specified by the ROM for deobfuscating Field Entropy. |
+| DOE_IV | 16 | Initialization vector specified by the ROM for deobfuscating the UDS and Field Entropy. |
 <br>
 
 ## 9. Cold Reset Flow
@@ -263,11 +262,11 @@ Both UDS and Field Entropy are available only during cold reset of Caliptra.
 **Actions:**
 1.	Decrypt UDS to Key Vault Slot 0
 
-    `doe_decrypt_uds(KvSlot0, DOE_UDS_IV)`
+    `doe_decrypt_uds(KvSlot0, DOE_IV)`
 
 2.	Decrypt Field Entropy to Key Vault Slot 1
 
-	`doe_decrypt_uds(KvSlot1, DOE_FE_IV)`
+	`doe_decrypt_uds(KvSlot1, DOE_IV)`
 
 3.	Clear class secrets (Clears UDS, Field Entropy and Obfuscation Key cleared)
 
@@ -442,18 +441,24 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
 1.	PCR0 is the Current PCR. PCR 1 is the Journey PCR. PCR0 is cleared by ROM upon each warm reset, before it is extended with FMC measurements. PCR0 and PCR1 are locked for clear by the ROM on every reset. Subsequent layers may continue to extend PCR0 as runtime updates are performed.
 
-    `pcr_clear(Pcr0)`
-    `pcr_extend(Pcr0 && Pcr1, CPTRA_SECURITY_STATE.LIFECYCLE_STATE)`
-    `pcr_extend(Pcr0 && Pcr1, CPTRA_SECURITY_STATE.DEBUG_ENABLED)`
-    `pcr_extend(Pcr0 && Pcr1, FUSE_ANTI_ROLLBACK_DISABLE)`
-    `pcr_extend(Pcr0 && Pcr1, MANUFACTURER_PK)`
-    `pcr_extend(Pcr0 && Pcr1, FUSE_OWNER_PK_HASH)`
-    `pcr_extend(Pcr0 && Pcr1, FMC_DIGEST)`
-    `pcr_extend(Pcr0 && Pcr1, FMC_SVN)`
-    `pcr_extend(Pcr0 && Pcr1, FMC_FUSE_SVN)` (or 0 if `FUSE_ANTI_ROLLBACK_DISABLE`)
-    `pcr_extend(Pcr0 && Pcr1, LMS_VENDOR_PK_INDEX)`
-    `pcr_extend(Pcr0 && Pcr1, ROM_VERIFY_CONFIG)`
-    `pcr_lock_clear(Pcr0 && Pcr1)`
+    ```
+    pcr_clear(Pcr0)
+    pcr_extend(Pcr0 && Pcr1, [
+        CPTRA_SECURITY_STATE.LIFECYCLE_STATE,
+        CPTRA_SECURITY_STATE.DEBUG_ENABLED,
+        FUSE_ANTI_ROLLBACK_DISABLE,
+        ECC_VENDOR_PK_INDEX,
+        FMC_SVN,
+        FMC_FUSE_SVN (or 0 if `FUSE_ANTI_ROLLBACK_DISABLE`),
+        LMS_VENDOR_PK_INDEX,
+        ROM_VERIFY_CONFIG,
+        OWNER_PK_HASH_FROM_FUSES (0 or 1),
+    ])
+    pcr_extend(Pcr0 && Pcr1, MANUFACTURER_PK)
+    pcr_extend(Pcr0 && Pcr1, OWNER_PK)
+    pcr_extend(Pcr0 && Pcr1, FMC_TCI)
+    pcr_lock_clear(Pcr0 && Pcr1)
+    ```
 
 2.	CDI for Alias is derived from PCR0. For the Alias FMC CDI Derivation,  LDevID CDI in Key Vault Slot6 is used as HMAC Key and contents of PCR0 are used as data. The resultant mac is stored back in Slot 6
 
@@ -671,7 +676,7 @@ The following are the pre-conditions that should be satisfied:
 - Compare the hash with the hash available in the FMC TOC.
 - If the hash matches, the FMC image section is validated. If the hash does not match, reject the image.
 - Load the RT Image section from the mail box. The offset and the size of the section is present in the TOC.
-- Calcaulte the SHA-384 hash of the RT image section.
+- Calculate the SHA-384 hash of the RT image section.
 - Compare the hash with the hash in the RT TOC.
 - If the hash matches, the RT image section is validated. If the hash does not match, reject the image.
 
@@ -689,23 +694,23 @@ The following are the pre-conditions that should be satisfied:
     - Save the hash of the FMC portion of the image in a separate register.
     - Copy the FMC and RT image's text and data section in the appropriate ICCM and DCCM memory regions.
     - The data vault is saved with the following values:-
-        - Vendor public key index in the preamble is save in the data vault. 
-        - Digest of the owner public key portion of preamble. 
+        - Vendor public key index in the preamble is save in the data vault.
+        - Digest of the owner public key portion of preamble.
         - Digest of the FMC part of the image.
 - Warm Boot Mode
     - In this mode there is no validation or load required for any parts of the image.
     - All the contents of ICCM and DCCM are preserved since this is a warm reboot.
 - Update Reset Mode
     - The image is exactly the same as the initial image which was verified on the cold boot, except that the RT part of the image is changed.
-    - We need to validate the entire image exactly as described in the cold boot flow. In addition to that, also validate the image to make sure that no other part (except the RT image section) is altered. 
+    - We need to validate the entire image exactly as described in the cold boot flow. In addition to that, also validate the image to make sure that no other part (except the RT image section) is altered.
     - The validation flow will look like the following:
-        - Validate the preamble exactly like in cold boot flow. 
+        - Validate the preamble exactly like in cold boot flow.
             - Validate the vendor public key index from the value in data vault (value saved during cold boot). Fail the validation if there is a mismatch. This is done to make sure that the key being used is the same key that was used during cold boot.
             -  Validate the owner public key digest against the owner public key digest in data vault (value saved during cold boot). This makes sure that the owner key is not changed since last cold boot.
         - Validate the header exactly like in cold boot.
         - Validate the toc exactly like in cold boot.
         - We still need to make sure that the digest of the FMC which was stored in the data vault register at cold boot
-          still matches the FMC image section. 
+          still matches the FMC image section.
     - If validation fails during ROM boot, the new image will not be copied from
       the mailbox. ROM will boot the existing FMC/Runtime images. Validation
       errors will be reported via the CPTRA_FW_ERROR_NON_FATAL register.

@@ -14,7 +14,6 @@ Abstract:
 
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::soc_ifc::enums::DeviceLifecycleE;
-use caliptra_registers::soc_ifc::regs::CptraWdtStatusReadVal;
 use caliptra_registers::soc_ifc::{self, SocIfcReg};
 
 use crate::{memory_layout, FuseBank};
@@ -164,18 +163,6 @@ impl SocIfc {
             .write(|w| w.timer1_en(false));
     }
 
-    /// Get the WDT status.
-    ///
-    /// This is useful to call from a fatal-error-handling routine.
-    ///
-    ///  # Safety
-    ///
-    /// This function is safe to call from a trap handler.
-    pub unsafe fn wdt_status() -> CptraWdtStatusReadVal {
-        let soc_ifc = SocIfcReg::new();
-        soc_ifc.regs().cptra_wdt_status().read()
-    }
-
     pub fn get_cycle_count(&self, seconds: u32) -> CaliptraResult<u64> {
         const GIGA_UNIT: u32 = 1_000_000_000;
         let clock_period_picosecs = self.soc_ifc.regs().cptra_timer_config().read();
@@ -272,6 +259,12 @@ impl SocIfc {
             self.soc_ifc.regs().cptra_fw_rev_id().at(0).read(),
             self.soc_ifc.regs().cptra_fw_rev_id().at(1).read(),
         ]
+    }
+
+    pub fn set_fw_extended_error(&mut self, err: u32) {
+        let soc_ifc_regs = self.soc_ifc.regs_mut();
+        let ext_info = soc_ifc_regs.cptra_fw_extended_error_info();
+        ext_info.at(0).write(|_| err);
     }
 }
 

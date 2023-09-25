@@ -17,11 +17,12 @@ Abstract:
 
 use crate::{lock::lock_registers, print::HexBytes};
 use caliptra_cfi_lib::CfiCounter;
+use caliptra_registers::soc_ifc::SocIfcReg;
 use core::hint::black_box;
 
 use caliptra_drivers::{
     cprintln, report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError, Ecc384, Hmac384,
-    KeyVault, Mailbox, ResetReason, RomAddr, Sha256, Sha384, Sha384Acc, SocIfc,
+    KeyVault, Mailbox, ResetReason, Sha256, Sha384, Sha384Acc, ShaAccLockState, SocIfc,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_image_types::RomInfo;
@@ -73,8 +74,6 @@ pub extern "C" fn rom_entry() -> ! {
         cprintln!("[state] CFI Disabled");
     }
 
-    let rom_info = unsafe { &CALIPTRA_ROM_INFO };
-
     let _lifecyle = match env.soc_ifc.lifecycle() {
         caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",
         caliptra_drivers::Lifecycle::Manufacturing => "Manufacturing",
@@ -102,6 +101,8 @@ pub extern "C" fn rom_entry() -> ! {
     // Start the watchdog timer
     wdt::start_wdt(&mut env.soc_ifc);
 
+    let reset_reason = env.soc_ifc.reset_reason();
+
     if !cfg!(feature = "fake-rom") {
         let mut kats_env = caliptra_kat::KatsEnv {
             // SHA1 Engine
@@ -127,33 +128,33 @@ pub extern "C" fn rom_entry() -> ! {
 
             /// Ecc384 Engine
             ecc384: &mut env.ecc384,
+
+            /// SHA Acc lock state.
+            /// SHA Acc is guaranteed to be locked on Cold and Warm Resets;
+            /// On an Update Reset, it is expected to be unlocked.
+            /// Not having it unlocked will result in a fatal error.
+            sha_acc_lock_state: if reset_reason == ResetReason::UpdateReset {
+                ShaAccLockState::NotAcquired
+            } else {
+                ShaAccLockState::AssumedLocked
+            },
         };
-        let result = run_fips_tests(&mut kats_env, rom_info);
+        let result = run_fips_tests(&mut kats_env);
         if let Err(err) = result {
             handle_fatal_error(err.into());
         }
     }
 
-    let reset_reason = env.soc_ifc.reset_reason();
-
-    let result = flow::run(&mut env);
-    match result {
-        Ok(Some(mut fht)) => {
-            fht.rom_info_addr = RomAddr::from(rom_info);
-            fht::store(&mut env, fht);
-        }
-        Ok(None) => {}
-        Err(err) => {
-            //
-            // For the update reset case, when we fail the image validation
-            // we will need to continue to jump to the FMC after
-            // reporting the error in the registers.
-            //
-            if reset_reason == ResetReason::UpdateReset {
-                handle_non_fatal_error(err.into());
-            } else {
-                handle_fatal_error(err.into());
-            }
+    if let Err(err) = flow::run(&mut env) {
+        //
+        // For the update reset case, when we fail the image validation
+        // we will need to continue to jump to the FMC after
+        // reporting the error in the registers.
+        //
+        if reset_reason == ResetReason::UpdateReset {
+            handle_non_fatal_error(err.into());
+        } else {
+            handle_fatal_error(err.into());
         }
     }
 
@@ -175,7 +176,8 @@ pub extern "C" fn rom_entry() -> ! {
     caliptra_drivers::ExitCtrl::exit(0);
 }
 
-fn run_fips_tests(env: &mut KatsEnv, rom_info: &RomInfo) -> CaliptraResult<()> {
+fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<()> {
+    let rom_info = unsafe { &CALIPTRA_ROM_INFO };
     rom_integrity_test(env, &rom_info.sha256_digest)?;
     kat::execute_kat(env)
 }
@@ -217,11 +219,22 @@ fn launch_fmc(env: &mut RomEnv) -> ! {
 #[inline(never)]
 extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
     cprintln!(
-        "EXCEPTION mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
+        "EXCEPTION mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X} ra=0x{:08X}",
         exception.mcause,
         exception.mscause,
-        exception.mepc
+        exception.mepc,
+        exception.ra
     );
+
+    {
+        let mut soc_ifc = unsafe { SocIfcReg::new() };
+        let soc_ifc = soc_ifc.regs_mut();
+        let ext_info = soc_ifc.cptra_fw_extended_error_info();
+        ext_info.at(0).write(|_| exception.mcause);
+        ext_info.at(1).write(|_| exception.mscause);
+        ext_info.at(2).write(|_| exception.mepc);
+        ext_info.at(3).write(|_| exception.ra);
+    }
 
     handle_fatal_error(CaliptraError::ROM_GLOBAL_EXCEPTION.into());
 }
@@ -229,17 +242,41 @@ extern "C" fn exception_handler(exception: &exception::ExceptionRecord) {
 #[no_mangle]
 #[inline(never)]
 extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
+    let mut soc_ifc = unsafe { SocIfcReg::new() };
+
+    // If the NMI was fired by caliptra instead of the uC, this register
+    // contains the reason(s)
+    let err_interrupt_status = u32::from(
+        soc_ifc
+            .regs()
+            .intr_block_rf()
+            .error_internal_intr_r()
+            .read(),
+    );
+
     cprintln!(
-        "NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
+        "NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X} ra=0x{:08X} error_internal_intr_r={:08X}",
         exception.mcause,
         exception.mscause,
-        exception.mepc
+        exception.mepc,
+        exception.ra,
+        err_interrupt_status,
     );
+
+    {
+        let soc_ifc = soc_ifc.regs_mut();
+        let ext_info = soc_ifc.cptra_fw_extended_error_info();
+        ext_info.at(0).write(|_| exception.mcause);
+        ext_info.at(1).write(|_| exception.mscause);
+        ext_info.at(2).write(|_| exception.mepc);
+        ext_info.at(3).write(|_| exception.ra);
+        ext_info.at(4).write(|_| err_interrupt_status);
+    }
 
     // Check if the NMI was due to WDT expiry.
     let mut error = CaliptraError::ROM_GLOBAL_NMI;
 
-    let wdt_status = unsafe { SocIfc::wdt_status() };
+    let wdt_status = soc_ifc.regs().cptra_wdt_status().read();
     if wdt_status.t1_timeout() || wdt_status.t2_timeout() {
         cprintln!("WDT Expired");
         error = CaliptraError::ROM_GLOBAL_WDT_EXPIRED;
@@ -291,19 +328,25 @@ fn handle_fatal_error(code: u32) -> ! {
         // Zeroize the key vault.
         KeyVault::zeroize();
 
-        // Lock the SHA Accelerator.
-        Sha384Acc::lock();
-
         // Stop the watchdog timer.
         // Note: This is an idempotent operation.
         SocIfc::stop_wdt1();
     }
 
     loop {
-        // SoC firmware might be stuck waiting for Caliptra to finish
-        // executing this pending mailbox transaction. Notify them that
-        // we've failed.
-        unsafe { Mailbox::abort_pending_soc_to_uc_transactions() };
+        unsafe {
+            // SoC firmware might be stuck waiting for Caliptra to finish
+            // executing this pending mailbox transaction. Notify them that
+            // we've failed.
+            Mailbox::abort_pending_soc_to_uc_transactions();
+
+            // The SHA accelerator may still be in use by the SoC;
+            // try to lock it as soon as possible.
+            //
+            // WDT is disabled at this point so there is no issue
+            // of it firing due to the lock taking too long.
+            Sha384Acc::try_lock();
+        }
     }
 }
 

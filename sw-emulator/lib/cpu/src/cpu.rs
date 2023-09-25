@@ -13,12 +13,44 @@ Abstract:
 --*/
 
 use crate::csr_file::{Csr, CsrFile};
+use crate::instr::Instr;
 use crate::types::{RvInstr, RvMStatus};
 use crate::xreg_file::{XReg, XRegFile};
+use bit_vec::BitVec;
 use caliptra_emu_bus::{Bus, BusError, Clock, TimerAction};
 use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
 
 pub type InstrTracer<'a> = dyn FnMut(u32, RvInstr) + 'a;
+
+#[derive(Clone)]
+pub struct CodeCoverage {
+    bit_vec: BitVec,
+}
+
+impl CodeCoverage {
+    pub fn new(capacity_in_bytes: usize) -> Self {
+        Self {
+            bit_vec: BitVec::from_elem(capacity_in_bytes, false),
+        }
+    }
+
+    pub fn log_execution(&mut self, pc: RvData, instr: &Instr) {
+        if (pc as usize) < self.bit_vec.len() {
+            let num_bytes = match instr {
+                Instr::Compressed(_) => 2,
+                Instr::General(_) => 4,
+            };
+
+            // Mark the bytes corresponding to the executed instruction as true.
+            for i in 0..num_bytes {
+                let byte_index = (pc as usize) + i;
+                if byte_index < self.bit_vec.len() {
+                    self.bit_vec.set(byte_index, true);
+                }
+            }
+        }
+    }
+}
 
 #[derive(PartialEq)]
 pub enum WatchPtrKind {
@@ -47,6 +79,11 @@ impl WatchPtrCfg {
     }
 }
 
+impl Default for WatchPtrCfg {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 /// RISCV CPU
 pub struct Cpu<TBus: Bus> {
     /// General Purpose register file
@@ -74,6 +111,8 @@ pub struct Cpu<TBus: Bus> {
 
     // This is used to track watchpointers
     pub(crate) watch_ptr_cfg: WatchPtrCfg,
+
+    pub code_coverage: CodeCoverage,
 }
 
 /// Cpu instruction step action
@@ -105,6 +144,7 @@ impl<TBus: Bus> Cpu<TBus> {
             is_execute_instr: false,
             watch_ptr_cfg: WatchPtrCfg::new(),
             nmivec: 0,
+            code_coverage: CodeCoverage::new(caliptra_drivers::memory_layout::ROM_SIZE as usize),
         }
     }
 
@@ -481,5 +521,30 @@ mod tests {
         assert!(timer.fired(&mut action0));
 
         assert_eq!(cpu.read_pc(), 31 * 4);
+    }
+
+    pub fn count_executed(coverage: &CodeCoverage) -> usize {
+        coverage.bit_vec.iter().filter(|&executed| executed).count()
+    }
+
+    #[test]
+    fn test_coverage() {
+        // represent program as an array of 16-bit and 32-bit instructions
+        let instructions = vec![
+            Instr::Compressed(0x1234),
+            Instr::Compressed(0xABCD),
+            Instr::General(0xDEADBEEF),
+        ];
+
+        // Instantiate coverage with a capacity for the mix of instructions above
+        let mut coverage = CodeCoverage::new(8);
+
+        // Log execution of the instructions above
+        coverage.log_execution(0, &instructions[0]);
+        coverage.log_execution(2, &instructions[1]);
+        coverage.log_execution(4, &instructions[2]);
+
+        // Check for expected values
+        assert_eq!(count_executed(&coverage), 8);
     }
 }

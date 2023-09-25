@@ -212,7 +212,7 @@ impl From<DataStore> for HandOffDataHandle {
 /// The Firmware Handoff Table is a data structure that is resident at a well-known
 /// location in DCCM. It is initially populated by ROM and modified by FMC as a way
 /// to pass parameters and configuration information from one firmware layer to the next.
-const _: () = assert!(size_of::<FirmwareHandoffTable>() == 512);
+const _: () = assert!(size_of::<FirmwareHandoffTable>() == 2048);
 const _: () = assert!(size_of::<FirmwareHandoffTable>() <= memory_layout::FHT_SIZE as usize);
 #[repr(C)]
 #[derive(Clone, Debug, AsBytes, FromBytes)]
@@ -292,24 +292,41 @@ pub struct FirmwareHandoffTable {
     /// PCR log Address
     pub pcr_log_addr: u32,
 
+    /// Last empty PCR log entry slot index
+    pub pcr_log_index: u32,
+
+    /// Measurement log Address
+    pub meas_log_addr: u32,
+
+    // Last empty measurement log entry slot index
+    pub meas_log_index: u32,
+
     /// Fuse log Address
     pub fuse_log_addr: u32,
 
+    /// RtAlias public key.
     pub rt_dice_pub_key: Ecc384PubKey,
 
+    /// RtAlias certificate signature.
     pub rt_dice_sign: Ecc384Signature,
+
+    /// Index of LdevId Certificate Signature R Component in the Data Vault.
+    pub ldevid_cert_sig_r_dv_hdl: HandOffDataHandle,
+
+    /// Index of LdevId Certificate Signature S Component in the Data Vault.
+    pub ldevid_cert_sig_s_dv_hdl: HandOffDataHandle,
 
     /// IDevID public key
     pub idev_dice_pub_key: Ecc384PubKey,
 
-    // Address of RomInfo struct
+    /// Address of RomInfo struct
     pub rom_info_addr: RomAddr<RomInfo>,
 
     /// RtAlias TBS Size.
     pub rtalias_tbs_size: u16,
 
     /// Reserved for future use.
-    pub reserved: [u8; 126],
+    pub reserved: [u8; 1642],
 }
 
 impl Default for FirmwareHandoffTable {
@@ -334,18 +351,23 @@ impl Default for FirmwareHandoffTable {
             rt_priv_key_kv_hdl: FHT_INVALID_HANDLE,
             rt_svn_dv_hdl: FHT_INVALID_HANDLE,
             rt_min_svn_dv_hdl: FHT_INVALID_HANDLE,
-            ldevid_tbs_size: 0,
-            fmcalias_tbs_size: 0,
-            rtalias_tbs_size: 0,
-            reserved: [0u8; 126],
             ldevid_tbs_addr: 0,
             fmcalias_tbs_addr: 0,
+            ldevid_tbs_size: 0,
+            fmcalias_tbs_size: 0,
             pcr_log_addr: 0,
+            pcr_log_index: 0,
+            meas_log_addr: 0,
+            meas_log_index: 0,
             fuse_log_addr: 0,
-            rt_dice_sign: Ecc384Signature::default(),
             rt_dice_pub_key: Ecc384PubKey::default(),
+            rt_dice_sign: Ecc384Signature::default(),
+            ldevid_cert_sig_r_dv_hdl: FHT_INVALID_HANDLE,
+            ldevid_cert_sig_s_dv_hdl: FHT_INVALID_HANDLE,
             idev_dice_pub_key: Ecc384PubKey::default(),
             rom_info_addr: RomAddr::new(FHT_INVALID_ADDRESS),
+            rtalias_tbs_size: 0,
+            reserved: [0u8; 1642],
         }
     }
 }
@@ -400,15 +422,26 @@ pub fn print_fht(fht: &FirmwareHandoffTable) {
 
     crate::cprintln!("LdevId TBS Address: 0x{:08x}", fht.ldevid_tbs_addr);
     crate::cprintln!("LdevId TBS Size: {} bytes", fht.ldevid_tbs_size);
+    crate::cprintln!(
+        "LDevId Certificate Signature R DV Handle: 0x{:08x}",
+        fht.ldevid_cert_sig_r_dv_hdl.0
+    );
+    crate::cprintln!(
+        "LDevId Certificate Signature S DV Handle: 0x{:08x}",
+        fht.ldevid_cert_sig_s_dv_hdl.0
+    );
     crate::cprintln!("FmcAlias TBS Address: 0x{:08x}", fht.fmcalias_tbs_addr);
     crate::cprintln!("FmcAlias TBS Size: {} bytes", fht.fmcalias_tbs_size);
     crate::cprintln!("RtAlias TBS Size: {} bytes", fht.rtalias_tbs_size);
     crate::cprintln!("PCR log Address: 0x{:08x}", fht.pcr_log_addr);
+    crate::cprintln!("PCR log Index: {}", fht.pcr_log_index);
+    crate::cprintln!("Measurement log Address: {}", fht.meas_log_addr);
+    crate::cprintln!("Measurement log Index: {}", fht.meas_log_index);
     crate::cprintln!("Fuse log Address: 0x{:08x}", fht.fuse_log_addr);
 }
 
 impl FirmwareHandoffTable {
-    /// Perform valdity check of the table's data.
+    /// Perform validity check of the table's data.
     /// The fields below should have been populated by ROM with
     /// valid data before it transfers control to mutable code.
     /// This function can only be called from non test case environment
@@ -430,8 +463,11 @@ impl FirmwareHandoffTable {
             && self.ldevid_tbs_addr != 0
             && self.fmcalias_tbs_addr != 0
             && self.pcr_log_addr != 0
+            && self.meas_log_addr != 0
             && self.fuse_log_addr != 0
-            && self.rom_info_addr.is_valid();
+            && self.rom_info_addr.is_valid()
+            && self.ldevid_cert_sig_r_dv_hdl != FHT_INVALID_HANDLE
+            && self.ldevid_cert_sig_s_dv_hdl != FHT_INVALID_HANDLE;
 
         if valid
             && reset_reason == ResetReason::ColdReset
@@ -495,7 +531,7 @@ pub fn report_handoff_error_and_halt(msg: &str, code: u32) -> ! {
 mod tests {
     use super::*;
     use core::mem;
-    const FHT_SIZE: usize = 512;
+    const FHT_SIZE: usize = 2048;
     const KEY_ID_FMC_PRIV_KEY: KeyId = KeyId::KeyId5;
 
     fn rt_tci_store() -> HandOffDataHandle {
@@ -536,6 +572,7 @@ mod tests {
             && fht.ldevid_tbs_addr != 0
             && fht.fmcalias_tbs_addr != 0
             && fht.pcr_log_addr != 0
+            && fht.meas_log_addr != 0
             && fht.fuse_log_addr != 0;
 
         assert!(!valid);

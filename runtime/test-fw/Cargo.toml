@@ -24,11 +24,6 @@ path = "src/boot_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
-name = "mbox"
-path = "src/mbox_tests.rs"
-required-features = ["riscv"]
-
-[[bin]]
 name = "cert"
 path = "src/cert_tests.rs"
 required-features = ["riscv"]

@@ -155,6 +155,23 @@ impl FmcAliasLayer {
         let svn = env.data_vault.fmc_svn() as u8;
         let fuse_svn = fw_proc_info.fmc_effective_fuse_svn as u8;
 
+        let mut fuse_info_digest = Array4x12::default();
+        let mut hasher = env.sha384.digest_init()?;
+        hasher.update(&[
+            env.soc_ifc.lifecycle() as u8,
+            env.soc_ifc.debug_locked() as u8,
+            env.soc_ifc.fuse_bank().anti_rollback_disable() as u8,
+            env.data_vault.ecc_vendor_pk_index() as u8,
+            env.data_vault.lms_vendor_pk_index() as u8,
+            env.soc_ifc.fuse_bank().lms_verify() as u8,
+            fw_proc_info.owner_pub_keys_digest_in_fuses as u8,
+        ])?;
+        hasher.update(&<[u8; 48]>::from(
+            env.soc_ifc.fuse_bank().vendor_pub_key_hash(),
+        ))?;
+        hasher.update(&<[u8; 48]>::from(env.data_vault.owner_pk_hash()))?;
+        hasher.finalize(&mut fuse_info_digest)?;
+
         // Certificate `To Be Signed` Parameters
         let params = FmcAliasCertTbsParams {
             ueid: &X509::ueid(env)?,
@@ -165,7 +182,7 @@ impl FmcAliasLayer {
             serial_number: &X509::cert_sn(env, pub_key)?,
             public_key: &pub_key.to_der(),
             tcb_info_fmc_tci: &(&env.data_vault.fmc_tci()).into(),
-            tcb_info_owner_pk_hash: &(&env.data_vault.owner_pk_hash()).into(),
+            tcb_info_device_info_hash: &fuse_info_digest.into(),
             tcb_info_flags: &flags,
             tcb_info_fmc_svn: &svn.to_be_bytes(),
             tcb_info_fmc_svn_fuses: &fuse_svn.to_be_bytes(),

@@ -17,26 +17,27 @@ use crate::fuse::log_fuse_data;
 use crate::pcr;
 use crate::rom_env::RomEnv;
 use crate::run_fips_tests;
-use crate::CALIPTRA_ROM_INFO;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_common::capabilities::Capabilities;
 use caliptra_common::fips::FipsVersionCmd;
-use caliptra_common::mailbox_api::CommandId;
-use caliptra_common::mailbox_api::MailboxResp;
-use caliptra_common::mailbox_api::StashMeasurementReq;
+use caliptra_common::mailbox_api::{
+    CapabilitiesResp, CommandId, MailboxReqHeader, MailboxResp, MailboxRespHeader,
+    StashMeasurementReq,
+};
 use caliptra_common::pcr::PCR_ID_STASH_MEASUREMENT;
 use caliptra_common::verifier::FirmwareImageVerificationEnv;
 use caliptra_common::PcrLogEntry;
 use caliptra_common::PcrLogEntryId;
 use caliptra_common::{FuseLogEntryId, RomBootStatus::*};
+use caliptra_drivers::pcr_log::MeasurementLogEntry;
 use caliptra_drivers::*;
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier};
 use caliptra_kat::KatsEnv;
 use caliptra_x509::{NotAfter, NotBefore};
 use core::mem::ManuallyDrop;
-use zerocopy::AsBytes;
+use zerocopy::{AsBytes, LayoutVerified};
 
 #[derive(Debug, Default)]
 pub struct FwProcInfo {
@@ -45,6 +46,8 @@ pub struct FwProcInfo {
     pub fmc_cert_valid_not_after: NotAfter,
 
     pub fmc_effective_fuse_svn: u32,
+
+    pub owner_pub_keys_digest_in_fuses: bool,
 }
 
 impl FwProcInfo {
@@ -83,6 +86,9 @@ impl FirmwareProcessor {
 
             /// Ecc384 Engine
             ecc384: &mut env.ecc384,
+
+            /// SHA Acc lock state
+            sha_acc_lock_state: ShaAccLockState::NotAcquired,
         };
         // Process mailbox commands.
         let mut txn = Self::process_mailbox_commands(
@@ -90,7 +96,7 @@ impl FirmwareProcessor {
             &mut env.mbox,
             &mut env.pcr_bank,
             &mut kats_env,
-            &mut env.persistent_data.get_mut().measurement_log,
+            env.persistent_data.get_mut(),
         )?;
 
         // Load the manifest
@@ -139,6 +145,7 @@ impl FirmwareProcessor {
             fmc_cert_valid_not_before: nb,
             fmc_cert_valid_not_after: nf,
             fmc_effective_fuse_svn: info.fmc.effective_fuse_svn,
+            owner_pub_keys_digest_in_fuses: info.owner_pub_keys_digest_in_fuses,
         })
     }
 
@@ -150,7 +157,7 @@ impl FirmwareProcessor {
     /// * `mbox` - Mailbox
     /// * `pcr_bank` - PCR Bank
     /// * `sha384` - SHA384
-    /// * `measurement_log` - Measurement Log
+    /// * `persistent_data` - Persistent data
     ///
     /// # Returns
     /// * `MailboxRecvTxn` - Mailbox Receive Transaction
@@ -166,129 +173,130 @@ impl FirmwareProcessor {
         mbox: &'a mut Mailbox,
         pcr_bank: &mut PcrBank,
         env: &mut KatsEnv,
-        measurement_log: &mut StashMeasurementArray,
+        persistent_data: &mut PersistentData,
     ) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn<'a>>> {
         soc_ifc.flow_status_set_ready_for_firmware();
 
         let mut self_test_in_progress = false;
-        let mut measurement_count = 0;
 
-        cprintln!("[afmc] Waiting for Commands...");
+        cprintln!("[fwproc] Waiting for Commands...");
         loop {
             // Random delay for CFI glitch protection.
             CfiCounter::delay();
 
             if let Some(txn) = mbox.peek_recv() {
                 report_fw_error_non_fatal(0);
+                cprintln!("[fwproc] Received command 0x{:08x}", txn.cmd());
+
+                // Handle FW load as a separate case due to the re-borrow explained below
+                if txn.cmd() == CommandId::FIRMWARE_LOAD.into() {
+                    // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
+                    let txn = mbox
+                        .peek_recv()
+                        .ok_or(CaliptraError::FW_PROC_MAILBOX_STATE_INCONSISTENT)?;
+
+                    // This is a download-firmware command; don't drop this, as the
+                    // transaction will be completed by either handle_fatal_error() (on
+                    // failure) or by a manual complete call upon success.
+                    let txn = ManuallyDrop::new(txn.start_txn());
+                    if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
+                        cprintln!("Invalid Image of size {} bytes" txn.dlen());
+                        return Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE);
+                    }
+
+                    cprintln!("[fwproc] Received Image of size {} bytes" txn.dlen());
+                    report_boot_status(FwProcessorDownloadImageComplete.into());
+                    return Ok(txn);
+                }
+
+                // NOTE: We use ManuallyDrop here because any error here becomes a fatal error
+                //       See note above about race condition
+                let mut txn = ManuallyDrop::new(txn.start_txn());
                 match CommandId::from(txn.cmd()) {
                     CommandId::VERSION => {
+                        let mut request = MailboxReqHeader::default();
+                        Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
+
                         let mut resp = FipsVersionCmd::execute(soc_ifc)?;
                         resp.populate_chksum()?;
-                        txn.start_txn().send_response(resp.as_bytes())?;
+                        txn.send_response(resp.as_bytes())?;
                     }
                     CommandId::SELF_TEST_START => {
-                        cprintln!("[afmc] FIPS self test");
+                        let mut request = MailboxReqHeader::default();
+                        Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
+
                         if self_test_in_progress {
-                            txn.start_txn().complete(false)?;
+                            // TODO: set non-fatal error register?
+                            txn.complete(false)?;
                         } else {
-                            let rom_info = unsafe { &CALIPTRA_ROM_INFO };
-                            run_fips_tests(env, rom_info)?;
+                            run_fips_tests(env)?;
                             let mut resp = MailboxResp::default();
                             resp.populate_chksum()?;
-                            txn.start_txn().send_response(resp.as_bytes())?;
+                            txn.send_response(resp.as_bytes())?;
                             self_test_in_progress = true;
                         }
                     }
                     CommandId::SELF_TEST_GET_RESULTS => {
+                        let mut request = MailboxReqHeader::default();
+                        Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
+
                         if !self_test_in_progress {
-                            txn.start_txn().complete(false)?;
+                            // TODO: set non-fatal error register?
+                            txn.complete(false)?;
                         } else {
                             let mut resp = MailboxResp::default();
                             resp.populate_chksum()?;
-                            txn.start_txn().send_response(resp.as_bytes())?;
+                            txn.send_response(resp.as_bytes())?;
                             self_test_in_progress = false;
                         }
                     }
                     CommandId::SHUTDOWN => {
-                        cprintln!("[afmc] FIPS shutdown");
+                        let mut request = MailboxReqHeader::default();
+                        Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
+
                         let mut resp = MailboxResp::default();
                         resp.populate_chksum()?;
-                        txn.start_txn().send_response(resp.as_bytes())?;
+                        txn.send_response(resp.as_bytes())?;
 
                         // Causing a ROM Fatal Error will zeroize the module
                         return Err(CaliptraError::RUNTIME_SHUTDOWN);
                     }
                     CommandId::CAPABILITIES => {
+                        let mut request = MailboxReqHeader::default();
+                        Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
+
                         let mut capabilities = Capabilities::default();
                         capabilities |= Capabilities::ROM_BASE;
 
-                        txn.start_txn().send_response(&capabilities.to_bytes())?;
+                        let mut resp = MailboxResp::Capabilities(CapabilitiesResp {
+                            hdr: MailboxRespHeader::default(),
+                            capabilities: capabilities.to_bytes(),
+                        });
+                        resp.populate_chksum()?;
+                        txn.send_response(resp.as_bytes())?;
                         continue;
                     }
-
                     CommandId::STASH_MEASUREMENT => {
-                        if measurement_count == MEASUREMENT_MAX_COUNT {
+                        if persistent_data.fht.meas_log_index == MEASUREMENT_MAX_COUNT as u32 {
                             cprintln!(
-                                "[afmc] Maximum supported number of measurements already received, ignoring."
+                                "[fwproc] Maximum supported number of measurements already received, ignoring."
                             );
-                            txn.start_txn().complete(false)?;
+                            txn.complete(false)?;
                             continue;
                         }
 
-                        let mut txn = txn.start_txn();
-                        Self::stash_measurement(
-                            pcr_bank,
-                            env.sha384,
-                            measurement_log,
-                            &mut txn,
-                            measurement_count,
-                        )?;
-                        measurement_count += 1;
+                        Self::stash_measurement(pcr_bank, env.sha384, persistent_data, &mut txn)?;
 
                         // Generate and send response (with FIPS approved status)
                         let mut resp = MailboxResp::default();
                         resp.populate_chksum()?;
                         txn.send_response(resp.as_bytes())?;
                     }
-
-                    CommandId::FIRMWARE_LOAD => {
-                        // If no measurement was received, extend a well-known measurement.
-                        if measurement_count == 0 {
-                            let fake_measurement = StashMeasurementReq {
-                                measurement: [0xFF; 48],
-                                ..Default::default()
-                            };
-                            Self::extend_measurement(
-                                pcr_bank,
-                                env.sha384,
-                                measurement_log,
-                                &fake_measurement,
-                                0_usize,
-                            )?;
-                        }
-
-                        // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
-                        let txn = mbox
-                            .peek_recv()
-                            .ok_or(CaliptraError::FW_PROC_MAILBOX_STATE_INCONSISTENT)?;
-
-                        // This is a download-firmware command; don't drop this, as the
-                        // transaction will be completed by either handle_fatal_error() (on
-                        // failure) or by a manual complete call upon success.
-                        let txn = ManuallyDrop::new(txn.start_txn());
-                        if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
-                            cprintln!("Invalid Image of size {} bytes" txn.dlen());
-                            return Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE);
-                        }
-
-                        cprintln!("");
-                        cprintln!("[afmc] Received Image of size {} bytes" txn.dlen());
-                        report_boot_status(FwProcessorDownloadImageComplete.into());
-                        return Ok(txn);
-                    }
                     _ => {
-                        cprintln!("Invalid command 0x{:08x} received", txn.cmd());
-                        txn.start_txn().complete(false)?;
+                        cprintln!("[fwproc] Invalid command received");
+                        // Don't complete the transaction here; let the fatal
+                        // error handler do it to prevent a race condition
+                        // setting the error code.
                         return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND);
                     }
                 }
@@ -340,7 +348,7 @@ impl FirmwareProcessor {
         let info = verifier.verify(manifest, img_bundle_sz, ResetReason::ColdReset)?;
 
         cprintln!(
-            "[afmc] Image verified using Vendor ECC Key Index {}",
+            "[fwproc] Image verified using Vendor ECC Key Index {}",
             info.vendor_ecc_pub_key_idx,
         );
         report_boot_status(FwProcessorImageVerificationComplete.into());
@@ -453,7 +461,7 @@ impl FirmwareProcessor {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn load_image(manifest: &ImageManifest, txn: &mut MailboxRecvTxn) -> CaliptraResult<()> {
         cprintln!(
-            "[afmc] Loading FMC at address 0x{:08x} len {}",
+            "[fwproc] Loading FMC at address 0x{:08x} len {}",
             manifest.fmc.load_addr,
             manifest.fmc.size
         );
@@ -466,7 +474,7 @@ impl FirmwareProcessor {
         txn.copy_request(fmc_dest.as_bytes_mut())?;
 
         cprintln!(
-            "[afmc] Loading Runtime at address 0x{:08x} len {}",
+            "[fwproc] Loading Runtime at address 0x{:08x} len {}",
             manifest.runtime.load_addr,
             manifest.runtime.size
         );
@@ -564,12 +572,50 @@ impl FirmwareProcessor {
         (nb, nf)
     }
 
+    /// Read request from mailbox and verify the checksum
+    ///
+    /// # Arguments
+    /// * `txn` - Mailbox Receive Transaction
+    /// * `data` - Data buffer for the expected request
+    ///
+    /// # Returns
+    /// * `()` - Ok
+    ///    Error code on failure.
+    fn copy_req_verify_chksum(txn: &mut MailboxRecvTxn, data: &mut [u8]) -> CaliptraResult<()> {
+        // NOTE: Currently ROM only supports commands with a fixed request size
+        //       This check will need to be updated if any commands are added with a variable request size
+        if txn.dlen() as usize != data.len() {
+            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
+        }
+
+        // Read the data in from the mailbox HW
+        txn.copy_request(data)?;
+
+        // Extract header out from the rest of the request
+        let req_hdr: &MailboxReqHeader = LayoutVerified::<&[u8], MailboxReqHeader>::new(
+            &data[..core::mem::size_of::<MailboxReqHeader>()],
+        )
+        .ok_or(CaliptraError::FW_PROC_MAILBOX_PROCESS_FAILURE)?
+        .into_ref();
+
+        // Verify checksum
+        if !caliptra_common::checksum::verify_checksum(
+            req_hdr.chksum,
+            txn.cmd(),
+            &data[core::mem::size_of_val(&req_hdr.chksum)..],
+        ) {
+            return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_CHECKSUM);
+        };
+
+        Ok(())
+    }
+
     /// Read measurement from mailbox and extends it into PCR31
     ///
     /// # Arguments
     /// * `pcr_bank` - PCR Bank
     /// * `sha384` - SHA384
-    /// * `measurement_log` - Measurement Log
+    /// * `persistent_data` - Persistent data
     /// * `txn` - Mailbox Receive Transaction
     ///
     /// # Returns
@@ -578,24 +624,14 @@ impl FirmwareProcessor {
     fn stash_measurement(
         pcr_bank: &mut PcrBank,
         sha384: &mut Sha384,
-        measurement_log: &mut StashMeasurementArray,
+        persistent_data: &mut PersistentData,
         txn: &mut MailboxRecvTxn,
-        log_index: u32,
     ) -> CaliptraResult<()> {
         let mut measurement = StashMeasurementReq::default();
-        if txn.dlen() as usize != measurement.as_bytes().len() {
-            return Err(CaliptraError::FW_PROC_STASH_MEASUREMENT_READ_FAILURE);
-        }
-        txn.copy_request(measurement.as_bytes_mut())?;
+        Self::copy_req_verify_chksum(txn, measurement.as_bytes_mut())?;
 
         // Extend measurement into PCR31.
-        Self::extend_measurement(
-            pcr_bank,
-            sha384,
-            measurement_log,
-            &measurement,
-            log_index as usize,
-        )?;
+        Self::extend_measurement(pcr_bank, sha384, persistent_data, &measurement)?;
 
         Ok(())
     }
@@ -605,9 +641,8 @@ impl FirmwareProcessor {
     /// # Arguments
     /// * `pcr_bank` - PCR Bank
     /// * `sha384` - SHA384
-    /// * `measurement_log` - Measurement Log
-    /// * `measurement` - Measurement
-    /// * `log_index` - Log index
+    /// * `persistent_data` - Persistent data
+    /// * `stash_measurement` - Measurement
     ///
     /// # Returns
     /// * `()` - Ok
@@ -615,9 +650,8 @@ impl FirmwareProcessor {
     fn extend_measurement(
         pcr_bank: &mut PcrBank,
         sha384: &mut Sha384,
-        measurement_log: &mut StashMeasurementArray,
+        persistent_data: &mut PersistentData,
         stash_measurement: &StashMeasurementReq,
-        log_index: usize,
     ) -> CaliptraResult<()> {
         // Extend measurement into PCR31.
         pcr_bank.extend_pcr(
@@ -627,42 +661,42 @@ impl FirmwareProcessor {
         )?;
 
         // Log measurement to the measurement log.
-        Self::log_measurement(measurement_log, stash_measurement, log_index)?;
-
-        Ok(())
+        Self::log_measurement(persistent_data, stash_measurement)
     }
 
     /// Log mesaure data to the Stash Measurement log
     ///
     /// # Arguments
-    /// * `data` - PCR data
-    /// * `log_index` - Log index
+    /// * `persistent_data` - Persistent data
+    /// * `stash_measurement` - Measurement
     ///
     /// # Return Value
     /// * `Ok(())` - Success
-    /// * `Err(GlobalErr::PcrLogUpsupportedDataLength)` - Unsupported data length
     /// * `Err(GlobalErr::MeasurementLogExhausted)` - Measurement log exhausted
     ///
     pub fn log_measurement(
-        measurement_log: &mut StashMeasurementArray,
+        persistent_data: &mut PersistentData,
         stash_measurement: &StashMeasurementReq,
-        log_index: usize,
     ) -> CaliptraResult<()> {
-        let Some(dst) = measurement_log.get_mut(log_index) else {
-        return Err(CaliptraError::ROM_GLOBAL_MEASUREMENT_LOG_EXHAUSTED);
-    };
-
-        // Create a PCR log entry
-        let pcr_log_entry = PcrLogEntry {
-            id: PcrLogEntryId::StashMeasurement as u16,
-            pcr_ids: 1 << (PCR_ID_STASH_MEASUREMENT as u8),
-            pcr_data: zerocopy::transmute!(stash_measurement.measurement),
-            metadata: stash_measurement.metadata,
-            ..Default::default()
+        let fht = &mut persistent_data.fht;
+        let Some(dst) = persistent_data.measurement_log.get_mut(fht.meas_log_index as usize) else {
+            return Err(CaliptraError::ROM_GLOBAL_MEASUREMENT_LOG_EXHAUSTED);
         };
 
-        // Store the log entry.
-        *dst = pcr_log_entry;
+        *dst = MeasurementLogEntry {
+            pcr_entry: PcrLogEntry {
+                id: PcrLogEntryId::StashMeasurement as u16,
+                reserved0: [0u8; 2],
+                pcr_ids: 1 << (PCR_ID_STASH_MEASUREMENT as u8),
+                pcr_data: zerocopy::transmute!(stash_measurement.measurement),
+            },
+            metadata: stash_measurement.metadata,
+            context: zerocopy::transmute!(stash_measurement.context),
+            svn: stash_measurement.svn,
+            reserved0: [0u8; 4],
+        };
+
+        fht.meas_log_index += 1;
 
         Ok(())
     }

@@ -28,11 +28,8 @@ use caliptra_x509::*;
 
 type InitDevIdCsr<'a> = Certificate<'a, { MAX_CSR_SIZE }>;
 
-/// Initialization Vector used by Deobfuscation Engine during Unique Device Secret (UDS) decryption.
-const DOE_UDS_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e]);
-
-/// Initialization Vector used by Deobfuscation Engine during Field Entropy decryption.
-const DOE_FE_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e]);
+/// Initialization Vector used by Deobfuscation Engine during UDS / field entropy decryption.
+const DOE_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e]);
 
 /// Maximum Certificate Signing Request Size
 const MAX_CSR_SIZE: usize = 512;
@@ -92,7 +89,7 @@ impl InitDevIdLayer {
         Self::generate_csr(env, &output)?;
 
         // Write IDevID pub to FHT
-        env.fht_data_store.idev_pub = output.subj_key_pair.pub_key;
+        env.persistent_data.get_mut().fht.idev_dice_pub_key = output.subj_key_pair.pub_key;
 
         cprintln!("[idev] --");
         report_boot_status(IDevIdDerivationComplete.into());
@@ -110,7 +107,7 @@ impl InitDevIdLayer {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn decrypt_uds(env: &mut RomEnv, uds: KeyId) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
-        env.doe.decrypt_uds(&DOE_UDS_IV, uds)?;
+        env.doe.decrypt_uds(&DOE_IV, uds)?;
         report_boot_status(IDevIdDecryptUdsComplete.into());
         Ok(())
     }
@@ -124,7 +121,7 @@ impl InitDevIdLayer {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn decrypt_field_entropy(env: &mut RomEnv, fe: KeyId) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
-        env.doe.decrypt_field_entropy(&DOE_FE_IV, fe)?;
+        env.doe.decrypt_field_entropy(&DOE_IV, fe)?;
         report_boot_status(IDevIdDecryptFeComplete.into());
         Ok(())
     }

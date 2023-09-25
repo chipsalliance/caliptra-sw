@@ -20,6 +20,7 @@ impl DisableAttestationCmd {
             .map_err(|_| CaliptraError::RUNTIME_DISABLE_ATTESTATION_FAILED)?;
 
         Self::generate_dice_key(drivers)?;
+        drivers.attestation_disabled = true;
         Ok(MailboxResp::default())
     }
 

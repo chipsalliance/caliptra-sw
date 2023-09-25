@@ -54,8 +54,7 @@ module caliptra_verilated (
     output bit pslverr,
     output bit [`CALIPTRA_APB_DATA_WIDTH-1:0] prdata,
 
-    output bit generic_load_en,
-    output bit [31:0] generic_load_data,
+    output bit [63:0] generic_output_wires,
 
     output bit etrng_req,
 
@@ -141,7 +140,7 @@ caliptra_top caliptra_top_dut (
     .qspi_d_o(),
     .qspi_d_en_o(),
 
-    .el2_mem_export(el2_mem_export),
+    .el2_mem_export(el2_mem_export.veer_sram_src),
 
     .ready_for_fuses(ready_for_fuses),
     .ready_for_fw_push(ready_for_fw_push),
@@ -162,7 +161,7 @@ caliptra_top caliptra_top_dut (
     .BootFSM_BrkPoint('x), //FIXME TIE-OFF
 
     .generic_input_wires('x), //FIXME TIE-OFF
-    .generic_output_wires(),
+    .generic_output_wires(generic_output_wires),
 
     .scan_mode(),
 
@@ -175,9 +174,6 @@ caliptra_top caliptra_top_dut (
 
     .security_state(security_state)
 );
-
-assign generic_load_en = caliptra_top_dut.soc_ifc_top1.i_soc_ifc_reg.field_combo.CPTRA_GENERIC_OUTPUT_WIRES[0].generic_wires.load_next;
-assign generic_load_data = caliptra_top_dut.soc_ifc_top1.i_soc_ifc_reg.field_combo.CPTRA_GENERIC_OUTPUT_WIRES[0].generic_wires.next;
 
 assign uc_haddr = caliptra_top_dut.rvtop.lsu_haddr;
 assign uc_hburst = caliptra_top_dut.rvtop.lsu_hburst;
@@ -205,7 +201,7 @@ assign veer_sram_error_injection_mode.dccm_double_bit_error = sram_error_injecti
 
 caliptra_veer_sram_export veer_sram_export_inst (
     .sram_error_injection_mode(sram_error_injection_mode),
-    .el2_mem_export(el2_mem_export.top)
+    .el2_mem_export(el2_mem_export.veer_sram_sink)
 );
 
 //SRAM for mbox (preload raw data here)

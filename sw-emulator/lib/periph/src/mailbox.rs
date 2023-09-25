@@ -265,15 +265,17 @@ impl MailboxRegs {
 
     // Todo: Implement read_lock callback fn
     pub fn read_lock(&mut self, _size: RvSize) -> Result<u32, BusError> {
-        if self
+        // If state is not idle mailbox is locked.
+        let result = match self.state_machine.state() {
+            States::Idle => Ok(0),
+            _ => Ok(1),
+        };
+        // Deliver event to the state machine.
+        let _ = self
             .state_machine
-            .process_event(Events::RdLock(self.requester))
-            .is_ok()
-        {
-            Ok(0)
-        } else {
-            Ok(1)
-        }
+            .process_event(Events::RdLock(self.requester));
+
+        result
     }
 
     // Todo: Implement read_user callback fn
