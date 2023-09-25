@@ -17,6 +17,7 @@ use crate::{
     array_concat3, okmutref, wait, Array4x12, Array4xN, CaliptraError, CaliptraResult, KeyReadArgs,
     KeyWriteArgs, Trng,
 };
+use crate::cprintln;
 use caliptra_registers::ecc::EccReg;
 use core::cmp::Ordering;
 use zerocopy::{AsBytes, FromBytes};
@@ -210,6 +211,7 @@ impl Ecc384 {
         trng: &mut Trng,
         mut priv_key: Ecc384PrivKeyOut,
     ) -> CaliptraResult<Ecc384PubKey> {
+        cprintln!("ecdsa keygen operation start");
         let ecc = self.ecc.regs_mut();
 
         // Wait for hardware ready
@@ -276,6 +278,7 @@ impl Ecc384 {
             }
         }
         self.zeroize_internal();
+        cprintln!("~ecdsa keygen operation end");
 
         Ok(pub_key)
     }
@@ -345,6 +348,7 @@ impl Ecc384 {
         data: &Ecc384Scalar,
         trng: &mut Trng,
     ) -> CaliptraResult<Ecc384Signature> {
+        cprintln!("ecdsa sign operation start");
         let mut sig_result = self.sign_internal(priv_key, data, trng);
         let sig = okmutref(&mut sig_result)?;
         match self.verify(pub_key, data, sig)? {
@@ -354,6 +358,7 @@ impl Ecc384 {
             }
             Ecc384Result::Success => {}
         };
+        cprintln!("~ecdsa sign operation end");
         sig_result
     }
 
@@ -411,6 +416,7 @@ impl Ecc384 {
         digest: &Ecc384Scalar,
         signature: &Ecc384Signature,
     ) -> CaliptraResult<Array4xN<12, 48>> {
+        cprintln!("ecdsa verify operation start");
         // If R or S are not in the range [1, N-1], signature check must fail
         if !Self::scalar_range_check(&signature.r) || !Self::scalar_range_check(&signature.s) {
             return Err(CaliptraError::DRIVER_ECC384_SCALAR_RANGE_CHECK_FAILED);
@@ -443,6 +449,7 @@ impl Ecc384 {
 
         self.zeroize_internal();
 
+        cprintln!("ecdsa verify operation end");
         Ok(verify_r)
     }
 
