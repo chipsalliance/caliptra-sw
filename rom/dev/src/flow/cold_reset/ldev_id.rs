@@ -185,6 +185,8 @@ impl LocalDevIdLayer {
         // Verify the signature of the `To Be Signed` portion
         let mut verify_r = Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)?;
         if cfi_launder(&verify_r) != &sig.r {
+            verify_r.0.fill(0);
+            sig.zeroize();
             return Err(CaliptraError::ROM_LDEVID_CSR_VERIFICATION_FAILURE);
         } else {
             cfi_assert!(cfi_launder(&verify_r) == &sig.r);

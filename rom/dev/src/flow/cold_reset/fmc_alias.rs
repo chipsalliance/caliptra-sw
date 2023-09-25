@@ -79,8 +79,9 @@ impl FmcAliasLayer {
         };
 
         // Generate Local Device ID Certificate
-        Self::generate_cert_sig(env, input, &output, fw_proc_info)?;
+        let result = Self::generate_cert_sig(env, input, &output, fw_proc_info);
         output.zeroize();
+        result?;
 
         report_boot_status(FmcAliasDerivationComplete.into());
         cprintln!("[afmc] --");
@@ -99,8 +100,9 @@ impl FmcAliasLayer {
     fn derive_cdi(env: &mut RomEnv, measurements: &Array4x12, cdi: KeyId) -> CaliptraResult<()> {
         let mut measurements: [u8; 48] = measurements.into();
 
-        Crypto::hmac384_kdf(env, cdi, b"fmc_alias_cdi", Some(&measurements), cdi)?;
+        let result = Crypto::hmac384_kdf(env, cdi, b"fmc_alias_cdi", Some(&measurements), cdi);
         measurements.fill(0);
+        result?;
         report_boot_status(FmcAliasDeriveCdiComplete.into());
         Ok(())
     }
@@ -208,6 +210,8 @@ impl FmcAliasLayer {
         // Verify the signature of the `To Be Signed` portion
         let mut verify_r = Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)?;
         if cfi_launder(&verify_r) != &sig.r {
+            verify_r.0.fill(0);
+            sig.zeroize();
             return Err(CaliptraError::FMC_ALIAS_CERT_VERIFY);
         } else {
             cfi_assert!(cfi_launder(&verify_r) == &sig.r);
