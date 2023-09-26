@@ -21,7 +21,7 @@ use caliptra_emu_periph::{
 };
 use caliptra_hw_model::BusMmio;
 use caliptra_hw_model_types::{DeviceLifecycle, SecurityState};
-use clap::{arg, value_parser, ArgAction};
+use clap::{arg, Parser, ValueEnum};
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -74,110 +74,102 @@ fn words_from_bytes_le(arr: &[u8; 48]) -> [u32; 12] {
     result
 }
 
-fn main() -> io::Result<()> {
-    let args = clap::Command::new("caliptra-emu")
-        .about("Caliptra emulator")
-        .arg(
-            arg!(--"rom" <FILE> "ROM binary path")
-                .value_parser(value_parser!(PathBuf))
-        )
-        .arg(
-            arg!(--"gdb-port" <VALUE> "Gdb Debugger")
-                .required(false)
-        )
-        .arg(
-            arg!(--"firmware" <FILE> "Current Firmware image file")
-                .required(false)
-                .value_parser(value_parser!(PathBuf)),
-        )
-        .arg(
-            arg!(--"update-firmware" <FILE> "Update Firmware image file")
-                .required(false)
-                .value_parser(value_parser!(PathBuf)),
-        )
-        .arg(
-            arg!(--"trace-instr" ... "Trace instructions to a file in log-dir")
-                .required(false)
-                .action(ArgAction::SetTrue)
-        )
-        .arg(
-            arg!(--"ueid" <U128> "128-bit Unique Endpoint Id")
-                .required(false)
-                .value_parser(value_parser!(u128))
-                .default_value(&u128::MAX.to_string())
-        )
-        .arg(
-            arg!(--"idevid-key-id-algo" <algo> "idevid certificate key id algorithm [sha1, sha256, sha384, fuse]")
-                .required(false)
-                .default_value("sha1"),
-        )
-        .arg(
-            arg!(--"req-idevid-csr" ... "Request IDevID CSR. Downloaded CSR is store in log-dir.")
-                .required(false)
-                .action(ArgAction::SetTrue)
-        )
-        .arg(
-            arg!(--"req-ldevid-cert" ... "Request LDevID Cert. Downloaded cert is stored in log-dir")
-                .required(false)
-                .action(ArgAction::SetTrue)
-        )
-        .arg(
-            arg!(--"log-dir" <DIR> "Directory to log execution artifacts")
-                .required(false)
-                .value_parser(value_parser!(PathBuf))
-                .default_value("/tmp")
-        )
-        .arg(
-            arg!(--"mfg-pk-hash" ... "Hash of the four Manufacturer Public Keys")
-                .required(false)
-                .value_parser(value_parser!(String))
-                .default_value(""),
-        )
-        .arg(
-            arg!(--"owner-pk-hash" ... "Owner Public Key Hash")
-                .required(false)
-                .value_parser(value_parser!(String))
-                .default_value(""),
-        )
-        .arg(
-            arg!(--"device-lifecycle" ... "Device Lifecycle State [unprovisioned, manufacturing, production]")
-                .required(false)
-                .value_parser(value_parser!(String))
-                .default_value("unprovisioned"),
-        )
-        .arg(
-            arg!(--"wdt-timeout" <U64> "Watchdog Timer Timeout in CPU Clock Cycles")
-                .required(false)
-                .value_parser(value_parser!(u64))
-                .default_value(&(EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES.to_string()))
-        )
-        .get_matches();
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None, arg_required_else_help = true)]
+struct Args {
+    /// ROM binary path
+    #[arg(long)]
+    rom: PathBuf,
 
-    let args_rom = args.get_one::<PathBuf>("rom").unwrap();
-    let args_current_fw = args.get_one::<PathBuf>("firmware");
-    let args_update_fw = args.get_one::<PathBuf>("update-firmware");
-    let args_log_dir = args.get_one::<PathBuf>("log-dir").cloned().unwrap();
-    let args_idevid_key_id_algo = args.get_one::<String>("idevid-key-id-algo").unwrap();
-    let args_ueid = args.get_one::<u128>("ueid").unwrap();
-    let wdt_timeout = args.get_one::<u64>("wdt-timeout").unwrap();
-    let mut mfg_pk_hash = match hex::decode(args.get_one::<String>("mfg-pk-hash").unwrap()) {
+    /// Gdb Debugger
+    #[arg(long)]
+    gdb_port: Option<u16>,
+
+    /// Current Firmware image file
+    #[arg(long)]
+    firmware: Option<PathBuf>,
+
+    /// Update Firmware image file
+    #[arg(long)]
+    update_firmware: Option<PathBuf>,
+
+    /// Trace instructions to a file in log-dir
+    #[arg(long)]
+    trace_instr: bool,
+
+    /// 128bit Unique Endpoint Id
+    #[arg(long, default_value_t = u128::MAX)]
+    ueid: u128,
+
+    /// idevid certificate key id algorithm
+    #[arg(long, value_enum, default_value_t = ArgsIdevidAlgo::Sha1)]
+    idevid_key_id_algo: ArgsIdevidAlgo,
+
+    /// Request IDevID CSR. Downloaded CSR is stored in log-dir
+    #[arg(long)]
+    req_idevid_csr: bool,
+
+    /// Request LDevID Cert. Downloaded cert is stored in log-dir
+    #[arg(long)]
+    req_ldevid_csr: bool,
+
+    /// Directory to log execution artifacts
+    #[arg(long, default_value = "/tmp")]
+    log_dir: PathBuf,
+
+    /// Hash of the four Manufacturer Public Keys
+    #[arg(long, default_value = "")]
+    mfg_pk_hash: String,
+
+    /// Owner Public Key Hash
+    #[arg(long, default_value = "")]
+    owner_pk_hash: String,
+
+    /// Device Lifecycle State
+    #[arg(long, value_enum, default_value_t = ArgsDeviceLifecycle::Unprovisioned)]
+    device_lifecycle: ArgsDeviceLifecycle,
+
+    /// Watchdog Timer Timeout in CPU Clock Cycles
+    #[arg(long, default_value_t = EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES)]
+    wdt_timeout: u64,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+enum ArgsIdevidAlgo {
+    Sha1,
+    Sha256,
+    Sha384,
+    Fuse,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum ArgsDeviceLifecycle {
+    Unprovisioned,
+    Manufacturing,
+    Production,
+}
+
+fn main() -> io::Result<()> {
+    let args = Args::parse();
+
+    let mut mfg_pk_hash = match hex::decode(args.mfg_pk_hash) {
         Ok(mfg_pk_hash) => mfg_pk_hash,
         Err(_) => {
             eprintln!("Manufacturer public keys hash format is incorrect",);
             exit(-1);
         }
     };
-    let mut owner_pk_hash = match hex::decode(args.get_one::<String>("owner-pk-hash").unwrap()) {
+    let mut owner_pk_hash = match hex::decode(args.owner_pk_hash) {
         Ok(owner_pk_hash) => owner_pk_hash,
         Err(_) => {
             eprintln!("Owner public key hash format is incorrect",);
             exit(-1);
         }
     };
-    let args_device_lifecycle = args.get_one::<String>("device-lifecycle").unwrap();
+    let args_device_lifecycle = args.device_lifecycle;
 
-    if !args_rom.exists() {
-        eprintln!("ROM File {:?} does not exist", args_rom);
+    if !args.rom.exists() {
+        eprintln!("ROM File {:?} does not exist", args.rom);
         exit(-1);
     }
 
@@ -195,7 +187,7 @@ fn main() -> io::Result<()> {
     change_dword_endianess(&mut mfg_pk_hash);
     change_dword_endianess(&mut owner_pk_hash);
 
-    let rom = fs::read(args_rom)?;
+    let rom = fs::read(args.rom)?;
 
     if rom.len() > CaliptraRootBus::ROM_SIZE {
         eprintln!(
@@ -206,9 +198,9 @@ fn main() -> io::Result<()> {
     }
 
     let mut current_fw_buf = Vec::new();
-    if let Some(path) = args_current_fw {
+    if let Some(ref path) = args.firmware {
         if !path.exists() {
-            eprintln!("Current firmware file {:?} does not exist", args_current_fw);
+            eprintln!("Current firmware file {:?} does not exist", args.firmware);
             exit(-1);
         }
 
@@ -217,9 +209,12 @@ fn main() -> io::Result<()> {
     let current_fw_buf = Rc::new(current_fw_buf);
 
     let mut update_fw_buf = Vec::new();
-    if let Some(path) = args_update_fw {
+    if let Some(ref path) = args.update_firmware {
         if !path.exists() {
-            eprintln!("Update firmware file {:?} does not exist", args_update_fw);
+            eprintln!(
+                "Update firmware file {:?} does not exist",
+                args.update_firmware
+            );
             exit(-1);
         }
 
@@ -229,23 +224,17 @@ fn main() -> io::Result<()> {
 
     let clock = Clock::new();
 
-    let req_idevid_csr = args.get_flag("req-idevid-csr");
-    let req_ldevid_cert = args.get_flag("req-ldevid-cert");
+    let req_idevid_csr = args.req_idevid_csr;
+    let req_ldevid_cert = args.req_ldevid_csr;
 
     let mut security_state = SecurityState::default();
-    security_state.set_device_lifecycle(
-        match args_device_lifecycle.to_ascii_lowercase().as_str() {
-            "manufacturing" => DeviceLifecycle::Manufacturing,
-            "production" => DeviceLifecycle::Production,
-            "unprovisioned" | "" => DeviceLifecycle::Unprovisioned,
-            other => {
-                println!("Unknown device lifecycle {:?}", other);
-                exit(-1);
-            }
-        },
-    );
+    security_state.set_device_lifecycle(match args_device_lifecycle {
+        ArgsDeviceLifecycle::Manufacturing => DeviceLifecycle::Manufacturing,
+        ArgsDeviceLifecycle::Production => DeviceLifecycle::Production,
+        ArgsDeviceLifecycle::Unprovisioned => DeviceLifecycle::Unprovisioned,
+    });
 
-    let logs_dir_clone = args_log_dir.clone();
+    let logs_dir_clone = args.log_dir.clone();
 
     let download_idevid_csr_cb = DownloadIdevidCsrCb::new(
         move |mailbox: &mut MailboxInternal,
@@ -259,7 +248,7 @@ fn main() -> io::Result<()> {
 
     let bus_args = CaliptraRootBusArgs {
         rom,
-        log_dir: args_log_dir.clone(),
+        log_dir: args.log_dir.clone(),
         tb_services_cb: TbServicesCb::new(move |val| match val {
             0x01 => exit(0xFF),
             0xFF => exit(0x00),
@@ -336,12 +325,11 @@ fn main() -> io::Result<()> {
         ];
 
         // Determine the Algorithm used for IDEVID Certificate Subject Key Identifier
-        let algo = match args_idevid_key_id_algo.to_ascii_lowercase().as_str() {
-            "" | "sha1" => IDevIdCertAttrFlags::KEY_ID_ALGO::SHA1,
-            "sha256" => IDevIdCertAttrFlags::KEY_ID_ALGO::SHA256,
-            "sha384" => IDevIdCertAttrFlags::KEY_ID_ALGO::SHA384,
-            "fuse" => IDevIdCertAttrFlags::KEY_ID_ALGO::FUSE,
-            _ => panic!("Unknown idev_key_id_algo {:?}", args_idevid_key_id_algo),
+        let algo = match args.idevid_key_id_algo {
+            ArgsIdevidAlgo::Sha1 => IDevIdCertAttrFlags::KEY_ID_ALGO::SHA1,
+            ArgsIdevidAlgo::Sha256 => IDevIdCertAttrFlags::KEY_ID_ALGO::SHA256,
+            ArgsIdevidAlgo::Sha384 => IDevIdCertAttrFlags::KEY_ID_ALGO::SHA384,
+            ArgsIdevidAlgo::Fuse => IDevIdCertAttrFlags::KEY_ID_ALGO::FUSE,
         };
 
         let flags: InMemoryRegister<u32, IDevIdCertAttrFlags::Register> = InMemoryRegister::new(0);
@@ -352,46 +340,42 @@ fn main() -> io::Result<()> {
         // DWORD 01 - 05 - IDEVID Subject Key Identifier (all zeroes)
         cert[6] = 1; // UEID Type
                      // DWORD 07 - 10 - UEID / Manufacturer Serial Number
-        cert[7] = *args_ueid as u32;
-        cert[8] = (*args_ueid >> 32) as u32;
-        cert[9] = (*args_ueid >> 64) as u32;
-        cert[10] = (*args_ueid >> 96) as u32;
+        cert[7] = args.ueid as u32;
+        cert[8] = (args.ueid >> 32) as u32;
+        cert[9] = (args.ueid >> 64) as u32;
+        cert[10] = (args.ueid >> 96) as u32;
 
         soc_ifc.fuse_idevid_cert_attr().write(&cert);
     }
 
     // Populate cptra_wdt_cfg
     {
-        soc_ifc.cptra_wdt_cfg().at(0).write(|_| *wdt_timeout as u32);
+        soc_ifc
+            .cptra_wdt_cfg()
+            .at(0)
+            .write(|_| args.wdt_timeout as u32);
         soc_ifc
             .cptra_wdt_cfg()
             .at(1)
-            .write(|_| (*wdt_timeout >> 32) as u32);
+            .write(|_| (args.wdt_timeout >> 32) as u32);
     }
 
     let cpu = Cpu::new(root_bus, clock);
 
     // Check if Optional GDB Port is passed
-    match args.get_one::<String>("gdb-port") {
-        Some(port) => {
-            // Create GDB Target Instance
-            let mut gdb_target = GdbTarget::new(cpu);
+    if let Some(port) = args.gdb_port {
+        // Create GDB Target Instance
+        let mut gdb_target = GdbTarget::new(cpu);
 
-            // Execute CPU through GDB State Machine
-            gdb_state::wait_for_gdb_run(&mut gdb_target, port.parse().unwrap());
-        }
-        _ => {
-            let instr_trace = if args.get_flag("trace-instr") {
-                let mut path = args_log_dir.clone();
-                path.push("caliptra_instr_trace.txt");
-                Some(path)
-            } else {
-                None
-            };
+        // Execute CPU through GDB State Machine
+        gdb_state::wait_for_gdb_run(&mut gdb_target, port);
+    } else {
+        let instr_trace = args
+            .trace_instr
+            .then(|| args.log_dir.join("caliptra_instr_trace.txt"));
 
-            // If no GDB Port is passed, Free Run
-            free_run(cpu, instr_trace);
-        }
+        // If no GDB Port is passed, Free Run
+        free_run(cpu, instr_trace);
     }
 
     Ok(())
