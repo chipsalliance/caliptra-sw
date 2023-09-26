@@ -52,6 +52,20 @@ $(CALIPTRA_API):
 	@echo [CC] $< \-\> $@
 	$(Q)$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) -g -c $< -o $@
 
+server: run libinterface.a
+	@echo [COPY] libinterface.a to ../server folder
+	$(Q)cp libinterface.a ../server
+	@echo [COPY] libcaliptra.a to ../server folder
+	$(Q)cp ../../../target/debug/libcaliptra_hw_model_c_binding.a ../server
+	@echo [BUILD] generate emulator server
+	$(Q)cd ../server && go mod init emulator && go mod tidy && go build
+	@echo [COPY] caliptra_rom.bin,image_bundle.bin and emulator to dpe/out folder
+	$(Q)mkdir -p ../../../dpe/out
+	$(Q)cp ../../../target/debug/caliptra_rom.bin ../../../dpe/out
+	$(Q)cp ../../../target/debug/image_bundle.bin ../../../dpe/out
+	$(Q)cp ../server/emulator ../../../dpe/out
+	
+
 clean:
 	@echo [CLEAN] $(OBJS) $(TARGET)
 	$(Q)rm -f $(OBJS) $(TARGET)

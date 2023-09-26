@@ -90,11 +90,11 @@ func Start() {
 		}
 		fmt.Println(version)
 
-		var r C.struct_caliptra_stash_measurement_req
-		var c C.struct_caliptra_stash_measurement_resp
-		if C.caliptra_stash_measurement(&r, &c) != 0 {
-			panic("Stash measurement failed!")
-		}
+		/*	var r C.struct_caliptra_stash_measurement_req
+			var c C.struct_caliptra_stash_measurement_resp
+			if C.caliptra_stash_measurement(&r, &c) != 0 {
+				panic("Stash measurement failed!")
+			}*/
 
 		break
 	}
@@ -118,10 +118,16 @@ func Commands(cmd []byte, n int) []byte {
 	req.data_size = C.uint32_t(512)
 	fmt.Println(req.data)
 
-	if C.caliptra_dpe_command(&req, &resp) != 0 {
-		panic("GetProfile failed!")
+	var i int
+	for i = 0; i < n-4; i++ {
+		fmt.Printf("%02X", req.data[i])
+		fmt.Print(" ")
 	}
-	fmt.Println(resp)
+
+	if C.caliptra_dpe_command(&req, &resp) != 0 {
+		panic("Command failed!")
+	}
+
 	respPtr := &resp
 
 	// Calculate the offset to the union member based on data_size

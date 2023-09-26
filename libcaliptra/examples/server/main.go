@@ -15,6 +15,8 @@ const (
 	BUFFER_SIZE = 4096
 )
 
+var validTokens map[string]bool
+
 func handleRequest(conn net.Conn) {
 
 	defer conn.Close()
