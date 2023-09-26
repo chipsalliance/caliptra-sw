@@ -244,6 +244,8 @@ impl InitDevIdLayer {
         // Verify the signature of the `To Be Signed` portion
         let mut verify_r = Crypto::ecdsa384_verify(env, &key_pair.pub_key, tbs.tbs(), sig)?;
         if cfi_launder(&verify_r) != &sig.r {
+            sig.zeroize();
+            verify_r.0.fill(0);
             return Err(CaliptraError::ROM_IDEVID_CSR_VERIFICATION_FAILURE);
         } else {
             cfi_assert!(cfi_launder(&verify_r) == &sig.r);
@@ -262,8 +264,11 @@ impl InitDevIdLayer {
 
         // Build the CSR with `To Be Signed` & `Signature`
         let mut csr = [0u8; MAX_CSR_SIZE];
-        let csr_bldr = Ecdsa384CsrBuilder::new(tbs.tbs(), &sig.to_ecdsa())
-            .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_INIT_FAILURE)?;
+        let result = Ecdsa384CsrBuilder::new(tbs.tbs(), &sig.to_ecdsa())
+            .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_INIT_FAILURE);
+        sig.zeroize();
+
+        let csr_bldr = result?;
         let csr_len = csr_bldr
             .build(&mut csr)
             .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_BUILD_FAILURE)?;
@@ -277,9 +282,6 @@ impl InitDevIdLayer {
 
         // Execute Send CSR Flow
         let result = Self::send_csr(env, InitDevIdCsr::new(&csr, csr_len));
-
-        // Zeroize locals.
-        sig.zeroize();
         csr.fill(0);
 
         result

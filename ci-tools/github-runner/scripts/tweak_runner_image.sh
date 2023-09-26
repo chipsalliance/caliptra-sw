@@ -24,14 +24,21 @@ set -x
     # Install some commonly used packages
     apt-get -y install build-essential autoconf automake libtool manpages-dev flex \
         bison libfl2 libfl-dev help2man git gcc-riscv64-unknown-elf \
-        binutils-riscv64-unknown-elf pkg-config libssl-dev
+        binutils-riscv64-unknown-elf pkg-config libssl-dev jq
 
-    su runner -c "curl -o /tmp/actions-runner.tar.gz -L https://github.com/actions/runner/releases/download/v2.307.1/actions-runner-linux-x64-2.307.1.tar.gz"
+    echo Retrieving latest GHA runner version
+    RUNNER_VERSION="$(curl https://api.github.com/repos/actions/runner/releases/latest | jq -r '.tag_name[1:]')"
+    echo Using runner version ${RUNNER_VERSION}
+
+    echo Downloading GHA Runner
+    su runner -c "curl -o /tmp/actions-runner.tar.gz -L https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz"
+    echo Unpacking GHA Runner
     su runner -c "mkdir /home/runner/actions-runner"
     su runner -c "cd /home/runner/actions-runner && tar xzf /tmp/actions-runner.tar.gz"
     rm /tmp/actions-runner.tar.gz
     su runner -c "echo 'PATH=/home/runner/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' > /home/runner/actions-runner/.env"
 
+    echo Installing Rust Toolchain
     su runner -c "curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain=1.70"
     su runner -c "/home/runner/.cargo/bin/rustup target add riscv32imc-unknown-none-elf"
 
@@ -54,4 +61,5 @@ else
     set_guest_attr startup-script-result ERROR
 fi
 
+sleep 1
 shutdown -h now

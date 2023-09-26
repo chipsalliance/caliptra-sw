@@ -69,9 +69,10 @@ impl ColdResetFlow {
         let mut fw_proc_info = FirmwareProcessor::process(env)?;
 
         // Execute FMCALIAS layer
-        FmcAliasLayer::derive(env, &fmc_layer_input, &fw_proc_info)?;
+        let result = FmcAliasLayer::derive(env, &fmc_layer_input, &fw_proc_info);
         ldevid_layer_output.zeroize();
         fw_proc_info.zeroize();
+        result?;
 
         // Indicate Cold-Reset successful completion.
         // This is used by the Warm-Reset flow to confirm that the Cold-Reset was successful.
