@@ -10,8 +10,7 @@ pub mod fips;
 pub mod handoff;
 pub mod info;
 mod invoke_dpe;
-mod pcr_quote;
-mod pcr_reset;
+mod pcr;
 mod stash_measurement;
 mod update;
 mod verify;
@@ -53,8 +52,6 @@ use dpe::{
     DPE_PROFILE,
 };
 
-use crate::pcr_quote::get_pcr_quote;
-use crate::pcr_reset::IncrementPcrResetCounter;
 #[cfg(feature = "test_only_commands")]
 use crate::verify::HmacVerifyCmd;
 

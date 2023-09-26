@@ -6,8 +6,8 @@
 pub use crate::fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
 
 use crate::{
-    dice, CptraDpeTypes, DisableAttestationCmd, DpeCrypto, DpePlatform, Mailbox, DPE_SUPPORT,
-    MAX_CERT_CHAIN_SIZE,
+    dice, CptraDpeTypes, DisableAttestationCmd, DpeCrypto, DpePlatform, Mailbox, PcrResetCounter,
+    DPE_SUPPORT, MAX_CERT_CHAIN_SIZE,
 };
 
 use arrayvec::ArrayVec;
@@ -64,6 +64,8 @@ pub struct Drivers {
     pub sha1: Sha1,
 
     pub pcr_bank: PcrBank,
+
+    pub pcr_reset: PcrResetCounter,
 
     pub cert_chain: ArrayVec<u8, MAX_CERT_CHAIN_SIZE>,
 
@@ -132,6 +134,7 @@ impl Drivers {
             trng,
             persistent_data: PersistentDataAccessor::new(),
             pcr_bank: PcrBank::new(PvReg::new()),
+            pcr_reset: PcrResetCounter::default(),
             #[cfg(feature = "fips_self_test")]
             self_test_status: SelfTestStatus::Idle,
             cert_chain: ArrayVec::new(),
