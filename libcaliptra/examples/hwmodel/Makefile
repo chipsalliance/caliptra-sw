@@ -48,6 +48,7 @@ $(ROM_FILE) $(FW_FILE):
 	$(Q)make -C ../../../rom/dev
 	$(Q)cd ../../../runtime && ./build.sh
 	$(Q)cargo --config="$(EXTRA_CARGO_CONFIG)" run --manifest-path=$(BUILDER_PATH)/Cargo.toml --bin image -- --rom $(ROM_FW_DIR)/caliptra_rom.bin --fw $(ROM_FW_DIR)/image_bundle.bin
+	$(Q)mkdir -p ../out && cp $(ROM_FW_DIR)/caliptra_rom.bin ../out && cp $(ROM_FW_DIR)/image_bundle.bin ../out
 
 $(HWMODEL_BINDING_LIB_OBJ):
 	@echo "[CARGO] c-binding"
