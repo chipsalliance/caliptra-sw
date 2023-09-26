@@ -90,12 +90,6 @@ func Start() {
 		}
 		fmt.Println(version)
 
-		/*	var r C.struct_caliptra_stash_measurement_req
-			var c C.struct_caliptra_stash_measurement_resp
-			if C.caliptra_stash_measurement(&r, &c) != 0 {
-				panic("Stash measurement failed!")
-			}*/
-
 		break
 	}
 

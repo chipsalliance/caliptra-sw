@@ -500,7 +500,7 @@ int caliptra_dpe_command(struct caliptra_dpe_req *req, struct caliptra_dpe_resp 
         .tx_buffer = (uint8_t*)req,
         .tx_bytes  = actual_bytes,
         .rx_buffer = (uint8_t*)resp,
-        .rx_bytes  = sizeof(struct caliptra_dpe_resp),
+        .rx_bytes  = sizeof(struct caliptra_dpe_resp) + 48,
     };
 
     return pack_and_send_command(&p);
