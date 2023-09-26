@@ -14,6 +14,7 @@ pub struct Content<'a> {
     mime_type: Cow<'a, str>,
     data: Cow<'a, [u8]>,
 }
+
 impl<'a> Content<'a> {
     pub fn octet_stream(val: impl Into<Cow<'a, [u8]>>) -> Self {
         Self {
@@ -34,6 +35,7 @@ pub struct HttpResponse {
     pub content_type: String,
     pub data: Vec<u8>,
 }
+
 impl HttpResponse {
     fn parse(raw: Vec<u8>) -> io::Result<Self> {
         use std::io::BufRead;
@@ -65,6 +67,7 @@ impl HttpResponse {
         })
     }
 }
+
 impl std::fmt::Debug for HttpResponse {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HttpResponse")

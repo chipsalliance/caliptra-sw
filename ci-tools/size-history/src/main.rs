@@ -6,15 +6,13 @@ use std::{
     path::Path,
 };
 
-use caliptra_builder::{elf_size, firmware, FwId};
-use serde::{Deserialize, Serialize};
-
 mod cache;
 mod cache_gha;
 mod git;
 mod html;
 mod http;
 mod process;
+mod size;
 mod util;
 
 use crate::cache::{Cache, FsCache};
@@ -23,28 +21,6 @@ use crate::{cache_gha::GithubActionCache, util::other_err};
 // Increment with non-backwards-compatible changes are made to the cache record
 // format
 const CACHE_FORMAT_VERSION: &str = "v2";
-
-#[derive(Clone, Copy, Default, Eq, PartialEq, Serialize, Deserialize)]
-struct Sizes {
-    rom_size_with_uart: Option<u64>,
-    rom_size_prod: Option<u64>,
-    fmc_size_with_uart: Option<u64>,
-    app_size_with_uart: Option<u64>,
-}
-impl Sizes {
-    fn update_from(&mut self, other: &Sizes) {
-        self.rom_size_with_uart = other.rom_size_with_uart.or(self.rom_size_with_uart);
-        self.rom_size_prod = other.rom_size_prod.or(self.rom_size_prod);
-        self.fmc_size_with_uart = other.fmc_size_with_uart.or(self.fmc_size_with_uart);
-        self.app_size_with_uart = other.app_size_with_uart.or(self.app_size_with_uart);
-    }
-}
-
-#[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
-struct SizeRecord {
-    commit: git::CommitInfo,
-    sizes: Sizes,
-}
 
 fn main() {
     if let Err(e) = real_main() {
@@ -107,7 +83,7 @@ fn real_main() -> io::Result<()> {
         match cache.get(&format_cache_key(&commit.id)) {
             Ok(Some(cached_records)) => {
                 if let Ok(cached_records) =
-                    serde_json::from_slice::<Vec<SizeRecord>>(&cached_records)
+                    serde_json::from_slice::<Vec<size::SizeRecord>>(&cached_records)
                 {
                     println!("Found cache entry for remaining commits at {}", commit.id);
                     records.extend(cached_records);
@@ -130,11 +106,12 @@ fn real_main() -> io::Result<()> {
         worktree.checkout(&commit.id)?;
         worktree.submodule_update()?;
 
-        records.push(SizeRecord {
+        records.push(size::SizeRecord {
             commit: commit.clone(),
-            sizes: compute_size(&worktree, &commit.id),
+            sizes: size::compute_size(&worktree, &commit.id),
         });
     }
+
     for (i, record) in records.iter().enumerate() {
         if Some(&record.commit.id) == cached_commit.as_ref() {
             break;
@@ -161,6 +138,7 @@ fn real_main() -> io::Result<()> {
     Ok(())
 }
 
+<<<<<<< HEAD
 fn compute_size(worktree: &git::WorkTree, commit_id: &str) -> Sizes {
     // TODO: consider using caliptra_builder from the same repo as the firmware
     let fwid_elf_size = |fwid: &FwId| -> io::Result<u64> {
@@ -186,6 +164,8 @@ fn compute_size(worktree: &git::WorkTree, commit_id: &str) -> Sizes {
     }
 }
 
+=======
+>>>>>>> 3795897 (move size related components to separate module)
 fn box_cache(val: impl Cache + 'static) -> Box<dyn Cache> {
     Box::new(val)
 }
