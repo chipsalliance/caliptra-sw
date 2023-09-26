@@ -138,34 +138,6 @@ fn real_main() -> io::Result<()> {
     Ok(())
 }
 
-<<<<<<< HEAD
-fn compute_size(worktree: &git::WorkTree, commit_id: &str) -> Sizes {
-    // TODO: consider using caliptra_builder from the same repo as the firmware
-    let fwid_elf_size = |fwid: &FwId| -> io::Result<u64> {
-        let workspace_dir = Some(worktree.path);
-        let elf_bytes = caliptra_builder::build_firmware_elf_uncached(workspace_dir, fwid)?;
-        elf_size(&elf_bytes)
-    };
-    let fwid_elf_size_or_none = |fwid: &FwId| -> Option<u64> {
-        match fwid_elf_size(fwid) {
-            Ok(result) => Some(result),
-            Err(err) => {
-                println!("Error building commit {}: {err}", commit_id);
-                None
-            }
-        }
-    };
-
-    Sizes {
-        rom_size_with_uart: fwid_elf_size_or_none(&firmware::ROM_WITH_UART),
-        rom_size_prod: fwid_elf_size_or_none(&firmware::ROM),
-        fmc_size_with_uart: fwid_elf_size_or_none(&firmware::FMC_WITH_UART),
-        app_size_with_uart: fwid_elf_size_or_none(&firmware::APP_WITH_UART),
-    }
-}
-
-=======
->>>>>>> 3795897 (move size related components to separate module)
 fn box_cache(val: impl Cache + 'static) -> Box<dyn Cache> {
     Box::new(val)
 }
