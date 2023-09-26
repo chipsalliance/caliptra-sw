@@ -60,49 +60,75 @@ int main(int argc, char *argv[])
 
     // Load Image Bundle
     // FW_PATH is defined on the compiler command line
-    caliptra_upload_fw(&image_bundle);
+    status = caliptra_upload_fw(&image_bundle, false);
+
+    if (status)
+    {
+        printf("FW Load Failed: %x\n", status);
+    }
+    else
+    {
+        printf("FW Load: OK\n");
+    }
 
     // Run Until RT is ready to receive commands
-    struct caliptra_fips_version version;
-    while(1) {
-        caliptra_wait();
-        status = caliptra_get_fips_version(&version);
+    caliptra_wait();
+
+    // Send a FIPS version command in async mode
+    if (!status) {
+        struct caliptra_fips_version version;
+        // Send async
+        status = caliptra_get_fips_version(&version, true);
+
+        if (status) {
+            printf("Get FIPS Version send failed: %x\n", status);
+        } else {
+            // Wait indefinitely for completion
+            while (!caliptra_test_for_completion()){
+                caliptra_wait();
+            }
+
+            status = caliptra_complete();
+        }
+
         if (status)
         {
-            printf("Get FIPS Version failed!\n");
-            break;
+            printf("Get FIPS Version failed: %x\n", status);
         }
         else
         {
             printf("FIPS_VERSION = mode: 0x%x, fips_rev (0x%x, 0x%x, 0x%x), name %s \n", version.mode,
                 version.fips_rev[0], version.fips_rev[1], version.fips_rev[2], version.name);
         }
+    }
 
+    // Send a stash measurement command with async off
+    if (!status) {
         // Need some representative values for these, see below.
         struct caliptra_stash_measurement_req r = {0};
         struct caliptra_stash_measurement_resp c = {0};
 
-        status = caliptra_stash_measurement(&r, &c);
+        status = caliptra_stash_measurement(&r, &c, false);
 
         if (status)
         {
-            printf("Stash measurement failed!\n");
+            printf("Stash measurement failed: %x\n", status);
         }
         else
         {
             printf("Stash measurement: OK\n");
         }
-
-        break;
     }
 
     if (status)
     {
-        printf("Caliptra C API Integration Test Failed: %x\n", status);
+        printf("Caliptra C API Integration Test Failed: 0x%x\n", status);
+        printf("Caliptra FW error non-fatal code is 0x%x\n", caliptra_read_fw_non_fatal_error());
+        printf("Caliptra FW error fatal code is 0x%x\n", caliptra_read_fw_fatal_error());
     }
     else
     {
-        printf("Caliptr a C API Integration Test Passed!\n");
+        printf("Caliptra C API Integration Test Passed!\n");
     }
 
     return 0;
