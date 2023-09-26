@@ -67,9 +67,9 @@ func main() {
 		} else if os.Args[1] == "publish_jitconfig" {
 			err = hello.PublishJitConfig(ctx, client, labels)
 		} else {
-			runner, err := hello.GitHubRegisterRunner(ctx, client, labels)
+			runner, err := hello.GitHubRegisterRunner(ctx, client, labels, os.Args[5])
 			if err == nil {
-				log.Println(runner.JitConfig)
+				fmt.Println(runner.JitConfig)
 			}
 		}
 		if err != nil {
@@ -80,7 +80,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Println(jitConfig)
+		fmt.Println(jitConfig)
 	} else {
 		usage()
 		os.Exit(1)

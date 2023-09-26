@@ -50,8 +50,10 @@ type MachineConfig struct {
 	MachineTypeLabel string
 }
 
-func GitHubRegisterRunner(ctx context.Context, client *github.Client, labels []string) (RunnerInfo, error) {
-	name := fmt.Sprintf("gce-github-runner-%v", randId())
+func GitHubRegisterRunner(ctx context.Context, client *github.Client, labels []string, name string) (RunnerInfo, error) {
+	if name == "" {
+		name = fmt.Sprintf("gce-github-runner-%v", randId())
+	}
 	jitConfig, response, err := client.Actions.GenerateOrgJITConfig(ctx, githubOrg, &github.GenerateJITConfigRequest{
 		Name:          name,
 		RunnerGroupID: 1,
@@ -130,7 +132,7 @@ func Launch(ctx context.Context, client *github.Client, labels []string) error {
 		return err
 	}
 
-	runner, err := GitHubRegisterRunner(ctx, client, labels)
+	runner, err := GitHubRegisterRunner(ctx, client, labels, "")
 	if err != nil {
 		return err
 	}
