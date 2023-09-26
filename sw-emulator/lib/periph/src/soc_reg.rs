@@ -1143,8 +1143,8 @@ mod tests {
     use super::*;
     use crate::{root_bus::TbServicesCb, MailboxRam};
     use std::{
-        fs::File,
-        io::{Read, Write},
+        fs,
+        io::Write,
         path::{Path, PathBuf},
     };
     use tock_registers::{interfaces::ReadWriteable, registers::InMemoryRegister};
@@ -1177,10 +1177,10 @@ mod tests {
 
     fn download_idev_id_csr(
         mailbox: &mut MailboxInternal,
-        path: &mut PathBuf,
+        path: &Path,
         soc_reg: &mut SocRegistersInternal,
     ) {
-        download_to_file(mailbox, path, "caliptra_idevid_csr.der");
+        download_to_file(mailbox, path.join("caliptra_idevid_csr.der"));
 
         soc_reg
             .regs
@@ -1192,10 +1192,10 @@ mod tests {
 
     fn download_ldev_id_cert(
         mailbox: &mut MailboxInternal,
-        path: &mut PathBuf,
+        path: &Path,
         soc_reg: &mut SocRegistersInternal,
     ) {
-        download_to_file(mailbox, path, "caliptra_ldevid_cert.der");
+        download_to_file(mailbox, path.join("caliptra_ldevid_cert.der"));
 
         soc_reg
             .regs
@@ -1205,9 +1205,8 @@ mod tests {
             .modify(DebugManufService::REQ_LDEVID_CERT::CLEAR)
     }
 
-    fn download_to_file(mailbox: &mut MailboxInternal, path: &mut PathBuf, file: &str) {
-        path.push(file);
-        let mut file = std::fs::File::create(path).unwrap();
+    fn download_to_file(mailbox: &mut MailboxInternal, file_path: PathBuf) {
+        let mut file = std::fs::File::create(file_path).unwrap();
 
         let regs = mailbox.regs();
 
@@ -1279,17 +1278,16 @@ mod tests {
         //
 
         // Download the IDEVID CSR.
-        let mut log_dir = PathBuf::new();
-        log_dir.push("/tmp");
-        download_idev_id_csr(&mut mailbox, &mut log_dir, &mut soc_reg);
+        let log_dir = Path::new("/tmp");
+        download_idev_id_csr(&mut mailbox, &log_dir, &mut soc_reg);
 
         // Check if the downloaded csr matches.
         let path = "/tmp/caliptra_idevid_csr.der";
         assert!(Path::new(path).exists());
-        let mut idevid_csr_buffer = Vec::new();
-        let mut idevid_csr_file = File::open(path).unwrap();
-        idevid_csr_file.read_to_end(&mut idevid_csr_buffer).unwrap();
-        assert_eq!(data, idevid_csr_buffer[..]);
+
+        let idevid_csr_buffer = fs::read(path).unwrap();
+
+        assert_eq!(data, idevid_csr_buffer.as_slice());
     }
 
     #[test]
@@ -1340,19 +1338,16 @@ mod tests {
         //
 
         // Download the LDEVID cert.
-        let mut log_dir = PathBuf::new();
-        log_dir.push("/tmp");
-        download_ldev_id_cert(&mut mailbox, &mut log_dir, &mut soc_reg);
+        let log_dir = Path::new("/tmp");
+        download_ldev_id_cert(&mut mailbox, &log_dir, &mut soc_reg);
 
         // Check if the downloaded cert matches.
         let path = "/tmp/caliptra_ldevid_cert.der";
         assert!(Path::new(path).exists());
-        let mut ldevid_cert_buffer = Vec::new();
-        let mut idevid_csr_file = File::open(path).unwrap();
-        idevid_csr_file
-            .read_to_end(&mut ldevid_cert_buffer)
-            .unwrap();
-        assert_eq!(data, ldevid_cert_buffer[..]);
+
+        let ldevid_cert_buffer = fs::read(path).unwrap();
+
+        assert_eq!(data, ldevid_cert_buffer.as_slice());
     }
 
     #[test]
