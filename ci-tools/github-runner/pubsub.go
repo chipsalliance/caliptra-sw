@@ -13,7 +13,7 @@ import (
 )
 
 func PublishJitConfig(ctx context.Context, client *github.Client, labels []string) error {
-	runner, err := GitHubRegisterRunner(ctx, client, labels)
+	runner, err := GitHubRegisterRunner(ctx, client, labels, "")
 	if err != nil {
 		return err
 	}
