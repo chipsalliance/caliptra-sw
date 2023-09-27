@@ -201,9 +201,11 @@ impl Crypto {
         })
     }
 
-    /// Sign data using ECC Private Key
+    /// Sign the data using ECC Private Key.
+    /// Verify the signature using the ECC Public Key.
     ///
-    /// This routine calculates the digest of the `data` and signs the hash
+    /// This routine calculates the digest of the `data`, signs the hash and returns the signature.
+    /// This routine also verifies the signature using the public key.
     ///
     /// # Arguments
     ///
@@ -215,7 +217,7 @@ impl Crypto {
     ///
     /// * `Ecc384Signature` - Signature
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn ecdsa384_sign(
+    pub fn ecdsa384_sign_and_verify(
         env: &mut RomEnv,
         priv_key: KeyId,
         pub_key: &Ecc384PubKey,
@@ -228,31 +230,5 @@ impl Crypto {
         let result = env.ecc384.sign(&priv_key, pub_key, digest, &mut env.trng);
         digest.0.fill(0);
         result
-    }
-
-    /// Verify the ECC Signature
-    ///
-    /// This routine calculates the digest and verifies the signature
-    ///
-    /// # Arguments
-    ///
-    /// * `env` - ROM Environment
-    /// * `pub_key` - Public key to verify the signature
-    /// * `data` - Input data to hash
-    /// * `sig` - Signature to verify
-    ///
-    /// # Returns
-    ///
-    /// * `Array4xN<12, 48>` - verify R value
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn ecdsa384_verify(
-        env: &mut RomEnv,
-        pub_key: &Ecc384PubKey,
-        data: &[u8],
-        sig: &Ecc384Signature,
-    ) -> CaliptraResult<Array4xN<12, 48>> {
-        let mut digest = Self::sha384_digest(env, data);
-        let digest = okmutref(&mut digest)?;
-        env.ecc384.verify_r(pub_key, digest, sig)
     }
 }
