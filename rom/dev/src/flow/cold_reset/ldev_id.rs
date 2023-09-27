@@ -140,7 +140,6 @@ impl LocalDevIdLayer {
     /// * `env`    - ROM Environment
     /// * `input`  - DICE Input
     /// * `output` - DICE Output
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn generate_cert_sig(
         env: &mut RomEnv,
         input: &DiceInput,
@@ -174,24 +173,13 @@ impl LocalDevIdLayer {
             "[ldev] Signing Cert with AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
-        let mut sig = Crypto::ecdsa384_sign(env, auth_priv_key, auth_pub_key, tbs.tbs());
+        let mut sig = Crypto::ecdsa384_sign_and_verify(env, auth_priv_key, auth_pub_key, tbs.tbs());
         let sig = okmutref(&mut sig)?;
 
         // Clear the authority private key
         //To-Do : Disabling The Print Temporarily
         //cprintln!("[ldev] Erasing AUTHORITY.KEYID = {}", auth_priv_key as u8);
         env.key_vault.erase_key(auth_priv_key)?;
-
-        // Verify the signature of the `To Be Signed` portion
-        let mut verify_r = Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)?;
-        if cfi_launder(&verify_r) != &sig.r {
-            verify_r.0.fill(0);
-            sig.zeroize();
-            return Err(CaliptraError::ROM_LDEVID_CSR_VERIFICATION_FAILURE);
-        } else {
-            cfi_assert!(cfi_launder(&verify_r) == &sig.r);
-        }
-        verify_r.0.fill(0);
 
         let _pub_x: [u8; 48] = (&pub_key.x).into();
         let _pub_y: [u8; 48] = (&pub_key.y).into();

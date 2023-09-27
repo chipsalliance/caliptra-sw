@@ -213,7 +213,6 @@ impl InitDevIdLayer {
     ///
     /// * `env`    - ROM Environment
     /// * `output` - DICE Output
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn make_csr(env: &mut RomEnv, output: &DiceOutput) -> CaliptraResult<()> {
         let key_pair = &output.subj_key_pair;
 
@@ -238,19 +237,9 @@ impl InitDevIdLayer {
         );
 
         // Sign the the `To Be Signed` portion
-        let mut sig = Crypto::ecdsa384_sign(env, key_pair.priv_key, &key_pair.pub_key, tbs.tbs());
+        let mut sig =
+            Crypto::ecdsa384_sign_and_verify(env, key_pair.priv_key, &key_pair.pub_key, tbs.tbs());
         let sig = okmutref(&mut sig)?;
-
-        // Verify the signature of the `To Be Signed` portion
-        let mut verify_r = Crypto::ecdsa384_verify(env, &key_pair.pub_key, tbs.tbs(), sig)?;
-        if cfi_launder(&verify_r) != &sig.r {
-            sig.zeroize();
-            verify_r.0.fill(0);
-            return Err(CaliptraError::ROM_IDEVID_CSR_VERIFICATION_FAILURE);
-        } else {
-            cfi_assert!(cfi_launder(&verify_r) == &sig.r);
-        }
-        verify_r.0.fill(0);
 
         let _pub_x: [u8; 48] = key_pair.pub_key.x.into();
         let _pub_y: [u8; 48] = key_pair.pub_key.y.into();

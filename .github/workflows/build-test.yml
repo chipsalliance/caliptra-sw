@@ -109,6 +109,27 @@ jobs:
           # same as the build steps to avoid invalidating the cargo cache.
           RUSTFLAGS="-Dwarnings" cargo clippy --locked --all-targets -- -D warnings
 
+      # As fuzzing targets are not part of the workspace, perform their tests explicitly.
+      - name: Build test fuzzing targets
+        run: |
+          rustup toolchain install nightly-2023-04-15
+          cargo +nightly-2023-04-15 install cargo-fuzz cargo-afl
+          for target in dpe/dpe/fuzz/ drivers/fuzz/ image/verify/fuzz/ x509/fuzz/; do
+            pushd $target; \
+            cargo fmt --check; \
+            # TODO: Depends on https://github.com/chipsalliance/caliptra-sw/issues/681
+            #cargo clippy; \
+            cargo +nightly-2023-04-15 fuzz build --features libfuzzer-sys; \
+            cargo +nightly-2023-04-15 afl build --features afl; \
+            popd; \
+          done
+          for target in drivers/fuzz/ image/verify/fuzz/; do
+            pushd $target; \
+            cargo +nightly-2023-04-15 fuzz build --features libfuzzer-sys,struct-aware; \
+            cargo +nightly-2023-04-15 afl build --features afl,struct-aware; \
+            popd; \
+          done
+
       - name: Run tests
         run: |
           cargo --config "$EXTRA_CARGO_CONFIG" test --locked
