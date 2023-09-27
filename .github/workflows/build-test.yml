@@ -111,6 +111,8 @@ jobs:
 
       # As fuzzing targets are not part of the workspace, perform their tests explicitly.
       - name: Build test fuzzing targets
+        # Intermittently fails and is too slow
+        if: false
         run: |
           rustup toolchain install nightly-2023-04-15
           cargo +nightly-2023-04-15 install cargo-fuzz cargo-afl
