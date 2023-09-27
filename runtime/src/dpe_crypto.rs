@@ -70,10 +70,7 @@ impl<'a> Hasher for DpeHasher<'a> {
         self.op
             .finalize(&mut digest)
             .map_err(|_| CryptoError::HashError)?;
-        Digest::new(
-            <[u8; AlgLen::Bit384.size()]>::from(digest).as_ref(),
-            AlgLen::Bit384,
-        )
+        Digest::new(<[u8; AlgLen::Bit384.size()]>::from(digest).as_ref())
     }
 }
 
@@ -183,9 +180,9 @@ impl<'a> Crypto for DpeCrypto<'a> {
                     )
                     .map_err(|_| CryptoError::CryptoLibError)?;
                 let pub_key = EcdsaPub {
-                    x: CryptoBuf::new(&<[u8; AlgLen::Bit384.size()]>::from(pub_key.x), algs)
+                    x: CryptoBuf::new(&<[u8; AlgLen::Bit384.size()]>::from(pub_key.x))
                         .map_err(|_| CryptoError::Size)?,
-                    y: CryptoBuf::new(&<[u8; AlgLen::Bit384.size()]>::from(pub_key.y), algs)
+                    y: CryptoBuf::new(&<[u8; AlgLen::Bit384.size()]>::from(pub_key.y))
                         .map_err(|_| CryptoError::Size)?,
                 };
                 Ok((KEY_ID_DPE_PRIV_KEY, pub_key))
@@ -199,16 +196,10 @@ impl<'a> Crypto for DpeCrypto<'a> {
         digest: &Digest,
     ) -> Result<EcdsaSig, CryptoError> {
         let pub_key = EcdsaPub {
-            x: CryptoBuf::new(
-                &<[u8; AlgLen::Bit384.size()]>::from(self.rt_pub_key.x),
-                algs,
-            )
-            .map_err(|_| CryptoError::Size)?,
-            y: CryptoBuf::new(
-                &<[u8; AlgLen::Bit384.size()]>::from(self.rt_pub_key.y),
-                algs,
-            )
-            .map_err(|_| CryptoError::Size)?,
+            x: CryptoBuf::new(&<[u8; AlgLen::Bit384.size()]>::from(self.rt_pub_key.x))
+                .map_err(|_| CryptoError::Size)?,
+            y: CryptoBuf::new(&<[u8; AlgLen::Bit384.size()]>::from(self.rt_pub_key.y))
+                .map_err(|_| CryptoError::Size)?,
         };
         self.ecdsa_sign_with_derived(algs, digest, &KEY_ID_RT_PRIV_KEY, pub_key)
     }
@@ -273,8 +264,8 @@ impl<'a> Crypto for DpeCrypto<'a> {
                     )
                     .map_err(|_| CryptoError::CryptoLibError)?;
 
-                let r = CryptoBuf::new(&<[u8; SIZE]>::from(sig.r), algs)?;
-                let s = CryptoBuf::new(&<[u8; SIZE]>::from(sig.s), algs)?;
+                let r = CryptoBuf::new(&<[u8; SIZE]>::from(sig.r))?;
+                let s = CryptoBuf::new(&<[u8; SIZE]>::from(sig.s))?;
 
                 Ok(EcdsaSig { r, s })
             }
@@ -312,7 +303,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
                         Hmac384Tag::Array4x12(&mut tag),
                     )
                     .map_err(|_| CryptoError::CryptoLibError)?;
-                HmacSig::new(tag.as_bytes(), algs)
+                HmacSig::new(tag.as_bytes())
             }
         }
     }
