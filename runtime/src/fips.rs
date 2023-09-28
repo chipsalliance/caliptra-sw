@@ -89,11 +89,11 @@ pub mod fips_self_test_cmd {
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha384: &mut env.sha384,
-            sha384_acc: &mut env.sha384_acc,
             soc_ifc: &mut env.soc_ifc,
             ecc384: &mut env.ecc384,
             data_vault: &mut env.data_vault,
             pcr_bank: &mut env.pcr_bank,
+            image: env.mbox.raw_mailbox_contents(),
         };
 
         let mut verifier = ImageVerifier::new(&mut venv);
