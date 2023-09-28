@@ -12,6 +12,8 @@ Abstract:
 
 --*/
 
+mod cli;
+
 use caliptra_emu_bus::Clock;
 use caliptra_emu_cpu::{Cpu, RvInstr, StepAction};
 use caliptra_emu_periph::soc_reg::DebugManufService;
@@ -21,7 +23,7 @@ use caliptra_emu_periph::{
 };
 use caliptra_hw_model::BusMmio;
 use caliptra_hw_model_types::{DeviceLifecycle, SecurityState};
-use clap::{arg, Parser, ValueEnum};
+use clap::Parser;
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -32,8 +34,9 @@ use tock_registers::registers::InMemoryRegister;
 mod gdb;
 use crate::gdb::gdb_target::GdbTarget;
 use gdb::gdb_state;
-
 use tock_registers::register_bitfields;
+
+use cli::{Args, ArgsDeviceLifecycle, ArgsIdevidAlgo};
 
 /// Firmware Load Command Opcode
 const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
@@ -72,81 +75,6 @@ fn words_from_bytes_le(arr: &[u8; 48]) -> [u32; 12] {
         result[i] = u32::from_le_bytes(arr[i * 4..][..4].try_into().unwrap())
     }
     result
-}
-
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None, arg_required_else_help = true)]
-struct Args {
-    /// ROM binary path
-    #[arg(long)]
-    rom: PathBuf,
-
-    /// Gdb Debugger
-    #[arg(long)]
-    gdb_port: Option<u16>,
-
-    /// Current Firmware image file
-    #[arg(long)]
-    firmware: Option<PathBuf>,
-
-    /// Update Firmware image file
-    #[arg(long)]
-    update_firmware: Option<PathBuf>,
-
-    /// Trace instructions to a file in log-dir
-    #[arg(long)]
-    trace_instr: bool,
-
-    /// 128bit Unique Endpoint Id
-    #[arg(long, default_value_t = u128::MAX)]
-    ueid: u128,
-
-    /// idevid certificate key id algorithm
-    #[arg(long, value_enum, default_value_t = ArgsIdevidAlgo::Sha1)]
-    idevid_key_id_algo: ArgsIdevidAlgo,
-
-    /// Request IDevID CSR. Downloaded CSR is stored in log-dir
-    #[arg(long)]
-    req_idevid_csr: bool,
-
-    /// Request LDevID Cert. Downloaded cert is stored in log-dir
-    #[arg(long)]
-    req_ldevid_csr: bool,
-
-    /// Directory to log execution artifacts
-    #[arg(long, default_value = "/tmp")]
-    log_dir: PathBuf,
-
-    /// Hash of the four Manufacturer Public Keys
-    #[arg(long, default_value = "")]
-    mfg_pk_hash: String,
-
-    /// Owner Public Key Hash
-    #[arg(long, default_value = "")]
-    owner_pk_hash: String,
-
-    /// Device Lifecycle State
-    #[arg(long, value_enum, default_value_t = ArgsDeviceLifecycle::Unprovisioned)]
-    device_lifecycle: ArgsDeviceLifecycle,
-
-    /// Watchdog Timer Timeout in CPU Clock Cycles
-    #[arg(long, default_value_t = EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES)]
-    wdt_timeout: u64,
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-enum ArgsIdevidAlgo {
-    Sha1,
-    Sha256,
-    Sha384,
-    Fuse,
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-pub enum ArgsDeviceLifecycle {
-    Unprovisioned,
-    Manufacturing,
-    Production,
 }
 
 fn main() -> io::Result<()> {
