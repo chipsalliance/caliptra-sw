@@ -1220,12 +1220,9 @@ mod tests {
         // Trigger csr download.
         let flow_status = InMemoryRegister::<u32, FlowStatus::Register>::new(0);
         flow_status.write(FlowStatus::IDEVID_CSR_READY.val(1));
-        assert_eq!(
-            soc_reg
-                .write(RvSize::Word, CPTRA_FLOW_STATUS_START, flow_status.get())
-                .ok(),
-            Some(())
-        );
+        assert!(soc_reg
+            .write(RvSize::Word, CPTRA_FLOW_STATUS_START, flow_status.get())
+            .is_ok());
 
         //
         // [Receiver Side]
@@ -1280,12 +1277,9 @@ mod tests {
         // Trigger cert download.
         let flow_status = InMemoryRegister::<u32, FlowStatus::Register>::new(0);
         flow_status.write(FlowStatus::LDEVID_CERT_READY.val(1));
-        assert_eq!(
-            soc_reg
-                .write(RvSize::Word, CPTRA_FLOW_STATUS_START, flow_status.get())
-                .ok(),
-            Some(())
-        );
+        assert!(soc_reg
+            .write(RvSize::Word, CPTRA_FLOW_STATUS_START, flow_status.get())
+            .is_ok());
 
         //
         // [Receiver Side]
