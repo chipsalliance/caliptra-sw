@@ -152,9 +152,6 @@ fn main() -> io::Result<()> {
 
     let clock = Clock::new();
 
-    let req_idevid_csr = args.req_idevid_csr;
-    let req_ldevid_cert = args.req_ldevid_csr;
-
     let mut security_state = SecurityState::default();
     security_state.set_device_lifecycle(args_device_lifecycle.into());
 
@@ -224,10 +221,10 @@ fn main() -> io::Result<()> {
         const GEN_LDEVID_CSR_FLAG: u32 = 1 << 1;
 
         let mut val = 0;
-        if req_idevid_csr {
+        if args.req_idevid_csr {
             val |= GEN_IDEVID_CSR_FLAG;
         }
-        if req_ldevid_cert {
+        if args.req_ldevid_cert {
             val |= GEN_LDEVID_CSR_FLAG;
         }
         soc_ifc.cptra_dbg_manuf_service_reg().write(|_| val);

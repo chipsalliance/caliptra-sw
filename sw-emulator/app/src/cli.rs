@@ -42,7 +42,7 @@ pub struct Args {
 
     /// Request LDevID Cert. Downloaded cert is stored in log-dir
     #[arg(long)]
-    pub req_ldevid_csr: bool,
+    pub req_ldevid_cert: bool,
 
     /// Directory to log execution artifacts
     #[arg(long, default_value = "/tmp")]
