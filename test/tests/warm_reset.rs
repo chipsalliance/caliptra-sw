@@ -2,7 +2,10 @@
 
 #![cfg(any(feature = "verilator", feature = "fpga_realtime"))]
 
-use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
+use caliptra_builder::{
+    firmware::{APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART},
+    ImageOptions,
+};
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_hw_model::{mbox_write_fifo, BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{DeviceLifecycle, Fuses};

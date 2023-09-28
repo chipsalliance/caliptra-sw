@@ -1,21 +1,15 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
+use caliptra_builder::{
+    firmware::{APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART},
+    FwId, ImageOptions,
+};
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
 
 // Run test_bin as a ROM image. The is used for faster tests that can run
 // against verilator
-pub fn _run_rom_test(test_bin_name: &'static str) -> DefaultHwModel {
-    static FEATURES: &[&str] = &["emu", "riscv"];
-
-    let runtime_fwid = FwId {
-        crate_name: "caliptra-runtime-test-bin",
-        bin_name: test_bin_name,
-        features: FEATURES,
-        ..Default::default()
-    };
-
-    let rom = caliptra_builder::build_firmware_rom(&runtime_fwid).unwrap();
+pub fn run_rom_test(test_fwid: &'static FwId) -> DefaultHwModel {
+    let rom = caliptra_builder::build_firmware_rom(test_fwid).unwrap();
 
     caliptra_hw_model::new(BootParams {
         init_params: InitParams {
@@ -30,16 +24,10 @@ pub fn _run_rom_test(test_bin_name: &'static str) -> DefaultHwModel {
 // Run a test which boots ROM -> FMC -> test_bin. If test_bin_name is None,
 // run the production runtime image.
 pub fn run_rt_test(
-    test_bin_name: Option<&'static str>,
+    test_fwid: Option<&'static FwId>,
     test_image_options: Option<ImageOptions>,
 ) -> DefaultHwModel {
-    let runtime_fwid = test_bin_name.map_or(APP_WITH_UART, |bin| FwId {
-        crate_name: "caliptra-runtime-test-bin",
-        bin_name: bin,
-        features: &["emu", "riscv", "runtime"],
-        ..Default::default()
-    });
-
+    let runtime_fwid = test_fwid.unwrap_or(&APP_WITH_UART);
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
 
     let image_options = test_image_options.unwrap_or_else(|| {
@@ -49,9 +37,8 @@ pub fn run_rt_test(
         opts.app_version = 0xbbbbbbbb;
         opts
     });
-    let image =
-        caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &runtime_fwid, image_options)
-            .unwrap();
+    let image = caliptra_builder::build_and_sign_image(&FMC_WITH_UART, runtime_fwid, image_options)
+        .unwrap();
 
     let mut model = caliptra_hw_model::new(BootParams {
         init_params: InitParams {

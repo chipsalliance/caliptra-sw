@@ -877,7 +877,7 @@ pub trait HwModel {
 #[cfg(test)]
 mod tests {
     use crate::{mmio::Rv32GenMmio, BootParams, HwModel, InitParams, ModelError, ShaAccMode};
-    use caliptra_builder::FwId;
+    use caliptra_builder::firmware;
     use caliptra_emu_bus::Bus;
     use caliptra_emu_types::RvSize;
     use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc};
@@ -1017,13 +1017,9 @@ mod tests {
     pub fn test_mailbox_execute() {
         let message: [u8; 10] = [0x90, 0x5e, 0x1f, 0xad, 0x8b, 0x60, 0xb0, 0xbf, 0x1c, 0x7e];
 
-        let rom = caliptra_builder::build_firmware_rom(&FwId {
-            crate_name: "caliptra-hw-model-test-fw",
-            bin_name: "mailbox_responder",
-            features: &["emu"],
-            ..Default::default()
-        })
-        .unwrap();
+        let rom =
+            caliptra_builder::build_firmware_rom(&firmware::hw_model_tests::MAILBOX_RESPONDER)
+                .unwrap();
 
         let mut model = caliptra_hw_model::new(BootParams {
             init_params: InitParams {
@@ -1077,13 +1073,8 @@ mod tests {
 
     #[test]
     pub fn test_mailbox_receive() {
-        let rom = caliptra_builder::build_firmware_rom(&FwId {
-            crate_name: "caliptra-hw-model-test-fw",
-            bin_name: "mailbox_sender",
-            features: &["emu"],
-            ..Default::default()
-        })
-        .unwrap();
+        let rom = caliptra_builder::build_firmware_rom(&firmware::hw_model_tests::MAILBOX_SENDER)
+            .unwrap();
 
         let mut model = caliptra_hw_model::new(BootParams {
             init_params: InitParams {
@@ -1130,13 +1121,9 @@ mod tests {
 
     #[test]
     fn test_sha512_acc() {
-        let rom = caliptra_builder::build_firmware_rom(&FwId {
-            crate_name: "caliptra-hw-model-test-fw",
-            bin_name: "mailbox_responder",
-            features: &["emu"],
-            ..Default::default()
-        })
-        .unwrap();
+        let rom =
+            caliptra_builder::build_firmware_rom(&firmware::hw_model_tests::MAILBOX_RESPONDER)
+                .unwrap();
 
         let mut model = caliptra_hw_model::new(BootParams {
             init_params: InitParams {

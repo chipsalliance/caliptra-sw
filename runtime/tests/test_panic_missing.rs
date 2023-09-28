@@ -1,5 +1,5 @@
 // Licensed under the Apache-2.0 license
-use caliptra_builder::APP_WITH_UART;
+use caliptra_builder::firmware::APP_WITH_UART;
 
 #[test]
 fn test_panic_missing() {

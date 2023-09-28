@@ -1,0 +1,164 @@
+name: Reusable AFL++
+on:
+  workflow_call:
+    inputs:
+      name:
+        required: true
+        type: string
+      fuzz_target_path:
+        required: true
+        type: string
+      fuzz_target_name:
+        required: true
+        type: string
+      fuzz_target_max_len:
+        required: true
+        type: string
+      fuzzer_features:
+        required: true
+        type: string
+
+jobs:
+  reusable_aflplus_plus:
+    # TODO: Set these as parameters?
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+
+    env:
+      # Change this to a new random value if you suspect the cache is corrupted
+      CACHE_BUSTER: 6542f37bb328
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+
+      - name: Install dependencies
+        run: |
+          rustup toolchain install nightly-2023-04-15
+          cargo +nightly-2023-04-15 install cargo-afl
+          sudo apt-get install gnuplot
+          echo core | sudo tee /proc/sys/kernel/core_pattern
+
+      - name: Restore corpus dir
+        uses: actions/cache/restore@v3
+        with:
+          path: ${{ inputs.fuzz_target_path }}/corpus/
+          key: ${{ inputs.name }}-${{ env.CACHE_BUSTER }}
+
+      - name: Run fuzzing
+        run: |
+          cd ${{ inputs.fuzz_target_path }}
+          mkdir -p {corpus,artifacts}/${{ inputs.fuzz_target_name }}
+          cp common_corpus/* corpus/${{ inputs.fuzz_target_name }}/
+          # For parallelised workers
+          export AFL_IMPORT_FIRST=1
+          # For faster CI runs
+          #export AFL_CMPLOG_ONLY_NEW=1
+          export AFL_FAST_CAL=1
+          cargo +nightly-2023-04-15 afl build \
+            --features afl,${{ inputs.fuzzer_features }}
+          cargo +nightly-2023-04-15 afl fuzz \
+            -i corpus/${{ inputs.fuzz_target_name }} \
+            -o artifacts/${{ inputs.fuzz_target_name }} \
+            -G ${{ inputs.fuzz_target_max_len }} \
+            -V 3600 \
+            -p fast -L 1 -l 2ATR \
+            -M node01-cmplog_en \
+            target/debug/${{ inputs.fuzz_target_name }} &
+          for x in $(seq 3 4 $(nproc)); do \
+            cargo +nightly-2023-04-15 afl fuzz \
+              -i corpus/${{ inputs.fuzz_target_name }} \
+              -o artifacts/${{ inputs.fuzz_target_name }} \
+              -G ${{ inputs.fuzz_target_max_len }} \
+              -V 3600 \
+              -p fast -L 0 -c - \
+              -S node$(( $x ))-fast-mopt_en \
+              target/debug/${{ inputs.fuzz_target_name }} > /dev/null & ; \
+            cargo +nightly-2023-04-15 afl fuzz \
+              -i corpus/${{ inputs.fuzz_target_name }} \
+              -o artifacts/${{ inputs.fuzz_target_name }} \
+              -G ${{ inputs.fuzz_target_max_len }} \
+              -V 3600 \
+              -p fast -c - \
+              -S node$(( $x + 1 ))-fast-mopt_dis \
+              target/debug/${{ inputs.fuzz_target_name }} > /dev/null & ; \
+            cargo +nightly-2023-04-15 afl fuzz \
+              -i corpus/${{ inputs.fuzz_target_name }} \
+              -o artifacts/${{ inputs.fuzz_target_name }} \
+              -G ${{ inputs.fuzz_target_max_len }} \
+              -V 3600 \
+              -p explore -L 0 -c - \
+              -S node$(( $x + 2 ))-explore-mopt_en \
+              target/debug/${{ inputs.fuzz_target_name }} > /dev/null & ; \
+            cargo +nightly-2023-04-15 afl fuzz \
+              -i corpus/${{ inputs.fuzz_target_name }} \
+              -o artifacts/${{ inputs.fuzz_target_name }} \
+              -G ${{ inputs.fuzz_target_max_len }} \
+              -V 3600 \
+              -p explore -c - \
+              -S node$(( $x + 3))-explore-mopt_dis \
+              target/debug/${{ inputs.fuzz_target_name }} > /dev/null & ; \
+          done
+          # FIXME: Step detection for putting tasks in background
+          cargo +nightly-2023-04-15 afl fuzz \
+            -i corpus/${{ inputs.fuzz_target_name }} \
+            -o artifacts/${{ inputs.fuzz_target_name }} \
+            -G ${{ inputs.fuzz_target_max_len }} \
+            -V 3600 \
+            -p fast -L 1 -c - \
+            -S node02-cmplog_dis \
+            target/debug/${{ inputs.fuzz_target_name }} > /dev/null
+          cargo +nightly-2023-04-15 afl whatsup -s -d artifacts
+
+      - name: Export coverage
+        run: |
+          cd ${{ inputs.fuzz_target_path }}
+          cargo +nightly-2023-04-15 afl showmap \
+            -C -i artifacts/default -o /dev/null \
+            -- \
+            target/debug/${{inputs.fuzz_target_name }}
+          cargo +nightly-2023-04-15 afl plot artifacts/default plot
+
+      - name: Merge corpus between runs
+        run: |
+          cd ${{ inputs.fuzz_target_path }}
+          mkdir new_corpus
+          cargo +nightly-2023-04-15 afl cmin \
+            -i corpus \
+            -o new_corpus \
+            -T all \
+            -- \
+            target/debug/${{ inputs.fuzz_target_name }}
+          rm -rf corpus && mv new_corpus corpus
+
+      - name: Attempt to minimise each crash for test cases
+        run: |
+          cd ${{ inputs.fuzz_target_path }}
+          mkdir test_cases
+          for crashing_input in artifacts/${{ inputs.fuzz_target_name }}/*; do
+            cargo +nightly-2023-04-15 afl tmin \
+              -i $crashing_input \
+              -o test_cases/$(basename $crashing_input)
+              -- \
+              target/debug/${{ inputs.fuzz_target_name }} \
+          done
+
+      - name: Save corpus dir
+        uses: actions/cache/save@v3
+        with:
+          path: ${{ inputs.fuzz_target_path }}/corpus/
+          key: ${{ inputs.name }}-${{ env.CACHE_BUSTER }}
+
+      - name: Archive test cases dir
+        uses: actions/upload-artifact@v3
+        with:
+          name: test_cases
+          path: ${{ inputs.fuzz_target_path }}/test_cases/
+
+      - name: Archive fuzzing coverage
+        uses: actions/upload-artifact@v3
+        with:
+          name: plot
+          path: ${{ inputs.fuzz_target_path }}/plot/

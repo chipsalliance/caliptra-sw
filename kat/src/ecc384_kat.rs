@@ -14,7 +14,7 @@ Abstract:
 
 use caliptra_drivers::{
     Array4x12, Array4xN, CaliptraError, CaliptraResult, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey,
-    Ecc384Result, Ecc384Signature, Trng,
+    Ecc384Signature, Trng,
 };
 
 const PRIV_KEY: Array4x12 = Array4x12::new([
@@ -61,12 +61,17 @@ impl Ecc384Kat {
     ///
     /// * `CaliptraResult` - Result denoting the KAT outcome.
     pub fn execute(&self, ecc: &mut Ecc384, trng: &mut Trng) -> CaliptraResult<()> {
-        self.kat_signature_generate(ecc, trng)?;
-        self.kat_signature_verify(ecc)
+        self.kat_signature_generate_and_verify(ecc, trng)
     }
 
-    fn kat_signature_generate(&self, ecc: &mut Ecc384, trng: &mut Trng) -> CaliptraResult<()> {
+    fn kat_signature_generate_and_verify(
+        &self,
+        ecc: &mut Ecc384,
+        trng: &mut Trng,
+    ) -> CaliptraResult<()> {
         let digest = Array4x12::new([0u32; 12]);
+        // The driver validates every signature that it generates, so don't need
+        // to explicitly verify here.
         let signature = ecc
             .sign(&Ecc384PrivKeyIn::from(&PRIV_KEY), &PUB_KEY, &digest, trng)
             .map_err(|_| CaliptraError::ROM_KAT_ECC384_SIGNATURE_GENERATE_FAILURE)?;
@@ -74,19 +79,6 @@ impl Ecc384Kat {
         if signature != SIGNATURE {
             Err(CaliptraError::ROM_KAT_ECC384_SIGNATURE_GENERATE_FAILURE)?;
         }
-        Ok(())
-    }
-
-    fn kat_signature_verify(&self, ecc: &mut Ecc384) -> CaliptraResult<()> {
-        let digest = [0u32; 12];
-        let result = ecc
-            .verify(&PUB_KEY, &digest.into(), &SIGNATURE)
-            .map_err(|_| CaliptraError::ROM_KAT_ECC384_SIGNATURE_VERIFY_FAILURE)?;
-
-        if result != Ecc384Result::Success {
-            Err(CaliptraError::ROM_KAT_ECC384_SIGNATURE_MISMATCH)?;
-        }
-
         Ok(())
     }
 }

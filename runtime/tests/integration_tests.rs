@@ -2,7 +2,10 @@
 
 pub mod common;
 
-use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART};
+use caliptra_builder::{
+    firmware::{self, APP_WITH_UART, FMC_WITH_UART},
+    ImageOptions,
+};
 use caliptra_common::mailbox_api::{
     CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, GetIdevCertReq, GetIdevCertResp,
     GetIdevInfoResp, InvokeDpeReq, InvokeDpeResp, MailboxReqHeader, MailboxRespHeader,
@@ -78,28 +81,28 @@ fn test_update() {
 
 #[test]
 fn test_boot() {
-    let mut model = run_rt_test(Some("boot"), None);
+    let mut model = run_rt_test(Some(&firmware::runtime_tests::BOOT), None);
 
     model.step_until_exit_success().unwrap();
 }
 
 #[test]
 fn test_keyvault() {
-    let mut model = run_rt_test(Some("keyvault"), None);
+    let mut model = run_rt_test(Some(&firmware::runtime_tests::KEYVAULT), None);
 
     model.step_until_exit_success().unwrap();
 }
 
 #[test]
 fn test_locked_dv_slot() {
-    let mut model = run_rt_test(Some("locked_dv"), None);
+    let mut model = run_rt_test(Some(&firmware::runtime_tests::LOCKED_DV), None);
 
     model.step_until_output_contains("TEST EXCEPTION").unwrap();
 }
 
 #[test]
 fn test_rom_certs() {
-    let mut model = run_rt_test(Some("cert"), None);
+    let mut model = run_rt_test(Some(&firmware::runtime_tests::CERT), None);
 
     // Get certs over the mailbox
     let ldev_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();

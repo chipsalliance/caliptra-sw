@@ -1,7 +1,9 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::FwId;
-use caliptra_builder::{ImageOptions, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
+use caliptra_builder::{
+    firmware::{rom_tests::TEST_FMC_WITH_UART, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART},
+    ImageOptions,
+};
 use caliptra_common::memory_layout::{ICCM_ORG, ICCM_SIZE};
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::Array4x12;
@@ -1853,13 +1855,6 @@ fn test_runtime_svn_less_than_fuse_svn() {
 
 #[test]
 fn cert_test_with_custom_dates() {
-    pub const TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu"],
-        workspace_dir: None,
-    };
-
     let fuses = Fuses::default();
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
@@ -1938,13 +1933,6 @@ fn cert_test_with_custom_dates() {
 
 #[test]
 fn cert_test() {
-    pub const TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu"],
-        workspace_dir: None,
-    };
-
     let fuses = Fuses::default();
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {

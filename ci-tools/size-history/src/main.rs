@@ -6,7 +6,7 @@ use std::{
     path::Path,
 };
 
-use caliptra_builder::{elf_size, FwId};
+use caliptra_builder::{elf_size, firmware, FwId};
 use serde::{Deserialize, Serialize};
 
 mod cache;
@@ -164,10 +164,8 @@ fn real_main() -> io::Result<()> {
 fn compute_size(worktree: &git::WorkTree, commit_id: &str) -> Sizes {
     // TODO: consider using caliptra_builder from the same repo as the firmware
     let fwid_elf_size = |fwid: &FwId| -> io::Result<u64> {
-        let elf_bytes = caliptra_builder::build_firmware_elf_uncached(&FwId {
-            workspace_dir: Some(worktree.path),
-            ..*fwid
-        })?;
+        let workspace_dir = Some(worktree.path);
+        let elf_bytes = caliptra_builder::build_firmware_elf_uncached(workspace_dir, fwid)?;
         elf_size(&elf_bytes)
     };
     let fwid_elf_size_or_none = |fwid: &FwId| -> Option<u64> {
@@ -181,10 +179,10 @@ fn compute_size(worktree: &git::WorkTree, commit_id: &str) -> Sizes {
     };
 
     Sizes {
-        rom_size_with_uart: fwid_elf_size_or_none(&caliptra_builder::ROM_WITH_UART),
-        rom_size_prod: fwid_elf_size_or_none(&caliptra_builder::ROM),
-        fmc_size_with_uart: fwid_elf_size_or_none(&caliptra_builder::FMC_WITH_UART),
-        app_size_with_uart: fwid_elf_size_or_none(&caliptra_builder::APP_WITH_UART),
+        rom_size_with_uart: fwid_elf_size_or_none(&firmware::ROM_WITH_UART),
+        rom_size_prod: fwid_elf_size_or_none(&firmware::ROM),
+        fmc_size_with_uart: fwid_elf_size_or_none(&firmware::FMC_WITH_UART),
+        app_size_with_uart: fwid_elf_size_or_none(&firmware::APP_WITH_UART),
     }
 }
 

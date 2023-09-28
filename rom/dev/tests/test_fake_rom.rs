@@ -1,9 +1,10 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::ROM_FAKE_WITH_UART;
-use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART};
-use caliptra_common::mailbox_api::CommandId;
-use caliptra_common::RomBootStatus::*;
+use caliptra_builder::{
+    firmware::{rom_tests::FAKE_TEST_FMC_WITH_UART, APP_WITH_UART, ROM_FAKE_WITH_UART},
+    ImageOptions,
+};
+use caliptra_common::{mailbox_api::CommandId, RomBootStatus::*};
 use caliptra_drivers::{Array4x12, CaliptraError};
 use caliptra_hw_model::{
     BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError, SecurityState,
@@ -22,13 +23,6 @@ const PUB_KEY_Y: [u8; 48] = [
     0x51, 0x12, 0xDB, 0xBD, 0x0A, 0xAE, 0x67, 0xFE, 0xF2, 0x6B, 0x46, 0x5B, 0xE9, 0x35, 0xB4, 0x8E,
     0x45, 0x1E, 0x68, 0xD1, 0x6F, 0x11, 0x18, 0xF2, 0xB3, 0x2B, 0x4C, 0x28, 0x60, 0x87, 0x49, 0xED,
 ];
-
-const FAKE_TEST_FMC_WITH_UART: FwId = FwId {
-    crate_name: "caliptra-rom-test-fmc",
-    bin_name: "caliptra-rom-test-fmc",
-    features: &["emu", "fake-fmc"],
-    workspace_dir: None,
-};
 
 #[test]
 fn test_skip_kats() {

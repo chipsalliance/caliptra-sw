@@ -1,12 +1,18 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, ROM_WITH_UART};
+use caliptra_builder::{
+    firmware::{
+        rom_tests::{TEST_FMC_INTERACTIVE, TEST_FMC_WITH_UART},
+        APP_WITH_UART, ROM_WITH_UART,
+    },
+    ImageOptions,
+};
 use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, StashMeasurementReq};
-use caliptra_common::memory_layout::*;
 use caliptra_common::RomBootStatus::ColdResetComplete;
 use caliptra_common::RomBootStatus::*;
 use caliptra_common::{FirmwareHandoffTable, FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
+use caliptra_drivers::memory_layout::*;
 use caliptra_drivers::pcr_log::MeasurementLogEntry;
 use caliptra_drivers::{ColdResetEntry4, PcrId, RomVerifyConfig};
 use caliptra_error::CaliptraError;
@@ -129,13 +135,6 @@ fn test_pcr_log() {
         .owner_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
 
-    pub const TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu", "interactive_test_fmc"],
-        workspace_dir: None,
-    };
-
     let fuses = Fuses {
         anti_rollback_disable: true,
         lms_verify: true,
@@ -161,9 +160,12 @@ fn test_pcr_log() {
         fmc_svn: FMC_SVN,
         ..Default::default()
     };
-    let image_bundle =
-        caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)
-            .unwrap();
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &TEST_FMC_INTERACTIVE,
+        &APP_WITH_UART,
+        image_options,
+    )
+    .unwrap();
 
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
@@ -235,13 +237,6 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
         .owner_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
 
-    pub const TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu", "interactive_test_fmc"],
-        workspace_dir: None,
-    };
-
     let fuses = Fuses {
         anti_rollback_disable: true,
         lms_verify: true,
@@ -266,9 +261,12 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
         vendor_config: VENDOR_CONFIG_KEY_1,
         ..Default::default()
     };
-    let image_bundle =
-        caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)
-            .unwrap();
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &TEST_FMC_INTERACTIVE,
+        &APP_WITH_UART,
+        image_options,
+    )
+    .unwrap();
 
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
@@ -327,13 +325,6 @@ fn test_pcr_log_fmc_fuse_svn() {
         .owner_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
 
-    pub const TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu", "interactive_test_fmc"],
-        workspace_dir: None,
-    };
-
     const FMC_SVN: u32 = 3;
     const FMC_FUSE_SVN: u32 = 2;
 
@@ -361,9 +352,12 @@ fn test_pcr_log_fmc_fuse_svn() {
         fmc_svn: FMC_SVN,
         ..Default::default()
     };
-    let image_bundle =
-        caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)
-            .unwrap();
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &TEST_FMC_INTERACTIVE,
+        &APP_WITH_UART,
+        image_options,
+    )
+    .unwrap();
 
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
@@ -470,13 +464,6 @@ fn test_pcr_log_across_update_reset() {
         .owner_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
 
-    pub const TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu", "interactive_test_fmc"],
-        workspace_dir: None,
-    };
-
     const FMC_SVN: u32 = 2;
     const FMC_FUSE_SVN: u32 = 1;
 
@@ -504,9 +491,12 @@ fn test_pcr_log_across_update_reset() {
         fmc_svn: FMC_SVN,
         ..Default::default()
     };
-    let image_bundle =
-        caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)
-            .unwrap();
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &TEST_FMC_INTERACTIVE,
+        &APP_WITH_UART,
+        image_options,
+    )
+    .unwrap();
 
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
@@ -582,13 +572,6 @@ fn test_fuse_log() {
         runtime_svn: [0xF, 0, 0, 0], // Value of RT_SVN
         lms_verify: true,
         ..Default::default()
-    };
-
-    pub const TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu"],
-        workspace_dir: None,
     };
 
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
@@ -724,12 +707,6 @@ fn test_fuse_log() {
 
 #[test]
 fn test_fht_info() {
-    pub const TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu"],
-        workspace_dir: None,
-    };
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
@@ -767,13 +744,6 @@ fn test_fht_info() {
 fn test_check_no_lms_info_in_datavault_on_lms_unavailable() {
     let (_hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-
-    pub const TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu"],
-        workspace_dir: None,
-    };
 
     let fuses = Fuses {
         lms_verify: false,
@@ -824,13 +794,6 @@ fn test_check_rom_cold_boot_status_reg() {
     let (_hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
-    pub const TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu"],
-        workspace_dir: None,
-    };
-
     let fuses = Fuses {
         lms_verify: false,
         ..Default::default()
@@ -877,13 +840,6 @@ fn test_check_rom_cold_boot_status_reg() {
 
 #[test]
 fn test_upload_single_measurement() {
-    pub const TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu", "interactive_test_fmc"],
-        workspace_dir: None,
-    };
-
     let fuses = Fuses::default();
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
@@ -898,7 +854,7 @@ fn test_upload_single_measurement() {
     .unwrap();
 
     let image_bundle = caliptra_builder::build_and_sign_image(
-        &TEST_FMC_WITH_UART,
+        &TEST_FMC_INTERACTIVE,
         &APP_WITH_UART,
         ImageOptions::default(),
     )
@@ -950,13 +906,6 @@ fn test_upload_single_measurement() {
 
 #[test]
 fn test_upload_measurement_limit() {
-    pub const TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu", "interactive_test_fmc"],
-        workspace_dir: None,
-    };
-
     let fuses = Fuses::default();
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
@@ -971,7 +920,7 @@ fn test_upload_measurement_limit() {
     .unwrap();
 
     let image_bundle = caliptra_builder::build_and_sign_image(
-        &TEST_FMC_WITH_UART,
+        &TEST_FMC_INTERACTIVE,
         &APP_WITH_UART,
         ImageOptions::default(),
     )
@@ -1044,13 +993,6 @@ fn test_upload_measurement_limit() {
 
 #[test]
 fn test_upload_no_measurement() {
-    pub const TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu", "interactive_test_fmc"],
-        workspace_dir: None,
-    };
-
     let fuses = Fuses::default();
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
@@ -1065,7 +1007,7 @@ fn test_upload_no_measurement() {
     .unwrap();
 
     let image_bundle = caliptra_builder::build_and_sign_image(
-        &TEST_FMC_WITH_UART,
+        &TEST_FMC_INTERACTIVE,
         &APP_WITH_UART,
         ImageOptions::default(),
     )

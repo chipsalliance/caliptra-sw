@@ -1,6 +1,9 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::{FwId, ImageOptions, APP_WITH_UART, ROM_WITH_UART};
+use caliptra_builder::{
+    firmware::{rom_tests::TEST_FMC_WITH_UART, APP_WITH_UART, ROM_WITH_UART},
+    ImageOptions,
+};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, HwModel, InitParams};
 use caliptra_image_types::RomInfo;
@@ -50,13 +53,6 @@ fn test_rom_integrity_failure() {
 
 #[test]
 fn test_read_rom_info_from_fmc() {
-    pub const TEST_FMC_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-rom-test-fmc",
-        bin_name: "caliptra-rom-test-fmc",
-        features: &["emu"],
-        workspace_dir: None,
-    };
-
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let rom_info_from_image =
         RomInfo::read_from_prefix(&rom[find_rom_info_offset(&rom)..]).unwrap();

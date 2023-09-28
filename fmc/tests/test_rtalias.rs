@@ -1,5 +1,8 @@
 // Licensed under the Apache-2.0 license
-use caliptra_builder::{FwId, ImageOptions, FMC_WITH_UART, ROM_WITH_UART};
+use caliptra_builder::{
+    firmware::{self, fmc_tests::MOCK_RT_INTERACTIVE, FMC_WITH_UART, ROM_WITH_UART},
+    ImageOptions,
+};
 use caliptra_drivers::{
     pcr_log::{PcrLogEntry, PcrLogEntryId},
     FirmwareHandoffTable, PcrId,
@@ -29,18 +32,11 @@ const PCR2_AND_PCR3_EXTENDED_ID: u32 = (1 << PcrId::PcrId2 as u8) | (1 << PcrId:
 
 #[test]
 fn test_boot_status_reporting() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
-
-    pub const MOCK_RT_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-fmc-mock-rt",
-        bin_name: "caliptra-fmc-mock-rt",
-        features: &["emu"],
-        workspace_dir: None,
-    };
+    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
 
     let image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &MOCK_RT_WITH_UART,
+        &firmware::FMC_WITH_UART,
+        &firmware::fmc_tests::MOCK_RT_WITH_UART,
         ImageOptions::default(),
     )
     .unwrap();
@@ -66,16 +62,10 @@ fn test_boot_status_reporting() {
 
 #[test]
 fn test_fht_info() {
-    pub const MOCK_RT_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-fmc-mock-rt",
-        bin_name: "caliptra-fmc-mock-rt",
-        features: &["emu", "interactive_test"],
-        workspace_dir: None,
-    };
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &MOCK_RT_WITH_UART,
+        &MOCK_RT_INTERACTIVE,
         ImageOptions::default(),
     )
     .unwrap();
@@ -103,16 +93,10 @@ fn test_fht_info() {
 
 #[test]
 fn test_pcr_log() {
-    pub const MOCK_RT_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-fmc-mock-rt",
-        bin_name: "caliptra-fmc-mock-rt",
-        features: &["emu", "interactive_test"],
-        workspace_dir: None,
-    };
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let image1 = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &MOCK_RT_WITH_UART,
+        &MOCK_RT_INTERACTIVE,
         ImageOptions {
             app_version: 1,
             ..Default::default()
@@ -183,7 +167,7 @@ fn test_pcr_log() {
 
     let image2 = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &MOCK_RT_WITH_UART,
+        &MOCK_RT_INTERACTIVE,
         ImageOptions {
             app_version: 2,
             ..Default::default()
