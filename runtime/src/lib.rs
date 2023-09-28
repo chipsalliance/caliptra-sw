@@ -10,10 +10,10 @@ pub mod fips;
 pub mod handoff;
 pub mod info;
 mod invoke_dpe;
+mod pcr;
 mod stash_measurement;
 mod update;
 mod verify;
-mod pcr;
 
 // Used by runtime tests
 pub mod mailbox;
@@ -104,7 +104,7 @@ fn enter_idle(drivers: &mut Drivers) {
     //}
 }
 
-/// Handles the pending mailbox command and writes the repsonse back to the mailbox
+/// Handles the pending mailbox command and writes the response back to the mailbox
 ///
 /// Returns the mailbox status (DataReady when we send a response) or an error
 fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {

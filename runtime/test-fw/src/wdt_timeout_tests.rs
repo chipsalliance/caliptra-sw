@@ -4,7 +4,7 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    boot_tests.rs
+    wdt_timeout_tests.rs
 
 Abstract:
 

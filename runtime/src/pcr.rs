@@ -1,5 +1,7 @@
 // Licensed under the Apache-2.0 license
 
+use core::borrow::BorrowMut;
+
 #[allow(unused_imports)]
 #[allow(dead_code)]
 use crate::Drivers;
@@ -48,16 +50,16 @@ impl ExtendPcrCmd {
             .ok_or(CaliptraError::ROM_GLOBAL_PCR_LOG_UNSUPPORTED_DATA_LENGTH)?;
 
         let pcr_bank = &mut drivers.pcr_bank;
+        let fht = &mut drivers.persistent_data.get_mut().fht;
 
         let mut pcr_log_entry = PcrLogEntry {
             id: idx as u16,
             pcr_ids: (1 << PCR_ID_FMC_CURRENT as u8) | 1 << PCR_ID_FMC_JOURNEY as u8,
             ..Default::default()
         };
-        pcr_log_entry.pcr_data = pcr_bank.read_pcr(pcr_index).into();
 
-        pcr_bank.log_index += 1;
-        *pcr_log = pcr_log_entry;
+        pcr_log_entry.pcr_data = pcr_bank.read_pcr(pcr_index).into();
+        fht.pcr_log_index += 1;
 
         Ok(MailboxResp::default())
     }

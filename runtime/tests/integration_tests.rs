@@ -945,7 +945,6 @@ fn test_extend_pcr_cmd() {
         .unwrap();
 
         let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
-        // let error_code: u32 = CaliptraError::RUNTIME_PCR_INVALID_INDEX.0.get();
         assert_eq!(
             res,
             Err(ModelError::MailboxCmdFailed(u32::from(

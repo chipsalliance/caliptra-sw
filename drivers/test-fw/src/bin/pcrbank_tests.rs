@@ -84,9 +84,12 @@ fn test_write_protection_stickiness() {
     }
 }
 
+fn test_mailbox_pcrextend_cmd() {}
+
 // Maintain the order of the tests.
 test_suite! {
     test_lock_and_erase_pcrs,
     test_erase_all_pcrs,
     test_write_protection_stickiness,
+    test_mailbox_pcrextend_cmd
 }
