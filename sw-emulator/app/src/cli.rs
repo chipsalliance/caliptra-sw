@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_hw_model_types::DeviceLifecycle;
 use clap::{Parser, ValueEnum};
 use std::path::PathBuf;
 
@@ -77,4 +78,14 @@ pub enum ArgsDeviceLifecycle {
     Unprovisioned,
     Manufacturing,
     Production,
+}
+
+impl From<ArgsDeviceLifecycle> for DeviceLifecycle {
+    fn from(value: ArgsDeviceLifecycle) -> Self {
+        match value {
+            ArgsDeviceLifecycle::Manufacturing => DeviceLifecycle::Manufacturing,
+            ArgsDeviceLifecycle::Production => DeviceLifecycle::Production,
+            ArgsDeviceLifecycle::Unprovisioned => DeviceLifecycle::Unprovisioned,
+        }
+    }
 }

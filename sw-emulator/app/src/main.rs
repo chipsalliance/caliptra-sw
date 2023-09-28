@@ -22,7 +22,7 @@ use caliptra_emu_periph::{
     TbServicesCb, UploadUpdateFwCb,
 };
 use caliptra_hw_model::BusMmio;
-use caliptra_hw_model_types::{DeviceLifecycle, SecurityState};
+use caliptra_hw_model_types::SecurityState;
 use clap::Parser;
 use std::fs::{self, File};
 use std::io::{self, Write};
@@ -36,7 +36,7 @@ use crate::gdb::gdb_target::GdbTarget;
 use gdb::gdb_state;
 use tock_registers::register_bitfields;
 
-use cli::{Args, ArgsDeviceLifecycle, ArgsIdevidAlgo};
+use cli::{Args, ArgsIdevidAlgo};
 
 /// Firmware Load Command Opcode
 const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
@@ -156,11 +156,7 @@ fn main() -> io::Result<()> {
     let req_ldevid_cert = args.req_ldevid_csr;
 
     let mut security_state = SecurityState::default();
-    security_state.set_device_lifecycle(match args_device_lifecycle {
-        ArgsDeviceLifecycle::Manufacturing => DeviceLifecycle::Manufacturing,
-        ArgsDeviceLifecycle::Production => DeviceLifecycle::Production,
-        ArgsDeviceLifecycle::Unprovisioned => DeviceLifecycle::Unprovisioned,
-    });
+    security_state.set_device_lifecycle(args_device_lifecycle.into());
 
     let logs_dir_clone = args.log_dir.clone();
 
