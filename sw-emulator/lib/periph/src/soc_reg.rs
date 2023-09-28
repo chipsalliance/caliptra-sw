@@ -1217,11 +1217,11 @@ mod tests {
 
         // Download the IDEVID CSR.
         let log_dir = Path::new("/tmp");
-        download_idev_id_csr(&mut mailbox, &log_dir, &mut soc_reg);
+        download_idev_id_csr(&mut mailbox, log_dir, &mut soc_reg);
 
         // Check if the downloaded csr matches.
-        let path = "/tmp/caliptra_idevid_csr.der";
-        assert!(Path::new(path).exists());
+        let path = log_dir.join("caliptra_idevid_csr.der");
+        assert!(path.exists());
 
         let idevid_csr_buffer = fs::read(path).unwrap();
 
@@ -1277,11 +1277,11 @@ mod tests {
 
         // Download the LDEVID cert.
         let log_dir = Path::new("/tmp");
-        download_ldev_id_cert(&mut mailbox, &log_dir, &mut soc_reg);
+        download_ldev_id_cert(&mut mailbox, log_dir, &mut soc_reg);
 
         // Check if the downloaded cert matches.
-        let path = "/tmp/caliptra_ldevid_cert.der";
-        assert!(Path::new(path).exists());
+        let path = log_dir.join("caliptra_ldevid_cert.der");
+        assert!(path.exists());
 
         let ldevid_cert_buffer = fs::read(path).unwrap();
 
