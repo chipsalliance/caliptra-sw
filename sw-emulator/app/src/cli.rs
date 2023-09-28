@@ -1,3 +1,5 @@
+// Licensed under the Apache-2.0 license
+
 use clap::{Parser, ValueEnum};
 use std::path::PathBuf;
 
