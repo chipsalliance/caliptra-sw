@@ -1,0 +1,10 @@
+FROM ubuntu:22.04@sha256:aabed3296a3d45cede1dc866a24476c4d7e093aa806263c27ddaadbdce3c1054
+
+RUN apt update && apt install -y \
+    binutils curl git bash gcc g++ clang make \
+    libssl-dev openssl perl pkg-config \
+    musl musl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y 
+ENV PATH="$PATH:/root/.cargo/bin"
