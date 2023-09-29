@@ -101,7 +101,7 @@ fn test_locked_dv_slot() {
 }
 
 #[test]
-fn test_rom_certs() {
+fn test_certs() {
     let mut model = run_rt_test(Some(&firmware::runtime_tests::CERT), None);
 
     // Get certs over the mailbox
@@ -111,15 +111,16 @@ fn test_rom_certs() {
     let fmc_resp = model.mailbox_execute(0x2000_0000, &[]).unwrap().unwrap();
     let fmc: &[u8] = fmc_resp.as_bytes();
 
+    let rt_resp = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
+    let rt: &[u8] = rt_resp.as_bytes();
+
     // Ensure certs are valid X.509
     let ldev_cert: X509 = X509::from_der(ldevid).unwrap();
     let fmc_cert: X509 = X509::from_der(fmc).unwrap();
+    let rt_cert: X509 = X509::from_der(rt).unwrap();
 
-    let idev_resp = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
+    let idev_resp = model.mailbox_execute(0x4000_0000, &[]).unwrap().unwrap();
     let idev_pub = Ecc384PubKey::read_from(idev_resp.as_bytes()).unwrap();
-
-    // Check the FMC is signed by LDevID
-    assert!(fmc_cert.verify(&ldev_cert.public_key().unwrap()).unwrap());
 
     // Check the LDevID is signed by IDevID
     let group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
@@ -132,6 +133,26 @@ fn test_rom_certs() {
     assert!(ldev_cert
         .verify(&PKey::from_ec_key(idev_ec_key).unwrap())
         .unwrap());
+
+    // Check the FMC is signed by LDevID and that subject/issuer names match
+    assert!(fmc_cert.verify(&ldev_cert.public_key().unwrap()).unwrap());
+    assert_eq!(
+        fmc_cert
+            .issuer_name()
+            .try_cmp(ldev_cert.subject_name())
+            .unwrap(),
+        core::cmp::Ordering::Equal
+    );
+
+    // Check that RT Alias is signed by FMC and that subject/issuer names match
+    assert!(rt_cert.verify(&fmc_cert.public_key().unwrap()).unwrap());
+    assert_eq!(
+        rt_cert
+            .issuer_name()
+            .try_cmp(fmc_cert.subject_name())
+            .unwrap(),
+        core::cmp::Ordering::Equal
+    );
 }
 
 #[test]
