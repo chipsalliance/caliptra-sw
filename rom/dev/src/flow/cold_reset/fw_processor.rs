@@ -106,11 +106,11 @@ impl FirmwareProcessor {
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha384: &mut env.sha384,
-            sha384_acc: &mut env.sha384_acc,
             soc_ifc: &mut env.soc_ifc,
             ecc384: &mut env.ecc384,
             data_vault: &mut env.data_vault,
             pcr_bank: &mut env.pcr_bank,
+            image: txn.raw_mailbox_contents(),
         };
 
         // Verify the image
@@ -334,10 +334,11 @@ impl FirmwareProcessor {
         #[cfg(feature = "fake-rom")]
         let venv = &mut FakeRomImageVerificationEnv {
             sha256: venv.sha256,
-            sha384_acc: venv.sha384_acc,
+            sha384: venv.sha384,
             soc_ifc: venv.soc_ifc,
             data_vault: venv.data_vault,
             ecc384: venv.ecc384,
+            image: venv.image,
         };
 
         // Random delays for CFI glitch protection.

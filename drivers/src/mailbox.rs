@@ -12,12 +12,14 @@ Abstract:
 
 --*/
 
+use crate::memory_layout;
 use crate::{CaliptraError, CaliptraResult};
 use caliptra_registers::mbox::enums::MboxFsmE;
 use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_registers::mbox::MboxCsr;
 use core::cmp::min;
 use core::mem::size_of;
+use core::slice;
 use zerocopy::{AsBytes, LayoutVerified, Unalign};
 
 #[derive(Copy, Clone, Default, Eq, PartialEq)]
@@ -356,6 +358,16 @@ impl MailboxRecvTxn<'_> {
     pub fn dlen(&self) -> u32 {
         let mbox = self.mbox.regs();
         mbox.dlen().read()
+    }
+
+    /// Provides direct access to entire mailbox SRAM.
+    pub fn raw_mailbox_contents(&self) -> &[u8] {
+        unsafe {
+            slice::from_raw_parts(
+                memory_layout::MBOX_ORG as *const u8,
+                memory_layout::MBOX_SIZE as usize,
+            )
+        }
     }
 
     /// Pulls at most `count` words from the mailbox and throws them away
