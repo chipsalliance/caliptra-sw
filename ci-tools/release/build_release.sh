@@ -18,6 +18,18 @@ cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-rom $WORKSPACE_DIR/ca
 cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-fmc $WORKSPACE_DIR/caliptra-fmc.elf
 # Copy Runtime FW ELF
 cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-runtime $WORKSPACE_DIR/caliptra-runtime.elf
+
+# Generate fake ROM and Image Bundle Binary
+cargo run --manifest-path=builder/Cargo.toml --bin image -- --rom $WORKSPACE_DIR/fake-caliptra-rom.bin --fw $WORKSPACE_DIR/fake-image-bundle.bin --fake
+# Generate fake ROM Hex
+objcopy -I binary -O verilog $WORKSPACE_DIR/fake-caliptra-rom.bin $WORKSPACE_DIR/fake-caliptra-rom.hex
+# Copy fake ROM ELF
+cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-rom $WORKSPACE_DIR/fake-caliptra-rom.elf
+# Copy fake FMC ELF
+cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-fmc $WORKSPACE_DIR/fake-caliptra-fmc.elf
+# Copy fake Runtime FW ELF
+cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-runtime $WORKSPACE_DIR/fake-caliptra-runtime.elf
+
 # Copy RTL
 cp -rf hw-latest/caliptra-rtl $WORKSPACE_DIR/caliptra-rtl
 # Copy libcaliptra
@@ -38,6 +50,12 @@ echo -e "\tROM ELF: caliptra-rom.elf" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tImage Bundle Bin: image-bundle.bin" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tFMC ELF: caliptra-fmc.elf" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tRTFW ELF: caliptra-runtime.elf" >> $WORKSPACE_DIR/release_notes.txt
+echo -e "\tFake ROM Bin: fake-caliptra-rom.bin" >> $WORKSPACE_DIR/release_notes.txt
+echo -e "\tFake ROM Hex: fake-caliptra-rom.hex" >> $WORKSPACE_DIR/release_notes.txt
+echo -e "\tFake ROM ELF: fake-caliptra-rom.elf" >> $WORKSPACE_DIR/release_notes.txt
+echo -e "\tFake Image Bundle Bin: fake-image-bundle.bin" >> $WORKSPACE_DIR/release_notes.txt
+echo -e "\tFake FMC ELF: fake-caliptra-fmc.elf" >> $WORKSPACE_DIR/release_notes.txt
+echo -e "\tFake RTFW ELF: fake-caliptra-runtime.elf" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tLIBCaliptra: libcaliptra/" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tFPGA Model: fpga/" >> $WORKSPACE_DIR/release_notes.txt
 
