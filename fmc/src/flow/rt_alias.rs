@@ -188,8 +188,8 @@ impl RtAliasLayer {
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    /// * `rt_cdi` - Key Slot that holds the current CDI
-    /// * `fmc_cdi` - Key Slot to store the generated CDI
+    /// * `fmc_cdi` - Key Slot that holds the current CDI
+    /// * `rt_cdi` - Key Slot to store the generated CDI
     fn derive_cdi(env: &mut FmcEnv, fmc_cdi: KeyId, rt_cdi: KeyId) -> CaliptraResult<()> {
         // Compose FMC TCI (1. RT TCI, 2. Image Manifest Digest)
         let mut tci = [0u8; 2 * SHA384_HASH_SIZE];
