@@ -179,11 +179,12 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
         let reset_reason = drivers.soc_ifc.reset_reason();
         if reset_reason == ResetReason::WarmReset {
             let mut result = DisableAttestationCmd::execute(drivers);
-            if result.is_ok() {
-                cprintln!("Disabled attestation due to cmd busy during warm reset");
-                drivers.mbox.set_status(MboxStatusE::DataReady);
-            } else {
-                return Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION);
+            match result {
+                Ok(_) => cprintln!("Disabled attestation due to cmd busy during warm reset"),
+                Err(e) => {
+                    cprintln!("{}", e.0);
+                    return Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION);
+                }
             }
         }
     }

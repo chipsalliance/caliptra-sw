@@ -6,13 +6,14 @@
 pub use crate::fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
 
 use crate::{
-    dice, CptraDpeTypes, DpeCrypto, DpePlatform, Mailbox, DPE_SUPPORT, MAX_CERT_CHAIN_SIZE,
+    dice, CptraDpeTypes, DisableAttestationCmd, DpeCrypto, DpePlatform, Mailbox, DPE_SUPPORT,
+    MAX_CERT_CHAIN_SIZE,
 };
 
 use arrayvec::ArrayVec;
 use caliptra_drivers::{
-    CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault, Lms, PersistentDataAccessor,
-    ResetReason, Sha1, SocIfc,
+    cprintln, Array4x12, CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault, Lms,
+    PersistentDataAccessor, ResetReason, Sha1, SocIfc,
 };
 use caliptra_drivers::{Hmac384, PcrBank, PcrId, Sha256, Sha384, Sha384Acc, Trng};
 use caliptra_registers::mbox::enums::MboxStatusE;
@@ -21,6 +22,8 @@ use caliptra_registers::{
     mbox::MboxCsr, pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr,
     soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
+use dpe::context::{Context, ContextState};
+use dpe::tci::TciMeasurement;
 use dpe::{
     commands::{CommandExecution, DeriveChildCmd, DeriveChildFlags},
     context::ContextHandle,
@@ -79,6 +82,33 @@ impl Drivers {
     /// any concurrent access to these register blocks does not conflict with
     /// these drivers.
     pub unsafe fn new_from_registers() -> CaliptraResult<Self> {
+        let mut drivers = Self::get_unsafe_registers()?;
+
+        Self::create_cert_chain(&mut drivers)?;
+
+        let reset_reason = drivers.soc_ifc.reset_reason();
+        match reset_reason {
+            ResetReason::ColdReset => {
+                Self::initialize_dpe(&mut drivers)?;
+            }
+            ResetReason::UpdateReset => {
+                Self::validate_dpe_structure(&mut drivers)?;
+                Self::update_dpe_rt_journey(&mut drivers)?;
+            }
+            ResetReason::WarmReset => {
+                Self::validate_dpe_structure(&mut drivers)?;
+                Self::check_dpe_rt_journey_unchanged(&mut drivers)?;
+            }
+            ResetReason::Unknown => {
+                return Err(CaliptraError::RUNTIME_UNKNOWN_RESET_FLOW);
+            }
+        }
+
+        Ok(drivers)
+    }
+
+    /// Isolates unsafe behavior in new_from_registers
+    unsafe fn get_unsafe_registers() -> CaliptraResult<Self> {
         let mut trng = Trng::new(
             CsrngReg::new(),
             EntropySrcReg::new(),
@@ -86,72 +116,143 @@ impl Drivers {
             &SocIfcReg::new(),
         )?;
 
-        let mut sha384 = Sha384::new(Sha512Reg::new());
-        let mut ecc384 = Ecc384::new(EccReg::new());
-        let mut hmac384 = Hmac384::new(HmacReg::new());
-        let mut key_vault = KeyVault::new(KvReg::new());
-
-        let mut persistent_data = PersistentDataAccessor::new();
-
-        let rt_pub_key = persistent_data.get().fht.rt_dice_pub_key;
-        let mut data_vault = DataVault::new(DvReg::new());
-        let mut cert_chain = Self::create_cert_chain(&mut data_vault, &mut persistent_data)?;
-        let mut pcr_bank = PcrBank::new(PvReg::new());
-        let mut soc_ifc = SocIfc::new(SocIfcReg::new());
-        if soc_ifc.reset_reason() == ResetReason::ColdReset {
-            let locality = persistent_data.get().manifest1.header.pl0_pauser;
-            let mut crypto = DpeCrypto::new(
-                &mut sha384,
-                &mut trng,
-                &mut ecc384,
-                &mut hmac384,
-                &mut key_vault,
-                rt_pub_key,
-            );
-            // Skip hashing first 0x04 byte of der encoding
-            let hashed_rt_pub_key = crypto
-                .hash(AlgLen::Bit384, &rt_pub_key.to_der()[1..])
-                .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
-            let env = DpeEnv::<CptraDpeTypes> {
-                crypto,
-                platform: DpePlatform::new(locality, hashed_rt_pub_key, &mut cert_chain),
-            };
-            let dpe = Self::initialize_dpe(env, &mut pcr_bank, locality)?;
-            persistent_data.get_mut().dpe = dpe;
-        }
-
         Ok(Self {
             mbox: Mailbox::new(MboxCsr::new()),
             sha_acc: Sha512AccCsr::new(),
-            data_vault,
-            key_vault,
-            soc_ifc,
+            data_vault: DataVault::new(DvReg::new()),
+            key_vault: KeyVault::new(KvReg::new()),
+            soc_ifc: SocIfc::new(SocIfcReg::new()),
             sha256: Sha256::new(Sha256Reg::new()),
-            sha384,
+            sha384: Sha384::new(Sha512Reg::new()),
             sha384_acc: Sha384Acc::new(Sha512AccCsr::new()),
-            hmac384,
-            ecc384,
+            hmac384: Hmac384::new(HmacReg::new()),
+            ecc384: Ecc384::new(EccReg::new()),
             sha1: Sha1::default(),
             lms: Lms::default(),
             trng,
-            persistent_data,
-            pcr_bank,
+            persistent_data: PersistentDataAccessor::new(),
+            pcr_bank: PcrBank::new(PvReg::new()),
             #[cfg(feature = "fips_self_test")]
             self_test_status: SelfTestStatus::Idle,
-            cert_chain,
+            cert_chain: ArrayVec::new(),
             attestation_disabled: false,
             is_shutdown: false,
         })
     }
 
-    fn initialize_dpe(
-        mut env: DpeEnv<CptraDpeTypes>,
-        pcr_bank: &mut PcrBank,
-        locality: u32,
-    ) -> CaliptraResult<DpeInstance> {
+    // Inlined so the callsite optimizer knows that root_idx < dpe.contexts.len()
+    // and won't insert possible call to panic.
+    #[inline(always)]
+    fn get_dpe_root_context_idx(dpe: &DpeInstance) -> CaliptraResult<usize> {
+        // Find root node by finding the non-inactive context with parent equal to ROOT_INDEX
+        let root_idx = dpe
+            .contexts
+            .iter()
+            .enumerate()
+            .find(|&(idx, context)| {
+                context.state != ContextState::Inactive && context.parent_idx == Context::ROOT_INDEX
+            })
+            .ok_or(CaliptraError::RUNTIME_DPE_VALIDATION_FAILED)?
+            .0;
+        if root_idx >= dpe.contexts.len() {
+            return Err(CaliptraError::RUNTIME_DPE_VALIDATION_FAILED);
+        }
+        Ok(root_idx)
+    }
+
+    fn validate_dpe_structure(mut drivers: &mut Drivers) -> CaliptraResult<()> {
+        let dpe = &drivers.persistent_data.get().dpe;
+        let root_idx = Self::get_dpe_root_context_idx(dpe)?;
+        // Ensure context/TCI tree is well-formed (all nodes reachable from root and no cycles)
+        if !dpe.validate_context_tree(root_idx) {
+            // If SRAM Dpe Instance validation fails, disable attestation
+            let mut result = DisableAttestationCmd::execute(drivers);
+            match result {
+                Ok(_) => cprintln!("Disabled attestation due to DPE validation failure"),
+                Err(e) => {
+                    cprintln!("{}", e.0);
+                    return Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn update_dpe_rt_journey(drivers: &mut Drivers) -> CaliptraResult<()> {
+        let dpe = &mut drivers.persistent_data.get_mut().dpe;
+        let root_idx = Self::get_dpe_root_context_idx(dpe)?;
+        let latest_pcr = <[u8; 48]>::from(drivers.pcr_bank.read_pcr(PcrId::PcrId3));
+        dpe.contexts[root_idx].tci.tci_current = TciMeasurement(latest_pcr);
+        dpe.contexts[root_idx].tci.tci_cumulative = TciMeasurement(latest_pcr);
+
+        Ok(())
+    }
+
+    fn check_dpe_rt_journey_unchanged(mut drivers: &mut Drivers) -> CaliptraResult<()> {
+        let dpe = &drivers.persistent_data.get().dpe;
+        let root_idx = Self::get_dpe_root_context_idx(dpe)?;
+        let latest_tci = dpe.contexts[root_idx].tci.tci_current;
+
+        let mut hasher = drivers
+            .sha384
+            .digest_init()
+            .map_err(|_| CaliptraError::RUNTIME_DPE_VALIDATION_FAILED)?;
+
+        hasher
+            .update(&[0; AlgLen::Bit384.size()])
+            .map_err(|_| CaliptraError::RUNTIME_DPE_VALIDATION_FAILED)?;
+        hasher
+            .update(&latest_tci.0)
+            .map_err(|_| CaliptraError::RUNTIME_DPE_VALIDATION_FAILED)?;
+
+        let mut digest = Array4x12::default();
+        hasher
+            .finalize(&mut digest)
+            .map_err(|_| CaliptraError::RUNTIME_DPE_VALIDATION_FAILED)?;
+
+        let latest_pcr = drivers.pcr_bank.read_pcr(PcrId::PcrId3);
+        // Ensure SHA384_HASH(0x00..00, TCI from SRAM) == PCR3 value
+        if latest_pcr != digest {
+            // If latest pcr validation fails, disable attestation
+            let mut result = DisableAttestationCmd::execute(drivers);
+            match result {
+                Ok(_) => cprintln!("Disabled attestation due to latest TCI of the node containing the runtime journey PCR not matching the runtime PCR"),
+                Err(e) => {
+                    cprintln!("{}", e.0);
+                    return Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn initialize_dpe(drivers: &mut Drivers) -> CaliptraResult<()> {
+        let locality = drivers.persistent_data.get().manifest1.header.pl0_pauser;
+        let rt_pub_key = drivers.persistent_data.get().fht.rt_dice_pub_key;
+        let mut crypto = DpeCrypto::new(
+            &mut drivers.sha384,
+            &mut drivers.trng,
+            &mut drivers.ecc384,
+            &mut drivers.hmac384,
+            &mut drivers.key_vault,
+            rt_pub_key,
+        );
+        // Skip hashing first 0x04 byte of der encoding
+        let hashed_rt_pub_key = crypto
+            .hash(AlgLen::Bit384, &rt_pub_key.to_der()[1..])
+            .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
+        let mut env = DpeEnv::<CptraDpeTypes> {
+            crypto,
+            platform: DpePlatform::new(locality, hashed_rt_pub_key, &mut drivers.cert_chain),
+        };
         let mut dpe = DpeInstance::new(&mut env, DPE_SUPPORT)
             .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
-        let data = <[u8; DPE_PROFILE.get_hash_size()]>::from(&pcr_bank.read_pcr(PcrId::PcrId1));
+
+        let data =
+            <[u8; DPE_PROFILE.get_hash_size()]>::from(&drivers.pcr_bank.read_pcr(PcrId::PcrId1));
+        // Call DeriveChild to create root context.
         DeriveChildCmd {
             handle: ContextHandle::default(),
             data,
@@ -164,19 +265,25 @@ impl Drivers {
         }
         .execute(&mut dpe, &mut env, locality)
         .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
-        Ok(dpe)
+
+        // Write DPE to persistent data.
+        drivers.persistent_data.get_mut().dpe = dpe;
+        Ok(())
     }
 
-    fn create_cert_chain(
-        data_vault: &mut DataVault,
-        persistent_data: &mut PersistentDataAccessor,
-    ) -> CaliptraResult<ArrayVec<u8, MAX_CERT_CHAIN_SIZE>> {
+    fn create_cert_chain(drivers: &mut Drivers) -> CaliptraResult<()> {
+        let data_vault = &drivers.data_vault;
+        let persistent_data = &drivers.persistent_data;
         let mut cert = [0u8; MAX_CERT_CHAIN_SIZE];
+
+        // Write ldev_id cert to cert chain.
         let ldevid_cert_size = dice::copy_ldevid_cert(data_vault, persistent_data.get(), &mut cert)
             .map_err(|_| CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?;
         if ldevid_cert_size > cert.len() {
             return Err(CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED);
         }
+
+        // Write fmc alias cert to cert chain.
         let fmcalias_cert_size = dice::copy_fmc_alias_cert(
             data_vault,
             persistent_data.get(),
@@ -186,6 +293,8 @@ impl Drivers {
         if ldevid_cert_size + fmcalias_cert_size > cert.len() {
             return Err(CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED);
         }
+
+        // Write rt alias cert to cert chain.
         let rtalias_cert_size = dice::copy_rt_alias_cert(
             persistent_data.get(),
             &mut cert[ldevid_cert_size + fmcalias_cert_size..],
@@ -195,6 +304,8 @@ impl Drivers {
         if cert_chain_size > cert.len() {
             return Err(CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED);
         }
+
+        // Copy cert chain to ArrayVec.
         let mut cert_chain = ArrayVec::<u8, MAX_CERT_CHAIN_SIZE>::new();
         for i in 0..cert_chain_size {
             cert_chain
@@ -205,6 +316,8 @@ impl Drivers {
                 )
                 .map_err(|_| CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?;
         }
-        Ok(cert_chain)
+
+        drivers.cert_chain = cert_chain;
+        Ok(())
     }
 }
