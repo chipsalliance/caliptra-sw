@@ -39,9 +39,11 @@ const BANNER: &str = r#"
 #[allow(clippy::empty_loop)]
 pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
-    let mut drivers = unsafe { Drivers::new_from_registers() }.unwrap_or_else(|e| {
-        caliptra_common::report_handoff_error_and_halt("Runtime can't load drivers", e.into())
-    });
+    let mut drivers = unsafe {
+        Drivers::new_from_registers().unwrap_or_else(|e| {
+            caliptra_common::report_handoff_error_and_halt("Runtime can't load drivers", e.into())
+        })
+    };
     if !drivers.persistent_data.get().fht.is_valid() {
         caliptra_common::report_handoff_error_and_halt(
             "Runtime can't load FHT",

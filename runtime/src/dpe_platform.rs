@@ -3,6 +3,7 @@
 use core::cmp::min;
 
 use arrayvec::ArrayVec;
+use caliptra_drivers::cprintln;
 use crypto::Digest;
 use dpe::{
     x509::{Name, X509CertWriter},
@@ -92,5 +93,10 @@ impl Platform for DpePlatform<'_> {
             .map_err(|_| PlatformError::IssuerNameError)?;
 
         Ok(issuer_len)
+    }
+
+    fn write_str(&mut self, str: &str) -> Result<(), PlatformError> {
+        cprintln!("{}", str);
+        Ok(())
     }
 }
