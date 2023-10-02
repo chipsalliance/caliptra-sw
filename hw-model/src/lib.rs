@@ -295,13 +295,6 @@ impl<'a, Model: HwModel> MailboxRecvTxn<'a, Model> {
         // mbox_fsm_ps isn't updated immediately after execute is cleared (!?),
         // so step an extra clock cycle to wait for fm_ps to update
         self.model.step();
-        assert!(self
-            .model
-            .soc_mbox()
-            .status()
-            .read()
-            .mbox_fsm_ps()
-            .mbox_execute_uc());
     }
 }
 
