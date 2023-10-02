@@ -18,6 +18,7 @@ pub struct StashMeasurementCmd;
 impl StashMeasurementCmd {
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if let Some(cmd) = StashMeasurementReq::read_from(cmd_args) {
+            let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
             let pdata = drivers.persistent_data.get();
             let rt_pub_key = pdata.fht.rt_dice_pub_key;
             let mut crypto = DpeCrypto::new(
@@ -28,9 +29,6 @@ impl StashMeasurementCmd {
                 &mut drivers.key_vault,
                 rt_pub_key,
             );
-            let hashed_rt_pub_key = crypto
-                .hash(AlgLen::Bit384, &rt_pub_key.to_der()[1..])
-                .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
             let mut env = DpeEnv::<CptraDpeTypes> {
                 crypto,
                 platform: DpePlatform::new(
