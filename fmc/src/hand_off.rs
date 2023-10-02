@@ -17,35 +17,19 @@ use caliptra_common::DataStore::*;
 use caliptra_common::{DataStore, FirmwareHandoffTable, HandOffDataHandle, Vault};
 use caliptra_drivers::{memory_layout, Array4x12, Ecc384Signature, KeyId};
 use caliptra_drivers::{Ecc384PubKey, Ecc384Scalar};
-use caliptra_error::CaliptraResult;
+use caliptra_error::{CaliptraError, CaliptraResult};
 
 #[cfg(feature = "riscv")]
 core::arch::global_asm!(include_str!("transfer_control.S"));
 
-struct IccmAddress(u32);
-
-struct MemoryRegion {
-    start: u32,
-    size: u32,
+pub struct IccmBounds {}
+impl caliptra_drivers::MemBounds for IccmBounds {
+    const ORG: usize = memory_layout::ICCM_ORG as usize;
+    const SIZE: usize = memory_layout::ICCM_SIZE as usize;
+    const ERROR: CaliptraError = CaliptraError::ADDRESS_NOT_IN_ICCM;
 }
 
-impl MemoryRegion {
-    fn validate_address(&self, phys_addr: u32) -> bool {
-        phys_addr >= self.start && phys_addr <= self.start + self.size
-    }
-}
-
-impl IccmAddress {
-    const ICCM: MemoryRegion = MemoryRegion {
-        start: memory_layout::ICCM_ORG,
-        size: memory_layout::ICCM_SIZE,
-    };
-
-    /// Validate that the address is within the ICCM region.
-    pub fn is_valid(&self) -> bool {
-        Self::ICCM.validate_address(self.0)
-    }
-}
+pub type IccmAddr<T> = caliptra_drivers::BoundedAddr<T, IccmBounds>;
 
 pub struct HandOff {}
 
@@ -171,17 +155,14 @@ impl HandOff {
             fn transfer_control(entry: u32) -> !;
         }
 
-        // Retrieve runtime entry point
-        let rt_entry = IccmAddress(Self::rt_entry_point(env));
+        let rt_entry_point = Self::rt_entry_point(env);
 
-        if !rt_entry.is_valid() {
-            caliptra_common::report_handoff_error_and_halt(
-                "Invalid RT Entry Point",
-                caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-            );
+        match IccmAddr::<u32>::validate_addr(rt_entry_point) {
+            Ok(_) => unsafe { transfer_control(rt_entry_point) },
+            Err(e) => {
+                caliptra_common::report_handoff_error_and_halt("Invalid RT Entry Point", e.into())
+            }
         }
-        // Exit FMC and jump to speicified entry point
-        unsafe { transfer_control(rt_entry.0) }
     }
 
     /// Retrieve runtime TCI (digest)
