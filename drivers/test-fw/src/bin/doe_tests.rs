@@ -15,6 +15,8 @@ Abstract:
 #![no_std]
 #![no_main]
 
+use core::mem;
+
 use caliptra_drivers::{
     Array4x12, Array4x4, DeobfuscationEngine, Ecc384, Ecc384PubKey, Hmac384, Hmac384Data,
     Hmac384Key, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Mailbox, Trng,
@@ -114,10 +116,11 @@ fn test_decrypt() {
         export_result_from_kv(&mut ecc, &mut trng, key_out_id);
 
     let mut mbox = Mailbox::new(unsafe { MboxCsr::new() });
-    mbox.try_start_send_txn()
-        .unwrap()
-        .send_request(0, test_results.as_bytes())
-        .unwrap();
+    let mut txn = mbox.try_start_send_txn().unwrap();
+    txn.send_request(0, test_results.as_bytes()).unwrap();
+    // Leave the transaction in the mailbox for the test to find after we've
+    // exited.
+    mem::forget(txn);
 }
 
 fn test_clear_secrets() {

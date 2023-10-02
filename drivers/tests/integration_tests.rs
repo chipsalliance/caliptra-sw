@@ -211,6 +211,7 @@ fn test_doe_when_debug_not_locked() {
     })
     .unwrap();
 
+    model.step_until_exit_success().unwrap();
     let txn = model.wait_for_mailbox_receive().unwrap();
     let test_results = DoeTestResults::read_from(txn.req.data.as_slice()).unwrap();
     assert_eq!(
