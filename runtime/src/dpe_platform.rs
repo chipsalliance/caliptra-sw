@@ -80,12 +80,13 @@ impl Platform for DpePlatform<'_> {
         const CALIPTRA_CN: &[u8] = b"Caliptra Rt Alias";
         let mut issuer_writer = CertWriter::new(out, true);
 
-        let mut serial = [0u8; DPE_PROFILE.get_hash_size() * 2];
+        // Caliptra RDN SerialNumber field is always a Sha256 hash
+        let mut serial = [0u8; 64];
         Digest::write_hex_str(&self.hashed_rt_pub_key, &mut serial)
             .map_err(|_| PlatformError::IssuerNameError)?;
 
         let name = Name {
-            cn: DirectoryString::PrintableString(CALIPTRA_CN),
+            cn: DirectoryString::Utf8String(CALIPTRA_CN),
             serial: DirectoryString::PrintableString(&serial),
         };
         let issuer_len = issuer_writer

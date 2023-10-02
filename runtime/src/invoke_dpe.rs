@@ -8,7 +8,7 @@ use dpe::{
     commands::{
         CertifyKeyCmd, Command, CommandExecution, DeriveChildCmd, DeriveChildFlags, InitCtxCmd,
     },
-    response::Response,
+    response::{Response, ResponseHdr},
     DpeInstance,
 };
 use zerocopy::FromBytes;
@@ -26,6 +26,7 @@ impl InvokeDpeCmd {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
 
+            let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
             let pdata = drivers.persistent_data.get();
             let rt_pub_key = pdata.fht.rt_dice_pub_key;
             let mut crypto = DpeCrypto::new(
@@ -36,9 +37,6 @@ impl InvokeDpeCmd {
                 &mut drivers.key_vault,
                 rt_pub_key,
             );
-            let hashed_rt_pub_key = crypto
-                .hash(AlgLen::Bit384, &rt_pub_key.to_der()[1..])
-                .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
             let image_header = &pdata.manifest1.header;
             let pl0_pauser = pdata.manifest1.header.pl0_pauser;
             let mut env = DpeEnv::<CptraDpeTypes> {
@@ -95,21 +93,23 @@ impl InvokeDpeCmd {
                 Command::GetCertificateChain(cmd) => cmd.execute(dpe, &mut env, locality),
             };
 
-            match resp {
-                Ok(resp) => {
-                    let resp_bytes = resp.as_bytes();
-                    let data_size = resp_bytes.len();
-                    let mut invoke_resp = InvokeDpeResp {
-                        hdr: MailboxRespHeader::default(),
-                        data_size: data_size as u32,
-                        data: [0u8; InvokeDpeResp::DATA_MAX_SIZE],
-                    };
-                    invoke_resp.data[..data_size].copy_from_slice(resp_bytes);
+            // If DPE command failed, populate header with error code, but
+            // don't fail the mailbox command.
+            let resp_struct = match resp {
+                Ok(r) => r,
+                Err(e) => Response::Error(ResponseHdr::new(e)),
+            };
 
-                    Ok(MailboxResp::InvokeDpeCommand(invoke_resp))
-                }
-                _ => Err(CaliptraError::RUNTIME_INVOKE_DPE_FAILED),
-            }
+            let resp_bytes = resp_struct.as_bytes();
+            let data_size = resp_bytes.len();
+            let mut invoke_resp = InvokeDpeResp {
+                hdr: MailboxRespHeader::default(),
+                data_size: data_size as u32,
+                data: [0u8; InvokeDpeResp::DATA_MAX_SIZE],
+            };
+            invoke_resp.data[..data_size].copy_from_slice(resp_bytes);
+
+            Ok(MailboxResp::InvokeDpeCommand(invoke_resp))
         } else {
             Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
         }
