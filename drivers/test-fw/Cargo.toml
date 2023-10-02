@@ -18,6 +18,7 @@ zerocopy.workspace = true
 
 [features]
 emu = ["caliptra-test-harness/emu"]
+fpga_realtime = []
 
 # This feature is used to filter all these binary targets during normal builds
 # (targets must be built with cargo arguments:
