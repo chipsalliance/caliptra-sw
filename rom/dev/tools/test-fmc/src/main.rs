@@ -15,12 +15,11 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_main)]
 
 use caliptra_common::pcr::PCR_ID_STASH_MEASUREMENT;
+use caliptra_common::PcrLogEntry;
 use caliptra_common::{mailbox_api, FuseLogEntry, FuseLogEntryId};
-use caliptra_common::{PcrLogEntry, PcrLogEntryId};
 use caliptra_drivers::pcr_log::MeasurementLogEntry;
 use caliptra_drivers::{
     ColdResetEntry4::*, DataVault, Mailbox, PcrBank, PcrId, PersistentDataAccessor,
-    MEASUREMENT_MAX_COUNT, PCR_LOG_MAX_COUNT,
 };
 use caliptra_registers::dv::DvReg;
 use caliptra_registers::pv::PvReg;
@@ -169,16 +168,6 @@ fn copy_tbs(tbs: &mut [u8], ldevid_tbs: bool) {
     tbs.copy_from_slice(&src[..tbs.len()]);
 }
 
-fn get_pcr_entry(entry_index: usize) -> PcrLogEntry {
-    let persistent_data = unsafe { PersistentDataAccessor::new() };
-    persistent_data.get().pcr_log[entry_index]
-}
-
-fn get_measurement_entry(entry_index: usize) -> MeasurementLogEntry {
-    let persistent_data = unsafe { PersistentDataAccessor::new() };
-    persistent_data.get().measurement_log[entry_index]
-}
-
 fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     if !mbox.status().read().mbox_fsm_ps().mbox_execute_uc() {
         return;
@@ -285,19 +274,11 @@ fn trigger_update_reset() {
 }
 
 fn read_pcr_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
-    let mut pcr_entry_count = 0;
-    loop {
-        if pcr_entry_count == PCR_LOG_MAX_COUNT {
-            break;
-        }
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
+    let pcr_entry_count = persistent_data.get().fht.pcr_log_index as usize;
 
-        let pcr_entry = get_pcr_entry(pcr_entry_count);
-
-        if PcrLogEntryId::from(pcr_entry.id) == PcrLogEntryId::Invalid {
-            break;
-        }
-
-        pcr_entry_count += 1;
+    for i in 0..pcr_entry_count {
+        let pcr_entry = persistent_data.get().pcr_log[i];
         send_to_mailbox(mbox, pcr_entry.as_bytes(), false);
     }
 
@@ -310,20 +291,12 @@ fn read_pcr_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
 }
 
 fn read_measurement_log(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
-    let mut measurement_entry_count = 0;
-    loop {
-        if measurement_entry_count == MEASUREMENT_MAX_COUNT {
-            break;
-        }
+    let persistent_data = unsafe { PersistentDataAccessor::new() };
+    let measurement_entry_count = persistent_data.get().fht.meas_log_index as usize;
 
-        let measurement_entry = get_measurement_entry(measurement_entry_count);
-
-        if PcrLogEntryId::from(measurement_entry.pcr_entry.id) == PcrLogEntryId::Invalid {
-            break;
-        }
-
-        measurement_entry_count += 1;
-        send_to_mailbox(mbox, measurement_entry.as_bytes(), false);
+    for i in 0..measurement_entry_count {
+        let meas_entry = persistent_data.get().measurement_log[i];
+        send_to_mailbox(mbox, meas_entry.as_bytes(), false);
     }
 
     mbox.dlen().write(|_| {
