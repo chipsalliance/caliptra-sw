@@ -425,6 +425,7 @@ dependencies = [
 name = "caliptra-hw-model"
 version = "0.1.0"
 dependencies = [
+ "bit-vec",
  "bitfield",
  "caliptra-builder",
  "caliptra-emu-bus",
@@ -713,12 +714,14 @@ version = "0.1.0"
 name = "caliptra-test"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "asn1",
  "caliptra-builder",
  "caliptra-hw-model",
  "caliptra-hw-model-types",
  "caliptra-runtime",
  "caliptra_common",
+ "elf",
  "openssl",
  "zerocopy",
 ]

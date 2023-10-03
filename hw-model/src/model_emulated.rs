@@ -56,6 +56,12 @@ pub struct ModelEmulated {
     cpu_enabled: Rc<Cell<bool>>,
 }
 
+impl ModelEmulated {
+    pub fn code_coverage_bitmap(&self) -> &bit_vec::BitVec {
+        self.cpu.code_coverage.code_coverage_bitmap()
+    }
+}
+
 impl crate::HwModel for ModelEmulated {
     type TBus<'a> = EmulatedApbBus<'a>;
 
