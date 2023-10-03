@@ -77,6 +77,11 @@ static inline void caliptra_mbox_write_cmd(uint32_t cmd)
     caliptra_mbox_write(MBOX_CSR_MBOX_CMD, cmd);
 }
 
+static inline uint32_t caliptra_mbox_read_execute()
+{
+    caliptra_mbox_read(MBOX_CSR_MBOX_EXECUTE);
+}
+
 static inline void caliptra_mbox_write_execute(bool ex)
 {
     caliptra_mbox_write(MBOX_CSR_MBOX_EXECUTE, ex);
@@ -97,6 +102,11 @@ static inline uint8_t caliptra_mbox_write_execute_busy_wait(bool ex)
 static inline uint8_t caliptra_mbox_read_status(void)
 {
     return (uint8_t)(caliptra_mbox_read(MBOX_CSR_MBOX_STATUS) & MBOX_CSR_MBOX_STATUS_STATUS_MASK);
+}
+
+static inline bool caliptra_mbox_is_busy(void)
+{
+    return caliptra_mbox_read_status() == CALIPTRA_MBOX_STATUS_BUSY;
 }
 
 static inline uint8_t caliptra_mbox_read_status_fsm(void)

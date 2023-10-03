@@ -15,18 +15,25 @@ fn main() {
             arg!(--"all_elfs" [DIR] "Build all firmware elf files")
                 .value_parser(value_parser!(PathBuf)),
         )
+        .arg(arg!(--"fake" "Create fake ROM and FW images"))
         .get_matches();
+
+    let (rom_fwid, fmc_fwid) = if args.is_present("fake") {
+        (firmware::ROM_FAKE_WITH_UART, firmware::FMC_FAKE_WITH_UART)
+    } else {
+        (firmware::ROM_WITH_UART, firmware::FMC_WITH_UART)
+    };
 
     if let Some(rom_path) = args.get_one::<PathBuf>("rom") {
         // Generate ROM Image
-        let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(&rom_fwid).unwrap();
         std::fs::write(rom_path, rom).unwrap();
     };
 
     if let Some(fw_path) = args.get_one::<PathBuf>("fw") {
         // Generate Image Bundle
         let image = caliptra_builder::build_and_sign_image(
-            &firmware::FMC_WITH_UART,
+            &fmc_fwid,
             &firmware::APP_WITH_UART,
             ImageOptions::default(),
         )

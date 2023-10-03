@@ -32,6 +32,15 @@ use core::array;
 const MAX_SEED_WORDS: usize = 12;
 const WORDS_PER_BLOCK: usize = 4;
 
+struct IsCompleteBlocks<const NUM_WORDS: usize>;
+
+impl<const NUM_WORDS: usize> IsCompleteBlocks<NUM_WORDS> {
+    const ASSERT: () = assert!(
+        NUM_WORDS != 0 && NUM_WORDS % WORDS_PER_BLOCK == 0,
+        "NUM_WORDS must be non-zero and divisible by WORDS_PER_BLOCK"
+    );
+}
+
 /// A unique handle to the underlying CSRNG peripheral.
 pub struct Csrng {
     csrng: CsrngReg,
@@ -157,6 +166,9 @@ impl Csrng {
     }
 
     fn generate<const N: usize>(&mut self) -> CaliptraResult<[u32; N]> {
+        #[allow(clippy::let_unit_value)]
+        let _ = IsCompleteBlocks::<N>::ASSERT;
+
         check_for_alert_state(self.entropy_src.regs())?;
 
         send_command(

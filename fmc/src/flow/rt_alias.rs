@@ -130,15 +130,17 @@ impl RtAliasLayer {
     /// # Returns
     ///
     /// * `DiceInput` - DICE Layer Input
-    fn dice_input_from_hand_off(env: &FmcEnv) -> CaliptraResult<DiceInput> {
+    fn dice_input_from_hand_off(env: &mut FmcEnv) -> CaliptraResult<DiceInput> {
+        let auth_pub = HandOff::fmc_pub_key(env);
+        let auth_serial_number = X509::subj_sn(env, &auth_pub)?;
         // Create initial output
         let input = DiceInput {
             cdi: HandOff::fmc_cdi(env),
             auth_key_pair: Ecc384KeyPair {
                 priv_key: HandOff::fmc_priv_key(env),
-                pub_key: HandOff::fmc_pub_key(env),
+                pub_key: auth_pub,
             },
-            auth_sn: [0u8; 64],
+            auth_sn: auth_serial_number,
             auth_key_id: [0u8; 20],
         };
 
@@ -186,8 +188,8 @@ impl RtAliasLayer {
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    /// * `rt_cdi` - Key Slot that holds the current CDI
-    /// * `fmc_cdi` - Key Slot to store the generated CDI
+    /// * `fmc_cdi` - Key Slot that holds the current CDI
+    /// * `rt_cdi` - Key Slot to store the generated CDI
     fn derive_cdi(env: &mut FmcEnv, fmc_cdi: KeyId, rt_cdi: KeyId) -> CaliptraResult<()> {
         // Compose FMC TCI (1. RT TCI, 2. Image Manifest Digest)
         let mut tci = [0u8; 2 * SHA384_HASH_SIZE];
