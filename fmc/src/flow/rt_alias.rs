@@ -133,6 +133,7 @@ impl RtAliasLayer {
     fn dice_input_from_hand_off(env: &mut FmcEnv) -> CaliptraResult<DiceInput> {
         let auth_pub = HandOff::fmc_pub_key(env);
         let auth_serial_number = X509::subj_sn(env, &auth_pub)?;
+        let auth_key_id = X509::subj_key_id(env, &auth_pub)?;
         // Create initial output
         let input = DiceInput {
             cdi: HandOff::fmc_cdi(env),
@@ -141,7 +142,7 @@ impl RtAliasLayer {
                 pub_key: auth_pub,
             },
             auth_sn: auth_serial_number,
-            auth_key_id: [0u8; 20],
+            auth_key_id,
         };
 
         Ok(input)

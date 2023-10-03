@@ -30,7 +30,10 @@ use openssl::{
     ecdsa::EcdsaSig,
     nid::Nid,
     pkey::PKey,
-    x509::X509,
+    stack::Stack,
+    x509::{
+        store::X509StoreBuilder, verify::X509VerifyFlags, X509StoreContext, X509VerifyResult, X509,
+    },
 };
 use zerocopy::{AsBytes, FromBytes, LayoutVerified};
 
@@ -153,6 +156,26 @@ fn test_certs() {
             .unwrap(),
         core::cmp::Ordering::Equal
     );
+
+    // Verify full cert chain
+    let mut roots_bldr = X509StoreBuilder::new().unwrap();
+    roots_bldr.add_cert(ldev_cert).unwrap();
+    roots_bldr
+        .set_flags(X509VerifyFlags::X509_STRICT | X509VerifyFlags::PARTIAL_CHAIN)
+        .unwrap();
+    let roots = roots_bldr.build();
+    let mut cert_store = X509StoreContext::new().unwrap();
+    let mut chain = Stack::new().unwrap();
+    chain.push(fmc_cert).unwrap();
+    cert_store
+        .init(&roots, &rt_cert, &chain, |c| {
+            let success = c.verify_cert().unwrap();
+            assert_eq!(c.error(), X509VerifyResult::OK);
+            assert!(success);
+
+            Ok(())
+        })
+        .unwrap();
 }
 
 #[test]
