@@ -5,6 +5,31 @@
 #include <stdbool.h>
 
 /**
+ * libcaliptra_error
+ *
+ * Error codes for all possible lib caliptra failures
+ */
+enum libcaliptra_error {
+    NO_ERROR = 0,
+    // General
+    INVALID_PARAMS              = 0x100,
+    API_INTERNAL_ERROR          = 0x101,
+    // Fuse
+    NOT_READY_FOR_FUSES         = 0x200,
+    STILL_READY_FOR_FUSES       = 0x201,
+    // Mailbox
+    MBX_BUSY                    = 0x300,
+    MBX_NO_MSG_PENDING          = 0x301,
+    MBX_COMPLETE_NOT_READY      = 0x302,
+    MBX_STATUS_FAILED           = 0x303,
+    MBX_STATUS_UNKNOWN          = 0x304,
+    MBX_STATUS_NOT_IDLE         = 0x305,
+    MBX_RESP_NO_HEADER          = 0x306,
+    MBX_RESP_CHKSUM_INVALID     = 0x307,
+    MBX_RESP_FIPS_NOT_APPROVED  = 0x308,
+};
+
+/**
  * device_lifecycle
  *
  * Device life cycle states

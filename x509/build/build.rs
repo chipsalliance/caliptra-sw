@@ -106,6 +106,6 @@ fn gen_rt_alias_cert(out_dir: &str) {
                 digest: &[0xCD; 48],
             },
         }]);
-    let template = bldr.tbs_template("Caliptra Rt Alias", "Caliptra FMC");
+    let template = bldr.tbs_template("Caliptra Rt Alias", "Caliptra FMC Alias");
     CodeGen::gen_code("RtAliasCertTbs", template, out_dir);
 }

@@ -56,6 +56,7 @@ struct caliptra_stash_measurement_req {
     caliptra_checksum checksum;
     uint8_t           metadata[4];
     uint8_t           measurement[48];
+    uint8_t           context[48];
     uint32_t          svn;
 };
 
