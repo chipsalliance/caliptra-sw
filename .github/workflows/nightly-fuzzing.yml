@@ -31,8 +31,8 @@ jobs:
         run: |
           mkdir -p image/verify/fuzz/common_corpus
           for x in $(seq 01 04); do
-            cargo run -j$(nproc) --manifest-path=builder/Cargo.toml --release --bin image -- --rom /dev/null --fw image/verify/fuzz/common_corpus/${x}; \
-            cargo clean; \
+            cargo run -j$(nproc) --manifest-path=builder/Cargo.toml --release --bin image -- --fake-rom /dev/null --fw image/verify/fuzz/common_corpus/${x}
+            cargo clean
           done
 
       - name: Save seed corpus
