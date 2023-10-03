@@ -5,14 +5,19 @@ use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp, Mai
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use crypto::{AlgLen, Crypto};
 use dpe::{
-    commands::{CertifyKeyCmd, Command, CommandExecution},
+    commands::{
+        CertifyKeyCmd, Command, CommandExecution, DeriveChildCmd, DeriveChildFlags, InitCtxCmd,
+    },
     response::Response,
+    DpeInstance,
 };
 use zerocopy::FromBytes;
 
 pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
     const PL0_PAUSER_FLAG: u32 = 1;
+    pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 8;
+    pub const PL1_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
 
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if let Some(cmd) = InvokeDpeReq::read_from(cmd_args) {
@@ -45,18 +50,31 @@ impl InvokeDpeCmd {
             let command = Command::deserialize(&cmd.data[..cmd.data_size as usize])
                 .map_err(|_| CaliptraError::RUNTIME_INVOKE_DPE_FAILED)?;
             let flags = pdata.manifest1.header.flags;
+
             let mut dpe = &mut drivers.persistent_data.get_mut().dpe;
             let resp = match command {
                 Command::GetProfile => Ok(Response::GetProfile(
                     dpe.get_profile(&mut env.platform)
                         .map_err(|_| CaliptraError::RUNTIME_INVOKE_DPE_FAILED)?,
                 )),
-                Command::InitCtx(cmd) => cmd.execute(dpe, &mut env, locality),
-                Command::DeriveChild(cmd) => cmd.execute(dpe, &mut env, locality),
+                Command::InitCtx(cmd) => {
+                    // InitCtx can only create new contexts if they are simulation contexts.
+                    if InitCtxCmd::flag_is_simulation(&cmd) {
+                        Self::pl_context_threshold_exceeded(pl0_pauser, flags, locality, dpe)?;
+                    }
+                    cmd.execute(dpe, &mut env, locality)
+                }
+                Command::DeriveChild(cmd) => {
+                    // If retain parent is not set for the DeriveChildCmd, the change in number of contexts is 0.
+                    if DeriveChildCmd::retains_parent(&cmd) {
+                        Self::pl_context_threshold_exceeded(pl0_pauser, flags, locality, dpe)?;
+                    }
+                    cmd.execute(dpe, &mut env, locality)
+                }
                 Command::CertifyKey(cmd) => {
                     // PL1 cannot request X509
                     if cmd.format == CertifyKeyCmd::FORMAT_X509
-                        && Self::is_caller_p1(pl0_pauser, flags, locality)
+                        && Self::is_caller_pl1(pl0_pauser, flags, locality)
                     {
                         return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
                     }
@@ -91,7 +109,32 @@ impl InvokeDpeCmd {
         }
     }
 
-    fn is_caller_p1(pl0_pauser: u32, flags: u32, locality: u32) -> bool {
+    fn pl_context_threshold_exceeded(
+        pl0_pauser: u32,
+        flags: u32,
+        locality: u32,
+        dpe: &DpeInstance,
+    ) -> CaliptraResult<()> {
+        let active_pl0_dpe_context_count = dpe
+            .count_active_contexts_in_locality(pl0_pauser)
+            .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
+        let active_pl1_dpe_context_count = dpe
+            .count_active_contexts()
+            .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?
+            - active_pl0_dpe_context_count;
+        if Self::is_caller_pl1(pl0_pauser, flags, locality)
+            && active_pl1_dpe_context_count == Self::PL1_DPE_ACTIVE_CONTEXT_THRESHOLD
+        {
+            return Err(CaliptraError::RUNTIME_PL1_ACTIVE_DPE_CONTEXT_THRESHOLD_EXCEEDED);
+        } else if !Self::is_caller_pl1(pl0_pauser, flags, locality)
+            && active_pl0_dpe_context_count == Self::PL0_DPE_ACTIVE_CONTEXT_THRESHOLD
+        {
+            return Err(CaliptraError::RUNTIME_PL0_ACTIVE_DPE_CONTEXT_THRESHOLD_EXCEEDED);
+        }
+        Ok(())
+    }
+
+    fn is_caller_pl1(pl0_pauser: u32, flags: u32, locality: u32) -> bool {
         flags & Self::PL0_PAUSER_FLAG == 0 && locality != pl0_pauser
     }
 }

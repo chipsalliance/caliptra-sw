@@ -1098,6 +1098,7 @@ dependencies = [
  "constant_time_eq",
  "crypto",
  "platform",
+ "ufmt",
  "zerocopy",
 ]
 
