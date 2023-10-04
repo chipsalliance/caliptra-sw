@@ -266,7 +266,7 @@ static int caliptra_mailbox_write_fifo(struct caliptra_buffer *buffer)
  *
  * HELPER - Read a mailbox FIFO into a buffer
  *
- * @param[in] buffer A pointer to a valid caliptra_buffer struct
+ * @param[out] buffer A pointer to a valid caliptra_buffer struct
  *
  * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
  */
@@ -334,7 +334,7 @@ int caliptra_mailbox_send(uint32_t cmd, struct caliptra_buffer *mbox_tx_buffer)
  * HELPER - Checks the HW mailbox status for "complete" or "data ready" and populates the response
  * buffer with a response if applicable
  *
- * @param[in] mbox_rx_buffer Buffer for the response, NULL if no response is expected
+ * @param[out] mbox_rx_buffer Buffer for the response, NULL if no response is expected
  *
  * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
  */
@@ -384,15 +384,15 @@ int caliptra_check_status_get_response(struct caliptra_buffer *mbox_rx_buffer)
  */
 static inline int check_command_response(const uint8_t *buffer, const size_t buffer_size)
 {
-    if (buffer_size < sizeof(struct caliptra_completion)) {
+    if (buffer_size < sizeof(struct caliptra_resp_header)) {
         return MBX_RESP_NO_HEADER;
     }
-    struct caliptra_completion *cpl = (struct caliptra_completion*)buffer;
+    struct caliptra_resp_header *resp_hdr = (struct caliptra_resp_header*)buffer;
 
     uint32_t calc_checksum = calculate_caliptra_checksum(0, buffer + sizeof(uint32_t), buffer_size - sizeof(uint32_t));
 
-    bool checksum_valid = !(cpl->checksum - calc_checksum);
-    bool fips_approved  = (cpl->fips == FIPS_STATUS_APPROVED);
+    bool checksum_valid = !(resp_hdr->chksum - calc_checksum);
+    bool fips_approved  = (resp_hdr->fips_status == FIPS_STATUS_APPROVED);
 
     if (checksum_valid == false) {
         return MBX_RESP_CHKSUM_INVALID;
@@ -411,7 +411,7 @@ static inline int check_command_response(const uint8_t *buffer, const size_t buf
  *
  * @param[in] cmd 32 bit command identifier to be sent to caliptra
  * @param[in] mbox_tx_buffer caliptra_buffer struct containing the pointer and length of the send buffer
- * @param[in] mbox_rx_buffer caliptra_buffer struct containing the pointer and length of the receive buffer
+ * @param[out] mbox_rx_buffer caliptra_buffer struct containing the pointer and length of the receive buffer
  * @param[in] async If true, return after sending command. If false, wait for command to complete and handle response
  *
  * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
@@ -557,76 +557,22 @@ int caliptra_upload_fw(struct caliptra_buffer *fw_buffer, bool async)
     return caliptra_mailbox_execute(OP_CALIPTRA_FW_LOAD, fw_buffer, NULL, async);
 }
 
+// Generic info for all command wrapper functions below
 /**
- * caliptra_get_fips_version
+ * caliptra_<command>
  *
- * Read Caliptra FIPS Version
+ * Send the specified command to Caliptra and receive the response
  *
- * @param[out] version pointer to fips_version command response
- * @param[in] async If true, return after sending command. If false, wait for command to complete and handle response
+ * NOTE: Not all commands require request or response structs
  *
- * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
- */
-int caliptra_get_fips_version(struct caliptra_fips_version *version, bool async)
-{
-    // Parameter check
-    if (version == NULL)
-    {
-        return INVALID_PARAMS;
-    }
-
-    caliptra_checksum checksum = 0;
-
-    struct parcel p = {
-        .command   = OP_FIPS_VERSION,
-        .tx_buffer = (uint8_t*)&checksum,
-        .tx_bytes  = sizeof(caliptra_checksum),
-        .rx_buffer = (uint8_t*)version,
-        .rx_bytes  = sizeof(struct caliptra_fips_version),
-    };
-
-    return pack_and_execute_command(&p, async);
-}
-
-/**
- * caliptra_stash_measurement
- *
- * Stash a measurement with Caliptra
- *
- * @param[out] req pointer to request struct
+ * @param[in] req pointer to request struct
  * @param[out] resp pointer to response struct
  * @param[in] async If true, return after sending command. If false, wait for command to complete and handle response
  *
  * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
  */
-int caliptra_stash_measurement(struct caliptra_stash_measurement_req *req, struct caliptra_stash_measurement_resp *resp, bool async)
-{
-    if (!req || !resp)
-    {
-        return INVALID_PARAMS;
-    }
 
-    struct parcel p = {
-        .command   = OP_STASH_MEASUREMENT,
-        .tx_buffer = (uint8_t*)req,
-        .tx_bytes  = sizeof(struct caliptra_stash_measurement_req),
-        .rx_buffer = (uint8_t*)resp,
-        .rx_bytes  = sizeof(struct caliptra_stash_measurement_resp),
-    };
-
-    return pack_and_execute_command(&p, async);
-}
-
-/**
- * caliptra_get_idev_csr
- *
- * Get the IDEV certificate signing request
- *
- * @param[out] resp pointer to response struct
- * @param[in] async If true, return after sending command. If false, wait for command to complete and handle response
- *
- * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
- */
+// Get IDEV CSR
 int caliptra_get_idev_csr(struct caliptra_get_idev_csr_resp *resp, bool async)
 {
     if (!resp)
@@ -639,24 +585,55 @@ int caliptra_get_idev_csr(struct caliptra_get_idev_csr_resp *resp, bool async)
     struct parcel p = {
         .command   = OP_GET_IDEV_CSR,
         .tx_buffer = (uint8_t*)&checksum,
-        .tx_bytes  = sizeof(caliptra_checksum),
+        .tx_bytes  = sizeof(checksum),
         .rx_buffer = (uint8_t*)resp,
-        .rx_bytes  = sizeof(struct caliptra_get_idev_csr_resp),
+        .rx_bytes  = sizeof(*resp),
     };
 
     return pack_and_execute_command(&p, async);
 }
 
-/**
- * caliptra_get_ldev_cert
- *
- * Get the LDEV certificate
- *
- * @param[out] resp pointer to response struct
- * @param[in] async If true, return after sending command. If false, wait for command to complete and handle response
- *
- * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
- */
+// Get IDEV cert
+int caliptra_get_idev_cert(struct caliptra_get_idev_cert_req *req, struct caliptra_get_idev_cert_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    struct parcel p = {
+        .command   = OP_GET_IDEV_CERT,
+        .tx_buffer = (uint8_t*)req,
+        .tx_bytes  = sizeof(*req),
+        .rx_buffer = (uint8_t*)resp,
+        .rx_bytes  = sizeof(*resp),
+    };
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Get IDEV info
+int caliptra_get_idev_info(struct caliptra_get_idev_info_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    caliptra_checksum checksum = 0;
+
+    struct parcel p = {
+        .command   = OP_GET_IDEV_INFO,
+        .tx_buffer = (uint8_t*)&checksum,
+        .tx_bytes  = sizeof(checksum),
+        .rx_buffer = (uint8_t*)resp,
+        .rx_bytes  = sizeof(*resp),
+    };
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Get LDEV cert
 int caliptra_get_ldev_cert(struct caliptra_get_ldev_cert_resp *resp, bool async)
 {
     if (!resp)
@@ -669,26 +646,73 @@ int caliptra_get_ldev_cert(struct caliptra_get_ldev_cert_resp *resp, bool async)
     struct parcel p = {
         .command   = OP_GET_LDEV_CERT,
         .tx_buffer = (uint8_t*)&checksum,
-        .tx_bytes  = sizeof(caliptra_checksum),
+        .tx_bytes  = sizeof(checksum),
         .rx_buffer = (uint8_t*)resp,
-        .rx_bytes  = sizeof(struct caliptra_get_ldev_cert_resp),
+        .rx_bytes  = sizeof(*resp),
     };
 
     return pack_and_execute_command(&p, async);
 }
 
-/**
- * caliptra_dpe_command
- *
- * Send a DPE command and receive its response
- *
- * @param[out] req pointer to request struct
- * @param[out] resp pointer to response struct
- * @param[in] async If true, return after sending command. If false, wait for command to complete and handle response
- *
- * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
- */
-int caliptra_dpe_command(struct caliptra_dpe_req *req, struct caliptra_dpe_resp *resp, bool async)
+// ECDSA384 Verify
+int caliptra_ecdsa384_verify(struct caliptra_ecdsa_verify_req *req, bool async)
+{
+    if (!req)
+    {
+        return INVALID_PARAMS;
+    }
+
+    struct caliptra_resp_header resp_hdr = {};
+
+    struct parcel p = {
+        .command   = OP_ECDSA384_VERIFY,
+        .tx_buffer = (uint8_t*)req,
+        .tx_bytes  = sizeof(*req),
+        .rx_buffer = (uint8_t*)&resp_hdr,
+        .rx_bytes  = sizeof(resp_hdr),
+    };
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Stash measurement
+int caliptra_stash_measurement(struct caliptra_stash_measurement_req *req, struct caliptra_stash_measurement_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    struct parcel p = {
+        .command   = OP_STASH_MEASUREMENT,
+        .tx_buffer = (uint8_t*)req,
+        .tx_bytes  = sizeof(*req),
+        .rx_buffer = (uint8_t*)resp,
+        .rx_bytes  = sizeof(*resp),
+    };
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Disable attestation
+int caliptra_disable_attestation(bool async)
+{
+    struct caliptra_resp_header resp_hdr = {};
+    caliptra_checksum checksum = 0;
+
+    struct parcel p = {
+        .command   = OP_DISABLE_ATTESTATION,
+        .tx_buffer = (uint8_t*)&checksum,
+        .tx_bytes  = sizeof(checksum),
+        .rx_buffer = (uint8_t*)&resp_hdr,
+        .rx_bytes  = sizeof(resp_hdr),
+    };
+
+    return pack_and_execute_command(&p, async);
+}
+
+// DPE command
+int caliptra_invoke_dpe_command(struct caliptra_invoke_dpe_req *req, struct caliptra_invoke_dpe_resp *resp, bool async)
 {
     if (!req || !resp)
     {
@@ -705,7 +729,125 @@ int caliptra_dpe_command(struct caliptra_dpe_req *req, struct caliptra_dpe_resp 
         .tx_buffer = (uint8_t*)req,
         .tx_bytes  = actual_bytes,
         .rx_buffer = (uint8_t*)resp,
-        .rx_bytes  = sizeof(struct caliptra_dpe_resp),
+        .rx_bytes  = sizeof(*resp),
+    };
+
+    return pack_and_execute_command(&p, async);
+}
+
+// FW Info
+int caliptra_fw_info(struct caliptra_fw_info_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    caliptra_checksum checksum = 0;
+
+    struct parcel p = {
+        .command   = OP_FW_INFO,
+        .tx_buffer = (uint8_t*)&checksum,
+        .tx_bytes  = sizeof(checksum),
+        .rx_buffer = (uint8_t*)resp,
+        .rx_bytes  = sizeof(*resp),
+    };
+
+    return pack_and_execute_command(&p, async);
+}
+
+// FIPS version
+int caliptra_fips_version(struct caliptra_fips_version_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    caliptra_checksum checksum = 0;
+
+    struct parcel p = {
+        .command   = OP_FIPS_VERSION,
+        .tx_buffer = (uint8_t*)&checksum,
+        .tx_bytes  = sizeof(checksum),
+        .rx_buffer = (uint8_t*)resp,
+        .rx_bytes  = sizeof(*resp),
+    };
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Self test start
+int caliptra_self_test_start(bool async)
+{
+    struct caliptra_resp_header resp_hdr = {};
+    caliptra_checksum checksum = 0;
+
+    struct parcel p = {
+        .command   = OP_SELF_TEST_START,
+        .tx_buffer = (uint8_t*)&checksum,
+        .tx_bytes  = sizeof(checksum),
+        .rx_buffer = (uint8_t*)&resp_hdr,
+        .rx_bytes  = sizeof(resp_hdr),
+    };
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Self test get results
+int caliptra_self_test_get_results(struct caliptra_test_get_fmc_alias_cert_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    caliptra_checksum checksum = 0;
+
+    struct parcel p = {
+        .command   = OP_SELF_TEST_GET_RESULTS,
+        .tx_buffer = (uint8_t*)&checksum,
+        .tx_bytes  = sizeof(checksum),
+        .rx_buffer = (uint8_t*)resp,
+        .rx_bytes  = sizeof(*resp),
+    };
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Shutdown
+int caliptra_shutdown(bool async)
+{
+    struct caliptra_resp_header resp_hdr = {};
+    caliptra_checksum checksum = 0;
+
+    struct parcel p = {
+        .command   = OP_SHUTDOWN,
+        .tx_buffer = (uint8_t*)&checksum,
+        .tx_bytes  = sizeof(checksum),
+        .rx_buffer = (uint8_t*)&resp_hdr,
+        .rx_bytes  = sizeof(resp_hdr),
+    };
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Capabilities
+int caliptra_capabilities(struct caliptra_capabilities_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    caliptra_checksum checksum = 0;
+
+    struct parcel p = {
+        .command   = OP_CAPABILITIES,
+        .tx_buffer = (uint8_t*)&checksum,
+        .tx_bytes  = sizeof(checksum),
+        .rx_buffer = (uint8_t*)resp,
+        .rx_bytes  = sizeof(*resp),
     };
 
     return pack_and_execute_command(&p, async);
