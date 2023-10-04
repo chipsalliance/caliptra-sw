@@ -19,7 +19,7 @@ References:
 use crate::cfi::{cfi_panic, CfiPanicInfo};
 use crate::xoshiro::Xoshiro128;
 #[cfg(not(feature = "cfi-test"))]
-use caliptra_common::memory_layout::{CFI_MASK_ORG, CFI_VAL_ORG};
+use caliptra_drivers::memory_layout::{CFI_MASK_ORG, CFI_VAL_ORG};
 use core::default::Default;
 
 #[cfg(feature = "cfi-test")]
