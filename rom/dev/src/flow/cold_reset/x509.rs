@@ -51,8 +51,8 @@ impl X509 {
     ///
     /// # Returns
     ///
-    /// `[u8; 8]` - 64-bit Unique Endpoint Identifier
-    pub fn ueid(env: &RomEnv) -> CaliptraResult<[u8; 8]> {
+    /// `[u8; 17]` - Byte 0 - Ueid Type, Bytes 1-16 Unique Endpoint Identifier
+    pub fn ueid(env: &RomEnv) -> CaliptraResult<[u8; 17]> {
         let ueid = env.soc_ifc.fuse_bank().ueid();
         Ok(ueid)
     }

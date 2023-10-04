@@ -6,8 +6,8 @@ use caliptra_builder::{
 };
 use caliptra_common::memory_layout::{ICCM_ORG, ICCM_SIZE};
 use caliptra_common::RomBootStatus::*;
-use caliptra_drivers::Array4x12;
 use caliptra_drivers::MfgFlags;
+use caliptra_drivers::{Array4x12, IdevidCertAttr};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError, SecurityState, U4,
@@ -1985,6 +1985,67 @@ fn cert_test() {
 
     // Get the fmclias cert.
     fmcalias_cert(&ldevid_cert, &output);
+}
+
+#[test]
+fn cert_test_with_ueid() {
+    let ueid = [0x04030201, 0x08070605, 0x0C0B0A09, 0x100F0E0D];
+    let mut fuses = Fuses::default();
+    fuses.idevid_cert_attr[IdevidCertAttr::ManufacturerSerialNumber1 as usize] = ueid[0];
+    fuses.idevid_cert_attr[IdevidCertAttr::ManufacturerSerialNumber2 as usize] = ueid[1];
+    fuses.idevid_cert_attr[IdevidCertAttr::ManufacturerSerialNumber3 as usize] = ueid[2];
+    fuses.idevid_cert_attr[IdevidCertAttr::ManufacturerSerialNumber4 as usize] = ueid[3];
+    fuses.idevid_cert_attr[IdevidCertAttr::UeidType as usize] = 1;
+
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let opts = ImageOptions::default();
+
+    let image_bundle =
+        caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, opts).unwrap();
+
+    let mut output = vec![];
+
+    // Set gen_idev_id_csr to generate CSR.
+    let flags = MfgFlags::GENERATE_IDEVID_CSR;
+    hw.soc_ifc()
+        .cptra_dbg_manuf_service_reg()
+        .write(|_| flags.bits());
+
+    // Download the CSR from the mailbox.
+    let _ = helpers::get_csr(&mut hw);
+
+    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.upload_firmware(&image_bundle.to_bytes().unwrap())
+        .unwrap();
+
+    hw.step_until_output_contains("[exit] Launching FMC")
+        .unwrap();
+
+    hw.mailbox_execute(0x1000_0001, &[]).unwrap();
+
+    let result = hw.copy_output_until_exit_success(&mut output);
+    assert!(result.is_ok());
+    let output = String::from_utf8_lossy(&output);
+
+    let csr_str = helpers::get_data("[idev] CSR = ", &output);
+    assert!(csr_str.contains("010102030405060708090A0B0C0D0E0F10"));
+
+    let ldevid_cert = helpers::get_data("[fmc] LDEVID cert = ", &output);
+    assert!(ldevid_cert.contains("010102030405060708090A0B0C0D0E0F10"));
+
+    let fmc_cert = helpers::get_data("[fmc] FMCALIAS cert = ", &output);
+    assert!(fmc_cert.contains("010102030405060708090A0B0C0D0E0F10"));
 }
 
 fn update_header(image_bundle: &mut ImageBundle) {
