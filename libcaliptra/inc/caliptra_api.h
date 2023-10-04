@@ -74,24 +74,51 @@ int caliptra_complete();
 // (See notes above on asynchronous operation and return codes)
 int caliptra_mailbox_execute(uint32_t cmd, struct caliptra_buffer *mbox_tx_buffer, struct caliptra_buffer *mbox_rx_buffer, bool async);
 
+// For full command details, please refer to the Caliptra Runtime Readme file at runtime\README.md
+
 // Upload Caliptra Firmware
-// (See notes above on asynchronous operation and return codes)
 int caliptra_upload_fw(struct caliptra_buffer *fw_buffer, bool async);
 
-// Read Caliptra FIPS Version
-// (See notes above on asynchronous operation and return codes)
-int caliptra_get_fips_version(struct caliptra_fips_version *version, bool async);
-
-// Stash Measurement command
-// (See notes above on asynchronous operation and return codes)
-int caliptra_stash_measurement(struct caliptra_stash_measurement_req *req, struct caliptra_stash_measurement_resp *resp, bool async);
-
 // Get IDEV CSR
-// (See notes above on asynchronous operation and return codes)
 int caliptra_get_idev_csr(struct caliptra_get_idev_csr_resp *resp, bool async);
 
-// Get LDEV Cert
-// (See notes above on asynchronous operation and return codes)
+// Get IDEV cert
+int caliptra_get_idev_cert(struct caliptra_get_idev_cert_req *req, struct caliptra_get_idev_cert_resp *resp, bool async);
+
+// Get IDEV info
+int caliptra_get_idev_info(struct caliptra_get_idev_info_resp *resp, bool async);
+
+// Get LDEV cert
 int caliptra_get_ldev_cert(struct caliptra_get_ldev_cert_resp *resp, bool async);
+
+// ECDSA384 Verify
+int caliptra_ecdsa384_verify(struct caliptra_ecdsa_verify_req *req, bool async);
+
+// Stash measurement
+int caliptra_stash_measurement(struct caliptra_stash_measurement_req *req, struct caliptra_stash_measurement_resp *resp, bool async);
+
+// Disable attestation
+int caliptra_disable_attestation(bool async);
+
+// DPE command
+int caliptra_invoke_dpe_command(struct caliptra_invoke_dpe_req *req, struct caliptra_invoke_dpe_resp *resp, bool async);
+
+// FW Info
+int caliptra_fw_info(struct caliptra_fw_info_resp *resp, bool async);
+
+// FIPS version
+int caliptra_fips_version(struct caliptra_fips_version_resp *resp, bool async);
+
+// Self test start
+int caliptra_self_test_start(bool async);
+
+// Self test get results
+int caliptra_self_test_get_results(struct caliptra_test_get_fmc_alias_cert_resp *resp, bool async);
+
+// Shutdown
+int caliptra_shutdown(bool async);
+
+// Capabilities
+int caliptra_capabilities(struct caliptra_capabilities_resp *resp, bool async);
 
 
