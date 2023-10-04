@@ -185,6 +185,8 @@ impl FakeRomFlow {
                 cprintln!("[fake-rom-cold-reset] ++");
                 report_boot_status(ColdResetStarted.into());
 
+                env.soc_ifc.flow_status_set_ready_for_firmware();
+
                 fht::initialize_fht(env);
 
                 // SKIP Execute IDEVID layer

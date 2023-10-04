@@ -111,6 +111,16 @@ impl SocIfc {
         soc_ifc.cptra_flow_status().write(|w| w.ready_for_fw(true));
     }
 
+    /// Get 'ready for firmware' status
+    ///
+    /// # Arguments
+    ///
+    /// * None
+    pub fn flow_status_ready_for_firmware(&mut self) -> bool {
+        let soc_ifc = self.soc_ifc.regs_mut();
+        soc_ifc.cptra_flow_status().read().ready_for_fw()
+    }
+
     pub fn fuse_bank(&self) -> FuseBank {
         FuseBank {
             soc_ifc: &self.soc_ifc,
