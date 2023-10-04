@@ -98,6 +98,13 @@ fn runtime_panic(_: &core::panic::PanicInfo) -> ! {
     handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_GLOBAL_PANIC.into());
 }
 
+#[no_mangle]
+extern "C" fn cfi_panic_handler(code: u32) -> ! {
+    cprintln!("RT CFI Panic code=0x{:08X}", code);
+
+    handle_fatal_error(code);
+}
+
 #[allow(clippy::empty_loop)]
 fn handle_fatal_error(code: u32) -> ! {
     cprintln!("RT Fatal Error: 0x{:08X}", code);

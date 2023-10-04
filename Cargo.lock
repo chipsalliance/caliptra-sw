@@ -234,7 +234,6 @@ dependencies = [
  "caliptra-cfi-derive",
  "caliptra-drivers",
  "caliptra-registers",
- "caliptra_common",
  "serial_test",
  "ufmt",
 ]
@@ -562,6 +561,7 @@ name = "caliptra-image-verify"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.4.0",
+ "caliptra-cfi-lib",
  "caliptra-drivers",
  "caliptra-image-types",
  "caliptra_common",
