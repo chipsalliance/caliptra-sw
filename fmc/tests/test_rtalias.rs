@@ -82,8 +82,8 @@ fn test_fht_info() {
 
     let data = hw.mailbox_execute(TEST_CMD_READ_FHT, &[]).unwrap().unwrap();
     let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
-    assert_eq!(fht.ldevid_tbs_size, 533);
-    assert_eq!(fht.fmcalias_tbs_size, 769);
+    assert_eq!(fht.ldevid_tbs_size, 544);
+    assert_eq!(fht.fmcalias_tbs_size, 778);
     assert_eq!(fht.ldevid_tbs_addr, 0x50003C00);
     assert_eq!(fht.fmcalias_tbs_addr, 0x50004000);
     assert_eq!(fht.pcr_log_addr, 0x50004800);
