@@ -755,3 +755,21 @@ The following are the pre-conditions that should be satisfied:
     - If validation fails during ROM boot, the new RT image will not be copied from
       the mailbox. ROM will boot the existing FMC/Runtime images. Validation
       errors will be reported via the CPTRA_FW_ERROR_NON_FATAL register.
+
+## 14. Fake ROM
+
+Fake ROM is a variation of the ROM intended to be used in the verification/enabling stages of development. The purpose is to greatly reduce the boot time for pre-Si environments by eliminating certain steps from the boot flow. Outside of these omissions, the behavior is intended to be the same as normal ROM.
+
+Fake ROM is not available in production mode as it is not secure and breaks/bypasses the core use-cases of Caliptra as a RoT.
+
+**Differences from normal ROM:**
+Fake ROM reduces boot time by doing the following:
+1. Skipping the DICE cert derivation and instead providing a static, "canned" cert chain for LDEV and FMC Alias
+2. Skipping the known answer tests (KATs)
+3. Skipping verification of the FW image received - This can optionally still be performed, see CPTRA_DBG_MANUF_SERVICE_REG
+
+**How to use:**
+- Fake ROM is provided in the release along with the normal collateral.
+- The image builder exposes the argument "fake" that can be used to generate the fake versions
+
+To fully boot to runtime, the fake version of FMC should also be used. Details can be found in the FMC readme.
