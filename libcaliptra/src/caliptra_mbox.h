@@ -22,12 +22,19 @@ enum caliptra_mailbox_fsm_states {
 enum mailbox_command {
     OP_CALIPTRA_FW_LOAD          = 0x46574C44, // "FWLD"
     OP_GET_IDEV_CSR              = 0x49444556, // "IDEV"
+    OP_GET_IDEV_CERT             = 0x49444543, // "IDEC
+    OP_GET_IDEV_INFO             = 0x49444549, // "IDEI"
     OP_GET_LDEV_CERT             = 0x4C444556, // "LDEV"
     OP_ECDSA384_VERIFY           = 0x53494756, // "SIGV"
     OP_STASH_MEASUREMENT         = 0x4D454153, // "MEAS"
     OP_DISABLE_ATTESTATION       = 0x4453424C, // "DSBL"
     OP_INVOKE_DPE_COMMAND        = 0x44504543, // "DPEC"
+    OP_FW_INFO                   = 0x494E464F, // "INFO"
     OP_FIPS_VERSION              = 0x46505652, // "FPVR"
+    OP_SELF_TEST_START           = 0x46504C54, // "FPST"
+    OP_SELF_TEST_GET_RESULTS     = 0x46504C67, // "FPGR"
+    OP_SHUTDOWN                  = 0x46505344, // "FPSD"
+    OP_CAPABILITIES              = 0x43415053, // "CAPS"
 };
 
 struct parcel {

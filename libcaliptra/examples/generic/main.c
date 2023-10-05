@@ -73,9 +73,9 @@ int main(int argc, char *argv[])
 
     // Send a FIPS version command in async mode
     if (!status) {
-        struct caliptra_fips_version version;
+        struct caliptra_fips_version_resp version;
         // Send async
-        status = caliptra_get_fips_version(&version, true);
+        status = caliptra_fips_version(&version, true);
 
         if (status) {
             printf("Get FIPS Version send failed: %x\n", status);

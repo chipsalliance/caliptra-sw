@@ -28,17 +28,16 @@ Certificate:
             X509v3 Key Usage: critical
                 Certificate Sign
             2.23.133.5.4.4: 
-                0
-..........
+                0....................
             X509v3 Subject Key Identifier: 
                 21:EE:EF:9A:4C:61:D4:B9:E3:D9:4B:EA:46:F9:A1:2A:C6:88:7C:E2
             X509v3 Authority Key Identifier: 
                 keyid:42:4F:3A:C7:45:DD:BD:50:15:05:7F:5B:F8:3E:9C:D6:48:10:B0:41
 
     Signature Algorithm: ecdsa-with-SHA384
-         30:65:02:31:00:ec:d3:24:ac:d4:eb:9c:9f:8f:30:87:c3:92:
-         22:71:4d:27:a7:44:dd:13:9c:b4:19:57:47:bb:c9:6c:23:84:
-         fb:74:ba:d9:10:01:dc:73:e5:56:a1:20:b3:40:18:4f:d9:02:
-         30:0c:98:bb:ca:0b:39:f5:bb:4b:00:19:5d:8a:d6:9b:92:0f:
-         9f:d9:22:ae:1d:7f:ff:81:25:bc:70:2a:7e:77:29:e9:1f:cc:
-         ae:7b:07:15:c5:7a:69:0f:1a:3b:75:12:c9
+         30:65:02:31:00:d5:9d:fc:46:4d:bf:6a:85:9a:59:8f:ac:e4:
+         30:31:9c:04:56:ad:37:84:69:3d:03:9e:a5:98:77:71:0b:aa:
+         b4:d1:10:5c:5b:c6:ab:24:4c:cb:d0:5e:ff:a3:16:c7:86:02:
+         30:28:88:9d:96:a9:96:79:76:eb:3b:5b:57:73:60:1d:b6:f0:
+         9b:18:c8:45:62:98:c0:4c:2c:85:3c:a5:5a:78:d3:d8:4e:15:
+         46:5c:ae:31:76:35:36:b4:5d:d9:47:68:f4
