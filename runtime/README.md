@@ -464,6 +464,23 @@ Caliptra models PAUSER callers to its mailbox as having 1 of 2 privilege levels:
   SHALL fail any calls to the DPE CertifyKey command by PL1 callers.
   PL1 callers should use the CertifyCsr command instead.
 
+#### PAUSER Privilege Level Active Context Limits
+
+Each active context in DPE is activated from either PL0 or PL1 through the 
+InvokeDpe mailbox command calling the DeriveChild or InitializeContext DPE
+commands. However, a caller could easily exhaust space in DPE's context array
+by repeatedly calling the aforementioned DPE commands with certain flags set.
+
+To prevent against this, we establish active context limits for each PAUSER
+privilege level:
+
+* PL0 - 8 active contexts
+* PL1 - 16 active contexts
+
+If a DPE command were to activate a new context such that the total number of
+active contexts in a privilege level is above its active context limit, the 
+InvokeDpe command should fail. 
+
 ### DPE Profile Implementation
 
 The DPE iRoT Profile leaves some choices up to implementers. This section

@@ -425,6 +425,7 @@ dependencies = [
 name = "caliptra-hw-model"
 version = "0.1.0"
 dependencies = [
+ "bit-vec",
  "bitfield",
  "caliptra-builder",
  "caliptra-emu-bus",
@@ -714,12 +715,14 @@ version = "0.1.0"
 name = "caliptra-test"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "asn1",
  "caliptra-builder",
  "caliptra-hw-model",
  "caliptra-hw-model-types",
  "caliptra-runtime",
  "caliptra_common",
+ "elf",
  "openssl",
  "zerocopy",
 ]
@@ -1096,6 +1099,7 @@ dependencies = [
  "constant_time_eq",
  "crypto",
  "platform",
+ "ufmt",
  "zerocopy",
 ]
 
@@ -1775,6 +1779,9 @@ checksum = "6ac9a59f73473f1b8d852421e59e64809f025994837ef743615c6d0c5b305160"
 [[package]]
 name = "platform"
 version = "0.1.0"
+dependencies = [
+ "ufmt",
+]
 
 [[package]]
 name = "ppv-lite86"

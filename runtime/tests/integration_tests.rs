@@ -13,15 +13,20 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_drivers::{CaliptraError, Ecc384PubKey};
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError, ShaAccMode};
-use caliptra_runtime::{FipsVersionCmd, RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
+use caliptra_runtime::{
+    FipsVersionCmd, InvokeDpeCmd, RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU,
+};
 use common::run_rt_test;
 use dpe::{
     commands::{
-        CertifyKeyCmd, CertifyKeyFlags, Command, CommandHdr, GetCertificateChainCmd, SignCmd,
-        SignFlags,
+        CertifyKeyCmd, CertifyKeyFlags, Command, CommandHdr, DeriveChildCmd, DeriveChildFlags,
+        GetCertificateChainCmd, RotateCtxCmd, RotateCtxFlags, SignCmd, SignFlags,
     },
     context::ContextHandle,
-    response::{CertifyKeyResp, GetCertificateChainResp, GetProfileResp, SignResp},
+    response::{
+        CertifyKeyResp, DeriveChildResp, GetCertificateChainResp, GetProfileResp, NewHandleResp,
+        SignResp,
+    },
     DPE_PROFILE,
 };
 use openssl::{
@@ -446,6 +451,148 @@ fn test_invoke_dpe_get_certificate_chain_cmd() {
         GetCertificateChainResp::read_from(&resp_hdr.data[..resp_hdr.data_size as usize]).unwrap();
     assert_eq!(cert_chain.certificate_size, 2048);
     assert_ne!([0u8; 2048], cert_chain.certificate_chain);
+}
+
+#[test]
+fn test_pauser_privilege_level_dpe_context_thresholds() {
+    let mut model = run_rt_test(None, None);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == RtBootStatus::RtReadyForCommands.into()
+    });
+
+    let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
+    // First rotate the default context so that we don't run into an error
+    // when trying to retain the default context in derive child.
+    let rotate_ctx_cmd = RotateCtxCmd {
+        handle: ContextHandle::default(),
+        flags: RotateCtxFlags::empty(),
+    };
+    let rotate_ctx_cmd_hdr = CommandHdr::new_for_test(Command::ROTATE_CONTEXT_HANDLE);
+    let rotate_ctx_cmd_hdr_buf = rotate_ctx_cmd_hdr.as_bytes();
+    cmd_data[..rotate_ctx_cmd_hdr_buf.len()].copy_from_slice(rotate_ctx_cmd_hdr_buf);
+    let rotate_ctx_cmd_buf = rotate_ctx_cmd.as_bytes();
+    cmd_data[rotate_ctx_cmd_hdr_buf.len()..rotate_ctx_cmd_hdr_buf.len() + rotate_ctx_cmd_buf.len()]
+        .copy_from_slice(rotate_ctx_cmd_buf);
+    let rotate_ctx_mbox_cmd = InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        data: cmd_data,
+        data_size: (rotate_ctx_cmd_hdr_buf.len() + rotate_ctx_cmd_buf.len()) as u32,
+    };
+
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::INVOKE_DPE),
+        &rotate_ctx_mbox_cmd.as_bytes()[4..],
+    );
+
+    let rotate_ctx_mbox_cmd = InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..rotate_ctx_mbox_cmd
+    };
+
+    let rotate_ctx_resp_buf = model
+        .mailbox_execute(
+            u32::from(CommandId::INVOKE_DPE),
+            rotate_ctx_mbox_cmd.as_bytes(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    assert!(rotate_ctx_resp_buf.len() <= std::mem::size_of::<InvokeDpeResp>());
+    let mut rotate_ctx_resp_hdr = InvokeDpeResp::default();
+    rotate_ctx_resp_hdr.as_bytes_mut()[..rotate_ctx_resp_buf.len()]
+        .copy_from_slice(&rotate_ctx_resp_buf);
+
+    assert!(caliptra_common::checksum::verify_checksum(
+        rotate_ctx_resp_hdr.hdr.chksum,
+        0x0,
+        &rotate_ctx_resp_buf[core::mem::size_of_val(&rotate_ctx_resp_hdr.hdr.chksum)..],
+    ));
+
+    let rotate_ctx_resp = NewHandleResp::read_from(
+        &rotate_ctx_resp_hdr.data[..rotate_ctx_resp_hdr.data_size as usize],
+    )
+    .unwrap();
+    let mut handle = rotate_ctx_resp.handle;
+
+    // Call DeriveChild with PL0 enough times to breach the threshold on the last iteration.
+    // Note that this loop runs exactly PL0_DPE_ACTIVE_CONTEXT_THRESHOLD times, but due to auto
+    // initialization of DPE, we have one extra context, so the last iteration of this loop
+    // is expected to throw a threshold breached error.
+    for i in 0..InvokeDpeCmd::PL0_DPE_ACTIVE_CONTEXT_THRESHOLD {
+        let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
+        let derive_child_cmd = DeriveChildCmd {
+            handle,
+            data: [0u8; DPE_PROFILE.get_hash_size()],
+            flags: DeriveChildFlags::RETAIN_PARENT,
+            tci_type: 0,
+            target_locality: 0,
+        };
+        let derive_child_cmd_hdr = CommandHdr::new_for_test(Command::DERIVE_CHILD);
+        let derive_child_cmd_hdr_buf = derive_child_cmd_hdr.as_bytes();
+        cmd_data[..derive_child_cmd_hdr_buf.len()].copy_from_slice(derive_child_cmd_hdr_buf);
+        let derive_child_cmd_buf = derive_child_cmd.as_bytes();
+        cmd_data[derive_child_cmd_hdr_buf.len()
+            ..derive_child_cmd_hdr_buf.len() + derive_child_cmd_buf.len()]
+            .copy_from_slice(derive_child_cmd_buf);
+        let derive_child_mbox_cmd = InvokeDpeReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            data: cmd_data,
+            data_size: (derive_child_cmd_hdr_buf.len() + derive_child_cmd_buf.len()) as u32,
+        };
+
+        let checksum = caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::INVOKE_DPE),
+            &derive_child_mbox_cmd.as_bytes()[4..],
+        );
+
+        let derive_child_mbox_cmd = InvokeDpeReq {
+            hdr: MailboxReqHeader { chksum: checksum },
+            ..derive_child_mbox_cmd
+        };
+
+        // If we are on the last call to DeriveChild, expect that we get a PL0_ACTIVE_DPE_CONTEXT_THRESHOLD_EXCEEDED error.
+        if i == InvokeDpeCmd::PL0_DPE_ACTIVE_CONTEXT_THRESHOLD - 1 {
+            let resp = model
+                .mailbox_execute(
+                    u32::from(CommandId::INVOKE_DPE),
+                    derive_child_mbox_cmd.as_bytes(),
+                )
+                .unwrap_err();
+            if let ModelError::MailboxCmdFailed(code) = resp {
+                assert_eq!(
+                    code,
+                    caliptra_drivers::CaliptraError::RUNTIME_PL0_ACTIVE_DPE_CONTEXT_THRESHOLD_EXCEEDED.into()
+                );
+            }
+            break;
+        }
+
+        let derive_child_resp_buf = model
+            .mailbox_execute(
+                u32::from(CommandId::INVOKE_DPE),
+                derive_child_mbox_cmd.as_bytes(),
+            )
+            .unwrap()
+            .expect("We should have received a response");
+
+        assert!(derive_child_resp_buf.len() <= std::mem::size_of::<InvokeDpeResp>());
+        let mut derive_child_resp_hdr = InvokeDpeResp::default();
+        derive_child_resp_hdr.as_bytes_mut()[..derive_child_resp_buf.len()]
+            .copy_from_slice(&derive_child_resp_buf);
+
+        assert!(caliptra_common::checksum::verify_checksum(
+            derive_child_resp_hdr.hdr.chksum,
+            0x0,
+            &derive_child_resp_buf[core::mem::size_of_val(&derive_child_resp_hdr.hdr.chksum)..],
+        ));
+
+        let derive_child_resp = DeriveChildResp::read_from(
+            &derive_child_resp_hdr.data[..derive_child_resp_hdr.data_size as usize],
+        )
+        .unwrap();
+        handle = derive_child_resp.handle;
+    }
 }
 
 #[test]
