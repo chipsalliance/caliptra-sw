@@ -269,6 +269,7 @@ dependencies = [
  "ufmt",
  "ureg",
  "zerocopy",
+ "zeroize",
 ]
 
 [[package]]
@@ -555,6 +556,7 @@ dependencies = [
  "caliptra-lms-types",
  "memoffset 0.8.0",
  "zerocopy",
+ "zeroize",
 ]
 
 [[package]]
@@ -585,6 +587,7 @@ version = "0.1.0"
 dependencies = [
  "arbitrary",
  "zerocopy",
+ "zeroize",
 ]
 
 [[package]]
@@ -623,6 +626,7 @@ dependencies = [
  "ufmt",
  "x509-parser",
  "zerocopy",
+ "zeroize",
 ]
 
 [[package]]
@@ -680,6 +684,7 @@ dependencies = [
  "ufmt",
  "wycheproof",
  "zerocopy",
+ "zeroize",
 ]
 
 [[package]]
@@ -756,6 +761,7 @@ dependencies = [
  "quote",
  "syn 1.0.109",
  "x509-parser",
+ "zeroize",
 ]
 
 [[package]]
@@ -1101,6 +1107,7 @@ dependencies = [
  "platform",
  "ufmt",
  "zerocopy",
+ "zeroize",
 ]
 
 [[package]]
@@ -2665,6 +2672,20 @@ dependencies = [
 
 [[package]]
 name = "zeroize"
-version = "1.5.7"
+version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c394b5bd0c6f669e7275d9c20aa90ae064cb22e75a1cad54e1b34088034b149f"
+checksum = "2a0956f1ba7c7909bfb66c2e9e4124ab6f6482560f6628b5aaeba39207c9aad9"
+dependencies = [
+ "zeroize_derive",
+]
+
+[[package]]
+name = "zeroize_derive"
+version = "1.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce36e65b0d2999d2aafac989fb249189a141aee1f53c612c1f37d72631959f69"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.28",
+]

@@ -14,6 +14,7 @@ caliptra-lms-types.workspace = true
 memoffset.workspace = true
 zerocopy.workspace = true
 caliptra-error = { workspace = true, default-features = false }
+zeroize.workspace = true
 
 [features]
 default = ["std"]

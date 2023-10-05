@@ -29,6 +29,7 @@ use caliptra_common::pcr::PCR_ID_FMC_CURRENT;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::{okmutref, report_boot_status, Array4x12, CaliptraResult, KeyId, Lifecycle};
 use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams};
+use zeroize::Zeroize;
 
 #[derive(Default)]
 pub struct FmcAliasLayer {}

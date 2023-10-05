@@ -38,8 +38,9 @@ use caliptra_kat::KatsEnv;
 use caliptra_x509::{NotAfter, NotBefore};
 use core::mem::ManuallyDrop;
 use zerocopy::{AsBytes, LayoutVerified};
+use zeroize::Zeroize;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Zeroize)]
 pub struct FwProcInfo {
     pub fmc_cert_valid_not_before: NotBefore,
 
@@ -48,14 +49,6 @@ pub struct FwProcInfo {
     pub fmc_effective_fuse_svn: u32,
 
     pub owner_pub_keys_digest_in_fuses: bool,
-}
-
-impl FwProcInfo {
-    pub fn zeroize(&mut self) {
-        self.fmc_cert_valid_not_before.value.fill(0);
-        self.fmc_cert_valid_not_after.value.fill(0);
-        self.fmc_effective_fuse_svn = 0;
-    }
 }
 
 pub struct FirmwareProcessor {}
