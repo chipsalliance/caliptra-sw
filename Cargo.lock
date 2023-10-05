@@ -621,6 +621,7 @@ dependencies = [
  "memoffset 0.8.0",
  "openssl",
  "ufmt",
+ "x509-parser",
  "zerocopy",
 ]
 
