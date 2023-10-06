@@ -13,6 +13,8 @@ const IGNORED_PATHS: &[&str] = &[
     // BSD-licensed
     "./sw-emulator/compliance-test/target-files/link.ld",
     "./runtime/dpe",
+    "./ci-tools/fpga-boss/image/mnt",
+    "./ci-tools/fpga-image/out",
 ];
 
 const IGNORED_DIRS: &[&str] = &[".git", "caliptra-rtl", "out", "target"];

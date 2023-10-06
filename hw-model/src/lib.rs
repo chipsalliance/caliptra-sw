@@ -145,6 +145,9 @@ pub struct InitParams<'a> {
     pub trng_mode: Option<TrngMode>,
 
     pub wdt_timeout_cycles: u64,
+
+    // PAUSER value used for APB read/write cycles from SoC->caliptra
+    pub soc_apb_pauser: u32,
 }
 
 impl<'a> Default for InitParams<'a> {
@@ -174,11 +177,11 @@ impl<'a> Default for InitParams<'a> {
             etrng_responses,
             trng_mode: Default::default(),
             wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
+            soc_apb_pauser: 0x1,
         }
     }
 }
 
-#[derive(Default)]
 pub struct BootParams<'a> {
     pub init_params: InitParams<'a>,
     pub fuses: Fuses,
@@ -186,6 +189,21 @@ pub struct BootParams<'a> {
     pub initial_dbg_manuf_service_reg: u32,
     pub initial_repcnt_thresh_reg: Option<CptraItrngEntropyConfig1WriteVal>,
     pub initial_adaptp_thresh_reg: Option<CptraItrngEntropyConfig0WriteVal>,
+    pub valid_pauser: u32,
+}
+
+impl<'a> Default for BootParams<'a> {
+    fn default() -> Self {
+        Self {
+            init_params: Default::default(),
+            fuses: Default::default(),
+            fw_image: Default::default(),
+            initial_dbg_manuf_service_reg: Default::default(),
+            initial_repcnt_thresh_reg: Default::default(),
+            initial_adaptp_thresh_reg: Default::default(),
+            valid_pauser: 0x1,
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -202,6 +220,7 @@ pub enum ModelError {
     UnexpectedMailboxFsmStatus { expected: u32, actual: u32 },
     UnableToLockSha512Acc,
     UploadMeasurementResponseError,
+    UnableToReadMailbox,
 }
 impl Error for ModelError {}
 impl Display for ModelError {
@@ -232,6 +251,7 @@ impl Display for ModelError {
             ModelError::UploadMeasurementResponseError => {
                 write!(f, "Error in response after uploading measurement")
             }
+            ModelError::UnableToReadMailbox => write!(f, "Unable to read mailbox regs"),
         }
     }
 }
@@ -384,6 +404,16 @@ pub trait HwModel {
         if let Some(reg) = run_params.initial_adaptp_thresh_reg {
             hw.soc_ifc().cptra_i_trng_entropy_config_0().write(|_| reg);
         }
+
+        // Set up the PAUSER as valid for the mailbox (using index 0)
+        hw.soc_ifc()
+            .cptra_mbox_valid_pauser()
+            .at(0)
+            .write(|_| run_params.valid_pauser);
+        hw.soc_ifc()
+            .cptra_mbox_pauser_lock()
+            .at(0)
+            .write(|w| w.lock(true));
 
         writeln!(hw.output().logger(), "writing to cptra_bootfsm_go")?;
         hw.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
@@ -681,8 +711,15 @@ pub trait HwModel {
         cmd: u32,
         buf: &[u8],
     ) -> std::result::Result<(), ModelError> {
+        // Read a 0 to get the lock
         if self.soc_mbox().lock().read().lock() {
             return Err(ModelError::UnableToLockMailbox);
+        }
+
+        // Mailbox lock value should read 1 now
+        // If not, the reads are likely being blocked by the PAUSER check or some other issue
+        if !(self.soc_mbox().lock().read().lock()) {
+            return Err(ModelError::UnableToReadMailbox);
         }
 
         writeln!(
@@ -919,6 +956,18 @@ mod tests {
         model.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
         model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
+        // Set up the PAUSER as valid for the mailbox (using index 0)
+        model
+            .soc_ifc()
+            .cptra_mbox_valid_pauser()
+            .at(0)
+            .write(|_| 0x1);
+        model
+            .soc_ifc()
+            .cptra_mbox_pauser_lock()
+            .at(0)
+            .write(|w| w.lock(true));
+
         assert_eq!(
             model.apb_bus().read(RvSize::Word, MBOX_ADDR_LOCK).unwrap(),
             0
@@ -951,6 +1000,18 @@ mod tests {
         model.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
         model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
+        // Set up the PAUSER as valid for the mailbox (using index 0)
+        model
+            .soc_ifc()
+            .cptra_mbox_valid_pauser()
+            .at(0)
+            .write(|_| 0x1);
+        model
+            .soc_ifc()
+            .cptra_mbox_pauser_lock()
+            .at(0)
+            .write(|w| w.lock(true));
+
         assert!(!model.soc_mbox().lock().read().lock());
         assert!(model.soc_mbox().lock().read().lock());
 
@@ -969,6 +1030,18 @@ mod tests {
 
         model.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
         model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+
+        // Set up the PAUSER as valid for the mailbox (using index 0)
+        model
+            .soc_ifc()
+            .cptra_mbox_valid_pauser()
+            .at(0)
+            .write(|_| 0x1);
+        model
+            .soc_ifc()
+            .cptra_mbox_pauser_lock()
+            .at(0)
+            .write(|w| w.lock(true));
 
         assert!(!model.soc_mbox().lock().read().lock());
         assert!(model.soc_mbox().lock().read().lock());

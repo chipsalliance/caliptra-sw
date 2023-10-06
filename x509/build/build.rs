@@ -40,9 +40,9 @@ fn gen_init_devid_csr(out_dir: &str) {
     let mut usage = KeyUsage::default();
     usage.set_key_cert_sign(true);
     let bldr = csr::CsrTemplateBuilder::<EcdsaSha384Algo>::new()
-        .add_basic_constraints_ext(true, 0)
+        .add_basic_constraints_ext(true, 5)
         .add_key_usage_ext(usage)
-        .add_ueid_ext(&[0xFF; 8]);
+        .add_ueid_ext(&[0xFF; 17]);
     let template = bldr.tbs_template("Caliptra IDevID");
     CodeGen::gen_code("InitDevIdCsrTbs", template, out_dir);
 }
@@ -52,9 +52,9 @@ fn gen_local_devid_cert(out_dir: &str) {
     let mut usage = KeyUsage::default();
     usage.set_key_cert_sign(true);
     let bldr = cert::CertTemplateBuilder::<EcdsaSha384Algo>::new()
-        .add_basic_constraints_ext(true, 0)
+        .add_basic_constraints_ext(true, 4)
         .add_key_usage_ext(usage)
-        .add_ueid_ext(&[0xFF; 8]);
+        .add_ueid_ext(&[0xFF; 17]);
     let template = bldr.tbs_template("Caliptra LDevID", "Caliptra IDevID");
     CodeGen::gen_code("LocalDevIdCertTbs", template, out_dir);
 }
@@ -63,9 +63,9 @@ fn gen_fmc_alias_cert(out_dir: &str) {
     let mut usage = KeyUsage::default();
     usage.set_key_cert_sign(true);
     let bldr = cert::CertTemplateBuilder::<EcdsaSha384Algo>::new()
-        .add_basic_constraints_ext(true, 0)
+        .add_basic_constraints_ext(true, 3)
         .add_key_usage_ext(usage)
-        .add_ueid_ext(&[0xFF; 8])
+        .add_ueid_ext(&[0xFF; 17])
         .add_fmc_dice_tcb_info_ext(
             /*device_fwids=*/
             &[FwidParam {
@@ -95,10 +95,10 @@ fn gen_rt_alias_cert(out_dir: &str) {
     // Add DigitalSignature to allow signing of firmware
     usage.set_digital_signature(true);
     let bldr = cert::CertTemplateBuilder::<EcdsaSha384Algo>::new()
-        // Basic Constraints : CA = true, PathLen = 1
-        .add_basic_constraints_ext(true, 1)
+        // Basic Constraints : CA = true, PathLen = 2
+        .add_basic_constraints_ext(true, 2)
         .add_key_usage_ext(usage)
-        .add_ueid_ext(&[0xFF; 8])
+        .add_ueid_ext(&[0xFF; 17])
         .add_rt_dice_tcb_info_ext(&[FwidParam {
             name: "TCB_INFO_RT_TCI",
             fwid: Fwid {

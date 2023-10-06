@@ -15,9 +15,6 @@ use crate::EtrngResponse;
 use crate::HwModel;
 use crate::Output;
 
-// TODO: Make PAUSER configurable
-const SOC_PAUSER: u32 = 0xffff_ffff;
-
 // UIO mapping indices
 const FPGA_WRAPPER_MAPPING: usize = 0;
 const CALIPTRA_MAPPING: usize = 1;
@@ -243,7 +240,7 @@ impl HwModel for ModelFpgaRealtime {
         m.set_security_state(u32::from(params.security_state));
 
         // Set initial PAUSER
-        m.set_pauser(SOC_PAUSER);
+        m.set_pauser(params.soc_apb_pauser);
 
         // Set deobfuscation key
         for i in 0..8 {
