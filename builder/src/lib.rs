@@ -366,7 +366,7 @@ pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
 
         let rom_info = RomInfo {
             sha256_digest: sha256::sha256_word_reversed(&result[0..rom_info_start]),
-            revision: image_revision_from_git_repo()?,
+            revision: image_revision()?,
             flags: 0,
         };
         let rom_info_dest = result
@@ -439,19 +439,29 @@ pub fn build_and_sign_image(
             opts.fmc_version,
             opts.fmc_svn,
             opts.fmc_min_svn,
-            image_revision_from_git_repo()?,
+            image_revision()?,
         )?,
         runtime: ElfExecutable::new(
             &app_elf,
             opts.app_version,
             opts.app_svn,
             opts.app_min_svn,
-            image_revision_from_git_repo()?,
+            image_revision()?,
         )?,
         vendor_config: opts.vendor_config,
         owner_config: opts.owner_config,
     })?;
     Ok(image)
+}
+
+fn image_revision() -> io::Result<ImageRevision> {
+    if std::env::var_os("CALIPTRA_IMAGE_NO_GIT_REVISION").is_some() {
+        // Sometimes needed to build a consistent ROM image from different
+        // commits.
+        Ok(*b"~~~~~NO_GIT_REVISION")
+    } else {
+        image_revision_from_git_repo()
+    }
 }
 fn image_revision_from_git_repo() -> io::Result<ImageRevision> {
     let commit_id = run_cmd_stdout(Command::new("git").arg("rev-parse").arg("HEAD"), None)?;
