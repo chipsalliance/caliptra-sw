@@ -25,6 +25,7 @@ use caliptra_common::keyids::{KEY_ID_FE, KEY_ID_IDEVID_PRIV_KEY, KEY_ID_ROM_FMC_
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
 use caliptra_x509::*;
+use zeroize::Zeroize;
 
 type InitDevIdCsr<'a> = Certificate<'a, { MAX_CSR_SIZE }>;
 

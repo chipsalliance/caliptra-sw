@@ -30,6 +30,7 @@ use crate::{cprintln, rom_env::RomEnv};
 use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
+use zeroize::Zeroize;
 
 pub enum TbsType {
     LdevidTbs = 0,

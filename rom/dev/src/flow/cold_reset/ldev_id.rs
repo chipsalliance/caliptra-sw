@@ -26,6 +26,7 @@ use caliptra_common::keyids::{KEY_ID_FE, KEY_ID_LDEVID_PRIV_KEY, KEY_ID_ROM_FMC_
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
 use caliptra_x509::*;
+use zeroize::Zeroize;
 
 /// Dice Local Device Identity (IDEVID) Layer
 #[derive(Default)]

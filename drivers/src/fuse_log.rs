@@ -12,6 +12,7 @@ Abstract:
 --*/
 
 use zerocopy::{AsBytes, FromBytes};
+use zeroize::Zeroize;
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,7 +51,7 @@ impl From<u32> for FuseLogEntryId {
 
 /// Fuse log entry
 #[repr(C)]
-#[derive(AsBytes, Clone, Copy, Debug, Default, FromBytes)]
+#[derive(AsBytes, Clone, Copy, Debug, Default, FromBytes, Zeroize)]
 pub struct FuseLogEntry {
     /// Entry identifier
     pub entry_id: u32,

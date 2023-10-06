@@ -20,6 +20,7 @@ caliptra-registers.workspace = true
 caliptra-x509 = { workspace = true, default-features = false }
 ufmt.workspace = true
 zerocopy.workspace = true
+zeroize.workspace = true
 
 [build-dependencies]
 cfg-if.workspace = true

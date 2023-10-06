@@ -17,6 +17,7 @@ use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::keyids::KEY_ID_TMP;
 use caliptra_drivers::*;
 use caliptra_x509::Ecdsa384Signature;
+use zeroize::Zeroize;
 
 /// ECDSA-384 Signature Adapter
 ///
@@ -36,19 +37,14 @@ impl Ecdsa384SignatureAdapter for Ecc384Signature {
 }
 
 /// DICE  Layer Key Pair
-#[derive(Debug)]
+#[derive(Debug, Zeroize)]
 pub struct Ecc384KeyPair {
     /// Private Key
+    #[zeroize(skip)]
     pub priv_key: KeyId,
 
     /// Public Key
     pub pub_key: Ecc384PubKey,
-}
-
-impl Ecc384KeyPair {
-    pub fn zeroize(&mut self) {
-        self.pub_key.zeroize();
-    }
 }
 
 pub enum Crypto {}

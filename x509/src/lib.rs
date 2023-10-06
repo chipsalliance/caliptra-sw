@@ -26,8 +26,9 @@ pub use fmc_alias_cert::{FmcAliasCertTbs, FmcAliasCertTbsParams};
 pub use idevid_csr::{InitDevIdCsrTbs, InitDevIdCsrTbsParams};
 pub use ldevid_cert::{LocalDevIdCertTbs, LocalDevIdCertTbsParams};
 pub use rt_alias_cert::{RtAliasCertTbs, RtAliasCertTbsParams};
+use zeroize::Zeroize;
 
-#[derive(Debug)]
+#[derive(Debug, Zeroize)]
 pub struct NotBefore {
     pub value: [u8; 15],
 }
@@ -42,7 +43,7 @@ impl Default for NotBefore {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Zeroize)]
 pub struct NotAfter {
     pub value: [u8; 15],
 }

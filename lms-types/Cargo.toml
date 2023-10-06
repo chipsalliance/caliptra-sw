@@ -10,3 +10,4 @@ edition = "2021"
 [dependencies]
 arbitrary = { workspace = true, optional = true }
 zerocopy.workspace = true
+zeroize.workspace = true

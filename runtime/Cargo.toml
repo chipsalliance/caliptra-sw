@@ -21,6 +21,7 @@ ufmt.workspace = true
 zerocopy.workspace = true
 arrayvec.workspace = true
 caliptra-image-verify.workspace = true
+zeroize.workspace = true
 
 [build-dependencies]
 caliptra_common = { workspace = true, default-features = false }

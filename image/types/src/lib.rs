@@ -17,6 +17,7 @@ Abstract:
 use caliptra_error::{CaliptraError, CaliptraResult};
 use core::mem::size_of;
 use core::ops::Range;
+use zeroize::Zeroize;
 
 use caliptra_lms_types::{
     LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsPrivateKey, LmsPublicKey, LmsSignature,
@@ -50,7 +51,7 @@ pub type ImageRevision = [u8; IMAGE_REVISION_BYTE_SIZE];
 pub type ImageEccPrivKey = ImageScalar;
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageEccPubKey {
     /// X Coordinate
@@ -64,7 +65,7 @@ pub type ImageLmsPublicKey = LmsPublicKey<SHA192_DIGEST_WORD_SIZE>;
 pub type ImageLmsPrivKey = LmsPrivateKey<SHA192_DIGEST_WORD_SIZE>;
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageEccSignature {
     /// Random point
@@ -130,16 +131,16 @@ impl ImageBundle {
 
 /// Calipatra Image Manifest
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Clone, Copy, Debug)]
+#[derive(AsBytes, FromBytes, Clone, Copy, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageManifest {
     /// Marker
     pub marker: u32,
 
-    /// Size of `Manifest` strucuture
+    /// Size of `Manifest` structure
     pub size: u32,
 
-    /// Preamle
+    /// Preabmle
     pub preamble: ImagePreamble,
 
     /// Header
@@ -193,46 +194,51 @@ impl ImageManifest {
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
+#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageVendorPubKeys {
     pub ecc_pub_keys: [ImageEccPubKey; VENDOR_ECC_KEY_COUNT as usize],
+    #[zeroize(skip)]
     pub lms_pub_keys: [ImageLmsPublicKey; VENDOR_LMS_KEY_COUNT as usize],
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
+#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 pub struct ImageVendorPrivKeys {
     pub ecc_priv_keys: [ImageEccPrivKey; VENDOR_ECC_KEY_COUNT as usize],
+    #[zeroize(skip)]
     pub lms_priv_keys: [ImageLmsPrivKey; VENDOR_LMS_KEY_COUNT as usize],
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
+#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageOwnerPubKeys {
     pub ecc_pub_key: ImageEccPubKey,
+    #[zeroize(skip)]
     pub lms_pub_key: ImageLmsPublicKey,
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
+#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 pub struct ImageOwnerPrivKeys {
     pub ecc_priv_key: ImageEccPrivKey,
+    #[zeroize(skip)]
     pub lms_priv_key: ImageLmsPrivKey,
 }
 
 #[repr(C)]
-#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageSignatures {
     pub ecc_sig: ImageEccSignature,
+    #[zeroize(skip)]
     pub lms_sig: ImageLmsSignature,
 }
 
 /// Calipatra Image Bundle Preamble
 #[repr(C)]
-#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImagePreamble {
     /// Vendor  Public Keys
@@ -257,7 +263,7 @@ pub struct ImagePreamble {
 }
 
 #[repr(C)]
-#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct VendorSignedData {
     /// Vendor Start Date [ASN1 Time Format] For FMC alias certificate.
@@ -270,7 +276,7 @@ pub struct VendorSignedData {
 }
 
 #[repr(C)]
-#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct OwnerSignedData {
     /// Owner Start Date [ASN1 Time Format] For FMC alias certificate: Takes Preference over vendor start date
@@ -284,7 +290,7 @@ pub struct OwnerSignedData {
 
 /// Caliptra Image header
 #[repr(C)]
-#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageHeader {
     /// Revision
@@ -348,7 +354,7 @@ impl From<ImageTocEntryId> for u32 {
 
 /// Caliptra Table of contents entry
 #[repr(C)]
-#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageTocEntry {
     /// ID
