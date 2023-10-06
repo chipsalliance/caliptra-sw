@@ -80,8 +80,9 @@ impl RtAliasLayer {
             subj_key_id,
         };
 
-        let nb = NotBefore::default();
-        let nf = NotAfter::default();
+        let manifest = &env.persistent_data.get().manifest1;
+
+        let (nb, nf) = Self::get_cert_validity_info(manifest);
 
         // Generate Rt Alias Certificate
         Self::generate_cert_sig(env, input, &output, &nb.value, &nf.value)?;
@@ -181,6 +182,33 @@ impl RtAliasLayer {
         };
 
         HandOff::set_and_lock_rt_min_svn(env, rt_min_svn)
+    }
+
+    fn get_cert_validity_info(
+        manifest: &caliptra_image_types::ImageManifest,
+    ) -> (NotBefore, NotAfter) {
+        // If there is a valid value in the manifest for the not_before and not_after times,
+        // use those. Otherwise use the default values.
+        let mut nb = NotBefore::default();
+        let mut nf = NotAfter::default();
+        let null_time = [0u8; 15];
+
+        if manifest.header.vendor_data.vendor_not_after != null_time
+            && manifest.header.vendor_data.vendor_not_before != null_time
+        {
+            nf.value = manifest.header.vendor_data.vendor_not_after;
+            nb.value = manifest.header.vendor_data.vendor_not_before;
+        }
+
+        // Owner values take preference.
+        if manifest.header.owner_data.owner_not_after != null_time
+            && manifest.header.owner_data.owner_not_before != null_time
+        {
+            nf.value = manifest.header.owner_data.owner_not_after;
+            nb.value = manifest.header.owner_data.owner_not_before;
+        }
+
+        (nb, nf)
     }
 
     /// Permute Composite Device Identity (CDI) using Rt TCI and Image Manifest Digest
