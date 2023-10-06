@@ -168,8 +168,6 @@ impl FirmwareProcessor {
         env: &mut KatsEnv,
         persistent_data: &mut PersistentData,
     ) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn<'a>>> {
-        soc_ifc.flow_status_set_ready_for_firmware();
-
         let mut self_test_in_progress = false;
 
         cprintln!("[fwproc] Waiting for Commands...");
