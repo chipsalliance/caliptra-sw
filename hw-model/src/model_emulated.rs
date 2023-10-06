@@ -197,4 +197,8 @@ impl crate::HwModel for ModelEmulated {
             }
         }
     }
+
+    fn set_apb_pauser(&mut self, _pauser: u32) {
+        unimplemented!();
+    }
 }

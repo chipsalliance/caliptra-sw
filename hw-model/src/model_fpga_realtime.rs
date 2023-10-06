@@ -23,6 +23,8 @@ use crate::Output;
 const FPGA_WRAPPER_MAPPING: usize = 0;
 const CALIPTRA_MAPPING: usize = 1;
 
+const DEFAULT_APB_PAUSER: u32 = 0x1;
+
 fn fmt_uio_error(err: UioError) -> String {
     format!("{err:?}")
 }
@@ -161,13 +163,6 @@ impl ModelFpgaRealtime {
                 .write_volatile(val.0);
         }
     }
-    fn set_pauser(&mut self, pauser: u32) {
-        unsafe {
-            self.wrapper
-                .offset(FPGA_WRAPPER_PAUSER_OFFSET)
-                .write_volatile(pauser);
-        }
-    }
 
     fn clear_log_fifo(&mut self) {
         loop {
@@ -275,7 +270,7 @@ impl HwModel for ModelFpgaRealtime {
         m.set_security_state(u32::from(params.security_state));
 
         // Set initial PAUSER
-        m.set_pauser(params.soc_apb_pauser);
+        m.set_apb_pauser(DEFAULT_APB_PAUSER);
 
         // Set deobfuscation key
         for i in 0..8 {
@@ -346,6 +341,14 @@ impl HwModel for ModelFpgaRealtime {
 
     fn tracing_hint(&mut self, _enable: bool) {
         // Do nothing; we don't support tracing yet
+    }
+
+    fn set_apb_pauser(&mut self, pauser: u32) {
+        unsafe {
+            self.wrapper
+                .offset(FPGA_WRAPPER_PAUSER_OFFSET)
+                .write_volatile(pauser);
+        }
     }
 }
 impl Drop for ModelFpgaRealtime {
