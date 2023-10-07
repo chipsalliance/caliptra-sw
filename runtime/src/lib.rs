@@ -196,9 +196,9 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
 
         if drivers.mbox.is_cmd_ready() {
             // TODO : Move start/stop WDT to wait_for_cmd when NMI is implemented.
-            caliptra_common::wdt::start_wdt(
+            caliptra_drivers::wdt::start_wdt(
                 &mut drivers.soc_ifc,
-                caliptra_common::WdtTimeout::default(),
+                caliptra_drivers::WdtTimeout::default(),
             );
             caliptra_drivers::report_fw_error_non_fatal(0);
             match handle_command(drivers) {
@@ -210,7 +210,7 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
                     drivers.mbox.set_status(MboxStatusE::CmdFailure);
                 }
             }
-            caliptra_common::wdt::stop_wdt(&mut drivers.soc_ifc);
+            caliptra_drivers::wdt::stop_wdt(&mut drivers.soc_ifc);
         }
     }
     Ok(())

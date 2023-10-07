@@ -15,8 +15,8 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_common::start_wdt;
-use caliptra_common::WdtTimeout;
+use caliptra_drivers::WdtTimeout;
+use caliptra_drivers::{start_wdt, stop_wdt};
 use caliptra_runtime::Drivers;
 use caliptra_test_harness::{runtime_handlers, test_suite};
 
@@ -25,6 +25,9 @@ fn test_wdt_timeout() {
 
     start_wdt(&mut drivers.soc_ifc, WdtTimeout::default());
 
+    stop_wdt(&mut drivers.soc_ifc);
+
+    start_wdt(&mut drivers.soc_ifc, WdtTimeout::default());
     loop {}
 }
 

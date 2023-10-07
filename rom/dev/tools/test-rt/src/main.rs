@@ -14,7 +14,8 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
 
-use caliptra_drivers::Mailbox;
+use caliptra_drivers::{Mailbox, SocIfc};
+use caliptra_registers::soc_ifc::SocIfcReg;
 
 #[cfg(not(feature = "std"))]
 core::arch::global_asm!(include_str!("start.S"));
@@ -37,6 +38,10 @@ const BANNER: &str = r#"
 #[no_mangle]
 pub extern "C" fn rt_entry() -> ! {
     cprintln!("{}", BANNER);
+
+    let mut soc_ifc = SocIfc::new(unsafe { SocIfcReg::new() });
+
+    soc_ifc.assert_ready_for_runtime();
 
     caliptra_drivers::ExitCtrl::exit(0)
 }

@@ -47,6 +47,7 @@ mod sha384acc;
 mod soc_ifc;
 mod trng;
 mod trng_ext;
+pub mod wdt;
 
 pub use array::{Array4x12, Array4x4, Array4x5, Array4x8, Array4xN};
 pub use array_concat::array_concat3;
@@ -89,6 +90,7 @@ pub use sha384::{Sha384, Sha384Digest, Sha384DigestOp};
 pub use sha384acc::{Sha384Acc, Sha384AccOp, ShaAccLockState};
 pub use soc_ifc::{report_boot_status, Lifecycle, MfgFlags, ResetReason, SocIfc};
 pub use trng::Trng;
+pub use wdt::{restart_wdt, start_wdt, stop_wdt, WdtTimeout};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "emu")] {

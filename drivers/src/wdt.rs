@@ -13,9 +13,7 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::SocIfc;
-
-use crate::cprintln;
+use crate::SocIfc;
 
 pub struct WdtTimeout(pub core::num::NonZeroU64);
 
@@ -62,6 +60,7 @@ const WDT1_MIN_TIMEOUT_IN_CYCLES: u64 = EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES;
 /// # Arguments
 ///
 /// * `soc_ifc` - SOC Interface
+/// * `wdt1_timeout_cycles` - Watchdog timeout in cycles.
 ///
 ///
 pub fn start_wdt(soc_ifc: &mut SocIfc, wdt1_timeout_cycles: WdtTimeout) {
@@ -73,17 +72,18 @@ pub fn start_wdt(soc_ifc: &mut SocIfc, wdt1_timeout_cycles: WdtTimeout) {
 
     // Enable WDT1 only. WDT2 is automatically scheduled (since it is disabled) on WDT1 expiry.
     soc_ifc.configure_wdt1(true);
+
+    // Restart timer from zero.
+    restart_wdt(soc_ifc);
 }
 
 /// Restart the Watchdog Timer
 ///
 /// # Arguments
 ///
-/// * `env` - ROM Environment
+/// * `soc_ifc` - SOC Interface
 ///
 pub fn restart_wdt(soc_ifc: &mut SocIfc) {
-    cprintln!("[state] Restarting the Watchdog Timer");
-
     // Only restart WDT1. WDT2 is automatically scheduled (since it is disabled) on WDT1 expiry.
     soc_ifc.reset_wdt1();
 }

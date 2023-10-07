@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 caliptra-cpu.workspace = true
 caliptra-drivers.workspace = true
+caliptra-registers.workspace = true
 ufmt.workspace = true
 
 [build-dependencies]

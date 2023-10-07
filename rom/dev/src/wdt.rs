@@ -17,7 +17,6 @@ Environment:
 --*/
 
 use caliptra_cfi_derive::cfi_mod_fn;
-use caliptra_common::WdtTimeout;
 use caliptra_drivers::SocIfc;
 
 use crate::cprintln;
@@ -36,9 +35,11 @@ pub fn start_wdt(soc_ifc: &mut SocIfc) {
         if wdt_timeout_cycles == 0 {
             wdt_timeout_cycles = 1;
         }
-        caliptra_common::wdt::start_wdt(
+        caliptra_drivers::wdt::start_wdt(
             soc_ifc,
-            WdtTimeout::from(core::num::NonZeroU64::new(wdt_timeout_cycles).unwrap()),
+            caliptra_drivers::WdtTimeout::from(
+                core::num::NonZeroU64::new(wdt_timeout_cycles).unwrap(),
+            ),
         );
     } else {
         cprintln!(
@@ -57,7 +58,7 @@ pub fn start_wdt(soc_ifc: &mut SocIfc) {
 pub fn stop_wdt(soc_ifc: &mut SocIfc) {
     if soc_ifc.debug_locked() {
         cprintln!("[state] Stopping the Watchdog Timer");
-        caliptra_common::wdt::stop_wdt(soc_ifc);
+        caliptra_drivers::wdt::stop_wdt(soc_ifc);
     } else {
         cprintln!(
             "[state] Watchdog Timer is not stopped because the device is not locked for debugging"
