@@ -14,7 +14,7 @@ Abstract:
 use crate::{cprintln, rom_env::RomEnv};
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
-use caliptra_common::RomBootStatus::ColdResetComplete;
+use caliptra_common::RomBootStatus::*;
 use caliptra_error::{CaliptraError, CaliptraResult};
 
 /// Warm Reset Flow
@@ -37,6 +37,14 @@ impl WarmResetFlow {
             return Err(CaliptraError::ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_COLD_RESET);
         } else {
             cfi_assert!(env.data_vault.rom_cold_boot_status() == ColdResetComplete.into());
+        }
+
+        // Check if previous Update-Reset, if any,  was successful.
+        if cfi_launder(env.data_vault.rom_update_reset_status()) == UpdateResetStarted.into() {
+            cprintln!("[warm-reset] Previous Update Reset was not successful.");
+            return Err(CaliptraError::ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_UPDATE_RESET);
+        } else {
+            cfi_assert!(env.data_vault.rom_update_reset_status() != UpdateResetStarted.into());
         }
 
         cprintln!("[warm-reset] --");
