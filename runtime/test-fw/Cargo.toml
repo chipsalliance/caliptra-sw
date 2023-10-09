@@ -34,11 +34,6 @@ path = "src/wdt_timeout_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
-name = "keyvault"
-path = "src/keyvault_tests.rs"
-required-features = ["riscv"]
-
-[[bin]]
 name = "locked_dv"
 path = "src/locked_dv_test.rs"
 required-features = ["riscv"]

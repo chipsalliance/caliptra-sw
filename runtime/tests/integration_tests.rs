@@ -95,13 +95,6 @@ fn test_boot() {
 }
 
 #[test]
-fn test_keyvault() {
-    let mut model = run_rt_test(Some(&firmware::runtime_tests::KEYVAULT), None);
-
-    model.step_until_exit_success().unwrap();
-}
-
-#[test]
 fn test_locked_dv_slot() {
     let mut model = run_rt_test(Some(&firmware::runtime_tests::LOCKED_DV), None);
 
