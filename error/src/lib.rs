@@ -417,6 +417,9 @@ impl CaliptraError {
     pub const ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_COLD_RESET: CaliptraError =
         CaliptraError::new_const(0x01040010);
 
+    pub const ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_UPDATE_RESET: CaliptraError =
+        CaliptraError::new_const(0x01040011);
+
     /// Unknown Reset Error
     pub const ROM_UNKNOWN_RESET_FLOW: CaliptraError = CaliptraError::new_const(0x01040020);
 
