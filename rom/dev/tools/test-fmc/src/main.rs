@@ -219,6 +219,11 @@ fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMm
             // Reset the CPU with the firmware-update command in the mailbox
             trigger_update_reset();
         }
+        // Exit with success
+        0x1000_000C => {
+            mbox.status().write(|w| w.status(|w| w.cmd_complete()));
+            caliptra_drivers::ExitCtrl::exit(0);
+        }
         _ => {}
     }
 }
