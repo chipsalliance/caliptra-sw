@@ -557,7 +557,7 @@ pub trait HwModel {
         }
     }
 
-    /// Execute until the output contains `expected_output`.
+    /// Execute until the output ends with `expected_output`
     fn step_until_output(&mut self, expected_output: &str) -> Result<(), Box<dyn Error>> {
         self.step_until(|m| m.output().peek().len() >= expected_output.len());
         if &self.output().peek()[..expected_output.len()] != expected_output {
@@ -571,6 +571,12 @@ pub trait HwModel {
         Ok(())
     }
 
+    // Execute (at least) until the output provided substr is written to the
+    // output. Additional data may be present in the output after the provided
+    // substr, which often happens with the fpga_realtime hardware model.
+    //
+    // This function will not match any data in the output that was written
+    // before this function was called.
     fn step_until_output_contains(&mut self, substr: &str) -> Result<(), Box<dyn Error>> {
         self.output().set_search_term(substr);
         self.step_until(|m| m.output().search_matched());
