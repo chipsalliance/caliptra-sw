@@ -86,7 +86,7 @@ static inline void caliptra_mbox_write_cmd(uint32_t cmd)
 
 static inline uint32_t caliptra_mbox_read_execute()
 {
-    caliptra_mbox_read(MBOX_CSR_MBOX_EXECUTE);
+    return caliptra_mbox_read(MBOX_CSR_MBOX_EXECUTE);
 }
 
 static inline void caliptra_mbox_write_execute(bool ex)

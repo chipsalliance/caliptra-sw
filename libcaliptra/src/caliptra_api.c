@@ -537,6 +537,8 @@ int caliptra_complete()
     if (rx_buffer.data != NULL) {
         return check_command_response(rx_buffer.data, rx_buffer.len);
     }
+
+    return 0;
 }
 
 /**

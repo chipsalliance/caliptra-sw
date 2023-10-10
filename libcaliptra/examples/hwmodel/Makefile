@@ -41,7 +41,7 @@ INCLUDES += $(HWMODEL_INCLUDE)
 
 SOURCE += interface.c
 
-CFLAGS += $(HWMODEL_INCLUDE) $(HWMODEL_LIB) $(HWMODEL_FLAGS)
+CFLAGS += $(HWMODEL_INCLUDE) $(HWMODEL_LIB) $(HWMODEL_FLAGS) -Wall
 
 $(ROM_FILE) $(FW_FILE):
 	@echo [IMAGE] caliptra_rom.bin image_bundle.bin
