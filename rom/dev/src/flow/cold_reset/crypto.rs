@@ -224,7 +224,7 @@ impl Crypto {
         let priv_key_args = KeyReadArgs::new(priv_key);
         let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
         let result = env.ecc384.sign(&priv_key, pub_key, digest, &mut env.trng);
-        digest.0.fill(0);
+        digest.0.zeroize();
         result
     }
 }

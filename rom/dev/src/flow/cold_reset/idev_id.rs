@@ -283,7 +283,7 @@ impl InitDevIdLayer {
 
         // Execute Send CSR Flow
         let result = Self::send_csr(env, InitDevIdCsr::new(&csr, csr_len));
-        csr.fill(0);
+        csr.zeroize();
 
         result
     }
