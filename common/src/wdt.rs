@@ -73,6 +73,8 @@ pub fn start_wdt(soc_ifc: &mut SocIfc, wdt1_timeout_cycles: WdtTimeout) {
 
     // Enable WDT1 only. WDT2 is automatically scheduled (since it is disabled) on WDT1 expiry.
     soc_ifc.configure_wdt1(true);
+
+    restart_wdt(soc_ifc);
 }
 
 /// Restart the Watchdog Timer
