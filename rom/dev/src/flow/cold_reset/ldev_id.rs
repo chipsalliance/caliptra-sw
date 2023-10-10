@@ -180,7 +180,10 @@ impl LocalDevIdLayer {
         // Clear the authority private key
         //To-Do : Disabling The Print Temporarily
         //cprintln!("[ldev] Erasing AUTHORITY.KEYID = {}", auth_priv_key as u8);
-        env.key_vault.erase_key(auth_priv_key)?;
+        env.key_vault.erase_key(auth_priv_key).map_err(|err| {
+            sig.zeroize();
+            err
+        })?;
 
         let _pub_x: [u8; 48] = (&pub_key.x).into();
         let _pub_y: [u8; 48] = (&pub_key.y).into();

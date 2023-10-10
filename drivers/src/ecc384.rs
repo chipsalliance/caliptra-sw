@@ -377,7 +377,7 @@ impl Ecc384 {
             Ecc384Result::SigVerifyFailed
         };
 
-        verify_r.0.fill(0);
+        verify_r.0.zeroize();
         Ok(result)
     }
 

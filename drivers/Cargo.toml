@@ -25,7 +25,7 @@ zeroize.workspace = true
 [features]
 emu = []
 runtime = ["dep:dpe"]
-fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
+fpga_realtime = ["caliptra-hw-model/fpga_realtime", "caliptra-builder/fpga_realtime"]
 itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
 
