@@ -1,16 +1,19 @@
 // Licensed under the Apache-2.0 license
 
+use core::array;
+
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::{
     csrng::CsrngReg, entropy_src::EntropySrcReg, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 
-use crate::{trng_ext::TrngExt, Array4x12, Csrng};
+use crate::{trng_ext::TrngExt, Array4x12, Csrng, MfgFlags};
 
 #[repr(u32)]
 pub enum Trng {
     Internal(Csrng) = 0xb714a2b1,
     External(TrngExt) = 0xf3702ce3,
+    MfgMode() = 0x0c702ce3,
 
     // Teach the compiler that "other" values are possible to encourage it not
     // to get too crazy with optimizations. Match statements should handle `_`
@@ -26,7 +29,13 @@ impl Trng {
         soc_ifc_trng: SocIfcTrngReg,
         soc_ifc: &SocIfcReg,
     ) -> CaliptraResult<Self> {
-        if soc_ifc.regs().cptra_hw_config().read().i_trng_en() {
+        // If device is unlocked for debug and RNG support is unavailable, return a fake RNG.
+        let flags: MfgFlags = (soc_ifc.regs().cptra_dbg_manuf_service_reg().read() & 0xffff).into();
+        if !soc_ifc.regs().cptra_security_state().read().debug_locked()
+            && flags.contains(MfgFlags::RNG_SUPPORT_UNAVAILABLE)
+        {
+            Ok(Self::MfgMode())
+        } else if soc_ifc.regs().cptra_hw_config().read().i_trng_en() {
             Ok(Self::Internal(Csrng::new(csrng, entropy_src, soc_ifc)?))
         } else {
             Ok(Self::External(TrngExt::new(soc_ifc_trng)))
@@ -55,6 +64,7 @@ impl Trng {
         match self {
             Self::Internal(csrng) => Ok(csrng.generate12()?.into()),
             Self::External(trng_ext) => trng_ext.generate(),
+            Self::MfgMode() => Ok(array::from_fn(|_| 0xdeadbeef_u32).into()),
             _ => {
                 extern "C" {
                     fn cfi_panic_handler(code: u32) -> !;

@@ -136,6 +136,14 @@ impl SocIfc {
         flags.contains(MfgFlags::GENERATE_IDEVID_CSR)
     }
 
+    /// Returns the flag indicating whether random number generation is supported.
+    pub fn mfg_flag_rng_support(&mut self) -> bool {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        // Lower 16 bits are for mfg flags
+        let flags: MfgFlags = (soc_ifc_regs.cptra_dbg_manuf_service_reg().read() & 0xffff).into();
+        !flags.contains(MfgFlags::RNG_SUPPORT_UNAVAILABLE)
+    }
+
     /// Check if verification is turned on for fake-rom
     pub fn verify_in_fake_mode(&self) -> bool {
         let soc_ifc_regs = self.soc_ifc.regs();
@@ -147,6 +155,11 @@ impl SocIfc {
     #[inline(always)]
     pub fn hw_config_internal_trng(&mut self) -> bool {
         self.soc_ifc.regs().cptra_hw_config().read().i_trng_en()
+    }
+
+    #[inline(always)]
+    pub fn cptra_dbg_manuf_service_flags(&mut self) -> MfgFlags {
+        (self.soc_ifc.regs().cptra_dbg_manuf_service_reg().read() & 0xffff).into()
     }
 
     /// Enable or disable WDT1
@@ -288,6 +301,8 @@ bitflags::bitflags! {
     pub struct MfgFlags : u32 {
         /// Generate Initial Device Id Certificate Signing Request
        const GENERATE_IDEVID_CSR = 0x01;
+       /// RNG functionality unavailable
+       const RNG_SUPPORT_UNAVAILABLE = 0x2;
     }
 }
 
