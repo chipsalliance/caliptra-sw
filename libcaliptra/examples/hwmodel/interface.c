@@ -80,6 +80,10 @@ struct caliptra_model* hwmod_get_or_init(void)
 
         int status = caliptra_model_init_default(init_params, &model);
 
+        if (status != CALIPTRA_STATUS_OK) {
+            return NULL;
+        }
+
         image_bundle = (struct caliptra_buffer)read_file_or_exit(fw_path);
 
         if (image_bundle.data == NULL)
@@ -126,7 +130,7 @@ int caliptra_write_u32(uint32_t address, uint32_t data)
  */
 int caliptra_read_u32(uint32_t address, uint32_t *data)
 {
-    return caliptra_model_apb_read_u32(hwmod_get_or_init(), address, (int*)data);
+    return caliptra_model_apb_read_u32(hwmod_get_or_init(), address, (uint*)data);
 }
 
 /**
