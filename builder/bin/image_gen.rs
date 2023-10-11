@@ -22,8 +22,8 @@ fn main() {
             arg!(--"all_elfs" [DIR] "Build all firmware elf files")
                 .value_parser(value_parser!(PathBuf)),
         )
-        .arg(arg!(--"fake-rom" [FILE] "Fake ROM"))
-        .arg(arg!(--"fake-fw" [FILE] "Fake FW bundle image"))
+        .arg(arg!(--"fake-rom" [FILE] "Fake ROM").value_parser(value_parser!(PathBuf)))
+        .arg(arg!(--"fake-fw" [FILE] "Fake FW bundle image").value_parser(value_parser!(PathBuf)))
         .get_matches();
 
     if let Some(path) = args.get_one::<PathBuf>("rom-no-log") {
