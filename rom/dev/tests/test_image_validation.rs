@@ -1418,10 +1418,10 @@ fn test_fmc_invalid_entry_point_before_iccm() {
 
 #[test]
 fn test_fmc_invalid_entry_point_after_iccm() {
-    let (mut hw, mut image_bundle) =
-        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-
+    let mut image_bundle = helpers::build_image_bundle(ImageOptions::default());
     let image = update_entry_point(&mut image_bundle, true, ICCM_END_ADDR + 1);
+    let mut hw = helpers::build_hw_model(Fuses::default());
+
     assert_eq!(
         ModelError::MailboxCmdFailed(
             CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID.into()
@@ -1437,11 +1437,11 @@ fn test_fmc_invalid_entry_point_after_iccm() {
 
 #[test]
 fn test_fmc_entry_point_unaligned() {
-    let (mut hw, mut image_bundle) =
-        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let mut image_bundle = helpers::build_image_bundle(ImageOptions::default());
     let entry_point = image_bundle.manifest.fmc.entry_point;
-
     let image = update_entry_point(&mut image_bundle, true, entry_point + 1);
+    let mut hw = helpers::build_hw_model(Fuses::default());
+
     assert_eq!(
         ModelError::MailboxCmdFailed(
             CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_UNALIGNED.into()
