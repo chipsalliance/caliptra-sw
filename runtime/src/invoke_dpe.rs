@@ -69,6 +69,12 @@ impl InvokeDpeCmd {
                     if DeriveChildCmd::retains_parent(&cmd) {
                         Self::pl_context_threshold_exceeded(pl0_pauser, flags, locality, dpe)?;
                     }
+                    if DeriveChildCmd::changes_locality(&cmd)
+                        && cmd.target_locality == pl0_pauser
+                        && Self::is_caller_pl1(pl0_pauser, flags, locality)
+                    {
+                        return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
+                    }
                     cmd.execute(dpe, &mut env, locality)
                 }
                 Command::CertifyKey(cmd) => {
