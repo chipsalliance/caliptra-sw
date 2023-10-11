@@ -481,6 +481,10 @@ If a DPE command were to activate a new context such that the total number of
 active contexts in a privilege level is above its active context limit, the 
 InvokeDpe command should fail. 
 
+Further, it is not allowed for PL1 to call DeriveChild with the intent of 
+changing locality to PL0's locality, since this would increase the number 
+of active contexts in PL0's locality, and hence allow PL1 to DOS PL0.
+
 ### DPE Profile Implementation
 
 The DPE iRoT Profile leaves some choices up to implementers. This section

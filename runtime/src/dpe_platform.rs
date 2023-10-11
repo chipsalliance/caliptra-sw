@@ -6,7 +6,7 @@ use arrayvec::ArrayVec;
 use caliptra_drivers::cprintln;
 use crypto::Digest;
 use dpe::{
-    x509::{Name, X509CertWriter},
+    x509::{DirectoryString, Name, X509CertWriter},
     DPE_PROFILE,
 };
 use platform::{Platform, PlatformError, MAX_CHUNK_SIZE};
@@ -85,8 +85,8 @@ impl Platform for DpePlatform<'_> {
             .map_err(|_| PlatformError::IssuerNameError)?;
 
         let name = Name {
-            cn: CALIPTRA_CN,
-            serial,
+            cn: DirectoryString::PrintableString(CALIPTRA_CN),
+            serial: DirectoryString::PrintableString(&serial),
         };
         let issuer_len = issuer_writer
             .encode_rdn(&name)
