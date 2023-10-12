@@ -20,3 +20,4 @@ gdbstub_arch.workspace = true
 gdbstub.workspace = true
 hex.workspace = true
 tock-registers.workspace = true
+rand.workspace = true

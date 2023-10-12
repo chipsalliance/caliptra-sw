@@ -304,6 +304,7 @@ dependencies = [
  "gdbstub",
  "gdbstub_arch",
  "hex",
+ "rand",
  "tock-registers",
 ]
 

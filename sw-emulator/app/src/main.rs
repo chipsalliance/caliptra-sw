@@ -46,7 +46,7 @@ const FW_WRITE_TICKS: u64 = 1000;
 
 const EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES: u64 = 20_000_000; // 20 million cycles
 
-// CPU Main Loop (free_run no GDB)
+/// CPU Main Loop (free_run no GDB)
 fn free_run(mut cpu: Cpu<CaliptraRootBus>, trace_path: Option<PathBuf>) {
     if let Some(path) = trace_path {
         let mut f = File::create(path).unwrap();
