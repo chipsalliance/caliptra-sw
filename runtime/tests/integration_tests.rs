@@ -29,6 +29,7 @@ use dpe::{
     },
     DPE_PROFILE,
 };
+use openssl::asn1::Asn1Time;
 use openssl::{
     bn::BigNum,
     ec::{EcGroup, EcKey},
@@ -99,6 +100,47 @@ fn test_locked_dv_slot() {
     let mut model = run_rt_test(Some(&firmware::runtime_tests::LOCKED_DV), None);
 
     model.step_until_output_contains("TEST EXCEPTION").unwrap();
+}
+
+#[test]
+// Check if the owner and vendor cert validty dates are present in RT Alias cert
+fn test_rt_cert_with_custom_dates() {
+    const VENDOR_CONFIG: (&str, &str) = ("20250101000000Z", "20260101000000Z");
+    const OWNER_CONFIG: (&str, &str) = ("20270101000000Z", "20280101000000Z");
+
+    let mut opts = ImageOptions::default();
+
+    opts.vendor_config
+        .not_before
+        .copy_from_slice(VENDOR_CONFIG.0.as_bytes());
+
+    opts.vendor_config
+        .not_after
+        .copy_from_slice(VENDOR_CONFIG.1.as_bytes());
+
+    let mut own_config = opts.owner_config.unwrap();
+
+    own_config
+        .not_before
+        .copy_from_slice(OWNER_CONFIG.0.as_bytes());
+    own_config
+        .not_after
+        .copy_from_slice(OWNER_CONFIG.1.as_bytes());
+
+    opts.owner_config = Some(own_config);
+
+    let mut model = run_rt_test(Some(&firmware::runtime_tests::CERT), Some(opts));
+
+    let rt_resp = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
+    let rt: &[u8] = rt_resp.as_bytes();
+
+    let rt_cert: X509 = X509::from_der(rt).unwrap();
+
+    let not_before: Asn1Time = Asn1Time::from_str(OWNER_CONFIG.0).unwrap();
+    let not_after: Asn1Time = Asn1Time::from_str(OWNER_CONFIG.1).unwrap();
+
+    assert!(rt_cert.not_before() == not_before);
+    assert!(rt_cert.not_after() == not_after);
 }
 
 #[test]
