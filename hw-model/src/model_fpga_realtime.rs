@@ -138,6 +138,21 @@ impl ModelFpgaRealtime {
         }
     }
 
+    fn clear_log_fifo(&mut self) {
+        loop {
+            let fifodata = unsafe {
+                FifoData(
+                    self.wrapper
+                        .offset(FPGA_WRAPPER_LOG_FIFO_DATA_OFFSET)
+                        .read_volatile(),
+                )
+            };
+            if fifodata.log_fifo_valid() == 0 {
+                break;
+            }
+        }
+    }
+
     fn handle_log(&mut self) {
         // Check if the FIFO is full (which probably means there was an overrun)
         let fifosts = unsafe {
@@ -258,6 +273,9 @@ impl HwModel for ModelFpgaRealtime {
             .unwrap();
         rom_driver.write_all(params.rom)?;
         rom_driver.sync_all()?;
+
+        // Sometimes there's garbage in here; clean it out
+        m.clear_log_fifo();
 
         // Bring Caliptra out of reset and wait for ready_for_fuses
         m.set_cptra_pwrgood(true);
