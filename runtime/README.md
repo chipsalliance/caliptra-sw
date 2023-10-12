@@ -466,7 +466,7 @@ Caliptra models PAUSER callers to its mailbox as having 1 of 2 privilege levels:
 
 #### PAUSER Privilege Level Active Context Limits
 
-Each active context in DPE is activated from either PL0 or PL1 through the 
+Each active context in DPE is activated from either PL0 or PL1 through the
 InvokeDpe mailbox command calling the DeriveChild or InitializeContext DPE
 commands. However, a caller could easily exhaust space in DPE's context array
 by repeatedly calling the aforementioned DPE commands with certain flags set.
@@ -478,8 +478,8 @@ privilege level:
 * PL1 - 16 active contexts
 
 If a DPE command were to activate a new context such that the total number of
-active contexts in a privilege level is above its active context limit, the 
-InvokeDpe command should fail. 
+active contexts in a privilege level is above its active context limit, the
+InvokeDpe command should fail.
 
 Further, it is not allowed for PL1 to call DeriveChild with the intent of 
 changing locality to PL0's locality, since this would increase the number 
@@ -522,6 +522,16 @@ In addition, Caliptra supports the following profile-defined commands:
              measurement data.
 * TagTci: Associate a TCI node with a unique tag
 * GetTaggedTci: Look up the measurements in a TCI node by tag
+
+### DPE State Atomicity
+
+This implementation guarantees that no internal DPE state is changed if a
+command fails for any reason. This includes Context Handle rotation; single-use
+context handles are not rotated if a command fails.
+
+On failure, DPE will only return a command header, with no additional
+command-specific response parameters. This is in line with the CBOR-based
+main DPE spec, which does not return a response payload on failure.
 
 ### Initializing DPE
 
