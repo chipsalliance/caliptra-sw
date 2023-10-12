@@ -6,7 +6,7 @@ use caliptra_error::CaliptraError;
 use caliptra_hw_model::{Fuses, HwModel, ModelError};
 use zerocopy::AsBytes;
 
-pub mod helpers;
+use crate::helpers;
 
 // Since the boot takes less than 30M cycles, we know something is wrong if
 // we're stuck at the same state for that duration.

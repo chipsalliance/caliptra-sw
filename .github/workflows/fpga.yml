@@ -365,7 +365,7 @@ jobs:
 
           # A small number of tests that are known to pass on the FPGA
           # TODO(kor): Fix all the tests and run them all here
-          sudo ${VARS} "${TEST_BIN}/test_rom_integrity-"*
+          sudo ${VARS} "${TEST_BIN}/rom_integration_tests-"* test_rom_integrity
           sudo ${VARS} "${TEST_BIN}/smoke_test-"* \
               --skip fips_cmd_test_rt
           sudo ${VARS} "${TEST_BIN}/caliptra_hw_model-"* \

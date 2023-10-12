@@ -32,7 +32,7 @@ use openssl::x509::X509;
 use std::str;
 use zerocopy::AsBytes;
 
-pub mod helpers;
+use crate::helpers;
 
 const ICCM_END_ADDR: u32 = ICCM_ORG + ICCM_SIZE - 1;
 

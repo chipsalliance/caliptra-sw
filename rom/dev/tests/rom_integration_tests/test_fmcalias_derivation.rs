@@ -24,7 +24,8 @@ use caliptra_image_types::IMAGE_BYTE_SIZE;
 use caliptra_test::swap_word_bytes;
 use openssl::hash::{Hasher, MessageDigest};
 use zerocopy::{AsBytes, FromBytes};
-pub mod helpers;
+
+use crate::helpers;
 
 const PCR0_AND_PCR1_EXTENDED_ID: u32 = (1 << PcrId::PcrId0 as u8) | (1 << PcrId::PcrId1 as u8);
 const PCR31_EXTENDED_ID: u32 = 1 << PcrId::PcrId31 as u8;
