@@ -15,7 +15,7 @@ Abstract:
 use core::num::NonZeroU32;
 
 use crate::*;
-use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_assert_ge, cfi_launder};
 use caliptra_drivers::*;
 use caliptra_image_types::*;
 use memoffset::offset_of;
@@ -587,14 +587,12 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     // Check if SVN check is required
     #[inline(always)]
     fn svn_check_required(&mut self) -> bool {
-        // If device is unprovisioned or if anti-rollback is disabled, don't check the SVN.
-        if cfi_launder(self.env.dev_lifecycle()) == Lifecycle::Unprovisioned
-            || cfi_launder(self.env.anti_rollback_disable())
-        {
-            cfi_assert!(
-                self.env.dev_lifecycle() == Lifecycle::Unprovisioned
-                    || self.env.anti_rollback_disable()
-            );
+        // If device is unprovisioned or if rollback is enabled (anti_rollback_disable == true), don't check the SVN.
+        if cfi_launder(self.env.dev_lifecycle()) == Lifecycle::Unprovisioned {
+            cfi_assert_eq(self.env.dev_lifecycle(), Lifecycle::Unprovisioned);
+            false // SVN check not required
+        } else if cfi_launder(self.env.anti_rollback_disable()) {
+            cfi_assert!(self.env.anti_rollback_disable());
             false // SVN check not required
         } else {
             true // SVN check required
@@ -653,7 +651,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             if cfi_launder(verify_info.svn) < self.env.fmc_fuse_svn() {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_FUSE)?;
             } else {
-                cfi_assert!(verify_info.svn >= self.env.fmc_fuse_svn());
+                cfi_assert_ge(verify_info.svn, self.env.fmc_fuse_svn());
             }
         }
 
