@@ -55,6 +55,7 @@ pub struct ModelEmulated {
     ready_for_fw: Rc<Cell<bool>>,
     cpu_enabled: Rc<Cell<bool>>,
     trace_path: Option<PathBuf>,
+    glitching: bool,
 
     image_tag: u64,
     trng_mode: TrngMode,
@@ -76,6 +77,10 @@ impl Drop for ModelEmulated {
 impl ModelEmulated {
     pub fn code_coverage_bitmap(&self) -> &bit_vec::BitVec {
         self.cpu.code_coverage.code_coverage_bitmap()
+    }
+
+    pub fn enable_glitching(&mut self) {
+        self.glitching = true;
     }
 }
 
@@ -158,6 +163,7 @@ impl crate::HwModel for ModelEmulated {
             trace_path: trace_path_or_env(params.trace_path),
             image_tag,
             trng_mode,
+            glitching: false,
         };
         // Turn tracing on if the trace path was set
         m.tracing_hint(true);
@@ -176,12 +182,17 @@ impl crate::HwModel for ModelEmulated {
     fn ready_for_fw(&self) -> bool {
         self.ready_for_fw.get()
     }
+
     fn apb_bus(&mut self) -> Self::TBus<'_> {
         EmulatedApbBus { model: self }
     }
 
     fn step(&mut self) {
         if self.cpu_enabled.get() {
+            if self.glitching && rand::random() {
+                self.cpu.skip_instr().unwrap();
+            }
+
             self.cpu.step(self.trace_fn.as_deref_mut());
         }
     }
@@ -211,6 +222,7 @@ impl crate::HwModel for ModelEmulated {
                 return;
             }
         };
+
         self.cpu.bus.log = Some(log.clone());
         self.trace_fn = Some(Box::new(move |pc, _instr| {
             writeln!(log, "pc=0x{pc:x}").unwrap();
