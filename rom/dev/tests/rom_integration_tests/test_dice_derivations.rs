@@ -6,7 +6,7 @@ use caliptra_common::RomBootStatus::*;
 use caliptra_hw_model::Fuses;
 use caliptra_hw_model::HwModel;
 
-pub mod helpers;
+use crate::helpers;
 
 #[test]
 fn test_cold_reset_status_reporting() {

@@ -13,7 +13,6 @@ use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, HwModel, InitParams};
 use caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0;
 use caliptra_image_gen::ImageGeneratorVendorConfig;
-pub mod helpers;
 
 const TEST_FMC_CMD_RESET_FOR_UPDATE: u32 = 0x1000_0004;
 const TEST_FMC_CMD_RESET_FOR_UPDATE_KEEP_MBOX_CMD: u32 = 0x1000_000B;

@@ -4,8 +4,6 @@ use caliptra_builder::{firmware::APP_WITH_UART, firmware::FMC_WITH_UART, ImageOp
 use caliptra_common::RomBootStatus::KatStarted;
 use caliptra_hw_model::{DeviceLifecycle, HwModel, SecurityState};
 
-pub mod helpers;
-
 #[test]
 fn test_wdt_activation_and_stoppage() {
     let security_state = *SecurityState::default()
