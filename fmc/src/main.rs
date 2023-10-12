@@ -50,11 +50,10 @@ pub extern "C" fn entry_point() -> ! {
             HandOff::to_rt(&env);
         }
         match flow::run(&mut env) {
-            Ok(_) => {
-                if HandOff::is_ready_for_rt(&env) {
-                    HandOff::to_rt(&env);
-                }
-            }
+            Ok(_) => match HandOff::is_ready_for_rt(&env) {
+                Ok(()) => HandOff::to_rt(&env),
+                Err(e) => report_error(e.into()),
+            },
             Err(e) => report_error(e.into()),
         }
     }

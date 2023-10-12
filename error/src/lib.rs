@@ -363,6 +363,8 @@ impl CaliptraError {
     pub const FMC_ALIAS_KV_COLLISION: CaliptraError = CaliptraError::new_const(0x000F0009);
     pub const FMC_GLOBAL_PCR_LOG_EXHAUSTED: CaliptraError = CaliptraError::new_const(0x000F000A);
     pub const ADDRESS_NOT_IN_ICCM: CaliptraError = CaliptraError::new_const(0x000F000B);
+    pub const FMC_HANDOFF_NOT_READY_FOR_RT: CaliptraError = CaliptraError::new_const(0x000F000C);
+
     /// TRNG_EXT Errors
     pub const DRIVER_TRNG_EXT_TIMEOUT: CaliptraError = CaliptraError::new_const(0x00100001);
 
