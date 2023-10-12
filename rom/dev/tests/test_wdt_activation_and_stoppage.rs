@@ -32,8 +32,14 @@ fn test_wdt_activation_and_stoppage() {
     })
     .unwrap();
 
-    // Ensure we are starting to count from zero.
-    hw.step_until(|m| m.soc_ifc().cptra_wdt_timer1_ctrl().read().timer1_restart());
+    if cfg!(feature = "fpga_realtime") {
+        // timer1_restart is only high for a few cycles; the realtime model
+        // timing is too imprecise that sort of check.
+        hw.step_until(|m| m.ready_for_fw());
+    } else {
+        // Ensure we are starting to count from zero.
+        hw.step_until(|m| m.soc_ifc().cptra_wdt_timer1_ctrl().read().timer1_restart());
+    }
 
     // Make sure the wdt1 timer is enabled.
     assert!(hw.soc_ifc().cptra_wdt_timer1_en().read().timer1_en());
