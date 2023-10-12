@@ -28,9 +28,9 @@ pub struct Args {
     #[arg(long)]
     pub trace_instr: bool,
 
-    /// 64-bit Unique Endpoint Id
-    #[arg(long, default_value_t = u64::MAX)]
-    pub ueid: u64,
+    /// 128-bit Unique Endpoint Id
+    #[arg(long, default_value_t = u128::MAX)]
+    pub ueid: u128,
 
     /// idevid certificate key id algorithm
     #[arg(long, value_enum, default_value_t = ArgsIdevidAlgo::Sha1)]

@@ -259,18 +259,12 @@ fn main() -> io::Result<()> {
         // DWORD 00 - Flags
         cert[0] = flags.get();
         // DWORD 01 - 05 - IDEVID Subject Key Identifier (all zeroes)
-<<<<<<< HEAD
         cert[6] = 1; // UEID Type
                      // DWORD 07 - 10 - UEID / Manufacturer Serial Number
-        cert[7] = *args_ueid as u32;
-        cert[8] = (*args_ueid >> 32) as u32;
-        cert[9] = (*args_ueid >> 64) as u32;
-        cert[10] = (*args_ueid >> 96) as u32;
-=======
-        // DWORD 06 - 07 - UEID / Manufacturer Serial Number
-        cert[6] = args.ueid as u32;
-        cert[7] = (args.ueid >> 32) as u32;
->>>>>>> afa9610 (Refactored sw-emulator cli api)
+        cert[7] = args.ueid as u32;
+        cert[8] = (args.ueid >> 32) as u32;
+        cert[9] = (args.ueid >> 64) as u32;
+        cert[10] = (args.ueid >> 96) as u32;
 
         soc_ifc.fuse_idevid_cert_attr().write(&cert);
     }
