@@ -3,6 +3,9 @@ use caliptra_builder::{
     firmware::{self, fmc_tests::MOCK_RT_INTERACTIVE, FMC_WITH_UART, ROM_WITH_UART},
     ImageOptions,
 };
+use caliptra_common::RomBootStatus::*;
+
+use caliptra_common::mailbox_api::CommandId;
 use caliptra_drivers::{
     pcr_log::{PcrLogEntry, PcrLogEntryId},
     FirmwareHandoffTable, PcrId,
@@ -161,10 +164,6 @@ fn test_pcr_log() {
     assert_eq!(pcr2_from_log, pcr2_from_hw);
     assert_eq!(pcr3_from_log, pcr3_from_hw);
 
-    hw.soc_ifc()
-        .internal_fw_update_reset()
-        .write(|w| w.core_rst(true));
-
     let image2 = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &MOCK_RT_INTERACTIVE,
@@ -175,7 +174,15 @@ fn test_pcr_log() {
     )
     .unwrap();
 
-    assert!(hw.upload_firmware(&image2.to_bytes().unwrap()).is_ok());
+    // Trigger an update reset with "new" firmware
+    hw.start_mailbox_execute(CommandId::FIRMWARE_LOAD.into(), &image2.to_bytes().unwrap())
+        .unwrap();
+
+    hw.step_until_boot_status(KatStarted.into(), true);
+    hw.step_until_boot_status(KatComplete.into(), true);
+    hw.step_until_boot_status(UpdateResetStarted.into(), false);
+
+    assert_eq!(hw.finish_mailbox_execute(), Ok(None));
 
     hw.step_until_boot_status(RT_ALIAS_DERIVATION_COMPLETE, true);
 

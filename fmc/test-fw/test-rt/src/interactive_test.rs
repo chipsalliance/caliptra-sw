@@ -1,8 +1,10 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_common::mailbox_api;
 use caliptra_drivers::pcr_log::{PcrLogEntry, PcrLogEntryId};
 use caliptra_drivers::{cprintln, PcrBank, PcrId, PersistentDataAccessor};
 use caliptra_registers::pv::PvReg;
+use caliptra_registers::soc_ifc::SocIfcReg;
 use ureg::RealMmioMut;
 
 use core::convert::TryInto;
@@ -11,6 +13,7 @@ use zerocopy::AsBytes;
 pub const TEST_CMD_READ_PCR_LOG: u32 = 0x1000_0000;
 pub const TEST_CMD_READ_FHT: u32 = 0x1000_0001;
 pub const TEST_CMD_READ_PCRS: u32 = 0x1000_0002;
+const FW_LOAD_CMD_OPCODE: u32 = mailbox_api::CommandId::FIRMWARE_LOAD.0;
 
 fn process_mailbox_command(
     persistent_data: &PersistentDataAccessor,
@@ -27,6 +30,10 @@ fn process_mailbox_command(
         }
         TEST_CMD_READ_PCRS => {
             read_pcrs(mbox);
+        }
+        FW_LOAD_CMD_OPCODE => {
+            // Reset the CPU with the firmware-update command in the mailbox
+            trigger_update_reset();
         }
         _ => {
             panic!();
@@ -124,4 +131,11 @@ fn swap_word_bytes_inplace(words: &mut [u32]) {
     for word in words.iter_mut() {
         *word = word.swap_bytes()
     }
+}
+
+fn trigger_update_reset() {
+    unsafe { SocIfcReg::new() }
+        .regs_mut()
+        .internal_fw_update_reset()
+        .write(|w| w.core_rst(true));
 }

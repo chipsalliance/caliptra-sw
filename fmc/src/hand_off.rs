@@ -308,8 +308,12 @@ impl HandOff {
 
     /// Check if the HandOff Table is ready for RT by ensuring RTAlias CDI and
     /// private key handles are valid.
-    pub fn is_ready_for_rt(env: &FmcEnv) -> bool {
+    pub fn is_ready_for_rt(env: &FmcEnv) -> CaliptraResult<()> {
         let fht = Self::fht(env);
-        fht.rt_cdi_kv_hdl.is_valid() && fht.rt_priv_key_kv_hdl.is_valid()
+        if fht.rt_cdi_kv_hdl.is_valid() && fht.rt_priv_key_kv_hdl.is_valid() {
+            Ok(())
+        } else {
+            Err(CaliptraError::FMC_HANDOFF_NOT_READY_FOR_RT)
+        }
     }
 }
