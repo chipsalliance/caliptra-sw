@@ -104,14 +104,21 @@ _start:
     andi t1, t1, 0x3
     bne t1, x0, post_ecc_init
 
+    //
     // Cold Boot
+    //
+
+    // Zero ICCM
     la a0, ICCM_ORG         // dest
     la a1, ICCM_SIZE        // len 
     call _zero_mem256
 
-    la a0, DCCM_ORG         // dest
-    la a1, DCCM_SIZE        // len 
-    call _zero_mem256
+    // Zero out post-CFI Entropy region
+    // CFI region is used as an additional entropy source for CFI RNG,
+    // hence it is not cleared.
+    la a0, DCCM_POST_CFI_ENTROPY_ORG     // dest
+    la a1, DCCM_POST_CFI_ENTROPY_SIZE    // len 
+    call _zero_mem32
 
 post_ecc_init:
 
@@ -150,6 +157,22 @@ _zero_mem256:
     bltu a0, a1, 1b
     ret
     .cfi_endproc
+
+.section .init.text, "ax"
+.align 2
+_zero_mem32:
+    .cfi_startproc
+    li t0, 4
+1:    
+    beqz a1, 1f
+    sw x0, 0(a0) 
+    addi a0, a0, 4
+    sub a1, a1, t0
+    j 1b
+1:
+    ret
+    .cfi_endproc
+
 
 .section .init.text, "ax"
 .align 2
