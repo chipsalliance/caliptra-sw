@@ -132,3 +132,4 @@ Stress test: Boot caliptra 1000 times with a different UDS identity each time | 
 Stress test: Perform many hitless updates in a row | N/A | N/A
 Ensure that boot ROM can load a 128k bundle into ICCM (assert ICCM contents in test) | N/A | N/A
 Ensure that hitless update flow can update an entire 128k bundle with completely different ICCM contents than original boot | N/A | N/A
+Run all the tests against the prod ROM (no logging) | N/A | N/A
