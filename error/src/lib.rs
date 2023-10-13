@@ -346,9 +346,9 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E001A);
     pub const RUNTIME_DPE_VALIDATION_FAILED: CaliptraError = CaliptraError::new_const(0x000E001B);
     pub const RUNTIME_UNKNOWN_RESET_FLOW: CaliptraError = CaliptraError::new_const(0x000E001C);
-    pub const RUNTIME_PL0_ACTIVE_DPE_CONTEXT_THRESHOLD_EXCEEDED: CaliptraError =
+    pub const RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED: CaliptraError =
         CaliptraError::new_const(0x000E001D);
-    pub const RUNTIME_PL1_ACTIVE_DPE_CONTEXT_THRESHOLD_EXCEEDED: CaliptraError =
+    pub const RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED: CaliptraError =
         CaliptraError::new_const(0x000E001E);
 
     /// FMC Errors
