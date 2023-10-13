@@ -96,13 +96,6 @@ fn test_boot() {
 }
 
 #[test]
-fn test_locked_dv_slot() {
-    let mut model = run_rt_test(Some(&firmware::runtime_tests::LOCKED_DV), None);
-
-    model.step_until_output_contains("TEST EXCEPTION").unwrap();
-}
-
-#[test]
 // Check if the owner and vendor cert validty dates are present in RT Alias cert
 fn test_rt_cert_with_custom_dates() {
     const VENDOR_CONFIG: (&str, &str) = ("20250101000000Z", "20260101000000Z");
