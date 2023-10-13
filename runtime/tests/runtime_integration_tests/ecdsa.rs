@@ -1,12 +1,11 @@
 // Licensed under the Apache-2.0 license.
-pub mod common;
 
+use crate::common::run_rt_test;
 use caliptra_common::mailbox_api::{
     CommandId, EcdsaVerifyReq, MailboxReqHeader, MailboxRespHeader,
 };
 use caliptra_hw_model::{HwModel, ShaAccMode};
 use caliptra_runtime::RtBootStatus;
-use common::run_rt_test;
 use zerocopy::{AsBytes, FromBytes};
 
 // This file includes some tests from Wycheproof to testing specific common
