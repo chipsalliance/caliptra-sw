@@ -8,6 +8,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_hw_model::{BootParams, HwModel, InitParams, ModelError, SecurityState};
 use caliptra_hw_model_types::{DeviceLifecycle, Fuses};
+use caliptra_test::run_test;
 use caliptra_test::{
     derive::{DoeInput, DoeOutput, FmcAliasKey, IDevId, LDevId, Pcr0, Pcr0Input},
     swap_word_bytes, swap_word_bytes_inplace,
@@ -580,4 +581,53 @@ fn fips_cmd_test_rt() {
     }
 
     test_fips(&mut hw, FMC_VERSION, APP_VERSION);
+}
+
+#[test]
+fn test_rt_wdt_timeout() {
+    const RUNTIME_GLOBAL_WDT_EPIRED: u32 = 0x000E001F;
+    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+
+    let rt_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
+        27_000_000
+    } else {
+        2_700_000
+    };
+
+    let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
+    let init_params = caliptra_hw_model::InitParams {
+        rom: &rom,
+        security_state,
+        wdt_timeout_cycles: rt_wdt_timeout_cycles,
+        ..Default::default()
+    };
+
+    let mut hw = run_test(None, None, Some(init_params));
+
+    hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() == RUNTIME_GLOBAL_WDT_EPIRED);
+}
+
+#[test]
+fn test_fmc_wdt_timeout() {
+    const FMC_GLOBAL_WDT_EPIRED: u32 = 0x000F000D;
+
+    let fmc_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
+        25_000_000
+    } else {
+        2_500_000
+    };
+
+    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+
+    let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
+    let init_params = caliptra_hw_model::InitParams {
+        rom: &rom,
+        security_state,
+        wdt_timeout_cycles: fmc_wdt_timeout_cycles,
+        ..Default::default()
+    };
+
+    let mut hw = caliptra_test::run_test(None, None, Some(init_params));
+
+    hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() == FMC_GLOBAL_WDT_EPIRED);
 }

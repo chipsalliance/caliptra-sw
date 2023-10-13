@@ -2,7 +2,6 @@
 
 mod common;
 mod ecdsa;
-mod error_handling;
 mod hmac;
 mod integration_tests;
 mod test_panic_missing;

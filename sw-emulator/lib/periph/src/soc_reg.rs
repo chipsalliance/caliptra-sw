@@ -101,6 +101,8 @@ mod constants {
     pub const INTERNAL_FW_UPDATE_RESET_START: u32 = 0x624;
     pub const INTERNAL_FW_UPDATE_RESET_WAIT_CYCLES_START: u32 = 0x628;
     pub const INTERNAL_NMI_VECTOR_START: u32 = 0x62c;
+    pub const INTR_BLOCK_START: u32 = 0x800;
+    pub const INTR_BLOCK_SIZE: usize = 28;
 }
 use constants::*;
 
@@ -211,7 +213,7 @@ pub struct SocRegistersInternal {
 const CALIPTRA_REG_START_ADDR: u32 = 0x00;
 
 /// Caliptra Register End Address
-const CALIPTRA_REG_END_ADDR: u32 = 0x62C;
+const CALIPTRA_REG_END_ADDR: u32 = 0x81c;
 
 /// Caliptra Fuse start address
 const FUSE_START_ADDR: u32 = 0x200;
@@ -539,6 +541,10 @@ struct SocRegistersImpl {
     #[register(offset = 0x062c, write_fn = on_write_internal_nmi_vector)]
     internal_nmi_vector: ReadWriteRegister<u32>,
 
+    /// INTERNAL_FW_UPDATE_RESET_WAIT_CYCLES Register
+    #[register_array(offset = 0x0800)]
+    intr_block_rf: [u32; INTR_BLOCK_SIZE / 4],
+
     /// Mailbox
     mailbox: MailboxInternal,
 
@@ -657,6 +663,7 @@ impl SocRegistersImpl {
             internal_fw_update_reset: ReadWriteRegister::new(0),
             internal_fw_update_reset_wait_cycles: ReadWriteRegister::new(5),
             internal_nmi_vector: ReadWriteRegister::new(0),
+            intr_block_rf: [0u32; INTR_BLOCK_SIZE / 4],
             mailbox,
             iccm,
             timer: Timer::new(clock),
@@ -1034,7 +1041,7 @@ impl SocRegistersImpl {
             const NMI_DELAY: u64 = 2;
 
             // From RISC-V_VeeR_EL2_PRM.pdf
-            const NMI_CAUSE_WDT_TIMEOUT: u32 = 0xDEADBEEF; // [TODO] Need correct mcause value.
+            const NMI_CAUSE_WDT_TIMEOUT: u32 = 0x0000_0000; // [TODO] Need correct mcause value.
 
             self.timer.schedule_action_in(
                 NMI_DELAY,
@@ -1399,7 +1406,7 @@ mod tests {
         assert_eq!(
             next_action(&clock),
             Some(TimerAction::Nmi {
-                mcause: 0xDEAD_BEEF,
+                mcause: 0x0000_0000,
             })
         );
     }
