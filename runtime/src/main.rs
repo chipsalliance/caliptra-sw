@@ -20,6 +20,7 @@ use caliptra_drivers::{
     report_fw_error_fatal, report_fw_error_non_fatal, Ecc384, Hmac384, KeyVault, Mailbox, Sha256,
     Sha384, Sha384Acc, SocIfc,
 };
+use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_runtime::Drivers;
 use core::hint::black_box;
 
@@ -62,11 +63,22 @@ pub extern "C" fn entry_point() -> ! {
 #[allow(clippy::empty_loop)]
 extern "C" fn exception_handler(trap_record: &TrapRecord) {
     cprintln!(
-        "RT EXCEPTION mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
+        "RT EXCEPTION mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X} ra=0x{:08X}",
         trap_record.mcause,
         trap_record.mscause,
-        trap_record.mepc
+        trap_record.mepc,
+        trap_record.ra,
     );
+
+    {
+        let mut soc_ifc = unsafe { SocIfcReg::new() };
+        let soc_ifc = soc_ifc.regs_mut();
+        let ext_info = soc_ifc.cptra_fw_extended_error_info();
+        ext_info.at(0).write(|_| trap_record.mcause);
+        ext_info.at(1).write(|_| trap_record.mscause);
+        ext_info.at(2).write(|_| trap_record.mepc);
+        ext_info.at(3).write(|_| trap_record.ra);
+    }
 
     // Signal non-fatal error to SOC
     handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_GLOBAL_EXCEPTION.into());
@@ -76,12 +88,36 @@ extern "C" fn exception_handler(trap_record: &TrapRecord) {
 #[inline(never)]
 #[allow(clippy::empty_loop)]
 extern "C" fn nmi_handler(trap_record: &TrapRecord) {
+    let mut soc_ifc = unsafe { SocIfcReg::new() };
+
+    // If the NMI was fired by caliptra instead of the uC, this register
+    // contains the reason(s)
+    let err_interrupt_status = u32::from(
+        soc_ifc
+            .regs()
+            .intr_block_rf()
+            .error_internal_intr_r()
+            .read(),
+    );
+
     cprintln!(
-        "RT NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
+        "RT NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X} ra=0x{:08X} error_internal_intr_r={:08X}",
         trap_record.mcause,
         trap_record.mscause,
-        trap_record.mepc
+        trap_record.mepc,
+        trap_record.ra,
+        err_interrupt_status,
     );
+
+    {
+        let soc_ifc = soc_ifc.regs_mut();
+        let ext_info = soc_ifc.cptra_fw_extended_error_info();
+        ext_info.at(0).write(|_| trap_record.mcause);
+        ext_info.at(1).write(|_| trap_record.mscause);
+        ext_info.at(2).write(|_| trap_record.mepc);
+        ext_info.at(3).write(|_| trap_record.ra);
+        ext_info.at(4).write(|_| err_interrupt_status);
+    }
 
     handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_GLOBAL_NMI.into());
 }

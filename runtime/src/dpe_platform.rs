@@ -6,7 +6,7 @@ use arrayvec::ArrayVec;
 use caliptra_drivers::cprintln;
 use crypto::Digest;
 use dpe::{
-    x509::{DirectoryString, Name, X509CertWriter},
+    x509::{CertWriter, DirectoryString, Name},
     DPE_PROFILE,
 };
 use platform::{Platform, PlatformError, MAX_CHUNK_SIZE};
@@ -78,7 +78,7 @@ impl Platform for DpePlatform<'_> {
 
     fn get_issuer_name(&mut self, out: &mut [u8; MAX_CHUNK_SIZE]) -> Result<usize, PlatformError> {
         const CALIPTRA_CN: &[u8] = b"Caliptra Rt Alias";
-        let mut issuer_writer = X509CertWriter::new(out, true);
+        let mut issuer_writer = CertWriter::new(out, true);
 
         let mut serial = [0u8; DPE_PROFILE.get_hash_size() * 2];
         Digest::write_hex_str(&self.hashed_rt_pub_key, &mut serial)

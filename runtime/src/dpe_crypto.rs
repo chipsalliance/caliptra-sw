@@ -201,7 +201,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
             y: CryptoBuf::new(&<[u8; AlgLen::Bit384.size()]>::from(self.rt_pub_key.y))
                 .map_err(|_| CryptoError::Size)?,
         };
-        self.ecdsa_sign_with_derived(algs, digest, &KEY_ID_RT_PRIV_KEY, pub_key)
+        self.ecdsa_sign_with_derived(algs, digest, &KEY_ID_RT_PRIV_KEY, &pub_key)
     }
 
     fn ecdsa_sign_with_derived(
@@ -209,7 +209,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
         algs: AlgLen,
         digest: &Digest,
         priv_key: &Self::PrivKey,
-        pub_key: EcdsaPub,
+        pub_key: &EcdsaPub,
     ) -> Result<EcdsaSig, CryptoError> {
         match algs {
             AlgLen::Bit256 => Err(CryptoError::Size),
