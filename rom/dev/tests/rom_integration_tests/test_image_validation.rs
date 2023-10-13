@@ -196,6 +196,10 @@ fn test_preamble_vendor_ecc_pubkey_revocation() {
             ..Default::default()
         };
 
+        let image_bundle =
+            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
+                .unwrap();
+
         let mut hw = caliptra_hw_model::new(BootParams {
             init_params: InitParams {
                 rom: &rom,
@@ -205,10 +209,6 @@ fn test_preamble_vendor_ecc_pubkey_revocation() {
             ..Default::default()
         })
         .unwrap();
-
-        let image_bundle =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
-                .unwrap();
 
         if key_idx == LAST_KEY_IDX {
             // Last key is never revoked.
@@ -254,6 +254,10 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
             ..Default::default()
         };
 
+        let image_bundle =
+            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
+                .unwrap();
+
         let mut hw = caliptra_hw_model::new(BootParams {
             init_params: InitParams {
                 rom: &rom,
@@ -263,10 +267,6 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
             ..Default::default()
         })
         .unwrap();
-
-        let image_bundle =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
-                .unwrap();
 
         if key_idx == LAST_KEY_IDX {
             // Last key is never revoked.
@@ -306,6 +306,10 @@ fn test_preamble_vendor_lms_optional_no_pubkey_revocation_check() {
             ..Default::default()
         };
 
+        let image_bundle =
+            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
+                .unwrap();
+
         let mut hw = caliptra_hw_model::new(BootParams {
             init_params: InitParams {
                 rom: &rom,
@@ -315,10 +319,6 @@ fn test_preamble_vendor_lms_optional_no_pubkey_revocation_check() {
             ..Default::default()
         })
         .unwrap();
-
-        let image_bundle =
-            caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
-                .unwrap();
 
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap();
@@ -1859,19 +1859,6 @@ fn test_runtime_svn_less_than_fuse_svn() {
 
 #[test]
 fn cert_test_with_custom_dates() {
-    let fuses = Fuses::default();
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
-            rom: &rom,
-            security_state: SecurityState::from(fuses.life_cycle as u32),
-            ..Default::default()
-        },
-        fuses,
-        ..Default::default()
-    })
-    .unwrap();
-
     let mut opts = ImageOptions::default();
 
     opts.vendor_config
@@ -1895,6 +1882,19 @@ fn cert_test_with_custom_dates() {
 
     let image_bundle =
         caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, opts).unwrap();
+
+    let fuses = Fuses::default();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        ..Default::default()
+    })
+    .unwrap();
 
     let mut output = vec![];
 
@@ -1939,6 +1939,12 @@ fn cert_test_with_custom_dates() {
 fn cert_test() {
     let fuses = Fuses::default();
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &TEST_FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -1948,13 +1954,6 @@ fn cert_test() {
         fuses,
         ..Default::default()
     })
-    .unwrap();
-
-    let image_bundle = caliptra_builder::build_and_sign_image(
-        &TEST_FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
     .unwrap();
 
     let mut output = vec![];
@@ -2002,6 +2001,11 @@ fn cert_test_with_ueid() {
     fuses.idevid_cert_attr[IdevidCertAttr::UeidType as usize] = 1;
 
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+
+    let opts = ImageOptions::default();
+    let image_bundle =
+        caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, opts).unwrap();
+
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -2012,11 +2016,6 @@ fn cert_test_with_ueid() {
         ..Default::default()
     })
     .unwrap();
-
-    let opts = ImageOptions::default();
-
-    let image_bundle =
-        caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, opts).unwrap();
 
     let mut output = vec![];
 

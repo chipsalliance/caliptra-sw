@@ -74,6 +74,13 @@ fn test_fake_rom_production_error() {
 fn test_fake_rom_fw_load() {
     let fuses = Fuses::default();
     let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+    // Build the image we are going to send to ROM to load
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &FAKE_TEST_FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -83,14 +90,6 @@ fn test_fake_rom_fw_load() {
         fuses,
         ..Default::default()
     })
-    .unwrap();
-
-    // Build the image we are going to send to ROM to load
-    let image_bundle = caliptra_builder::build_and_sign_image(
-        &FAKE_TEST_FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
     .unwrap();
 
     // Upload the FW once ROM is at the right point
@@ -111,6 +110,12 @@ fn test_fake_rom_fw_load() {
 fn test_fake_rom_update_reset() {
     let fuses = Fuses::default();
     let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &FAKE_TEST_FMC_INTERACTIVE,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -120,13 +125,6 @@ fn test_fake_rom_update_reset() {
         fuses,
         ..Default::default()
     })
-    .unwrap();
-
-    let image_bundle = caliptra_builder::build_and_sign_image(
-        &FAKE_TEST_FMC_INTERACTIVE,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
     .unwrap();
 
     // Upload FW
@@ -162,6 +160,12 @@ fn test_image_verify() {
     const DBG_MANUF_FAKE_ROM_IMAGE_VERIFY: u32 = 0x1 << 31; // BIT 31 turns on image verify
     let fuses = Fuses::default();
     let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+    let mut image_bundle = caliptra_builder::build_and_sign_image(
+        &FAKE_TEST_FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -172,13 +176,6 @@ fn test_image_verify() {
         initial_dbg_manuf_service_reg: DBG_MANUF_FAKE_ROM_IMAGE_VERIFY,
         ..Default::default()
     })
-    .unwrap();
-
-    let mut image_bundle = caliptra_builder::build_and_sign_image(
-        &FAKE_TEST_FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
     .unwrap();
 
     let vendor_ecc_pub_key_idx = image_bundle.manifest.preamble.vendor_ecc_pub_key_idx as usize;

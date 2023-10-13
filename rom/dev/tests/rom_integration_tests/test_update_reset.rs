@@ -269,6 +269,21 @@ fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
         image_options,
     )
     .unwrap();
+
+    // Upload firmware with a different vendor ECC key index.
+    let vendor_config_update_reset = ImageGeneratorVendorConfig {
+        ecc_key_idx: 2,
+        ..VENDOR_CONFIG_KEY_0
+    };
+    let image_options = ImageOptions {
+        vendor_config: vendor_config_update_reset,
+        ..Default::default()
+    };
+
+    let image_bundle2 =
+        caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)
+            .unwrap();
+
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -281,23 +296,9 @@ fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
 
     hw.step_until_boot_status(ColdResetComplete.into(), true);
 
-    // Upload firmware with a different vendor ECC key index.
-    let vendor_config_update_reset = ImageGeneratorVendorConfig {
-        ecc_key_idx: 2,
-        ..VENDOR_CONFIG_KEY_0
-    };
-    let image_options = ImageOptions {
-        vendor_config: vendor_config_update_reset,
-        ..Default::default()
-    };
-
-    let image_bundle =
-        caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)
-            .unwrap();
-
     hw.start_mailbox_execute(
         CommandId::FIRMWARE_LOAD.into(),
-        &image_bundle.to_bytes().unwrap(),
+        &image_bundle2.to_bytes().unwrap(),
     )
     .unwrap();
 
