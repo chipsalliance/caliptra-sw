@@ -1,8 +1,7 @@
 // Licensed under the Apache-2.0 license.
-pub mod common;
+use crate::common::run_rt_test;
 use caliptra_builder::firmware;
 use caliptra_hw_model::HwModel;
-use common::run_rt_test;
 
 pub const TIMER_CONFIG_IN_PICOSSECONDS: u32 = 1000000000; // 1ms
 #[test]
