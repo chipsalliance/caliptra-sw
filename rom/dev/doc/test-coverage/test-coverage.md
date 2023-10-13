@@ -130,3 +130,5 @@ Add test for watchdog failure, and that extended error info is populated correct
 Add test for CPU fault, and that extended error info is populated correctly | N/A | N/A
 Stress test: Boot caliptra 1000 times with a different UDS identity each time | N/A | N/A
 Stress test: Perform many hitless updates in a row | N/A | N/A
+Ensure that boot ROM can load a 128k bundle into ICCM (assert ICCM contents in test) | N/A | N/A
+Ensure that hitless update flow can update an entire 128k bundle with completely different ICCM contents than original boot | N/A | N/A
