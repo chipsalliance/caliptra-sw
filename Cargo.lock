@@ -759,6 +759,7 @@ version = "0.1.0"
 dependencies = [
  "bitfield",
  "bitflags 2.4.0",
+ "caliptra-cpu",
  "caliptra-drivers",
  "caliptra-image-types",
  "caliptra-image-verify",
