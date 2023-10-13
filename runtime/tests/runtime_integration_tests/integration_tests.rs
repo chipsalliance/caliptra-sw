@@ -46,7 +46,7 @@ fn test_standard() {
     // Test that the normal runtime firmware boots.
     // Ultimately, this will be useful for exercising Caliptra end-to-end
     // via the mailbox.
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     model
         .step_until_output_contains("Caliptra RT listening for mailbox commands...")
@@ -71,7 +71,7 @@ fn test_update() {
     // Test that the normal runtime firmware boots.
     // Ultimately, this will be useful for exercising Caliptra end-to-end
     // via the mailbox.
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
@@ -90,7 +90,7 @@ fn test_update() {
 
 #[test]
 fn test_boot() {
-    let mut model = run_rt_test(Some(&firmware::runtime_tests::BOOT), None);
+    let mut model = run_rt_test(Some(&firmware::runtime_tests::BOOT), None, None);
 
     model.step_until_exit_success().unwrap();
 }
@@ -122,7 +122,7 @@ fn test_rt_cert_with_custom_dates() {
 
     opts.owner_config = Some(own_config);
 
-    let mut model = run_rt_test(Some(&firmware::runtime_tests::CERT), Some(opts));
+    let mut model = run_rt_test(Some(&firmware::runtime_tests::CERT), Some(opts), None);
 
     let rt_resp = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
     let rt: &[u8] = rt_resp.as_bytes();
@@ -138,7 +138,7 @@ fn test_rt_cert_with_custom_dates() {
 
 #[test]
 fn test_certs() {
-    let mut model = run_rt_test(Some(&firmware::runtime_tests::CERT), None);
+    let mut model = run_rt_test(Some(&firmware::runtime_tests::CERT), None, None);
 
     // Get certs over the mailbox
     let ldev_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
@@ -222,7 +222,7 @@ fn test_fw_info() {
     let mut image_opts10 = image_opts.clone();
     image_opts10.app_svn = 10;
 
-    let mut model = run_rt_test(None, Some(image_opts10));
+    let mut model = run_rt_test(None, Some(image_opts10), None);
 
     let get_fwinfo = |model: &mut DefaultHwModel| {
         let payload = MailboxReqHeader {
@@ -308,7 +308,7 @@ fn test_fw_info() {
 
 #[test]
 fn test_stash_measurement() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -347,7 +347,7 @@ fn test_stash_measurement() {
 
 #[test]
 fn test_invoke_dpe_get_profile_cmd() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -428,7 +428,7 @@ fn test_invoke_dpe_get_profile_cmd() {
 
 #[test]
 fn test_invoke_dpe_get_certificate_chain_cmd() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -483,7 +483,7 @@ fn test_invoke_dpe_get_certificate_chain_cmd() {
 
 #[test]
 fn test_pauser_privilege_level_dpe_context_thresholds() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -630,7 +630,7 @@ fn test_pauser_privilege_level_dpe_context_thresholds() {
 
 #[test]
 fn test_invoke_dpe_sign_and_certify_key_cmds() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -760,7 +760,7 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
 
 #[test]
 fn test_disable_attestation_cmd() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
@@ -786,7 +786,7 @@ fn test_disable_attestation_cmd() {
 
 #[test]
 fn test_ecdsa_verify_cmd() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -891,7 +891,7 @@ fn test_ecdsa_verify_cmd() {
 
 #[test]
 fn test_fips_cmd_api() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
@@ -945,7 +945,7 @@ fn test_fips_cmd_api() {
 /// register is cleared.
 #[test]
 fn test_error_cleared() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
@@ -972,7 +972,7 @@ fn test_error_cleared() {
 
 #[test]
 fn test_fw_version() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
@@ -984,7 +984,7 @@ fn test_fw_version() {
 
 #[test]
 fn test_unimplemented_cmds() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
@@ -1019,7 +1019,7 @@ fn test_unimplemented_cmds() {
 
 #[test]
 fn test_idev_id_info() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_IDEV_INFO), &[]),
@@ -1035,7 +1035,7 @@ fn test_idev_id_info() {
 
 #[test]
 fn test_idev_id_cert() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     let fake_tbs = [0xef, 0xbe, 0xad, 0xde];
 

@@ -25,6 +25,7 @@ pub mod fmc_env;
 mod hand_off;
 
 pub use boot_status::FmcBootStatus;
+use caliptra_error::CaliptraError;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use hand_off::HandOff;
 
@@ -90,6 +91,7 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
             .error_internal_intr_r()
             .read(),
     );
+    log_trap_record(trap_record, Some(err_interrupt_status));
     cprintln!(
         "FMC NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}error_internal_intr_r={:08X}",
         trap_record.mcause,
@@ -97,10 +99,15 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
         trap_record.mepc,
         err_interrupt_status,
     );
+    let mut error = CaliptraError::FMC_GLOBAL_NMI;
 
-    log_trap_record(trap_record, Some(err_interrupt_status));
+    let wdt_status = soc_ifc.regs().cptra_wdt_status().read();
+    if wdt_status.t1_timeout() || wdt_status.t2_timeout() {
+        cprintln!("WDT Expired");
+        error = CaliptraError::FMC_GLOBAL_WDT_EXPIRED;
+    }
 
-    handle_fatal_error(caliptra_error::CaliptraError::FMC_GLOBAL_NMI.into());
+    handle_fatal_error(error.into());
 }
 #[panic_handler]
 #[inline(never)]
