@@ -8,6 +8,7 @@ use dpe::{
     commands::{
         CertifyKeyCmd, Command, CommandExecution, DeriveChildCmd, DeriveChildFlags, InitCtxCmd,
     },
+    context::{Context, ContextState},
     response::{Response, ResponseHdr},
     DpeInstance,
 };
@@ -121,21 +122,26 @@ impl InvokeDpeCmd {
         locality: u32,
         dpe: &DpeInstance,
     ) -> CaliptraResult<()> {
-        let active_pl0_dpe_context_count = dpe
-            .count_active_contexts_in_locality(pl0_pauser)
+        let used_pl0_dpe_context_count = dpe
+            .count_contexts(|c: &Context| {
+                c.state != ContextState::Inactive && c.locality == pl0_pauser
+            })
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
-        let active_pl1_dpe_context_count = dpe
-            .count_active_contexts()
+        // the number of used pl1 dpe contexts is the total number of used contexts
+        // minus the number of used pl0 contexts, since a context can only be activated
+        // from pl0 or from pl1. Here, used means an active or retired context.
+        let used_pl1_dpe_context_count = dpe
+            .count_contexts(|c: &Context| c.state != ContextState::Inactive)
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?
-            - active_pl0_dpe_context_count;
+            - used_pl0_dpe_context_count;
         if Self::is_caller_pl1(pl0_pauser, flags, locality)
-            && active_pl1_dpe_context_count == Self::PL1_DPE_ACTIVE_CONTEXT_THRESHOLD
+            && used_pl1_dpe_context_count == Self::PL1_DPE_ACTIVE_CONTEXT_THRESHOLD
         {
-            return Err(CaliptraError::RUNTIME_PL1_ACTIVE_DPE_CONTEXT_THRESHOLD_EXCEEDED);
+            return Err(CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED);
         } else if !Self::is_caller_pl1(pl0_pauser, flags, locality)
-            && active_pl0_dpe_context_count == Self::PL0_DPE_ACTIVE_CONTEXT_THRESHOLD
+            && used_pl0_dpe_context_count == Self::PL0_DPE_ACTIVE_CONTEXT_THRESHOLD
         {
-            return Err(CaliptraError::RUNTIME_PL0_ACTIVE_DPE_CONTEXT_THRESHOLD_EXCEEDED);
+            return Err(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED);
         }
         Ok(())
     }
