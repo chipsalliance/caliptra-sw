@@ -123,3 +123,10 @@ Check for any RUST panics added to the code | **test_panic_missing** | N/A
 Test Scenario| Test Name | ROM Error Code
 ---|---|---
 Check value in WarmResetEntry4::RomUpdateResetStatus datavault register | N/A  | N/A
+Expand `smoke_test` to perform a hitless update and confirm everything is mixed into the identity correctly. | N/A | N/A
+Validate fix for #817: warm reset during hitless update | N/A | N/A
+Validate fix for #628: warm reset during cold reset | N/A | N/A
+Add test for watchdog failure, and that extended error info is populated correctly | N/A | N/A
+Add test for CPU fault, and that extended error info is populated correctly | N/A | N/A
+Stress test: Boot caliptra 1000 times with a different UDS identity each time | N/A | N/A
+Stress test: Perform many hitless updates in a row | N/A | N/A
