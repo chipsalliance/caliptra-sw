@@ -7,6 +7,7 @@ pub mod capabilities;
 pub mod checksum;
 pub mod crypto;
 pub mod dice;
+pub mod error_handler;
 pub mod fips;
 pub mod keyids;
 pub mod mailbox_api;
@@ -28,6 +29,7 @@ pub use caliptra_drivers::memory_layout;
 pub use caliptra_drivers::pcr_log as pcr;
 pub use caliptra_drivers::printer::HexBytes;
 pub use caliptra_drivers::printer::Printer;
+pub use error_handler::handle_fatal_error;
 pub use fuse::{FuseLogEntry, FuseLogEntryId};
 pub use pcr::{PcrLogEntry, PcrLogEntryId, RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR};
 
