@@ -148,7 +148,7 @@ macro_rules! cfi_assert_macro {
         ///
         /// `a` - Left hand side
         /// `b` - Right hand side
-        #[inline(never)]
+        #[inline(always)]
         #[allow(unused)]
         pub fn $name<T>(lhs: T, rhs: T)
         where
@@ -159,6 +159,13 @@ macro_rules! cfi_assert_macro {
                 if !(lhs $op rhs) {
                     cfi_panic(CfiPanicInfo::$panic_info);
                 }
+
+                // Second check for glitch protection
+                CfiCounter::delay();
+                if !(cfi_launder(lhs) $op cfi_launder(rhs)) {
+                    cfi_panic(CfiPanicInfo::$panic_info);
+                }
+
             } else {
                 lhs $op rhs;
             }
