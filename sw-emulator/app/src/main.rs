@@ -94,7 +94,6 @@ fn main() -> io::Result<()> {
             exit(-1);
         }
     };
-    let args_device_lifecycle = args.device_lifecycle;
 
     if !args.rom.exists() {
         eprintln!("ROM File {:?} does not exist", args.rom);
@@ -153,7 +152,7 @@ fn main() -> io::Result<()> {
     let clock = Clock::new();
 
     let mut security_state = SecurityState::default();
-    security_state.set_device_lifecycle(args_device_lifecycle.into());
+    security_state.set_device_lifecycle(args.device_lifecycle.into());
 
     let logs_dir_clone = args.log_dir.clone();
 
