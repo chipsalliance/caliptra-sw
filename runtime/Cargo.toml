@@ -47,10 +47,5 @@ riscv = ["caliptra-cpu/riscv"]
 std = ["ufmt/std", "caliptra_common/std"]
 test_only_commands = []
 verilator = ["caliptra-hw-model/verilator"]
-<<<<<<< HEAD
 fips_self_test=[]
 fpga_realtime = ["caliptra-drivers/fpga_realtime"]
-=======
-fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
-fips_self_test=[]
->>>>>>> 4f51fcc ([fix] Do not stop WDT upon ROM exit.)
