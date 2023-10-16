@@ -99,19 +99,6 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
         err_interrupt_status,
     );
 
-<<<<<<< HEAD
-=======
-    {
-        let soc_ifc = soc_ifc.regs_mut();
-        let ext_info = soc_ifc.cptra_fw_extended_error_info();
-        ext_info.at(0).write(|_| trap_record.mcause);
-        ext_info.at(1).write(|_| trap_record.mscause);
-        ext_info.at(2).write(|_| trap_record.mepc);
-        ext_info.at(3).write(|_| trap_record.ra);
-        ext_info.at(4).write(|_| err_interrupt_status);
-    }
-
->>>>>>> 91dd29c (Idiomatic Rust)
     let wdt_status = soc_ifc.regs().cptra_wdt_status().read();
     let error = if wdt_status.t1_timeout() || wdt_status.t2_timeout() {
         cprintln!("WDT Expired");
