@@ -55,23 +55,25 @@ fn test_standard() {
 
 #[test]
 fn test_update() {
+    let image_options = ImageOptions {
+        app_version: 0xaabbccdd,
+        ..Default::default()
+    };
+    // Make image to update to. On the FPGA this needs to be done before executing the test,
+    // otherwise the test will fail because processor is too busy building to be able to respond to
+    // the TRNG call during the initial boot.
+    let image =
+        caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
+            .unwrap()
+            .to_bytes()
+            .unwrap();
+
     // Test that the normal runtime firmware boots.
     // Ultimately, this will be useful for exercising Caliptra end-to-end
     // via the mailbox.
     let mut model = run_rt_test(None, None);
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
-
-    let image_options = ImageOptions {
-        app_version: 0xaabbccdd,
-        ..Default::default()
-    };
-    // Make image to update to
-    let image =
-        caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
-            .unwrap()
-            .to_bytes()
-            .unwrap();
 
     model
         .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &image)
