@@ -6,21 +6,6 @@ use caliptra_builder::{
 };
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
 
-// Run test_bin as a ROM image. The is used for faster tests that can run
-// against verilator
-pub fn run_rom_test(test_fwid: &'static FwId) -> DefaultHwModel {
-    let rom = caliptra_builder::build_firmware_rom(test_fwid).unwrap();
-
-    caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
-            rom: &rom,
-            ..Default::default()
-        },
-        ..Default::default()
-    })
-    .unwrap()
-}
-
 // Run a test which boots ROM -> FMC -> test_bin. If test_bin_name is None,
 // run the production runtime image.
 pub fn run_rt_test(

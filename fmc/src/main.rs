@@ -15,18 +15,17 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_main)]
 use core::hint::black_box;
 
-use caliptra_common::cprintln;
-use caliptra_drivers::{
-    report_fw_error_fatal, report_fw_error_non_fatal, Ecc384, Hmac384, KeyVault, Mailbox, Sha256,
-    Sha384, Sha384Acc, SocIfc,
-};
+use caliptra_common::{cprintln, handle_fatal_error};
+use caliptra_cpu::{log_trap_record, TrapRecord};
+
+use caliptra_drivers::{report_fw_error_non_fatal, Mailbox};
 mod boot_status;
 mod flow;
 pub mod fmc_env;
 mod hand_off;
 
 pub use boot_status::FmcBootStatus;
-use caliptra_cpu::TrapRecord;
+use caliptra_registers::soc_ifc::SocIfcReg;
 use hand_off::HandOff;
 
 #[cfg(feature = "std")]
@@ -71,6 +70,8 @@ extern "C" fn exception_handler(trap_record: &TrapRecord) {
         trap_record.mscause,
         trap_record.mepc
     );
+    log_trap_record(trap_record, None);
+
     handle_fatal_error(caliptra_error::CaliptraError::FMC_GLOBAL_EXCEPTION.into());
 }
 
@@ -78,12 +79,26 @@ extern "C" fn exception_handler(trap_record: &TrapRecord) {
 #[inline(never)]
 #[allow(clippy::empty_loop)]
 extern "C" fn nmi_handler(trap_record: &TrapRecord) {
+    let soc_ifc = unsafe { SocIfcReg::new() };
+
+    // If the NMI was fired by caliptra instead of the uC, this register
+    // contains the reason(s)
+    let err_interrupt_status = u32::from(
+        soc_ifc
+            .regs()
+            .intr_block_rf()
+            .error_internal_intr_r()
+            .read(),
+    );
     cprintln!(
-        "FMC NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
+        "FMC NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}error_internal_intr_r={:08X}",
         trap_record.mcause,
         trap_record.mscause,
-        trap_record.mepc
+        trap_record.mepc,
+        err_interrupt_status,
     );
+
+    log_trap_record(trap_record, Some(err_interrupt_status));
 
     handle_fatal_error(caliptra_error::CaliptraError::FMC_GLOBAL_NMI.into());
 }
@@ -103,43 +118,6 @@ fn fmc_panic(_: &core::panic::PanicInfo) -> ! {
 fn report_error(code: u32) -> ! {
     cprintln!("FMC Error: 0x{:08X}", code);
     report_fw_error_non_fatal(code);
-
-    loop {
-        // SoC firmware might be stuck waiting for Caliptra to finish
-        // executing this pending mailbox transaction. Notify them that
-        // we've failed.
-        unsafe { Mailbox::abort_pending_soc_to_uc_transactions() };
-    }
-}
-
-#[allow(clippy::empty_loop)]
-fn handle_fatal_error(code: u32) -> ! {
-    cprintln!("RT Fatal Error: 0x{:08X}", code);
-    report_fw_error_fatal(code);
-    // Populate the non-fatal error code too; if there was a
-    // non-fatal error stored here before we don't want somebody
-    // mistakenly thinking that was the reason for their mailbox
-    // command failure.
-    report_fw_error_non_fatal(code);
-
-    unsafe {
-        // Zeroize the crypto blocks.
-        Ecc384::zeroize();
-        Hmac384::zeroize();
-        Sha256::zeroize();
-        Sha384::zeroize();
-        Sha384Acc::zeroize();
-
-        // Zeroize the key vault.
-        KeyVault::zeroize();
-
-        // Lock the SHA Accelerator.
-        Sha384Acc::lock();
-
-        // Stop the watchdog timer.
-        // Note: This is an idempotent operation.
-        SocIfc::stop_wdt1();
-    }
 
     loop {
         // SoC firmware might be stuck waiting for Caliptra to finish

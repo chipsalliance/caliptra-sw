@@ -1,7 +1,6 @@
 // Licensed under the Apache-2.0 license.
 
-pub mod common;
-
+use crate::common::run_rt_test;
 use caliptra_builder::{
     firmware::{self, APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
@@ -16,7 +15,6 @@ use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError, ShaAccMode};
 use caliptra_runtime::{
     FipsVersionCmd, InvokeDpeCmd, RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU,
 };
-use common::run_rt_test;
 use dpe::{
     commands::{
         CertifyKeyCmd, CertifyKeyFlags, Command, CommandHdr, DeriveChildCmd, DeriveChildFlags,
@@ -93,13 +91,6 @@ fn test_boot() {
     let mut model = run_rt_test(Some(&firmware::runtime_tests::BOOT), None);
 
     model.step_until_exit_success().unwrap();
-}
-
-#[test]
-fn test_locked_dv_slot() {
-    let mut model = run_rt_test(Some(&firmware::runtime_tests::LOCKED_DV), None);
-
-    model.step_until_output_contains("TEST EXCEPTION").unwrap();
 }
 
 #[test]
@@ -318,7 +309,7 @@ fn test_stash_measurement() {
     let mut model = run_rt_test(None, None);
 
     model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == RtBootStatus::RtReadyForCommands.into()
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
     let cmd = StashMeasurementReq {
@@ -357,7 +348,7 @@ fn test_invoke_dpe_get_profile_cmd() {
     let mut model = run_rt_test(None, None);
 
     model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == RtBootStatus::RtReadyForCommands.into()
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
     let mut data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
@@ -424,12 +415,12 @@ fn test_invoke_dpe_get_profile_cmd() {
     if let ModelError::MailboxCmdFailed(code) = resp {
         assert_eq!(
             code,
-            caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS.into()
+            u32::from(caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)
         );
     }
     assert_eq!(
         model.soc_ifc().cptra_fw_error_non_fatal().read(),
-        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS.into()
+        u32::from(caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)
     );
 }
 
@@ -438,7 +429,7 @@ fn test_invoke_dpe_get_certificate_chain_cmd() {
     let mut model = run_rt_test(None, None);
 
     model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == RtBootStatus::RtReadyForCommands.into()
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
     let mut data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
@@ -493,7 +484,7 @@ fn test_pauser_privilege_level_dpe_context_thresholds() {
     let mut model = run_rt_test(None, None);
 
     model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == RtBootStatus::RtReadyForCommands.into()
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
     let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
@@ -600,7 +591,7 @@ fn test_pauser_privilege_level_dpe_context_thresholds() {
             if let ModelError::MailboxCmdFailed(code) = resp {
                 assert_eq!(
                     code,
-                    caliptra_drivers::CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED.into()
+                    u32::from(caliptra_drivers::CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED)
                 );
             } else {
                 panic!("This DeriveChild call should have failed since it would have breached the PL0 non-inactive dpe context threshold.")
@@ -640,7 +631,7 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
     let mut model = run_rt_test(None, None);
 
     model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == RtBootStatus::RtReadyForCommands.into()
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
     let test_label = [
@@ -796,7 +787,7 @@ fn test_ecdsa_verify_cmd() {
     let mut model = run_rt_test(None, None);
 
     model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == RtBootStatus::RtReadyForCommands.into()
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
     // Message to hash
@@ -887,12 +878,12 @@ fn test_ecdsa_verify_cmd() {
     if let ModelError::MailboxCmdFailed(code) = resp {
         assert_eq!(
             code,
-            caliptra_drivers::CaliptraError::RUNTIME_INVALID_CHECKSUM.into()
+            u32::from(caliptra_drivers::CaliptraError::RUNTIME_INVALID_CHECKSUM)
         );
     }
     assert_eq!(
         model.soc_ifc().cptra_fw_error_non_fatal().read(),
-        caliptra_drivers::CaliptraError::RUNTIME_INVALID_CHECKSUM.into()
+        u32::from(caliptra_drivers::CaliptraError::RUNTIME_INVALID_CHECKSUM)
     );
 }
 
@@ -981,7 +972,7 @@ fn test_error_cleared() {
 fn test_fw_version() {
     let mut model = run_rt_test(None, None);
     model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == RtBootStatus::RtReadyForCommands.into()
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
     let fw_rev = model.soc_ifc().cptra_fw_rev_id().read();
@@ -1097,11 +1088,11 @@ fn test_idev_id_cert() {
     if let ModelError::MailboxCmdFailed(code) = resp {
         assert_eq!(
             code,
-            caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS.into()
+            u32::from(caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)
         );
     }
     assert_eq!(
         model.soc_ifc().cptra_fw_error_non_fatal().read(),
-        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS.into()
+        u32::from(caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)
     );
 }

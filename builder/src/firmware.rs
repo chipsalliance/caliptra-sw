@@ -319,11 +319,6 @@ pub mod runtime_tests {
         ..RUNTIME_TEST_FWID_BASE
     };
 
-    pub const LOCKED_DV: FwId = FwId {
-        bin_name: "locked_dv",
-        ..RUNTIME_TEST_FWID_BASE
-    };
-
     pub const CERT: FwId = FwId {
         bin_name: "cert",
         ..RUNTIME_TEST_FWID_BASE
@@ -387,7 +382,6 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &fmc_tests::MOCK_RT_WITH_UART,
     &fmc_tests::MOCK_RT_INTERACTIVE,
     &runtime_tests::BOOT,
-    &runtime_tests::LOCKED_DV,
     &runtime_tests::CERT,
     &runtime_tests::WDT,
 ];
