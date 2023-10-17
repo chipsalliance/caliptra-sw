@@ -12,8 +12,8 @@ use crate::{
 
 use arrayvec::ArrayVec;
 use caliptra_drivers::{
-    cprint, cprintln, Array4x12, CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault, Lms,
-    PersistentDataAccessor, ResetReason, Sha1, SocIfc,
+    cprint, cprintln, pcr_log::RT_FW_JOURNEY_PCR, Array4x12, CaliptraError, CaliptraResult,
+    DataVault, Ecc384, KeyVault, Lms, PersistentDataAccessor, ResetReason, Sha1, SocIfc,
 };
 use caliptra_drivers::{Hmac384, PcrBank, PcrId, Sha256, Sha256Alg, Sha384, Sha384Acc, Trng};
 use caliptra_registers::mbox::enums::MboxStatusE;
@@ -258,8 +258,9 @@ impl Drivers {
         let mut dpe = DpeInstance::new(&mut env, DPE_SUPPORT)
             .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
 
-        let data =
-            <[u8; DPE_PROFILE.get_hash_size()]>::from(&drivers.pcr_bank.read_pcr(PcrId::PcrId1));
+        let data = <[u8; DPE_PROFILE.get_hash_size()]>::from(
+            &drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR),
+        );
         // Call DeriveChild to create root context.
         DeriveChildCmd {
             handle: ContextHandle::default(),
