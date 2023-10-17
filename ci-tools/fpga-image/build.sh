@@ -46,10 +46,14 @@ if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   # Comment this line out if you don't trust folks with physical access to the
   # uart
   # chroot out/rootfs bash -c 'echo root:password | chpasswd'
+  #
 
+  echo Retrieving latest GHA runner version
+  RUNNER_VERSION="$(curl https://api.github.com/repos/actions/runner/releases/latest | jq -r '.tag_name[1:]')"
+  echo Using runner version ${RUNNER_VERSION}
   trap - EXIT
-  (cd out/rootfs/home/runner && curl -O -L https://github.com/actions/runner/releases/download/v2.308.0/actions-runner-linux-arm64-2.308.0.tar.gz)
-  chroot out/rootfs bash -c 'su runner -c "cd /home/runner && tar xvzf actions-runner-linux-arm64-2.308.0.tar.gz && rm -f actions-runner-linux-arm64-2.308.0.tar.gz"'
+  (cd out/rootfs/home/runner && curl -O -L "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-arm64-${RUNNER_VERSION}.tar.gz")
+  chroot out/rootfs bash -c "su runner -c \"cd /home/runner && tar xvzf actions-runner-linux-arm64-${RUNNER_VERSION}.tar.gz && rm -f actions-runner-linux-arm64-${RUNNER_VERSION}.tar.gz\""
 fi
 
 chroot out/rootfs bash -c 'echo ::1 caliptra-fpga >> /etc/hosts'
