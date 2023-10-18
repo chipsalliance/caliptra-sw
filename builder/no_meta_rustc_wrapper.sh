@@ -37,7 +37,7 @@ args=()
 for arg in "$@"; do
     if [[ ${#args[@]} -gt 0 ]] && [[ ${args[-1]} == "-C" ]] && [[ ${arg} == metadata=* ]]; then
         # Remove -C
-        unset args[-1]
+        unset 'args[${#args[@]}-1]'
     else
         args+=("${arg}")
     fi
