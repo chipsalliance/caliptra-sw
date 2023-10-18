@@ -11,6 +11,10 @@ on:
     paths:
       - "ci-tools/fpga-image/**"
 
+  schedule:
+    # 5:13 AM PST tuesday, thursday
+    - cron: '13 13 * * 2,4'
+
   workflow_call:
   workflow_dispatch:
 
