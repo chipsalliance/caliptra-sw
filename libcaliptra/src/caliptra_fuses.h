@@ -37,3 +37,9 @@ static inline uint32_t caliptra_read_fw_error_fatal(void)
 {
     return caliptra_fuse_read(GENERIC_AND_FUSE_REG_CPTRA_FW_ERROR_FATAL);
 }
+
+static inline void caliptra_wdt_cfg_write(uint64_t data)
+{
+    caliptra_fuse_write(GENERIC_AND_FUSE_REG_CPTRA_WDT_CFG_0, (uint32_t)data);
+    caliptra_fuse_write(GENERIC_AND_FUSE_REG_CPTRA_WDT_CFG_1, (uint32_t)(data >> 32));
+}

@@ -93,6 +93,16 @@ int caliptra_bootfsm_go()
 }
 
 /**
+ * caliptra_set_wdt_timeout
+ *
+ * Write the provided WDT timeout value to CPTRA_WDT_CFG regs
+ */
+void caliptra_set_wdt_timeout(uint64_t timeout)
+{
+    caliptra_wdt_cfg_write(timeout);
+}
+
+/**
  * caliptra_ready_for_fuses
  *
  * Reports if the Caliptra hardware is ready for fuse data
