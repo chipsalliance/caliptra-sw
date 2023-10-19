@@ -14,6 +14,9 @@
 // returns: 0                       - Success
 int caliptra_bootfsm_go();
 
+// Set the WDT timeout value for caliptra
+void caliptra_set_wdt_timeout(uint64_t timeout);
+
 // Determine if Caliptra is ready to program fuses
 bool caliptra_ready_for_fuses(void);
 
