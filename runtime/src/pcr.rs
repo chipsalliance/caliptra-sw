@@ -5,8 +5,8 @@ use caliptra_common::mailbox_api::{
     IncrementPcrResetCounterReq, MailboxResp, MailboxRespHeader, QuotePcrsReq, QuotePcrsResp,
 };
 use caliptra_drivers::{
-    hand_off::DataStore, CaliptraError, CaliptraResult, Ecc384PrivKeyIn, KeyReadArgs, PcrBank,
-    PcrId,
+    cprintln, hand_off::DataStore, CaliptraError, CaliptraResult, Ecc384PrivKeyIn, KeyReadArgs,
+    PcrBank, PcrId,
 };
 use zerocopy::{transmute, FromBytes};
 
@@ -72,19 +72,10 @@ impl GetPcrQuoteCmd {
                 acc
             });
 
-        let reset_ctrs = PcrBank::ALL_PCR_IDS
-            .into_iter()
-            .map(|pcr_id| drivers.pcr_reset.get(pcr_id))
-            .enumerate()
-            .fold([0; 32], |mut acc, (idx, reset_cnt)| {
-                acc[idx] = reset_cnt;
-                acc
-            });
-
         Ok(MailboxResp::QuotePcrs(QuotePcrsResp {
             hdr: MailboxRespHeader::default(),
             pcrs: pcrs_as_bytes,
-            reset_ctrs,
+            reset_ctrs: drivers.pcr_reset.counter,
             signature_r: signature.r.into(),
             signature_s: signature.s.into(),
         }))

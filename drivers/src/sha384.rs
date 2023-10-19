@@ -16,7 +16,7 @@ use core::usize;
 
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::{array::Array4x32, wait, Array4x12};
-use crate::{Array4x8, PcrId};
+use crate::{cprintln, Array4x8, PcrId};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::sha512::Sha512Reg;
 
@@ -141,21 +141,31 @@ impl Sha384 {
     pub fn gen_pcr_hash(&mut self, nonce: Array4x8) -> CaliptraResult<Array4x12> {
         let reg = self.sha512.regs_mut();
 
-        let status_reg = reg.gen_pcr_hash_status();
+        wait::until(|| reg.status().read().ready());
 
-        // Wait for the registers to be ready
-        while !status_reg.read().ready() {}
+        cprintln!("BEFORE: reg.ctrl().write(|ctrl| ctrl.mode(MODE_SHA384));");
 
         reg.ctrl().write(|ctrl| ctrl.mode(MODE_SHA384));
 
+        let status_reg = reg.gen_pcr_hash_status();
+
+        // Wait for the registers to be ready
+        cprintln!("status_reg BEFORE READ");
+        wait::until(|| status_reg.read().ready());
+        cprintln!("status_reg AFTER READ");
+
+        cprintln!("BEFORE: reg.gen_pcr_hash_nonce().write(&nonce.into());");
+
         // Write the nonce into the register
         reg.gen_pcr_hash_nonce().write(&nonce.into());
+
+        cprintln!("BEFORE: reg.gen_pcr_hash_ctrl().write(|ctrl| ctrl.start(true));");
 
         // Use the start command to start the digesting process
         reg.gen_pcr_hash_ctrl().write(|ctrl| ctrl.start(true));
 
         // Wait for the registers to be ready
-        while !status_reg.read().ready() {}
+        wait::until(|| status_reg.read().ready());
 
         if status_reg.read().valid() {
             Ok(reg.gen_pcr_hash_digest().read().into())
