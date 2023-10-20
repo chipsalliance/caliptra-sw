@@ -135,11 +135,11 @@ pub struct InitParams<'a> {
 
     // 4-bit nibbles of raw entropy to feed into the internal TRNG (ENTROPY_SRC
     // peripheral).
-    pub itrng_nibbles: Box<dyn Iterator<Item = u8>>,
+    pub itrng_nibbles: Box<dyn Iterator<Item = u8> + Send>,
 
     // Pre-conditioned TRNG responses to return over the soc_ifc CPTRA_TRNG_DATA
     // registers in response to requests via CPTRA_TRNG_STATUS
-    pub etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
+    pub etrng_responses: Box<dyn Iterator<Item = EtrngResponse> + Send>,
 
     // When None, use the itrng compile-time feature to decide which mode to use.
     pub trng_mode: Option<TrngMode>,
@@ -155,16 +155,17 @@ impl<'a> Default for InitParams<'a> {
         let seed = std::env::var("CPTRA_TRNG_SEED")
             .ok()
             .and_then(|s| u64::from_str(&s).ok());
-        let itrng_nibbles: Box<dyn Iterator<Item = u8>> = if let Some(seed) = seed {
+        let itrng_nibbles: Box<dyn Iterator<Item = u8> + Send> = if let Some(seed) = seed {
             Box::new(RandomNibbles(StdRng::seed_from_u64(seed)))
         } else {
-            Box::new(RandomNibbles(rand::thread_rng()))
+            Box::new(RandomNibbles(StdRng::from_entropy()))
         };
-        let etrng_responses: Box<dyn Iterator<Item = EtrngResponse>> = if let Some(seed) = seed {
-            Box::new(RandomEtrngResponses(StdRng::seed_from_u64(seed)))
-        } else {
-            Box::new(RandomEtrngResponses::new_from_thread_rng())
-        };
+        let etrng_responses: Box<dyn Iterator<Item = EtrngResponse> + Send> =
+            if let Some(seed) = seed {
+                Box::new(RandomEtrngResponses(StdRng::seed_from_u64(seed)))
+            } else {
+                Box::new(RandomEtrngResponses::new_from_stdrng())
+            };
         Self {
             rom: Default::default(),
             dccm: Default::default(),
