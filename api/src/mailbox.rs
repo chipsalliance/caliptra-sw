@@ -233,6 +233,7 @@ pub type PcrValue = [u8; 48];
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct QuotePcrsResp {
     pub hdr: MailboxRespHeader,
+    pub nonce: [u8; 32],
     /// The PCR values
     pub pcrs: [PcrValue; 32],
     pub reset_ctrs: [u32; 32],

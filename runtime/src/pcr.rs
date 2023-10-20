@@ -74,6 +74,7 @@ impl GetPcrQuoteCmd {
 
         Ok(MailboxResp::QuotePcrs(QuotePcrsResp {
             hdr: MailboxRespHeader::default(),
+            nonce: args.nonce,
             pcrs: pcrs_as_bytes,
             reset_ctrs: drivers.pcr_reset.counter,
             signature_r: signature.r.into(),
