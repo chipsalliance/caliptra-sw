@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_drivers::{CaliptraError, CaliptraResult};
+use caliptra_error::{CaliptraError, CaliptraResult};
 use core::mem::size_of;
 use zerocopy::{AsBytes, FromBytes, LayoutVerified};
 
