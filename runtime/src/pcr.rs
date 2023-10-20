@@ -30,8 +30,18 @@ impl PcrResetCounter {
         self.counter[usize::from(id)]
     }
 
-    pub fn increment(&mut self, id: PcrId) {
-        self.counter[usize::from(id)] += 1;
+    /// Increment the selected reset counter.
+    /// Returns `false` in case of a counter overflow
+    pub fn increment(&mut self, id: PcrId) -> bool {
+        let old_value = self.counter[usize::from(id)];
+
+        if let Some(new_value) = old_value.checked_add(1) {
+            self.counter[usize::from(id)] = new_value;
+
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -46,7 +56,10 @@ impl IncrementPcrResetCounter {
 
         let pcr =
             PcrId::try_from(index).map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
-        drivers.pcr_reset.increment(pcr);
+
+        if !drivers.pcr_reset.increment(pcr) {
+            return Err(CaliptraError::RUNTIME_INTERNAL);
+        }
 
         Ok(MailboxResp::IncrementPcrResetCounter(
             IncrementPcrResetCounterResp {
