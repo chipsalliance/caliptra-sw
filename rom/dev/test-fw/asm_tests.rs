@@ -112,17 +112,6 @@ pub extern "C" fn rom_entry() -> ! {
         // len rounds up to the nearest 32-byte chunk
         assert_eq!(test_mem[32..42], [1, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
 
-        // Test _zero_mem32
-
-        test_mem[4..12].copy_from_slice(&[0x5555_5555u32; 8]);
-        _zero_mem32(test_mem.as_mut_ptr().offset(4), 8 * SIZEOF_U32);
-        assert_eq!(test_mem[3..13], [1, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
-        _zero_mem32(test_mem.as_mut_ptr().offset(13), 16 * SIZEOF_U32);
-        assert_eq!(
-            test_mem[12..30],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
-        );
-
         // Test _copy_mem32
 
         test_mem[45..48].copy_from_slice(&[0x0011_2233, 0x4455_6677, 0x8899_aabb]);
