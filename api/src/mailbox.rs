@@ -63,6 +63,7 @@ pub enum MailboxResp {
     StashMeasurement(StashMeasurementResp),
     InvokeDpeCommand(InvokeDpeResp),
     QuotePcrs(QuotePcrsResp),
+    IncrementPcrResetCounter(IncrementPcrResetCounterResp),
     TestGetFmcAliasCert(TestGetFmcAliasCertResp),
     FipsVersion(FipsVersionResp),
     FwInfo(FwInfoResp),
@@ -80,6 +81,7 @@ impl MailboxResp {
             MailboxResp::StashMeasurement(resp) => resp.as_bytes(),
             MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes_partial(),
             MailboxResp::QuotePcrs(resp) => resp.as_bytes(),
+            MailboxResp::IncrementPcrResetCounter(resp) => resp.as_bytes(),
             MailboxResp::TestGetFmcAliasCert(resp) => resp.as_bytes(),
             MailboxResp::FipsVersion(resp) => resp.as_bytes(),
             MailboxResp::FwInfo(resp) => resp.as_bytes(),
@@ -97,6 +99,7 @@ impl MailboxResp {
             MailboxResp::StashMeasurement(resp) => resp.as_bytes_mut(),
             MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::QuotePcrs(resp) => resp.as_bytes_mut(),
+            MailboxResp::IncrementPcrResetCounter(resp) => resp.as_bytes_mut(),
             MailboxResp::TestGetFmcAliasCert(resp) => resp.as_bytes_mut(),
             MailboxResp::FipsVersion(resp) => resp.as_bytes_mut(),
             MailboxResp::FwInfo(resp) => resp.as_bytes_mut(),
@@ -298,12 +301,19 @@ pub struct StashMeasurementResp {
 // No command-specific input args
 // No command-specific output args
 
-// INCREMENT_PCR_RESET_COUNTER
+/// INCREMENT_PCR_RESET_COUNTER request
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct IncrementPcrResetCounterReq {
     pub hdr: MailboxReqHeader,
     pub index: u32,
+}
+
+/// INCREMENT_PCR_RESET_COUNTER response
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct IncrementPcrResetCounterResp {
+    pub hdr: MailboxRespHeader,
 }
 
 // INVOKE_DPE_COMMAND

@@ -335,6 +335,7 @@ PcrValue is defined as u8[48]
 | **Name**    | **Type**     | **Description**                                                            |
 | ----------- | ------------ | -------------------------------------------------------------------------- |
 | chksum      | u32          | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips_status | u32          | Indicates if the command is FIPS approved or an error                      |
 | nonce       | u8[32]       | Caller-supplied nonce for validation of the supplied signature             |
 | PCRs        | PcrValue[32] | Values of all PCRs                                                         |
 | reset_ctrs  | u32[32]      | Reset counters for all PCRs                                                |
@@ -355,7 +356,12 @@ Table: `EXTEND_PCR` input arguments
 | index    | u32      | Index of the PCR to extend                                                  |
 | value    | u8[..]   | Value to extend into the PCR at `index`                                     |
 
-`EXTEND_PCR` returns no output arguments.
+Table: `EXTEND_PCR` output arguments
+
+| **Name**    | **Type** | **Description**                                                            |
+| ----------- | -------- | -------------------------------------------------------------------------- |
+| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips_status | u32      | Indicates if the command is FIPS approved or an error                      |
 
 ### INCREMENT_PCR_RESET_COUNTER
 
@@ -370,7 +376,12 @@ Table: `INCREMENT_PCR_RESET_COUNTER` input arguments
 | chksum   | u32      | Checksum over other input arguments, computed by the caller. Little endian. |
 | index    | u32      | Index of the PCR for which to increment the reset counter                   |
 
-`INCREMENT_PCR_RESET_COUNTER` returns no output arguments.
+Table: `INCREMENT_PCR_RESET_COUNTER` output arguments
+
+| **Name**    | **Type** | **Description**                                                            |
+| ----------- | -------- | -------------------------------------------------------------------------- |
+| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
+| fips_status | u32      | Indicates if the command is FIPS approved or an error                      |
 
 ## Checksum
 

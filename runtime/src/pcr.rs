@@ -2,7 +2,8 @@
 
 use crate::Drivers;
 use caliptra_common::mailbox_api::{
-    IncrementPcrResetCounterReq, MailboxResp, MailboxRespHeader, QuotePcrsReq, QuotePcrsResp,
+    IncrementPcrResetCounterReq, IncrementPcrResetCounterResp, MailboxResp, MailboxRespHeader,
+    QuotePcrsReq, QuotePcrsResp,
 };
 use caliptra_drivers::{
     cprintln, hand_off::DataStore, CaliptraError, CaliptraResult, Ecc384PrivKeyIn, KeyReadArgs,
@@ -47,7 +48,11 @@ impl IncrementPcrResetCounter {
             PcrId::try_from(index).map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         drivers.pcr_reset.increment(pcr);
 
-        Ok(MailboxResp::default())
+        Ok(MailboxResp::IncrementPcrResetCounter(
+            IncrementPcrResetCounterResp {
+                hdr: MailboxRespHeader::default(),
+            },
+        ))
     }
 }
 
