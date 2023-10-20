@@ -588,10 +588,11 @@ fn test_rt_wdt_timeout() {
     const RUNTIME_GLOBAL_WDT_EPIRED: u32 = 0x000E001F;
     let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
 
+    // TODO: Don't hard-code these; maybe measure from a previous boot?
     let rt_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
         27_000_000
     } else {
-        2_700_000
+        2_720_000
     };
 
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
@@ -604,7 +605,11 @@ fn test_rt_wdt_timeout() {
 
     let mut hw = run_test(None, None, Some(init_params));
 
-    hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() == RUNTIME_GLOBAL_WDT_EPIRED);
+    hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_fatal().read(),
+        RUNTIME_GLOBAL_WDT_EPIRED
+    )
 }
 
 #[test]
@@ -629,5 +634,9 @@ fn test_fmc_wdt_timeout() {
 
     let mut hw = caliptra_test::run_test(None, None, Some(init_params));
 
-    hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() == FMC_GLOBAL_WDT_EPIRED);
+    hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_fatal().read(),
+        FMC_GLOBAL_WDT_EPIRED
+    );
 }
