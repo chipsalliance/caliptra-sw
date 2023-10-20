@@ -731,7 +731,10 @@ fn trng_nibbles() -> impl Iterator<Item = u8> + Clone {
 }
 
 // Helper function to run CSRNG test binaries with specific entropy nibbles.
-fn test_csrng_with_nibbles(fwid: &FwId<'static>, itrng_nibbles: Box<dyn Iterator<Item = u8>>) {
+fn test_csrng_with_nibbles(
+    fwid: &FwId<'static>,
+    itrng_nibbles: Box<dyn Iterator<Item = u8> + Send>,
+) {
     let rom = caliptra_builder::build_firmware_rom(fwid).unwrap();
 
     let mut model = caliptra_hw_model::new(BootParams {

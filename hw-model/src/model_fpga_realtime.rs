@@ -1,14 +1,18 @@
 // Licensed under the Apache-2.0 license
 
+use std::marker::PhantomData;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::thread;
 use std::{env, str::FromStr};
 
 use bitfield::bitfield;
-use caliptra_emu_bus::{Bus, BusError};
+use caliptra_emu_bus::{Bus, BusError, BusMmio};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use libc;
 use nix;
 use std::io::Write;
-use std::time;
+use std::time::{self, Duration};
 use uio::{UioDevice, UioError};
 
 use crate::EtrngResponse;
@@ -74,12 +78,39 @@ pub struct ModelFpgaRealtime {
     output: Output,
     start_time: time::Instant,
 
-    etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
-    etrng_response: Option<[u32; 12]>,
-    etrng_waiting_for_req_to_clear: bool,
+    realtime_thread: Option<thread::JoinHandle<()>>,
+    realtime_thread_exit_flag: Arc<AtomicBool>,
 }
 
 impl ModelFpgaRealtime {
+    fn realtime_thread_fn(
+        mmio: *mut u32,
+        exit: Arc<AtomicBool>,
+        mut etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
+    ) {
+        let soc_ifc_trng = unsafe {
+            caliptra_registers::soc_ifc_trng::RegisterBlock::new_with_mmio(
+                0x3003_0000 as *mut u32,
+                BusMmio::new(FpgaRealtimeBus {
+                    mmio,
+                    phantom: Default::default(),
+                }),
+            )
+        };
+
+        while !exit.load(Ordering::Relaxed) {
+            let trng_status = soc_ifc_trng.cptra_trng_status().read();
+            if trng_status.data_req() {
+                if let Some(resp) = etrng_responses.next() {
+                    soc_ifc_trng.cptra_trng_data().write(&resp.data);
+                    soc_ifc_trng
+                        .cptra_trng_status()
+                        .write(|w| w.data_wr_done(true));
+                }
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+    }
     fn is_ready_for_fuses(&self) -> bool {
         unsafe {
             GpioInput(
@@ -184,29 +215,6 @@ impl ModelFpgaRealtime {
             }
         }
     }
-
-    fn handle_etrng(&mut self) {
-        let trng_status = self.soc_ifc_trng().cptra_trng_status().read();
-        if self.etrng_waiting_for_req_to_clear && !trng_status.data_req() {
-            self.etrng_waiting_for_req_to_clear = false;
-        }
-        if trng_status.data_req() && !self.etrng_waiting_for_req_to_clear {
-            if self.etrng_response.is_none() {
-                if let Some(response) = self.etrng_responses.next() {
-                    self.etrng_response = Some(response.data);
-                }
-            }
-            if let Some(_) = &mut self.etrng_response {
-                self.etrng_waiting_for_req_to_clear = true;
-                let etrng_response = self.etrng_response.take().unwrap();
-                self.soc_ifc_trng().cptra_trng_data().write(&etrng_response);
-                self.soc_ifc_trng()
-                    .cptra_trng_status()
-                    .write(|w| w.data_wr_done(true));
-            }
-        }
-    }
-
     // UIO crate doesn't provide a way to unmap memory.
     fn unmap_mapping(&self, addr: *mut u32, mapping: usize) {
         let map_size = self.dev.map_size(mapping).unwrap();
@@ -216,6 +224,10 @@ impl ModelFpgaRealtime {
         }
     }
 }
+
+// Hack to pass *mut u32 between threads
+struct SendPtr(*mut u32);
+unsafe impl Send for SendPtr {}
 
 impl HwModel for ModelFpgaRealtime {
     type TBus<'a> = FpgaRealtimeBus<'a>;
@@ -234,6 +246,15 @@ impl HwModel for ModelFpgaRealtime {
         let mmio = dev.map_mapping(CALIPTRA_MAPPING).map_err(fmt_uio_error)? as *mut u32;
         let start_time = time::Instant::now();
 
+        let realtime_thread_exit_flag = Arc::new(AtomicBool::new(false));
+        let realtime_thread_exit_flag2 = realtime_thread_exit_flag.clone();
+
+        let realtime_thread_mmio = SendPtr(mmio);
+        let realtime_thread = Some(thread::spawn(move || {
+            let mmio = realtime_thread_mmio;
+            Self::realtime_thread_fn(mmio.0, realtime_thread_exit_flag2, params.etrng_responses)
+        }));
+
         let mut m = Self {
             dev,
             wrapper,
@@ -241,9 +262,8 @@ impl HwModel for ModelFpgaRealtime {
             output,
             start_time,
 
-            etrng_responses: params.etrng_responses,
-            etrng_response: None,
-            etrng_waiting_for_req_to_clear: false,
+            realtime_thread,
+            realtime_thread_exit_flag,
         };
 
         writeln!(m.output().logger(), "new_unbooted")?;
@@ -287,14 +307,14 @@ impl HwModel for ModelFpgaRealtime {
     }
 
     fn apb_bus(&mut self) -> Self::TBus<'_> {
-        FpgaRealtimeBus { m: self }
+        FpgaRealtimeBus {
+            mmio: self.mmio,
+            phantom: Default::default(),
+        }
     }
 
     fn step(&mut self) {
         self.handle_log();
-
-        // FPGA only supports ETRNG for now and needs to be checked frequently.
-        self.handle_etrng();
     }
 
     fn output(&mut self) -> &mut crate::Output {
@@ -330,6 +350,14 @@ impl HwModel for ModelFpgaRealtime {
 }
 impl Drop for ModelFpgaRealtime {
     fn drop(&mut self) {
+        // Ask the realtime thread to exit and wait for it to finish
+        // SAFETY: The thread is using the UIO mappings below, so it must be
+        // dead before we unmap.
+        // TODO: Find a safer abstraction for UIO mappings.
+        self.realtime_thread_exit_flag
+            .store(true, Ordering::Relaxed);
+        self.realtime_thread.take().unwrap().join().unwrap();
+
         // Unmap UIO memory space so that the file lock is released
         self.unmap_mapping(self.wrapper, FPGA_WRAPPER_MAPPING);
         self.unmap_mapping(self.mmio, CALIPTRA_MAPPING);
@@ -337,14 +365,15 @@ impl Drop for ModelFpgaRealtime {
 }
 
 pub struct FpgaRealtimeBus<'a> {
-    m: &'a mut ModelFpgaRealtime,
+    mmio: *mut u32,
+    phantom: PhantomData<&'a mut ()>,
 }
 impl<'a> FpgaRealtimeBus<'a> {
     fn ptr_for_addr(&mut self, addr: RvAddr) -> Option<*mut u32> {
         let addr = addr as usize;
         unsafe {
             match addr {
-                0x3002_0000..=0x3003_ffff => Some(self.m.mmio.add((addr - 0x3002_0000) / 4)),
+                0x3002_0000..=0x3003_ffff => Some(self.mmio.add((addr - 0x3002_0000) / 4)),
                 _ => None,
             }
         }
