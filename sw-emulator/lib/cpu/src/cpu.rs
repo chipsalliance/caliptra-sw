@@ -148,7 +148,9 @@ impl<TBus: Bus> Cpu<TBus> {
             is_execute_instr: false,
             watch_ptr_cfg: WatchPtrCfg::new(),
             nmivec: 0,
-            code_coverage: CodeCoverage::new(caliptra_drivers::memory_layout::ROM_SIZE as usize),
+            // TODO: Pass in code_coverage from the outside (as caliptra-emu-cpu
+            // isn't supposed to know anything about the caliptra memory map)
+            code_coverage: CodeCoverage::new(48 * 1024),
         }
     }
 
