@@ -307,7 +307,6 @@ version = "0.1.0"
 dependencies = [
  "bit-vec",
  "bitfield",
- "caliptra-drivers",
  "caliptra-emu-bus",
  "caliptra-emu-types",
  "lazy_static",
