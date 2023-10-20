@@ -158,9 +158,6 @@ pub extern "C" fn rom_entry() -> ! {
         }
     }
 
-    // Stop the watchdog timer.
-    wdt::stop_wdt(&mut env.soc_ifc);
-
     // Lock the datavault registers.
     lock_registers(&mut env, reset_reason);
 

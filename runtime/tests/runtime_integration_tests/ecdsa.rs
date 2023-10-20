@@ -15,7 +15,7 @@ use zerocopy::{AsBytes, FromBytes};
 
 #[test]
 fn ecdsa_cmd_run_wycheproof() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read()

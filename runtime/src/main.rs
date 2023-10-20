@@ -16,6 +16,7 @@ Abstract:
 
 use caliptra_common::{cprintln, handle_fatal_error};
 use caliptra_cpu::{log_trap_record, TrapRecord};
+use caliptra_error::CaliptraError;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_runtime::Drivers;
 use core::hint::black_box;
@@ -41,6 +42,8 @@ pub extern "C" fn entry_point() -> ! {
             caliptra_common::report_handoff_error_and_halt("Runtime can't load drivers", e.into())
         })
     };
+    caliptra_common::stop_wdt(&mut drivers.soc_ifc);
+
     if !drivers.persistent_data.get().fht.is_valid() {
         caliptra_common::report_handoff_error_and_halt(
             "Runtime can't load FHT",
@@ -86,7 +89,7 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
             .error_internal_intr_r()
             .read(),
     );
-
+    log_trap_record(trap_record, Some(err_interrupt_status));
     cprintln!(
         "RT NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X} ra=0x{:08X} error_internal_intr_r={:08X}",
         trap_record.mcause,
@@ -96,9 +99,15 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
         err_interrupt_status,
     );
 
-    log_trap_record(trap_record, Some(err_interrupt_status));
+    let wdt_status = soc_ifc.regs().cptra_wdt_status().read();
+    let error = if wdt_status.t1_timeout() || wdt_status.t2_timeout() {
+        cprintln!("WDT Expired");
+        CaliptraError::RUNTIME_GLOBAL_WDT_EXPIRED
+    } else {
+        CaliptraError::RUNTIME_GLOBAL_NMI
+    };
 
-    handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_GLOBAL_NMI.into());
+    handle_fatal_error(error.into());
 }
 
 #[panic_handler]
