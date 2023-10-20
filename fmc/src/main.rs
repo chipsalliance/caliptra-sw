@@ -109,6 +109,14 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
 
     handle_fatal_error(error.into());
 }
+
+#[no_mangle]
+extern "C" fn cfi_panic_handler(code: u32) -> ! {
+    cprintln!("CFI Panic code=0x{:08X}", code);
+
+    handle_fatal_error(code);
+}
+
 #[panic_handler]
 #[inline(never)]
 #[cfg(not(feature = "std"))]

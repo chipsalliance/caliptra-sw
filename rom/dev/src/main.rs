@@ -16,7 +16,7 @@ Abstract:
 #![cfg_attr(feature = "fake-rom", allow(unused_imports))]
 
 use crate::{lock::lock_registers, print::HexBytes};
-use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, CfiCounter};
+use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
 use caliptra_registers::soc_ifc::SocIfcReg;
 use core::hint::black_box;
 
@@ -77,18 +77,22 @@ pub extern "C" fn rom_entry() -> ! {
     }
 
     // Check if TRNG is correctly sourced as per hw config.
-    match env.trng {
-        Trng::Internal(_) => {
-            cfi_assert!(env.soc_ifc.hw_config_internal_trng());
-            cfi_assert!(env.soc_ifc.hw_config_internal_trng());
-            cfi_assert!(env.soc_ifc.hw_config_internal_trng());
-        }
-        Trng::External(_) => {
-            cfi_assert!(!env.soc_ifc.hw_config_internal_trng());
-            cfi_assert!(!env.soc_ifc.hw_config_internal_trng());
-            cfi_assert!(!env.soc_ifc.hw_config_internal_trng());
-        }
-    }
+    cfi_assert_eq(
+        env.soc_ifc.hw_config_internal_trng(),
+        matches!(env.trng, Trng::Internal(_)),
+    );
+    cfi_assert_eq(
+        !env.soc_ifc.hw_config_internal_trng(),
+        matches!(env.trng, Trng::External(_)),
+    );
+    cfi_assert_eq(
+        env.soc_ifc.hw_config_internal_trng(),
+        matches!(env.trng, Trng::Internal(_)),
+    );
+    cfi_assert_eq(
+        !env.soc_ifc.hw_config_internal_trng(),
+        matches!(env.trng, Trng::External(_)),
+    );
 
     let _lifecyle = match env.soc_ifc.lifecycle() {
         caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",
