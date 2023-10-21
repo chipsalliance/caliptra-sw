@@ -36,7 +36,7 @@ build-emu:
 build-rom:
 	$(RUSTFLAGS) cargo build \
 		--profile firmware \
-		--manifest-path ../rom/dev/Cargo.toml \
+		--manifest-path ../rom/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
 		--features emu \

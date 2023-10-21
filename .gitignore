@@ -13,8 +13,8 @@
 /.idea/
 
 # Files created by tests
-rom/dev/caliptra_idevid_csr.der
-rom/dev/caliptra_ldevid_cert.der
+rom/caliptra_idevid_csr.der
+rom/caliptra_ldevid_cert.der
 
 # Files created by FPGA build
 hw-latest/fpga/.Xil/
