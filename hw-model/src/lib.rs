@@ -145,9 +145,6 @@ pub struct InitParams<'a> {
     pub trng_mode: Option<TrngMode>,
 
     pub wdt_timeout_cycles: u64,
-
-    // PAUSER value used for APB read/write cycles from SoC->caliptra
-    pub soc_apb_pauser: u32,
 }
 
 impl<'a> Default for InitParams<'a> {
@@ -178,7 +175,6 @@ impl<'a> Default for InitParams<'a> {
             etrng_responses,
             trng_mode: Default::default(),
             wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
-            soc_apb_pauser: 0x1,
         }
     }
 }
@@ -691,6 +687,8 @@ pub trait HwModel {
 
     fn ecc_error_injection(&mut self, _mode: ErrorInjectionMode) {}
 
+    fn set_apb_pauser(&mut self, pauser: u32);
+
     /// Executes `cmd` with request data `buf`. Returns `Ok(Some(_))` if
     /// the uC responded with data, `Ok(None)` if the uC indicated success
     /// without data, Err(ModelError::MailboxCmdFailed) if the microcontroller
@@ -1055,6 +1053,52 @@ mod tests {
         let _ = caliptra_hw_model::mbox_write_fifo(&model.soc_mbox(), &[1, 2, 3]);
         let buf = caliptra_hw_model::mbox_read_fifo(model.soc_mbox());
         assert_eq!(buf, &[0, 0, 0]);
+    }
+
+    #[test]
+    // Currently only possible on verilator
+    // SW emulator does not support pauser
+    // For FPGA, test case needs to be reworked to capture SIGBUS from linux environment
+    #[cfg(feature = "verilator")]
+    fn test_mbox_pauser() {
+        let mut model = caliptra_hw_model::new_unbooted(InitParams {
+            rom: &gen_image_hi(),
+            ..Default::default()
+        })
+        .unwrap();
+
+        model.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
+        model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+
+        // Set up the PAUSER as valid for the mailbox (using index 0)
+        model
+            .soc_ifc()
+            .cptra_mbox_valid_pauser()
+            .at(0)
+            .write(|_| 0x1);
+        model
+            .soc_ifc()
+            .cptra_mbox_pauser_lock()
+            .at(0)
+            .write(|w| w.lock(true));
+
+        // Set the PAUSER to something invalid
+        model.set_apb_pauser(0x2);
+
+        assert!(!model.soc_mbox().lock().read().lock());
+        // Should continue to read 0 because the reads are being blocked by valid PAUSER
+        assert!(!model.soc_mbox().lock().read().lock());
+
+        // Set the PAUSER back to valid
+        model.set_apb_pauser(0x1);
+
+        // Should read 0 the first time still for lock available
+        assert!(!model.soc_mbox().lock().read().lock());
+        // Should read 1 now for lock taken
+        assert!(model.soc_mbox().lock().read().lock());
+
+        model.soc_mbox().cmd().write(|_| 4242);
+        assert_eq!(model.soc_mbox().cmd().read(), 4242);
     }
 
     #[test]
