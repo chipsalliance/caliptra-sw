@@ -7,7 +7,7 @@ use std::{
     io::{stdout, ErrorKind, Write},
 };
 
-use caliptra_common::mailbox_api;
+use caliptra_common::mailbox_api::{self, StashMeasurementResp};
 use caliptra_emu_bus::Bus;
 use caliptra_hw_model_types::{
     ErrorInjectionMode, EtrngResponse, RandomEtrngResponses, RandomNibbles, DEFAULT_CPTRA_OBF_KEY,
@@ -889,19 +889,19 @@ pub trait HwModel {
         let response = response.ok_or(ModelError::UploadMeasurementResponseError)?;
 
         // Get response as a response header struct
-        let response = mailbox_api::MailboxRespHeader::read_from(response.as_slice())
+        let response = StashMeasurementResp::read_from(response.as_slice())
             .ok_or(ModelError::UploadMeasurementResponseError)?;
 
         // Verify checksum and FIPS status
         if !caliptra_common::checksum::verify_checksum(
-            response.chksum,
+            response.hdr.chksum,
             0x0,
-            &response.as_bytes()[core::mem::size_of_val(&response.chksum)..],
+            &response.as_bytes()[core::mem::size_of_val(&response.hdr.chksum)..],
         ) {
             return Err(ModelError::UploadMeasurementResponseError);
         }
 
-        if response.fips_status != mailbox_api::MailboxRespHeader::FIPS_STATUS_APPROVED {
+        if response.hdr.fips_status != mailbox_api::MailboxRespHeader::FIPS_STATUS_APPROVED {
             return Err(ModelError::UploadMeasurementResponseError);
         }
 
