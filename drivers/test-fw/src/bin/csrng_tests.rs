@@ -31,10 +31,9 @@ fn test_ctr_drbg_ctr0_smoke() {
         0x5600419c, 0xca79b0b0, 0xdda33b5c, 0xa468649e, 0xdf5d73fa,
     ]);
 
-    const EXPECTED_OUTPUT: [u32; 16] = [
-        0xe48bb8cb, 0x1012c84c, 0x5af8a7f1, 0xd1c07cd9, 0xdf82ab22, 0x771c619b, 0xd40fccb1,
-        0x87189e99, 0x510494b3, 0x64f7ac0c, 0x2581f391, 0x80b1dc2f, 0x793e01c5, 0x87b107ae,
-        0xdb17514c, 0xa43c41b7,
+    const EXPECTED_OUTPUT: [u32; 12] = [
+        0x725eda90, 0xc79b4a14, 0xe43b74ac, 0x9d9a938b, 0xc395a610, 0x4c5a1483, 0xa45f15e8,
+        0x2708cbef, 0x89eb63a9, 0x70cdc6bc, 0x710daba1, 0xed39808c,
     ];
 
     let mut csrng =
@@ -42,12 +41,12 @@ fn test_ctr_drbg_ctr0_smoke() {
 
     // The original OpenTitan test tosses the first call to generate.
     let _ = csrng
-        .generate16()
+        .generate12()
         .expect("first call to generate should work");
 
     assert_eq!(
         csrng
-            .generate16()
+            .generate12()
             .expect("second call to generate should work"),
         EXPECTED_OUTPUT
     );
