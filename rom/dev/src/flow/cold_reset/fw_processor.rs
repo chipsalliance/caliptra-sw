@@ -23,7 +23,7 @@ use caliptra_common::capabilities::Capabilities;
 use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::{
     CapabilitiesResp, CommandId, MailboxReqHeader, MailboxResp, MailboxRespHeader,
-    StashMeasurementReq,
+    StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_common::pcr::PCR_ID_STASH_MEASUREMENT;
 use caliptra_common::verifier::FirmwareImageVerificationEnv;
@@ -279,7 +279,10 @@ impl FirmwareProcessor {
                         Self::stash_measurement(pcr_bank, env.sha384, persistent_data, &mut txn)?;
 
                         // Generate and send response (with FIPS approved status)
-                        let mut resp = MailboxResp::default();
+                        let mut resp = MailboxResp::StashMeasurement(StashMeasurementResp {
+                            hdr: MailboxRespHeader::default(),
+                            dpe_result: 0, // DPE_STATUS_SUCCESS
+                        });
                         resp.populate_chksum()?;
                         txn.send_response(resp.as_bytes())?;
                     }
