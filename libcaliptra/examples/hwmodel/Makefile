@@ -29,7 +29,7 @@ HWMODEL_DIR = $(OUTPUT_DIR)
 HWMODEL_HEADER_DIR = ../../../hw-model/c-binding/out
 HWMODEL_INCLUDE = -I$(HWMODEL_HEADER_DIR)
 HWMODEL_LIB = -Wl,-L$(HWMODEL_DIR) -lcaliptra_hw_model_c_binding
-HWMODEL_FLAGS = -lpthread -lstdc++ -ldl -lm
+HWMODEL_FLAGS = -lpthread -lstdc++ -ldl -lrt -lm
 HWMODEL_HEADER = $(HWMODEL_HEADER_DIR)/caliptra_model.h
 HWMODEL_BINDING_LIB_OBJ = $(HWMODEL_DIR)/libcaliptra_hw_model_c_binding.a
 
