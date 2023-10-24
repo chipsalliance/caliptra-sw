@@ -26,20 +26,11 @@ use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::entropy_src::{self, regs::AlertFailCountsReadVal, EntropySrcReg};
 use caliptra_registers::soc_ifc::{self, SocIfcReg};
 
-use core::array;
+use core::mem::MaybeUninit;
 
 // https://opentitan.org/book/hw/ip/csrng/doc/theory_of_operation.html#command-description
 const MAX_SEED_WORDS: usize = 12;
 const WORDS_PER_BLOCK: usize = 4;
-
-struct IsCompleteBlocks<const NUM_WORDS: usize>;
-
-impl<const NUM_WORDS: usize> IsCompleteBlocks<NUM_WORDS> {
-    const ASSERT: () = assert!(
-        NUM_WORDS != 0 && NUM_WORDS % WORDS_PER_BLOCK == 0,
-        "NUM_WORDS must be non-zero and divisible by WORDS_PER_BLOCK"
-    );
-}
 
 /// A unique handle to the underlying CSRNG peripheral.
 pub struct Csrng {
@@ -141,51 +132,35 @@ impl Csrng {
     /// }
     /// ```
     pub fn generate12(&mut self) -> CaliptraResult<[u32; 12]> {
-        self.generate()
-    }
-
-    /// Return 16 randomly generated [`u32`]s.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the internal generate command fails.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// let mut csrng = ...;
-    ///
-    /// let random_words: [u32; 16] = csrng.generate()?;
-    ///
-    /// for word in random_words {
-    ///     // Do something with `word`.
-    /// }
-    /// ```
-    pub fn generate16(&mut self) -> CaliptraResult<[u32; 16]> {
-        self.generate()
-    }
-
-    fn generate<const N: usize>(&mut self) -> CaliptraResult<[u32; N]> {
-        #[allow(clippy::let_unit_value)]
-        let _ = IsCompleteBlocks::<N>::ASSERT;
-
         check_for_alert_state(self.entropy_src.regs())?;
 
         send_command(
             &mut self.csrng,
             Command::Generate {
-                num_128_bit_blocks: N / WORDS_PER_BLOCK,
+                num_128_bit_blocks: 12 / WORDS_PER_BLOCK,
             },
         )?;
 
-        Ok(array::from_fn(|i| {
-            if i % WORDS_PER_BLOCK == 0 {
-                // Wait for CSRNG to generate next block of words.
-                wait::until(|| self.csrng.regs().genbits_vld().read().genbits_vld());
-            }
-
-            self.csrng.regs().genbits().read()
-        }))
+        let mut result = MaybeUninit::<[u32; 12]>::uninit();
+        let dest = result.as_mut_ptr() as *mut u32;
+        unsafe {
+            wait::until(|| self.csrng.regs().genbits_vld().read().genbits_vld());
+            dest.add(0).write(self.csrng.regs().genbits().read());
+            dest.add(1).write(self.csrng.regs().genbits().read());
+            dest.add(2).write(self.csrng.regs().genbits().read());
+            dest.add(3).write(self.csrng.regs().genbits().read());
+            wait::until(|| self.csrng.regs().genbits_vld().read().genbits_vld());
+            dest.add(4).write(self.csrng.regs().genbits().read());
+            dest.add(5).write(self.csrng.regs().genbits().read());
+            dest.add(6).write(self.csrng.regs().genbits().read());
+            dest.add(7).write(self.csrng.regs().genbits().read());
+            wait::until(|| self.csrng.regs().genbits_vld().read().genbits_vld());
+            dest.add(8).write(self.csrng.regs().genbits().read());
+            dest.add(9).write(self.csrng.regs().genbits().read());
+            dest.add(10).write(self.csrng.regs().genbits().read());
+            dest.add(11).write(self.csrng.regs().genbits().read());
+            Ok(result.assume_init())
+        }
     }
 
     pub fn reseed(&mut self, seed: Seed) -> CaliptraResult<()> {

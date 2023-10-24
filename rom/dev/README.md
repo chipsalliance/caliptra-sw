@@ -1,3 +1,4 @@
+
 # Caliptra - ROM Specification v0.5.2
 
 ## 1. Version History
@@ -106,7 +107,7 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | FUSE_RUNTIME_SVN                | 128          | Runtime Security Version Number                         |
 | FUSE_ANTI_ROLLBACK_DISABLE      | 1            | Disable SVN checking for FMC & Runtime when bit is set  |
 | FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR  <br> **Word 0**: X509 Key Id Algorithm (2 bits) 1: SHA1, 2: SHA256, 2: SHA384, 3: Fuse <br> **Word 1,2,3,4,5**: Subject Key Id <br> **Words 7,8**: Unique Endpoint ID  |
-| CPTRA_DBG_MANUF_SERVICE_REG     | 16           | Manufacturing Services: <br> **Bit 0**: IDEVID CSR upload           |
+| CPTRA_DBG_MANUF_SERVICE_REG     | 16           | Manufacturing Services: <br> **Bit 0**: IDEVID CSR upload  <br> **Bit 31**: Fake ROM image verify enable           |
 
 ## 7. Vaults
 
@@ -755,3 +756,21 @@ The following are the pre-conditions that should be satisfied:
     - If validation fails during ROM boot, the new RT image will not be copied from
       the mailbox. ROM will boot the existing FMC/Runtime images. Validation
       errors will be reported via the CPTRA_FW_ERROR_NON_FATAL register.
+
+## 14. Fake ROM
+
+Fake ROM is a variation of the ROM intended to be used in the verification/enabling stages of development. The purpose is to greatly reduce the boot time for pre-Si environments by eliminating certain steps from the boot flow. Outside of these omissions, the behavior is intended to be the same as normal ROM.
+
+Fake ROM is not available in production mode as it is not secure and breaks/bypasses the core use-cases of Caliptra as a RoT.
+
+**Differences from normal ROM:**
+Fake ROM reduces boot time by doing the following:
+1. Skipping the DICE cert derivation and instead providing a static, "canned" cert chain for LDEV and FMC Alias
+2. Skipping the known answer tests (KATs)
+3. Skipping verification of the FW image received - This can optionally still be performed, see CPTRA_DBG_MANUF_SERVICE_REG
+
+**How to use:**
+- Fake ROM is provided in the release along with the normal collateral.
+- The image builder exposes the argument "fake" that can be used to generate the fake versions
+
+To fully boot to runtime, the fake version of FMC should also be used. Details can be found in the FMC readme.
