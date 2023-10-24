@@ -577,16 +577,16 @@ fn test_mailbox_soc_to_uc() {
 
     // Test 9 byte reponse
     {
-        let resp = model.mailbox_execute(0xC000_0000, &[]).unwrap().unwrap();
+        let resp: Vec<u8> = model.mailbox_execute(0xC000_0000, &[]).unwrap().unwrap();
         assert_eq!(model.output().take(usize::MAX), "cmd: 0xc0000000\n");
         assert_eq!(resp, [0x0A, 0x0B, 0x0C, 0x0D, 0x05, 0x04, 0x03, 0x02, 0x01]);
     }
 
     // Test reponse with 0 bytes (still calls copy_response)
     {
-        let resp = model.mailbox_execute(0xD000_0000, &[]).unwrap().unwrap();
+        let resp: Vec<u8> = model.mailbox_execute(0xD000_0000, &[]).unwrap().unwrap();
         assert_eq!(model.output().take(usize::MAX), "cmd: 0xd0000000\n");
-        assert_eq!(resp, []);
+        assert_eq!(resp, std::vec::Vec::<u8>::from([]));
     }
 }
 

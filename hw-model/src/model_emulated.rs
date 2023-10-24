@@ -55,6 +55,12 @@ pub struct ModelEmulated {
     ready_for_fw: Rc<Cell<bool>>,
     cpu_enabled: Rc<Cell<bool>>,
 }
+impl Drop for ModelEmulated {
+    fn drop(&mut self) {
+        let bitmap = self.code_coverage_bitmap();
+        let _ = caliptra_coverage::dump_emu_coverage_to_file(bitmap);
+    }
+}
 
 impl ModelEmulated {
     pub fn code_coverage_bitmap(&self) -> &bit_vec::BitVec {

@@ -38,15 +38,15 @@ fn test_zero_firmware_size() {
     // Zero-sized firmware.
     assert_eq!(
         hw.upload_firmware(&[]).unwrap_err(),
-        ModelError::MailboxCmdFailed(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into())
+        ModelError::MailboxCmdFailed(u32::from(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE))
     );
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_fatal().read(),
-        CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()
+        u32::from(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)
     );
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        LDevIdDerivationComplete.into()
+        u32::from(LDevIdDerivationComplete)
     );
 }
 
@@ -75,11 +75,11 @@ fn test_firmware_gt_max_size() {
 
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_fatal().read(),
-        CaliptraError::FW_PROC_INVALID_IMAGE_SIZE.into()
+        u32::from(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)
     );
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        LDevIdDerivationComplete.into()
+        u32::from(LDevIdDerivationComplete)
     );
 }
 
@@ -171,7 +171,7 @@ fn test_pcr_log() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
-    hw.step_until_boot_status(ColdResetComplete.into(), true);
+    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
     let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
 
@@ -271,7 +271,7 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
-    hw.step_until_boot_status(ColdResetComplete.into(), true);
+    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
     let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
 
@@ -362,7 +362,7 @@ fn test_pcr_log_fmc_fuse_svn() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
-    hw.step_until_boot_status(ColdResetComplete.into(), true);
+    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
     let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
 
@@ -501,7 +501,7 @@ fn test_pcr_log_across_update_reset() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
-    hw.step_until_boot_status(ColdResetComplete.into(), true);
+    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
     let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
 
@@ -603,7 +603,7 @@ fn test_fuse_log() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
-    hw.step_until_boot_status(ColdResetComplete.into(), true);
+    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
     let fuse_entry_arr = hw.mailbox_execute(0x1000_0002, &[]).unwrap().unwrap();
 
@@ -727,7 +727,7 @@ fn test_fht_info() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
-    hw.step_until_boot_status(ColdResetComplete.into(), true);
+    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
     let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
     let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
@@ -768,7 +768,7 @@ fn test_check_no_lms_info_in_datavault_on_lms_unavailable() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
-    hw.step_until_boot_status(ColdResetComplete.into(), true);
+    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
     let coldresetentry4_array = hw.mailbox_execute(0x1000_0005, &[]).unwrap().unwrap();
     let mut coldresetentry4_offset = core::mem::size_of::<u32>() * 8; // Skip first 4 entries
@@ -814,7 +814,7 @@ fn test_check_rom_cold_boot_status_reg() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
-    hw.step_until_boot_status(ColdResetComplete.into(), true);
+    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
     let coldresetentry4_array = hw.mailbox_execute(0x1000_0005, &[]).unwrap().unwrap();
     let mut coldresetentry4_offset = core::mem::size_of::<u32>() * 2; // Skip first entry
@@ -829,7 +829,7 @@ fn test_check_rom_cold_boot_status_reg() {
     coldresetentry4_offset += core::mem::size_of::<u32>();
     let coldresetentry4_value =
         u32::read_from_prefix(coldresetentry4_array[coldresetentry4_offset..].as_bytes()).unwrap();
-    assert_eq!(coldresetentry4_value, ColdResetComplete.into());
+    assert_eq!(coldresetentry4_value, u32::from(ColdResetComplete));
 }
 
 #[test]
@@ -878,7 +878,7 @@ fn test_upload_single_measurement() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
-    hw.step_until_boot_status(ColdResetComplete.into(), true);
+    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
     // Check if the measurement was present in the measurement log.
     let measurement_log = hw.mailbox_execute(0x1000_000A, &[]).unwrap().unwrap();
@@ -958,7 +958,7 @@ fn test_upload_measurement_limit() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
-    hw.step_until_boot_status(ColdResetComplete.into(), true);
+    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
     // Check the measurement log.
     let measurement_log = hw.mailbox_execute(0x1000_000A, &[]).unwrap().unwrap();
@@ -1010,7 +1010,7 @@ fn test_upload_no_measurement() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
-    hw.step_until_boot_status(ColdResetComplete.into(), true);
+    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 
     // Check whether the fake measurement was extended to PCR31.
     let pcr31 = hw.mailbox_execute(0x1000_0009, &[]).unwrap().unwrap();

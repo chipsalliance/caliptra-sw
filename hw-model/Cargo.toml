@@ -30,6 +30,7 @@ ureg.workspace = true
 zerocopy.workspace = true
 nix.workspace = true
 libc.workspace = true
+caliptra-coverage.workspace = true
 
 [dev-dependencies]
 caliptra-builder.workspace = true

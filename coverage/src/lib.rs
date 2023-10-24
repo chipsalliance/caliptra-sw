@@ -1,12 +1,74 @@
 // Licensed under the Apache-2.0 license
 
 use anyhow::Context;
+use bit_vec::BitVec;
 use caliptra_builder::{build_firmware_elf, FwId};
 use elf::endian::AnyEndian;
 use elf::ElfBytes;
+use rnglib::{Language, RNG};
 use std::collections::HashSet;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::path::{Path, PathBuf};
+
+pub fn dump_emu_coverage_to_file(bitmap: &BitVec) -> std::io::Result<()> {
+    let rng = RNG::try_from(&Language::Elven).unwrap();
+
+    let mut filename = rng.generate_name();
+    filename.push_str("*.bitvec");
+
+    let path = std::path::Path::new("/tmp").join(filename);
+
+    let file = File::create(path)?;
+    let mut writer = BufWriter::new(file);
+    serde_json::to_writer(&mut writer, &bitmap)?;
+    writer.flush()?;
+    Ok(())
+}
+
+pub fn get_bitvec_paths(dir: &str) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
+    let paths = std::fs::read_dir(dir)?
+        // Filter out all those directory entries which couldn't be read
+        .filter_map(|res| res.ok())
+        // Map the directory entries to paths
+        .map(|dir_entry| dir_entry.path())
+        // Filter out all paths with extensions other than `csv`
+        .filter_map(|path| {
+            if path.extension().map_or(false, |ext| ext == "bitvec") {
+                Some(path)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    Ok(paths)
+}
+
+pub fn read_bitvec_from_file<P: AsRef<Path>>(
+    path: P,
+) -> Result<bit_vec::BitVec, Box<dyn std::error::Error>> {
+    // Open the file in read-only mode with buffer.
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+
+    // Read the JSON contents of the file as an instance of `User`.
+    let coverage = serde_json::from_reader(reader)?;
+
+    // Return the `User`.
+    Ok(coverage)
+}
+
+pub fn bitwise_or_bitvecs(bitvecs: &[BitVec]) -> BitVec {
+    let mut result = BitVec::from_elem(bitvecs[0].len(), false);
+
+    for bv in bitvecs {
+        for (index, bit) in bv.iter().enumerate() {
+            result.set(index, result[index] | bit);
+        }
+    }
+
+    result
+}
 
 pub fn collect_instr_pcs(id: &FwId<'static>) -> anyhow::Result<Vec<u32>> {
     let elf_bytes = build_firmware_elf(id).unwrap();
@@ -92,13 +154,12 @@ pub fn parse_trace_file(trace_file_path: &str) -> HashSet<u32> {
     unique_pcs
 }
 
-#[cfg(all(not(feature = "verilator"), not(feature = "fpga_realtime")))]
 pub mod calculator {
+    use bit_vec::BitVec;
+
     use super::*;
 
-    pub fn coverage_from_bitmap(hw: &caliptra_hw_model::ModelEmulated, instr_pcs: &[u32]) -> i32 {
-        let coverage = hw.code_coverage_bitmap();
-
+    pub fn coverage_from_bitmap(coverage: &BitVec, instr_pcs: &[u32]) -> i32 {
         let mut hit = 0;
         for pc in instr_pcs {
             if coverage[*pc as usize] {

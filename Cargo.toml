@@ -28,6 +28,7 @@ members = [
   "ci-tools/file-header-fix",
   "ci-tools/size-history",
   "common",
+  "coverage",
   "cpu",
   "drivers",
   "drivers/test-fw",
@@ -86,6 +87,7 @@ bit-vec = "0.6.3"
 caliptra-cfi-lib = { path = "cfi/lib", default-features = false, features = ["cfi", "cfi-counter" ] }
 caliptra-cfi-derive = { path = "cfi/derive" }
 caliptra_common = { path = "common", default-features = false }
+caliptra-coverage = { path = "coverage" }
 caliptra-builder = { path = "builder" }
 caliptra-cpu = { path = "cpu" }
 caliptra-drivers = { path = "drivers" }
