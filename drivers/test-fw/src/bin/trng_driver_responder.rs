@@ -22,6 +22,12 @@ pub fn panic(_info: &core::panic::PanicInfo) -> ! {
 }
 
 #[no_mangle]
+extern "C" fn cfi_panic_handler(code: u32) -> ! {
+    println!("CFI Panic code=0x{:08X}", code);
+    loop {}
+}
+
+#[no_mangle]
 extern "C" fn main() {
     let csrng_reg = unsafe { CsrngReg::new() };
     let entropy_src_reg = unsafe { EntropySrcReg::new() };

@@ -82,9 +82,9 @@ pub enum CfiCounter {}
 
 impl CfiCounter {
     /// Reset counter
-    #[inline(never)]
+    #[inline(always)]
     pub fn reset(trng: &mut caliptra_drivers::Trng) {
-        prng().seed_from_trng(trng);
+        prng().mix_entropy_from_trng(trng);
         Self::reset_internal();
     }
 
