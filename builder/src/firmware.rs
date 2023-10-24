@@ -282,6 +282,12 @@ pub mod rom_tests {
         bin_name: "caliptra-rom-test-fmc",
         features: &["emu", "interactive_test_fmc"],
     };
+
+    pub const FAKE_TEST_FMC_INTERACTIVE: FwId = FwId {
+        crate_name: "caliptra-rom-test-fmc",
+        bin_name: "caliptra-rom-test-fmc",
+        features: &["emu", "interactive_test_fmc", "fake-fmc"],
+    };
 }
 
 pub mod fmc_tests {
@@ -313,18 +319,8 @@ pub mod runtime_tests {
         ..RUNTIME_TEST_FWID_BASE
     };
 
-    pub const LOCKED_DV: FwId = FwId {
-        bin_name: "locked_dv",
-        ..RUNTIME_TEST_FWID_BASE
-    };
-
     pub const CERT: FwId = FwId {
         bin_name: "cert",
-        ..RUNTIME_TEST_FWID_BASE
-    };
-
-    pub const WDT: FwId = FwId {
-        bin_name: "wdt",
         ..RUNTIME_TEST_FWID_BASE
     };
 }
@@ -377,10 +373,9 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &rom_tests::TEST_FMC_WITH_UART,
     &rom_tests::FAKE_TEST_FMC_WITH_UART,
     &rom_tests::TEST_FMC_INTERACTIVE,
+    &rom_tests::FAKE_TEST_FMC_INTERACTIVE,
     &fmc_tests::MOCK_RT_WITH_UART,
     &fmc_tests::MOCK_RT_INTERACTIVE,
     &runtime_tests::BOOT,
-    &runtime_tests::LOCKED_DV,
     &runtime_tests::CERT,
-    &runtime_tests::WDT,
 ];

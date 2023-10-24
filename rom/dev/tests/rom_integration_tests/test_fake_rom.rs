@@ -1,7 +1,10 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{
-    firmware::{rom_tests::FAKE_TEST_FMC_WITH_UART, APP_WITH_UART, ROM_FAKE_WITH_UART},
+    firmware::{
+        rom_tests::{FAKE_TEST_FMC_INTERACTIVE, FAKE_TEST_FMC_WITH_UART},
+        APP_WITH_UART, ROM_FAKE_WITH_UART,
+    },
     ImageOptions,
 };
 use caliptra_common::{mailbox_api::CommandId, RomBootStatus::*};
@@ -9,8 +12,6 @@ use caliptra_drivers::{Array4x12, CaliptraError};
 use caliptra_hw_model::{
     BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError, SecurityState,
 };
-
-pub mod helpers;
 
 const PUB_KEY_X: [u8; 48] = [
     0xD7, 0x9C, 0x6D, 0x97, 0x2B, 0x34, 0xA1, 0xDF, 0xC9, 0x16, 0xA7, 0xB6, 0xE0, 0xA9, 0x9B, 0x6B,
@@ -122,7 +123,7 @@ fn test_fake_rom_update_reset() {
     .unwrap();
 
     let image_bundle = caliptra_builder::build_and_sign_image(
-        &FAKE_TEST_FMC_WITH_UART,
+        &FAKE_TEST_FMC_INTERACTIVE,
         &APP_WITH_UART,
         ImageOptions::default(),
     )
@@ -142,11 +143,16 @@ fn test_fake_rom_update_reset() {
     )
     .unwrap();
 
-    hw.step_until_boot_status(UpdateResetStarted.into(), true);
-
+    if cfg!(not(feature = "fpga_realtime")) {
+        hw.step_until_boot_status(UpdateResetStarted.into(), true);
+    }
     hw.step_until_boot_status(UpdateResetComplete.into(), true);
 
     assert_eq!(hw.finish_mailbox_execute(), Ok(None));
+
+    // Tell the test-fmc to "exit with success" (necessary because the FMC is in
+    // interactive mode)
+    hw.mailbox_execute(0x1000_000C, &[]).unwrap();
 
     hw.step_until_exit_success().unwrap();
 }

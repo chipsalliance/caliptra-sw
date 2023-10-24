@@ -16,12 +16,12 @@ itrng = ["caliptra-verilated?/itrng"]
 [dependencies]
 bitfield.workspace = true
 bit-vec.workspace = true
-caliptra_common = { workspace = true, default-features = false }
 caliptra-emu-bus.workspace = true
 caliptra-emu-cpu.workspace = true
 caliptra-emu-periph.workspace = true
 caliptra-emu-types.workspace = true
 caliptra-hw-model-types.workspace = true
+caliptra-api.workspace = true
 caliptra-registers.workspace = true
 caliptra-verilated = { workspace = true, optional = true }
 rand.workspace = true

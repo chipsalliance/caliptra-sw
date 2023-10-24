@@ -12,10 +12,10 @@ use crate::{
 
 use arrayvec::ArrayVec;
 use caliptra_drivers::{
-    cprintln, Array4x12, CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault, Lms,
-    PersistentDataAccessor, ResetReason, Sha1, SocIfc,
+    cprint, cprintln, pcr_log::RT_FW_JOURNEY_PCR, Array4x12, CaliptraError, CaliptraResult,
+    DataVault, Ecc384, KeyVault, Lms, PersistentDataAccessor, ResetReason, Sha1, SocIfc,
 };
-use caliptra_drivers::{Hmac384, PcrBank, PcrId, Sha256, Sha384, Sha384Acc, Trng};
+use caliptra_drivers::{Hmac384, PcrBank, PcrId, Sha256, Sha256Alg, Sha384, Sha384Acc, Trng};
 use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_registers::{
     csrng::CsrngReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg,
@@ -32,7 +32,7 @@ use dpe::{
     DPE_PROFILE,
 };
 
-use crypto::{AlgLen, Crypto};
+use crypto::{AlgLen, Crypto, CryptoBuf};
 
 pub struct Drivers {
     pub mbox: Mailbox,
@@ -228,21 +228,29 @@ impl Drivers {
         Ok(())
     }
 
+    // Caliptra Name serialNumber fields are sha256 digests
+    pub fn compute_rt_alias_sn(&mut self) -> CaliptraResult<CryptoBuf> {
+        let key = self.persistent_data.get().fht.rt_dice_pub_key.to_der();
+
+        let rt_digest = self.sha256.digest(&key)?;
+        let token = CryptoBuf::new(&Into::<[u8; 32]>::into(rt_digest))
+            .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
+
+        Ok(token)
+    }
+
     fn initialize_dpe(drivers: &mut Drivers) -> CaliptraResult<()> {
         let locality = drivers.persistent_data.get().manifest1.header.pl0_pauser;
-        let rt_pub_key = drivers.persistent_data.get().fht.rt_dice_pub_key;
+        let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
         let mut crypto = DpeCrypto::new(
             &mut drivers.sha384,
             &mut drivers.trng,
             &mut drivers.ecc384,
             &mut drivers.hmac384,
             &mut drivers.key_vault,
-            rt_pub_key,
+            drivers.persistent_data.get().fht.rt_dice_pub_key,
         );
-        // Skip hashing first 0x04 byte of der encoding
-        let hashed_rt_pub_key = crypto
-            .hash(AlgLen::Bit384, &rt_pub_key.to_der()[1..])
-            .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
+
         let mut env = DpeEnv::<CptraDpeTypes> {
             crypto,
             platform: DpePlatform::new(locality, hashed_rt_pub_key, &mut drivers.cert_chain),
@@ -250,8 +258,9 @@ impl Drivers {
         let mut dpe = DpeInstance::new(&mut env, DPE_SUPPORT)
             .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
 
-        let data =
-            <[u8; DPE_PROFILE.get_hash_size()]>::from(&drivers.pcr_bank.read_pcr(PcrId::PcrId1));
+        let data = <[u8; DPE_PROFILE.get_hash_size()]>::from(
+            &drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR),
+        );
         // Call DeriveChild to create root context.
         DeriveChildCmd {
             handle: ContextHandle::default(),

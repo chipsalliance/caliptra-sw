@@ -1,15 +1,13 @@
 # Licensed under the Apache-2.0 license
 
 [package]
-name = "caliptra-emu-cpu"
+name = "caliptra-api"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bitfield.workspace = true
-bit-vec.workspace = true
-caliptra-emu-bus.workspace = true
-caliptra-emu-types.workspace = true
-lazy_static.workspace = true
+bitflags.workspace = true
+caliptra-error.workspace = true
+zerocopy.workspace = true

@@ -24,7 +24,8 @@ use caliptra_image_types::IMAGE_BYTE_SIZE;
 use caliptra_test::swap_word_bytes;
 use openssl::hash::{Hasher, MessageDigest};
 use zerocopy::{AsBytes, FromBytes};
-pub mod helpers;
+
+use crate::helpers;
 
 const PCR0_AND_PCR1_EXTENDED_ID: u32 = (1 << PcrId::PcrId0 as u8) | (1 << PcrId::PcrId1 as u8);
 const PCR31_EXTENDED_ID: u32 = 1 << PcrId::PcrId31 as u8;
@@ -125,8 +126,8 @@ fn check_measurement_log_entry(
 #[test]
 fn test_pcr_log() {
     let gen = ImageGenerator::new(OsslCrypto::default());
-    let (_hw, image_bundle) =
-        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let image_bundle = helpers::build_image_bundle(ImageOptions::default());
+
     let vendor_pubkey_digest = gen
         .vendor_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
@@ -230,8 +231,7 @@ fn test_pcr_log() {
 #[test]
 fn test_pcr_log_no_owner_key_digest_fuse() {
     let gen = ImageGenerator::new(OsslCrypto::default());
-    let (_hw, image_bundle) =
-        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let image_bundle = helpers::build_image_bundle(ImageOptions::default());
 
     let owner_pubkey_digest = gen
         .owner_pubkey_digest(&image_bundle.manifest.preamble)
@@ -315,8 +315,8 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
 #[test]
 fn test_pcr_log_fmc_fuse_svn() {
     let gen = ImageGenerator::new(OsslCrypto::default());
-    let (_hw, image_bundle) =
-        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let image_bundle = helpers::build_image_bundle(ImageOptions::default());
+
     let vendor_pubkey_digest = gen
         .vendor_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
@@ -454,8 +454,8 @@ fn hash_measurement_log_entries(measurement_entry_arr: &[u8]) -> [u8; 48] {
 #[test]
 fn test_pcr_log_across_update_reset() {
     let gen = ImageGenerator::new(OsslCrypto::default());
-    let (_hw, image_bundle) =
-        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let image_bundle = helpers::build_image_bundle(ImageOptions::default());
+
     let vendor_pubkey_digest = gen
         .vendor_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
@@ -742,9 +742,6 @@ fn test_fht_info() {
 
 #[test]
 fn test_check_no_lms_info_in_datavault_on_lms_unavailable() {
-    let (_hw, _image_bundle) =
-        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-
     let fuses = Fuses {
         lms_verify: false,
         ..Default::default()
@@ -791,9 +788,6 @@ fn test_check_no_lms_info_in_datavault_on_lms_unavailable() {
 
 #[test]
 fn test_check_rom_cold_boot_status_reg() {
-    let (_hw, _image_bundle) =
-        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-
     let fuses = Fuses {
         lms_verify: false,
         ..Default::default()

@@ -16,13 +16,13 @@ Abstract:
 #![cfg_attr(feature = "fake-rom", allow(unused_imports))]
 
 use crate::{lock::lock_registers, print::HexBytes};
-use caliptra_cfi_lib::CfiCounter;
+use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
 use caliptra_registers::soc_ifc::SocIfcReg;
 use core::hint::black_box;
 
 use caliptra_drivers::{
     cprintln, report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError, Ecc384, Hmac384,
-    KeyVault, Mailbox, ResetReason, Sha256, Sha384, Sha384Acc, ShaAccLockState, SocIfc,
+    KeyVault, Mailbox, ResetReason, Sha256, Sha384, Sha384Acc, ShaAccLockState, SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_image_types::RomInfo;
@@ -70,9 +70,29 @@ pub extern "C" fn rom_entry() -> ! {
     if !cfg!(feature = "no-cfi") {
         cprintln!("[state] CFI Enabled");
         CfiCounter::reset(&mut env.trng);
+        CfiCounter::reset(&mut env.trng);
+        CfiCounter::reset(&mut env.trng);
     } else {
         cprintln!("[state] CFI Disabled");
     }
+
+    // Check if TRNG is correctly sourced as per hw config.
+    cfi_assert_eq(
+        env.soc_ifc.hw_config_internal_trng(),
+        matches!(env.trng, Trng::Internal(_)),
+    );
+    cfi_assert_eq(
+        !env.soc_ifc.hw_config_internal_trng(),
+        matches!(env.trng, Trng::External(_)),
+    );
+    cfi_assert_eq(
+        env.soc_ifc.hw_config_internal_trng(),
+        matches!(env.trng, Trng::Internal(_)),
+    );
+    cfi_assert_eq(
+        !env.soc_ifc.hw_config_internal_trng(),
+        matches!(env.trng, Trng::External(_)),
+    );
 
     let _lifecyle = match env.soc_ifc.lifecycle() {
         caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",
@@ -157,9 +177,6 @@ pub extern "C" fn rom_entry() -> ! {
             handle_fatal_error(err.into());
         }
     }
-
-    // Stop the watchdog timer.
-    wdt::stop_wdt(&mut env.soc_ifc);
 
     // Lock the datavault registers.
     lock_registers(&mut env, reset_reason);

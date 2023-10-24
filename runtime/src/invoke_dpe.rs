@@ -8,7 +8,8 @@ use dpe::{
     commands::{
         CertifyKeyCmd, Command, CommandExecution, DeriveChildCmd, DeriveChildFlags, InitCtxCmd,
     },
-    response::Response,
+    context::{Context, ContextState},
+    response::{Response, ResponseHdr},
     DpeInstance,
 };
 use zerocopy::FromBytes;
@@ -26,6 +27,7 @@ impl InvokeDpeCmd {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
 
+            let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
             let pdata = drivers.persistent_data.get();
             let rt_pub_key = pdata.fht.rt_dice_pub_key;
             let mut crypto = DpeCrypto::new(
@@ -36,9 +38,6 @@ impl InvokeDpeCmd {
                 &mut drivers.key_vault,
                 rt_pub_key,
             );
-            let hashed_rt_pub_key = crypto
-                .hash(AlgLen::Bit384, &rt_pub_key.to_der()[1..])
-                .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
             let image_header = &pdata.manifest1.header;
             let pl0_pauser = pdata.manifest1.header.pl0_pauser;
             let mut env = DpeEnv::<CptraDpeTypes> {
@@ -95,21 +94,23 @@ impl InvokeDpeCmd {
                 Command::GetCertificateChain(cmd) => cmd.execute(dpe, &mut env, locality),
             };
 
-            match resp {
-                Ok(resp) => {
-                    let resp_bytes = resp.as_bytes();
-                    let data_size = resp_bytes.len();
-                    let mut invoke_resp = InvokeDpeResp {
-                        hdr: MailboxRespHeader::default(),
-                        data_size: data_size as u32,
-                        data: [0u8; InvokeDpeResp::DATA_MAX_SIZE],
-                    };
-                    invoke_resp.data[..data_size].copy_from_slice(resp_bytes);
+            // If DPE command failed, populate header with error code, but
+            // don't fail the mailbox command.
+            let resp_struct = match resp {
+                Ok(r) => r,
+                Err(e) => Response::Error(ResponseHdr::new(e)),
+            };
 
-                    Ok(MailboxResp::InvokeDpeCommand(invoke_resp))
-                }
-                _ => Err(CaliptraError::RUNTIME_INVOKE_DPE_FAILED),
-            }
+            let resp_bytes = resp_struct.as_bytes();
+            let data_size = resp_bytes.len();
+            let mut invoke_resp = InvokeDpeResp {
+                hdr: MailboxRespHeader::default(),
+                data_size: data_size as u32,
+                data: [0u8; InvokeDpeResp::DATA_MAX_SIZE],
+            };
+            invoke_resp.data[..data_size].copy_from_slice(resp_bytes);
+
+            Ok(MailboxResp::InvokeDpeCommand(invoke_resp))
         } else {
             Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
         }
@@ -121,21 +122,26 @@ impl InvokeDpeCmd {
         locality: u32,
         dpe: &DpeInstance,
     ) -> CaliptraResult<()> {
-        let active_pl0_dpe_context_count = dpe
-            .count_active_contexts_in_locality(pl0_pauser)
+        let used_pl0_dpe_context_count = dpe
+            .count_contexts(|c: &Context| {
+                c.state != ContextState::Inactive && c.locality == pl0_pauser
+            })
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
-        let active_pl1_dpe_context_count = dpe
-            .count_active_contexts()
+        // the number of used pl1 dpe contexts is the total number of used contexts
+        // minus the number of used pl0 contexts, since a context can only be activated
+        // from pl0 or from pl1. Here, used means an active or retired context.
+        let used_pl1_dpe_context_count = dpe
+            .count_contexts(|c: &Context| c.state != ContextState::Inactive)
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?
-            - active_pl0_dpe_context_count;
+            - used_pl0_dpe_context_count;
         if Self::is_caller_pl1(pl0_pauser, flags, locality)
-            && active_pl1_dpe_context_count == Self::PL1_DPE_ACTIVE_CONTEXT_THRESHOLD
+            && used_pl1_dpe_context_count == Self::PL1_DPE_ACTIVE_CONTEXT_THRESHOLD
         {
-            return Err(CaliptraError::RUNTIME_PL1_ACTIVE_DPE_CONTEXT_THRESHOLD_EXCEEDED);
+            return Err(CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED);
         } else if !Self::is_caller_pl1(pl0_pauser, flags, locality)
-            && active_pl0_dpe_context_count == Self::PL0_DPE_ACTIVE_CONTEXT_THRESHOLD
+            && used_pl0_dpe_context_count == Self::PL0_DPE_ACTIVE_CONTEXT_THRESHOLD
         {
-            return Err(CaliptraError::RUNTIME_PL0_ACTIVE_DPE_CONTEXT_THRESHOLD_EXCEEDED);
+            return Err(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED);
         }
         Ok(())
     }

@@ -9,6 +9,8 @@
 #include "caliptra_api.h"
 #include "caliptra_image.h"
 
+static const uint64_t wdt_timeout = 0xA0000000;         // approximately 5s for 500MHz clock
+
 struct caliptra_buffer image_bundle;
 struct caliptra_fuses fuses = {0};
 
@@ -52,6 +54,8 @@ int main(int argc, char *argv[])
 
     // Initialize FSM GO
     caliptra_bootfsm_go();
+
+    caliptra_set_wdt_timeout(wdt_timeout);
 
     set_fuses();
 

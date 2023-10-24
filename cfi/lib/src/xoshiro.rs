@@ -61,13 +61,13 @@ impl Xoshiro128 {
         &*(addr as *const Xoshiro128)
     }
 
-    pub fn seed_from_trng(&self, trng: &mut caliptra_drivers::Trng) {
+    pub fn mix_entropy_from_trng(&self, trng: &mut caliptra_drivers::Trng) {
         loop {
             if let Ok(entropy) = trng.generate() {
-                self.s0.set(entropy.0[0]);
-                self.s1.set(entropy.0[1]);
-                self.s2.set(entropy.0[2]);
-                self.s3.set(entropy.0[3]);
+                self.s0.set(self.s0.get() ^ entropy.0[0]);
+                self.s1.set(self.s1.get() ^ entropy.0[1]);
+                self.s2.set(self.s2.get() ^ entropy.0[2]);
+                self.s3.set(self.s3.get() ^ entropy.0[3]);
             } else {
                 cfi_panic(CfiPanicInfo::TrngError)
             }

@@ -14,12 +14,9 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
 
-use caliptra_common::cprintln;
-use caliptra_cpu::TrapRecord;
-use caliptra_drivers::{
-    report_fw_error_fatal, report_fw_error_non_fatal, Ecc384, Hmac384, KeyVault, Mailbox, Sha256,
-    Sha384, Sha384Acc, SocIfc,
-};
+use caliptra_common::{cprintln, handle_fatal_error};
+use caliptra_cpu::{log_trap_record, TrapRecord};
+use caliptra_error::CaliptraError;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_runtime::Drivers;
 use core::hint::black_box;
@@ -45,6 +42,8 @@ pub extern "C" fn entry_point() -> ! {
             caliptra_common::report_handoff_error_and_halt("Runtime can't load drivers", e.into())
         })
     };
+    caliptra_common::stop_wdt(&mut drivers.soc_ifc);
+
     if !drivers.persistent_data.get().fht.is_valid() {
         caliptra_common::report_handoff_error_and_halt(
             "Runtime can't load FHT",
@@ -69,16 +68,7 @@ extern "C" fn exception_handler(trap_record: &TrapRecord) {
         trap_record.mepc,
         trap_record.ra,
     );
-
-    {
-        let mut soc_ifc = unsafe { SocIfcReg::new() };
-        let soc_ifc = soc_ifc.regs_mut();
-        let ext_info = soc_ifc.cptra_fw_extended_error_info();
-        ext_info.at(0).write(|_| trap_record.mcause);
-        ext_info.at(1).write(|_| trap_record.mscause);
-        ext_info.at(2).write(|_| trap_record.mepc);
-        ext_info.at(3).write(|_| trap_record.ra);
-    }
+    log_trap_record(trap_record, None);
 
     // Signal non-fatal error to SOC
     handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_GLOBAL_EXCEPTION.into());
@@ -88,7 +78,7 @@ extern "C" fn exception_handler(trap_record: &TrapRecord) {
 #[inline(never)]
 #[allow(clippy::empty_loop)]
 extern "C" fn nmi_handler(trap_record: &TrapRecord) {
-    let mut soc_ifc = unsafe { SocIfcReg::new() };
+    let soc_ifc = unsafe { SocIfcReg::new() };
 
     // If the NMI was fired by caliptra instead of the uC, this register
     // contains the reason(s)
@@ -99,7 +89,7 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
             .error_internal_intr_r()
             .read(),
     );
-
+    log_trap_record(trap_record, Some(err_interrupt_status));
     cprintln!(
         "RT NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X} ra=0x{:08X} error_internal_intr_r={:08X}",
         trap_record.mcause,
@@ -109,17 +99,15 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
         err_interrupt_status,
     );
 
-    {
-        let soc_ifc = soc_ifc.regs_mut();
-        let ext_info = soc_ifc.cptra_fw_extended_error_info();
-        ext_info.at(0).write(|_| trap_record.mcause);
-        ext_info.at(1).write(|_| trap_record.mscause);
-        ext_info.at(2).write(|_| trap_record.mepc);
-        ext_info.at(3).write(|_| trap_record.ra);
-        ext_info.at(4).write(|_| err_interrupt_status);
-    }
+    let wdt_status = soc_ifc.regs().cptra_wdt_status().read();
+    let error = if wdt_status.t1_timeout() || wdt_status.t2_timeout() {
+        cprintln!("WDT Expired");
+        CaliptraError::RUNTIME_GLOBAL_WDT_EXPIRED
+    } else {
+        CaliptraError::RUNTIME_GLOBAL_NMI
+    };
 
-    handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_GLOBAL_NMI.into());
+    handle_fatal_error(error.into());
 }
 
 #[panic_handler]
@@ -139,43 +127,6 @@ extern "C" fn cfi_panic_handler(code: u32) -> ! {
     cprintln!("RT CFI Panic code=0x{:08X}", code);
 
     handle_fatal_error(code);
-}
-
-#[allow(clippy::empty_loop)]
-fn handle_fatal_error(code: u32) -> ! {
-    cprintln!("RT Fatal Error: 0x{:08X}", code);
-    report_fw_error_fatal(code);
-    // Populate the non-fatal error code too; if there was a
-    // non-fatal error stored here before we don't want somebody
-    // mistakenly thinking that was the reason for their mailbox
-    // command failure.
-    report_fw_error_non_fatal(code);
-
-    unsafe {
-        // Zeroize the crypto blocks.
-        Ecc384::zeroize();
-        Hmac384::zeroize();
-        Sha256::zeroize();
-        Sha384::zeroize();
-        Sha384Acc::zeroize();
-
-        // Zeroize the key vault.
-        KeyVault::zeroize();
-
-        // Lock the SHA Accelerator.
-        Sha384Acc::lock();
-
-        // Stop the watchdog timer.
-        // Note: This is an idempotent operation.
-        SocIfc::stop_wdt1();
-    }
-
-    loop {
-        // SoC firmware might be stuck waiting for Caliptra to finish
-        // executing this pending mailbox transaction. Notify them that
-        // we've failed.
-        unsafe { Mailbox::abort_pending_soc_to_uc_transactions() };
-    }
 }
 
 #[no_mangle]

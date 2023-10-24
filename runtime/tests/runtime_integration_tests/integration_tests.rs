@@ -1,7 +1,6 @@
 // Licensed under the Apache-2.0 license.
 
-pub mod common;
-
+use crate::common::run_rt_test;
 use caliptra_builder::{
     firmware::{self, APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
@@ -16,7 +15,6 @@ use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError, ShaAccMode};
 use caliptra_runtime::{
     FipsVersionCmd, InvokeDpeCmd, RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU,
 };
-use common::run_rt_test;
 use dpe::{
     commands::{
         CertifyKeyCmd, CertifyKeyFlags, Command, CommandHdr, DeriveChildCmd, DeriveChildFlags,
@@ -48,7 +46,7 @@ fn test_standard() {
     // Test that the normal runtime firmware boots.
     // Ultimately, this will be useful for exercising Caliptra end-to-end
     // via the mailbox.
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     model
         .step_until_output_contains("Caliptra RT listening for mailbox commands...")
@@ -57,23 +55,25 @@ fn test_standard() {
 
 #[test]
 fn test_update() {
-    // Test that the normal runtime firmware boots.
-    // Ultimately, this will be useful for exercising Caliptra end-to-end
-    // via the mailbox.
-    let mut model = run_rt_test(None, None);
-
-    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
-
     let image_options = ImageOptions {
         app_version: 0xaabbccdd,
         ..Default::default()
     };
-    // Make image to update to
+    // Make image to update to. On the FPGA this needs to be done before executing the test,
+    // otherwise the test will fail because processor is too busy building to be able to respond to
+    // the TRNG call during the initial boot.
     let image =
         caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
             .unwrap()
             .to_bytes()
             .unwrap();
+
+    // Test that the normal runtime firmware boots.
+    // Ultimately, this will be useful for exercising Caliptra end-to-end
+    // via the mailbox.
+    let mut model = run_rt_test(None, None, None);
+
+    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
     model
         .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &image)
@@ -90,16 +90,9 @@ fn test_update() {
 
 #[test]
 fn test_boot() {
-    let mut model = run_rt_test(Some(&firmware::runtime_tests::BOOT), None);
+    let mut model = run_rt_test(Some(&firmware::runtime_tests::BOOT), None, None);
 
     model.step_until_exit_success().unwrap();
-}
-
-#[test]
-fn test_locked_dv_slot() {
-    let mut model = run_rt_test(Some(&firmware::runtime_tests::LOCKED_DV), None);
-
-    model.step_until_output_contains("TEST EXCEPTION").unwrap();
 }
 
 #[test]
@@ -129,7 +122,7 @@ fn test_rt_cert_with_custom_dates() {
 
     opts.owner_config = Some(own_config);
 
-    let mut model = run_rt_test(Some(&firmware::runtime_tests::CERT), Some(opts));
+    let mut model = run_rt_test(Some(&firmware::runtime_tests::CERT), Some(opts), None);
 
     let rt_resp = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
     let rt: &[u8] = rt_resp.as_bytes();
@@ -145,7 +138,7 @@ fn test_rt_cert_with_custom_dates() {
 
 #[test]
 fn test_certs() {
-    let mut model = run_rt_test(Some(&firmware::runtime_tests::CERT), None);
+    let mut model = run_rt_test(Some(&firmware::runtime_tests::CERT), None, None);
 
     // Get certs over the mailbox
     let ldev_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
@@ -229,7 +222,7 @@ fn test_fw_info() {
     let mut image_opts10 = image_opts.clone();
     image_opts10.app_svn = 10;
 
-    let mut model = run_rt_test(None, Some(image_opts10));
+    let mut model = run_rt_test(None, Some(image_opts10), None);
 
     let get_fwinfo = |model: &mut DefaultHwModel| {
         let payload = MailboxReqHeader {
@@ -315,10 +308,10 @@ fn test_fw_info() {
 
 #[test]
 fn test_stash_measurement() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == RtBootStatus::RtReadyForCommands.into()
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
     let cmd = StashMeasurementReq {
@@ -354,10 +347,10 @@ fn test_stash_measurement() {
 
 #[test]
 fn test_invoke_dpe_get_profile_cmd() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == RtBootStatus::RtReadyForCommands.into()
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
     let mut data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
@@ -424,21 +417,21 @@ fn test_invoke_dpe_get_profile_cmd() {
     if let ModelError::MailboxCmdFailed(code) = resp {
         assert_eq!(
             code,
-            caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS.into()
+            u32::from(caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)
         );
     }
     assert_eq!(
         model.soc_ifc().cptra_fw_error_non_fatal().read(),
-        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS.into()
+        u32::from(caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)
     );
 }
 
 #[test]
 fn test_invoke_dpe_get_certificate_chain_cmd() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == RtBootStatus::RtReadyForCommands.into()
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
     let mut data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
@@ -490,10 +483,10 @@ fn test_invoke_dpe_get_certificate_chain_cmd() {
 
 #[test]
 fn test_pauser_privilege_level_dpe_context_thresholds() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == RtBootStatus::RtReadyForCommands.into()
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
     let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
@@ -551,10 +544,13 @@ fn test_pauser_privilege_level_dpe_context_thresholds() {
     let mut handle = rotate_ctx_resp.handle;
 
     // Call DeriveChild with PL0 enough times to breach the threshold on the last iteration.
-    // Note that this loop runs exactly PL0_DPE_ACTIVE_CONTEXT_THRESHOLD times, but due to auto
-    // initialization of DPE, we have one extra context, so the last iteration of this loop
-    // is expected to throw a threshold breached error.
-    for i in 0..InvokeDpeCmd::PL0_DPE_ACTIVE_CONTEXT_THRESHOLD {
+    // Note that this loop runs exactly PL0_DPE_ACTIVE_CONTEXT_THRESHOLD - 1 times. Due to
+    // auto initialization of DPE, context[0] has a default context. When we initialize drivers,
+    // we also call derive child once without setting RETAINS_PARENT, so context[1] will be
+    // active. Thus, we can call derive child from PL0 exactly 6 times, and the last iteration
+    // of this loop, is expected to throw a threshold breached error.
+    let num_iterations = InvokeDpeCmd::PL0_DPE_ACTIVE_CONTEXT_THRESHOLD - 1;
+    for i in 0..num_iterations {
         let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
         let derive_child_cmd = DeriveChildCmd {
             handle,
@@ -586,8 +582,8 @@ fn test_pauser_privilege_level_dpe_context_thresholds() {
             ..derive_child_mbox_cmd
         };
 
-        // If we are on the last call to DeriveChild, expect that we get a PL0_ACTIVE_DPE_CONTEXT_THRESHOLD_EXCEEDED error.
-        if i == InvokeDpeCmd::PL0_DPE_ACTIVE_CONTEXT_THRESHOLD - 1 {
+        // If we are on the last call to DeriveChild, expect that we get a PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED error.
+        if i == num_iterations - 1 {
             let resp = model
                 .mailbox_execute(
                     u32::from(CommandId::INVOKE_DPE),
@@ -597,8 +593,10 @@ fn test_pauser_privilege_level_dpe_context_thresholds() {
             if let ModelError::MailboxCmdFailed(code) = resp {
                 assert_eq!(
                     code,
-                    caliptra_drivers::CaliptraError::RUNTIME_PL0_ACTIVE_DPE_CONTEXT_THRESHOLD_EXCEEDED.into()
+                    u32::from(caliptra_drivers::CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED)
                 );
+            } else {
+                panic!("This DeriveChild call should have failed since it would have breached the PL0 non-inactive dpe context threshold.")
             }
             break;
         }
@@ -632,10 +630,10 @@ fn test_pauser_privilege_level_dpe_context_thresholds() {
 
 #[test]
 fn test_invoke_dpe_sign_and_certify_key_cmds() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == RtBootStatus::RtReadyForCommands.into()
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
     let test_label = [
@@ -762,7 +760,7 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
 
 #[test]
 fn test_disable_attestation_cmd() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
@@ -788,10 +786,10 @@ fn test_disable_attestation_cmd() {
 
 #[test]
 fn test_ecdsa_verify_cmd() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == RtBootStatus::RtReadyForCommands.into()
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
     // Message to hash
@@ -882,18 +880,18 @@ fn test_ecdsa_verify_cmd() {
     if let ModelError::MailboxCmdFailed(code) = resp {
         assert_eq!(
             code,
-            caliptra_drivers::CaliptraError::RUNTIME_INVALID_CHECKSUM.into()
+            u32::from(caliptra_drivers::CaliptraError::RUNTIME_INVALID_CHECKSUM)
         );
     }
     assert_eq!(
         model.soc_ifc().cptra_fw_error_non_fatal().read(),
-        caliptra_drivers::CaliptraError::RUNTIME_INVALID_CHECKSUM.into()
+        u32::from(caliptra_drivers::CaliptraError::RUNTIME_INVALID_CHECKSUM)
     );
 }
 
 #[test]
 fn test_fips_cmd_api() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
@@ -947,7 +945,7 @@ fn test_fips_cmd_api() {
 /// register is cleared.
 #[test]
 fn test_error_cleared() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
@@ -974,9 +972,9 @@ fn test_error_cleared() {
 
 #[test]
 fn test_fw_version() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
     model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == RtBootStatus::RtReadyForCommands.into()
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
     let fw_rev = model.soc_ifc().cptra_fw_rev_id().read();
@@ -986,7 +984,7 @@ fn test_fw_version() {
 
 #[test]
 fn test_unimplemented_cmds() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
@@ -1021,7 +1019,7 @@ fn test_unimplemented_cmds() {
 
 #[test]
 fn test_idev_id_info() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_IDEV_INFO), &[]),
@@ -1037,7 +1035,7 @@ fn test_idev_id_info() {
 
 #[test]
 fn test_idev_id_cert() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     let fake_tbs = [0xef, 0xbe, 0xad, 0xde];
 
@@ -1092,11 +1090,11 @@ fn test_idev_id_cert() {
     if let ModelError::MailboxCmdFailed(code) = resp {
         assert_eq!(
             code,
-            caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS.into()
+            u32::from(caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)
         );
     }
     assert_eq!(
         model.soc_ifc().cptra_fw_error_non_fatal().read(),
-        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS.into()
+        u32::from(caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)
     );
 }

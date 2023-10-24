@@ -144,6 +144,11 @@ impl SocIfc {
         ((val >> 31) & 1) != 0
     }
 
+    #[inline(always)]
+    pub fn hw_config_internal_trng(&mut self) -> bool {
+        self.soc_ifc.regs().cptra_hw_config().read().i_trng_en()
+    }
+
     /// Enable or disable WDT1
     ///
     /// # Arguments

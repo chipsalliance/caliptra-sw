@@ -11,9 +11,18 @@
 #include "caliptra_mbox.h"
 #include "caliptra_enums.h"
 
-#define CALIPTRA_STATUS_NOT_READY 0
+#define CALIPTRA_STATUS_NOT_READY (0)
 
-struct caliptra_buffer g_mbox_pending_rx_buffer = {NULL, 0};
+// User can define a data section for global vars if needed like #define CALIPTRA_API_GLOBAL_SECTION ".custom_section"
+#ifdef CALIPTRA_API_GLOBAL_SECTION
+#define CALIPTRA_API_GLOBAL_SECTION_ATTRIBUTE __attribute__((section(CALIPTRA_API_GLOBAL_SECTION)))
+#else
+#define CALIPTRA_API_GLOBAL_SECTION_ATTRIBUTE
+#endif
+
+// All globals should use CALIPTRA_API_GLOBAL_SECTION_ATTRIBUTE
+// Globals should be uninitialized to maximize environment compatibility
+static struct caliptra_buffer g_mbox_pending_rx_buffer CALIPTRA_API_GLOBAL_SECTION_ATTRIBUTE;
 
 /**
  * calculate_caliptra_checksum
@@ -81,6 +90,16 @@ int caliptra_bootfsm_go()
     // TODO: Check registers/provide async completion mechanism
 
     return 0;
+}
+
+/**
+ * caliptra_set_wdt_timeout
+ *
+ * Write the provided WDT timeout value to CPTRA_WDT_CFG regs
+ */
+void caliptra_set_wdt_timeout(uint64_t timeout)
+{
+    caliptra_wdt_cfg_write(timeout);
 }
 
 /**
@@ -423,14 +442,11 @@ int caliptra_mailbox_execute(uint32_t cmd, struct caliptra_buffer *mbox_tx_buffe
         return status;
     }
 
-    // HW lock should prevent this from happening
-    if (g_mbox_pending_rx_buffer.data != NULL) {
-        return API_INTERNAL_ERROR;
-    }
-
-    // Store buffer info
+    // Store buffer info or init to zero
     if (mbox_rx_buffer != NULL) {
         g_mbox_pending_rx_buffer = *mbox_rx_buffer;
+    } else {
+        g_mbox_pending_rx_buffer = (struct caliptra_buffer){NULL, 0};
     }
 
     // Stop here if this is async (user will poll and complete)

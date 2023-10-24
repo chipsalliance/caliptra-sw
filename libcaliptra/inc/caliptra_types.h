@@ -112,18 +112,6 @@ struct caliptra_stash_measurement_resp {
     uint32_t dpe_result;
 };
 
-struct caliptra_invoke_dpe_req {
-    struct caliptra_req_header hdr;
-    uint32_t data_size;
-    uint8_t data[512];
-};
-
-struct caliptra_invoke_dpe_resp {
-    struct caliptra_resp_header hdr;
-    uint32_t data_size;
-    uint8_t data[2200];
-};
-
 struct caliptra_test_get_fmc_alias_cert_resp {
     struct caliptra_resp_header hdr;
     uint32_t data_size;
@@ -211,6 +199,7 @@ struct dpe_certify_key_response {
     struct dpe_resp_hdr resp_hdr;
     uint8_t             new_context_handle[DPE_HANDLE_SIZE];
     uint8_t             derived_pubkey_x[DPE_ECC_SIZE];
+    uint8_t             derived_pubkey_y[DPE_ECC_SIZE];
     uint32_t            cert_size;
     uint8_t             cert[DPE_CERT_SIZE];
 };
@@ -234,13 +223,13 @@ struct dpe_get_certificate_chain_response {
     uint8_t             certificate_chain[DPE_CERT_SIZE];
 };
 
-struct caliptra_dpe_req {
+struct caliptra_invoke_dpe_req {
     caliptra_checksum checksum;
     uint32_t          data_size;
     uint8_t           data[DPE_DATA_MAX];
 };
 
-struct caliptra_dpe_resp {
+struct caliptra_invoke_dpe_resp {
     struct caliptra_resp_header cpl;
     uint32_t                    data_size;
     union {

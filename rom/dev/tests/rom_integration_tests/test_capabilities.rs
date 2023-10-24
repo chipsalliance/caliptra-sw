@@ -8,7 +8,7 @@ use caliptra_common::mailbox_api::{
 use caliptra_hw_model::{Fuses, HwModel};
 use zerocopy::{AsBytes, FromBytes};
 
-pub mod helpers;
+use crate::helpers;
 
 #[test]
 fn test_capabilities() {

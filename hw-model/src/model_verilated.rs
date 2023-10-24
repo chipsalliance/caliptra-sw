@@ -15,6 +15,8 @@ use std::rc::Rc;
 use crate::Output;
 use std::env;
 
+const DEFAULT_APB_PAUSER: u32 = 0x1;
+
 // How many clock cycles before emitting a TRNG nibble
 const TRNG_DELAY: u32 = 4;
 
@@ -212,7 +214,7 @@ impl crate::HwModel for ModelVerilated {
 
             log,
 
-            soc_apb_pauser: params.soc_apb_pauser,
+            soc_apb_pauser: DEFAULT_APB_PAUSER,
         };
 
         m.tracing_hint(true);
@@ -300,6 +302,10 @@ impl crate::HwModel for ModelVerilated {
                 self.v.input.sram_error_injection_mode = 0x8;
             }
         }
+    }
+
+    fn set_apb_pauser(&mut self, pauser: u32) {
+        self.soc_apb_pauser = pauser;
     }
 }
 impl ModelVerilated {

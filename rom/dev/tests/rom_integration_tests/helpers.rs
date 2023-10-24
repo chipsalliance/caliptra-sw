@@ -11,8 +11,13 @@ pub fn build_hw_model_and_image_bundle(
     fuses: Fuses,
     image_options: ImageOptions,
 ) -> (DefaultHwModel, ImageBundle) {
+    let image = build_image_bundle(image_options);
+    (build_hw_model(fuses), image)
+}
+
+pub fn build_hw_model(fuses: Fuses) -> DefaultHwModel {
     let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
-    let hw = caliptra_hw_model::new(BootParams {
+    caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
             security_state: SecurityState::from(fuses.life_cycle as u32),
@@ -21,16 +26,16 @@ pub fn build_hw_model_and_image_bundle(
         fuses,
         ..Default::default()
     })
-    .unwrap();
+    .unwrap()
+}
 
-    let image_bundle = caliptra_builder::build_and_sign_image(
+pub fn build_image_bundle(image_options: ImageOptions) -> ImageBundle {
+    caliptra_builder::build_and_sign_image(
         &firmware::FMC_WITH_UART,
         &firmware::APP_WITH_UART,
         image_options,
     )
-    .unwrap();
-
-    (hw, image_bundle)
+    .unwrap()
 }
 
 /// This function matches the to_match string in the haystack string and returns the data

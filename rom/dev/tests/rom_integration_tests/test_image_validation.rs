@@ -32,7 +32,7 @@ use openssl::x509::X509;
 use std::str;
 use zerocopy::AsBytes;
 
-pub mod helpers;
+use crate::helpers;
 
 const ICCM_END_ADDR: u32 = ICCM_ORG + ICCM_SIZE - 1;
 
@@ -405,6 +405,7 @@ fn test_header_verify_vendor_sig_zero_ecc_pubkey() {
         hw.soc_ifc().cptra_boot_status().read(),
         FwProcessorManifestLoadComplete.into()
     );
+    drop(hw);
 
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
@@ -451,6 +452,7 @@ fn test_header_verify_vendor_sig_zero_ecc_signature() {
         hw.soc_ifc().cptra_boot_status().read(),
         FwProcessorManifestLoadComplete.into()
     );
+    drop(hw);
 
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
@@ -502,6 +504,7 @@ fn test_header_verify_vendor_ecc_sig_mismatch() {
         hw.soc_ifc().cptra_boot_status().read(),
         FwProcessorManifestLoadComplete.into()
     );
+    drop(hw);
 
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
@@ -561,6 +564,7 @@ fn test_header_verify_vendor_lms_sig_mismatch() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
+    drop(hw);
 
     let fuses = caliptra_hw_model::Fuses {
         lms_verify: true,
@@ -607,6 +611,7 @@ fn test_header_verify_vendor_lms_optional_no_sig_mismatch_check() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
     hw.step_until_boot_status(ColdResetComplete.into(), true);
+    drop(hw);
 
     let fuses = caliptra_hw_model::Fuses {
         lms_verify: false,
@@ -650,6 +655,7 @@ fn test_header_verify_owner_lms_sig_mismatch() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
+    drop(hw);
 
     let fuses = caliptra_hw_model::Fuses {
         lms_verify: true,
@@ -692,6 +698,7 @@ fn test_header_verify_owner_lms_optional_no_sig_mismatch_check() {
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
     hw.step_until_boot_status(ColdResetComplete.into(), true);
+    drop(hw);
 
     let fuses = caliptra_hw_model::Fuses {
         lms_verify: false,
@@ -1187,6 +1194,7 @@ fn test_toc_fmc_range_overlap() {
         ModelError::MailboxCmdFailed(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP.into()),
         hw.upload_firmware(&image).unwrap_err()
     );
+    drop(hw);
 
     // Case 2: FMC offset > Runtime offset
     let (mut hw, mut image_bundle) =
@@ -1208,6 +1216,7 @@ fn test_toc_fmc_range_overlap() {
         ModelError::MailboxCmdFailed(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP.into()),
         hw.upload_firmware(&image).unwrap_err()
     );
+    drop(hw);
 
     // // Case 3: FMC start offset < Runtime offset < FMC end offset
     let (mut hw, mut image_bundle) =
@@ -1285,6 +1294,7 @@ fn test_fmc_rt_load_address_range_overlap() {
         hw.soc_ifc().cptra_boot_status().read(),
         FwProcessorManifestLoadComplete.into()
     );
+    drop(hw);
 
     // Case 2:
     //      [-FMC--]
@@ -1418,10 +1428,10 @@ fn test_fmc_invalid_entry_point_before_iccm() {
 
 #[test]
 fn test_fmc_invalid_entry_point_after_iccm() {
-    let (mut hw, mut image_bundle) =
-        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-
+    let mut image_bundle = helpers::build_image_bundle(ImageOptions::default());
     let image = update_entry_point(&mut image_bundle, true, ICCM_END_ADDR + 1);
+    let mut hw = helpers::build_hw_model(Fuses::default());
+
     assert_eq!(
         ModelError::MailboxCmdFailed(
             CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID.into()
@@ -1437,11 +1447,11 @@ fn test_fmc_invalid_entry_point_after_iccm() {
 
 #[test]
 fn test_fmc_entry_point_unaligned() {
-    let (mut hw, mut image_bundle) =
-        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let mut image_bundle = helpers::build_image_bundle(ImageOptions::default());
     let entry_point = image_bundle.manifest.fmc.entry_point;
-
     let image = update_entry_point(&mut image_bundle, true, entry_point + 1);
+    let mut hw = helpers::build_hw_model(Fuses::default());
+
     assert_eq!(
         ModelError::MailboxCmdFailed(
             CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_UNALIGNED.into()
@@ -1458,8 +1468,7 @@ fn test_fmc_entry_point_unaligned() {
 #[test]
 fn test_fmc_svn_greater_than_32() {
     let gen = ImageGenerator::new(OsslCrypto::default());
-    let (_hw, image_bundle) =
-        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let image_bundle = helpers::build_image_bundle(ImageOptions::default());
     let vendor_pubkey_digest = gen
         .vendor_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
@@ -1494,8 +1503,7 @@ fn test_fmc_svn_greater_than_32() {
 #[test]
 fn test_fmc_svn_less_than_min_svn() {
     let gen = ImageGenerator::new(OsslCrypto::default());
-    let (_hw, image_bundle) =
-        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let image_bundle = helpers::build_image_bundle(ImageOptions::default());
     let vendor_pubkey_digest = gen
         .vendor_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
@@ -1530,8 +1538,7 @@ fn test_fmc_svn_less_than_min_svn() {
 #[test]
 fn test_fmc_svn_less_than_fuse_svn() {
     let gen = ImageGenerator::new(OsslCrypto::default());
-    let (_hw, image_bundle) =
-        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let image_bundle = helpers::build_image_bundle(ImageOptions::default());
     let vendor_pubkey_digest = gen
         .vendor_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
@@ -1743,8 +1750,7 @@ fn test_runtime_entry_point_unaligned() {
 #[test]
 fn test_runtime_svn_greater_than_max() {
     let gen = ImageGenerator::new(OsslCrypto::default());
-    let (_hw, image_bundle) =
-        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let image_bundle = helpers::build_image_bundle(ImageOptions::default());
     let vendor_pubkey_digest = gen
         .vendor_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
@@ -1778,8 +1784,7 @@ fn test_runtime_svn_greater_than_max() {
 #[test]
 fn test_runtime_svn_less_than_min_svn() {
     let gen = ImageGenerator::new(OsslCrypto::default());
-    let (_hw, image_bundle) =
-        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let image_bundle = helpers::build_image_bundle(ImageOptions::default());
     let vendor_pubkey_digest = gen
         .vendor_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();
@@ -1815,8 +1820,7 @@ fn test_runtime_svn_less_than_min_svn() {
 #[test]
 fn test_runtime_svn_less_than_fuse_svn() {
     let gen = ImageGenerator::new(OsslCrypto::default());
-    let (_hw, image_bundle) =
-        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let image_bundle = helpers::build_image_bundle(ImageOptions::default());
     let vendor_pubkey_digest = gen
         .vendor_pubkey_digest(&image_bundle.manifest.preamble)
         .unwrap();

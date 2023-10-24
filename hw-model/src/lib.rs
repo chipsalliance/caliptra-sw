@@ -7,7 +7,7 @@ use std::{
     io::{stdout, ErrorKind, Write},
 };
 
-use caliptra_common::mailbox_api;
+use caliptra_api as api;
 use caliptra_emu_bus::Bus;
 use caliptra_hw_model_types::{
     ErrorInjectionMode, EtrngResponse, RandomEtrngResponses, RandomNibbles, DEFAULT_CPTRA_OBF_KEY,
@@ -135,19 +135,16 @@ pub struct InitParams<'a> {
 
     // 4-bit nibbles of raw entropy to feed into the internal TRNG (ENTROPY_SRC
     // peripheral).
-    pub itrng_nibbles: Box<dyn Iterator<Item = u8>>,
+    pub itrng_nibbles: Box<dyn Iterator<Item = u8> + Send>,
 
     // Pre-conditioned TRNG responses to return over the soc_ifc CPTRA_TRNG_DATA
     // registers in response to requests via CPTRA_TRNG_STATUS
-    pub etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
+    pub etrng_responses: Box<dyn Iterator<Item = EtrngResponse> + Send>,
 
     // When None, use the itrng compile-time feature to decide which mode to use.
     pub trng_mode: Option<TrngMode>,
 
     pub wdt_timeout_cycles: u64,
-
-    // PAUSER value used for APB read/write cycles from SoC->caliptra
-    pub soc_apb_pauser: u32,
 }
 
 impl<'a> Default for InitParams<'a> {
@@ -155,16 +152,17 @@ impl<'a> Default for InitParams<'a> {
         let seed = std::env::var("CPTRA_TRNG_SEED")
             .ok()
             .and_then(|s| u64::from_str(&s).ok());
-        let itrng_nibbles: Box<dyn Iterator<Item = u8>> = if let Some(seed) = seed {
+        let itrng_nibbles: Box<dyn Iterator<Item = u8> + Send> = if let Some(seed) = seed {
             Box::new(RandomNibbles(StdRng::seed_from_u64(seed)))
         } else {
-            Box::new(RandomNibbles(rand::thread_rng()))
+            Box::new(RandomNibbles(StdRng::from_entropy()))
         };
-        let etrng_responses: Box<dyn Iterator<Item = EtrngResponse>> = if let Some(seed) = seed {
-            Box::new(RandomEtrngResponses(StdRng::seed_from_u64(seed)))
-        } else {
-            Box::new(RandomEtrngResponses::new_from_thread_rng())
-        };
+        let etrng_responses: Box<dyn Iterator<Item = EtrngResponse> + Send> =
+            if let Some(seed) = seed {
+                Box::new(RandomEtrngResponses(StdRng::seed_from_u64(seed)))
+            } else {
+                Box::new(RandomEtrngResponses::new_from_stdrng())
+            };
         Self {
             rom: Default::default(),
             dccm: Default::default(),
@@ -177,7 +175,6 @@ impl<'a> Default for InitParams<'a> {
             etrng_responses,
             trng_mode: Default::default(),
             wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
-            soc_apb_pauser: 0x1,
         }
     }
 }
@@ -295,13 +292,6 @@ impl<'a, Model: HwModel> MailboxRecvTxn<'a, Model> {
         // mbox_fsm_ps isn't updated immediately after execute is cleared (!?),
         // so step an extra clock cycle to wait for fm_ps to update
         self.model.step();
-        assert!(self
-            .model
-            .soc_mbox()
-            .status()
-            .read()
-            .mbox_fsm_ps()
-            .mbox_execute_uc());
     }
 }
 
@@ -697,6 +687,8 @@ pub trait HwModel {
 
     fn ecc_error_injection(&mut self, _mode: ErrorInjectionMode) {}
 
+    fn set_apb_pauser(&mut self, pauser: u32);
+
     /// Executes `cmd` with request data `buf`. Returns `Ok(Some(_))` if
     /// the uC responded with data, `Ok(None)` if the uC indicated success
     /// without data, Err(ModelError::MailboxCmdFailed) if the microcontroller
@@ -897,19 +889,19 @@ pub trait HwModel {
         let response = response.ok_or(ModelError::UploadMeasurementResponseError)?;
 
         // Get response as a response header struct
-        let response = mailbox_api::MailboxRespHeader::read_from(response.as_slice())
+        let response = api::mailbox::StashMeasurementResp::read_from(response.as_slice())
             .ok_or(ModelError::UploadMeasurementResponseError)?;
 
         // Verify checksum and FIPS status
-        if !caliptra_common::checksum::verify_checksum(
-            response.chksum,
+        if !api::verify_checksum(
+            response.hdr.chksum,
             0x0,
-            &response.as_bytes()[core::mem::size_of_val(&response.chksum)..],
+            &response.as_bytes()[core::mem::size_of_val(&response.hdr.chksum)..],
         ) {
             return Err(ModelError::UploadMeasurementResponseError);
         }
 
-        if response.fips_status != mailbox_api::MailboxRespHeader::FIPS_STATUS_APPROVED {
+        if response.hdr.fips_status != api::mailbox::MailboxRespHeader::FIPS_STATUS_APPROVED {
             return Err(ModelError::UploadMeasurementResponseError);
         }
 
@@ -1061,6 +1053,52 @@ mod tests {
         let _ = caliptra_hw_model::mbox_write_fifo(&model.soc_mbox(), &[1, 2, 3]);
         let buf = caliptra_hw_model::mbox_read_fifo(model.soc_mbox());
         assert_eq!(buf, &[0, 0, 0]);
+    }
+
+    #[test]
+    // Currently only possible on verilator
+    // SW emulator does not support pauser
+    // For FPGA, test case needs to be reworked to capture SIGBUS from linux environment
+    #[cfg(feature = "verilator")]
+    fn test_mbox_pauser() {
+        let mut model = caliptra_hw_model::new_unbooted(InitParams {
+            rom: &gen_image_hi(),
+            ..Default::default()
+        })
+        .unwrap();
+
+        model.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
+        model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+
+        // Set up the PAUSER as valid for the mailbox (using index 0)
+        model
+            .soc_ifc()
+            .cptra_mbox_valid_pauser()
+            .at(0)
+            .write(|_| 0x1);
+        model
+            .soc_ifc()
+            .cptra_mbox_pauser_lock()
+            .at(0)
+            .write(|w| w.lock(true));
+
+        // Set the PAUSER to something invalid
+        model.set_apb_pauser(0x2);
+
+        assert!(!model.soc_mbox().lock().read().lock());
+        // Should continue to read 0 because the reads are being blocked by valid PAUSER
+        assert!(!model.soc_mbox().lock().read().lock());
+
+        // Set the PAUSER back to valid
+        model.set_apb_pauser(0x1);
+
+        // Should read 0 the first time still for lock available
+        assert!(!model.soc_mbox().lock().read().lock());
+        // Should read 1 now for lock taken
+        assert!(model.soc_mbox().lock().read().lock());
+
+        model.soc_mbox().cmd().write(|_| 4242);
+        assert_eq!(model.soc_mbox().cmd().read(), 4242);
     }
 
     #[test]

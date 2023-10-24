@@ -188,6 +188,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
 
 [[package]]
+name = "caliptra-api"
+version = "0.1.0"
+dependencies = [
+ "bitflags 2.4.0",
+ "caliptra-error",
+ "zerocopy",
+]
+
+[[package]]
 name = "caliptra-builder"
 version = "0.1.0"
 dependencies = [
@@ -307,7 +316,6 @@ version = "0.1.0"
 dependencies = [
  "bit-vec",
  "bitfield",
- "caliptra-drivers",
  "caliptra-emu-bus",
  "caliptra-emu-types",
  "lazy_static",
@@ -416,6 +424,7 @@ version = "0.1.0"
 dependencies = [
  "bit-vec",
  "bitfield",
+ "caliptra-api",
  "caliptra-builder",
  "caliptra-emu-bus",
  "caliptra-emu-cpu",
@@ -425,7 +434,6 @@ dependencies = [
  "caliptra-registers",
  "caliptra-test-harness-types",
  "caliptra-verilated",
- "caliptra_common",
  "libc",
  "nix 0.26.2",
  "rand",
@@ -759,6 +767,8 @@ version = "0.1.0"
 dependencies = [
  "bitfield",
  "bitflags 2.4.0",
+ "caliptra-api",
+ "caliptra-cpu",
  "caliptra-drivers",
  "caliptra-image-types",
  "caliptra-image-verify",

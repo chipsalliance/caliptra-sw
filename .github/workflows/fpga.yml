@@ -363,11 +363,14 @@ jobs:
           TEST_BIN=/tmp/caliptra-test-binaries
           VARS="CPTRA_UIO_NUM=4 CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware CALIPTRA_IMAGE_NO_GIT_REVISION=1"
 
-          # A small number of tests that are known to pass on the FPGA
+          # Tests that are known to pass on the FPGA
           # TODO(kor): Fix all the tests and run them all here
-          sudo ${VARS} "${TEST_BIN}/test_rom_integrity-"*
           sudo ${VARS} "${TEST_BIN}/smoke_test-"* \
-              --skip fips_cmd_test_rt
+              --skip fips_cmd_test_rt \
+              --skip test_rt_wdt_timeout \
+              --skip test_fmc_wdt_timeout
           sudo ${VARS} "${TEST_BIN}/caliptra_hw_model-"* \
               --skip test_mailbox_receive \
               --skip test_output_failure
+          sudo ${VARS} "${TEST_BIN}/rom_integration_tests-"*
+          sudo ${VARS} "${TEST_BIN}/runtime_integration_tests-"*
