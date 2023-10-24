@@ -17,12 +17,14 @@ Abstract:
 
 use crate::{lock::lock_registers, print::HexBytes};
 use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
+use caliptra_common::RomBootStatus;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use core::hint::black_box;
 
 use caliptra_drivers::{
-    cprintln, report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError, Ecc384, Hmac384,
-    KeyVault, Mailbox, ResetReason, Sha256, Sha384, Sha384Acc, ShaAccLockState, SocIfc, Trng,
+    cprintln, report_boot_status, report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError,
+    Ecc384, Hmac384, KeyVault, Mailbox, ResetReason, Sha256, Sha384, Sha384Acc, ShaAccLockState,
+    SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_image_types::RomInfo;
@@ -93,6 +95,8 @@ pub extern "C" fn rom_entry() -> ! {
         !env.soc_ifc.hw_config_internal_trng(),
         matches!(env.trng, Trng::External(_)),
     );
+
+    report_boot_status(RomBootStatus::CfiInitialized.into());
 
     let _lifecyle = match env.soc_ifc.lifecycle() {
         caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",

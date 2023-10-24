@@ -229,6 +229,7 @@ fn test_update_reset_boot_status() {
     .unwrap();
 
     if cfg!(not(feature = "fpga_realtime")) {
+        hw.step_until_boot_status(CfiInitialized.into(), false);
         hw.step_until_boot_status(KatStarted.into(), false);
         hw.step_until_boot_status(KatComplete.into(), false);
         hw.step_until_boot_status(UpdateResetStarted.into(), false);

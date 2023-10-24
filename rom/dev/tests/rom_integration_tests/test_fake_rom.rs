@@ -37,6 +37,7 @@ fn test_skip_kats() {
     })
     .unwrap();
 
+    hw.step_until_boot_status(caliptra_common::RomBootStatus::CfiInitialized.into(), false);
     // If KatStarted boot status is posted before ColResetStarted, the statement below will trigger panic.
     hw.step_until_boot_status(
         caliptra_common::RomBootStatus::ColdResetStarted.into(),
