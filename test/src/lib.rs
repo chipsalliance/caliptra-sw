@@ -6,7 +6,6 @@ use caliptra_builder::{
 };
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
 
-pub mod coverage;
 pub mod crypto;
 pub mod derive;
 pub mod x509;

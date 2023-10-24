@@ -1,12 +1,109 @@
 // Licensed under the Apache-2.0 license
 
 use anyhow::Context;
+use bit_vec::BitVec;
 use caliptra_builder::{build_firmware_elf, FwId};
 use elf::endian::AnyEndian;
 use elf::ElfBytes;
-use std::collections::HashSet;
+use std::collections::hash_map::DefaultHasher;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::hash::Hasher;
+use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::path::{Path, PathBuf};
+
+pub struct CoverageMap {
+    pub map: HashMap<u64, BitVec>,
+}
+
+impl CoverageMap {
+    pub fn new(paths: Vec<PathBuf>) -> Self {
+        let mut map = HashMap::<u64, BitVec>::default();
+        for path in paths {
+            let new_entry = get_entry_from_path(&path);
+            if map.contains_key(&new_entry.0) {
+                let mut res = map.get(&new_entry.0).unwrap().clone();
+                res.or(&new_entry.1);
+                map.insert(new_entry.0, res);
+            } else {
+                map.insert(new_entry.0, new_entry.1);
+            }
+        }
+        Self { map }
+    }
+}
+pub struct CoverageMapEntry(u64, BitVec);
+pub fn get_entry_from_path(path: &PathBuf) -> CoverageMapEntry {
+    let filename = path.file_name().unwrap().to_str().unwrap();
+    let tag = filename
+        .split('-')
+        .nth(1)
+        .unwrap()
+        .strip_suffix(".bitvec")
+        .unwrap()
+        .parse()
+        .unwrap();
+    let bitmap = read_bitvec_from_file(path).unwrap();
+    CoverageMapEntry(tag, bitmap)
+}
+
+pub fn dump_emu_coverage_to_file(tag: u64, bitmap: &BitVec) -> std::io::Result<()> {
+    let mut filename = format!("CovData{}", hex::encode(rand::random::<[u8; 16]>()));
+    filename.push_str(&'-'.to_string());
+    filename.push_str(&tag.to_string());
+    filename.push_str(".bitvec");
+
+    let path = std::path::Path::new("/tmp").join(filename);
+
+    let file = File::create(path)?;
+    let mut writer = BufWriter::new(file);
+    serde_json::to_writer(&mut writer, &bitmap)?;
+    writer.flush()?;
+    Ok(())
+}
+
+pub fn get_bitvec_paths(dir: &str) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
+    let paths = std::fs::read_dir(dir)?
+        // Filter out all those directory entries which couldn't be read
+        .filter_map(|res| res.ok())
+        // Map the directory entries to paths
+        .map(|dir_entry| dir_entry.path())
+        // Filter out all paths with extensions other than `bitvec`
+        .filter_map(|path| {
+            if path.extension().map_or(false, |ext| ext == "bitvec") {
+                Some(path)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    Ok(paths)
+}
+
+pub fn read_bitvec_from_file<P: AsRef<Path>>(
+    path: P,
+) -> Result<bit_vec::BitVec, Box<dyn std::error::Error>> {
+    // Open the file in read-only mode with buffer.
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+
+    // Read the JSON contents of the file as an instance of `User`.
+    let coverage = serde_json::from_reader(reader)?;
+
+    // Return the bitmap
+    Ok(coverage)
+}
+
+pub fn get_tag_from_image(image: &[u8]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    std::hash::Hash::hash_slice(image, &mut hasher);
+    hasher.finish()
+}
+
+pub fn get_tag_from_fw_id(id: &FwId<'static>) -> u64 {
+    let rom = caliptra_builder::build_firmware_rom(id).unwrap();
+    get_tag_from_image(&rom)
+}
 
 pub fn collect_instr_pcs(id: &FwId<'static>) -> anyhow::Result<Vec<u32>> {
     let elf_bytes = build_firmware_elf(id).unwrap();
@@ -92,13 +189,12 @@ pub fn parse_trace_file(trace_file_path: &str) -> HashSet<u32> {
     unique_pcs
 }
 
-#[cfg(all(not(feature = "verilator"), not(feature = "fpga_realtime")))]
 pub mod calculator {
+    use bit_vec::BitVec;
+
     use super::*;
 
-    pub fn coverage_from_bitmap(hw: &caliptra_hw_model::ModelEmulated, instr_pcs: &[u32]) -> i32 {
-        let coverage = hw.code_coverage_bitmap();
-
+    pub fn coverage_from_bitmap(coverage: &BitVec, instr_pcs: &[u32]) -> i32 {
         let mut hit = 0;
         for pc in instr_pcs {
             if coverage[*pc as usize] {
@@ -152,4 +248,27 @@ fn test_parse_trace_file() {
 
     // Clean up: remove the temporary trace file
     std::fs::remove_file(temp_trace_file).expect("Failed to remove test trace file");
+}
+
+#[test]
+fn test_coverage_map_creation_no_data_files_found() {
+    let tag = 123_u64;
+
+    let paths = Vec::new();
+
+    let cv = CoverageMap::new(paths);
+    assert_eq!(None, cv.map.get(&tag));
+}
+
+#[test]
+fn test_coverage_map_creation_data_files() {
+    let tag = 123_u64;
+
+    let bitmap = BitVec::from_elem(1024, false);
+    assert!(dump_emu_coverage_to_file(tag, &bitmap).is_ok());
+
+    let paths = get_bitvec_paths("/tmp").unwrap();
+
+    let cv = CoverageMap::new(paths);
+    assert!(cv.map.get(&tag).is_some());
 }

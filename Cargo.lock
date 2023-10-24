@@ -24,9 +24,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.70"
+version = "1.0.75"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7de8ce5e0f9f8d88245311066a578d72b7af3e7088f32783804676302df237e4"
+checksum = "a4668cab20f66d8d020e1fbc0ebe47217433c1b6c8f2040faf858554e394ace6"
 
 [[package]]
 name = "arbitrary"
@@ -138,6 +138,9 @@ name = "bit-vec"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "349f9b6a179ed607305526ca489b34ad0a41aed5f7980fa90eb03160b69598fb"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "bitfield"
@@ -234,6 +237,20 @@ dependencies = [
  "caliptra-registers",
  "serial_test",
  "ufmt",
+]
+
+[[package]]
+name = "caliptra-coverage"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bit-vec",
+ "caliptra-builder",
+ "elf",
+ "hex",
+ "rand",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -429,6 +446,7 @@ dependencies = [
  "bitfield",
  "caliptra-api",
  "caliptra-builder",
+ "caliptra-coverage",
  "caliptra-emu-bus",
  "caliptra-emu-cpu",
  "caliptra-emu-periph",
@@ -727,6 +745,7 @@ dependencies = [
  "anyhow",
  "asn1",
  "caliptra-builder",
+ "caliptra-coverage",
  "caliptra-hw-model",
  "caliptra-hw-model-types",
  "caliptra-runtime",
@@ -1519,12 +1538,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.17"
+version = "0.4.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "abb12e687cfb44aa40f41fc3978ef76448f9b6038cad6aef4259d3c095a2382e"
-dependencies = [
- "cfg-if 1.0.0",
-]
+checksum = "b5e6163cb8c49088c2c36f57875e58ccd8c87c7427f7fbd50ea6710b2f3f2e8f"
 
 [[package]]
 name = "managed"
@@ -1534,9 +1550,9 @@ checksum = "0ca88d725a0a943b096803bd34e73a4437208b6077654cc4ecb2947a5f91618d"
 
 [[package]]
 name = "memchr"
-version = "2.5.0"
+version = "2.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
+checksum = "f665ee40bc4a3c5590afb1e9677db74a508659dfd71e126420da8274909a0167"
 
 [[package]]
 name = "memoffset"
