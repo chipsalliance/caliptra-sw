@@ -9,10 +9,12 @@ use caliptra_builder::{
 };
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::RomBootStatus::*;
+use caliptra_drivers::WarmResetEntry4;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, HwModel, InitParams};
 use caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0;
 use caliptra_image_gen::ImageGeneratorVendorConfig;
+use zerocopy::{AsBytes, FromBytes};
 
 const TEST_FMC_CMD_RESET_FOR_UPDATE: u32 = 0x1000_0004;
 const TEST_FMC_CMD_RESET_FOR_UPDATE_KEEP_MBOX_CMD: u32 = 0x1000_000B;
@@ -387,4 +389,59 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
         hw.soc_ifc().cptra_fw_error_non_fatal().read(),
         CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_LMS_PUB_KEY_IDX_MISMATCH.into()
     );
+}
+
+#[test]
+fn test_check_rom_update_reset_status_reg() {
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &TEST_FMC_INTERACTIVE,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
+
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            ..Default::default()
+        },
+        fw_image: Some(&image_bundle.to_bytes().unwrap()),
+        ..Default::default()
+    })
+    .unwrap();
+
+    hw.step_until_boot_status(ColdResetComplete.into(), true);
+
+    // Trigger an update reset with "new" firmware
+    hw.start_mailbox_execute(
+        CommandId::FIRMWARE_LOAD.into(),
+        &image_bundle.to_bytes().unwrap(),
+    )
+    .unwrap();
+
+    if cfg!(not(feature = "fpga_realtime")) {
+        hw.step_until_boot_status(KatStarted.into(), true);
+        hw.step_until_boot_status(KatComplete.into(), true);
+        hw.step_until_boot_status(UpdateResetStarted.into(), false);
+    }
+
+    assert_eq!(hw.finish_mailbox_execute(), Ok(None));
+
+    hw.step_until_boot_status(UpdateResetComplete.into(), true);
+
+    let warmresetentry4_array = hw.mailbox_execute(0x1000_000D, &[]).unwrap().unwrap();
+    let mut warmresetentry4_offset = core::mem::size_of::<u32>() * 8; // Skip first four entries
+
+    // Check RomUpdateResetStatus datavault value.
+    let warmresetentry4_id =
+        u32::read_from_prefix(warmresetentry4_array[warmresetentry4_offset..].as_bytes()).unwrap();
+    assert_eq!(
+        warmresetentry4_id,
+        WarmResetEntry4::RomUpdateResetStatus as u32
+    );
+    warmresetentry4_offset += core::mem::size_of::<u32>();
+    let warmresetentry4_value =
+        u32::read_from_prefix(warmresetentry4_array[warmresetentry4_offset..].as_bytes()).unwrap();
+    assert_eq!(warmresetentry4_value, UpdateResetComplete.into());
 }
