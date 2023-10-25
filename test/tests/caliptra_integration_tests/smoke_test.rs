@@ -341,11 +341,11 @@ fn test_rt_wdt_timeout() {
 
     // TODO: Don't hard-code these; maybe measure from a previous boot?
     let rt_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
-        27_000_000
+        27_100_000
     } else if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
-        2_900_000
+        3_000_000
     } else {
-        2_700_000
+        2_800_000
     };
 
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
@@ -371,9 +371,9 @@ fn test_fmc_wdt_timeout() {
 
     // TODO: Don't hard-code these; maybe measure from a previous boot?
     let fmc_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
-        25_000_000
+        25_100_000
     } else {
-        2_620_000
+        2_720_000
     };
 
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
