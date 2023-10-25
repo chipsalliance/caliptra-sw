@@ -301,19 +301,17 @@ pub struct ExtendPcrReq {
     pub hdr: MailboxReqHeader,
     pub pcr_idx: u32,
     pub data_size: u32,
-    pub data: [u8; ExtendPcrReq::DATA_MAX_SIZE],
-    _pad: [u8; 4 - (ExtendPcrReq::DATA_MAX_SIZE % 4) % 4],
+    pub data: [u8; 48],
 }
 pub type ExtendPcrReqErr = ();
 impl ExtendPcrReq {
-    // pub const DATA_MAX_SIZE: usize = sha384::SHA384_BLOCK_BYTE_SIZE - sha384::SHA384_HASH_SIZE - 1;
-    pub const DATA_MAX_SIZE: usize = 192;
+    pub const DATA_MAX_SIZE: usize = 48;
 
     pub fn new(
         hdr: MailboxReqHeader,
         pcr_idx: u32,
         data_size: u32,
-        data: [u8; ExtendPcrReq::DATA_MAX_SIZE],
+        data: [u8; 48],
     ) -> Result<Self, ExtendPcrReqErr> {
         let data_size = match data_size {
             0 | 255 => {
@@ -327,7 +325,6 @@ impl ExtendPcrReq {
             pcr_idx,
             data_size,
             data,
-            _pad: [0u8; 4 - (ExtendPcrReq::DATA_MAX_SIZE % 4)],
         })
     }
 }

@@ -29,37 +29,13 @@ impl ExtendPcrCmd {
                 pcr_id => pcr_id,
             };
 
-        drivers.pcr_bank.extend_pcr_variable(
+        drivers.pcr_bank.extend_pcr(
             pcr_index,
             &mut drivers.sha384,
             &cmd.data
                 .get(..cmd.data_size as usize)
                 .ok_or(CaliptraError::DRIVER_PCR_BANK_EXTEND_INVALID_SIZE)?,
         )?;
-
-        // 2. Add log entry
-        if PcrLogEntryId::from(idx as u16) == PcrLogEntryId::Invalid {
-            return Err(CaliptraError::ROM_GLOBAL_PCR_LOG_INVALID_ENTRY_ID);
-        }
-
-        let pcr_log = drivers
-            .persistent_data
-            .get_mut()
-            .pcr_log
-            .get_mut(idx as usize)
-            .ok_or(CaliptraError::ROM_GLOBAL_PCR_LOG_UNSUPPORTED_DATA_LENGTH)?;
-
-        let pcr_bank = &mut drivers.pcr_bank;
-        let fht = &mut drivers.persistent_data.get_mut().fht;
-
-        let mut pcr_log_entry = PcrLogEntry {
-            id: idx as u16,
-            pcr_ids: (1 << PCR_ID_FMC_CURRENT as u8) | 1 << PCR_ID_FMC_JOURNEY as u8,
-            ..Default::default()
-        };
-
-        pcr_log_entry.pcr_data = pcr_bank.read_pcr(pcr_index).into();
-        fht.pcr_log_index += 1;
 
         Ok(MailboxResp::default())
     }
