@@ -88,8 +88,6 @@ impl InvokeDpeCmd {
                 Command::RotateCtx(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::DestroyCtx(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::ExtendTci(cmd) => cmd.execute(dpe, &mut env, locality),
-                Command::TagTci(cmd) => cmd.execute(dpe, &mut env, locality),
-                Command::GetTaggedTci(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::GetCertificateChain(cmd) => cmd.execute(dpe, &mut env, locality),
             };
 
@@ -97,7 +95,13 @@ impl InvokeDpeCmd {
             // don't fail the mailbox command.
             let resp_struct = match resp {
                 Ok(r) => r,
-                Err(e) => Response::Error(ResponseHdr::new(e)),
+                Err(e) => {
+                    // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
+                    if let Some(ext_err) = e.get_error_detail() {
+                        drivers.soc_ifc.set_fw_extended_error(ext_err);
+                    }
+                    Response::Error(ResponseHdr::new(e))
+                }
             };
 
             let resp_bytes = resp_struct.as_bytes();

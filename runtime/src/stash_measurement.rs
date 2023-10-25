@@ -74,7 +74,7 @@ impl StashMeasurementCmd {
 
             Ok(MailboxResp::StashMeasurement(StashMeasurementResp {
                 hdr: MailboxRespHeader::default(),
-                dpe_result: dpe_result as u32,
+                dpe_result: dpe_result.get_error_code(),
             }))
         } else {
             Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
