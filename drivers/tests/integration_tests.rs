@@ -753,16 +753,37 @@ fn test_csrng_with_nibbles(
 }
 
 #[test]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
 fn test_csrng() {
     test_csrng_with_nibbles(&firmware::driver_tests::CSRNG, Box::new(trng_nibbles()));
 }
 
 #[test]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
 fn test_csrng2() {
     test_csrng_with_nibbles(&firmware::driver_tests::CSRNG2, Box::new(trng_nibbles()));
 }
 
 #[test]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
 fn test_csrng_repetition_count() {
     // Tests for Repetition Count Test (RCT).
     fn test_repcnt_finite_repeats(
@@ -837,6 +858,13 @@ fn test_csrng_repetition_count() {
 }
 
 #[test]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
 fn test_csrng_adaptive_proportion() {
     // Tests for Adaptive Proportion health check.
     // Assumes the CSRNG configures the adaptive proportion's LO and HI
@@ -930,7 +958,13 @@ fn test_csrng_adaptive_proportion() {
 }
 
 #[test]
-#[cfg_attr(all(feature = "verilator", not(feature = "itrng")), ignore)]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
 fn test_trng_in_itrng_mode() {
     // To run this test under verilator, use --features=verilator,itrng
     let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::TRNG_DRIVER_RESPONDER)
@@ -971,7 +1005,13 @@ fn test_trng_in_itrng_mode() {
 }
 
 #[test]
-#[cfg_attr(all(feature = "verilator", feature = "itrng"), ignore)]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        feature = "itrng"
+    ),
+    ignore
+)]
 fn test_trng_in_etrng_mode() {
     let block0: [u32; 12] = [
         0x65b11c74, 0xd4bd4965, 0x5031ec6a, 0x2deaad1e, 0xc0c5508f, 0xe7258dc9, 0xa0af9e7f,
