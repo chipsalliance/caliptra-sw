@@ -329,7 +329,11 @@ fn test_hmac384() {
 
 #[test]
 fn test_keyvault() {
-    run_driver_test(&firmware::driver_tests::KEYVAULT);
+    run_driver_test(if cfg!(feature = "fpga_realtime") {
+        &firmware::driver_tests::KEYVAULT_FPGA
+    } else {
+        &firmware::driver_tests::KEYVAULT
+    });
 }
 
 #[test]
