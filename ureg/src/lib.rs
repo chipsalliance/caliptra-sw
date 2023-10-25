@@ -336,7 +336,7 @@ pub struct RegRef<TReg: RegType, TMmio: Mmio> {
 impl<TReg: RegType, TMmio: Mmio> RegRef<TReg, TMmio> {
     /// Creates a new RegRef from a raw register pointer and Mmio implementation.
     ///
-    /// Using an Mmio implentation other than RealMmio is primarily for
+    /// Using an Mmio implementation other than RealMmio is primarily for
     /// tests or simulations in the build environment.
     ///
     /// # Safety
@@ -373,7 +373,7 @@ impl<TReg: RegType, TMmio: Mmio + Default> RegRef<TReg, TMmio> {
     /// # Safety
     ///
     /// This pointer can be used for volatile reads and writes at any time
-    /// during the lifetime of Self. Callers are reponsible for ensuring that
+    /// during the lifetime of Self. Callers are responsible for ensuring that
     /// their use doesn't conflict with other accesses to this MMIO register.
     #[inline(always)]
     pub fn ptr(&self) -> *mut TReg::Raw {
@@ -392,7 +392,7 @@ impl<TReg: RegType, TMmio: Mmio> FromMmioPtr for RegRef<TReg, TMmio> {
 }
 
 impl<TReg: ReadableReg, TMmio: Mmio> RegRef<TReg, TMmio> {
-    /// Peforms a volatile load from the underlying MMIO register.
+    /// Performs a volatile load from the underlying MMIO register.
     ///
     /// # Example
     ///
@@ -447,7 +447,7 @@ impl<TReg: ReadableReg, TMmio: Mmio> RegRef<TReg, TMmio> {
 }
 
 impl<TReg: ResettableReg + WritableReg, TMmio: MmioMut> RegRef<TReg, TMmio> {
-    /// Peforms a volatile write to the underlying MMIO register.
+    /// Performs a volatile write to the underlying MMIO register.
     ///
     /// The `f` closure is used to build the the register value. It is
     /// immediately called with the reset value of the register, and returns
@@ -592,7 +592,7 @@ impl<TReg: ReadableReg + WritableReg, TMmio: MmioMut> RegRef<TReg, TMmio> {
         unsafe { self.mmio.write_volatile(self.ptr, val.into()) }
     }
 
-    /// Peforms a load-modify-store with the underlying MMIO register.
+    /// Performs a load-modify-store with the underlying MMIO register.
     ///
     /// Same as [`RegRef::modify`], but the closure is also passed the read
     /// value as a parameter.

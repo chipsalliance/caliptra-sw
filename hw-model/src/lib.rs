@@ -809,6 +809,20 @@ pub trait HwModel {
         }
     }
 
+    /// A register block that can be used to manipulate the soc_ifc peripheral PCR registers
+    /// over the simulated SoC->Caliptra APB bus.
+    fn soc_ifc_pcr(
+        &mut self,
+        // ) -> caliptra_registers::soc_ifc_trng::RegisterBlock<BusMmio<Self::TBus<'_>>> {
+    ) -> caliptra_registers::pv::RegisterBlock<ureg::RealMmioMut> {
+        unsafe {
+            caliptra_registers::pv::RegisterBlock::new_with_mmio(
+                0x1001a000 as *mut u32,
+                core::default::Default::default(),
+            )
+        }
+    }
+
     /// A register block that can be used to manipulate the mbox peripheral
     /// over the simulated SoC->Caliptra APB bus.
     fn soc_mbox(&mut self) -> caliptra_registers::mbox::RegisterBlock<BusMmio<Self::TBus<'_>>> {

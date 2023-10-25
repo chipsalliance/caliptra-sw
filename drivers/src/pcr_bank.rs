@@ -12,7 +12,6 @@ Abstract:
 
 --*/
 
-use crate::sha384::{SHA384_BLOCK_BYTE_SIZE, SHA384_HASH_SIZE};
 use crate::{Array4x12, CaliptraError, CaliptraResult, Sha384};
 use caliptra_registers::pv::PvReg;
 use enum_map::Enum;
@@ -266,41 +265,5 @@ impl PcrBank {
     /// * `data` - Data to extend
     pub fn extend_pcr(&self, id: PcrId, sha: &mut Sha384, data: &[u8]) -> CaliptraResult<()> {
         sha.pcr_extend(id, data)
-    }
-
-    /// Extend the PCR with specified, variable length data.
-    ///
-    /// # Arguments
-    ///
-    /// * `id`   - PCR ID
-    /// * `sha`  - SHA2-384 Engine
-    /// * `data` - Data to extend
-    pub fn extend_pcr_variable(
-        &self,
-        id: PcrId,
-        sha: &mut Sha384,
-        data: &[u8],
-    ) -> CaliptraResult<()> {
-        let data_block_size = (SHA384_BLOCK_BYTE_SIZE - SHA384_HASH_SIZE - 1) as u32;
-        let blocks: u32 = data.len() as u32 / data_block_size as u32;
-
-        for i in 0..blocks {
-            let d = data
-                .get((i * data_block_size) as usize..((i + 1) * data_block_size) as usize)
-                .ok_or(CaliptraError::DRIVER_PCR_BANK_EXTEND_INVALID_SIZE)?;
-
-            sha.pcr_extend(id, d)?;
-        }
-
-        // process leftovers
-        if (data.len() as u32 % data_block_size) > 0 {
-            sha.pcr_extend(
-                id,
-                data.get((blocks * data_block_size) as usize..data.len())
-                    .ok_or(CaliptraError::DRIVER_PCR_BANK_EXTEND_INVALID_SIZE)?,
-            )?;
-        }
-
-        Ok(())
     }
 }

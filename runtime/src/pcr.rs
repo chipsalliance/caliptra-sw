@@ -2,7 +2,8 @@
 
 use crate::Drivers;
 use caliptra_common::mailbox_api::{
-    IncrementPcrResetCounterReq, MailboxResp, MailboxRespHeader, QuotePcrsReq, QuotePcrsResp,
+    ExtendPcrReq, IncrementPcrResetCounterReq, MailboxResp, MailboxRespHeader, QuotePcrsReq,
+    QuotePcrsResp,
 };
 use caliptra_drivers::{hand_off::DataStore, CaliptraError, CaliptraResult, PcrBank, PcrId};
 use zerocopy::FromBytes;
@@ -57,5 +58,31 @@ impl GetPcrQuoteCmd {
             signature_r: signature.r.into(),
             signature_s: signature.s.into(),
         }))
+    }
+}
+
+pub struct ExtendPcrCmd;
+impl ExtendPcrCmd {
+    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+        // 1. Extend PCR
+        let cmd =
+            ExtendPcrReq::read_from(cmd_args).ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+
+        let idx =
+            u8::try_from(cmd.pcr_idx).map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+
+        let pcr_index: PcrId =
+            match PcrId::try_from(idx).map_err(|_| CaliptraError::RUNTIME_PCR_INVALID_INDEX)? {
+                PcrId::PcrId0 | PcrId::PcrId1 | PcrId::PcrId2 | PcrId::PcrId3 => {
+                    return Err(CaliptraError::RUNTIME_PCR_RESERVED)
+                }
+                pcr_id => pcr_id,
+            };
+
+        drivers
+            .pcr_bank
+            .extend_pcr(pcr_index, &mut drivers.sha384, &cmd.data)?;
+
+        Ok(MailboxResp::default())
     }
 }
