@@ -1,11 +1,12 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Licensed under the Apache-2.0 license
 
 set -e
 
 # Set current directory to script location
-cd "${0%/*}"
+BASE="${0%/*}"
+cd "$BASE"
 
 ARGC=$#
 ARGV=$@
@@ -18,7 +19,7 @@ trap cleanup EXIT
 
 function optional_task_enabled() {
     for i in "${ARGV[@]}"; do
-        if [[ $i == $1 ]]; then
+        if [[ $i == "$1" ]]; then
             return 0
         fi
     done
@@ -42,17 +43,22 @@ EXTRA_CARGO_CONFIG="target.'cfg(all())'.rustflags = [\"-Dwarnings\"]"
 
 fw_dir="${WORK_DIR}/fw"
 mkdir -p "${fw_dir}"
-
 mkdir -p target-ci
 
 export CARGO_TARGET_DIR="${PWD}/target-ci"
 
 function build_rom_images() {
+    # vendor all dependecies
+    cargo vendor > "$BASE"/.cargo/config
+
     rm -rf "${CARGO_TARGET_DIR}/riscv32imc-unknown-none-elf"
-    CALIPTRA_IMAGE_NO_GIT_REVISION=1 cargo --config "${EXTRA_CARGO_CONFIG}" run -p caliptra-builder -- \
+    CALIPTRA_IMAGE_NO_GIT_REVISION=1 cargo --config "${EXTRA_CARGO_CONFIG}" run \
+        -p caliptra-builder -- \
         --rom-with-log "${WORK_DIR}/caliptra-rom-with-log.bin"
+
     rm -rf "${CARGO_TARGET_DIR}/riscv32imc-unknown-none-elf"
-    CALIPTRA_IMAGE_NO_GIT_REVISION=1 cargo --config "${EXTRA_CARGO_CONFIG}" run -p caliptra-builder -- \
+    CALIPTRA_IMAGE_NO_GIT_REVISION=1 cargo --config "${EXTRA_CARGO_CONFIG}" run \
+        -p caliptra-builder -- \
         --rom-no-log "${WORK_DIR}/caliptra-rom-no-log.bin"
 }
 
@@ -114,6 +120,7 @@ if task_enabled "check_frozen_images"; then
         false
     )
 fi
+
 if optional_task_enabled "update_frozen_images"; then
     echo "Updating frozen images"
     build_rom_images

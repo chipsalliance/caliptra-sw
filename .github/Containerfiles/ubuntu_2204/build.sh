@@ -9,5 +9,6 @@ git clone https://github.com/chipsalliance/caliptra-sw \
     --recurse-submodules=dpe
 
 cd caliptra-sw
-cargo vendor > .cargo/config
+./ci.sh check_frozen_images
+
 cargo build --release
