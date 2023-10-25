@@ -114,10 +114,9 @@ fn test_decrypt() {
         export_result_from_kv(&mut ecc, &mut trng, key_out_id);
 
     let mut mbox = Mailbox::new(unsafe { MboxCsr::new() });
-    mbox.try_start_send_txn()
-        .unwrap()
-        .send_request(0, test_results.as_bytes())
-        .unwrap();
+    let mut txn = mbox.try_start_send_txn().unwrap();
+    txn.send_request(0, test_results.as_bytes()).unwrap();
+    while !txn.is_response_ready() {}
 }
 
 fn test_clear_secrets() {
