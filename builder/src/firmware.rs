@@ -145,6 +145,12 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const KEYVAULT_FPGA: FwId = FwId {
+        bin_name: "keyvault",
+        features: &["fpga_realtime"],
+        ..BASE_FWID
+    };
+
     pub const MAILBOX_DRIVER_RESPONDER: FwId = FwId {
         bin_name: "mailbox_driver_responder",
         ..BASE_FWID
@@ -348,6 +354,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::ERROR_REPORTER,
     &driver_tests::HMAC384,
     &driver_tests::KEYVAULT,
+    &driver_tests::KEYVAULT_FPGA,
     &driver_tests::MAILBOX_DRIVER_RESPONDER,
     &driver_tests::MAILBOX_DRIVER_SENDER,
     &driver_tests::MAILBOX_DRIVER_NEGATIVE_TESTS,
