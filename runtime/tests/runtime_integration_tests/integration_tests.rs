@@ -308,7 +308,7 @@ fn test_fw_info() {
 
 #[test]
 fn test_pcr_quote() {
-    let mut model = run_rt_test(None, None);
+    let mut model = run_rt_test(None, None, None);
 
     let cmd = QuotePcrsReq {
         hdr: MailboxReqHeader { chksum: 0 },
