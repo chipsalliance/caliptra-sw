@@ -773,10 +773,18 @@ pub trait HwModel {
         let result = mbox_read_fifo(self.soc_mbox());
 
         self.soc_mbox().execute().write(|w| w.execute(false));
-        // mbox_fsm_ps isn't updated immediately after execute is cleared (!?),
-        // so step an extra clock cycle to wait for fm_ps to update
-        self.step();
-        assert!(self.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+
+        if cfg!(not(feature = "fpga_realtime")) {
+            // Don't check for mbox_idle() unless the hw-model supports
+            // fine-grained timing control; the firmware may proceed to lock the
+            // mailbox shortly after the mailbox transcation finishes (for example, to
+            // test the sha384_acc peripheral).
+
+            // mbox_fsm_ps isn't updated immediately after execute is cleared (!?),
+            // so step an extra clock cycle to wait for fm_ps to update
+            self.step();
+            assert!(self.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+        }
         Ok(Some(result))
     }
 
