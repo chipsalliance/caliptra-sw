@@ -372,5 +372,6 @@ jobs:
           sudo ${VARS} "${TEST_BIN}/caliptra_hw_model-"* \
               --skip test_mailbox_receive \
               --skip test_output_failure
+          sudo ${VARS} "${TEST_BIN}/drivers_integration_tests-"*
           sudo ${VARS} "${TEST_BIN}/rom_integration_tests-"*
           sudo ${VARS} "${TEST_BIN}/runtime_integration_tests-"*
