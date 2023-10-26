@@ -5,7 +5,7 @@ use caliptra_builder::{
     firmware::{self, APP_WITH_UART},
     ImageOptions,
 };
-use caliptra_common::RomBootStatus::KatStarted;
+use caliptra_common::RomBootStatus::{self, KatStarted};
 use caliptra_hw_model::{DeviceLifecycle, HwModel, SecurityState};
 
 #[test]
@@ -79,6 +79,7 @@ fn test_wdt_not_enabled_on_debug_part() {
     // Confirm security state is as expected.
     assert!(!hw.soc_ifc().cptra_security_state().read().debug_locked());
 
+    hw.step_until_boot_status(RomBootStatus::CfiInitialized.into(), false);
     hw.step_until_boot_status(KatStarted.into(), false);
 
     // Make sure the wdt1 timer is disabled.

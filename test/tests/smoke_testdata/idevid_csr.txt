@@ -1,7 +1,7 @@
 Certificate Request:
     Data:
         Version: 1 (0x0)
-        Subject: CN=Caliptra IDevID/serialNumber=8E3C1A058F704A11821F7B48D340AEF99DDABADC1090D74D057FECCF73294ED6
+        Subject: CN=Caliptra 1.0 IDevID/serialNumber=8E3C1A058F704A11821F7B48D340AEF99DDABADC1090D74D057FECCF73294ED6
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
                 Public-Key: (384 bit)
@@ -25,9 +25,9 @@ Certificate Request:
                     0....................
     Signature Algorithm: ecdsa-with-SHA384
     Signature Value:
-        30:65:02:30:71:52:1e:71:5a:49:7b:fc:ab:63:82:11:fe:42:
-        6f:19:5f:67:68:41:cf:15:0b:d9:75:8d:7d:96:dc:69:6a:42:
-        0a:1b:63:c7:85:d1:10:4c:92:6c:3c:53:57:e1:af:75:02:31:
-        00:92:98:52:0c:66:a0:f8:1e:1d:f4:13:94:9e:f1:89:d2:0c:
-        9b:00:73:43:e3:1c:f5:91:5e:f8:96:13:8c:b6:a6:e8:ce:36:
-        50:a6:41:96:34:3a:19:c8:e6:66:95:b7:95
+        30:64:02:30:7c:74:fd:28:ce:0f:f9:e9:da:ef:90:84:a5:af:
+        c0:42:d1:e2:08:84:67:d6:6a:e8:dc:46:cc:02:1d:80:da:37:
+        50:91:ee:75:09:ed:15:55:0f:31:15:23:c9:bb:e6:e1:02:30:
+        24:fd:1b:5b:47:cc:14:4a:66:a5:bb:e7:04:74:f0:21:36:37:
+        f4:9e:5d:cd:a1:42:bf:f6:82:5c:a1:f4:51:43:e2:97:fc:95:
+        ce:56:b1:67:e1:bf:e1:26:3a:ce:a1:f3

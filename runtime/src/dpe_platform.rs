@@ -75,7 +75,7 @@ impl Platform for DpePlatform<'_> {
     }
 
     fn get_issuer_name(&mut self, out: &mut [u8; MAX_CHUNK_SIZE]) -> Result<usize, PlatformError> {
-        const CALIPTRA_CN: &[u8] = b"Caliptra Rt Alias";
+        const CALIPTRA_CN: &[u8] = b"Caliptra 1.0 Rt Alias";
         let mut issuer_writer = CertWriter::new(out, true);
 
         // Caliptra RDN SerialNumber field is always a Sha256 hash
