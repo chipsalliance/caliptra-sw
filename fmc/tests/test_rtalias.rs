@@ -19,6 +19,7 @@ use openssl::hash::{Hasher, MessageDigest};
 
 const TEST_CMD_READ_PCR_LOG: u32 = 0x1000_0000;
 const TEST_CMD_READ_FHT: u32 = 0x1000_0001;
+const TEST_CMD_PCRS_LOCKED: u32 = 0x1000_0004;
 
 const RT_ALIAS_MEASUREMENT_COMPLETE: u32 = 0x400;
 const RT_ALIAS_DERIVED_CDI_COMPLETE: u32 = 0x401;
@@ -85,8 +86,8 @@ fn test_fht_info() {
 
     let data = hw.mailbox_execute(TEST_CMD_READ_FHT, &[]).unwrap().unwrap();
     let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
-    assert_eq!(fht.ldevid_tbs_size, 544);
-    assert_eq!(fht.fmcalias_tbs_size, 778);
+    assert_eq!(fht.ldevid_tbs_size, 552);
+    assert_eq!(fht.fmcalias_tbs_size, 786);
     assert_eq!(fht.ldevid_tbs_addr, 0x50003C00);
     assert_eq!(fht.fmcalias_tbs_addr, 0x50004000);
     assert_eq!(fht.pcr_log_addr, 0x50004800);
@@ -229,6 +230,10 @@ fn test_pcr_log() {
 
     assert_eq!(pcr2_from_log, pcr2_from_hw);
     assert_eq!(pcr3_from_log, pcr3_from_hw);
+
+    // Also ensure PCR locks are configured correctly.
+    let result = hw.mailbox_execute(TEST_CMD_PCRS_LOCKED, &[]);
+    assert!(result.is_ok());
 }
 
 fn check_pcr_log_entry(

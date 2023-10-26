@@ -18,8 +18,7 @@ mod interactive_test;
 
 use caliptra_common::cprintln;
 use caliptra_cpu::TrapRecord;
-use caliptra_drivers::{report_fw_error_non_fatal, Mailbox, PcrBank, PersistentDataAccessor};
-use caliptra_registers::pv::PvReg;
+use caliptra_drivers::{report_fw_error_non_fatal, Mailbox, PersistentDataAccessor};
 use core::hint::black_box;
 
 #[cfg(feature = "std")]
@@ -43,15 +42,6 @@ pub extern "C" fn entry_point() -> ! {
         cprintln!("FHT not loaded");
         caliptra_drivers::ExitCtrl::exit(0xff)
     }
-    // Test PCR is locked.
-    let mut pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
-    // Test erasing pcr. This should fail.
-    assert!(pcr_bank
-        .erase_pcr(caliptra_common::RT_FW_CURRENT_PCR)
-        .is_err());
-    assert!(pcr_bank
-        .erase_pcr(caliptra_common::RT_FW_JOURNEY_PCR)
-        .is_err());
 
     if cfg!(feature = "interactive_test") {
         interactive_test::process_mailbox_commands();

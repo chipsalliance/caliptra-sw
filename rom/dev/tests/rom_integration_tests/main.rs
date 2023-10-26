@@ -4,6 +4,7 @@ mod helpers;
 
 mod rv32_unit_tests;
 mod test_capabilities;
+mod test_cfi;
 mod test_dice_derivations;
 mod test_fake_rom;
 mod test_fmcalias_derivation;

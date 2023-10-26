@@ -17,6 +17,17 @@ int caliptra_bootfsm_go();
 // Set the WDT timeout value for caliptra
 void caliptra_set_wdt_timeout(uint64_t timeout);
 
+// Set the iTRNG entropy for caliptra
+void caliptra_configure_itrng_entropy(uint16_t low_threshold, uint16_t high_threshold, uint16_t repetition_count);
+
+// Sets the provided pauser value in one of the mbox_pauser_valid regs and sets the corresponding lock bit
+// If all slots are locked, returns PAUSER_LOCKED error
+int caliptra_mbox_pauser_set_and_lock(uint32_t pauser);
+
+// Sets the provided pauser value in the fuse_pauser_valid reg and sets the lock bit
+// Returns PAUSER_LOCKED error if already locked
+int caliptra_fuse_pauser_set_and_lock(uint32_t pauser);
+
 // Determine if Caliptra is ready to program fuses
 bool caliptra_ready_for_fuses(void);
 
@@ -37,6 +48,12 @@ uint32_t caliptra_read_fw_non_fatal_error();
 // Read the value of the caliptra FW fatal error code
 // returns: Caliptra error code (see error/src/lib.rs)
 uint32_t caliptra_read_fw_fatal_error();
+
+// Generic write for a caliptra register
+int caliptra_write_reg(uint32_t addr, uint32_t data);
+
+// Generic read for a caliptra register
+int caliptra_read_reg(uint32_t addr, uint32_t *data);
 
 // MAILBOX COMMANDS
 // Asynchronous operation:
