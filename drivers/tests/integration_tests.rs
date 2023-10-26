@@ -640,6 +640,9 @@ fn test_mailbox_uc_to_soc() {
 
 #[test]
 fn test_uc_to_soc_error_state() {
+    // This test requires strict control over timing
+    #![cfg_attr(feature = "fpga_realtime", ignore)]
+
     let mut model =
         start_driver_test(&firmware::driver_tests::MAILBOX_DRIVER_NEGATIVE_TESTS).unwrap();
     let txn = model.wait_for_mailbox_receive().unwrap();
