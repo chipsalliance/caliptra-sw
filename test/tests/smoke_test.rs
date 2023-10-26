@@ -585,6 +585,11 @@ fn fips_cmd_test_rt() {
 
 #[test]
 fn test_rt_wdt_timeout() {
+    // There is too much jitter in the fpga_realtime TRNG response timing to hit
+    // the window of time where the RT is running but hasn't yet reset the
+    // watchdog as part of the runtime event loop.
+    #![cfg_attr(feature = "fpga_realtime", ignore)]
+
     const RUNTIME_GLOBAL_WDT_EPIRED: u32 = 0x000E001F;
     let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
 
