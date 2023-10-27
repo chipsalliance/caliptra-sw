@@ -79,22 +79,7 @@ pub extern "C" fn rom_entry() -> ! {
     }
 
     // Check if TRNG is correctly sourced as per hw config.
-    cfi_assert_eq(
-        env.soc_ifc.hw_config_internal_trng(),
-        matches!(env.trng, Trng::Internal(_)),
-    );
-    cfi_assert_eq(
-        !env.soc_ifc.hw_config_internal_trng(),
-        matches!(env.trng, Trng::External(_)),
-    );
-    cfi_assert_eq(
-        env.soc_ifc.hw_config_internal_trng(),
-        matches!(env.trng, Trng::Internal(_)),
-    );
-    cfi_assert_eq(
-        !env.soc_ifc.hw_config_internal_trng(),
-        matches!(env.trng, Trng::External(_)),
-    );
+    validate_trng_config(&mut env);
 
     report_boot_status(RomBootStatus::CfiInitialized.into());
 
@@ -377,4 +362,40 @@ fn panic_is_possible() {
     black_box(());
     // The existence of this symbol is used to inform test_panic_missing
     // that panics are possible. Do not remove or rename this symbol.
+}
+
+#[inline(always)]
+fn validate_trng_config(env: &mut RomEnv) {
+    // NOTE: The usage of non-short-circuiting boolean operations (| and &) is
+    // explicit here, and necessary to prevent the compiler from inserting a ton
+    // of glitch-susceptible jumps into the generated code.
+
+    cfi_assert_eq(
+        env.soc_ifc.hw_config_internal_trng()
+            & (!env.soc_ifc.mfg_flag_rng_unavailable() | env.soc_ifc.debug_locked()),
+        matches!(env.trng, Trng::Internal(_)),
+    );
+    cfi_assert_eq(
+        !env.soc_ifc.hw_config_internal_trng()
+            & (!env.soc_ifc.mfg_flag_rng_unavailable() | env.soc_ifc.debug_locked()),
+        matches!(env.trng, Trng::External(_)),
+    );
+    cfi_assert_eq(
+        env.soc_ifc.mfg_flag_rng_unavailable() & !env.soc_ifc.debug_locked(),
+        matches!(env.trng, Trng::MfgMode()),
+    );
+    cfi_assert_eq(
+        env.soc_ifc.hw_config_internal_trng()
+            & (!env.soc_ifc.mfg_flag_rng_unavailable() | env.soc_ifc.debug_locked()),
+        matches!(env.trng, Trng::Internal(_)),
+    );
+    cfi_assert_eq(
+        !env.soc_ifc.hw_config_internal_trng()
+            & (!env.soc_ifc.mfg_flag_rng_unavailable() | env.soc_ifc.debug_locked()),
+        matches!(env.trng, Trng::External(_)),
+    );
+    cfi_assert_eq(
+        env.soc_ifc.mfg_flag_rng_unavailable() & !env.soc_ifc.debug_locked(),
+        matches!(env.trng, Trng::MfgMode()),
+    );
 }

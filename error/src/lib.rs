@@ -442,6 +442,8 @@ impl CaliptraError {
     pub const ROM_CFI_PANIC_TRNG_FAILURE: CaliptraError = CaliptraError::new_const(0x104005B);
     pub const ROM_CFI_PANIC_UNEXPECTED_MATCH_BRANCH: CaliptraError =
         CaliptraError::new_const(0x104005C);
+    pub const ROM_CFI_PANIC_FAKE_TRNG_USED_WITH_DEBUG_LOCK: CaliptraError =
+        CaliptraError::new_const(0x104005D);
 
     /// ROM Global Errors
     pub const ROM_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x01050001);

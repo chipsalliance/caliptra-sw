@@ -1,10 +1,15 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_builder::firmware::rom_tests::TEST_FMC_WITH_UART;
+use caliptra_builder::firmware::APP_WITH_UART;
+use caliptra_builder::firmware::ROM_WITH_UART;
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::RomBootStatus::*;
+use caliptra_hw_model::BootParams;
 use caliptra_hw_model::Fuses;
 use caliptra_hw_model::HwModel;
+use caliptra_hw_model::InitParams;
 
 use crate::helpers;
 
@@ -76,4 +81,55 @@ fn test_cold_reset_status_reporting() {
     hw.step_until_boot_status(FmcAliasCertSigGenerationComplete.into(), false);
     hw.step_until_boot_status(FmcAliasDerivationComplete.into(), false);
     hw.step_until_boot_status(ColdResetComplete.into(), false);
+}
+
+#[test]
+fn test_cold_reset_success() {
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &TEST_FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
+
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            ..Default::default()
+        },
+        fw_image: Some(&image_bundle.to_bytes().unwrap()),
+        ..Default::default()
+    })
+    .unwrap();
+
+    hw.step_until_boot_status(ColdResetComplete.into(), true);
+
+    hw.step_until_exit_success().unwrap();
+}
+
+#[test]
+fn test_cold_reset_no_rng() {
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &TEST_FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
+
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            ..Default::default()
+        },
+        fw_image: Some(&image_bundle.to_bytes().unwrap()),
+        initial_dbg_manuf_service_reg: 0x2, // Disable RNG
+        ..Default::default()
+    })
+    .unwrap();
+
+    hw.step_until_boot_status(ColdResetComplete.into(), true);
+
+    hw.step_until_exit_success().unwrap();
 }
