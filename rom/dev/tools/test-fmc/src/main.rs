@@ -20,6 +20,7 @@ use caliptra_common::{mailbox_api, FuseLogEntry, FuseLogEntryId};
 use caliptra_drivers::pcr_log::MeasurementLogEntry;
 use caliptra_drivers::{
     ColdResetEntry4::*, DataVault, Mailbox, PcrBank, PcrId, PersistentDataAccessor,
+    WarmResetEntry4::*,
 };
 use caliptra_registers::dv::DvReg;
 use caliptra_registers::pv::PvReg;
@@ -224,6 +225,9 @@ fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMm
             mbox.status().write(|w| w.status(|w| w.cmd_complete()));
             caliptra_drivers::ExitCtrl::exit(0);
         }
+        0x1000_000D => {
+            read_datavault_warmresetentry4(mbox);
+        }
         _ => {}
     }
 }
@@ -265,6 +269,28 @@ fn read_datavault_coldresetentry4(mbox: &caliptra_registers::mbox::RegisterBlock
 
     send_to_mailbox(mbox, (LmsVendorPubKeyIndex as u32).as_bytes(), false);
     send_to_mailbox(mbox, data_vault.lms_vendor_pk_index().as_bytes(), false);
+
+    mbox.dlen()
+        .write(|_| (core::mem::size_of::<u32>() * 10).try_into().unwrap());
+    mbox.status().write(|w| w.status(|w| w.data_ready()));
+}
+
+fn read_datavault_warmresetentry4(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    let data_vault = unsafe { DataVault::new(DvReg::new()) };
+    send_to_mailbox(mbox, (RtSvn as u32).as_bytes(), false);
+    send_to_mailbox(mbox, data_vault.rt_svn().as_bytes(), false);
+
+    send_to_mailbox(mbox, (RtEntryPoint as u32).as_bytes(), false);
+    send_to_mailbox(mbox, data_vault.rt_entry_point().as_bytes(), false);
+
+    send_to_mailbox(mbox, (ManifestAddr as u32).as_bytes(), false);
+    send_to_mailbox(mbox, data_vault.manifest_addr().as_bytes(), false);
+
+    send_to_mailbox(mbox, (RtMinSvn as u32).as_bytes(), false);
+    send_to_mailbox(mbox, data_vault.rt_min_svn().as_bytes(), false);
+
+    send_to_mailbox(mbox, (RomUpdateResetStatus as u32).as_bytes(), false);
+    send_to_mailbox(mbox, data_vault.rom_update_reset_status().as_bytes(), false);
 
     mbox.dlen()
         .write(|_| (core::mem::size_of::<u32>() * 10).try_into().unwrap());

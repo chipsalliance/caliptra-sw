@@ -13,6 +13,7 @@ fn test_cold_reset_status_reporting() {
     let (mut hw, image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
+    hw.step_until_boot_status(CfiInitialized.into(), false);
     hw.step_until_boot_status(KatStarted.into(), false);
     hw.step_until_boot_status(KatComplete.into(), false);
     hw.step_until_boot_status(ColdResetStarted.into(), false);

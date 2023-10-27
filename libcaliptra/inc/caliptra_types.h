@@ -208,7 +208,7 @@ struct dpe_sign_response {
     struct dpe_resp_hdr resp_hdr;
     uint8_t             new_context_handle[DPE_HANDLE_SIZE];
     uint8_t             sig_r_or_hmac[DPE_ECC_SIZE];
-    uint8_t             sig_s;
+    uint8_t             sig_s[DPE_ECC_SIZE];
 };
 
 struct dpe_get_tagged_tci_response {

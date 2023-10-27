@@ -13,6 +13,7 @@ core::arch::global_asm!(include_str!("../src/start.S"));
 mod exception;
 
 use caliptra_drivers::cprintln;
+use caliptra_drivers::memory_layout::*;
 use caliptra_drivers::ExitCtrl;
 
 #[no_mangle]
@@ -67,17 +68,32 @@ unsafe fn is_zeroed(mut ptr: *const u32, mut size: usize) -> bool {
 extern "C" {
     fn _zero_mem256(dest: *mut u32, len: usize);
     fn _copy_mem32(dest: *mut u32, src: *const u32, len: usize);
+    fn _zero_mem32(dest: *mut u32, len: usize);
+    static mut DCCM_POST_CFI_ENTROPY_ORG: u8;
+    static mut DCCM_POST_CFI_ENTROPY_SIZE: u8;
 }
 
 #[no_mangle]
 pub extern "C" fn rom_entry() -> ! {
     const SIZEOF_U32: usize = core::mem::size_of::<u32>();
     unsafe {
+        let dccm_post_cfi_entropy_org = (&mut DCCM_POST_CFI_ENTROPY_ORG as *mut u8) as usize;
+        let dccm_post_cfi_entropy_size = (&mut DCCM_POST_CFI_ENTROPY_SIZE as *mut u8) as usize;
+
         // Test that memory is cleared at startup
         assert!(is_zeroed(0x4000_0000 as *const u32, 1024 * 128));
 
-        // Check everything but the last 3k, which might contain non-zero stack bytes
-        assert!(is_zeroed(0x5000_0000 as *const u32, 1024 * (128 - 3)));
+        // Test if the DCCM region after the CFI entropy is cleared, except for the last 3k, which might contain non-zero stack bytes
+        assert!(is_zeroed(
+            dccm_post_cfi_entropy_org as *const u32,
+            dccm_post_cfi_entropy_size - (3 * 1024)
+        ));
+
+        // Check if CFI entropy source is not cleared.
+        assert_ne!((CFI_XO_S0_ORG as *const u32).read_volatile(), 0);
+        assert_ne!((CFI_XO_S1_ORG as *const u32).read_volatile(), 0);
+        assert_ne!((CFI_XO_S2_ORG as *const u32).read_volatile(), 0);
+        assert_ne!((CFI_XO_S3_ORG as *const u32).read_volatile(), 0);
 
         // Test _zero_mem256
 

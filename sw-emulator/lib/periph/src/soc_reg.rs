@@ -54,10 +54,10 @@ mod constants {
     pub const CPTRA_FLOW_STATUS_START: u32 = 0x3c;
     pub const CPTRA_RESET_REASON_START: u32 = 0x40;
     pub const CPTRA_SECURITY_STATE_START: u32 = 0x44;
-    pub const CPTRA_VALID_PAUSER_START: u32 = 0x48;
-    pub const CPTRA_VALID_PAUSER_SIZE: usize = 20;
-    pub const CPTRA_PAUSER_LOCK_START: u32 = 0x5c;
-    pub const CPTRA_PAUSER_LOCK_SIZE: usize = 20;
+    pub const CPTRA_MBOX_VALID_PAUSER_START: u32 = 0x48;
+    pub const CPTRA_MBOX_VALID_PAUSER_SIZE: usize = 20;
+    pub const CPTRA_MBOX_PAUSER_LOCK_START: u32 = 0x5c;
+    pub const CPTRA_MBOX_PAUSER_LOCK_SIZE: usize = 20;
     pub const CPTRA_TRNG_VALID_PAUSER_START: u32 = 0x70;
     pub const CPTRA_TRNG_PAUSER_LOCK_START: u32 = 0x74;
     pub const CPTRA_TRNG_DATA_START: u32 = 0x78;
@@ -82,6 +82,8 @@ mod constants {
     pub const CPTRA_WDT_TIMER2_CTRL_START: u32 = 0xf8;
     pub const CPTRA_WDT_TIMER2_TIMEOUT_PERIOD_START: u32 = 0xfc;
     pub const CPTRA_WDT_STATUS_START: u32 = 0x104;
+    pub const CPTRA_FUSE_VALID_PAUSER_START: u32 = 0x108;
+    pub const CPTRA_FUSE_PAUSER_LOCK_START: u32 = 0x10c;
     pub const FUSE_VENDOR_PK_HASH_START: u32 = 0x250;
     pub const FUSE_VENDOR_PK_HASH_SIZE: usize = 48;
     pub const FUSE_VENDOR_PK_MASK_START: u32 = 0x280;
@@ -402,11 +404,12 @@ struct SocRegistersImpl {
     #[register(offset = 0x0044)]
     cptra_security_state: ReadOnlyRegister<u32, SecurityState::Register>,
 
+    // TODO: Functionality for mbox pauser regs needs to be implemented
     #[register_array(offset = 0x0048)]
-    cptra_valid_pauser: [u32; CPTRA_VALID_PAUSER_SIZE / 4],
+    cptra_mbox_valid_pauser: [u32; CPTRA_MBOX_VALID_PAUSER_SIZE / 4],
 
     #[register_array(offset = 0x005c)]
-    cptra_pauser_lock: [u32; CPTRA_PAUSER_LOCK_SIZE / 4],
+    cptra_mbox_pauser_lock: [u32; CPTRA_MBOX_PAUSER_LOCK_SIZE / 4],
 
     #[register(offset = 0x0070)]
     cptra_trng_valid_pauser: ReadWriteRegister<u32>,
@@ -473,6 +476,13 @@ struct SocRegistersImpl {
 
     #[register(offset = 0x0104)]
     cptra_wdt_status: ReadOnlyRegister<u32, WdtStatus::Register>,
+
+    // TODO: Functionality for fuse pauser regs needs to be implemented
+    #[register(offset = 0x0108)]
+    cptra_fuse_valid_pauser: ReadWriteRegister<u32>,
+
+    #[register(offset = 0x010c)]
+    cptra_fuse_pauser_lock: ReadWriteRegister<u32>,
 
     #[register(offset = 0x0118)]
     cptra_i_trng_entropy_config_0: u32,
@@ -628,8 +638,8 @@ impl SocRegistersImpl {
             cptra_flow_status: ReadWriteRegister::new(flow_status.get()),
             cptra_reset_reason: ReadOnlyRegister::new(0),
             cptra_security_state: ReadOnlyRegister::new(args.security_state.into()),
-            cptra_valid_pauser: Default::default(),
-            cptra_pauser_lock: Default::default(),
+            cptra_mbox_valid_pauser: Default::default(),
+            cptra_mbox_pauser_lock: Default::default(),
             cptra_trng_valid_pauser: ReadWriteRegister::new(0),
             cptra_trng_pauser_lock: ReadWriteRegister::new(0),
             cptra_trng_data: Default::default(),
@@ -693,6 +703,8 @@ impl SocRegistersImpl {
             pending_etrng_response: None,
             op_pending_etrng_response_action: None,
             cptra_wdt_cfg: [0x0; 2],
+            cptra_fuse_valid_pauser: ReadWriteRegister::new(0xffff_ffff),
+            cptra_fuse_pauser_lock: ReadWriteRegister::new(0),
         };
 
         regs

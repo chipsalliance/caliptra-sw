@@ -57,6 +57,9 @@ pub enum CfiPanicInfo {
     /// Random number generator error
     TrngError,
 
+    /// An enum match statement finds an unexpected value.
+    UnexpectedMatchBranch,
+
     /// Unknown error
     UnknownError,
 }
