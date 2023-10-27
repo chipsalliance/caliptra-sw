@@ -24,10 +24,9 @@ build: Containerfile
 	mkdir -p $(ARTIFACT_DIR)/$(TIME_STAMP)
 	$(CONTAINER_RUNTIME) build -t $(BUILD_FULL) -f $^ .
 	$(CONTAINER_RUNTIME) run --name $(BUILD_CONTAINER_NAME) -t $(BUILD_FULL) 
-	$(CONTAINER_RUNTIME) cp $(BUILD_CONTAINER_NAME):/build/caliptra-sw/target $(ARTIFACT_DIR)/$(TIME_STAMP)
+	$(CONTAINER_RUNTIME) cp $(BUILD_CONTAINER_NAME):/build/caliptra-sw/FROZEN_IMAGES.sha384sum $(ARTIFACT_DIR)/$(TIME_STAMP)
 	
 	# cd into there so we don't get diff errors due to different path names for easier parsing
-	cd $(ARTIFACT_DIR)/$(TIME_STAMP)/target/release/ && find * -maxdepth 0 -type f -exec sha256sum {} \; > ../../sha256sums.txt
 	$(CONTAINER_RUNTIME) rm $(BUILD_CONTAINER_NAME)
 
 clean:

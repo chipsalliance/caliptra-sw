@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
+#
 # Licensed under the Apache-2.0 license
+#
 
 set -e
 
@@ -10,5 +12,3 @@ git clone https://github.com/chipsalliance/caliptra-sw \
 
 cd caliptra-sw
 ./ci.sh check_frozen_images
-
-cargo build --release
