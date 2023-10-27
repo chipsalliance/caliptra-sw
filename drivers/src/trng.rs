@@ -32,7 +32,7 @@ impl Trng {
         // If device is unlocked for debug and RNG support is unavailable, return a fake RNG.
         let flags: MfgFlags = (soc_ifc.regs().cptra_dbg_manuf_service_reg().read() & 0xffff).into();
         if !soc_ifc.regs().cptra_security_state().read().debug_locked()
-            && flags.contains(MfgFlags::RNG_SUPPORT_UNAVAILABLE)
+            & flags.contains(MfgFlags::RNG_SUPPORT_UNAVAILABLE)
         {
             Ok(Self::MfgMode())
         } else if soc_ifc.regs().cptra_hw_config().read().i_trng_en() {
@@ -61,18 +61,27 @@ impl Trng {
     }
 
     pub fn generate(&mut self) -> CaliptraResult<Array4x12> {
+        extern "C" {
+            fn cfi_panic_handler(code: u32) -> !;
+        }
+
         match self {
             Self::Internal(csrng) => Ok(csrng.generate12()?.into()),
             Self::External(trng_ext) => trng_ext.generate(),
-            Self::MfgMode() => Ok(array::from_fn(|_| 0xdeadbeef_u32).into()),
-            _ => {
-                extern "C" {
-                    fn cfi_panic_handler(code: u32) -> !;
-                }
+            Self::MfgMode() => {
                 unsafe {
-                    cfi_panic_handler(CaliptraError::ROM_CFI_PANIC_UNEXPECTED_MATCH_BRANCH.into())
+                    let soc_ifc = SocIfcReg::new();
+                    if soc_ifc.regs().cptra_security_state().read().debug_locked() {
+                        cfi_panic_handler(
+                            CaliptraError::ROM_CFI_PANIC_FAKE_TRNG_USED_WITH_DEBUG_LOCK.into(),
+                        )
+                    }
                 }
+                Ok(array::from_fn(|_| 0xdeadbeef_u32).into())
             }
+            _ => unsafe {
+                cfi_panic_handler(CaliptraError::ROM_CFI_PANIC_UNEXPECTED_MATCH_BRANCH.into())
+            },
         }
     }
 }

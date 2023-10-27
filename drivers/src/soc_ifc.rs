@@ -136,12 +136,12 @@ impl SocIfc {
         flags.contains(MfgFlags::GENERATE_IDEVID_CSR)
     }
 
-    /// Returns the flag indicating whether random number generation is supported.
-    pub fn mfg_flag_rng_support(&mut self) -> bool {
+    /// Returns the flag indicating whether random number generation is unavailable.
+    pub fn mfg_flag_rng_unavailable(&self) -> bool {
         let soc_ifc_regs = self.soc_ifc.regs();
         // Lower 16 bits are for mfg flags
         let flags: MfgFlags = (soc_ifc_regs.cptra_dbg_manuf_service_reg().read() & 0xffff).into();
-        !flags.contains(MfgFlags::RNG_SUPPORT_UNAVAILABLE)
+        flags.contains(MfgFlags::RNG_SUPPORT_UNAVAILABLE)
     }
 
     /// Check if verification is turned on for fake-rom
