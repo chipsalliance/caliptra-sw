@@ -12,6 +12,7 @@ use caliptra_common::mailbox_api::{
     MailboxReqHeader, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_drivers::{
+    cprintln,
     sha384::{SHA384_BLOCK_BYTE_SIZE, SHA384_HASH_SIZE},
     CaliptraError, Ecc384PubKey, PcrId,
 };
@@ -937,23 +938,71 @@ fn test_extend_pcr_cmd() {
     // Testing for high entropy test vector
     let mut model = run_rt_test(None, None);
     let payload_data: [u8; ExtendPcrReq::DATA_MAX_SIZE] = [
-        35, 132, 102, 150, 202, 72, 140, 224, 37, 129, 164, 104, 69, 198, 15, 5, 160, 64, 241, 233,
-        110, 136, 79, 238, 246, 146, 166, 165, 129, 108, 40, 15, 155, 76, 138, 220, 122, 239, 26,
-        182, 215, 239, 9, 244, 123, 192, 213, 72, 247, 223, 97, 50, 203, 98, 85, 255, 185, 136,
-        117, 132, 45, 47, 144, 171, 30, 11, 237, 104, 239, 127, 74, 45, 22, 202, 113, 89, 231, 46,
-        208, 185, 237, 115, 123, 223, 231, 246, 254, 103, 112, 39, 33, 159, 23, 201, 17, 64, 144,
-        24, 179, 34, 251, 43, 5, 215, 169, 71, 118, 156, 103, 123, 101, 170, 5, 38, 190, 72, 75,
-        81, 223, 72, 131, 215, 100, 50, 150, 57, 34, 255, 172, 39, 211, 121, 252, 89, 24, 57, 15,
-        255, 175, 12, 201, 179, 23, 247, 117, 169, 254, 227, 206, 220, 210, 169, 217, 42, 172, 102,
-        146, 234, 16, 51, 40, 9, 37, 177, 251, 80, 134, 0, 113, 8, 244, 140, 23, 133, 119, 94, 216,
-        38, 247, 184, 174, 36, 0, 78, 151, 201, 134, 182, 124, 122, 105, 75,
+        225, 73, 188, 244, 110, 120, 121, 204, 185, 203, 86, 129, 104, 186, 33, 110, 125, 116, 216,
+        80, 244, 199, 184, 21, 127, 187, 78, 122, 18, 26, 32, 48, 171, 251, 17, 20, 67, 224, 15,
+        81, 144, 232, 190, 103, 213, 7, 199, 148,
     ];
 
-    let payload_sha384_hash: [u8; SHA384_HASH_SIZE] = [
-        118, 179, 215, 96, 34, 102, 216, 219, 133, 144, 140, 16, 191, 58, 173, 197, 5, 126, 54,
-        163, 244, 213, 225, 215, 116, 209, 132, 29, 2, 87, 24, 197, 160, 47, 74, 26, 201, 136, 9,
-        191, 67, 83, 40, 3, 130, 199, 197, 47,
+    let payload_sha384_hash: [u8; ExtendPcrReq::DATA_MAX_SIZE] = [
+        135, 126, 138, 147, 42, 97, 39, 88, 246, 50, 229, 201, 61, 152, 223, 8, 10, 25, 211, 158,
+        234, 25, 40, 234, 137, 138, 44, 181, 160, 159, 232, 34, 139, 164, 117, 235, 164, 235, 217,
+        65, 40, 55, 233, 50, 178, 217, 62, 107,
     ];
+
+    // Get ptr to pcrid = 4
+    let pcr = model.soc_ifc_pcr();
+    let entry = pcr.pcr_entry();
+
+    for i in 0..32 {
+        cprintln!("[test-pcr] i = {}", i);
+        // this should be equal to payload_data_sha384_hash
+        let e = entry.at(i as usize);
+        for ii in 0..12 {
+            // this fails, but why?
+            let ee = e.at(ii).read();
+            let ee = 0x00;
+            cprintln!("{}", ee);
+        }
+    }
+
+    // let pcr_4 = pcr.pcr_ctrl().at(4);
+    // let r = pcr_4.read();
+    // let rl = r.lock();
+    // let rb = rl.as_bytes();
+    // for i in 0..32 {
+    //     cprint!("{}", rb[i]);
+    // }
+    // cprintln!("");
+
+    // cprintln!("[test-pcr] cp-1");
+    // unsafe {
+    //     cprintln!("[test-pcr] cp0");
+    //     let pcr = Sha512Reg::new();
+    //     cprintln!("[test-pcr] cp1");
+
+    //     let pcr_regs = pcr.regs();
+    //     cprintln!("[test-pcr] cp2");
+
+    //     for index in 0..12 {
+    //         match pcr_regs.digest().get(index as usize) {
+    //             Some(p) => {
+    //                 cprintln!("[test-pcr] {}", &p.read().as_bytes()[0]);
+    //             }
+    //             _ => {
+    //                 cprintln!("[test-pcr] rip");
+    //             }
+    //         }
+    //     }
+    // }
+
+    // Sha384 is stored in 16x32bit registers (sha512) (TMmio.digest()) aka register block
+    // How to read PCR regs from model?
+    // get pv = PvReg sha512pv.pcr_ctrl().at(id.into()).?
+
+    // prob. similar to drivers/test-fw/src/bin/sha384_tests.rs
+    // fn test_pcr_hash_extend_single_block_3() {
+    //     let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
+    //     let mut pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
 
     let cmd = generate_mailbox_extend_pcr_req(4, payload_data.len(), payload_data).unwrap();
     let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
