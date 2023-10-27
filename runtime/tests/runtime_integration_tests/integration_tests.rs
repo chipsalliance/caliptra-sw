@@ -96,7 +96,7 @@ fn test_boot() {
 }
 
 #[test]
-// Check if the owner and vendor cert validty dates are present in RT Alias cert
+// Check if the owner and vendor cert validity dates are present in RT Alias cert
 fn test_rt_cert_with_custom_dates() {
     const VENDOR_CONFIG: (&str, &str) = ("20250101000000Z", "20260101000000Z");
     const OWNER_CONFIG: (&str, &str) = ("20270101000000Z", "20280101000000Z");
