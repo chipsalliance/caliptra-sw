@@ -16,15 +16,15 @@ Abstract:
 #![cfg_attr(feature = "fake-rom", allow(unused_imports))]
 
 use crate::{lock::lock_registers, print::HexBytes};
-use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder, CfiCounter};
+use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
 use caliptra_common::RomBootStatus;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use core::hint::black_box;
 
 use caliptra_drivers::{
     cprintln, report_boot_status, report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError,
-    Ecc384, Hmac384, KeyVault, Mailbox, MfgFlags, ResetReason, Sha256, Sha384, Sha384Acc,
-    ShaAccLockState, SocIfc, Trng,
+    Ecc384, Hmac384, KeyVault, Mailbox, ResetReason, Sha256, Sha384, Sha384Acc, ShaAccLockState,
+    SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_image_types::RomInfo;
@@ -366,33 +366,36 @@ fn panic_is_possible() {
 
 #[inline(always)]
 fn validate_trng_config(env: &mut RomEnv) {
-    if !cfi_launder(env.soc_ifc.debug_locked())
-        && cfi_launder(env.soc_ifc.cptra_dbg_manuf_service_flags())
-            .contains(MfgFlags::RNG_SUPPORT_UNAVAILABLE)
-    {
-        cfi_assert!(matches!(env.trng, Trng::MfgMode()));
-        cfi_assert!(!env.soc_ifc.debug_locked());
-        cfi_assert!(matches!(env.trng, Trng::MfgMode()));
-        cfi_assert!(env
-            .soc_ifc
-            .cptra_dbg_manuf_service_flags()
-            .contains(MfgFlags::RNG_SUPPORT_UNAVAILABLE));
-    } else {
-        cfi_assert_eq(
-            env.soc_ifc.hw_config_internal_trng(),
-            matches!(env.trng, Trng::Internal(_)),
-        );
-        cfi_assert_eq(
-            !env.soc_ifc.hw_config_internal_trng(),
-            matches!(env.trng, Trng::External(_)),
-        );
-        cfi_assert_eq(
-            env.soc_ifc.hw_config_internal_trng(),
-            matches!(env.trng, Trng::Internal(_)),
-        );
-        cfi_assert_eq(
-            !env.soc_ifc.hw_config_internal_trng(),
-            matches!(env.trng, Trng::External(_)),
-        );
-    }
+    // NOTE: The usage of non-short-circuiting boolean operations (| and &) is
+    // explicit here, and necessary to prevent the compiler from inserting a ton
+    // of glitch-susceptible jumps into the generated code.
+
+    cfi_assert_eq(
+        env.soc_ifc.hw_config_internal_trng()
+            & (!env.soc_ifc.mfg_flag_rng_unavailable() | env.soc_ifc.debug_locked()),
+        matches!(env.trng, Trng::Internal(_)),
+    );
+    cfi_assert_eq(
+        !env.soc_ifc.hw_config_internal_trng()
+            & (!env.soc_ifc.mfg_flag_rng_unavailable() | env.soc_ifc.debug_locked()),
+        matches!(env.trng, Trng::External(_)),
+    );
+    cfi_assert_eq(
+        env.soc_ifc.mfg_flag_rng_unavailable() & !env.soc_ifc.debug_locked(),
+        matches!(env.trng, Trng::MfgMode()),
+    );
+    cfi_assert_eq(
+        env.soc_ifc.hw_config_internal_trng()
+            & (!env.soc_ifc.mfg_flag_rng_unavailable() | env.soc_ifc.debug_locked()),
+        matches!(env.trng, Trng::Internal(_)),
+    );
+    cfi_assert_eq(
+        !env.soc_ifc.hw_config_internal_trng()
+            & (!env.soc_ifc.mfg_flag_rng_unavailable() | env.soc_ifc.debug_locked()),
+        matches!(env.trng, Trng::External(_)),
+    );
+    cfi_assert_eq(
+        env.soc_ifc.mfg_flag_rng_unavailable() & !env.soc_ifc.debug_locked(),
+        matches!(env.trng, Trng::MfgMode()),
+    );
 }
