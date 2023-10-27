@@ -24,6 +24,7 @@ use caliptra_emu_periph::{
 use caliptra_hw_model::BusMmio;
 use caliptra_hw_model_types::SecurityState;
 use clap::Parser;
+use rand::{Rng, SeedableRng};
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -66,6 +67,52 @@ fn free_run(mut cpu: Cpu<CaliptraRootBus>, trace_path: Option<PathBuf>) {
         while let StepAction::Continue = cpu.step(Some(trace_fn)) {}
     } else {
         while let StepAction::Continue = cpu.step(None) {}
+    };
+}
+
+/// CPU Main Loop (free_run no GDB)
+fn glitched_run(
+    mut cpu: Cpu<CaliptraRootBus>,
+    trace_path: Option<PathBuf>,
+    glitch_seed: Option<u64>,
+) {
+    let random_seed: u64 = glitch_seed.unwrap_or_else(rand::random);
+
+    println!("Starting glitched run...");
+    println!("Using seed: {random_seed:?}");
+
+    let mut rng = rand::rngs::StdRng::seed_from_u64(random_seed);
+
+    if let Some(path) = trace_path {
+        let mut f = File::create(path).unwrap();
+        let trace_fn: &mut dyn FnMut(u32, RvInstr) = &mut |pc, instr| {
+            let _ = write!(&mut f, "0x{:08x} ", pc);
+            match instr {
+                RvInstr::Instr32(instr) => {
+                    let _ = writeln!(&mut f, "0x{:08x}", instr);
+                }
+                RvInstr::Instr16(instr) => {
+                    let _ = writeln!(&mut f, "0x{:04x}", instr);
+                }
+            }
+        };
+
+        // Need to have the loop in the same scope as trace_fn to prevent borrowing rules violation
+        while let StepAction::Continue = cpu.step(Some(trace_fn)) {
+            let skip = rng.gen_bool(1.0 / 100.0);
+
+            if skip {
+                cpu.skip_instr().expect("instruction to be skipped");
+            }
+        }
+    } else {
+        while let StepAction::Continue = cpu.step(None) {
+            let skip = rng.gen_bool(1.0 / 100.0);
+
+            if skip {
+                cpu.skip_instr().expect("instruction to be skipped");
+            }
+        }
     };
 }
 
@@ -169,7 +216,7 @@ fn main() -> io::Result<()> {
     let bus_args = CaliptraRootBusArgs {
         rom,
         log_dir: args.log_dir.clone(),
-        tb_services_cb: TbServicesCb::new(move |val| match val {
+        tb_services_cb: TbServicesCb::new(|val| match val {
             0x01 => exit(0xFF),
             0xFF => exit(0x00),
             _ => print!("{}", val as char),
@@ -294,8 +341,12 @@ fn main() -> io::Result<()> {
             .trace_instr
             .then(|| args.log_dir.join("caliptra_instr_trace.txt"));
 
-        // If no GDB Port is passed, Free Run
-        free_run(cpu, instr_trace);
+        // If no GDB Port is passed, Free or glitched Run
+        if let Some(seed) = args.enable_glitching_simulation {
+            glitched_run(cpu, instr_trace, seed);
+        } else {
+            free_run(cpu, instr_trace);
+        }
     }
 
     Ok(())

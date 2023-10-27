@@ -63,6 +63,10 @@ pub struct Args {
     /// Watchdog Timer Timeout in CPU Clock Cycles
     #[arg(long, default_value_t = EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES)]
     pub wdt_timeout: u64,
+
+    /// Enable simulation of cpu glitching optionally using the specified seed
+    #[arg(long, alias = "glitch", value_name = "SEED")]
+    pub enable_glitching_simulation: Option<Option<u64>>,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
