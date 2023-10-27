@@ -189,7 +189,7 @@ impl crate::HwModel for ModelEmulated {
 
     fn step(&mut self) {
         if self.cpu_enabled.get() {
-            if self.glitching && rand::random() {
+            if self.glitching && rand::random::<f32>() > 0.9 {
                 self.cpu.skip_instr().unwrap();
             }
 

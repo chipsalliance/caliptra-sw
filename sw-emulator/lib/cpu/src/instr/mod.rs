@@ -55,6 +55,8 @@ impl<TBus: Bus> Cpu<TBus> {
             }
         }
 
+        self.write_pc(self.next_pc());
+
         Ok(())
     }
 
