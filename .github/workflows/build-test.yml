@@ -19,6 +19,7 @@ jobs:
       SCCACHE_VERSION: 0.3.3
       SCCACHE_GHA_CACHE_TO: sccache-caliptra-sw
       SCCACHE_GHA_CACHE_FROM: sccache-caliptra-sw
+      # CPTRA_COVERAGE_PATH: /tmp
 
       # Change this to a new random value if you suspect the cache is corrupted
       SCCACHE_C_CUSTOM_CACHE_BUSTER: 8b42a6e70ec4
@@ -156,7 +157,7 @@ jobs:
 
       - name: ROM Coverage
         run: |
-          cargo test --manifest-path ./rom/dev/Cargo.toml && cargo run --manifest-path ./coverage/Cargo.toml
+         CPTRA_COVERAGE_PATH=/tmp cargo test --manifest-path ./rom/dev/Cargo.toml && CPTRA_COVERAGE_PATH=/tmp cargo run --manifest-path ./coverage/Cargo.toml
          
       - name: Caliptra HW-Model C Binding Smoke Test
         run: |

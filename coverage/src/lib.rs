@@ -2,7 +2,7 @@
 
 use anyhow::Context;
 use bit_vec::BitVec;
-use caliptra_builder::{build_firmware_elf, FwId};
+use caliptra_builder::{build_firmware_elf, FwId, SymbolType};
 use elf::endian::AnyEndian;
 use elf::ElfBytes;
 use std::collections::hash_map::DefaultHasher;
@@ -11,6 +11,8 @@ use std::fs::File;
 use std::hash::Hasher;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
+
+pub const CPTRA_COVERAGE_PATH: &str = "CPTRA_COVERAGE_PATH";
 
 pub struct CoverageMap {
     pub map: HashMap<u64, BitVec>,
@@ -47,18 +49,43 @@ pub fn get_entry_from_path(path: &PathBuf) -> CoverageMapEntry {
     CoverageMapEntry(tag, bitmap)
 }
 
-pub fn dump_emu_coverage_to_file(tag: u64, bitmap: &BitVec) -> std::io::Result<()> {
+pub fn dump_emu_coverage_to_file(
+    coverage_path: &str,
+    tag: u64,
+    bitmap: &BitVec,
+) -> std::io::Result<()> {
     let mut filename = format!("CovData{}", hex::encode(rand::random::<[u8; 16]>()));
     filename.push_str(&'-'.to_string());
     filename.push_str(&tag.to_string());
     filename.push_str(".bitvec");
 
-    let path = std::path::Path::new("/tmp").join(filename);
+    let path = std::path::Path::new(coverage_path).join(filename);
 
     let file = File::create(path)?;
     let mut writer = BufWriter::new(file);
     serde_json::to_writer(&mut writer, &bitmap)?;
     writer.flush()?;
+    Ok(())
+}
+
+pub fn uncovered_functions<'a>(elf_bytes: &'a [u8], bitmap: &'a BitVec) -> std::io::Result<()> {
+    let symbols = caliptra_builder::elf_symbols(elf_bytes)?;
+
+    let filter = symbols
+        .iter()
+        .filter(|sym| sym.ty == SymbolType::Func)
+        .filter(|function| {
+            let mut pc_range = function.value..function.value + function.size;
+            !pc_range.any(|pc| bitmap.get(pc as usize).unwrap_or(false))
+        });
+
+    for f in filter {
+        println!(
+            "not covered : (NAME:{})  (start:{}) (size:{})",
+            f.name, f.value, f.size
+        );
+    }
+
     Ok(())
 }
 
@@ -265,7 +292,7 @@ fn test_coverage_map_creation_data_files() {
     let tag = 123_u64;
 
     let bitmap = BitVec::from_elem(1024, false);
-    assert!(dump_emu_coverage_to_file(tag, &bitmap).is_ok());
+    assert!(dump_emu_coverage_to_file("/tmp", tag, &bitmap).is_ok());
 
     let paths = get_bitvec_paths("/tmp").unwrap();
 

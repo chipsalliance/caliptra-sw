@@ -60,8 +60,15 @@ pub struct ModelEmulated {
 }
 impl Drop for ModelEmulated {
     fn drop(&mut self) {
+        let cov_path =
+            std::env::var(caliptra_coverage::CPTRA_COVERAGE_PATH).unwrap_or_else(|_| "".into());
+        if cov_path.is_empty() {
+            return;
+        }
+
         let bitmap = self.code_coverage_bitmap();
-        let _ = caliptra_coverage::dump_emu_coverage_to_file(self.image_tag, bitmap);
+        let _ =
+            caliptra_coverage::dump_emu_coverage_to_file(cov_path.as_str(), self.image_tag, bitmap);
     }
 }
 
@@ -171,7 +178,7 @@ impl crate::HwModel for ModelEmulated {
 
     fn output(&mut self) -> &mut Output {
         // In case the caller wants to log something, make sure the log has the
-        // correct time.
+        // correct time.env::
         self.output.sink().set_now(self.cpu.clock.now());
         &mut self.output
     }

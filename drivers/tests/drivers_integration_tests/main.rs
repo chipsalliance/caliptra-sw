@@ -618,7 +618,7 @@ fn test_mailbox_soc_to_uc() {
         model
             .step_until_output_and_take("cmd: 0xd0000000\n")
             .unwrap();
-        assert_eq!(resp, []);
+        assert_eq!(resp, [] as [u8; 0]);
     }
     // Ensure there isn't any unexpected output
     for _i in 0..100000 {
