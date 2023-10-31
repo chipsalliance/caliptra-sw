@@ -372,3 +372,4 @@ jobs:
           sudo ${VARS} "${TEST_BIN}/drivers_integration_tests-"*
           sudo ${VARS} "${TEST_BIN}/rom_integration_tests-"*
           sudo ${VARS} "${TEST_BIN}/runtime_integration_tests-"*
+          sudo ${VARS} "${TEST_BIN}/fips_test_suite-"*
