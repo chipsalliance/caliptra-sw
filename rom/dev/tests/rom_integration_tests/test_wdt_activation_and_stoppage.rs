@@ -107,4 +107,30 @@ fn test_rom_wdt_timeout() {
     .unwrap();
 
     hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() == WDT_EXPIRED);
+
+    let mcause = hw.soc_ifc().cptra_fw_extended_error_info().at(0).read();
+    let mscause = hw.soc_ifc().cptra_fw_extended_error_info().at(1).read();
+    let mepc = hw.soc_ifc().cptra_fw_extended_error_info().at(2).read();
+    let ra = hw.soc_ifc().cptra_fw_extended_error_info().at(3).read();
+    let error_internal_intr_r = hw.soc_ifc().cptra_fw_extended_error_info().at(4).read();
+
+    println!(
+        "WDT Expiry mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X} ra=0x{:08X} error_internal_intr_r={:08X}",
+        mcause,
+        mscause,
+        mepc,
+        ra,
+        error_internal_intr_r,
+    );
+
+    // no mcause if wdt times out
+    assert_eq!(mcause, 0);
+    // no mscause if wdt times out
+    assert_eq!(mscause, 0);
+    // mepc is a memory address so won't be 0
+    assert_ne!(mepc, 0);
+    // return address won't be 0
+    assert_ne!(ra, 0);
+    // error_internal_intr_r must be 0b01000000 since the error_wdt_timer1_timeout_sts bit must be set
+    assert_eq!(error_internal_intr_r, 0b01000000);
 }
