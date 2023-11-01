@@ -70,6 +70,7 @@ Check value in ColdResetEntry4::RomColdBootStatus datavault register | **test_ch
 Check if entries are correctly added in Firmware Handoff table | **test_fht_info**   | N/A
 Check if LMS Vendor PubKey Index in datavault is 0xFFFFFFFF when LMS verification is not enabled | **test_check_no_lms_info_in_datavault_on_lms_unavailable**   | N/A
 Check if boot statuses are correctly reported | **test_cold_reset_status_reporting** | N/A
+Stress test: Boot caliptra 1000 times with a different UDS identity each time, and confirm generated certs are valid. This should expose x509 serialization bugs. |**test_generate_csr_stress** | N/A
 
 <br><br>
 # **Firmware Downloader Tests**
@@ -127,7 +128,6 @@ Validate fix for #817: warm reset during hitless update | N/A | N/A
 Validate fix for #628: warm reset during cold reset | N/A | N/A
 Add test for watchdog failure, and that extended error info is populated correctly | N/A | N/A
 Add test for CPU fault, and that extended error info is populated correctly | N/A | N/A
-Stress test: Boot caliptra 1000 times with a different UDS identity each time, and confirm generated certs are valid. This should expose x509 serialization bugs. | N/A | N/A
 Stress test: Perform many hitless updates in a row | N/A | N/A
 Ensure that boot ROM can load a 128k bundle into ICCM (assert ICCM contents in test) | N/A | N/A
 Ensure that hitless update flow can update an entire 128k bundle with completely different ICCM contents than original boot | N/A | N/A
