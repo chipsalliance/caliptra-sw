@@ -25,6 +25,7 @@ pub const ROM_ORG: u32 = 0x00000000;
 pub const MBOX_ORG: u32 = 0x30000000;
 pub const ICCM_ORG: u32 = 0x40000000;
 pub const DCCM_ORG: u32 = 0x50000000;
+pub const ROM_DATA_ORG: u32 = 0x50000000;
 pub const CFI_STATE_ORG: u32 = 0x500003E4; // size = 6 words
 pub const BOOT_STATUS_ORG: u32 = 0x500003FC;
 pub const MAN1_ORG: u32 = 0x50000400;
@@ -39,6 +40,7 @@ pub const FUSE_LOG_ORG: u32 = 0x50005000;
 pub const DPE_ORG: u32 = 0x50005400;
 pub const DATA_ORG: u32 = 0x50006400;
 pub const STACK_ORG: u32 = 0x5001A000;
+pub const ROM_STACK_ORG: u32 = 0x5001C000;
 pub const ESTACK_ORG: u32 = 0x5001F800;
 pub const NSTACK_ORG: u32 = 0x5001FC00;
 
@@ -50,6 +52,7 @@ pub const ROM_SIZE: u32 = 48 * 1024;
 pub const MBOX_SIZE: u32 = 128 * 1024;
 pub const ICCM_SIZE: u32 = 128 * 1024;
 pub const DCCM_SIZE: u32 = 128 * 1024;
+pub const ROM_DATA_SIZE: u32 = 996;
 pub const MAN1_SIZE: u32 = 6 * 1024;
 pub const MAN2_SIZE: u32 = 6 * 1024;
 pub const FHT_SIZE: u32 = 2 * 1024;
@@ -62,6 +65,7 @@ pub const FUSE_LOG_SIZE: u32 = 1024;
 pub const DPE_SIZE: u32 = 4 * 1024;
 pub const DATA_SIZE: u32 = 79 * 1024;
 pub const STACK_SIZE: u32 = 22 * 1024;
+pub const ROM_STACK_SIZE: u32 = 14 * 1024;
 pub const ESTACK_SIZE: u32 = 1024;
 pub const NSTACK_SIZE: u32 = 1024;
 
