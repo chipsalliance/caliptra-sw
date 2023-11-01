@@ -24,6 +24,8 @@ STACK_ORG        = 0x5001C000;
 ESTACK_ORG       = 0x5001F800;
 NSTACK_ORG       = 0x5001FC00;
 
+CFI_STATE_ORG      = 0x500003E4;
+
 /* Workaround https://github.com/llvm/llvm-project/issues/62423
  * by allowing lld to exceed the ROM size before relaxation optimizations are
  * applied. To prevent legitimate overflows, caliptra_builder::elf2rom() will

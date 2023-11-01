@@ -71,9 +71,10 @@ pub extern "C" fn rom_entry() -> ! {
 
     if !cfg!(feature = "no-cfi") {
         cprintln!("[state] CFI Enabled");
-        CfiCounter::reset(&mut env.trng);
-        CfiCounter::reset(&mut env.trng);
-        CfiCounter::reset(&mut env.trng);
+        let mut entropy_gen = || env.trng.generate().map(|a| a.0);
+        CfiCounter::reset(&mut entropy_gen);
+        CfiCounter::reset(&mut entropy_gen);
+        CfiCounter::reset(&mut entropy_gen);
     } else {
         cprintln!("[state] CFI Disabled");
     }
