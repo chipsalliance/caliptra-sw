@@ -25,12 +25,7 @@ pub const ROM_ORG: u32 = 0x00000000;
 pub const MBOX_ORG: u32 = 0x30000000;
 pub const ICCM_ORG: u32 = 0x40000000;
 pub const DCCM_ORG: u32 = 0x50000000;
-pub const CFI_VAL_ORG: u32 = 0x500003E4;
-pub const CFI_MASK_ORG: u32 = 0x500003E8;
-pub const CFI_XO_S0_ORG: u32 = 0x500003EC;
-pub const CFI_XO_S1_ORG: u32 = 0x500003F0;
-pub const CFI_XO_S2_ORG: u32 = 0x500003F4;
-pub const CFI_XO_S3_ORG: u32 = 0x500003F8;
+pub const CFI_STATE_ORG: u32 = 0x500003E4; // size = 6 words
 pub const BOOT_STATUS_ORG: u32 = 0x500003FC;
 pub const MAN1_ORG: u32 = 0x50000400;
 pub const MAN2_ORG: u32 = 0x50001C00;
