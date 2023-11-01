@@ -541,7 +541,7 @@ fn fips_cmd_test_rt() {
         .set_debug_locked(false)
         .set_device_lifecycle(DeviceLifecycle::Unprovisioned);
 
-    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART_NO_CFI).unwrap();
     let image = caliptra_builder::build_and_sign_image(
         &firmware::FMC_WITH_UART,
         &firmware::APP_WITH_UART,
@@ -597,7 +597,7 @@ fn test_rt_wdt_timeout() {
     let rt_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
         27_000_000
     } else {
-        2_820_000
+        2_920_000
     };
 
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);

@@ -1,6 +1,8 @@
 // Licensed under the Apache-2.0 license
 use caliptra_builder::{
-    firmware::{self, fmc_tests::MOCK_RT_INTERACTIVE, FMC_WITH_UART, ROM_WITH_UART},
+    firmware::{
+        self, fmc_tests::MOCK_RT_INTERACTIVE, FMC_WITH_UART, ROM_WITH_UART, ROM_WITH_UART_NO_CFI,
+    },
     ImageOptions,
 };
 use caliptra_common::RomBootStatus::*;
@@ -66,7 +68,7 @@ fn test_boot_status_reporting() {
 
 #[test]
 fn test_fht_info() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART_NO_CFI).unwrap();
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &MOCK_RT_INTERACTIVE,
