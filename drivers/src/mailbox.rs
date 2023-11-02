@@ -12,12 +12,14 @@ Abstract:
 
 --*/
 
+use crate::memory_layout;
 use crate::{CaliptraError, CaliptraResult};
 use caliptra_registers::mbox::enums::MboxFsmE;
 use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_registers::mbox::MboxCsr;
 use core::cmp::min;
 use core::mem::size_of;
+use core::slice;
 use zerocopy::{AsBytes, LayoutVerified, Unalign};
 
 #[derive(Copy, Clone, Default, Eq, PartialEq)]
@@ -243,17 +245,13 @@ impl MailboxSendTxn<'_> {
 
 impl Drop for MailboxSendTxn<'_> {
     fn drop(&mut self) {
+        let mbox = self.mbox.regs_mut();
         //
         // Release the lock by transitioning the mailbox state machine back
         // to Idle.
         //
-        if self.state == MailboxOpState::RdyForCmd {
-            //
-            // Send dummy request to transition the state machine to execute state.
-            //
-            let _ = self.send_request(0, &[]);
-            // Release the lock
-            let _ = self.complete();
+        if mbox.status().read().mbox_fsm_ps() != MboxFsmE::MboxIdle {
+            mbox.unlock().write(|w| w.unlock(true));
         }
     }
 }
@@ -360,6 +358,16 @@ impl MailboxRecvTxn<'_> {
     pub fn dlen(&self) -> u32 {
         let mbox = self.mbox.regs();
         mbox.dlen().read()
+    }
+
+    /// Provides direct access to entire mailbox SRAM.
+    pub fn raw_mailbox_contents(&self) -> &[u8] {
+        unsafe {
+            slice::from_raw_parts(
+                memory_layout::MBOX_ORG as *const u8,
+                memory_layout::MBOX_SIZE as usize,
+            )
+        }
     }
 
     /// Pulls at most `count` words from the mailbox and throws them away

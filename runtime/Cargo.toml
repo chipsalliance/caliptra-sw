@@ -21,6 +21,7 @@ ufmt.workspace = true
 zerocopy.workspace = true
 arrayvec.workspace = true
 caliptra-image-verify.workspace = true
+zeroize.workspace = true
 
 [build-dependencies]
 caliptra_common = { workspace = true, default-features = false }
@@ -47,3 +48,4 @@ std = ["ufmt/std", "caliptra_common/std"]
 test_only_commands = []
 verilator = ["caliptra-hw-model/verilator"]
 fips_self_test=[]
+fpga_realtime = ["caliptra-drivers/fpga_realtime"]

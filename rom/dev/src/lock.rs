@@ -107,4 +107,8 @@ fn lock_common_reg_set(env: &mut RomEnv) {
     // Lock the Manifest addr in data vault until next reset
     env.data_vault
         .lock_warm_reset_entry4(WarmResetEntry4::ManifestAddr);
+
+    // Lock the Update Reset status in data vault until next reset
+    env.data_vault
+        .lock_warm_reset_entry4(WarmResetEntry4::RomUpdateResetStatus);
 }

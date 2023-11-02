@@ -20,6 +20,7 @@ dpe = { workspace = true, optional = true }
 ufmt.workspace = true
 ureg.workspace = true
 zerocopy.workspace = true
+zeroize.workspace = true
 
 [features]
 emu = []

@@ -38,6 +38,10 @@ jobs:
         run: |
           git submodule update --init dpe
 
+      - name: Install required packages
+        run: |
+          sudo apt-get install libftdi1-dev libusb-1.0-0-dev golang-1.20-go
+
       - name: Restore sccache binary
         uses: actions/cache/restore@v3
         id: sccache_bin_restore
@@ -95,6 +99,7 @@ jobs:
       - name: Build
         run: |
           cargo --config "$EXTRA_CARGO_CONFIG" build --locked
+          CARGO_TARGET_DIR=target cargo --config "$EXTRA_CARGO_CONFIG" build --locked --manifest-path ci-tools/fpga-boss/Cargo.toml
           drivers/test-fw/build.sh
           (cd fmc && ./build.sh)
           (cd runtime && ./build.sh)
@@ -108,10 +113,35 @@ jobs:
           # Clippy doesn't look at --config, so manually set RUSTFLAGS to the
           # same as the build steps to avoid invalidating the cargo cache.
           RUSTFLAGS="-Dwarnings" cargo clippy --locked --all-targets -- -D warnings
+          CARGO_TARGET_DIR=target RUSTFLAGS="-Dwarnings" cargo clippy --locked --all-targets --manifest-path ci-tools/fpga-boss/Cargo.toml -- -D warnings
+
+      # As fuzzing targets are not part of the workspace, perform their tests explicitly.
+      - name: Build test fuzzing targets
+        # Intermittently fails and is too slow
+        if: false
+        run: |
+          rustup toolchain install nightly-2023-04-15
+          cargo +nightly-2023-04-15 install cargo-fuzz cargo-afl
+          for target in dpe/dpe/fuzz/ drivers/fuzz/ image/verify/fuzz/ x509/fuzz/; do
+            pushd $target; \
+            cargo fmt --check; \
+            # TODO: Depends on https://github.com/chipsalliance/caliptra-sw/issues/681
+            #cargo clippy; \
+            cargo +nightly-2023-04-15 fuzz build --features libfuzzer-sys; \
+            cargo +nightly-2023-04-15 afl build --features afl; \
+            popd; \
+          done
+          for target in drivers/fuzz/ image/verify/fuzz/; do
+            pushd $target; \
+            cargo +nightly-2023-04-15 fuzz build --features libfuzzer-sys,struct-aware; \
+            cargo +nightly-2023-04-15 afl build --features afl,struct-aware; \
+            popd; \
+          done
 
       - name: Run tests
         run: |
           cargo --config "$EXTRA_CARGO_CONFIG" test --locked
+          CARGO_TARGET_DIR=target cargo --config "$EXTRA_CARGO_CONFIG" test --locked --manifest-path ci-tools/fpga-boss/Cargo.toml
           sccache --show-stats
 
       - name: Run emulator conformance tests
@@ -132,3 +162,6 @@ jobs:
       - name: Caliptra C API Hwmodel Integration Test
         run: |
           (cd libcaliptra/examples/hwmodel && make && ./hwmodel)
+      - name: DPE Verification Tests
+        run: |
+          (cd test/dpe_verification && make run)

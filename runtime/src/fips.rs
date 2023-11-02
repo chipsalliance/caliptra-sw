@@ -11,6 +11,7 @@ use caliptra_drivers::Sha256;
 use caliptra_drivers::Sha384;
 use caliptra_drivers::Sha384Acc;
 use caliptra_registers::mbox::enums::MboxStatusE;
+use zeroize::Zeroize;
 
 use crate::Drivers;
 
@@ -46,7 +47,7 @@ pub mod fips_self_test_cmd {
     use caliptra_common::{
         verifier::FirmwareImageVerificationEnv, FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
     };
-    use caliptra_drivers::ResetReason;
+    use caliptra_drivers::{ResetReason, ShaAccLockState};
     use caliptra_image_types::RomInfo;
     use caliptra_image_verify::ImageVerifier;
     use zerocopy::AsBytes;
@@ -89,11 +90,11 @@ pub mod fips_self_test_cmd {
         let mut venv = FirmwareImageVerificationEnv {
             sha256: &mut env.sha256,
             sha384: &mut env.sha384,
-            sha384_acc: &mut env.sha384_acc,
             soc_ifc: &mut env.soc_ifc,
             ecc384: &mut env.ecc384,
             data_vault: &mut env.data_vault,
             pcr_bank: &mut env.pcr_bank,
+            image: env.mbox.raw_mailbox_contents(),
         };
 
         let mut verifier = ImageVerifier::new(&mut venv);
@@ -145,6 +146,9 @@ pub mod fips_self_test_cmd {
 
             /// Ecc384 Engine
             ecc384: &mut env.ecc384,
+
+            /// SHA Acc Lock State
+            sha_acc_lock_state: ShaAccLockState::NotAcquired,
         };
 
         caliptra_kat::execute_kat(&mut kats_env)?;
@@ -181,6 +185,7 @@ impl FipsShutdownCmd {
     pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<MailboxResp> {
         FipsModule::zeroize(env);
         env.mbox.set_status(MboxStatusE::CmdComplete);
+        env.is_shutdown = true;
 
         Err(CaliptraError::RUNTIME_SHUTDOWN)
     }

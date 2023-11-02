@@ -72,7 +72,7 @@ dependencies = [
  "num-traits",
  "rusticata-macros",
  "thiserror",
- "time 0.3.25",
+ "time 0.3.29",
 ]
 
 [[package]]
@@ -107,17 +107,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "atty"
-version = "0.2.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9b39be18770d11421cdb1b9947a45dd3f37e93092cbf377614828a319d5fee8"
-dependencies = [
- "hermit-abi 0.1.19",
- "libc",
- "winapi",
 ]
 
 [[package]]
@@ -199,6 +188,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
 
 [[package]]
+name = "caliptra-api"
+version = "0.1.0"
+dependencies = [
+ "bitflags 2.4.0",
+ "caliptra-error",
+ "zerocopy",
+]
+
+[[package]]
 name = "caliptra-builder"
 version = "0.1.0"
 dependencies = [
@@ -211,6 +209,7 @@ dependencies = [
  "clap",
  "elf",
  "hex",
+ "nix 0.26.2",
  "once_cell",
  "openssl",
  "zerocopy",
@@ -233,7 +232,6 @@ dependencies = [
  "caliptra-cfi-derive",
  "caliptra-drivers",
  "caliptra-registers",
- "caliptra_common",
  "serial_test",
  "ufmt",
 ]
@@ -268,6 +266,7 @@ dependencies = [
  "ufmt",
  "ureg",
  "zerocopy",
+ "zeroize",
 ]
 
 [[package]]
@@ -317,7 +316,6 @@ version = "0.1.0"
 dependencies = [
  "bit-vec",
  "bitfield",
- "caliptra-drivers",
  "caliptra-emu-bus",
  "caliptra-emu-types",
  "lazy_static",
@@ -424,7 +422,9 @@ dependencies = [
 name = "caliptra-hw-model"
 version = "0.1.0"
 dependencies = [
+ "bit-vec",
  "bitfield",
+ "caliptra-api",
  "caliptra-builder",
  "caliptra-emu-bus",
  "caliptra-emu-cpu",
@@ -434,7 +434,6 @@ dependencies = [
  "caliptra-registers",
  "caliptra-test-harness-types",
  "caliptra-verilated",
- "caliptra_common",
  "libc",
  "nix 0.26.2",
  "rand",
@@ -549,9 +548,11 @@ name = "caliptra-image-types"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
+ "caliptra-error",
  "caliptra-lms-types",
  "memoffset 0.8.0",
  "zerocopy",
+ "zeroize",
 ]
 
 [[package]]
@@ -559,6 +560,7 @@ name = "caliptra-image-verify"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.4.0",
+ "caliptra-cfi-lib",
  "caliptra-drivers",
  "caliptra-image-types",
  "caliptra_common",
@@ -582,6 +584,7 @@ version = "0.1.0"
 dependencies = [
  "arbitrary",
  "zerocopy",
+ "zeroize",
 ]
 
 [[package]]
@@ -614,11 +617,14 @@ dependencies = [
  "caliptra-x509",
  "caliptra_common",
  "cfg-if 1.0.0",
+ "elf",
  "hex",
  "memoffset 0.8.0",
  "openssl",
  "ufmt",
+ "x509-parser",
  "zerocopy",
+ "zeroize",
 ]
 
 [[package]]
@@ -676,6 +682,7 @@ dependencies = [
  "ufmt",
  "wycheproof",
  "zerocopy",
+ "zeroize",
 ]
 
 [[package]]
@@ -711,12 +718,14 @@ version = "0.1.0"
 name = "caliptra-test"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "asn1",
  "caliptra-builder",
  "caliptra-hw-model",
  "caliptra-hw-model-types",
  "caliptra-runtime",
  "caliptra_common",
+ "elf",
  "openssl",
  "zerocopy",
 ]
@@ -750,6 +759,7 @@ dependencies = [
  "quote",
  "syn 1.0.109",
  "x509-parser",
+ "zeroize",
 ]
 
 [[package]]
@@ -758,6 +768,8 @@ version = "0.1.0"
 dependencies = [
  "bitfield",
  "bitflags 2.4.0",
+ "caliptra-api",
+ "caliptra-cpu",
  "caliptra-drivers",
  "caliptra-image-types",
  "caliptra-image-verify",
@@ -792,7 +804,6 @@ version = "0.24.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a6358dedf60f4d9b8db43ad187391afe959746101346fe51bb978126bec61dfb"
 dependencies = [
- "clap",
  "heck",
  "indexmap",
  "log",
@@ -854,12 +865,9 @@ version = "3.2.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71655c45cb9845d3270c9d6df84ebe72b4dad3c2ba3f7023ad47c144e4e473a5"
 dependencies = [
- "atty",
  "bitflags 1.3.2",
  "clap_lex",
  "indexmap",
- "strsim",
- "termcolor",
  "textwrap",
 ]
 
@@ -898,6 +906,12 @@ name = "const-oid"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "520fbf3c07483f94e3e3ca9d0cfd913d7718ef2483d2cfd91c0d9e91474ab913"
+
+[[package]]
+name = "constant_time_eq"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7144d30dcf0fafbce74250a3963025d8d52177934239851c917d29f1df280c2"
 
 [[package]]
 name = "convert_case"
@@ -1084,9 +1098,12 @@ name = "dpe"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.4.0",
+ "constant_time_eq",
  "crypto",
  "platform",
+ "ufmt",
  "zerocopy",
+ "zeroize",
 ]
 
 [[package]]
@@ -1341,15 +1358,6 @@ checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 
 [[package]]
 name = "hermit-abi"
-version = "0.1.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62b467343b94ba476dcb2500d242dadbb39557df889310ac77c5d99100aaac33"
-dependencies = [
- "libc",
-]
-
-[[package]]
-name = "hermit-abi"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fed44880c466736ef9a5c5b5facefb5ed0785676d0c02d612db14e54f0d84286"
@@ -1437,7 +1445,7 @@ version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c66c74d2ae7e79a5a8f7ac924adbe38ee42a859c6539ad869eb51f0b52dc220"
 dependencies = [
- "hermit-abi 0.3.1",
+ "hermit-abi",
  "libc",
  "windows-sys 0.48.0",
 ]
@@ -1632,11 +1640,11 @@ checksum = "b7e5500299e16ebb147ae15a00a942af264cf3688f47923b8fc2cd5858f23ad3"
 
 [[package]]
 name = "openssl"
-version = "0.10.48"
+version = "0.10.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "518915b97df115dd36109bfa429a48b8f737bd05508cf9588977b599648926d2"
+checksum = "bac25ee399abb46215765b1cb35bc0212377e58a061560d8b29b024fd0430e7c"
 dependencies = [
- "bitflags 1.3.2",
+ "bitflags 2.4.0",
  "cfg-if 1.0.0",
  "foreign-types",
  "libc",
@@ -1658,20 +1666,19 @@ dependencies = [
 
 [[package]]
 name = "openssl-src"
-version = "111.26.0+1.1.1u"
+version = "300.1.5+3.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efc62c9f12b22b8f5208c23a7200a442b2e5999f8bdf80233852122b5a4f6f37"
+checksum = "559068e4c12950d7dcaa1857a61725c0d38d4fc03ff8e070ab31a75d6e316491"
 dependencies = [
  "cc",
 ]
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.83"
+version = "0.9.93"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "666416d899cf077260dac8698d60a60b435a46d57e82acb1be3d0dad87284e5b"
+checksum = "db4d56a4c0478783083cfafcc42493dd4a981d41669da64b4572a2a089b51b1d"
 dependencies = [
- "autocfg",
  "cc",
  "libc",
  "openssl-src",
@@ -1765,6 +1772,9 @@ checksum = "6ac9a59f73473f1b8d852421e59e64809f025994837ef743615c6d0c5b305160"
 [[package]]
 name = "platform"
 version = "0.1.0"
+dependencies = [
+ "ufmt",
+]
 
 [[package]]
 name = "ppv-lite86"
@@ -1897,18 +1907,18 @@ dependencies = [
 
 [[package]]
 name = "serde"
-version = "1.0.158"
+version = "1.0.189"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "771d4d9c4163ee138805e12c710dd365e4f44be8be0503cb1bb9eb989425d9c9"
+checksum = "8e422a44e74ad4001bdc8eede9a4570ab52f71190e9c076d14369f38b9200537"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.158"
+version = "1.0.189"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e801c1712f48475582b7696ac71e0ca34ebb30e09338425384269d9717c62cad"
+checksum = "1e48d1f918009ce3145511378cf68d613e3b3d9137d67272562080d68a2b32d5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2043,12 +2053,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
-name = "strsim"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
-
-[[package]]
 name = "subtle"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2149,9 +2153,9 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.25"
+version = "0.3.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0fdd63d58b18d663fbdf70e049f00a22c8e42be082203be7f26589213cd75ea"
+checksum = "426f806f4089c493dcac0d24c29c01e2c38baf8e30f1b716ee37e83d200b18fe"
 dependencies = [
  "deranged",
  "itoa",
@@ -2162,15 +2166,15 @@ dependencies = [
 
 [[package]]
 name = "time-core"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7300fbefb4dadc1af235a9cef3737cea692a9d97e1b9cbcd4ebdae6f8868e6fb"
+checksum = "ef927ca75afb808a4d64dd374f00a2adf8d0fcff8e7b184af886c3c87ec4a3f3"
 
 [[package]]
 name = "time-macros"
-version = "0.2.11"
+version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb71511c991639bb078fd5bf97757e03914361c48100d52878b8e52b46fb92cd"
+checksum = "4ad70d68dba9e1f8aceda7aa6711965dfec1cac869f311a51bd08b3a2ccbce20"
 dependencies = [
  "time-core",
 ]
@@ -2622,7 +2626,7 @@ dependencies = [
  "oid-registry",
  "rusticata-macros",
  "thiserror",
- "time 0.3.25",
+ "time 0.3.29",
 ]
 
 [[package]]
@@ -2648,6 +2652,20 @@ dependencies = [
 
 [[package]]
 name = "zeroize"
-version = "1.5.7"
+version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c394b5bd0c6f669e7275d9c20aa90ae064cb22e75a1cad54e1b34088034b149f"
+checksum = "2a0956f1ba7c7909bfb66c2e9e4124ab6f6482560f6628b5aaeba39207c9aad9"
+dependencies = [
+ "zeroize_derive",
+]
+
+[[package]]
+name = "zeroize_derive"
+version = "1.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce36e65b0d2999d2aafac989fb249189a141aee1f53c612c1f37d72631959f69"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.28",
+]

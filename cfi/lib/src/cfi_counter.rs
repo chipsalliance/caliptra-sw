@@ -19,7 +19,7 @@ References:
 use crate::cfi::{cfi_panic, CfiPanicInfo};
 use crate::xoshiro::Xoshiro128;
 #[cfg(not(feature = "cfi-test"))]
-use caliptra_common::memory_layout::{CFI_MASK_ORG, CFI_VAL_ORG};
+use caliptra_drivers::memory_layout::{CFI_MASK_ORG, CFI_VAL_ORG};
 use core::default::Default;
 
 #[cfg(feature = "cfi-test")]
@@ -82,9 +82,9 @@ pub enum CfiCounter {}
 
 impl CfiCounter {
     /// Reset counter
-    #[inline(never)]
+    #[inline(always)]
     pub fn reset(trng: &mut caliptra_drivers::Trng) {
-        prng().seed_from_trng(trng);
+        prng().mix_entropy_from_trng(trng);
         Self::reset_internal();
     }
 

@@ -26,7 +26,7 @@ use crate::HandOff;
 use caliptra_drivers::{
     okref,
     pcr_log::{PcrLogEntry, PcrLogEntryId},
-    CaliptraResult, PcrBank, PcrLogArray,
+    CaliptraResult, PersistentData,
 };
 
 use caliptra_common::{RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR};
@@ -41,13 +41,12 @@ use zerocopy::AsBytes;
 /// * `pcr_id` - PCR slot to extend the data into
 ///
 /// TODO: Add CFI instrumentation
-pub fn extend_pcr_common(env: &mut FmcEnv, hand_off: &mut HandOff) -> CaliptraResult<()> {
+pub fn extend_pcr_common(env: &mut FmcEnv) -> CaliptraResult<()> {
     // Calculate RT TCI (Hash over runtime code)
-    let rt_tci = Tci::rt_tci(env, hand_off);
-    let rt_tci: [u8; 48] = okref(&rt_tci)?.into();
+    let rt_tci: [u8; 48] = HandOff::rt_tci(env).into();
 
     // Calculate FW Image Manifest digest
-    let manifest_digest = Tci::image_manifest_digest(env, hand_off);
+    let manifest_digest = Tci::image_manifest_digest(env);
     let manifest_digest: [u8; 48] = okref(&manifest_digest)?.into();
 
     // Clear current PCR before extending it.
@@ -68,8 +67,7 @@ fn extend_and_log(env: &mut FmcEnv, entry_id: PcrLogEntryId, data: &[u8]) -> Cal
         .extend_pcr(RT_FW_JOURNEY_PCR, &mut env.sha384, data)?;
 
     log_pcr(
-        &mut env.persistent_data.get_mut().pcr_log,
-        &mut env.pcr_bank,
+        env.persistent_data.get_mut(),
         entry_id,
         (1 << RT_FW_CURRENT_PCR as u8) | (1 << RT_FW_JOURNEY_PCR as u8),
         data,
@@ -78,30 +76,25 @@ fn extend_and_log(env: &mut FmcEnv, entry_id: PcrLogEntryId, data: &[u8]) -> Cal
 
 // TODO: Add CFI instrumentation
 fn log_pcr(
-    pcr_log: &mut PcrLogArray,
-    pcr_bank: &mut PcrBank,
+    persistent_data: &mut PersistentData,
     pcr_entry_id: PcrLogEntryId,
     pcr_ids: u32,
     data: &[u8],
 ) -> CaliptraResult<()> {
-    let Some(dst) = pcr_log.get_mut(pcr_bank.log_index) else {
+    let fht = &mut persistent_data.fht;
+
+    let Some(dst) = persistent_data.pcr_log.get_mut(fht.pcr_log_index as usize) else {
         return Err(CaliptraError::FMC_GLOBAL_PCR_LOG_EXHAUSTED);
     };
 
     // Create a PCR log entry
-    let mut pcr_log_entry = PcrLogEntry {
+    *dst = PcrLogEntry {
         id: pcr_entry_id as u16,
         pcr_ids,
         ..Default::default()
     };
-    pcr_log_entry.pcr_data.as_bytes_mut()[..data.len()].copy_from_slice(data);
-
-    // TODO: Increment FHT log index on each call. Can't do that yet because
-    // ROM does not touch the FHT's log index on update reset, which throws
-    // off the count.
-    pcr_bank.log_index += 1;
-
-    *dst = pcr_log_entry;
+    dst.pcr_data.as_bytes_mut()[..data.len()].copy_from_slice(data);
+    fht.pcr_log_index += 1;
 
     Ok(())
 }

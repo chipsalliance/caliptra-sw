@@ -1,0 +1,43 @@
+
+name: Build FPGA SD image
+
+on:
+  pull_request:
+    paths:
+      - "ci-tools/fpga-image/**"
+
+  push:
+    branches: ["main"]
+    paths:
+      - "ci-tools/fpga-image/**"
+
+  schedule:
+    # 5:13 AM PST tuesday, thursday
+    - cron: '13 13 * * 2,4'
+
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  build_sd_image:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Install pre-requisites
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools
+
+      - name: Build SD image
+        run: |
+          cd ci-tools/fpga-image
+          sudo bash build.sh
+
+      - name: 'Upload image as artifact'
+        uses: actions/upload-artifact@v3
+        with:
+          name: caliptra-fpga-image
+          path: ci-tools/fpga-image/out/image.img
+          retention-days: 90

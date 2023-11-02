@@ -28,14 +28,14 @@ use caliptra_common::{
     PcrLogEntry, PcrLogEntryId,
 };
 use caliptra_drivers::{
-    CaliptraError, CaliptraResult, PcrBank, PcrLogArray, PersistentDataAccessor, Sha384,
+    CaliptraError, CaliptraResult, PcrBank, PersistentData, PersistentDataAccessor, Sha384,
 };
 use caliptra_image_verify::ImageVerificationInfo;
 
 use zerocopy::AsBytes;
 
 struct PcrExtender<'a> {
-    pcr_log: &'a mut PcrLogArray,
+    persistent_data: &'a mut PersistentData,
     pcr_bank: &'a mut PcrBank,
     sha384: &'a mut Sha384,
 }
@@ -48,7 +48,7 @@ impl PcrExtender<'_> {
             .extend_pcr(PCR_ID_FMC_JOURNEY, self.sha384, data)?;
 
         let pcr_ids: u32 = (1 << PCR_ID_FMC_CURRENT as u8) | (1 << PCR_ID_FMC_JOURNEY as u8);
-        log_pcr(self.pcr_log, self.pcr_bank, pcr_entry_id, pcr_ids, data)
+        log_pcr(self.persistent_data, pcr_entry_id, pcr_ids, data)
     }
 }
 
@@ -63,16 +63,19 @@ pub(crate) fn extend_pcrs(
     info: &ImageVerificationInfo,
     persistent_data: &mut PersistentDataAccessor,
 ) -> CaliptraResult<()> {
+    // Reset the PCR log size to zero.
+    persistent_data.get_mut().fht.pcr_log_index = 0;
+
     // Clear the Current PCR, but do not clear the Journey PCR
     env.pcr_bank.erase_pcr(PCR_ID_FMC_CURRENT)?;
 
     let mut pcr = PcrExtender {
-        pcr_log: &mut persistent_data.get_mut().pcr_log,
+        persistent_data: persistent_data.get_mut(),
         pcr_bank: env.pcr_bank,
         sha384: env.sha384,
     };
 
-    let device_status: [u8; 8] = [
+    let device_status: [u8; 9] = [
         env.soc_ifc.lifecycle() as u8,
         env.soc_ifc.debug_locked() as u8,
         env.soc_ifc.fuse_bank().anti_rollback_disable() as u8,
@@ -81,6 +84,7 @@ pub(crate) fn extend_pcrs(
         info.fmc.effective_fuse_svn as u8,
         env.data_vault.lms_vendor_pk_index() as u8,
         env.soc_ifc.fuse_bank().lms_verify() as u8,
+        info.owner_pub_keys_digest_in_fuses as u8,
     ];
 
     pcr.extend(&device_status, PcrLogEntryId::DeviceStatus)?;
@@ -116,8 +120,7 @@ pub(crate) fn extend_pcrs(
 ///
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub fn log_pcr(
-    pcr_log: &mut PcrLogArray,
-    pcr_bank: &mut PcrBank,
+    persistent_data: &mut PersistentData,
     pcr_entry_id: PcrLogEntryId,
     pcr_ids: u32,
     data: &[u8],
@@ -126,7 +129,10 @@ pub fn log_pcr(
         return Err(CaliptraError::ROM_GLOBAL_PCR_LOG_INVALID_ENTRY_ID);
     }
 
-    let Some(dst) = pcr_log.get_mut(pcr_bank.log_index) else {
+    let pcr_log = &mut persistent_data.pcr_log;
+    let fht = &mut persistent_data.fht;
+
+    let Some(dst) = pcr_log.get_mut(fht.pcr_log_index as usize) else {
         return Err(CaliptraError::ROM_GLOBAL_PCR_LOG_EXHAUSTED);
     };
 
@@ -141,7 +147,7 @@ pub fn log_pcr(
     };
     dest_data.copy_from_slice(data);
 
-    pcr_bank.log_index += 1;
+    fht.pcr_log_index += 1;
     *dst = pcr_log_entry;
 
     Ok(())

@@ -104,11 +104,16 @@ _start:
     andi t1, t1, 0x3
     bne t1, x0, post_ecc_init
 
+    //
     // Cold Boot
+    //
+
+    // Zero ICCM
     la a0, ICCM_ORG         // dest
     la a1, ICCM_SIZE        // len 
     call _zero_mem256
 
+    // Zero DCCM
     la a0, DCCM_ORG         // dest
     la a1, DCCM_SIZE        // len 
     call _zero_mem256

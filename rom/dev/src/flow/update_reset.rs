@@ -18,7 +18,6 @@ use caliptra_common::verifier::FirmwareImageVerificationEnv;
 
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::CommandId;
-use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::report_fw_error_non_fatal;
 use caliptra_drivers::{
@@ -40,9 +39,17 @@ impl UpdateResetFlow {
     ///
     /// * `env` - ROM Environment
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
+    pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
         cprintln!("[update-reset] ++");
         report_boot_status(UpdateResetStarted.into());
+
+        // Indicate that Update-Reset flow has started.
+        // This is used by the next Warm-Reset flow to confirm that the Update-Reset was successful.
+        // Success status is set at the end of the flow.
+        env.data_vault.write_warm_reset_entry4(
+            WarmResetEntry4::RomUpdateResetStatus,
+            UpdateResetStarted.into(),
+        );
 
         let Some(mut recv_txn) = env.mbox.try_start_recv_txn() else {
             cprintln!("Failed To Get Mailbox Transaction");
@@ -61,11 +68,11 @@ impl UpdateResetFlow {
             let mut venv = FirmwareImageVerificationEnv {
                 sha256: &mut env.sha256,
                 sha384: &mut env.sha384,
-                sha384_acc: &mut env.sha384_acc,
                 soc_ifc: &mut env.soc_ifc,
                 ecc384: &mut env.ecc384,
                 data_vault: &mut env.data_vault,
                 pcr_bank: &mut env.pcr_bank,
+                image: recv_txn.raw_mailbox_contents(),
             };
 
             let info = Self::verify_image(&mut venv, &manifest, recv_txn.dlen());
@@ -109,10 +116,15 @@ impl UpdateResetFlow {
         env.soc_ifc
             .set_rt_fw_rev_id(persistent_data.manifest1.runtime.version);
 
+        env.data_vault.write_lock_warm_reset_entry4(
+            WarmResetEntry4::RomUpdateResetStatus,
+            UpdateResetComplete.into(),
+        );
+
         cprintln!("[update-reset Success] --");
         report_boot_status(UpdateResetComplete.into());
 
-        Ok(None)
+        Ok(())
     }
 
     /// Verify the image
@@ -131,10 +143,11 @@ impl UpdateResetFlow {
         #[cfg(feature = "fake-rom")]
         let env = &mut FakeRomImageVerificationEnv {
             sha256: env.sha256,
-            sha384_acc: env.sha384_acc,
+            sha384: env.sha384,
             soc_ifc: env.soc_ifc,
             data_vault: env.data_vault,
             ecc384: env.ecc384,
+            image: env.image,
         };
 
         let mut verifier = ImageVerifier::new(env);

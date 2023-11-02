@@ -10,6 +10,7 @@ build = "build/build.rs"
 doctest = false
 
 [dependencies]
+zeroize.workspace = true
 
 [build-dependencies]
 asn1.workspace = true

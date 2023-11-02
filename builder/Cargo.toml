@@ -17,9 +17,13 @@ caliptra-image-types.workspace = true
 clap.workspace = true
 elf.workspace = true
 hex.workspace = true
+nix.workspace = true
 once_cell.workspace = true
 openssl.workspace = true
 zerocopy.workspace = true
+
+[features]
+slow_tests = []
 
 [[bin]]
 name = "image"

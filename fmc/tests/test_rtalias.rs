@@ -1,5 +1,11 @@
 // Licensed under the Apache-2.0 license
-use caliptra_builder::{FwId, ImageOptions, FMC_WITH_UART, ROM_WITH_UART};
+use caliptra_builder::{
+    firmware::{self, fmc_tests::MOCK_RT_INTERACTIVE, FMC_WITH_UART, ROM_WITH_UART},
+    ImageOptions,
+};
+use caliptra_common::RomBootStatus::*;
+
+use caliptra_common::mailbox_api::CommandId;
 use caliptra_drivers::{
     pcr_log::{PcrLogEntry, PcrLogEntryId},
     FirmwareHandoffTable, PcrId,
@@ -13,6 +19,7 @@ use openssl::hash::{Hasher, MessageDigest};
 
 const TEST_CMD_READ_PCR_LOG: u32 = 0x1000_0000;
 const TEST_CMD_READ_FHT: u32 = 0x1000_0001;
+const TEST_CMD_PCRS_LOCKED: u32 = 0x1000_0004;
 
 const RT_ALIAS_MEASUREMENT_COMPLETE: u32 = 0x400;
 const RT_ALIAS_DERIVED_CDI_COMPLETE: u32 = 0x401;
@@ -29,18 +36,11 @@ const PCR2_AND_PCR3_EXTENDED_ID: u32 = (1 << PcrId::PcrId2 as u8) | (1 << PcrId:
 
 #[test]
 fn test_boot_status_reporting() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
-
-    pub const MOCK_RT_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-fmc-mock-rt",
-        bin_name: "caliptra-fmc-mock-rt",
-        features: &["emu"],
-        workspace_dir: None,
-    };
+    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
 
     let image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &MOCK_RT_WITH_UART,
+        &firmware::FMC_WITH_UART,
+        &firmware::fmc_tests::MOCK_RT_WITH_UART,
         ImageOptions::default(),
     )
     .unwrap();
@@ -66,16 +66,10 @@ fn test_boot_status_reporting() {
 
 #[test]
 fn test_fht_info() {
-    pub const MOCK_RT_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-fmc-mock-rt",
-        bin_name: "caliptra-fmc-mock-rt",
-        features: &["emu", "interactive_test"],
-        workspace_dir: None,
-    };
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &MOCK_RT_WITH_UART,
+        &MOCK_RT_INTERACTIVE,
         ImageOptions::default(),
     )
     .unwrap();
@@ -92,26 +86,21 @@ fn test_fht_info() {
 
     let data = hw.mailbox_execute(TEST_CMD_READ_FHT, &[]).unwrap().unwrap();
     let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
-    assert_eq!(fht.ldevid_tbs_size, 533);
-    assert_eq!(fht.fmcalias_tbs_size, 769);
+    assert_eq!(fht.ldevid_tbs_size, 552);
+    assert_eq!(fht.fmcalias_tbs_size, 786);
     assert_eq!(fht.ldevid_tbs_addr, 0x50003C00);
     assert_eq!(fht.fmcalias_tbs_addr, 0x50004000);
     assert_eq!(fht.pcr_log_addr, 0x50004800);
+    assert_eq!(fht.meas_log_addr, 0x50004C00);
     assert_eq!(fht.fuse_log_addr, 0x50005000);
 }
 
 #[test]
 fn test_pcr_log() {
-    pub const MOCK_RT_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-fmc-mock-rt",
-        bin_name: "caliptra-fmc-mock-rt",
-        features: &["emu", "interactive_test"],
-        workspace_dir: None,
-    };
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let image1 = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &MOCK_RT_WITH_UART,
+        &MOCK_RT_INTERACTIVE,
         ImageOptions {
             app_version: 1,
             ..Default::default()
@@ -139,7 +128,7 @@ fn test_pcr_log() {
 
     assert_eq!(
         pcr_entry_arr.len(),
-        (fht.pcr_log_index as usize + 2) * PCR_ENTRY_SIZE
+        (fht.pcr_log_index as usize) * PCR_ENTRY_SIZE
     );
 
     let rt_tci1 = swap_word_bytes(&image1.manifest.runtime.digest);
@@ -147,7 +136,7 @@ fn test_pcr_log() {
 
     check_pcr_log_entry(
         &pcr_entry_arr,
-        fht.pcr_log_index,
+        fht.pcr_log_index - 2,
         PcrLogEntryId::RtTci,
         PCR2_AND_PCR3_EXTENDED_ID,
         rt_tci1.as_bytes(),
@@ -155,7 +144,7 @@ fn test_pcr_log() {
 
     check_pcr_log_entry(
         &pcr_entry_arr,
-        fht.pcr_log_index + 1,
+        fht.pcr_log_index - 1,
         PcrLogEntryId::FwImageManifest,
         PCR2_AND_PCR3_EXTENDED_ID,
         &manifest_digest1,
@@ -176,13 +165,9 @@ fn test_pcr_log() {
     assert_eq!(pcr2_from_log, pcr2_from_hw);
     assert_eq!(pcr3_from_log, pcr3_from_hw);
 
-    hw.soc_ifc()
-        .internal_fw_update_reset()
-        .write(|w| w.core_rst(true));
-
     let image2 = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
-        &MOCK_RT_WITH_UART,
+        &MOCK_RT_INTERACTIVE,
         ImageOptions {
             app_version: 2,
             ..Default::default()
@@ -190,7 +175,15 @@ fn test_pcr_log() {
     )
     .unwrap();
 
-    assert!(hw.upload_firmware(&image2.to_bytes().unwrap()).is_ok());
+    // Trigger an update reset with "new" firmware
+    hw.start_mailbox_execute(CommandId::FIRMWARE_LOAD.into(), &image2.to_bytes().unwrap())
+        .unwrap();
+
+    hw.step_until_boot_status(KatStarted.into(), true);
+    hw.step_until_boot_status(KatComplete.into(), true);
+    hw.step_until_boot_status(UpdateResetStarted.into(), false);
+
+    assert_eq!(hw.finish_mailbox_execute(), Ok(None));
 
     hw.step_until_boot_status(RT_ALIAS_DERIVATION_COMPLETE, true);
 
@@ -201,7 +194,7 @@ fn test_pcr_log() {
 
     assert_eq!(
         pcr_entry_arr.len(),
-        (fht.pcr_log_index as usize + 2) * PCR_ENTRY_SIZE
+        (fht.pcr_log_index as usize) * PCR_ENTRY_SIZE
     );
 
     let rt_tci2 = swap_word_bytes(&image2.manifest.runtime.digest);
@@ -209,7 +202,7 @@ fn test_pcr_log() {
 
     check_pcr_log_entry(
         &pcr_entry_arr,
-        fht.pcr_log_index,
+        fht.pcr_log_index - 2,
         PcrLogEntryId::RtTci,
         PCR2_AND_PCR3_EXTENDED_ID,
         rt_tci2.as_bytes(),
@@ -217,7 +210,7 @@ fn test_pcr_log() {
 
     check_pcr_log_entry(
         &pcr_entry_arr,
-        fht.pcr_log_index + 1,
+        fht.pcr_log_index - 1,
         PcrLogEntryId::FwImageManifest,
         PCR2_AND_PCR3_EXTENDED_ID,
         &manifest_digest2,
@@ -237,6 +230,10 @@ fn test_pcr_log() {
 
     assert_eq!(pcr2_from_log, pcr2_from_hw);
     assert_eq!(pcr3_from_log, pcr3_from_hw);
+
+    // Also ensure PCR locks are configured correctly.
+    let result = hw.mailbox_execute(TEST_CMD_PCRS_LOCKED, &[]);
+    assert!(result.is_ok());
 }
 
 fn check_pcr_log_entry(

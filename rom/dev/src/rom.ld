@@ -71,9 +71,6 @@ SECTIONS
 
     	. = ALIGN(4);
         _erodata = .;
-
-    	. = ALIGN(64);
-    	CALIPTRA_ROM_INFO = .;
 	} > ROM
 
 	.data : ALIGN(4)
@@ -90,6 +87,11 @@ SECTIONS
 		. = ALIGN(4);
 	    _edata = .;
 	} > DATA AT> ROM
+
+	.rom_info : ALIGN(64)
+	{
+		CALIPTRA_ROM_INFO = .;
+	} > ROM
 
 	.bss (NOLOAD) : ALIGN(4) 
     {

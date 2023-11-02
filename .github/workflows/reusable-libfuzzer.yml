@@ -1,0 +1,127 @@
+name: Reusable libFuzzer
+on:
+  workflow_call:
+    inputs:
+      name:
+        required: true
+        type: string
+      fuzz_target_path:
+        required: true
+        type: string
+      fuzz_target_name:
+        required: true
+        type: string
+      fuzz_target_max_len:
+        required: true
+        type: string
+      fuzzer_features:
+        required: true
+        type: string
+      fuzzer_sanitiser:
+        required: true
+        type: string
+
+jobs:
+  reusable_libfuzzer:
+    # TODO: Set these as parameters?
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+
+    env:
+      # Change this to a new random value if you suspect the cache is corrupted
+      CACHE_BUSTER: 6542f37bb328
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+
+      - name: Install dependencies
+        run: |
+          rustup toolchain install nightly-2023-04-15
+          rustup component add --toolchain nightly-2023-04-15 llvm-tools
+          cargo +nightly-2023-04-15 install cargo-fuzz
+
+      - name: Restore corpus dir
+        uses: actions/cache/restore@v3
+        with:
+          path: ${{ inputs.fuzz_target_path }}/corpus/
+          key: ${{ inputs.name }}-${{ env.CACHE_BUSTER }}
+
+      - name: Run fuzzing
+        run: |
+          cd ${{ inputs.fuzz_target_path }}
+          mkdir -p {corpus,artifacts}/${{ inputs.fuzz_target_name }}
+          cargo +nightly-2023-04-15 fuzz run \
+            --features libfuzzer-sys,${{ inputs.fuzzer_features }} \
+            -s ${{ inputs.fuzzer_sanitiser }} \
+            ${{ inputs.fuzz_target_name }} \
+            corpus/${{ inputs.fuzz_target_name }} common_corpus \
+            -- \
+            -max_len=${{ inputs.fuzz_target_max_len }} \
+            -max_total_time=3600 \
+            -jobs=480 -workers=$(($(nproc) / 2))
+
+      - name: Export coverage
+        run: |
+          cd ${{ inputs.fuzz_target_path }}
+          cargo +nightly-2023-04-15 fuzz coverage \
+            --features libfuzzer-sys,${{ inputs.fuzzer_features }} \
+            -s ${{ inputs.fuzzer_sanitiser }} \
+            ${{ inputs.fuzz_target_name }} \
+            corpus/${{ inputs.fuzz_target_name }} common_corpus \
+            -- \
+            -max_len=${{ inputs.fuzz_target_max_len }}
+          ~/.rustup/toolchains/nightly-2023-04-15-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/llvm-cov show \
+            target/x86_64-unknown-linux-gnu/coverage/x86_64-unknown-linux-gnu/release/${{ inputs.fuzz_target_name }} \
+            --format=html \
+            -instr-profile=coverage/${{ inputs.fuzz_target_name }}/coverage.profdata \
+          > index.html
+
+      - name: Merge corpus between runs
+        run: |
+          cd ${{ inputs.fuzz_target_path }}
+          mkdir new_corpus
+          cargo +nightly-2023-04-15 fuzz cmin \
+            --features libfuzzer-sys,${{ inputs.fuzzer_features }} \
+            -s ${{ inputs.fuzzer_sanitiser }} \
+            ${{ inputs.fuzz_target_name }} \
+            new_corpus corpus \
+            -- \
+            -max_len=${{ inputs.fuzz_target_max_len }} \
+            -jobs=480 -workers=$(($(nproc) / 2)) \
+          rm -rf corpus && mv new_corpus corpus
+
+      - name: Attempt to minimise each crash for test cases
+        run: |
+          cd ${{ inputs.fuzz_target_path }}
+          mkdir test_cases
+          for crashing_input in artifacts/${{ inputs.fuzz_target_name }}/*; do
+            cargo +nightly-2023-04-15 fuzz tmin \
+              --features libfuzzer-sys,${{ inputs.fuzzer_features }} \
+              -s ${{ inputs.fuzzer_sanitiser }} \
+              ${{ inputs.fuzz_target_name }} \
+              $crashing_input \
+              -- \
+              -max_len=${{ inputs.fuzz_target_max_len }} \
+          done
+          mv artifacts/${{ inputs.fuzz_target_name }}/minimized-from-* test_cases/
+
+      - name: Save corpus dir
+        uses: actions/cache/save@v3
+        with:
+          path: ${{ inputs.fuzz_target_path }}/corpus/
+          key: ${{ inputs.name }}-${{ env.CACHE_BUSTER }}
+
+      - name: Archive test cases dir
+        uses: actions/upload-artifact@v3
+        with:
+          name: test_cases
+          path: ${{ inputs.fuzz_target_path }}/test_cases/
+
+      - name: Archive fuzzing coverage
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage
+          path: ${{ inputs.fuzz_target_path }}/index.html

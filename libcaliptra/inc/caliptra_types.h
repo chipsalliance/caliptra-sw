@@ -40,40 +40,103 @@ struct caliptra_fuses {
     enum device_lifecycle life_cycle;
 };
 
-struct caliptra_completion {
-    caliptra_checksum checksum;
-    enum fips_status fips;
+//    Request/Response fields
+
+struct caliptra_req_header {
+    caliptra_checksum chksum;
 };
 
-struct caliptra_fips_version {
-    struct caliptra_completion cpl;
+struct caliptra_resp_header {
+    caliptra_checksum chksum;
+    uint32_t fips_status;
+};
+
+struct caliptra_get_idev_csr_resp {
+    struct caliptra_resp_header hdr;
+    uint32_t data_size;
+    uint8_t data[1024];
+};
+
+struct caliptra_get_idev_cert_req {
+    struct caliptra_req_header hdr;
+    uint32_t tbs_size;
+    uint8_t signature_r[48];
+    uint8_t signature_s[48];
+    uint8_t tbs[916];
+};
+
+struct caliptra_get_idev_cert_resp {
+    struct caliptra_resp_header hdr;
+    uint32_t cert_size;
+    uint8_t cert[1024];
+};
+
+struct caliptra_get_idev_info_resp {
+    struct caliptra_resp_header hdr;
+    uint8_t idev_pub_x[48];
+    uint8_t idev_pub_y[48];
+};
+
+struct caliptra_get_ldev_cert_resp {
+    struct caliptra_resp_header hdr;
+    uint32_t data_size;
+    uint8_t data[1024];
+};
+
+struct caliptra_ecdsa_verify_req {
+    struct caliptra_req_header hdr;
+    uint8_t pub_key_x[48];
+    uint8_t pub_key_y[48];
+    uint8_t signature_r[48];
+    uint8_t signature_s[48];
+};
+
+struct caliptra_hmac_verify_req {
+    struct caliptra_req_header hdr;
+    uint8_t key[48];
+    uint8_t tag[48];
+    uint32_t len;
+    uint8_t msg[256];
+};
+
+struct caliptra_stash_measurement_req {
+    struct caliptra_req_header hdr;
+    uint8_t metadata[4];
+    uint8_t measurement[48];
+    uint8_t context[48];
+    uint32_t svn;
+};
+
+struct caliptra_stash_measurement_resp {
+    struct caliptra_resp_header hdr;
+    uint32_t dpe_result;
+};
+
+struct caliptra_test_get_fmc_alias_cert_resp {
+    struct caliptra_resp_header hdr;
+    uint32_t data_size;
+    uint8_t data[1024];
+};
+
+struct caliptra_fips_version_resp {
+    struct caliptra_resp_header hdr;
     uint32_t mode;
     uint32_t fips_rev[3];
     uint8_t name[12];
 };
 
-struct caliptra_stash_measurement_req {
-    caliptra_checksum checksum;
-    uint8_t           metadata[4];
-    uint8_t           measurement[48];
-    uint32_t          svn;
+struct caliptra_fw_info_resp {
+    struct caliptra_resp_header hdr;
+    uint32_t pl0_pauser;
+    uint32_t runtime_svn;
+    uint32_t min_runtime_svn;
+    uint32_t fmc_manifest_svn;
+    uint32_t attestation_disabled;
 };
 
-struct caliptra_stash_measurement_resp {
-    struct caliptra_completion cpl;
-    uint32_t                   dpe_result;
-};
-
-struct caliptra_get_idev_csr_resp {
-    struct caliptra_completion cpl;
-    uint32_t                   data_size;
-    uint8_t                    data[1024];
-};
-
-struct caliptra_get_ldev_cert_resp {
-    struct caliptra_completion cpl;
-    uint32_t                   data_size;
-    uint8_t                    data[1024];
+struct caliptra_capabilities_resp {
+    struct caliptra_resp_header hdr;
+    uint8_t capabilities[16];
 };
 
 // The below fields are placeholders to set up the baseline
@@ -136,6 +199,7 @@ struct dpe_certify_key_response {
     struct dpe_resp_hdr resp_hdr;
     uint8_t             new_context_handle[DPE_HANDLE_SIZE];
     uint8_t             derived_pubkey_x[DPE_ECC_SIZE];
+    uint8_t             derived_pubkey_y[DPE_ECC_SIZE];
     uint32_t            cert_size;
     uint8_t             cert[DPE_CERT_SIZE];
 };
@@ -144,7 +208,7 @@ struct dpe_sign_response {
     struct dpe_resp_hdr resp_hdr;
     uint8_t             new_context_handle[DPE_HANDLE_SIZE];
     uint8_t             sig_r_or_hmac[DPE_ECC_SIZE];
-    uint8_t             sig_s;
+    uint8_t             sig_s[DPE_ECC_SIZE];
 };
 
 struct dpe_get_tagged_tci_response {
@@ -159,15 +223,15 @@ struct dpe_get_certificate_chain_response {
     uint8_t             certificate_chain[DPE_CERT_SIZE];
 };
 
-struct caliptra_dpe_req {
+struct caliptra_invoke_dpe_req {
     caliptra_checksum checksum;
     uint32_t          data_size;
     uint8_t           data[DPE_DATA_MAX];
 };
 
-struct caliptra_dpe_resp {
-    struct caliptra_completion cpl;
-    uint32_t                   data_size;
+struct caliptra_invoke_dpe_resp {
+    struct caliptra_resp_header cpl;
+    uint32_t                    data_size;
     union {
         struct dpe_get_profile_response           get_profile;
         struct dpe_new_handle_response            new_handle;

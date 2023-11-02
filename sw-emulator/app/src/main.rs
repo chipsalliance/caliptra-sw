@@ -102,10 +102,10 @@ fn main() -> io::Result<()> {
                 .action(ArgAction::SetTrue)
         )
         .arg(
-            arg!(--"ueid" <U64> "64-bit Unique Endpoint Id")
+            arg!(--"ueid" <U128> "128-bit Unique Endpoint Id")
                 .required(false)
-                .value_parser(value_parser!(u64))
-                .default_value(&u64::MAX.to_string())
+                .value_parser(value_parser!(u128))
+                .default_value(&u128::MAX.to_string())
         )
         .arg(
             arg!(--"idevid-key-id-algo" <algo> "idevid certificate key id algorithm [sha1, sha256, sha384, fuse]")
@@ -159,7 +159,7 @@ fn main() -> io::Result<()> {
     let args_update_fw = args.get_one::<PathBuf>("update-firmware");
     let args_log_dir = args.get_one::<PathBuf>("log-dir").unwrap();
     let args_idevid_key_id_algo = args.get_one::<String>("idevid-key-id-algo").unwrap();
-    let args_ueid = args.get_one::<u64>("ueid").unwrap();
+    let args_ueid = args.get_one::<u128>("ueid").unwrap();
     let wdt_timeout = args.get_one::<u64>("wdt-timeout").unwrap();
     let mut mfg_pk_hash = match hex::decode(args.get_one::<String>("mfg-pk-hash").unwrap()) {
         Ok(mfg_pk_hash) => mfg_pk_hash,
@@ -350,9 +350,12 @@ fn main() -> io::Result<()> {
         // DWORD 00 - Flags
         cert[0] = flags.get();
         // DWORD 01 - 05 - IDEVID Subject Key Identifier (all zeroes)
-        // DWORD 06 - 07 - UEID / Manufacturer Serial Number
-        cert[6] = *args_ueid as u32;
-        cert[7] = (*args_ueid >> 32) as u32;
+        cert[6] = 1; // UEID Type
+                     // DWORD 07 - 10 - UEID / Manufacturer Serial Number
+        cert[7] = *args_ueid as u32;
+        cert[8] = (*args_ueid >> 32) as u32;
+        cert[9] = (*args_ueid >> 64) as u32;
+        cert[10] = (*args_ueid >> 96) as u32;
 
         soc_ifc.fuse_idevid_cert_attr().write(&cert);
     }

@@ -25,7 +25,6 @@ pub const ROM_ORG: u32 = 0x00000000;
 pub const MBOX_ORG: u32 = 0x30000000;
 pub const ICCM_ORG: u32 = 0x40000000;
 pub const DCCM_ORG: u32 = 0x50000000;
-// Region of ~ 1k bytes between DCCM_ORG and CFI_VAL_ORG is reserved for ROM's DATA_ORG
 pub const CFI_VAL_ORG: u32 = 0x500003E4;
 pub const CFI_MASK_ORG: u32 = 0x500003E8;
 pub const CFI_XO_S0_ORG: u32 = 0x500003EC;

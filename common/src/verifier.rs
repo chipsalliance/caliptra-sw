@@ -20,26 +20,27 @@ use core::ops::Range;
 use caliptra_drivers::memory_layout::ICCM_RANGE;
 
 /// ROM Verification Environemnt
-pub struct FirmwareImageVerificationEnv<'a> {
+pub struct FirmwareImageVerificationEnv<'a, 'b> {
     pub sha256: &'a mut Sha256,
     pub sha384: &'a mut Sha384,
-    pub sha384_acc: &'a mut Sha384Acc,
     pub soc_ifc: &'a mut SocIfc,
     pub ecc384: &'a mut Ecc384,
     pub data_vault: &'a mut DataVault,
     pub pcr_bank: &'a mut PcrBank,
+    pub image: &'b [u8],
 }
 
-impl<'a> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a> {
+impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> {
     /// Calculate Digest using SHA-384 Accelerator
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest> {
-        loop {
-            if let Some(mut txn) = self.sha384_acc.try_start_operation() {
-                let mut digest = Array4x12::default();
-                txn.digest(len, offset, false, &mut digest)?;
-                return Ok(digest.0);
-            }
-        }
+        let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;
+        let data = self
+            .image
+            .get(offset as usize..)
+            .ok_or(err)?
+            .get(..len as usize)
+            .ok_or(err)?;
+        Ok(self.sha384.digest(data)?.0)
     }
 
     /// ECC-384 Verification routine
@@ -143,5 +144,9 @@ impl<'a> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a> {
 
     fn lms_verify_enabled(&self) -> bool {
         self.soc_ifc.fuse_bank().lms_verify() == RomVerifyConfig::EcdsaAndLms
+    }
+
+    fn set_fw_extended_error(&mut self, err: u32) {
+        self.soc_ifc.set_fw_extended_error(err);
     }
 }

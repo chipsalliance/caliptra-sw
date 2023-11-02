@@ -28,8 +28,8 @@ use caliptra_common::keyids::{KEY_ID_FMC_PRIV_KEY, KEY_ID_ROM_FMC_CDI};
 use caliptra_common::pcr::PCR_ID_FMC_CURRENT;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::{okmutref, report_boot_status, Array4x12, CaliptraResult, KeyId, Lifecycle};
-use caliptra_error::CaliptraError;
 use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams};
+use zeroize::Zeroize;
 
 #[derive(Default)]
 pub struct FmcAliasLayer {}
@@ -53,9 +53,9 @@ impl FmcAliasLayer {
         // We use the value of PCR0 as the measurement for deriving the CDI.
         let mut measurement = env.pcr_bank.read_pcr(PCR_ID_FMC_CURRENT);
 
-        // Derive the DICE CDI from decrypted UDS
+        // Derive the DICE CDI from the measurement
         let result = Self::derive_cdi(env, &measurement, KEY_ID_ROM_FMC_CDI);
-        measurement.0.fill(0);
+        measurement.0.zeroize();
         result?;
 
         // Derive DICE Key Pair from CDI
@@ -79,8 +79,9 @@ impl FmcAliasLayer {
         };
 
         // Generate Local Device ID Certificate
-        Self::generate_cert_sig(env, input, &output, fw_proc_info)?;
+        let result = Self::generate_cert_sig(env, input, &output, fw_proc_info);
         output.zeroize();
+        result?;
 
         report_boot_status(FmcAliasDerivationComplete.into());
         cprintln!("[afmc] --");
@@ -99,8 +100,9 @@ impl FmcAliasLayer {
     fn derive_cdi(env: &mut RomEnv, measurements: &Array4x12, cdi: KeyId) -> CaliptraResult<()> {
         let mut measurements: [u8; 48] = measurements.into();
 
-        Crypto::hmac384_kdf(env, cdi, b"fmc_alias_cdi", Some(&measurements), cdi)?;
-        measurements.fill(0);
+        let result = Crypto::hmac384_kdf(env, cdi, b"fmc_alias_cdi", Some(&measurements), cdi);
+        measurements.zeroize();
+        result?;
         report_boot_status(FmcAliasDeriveCdiComplete.into());
         Ok(())
     }
@@ -139,7 +141,6 @@ impl FmcAliasLayer {
     /// * `env`    - ROM Environment
     /// * `input`  - DICE Input
     /// * `output` - DICE Output
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn generate_cert_sig(
         env: &mut RomEnv,
         input: &DiceInput,
@@ -164,6 +165,7 @@ impl FmcAliasLayer {
             env.data_vault.ecc_vendor_pk_index() as u8,
             env.data_vault.lms_vendor_pk_index() as u8,
             env.soc_ifc.fuse_bank().lms_verify() as u8,
+            fw_proc_info.owner_pub_keys_digest_in_fuses as u8,
         ])?;
         hasher.update(&<[u8; 48]>::from(
             env.soc_ifc.fuse_bank().vendor_pub_key_hash(),
@@ -197,21 +199,15 @@ impl FmcAliasLayer {
             "[afmc] Signing Cert with AUTHORITY.KEYID = {}",
             auth_priv_key as u8
         );
-        let mut sig = Crypto::ecdsa384_sign(env, auth_priv_key, auth_pub_key, tbs.tbs());
+        let mut sig = Crypto::ecdsa384_sign_and_verify(env, auth_priv_key, auth_pub_key, tbs.tbs());
         let sig = okmutref(&mut sig)?;
 
         // Clear the authority private key
         cprintln!("[afmc] Erasing AUTHORITY.KEYID = {}", auth_priv_key as u8);
-        env.key_vault.erase_key(auth_priv_key)?;
-
-        // Verify the signature of the `To Be Signed` portion
-        let mut verify_r = Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)?;
-        if cfi_launder(&verify_r) != &sig.r {
-            return Err(CaliptraError::FMC_ALIAS_CERT_VERIFY);
-        } else {
-            cfi_assert!(cfi_launder(&verify_r) == &sig.r);
-        }
-        verify_r.0.fill(0);
+        env.key_vault.erase_key(auth_priv_key).map_err(|err| {
+            sig.zeroize();
+            err
+        })?;
 
         let _pub_x: [u8; 48] = (&pub_key.x).into();
         let _pub_y: [u8; 48] = (&pub_key.y).into();

@@ -20,6 +20,7 @@ use crate::{
 use caliptra_registers::ecc::EccReg;
 use core::cmp::Ordering;
 use zerocopy::{AsBytes, FromBytes};
+use zeroize::Zeroize;
 
 /// ECC-384 Coordinate
 pub type Ecc384Scalar = Array4x12;
@@ -113,7 +114,7 @@ impl<'a> From<Ecc384PrivKeyOut<'a>> for Ecc384PrivKeyIn<'a> {
 
 /// ECC-384 Public Key
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Debug, Default, Copy, Clone, Eq, PartialEq)]
+#[derive(AsBytes, FromBytes, Debug, Default, Copy, Clone, Eq, PartialEq, Zeroize)]
 pub struct Ecc384PubKey {
     /// X coordinate
     pub x: Ecc384Scalar,
@@ -128,29 +129,17 @@ impl Ecc384PubKey {
     pub fn to_der(&self) -> [u8; 97] {
         array_concat3([0x04], (&self.x).into(), (&self.y).into())
     }
-
-    pub fn zeroize(&mut self) {
-        self.x.0.fill(0);
-        self.y.0.fill(0);
-    }
 }
 
 /// ECC-384 Signature
 #[repr(C)]
-#[derive(Debug, Default, AsBytes, FromBytes, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Default, AsBytes, FromBytes, Copy, Clone, Eq, PartialEq, Zeroize)]
 pub struct Ecc384Signature {
     /// Random point
     pub r: Ecc384Scalar,
 
     /// Proof
     pub s: Ecc384Scalar,
-}
-
-impl Ecc384Signature {
-    pub fn zeroize(&mut self) {
-        self.r.0.fill(0);
-        self.s.0.fill(0);
-    }
 }
 
 /// Elliptic Curve P-384 API
@@ -388,7 +377,7 @@ impl Ecc384 {
             Ecc384Result::SigVerifyFailed
         };
 
-        verify_r.0.fill(0);
+        verify_r.0.zeroize();
         Ok(result)
     }
 

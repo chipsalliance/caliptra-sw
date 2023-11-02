@@ -15,8 +15,7 @@ use std::rc::Rc;
 use crate::Output;
 use std::env;
 
-// TODO: Make this configurable
-const SOC_PAUSER: u32 = 0xffff_ffff;
+const DEFAULT_APB_PAUSER: u32 = 0x1;
 
 // How many clock cycles before emitting a TRNG nibble
 const TRNG_DELAY: u32 = 4;
@@ -29,7 +28,7 @@ impl<'a> Bus for VerilatedApbBus<'a> {
         if addr & 0x3 != 0 {
             return Err(caliptra_emu_bus::BusError::LoadAddrMisaligned);
         }
-        let result = Ok(self.model.v.apb_read_u32(SOC_PAUSER, addr));
+        let result = Ok(self.model.v.apb_read_u32(self.model.soc_apb_pauser, addr));
         self.model
             .log
             .borrow_mut()
@@ -50,7 +49,9 @@ impl<'a> Bus for VerilatedApbBus<'a> {
         if size != RvSize::Word {
             return Err(caliptra_emu_bus::BusError::StoreAccessFault);
         }
-        self.model.v.apb_write_u32(SOC_PAUSER, addr, val);
+        self.model
+            .v
+            .apb_write_u32(self.model.soc_apb_pauser, addr, val);
         self.model
             .log
             .borrow_mut()
@@ -82,6 +83,8 @@ pub struct ModelVerilated {
     etrng_waiting_for_req_to_clear: bool,
 
     log: Rc<RefCell<BusLogger<NullBus>>>,
+
+    soc_apb_pauser: u32,
 }
 
 impl ModelVerilated {
@@ -210,6 +213,8 @@ impl crate::HwModel for ModelVerilated {
             etrng_waiting_for_req_to_clear: false,
 
             log,
+
+            soc_apb_pauser: DEFAULT_APB_PAUSER,
         };
 
         m.tracing_hint(true);
@@ -297,6 +302,10 @@ impl crate::HwModel for ModelVerilated {
                 self.v.input.sram_error_injection_mode = 0x8;
             }
         }
+    }
+
+    fn set_apb_pauser(&mut self, pauser: u32) {
+        self.soc_apb_pauser = pauser;
     }
 }
 impl ModelVerilated {

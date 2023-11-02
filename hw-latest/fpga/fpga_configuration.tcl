@@ -309,6 +309,7 @@ if {$BUILD} {
   launch_runs impl_1 -jobs 10
   wait_on_runs impl_1
   open_run impl_1
+  report_utilization -file $outputDir/utilization.txt
   # Embed git hash in USR_ACCESS register for bitstream identification.
   set_property BITSTREAM.CONFIG.USR_ACCESS 0x$VERSION [current_design]
   write_bitstream -bin_file $outputDir/caliptra_fpga

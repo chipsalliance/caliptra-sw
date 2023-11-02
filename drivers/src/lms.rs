@@ -22,6 +22,7 @@ use caliptra_lms_types::{
     LmotsAlgorithmType, LmsAlgorithmType, LmsIdentifier, LmsPublicKey, LmsSignature,
 };
 use zerocopy::{AsBytes, LittleEndian, U32};
+use zeroize::Zeroize;
 
 pub const D_PBLC: u16 = 0x8080;
 pub const D_MESG: u16 = 0x8181;
@@ -373,7 +374,7 @@ impl Lms {
         }
         hasher.finalize(&mut digest)?;
         let result = HashValue::<N>::from(digest);
-        digest.0.fill(0);
+        digest.0.zeroize();
         Ok(result)
     }
 
@@ -393,7 +394,7 @@ impl Lms {
         } else {
             Ok(LmsResult::Success)
         };
-        candidate_key.0.fill(0);
+        candidate_key.0.zeroize();
         result
     }
 
@@ -417,7 +418,7 @@ impl Lms {
         } else {
             Ok(LmsResult::Success)
         };
-        candidate_key.0.fill(0);
+        candidate_key.0.zeroize();
         result
     }
 
@@ -453,9 +454,17 @@ impl Lms {
 
         let q_str = <[u8; 4]>::from(lms_sig.q);
         let (_, tree_height) = get_lms_parameters(lms_sig.tree_type)?;
+        // Make sure the height of the tree matches the value of H this was compiled with
+        if tree_height as usize != H {
+            return Err(CaliptraError::DRIVER_LMS_INVALID_TREE_HEIGHT);
+        }
+        // Make sure the value of Q is valid for the tree height
+        if lms_sig.q.get() >= 1 << H {
+            return Err(CaliptraError::DRIVER_LMS_INVALID_Q_VALUE);
+        }
         let mut node_num: u32 = (1 << tree_height) + lms_sig.q.get();
-        if node_num > 2 << tree_height {
-            return Err(CaliptraError::DRIVER_LMS_INVALID_PVALUE);
+        if node_num >= 2 << tree_height {
+            return Err(CaliptraError::DRIVER_LMS_INVALID_Q_VALUE);
         }
         let message_digest = self.hash_message(
             sha256_driver,
@@ -524,9 +533,9 @@ impl Lms {
             temp = HashValue::<N>::from(digest);
             node_num /= 2;
             i += 1;
-            digest.0.fill(0);
+            digest.0.zeroize();
         }
-        digest.0.fill(0);
+        digest.0.zeroize();
         Ok(temp)
     }
 }

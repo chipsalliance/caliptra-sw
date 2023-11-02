@@ -87,6 +87,10 @@ impl ImageGeneratorCrypto for OsslCrypto {
         Ok(image_sig)
     }
 
+    // This function is here as a convenience for creating test images.
+    // This function uses the same Q value for each signature which is
+    // insecure, a Q value must be used at most one time.  In practice
+    // the digest should be passed to a FIPS approved HSM for signature.
     fn lms_sign(
         &self,
         digest: &ImageDigest,

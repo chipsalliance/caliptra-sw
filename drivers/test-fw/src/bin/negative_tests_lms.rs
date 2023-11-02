@@ -490,7 +490,7 @@ fn test_failures_lms_24() {
                 ..lms_sig
             }
         ),
-        Err(CaliptraError::DRIVER_LMS_PATH_OUT_OF_BOUNDS)
+        Err(CaliptraError::DRIVER_LMS_INVALID_TREE_HEIGHT)
     );
 }
 

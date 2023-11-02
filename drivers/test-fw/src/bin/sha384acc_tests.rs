@@ -15,11 +15,12 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{Array4x12, Mailbox, Sha384Acc};
+use caliptra_drivers::{memory_layout, Array4x12, Mailbox, Sha384Acc, ShaAccLockState};
 use caliptra_kat::Sha384AccKat;
 use caliptra_registers::mbox::MboxCsr;
 use caliptra_registers::sha512_acc::Sha512AccCsr;
 use caliptra_test_harness::test_suite;
+use core::slice;
 
 const MAX_MAILBOX_CAPACITY_BYTES: usize = 128 << 10;
 const SHA384_HASH_SIZE: usize = 48;
@@ -41,7 +42,10 @@ fn test_digest0() {
         assert!(txn.send_request(CMD, &data).is_ok());
 
         let mut digest = Array4x12::default();
-        if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
+        if let Some(mut sha_acc_op) = sha_acc
+            .try_start_operation(ShaAccLockState::NotAcquired)
+            .unwrap()
+        {
             let result = sha_acc_op.digest(data.len() as u32, 0, false, (&mut digest).into());
             assert!(result.is_ok());
             assert_eq!(digest, Array4x12::from(expected));
@@ -70,7 +74,10 @@ fn test_digest1() {
         assert!(txn.send_request(CMD, &data).is_ok());
 
         let mut digest = Array4x12::default();
-        if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
+        if let Some(mut sha_acc_op) = sha_acc
+            .try_start_operation(ShaAccLockState::NotAcquired)
+            .unwrap()
+        {
             let result = sha_acc_op.digest(data.len() as u32, 0, false, (&mut digest).into());
             assert!(result.is_ok());
             assert_eq!(digest, Array4x12::from(expected));
@@ -100,7 +107,10 @@ fn test_digest2() {
         const CMD: u32 = 0x1c;
         assert!(txn.send_request(CMD, &data).is_ok());
 
-        if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
+        if let Some(mut sha_acc_op) = sha_acc
+            .try_start_operation(ShaAccLockState::NotAcquired)
+            .unwrap()
+        {
             let result = sha_acc_op.digest(data.len() as u32, 0, false, (&mut digest).into());
             assert!(result.is_ok());
             assert_eq!(digest, Array4x12::from(expected));
@@ -130,7 +140,10 @@ fn test_digest_offset() {
         const CMD: u32 = 0x1c;
         assert!(txn.send_request(CMD, &data).is_ok());
 
-        if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
+        if let Some(mut sha_acc_op) = sha_acc
+            .try_start_operation(ShaAccLockState::NotAcquired)
+            .unwrap()
+        {
             let result = sha_acc_op.digest(8, 4, false, (&mut digest).into());
             assert!(result.is_ok());
             assert_eq!(digest, Array4x12::from(expected));
@@ -153,7 +166,10 @@ fn test_digest_zero_size_buffer() {
     ];
 
     let mut digest = Array4x12::default();
-    if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
+    if let Some(mut sha_acc_op) = sha_acc
+        .try_start_operation(ShaAccLockState::NotAcquired)
+        .unwrap()
+    {
         let result = sha_acc_op.digest(0, 0, true, (&mut digest).into());
         assert!(result.is_ok());
         assert_eq!(digest, Array4x12::from(expected));
@@ -173,8 +189,26 @@ fn test_digest_max_mailbox_size() {
         0x89, 0xef, 0xee,
     ];
 
+    {
+        // Clear the mailbox SRAM; FPGA model doesn't clear this on reset.
+        let mut mbox = unsafe { MboxCsr::new() };
+        // Grab lock
+        assert!(!mbox.regs().lock().read().lock());
+        let mbox_sram = unsafe {
+            slice::from_raw_parts_mut(
+                memory_layout::MBOX_ORG as *mut u8,
+                memory_layout::MBOX_SIZE as usize,
+            )
+        };
+        mbox_sram.fill(0);
+        mbox.regs_mut().unlock().write(|w| w.unlock(true));
+    }
+
     let mut digest = Array4x12::default();
-    if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
+    if let Some(mut sha_acc_op) = sha_acc
+        .try_start_operation(ShaAccLockState::NotAcquired)
+        .unwrap()
+    {
         let result = sha_acc_op.digest(
             MAX_MAILBOX_CAPACITY_BYTES as u32,
             0,
@@ -191,7 +225,12 @@ fn test_digest_max_mailbox_size() {
 
 fn test_kat() {
     let mut sha_acc = unsafe { Sha384Acc::new(Sha512AccCsr::new()) };
-    assert_eq!(Sha384AccKat::default().execute(&mut sha_acc).is_ok(), true);
+    assert_eq!(
+        Sha384AccKat::default()
+            .execute(&mut sha_acc, ShaAccLockState::AssumedLocked)
+            .is_ok(),
+        true
+    );
 }
 
 test_suite! {
