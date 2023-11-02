@@ -1223,6 +1223,8 @@ mod tests {
             &model.soc_ifc().cptra_fw_extended_error_info().read()[..2],
             &[MboxStatusE::CmdComplete as u32, 8]
         );
+        // Signal that we're ready to move on...
+        model.soc_ifc().cptra_rsvd_reg().at(0).write(|_| 1);
 
         // Test 3-byte request, respond with failure
         let txn = model.wait_for_mailbox_receive().unwrap();

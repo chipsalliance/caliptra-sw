@@ -367,7 +367,6 @@ jobs:
           # TODO(kor): Fix all the tests and run them all here
           sudo ${VARS} "${TEST_BIN}/caliptra_integration_tests-"*
           sudo ${VARS} "${TEST_BIN}/caliptra_hw_model-"* \
-              --skip test_mailbox_receive \
               --skip test_output_failure
           sudo ${VARS} "${TEST_BIN}/drivers_integration_tests-"*
           sudo ${VARS} "${TEST_BIN}/rom_integration_tests-"*
