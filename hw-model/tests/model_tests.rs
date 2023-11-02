@@ -117,6 +117,9 @@ fn test_write_to_rom() {
 
 #[test]
 fn test_iccm_double_bit_ecc_nmi_failure() {
+    // FPGA realtime model doesn't support ecc error injection
+    #![cfg_attr(feature = "fpga_realtime", ignore)]
+
     let elf =
         caliptra_builder::build_firmware_elf(&firmware::hw_model_tests::TEST_ICCM_DOUBLE_BIT_ECC)
             .unwrap();
@@ -140,6 +143,9 @@ fn test_iccm_double_bit_ecc_nmi_failure() {
 
 #[test]
 fn test_dccm_double_bit_ecc_nmi_failure() {
+    // FPGA realtime model doesn't support ecc error injection
+    #![cfg_attr(feature = "fpga_realtime", ignore)]
+
     let elf =
         caliptra_builder::build_firmware_elf(&firmware::hw_model_tests::TEST_DCCM_DOUBLE_BIT_ECC)
             .unwrap();
