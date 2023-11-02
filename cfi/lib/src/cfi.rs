@@ -190,3 +190,113 @@ macro_rules! cfi_assert {
         cfi_assert_eq($cond, true)
     };
 }
+
+#[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
+pub fn cfi_assert_eq_12_words(a: &[u32; 12], b: &[u32; 12]) {
+    if a != b {
+        cfi_panic(CfiPanicInfo::AssertEqFail)
+    }
+}
+
+/// Unrolled comparison of 12 words
+///
+/// Written in assembly so the trampoline is above the comparisons rather than
+/// below
+#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+#[inline(always)]
+pub fn cfi_assert_eq_12_words(a: &[u32; 12], b: &[u32; 12]) {
+    unsafe {
+        core::arch::asm!(
+            "j 3f",
+            "2:",
+            "li a0, 0x01040055",
+            "j cfi_panic_handler",
+            "3:",
+            "lw {tmp0}, 0({a})",
+            "lw {tmp1}, 0({b})",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 4({a})",
+            "lw {tmp1}, 4({b})",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 8({a})",
+            "lw {tmp1}, 8({b})",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 12({a})",
+            "lw {tmp1}, 12({b})",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 16({a})",
+            "lw {tmp1}, 16({b})",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 20({a})",
+            "lw {tmp1}, 20({b})",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 24({a})",
+            "lw {tmp1}, 24({b})",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 28({a})",
+            "lw {tmp1}, 28({b})",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 32({a})",
+            "lw {tmp1}, 32({b})",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 36({a})",
+            "lw {tmp1}, 36({b})",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 40({a})",
+            "lw {tmp1}, 40({b})",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 44({a})",
+            "lw {tmp1}, 44({b})",
+            "bne {tmp0}, {tmp1}, 2b",
+            a = in(reg) a.as_ptr(),
+            b = in(reg) b.as_ptr(),
+            tmp0 = out(reg) _,
+            tmp1 = out(reg) _);
+    }
+}
+
+#[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
+pub fn cfi_assert_eq_6_words(a: &[u32; 6], b: &[u32; 6]) {
+    if a != b {
+        cfi_panic(CfiPanicInfo::AssertEqFail)
+    }
+}
+
+/// Unrolled comparison of 6 words
+///
+/// Written in assembly so the trampoline is above the comparisons rather than
+/// below
+#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+#[inline(always)]
+pub fn cfi_assert_eq_6_words(a: &[u32; 6], b: &[u32; 6]) {
+    unsafe {
+        core::arch::asm!(
+            "j 3f",
+            "2:",
+            "li a0, 0x01040055",
+            "j cfi_panic_handler",
+            "3:",
+            "lw {tmp0}, 0({a})",
+            "lw {tmp1}, 0({b})",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 4({a})",
+            "lw {tmp1}, 4({b})",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 8({a})",
+            "lw {tmp1}, 8({b})",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 12({a})",
+            "lw {tmp1}, 12({b})",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 16({a})",
+            "lw {tmp1}, 16({b})",
+            "bne {tmp0}, {tmp1}, 2b",
+            "lw {tmp0}, 20({a})",
+            "lw {tmp1}, 20({b})",
+            "bne {tmp0}, {tmp1}, 2b",
+            a = in(reg) a.as_ptr(),
+            b = in(reg) b.as_ptr(),
+            tmp0 = out(reg) _,
+            tmp1 = out(reg) _);
+    }
+}
