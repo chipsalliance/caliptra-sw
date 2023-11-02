@@ -366,8 +366,7 @@ jobs:
           # Tests that are known to pass on the FPGA
           # TODO(kor): Fix all the tests and run them all here
           sudo ${VARS} "${TEST_BIN}/caliptra_integration_tests-"*
-          sudo ${VARS} "${TEST_BIN}/caliptra_hw_model-"* \
-              --skip test_output_failure
+          sudo ${VARS} "${TEST_BIN}/caliptra_hw_model-"*
           sudo ${VARS} "${TEST_BIN}/drivers_integration_tests-"*
           sudo ${VARS} "${TEST_BIN}/rom_integration_tests-"*
           sudo ${VARS} "${TEST_BIN}/fmc_integration_tests-"*
