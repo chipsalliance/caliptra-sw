@@ -31,7 +31,7 @@ CFI_STATE_ORG      = 0x500003E4;
  * applied. To prevent legitimate overflows, caliptra_builder::elf2rom() will
  * ensure that the sections fit within the true 48k ROM size.
  */
-ROM_RELAXATION_PADDING = 4k;
+ROM_RELAXATION_PADDING = 8k;
 ROM_SIZE          = 48K;
 ICCM_SIZE         = 128K;
 DCCM_SIZE         = 128K;

@@ -11,7 +11,6 @@ doctest = false
 [dependencies]
 bitfield.workspace = true
 bitflags.workspace = true
-caliptra-cfi-lib.workspace = true
 caliptra-error = { workspace = true, default-features = false }
 caliptra-image-types.workspace = true
 caliptra-lms-types.workspace = true
@@ -22,6 +21,8 @@ ufmt.workspace = true
 ureg.workspace = true
 zerocopy.workspace = true
 zeroize.workspace = true
+caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cfi", "cfi-counter" ] }
+caliptra-cfi-derive.workspace = true
 
 [features]
 emu = []
@@ -29,6 +30,7 @@ runtime = ["dep:dpe"]
 fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
 itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
+no-cfi = []
 
 [dev-dependencies]
 caliptra-builder.workspace = true

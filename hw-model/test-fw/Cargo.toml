@@ -14,6 +14,7 @@ emu = ["caliptra-test-harness/emu"]
 caliptra-drivers.workspace = true
 caliptra-registers.workspace = true
 caliptra-test-harness.workspace = true
+caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cfi", "cfi-counter" ] }
 
 [[bin]]
 name = "test_iccm_unaligned_write"
