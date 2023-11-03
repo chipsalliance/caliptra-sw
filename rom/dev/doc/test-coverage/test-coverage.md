@@ -110,7 +110,7 @@ Tests update reset flow by providing non-compliant fw image   | **test_update_re
 Check if boot statuses are correctly reported | **test_update_reset_boot_status** | N/A
 Tests update reset flow by providing a different vendor ECC public key index in the image  | **test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch** |IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_ECC_PUB_KEY_IDX_MISMATCH
 Tests update reset flow by providing a different vendor LMS public key index in the image | **test_update_reset_vendor_lms_pub_key_idx_dv_mismatch** | IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_LMS_PUB_KEY_IDX_MISMATCH
-Check value in WarmResetEntry4::RomUpdateResetStatus datavault register | [TODO] Add test   | N/A
+Check value in WarmResetEntry4::RomUpdateResetStatus datavault register | **test_check_rom_update_reset_status_reg**   | N/A
 <br><br>
 
 # **General Integration Tests**
@@ -122,7 +122,6 @@ Check for any RUST panics added to the code | **test_panic_missing** | N/A
 # **Test Gaps**
 Test Scenario| Test Name | ROM Error Code
 ---|---|---
-Check value in WarmResetEntry4::RomUpdateResetStatus datavault register | N/A  | N/A
 Expand `smoke_test` to perform a hitless update and confirm everything is mixed into the identity correctly. | N/A | N/A
 Validate fix for #817: warm reset during hitless update | N/A | N/A
 Validate fix for #628: warm reset during cold reset | N/A | N/A

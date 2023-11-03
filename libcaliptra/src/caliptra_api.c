@@ -12,6 +12,8 @@
 #include "caliptra_enums.h"
 
 #define CALIPTRA_STATUS_NOT_READY (0)
+#define CALIPTRA_REG_BASE (CALIPTRA_TOP_REG_MBOX_CSR_BASE_ADDR)
+#define CALIPTRA_REG_LIMIT (CALIPTRA_REG_BASE + CALIPTRA_MAILBOX_MAX_SIZE - 1)
 
 // User can define a data section for global vars if needed like #define CALIPTRA_API_GLOBAL_SECTION ".custom_section"
 #ifdef CALIPTRA_API_GLOBAL_SECTION
@@ -23,6 +25,56 @@
 // All globals should use CALIPTRA_API_GLOBAL_SECTION_ATTRIBUTE
 // Globals should be uninitialized to maximize environment compatibility
 static struct caliptra_buffer g_mbox_pending_rx_buffer CALIPTRA_API_GLOBAL_SECTION_ATTRIBUTE;
+
+/**
+ * caliptra_write_reg
+ *
+ * Write data to a caliptra reg at addr
+ *
+ * @param[in] address Address of the caliptra register
+ * @param[in] data Data to write
+ *
+ * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
+ */
+int caliptra_write_reg(uint32_t address, uint32_t data)
+{
+    if (address < CALIPTRA_REG_BASE || address > CALIPTRA_REG_LIMIT) {
+        return INVALID_PARAMS;
+    }
+
+    if (caliptra_write_u32(address, data)) {
+        return REG_ACCESS_ERROR;
+    }
+
+    return 0;
+}
+
+/**
+ * caliptra_read_reg
+ *
+ * Read to data from a caliptra reg at addr
+ *
+ * @param[in] address Address of the caliptra register
+ * @param[out] data Data read
+ *
+ * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
+ */
+int caliptra_read_reg(uint32_t address, uint32_t *data)
+{
+    if (address < CALIPTRA_REG_BASE || address > CALIPTRA_REG_LIMIT) {
+        return INVALID_PARAMS;
+    }
+
+    if (data == NULL) {
+        return INVALID_PARAMS;
+    }
+
+    if (caliptra_read_u32(address, data)){
+        return REG_ACCESS_ERROR;
+    }
+
+    return 0;
+}
 
 /**
  * calculate_caliptra_checksum
@@ -96,10 +148,75 @@ int caliptra_bootfsm_go()
  * caliptra_set_wdt_timeout
  *
  * Write the provided WDT timeout value to CPTRA_WDT_CFG regs
+ *
+ * @param[in] timeout WDT timeout
  */
 void caliptra_set_wdt_timeout(uint64_t timeout)
 {
     caliptra_wdt_cfg_write(timeout);
+}
+
+/**
+ * caliptra_configure_itrng_entropy
+ *
+ * Write the provided iTRNG config values to their respective regs
+ *
+ * @param[in] low_threshold iTRNG config value
+ * @param[in] high_threshold iTRNG config value
+ * @param[in] repetition_count iTRNG config value
+ */
+void caliptra_configure_itrng_entropy(uint16_t low_threshold, uint16_t high_threshold, uint16_t repetition_count)
+{
+    caliptra_write_itrng_entropy_low_threshold(low_threshold);
+    caliptra_write_itrng_entropy_high_threshold(high_threshold);
+    caliptra_write_itrng_entropy_repetition_count(repetition_count);
+}
+
+/**
+ * caliptra_mbox_pauser_set_and_lock
+ *
+ * Sets the provided pauser value in one of the mbox_pauser_valid regs and set the
+ * corresponding lock bit
+ * If all slots are locked, returns PAUSER_LOCKED error
+ *
+ * @param[in] pauser pauser value to set for mbox_pauser_valid
+ *
+ * @return 0 for success, PAUSER_LOCKED if all slots are already locked
+ */
+int caliptra_mbox_pauser_set_and_lock(uint32_t pauser)
+{
+    for (int i = 0; i < MBOX_PAUSER_SLOTS; i++) {
+        // Check if the slot is unlocked
+        if (caliptra_read_mbox_pauser_lock(i) == 0) {
+            caliptra_write_mbox_valid_pauser(i, pauser);
+            caliptra_set_mbox_pauser_lock(i);
+            return 0;
+        }
+    }
+
+    return PAUSER_LOCKED;
+}
+
+/**
+ * caliptra_fuse_pauser_set_and_lock
+ *
+ * Sets the provided pauser value in the fuse_pauser_valid reg and sets the lock bit
+ * Returns PAUSER_LOCKED error if already locked
+ *
+ * @param[in] pauser pauser value to set for mbox_pauser_valid
+ *
+ * @return 0 for success, PAUSER_LOCKED if already locked
+ */
+int caliptra_fuse_pauser_set_and_lock(uint32_t pauser)
+{
+    // Check if the slot is unlocked
+    if (caliptra_read_fuse_pauser_lock() == 0) {
+        caliptra_write_fuse_valid_pauser(pauser);
+        caliptra_set_fuse_pauser_lock();
+        return 0;
+    }
+
+    return PAUSER_LOCKED;
 }
 
 /**
@@ -147,14 +264,14 @@ int caliptra_init_fuses(struct caliptra_fuses *fuses)
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_UDS_SEED_0, fuses->uds_seed, ARRAY_SIZE(fuses->uds_seed));
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_FIELD_ENTROPY_0, fuses->field_entropy, ARRAY_SIZE(fuses->field_entropy));
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_KEY_MANIFEST_PK_HASH_0, fuses->key_manifest_pk_hash, ARRAY_SIZE(fuses->key_manifest_pk_hash));
-    caliptra_fuse_write(GENERIC_AND_FUSE_REG_FUSE_KEY_MANIFEST_PK_HASH_MASK, fuses->key_manifest_pk_hash_mask);
+    caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_FUSE_KEY_MANIFEST_PK_HASH_MASK, fuses->key_manifest_pk_hash_mask);
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_OWNER_PK_HASH_0, fuses->owner_pk_hash, ARRAY_SIZE(fuses->owner_pk_hash));
-    caliptra_fuse_write(GENERIC_AND_FUSE_REG_FUSE_FMC_KEY_MANIFEST_SVN, fuses->fmc_key_manifest_svn);
+    caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_FUSE_FMC_KEY_MANIFEST_SVN, fuses->fmc_key_manifest_svn);
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_RUNTIME_SVN_0, fuses->runtime_svn, ARRAY_SIZE(fuses->runtime_svn));
-    caliptra_fuse_write(GENERIC_AND_FUSE_REG_FUSE_ANTI_ROLLBACK_DISABLE, (uint32_t)fuses->anti_rollback_disable);
+    caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_FUSE_ANTI_ROLLBACK_DISABLE, (uint32_t)fuses->anti_rollback_disable);
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_IDEVID_CERT_ATTR_0, fuses->idevid_cert_attr, ARRAY_SIZE(fuses->idevid_cert_attr));
     caliptra_fuse_array_write(GENERIC_AND_FUSE_REG_FUSE_IDEVID_MANUF_HSM_ID_0, fuses->idevid_manuf_hsm_id, ARRAY_SIZE(fuses->idevid_manuf_hsm_id));
-    caliptra_fuse_write(GENERIC_AND_FUSE_REG_FUSE_LIFE_CYCLE, (uint32_t)fuses->life_cycle);
+    caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_FUSE_LIFE_CYCLE, (uint32_t)fuses->life_cycle);
 
     // Write to Caliptra Fuse Done
     caliptra_write_u32(CALIPTRA_TOP_REG_GENERIC_AND_FUSE_REG_CPTRA_FUSE_WR_DONE, 1);

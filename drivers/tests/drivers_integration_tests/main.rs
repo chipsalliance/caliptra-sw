@@ -308,6 +308,8 @@ fn test_doe_when_debug_locked() {
     let txn = model.wait_for_mailbox_receive().unwrap();
     let test_results = DoeTestResults::read_from(txn.req.data.as_slice()).unwrap();
     assert_eq!(test_results, DOE_TEST_VECTORS.expected_test_results);
+    txn.respond_success();
+    model.step_until_exit_success().unwrap();
 }
 
 #[test]
@@ -327,7 +329,11 @@ fn test_hmac384() {
 
 #[test]
 fn test_keyvault() {
-    run_driver_test(&firmware::driver_tests::KEYVAULT);
+    run_driver_test(if cfg!(feature = "fpga_realtime") {
+        &firmware::driver_tests::KEYVAULT_FPGA
+    } else {
+        &firmware::driver_tests::KEYVAULT
+    });
 }
 
 #[test]
@@ -634,6 +640,9 @@ fn test_mailbox_uc_to_soc() {
 
 #[test]
 fn test_uc_to_soc_error_state() {
+    // This test requires strict control over timing
+    #![cfg_attr(feature = "fpga_realtime", ignore)]
+
     let mut model =
         start_driver_test(&firmware::driver_tests::MAILBOX_DRIVER_NEGATIVE_TESTS).unwrap();
     let txn = model.wait_for_mailbox_receive().unwrap();
@@ -751,16 +760,37 @@ fn test_csrng_with_nibbles(
 }
 
 #[test]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
 fn test_csrng() {
     test_csrng_with_nibbles(&firmware::driver_tests::CSRNG, Box::new(trng_nibbles()));
 }
 
 #[test]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
 fn test_csrng2() {
     test_csrng_with_nibbles(&firmware::driver_tests::CSRNG2, Box::new(trng_nibbles()));
 }
 
 #[test]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
 fn test_csrng_repetition_count() {
     // Tests for Repetition Count Test (RCT).
     fn test_repcnt_finite_repeats(
@@ -835,6 +865,13 @@ fn test_csrng_repetition_count() {
 }
 
 #[test]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
 fn test_csrng_adaptive_proportion() {
     // Tests for Adaptive Proportion health check.
     // Assumes the CSRNG configures the adaptive proportion's LO and HI
@@ -928,7 +965,13 @@ fn test_csrng_adaptive_proportion() {
 }
 
 #[test]
-#[cfg_attr(all(feature = "verilator", not(feature = "itrng")), ignore)]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
 fn test_trng_in_itrng_mode() {
     // To run this test under verilator, use --features=verilator,itrng
     let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::TRNG_DRIVER_RESPONDER)
@@ -969,7 +1012,13 @@ fn test_trng_in_itrng_mode() {
 }
 
 #[test]
-#[cfg_attr(all(feature = "verilator", feature = "itrng"), ignore)]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        feature = "itrng"
+    ),
+    ignore
+)]
 fn test_trng_in_etrng_mode() {
     let block0: [u32; 12] = [
         0x65b11c74, 0xd4bd4965, 0x5031ec6a, 0x2deaad1e, 0xc0c5508f, 0xe7258dc9, 0xa0af9e7f,

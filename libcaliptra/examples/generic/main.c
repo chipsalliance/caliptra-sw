@@ -9,7 +9,16 @@
 #include "caliptra_api.h"
 #include "caliptra_image.h"
 
+// Arbitrary example only - values must be customized/tuned for the SoC
 static const uint64_t wdt_timeout = 0xA0000000;         // approximately 5s for 500MHz clock
+// Arbitrary example only - values must be customized/tuned for the SoC
+static const uint16_t itrng_entropy_low_threshold = 0x1;
+// Arbitrary example only - values must be customized/tuned for the SoC
+static const uint16_t itrng_entropy_high_threshold = 0xFFFF;
+// Arbitrary example only - values must be customized/tuned for the SoC
+static const uint16_t itrng_entropy_repetition_count = 0xFFFF;
+// Arbitrary example only - values must be customized/tuned for the SoC
+static const uint32_t apb_pauser = 0x1;
 
 struct caliptra_buffer image_bundle;
 struct caliptra_fuses fuses = {0};
@@ -57,6 +66,22 @@ int main(int argc, char *argv[])
 
     caliptra_set_wdt_timeout(wdt_timeout);
 
+    caliptra_configure_itrng_entropy(itrng_entropy_low_threshold,
+                                     itrng_entropy_high_threshold,
+                                     itrng_entropy_repetition_count);
+
+    // Set up our PAUSER value for the mailbox regs
+    status = caliptra_mbox_pauser_set_and_lock(apb_pauser);
+    if (status) {
+        printf("Set MBOX pauser Failed: 0x%x\n", status);
+    }
+
+    // Set up our PAUSER value for the fuse regs
+    status = caliptra_fuse_pauser_set_and_lock(apb_pauser);
+    if (status) {
+        printf("Set FUSE pauser Failed: 0x%x\n", status);
+    }
+
     set_fuses();
 
     // Wait until ready for FW
@@ -68,7 +93,7 @@ int main(int argc, char *argv[])
 
     if (status)
     {
-        printf("FW Load Failed: %x\n", status);
+        printf("FW Load Failed: 0x%x\n", status);
     }
     else
     {
@@ -82,7 +107,7 @@ int main(int argc, char *argv[])
         status = caliptra_fips_version(&version, true);
 
         if (status) {
-            printf("Get FIPS Version send failed: %x\n", status);
+            printf("Get FIPS Version send failed: 0x%x\n", status);
         } else {
             // Wait indefinitely for completion
             while (!caliptra_test_for_completion()){
@@ -94,7 +119,7 @@ int main(int argc, char *argv[])
 
         if (status)
         {
-            printf("Get FIPS Version failed: %x\n", status);
+            printf("Get FIPS Version failed: 0x%x\n", status);
         }
         else
         {
@@ -113,7 +138,7 @@ int main(int argc, char *argv[])
 
         if (status)
         {
-            printf("Stash measurement failed: %x\n", status);
+            printf("Stash measurement failed: 0x%x\n", status);
         }
         else
         {

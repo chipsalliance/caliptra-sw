@@ -230,7 +230,7 @@ name = "caliptra-cfi-lib"
 version = "0.1.0"
 dependencies = [
  "caliptra-cfi-derive",
- "caliptra-drivers",
+ "caliptra-error",
  "caliptra-registers",
  "serial_test",
  "ufmt",

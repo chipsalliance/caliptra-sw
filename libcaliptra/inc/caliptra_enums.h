@@ -14,6 +14,8 @@ enum libcaliptra_error {
     // General
     INVALID_PARAMS              = 0x100,
     API_INTERNAL_ERROR          = 0x101,
+    REG_ACCESS_ERROR            = 0x102,
+    PAUSER_LOCKED               = 0x103,
     // Fuse
     NOT_READY_FOR_FUSES         = 0x200,
     STILL_READY_FOR_FUSES       = 0x201,
