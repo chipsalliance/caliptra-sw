@@ -904,66 +904,48 @@ fn test_idev_id_cert() {
 fn test_extend_pcr_cmd() {
     fn generate_mailbox_extend_pcr_req(
         pcr_idx: u32,
-        data_size: usize,
-        payload: [u8; ExtendPcrReq::DATA_MAX_SIZE],
+        pcr_extension_data: [u8; ExtendPcrReq::DATA_MAX_SIZE],
     ) -> Result<ExtendPcrReq, ExtendPcrReqErr> {
-        let cmd = ExtendPcrReq::new(
-            MailboxReqHeader { chksum: 0 },
-            pcr_idx,
-            data_size as u32,
-            payload,
-        )?;
+        let cmd = ExtendPcrReq::new(MailboxReqHeader { chksum: 0 }, pcr_idx, pcr_extension_data)?;
 
         let checksum = caliptra_common::checksum::calc_checksum(
             u32::from(CommandId::EXTEND_PCR),
             &cmd.as_bytes()[4..],
         );
 
-        ExtendPcrReq::new(
-            MailboxReqHeader { chksum: checksum },
-            cmd.pcr_idx,
-            cmd.data_size,
-            cmd.data,
-        )
+        ExtendPcrReq::new(MailboxReqHeader { chksum: checksum }, cmd.pcr_idx, cmd.data)
     }
 
-    // Testing for payload_data [0,...,0]
+    // Testing for extension_data [0,...,0]
     let mut model = run_rt_test(None, None);
-    let payload_data = [0u8; ExtendPcrReq::DATA_MAX_SIZE];
+    let extension_data = [0u8; ExtendPcrReq::DATA_MAX_SIZE];
 
-    let cmd = generate_mailbox_extend_pcr_req(4, payload_data.len(), payload_data).unwrap();
+    // let mut pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
+
+    let cmd = generate_mailbox_extend_pcr_req(4, extension_data).unwrap();
     let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
     assert!(res.is_ok());
 
     // Testing for high entropy test vector
     let mut model = run_rt_test(None, None);
-    let payload_data: [u8; ExtendPcrReq::DATA_MAX_SIZE] = [
+    let extension_data: [u8; ExtendPcrReq::DATA_MAX_SIZE] = [
         225, 73, 188, 244, 110, 120, 121, 204, 185, 203, 86, 129, 104, 186, 33, 110, 125, 116, 216,
         80, 244, 199, 184, 21, 127, 187, 78, 122, 18, 26, 32, 48, 171, 251, 17, 20, 67, 224, 15,
         81, 144, 232, 190, 103, 213, 7, 199, 148,
     ];
 
-    let payload_sha384_hash: [u8; ExtendPcrReq::DATA_MAX_SIZE] = [
-        135, 126, 138, 147, 42, 97, 39, 88, 246, 50, 229, 201, 61, 152, 223, 8, 10, 25, 211, 158,
-        234, 25, 40, 234, 137, 138, 44, 181, 160, 159, 232, 34, 139, 164, 117, 235, 164, 235, 217,
-        65, 40, 55, 233, 50, 178, 217, 62, 107,
-    ];
-
     // Get ptr to pcrid = 4
     let pcr = model.soc_ifc_pcr();
-    let entry = pcr.pcr_entry();
+    let entry = pcr.pcr_entry(); // 384 bit pcr register
 
-    for i in 0..32 {
-        cprintln!("[test-pcr] i = {}", i);
-        // this should be equal to payload_data_sha384_hash
-        let e = entry.at(i as usize);
-        for ii in 0..12 {
-            // this fails, but why?
-            let ee = e.at(ii).read();
-            let ee = 0x00;
-            cprintln!("{}", ee);
-        }
-    }
+    // this should be equal to extension_data_sha384_hash, compare byte by byte
+    // for i in 0..32 {
+    //     let e = entry.at(i as usize);
+    //     for ii in 0..12 {
+    //         // this fails, but why?
+    //         let ee = e.at(ii).read();
+    //     }
+    // }
 
     // let pcr_4 = pcr.pcr_ctrl().at(4);
     // let r = pcr_4.read();
@@ -1004,27 +986,20 @@ fn test_extend_pcr_cmd() {
     //     let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
     //     let mut pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
 
-    let cmd = generate_mailbox_extend_pcr_req(4, payload_data.len(), payload_data).unwrap();
+    // #[peripheral(offset = 0x1001_8000, mask = 0x0000_7fff)]
+    // pub key_vault: KeyVault,
+
+    let cmd = generate_mailbox_extend_pcr_req(4, extension_data).unwrap();
     let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
     assert!(res.is_ok());
 
     // Smaller size
-    let cmd = generate_mailbox_extend_pcr_req(4, payload_data.len() - 0xf, payload_data).unwrap();
+    let cmd = generate_mailbox_extend_pcr_req(4, extension_data).unwrap();
     let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
     assert!(res.is_ok());
 
-    // Invalid size
-    let cmd = generate_mailbox_extend_pcr_req(4, payload_data.len() + 0xf, payload_data).unwrap();
-    let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
-    assert_eq!(
-        res,
-        Err(ModelError::MailboxCmdFailed(u32::from(
-            CaliptraError::DRIVER_PCR_BANK_EXTEND_INVALID_SIZE
-        )))
-    );
-
     // Invalid PCR index
-    let cmd = generate_mailbox_extend_pcr_req(33, payload_data.len(), payload_data).unwrap();
+    let cmd = generate_mailbox_extend_pcr_req(33, extension_data).unwrap();
     let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
     assert_eq!(
         res,
@@ -1036,12 +1011,8 @@ fn test_extend_pcr_cmd() {
     // Ensure reserved PCR range
     let reserved_pcrs = [PcrId::PcrId0, PcrId::PcrId1, PcrId::PcrId2, PcrId::PcrId3];
     for test_pcr_index_reserved in reserved_pcrs {
-        let cmd = generate_mailbox_extend_pcr_req(
-            test_pcr_index_reserved.into(),
-            payload_data.len(),
-            payload_data,
-        )
-        .unwrap();
+        let cmd = generate_mailbox_extend_pcr_req(test_pcr_index_reserved.into(), extension_data)
+            .unwrap();
 
         let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
         assert_eq!(

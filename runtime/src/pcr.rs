@@ -29,13 +29,9 @@ impl ExtendPcrCmd {
                 pcr_id => pcr_id,
             };
 
-        drivers.pcr_bank.extend_pcr(
-            pcr_index,
-            &mut drivers.sha384,
-            &cmd.data
-                .get(..cmd.data_size as usize)
-                .ok_or(CaliptraError::DRIVER_PCR_BANK_EXTEND_INVALID_SIZE)?,
-        )?;
+        drivers
+            .pcr_bank
+            .extend_pcr(pcr_index, &mut drivers.sha384, &cmd.data)?;
 
         Ok(MailboxResp::default())
     }
