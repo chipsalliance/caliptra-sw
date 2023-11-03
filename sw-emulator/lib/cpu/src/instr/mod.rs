@@ -42,6 +42,24 @@ pub enum Instr {
 }
 
 impl<TBus: Bus> Cpu<TBus> {
+    /// Skips the current instruction
+    pub fn skip_instr(&mut self) -> Result<(), RvException> {
+        let instr = self.fetch()?;
+
+        match instr {
+            Instr::Compressed(_) => {
+                self.set_next_pc(self.read_pc().wrapping_add(2));
+            }
+            Instr::General(_) => {
+                self.set_next_pc(self.read_pc().wrapping_add(4));
+            }
+        }
+
+        self.write_pc(self.next_pc());
+
+        Ok(())
+    }
+
     /// Execute single instruction
     ///
     /// # Arguments
@@ -60,19 +78,23 @@ impl<TBus: Bus> Cpu<TBus> {
         self.watch_ptr_cfg.hit = None;
 
         let instr = self.fetch()?;
+
         // Code coverage here.
         self.code_coverage.log_execution(self.read_pc(), &instr);
 
         match instr {
             Instr::Compressed(instr) => {
                 self.set_next_pc(self.read_pc().wrapping_add(2));
+
                 self.exec_instr16(instr, instr_tracer)?;
             }
             Instr::General(instr) => {
                 self.set_next_pc(self.read_pc().wrapping_add(4));
+
                 self.exec_instr32(instr, instr_tracer)?;
             }
         }
+
         self.write_pc(self.next_pc());
 
         self.is_execute_instr = false;

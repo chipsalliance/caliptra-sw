@@ -118,9 +118,9 @@ run: build-emu build-fw-image build-rom
 		run \
 		-p caliptra-emu \
 		-- \
+		$(TARGET_DIR)/caliptra-rom.bin \
 		--req-idevid-csr \
 		--idevid-key-id-algo sha1 \
-		--rom $(TARGET_DIR)/caliptra-rom.bin \
 		--firmware $(TARGET_DIR)/caliptra-rom-test-fw \
 		--device-lifecycle unprovisioned \
 
@@ -130,9 +130,9 @@ run-update: build-emu build-fw-image build-rom
 		run \
 		-p caliptra-emu \
 		-- \
+		$(TARGET_DIR)/caliptra-rom.bin \
 		--req-idevid-csr \
 		--idevid-key-id-algo sha1 \
-		--rom $(TARGET_DIR)/caliptra-rom.bin \
 		--firmware $(TARGET_DIR)/caliptra-rom-test-fw \
 		--update-firmware $(TARGET_DIR)/caliptra-rom-test-fw \
 		--device-lifecycle unprovisioned \

@@ -995,6 +995,22 @@ mod tests {
     }
 
     #[test]
+    fn test_glitching() {
+        let mut model = caliptra_hw_model::new(BootParams {
+            init_params: InitParams {
+                rom: &gen_image_hi(),
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .unwrap();
+
+        model.enable_glitching();
+
+        model.step_until_output("hii").unwrap();
+    }
+
+    #[test]
     fn test_mbox() {
         // Same as test_apb, but uses higher-level register interface
         let mut model = caliptra_hw_model::new_unbooted(InitParams {
