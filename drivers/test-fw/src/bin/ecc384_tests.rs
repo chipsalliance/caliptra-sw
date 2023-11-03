@@ -389,7 +389,9 @@ fn test_kv_seed_from_kv_msg_from_input() {
     let seed = [0u8; 48];
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
-        usage: KeyUsage::default().set_ecc_key_gen_seed_en(),
+        usage: KeyUsage::default()
+            .set_ecc_key_gen_seed_en()
+            .set_ecc_private_key_en(),
     };
     let result = ecc.key_pair(
         &Ecc384Seed::from(&Ecc384Scalar::from(seed)),
@@ -489,6 +491,32 @@ fn test_kv_seed_from_kv_msg_from_input() {
     assert_eq!(result.unwrap(), Ecc384Result::Success);
 }
 
+fn test_no_private_key_usage() {
+    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
+    let seed = [0u8; 48];
+    let key_out_1 = KeyWriteArgs {
+        id: KeyId::KeyId0,
+        // The caller needs to use set_ecc_private_key_en() here to prevent the error
+        usage: KeyUsage::default().set_ecc_key_gen_seed_en(),
+    };
+    let result = ecc.key_pair(
+        &Ecc384Seed::from(&Ecc384Scalar::from(seed)),
+        &Array4x12::default(),
+        &mut trng,
+        Ecc384PrivKeyOut::from(key_out_1),
+    );
+    assert_eq!(result, Err(CaliptraError::DRIVER_ECC384_KEYGEN_BAD_USAGE))
+}
+
 fn test_kat() {
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
     let mut trng = unsafe {
@@ -517,4 +545,5 @@ test_suite! {
     test_verify_failure,
     test_kv_seed_from_input_msg_from_input,
     test_kv_seed_from_kv_msg_from_input,
+    test_no_private_key_usage,
 }
