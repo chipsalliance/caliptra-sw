@@ -13,6 +13,8 @@ pub fn gen_memory_x(iccm_org: u32, iccm_size: u32) -> String {
         FMCALIAS_TBS_ORG = 0x{FMCALIAS_TBS_ORG:08X};;
         RTALIAS_TBS_ORG  = 0x{RTALIAS_TBS_ORG:08X};
 
+        CFI_STATE_ORG = 0x{CFI_STATE_ORG:08X};
+
         LDEVID_TBS_SIZE   = 0x{LDEVID_TBS_SIZE:08X};
         FMCALIAS_TBS_SIZE = 0x{FMCALIAS_TBS_SIZE:08X};
         RTALIAS_TBS_SIZE  = 0x{RTALIAS_TBS_SIZE:08X};

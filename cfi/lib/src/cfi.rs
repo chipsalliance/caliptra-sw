@@ -15,8 +15,9 @@ References:
 
 --*/
 
+use caliptra_error::CaliptraError;
+
 use crate::CfiCounter;
-use caliptra_drivers::CaliptraError;
 use core::cfg;
 use core::cmp::{Eq, Ord, PartialEq, PartialOrd};
 use core::marker::Copy;
