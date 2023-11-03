@@ -490,6 +490,9 @@ struct SocRegistersImpl {
     #[register(offset = 0x011c)]
     cptra_i_trng_entropy_config_1: u32,
 
+    #[register_array(offset = 0x0120)]
+    cptra_rsvd_reg: [u32; 2],
+
     #[register_array(offset = 0x0200)]
     fuse_uds_seed: [u32; FUSE_UDS_SEED_SIZE / 4],
 
@@ -697,6 +700,7 @@ impl SocRegistersImpl {
             cptra_wdt_status: ReadOnlyRegister::new(0),
             cptra_i_trng_entropy_config_0: 0,
             cptra_i_trng_entropy_config_1: 0,
+            cptra_rsvd_reg: Default::default(),
             op_wdt_timer1_expired_action: None,
             op_wdt_timer2_expired_action: None,
             etrng_responses: args.etrng_responses,
