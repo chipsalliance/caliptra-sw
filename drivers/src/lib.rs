@@ -50,7 +50,7 @@ mod trng_ext;
 
 pub use array::{Array4x12, Array4x4, Array4x5, Array4x8, Array4xN};
 pub use array_concat::array_concat3;
-pub use bounded_address::RomAddr;
+pub use bounded_address::{BoundedAddr, MemBounds, RomAddr};
 pub use caliptra_error::{CaliptraError, CaliptraResult};
 pub use csrng::{Csrng, HealthFailCounts as CsrngHealthFailCounts, Seed as CsrngSeed};
 pub use data_vault::{
@@ -81,12 +81,12 @@ pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};
 pub use persistent::{
     FuseLogArray, PcrLogArray, PersistentData, PersistentDataAccessor, StashMeasurementArray,
-    MEASUREMENT_MAX_COUNT,
+    FUSE_LOG_MAX_COUNT, MEASUREMENT_MAX_COUNT, PCR_LOG_MAX_COUNT,
 };
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
-pub use sha256::{Sha256, Sha256DigestOp};
+pub use sha256::{Sha256, Sha256Alg, Sha256DigestOp};
 pub use sha384::{Sha384, Sha384Digest, Sha384DigestOp};
-pub use sha384acc::{Sha384Acc, Sha384AccOp};
+pub use sha384acc::{Sha384Acc, Sha384AccOp, ShaAccLockState};
 pub use soc_ifc::{report_boot_status, Lifecycle, MfgFlags, ResetReason, SocIfc};
 pub use trng::Trng;
 

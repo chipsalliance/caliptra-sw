@@ -1,22 +1,22 @@
 // Licensed under the Apache-2.0 license
 
 use crate::bus_logger::{BusLogger, LogFile, NullBus};
+use crate::trace_path_or_env;
 use crate::EtrngResponse;
 use crate::{HwModel, TrngMode};
 use caliptra_emu_bus::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::ErrorInjectionMode;
 use caliptra_verilated::{AhbTxnType, CaliptraVerilated};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
+use std::ffi::OsStr;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use crate::Output;
-use std::env;
 
-// TODO: Make this configurable
-const SOC_PAUSER: u32 = 0xffff_ffff;
+const DEFAULT_APB_PAUSER: u32 = 0x1;
 
 // How many clock cycles before emitting a TRNG nibble
 const TRNG_DELAY: u32 = 4;
@@ -29,7 +29,7 @@ impl<'a> Bus for VerilatedApbBus<'a> {
         if addr & 0x3 != 0 {
             return Err(caliptra_emu_bus::BusError::LoadAddrMisaligned);
         }
-        let result = Ok(self.model.v.apb_read_u32(SOC_PAUSER, addr));
+        let result = Ok(self.model.v.apb_read_u32(self.model.soc_apb_pauser, addr));
         self.model
             .log
             .borrow_mut()
@@ -50,7 +50,9 @@ impl<'a> Bus for VerilatedApbBus<'a> {
         if size != RvSize::Word {
             return Err(caliptra_emu_bus::BusError::StoreAccessFault);
         }
-        self.model.v.apb_write_u32(SOC_PAUSER, addr, val);
+        self.model
+            .v
+            .apb_write_u32(self.model.soc_apb_pauser, addr, val);
         self.model
             .log
             .borrow_mut()
@@ -71,6 +73,7 @@ pub struct ModelVerilated {
 
     output: Output,
     trace_enabled: bool,
+    trace_path: Option<PathBuf>,
 
     trng_mode: TrngMode,
 
@@ -82,6 +85,8 @@ pub struct ModelVerilated {
     etrng_waiting_for_req_to_clear: bool,
 
     log: Rc<RefCell<BusLogger<NullBus>>>,
+
+    soc_apb_pauser: u32,
 }
 
 impl ModelVerilated {
@@ -113,10 +118,22 @@ impl crate::HwModel for ModelVerilated {
 
         let output_sink = output.sink().clone();
 
-        let generic_load_cb = Box::new(move |v: &CaliptraVerilated, ch: u8| {
-            output_sink.set_now(v.total_cycles());
-            output_sink.push_uart_char(ch);
-        });
+        let generic_output_wires_changed_cb = {
+            let prev_uout = Cell::new(None);
+            Box::new(move |v: &CaliptraVerilated, out_wires| {
+                if Some(out_wires & 0x1ff) != prev_uout.get() {
+                    // bit #8 toggles whenever the Uart driver writes a byte, so
+                    // by including it in the comparison we can tell when the
+                    // same character has been written a second time
+                    if prev_uout.get().is_some() {
+                        // Don't print out a character for the initial state
+                        output_sink.set_now(v.total_cycles());
+                        output_sink.push_uart_char((out_wires & 0xff) as u8);
+                    }
+                    prev_uout.set(Some(out_wires & 0x1ff));
+                }
+            })
+        };
 
         let log = Rc::new(RefCell::new(BusLogger::new(NullBus())));
         let bus_log = log.clone();
@@ -177,7 +194,7 @@ impl crate::HwModel for ModelVerilated {
                 security_state: u32::from(params.security_state),
                 cptra_obf_key: params.cptra_obf_key,
             },
-            generic_load_cb,
+            generic_output_wires_changed_cb,
             ahb_cb,
         );
 
@@ -187,6 +204,7 @@ impl crate::HwModel for ModelVerilated {
             v,
             output,
             trace_enabled: false,
+            trace_path: trace_path_or_env(params.trace_path),
 
             trng_mode: desired_trng_mode,
 
@@ -198,6 +216,8 @@ impl crate::HwModel for ModelVerilated {
             etrng_waiting_for_req_to_clear: false,
 
             log,
+
+            soc_apb_pauser: DEFAULT_APB_PAUSER,
         };
 
         m.tracing_hint(true);
@@ -252,9 +272,9 @@ impl crate::HwModel for ModelVerilated {
         if self.trace_enabled != enable {
             self.trace_enabled = enable;
             if enable {
-                if let Ok(trace_path) = env::var("CPTRA_TRACE_PATH") {
-                    if trace_path.ends_with(".vcd") {
-                        self.v.start_tracing(&trace_path, 99).ok();
+                if let Some(trace_path) = &self.trace_path {
+                    if trace_path.extension() == Some(OsStr::new("vcd")) {
+                        self.v.start_tracing(trace_path.to_str().unwrap(), 99).ok();
                     } else {
                         self.log.borrow_mut().log = match LogFile::open(Path::new(&trace_path)) {
                             Ok(file) => Some(file),
@@ -285,6 +305,10 @@ impl crate::HwModel for ModelVerilated {
                 self.v.input.sram_error_injection_mode = 0x8;
             }
         }
+    }
+
+    fn set_apb_pauser(&mut self, pauser: u32) {
+        self.soc_apb_pauser = pauser;
     }
 }
 impl ModelVerilated {

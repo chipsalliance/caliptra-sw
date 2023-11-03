@@ -19,10 +19,12 @@ ENTRY(_start)
 ROM_ORG          = 0x00000000;
 ICCM_ORG         = 0x40000000;
 DCCM_ORG         = 0x50000000;
-DATA_ORG         = 0x50004C00;
+DATA_ORG         = 0x50000000;
 STACK_ORG        = 0x5001C000;
 ESTACK_ORG       = 0x5001F800;
 NSTACK_ORG       = 0x5001FC00;
+
+CFI_STATE_ORG      = 0x500003E4;
 
 /* Workaround https://github.com/llvm/llvm-project/issues/62423
  * by allowing lld to exceed the ROM size before relaxation optimizations are
@@ -33,7 +35,7 @@ ROM_RELAXATION_PADDING = 4k;
 ROM_SIZE          = 48K;
 ICCM_SIZE         = 128K;
 DCCM_SIZE         = 128K;
-DATA_SIZE         = 93K;
+DATA_SIZE         = 996;
 STACK_SIZE        = 14K;
 ESTACK_SIZE       = 1K;
 NSTACK_SIZE       = 1K;
@@ -71,9 +73,6 @@ SECTIONS
 
     	. = ALIGN(4);
         _erodata = .;
-
-    	. = ALIGN(64);
-    	CALIPTRA_ROM_INFO = .;
 	} > ROM
 
 	.data : ALIGN(4)
@@ -90,6 +89,11 @@ SECTIONS
 		. = ALIGN(4);
 	    _edata = .;
 	} > DATA AT> ROM
+
+	.rom_info : ALIGN(64)
+	{
+		CALIPTRA_ROM_INFO = .;
+	} > ROM
 
 	.bss (NOLOAD) : ALIGN(4) 
     {

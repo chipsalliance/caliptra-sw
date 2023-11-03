@@ -16,12 +16,13 @@ Abstract:
 
 use core::mem::MaybeUninit;
 
-use crate::{Array4x8, CaliptraResult, Sha256};
+use crate::{sha256::Sha256Alg, Array4x8, CaliptraResult, Sha256, Sha256DigestOp};
 use caliptra_error::CaliptraError;
 use caliptra_lms_types::{
     LmotsAlgorithmType, LmsAlgorithmType, LmsIdentifier, LmsPublicKey, LmsSignature,
 };
 use zerocopy::{AsBytes, LittleEndian, U32};
+use zeroize::Zeroize;
 
 pub const D_PBLC: u16 = 0x8080;
 pub const D_MESG: u16 = 0x8181;
@@ -283,7 +284,7 @@ impl Lms {
 
     pub fn hash_message<const N: usize>(
         &self,
-        sha256_driver: &mut Sha256,
+        sha256_driver: &mut impl Sha256Alg,
         message: &[u8],
         lms_identifier: &LmsIdentifier,
         q: &[u8; 4],
@@ -302,7 +303,7 @@ impl Lms {
 
     pub fn candidate_ots_signature<const N: usize, const P: usize>(
         &self,
-        sha256_driver: &mut Sha256,
+        sha256_driver: &mut impl Sha256Alg,
         lms_identifier: &LmsIdentifier,
         algo_type: LmotsAlgorithmType,
         q: &[u8; 4],
@@ -373,7 +374,7 @@ impl Lms {
         }
         hasher.finalize(&mut digest)?;
         let result = HashValue::<N>::from(digest);
-        digest.0.fill(0);
+        digest.0.zeroize();
         Ok(result)
     }
 
@@ -393,7 +394,7 @@ impl Lms {
         } else {
             Ok(LmsResult::Success)
         };
-        candidate_key.0.fill(0);
+        candidate_key.0.zeroize();
         result
     }
 
@@ -401,7 +402,7 @@ impl Lms {
     ///        If glitch protection is needed, use `verify_lms_signature_cfi_generic` instead.
     pub fn verify_lms_signature_generic<const N: usize, const P: usize, const H: usize>(
         &self,
-        sha256_driver: &mut Sha256,
+        sha256_driver: &mut impl Sha256Alg,
         input_string: &[u8],
         lms_public_key: &LmsPublicKey<N>,
         lms_sig: &LmsSignature<N, P, H>,
@@ -417,7 +418,7 @@ impl Lms {
         } else {
             Ok(LmsResult::Success)
         };
-        candidate_key.0.fill(0);
+        candidate_key.0.zeroize();
         result
     }
 
@@ -442,7 +443,7 @@ impl Lms {
     #[inline(always)]
     pub fn verify_lms_signature_cfi_generic<const N: usize, const P: usize, const H: usize>(
         &self,
-        sha256_driver: &mut Sha256,
+        sha256_driver: &mut impl Sha256Alg,
         input_string: &[u8],
         lms_public_key: &LmsPublicKey<N>,
         lms_sig: &LmsSignature<N, P, H>,
@@ -453,9 +454,17 @@ impl Lms {
 
         let q_str = <[u8; 4]>::from(lms_sig.q);
         let (_, tree_height) = get_lms_parameters(lms_sig.tree_type)?;
+        // Make sure the height of the tree matches the value of H this was compiled with
+        if tree_height as usize != H {
+            return Err(CaliptraError::DRIVER_LMS_INVALID_TREE_HEIGHT);
+        }
+        // Make sure the value of Q is valid for the tree height
+        if lms_sig.q.get() >= 1 << H {
+            return Err(CaliptraError::DRIVER_LMS_INVALID_Q_VALUE);
+        }
         let mut node_num: u32 = (1 << tree_height) + lms_sig.q.get();
-        if node_num > 2 << tree_height {
-            return Err(CaliptraError::DRIVER_LMS_INVALID_PVALUE);
+        if node_num >= 2 << tree_height {
+            return Err(CaliptraError::DRIVER_LMS_INVALID_Q_VALUE);
         }
         let message_digest = self.hash_message(
             sha256_driver,
@@ -524,9 +533,9 @@ impl Lms {
             temp = HashValue::<N>::from(digest);
             node_num /= 2;
             i += 1;
-            digest.0.fill(0);
+            digest.0.zeroize();
         }
-        digest.0.fill(0);
+        digest.0.zeroize();
         Ok(temp)
     }
 }

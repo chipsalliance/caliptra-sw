@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::{
     error::Error,
@@ -7,7 +8,7 @@ use std::{
     io::{ErrorKind, Write},
 };
 
-use caliptra_common::mailbox_api;
+use caliptra_api as api;
 use caliptra_emu_bus::Bus;
 use caliptra_hw_model_types::{
     ErrorInjectionMode, EtrngResponse, RandomEtrngResponses, RandomNibbles, DEFAULT_CPTRA_OBF_KEY,
@@ -135,16 +136,20 @@ pub struct InitParams<'a> {
 
     // 4-bit nibbles of raw entropy to feed into the internal TRNG (ENTROPY_SRC
     // peripheral).
-    pub itrng_nibbles: Box<dyn Iterator<Item = u8>>,
+    pub itrng_nibbles: Box<dyn Iterator<Item = u8> + Send>,
 
     // Pre-conditioned TRNG responses to return over the soc_ifc CPTRA_TRNG_DATA
     // registers in response to requests via CPTRA_TRNG_STATUS
-    pub etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
+    pub etrng_responses: Box<dyn Iterator<Item = EtrngResponse> + Send>,
 
     // When None, use the itrng compile-time feature to decide which mode to use.
     pub trng_mode: Option<TrngMode>,
 
     pub wdt_timeout_cycles: u64,
+
+    // A trace path to use. If None, the CPTRA_TRACE_PATH environment variable
+    // will be used
+    pub trace_path: Option<PathBuf>,
 }
 
 impl<'a> Default for InitParams<'a> {
@@ -152,16 +157,17 @@ impl<'a> Default for InitParams<'a> {
         let seed = std::env::var("CPTRA_TRNG_SEED")
             .ok()
             .and_then(|s| u64::from_str(&s).ok());
-        let itrng_nibbles: Box<dyn Iterator<Item = u8>> = if let Some(seed) = seed {
+        let itrng_nibbles: Box<dyn Iterator<Item = u8> + Send> = if let Some(seed) = seed {
             Box::new(RandomNibbles(StdRng::seed_from_u64(seed)))
         } else {
-            Box::new(RandomNibbles(rand::thread_rng()))
+            Box::new(RandomNibbles(StdRng::from_entropy()))
         };
-        let etrng_responses: Box<dyn Iterator<Item = EtrngResponse>> = if let Some(seed) = seed {
-            Box::new(RandomEtrngResponses(StdRng::seed_from_u64(seed)))
-        } else {
-            Box::new(RandomEtrngResponses::new_from_thread_rng())
-        };
+        let etrng_responses: Box<dyn Iterator<Item = EtrngResponse> + Send> =
+            if let Some(seed) = seed {
+                Box::new(RandomEtrngResponses(StdRng::seed_from_u64(seed)))
+            } else {
+                Box::new(RandomEtrngResponses::new_from_stdrng())
+            };
         Self {
             rom: Default::default(),
             dccm: Default::default(),
@@ -174,11 +180,18 @@ impl<'a> Default for InitParams<'a> {
             etrng_responses,
             trng_mode: Default::default(),
             wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
+            trace_path: None,
         }
     }
 }
 
-#[derive(Default)]
+fn trace_path_or_env(trace_path: Option<PathBuf>) -> Option<PathBuf> {
+    if let Some(trace_path) = trace_path {
+        return Some(trace_path);
+    }
+    std::env::var("CPTRA_TRACE_PATH").ok().map(PathBuf::from)
+}
+
 pub struct BootParams<'a> {
     pub init_params: InitParams<'a>,
     pub fuses: Fuses,
@@ -186,6 +199,21 @@ pub struct BootParams<'a> {
     pub initial_dbg_manuf_service_reg: u32,
     pub initial_repcnt_thresh_reg: Option<CptraItrngEntropyConfig1WriteVal>,
     pub initial_adaptp_thresh_reg: Option<CptraItrngEntropyConfig0WriteVal>,
+    pub valid_pauser: u32,
+}
+
+impl<'a> Default for BootParams<'a> {
+    fn default() -> Self {
+        Self {
+            init_params: Default::default(),
+            fuses: Default::default(),
+            fw_image: Default::default(),
+            initial_dbg_manuf_service_reg: Default::default(),
+            initial_repcnt_thresh_reg: Default::default(),
+            initial_adaptp_thresh_reg: Default::default(),
+            valid_pauser: 0x1,
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -202,6 +230,7 @@ pub enum ModelError {
     UnexpectedMailboxFsmStatus { expected: u32, actual: u32 },
     UnableToLockSha512Acc,
     UploadMeasurementResponseError,
+    UnableToReadMailbox,
 }
 impl Error for ModelError {}
 impl Display for ModelError {
@@ -232,6 +261,7 @@ impl Display for ModelError {
             ModelError::UploadMeasurementResponseError => {
                 write!(f, "Error in response after uploading measurement")
             }
+            ModelError::UnableToReadMailbox => write!(f, "Unable to read mailbox regs"),
         }
     }
 }
@@ -275,13 +305,6 @@ impl<'a, Model: HwModel> MailboxRecvTxn<'a, Model> {
         // mbox_fsm_ps isn't updated immediately after execute is cleared (!?),
         // so step an extra clock cycle to wait for fm_ps to update
         self.model.step();
-        assert!(self
-            .model
-            .soc_mbox()
-            .status()
-            .read()
-            .mbox_fsm_ps()
-            .mbox_execute_uc());
     }
 }
 
@@ -384,6 +407,16 @@ pub trait HwModel {
         if let Some(reg) = run_params.initial_adaptp_thresh_reg {
             hw.soc_ifc().cptra_i_trng_entropy_config_0().write(|_| reg);
         }
+
+        // Set up the PAUSER as valid for the mailbox (using index 0)
+        hw.soc_ifc()
+            .cptra_mbox_valid_pauser()
+            .at(0)
+            .write(|_| run_params.valid_pauser);
+        hw.soc_ifc()
+            .cptra_mbox_pauser_lock()
+            .at(0)
+            .write(|w| w.lock(true));
 
         writeln!(hw.output().logger(), "writing to cptra_bootfsm_go")?;
         hw.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
@@ -527,7 +560,7 @@ pub trait HwModel {
         }
     }
 
-    /// Execute until the output contains `expected_output`.
+    /// Execute until the output ends with `expected_output`
     fn step_until_output(&mut self, expected_output: &str) -> Result<(), Box<dyn Error>> {
         self.step_until(|m| m.output().peek().len() >= expected_output.len());
         if &self.output().peek()[..expected_output.len()] != expected_output {
@@ -541,6 +574,12 @@ pub trait HwModel {
         Ok(())
     }
 
+    // Execute (at least) until the output provided substr is written to the
+    // output. Additional data may be present in the output after the provided
+    // substr, which often happens with the fpga_realtime hardware model.
+    //
+    // This function will not match any data in the output that was written
+    // before this function was called.
     fn step_until_output_contains(&mut self, substr: &str) -> Result<(), Box<dyn Error>> {
         self.output().set_search_term(substr);
         self.step_until(|m| m.output().search_matched());
@@ -661,6 +700,8 @@ pub trait HwModel {
 
     fn ecc_error_injection(&mut self, _mode: ErrorInjectionMode) {}
 
+    fn set_apb_pauser(&mut self, pauser: u32);
+
     /// Executes `cmd` with request data `buf`. Returns `Ok(Some(_))` if
     /// the uC responded with data, `Ok(None)` if the uC indicated success
     /// without data, Err(ModelError::MailboxCmdFailed) if the microcontroller
@@ -671,8 +712,25 @@ pub trait HwModel {
         cmd: u32,
         buf: &[u8],
     ) -> std::result::Result<Option<Vec<u8>>, ModelError> {
+        self.start_mailbox_execute(cmd, buf)?;
+        self.finish_mailbox_execute()
+    }
+
+    /// Send a command to the mailbox but don't wait for the response
+    fn start_mailbox_execute(
+        &mut self,
+        cmd: u32,
+        buf: &[u8],
+    ) -> std::result::Result<(), ModelError> {
+        // Read a 0 to get the lock
         if self.soc_mbox().lock().read().lock() {
             return Err(ModelError::UnableToLockMailbox);
+        }
+
+        // Mailbox lock value should read 1 now
+        // If not, the reads are likely being blocked by the PAUSER check or some other issue
+        if !(self.soc_mbox().lock().read().lock()) {
+            return Err(ModelError::UnableToReadMailbox);
         }
 
         writeln!(
@@ -688,6 +746,11 @@ pub trait HwModel {
         // Ask the microcontroller to execute this command
         self.soc_mbox().execute().write(|w| w.execute(true));
 
+        Ok(())
+    }
+
+    /// Wait for the response to a previous call to `start_mailbox_execute()`.
+    fn finish_mailbox_execute(&mut self) -> std::result::Result<Option<Vec<u8>>, ModelError> {
         // Wait for the microcontroller to finish executing
         while self.soc_mbox().status().read().status().cmd_busy() {
             self.step();
@@ -723,10 +786,18 @@ pub trait HwModel {
         let result = mbox_read_fifo(self.soc_mbox());
 
         self.soc_mbox().execute().write(|w| w.execute(false));
-        // mbox_fsm_ps isn't updated immediately after execute is cleared (!?),
-        // so step an extra clock cycle to wait for fm_ps to update
-        self.step();
-        assert!(self.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+
+        if cfg!(not(feature = "fpga_realtime")) {
+            // Don't check for mbox_idle() unless the hw-model supports
+            // fine-grained timing control; the firmware may proceed to lock the
+            // mailbox shortly after the mailbox transcation finishes (for example, to
+            // test the sha384_acc peripheral).
+
+            // mbox_fsm_ps isn't updated immediately after execute is cleared (!?),
+            // so step an extra clock cycle to wait for fm_ps to update
+            self.step();
+            assert!(self.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+        }
         Ok(Some(result))
     }
 
@@ -839,19 +910,19 @@ pub trait HwModel {
         let response = response.ok_or(ModelError::UploadMeasurementResponseError)?;
 
         // Get response as a response header struct
-        let response = mailbox_api::MailboxRespHeader::read_from(response.as_slice())
+        let response = api::mailbox::StashMeasurementResp::read_from(response.as_slice())
             .ok_or(ModelError::UploadMeasurementResponseError)?;
 
         // Verify checksum and FIPS status
-        if !caliptra_common::checksum::verify_checksum(
-            response.chksum,
+        if !api::verify_checksum(
+            response.hdr.chksum,
             0x0,
-            &response.as_bytes()[core::mem::size_of_val(&response.chksum)..],
+            &response.as_bytes()[core::mem::size_of_val(&response.hdr.chksum)..],
         ) {
             return Err(ModelError::UploadMeasurementResponseError);
         }
 
-        if response.fips_status != mailbox_api::MailboxRespHeader::FIPS_STATUS_APPROVED {
+        if response.hdr.fips_status != api::mailbox::MailboxRespHeader::FIPS_STATUS_APPROVED {
             return Err(ModelError::UploadMeasurementResponseError);
         }
 
@@ -862,7 +933,7 @@ pub trait HwModel {
 #[cfg(test)]
 mod tests {
     use crate::{mmio::Rv32GenMmio, BootParams, HwModel, InitParams, ModelError, ShaAccMode};
-    use caliptra_builder::FwId;
+    use caliptra_builder::firmware;
     use caliptra_emu_bus::Bus;
     use caliptra_emu_types::RvSize;
     use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc};
@@ -885,6 +956,10 @@ mod tests {
             .cptra_generic_output_wires()
             .at(0)
             .write(|_| b'i'.into());
+        soc_ifc
+            .cptra_generic_output_wires()
+            .at(0)
+            .write(|_| 0x100 | u32::from(b'i'));
         soc_ifc.cptra_generic_output_wires().at(0).write(|_| 0xff);
         rv32_gen.build()
     }
@@ -899,6 +974,18 @@ mod tests {
 
         model.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
         model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+
+        // Set up the PAUSER as valid for the mailbox (using index 0)
+        model
+            .soc_ifc()
+            .cptra_mbox_valid_pauser()
+            .at(0)
+            .write(|_| 0x1);
+        model
+            .soc_ifc()
+            .cptra_mbox_pauser_lock()
+            .at(0)
+            .write(|w| w.lock(true));
 
         assert_eq!(
             model.apb_bus().read(RvSize::Word, MBOX_ADDR_LOCK).unwrap(),
@@ -932,6 +1019,18 @@ mod tests {
         model.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
         model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
+        // Set up the PAUSER as valid for the mailbox (using index 0)
+        model
+            .soc_ifc()
+            .cptra_mbox_valid_pauser()
+            .at(0)
+            .write(|_| 0x1);
+        model
+            .soc_ifc()
+            .cptra_mbox_pauser_lock()
+            .at(0)
+            .write(|w| w.lock(true));
+
         assert!(!model.soc_mbox().lock().read().lock());
         assert!(model.soc_mbox().lock().read().lock());
 
@@ -951,6 +1050,18 @@ mod tests {
         model.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
         model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
+        // Set up the PAUSER as valid for the mailbox (using index 0)
+        model
+            .soc_ifc()
+            .cptra_mbox_valid_pauser()
+            .at(0)
+            .write(|_| 0x1);
+        model
+            .soc_ifc()
+            .cptra_mbox_pauser_lock()
+            .at(0)
+            .write(|w| w.lock(true));
+
         assert!(!model.soc_mbox().lock().read().lock());
         assert!(model.soc_mbox().lock().read().lock());
 
@@ -966,6 +1077,52 @@ mod tests {
     }
 
     #[test]
+    // Currently only possible on verilator
+    // SW emulator does not support pauser
+    // For FPGA, test case needs to be reworked to capture SIGBUS from linux environment
+    #[cfg(feature = "verilator")]
+    fn test_mbox_pauser() {
+        let mut model = caliptra_hw_model::new_unbooted(InitParams {
+            rom: &gen_image_hi(),
+            ..Default::default()
+        })
+        .unwrap();
+
+        model.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
+        model.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+
+        // Set up the PAUSER as valid for the mailbox (using index 0)
+        model
+            .soc_ifc()
+            .cptra_mbox_valid_pauser()
+            .at(0)
+            .write(|_| 0x1);
+        model
+            .soc_ifc()
+            .cptra_mbox_pauser_lock()
+            .at(0)
+            .write(|w| w.lock(true));
+
+        // Set the PAUSER to something invalid
+        model.set_apb_pauser(0x2);
+
+        assert!(!model.soc_mbox().lock().read().lock());
+        // Should continue to read 0 because the reads are being blocked by valid PAUSER
+        assert!(!model.soc_mbox().lock().read().lock());
+
+        // Set the PAUSER back to valid
+        model.set_apb_pauser(0x1);
+
+        // Should read 0 the first time still for lock available
+        assert!(!model.soc_mbox().lock().read().lock());
+        // Should read 1 now for lock taken
+        assert!(model.soc_mbox().lock().read().lock());
+
+        model.soc_mbox().cmd().write(|_| 4242);
+        assert_eq!(model.soc_mbox().cmd().read(), 4242);
+    }
+
+    #[test]
     fn test_execution() {
         let mut model = caliptra_hw_model::new(BootParams {
             init_params: InitParams {
@@ -975,7 +1132,7 @@ mod tests {
             ..Default::default()
         })
         .unwrap();
-        model.step_until_output("hi").unwrap();
+        model.step_until_output("hii").unwrap();
     }
 
     #[test]
@@ -998,13 +1155,9 @@ mod tests {
     pub fn test_mailbox_execute() {
         let message: [u8; 10] = [0x90, 0x5e, 0x1f, 0xad, 0x8b, 0x60, 0xb0, 0xbf, 0x1c, 0x7e];
 
-        let rom = caliptra_builder::build_firmware_rom(&FwId {
-            crate_name: "caliptra-hw-model-test-fw",
-            bin_name: "mailbox_responder",
-            features: &["emu"],
-            ..Default::default()
-        })
-        .unwrap();
+        let rom =
+            caliptra_builder::build_firmware_rom(&firmware::hw_model_tests::MAILBOX_RESPONDER)
+                .unwrap();
 
         let mut model = caliptra_hw_model::new(BootParams {
             init_params: InitParams {
@@ -1058,13 +1211,8 @@ mod tests {
 
     #[test]
     pub fn test_mailbox_receive() {
-        let rom = caliptra_builder::build_firmware_rom(&FwId {
-            crate_name: "caliptra-hw-model-test-fw",
-            bin_name: "mailbox_sender",
-            features: &["emu"],
-            ..Default::default()
-        })
-        .unwrap();
+        let rom = caliptra_builder::build_firmware_rom(&firmware::hw_model_tests::MAILBOX_SENDER)
+            .unwrap();
 
         let mut model = caliptra_hw_model::new(BootParams {
             init_params: InitParams {
@@ -1111,13 +1259,9 @@ mod tests {
 
     #[test]
     fn test_sha512_acc() {
-        let rom = caliptra_builder::build_firmware_rom(&FwId {
-            crate_name: "caliptra-hw-model-test-fw",
-            bin_name: "mailbox_responder",
-            features: &["emu"],
-            ..Default::default()
-        })
-        .unwrap();
+        let rom =
+            caliptra_builder::build_firmware_rom(&firmware::hw_model_tests::MAILBOX_RESPONDER)
+                .unwrap();
 
         let mut model = caliptra_hw_model::new(BootParams {
             init_params: InitParams {

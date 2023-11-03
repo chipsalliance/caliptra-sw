@@ -5,7 +5,10 @@ AR=$(CROSS_COMPILE)ar
 
 ifneq ($(MAKECMDGOALS),clean)
 ifndef RTL_SOC_IFC_INCLUDE_PATH
-$(error RTL_SOC_IFC_INCLUDE_PATH must be defined and point to a location where caliptra_top_reg.h can be found)
+RTL_SOC_IFC_INCLUDE_PATH ?= ../hw-latest/caliptra-rtl/src/soc_ifc/rtl
+
+$(warning RTL_SOC_IFC_INCLUDE_PATH must be defined and point to a location where caliptra_top_reg.h can be found)
+$(warning Defaulting to $(RTL_SOC_IFC_INCLUDE_PATH))
 endif
 endif
 

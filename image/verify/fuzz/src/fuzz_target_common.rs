@@ -10,7 +10,7 @@ use caliptra_image_verify::*;
 use core::ops::Range;
 
 #[cfg(feature = "struct-aware")]
-const IMAGE_BUNDLE_SIZE: u32 = 23692;
+const IMAGE_BUNDLE_SIZE: u32 = 131072;
 
 /*
  * NOTE: Copied from image/verify/src/verifier.rs, unable to import.
@@ -105,7 +105,11 @@ impl ImageVerificationEnv for TestEnv {
         self.lifecycle
     }
 
-    fn vendor_pub_key_idx_dv(&self) -> u32 {
+    fn vendor_ecc_pub_key_idx_dv(&self) -> u32 {
+        0
+    }
+
+    fn vendor_lms_pub_key_idx_dv(&self) -> u32 {
         0
     }
 
@@ -135,6 +139,8 @@ impl ImageVerificationEnv for TestEnv {
     fn lms_verify_enabled(&self) -> bool {
         true
     }
+
+    fn set_fw_extended_error(&mut self, _err: u32) {}
 }
 
 #[cfg(feature = "struct-aware")]

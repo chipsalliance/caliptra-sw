@@ -3,17 +3,27 @@
 use core::{marker::PhantomData, mem::size_of, ptr::addr_of};
 
 use caliptra_image_types::ImageManifest;
+#[cfg(feature = "runtime")]
+use dpe::DpeInstance;
 use zerocopy::{AsBytes, FromBytes};
+use zeroize::Zeroize;
 
-use crate::{fuse_log::FuseLogEntry, memory_layout, pcr_log::PcrLogEntry, FirmwareHandoffTable};
+use crate::{
+    fuse_log::FuseLogEntry,
+    memory_layout,
+    pcr_log::{MeasurementLogEntry, PcrLogEntry},
+    FirmwareHandoffTable,
+};
 
-pub const MEASUREMENT_MAX_COUNT: u32 = 8;
+pub const PCR_LOG_MAX_COUNT: usize = 17;
+pub const FUSE_LOG_MAX_COUNT: usize = 62;
+pub const MEASUREMENT_MAX_COUNT: usize = 8;
 
-pub type PcrLogArray = [PcrLogEntry; 17];
-pub type FuseLogArray = [FuseLogEntry; 62];
-pub type StashMeasurementArray = [PcrLogEntry; MEASUREMENT_MAX_COUNT as usize];
+pub type PcrLogArray = [PcrLogEntry; PCR_LOG_MAX_COUNT];
+pub type FuseLogArray = [FuseLogEntry; FUSE_LOG_MAX_COUNT];
+pub type StashMeasurementArray = [MeasurementLogEntry; MEASUREMENT_MAX_COUNT];
 
-#[derive(FromBytes, AsBytes)]
+#[derive(FromBytes, AsBytes, Zeroize)]
 #[repr(C)]
 pub struct PersistentData {
     pub manifest1: ImageManifest,
@@ -32,17 +42,25 @@ pub struct PersistentData {
     pub rtalias_tbs: [u8; memory_layout::RTALIAS_TBS_SIZE as usize],
 
     pub pcr_log: PcrLogArray,
-    reserved3: [u8; 4],
+    reserved3: [u8; memory_layout::PCR_LOG_SIZE as usize - size_of::<PcrLogArray>()],
 
     pub measurement_log: StashMeasurementArray,
-    reserved4: [u8; 544],
+    reserved4:
+        [u8; memory_layout::MEASUREMENT_LOG_SIZE as usize - size_of::<StashMeasurementArray>()],
 
     pub fuse_log: FuseLogArray,
-    reserved5: [u8; 32],
+    reserved5: [u8; memory_layout::FUSE_LOG_SIZE as usize - size_of::<FuseLogArray>()],
+
+    #[cfg(feature = "runtime")]
+    pub dpe: DpeInstance,
+    #[cfg(feature = "runtime")]
+    reserved6: [u8; memory_layout::DPE_SIZE as usize - size_of::<DpeInstance>()],
+    #[cfg(not(feature = "runtime"))]
+    dpe: [u8; memory_layout::DPE_SIZE as usize],
 }
 impl PersistentData {
     pub fn assert_matches_layout() {
-        const P: *const PersistentData = memory_layout::DCCM_ORG as *const PersistentData;
+        const P: *const PersistentData = memory_layout::MAN1_ORG as *const PersistentData;
         use memory_layout as layout;
         unsafe {
             assert_eq!(addr_of!((*P).manifest1) as u32, layout::MAN1_ORG);
@@ -57,12 +75,12 @@ impl PersistentData {
                 memory_layout::MEASUREMENT_LOG_ORG
             );
             assert_eq!(addr_of!((*P).fuse_log) as u32, memory_layout::FUSE_LOG_ORG);
-            assert_eq!(P.add(1) as u32, memory_layout::BOOT_STATUS_ORG);
+            assert_eq!(addr_of!((*P).dpe) as u32, memory_layout::DPE_ORG);
+            assert_eq!(
+                P.add(1) as u32,
+                memory_layout::DPE_ORG + memory_layout::DPE_SIZE
+            );
         }
-    }
-
-    pub fn zeroize(&mut self) {
-        self.as_bytes_mut().fill(0);
     }
 }
 
@@ -90,7 +108,7 @@ impl PersistentDataAccessor {
     pub fn get(&self) -> &PersistentData {
         // WARNING: The returned lifetime elided from `self` is critical for
         // safety. Do not change this API without review by a Rust expert.
-        unsafe { ref_from_addr(memory_layout::DCCM_ORG) }
+        unsafe { ref_from_addr(memory_layout::MAN1_ORG) }
     }
 
     /// # Safety
@@ -101,7 +119,7 @@ impl PersistentDataAccessor {
     pub fn get_mut(&mut self) -> &mut PersistentData {
         // WARNING: The returned lifetime elided from `self` is critical for
         // safety. Do not change this API without review by a Rust expert.
-        unsafe { ref_mut_from_addr(memory_layout::DCCM_ORG) }
+        unsafe { ref_mut_from_addr(memory_layout::MAN1_ORG) }
     }
 }
 

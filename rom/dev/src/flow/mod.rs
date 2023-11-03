@@ -22,7 +22,6 @@ use crate::cprintln;
 use crate::{handle_fatal_error, rom_env::RomEnv};
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_cfi_lib::cfi_assert_eq;
-use caliptra_common::FirmwareHandoffTable;
 use caliptra_drivers::{CaliptraResult, ResetReason};
 use caliptra_error::CaliptraError;
 
@@ -32,7 +31,7 @@ use caliptra_error::CaliptraError;
 ///
 /// * `env` - ROM Environment
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
-pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
+pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
     let reset_reason = env.soc_ifc.reset_reason();
 
     if cfg!(not(feature = "fake-rom")) {
@@ -62,8 +61,7 @@ pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
             }
         }
     } else {
-        let _result: CaliptraResult<Option<FirmwareHandoffTable>> =
-            Err(CaliptraError::ROM_GLOBAL_PANIC);
+        let _result: CaliptraResult<()> = Err(CaliptraError::ROM_GLOBAL_PANIC);
 
         if env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production {
             cprintln!("Fake ROM in Production lifecycle prohibited");

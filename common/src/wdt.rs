@@ -15,8 +15,6 @@ Abstract:
 
 use caliptra_drivers::SocIfc;
 
-use crate::cprintln;
-
 pub struct WdtTimeout(pub core::num::NonZeroU64);
 
 impl Default for WdtTimeout {
@@ -65,6 +63,10 @@ const WDT1_MIN_TIMEOUT_IN_CYCLES: u64 = EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES;
 ///
 ///
 pub fn start_wdt(soc_ifc: &mut SocIfc, wdt1_timeout_cycles: WdtTimeout) {
+    if !soc_ifc.debug_locked() {
+        return;
+    }
+
     // Set WDT1 period.
     soc_ifc.set_wdt1_timeout(wdt1_timeout_cycles.into());
 
@@ -73,6 +75,8 @@ pub fn start_wdt(soc_ifc: &mut SocIfc, wdt1_timeout_cycles: WdtTimeout) {
 
     // Enable WDT1 only. WDT2 is automatically scheduled (since it is disabled) on WDT1 expiry.
     soc_ifc.configure_wdt1(true);
+
+    restart_wdt(soc_ifc);
 }
 
 /// Restart the Watchdog Timer
@@ -82,8 +86,6 @@ pub fn start_wdt(soc_ifc: &mut SocIfc, wdt1_timeout_cycles: WdtTimeout) {
 /// * `env` - ROM Environment
 ///
 pub fn restart_wdt(soc_ifc: &mut SocIfc) {
-    cprintln!("[state] Restarting the Watchdog Timer");
-
     // Only restart WDT1. WDT2 is automatically scheduled (since it is disabled) on WDT1 expiry.
     soc_ifc.reset_wdt1();
 }
@@ -95,5 +97,8 @@ pub fn restart_wdt(soc_ifc: &mut SocIfc) {
 /// * `soc_ifc` - SOC Interface
 ///
 pub fn stop_wdt(soc_ifc: &mut SocIfc) {
+    if !soc_ifc.debug_locked() {
+        return;
+    }
     soc_ifc.configure_wdt1(false);
 }

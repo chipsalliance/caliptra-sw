@@ -22,7 +22,6 @@ mod x509;
 use crate::flow::rt_alias::RtAliasLayer;
 
 use crate::fmc_env::FmcEnv;
-use crate::HandOff;
 use caliptra_drivers::CaliptraResult;
 
 /// Execute FMC Flows based on reset resason
@@ -30,6 +29,6 @@ use caliptra_drivers::CaliptraResult;
 /// # Arguments
 ///
 /// * `env` - FMC Environment
-pub fn run(env: &mut FmcEnv, hand_off: &mut HandOff) -> CaliptraResult<()> {
-    RtAliasLayer::run(env, hand_off)
+pub fn run(env: &mut FmcEnv) -> CaliptraResult<()> {
+    RtAliasLayer::run(env)
 }

@@ -14,7 +14,6 @@ Abstract:
 
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::soc_ifc::enums::DeviceLifecycleE;
-use caliptra_registers::soc_ifc::regs::CptraWdtStatusReadVal;
 use caliptra_registers::soc_ifc::{self, SocIfcReg};
 
 use crate::{memory_layout, FuseBank};
@@ -112,6 +111,16 @@ impl SocIfc {
         soc_ifc.cptra_flow_status().write(|w| w.ready_for_fw(true));
     }
 
+    /// Get 'ready for firmware' status
+    ///
+    /// # Arguments
+    ///
+    /// * None
+    pub fn flow_status_ready_for_firmware(&mut self) -> bool {
+        let soc_ifc = self.soc_ifc.regs_mut();
+        soc_ifc.cptra_flow_status().read().ready_for_fw()
+    }
+
     pub fn fuse_bank(&self) -> FuseBank {
         FuseBank {
             soc_ifc: &self.soc_ifc,
@@ -127,12 +136,30 @@ impl SocIfc {
         flags.contains(MfgFlags::GENERATE_IDEVID_CSR)
     }
 
+    /// Returns the flag indicating whether random number generation is unavailable.
+    pub fn mfg_flag_rng_unavailable(&self) -> bool {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        // Lower 16 bits are for mfg flags
+        let flags: MfgFlags = (soc_ifc_regs.cptra_dbg_manuf_service_reg().read() & 0xffff).into();
+        flags.contains(MfgFlags::RNG_SUPPORT_UNAVAILABLE)
+    }
+
     /// Check if verification is turned on for fake-rom
     pub fn verify_in_fake_mode(&self) -> bool {
         let soc_ifc_regs = self.soc_ifc.regs();
         let val = soc_ifc_regs.cptra_dbg_manuf_service_reg().read();
         // Bit 31 indicates to perform verification flow in fake ROM
         ((val >> 31) & 1) != 0
+    }
+
+    #[inline(always)]
+    pub fn hw_config_internal_trng(&mut self) -> bool {
+        self.soc_ifc.regs().cptra_hw_config().read().i_trng_en()
+    }
+
+    #[inline(always)]
+    pub fn cptra_dbg_manuf_service_flags(&mut self) -> MfgFlags {
+        (self.soc_ifc.regs().cptra_dbg_manuf_service_reg().read() & 0xffff).into()
     }
 
     /// Enable or disable WDT1
@@ -162,18 +189,6 @@ impl SocIfc {
             .regs_mut()
             .cptra_wdt_timer1_en()
             .write(|w| w.timer1_en(false));
-    }
-
-    /// Get the WDT status.
-    ///
-    /// This is useful to call from a fatal-error-handling routine.
-    ///
-    ///  # Safety
-    ///
-    /// This function is safe to call from a trap handler.
-    pub unsafe fn wdt_status() -> CptraWdtStatusReadVal {
-        let soc_ifc = SocIfcReg::new();
-        soc_ifc.regs().cptra_wdt_status().read()
     }
 
     pub fn get_cycle_count(&self, seconds: u32) -> CaliptraResult<u64> {
@@ -273,6 +288,12 @@ impl SocIfc {
             self.soc_ifc.regs().cptra_fw_rev_id().at(1).read(),
         ]
     }
+
+    pub fn set_fw_extended_error(&mut self, err: u32) {
+        let soc_ifc_regs = self.soc_ifc.regs_mut();
+        let ext_info = soc_ifc_regs.cptra_fw_extended_error_info();
+        ext_info.at(0).write(|_| err);
+    }
 }
 
 bitflags::bitflags! {
@@ -280,6 +301,8 @@ bitflags::bitflags! {
     pub struct MfgFlags : u32 {
         /// Generate Initial Device Id Certificate Signing Request
        const GENERATE_IDEVID_CSR = 0x01;
+       /// RNG functionality unavailable
+       const RNG_SUPPORT_UNAVAILABLE = 0x2;
     }
 }
 

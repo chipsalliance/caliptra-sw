@@ -22,12 +22,27 @@ enum caliptra_mailbox_fsm_states {
 enum mailbox_command {
     OP_CALIPTRA_FW_LOAD          = 0x46574C44, // "FWLD"
     OP_GET_IDEV_CSR              = 0x49444556, // "IDEV"
+    OP_GET_IDEV_CERT             = 0x49444543, // "IDEC
+    OP_GET_IDEV_INFO             = 0x49444549, // "IDEI"
     OP_GET_LDEV_CERT             = 0x4C444556, // "LDEV"
-    OP_ECDSA384_SIGNATURE_VERIFY = 0x53494756, // "SIGV"
+    OP_ECDSA384_VERIFY           = 0x53494756, // "SIGV"
     OP_STASH_MEASUREMENT         = 0x4D454153, // "MEAS"
     OP_DISABLE_ATTESTATION       = 0x4453424C, // "DSBL"
     OP_INVOKE_DPE_COMMAND        = 0x44504543, // "DPEC"
+    OP_FW_INFO                   = 0x494E464F, // "INFO"
     OP_FIPS_VERSION              = 0x46505652, // "FPVR"
+    OP_SELF_TEST_START           = 0x46504C54, // "FPST"
+    OP_SELF_TEST_GET_RESULTS     = 0x46504C67, // "FPGR"
+    OP_SHUTDOWN                  = 0x46505344, // "FPSD"
+    OP_CAPABILITIES              = 0x43415053, // "CAPS"
+};
+
+struct parcel {
+    enum mailbox_command  command;
+    uint8_t              *tx_buffer;
+    size_t                tx_bytes;
+    uint8_t              *rx_buffer;
+    size_t                rx_bytes;
 };
 
 enum mailbox_results {
@@ -69,6 +84,11 @@ static inline void caliptra_mbox_write_cmd(uint32_t cmd)
     caliptra_mbox_write(MBOX_CSR_MBOX_CMD, cmd);
 }
 
+static inline uint32_t caliptra_mbox_read_execute()
+{
+    return caliptra_mbox_read(MBOX_CSR_MBOX_EXECUTE);
+}
+
 static inline void caliptra_mbox_write_execute(bool ex)
 {
     caliptra_mbox_write(MBOX_CSR_MBOX_EXECUTE, ex);
@@ -89,6 +109,11 @@ static inline uint8_t caliptra_mbox_write_execute_busy_wait(bool ex)
 static inline uint8_t caliptra_mbox_read_status(void)
 {
     return (uint8_t)(caliptra_mbox_read(MBOX_CSR_MBOX_STATUS) & MBOX_CSR_MBOX_STATUS_STATUS_MASK);
+}
+
+static inline bool caliptra_mbox_is_busy(void)
+{
+    return caliptra_mbox_read_status() == CALIPTRA_MBOX_STATUS_BUSY;
 }
 
 static inline uint8_t caliptra_mbox_read_status_fsm(void)

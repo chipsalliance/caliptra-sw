@@ -158,7 +158,7 @@ pub struct Output {
     sink: OutputSink,
 
     search_term: Option<String>,
-    unsearched: usize, // Number of characters that have not been searched yet
+    search_pos: usize, // Position to start searching from
     search_matched: bool,
 }
 impl Output {
@@ -177,7 +177,7 @@ impl Output {
                 next_write_needs_time_prefix: Cell::new(true),
             })),
             search_term: None,
-            unsearched: 0,
+            search_pos: 0,
             search_matched: false,
         }
     }
@@ -210,6 +210,9 @@ impl Output {
     fn process_new_data(&mut self) {
         let new_data = self.sink.0.new_uart_output.take();
         let new_data_len = new_data.len();
+        if new_data_len == 0 {
+            return;
+        }
 
         if self.output.is_empty() {
             self.output = new_data;
@@ -219,21 +222,19 @@ impl Output {
 
         if let Some(term) = &self.search_term {
             if !self.search_matched {
-                let to_search = term.len() + self.unsearched;
-                if self.output.len() >= to_search {
-                    self.search_matched =
-                        self.output[self.output.len() - to_search..].contains(term);
-                    self.unsearched = 0;
-                } else {
-                    self.unsearched += new_data_len;
+                self.search_matched = self.output[self.search_pos..].contains(term);
+                self.search_pos = self.output.len().saturating_sub(term.len());
+                if self.search_matched {
+                    self.search_term = None;
                 }
             }
         }
     }
 
     pub(crate) fn set_search_term(&mut self, search_term: &str) {
+        self.process_new_data();
         self.search_term = Some(search_term.to_string());
-        self.unsearched = 0;
+        self.search_pos = self.output.len();
         self.search_matched = false;
     }
 
@@ -384,5 +385,38 @@ mod tests {
 
         assert_eq!(&out.take(30), "");
         assert_eq!(log.into_string(), "Unknown generic load 0xd3\n");
+    }
+
+    #[test]
+    fn test_search() {
+        let mut out = Output::new(Log::new());
+        out.set_search_term("foobar");
+        assert!(!out.search_matched);
+        for &ch in b"this is my foobar string!" {
+            out.sink.push_uart_char(ch);
+        }
+        out.process_new_data();
+        assert!(out.search_matched);
+        out.set_search_term("foobar");
+        out.process_new_data();
+        assert!(!out.search_matched);
+
+        for &ch in b"hello world strin" {
+            out.sink.push_uart_char(ch);
+        }
+        out.set_search_term("string");
+        for &ch in b"g no match" {
+            out.sink.push_uart_char(ch);
+        }
+        out.process_new_data();
+        assert!(!out.search_matched);
+
+        for &ch in b" matching string" {
+            out.sink.push_uart_char(ch);
+        }
+        out.process_new_data();
+        assert!(out.search_matched);
+        out.set_search_term("string");
+        assert!(!out.search_matched);
     }
 }

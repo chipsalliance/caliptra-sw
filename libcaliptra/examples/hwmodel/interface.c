@@ -48,7 +48,14 @@ static struct caliptra_buffer read_file_or_exit(const char* path)
     }
 
     // Read Data in Buffer
-    fread((char *)buffer.data, buffer.len, 1, fp);
+    size_t bytes_read = fread((char *)buffer.data, 1, buffer.len, fp);
+
+    // Make sure the read got the number of bytes we expected
+    if (bytes_read != buffer.len) {
+        printf("Bytes read (%ld) does not match file size (%ld)\n", bytes_read, buffer.len);
+        free((void*)buffer.data);
+        exit(-EIO);
+    }
 
     return buffer;
 }
@@ -72,6 +79,10 @@ struct caliptra_model* hwmod_get_or_init(void)
         };
 
         int status = caliptra_model_init_default(init_params, &model);
+
+        if (status != CALIPTRA_STATUS_OK) {
+            return NULL;
+        }
 
         image_bundle = (struct caliptra_buffer)read_file_or_exit(fw_path);
 
@@ -119,7 +130,7 @@ int caliptra_write_u32(uint32_t address, uint32_t data)
  */
 int caliptra_read_u32(uint32_t address, uint32_t *data)
 {
-    return caliptra_model_apb_read_u32(hwmod_get_or_init(), address, (int*)data);
+    return caliptra_model_apb_read_u32(hwmod_get_or_init(), address, (uint*)data);
 }
 
 /**

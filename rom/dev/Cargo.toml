@@ -20,10 +20,12 @@ caliptra-registers.workspace = true
 caliptra-x509 = { workspace = true, default-features = false }
 ufmt.workspace = true
 zerocopy.workspace = true
+zeroize.workspace = true
 
 [build-dependencies]
 cfg-if.workspace = true
 hex.workspace = true
+x509-parser.workspace = true
 
 [dev-dependencies]
 caliptra-builder.workspace = true
@@ -33,6 +35,8 @@ caliptra-image-fake-keys.workspace = true
 caliptra-image-gen.workspace = true
 caliptra-image-openssl.workspace = true
 caliptra-image-types.workspace = true
+caliptra-test.workspace = true
+elf.workspace = true
 hex.workspace = true
 memoffset.workspace = true
 openssl.workspace = true
@@ -48,6 +52,9 @@ std = [
   "caliptra-x509/std",
   "ufmt/std",
 ]
+fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
+itrng = ["caliptra-hw-model/itrng"]
+verilator = ["caliptra-hw-model/verilator"]
 no-fmc = []
 fake-rom = []
 no-cfi = []

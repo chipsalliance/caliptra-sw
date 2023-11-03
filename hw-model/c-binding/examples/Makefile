@@ -43,6 +43,6 @@ clean:
 	$(RM) -rf $(OUT)
 
 run: $(TARGET)
-	cargo --config="$(EXTRA_CARGO_CONFIG)" run --manifest-path=$(BUILDER_PATH)/Cargo.toml --bin image -- --rom $(OUT)/caliptra_rom.bin --fw $(OUT)/image_bundle.bin
+	cargo --config="$(EXTRA_CARGO_CONFIG)" run --manifest-path=$(BUILDER_PATH)/Cargo.toml --bin image -- --rom-with-log $(OUT)/caliptra_rom.bin --fw $(OUT)/image_bundle.bin
 	$(TARGET) -r $(OUT)/caliptra_rom.bin -f $(OUT)/image_bundle.bin
 

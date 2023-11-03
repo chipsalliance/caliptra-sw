@@ -18,6 +18,7 @@ zerocopy.workspace = true
 
 [features]
 emu = ["caliptra-test-harness/emu"]
+fpga_realtime = []
 
 # This feature is used to filter all these binary targets during normal builds
 # (targets must be built with cargo arguments:
@@ -25,6 +26,11 @@ emu = ["caliptra-test-harness/emu"]
 #     --profile=firmware \
 #     --features riscv
 riscv = ["caliptra-test-harness/riscv"]
+
+[[bin]]
+name = "mbox_send_txn_drop"
+path = "src/bin/mbox_send_txn_drop.rs"
+required-features = ["riscv"]
 
 [[bin]]
 name = "sha1"
@@ -82,6 +88,11 @@ path = "src/bin/pcrbank_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "persistent"
+path = "src/bin/persistent_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
 name = "sha384acc"
 path = "src/bin/sha384acc_tests.rs"
 required-features = ["riscv"]
@@ -104,6 +115,11 @@ required-features = ["riscv"]
 [[bin]]
 name = "test_failure"
 path = "src/bin/test_failure.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "test_uart"
+path = "src/bin/test_uart.rs"
 required-features = ["riscv"]
 
 [[bin]]
@@ -150,3 +166,4 @@ required-features = ["riscv"]
 name = "trng_driver_responder"
 path = "src/bin/trng_driver_responder.rs"
 required-features = ["riscv"]
+

@@ -75,7 +75,7 @@ Verifier Library | IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_MISMATCH         
 Verifier Library | IMAGE_VERIFIER_ERR_OWNER_ECC_VERIFY_FAILURE                         | 0x000b000e
 Verifier Library | IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID                      | 0x000b000f
 Verifier Library | IMAGE_VERIFIER_ERR_TOC_ENTRY_COUNT_INVALID                          | 0x000b0010
-Verifier Library | IMAGE_VERIFIER_ERR_TOC_DIGEST_FAILURES                              | 0x000b0011
+Verifier Library | IMAGE_VERIFIER_ERR_TOC_DIGEST_FAILURE                              | 0x000b0011
 Verifier Library | IMAGE_VERIFIER_ERR_TOC_DIGEST_MISMATCH                              | 0x000b0012
 Verifier Library | IMAGE_VERIFIER_ERR_FMC_DIGEST_FAILURE                               | 0x000b0013
 Verifier Library | IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH                              | 0x000b0014
@@ -192,7 +192,7 @@ Verifier Library | IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_MISMATCH         
 Verifier Library | IMAGE_VERIFIER_ERR_OWNER_ECC_VERIFY_FAILURE                         | 0x000b000e
 Verifier Library | IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID                      | 0x000b000f
 Verifier Library | IMAGE_VERIFIER_ERR_TOC_ENTRY_COUNT_INVALID                          | 0x000b0010
-Verifier Library | IMAGE_VERIFIER_ERR_TOC_DIGEST_FAILURES                              | 0x000b0011
+Verifier Library | IMAGE_VERIFIER_ERR_TOC_DIGEST_FAILURE                               | 0x000b0011
 Verifier Library | IMAGE_VERIFIER_ERR_TOC_DIGEST_MISMATCH                              | 0x000b0012
 Verifier Library | IMAGE_VERIFIER_ERR_FMC_DIGEST_FAILURE                               | 0x000b0013
 Verifier Library | IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH                              | 0x000b0014

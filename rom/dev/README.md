@@ -1,4 +1,5 @@
-# Caliptra - ROM Specification v0.5.2
+
+# Caliptra - ROM Specification v0.9
 
 ## 1. Version History
 
@@ -11,11 +12,11 @@
 | 02/20/2023 | 0.5     | Added Image Verification Details                                         |
 | 03/01/2023 | 0.5.1   | Added Crypto Derivations                                                 |
 | 04/27/2023 | 0.5.2   | Added Runtime SVN bit clarification                                      |
+| 08/15/2023 | 0.9     | Added LMS keys and signatures to image format                            |
 
 
 ## 2. Spec Opens
 
-- Update the spec with support for LMS PQC algorithm for firmware verification
 - Update the spec with adding certificate expiration times for vendor and owner
 - Update the firmware image format to include the runtime configuration section
 - Ability to run production signed firmware that can only run in debug mode
@@ -42,7 +43,7 @@ following topics:
 
 | Term                | Description                                                               |
 | :------------------ | :------------------------------------------------------------------------ |
-| CDI                 | Composite Device Identity                                                 |
+| CDI                 | Compound Device Identity                                                 |
 | CSR                 | Certificate Signing Request                                               |
 | DCCM                | Data Closely Coupled Memory                                               |
 | DICE                | Device Identifier Composition Engine                                      |
@@ -66,26 +67,24 @@ following topics:
 ### 5.1 Initial Device ID (IDEVID) DICE Layer
 
 This layer represents the manufacturer/silicon vendor device identity. This layer's CDI is constructed
-using a deobfuscated UDS. A self signed CSR is generated during (or when requested) cold reset.
-CSR is provided to the manufacturer/silicon vendor CA for issuing a Manufacturer Device Certificate.
+using a deobfuscated UDS. A self signed CSR is generated (if requested) during  cold reset.
+CSR is provided to the manufacturer/silicon vendor CA for issuing a Manufacturer Device Certificate. Please refer to https://github.com/chipsalliance/Caliptra/blob/main/doc/Caliptra.md#provisioning-idevid-during-manufacturing for additional details on CSR generation request.
 
 ### 5.2 Local Device ID DICE (LDEVID) Layer
 
 This layer represents the owner identity. This layer's CDI is constructed by mixing some entropy
 once the owner acquires the devices. The primary purpose of this layer is to mitigate supply
 chain attacks via owner providing some entropy via fuses which is further randomized via the
-deobfuscation engine. ROM generates a certificate for this layer. The certificate is signed by
-the IDEVID private key.
+deobfuscation engine. ROM generates a certificate signature for this layer using the IDEVID private key.
 
 ### 5.2 Alias FMC DICE Layer
 
 In traditional DICE architectures, the Alias layer is controlled by the FMC. However, there are no standard
-mechanisms available to tie the Alias Certificate back to the manufacturer. Historically,
-non-standard X509 certificate extensions [CHECK]. The only standard way currently available is for LDEVID
-private key to sign the Alias FMC Certificate. However, LDEVID private key is a critical key
+mechanisms available to tie the Alias Certificate back to the manufacturer. The only standard way currently 
+available is for LDEVID private key to sign the Alias FMC Certificate. However, LDEVID private key is a critical key
 with very limited in-field renewability. Hence LDEVID private key must never leave ROM and must
 be cleared prior to ROM exit. This implies we need to do part of the Alias FMC derivations in ROM,
-sign the Alias FMC certificate using LDEVID private key.
+generating the Alias FMC certificate signature using LDEVID private key.
 
 The CDI for this layer comprises of the security state of the device and TCI (digest/measurement)
 of the FMC firmware
@@ -97,14 +96,18 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | Register	                      | Width (bits) | Description                                             |
 | :------------------------------ | :------------|  :----------------------------------------------------- |
 | CPTRA_SECURITY_STATE            | 32	         | Security State of the device. Contains two fields:  <br> **LIFECYCLE_STATE**: Unprovisioned, Manufacturing or Production  <br> **DEBUG_ENABLED**: Boolean indicating if debug is enabled or not |
-| FUSE_MANUFACTURER_PK_HASH       | 384          | Hash of the four Manufacturer Public Keys               |
-| FUSE_MANUFACTURER_PK_REVOCATION | 4            | Manufacturer Public Key Revocation Mask                 |
-| FUSE_OWNER_PK_HASH              | 384          | Owner Public Key Hash                                   |
-| FUSE_FMC_SVN                    | 32           | FMC Security Version Number                             |
-| FUSE_RUNTIME_SVN                | 64           | Runtime Security Version Number                         |
+| FUSE_UDS_SEED                   | 384          | Obfuscated UDS                                          |
+| FUSE_FIELD_ENTROPY              | 384          | Obfuscated Field Entropy                                |
+| FUSE_KEY_MANIFEST_PK_HASH       | 384          | Hash of the four ECC and thirty-two LMS Manufacturer Public Keys   |
+| FUSE_KEY_MANIFEST_PK_HASH_MASK  | 32           | Manufacturer ECC Public Key Revocation Mask             |
+| FUSE_LMS_REVOCATION             | 32           | Manufacturer LMS Public Key Revocation Mask             |
+| FUSE_LMS_VERIFY                 | 32           | LMS Verification flag: <br> **0** - Verify Caliptra firmware images with ECDSA-only  <br> **1** - Verify Caliptra firmware images with both ECDSA and LMS |
+| FUSE_OWNER_PK_HASH              | 384          | Owner ECC and LMS Public Key Hash                       |
+| FUSE_FMC_KEY_MANIFEST_SVN       | 32           | FMC Security Version Number                             |
+| FUSE_RUNTIME_SVN                | 128          | Runtime Security Version Number                         |
 | FUSE_ANTI_ROLLBACK_DISABLE      | 1            | Disable SVN checking for FMC & Runtime when bit is set  |
-| FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR   |
-| CPTRA_DBG_MANUF_SERVICE_REG     | 32           | Manufacturing Services like IDEVID CSR upload           |
+| FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR  <br> **Word 0**: X509 Key Id Algorithm (2 bits) 1: SHA1, 2: SHA256, 2: SHA384, 3: Fuse <br> **Word 1,2,3,4,5**: Subject Key Id <br> **Words 7,8**: Unique Endpoint ID  |
+| CPTRA_DBG_MANUF_SERVICE_REG     | 16           | Manufacturing Services: <br> **Bit 0**: IDEVID CSR upload  <br> **Bit 1**: Random Number Generator Unavailable <br> **Bit 31**: Fake ROM image verify enable           |
 
 ## 7. Vaults
 
@@ -112,7 +115,7 @@ Caliptra Hardware has the following vaults for storing various cryptographic mat
 
 1.	**Key Vault**: Used to store sensitive keys (Private Keys & CDI). Firmware cannot read or write the Key Vault content directly. Key Vault has 32 slots. Firmware can refer to the keys in the Key Vault via Slot numbers during cryptographic operations.
 2.	**PCR Bank**: Used to store measurements. PCR Bank has 32 PCRs. PCRs can be read or hash extended by the firmware. Direct write to PCR is not possible.
-3.	**Data Vault**: Data Vault contains a set of sticky (lock till next cold reset), non-sticky (lock till next update reset [CHECK] Warm reset?) and scratch registers.
+3.	**Data Vault**: Data Vault contains a set of sticky (lock till next cold reset), non-sticky (lock till next Warm/Update reset) and scratch registers.
     *	10 Sticky 48-byte registers
     *	8 Sticky 4-byte registers
     *	10 Non-Sticky 48-byte registers
@@ -137,8 +140,8 @@ Firmware manifest consists of preamble, header and table of contents.
 
 It is the unsigned portion of the manifest. Preamble contains the signing public keys and signatures. ROM is responsible for parsing the preamble. ROM performs the following steps:
 *	Loads the preamble from the mailbox.
-*	Calculates the hash of the four Manufacturer Public Keys in the preamble and compares it against the hash in the fuse (KEY MANIFEST PK HASH). If the hashes do not match, the boot fails.
-*	Selects the appropriate Manufacturer Public Key based on fuse (KEY MANIFEST PK HASH MASK)
+*	Calculates the hash of the four Manufacturer ECC and thirty-two LMS (if LMS verification is enabled) Public Keys in the preamble and compares it against the hash in the fuse (FUSE_KEY_MANIFEST_PK_HASH). If the hashes do not match, the boot fails.
+*	Selects the appropriate Manufacturer Public Key(s) based on fuse (FUSE_KEY_MANIFEST_PK_HASH_MASK for ECC public key, FUSE_LMS_REVOCATION for LMS public key)
 
  *Note: All fields are little endian unless specified*
 
@@ -150,24 +153,36 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 | Manufacturer ECC Public Key 2 | 96 | ECC P-384 public key used to verify the Firmware Manifest Header Signature. <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes) |
 | Manufacturer ECC Public Key 3 | 96 | ECC P-384 public key used to verify the Firmware Manifest Header Signature. <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes) |
 | Manufacturer ECC Public Key 4 | 96 | ECC P-384 public key used to verify the Firmware Manifest Header Signature. <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes) |
-| Public Key Index Hint | 4 | The hint to ROM to indicate which public key it should first use.  |
+| Manufacturer LMS Public Key 1 | 48 | LMS public key used to verify the Firmware Manifest Header Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes) <br> **otstype:** LMS Ots Algorithm Type (4 bytes) <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) |
+| Manufacturer LMS Public Key 2 | 48 | LMS public key used to verify the Firmware Manifest Header Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes) <br> **otstype:** LMS Ots Algorithm Type (4 bytes) <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) |
+|...<Manufacturer LMS Public Key 32>|
+| ECC Public Key Index Hint | 4 | The hint to ROM to indicate which ECC public key it should first use.  |
+| LMS Public Key Index Hint | 4 | The hint to ROM to indicate which LMS public key it should first use.  |
 | Manufacturer ECC Signature | 96 | Manufacturer ECDSA P-384 signature of the Firmware Manifest header hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes) |
+| Manufacturer LMS Signature | 1620 | Manufacturer LMS signature of the Firmware Manifest header hashed using SHA2-384. <br> **q:** Leaf of the Merkle tree where the OTS public key appears (4 bytes) <br> **ots:** Lmots Signature (1252 bytes) <br> **tree_type:** Lms Algorithm Type (4 bytes) <br> **tree_path:** Path through the tree from the leaf associated with the LM-OTS signature to the root. (360 bytes) |
 | Owner ECC Public Key | 96 | ECC P-384 public key used to verify the Firmware Manifest Header Signature. <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes)|
+| Owner LMS Public Key | 48 | LMS public key used to verify the Firmware Manifest Header Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes) <br> **otstype:** LMS Ots Algorithm Type (4 bytes) <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) |
 | Owner ECC Signature | 96 | Manufacturer ECDSA P-384 signature of the Firmware Manifest header hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes) |
-| Reserved | 16 | Reserved 16 bytes |
+| Owner LMS Signature | 1620 | Owner LMS signature of the Firmware Manifest header hashed using SHA2-384. <br> **q:** Leaf of the Merkle tree where the OTS public key appears (4 bytes) <br> **ots:** Lmots Signature (1252 bytes) <br> **tree_type:** Lms Algorithm Type (4 bytes) <br> **tree_path:** Path through the tree from the leaf associated with the LM-OTS signature to the root. (360 bytes) |
+| Reserved | 8 | Reserved 8 bytes |
 <br>
 
 #### 8.1.2 Header
 
-The header contains the security version and SHA-384 hash of the table of contents. Header is the only signed component in the image. Signing the header is enough as the table of contents contains the hashes of the individual firmware images. This technique reduces the number of signature verifications required to be performed during boot.
+The header contains the security version and SHA2-384 hash of the table of contents. Header is the only signed component in the image. Signing the header is enough as the table of contents contains the hashes of the individual firmware images. This technique reduces the number of signature verifications required to be performed during boot.
 
 | Field | Size (bytes) | Description|
 |-------|--------|------------|
-| Header Version| 4 | Header version. Must be 0x0001 for this spec revision. |
 | Revision | 8 | 8-byte version of the firmware image bundle |
-| Flags | 4 | Feature flags. <br> **Bit0:** - Disable Runtime Updates <br>**Bit1-Bit31:** Reserved |
+| Vendor ECC public key index | 4 | The hint to ROM to indicate which ECC public key it should first use. |
+| Vendor LMS public key index | 4 | The hint to ROM to indicate which LMS public key it should first use. |
+| Flags | 4 | Feature flags. <br> **Bit0:** - Interpret the pl0_pauser field. If not set, all PAUSERs are PL1 <br>**Bit1-Bit31:** Reserved |
 | TOC Entry Count | 4 | Number of entries in TOC. |
+| PL0 PAUSER | 4 | The PAUSER with PL0 privileges. |
 | TOC Digest | 48 | SHA2-384 Digest of table of contents. |
+| Vendor Data | 40 | Vendor Data. <br> **Not Before:** Vendor Start Date [ASN1 Time Format] For LDEV-Id certificate (15 bytes) <br> **Not After:** Vendor End Date [ASN1 Time Format] For LDEV-Id certificate (15 bytes) <br> **Reserved:** (10 bytes) |
+| Owner Data | 40 | Owner Data. <br> **Not Before:** Owner Start Date [ASN1 Time Format] For LDEV-Id certificate. Takes preference over vendor start date (15 bytes) <br> **Not After:** Owner End Date [ASN1 Time Format] For LDEV-Id certificate. Takes preference over vendor end date (15 bytes) <br> **Reserved:** (10 bytes) |
+
 
 #### 8.1.3 Table of Contents
 It contains the image information and SHA-384 hash of individual firmware images.
@@ -176,8 +191,9 @@ It contains the image information and SHA-384 hash of individual firmware images
 | TOC Entry Id | 4 | TOC Entry Id. The fields can have following values: <br> **0x0000_0001:** FMC  <br> **0x0000_0002:** Runtime |
 | Image Type | 4 | Image Type that defines format of the image section <br> **0x0000_0001:** Executable |
 | Image Revision | 20 | Git Commit hash of the build |
-| Image SVN | 8| Security Version Number for the Image. This field is compared against the fuses (FMC SVN or RUNTIME SVN. |
-| Image Minimum SVN | 8| Minimum Security Version Number for the Image. This field is compared against the fuses (FMC SVN or RUNTIME SVN. |
+| Image Version | 4 | Firmware release number |
+| Image SVN | 4 | Security Version Number for the Image. This field is compared against the fuses (FMC SVN or RUNTIME SVN. |
+| Image Minimum SVN | 4 | Minimum Security Version Number for the Image. This field is compared against the fuses (FMC SVN or RUNTIME SVN. |
 | Image Load Address | 4 | Load address |
 | Image Entry Point | 4 | Entry point to start the execution from  |
 | Image Offset | 4 | Offset from beginning of the image |
@@ -210,8 +226,8 @@ The following sections define the various cryptographic primitives used by Calip
 | | `dv48_lock_wr(dv_slot)` | Write Lock the 48-byte data vault slot<br>Input<br>***dv_slot*** - data vault slot |
 | | `dv4_store(data, dv_slot)` | Store the 4- byte data in the specified data vault slot<br>Input<br>***data*** - data to store<br>***dv_slot*** - data vault slot |
 | | `dv4_lock_wr(dv_slot)` | Write Lock the 4-byte data vault slot<br>Input<br>***dv_slot*** - data vault slot |
-| Platform Configuration Registers | `pcr_extend(pcr_slot, data)` | Perform PCR extend operation on a PCR with specified data<br>**Input**:<br>***pc_slot*** - PCR slot to hash extend<br>***data*** – data |
-| | `pcr_read(pcr_slot) -> measurement` | Read the PCR slot<br>**Input**:<br>***pc_slot*** - PCR slot to read<br>**Output**:<br>***measurement*** - Accumulated measurement |
+| Platform Configuration Registers | `pcr_extend(pcr_slot, data)` | Perform PCR extend operation on a PCR with specified data<br>**Input**:<br>***pcr_slot*** - PCR slot to hash extend<br>***data*** – data |
+| | `pcr_read(pcr_slot) -> measurement` | Read the PCR slot<br>**Input**:<br>***pcr_slot*** - PCR slot to read<br>**Output**:<br>***measurement*** - Accumulated measurement |
 | | `pcr_lock_clear(pcr_slot)` | Lock for Clear PCR slot<br>**Input**:<br>***pcr_slot*** - pcr slot |
 | | `pcr_clear(pcr_slot)` | Clear PCR slot<br>**Input**:<br>***pcr_slot*** - pcr slot |
 | X509 | `gen_tbs(type, pub_key) -> tbs` | Generate X509 Certificate or CSR `To Be Signed` portion<br>**Input**:<br>***type*** - Can be IDEVID_CSR, LDEVID_CERT or ALIAS_FMC_CERT<br>pub-key -public key<br>**Output**:<br>***tbs*** - DER encoded `To Be Signed` portion |
@@ -221,8 +237,7 @@ The following sections define the various cryptographic primitives used by Calip
 
 | Constant | Size (bytes) | Description |
 |----------|--------------|-------------|
-| DOE_UDS_IV | 16 | Initialization vector specified by the ROM for deobfuscating the UDS. |
-| DOE_FE_IV | 16 | Initialization vector specified by the ROM for deobfuscating Field Entropy. |
+| DOE_IV | 16 | Initialization vector specified by the ROM for deobfuscating the UDS and Field Entropy. |
 <br>
 
 ## 9. Cold Reset Flow
@@ -235,14 +250,14 @@ Note that KvSlot3 is generally used as a temporary location for derived keying m
 
 ### 9.1 Initialization
 
-The initialization step involves tradition startup script for microcontroller. The initialization script performs following:
+The initialization step involves a traditional startup script for microcontroller. The initialization script performs following:
 - Resets instruction counter
 - Disables interrupts
 - Clears all general purpose registers
-- Sets up memory region attributes (Cachable & Side effects)
-- Set up stack pointer
+- Sets up memory region attributes (Cacheable & Side effects)
+- Sets up stack pointer
+- Sets up NMI and Exception handler
 - Zeros ICCM & DCCM memories (to initialize ECC)
-- Copy Data section to DCCM (if required)
 - Jumps to Rust entry point
 
 ### 9.2 Decrypt Secrets
@@ -263,11 +278,11 @@ Both UDS and Field Entropy are available only during cold reset of Caliptra.
 **Actions:**
 1.	Decrypt UDS to Key Vault Slot 0
 
-    `doe_decrypt_uds(KvSlot0, DOE_UDS_IV)`
+    `doe_decrypt_uds(KvSlot0, DOE_IV)`
 
 2.	Decrypt Field Entropy to Key Vault Slot 1
 
-	`doe_decrypt_uds(KvSlot1, DOE_FE_IV)`
+	`doe_decrypt_uds(KvSlot1, DOE_IV)`
 
 3.	Clear class secrets (Clears UDS, Field Entropy and Obfuscation Key cleared)
 
@@ -285,7 +300,7 @@ Both UDS and Field Entropy are available only during cold reset of Caliptra.
 
 ### 9.3 Initial Device ID DICE Layer
 
-Initial Device ID Layer is used to generate Manufactured CDI & Private Keys.  This layer represents the manufacturer or silicon vendor DICE Identity. During manufacturing,  ROM can be requested to create Certificate Signing Request (CSR) via JTAG.
+Initial Device ID Layer is used to generate Manufacturer CDI & Private Key.  This layer represents the manufacturer or silicon vendor DICE Identity. During manufacturing,  ROM can be requested to create Certificate Signing Request (CSR) via JTAG.
 
 **Pre-Conditions:**
 * UDS is loaded in Key Vault Slot 0
@@ -312,17 +327,17 @@ Initial Device ID Layer is used to generate Manufactured CDI & Private Keys.  Th
 
 	`IDevIdTbs = gen_tbs(IDEVID_CSR, IDevIdPubKey)`
 
-5.	Sign the LDevID `To Be Signed` DER Blob with IDevId Private Key in Key Vault Slot 7
+5.	Sign the IDevID `To Be Signed` DER Blob with IDevId Private Key in Key Vault Slot 7
 
 	`IDevIdTbsDigest = sha384_digest(IDevIdTbs)`
 	`IDevIdCertSig = ecc384_sign(KvSlot7, IDevIdTbsDigest)`
 
-6.	Verify the signature of LDevID `To Be Signed` Blob
+6.	Verify the signature of IDevID `To Be Signed` Blob
 
 	`IDevIdTbsDigest = sha384_digest(IDevIdTbs)`
 	`Result = ecc384_verify(IDevIdPubKey, IDevIdTbsDigest, IDevIdCertSig)`
 
-7.  Upload the CSR to mailbox and wait for JTAG to read the CSR out of the mailbox. *(TODO: Add the sequence diagram)*
+7.  Upload the CSR to mailbox and wait for JTAG to read the CSR out of the mailbox.
 
 **Post-Conditions:**
 * Vault state as follows:
@@ -361,12 +376,12 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
     `LDevIdPubKey = ecc384_keygen(KvSlot3, KvSlot5)`
     `kv_clear(KvSlot3)`
 
-4.	Store and lock (for write) the LDevID Public Key in Data Vault (48 bytes) Slot 0 & Slot 1
+4.	Store and lock (for write) the LDevID Public Key in Data Vault (48 bytes) Slot 2 & Slot 3
 
-    `dv48_store(LDevIdPubKey.X, Dv48Slot0)`
-    `dv48_lock_wr(Dv48Slot0)`
-    `dv48_store(LDevIdPubKey.Y, Dv48Slot1)`
-    `dv48_lock_wr(Dv48Slot1)`
+    `dv48_store(LDevIdPubKey.X, Dv48Slot2)`
+    `dv48_lock_wr(Dv48Slot2)`
+    `dv48_store(LDevIdPubKey.Y, Dv48Slot3)`
+    `dv48_lock_wr(Dv48Slot3)`
 
 5.	Generate the `To Be Signed` DER Blob of the LDevId Certificate
 
@@ -386,26 +401,35 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 	`LDevIdTbsDigest = sha384_digest(LDevIdTbs)`
 	`Result = ecc384_verify(LDevIdPubKey, LDevIdTbsDigest, LDevIdCertSig)`
 
-9.	Store and lock (for write) the LDevID Certificate Signature in the sticky Data Vault (48 bytes) Slot 2 & Slot 3
+9.	Store and lock (for write) the LDevID Certificate Signature in the sticky Data Vault (48 bytes) Slot 0 & Slot 1
 
-	`dv48_store(LDevIdCertSig.R, Dv48Slot2)`
-    `dv48_lock_wr(Dv48Slot2)`
-    `dv48_store(LDevIdCertSig.S, Dv48Slot3)`
-    `dv48_lock_wr(Dv48Slot3)`
+	`dv48_store(LDevIdCertSig.R, Dv48Slot0)`
+    `dv48_lock_wr(Dv48Slot0)`
+    `dv48_store(LDevIdCertSig.S, Dv48Slot1)`
+    `dv48_lock_wr(Dv48Slot1)`
 
 **Post-Conditions:**
 * Vault state as follows:
 
 | Slot | Key Vault | PCR Bank | Data Vault 48 Byte (Sticky) | Data Vault 4 Byte (Sticky) |
 |------|-----------|----------|-----------------------------|----------------------------|
-| 0 | | | 🔒LDevID Pub Key X |
-| 1 | | | 🔒LDevID Pub Key Y |
-| 2 | | | 🔒LDevID Cert Signature R |
-| 3 | | | 🔒LDevID Cert Signature S |
+| 0 | | | 🔒LDevID Cert Signature R |
+| 1 | | | 🔒LDevID Cert Signature S |
+| 2 | | | 🔒LDevID Pub Key X |
+| 3 | | | 🔒LDevID Pub Key Y |
 | 5 | LDevID Private Key (48 bytes) |
 | 6 | LDevID CDI (48 bytes) |
 
-### 9.6 Downloading images from Mailbox
+### 9.6 Handling commands from Mailbox
+ROM supports the following set of commands before handling the FW_DOWNLOAD command (described in section 9.6). Once the FW_DOWNLOAD is issued, ROM stops processing any additional mailbox commands.
+1. **STASH_MEASUREMENT**: Up to eight measurements can be sent to the ROM for recording. Format of a measurement is documented at https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#stash_measurement
+2. **VERSION**: [TODO] Add links to data structure formats once available.
+3. **SELF_TEST_START**: This command is used to invoke the FIPS Known-Answer-Tests (aka KAT) on demand.  [TODO] Add links to data structure formats once available.
+4. **SELF_TEST_GET_RESULTS**: This command is used to check if a SELF_TEST command is in progress. [TODO] Add links to data structure formats once available.
+5. **SHUTDOWN**: This command is used clear the hardware crypto blocks including the keyvault. [TODO] Add links to data structure formats once available.
+6. **CAPABILITIES**: This command is used to query the ROM capabilities. Capabilities is a 128-bit value with individual bits indicating a specific capability. Currently, the only capability supported is ROM_BASE (bit 0). [TODO] Add links to data structure formats once available.
+
+### 9.7 Downloading images from Mailbox
 
 The following is the sequence of the steps that are required to download the parts of firmware image from mailbox.
 
@@ -420,11 +444,11 @@ The following is the sequence of the steps that are required to download the par
 
 ![DATA FROM MBOX FLOW](doc/svg/data-from-mbox.svg)
 
-### 9.7 Image Validation
+### 9.8 Image Validation
 
 *Refer to Firmware Image Validation Process*
 
-### 9.8 Alias FMC DICE Layer & PCR extension
+### 9.9 Alias FMC DICE Layer & PCR extension
 
 Alias FMC Layer includes the measurement of the FMC and other security states. This layer is used to assert a composite identity which includes the security state, FMC measurement along with the previous layer identities.
 
@@ -435,25 +459,31 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 *	ROM has following information from Firmware Image Bundle
 *	FMC_DIGEST - Digest of the FMC
 *	FMC_SVN - SVN for FMC
-*	MANUFACTURER_PK - Manufacturer Public Key used to verify the firmware image bundle
+*	MANUFACTURER_PK - Manufacturer Public Key(s) used to verify the firmware image bundle
 *	MANUFACTURER_PK_INDEX - Index of the MANUFACTURER_PK in the firmware image bundle
 
 **Actions:**
 
-1.	PCR0 is the Current PCR. PCR 1 is the Journey PCR. PCR0 is cleared by ROM upon each warm reset, before it is extended with FMC measurements. PCR0 and PCR1 are locked for clear by the ROM on every reset. Subsequent layers may continue to extend PCR0 as runtime updates are performed.
+1.	PCR0 is the Current PCR. PCR 1 is the Journey PCR. PCR0 is cleared by ROM upon each cold and update resets, before it is extended with FMC measurements. PCR0 and PCR1 are locked for clear by the ROM on every reset. Subsequent layers may continue to extend PCR0 as runtime updates are performed.
 
-    `pcr_clear(Pcr0)`
-    `pcr_extend(Pcr0 && Pcr1, CPTRA_SECURITY_STATE.LIFECYCLE_STATE)`
-    `pcr_extend(Pcr0 && Pcr1, CPTRA_SECURITY_STATE.DEBUG_ENABLED)`
-    `pcr_extend(Pcr0 && Pcr1, FUSE_ANTI_ROLLBACK_DISABLE)`
-    `pcr_extend(Pcr0 && Pcr1, MANUFACTURER_PK)`
-    `pcr_extend(Pcr0 && Pcr1, FUSE_OWNER_PK_HASH)`
-    `pcr_extend(Pcr0 && Pcr1, FMC_DIGEST)`
-    `pcr_extend(Pcr0 && Pcr1, FMC_SVN)`
-    `pcr_extend(Pcr0 && Pcr1, FMC_FUSE_SVN)` (or 0 if `FUSE_ANTI_ROLLBACK_DISABLE`)
-    `pcr_extend(Pcr0 && Pcr1, LMS_VENDOR_PK_INDEX)`
-    `pcr_extend(Pcr0 && Pcr1, ROM_VERIFY_CONFIG)`
-    `pcr_lock_clear(Pcr0 && Pcr1)`
+    ```
+    pcr_clear(Pcr0)
+    pcr_extend(Pcr0 && Pcr1, [
+        CPTRA_SECURITY_STATE.LIFECYCLE_STATE,
+        CPTRA_SECURITY_STATE.DEBUG_ENABLED,
+        FUSE_ANTI_ROLLBACK_DISABLE,
+        ECC_VENDOR_PK_INDEX,
+        FMC_SVN,
+        FMC_FUSE_SVN (or 0 if `FUSE_ANTI_ROLLBACK_DISABLE`),
+        LMS_VENDOR_PK_INDEX,
+        ROM_VERIFY_CONFIG,
+        OWNER_PK_HASH_FROM_FUSES (0 or 1),
+    ])
+    pcr_extend(Pcr0 && Pcr1, MANUFACTURER_PK)
+    pcr_extend(Pcr0 && Pcr1, OWNER_PK)
+    pcr_extend(Pcr0 && Pcr1, FMC_TCI)
+    pcr_lock_clear(Pcr0 && Pcr1)
+    ```
 
 2.	CDI for Alias is derived from PCR0. For the Alias FMC CDI Derivation,  LDevID CDI in Key Vault Slot6 is used as HMAC Key and contents of PCR0 are used as data. The resultant mac is stored back in Slot 6
 
@@ -466,12 +496,12 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
     `AliasFmcPubKey = ecc384_keygen(KvSlot3, KvSlot7)`
     `kv_clear(KvSlot3)`
 
-4.	Store and lock (for write) the Alias FMC Public Key in Data Vault (48 bytes) Slot 4 & Slot 5
+4.	Store and lock (for write) the FMC Public Key in Data Vault (48 bytes) Slot 6 & Slot 7
 
-    `dv48_store(AliasFmcPubKey.X, Dv48Slot4)`
-    `dv48_lock_wr(Dv48Slot4)`
-    `dv48_store(AliasFmcPubKey.Y, Dv48Slot5)`
-    `dv48_lock_wr(Dv48Slot5)`
+    `dv48_store(FmcPubKey.X, Dv48Slot6)`
+    `dv48_lock_wr(Dv48Slot6)`
+    `dv48_store(FmcPubKey.Y, Dv48Slot7)`
+    `dv48_lock_wr(Dv48Slot7)`
 
 5.	Generate the `To Be Signed` DER Blob of the Alias FMC Certificate
 
@@ -491,13 +521,13 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 	`AliasFmcTbsDigest = sha384_digest(AliasFmcTbs)`
 	`Result = ecc384_verify(AliasFmcPubKey, AliasFmcDigest , AliasFmcTbsCertSig)`
 
-9.	Store and lock (for write) the LDevID Certificate Signature in the sticky Data Vault (48 bytes) Slot 6 & Slot 7
+9.	Store and lock (for write) the LDevID Certificate Signature in the sticky Data Vault (48 bytes) Slot 4 & Slot 5
 
-    `dv48_store(AliasFmcTbsCertSig.R, Dv48Slot6)`
-    `dv48_lock_wr(Dv48Slot6)`
+    `dv48_store(FmcTbsCertSig.R, Dv48Slot4)`
+    `dv48_lock_wr(Dv48Slot4)`
 
-    `dv48_store(AliasFmcTbsCertSig.S, Dv48Slot7)`
-    `dv48_lock_wr(Dv48Slot7)`
+    `dv48_store(FmcTbsCertSig.S, Dv48Slot5)`
+    `dv48_lock_wr(Dv48Slot5)`
 
 10.	Lock critical state needed for warm and update reset in Data Vault
 
@@ -510,25 +540,33 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
     `dv48_store(FUSE_OWNER_PK_HASH, Dv48Slot9)`
     `dv48_lock_wr(Dv48Slot9)`
 
-    `dv4_store(MANUFACTURER_PK_INDEX, Dv4Slot1)`
+    `dv4_store(MANUFACTURER_ECC_PK_INDEX, Dv4Slot3)`
+    `dv4_lock_wr(Dv4Slot3)`
+
+    `dv4_store(MANUFACTURER_LMS_PK_INDEX, Dv4Slot4)`
+    `dv4_lock_wr(Dv4Slot4)`
+    **Note**: If LMS validation is not enabled, a value of 0xFFFFFFFF is stored.
+
+    `dv4_store(ROM_COLD_BOOT_STATUS, Dv4Slot1)`
     `dv4_lock_wr(Dv4Slot1)`
+    **Note**: A value of 0x140 is stored on a successful cold boot.
 
 
 **Post-Conditions:**
 * Vault state as follows:
 
-| Slot | Key Vault | PCR Bank | Data Vault 48 Byte (Sticky) | Data Vault 4 Byte (Sticky) |
-|------|-----------|----------|-----------------------------|----------------------------|
-| 0 | | | 🔒LDevID Pub Key X | 🔒FMC SVN |
-| 1 | | | 🔒LDevID Pub Key Y | 🔒Manufacturer Public Key Index |
-| 2 | | | 🔒LDevID Cert Signature R |
-| 3 | | | 🔒LDevID Cert Signature S |
-| 4 | | | 🔒Alias FMC Pub Key X |
-| 5 | | | 🔒Alias FMC Pub Key Y |
-| 6 | Alias FMC CDI (48 bytes) | | 🔒Alias FMC Cert Signature R |
-| 7 | Alias FMC Private Key (48 bytes) | | 🔒Alias FMC Cert Signature S |
-| 8 |  | | 🔒FMC Digest |
-| 9 |  | | 🔒Owner PK Hash |
+| Slot | Key Vault                        | Data Vault 48 Byte (Sticky)   | Data Vault 4 Byte (Sticky) |
+|------|----------------------------------|-------------------------------|----------------------------|
+| 0    |                                  | 🔒LDevID Cert Signature R    | 🔒FMC SVN |
+| 1    |                                  | 🔒LDevID Cert Signature S    | 🔒ROM Cold Boot Status |
+| 2    |                                  | 🔒LDevID Pub Key X           | 🔒FMC Entry Point |
+| 3    |                                  | 🔒LDevID Pub Key Y           | 🔒Manufacturer ECC Public Key Index |
+| 4    |                                  | 🔒Alias FMC Cert Signature R | 🔒Manufacturer LMS Public Key Index |
+| 5    |                                  | 🔒Alias FMC Cert Signature S | 
+| 6    | Alias FMC CDI (48 bytes)         | 🔒Alias FMC Pub Key X        |
+| 7    | Alias FMC Private Key (48 bytes) | 🔒Alias FMC Pub Key Y        |
+| 8    |                                  | 🔒FMC Digest                 |
+| 9    |                                  | 🔒Owner PK Hash              |
 
 ## 10. Warm Reset Flow
 
@@ -552,7 +590,7 @@ The basic flow for validating the firmware involves the following:
 - Select the manufacturer keys
 - Once both the validations are complete, download the header from the mailbox.
 - Validate the Manifest Header using the selected Manufacturer keys against the manufacturer signature.
-- Validate the Manifest Header using the owner key against the owner signature.
+- Validate the Manifest Header using the owner key(s) against the owner signature.
 - On the completion of the last two validations, it is assured that the header portion is authentic.
 - Load both the TOC entries from the mailbox.
 - Validate the downloaded TOC data against the TOC hash in the header.
@@ -564,7 +602,7 @@ The basic flow for validating the firmware involves the following:
 - Validate the RT Image against the hash in the TOC entry for the RT.
 - If all the above validations are complete, the entire image is validated.
 - Let the SOC know that the firmware download command is complete.
-- On failure, a non-zero status code will be reported in the `CPTRA_FW_ERROR_NON_FATAL` register
+- On failure, a non-zero status code will be reported in the `CPTRA_FW_ERROR_FATAL` register
 
 
 ### 13.1 **Overall Validation Flow**
@@ -577,10 +615,12 @@ The following are the pre-conditions that should be satisfied:
 - Caliptra has transitioned through the BOOTFSM and all the fuses that are required for the validation are already populated by SOC.
 - The FUSES programmed by the soc are
     - fuse_key_manifest_pk_hash : This fuse contains the hash of the manufacturer keys present in preamble.
-    - use_key_manifest_pk_hash_mask : This is the bit mask of the keys which are revoked.
-    - fuse_owner_pk_hash : The hash of the owner public key in preamble.
-    - fuse_key_manifest_svn : Used in FMC validation, to make sure that the version number is good.
-    - fuse_runtime_svn : Used in RT validation, to make sure that the runtime image's version number is good.
+    - fuse_key_manifest_pk_hash_mask : This is the bitmask of the ECC keys which are revoked.
+    - fuse_lms_revocation : This is the bitmask of the LMS keys which are revoked.
+    - fuse_owner_pk_hash : The hash of the owner public key(s) in preamble.
+    - fuse_lms_verify: This fuse indicates if verification with LMS key is enabled.
+    - fuse_key_manifest_svn : Used in FMC validation to make sure that the version number is good.
+    - fuse_runtime_svn : Used in RT validation to make sure that the runtime image's version number is good.
 - The SOC has written the data to the mailbox.
 - The SOC has written the data length in the DLEN mailbox register.
 - The SOC has put the FW_DOWNLOAD command in the command register.
@@ -590,31 +630,31 @@ The following are the pre-conditions that should be satisfied:
 ## 13.2 Preamble Validation: Validate The Manufacturing Keys
 
 - Load the preamble bytes from the mailbox.
-- There are four manufacturing keys in the preamble.
-- fuse_key_manifest_pk_hash is the fuse that contains the hash of all the four manufacturing keys.
-- To validate the key region, take the hash of all the four keys and compare it against the hash in fuse.
+- There are four ECC and thirty-two LMS manufacturing keys in the preamble.
+- fuse_key_manifest_pk_hash is the fuse that contains the hash of all the ECC and LMS manufacturing keys.
+- To validate the key region, take the hash of all the ECC and LMS keys and compare it against the hash in fuse.
 - If the hash does not match, fail the image validation.
-- If the hash matches, all the four keys are validated.
+- If the hash matches, all the ECC and LMS keys are validated.
 
 ### 13.2.1 Preamble Validation: Manufacturing Key Selection
 
-- Since there are four key slots in the preamble, we will need to select one key out of four.
-- use_key_manifest_pk_hash_mask is the mask which revokes a key.
+- Since there are four ECC key slots in the preamble, we will need to select one key out of four.
+- fuse_key_manifest_pk_hash_mask is the mask which revokes an ECC key.
     - If bit-0 is set, that key is disabled. All other higher bits which are zeros, are still enabled.
     - If all the bits are zeros, all the keys are enabled.
     - If bit-0 and bit-1 are set, all higher slot bits (2 and 3) are enabled.
-- Select the key using the Public Key Index Hint field in the preamble. This key should not be disabled using the use_key_manifest_pk_hash_mask fuse.
+- Select the key using the Public Key Index Hint field in the preamble. This key should not be disabled using the fuse_key_manifest_pk_hash_mask fuse.
     - If the key is disabled, fail the validation.
     - If the key is enabled, select the key.
-- At this time, we have validated all the four keys and selected the key that will be used for validation of the header against the manufacturer header signature field.
-<br> *(Note: Please note that this is just a hint and you will need to start the header validation with this hint. If the header validation fails, you will still need to try other keys from the other key slots, if they are not disabled.)
+- Repeat the above procedure for LMS keys using the fuse_lms_revocation for key revocation.
+- At this time, we have validated all the four ECC and thirty-two LMS keys and selected the ECC and LMS key that will be used for validation of the header against the manufacturer header signature field.
 
 ### 13.2.2 Preamble Validation: Validate The Owner Key
 
-- There is one slot for the owner key in the image preamble.
-- fuse_owner_pk_hash contains the hash of the owner public key.
-- The validation of owner public key is done by hashing the owner public key from the preamble and comparing the hash against the hash in the fuse_owner_pk_hash.
-- If the hash matches, the owner public key is valid.
+- There is one slot each for the owner ECC and LMS keys in the image preamble.
+- fuse_owner_pk_hash contains the hash of the owner public keys.
+- The validation of owner public keys is done by hashing the owner public keys from the preamble and comparing the hash against the value in the fuse_owner_pk_hash.
+- If the hash matches, the owner public keys are valid.
 - If the hash match fails, fail the image validation.
 
 ## Preamble Validation Steps
@@ -626,19 +666,18 @@ The following are the pre-conditions that should be satisfied:
 - Header is the only signed component. There are two signatures generated for the header.
 - First signature is generated using one of the manufacturing keys.
 - Second signature is generated using the owner public key.
-- To validate the header, hash and sign it using the selected manufacturer key and compare with the manufacturer signature in the preamble.
-- If the manufacturer signature matches, proceed with the owner signature validation. If the signature does not match, fail the validation.
-- The hash is already generated. Sign the above hash using the owner public key and match the signature. If the signature matches, the validation succeeds. If the signature does not match the validation fails.
+- To validate the header, hash and verify the ECC manufacturer signature in the preamble is for the hash. 
+- If the manufacturer signature matches, proceed with the owner signature validation. If the signature does not match, fail the validation. Repeat the same procedure with LMS manufacturer key if LMS verification is enabled.
+- The hash is already generated. Verify the signature for the above hash using the ECC owner public key. Repeat the same procedure with LMS owner key if LMS verification is enabled.
 
 ## Header Validation Steps
 ![Header Validation Flow](doc/svg/header-validation.svg)
 
 ## 13.4 Table Of Contents Validation
 
-- At this point all the previous steps of validations are complete.
+- At this point all the previous steps of validation are complete.
 - The Preamble and the header are validated.
 - Load both the TOCs (FMC TOC and RT TOC) from the mailbox.
-<br> *(NOTE: We should be able to use the sha accelerator here. Entire header contents are contiguous) That way we will not need to download the code at all)*
 - Generate the hash of the entire TOC data.
 - Compare the hash of the TOC data with the hash in the header.
 - If the hash matches, the TOC data is valid.
@@ -671,7 +710,7 @@ The following are the pre-conditions that should be satisfied:
 - Compare the hash with the hash available in the FMC TOC.
 - If the hash matches, the FMC image section is validated. If the hash does not match, reject the image.
 - Load the RT Image section from the mail box. The offset and the size of the section is present in the TOC.
-- Calcaulte the SHA-384 hash of the RT image section.
+- Calculate the SHA-384 hash of the RT image section.
 - Compare the hash with the hash in the RT TOC.
 - If the hash matches, the RT image section is validated. If the hash does not match, reject the image.
 
@@ -689,23 +728,49 @@ The following are the pre-conditions that should be satisfied:
     - Save the hash of the FMC portion of the image in a separate register.
     - Copy the FMC and RT image's text and data section in the appropriate ICCM and DCCM memory regions.
     - The data vault is saved with the following values:-
-        - Vendor public key index in the preamble is save in the data vault. 
-        - Digest of the owner public key portion of preamble. 
+        - LDevId Dice Signature.
+        - LDevId Dice Public Key.
+        - Fmc Dice Signature.
+        - Fmc Public Key.
         - Digest of the FMC part of the image.
+        - Digest of the ECC and LMS owner public keys portion of preamble.
+        - FMC SVN.
+        - ROM Cold Boot Status.
+        - Fmc Entry Point.
+        - ECC Vendor public key index.
+        - LMS Vendor public key index.
 - Warm Boot Mode
     - In this mode there is no validation or load required for any parts of the image.
-    - All the contents of ICCM and DCCM are preserved since this is a warm reboot.
+    - All the contents of ICCM and DCCM are preserved.
 - Update Reset Mode
     - The image is exactly the same as the initial image which was verified on the cold boot, except that the RT part of the image is changed.
-    - We need to validate the entire image exactly as described in the cold boot flow. In addition to that, also validate the image to make sure that no other part (except the RT image section) is altered. 
+    - We need to validate the entire image exactly as described in the cold boot flow. In addition to that, also validate the image to make sure that no other part (except the RT image section) is altered.
     - The validation flow will look like the following:
-        - Validate the preamble exactly like in cold boot flow. 
-            - Validate the vendor public key index from the value in data vault (value saved during cold boot). Fail the validation if there is a mismatch. This is done to make sure that the key being used is the same key that was used during cold boot.
-            -  Validate the owner public key digest against the owner public key digest in data vault (value saved during cold boot). This makes sure that the owner key is not changed since last cold boot.
+        - Validate the preamble exactly like in cold boot flow.
+            - Validate the vendor public key indices from the values in data vault (value saved during cold boot). Fail the validation if there is a mismatch. This is done to make sure that the key being used is the same key that was used during cold boot.
+            -  Validate the owner public key digest against the owner public key digest in data vault (value saved during cold boot). This ensures that the owner keys have not changed since last cold boot.
         - Validate the header exactly like in cold boot.
         - Validate the toc exactly like in cold boot.
         - We still need to make sure that the digest of the FMC which was stored in the data vault register at cold boot
-          still matches the FMC image section. 
-    - If validation fails during ROM boot, the new image will not be copied from
+          still matches the FMC image section.
+    - If validation fails during ROM boot, the new RT image will not be copied from
       the mailbox. ROM will boot the existing FMC/Runtime images. Validation
       errors will be reported via the CPTRA_FW_ERROR_NON_FATAL register.
+
+## 14. Fake ROM
+
+Fake ROM is a variation of the ROM intended to be used in the verification/enabling stages of development. The purpose is to greatly reduce the boot time for pre-Si environments by eliminating certain steps from the boot flow. Outside of these omissions, the behavior is intended to be the same as normal ROM.
+
+Fake ROM is not available in production mode as it is not secure and breaks/bypasses the core use-cases of Caliptra as a RoT.
+
+**Differences from normal ROM:**
+Fake ROM reduces boot time by doing the following:
+1. Skipping the DICE cert derivation and instead providing a static, "canned" cert chain for LDEV and FMC Alias
+2. Skipping the known answer tests (KATs)
+3. Skipping verification of the FW image received - This can optionally still be performed, see CPTRA_DBG_MANUF_SERVICE_REG
+
+**How to use:**
+- Fake ROM is provided in the release along with the normal collateral.
+- The image builder exposes the argument "fake" that can be used to generate the fake versions
+
+To fully boot to runtime, the fake version of FMC should also be used. Details can be found in the FMC readme.

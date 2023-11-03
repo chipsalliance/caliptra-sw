@@ -136,6 +136,7 @@ pub enum WarmResetEntry4 {
     RtEntryPoint = 1,
     ManifestAddr = 2,
     RtMinSvn = 3,
+    RomUpdateResetStatus = 4,
 }
 
 impl From<WarmResetEntry4> for u8 {
@@ -390,16 +391,6 @@ impl DataVault {
         self.read_cold_reset_entry4(ColdResetEntry4::LmsVendorPubKeyIndex)
     }
 
-    /// Set and lock the rom cold boot status.
-    ///
-    /// # Arguments
-    ///
-    /// * `status` - Rom Cold Boot Status
-    ///
-    pub fn set_rom_cold_boot_status(&mut self, status: u32) {
-        self.write_lock_cold_reset_entry4(ColdResetEntry4::RomColdBootStatus, status);
-    }
-
     /// Get the rom cold boot status.
     ///
     /// # Returns
@@ -407,6 +398,15 @@ impl DataVault {
     /// * `u32` - Rom Cold Boot Status
     pub fn rom_cold_boot_status(&self) -> u32 {
         self.read_cold_reset_entry4(ColdResetEntry4::RomColdBootStatus)
+    }
+
+    /// Get the rom update reset status.
+    ///
+    /// # Returns
+    ///
+    /// * `u32` - Rom Update Reset Status
+    pub fn rom_update_reset_status(&self) -> u32 {
+        self.read_warm_reset_entry4(WarmResetEntry4::RomUpdateResetStatus)
     }
 
     /// Set the rt tcb component identifier.
@@ -612,7 +612,7 @@ impl DataVault {
     /// * `entry` - cold reset entry
     /// * `value` - cold reset entry value
     ///
-    fn write_lock_cold_reset_entry4(&mut self, entry: ColdResetEntry4, value: u32) {
+    pub fn write_lock_cold_reset_entry4(&mut self, entry: ColdResetEntry4, value: u32) {
         self.write_cold_reset_entry4(entry, value);
         self.lock_cold_reset_entry4(entry);
     }
@@ -660,7 +660,7 @@ impl DataVault {
     /// # Arguments
     /// * `entry` - warm reset entry
     /// * `value` - warm reset entry value
-    fn write_lock_warm_reset_entry4(&mut self, entry: WarmResetEntry4, value: u32) {
+    pub fn write_lock_warm_reset_entry4(&mut self, entry: WarmResetEntry4, value: u32) {
         self.write_warm_reset_entry4(entry, value);
         self.lock_warm_reset_entry4(entry);
     }

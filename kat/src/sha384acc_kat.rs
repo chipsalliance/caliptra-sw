@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 use crate::sha384_kat::SHA384_EXPECTED_DIGEST;
-use caliptra_drivers::{Array4x12, CaliptraError, CaliptraResult, Sha384Acc};
+use caliptra_drivers::{Array4x12, CaliptraError, CaliptraResult, Sha384Acc, ShaAccLockState};
 
 #[derive(Default)]
 pub struct Sha384AccKat {}
@@ -26,19 +26,28 @@ impl Sha384AccKat {
     /// # Arguments
     ///
     /// * `sha_acc` - SHA2-384 Accelerator Driver
+    /// * `lock_state` - SHA Acc Lock State
     ///
     /// # Returns
     ///
     /// * `CaliptraResult` - Result denoting the KAT outcome.
-    pub fn execute(&self, sha_acc: &mut Sha384Acc) -> CaliptraResult<()> {
-        self.kat_no_data(sha_acc)?;
+    pub fn execute(
+        &self,
+        sha_acc: &mut Sha384Acc,
+        lock_state: ShaAccLockState,
+    ) -> CaliptraResult<()> {
+        self.kat_no_data(sha_acc, lock_state)?;
         Ok(())
     }
 
-    fn kat_no_data(&self, sha_acc: &mut Sha384Acc) -> CaliptraResult<()> {
+    fn kat_no_data(
+        &self,
+        sha_acc: &mut Sha384Acc,
+        lock_state: ShaAccLockState,
+    ) -> CaliptraResult<()> {
         let mut digest = Array4x12::default();
 
-        if let Some(mut sha_acc_op) = sha_acc.try_start_operation() {
+        if let Some(mut sha_acc_op) = sha_acc.try_start_operation(lock_state)? {
             sha_acc_op
                 .digest(0, 0, false, &mut digest)
                 .map_err(|_| CaliptraError::ROM_KAT_SHA384_ACC_DIGEST_FAILURE)?;

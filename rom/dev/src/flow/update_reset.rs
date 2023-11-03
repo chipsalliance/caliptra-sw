@@ -18,8 +18,8 @@ use caliptra_common::verifier::FirmwareImageVerificationEnv;
 
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::CommandId;
-use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::RomBootStatus::*;
+use caliptra_drivers::report_fw_error_non_fatal;
 use caliptra_drivers::{
     okref, report_boot_status, MailboxRecvTxn, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
@@ -39,50 +39,68 @@ impl UpdateResetFlow {
     ///
     /// * `env` - ROM Environment
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
+    pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
         cprintln!("[update-reset] ++");
         report_boot_status(UpdateResetStarted.into());
+
+        // Indicate that Update-Reset flow has started.
+        // This is used by the next Warm-Reset flow to confirm that the Update-Reset was successful.
+        // Success status is set at the end of the flow.
+        env.data_vault.write_warm_reset_entry4(
+            WarmResetEntry4::RomUpdateResetStatus,
+            UpdateResetStarted.into(),
+        );
 
         let Some(mut recv_txn) = env.mbox.try_start_recv_txn() else {
             cprintln!("Failed To Get Mailbox Transaction");
             return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE);
         };
 
-        if recv_txn.cmd() != CommandId::FIRMWARE_LOAD.into() {
-            cprintln!("Invalid command 0x{:08x} received", recv_txn.cmd());
-            return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_INVALID_FIRMWARE_COMMAND);
-        }
+        let mut process_txn = || -> CaliptraResult<()> {
+            if recv_txn.cmd() != CommandId::FIRMWARE_LOAD.into() {
+                cprintln!("Invalid command 0x{:08x} received", recv_txn.cmd());
+                return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_INVALID_FIRMWARE_COMMAND);
+            }
 
-        let manifest = Self::load_manifest(env.persistent_data.get_mut(), &mut recv_txn)?;
-        report_boot_status(UpdateResetLoadManifestComplete.into());
+            let manifest = Self::load_manifest(env.persistent_data.get_mut(), &mut recv_txn)?;
+            report_boot_status(UpdateResetLoadManifestComplete.into());
 
-        let mut venv = FirmwareImageVerificationEnv {
-            sha256: &mut env.sha256,
-            sha384: &mut env.sha384,
-            sha384_acc: &mut env.sha384_acc,
-            soc_ifc: &mut env.soc_ifc,
-            ecc384: &mut env.ecc384,
-            data_vault: &mut env.data_vault,
-            pcr_bank: &mut env.pcr_bank,
+            let mut venv = FirmwareImageVerificationEnv {
+                sha256: &mut env.sha256,
+                sha384: &mut env.sha384,
+                soc_ifc: &mut env.soc_ifc,
+                ecc384: &mut env.ecc384,
+                data_vault: &mut env.data_vault,
+                pcr_bank: &mut env.pcr_bank,
+                image: recv_txn.raw_mailbox_contents(),
+            };
+
+            let info = Self::verify_image(&mut venv, &manifest, recv_txn.dlen());
+            let info = okref(&info)?;
+            report_boot_status(UpdateResetImageVerificationComplete.into());
+
+            // Populate data vault
+            Self::populate_data_vault(venv.data_vault, info);
+
+            // Extend PCR0 and PCR1
+            pcr::extend_pcrs(&mut venv, info, &mut env.persistent_data)?;
+            report_boot_status(UpdateResetExtendPcrComplete.into());
+
+            cprintln!(
+                "[update-reset] Image verified using Vendor ECC Key Index {}",
+                info.vendor_ecc_pub_key_idx
+            );
+
+            Self::load_image(&manifest, &mut recv_txn)?;
+            Ok(())
         };
-
-        let info = Self::verify_image(&mut venv, &manifest, recv_txn.dlen());
-        let info = okref(&info)?;
-        report_boot_status(UpdateResetImageVerificationComplete.into());
-
-        // Populate data vault
-        Self::populate_data_vault(venv.data_vault, info);
-
-        // Extend PCR0 and PCR1
-        pcr::extend_pcrs(&mut venv, info, &mut env.persistent_data)?;
-        report_boot_status(UpdateResetExtendPcrComplete.into());
-
-        cprintln!(
-            "[update-reset] Image verified using Vendor ECC Key Index {}",
-            info.vendor_ecc_pub_key_idx
-        );
-
-        Self::load_image(&manifest, &mut recv_txn)?;
+        if let Err(e) = process_txn() {
+            // To prevent a race condition where the SoC sees the mailbox
+            // transaction fail and reads the non-fatal error register before it
+            // gets populated, report the non-fatal error code now.
+            report_fw_error_non_fatal(e.into());
+            return Err(e);
+        }
 
         // Drop the transaction and release the Mailbox lock after the image
         // has been successfully verified and loaded in memory
@@ -95,12 +113,18 @@ impl UpdateResetFlow {
         report_boot_status(UpdateResetOverwriteManifestComplete.into());
 
         // Set RT version. FMC does not change.
-        env.soc_ifc.set_rt_fw_rev_id(manifest.runtime.version);
+        env.soc_ifc
+            .set_rt_fw_rev_id(persistent_data.manifest1.runtime.version);
+
+        env.data_vault.write_lock_warm_reset_entry4(
+            WarmResetEntry4::RomUpdateResetStatus,
+            UpdateResetComplete.into(),
+        );
 
         cprintln!("[update-reset Success] --");
         report_boot_status(UpdateResetComplete.into());
 
-        Ok(None)
+        Ok(())
     }
 
     /// Verify the image
@@ -119,10 +143,11 @@ impl UpdateResetFlow {
         #[cfg(feature = "fake-rom")]
         let env = &mut FakeRomImageVerificationEnv {
             sha256: env.sha256,
-            sha384_acc: env.sha384_acc,
+            sha384: env.sha384,
             soc_ifc: env.soc_ifc,
             data_vault: env.data_vault,
             ecc384: env.ecc384,
+            image: env.image,
         };
 
         let mut verifier = ImageVerifier::new(env);

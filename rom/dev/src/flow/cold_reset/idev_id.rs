@@ -25,14 +25,12 @@ use caliptra_common::keyids::{KEY_ID_FE, KEY_ID_IDEVID_PRIV_KEY, KEY_ID_ROM_FMC_
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
 use caliptra_x509::*;
+use zeroize::Zeroize;
 
 type InitDevIdCsr<'a> = Certificate<'a, { MAX_CSR_SIZE }>;
 
-/// Initialization Vector used by Deobfuscation Engine during Unique Device Secret (UDS) decryption.
-const DOE_UDS_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e]);
-
-/// Initialization Vector used by Deobfuscation Engine during Field Entropy decryption.
-const DOE_FE_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e]);
+/// Initialization Vector used by Deobfuscation Engine during UDS / field entropy decryption.
+const DOE_IV: Array4x4 = Array4xN::<4, 16>([0xfb10365b, 0xa1179741, 0xfba193a1, 0x0f406d7e]);
 
 /// Maximum Certificate Signing Request Size
 const MAX_CSR_SIZE: usize = 512;
@@ -57,10 +55,16 @@ impl InitDevIdLayer {
         cprintln!("[idev] SUBJECT.KEYID = {}", KEY_ID_IDEVID_PRIV_KEY as u8);
         cprintln!("[idev] UDS.KEYID = {}", KEY_ID_UDS as u8);
 
+        // If CSR is not requested, indicate to the SOC that it can start
+        // uploading the firmware image to the mailbox.
+        if !env.soc_ifc.mfg_flag_gen_idev_id_csr() {
+            env.soc_ifc.flow_status_set_ready_for_firmware();
+        }
+
         // Decrypt the UDS
         Self::decrypt_uds(env, KEY_ID_UDS)?;
 
-        // Decrypt the Filed Entropy
+        // Decrypt the Field Entropy
         Self::decrypt_field_entropy(env, KEY_ID_FE)?;
 
         // Clear Deobfuscation Engine Secrets
@@ -91,8 +95,13 @@ impl InitDevIdLayer {
         // Generate the Initial DevID Certificate Signing Request (CSR)
         Self::generate_csr(env, &output)?;
 
-        // Write IDevID pub to FHT
-        env.fht_data_store.idev_pub = output.subj_key_pair.pub_key;
+        // Indicate (if not already done) to SOC that it can start uploading the firmware image to the mailbox.
+        if !env.soc_ifc.flow_status_ready_for_firmware() {
+            env.soc_ifc.flow_status_set_ready_for_firmware();
+        }
+
+        // Write IDevID public key to FHT
+        env.persistent_data.get_mut().fht.idev_dice_pub_key = output.subj_key_pair.pub_key;
 
         cprintln!("[idev] --");
         report_boot_status(IDevIdDerivationComplete.into());
@@ -110,7 +119,7 @@ impl InitDevIdLayer {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn decrypt_uds(env: &mut RomEnv, uds: KeyId) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
-        env.doe.decrypt_uds(&DOE_UDS_IV, uds)?;
+        env.doe.decrypt_uds(&DOE_IV, uds)?;
         report_boot_status(IDevIdDecryptUdsComplete.into());
         Ok(())
     }
@@ -124,7 +133,7 @@ impl InitDevIdLayer {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn decrypt_field_entropy(env: &mut RomEnv, fe: KeyId) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
-        env.doe.decrypt_field_entropy(&DOE_FE_IV, fe)?;
+        env.doe.decrypt_field_entropy(&DOE_IV, fe)?;
         report_boot_status(IDevIdDecryptFeComplete.into());
         Ok(())
     }
@@ -199,7 +208,7 @@ impl InitDevIdLayer {
         //
         // Generate the CSR if requested via Manufacturing Service Register
         //
-        // A flag is asserted via JTAG interface to enble the generation of CSR
+        // A flag is asserted via JTAG interface to enable the generation of CSR
         if !env.soc_ifc.mfg_flag_gen_idev_id_csr() {
             return Ok(());
         }
@@ -216,7 +225,6 @@ impl InitDevIdLayer {
     ///
     /// * `env`    - ROM Environment
     /// * `output` - DICE Output
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn make_csr(env: &mut RomEnv, output: &DiceOutput) -> CaliptraResult<()> {
         let key_pair = &output.subj_key_pair;
 
@@ -240,18 +248,10 @@ impl InitDevIdLayer {
             key_pair.priv_key as u8
         );
 
-        // Sign the the `To Be Signed` portion
-        let mut sig = Crypto::ecdsa384_sign(env, key_pair.priv_key, &key_pair.pub_key, tbs.tbs());
+        // Sign the `To Be Signed` portion
+        let mut sig =
+            Crypto::ecdsa384_sign_and_verify(env, key_pair.priv_key, &key_pair.pub_key, tbs.tbs());
         let sig = okmutref(&mut sig)?;
-
-        // Verify the signature of the `To Be Signed` portion
-        let mut verify_r = Crypto::ecdsa384_verify(env, &key_pair.pub_key, tbs.tbs(), sig)?;
-        if cfi_launder(&verify_r) != &sig.r {
-            return Err(CaliptraError::ROM_IDEVID_CSR_VERIFICATION_FAILURE);
-        } else {
-            cfi_assert!(cfi_launder(&verify_r) == &sig.r);
-        }
-        verify_r.0.fill(0);
 
         let _pub_x: [u8; 48] = key_pair.pub_key.x.into();
         let _pub_y: [u8; 48] = key_pair.pub_key.y.into();
@@ -265,8 +265,11 @@ impl InitDevIdLayer {
 
         // Build the CSR with `To Be Signed` & `Signature`
         let mut csr = [0u8; MAX_CSR_SIZE];
-        let csr_bldr = Ecdsa384CsrBuilder::new(tbs.tbs(), &sig.to_ecdsa())
-            .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_INIT_FAILURE)?;
+        let result = Ecdsa384CsrBuilder::new(tbs.tbs(), &sig.to_ecdsa())
+            .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_INIT_FAILURE);
+        sig.zeroize();
+
+        let csr_bldr = result?;
         let csr_len = csr_bldr
             .build(&mut csr)
             .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_BUILD_FAILURE)?;
@@ -280,10 +283,7 @@ impl InitDevIdLayer {
 
         // Execute Send CSR Flow
         let result = Self::send_csr(env, InitDevIdCsr::new(&csr, csr_len));
-
-        // Zeroize locals.
-        sig.zeroize();
-        csr.fill(0);
+        csr.zeroize();
 
         result
     }

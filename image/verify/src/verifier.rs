@@ -15,6 +15,7 @@ Abstract:
 use core::num::NonZeroU32;
 
 use crate::*;
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_assert_ge, cfi_launder};
 use caliptra_drivers::*;
 use caliptra_image_types::*;
 use memoffset::offset_of;
@@ -29,9 +30,10 @@ struct HeaderInfo<'a> {
     vendor_ecc_info: (&'a ImageEccPubKey, &'a ImageEccSignature),
     vendor_lms_info: Option<(&'a ImageLmsPublicKey, &'a ImageLmsSignature)>,
     vendor_lms_pub_key_revocation: Option<u32>,
-    owner_ecc_info: Option<(&'a ImageEccPubKey, &'a ImageEccSignature)>,
+    owner_ecc_info: (&'a ImageEccPubKey, &'a ImageEccSignature),
     owner_lms_info: Option<(&'a ImageLmsPublicKey, &'a ImageLmsSignature)>,
     owner_pub_keys_digest: ImageDigest,
+    owner_pub_keys_digest_in_fuses: bool,
 }
 
 /// TOC Info
@@ -112,8 +114,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let info = ImageVerificationInfo {
             vendor_ecc_pub_key_idx: header_info.vendor_ecc_pub_key_idx,
             vendor_lms_pub_key_idx: header_info.vendor_lms_pub_key_idx,
-            vendor_pub_keys_digest: self.make_vendor_key_digest(header_info)?,
             owner_pub_keys_digest: header_info.owner_pub_keys_digest,
+            owner_pub_keys_digest_in_fuses: header_info.owner_pub_keys_digest_in_fuses,
             fmc: fmc_info,
             runtime: runtime_info,
             log_info: ImageVerificationLogInfo {
@@ -139,7 +141,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         self.verify_vendor_pk_digest()?;
 
         // Verify Owner Public Key Digest
-        let owner_pk_digest = self.verify_owner_pk_digest(reason)?;
+        let (owner_pub_keys_digest, owner_pub_keys_digest_in_fuses) =
+            self.verify_owner_pk_digest(reason)?;
 
         // Verify ECC Vendor Key Index
         let (vendor_ecc_pub_key_idx, vendor_ecc_pub_key_revocation) =
@@ -169,26 +172,19 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         }
 
         // Owner Information
-        let (owner_pub_keys_digest, owner_ecc_info, owner_lms_info) =
-            if let Some(digest) = owner_pk_digest {
-                (
-                    digest,
-                    Some((
-                        &preamble.owner_pub_keys.ecc_pub_key,
-                        &preamble.owner_sigs.ecc_sig,
-                    )),
-                    if self.env.lms_verify_enabled() {
-                        Some((
-                            &preamble.owner_pub_keys.lms_pub_key,
-                            &preamble.owner_sigs.lms_sig,
-                        ))
-                    } else {
-                        None
-                    },
-                )
-            } else {
-                (ZERO_DIGEST, None, None)
-            };
+        let owner_ecc_info = (
+            &preamble.owner_pub_keys.ecc_pub_key,
+            &preamble.owner_sigs.ecc_sig,
+        );
+
+        let owner_lms_info = if self.env.lms_verify_enabled() {
+            Some((
+                &preamble.owner_pub_keys.lms_pub_key,
+                &preamble.owner_sigs.lms_sig,
+            ))
+        } else {
+            None
+        };
 
         let info = HeaderInfo {
             vendor_ecc_pub_key_idx,
@@ -197,6 +193,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             vendor_lms_info,
             owner_lms_info,
             owner_pub_keys_digest,
+            owner_pub_keys_digest_in_fuses,
             owner_ecc_info,
             vendor_ecc_pub_key_revocation,
             vendor_lms_pub_key_revocation,
@@ -298,7 +295,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let actual = self
             .env
             .sha384_digest(range.start, range.len() as u32)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE)?;
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE
+            })?;
 
         if expected != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_MISMATCH)?;
@@ -307,22 +307,26 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         Ok(())
     }
 
-    /// Verify owner public key digest
+    /// Verify owner public key digest.
+    /// Returns a bool indicating whether the digest was in fuses.
     fn verify_owner_pk_digest(
         &mut self,
         reason: ResetReason,
-    ) -> CaliptraResult<Option<ImageDigest>> {
+    ) -> CaliptraResult<(ImageDigest, bool)> {
         let range = ImageManifest::owner_pub_key_range();
 
         let actual = self
             .env
             .sha384_digest(range.start, range.len() as u32)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_FAILURE)?;
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_FAILURE
+            })?;
 
         let fuses_digest = self.env.owner_pub_key_digest_fuses();
 
         if fuses_digest != ZERO_DIGEST && fuses_digest != actual {
-            Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH)?;
+            return Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH);
         }
 
         if reason == ResetReason::UpdateReset {
@@ -332,7 +336,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             }
         }
 
-        Ok(Some(actual))
+        Ok((actual, fuses_digest != ZERO_DIGEST))
     }
 
     /// Verify Header
@@ -349,12 +353,18 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let digest_vendor = self
             .env
             .sha384_digest(range.start, vendor_header_len as u32)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE)?;
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE
+            })?;
 
         let digest_owner = self
             .env
             .sha384_digest(range.start, range.len() as u32)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE)?;
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE
+            })?;
 
         // Verify vendor signature
         self.verify_vendor_sig(&digest_vendor, info.vendor_ecc_info, info.vendor_lms_info)?;
@@ -374,9 +384,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         }
 
         // Verify owner ECC signature
-        if let Some((owner_ecc_pub_key, owner_ecc_sig)) = info.owner_ecc_info {
-            self.verify_owner_ecc_sig(&digest_owner, owner_ecc_pub_key, owner_ecc_sig)?;
-        }
+        let (owner_ecc_pub_key, owner_ecc_sig) = info.owner_ecc_info;
+        self.verify_owner_ecc_sig(&digest_owner, owner_ecc_pub_key, owner_ecc_sig)?;
 
         // Verify owner LMS signature
         if let Some((owner_lms_pub_key, owner_lms_sig)) = info.owner_lms_info {
@@ -410,7 +419,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let verify_r = self
             .env
             .ecc384_verify(digest, pub_key, sig)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_VERIFY_FAILURE)?;
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_VERIFY_FAILURE
+            })?;
 
         if verify_r != caliptra_drivers::Array4xN(sig.r) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID)?;
@@ -437,7 +449,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let verify_r = self
             .env
             .ecc384_verify(digest, ecc_pub_key, ecc_sig)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_VERIFY_FAILURE)?;
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_VERIFY_FAILURE
+            })?;
 
         if verify_r != caliptra_drivers::Array4xN(ecc_sig.r) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID)?;
@@ -446,10 +461,13 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         if self.env.lms_verify_enabled() {
             if let Some(info) = lms_info {
                 let (lms_pub_key, lms_sig) = info;
-                let candidate_key = self
-                    .env
-                    .lms_verify(digest, lms_pub_key, lms_sig)
-                    .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_VERIFY_FAILURE)?;
+                let candidate_key =
+                    self.env
+                        .lms_verify(digest, lms_pub_key, lms_sig)
+                        .map_err(|err| {
+                            self.env.set_fw_extended_error(err.into());
+                            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_VERIFY_FAILURE
+                        })?;
                 if candidate_key != HashValue::from(lms_pub_key.digest) {
                     return Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID);
                 }
@@ -469,7 +487,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let candidate_key = self
             .env
             .lms_verify(digest, lms_pub_key, lms_sig)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_VERIFY_FAILURE)?;
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_VERIFY_FAILURE
+            })?;
 
         if candidate_key != HashValue::from(lms_pub_key.digest) {
             return Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_SIGNATURE_INVALID);
@@ -494,7 +515,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let actual = self
             .env
             .sha384_digest(range.start, range.len() as u32)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_FAILURES)?;
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_FAILURE
+            })?;
 
         if *verify_info.digest != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_MISMATCH)?;
@@ -520,8 +544,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         }
 
         // Check if fmc and runtime sections overlap in the image.
-        let fmc_range = manifest.fmc.image_range();
-        let runtime_range = manifest.runtime.image_range();
+        let fmc_range = manifest.fmc.image_range()?;
+        let runtime_range = manifest.runtime.image_range()?;
         if fmc_range.start < runtime_range.end && fmc_range.end > runtime_range.start {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP)?;
         }
@@ -533,9 +557,18 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // Check if fmc and runtime images don't overlap on loading in the ICCM.
         let fmc_load_addr_start = manifest.fmc.load_addr;
-        let fmc_load_addr_end = fmc_load_addr_start + manifest.fmc.image_size() - 1;
+        let (fmc_load_addr_end, overflow) =
+            fmc_load_addr_start.overflowing_add(manifest.fmc.image_size() - 1);
+        if overflow {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDRESS_IMAGE_SIZE_ARITHMETIC_OVERFLOW)?;
+        }
+
         let runtime_load_addr_start = manifest.runtime.load_addr;
-        let runtime_load_addr_end = runtime_load_addr_start + manifest.runtime.image_size() - 1;
+        let (runtime_load_addr_end, overflow) =
+            runtime_load_addr_start.overflowing_add(manifest.runtime.image_size() - 1);
+        if overflow {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDRESS_IMAGE_SIZE_ARITHMETIC_OVERFLOW)?;
+        }
 
         if fmc_load_addr_start <= runtime_load_addr_end
             && fmc_load_addr_end >= runtime_load_addr_start
@@ -552,9 +585,18 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     }
 
     // Check if SVN check is required
+    #[inline(always)]
     fn svn_check_required(&mut self) -> bool {
-        // If device is unprovisioned or if anti-rollback is disabled, don't check the SVN.
-        !(self.env.dev_lifecycle() == Lifecycle::Unprovisioned || self.env.anti_rollback_disable())
+        // If device is unprovisioned or if rollback is enabled (anti_rollback_disable == true), don't check the SVN.
+        if cfi_launder(self.env.dev_lifecycle()) == Lifecycle::Unprovisioned {
+            cfi_assert_eq(self.env.dev_lifecycle(), Lifecycle::Unprovisioned);
+            false // SVN check not required
+        } else if cfi_launder(self.env.anti_rollback_disable()) {
+            cfi_assert!(self.env.anti_rollback_disable());
+            false // SVN check not required
+        } else {
+            true // SVN check required
+        }
     }
 
     /// Verify FMC
@@ -563,17 +605,21 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         verify_info: &ImageTocEntry,
         reason: ResetReason,
     ) -> CaliptraResult<(ImageVerificationExeInfo, ImageSvnLogInfo)> {
-        let range = verify_info.image_range();
+        let range = verify_info.image_range()?;
 
         let actual = self
             .env
             .sha384_digest(range.start, range.len() as u32)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_FAILURE)?;
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_FAILURE
+            })?;
 
         if verify_info.digest != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH)?;
         }
 
+        // Overflow/underflow is checked in verify_toc
         if !self.env.iccm_range().contains(&verify_info.load_addr)
             || !self
                 .env
@@ -602,8 +648,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_MIN_SUPPORTED)?;
             }
 
-            if verify_info.svn < self.env.fmc_fuse_svn() {
+            if cfi_launder(verify_info.svn) < self.env.fmc_fuse_svn() {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_FUSE)?;
+            } else {
+                cfi_assert_ge(verify_info.svn, self.env.fmc_fuse_svn());
             }
         }
 
@@ -637,17 +685,21 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         &mut self,
         verify_info: &ImageTocEntry,
     ) -> CaliptraResult<(ImageVerificationExeInfo, ImageSvnLogInfo)> {
-        let range = verify_info.image_range();
+        let range = verify_info.image_range()?;
 
         let actual = self
             .env
             .sha384_digest(range.start, range.len() as u32)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_FAILURE)?;
+            .map_err(|err| {
+                self.env.set_fw_extended_error(err.into());
+                CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_FAILURE
+            })?;
 
         if verify_info.digest != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH)?;
         }
 
+        // Overflow/underflow is checked in verify_toc
         if !self.env.iccm_range().contains(&verify_info.load_addr)
             || !self
                 .env
@@ -701,23 +753,6 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         };
 
         Ok((info, log_info))
-    }
-
-    /// Calculates a digest of the vendor key that signed the image.
-    ///
-    /// TODO: include the LMS key in the digest.
-    // Inlined to reduce ROM size
-    #[inline(always)]
-    fn make_vendor_key_digest(&mut self, info: &HeaderInfo) -> CaliptraResult<ImageDigest> {
-        let range = ImageManifest::vendor_ecc_pub_key_range(info.vendor_ecc_pub_key_idx);
-
-        if range.is_empty() {
-            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS)?;
-        }
-
-        self.env
-            .sha384_digest(range.start, range.len() as u32)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE)
     }
 
     /// Calculates the effective fuse SVN.
@@ -977,9 +1012,10 @@ mod tests {
             vendor_lms_pub_key_idx: Some(0),
             vendor_ecc_info: (&ImageEccPubKey::default(), &ImageEccSignature::default()),
             vendor_lms_info: Some((&binding_vendor_lms_pubkey, &binding_vendor_lms_sig)),
-            owner_ecc_info: Some((&ecc_pubkey, &ecc_sig)),
+            owner_ecc_info: (&ecc_pubkey, &ecc_sig),
             owner_lms_info: Some((&owner_lms_pubkey, &owner_lms_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            owner_pub_keys_digest_in_fuses: false,
             vendor_ecc_pub_key_revocation: Default::default(),
             vendor_lms_pub_key_revocation: Default::default(),
         };
@@ -1006,9 +1042,10 @@ mod tests {
             vendor_lms_pub_key_idx: Some(0),
             vendor_ecc_info: (&VENDOR_ECC_PUBKEY, &ImageEccSignature::default()),
             vendor_lms_info: Some((&binding_vendor_lms_pubkey, &binding_vendor_lms_sig)),
-            owner_ecc_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
+            owner_ecc_info: (&owner_ecc_pubkey, &owner_ecc_sig),
             owner_lms_info: Some((&owner_lms_pubkey, &owner_lms_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            owner_pub_keys_digest_in_fuses: false,
             vendor_ecc_pub_key_revocation: Default::default(),
             vendor_lms_pub_key_revocation: Default::default(),
         };
@@ -1041,9 +1078,10 @@ mod tests {
             vendor_lms_pub_key_idx: Some(0),
             vendor_ecc_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
             vendor_lms_info: Some((&binding_vendor_lms_pubkey, &binding_vendor_lms_sig)),
-            owner_ecc_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
+            owner_ecc_info: (&owner_ecc_pubkey, &owner_ecc_sig),
             owner_lms_info: Some((&owner_lms_pubkey, &owner_lms_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            owner_pub_keys_digest_in_fuses: false,
             vendor_ecc_pub_key_revocation: Default::default(),
             vendor_lms_pub_key_revocation: Default::default(),
         };
@@ -1077,9 +1115,10 @@ mod tests {
             vendor_ecc_pub_key_revocation: Default::default(),
             vendor_ecc_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
             vendor_lms_info: Some((&binding_vendor_lms_pubkey, &binding_vendor_lms_sig)),
-            owner_ecc_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
+            owner_ecc_info: (&owner_ecc_pubkey, &owner_ecc_sig),
             owner_lms_info: Some((&owner_lms_pubkey, &owner_lms_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            owner_pub_keys_digest_in_fuses: false,
             vendor_lms_pub_key_revocation: Default::default(),
         };
         let result = verifier.verify_header(&header, &header_info);
@@ -1109,9 +1148,10 @@ mod tests {
             vendor_lms_pub_key_idx: Some(0),
             vendor_ecc_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
             vendor_lms_info: Some((&binding_vendor_lms_pubkey, &binding_vendor_lms_sig)),
-            owner_ecc_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
+            owner_ecc_info: (&owner_ecc_pubkey, &owner_ecc_sig),
             owner_lms_info: Some((&owner_lms_pubkey, &owner_lms_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            owner_pub_keys_digest_in_fuses: false,
             vendor_ecc_pub_key_revocation: Default::default(),
             vendor_lms_pub_key_revocation: Default::default(),
         };
@@ -1142,9 +1182,10 @@ mod tests {
             vendor_lms_pub_key_idx: Some(1),
             vendor_ecc_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
             vendor_lms_info: Some((&binding_vendor_lms_pubkey, &binding_vendor_lms_sig)),
-            owner_ecc_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
+            owner_ecc_info: (&owner_ecc_pubkey, &owner_ecc_sig),
             owner_lms_info: Some((&owner_lms_pubkey, &owner_lms_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            owner_pub_keys_digest_in_fuses: false,
             vendor_ecc_pub_key_revocation: Default::default(),
             vendor_lms_pub_key_revocation: Default::default(),
         };
@@ -1175,9 +1216,10 @@ mod tests {
             vendor_lms_pub_key_idx: Some(0),
             vendor_ecc_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
             vendor_lms_info: Some((&binding_vendor_lms_pubkey, &binding_vendor_lms_sig)),
-            owner_ecc_info: Some((&owner_ecc_pubkey, &owner_ecc_sig)),
+            owner_ecc_info: (&owner_ecc_pubkey, &owner_ecc_sig),
             owner_lms_info: Some((&owner_lms_pubkey, &owner_lms_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            owner_pub_keys_digest_in_fuses: false,
             vendor_ecc_pub_key_revocation: Default::default(),
             vendor_lms_pub_key_revocation: Default::default(),
         };
@@ -1207,9 +1249,10 @@ mod tests {
             vendor_lms_pub_key_idx: Some(0),
             vendor_ecc_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
             vendor_lms_info: Some((&binding_vendor_lms_pubkey, &binding_vendor_lms_sig)),
-            owner_ecc_info: Some((&OWNER_ECC_PUBKEY, &owner_ecc_sig)),
+            owner_ecc_info: (&OWNER_ECC_PUBKEY, &owner_ecc_sig),
             owner_lms_info: Some((&owner_lms_pubkey, &owner_lms_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            owner_pub_keys_digest_in_fuses: false,
             vendor_ecc_pub_key_revocation: Default::default(),
             vendor_lms_pub_key_revocation: Default::default(),
         };
@@ -1242,9 +1285,10 @@ mod tests {
             vendor_lms_pub_key_idx: Some(0),
             vendor_ecc_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
             vendor_lms_info: Some((&binding_vendor_lms_pubkey, &binding_vendor_lms_sig)),
-            owner_ecc_info: Some((&OWNER_ECC_PUBKEY, &OWNER_ECC_SIG)),
+            owner_ecc_info: (&OWNER_ECC_PUBKEY, &OWNER_ECC_SIG),
             owner_lms_info: Some((&owner_lms_pubkey, &owner_lms_sig)),
             owner_pub_keys_digest: ImageDigest::default(),
+            owner_pub_keys_digest_in_fuses: false,
             vendor_ecc_pub_key_revocation: Default::default(),
             vendor_lms_pub_key_revocation: Default::default(),
         };
@@ -1809,5 +1853,7 @@ mod tests {
         fn lms_verify_enabled(&self) -> bool {
             true
         }
+
+        fn set_fw_extended_error(&mut self, _err: u32) {}
     }
 }

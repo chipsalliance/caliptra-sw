@@ -24,6 +24,13 @@ const MAX_MAILBOX_CAPACITY_BYTES: u32 = 128 << 10;
 
 pub type Sha384Digest<'a> = &'a mut Array4x12;
 
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShaAccLockState {
+    AssumedLocked = 0xAAAA_AAA5,
+    NotAcquired = 0x5555_555A,
+}
+
 pub struct Sha384Acc {
     sha512_acc: Sha512AccCsr,
 }
@@ -36,22 +43,46 @@ impl Sha384Acc {
     ///
     /// # Arguments
     ///
-    /// * None
+    /// * assumed_lock_state - The assumed lock state of the SHA384 Accelerator.
+    /// Note: Callers should pass assumed_lock_state=ShaAccLockState::NotAcquired
+    ///  unless they are the first caller to the peripheral after a cold/warm boot.
     ///
     /// # Returns
     ///
-    /// * `Sha384AccOp` - On, success, an object representing the SHA384 accelerator operation.
-    /// * 'None' - On failure to acquire the SHA384 Accelerator lock.
-    pub fn try_start_operation(&mut self) -> Option<Sha384AccOp> {
+    /// * On success, either an object representing the SHA384 accelerator operation or
+    /// 'None' if unable to acquire the SHA384 Accelerator lock.
+    /// On failure, an error code.
+    ///
+    pub fn try_start_operation(
+        &mut self,
+        assumed_lock_state: ShaAccLockState,
+    ) -> CaliptraResult<Option<Sha384AccOp>> {
         let sha_acc = self.sha512_acc.regs();
 
-        if sha_acc.lock().read().lock() && sha_acc.status().read().soc_has_lock() {
-            None
-        } else {
-            // We acquired the lock, or we already have the lock (such as at startup)
-            Some(Sha384AccOp {
-                sha512_acc: &mut self.sha512_acc,
-            })
+        match assumed_lock_state {
+            ShaAccLockState::NotAcquired => {
+                if sha_acc.lock().read().lock() {
+                    // Either SOC has the lock (correct state),
+                    // or the uC has the lock but the caller doesn't realize it (bug).
+                    Ok(None)
+                } else {
+                    // The uC acquired the lock just now.
+                    Ok(Some(Sha384AccOp {
+                        sha512_acc: &mut self.sha512_acc,
+                    }))
+                }
+            }
+            ShaAccLockState::AssumedLocked => {
+                if sha_acc.lock().read().lock() {
+                    // SHA Acc is locked and the caller is assuming that the uC has it.
+                    Ok(Some(Sha384AccOp {
+                        sha512_acc: &mut self.sha512_acc,
+                    }))
+                } else {
+                    // Caller expected uC to already have the lock, but uC actually didn't (bug)
+                    Err(CaliptraError::DRIVER_SHA384ACC_UNEXPECTED_ACQUIRED_LOCK_STATE)
+                }
+            }
         }
     }
 
@@ -81,8 +112,25 @@ impl Sha384Acc {
     ///
     /// This function is safe to call from a trap handler.
     pub unsafe fn lock() {
-        let mut sha512_acc = Sha512AccCsr::new();
-        sha512_acc.regs_mut().lock().write(|w| w.lock(false)); // Writing 0 locks the accelerator.
+        let sha512_acc = Sha512AccCsr::new();
+        while sha512_acc.regs().lock().read().lock()
+            && sha512_acc.regs().status().read().soc_has_lock()
+        {}
+    }
+
+    /// Try to acquire the accelerator lock.
+    ///
+    /// This is useful to call from a fatal-error-handling routine.
+    ///
+    /// # Safety
+    ///
+    /// The caller must be certain that the results of any pending cryptographic
+    /// operations will not be used after this function is called.
+    ///
+    /// This function is safe to call from a trap handler.
+    pub unsafe fn try_lock() {
+        let sha512_acc = Sha512AccCsr::new();
+        sha512_acc.regs().lock().read().lock();
     }
 }
 

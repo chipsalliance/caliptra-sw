@@ -16,6 +16,7 @@ use caliptra_common::dice;
 
 use hex::ToHex;
 
+use openssl::asn1::{Asn1Object, Asn1OctetString};
 use openssl::bn::BigNumContext;
 use openssl::ec::EcGroup;
 use openssl::ec::EcKey;
@@ -260,9 +261,9 @@ pub fn make_tcg_ueid_ext(ueid: &[u8]) -> X509Extension {
 
     let tcg_ueid = TcgUeid { ueid };
     let der = asn1::write_single(&tcg_ueid).unwrap();
-    let der_str = format!("DER:{}", hex::encode(der).to_uppercase());
-
-    X509Extension::new(None, None, TCG_UEID_OID, &der_str).unwrap()
+    let der = Asn1OctetString::new_from_bytes(&der).unwrap();
+    let oid = Asn1Object::from_str(TCG_UEID_OID).unwrap();
+    X509Extension::new_from_der(&oid, false, &der).unwrap()
 }
 
 /// Make Subject Key ID extension
@@ -283,9 +284,9 @@ pub fn make_auth_key_id_ext(key_id: &[u8]) -> X509Extension {
     };
 
     let der = asn1::write_single(&auth_key_id).unwrap();
-    let der_str = format!("DER:{}", hex::encode(der).to_uppercase());
-
-    X509Extension::new(None, None, AUTH_KEY_ID_OID, &der_str).unwrap()
+    let der = Asn1OctetString::new_from_bytes(&der).unwrap();
+    let oid = Asn1Object::from_str(AUTH_KEY_ID_OID).unwrap();
+    X509Extension::new_from_der(&oid, false, &der).unwrap()
 }
 
 #[derive(asn1::Asn1Read, asn1::Asn1Write)]
@@ -308,7 +309,8 @@ pub fn make_fmc_dice_tcb_info_ext(
     flags: u32,
     svn: u8,
     svn_fuses: u8,
-    fwids: &[FwidParam],
+    device_fwids: &[FwidParam],
+    fmc_fwids: &[FwidParam],
 ) -> X509Extension {
     let wide_svn = fixed_width_svn(svn);
     let wide_svn_fuses = fixed_width_svn(svn_fuses);
@@ -316,6 +318,7 @@ pub fn make_fmc_dice_tcb_info_ext(
     let be_flags = flags.to_be_bytes();
     let be_flags_mask = FLAG_MASK.to_be_bytes();
 
+    let device_asn1_fwids: Vec<&Fwid> = device_fwids.iter().map(|f| &f.fwid).collect();
     let device_info = TcbInfo {
         vendor: Some(asn1::Utf8String::new("Caliptra")),
         model: Some(asn1::Utf8String::new("Device")),
@@ -323,15 +326,14 @@ pub fn make_fmc_dice_tcb_info_ext(
         svn: Some(wide_svn_fuses.into()),
         layer: None,
         index: None,
-        fwids: None,
+        fwids: Some(asn1::SequenceOfWriter::new(&device_asn1_fwids)),
         flags: asn1::BitString::new(be_flags.as_ref(), 0),
         vendor_info: None,
-        tcb_type: None,
+        tcb_type: Some(b"DEVICE_INFO"),
         flags_mask: asn1::BitString::new(be_flags_mask.as_ref(), 0),
     };
 
-    let asn1_fwids: Vec<&Fwid> = fwids.iter().map(|f| &f.fwid).collect();
-
+    let fmc_asn1_fwids: Vec<&Fwid> = fmc_fwids.iter().map(|f| &f.fwid).collect();
     let fmc_info = TcbInfo {
         vendor: Some(asn1::Utf8String::new("Caliptra")),
         model: Some(asn1::Utf8String::new("FMC")),
@@ -339,18 +341,19 @@ pub fn make_fmc_dice_tcb_info_ext(
         svn: Some(wide_svn.into()),
         layer: None,
         index: None,
-        fwids: Some(asn1::SequenceOfWriter::new(&asn1_fwids)),
+        fwids: Some(asn1::SequenceOfWriter::new(&fmc_asn1_fwids)),
         flags: None,
         vendor_info: None,
-        tcb_type: None,
+        tcb_type: Some(b"FMC_INFO"),
         flags_mask: None,
     };
 
     let tcb_infos = asn1::SequenceOfWriter::new(vec![&device_info, &fmc_info]);
 
     let der = asn1::write_single(&tcb_infos).unwrap();
-    let der_str = format!("DER:{}", hex::encode(der).to_uppercase());
-    X509Extension::new(None, None, TCG_MULTI_TCB_INFO_OID, &der_str).unwrap()
+    let der = Asn1OctetString::new_from_bytes(&der).unwrap();
+    let oid = Asn1Object::from_str(TCG_MULTI_TCB_INFO_OID).unwrap();
+    X509Extension::new_from_der(&oid, false, &der).unwrap()
 }
 
 // Make a tcg-dice-TcbInfo extension
@@ -373,8 +376,9 @@ pub fn make_rt_dice_tcb_info_ext(svn: u8, fwids: &[FwidParam]) -> X509Extension 
     };
 
     let der = asn1::write_single(&rt_info).unwrap();
-    let der_str = format!("DER:{}", hex::encode(der).to_uppercase());
-    X509Extension::new(None, None, TCG_TCB_INFO_OID, &der_str).unwrap()
+    let der = Asn1OctetString::new_from_bytes(&der).unwrap();
+    let oid = Asn1Object::from_str(TCG_TCB_INFO_OID).unwrap();
+    X509Extension::new_from_der(&oid, false, &der).unwrap()
 }
 
 /// Retrieve the TBS from DER encoded vector

@@ -14,8 +14,10 @@ Abstract:
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use caliptra_error::{CaliptraError, CaliptraResult};
 use core::mem::size_of;
 use core::ops::Range;
+use zeroize::Zeroize;
 
 use caliptra_lms_types::{
     LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsPrivateKey, LmsPublicKey, LmsSignature,
@@ -49,7 +51,7 @@ pub type ImageRevision = [u8; IMAGE_REVISION_BYTE_SIZE];
 pub type ImageEccPrivKey = ImageScalar;
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageEccPubKey {
     /// X Coordinate
@@ -63,7 +65,7 @@ pub type ImageLmsPublicKey = LmsPublicKey<SHA192_DIGEST_WORD_SIZE>;
 pub type ImageLmsPrivKey = LmsPrivateKey<SHA192_DIGEST_WORD_SIZE>;
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(AsBytes, FromBytes, Default, Debug, Copy, Clone, Eq, PartialEq, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageEccSignature {
     /// Random point
@@ -129,16 +131,16 @@ impl ImageBundle {
 
 /// Calipatra Image Manifest
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Clone, Copy, Debug)]
+#[derive(AsBytes, FromBytes, Clone, Copy, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageManifest {
     /// Marker
     pub marker: u32,
 
-    /// Size of `Manifest` strucuture
+    /// Size of `Manifest` structure
     pub size: u32,
 
-    /// Preamle
+    /// Preabmle
     pub preamble: ImagePreamble,
 
     /// Header
@@ -171,27 +173,6 @@ impl ImageManifest {
         span.start as u32 + offset..span.end as u32 + offset
     }
 
-    /// Returns the `Range<u32>` containing the specified vendor public key,
-    /// or an empty range if the index is invalid.
-    pub fn vendor_ecc_pub_key_range(vendor_ecc_pub_key_idx: u32) -> Range<u32> {
-        if vendor_ecc_pub_key_idx > VENDOR_ECC_KEY_COUNT {
-            return 0..0;
-        }
-
-        let pub_key_size = (2 * 4 * ECC384_SCALAR_WORD_SIZE) as u32;
-        let range = Self::vendor_pub_keys_range();
-
-        // Sanity check
-        if (range.len() as u32) < VENDOR_ECC_KEY_COUNT * pub_key_size {
-            return 0..0;
-        }
-
-        let offset = (offset_of!(ImageVendorPubKeys, ecc_pub_keys) as u32)
-            + vendor_ecc_pub_key_idx * pub_key_size;
-
-        range.start + offset..range.start + offset + pub_key_size
-    }
-
     /// Returns `Range<u32>` containing the owner public key
     pub fn owner_pub_key_range() -> Range<u32> {
         let offset = offset_of!(ImageManifest, preamble) as u32;
@@ -213,46 +194,51 @@ impl ImageManifest {
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
+#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageVendorPubKeys {
     pub ecc_pub_keys: [ImageEccPubKey; VENDOR_ECC_KEY_COUNT as usize],
+    #[zeroize(skip)]
     pub lms_pub_keys: [ImageLmsPublicKey; VENDOR_LMS_KEY_COUNT as usize],
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
+#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 pub struct ImageVendorPrivKeys {
     pub ecc_priv_keys: [ImageEccPrivKey; VENDOR_ECC_KEY_COUNT as usize],
+    #[zeroize(skip)]
     pub lms_priv_keys: [ImageLmsPrivKey; VENDOR_LMS_KEY_COUNT as usize],
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
+#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageOwnerPubKeys {
     pub ecc_pub_key: ImageEccPubKey,
+    #[zeroize(skip)]
     pub lms_pub_key: ImageLmsPublicKey,
 }
 
 #[repr(C)]
-#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy)]
+#[derive(AsBytes, FromBytes, Default, Debug, Clone, Copy, Zeroize)]
 pub struct ImageOwnerPrivKeys {
     pub ecc_priv_key: ImageEccPrivKey,
+    #[zeroize(skip)]
     pub lms_priv_key: ImageLmsPrivKey,
 }
 
 #[repr(C)]
-#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageSignatures {
     pub ecc_sig: ImageEccSignature,
+    #[zeroize(skip)]
     pub lms_sig: ImageLmsSignature,
 }
 
 /// Calipatra Image Bundle Preamble
 #[repr(C)]
-#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImagePreamble {
     /// Vendor  Public Keys
@@ -277,7 +263,7 @@ pub struct ImagePreamble {
 }
 
 #[repr(C)]
-#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct VendorSignedData {
     /// Vendor Start Date [ASN1 Time Format] For FMC alias certificate.
@@ -290,7 +276,7 @@ pub struct VendorSignedData {
 }
 
 #[repr(C)]
-#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct OwnerSignedData {
     /// Owner Start Date [ASN1 Time Format] For FMC alias certificate: Takes Preference over vendor start date
@@ -304,7 +290,7 @@ pub struct OwnerSignedData {
 
 /// Caliptra Image header
 #[repr(C)]
-#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageHeader {
     /// Revision
@@ -368,7 +354,7 @@ impl From<ImageTocEntryId> for u32 {
 
 /// Caliptra Table of contents entry
 #[repr(C)]
-#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug)]
+#[derive(AsBytes, Clone, Copy, FromBytes, Default, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageTocEntry {
     /// ID
@@ -406,8 +392,10 @@ pub struct ImageTocEntry {
 }
 
 impl ImageTocEntry {
-    pub fn image_range(&self) -> Range<u32> {
-        self.offset..self.offset + self.size
+    pub fn image_range(&self) -> CaliptraResult<Range<u32>> {
+        let err = CaliptraError::IMAGE_VERIFIER_ERR_TOC_ENTRY_RANGE_ARITHMETIC_OVERFLOW;
+        let end = self.offset.checked_add(self.size).ok_or(err)?;
+        Ok(self.offset..end)
     }
 
     pub fn image_size(&self) -> u32 {

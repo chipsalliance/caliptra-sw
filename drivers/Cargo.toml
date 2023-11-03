@@ -16,12 +16,15 @@ caliptra-image-types.workspace = true
 caliptra-lms-types.workspace = true
 caliptra-registers.workspace = true
 cfg-if.workspace = true
+dpe = { workspace = true, optional = true }
 ufmt.workspace = true
 ureg.workspace = true
 zerocopy.workspace = true
+zeroize.workspace = true
 
 [features]
 emu = []
+runtime = ["dep:dpe"]
 fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
 itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]

@@ -60,17 +60,15 @@ jobs:
           echo "release_ref=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "Current ref $(git rev-parse HEAD) will receive tag ${TAG_BASE}${INDEX} after tests"
 
-
-  verilator-full-suite:
-    name: Nightly Verilator Suite
+  fpga-full-suite:
+    name: FPGA Suite
     needs: find-latest-release
     if: needs.find-latest-release.outputs.create_release
-    uses: ./.github/workflows/nightly-verilator.yml
-
+    uses: ./.github/workflows/fpga.yml
 
   create-release:
     name: Create New Release
-    needs: [find-latest-release, verilator-full-suite]
+    needs: [find-latest-release, fpga-full-suite]
     runs-on: ubuntu-22.04
 
     steps:

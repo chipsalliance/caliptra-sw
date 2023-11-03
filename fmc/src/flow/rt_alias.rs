@@ -13,7 +13,7 @@ Abstract:
 --*/
 use crate::flow::crypto::Crypto;
 use crate::flow::dice::{DiceInput, DiceOutput};
-use crate::flow::pcr::{extend_current_pcr, extend_journey_pcr};
+use crate::flow::pcr::extend_pcr_common;
 use crate::flow::tci::Tci;
 use crate::flow::x509::X509;
 use crate::fmc_env::FmcEnv;
@@ -36,11 +36,7 @@ pub struct RtAliasLayer {}
 
 impl RtAliasLayer {
     /// Perform derivations for the DICE layer
-    fn derive(
-        env: &mut FmcEnv,
-        hand_off: &mut HandOff,
-        input: &DiceInput,
-    ) -> CaliptraResult<DiceOutput> {
+    fn derive(env: &mut FmcEnv, input: &DiceInput) -> CaliptraResult<DiceOutput> {
         if Self::kv_slot_collides(input.cdi) {
             return Err(CaliptraError::FMC_CDI_KV_COLLISION);
         }
@@ -53,7 +49,7 @@ impl RtAliasLayer {
         cprintln!("[alias rt] Store in in slot 0x{:x}", KEY_ID_RT_CDI as u8);
 
         // Derive CDI
-        Self::derive_cdi(env, hand_off, input.cdi, KEY_ID_RT_CDI)?;
+        Self::derive_cdi(env, input.cdi, KEY_ID_RT_CDI)?;
         report_boot_status(FmcBootStatus::RtAliasDeriveCdiComplete as u32);
         cprintln!("[alias rt] Derive Key Pair");
         cprintln!(
@@ -84,11 +80,12 @@ impl RtAliasLayer {
             subj_key_id,
         };
 
-        let nb = NotBefore::default();
-        let nf = NotAfter::default();
+        let manifest = &env.persistent_data.get().manifest1;
+
+        let (nb, nf) = Self::get_cert_validity_info(manifest);
 
         // Generate Rt Alias Certificate
-        Self::generate_cert_sig(env, hand_off, input, &output, &nb.value, &nf.value)?;
+        Self::generate_cert_sig(env, input, &output, &nb.value, &nf.value)?;
         Ok(output)
     }
 
@@ -97,9 +94,9 @@ impl RtAliasLayer {
     }
 
     #[inline(never)]
-    pub fn run(env: &mut FmcEnv, hand_off: &mut HandOff) -> CaliptraResult<()> {
+    pub fn run(env: &mut FmcEnv) -> CaliptraResult<()> {
         cprintln!("[alias rt] Extend RT PCRs");
-        Self::extend_pcrs(env, hand_off)?;
+        Self::extend_pcrs(env)?;
         cprintln!("[alias rt] Extend RT PCRs Done");
 
         cprintln!("[alias rt] Lock RT PCRs");
@@ -110,16 +107,16 @@ impl RtAliasLayer {
         cprintln!("[alias rt] Lock RT PCRs Done");
 
         cprintln!("[alias rt] Populate DV");
-        Self::populate_dv(env, hand_off)?;
+        Self::populate_dv(env)?;
         cprintln!("[alias rt] Populate DV Done");
         report_boot_status(crate::FmcBootStatus::RtMeasurementComplete as u32);
 
         // Retrieve Dice Input Layer from Hand Off and Derive Key
-        match Self::dice_input_from_hand_off(hand_off, env) {
+        match Self::dice_input_from_hand_off(env) {
             Ok(input) => {
-                let out = Self::derive(env, hand_off, &input)?;
+                let out = Self::derive(env, &input)?;
                 report_boot_status(crate::FmcBootStatus::RtAliasDerivationComplete as u32);
-                hand_off.update(out)
+                HandOff::update(env, out)
             }
             _ => Err(CaliptraError::FMC_RT_ALIAS_DERIVE_FAILURE),
         }
@@ -134,16 +131,19 @@ impl RtAliasLayer {
     /// # Returns
     ///
     /// * `DiceInput` - DICE Layer Input
-    fn dice_input_from_hand_off(hand_off: &HandOff, env: &FmcEnv) -> CaliptraResult<DiceInput> {
+    fn dice_input_from_hand_off(env: &mut FmcEnv) -> CaliptraResult<DiceInput> {
+        let auth_pub = HandOff::fmc_pub_key(env);
+        let auth_serial_number = X509::subj_sn(env, &auth_pub)?;
+        let auth_key_id = X509::subj_key_id(env, &auth_pub)?;
         // Create initial output
         let input = DiceInput {
-            cdi: hand_off.fmc_cdi(),
+            cdi: HandOff::fmc_cdi(env),
             auth_key_pair: Ecc384KeyPair {
-                priv_key: hand_off.fmc_priv_key(),
-                pub_key: hand_off.fmc_pub_key(env),
+                priv_key: HandOff::fmc_priv_key(env),
+                pub_key: auth_pub,
             },
-            auth_sn: [0u8; 64],
-            auth_key_id: [0u8; 20],
+            auth_sn: auth_serial_number,
+            auth_key_id,
         };
 
         Ok(input)
@@ -155,13 +155,14 @@ impl RtAliasLayer {
     ///
     /// * `env` - FMC Environment
     /// * `hand_off` - HandOff
-    pub fn extend_pcrs(env: &mut FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
-        extend_current_pcr(env, hand_off)?;
+    pub fn extend_pcrs(env: &mut FmcEnv) -> CaliptraResult<()> {
         match env.soc_ifc.reset_reason() {
-            ResetReason::ColdReset | ResetReason::UpdateReset => extend_journey_pcr(env, hand_off)?,
-            _ => cprintln!("[alias rt : skip journey pcr extension"),
+            ResetReason::ColdReset | ResetReason::UpdateReset => extend_pcr_common(env),
+            _ => {
+                cprintln!("[alias rt : skip pcr extension");
+                Ok(())
+            }
         }
-        Ok(())
     }
 
     /// Populate Data Vault
@@ -170,17 +171,44 @@ impl RtAliasLayer {
     ///
     /// * `env` - FMC Environment
     /// * `hand_off` - HandOff
-    pub fn populate_dv(env: &mut FmcEnv, hand_off: &HandOff) -> CaliptraResult<()> {
-        let rt_svn = hand_off.rt_svn(env);
+    pub fn populate_dv(env: &mut FmcEnv) -> CaliptraResult<()> {
+        let rt_svn = HandOff::rt_svn(env);
         let reset_reason = env.soc_ifc.reset_reason();
 
         let rt_min_svn = if reset_reason == ResetReason::ColdReset {
             rt_svn
         } else {
-            core::cmp::min(rt_svn, hand_off.rt_min_svn(env))
+            core::cmp::min(rt_svn, HandOff::rt_min_svn(env))
         };
 
-        hand_off.set_and_lock_rt_min_svn(env, rt_min_svn)
+        HandOff::set_and_lock_rt_min_svn(env, rt_min_svn)
+    }
+
+    fn get_cert_validity_info(
+        manifest: &caliptra_image_types::ImageManifest,
+    ) -> (NotBefore, NotAfter) {
+        // If there is a valid value in the manifest for the not_before and not_after times,
+        // use those. Otherwise use the default values.
+        let mut nb = NotBefore::default();
+        let mut nf = NotAfter::default();
+        let null_time = [0u8; 15];
+
+        if manifest.header.vendor_data.vendor_not_after != null_time
+            && manifest.header.vendor_data.vendor_not_before != null_time
+        {
+            nf.value = manifest.header.vendor_data.vendor_not_after;
+            nb.value = manifest.header.vendor_data.vendor_not_before;
+        }
+
+        // Owner values take preference.
+        if manifest.header.owner_data.owner_not_after != null_time
+            && manifest.header.owner_data.owner_not_before != null_time
+        {
+            nf.value = manifest.header.owner_data.owner_not_after;
+            nb.value = manifest.header.owner_data.owner_not_before;
+        }
+
+        (nb, nf)
     }
 
     /// Permute Composite Device Identity (CDI) using Rt TCI and Image Manifest Digest
@@ -189,23 +217,15 @@ impl RtAliasLayer {
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    /// * `hand_off` - HandOff
-    /// * `rt_cdi` - Key Slot that holds the current CDI
-    /// * `fmc_cdi` - Key Slot to store the generated CDI
-    fn derive_cdi(
-        env: &mut FmcEnv,
-        hand_off: &HandOff,
-        fmc_cdi: KeyId,
-        rt_cdi: KeyId,
-    ) -> CaliptraResult<()> {
+    /// * `fmc_cdi` - Key Slot that holds the current CDI
+    /// * `rt_cdi` - Key Slot to store the generated CDI
+    fn derive_cdi(env: &mut FmcEnv, fmc_cdi: KeyId, rt_cdi: KeyId) -> CaliptraResult<()> {
         // Compose FMC TCI (1. RT TCI, 2. Image Manifest Digest)
         let mut tci = [0u8; 2 * SHA384_HASH_SIZE];
-        let rt_tci = Tci::rt_tci(env, hand_off);
-        let rt_tci: [u8; 48] = okref(&rt_tci)?.into();
+        let rt_tci: [u8; 48] = HandOff::rt_tci(env).into();
         tci[0..SHA384_HASH_SIZE].copy_from_slice(&rt_tci);
 
-        let image_manifest_digest: Result<_, CaliptraError> =
-            Tci::image_manifest_digest(env, hand_off);
+        let image_manifest_digest: Result<_, CaliptraError> = Tci::image_manifest_digest(env);
         let image_manifest_digest: [u8; 48] = okref(&image_manifest_digest)?.into();
         tci[SHA384_HASH_SIZE..2 * SHA384_HASH_SIZE].copy_from_slice(&image_manifest_digest);
 
@@ -243,7 +263,6 @@ impl RtAliasLayer {
     /// * `output` - DICE Output
     fn generate_cert_sig(
         env: &mut FmcEnv,
-        hand_off: &mut HandOff,
         input: &DiceInput,
         output: &DiceOutput,
         not_before: &[u8; RtAliasCertTbsParams::NOT_BEFORE_LEN],
@@ -255,10 +274,8 @@ impl RtAliasLayer {
 
         let serial_number = &X509::cert_sn(env, pub_key)?;
 
-        let rt_tci = Tci::rt_tci(env, hand_off);
-        let rt_tci: [u8; 48] = okref(&rt_tci)?.into();
-
-        let rt_svn = hand_off.rt_svn(env) as u8;
+        let rt_tci: [u8; 48] = HandOff::rt_tci(env).into();
+        let rt_svn = HandOff::rt_svn(env) as u8;
 
         // Certificate `To Be Signed` Parameters
         let params = RtAliasCertTbsParams {
@@ -316,11 +333,11 @@ impl RtAliasLayer {
             return Err(CaliptraError::FMC_RT_ALIAS_CERT_VERIFY);
         }
 
-        hand_off.set_rt_dice_signature(sig);
+        HandOff::set_rt_dice_signature(env, sig);
 
         //  Copy TBS to DCCM and set size in FHT.
         Self::copy_tbs(tbs.tbs(), env.persistent_data.get_mut())?;
-        hand_off.set_rtalias_tbs_size(tbs.tbs().len());
+        HandOff::set_rtalias_tbs_size(env, tbs.tbs().len());
 
         report_boot_status(FmcBootStatus::RtAliasCertSigGenerationComplete as u32);
 

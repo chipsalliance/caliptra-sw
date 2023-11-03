@@ -1,0 +1,28 @@
+name: Policy
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  check_policy:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Pull dpe submodule
+        run: |
+          git submodule update --init dpe
+
+      - name: Check that the ROM hash matches the frozen one
+        run: ./ci.sh check_frozen_images
+
+      - uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: caliptra-rom.elf
+          path: target/riscv32imc-unknown-none-elf/firmware/caliptra-rom
+

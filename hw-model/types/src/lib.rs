@@ -2,7 +2,10 @@
 
 use std::array;
 
-use rand::{rngs::ThreadRng, RngCore};
+use rand::{
+    rngs::{StdRng, ThreadRng},
+    RngCore, SeedableRng,
+};
 
 // Rationale behind this choice
 //
@@ -155,6 +158,7 @@ impl TryFrom<u32> for U4 {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Fuses {
     pub uds_seed: [u32; 12],
     pub field_entropy: [u32; 8],
@@ -213,9 +217,9 @@ pub struct EtrngResponse {
 }
 
 pub struct RandomEtrngResponses<R: RngCore>(pub R);
-impl RandomEtrngResponses<ThreadRng> {
-    pub fn new_from_thread_rng() -> Self {
-        Self(rand::thread_rng())
+impl RandomEtrngResponses<StdRng> {
+    pub fn new_from_stdrng() -> Self {
+        Self(StdRng::from_entropy())
     }
 }
 impl<R: RngCore> Iterator for RandomEtrngResponses<R> {
