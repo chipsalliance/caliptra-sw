@@ -236,15 +236,18 @@ impl Ecc384 {
         // Wait for command to complete
         wait::until(|| ecc.status().read().valid());
 
-        let mut perform_pct: bool = true;
-
         // Copy the private key
         match &mut priv_key {
             Ecc384PrivKeyOut::Array4x12(arr) => KvAccess::end_copy_to_arr(ecc.privkey_out(), arr)?,
             Ecc384PrivKeyOut::Key(key) => {
                 KvAccess::end_copy_to_kv(ecc.kv_wr_pkey_status(), *key)
                     .map_err(|err| err.into_write_priv_key_err())?;
-                perform_pct = key.usage.ecc_private_key();
+                if !key.usage.ecc_private_key() {
+                    // The key MUST be usable as a private key so we can do a
+                    // pairwise consistency test, which is required to prevent
+                    // leakage of secret material if the peripheral is glitched.
+                    return Err(CaliptraError::DRIVER_ECC384_KEYGEN_BAD_USAGE);
+                }
             }
         }
 
@@ -254,15 +257,13 @@ impl Ecc384 {
         };
 
         // Pairwise consistency check.
-        if perform_pct {
-            let digest = Array4x12::new([0u32; 12]);
-            match self.sign(&priv_key.into(), &pub_key, &digest, trng) {
-                Ok(mut sig) => sig.zeroize(),
-                Err(CaliptraError::DRIVER_ECC384_SIGN_VALIDATION_FAILED) => {
-                    return Err(CaliptraError::DRIVER_ECC384_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE)
-                }
-                Err(err) => return Err(err),
+        let digest = Array4x12::new([0u32; 12]);
+        match self.sign(&priv_key.into(), &pub_key, &digest, trng) {
+            Ok(mut sig) => sig.zeroize(),
+            Err(CaliptraError::DRIVER_ECC384_SIGN_VALIDATION_FAILED) => {
+                return Err(CaliptraError::DRIVER_ECC384_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE)
             }
+            Err(err) => return Err(err),
         }
         self.zeroize_internal();
 
