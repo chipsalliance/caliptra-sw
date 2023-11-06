@@ -132,7 +132,7 @@ caliptra_top caliptra_top_dut (
     .qspi_d_o   (),
     .qspi_d_en_o(),
 
-    .el2_mem_export(el2_mem_export.veer_sram_src),
+    .el2_mem_export(el2_mem_export),
 
     .ready_for_fuses(ready_for_fuses),
     .ready_for_fw_push(ready_for_fw_push),
@@ -177,7 +177,7 @@ caliptra_top caliptra_top_dut (
 
 // EL2 Memory
 caliptra_veer_sram_export veer_sram_export_inst (
-    .el2_mem_export(el2_mem_export.veer_sram_sink)
+    .el2_mem_export(el2_mem_export)
 );
 
 // Mailbox RAM

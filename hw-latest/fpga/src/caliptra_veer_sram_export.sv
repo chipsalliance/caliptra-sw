@@ -17,7 +17,7 @@ import el2_pkg::*;
 module caliptra_veer_sram_export #(
     `include "el2_param.vh"
 ) (
-    el2_mem_if.veer_sram_sink el2_mem_export
+    el2_mem_if.top el2_mem_export
 );
 
 

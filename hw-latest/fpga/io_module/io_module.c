@@ -26,17 +26,23 @@ int init_module(void)
     uio_info.name = caliptra_dev_name;
     uio_info.version = "1.0.0";
 
-    //  SOC connections
-    uio_info.mem[0].name = "fpga_wrapper";
+    // GPIO for SOC connections
+    uio_info.mem[0].name = "gpio";
     uio_info.mem[0].addr = 0x80000000;
     uio_info.mem[0].size = 0x2000;
     uio_info.mem[0].memtype = UIO_MEM_PHYS;
 
-    // Caliptra MMIO interface
-    uio_info.mem[1].name = "caliptra";
+    // Caliptra Mailbox interface
+    uio_info.mem[1].name = "mbox";
     uio_info.mem[1].addr = 0x90020000;
-    uio_info.mem[1].size = 0x20000;
+    uio_info.mem[1].size = 0x1000;
     uio_info.mem[1].memtype = UIO_MEM_PHYS;
+
+    // Caliptra IFC registers
+    uio_info.mem[2].name = "ifc";
+    uio_info.mem[2].addr = 0x90030000;
+    uio_info.mem[2].size = 0x1000;
+    uio_info.mem[2].memtype = UIO_MEM_PHYS;
 
     // Register device
     if (uio_register_device(&uio_dev, &uio_info) < 0) {

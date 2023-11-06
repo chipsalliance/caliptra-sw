@@ -1,6 +1,6 @@
 // FPGA replacement for KV with a configurable depth to use less resources
 
-`define KV_DEPTH 16
+`define KV_DEPTH 8
 
 module kv_reg (
         input wire clk,
