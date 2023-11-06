@@ -27,7 +27,12 @@ use dpe::{
     },
     DPE_PROFILE,
 };
-use openssl::asn1::Asn1Time;
+use openssl::{
+    asn1::{Asn1Integer, Asn1Time},
+    bn::BigNumRef,
+    hash::MessageDigest,
+    x509::{X509Name, X509NameBuilder},
+};
 use openssl::{
     bn::BigNum,
     ec::{EcGroup, EcKey},
@@ -36,7 +41,8 @@ use openssl::{
     pkey::PKey,
     stack::Stack,
     x509::{
-        store::X509StoreBuilder, verify::X509VerifyFlags, X509StoreContext, X509VerifyResult, X509,
+        store::X509StoreBuilder, verify::X509VerifyFlags, X509Builder, X509StoreContext,
+        X509VerifyResult, X509,
     },
 };
 use zerocopy::{AsBytes, FromBytes, LayoutVerified};
@@ -1037,16 +1043,61 @@ fn test_idev_id_info() {
 fn test_idev_id_cert() {
     let mut model = run_rt_test(None, None, None);
 
-    let fake_tbs = [0xef, 0xbe, 0xad, 0xde];
+    // generate 48 byte ECDSA key pair
+    let ec_group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
+    let ec_key = PKey::from_ec_key(EcKey::generate(&ec_group).unwrap()).unwrap();
 
-    let mut tbs: [u8; GetIdevCertReq::DATA_MAX_SIZE] = [0; GetIdevCertReq::DATA_MAX_SIZE];
-    tbs[..fake_tbs.len()].copy_from_slice(&fake_tbs);
+    let mut cert_builder = X509Builder::new().unwrap();
+    cert_builder.set_version(2).unwrap();
+    cert_builder
+        .set_serial_number(&Asn1Integer::from_bn(&BigNum::from_u32(1).unwrap()).unwrap())
+        .unwrap();
+    let mut subj_name_builder = X509Name::builder().unwrap();
+    subj_name_builder
+        .append_entry_by_text("CN", "example.com")
+        .unwrap();
+    let subject_name = X509NameBuilder::build(subj_name_builder);
+    cert_builder.set_subject_name(&subject_name).unwrap();
+    cert_builder.set_issuer_name(&subject_name).unwrap();
+    cert_builder.set_pubkey(&ec_key).unwrap();
+    cert_builder
+        .set_not_before(&Asn1Time::days_from_now(0).unwrap())
+        .unwrap();
+    cert_builder
+        .set_not_after(&Asn1Time::days_from_now(365).unwrap())
+        .unwrap();
+
+    cert_builder.sign(&ec_key, MessageDigest::sha384()).unwrap();
+    let cert = cert_builder.build();
+    assert!(cert.verify(&ec_key).unwrap());
+
+    // Extract the r and s values of the signature
+    let sig_bytes = cert.signature().as_slice();
+    let signature = EcdsaSig::from_der(sig_bytes).unwrap();
+    let r = BigNumRef::to_vec(signature.r());
+    let s = BigNumRef::to_vec(signature.s());
+    let mut signature_r = [0u8; 48];
+    let mut signature_s = [0u8; 48];
+    signature_r.copy_from_slice(&r);
+    signature_s.copy_from_slice(&s);
+
+    // Extract tbs from cert
+    let mut tbs = [0u8; GetIdevCertReq::DATA_MAX_SIZE];
+    let cert_der_vec = cert.to_der().unwrap();
+    let cert_der = cert_der_vec.as_bytes();
+    // skip first 4 outer sequence bytes
+    let tbs_offset = 4;
+    // this value is hard-coded and will need to be changed if the above x509 encoding is ever changed
+    // you can change it by calling asn1parse on the byte dump of the x509 cert, and finding the size of the TbsCertificate portion
+    let tbs_size = 223;
+    tbs[..tbs_size].copy_from_slice(&cert_der[tbs_offset..tbs_offset + tbs_size]);
+
     let cmd = GetIdevCertReq {
         hdr: MailboxReqHeader { chksum: 0 },
         tbs,
-        signature_r: [0; 48],
-        signature_s: [0; 48],
-        tbs_size: fake_tbs.len().try_into().unwrap(),
+        signature_r,
+        signature_s,
+        tbs_size: tbs_size as u32,
     };
 
     let checksum = caliptra_common::checksum::calc_checksum(
@@ -1066,6 +1117,8 @@ fn test_idev_id_cert() {
 
     let cert = GetIdevCertResp::read_from(resp.as_slice()).unwrap();
     assert!(cmd.tbs_size < cert.cert_size);
+    let idev_cert = X509::from_der(&cert.cert[..cert.cert_size as usize]).unwrap();
+    assert!(idev_cert.verify(&ec_key).unwrap());
 
     // Test with tbs_size too big.
     let cmd = GetIdevCertReq {

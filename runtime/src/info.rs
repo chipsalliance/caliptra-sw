@@ -52,10 +52,7 @@ impl IDevIdCertCmd {
     pub(crate) fn execute(cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if let Some(cmd) = GetIdevCertReq::read_from(cmd_args) {
             // Validate tbs
-            let Ok(in_len) = usize::try_from(cmd.tbs_size) else {
-                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
-            };
-            if in_len > cmd.tbs.len() {
+            if cmd.tbs_size as usize > cmd.tbs.len() {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
 
@@ -64,7 +61,7 @@ impl IDevIdCertCmd {
                 s: cmd.signature_s,
             };
 
-            let Some(builder) = Ecdsa384CertBuilder::new(&cmd.tbs[..in_len], &sig) else {
+            let Some(builder) = Ecdsa384CertBuilder::new(&cmd.tbs[..cmd.tbs_size as usize], &sig) else {
                 return Err(CaliptraError::RUNTIME_GET_DEVID_CERT_FAILED);
             };
 
@@ -72,13 +69,10 @@ impl IDevIdCertCmd {
             let Some(cert_size) = builder.build(&mut cert) else {
                 return Err(CaliptraError::RUNTIME_GET_DEVID_CERT_FAILED);
             };
-            let Ok(cert_size) = u32::try_from(cert_size) else {
-                return Err(CaliptraError::RUNTIME_GET_DEVID_CERT_FAILED);
-            };
 
             Ok(MailboxResp::GetIdevCert(GetIdevCertResp {
                 hdr: MailboxRespHeader::default(),
-                cert_size,
+                cert_size: cert_size as u32,
                 cert,
             }))
         } else {
