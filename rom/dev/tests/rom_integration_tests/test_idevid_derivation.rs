@@ -1,11 +1,16 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::ImageOptions;
+use caliptra_common::mailbox_api::{CommandId, GetLdevCertResp, MailboxReqHeader};
 use caliptra_drivers::{IdevidCertAttr, MfgFlags, X509KeyIdAlgo};
 use caliptra_hw_model::{DefaultHwModel, Fuses, HwModel};
 use caliptra_image_types::ImageBundle;
+use openssl::pkey::{PKey, Public};
+use openssl::x509::X509;
 use openssl::{rand::rand_bytes, x509::X509Req};
 use std::io::Write;
+use zerocopy::AsBytes;
+use zerocopy::FromBytes;
 
 use crate::helpers;
 
@@ -108,13 +113,58 @@ fn test_generate_csr_stress() {
                 fuses.uds_seed
             )
         });
-        let pub_key = req.public_key().unwrap();
+        let idevid_pubkey = req.public_key().unwrap();
         assert!(
-            req.verify(&pub_key).unwrap(),
+            req.verify(&idevid_pubkey).unwrap(),
             "Invalid public key. Unable to verify CSR with UDS seed {:?}",
             fuses.uds_seed
         );
+
+        let ldev_cert = verify_key(
+            &mut hw,
+            u32::from(CommandId::TEST_ONLY_GET_LDEV_CERT),
+            &idevid_pubkey,
+            &fuses.uds_seed,
+        );
+        let _fmc_cert = verify_key(
+            &mut hw,
+            u32::from(CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT),
+            &ldev_cert.public_key().unwrap(),
+            &fuses.uds_seed,
+        );
     }
+}
+
+fn verify_key(
+    hw: &mut DefaultHwModel,
+    cmd_id: u32,
+    pubkey: &PKey<Public>,
+    test_uds: &[u32; 12],
+) -> X509 {
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(cmd_id, &[]),
+    };
+
+    // Execute the command
+    let cert_resp = hw
+        .mailbox_execute(cmd_id, payload.as_bytes())
+        .unwrap()
+        .unwrap();
+
+    let cert_resp = GetLdevCertResp::read_from(cert_resp.as_bytes()).unwrap();
+
+    // Extract the certificate from the response
+    let cert_der = &cert_resp.data[..(cert_resp.data_size as usize)];
+    let cert = openssl::x509::X509::from_der(cert_der).unwrap();
+
+    assert!(
+        cert.verify(pubkey).unwrap(),
+        "{:?} cert failed to validate with {:?} pubkey with UDS: {test_uds:?}",
+        cert.subject_name(),
+        cert.issuer_name(),
+    );
+
+    cert
 }
 
 struct Csrs {
