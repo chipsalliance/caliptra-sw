@@ -70,6 +70,13 @@ fn cfi_fn(mod_fn: bool, input: TokenStream) -> TokenStream {
         ret
     );
 
+    // Add inline attribute to the wrapper function.
+    let inline_attr = parse_quote! {
+    #[inline(always)]
+     };
+
+    wrapper_fn.attrs.insert(wrapper_fn.attrs.len(), inline_attr);
+
     // Add CFI counter increment statement to the beginning of the original function.
     orig_fn.block.stmts.insert(
         0,
