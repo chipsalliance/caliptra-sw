@@ -846,7 +846,6 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 }
 
 #[cfg(all(test, target_family = "unix"))]
-#[cfg(feature = "no-cfi")]
 mod tests {
     use super::*;
     use caliptra_common::memory_layout::*;
