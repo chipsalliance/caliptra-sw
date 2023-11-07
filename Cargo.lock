@@ -252,6 +252,7 @@ dependencies = [
  "bitfield",
  "bitflags 2.4.0",
  "caliptra-builder",
+ "caliptra-cfi-lib",
  "caliptra-drivers-test-bin",
  "caliptra-error",
  "caliptra-hw-model",
