@@ -143,6 +143,29 @@ Table: `GET_IDEV_CERT` output arguments
 | cert_size   | u32        | Length in bytes of the cert field in use for the IDevId certificate
 | cert        | u8[1024]   | DER-encoded IDevID CERT
 
+### POPULATE\_IDEV\_CERT
+
+Exposes a command that allows the SoC to provide a DER-encoded
+IDevId certificate on every boot. The IDevId certificate is added 
+to the start of the certificate chain.
+
+Command Code: `0x4944_4550` ("IDEP")
+
+Table: `POPULATE_IDEV_CERT` input arguments
+
+| **Name**    | **Type**      | **Description**
+| --------    | --------      | ---------------
+| chksum      | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| cert_size   | u32           | Size of the DER-encoded IDevId certificate
+| cert        | u8[1024]      | DER-encoded IDevID CERT
+
+Table: `POPULATE_IDEV_CERT` output arguments
+
+| **Name**    | **Type** | **Description**
+| --------    | -------- | ---------------
+| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32      | Indicates if the command is FIPS approved or an error
+
 ### GET\_IDEV\_CSR
 
 ROM exposes a command to get a self-signed IDEVID CSR.
@@ -459,7 +482,8 @@ Caliptra models PAUSER callers to its mailbox as having 1 of 2 privilege levels:
 * PL0 - High Privilege. Only 1 PAUSER in the SoC may be at PL0. The PL0 PAUSER
   is denoted in the signed Caliptra firmware image. The PL0 PAUSER may call any
   supported DPE commands. Only PL0 can use the CertifyKey command. Success of the
-  CertifyKey command signifies to the caller that it is at PL0.
+  CertifyKey command signifies to the caller that it is at PL0. Only PL0 can use 
+  the POPULATE_IDEV_CERT mailbox command. 
 * PL1 - Restricted Privilege. All other PAUSERs in the SoC are PL1. Caliptra
   SHALL fail any calls to the DPE CertifyKey command by PL1 callers.
   PL1 callers should use the CertifyCsr command instead.

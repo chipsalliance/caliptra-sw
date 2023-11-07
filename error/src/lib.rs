@@ -352,6 +352,8 @@ impl CaliptraError {
     pub const RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED: CaliptraError =
         CaliptraError::new_const(0x000E001E);
     pub const RUNTIME_GLOBAL_WDT_EXPIRED: CaliptraError = CaliptraError::new_const(0x000E001F);
+    pub const RUNTIME_IDEV_CERT_POPULATION_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E0021);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);

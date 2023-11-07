@@ -29,7 +29,7 @@ pub use fips::FipsShutdownCmd;
 #[cfg(feature = "fips_self_test")]
 pub use fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
 
-pub use info::{FwInfoCmd, IDevIdCertCmd, IDevIdInfoCmd};
+pub use info::{FwInfoCmd, IDevIdCertCmd, IDevIdInfoCmd, PopulateIDevIdCertCmd};
 pub use invoke_dpe::InvokeDpeCmd;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::EcdsaVerifyCmd;
@@ -74,6 +74,8 @@ impl From<RtBootStatus> for u32 {
 
 pub const DPE_SUPPORT: Support = Support::all();
 pub const MAX_CERT_CHAIN_SIZE: usize = 4096;
+
+pub const PL0_PAUSER_FLAG: u32 = 1;
 
 pub struct CptraDpeTypes;
 
@@ -137,6 +139,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers, cmd_bytes),
         CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),
         CommandId::FW_INFO => FwInfoCmd::execute(drivers),
+        CommandId::POPULATE_IDEV_CERT => PopulateIDevIdCertCmd::execute(drivers, cmd_bytes),
         #[cfg(feature = "test_only_commands")]
         CommandId::TEST_ONLY_GET_LDEV_CERT => GetLdevCertCmd::execute(drivers),
         #[cfg(feature = "test_only_commands")]
