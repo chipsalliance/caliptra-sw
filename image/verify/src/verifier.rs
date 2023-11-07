@@ -79,6 +79,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     ///
     /// * `ImageVerificationInfo` - Image verification information success
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
     pub fn verify(
         &mut self,
         manifest: &ImageManifest,

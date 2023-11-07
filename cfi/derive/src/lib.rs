@@ -38,8 +38,10 @@ fn cfi_fn(mod_fn: bool, input: TokenStream) -> TokenStream {
     let mut wrapper_fn: ItemFn = parse_macro_input!(input as ItemFn);
     let mut orig_fn = wrapper_fn.clone();
     orig_fn.sig.ident = format_ident!("__cfi_{}", wrapper_fn.sig.ident);
-    orig_fn.attrs.clear();
+    orig_fn.attrs.retain(|a| a.path.is_ident("inline"));
     orig_fn.vis = syn::Visibility::Inherited;
+
+    wrapper_fn.attrs.retain(|a| !a.path.is_ident("inline"));
 
     let fn_name = format_ident!("{}", orig_fn.sig.ident);
 
