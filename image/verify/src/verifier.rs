@@ -248,7 +248,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                     CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_ECC_PUB_KEY_IDX_MISMATCH,
                 )?;
             } else {
-                cfi_assert_eq(expected, key_idx);
+                cfi_assert_eq(self.env.vendor_ecc_pub_key_idx_dv(), key_idx);
             }
         } else {
             cfi_assert_ne(reason, ResetReason::UpdateReset);
@@ -292,7 +292,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                     CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_LMS_PUB_KEY_IDX_MISMATCH,
                 )?;
             } else {
-                cfi_assert_eq(expected, key_idx);
+                cfi_assert_eq(self.env.vendor_lms_pub_key_idx_dv(), key_idx);
             }
         } else {
             cfi_assert_ne(reason, ResetReason::UpdateReset);
