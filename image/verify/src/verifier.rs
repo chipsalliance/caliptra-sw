@@ -15,6 +15,7 @@ Abstract:
 use core::num::NonZeroU32;
 
 use crate::*;
+#[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{
     cfi_assert, cfi_assert_eq, cfi_assert_ge, cfi_assert_le, cfi_assert_ne, cfi_launder,
@@ -662,6 +663,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     }
 
     /// Verify FMC
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn verify_fmc(
         &mut self,
         verify_info: &ImageTocEntry,
@@ -751,6 +753,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     }
 
     /// Verify Runtime
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn verify_runtime(
         &mut self,
         verify_info: &ImageTocEntry,

@@ -20,7 +20,7 @@ platform.workspace = true
 ufmt.workspace = true
 zerocopy.workspace = true
 arrayvec.workspace = true
-caliptra-image-verify.workspace = true
+caliptra-image-verify = { workspace = true, default-features = false, features = ["no-cfi"] }
 zeroize.workspace = true
 
 [build-dependencies]

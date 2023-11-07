@@ -17,12 +17,6 @@ pub const ROM_WITH_UART: FwId = FwId {
     features: &["emu"],
 };
 
-pub const ROM_WITH_UART_NO_CFI: FwId = FwId {
-    crate_name: "caliptra-rom",
-    bin_name: "caliptra-rom",
-    features: &["emu", "no-cfi"],
-};
-
 pub const ROM_FAKE_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",

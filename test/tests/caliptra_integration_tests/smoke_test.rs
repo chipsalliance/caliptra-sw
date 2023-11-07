@@ -541,7 +541,7 @@ fn fips_cmd_test_rt() {
         .set_debug_locked(false)
         .set_device_lifecycle(DeviceLifecycle::Unprovisioned);
 
-    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART_NO_CFI).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
     let image = caliptra_builder::build_and_sign_image(
         &firmware::FMC_WITH_UART,
         &firmware::APP_WITH_UART,

@@ -23,3 +23,4 @@ caliptra_common = { path = "../../common", default-features = false }
 [features]
 default = ["std"]
 std = ["caliptra-image-types/std"]
+no-cfi = []
