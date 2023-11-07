@@ -29,7 +29,6 @@ use dpe::{
 };
 use openssl::{
     asn1::{Asn1Integer, Asn1Time},
-    bn::BigNumRef,
     hash::MessageDigest,
     x509::{X509Name, X509NameBuilder},
 };
@@ -1074,12 +1073,8 @@ fn test_idev_id_cert() {
     // Extract the r and s values of the signature
     let sig_bytes = cert.signature().as_slice();
     let signature = EcdsaSig::from_der(sig_bytes).unwrap();
-    let r = BigNumRef::to_vec(signature.r());
-    let s = BigNumRef::to_vec(signature.s());
-    let mut signature_r = [0u8; 48];
-    let mut signature_s = [0u8; 48];
-    signature_r.copy_from_slice(&r);
-    signature_s.copy_from_slice(&s);
+    let signature_r: [u8; 48] = signature.r().to_vec_padded(48).unwrap().try_into().unwrap();
+    let signature_s: [u8; 48] = signature.s().to_vec_padded(48).unwrap().try_into().unwrap();
 
     // Extract tbs from cert
     let mut tbs = [0u8; GetIdevCertReq::DATA_MAX_SIZE];
