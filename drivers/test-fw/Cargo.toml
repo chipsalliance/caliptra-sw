@@ -63,6 +63,11 @@ path = "src/bin/ecc384_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "ecc384_sign_validation_failure"
+path = "src/bin/ecc384_sign_validation_failure_test.rs"
+required-features = ["riscv"]
+
+[[bin]]
 name = "mailbox_driver_responder"
 path = "src/bin/mailbox_driver_responder.rs"
 required-features = ["riscv"]

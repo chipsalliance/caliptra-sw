@@ -334,7 +334,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         if cfi_launder(expected) != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_MISMATCH)?;
         } else {
-            cfi_assert_eq(expected, actual);
+            caliptra_cfi_lib::cfi_assert_eq_12_words(&expected, &actual);
         }
 
         Ok(())
@@ -358,10 +358,12 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         let fuses_digest = self.env.owner_pub_key_digest_fuses();
 
-        if cfi_launder(fuses_digest) != ZERO_DIGEST && cfi_launder(fuses_digest) != actual {
+        if fuses_digest == ZERO_DIGEST {
+            caliptra_cfi_lib::cfi_assert_eq_12_words(&fuses_digest, &ZERO_DIGEST);
+        } else if fuses_digest != actual {
             return Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH);
         } else {
-            cfi_assert!(fuses_digest == ZERO_DIGEST || fuses_digest == actual);
+            caliptra_cfi_lib::cfi_assert_eq_12_words(&fuses_digest, &actual);
         }
 
         if cfi_launder(reason) == ResetReason::UpdateReset {
@@ -369,7 +371,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             if cfi_launder(cold_boot_digest) != actual {
                 return Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_OWNER_DIGEST_FAILURE);
             } else {
-                cfi_assert_eq(cold_boot_digest, actual);
+                caliptra_cfi_lib::cfi_assert_eq_12_words(&cold_boot_digest, &actual);
             }
         } else {
             cfi_assert_ne(reason, ResetReason::UpdateReset);
@@ -475,7 +477,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         if cfi_launder(verify_r) != caliptra_drivers::Array4xN(sig.r) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID)?;
         } else {
-            cfi_assert_eq(verify_r, caliptra_drivers::Array4xN(sig.r));
+            caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_r.0, &sig.r);
         }
 
         Ok(())
@@ -507,7 +509,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         if cfi_launder(verify_r) != caliptra_drivers::Array4xN(ecc_sig.r) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID)?;
         } else {
-            cfi_assert_eq(verify_r, caliptra_drivers::Array4xN(ecc_sig.r));
+            caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_r.0, &ecc_sig.r);
         }
 
         if cfi_launder(self.env.lms_verify_enabled()) {
@@ -520,10 +522,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                             self.env.set_fw_extended_error(err.into());
                             CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_VERIFY_FAILURE
                         })?;
-                if cfi_launder(candidate_key) != HashValue::from(lms_pub_key.digest) {
+                let pub_key_digest = HashValue::from(lms_pub_key.digest);
+                if candidate_key != pub_key_digest {
                     return Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_LMS_SIGNATURE_INVALID);
                 } else {
-                    cfi_assert_eq(candidate_key, HashValue::from(lms_pub_key.digest));
+                    caliptra_cfi_lib::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
                 }
             }
         } else {
@@ -548,10 +551,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_VERIFY_FAILURE
             })?;
 
-        if cfi_launder(candidate_key) != HashValue::from(lms_pub_key.digest) {
+        let pub_key_digest = HashValue::from(lms_pub_key.digest);
+        if candidate_key != pub_key_digest {
             return Err(CaliptraError::IMAGE_VERIFIER_ERR_OWNER_LMS_SIGNATURE_INVALID);
         } else {
-            cfi_assert_eq(candidate_key, HashValue::from(lms_pub_key.digest));
+            caliptra_cfi_lib::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
         }
 
         Ok(())
@@ -584,7 +588,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         if cfi_launder(*verify_info.digest) != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_MISMATCH)?;
         } else {
-            cfi_assert_eq(*verify_info.digest, actual);
+            caliptra_cfi_lib::cfi_assert_eq_12_words(verify_info.digest, &actual);
         }
 
         // Verify the FMC size is not zero.
@@ -682,7 +686,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         if cfi_launder(verify_info.digest) != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH)?;
         } else {
-            cfi_assert_eq(verify_info.digest, actual);
+            caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_info.digest, &actual);
         }
 
         // Overflow/underflow is checked in verify_toc
@@ -771,7 +775,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         if cfi_launder(verify_info.digest) != actual {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH)?;
         } else {
-            cfi_assert_eq(verify_info.digest, actual);
+            caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_info.digest, &actual);
         }
 
         // Overflow/underflow is checked in verify_toc
