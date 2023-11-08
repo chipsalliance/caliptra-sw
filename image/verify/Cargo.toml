@@ -19,6 +19,7 @@ caliptra-cfi-derive.workspace = true
 
 [dev-dependencies]
 caliptra_common = { path = "../../common", default-features = false }
+caliptra-cfi-lib = { workspace = true, features = ["cfi-test" ] }
 
 [features]
 default = ["std"]
