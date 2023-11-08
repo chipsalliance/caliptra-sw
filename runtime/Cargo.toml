@@ -20,7 +20,7 @@ platform.workspace = true
 ufmt.workspace = true
 zerocopy.workspace = true
 arrayvec.workspace = true
-caliptra-image-verify.workspace = true
+caliptra-image-verify = { workspace = true, default-features = false, features = ["no-cfi"] }
 zeroize.workspace = true
 
 [build-dependencies]
@@ -36,6 +36,7 @@ caliptra-image-fake-keys.workspace = true
 caliptra-image-gen.workspace = true
 caliptra-image-openssl.workspace = true
 caliptra-image-serde.workspace = true
+caliptra-cfi-lib = { workspace = true, features = ["cfi-test"] }
 openssl.workspace = true
 wycheproof.workspace = true
 

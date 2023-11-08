@@ -130,6 +130,11 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const ECC384_SIGN_VALIDATION_FAILURE: FwId = FwId {
+        bin_name: "ecc384_sign_validation_failure",
+        ..BASE_FWID
+    };
+
     pub const ERROR_REPORTER: FwId = FwId {
         bin_name: "error_reporter",
         ..BASE_FWID
@@ -351,6 +356,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &hw_model_tests::TEST_PCR_EXTEND,
     &driver_tests::DOE,
     &driver_tests::ECC384,
+    &driver_tests::ECC384_SIGN_VALIDATION_FAILURE,
     &driver_tests::ERROR_REPORTER,
     &driver_tests::HMAC384,
     &driver_tests::KEYVAULT,

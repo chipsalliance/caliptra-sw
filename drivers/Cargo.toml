@@ -11,6 +11,7 @@ doctest = false
 [dependencies]
 bitfield.workspace = true
 bitflags.workspace = true
+caliptra-cfi-lib.workspace = true
 caliptra-error = { workspace = true, default-features = false }
 caliptra-image-types.workspace = true
 caliptra-lms-types.workspace = true

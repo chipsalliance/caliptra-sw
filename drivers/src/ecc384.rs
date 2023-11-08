@@ -260,11 +260,9 @@ impl Ecc384 {
         let digest = Array4x12::new([0u32; 12]);
         match self.sign(&priv_key.into(), &pub_key, &digest, trng) {
             Ok(mut sig) => sig.zeroize(),
-            Err(CaliptraError::DRIVER_ECC384_SIGN_VALIDATION_FAILED) => {
-                return Err(CaliptraError::DRIVER_ECC384_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE)
-            }
             Err(err) => return Err(err),
         }
+
         self.zeroize_internal();
 
         Ok(pub_key)
@@ -337,13 +335,9 @@ impl Ecc384 {
     ) -> CaliptraResult<Ecc384Signature> {
         let mut sig_result = self.sign_internal(priv_key, data, trng);
         let sig = okmutref(&mut sig_result)?;
-        match self.verify(pub_key, data, sig)? {
-            Ecc384Result::SigVerifyFailed => {
-                sig.zeroize();
-                return Err(CaliptraError::DRIVER_ECC384_SIGN_VALIDATION_FAILED);
-            }
-            Ecc384Result::Success => {}
-        };
+
+        let r = self.verify_r(pub_key, data, sig)?;
+        caliptra_cfi_lib::cfi_assert_eq_12_words(&r.0, &sig.r.0);
         sig_result
     }
 
@@ -373,6 +367,7 @@ impl Ecc384 {
 
         // compare the hardware generate `r` with one in signature
         let result = if verify_r == signature.r {
+            caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_r.0, &signature.r.0);
             Ecc384Result::Success
         } else {
             Ecc384Result::SigVerifyFailed
