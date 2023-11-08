@@ -597,7 +597,7 @@ fn test_rt_wdt_timeout() {
     let rt_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
         27_000_000
     } else {
-        2_820_000
+        2_900_000
     };
 
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);

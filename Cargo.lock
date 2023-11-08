@@ -560,6 +560,7 @@ name = "caliptra-image-verify"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.4.0",
+ "caliptra-cfi-derive",
  "caliptra-cfi-lib",
  "caliptra-drivers",
  "caliptra-image-types",
@@ -658,6 +659,7 @@ version = "0.1.0"
 dependencies = [
  "arrayvec",
  "caliptra-builder",
+ "caliptra-cfi-lib",
  "caliptra-cpu",
  "caliptra-drivers",
  "caliptra-error",
