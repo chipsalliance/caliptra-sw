@@ -234,6 +234,9 @@ fn test_preamble_vendor_ecc_pubkey_revocation() {
 
 #[test]
 fn test_preamble_vendor_lms_pubkey_revocation() {
+    // this test is too slow to run in the verilator nightly
+    #![cfg_attr(all(not(feature = "slow_tests"), feature = "verilator"), ignore)]
+
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     const LAST_KEY_IDX: u32 = VENDOR_LMS_KEY_COUNT - 1;
 
@@ -287,6 +290,9 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
 
 #[test]
 fn test_preamble_vendor_lms_optional_no_pubkey_revocation_check() {
+    // this test is too slow to run in the verilator nightly
+    #![cfg_attr(all(not(feature = "slow_tests"), feature = "verilator"), ignore)]
+
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
 
     for idx in 0..VENDOR_LMS_KEY_COUNT {
