@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::{
     error::Error,
@@ -145,6 +146,10 @@ pub struct InitParams<'a> {
     pub trng_mode: Option<TrngMode>,
 
     pub wdt_timeout_cycles: u64,
+
+    // A trace path to use. If None, the CPTRA_TRACE_PATH environment variable
+    // will be used
+    pub trace_path: Option<PathBuf>,
 }
 
 impl<'a> Default for InitParams<'a> {
@@ -175,8 +180,16 @@ impl<'a> Default for InitParams<'a> {
             etrng_responses,
             trng_mode: Default::default(),
             wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
+            trace_path: None,
         }
     }
+}
+
+fn trace_path_or_env(trace_path: Option<PathBuf>) -> Option<PathBuf> {
+    if let Some(trace_path) = trace_path {
+        return Some(trace_path);
+    }
+    std::env::var("CPTRA_TRACE_PATH").ok().map(PathBuf::from)
 }
 
 pub struct BootParams<'a> {

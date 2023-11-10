@@ -41,6 +41,7 @@ Checks that the get_idev_info mailbox command succeeds | **test_idev_id_info** |
 Checks that the get_idev_cert mailbox command succeeds and verifies the size of the resulting certificate | **test_idev_id_cert** | N/A
 Checks that the version mailbox command succeeds and validates the FIPS version response | **test_fips_cmd_api** | RUNTIME_SHUTDOWN
 Check that the error register is cleared when a successful mailbox command runs after a failed mailbox command | **test_error_cleared** | RUNTIME_MAILBOX_INVALID_PARAMS
+Calls the POPULATE_IDEV_CERT mailbox command and checks that the IDevId certificate is able to be parsed from the certificate chain | **test_populate_idev_cert_cmd** | N/A
 
 <br><br>
 # **Wycheproof Tests**

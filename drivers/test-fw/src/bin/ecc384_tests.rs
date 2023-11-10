@@ -175,45 +175,6 @@ fn test_sign() {
     assert_eq!(signature.s, Ecc384Scalar::from(SIGNATURE_S));
 }
 
-fn test_sign_validation_failure() {
-    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
-    let mut trng = unsafe {
-        Trng::new(
-            CsrngReg::new(),
-            EntropySrcReg::new(),
-            SocIfcTrngReg::new(),
-            &SocIfcReg::new(),
-        )
-        .unwrap()
-    };
-    let wrong_pub_key = Ecc384PubKey {
-        x: Ecc384Scalar::from([
-            0xD7, 0x9C, 0x6D, 0x97, 0x2B, 0x34, 0xA1, 0xDF, 0xC9, 0x16, 0xA7, 0xB6, 0xE0, 0xA9,
-            0x9B, 0x6B, 0x53, 0x87, 0xB3, 0x4D, 0xA2, 0x18, 0x76, 0x07, 0xC1, 0xAD, 0x0A, 0x4D,
-            0x1A, 0x8C, 0x2E, 0x41, 0x72, 0xAB, 0x5F, 0xA5, 0xD9, 0xAB, 0x58, 0xFE, 0x45, 0xE4,
-            0x3F, 0x56, 0xBB, 0xB6, 0x6B, 0xA4,
-        ]),
-        y: Ecc384Scalar::from([
-            0x5A, 0x73, 0x63, 0x93, 0x2B, 0x06, 0xB4, 0xF2, 0x23, 0xBE, 0xF0, 0xB6, 0x0A, 0x63,
-            0x90, 0x26, 0x51, 0x12, 0xDB, 0xBD, 0x0A, 0xAE, 0x67, 0xFE, 0xF2, 0x6B, 0x46, 0x5B,
-            0xE9, 0x35, 0xB4, 0x8E, 0x45, 0x1E, 0x68, 0xD1, 0x6F, 0x11, 0x18, 0xF2, 0xB3, 0x2B,
-            0x4C, 0x28, 0x60, 0x87, 0x49, 0xED,
-        ]),
-    };
-
-    let digest = Array4x12::new([0u32; 12]);
-    let result = ecc.sign(
-        &Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)),
-        &wrong_pub_key,
-        &digest,
-        &mut trng,
-    );
-    assert_eq!(
-        result,
-        Err(CaliptraError::DRIVER_ECC384_SIGN_VALIDATION_FAILED)
-    );
-}
-
 fn test_verify() {
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
     let mut trng = unsafe {
@@ -389,7 +350,9 @@ fn test_kv_seed_from_kv_msg_from_input() {
     let seed = [0u8; 48];
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
-        usage: KeyUsage::default().set_ecc_key_gen_seed_en(),
+        usage: KeyUsage::default()
+            .set_ecc_key_gen_seed_en()
+            .set_ecc_private_key_en(),
     };
     let result = ecc.key_pair(
         &Ecc384Seed::from(&Ecc384Scalar::from(seed)),
@@ -489,6 +452,32 @@ fn test_kv_seed_from_kv_msg_from_input() {
     assert_eq!(result.unwrap(), Ecc384Result::Success);
 }
 
+fn test_no_private_key_usage() {
+    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+        )
+        .unwrap()
+    };
+    let seed = [0u8; 48];
+    let key_out_1 = KeyWriteArgs {
+        id: KeyId::KeyId0,
+        // The caller needs to use set_ecc_private_key_en() here to prevent the error
+        usage: KeyUsage::default().set_ecc_key_gen_seed_en(),
+    };
+    let result = ecc.key_pair(
+        &Ecc384Seed::from(&Ecc384Scalar::from(seed)),
+        &Array4x12::default(),
+        &mut trng,
+        Ecc384PrivKeyOut::from(key_out_1),
+    );
+    assert_eq!(result, Err(CaliptraError::DRIVER_ECC384_KEYGEN_BAD_USAGE))
+}
+
 fn test_kat() {
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
     let mut trng = unsafe {
@@ -511,10 +500,10 @@ test_suite! {
     test_gen_key_pair,
     test_gen_key_pair_with_iv,
     test_sign,
-    test_sign_validation_failure,
     test_verify,
     test_verify_r,
     test_verify_failure,
     test_kv_seed_from_input_msg_from_input,
     test_kv_seed_from_kv_msg_from_input,
+    test_no_private_key_usage,
 }

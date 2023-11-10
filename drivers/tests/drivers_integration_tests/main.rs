@@ -318,6 +318,15 @@ fn test_ecc384() {
 }
 
 #[test]
+fn test_ecc384_sign_validation_failure() {
+    let mut model =
+        start_driver_test(&firmware::driver_tests::ECC384_SIGN_VALIDATION_FAILURE).unwrap();
+    model
+        .step_until_output_contains("CFI Panic code=0x01040055")
+        .unwrap();
+}
+
+#[test]
 fn test_error_reporter() {
     run_driver_test(&firmware::driver_tests::ERROR_REPORTER);
 }

@@ -58,6 +58,7 @@ verilator = ["caliptra-hw-model/verilator"]
 no-fmc = []
 fake-rom = []
 no-cfi = []
+slow_tests = []
 
 [[bin]]
 name = "asm_tests"

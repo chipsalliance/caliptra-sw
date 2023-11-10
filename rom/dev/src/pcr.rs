@@ -41,6 +41,7 @@ struct PcrExtender<'a> {
 }
 impl PcrExtender<'_> {
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
     fn extend(&mut self, data: &[u8], pcr_entry_id: PcrLogEntryId) -> CaliptraResult<()> {
         self.pcr_bank
             .extend_pcr(PCR_ID_FMC_CURRENT, self.sha384, data)?;
@@ -58,6 +59,7 @@ impl PcrExtender<'_> {
 ///
 /// * `env` - ROM Environment
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[inline(never)]
 pub(crate) fn extend_pcrs(
     env: &mut FirmwareImageVerificationEnv,
     info: &ImageVerificationInfo,

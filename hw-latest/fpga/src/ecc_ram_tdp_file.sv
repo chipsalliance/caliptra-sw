@@ -42,24 +42,29 @@ module ecc_ram_tdp_file #(
     input  wire  [DATA_WIDTH-1 : 0]  dinb,
     output logic [DATA_WIDTH-1 : 0]  doutb
     );
-    
-    fpga_ecc_ram_tdp_file
-        ram_tdp_file_i(
-        .clka(clk),
-        .clkb(clk),
-        .rsta(~reset_n),
 
-        .ena(ena),
-        .wea(wea),
-        .addra(addra),
-        .dina(dina),
-        .douta(douta),
+    localparam ADDR_LENGTH = 2**ADDR_WIDTH;
 
-        .enb(enb),
-        .web(web),
-        .addrb(addrb),
-        .dinb(dinb),
-        .doutb(doutb)
-    );
- 
+    (* ram_style = "block" *)
+    reg [DATA_WIDTH-1:0] ram[ADDR_LENGTH];
+
+
+    always @(posedge clk) begin
+        if (ena & wea) begin
+            ram[addra] <= dina;
+        end
+        if (ena & ~wea) begin
+            douta <= ram[addra];
+        end
+    end
+
+    always @(posedge clk) begin
+        if (enb & web) begin
+            ram[addrb] <= dinb;
+        end
+        if (enb & ~web) begin
+            doutb <= ram[addrb];
+        end
+    end
+
 endmodule
