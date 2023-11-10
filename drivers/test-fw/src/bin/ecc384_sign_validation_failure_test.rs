@@ -3,6 +3,7 @@
 #![no_std]
 #![no_main]
 
+use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar, Trng};
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::ecc::EccReg;
@@ -42,6 +43,10 @@ fn test_sign_validation_failure() {
             0x4C, 0x28, 0x60, 0x87, 0x49, 0xED,
         ]),
     };
+
+    // Init CFI
+    let mut entropy_gen = || trng.generate().map(|a| a.0);
+    CfiCounter::reset(&mut entropy_gen);
 
     let digest = Array4x12::new([0u32; 12]);
 

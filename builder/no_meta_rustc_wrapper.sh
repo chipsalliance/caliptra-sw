@@ -35,7 +35,7 @@ fi
 # more information
 args=()
 for arg in "$@"; do
-    if [[ ${#args[@]} -gt 0 ]] && [[ ${args[-1]} == "-C" ]] && [[ ${arg} == metadata=* ]]; then
+    if [[ ${#args[@]} -gt 0 ]] && [[ ${args[${#args[@]}-1]} == "-C" ]] && [[ ${arg} == metadata=* ]]; then
         # Remove -C
         unset 'args[${#args[@]}-1]'
     else

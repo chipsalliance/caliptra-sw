@@ -252,6 +252,7 @@ dependencies = [
  "bitfield",
  "bitflags 2.4.0",
  "caliptra-builder",
+ "caliptra-cfi-derive",
  "caliptra-cfi-lib",
  "caliptra-drivers-test-bin",
  "caliptra-error",
@@ -274,6 +275,7 @@ dependencies = [
 name = "caliptra-drivers-test-bin"
 version = "0.1.0"
 dependencies = [
+ "caliptra-cfi-lib",
  "caliptra-drivers",
  "caliptra-error",
  "caliptra-kat",
@@ -457,6 +459,7 @@ dependencies = [
 name = "caliptra-hw-model-test-fw"
 version = "0.1.0"
 dependencies = [
+ "caliptra-cfi-lib",
  "caliptra-drivers",
  "caliptra-registers",
  "caliptra-test-harness",
