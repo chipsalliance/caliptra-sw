@@ -179,14 +179,14 @@
 						dy="-0.289em" class="st5" v:baseFontSize="9">FMC</tspan></text>		</g>
 		<g id="shape1013-57" v:mID="1013" v:groupContext="shape" transform="translate(573.267,-348.333)">
 			<title>Circle.43</title>
-			<desc>HMAC</desc>
+			<desc>KDF</desc>
 			<v:userDefs>
 				<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
 			</v:userDefs>
 			<v:textBlock v:margins="rect(4,4,4,4)"/>
 			<v:textRect cx="15.75" cy="540.393" width="27.57" height="23.625"/>
 			<path d="M0 540.39 A15.75 15.75 0 0 1 31.5 540.39 A15.75 15.75 0 1 1 0 540.39 Z" class="st2"/>
-			<text x="6.37" y="542.79" class="st10" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>HMAC</text>		</g>
+			<text x="6.37" y="542.79" class="st10" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>KDF</text>		</g>
 		<g id="shape1014-60" v:mID="1014" v:groupContext="shape" v:layerMember="0" transform="translate(598.017,-348.333)">
 			<title>Dynamic connector.46</title>
 			<path d="M-9 556.14 L-9 569.69" class="st11"/>
@@ -197,14 +197,14 @@
 		</g>
 		<g id="shape1016-70" v:mID="1016" v:groupContext="shape" transform="translate(329.018,-346.813)">
 			<title>Circle.49</title>
-			<desc>HMAC</desc>
+			<desc>KDF</desc>
 			<v:userDefs>
 				<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
 			</v:userDefs>
 			<v:textBlock v:margins="rect(4,4,4,4)"/>
 			<v:textRect cx="15.75" cy="540.393" width="27.57" height="23.625"/>
 			<path d="M0 540.39 A15.75 15.75 0 0 1 31.5 540.39 A15.75 15.75 0 1 1 0 540.39 Z" class="st2"/>
-			<text x="6.37" y="542.79" class="st10" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>HMAC</text>		</g>
+			<text x="6.37" y="542.79" class="st10" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>KDF</text>		</g>
 		<g id="shape1017-73" v:mID="1017" v:groupContext="shape" v:layerMember="0" transform="translate(335.768,-346.947)">
 			<title>Dynamic connector.50</title>
 			<path d="M9 556.28 L9 566.97" class="st6"/>
@@ -409,14 +409,14 @@
 						dy="-0.289em" class="st5" v:baseFontSize="9">LDEVID</tspan></text>		</g>
 		<g id="shape1078-176" v:mID="1078" v:groupContext="shape" transform="translate(457.917,-347.625)">
 			<title>Circle.1246</title>
-			<desc>HMAC</desc>
+			<desc>KDF</desc>
 			<v:userDefs>
 				<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
 			</v:userDefs>
 			<v:textBlock v:margins="rect(4,4,4,4)"/>
 			<v:textRect cx="15.75" cy="540.393" width="27.57" height="23.625"/>
 			<path d="M0 540.39 A15.75 15.75 0 0 1 31.5 540.39 A15.75 15.75 0 1 1 0 540.39 Z" class="st2"/>
-			<text x="6.37" y="542.79" class="st10" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>HMAC</text>		</g>
+			<text x="6.37" y="542.79" class="st10" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>KDF</text>		</g>
 		<g id="shape1079-179" v:mID="1079" v:groupContext="shape" transform="translate(437.945,-460.056)">
 			<title>Rectangle.1247</title>
 			<desc>Field Entropy</desc>
