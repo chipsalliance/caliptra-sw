@@ -927,6 +927,7 @@ fn test_extend_pcr_cmd() {
     assert!(res.is_ok());
 
     // Testing for high entropy test vector
+    // PCR[4]' = sha384(PCR[4] || extension_data) = sha384(0x0...0 || extension_data)
     let mut model = run_rt_test(None, None);
     let extension_data: [u8; ExtendPcrReq::DATA_MAX_SIZE] = [
         225, 73, 188, 244, 110, 120, 121, 204, 185, 203, 86, 129, 104, 186, 33, 110, 125, 116, 216,
@@ -936,6 +937,7 @@ fn test_extend_pcr_cmd() {
 
     // Get ptr to pcrid = 4
     let pcr = model.soc_ifc_pcr();
+    // let entry = pcr.pcr_entry(); // 384 bit pcr register
     let entry = pcr.pcr_entry(); // 384 bit pcr register
 
     // this should be equal to extension_data_sha384_hash, compare byte by byte
