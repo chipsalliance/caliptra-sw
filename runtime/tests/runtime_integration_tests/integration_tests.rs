@@ -8,7 +8,7 @@ use caliptra_builder::{
 use caliptra_common::mailbox_api::{
     CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, GetIdevCertReq, GetIdevCertResp,
     GetIdevInfoResp, InvokeDpeReq, InvokeDpeResp, MailboxReqHeader, MailboxRespHeader,
-    StashMeasurementReq, StashMeasurementResp,
+    PopulateIdevCertReq, StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_drivers::{CaliptraError, Ecc384PubKey};
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError, ShaAccMode};
@@ -37,7 +37,7 @@ use openssl::{
     ec::{EcGroup, EcKey},
     ecdsa::EcdsaSig,
     nid::Nid,
-    pkey::PKey,
+    pkey::{PKey, Private},
     stack::Stack,
     x509::{
         store::X509StoreBuilder, verify::X509VerifyFlags, X509Builder, X509StoreContext,
@@ -484,6 +484,171 @@ fn test_invoke_dpe_get_certificate_chain_cmd() {
         GetCertificateChainResp::read_from(&resp_hdr.data[..resp_hdr.data_size as usize]).unwrap();
     assert_eq!(cert_chain.certificate_size, 2048);
     assert_ne!([0u8; 2048], cert_chain.certificate_chain);
+}
+
+fn get_full_cert_chain(model: &mut DefaultHwModel, out: &mut [u8; 4096]) -> usize {
+    // first half
+    let mut data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
+    let get_cert_chain_cmd = GetCertificateChainCmd {
+        offset: 0,
+        size: 2048,
+    };
+    let cmd_hdr = CommandHdr::new_for_test(Command::GET_CERTIFICATE_CHAIN);
+    let cmd_hdr_buf = cmd_hdr.as_bytes();
+    data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
+    let dpe_cmd_buf = get_cert_chain_cmd.as_bytes();
+    data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
+    let cmd = InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        data,
+        data_size: (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32,
+    };
+
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::INVOKE_DPE),
+        &cmd.as_bytes()[4..],
+    );
+
+    let cmd = InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..cmd
+    };
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::INVOKE_DPE), cmd.as_bytes())
+        .unwrap()
+        .expect("We should have received a response");
+
+    let mut resp_hdr = InvokeDpeResp::default();
+    resp_hdr.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
+
+    let cert_chunk_1 =
+        GetCertificateChainResp::read_from(&resp_hdr.data[..resp_hdr.data_size as usize]).unwrap();
+    out[..cert_chunk_1.certificate_size as usize]
+        .copy_from_slice(&cert_chunk_1.certificate_chain[..cert_chunk_1.certificate_size as usize]);
+
+    // second half
+    let mut data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
+    let get_cert_chain_cmd = GetCertificateChainCmd {
+        offset: cert_chunk_1.certificate_size,
+        size: 2048,
+    };
+    let cmd_hdr = CommandHdr::new_for_test(Command::GET_CERTIFICATE_CHAIN);
+    let cmd_hdr_buf = cmd_hdr.as_bytes();
+    data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
+    let dpe_cmd_buf = get_cert_chain_cmd.as_bytes();
+    data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
+    let cmd = InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        data,
+        data_size: (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32,
+    };
+
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::INVOKE_DPE),
+        &cmd.as_bytes()[4..],
+    );
+
+    let cmd = InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..cmd
+    };
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::INVOKE_DPE), cmd.as_bytes())
+        .unwrap()
+        .expect("We should have received a response");
+
+    let mut resp_hdr = InvokeDpeResp::default();
+    resp_hdr.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
+
+    let cert_chunk_2 =
+        GetCertificateChainResp::read_from(&resp_hdr.data[..resp_hdr.data_size as usize]).unwrap();
+    out[cert_chunk_1.certificate_size as usize
+        ..cert_chunk_1.certificate_size as usize + cert_chunk_2.certificate_size as usize]
+        .copy_from_slice(&cert_chunk_2.certificate_chain[..cert_chunk_2.certificate_size as usize]);
+
+    cert_chunk_1.certificate_size as usize + cert_chunk_2.certificate_size as usize
+}
+
+// Will panic if any of the cert chain chunks is not a valid X.509 cert
+fn parse_cert_chain(cert_chain: &[u8], cert_chain_size: usize, expected_num_certs: u32) {
+    let mut i = 0;
+    let mut cert_count = 0;
+    while i < cert_chain_size {
+        let curr_cert = X509::from_der(&cert_chain[i..]).unwrap();
+        i += curr_cert.to_der().unwrap().len();
+        cert_count += 1;
+    }
+    assert_eq!(expected_num_certs, cert_count);
+}
+
+#[test]
+fn test_populate_idev_cert_cmd() {
+    let mut model = run_rt_test(None, None, None);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut cert_chain_without_idev_cert = [0u8; 4096];
+    let cert_chain_len_without_idev_cert =
+        get_full_cert_chain(&mut model, &mut cert_chain_without_idev_cert);
+
+    // generate test idev cert
+    let ec_group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
+    let ec_key = PKey::from_ec_key(EcKey::generate(&ec_group).unwrap()).unwrap();
+
+    let cert = generate_test_x509_cert(ec_key);
+
+    // copy der encoded idev cert
+    let cert_bytes = cert.to_der().unwrap();
+    let mut cert_slice = [0u8; PopulateIdevCertReq::MAX_CERT_SIZE];
+    cert_slice[..cert_bytes.len()].copy_from_slice(&cert_bytes);
+
+    let pop_idev_cmd = PopulateIdevCertReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        cert_size: cert_bytes.len() as u32,
+        cert: cert_slice,
+    };
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::POPULATE_IDEV_CERT),
+        &pop_idev_cmd.as_bytes()[4..],
+    );
+
+    let pop_idev_cmd = PopulateIdevCertReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..pop_idev_cmd
+    };
+
+    // call populate idev cert so that the idev cert is added to the certificate chain
+    model
+        .mailbox_execute(
+            u32::from(CommandId::POPULATE_IDEV_CERT),
+            pop_idev_cmd.as_bytes(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let mut cert_chain_with_idev_cert = [0u8; 4096];
+    let cert_chain_len_with_idev_cert =
+        get_full_cert_chain(&mut model, &mut cert_chain_with_idev_cert);
+
+    // read idev cert from prefix of cert chain and parse it as X509
+    let idev_len = cert_chain_len_with_idev_cert - cert_chain_len_without_idev_cert;
+    let idev_cert = X509::from_der(&cert_chain_with_idev_cert[..idev_len]).unwrap();
+    assert_eq!(idev_cert, cert);
+
+    // ensure rest of cert chain is not corrupted
+    assert_eq!(
+        cert_chain_without_idev_cert[..cert_chain_len_without_idev_cert],
+        cert_chain_with_idev_cert[idev_len..cert_chain_len_with_idev_cert]
+    );
+    parse_cert_chain(
+        &cert_chain_with_idev_cert[idev_len..],
+        cert_chain_len_with_idev_cert - idev_len,
+        3,
+    );
 }
 
 #[test]
@@ -1038,14 +1203,7 @@ fn test_idev_id_info() {
     GetIdevInfoResp::read_from(resp.as_slice()).unwrap();
 }
 
-#[test]
-fn test_idev_id_cert() {
-    let mut model = run_rt_test(None, None, None);
-
-    // generate 48 byte ECDSA key pair
-    let ec_group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
-    let ec_key = PKey::from_ec_key(EcKey::generate(&ec_group).unwrap()).unwrap();
-
+fn generate_test_x509_cert(ec_key: PKey<Private>) -> X509 {
     let mut cert_builder = X509Builder::new().unwrap();
     cert_builder.set_version(2).unwrap();
     cert_builder
@@ -1065,9 +1223,19 @@ fn test_idev_id_cert() {
     cert_builder
         .set_not_after(&Asn1Time::days_from_now(365).unwrap())
         .unwrap();
-
     cert_builder.sign(&ec_key, MessageDigest::sha384()).unwrap();
-    let cert = cert_builder.build();
+    cert_builder.build()
+}
+
+#[test]
+fn test_idev_id_cert() {
+    let mut model = run_rt_test(None, None, None);
+
+    // generate 48 byte ECDSA key pair
+    let ec_group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
+    let ec_key = PKey::from_ec_key(EcKey::generate(&ec_group).unwrap()).unwrap();
+
+    let cert = generate_test_x509_cert(ec_key.clone());
     assert!(cert.verify(&ec_key).unwrap());
 
     // Extract the r and s values of the signature

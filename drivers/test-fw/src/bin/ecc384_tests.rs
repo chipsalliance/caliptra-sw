@@ -15,6 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
+use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
     Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
     Ecc384Seed, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Trng,
@@ -489,6 +490,11 @@ fn test_kat() {
         )
         .unwrap()
     };
+
+    // Init CFI
+    let mut entropy_gen = || trng.generate().map(|a| a.0);
+    CfiCounter::reset(&mut entropy_gen);
+
     assert_eq!(
         Ecc384Kat::default().execute(&mut ecc, &mut trng).is_ok(),
         true

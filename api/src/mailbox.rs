@@ -11,6 +11,7 @@ impl CommandId {
     pub const GET_IDEV_CSR: Self = Self(0x49444556); // "IDEV"
     pub const GET_IDEV_CERT: Self = Self(0x49444543); // IDEC
     pub const GET_IDEV_INFO: Self = Self(0x49444549); // IDEI
+    pub const POPULATE_IDEV_CERT: Self = Self(0x49444550); // IDEP
     pub const GET_LDEV_CERT: Self = Self(0x4C444556); // "LDEV"
     pub const ECDSA384_VERIFY: Self = Self(0x53494756); // "SIGV"
     pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
@@ -375,4 +376,17 @@ pub struct FwInfoResp {
 pub struct CapabilitiesResp {
     pub hdr: MailboxRespHeader,
     pub capabilities: [u8; crate::capabilities::Capabilities::SIZE_IN_BYTES],
+}
+
+// POPULATE_IDEV_CERT
+// No command-specific output args
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct PopulateIdevCertReq {
+    pub hdr: MailboxReqHeader,
+    pub cert_size: u32,
+    pub cert: [u8; PopulateIdevCertReq::MAX_CERT_SIZE], // variable length
+}
+impl PopulateIdevCertReq {
+    pub const MAX_CERT_SIZE: usize = 1024;
 }

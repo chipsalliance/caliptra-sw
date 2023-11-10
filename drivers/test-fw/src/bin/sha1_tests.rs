@@ -15,6 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
+use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{Array4x5, Array4xN, Sha1};
 use caliptra_kat::Sha1Kat;
 
@@ -64,6 +65,9 @@ fn test_op1() {
 }
 
 fn test_kat() {
+    // Init CFI
+    CfiCounter::reset(&mut || Ok([0xDEADBEEFu32; 12]));
+
     assert_eq!(
         Sha1Kat::default().execute(&mut Sha1::default()).is_ok(),
         true
