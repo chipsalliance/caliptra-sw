@@ -152,7 +152,7 @@ serde_json = "1.0"
 sha2 = { version = "0.10.2", default-features = false, features = ["compress"] }
 sha3 = "0.10.8"
 smlang = "0.6.0"
-syn = "1.0.107"
+syn = { version = "1.0.107", features = ["visit-mut"] }
 tinytemplate = "1.1"
 tock-registers = { git = "https://github.com/tock/tock.git"}
 toml = "0.7.0"

@@ -17,13 +17,18 @@ References:
 --*/
 
 use proc_macro::TokenStream;
+use proc_macro2::{Ident, TokenTree};
 use quote::quote;
+use quote::TokenStreamExt;
 use syn::parse_macro_input;
 use syn::parse_quote;
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
+use syn::visit_mut::VisitMut;
 use syn::FnArg;
 use syn::ItemFn;
+use syn::Macro;
+use syn::{ExprPath, Pat};
 
 #[proc_macro_attribute]
 pub fn cfi_mod_fn(_args: TokenStream, input: TokenStream) -> TokenStream {
@@ -35,34 +40,77 @@ pub fn cfi_impl_fn(_args: TokenStream, input: TokenStream) -> TokenStream {
     cfi_fn(false, input)
 }
 
-fn cfi_fn(_mod_fn: bool, input: TokenStream) -> TokenStream {
-    let mut f: ItemFn = parse_macro_input!(input as ItemFn);
+struct SelfRenamer;
 
-    let inline_attr = f.attrs.iter().find(|a| a.path.is_ident("inline")).cloned();
+impl VisitMut for SelfRenamer {
+    fn visit_macro_mut(&mut self, m: &mut Macro) {
+        for token in std::mem::take(&mut m.tokens).into_iter() {
+            m.tokens.append(match token {
+                TokenTree::Ident(ident) => {
+                    if ident == "self" {
+                        TokenTree::Ident(Ident::new("__cfi_self", ident.span()))
+                    } else {
+                        TokenTree::Ident(ident)
+                    }
+                }
+                other => other,
+            });
+        }
+    }
+    fn visit_expr_path_mut(&mut self, p: &mut ExprPath) {
+        if p.path.is_ident("self") {
+            *p = parse_quote!(__cfi_self);
+        }
+    }
+}
+
+fn cfi_fn(_mod_fn: bool, input: TokenStream) -> TokenStream {
+    let mut func: ItemFn = parse_macro_input!(input as ItemFn);
+
+    let inline_attr = func
+        .attrs
+        .iter()
+        .find(|a| a.path.is_ident("inline"))
+        .cloned();
 
     // Remove the inline attribute from the wrapper function; we'll put this on
     // the closure instead.
-    f.attrs.retain(|a| !a.path.is_ident("inline"));
+    func.attrs.retain(|a| !a.path.is_ident("inline"));
 
-    // For some silly reason, LLVM doesn't optimize well if let the closure
-    // capture the arguments. It seems to be fine to let it capture self,
-    // however.
-    let params: Punctuated<_, Comma> = f
+    // For some silly reason, LLVM doesn't optimize as well if we let the
+    // closure capture the arguments. So pass them in manually instead.
+    let params: Punctuated<FnArg, Comma> = func
         .sig
         .inputs
         .iter()
-        .filter(|f| matches!(f, FnArg::Typed(_)))
-        .collect();
-    let args: Punctuated<_, Comma> = params
-        .iter()
-        .map(|f| match f {
-            FnArg::Typed(a) => &a.pat,
-            _ => unreachable!(),
+        .map(|p| match p {
+            FnArg::Receiver(r) => {
+                let mutability = r.mutability;
+                match &r.reference {
+                    Some((and, lifetime)) => {
+                        parse_quote!(__cfi_self: #and #lifetime #mutability Self)
+                    }
+                    None => parse_quote!(#mutability __cfi_self: Self),
+                }
+            }
+            FnArg::Typed(t) => FnArg::Typed(t.clone()),
         })
         .collect();
 
-    let orig_block = std::mem::replace(&mut f.block, parse_quote!({}));
-    f.block.stmts = parse_quote!(
+    let args: Punctuated<Box<Pat>, Comma> = func
+        .sig
+        .inputs
+        .iter()
+        .map(|p| match p {
+            FnArg::Receiver(_) => parse_quote!(self),
+            FnArg::Typed(t) => t.pat.clone(),
+        })
+        .collect();
+
+    let mut orig_block = std::mem::replace(&mut func.block, parse_quote!({}));
+    SelfRenamer.visit_block_mut(&mut orig_block);
+
+    func.block.stmts = parse_quote!(
         // This is necessary to allow the inline attribute to be placed on the
         // closure
         fn __cfi_move<R>(r: R) -> R {
@@ -82,7 +130,7 @@ fn cfi_fn(_mod_fn: bool, input: TokenStream) -> TokenStream {
 
     quote! {
         #[inline(always)]
-        #f
+        #func
     }
     .into()
 }

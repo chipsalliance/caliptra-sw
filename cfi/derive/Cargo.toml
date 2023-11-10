@@ -10,7 +10,7 @@ proc-macro = true
 doctest = false
 
 [dependencies]
-syn = { version = "1.0.107", features = ["extra-traits", "full"] }
+syn.workspace = true
 quote = "1.0.23"
 proc-macro2 = "1.0.51"
 paste = "1.0.11"
