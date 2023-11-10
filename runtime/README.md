@@ -382,6 +382,35 @@ Table: `EXTEND_PCR` input arguments
 
 `EXTEND_PCR` returns no output arguments.
 
+Note that extensions made into Caliptra's PCRs are _not_ appended to Caliptra's internal PCR log.
+
+### GET\_PCR\_LOG
+
+Get Caliptra's internal PCR log
+
+Command Code: `0x504C_4F47` ("PLOG")
+
+Table: `GET_PCR_LOG` input arguments
+
+| **Name**  | **Type**      | **Description**
+| --------  | --------      | ---------------
+| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+
+Table: `GET_PCR_LOG` output arguments
+
+| **Name**    | **Type**   | **Description**
+| --------    | --------   | ---------------
+| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32        | Indicates if the command is FIPS approved or an error
+| data_size   | u32        | Length in bytes of the valid data in the data field
+| data        | u8[...]    | Internal PCR event log
+
+See [pcr_log.rs](../drivers/src/pcr_log.rs) for the format of the log.
+
+Note: the log contents reflect PCR extensions made autonomously by Caliptra during boot. The log contents
+are not preserved across cold or update resets. Callers who wish to verify PCRs that are autonomously
+extended during update reset should cache the log before triggering an update reset.
+
 ### INCREMENT\_PCR\_RESET\_COUNTER
 
 Increment the reset counter for a PCR
