@@ -560,7 +560,7 @@ pub trait HwModel {
         }
     }
 
-    /// Execute until the output ends with `expected_output`
+    /// Execute until the output buffer starts with `expected_output`
     fn step_until_output(&mut self, expected_output: &str) -> Result<(), Box<dyn Error>> {
         self.step_until(|m| m.output().peek().len() >= expected_output.len());
         if &self.output().peek()[..expected_output.len()] != expected_output {
@@ -571,6 +571,14 @@ pub trait HwModel {
             )
             .into());
         }
+        Ok(())
+    }
+
+    /// Execute until the output buffer starts with `expected_output`, and remove it
+    /// from the output buffer.
+    fn step_until_output_and_take(&mut self, expected_output: &str) -> Result<(), Box<dyn Error>> {
+        self.step_until_output(expected_output)?;
+        self.output().take(expected_output.len());
         Ok(())
     }
 
