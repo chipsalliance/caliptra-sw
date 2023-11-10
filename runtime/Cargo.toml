@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 caliptra_common = { workspace = true, default-features = false }
 caliptra-cpu.workspace = true
-caliptra-drivers = { workspace = true, features = ["runtime"] }
+caliptra-drivers = { workspace = true, features = ["runtime", "no-cfi"] }
 caliptra-error = { workspace = true, default-features = false }
 caliptra-image-types = { workspace = true, default-features = false }
 caliptra-kat.workspace = true
