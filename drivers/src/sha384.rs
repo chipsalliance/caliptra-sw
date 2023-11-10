@@ -17,6 +17,8 @@ use core::usize;
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::PcrId;
 use crate::{array::Array4x32, wait, Array4x12};
+#[cfg(not(feature = "no-cfi"))]
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::sha512::Sha512Reg;
 
@@ -59,6 +61,7 @@ impl Sha384 {
     ///
     /// * `data` - Data to used to update the digest
     ///
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn digest(&mut self, buf: &[u8]) -> CaliptraResult<Array4x12> {
         // Check if the buffer is not large
         if buf.len() > SHA384_MAX_DATA_SIZE {

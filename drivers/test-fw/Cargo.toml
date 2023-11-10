@@ -15,6 +15,7 @@ caliptra-registers = { workspace = true }
 caliptra-test-harness = { workspace = true }
 cfg-if.workspace = true
 zerocopy.workspace = true
+caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cfi", "cfi-counter" ] }
 
 [features]
 emu = ["caliptra-test-harness/emu"]
