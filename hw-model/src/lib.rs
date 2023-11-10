@@ -961,7 +961,7 @@ mod tests {
             .at(0)
             .write(|_| 0x100 | u32::from(b'i'));
         soc_ifc.cptra_generic_output_wires().at(0).write(|_| 0xff);
-        rv32_gen.build()
+        rv32_gen.into_inner().empty_loop().build()
     }
 
     #[test]
@@ -1145,10 +1145,20 @@ mod tests {
             ..Default::default()
         })
         .unwrap();
-        assert_eq!(
-            model.step_until_output("ha").err().unwrap().to_string(),
-            "expected output \"ha\", was \"hi\""
-        );
+
+        if cfg!(feature = "fpga_realtime") {
+            // The fpga_realtime model can't pause execution precisely, so just assert the
+            // entire output of the program.
+            assert_eq!(
+                model.step_until_output("haa").err().unwrap().to_string(),
+                "expected output \"haa\", was \"hii\""
+            );
+        } else {
+            assert_eq!(
+                model.step_until_output("ha").err().unwrap().to_string(),
+                "expected output \"ha\", was \"hi\""
+            );
+        }
     }
 
     #[test]
@@ -1236,6 +1246,8 @@ mod tests {
             &model.soc_ifc().cptra_fw_extended_error_info().read()[..2],
             &[MboxStatusE::CmdComplete as u32, 8]
         );
+        // Signal that we're ready to move on...
+        model.soc_ifc().cptra_rsvd_reg().at(0).write(|_| 1);
 
         // Test 3-byte request, respond with failure
         let txn = model.wait_for_mailbox_receive().unwrap();
