@@ -222,6 +222,10 @@ impl crate::HwModel for ModelVerilated {
 
         m.tracing_hint(true);
 
+        if params.random_sram_puf {
+            m.v.init_random_puf_state(&mut rand::thread_rng());
+        }
+
         m.v.input.cptra_pwrgood = true;
         m.v.next_cycle_high(1);
 

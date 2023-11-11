@@ -147,6 +147,11 @@ pub struct InitParams<'a> {
 
     pub wdt_timeout_cycles: u64,
 
+    // If true (and the HwModel supports it), initialize the SRAM with random
+    // data. This will likely result in a ECC double-bit error if the CPU
+    // attempts to read uninitialized memory.
+    pub random_sram_puf: bool,
+
     // A trace path to use. If None, the CPTRA_TRACE_PATH environment variable
     // will be used
     pub trace_path: Option<PathBuf>,
@@ -180,6 +185,7 @@ impl<'a> Default for InitParams<'a> {
             etrng_responses,
             trng_mode: Default::default(),
             wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
+            random_sram_puf: true,
             trace_path: None,
         }
     }
@@ -552,6 +558,22 @@ pub trait HwModel {
                     return Err(std::io::Error::new(
                         ErrorKind::Other,
                         "firmware exited with failure",
+                    ))
+                }
+                None => {}
+            }
+            self.step();
+        }
+    }
+
+    fn step_until_exit_failure(&mut self) -> std::io::Result<()> {
+        loop {
+            match self.output().exit_status() {
+                Some(ExitStatus::Failed) => return Ok(()),
+                Some(ExitStatus::Passed) => {
+                    return Err(std::io::Error::new(
+                        ErrorKind::Other,
+                        "firmware exited with success when failure was expected",
                     ))
                 }
                 None => {}
