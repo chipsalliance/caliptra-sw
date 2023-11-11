@@ -15,6 +15,9 @@ use zerocopy::{AsBytes, FromBytes};
 
 #[test]
 fn ecdsa_cmd_run_wycheproof() {
+    // This test is too slow to run as part of the verilator nightly.
+    #![cfg_attr(all(not(feature = "slow_tests"), feature = "verilator"), ignore)]
+
     let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| {
