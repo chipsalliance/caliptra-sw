@@ -126,6 +126,8 @@ impl CaliptraError {
     pub const DRIVER_MAILBOX_INVALID_STATE: CaliptraError = CaliptraError::new_const(0x00080001);
     pub const DRIVER_MAILBOX_INVALID_DATA_LEN: CaliptraError = CaliptraError::new_const(0x00080002);
     pub const DRIVER_MAILBOX_ENQUEUE_ERR: CaliptraError = CaliptraError::new_const(0x00080004);
+    pub const DRIVER_MAILBOX_UNCORRECTABLE_ECC: CaliptraError =
+        CaliptraError::new_const(0x00080005);
 
     /// SHA384ACC Errors.
     pub const DRIVER_SHA384ACC_INDEX_OUT_OF_BOUNDS: CaliptraError =
