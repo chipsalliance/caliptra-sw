@@ -5,7 +5,7 @@ use bit_vec::BitVec;
 use caliptra_builder::{build_firmware_elf, FwId, SymbolType};
 use elf::endian::AnyEndian;
 use elf::ElfBytes;
-use std::collections::hash_map::DefaultHasher;
+use std::collections::hash_map::{DefaultHasher, Entry};
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::hash::Hasher;
@@ -23,12 +23,13 @@ impl CoverageMap {
         let mut map = HashMap::<u64, BitVec>::default();
         for path in paths {
             let new_entry = get_entry_from_path(&path);
-            if map.contains_key(&new_entry.0) {
-                let mut res = map.get(&new_entry.0).unwrap().clone();
-                res.or(&new_entry.1);
-                map.insert(new_entry.0, res);
-            } else {
-                map.insert(new_entry.0, new_entry.1);
+            match map.entry(new_entry.0) {
+                Entry::Vacant(e) => {
+                    e.insert(new_entry.1);
+                }
+                Entry::Occupied(mut e) => {
+                    e.get_mut().or(&new_entry.1);
+                }
             }
         }
         Self { map }
