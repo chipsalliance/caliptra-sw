@@ -23,7 +23,7 @@ fn test_wdt_activation_and_stoppage() {
     .unwrap();
 
     let rom =
-        caliptra_builder::build_firmware_rom(&caliptra_builder::firmware::ROM_WITH_UART).unwrap();
+        caliptra_builder::build_firmware_rom(caliptra_builder::firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(caliptra_hw_model::BootParams {
         init_params: caliptra_hw_model::InitParams {
             rom: &rom,
@@ -65,7 +65,7 @@ fn test_wdt_not_enabled_on_debug_part() {
         .set_debug_locked(false)
         .set_device_lifecycle(DeviceLifecycle::Unprovisioned);
 
-    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(caliptra_hw_model::BootParams {
         init_params: caliptra_hw_model::InitParams {
             rom: &rom,
@@ -94,7 +94,7 @@ fn test_rom_wdt_timeout() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Unprovisioned);
 
-    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(caliptra_hw_model::BootParams {
         init_params: caliptra_hw_model::InitParams {
             rom: &rom,
