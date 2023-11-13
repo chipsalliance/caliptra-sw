@@ -55,6 +55,21 @@ pub struct ModelEmulated {
     ready_for_fw: Rc<Cell<bool>>,
     cpu_enabled: Rc<Cell<bool>>,
     trace_path: Option<PathBuf>,
+
+    image_tag: u64,
+}
+impl Drop for ModelEmulated {
+    fn drop(&mut self) {
+        let cov_path =
+            std::env::var(caliptra_coverage::CPTRA_COVERAGE_PATH).unwrap_or_else(|_| "".into());
+        if cov_path.is_empty() {
+            return;
+        }
+
+        let bitmap = self.code_coverage_bitmap();
+        let _ =
+            caliptra_coverage::dump_emu_coverage_to_file(cov_path.as_str(), self.image_tag, bitmap);
+    }
 }
 
 impl ModelEmulated {
@@ -70,6 +85,9 @@ impl crate::HwModel for ModelEmulated {
     where
         Self: Sized,
     {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::Hasher;
+
         let clock = Clock::new();
         let timer = clock.timer();
 
@@ -125,6 +143,10 @@ impl crate::HwModel for ModelEmulated {
         let soc_to_caliptra_bus = root_bus.soc_to_caliptra_bus();
         let cpu = Cpu::new(BusLogger::new(root_bus), clock);
 
+        let mut hasher = DefaultHasher::new();
+        std::hash::Hash::hash_slice(params.rom, &mut hasher);
+        let image_tag = hasher.finish();
+
         let mut m = ModelEmulated {
             output,
             cpu,
@@ -133,6 +155,7 @@ impl crate::HwModel for ModelEmulated {
             ready_for_fw,
             cpu_enabled,
             trace_path: trace_path_or_env(params.trace_path),
+            image_tag,
         };
         // Turn tracing on if the trace path was set
         m.tracing_hint(true);
@@ -155,7 +178,7 @@ impl crate::HwModel for ModelEmulated {
 
     fn output(&mut self) -> &mut Output {
         // In case the caller wants to log something, make sure the log has the
-        // correct time.
+        // correct time.env::
         self.output.sink().set_now(self.cpu.clock.now());
         &mut self.output
     }
