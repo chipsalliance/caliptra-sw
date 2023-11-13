@@ -1,8 +1,8 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_builder::firmware;
 use caliptra_builder::firmware::rom_tests::TEST_FMC_WITH_UART;
 use caliptra_builder::firmware::APP_WITH_UART;
-use caliptra_builder::firmware::ROM_WITH_UART;
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::RomBootStatus::*;
@@ -85,7 +85,7 @@ fn test_cold_reset_status_reporting() {
 
 #[test]
 fn test_cold_reset_success() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let image_bundle = caliptra_builder::build_and_sign_image(
         &TEST_FMC_WITH_UART,
         &APP_WITH_UART,
@@ -110,7 +110,7 @@ fn test_cold_reset_success() {
 
 #[test]
 fn test_cold_reset_no_rng() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let image_bundle = caliptra_builder::build_and_sign_image(
         &TEST_FMC_WITH_UART,
         &APP_WITH_UART,

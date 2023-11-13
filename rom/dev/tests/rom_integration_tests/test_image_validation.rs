@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{
-    firmware::{rom_tests::TEST_FMC_WITH_UART, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART},
+    firmware::{self, rom_tests::TEST_FMC_WITH_UART, APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
 };
 use caliptra_common::memory_layout::{ICCM_ORG, ICCM_SIZE};
@@ -174,7 +174,7 @@ fn test_preamble_owner_pubkey_digest_mismatch() {
 
 #[test]
 fn test_preamble_vendor_ecc_pubkey_revocation() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     const LAST_KEY_IDX: u32 = VENDOR_ECC_KEY_COUNT - 1;
     const VENDOR_CONFIG_LIST: [ImageGeneratorVendorConfig; VENDOR_ECC_KEY_COUNT as usize] = [
         VENDOR_CONFIG_KEY_0,
@@ -237,7 +237,7 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
     // this test is too slow to run in the verilator nightly
     #![cfg_attr(all(not(feature = "slow_tests"), feature = "verilator"), ignore)]
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     const LAST_KEY_IDX: u32 = VENDOR_LMS_KEY_COUNT - 1;
 
     for idx in 0..VENDOR_LMS_KEY_COUNT {
@@ -293,7 +293,7 @@ fn test_preamble_vendor_lms_optional_no_pubkey_revocation_check() {
     // this test is too slow to run in the verilator nightly
     #![cfg_attr(all(not(feature = "slow_tests"), feature = "verilator"), ignore)]
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
 
     for idx in 0..VENDOR_LMS_KEY_COUNT {
         let vendor_config = ImageGeneratorVendorConfig {
@@ -799,7 +799,7 @@ fn test_header_verify_owner_sig_zero_fuses() {
 
     let fuses = caliptra_hw_model::Fuses::default();
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -844,7 +844,7 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_x() {
         ..Default::default()
     };
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -897,7 +897,7 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_y() {
         ..Default::default()
     };
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -941,7 +941,7 @@ fn test_header_verify_owner_ecc_sig_zero_signature_r() {
         ..Default::default()
     };
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -988,7 +988,7 @@ fn test_header_verify_owner_ecc_sig_zero_signature_s() {
         ..Default::default()
     };
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -1035,7 +1035,7 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_r() {
         ..Default::default()
     };
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -1082,7 +1082,7 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_s() {
         ..Default::default()
     };
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -1868,7 +1868,7 @@ fn test_runtime_svn_less_than_fuse_svn() {
 #[test]
 fn cert_test_with_custom_dates() {
     let fuses = Fuses::default();
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -1946,7 +1946,7 @@ fn cert_test_with_custom_dates() {
 #[test]
 fn cert_test() {
     let fuses = Fuses::default();
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -2009,7 +2009,7 @@ fn cert_test_with_ueid() {
     fuses.idevid_cert_attr[IdevidCertAttr::ManufacturerSerialNumber4 as usize] = ueid[3];
     fuses.idevid_cert_attr[IdevidCertAttr::UeidType as usize] = 1;
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,

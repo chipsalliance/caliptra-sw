@@ -25,7 +25,7 @@ fn assert_output_contains(haystack: &str, needle: &str) {
 #[test]
 fn retrieve_csr_test() {
     const GENERATE_IDEVID_CSR: u32 = 1;
-    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -123,7 +123,7 @@ fn smoke_test() {
         .set_device_lifecycle(DeviceLifecycle::Production);
     let idevid_pubkey = get_idevid_pubkey();
 
-    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let image = caliptra_builder::build_and_sign_image(
         &firmware::FMC_WITH_UART,
         &firmware::APP_WITH_UART,
@@ -340,7 +340,7 @@ fn test_rt_wdt_timeout() {
     #![cfg_attr(feature = "fpga_realtime", ignore)]
 
     const RUNTIME_GLOBAL_WDT_EPIRED: u32 = 0x000E001F;
-    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
 
     // TODO: Don't hard-code these; maybe measure from a previous boot?
     let rt_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
@@ -376,7 +376,7 @@ fn test_fmc_wdt_timeout() {
         2_600_000
     };
 
-    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
 
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
     let init_params = caliptra_hw_model::InitParams {

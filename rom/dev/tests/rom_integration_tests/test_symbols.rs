@@ -8,7 +8,7 @@ use caliptra_drivers::memory_layout;
 
 #[test]
 fn test_linker_symbols_match_memory_layout() {
-    let elf_bytes = caliptra_builder::build_firmware_elf(&firmware::ROM_WITH_UART).unwrap();
+    let elf_bytes = caliptra_builder::build_firmware_elf(firmware::rom_from_env()).unwrap();
     let symbols = caliptra_builder::elf_symbols(&elf_bytes).unwrap();
     let symbols: HashMap<&str, Symbol> = symbols.into_iter().map(|s| (s.name, s)).collect();
 
