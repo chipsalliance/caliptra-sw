@@ -30,7 +30,11 @@ impl FwInfoCmd {
             runtime_svn,
             min_runtime_svn,
             fmc_manifest_svn,
-            attestation_disabled: drivers.attestation_disabled.into(),
+            attestation_disabled: if drivers.attestation_disabled {
+                0xFFFFFFFF
+            } else {
+                0
+            },
         }))
     }
 }

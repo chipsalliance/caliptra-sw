@@ -118,6 +118,26 @@ Table: `CALIPTRA_FW_LOAD` output arguments
 | chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips_status | u32      | Indicates if the command is FIPS approved or an error
 
+### FW\_INFO
+
+Gets diagnostic information about mutable firmware
+
+Command Code: `0x494E_464F` ("INFO")
+
+`FW_INFO` takes no input arguments
+
+Table: `FW_INFO` output arguments
+
+| **Name**             | **Type**   | **Description**
+| --------             | --------   | ---------------
+| chksum               | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status          | u32        | Indicates if the command is FIPS approved or an error
+| pl0_pauser           | u32        | The PL0 PAUSER specified in the signed firmware manifest
+| runtime_svn          | u32        | Security Version Number of Runtime Firmware
+| min_runtime_svn      | u32        | Minimum Runtime version that can be hitlessly updated to
+| fmc_manifest_svn     | u32        | Security Version Number of the FMC
+| attestation_disabled | u32        | 0xFFFFFFFF if attestation is disabled, else 0
+
 ### GET\_IDEV\_CERT
 
 Exposes a command to reconstruct the IDEVID CERT
@@ -146,7 +166,7 @@ Table: `GET_IDEV_CERT` output arguments
 ### POPULATE\_IDEV\_CERT
 
 Exposes a command that allows the SoC to provide a DER-encoded
-IDevId certificate on every boot. The IDevId certificate is added 
+IDevId certificate on every boot. The IDevId certificate is added
 to the start of the certificate chain.
 
 Command Code: `0x4944_4550` ("IDEP")
@@ -511,8 +531,8 @@ Caliptra models PAUSER callers to its mailbox as having 1 of 2 privilege levels:
 * PL0 - High Privilege. Only 1 PAUSER in the SoC may be at PL0. The PL0 PAUSER
   is denoted in the signed Caliptra firmware image. The PL0 PAUSER may call any
   supported DPE commands. Only PL0 can use the CertifyKey command. Success of the
-  CertifyKey command signifies to the caller that it is at PL0. Only PL0 can use 
-  the POPULATE_IDEV_CERT mailbox command. 
+  CertifyKey command signifies to the caller that it is at PL0. Only PL0 can use
+  the POPULATE_IDEV_CERT mailbox command.
 * PL1 - Restricted Privilege. All other PAUSERs in the SoC are PL1. Caliptra
   SHALL fail any calls to the DPE CertifyKey command by PL1 callers.
   PL1 callers should use the CertifyCsr command instead.
@@ -534,8 +554,8 @@ If a DPE command were to activate a new context such that the total number of
 active contexts in a privilege level is above its active context limit, the
 InvokeDpe command should fail.
 
-Further, it is not allowed for PL1 to call DeriveChild with the intent of 
-changing locality to PL0's locality, since this would increase the number 
+Further, it is not allowed for PL1 to call DeriveChild with the intent of
+changing locality to PL0's locality, since this would increase the number
 of active contexts in PL0's locality, and hence allow PL1 to DOS PL0.
 
 ### DPE Profile Implementation
