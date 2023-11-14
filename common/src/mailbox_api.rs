@@ -305,13 +305,15 @@ pub struct ExtendPcrReq {
 pub type ExtendPcrReqErr = ();
 impl ExtendPcrReq {
     pub const DATA_MAX_SIZE: usize = 48;
+}
 
-    pub fn new(
-        hdr: MailboxReqHeader,
-        pcr_idx: u32,
-        data: [u8; 48],
-    ) -> Result<Self, ExtendPcrReqErr> {
-        Ok(ExtendPcrReq { hdr, pcr_idx, data })
+impl Default for ExtendPcrReq {
+    fn default() -> Self {
+        Self {
+            hdr: Default::default(),
+            pcr_idx: u32::default(),
+            data: [0u8; ExtendPcrReq::DATA_MAX_SIZE],
+        }
     }
 }
 // No command-specific output args

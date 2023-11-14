@@ -11,11 +11,7 @@ use caliptra_common::mailbox_api::{
     GetIdevCertReq, GetIdevCertResp, GetIdevInfoResp, InvokeDpeReq, InvokeDpeResp,
     MailboxReqHeader, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
 };
-use caliptra_drivers::{
-    cprintln,
-    sha384::{SHA384_BLOCK_BYTE_SIZE, SHA384_HASH_SIZE},
-    CaliptraError, Ecc384PubKey, PcrId,
-};
+use caliptra_drivers::{cprintln, CaliptraError, Ecc384PubKey, PcrId};
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError, ShaAccMode};
 use caliptra_runtime::{FipsVersionCmd, RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
 use common::run_rt_test;
@@ -905,15 +901,23 @@ fn test_extend_pcr_cmd() {
     fn generate_mailbox_extend_pcr_req(
         pcr_idx: u32,
         pcr_extension_data: [u8; ExtendPcrReq::DATA_MAX_SIZE],
-    ) -> Result<ExtendPcrReq, ExtendPcrReqErr> {
-        let cmd = ExtendPcrReq::new(MailboxReqHeader { chksum: 0 }, pcr_idx, pcr_extension_data)?;
+    ) -> ExtendPcrReq {
+        let cmd = ExtendPcrReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            pcr_idx: pcr_idx,
+            data: pcr_extension_data,
+        };
 
         let checksum = caliptra_common::checksum::calc_checksum(
             u32::from(CommandId::EXTEND_PCR),
             &cmd.as_bytes()[4..],
         );
 
-        ExtendPcrReq::new(MailboxReqHeader { chksum: checksum }, cmd.pcr_idx, cmd.data)
+        ExtendPcrReq {
+            hdr: MailboxReqHeader { chksum: checksum },
+            pcr_idx: cmd.pcr_idx,
+            data: cmd.data,
+        }
     }
 
     // Testing for extension_data [0,...,0]
@@ -922,7 +926,7 @@ fn test_extend_pcr_cmd() {
 
     // let mut pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
 
-    let cmd = generate_mailbox_extend_pcr_req(4, extension_data).unwrap();
+    let cmd = generate_mailbox_extend_pcr_req(4, extension_data);
     let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
     assert!(res.is_ok());
 
@@ -937,71 +941,31 @@ fn test_extend_pcr_cmd() {
 
     // Get ptr to pcrid = 4
     let pcr = model.soc_ifc_pcr();
-    // let entry = pcr.pcr_entry(); // 384 bit pcr register
     let entry = pcr.pcr_entry(); // 384 bit pcr register
 
     // this should be equal to extension_data_sha384_hash, compare byte by byte
     // for i in 0..32 {
     //     let e = entry.at(i as usize);
     //     for ii in 0..12 {
-    //         // this fails, but why?
+    //         //         // this fails, but why?
     //         let ee = e.at(ii).read();
     //     }
     // }
 
-    // let pcr_4 = pcr.pcr_ctrl().at(4);
-    // let r = pcr_4.read();
-    // let rl = r.lock();
-    // let rb = rl.as_bytes();
-    // for i in 0..32 {
-    //     cprint!("{}", rb[i]);
-    // }
-    // cprintln!("");
+    let pcr_4 = pcr.pcr_ctrl().at(4);
+    let r = pcr_4.read();
 
-    // cprintln!("[test-pcr] cp-1");
-    // unsafe {
-    //     cprintln!("[test-pcr] cp0");
-    //     let pcr = Sha512Reg::new();
-    //     cprintln!("[test-pcr] cp1");
-
-    //     let pcr_regs = pcr.regs();
-    //     cprintln!("[test-pcr] cp2");
-
-    //     for index in 0..12 {
-    //         match pcr_regs.digest().get(index as usize) {
-    //             Some(p) => {
-    //                 cprintln!("[test-pcr] {}", &p.read().as_bytes()[0]);
-    //             }
-    //             _ => {
-    //                 cprintln!("[test-pcr] rip");
-    //             }
-    //         }
-    //     }
-    // }
-
-    // Sha384 is stored in 16x32bit registers (sha512) (TMmio.digest()) aka register block
-    // How to read PCR regs from model?
-    // get pv = PvReg sha512pv.pcr_ctrl().at(id.into()).?
-
-    // prob. similar to drivers/test-fw/src/bin/sha384_tests.rs
-    // fn test_pcr_hash_extend_single_block_3() {
-    //     let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
-    //     let mut pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
-
-    // #[peripheral(offset = 0x1001_8000, mask = 0x0000_7fff)]
-    // pub key_vault: KeyVault,
-
-    let cmd = generate_mailbox_extend_pcr_req(4, extension_data).unwrap();
+    let cmd = generate_mailbox_extend_pcr_req(4, extension_data);
     let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
     assert!(res.is_ok());
 
     // Smaller size
-    let cmd = generate_mailbox_extend_pcr_req(4, extension_data).unwrap();
+    let cmd = generate_mailbox_extend_pcr_req(4, extension_data);
     let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
     assert!(res.is_ok());
 
     // Invalid PCR index
-    let cmd = generate_mailbox_extend_pcr_req(33, extension_data).unwrap();
+    let cmd = generate_mailbox_extend_pcr_req(33, extension_data);
     let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
     assert_eq!(
         res,
@@ -1013,8 +977,7 @@ fn test_extend_pcr_cmd() {
     // Ensure reserved PCR range
     let reserved_pcrs = [PcrId::PcrId0, PcrId::PcrId1, PcrId::PcrId2, PcrId::PcrId3];
     for test_pcr_index_reserved in reserved_pcrs {
-        let cmd = generate_mailbox_extend_pcr_req(test_pcr_index_reserved.into(), extension_data)
-            .unwrap();
+        let cmd = generate_mailbox_extend_pcr_req(test_pcr_index_reserved.into(), extension_data);
 
         let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
         assert_eq!(
