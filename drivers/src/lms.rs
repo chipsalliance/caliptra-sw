@@ -356,8 +356,8 @@ impl Lms {
                 hash_block[i..i + 4].clone_from_slice(&val.to_be_bytes());
                 i += 4;
             }
-            hasher.update(&hash_block[0..23 + N * 4])?;
-            hasher.finalize(&mut digest)?;
+            hasher.update_wntz(&hash_block[0..23 + N * 4])?;
+            hasher.finalize_wntz(&mut digest)?;
             tmp = HashValue::<N>::from(digest);
             // }
             *val = tmp;
