@@ -1048,11 +1048,15 @@ pub trait HwModel {
 
 #[cfg(test)]
 mod tests {
-    use crate::{mmio::Rv32GenMmio, BootParams, HwModel, InitParams, ModelError, ShaAccMode};
+    use crate::{
+        mmio::Rv32GenMmio, BootParams, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode,
+    };
+    use caliptra_api::mailbox::{self, CommandId, MailboxReqHeader, MailboxRespHeader};
     use caliptra_builder::firmware;
     use caliptra_emu_bus::Bus;
     use caliptra_emu_types::RvSize;
     use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc};
+    use zerocopy::{AsBytes, FromBytes};
 
     use crate as caliptra_hw_model;
 
@@ -1462,5 +1466,141 @@ mod tests {
                 test.expected
             );
         }
+    }
+
+    #[test]
+    pub fn test_mailbox_execute_req() {
+        const NO_DATA_CMD: u32 = 0x2000_0000;
+        const SET_RESPONSE_CMD: u32 = 0x3000_0000;
+        const GET_RESPONSE_CMD: u32 = 0x3000_0001;
+
+        #[repr(C)]
+        #[derive(AsBytes, FromBytes, Default)]
+        struct TestReq {
+            hdr: MailboxReqHeader,
+            data: [u8; 4],
+        }
+        impl mailbox::Request for TestReq {
+            const ID: CommandId = CommandId(GET_RESPONSE_CMD);
+            type Resp = TestResp;
+        }
+        #[repr(C)]
+        #[derive(AsBytes, Debug, FromBytes, PartialEq, Eq)]
+        struct TestResp {
+            hdr: MailboxRespHeader,
+            data: [u8; 4],
+        }
+
+        #[repr(C)]
+        #[derive(AsBytes, FromBytes, Default)]
+        struct TestReqNoData {
+            hdr: MailboxReqHeader,
+            data: [u8; 4],
+        }
+        impl mailbox::Request for TestReqNoData {
+            const ID: CommandId = CommandId(NO_DATA_CMD);
+            type Resp = TestResp;
+        }
+
+        fn set_response(model: &mut DefaultHwModel, data: &[u8]) {
+            model.mailbox_execute(SET_RESPONSE_CMD, data).unwrap();
+        }
+
+        let rom =
+            caliptra_builder::build_firmware_rom(&firmware::hw_model_tests::MAILBOX_RESPONDER)
+                .unwrap();
+        let mut model = caliptra_hw_model::new(BootParams {
+            init_params: InitParams {
+                rom: &rom,
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .unwrap();
+
+        // Success
+        set_response(
+            &mut model,
+            &[
+                0x2d, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, b'H', b'I', b'!', b'!',
+            ],
+        );
+        let resp = model
+            .mailbox_execute_req(TestReq {
+                data: *b"Hi!!",
+                ..Default::default()
+            })
+            .unwrap();
+        model
+            .step_until_output_and_take("|dcfeffff48692121|")
+            .unwrap();
+        assert_eq!(
+            resp,
+            TestResp {
+                hdr: MailboxRespHeader {
+                    chksum: -211,
+                    fips_status: 0
+                },
+                data: *b"HI!!",
+            },
+        );
+
+        // Set wrong length in response
+        set_response(
+            &mut model,
+            &[
+                0x2d, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, b'H', b'I', b'!',
+            ],
+        );
+        let resp = model.mailbox_execute_req(TestReq {
+            data: *b"Hi!!",
+            ..Default::default()
+        });
+        assert_eq!(
+            resp,
+            Err(ModelError::MailboxUnexpectedResponseLen {
+                expected: 12,
+                actual: 11
+            })
+        );
+
+        // Set bad checksum in response
+        set_response(
+            &mut model,
+            &[
+                0x2e, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, b'H', b'I', b'!', b'!',
+            ],
+        );
+        let resp = model.mailbox_execute_req(TestReq {
+            data: *b"Hi!!",
+            ..Default::default()
+        });
+        assert_eq!(
+            resp,
+            Err(ModelError::MailboxRespInvalidChecksum {
+                expected: -210,
+                actual: -211
+            })
+        );
+
+        // Set bad FIPS status in response
+        set_response(
+            &mut model,
+            &[
+                0x0c, 0xff, 0xff, 0xff, 0x01, 0x20, 0x00, 0x00, b'H', b'I', b'!', b'!',
+            ],
+        );
+        let resp = model.mailbox_execute_req(TestReq {
+            data: *b"Hi!!",
+            ..Default::default()
+        });
+        assert_eq!(resp, Err(ModelError::MailboxRespInvalidFipsStatus(0x2001)));
+
+        // Set no data in response
+        let resp = model.mailbox_execute_req(TestReqNoData {
+            data: *b"Hi!!",
+            ..Default::default()
+        });
+        assert_eq!(resp, Err(ModelError::MailboxNoResponseData));
     }
 }
