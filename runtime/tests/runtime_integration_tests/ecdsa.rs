@@ -1,12 +1,11 @@
 // Licensed under the Apache-2.0 license.
 
 use crate::common::run_rt_test;
-use caliptra_common::mailbox_api::{
-    CommandId, EcdsaVerifyReq, MailboxReq, MailboxReqHeader, MailboxRespHeader,
-};
-use caliptra_hw_model::{HwModel, ShaAccMode};
+use caliptra_common::mailbox_api::{EcdsaVerifyReq, MailboxReqHeader};
+use caliptra_error::CaliptraError;
+use caliptra_hw_model::{HwModel, ModelError, ShaAccMode};
 use caliptra_runtime::RtBootStatus;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::AsBytes;
 
 // This file includes some tests from Wycheproof to testing specific common
 // ECDSA problems.
@@ -81,7 +80,7 @@ fn ecdsa_cmd_run_wycheproof() {
                 .compute_sha512_acc_digest(test.msg.as_slice(), ShaAccMode::Sha384Stream)
                 .unwrap();
 
-            let mut cmd = MailboxReq::EcdsaVerify(EcdsaVerifyReq {
+            let req = EcdsaVerifyReq {
                 hdr: MailboxReqHeader { chksum: 0 },
                 pub_key_x: test_group.key.affine_x.as_slice()[..].try_into().unwrap(),
                 pub_key_y: test_group.key.affine_y.as_slice()[..].try_into().unwrap(),
@@ -100,36 +99,45 @@ fn ecdsa_cmd_run_wycheproof() {
                     .try_into()
                     .unwrap(),
                 // Do tests on mailbox
-            });
-            cmd.populate_chksum().unwrap();
-            let resp = model.mailbox_execute(u32::from(CommandId::ECDSA384_VERIFY), cmd.as_bytes());
+            };
+
+            let resp = model.mailbox_execute_req(req);
+
+            const RUNTIME_ECDSA_VERIFY_FAILED: u32 =
+                CaliptraError::RUNTIME_ECDSA_VERIFY_FAILED.0.get();
+            const DRIVER_ECC384_SCALAR_RANGE_CHECK_FAILED: u32 =
+                CaliptraError::DRIVER_ECC384_SCALAR_RANGE_CHECK_FAILED
+                    .0
+                    .get();
+
             match test.result {
                 wycheproof::TestResult::Valid | wycheproof::TestResult::Acceptable => match resp {
-                    Err(_) | Ok(None) => {
+                    Err(ModelError::MailboxCmdFailed(RUNTIME_ECDSA_VERIFY_FAILED)) => {
                         wyche_fail.push(WycheproofResults {
                             id: test.tc_id,
                             comment: test.comment.to_string(),
                         });
                     }
-                    Ok(Some(resp)) => {
-                        // Verify the checksum and FIPS status
-                        let resp_hdr = MailboxRespHeader::read_from(resp.as_slice()).unwrap();
-                        assert_eq!(
-                            resp_hdr.fips_status,
-                            MailboxRespHeader::FIPS_STATUS_APPROVED
-                        );
-                        // Checksum is just going to be 0 because FIPS_STATUS_APPROVED is 0
-                        assert_eq!(resp_hdr.chksum, 0);
+                    Ok(_) => {
+                        // Expected result
                     }
+                    Err(e) => panic!("{e}"),
                 },
-                wycheproof::TestResult::Invalid => {
-                    if resp.is_ok() {
+                wycheproof::TestResult::Invalid => match resp {
+                    Ok(_) => {
                         wyche_fail.push(WycheproofResults {
                             id: test.tc_id,
                             comment: test.comment.to_string(),
                         });
                     }
-                }
+                    Err(ModelError::MailboxCmdFailed(RUNTIME_ECDSA_VERIFY_FAILED)) => {
+                        // Expected result
+                    }
+                    Err(ModelError::MailboxCmdFailed(DRIVER_ECC384_SCALAR_RANGE_CHECK_FAILED)) => {
+                        // TODO: Is this actually the error code we want?
+                    }
+                    Err(e) => panic!("{e}"),
+                },
             }
         }
     }
