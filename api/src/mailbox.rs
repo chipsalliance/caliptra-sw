@@ -126,6 +126,97 @@ impl Default for MailboxResp {
     }
 }
 
+#[cfg_attr(test, derive(PartialEq, Debug, Eq))]
+#[allow(clippy::large_enum_variant)]
+pub enum MailboxReq {
+    EcdsaVerify(EcdsaVerifyReq),
+    GetIdevCsr(MailboxReqHeader),
+    GetLdevCert(MailboxReqHeader),
+    StashMeasurement(StashMeasurementReq),
+    InvokeDpeCommand(InvokeDpeReq),
+    FipsVersion(MailboxReqHeader),
+    FwInfo(MailboxReqHeader),
+
+    #[cfg(feature = "test_only_commands")]
+    TestHmacVerify(HmacVerifyReq),
+    #[cfg(feature = "test_only_commands")]
+    TestGetFmcAliasCert(MailboxReqHeader),
+}
+
+impl MailboxReq {
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            MailboxReq::EcdsaVerify(req) => req.as_bytes(),
+            MailboxReq::StashMeasurement(req) => req.as_bytes(),
+            MailboxReq::InvokeDpeCommand(req) => req.as_bytes(),
+            MailboxReq::FipsVersion(req) => req.as_bytes(),
+            MailboxReq::FwInfo(req) => req.as_bytes(),
+            MailboxReq::GetIdevCsr(req) => req.as_bytes(),
+            MailboxReq::GetLdevCert(req) => req.as_bytes(),
+
+            #[cfg(feature = "test_only_commands")]
+            MailboxReq::TestGetFmcAliasCert(req) => req.as_bytes(),
+            #[cfg(feature = "test_only_commands")]
+            MailboxReq::TestHmacVerify(req) => req.as_bytes(),
+        }
+    }
+
+    pub fn as_bytes_mut(&mut self) -> &mut [u8] {
+        match self {
+            MailboxReq::EcdsaVerify(req) => req.as_bytes_mut(),
+            MailboxReq::GetIdevCsr(req) => req.as_bytes_mut(),
+            MailboxReq::GetLdevCert(req) => req.as_bytes_mut(),
+            MailboxReq::StashMeasurement(req) => req.as_bytes_mut(),
+            MailboxReq::InvokeDpeCommand(req) => req.as_bytes_mut(),
+            MailboxReq::FipsVersion(req) => req.as_bytes_mut(),
+            MailboxReq::FwInfo(req) => req.as_bytes_mut(),
+
+            #[cfg(feature = "test_only_commands")]
+            MailboxReq::TestHmacVerify(req) => req.as_bytes_mut(),
+            #[cfg(feature = "test_only_commands")]
+            MailboxReq::TestGetFmcAliasCert(req) => req.as_bytes_mut(),
+        }
+    }
+
+    pub fn cmd_code(&self) -> CommandId {
+        match self {
+            MailboxReq::EcdsaVerify(_) => CommandId::ECDSA384_VERIFY,
+            MailboxReq::GetIdevCsr(_) => CommandId::GET_IDEV_CSR,
+            MailboxReq::GetLdevCert(_) => CommandId::GET_LDEV_CERT,
+            MailboxReq::StashMeasurement(_) => CommandId::STASH_MEASUREMENT,
+            MailboxReq::InvokeDpeCommand(_) => CommandId::INVOKE_DPE,
+            MailboxReq::FipsVersion(_) => CommandId::VERSION,
+            MailboxReq::FwInfo(_) => CommandId::FW_INFO,
+
+            #[cfg(feature = "test_only_commands")]
+            MailboxReq::TestHmacVerify(_) => CommandId::TEST_ONLY_HMAC384_VERIFY,
+            #[cfg(feature = "test_only_commands")]
+            MailboxReq::TestGetFmcAliasCert(_) => CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT,
+        }
+    }
+
+    /// Calculate and set the checksum for a request payload
+    pub fn populate_chksum(&mut self) -> CaliptraResult<()> {
+        // Calc checksum, use the size override if provided
+        let checksum = crate::checksum::calc_checksum(
+            self.cmd_code().into(),
+            &self.as_bytes()[size_of::<i32>()..],
+        );
+
+        // cast as header struct
+        let hdr: &mut MailboxReqHeader = LayoutVerified::<&mut [u8], MailboxReqHeader>::new(
+            &mut self.as_bytes_mut()[..size_of::<MailboxReqHeader>()],
+        )
+        .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?
+        .into_mut();
+
+        // Set the chksum field
+        hdr.chksum = checksum;
+
+        Ok(())
+    }
+}
+
 // HEADER
 #[repr(C)]
 #[derive(Default, Debug, AsBytes, FromBytes, PartialEq, Eq)]

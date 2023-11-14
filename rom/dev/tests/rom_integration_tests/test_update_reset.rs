@@ -98,7 +98,7 @@ fn test_update_reset_no_mailbox_cmd() {
     hw.step_until(|m| m.soc_ifc().cptra_fw_error_non_fatal().read() != 0);
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE.into()
+        u32::from(CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE)
     );
 
     let _ = hw.mailbox_execute(0xDEADBEEF, &[]);
@@ -106,7 +106,7 @@ fn test_update_reset_no_mailbox_cmd() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        UpdateResetStarted.into()
+        u32::from(UpdateResetStarted)
     );
 }
 
@@ -144,12 +144,12 @@ fn test_update_reset_non_fw_load_cmd() {
 
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        CaliptraError::ROM_UPDATE_RESET_FLOW_INVALID_FIRMWARE_COMMAND.into()
+        u32::from(CaliptraError::ROM_UPDATE_RESET_FLOW_INVALID_FIRMWARE_COMMAND)
     );
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        UpdateResetStarted.into()
+        u32::from(UpdateResetStarted)
     );
 }
 
@@ -193,12 +193,12 @@ fn test_update_reset_verify_image_failure() {
 
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH.into()
+        u32::from(CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH)
     );
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        UpdateResetLoadManifestComplete.into()
+        u32::from(UpdateResetLoadManifestComplete)
     );
 }
 
@@ -320,7 +320,7 @@ fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
 
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_ECC_PUB_KEY_IDX_MISMATCH.into()
+        u32::from(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_ECC_PUB_KEY_IDX_MISMATCH)
     );
 }
 
@@ -388,7 +388,7 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
 
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_LMS_PUB_KEY_IDX_MISMATCH.into()
+        u32::from(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_LMS_PUB_KEY_IDX_MISMATCH)
     );
 }
 
@@ -444,5 +444,5 @@ fn test_check_rom_update_reset_status_reg() {
     warmresetentry4_offset += core::mem::size_of::<u32>();
     let warmresetentry4_value =
         u32::read_from_prefix(warmresetentry4_array[warmresetentry4_offset..].as_bytes()).unwrap();
-    assert_eq!(warmresetentry4_value, UpdateResetComplete.into());
+    assert_eq!(warmresetentry4_value, u32::from(UpdateResetComplete));
 }
