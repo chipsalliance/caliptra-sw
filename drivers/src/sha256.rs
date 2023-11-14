@@ -248,10 +248,10 @@ impl Sha256 {
 
         if first {
             // Submit the first block
-            sha256.ctrl().write(|w| w.mode(true).init(true).next(false));
+            sha256.ctrl().write(|w| w.wntz(true).mode(true).init(true).next(false));
         } else {
             // Submit next block in existing hashing chain
-            sha256.ctrl().write(|w| w.mode(true).init(false).next(true));
+            sha256.ctrl().write(|w| w.wntz(false).mode(true).init(false).next(true));
         }
 
         // Wait for the digest operation to finish

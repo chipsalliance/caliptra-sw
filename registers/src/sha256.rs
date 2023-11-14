@@ -545,6 +545,11 @@ pub mod regs {
         pub fn zeroize(self, val: bool) -> Self {
             Self((self.0 & !(1 << 3)) | (u32::from(val) << 3))
         }
+        /// Control WNTZ_MODE command bit
+        #[inline(always)]
+        pub fn wntz(self, val: bool) -> Self {
+            Self((self.0 & !(1 << 4)) | (u32::from(val) << 4))
+        }
     }
     impl From<u32> for CtrlWriteVal {
         #[inline(always)]
