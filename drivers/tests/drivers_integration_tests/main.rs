@@ -24,12 +24,20 @@ use openssl::{hash::MessageDigest, pkey::PKey};
 use ureg::ResettableReg;
 use zerocopy::{AsBytes, FromBytes};
 
+fn default_init_params() -> InitParams<'static> {
+    InitParams {
+        // The test harness doesn't clear memory on startup.
+        random_sram_puf: false,
+        ..Default::default()
+    }
+}
+
 fn start_driver_test(test_rom: &'static FwId) -> Result<DefaultHwModel, Box<dyn Error>> {
     let rom = caliptra_builder::build_firmware_rom(test_rom)?;
     caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
-            ..Default::default()
+            ..default_init_params()
         },
         ..Default::default()
     })
@@ -205,7 +213,7 @@ fn test_doe_when_debug_not_locked() {
             security_state: *SecurityState::from(0)
                 .set_debug_locked(false)
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
-            ..Default::default()
+            ..default_init_params()
         },
         ..Default::default()
     })
@@ -299,7 +307,7 @@ fn test_doe_when_debug_locked() {
             security_state: *SecurityState::from(0)
                 .set_debug_locked(true)
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
-            ..Default::default()
+            ..default_init_params()
         },
         ..Default::default()
     })
@@ -781,7 +789,7 @@ fn test_csrng_with_nibbles(
         init_params: InitParams {
             rom: &rom,
             itrng_nibbles,
-            ..Default::default()
+            ..default_init_params()
         },
         ..Default::default()
     })
@@ -850,7 +858,7 @@ fn test_csrng_repetition_count() {
             init_params: InitParams {
                 rom: &rom,
                 itrng_nibbles,
-                ..Default::default()
+                ..default_init_params()
             },
             initial_repcnt_thresh_reg: soc_repcnt_threshold,
             ..Default::default()
@@ -972,7 +980,7 @@ fn test_csrng_adaptive_proportion() {
             init_params: InitParams {
                 rom: &rom,
                 itrng_nibbles,
-                ..Default::default()
+                ..default_init_params()
             },
             initial_adaptp_thresh_reg: Some(threshold_reg),
             ..Default::default()
@@ -1013,7 +1021,7 @@ fn test_trng_in_itrng_mode() {
             rom: &rom,
             itrng_nibbles: Box::new(trng_nibbles()),
             trng_mode: Some(TrngMode::Internal),
-            ..Default::default()
+            ..default_init_params()
         },
         ..Default::default()
     })
@@ -1081,7 +1089,7 @@ fn test_trng_in_etrng_mode() {
                 .into_iter(),
             ),
             trng_mode: Some(TrngMode::External),
-            ..Default::default()
+            ..default_init_params()
         },
         ..Default::default()
     })

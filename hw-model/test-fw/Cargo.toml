@@ -64,6 +64,11 @@ path = "test_dccm_double_bit_ecc.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "test_uninitialized_read"
+path = "test_uninitialized_read.rs"
+required-features = ["riscv"]
+
+[[bin]]
 name = "test_pcr_extend"
 path = "test_pcr_extend.rs"
 required-features = ["riscv"]
