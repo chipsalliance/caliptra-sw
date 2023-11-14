@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use std::mem;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::{
@@ -8,6 +9,8 @@ use std::{
     io::{stdout, ErrorKind, Write},
 };
 
+use api::calc_checksum;
+use api::mailbox::{MailboxReqHeader, MailboxRespHeader};
 use caliptra_api as api;
 use caliptra_emu_bus::Bus;
 use caliptra_hw_model_types::{
@@ -237,6 +240,12 @@ pub enum ModelError {
     UnableToLockSha512Acc,
     UploadMeasurementResponseError,
     UnableToReadMailbox,
+    MailboxNoResponseData,
+    MailboxReqTypeTooSmall,
+    MailboxRespTypeTooSmall,
+    MailboxUnexpectedResponseLen { expected: u32, actual: u32 },
+    MailboxRespInvalidChecksum { expected: i32, actual: i32 },
+    MailboxRespInvalidFipsStatus(u32),
 }
 impl Error for ModelError {}
 impl Display for ModelError {
@@ -268,6 +277,33 @@ impl Display for ModelError {
                 write!(f, "Error in response after uploading measurement")
             }
             ModelError::UnableToReadMailbox => write!(f, "Unable to read mailbox regs"),
+            ModelError::MailboxNoResponseData => {
+                write!(f, "Expected response data but none was found")
+            }
+            ModelError::MailboxReqTypeTooSmall => {
+                write!(f, "Mailbox request type too small to contain header")
+            }
+            ModelError::MailboxRespTypeTooSmall => {
+                write!(f, "Mailbox response type too small to contain header")
+            }
+            ModelError::MailboxUnexpectedResponseLen { expected, actual } => {
+                write!(
+                    f,
+                    "Expected mailbox response lenth of {expected}, was {actual}"
+                )
+            }
+            ModelError::MailboxRespInvalidChecksum { expected, actual } => {
+                write!(
+                    f,
+                    "Mailbox response had invalid checksum: expected {expected}, was {actual}"
+                )
+            }
+            ModelError::MailboxRespInvalidFipsStatus(status) => {
+                write!(
+                    f,
+                    "Mailbox response had non-success FIPS status: 0x{status:x}"
+                )
+            }
         }
     }
 }
@@ -731,6 +767,56 @@ pub trait HwModel {
     fn ecc_error_injection(&mut self, _mode: ErrorInjectionMode) {}
 
     fn set_apb_pauser(&mut self, pauser: u32);
+
+    /// Executes a typed request and (if success), returns the typed response.
+    /// The checksum field of the request is calculated, and the checksum of the
+    /// response is validated.
+    fn mailbox_execute_req<R: api::mailbox::Request>(
+        &mut self,
+        mut req: R,
+    ) -> std::result::Result<R::Resp, ModelError> {
+        if mem::size_of::<R>() < mem::size_of::<MailboxReqHeader>() {
+            return Err(ModelError::MailboxReqTypeTooSmall);
+        }
+        if mem::size_of::<R::Resp>() < mem::size_of::<MailboxRespHeader>() {
+            return Err(ModelError::MailboxRespTypeTooSmall);
+        }
+        let (header_bytes, payload_bytes) = req
+            .as_bytes_mut()
+            .split_at_mut(mem::size_of::<MailboxReqHeader>());
+
+        let mut header = MailboxReqHeader::read_from(header_bytes as &[u8]).unwrap();
+        header.chksum = api::calc_checksum(R::ID.into(), payload_bytes);
+        header_bytes.copy_from_slice(header.as_bytes());
+
+        let Some(response_bytes) = self.mailbox_execute(R::ID.into(), req.as_bytes())? else {
+            return Err(ModelError::MailboxNoResponseData);
+        };
+        let response = match R::Resp::read_from(response_bytes.as_slice()) {
+            Some(response) => response,
+            None => {
+                return Err(ModelError::MailboxUnexpectedResponseLen {
+                    expected: mem::size_of::<R::Resp>() as u32,
+                    actual: response_bytes.len() as u32,
+                })
+            }
+        };
+        let response_header =
+            MailboxRespHeader::read_from_prefix(response_bytes.as_slice()).unwrap();
+        let actual_checksum = calc_checksum(0, &response_bytes[4..]);
+        if actual_checksum != response_header.chksum {
+            return Err(ModelError::MailboxRespInvalidChecksum {
+                expected: response_header.chksum,
+                actual: actual_checksum,
+            });
+        }
+        if response_header.fips_status != MailboxRespHeader::FIPS_STATUS_APPROVED {
+            return Err(ModelError::MailboxRespInvalidFipsStatus(
+                response_header.fips_status,
+            ));
+        }
+        Ok(response)
+    }
 
     /// Executes `cmd` with request data `buf`. Returns `Ok(Some(_))` if
     /// the uC responded with data, `Ok(None)` if the uC indicated success
