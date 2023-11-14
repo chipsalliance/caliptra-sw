@@ -54,7 +54,17 @@ impl From<CommandId> for u32 {
 /// and response type.
 pub trait Request: AsBytes + FromBytes {
     const ID: CommandId;
-    type Resp: FromBytes;
+    type Resp: Response;
+}
+
+pub trait Response: AsBytes + FromBytes
+where
+    Self: Sized,
+{
+    /// The minimum size (in bytes) of this response. Transports that receive at
+    /// least this much data should pad the missing data with zeroes. If they
+    /// receive fewer bytes than MIN_SIZE, they should error.
+    const MIN_SIZE: usize = core::mem::size_of::<Self>();
 }
 
 // Contains all the possible mailbox response structs
@@ -237,6 +247,7 @@ pub struct MailboxRespHeader {
     pub chksum: u32,
     pub fips_status: u32,
 }
+impl Response for MailboxRespHeader {}
 
 impl MailboxRespHeader {
     pub const FIPS_STATUS_APPROVED: u32 = 0;
@@ -325,6 +336,9 @@ impl GetLdevCertResp {
         self.data.get(..self.data_size as usize)
     }
 }
+impl Response for GetLdevCertResp {
+    const MIN_SIZE: usize = size_of::<MailboxRespHeader>() + size_of::<u32>();
+}
 
 // ECDSA384_SIGNATURE_VERIFY
 #[repr(C)]
@@ -390,6 +404,7 @@ pub struct StashMeasurementResp {
     pub hdr: MailboxRespHeader,
     pub dpe_result: u32,
 }
+impl Response for StashMeasurementResp {}
 
 // DISABLE_ATTESTATION
 // No command-specific input args
@@ -442,6 +457,9 @@ impl InvokeDpeResp {
         let unused_byte_count = Self::DATA_MAX_SIZE.saturating_sub(self.data_size as usize);
         &mut self.as_bytes_mut()[..size_of::<Self>() - unused_byte_count]
     }
+}
+impl Response for InvokeDpeResp {
+    const MIN_SIZE: usize = size_of::<MailboxRespHeader>() + size_of::<u32>();
 }
 
 impl Default for InvokeDpeResp {
