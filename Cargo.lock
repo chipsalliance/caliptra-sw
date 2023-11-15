@@ -481,6 +481,7 @@ dependencies = [
  "caliptra-drivers",
  "caliptra-registers",
  "caliptra-test-harness",
+ "ufmt",
 ]
 
 [[package]]

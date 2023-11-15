@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use std::mem;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::{
@@ -8,6 +9,8 @@ use std::{
     io::{stdout, ErrorKind, Write},
 };
 
+use api::calc_checksum;
+use api::mailbox::{MailboxReqHeader, MailboxRespHeader};
 use caliptra_api as api;
 use caliptra_emu_bus::Bus;
 use caliptra_hw_model_types::{
@@ -237,6 +240,12 @@ pub enum ModelError {
     UnableToLockSha512Acc,
     UploadMeasurementResponseError,
     UnableToReadMailbox,
+    MailboxNoResponseData,
+    MailboxReqTypeTooSmall,
+    MailboxRespTypeTooSmall,
+    MailboxUnexpectedResponseLen { expected: u32, actual: u32 },
+    MailboxRespInvalidChecksum { expected: i32, actual: i32 },
+    MailboxRespInvalidFipsStatus(u32),
 }
 impl Error for ModelError {}
 impl Display for ModelError {
@@ -268,6 +277,33 @@ impl Display for ModelError {
                 write!(f, "Error in response after uploading measurement")
             }
             ModelError::UnableToReadMailbox => write!(f, "Unable to read mailbox regs"),
+            ModelError::MailboxNoResponseData => {
+                write!(f, "Expected response data but none was found")
+            }
+            ModelError::MailboxReqTypeTooSmall => {
+                write!(f, "Mailbox request type too small to contain header")
+            }
+            ModelError::MailboxRespTypeTooSmall => {
+                write!(f, "Mailbox response type too small to contain header")
+            }
+            ModelError::MailboxUnexpectedResponseLen { expected, actual } => {
+                write!(
+                    f,
+                    "Expected mailbox response lenth of {expected}, was {actual}"
+                )
+            }
+            ModelError::MailboxRespInvalidChecksum { expected, actual } => {
+                write!(
+                    f,
+                    "Mailbox response had invalid checksum: expected {expected}, was {actual}"
+                )
+            }
+            ModelError::MailboxRespInvalidFipsStatus(status) => {
+                write!(
+                    f,
+                    "Mailbox response had non-success FIPS status: 0x{status:x}"
+                )
+            }
         }
     }
 }
@@ -732,6 +768,56 @@ pub trait HwModel {
 
     fn set_apb_pauser(&mut self, pauser: u32);
 
+    /// Executes a typed request and (if success), returns the typed response.
+    /// The checksum field of the request is calculated, and the checksum of the
+    /// response is validated.
+    fn mailbox_execute_req<R: api::mailbox::Request>(
+        &mut self,
+        mut req: R,
+    ) -> std::result::Result<R::Resp, ModelError> {
+        if mem::size_of::<R>() < mem::size_of::<MailboxReqHeader>() {
+            return Err(ModelError::MailboxReqTypeTooSmall);
+        }
+        if mem::size_of::<R::Resp>() < mem::size_of::<MailboxRespHeader>() {
+            return Err(ModelError::MailboxRespTypeTooSmall);
+        }
+        let (header_bytes, payload_bytes) = req
+            .as_bytes_mut()
+            .split_at_mut(mem::size_of::<MailboxReqHeader>());
+
+        let mut header = MailboxReqHeader::read_from(header_bytes as &[u8]).unwrap();
+        header.chksum = api::calc_checksum(R::ID.into(), payload_bytes);
+        header_bytes.copy_from_slice(header.as_bytes());
+
+        let Some(response_bytes) = self.mailbox_execute(R::ID.into(), req.as_bytes())? else {
+            return Err(ModelError::MailboxNoResponseData);
+        };
+        let response = match R::Resp::read_from(response_bytes.as_slice()) {
+            Some(response) => response,
+            None => {
+                return Err(ModelError::MailboxUnexpectedResponseLen {
+                    expected: mem::size_of::<R::Resp>() as u32,
+                    actual: response_bytes.len() as u32,
+                })
+            }
+        };
+        let response_header =
+            MailboxRespHeader::read_from_prefix(response_bytes.as_slice()).unwrap();
+        let actual_checksum = calc_checksum(0, &response_bytes[4..]);
+        if actual_checksum != response_header.chksum {
+            return Err(ModelError::MailboxRespInvalidChecksum {
+                expected: response_header.chksum,
+                actual: actual_checksum,
+            });
+        }
+        if response_header.fips_status != MailboxRespHeader::FIPS_STATUS_APPROVED {
+            return Err(ModelError::MailboxRespInvalidFipsStatus(
+                response_header.fips_status,
+            ));
+        }
+        Ok(response)
+    }
+
     /// Executes `cmd` with request data `buf`. Returns `Ok(Some(_))` if
     /// the uC responded with data, `Ok(None)` if the uC indicated success
     /// without data, Err(ModelError::MailboxCmdFailed) if the microcontroller
@@ -962,11 +1048,15 @@ pub trait HwModel {
 
 #[cfg(test)]
 mod tests {
-    use crate::{mmio::Rv32GenMmio, BootParams, HwModel, InitParams, ModelError, ShaAccMode};
+    use crate::{
+        mmio::Rv32GenMmio, BootParams, DefaultHwModel, HwModel, InitParams, ModelError, ShaAccMode,
+    };
+    use caliptra_api::mailbox::{self, CommandId, MailboxReqHeader, MailboxRespHeader};
     use caliptra_builder::firmware;
     use caliptra_emu_bus::Bus;
     use caliptra_emu_types::RvSize;
     use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc};
+    use zerocopy::{AsBytes, FromBytes};
 
     use crate as caliptra_hw_model;
 
@@ -1376,5 +1466,141 @@ mod tests {
                 test.expected
             );
         }
+    }
+
+    #[test]
+    pub fn test_mailbox_execute_req() {
+        const NO_DATA_CMD: u32 = 0x2000_0000;
+        const SET_RESPONSE_CMD: u32 = 0x3000_0000;
+        const GET_RESPONSE_CMD: u32 = 0x3000_0001;
+
+        #[repr(C)]
+        #[derive(AsBytes, FromBytes, Default)]
+        struct TestReq {
+            hdr: MailboxReqHeader,
+            data: [u8; 4],
+        }
+        impl mailbox::Request for TestReq {
+            const ID: CommandId = CommandId(GET_RESPONSE_CMD);
+            type Resp = TestResp;
+        }
+        #[repr(C)]
+        #[derive(AsBytes, Debug, FromBytes, PartialEq, Eq)]
+        struct TestResp {
+            hdr: MailboxRespHeader,
+            data: [u8; 4],
+        }
+
+        #[repr(C)]
+        #[derive(AsBytes, FromBytes, Default)]
+        struct TestReqNoData {
+            hdr: MailboxReqHeader,
+            data: [u8; 4],
+        }
+        impl mailbox::Request for TestReqNoData {
+            const ID: CommandId = CommandId(NO_DATA_CMD);
+            type Resp = TestResp;
+        }
+
+        fn set_response(model: &mut DefaultHwModel, data: &[u8]) {
+            model.mailbox_execute(SET_RESPONSE_CMD, data).unwrap();
+        }
+
+        let rom =
+            caliptra_builder::build_firmware_rom(&firmware::hw_model_tests::MAILBOX_RESPONDER)
+                .unwrap();
+        let mut model = caliptra_hw_model::new(BootParams {
+            init_params: InitParams {
+                rom: &rom,
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .unwrap();
+
+        // Success
+        set_response(
+            &mut model,
+            &[
+                0x2d, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, b'H', b'I', b'!', b'!',
+            ],
+        );
+        let resp = model
+            .mailbox_execute_req(TestReq {
+                data: *b"Hi!!",
+                ..Default::default()
+            })
+            .unwrap();
+        model
+            .step_until_output_and_take("|dcfeffff48692121|")
+            .unwrap();
+        assert_eq!(
+            resp,
+            TestResp {
+                hdr: MailboxRespHeader {
+                    chksum: -211,
+                    fips_status: 0
+                },
+                data: *b"HI!!",
+            },
+        );
+
+        // Set wrong length in response
+        set_response(
+            &mut model,
+            &[
+                0x2d, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, b'H', b'I', b'!',
+            ],
+        );
+        let resp = model.mailbox_execute_req(TestReq {
+            data: *b"Hi!!",
+            ..Default::default()
+        });
+        assert_eq!(
+            resp,
+            Err(ModelError::MailboxUnexpectedResponseLen {
+                expected: 12,
+                actual: 11
+            })
+        );
+
+        // Set bad checksum in response
+        set_response(
+            &mut model,
+            &[
+                0x2e, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, b'H', b'I', b'!', b'!',
+            ],
+        );
+        let resp = model.mailbox_execute_req(TestReq {
+            data: *b"Hi!!",
+            ..Default::default()
+        });
+        assert_eq!(
+            resp,
+            Err(ModelError::MailboxRespInvalidChecksum {
+                expected: -210,
+                actual: -211
+            })
+        );
+
+        // Set bad FIPS status in response
+        set_response(
+            &mut model,
+            &[
+                0x0c, 0xff, 0xff, 0xff, 0x01, 0x20, 0x00, 0x00, b'H', b'I', b'!', b'!',
+            ],
+        );
+        let resp = model.mailbox_execute_req(TestReq {
+            data: *b"Hi!!",
+            ..Default::default()
+        });
+        assert_eq!(resp, Err(ModelError::MailboxRespInvalidFipsStatus(0x2001)));
+
+        // Set no data in response
+        let resp = model.mailbox_execute_req(TestReqNoData {
+            data: *b"Hi!!",
+            ..Default::default()
+        });
+        assert_eq!(resp, Err(ModelError::MailboxNoResponseData));
     }
 }
