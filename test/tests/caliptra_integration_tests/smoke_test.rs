@@ -1,10 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{firmware, ImageOptions};
-use caliptra_common::mailbox_api::{
-    CommandId, MailboxReqHeader, MailboxRespHeader, TestOnlyGetFmcAliasCertReq,
-    TestOnlyGetLdevCertReq,
-};
+use caliptra_common::mailbox_api::{TestOnlyGetFmcAliasCertReq, TestOnlyGetLdevCertReq};
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{DeviceLifecycle, Fuses};
 use caliptra_test::run_test;
@@ -15,7 +12,7 @@ use caliptra_test::{
 };
 use openssl::sha::{sha384, Sha384};
 use std::{io::Write, mem};
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::AsBytes;
 
 #[track_caller]
 fn assert_output_contains(haystack: &str, needle: &str) {
