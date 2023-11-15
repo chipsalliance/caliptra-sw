@@ -377,6 +377,12 @@ fn smoke_test() {
         "fmc_alias cert failed to validate with ldev pubkey"
     );
 
+    assert!(!hw
+        .soc_ifc()
+        .cptra_hw_error_non_fatal()
+        .read()
+        .mbox_ecc_unc());
+
     // TODO: Validate the rest of the fmc_alias certificate fields
 }
 
