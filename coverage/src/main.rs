@@ -23,7 +23,7 @@ fn main() -> std::io::Result<()> {
         return Ok(());
     }
 
-    let tag = get_tag_from_fw_id(&ROM_WITH_UART);
+    let tag = get_tag_from_fw_id(&ROM_WITH_UART).unwrap();
 
     println!("{} coverage files found", paths.len());
     let instr_pcs = collect_instr_pcs(&ROM_WITH_UART).unwrap();

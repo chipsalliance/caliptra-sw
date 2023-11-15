@@ -22,13 +22,14 @@ impl CoverageMap {
     pub fn new(paths: Vec<PathBuf>) -> Self {
         let mut map = HashMap::<u64, BitVec>::default();
         for path in paths {
-            let new_entry = get_entry_from_path(&path);
-            match map.entry(new_entry.0) {
-                Entry::Vacant(e) => {
-                    e.insert(new_entry.1);
-                }
-                Entry::Occupied(mut e) => {
-                    e.get_mut().or(&new_entry.1);
+            if let Some(new_entry) = get_entry_from_path(&path) {
+                match map.entry(new_entry.0) {
+                    Entry::Vacant(e) => {
+                        e.insert(new_entry.1);
+                    }
+                    Entry::Occupied(mut e) => {
+                        e.get_mut().or(&new_entry.1);
+                    }
                 }
             }
         }
@@ -36,18 +37,23 @@ impl CoverageMap {
     }
 }
 pub struct CoverageMapEntry(u64, BitVec);
-pub fn get_entry_from_path(path: &PathBuf) -> CoverageMapEntry {
-    let filename = path.file_name().unwrap().to_str().unwrap();
-    let tag = filename
-        .split('-')
-        .nth(1)
-        .unwrap()
-        .strip_suffix(".bitvec")
-        .unwrap()
-        .parse()
-        .unwrap();
-    let bitmap = read_bitvec_from_file(path).unwrap();
-    CoverageMapEntry(tag, bitmap)
+pub fn get_entry_from_path(path: &PathBuf) -> Option<CoverageMapEntry> {
+    let filename = path.file_name().and_then(|val| val.to_str());
+    if let Some(filename) = filename {
+        let prefix = filename
+            .split('-')
+            .nth(1)
+            .and_then(|val| val.strip_suffix(".bitvec"));
+
+        if let Some(prefix) = prefix {
+            if let Ok(tag) = prefix.parse() {
+                if let Ok(bitmap) = read_bitvec_from_file(path) {
+                    return Some(CoverageMapEntry(tag, bitmap));
+                }
+            }
+        }
+    }
+    None
 }
 
 pub fn dump_emu_coverage_to_file(
@@ -128,18 +134,20 @@ pub fn get_tag_from_image(image: &[u8]) -> u64 {
     hasher.finish()
 }
 
-pub fn get_tag_from_fw_id(id: &FwId<'static>) -> u64 {
-    let rom = caliptra_builder::build_firmware_rom(id).unwrap();
-    get_tag_from_image(&rom)
+pub fn get_tag_from_fw_id(id: &FwId<'static>) -> Option<u64> {
+    if let Ok(rom) = caliptra_builder::build_firmware_rom(id) {
+        return Some(get_tag_from_image(&rom));
+    }
+    None
 }
 
 pub fn collect_instr_pcs(id: &FwId<'static>) -> anyhow::Result<Vec<u32>> {
-    let elf_bytes = build_firmware_elf(id).unwrap();
+    let elf_bytes = build_firmware_elf(id)?;
 
     let elf_file = ElfBytes::<AnyEndian>::minimal_parse(&elf_bytes)
         .with_context(|| "Failed to parse elf file")?;
 
-    let (load_addr, text_section) = read_section(&elf_file, ".text", true).unwrap();
+    let (load_addr, text_section) = read_section(&elf_file, ".text", true)?;
 
     let mut index = 0_usize;
 
