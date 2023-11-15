@@ -18,6 +18,7 @@ set BUILD FALSE
 set GUI   FALSE
 set JTAG  TRUE
 set ITRNG FALSE
+set CG_EN FALSE
 foreach arg $argv {
     regexp {(.*)=(.*)} $arg fullmatch option value
     set $option "$value"
@@ -28,11 +29,17 @@ if {[info exists VERSION] == 0} {
   set VERSION [exec git rev-parse --short HEAD]
 }
 
-# Set Verilog defines to:
-#     Make Caliptra use an icg that doesn't clock gate
-#     Make the VEER core be optimized for FPGA (no clock gating)
-#     Define VEER TEC_RV_ICG to allow beh_lib to synthesise without error
-set VERILOG_OPTIONS {TECH_SPECIFIC_ICG USER_ICG=fpga_fake_icg RV_FPGA_OPTIMIZE TEC_RV_ICG=clockhdr}
+# Set Verilog defines for:
+#     Caliptra clock gating module
+#     VEER clock gating module
+#     VEER core FPGA optimizations (disables clock gating)
+if {$CG_EN} {
+  set VERILOG_OPTIONS {TECH_SPECIFIC_ICG USER_ICG=fpga_real_icg TECH_SPECIFIC_EC_RV_ICG USER_EC_RV_ICG=fpga_rv_clkhdr}
+  set GATED_CLOCK_CONVERSION auto
+} else {
+  set VERILOG_OPTIONS {TECH_SPECIFIC_ICG USER_ICG=fpga_fake_icg RV_FPGA_OPTIMIZE TEC_RV_ICG=clockhdr}
+  set GATED_CLOCK_CONVERSION off
+}
 if {$ITRNG} {
   # Add option to use Caliptra's internal TRNG instead of ETRNG
   lappend VERILOG_OPTIONS CALIPTRA_INTERNAL_TRNG
@@ -295,6 +302,10 @@ make_wrapper -files [get_files $outputDir/caliptra_fpga_project.srcs/sources_1/b
 add_files -norecurse $outputDir/caliptra_fpga_project.gen/sources_1/bd/caliptra_fpga_project_bd/hdl/caliptra_fpga_project_bd_wrapper.v
 
 update_compile_order -fileset sources_1
+
+# Assign the gated clock conversion setting in the caliptra_package_top out of context run.
+create_ip_run [get_files *.bd]
+set_property STEPS.SYNTH_DESIGN.ARGS.GATED_CLOCK_CONVERSION $GATED_CLOCK_CONVERSION [get_runs caliptra_fpga_project_bd_caliptra_package_top_0_0_synth_1]
 
 # The FPGA loading methods currently in use require the bin file to be generated.
 set_property STEPS.WRITE_BITSTREAM.ARGS.BIN_FILE true [get_runs impl_1]

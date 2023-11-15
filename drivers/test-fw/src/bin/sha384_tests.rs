@@ -15,6 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
+use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{Array4x12, PcrBank, PcrId, Sha384};
 use caliptra_kat::Sha384Kat;
 use caliptra_registers::{pv::PvReg, sha512::Sha512Reg};
@@ -377,6 +378,9 @@ fn test_pcr_hash_extend_limit() {
 }
 
 fn test_kat() {
+    // Init CFI
+    CfiCounter::reset(&mut || Ok([0xDEADBEEFu32; 12]));
+
     let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
 
     assert_eq!(Sha384Kat::default().execute(&mut sha384).is_ok(), true);

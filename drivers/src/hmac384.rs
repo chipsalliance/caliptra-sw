@@ -17,6 +17,8 @@ use crate::{
     array::Array4x32, wait, Array4x12, Array4x5, CaliptraError, CaliptraResult, KeyReadArgs,
     KeyWriteArgs, Trng,
 };
+#[cfg(not(feature = "no-cfi"))]
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_registers::hmac::HmacReg;
 use core::usize;
 
@@ -178,14 +180,16 @@ impl Hmac384 {
     /// * `trng` - TRNG driver instance
     ///
     /// * `tag`  -  The calculated tag
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn hmac(
         &mut self,
         key: &Hmac384Key,
         data: &Hmac384Data,
         trng: &mut Trng,
-        mut tag: Hmac384Tag,
+        tag: Hmac384Tag,
     ) -> CaliptraResult<()> {
         let hmac = self.hmac.regs_mut();
+        let mut tag = tag;
 
         // Configure the hardware so that the output tag is stored at a location specified by the
         // caller.

@@ -1,9 +1,11 @@
 // Licensed under the Apache-2.0 license.
 
 use crate::common::run_rt_test;
-use caliptra_common::mailbox_api::{CommandId, HmacVerifyReq, MailboxReqHeader, MailboxRespHeader};
+use caliptra_common::mailbox_api::{
+    CommandId, HmacVerifyReq, MailboxReq, MailboxReqHeader, MailboxRespHeader,
+};
 use caliptra_hw_model::HwModel;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::FromBytes;
 
 #[test]
 fn hmac_cmd_run_wycheproof() {
@@ -37,21 +39,14 @@ fn hmac_cmd_run_wycheproof() {
             });
             let mut msg = [0; 256];
             msg[..test.msg.len()].copy_from_slice(test.msg.as_slice());
-            let cmd = HmacVerifyReq {
+            let mut cmd = MailboxReq::TestHmacVerify(HmacVerifyReq {
                 hdr: MailboxReqHeader { chksum: 0 },
                 key: test.key[..].try_into().unwrap(),
                 tag: test.tag[..].try_into().unwrap(),
                 len: test.msg.len().try_into().unwrap(),
                 msg,
-            };
-            let checksum = caliptra_common::checksum::calc_checksum(
-                u32::from(CommandId::TEST_ONLY_HMAC384_VERIFY),
-                &cmd.as_bytes()[4..],
-            );
-            let cmd = HmacVerifyReq {
-                hdr: MailboxReqHeader { chksum: checksum },
-                ..cmd
-            };
+            });
+            cmd.populate_chksum().unwrap();
             let resp = model.mailbox_execute(
                 u32::from(CommandId::TEST_ONLY_HMAC384_VERIFY),
                 cmd.as_bytes(),

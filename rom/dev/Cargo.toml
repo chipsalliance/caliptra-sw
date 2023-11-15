@@ -57,7 +57,8 @@ itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
 no-fmc = []
 fake-rom = []
-no-cfi = []
+no-cfi = ["caliptra-image-verify/no-cfi", "caliptra-drivers/no-cfi"]
+slow_tests = []
 
 [[bin]]
 name = "asm_tests"
