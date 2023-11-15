@@ -11,7 +11,7 @@ use caliptra_test::{
     x509::{DiceFwid, DiceTcbInfo},
 };
 use openssl::sha::{sha384, Sha384};
-use std::{io::Write, mem};
+use std::mem;
 use zerocopy::AsBytes;
 
 #[track_caller]
@@ -157,35 +157,32 @@ fn smoke_test() {
         ..Default::default()
     })
     .unwrap();
-    let mut output = vec![];
 
-    hw.step_until_output_contains("Caliptra RT listening for mailbox commands...\n")
-        .unwrap();
-    output
-        .write_all(hw.output().take(usize::MAX).as_bytes())
-        .unwrap();
-
-    let output = String::from_utf8_lossy(&output);
-    assert_output_contains(&output, "Running Caliptra ROM");
-    assert_output_contains(&output, "[cold-reset]");
-    // Confirm KAT is running.
-    assert_output_contains(&output, "[kat] ++");
-    assert_output_contains(&output, "[kat] sha1");
-    assert_output_contains(&output, "[kat] SHA2-256");
-    assert_output_contains(&output, "[kat] SHA2-384");
-    assert_output_contains(&output, "[kat] SHA2-384-ACC");
-    assert_output_contains(&output, "[kat] HMAC-384");
-    assert_output_contains(&output, "[kat] LMS");
-    assert_output_contains(&output, "[kat] --");
-    assert_output_contains(&output, "Running Caliptra FMC");
-    assert_output_contains(
-        &output,
-        r#"
+    if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
+        hw.step_until_output_contains("Caliptra RT listening for mailbox commands...\n")
+            .unwrap();
+        let output = hw.output().take(usize::MAX);
+        assert_output_contains(&output, "Running Caliptra ROM");
+        assert_output_contains(&output, "[cold-reset]");
+        // Confirm KAT is running.
+        assert_output_contains(&output, "[kat] ++");
+        assert_output_contains(&output, "[kat] sha1");
+        assert_output_contains(&output, "[kat] SHA2-256");
+        assert_output_contains(&output, "[kat] SHA2-384");
+        assert_output_contains(&output, "[kat] SHA2-384-ACC");
+        assert_output_contains(&output, "[kat] HMAC-384");
+        assert_output_contains(&output, "[kat] LMS");
+        assert_output_contains(&output, "[kat] --");
+        assert_output_contains(&output, "Running Caliptra FMC");
+        assert_output_contains(
+            &output,
+            r#"
  / ___|__ _| (_)_ __ | |_ _ __ __ _  |  _ \_   _|
 | |   / _` | | | '_ \| __| '__/ _` | | |_) || |
 | |__| (_| | | | |_) | |_| | | (_| | |  _ < | |
  \____\__,_|_|_| .__/ \__|_|  \__,_| |_| \_\|_|"#,
-    );
+        );
+    }
 
     let ldev_cert_resp = hw
         .mailbox_execute_req(TestOnlyGetLdevCertReq::default())
@@ -345,8 +342,10 @@ fn test_rt_wdt_timeout() {
     // TODO: Don't hard-code these; maybe measure from a previous boot?
     let rt_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
         27_000_000
-    } else {
+    } else if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
         2_900_000
+    } else {
+        2_700_000
     };
 
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
