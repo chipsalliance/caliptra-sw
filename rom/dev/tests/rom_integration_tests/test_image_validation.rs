@@ -1913,13 +1913,10 @@ fn cert_test_with_custom_dates() {
         .write(|_| flags.bits());
 
     // Download the CSR from the mailbox.
-    let _ = helpers::get_csr(&mut hw);
+    let idevid_cert_bytes = helpers::get_csr(&mut hw).unwrap();
 
     hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-        .unwrap();
-
-    hw.step_until_output_contains("[exit] Launching FMC")
         .unwrap();
 
     hw.mailbox_execute(0x1000_0001, &[]).unwrap();
@@ -1929,7 +1926,7 @@ fn cert_test_with_custom_dates() {
     let output = String::from_utf8_lossy(&output);
 
     // Get the idevid cert.
-    let idevid_cert = idevid_cert(&output);
+    let idevid_cert = idevid_cert(&idevid_cert_bytes);
 
     // Get the ldevid cert.
     let ldevid_cert = ldevid_cert(&idevid_cert, &output);
@@ -1974,13 +1971,10 @@ fn cert_test() {
         .write(|_| flags.bits());
 
     // Download the CSR from the mailbox.
-    let _ = helpers::get_csr(&mut hw);
+    let csr_bytes = helpers::get_csr(&mut hw).unwrap();
 
     hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-        .unwrap();
-
-    hw.step_until_output_contains("[exit] Launching FMC")
         .unwrap();
 
     hw.mailbox_execute(0x1000_0001, &[]).unwrap();
@@ -1990,7 +1984,7 @@ fn cert_test() {
     let output = String::from_utf8_lossy(&output);
 
     // Get the idevid cert.
-    let idevid_cert = idevid_cert(&output);
+    let idevid_cert = idevid_cert(&csr_bytes);
 
     // Get the ldevid cert.
     let ldevid_cert = ldevid_cert(&idevid_cert, &output);
@@ -2035,13 +2029,10 @@ fn cert_test_with_ueid() {
         .write(|_| flags.bits());
 
     // Download the CSR from the mailbox.
-    let _ = helpers::get_csr(&mut hw);
+    let csr_bytes = helpers::get_csr(&mut hw).unwrap();
 
     hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-        .unwrap();
-
-    hw.step_until_output_contains("[exit] Launching FMC")
         .unwrap();
 
     hw.mailbox_execute(0x1000_0001, &[]).unwrap();
@@ -2050,8 +2041,7 @@ fn cert_test_with_ueid() {
     assert!(result.is_ok());
     let output = String::from_utf8_lossy(&output);
 
-    let csr_str = helpers::get_data("[idev] CSR = ", &output);
-    assert!(csr_str.contains("010102030405060708090A0B0C0D0E0F10"));
+    assert!(hex::encode_upper(csr_bytes).contains("010102030405060708090A0B0C0D0E0F10"));
 
     let ldevid_cert = helpers::get_data("[fmc] LDEVID cert = ", &output);
     assert!(ldevid_cert.contains("010102030405060708090A0B0C0D0E0F10"));
@@ -2216,13 +2206,9 @@ fn generate_self_signed_cert() -> (X509, PKey<Private>) {
     (cert, pkey_pair)
 }
 
-fn idevid_cert(output: &str) -> X509 {
-    // Get CSR
-    let csr_str = helpers::get_data("[idev] CSR = ", output);
-    let csr = hex::decode(csr_str).unwrap();
-
+fn idevid_cert(csr: &[u8]) -> X509 {
     // Verify the signature on the certificate is valid.
-    let req: X509Req = X509Req::from_der(&csr).unwrap();
+    let req: X509Req = X509Req::from_der(csr).unwrap();
     println!(
         "CSR:\n {}",
         str::from_utf8(&req.to_text().unwrap()).unwrap()
