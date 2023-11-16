@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART};
+use caliptra_builder::firmware::{self, APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::ImageOptions;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel};
 
@@ -21,7 +21,7 @@ fn fips_test_init_base(
     }
 
     // Build default rom if not provided
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     if boot_params.init_params.rom == <&[u8]>::default() {
         boot_params.init_params.rom = &rom;
     }

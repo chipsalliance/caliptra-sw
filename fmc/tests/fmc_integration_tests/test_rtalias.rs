@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 use caliptra_builder::{
-    firmware::{self, fmc_tests::MOCK_RT_INTERACTIVE, FMC_WITH_UART, ROM_WITH_UART},
+    firmware::{self, fmc_tests::MOCK_RT_INTERACTIVE, FMC_WITH_UART},
     ImageOptions,
 };
 use caliptra_common::RomBootStatus::*;
@@ -36,7 +36,7 @@ const PCR2_AND_PCR3_EXTENDED_ID: u32 = (1 << PcrId::PcrId2 as u8) | (1 << PcrId:
 
 #[test]
 fn test_boot_status_reporting() {
-    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
 
     let image = caliptra_builder::build_and_sign_image(
         &firmware::FMC_WITH_UART,
@@ -66,7 +66,7 @@ fn test_boot_status_reporting() {
 
 #[test]
 fn test_fht_info() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &MOCK_RT_INTERACTIVE,
@@ -97,7 +97,7 @@ fn test_fht_info() {
 
 #[test]
 fn test_pcr_log() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let image1 = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &MOCK_RT_INTERACTIVE,

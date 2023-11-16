@@ -2,8 +2,9 @@
 
 use caliptra_builder::{
     firmware::{
+        self,
         rom_tests::{TEST_FMC_INTERACTIVE, TEST_FMC_WITH_UART},
-        APP_WITH_UART, ROM_WITH_UART,
+        APP_WITH_UART,
     },
     ImageOptions,
 };
@@ -21,7 +22,7 @@ const TEST_FMC_CMD_RESET_FOR_UPDATE_KEEP_MBOX_CMD: u32 = 0x1000_000B;
 
 #[test]
 fn test_update_reset_success() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let image_bundle = caliptra_builder::build_and_sign_image(
         &TEST_FMC_INTERACTIVE,
         &APP_WITH_UART,
@@ -66,7 +67,7 @@ fn test_update_reset_success() {
 
 #[test]
 fn test_update_reset_no_mailbox_cmd() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let image_bundle = caliptra_builder::build_and_sign_image(
         &TEST_FMC_WITH_UART,
         &APP_WITH_UART,
@@ -112,7 +113,7 @@ fn test_update_reset_no_mailbox_cmd() {
 
 #[test]
 fn test_update_reset_non_fw_load_cmd() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let image_bundle = caliptra_builder::build_and_sign_image(
         &TEST_FMC_WITH_UART,
         &APP_WITH_UART,
@@ -155,7 +156,7 @@ fn test_update_reset_non_fw_load_cmd() {
 
 #[test]
 fn test_update_reset_verify_image_failure() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let image_bundle = caliptra_builder::build_and_sign_image(
         &TEST_FMC_WITH_UART,
         &APP_WITH_UART,
@@ -204,7 +205,7 @@ fn test_update_reset_verify_image_failure() {
 
 #[test]
 fn test_update_reset_boot_status() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let image_bundle = caliptra_builder::build_and_sign_image(
         &TEST_FMC_INTERACTIVE,
         &APP_WITH_UART,
@@ -257,7 +258,7 @@ fn test_update_reset_boot_status() {
 
 #[test]
 fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let vendor_config_cold_boot = ImageGeneratorVendorConfig {
         ecc_key_idx: 3,
         ..VENDOR_CONFIG_KEY_0
@@ -326,7 +327,7 @@ fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
 
 #[test]
 fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let vendor_config_cold_boot = ImageGeneratorVendorConfig {
         lms_key_idx: 3,
         ..VENDOR_CONFIG_KEY_0
@@ -394,7 +395,7 @@ fn test_update_reset_vendor_lms_pub_key_idx_dv_mismatch() {
 
 #[test]
 fn test_check_rom_update_reset_status_reg() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let image_bundle = caliptra_builder::build_and_sign_image(
         &TEST_FMC_INTERACTIVE,
         &APP_WITH_UART,

@@ -2,8 +2,9 @@
 
 use caliptra_builder::{
     firmware::{
+        self,
         rom_tests::{TEST_FMC_INTERACTIVE, TEST_FMC_WITH_UART},
-        APP_WITH_UART, ROM_WITH_UART,
+        APP_WITH_UART,
     },
     ImageOptions,
 };
@@ -143,7 +144,7 @@ fn test_pcr_log() {
         owner_pk_hash: owner_pubkey_digest,
         ..Default::default()
     };
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -245,7 +246,7 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
             .unwrap(),
         ..Default::default()
     };
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -335,7 +336,7 @@ fn test_pcr_log_fmc_fuse_svn() {
         fmc_key_manifest_svn: FMC_FUSE_SVN,
         ..Default::default()
     };
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -474,7 +475,7 @@ fn test_pcr_log_across_update_reset() {
         owner_pk_hash: owner_pubkey_digest,
         ..Default::default()
     };
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -574,7 +575,7 @@ fn test_fuse_log() {
         ..Default::default()
     };
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -707,7 +708,7 @@ fn test_fuse_log() {
 
 #[test]
 fn test_fht_info() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -746,7 +747,7 @@ fn test_check_no_lms_info_in_datavault_on_lms_unavailable() {
         lms_verify: false,
         ..Default::default()
     };
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -792,7 +793,7 @@ fn test_check_rom_cold_boot_status_reg() {
         lms_verify: false,
         ..Default::default()
     };
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -835,7 +836,7 @@ fn test_check_rom_cold_boot_status_reg() {
 #[test]
 fn test_upload_single_measurement() {
     let fuses = Fuses::default();
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -901,7 +902,7 @@ fn test_upload_single_measurement() {
 #[test]
 fn test_upload_measurement_limit() {
     let fuses = Fuses::default();
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -988,7 +989,7 @@ fn test_upload_measurement_limit() {
 #[test]
 fn test_upload_no_measurement() {
     let fuses = Fuses::default();
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,

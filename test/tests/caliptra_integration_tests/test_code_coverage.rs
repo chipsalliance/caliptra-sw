@@ -5,17 +5,17 @@
 fn test_emu_coverage() {
     use std::path::PathBuf;
 
-    use caliptra_builder::firmware::ROM_WITH_UART;
+    use caliptra_builder::firmware;
     use caliptra_coverage::{calculator, collect_instr_pcs};
     use caliptra_hw_model::HwModel;
     use caliptra_hw_model::{BootParams, InitParams};
 
     const TRACE_PATH: &str = "/tmp/caliptra_coverage_trace.txt";
 
-    let instr_pcs = collect_instr_pcs(&ROM_WITH_UART).unwrap();
+    let instr_pcs = collect_instr_pcs(firmware::rom_from_env()).unwrap();
 
     let coverage_from_bitmap = {
-        let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
         let mut hw = caliptra_hw_model::new(BootParams {
             init_params: InitParams {
                 rom: &rom,

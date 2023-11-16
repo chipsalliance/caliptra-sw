@@ -11,7 +11,7 @@ use caliptra_test::{
     x509::{DiceFwid, DiceTcbInfo},
 };
 use openssl::sha::{sha384, Sha384};
-use std::{io::Write, mem};
+use std::mem;
 use zerocopy::AsBytes;
 
 #[track_caller]
@@ -25,7 +25,7 @@ fn assert_output_contains(haystack: &str, needle: &str) {
 #[test]
 fn retrieve_csr_test() {
     const GENERATE_IDEVID_CSR: u32 = 1;
-    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -123,7 +123,7 @@ fn smoke_test() {
         .set_device_lifecycle(DeviceLifecycle::Production);
     let idevid_pubkey = get_idevid_pubkey();
 
-    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let image = caliptra_builder::build_and_sign_image(
         &firmware::FMC_WITH_UART,
         &firmware::APP_WITH_UART,
@@ -157,35 +157,32 @@ fn smoke_test() {
         ..Default::default()
     })
     .unwrap();
-    let mut output = vec![];
 
-    hw.step_until_output_contains("Caliptra RT listening for mailbox commands...\n")
-        .unwrap();
-    output
-        .write_all(hw.output().take(usize::MAX).as_bytes())
-        .unwrap();
-
-    let output = String::from_utf8_lossy(&output);
-    assert_output_contains(&output, "Running Caliptra ROM");
-    assert_output_contains(&output, "[cold-reset]");
-    // Confirm KAT is running.
-    assert_output_contains(&output, "[kat] ++");
-    assert_output_contains(&output, "[kat] sha1");
-    assert_output_contains(&output, "[kat] SHA2-256");
-    assert_output_contains(&output, "[kat] SHA2-384");
-    assert_output_contains(&output, "[kat] SHA2-384-ACC");
-    assert_output_contains(&output, "[kat] HMAC-384");
-    assert_output_contains(&output, "[kat] LMS");
-    assert_output_contains(&output, "[kat] --");
-    assert_output_contains(&output, "Running Caliptra FMC");
-    assert_output_contains(
-        &output,
-        r#"
+    if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
+        hw.step_until_output_contains("Caliptra RT listening for mailbox commands...\n")
+            .unwrap();
+        let output = hw.output().take(usize::MAX);
+        assert_output_contains(&output, "Running Caliptra ROM");
+        assert_output_contains(&output, "[cold-reset]");
+        // Confirm KAT is running.
+        assert_output_contains(&output, "[kat] ++");
+        assert_output_contains(&output, "[kat] sha1");
+        assert_output_contains(&output, "[kat] SHA2-256");
+        assert_output_contains(&output, "[kat] SHA2-384");
+        assert_output_contains(&output, "[kat] SHA2-384-ACC");
+        assert_output_contains(&output, "[kat] HMAC-384");
+        assert_output_contains(&output, "[kat] LMS");
+        assert_output_contains(&output, "[kat] --");
+        assert_output_contains(&output, "Running Caliptra FMC");
+        assert_output_contains(
+            &output,
+            r#"
  / ___|__ _| (_)_ __ | |_ _ __ __ _  |  _ \_   _|
 | |   / _` | | | '_ \| __| '__/ _` | | |_) || |
 | |__| (_| | | | |_) | |_| | | (_| | |  _ < | |
  \____\__,_|_|_| .__/ \__|_|  \__,_| |_| \_\|_|"#,
-    );
+        );
+    }
 
     let ldev_cert_resp = hw
         .mailbox_execute_req(TestOnlyGetLdevCertReq::default())
@@ -340,13 +337,15 @@ fn test_rt_wdt_timeout() {
     #![cfg_attr(feature = "fpga_realtime", ignore)]
 
     const RUNTIME_GLOBAL_WDT_EPIRED: u32 = 0x000E001F;
-    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
 
     // TODO: Don't hard-code these; maybe measure from a previous boot?
     let rt_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
         27_000_000
-    } else {
+    } else if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
         2_900_000
+    } else {
+        2_700_000
     };
 
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
@@ -370,13 +369,14 @@ fn test_rt_wdt_timeout() {
 fn test_fmc_wdt_timeout() {
     const FMC_GLOBAL_WDT_EPIRED: u32 = 0x000F000D;
 
+    // TODO: Don't hard-code these; maybe measure from a previous boot?
     let fmc_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
         25_000_000
     } else {
-        2_600_000
+        2_620_000
     };
 
-    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
 
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
     let init_params = caliptra_hw_model::InitParams {
