@@ -29,6 +29,23 @@ Checks the limit on the number of active DPE contexts belonging to a pauser priv
 Calls the DPE commands sign and certify_key via the invoke_dpe mailbox command and verifies the signature resulting from the sign command with the public key resulting from the certify_key command | **test_invoke_dpe_sign_and_certify_key_cmds** | N/A
 
 <br><br>
+# **DPE Verification Tests**
+These tests are implemented in Go and test end-to-end DPE attestation behavior. The DPE commands are called via a transport.
+Test Scenario | Test Name | Go Error Code
+---|---|---
+Calls and tests behavior of the DPE command InitializeContext | **TestInitializeContext** | N/A
+Calls and tests behavior of the DPE command InitializeContext with simulation contexts | **TestInitializeContextSimulation** | N/A
+Calls the DPE command CertifyKey, verifies the structure of the resulting certificate by parsing and linting it, and checks that the desired extensions are present | **TestCertifyKey** | N/A
+Calls the DPE command CertifyKey with a simulation context handle, verifies the structure of the resulting certificate by parsing and linting it, and checks that the desired extensions are present | **TestCertifyKey_SimulationMode** | N/A
+Calls the DPE command GetCertificateChain and verifies the structure of each certificate in the chain by parsing and linting them | **TestGetCertificateChain** | N/A
+Calls and tests behavior of the DPE command TagTci | **TestTagTCI** | N/A
+Calls the DPE command GetProfile and verifies the DPE profile | **TestGetProfile** | N/A
+Checks whether an error is reported when non-existent handle is passed as input to DPE commands | **TestInvalidHandle** | StatusInvalidHandle
+Checks whether an error is reported when caller from one locality issues DPE commands in another locality | **TestWrongLocality** | StatusInvalidLocality
+Checks whether an error is reported when using commands that are not supported in the DPE instance | **TestUnsupportedCommand** | StatusInvalidCommand
+Checks whether an error is reported when enabling command flags that are not supported in the DPE instance | **TestUnsupportedCommandFlag** | StatusArgumentNotSupported
+
+<br><br>
 # **Mailbox Command Tests**
 Test Scenario| Test Name | Runtime Error Code
 ---|---|---
@@ -49,3 +66,12 @@ Test Scenario| Test Name | Runtime Error Code
 ---|---|---
 Tests some common ECDSA problems | **ecdsa_cmd_run_wycheproof** | N/A
 Tests some common HMAC problems | **hmac_cmd_run_wycheproof** | N/A
+
+<br><br>
+# **Test Gaps**
+Test Scenario| Test Name | Runtime Error Code
+---|---|---
+Check validation of DPE structure after a warm/update reset and ensure that validation fails if the DPE's SRAM bytes are maliciously edited | N/A | N/A
+Verify the RT Journey PCR on a warm reset | N/A | N/A
+Check that the RT Journey PCR was updated correctly on update reset | N/A | N/A
+Check if disable attestation was called when the mailbox is executing a command during a warm reset | N/A | N/A

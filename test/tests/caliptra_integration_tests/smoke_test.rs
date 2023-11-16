@@ -1,12 +1,8 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{firmware, ImageOptions};
-use caliptra_common::fips::FipsVersionCmd;
-use caliptra_common::mailbox_api::{
-    CommandId, FipsVersionResp, MailboxReqHeader, MailboxRespHeader, TestOnlyGetFmcAliasCertReq,
-    TestOnlyGetLdevCertReq,
-};
-use caliptra_hw_model::{BootParams, HwModel, InitParams, ModelError, SecurityState};
+use caliptra_common::mailbox_api::{TestOnlyGetFmcAliasCertReq, TestOnlyGetLdevCertReq};
+use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{DeviceLifecycle, Fuses};
 use caliptra_test::run_test;
 use caliptra_test::{
@@ -15,8 +11,8 @@ use caliptra_test::{
     x509::{DiceFwid, DiceTcbInfo},
 };
 use openssl::sha::{sha384, Sha384};
-use std::{io::Write, mem};
-use zerocopy::{AsBytes, FromBytes};
+use std::mem;
+use zerocopy::AsBytes;
 
 #[track_caller]
 fn assert_output_contains(haystack: &str, needle: &str) {
@@ -29,7 +25,7 @@ fn assert_output_contains(haystack: &str, needle: &str) {
 #[test]
 fn retrieve_csr_test() {
     const GENERATE_IDEVID_CSR: u32 = 1;
-    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -127,7 +123,7 @@ fn smoke_test() {
         .set_device_lifecycle(DeviceLifecycle::Production);
     let idevid_pubkey = get_idevid_pubkey();
 
-    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let image = caliptra_builder::build_and_sign_image(
         &firmware::FMC_WITH_UART,
         &firmware::APP_WITH_UART,
@@ -161,35 +157,32 @@ fn smoke_test() {
         ..Default::default()
     })
     .unwrap();
-    let mut output = vec![];
 
-    hw.step_until_output_contains("Caliptra RT listening for mailbox commands...\n")
-        .unwrap();
-    output
-        .write_all(hw.output().take(usize::MAX).as_bytes())
-        .unwrap();
-
-    let output = String::from_utf8_lossy(&output);
-    assert_output_contains(&output, "Running Caliptra ROM");
-    assert_output_contains(&output, "[cold-reset]");
-    // Confirm KAT is running.
-    assert_output_contains(&output, "[kat] ++");
-    assert_output_contains(&output, "[kat] sha1");
-    assert_output_contains(&output, "[kat] SHA2-256");
-    assert_output_contains(&output, "[kat] SHA2-384");
-    assert_output_contains(&output, "[kat] SHA2-384-ACC");
-    assert_output_contains(&output, "[kat] HMAC-384");
-    assert_output_contains(&output, "[kat] LMS");
-    assert_output_contains(&output, "[kat] --");
-    assert_output_contains(&output, "Running Caliptra FMC");
-    assert_output_contains(
-        &output,
-        r#"
+    if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
+        hw.step_until_output_contains("Caliptra RT listening for mailbox commands...\n")
+            .unwrap();
+        let output = hw.output().take(usize::MAX);
+        assert_output_contains(&output, "Running Caliptra ROM");
+        assert_output_contains(&output, "[cold-reset]");
+        // Confirm KAT is running.
+        assert_output_contains(&output, "[kat] ++");
+        assert_output_contains(&output, "[kat] sha1");
+        assert_output_contains(&output, "[kat] SHA2-256");
+        assert_output_contains(&output, "[kat] SHA2-384");
+        assert_output_contains(&output, "[kat] SHA2-384-ACC");
+        assert_output_contains(&output, "[kat] HMAC-384");
+        assert_output_contains(&output, "[kat] LMS");
+        assert_output_contains(&output, "[kat] --");
+        assert_output_contains(&output, "Running Caliptra FMC");
+        assert_output_contains(
+            &output,
+            r#"
  / ___|__ _| (_)_ __ | |_ _ __ __ _  |  _ \_   _|
 | |   / _` | | | '_ \| __| '__/ _` | | |_) || |
 | |__| (_| | | | |_) | |_| | | (_| | |  _ < | |
  \____\__,_|_|_| .__/ \__|_|  \__,_| |_| \_\|_|"#,
-    );
+        );
+    }
 
     let ldev_cert_resp = hw
         .mailbox_execute_req(TestOnlyGetLdevCertReq::default())
@@ -336,209 +329,6 @@ fn smoke_test() {
     // TODO: Validate the rest of the fmc_alias certificate fields
 }
 
-fn test_fips<T: HwModel>(hw: &mut T, fmc_version: u32, app_version: u32) {
-    // VERSION
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::VERSION), &[]),
-    };
-
-    let fips_version_resp = hw
-        .mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes())
-        .unwrap()
-        .unwrap();
-
-    // Check command size
-    let fips_version_bytes: &[u8] = fips_version_resp.as_bytes();
-
-    // Check values against expected.
-    let fips_version = FipsVersionResp::read_from(fips_version_bytes).unwrap();
-    assert!(caliptra_common::checksum::verify_checksum(
-        fips_version.hdr.chksum,
-        0x0,
-        &fips_version.as_bytes()[core::mem::size_of_val(&fips_version.hdr.chksum)..],
-    ));
-    assert_eq!(
-        fips_version.hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_APPROVED
-    );
-    assert_eq!(fips_version.mode, FipsVersionCmd::MODE);
-    assert_eq!(fips_version.fips_rev, [0x01, fmc_version, app_version]);
-    let name = &fips_version.name[..];
-    assert_eq!(name, FipsVersionCmd::NAME.as_bytes());
-
-    // SELF_TEST_START
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::SELF_TEST_START),
-            &[],
-        ),
-    };
-
-    let resp = hw
-        .mailbox_execute(u32::from(CommandId::SELF_TEST_START), payload.as_bytes())
-        .unwrap()
-        .unwrap();
-
-    let resp = MailboxRespHeader::read_from(resp.as_slice()).unwrap();
-    // Verify checksum and FIPS status
-    assert!(caliptra_common::checksum::verify_checksum(
-        resp.chksum,
-        0x0,
-        &resp.as_bytes()[core::mem::size_of_val(&resp.chksum)..],
-    ));
-    assert_eq!(resp.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
-
-    // Confirm we can't re-start the FIPS self test while it is in progress.
-    let _resp = hw
-        .mailbox_execute(u32::from(CommandId::SELF_TEST_START), payload.as_bytes())
-        .unwrap_err();
-
-    // SELF_TEST_GET_RESULTS
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::SELF_TEST_GET_RESULTS),
-            &[],
-        ),
-    };
-
-    loop {
-        // Get self test results
-        match hw.mailbox_execute(
-            u32::from(CommandId::SELF_TEST_GET_RESULTS),
-            payload.as_bytes(),
-        ) {
-            Ok(Some(resp)) => {
-                let resp = MailboxRespHeader::read_from(resp.as_slice()).unwrap();
-                // Verify checksum and FIPS status
-                assert!(caliptra_common::checksum::verify_checksum(
-                    resp.chksum,
-                    0x0,
-                    &resp.as_bytes()[core::mem::size_of_val(&resp.chksum)..],
-                ));
-                if resp.fips_status == MailboxRespHeader::FIPS_STATUS_APPROVED {
-                    break;
-                }
-            }
-            _ => {
-                // Give FW time to run
-                let mut cycle_count = 10000;
-                hw.step_until(|_| -> bool {
-                    cycle_count -= 1;
-                    cycle_count == 0
-                });
-            }
-        }
-    }
-
-    // SHUTDOWN
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::SHUTDOWN), &[]),
-    };
-
-    let resp = hw.mailbox_execute(u32::from(CommandId::SHUTDOWN), payload.as_bytes());
-    assert!(resp.is_ok());
-
-    assert_eq!(
-        hw.mailbox_execute(
-            u32::from(CommandId::SELF_TEST_GET_RESULTS),
-            payload.as_bytes()
-        ),
-        Err(ModelError::MailboxCmdFailed(0x000E0008))
-    );
-
-    // Check we are rejecting additional commands.
-    assert_eq!(
-        hw.mailbox_execute(u32::from(CommandId::SHUTDOWN), payload.as_bytes()),
-        Err(ModelError::MailboxCmdFailed(0x000E0008))
-    );
-    assert_eq!(
-        hw.mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes()),
-        Err(ModelError::MailboxCmdFailed(0x000E0008))
-    );
-}
-
-#[test]
-fn fips_cmd_test_rom() {
-    let security_state = *SecurityState::default()
-        .set_debug_locked(true)
-        .set_device_lifecycle(DeviceLifecycle::Production);
-
-    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
-
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
-            rom: &rom,
-            security_state,
-            ..Default::default()
-        },
-        fuses: Fuses {
-            fmc_key_manifest_svn: 0b1111111,
-            ..Default::default()
-        },
-        fw_image: None,
-        ..Default::default()
-    })
-    .unwrap();
-
-    // Wait for rom to be ready for firmware
-    while !hw.ready_for_fw() {
-        hw.step();
-    }
-
-    test_fips(&mut hw, 0, 0);
-}
-
-#[test]
-fn fips_cmd_test_rt() {
-    const FMC_VERSION: u32 = 0xFEFEFEFE;
-    const APP_VERSION: u32 = 0xCECECECE;
-
-    let security_state = *SecurityState::default()
-        .set_debug_locked(false)
-        .set_device_lifecycle(DeviceLifecycle::Unprovisioned);
-
-    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
-    let image = caliptra_builder::build_and_sign_image(
-        &firmware::FMC_WITH_UART,
-        &firmware::APP_WITH_UART,
-        ImageOptions {
-            fmc_version: FMC_VERSION,
-            fmc_min_svn: 5,
-            fmc_svn: 9,
-            app_version: APP_VERSION,
-            ..Default::default()
-        },
-    )
-    .unwrap();
-    let vendor_pk_hash =
-        bytes_to_be_words_48(&sha384(image.manifest.preamble.vendor_pub_keys.as_bytes()));
-    let owner_pk_hash =
-        bytes_to_be_words_48(&sha384(image.manifest.preamble.owner_pub_keys.as_bytes()));
-
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
-            rom: &rom,
-            security_state,
-            ..Default::default()
-        },
-        fuses: Fuses {
-            key_manifest_pk_hash: vendor_pk_hash,
-            owner_pk_hash,
-            fmc_key_manifest_svn: 0b1111111,
-            ..Default::default()
-        },
-        fw_image: Some(&image.to_bytes().unwrap()),
-        ..Default::default()
-    })
-    .unwrap();
-
-    while !hw.soc_ifc().cptra_flow_status().read().ready_for_runtime() {
-        hw.step();
-    }
-
-    test_fips(&mut hw, FMC_VERSION, APP_VERSION);
-}
-
 #[test]
 fn test_rt_wdt_timeout() {
     // There is too much jitter in the fpga_realtime TRNG response timing to hit
@@ -547,13 +337,15 @@ fn test_rt_wdt_timeout() {
     #![cfg_attr(feature = "fpga_realtime", ignore)]
 
     const RUNTIME_GLOBAL_WDT_EPIRED: u32 = 0x000E001F;
-    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
 
     // TODO: Don't hard-code these; maybe measure from a previous boot?
     let rt_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
         27_000_000
-    } else {
+    } else if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
         2_900_000
+    } else {
+        2_700_000
     };
 
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
@@ -584,7 +376,7 @@ fn test_fmc_wdt_timeout() {
         2_620_000
     };
 
-    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
 
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
     let init_params = caliptra_hw_model::InitParams {

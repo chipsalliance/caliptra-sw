@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::ImageOptions;
+use caliptra_builder::{firmware, ImageOptions};
 use caliptra_common::mailbox_api::{CommandId, GetLdevCertResp, MailboxReqHeader};
 use caliptra_drivers::{IdevidCertAttr, MfgFlags, X509KeyIdAlgo};
 use caliptra_hw_model::{DefaultHwModel, Fuses, HwModel};
@@ -8,15 +8,12 @@ use caliptra_image_types::ImageBundle;
 use openssl::pkey::{PKey, Public};
 use openssl::x509::X509;
 use openssl::{rand::rand_bytes, x509::X509Req};
-use std::io::Write;
 use zerocopy::AsBytes;
 use zerocopy::FromBytes;
 
 use crate::helpers;
 
-fn generate_csr(hw: &mut DefaultHwModel, image_bundle: &ImageBundle) -> Csrs {
-    let mut output = vec![];
-
+fn generate_csr(hw: &mut DefaultHwModel, image_bundle: &ImageBundle) -> Vec<u8> {
     // Set gen_idev_id_csr to generate CSR.
     let flags = MfgFlags::GENERATE_IDEVID_CSR;
     hw.soc_ifc()
@@ -34,27 +31,20 @@ fn generate_csr(hw: &mut DefaultHwModel, image_bundle: &ImageBundle) -> Csrs {
     hw.step_until_output_contains("Caliptra RT listening for mailbox commands...")
         .unwrap();
 
-    output
-        .write_all(hw.output().take(usize::MAX).as_bytes())
-        .unwrap();
-    let output = String::from_utf8_lossy(&output);
-    let csr_str = helpers::get_data("[idev] CSR = ", &output);
-    let uploaded = hex::decode(csr_str).unwrap();
-    Csrs {
-        uploaded,
-        downloaded,
+    let output = hw.output().take(usize::MAX);
+    if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
+        let csr_str = helpers::get_data("[idev] CSR = ", &output);
+        let uploaded = hex::decode(csr_str).unwrap();
+        assert_eq!(uploaded, downloaded);
     }
+    downloaded
 }
 
 #[test]
 fn test_generate_csr() {
     let (mut hw, image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let Csrs {
-        uploaded,
-        downloaded,
-    } = generate_csr(&mut hw, &image_bundle);
-    assert_eq!(uploaded, downloaded);
+    generate_csr(&mut hw, &image_bundle);
 }
 
 #[test]
@@ -101,13 +91,10 @@ fn test_generate_csr_stress() {
         let (mut hw, image_bundle) =
             helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
 
-        let Csrs {
-            uploaded,
-            downloaded: _,
-        } = generate_csr(&mut hw, &image_bundle);
+        let csr_bytes = generate_csr(&mut hw, &image_bundle);
 
         // Ensure CSR is valid X.509
-        let req = X509Req::from_der(&uploaded).unwrap_or_else(|_| {
+        let req = X509Req::from_der(&csr_bytes).unwrap_or_else(|_| {
             panic!(
                 "Failed to create a valid X509 cert with UDS seed {:?}",
                 fuses.uds_seed
@@ -165,9 +152,4 @@ fn verify_key(
     );
 
     cert
-}
-
-struct Csrs {
-    uploaded: Vec<u8>,
-    downloaded: Vec<u8>,
 }

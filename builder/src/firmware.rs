@@ -5,6 +5,16 @@
 
 use crate::FwId;
 
+pub fn rom_from_env() -> &'static FwId<'static> {
+    match std::env::var("CPTRA_ROM_TYPE").as_ref().map(|s| s.as_str()) {
+        Ok("ROM") => &ROM,
+        Ok("ROM_WITHOUT_UART") => &ROM,
+        Ok("ROM_WITH_UART") => &ROM_WITH_UART,
+        Ok(s) => panic!("unexpected CPRTA_TEST_ROM env-var value: {s:?}"),
+        Err(_) => &ROM_WITH_UART,
+    }
+}
+
 pub const ROM: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
