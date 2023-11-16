@@ -12,6 +12,9 @@ use std::hash::Hasher;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 
+mod disasm;
+pub use disasm::invoke_objdump;
+
 pub const CPTRA_COVERAGE_PATH: &str = "CPTRA_COVERAGE_PATH";
 
 pub struct CoverageMap {
@@ -74,7 +77,6 @@ pub fn dump_emu_coverage_to_file(
     writer.flush()?;
     Ok(())
 }
-
 pub fn uncovered_functions<'a>(elf_bytes: &'a [u8], bitmap: &'a BitVec) -> std::io::Result<()> {
     let symbols = caliptra_builder::elf_symbols(elf_bytes)?;
 
