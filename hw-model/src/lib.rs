@@ -244,7 +244,7 @@ pub enum ModelError {
     MailboxReqTypeTooSmall,
     MailboxRespTypeTooSmall,
     MailboxUnexpectedResponseLen { expected: u32, actual: u32 },
-    MailboxRespInvalidChecksum { expected: i32, actual: i32 },
+    MailboxRespInvalidChecksum { expected: u32, actual: u32 },
     MailboxRespInvalidFipsStatus(u32),
 }
 impl Error for ModelError {}
@@ -1538,7 +1538,7 @@ mod tests {
             resp,
             TestResp {
                 hdr: MailboxRespHeader {
-                    chksum: -211,
+                    chksum: 0xffffff2d,
                     fips_status: 0
                 },
                 data: *b"HI!!",
@@ -1578,8 +1578,8 @@ mod tests {
         assert_eq!(
             resp,
             Err(ModelError::MailboxRespInvalidChecksum {
-                expected: -210,
-                actual: -211
+                expected: 0xffffff2e,
+                actual: 0xffffff2d
             })
         );
 
