@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 caliptra_common = { workspace = true, default-features = false }
 caliptra-cpu.workspace = true
-caliptra-drivers = { workspace = true, features = ["runtime"] }
+caliptra-drivers = { workspace = true, features = ["runtime", "no-cfi"] }
 caliptra-error = { workspace = true, default-features = false }
 caliptra-image-types = { workspace = true, default-features = false }
 caliptra-kat.workspace = true
@@ -46,7 +46,8 @@ emu = ["caliptra_common/emu", "caliptra-drivers/emu"]
 itrng = ["caliptra-hw-model/itrng"]
 riscv = ["caliptra-cpu/riscv"]
 std = ["ufmt/std", "caliptra_common/std"]
-test_only_commands = []
+test_only_commands = ["caliptra_common/test_only_commands"]
+slow_tests = []
 verilator = ["caliptra-hw-model/verilator"]
 fips_self_test=[]
 fpga_realtime = ["caliptra-drivers/fpga_realtime"]

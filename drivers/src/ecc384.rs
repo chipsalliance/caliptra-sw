@@ -17,6 +17,8 @@ use crate::{
     array_concat3, okmutref, wait, Array4x12, Array4xN, CaliptraError, CaliptraResult, KeyReadArgs,
     KeyWriteArgs, Trng,
 };
+#[cfg(not(feature = "no-cfi"))]
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_registers::ecc::EccReg;
 use core::cmp::Ordering;
 use zerocopy::{AsBytes, FromBytes};
@@ -192,14 +194,16 @@ impl Ecc384 {
     /// # Returns
     ///
     /// * `Ecc384PubKey` - Generated ECC-384 Public Key
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn key_pair(
         &mut self,
         seed: &Ecc384Seed,
         nonce: &Array4x12,
         trng: &mut Trng,
-        mut priv_key: Ecc384PrivKeyOut,
+        priv_key: Ecc384PrivKeyOut,
     ) -> CaliptraResult<Ecc384PubKey> {
         let ecc = self.ecc.regs_mut();
+        let mut priv_key = priv_key;
 
         // Wait for hardware ready
         wait::until(|| ecc.status().read().ready());
@@ -210,6 +214,13 @@ impl Ecc384 {
                 KvAccess::begin_copy_to_arr(ecc.kv_wr_pkey_status(), ecc.kv_wr_pkey_ctrl())?;
             }
             Ecc384PrivKeyOut::Key(key) => {
+                if !key.usage.ecc_private_key() {
+                    // The key MUST be usable as a private key so we can do a
+                    // pairwise consistency test, which is required to prevent
+                    // leakage of secret material if the peripheral is glitched.
+                    return Err(CaliptraError::DRIVER_ECC384_KEYGEN_BAD_USAGE);
+                }
+
                 KvAccess::begin_copy_to_kv(ecc.kv_wr_pkey_status(), ecc.kv_wr_pkey_ctrl(), *key)?;
             }
         }
@@ -242,12 +253,6 @@ impl Ecc384 {
             Ecc384PrivKeyOut::Key(key) => {
                 KvAccess::end_copy_to_kv(ecc.kv_wr_pkey_status(), *key)
                     .map_err(|err| err.into_write_priv_key_err())?;
-                if !key.usage.ecc_private_key() {
-                    // The key MUST be usable as a private key so we can do a
-                    // pairwise consistency test, which is required to prevent
-                    // leakage of secret material if the peripheral is glitched.
-                    return Err(CaliptraError::DRIVER_ECC384_KEYGEN_BAD_USAGE);
-                }
             }
         }
 
@@ -268,6 +273,7 @@ impl Ecc384 {
         Ok(pub_key)
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn sign_internal(
         &mut self,
         priv_key: &Ecc384PrivKeyIn,
@@ -326,6 +332,7 @@ impl Ecc384 {
     /// # Returns
     ///
     /// * `Ecc384Signature` - Generate signature
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn sign(
         &mut self,
         priv_key: &Ecc384PrivKeyIn,
@@ -356,6 +363,7 @@ impl Ecc384 {
     /// # Result
     ///
     /// *  `Ecc384Result` - Ecc384Result::Success if the signature verification passed else an error code.
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn verify(
         &mut self,
         pub_key: &Ecc384PubKey,
@@ -390,6 +398,7 @@ impl Ecc384 {
     /// # Result
     ///
     /// *  `Array4xN<12, 48>` - verify R value
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn verify_r(
         &mut self,
         pub_key: &Ecc384PubKey,

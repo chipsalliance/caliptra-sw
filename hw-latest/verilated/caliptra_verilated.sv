@@ -37,6 +37,12 @@ module caliptra_verilated (
     input bit [`CALIPTRA_IMEM_ADDR_WIDTH-1:0] ext_imem_addr,
     input bit [`CALIPTRA_IMEM_DATA_WIDTH-1:0] ext_imem_wdata,
 
+    input bit ext_iccm_we,
+    input bit ext_dccm_we,
+    input bit ext_mbox_we,
+    input bit [14:0] ext_xccm_addr,
+    input bit [155:0] ext_xccm_wdata,
+
     input bit [7:0][31:0]           cptra_obf_key,
 
     input bit [3:0] security_state,
@@ -101,7 +107,7 @@ module caliptra_verilated (
     logic [MBOX_DATA_AND_ECC_W-1:0] mbox_sram_wdata_bitflip;
     logic [MBOX_DATA_AND_ECC_W-1:0] mbox_sram_rdata;
 
-    el2_mem_if el2_mem_export ();
+    el2_mem_if cpu_mem ();
 
 
     initial begin
@@ -140,7 +146,7 @@ caliptra_top caliptra_top_dut (
     .qspi_d_o(),
     .qspi_d_en_o(),
 
-    .el2_mem_export(el2_mem_export.veer_sram_src),
+    .el2_mem_export(cpu_mem.veer_sram_src),
 
     .ready_for_fuses(ready_for_fuses),
     .ready_for_fw_push(ready_for_fw_push),
@@ -199,10 +205,25 @@ assign veer_sram_error_injection_mode.iccm_double_bit_error = sram_error_injecti
 assign veer_sram_error_injection_mode.dccm_single_bit_error = sram_error_injection_mode[2];
 assign veer_sram_error_injection_mode.dccm_double_bit_error = sram_error_injection_mode[3];
 
+el2_mem_if real_mem();
+
 caliptra_veer_sram_export veer_sram_export_inst (
     .sram_error_injection_mode(sram_error_injection_mode),
-    .el2_mem_export(el2_mem_export.veer_sram_sink)
+    .el2_mem_export(real_mem.veer_sram_sink)
 );
+
+assign real_mem.clk = core_clk;
+assign real_mem.iccm_clken = cpu_mem.iccm_clken | ext_iccm_we;
+assign real_mem.iccm_wren_bank = cpu_mem.iccm_wren_bank | ext_iccm_we;
+assign real_mem.iccm_addr_bank = ext_iccm_we ? {ext_xccm_addr[12:0], ext_xccm_addr[12:0], ext_xccm_addr[12:0], ext_xccm_addr[12:0]} : cpu_mem.iccm_addr_bank;
+assign real_mem.iccm_bank_wr_data = ext_iccm_we ? ext_xccm_wdata : cpu_mem.iccm_bank_wr_data;
+assign cpu_mem.iccm_bank_dout = real_mem.iccm_bank_dout;
+
+assign real_mem.dccm_clken = cpu_mem.dccm_clken | ext_dccm_we;
+assign real_mem.dccm_wren_bank = cpu_mem.dccm_wren_bank | ext_dccm_we;
+assign real_mem.dccm_addr_bank = ext_dccm_we ? {ext_xccm_addr[12:0], ext_xccm_addr[12:0], ext_xccm_addr[12:0], ext_xccm_addr[12:0]} : cpu_mem.dccm_addr_bank;
+assign real_mem.dccm_wr_data_bank = ext_dccm_we ? ext_xccm_wdata : cpu_mem.dccm_wr_data_bank;
+assign cpu_mem.dccm_bank_dout = real_mem.dccm_bank_dout;
 
 //SRAM for mbox (preload raw data here)
 caliptra_sram
@@ -231,10 +252,10 @@ mbox_ram1
 (
     .clk_i(core_clk),
 
-    .cs_i(mbox_sram_cs),
-    .we_i(mbox_sram_we),
-    .addr_i(mbox_sram_addr),
-    .wdata_i(mbox_sram_wdata ^ mbox_sram_wdata_bitflip),
+    .cs_i(mbox_sram_cs | ext_mbox_we),
+    .we_i(mbox_sram_we | ext_mbox_we),
+    .addr_i(ext_mbox_we ? ext_xccm_addr : mbox_sram_addr),
+    .wdata_i(ext_mbox_we ? ext_xccm_wdata[38:0] : mbox_sram_wdata ^ mbox_sram_wdata_bitflip),
 
     .rdata_o(mbox_sram_rdata)
 );

@@ -105,6 +105,11 @@ pub mod hw_model_tests {
         ..BASE_FWID
     };
 
+    pub const TEST_UNITIALIZED_READ: FwId = FwId {
+        bin_name: "test_uninitialized_read",
+        ..BASE_FWID
+    };
+
     pub const TEST_PCR_EXTEND: FwId = FwId {
         bin_name: "test_pcr_extend",
         ..BASE_FWID
@@ -353,6 +358,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &hw_model_tests::TEST_WRITE_TO_ROM,
     &hw_model_tests::TEST_ICCM_DOUBLE_BIT_ECC,
     &hw_model_tests::TEST_DCCM_DOUBLE_BIT_ECC,
+    &hw_model_tests::TEST_UNITIALIZED_READ,
     &hw_model_tests::TEST_PCR_EXTEND,
     &driver_tests::DOE,
     &driver_tests::ECC384,

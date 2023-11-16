@@ -7,7 +7,7 @@ use caliptra_builder::{
 };
 use caliptra_common::mailbox_api::{
     CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, GetIdevCertReq, GetIdevCertResp,
-    GetIdevInfoResp, InvokeDpeReq, InvokeDpeResp, MailboxReqHeader, MailboxRespHeader,
+    GetIdevInfoResp, InvokeDpeReq, InvokeDpeResp, MailboxReq, MailboxReqHeader, MailboxRespHeader,
     PopulateIdevCertReq, StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_drivers::{CaliptraError, Ecc384PubKey};
@@ -319,23 +319,14 @@ fn test_stash_measurement() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let cmd = StashMeasurementReq {
+    let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq {
         hdr: MailboxReqHeader { chksum: 0 },
         metadata: [0u8; 4],
         measurement: [0u8; 48],
         context: [0u8; 48],
         svn: 0,
-    };
-
-    let checksum = caliptra_common::checksum::calc_checksum(
-        u32::from(CommandId::STASH_MEASUREMENT),
-        &cmd.as_bytes()[4..],
-    );
-
-    let cmd = StashMeasurementReq {
-        hdr: MailboxReqHeader { chksum: checksum },
-        ..cmd
-    };
+    });
+    cmd.populate_chksum().unwrap();
 
     let resp = model
         .mailbox_execute(u32::from(CommandId::STASH_MEASUREMENT), cmd.as_bytes())
@@ -400,20 +391,11 @@ fn test_invoke_dpe_get_profile_cmd() {
     assert_eq!(profile.flags, DPE_SUPPORT.bits());
 
     // Test with data_size too big.
-    let cmd = InvokeDpeReq {
+    let mut cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
         data_size: InvokeDpeReq::DATA_MAX_SIZE as u32 + 1,
         ..cmd
-    };
-
-    let checksum = caliptra_common::checksum::calc_checksum(
-        u32::from(CommandId::INVOKE_DPE),
-        &cmd.as_bytes()[4..],
-    );
-
-    let cmd = InvokeDpeReq {
-        hdr: MailboxReqHeader { chksum: checksum },
-        ..cmd
-    };
+    });
+    cmd.populate_chksum().unwrap();
 
     // Make sure the command execution fails.
     let resp = model
@@ -449,21 +431,12 @@ fn test_invoke_dpe_get_certificate_chain_cmd() {
     data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
     let dpe_cmd_buf = get_cert_chain_cmd.as_bytes();
     data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
-    let cmd = InvokeDpeReq {
+    let mut cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
         hdr: MailboxReqHeader { chksum: 0 },
         data,
         data_size: (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32,
-    };
-
-    let checksum = caliptra_common::checksum::calc_checksum(
-        u32::from(CommandId::INVOKE_DPE),
-        &cmd.as_bytes()[4..],
-    );
-
-    let cmd = InvokeDpeReq {
-        hdr: MailboxReqHeader { chksum: checksum },
-        ..cmd
-    };
+    });
+    cmd.populate_chksum().unwrap();
 
     let resp = model
         .mailbox_execute(u32::from(CommandId::INVOKE_DPE), cmd.as_bytes())
@@ -498,21 +471,12 @@ fn get_full_cert_chain(model: &mut DefaultHwModel, out: &mut [u8; 4096]) -> usiz
     data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
     let dpe_cmd_buf = get_cert_chain_cmd.as_bytes();
     data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
-    let cmd = InvokeDpeReq {
+    let mut cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
         hdr: MailboxReqHeader { chksum: 0 },
         data,
         data_size: (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32,
-    };
-
-    let checksum = caliptra_common::checksum::calc_checksum(
-        u32::from(CommandId::INVOKE_DPE),
-        &cmd.as_bytes()[4..],
-    );
-
-    let cmd = InvokeDpeReq {
-        hdr: MailboxReqHeader { chksum: checksum },
-        ..cmd
-    };
+    });
+    cmd.populate_chksum().unwrap();
 
     let resp = model
         .mailbox_execute(u32::from(CommandId::INVOKE_DPE), cmd.as_bytes())
@@ -538,21 +502,12 @@ fn get_full_cert_chain(model: &mut DefaultHwModel, out: &mut [u8; 4096]) -> usiz
     data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
     let dpe_cmd_buf = get_cert_chain_cmd.as_bytes();
     data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
-    let cmd = InvokeDpeReq {
+    let mut cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
         hdr: MailboxReqHeader { chksum: 0 },
         data,
         data_size: (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32,
-    };
-
-    let checksum = caliptra_common::checksum::calc_checksum(
-        u32::from(CommandId::INVOKE_DPE),
-        &cmd.as_bytes()[4..],
-    );
-
-    let cmd = InvokeDpeReq {
-        hdr: MailboxReqHeader { chksum: checksum },
-        ..cmd
-    };
+    });
+    cmd.populate_chksum().unwrap();
 
     let resp = model
         .mailbox_execute(u32::from(CommandId::INVOKE_DPE), cmd.as_bytes())

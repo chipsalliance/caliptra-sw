@@ -138,6 +138,9 @@ name = "bit-vec"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "349f9b6a179ed607305526ca489b34ad0a41aed5f7980fa90eb03160b69598fb"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "bitfield"
@@ -237,6 +240,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "caliptra-coverage"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bit-vec",
+ "caliptra-builder",
+ "elf",
+ "hex",
+ "rand",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "caliptra-cpu"
 version = "0.1.0"
 dependencies = [
@@ -252,6 +269,7 @@ dependencies = [
  "bitfield",
  "bitflags 2.4.0",
  "caliptra-builder",
+ "caliptra-cfi-derive",
  "caliptra-cfi-lib",
  "caliptra-drivers-test-bin",
  "caliptra-error",
@@ -274,6 +292,7 @@ dependencies = [
 name = "caliptra-drivers-test-bin"
 version = "0.1.0"
 dependencies = [
+ "caliptra-cfi-lib",
  "caliptra-drivers",
  "caliptra-error",
  "caliptra-kat",
@@ -427,6 +446,7 @@ dependencies = [
  "bitfield",
  "caliptra-api",
  "caliptra-builder",
+ "caliptra-coverage",
  "caliptra-emu-bus",
  "caliptra-emu-cpu",
  "caliptra-emu-periph",
@@ -457,9 +477,11 @@ dependencies = [
 name = "caliptra-hw-model-test-fw"
 version = "0.1.0"
 dependencies = [
+ "caliptra-cfi-lib",
  "caliptra-drivers",
  "caliptra-registers",
  "caliptra-test-harness",
+ "ufmt",
 ]
 
 [[package]]
@@ -724,6 +746,7 @@ dependencies = [
  "anyhow",
  "asn1",
  "caliptra-builder",
+ "caliptra-coverage",
  "caliptra-hw-model",
  "caliptra-hw-model-types",
  "caliptra-runtime",
@@ -748,6 +771,9 @@ version = "0.1.0"
 [[package]]
 name = "caliptra-verilated"
 version = "0.1.0"
+dependencies = [
+ "rand",
+]
 
 [[package]]
 name = "caliptra-x509"

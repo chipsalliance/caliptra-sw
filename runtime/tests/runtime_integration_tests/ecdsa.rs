@@ -2,7 +2,7 @@
 
 use crate::common::run_rt_test;
 use caliptra_common::mailbox_api::{
-    CommandId, EcdsaVerifyReq, MailboxReqHeader, MailboxRespHeader,
+    CommandId, EcdsaVerifyReq, MailboxReq, MailboxReqHeader, MailboxRespHeader,
 };
 use caliptra_hw_model::{HwModel, ShaAccMode};
 use caliptra_runtime::RtBootStatus;
@@ -15,6 +15,9 @@ use zerocopy::{AsBytes, FromBytes};
 
 #[test]
 fn ecdsa_cmd_run_wycheproof() {
+    // This test is too slow to run as part of the verilator nightly.
+    #![cfg_attr(all(not(feature = "slow_tests"), feature = "verilator"), ignore)]
+
     let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| {
@@ -78,7 +81,7 @@ fn ecdsa_cmd_run_wycheproof() {
                 .compute_sha512_acc_digest(test.msg.as_slice(), ShaAccMode::Sha384Stream)
                 .unwrap();
 
-            let cmd = EcdsaVerifyReq {
+            let mut cmd = MailboxReq::EcdsaVerify(EcdsaVerifyReq {
                 hdr: MailboxReqHeader { chksum: 0 },
                 pub_key_x: test_group.key.affine_x.as_slice()[..].try_into().unwrap(),
                 pub_key_y: test_group.key.affine_y.as_slice()[..].try_into().unwrap(),
@@ -97,15 +100,8 @@ fn ecdsa_cmd_run_wycheproof() {
                     .try_into()
                     .unwrap(),
                 // Do tests on mailbox
-            };
-            let checksum = caliptra_common::checksum::calc_checksum(
-                u32::from(CommandId::ECDSA384_VERIFY),
-                &cmd.as_bytes()[4..],
-            );
-            let cmd = EcdsaVerifyReq {
-                hdr: MailboxReqHeader { chksum: checksum },
-                ..cmd
-            };
+            });
+            cmd.populate_chksum().unwrap();
             let resp = model.mailbox_execute(u32::from(CommandId::ECDSA384_VERIFY), cmd.as_bytes());
             match test.result {
                 wycheproof::TestResult::Valid | wycheproof::TestResult::Acceptable => match resp {

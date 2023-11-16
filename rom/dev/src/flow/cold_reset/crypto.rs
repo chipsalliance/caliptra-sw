@@ -60,7 +60,7 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Array4x5` - Digest
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(always)]
     pub fn sha1_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x5> {
         env.sha1.digest(data)
     }
@@ -75,7 +75,6 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Array4x8` - Digest
-    #[inline(always)]
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn sha256_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x8> {
         env.sha256.digest(data)
@@ -91,7 +90,7 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Array4x12` - Digest
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(always)]
     pub fn sha384_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x12> {
         env.sha384.digest(data)
     }
@@ -104,7 +103,7 @@ impl Crypto {
     /// * `key` - HMAC384 key slot
     /// * `data` - Input data to hash
     /// * `tag` - Key slot to store the tag
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(always)]
     pub fn hmac384_mac(
         env: &mut RomEnv,
         key: KeyId,
@@ -134,7 +133,7 @@ impl Crypto {
     /// * `label` - Input label
     /// * `context` - Input context
     /// * `output` - Key slot to store the output
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(always)]
     pub fn hmac384_kdf(
         env: &mut RomEnv,
         key: KeyId,
@@ -169,7 +168,7 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Ecc384KeyPair` - Private Key slot id and public key pairs
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(always)]
     pub fn ecc384_key_gen(
         env: &mut RomEnv,
         cdi: KeyId,
@@ -212,7 +211,7 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Ecc384Signature` - Signature
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(always)]
     pub fn ecdsa384_sign_and_verify(
         env: &mut RomEnv,
         priv_key: KeyId,
