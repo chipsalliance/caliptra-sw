@@ -114,6 +114,16 @@ Tests update reset flow by providing a different vendor LMS public key index in 
 Check value in WarmResetEntry4::RomUpdateResetStatus datavault register | **test_check_rom_update_reset_status_reg**   | N/A
 <br><br>
 
+# **Warm Reset Tests**
+Test Scenario| Test Name | ROM Error Code
+---|---|---
+Tests successful Warm Reset flow  | **test_warm_reset_success** | N/A
+Tests Warm Reset flow during cold boot, before image validation | **test_warm_reset_during_cold_boot_before_image_validation** | ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_COLD_RESET
+Tests Warm Reset flow during cold boot, during image validation | **test_warm_reset_during_cold_boot_during_image_validation** | ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_COLD_RESET
+Tests Warm Reset flow during cold boot, after image validation | **test_warm_reset_during_cold_boot_after_image_validation** | ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_COLD_RESET
+Tests Warm Reset flow during update reset | **test_warm_reset_during_update_resetn** | ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_UPDATE_RESET
+<br><br>
+
 # **General Integration Tests**
 Test Scenario| Test Name | ROM Error Code
 ---|---|---
