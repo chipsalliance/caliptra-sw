@@ -369,10 +369,11 @@ fn test_rt_wdt_timeout() {
 fn test_fmc_wdt_timeout() {
     const FMC_GLOBAL_WDT_EPIRED: u32 = 0x000F000D;
 
+    // TODO: Don't hard-code these; maybe measure from a previous boot?
     let fmc_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
         25_000_000
     } else {
-        2_600_000
+        2_620_000
     };
 
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
