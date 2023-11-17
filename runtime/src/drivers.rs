@@ -275,6 +275,28 @@ impl Drivers {
         .execute(&mut dpe, &mut env, locality)
         .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
 
+        // Call DeriveChild to create TCIs for each measurement added in ROM
+        let num_measurements = drivers.persistent_data.get().fht.meas_log_index as usize;
+        let measurement_log = drivers.persistent_data.get().measurement_log;
+        for measurement_log_entry in measurement_log.iter().take(num_measurements) {
+            let measurement_data = measurement_log_entry.pcr_entry.measured_data();
+            let tci_type = u32::from_be_bytes(measurement_log_entry.metadata);
+            DeriveChildCmd {
+                handle: ContextHandle::default(),
+                data: measurement_data
+                    .try_into()
+                    .map_err(|_| CaliptraError::RUNTIME_ADD_ROM_MEASUREMENTS_TO_DPE_FAILED)?,
+                flags: DeriveChildFlags::MAKE_DEFAULT
+                    | DeriveChildFlags::CHANGE_LOCALITY
+                    | DeriveChildFlags::INPUT_ALLOW_CA
+                    | DeriveChildFlags::INPUT_ALLOW_X509,
+                tci_type,
+                target_locality: locality,
+            }
+            .execute(&mut dpe, &mut env, locality)
+            .map_err(|_| CaliptraError::RUNTIME_ADD_ROM_MEASUREMENTS_TO_DPE_FAILED)?;
+        }
+
         // Write DPE to persistent data.
         drivers.persistent_data.get_mut().dpe = dpe;
         Ok(())
