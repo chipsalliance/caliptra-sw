@@ -75,3 +75,4 @@ Check validation of DPE structure after a warm/update reset and ensure that vali
 Verify the RT Journey PCR on a warm reset | N/A | N/A
 Check that the RT Journey PCR was updated correctly on update reset | N/A | N/A
 Check if disable attestation was called when the mailbox is executing a command during a warm reset | N/A | N/A
+Check that measurements in the measurement log are added to DPE upon initializing drivers | N/A | N/A

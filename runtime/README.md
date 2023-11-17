@@ -598,6 +598,10 @@ Caliptra Runtime firmware is responsible for initializing DPE’s Default Contex
 * Set flag in the TCI Node that this node was created by the DPE implementation.
   This will be used to set the VENDOR\_INFO field in TcbInfo to “VNDR”.
 
+When initializing DPE, Runtime Firmware shall also add each of ROM's stashed 
+measurements to DPE. To do so, it should call DeriveChild for each measurement
+in the measurement log. 
+
 *Note: the Runtime CDI (from KeyVault) will be used as-needed and will not be
 accessed during initialization.*
 
