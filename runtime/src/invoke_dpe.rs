@@ -10,7 +10,7 @@ use dpe::{
     },
     context::{Context, ContextState},
     response::{Response, ResponseHdr},
-    DpeInstance,
+    DpeInstance, U8Bool, MAX_HANDLES,
 };
 use zerocopy::{AsBytes, FromBytes};
 
@@ -52,7 +52,10 @@ impl InvokeDpeCmd {
                 .map_err(|_| CaliptraError::RUNTIME_INVOKE_DPE_FAILED)?;
             let flags = pdata.manifest1.header.flags;
 
-            let mut dpe = &mut drivers.persistent_data.get_mut().dpe;
+            let pdata_mut = drivers.persistent_data.get_mut();
+            let mut dpe = &mut pdata_mut.dpe;
+            let mut context_has_tag = &mut pdata_mut.context_has_tag;
+            let mut context_tags = &mut pdata_mut.context_tags;
             let resp = match command {
                 Command::GetProfile => Ok(Response::GetProfile(
                     dpe.get_profile(&mut env.platform)
@@ -87,9 +90,23 @@ impl InvokeDpeCmd {
                     }
                     cmd.execute(dpe, &mut env, locality)
                 }
+                Command::DestroyCtx(cmd) => {
+                    let destroy_ctx_resp = cmd.execute(dpe, &mut env, locality);
+                    // clear tags for destroyed contexts
+                    (0..MAX_HANDLES).for_each(|i| {
+                        if i < dpe.contexts.len()
+                            && i < context_has_tag.len()
+                            && i < context_tags.len()
+                            && dpe.contexts[i].state != ContextState::Active
+                        {
+                            context_has_tag[i] = U8Bool::new(false);
+                            context_tags[i] = 0;
+                        }
+                    });
+                    destroy_ctx_resp
+                }
                 Command::Sign(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::RotateCtx(cmd) => cmd.execute(dpe, &mut env, locality),
-                Command::DestroyCtx(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::ExtendTci(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::GetCertificateChain(cmd) => cmd.execute(dpe, &mut env, locality),
             };

@@ -358,12 +358,15 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E0021);
     pub const RUNTIME_ADD_ROM_MEASUREMENTS_TO_DPE_FAILED: CaliptraError =
         CaliptraError::new_const(0x000E0022);
+    pub const RUNTIME_TAGGING_FAILURE: CaliptraError = CaliptraError::new_const(0x000E0022);
+    pub const RUNTIME_DUPLICATE_TAG: CaliptraError = CaliptraError::new_const(0x000E0023);
+    pub const RUNTIME_CONTEXT_ALREADY_TAGGED: CaliptraError = CaliptraError::new_const(0x000E0024);
     pub const RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED: CaliptraError =
-        CaliptraError::new_const(0x000E0023);
-    pub const RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE: CaliptraError =
-        CaliptraError::new_const(0x000E0024);
-    pub const RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE: CaliptraError =
         CaliptraError::new_const(0x000E0025);
+    pub const RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE: CaliptraError =
+        CaliptraError::new_const(0x000E0026);
+    pub const RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE: CaliptraError =
+        CaliptraError::new_const(0x000E0027);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);

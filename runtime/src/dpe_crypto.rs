@@ -323,6 +323,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
                         Hmac384Tag::Array4x12(&mut tag),
                     )
                     .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
+                hmac_key.zeroize();
                 HmacSig::new(tag.as_bytes())
             }
         }
