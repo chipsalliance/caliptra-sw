@@ -426,6 +426,48 @@ Table: `INCREMENT_PCR_RESET_COUNTER` input arguments
 
 `INCREMENT_PCR_RESET_COUNTER` returns no output arguments.
 
+### DPE\_TAG\_TCI
+
+Associates a unique tag with a DPE context
+
+Command Code: `0x5451_4754` ("TAGT")
+
+Table: `DPE_TAG_TCI` input arguments
+
+| **Name**     | **Type**      | **Description**
+| --------     | --------      | ---------------
+| chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| handle       | u8[16]        | DPE context handle 
+| tag          | u32           | A unique tag which the handle will be associated with 
+
+Table: `DPE_TAG_TCI` output arguments
+
+| **Name**    | **Type** | **Description**
+| --------    | -------- | ---------------
+| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32      | Indicates if the command is FIPS approved or an error
+
+### DPE\_GET\_TAGGED\_TCI
+
+Retrieves the TCI measurements corresponding to the tagged DPE context 
+
+Command Code: `0x4754_4744` ("GTGD")
+
+Table: `DPE_GET_TAGGED_TCI` input arguments
+
+| **Name**     | **Type**      | **Description**
+| --------     | --------      | ---------------
+| chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| tag          | u32           | A unique tag corresponding to a DPE context
+
+Table: `DPE_GET_TAGGED_TCI` output arguments
+
+| **Name**          | **Type**       | **Description**
+| --------          | --------       | ---------------
+| chksum            | u32            | Checksum over other input arguments, computed by the caller. Little endian.
+| tci_cumulative    | u8[48]         | Hash of all the input data provided to the context
+| tci_current       | u8[48]         | Most recent measurement made into the context
+
 ## Checksum
 
 For every command, the request and response feature a checksum. This mitigates
@@ -550,7 +592,6 @@ details specific requirements for the Caliptra DPE implementation.
 | Simulation Context Support | Yes                            | Whether Caliptra implements the optional Simulation Contexts feature
 | Supports ExtendTci         | Yes                            | Whether Caliptra implements the optional ExtendTci command
 | Supports Auto Init         | Yes                            | Whether Caliptra will automatically initialize the default DPE context.
-| Supports Tagging           | Yes                            | Whether Caliptra implements the optional TCI tagging feature.
 | Supports Rotate Context    | Yes                            | Whether Caliptra supports the optional RotateContextHandle command.
 | CertifyKey Alias Key       | Caliptra Runtime Alias Key     | The key that will be used to sign certificates produced by the DPE CertifyKey command.
 
@@ -569,12 +610,10 @@ Caliptra DPE supports the following commands
 * DestroyContext
 * GetCertificateChain
 
-In addition, Caliptra supports the following profile-defined commands:
+In addition, Caliptra supports the following profile-defined command:
 
 * ExtendTci: Extend a TCI measurement made by DeriveChild to provide additional
              measurement data.
-* TagTci: Associate a TCI node with a unique tag
-* GetTaggedTci: Look up the measurements in a TCI node by tag
 
 ### DPE State Atomicity
 
@@ -639,11 +678,10 @@ To derive an asymmetric key for Sign and CertifyKey, RT will
 | Byte Offset | Bits  | Name           | Description
 | ----------- | ----- | ------------   | -------------
 | 0x02        | 15:0  | Parent Index   | Index of the TCI node that is the parent of this node. 0xFF if this node is the root.
-| 0x04        | 31:0  | Node Tag       | Tag of this node provided by the TagTci command.
-| 0x08        | 159:0 | Context Handle | DPE context handle referring to this node
-| 0x1C        | 31    | Internal TCI   | This TCI was measured by Runtime Firmware itself
+| 0x04        | 159:0 | Context Handle | DPE context handle referring to this node
+| 0x18        | 31    | Internal TCI   | This TCI was measured by Runtime Firmware itself
 |             | 30:0  | Reserved       | Reserved flag bits
-| 0x20        | 383:0 | Latest TCI     | The latest `INPUT_DATA` extended into this TCI by ExtendTci or DeriveChild
+| 0x1C        | 383:0 | Latest TCI     | The latest `INPUT_DATA` extended into this TCI by ExtendTci or DeriveChild
 
 Table: `TCI_NODE_DATA` for `DPE_PROFILE_IROT_P384_SHA384`
 
