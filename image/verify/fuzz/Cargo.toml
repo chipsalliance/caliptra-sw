@@ -57,3 +57,6 @@ name = "fuzz_target_updatereset"
 path = "src/fuzz_target_updatereset.rs"
 test = false
 doc = false
+
+[lints]
+workspace = true

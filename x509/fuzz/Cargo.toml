@@ -29,3 +29,6 @@ name = "fuzz_target_1"
 path = "src/fuzz_target_1.rs"
 test = false
 doc = false
+
+[lints]
+workspace = true

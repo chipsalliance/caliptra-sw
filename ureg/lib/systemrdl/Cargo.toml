@@ -10,3 +10,6 @@ edition = "2021"
 [dependencies]
 ureg-schema = { path = "../schema" }
 caliptra-systemrdl = { path = "../../../systemrdl" }
+
+[lints]
+workspace = true

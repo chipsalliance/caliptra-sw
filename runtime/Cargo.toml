@@ -51,3 +51,6 @@ slow_tests = []
 verilator = ["caliptra-hw-model/verilator"]
 fips_self_test=[]
 fpga_realtime = ["caliptra-drivers/fpga_realtime"]
+
+[lints]
+workspace = true

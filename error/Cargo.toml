@@ -11,3 +11,6 @@ edition = "2021"
 [features]
 default = ["std"]
 std = []
+
+[lints]
+workspace = true

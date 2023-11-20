@@ -39,3 +39,6 @@ caliptra-hw-model-types.workspace = true
 caliptra-hw-model.workspace = true
 caliptra-test.workspace = true
 openssl.workspace = true
+
+[lints]
+workspace = true

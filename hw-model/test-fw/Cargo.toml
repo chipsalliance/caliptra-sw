@@ -73,3 +73,6 @@ required-features = ["riscv"]
 name = "test_pcr_extend"
 path = "test_pcr_extend.rs"
 required-features = ["riscv"]
+
+[lints]
+workspace = true

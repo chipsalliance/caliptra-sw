@@ -32,3 +32,6 @@ itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
 fips_self_test = ["caliptra-runtime/fips_self_test"]
 test_env_immutable_rom = []
+
+[lints]
+workspace = true

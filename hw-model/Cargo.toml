@@ -36,3 +36,6 @@ caliptra-coverage.workspace = true
 caliptra-builder.workspace = true
 caliptra-registers.workspace = true
 caliptra-test-harness-types.workspace = true
+
+[lints]
+workspace = true

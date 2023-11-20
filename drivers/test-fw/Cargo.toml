@@ -173,3 +173,5 @@ name = "trng_driver_responder"
 path = "src/bin/trng_driver_responder.rs"
 required-features = ["riscv"]
 
+[lints]
+workspace = true

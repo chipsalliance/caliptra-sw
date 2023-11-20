@@ -13,3 +13,6 @@ quote.workspace = true
 ureg-codegen.workspace = true
 ureg-schema.workspace = true
 ureg-systemrdl.workspace = true
+
+[lints]
+workspace = true

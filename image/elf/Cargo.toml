@@ -12,3 +12,6 @@ anyhow.workspace = true
 caliptra-image-gen.workspace = true
 caliptra-image-types.workspace = true
 elf.workspace = true
+
+[lints]
+workspace = true

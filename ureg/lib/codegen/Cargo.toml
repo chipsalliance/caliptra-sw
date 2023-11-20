@@ -11,3 +11,6 @@ edition = "2021"
 ureg-schema = { path = "../schema" }
 quote = "1.0"
 proc-macro2 = "1.0.66"
+
+[lints]
+workspace = true
