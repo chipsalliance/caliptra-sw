@@ -16,4 +16,5 @@ mod test_panic_missing;
 mod test_rom_integrity;
 mod test_symbols;
 mod test_update_reset;
+mod test_warm_reset;
 mod test_wdt_activation_and_stoppage;
