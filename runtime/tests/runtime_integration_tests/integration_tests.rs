@@ -669,12 +669,10 @@ fn test_pauser_privilege_level_dpe_context_thresholds() {
     let mut handle = rotate_ctx_resp.handle;
 
     // Call DeriveChild with PL0 enough times to breach the threshold on the last iteration.
-    // Note that this loop runs exactly PL0_DPE_ACTIVE_CONTEXT_THRESHOLD - 1 times. Due to
-    // auto initialization of DPE, context[0] has a default context. When we initialize drivers,
-    // we also call derive child once without setting RETAINS_PARENT, so context[1] will be
-    // active. Thus, we can call derive child from PL0 exactly 6 times, and the last iteration
-    // of this loop, is expected to throw a threshold breached error.
-    let num_iterations = InvokeDpeCmd::PL0_DPE_ACTIVE_CONTEXT_THRESHOLD - 1;
+    // Note that this loop runs exactly PL0_DPE_ACTIVE_CONTEXT_THRESHOLD times. When we initialize
+    // DPE, we measure mailbox valid pausers in pl0_pauser's locality. Thus, we can call derive child
+    // from PL0 exactly 7 times, and the last iteration of this loop, is expected to throw a threshold breached error.
+    let num_iterations = InvokeDpeCmd::PL0_DPE_ACTIVE_CONTEXT_THRESHOLD;
     for i in 0..num_iterations {
         let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
         let derive_child_cmd = DeriveChildCmd {
