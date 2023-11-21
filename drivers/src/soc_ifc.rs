@@ -74,6 +74,23 @@ impl SocIfc {
         soc_ifc_regs.cptra_security_state().read().debug_locked()
     }
 
+    pub fn mbox_valid_pauser(&self) -> [u32; 5] {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        soc_ifc_regs.cptra_mbox_valid_pauser().read()
+    }
+
+    pub fn mbox_pauser_lock(&self) -> [bool; 5] {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        let pauser_lock = soc_ifc_regs.cptra_mbox_pauser_lock();
+        [
+            pauser_lock.at(0).read().lock(),
+            pauser_lock.at(1).read().lock(),
+            pauser_lock.at(2).read().lock(),
+            pauser_lock.at(3).read().lock(),
+            pauser_lock.at(4).read().lock(),
+        ]
+    }
+
     /// Locks or unlocks the ICCM.
     ///
     /// # Arguments
