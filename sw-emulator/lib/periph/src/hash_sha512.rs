@@ -17,6 +17,7 @@ use crate::key_vault::KeyUsage;
 use crate::KeyVault;
 use caliptra_emu_bus::{
     ActionHandle, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteRegister, Timer,
+    WriteOnlyRegister,
 };
 use caliptra_emu_crypto::EndianessTransform;
 use caliptra_emu_crypto::{Sha512, Sha512Mode};
@@ -25,6 +26,7 @@ use caliptra_emu_types::{RvData, RvSize};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 use tock_registers::registers::InMemoryRegister;
+use zerocopy::AsBytes;
 
 register_bitfields! [
     u32,
@@ -84,12 +86,24 @@ register_bitfields! [
             KV_WRITE_FAIL= 2,
         ],
     ],
+
+    /// PCR Gen Hash Control Register Fields
+    PcrHashControl[
+        START OFFSET(0) NUMBITS(1) [],
+    ],
+
+    /// PCR Gen Hash Status Register Fields
+    PcrHashStatus[
+        READY OFFSET(0) NUMBITS(1) [],
+        VALID OFFSET(1) NUMBITS(1) [],
+    ],
 ];
 
 const SHA512_BLOCK_SIZE: usize = 128;
 const SHA512_BLOCK_SIZE_WORDS: usize = 128 >> 2;
 
 const SHA512_HASH_SIZE: usize = 64;
+const SHA384_HASH_SIZE: usize = 48;
 
 /// The number of CPU clock cycles it takes to perform initialization action.
 const INIT_TICKS: u64 = 1000;
@@ -173,6 +187,22 @@ pub struct HashSha512 {
     #[register(offset = 0x0000_060c)]
     hash_write_status: ReadOnlyRegister<u32, HashWriteStatus::Register>,
 
+    /// Nonce for PCR Gen Hash Function
+    #[register_array(offset = 0x0000_0610, read_fn = read_access_fault)]
+    pcr_gen_hash_nonce: [u32; 8],
+
+    /// Control register for PCR Gen Hash Function
+    #[register(offset = 0x0000_0630, write_fn = on_write_pcr_hash_control)]
+    pcr_hash_control: WriteOnlyRegister<u32, PcrHashControl::Register>,
+
+    /// Status register for PCR Gen Hash Function
+    #[register(offset = 0x0000_0634)]
+    pcr_hash_status: ReadOnlyRegister<u32, PcrHashStatus::Register>,
+
+    /// 12 32-bit registers storing the 384-bit digest output.
+    #[register_array(offset = 0x0000_0638, write_fn = write_access_fault)]
+    pcr_hash_digest: [u32; SHA384_HASH_SIZE / 4],
+
     /// SHA512 engine
     sha512: Sha512,
 
@@ -189,6 +219,9 @@ pub struct HashSha512 {
 
     /// Hash write complete action
     op_hash_write_complete_action: Option<ActionHandle>,
+
+    /// Pcr Gen Hash complete action
+    op_pcr_gen_hash_complete_action: Option<ActionHandle>,
 
     pcr_present: bool,
 }
@@ -220,6 +253,10 @@ impl HashSha512 {
             block_read_status: ReadOnlyRegister::new(BlockReadStatus::READY::SET.value),
             hash_write_ctrl: ReadWriteRegister::new(0),
             hash_write_status: ReadOnlyRegister::new(HashWriteStatus::READY::SET.value),
+            pcr_gen_hash_nonce: Default::default(),
+            pcr_hash_control: WriteOnlyRegister::new(0),
+            pcr_hash_status: ReadOnlyRegister::new(PcrHashStatus::READY::SET.value),
+            pcr_hash_digest: Default::default(),
             block: Default::default(),
             hash: ReadOnlyMemory::new(),
             key_vault,
@@ -227,6 +264,7 @@ impl HashSha512 {
             op_complete_action: None,
             op_block_read_complete_action: None,
             op_hash_write_complete_action: None,
+            op_pcr_gen_hash_complete_action: None,
             pcr_present: false,
         }
     }
@@ -400,6 +438,53 @@ impl HashSha512 {
         Ok(())
     }
 
+    /// On Write callback for `pcr_hash_control` register
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - Size of the write
+    /// * `val` - Data to write
+    ///
+    /// # Error
+    ///
+    /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
+    pub fn on_write_pcr_hash_control(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
+        // Writes have to be Word aligned
+        if size != RvSize::Word {
+            Err(BusError::StoreAccessFault)?
+        }
+
+        // Bail out if not ready
+        if !self.pcr_hash_status.reg.is_set(PcrHashStatus::READY) {
+            return Ok(());
+        }
+
+        // Set the Pcr Gen Hash Control register
+        self.pcr_hash_control.reg.set(val);
+
+        // Clear the status bits
+        self.pcr_hash_status
+            .reg
+            .modify(PcrHashStatus::VALID::CLEAR + PcrHashStatus::READY::CLEAR);
+
+        self.op_pcr_gen_hash_complete_action = Some(self.timer.schedule_poll_in(UPDATE_TICKS));
+
+        Ok(())
+    }
+
+    fn read_access_fault(&self, _size: RvSize, _index: usize) -> Result<RvData, BusError> {
+        Err(BusError::LoadAccessFault)
+    }
+
+    fn write_access_fault(
+        &self,
+        _size: RvSize,
+        _index: usize,
+        _val: RvData,
+    ) -> Result<(), BusError> {
+        Err(BusError::StoreAccessFault)
+    }
+
     /// Called by Bus::poll() to indicate that time has passed
     fn poll(&mut self) {
         if self.timer.fired(&mut self.op_complete_action) {
@@ -408,6 +493,8 @@ impl HashSha512 {
             self.block_read_complete();
         } else if self.timer.fired(&mut self.op_hash_write_complete_action) {
             self.hash_write_complete();
+        } else if self.timer.fired(&mut self.op_pcr_gen_hash_complete_action) {
+            self.pcr_hash_op_complete();
         }
     }
 
@@ -563,6 +650,30 @@ impl HashSha512 {
                 + HashWriteStatus::VALID::SET
                 + HashWriteStatus::ERROR.val(hash_write_result),
         );
+    }
+
+    fn pcr_hash_op_complete(&mut self) {
+        const PCR_COUNT: usize = 32;
+        const PCR_SIZE: usize = 48;
+        const NONCE_SIZE: usize = 32;
+
+        self.sha512.reset(Sha512Mode::Sha384);
+
+        for pcr_id in 0..PCR_COUNT {
+            let mut pcr = self.key_vault.read_pcr(pcr_id.try_into().unwrap());
+            pcr.to_big_endian();
+            self.sha512.update_bytes(&pcr);
+        }
+        self.sha512
+            .update_bytes(&self.pcr_gen_hash_nonce.as_bytes());
+        self.sha512
+            .finalize((PCR_COUNT * PCR_SIZE + NONCE_SIZE).try_into().unwrap());
+        self.sha512
+            .copy_hash(&mut self.pcr_hash_digest.as_bytes_mut());
+
+        self.pcr_hash_status
+            .reg
+            .modify(PcrHashStatus::READY::SET + PcrHashStatus::VALID::SET);
     }
 
     pub fn hash(&self) -> &[u8] {
