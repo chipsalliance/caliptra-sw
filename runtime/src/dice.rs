@@ -18,11 +18,7 @@ pub struct GetLdevCertCmd;
 impl GetLdevCertCmd {
     #[cfg(feature = "test_only_commands")]
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
-        let mut resp = GetLdevCertResp {
-            hdr: MailboxRespHeader::default(),
-            data_size: 0,
-            data: [0u8; GetLdevCertResp::DATA_MAX_SIZE],
-        };
+        let mut resp = GetLdevCertResp::default();
 
         resp.data_size = copy_ldevid_cert(
             &drivers.data_vault,
@@ -38,11 +34,7 @@ pub struct TestGetFmcAliasCertCmd;
 impl TestGetFmcAliasCertCmd {
     #[cfg(feature = "test_only_commands")]
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
-        let mut resp = TestGetFmcAliasCertResp {
-            hdr: MailboxRespHeader::default(),
-            data_size: 0,
-            data: [0u8; TestGetFmcAliasCertResp::DATA_MAX_SIZE],
-        };
+        let mut resp = TestGetFmcAliasCertResp::default();
 
         resp.data_size = copy_fmc_alias_cert(
             &drivers.data_vault,

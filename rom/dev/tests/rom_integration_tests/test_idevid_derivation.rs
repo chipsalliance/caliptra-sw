@@ -9,7 +9,6 @@ use openssl::pkey::{PKey, Public};
 use openssl::x509::X509;
 use openssl::{rand::rand_bytes, x509::X509Req};
 use zerocopy::AsBytes;
-use zerocopy::FromBytes;
 
 use crate::helpers;
 
@@ -133,12 +132,14 @@ fn verify_key(
     };
 
     // Execute the command
-    let cert_resp = hw
+    let resp = hw
         .mailbox_execute(cmd_id, payload.as_bytes())
         .unwrap()
         .unwrap();
 
-    let cert_resp = GetLdevCertResp::read_from(cert_resp.as_bytes()).unwrap();
+    assert!(resp.len() <= std::mem::size_of::<GetLdevCertResp>());
+    let mut cert_resp = GetLdevCertResp::default();
+    cert_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
 
     // Extract the certificate from the response
     let cert_der = &cert_resp.data[..(cert_resp.data_size as usize)];
