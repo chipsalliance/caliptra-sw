@@ -65,6 +65,17 @@ where
     /// least this much data should pad the missing data with zeroes. If they
     /// receive fewer bytes than MIN_SIZE, they should error.
     const MIN_SIZE: usize = core::mem::size_of::<Self>();
+
+    fn populate_chksum(&mut self) {
+        // Note: This will panic if sizeof::<Self>() < 4
+        populate_checksum(self.as_bytes_mut());
+    }
+}
+
+fn populate_checksum(msg: &mut [u8]) {
+    let (checksum_bytes, payload_bytes) = msg.split_at_mut(size_of::<u32>());
+    let checksum = crate::checksum::calc_checksum(0, payload_bytes);
+    checksum_bytes.copy_from_slice(&checksum.to_le_bytes());
 }
 
 // Contains all the possible mailbox response structs
@@ -551,4 +562,49 @@ pub struct PopulateIdevCertReq {
 }
 impl PopulateIdevCertReq {
     pub const MAX_CERT_SIZE: usize = 1024;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_populate_checksum_resp_header() {
+        let mut hdr = MailboxRespHeader {
+            fips_status: 0x4242,
+            ..Default::default()
+        };
+        hdr.populate_chksum();
+        assert_eq!(
+            hdr,
+            MailboxRespHeader {
+                chksum: 0u32.wrapping_sub(0x84),
+                fips_status: 0x4242,
+            }
+        )
+    }
+    #[test]
+    fn test_populate_checksum_capabilities() {
+        let mut msg = CapabilitiesResp {
+            hdr: Default::default(),
+            capabilities: [
+                0x42, 0x23, 0x43, 0x81, 0x45, 0x6c, 0x55, 0x75, 0x3d, 0x81, 0xd4, 0xcc, 0x3c, 0x28,
+                0x29, 0xc9,
+            ],
+        };
+        msg.populate_chksum();
+        assert_eq!(
+            msg,
+            CapabilitiesResp {
+                hdr: MailboxRespHeader {
+                    chksum: 0xfffff9a8,
+                    fips_status: 0
+                },
+                capabilities: [
+                    0x42, 0x23, 0x43, 0x81, 0x45, 0x6c, 0x55, 0x75, 0x3d, 0x81, 0xd4, 0xcc, 0x3c,
+                    0x28, 0x29, 0xc9
+                ],
+            }
+        );
+    }
 }
