@@ -23,9 +23,9 @@ const SHA256_MAX_DATA_SIZE: usize = 1024 * 1024;
 
 pub trait Sha256DigestOp<'a> {
     fn update(&mut self, data: &[u8]) -> CaliptraResult<()>;
-    fn update_wntz(&mut self, data: &[u8]) -> CaliptraResult<()>;
+    fn update_wntz(&mut self, data: &[u8], w_value: u8, n_mode: bool) -> CaliptraResult<()>;
     fn finalize(self, digest: &mut Array4x8) -> CaliptraResult<()>;
-    fn finalize_wntz(self, digest: &mut Array4x8) -> CaliptraResult<()>;
+    fn finalize_wntz(self, digest: &mut Array4x8, w_value: u8, n_mode: bool) -> CaliptraResult<()>;
 }
 
 pub trait Sha256Alg {
@@ -233,6 +233,8 @@ impl Sha256 {
         slice: &[u8],
         first: bool,
         buf_size: usize,
+        w_value: u8, 
+        n_mode: bool,
     ) -> CaliptraResult<()> {
         /// Set block length
         fn set_block_len(buf_size: usize, block: &mut [u8; SHA256_BLOCK_BYTE_SIZE]) {
@@ -255,13 +257,13 @@ impl Sha256 {
         }
 
         // Calculate the digest of the op
-        self.digest_wntz_block(&block, first)?;
+        self.digest_wntz_block(&block, first, w_value, n_mode)?;
 
         // Add a padding block if one is needed
         if slice.len() >= SHA256_BLOCK_LEN_OFFSET {
             block.fill(0);
             set_block_len(buf_size, &mut block);
-            self.digest_wntz_block(&block, false)?;
+            self.digest_wntz_block(&block, false, w_value, n_mode)?;
         }
 
         Ok(())
@@ -292,11 +294,13 @@ impl Sha256 {
     fn digest_wntz_block(
         &mut self,
         block: &[u8; SHA256_BLOCK_BYTE_SIZE],
-        first: bool,
+        first: bool,        
+        w_value: u8, 
+        n_mode: bool,
     ) -> CaliptraResult<()> {
         let sha256 = self.sha256.regs_mut();
         Array4x16::from(block).write_to_reg(sha256.block());
-        self.digest_wntz_op(first)
+        self.digest_wntz_op(first, w_value, n_mode)
     }
 
     // Perform the digest operation in the hardware
@@ -312,10 +316,10 @@ impl Sha256 {
 
         if first {
             // Submit the first block
-            sha256.ctrl().write(|w| w.wntz(false).mode(true).init(true).next(false));
+            sha256.ctrl().write(|w| w.wntz_mode(false).mode(true).init(true).next(false));
         } else {
             // Submit next block in existing hashing chain
-            sha256.ctrl().write(|w| w.wntz(false).mode(true).init(false).next(true));
+            sha256.ctrl().write(|w| w.wntz_mode(false).mode(true).init(false).next(true));
         }
 
         // Wait for the digest operation to finish
@@ -329,7 +333,7 @@ impl Sha256 {
     // # Arguments
     //
     /// * `first` - Flag indicating if this is the first block
-    fn digest_wntz_op(&mut self, first: bool) -> CaliptraResult<()> {
+    fn digest_wntz_op(&mut self, first: bool, w_value: u8, n_mode: bool) -> CaliptraResult<()> {
         let sha256 = self.sha256.regs_mut();
 
         // Wait for the hardware to be ready
@@ -337,10 +341,10 @@ impl Sha256 {
 
         if first {
             // Submit the first block
-            sha256.ctrl().write(|w| w.wntz(true).mode(true).init(true).next(false));
+            sha256.ctrl().write(|w| w.wntz_n_mode(n_mode).wntz_w(w_value).wntz_mode(true).mode(true).init(true).next(false));
         } else {
             // Submit next block in existing hashing chain
-            sha256.ctrl().write(|w| w.wntz(false).mode(true).init(false).next(true));
+            sha256.ctrl().write(|w| w.wntz_mode(false).mode(true).init(false).next(true));
         }
 
         // Wait for the digest operation to finish
@@ -424,7 +428,7 @@ impl<'a> Sha256DigestOp<'a> for Sha256DigestOpHw<'a> {
     /// # Arguments
     ///
     /// * `data` - Data to used to update the digest
-    fn update_wntz(&mut self, data: &[u8]) -> CaliptraResult<()> {
+    fn update_wntz(&mut self, data: &[u8], w_value: u8, n_mode: bool) -> CaliptraResult<()> {
         if self.state == Sha256DigestState::Final {
             return Err(CaliptraError::DRIVER_SHA256_INVALID_STATE);
         }
@@ -448,7 +452,7 @@ impl<'a> Sha256DigestOp<'a> for Sha256DigestOpHw<'a> {
 
             // If the buffer is full calculate the digest of accumulated data
             if self.buf_idx == self.buf.len() {
-                self.sha.digest_wntz_block(&self.buf, self.is_first())?;
+                self.sha.digest_wntz_block(&self.buf, self.is_first(), w_value, n_mode)?;
                 self.reset_buf_state();
             }
         }
@@ -481,7 +485,7 @@ impl<'a> Sha256DigestOp<'a> for Sha256DigestOpHw<'a> {
     }
 
     /// Finalize the digest operations
-    fn finalize_wntz(mut self, digest: &mut Array4x8) -> CaliptraResult<()> {
+    fn finalize_wntz(mut self, digest: &mut Array4x8, w_value: u8, n_mode: bool) -> CaliptraResult<()> {
         if self.state == Sha256DigestState::Final {
             return Err(CaliptraError::DRIVER_SHA256_INVALID_STATE);
         }
@@ -493,7 +497,7 @@ impl<'a> Sha256DigestOp<'a> for Sha256DigestOpHw<'a> {
         // Calculate the digest of the final block
         let buf = &self.buf[..self.buf_idx];
         self.sha
-            .digest_wntz_partial_block(buf, self.is_first(), self.data_size)?;
+            .digest_wntz_partial_block(buf, self.is_first(), self.data_size, w_value, n_mode)?;
 
         // Set the state of the operation to final
         self.state = Sha256DigestState::Final;

@@ -310,6 +310,8 @@ impl Lms {
         y: &[[U32<LittleEndian>; N]; P],
         message_digest: &HashValue<N>,
     ) -> CaliptraResult<HashValue<N>> {
+        const WNTZ_MODE_SHA256: u8 = 32;
+
         let params = get_lmots_parameters(algo_type)?;
         if params.p as usize != P {
             return Err(CaliptraError::DRIVER_LMS_INVALID_PVALUE);
@@ -356,8 +358,13 @@ impl Lms {
                 hash_block[i..i + 4].clone_from_slice(&val.to_be_bytes());
                 i += 4;
             }
-            hasher.update_wntz(&hash_block[0..23 + N * 4])?;
-            hasher.finalize_wntz(&mut digest)?;
+            //set n_mode: 1 for n=32, and 0 for n=24
+            let mut n_mode: bool = false;
+            if params.n == WNTZ_MODE_SHA256 {
+                n_mode = true;
+            }
+            hasher.update_wntz(&hash_block[0..23 + N * 4], params.w, n_mode)?;
+            hasher.finalize_wntz(&mut digest, params.w, n_mode)?;
             tmp = HashValue::<N>::from(digest);
             // }
             *val = tmp;
