@@ -7,8 +7,8 @@ use caliptra_builder::{
 };
 use caliptra_common::mailbox_api::{
     CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, GetIdevCertReq, GetIdevCertResp,
-    GetIdevInfoResp, InvokeDpeReq, InvokeDpeResp, MailboxReq, MailboxReqHeader, MailboxRespHeader,
-    PopulateIdevCertReq, StashMeasurementReq, StashMeasurementResp,
+    GetIdevInfoResp, InvokeDpeReq, InvokeDpeResp, MailboxReqHeader, MailboxRespHeader,
+    PopulateIdevCertReq, StashMeasurementReq,
 };
 use caliptra_drivers::{CaliptraError, Ecc384PubKey};
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError, ShaAccMode};
@@ -319,26 +319,16 @@ fn test_stash_measurement() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq {
+    let req = StashMeasurementReq {
         hdr: MailboxReqHeader { chksum: 0 },
         metadata: [0u8; 4],
         measurement: [0u8; 48],
         context: [0u8; 48],
         svn: 0,
-    });
-    cmd.populate_chksum().unwrap();
+    };
 
-    let resp = model
-        .mailbox_execute(u32::from(CommandId::STASH_MEASUREMENT), cmd.as_bytes())
-        .unwrap()
-        .expect("We should have received a response");
-
-    let resp_hdr: &StashMeasurementResp =
-        LayoutVerified::<&[u8], StashMeasurementResp>::new(resp.as_bytes())
-            .unwrap()
-            .into_ref();
-
-    assert_eq!(resp_hdr.dpe_result, 0);
+    let resp = model.mailbox_execute_req(req).unwrap();
+    assert_eq!(resp.dpe_result, 0);
 }
 
 #[test]
@@ -391,22 +381,19 @@ fn test_invoke_dpe_get_profile_cmd() {
     assert_eq!(profile.flags, DPE_SUPPORT.bits());
 
     // Test with data_size too big.
-    let mut cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
+    let req = InvokeDpeReq {
         data_size: InvokeDpeReq::DATA_MAX_SIZE as u32 + 1,
         ..cmd
-    });
-    cmd.populate_chksum().unwrap();
+    };
 
     // Make sure the command execution fails.
-    let resp = model
-        .mailbox_execute(u32::from(CommandId::INVOKE_DPE), cmd.as_bytes())
-        .unwrap_err();
-    if let ModelError::MailboxCmdFailed(code) = resp {
-        assert_eq!(
-            code,
-            u32::from(caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)
-        );
-    }
+    let resp = model.mailbox_execute_req(req);
+    assert_eq!(
+        resp,
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS.into()
+        ))
+    );
     assert_eq!(
         model.soc_ifc().cptra_fw_error_non_fatal().read(),
         u32::from(caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)
@@ -431,30 +418,14 @@ fn test_invoke_dpe_get_certificate_chain_cmd() {
     data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
     let dpe_cmd_buf = get_cert_chain_cmd.as_bytes();
     data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
-    let mut cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
+    let req = InvokeDpeReq {
         hdr: MailboxReqHeader { chksum: 0 },
         data,
         data_size: (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32,
-    });
-    cmd.populate_chksum().unwrap();
-
-    let resp = model
-        .mailbox_execute(u32::from(CommandId::INVOKE_DPE), cmd.as_bytes())
-        .unwrap()
-        .expect("We should have received a response");
-
-    assert!(resp.len() <= std::mem::size_of::<InvokeDpeResp>());
-    let mut resp_hdr = InvokeDpeResp::default();
-    resp_hdr.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
-
-    assert!(caliptra_common::checksum::verify_checksum(
-        resp_hdr.hdr.chksum,
-        0x0,
-        &resp[core::mem::size_of_val(&resp_hdr.hdr.chksum)..],
-    ));
-
+    };
+    let resp = model.mailbox_execute_req(req).unwrap();
     let cert_chain =
-        GetCertificateChainResp::read_from(&resp_hdr.data[..resp_hdr.data_size as usize]).unwrap();
+        GetCertificateChainResp::read_from(&resp.data[..resp.data_size as usize]).unwrap();
     assert_eq!(cert_chain.certificate_size, 2048);
     assert_ne!([0u8; 2048], cert_chain.certificate_chain);
 }
@@ -471,21 +442,12 @@ fn get_full_cert_chain(model: &mut DefaultHwModel, out: &mut [u8; 4096]) -> usiz
     data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
     let dpe_cmd_buf = get_cert_chain_cmd.as_bytes();
     data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
-    let mut cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
+    let req = InvokeDpeReq {
         hdr: MailboxReqHeader { chksum: 0 },
         data,
         data_size: (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32,
-    });
-    cmd.populate_chksum().unwrap();
-
-    let resp = model
-        .mailbox_execute(u32::from(CommandId::INVOKE_DPE), cmd.as_bytes())
-        .unwrap()
-        .expect("We should have received a response");
-
-    let mut resp_hdr = InvokeDpeResp::default();
-    resp_hdr.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
-
+    };
+    let resp_hdr = model.mailbox_execute_req(req).unwrap();
     let cert_chunk_1 =
         GetCertificateChainResp::read_from(&resp_hdr.data[..resp_hdr.data_size as usize]).unwrap();
     out[..cert_chunk_1.certificate_size as usize]
@@ -502,20 +464,12 @@ fn get_full_cert_chain(model: &mut DefaultHwModel, out: &mut [u8; 4096]) -> usiz
     data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
     let dpe_cmd_buf = get_cert_chain_cmd.as_bytes();
     data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
-    let mut cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
+    let req = InvokeDpeReq {
         hdr: MailboxReqHeader { chksum: 0 },
         data,
         data_size: (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32,
-    });
-    cmd.populate_chksum().unwrap();
-
-    let resp = model
-        .mailbox_execute(u32::from(CommandId::INVOKE_DPE), cmd.as_bytes())
-        .unwrap()
-        .expect("We should have received a response");
-
-    let mut resp_hdr = InvokeDpeResp::default();
-    resp_hdr.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
+    };
+    let resp_hdr = model.mailbox_execute_req(req).unwrap();
 
     let cert_chunk_2 =
         GetCertificateChainResp::read_from(&resp_hdr.data[..resp_hdr.data_size as usize]).unwrap();
