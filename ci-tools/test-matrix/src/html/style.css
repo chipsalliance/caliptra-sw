@@ -1,0 +1,66 @@
+body {
+    font-family: "Segoe UI","Noto Sans",sans-serif;
+    font-size: var(--body-font-size, 14px);
+}
+#content {
+    display: flex;
+    flex-direction: row;
+}
+#root-menu ul {
+    list-style: none outside none;
+    padding: 0;
+    margin: 0;
+    margin-right: 10px;
+    white-space: nowrap;
+}
+
+#root-menu li + li {
+    margin-top: 4px;
+}
+    
+table.caliptra-test-matrix td {
+    padding: 3px 3px 3px 4px;
+}
+
+table.caliptra-test-matrix th {
+    background-color: black;
+    color: white;
+    font-weight: bold;
+    position: sticky;
+    top: 0;
+}
+table.caliptra-test-matrix tr.suite {
+    background-color: #d0d0d0;
+    font-weight: bold;
+}
+table.caliptra-test-matrix tr.test-case td:first-child {
+    padding-left: 1.5em;
+    background-color: #f0f0f0;
+}
+table.caliptra-test-matrix td.passed {
+    cursor: pointer;
+    background-color: #6f6;
+}
+table.caliptra-test-matrix td.failed {
+    cursor: pointer;
+    background-color: #f66;
+}
+table.caliptra-test-matrix td.ignored {
+    background-color: #e0e0ff;
+}
+table.caliptra-test-matrix td.na {
+    background-color: #e0e0e0;
+}
+table.caliptra-test-matrix td.selected {
+    border: solid black 1px;
+}
+
+pre {
+    background-color: #ffffff;
+    border: solid black 2px;
+    overflow: scroll;
+    box-shadow: 0px 2px 12px rgba(0, 0, 0, 0.7);
+    font-family: ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    font-size: 12px;
+    line-height: 20px;
+}
