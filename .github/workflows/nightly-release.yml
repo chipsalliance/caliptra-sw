@@ -60,15 +60,29 @@ jobs:
           echo "release_ref=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "Current ref $(git rev-parse HEAD) will receive tag ${TAG_BASE}${INDEX} after tests"
 
-  fpga-full-suite:
-    name: FPGA Suite
+  fpga-full-suite-etrng-log:
+    name: FPGA Suite (etrng, log)
     needs: find-latest-release
     if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-etrng-log
+      extra-features: slow_tests
+      rom-logging: true
+
+  fpga-full-suite-etrng-nolog:
+    name: FPGA Suite (etrng, nolog)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-etrng-nolog
+      extra-features: slow_tests
+      rom-logging: false
 
   create-release:
     name: Create New Release
-    needs: [find-latest-release, fpga-full-suite]
+    needs: [find-latest-release, fpga-full-suite-etrng-log, fpga-full-suite-etrng-nolog]
     runs-on: ubuntu-22.04
 
     steps:

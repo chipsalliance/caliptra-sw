@@ -6,6 +6,17 @@ on:
     branches: ["main"]
   pull_request:
   workflow_call:
+    inputs:
+      artifact-suffix:
+        type: string
+        required: false
+      extra-features:
+        default:
+        type: string
+      rom-logging:
+        default: true
+        type: boolean
+
   workflow_dispatch:
 
 
@@ -56,7 +67,7 @@ jobs:
         if: steps.restore_rtl_cache.outputs.cache-hit
         uses: actions/upload-artifact@v3
         with:
-          name: caliptra-fpga-bitstream
+          name: caliptra-fpga-bitstream${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-fpga-bitstream/caliptra_fpga.bin
           retention-days: 7
 
@@ -64,12 +75,9 @@ jobs:
         if: steps.restore_kmod_cache.outputs.cache-hit
         uses: actions/upload-artifact@v3
         with:
-          name: caliptra-fpga-kmod
+          name: caliptra-fpga-kmod${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-fpga-kmod/
           retention-days: 1
-
-
-
 
   build_test_binaries:
     runs-on: [e2-standard-32]
@@ -136,7 +144,7 @@ jobs:
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$FARGO_SYSROOT"
           cargo nextest archive \
-            --features=fpga_realtime \
+            --features=fpga_realtime,${{ inputs.extra-features }} \
             --release \
             --target=aarch64-unknown-linux-gnu \
             --archive-file=/tmp/caliptra-test-binaries.tar.zst
@@ -148,7 +156,7 @@ jobs:
       - name: 'Upload test binaries artifact'
         uses: actions/upload-artifact@v3
         with:
-          name: caliptra-test-binaries
+          name: caliptra-test-binaries${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-binaries.sqsh
           retention-days: 1
 
@@ -160,7 +168,7 @@ jobs:
       - name: 'Upload test firmware artifact'
         uses: actions/upload-artifact@v3
         with:
-          name: caliptra-test-firmware
+          name: caliptra-test-firmware${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-firmware
           retention-days: 1
 
@@ -223,7 +231,7 @@ jobs:
       - name: 'Upload kernel module artifacts'
         uses: actions/upload-artifact@v3
         with:
-          name: caliptra-fpga-kmod
+          name: caliptra-fpga-kmod${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-fpga-kmod/
           retention-days: 1
 
@@ -258,7 +266,7 @@ jobs:
       - name: 'Upload FPGA bitstream artifact'
         uses: actions/upload-artifact@v3
         with:
-          name: caliptra-fpga-bitstream
+          name: caliptra-fpga-bitstream${{ inputs.artifact-suffix }}
           path: hw-latest/fpga/caliptra_build/caliptra_fpga.bin
 
   cache_fpga_bitstream_artifact:
@@ -274,7 +282,7 @@ jobs:
       - name: 'Download FPGA Bitstream Artifact'
         uses: actions/download-artifact@v3
         with:
-          name: caliptra-fpga-bitstream
+          name: caliptra-fpga-bitstream${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-fpga-bitstream
 
       - name: Save FPGA bitstream to cache
@@ -304,25 +312,25 @@ jobs:
       - name: 'Download FPGA Bitstream Artifact'
         uses: actions/download-artifact@v3
         with:
-          name: caliptra-fpga-bitstream
+          name: caliptra-fpga-bitstream${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-fpga-bitstream
 
       - name: 'Download kernel driver artifacts'
         uses: actions/download-artifact@v3
         with:
-          name: caliptra-fpga-kmod
+          name: caliptra-fpga-kmod${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-fpga-kmod/
 
       - name: 'Download Test Binaries Artifact'
         uses: actions/download-artifact@v3
         with:
-          name: caliptra-test-binaries
+          name: caliptra-test-binaries${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-binaries.sqsh
 
       - name: 'Download Test Firmware Artifact'
         uses: actions/download-artifact@v3
         with:
-          name: caliptra-test-firmware
+          name: caliptra-test-firmware${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-firmware
 
       - name: Mount binaries
@@ -372,6 +380,16 @@ jobs:
           TEST_BIN=/tmp/caliptra-test-binaries
           VARS="CPTRA_UIO_NUM=4 CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware CALIPTRA_IMAGE_NO_GIT_REVISION=1"
 
+          if [ "${{ inputs.rom-logging }}" == "true" ] || [ -z "${{ inputs.rom-logging }}" ]; then
+            VARS+=" CPTRA_ROM_TYPE=ROM_WITH_UART"
+          elif [ "${{ inputs.rom-logging }}" == false ]; then
+            VARS+=" CPTRA_ROM_TYPE=ROM_WITHOUT_UART"
+          else
+            echo "Unexpected inputs.rom-logging: ${{ inputs.rom-logging }}"
+            exit 1
+          fi
+          echo CPTRA_ROM_TYPE=${CPTRA_ROM_TYPE}
+
           COMMON_ARGS=(
               --cargo-metadata="${TEST_BIN}/target/nextest/cargo-metadata.json"
               --binaries-metadata="${TEST_BIN}/target/nextest/binaries-metadata.json"
@@ -396,8 +414,9 @@ jobs:
 
       - name: 'Upload test results'
         uses: actions/upload-artifact@v3
+        if: success() || failure()
         with:
-          name: caliptra-test-results
+          name: caliptra-test-results${{ inputs.artifact-suffix }}
           path: |
             /tmp/junit.xml
             /tmp/nextest-list.json
