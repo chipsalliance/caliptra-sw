@@ -34,12 +34,10 @@ pub use invoke_dpe::InvokeDpeCmd;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::EcdsaVerifyCmd;
 pub mod packet;
-use caliptra_common::mailbox_api::CommandId;
+use caliptra_common::mailbox_api::{CommandId, MailboxResp};
 use packet::Packet;
 
 use caliptra_common::cprintln;
-#[cfg(feature = "fips_self_test")]
-use caliptra_common::mailbox_api::MailboxResp;
 
 use caliptra_drivers::{CaliptraError, CaliptraResult, ResetReason};
 use caliptra_registers::mbox::enums::MboxStatusE;
@@ -146,7 +144,9 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT => TestGetFmcAliasCertCmd::execute(drivers),
         #[cfg(feature = "test_only_commands")]
         CommandId::TEST_ONLY_HMAC384_VERIFY => HmacVerifyCmd::execute(drivers, cmd_bytes),
-        CommandId::VERSION => FipsVersionCmd::execute(&drivers.soc_ifc),
+        CommandId::VERSION => {
+            FipsVersionCmd::execute(&drivers.soc_ifc).map(MailboxResp::FipsVersion)
+        }
         #[cfg(feature = "fips_self_test")]
         CommandId::SELF_TEST_START => match drivers.self_test_status {
             SelfTestStatus::Idle => {
