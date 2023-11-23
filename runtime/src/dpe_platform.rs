@@ -83,7 +83,7 @@ impl Platform for DpePlatform<'_> {
         // Caliptra RDN SerialNumber field is always a Sha256 hash
         let mut serial = [0u8; 64];
         Digest::write_hex_str(&self.hashed_rt_pub_key, &mut serial)
-            .map_err(|_| PlatformError::IssuerNameError)?;
+            .map_err(|e| PlatformError::IssuerNameError(e.get_error_detail().unwrap_or(0)))?;
 
         let name = Name {
             cn: DirectoryString::Utf8String(CALIPTRA_CN),
@@ -91,7 +91,7 @@ impl Platform for DpePlatform<'_> {
         };
         let issuer_len = issuer_writer
             .encode_rdn(&name)
-            .map_err(|_| PlatformError::IssuerNameError)?;
+            .map_err(|e| PlatformError::IssuerNameError(e.get_error_detail().unwrap_or(0)))?;
 
         Ok(issuer_len)
     }

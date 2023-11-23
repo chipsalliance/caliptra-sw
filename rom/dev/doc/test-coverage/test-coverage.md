@@ -114,10 +114,21 @@ Tests update reset flow by providing a different vendor LMS public key index in 
 Check value in WarmResetEntry4::RomUpdateResetStatus datavault register | **test_check_rom_update_reset_status_reg**   | N/A
 <br><br>
 
+# **Warm Reset Tests**
+Test Scenario| Test Name | ROM Error Code
+---|---|---
+Tests successful Warm Reset flow  | **test_warm_reset_success** | N/A
+Tests Warm Reset flow during cold boot, before image validation | **test_warm_reset_during_cold_boot_before_image_validation** | ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_COLD_RESET
+Tests Warm Reset flow during cold boot, during image validation | **test_warm_reset_during_cold_boot_during_image_validation** | ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_COLD_RESET
+Tests Warm Reset flow during cold boot, after image validation | **test_warm_reset_during_cold_boot_after_image_validation** | ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_COLD_RESET
+Tests Warm Reset flow during update reset | **test_warm_reset_during_update_resetn** | ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_UPDATE_RESET
+<br><br>
+
 # **General Integration Tests**
 Test Scenario| Test Name | ROM Error Code
 ---|---|---
 Check for any RUST panics added to the code | **test_panic_missing** | N/A
+Checks that extended error info is populated correctly upon watchdog timer timeout | **test_rom_wdt_timeout** | ROM_GLOBAL_WDT_EXPIRED
 
 
 # **Test Gaps**
@@ -126,7 +137,6 @@ Test Scenario| Test Name | ROM Error Code
 Expand `smoke_test` to perform a hitless update and confirm everything is mixed into the identity correctly. | N/A | N/A
 Validate fix for #817: warm reset during hitless update | N/A | N/A
 Validate fix for #628: warm reset during cold reset | N/A | N/A
-Add test for watchdog failure, and that extended error info is populated correctly | N/A | N/A
 Add test for CPU fault, and that extended error info is populated correctly | N/A | N/A
 Stress test: Perform many hitless updates in a row | N/A | N/A
 Ensure that boot ROM can load a 128k bundle into ICCM (assert ICCM contents in test) | N/A | N/A

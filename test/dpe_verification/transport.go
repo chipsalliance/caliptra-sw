@@ -193,7 +193,6 @@ func (s *CptraModel) GetSupport() *verification.Support {
 		Simulation:    true,
 		ExtendTci:     true,
 		AutoInit:      true,
-		Tagging:       true,
 		RotateContext: true,
 		X509:          true,
 		Csr:           true,
@@ -207,6 +206,11 @@ func (s *CptraModel) GetSupport() *verification.Support {
 func (s *CptraModel) GetSupportedLocalities() []uint32 {
 	// TODO: Make this configurable, since it will be SoC specific
 	return []uint32{0, 1}
+}
+
+func (s *CptraModel) HasLocalityControl() bool {
+	// TODO: Hook this up to HwModel
+	return false
 }
 
 func (s *CptraModel) SetLocality(locality uint32) {
@@ -236,4 +240,13 @@ func (s *CptraModel) GetProfileVendorId() uint32 {
 
 func (s *CptraModel) GetProfileVendorSku() uint32 {
 	return binary.BigEndian.Uint32([]byte{'C', 'T', 'R', 'A'})
+}
+
+func (s *CptraModel) GetIsInitialized() bool {
+	// Always auto initialized
+	return true
+}
+
+func (s *CptraModel) SetIsInitialized(isInitialized bool) {
+	// no-op. Always initialized
 }

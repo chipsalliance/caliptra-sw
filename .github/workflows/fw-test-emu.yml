@@ -1,0 +1,91 @@
+
+name: Build and Test Firmware (in emulator)
+
+on:
+  workflow_call:
+    inputs:
+      artifact-suffix:
+        type: string
+        required: false
+      extra-features:
+        default:
+        type: string
+      rom-logging:
+        default: true
+        type: boolean
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-22.04
+
+    env:
+      NEXTEST_VERSION: 0.9.63
+      CACHE_BUSTER: f7c64774f17c
+
+    steps:
+      - name: Restore cargo-nextest binary
+        uses: actions/cache/restore@v3
+        id: nextest_bin_restore
+        with:
+          path: ~/.cargo/bin/cargo-nextest
+          key: nextest-bin-${{ env.NEXTEST_VERSION}}-${{ env.CACHE_BUSTER }}
+
+      - name: Install cargo-nextest
+        if: steps.nextest_bin_restore.outputs.cache-hit != 'true'
+        run: |
+          cargo install cargo-nextest --version ${NEXTEST_VERSION} --locked --no-default-features --features=default-no-update
+
+      - name: Save cargo-nextest binary
+        uses: actions/cache/save@v3
+        if: steps.nextest_bin_restore.outputs.cache-hit != 'true'
+        with:
+          path: ~/.cargo/bin/cargo-nextest
+          key: ${{ steps.nextest_bin_restore.outputs.cache-primary-key }}
+
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Pull dpe submodule
+        run: |
+          git submodule update --init dpe
+
+      - name: Build firmware
+        run: |
+          mkdir /tmp/caliptra-test-firmware
+          cargo run -p caliptra-builder -- --all_elfs /tmp/caliptra-test-firmware
+
+      - name: Run tests
+        run: |
+          export CALIPTRA_PREBUILT_FW_DIR=/tmp/caliptra-test-firmware
+
+          if [ "${{ inputs.rom-logging }}" == "true" ] || [ -z "${{ inputs.rom-logging }}" ]; then
+            export CPTRA_ROM_TYPE=ROM_WITH_UART
+          elif [ "${{ inputs.rom-logging }}" == false ]; then
+            export CPTRA_ROM_TYPE=ROM_WITHOUT_UART
+          else
+            echo "Unexpected inputs.rom-logging: ${{ inputs.rom-logging }}"
+            exit 1
+          fi
+
+          # Workaround https://github.com/nextest-rs/nextest/issues/267
+          export LD_LIBRARY_PATH=$(rustc --print sysroot)/lib
+
+          cargo-nextest nextest list \
+            --features="${{ inputs.extra-features }}" \
+            --message-format json \
+            > /tmp/nextest-list.json
+
+          cargo-nextest nextest run \
+            --features="${{ inputs.extra-features }}" \
+            --no-fail-fast \
+            --profile=nightly
+
+      - name: 'Upload test results'
+        uses: actions/upload-artifact@v3
+        if: success() || failure()
+        with:
+          name: caliptra-test-results${{ inputs.artifact-suffix }}
+          path: |
+            /tmp/junit.xml
+            /tmp/nextest-list.json
+
