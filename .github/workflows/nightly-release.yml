@@ -25,6 +25,7 @@ jobs:
         
   rtl-repo-sync:
     name: RTL Repo Sync
+    needs: slow-tests
     uses: ./.github/workflows/rtl-repo-sync.yml
 
   find-latest-release:
