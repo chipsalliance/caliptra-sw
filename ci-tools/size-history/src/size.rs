@@ -1,3 +1,5 @@
+// Licensed under the Apache-2.0 license.
+
 use crate::git;
 use caliptra_builder::{elf_size, firmware, FwId};
 use serde::{Deserialize, Serialize};
