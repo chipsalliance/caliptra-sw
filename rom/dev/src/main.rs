@@ -16,13 +16,15 @@ Abstract:
 #![cfg_attr(feature = "fake-rom", allow(unused_imports))]
 
 use crate::{lock::lock_registers, print::HexBytes};
-use caliptra_cfi_lib::CfiCounter;
+use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
+use caliptra_common::RomBootStatus;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use core::hint::black_box;
 
 use caliptra_drivers::{
-    cprintln, report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError, Ecc384, Hmac384,
-    KeyVault, Mailbox, ResetReason, Sha256, Sha384, Sha384Acc, ShaAccLockState, SocIfc,
+    cprintln, report_boot_status, report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError,
+    Ecc384, Hmac384, KeyVault, Mailbox, ResetReason, Sha256, Sha384, Sha384Acc, ShaAccLockState,
+    SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_image_types::RomInfo;
@@ -69,10 +71,18 @@ pub extern "C" fn rom_entry() -> ! {
 
     if !cfg!(feature = "no-cfi") {
         cprintln!("[state] CFI Enabled");
-        CfiCounter::reset(&mut env.trng);
+        let mut entropy_gen = || env.trng.generate().map(|a| a.0);
+        CfiCounter::reset(&mut entropy_gen);
+        CfiCounter::reset(&mut entropy_gen);
+        CfiCounter::reset(&mut entropy_gen);
     } else {
         cprintln!("[state] CFI Disabled");
     }
+
+    // Check if TRNG is correctly sourced as per hw config.
+    validate_trng_config(&mut env);
+
+    report_boot_status(RomBootStatus::CfiInitialized.into());
 
     let _lifecyle = match env.soc_ifc.lifecycle() {
         caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",
@@ -157,9 +167,6 @@ pub extern "C" fn rom_entry() -> ! {
             handle_fatal_error(err.into());
         }
     }
-
-    // Stop the watchdog timer.
-    wdt::stop_wdt(&mut env.soc_ifc);
 
     // Lock the datavault registers.
     lock_registers(&mut env, reset_reason);
@@ -302,7 +309,7 @@ fn handle_non_fatal_error(code: u32) {
 
 #[no_mangle]
 extern "C" fn cfi_panic_handler(code: u32) -> ! {
-    cprintln!("CFI Panic code=0x{:08X}", code);
+    cprintln!("[ROM] CFI Panic code=0x{:08X}", code);
 
     handle_fatal_error(code);
 }
@@ -356,4 +363,40 @@ fn panic_is_possible() {
     black_box(());
     // The existence of this symbol is used to inform test_panic_missing
     // that panics are possible. Do not remove or rename this symbol.
+}
+
+#[inline(always)]
+fn validate_trng_config(env: &mut RomEnv) {
+    // NOTE: The usage of non-short-circuiting boolean operations (| and &) is
+    // explicit here, and necessary to prevent the compiler from inserting a ton
+    // of glitch-susceptible jumps into the generated code.
+
+    cfi_assert_eq(
+        env.soc_ifc.hw_config_internal_trng()
+            & (!env.soc_ifc.mfg_flag_rng_unavailable() | env.soc_ifc.debug_locked()),
+        matches!(env.trng, Trng::Internal(_)),
+    );
+    cfi_assert_eq(
+        !env.soc_ifc.hw_config_internal_trng()
+            & (!env.soc_ifc.mfg_flag_rng_unavailable() | env.soc_ifc.debug_locked()),
+        matches!(env.trng, Trng::External(_)),
+    );
+    cfi_assert_eq(
+        env.soc_ifc.mfg_flag_rng_unavailable() & !env.soc_ifc.debug_locked(),
+        matches!(env.trng, Trng::MfgMode()),
+    );
+    cfi_assert_eq(
+        env.soc_ifc.hw_config_internal_trng()
+            & (!env.soc_ifc.mfg_flag_rng_unavailable() | env.soc_ifc.debug_locked()),
+        matches!(env.trng, Trng::Internal(_)),
+    );
+    cfi_assert_eq(
+        !env.soc_ifc.hw_config_internal_trng()
+            & (!env.soc_ifc.mfg_flag_rng_unavailable() | env.soc_ifc.debug_locked()),
+        matches!(env.trng, Trng::External(_)),
+    );
+    cfi_assert_eq(
+        env.soc_ifc.mfg_flag_rng_unavailable() & !env.soc_ifc.debug_locked(),
+        matches!(env.trng, Trng::MfgMode()),
+    );
 }

@@ -17,6 +17,7 @@ use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::keyids::KEY_ID_TMP;
 use caliptra_drivers::*;
 use caliptra_x509::Ecdsa384Signature;
+use zeroize::Zeroize;
 
 /// ECDSA-384 Signature Adapter
 ///
@@ -36,19 +37,14 @@ impl Ecdsa384SignatureAdapter for Ecc384Signature {
 }
 
 /// DICE  Layer Key Pair
-#[derive(Debug)]
+#[derive(Debug, Zeroize)]
 pub struct Ecc384KeyPair {
     /// Private Key
+    #[zeroize(skip)]
     pub priv_key: KeyId,
 
     /// Public Key
     pub pub_key: Ecc384PubKey,
-}
-
-impl Ecc384KeyPair {
-    pub fn zeroize(&mut self) {
-        self.pub_key.zeroize();
-    }
 }
 
 pub enum Crypto {}
@@ -64,7 +60,7 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Array4x5` - Digest
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(always)]
     pub fn sha1_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x5> {
         env.sha1.digest(data)
     }
@@ -79,7 +75,6 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Array4x8` - Digest
-    #[inline(always)]
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn sha256_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x8> {
         env.sha256.digest(data)
@@ -95,7 +90,7 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Array4x12` - Digest
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(always)]
     pub fn sha384_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x12> {
         env.sha384.digest(data)
     }
@@ -108,7 +103,7 @@ impl Crypto {
     /// * `key` - HMAC384 key slot
     /// * `data` - Input data to hash
     /// * `tag` - Key slot to store the tag
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(always)]
     pub fn hmac384_mac(
         env: &mut RomEnv,
         key: KeyId,
@@ -138,7 +133,7 @@ impl Crypto {
     /// * `label` - Input label
     /// * `context` - Input context
     /// * `output` - Key slot to store the output
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(always)]
     pub fn hmac384_kdf(
         env: &mut RomEnv,
         key: KeyId,
@@ -173,7 +168,7 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Ecc384KeyPair` - Private Key slot id and public key pairs
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(always)]
     pub fn ecc384_key_gen(
         env: &mut RomEnv,
         cdi: KeyId,
@@ -216,7 +211,7 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Ecc384Signature` - Signature
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(always)]
     pub fn ecdsa384_sign_and_verify(
         env: &mut RomEnv,
         priv_key: KeyId,
@@ -228,7 +223,7 @@ impl Crypto {
         let priv_key_args = KeyReadArgs::new(priv_key);
         let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
         let result = env.ecc384.sign(&priv_key, pub_key, digest, &mut env.trng);
-        digest.0.fill(0);
+        digest.0.zeroize();
         result
     }
 }

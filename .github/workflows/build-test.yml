@@ -19,6 +19,7 @@ jobs:
       SCCACHE_VERSION: 0.3.3
       SCCACHE_GHA_CACHE_TO: sccache-caliptra-sw
       SCCACHE_GHA_CACHE_FROM: sccache-caliptra-sw
+      # CPTRA_COVERAGE_PATH: /tmp
 
       # Change this to a new random value if you suspect the cache is corrupted
       SCCACHE_C_CUSTOM_CACHE_BUSTER: 8b42a6e70ec4
@@ -37,6 +38,10 @@ jobs:
       - name: Pull dpe submodule
         run: |
           git submodule update --init dpe
+
+      - name: Install required packages
+        run: |
+          sudo apt-get install libftdi1-dev libusb-1.0-0-dev golang-1.20-go
 
       - name: Restore sccache binary
         uses: actions/cache/restore@v3
@@ -95,6 +100,7 @@ jobs:
       - name: Build
         run: |
           cargo --config "$EXTRA_CARGO_CONFIG" build --locked
+          CARGO_TARGET_DIR=target cargo --config "$EXTRA_CARGO_CONFIG" build --locked --manifest-path ci-tools/fpga-boss/Cargo.toml
           drivers/test-fw/build.sh
           (cd fmc && ./build.sh)
           (cd runtime && ./build.sh)
@@ -108,6 +114,7 @@ jobs:
           # Clippy doesn't look at --config, so manually set RUSTFLAGS to the
           # same as the build steps to avoid invalidating the cargo cache.
           RUSTFLAGS="-Dwarnings" cargo clippy --locked --all-targets -- -D warnings
+          CARGO_TARGET_DIR=target RUSTFLAGS="-Dwarnings" cargo clippy --locked --all-targets --manifest-path ci-tools/fpga-boss/Cargo.toml -- -D warnings
 
       # As fuzzing targets are not part of the workspace, perform their tests explicitly.
       - name: Build test fuzzing targets
@@ -135,6 +142,7 @@ jobs:
       - name: Run tests
         run: |
           cargo --config "$EXTRA_CARGO_CONFIG" test --locked
+          CARGO_TARGET_DIR=target cargo --config "$EXTRA_CARGO_CONFIG" test --locked --manifest-path ci-tools/fpga-boss/Cargo.toml
           sccache --show-stats
 
       - name: Run emulator conformance tests
@@ -147,6 +155,10 @@ jobs:
         run: |
           (cd rom/dev && make run)
 
+      - name: ROM Coverage
+        run: |
+         CPTRA_COVERAGE_PATH=/tmp cargo test --manifest-path ./rom/dev/Cargo.toml && CPTRA_COVERAGE_PATH=/tmp cargo run --manifest-path ./coverage/Cargo.toml
+         
       - name: Caliptra HW-Model C Binding Smoke Test
         run: |
           git submodule update --init
@@ -155,3 +167,7 @@ jobs:
       - name: Caliptra C API Hwmodel Integration Test
         run: |
           (cd libcaliptra/examples/hwmodel && make && ./hwmodel)
+      - name: DPE Verification Tests
+        run: |
+          (cd test/dpe_verification && make run)
+          

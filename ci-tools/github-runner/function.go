@@ -46,15 +46,6 @@ func init() {
 	functions.HTTP("RunnerBuildImage", handleBuildImage)
 }
 
-func getMachineTypeLabel(labels []string) (string, bool) {
-	for _, item := range labels {
-		if isSupportedLabel(item) {
-			return item, true
-		}
-	}
-	return "", false
-}
-
 func readAppId() (int64, error) {
 	env, found := os.LookupEnv("GITHUB_APP_ID")
 	if !found {
@@ -62,34 +53,6 @@ func readAppId() (int64, error) {
 	}
 	return strconv.ParseInt(env, 10, 64)
 }
-
-func isSupportedLabel(label string) bool {
-	switch label {
-	case "e2-standard-2":
-		return true
-	case "e2-standard-4":
-		return true
-	case "e2-standard-8":
-		return true
-	case "e2-standard-16":
-		return true
-	case "e2-standard-32":
-		return true
-	case "e2-highcpu-2":
-		return true
-	case "e2-highcpu-4":
-		return true
-	case "e2-highcpu-8":
-		return true
-	case "e2-highcpu-16":
-		return true
-	case "e2-highcpu-32":
-		return true
-	default:
-		return false
-	}
-}
-
 func handleCleanup(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	err := Cleanup(ctx)
@@ -113,44 +76,45 @@ func handleLaunch(w http.ResponseWriter, r *http.Request) {
 	}
 	secretToken, err := os.ReadFile("/etc/secrets/caliptra-gce-ci-github-webhook-secret-txt/latest")
 	if err != nil {
-		log.Printf("Error reading webhook secret: %v", err)
+		log.Printf("Error reading webhook secret: %v\n", err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 	payload, err := github.ValidatePayload(r, secretToken)
 	if err != nil {
-		log.Printf("Error validating payload: %v", err)
+		log.Printf("Error validating payload: %v\n", err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 	log.Println(string(payload))
 	event, err := github.ParseWebHook(github.WebHookType(r), payload)
 	if err != nil {
-		log.Printf("Error parsing webhook: %v", err)
+		log.Printf("Error parsing webhook: %v\n", err)
 		http.Error(w, "", http.StatusInternalServerError)
 	}
-	log.Printf("%+v", event)
+	log.Printf("%+v\n", event)
 	ctx := context.Background()
 	switch event := event.(type) {
 	case *github.WorkflowJobEvent:
 		if event.GetAction() == "queued" {
-			machineTypeLabel, found := getMachineTypeLabel(event.GetWorkflowJob().Labels)
-			if !found {
-				log.Println("Job doesn't have a label we care about")
+			labels := event.GetWorkflowJob().Labels
+			_, err := MachineInfoFromLabels(labels)
+			if err != nil {
+				log.Printf("Job doesn't have a label we care about: %v\n", err)
 				return
 			}
 			installation := event.GetInstallation()
-			log.Printf("Launching runner job %v", installation)
+			log.Printf("Launching runner job %v\n", installation)
 			client, err := GithubClient(appID, installation.GetID())
 			if err != nil {
-				log.Printf("Error: %v", err)
+				log.Printf("Error: %v\n", err)
 				http.Error(w, "", http.StatusInternalServerError)
 				return
 			}
 
-			err = Launch(ctx, client, machineTypeLabel)
+			err = Launch(ctx, client, labels)
 			if err != nil {
-				log.Printf("Error: %v", err)
+				log.Printf("Error: %v\n", err)
 				http.Error(w, "", http.StatusInternalServerError)
 				return
 			}
@@ -161,7 +125,7 @@ func handleBuildImage(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	err := BuildImage(ctx)
 	if err != nil {
-		log.Printf("Error: %v", err)
+		log.Printf("Error: %v\n", err)
 		http.Error(w, "", http.StatusInternalServerError)
 	}
 }
@@ -199,7 +163,7 @@ func metadata(kv map[string]string) *computepb.Metadata {
 }
 
 func createInstanceAndStart(ctx context.Context, instances *compute.InstancesClient, req *computepb.InsertInstanceRequest) error {
-	log.Printf("Creating VM instance %v", req.GetInstanceResource().GetName())
+	log.Printf("Creating VM instance %v\n", req.GetInstanceResource().GetName())
 	op, err := instances.Insert(ctx, req)
 	if err != nil {
 		return err
@@ -208,7 +172,7 @@ func createInstanceAndStart(ctx context.Context, instances *compute.InstancesCli
 	if err != nil {
 		return err
 	}
-	log.Printf("Starting VM instance %v", req.GetInstanceResource().GetName())
+	log.Printf("Starting VM instance %v\n", req.GetInstanceResource().GetName())
 	op, err = instances.Start(ctx, &computepb.StartInstanceRequest{
 		Project:  req.Project,
 		Zone:     req.Zone,
@@ -234,12 +198,12 @@ func instanceDelete(ctx context.Context, instances *compute.InstancesClient, nam
 		Instance: name,
 	})
 	if err != nil {
-		log.Printf("Unable to delete %v VM: %v", name, err)
+		log.Printf("Unable to delete %v VM: %v\n", name, err)
 		return err
 	}
 	err = op.Wait(ctx)
 	if err != nil {
-		log.Printf("Unable to delete %v VM: %v", name, err)
+		log.Printf("Unable to delete %v VM: %v\n", name, err)
 		return err
 	}
 	return nil

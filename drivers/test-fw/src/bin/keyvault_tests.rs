@@ -19,6 +19,7 @@ use caliptra_drivers::{KeyId, KeyUsage, KeyVault};
 use caliptra_registers::kv::KvReg;
 use caliptra_test_harness::test_suite;
 
+#[cfg(not(feature = "fpga_realtime"))]
 const KEY_IDS: [KeyId; 32] = [
     KeyId::KeyId0,
     KeyId::KeyId1,
@@ -52,6 +53,26 @@ const KEY_IDS: [KeyId; 32] = [
     KeyId::KeyId29,
     KeyId::KeyId30,
     KeyId::KeyId31,
+];
+
+#[cfg(feature = "fpga_realtime")]
+const KEY_IDS: [KeyId; 16] = [
+    KeyId::KeyId0,
+    KeyId::KeyId1,
+    KeyId::KeyId2,
+    KeyId::KeyId3,
+    KeyId::KeyId4,
+    KeyId::KeyId5,
+    KeyId::KeyId6,
+    KeyId::KeyId7,
+    KeyId::KeyId8,
+    KeyId::KeyId9,
+    KeyId::KeyId10,
+    KeyId::KeyId11,
+    KeyId::KeyId12,
+    KeyId::KeyId13,
+    KeyId::KeyId14,
+    KeyId::KeyId15,
 ];
 
 fn test_write_lock_and_erase_keys() {

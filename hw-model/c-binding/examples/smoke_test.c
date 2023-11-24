@@ -31,7 +31,14 @@ static struct caliptra_buffer read_file_or_die(const char* path)
     }
 
     // Read Data in Buffer
-    fread((char *)buffer.data, buffer.len, 1, fp);
+    size_t bytes_read = fread((char *)buffer.data, 1, buffer.len, fp);
+
+    // Make sure the read got the number of bytes we expected
+    if (bytes_read != buffer.len) {
+        printf("Bytes read (%ld) does not match file size (%ld)\n", bytes_read, buffer.len);
+        free((void*)buffer.data);
+        exit(-EIO);
+    }
 
     return buffer;
 }

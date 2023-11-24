@@ -22,3 +22,6 @@ hw-latest/fpga/caliptra_build/
 hw-latest/fpga/build_fpga.log
 hw-latest/fpga/vivado*.jou
 hw-latest/fpga/vivado*.log
+
+# libcaliptra build artifacts
+libcaliptra/libcaliptra.a

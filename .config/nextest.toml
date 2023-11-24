@@ -1,0 +1,11 @@
+# Licensed under the Apache-2.0 license
+
+[profile.nightly]
+failure-output = "immediate-final"
+fail-fast = false
+
+[profile.nightly.junit]
+path = "/tmp/junit.xml"
+store-success-output = true
+store-failure-output = true
+

@@ -29,6 +29,7 @@ use caliptra_common::pcr::PCR_ID_FMC_CURRENT;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::{okmutref, report_boot_status, Array4x12, CaliptraResult, KeyId, Lifecycle};
 use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams};
+use zeroize::Zeroize;
 
 #[derive(Default)]
 pub struct FmcAliasLayer {}
@@ -52,9 +53,9 @@ impl FmcAliasLayer {
         // We use the value of PCR0 as the measurement for deriving the CDI.
         let mut measurement = env.pcr_bank.read_pcr(PCR_ID_FMC_CURRENT);
 
-        // Derive the DICE CDI from decrypted UDS
+        // Derive the DICE CDI from the measurement
         let result = Self::derive_cdi(env, &measurement, KEY_ID_ROM_FMC_CDI);
-        measurement.0.fill(0);
+        measurement.0.zeroize();
         result?;
 
         // Derive DICE Key Pair from CDI
@@ -100,7 +101,7 @@ impl FmcAliasLayer {
         let mut measurements: [u8; 48] = measurements.into();
 
         let result = Crypto::hmac384_kdf(env, cdi, b"fmc_alias_cdi", Some(&measurements), cdi);
-        measurements.fill(0);
+        measurements.zeroize();
         result?;
         report_boot_status(FmcAliasDeriveCdiComplete.into());
         Ok(())
@@ -203,7 +204,10 @@ impl FmcAliasLayer {
 
         // Clear the authority private key
         cprintln!("[afmc] Erasing AUTHORITY.KEYID = {}", auth_priv_key as u8);
-        env.key_vault.erase_key(auth_priv_key)?;
+        env.key_vault.erase_key(auth_priv_key).map_err(|err| {
+            sig.zeroize();
+            err
+        })?;
 
         let _pub_x: [u8; 48] = (&pub_key.x).into();
         let _pub_y: [u8; 48] = (&pub_key.y).into();

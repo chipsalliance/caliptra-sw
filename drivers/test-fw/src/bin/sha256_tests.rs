@@ -15,6 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
+use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{Array4x8, Sha256, Sha256Alg, Sha256DigestOp};
 use caliptra_kat::Sha256Kat;
 use caliptra_registers::sha256::Sha256Reg;
@@ -220,6 +221,9 @@ fn test_op8() {
 }
 
 fn test_kat() {
+    // Init CFI
+    CfiCounter::reset(&mut || Ok([0xDEADBEEFu32; 12]));
+
     let mut sha = unsafe { Sha256::new(Sha256Reg::new()) };
     assert_eq!(Sha256Kat::default().execute(&mut sha).is_ok(), true);
 }

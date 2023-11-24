@@ -109,7 +109,7 @@ build-rom:
 	cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		run -p caliptra-builder -- \
-		--rom $(TARGET_DIR)/caliptra-rom.bin \
+		--rom-with-log $(TARGET_DIR)/caliptra-rom.bin \
 		--fw /dev/null
 
 run: build-emu build-fw-image build-rom

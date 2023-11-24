@@ -5,6 +5,7 @@
 use core::mem::size_of;
 
 use zerocopy::{AsBytes, BigEndian, FromBytes, LittleEndian, U32};
+use zeroize::Zeroize;
 
 pub type LmsIdentifier = [u8; 16];
 
@@ -95,13 +96,16 @@ unsafe impl<const N: usize> FromBytes for LmsPublicKey<N> {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Zeroize)]
 #[repr(C)]
 pub struct LmotsSignature<const N: usize, const P: usize> {
+    #[zeroize(skip)]
     pub ots_type: LmotsAlgorithmType,
 
+    #[zeroize(skip)]
     pub nonce: [U32<LittleEndian>; N],
 
+    #[zeroize(skip)]
     pub y: [[U32<LittleEndian>; N]; P],
 }
 impl<const N: usize, const P: usize> Default for LmotsSignature<N, P> {

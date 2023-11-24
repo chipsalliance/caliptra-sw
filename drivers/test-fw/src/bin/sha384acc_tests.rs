@@ -15,11 +15,12 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{Array4x12, Mailbox, Sha384Acc, ShaAccLockState};
+use caliptra_drivers::{memory_layout, Array4x12, Mailbox, Sha384Acc, ShaAccLockState};
 use caliptra_kat::Sha384AccKat;
 use caliptra_registers::mbox::MboxCsr;
 use caliptra_registers::sha512_acc::Sha512AccCsr;
 use caliptra_test_harness::test_suite;
+use core::slice;
 
 const MAX_MAILBOX_CAPACITY_BYTES: usize = 128 << 10;
 const SHA384_HASH_SIZE: usize = 48;
@@ -187,6 +188,21 @@ fn test_digest_max_mailbox_size() {
         0xf8, 0x5e, 0xc0, 0x40, 0x69, 0x3e, 0x5a, 0x22, 0x21, 0x88, 0x79, 0x77, 0xfd, 0xea, 0x6f,
         0x89, 0xef, 0xee,
     ];
+
+    {
+        // Clear the mailbox SRAM; FPGA model doesn't clear this on reset.
+        let mut mbox = unsafe { MboxCsr::new() };
+        // Grab lock
+        assert!(!mbox.regs().lock().read().lock());
+        let mbox_sram = unsafe {
+            slice::from_raw_parts_mut(
+                memory_layout::MBOX_ORG as *mut u8,
+                memory_layout::MBOX_SIZE as usize,
+            )
+        };
+        mbox_sram.fill(0);
+        mbox.regs_mut().unlock().write(|w| w.unlock(true));
+    }
 
     let mut digest = Array4x12::default();
     if let Some(mut sha_acc_op) = sha_acc

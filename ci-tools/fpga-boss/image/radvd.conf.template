@@ -1,0 +1,14 @@
+interface eth1 {
+        AdvSendAdvert on;
+        MinRtrAdvInterval 3;
+        MaxRtrAdvInterval 7;
+        prefix {EXTERNAL_PREFIX}::/64 {
+                AdvOnLink on;
+                AdvRouterAddr on;
+                AdvAutonomous on;
+        };
+        # Use Google Public DNS64
+        RDNSS 2001:4860:4860::6464 2001:4860:4860::64 {
+        };
+};
+

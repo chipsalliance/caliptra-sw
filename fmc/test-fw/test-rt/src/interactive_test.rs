@@ -1,8 +1,10 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_common::mailbox_api;
 use caliptra_drivers::pcr_log::{PcrLogEntry, PcrLogEntryId};
 use caliptra_drivers::{cprintln, PcrBank, PcrId, PersistentDataAccessor};
 use caliptra_registers::pv::PvReg;
+use caliptra_registers::soc_ifc::SocIfcReg;
 use ureg::RealMmioMut;
 
 use core::convert::TryInto;
@@ -11,6 +13,8 @@ use zerocopy::AsBytes;
 pub const TEST_CMD_READ_PCR_LOG: u32 = 0x1000_0000;
 pub const TEST_CMD_READ_FHT: u32 = 0x1000_0001;
 pub const TEST_CMD_READ_PCRS: u32 = 0x1000_0002;
+pub const TEST_CMD_PCRS_LOCKED: u32 = 0x1000_0004;
+const FW_LOAD_CMD_OPCODE: u32 = mailbox_api::CommandId::FIRMWARE_LOAD.0;
 
 fn process_mailbox_command(
     persistent_data: &PersistentDataAccessor,
@@ -27,6 +31,13 @@ fn process_mailbox_command(
         }
         TEST_CMD_READ_PCRS => {
             read_pcrs(mbox);
+        }
+        FW_LOAD_CMD_OPCODE => {
+            // Reset the CPU with the firmware-update command in the mailbox
+            trigger_update_reset();
+        }
+        TEST_CMD_PCRS_LOCKED => {
+            try_to_reset_pcrs(mbox);
         }
         _ => {
             panic!();
@@ -123,5 +134,25 @@ fn read_pcrs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
 fn swap_word_bytes_inplace(words: &mut [u32]) {
     for word in words.iter_mut() {
         *word = word.swap_bytes()
+    }
+}
+
+fn trigger_update_reset() {
+    unsafe { SocIfcReg::new() }
+        .regs_mut()
+        .internal_fw_update_reset()
+        .write(|w| w.core_rst(true));
+}
+
+fn try_to_reset_pcrs(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    let mut pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
+
+    let res0 = pcr_bank.erase_pcr(caliptra_common::RT_FW_CURRENT_PCR);
+    let res1 = pcr_bank.erase_pcr(caliptra_common::RT_FW_JOURNEY_PCR);
+
+    if res0.is_err() && res1.is_err() {
+        mbox.status().write(|w| w.status(|w| w.cmd_complete()));
+    } else {
+        mbox.status().write(|w| w.status(|w| w.cmd_failure()));
     }
 }

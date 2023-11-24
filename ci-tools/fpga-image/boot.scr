@@ -1,0 +1,3 @@
+setenv bootargs "earlycon root=/dev/mmcblk0p3 rootwait console=ttyPS0,115200 console=tty1 uio_pdrv_genirq.of_id=generic-uio cma=700M overlayroot=tmpfs modprobe.blacklist=zynqmp_dpsub,i2c_mux_pca954x,i2c_cadence,ahci_ceva,raid10,raid1,raid0,raid456"
+load mmc 0:1 0x10000000 image.fit
+bootm 0x10000000 0x10000000 $fdtcontroladdr

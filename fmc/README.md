@@ -429,6 +429,19 @@ regardless of which reset path caused it to be executed.
 FMC does not participate in Caliptra update/recovery flows. FMC is designed such that it does not perform any different steps during update
 and simply behaves the same as it does during other cold/warm resets.
 
+## Fake FMC
+
+Fake FMC is a variation of the FMC intended to be used in the verification/enabling stages of development. The purpose is to greatly reduce the boot time for pre-Si environments by eliminating certain steps from the boot flow.
+
+**Differences from normal FMC:**
+Currently, Fake FMC directly proceeds to runtime without generating the RT Alias Cert. In the future, there will be a static cert and a corresponding private key will be used by runtime to support the DICE challenge flow.
+
+**How to use:**
+- Fake FMC is provided in the release along with the normal collateral.
+- The image builder exposes the argument "fake" that can be used to generate the fake versions
+
+Fake FMC should be used with the Fake ROM. Details can be found in the ROM readme.
+
 ## Future
 
 - Current POR is for FIPS Crypto boundary to encompass all of Caliptra FW, including ROM, FMC, and Runtime. With this boundary, there is no need for any

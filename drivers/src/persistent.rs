@@ -6,6 +6,7 @@ use caliptra_image_types::ImageManifest;
 #[cfg(feature = "runtime")]
 use dpe::DpeInstance;
 use zerocopy::{AsBytes, FromBytes};
+use zeroize::Zeroize;
 
 use crate::{
     fuse_log::FuseLogEntry,
@@ -22,7 +23,7 @@ pub type PcrLogArray = [PcrLogEntry; PCR_LOG_MAX_COUNT];
 pub type FuseLogArray = [FuseLogEntry; FUSE_LOG_MAX_COUNT];
 pub type StashMeasurementArray = [MeasurementLogEntry; MEASUREMENT_MAX_COUNT];
 
-#[derive(FromBytes, AsBytes)]
+#[derive(FromBytes, AsBytes, Zeroize)]
 #[repr(C)]
 pub struct PersistentData {
     pub manifest1: ImageManifest,
@@ -80,10 +81,6 @@ impl PersistentData {
                 memory_layout::DPE_ORG + memory_layout::DPE_SIZE
             );
         }
-    }
-
-    pub fn zeroize(&mut self) {
-        self.as_bytes_mut().fill(0);
     }
 }
 

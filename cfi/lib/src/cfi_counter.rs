@@ -16,16 +16,12 @@ References:
 
 --*/
 
+use caliptra_error::CaliptraResult;
+
 use crate::cfi::{cfi_panic, CfiPanicInfo};
 use crate::xoshiro::Xoshiro128;
-#[cfg(not(feature = "cfi-test"))]
-use caliptra_common::memory_layout::{CFI_MASK_ORG, CFI_VAL_ORG};
+use crate::CFI_STATE;
 use core::default::Default;
-
-#[cfg(feature = "cfi-test")]
-static mut CFI_VAL: u32 = 0u32;
-#[cfg(feature = "cfi-test")]
-static mut CFI_MASK: u32 = 0u32;
 
 /// CFI Integer
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -68,13 +64,7 @@ impl Default for CfiInt {
 }
 
 fn prng() -> &'static Xoshiro128 {
-    use caliptra_drivers::memory_layout::CFI_XO_S0_ORG;
-    if cfg!(feature = "cfi-test") {
-        static mut STATE: Xoshiro128 = Xoshiro128::new_unseeded();
-        unsafe { &STATE }
-    } else {
-        unsafe { Xoshiro128::from_address(CFI_XO_S0_ORG) }
-    }
+    unsafe { &CFI_STATE.prng }
 }
 
 /// CFI counter
@@ -82,9 +72,9 @@ pub enum CfiCounter {}
 
 impl CfiCounter {
     /// Reset counter
-    #[inline(never)]
-    pub fn reset(trng: &mut caliptra_drivers::Trng) {
-        prng().seed_from_trng(trng);
+    #[inline(always)]
+    pub fn reset(entropy_gen: &mut impl FnMut() -> CaliptraResult<[u32; 12]>) {
+        prng().mix_entropy(entropy_gen);
         Self::reset_internal();
     }
 
@@ -186,38 +176,18 @@ impl CfiCounter {
     /// Read counter value
     pub fn read() -> CfiInt {
         unsafe {
-            #[cfg(feature = "cfi-test")]
-            {
-                CfiInt::from_raw(
-                    core::ptr::read_volatile(&CFI_VAL as *const u32),
-                    core::ptr::read_volatile(&CFI_MASK as *const u32),
-                )
-            }
-
-            #[cfg(not(feature = "cfi-test"))]
-            {
-                CfiInt::from_raw(
-                    core::ptr::read_volatile(CFI_VAL_ORG as *const u32),
-                    core::ptr::read_volatile(CFI_MASK_ORG as *const u32),
-                )
-            }
+            CfiInt::from_raw(
+                core::ptr::read_volatile(&CFI_STATE.val as *const u32),
+                core::ptr::read_volatile(&CFI_STATE.mask as *const u32),
+            )
         }
     }
 
     /// Write counter value
     fn write(val: CfiInt) {
         unsafe {
-            #[cfg(feature = "cfi-test")]
-            {
-                core::ptr::write_volatile(&mut CFI_VAL as *mut u32, val.val);
-                core::ptr::write_volatile(&mut CFI_MASK as *mut u32, val.masked_val);
-            }
-
-            #[cfg(not(feature = "cfi-test"))]
-            {
-                core::ptr::write_volatile(CFI_VAL_ORG as *mut u32, val.val);
-                core::ptr::write_volatile(CFI_MASK_ORG as *mut u32, val.masked_val);
-            }
+            core::ptr::write_volatile(&mut CFI_STATE.val as *mut u32, val.val);
+            core::ptr::write_volatile(&mut CFI_STATE.mask as *mut u32, val.masked_val);
         }
     }
 }

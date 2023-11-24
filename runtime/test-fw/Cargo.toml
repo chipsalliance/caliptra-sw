@@ -17,6 +17,7 @@ emu = [
     "caliptra-runtime/emu",
     "caliptra-test-harness/emu",
 ]
+fpga_realtime = ["caliptra-runtime/fpga_realtime"]
 
 [[bin]]
 name = "boot"
@@ -26,21 +27,6 @@ required-features = ["riscv"]
 [[bin]]
 name = "cert"
 path = "src/cert_tests.rs"
-required-features = ["riscv"]
-
-[[bin]]
-name = "wdt"
-path = "src/wdt_timeout_tests.rs"
-required-features = ["riscv"]
-
-[[bin]]
-name = "keyvault"
-path = "src/keyvault_tests.rs"
-required-features = ["riscv"]
-
-[[bin]]
-name = "locked_dv"
-path = "src/locked_dv_test.rs"
 required-features = ["riscv"]
 
 [build-dependencies]

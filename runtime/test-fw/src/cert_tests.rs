@@ -47,8 +47,15 @@ fn mbox_responder() {
                 mbox.write_response(&fmc).unwrap();
                 mbox.set_status(MboxStatusE::DataReady);
             }
-            // Send IDevID Public Key
+            // Send RT Alias Cert
             CommandId(0x3000_0000) => {
+                let mut rt = [0u8; 1024];
+                dice::copy_rt_alias_cert(drivers.persistent_data.get(), &mut rt).unwrap();
+                mbox.write_response(&rt).unwrap();
+                mbox.set_status(MboxStatusE::DataReady);
+            }
+            // Send IDevID Public Key
+            CommandId(0x4000_0000) => {
                 mbox.write_response(
                     drivers
                         .persistent_data

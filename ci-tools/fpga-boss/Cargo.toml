@@ -1,0 +1,16 @@
+# Licensed under the Apache-2.0 license
+
+[package]
+name = "caliptra-fpga-boss"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.70"
+clap = { version = "3.2.14", default-features = false, features = ["std"] }
+libftdi1-sys = { version = "1.1.2", features = ["libusb1-sys"] }
+libusb1-sys = "0.6.4"
+libc = "0.2.147"
+rusb = "0.9.3"

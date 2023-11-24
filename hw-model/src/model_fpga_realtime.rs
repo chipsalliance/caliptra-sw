@@ -1,43 +1,45 @@
 // Licensed under the Apache-2.0 license
 
+use std::marker::PhantomData;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::thread;
 use std::{env, str::FromStr};
 
 use bitfield::bitfield;
-use caliptra_emu_bus::{Bus, BusError};
+use caliptra_emu_bus::{Bus, BusError, BusMmio};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use libc;
 use nix;
 use std::io::Write;
-use std::time;
+use std::time::{self, Duration};
 use uio::{UioDevice, UioError};
 
 use crate::EtrngResponse;
 use crate::HwModel;
 use crate::Output;
 
-// TODO: Make PAUSER configurable
-const SOC_PAUSER: u32 = 0xffff_ffff;
-
 // UIO mapping indices
-const GPIO_MAPPING: usize = 0;
-const MBOX_MAPPING: usize = 1;
-const SOC_IFC_MAPPING: usize = 2;
+const FPGA_WRAPPER_MAPPING: usize = 0;
+const CALIPTRA_MAPPING: usize = 1;
+
+const DEFAULT_APB_PAUSER: u32 = 0x1;
 
 fn fmt_uio_error(err: UioError) -> String {
     format!("{err:?}")
 }
 
-// FPGA SOC wire register offsets
-const GPIO_OUTPUT_OFFSET: isize = 0x0000 / 4;
-const GPIO_INPUT_OFFSET: isize = 0x0008 / 4;
-const GPIO_PAUSER_OFFSET: isize = 0x000C / 4;
-const GPIO_DEOBF_KEY_OFFSET: isize = 0x0020 / 4;
-const GPIO_LOG_FIFO_DATA_OFFSET: isize = 0x1000 / 4;
-const GPIO_LOG_FIFO_STATUS_OFFSET: isize = 0x1004 / 4;
+// FPGA wrapper register offsets
+const FPGA_WRAPPER_OUTPUT_OFFSET: isize = 0x0000 / 4;
+const FPGA_WRAPPER_INPUT_OFFSET: isize = 0x0008 / 4;
+const FPGA_WRAPPER_PAUSER_OFFSET: isize = 0x000C / 4;
+const FPGA_WRAPPER_DEOBF_KEY_OFFSET: isize = 0x0020 / 4;
+const FPGA_WRAPPER_LOG_FIFO_DATA_OFFSET: isize = 0x1000 / 4;
+const FPGA_WRAPPER_LOG_FIFO_STATUS_OFFSET: isize = 0x1004 / 4;
 
 bitfield! {
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-    /// GPIO SOC wires -> Caliptra
+    /// Wrapper wires -> Caliptra
     pub struct GpioOutput(u32);
     cptra_rst_b, set_cptra_rst_b: 0, 0;
     cptra_pwrgood, set_cptra_pwrgood: 1, 1;
@@ -46,7 +48,7 @@ bitfield! {
 
 bitfield! {
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-    /// GPIO SOC wires <- Caliptra
+    /// Wrapper wires <- Caliptra
     pub struct GpioInput(u32);
     cptra_error_fatal, _: 26, 26;
     cptra_error_non_fatal, _: 27, 27;
@@ -73,47 +75,107 @@ bitfield! {
 
 pub struct ModelFpgaRealtime {
     dev: UioDevice,
-    gpio: *mut u32,
-    mbox: *mut u32,
-    soc_ifc: *mut u32,
+    wrapper: *mut u32,
+    mmio: *mut u32,
     output: Output,
     start_time: time::Instant,
 
-    etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
-    etrng_response: Option<[u32; 12]>,
-    etrng_waiting_for_req_to_clear: bool,
+    realtime_thread: Option<thread::JoinHandle<()>>,
+    realtime_thread_exit_flag: Arc<AtomicBool>,
 }
 
 impl ModelFpgaRealtime {
+    fn realtime_thread_fn(
+        mmio: *mut u32,
+        exit: Arc<AtomicBool>,
+        mut etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
+    ) {
+        let soc_ifc_trng = unsafe {
+            caliptra_registers::soc_ifc_trng::RegisterBlock::new_with_mmio(
+                0x3003_0000 as *mut u32,
+                BusMmio::new(FpgaRealtimeBus {
+                    mmio,
+                    phantom: Default::default(),
+                }),
+            )
+        };
+
+        while !exit.load(Ordering::Relaxed) {
+            let trng_status = soc_ifc_trng.cptra_trng_status().read();
+            if trng_status.data_req() {
+                if let Some(resp) = etrng_responses.next() {
+                    soc_ifc_trng.cptra_trng_data().write(&resp.data);
+                    soc_ifc_trng
+                        .cptra_trng_status()
+                        .write(|w| w.data_wr_done(true));
+                }
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+    }
     fn is_ready_for_fuses(&self) -> bool {
         unsafe {
-            GpioInput(self.gpio.offset(GPIO_INPUT_OFFSET).read_volatile()).ready_for_fuses() != 0
+            GpioInput(
+                self.wrapper
+                    .offset(FPGA_WRAPPER_INPUT_OFFSET)
+                    .read_volatile(),
+            )
+            .ready_for_fuses()
+                != 0
         }
     }
     fn set_cptra_pwrgood(&mut self, value: bool) {
         unsafe {
-            let mut val = GpioOutput(self.gpio.offset(GPIO_OUTPUT_OFFSET).read_volatile());
+            let mut val = GpioOutput(
+                self.wrapper
+                    .offset(FPGA_WRAPPER_OUTPUT_OFFSET)
+                    .read_volatile(),
+            );
             val.set_cptra_pwrgood(value as u32);
-            self.gpio.offset(GPIO_OUTPUT_OFFSET).write_volatile(val.0);
+            self.wrapper
+                .offset(FPGA_WRAPPER_OUTPUT_OFFSET)
+                .write_volatile(val.0);
         }
     }
     fn set_cptra_rst_b(&mut self, value: bool) {
         unsafe {
-            let mut val = GpioOutput(self.gpio.offset(GPIO_OUTPUT_OFFSET).read_volatile());
+            let mut val = GpioOutput(
+                self.wrapper
+                    .offset(FPGA_WRAPPER_OUTPUT_OFFSET)
+                    .read_volatile(),
+            );
             val.set_cptra_rst_b(value as u32);
-            self.gpio.offset(GPIO_OUTPUT_OFFSET).write_volatile(val.0);
+            self.wrapper
+                .offset(FPGA_WRAPPER_OUTPUT_OFFSET)
+                .write_volatile(val.0);
         }
     }
     fn set_security_state(&mut self, value: u32) {
         unsafe {
-            let mut val = GpioOutput(self.gpio.offset(GPIO_OUTPUT_OFFSET).read_volatile());
+            let mut val = GpioOutput(
+                self.wrapper
+                    .offset(FPGA_WRAPPER_OUTPUT_OFFSET)
+                    .read_volatile(),
+            );
             val.set_security_state(value);
-            self.gpio.offset(GPIO_OUTPUT_OFFSET).write_volatile(val.0);
+            self.wrapper
+                .offset(FPGA_WRAPPER_OUTPUT_OFFSET)
+                .write_volatile(val.0);
         }
     }
-    fn set_pauser(&mut self, pauser: u32) {
-        unsafe {
-            self.gpio.offset(GPIO_PAUSER_OFFSET).write_volatile(pauser);
+
+    fn clear_log_fifo(&mut self) {
+        loop {
+            let fifodata = unsafe {
+                FifoData(
+                    self.wrapper
+                        .offset(FPGA_WRAPPER_LOG_FIFO_DATA_OFFSET)
+                        .read_volatile(),
+                )
+            };
+            if fifodata.log_fifo_valid() == 0 {
+                break;
+            }
         }
     }
 
@@ -121,8 +183,8 @@ impl ModelFpgaRealtime {
         // Check if the FIFO is full (which probably means there was an overrun)
         let fifosts = unsafe {
             FifoStatus(
-                self.gpio
-                    .offset(GPIO_LOG_FIFO_STATUS_OFFSET)
+                self.wrapper
+                    .offset(FPGA_WRAPPER_LOG_FIFO_STATUS_OFFSET)
                     .read_volatile(),
             )
         };
@@ -131,8 +193,13 @@ impl ModelFpgaRealtime {
         }
         // Check and empty log FIFO
         loop {
-            let fifodata =
-                unsafe { FifoData(self.gpio.offset(GPIO_LOG_FIFO_DATA_OFFSET).read_volatile()) };
+            let fifodata = unsafe {
+                FifoData(
+                    self.wrapper
+                        .offset(FPGA_WRAPPER_LOG_FIFO_DATA_OFFSET)
+                        .read_volatile(),
+                )
+            };
             // Add byte to log if it is valid
             if fifodata.log_fifo_valid() != 0 {
                 self.output()
@@ -143,29 +210,6 @@ impl ModelFpgaRealtime {
             }
         }
     }
-
-    fn handle_etrng(&mut self) {
-        let trng_status = self.soc_ifc_trng().cptra_trng_status().read();
-        if self.etrng_waiting_for_req_to_clear && !trng_status.data_req() {
-            self.etrng_waiting_for_req_to_clear = false;
-        }
-        if trng_status.data_req() && !self.etrng_waiting_for_req_to_clear {
-            if self.etrng_response.is_none() {
-                if let Some(response) = self.etrng_responses.next() {
-                    self.etrng_response = Some(response.data);
-                }
-            }
-            if let Some(_) = &mut self.etrng_response {
-                self.etrng_waiting_for_req_to_clear = true;
-                let etrng_response = self.etrng_response.take().unwrap();
-                self.soc_ifc_trng().cptra_trng_data().write(&etrng_response);
-                self.soc_ifc_trng()
-                    .cptra_trng_status()
-                    .write(|w| w.data_wr_done(true));
-            }
-        }
-    }
-
     // UIO crate doesn't provide a way to unmap memory.
     fn unmap_mapping(&self, addr: *mut u32, mapping: usize) {
         let map_size = self.dev.map_size(mapping).unwrap();
@@ -175,6 +219,10 @@ impl ModelFpgaRealtime {
         }
     }
 }
+
+// Hack to pass *mut u32 between threads
+struct SendPtr(*mut u32);
+unsafe impl Send for SendPtr {}
 
 impl HwModel for ModelFpgaRealtime {
     type TBus<'a> = FpgaRealtimeBus<'a>;
@@ -187,22 +235,30 @@ impl HwModel for ModelFpgaRealtime {
         let uio_num = usize::from_str(&env::var("CPTRA_UIO_NUM")?)?;
         let dev = UioDevice::new(uio_num)?;
 
-        let gpio = dev.map_mapping(GPIO_MAPPING).map_err(fmt_uio_error)? as *mut u32;
-        let mbox = dev.map_mapping(MBOX_MAPPING).map_err(fmt_uio_error)? as *mut u32;
-        let soc_ifc = dev.map_mapping(SOC_IFC_MAPPING).map_err(fmt_uio_error)? as *mut u32;
+        let wrapper = dev
+            .map_mapping(FPGA_WRAPPER_MAPPING)
+            .map_err(fmt_uio_error)? as *mut u32;
+        let mmio = dev.map_mapping(CALIPTRA_MAPPING).map_err(fmt_uio_error)? as *mut u32;
         let start_time = time::Instant::now();
+
+        let realtime_thread_exit_flag = Arc::new(AtomicBool::new(false));
+        let realtime_thread_exit_flag2 = realtime_thread_exit_flag.clone();
+
+        let realtime_thread_mmio = SendPtr(mmio);
+        let realtime_thread = Some(thread::spawn(move || {
+            let mmio = realtime_thread_mmio;
+            Self::realtime_thread_fn(mmio.0, realtime_thread_exit_flag2, params.etrng_responses)
+        }));
 
         let mut m = Self {
             dev,
-            gpio,
-            mbox,
-            soc_ifc,
+            wrapper,
+            mmio,
             output,
             start_time,
 
-            etrng_responses: params.etrng_responses,
-            etrng_response: None,
-            etrng_waiting_for_req_to_clear: false,
+            realtime_thread,
+            realtime_thread_exit_flag,
         };
 
         writeln!(m.output().logger(), "new_unbooted")?;
@@ -214,13 +270,13 @@ impl HwModel for ModelFpgaRealtime {
         m.set_security_state(u32::from(params.security_state));
 
         // Set initial PAUSER
-        m.set_pauser(SOC_PAUSER);
+        m.set_apb_pauser(DEFAULT_APB_PAUSER);
 
         // Set deobfuscation key
         for i in 0..8 {
             unsafe {
-                m.gpio
-                    .offset(GPIO_DEOBF_KEY_OFFSET + i)
+                m.wrapper
+                    .offset(FPGA_WRAPPER_DEOBF_KEY_OFFSET + i)
                     .write_volatile(params.cptra_obf_key[i as usize])
             };
         }
@@ -233,6 +289,9 @@ impl HwModel for ModelFpgaRealtime {
         rom_driver.write_all(params.rom)?;
         rom_driver.sync_all()?;
 
+        // Sometimes there's garbage in here; clean it out
+        m.clear_log_fifo();
+
         // Bring Caliptra out of reset and wait for ready_for_fuses
         m.set_cptra_pwrgood(true);
         m.set_cptra_rst_b(true);
@@ -243,14 +302,14 @@ impl HwModel for ModelFpgaRealtime {
     }
 
     fn apb_bus(&mut self) -> Self::TBus<'_> {
-        FpgaRealtimeBus { m: self }
+        FpgaRealtimeBus {
+            mmio: self.mmio,
+            phantom: Default::default(),
+        }
     }
 
     fn step(&mut self) {
         self.handle_log();
-
-        // FPGA only supports ETRNG for now and needs to be checked frequently.
-        self.handle_etrng();
     }
 
     fn output(&mut self) -> &mut crate::Output {
@@ -270,33 +329,54 @@ impl HwModel for ModelFpgaRealtime {
 
     fn ready_for_fw(&self) -> bool {
         unsafe {
-            GpioInput(self.gpio.offset(GPIO_INPUT_OFFSET).read_volatile()).ready_for_fw() != 0
+            GpioInput(
+                self.wrapper
+                    .offset(FPGA_WRAPPER_INPUT_OFFSET)
+                    .read_volatile(),
+            )
+            .ready_for_fw()
+                != 0
         }
     }
 
     fn tracing_hint(&mut self, _enable: bool) {
         // Do nothing; we don't support tracing yet
     }
+
+    fn set_apb_pauser(&mut self, pauser: u32) {
+        unsafe {
+            self.wrapper
+                .offset(FPGA_WRAPPER_PAUSER_OFFSET)
+                .write_volatile(pauser);
+        }
+    }
 }
 impl Drop for ModelFpgaRealtime {
     fn drop(&mut self) {
+        // Ask the realtime thread to exit and wait for it to finish
+        // SAFETY: The thread is using the UIO mappings below, so it must be
+        // dead before we unmap.
+        // TODO: Find a safer abstraction for UIO mappings.
+        self.realtime_thread_exit_flag
+            .store(true, Ordering::Relaxed);
+        self.realtime_thread.take().unwrap().join().unwrap();
+
         // Unmap UIO memory space so that the file lock is released
-        self.unmap_mapping(self.gpio, GPIO_MAPPING);
-        self.unmap_mapping(self.mbox, MBOX_MAPPING);
-        self.unmap_mapping(self.soc_ifc, SOC_IFC_MAPPING);
+        self.unmap_mapping(self.wrapper, FPGA_WRAPPER_MAPPING);
+        self.unmap_mapping(self.mmio, CALIPTRA_MAPPING);
     }
 }
 
 pub struct FpgaRealtimeBus<'a> {
-    m: &'a mut ModelFpgaRealtime,
+    mmio: *mut u32,
+    phantom: PhantomData<&'a mut ()>,
 }
 impl<'a> FpgaRealtimeBus<'a> {
     fn ptr_for_addr(&mut self, addr: RvAddr) -> Option<*mut u32> {
         let addr = addr as usize;
         unsafe {
             match addr {
-                0x3002_0000..=0x3002_ffff => Some(self.m.mbox.add((addr & 0xffff) / 4)),
-                0x3003_0000..=0x3003_ffff => Some(self.m.soc_ifc.add((addr & 0xffff) / 4)),
+                0x3002_0000..=0x3003_ffff => Some(self.mmio.add((addr - 0x3002_0000) / 4)),
                 _ => None,
             }
         }

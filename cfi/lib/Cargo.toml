@@ -9,9 +9,8 @@ edition = "2021"
 doctest = false
 
 [dependencies]
-caliptra_common = { workspace = true, default-features = false }
-caliptra-drivers.workspace = true
 caliptra-registers.workspace = true
+caliptra-error.workspace = true
 ufmt.workspace = true
 
 [dev-dependencies]

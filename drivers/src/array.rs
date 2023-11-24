@@ -15,6 +15,7 @@ Abstract:
 
 use core::mem::MaybeUninit;
 use zerocopy::{AsBytes, FromBytes};
+use zeroize::Zeroize;
 
 macro_rules! static_assert {
     ($expression:expr) => {
@@ -25,7 +26,7 @@ macro_rules! static_assert {
 /// The `Array4xN` type represents large arrays in the native format of the Caliptra
 /// cryptographic hardware, and provides From traits for converting to/from byte arrays.
 #[repr(transparent)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Zeroize)]
 pub struct Array4xN<const W: usize, const B: usize>(pub [u32; W]);
 impl<const W: usize, const B: usize> Array4xN<W, B> {
     pub const fn new(val: [u32; W]) -> Self {

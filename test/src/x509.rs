@@ -160,7 +160,8 @@ fn test_tcb_info_parse() {
 
 #[test]
 fn test_tcb_info_find_multiple_in_cert_when_no_tcb_info() {
-    let cert_der = include_bytes!("../tests/smoke_testdata/ldevid_cert.der");
+    let cert_der =
+        include_bytes!("../tests/caliptra_integration_tests/smoke_testdata/ldevid_cert.der");
     assert_eq!(Ok(vec![]), DiceTcbInfo::find_multiple_in_cert(cert_der));
 }
 
@@ -216,7 +217,7 @@ fn get_cert_extension<'a>(
 
 #[test]
 fn test_get_cert_extension() {
-    let cert = include_bytes!("../tests/smoke_testdata/ldevid_cert.der");
+    let cert = include_bytes!("../tests/caliptra_integration_tests/smoke_testdata/ldevid_cert.der");
 
     assert_eq!(get_cert_extension(cert, &asn1::oid!(5, 3)), Ok(None));
     assert_eq!(

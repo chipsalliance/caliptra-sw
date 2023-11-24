@@ -1,22 +1,23 @@
 // Licensed under the Apache-2.0 license.
 
 use crate::bounded_address::RomAddr;
+use crate::soc_ifc;
 use crate::{
     memory_layout, report_fw_error_non_fatal, ColdResetEntry4, ColdResetEntry48, Ecc384PubKey,
     Ecc384Signature, KeyId, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
-use crate::{memory_layout::FHT_ORG, soc_ifc};
 use bitfield::{bitfield_bitrange, bitfield_fields};
 use caliptra_error::CaliptraError;
 use caliptra_image_types::RomInfo;
 use core::mem::size_of;
 use zerocopy::{AsBytes, FromBytes};
+use zeroize::Zeroize;
 
 pub const FHT_MARKER: u32 = 0x54484643;
 pub const FHT_INVALID_ADDRESS: u32 = u32::MAX;
 
 #[repr(C)]
-#[derive(AsBytes, Copy, Clone, Debug, FromBytes, PartialEq)]
+#[derive(AsBytes, Copy, Clone, Debug, FromBytes, PartialEq, Zeroize)]
 pub struct HandOffDataHandle(pub u32);
 pub const FHT_INVALID_HANDLE: HandOffDataHandle = HandOffDataHandle(u32::MAX);
 
@@ -215,7 +216,7 @@ impl From<DataStore> for HandOffDataHandle {
 const _: () = assert!(size_of::<FirmwareHandoffTable>() == 2048);
 const _: () = assert!(size_of::<FirmwareHandoffTable>() <= memory_layout::FHT_SIZE as usize);
 #[repr(C)]
-#[derive(Clone, Debug, AsBytes, FromBytes)]
+#[derive(Clone, Debug, AsBytes, FromBytes, Zeroize)]
 pub struct FirmwareHandoffTable {
     /// Magic Number marking start of table. Value must be 0x54484643
     /// (‘CFHT’ when viewed as little-endian ASCII).
@@ -477,46 +478,6 @@ impl FirmwareHandoffTable {
         }
 
         valid
-    }
-
-    /// Load FHT from its fixed address and perform validity check of
-    /// its data.
-    ///
-    /// # Safety
-    ///
-    /// This function must not be called while any references returned from
-    /// PersistentDataAccessor are still around. Prefer to use
-    /// PersistentDataAccessor over this function.
-    pub unsafe fn try_load() -> Option<FirmwareHandoffTable> {
-        let slice = unsafe {
-            let ptr = FHT_ORG as *mut u32;
-            core::slice::from_raw_parts_mut(
-                ptr,
-                core::mem::size_of::<FirmwareHandoffTable>() / core::mem::size_of::<u32>(),
-            )
-        };
-
-        let fht = FirmwareHandoffTable::read_from(slice.as_bytes()).unwrap();
-
-        if fht.is_valid() {
-            print_fht(&fht);
-            return Some(fht);
-        }
-        None
-    }
-
-    /// # Safety
-    ///
-    /// This function must not be called while any references returned from
-    /// PersistentDataAccessor are still around. Prefer to use
-    /// PersistentDataAccessor over this function.
-    pub unsafe fn save(fht: &FirmwareHandoffTable) {
-        let slice = unsafe {
-            let ptr = FHT_ORG as *mut u8;
-            crate::cprintln!("[fht] Saving FHT @ 0x{:08X}", ptr as u32);
-            core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<FirmwareHandoffTable>())
-        };
-        slice.copy_from_slice(fht.as_bytes());
     }
 }
 /// Report a non fatal firmware error and halt.

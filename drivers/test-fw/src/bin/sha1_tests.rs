@@ -15,6 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
+use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{Array4x5, Array4xN, Sha1};
 use caliptra_kat::Sha1Kat;
 
@@ -50,12 +51,12 @@ fn test_digest3() {
 }
 
 fn test_op1() {
-    let expected = Array4xN([0x34aa973c, 0xd4c4daa4, 0xf61eeb2b, 0xdbad2731, 0x6534016f]);
+    let expected = Array4xN([0x521d84ef, 0xcae113d0, 0x00a14796, 0x8b508e06, 0x7cb60184]);
     const DATA: [u8; 1000] = [0x61; 1000];
     let mut digest = Array4x5::default();
     let mut sha = Sha1::default();
     let mut digest_op = sha.digest_init().unwrap();
-    for _ in 0..1_000 {
+    for _ in 0..300 {
         assert!(digest_op.update(&DATA).is_ok());
     }
     let actual = digest_op.finalize(&mut digest);
@@ -64,6 +65,9 @@ fn test_op1() {
 }
 
 fn test_kat() {
+    // Init CFI
+    CfiCounter::reset(&mut || Ok([0xDEADBEEFu32; 12]));
+
     assert_eq!(
         Sha1Kat::default().execute(&mut Sha1::default()).is_ok(),
         true

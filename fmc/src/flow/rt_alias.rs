@@ -80,8 +80,9 @@ impl RtAliasLayer {
             subj_key_id,
         };
 
-        let nb = NotBefore::default();
-        let nf = NotAfter::default();
+        let manifest = &env.persistent_data.get().manifest1;
+
+        let (nb, nf) = Self::get_cert_validity_info(manifest);
 
         // Generate Rt Alias Certificate
         Self::generate_cert_sig(env, input, &output, &nb.value, &nf.value)?;
@@ -130,16 +131,19 @@ impl RtAliasLayer {
     /// # Returns
     ///
     /// * `DiceInput` - DICE Layer Input
-    fn dice_input_from_hand_off(env: &FmcEnv) -> CaliptraResult<DiceInput> {
+    fn dice_input_from_hand_off(env: &mut FmcEnv) -> CaliptraResult<DiceInput> {
+        let auth_pub = HandOff::fmc_pub_key(env);
+        let auth_serial_number = X509::subj_sn(env, &auth_pub)?;
+        let auth_key_id = X509::subj_key_id(env, &auth_pub)?;
         // Create initial output
         let input = DiceInput {
             cdi: HandOff::fmc_cdi(env),
             auth_key_pair: Ecc384KeyPair {
                 priv_key: HandOff::fmc_priv_key(env),
-                pub_key: HandOff::fmc_pub_key(env),
+                pub_key: auth_pub,
             },
-            auth_sn: [0u8; 64],
-            auth_key_id: [0u8; 20],
+            auth_sn: auth_serial_number,
+            auth_key_id,
         };
 
         Ok(input)
@@ -180,14 +184,41 @@ impl RtAliasLayer {
         HandOff::set_and_lock_rt_min_svn(env, rt_min_svn)
     }
 
+    fn get_cert_validity_info(
+        manifest: &caliptra_image_types::ImageManifest,
+    ) -> (NotBefore, NotAfter) {
+        // If there is a valid value in the manifest for the not_before and not_after times,
+        // use those. Otherwise use the default values.
+        let mut nb = NotBefore::default();
+        let mut nf = NotAfter::default();
+        let null_time = [0u8; 15];
+
+        if manifest.header.vendor_data.vendor_not_after != null_time
+            && manifest.header.vendor_data.vendor_not_before != null_time
+        {
+            nf.value = manifest.header.vendor_data.vendor_not_after;
+            nb.value = manifest.header.vendor_data.vendor_not_before;
+        }
+
+        // Owner values take preference.
+        if manifest.header.owner_data.owner_not_after != null_time
+            && manifest.header.owner_data.owner_not_before != null_time
+        {
+            nf.value = manifest.header.owner_data.owner_not_after;
+            nb.value = manifest.header.owner_data.owner_not_before;
+        }
+
+        (nb, nf)
+    }
+
     /// Permute Composite Device Identity (CDI) using Rt TCI and Image Manifest Digest
     /// The RT Alias CDI will overwrite the FMC Alias CDI in the KeyVault Slot
     ///
     /// # Arguments
     ///
     /// * `env` - ROM Environment
-    /// * `rt_cdi` - Key Slot that holds the current CDI
-    /// * `fmc_cdi` - Key Slot to store the generated CDI
+    /// * `fmc_cdi` - Key Slot that holds the current CDI
+    /// * `rt_cdi` - Key Slot to store the generated CDI
     fn derive_cdi(env: &mut FmcEnv, fmc_cdi: KeyId, rt_cdi: KeyId) -> CaliptraResult<()> {
         // Compose FMC TCI (1. RT TCI, 2. Image Manifest Digest)
         let mut tci = [0u8; 2 * SHA384_HASH_SIZE];

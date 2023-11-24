@@ -9,6 +9,7 @@
 #[allow(unused)]
 use caliptra_test_harness;
 
+use caliptra_drivers::cprint;
 use caliptra_registers::{self, mbox::MboxCsr, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg};
 
 #[panic_handler]
@@ -30,6 +31,8 @@ extern "C" fn main() {
         .cptra_flow_status()
         .write(|w| w.ready_for_fw(true));
 
+    let mut replay_buf_len = 0;
+    let mut replay_buf = [0u32; 2048];
     loop {
         while !mbox.status().read().mbox_fsm_ps().mbox_execute_uc() {
             // Wait for a request from the SoC.
@@ -69,6 +72,38 @@ extern "C" fn main() {
             // Returns a success response; doesn't consume input.
             0x2000_0000 => {
                 mbox.status().write(|w| w.status(|w| w.cmd_complete()));
+            }
+            // Store a buf to be returned by 0x3000_0001
+            0x3000_0000 => {
+                let dlen = mbox.dlen().read();
+                let dlen_words = usize::try_from((dlen + 3) / 4).unwrap();
+                for i in 0..usize::min(dlen_words, replay_buf.len()) {
+                    replay_buf[i] = mbox.dataout().read();
+                }
+                replay_buf_len = u32::min(dlen, u32::try_from(replay_buf.len()).unwrap());
+                mbox.status().write(|w| w.status(|w| w.cmd_complete()));
+            }
+            0x3000_0001 => {
+                cprint!("|");
+                let dlen = mbox.dlen().read();
+                let dlen_words = usize::try_from((dlen + 3) / 4).unwrap();
+                for i in 0..(dlen_words) {
+                    if i == dlen_words - 1 && dlen % 4 != 0 {
+                        let word_bytes = mbox.dataout().read().to_le_bytes();
+                        for byte in &word_bytes[..dlen as usize % 4] {
+                            cprint!("{:02x}", *byte);
+                        }
+                    } else {
+                        cprint!("{:08x}", mbox.dataout().read().to_be());
+                    }
+                }
+                cprint!("|");
+                mbox.dlen().write(|_| replay_buf_len);
+                let dlen_words = usize::try_from((replay_buf_len + 3) / 4).unwrap();
+                for i in 0..dlen_words {
+                    mbox.datain().write(|_| replay_buf[i]);
+                }
+                mbox.status().write(|w| w.status(|w| w.data_ready()));
             }
             0x5000_0000 => {
                 // Unlock sha512acc peripheral by writing 1

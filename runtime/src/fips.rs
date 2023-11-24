@@ -11,6 +11,7 @@ use caliptra_drivers::Sha256;
 use caliptra_drivers::Sha384;
 use caliptra_drivers::Sha384Acc;
 use caliptra_registers::mbox::enums::MboxStatusE;
+use zeroize::Zeroize;
 
 use crate::Drivers;
 

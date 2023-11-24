@@ -77,8 +77,9 @@ pub enum RomBootStatus {
     UpdateResetComplete = UPDATE_RESET_BOOT_STATUS_BASE + 7,
 
     // ROM Global Boot Statues
-    KatStarted = ROM_GLOBAL_BOOT_STATUS_BASE,
-    KatComplete = ROM_GLOBAL_BOOT_STATUS_BASE + 1,
+    CfiInitialized = ROM_GLOBAL_BOOT_STATUS_BASE,
+    KatStarted = ROM_GLOBAL_BOOT_STATUS_BASE + 1,
+    KatComplete = ROM_GLOBAL_BOOT_STATUS_BASE + 2,
 }
 
 impl From<RomBootStatus> for u32 {

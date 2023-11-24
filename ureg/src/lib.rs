@@ -237,6 +237,11 @@ impl Mmio for RealMmioMut<'_> {
     unsafe fn read_volatile<T: Clone + Copy>(&self, src: *const T) -> T {
         core::ptr::read_volatile(src)
     }
+
+    #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+    unsafe fn read_volatile_array<const LEN: usize, T: Uint>(&self, dst: *mut T, src: *mut T) {
+        opt_riscv::read_volatile_array::<LEN, T>(dst, src)
+    }
 }
 impl MmioMut for RealMmioMut<'_> {
     /// Performs a volatile write of `src` to `dst`.

@@ -9,6 +9,7 @@ use std::ptr::null;
 pub use bindings::caliptra_verilated_init_args as InitArgs;
 pub use bindings::caliptra_verilated_sig_in as SigIn;
 pub use bindings::caliptra_verilated_sig_out as SigOut;
+use rand::Rng;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum AhbTxnType {
@@ -98,6 +99,26 @@ impl CaliptraVerilated {
                 total_cycles: 0,
                 ahb_txn: None,
             }
+        }
+    }
+
+    fn iccm_dccm_mbox_write(&mut self, addr: u32, data: [u32; 5]) {
+        self.input.ext_dccm_we = true;
+        self.input.ext_iccm_we = true;
+        self.input.ext_mbox_we = true;
+        self.input.ext_xccm_addr = addr;
+        self.input.ext_xccm_wdata = data;
+
+        self.next_cycle_high(1);
+        self.input.ext_dccm_we = false;
+        self.input.ext_iccm_we = false;
+        self.input.ext_mbox_we = false;
+    }
+
+    pub fn init_random_puf_state(&mut self, rng: &mut impl Rng) {
+        // Randomize all of ICCM and DCCM, first 32k of mailbox
+        for addr in 0..8192 {
+            self.iccm_dccm_mbox_write(addr, rng.gen::<[u32; 5]>());
         }
     }
 

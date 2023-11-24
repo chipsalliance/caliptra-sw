@@ -87,5 +87,9 @@ extern "C" fn main() {
             .at(0)
             .write(|_| status.into());
         mbox.execute().write(|w| w.execute(false));
+
+        // Wait for the "SoC" to see error_info
+        while soc_ifc.cptra_rsvd_reg().at(0).read() == 0 {}
+        soc_ifc.cptra_rsvd_reg().at(0).write(|_| 0);
     }
 }

@@ -43,6 +43,14 @@ impl UpdateResetFlow {
         cprintln!("[update-reset] ++");
         report_boot_status(UpdateResetStarted.into());
 
+        // Indicate that Update-Reset flow has started.
+        // This is used by the next Warm-Reset flow to confirm that the Update-Reset was successful.
+        // Success status is set at the end of the flow.
+        env.data_vault.write_warm_reset_entry4(
+            WarmResetEntry4::RomUpdateResetStatus,
+            UpdateResetStarted.into(),
+        );
+
         let Some(mut recv_txn) = env.mbox.try_start_recv_txn() else {
             cprintln!("Failed To Get Mailbox Transaction");
             return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE);
@@ -107,6 +115,11 @@ impl UpdateResetFlow {
         // Set RT version. FMC does not change.
         env.soc_ifc
             .set_rt_fw_rev_id(persistent_data.manifest1.runtime.version);
+
+        env.data_vault.write_lock_warm_reset_entry4(
+            WarmResetEntry4::RomUpdateResetStatus,
+            UpdateResetComplete.into(),
+        );
 
         cprintln!("[update-reset Success] --");
         report_boot_status(UpdateResetComplete.into());

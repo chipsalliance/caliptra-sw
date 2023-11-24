@@ -5,6 +5,16 @@
 
 use crate::FwId;
 
+pub fn rom_from_env() -> &'static FwId<'static> {
+    match std::env::var("CPTRA_ROM_TYPE").as_ref().map(|s| s.as_str()) {
+        Ok("ROM") => &ROM,
+        Ok("ROM_WITHOUT_UART") => &ROM,
+        Ok("ROM_WITH_UART") => &ROM_WITH_UART,
+        Ok(s) => panic!("unexpected CPRTA_TEST_ROM env-var value: {s:?}"),
+        Err(_) => &ROM_WITH_UART,
+    }
+}
+
 pub const ROM: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
@@ -105,6 +115,11 @@ pub mod hw_model_tests {
         ..BASE_FWID
     };
 
+    pub const TEST_UNITIALIZED_READ: FwId = FwId {
+        bin_name: "test_uninitialized_read",
+        ..BASE_FWID
+    };
+
     pub const TEST_PCR_EXTEND: FwId = FwId {
         bin_name: "test_pcr_extend",
         ..BASE_FWID
@@ -130,6 +145,11 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const ECC384_SIGN_VALIDATION_FAILURE: FwId = FwId {
+        bin_name: "ecc384_sign_validation_failure",
+        ..BASE_FWID
+    };
+
     pub const ERROR_REPORTER: FwId = FwId {
         bin_name: "error_reporter",
         ..BASE_FWID
@@ -142,6 +162,12 @@ pub mod driver_tests {
 
     pub const KEYVAULT: FwId = FwId {
         bin_name: "keyvault",
+        ..BASE_FWID
+    };
+
+    pub const KEYVAULT_FPGA: FwId = FwId {
+        bin_name: "keyvault",
+        features: &["fpga_realtime"],
         ..BASE_FWID
     };
 
@@ -282,6 +308,12 @@ pub mod rom_tests {
         bin_name: "caliptra-rom-test-fmc",
         features: &["emu", "interactive_test_fmc"],
     };
+
+    pub const FAKE_TEST_FMC_INTERACTIVE: FwId = FwId {
+        crate_name: "caliptra-rom-test-fmc",
+        bin_name: "caliptra-rom-test-fmc",
+        features: &["emu", "interactive_test_fmc", "fake-fmc"],
+    };
 }
 
 pub mod fmc_tests {
@@ -313,23 +345,8 @@ pub mod runtime_tests {
         ..RUNTIME_TEST_FWID_BASE
     };
 
-    pub const KEYVAULT: FwId = FwId {
-        bin_name: "keyvault",
-        ..RUNTIME_TEST_FWID_BASE
-    };
-
-    pub const LOCKED_DV: FwId = FwId {
-        bin_name: "locked_dv",
-        ..RUNTIME_TEST_FWID_BASE
-    };
-
     pub const CERT: FwId = FwId {
         bin_name: "cert",
-        ..RUNTIME_TEST_FWID_BASE
-    };
-
-    pub const WDT: FwId = FwId {
-        bin_name: "wdt",
         ..RUNTIME_TEST_FWID_BASE
     };
 }
@@ -351,12 +368,15 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &hw_model_tests::TEST_WRITE_TO_ROM,
     &hw_model_tests::TEST_ICCM_DOUBLE_BIT_ECC,
     &hw_model_tests::TEST_DCCM_DOUBLE_BIT_ECC,
+    &hw_model_tests::TEST_UNITIALIZED_READ,
     &hw_model_tests::TEST_PCR_EXTEND,
     &driver_tests::DOE,
     &driver_tests::ECC384,
+    &driver_tests::ECC384_SIGN_VALIDATION_FAILURE,
     &driver_tests::ERROR_REPORTER,
     &driver_tests::HMAC384,
     &driver_tests::KEYVAULT,
+    &driver_tests::KEYVAULT_FPGA,
     &driver_tests::MAILBOX_DRIVER_RESPONDER,
     &driver_tests::MAILBOX_DRIVER_SENDER,
     &driver_tests::MAILBOX_DRIVER_NEGATIVE_TESTS,
@@ -382,11 +402,9 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &rom_tests::TEST_FMC_WITH_UART,
     &rom_tests::FAKE_TEST_FMC_WITH_UART,
     &rom_tests::TEST_FMC_INTERACTIVE,
+    &rom_tests::FAKE_TEST_FMC_INTERACTIVE,
     &fmc_tests::MOCK_RT_WITH_UART,
     &fmc_tests::MOCK_RT_INTERACTIVE,
     &runtime_tests::BOOT,
-    &runtime_tests::KEYVAULT,
-    &runtime_tests::LOCKED_DV,
     &runtime_tests::CERT,
-    &runtime_tests::WDT,
 ];

@@ -65,6 +65,16 @@ void caliptra_verilated_eval(struct caliptra_verilated* model,
   v->ext_imem_addr = in->imem_addr;
   v->ext_imem_wdata = in->imem_wdata;
 
+  v->ext_dccm_we = in->ext_dccm_we;
+  v->ext_iccm_we = in->ext_iccm_we;
+  v->ext_mbox_we = in->ext_mbox_we;
+  v->ext_xccm_addr = in->ext_xccm_addr;
+  v->ext_xccm_wdata[0] = in->ext_xccm_wdata[0];
+  v->ext_xccm_wdata[1] = in->ext_xccm_wdata[1];
+  v->ext_xccm_wdata[2] = in->ext_xccm_wdata[2];
+  v->ext_xccm_wdata[3] = in->ext_xccm_wdata[3];
+  v->ext_xccm_wdata[4] = in->ext_xccm_wdata[4];
+
   v->itrng_data = in->itrng_data;
   v->itrng_valid = in->itrng_valid;
 
@@ -98,3 +108,4 @@ void caliptra_verilated_eval(struct caliptra_verilated* model,
   out->uc_hready = v->uc_hready;
   out->uc_hresp = v->uc_hresp;
 }
+

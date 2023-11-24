@@ -22,6 +22,7 @@ use caliptra_lms_types::{
     LmotsAlgorithmType, LmsAlgorithmType, LmsIdentifier, LmsPublicKey, LmsSignature,
 };
 use zerocopy::{AsBytes, LittleEndian, U32};
+use zeroize::Zeroize;
 
 pub const D_PBLC: u16 = 0x8080;
 pub const D_MESG: u16 = 0x8181;
@@ -42,7 +43,7 @@ pub enum LmsResult {
 }
 
 #[repr(transparent)]
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct HashValue<const N: usize>(pub [u32; N]);
 
 impl<const N: usize> Default for HashValue<N> {
@@ -373,7 +374,7 @@ impl Lms {
         }
         hasher.finalize(&mut digest)?;
         let result = HashValue::<N>::from(digest);
-        digest.0.fill(0);
+        digest.0.zeroize();
         Ok(result)
     }
 
@@ -393,7 +394,7 @@ impl Lms {
         } else {
             Ok(LmsResult::Success)
         };
-        candidate_key.0.fill(0);
+        candidate_key.0.zeroize();
         result
     }
 
@@ -417,7 +418,7 @@ impl Lms {
         } else {
             Ok(LmsResult::Success)
         };
-        candidate_key.0.fill(0);
+        candidate_key.0.zeroize();
         result
     }
 
@@ -532,9 +533,9 @@ impl Lms {
             temp = HashValue::<N>::from(digest);
             node_num /= 2;
             i += 1;
-            digest.0.fill(0);
+            digest.0.zeroize();
         }
-        digest.0.fill(0);
+        digest.0.zeroize();
         Ok(temp)
     }
 }

@@ -25,6 +25,7 @@ use caliptra_common::keyids::{KEY_ID_FE, KEY_ID_IDEVID_PRIV_KEY, KEY_ID_ROM_FMC_
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
 use caliptra_x509::*;
+use zeroize::Zeroize;
 
 type InitDevIdCsr<'a> = Certificate<'a, { MAX_CSR_SIZE }>;
 
@@ -54,10 +55,16 @@ impl InitDevIdLayer {
         cprintln!("[idev] SUBJECT.KEYID = {}", KEY_ID_IDEVID_PRIV_KEY as u8);
         cprintln!("[idev] UDS.KEYID = {}", KEY_ID_UDS as u8);
 
+        // If CSR is not requested, indicate to the SOC that it can start
+        // uploading the firmware image to the mailbox.
+        if !env.soc_ifc.mfg_flag_gen_idev_id_csr() {
+            env.soc_ifc.flow_status_set_ready_for_firmware();
+        }
+
         // Decrypt the UDS
         Self::decrypt_uds(env, KEY_ID_UDS)?;
 
-        // Decrypt the Filed Entropy
+        // Decrypt the Field Entropy
         Self::decrypt_field_entropy(env, KEY_ID_FE)?;
 
         // Clear Deobfuscation Engine Secrets
@@ -88,7 +95,12 @@ impl InitDevIdLayer {
         // Generate the Initial DevID Certificate Signing Request (CSR)
         Self::generate_csr(env, &output)?;
 
-        // Write IDevID pub to FHT
+        // Indicate (if not already done) to SOC that it can start uploading the firmware image to the mailbox.
+        if !env.soc_ifc.flow_status_ready_for_firmware() {
+            env.soc_ifc.flow_status_set_ready_for_firmware();
+        }
+
+        // Write IDevID public key to FHT
         env.persistent_data.get_mut().fht.idev_dice_pub_key = output.subj_key_pair.pub_key;
 
         cprintln!("[idev] --");
@@ -196,7 +208,7 @@ impl InitDevIdLayer {
         //
         // Generate the CSR if requested via Manufacturing Service Register
         //
-        // A flag is asserted via JTAG interface to enble the generation of CSR
+        // A flag is asserted via JTAG interface to enable the generation of CSR
         if !env.soc_ifc.mfg_flag_gen_idev_id_csr() {
             return Ok(());
         }
@@ -236,7 +248,7 @@ impl InitDevIdLayer {
             key_pair.priv_key as u8
         );
 
-        // Sign the the `To Be Signed` portion
+        // Sign the `To Be Signed` portion
         let mut sig =
             Crypto::ecdsa384_sign_and_verify(env, key_pair.priv_key, &key_pair.pub_key, tbs.tbs());
         let sig = okmutref(&mut sig)?;
@@ -271,7 +283,7 @@ impl InitDevIdLayer {
 
         // Execute Send CSR Flow
         let result = Self::send_csr(env, InitDevIdCsr::new(&csr, csr_len));
-        csr.fill(0);
+        csr.zeroize();
 
         result
     }

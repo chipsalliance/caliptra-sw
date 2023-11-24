@@ -5,6 +5,7 @@
 #![no_main]
 #![no_std]
 
+use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{Array4x12, PcrBank, PcrId, Sha384};
 use caliptra_registers::{pv::PvReg, sha512::Sha512Reg};
 #[allow(unused)]
@@ -16,7 +17,17 @@ pub fn panic(_info: &core::panic::PanicInfo) -> ! {
 }
 
 #[no_mangle]
+extern "C" fn cfi_panic_handler(code: u32) -> ! {
+    println!("[test_pcr_extend] CFI Panic code=0x{:08X}", code);
+    caliptra_drivers::report_fw_error_fatal(0xdead2);
+    caliptra_drivers::ExitCtrl::exit(u32::MAX)
+}
+
+#[no_mangle]
 extern "C" fn main() {
+    // Init CFI
+    CfiCounter::reset(&mut || Ok([0xDEADBEEFu32; 12]));
+
     let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
     let pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
 

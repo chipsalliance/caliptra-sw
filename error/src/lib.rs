@@ -112,6 +112,7 @@ impl CaliptraError {
         CaliptraError::new_const(0x0005000e);
     pub const DRIVER_ECC384_SCALAR_RANGE_CHECK_FAILED: CaliptraError =
         CaliptraError::new_const(0x0005000f);
+    pub const DRIVER_ECC384_KEYGEN_BAD_USAGE: CaliptraError = CaliptraError::new_const(0x00050010);
 
     pub const DRIVER_KV_ERASE_USE_LOCK_SET_FAILURE: CaliptraError =
         CaliptraError::new_const(0x00060001);
@@ -125,6 +126,8 @@ impl CaliptraError {
     pub const DRIVER_MAILBOX_INVALID_STATE: CaliptraError = CaliptraError::new_const(0x00080001);
     pub const DRIVER_MAILBOX_INVALID_DATA_LEN: CaliptraError = CaliptraError::new_const(0x00080002);
     pub const DRIVER_MAILBOX_ENQUEUE_ERR: CaliptraError = CaliptraError::new_const(0x00080004);
+    pub const DRIVER_MAILBOX_UNCORRECTABLE_ECC: CaliptraError =
+        CaliptraError::new_const(0x00080005);
 
     /// SHA384ACC Errors.
     pub const DRIVER_SHA384ACC_INDEX_OUT_OF_BOUNDS: CaliptraError =
@@ -344,6 +347,17 @@ impl CaliptraError {
     pub const RUNTIME_FMC_CERT_HANDOFF_FAILED: CaliptraError = CaliptraError::new_const(0x000E0019);
     pub const RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL: CaliptraError =
         CaliptraError::new_const(0x000E001A);
+    pub const RUNTIME_DPE_VALIDATION_FAILED: CaliptraError = CaliptraError::new_const(0x000E001B);
+    pub const RUNTIME_UNKNOWN_RESET_FLOW: CaliptraError = CaliptraError::new_const(0x000E001C);
+    pub const RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED: CaliptraError =
+        CaliptraError::new_const(0x000E001D);
+    pub const RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED: CaliptraError =
+        CaliptraError::new_const(0x000E001E);
+    pub const RUNTIME_GLOBAL_WDT_EXPIRED: CaliptraError = CaliptraError::new_const(0x000E001F);
+    pub const RUNTIME_IDEV_CERT_POPULATION_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E0021);
+    pub const RUNTIME_ADD_ROM_MEASUREMENTS_TO_DPE_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E0022);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
@@ -356,6 +370,9 @@ impl CaliptraError {
     pub const FMC_CDI_KV_COLLISION: CaliptraError = CaliptraError::new_const(0x000F0008);
     pub const FMC_ALIAS_KV_COLLISION: CaliptraError = CaliptraError::new_const(0x000F0009);
     pub const FMC_GLOBAL_PCR_LOG_EXHAUSTED: CaliptraError = CaliptraError::new_const(0x000F000A);
+    pub const ADDRESS_NOT_IN_ICCM: CaliptraError = CaliptraError::new_const(0x000F000B);
+    pub const FMC_HANDOFF_NOT_READY_FOR_RT: CaliptraError = CaliptraError::new_const(0x000F000C);
+    pub const FMC_GLOBAL_WDT_EXPIRED: CaliptraError = CaliptraError::new_const(0x000F000D);
 
     /// TRNG_EXT Errors
     pub const DRIVER_TRNG_EXT_TIMEOUT: CaliptraError = CaliptraError::new_const(0x00100001);
@@ -411,6 +428,9 @@ impl CaliptraError {
     pub const ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_COLD_RESET: CaliptraError =
         CaliptraError::new_const(0x01040010);
 
+    pub const ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_UPDATE_RESET: CaliptraError =
+        CaliptraError::new_const(0x01040011);
+
     /// Unknown Reset Error
     pub const ROM_UNKNOWN_RESET_FLOW: CaliptraError = CaliptraError::new_const(0x01040020);
 
@@ -427,6 +447,10 @@ impl CaliptraError {
     pub const ROM_CFI_PANIC_ASSERT_GE_FAILURE: CaliptraError = CaliptraError::new_const(0x1040059);
     pub const ROM_CFI_PANIC_ASSERT_LE_FAILURE: CaliptraError = CaliptraError::new_const(0x104005A);
     pub const ROM_CFI_PANIC_TRNG_FAILURE: CaliptraError = CaliptraError::new_const(0x104005B);
+    pub const ROM_CFI_PANIC_UNEXPECTED_MATCH_BRANCH: CaliptraError =
+        CaliptraError::new_const(0x104005C);
+    pub const ROM_CFI_PANIC_FAKE_TRNG_USED_WITH_DEBUG_LOCK: CaliptraError =
+        CaliptraError::new_const(0x104005D);
 
     /// ROM Global Errors
     pub const ROM_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x01050001);
@@ -454,7 +478,7 @@ impl CaliptraError {
     pub const ROM_GLOBAL_WDT_EXPIRED: CaliptraError = CaliptraError::new_const(0x0105000C);
 
     pub const ROM_GLOBAL_MEASUREMENT_LOG_EXHAUSTED: CaliptraError =
-        CaliptraError::new_const(0x010000D);
+        CaliptraError::new_const(0x0105000D);
 
     /// ROM KAT Errors
     pub const ROM_KAT_SHA256_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90010001);

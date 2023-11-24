@@ -50,8 +50,11 @@ pub enum IdevidCertAttr {
     SubjectKeyId3 = 3,
     SubjectKeyId4 = 4,
     SubjectKeyId5 = 5,
-    ManufacturerSerialNumber1 = 6,
-    ManufacturerSerialNumber2 = 7,
+    UeidType = 6,
+    ManufacturerSerialNumber1 = 7,
+    ManufacturerSerialNumber2 = 8,
+    ManufacturerSerialNumber3 = 9,
+    ManufacturerSerialNumber4 = 10,
 }
 
 impl From<IdevidCertAttr> for usize {
@@ -100,7 +103,7 @@ impl FuseBank<'_> {
     /// # Returns
     ///     manufacturer serial number  
     ///
-    pub fn ueid(&self) -> [u8; 8] {
+    pub fn ueid(&self) -> [u8; 17] {
         let soc_ifc_regs = self.soc_ifc.regs();
 
         let ueid1 = soc_ifc_regs
@@ -111,10 +114,25 @@ impl FuseBank<'_> {
             .fuse_idevid_cert_attr()
             .at(IdevidCertAttr::ManufacturerSerialNumber2.into())
             .read();
+        let ueid3 = soc_ifc_regs
+            .fuse_idevid_cert_attr()
+            .at(IdevidCertAttr::ManufacturerSerialNumber3.into())
+            .read();
+        let ueid4 = soc_ifc_regs
+            .fuse_idevid_cert_attr()
+            .at(IdevidCertAttr::ManufacturerSerialNumber4.into())
+            .read();
+        let ueid_type = soc_ifc_regs
+            .fuse_idevid_cert_attr()
+            .at(IdevidCertAttr::UeidType.into())
+            .read() as u8;
 
-        let mut ueid = [0u8; 8];
-        ueid[..4].copy_from_slice(&ueid1.to_le_bytes());
-        ueid[4..].copy_from_slice(&ueid2.to_le_bytes());
+        let mut ueid = [0u8; 17];
+        ueid[0] = ueid_type;
+        ueid[1..5].copy_from_slice(&ueid1.to_le_bytes());
+        ueid[5..9].copy_from_slice(&ueid2.to_le_bytes());
+        ueid[9..13].copy_from_slice(&ueid3.to_le_bytes());
+        ueid[13..].copy_from_slice(&ueid4.to_le_bytes());
 
         ueid
     }

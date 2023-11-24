@@ -236,7 +236,7 @@ impl Default for CaliptraRootBusArgs {
             download_idevid_csr_cb: Default::default(),
             cptra_obf_key: words_from_bytes_be(&DEFAULT_DOE_KEY),
             itrng_nibbles: Some(Box::new(RandomNibbles::new_from_thread_rng())),
-            etrng_responses: Box::new(RandomEtrngResponses::new_from_thread_rng()),
+            etrng_responses: Box::new(RandomEtrngResponses::new_from_stdrng()),
         }
     }
 }

@@ -19,3 +19,4 @@ verilator = []
 itrng = []
 
 [dependencies]
+rand.workspace = true

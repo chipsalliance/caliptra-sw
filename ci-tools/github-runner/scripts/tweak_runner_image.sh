@@ -24,7 +24,8 @@ set -x
     # Install some commonly used packages
     apt-get -y install build-essential autoconf automake libtool manpages-dev flex \
         bison libfl2 libfl-dev help2man git gcc-riscv64-unknown-elf \
-        binutils-riscv64-unknown-elf pkg-config libssl-dev jq
+        binutils-riscv64-unknown-elf pkg-config libssl-dev jq libtinfo5 \
+        gcc-aarch64-linux-gnu squashfs-tools
 
     echo Retrieving latest GHA runner version
     RUNNER_VERSION="$(curl https://api.github.com/repos/actions/runner/releases/latest | jq -r '.tag_name[1:]')"
@@ -41,6 +42,8 @@ set -x
     echo Installing Rust Toolchain
     su runner -c "curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain=1.70"
     su runner -c "/home/runner/.cargo/bin/rustup target add riscv32imc-unknown-none-elf"
+    echo Installing cargo-nextest
+    su runner -c "/home/runner/.cargo/bin/cargo install cargo-nextest@0.9.62 --locked --no-default-features --features=default-no-update"
 
     mkdir sw
     (

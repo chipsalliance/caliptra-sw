@@ -29,7 +29,7 @@ HWMODEL_DIR = $(OUTPUT_DIR)
 HWMODEL_HEADER_DIR = ../../../hw-model/c-binding/out
 HWMODEL_INCLUDE = -I$(HWMODEL_HEADER_DIR)
 HWMODEL_LIB = -Wl,-L$(HWMODEL_DIR) -lcaliptra_hw_model_c_binding
-HWMODEL_FLAGS = -lpthread -lstdc++ -ldl -lm
+HWMODEL_FLAGS = -lpthread -lstdc++ -ldl -lrt -lm 
 HWMODEL_HEADER = $(HWMODEL_HEADER_DIR)/caliptra_model.h
 HWMODEL_BINDING_LIB_OBJ = $(HWMODEL_DIR)/libcaliptra_hw_model_c_binding.a
 
@@ -41,13 +41,13 @@ INCLUDES += $(HWMODEL_INCLUDE)
 
 SOURCE += interface.c
 
-CFLAGS += $(HWMODEL_INCLUDE) $(HWMODEL_LIB) $(HWMODEL_FLAGS)
+CFLAGS += $(HWMODEL_INCLUDE) $(HWMODEL_LIB) $(HWMODEL_FLAGS) -Wall
 
 $(ROM_FILE) $(FW_FILE):
 	@echo [IMAGE] caliptra_rom.bin image_bundle.bin
 	$(Q)make -C ../../../rom/dev
 	$(Q)cd ../../../runtime && ./build.sh
-	$(Q)cargo --config="$(EXTRA_CARGO_CONFIG)" run --manifest-path=$(BUILDER_PATH)/Cargo.toml --bin image -- --rom $(ROM_FW_DIR)/caliptra_rom.bin --fw $(ROM_FW_DIR)/image_bundle.bin
+	$(Q)cargo --config="$(EXTRA_CARGO_CONFIG)" run --manifest-path=$(BUILDER_PATH)/Cargo.toml --bin image -- --rom-with-log $(ROM_FW_DIR)/caliptra_rom.bin --fw $(ROM_FW_DIR)/image_bundle.bin
 
 $(HWMODEL_BINDING_LIB_OBJ):
 	@echo "[CARGO] c-binding"
