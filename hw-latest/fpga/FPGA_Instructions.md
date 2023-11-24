@@ -148,10 +148,10 @@ Test requirements for both OpenOCD and GDB:
 - Access to VEER core registers.
 - HW and SW breakpoints halt the CPU.
 - Watchpoints on DCCM and Caliptra register access halt the CPU.
- 
+
 Test requirements exclusive to GDB:
 - Basic commands all work (step, next, frame, info, bt, ni, si, etc.).
- 
+
 Test requirements exclusive to OpenOCD:
 - Basic commands all work (reg, step, resume, etc.).
 - Access to VEER CSRs.
