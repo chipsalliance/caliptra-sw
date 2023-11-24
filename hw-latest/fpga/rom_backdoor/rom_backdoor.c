@@ -19,8 +19,8 @@ struct rom_backdoor_backend_data
     struct cdev rom_backdoor_dev;
 };
 
-static struct class *mychardev_class = NULL;
-static struct rom_backdoor_backend_data mychardev_data;
+static struct class *rom_backdoor_chardev_class = NULL;
+static struct rom_backdoor_backend_data rom_backdoor_chardev_data = {0};
 
 static int rom_backdoor_dev_open(struct inode *inode, struct file *file)
 {
@@ -147,35 +147,35 @@ static int __init register_rom_backdoor_device(void)
     rc = alloc_chrdev_region(&dev, 0, 1, DEVICE_NAME);
     if (rc != 0)
     {
-        printk(KERN_ALERT "register_rom_backdoor_device: error %d in register_chrdev_region \n", rc);
+        printk(KERN_ALERT "register_rom_backdoor_device: error %d in register_chrdev_region\n", rc);
         return rc;
     }
 
-    mychardev_class = class_create(THIS_MODULE, CLASS_NAME);
-    if (IS_ERR(mychardev_class))
+    rom_backdoor_chardev_class = class_create(THIS_MODULE, CLASS_NAME);
+    if (IS_ERR(rom_backdoor_chardev_class))
     {
-        printk(KERN_ALERT "register_rom_backdoor_device: error %lu in class_create \n", PTR_ERR(mychardev_class));
-        return PTR_ERR(mychardev_class);
+        printk(KERN_ALERT "register_rom_backdoor_device: error %lu in class_create\n", PTR_ERR(rom_backdoor_chardev_class));
+        return PTR_ERR(rom_backdoor_chardev_class);
     }
 
-    mychardev_class->dev_uevent = mychardev_uevent;
+    rom_backdoor_chardev_class->dev_uevent = mychardev_uevent;
 
     // initialize char device
-    cdev_init(&mychardev_data.rom_backdoor_dev, &rom_backdoor_fops);
+    cdev_init(&rom_backdoor_chardev_data.rom_backdoor_dev, &rom_backdoor_fops);
 
     // add char device
-    rc = cdev_add(&mychardev_data.rom_backdoor_dev, MKDEV(ROM_BACKDOOR_MAJOR_ID, 0), 1);
+    rc = cdev_add(&rom_backdoor_chardev_data.rom_backdoor_dev, MKDEV(ROM_BACKDOOR_MAJOR_ID, 0), 1);
     if (rc < 0)
     {
-        printk(KERN_ALERT "register_rom_backdoor_device: error %d in cdev_add \n", rc);
+        printk(KERN_ALERT "register_rom_backdoor_device: error %d in cdev_add\n", rc);
         return rc;
     }
 
     // create device
-    dev_ret = device_create(mychardev_class, NULL, MKDEV(ROM_BACKDOOR_MAJOR_ID, 0), NULL, DEVICE_NAME);
+    dev_ret = device_create(rom_backdoor_chardev_class, NULL, MKDEV(ROM_BACKDOOR_MAJOR_ID, 0), NULL, DEVICE_NAME);
     if (IS_ERR(dev_ret))
     {
-        printk(KERN_ALERT "register_rom_backdoor_device: error %lu in cdev_add \n", PTR_ERR(dev_ret));
+        printk(KERN_ALERT "register_rom_backdoor_device: error %lu in cdev_add\n", PTR_ERR(dev_ret));
         return PTR_ERR(dev_ret);
     }
 
@@ -184,13 +184,13 @@ static int __init register_rom_backdoor_device(void)
 
 static void __exit rom_backdoor_backend_remove(void)
 {
-    device_destroy(mychardev_class, MKDEV(ROM_BACKDOOR_MAJOR_ID, 0));
+    device_destroy(rom_backdoor_chardev_class, MKDEV(ROM_BACKDOOR_MAJOR_ID, 0));
 
-    class_unregister(mychardev_class);
-    class_destroy(mychardev_class);
+    class_unregister(rom_backdoor_chardev_class);
+    class_destroy(rom_backdoor_chardev_class);
 
     // delete char device
-    cdev_del(&mychardev_data.rom_backdoor_dev);
+    cdev_del(&rom_backdoor_chardev_data.rom_backdoor_dev);
 
     // unregister char device region
     unregister_chrdev_region(MKDEV(ROM_BACKDOOR_MAJOR_ID, 0), 1);
