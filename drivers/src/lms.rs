@@ -310,6 +310,7 @@ impl Lms {
         y: &[[U32<LittleEndian>; N]; P],
         message_digest: &HashValue<N>,
     ) -> CaliptraResult<HashValue<N>> {
+        // wntz_mode: 1 for SHA256 with n=32, and 0 for SHA192 with n=24
         const WNTZ_MODE_SHA256: u8 = 32;
 
         let params = get_lmots_parameters(algo_type)?;

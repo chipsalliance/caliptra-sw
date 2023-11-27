@@ -344,7 +344,7 @@ impl Sha256 {
             sha256.ctrl().write(|w| w.wntz_n_mode(n_mode).wntz_w(w_value).wntz_mode(true).mode(true).init(true).next(false));
         } else {
             // Submit next block in existing hashing chain
-            sha256.ctrl().write(|w| w.wntz_mode(false).mode(true).init(false).next(true));
+            sha256.ctrl().write(|w| w.wntz_n_mode(n_mode).wntz_w(w_value).wntz_mode(false).mode(true).init(false).next(true));
         }
 
         // Wait for the digest operation to finish
