@@ -6,12 +6,12 @@ use caliptra_builder::{
     ImageOptions,
 };
 use caliptra_common::mailbox_api::{
-    CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, GetIdevCertReq, GetIdevCertResp,
-    GetIdevInfoResp, GetTaggedTciReq, GetTaggedTciResp, InvokeDpeReq, InvokeDpeResp, MailboxReq,
-    MailboxReqHeader, MailboxRespHeader, PopulateIdevCertReq, StashMeasurementReq,
-    StashMeasurementResp, TagTciReq,
+    CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, GetFmcAliasCertResp, GetIdevCertReq,
+    GetIdevCertResp, GetIdevInfoResp, GetLdevCertResp, GetRtAliasCertResp, GetTaggedTciReq,
+    GetTaggedTciResp, InvokeDpeReq, InvokeDpeResp, MailboxReq, MailboxReqHeader, MailboxRespHeader,
+    PopulateIdevCertReq, StashMeasurementReq, StashMeasurementResp, TagTciReq,
 };
-use caliptra_drivers::{CaliptraError, Ecc384PubKey};
+use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError, ShaAccMode};
 use caliptra_runtime::{
     FipsVersionCmd, InvokeDpeCmd, RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU,
@@ -128,12 +128,23 @@ fn test_rt_cert_with_custom_dates() {
 
     opts.owner_config = Some(own_config);
 
-    let mut model = run_rt_test(Some(&firmware::runtime_tests::CERT), Some(opts), None);
+    let mut model = run_rt_test(None, Some(opts), None);
 
-    let rt_resp = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
-    let rt: &[u8] = rt_resp.as_bytes();
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_RT_ALIAS_CERT),
+            &[],
+        ),
+    };
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::GET_RT_ALIAS_CERT), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+    assert!(resp.len() <= std::mem::size_of::<GetRtAliasCertResp>());
+    let mut rt_resp = GetRtAliasCertResp::default();
+    rt_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
 
-    let rt_cert: X509 = X509::from_der(rt).unwrap();
+    let rt_cert: X509 = X509::from_der(&rt_resp.data[..rt_resp.data_size as usize]).unwrap();
 
     let not_before: Asn1Time = Asn1Time::from_str(OWNER_CONFIG.0).unwrap();
     let not_after: Asn1Time = Asn1Time::from_str(OWNER_CONFIG.1).unwrap();
@@ -144,32 +155,67 @@ fn test_rt_cert_with_custom_dates() {
 
 #[test]
 fn test_certs() {
-    let mut model = run_rt_test(Some(&firmware::runtime_tests::CERT), None, None);
+    let mut model = run_rt_test(None, None, None);
 
-    // Get certs over the mailbox
-    let ldev_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
-    let ldevid: &[u8] = ldev_resp.as_bytes();
+    // Get certs via mailbox commands
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_LDEV_CERT), &[]),
+    };
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::GET_LDEV_CERT), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+    assert!(resp.len() <= std::mem::size_of::<GetLdevCertResp>());
+    let mut ldev_resp = GetLdevCertResp::default();
+    ldev_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
 
-    let fmc_resp = model.mailbox_execute(0x2000_0000, &[]).unwrap().unwrap();
-    let fmc: &[u8] = fmc_resp.as_bytes();
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_FMC_ALIAS_CERT),
+            &[],
+        ),
+    };
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::GET_FMC_ALIAS_CERT), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+    assert!(resp.len() <= std::mem::size_of::<GetFmcAliasCertResp>());
+    let mut fmc_resp = GetFmcAliasCertResp::default();
+    fmc_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
 
-    let rt_resp = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
-    let rt: &[u8] = rt_resp.as_bytes();
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_RT_ALIAS_CERT),
+            &[],
+        ),
+    };
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::GET_RT_ALIAS_CERT), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+    assert!(resp.len() <= std::mem::size_of::<GetRtAliasCertResp>());
+    let mut rt_resp = GetRtAliasCertResp::default();
+    rt_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
 
     // Ensure certs are valid X.509
-    let ldev_cert: X509 = X509::from_der(ldevid).unwrap();
-    let fmc_cert: X509 = X509::from_der(fmc).unwrap();
-    let rt_cert: X509 = X509::from_der(rt).unwrap();
+    let ldev_cert: X509 = X509::from_der(&ldev_resp.data[..ldev_resp.data_size as usize]).unwrap();
+    let fmc_cert: X509 = X509::from_der(&fmc_resp.data[..fmc_resp.data_size as usize]).unwrap();
+    let rt_cert: X509 = X509::from_der(&rt_resp.data[..rt_resp.data_size as usize]).unwrap();
 
-    let idev_resp = model.mailbox_execute(0x4000_0000, &[]).unwrap().unwrap();
-    let idev_pub = Ecc384PubKey::read_from(idev_resp.as_bytes()).unwrap();
+    // Get IDev public key
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_IDEV_INFO), &[]),
+    };
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::GET_IDEV_INFO), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+    let idev_resp = GetIdevInfoResp::read_from(resp.as_slice()).unwrap();
 
     // Check the LDevID is signed by IDevID
     let group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
-    let x_bytes: [u8; 48] = idev_pub.x.into();
-    let y_bytes: [u8; 48] = idev_pub.y.into();
-    let idev_x = &BigNum::from_slice(&x_bytes).unwrap();
-    let idev_y = &BigNum::from_slice(&y_bytes).unwrap();
+    let idev_x = &BigNum::from_slice(&idev_resp.idev_pub_x).unwrap();
+    let idev_y = &BigNum::from_slice(&idev_resp.idev_pub_y).unwrap();
 
     let idev_ec_key = EcKey::from_public_key_affine_coordinates(&group, idev_x, idev_y).unwrap();
     assert!(ldev_cert
@@ -1165,20 +1211,12 @@ fn test_unimplemented_cmds() {
 
     let expected_err = Err(ModelError::MailboxCmdFailed(0xe0002));
 
-    // GET_IDEV_CSR
+    // CAPABILITIES
     let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_IDEV_CSR), &[]),
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::CAPABILITIES), &[]),
     };
 
-    let mut resp = model.mailbox_execute(u32::from(CommandId::GET_IDEV_CSR), payload.as_bytes());
-    assert_eq!(resp, expected_err);
-
-    // GET_LDEV_CERT
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_LDEV_CERT), &[]),
-    };
-
-    resp = model.mailbox_execute(u32::from(CommandId::GET_LDEV_CERT), payload.as_bytes());
+    let resp = model.mailbox_execute(u32::from(CommandId::CAPABILITIES), payload.as_bytes());
     assert_eq!(resp, expected_err);
 
     // Send something that is not a valid RT command.

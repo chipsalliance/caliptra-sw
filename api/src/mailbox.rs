@@ -8,11 +8,12 @@ use zerocopy::{AsBytes, FromBytes, LayoutVerified};
 pub struct CommandId(pub u32);
 impl CommandId {
     pub const FIRMWARE_LOAD: Self = Self(0x46574C44); // "FWLD"
-    pub const GET_IDEV_CSR: Self = Self(0x49444556); // "IDEV"
     pub const GET_IDEV_CERT: Self = Self(0x49444543); // "IDEC"
     pub const GET_IDEV_INFO: Self = Self(0x49444549); // "IDEI"
     pub const POPULATE_IDEV_CERT: Self = Self(0x49444550); // "IDEP"
     pub const GET_LDEV_CERT: Self = Self(0x4C444556); // "LDEV"
+    pub const GET_FMC_ALIAS_CERT: Self = Self(0x43455246); // "CERF"
+    pub const GET_RT_ALIAS_CERT: Self = Self(0x43455252); // "CERR"
     pub const ECDSA384_VERIFY: Self = Self(0x53494756); // "SIGV"
     pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
     pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
@@ -21,9 +22,6 @@ impl CommandId {
     pub const DPE_TAG_TCI: Self = Self(0x54514754); // "TAGT"
     pub const DPE_GET_TAGGED_TCI: Self = Self(0x47544744); // "GTGD"
 
-    // TODO: Remove this and merge with GET_LDEV_CERT once that is implemented
-    pub const TEST_ONLY_GET_LDEV_CERT: Self = Self(0x4345524c); // "CERL"
-    pub const TEST_ONLY_GET_FMC_ALIAS_CERT: Self = Self(0x43455246); // "CERF"
     pub const TEST_ONLY_HMAC384_VERIFY: Self = Self(0x484D4143); // "HMAC"
 
     /// FIPS module commands.
@@ -125,16 +123,16 @@ fn populate_checksum(msg: &mut [u8]) {
 pub enum MailboxResp {
     Header(MailboxRespHeader),
     GetIdevCert(GetIdevCertResp),
-    GetIdevCsr(GetIdevCsrResp),
     GetIdevInfo(GetIdevInfoResp),
     GetLdevCert(GetLdevCertResp),
     StashMeasurement(StashMeasurementResp),
     InvokeDpeCommand(InvokeDpeResp),
-    TestGetFmcAliasCert(TestGetFmcAliasCertResp),
+    GetFmcAliasCert(GetFmcAliasCertResp),
     FipsVersion(FipsVersionResp),
     FwInfo(FwInfoResp),
     Capabilities(CapabilitiesResp),
     GetTaggedTci(GetTaggedTciResp),
+    GetRtAliasCert(GetRtAliasCertResp),
 }
 
 impl MailboxResp {
@@ -142,16 +140,16 @@ impl MailboxResp {
         match self {
             MailboxResp::Header(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetIdevCert(resp) => resp.as_bytes_partial(),
-            MailboxResp::GetIdevCsr(resp) => resp.as_bytes_partial(),
             MailboxResp::GetIdevInfo(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetLdevCert(resp) => resp.as_bytes_partial(),
             MailboxResp::StashMeasurement(resp) => Ok(resp.as_bytes()),
             MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes_partial(),
-            MailboxResp::TestGetFmcAliasCert(resp) => resp.as_bytes_partial(),
             MailboxResp::FipsVersion(resp) => Ok(resp.as_bytes()),
             MailboxResp::FwInfo(resp) => Ok(resp.as_bytes()),
             MailboxResp::Capabilities(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetTaggedTci(resp) => Ok(resp.as_bytes()),
+            MailboxResp::GetFmcAliasCert(resp) => resp.as_bytes_partial(),
+            MailboxResp::GetRtAliasCert(resp) => resp.as_bytes_partial(),
         }
     }
 
@@ -159,16 +157,16 @@ impl MailboxResp {
         match self {
             MailboxResp::Header(resp) => Ok(resp.as_bytes_mut()),
             MailboxResp::GetIdevCert(resp) => resp.as_bytes_partial_mut(),
-            MailboxResp::GetIdevCsr(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::GetIdevInfo(resp) => Ok(resp.as_bytes_mut()),
             MailboxResp::GetLdevCert(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::StashMeasurement(resp) => Ok(resp.as_bytes_mut()),
             MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes_partial_mut(),
-            MailboxResp::TestGetFmcAliasCert(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::FipsVersion(resp) => Ok(resp.as_bytes_mut()),
             MailboxResp::FwInfo(resp) => Ok(resp.as_bytes_mut()),
             MailboxResp::Capabilities(resp) => Ok(resp.as_bytes_mut()),
             MailboxResp::GetTaggedTci(resp) => Ok(resp.as_bytes_mut()),
+            MailboxResp::GetFmcAliasCert(resp) => resp.as_bytes_partial_mut(),
+            MailboxResp::GetRtAliasCert(resp) => resp.as_bytes_partial_mut(),
         }
     }
 
@@ -210,8 +208,7 @@ impl Default for MailboxResp {
 #[allow(clippy::large_enum_variant)]
 pub enum MailboxReq {
     EcdsaVerify(EcdsaVerifyReq),
-    GetIdevCsr(MailboxReqHeader),
-    GetLdevCert(MailboxReqHeader),
+    GetLdevCert(GetLdevCertReq),
     StashMeasurement(StashMeasurementReq),
     InvokeDpeCommand(InvokeDpeReq),
     FipsVersion(MailboxReqHeader),
@@ -220,11 +217,11 @@ pub enum MailboxReq {
     GetIdevCert(GetIdevCertReq),
     TagTci(TagTciReq),
     GetTaggedTci(GetTaggedTciReq),
+    GetFmcAliasCert(GetFmcAliasCertReq),
+    GetRtAliasCert(GetRtAliasCertReq),
 
     #[cfg(feature = "test_only_commands")]
     TestHmacVerify(HmacVerifyReq),
-    #[cfg(feature = "test_only_commands")]
-    TestGetFmcAliasCert(MailboxReqHeader),
 }
 
 impl MailboxReq {
@@ -235,15 +232,14 @@ impl MailboxReq {
             MailboxReq::InvokeDpeCommand(req) => req.as_bytes_partial(),
             MailboxReq::FipsVersion(req) => Ok(req.as_bytes()),
             MailboxReq::FwInfo(req) => Ok(req.as_bytes()),
-            MailboxReq::GetIdevCsr(req) => Ok(req.as_bytes()),
             MailboxReq::GetLdevCert(req) => Ok(req.as_bytes()),
             MailboxReq::PopulateIdevCert(req) => req.as_bytes_partial(),
             MailboxReq::GetIdevCert(req) => req.as_bytes_partial(),
             MailboxReq::TagTci(req) => Ok(req.as_bytes()),
             MailboxReq::GetTaggedTci(req) => Ok(req.as_bytes()),
+            MailboxReq::GetFmcAliasCert(req) => Ok(req.as_bytes()),
+            MailboxReq::GetRtAliasCert(req) => Ok(req.as_bytes()),
 
-            #[cfg(feature = "test_only_commands")]
-            MailboxReq::TestGetFmcAliasCert(req) => Ok(req.as_bytes()),
             #[cfg(feature = "test_only_commands")]
             MailboxReq::TestHmacVerify(req) => Ok(req.as_bytes()),
         }
@@ -252,7 +248,6 @@ impl MailboxReq {
     pub fn as_bytes_mut(&mut self) -> CaliptraResult<&mut [u8]> {
         match self {
             MailboxReq::EcdsaVerify(req) => Ok(req.as_bytes_mut()),
-            MailboxReq::GetIdevCsr(req) => Ok(req.as_bytes_mut()),
             MailboxReq::GetLdevCert(req) => Ok(req.as_bytes_mut()),
             MailboxReq::StashMeasurement(req) => Ok(req.as_bytes_mut()),
             MailboxReq::InvokeDpeCommand(req) => req.as_bytes_partial_mut(),
@@ -262,18 +257,17 @@ impl MailboxReq {
             MailboxReq::GetIdevCert(req) => req.as_bytes_partial_mut(),
             MailboxReq::TagTci(req) => Ok(req.as_bytes_mut()),
             MailboxReq::GetTaggedTci(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::GetFmcAliasCert(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::GetRtAliasCert(req) => Ok(req.as_bytes_mut()),
 
             #[cfg(feature = "test_only_commands")]
             MailboxReq::TestHmacVerify(req) => Ok(req.as_bytes_mut()),
-            #[cfg(feature = "test_only_commands")]
-            MailboxReq::TestGetFmcAliasCert(req) => Ok(req.as_bytes_mut()),
         }
     }
 
     pub fn cmd_code(&self) -> CommandId {
         match self {
             MailboxReq::EcdsaVerify(_) => CommandId::ECDSA384_VERIFY,
-            MailboxReq::GetIdevCsr(_) => CommandId::GET_IDEV_CSR,
             MailboxReq::GetLdevCert(_) => CommandId::GET_LDEV_CERT,
             MailboxReq::StashMeasurement(_) => CommandId::STASH_MEASUREMENT,
             MailboxReq::InvokeDpeCommand(_) => CommandId::INVOKE_DPE,
@@ -283,11 +277,11 @@ impl MailboxReq {
             MailboxReq::GetIdevCert(_) => CommandId::GET_IDEV_CERT,
             MailboxReq::TagTci(_) => CommandId::DPE_TAG_TCI,
             MailboxReq::GetTaggedTci(_) => CommandId::DPE_GET_TAGGED_TCI,
+            MailboxReq::GetFmcAliasCert(_) => CommandId::GET_FMC_ALIAS_CERT,
+            MailboxReq::GetRtAliasCert(_) => CommandId::GET_RT_ALIAS_CERT,
 
             #[cfg(feature = "test_only_commands")]
             MailboxReq::TestHmacVerify(_) => CommandId::TEST_ONLY_HMAC384_VERIFY,
-            #[cfg(feature = "test_only_commands")]
-            MailboxReq::TestGetFmcAliasCert(_) => CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT,
         }
     }
 
@@ -337,30 +331,6 @@ impl Default for MailboxRespHeader {
         Self {
             chksum: 0,
             fips_status: MailboxRespHeader::FIPS_STATUS_APPROVED,
-        }
-    }
-}
-
-// GET_IDEV_CSR
-// No command-specific input args
-#[repr(C)]
-#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
-pub struct GetIdevCsrResp {
-    pub hdr: MailboxRespHeader,
-    pub data_size: u32,
-    pub data: [u8; GetIdevCsrResp::DATA_MAX_SIZE], // variable length
-}
-impl GetIdevCsrResp {
-    pub const DATA_MAX_SIZE: usize = 1024;
-}
-impl ResponseVarSize for GetIdevCsrResp {}
-
-impl Default for GetIdevCsrResp {
-    fn default() -> Self {
-        Self {
-            hdr: MailboxRespHeader::default(),
-            data_size: 0,
-            data: [0u8; GetIdevCsrResp::DATA_MAX_SIZE],
         }
     }
 }
@@ -438,18 +408,17 @@ pub struct GetIdevInfoResp {
     pub idev_pub_y: [u8; 48],
 }
 
+// GET_LDEV_CERT
 #[repr(C)]
 #[derive(Default, Debug, AsBytes, FromBytes, PartialEq, Eq)]
-pub struct TestOnlyGetLdevCertReq {
+pub struct GetLdevCertReq {
     header: MailboxReqHeader,
 }
-impl Request for TestOnlyGetLdevCertReq {
-    const ID: CommandId = CommandId::TEST_ONLY_GET_LDEV_CERT;
+impl Request for GetLdevCertReq {
+    const ID: CommandId = CommandId::GET_LDEV_CERT;
     type Resp = GetLdevCertResp;
 }
 
-// GET_LDEV_CERT
-// No command-specific input args
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct GetLdevCertResp {
@@ -468,6 +437,43 @@ impl Default for GetLdevCertResp {
             hdr: MailboxRespHeader::default(),
             data_size: 0,
             data: [0u8; GetLdevCertResp::DATA_MAX_SIZE],
+        }
+    }
+}
+
+// GET_RT_ALIAS_CERT
+#[repr(C)]
+#[derive(Default, Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct GetRtAliasCertReq {
+    header: MailboxReqHeader,
+}
+impl Request for GetRtAliasCertReq {
+    const ID: CommandId = CommandId::GET_RT_ALIAS_CERT;
+    type Resp = GetRtAliasCertResp;
+}
+
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct GetRtAliasCertResp {
+    pub hdr: MailboxRespHeader,
+    pub data_size: u32,
+    pub data: [u8; GetRtAliasCertResp::DATA_MAX_SIZE], // variable length
+}
+impl GetRtAliasCertResp {
+    pub const DATA_MAX_SIZE: usize = 1024;
+
+    pub fn data(&self) -> Option<&[u8]> {
+        self.data.get(..self.data_size as usize)
+    }
+}
+impl ResponseVarSize for GetRtAliasCertResp {}
+
+impl Default for GetRtAliasCertResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            data_size: 0,
+            data: [0u8; GetRtAliasCertResp::DATA_MAX_SIZE],
         }
     }
 }
@@ -606,36 +612,35 @@ impl Default for InvokeDpeResp {
     }
 }
 
+// GET_FMC_ALIAS_CERT
 #[repr(C)]
 #[derive(Debug, Default, AsBytes, FromBytes, PartialEq, Eq)]
-pub struct TestOnlyGetFmcAliasCertReq {
+pub struct GetFmcAliasCertReq {
     header: MailboxReqHeader,
 }
-impl Request for TestOnlyGetFmcAliasCertReq {
-    const ID: CommandId = CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT;
-    type Resp = TestGetFmcAliasCertResp;
+impl Request for GetFmcAliasCertReq {
+    const ID: CommandId = CommandId::GET_FMC_ALIAS_CERT;
+    type Resp = GetFmcAliasCertResp;
 }
 
-// TEST_ONLY_GET_FMC_ALIAS_CERT
-// No command-specific input args
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
-pub struct TestGetFmcAliasCertResp {
+pub struct GetFmcAliasCertResp {
     pub hdr: MailboxRespHeader,
     pub data_size: u32,
-    pub data: [u8; TestGetFmcAliasCertResp::DATA_MAX_SIZE], // variable length
+    pub data: [u8; GetFmcAliasCertResp::DATA_MAX_SIZE], // variable length
 }
-impl TestGetFmcAliasCertResp {
+impl GetFmcAliasCertResp {
     pub const DATA_MAX_SIZE: usize = 1024;
 }
-impl ResponseVarSize for TestGetFmcAliasCertResp {}
+impl ResponseVarSize for GetFmcAliasCertResp {}
 
-impl Default for TestGetFmcAliasCertResp {
+impl Default for GetFmcAliasCertResp {
     fn default() -> Self {
         Self {
             hdr: MailboxRespHeader::default(),
             data_size: 0,
-            data: [0u8; TestGetFmcAliasCertResp::DATA_MAX_SIZE],
+            data: [0u8; GetFmcAliasCertResp::DATA_MAX_SIZE],
         }
     }
 }

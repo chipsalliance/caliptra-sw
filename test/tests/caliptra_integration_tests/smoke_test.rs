@@ -1,9 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{firmware, ImageOptions};
-use caliptra_common::mailbox_api::{
-    ResponseVarSize, TestOnlyGetFmcAliasCertReq, TestOnlyGetLdevCertReq,
-};
+use caliptra_common::mailbox_api::{GetFmcAliasCertReq, GetLdevCertReq, ResponseVarSize};
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{DeviceLifecycle, Fuses};
 use caliptra_test::run_test;
@@ -186,9 +184,7 @@ fn smoke_test() {
         );
     }
 
-    let ldev_cert_resp = hw
-        .mailbox_execute_req(TestOnlyGetLdevCertReq::default())
-        .unwrap();
+    let ldev_cert_resp = hw.mailbox_execute_req(GetLdevCertReq::default()).unwrap();
 
     // Extract the certificate from the response
     let ldev_cert_der = ldev_cert_resp.data().unwrap();
@@ -230,7 +226,7 @@ fn smoke_test() {
 
     // Execute command
     let fmc_alias_cert_resp = hw
-        .mailbox_execute_req(TestOnlyGetFmcAliasCertReq::default())
+        .mailbox_execute_req(GetFmcAliasCertReq::default())
         .unwrap();
 
     // Extract the certificate from the response

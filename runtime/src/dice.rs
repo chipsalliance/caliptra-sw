@@ -1,11 +1,9 @@
 // Licensed under the Apache-2.0 license
 
-#[cfg(feature = "test_only_commands")]
 use caliptra_common::mailbox_api::{
-    GetLdevCertResp, MailboxResp, MailboxRespHeader, TestGetFmcAliasCertResp,
+    GetFmcAliasCertResp, GetLdevCertResp, GetRtAliasCertResp, MailboxResp, MailboxRespHeader,
 };
 
-#[cfg(feature = "test_only_commands")]
 use crate::Drivers;
 
 use caliptra_drivers::{
@@ -16,7 +14,6 @@ use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature};
 
 pub struct GetLdevCertCmd;
 impl GetLdevCertCmd {
-    #[cfg(feature = "test_only_commands")]
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
         let mut resp = GetLdevCertResp::default();
 
@@ -30,11 +27,10 @@ impl GetLdevCertCmd {
     }
 }
 
-pub struct TestGetFmcAliasCertCmd;
-impl TestGetFmcAliasCertCmd {
-    #[cfg(feature = "test_only_commands")]
+pub struct GetFmcAliasCertCmd;
+impl GetFmcAliasCertCmd {
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
-        let mut resp = TestGetFmcAliasCertResp::default();
+        let mut resp = GetFmcAliasCertResp::default();
 
         resp.data_size = copy_fmc_alias_cert(
             &drivers.data_vault,
@@ -42,7 +38,18 @@ impl TestGetFmcAliasCertCmd {
             &mut resp.data,
         )? as u32;
 
-        Ok(MailboxResp::TestGetFmcAliasCert(resp))
+        Ok(MailboxResp::GetFmcAliasCert(resp))
+    }
+}
+
+pub struct GetRtAliasCertCmd;
+impl GetRtAliasCertCmd {
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
+        let mut resp = GetRtAliasCertResp::default();
+
+        resp.data_size = copy_rt_alias_cert(drivers.persistent_data.get(), &mut resp.data)? as u32;
+
+        Ok(MailboxResp::GetRtAliasCert(resp))
     }
 }
 
