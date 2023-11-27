@@ -166,28 +166,6 @@ Table: `POPULATE_IDEV_CERT` output arguments
 | chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips_status | u32      | Indicates if the command is FIPS approved or an error
 
-### GET\_IDEV\_CSR
-
-ROM exposes a command to get a self-signed IDEVID CSR.
-GET\_IDEV\_CSR is not exposed by runtime firmware.
-
-Command Code: `0x4944_4556` ("IDEV")
-
-Table: `GET_IDEV_CSR` input arguments
-
-| **Name**  | **Type**      | **Description**
-| --------  | --------      | ---------------
-| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
-
-Table: `GET_IDEV_CSR` output arguments
-
-| **Name**    | **Type**   | **Description**
-| --------    | --------   | ---------------
-| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips_status | u32        | Indicates if the command is FIPS approved or an error
-| data_size   | u32        | Length in bytes of the valid data in the data field
-| data        | u8[...]    | DER-encoded IDevID CSR
-
 ### GET\_IDEV\_INFO
 
 Exposes a command to get a IDEVID public key.
@@ -211,8 +189,7 @@ Table: `GET_IDEV_INFO` output arguments
 
 ### GET\_LDEV\_CERT
 
-ROM exposes a command to get a self-signed LDevID Certificate signed by IDevID.
-GET\_LDEV\_CERT is not exposed by runtime firmware.
+Exposes a command to get a self-signed LDevID Certificate signed by IDevID.
 
 Command Code: `0x4C44_4556` ("LDEV")
 
@@ -230,6 +207,48 @@ Table: `GET_LDEV_CERT` output arguments
 | fips_status | u32        | Indicates if the command is FIPS approved or an error
 | data_size   | u32        | Length in bytes of the valid data in the data field
 | data        | u8[...]    | DER-encoded LDevID Certificate
+
+### GET\_FMC\_ALIAS\_CERT
+
+Exposes a command to get a self-signed FMC alias Certificate signed by LDevID.
+
+Command Code: `0x4345_5246` ("CERF")
+
+Table: `GET_FMC_ALIAS_CERT` input arguments
+
+| **Name**  | **Type**      | **Description**
+| --------  | --------      | ---------------
+| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+
+Table: `GET_FMC_ALIAS_CERT` output arguments
+
+| **Name**    | **Type**   | **Description**
+| --------    | --------   | ---------------
+| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32        | Indicates if the command is FIPS approved or an error
+| data_size   | u32        | Length in bytes of the valid data in the data field
+| data        | u8[...]    | DER-encoded FMC alias Certificate
+
+### GET\_RT\_ALIAS\_CERT
+
+Exposes a command to get a self-signed Runtime alias Certificate signed by the FMC alias.
+
+Command Code: `0x4345_5252` ("CERR")
+
+Table: `GET_RT_ALIAS_CERT` input arguments
+
+| **Name**  | **Type**      | **Description**
+| --------  | --------      | ---------------
+| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+
+Table: `GET_RT_ALIAS_CERT` output arguments
+
+| **Name**    | **Type**   | **Description**
+| --------    | --------   | ---------------
+| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32        | Indicates if the command is FIPS approved or an error
+| data_size   | u32        | Length in bytes of the valid data in the data field
+| data        | u8[...]    | DER-encoded Runtime alias Certificate
 
 ### ECDSA384\_SIGNATURE\_VERIFY
 
@@ -698,7 +717,7 @@ The DPE Runtime Alias Key SHALL sign DPE leaf certificates and CSRs.
 
 The DPE `GET_CERTIFICATE_CHAIN` command shall return the following certificates:
 
-* IDevID
+* IDevID (Optionally added by the SoC via POPULATE_IDEV_CERT)
 * LDevID
 * FMC Alias
 * Runtime Alias
