@@ -73,7 +73,7 @@ function install_fpga_image() {
     fpgautil -b "$fpga_image" -f Full -n Full
 }
 
-# entryppoint
+# entrypoint
 if [[ $EUID -ne 0 ]]; then
     echo "[-] you must run this script as root"
     usage "$(basename "$0")"
