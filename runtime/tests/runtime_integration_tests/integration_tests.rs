@@ -882,6 +882,74 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
 }
 
 #[test]
+fn test_invoke_dpe_symmetric_sign() {
+    let mut model = run_rt_test(None, None, None);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let test_label = [
+        48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26,
+        25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
+    ];
+    let test_digest = [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+        26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
+    ];
+    let mut data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
+    let sign_cmd = SignCmd {
+        handle: ContextHandle::default(),
+        label: test_label,
+        flags: SignFlags::IS_SYMMETRIC,
+        digest: test_digest,
+    };
+    let sign_cmd_hdr = CommandHdr::new_for_test(Command::SIGN);
+    let sign_cmd_hdr_buf = sign_cmd_hdr.as_bytes();
+    data[..sign_cmd_hdr_buf.len()].copy_from_slice(sign_cmd_hdr_buf);
+    let sign_cmd_buf = sign_cmd.as_bytes();
+    data[sign_cmd_hdr_buf.len()..sign_cmd_hdr_buf.len() + sign_cmd_buf.len()]
+        .copy_from_slice(sign_cmd_buf);
+    let sign_mbox_cmd = InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        data,
+        data_size: (sign_cmd_hdr_buf.len() + sign_cmd_buf.len()) as u32,
+    };
+
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::INVOKE_DPE),
+        &sign_mbox_cmd.as_bytes()[4..],
+    );
+
+    let sign_mbox_cmd = InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..sign_mbox_cmd
+    };
+
+    let sign_resp_buf = model
+        .mailbox_execute(u32::from(CommandId::INVOKE_DPE), sign_mbox_cmd.as_bytes())
+        .unwrap()
+        .expect("We should have received a response");
+
+    assert!(sign_resp_buf.len() <= std::mem::size_of::<InvokeDpeResp>());
+    let mut sign_resp_hdr = InvokeDpeResp::default();
+    sign_resp_hdr.as_bytes_mut()[..sign_resp_buf.len()].copy_from_slice(&sign_resp_buf);
+
+    assert!(caliptra_common::checksum::verify_checksum(
+        sign_resp_hdr.hdr.chksum,
+        0x0,
+        &sign_resp_buf[core::mem::size_of_val(&sign_resp_hdr.hdr.chksum)..],
+    ));
+
+    let sign_resp =
+        SignResp::read_from(&sign_resp_hdr.data[..sign_resp_hdr.data_size as usize]).unwrap();
+    // r contains the hmac so it should not be all 0s
+    assert_ne!(sign_resp.sig_r_or_hmac, [0u8; 48]);
+    // s must be all 0s for hmac sign
+    assert_eq!(sign_resp.sig_s, [0u8; 48]);
+}
+
+#[test]
 fn test_disable_attestation_cmd() {
     let mut model = run_rt_test(None, None, None);
 
