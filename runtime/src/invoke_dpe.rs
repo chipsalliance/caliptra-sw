@@ -12,7 +12,7 @@ use dpe::{
     response::{Response, ResponseHdr},
     DpeInstance,
 };
-use zerocopy::FromBytes;
+use zerocopy::{AsBytes, FromBytes};
 
 pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
@@ -20,7 +20,10 @@ impl InvokeDpeCmd {
     pub const PL1_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
 
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        if let Some(cmd) = InvokeDpeReq::read_from(cmd_args) {
+        if cmd_args.len() <= core::mem::size_of::<InvokeDpeReq>() {
+            let mut cmd = InvokeDpeReq::default();
+            cmd.as_bytes_mut()[..cmd_args.len()].copy_from_slice(cmd_args);
+
             // Validate data length
             if cmd.data_size as usize > cmd.data.len() {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);

@@ -1,7 +1,9 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{firmware, ImageOptions};
-use caliptra_common::mailbox_api::{TestOnlyGetFmcAliasCertReq, TestOnlyGetLdevCertReq};
+use caliptra_common::mailbox_api::{
+    ResponseVarSize, TestOnlyGetFmcAliasCertReq, TestOnlyGetLdevCertReq,
+};
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{DeviceLifecycle, Fuses};
 use caliptra_test::run_test;

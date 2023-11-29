@@ -16,7 +16,7 @@ use caliptra_test::{
 };
 use openssl::sha::sha384;
 use std::io::Write;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::AsBytes;
 
 // Need hardcoded HASH for the canned FMC alias cert
 const FMC_CANNED_DIGEST: [u32; 12] = [
@@ -110,7 +110,7 @@ fn fake_boot_test() {
     };
 
     // Execute the command
-    let ldev_cert_resp = hw
+    let resp = hw
         .mailbox_execute(
             u32::from(CommandId::TEST_ONLY_GET_LDEV_CERT),
             payload.as_bytes(),
@@ -118,7 +118,9 @@ fn fake_boot_test() {
         .unwrap()
         .unwrap();
 
-    let ldev_cert_resp = GetLdevCertResp::read_from(ldev_cert_resp.as_bytes()).unwrap();
+    assert!(resp.len() <= std::mem::size_of::<GetLdevCertResp>());
+    let mut ldev_cert_resp = GetLdevCertResp::default();
+    ldev_cert_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
 
     // Verify checksum and FIPS approval
     assert!(caliptra_common::checksum::verify_checksum(
@@ -177,7 +179,7 @@ fn fake_boot_test() {
     };
 
     // Execute command
-    let fmc_alias_cert_resp = hw
+    let resp = hw
         .mailbox_execute(
             u32::from(CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT),
             payload.as_bytes(),
@@ -185,8 +187,9 @@ fn fake_boot_test() {
         .unwrap()
         .unwrap();
 
-    let fmc_alias_cert_resp =
-        TestGetFmcAliasCertResp::read_from(fmc_alias_cert_resp.as_bytes()).unwrap();
+    assert!(resp.len() <= std::mem::size_of::<TestGetFmcAliasCertResp>());
+    let mut fmc_alias_cert_resp = TestGetFmcAliasCertResp::default();
+    fmc_alias_cert_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
 
     // Verify checksum and FIPS approval
     assert!(caliptra_common::checksum::verify_checksum(
