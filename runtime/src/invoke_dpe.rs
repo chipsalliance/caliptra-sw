@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::{CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers};
+use crate::{CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PL0_PAUSER_FLAG};
 use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp, MailboxRespHeader};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use crypto::{AlgLen, Crypto};
@@ -16,7 +16,6 @@ use zerocopy::FromBytes;
 
 pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
-    const PL0_PAUSER_FLAG: u32 = 1;
     pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 8;
     pub const PL1_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
 
@@ -89,8 +88,6 @@ impl InvokeDpeCmd {
                 Command::RotateCtx(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::DestroyCtx(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::ExtendTci(cmd) => cmd.execute(dpe, &mut env, locality),
-                Command::TagTci(cmd) => cmd.execute(dpe, &mut env, locality),
-                Command::GetTaggedTci(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::GetCertificateChain(cmd) => cmd.execute(dpe, &mut env, locality),
             };
 
@@ -98,7 +95,13 @@ impl InvokeDpeCmd {
             // don't fail the mailbox command.
             let resp_struct = match resp {
                 Ok(r) => r,
-                Err(e) => Response::Error(ResponseHdr::new(e)),
+                Err(e) => {
+                    // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
+                    if let Some(ext_err) = e.get_error_detail() {
+                        drivers.soc_ifc.set_fw_extended_error(ext_err);
+                    }
+                    Response::Error(ResponseHdr::new(e))
+                }
             };
 
             let resp_bytes = resp_struct.as_bytes();
@@ -147,6 +150,6 @@ impl InvokeDpeCmd {
     }
 
     fn is_caller_pl1(pl0_pauser: u32, flags: u32, locality: u32) -> bool {
-        flags & Self::PL0_PAUSER_FLAG == 0 && locality != pl0_pauser
+        flags & PL0_PAUSER_FLAG == 0 && locality != pl0_pauser
     }
 }

@@ -103,8 +103,6 @@ mod constants {
     pub const INTERNAL_FW_UPDATE_RESET_START: u32 = 0x624;
     pub const INTERNAL_FW_UPDATE_RESET_WAIT_CYCLES_START: u32 = 0x628;
     pub const INTERNAL_NMI_VECTOR_START: u32 = 0x62c;
-    pub const INTR_BLOCK_START: u32 = 0x800;
-    pub const INTR_BLOCK_SIZE: usize = 28;
 }
 use constants::*;
 
@@ -203,6 +201,19 @@ register_bitfields! [
         LMS_VERIFY OFFSET(0) NUMBITS(1) [],
         RSVD OFFSET(1) NUMBITS(31) [],
     ],
+
+    /// ErrorIntrT
+    ErrorIntrT [
+        ERROR_INTERNAL_STS OFFSET(0) NUMBITS(1) [],
+        ERROR_INV_DEV_STS OFFSET(1) NUMBITS(1) [],
+        ERROR_CMD_FAIL_STS OFFSET(2) NUMBITS(1) [],
+        ERROR_BAD_FUSE_STS OFFSET(3) NUMBITS(1) [],
+        ERROR_ICCM_BLOCKED_STS OFFSET(4) NUMBITS(1) [],
+        ERROR_MBOX_ECC_UNC_STS OFFSET(5) NUMBITS(1) [],
+        ERROR_WDT_TIMER1_TIMEOUT_STS OFFSET(6) NUMBITS(1) [],
+        ERROR_WDT_TIMER2_TIMEOUT_STS OFFSET(7) NUMBITS(1) [],
+        RSVD OFFSET(8) NUMBITS(24) [],
+    ]
 ];
 
 /// SOC Register peripheral
@@ -490,6 +501,9 @@ struct SocRegistersImpl {
     #[register(offset = 0x011c)]
     cptra_i_trng_entropy_config_1: u32,
 
+    #[register_array(offset = 0x0120)]
+    cptra_rsvd_reg: [u32; 2],
+
     #[register_array(offset = 0x0200)]
     fuse_uds_seed: [u32; FUSE_UDS_SEED_SIZE / 4],
 
@@ -551,9 +565,29 @@ struct SocRegistersImpl {
     #[register(offset = 0x062c, write_fn = on_write_internal_nmi_vector)]
     internal_nmi_vector: ReadWriteRegister<u32>,
 
-    /// INTERNAL_FW_UPDATE_RESET_WAIT_CYCLES Register
-    #[register_array(offset = 0x0800)]
-    intr_block_rf: [u32; INTR_BLOCK_SIZE / 4],
+    /// GLOBAL_INTR_EN_R Register
+    #[register(offset = 0x0800)]
+    global_intr_en_r: ReadWriteRegister<u32>,
+
+    /// ERROR_INTR_EN_R Register
+    #[register(offset = 0x0804)]
+    error_intr_en_r: ReadWriteRegister<u32>,
+
+    /// NOTIF_INTR_EN_R Register
+    #[register(offset = 0x0808)]
+    notif_intr_en_r: ReadWriteRegister<u32>,
+
+    /// ERROR_GLOBAL_INTR_R Register
+    #[register(offset = 0x080c)]
+    error_global_intr_r: ReadWriteRegister<u32>,
+
+    /// NOTIF_GLOBAL_INTR_R Register
+    #[register(offset = 0x0810)]
+    notif_global_intr_r: ReadWriteRegister<u32>,
+
+    /// ERROR_INTERNAL_INTR_R Register
+    #[register(offset = 0x0814)]
+    error_internal_intr_r: ReadWriteRegister<u32, ErrorIntrT::Register>,
 
     /// Mailbox
     mailbox: MailboxInternal,
@@ -673,7 +707,12 @@ impl SocRegistersImpl {
             internal_fw_update_reset: ReadWriteRegister::new(0),
             internal_fw_update_reset_wait_cycles: ReadWriteRegister::new(5),
             internal_nmi_vector: ReadWriteRegister::new(0),
-            intr_block_rf: [0u32; INTR_BLOCK_SIZE / 4],
+            global_intr_en_r: ReadWriteRegister::new(0),
+            error_intr_en_r: ReadWriteRegister::new(0),
+            notif_intr_en_r: ReadWriteRegister::new(0),
+            error_global_intr_r: ReadWriteRegister::new(0),
+            notif_global_intr_r: ReadWriteRegister::new(0),
+            error_internal_intr_r: ReadWriteRegister::new(0),
             mailbox,
             iccm,
             timer: Timer::new(clock),
@@ -697,6 +736,7 @@ impl SocRegistersImpl {
             cptra_wdt_status: ReadOnlyRegister::new(0),
             cptra_i_trng_entropy_config_0: 0,
             cptra_i_trng_entropy_config_1: 0,
+            cptra_rsvd_reg: Default::default(),
             op_wdt_timer1_expired_action: None,
             op_wdt_timer2_expired_action: None,
             etrng_responses: args.etrng_responses,
@@ -866,6 +906,7 @@ impl SocRegistersImpl {
             Some(self.timer.schedule_action_in(0, TimerAction::UpdateReset));
         Ok(())
     }
+
     fn on_write_internal_nmi_vector(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
         if size != RvSize::Word {
             return Err(BusError::StoreAccessFault);
@@ -1026,12 +1067,18 @@ impl SocRegistersImpl {
 
         if self.timer.fired(&mut self.op_wdt_timer1_expired_action) {
             self.cptra_wdt_status.reg.modify(WdtStatus::T1_TIMEOUT::SET);
+            self.error_internal_intr_r
+                .reg
+                .modify(ErrorIntrT::ERROR_WDT_TIMER1_TIMEOUT_STS::SET);
 
             // If WDT2 is disabled, schedule a callback on it's expiry.
             if !self.cptra_wdt_timer2_en.reg.is_set(WdtEnable::TIMER_EN) {
                 self.cptra_wdt_status
                     .reg
                     .modify(WdtStatus::T2_TIMEOUT::CLEAR);
+                self.error_internal_intr_r
+                    .reg
+                    .modify(ErrorIntrT::ERROR_WDT_TIMER2_TIMEOUT_STS::CLEAR);
 
                 let timer_period: u64 = (self.cptra_wdt_timer2_timeout_period[1] as u64) << 32
                     | self.cptra_wdt_timer2_timeout_period[0] as u64;
@@ -1046,6 +1093,9 @@ impl SocRegistersImpl {
             // If WDT2 was not scheduled due to WDT1 expiry (i.e WDT2 is disabled), schedule an NMI.
             // Else, do nothing.
             if self.cptra_wdt_timer2_en.reg.is_set(WdtEnable::TIMER_EN) {
+                self.error_internal_intr_r
+                    .reg
+                    .modify(ErrorIntrT::ERROR_WDT_TIMER2_TIMEOUT_STS::SET);
                 return;
             }
 

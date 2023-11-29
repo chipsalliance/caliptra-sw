@@ -11,6 +11,7 @@ impl CommandId {
     pub const GET_IDEV_CSR: Self = Self(0x49444556); // "IDEV"
     pub const GET_IDEV_CERT: Self = Self(0x49444543); // IDEC
     pub const GET_IDEV_INFO: Self = Self(0x49444549); // IDEI
+    pub const POPULATE_IDEV_CERT: Self = Self(0x49444550); // IDEP
     pub const GET_LDEV_CERT: Self = Self(0x4C444556); // "LDEV"
     pub const ECDSA384_VERIFY: Self = Self(0x53494756); // "SIGV"
     pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
@@ -47,6 +48,34 @@ impl From<CommandId> for u32 {
     fn from(value: CommandId) -> Self {
         value.0
     }
+}
+
+/// A trait implemented by request types. Describes the associated command ID
+/// and response type.
+pub trait Request: AsBytes + FromBytes {
+    const ID: CommandId;
+    type Resp: Response;
+}
+
+pub trait Response: AsBytes + FromBytes
+where
+    Self: Sized,
+{
+    /// The minimum size (in bytes) of this response. Transports that receive at
+    /// least this much data should pad the missing data with zeroes. If they
+    /// receive fewer bytes than MIN_SIZE, they should error.
+    const MIN_SIZE: usize = core::mem::size_of::<Self>();
+
+    fn populate_chksum(&mut self) {
+        // Note: This will panic if sizeof::<Self>() < 4
+        populate_checksum(self.as_bytes_mut());
+    }
+}
+
+fn populate_checksum(msg: &mut [u8]) {
+    let (checksum_bytes, payload_bytes) = msg.split_at_mut(size_of::<u32>());
+    let checksum = crate::checksum::calc_checksum(0, payload_bytes);
+    checksum_bytes.copy_from_slice(&checksum.to_le_bytes());
 }
 
 // Contains all the possible mailbox response structs
@@ -103,7 +132,7 @@ impl MailboxResp {
     /// Takes into account the size override for variable-lenth payloads
     pub fn populate_chksum(&mut self) -> CaliptraResult<()> {
         // Calc checksum, use the size override if provided
-        let checksum = crate::checksum::calc_checksum(0, &self.as_bytes()[size_of::<i32>()..]);
+        let checksum = crate::checksum::calc_checksum(0, &self.as_bytes()[size_of::<u32>()..]);
 
         // cast as header struct
         let hdr: &mut MailboxRespHeader = LayoutVerified::<&mut [u8], MailboxRespHeader>::new(
@@ -125,19 +154,111 @@ impl Default for MailboxResp {
     }
 }
 
+#[cfg_attr(test, derive(PartialEq, Debug, Eq))]
+#[allow(clippy::large_enum_variant)]
+pub enum MailboxReq {
+    EcdsaVerify(EcdsaVerifyReq),
+    GetIdevCsr(MailboxReqHeader),
+    GetLdevCert(MailboxReqHeader),
+    StashMeasurement(StashMeasurementReq),
+    InvokeDpeCommand(InvokeDpeReq),
+    FipsVersion(MailboxReqHeader),
+    FwInfo(MailboxReqHeader),
+
+    #[cfg(feature = "test_only_commands")]
+    TestHmacVerify(HmacVerifyReq),
+    #[cfg(feature = "test_only_commands")]
+    TestGetFmcAliasCert(MailboxReqHeader),
+}
+
+impl MailboxReq {
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            MailboxReq::EcdsaVerify(req) => req.as_bytes(),
+            MailboxReq::StashMeasurement(req) => req.as_bytes(),
+            MailboxReq::InvokeDpeCommand(req) => req.as_bytes(),
+            MailboxReq::FipsVersion(req) => req.as_bytes(),
+            MailboxReq::FwInfo(req) => req.as_bytes(),
+            MailboxReq::GetIdevCsr(req) => req.as_bytes(),
+            MailboxReq::GetLdevCert(req) => req.as_bytes(),
+
+            #[cfg(feature = "test_only_commands")]
+            MailboxReq::TestGetFmcAliasCert(req) => req.as_bytes(),
+            #[cfg(feature = "test_only_commands")]
+            MailboxReq::TestHmacVerify(req) => req.as_bytes(),
+        }
+    }
+
+    pub fn as_bytes_mut(&mut self) -> &mut [u8] {
+        match self {
+            MailboxReq::EcdsaVerify(req) => req.as_bytes_mut(),
+            MailboxReq::GetIdevCsr(req) => req.as_bytes_mut(),
+            MailboxReq::GetLdevCert(req) => req.as_bytes_mut(),
+            MailboxReq::StashMeasurement(req) => req.as_bytes_mut(),
+            MailboxReq::InvokeDpeCommand(req) => req.as_bytes_mut(),
+            MailboxReq::FipsVersion(req) => req.as_bytes_mut(),
+            MailboxReq::FwInfo(req) => req.as_bytes_mut(),
+
+            #[cfg(feature = "test_only_commands")]
+            MailboxReq::TestHmacVerify(req) => req.as_bytes_mut(),
+            #[cfg(feature = "test_only_commands")]
+            MailboxReq::TestGetFmcAliasCert(req) => req.as_bytes_mut(),
+        }
+    }
+
+    pub fn cmd_code(&self) -> CommandId {
+        match self {
+            MailboxReq::EcdsaVerify(_) => CommandId::ECDSA384_VERIFY,
+            MailboxReq::GetIdevCsr(_) => CommandId::GET_IDEV_CSR,
+            MailboxReq::GetLdevCert(_) => CommandId::GET_LDEV_CERT,
+            MailboxReq::StashMeasurement(_) => CommandId::STASH_MEASUREMENT,
+            MailboxReq::InvokeDpeCommand(_) => CommandId::INVOKE_DPE,
+            MailboxReq::FipsVersion(_) => CommandId::VERSION,
+            MailboxReq::FwInfo(_) => CommandId::FW_INFO,
+
+            #[cfg(feature = "test_only_commands")]
+            MailboxReq::TestHmacVerify(_) => CommandId::TEST_ONLY_HMAC384_VERIFY,
+            #[cfg(feature = "test_only_commands")]
+            MailboxReq::TestGetFmcAliasCert(_) => CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT,
+        }
+    }
+
+    /// Calculate and set the checksum for a request payload
+    pub fn populate_chksum(&mut self) -> CaliptraResult<()> {
+        // Calc checksum, use the size override if provided
+        let checksum = crate::checksum::calc_checksum(
+            self.cmd_code().into(),
+            &self.as_bytes()[size_of::<i32>()..],
+        );
+
+        // cast as header struct
+        let hdr: &mut MailboxReqHeader = LayoutVerified::<&mut [u8], MailboxReqHeader>::new(
+            &mut self.as_bytes_mut()[..size_of::<MailboxReqHeader>()],
+        )
+        .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?
+        .into_mut();
+
+        // Set the chksum field
+        hdr.chksum = checksum;
+
+        Ok(())
+    }
+}
+
 // HEADER
 #[repr(C)]
 #[derive(Default, Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct MailboxReqHeader {
-    pub chksum: i32,
+    pub chksum: u32,
 }
 
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct MailboxRespHeader {
-    pub chksum: i32,
+    pub chksum: u32,
     pub fips_status: u32,
 }
+impl Response for MailboxRespHeader {}
 
 impl MailboxRespHeader {
     pub const FIPS_STATUS_APPROVED: u32 = 0;
@@ -200,6 +321,16 @@ pub struct GetIdevInfoResp {
     pub idev_pub_y: [u8; 48],
 }
 
+#[repr(C)]
+#[derive(Default, Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct TestOnlyGetLdevCertReq {
+    header: MailboxReqHeader,
+}
+impl Request for TestOnlyGetLdevCertReq {
+    const ID: CommandId = CommandId::TEST_ONLY_GET_LDEV_CERT;
+    type Resp = GetLdevCertResp;
+}
+
 // GET_LDEV_CERT
 // No command-specific input args
 #[repr(C)]
@@ -211,6 +342,13 @@ pub struct GetLdevCertResp {
 }
 impl GetLdevCertResp {
     pub const DATA_MAX_SIZE: usize = 1024;
+
+    pub fn data(&self) -> Option<&[u8]> {
+        self.data.get(..self.data_size as usize)
+    }
+}
+impl Response for GetLdevCertResp {
+    const MIN_SIZE: usize = size_of::<MailboxRespHeader>() + size_of::<u32>();
 }
 
 // ECDSA384_SIGNATURE_VERIFY
@@ -223,6 +361,10 @@ pub struct EcdsaVerifyReq {
     pub signature_r: [u8; 48],
     pub signature_s: [u8; 48],
 }
+impl Request for EcdsaVerifyReq {
+    const ID: CommandId = CommandId::ECDSA384_VERIFY;
+    type Resp = MailboxRespHeader;
+}
 // No command-specific output args
 
 // TEST_ONLY_HMAC384_SIGNATURE_VERIFY
@@ -234,6 +376,10 @@ pub struct HmacVerifyReq {
     pub tag: [u8; 48],
     pub len: u32,
     pub msg: [u8; 256],
+}
+impl Request for HmacVerifyReq {
+    const ID: CommandId = CommandId::TEST_ONLY_HMAC384_VERIFY;
+    type Resp = MailboxRespHeader;
 }
 // No command-specific output args
 
@@ -258,6 +404,10 @@ impl Default for StashMeasurementReq {
         }
     }
 }
+impl Request for StashMeasurementReq {
+    const ID: CommandId = CommandId::STASH_MEASUREMENT;
+    type Resp = StashMeasurementResp;
+}
 
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
@@ -265,6 +415,7 @@ pub struct StashMeasurementResp {
     pub hdr: MailboxRespHeader,
     pub dpe_result: u32,
 }
+impl Response for StashMeasurementResp {}
 
 // DISABLE_ATTESTATION
 // No command-specific input args
@@ -292,6 +443,10 @@ impl Default for InvokeDpeReq {
         }
     }
 }
+impl Request for InvokeDpeReq {
+    const ID: CommandId = CommandId::INVOKE_DPE;
+    type Resp = InvokeDpeResp;
+}
 
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
@@ -314,6 +469,9 @@ impl InvokeDpeResp {
         &mut self.as_bytes_mut()[..size_of::<Self>() - unused_byte_count]
     }
 }
+impl Response for InvokeDpeResp {
+    const MIN_SIZE: usize = size_of::<MailboxRespHeader>() + size_of::<u32>();
+}
 
 impl Default for InvokeDpeResp {
     fn default() -> Self {
@@ -323,6 +481,16 @@ impl Default for InvokeDpeResp {
             data: [0u8; InvokeDpeResp::DATA_MAX_SIZE],
         }
     }
+}
+
+#[repr(C)]
+#[derive(Debug, Default, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct TestOnlyGetFmcAliasCertReq {
+    header: MailboxReqHeader,
+}
+impl Request for TestOnlyGetFmcAliasCertReq {
+    const ID: CommandId = CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT;
+    type Resp = GetLdevCertResp;
 }
 
 // TEST_ONLY_GET_FMC_ALIAS_CERT
@@ -336,6 +504,10 @@ pub struct TestGetFmcAliasCertResp {
 }
 impl TestGetFmcAliasCertResp {
     pub const DATA_MAX_SIZE: usize = 1024;
+
+    pub fn data(&self) -> Option<&[u8]> {
+        self.data.get(..self.data_size as usize)
+    }
 }
 
 // FIPS_SELF_TEST
@@ -352,6 +524,7 @@ pub struct FipsVersionResp {
     pub fips_rev: [u32; 3],
     pub name: [u8; 12],
 }
+impl Response for FipsVersionResp {}
 
 // FW_INFO
 // No command-specific input args
@@ -375,4 +548,63 @@ pub struct FwInfoResp {
 pub struct CapabilitiesResp {
     pub hdr: MailboxRespHeader,
     pub capabilities: [u8; crate::capabilities::Capabilities::SIZE_IN_BYTES],
+}
+impl Response for CapabilitiesResp {}
+
+// POPULATE_IDEV_CERT
+// No command-specific output args
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct PopulateIdevCertReq {
+    pub hdr: MailboxReqHeader,
+    pub cert_size: u32,
+    pub cert: [u8; PopulateIdevCertReq::MAX_CERT_SIZE], // variable length
+}
+impl PopulateIdevCertReq {
+    pub const MAX_CERT_SIZE: usize = 1024;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_populate_checksum_resp_header() {
+        let mut hdr = MailboxRespHeader {
+            fips_status: 0x4242,
+            ..Default::default()
+        };
+        hdr.populate_chksum();
+        assert_eq!(
+            hdr,
+            MailboxRespHeader {
+                chksum: 0u32.wrapping_sub(0x84),
+                fips_status: 0x4242,
+            }
+        )
+    }
+    #[test]
+    fn test_populate_checksum_capabilities() {
+        let mut msg = CapabilitiesResp {
+            hdr: Default::default(),
+            capabilities: [
+                0x42, 0x23, 0x43, 0x81, 0x45, 0x6c, 0x55, 0x75, 0x3d, 0x81, 0xd4, 0xcc, 0x3c, 0x28,
+                0x29, 0xc9,
+            ],
+        };
+        msg.populate_chksum();
+        assert_eq!(
+            msg,
+            CapabilitiesResp {
+                hdr: MailboxRespHeader {
+                    chksum: 0xfffff9a8,
+                    fips_status: 0
+                },
+                capabilities: [
+                    0x42, 0x23, 0x43, 0x81, 0x45, 0x6c, 0x55, 0x75, 0x3d, 0x81, 0xd4, 0xcc, 0x3c,
+                    0x28, 0x29, 0xc9
+                ],
+            }
+        );
+    }
 }

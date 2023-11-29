@@ -70,6 +70,7 @@ Check value in ColdResetEntry4::RomColdBootStatus datavault register | **test_ch
 Check if entries are correctly added in Firmware Handoff table | **test_fht_info**   | N/A
 Check if LMS Vendor PubKey Index in datavault is 0xFFFFFFFF when LMS verification is not enabled | **test_check_no_lms_info_in_datavault_on_lms_unavailable**   | N/A
 Check if boot statuses are correctly reported | **test_cold_reset_status_reporting** | N/A
+Stress test: Boot caliptra 1000 times with a different UDS identity each time, and confirm generated certs are valid. This should expose x509 serialization bugs. |**test_generate_csr_stress** | N/A
 
 <br><br>
 # **Firmware Downloader Tests**
@@ -110,23 +111,32 @@ Tests update reset flow by providing non-compliant fw image   | **test_update_re
 Check if boot statuses are correctly reported | **test_update_reset_boot_status** | N/A
 Tests update reset flow by providing a different vendor ECC public key index in the image  | **test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch** |IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_ECC_PUB_KEY_IDX_MISMATCH
 Tests update reset flow by providing a different vendor LMS public key index in the image | **test_update_reset_vendor_lms_pub_key_idx_dv_mismatch** | IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_LMS_PUB_KEY_IDX_MISMATCH
-Check value in WarmResetEntry4::RomUpdateResetStatus datavault register | [TODO] Add test   | N/A
+Check value in WarmResetEntry4::RomUpdateResetStatus datavault register | **test_check_rom_update_reset_status_reg**   | N/A
+<br><br>
+
+# **Warm Reset Tests**
+Test Scenario| Test Name | ROM Error Code
+---|---|---
+Tests successful Warm Reset flow  | **test_warm_reset_success** | N/A
+Tests Warm Reset flow during cold boot, before image validation | **test_warm_reset_during_cold_boot_before_image_validation** | ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_COLD_RESET
+Tests Warm Reset flow during cold boot, during image validation | **test_warm_reset_during_cold_boot_during_image_validation** | ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_COLD_RESET
+Tests Warm Reset flow during cold boot, after image validation | **test_warm_reset_during_cold_boot_after_image_validation** | ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_COLD_RESET
+Tests Warm Reset flow during update reset | **test_warm_reset_during_update_resetn** | ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_UPDATE_RESET
 <br><br>
 
 # **General Integration Tests**
 Test Scenario| Test Name | ROM Error Code
 ---|---|---
 Check for any RUST panics added to the code | **test_panic_missing** | N/A
+Checks that extended error info is populated correctly upon watchdog timer timeout | **test_rom_wdt_timeout** | ROM_GLOBAL_WDT_EXPIRED
 
 
 # **Test Gaps**
 Test Scenario| Test Name | ROM Error Code
 ---|---|---
-Check value in WarmResetEntry4::RomUpdateResetStatus datavault register | N/A  | N/A
 Expand `smoke_test` to perform a hitless update and confirm everything is mixed into the identity correctly. | N/A | N/A
 Validate fix for #817: warm reset during hitless update | N/A | N/A
 Validate fix for #628: warm reset during cold reset | N/A | N/A
-Add test for watchdog failure, and that extended error info is populated correctly | N/A | N/A
 Add test for CPU fault, and that extended error info is populated correctly | N/A | N/A
 Stress test: Boot caliptra 1000 times with a different UDS identity each time, and confirm generated certs are valid. This should expose x509 serialization bugs. | N/A | N/A
 Ensure that boot ROM can load a 128k bundle into ICCM (assert ICCM contents in test) | N/A | N/A

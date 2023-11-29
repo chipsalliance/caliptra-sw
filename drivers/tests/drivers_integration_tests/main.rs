@@ -24,12 +24,20 @@ use openssl::{hash::MessageDigest, pkey::PKey};
 use ureg::ResettableReg;
 use zerocopy::{AsBytes, FromBytes};
 
+fn default_init_params() -> InitParams<'static> {
+    InitParams {
+        // The test harness doesn't clear memory on startup.
+        random_sram_puf: false,
+        ..Default::default()
+    }
+}
+
 fn start_driver_test(test_rom: &'static FwId) -> Result<DefaultHwModel, Box<dyn Error>> {
     let rom = caliptra_builder::build_firmware_rom(test_rom)?;
     caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
-            ..Default::default()
+            ..default_init_params()
         },
         ..Default::default()
     })
@@ -205,7 +213,7 @@ fn test_doe_when_debug_not_locked() {
             security_state: *SecurityState::from(0)
                 .set_debug_locked(false)
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
-            ..Default::default()
+            ..default_init_params()
         },
         ..Default::default()
     })
@@ -299,7 +307,7 @@ fn test_doe_when_debug_locked() {
             security_state: *SecurityState::from(0)
                 .set_debug_locked(true)
                 .set_device_lifecycle(DeviceLifecycle::Unprovisioned),
-            ..Default::default()
+            ..default_init_params()
         },
         ..Default::default()
     })
@@ -308,11 +316,22 @@ fn test_doe_when_debug_locked() {
     let txn = model.wait_for_mailbox_receive().unwrap();
     let test_results = DoeTestResults::read_from(txn.req.data.as_slice()).unwrap();
     assert_eq!(test_results, DOE_TEST_VECTORS.expected_test_results);
+    txn.respond_success();
+    model.step_until_exit_success().unwrap();
 }
 
 #[test]
 fn test_ecc384() {
     run_driver_test(&firmware::driver_tests::ECC384);
+}
+
+#[test]
+fn test_ecc384_sign_validation_failure() {
+    let mut model =
+        start_driver_test(&firmware::driver_tests::ECC384_SIGN_VALIDATION_FAILURE).unwrap();
+    model
+        .step_until_output_contains("CFI Panic code=0x01040055")
+        .unwrap();
 }
 
 #[test]
@@ -327,7 +346,11 @@ fn test_hmac384() {
 
 #[test]
 fn test_keyvault() {
-    run_driver_test(&firmware::driver_tests::KEYVAULT);
+    run_driver_test(if cfg!(feature = "fpga_realtime") {
+        &firmware::driver_tests::KEYVAULT_FPGA
+    } else {
+        &firmware::driver_tests::KEYVAULT
+    });
 }
 
 #[test]
@@ -347,13 +370,12 @@ fn test_mailbox_soc_to_uc() {
         // successful before the firmware as a chance to look at the buffer (!?),
         // so give the firmware a chance to print it out.
         model
-            .step_until_output(
+            .step_until_output_and_take(
                 "cmd: 0x50000000\n\
                  dlen: 8\n\
                  buf: [67452301, efcdab89, 00000000, 00000000]\n",
             )
             .unwrap();
-        model.output().take(usize::MAX);
         assert_eq!(resp, None);
 
         // Try again, but with a non-multiple-of-4 size
@@ -361,25 +383,23 @@ fn test_mailbox_soc_to_uc() {
             .mailbox_execute(0x5000_0000, &[0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd])
             .unwrap();
         model
-            .step_until_output(
+            .step_until_output_and_take(
                 "cmd: 0x50000000\n\
                  dlen: 7\n\
                  buf: [67452301, 00cdab89, 00000000, 00000000]\n",
             )
             .unwrap();
-        model.output().take(usize::MAX);
         assert_eq!(resp, None);
 
         // Try again, but with no data in the FIFO
         let resp = model.mailbox_execute(0x5000_0000, &[]).unwrap();
         model
-            .step_until_output(
+            .step_until_output_and_take(
                 "cmd: 0x50000000\n\
                  dlen: 0\n\
                  buf: [00000000, 00000000, 00000000, 00000000]\n",
             )
             .unwrap();
-        model.output().take(usize::MAX);
         assert_eq!(resp, None);
 
         // Try again, but with a non-multiple-of-4 dest buffer (0x5000_0001)
@@ -387,13 +407,12 @@ fn test_mailbox_soc_to_uc() {
             .mailbox_execute(0x5000_0001, &[0x01, 0x23, 0x45, 0x67, 0x89])
             .unwrap();
         model
-            .step_until_output(
+            .step_until_output_and_take(
                 "cmd: 0x50000001\n\
                  dlen: 5\n\
                  buf: [01, 23, 45, 67, 89]\n",
             )
             .unwrap();
-        model.output().take(usize::MAX);
         assert_eq!(resp, None);
 
         // Try again, but with one more byte than will fit in the dest buffer
@@ -401,13 +420,12 @@ fn test_mailbox_soc_to_uc() {
             .mailbox_execute(0x5000_0001, &[0x01, 0x23, 0x45, 0x67, 0x89, 0xab])
             .unwrap();
         model
-            .step_until_output(
+            .step_until_output_and_take(
                 "cmd: 0x50000001\n\
                  dlen: 6\n\
                  buf: [01, 23, 45, 67, 89]\n",
             )
             .unwrap();
-        model.output().take(usize::MAX);
         assert_eq!(resp, None);
 
         // Try again, but with 4 more bytes than will fit in the dest buffer
@@ -417,14 +435,14 @@ fn test_mailbox_soc_to_uc() {
                 &[0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x11],
             )
             .unwrap();
+
         model
-            .step_until_output(
+            .step_until_output_and_take(
                 "cmd: 0x50000001\n\
                  dlen: 9\n\
                  buf: [01, 23, 45, 67, 89]\n",
             )
             .unwrap();
-        model.output().take(usize::MAX);
         assert_eq!(resp, None);
     }
 
@@ -439,13 +457,14 @@ fn test_mailbox_soc_to_uc() {
                 ],
             )
             .unwrap();
-        assert_eq!(
-            model.output().take(usize::MAX),
-            "cmd: 0x60000000\n\
-             dlen: 16\n\
-             buf: [67452301, efcdab89]\n\
-             buf: [33221100, 77665544]\n"
-        );
+        model
+            .step_until_output_and_take(
+                "cmd: 0x60000000\n\
+                 dlen: 16\n\
+                 buf: [67452301, efcdab89]\n\
+                 buf: [33221100, 77665544]\n",
+            )
+            .unwrap();
         assert_eq!(resp, None);
 
         // Try again, but with a non-multiple-of-4 size
@@ -457,13 +476,14 @@ fn test_mailbox_soc_to_uc() {
                 ],
             )
             .unwrap();
-        assert_eq!(
-            model.output().take(usize::MAX),
-            "cmd: 0x60000000\n\
-             dlen: 13\n\
-             buf: [67452301, efcdab89]\n\
-             buf: [33221100, 00000044]\n"
-        );
+        model
+            .step_until_output_and_take(
+                "cmd: 0x60000000\n\
+                 dlen: 13\n\
+                 buf: [67452301, efcdab89]\n\
+                 buf: [33221100, 00000044]\n",
+            )
+            .unwrap();
         assert_eq!(resp, None);
 
         // Try again, but where the buffer is larger than the last chunk
@@ -475,22 +495,25 @@ fn test_mailbox_soc_to_uc() {
                 ],
             )
             .unwrap();
-        assert_eq!(
-            model.output().take(usize::MAX),
-            "cmd: 0x60000000\n\
-             dlen: 12\n\
-             buf: [67452301, efcdab89]\n\
-             buf: [33221100, 00000000]\n"
-        );
+        model
+            .step_until_output_and_take(
+                "cmd: 0x60000000\n\
+                 dlen: 12\n\
+                 buf: [67452301, efcdab89]\n\
+                 buf: [33221100, 00000000]\n",
+            )
+            .unwrap();
         assert_eq!(resp, None);
 
         // Try again, but with no data in the FIFO
         let resp = model.mailbox_execute(0x6000_0000, &[]).unwrap();
-        assert_eq!(
-            model.output().take(usize::MAX),
-            "cmd: 0x60000000\n\
-             dlen: 0\n"
-        );
+
+        model
+            .step_until_output_and_take(
+                "cmd: 0x60000000\n\
+                 dlen: 0\n",
+            )
+            .unwrap();
         assert_eq!(resp, None);
     }
 
@@ -499,19 +522,24 @@ fn test_mailbox_soc_to_uc() {
         let resp = model
             .mailbox_execute(0x7000_0000, &[0x88, 0x99, 0xaa, 0xbb])
             .unwrap();
-        assert_eq!(model.output().take(usize::MAX), "cmd: 0x70000000\n");
+
+        model
+            .step_until_output_and_take("cmd: 0x70000000\n")
+            .unwrap();
         assert_eq!(resp, None);
 
         // Make sure the next command doesn't see the FIFO from the previous command
         let resp = model
             .mailbox_execute(0x6000_0000, &[0x07, 0x06, 0x05, 0x04, 0x03])
             .unwrap();
-        assert_eq!(
-            model.output().take(usize::MAX),
-            "cmd: 0x60000000\n\
-             dlen: 5\n\
-             buf: [04050607, 00000003]\n"
-        );
+
+        model
+            .step_until_output_and_take(
+                "cmd: 0x60000000\n\
+                 dlen: 5\n\
+                 buf: [04050607, 00000003]\n",
+            )
+            .unwrap();
         assert_eq!(resp, None);
     }
 
@@ -521,18 +549,22 @@ fn test_mailbox_soc_to_uc() {
             model.mailbox_execute(0x8000_0000, &[0x88, 0x99, 0xaa, 0xbb]),
             Err(ModelError::MailboxCmdFailed(0))
         );
-        assert_eq!(model.output().take(usize::MAX), "cmd: 0x80000000\n");
+
+        model
+            .step_until_output_and_take("cmd: 0x80000000\n")
+            .unwrap();
 
         // Make sure the next command doesn't see the FIFO from the previous command
         let resp = model
             .mailbox_execute(0x6000_0000, &[0x07, 0x06, 0x05, 0x04, 0x03])
             .unwrap();
-        assert_eq!(
-            model.output().take(usize::MAX),
-            "cmd: 0x60000000\n\
-             dlen: 5\n\
-             buf: [04050607, 00000003]\n"
-        );
+        model
+            .step_until_output_and_take(
+                "cmd: 0x60000000\n\
+                 dlen: 5\n\
+                 buf: [04050607, 00000003]\n",
+            )
+            .unwrap();
         assert_eq!(resp, None);
     }
 
@@ -544,19 +576,22 @@ fn test_mailbox_soc_to_uc() {
                 &[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08],
             )
             .unwrap();
-        assert_eq!(
-            model.output().take(usize::MAX),
-            "cmd: 0x90000000\n\
-             dlen: 8\n\
-             buf: [08070605]\n"
-        );
+        model
+            .step_until_output_and_take(
+                "cmd: 0x90000000\n\
+                 dlen: 8\n\
+                 buf: [08070605]\n",
+            )
+            .unwrap();
         assert_eq!(resp, None);
     }
 
     // Test 4 byte response with no request data
     {
         let resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
-        assert_eq!(model.output().take(usize::MAX), "cmd: 0xa0000000\n");
+        model
+            .step_until_output_and_take("cmd: 0xa0000000\n")
+            .unwrap();
         assert_eq!(resp, [0x12, 0x34, 0x56, 0x78]);
     }
 
@@ -566,28 +601,38 @@ fn test_mailbox_soc_to_uc() {
             .mailbox_execute(0xB000_0000, &[0x0f, 0x0e, 0x0d, 0x0c, 0x0b, 0xa])
             .unwrap()
             .unwrap();
-        assert_eq!(
-            model.output().take(usize::MAX),
-            "cmd: 0xb0000000\n\
-             dlen: 6\n\
-             buf: [0c0d0e0f, 00000a0b]\n"
-        );
+        model
+            .step_until_output_and_take(
+                "cmd: 0xb0000000\n\
+                 dlen: 6\n\
+                 buf: [0c0d0e0f, 00000a0b]\n",
+            )
+            .unwrap();
         assert_eq!(resp, [0x98, 0x76]);
     }
 
     // Test 9 byte reponse
     {
         let resp = model.mailbox_execute(0xC000_0000, &[]).unwrap().unwrap();
-        assert_eq!(model.output().take(usize::MAX), "cmd: 0xc0000000\n");
+        model
+            .step_until_output_and_take("cmd: 0xc0000000\n")
+            .unwrap();
         assert_eq!(resp, [0x0A, 0x0B, 0x0C, 0x0D, 0x05, 0x04, 0x03, 0x02, 0x01]);
     }
 
     // Test reponse with 0 bytes (still calls copy_response)
     {
         let resp = model.mailbox_execute(0xD000_0000, &[]).unwrap().unwrap();
-        assert_eq!(model.output().take(usize::MAX), "cmd: 0xd0000000\n");
-        assert_eq!(resp, []);
+        model
+            .step_until_output_and_take("cmd: 0xd0000000\n")
+            .unwrap();
+        assert_eq!(resp, [] as [u8; 0]);
     }
+    // Ensure there isn't any unexpected output
+    for _i in 0..100000 {
+        model.step();
+    }
+    assert_eq!(model.output().take(usize::MAX), "");
 }
 
 #[test]
@@ -634,6 +679,9 @@ fn test_mailbox_uc_to_soc() {
 
 #[test]
 fn test_uc_to_soc_error_state() {
+    // This test requires strict control over timing
+    #![cfg_attr(feature = "fpga_realtime", ignore)]
+
     let mut model =
         start_driver_test(&firmware::driver_tests::MAILBOX_DRIVER_NEGATIVE_TESTS).unwrap();
     let txn = model.wait_for_mailbox_receive().unwrap();
@@ -741,7 +789,7 @@ fn test_csrng_with_nibbles(
         init_params: InitParams {
             rom: &rom,
             itrng_nibbles,
-            ..Default::default()
+            ..default_init_params()
         },
         ..Default::default()
     })
@@ -751,16 +799,37 @@ fn test_csrng_with_nibbles(
 }
 
 #[test]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
 fn test_csrng() {
     test_csrng_with_nibbles(&firmware::driver_tests::CSRNG, Box::new(trng_nibbles()));
 }
 
 #[test]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
 fn test_csrng2() {
     test_csrng_with_nibbles(&firmware::driver_tests::CSRNG2, Box::new(trng_nibbles()));
 }
 
 #[test]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
 fn test_csrng_repetition_count() {
     // Tests for Repetition Count Test (RCT).
     fn test_repcnt_finite_repeats(
@@ -789,7 +858,7 @@ fn test_csrng_repetition_count() {
             init_params: InitParams {
                 rom: &rom,
                 itrng_nibbles,
-                ..Default::default()
+                ..default_init_params()
             },
             initial_repcnt_thresh_reg: soc_repcnt_threshold,
             ..Default::default()
@@ -835,6 +904,13 @@ fn test_csrng_repetition_count() {
 }
 
 #[test]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
 fn test_csrng_adaptive_proportion() {
     // Tests for Adaptive Proportion health check.
     // Assumes the CSRNG configures the adaptive proportion's LO and HI
@@ -904,7 +980,7 @@ fn test_csrng_adaptive_proportion() {
             init_params: InitParams {
                 rom: &rom,
                 itrng_nibbles,
-                ..Default::default()
+                ..default_init_params()
             },
             initial_adaptp_thresh_reg: Some(threshold_reg),
             ..Default::default()
@@ -928,7 +1004,13 @@ fn test_csrng_adaptive_proportion() {
 }
 
 #[test]
-#[cfg_attr(all(feature = "verilator", not(feature = "itrng")), ignore)]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
 fn test_trng_in_itrng_mode() {
     // To run this test under verilator, use --features=verilator,itrng
     let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::TRNG_DRIVER_RESPONDER)
@@ -939,7 +1021,7 @@ fn test_trng_in_itrng_mode() {
             rom: &rom,
             itrng_nibbles: Box::new(trng_nibbles()),
             trng_mode: Some(TrngMode::Internal),
-            ..Default::default()
+            ..default_init_params()
         },
         ..Default::default()
     })
@@ -969,7 +1051,13 @@ fn test_trng_in_itrng_mode() {
 }
 
 #[test]
-#[cfg_attr(all(feature = "verilator", feature = "itrng"), ignore)]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        feature = "itrng"
+    ),
+    ignore
+)]
 fn test_trng_in_etrng_mode() {
     let block0: [u32; 12] = [
         0x65b11c74, 0xd4bd4965, 0x5031ec6a, 0x2deaad1e, 0xc0c5508f, 0xe7258dc9, 0xa0af9e7f,
@@ -1001,7 +1089,7 @@ fn test_trng_in_etrng_mode() {
                 .into_iter(),
             ),
             trng_mode: Some(TrngMode::External),
-            ..Default::default()
+            ..default_init_params()
         },
         ..Default::default()
     })

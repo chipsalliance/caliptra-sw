@@ -33,6 +33,7 @@ use dpe::{
 };
 
 use crypto::{AlgLen, Crypto, CryptoBuf};
+use zerocopy::AsBytes;
 
 pub struct Drivers {
     pub mbox: Mailbox,
@@ -240,7 +241,8 @@ impl Drivers {
     }
 
     fn initialize_dpe(drivers: &mut Drivers) -> CaliptraResult<()> {
-        let locality = drivers.persistent_data.get().manifest1.header.pl0_pauser;
+        let caliptra_locality = 0xFFFFFFFF;
+        let pl0_pauser_locality = drivers.persistent_data.get().manifest1.header.pl0_pauser;
         let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
         let mut crypto = DpeCrypto::new(
             &mut drivers.sha384,
@@ -251,9 +253,36 @@ impl Drivers {
             drivers.persistent_data.get().fht.rt_dice_pub_key,
         );
 
+        // create a hash of all the mailbox valid pausers
+        const PAUSER_COUNT: usize = 5;
+        let mbox_valid_pauser: [u32; PAUSER_COUNT] = drivers.soc_ifc.mbox_valid_pauser();
+        let mbox_pauser_lock: [bool; PAUSER_COUNT] = drivers.soc_ifc.mbox_pauser_lock();
+        let mut valid_pausers = [0u32; PAUSER_COUNT];
+        let mut num_valid_pausers = 0;
+        for i in 0..PAUSER_COUNT {
+            if num_valid_pausers >= PAUSER_COUNT {
+                // Prevent panic; compiler doesn't realize this is impossible.
+                return Err(CaliptraError::RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED);
+            }
+            if mbox_pauser_lock[i] {
+                valid_pausers[num_valid_pausers] = mbox_valid_pauser[i];
+                num_valid_pausers += 1;
+            }
+        }
+        let valid_pauser_hash = crypto
+            .hash(
+                AlgLen::Bit384,
+                valid_pausers[..num_valid_pausers].as_bytes(),
+            )
+            .map_err(|_| CaliptraError::RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED)?;
+
         let mut env = DpeEnv::<CptraDpeTypes> {
             crypto,
-            platform: DpePlatform::new(locality, hashed_rt_pub_key, &mut drivers.cert_chain),
+            platform: DpePlatform::new(
+                caliptra_locality,
+                hashed_rt_pub_key,
+                &mut drivers.cert_chain,
+            ),
         };
         let mut dpe = DpeInstance::new(&mut env, DPE_SUPPORT)
             .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
@@ -270,10 +299,49 @@ impl Drivers {
                 | DeriveChildFlags::INPUT_ALLOW_CA
                 | DeriveChildFlags::INPUT_ALLOW_X509,
             tci_type: u32::from_be_bytes(*b"RTJM"),
-            target_locality: locality,
+            target_locality: caliptra_locality,
         }
-        .execute(&mut dpe, &mut env, locality)
+        .execute(&mut dpe, &mut env, caliptra_locality)
         .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
+
+        // Call DeriveChild to create a measurement for the mailbox valid pausers and change locality to the pl0 pauser locality
+        DeriveChildCmd {
+            handle: ContextHandle::default(),
+            data: valid_pauser_hash
+                .bytes()
+                .try_into()
+                .map_err(|_| CaliptraError::RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED)?,
+            flags: DeriveChildFlags::MAKE_DEFAULT
+                | DeriveChildFlags::CHANGE_LOCALITY
+                | DeriveChildFlags::INPUT_ALLOW_CA
+                | DeriveChildFlags::INPUT_ALLOW_X509,
+            tci_type: u32::from_be_bytes(*b"MBVP"),
+            target_locality: pl0_pauser_locality,
+        }
+        .execute(&mut dpe, &mut env, caliptra_locality)
+        .map_err(|_| CaliptraError::RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED)?;
+
+        // Call DeriveChild to create TCIs for each measurement added in ROM
+        let num_measurements = drivers.persistent_data.get().fht.meas_log_index as usize;
+        let measurement_log = drivers.persistent_data.get().measurement_log;
+        for measurement_log_entry in measurement_log.iter().take(num_measurements) {
+            let measurement_data = measurement_log_entry.pcr_entry.measured_data();
+            let tci_type = u32::from_be_bytes(measurement_log_entry.metadata);
+            DeriveChildCmd {
+                handle: ContextHandle::default(),
+                data: measurement_data
+                    .try_into()
+                    .map_err(|_| CaliptraError::RUNTIME_ADD_ROM_MEASUREMENTS_TO_DPE_FAILED)?,
+                flags: DeriveChildFlags::MAKE_DEFAULT
+                    | DeriveChildFlags::CHANGE_LOCALITY
+                    | DeriveChildFlags::INPUT_ALLOW_CA
+                    | DeriveChildFlags::INPUT_ALLOW_X509,
+                tci_type,
+                target_locality: pl0_pauser_locality,
+            }
+            .execute(&mut dpe, &mut env, pl0_pauser_locality)
+            .map_err(|_| CaliptraError::RUNTIME_ADD_ROM_MEASUREMENTS_TO_DPE_FAILED)?;
+        }
 
         // Write DPE to persistent data.
         drivers.persistent_data.get_mut().dpe = dpe;

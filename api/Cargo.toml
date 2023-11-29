@@ -11,3 +11,6 @@ edition = "2021"
 bitflags.workspace = true
 caliptra-error.workspace = true
 zerocopy.workspace = true
+
+[features]
+test_only_commands = []

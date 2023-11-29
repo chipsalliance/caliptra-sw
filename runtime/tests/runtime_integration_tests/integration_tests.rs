@@ -7,8 +7,8 @@ use caliptra_builder::{
 };
 use caliptra_common::mailbox_api::{
     CommandId, EcdsaVerifyReq, FipsVersionResp, FwInfoResp, GetIdevCertReq, GetIdevCertResp,
-    GetIdevInfoResp, InvokeDpeReq, InvokeDpeResp, MailboxReqHeader, MailboxRespHeader,
-    StashMeasurementReq, StashMeasurementResp,
+    GetIdevInfoResp, InvokeDpeReq, InvokeDpeResp, MailboxReq, MailboxReqHeader, MailboxRespHeader,
+    PopulateIdevCertReq, StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_drivers::{CaliptraError, Ecc384PubKey};
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError, ShaAccMode};
@@ -27,16 +27,21 @@ use dpe::{
     },
     DPE_PROFILE,
 };
-use openssl::asn1::Asn1Time;
+use openssl::{
+    asn1::{Asn1Integer, Asn1Time},
+    hash::MessageDigest,
+    x509::{X509Name, X509NameBuilder},
+};
 use openssl::{
     bn::BigNum,
     ec::{EcGroup, EcKey},
     ecdsa::EcdsaSig,
     nid::Nid,
-    pkey::PKey,
+    pkey::{PKey, Private},
     stack::Stack,
     x509::{
-        store::X509StoreBuilder, verify::X509VerifyFlags, X509StoreContext, X509VerifyResult, X509,
+        store::X509StoreBuilder, verify::X509VerifyFlags, X509Builder, X509StoreContext,
+        X509VerifyResult, X509,
     },
 };
 use zerocopy::{AsBytes, FromBytes, LayoutVerified};
@@ -136,7 +141,7 @@ fn test_boot() {
 }
 
 #[test]
-// Check if the owner and vendor cert validty dates are present in RT Alias cert
+// Check if the owner and vendor cert validity dates are present in RT Alias cert
 fn test_rt_cert_with_custom_dates() {
     const VENDOR_CONFIG: (&str, &str) = ("20250101000000Z", "20260101000000Z");
     const OWNER_CONFIG: (&str, &str) = ("20270101000000Z", "20280101000000Z");
@@ -354,23 +359,14 @@ fn test_stash_measurement() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let cmd = StashMeasurementReq {
+    let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq {
         hdr: MailboxReqHeader { chksum: 0 },
         metadata: [0u8; 4],
         measurement: [0u8; 48],
         context: [0u8; 48],
         svn: 0,
-    };
-
-    let checksum = caliptra_common::checksum::calc_checksum(
-        u32::from(CommandId::STASH_MEASUREMENT),
-        &cmd.as_bytes()[4..],
-    );
-
-    let cmd = StashMeasurementReq {
-        hdr: MailboxReqHeader { chksum: checksum },
-        ..cmd
-    };
+    });
+    cmd.populate_chksum().unwrap();
 
     let resp = model
         .mailbox_execute(u32::from(CommandId::STASH_MEASUREMENT), cmd.as_bytes())
@@ -435,20 +431,11 @@ fn test_invoke_dpe_get_profile_cmd() {
     assert_eq!(profile.flags, DPE_SUPPORT.bits());
 
     // Test with data_size too big.
-    let cmd = InvokeDpeReq {
+    let mut cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
         data_size: InvokeDpeReq::DATA_MAX_SIZE as u32 + 1,
         ..cmd
-    };
-
-    let checksum = caliptra_common::checksum::calc_checksum(
-        u32::from(CommandId::INVOKE_DPE),
-        &cmd.as_bytes()[4..],
-    );
-
-    let cmd = InvokeDpeReq {
-        hdr: MailboxReqHeader { chksum: checksum },
-        ..cmd
-    };
+    });
+    cmd.populate_chksum().unwrap();
 
     // Make sure the command execution fails.
     let resp = model
@@ -484,21 +471,12 @@ fn test_invoke_dpe_get_certificate_chain_cmd() {
     data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
     let dpe_cmd_buf = get_cert_chain_cmd.as_bytes();
     data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
-    let cmd = InvokeDpeReq {
+    let mut cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
         hdr: MailboxReqHeader { chksum: 0 },
         data,
         data_size: (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32,
-    };
-
-    let checksum = caliptra_common::checksum::calc_checksum(
-        u32::from(CommandId::INVOKE_DPE),
-        &cmd.as_bytes()[4..],
-    );
-
-    let cmd = InvokeDpeReq {
-        hdr: MailboxReqHeader { chksum: checksum },
-        ..cmd
-    };
+    });
+    cmd.populate_chksum().unwrap();
 
     let resp = model
         .mailbox_execute(u32::from(CommandId::INVOKE_DPE), cmd.as_bytes())
@@ -519,6 +497,153 @@ fn test_invoke_dpe_get_certificate_chain_cmd() {
         GetCertificateChainResp::read_from(&resp_hdr.data[..resp_hdr.data_size as usize]).unwrap();
     assert_eq!(cert_chain.certificate_size, 2048);
     assert_ne!([0u8; 2048], cert_chain.certificate_chain);
+}
+
+fn get_full_cert_chain(model: &mut DefaultHwModel, out: &mut [u8; 4096]) -> usize {
+    // first half
+    let mut data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
+    let get_cert_chain_cmd = GetCertificateChainCmd {
+        offset: 0,
+        size: 2048,
+    };
+    let cmd_hdr = CommandHdr::new_for_test(Command::GET_CERTIFICATE_CHAIN);
+    let cmd_hdr_buf = cmd_hdr.as_bytes();
+    data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
+    let dpe_cmd_buf = get_cert_chain_cmd.as_bytes();
+    data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
+    let mut cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        data,
+        data_size: (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32,
+    });
+    cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::INVOKE_DPE), cmd.as_bytes())
+        .unwrap()
+        .expect("We should have received a response");
+
+    let mut resp_hdr = InvokeDpeResp::default();
+    resp_hdr.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
+
+    let cert_chunk_1 =
+        GetCertificateChainResp::read_from(&resp_hdr.data[..resp_hdr.data_size as usize]).unwrap();
+    out[..cert_chunk_1.certificate_size as usize]
+        .copy_from_slice(&cert_chunk_1.certificate_chain[..cert_chunk_1.certificate_size as usize]);
+
+    // second half
+    let mut data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
+    let get_cert_chain_cmd = GetCertificateChainCmd {
+        offset: cert_chunk_1.certificate_size,
+        size: 2048,
+    };
+    let cmd_hdr = CommandHdr::new_for_test(Command::GET_CERTIFICATE_CHAIN);
+    let cmd_hdr_buf = cmd_hdr.as_bytes();
+    data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
+    let dpe_cmd_buf = get_cert_chain_cmd.as_bytes();
+    data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
+    let mut cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        data,
+        data_size: (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32,
+    });
+    cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::INVOKE_DPE), cmd.as_bytes())
+        .unwrap()
+        .expect("We should have received a response");
+
+    let mut resp_hdr = InvokeDpeResp::default();
+    resp_hdr.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
+
+    let cert_chunk_2 =
+        GetCertificateChainResp::read_from(&resp_hdr.data[..resp_hdr.data_size as usize]).unwrap();
+    out[cert_chunk_1.certificate_size as usize
+        ..cert_chunk_1.certificate_size as usize + cert_chunk_2.certificate_size as usize]
+        .copy_from_slice(&cert_chunk_2.certificate_chain[..cert_chunk_2.certificate_size as usize]);
+
+    cert_chunk_1.certificate_size as usize + cert_chunk_2.certificate_size as usize
+}
+
+// Will panic if any of the cert chain chunks is not a valid X.509 cert
+fn parse_cert_chain(cert_chain: &[u8], cert_chain_size: usize, expected_num_certs: u32) {
+    let mut i = 0;
+    let mut cert_count = 0;
+    while i < cert_chain_size {
+        let curr_cert = X509::from_der(&cert_chain[i..]).unwrap();
+        i += curr_cert.to_der().unwrap().len();
+        cert_count += 1;
+    }
+    assert_eq!(expected_num_certs, cert_count);
+}
+
+#[test]
+fn test_populate_idev_cert_cmd() {
+    let mut model = run_rt_test(None, None, None);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut cert_chain_without_idev_cert = [0u8; 4096];
+    let cert_chain_len_without_idev_cert =
+        get_full_cert_chain(&mut model, &mut cert_chain_without_idev_cert);
+
+    // generate test idev cert
+    let ec_group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
+    let ec_key = PKey::from_ec_key(EcKey::generate(&ec_group).unwrap()).unwrap();
+
+    let cert = generate_test_x509_cert(ec_key);
+
+    // copy der encoded idev cert
+    let cert_bytes = cert.to_der().unwrap();
+    let mut cert_slice = [0u8; PopulateIdevCertReq::MAX_CERT_SIZE];
+    cert_slice[..cert_bytes.len()].copy_from_slice(&cert_bytes);
+
+    let pop_idev_cmd = PopulateIdevCertReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        cert_size: cert_bytes.len() as u32,
+        cert: cert_slice,
+    };
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::POPULATE_IDEV_CERT),
+        &pop_idev_cmd.as_bytes()[4..],
+    );
+
+    let pop_idev_cmd = PopulateIdevCertReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..pop_idev_cmd
+    };
+
+    // call populate idev cert so that the idev cert is added to the certificate chain
+    model
+        .mailbox_execute(
+            u32::from(CommandId::POPULATE_IDEV_CERT),
+            pop_idev_cmd.as_bytes(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let mut cert_chain_with_idev_cert = [0u8; 4096];
+    let cert_chain_len_with_idev_cert =
+        get_full_cert_chain(&mut model, &mut cert_chain_with_idev_cert);
+
+    // read idev cert from prefix of cert chain and parse it as X509
+    let idev_len = cert_chain_len_with_idev_cert - cert_chain_len_without_idev_cert;
+    let idev_cert = X509::from_der(&cert_chain_with_idev_cert[..idev_len]).unwrap();
+    assert_eq!(idev_cert, cert);
+
+    // ensure rest of cert chain is not corrupted
+    assert_eq!(
+        cert_chain_without_idev_cert[..cert_chain_len_without_idev_cert],
+        cert_chain_with_idev_cert[idev_len..cert_chain_len_with_idev_cert]
+    );
+    parse_cert_chain(
+        &cert_chain_with_idev_cert[idev_len..],
+        cert_chain_len_with_idev_cert - idev_len,
+        3,
+    );
 }
 
 #[test]
@@ -584,12 +709,10 @@ fn test_pauser_privilege_level_dpe_context_thresholds() {
     let mut handle = rotate_ctx_resp.handle;
 
     // Call DeriveChild with PL0 enough times to breach the threshold on the last iteration.
-    // Note that this loop runs exactly PL0_DPE_ACTIVE_CONTEXT_THRESHOLD - 1 times. Due to
-    // auto initialization of DPE, context[0] has a default context. When we initialize drivers,
-    // we also call derive child once without setting RETAINS_PARENT, so context[1] will be
-    // active. Thus, we can call derive child from PL0 exactly 6 times, and the last iteration
-    // of this loop, is expected to throw a threshold breached error.
-    let num_iterations = InvokeDpeCmd::PL0_DPE_ACTIVE_CONTEXT_THRESHOLD - 1;
+    // Note that this loop runs exactly PL0_DPE_ACTIVE_CONTEXT_THRESHOLD times. When we initialize
+    // DPE, we measure mailbox valid pausers in pl0_pauser's locality. Thus, we can call derive child
+    // from PL0 exactly 7 times, and the last iteration of this loop, is expected to throw a threshold breached error.
+    let num_iterations = InvokeDpeCmd::PL0_DPE_ACTIVE_CONTEXT_THRESHOLD;
     for i in 0..num_iterations {
         let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
         let derive_child_cmd = DeriveChildCmd {
@@ -796,6 +919,74 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
     )
     .unwrap();
     assert!(sig.verify(&test_digest, &ecc_pub_key).unwrap());
+}
+
+#[test]
+fn test_invoke_dpe_symmetric_sign() {
+    let mut model = run_rt_test(None, None, None);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let test_label = [
+        48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26,
+        25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
+    ];
+    let test_digest = [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+        26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
+    ];
+    let mut data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
+    let sign_cmd = SignCmd {
+        handle: ContextHandle::default(),
+        label: test_label,
+        flags: SignFlags::IS_SYMMETRIC,
+        digest: test_digest,
+    };
+    let sign_cmd_hdr = CommandHdr::new_for_test(Command::SIGN);
+    let sign_cmd_hdr_buf = sign_cmd_hdr.as_bytes();
+    data[..sign_cmd_hdr_buf.len()].copy_from_slice(sign_cmd_hdr_buf);
+    let sign_cmd_buf = sign_cmd.as_bytes();
+    data[sign_cmd_hdr_buf.len()..sign_cmd_hdr_buf.len() + sign_cmd_buf.len()]
+        .copy_from_slice(sign_cmd_buf);
+    let sign_mbox_cmd = InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        data,
+        data_size: (sign_cmd_hdr_buf.len() + sign_cmd_buf.len()) as u32,
+    };
+
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::INVOKE_DPE),
+        &sign_mbox_cmd.as_bytes()[4..],
+    );
+
+    let sign_mbox_cmd = InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..sign_mbox_cmd
+    };
+
+    let sign_resp_buf = model
+        .mailbox_execute(u32::from(CommandId::INVOKE_DPE), sign_mbox_cmd.as_bytes())
+        .unwrap()
+        .expect("We should have received a response");
+
+    assert!(sign_resp_buf.len() <= std::mem::size_of::<InvokeDpeResp>());
+    let mut sign_resp_hdr = InvokeDpeResp::default();
+    sign_resp_hdr.as_bytes_mut()[..sign_resp_buf.len()].copy_from_slice(&sign_resp_buf);
+
+    assert!(caliptra_common::checksum::verify_checksum(
+        sign_resp_hdr.hdr.chksum,
+        0x0,
+        &sign_resp_buf[core::mem::size_of_val(&sign_resp_hdr.hdr.chksum)..],
+    ));
+
+    let sign_resp =
+        SignResp::read_from(&sign_resp_hdr.data[..sign_resp_hdr.data_size as usize]).unwrap();
+    // r contains the hmac so it should not be all 0s
+    assert_ne!(sign_resp.sig_r_or_hmac, [0u8; 48]);
+    // s must be all 0s for hmac sign
+    assert_eq!(sign_resp.sig_s, [0u8; 48]);
 }
 
 #[test]
@@ -1073,20 +1264,64 @@ fn test_idev_id_info() {
     GetIdevInfoResp::read_from(resp.as_slice()).unwrap();
 }
 
+fn generate_test_x509_cert(ec_key: PKey<Private>) -> X509 {
+    let mut cert_builder = X509Builder::new().unwrap();
+    cert_builder.set_version(2).unwrap();
+    cert_builder
+        .set_serial_number(&Asn1Integer::from_bn(&BigNum::from_u32(1).unwrap()).unwrap())
+        .unwrap();
+    let mut subj_name_builder = X509Name::builder().unwrap();
+    subj_name_builder
+        .append_entry_by_text("CN", "example.com")
+        .unwrap();
+    let subject_name = X509NameBuilder::build(subj_name_builder);
+    cert_builder.set_subject_name(&subject_name).unwrap();
+    cert_builder.set_issuer_name(&subject_name).unwrap();
+    cert_builder.set_pubkey(&ec_key).unwrap();
+    cert_builder
+        .set_not_before(&Asn1Time::days_from_now(0).unwrap())
+        .unwrap();
+    cert_builder
+        .set_not_after(&Asn1Time::days_from_now(365).unwrap())
+        .unwrap();
+    cert_builder.sign(&ec_key, MessageDigest::sha384()).unwrap();
+    cert_builder.build()
+}
+
 #[test]
 fn test_idev_id_cert() {
     let mut model = run_rt_test(None, None, None);
 
-    let fake_tbs = [0xef, 0xbe, 0xad, 0xde];
+    // generate 48 byte ECDSA key pair
+    let ec_group = EcGroup::from_curve_name(Nid::SECP384R1).unwrap();
+    let ec_key = PKey::from_ec_key(EcKey::generate(&ec_group).unwrap()).unwrap();
 
-    let mut tbs: [u8; GetIdevCertReq::DATA_MAX_SIZE] = [0; GetIdevCertReq::DATA_MAX_SIZE];
-    tbs[..fake_tbs.len()].copy_from_slice(&fake_tbs);
+    let cert = generate_test_x509_cert(ec_key.clone());
+    assert!(cert.verify(&ec_key).unwrap());
+
+    // Extract the r and s values of the signature
+    let sig_bytes = cert.signature().as_slice();
+    let signature = EcdsaSig::from_der(sig_bytes).unwrap();
+    let signature_r: [u8; 48] = signature.r().to_vec_padded(48).unwrap().try_into().unwrap();
+    let signature_s: [u8; 48] = signature.s().to_vec_padded(48).unwrap().try_into().unwrap();
+
+    // Extract tbs from cert
+    let mut tbs = [0u8; GetIdevCertReq::DATA_MAX_SIZE];
+    let cert_der_vec = cert.to_der().unwrap();
+    let cert_der = cert_der_vec.as_bytes();
+    // skip first 4 outer sequence bytes
+    let tbs_offset = 4;
+    // this value is hard-coded and will need to be changed if the above x509 encoding is ever changed
+    // you can change it by calling asn1parse on the byte dump of the x509 cert, and finding the size of the TbsCertificate portion
+    let tbs_size = 223;
+    tbs[..tbs_size].copy_from_slice(&cert_der[tbs_offset..tbs_offset + tbs_size]);
+
     let cmd = GetIdevCertReq {
         hdr: MailboxReqHeader { chksum: 0 },
         tbs,
-        signature_r: [0; 48],
-        signature_s: [0; 48],
-        tbs_size: fake_tbs.len().try_into().unwrap(),
+        signature_r,
+        signature_s,
+        tbs_size: tbs_size as u32,
     };
 
     let checksum = caliptra_common::checksum::calc_checksum(
@@ -1106,6 +1341,8 @@ fn test_idev_id_cert() {
 
     let cert = GetIdevCertResp::read_from(resp.as_slice()).unwrap();
     assert!(cmd.tbs_size < cert.cert_size);
+    let idev_cert = X509::from_der(&cert.cert[..cert.cert_size as usize]).unwrap();
+    assert!(idev_cert.verify(&ec_key).unwrap());
 
     // Test with tbs_size too big.
     let cmd = GetIdevCertReq {

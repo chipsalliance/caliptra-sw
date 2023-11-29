@@ -42,6 +42,8 @@ set -x
     echo Installing Rust Toolchain
     su runner -c "curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain=1.70"
     su runner -c "/home/runner/.cargo/bin/rustup target add riscv32imc-unknown-none-elf"
+    echo Installing cargo-nextest
+    su runner -c "/home/runner/.cargo/bin/cargo install cargo-nextest@0.9.62 --locked --no-default-features --features=default-no-update"
 
     mkdir sw
     (
