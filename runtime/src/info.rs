@@ -8,7 +8,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature};
-use zerocopy::FromBytes;
+use zerocopy::{AsBytes, FromBytes};
 
 pub struct FwInfoCmd;
 impl FwInfoCmd {
@@ -52,7 +52,10 @@ impl IDevIdInfoCmd {
 pub struct IDevIdCertCmd;
 impl IDevIdCertCmd {
     pub(crate) fn execute(cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        if let Some(cmd) = GetIdevCertReq::read_from(cmd_args) {
+        if cmd_args.len() <= core::mem::size_of::<GetIdevCertReq>() {
+            let mut cmd = GetIdevCertReq::default();
+            cmd.as_bytes_mut()[..cmd_args.len()].copy_from_slice(cmd_args);
+
             // Validate tbs
             if cmd.tbs_size as usize > cmd.tbs.len() {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
@@ -86,7 +89,10 @@ impl IDevIdCertCmd {
 pub struct PopulateIDevIdCertCmd;
 impl PopulateIDevIdCertCmd {
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        if let Some(cmd) = PopulateIdevCertReq::read_from(cmd_args) {
+        if cmd_args.len() <= core::mem::size_of::<PopulateIdevCertReq>() {
+            let mut cmd = PopulateIdevCertReq::default();
+            cmd.as_bytes_mut()[..cmd_args.len()].copy_from_slice(cmd_args);
+
             let cert_size = cmd.cert_size as usize;
             if cert_size > cmd.cert.len() {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);

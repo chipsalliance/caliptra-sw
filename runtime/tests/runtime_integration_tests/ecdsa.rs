@@ -102,7 +102,10 @@ fn ecdsa_cmd_run_wycheproof() {
                 // Do tests on mailbox
             });
             cmd.populate_chksum().unwrap();
-            let resp = model.mailbox_execute(u32::from(CommandId::ECDSA384_VERIFY), cmd.as_bytes());
+            let resp = model.mailbox_execute(
+                u32::from(CommandId::ECDSA384_VERIFY),
+                cmd.as_bytes().unwrap(),
+            );
             match test.result {
                 wycheproof::TestResult::Valid | wycheproof::TestResult::Acceptable => match resp {
                     Err(_) | Ok(None) => {
