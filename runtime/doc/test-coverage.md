@@ -68,6 +68,12 @@ Tests some common ECDSA problems | **ecdsa_cmd_run_wycheproof** | N/A
 Tests some common HMAC problems | **hmac_cmd_run_wycheproof** | N/A
 
 <br><br>
+# **Stress Tests**
+Test Scenario| Test Name | Runtime Error Code
+---|---|---
+Run impactless update repeatedly for 500 times | **test_stress_update** | N/A
+
+<br><br>
 # **Test Gaps**
 Test Scenario| Test Name | Runtime Error Code
 ---|---|---
@@ -75,4 +81,4 @@ Check validation of DPE structure after a warm/update reset and ensure that vali
 Verify the RT Journey PCR on a warm reset | N/A | N/A
 Check that the RT Journey PCR was updated correctly on update reset | N/A | N/A
 Check if disable attestation was called when the mailbox is executing a command during a warm reset | N/A | N/A
-Check that measurements in the measurement log are added to DPE upon initializing drivers | N/A | N/A
+Check that measurements in the measurement log are added to DPE upon initializing drivers | N/A | N/A 
