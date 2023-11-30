@@ -18,6 +18,8 @@ impl CommandId {
     pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
     pub const DISABLE_ATTESTATION: Self = Self(0x4453424C); // "DSBL"
     pub const FW_INFO: Self = Self(0x494E464F); // "INFO"
+    pub const DPE_TAG_TCI: Self = Self(0x54514754); // "TAGT"
+    pub const DPE_GET_TAGGED_TCI: Self = Self(0x47544744); // "GTGD"
 
     // TODO: Remove this and merge with GET_LDEV_CERT once that is implemented
     pub const TEST_ONLY_GET_LDEV_CERT: Self = Self(0x4345524c); // "CERL"
@@ -132,6 +134,7 @@ pub enum MailboxResp {
     FipsVersion(FipsVersionResp),
     FwInfo(FwInfoResp),
     Capabilities(CapabilitiesResp),
+    GetTaggedTci(GetTaggedTciResp),
 }
 
 impl MailboxResp {
@@ -148,6 +151,7 @@ impl MailboxResp {
             MailboxResp::FipsVersion(resp) => Ok(resp.as_bytes()),
             MailboxResp::FwInfo(resp) => Ok(resp.as_bytes()),
             MailboxResp::Capabilities(resp) => Ok(resp.as_bytes()),
+            MailboxResp::GetTaggedTci(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -164,6 +168,7 @@ impl MailboxResp {
             MailboxResp::FipsVersion(resp) => Ok(resp.as_bytes_mut()),
             MailboxResp::FwInfo(resp) => Ok(resp.as_bytes_mut()),
             MailboxResp::Capabilities(resp) => Ok(resp.as_bytes_mut()),
+            MailboxResp::GetTaggedTci(resp) => Ok(resp.as_bytes_mut()),
         }
     }
 
@@ -213,6 +218,8 @@ pub enum MailboxReq {
     FwInfo(MailboxReqHeader),
     PopulateIdevCert(PopulateIdevCertReq),
     GetIdevCert(GetIdevCertReq),
+    TagTci(TagTciReq),
+    GetTaggedTci(GetTaggedTciReq),
 
     #[cfg(feature = "test_only_commands")]
     TestHmacVerify(HmacVerifyReq),
@@ -232,6 +239,8 @@ impl MailboxReq {
             MailboxReq::GetLdevCert(req) => Ok(req.as_bytes()),
             MailboxReq::PopulateIdevCert(req) => req.as_bytes_partial(),
             MailboxReq::GetIdevCert(req) => req.as_bytes_partial(),
+            MailboxReq::TagTci(req) => Ok(req.as_bytes()),
+            MailboxReq::GetTaggedTci(req) => Ok(req.as_bytes()),
 
             #[cfg(feature = "test_only_commands")]
             MailboxReq::TestGetFmcAliasCert(req) => Ok(req.as_bytes()),
@@ -251,6 +260,8 @@ impl MailboxReq {
             MailboxReq::FwInfo(req) => Ok(req.as_bytes_mut()),
             MailboxReq::PopulateIdevCert(req) => req.as_bytes_partial_mut(),
             MailboxReq::GetIdevCert(req) => req.as_bytes_partial_mut(),
+            MailboxReq::TagTci(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::GetTaggedTci(req) => Ok(req.as_bytes_mut()),
 
             #[cfg(feature = "test_only_commands")]
             MailboxReq::TestHmacVerify(req) => Ok(req.as_bytes_mut()),
@@ -270,6 +281,8 @@ impl MailboxReq {
             MailboxReq::FwInfo(_) => CommandId::FW_INFO,
             MailboxReq::PopulateIdevCert(_) => CommandId::POPULATE_IDEV_CERT,
             MailboxReq::GetIdevCert(_) => CommandId::GET_IDEV_CERT,
+            MailboxReq::TagTci(_) => CommandId::DPE_TAG_TCI,
+            MailboxReq::GetTaggedTci(_) => CommandId::DPE_GET_TAGGED_TCI,
 
             #[cfg(feature = "test_only_commands")]
             MailboxReq::TestHmacVerify(_) => CommandId::TEST_ONLY_HMAC384_VERIFY,
@@ -704,6 +717,31 @@ impl Default for PopulateIdevCertReq {
             cert: [0u8; PopulateIdevCertReq::MAX_CERT_SIZE],
         }
     }
+}
+
+// DPE_TAG_TCI
+// No command-specific output args
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct TagTciReq {
+    pub hdr: MailboxReqHeader,
+    pub handle: [u8; 16],
+    pub tag: u32,
+}
+
+// DPE_GET_TAGGED_TCI
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct GetTaggedTciReq {
+    pub hdr: MailboxReqHeader,
+    pub tag: u32,
+}
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct GetTaggedTciResp {
+    pub hdr: MailboxRespHeader,
+    pub tci_cumulative: [u8; 48],
+    pub tci_current: [u8; 48],
 }
 
 #[cfg(test)]
