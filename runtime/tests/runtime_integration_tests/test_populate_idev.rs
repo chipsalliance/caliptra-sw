@@ -1,15 +1,13 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{generate_test_x509_cert, run_rt_test};
-use caliptra_common::mailbox_api::{
-    CommandId, InvokeDpeReq, InvokeDpeResp, MailboxReq, MailboxReqHeader, PopulateIdevCertReq,
-};
+use crate::common::{execute_dpe_cmd, generate_test_x509_cert, run_rt_test};
+use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, PopulateIdevCertReq};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel};
 use caliptra_runtime::RtBootStatus;
 use dpe::{
-    commands::{Command, CommandHdr, GetCertificateChainCmd},
-    response::GetCertificateChainResp,
+    commands::{Command, GetCertificateChainCmd},
+    response::Response,
 };
 use openssl::{
     ec::{EcGroup, EcKey},
@@ -17,68 +15,29 @@ use openssl::{
     pkey::PKey,
     x509::X509,
 };
-use zerocopy::{AsBytes, FromBytes};
 
 fn get_full_cert_chain(model: &mut DefaultHwModel, out: &mut [u8; 4096]) -> usize {
     // first half
-    let mut data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
     let get_cert_chain_cmd = GetCertificateChainCmd {
         offset: 0,
         size: 2048,
     };
-    let cmd_hdr = CommandHdr::new_for_test(Command::GET_CERTIFICATE_CHAIN);
-    let cmd_hdr_buf = cmd_hdr.as_bytes();
-    data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
-    let dpe_cmd_buf = get_cert_chain_cmd.as_bytes();
-    data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
-    let mut cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        data,
-        data_size: (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32,
-    });
-    cmd.populate_chksum().unwrap();
-
-    let resp = model
-        .mailbox_execute(u32::from(CommandId::INVOKE_DPE), cmd.as_bytes().unwrap())
-        .unwrap()
-        .expect("We should have received a response");
-
-    let mut resp_hdr = InvokeDpeResp::default();
-    resp_hdr.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
-
-    let cert_chunk_1 =
-        GetCertificateChainResp::read_from(&resp_hdr.data[..resp_hdr.data_size as usize]).unwrap();
+    let resp = execute_dpe_cmd(model, &mut Command::GetCertificateChain(get_cert_chain_cmd));
+    let Response::GetCertificateChain(cert_chunk_1) = resp else {
+        panic!("Wrong response type!");
+    };
     out[..cert_chunk_1.certificate_size as usize]
         .copy_from_slice(&cert_chunk_1.certificate_chain[..cert_chunk_1.certificate_size as usize]);
 
     // second half
-    let mut data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
     let get_cert_chain_cmd = GetCertificateChainCmd {
         offset: cert_chunk_1.certificate_size,
         size: 2048,
     };
-    let cmd_hdr = CommandHdr::new_for_test(Command::GET_CERTIFICATE_CHAIN);
-    let cmd_hdr_buf = cmd_hdr.as_bytes();
-    data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
-    let dpe_cmd_buf = get_cert_chain_cmd.as_bytes();
-    data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
-    let mut cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        data,
-        data_size: (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32,
-    });
-    cmd.populate_chksum().unwrap();
-
-    let resp = model
-        .mailbox_execute(u32::from(CommandId::INVOKE_DPE), cmd.as_bytes().unwrap())
-        .unwrap()
-        .expect("We should have received a response");
-
-    let mut resp_hdr = InvokeDpeResp::default();
-    resp_hdr.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
-
-    let cert_chunk_2 =
-        GetCertificateChainResp::read_from(&resp_hdr.data[..resp_hdr.data_size as usize]).unwrap();
+    let resp = execute_dpe_cmd(model, &mut Command::GetCertificateChain(get_cert_chain_cmd));
+    let Response::GetCertificateChain(cert_chunk_2) = resp else {
+        panic!("Wrong response type!");
+    };
     out[cert_chunk_1.certificate_size as usize
         ..cert_chunk_1.certificate_size as usize + cert_chunk_2.certificate_size as usize]
         .copy_from_slice(&cert_chunk_2.certificate_chain[..cert_chunk_2.certificate_size as usize]);

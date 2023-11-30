@@ -1,16 +1,16 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::run_rt_test;
+use crate::common::{execute_dpe_cmd, run_rt_test};
 use caliptra_common::mailbox_api::{
-    CommandId, GetTaggedTciReq, GetTaggedTciResp, InvokeDpeReq, MailboxReq, MailboxReqHeader,
-    TagTciReq,
+    CommandId, GetTaggedTciReq, GetTaggedTciResp, MailboxReq, MailboxReqHeader, TagTciReq,
 };
 use caliptra_hw_model::{HwModel, ModelError};
 use dpe::{
-    commands::{Command, CommandHdr, DestroyCtxCmd},
+    commands::{Command, DestroyCtxCmd},
     context::ContextHandle,
+    response::Response,
 };
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::FromBytes;
 
 const TAG: u32 = 1;
 const INVALID_TAG: u32 = 2;
@@ -196,25 +196,13 @@ fn test_tagging_destroyed_context() {
         .expect("We expected a response");
 
     // destroy tagged context
-    let mut data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
     let destroy_ctx_cmd = DestroyCtxCmd {
         handle: ContextHandle::default(),
     };
-    let cmd_hdr = CommandHdr::new_for_test(Command::DESTROY_CONTEXT);
-    let cmd_hdr_buf = cmd_hdr.as_bytes();
-    data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
-    let dpe_cmd_buf = destroy_ctx_cmd.as_bytes();
-    data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
-    let mut cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        data,
-        data_size: (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32,
-    });
-    cmd.populate_chksum().unwrap();
-    let _ = model
-        .mailbox_execute(u32::from(CommandId::INVOKE_DPE), cmd.as_bytes().unwrap())
-        .unwrap()
-        .expect("We should have received a response");
+    let resp = execute_dpe_cmd(&mut model, &mut Command::DestroyCtx(destroy_ctx_cmd));
+    let Response::DestroyCtx(_) = resp else {
+        panic!("Wrong response type!");
+    };
 
     // check that we cannot get tagged tci for a destroyed context
     let mut cmd = MailboxReq::GetTaggedTci(GetTaggedTciReq {
