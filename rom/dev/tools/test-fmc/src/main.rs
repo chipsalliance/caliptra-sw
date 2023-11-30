@@ -40,6 +40,18 @@ const FW_LOAD_CMD_OPCODE: u32 = mailbox_api::CommandId::FIRMWARE_LOAD.0;
 #[cfg(feature = "std")]
 pub fn main() {}
 
+// Dummy RO data to max out FMC image size to 16K.
+// Note: Adjust this value to account for new changes in this FMC image.
+static PAD: [u32; 1163] = {
+    let mut result = [0xdeadbeef_u32; 1163];
+    let mut i = 0;
+    while i < result.len() {
+        result[i] = result[i].wrapping_add(i as u32);
+        i += 1;
+    }
+    result
+};
+
 const BANNER: &str = r#"
 Running Caliptra FMC ...
 "#;
@@ -228,6 +240,9 @@ fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMm
         0x1000_000D => {
             read_datavault_warmresetentry4(mbox);
         }
+        0x1000_000E => {
+            validate_fmc_rt_load_in_iccm(mbox);
+        }
         _ => {}
     }
 }
@@ -245,6 +260,52 @@ fn process_mailbox_commands() {
 
     #[cfg(not(feature = "interactive_test_fmc"))]
     process_mailbox_command(&mbox);
+}
+
+fn validate_fmc_rt_load_in_iccm(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    let data_vault = unsafe { DataVault::new(DvReg::new()) };
+    let fmc_load_addr = data_vault.fmc_entry_point();
+    let rt_load_addr = data_vault.rt_entry_point();
+    let fmc_size = mbox.dataout().read() as usize;
+    let rt_size = mbox.dataout().read() as usize;
+
+    let fmc_iccm = unsafe {
+        let ptr = fmc_load_addr as *mut u32;
+        core::slice::from_raw_parts_mut(ptr, fmc_size / 4)
+    };
+
+    let rt_iccm = unsafe {
+        let ptr = rt_load_addr as *mut u32;
+        core::slice::from_raw_parts_mut(ptr, rt_size / 4)
+    };
+
+    for (idx, _) in fmc_iccm.iter().enumerate().take(fmc_size / 4) {
+        let temp = mbox.dataout().read();
+        if temp != fmc_iccm[idx] {
+            cprint!(
+                "FMC load mismatch at index {} (0x{:08X} != 0x{:08X})",
+                idx,
+                temp,
+                fmc_iccm[idx]
+            );
+            assert!(temp == fmc_iccm[idx]);
+            cprint!("PAD[{}] = 0x{:08X}", idx, PAD[idx]);
+        }
+    }
+    for (idx, _) in rt_iccm.iter().enumerate().take(rt_size / 4) {
+        let temp = mbox.dataout().read();
+        if temp != rt_iccm[idx] {
+            cprint!(
+                "RT load mismatch at index {} (0x{:08X} != 0x{:08X})",
+                idx,
+                temp,
+                rt_iccm[idx]
+            );
+            assert!(temp == rt_iccm[idx]);
+        }
+    }
+
+    mbox.status().write(|w| w.status(|w| w.cmd_complete()));
 }
 
 fn read_pcr31(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {

@@ -25,6 +25,17 @@ mod print;
 #[cfg(feature = "std")]
 pub fn main() {}
 
+// Dummy RO data to max out FW image size.
+static PAD: [u32; 26778] = {
+    let mut result = [0xba5eba11_u32; 26778];
+    let mut i = 0;
+    while i < result.len() {
+        result[i] = result[i].wrapping_add(i as u32);
+        i += 1;
+    }
+    result
+};
+
 const BANNER: &str = r#"
   ____      _ _       _               ____ _____
  / ___|__ _| (_)_ __ | |_ _ __ __ _  |  _ \_   _|
@@ -37,6 +48,10 @@ const BANNER: &str = r#"
 #[no_mangle]
 pub extern "C" fn rt_entry() -> ! {
     cprintln!("{}", BANNER);
+
+    for (x, item) in PAD.iter().enumerate() {
+        cprint!("PAD[{}] = 0x{:08X}", x, *item);
+    }
 
     caliptra_drivers::ExitCtrl::exit(0)
 }

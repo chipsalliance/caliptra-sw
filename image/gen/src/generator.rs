@@ -45,10 +45,13 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
     where
         E: ImageGenratorExecutable,
     {
-        if IMAGE_MANIFEST_BYTE_SIZE as u32 + config.fmc.size() + config.runtime.size()
-            > IMAGE_BYTE_SIZE as u32
-        {
-            bail!("Image larger than {IMAGE_BYTE_SIZE} bytes");
+        let image_size =
+            IMAGE_MANIFEST_BYTE_SIZE as u32 + config.fmc.size() + config.runtime.size();
+        if image_size > IMAGE_BYTE_SIZE as u32 {
+            bail!(
+                "Image larger than {IMAGE_BYTE_SIZE} bytes; image size:{} bytes",
+                image_size
+            );
         }
 
         // Create FMC TOC & Content
@@ -64,7 +67,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         // Check if fmc and runtime image load address ranges don't overlap.
         if fmc_toc.overlaps(&runtime_toc) {
             bail!(
-                "FMC:[{0}:{1}] and Runtime:[{2}:{3}] load address ranges overlap",
+                "FMC:[{:#x?}:{:#x?}] and Runtime:[{:#x?}:{:#x?}] load address ranges overlap",
                 fmc_toc.load_addr,
                 fmc_toc.load_addr + fmc_toc.size - 1,
                 runtime_toc.load_addr,
