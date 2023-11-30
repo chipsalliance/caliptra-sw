@@ -337,7 +337,7 @@ impl CaliptraError {
     pub const RUNTIME_DISABLE_ATTESTATION_FAILED: CaliptraError =
         CaliptraError::new_const(0x000E0011);
     pub const RUNTIME_HANDOFF_INVALID_PARM: CaliptraError = CaliptraError::new_const(0x000E0012);
-    pub const RUNTIME_GET_DEVID_CERT_FAILED: CaliptraError = CaliptraError::new_const(0x000E0013);
+    pub const RUNTIME_GET_IDEVID_CERT_FAILED: CaliptraError = CaliptraError::new_const(0x000E0013);
     pub const RUNTIME_CERT_CHAIN_CREATION_FAILED: CaliptraError =
         CaliptraError::new_const(0x000E0014);
     pub const RUNTIME_SELF_TEST_IN_PROGRESS: CaliptraError = CaliptraError::new_const(0x000E0015);
@@ -367,6 +367,8 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E0026);
     pub const RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE: CaliptraError =
         CaliptraError::new_const(0x000E0027);
+    pub const RUNTIME_LDEVID_CERT_HANDOFF_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E0028);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
