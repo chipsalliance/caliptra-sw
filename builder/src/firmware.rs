@@ -297,6 +297,12 @@ pub mod rom_tests {
         features: &["emu"],
     };
 
+    pub const TEST_RT_WITH_UART: FwId = FwId {
+        crate_name: "caliptra-rom-test-rt",
+        bin_name: "caliptra-rom-test-rt",
+        features: &["emu"],
+    };
+
     pub const FAKE_TEST_FMC_WITH_UART: FwId = FwId {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
@@ -398,6 +404,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &rom_tests::FAKE_TEST_FMC_WITH_UART,
     &rom_tests::TEST_FMC_INTERACTIVE,
     &rom_tests::FAKE_TEST_FMC_INTERACTIVE,
+    &rom_tests::TEST_RT_WITH_UART,
     &fmc_tests::MOCK_RT_WITH_UART,
     &fmc_tests::MOCK_RT_INTERACTIVE,
     &runtime_tests::BOOT,
