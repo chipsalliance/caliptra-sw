@@ -84,10 +84,6 @@ impl Packet {
         resp.populate_chksum()?;
 
         // Send the payload
-        // NOTE: Currently, any payloads with a variable sized field send the max size buffer and
-        //       it's up to the requestor to only use the valid portion of the data
-        //       This can be fixed if needed by implementing a function in MailboxResp that returns the
-        //       size taking into account the data size field. That can then be used to get a slice
         mbox.write_response(resp.as_bytes()?)
     }
 

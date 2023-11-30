@@ -10,6 +10,7 @@ pub mod fips;
 pub mod handoff;
 pub mod info;
 mod invoke_dpe;
+mod populate_idev;
 mod stash_measurement;
 mod update;
 mod verify;
@@ -20,15 +21,16 @@ pub use drivers::Drivers;
 use mailbox::Mailbox;
 
 pub use caliptra_common::fips::FipsVersionCmd;
-pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd};
+pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
 use dpe_crypto::DpeCrypto;
 pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
 pub use fips::FipsShutdownCmd;
 #[cfg(feature = "fips_self_test")]
 pub use fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
+pub use populate_idev::PopulateIDevIdCertCmd;
 
-pub use info::{FwInfoCmd, IDevIdCertCmd, IDevIdInfoCmd, PopulateIDevIdCertCmd};
+pub use info::{FwInfoCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::EcdsaVerifyCmd;

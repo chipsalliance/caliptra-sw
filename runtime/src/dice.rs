@@ -1,7 +1,8 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_common::mailbox_api::{
-    GetFmcAliasCertResp, GetLdevCertResp, GetRtAliasCertResp, MailboxResp, MailboxRespHeader,
+    GetFmcAliasCertResp, GetIdevCertReq, GetIdevCertResp, GetLdevCertResp, GetRtAliasCertResp,
+    MailboxResp, MailboxRespHeader,
 };
 
 use crate::Drivers;
@@ -11,6 +12,44 @@ use caliptra_drivers::{
     PersistentData,
 };
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature};
+use zerocopy::AsBytes;
+
+pub struct IDevIdCertCmd;
+impl IDevIdCertCmd {
+    pub(crate) fn execute(cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
+        if cmd_args.len() <= core::mem::size_of::<GetIdevCertReq>() {
+            let mut cmd = GetIdevCertReq::default();
+            cmd.as_bytes_mut()[..cmd_args.len()].copy_from_slice(cmd_args);
+
+            // Validate tbs
+            if cmd.tbs_size as usize > cmd.tbs.len() {
+                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+            }
+
+            let sig = Ecdsa384Signature {
+                r: cmd.signature_r,
+                s: cmd.signature_s,
+            };
+
+            let Some(builder) = Ecdsa384CertBuilder::new(&cmd.tbs[..cmd.tbs_size as usize], &sig) else {
+                return Err(CaliptraError::RUNTIME_GET_IDEVID_CERT_FAILED);
+            };
+
+            let mut cert = [0; GetIdevCertResp::DATA_MAX_SIZE];
+            let Some(cert_size) = builder.build(&mut cert) else {
+                return Err(CaliptraError::RUNTIME_GET_IDEVID_CERT_FAILED);
+            };
+
+            Ok(MailboxResp::GetIdevCert(GetIdevCertResp {
+                hdr: MailboxRespHeader::default(),
+                cert_size: cert_size as u32,
+                cert,
+            }))
+        } else {
+            Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
+        }
+    }
+}
 
 pub struct GetLdevCertCmd;
 impl GetLdevCertCmd {
@@ -62,13 +101,13 @@ fn ldevid_dice_sign_r(
         .fht
         .ldevid_cert_sig_r_dv_hdl
         .try_into()
-        .map_err(|_| CaliptraError::RUNTIME_FMC_CERT_HANDOFF_FAILED)?;
+        .map_err(|_| CaliptraError::RUNTIME_LDEVID_CERT_HANDOFF_FAILED)?;
 
     // The data store is either a warm reset entry or a cold reset entry.
     match ds {
         DataStore::DataVaultNonSticky48(dv_entry) => Ok(dv.read_warm_reset_entry48(dv_entry)),
         DataStore::DataVaultSticky48(dv_entry) => Ok(dv.read_cold_reset_entry48(dv_entry)),
-        _ => Err(CaliptraError::RUNTIME_FMC_CERT_HANDOFF_FAILED),
+        _ => Err(CaliptraError::RUNTIME_LDEVID_CERT_HANDOFF_FAILED),
     }
 }
 
@@ -81,13 +120,13 @@ fn ldevid_dice_sign_s(
         .fht
         .ldevid_cert_sig_s_dv_hdl
         .try_into()
-        .map_err(|_| CaliptraError::RUNTIME_FMC_CERT_HANDOFF_FAILED)?;
+        .map_err(|_| CaliptraError::RUNTIME_LDEVID_CERT_HANDOFF_FAILED)?;
 
     // The data store is either a warm reset entry or a cold reset entry.
     match ds {
         DataStore::DataVaultNonSticky48(dv_entry) => Ok(dv.read_warm_reset_entry48(dv_entry)),
         DataStore::DataVaultSticky48(dv_entry) => Ok(dv.read_cold_reset_entry48(dv_entry)),
-        _ => Err(CaliptraError::RUNTIME_FMC_CERT_HANDOFF_FAILED),
+        _ => Err(CaliptraError::RUNTIME_LDEVID_CERT_HANDOFF_FAILED),
     }
 }
 
