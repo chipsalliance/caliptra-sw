@@ -612,18 +612,12 @@ pub struct ExtendPcrReq {
     pub pcr_idx: u32,
     pub data: [u8; 48],
 }
-pub type ExtendPcrReqErr = ();
-impl ExtendPcrReq {}
 
-impl Default for ExtendPcrReq {
-    fn default() -> Self {
-        Self {
-            hdr: Default::default(),
-            pcr_idx: u32::default(),
-            data: [0u8; 48],
-        }
-    }
+impl Request for ExtendPcrReq {
+    const ID: CommandId = CommandId::EXTEND_PCR;
+    type Resp = MailboxRespHeader;
 }
+
 // No command-specific output args
 
 #[repr(C)]
