@@ -380,6 +380,8 @@ PcrValue is defined as u8[48]
 | --------     | --------     | ---------------
 | chksum       | u32          | Checksum over other output arguments, computed by Caliptra. Little endian.
 | PCRs         | PcrValue[32] | Values of all PCRs
+| nonce        | u8[32]       | Return the nonce used as input for convenience
+| digest       | u8[48]       | Return the digest over the PCR values and the nonce
 | reset\_ctrs  | u32[32]      | Reset counters for all PCRs
 | signature\_r | u8[48]       | R portion of the signature over the PCR quote.
 | signature\_s | u8[48]       | S portion of the signature over the PCR quote.
