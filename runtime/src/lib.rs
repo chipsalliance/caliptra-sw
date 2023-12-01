@@ -54,9 +54,9 @@ use dpe::{
 };
 pub use dpe::{context::ContextState, DpeInstance, U8Bool, MAX_HANDLES};
 
-use crate::dice::GetRtAliasCertCmd;
 #[cfg(feature = "test_only_commands")]
 use crate::verify::HmacVerifyCmd;
+use crate::{dice::GetRtAliasCertCmd, pcr::GetPcrQuoteCmd};
 
 const RUNTIME_BOOT_STATUS_BASE: u32 = 0x600;
 
@@ -153,6 +153,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::INCREMENT_PCR_RESET_COUNTER => {
             IncrementPcrResetCounterCmd::execute(drivers, cmd_bytes)
         }
+        CommandId::QUOTE_PCRS => GetPcrQuoteCmd::execute(drivers, cmd_bytes),
         #[cfg(feature = "test_only_commands")]
         CommandId::TEST_ONLY_HMAC384_VERIFY => HmacVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::VERSION => {
