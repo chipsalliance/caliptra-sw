@@ -221,7 +221,7 @@ impl PcrBank {
     ///
     /// # Returns
     ///
-    /// * `Array4x12` - PCR Value
+    /// * `Array4x12` - PCR value
     #[inline(never)]
     pub fn read_pcr(&self, id: PcrId) -> Array4x12 {
         let pv = self.pv.regs();
@@ -232,6 +232,27 @@ impl PcrBank {
         }
 
         result
+    }
+
+    /// Read the value of all PCRs
+    ///
+    /// # Returns
+    ///
+    /// * `[Array4x12; 32]` - All PCR values
+    #[cfg(feature = "runtime")]
+    pub fn read_all_pcrs(&self) -> [Array4x12; 32] {
+        Self::ALL_PCR_IDS
+            .into_iter()
+            .map(|pcr_id| self.read_pcr(pcr_id))
+            .enumerate()
+            .fold(
+                [Array4x12::default(); PcrBank::ALL_PCR_IDS.len()],
+                |mut acc, (index, next)| {
+                    acc[index] = next;
+
+                    acc
+                },
+            )
     }
 
     /// Extend the PCR with specified data
