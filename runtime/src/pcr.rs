@@ -64,7 +64,6 @@ impl GetPcrQuoteCmd {
 pub struct ExtendPcrCmd;
 impl ExtendPcrCmd {
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        // 1. Extend PCR
         let cmd =
             ExtendPcrReq::read_from(cmd_args).ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
 

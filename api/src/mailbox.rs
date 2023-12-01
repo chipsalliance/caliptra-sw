@@ -613,16 +613,14 @@ pub struct ExtendPcrReq {
     pub data: [u8; 48],
 }
 pub type ExtendPcrReqErr = ();
-impl ExtendPcrReq {
-    pub const DATA_MAX_SIZE: usize = 48;
-}
+impl ExtendPcrReq {}
 
 impl Default for ExtendPcrReq {
     fn default() -> Self {
         Self {
             hdr: Default::default(),
             pcr_idx: u32::default(),
-            data: [0u8; ExtendPcrReq::DATA_MAX_SIZE],
+            data: [0u8; 48],
         }
     }
 }

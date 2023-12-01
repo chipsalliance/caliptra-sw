@@ -5,7 +5,9 @@ use caliptra_common::mailbox_api::{
     CommandId, ExtendPcrReq, IncrementPcrResetCounterReq, MailboxReq, MailboxReqHeader,
     QuotePcrsReq, QuotePcrsResp,
 };
-use caliptra_hw_model::HwModel;
+use caliptra_drivers::PcrId;
+use caliptra_error::CaliptraError;
+use caliptra_hw_model::{HwModel, ModelEmulated, ModelError};
 use openssl::{
     bn::BigNum,
     ecdsa::EcdsaSig,
@@ -75,11 +77,7 @@ fn test_pcr_quote() {
 
 #[test]
 fn test_extend_pcr_cmd() {
-    // PCR[4]' = sha384(PCR[4] || extension_data) = sha384(0x0...0 || extension_data)
-    fn generate_mailbox_extend_pcr_req(
-        pcr_idx: u32,
-        pcr_extension_data: [u8; ExtendPcrReq::DATA_MAX_SIZE],
-    ) -> ExtendPcrReq {
+    fn generate_mailbox_extend_pcr_req(pcr_idx: u32, pcr_extension_data: [u8; 48]) -> ExtendPcrReq {
         let cmd = ExtendPcrReq {
             hdr: MailboxReqHeader { chksum: 0 },
             pcr_idx: pcr_idx,
@@ -98,7 +96,7 @@ fn test_extend_pcr_cmd() {
         }
     }
 
-    fn get_pcrs(model: &mut DefaultHwModel) -> [[u8; 48]; 32] {
+    fn get_pcrs(model: &mut ModelEmulated) -> [[u8; 48]; 32] {
         let mut cmd = MailboxReq::QuotePcrs(QuotePcrsReq {
             hdr: MailboxReqHeader { chksum: 0 },
             nonce: [0u8; 32],
@@ -106,14 +104,11 @@ fn test_extend_pcr_cmd() {
         cmd.populate_chksum().unwrap();
 
         let resp = model
-            .mailbox_execute(CommandId::QUOTE_PCRS.into(), cmd.as_bytes())
+            .mailbox_execute(u32::from(CommandId::QUOTE_PCRS), cmd.as_bytes().unwrap())
             .unwrap()
             .unwrap();
 
-        LayoutVerified::<&[u8], QuotePcrsResp>::new(resp.as_bytes())
-            .unwrap()
-            .into_ref()
-            .pcrs
+        return QuotePcrsResp::read_from(resp.as_slice()).unwrap().pcrs;
     }
 
     // 0. Get fresh pcr state and verify
@@ -121,14 +116,13 @@ fn test_extend_pcr_cmd() {
     assert_eq!(get_pcrs(&mut model)[4], [0u8; 48]);
 
     // 1.0 Testing for extension_data [0,...,0]
-    let extension_data = [0u8; ExtendPcrReq::DATA_MAX_SIZE];
+    let extension_data = [0u8; 48];
 
     let cmd = generate_mailbox_extend_pcr_req(4, extension_data);
     let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
     assert!(res.is_ok());
 
     // 1.1 Checking for PCR values using PCR_QUOTE
-    // PCR[4]' = sha384(PCR[4] || extension_data) = sha384(0x0,...,0x0 || 0x00,...,0x00)
     let pcrs = get_pcrs(&mut model);
     assert_eq!(
         pcrs[4],
@@ -145,7 +139,6 @@ fn test_extend_pcr_cmd() {
     assert!(res.is_ok());
 
     // 1.3 Checking for PCR values using PCR_QUOTE
-    // PCR[4]'' = sha384(PCR[4]' || extension_data) = sha384(245, 123, ..., 23 || 0x00,...,0x00)
     let pcrs = get_pcrs(&mut model);
     assert_eq!(
         pcrs[4],
@@ -157,7 +150,7 @@ fn test_extend_pcr_cmd() {
     );
 
     // 2.0 Testing for extension data with high entropy
-    let extension_data: [u8; ExtendPcrReq::DATA_MAX_SIZE] = [
+    let extension_data: [u8; 48] = [
         225, 73, 188, 244, 110, 120, 121, 204, 185, 203, 86, 129, 104, 186, 33, 110, 125, 116, 216,
         80, 244, 199, 184, 21, 127, 187, 78, 122, 18, 26, 32, 48, 171, 251, 17, 20, 67, 224, 15,
         81, 144, 232, 190, 103, 213, 7, 199, 148,
@@ -199,7 +192,6 @@ fn test_extend_pcr_cmd() {
         let cmd = generate_mailbox_extend_pcr_req(test_pcr_index_reserved.into(), extension_data);
 
         let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), &cmd.as_bytes());
-        // let error_code: u32 = CaliptraError::RUNTIME_PCR_INVALID_INDEX.0.get();
         assert_eq!(
             res,
             Err(ModelError::MailboxCmdFailed(u32::from(
