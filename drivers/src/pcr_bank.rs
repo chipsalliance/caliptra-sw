@@ -113,6 +113,41 @@ pub struct PcrBank {
 }
 
 impl PcrBank {
+    pub const ALL_PCR_IDS: [PcrId; 32] = [
+        PcrId::PcrId0,
+        PcrId::PcrId1,
+        PcrId::PcrId2,
+        PcrId::PcrId3,
+        PcrId::PcrId4,
+        PcrId::PcrId5,
+        PcrId::PcrId6,
+        PcrId::PcrId7,
+        PcrId::PcrId8,
+        PcrId::PcrId9,
+        PcrId::PcrId10,
+        PcrId::PcrId11,
+        PcrId::PcrId12,
+        PcrId::PcrId13,
+        PcrId::PcrId14,
+        PcrId::PcrId15,
+        PcrId::PcrId16,
+        PcrId::PcrId17,
+        PcrId::PcrId18,
+        PcrId::PcrId19,
+        PcrId::PcrId20,
+        PcrId::PcrId21,
+        PcrId::PcrId22,
+        PcrId::PcrId23,
+        PcrId::PcrId24,
+        PcrId::PcrId25,
+        PcrId::PcrId26,
+        PcrId::PcrId27,
+        PcrId::PcrId28,
+        PcrId::PcrId29,
+        PcrId::PcrId30,
+        PcrId::PcrId31,
+    ];
+
     pub fn new(pv: PvReg) -> Self {
         Self { pv }
     }
@@ -120,42 +155,7 @@ impl PcrBank {
     ///
     /// Note: The pcrs that have "use" lock set will not be erased
     pub fn erase_all_pcrs(&mut self) {
-        const PCR_IDS: [PcrId; 32] = [
-            PcrId::PcrId0,
-            PcrId::PcrId1,
-            PcrId::PcrId2,
-            PcrId::PcrId3,
-            PcrId::PcrId4,
-            PcrId::PcrId5,
-            PcrId::PcrId6,
-            PcrId::PcrId7,
-            PcrId::PcrId8,
-            PcrId::PcrId9,
-            PcrId::PcrId10,
-            PcrId::PcrId11,
-            PcrId::PcrId12,
-            PcrId::PcrId13,
-            PcrId::PcrId14,
-            PcrId::PcrId15,
-            PcrId::PcrId16,
-            PcrId::PcrId17,
-            PcrId::PcrId18,
-            PcrId::PcrId19,
-            PcrId::PcrId20,
-            PcrId::PcrId21,
-            PcrId::PcrId22,
-            PcrId::PcrId23,
-            PcrId::PcrId24,
-            PcrId::PcrId25,
-            PcrId::PcrId26,
-            PcrId::PcrId27,
-            PcrId::PcrId28,
-            PcrId::PcrId29,
-            PcrId::PcrId30,
-            PcrId::PcrId31,
-        ];
-
-        for id in PCR_IDS {
+        for id in PcrBank::ALL_PCR_IDS {
             if !self.pcr_lock(id) {
                 let pv = self.pv.regs_mut();
                 pv.pcr_ctrl().at(id.into()).write(|w| w.clear(true));

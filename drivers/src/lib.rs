@@ -38,6 +38,7 @@ pub mod memory_layout;
 mod okref;
 mod pcr_bank;
 pub mod pcr_log;
+pub mod pcr_reset;
 mod persistent;
 pub mod printer;
 mod sha1;
@@ -79,6 +80,7 @@ pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
 pub use okref::okmutref;
 pub use okref::okref;
 pub use pcr_bank::{PcrBank, PcrId};
+pub use pcr_reset::PcrResetCounter;
 pub use persistent::{
     FuseLogArray, PcrLogArray, PersistentData, PersistentDataAccessor, StashMeasurementArray,
     FUSE_LOG_MAX_COUNT, MEASUREMENT_MAX_COUNT, PCR_LOG_MAX_COUNT,
