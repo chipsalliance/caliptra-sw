@@ -4,7 +4,7 @@ use core::{marker::PhantomData, mem::size_of, ptr::addr_of};
 
 use caliptra_image_types::ImageManifest;
 #[cfg(feature = "runtime")]
-use dpe::DpeInstance;
+use dpe::{DpeInstance, U8Bool, MAX_HANDLES};
 use zerocopy::{AsBytes, FromBytes};
 use zeroize::Zeroize;
 
@@ -54,7 +54,14 @@ pub struct PersistentData {
     #[cfg(feature = "runtime")]
     pub dpe: DpeInstance,
     #[cfg(feature = "runtime")]
-    reserved6: [u8; memory_layout::DPE_SIZE as usize - size_of::<DpeInstance>()],
+    pub context_tags: [u32; MAX_HANDLES],
+    #[cfg(feature = "runtime")]
+    pub context_has_tag: [U8Bool; MAX_HANDLES],
+    #[cfg(feature = "runtime")]
+    reserved6: [u8; memory_layout::DPE_SIZE as usize
+        - size_of::<DpeInstance>()
+        - size_of::<u32>() * MAX_HANDLES
+        - size_of::<U8Bool>() * MAX_HANDLES],
     #[cfg(not(feature = "runtime"))]
     dpe: [u8; memory_layout::DPE_SIZE as usize],
 }

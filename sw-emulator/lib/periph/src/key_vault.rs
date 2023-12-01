@@ -166,6 +166,15 @@ impl KeyVault {
         self.regs.borrow().read_key(key_id, desired_usage)
     }
 
+    /// Internal emulator interface to read key from key vault, make sure not to export the keys
+    pub fn read_key_locked(
+        &self,
+        key_id: u32,
+        desired_usage: KeyUsage,
+    ) -> Result<[u8; KeyVault::KEY_SIZE], BusError> {
+        self.regs.borrow().read_key_locked(key_id, desired_usage)
+    }
+
     pub fn read_key_as_data(
         &self,
         key_id: u32,
@@ -474,6 +483,22 @@ impl KeyVaultRegs {
         if (key_ctrl_reg.read(KV_CONTROL::USE_LOCK) != 0)
             || ((key_ctrl_reg.read(KV_CONTROL::USAGE) & u32::from(desired_usage)) == 0)
         {
+            Err(BusError::LoadAccessFault)?
+        }
+        let key_start = key_id as usize * KeyVault::KEY_SIZE;
+        let key_end = key_id as usize * KeyVault::KEY_SIZE + KeyVault::KEY_SIZE;
+        let mut key = [0u8; KeyVault::KEY_SIZE];
+        key.copy_from_slice(&self.keys.data()[key_start..key_end]);
+        Ok(key)
+    }
+
+    pub fn read_key_locked(
+        &self,
+        key_id: u32,
+        desired_usage: KeyUsage,
+    ) -> Result<[u8; KeyVault::KEY_SIZE], BusError> {
+        let key_ctrl_reg = &self.key_control[key_id as usize];
+        if (key_ctrl_reg.read(KV_CONTROL::USAGE) & u32::from(desired_usage)) == 0 {
             Err(BusError::LoadAccessFault)?
         }
         let key_start = key_id as usize * KeyVault::KEY_SIZE;

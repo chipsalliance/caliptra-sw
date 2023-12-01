@@ -49,7 +49,7 @@ fn hmac_cmd_run_wycheproof() {
             cmd.populate_chksum().unwrap();
             let resp = model.mailbox_execute(
                 u32::from(CommandId::TEST_ONLY_HMAC384_VERIFY),
-                cmd.as_bytes(),
+                cmd.as_bytes().unwrap(),
             );
             match test.result {
                 wycheproof::TestResult::Valid | wycheproof::TestResult::Acceptable => match resp {

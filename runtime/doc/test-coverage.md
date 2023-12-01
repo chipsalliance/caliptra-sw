@@ -34,11 +34,12 @@ These tests are implemented in Go and test end-to-end DPE attestation behavior. 
 Test Scenario | Test Name | Go Error Code
 ---|---|---
 Calls and tests behavior of the DPE command InitializeContext | **TestInitializeContext** | N/A
-Calls and tests behavior of the DPE command InitializeContext with simulation contexts | **TestInitializeContextSimulation** | N/A
+Calls and tests behavior of the DPE command InitializeContext with simulation contexts | **TestInitializeSimulation** | N/A
 Calls the DPE command CertifyKey, verifies the structure of the resulting certificate by parsing and linting it, and checks that the desired extensions are present | **TestCertifyKey** | N/A
 Calls the DPE command CertifyKey with a simulation context handle, verifies the structure of the resulting certificate by parsing and linting it, and checks that the desired extensions are present | **TestCertifyKey_SimulationMode** | N/A
 Calls the DPE command GetCertificateChain and verifies the structure of each certificate in the chain by parsing and linting them | **TestGetCertificateChain** | N/A
-Calls and tests behavior of the DPE command TagTci | **TestTagTCI** | N/A
+Calls the DPE command ExtendTci and verifies the resulting TCI | **TestExtendTCI** | N/A
+Calls the DPE command ExtendTci with a derived child context and verifies the resulting TCI | **TestExtendTciOnDerivedContexts** | N/A
 Calls the DPE command GetProfile and verifies the DPE profile | **TestGetProfile** | N/A
 Checks whether an error is reported when non-existent handle is passed as input to DPE commands | **TestInvalidHandle** | StatusInvalidHandle
 Checks whether an error is reported when caller from one locality issues DPE commands in another locality | **TestWrongLocality** | StatusInvalidLocality
@@ -59,6 +60,7 @@ Checks that the get_idev_cert mailbox command succeeds and verifies the size of 
 Checks that the version mailbox command succeeds and validates the FIPS version response | **test_fips_cmd_api** | RUNTIME_SHUTDOWN
 Check that the error register is cleared when a successful mailbox command runs after a failed mailbox command | **test_error_cleared** | RUNTIME_MAILBOX_INVALID_PARAMS
 Calls the POPULATE_IDEV_CERT mailbox command and checks that the IDevId certificate is able to be parsed from the certificate chain | **test_populate_idev_cert_cmd** | N/A
+Validates the behavior of the dpe_tag_tci and dpe_get_tagged_tci mailbox commands and verifies the contents of the current and cumulative TCI responses | **test_tagging** | N/A
 
 <br><br>
 # **Wycheproof Tests**

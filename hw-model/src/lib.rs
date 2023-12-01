@@ -10,7 +10,7 @@ use std::{
 };
 
 use api::calc_checksum;
-use api::mailbox::{MailboxReqHeader, MailboxRespHeader};
+use api::mailbox::{MailboxReqHeader, MailboxRespHeader, Response};
 use caliptra_api as api;
 use caliptra_emu_bus::Bus;
 use caliptra_hw_model_types::{
@@ -233,18 +233,30 @@ pub enum ModelError {
     UploadFirmwareUnexpectedResponse,
     UnknownCommandStatus(u32),
     NotReadyForFwErr,
-    ReadyForFirmwareTimeout { cycles: u32 },
+    ReadyForFirmwareTimeout {
+        cycles: u32,
+    },
     ProvidedIccmTooLarge,
     ProvidedDccmTooLarge,
-    UnexpectedMailboxFsmStatus { expected: u32, actual: u32 },
+    UnexpectedMailboxFsmStatus {
+        expected: u32,
+        actual: u32,
+    },
     UnableToLockSha512Acc,
     UploadMeasurementResponseError,
     UnableToReadMailbox,
     MailboxNoResponseData,
     MailboxReqTypeTooSmall,
     MailboxRespTypeTooSmall,
-    MailboxUnexpectedResponseLen { expected: u32, actual: u32 },
-    MailboxRespInvalidChecksum { expected: u32, actual: u32 },
+    MailboxUnexpectedResponseLen {
+        expected_min: u32,
+        expected_max: u32,
+        actual: u32,
+    },
+    MailboxRespInvalidChecksum {
+        expected: u32,
+        actual: u32,
+    },
     MailboxRespInvalidFipsStatus(u32),
 }
 impl Error for ModelError {}
@@ -286,10 +298,14 @@ impl Display for ModelError {
             ModelError::MailboxRespTypeTooSmall => {
                 write!(f, "Mailbox response type too small to contain header")
             }
-            ModelError::MailboxUnexpectedResponseLen { expected, actual } => {
+            ModelError::MailboxUnexpectedResponseLen {
+                expected_min,
+                expected_max,
+                actual,
+            } => {
                 write!(
                     f,
-                    "Expected mailbox response lenth of {expected}, was {actual}"
+                    "Expected mailbox response lenth min={expected_min} max={expected_max}, was {actual}"
                 )
             }
             ModelError::MailboxRespInvalidChecksum { expected, actual } => {
@@ -781,6 +797,9 @@ pub trait HwModel {
         if mem::size_of::<R::Resp>() < mem::size_of::<MailboxRespHeader>() {
             return Err(ModelError::MailboxRespTypeTooSmall);
         }
+        if R::Resp::MIN_SIZE < mem::size_of::<MailboxRespHeader>() {
+            return Err(ModelError::MailboxRespTypeTooSmall);
+        }
         let (header_bytes, payload_bytes) = req
             .as_bytes_mut()
             .split_at_mut(mem::size_of::<MailboxReqHeader>());
@@ -792,15 +811,19 @@ pub trait HwModel {
         let Some(response_bytes) = self.mailbox_execute(R::ID.into(), req.as_bytes())? else {
             return Err(ModelError::MailboxNoResponseData);
         };
-        let response = match R::Resp::read_from(response_bytes.as_slice()) {
-            Some(response) => response,
-            None => {
-                return Err(ModelError::MailboxUnexpectedResponseLen {
-                    expected: mem::size_of::<R::Resp>() as u32,
-                    actual: response_bytes.len() as u32,
-                })
-            }
-        };
+        if response_bytes.len() < R::Resp::MIN_SIZE
+            || response_bytes.len() > mem::size_of::<R::Resp>()
+        {
+            return Err(ModelError::MailboxUnexpectedResponseLen {
+                expected_min: R::Resp::MIN_SIZE as u32,
+                expected_max: mem::size_of::<R::Resp>() as u32,
+                actual: response_bytes.len() as u32,
+            });
+        }
+
+        let mut response = R::Resp::new_zeroed();
+        response.as_bytes_mut()[..response_bytes.len()].copy_from_slice(&response_bytes);
+
         let response_header =
             MailboxRespHeader::read_from_prefix(response_bytes.as_slice()).unwrap();
         let actual_checksum = calc_checksum(0, &response_bytes[4..]);
@@ -1490,6 +1513,7 @@ mod tests {
             hdr: MailboxRespHeader,
             data: [u8; 4],
         }
+        impl mailbox::Response for TestResp {}
 
         #[repr(C)]
         #[derive(AsBytes, FromBytes, Default)]
@@ -1559,7 +1583,8 @@ mod tests {
         assert_eq!(
             resp,
             Err(ModelError::MailboxUnexpectedResponseLen {
-                expected: 12,
+                expected_min: 12,
+                expected_max: 12,
                 actual: 11
             })
         );

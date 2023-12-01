@@ -311,13 +311,15 @@ impl CaliptraRootBus {
             key_vault.clear_keys_with_debug_values(false);
         }
 
+        let sha512 = HashSha512::new(clock, key_vault.clone());
+
         Self {
             rom,
             doe: Doe::new(clock, key_vault.clone(), soc_reg.clone()),
-            ecc384: AsymEcc384::new(clock, key_vault.clone()),
+            ecc384: AsymEcc384::new(clock, key_vault.clone(), sha512.clone()),
             hmac: HmacSha384::new(clock, key_vault.clone()),
             key_vault: key_vault.clone(),
-            sha512: HashSha512::new(clock, key_vault),
+            sha512,
             sha256: HashSha256::new(clock),
             iccm,
             dccm: Ram::new(vec![0; Self::DCCM_SIZE]),
