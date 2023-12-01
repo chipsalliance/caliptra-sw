@@ -56,4 +56,7 @@ fn test_cpu_fault() {
     assert_eq!(mepc as usize, rom_entry_offset);
     // return address won't be 0
     assert_ne!(ra, 0);
+
+    #[cfg(feature = "verilator")]
+    assert!(hw.v.output.cptra_error_fatal);
 }
