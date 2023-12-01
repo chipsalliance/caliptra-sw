@@ -110,11 +110,14 @@ fn test_populate_idev_cert_cmd() {
         cert_chain_without_idev_cert[..cert_chain_len_without_idev_cert],
         cert_chain_with_idev_cert[idev_len..cert_chain_len_with_idev_cert]
     );
+    // expect there to be 3 certs in the cert chain - ldevid, fmc alias, rt alias
     parse_cert_chain(
         &cert_chain_with_idev_cert[idev_len..],
         cert_chain_len_with_idev_cert - idev_len,
         3,
     );
+    // expect there to be 4 certs in the cert chain - idevid, ldevid, fmc alias, rt alias
+    parse_cert_chain(&cert_chain_with_idev_cert, cert_chain_len_with_idev_cert, 4);
 }
 
 #[test]
