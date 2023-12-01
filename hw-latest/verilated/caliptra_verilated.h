@@ -64,6 +64,8 @@ struct caliptra_verilated_sig_out {
   uint64_t uc_hrdata;
   bool uc_hready;
   bool uc_hresp;
+
+  bool cptra_error_fatal;
 };
 
 struct caliptra_verilated_init_args {
