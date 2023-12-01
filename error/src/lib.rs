@@ -371,6 +371,8 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E0028);
     pub const RUNTIME_CONTEXT_TAG_VALIDATION_FAILED: CaliptraError =
         CaliptraError::new_const(0x000E0029);
+    pub const RUNTIME_INCREMENT_PCR_RESET_MAX_REACHED: CaliptraError =
+        CaliptraError::new_const(0x000E002A);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);

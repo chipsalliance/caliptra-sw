@@ -21,6 +21,7 @@ impl CommandId {
     pub const FW_INFO: Self = Self(0x494E464F); // "INFO"
     pub const DPE_TAG_TCI: Self = Self(0x54514754); // "TAGT"
     pub const DPE_GET_TAGGED_TCI: Self = Self(0x47544744); // "GTGD"
+    pub const INCREMENT_PCR_RESET_COUNTER: Self = Self(0x50435252); // "PCRR"
 
     pub const TEST_ONLY_HMAC384_VERIFY: Self = Self(0x484D4143); // "HMAC"
 
@@ -219,6 +220,7 @@ pub enum MailboxReq {
     GetTaggedTci(GetTaggedTciReq),
     GetFmcAliasCert(GetFmcAliasCertReq),
     GetRtAliasCert(GetRtAliasCertReq),
+    IncrementPcrResetCounter(IncrementPcrResetCounterReq),
 
     #[cfg(feature = "test_only_commands")]
     TestHmacVerify(HmacVerifyReq),
@@ -239,6 +241,7 @@ impl MailboxReq {
             MailboxReq::GetTaggedTci(req) => Ok(req.as_bytes()),
             MailboxReq::GetFmcAliasCert(req) => Ok(req.as_bytes()),
             MailboxReq::GetRtAliasCert(req) => Ok(req.as_bytes()),
+            MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_bytes()),
 
             #[cfg(feature = "test_only_commands")]
             MailboxReq::TestHmacVerify(req) => Ok(req.as_bytes()),
@@ -259,6 +262,7 @@ impl MailboxReq {
             MailboxReq::GetTaggedTci(req) => Ok(req.as_bytes_mut()),
             MailboxReq::GetFmcAliasCert(req) => Ok(req.as_bytes_mut()),
             MailboxReq::GetRtAliasCert(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_bytes_mut()),
 
             #[cfg(feature = "test_only_commands")]
             MailboxReq::TestHmacVerify(req) => Ok(req.as_bytes_mut()),
@@ -279,6 +283,7 @@ impl MailboxReq {
             MailboxReq::GetTaggedTci(_) => CommandId::DPE_GET_TAGGED_TCI,
             MailboxReq::GetFmcAliasCert(_) => CommandId::GET_FMC_ALIAS_CERT,
             MailboxReq::GetRtAliasCert(_) => CommandId::GET_RT_ALIAS_CERT,
+            MailboxReq::IncrementPcrResetCounter(_) => CommandId::INCREMENT_PCR_RESET_COUNTER,
 
             #[cfg(feature = "test_only_commands")]
             MailboxReq::TestHmacVerify(_) => CommandId::TEST_ONLY_HMAC384_VERIFY,
@@ -747,6 +752,20 @@ pub struct GetTaggedTciResp {
     pub hdr: MailboxRespHeader,
     pub tci_cumulative: [u8; 48],
     pub tci_current: [u8; 48],
+}
+
+// INCREMENT_PCR_RESET_COUNTER request
+// No command specific output
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct IncrementPcrResetCounterReq {
+    pub hdr: MailboxReqHeader,
+    pub index: u32,
+}
+
+impl Request for IncrementPcrResetCounterReq {
+    const ID: CommandId = CommandId::INCREMENT_PCR_RESET_COUNTER;
+    type Resp = MailboxRespHeader;
 }
 
 #[cfg(test)]
