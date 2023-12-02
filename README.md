@@ -4,10 +4,18 @@
 This repository contains firmware, libraries, and tools related to the
 [Caliptra Project](https://github.com/chipsalliance/caliptra).
 
+## Documentation
+
+- [Caliptra ROM Module Specification](/rom/dev/README.md)
+- [Caliptra FMC Module Specification](/fmc/README.md)
+- [Caliptra Runtime Module Specification](/runtime/README.md)
+- [libcaliptra Guide](/libcaliptra/README.md)
+- [Caliptra GitHub GCP Runner Infrastructure](/ci-tools/github-runner/README.md)
+
 ## [rom](/rom/dev)
 
 "Read Only Memory", the code that is first executed when the chip is powered on.
-Normally the ROM is part of the silicon. 
+Normally the ROM is part of the silicon.
 
 ## [fmc](/fmc/)
 
