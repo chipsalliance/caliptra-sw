@@ -1,7 +1,7 @@
 # Caliptra GitHub GCP Runner Infrastructure
 
 Infrastructure that launches self-hosted GitHub Actions runners inside ephemeral Google
-Compute Engine vms. 
+Compute Engine vms.
 
 ## Why should I use this?
 
@@ -20,7 +20,7 @@ caliptra member.
 
 In your github workflow file, add a runs-on line:
 
-```
+```text
 jobs:
   my_slow_job:
     runs-on: e2-standard-2
@@ -42,7 +42,7 @@ The runs-on-label maps to specific
 Unless your job has particularly high memory requirements, prefer the highcpu
 instances when 4 or more cores are needed, as they are cheaper.
 
-```
+```text
 "e2-highcpu-2"
 "e2-highcpu-4"
 "e2-highcpu-8"
@@ -58,7 +58,7 @@ instances when 4 or more cores are needed, as they are cheaper.
 "n2d-highcpu-96"
 ```
 
-# Architecture
+## Architecture
 
 ![Block Diagram](./images/caliptra-github-ci.svg)
 
@@ -70,7 +70,7 @@ and adminstrated by [korran](https://github.com/korran/),
 A GitHub App has been installed in the chipsalliance org with privileges for the caliptra
 repos. It monitors GitHub for the [workflow_job
 queued](https://docs.github.com/en/webhooks-and-events/webhooks/webhook-events-and-payloads?actionType=queued#workflow_job)
-event. The event webhook invokes the "runner-launch" cloud function, which 
+event. The event webhook invokes the "runner-launch" cloud function, which
 uses its App credentials to retrieve
 [just-in-time](https://docs.github.com/en/rest/actions/self-hosted-runners?apiVersion=2022-11-28#create-configuration-for-a-just-in-time-runner-for-an-organization)
 credentials for a single-use runner. The "runner-launch" cloud function launches

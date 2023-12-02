@@ -1,6 +1,6 @@
 # Caliptra Runtime Firmware v1.0
 
-This specification describes the Caliptra Runtime Firmware. 
+This specification describes the Caliptra Runtime Firmware.
 
 ## Runtime Firmware environment
 
@@ -23,12 +23,12 @@ be corrupted.
 After booting, Caliptra Runtime Firmware is responsible for the following.
 
 * Wait for mailbox interrupts. On mailbox interrupt, Runtime Firmware:
-    * Reads command from mailbox
-    * Executes command
-    * Writes response to mailbox and sets necessary status registers
-    * Sleeps until next interrupt
+  * Reads command from mailbox
+  * Executes command
+  * Writes response to mailbox and sets necessary status registers
+  * Sleeps until next interrupt
 * On panic, Runtime Firmware:
-    * Saves diagnostic information
+  * Saves diagnostic information
 
 Callers must wait until Caliptra is no longer busy to call a mailbox command.
 
@@ -302,7 +302,6 @@ Command Code: `0x4D45_4153` ("MEAS")
 | context      | u8[48]   | Context field for `svn`; e.g., a hash of the public key that authenticated the SVN.
 | svn          | u32      | SVN passed to the DPE to be used in the derived child.
 
-
 *Table: `STASH_MEASUREMENT` output arguments*
 
 | **Name**    | **Type** | **Description**
@@ -355,7 +354,6 @@ Command Code: `0x4450_4543` ("DPEC")
 | data\_size    | u32           | Length in bytes of the valid data in the data field.
 | data         | u8[...]       | DPE command structure as defined in the DPE iRoT profile.
 
-
 *Table: `INVOKE_DPE_COMMAND` output arguments*
 
 | **Name**    | **Type**      | **Description**
@@ -406,7 +404,6 @@ Command Code: `0x5043_5245` ("PCRE")
 | chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
 | index        | u32           | Index of the PCR to extend.
 | value        | u8[..]        | Value to extend into the PCR at `index`.
-
 
 `EXTEND_PCR` returns no output arguments.
 
@@ -611,7 +608,7 @@ mitigates glitches between clients and Caliptra.
 
 The checksum is a little-endian 32-bit value, defined as:
 
-```
+```text
 0 - (SUM(command code bytes) + SUM(request/response bytes))
 ```
 
@@ -762,21 +759,21 @@ Caliptra Runtime Firmware is responsible for initializing DPE’s default contex
 
 * Runtime Firmware SHALL initialize the default context in “internal-cdi” mode.
 * Perform the following initial measurements:
-    * Call DeriveContext with Caliptra Journey PCR
-        * INPUT\_DATA = PCRX (RT journey PCR as defined in the FHT)
-        * TYPE = “RTJM”
-        * CONTEXT\_HANDLE = default context
-        * TARGET\_LOCALITY = Caliptra locality (0xFFFFFFFF)
-    * Call DeriveContext with mailbox valid PAUSERS
-        * INPUT\_DATA = Hash of [CPTRA\_VALID\_PAUSER register](https://chipsalliance.github.io/caliptra-rtl/main/internal-regs/?p=clp.soc_ifc_reg.CPTRA_MBOX_VALID_PAUSER%5B0%5D).
-        * TYPE = “MBVP”
-        * CONTEXT\_HANDLE = default context
-        * TARGET\_LOCALITY = PL0 PAUSER
-    * Call DeriveContext for each STASH\_MEASUREMENT call made during Caliptra ROM execution
-        * INPUT\_DATA = `measurement` parameter to STASH\_MEASUREMENT
-        * TYPE = `type` parameter to STASH\_MEASUREMENT
-        * CONTEXT\_HANDLE = default context
-        * TARGET\_LOCALITY = PL0 PAUSER
+  * Call DeriveContext with Caliptra Journey PCR
+    * INPUT\_DATA = PCRX (RT journey PCR as defined in the FHT)
+    * TYPE = “RTJM”
+    * CONTEXT\_HANDLE = default context
+    * TARGET\_LOCALITY = Caliptra locality (0xFFFFFFFF)
+  * Call DeriveContext with mailbox valid PAUSERS
+    * INPUT\_DATA = Hash of [CPTRA\_VALID\_PAUSER register](https://chipsalliance.github.io/caliptra-rtl/main/internal-regs/?p=clp.soc_ifc_reg.CPTRA_MBOX_VALID_PAUSER%5B0%5D).
+    * TYPE = “MBVP”
+    * CONTEXT\_HANDLE = default context
+    * TARGET\_LOCALITY = PL0 PAUSER
+  * Call DeriveContext for each STASH\_MEASUREMENT call made during Caliptra ROM execution
+    * INPUT\_DATA = `measurement` parameter to STASH\_MEASUREMENT
+    * TYPE = `type` parameter to STASH\_MEASUREMENT
+    * CONTEXT\_HANDLE = default context
+    * TARGET\_LOCALITY = PL0 PAUSER
 
 ### CDI derivation
 
