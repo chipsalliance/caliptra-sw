@@ -16,8 +16,15 @@ on:
       rom-logging:
         default: true
         type: boolean
+      fpga-itrng:
+        default: true
+        type: boolean
 
   workflow_dispatch:
+    inputs:
+      fpga-itrng:
+        default: true
+        type: boolean
 
 
 jobs:
@@ -257,7 +264,12 @@ jobs:
         run: |
           cd hw-latest/fpga
           mkdir caliptra_build
-          /fpga-tools/Xilinx/Vivado/2022.2/bin/vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE
+          if [ "${{ inputs.fpga-itrng }}" == "false" ]; then
+            ITRNG=FALSE
+          else
+            ITRNG=TRUE
+          fi
+          /fpga-tools/Xilinx/Vivado/2022.2/bin/vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE ITRNG=${ITRNG}
           if [ ! -f caliptra_build/caliptra_fpga.bin ]; then
             echo "Output file was not found; failing script"
             exit 1
