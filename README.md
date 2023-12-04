@@ -1,5 +1,5 @@
 
-# Caliptra Firmware/Software
+# Caliptra firmware and software
 
 This repository contains firmware, libraries, and tools related to the
 [Caliptra Project](https://github.com/chipsalliance/caliptra).
@@ -12,12 +12,50 @@ This repository contains firmware, libraries, and tools related to the
 - [libcaliptra Guide](/libcaliptra/README.md)
 - [Caliptra GitHub GCP Runner Infrastructure](/ci-tools/github-runner/README.md)
 
-## [rom](/rom/dev)
+## Directory structure
 
-"Read Only Memory", the code that is first executed when the chip is powered on.
-Normally the ROM is part of the silicon.
+### [api](/api)
 
-## [fmc](/fmc/)
+Definitions for the Caliptra mailbox and other basic firmware interfaces.
+
+### [builder](/builder)
+
+Tool for building the Caliptra firmware bundle.
+
+### [cfi](/cfi)
+
+Library containing Control-Flow Integrity attack countermeasure implementations.
+
+### [ci-tools](/ci-tools)
+
+Various tools used for Continuous Integration flows.
+
+### [common](/common)
+
+Common code shared across multiple other code modules.
+
+### [coverage](/coverage)
+
+Tool for collecting code coverage metrics from Caliptra tests.
+
+### [cpu](/cpu)
+
+Implementations of CPU-specific features such as NMI and Trap handlers.
+
+### [dpe](/dpe)
+
+DICE Protection Environment submodule (reference to its own repository).
+
+### [drivers](/drivers)
+
+A rust library containing drivers for the Caliptra hardware, intended to be
+used by firmware running on Caliptra's RISC-V cpu.
+
+### [error](/error)
+
+Comprehensive list of all Caliptra error codes.
+
+### [fmc](/fmc/)
 
 "First Mutable Code", the code that the boot ROM measures and jumps to after
 validation succeeds.
@@ -32,17 +70,64 @@ A high-level testing library for instantiating and manipulating models of the
 hardware. Intended to target multiple backends, including sw-emulator,
 verilator, and FPGA.
 
-## [sw-emulator](/sw-emulator/)
+### [image](/image)
+
+Libraries for generating and verifying Caliptra firmware images.
+
+### [kat](/kat)
+
+Known Answer Tests for all cryptographic operations supported by Caliptra.
+
+### [libcaliptra](/libcaliptra)
+
+C-API library and example code for accessing Caliptra from its external interfaces.
+
+### [lms-types](/lms-types)
+
+Type definitions for the Leighton-Micali Hash-Based Signatures algorithm.
+
+### [registers](/registers)
+
+Register definitions for the caliptra hardware peripherals, generated from the RDL
+files in the rtl-caliptra repo.
+
+### [rom](/rom/dev)
+
+"Read Only Memory", the code that is first executed when the chip is powered on.
+Normally the ROM is part of the silicon.
+
+### [runtime](/runtime)
+
+Caliptra runtime environment that is responsible for all Caliptra functionality
+after the boot process. This module is jumped to from FMC.
+
+### [sw-emulator](/sw-emulator/)
 
 Fast software-based simulation of the Caliptra hardware. This is the fastest and
 easiest way to test changes to firmware, but fidelity may not be perfect.
 
-## [drivers](/drivers/)
+### [systemrdl](/systemrdl)
 
-A rust library containing drivers for the Caliptra hardware, intended to be
-used by firmware running on Caliptra's RISC-V cpu.
+.
 
-# Building / Testing
+### [test](/test)
+
+Test suites for various portions of the Caliptra implementation.
+
+### [test-harness](/test-harness)
+
+A library for building self-contained test firmware binaries. This sets up minimal infrastructure for panic-handling and provides macros for defining test cases in firmware.
+
+### [ureg](/ureg)
+
+.
+
+### [x509](/x509)
+
+Code used to build and verify the various X509-formatted certificates produced
+by Caliptra.
+
+## Building / Testing
 
 To build Caliptra firmware or tools, you need a Linux installation with a recent
 Rust toolchain. See [Getting started with
@@ -50,7 +135,7 @@ Rust](https://www.rust-lang.org/learn/get-started) for more information on
 installing an up-to-date Rust toolchain. We use version 1.70 of the Rust
 toolchain for all continuous integration.
 
-## Checkout and build
+### Checkout and build
 
 ```shell
 git clone https://github.com/chipsalliance/caliptra-sw \
@@ -60,7 +145,7 @@ cd caliptra-sw
 cargo build
 ```
 
-## Testing in a hurry
+### Testing in a hurry
 
 To run all unit tests on the host cpu, and run all integration tests against the
 sw-emulator:
@@ -94,7 +179,7 @@ pc=0xba
 <snip>
 ```
 
-## Testing against Verilator
+### Testing against Verilator
 
 We use [Verilator](https://www.veripool.org/verilator/) to provides a
 high-fidelity simulation based on
@@ -138,6 +223,7 @@ Download caliptra-fpga-bitstream from the
 [latest fpga builds of main](https://github.com/chipsalliance/caliptra-sw/actions/workflows/fpga.yml?query=branch%3Amain)
 
 Load the FPGA image and run a test:
+
 ```shell
 sudo ./hw/fpga/setup_fpga.sh caliptra_fpga.bin
 
