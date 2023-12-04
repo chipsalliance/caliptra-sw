@@ -12,3 +12,6 @@ caliptra-builder.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 tinytemplate.workspace = true
+
+[lints]
+workspace = true

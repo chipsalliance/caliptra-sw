@@ -28,3 +28,6 @@ slow_tests = []
 [[bin]]
 name = "image"
 path = "bin/image_gen.rs"
+
+[lints]
+workspace = true

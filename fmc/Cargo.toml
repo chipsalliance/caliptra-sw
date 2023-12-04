@@ -37,3 +37,6 @@ fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
 itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
 fake-fmc = []
+
+[lints]
+workspace = true

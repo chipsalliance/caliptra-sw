@@ -32,83 +32,6 @@ impl RegisterField {
         ((1u64 << self.width) - 1) << self.position
     }
 }
-#[cfg(test)]
-mod registerfield_tests {
-    use super::*;
-
-    #[test]
-    fn test_mask() {
-        assert_eq!(
-            RegisterField {
-                position: 0,
-                width: 1,
-                ..Default::default()
-            }
-            .mask(),
-            0x00000001
-        );
-
-        assert_eq!(
-            RegisterField {
-                position: 0,
-                width: 2,
-                ..Default::default()
-            }
-            .mask(),
-            0x00000003
-        );
-
-        assert_eq!(
-            RegisterField {
-                position: 0,
-                width: 3,
-                ..Default::default()
-            }
-            .mask(),
-            0x00000007
-        );
-
-        assert_eq!(
-            RegisterField {
-                position: 1,
-                width: 3,
-                ..Default::default()
-            }
-            .mask(),
-            0x0000000e
-        );
-
-        assert_eq!(
-            RegisterField {
-                position: 8,
-                width: 3,
-                ..Default::default()
-            }
-            .mask(),
-            0x00000700
-        );
-
-        assert_eq!(
-            RegisterField {
-                position: 28,
-                width: 4,
-                ..Default::default()
-            }
-            .mask(),
-            0xf0000000
-        );
-
-        assert_eq!(
-            RegisterField {
-                position: 31,
-                width: 1,
-                ..Default::default()
-            }
-            .mask(),
-            0x80000000
-        );
-    }
-}
 
 /// Represents an memory-mapped I/O register.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -393,5 +316,83 @@ pub fn filter_unused_types(blocks: &mut [&mut ValidatedRegisterBlock]) {
     }
     for block in blocks.iter_mut() {
         block.filter_register_types(|ty| used_types.contains(ty));
+    }
+}
+
+#[cfg(test)]
+mod registerfield_tests {
+    use super::*;
+
+    #[test]
+    fn test_mask() {
+        assert_eq!(
+            RegisterField {
+                position: 0,
+                width: 1,
+                ..Default::default()
+            }
+            .mask(),
+            0x00000001
+        );
+
+        assert_eq!(
+            RegisterField {
+                position: 0,
+                width: 2,
+                ..Default::default()
+            }
+            .mask(),
+            0x00000003
+        );
+
+        assert_eq!(
+            RegisterField {
+                position: 0,
+                width: 3,
+                ..Default::default()
+            }
+            .mask(),
+            0x00000007
+        );
+
+        assert_eq!(
+            RegisterField {
+                position: 1,
+                width: 3,
+                ..Default::default()
+            }
+            .mask(),
+            0x0000000e
+        );
+
+        assert_eq!(
+            RegisterField {
+                position: 8,
+                width: 3,
+                ..Default::default()
+            }
+            .mask(),
+            0x00000700
+        );
+
+        assert_eq!(
+            RegisterField {
+                position: 28,
+                width: 4,
+                ..Default::default()
+            }
+            .mask(),
+            0xf0000000
+        );
+
+        assert_eq!(
+            RegisterField {
+                position: 31,
+                width: 1,
+                ..Default::default()
+            }
+            .mask(),
+            0x80000000
+        );
     }
 }

@@ -197,3 +197,12 @@ opt-level = 3
 opt-level = 3
 [profile.test.package.caliptra-drivers]
 opt-level = 3
+
+[workspace.lints.clippy]
+warnings = "deny"
+
+[workspace.lints.rust]
+warnings = "deny"
+
+[lints]
+workspace = true

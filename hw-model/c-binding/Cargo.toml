@@ -19,3 +19,6 @@ verilator = ["caliptra-hw-model/verilator"]
 
 [build-dependencies]
 cbindgen.workspace = true
+
+[lints]
+workspace = true

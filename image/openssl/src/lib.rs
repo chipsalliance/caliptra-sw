@@ -280,8 +280,8 @@ fn generate_lms_pubkey_helper(
         Some(_) => 1,
         None => (((1 << tree_height) as u32) + q.unwrap()) ^ 1,
     };
-    let mut k = vec![0u8; SHA192_DIGEST_BYTE_SIZE];
-    let zero_k = vec![0u8; SHA192_DIGEST_BYTE_SIZE];
+    let mut k = [0u8; SHA192_DIGEST_BYTE_SIZE];
+    let zero_k = [0u8; SHA192_DIGEST_BYTE_SIZE];
 
     let mut level: usize = 0;
     let mut pub_key_stack = vec![0u8; SHA192_DIGEST_BYTE_SIZE * (tree_height as usize)];

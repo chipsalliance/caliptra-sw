@@ -13,3 +13,6 @@ caliptra-emu-cpu.workspace = true
 caliptra-emu-types.workspace = true
 clap.workspace = true
 getrandom.workspace = true
+
+[lints]
+workspace = true

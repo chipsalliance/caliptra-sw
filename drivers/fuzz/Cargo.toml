@@ -46,3 +46,6 @@ name = "fuzz_target_lms"
 path = "src/fuzz_target_lms.rs"
 test = false
 doc = false
+
+[lints]
+workspace = true

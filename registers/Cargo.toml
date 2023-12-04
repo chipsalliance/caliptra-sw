@@ -9,3 +9,6 @@ edition = "2021"
 
 [dependencies]
 ureg.workspace = true
+
+[lints]
+workspace = true

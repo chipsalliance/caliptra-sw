@@ -14,3 +14,7 @@ zerocopy.workspace = true
 
 [features]
 test_only_commands = []
+
+[lints]
+workspace = true
+

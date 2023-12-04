@@ -23,3 +23,5 @@ cfi = []
 cfi-counter = []
 cfi-test = []
 
+[lints]
+workspace = true

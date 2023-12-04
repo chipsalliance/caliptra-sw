@@ -9,3 +9,6 @@ edition = "2021"
 
 [dependencies]
 caliptra_common = { workspace = true, default-features = false }
+
+[lints]
+workspace = true

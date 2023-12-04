@@ -15,3 +15,6 @@ zerocopy.workspace = true
 
 [dev-dependencies]
 caliptra-image-openssl.workspace = true
+
+[lints]
+workspace = true

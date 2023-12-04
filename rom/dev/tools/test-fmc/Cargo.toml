@@ -25,3 +25,6 @@ interactive_test_fmc = []
 riscv = ["caliptra-cpu/riscv"]
 std = ["ufmt/std", "caliptra_common/std"]
 fake-fmc = []
+
+[lints]
+workspace = true

@@ -30,3 +30,6 @@ x509-parser.workspace = true
 [features]
 default = ["std"]
 std = []
+
+[lints]
+workspace = true

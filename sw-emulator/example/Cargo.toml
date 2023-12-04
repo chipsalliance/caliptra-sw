@@ -15,3 +15,6 @@ lto = true
 [profile.dev]
 panic = "abort"
 lto = true
+
+[lints]
+workspace = true

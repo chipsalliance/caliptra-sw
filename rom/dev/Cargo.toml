@@ -63,3 +63,6 @@ slow_tests = []
 [[bin]]
 name = "asm_tests"
 path = "test-fw/asm_tests.rs"
+
+[lints]
+workspace = true

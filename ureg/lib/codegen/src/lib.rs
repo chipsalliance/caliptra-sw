@@ -91,30 +91,6 @@ fn snake_ident(name: &str) -> Ident {
 
     format_ident!("{}", tweak_keywords(result.trim_end_matches('_')))
 }
-#[cfg(test)]
-mod snake_ident_tests {
-    use crate::*;
-
-    #[test]
-    fn test_snake_ident() {
-        assert_eq!("_8_bits", snake_ident("8 bits").to_string());
-        assert_eq!("_16_bits", snake_ident("16_Bits").to_string());
-        assert_eq!("_16_bits", snake_ident("16Bits").to_string());
-        assert_eq!("_16bits", snake_ident("16bits").to_string());
-        assert_eq!("foo_bar_baz", snake_ident("fooBarBaz").to_string());
-        assert_eq!("foo_bar_baz", snake_ident("FooBarBaz").to_string());
-        assert_eq!("foo_bar_baz", snake_ident("foo bar baz").to_string());
-        assert_eq!("foo_bar_baz", snake_ident("foo_bar_baz").to_string());
-        assert_eq!("foo_bar_baz", snake_ident("FOO BAR BAZ").to_string());
-        assert_eq!("foo_bar_baz", snake_ident("FOO_BAR_BAZ").to_string());
-        assert_eq!("foo_bar_baz", snake_ident("FOO BAR BAZ.").to_string());
-        assert_eq!("foo_bar_baz", snake_ident("FOO BAR.BAZ.").to_string());
-        assert_eq!("foo_bar_baz", snake_ident("FOO BAR..BAZ.").to_string());
-
-        assert_eq!("fn_", snake_ident("fn").to_string());
-        assert_eq!("fn_", snake_ident("FN").to_string());
-    }
-}
 
 fn camel_ident(name: &str) -> Ident {
     let mut result = String::new();
@@ -137,24 +113,6 @@ fn camel_ident(name: &str) -> Ident {
         }
     }
     format_ident!("{}", tweak_keywords(&result))
-}
-
-#[cfg(test)]
-mod camel_ident_tests {
-    use crate::*;
-
-    #[test]
-    fn test_camel_ident() {
-        assert_eq!("_8Bits", camel_ident("8 bits").to_string());
-        assert_eq!("_16Bits", camel_ident("16_bits").to_string());
-        assert_eq!("FooBarBaz", camel_ident("foo bar baz").to_string());
-        assert_eq!("FooBarBaz", camel_ident("foo_bar_baz").to_string());
-        assert_eq!("FooBarBaz", camel_ident("FOO BAR BAZ").to_string());
-        assert_eq!("FooBarBaz", camel_ident("FOO_BAR_BAZ").to_string());
-        assert_eq!("FooBarBaz", camel_ident("FOO BAR BAZ.").to_string());
-        assert_eq!("FooBarBaz", camel_ident("FOO BAR.BAZ.").to_string());
-        assert_eq!("Self_", camel_ident("self").to_string());
-    }
 }
 
 fn generate_enum(e: &Enum) -> TokenStream {
@@ -262,87 +220,6 @@ fn generate_enums<'a>(enums: impl Iterator<Item = &'a Enum>) -> TokenStream {
         pub mod selector {
             #selector_tokens
         }
-    }
-}
-
-#[cfg(test)]
-mod generate_enums_test {
-    use ureg_schema::EnumVariant;
-
-    use crate::*;
-
-    #[test]
-    fn test_generate_enums() {
-        assert_eq!(
-            generate_enums(
-                [Enum {
-                    name: Some("Pull DIR".into()),
-                    bit_width: 2,
-                    variants: vec![
-                        EnumVariant {
-                            name: "down".to_string(),
-                            value: 0
-                        },
-                        EnumVariant {
-                            name: "UP".to_string(),
-                            value: 1
-                        },
-                        EnumVariant {
-                            name: "Hi Z".to_string(),
-                            value: 2
-                        },
-                    ]
-                }]
-                .iter()
-            )
-            .to_string(),
-            quote! {
-                #[derive (Clone , Copy , Eq , PartialEq)]
-                #[repr(u32)]
-                pub enum PullDir {
-                    Down = 0,
-                    Up = 1,
-                    HiZ = 2,
-                    Reserved3 = 3,
-                }
-                impl PullDir {
-                    #[inline(always)]
-                    pub fn down(&self) -> bool { *self == Self::Down }
-                    #[inline(always)]
-                    pub fn up(&self) -> bool { *self == Self::Up }
-                    #[inline(always)]
-                    pub fn hi_z(&self) -> bool { *self == Self::HiZ }
-                }
-                impl TryFrom<u32> for PullDir {
-                    type Error = ();
-                    #[inline (always)]
-                    fn try_from(val : u32) -> Result<PullDir, ()> {
-                        if val < 4 {
-                            Ok(unsafe { core::mem::transmute(val) })
-                        } else {
-                            Err (())
-                        }
-                     }
-                }
-                impl From<PullDir> for u32 {
-                    fn from(val : PullDir) -> Self {
-                        val as u32
-                    }
-                }
-                pub mod selector {
-                    pub struct PullDirSelector();
-                    impl PullDirSelector {
-                        #[inline(always)]
-                        pub fn down(&self) -> super::PullDir { super::PullDir::Down }
-                        #[inline(always)]
-                        pub fn up(&self) -> super::PullDir { super::PullDir::Up }
-                        #[inline(always)]
-                        pub fn hi_z(&self) -> super::PullDir { super::PullDir::HiZ }
-                    }
-                }
-            }
-            .to_string()
-        );
     }
 }
 
@@ -954,5 +831,129 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
             #meta_tokens
         }
 
+    }
+}
+
+#[cfg(test)]
+mod snake_ident_tests {
+    use crate::*;
+
+    #[test]
+    fn test_snake_ident() {
+        assert_eq!("_8_bits", snake_ident("8 bits").to_string());
+        assert_eq!("_16_bits", snake_ident("16_Bits").to_string());
+        assert_eq!("_16_bits", snake_ident("16Bits").to_string());
+        assert_eq!("_16bits", snake_ident("16bits").to_string());
+        assert_eq!("foo_bar_baz", snake_ident("fooBarBaz").to_string());
+        assert_eq!("foo_bar_baz", snake_ident("FooBarBaz").to_string());
+        assert_eq!("foo_bar_baz", snake_ident("foo bar baz").to_string());
+        assert_eq!("foo_bar_baz", snake_ident("foo_bar_baz").to_string());
+        assert_eq!("foo_bar_baz", snake_ident("FOO BAR BAZ").to_string());
+        assert_eq!("foo_bar_baz", snake_ident("FOO_BAR_BAZ").to_string());
+        assert_eq!("foo_bar_baz", snake_ident("FOO BAR BAZ.").to_string());
+        assert_eq!("foo_bar_baz", snake_ident("FOO BAR.BAZ.").to_string());
+        assert_eq!("foo_bar_baz", snake_ident("FOO BAR..BAZ.").to_string());
+
+        assert_eq!("fn_", snake_ident("fn").to_string());
+        assert_eq!("fn_", snake_ident("FN").to_string());
+    }
+}
+
+#[cfg(test)]
+mod camel_ident_tests {
+    use crate::*;
+
+    #[test]
+    fn test_camel_ident() {
+        assert_eq!("_8Bits", camel_ident("8 bits").to_string());
+        assert_eq!("_16Bits", camel_ident("16_bits").to_string());
+        assert_eq!("FooBarBaz", camel_ident("foo bar baz").to_string());
+        assert_eq!("FooBarBaz", camel_ident("foo_bar_baz").to_string());
+        assert_eq!("FooBarBaz", camel_ident("FOO BAR BAZ").to_string());
+        assert_eq!("FooBarBaz", camel_ident("FOO_BAR_BAZ").to_string());
+        assert_eq!("FooBarBaz", camel_ident("FOO BAR BAZ.").to_string());
+        assert_eq!("FooBarBaz", camel_ident("FOO BAR.BAZ.").to_string());
+        assert_eq!("Self_", camel_ident("self").to_string());
+    }
+}
+
+#[cfg(test)]
+mod generate_enums_test {
+    use ureg_schema::EnumVariant;
+
+    use crate::*;
+
+    #[test]
+    fn test_generate_enums() {
+        assert_eq!(
+            generate_enums(
+                [Enum {
+                    name: Some("Pull DIR".into()),
+                    bit_width: 2,
+                    variants: vec![
+                        EnumVariant {
+                            name: "down".to_string(),
+                            value: 0
+                        },
+                        EnumVariant {
+                            name: "UP".to_string(),
+                            value: 1
+                        },
+                        EnumVariant {
+                            name: "Hi Z".to_string(),
+                            value: 2
+                        },
+                    ]
+                }]
+                .iter()
+            )
+            .to_string(),
+            quote! {
+                #[derive (Clone , Copy , Eq , PartialEq)]
+                #[repr(u32)]
+                pub enum PullDir {
+                    Down = 0,
+                    Up = 1,
+                    HiZ = 2,
+                    Reserved3 = 3,
+                }
+                impl PullDir {
+                    #[inline(always)]
+                    pub fn down(&self) -> bool { *self == Self::Down }
+                    #[inline(always)]
+                    pub fn up(&self) -> bool { *self == Self::Up }
+                    #[inline(always)]
+                    pub fn hi_z(&self) -> bool { *self == Self::HiZ }
+                }
+                impl TryFrom<u32> for PullDir {
+                    type Error = ();
+                    #[inline (always)]
+                    fn try_from(val : u32) -> Result<PullDir, ()> {
+                        if val < 4 {
+                            Ok(unsafe { core::mem::transmute(val) })
+                        } else {
+                            Err (())
+                        }
+                     }
+                }
+                impl From<PullDir> for u32 {
+                    fn from(val : PullDir) -> Self {
+                        val as u32
+                    }
+                }
+                pub mod selector {
+                    pub struct PullDirSelector();
+                    impl PullDirSelector {
+                        #[inline(always)]
+                        pub fn down(&self) -> super::PullDir { super::PullDir::Down }
+                        #[inline(always)]
+                        pub fn up(&self) -> super::PullDir { super::PullDir::Up }
+                        #[inline(always)]
+                        pub fn hi_z(&self) -> super::PullDir { super::PullDir::HiZ }
+                    }
+                }
+            }
+            .to_string()
+        );
     }
 }

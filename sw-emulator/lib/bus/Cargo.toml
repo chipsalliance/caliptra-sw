@@ -11,3 +11,6 @@ edition = "2021"
 caliptra-emu-types.workspace = true
 tock-registers.workspace = true
 ureg.workspace = true
+
+[lints]
+workspace = true

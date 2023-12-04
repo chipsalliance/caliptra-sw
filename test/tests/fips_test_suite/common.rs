@@ -12,7 +12,7 @@ fn fips_test_init_base(
     fw_image_override: Option<&[u8]>,
 ) -> DefaultHwModel {
     // Create params if not provided
-    let mut boot_params = boot_params.unwrap_or(BootParams::default());
+    let mut boot_params = boot_params.unwrap_or_default();
 
     // Check that ROM was not provided if the immutable_rom feature is set
     #[cfg(feature = "test_env_immutable_rom")]
