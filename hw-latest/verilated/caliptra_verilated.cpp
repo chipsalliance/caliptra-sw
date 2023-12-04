@@ -107,5 +107,7 @@ void caliptra_verilated_eval(struct caliptra_verilated* model,
   out->uc_hrdata = v->uc_hrdata;
   out->uc_hready = v->uc_hready;
   out->uc_hresp = v->uc_hresp;
+
+  out->cptra_error_fatal = v->cptra_error_fatal;
 }
 

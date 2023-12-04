@@ -55,6 +55,7 @@ pub struct caliptra_verilated_sig_out {
     pub uc_hrdata: u64,
     pub uc_hready: bool,
     pub uc_hresp: bool,
+    pub cptra_error_fatal: bool,
 }
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
