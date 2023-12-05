@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{assert_error, execute_dpe_cmd, run_rt_test};
+use crate::common::{assert_error, execute_dpe_cmd, run_rt_test, DpeResult};
 use caliptra_common::mailbox_api::{
     CommandId, GetTaggedTciReq, GetTaggedTciResp, MailboxReq, MailboxReqHeader, TagTciReq,
 };
@@ -179,8 +179,12 @@ fn test_tagging_destroyed_context() {
     let destroy_ctx_cmd = DestroyCtxCmd {
         handle: ContextHandle::default(),
     };
-    let resp = execute_dpe_cmd(&mut model, &mut Command::DestroyCtx(destroy_ctx_cmd));
-    let Response::DestroyCtx(_) = resp else {
+    let resp = execute_dpe_cmd(
+        &mut model,
+        &mut Command::DestroyCtx(destroy_ctx_cmd),
+        DpeResult::Success,
+    );
+    let Some(Response::DestroyCtx(_)) = resp else {
         panic!("Wrong response type!");
     };
 

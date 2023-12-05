@@ -1,19 +1,15 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_common::mailbox_api::{CommandId, InvokeDpeReq, MailboxReq, MailboxReqHeader};
 use caliptra_hw_model::HwModel;
 use caliptra_runtime::{InvokeDpeCmd, RtBootStatus};
 use dpe::{
-    commands::{
-        Command, CommandHdr, DeriveChildCmd, DeriveChildFlags, RotateCtxCmd, RotateCtxFlags,
-    },
+    commands::{Command, DeriveChildCmd, DeriveChildFlags, RotateCtxCmd, RotateCtxFlags},
     context::ContextHandle,
     response::Response,
     DPE_PROFILE,
 };
-use zerocopy::AsBytes;
 
-use crate::common::{assert_error, execute_dpe_cmd, run_rt_test};
+use crate::common::{execute_dpe_cmd, run_rt_test, DpeResult};
 
 #[test]
 fn test_pl0_derive_child_dpe_context_thresholds() {
@@ -29,8 +25,12 @@ fn test_pl0_derive_child_dpe_context_thresholds() {
         handle: ContextHandle::default(),
         flags: RotateCtxFlags::empty(),
     };
-    let resp = execute_dpe_cmd(&mut model, &mut Command::RotateCtx(rotate_ctx_cmd));
-    let Response::RotateCtx(rotate_ctx_resp) = resp else {
+    let resp = execute_dpe_cmd(
+        &mut model,
+        &mut Command::RotateCtx(rotate_ctx_cmd),
+        DpeResult::Success,
+    );
+    let Some(Response::RotateCtx(rotate_ctx_resp)) = resp else {
         panic!("Wrong response type!");
     };
     let mut handle = rotate_ctx_resp.handle;
@@ -51,37 +51,21 @@ fn test_pl0_derive_child_dpe_context_thresholds() {
 
         // If we are on the last call to DeriveChild, expect that we get a PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED error.
         if i == num_iterations - 1 {
-            let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
-            let derive_child_cmd_hdr = CommandHdr::new_for_test(Command::DERIVE_CHILD);
-            let derive_child_cmd_hdr_buf = derive_child_cmd_hdr.as_bytes();
-            cmd_data[..derive_child_cmd_hdr_buf.len()].copy_from_slice(derive_child_cmd_hdr_buf);
-            let derive_child_cmd_buf = derive_child_cmd.as_bytes();
-            cmd_data[derive_child_cmd_hdr_buf.len()
-                ..derive_child_cmd_hdr_buf.len() + derive_child_cmd_buf.len()]
-                .copy_from_slice(derive_child_cmd_buf);
-            let mut derive_child_mbox_cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
-                hdr: MailboxReqHeader { chksum: 0 },
-                data: cmd_data,
-                data_size: (derive_child_cmd_hdr_buf.len() + derive_child_cmd_buf.len()) as u32,
-            });
-            derive_child_mbox_cmd.populate_chksum().unwrap();
-
-            let resp = model
-                .mailbox_execute(
-                    u32::from(CommandId::INVOKE_DPE),
-                    derive_child_mbox_cmd.as_bytes().unwrap(),
-                )
-                .unwrap_err();
-            assert_error(
+            let resp = execute_dpe_cmd(
                 &mut model,
-                caliptra_drivers::CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED,
-                resp,
+                &mut Command::DeriveChild(derive_child_cmd),
+                DpeResult::MboxCmdFailure(caliptra_drivers::CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED),
             );
+            assert!(resp.is_none());
             break;
         }
 
-        let resp = execute_dpe_cmd(&mut model, &mut Command::DeriveChild(derive_child_cmd));
-        let Response::DeriveChild(derive_child_resp) = resp else {
+        let resp = execute_dpe_cmd(
+            &mut model,
+            &mut Command::DeriveChild(derive_child_cmd),
+            DpeResult::Success,
+        );
+        let Some(Response::DeriveChild(derive_child_resp)) = resp else {
             panic!("Wrong response type!");
         };
         handle = derive_child_resp.handle;

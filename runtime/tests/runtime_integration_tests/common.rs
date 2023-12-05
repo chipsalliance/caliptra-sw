@@ -139,7 +139,17 @@ fn parse_dpe_response(dpe_cmd: &mut Command, resp_bytes: &[u8]) -> Response {
     }
 }
 
-pub fn execute_dpe_cmd(model: &mut DefaultHwModel, dpe_cmd: &mut Command) -> Response {
+pub enum DpeResult {
+    Success,
+    DpeCmdFailure,
+    MboxCmdFailure(CaliptraError),
+}
+
+pub fn execute_dpe_cmd(
+    model: &mut DefaultHwModel,
+    dpe_cmd: &mut Command,
+    expected_result: DpeResult,
+) -> Option<Response> {
     let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
     let dpe_cmd_id = get_cmd_id(dpe_cmd);
     let cmd_hdr = CommandHdr::new_for_test(dpe_cmd_id);
@@ -154,13 +164,15 @@ pub fn execute_dpe_cmd(model: &mut DefaultHwModel, dpe_cmd: &mut Command) -> Res
     });
     mbox_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::INVOKE_DPE),
-            mbox_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+    let resp = model.mailbox_execute(
+        u32::from(CommandId::INVOKE_DPE),
+        mbox_cmd.as_bytes().unwrap(),
+    );
+    if let DpeResult::MboxCmdFailure(expected_err) = expected_result {
+        assert_error(model, expected_err, resp.unwrap_err());
+        return None;
+    }
+    let resp = resp.unwrap().expect("We should have received a response");
 
     assert!(resp.len() <= std::mem::size_of::<InvokeDpeResp>());
     let mut resp_hdr = InvokeDpeResp::default();
@@ -172,7 +184,12 @@ pub fn execute_dpe_cmd(model: &mut DefaultHwModel, dpe_cmd: &mut Command) -> Res
         &resp[core::mem::size_of_val(&resp_hdr.hdr.chksum)..],
     ));
 
-    parse_dpe_response(dpe_cmd, &resp_hdr.data[..resp_hdr.data_size as usize])
+    let resp_bytes = &resp_hdr.data[..resp_hdr.data_size as usize];
+    Some(match expected_result {
+        DpeResult::Success => parse_dpe_response(dpe_cmd, resp_bytes),
+        DpeResult::DpeCmdFailure => Response::Error(ResponseHdr::read_from(resp_bytes).unwrap()),
+        DpeResult::MboxCmdFailure(_) => unreachable!("If MboxCmdFailure is the expected DPE result, the function would have returned None earlier."),
+    })
 }
 
 pub fn assert_error(
