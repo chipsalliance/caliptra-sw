@@ -1,0 +1,8 @@
+# pin image hash so the deps are all the same
+FROM ghcr.io/leongross/caliptra-sw:clptr-build-ubuntu@sha256:6835151b5253554e00a70497a4ddd27417341f6ec21d0ac1605179dda83e80f4
+
+ENV export DEBIAN_FRONTEND=noninteractive
+WORKDIR /build
+COPY build.sh /build
+
+ENTRYPOINT ["/build/build.sh"]
