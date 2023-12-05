@@ -4,12 +4,13 @@ use caliptra_builder::{firmware, ImageOptions};
 use caliptra_common::mailbox_api::{GetFmcAliasCertReq, GetLdevCertReq, ResponseVarSize};
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{DeviceLifecycle, Fuses};
-use caliptra_test::run_test;
+use caliptra_test::{derive, run_test, UnwrapSingle};
 use caliptra_test::{
     derive::{DoeInput, DoeOutput, FmcAliasKey, IDevId, LDevId, Pcr0, Pcr0Input},
     swap_word_bytes, swap_word_bytes_inplace,
     x509::{DiceFwid, DiceTcbInfo},
 };
+use openssl::nid::Nid;
 use openssl::sha::{sha384, Sha384};
 use std::mem;
 use zerocopy::AsBytes;
@@ -316,6 +317,52 @@ fn smoke_test() {
     assert!(
         fmc_alias_cert.verify(&ldev_pubkey).unwrap(),
         "fmc_alias cert failed to validate with ldev pubkey"
+    );
+
+    let fmc_alias_pubkey = fmc_alias_cert.public_key().unwrap();
+
+    assert_eq!(
+        fmc_alias_cert
+            .serial_number()
+            .to_bn()
+            .unwrap()
+            .to_vec_padded(20)
+            .unwrap(),
+        derive::cert_serial_number(&fmc_alias_pubkey)
+    );
+    assert_eq!(
+        fmc_alias_cert.subject_key_id().unwrap().as_slice(),
+        derive::key_id(&fmc_alias_pubkey),
+    );
+    assert_eq!(
+        fmc_alias_cert.authority_key_id().unwrap().as_slice(),
+        ldev_cert.subject_key_id().unwrap().as_slice(),
+    );
+    assert_eq!(
+        &fmc_alias_cert
+            .subject_name()
+            .entries_by_nid(Nid::SERIALNUMBER)
+            .unwrap_single()
+            .data()
+            .as_utf8()
+            .unwrap()[..],
+        derive::serial_number_str(&fmc_alias_pubkey)
+    );
+    assert_eq!(
+        &fmc_alias_cert
+            .issuer_name()
+            .entries_by_nid(Nid::SERIALNUMBER)
+            .unwrap_single()
+            .data()
+            .as_utf8()
+            .unwrap()[..],
+        &ldev_cert
+            .subject_name()
+            .entries_by_nid(Nid::SERIALNUMBER)
+            .unwrap_single()
+            .data()
+            .as_utf8()
+            .unwrap()[..],
     );
 
     assert!(!hw
