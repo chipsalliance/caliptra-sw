@@ -1,7 +1,9 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{firmware, ImageOptions};
-use caliptra_common::mailbox_api::{GetFmcAliasCertReq, GetLdevCertReq, ResponseVarSize};
+use caliptra_common::mailbox_api::{
+    GetFmcAliasCertReq, GetLdevCertReq, GetRtAliasCertReq, ResponseVarSize,
+};
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{DeviceLifecycle, Fuses};
 use caliptra_test::{derive, redact_cert, run_test, RedactOpts, UnwrapSingle};
@@ -392,6 +394,114 @@ fn smoke_test() {
         assert_eq!(
             fmc_alias_cert_redacted_der,
             include_bytes!("smoke_testdata/fmc_alias_cert_redacted.der")
+        );
+    }
+
+    let rt_alias_cert_resp = hw
+        .mailbox_execute_req(GetRtAliasCertReq::default())
+        .unwrap();
+
+    // Extract the certificate from the response
+    let rt_alias_cert_der = rt_alias_cert_resp.data().unwrap();
+    let rt_alias_cert = openssl::x509::X509::from_der(rt_alias_cert_der).unwrap();
+    let rt_alias_cert_txt = String::from_utf8(rt_alias_cert.to_text().unwrap()).unwrap();
+
+    println!("rt-alias cert: {rt_alias_cert_txt}");
+
+    assert!(
+        rt_alias_cert.verify(&fmc_alias_pubkey).unwrap(),
+        "rt_alias cert failed to validate with fmc_alias pubkey"
+    );
+
+    let rt_alias_pubkey = rt_alias_cert.public_key().unwrap();
+
+    let rt_dice_tcb_info = DiceTcbInfo::find_single_in_cert(rt_alias_cert_der).unwrap();
+    assert_eq!(
+        rt_dice_tcb_info,
+        Some(DiceTcbInfo {
+            vendor: Some("Caliptra".into()),
+            model: Some("RT".into()),
+            svn: Some(0x100),
+            fwids: vec![DiceFwid {
+                // RT
+                hash_alg: asn1::oid!(2, 16, 840, 1, 101, 3, 4, 2, 2),
+                digest: swap_word_bytes(&image.manifest.runtime.digest)
+                    .as_bytes()
+                    .to_vec(),
+            },],
+            ty: None,
+            ..Default::default()
+        }),
+    );
+
+    // Validate the rt-alias fields (this are redacted in the testdata because they can change):
+    assert_eq!(
+        rt_alias_cert
+            .serial_number()
+            .to_bn()
+            .unwrap()
+            .to_vec_padded(20)
+            .unwrap(),
+        derive::cert_serial_number(&rt_alias_pubkey)
+    );
+    assert_eq!(
+        rt_alias_cert.subject_key_id().unwrap().as_slice(),
+        derive::key_id(&rt_alias_pubkey),
+    );
+    assert_eq!(
+        rt_alias_cert.authority_key_id().unwrap().as_slice(),
+        fmc_alias_cert.subject_key_id().unwrap().as_slice(),
+    );
+    assert_eq!(
+        &rt_alias_cert
+            .subject_name()
+            .entries_by_nid(Nid::SERIALNUMBER)
+            .unwrap_single()
+            .data()
+            .as_utf8()
+            .unwrap()[..],
+        derive::serial_number_str(&rt_alias_pubkey)
+    );
+    assert_eq!(
+        &rt_alias_cert
+            .issuer_name()
+            .entries_by_nid(Nid::SERIALNUMBER)
+            .unwrap_single()
+            .data()
+            .as_utf8()
+            .unwrap()[..],
+        &fmc_alias_cert
+            .subject_name()
+            .entries_by_nid(Nid::SERIALNUMBER)
+            .unwrap_single()
+            .data()
+            .as_utf8()
+            .unwrap()[..],
+    );
+
+    {
+        let rt_alias_cert_redacted_der = redact_cert(
+            rt_alias_cert_der,
+            RedactOpts {
+                keep_authority: false,
+            },
+        );
+        let rt_alias_cert_redacted =
+            openssl::x509::X509::from_der(&rt_alias_cert_redacted_der).unwrap();
+        let rt_alias_cert_redacted_txt =
+            String::from_utf8(rt_alias_cert_redacted.to_text().unwrap()).unwrap();
+
+        // To update the alias-cert golden-data:
+        // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/rt_alias_cert_redacted.txt", &rt_alias_cert_redacted_txt).unwrap();
+        // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/rt_alias_cert_redacted.der", &rt_alias_cert_redacted_der).unwrap();
+
+        assert_eq!(
+            rt_alias_cert_redacted_txt.as_str(),
+            include_str!("smoke_testdata/rt_alias_cert_redacted.txt")
+        );
+        assert_eq!(
+            rt_alias_cert_redacted_der,
+            include_bytes!("smoke_testdata/rt_alias_cert_redacted.der")
         );
     }
 
