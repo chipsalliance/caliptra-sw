@@ -100,6 +100,7 @@ Attempts to add a duplicate tag and verifies that it fails | **test_duplicate_ta
 Calls the dpe_get_tagged_tci mailbox command with a tag that does not exist and checks that it fails | **test_get_tagged_tci_on_non_existent_tag** | RUNTIME_TAGGING_FAILURE
 Attempts to tag an inactive context and verifies that it fails | **test_tagging_inactive_context** | RUNTIME_TAGGING_FAILURE
 Tags the default context, destroys the default context, and checks that the dpe_get_tagged_tci mailbox command fails on the default context | **test_tagging_destroyed_context** | RUNTIME_TAGGING_FAILURE
+Tags the default context, retires the default context, and checks that the dpe_get_tagged_tci mailbox command fails on the default context | **test_tagging_retired_context** | RUNTIME_TAGGING_FAILURE
 
 <br><br>
 # **DPE Verification Tests**
@@ -148,3 +149,4 @@ Check that measurements are stored in DPE when StashMeasurement is called | N/A 
 Verify that DPE attestation flow fails after DisableAttestation is called | N/A | N/A
 Check that mailbox valid pausers are measured into DPE upon RT startup | N/A | N/A
 Check that the RT alias key is different from the key signing DPE certs | N/A | N/A
+Test context tag validity upon warm/update reset | N/A | N/A
