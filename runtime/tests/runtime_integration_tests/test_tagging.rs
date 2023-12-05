@@ -6,9 +6,10 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_hw_model::HwModel;
 use dpe::{
-    commands::{Command, DestroyCtxCmd},
+    commands::{Command, DeriveChildCmd, DeriveChildFlags, DestroyCtxCmd},
     context::ContextHandle,
     response::Response,
+    DPE_PROFILE,
 };
 use zerocopy::FromBytes;
 
@@ -189,6 +190,58 @@ fn test_tagging_destroyed_context() {
     };
 
     // check that we cannot get tagged tci for a destroyed context
+    let mut cmd = MailboxReq::GetTaggedTci(GetTaggedTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        tag: TAG,
+    });
+    cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::DPE_GET_TAGGED_TCI),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE,
+        resp,
+    );
+}
+
+#[test]
+fn test_tagging_retired_context() {
+    let mut model = run_rt_test(None, None, None);
+
+    // Tag default context
+    let mut cmd = MailboxReq::TagTci(TagTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        handle: DEFAULT_HANDLE,
+        tag: TAG,
+    });
+    cmd.populate_chksum().unwrap();
+    let _ = model
+        .mailbox_execute(u32::from(CommandId::DPE_TAG_TCI), cmd.as_bytes().unwrap())
+        .unwrap()
+        .expect("We expected a response");
+
+    // retire tagged context via DeriveChild
+    let derive_child_cmd = DeriveChildCmd {
+        handle: ContextHandle::default(),
+        data: [0u8; DPE_PROFILE.get_hash_size()],
+        flags: DeriveChildFlags::MAKE_DEFAULT,
+        tci_type: 0,
+        target_locality: 0,
+    };
+    let resp = execute_dpe_cmd(
+        &mut model,
+        &mut Command::DeriveChild(derive_child_cmd),
+        DpeResult::Success,
+    );
+    let Some(Response::DeriveChild(_)) = resp else {
+        panic!("Wrong response type!");
+    };
+
+    // check that we cannot get tagged tci for a retired context
     let mut cmd = MailboxReq::GetTaggedTci(GetTaggedTciReq {
         hdr: MailboxReqHeader { chksum: 0 },
         tag: TAG,

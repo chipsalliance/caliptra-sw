@@ -24,6 +24,7 @@ use caliptra_registers::{
 };
 use dpe::context::{Context, ContextState};
 use dpe::tci::TciMeasurement;
+use dpe::MAX_HANDLES;
 use dpe::{
     commands::{CommandExecution, DeriveChildCmd, DeriveChildFlags},
     context::ContextHandle,
@@ -94,10 +95,12 @@ impl Drivers {
             }
             ResetReason::UpdateReset => {
                 Self::validate_dpe_structure(&mut drivers)?;
+                Self::validate_context_tags(&mut drivers)?;
                 Self::update_dpe_rt_journey(&mut drivers)?;
             }
             ResetReason::WarmReset => {
                 Self::validate_dpe_structure(&mut drivers)?;
+                Self::validate_context_tags(&mut drivers)?;
                 Self::check_dpe_rt_journey_unchanged(&mut drivers)?;
             }
             ResetReason::Unknown => {
@@ -226,6 +229,22 @@ impl Drivers {
             }
         }
 
+        Ok(())
+    }
+
+    fn validate_context_tags(mut drivers: &mut Drivers) -> CaliptraResult<()> {
+        let pdata = drivers.persistent_data.get();
+        let context_has_tag = pdata.context_has_tag;
+        let context_tags = pdata.context_tags;
+        let dpe = &pdata.dpe;
+
+        for i in (0..MAX_HANDLES) {
+            if dpe.contexts[i].state != ContextState::Active
+                && (context_has_tag[i].get() || context_tags[i] != 0)
+            {
+                return Err(CaliptraError::RUNTIME_CONTEXT_TAG_VALIDATION_FAILED);
+            }
+        }
         Ok(())
     }
 
