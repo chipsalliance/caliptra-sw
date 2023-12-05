@@ -3,7 +3,7 @@
 use caliptra_builder::{
     firmware::{
         self,
-        rom_tests::{TEST_FMC_INTERACTIVE, TEST_FMC_WITH_UART},
+        rom_tests::{TEST_FMC_INTERACTIVE, TEST_FMC_WITH_UART, TEST_RT_WITH_UART},
         APP_WITH_UART,
     },
     ImageOptions,
@@ -446,4 +446,74 @@ fn test_check_rom_update_reset_status_reg() {
     let warmresetentry4_value =
         u32::read_from_prefix(warmresetentry4_array[warmresetentry4_offset..].as_bytes()).unwrap();
     assert_eq!(warmresetentry4_value, u32::from(UpdateResetComplete));
+}
+
+#[test]
+fn test_update_reset_max_fw_image() {
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &TEST_FMC_INTERACTIVE,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
+
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            ..Default::default()
+        },
+        fw_image: Some(&image_bundle.to_bytes().unwrap()),
+        ..Default::default()
+    })
+    .unwrap();
+
+    hw.step_until_boot_status(ColdResetComplete.into(), true);
+
+    // Trigger an update reset with new firmware
+    let updated_image_bundle = caliptra_builder::build_and_sign_image(
+        &TEST_FMC_INTERACTIVE,
+        &TEST_RT_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
+    hw.start_mailbox_execute(
+        CommandId::FIRMWARE_LOAD.into(),
+        &updated_image_bundle.to_bytes().unwrap(),
+    )
+    .unwrap();
+
+    if cfg!(not(feature = "fpga_realtime")) {
+        hw.step_until_boot_status(KatStarted.into(), true);
+        hw.step_until_boot_status(KatComplete.into(), true);
+        hw.step_until_boot_status(UpdateResetStarted.into(), false);
+    }
+
+    assert_eq!(hw.finish_mailbox_execute(), Ok(None));
+
+    hw.step_until_boot_status(UpdateResetComplete.into(), true);
+
+    let mut buf = vec![];
+    buf.append(
+        &mut updated_image_bundle
+            .manifest
+            .fmc
+            .image_size()
+            .to_le_bytes()
+            .to_vec(),
+    );
+    buf.append(
+        &mut updated_image_bundle
+            .manifest
+            .runtime
+            .image_size()
+            .to_le_bytes()
+            .to_vec(),
+    );
+    buf.append(&mut updated_image_bundle.fmc.to_vec());
+    buf.append(&mut updated_image_bundle.runtime.to_vec());
+
+    let iccm_cmp: Vec<u8> = hw.mailbox_execute(0x1000_000E, &buf).unwrap().unwrap();
+    assert_eq!(iccm_cmp.len(), 1);
+    assert_eq!(iccm_cmp[0], 0);
 }
