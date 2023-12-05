@@ -15,6 +15,7 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_main)]
 use core::hint::black_box;
 
+use caliptra_cfi_lib::CfiCounter;
 use caliptra_common::{cprintln, handle_fatal_error};
 use caliptra_cpu::{log_trap_record, TrapRecord};
 
@@ -43,6 +44,14 @@ pub extern "C" fn entry_point() -> ! {
         Ok(env) => env,
         Err(e) => report_error(e.into()),
     };
+
+    if !cfg!(feature = "no-cfi") {
+        cprintln!("[state] CFI Enabled");
+        let mut entropy_gen = || env.trng.generate().map(|a| a.0);
+        CfiCounter::reset(&mut entropy_gen);
+    } else {
+        cprintln!("[state] CFI Disabled");
+    }
 
     if env.persistent_data.get().fht.is_valid() {
         // Jump straight to RT for val-FMC for now
