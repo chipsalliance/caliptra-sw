@@ -75,45 +75,45 @@ fn test_pcr_quote() {
     assert!(sig.verify(&resp.digest, &pkey).unwrap());
 }
 
+fn generate_mailbox_extend_pcr_req(idx: u32, pcr_extension_data: [u8; 48]) -> ExtendPcrReq {
+    let cmd = ExtendPcrReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        pcr_idx: idx,
+        data: pcr_extension_data,
+    };
+
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::EXTEND_PCR),
+        &cmd.as_bytes()[4..],
+    );
+
+    ExtendPcrReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        pcr_idx: cmd.pcr_idx,
+        data: cmd.data,
+    }
+}
+
+pub fn get_model_pcrs(model: &mut DefaultHwModel) -> [[u8; 48]; 32] {
+    let mut cmd = MailboxReq::QuotePcrs(QuotePcrsReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        nonce: [0u8; 32],
+    });
+    cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::QUOTE_PCRS), cmd.as_bytes().unwrap())
+        .unwrap()
+        .unwrap();
+
+    return QuotePcrsResp::read_from(resp.as_slice()).unwrap().pcrs;
+}
+
 #[test]
-fn test_extend_pcr_cmd() {
-    fn generate_mailbox_extend_pcr_req(idx: u32, pcr_extension_data: [u8; 48]) -> ExtendPcrReq {
-        let cmd = ExtendPcrReq {
-            hdr: MailboxReqHeader { chksum: 0 },
-            pcr_idx: idx,
-            data: pcr_extension_data,
-        };
-
-        let checksum = caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::EXTEND_PCR),
-            &cmd.as_bytes()[4..],
-        );
-
-        ExtendPcrReq {
-            hdr: MailboxReqHeader { chksum: checksum },
-            pcr_idx: cmd.pcr_idx,
-            data: cmd.data,
-        }
-    }
-
-    fn get_pcrs(model: &mut DefaultHwModel) -> [[u8; 48]; 32] {
-        let mut cmd = MailboxReq::QuotePcrs(QuotePcrsReq {
-            hdr: MailboxReqHeader { chksum: 0 },
-            nonce: [0u8; 32],
-        });
-        cmd.populate_chksum().unwrap();
-
-        let resp = model
-            .mailbox_execute(u32::from(CommandId::QUOTE_PCRS), cmd.as_bytes().unwrap())
-            .unwrap()
-            .unwrap();
-
-        return QuotePcrsResp::read_from(resp.as_slice()).unwrap().pcrs;
-    }
-
+fn test_extend_pcr_cmd_multiple_extensions() {
     // 0. Get fresh pcr state and verify
     let mut model = run_rt_test(None, None, None);
-    assert_eq!(get_pcrs(&mut model)[4], [0u8; 48]);
+    assert_eq!(get_model_pcrs(&mut model)[4], [0u8; 48]);
 
     // 1.0 Testing for extension_data [0,...,0]
     let extension_data = [0u8; 48];
@@ -123,7 +123,7 @@ fn test_extend_pcr_cmd() {
     assert!(res.is_ok());
 
     // 1.1 Checking for PCR values using PCR_QUOTE
-    let pcrs = get_pcrs(&mut model);
+    let pcrs = get_model_pcrs(&mut model);
     assert_eq!(
         pcrs[4],
         [
@@ -139,7 +139,7 @@ fn test_extend_pcr_cmd() {
     assert!(res.is_ok());
 
     // 1.3 Checking for PCR values using PCR_QUOTE
-    let pcrs = get_pcrs(&mut model);
+    let pcrs = get_model_pcrs(&mut model);
     assert_eq!(
         pcrs[4],
         [
@@ -161,7 +161,7 @@ fn test_extend_pcr_cmd() {
     assert!(res.is_ok());
 
     // 2.1 Checking for PCR values using PCR_QUOTE
-    let pcrs = get_pcrs(&mut model);
+    let pcrs = get_model_pcrs(&mut model);
     assert_eq!(
         pcrs[4],
         [
@@ -170,13 +170,14 @@ fn test_extend_pcr_cmd() {
             205, 241, 120, 15, 53, 210, 93, 136, 5, 235, 55
         ]
     );
+}
 
-    // 3. Smaller size
-    let cmd = generate_mailbox_extend_pcr_req(4, extension_data);
-    let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), cmd.as_bytes());
-    assert!(res.is_ok());
+#[test]
+fn test_extend_pcr_cmd_invalid_pcr_index() {
+    let mut model = run_rt_test(None, None, None);
+    let extension_data: [u8; 48] = [0u8; 48];
 
-    // 4. Invalid PCR index
+    // 3. Invalid PCR index
     let cmd = generate_mailbox_extend_pcr_req(33, extension_data);
     let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), cmd.as_bytes());
     assert_eq!(
@@ -185,8 +186,14 @@ fn test_extend_pcr_cmd() {
             CaliptraError::RUNTIME_PCR_INVALID_INDEX
         )))
     );
+}
 
-    // 5. Ensure reserved PCR range
+#[test]
+fn test_extend_pcr_cmd_reserved_range() {
+    let mut model = run_rt_test(None, None, None);
+    let extension_data: [u8; 48] = [0u8; 48];
+
+    // 4. Ensure reserved PCR range
     let reserved_pcrs = [PcrId::PcrId0, PcrId::PcrId1, PcrId::PcrId2, PcrId::PcrId3];
     for test_pcr_index_reserved in reserved_pcrs {
         let cmd = generate_mailbox_extend_pcr_req(test_pcr_index_reserved.into(), extension_data);

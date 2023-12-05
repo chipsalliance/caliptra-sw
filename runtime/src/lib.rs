@@ -56,9 +56,12 @@ use dpe::{
 };
 pub use dpe::{context::ContextState, DpeInstance, U8Bool, MAX_HANDLES};
 
-use crate::dice::GetRtAliasCertCmd;
 #[cfg(feature = "test_only_commands")]
 use crate::verify::HmacVerifyCmd;
+use crate::{
+    dice::GetRtAliasCertCmd,
+    pcr::{ExtendPcrCmd, GetPcrQuoteCmd},
+};
 
 const RUNTIME_BOOT_STATUS_BASE: u32 = 0x600;
 
