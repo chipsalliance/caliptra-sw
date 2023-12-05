@@ -51,7 +51,7 @@ fn run_cmd(cmd: &mut Command) -> io::Result<()> {
     }
 }
 
-fn run_cmd_stdout(cmd: &mut Command, input: Option<&[u8]>) -> io::Result<String> {
+pub fn run_cmd_stdout(cmd: &mut Command, input: Option<&[u8]>) -> io::Result<String> {
     cmd.stdin(Stdio::piped());
     cmd.stdout(Stdio::piped());
 
