@@ -227,6 +227,7 @@ pub enum MailboxReq {
     GetRtAliasCert(GetRtAliasCertReq),
     IncrementPcrResetCounter(IncrementPcrResetCounterReq),
     QuotePcrs(QuotePcrsReq),
+    ExtendPcr(ExtendPcrReq),
 
     #[cfg(feature = "test_only_commands")]
     TestHmacVerify(HmacVerifyReq),
@@ -249,6 +250,7 @@ impl MailboxReq {
             MailboxReq::GetRtAliasCert(req) => Ok(req.as_bytes()),
             MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_bytes()),
             MailboxReq::QuotePcrs(req) => Ok(req.as_bytes()),
+            MailboxReq::ExtendPcr(req) => Ok(req.as_bytes()),
 
             #[cfg(feature = "test_only_commands")]
             MailboxReq::TestHmacVerify(req) => Ok(req.as_bytes()),
@@ -271,6 +273,7 @@ impl MailboxReq {
             MailboxReq::GetRtAliasCert(req) => Ok(req.as_bytes_mut()),
             MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_bytes_mut()),
             MailboxReq::QuotePcrs(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::ExtendPcr(req) => Ok(req.as_bytes_mut()),
 
             #[cfg(feature = "test_only_commands")]
             MailboxReq::TestHmacVerify(req) => Ok(req.as_bytes_mut()),
@@ -293,6 +296,7 @@ impl MailboxReq {
             MailboxReq::GetRtAliasCert(_) => CommandId::GET_RT_ALIAS_CERT,
             MailboxReq::IncrementPcrResetCounter(_) => CommandId::INCREMENT_PCR_RESET_COUNTER,
             MailboxReq::QuotePcrs(_) => CommandId::QUOTE_PCRS,
+            MailboxReq::ExtendPcr(_) => CommandId::EXTEND_PCR,
 
             #[cfg(feature = "test_only_commands")]
             MailboxReq::TestHmacVerify(_) => CommandId::TEST_ONLY_HMAC384_VERIFY,
