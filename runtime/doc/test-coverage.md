@@ -80,9 +80,14 @@ Test Scenario| Test Name | Runtime Error Code
 Checks that the invoke_dpe mailbox command fails if the data_size is greater than the maximum allowed size | **test_invoke_dpe_size_too_big** | RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE
 Calls the DPE command get_profile via the invoke_dpe mailbox command and verifies the DPE profile | **test_invoke_dpe_get_profile_cmd** | N/A
 Calls the DPE command get_certificate_chain via the invoke_dpe mailbox command and verifies the size of the certificate chain |**test_invoke_dpe_get_certificate_chain_cmd** | N/A
-Checks the limit on the number of active DPE contexts belonging to a pauser privilege level |  **test_pauser_privilege_level_dpe_context_thresholds** | RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED
 Calls the DPE commands sign and certify_key via the invoke_dpe mailbox command and verifies the signature resulting from the sign command with the public key resulting from the certify_key command | **test_invoke_dpe_sign_and_certify_key_cmds** | N/A
 Calls the DPE command sign with the symmetric flag set via the invoke_dpe mailbox command and checks that the resulting HMAC value is non-zero | **test_invoke_dpe_symmetric_sign** | N/A
+
+<br><br>
+# **PAUSER Privilege Level Tests**
+Test Scenario| Test Name | Runtime Error Code
+---|---|---
+Checks the limit on the number of active DPE contexts belonging to PL0 by calling derive_child via the invoke_dpe mailbox command with the RETAINS_PARENT flag set | **test_pl0_derive_child_dpe_context_thresholds** | RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED
 
 <br><br>
 # **Tagging Tests**
