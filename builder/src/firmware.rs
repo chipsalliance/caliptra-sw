@@ -45,6 +45,12 @@ pub const FMC_FAKE_WITH_UART: FwId = FwId {
     features: &["emu", "fake-fmc"],
 };
 
+pub const APP: FwId = FwId {
+    crate_name: "caliptra-runtime",
+    bin_name: "caliptra-runtime",
+    features: &["fips_self_test"],
+};
+
 pub const APP_WITH_UART: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
@@ -358,6 +364,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &ROM_FAKE_WITH_UART,
     &FMC_WITH_UART,
     &FMC_FAKE_WITH_UART,
+    &APP,
     &APP_WITH_UART,
     &caliptra_builder_tests::FWID,
     &hw_model_tests::MAILBOX_RESPONDER,
