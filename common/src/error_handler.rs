@@ -6,7 +6,7 @@ use caliptra_drivers::{
 
 #[allow(clippy::empty_loop)]
 pub fn handle_fatal_error(code: u32) -> ! {
-    cprintln!("RT Fatal Error: 0x{:08X}", code);
+    cprintln!("Fatal Error: 0x{:08X}", code);
     report_fw_error_fatal(code);
     // Populate the non-fatal error code too; if there was a
     // non-fatal error stored here before we don't want somebody

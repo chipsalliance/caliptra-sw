@@ -75,8 +75,9 @@ module caliptra_verilated (
 
     output bit [63:0] uc_hrdata,
     output bit uc_hready,
-    output bit uc_hresp
+    output bit uc_hresp,
 
+    output bit cptra_error_fatal
     );
 
 
@@ -172,7 +173,7 @@ caliptra_top caliptra_top_dut (
     .scan_mode(),
 
     //FIXME: export these
-    .cptra_error_fatal(),
+    .cptra_error_fatal(cptra_error_fatal),
     .cptra_error_non_fatal(),
     .etrng_req(etrng_req),
     .itrng_data(itrng_data),

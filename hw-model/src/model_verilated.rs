@@ -69,7 +69,7 @@ struct AbsoluteEtrngResponse {
 }
 
 pub struct ModelVerilated {
-    v: CaliptraVerilated,
+    pub v: CaliptraVerilated,
 
     output: Output,
     trace_enabled: bool,

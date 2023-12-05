@@ -744,6 +744,9 @@ fn test_header_verify_vendor_ecc_pub_key_in_preamble_and_header() {
         hw.soc_ifc().cptra_boot_status().read(),
         u32::from(FwProcessorManifestLoadComplete)
     );
+
+    #[cfg(feature = "verilator")]
+    assert!(hw.v.output.cptra_error_fatal);
 }
 
 #[test]

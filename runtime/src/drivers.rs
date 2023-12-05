@@ -183,7 +183,7 @@ impl Drivers {
     fn update_dpe_rt_journey(drivers: &mut Drivers) -> CaliptraResult<()> {
         let dpe = &mut drivers.persistent_data.get_mut().dpe;
         let root_idx = Self::get_dpe_root_context_idx(dpe)?;
-        let latest_pcr = <[u8; 48]>::from(drivers.pcr_bank.read_pcr(PcrId::PcrId3));
+        let latest_pcr = <[u8; 48]>::from(drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR));
         dpe.contexts[root_idx].tci.tci_current = TciMeasurement(latest_pcr);
         dpe.contexts[root_idx].tci.tci_cumulative = TciMeasurement(latest_pcr);
 
@@ -212,8 +212,8 @@ impl Drivers {
             .finalize(&mut digest)
             .map_err(|_| CaliptraError::RUNTIME_DPE_VALIDATION_FAILED)?;
 
-        let latest_pcr = drivers.pcr_bank.read_pcr(PcrId::PcrId3);
-        // Ensure SHA384_HASH(0x00..00, TCI from SRAM) == PCR3 value
+        let latest_pcr = drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR);
+        // Ensure SHA384_HASH(0x00..00, TCI from SRAM) == RT_FW_JOURNEY_PCR
         if latest_pcr != digest {
             // If latest pcr validation fails, disable attestation
             let mut result = DisableAttestationCmd::execute(drivers);

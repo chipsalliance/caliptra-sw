@@ -556,7 +556,7 @@ this case, the new Runtime Firmware must:
 1. Verify that the “Latest TCI” field of the TCI Node which contains the
    Runtime Journey PCR (TYPE = RTJM, “Internal TCI” flag is set) matches the
    “Latest” Runtime PCR value from PCRX
-    1. Ensure `SHA384_HASH(0x00..00, TCI from SRAM) == PCR3 value`
+    1. Ensure `SHA384_HASH(0x00..00, TCI from SRAM) == RT_FW_JOURNEY_PCR`
 1. If any validations fail, runtime firmware will execute the
    `DISABLE_ATTESTATION` command.
 
