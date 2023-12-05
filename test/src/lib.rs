@@ -8,9 +8,11 @@ use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
 
 pub mod crypto;
 pub mod derive;
+mod redact;
 mod unwrap_single;
 pub mod x509;
 
+pub use redact::{redact_cert, RedactOpts};
 pub use unwrap_single::UnwrapSingle;
 
 pub fn swap_word_bytes(words: &[u32]) -> Vec<u32> {

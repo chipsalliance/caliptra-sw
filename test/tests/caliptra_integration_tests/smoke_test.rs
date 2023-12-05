@@ -4,7 +4,7 @@ use caliptra_builder::{firmware, ImageOptions};
 use caliptra_common::mailbox_api::{GetFmcAliasCertReq, GetLdevCertReq, ResponseVarSize};
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{DeviceLifecycle, Fuses};
-use caliptra_test::{derive, run_test, UnwrapSingle};
+use caliptra_test::{derive, redact_cert, run_test, RedactOpts, UnwrapSingle};
 use caliptra_test::{
     derive::{DoeInput, DoeOutput, FmcAliasKey, IDevId, LDevId, Pcr0, Pcr0Input},
     swap_word_bytes, swap_word_bytes_inplace,
@@ -321,6 +321,7 @@ fn smoke_test() {
 
     let fmc_alias_pubkey = fmc_alias_cert.public_key().unwrap();
 
+    // Validate the fmc-alias fields (this are redacted in the testdata because they can change):
     assert_eq!(
         fmc_alias_cert
             .serial_number()
@@ -365,13 +366,40 @@ fn smoke_test() {
             .unwrap()[..],
     );
 
+    {
+        // When comparing fmc-alias golden-data, redact fields that are affected
+        // by firmware measurements (this is ok because these values are checked
+        // above)
+        let fmc_alias_cert_redacted_der = redact_cert(
+            fmc_alias_cert_der,
+            RedactOpts {
+                keep_authority: true,
+            },
+        );
+        let fmc_alias_cert_redacted =
+            openssl::x509::X509::from_der(&fmc_alias_cert_redacted_der).unwrap();
+        let fmc_alias_cert_redacted_txt =
+            String::from_utf8(fmc_alias_cert_redacted.to_text().unwrap()).unwrap();
+
+        // To update the alias-cert golden-data:
+        // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/fmc_alias_cert_redacted.txt", &fmc_alias_cert_redacted_txt).unwrap();
+        // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/fmc_alias_cert_redacted.der", &fmc_alias_cert_redacted_der).unwrap();
+
+        assert_eq!(
+            fmc_alias_cert_redacted_txt.as_str(),
+            include_str!("smoke_testdata/fmc_alias_cert_redacted.txt")
+        );
+        assert_eq!(
+            fmc_alias_cert_redacted_der,
+            include_bytes!("smoke_testdata/fmc_alias_cert_redacted.der")
+        );
+    }
+
     assert!(!hw
         .soc_ifc()
         .cptra_hw_error_non_fatal()
         .read()
         .mbox_ecc_unc());
-
-    // TODO: Validate the rest of the fmc_alias certificate fields
 }
 
 #[test]
