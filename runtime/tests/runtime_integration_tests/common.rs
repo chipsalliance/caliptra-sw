@@ -7,7 +7,8 @@ use caliptra_builder::{
 use caliptra_common::mailbox_api::{
     CommandId, InvokeDpeReq, InvokeDpeResp, MailboxReq, MailboxReqHeader,
 };
-use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
+use caliptra_error::CaliptraError;
+use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError};
 use dpe::{
     commands::{Command, CommandHdr},
     response::{
@@ -172,4 +173,20 @@ pub fn execute_dpe_cmd(model: &mut DefaultHwModel, dpe_cmd: &mut Command) -> Res
     ));
 
     parse_dpe_response(dpe_cmd, &resp_hdr.data[..resp_hdr.data_size as usize])
+}
+
+pub fn assert_error(
+    model: &mut DefaultHwModel,
+    expected_err: CaliptraError,
+    actual_err: ModelError,
+) {
+    assert_eq!(
+        model.soc_ifc().cptra_fw_error_non_fatal().read(),
+        u32::from(expected_err)
+    );
+    if let ModelError::MailboxCmdFailed(code) = actual_err {
+        assert_eq!(code, u32::from(expected_err));
+    } else {
+        panic!("Mailbox command should have failed with MailboxCmdFailed error, instead failed with {} error", actual_err)
+    }
 }

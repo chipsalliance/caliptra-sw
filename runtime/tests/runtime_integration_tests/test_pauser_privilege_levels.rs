@@ -1,8 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_common::mailbox_api::{CommandId, InvokeDpeReq, MailboxReq, MailboxReqHeader};
-use caliptra_error::CaliptraError;
-use caliptra_hw_model::{HwModel, ModelError};
+use caliptra_hw_model::HwModel;
 use caliptra_runtime::{InvokeDpeCmd, RtBootStatus};
 use dpe::{
     commands::{
@@ -14,7 +13,7 @@ use dpe::{
 };
 use zerocopy::AsBytes;
 
-use crate::common::{execute_dpe_cmd, run_rt_test};
+use crate::common::{assert_error, execute_dpe_cmd, run_rt_test};
 
 #[test]
 fn test_pl0_derive_child_dpe_context_thresholds() {
@@ -73,14 +72,11 @@ fn test_pl0_derive_child_dpe_context_thresholds() {
                     derive_child_mbox_cmd.as_bytes().unwrap(),
                 )
                 .unwrap_err();
-            if let ModelError::MailboxCmdFailed(code) = resp {
-                assert_eq!(
-                    code,
-                    u32::from(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED)
-                );
-            } else {
-                panic!("This DeriveChild call should have failed since it would have breached the PL0 non-inactive dpe context threshold.")
-            }
+            assert_error(
+                &mut model,
+                caliptra_drivers::CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED,
+                resp,
+            );
             break;
         }
 

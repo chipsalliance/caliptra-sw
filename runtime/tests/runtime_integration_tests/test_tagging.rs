@@ -1,10 +1,10 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{execute_dpe_cmd, run_rt_test};
+use crate::common::{assert_error, execute_dpe_cmd, run_rt_test};
 use caliptra_common::mailbox_api::{
     CommandId, GetTaggedTciReq, GetTaggedTciResp, MailboxReq, MailboxReqHeader, TagTciReq,
 };
-use caliptra_hw_model::{HwModel, ModelError};
+use caliptra_hw_model::HwModel;
 use dpe::{
     commands::{Command, DestroyCtxCmd},
     context::ContextHandle,
@@ -75,15 +75,10 @@ fn test_tagging_a_tagged_context() {
     let resp = model
         .mailbox_execute(u32::from(CommandId::DPE_TAG_TCI), cmd.as_bytes().unwrap())
         .unwrap_err();
-    if let ModelError::MailboxCmdFailed(code) = resp {
-        assert_eq!(
-            code,
-            u32::from(caliptra_drivers::CaliptraError::RUNTIME_CONTEXT_ALREADY_TAGGED)
-        );
-    }
-    assert_eq!(
-        model.soc_ifc().cptra_fw_error_non_fatal().read(),
-        u32::from(caliptra_drivers::CaliptraError::RUNTIME_CONTEXT_ALREADY_TAGGED)
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_CONTEXT_ALREADY_TAGGED,
+        resp,
     );
 }
 
@@ -113,15 +108,10 @@ fn test_duplicate_tag() {
     let resp = model
         .mailbox_execute(u32::from(CommandId::DPE_TAG_TCI), cmd.as_bytes().unwrap())
         .unwrap_err();
-    if let ModelError::MailboxCmdFailed(code) = resp {
-        assert_eq!(
-            code,
-            u32::from(caliptra_drivers::CaliptraError::RUNTIME_DUPLICATE_TAG)
-        );
-    }
-    assert_eq!(
-        model.soc_ifc().cptra_fw_error_non_fatal().read(),
-        u32::from(caliptra_drivers::CaliptraError::RUNTIME_DUPLICATE_TAG)
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_DUPLICATE_TAG,
+        resp,
     );
 }
 
@@ -141,15 +131,10 @@ fn test_get_tagged_tci_on_non_existent_tag() {
             cmd.as_bytes().unwrap(),
         )
         .unwrap_err();
-    if let ModelError::MailboxCmdFailed(code) = resp {
-        assert_eq!(
-            code,
-            u32::from(caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE)
-        );
-    }
-    assert_eq!(
-        model.soc_ifc().cptra_fw_error_non_fatal().read(),
-        u32::from(caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE)
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE,
+        resp,
     );
 }
 
@@ -167,15 +152,10 @@ fn test_tagging_inactive_context() {
     let resp = model
         .mailbox_execute(u32::from(CommandId::DPE_TAG_TCI), cmd.as_bytes().unwrap())
         .unwrap_err();
-    if let ModelError::MailboxCmdFailed(code) = resp {
-        assert_eq!(
-            code,
-            u32::from(caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE)
-        );
-    }
-    assert_eq!(
-        model.soc_ifc().cptra_fw_error_non_fatal().read(),
-        u32::from(caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE)
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE,
+        resp,
     );
 }
 
@@ -216,14 +196,9 @@ fn test_tagging_destroyed_context() {
             cmd.as_bytes().unwrap(),
         )
         .unwrap_err();
-    if let ModelError::MailboxCmdFailed(code) = resp {
-        assert_eq!(
-            code,
-            u32::from(caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE)
-        );
-    }
-    assert_eq!(
-        model.soc_ifc().cptra_fw_error_non_fatal().read(),
-        u32::from(caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE)
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE,
+        resp,
     );
 }
