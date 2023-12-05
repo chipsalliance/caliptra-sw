@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 use caliptra_builder::{
-    firmware::{self, fmc_tests::MOCK_RT_INTERACTIVE, FMC_WITH_UART, ROM_WITH_UART},
+    firmware::{self, fmc_tests::MOCK_RT_INTERACTIVE, FMC_WITH_UART},
     ImageOptions,
 };
 use caliptra_common::RomBootStatus::*;
@@ -19,6 +19,7 @@ use openssl::hash::{Hasher, MessageDigest};
 
 const TEST_CMD_READ_PCR_LOG: u32 = 0x1000_0000;
 const TEST_CMD_READ_FHT: u32 = 0x1000_0001;
+const TEST_CMD_PCRS_LOCKED: u32 = 0x1000_0004;
 
 const RT_ALIAS_MEASUREMENT_COMPLETE: u32 = 0x400;
 const RT_ALIAS_DERIVED_CDI_COMPLETE: u32 = 0x401;
@@ -35,7 +36,7 @@ const PCR2_AND_PCR3_EXTENDED_ID: u32 = (1 << PcrId::PcrId2 as u8) | (1 << PcrId:
 
 #[test]
 fn test_boot_status_reporting() {
-    let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
 
     let image = caliptra_builder::build_and_sign_image(
         &firmware::FMC_WITH_UART,
@@ -65,7 +66,7 @@ fn test_boot_status_reporting() {
 
 #[test]
 fn test_fht_info() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &MOCK_RT_INTERACTIVE,
@@ -96,7 +97,7 @@ fn test_fht_info() {
 
 #[test]
 fn test_pcr_log() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let image1 = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &MOCK_RT_INTERACTIVE,
@@ -229,6 +230,10 @@ fn test_pcr_log() {
 
     assert_eq!(pcr2_from_log, pcr2_from_hw);
     assert_eq!(pcr3_from_log, pcr3_from_hw);
+
+    // Also ensure PCR locks are configured correctly.
+    let result = hw.mailbox_execute(TEST_CMD_PCRS_LOCKED, &[]);
+    assert!(result.is_ok());
 }
 
 fn check_pcr_log_entry(

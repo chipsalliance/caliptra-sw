@@ -15,6 +15,7 @@ caliptra-registers = { workspace = true }
 caliptra-test-harness = { workspace = true }
 cfg-if.workspace = true
 zerocopy.workspace = true
+caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cfi", "cfi-counter" ] }
 
 [features]
 emu = ["caliptra-test-harness/emu"]
@@ -60,6 +61,11 @@ required-features = ["riscv"]
 [[bin]]
 name = "ecc384"
 path = "src/bin/ecc384_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "ecc384_sign_validation_failure"
+path = "src/bin/ecc384_sign_validation_failure_test.rs"
 required-features = ["riscv"]
 
 [[bin]]

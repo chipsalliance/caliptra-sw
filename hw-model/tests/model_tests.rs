@@ -10,6 +10,20 @@ fn run_fw_elf(elf: &[u8]) -> DefaultHwModel {
     let model = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
+            random_sram_puf: false,
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+    .unwrap();
+    model
+}
+
+fn run_fw_elf_with_rand_puf(elf: &[u8]) -> DefaultHwModel {
+    let rom = caliptra_builder::elf2rom(elf).unwrap();
+    let model = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
             ..Default::default()
         },
         ..Default::default()
@@ -117,6 +131,9 @@ fn test_write_to_rom() {
 
 #[test]
 fn test_iccm_double_bit_ecc_nmi_failure() {
+    // FPGA realtime model doesn't support ecc error injection
+    #![cfg_attr(feature = "fpga_realtime", ignore)]
+
     let elf =
         caliptra_builder::build_firmware_elf(&firmware::hw_model_tests::TEST_ICCM_DOUBLE_BIT_ECC)
             .unwrap();
@@ -140,6 +157,9 @@ fn test_iccm_double_bit_ecc_nmi_failure() {
 
 #[test]
 fn test_dccm_double_bit_ecc_nmi_failure() {
+    // FPGA realtime model doesn't support ecc error injection
+    #![cfg_attr(feature = "fpga_realtime", ignore)]
+
     let elf =
         caliptra_builder::build_firmware_elf(&firmware::hw_model_tests::TEST_DCCM_DOUBLE_BIT_ECC)
             .unwrap();
@@ -156,6 +176,87 @@ fn test_dccm_double_bit_ecc_nmi_failure() {
     );
     let ext_info = harness::ExtErrorInfo::from(soc_ifc.cptra_fw_extended_error_info().read());
     assert_eq!(ext_info.mcause, harness::EXCEPTION_CAUSE_LOAD_ACCESS_FAULT);
+}
+
+#[test]
+fn test_uninitialized_dccm_read() {
+    #![cfg_attr(not(feature = "verilator"), ignore)]
+
+    let mut model = run_fw_elf_with_rand_puf(
+        &caliptra_builder::build_firmware_elf(&firmware::hw_model_tests::TEST_UNITIALIZED_READ)
+            .unwrap(),
+    );
+
+    const DCCM_ADDR: u32 = 0x5000_0000;
+    const DCCM_SIZE: u32 = 128 * 1024;
+
+    model.soc_ifc().cptra_rsvd_reg().at(0).write(|_| DCCM_ADDR);
+    model.soc_ifc().cptra_rsvd_reg().at(1).write(|_| DCCM_SIZE);
+
+    model.step_until_exit_failure().unwrap();
+
+    let ext_info =
+        harness::ExtErrorInfo::from(model.soc_ifc().cptra_fw_extended_error_info().read());
+    assert_eq!(ext_info.mcause, harness::EXCEPTION_CAUSE_LOAD_ACCESS_FAULT);
+    assert_eq!(
+        ext_info.mscause,
+        harness::MCAUSE_LOAD_ACCESS_FAULT_MSCAUSE_DCCM_DOUBLE_BIT_ECC
+    );
+    assert!(model.soc_ifc().cptra_hw_error_fatal().read().dccm_ecc_unc());
+}
+
+#[test]
+fn test_uninitialized_iccm_read() {
+    #![cfg_attr(not(feature = "verilator"), ignore)]
+
+    let mut model = run_fw_elf_with_rand_puf(
+        &caliptra_builder::build_firmware_elf(&firmware::hw_model_tests::TEST_UNITIALIZED_READ)
+            .unwrap(),
+    );
+
+    const ICCM_ADDR: u32 = 0x4000_0000;
+    const ICCM_SIZE: u32 = 128 * 1024;
+
+    model.soc_ifc().cptra_rsvd_reg().at(0).write(|_| ICCM_ADDR);
+    model.soc_ifc().cptra_rsvd_reg().at(1).write(|_| ICCM_SIZE);
+
+    model.step_until_exit_failure().unwrap();
+
+    let ext_info =
+        harness::ExtErrorInfo::from(model.soc_ifc().cptra_fw_extended_error_info().read());
+    assert_eq!(
+        ext_info.mcause,
+        harness::NMI_CAUSE_DBUS_NON_BLOCKING_LOAD_ERROR
+    );
+    assert_eq!(ext_info.mscause, 0);
+}
+
+#[test]
+fn test_uninitialized_mbox_read() {
+    #![cfg_attr(not(feature = "verilator"), ignore)]
+
+    let mut model = run_fw_elf_with_rand_puf(
+        &caliptra_builder::build_firmware_elf(&firmware::hw_model_tests::TEST_UNITIALIZED_READ)
+            .unwrap(),
+    );
+
+    const MBOX_ADDR: u32 = 0x3000_0000;
+
+    model.soc_ifc().cptra_rsvd_reg().at(0).write(|_| MBOX_ADDR);
+    model.soc_ifc().cptra_rsvd_reg().at(1).write(|_| 1024);
+
+    assert!(!model
+        .soc_ifc()
+        .cptra_hw_error_non_fatal()
+        .read()
+        .mbox_ecc_unc());
+    // NOTE: CPU execution will continue after the ECC error
+    model.step_until_exit_success().unwrap();
+    assert!(model
+        .soc_ifc()
+        .cptra_hw_error_non_fatal()
+        .read()
+        .mbox_ecc_unc());
 }
 
 #[test]

@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use crate::bus_logger::{BusLogger, LogFile, NullBus};
+use crate::trace_path_or_env;
 use crate::EtrngResponse;
 use crate::{HwModel, TrngMode};
 use caliptra_emu_bus::Bus;
@@ -8,12 +9,12 @@ use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::ErrorInjectionMode;
 use caliptra_verilated::{AhbTxnType, CaliptraVerilated};
 use std::cell::{Cell, RefCell};
+use std::ffi::OsStr;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use crate::Output;
-use std::env;
 
 const DEFAULT_APB_PAUSER: u32 = 0x1;
 
@@ -68,10 +69,11 @@ struct AbsoluteEtrngResponse {
 }
 
 pub struct ModelVerilated {
-    v: CaliptraVerilated,
+    pub v: CaliptraVerilated,
 
     output: Output,
     trace_enabled: bool,
+    trace_path: Option<PathBuf>,
 
     trng_mode: TrngMode,
 
@@ -202,6 +204,7 @@ impl crate::HwModel for ModelVerilated {
             v,
             output,
             trace_enabled: false,
+            trace_path: trace_path_or_env(params.trace_path),
 
             trng_mode: desired_trng_mode,
 
@@ -218,6 +221,10 @@ impl crate::HwModel for ModelVerilated {
         };
 
         m.tracing_hint(true);
+
+        if params.random_sram_puf {
+            m.v.init_random_puf_state(&mut rand::thread_rng());
+        }
 
         m.v.input.cptra_pwrgood = true;
         m.v.next_cycle_high(1);
@@ -269,9 +276,9 @@ impl crate::HwModel for ModelVerilated {
         if self.trace_enabled != enable {
             self.trace_enabled = enable;
             if enable {
-                if let Ok(trace_path) = env::var("CPTRA_TRACE_PATH") {
-                    if trace_path.ends_with(".vcd") {
-                        self.v.start_tracing(&trace_path, 99).ok();
+                if let Some(trace_path) = &self.trace_path {
+                    if trace_path.extension() == Some(OsStr::new("vcd")) {
+                        self.v.start_tracing(trace_path.to_str().unwrap(), 99).ok();
                     } else {
                         self.log.borrow_mut().log = match LogFile::open(Path::new(&trace_path)) {
                             Ok(file) => Some(file),

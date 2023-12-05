@@ -28,6 +28,11 @@ pub struct caliptra_verilated_sig_in {
     pub itrng_data: u8,
     pub itrng_valid: bool,
     pub sram_error_injection_mode: u8,
+    pub ext_iccm_we: bool,
+    pub ext_dccm_we: bool,
+    pub ext_mbox_we: bool,
+    pub ext_xccm_addr: u32,
+    pub ext_xccm_wdata: [u32; 5usize],
 }
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
@@ -50,6 +55,7 @@ pub struct caliptra_verilated_sig_out {
     pub uc_hrdata: u64,
     pub uc_hready: bool,
     pub uc_hresp: bool,
+    pub cptra_error_fatal: bool,
 }
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]

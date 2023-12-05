@@ -142,12 +142,6 @@ pub fn build_firmware_elfs_uncached<'a>(
             }
             features_csv.push_str("riscv");
         }
-        if cfg!(feature = "fpga_realtime") {
-            if !features_csv.is_empty() {
-                features_csv.push(',');
-            }
-            features_csv.push_str("fpga_realtime");
-        }
 
         let workspace_dir = workspace_dir.unwrap_or_else(|| Path::new(THIS_WORKSPACE_DIR));
 

@@ -14,11 +14,14 @@ caliptra-drivers.workspace = true
 caliptra-image-types = { workspace = true, default-features = false }
 memoffset.workspace = true
 zerocopy.workspace = true
-caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cfi"] }
+caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cfi", "cfi-counter" ] }
+caliptra-cfi-derive.workspace = true
 
 [dev-dependencies]
 caliptra_common = { path = "../../common", default-features = false }
+caliptra-cfi-lib = { workspace = true, features = ["cfi-test" ] }
 
 [features]
 default = ["std"]
 std = ["caliptra-image-types/std"]
+no-cfi = []

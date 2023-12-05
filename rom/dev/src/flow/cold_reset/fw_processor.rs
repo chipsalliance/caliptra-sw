@@ -22,7 +22,7 @@ use caliptra_cfi_lib::CfiCounter;
 use caliptra_common::capabilities::Capabilities;
 use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::{
-    CapabilitiesResp, CommandId, MailboxReqHeader, MailboxResp, MailboxRespHeader,
+    CapabilitiesResp, CommandId, MailboxReqHeader, MailboxRespHeader, Response,
     StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_common::pcr::PCR_ID_STASH_MEASUREMENT;
@@ -209,7 +209,7 @@ impl FirmwareProcessor {
                         Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
 
                         let mut resp = FipsVersionCmd::execute(soc_ifc)?;
-                        resp.populate_chksum()?;
+                        resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
                     }
                     CommandId::SELF_TEST_START => {
@@ -221,8 +221,8 @@ impl FirmwareProcessor {
                             txn.complete(false)?;
                         } else {
                             run_fips_tests(env)?;
-                            let mut resp = MailboxResp::default();
-                            resp.populate_chksum()?;
+                            let mut resp = MailboxRespHeader::default();
+                            resp.populate_chksum();
                             txn.send_response(resp.as_bytes())?;
                             self_test_in_progress = true;
                         }
@@ -235,8 +235,8 @@ impl FirmwareProcessor {
                             // TODO: set non-fatal error register?
                             txn.complete(false)?;
                         } else {
-                            let mut resp = MailboxResp::default();
-                            resp.populate_chksum()?;
+                            let mut resp = MailboxRespHeader::default();
+                            resp.populate_chksum();
                             txn.send_response(resp.as_bytes())?;
                             self_test_in_progress = false;
                         }
@@ -245,8 +245,8 @@ impl FirmwareProcessor {
                         let mut request = MailboxReqHeader::default();
                         Self::copy_req_verify_chksum(&mut txn, request.as_bytes_mut())?;
 
-                        let mut resp = MailboxResp::default();
-                        resp.populate_chksum()?;
+                        let mut resp = MailboxRespHeader::default();
+                        resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
 
                         // Causing a ROM Fatal Error will zeroize the module
@@ -259,11 +259,11 @@ impl FirmwareProcessor {
                         let mut capabilities = Capabilities::default();
                         capabilities |= Capabilities::ROM_BASE;
 
-                        let mut resp = MailboxResp::Capabilities(CapabilitiesResp {
+                        let mut resp = CapabilitiesResp {
                             hdr: MailboxRespHeader::default(),
                             capabilities: capabilities.to_bytes(),
-                        });
-                        resp.populate_chksum()?;
+                        };
+                        resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
                         continue;
                     }
@@ -279,11 +279,11 @@ impl FirmwareProcessor {
                         Self::stash_measurement(pcr_bank, env.sha384, persistent_data, &mut txn)?;
 
                         // Generate and send response (with FIPS approved status)
-                        let mut resp = MailboxResp::StashMeasurement(StashMeasurementResp {
+                        let mut resp = StashMeasurementResp {
                             hdr: MailboxRespHeader::default(),
                             dpe_result: 0, // DPE_STATUS_SUCCESS
-                        });
-                        resp.populate_chksum()?;
+                        };
+                        resp.populate_chksum();
                         txn.send_response(resp.as_bytes())?;
                     }
                     _ => {
@@ -335,10 +335,12 @@ impl FirmwareProcessor {
             image: venv.image,
         };
 
-        // Random delays for CFI glitch protection.
-        for _ in 0..4 {
-            CfiCounter::delay();
-        }
+        // Random delay for CFI glitch protection.
+        CfiCounter::delay();
+        CfiCounter::delay();
+        CfiCounter::delay();
+        CfiCounter::delay();
+
         let mut verifier = ImageVerifier::new(venv);
         let info = verifier.verify(manifest, img_bundle_sz, ResetReason::ColdReset)?;
 

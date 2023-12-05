@@ -143,27 +143,28 @@ Table: `GET_IDEV_CERT` output arguments
 | cert_size   | u32        | Length in bytes of the cert field in use for the IDevId certificate
 | cert        | u8[1024]   | DER-encoded IDevID CERT
 
-### GET\_IDEV\_CSR
+### POPULATE\_IDEV\_CERT
 
-ROM exposes a command to get a self-signed IDEVID CSR.
-GET\_IDEV\_CSR is not exposed by runtime firmware.
+Exposes a command that allows the SoC to provide a DER-encoded
+IDevId certificate on every boot. The IDevId certificate is added 
+to the start of the certificate chain.
 
-Command Code: `0x4944_4556` ("IDEV")
+Command Code: `0x4944_4550` ("IDEP")
 
-Table: `GET_IDEV_CSR` input arguments
+Table: `POPULATE_IDEV_CERT` input arguments
 
-| **Name**  | **Type**      | **Description**
-| --------  | --------      | ---------------
-| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| **Name**    | **Type**      | **Description**
+| --------    | --------      | ---------------
+| chksum      | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| cert_size   | u32           | Size of the DER-encoded IDevId certificate
+| cert        | u8[1024]      | DER-encoded IDevID CERT
 
-Table: `GET_IDEV_CSR` output arguments
+Table: `POPULATE_IDEV_CERT` output arguments
 
-| **Name**    | **Type**   | **Description**
-| --------    | --------   | ---------------
-| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips_status | u32        | Indicates if the command is FIPS approved or an error
-| data_size   | u32        | Length in bytes of the valid data in the data field
-| data        | u8[...]    | DER-encoded IDevID CSR
+| **Name**    | **Type** | **Description**
+| --------    | -------- | ---------------
+| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32      | Indicates if the command is FIPS approved or an error
 
 ### GET\_IDEV\_INFO
 
@@ -188,8 +189,7 @@ Table: `GET_IDEV_INFO` output arguments
 
 ### GET\_LDEV\_CERT
 
-ROM exposes a command to get a self-signed LDevID Certificate signed by IDevID.
-GET\_LDEV\_CERT is not exposed by runtime firmware.
+Exposes a command to get a self-signed LDevID Certificate signed by IDevID.
 
 Command Code: `0x4C44_4556` ("LDEV")
 
@@ -207,6 +207,48 @@ Table: `GET_LDEV_CERT` output arguments
 | fips_status | u32        | Indicates if the command is FIPS approved or an error
 | data_size   | u32        | Length in bytes of the valid data in the data field
 | data        | u8[...]    | DER-encoded LDevID Certificate
+
+### GET\_FMC\_ALIAS\_CERT
+
+Exposes a command to get a self-signed FMC alias Certificate signed by LDevID.
+
+Command Code: `0x4345_5246` ("CERF")
+
+Table: `GET_FMC_ALIAS_CERT` input arguments
+
+| **Name**  | **Type**      | **Description**
+| --------  | --------      | ---------------
+| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+
+Table: `GET_FMC_ALIAS_CERT` output arguments
+
+| **Name**    | **Type**   | **Description**
+| --------    | --------   | ---------------
+| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32        | Indicates if the command is FIPS approved or an error
+| data_size   | u32        | Length in bytes of the valid data in the data field
+| data        | u8[...]    | DER-encoded FMC alias Certificate
+
+### GET\_RT\_ALIAS\_CERT
+
+Exposes a command to get a self-signed Runtime alias Certificate signed by the FMC alias.
+
+Command Code: `0x4345_5252` ("CERR")
+
+Table: `GET_RT_ALIAS_CERT` input arguments
+
+| **Name**  | **Type**      | **Description**
+| --------  | --------      | ---------------
+| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+
+Table: `GET_RT_ALIAS_CERT` output arguments
+
+| **Name**    | **Type**   | **Description**
+| --------    | --------   | ---------------
+| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32        | Indicates if the command is FIPS approved or an error
+| data_size   | u32        | Length in bytes of the valid data in the data field
+| data        | u8[...]    | DER-encoded Runtime alias Certificate
 
 ### ECDSA384\_SIGNATURE\_VERIFY
 
@@ -359,6 +401,35 @@ Table: `EXTEND_PCR` input arguments
 
 `EXTEND_PCR` returns no output arguments.
 
+Note that extensions made into Caliptra's PCRs are _not_ appended to Caliptra's internal PCR log.
+
+### GET\_PCR\_LOG
+
+Get Caliptra's internal PCR log
+
+Command Code: `0x504C_4F47` ("PLOG")
+
+Table: `GET_PCR_LOG` input arguments
+
+| **Name**  | **Type**      | **Description**
+| --------  | --------      | ---------------
+| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+
+Table: `GET_PCR_LOG` output arguments
+
+| **Name**    | **Type**   | **Description**
+| --------    | --------   | ---------------
+| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32        | Indicates if the command is FIPS approved or an error
+| data_size   | u32        | Length in bytes of the valid data in the data field
+| data        | u8[...]    | Internal PCR event log
+
+See [pcr_log.rs](../drivers/src/pcr_log.rs) for the format of the log.
+
+Note: the log contents reflect PCR extensions made autonomously by Caliptra during boot. The log contents
+are not preserved across cold or update resets. Callers who wish to verify PCRs that are autonomously
+extended during update reset should cache the log before triggering an update reset.
+
 ### INCREMENT\_PCR\_RESET\_COUNTER
 
 Increment the reset counter for a PCR
@@ -373,6 +444,48 @@ Table: `INCREMENT_PCR_RESET_COUNTER` input arguments
 | index        | u32           | Index of the PCR for which to increment the reset counter
 
 `INCREMENT_PCR_RESET_COUNTER` returns no output arguments.
+
+### DPE\_TAG\_TCI
+
+Associates a unique tag with a DPE context
+
+Command Code: `0x5451_4754` ("TAGT")
+
+Table: `DPE_TAG_TCI` input arguments
+
+| **Name**     | **Type**      | **Description**
+| --------     | --------      | ---------------
+| chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| handle       | u8[16]        | DPE context handle 
+| tag          | u32           | A unique tag which the handle will be associated with 
+
+Table: `DPE_TAG_TCI` output arguments
+
+| **Name**    | **Type** | **Description**
+| --------    | -------- | ---------------
+| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32      | Indicates if the command is FIPS approved or an error
+
+### DPE\_GET\_TAGGED\_TCI
+
+Retrieves the TCI measurements corresponding to the tagged DPE context 
+
+Command Code: `0x4754_4744` ("GTGD")
+
+Table: `DPE_GET_TAGGED_TCI` input arguments
+
+| **Name**     | **Type**      | **Description**
+| --------     | --------      | ---------------
+| chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| tag          | u32           | A unique tag corresponding to a DPE context
+
+Table: `DPE_GET_TAGGED_TCI` output arguments
+
+| **Name**          | **Type**       | **Description**
+| --------          | --------       | ---------------
+| chksum            | u32            | Checksum over other input arguments, computed by the caller. Little endian.
+| tci_cumulative    | u8[48]         | Hash of all the input data provided to the context
+| tci_current       | u8[48]         | Most recent measurement made into the context
 
 ## Checksum
 
@@ -443,7 +556,7 @@ this case, the new Runtime Firmware must:
 1. Verify that the “Latest TCI” field of the TCI Node which contains the
    Runtime Journey PCR (TYPE = RTJM, “Internal TCI” flag is set) matches the
    “Latest” Runtime PCR value from PCRX
-    1. Ensure `SHA384_HASH(0x00..00, TCI from SRAM) == PCR3 value`
+    1. Ensure `SHA384_HASH(0x00..00, TCI from SRAM) == RT_FW_JOURNEY_PCR`
 1. If any validations fail, runtime firmware will execute the
    `DISABLE_ATTESTATION` command.
 
@@ -459,7 +572,8 @@ Caliptra models PAUSER callers to its mailbox as having 1 of 2 privilege levels:
 * PL0 - High Privilege. Only 1 PAUSER in the SoC may be at PL0. The PL0 PAUSER
   is denoted in the signed Caliptra firmware image. The PL0 PAUSER may call any
   supported DPE commands. Only PL0 can use the CertifyKey command. Success of the
-  CertifyKey command signifies to the caller that it is at PL0.
+  CertifyKey command signifies to the caller that it is at PL0. Only PL0 can use 
+  the POPULATE_IDEV_CERT mailbox command. 
 * PL1 - Restricted Privilege. All other PAUSERs in the SoC are PL1. Caliptra
   SHALL fail any calls to the DPE CertifyKey command by PL1 callers.
   PL1 callers should use the CertifyCsr command instead.
@@ -497,7 +611,6 @@ details specific requirements for the Caliptra DPE implementation.
 | Simulation Context Support | Yes                            | Whether Caliptra implements the optional Simulation Contexts feature
 | Supports ExtendTci         | Yes                            | Whether Caliptra implements the optional ExtendTci command
 | Supports Auto Init         | Yes                            | Whether Caliptra will automatically initialize the default DPE context.
-| Supports Tagging           | Yes                            | Whether Caliptra implements the optional TCI tagging feature.
 | Supports Rotate Context    | Yes                            | Whether Caliptra supports the optional RotateContextHandle command.
 | CertifyKey Alias Key       | Caliptra Runtime Alias Key     | The key that will be used to sign certificates produced by the DPE CertifyKey command.
 
@@ -516,12 +629,10 @@ Caliptra DPE supports the following commands
 * DestroyContext
 * GetCertificateChain
 
-In addition, Caliptra supports the following profile-defined commands:
+In addition, Caliptra supports the following profile-defined command:
 
 * ExtendTci: Extend a TCI measurement made by DeriveChild to provide additional
              measurement data.
-* TagTci: Associate a TCI node with a unique tag
-* GetTaggedTci: Look up the measurements in a TCI node by tag
 
 ### DPE State Atomicity
 
@@ -544,6 +655,10 @@ Caliptra Runtime firmware is responsible for initializing DPE’s Default Contex
 * CONTEXT\_HANDLE = Default context
 * Set flag in the TCI Node that this node was created by the DPE implementation.
   This will be used to set the VENDOR\_INFO field in TcbInfo to “VNDR”.
+
+When initializing DPE, Runtime Firmware shall also add each of ROM's stashed 
+measurements to DPE. To do so, it should call DeriveChild for each measurement
+in the measurement log. 
 
 *Note: the Runtime CDI (from KeyVault) will be used as-needed and will not be
 accessed during initialization.*
@@ -582,11 +697,10 @@ To derive an asymmetric key for Sign and CertifyKey, RT will
 | Byte Offset | Bits  | Name           | Description
 | ----------- | ----- | ------------   | -------------
 | 0x02        | 15:0  | Parent Index   | Index of the TCI node that is the parent of this node. 0xFF if this node is the root.
-| 0x04        | 31:0  | Node Tag       | Tag of this node provided by the TagTci command.
-| 0x08        | 159:0 | Context Handle | DPE context handle referring to this node
-| 0x1C        | 31    | Internal TCI   | This TCI was measured by Runtime Firmware itself
+| 0x04        | 159:0 | Context Handle | DPE context handle referring to this node
+| 0x18        | 31    | Internal TCI   | This TCI was measured by Runtime Firmware itself
 |             | 30:0  | Reserved       | Reserved flag bits
-| 0x20        | 383:0 | Latest TCI     | The latest `INPUT_DATA` extended into this TCI by ExtendTci or DeriveChild
+| 0x1C        | 383:0 | Latest TCI     | The latest `INPUT_DATA` extended into this TCI by ExtendTci or DeriveChild
 
 Table: `TCI_NODE_DATA` for `DPE_PROFILE_IROT_P384_SHA384`
 
@@ -603,7 +717,7 @@ The DPE Runtime Alias Key SHALL sign DPE leaf certificates and CSRs.
 
 The DPE `GET_CERTIFICATE_CHAIN` command shall return the following certificates:
 
-* IDevID
+* IDevID (Optionally added by the SoC via POPULATE_IDEV_CERT)
 * LDevID
 * FMC Alias
 * Runtime Alias

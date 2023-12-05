@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::{CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers};
+use crate::{CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PL0_PAUSER_FLAG};
 use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp, MailboxRespHeader};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use crypto::{AlgLen, Crypto};
@@ -10,18 +10,20 @@ use dpe::{
     },
     context::{Context, ContextState},
     response::{Response, ResponseHdr},
-    DpeInstance,
+    DpeInstance, U8Bool, MAX_HANDLES,
 };
-use zerocopy::FromBytes;
+use zerocopy::{AsBytes, FromBytes};
 
 pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
-    const PL0_PAUSER_FLAG: u32 = 1;
     pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 8;
     pub const PL1_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
 
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        if let Some(cmd) = InvokeDpeReq::read_from(cmd_args) {
+        if cmd_args.len() <= core::mem::size_of::<InvokeDpeReq>() {
+            let mut cmd = InvokeDpeReq::default();
+            cmd.as_bytes_mut()[..cmd_args.len()].copy_from_slice(cmd_args);
+
             // Validate data length
             if cmd.data_size as usize > cmd.data.len() {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
@@ -50,7 +52,10 @@ impl InvokeDpeCmd {
                 .map_err(|_| CaliptraError::RUNTIME_INVOKE_DPE_FAILED)?;
             let flags = pdata.manifest1.header.flags;
 
-            let mut dpe = &mut drivers.persistent_data.get_mut().dpe;
+            let pdata_mut = drivers.persistent_data.get_mut();
+            let mut dpe = &mut pdata_mut.dpe;
+            let mut context_has_tag = &mut pdata_mut.context_has_tag;
+            let mut context_tags = &mut pdata_mut.context_tags;
             let resp = match command {
                 Command::GetProfile => Ok(Response::GetProfile(
                     dpe.get_profile(&mut env.platform)
@@ -85,12 +90,24 @@ impl InvokeDpeCmd {
                     }
                     cmd.execute(dpe, &mut env, locality)
                 }
+                Command::DestroyCtx(cmd) => {
+                    let destroy_ctx_resp = cmd.execute(dpe, &mut env, locality);
+                    // clear tags for destroyed contexts
+                    (0..MAX_HANDLES).for_each(|i| {
+                        if i < dpe.contexts.len()
+                            && i < context_has_tag.len()
+                            && i < context_tags.len()
+                            && dpe.contexts[i].state != ContextState::Active
+                        {
+                            context_has_tag[i] = U8Bool::new(false);
+                            context_tags[i] = 0;
+                        }
+                    });
+                    destroy_ctx_resp
+                }
                 Command::Sign(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::RotateCtx(cmd) => cmd.execute(dpe, &mut env, locality),
-                Command::DestroyCtx(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::ExtendTci(cmd) => cmd.execute(dpe, &mut env, locality),
-                Command::TagTci(cmd) => cmd.execute(dpe, &mut env, locality),
-                Command::GetTaggedTci(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::GetCertificateChain(cmd) => cmd.execute(dpe, &mut env, locality),
             };
 
@@ -98,7 +115,13 @@ impl InvokeDpeCmd {
             // don't fail the mailbox command.
             let resp_struct = match resp {
                 Ok(r) => r,
-                Err(e) => Response::Error(ResponseHdr::new(e)),
+                Err(e) => {
+                    // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
+                    if let Some(ext_err) = e.get_error_detail() {
+                        drivers.soc_ifc.set_fw_extended_error(ext_err);
+                    }
+                    Response::Error(ResponseHdr::new(e))
+                }
             };
 
             let resp_bytes = resp_struct.as_bytes();
@@ -147,6 +170,6 @@ impl InvokeDpeCmd {
     }
 
     fn is_caller_pl1(pl0_pauser: u32, flags: u32, locality: u32) -> bool {
-        flags & Self::PL0_PAUSER_FLAG == 0 && locality != pl0_pauser
+        flags & PL0_PAUSER_FLAG == 0 && locality != pl0_pauser
     }
 }

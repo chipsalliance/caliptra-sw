@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{
-    firmware::{rom_tests::TEST_FMC_WITH_UART, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART},
+    firmware::{self, rom_tests::TEST_FMC_WITH_UART, APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
 };
 use caliptra_common::memory_layout::{ICCM_ORG, ICCM_SIZE};
@@ -76,7 +76,7 @@ fn test_invalid_manifest_marker() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -96,7 +96,7 @@ fn test_invalid_manifest_size() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -120,7 +120,7 @@ fn test_preamble_zero_vendor_pubkey_digest() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -144,7 +144,7 @@ fn test_preamble_vendor_pubkey_digest_mismatch() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -159,22 +159,22 @@ fn test_preamble_owner_pubkey_digest_mismatch() {
         helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
 
     assert_eq!(
-        ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH.into()
-        ),
+        ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH
+        )),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
 #[test]
 fn test_preamble_vendor_ecc_pubkey_revocation() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     const LAST_KEY_IDX: u32 = VENDOR_ECC_KEY_COUNT - 1;
     const VENDOR_CONFIG_LIST: [ImageGeneratorVendorConfig; VENDOR_ECC_KEY_COUNT as usize] = [
         VENDOR_CONFIG_KEY_0,
@@ -214,7 +214,7 @@ fn test_preamble_vendor_ecc_pubkey_revocation() {
             // Last key is never revoked.
             hw.upload_firmware(&image_bundle.to_bytes().unwrap())
                 .unwrap();
-            hw.step_until_boot_status(ColdResetComplete.into(), true);
+            hw.step_until_boot_status(u32::from(ColdResetComplete), true);
         } else {
             assert_eq!(
                 ModelError::MailboxCmdFailed(
@@ -226,7 +226,7 @@ fn test_preamble_vendor_ecc_pubkey_revocation() {
 
             assert_eq!(
                 hw.soc_ifc().cptra_boot_status().read(),
-                FwProcessorManifestLoadComplete.into()
+                u32::from(FwProcessorManifestLoadComplete)
             );
         }
     }
@@ -234,7 +234,10 @@ fn test_preamble_vendor_ecc_pubkey_revocation() {
 
 #[test]
 fn test_preamble_vendor_lms_pubkey_revocation() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    // this test is too slow to run in the verilator nightly
+    #![cfg_attr(all(not(feature = "slow_tests"), feature = "verilator"), ignore)]
+
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     const LAST_KEY_IDX: u32 = VENDOR_LMS_KEY_COUNT - 1;
 
     for idx in 0..VENDOR_LMS_KEY_COUNT {
@@ -272,7 +275,7 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
             // Last key is never revoked.
             hw.upload_firmware(&image_bundle.to_bytes().unwrap())
                 .unwrap();
-            hw.step_until_boot_status(ColdResetComplete.into(), true);
+            hw.step_until_boot_status(u32::from(ColdResetComplete), true);
         } else {
             assert_eq!(
                 ModelError::MailboxCmdFailed(
@@ -287,7 +290,10 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
 
 #[test]
 fn test_preamble_vendor_lms_optional_no_pubkey_revocation_check() {
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    // this test is too slow to run in the verilator nightly
+    #![cfg_attr(all(not(feature = "slow_tests"), feature = "verilator"), ignore)]
+
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
 
     for idx in 0..VENDOR_LMS_KEY_COUNT {
         let vendor_config = ImageGeneratorVendorConfig {
@@ -322,7 +328,7 @@ fn test_preamble_vendor_lms_optional_no_pubkey_revocation_check() {
 
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap();
-        hw.step_until_boot_status(ColdResetComplete.into(), true);
+        hw.step_until_boot_status(u32::from(ColdResetComplete), true);
     }
 }
 
@@ -342,7 +348,7 @@ fn test_preamble_vendor_ecc_pubkey_out_of_bounds() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -377,7 +383,7 @@ fn test_preamble_vendor_lms_optional_no_pubkey_out_of_bounds_check() {
 
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
-    hw.step_until_boot_status(ColdResetComplete.into(), true);
+    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 }
 
 #[test]
@@ -403,7 +409,7 @@ fn test_header_verify_vendor_sig_zero_ecc_pubkey() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
     drop(hw);
 
@@ -427,7 +433,7 @@ fn test_header_verify_vendor_sig_zero_ecc_pubkey() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -450,7 +456,7 @@ fn test_header_verify_vendor_sig_zero_ecc_signature() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
     drop(hw);
 
@@ -471,7 +477,7 @@ fn test_header_verify_vendor_sig_zero_ecc_signature() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -502,7 +508,7 @@ fn test_header_verify_vendor_ecc_sig_mismatch() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
     drop(hw);
 
@@ -537,7 +543,7 @@ fn test_header_verify_vendor_ecc_sig_mismatch() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -588,7 +594,7 @@ fn test_header_verify_vendor_lms_sig_mismatch() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -610,7 +616,7 @@ fn test_header_verify_vendor_lms_optional_no_sig_mismatch_check() {
         [Default::default(); 6];
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
-    hw.step_until_boot_status(ColdResetComplete.into(), true);
+    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
     drop(hw);
 
     let fuses = caliptra_hw_model::Fuses {
@@ -627,7 +633,7 @@ fn test_header_verify_vendor_lms_optional_no_sig_mismatch_check() {
 
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
-    hw.step_until_boot_status(ColdResetComplete.into(), true);
+    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 }
 
 #[test]
@@ -697,7 +703,7 @@ fn test_header_verify_owner_lms_optional_no_sig_mismatch_check() {
         .digest = [Default::default(); 6];
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
-    hw.step_until_boot_status(ColdResetComplete.into(), true);
+    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
     drop(hw);
 
     let fuses = caliptra_hw_model::Fuses {
@@ -713,7 +719,7 @@ fn test_header_verify_owner_lms_optional_no_sig_mismatch_check() {
 
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
-    hw.step_until_boot_status(ColdResetComplete.into(), true);
+    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 }
 
 #[test]
@@ -736,8 +742,11 @@ fn test_header_verify_vendor_ecc_pub_key_in_preamble_and_header() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
+
+    #[cfg(feature = "verilator")]
+    assert!(hw.v.output.cptra_error_fatal);
 }
 
 #[test]
@@ -779,7 +788,7 @@ fn test_header_verify_vendor_lms_optional_no_pub_key_in_preamble_and_header_chec
 
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
-    hw.step_until_boot_status(ColdResetComplete.into(), true);
+    hw.step_until_boot_status(u32::from(ColdResetComplete), true);
 }
 
 #[test]
@@ -793,7 +802,7 @@ fn test_header_verify_owner_sig_zero_fuses() {
 
     let fuses = caliptra_hw_model::Fuses::default();
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -838,7 +847,7 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_x() {
         ..Default::default()
     };
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -860,7 +869,7 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_x() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -891,7 +900,7 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_y() {
         ..Default::default()
     };
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -913,7 +922,7 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_y() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -935,7 +944,7 @@ fn test_header_verify_owner_ecc_sig_zero_signature_r() {
         ..Default::default()
     };
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -960,7 +969,7 @@ fn test_header_verify_owner_ecc_sig_zero_signature_r() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -982,7 +991,7 @@ fn test_header_verify_owner_ecc_sig_zero_signature_s() {
         ..Default::default()
     };
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -1007,7 +1016,7 @@ fn test_header_verify_owner_ecc_sig_zero_signature_s() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1029,7 +1038,7 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_r() {
         ..Default::default()
     };
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -1054,7 +1063,7 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_r() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1076,7 +1085,7 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_s() {
         ..Default::default()
     };
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -1101,7 +1110,7 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_s() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1124,7 +1133,7 @@ fn test_toc_invalid_entry_count() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1145,7 +1154,7 @@ fn test_toc_invalid_toc_digest() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1241,7 +1250,7 @@ fn test_toc_fmc_range_overlap() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1270,7 +1279,7 @@ fn test_toc_fmc_range_incorrect_order() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1292,7 +1301,7 @@ fn test_fmc_rt_load_address_range_overlap() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
     drop(hw);
 
@@ -1312,7 +1321,7 @@ fn test_fmc_rt_load_address_range_overlap() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1332,7 +1341,7 @@ fn test_fmc_digest_mismatch() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1351,7 +1360,7 @@ fn test_fmc_invalid_load_addr_before_iccm() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1370,7 +1379,7 @@ fn test_fmc_invalid_load_addr_after_iccm() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1403,7 +1412,7 @@ fn test_fmc_load_addr_unaligned() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1422,7 +1431,7 @@ fn test_fmc_invalid_entry_point_before_iccm() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1441,7 +1450,7 @@ fn test_fmc_invalid_entry_point_after_iccm() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1461,7 +1470,7 @@ fn test_fmc_entry_point_unaligned() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1496,7 +1505,7 @@ fn test_fmc_svn_greater_than_32() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1522,16 +1531,16 @@ fn test_fmc_svn_less_than_min_svn() {
     };
     let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
     assert_eq!(
-        ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_MIN_SUPPORTED.into()
-        ),
+        ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_MIN_SUPPORTED
+        )),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1558,16 +1567,16 @@ fn test_fmc_svn_less_than_fuse_svn() {
 
     let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
     assert_eq!(
-        ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_FUSE.into()
-        ),
+        ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_FUSE
+        )),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1591,7 +1600,9 @@ fn test_toc_rt_size_zero() {
         runtime_new_size,
     );
     assert_eq!(
-        ModelError::MailboxCmdFailed(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SIZE_ZERO.into()),
+        ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SIZE_ZERO
+        )),
         hw.upload_firmware(&image).unwrap_err()
     );
 }
@@ -1604,16 +1615,16 @@ fn test_runtime_digest_mismatch() {
     // Change the FMC image.
     image_bundle.runtime[0..4].copy_from_slice(0xDEADBEEFu32.as_bytes());
     assert_eq!(
-        ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH.into()
-        ),
+        ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH
+        )),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
     );
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1626,15 +1637,15 @@ fn test_runtime_invalid_load_addr_before_iccm() {
         - (image_bundle.manifest.fmc.load_addr - ICCM_ORG + image_bundle.manifest.runtime.size);
     let image = update_load_addr(&mut image_bundle, false, rt_new_load_addr);
     assert_eq!(
-        ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID.into()
-        ),
+        ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID
+        )),
         hw.upload_firmware(&image).unwrap_err()
     );
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1645,15 +1656,15 @@ fn test_runtime_invalid_load_addr_after_iccm() {
 
     let image = update_load_addr(&mut image_bundle, false, ICCM_END_ADDR + 1);
     assert_eq!(
-        ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID.into()
-        ),
+        ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID
+        )),
         hw.upload_firmware(&image).unwrap_err()
     );
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1664,9 +1675,9 @@ fn test_runtime_not_contained_in_iccm() {
 
     let image = update_load_addr(&mut image_bundle, false, ICCM_END_ADDR - 3);
     assert_eq!(
-        ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID.into()
-        ),
+        ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID
+        )),
         hw.upload_firmware(&image).unwrap_err()
     );
 }
@@ -1678,15 +1689,15 @@ fn test_runtime_load_addr_unaligned() {
     let load_addr = image_bundle.manifest.runtime.load_addr;
     let image = update_load_addr(&mut image_bundle, false, load_addr + 1);
     assert_eq!(
-        ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_UNALIGNED.into()
-        ),
+        ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_UNALIGNED
+        )),
         hw.upload_firmware(&image).unwrap_err()
     );
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1697,15 +1708,15 @@ fn test_runtime_invalid_entry_point_before_iccm() {
 
     let image = update_entry_point(&mut image_bundle, false, ICCM_ORG - 4);
     assert_eq!(
-        ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID.into()
-        ),
+        ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID
+        )),
         hw.upload_firmware(&image).unwrap_err()
     );
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1716,15 +1727,15 @@ fn test_runtime_invalid_entry_point_after_iccm() {
 
     let image = update_entry_point(&mut image_bundle, false, ICCM_END_ADDR + 1);
     assert_eq!(
-        ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID.into()
-        ),
+        ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID
+        )),
         hw.upload_firmware(&image).unwrap_err()
     );
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1735,15 +1746,15 @@ fn test_runtime_entry_point_unaligned() {
     let entry_point = image_bundle.manifest.runtime.entry_point;
     let image = update_entry_point(&mut image_bundle, false, entry_point + 1);
     assert_eq!(
-        ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_UNALIGNED.into()
-        ),
+        ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_UNALIGNED
+        )),
         hw.upload_firmware(&image).unwrap_err()
     );
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1777,7 +1788,7 @@ fn test_runtime_svn_greater_than_max() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1813,7 +1824,7 @@ fn test_runtime_svn_less_than_min_svn() {
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
@@ -1848,19 +1859,19 @@ fn test_runtime_svn_less_than_fuse_svn() {
     );
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_fatal().read(),
-        CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE.into()
+        u32::from(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE)
     );
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        FwProcessorManifestLoadComplete.into()
+        u32::from(FwProcessorManifestLoadComplete)
     );
 }
 
 #[test]
 fn cert_test_with_custom_dates() {
     let fuses = Fuses::default();
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -1905,13 +1916,10 @@ fn cert_test_with_custom_dates() {
         .write(|_| flags.bits());
 
     // Download the CSR from the mailbox.
-    let _ = helpers::get_csr(&mut hw);
+    let idevid_cert_bytes = helpers::get_csr(&mut hw).unwrap();
 
     hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-        .unwrap();
-
-    hw.step_until_output_contains("[exit] Launching FMC")
         .unwrap();
 
     hw.mailbox_execute(0x1000_0001, &[]).unwrap();
@@ -1921,7 +1929,7 @@ fn cert_test_with_custom_dates() {
     let output = String::from_utf8_lossy(&output);
 
     // Get the idevid cert.
-    let idevid_cert = idevid_cert(&output);
+    let idevid_cert = idevid_cert(&idevid_cert_bytes);
 
     // Get the ldevid cert.
     let ldevid_cert = ldevid_cert(&idevid_cert, &output);
@@ -1938,7 +1946,7 @@ fn cert_test_with_custom_dates() {
 #[test]
 fn cert_test() {
     let fuses = Fuses::default();
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -1966,13 +1974,10 @@ fn cert_test() {
         .write(|_| flags.bits());
 
     // Download the CSR from the mailbox.
-    let _ = helpers::get_csr(&mut hw);
+    let csr_bytes = helpers::get_csr(&mut hw).unwrap();
 
     hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-        .unwrap();
-
-    hw.step_until_output_contains("[exit] Launching FMC")
         .unwrap();
 
     hw.mailbox_execute(0x1000_0001, &[]).unwrap();
@@ -1982,7 +1987,7 @@ fn cert_test() {
     let output = String::from_utf8_lossy(&output);
 
     // Get the idevid cert.
-    let idevid_cert = idevid_cert(&output);
+    let idevid_cert = idevid_cert(&csr_bytes);
 
     // Get the ldevid cert.
     let ldevid_cert = ldevid_cert(&idevid_cert, &output);
@@ -2001,7 +2006,7 @@ fn cert_test_with_ueid() {
     fuses.idevid_cert_attr[IdevidCertAttr::ManufacturerSerialNumber4 as usize] = ueid[3];
     fuses.idevid_cert_attr[IdevidCertAttr::UeidType as usize] = 1;
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -2027,13 +2032,10 @@ fn cert_test_with_ueid() {
         .write(|_| flags.bits());
 
     // Download the CSR from the mailbox.
-    let _ = helpers::get_csr(&mut hw);
+    let csr_bytes = helpers::get_csr(&mut hw).unwrap();
 
     hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-        .unwrap();
-
-    hw.step_until_output_contains("[exit] Launching FMC")
         .unwrap();
 
     hw.mailbox_execute(0x1000_0001, &[]).unwrap();
@@ -2042,8 +2044,7 @@ fn cert_test_with_ueid() {
     assert!(result.is_ok());
     let output = String::from_utf8_lossy(&output);
 
-    let csr_str = helpers::get_data("[idev] CSR = ", &output);
-    assert!(csr_str.contains("010102030405060708090A0B0C0D0E0F10"));
+    assert!(hex::encode_upper(csr_bytes).contains("010102030405060708090A0B0C0D0E0F10"));
 
     let ldevid_cert = helpers::get_data("[fmc] LDEVID cert = ", &output);
     assert!(ldevid_cert.contains("010102030405060708090A0B0C0D0E0F10"));
@@ -2208,13 +2209,9 @@ fn generate_self_signed_cert() -> (X509, PKey<Private>) {
     (cert, pkey_pair)
 }
 
-fn idevid_cert(output: &str) -> X509 {
-    // Get CSR
-    let csr_str = helpers::get_data("[idev] CSR = ", output);
-    let csr = hex::decode(csr_str).unwrap();
-
+fn idevid_cert(csr: &[u8]) -> X509 {
     // Verify the signature on the certificate is valid.
-    let req: X509Req = X509Req::from_der(&csr).unwrap();
+    let req: X509Req = X509Req::from_der(csr).unwrap();
     println!(
         "CSR:\n {}",
         str::from_utf8(&req.to_text().unwrap()).unwrap()

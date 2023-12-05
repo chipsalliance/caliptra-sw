@@ -15,6 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
+use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
     hmac384_kdf, Array4x12, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, Hmac384, KeyId,
     KeyReadArgs, KeyUsage, KeyWriteArgs, Trng,
@@ -130,7 +131,13 @@ fn test_kv_hmac(seed: &[u8; 48], data: &[u8], out_pub_x: &[u8; 48], out_pub_y: &
         &Ecc384Seed::from(&Ecc384Scalar::from(seed)),
         &Array4x12::default(),
         &mut trng,
-        KeyWriteArgs::new(KeyId::KeyId0, KeyUsage::default().set_hmac_key_en()).into(),
+        KeyWriteArgs::new(
+            KeyId::KeyId0,
+            KeyUsage::default()
+                .set_hmac_key_en()
+                .set_ecc_private_key_en(),
+        )
+        .into(),
     )
     .unwrap();
 
@@ -151,7 +158,7 @@ fn test_kv_hmac(seed: &[u8; 48], data: &[u8], out_pub_x: &[u8; 48], out_pub_y: &
             &KeyReadArgs::new(KeyId::KeyId1).into(),
             &Array4x12::default(),
             &mut trng,
-            KeyWriteArgs::new(KeyId::KeyId2, KeyUsage::default()).into(),
+            KeyWriteArgs::new(KeyId::KeyId2, KeyUsage::default().set_ecc_private_key_en()).into(),
         )
         .unwrap();
 
@@ -274,7 +281,9 @@ fn test_hmac5() {
     let seed = [0u8; 48];
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
-        usage: KeyUsage::default().set_hmac_key_en(),
+        usage: KeyUsage::default()
+            .set_hmac_key_en()
+            .set_ecc_private_key_en(),
     };
     let result = ecc.key_pair(
         &Ecc384Seed::from(&Ecc384Scalar::from(seed)),
@@ -388,7 +397,7 @@ fn test_kdf(
     )
     .unwrap();
 
-    let ecc_out = KeyWriteArgs::new(KeyId::KeyId2, KeyUsage::default());
+    let ecc_out = KeyWriteArgs::new(KeyId::KeyId2, KeyUsage::default().set_ecc_private_key_en());
 
     let pub_key = ecc
         .key_pair(
@@ -684,6 +693,11 @@ fn test_kat() {
         )
         .unwrap()
     };
+
+    // Init CFI
+    let mut entropy_gen = || trng.generate().map(|a| a.0);
+    CfiCounter::reset(&mut entropy_gen);
+
     assert_eq!(
         Hmac384Kat::default()
             .execute(&mut hmac384, &mut trng)

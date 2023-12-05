@@ -56,6 +56,18 @@ if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   chroot out/rootfs bash -c "su runner -c \"cd /home/runner && tar xvzf actions-runner-linux-arm64-${RUNNER_VERSION}.tar.gz && rm -f actions-runner-linux-arm64-${RUNNER_VERSION}.tar.gz\""
 fi
 
+su $SUDO_USER -c "
+  CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=\"aarch64-linux-gnu-gcc\" \
+  CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS=\"-C link-arg=--sysroot=$PWD/out/rootfs\" \
+  ~/.cargo/bin/cargo install cargo-nextest@0.9.62 \
+    --locked \
+    --no-default-features \
+    --features=default-no-update \
+    --target=aarch64-unknown-linux-gnu \
+    --root /tmp/cargo-nextest"
+
+cp /tmp/cargo-nextest/bin/cargo-nextest out/rootfs/usr/bin/
+
 chroot out/rootfs bash -c 'echo ::1 caliptra-fpga >> /etc/hosts'
 cp startup-script.sh out/rootfs/usr/bin/
 chroot out/rootfs chmod 755 /usr/bin/startup-script.sh

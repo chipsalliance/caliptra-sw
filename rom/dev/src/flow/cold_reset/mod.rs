@@ -104,6 +104,7 @@ impl ColdResetFlow {
 /// # Returns
 ///     CaliptraResult
 #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
+#[inline(never)]
 pub fn copy_tbs(tbs: &[u8], tbs_type: TbsType, env: &mut RomEnv) -> CaliptraResult<()> {
     let mut persistent_data = env.persistent_data.get_mut();
     let dst = match tbs_type {

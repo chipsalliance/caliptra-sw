@@ -31,6 +31,13 @@ struct caliptra_verilated_sig_in {
   bool itrng_valid;
 
   uint8_t sram_error_injection_mode;
+
+  bool ext_iccm_we;
+  bool ext_dccm_we;
+  bool ext_mbox_we;
+  uint32_t ext_xccm_addr;
+  // 4 39-bit ECC words shoved together
+  uint32_t ext_xccm_wdata[5];
 };
 
 struct caliptra_verilated_sig_out {
@@ -57,6 +64,8 @@ struct caliptra_verilated_sig_out {
   uint64_t uc_hrdata;
   bool uc_hready;
   bool uc_hresp;
+
+  bool cptra_error_fatal;
 };
 
 struct caliptra_verilated_init_args {
