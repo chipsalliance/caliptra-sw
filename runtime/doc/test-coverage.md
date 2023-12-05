@@ -82,6 +82,7 @@ Calls the DPE command get_profile via the invoke_dpe mailbox command and verifie
 Calls the DPE command get_certificate_chain via the invoke_dpe mailbox command and verifies the size of the certificate chain |**test_invoke_dpe_get_certificate_chain_cmd** | N/A
 Calls the DPE commands sign and certify_key via the invoke_dpe mailbox command and verifies the signature resulting from the sign command with the public key resulting from the certify_key command | **test_invoke_dpe_sign_and_certify_key_cmds** | N/A
 Calls the DPE command sign with the symmetric flag set via the invoke_dpe mailbox command and checks that the resulting HMAC value is non-zero | **test_invoke_dpe_symmetric_sign** | N/A
+Tests that failed DPE command populates mbox header with correct error code | **test_dpe_header_error_code** | N/A
 
 <br><br>
 # **PAUSER Privilege Level Tests**
@@ -139,7 +140,6 @@ Check that measurements in the measurement log are added to DPE upon initializin
 Check that PCR31 is updated in StashMeasurement | N/A | N/A
 Test GetIdevCert cmd fails if provided bad signature or tbs | N/A | N/A
 Add higher fidelity HMAC test that verifies correctness of HMAC tag based on UDS | N/A | N/A
-Test failed DPE command populates mbox header with correct error code | N/A | N/A
 Check that PopulateIdevIdCert cannot be called from PL1 | N/A | N/A
 Check that InvokeDpe::DeriveChild cannot be called from PL1 if it attempts to change locality to P0 | N/A | N/A
 Check that InvokeDpe::CertifyKey cannot be called from PL1 if it requests X509 | N/A | N/A
