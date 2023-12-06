@@ -32,6 +32,7 @@ zerocopy.workspace = true
 nix.workspace = true
 libc.workspace = true
 caliptra-coverage.workspace = true
+caliptra-image-types.workspace = true
 
 [dev-dependencies]
 caliptra-builder.workspace = true
