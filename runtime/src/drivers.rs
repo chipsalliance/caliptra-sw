@@ -33,7 +33,7 @@ use dpe::{
     DPE_PROFILE,
 };
 
-use crypto::{AlgLen, Crypto, CryptoBuf};
+use crypto::{AlgLen, Crypto, CryptoBuf, Hasher};
 use zerocopy::AsBytes;
 
 pub struct Drivers {
@@ -263,6 +263,20 @@ impl Drivers {
         let caliptra_locality = 0xFFFFFFFF;
         let pl0_pauser_locality = drivers.persistent_data.get().manifest1.header.pl0_pauser;
         let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
+
+        // create a hash of all the mailbox valid pausers
+        const PAUSER_COUNT: usize = 5;
+        let mbox_valid_pauser: [u32; PAUSER_COUNT] = drivers.soc_ifc.mbox_valid_pauser();
+        let mbox_pauser_lock: [bool; PAUSER_COUNT] = drivers.soc_ifc.mbox_pauser_lock();
+        let mut digest_op = drivers.sha384.digest_init()?;
+        for i in 0..PAUSER_COUNT {
+            if mbox_pauser_lock[i] {
+                digest_op.update(mbox_valid_pauser[i].as_bytes())?;
+            }
+        }
+        let mut valid_pauser_hash = Array4x12::default();
+        digest_op.finalize(&mut valid_pauser_hash)?;
+
         let mut crypto = DpeCrypto::new(
             &mut drivers.sha384,
             &mut drivers.trng,
@@ -271,29 +285,6 @@ impl Drivers {
             &mut drivers.key_vault,
             drivers.persistent_data.get().fht.rt_dice_pub_key,
         );
-
-        // create a hash of all the mailbox valid pausers
-        const PAUSER_COUNT: usize = 5;
-        let mbox_valid_pauser: [u32; PAUSER_COUNT] = drivers.soc_ifc.mbox_valid_pauser();
-        let mbox_pauser_lock: [bool; PAUSER_COUNT] = drivers.soc_ifc.mbox_pauser_lock();
-        let mut valid_pausers = [0u32; PAUSER_COUNT];
-        let mut num_valid_pausers = 0;
-        for i in 0..PAUSER_COUNT {
-            if num_valid_pausers >= PAUSER_COUNT {
-                // Prevent panic; compiler doesn't realize this is impossible.
-                return Err(CaliptraError::RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED);
-            }
-            if mbox_pauser_lock[i] {
-                valid_pausers[num_valid_pausers] = mbox_valid_pauser[i];
-                num_valid_pausers += 1;
-            }
-        }
-        let valid_pauser_hash = crypto
-            .hash(
-                AlgLen::Bit384,
-                valid_pausers[..num_valid_pausers].as_bytes(),
-            )
-            .map_err(|_| CaliptraError::RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED)?;
 
         let mut env = DpeEnv::<CptraDpeTypes> {
             crypto,
@@ -327,7 +318,7 @@ impl Drivers {
         DeriveChildCmd {
             handle: ContextHandle::default(),
             data: valid_pauser_hash
-                .bytes()
+                .as_bytes()
                 .try_into()
                 .map_err(|_| CaliptraError::RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED)?,
             flags: DeriveChildFlags::MAKE_DEFAULT

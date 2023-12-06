@@ -4,9 +4,13 @@ use caliptra_builder::{
     firmware::{self, APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
 };
-use caliptra_common::mailbox_api::CommandId;
-use caliptra_hw_model::HwModel;
+use caliptra_common::{
+    mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, StashMeasurementReq},
+    RomBootStatus,
+};
+use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
 use caliptra_runtime::RtBootStatus;
+use zerocopy::AsBytes;
 
 use crate::common::run_rt_test;
 
@@ -74,4 +78,86 @@ fn test_update() {
     let fw_rev = model.soc_ifc().cptra_fw_rev_id().read();
     assert_eq!(fw_rev[0], 0xaaaaaaaa);
     assert_eq!(fw_rev[1], 0xaabbccdd);
+}
+
+#[test]
+fn test_boot_tci_data() {
+    let mut model = run_rt_test(Some(&firmware::runtime_tests::MBOX), None, None);
+
+    let rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
+    let rt_journey_pcr: [u8; 48] = rt_journey_pcr_resp.as_bytes().try_into().unwrap();
+
+    let valid_pauser_hash_resp = model.mailbox_execute(0x2000_0000, &[]).unwrap().unwrap();
+    let valid_pauser_hash: [u8; 48] = valid_pauser_hash_resp.as_bytes().try_into().unwrap();
+
+    // hash expected DPE measurements in order
+    let measurements_to_be_hashed = [[0u8; 48], rt_journey_pcr, valid_pauser_hash].concat();
+    let expected_measurement_hash = model
+        .mailbox_execute(0x4000_0000, measurements_to_be_hashed.as_bytes())
+        .unwrap()
+        .unwrap();
+
+    let dpe_measurement_hash = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
+    assert_eq!(expected_measurement_hash, dpe_measurement_hash);
+}
+
+#[test]
+fn test_measurement_in_measurement_log_added_to_dpe() {
+    let fuses = Fuses::default();
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let mut model = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state: SecurityState::from(fuses.life_cycle as u32),
+            ..Default::default()
+        },
+        fuses,
+        ..Default::default()
+    })
+    .unwrap();
+
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &firmware::runtime_tests::MBOX,
+        ImageOptions::default(),
+    )
+    .unwrap();
+
+    // Upload measurement to measurement log
+    let measurement: [u8; 48] = [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap();
+    let mut measurement_log_entry = MailboxReq::StashMeasurement(StashMeasurementReq {
+        measurement,
+        hdr: MailboxReqHeader { chksum: 0 },
+        metadata: [0xAB; 4],
+        context: [0xCD; 48],
+        svn: 0xEF01,
+    });
+    measurement_log_entry.populate_chksum().unwrap();
+
+    model
+        .upload_measurement(measurement_log_entry.as_bytes().unwrap())
+        .unwrap();
+
+    model
+        .upload_firmware(&image_bundle.to_bytes().unwrap())
+        .unwrap();
+
+    model.step_until_boot_status(u32::from(RomBootStatus::ColdResetComplete), true);
+
+    let rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
+    let rt_journey_pcr: [u8; 48] = rt_journey_pcr_resp.as_bytes().try_into().unwrap();
+
+    let valid_pauser_hash_resp = model.mailbox_execute(0x2000_0000, &[]).unwrap().unwrap();
+    let valid_pauser_hash: [u8; 48] = valid_pauser_hash_resp.as_bytes().try_into().unwrap();
+
+    // hash expected DPE measurements in order
+    let measurements_to_be_hashed =
+        [[0u8; 48], rt_journey_pcr, valid_pauser_hash, measurement].concat();
+    let expected_measurement_hash = model
+        .mailbox_execute(0x4000_0000, measurements_to_be_hashed.as_bytes())
+        .unwrap()
+        .unwrap();
+
+    let dpe_measurement_hash = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
+    assert_eq!(expected_measurement_hash, dpe_measurement_hash);
 }
