@@ -10,7 +10,7 @@ use dpe::{
     },
     context::{Context, ContextState},
     response::{Response, ResponseHdr},
-    DpeInstance, U8Bool, MAX_HANDLES,
+    DpeInstance, MAX_HANDLES,
 };
 use zerocopy::{AsBytes, FromBytes};
 
@@ -64,30 +64,29 @@ impl InvokeDpeCmd {
                 Command::InitCtx(cmd) => {
                     // InitCtx can only create new contexts if they are simulation contexts.
                     if InitCtxCmd::flag_is_simulation(&cmd) {
-                        Self::pl_context_threshold_exceeded(pl0_pauser, flags, locality, dpe)?;
+                        Drivers::is_dpe_context_threshold_exceeded(
+                            pl0_pauser, flags, locality, dpe,
+                        )?;
                     }
                     cmd.execute(dpe, &mut env, locality)
                 }
                 Command::DeriveChild(cmd) => {
-                    // If retain parent is not set for the DeriveChildCmd, the change in number of contexts is 0.
-                    if DeriveChildCmd::retains_parent(&cmd) {
-                        Self::pl_context_threshold_exceeded(pl0_pauser, flags, locality, dpe)?;
-                    }
+                    Drivers::is_dpe_context_threshold_exceeded(pl0_pauser, flags, locality, dpe)?;
                     if DeriveChildCmd::changes_locality(&cmd)
                         && cmd.target_locality == pl0_pauser
-                        && Self::is_caller_pl1(pl0_pauser, flags, locality)
+                        && Drivers::is_caller_pl1(pl0_pauser, flags, locality)
                     {
                         return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
                     }
                     let derive_child_resp = cmd.execute(dpe, &mut env, locality);
                     // clear tags for retired contexts
-                    Self::clear_tags_for_non_active_contexts(dpe, context_has_tag, context_tags);
+                    Drivers::clear_tags_for_non_active_contexts(dpe, context_has_tag, context_tags);
                     derive_child_resp
                 }
                 Command::CertifyKey(cmd) => {
                     // PL1 cannot request X509
                     if cmd.format == CertifyKeyCmd::FORMAT_X509
-                        && Self::is_caller_pl1(pl0_pauser, flags, locality)
+                        && Drivers::is_caller_pl1(pl0_pauser, flags, locality)
                     {
                         return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
                     }
@@ -96,7 +95,7 @@ impl InvokeDpeCmd {
                 Command::DestroyCtx(cmd) => {
                     let destroy_ctx_resp = cmd.execute(dpe, &mut env, locality);
                     // clear tags for destroyed contexts
-                    Self::clear_tags_for_non_active_contexts(dpe, context_has_tag, context_tags);
+                    Drivers::clear_tags_for_non_active_contexts(dpe, context_has_tag, context_tags);
                     destroy_ctx_resp
                 }
                 Command::Sign(cmd) => cmd.execute(dpe, &mut env, locality),
@@ -131,56 +130,5 @@ impl InvokeDpeCmd {
         } else {
             Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
         }
-    }
-
-    fn pl_context_threshold_exceeded(
-        pl0_pauser: u32,
-        flags: u32,
-        locality: u32,
-        dpe: &DpeInstance,
-    ) -> CaliptraResult<()> {
-        let used_pl0_dpe_context_count = dpe
-            .count_contexts(|c: &Context| {
-                c.state != ContextState::Inactive && c.locality == pl0_pauser
-            })
-            .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
-        // the number of used pl1 dpe contexts is the total number of used contexts
-        // minus the number of used pl0 contexts, since a context can only be activated
-        // from pl0 or from pl1. Here, used means an active or retired context.
-        let used_pl1_dpe_context_count = dpe
-            .count_contexts(|c: &Context| c.state != ContextState::Inactive)
-            .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?
-            - used_pl0_dpe_context_count;
-        if Self::is_caller_pl1(pl0_pauser, flags, locality)
-            && used_pl1_dpe_context_count == Self::PL1_DPE_ACTIVE_CONTEXT_THRESHOLD
-        {
-            return Err(CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED);
-        } else if !Self::is_caller_pl1(pl0_pauser, flags, locality)
-            && used_pl0_dpe_context_count == Self::PL0_DPE_ACTIVE_CONTEXT_THRESHOLD
-        {
-            return Err(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED);
-        }
-        Ok(())
-    }
-
-    fn is_caller_pl1(pl0_pauser: u32, flags: u32, locality: u32) -> bool {
-        flags & PL0_PAUSER_FLAG == 0 && locality != pl0_pauser
-    }
-
-    fn clear_tags_for_non_active_contexts(
-        dpe: &mut DpeInstance,
-        context_has_tag: &mut [U8Bool; MAX_HANDLES],
-        context_tags: &mut [u32; MAX_HANDLES],
-    ) {
-        (0..MAX_HANDLES).for_each(|i| {
-            if i < dpe.contexts.len()
-                && i < context_has_tag.len()
-                && i < context_tags.len()
-                && dpe.contexts[i].state != ContextState::Active
-            {
-                context_has_tag[i] = U8Bool::new(false);
-                context_tags[i] = 0;
-            }
-        });
     }
 }
