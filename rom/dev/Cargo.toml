@@ -29,6 +29,8 @@ x509-parser.workspace = true
 
 [dev-dependencies]
 caliptra-builder.workspace = true
+caliptra-emu-cpu.workspace = true
+
 caliptra-hw-model.workspace = true
 caliptra-image-elf.workspace = true
 caliptra-image-fake-keys.workspace = true

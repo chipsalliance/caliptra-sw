@@ -24,35 +24,65 @@ pub type InstrTracer<'a> = dyn FnMut(u32, RvInstr) + 'a;
 
 #[derive(Clone)]
 pub struct CodeCoverage {
-    bit_vec: BitVec,
+    rom_bit_vec: BitVec,
+    iccm_bit_vec: BitVec,
 }
 
+pub struct CoverageBitmaps<'a> {
+    pub rom: &'a bit_vec::BitVec,
+    pub iccm: &'a bit_vec::BitVec,
+}
+
+const ICCM_SIZE: usize = 128 * 1024;
+const ICCM_ORG: usize = 0x40000000;
+const ICCM_UPPER: usize = ICCM_ORG + ICCM_SIZE - 1;
+
+const ROM_SIZE: usize = 48 * 1024;
+const ROM_ORG: usize = 0x00000000;
+const ROM_UPPER: usize = ROM_ORG + ROM_SIZE - 1;
+
 impl CodeCoverage {
-    pub fn new(capacity_in_bytes: usize) -> Self {
+    pub fn new(rom_capacity_in_bytes: usize, iccm_capacity_in_bytes: usize) -> Self {
         Self {
-            bit_vec: BitVec::from_elem(capacity_in_bytes, false),
+            rom_bit_vec: BitVec::from_elem(rom_capacity_in_bytes, false),
+            iccm_bit_vec: BitVec::from_elem(iccm_capacity_in_bytes, false),
         }
     }
 
     pub fn log_execution(&mut self, pc: RvData, instr: &Instr) {
-        if (pc as usize) < self.bit_vec.len() {
-            let num_bytes = match instr {
-                Instr::Compressed(_) => 2,
-                Instr::General(_) => 4,
-            };
+        let num_bytes = match instr {
+            Instr::Compressed(_) => 2,
+            Instr::General(_) => 4,
+        };
 
-            // Mark the bytes corresponding to the executed instruction as true.
-            for i in 0..num_bytes {
-                let byte_index = (pc as usize) + i;
-                if byte_index < self.bit_vec.len() {
-                    self.bit_vec.set(byte_index, true);
+        match pc as usize {
+            ROM_ORG..=ROM_UPPER => {
+                // Mark the bytes corresponding to the executed instruction as true.
+                for i in 0..num_bytes {
+                    let byte_index = (pc as usize - ROM_ORG) + i;
+                    if byte_index < self.rom_bit_vec.len() {
+                        self.rom_bit_vec.set(byte_index, true);
+                    }
                 }
             }
+            ICCM_ORG..=ICCM_UPPER => {
+                // Mark the bytes corresponding to the executed instruction as true.
+                for i in 0..num_bytes {
+                    let byte_index = (pc as usize - ICCM_ORG) + i;
+                    if byte_index < self.iccm_bit_vec.len() {
+                        self.iccm_bit_vec.set(byte_index, true);
+                    }
+                }
+            }
+            _ => (),
         }
     }
 
-    pub fn code_coverage_bitmap(&self) -> &BitVec {
-        &self.bit_vec
+    pub fn code_coverage_bitmap(&self) -> CoverageBitmaps {
+        CoverageBitmaps {
+            rom: &self.rom_bit_vec,
+            iccm: &self.iccm_bit_vec,
+        }
     }
 }
 
@@ -150,7 +180,7 @@ impl<TBus: Bus> Cpu<TBus> {
             nmivec: 0,
             // TODO: Pass in code_coverage from the outside (as caliptra-emu-cpu
             // isn't supposed to know anything about the caliptra memory map)
-            code_coverage: CodeCoverage::new(48 * 1024),
+            code_coverage: CodeCoverage::new(ROM_SIZE, ICCM_SIZE),
         }
     }
 
@@ -530,7 +560,11 @@ mod tests {
     }
 
     pub fn count_executed(coverage: &CodeCoverage) -> usize {
-        coverage.bit_vec.iter().filter(|&executed| executed).count()
+        coverage
+            .rom_bit_vec
+            .iter()
+            .filter(|&executed| executed)
+            .count()
     }
 
     #[test]
@@ -543,7 +577,7 @@ mod tests {
         ];
 
         // Instantiate coverage with a capacity for the mix of instructions above
-        let mut coverage = CodeCoverage::new(8);
+        let mut coverage = CodeCoverage::new(8, 0);
 
         // Log execution of the instructions above
         coverage.log_execution(0, &instructions[0]);
