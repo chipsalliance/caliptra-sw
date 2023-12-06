@@ -21,19 +21,17 @@ limitations under the License.*_<BR>
  - FPGA
    - `ZCU104 Development Board`
    - https://www.xilinx.com/products/boards-and-kits/zcu104.html
- - [Not fully enabled] JTAG debugger
-   - `Olimex ARM-USB-TINY-H`
 
 ### ZCU104 ###
-#### Processing System One Time Setup: ####
+#### Processing system one time setup: ####
 1. Install ZCU104 SD card image
    - https://ubuntu.com/download/amd-xilinx
 1. Configure SW6 to boot from SD1.
    - Mode SW6[4:1]: OFF, OFF, OFF, ON
-     ![](zynq_boot_switch.jpg)
+     ![](./images/zynq_boot_switch.jpg)
 1. Install rustup using Unix directions: https://rustup.rs/#
 
-#### Helpful Commands: ####
+#### Helpful commands: ####
  - Disable CPU IDLE. Vivado HW Manager access during IDLE causes crashes.
    - `echo 1 > /sys/devices/system/cpu/cpu0/cpuidle/state1/disable`
    - `echo 1 > /sys/devices/system/cpu/cpu1/cpuidle/state1/disable`
@@ -52,7 +50,7 @@ Serial port settings for connection over USB.
  - Parity: None
  - Flow control: None
 
-### FPGA Build Steps: ###
+### FPGA build steps: ###
  - Build FPGA image without GUI
     - `vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE`
     - Above command creates a bitstream located at: caliptra_build/caliptra_fpga.bin
@@ -66,7 +64,7 @@ Serial port settings for connection over USB.
     - Run Implementation: `launch_runs impl_1`
     - Generate Bitstream: `write_bitstream -bin_file \tmp\caliptra_fpga`
 
-### Processing System - Programmable Logic Interfaces ###
+### Processing System - Programmable Logic interfaces ###
 #### AXI Memory Map ####
  - SOC adapter for driving caliptra-top signals
    - 0x80000000 - Generic Input Wires
@@ -104,7 +102,7 @@ Serial port settings for connection over USB.
 #### Interrupts ####
  - 89 - Log FIFO half full.
 
-### Loading and Execution Steps: ###
+### Loading and execution Steps: ###
 1. Install FPGA image
     - `sudo fpgautil -b caliptra_fpga_project_bd_wrapper.bin -f Full -n Full`
 1. Insert kernel modules for IO access
@@ -122,16 +120,40 @@ Serial port settings for connection over USB.
 1. Execute test targeting fpga_realtime
     - `CPTRA_UIO_NUM=4 cargo test -p caliptra-test --features=fpga_realtime smoke_test`
 
-### JTAG debug [Doc WIP]
-JTAG support has been enabled using OpenOCD. The security state debug_locked parameter must be FALSE for JTAG to be accessible.
-- `openocd.exe -f ~/openocd_caliptra.txt`
+### JTAG debug
+Requirements:
+- Security state must have either debug_locked == false or lifecycle == manuf.
+- Set "debug = true" in firmware profile to provide line information to GDB.
+- Olimex ARM-USB-TINY-H with SiFive-Arty Adapter
 
-| JTAG Feature                               | Status              |
-| ------------------------------------------ | ------------------- |
-| RISCV register access                      | Works               |
-| VEER MSR                                   | Works               |
-| OpenOCD HW breakpoints                     | Works               |
-| SW Breakpoints                             | Requires System Bus |
-| RISCV Abstract access (ICCM and DCCM only) | Works               |
-| System Bus Access                          | Not connected       |
-| GDB                                        | Connects but hangs  |
+#### PMOD pin assignment ####
+![](./images/Caliptra_FPGA_PMOD_JTAG.svg)
+
+#### Debugger launch procedure ####
+1. Invoke OpenOCD server
+    - `openocd.exe -f ~/openocd_caliptra.txt`
+1. Connect client(s) for debug
+    - GDB: Port 3333
+    - Telnet: Port 4444
+
+#### Caliptra SoC interface registers ####
+Over Telnet connection to OpenOCD: `riscv.cpu riscv dmi_read [addr]`
+
+#### JTAG testing ####
+Test requirements for both OpenOCD and GDB:
+- JTAG port is accessible when debug_locked == true or lifecycle == manufacturing. The port is inaccessible otherwise.
+- Read access to ROM space using 8, 16, 32, and 64 bit reads.
+- Read and write access to DCCM using 8, 16, 32, and 64 bit accesses.
+- Access to ICCM using 32 and 64 bit reads, 32 bit writes.
+- Access to VEER core registers.
+- HW and SW breakpoints halt the CPU.
+- Watchpoints on DCCM and Caliptra register access halt the CPU.
+ 
+Test requirements exclusive to GDB:
+- Basic commands all work (step, next, frame, info, bt, ni, si, etc.).
+ 
+Test requirements exclusive to OpenOCD:
+- Basic commands all work (reg, step, resume, etc.).
+- Access to VEER CSRs.
+- Access to Debug Module registers.
+- Caliptra registers exposed to JTAG RW/RO status matches.

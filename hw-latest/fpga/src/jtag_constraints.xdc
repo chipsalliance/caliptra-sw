@@ -12,6 +12,12 @@ set_property IOSTANDARD LVCMOS33 [get_ports jtag_tdo_0]
 set_property IOSTANDARD LVCMOS33 [get_ports jtag_tms_0]
 set_property IOSTANDARD LVCMOS33 [get_ports jtag_trst_n_0]
 
+# Pull JTAG inputs
+set_property PULLTYPE PULLDOWN [get_ports jtag_tck_0]
+set_property PULLTYPE PULLUP [get_ports jtag_tdi_0]
+set_property PULLTYPE PULLUP [get_ports jtag_tms_0]
+set_property PULLTYPE PULLUP [get_ports jtag_trst_n_0]
+
 # JTAG tck constraints
 create_clock -period 10000.000 -name jtag_tck_0 -waveform {0.000 5000.000} [get_ports jtag_tck_0]
 set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets jtag_tck_0_IBUF_inst/O]
