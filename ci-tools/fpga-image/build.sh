@@ -59,7 +59,7 @@ fi
 su $SUDO_USER -c "
   CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=\"aarch64-linux-gnu-gcc\" \
   CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS=\"-C link-arg=--sysroot=$PWD/out/rootfs\" \
-  ~/.cargo/bin/cargo install cargo-nextest@0.9.62 \
+  ~/.cargo/bin/cargo install cargo-nextest@0.9.64 \
     --locked \
     --no-default-features \
     --features=default-no-update \
