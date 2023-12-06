@@ -104,7 +104,7 @@ if task_enabled "test"; then
   else
     CPTRA_COVERAGE_PATH="${cov_dir}" CALIPTRA_PREBUILT_FW_DIR="${fw_dir}" cargo --config "${EXTRA_CARGO_CONFIG}" test --locked
   fi
-  CALIPTRA_PREBUILT_FW_DIR="${fw_dir}" CPTRA_COVERAGE_PATH="${cov_dir}" cargo run --manifest-path ./coverage/Cargo.toml
+  CALIPTRA_PREBUILT_FW_DIR="${fw_dir}" CPTRA_COVERAGE_PATH="${cov_dir}" cargo --config "${EXTRA_CARGO_CONFIG}" run --manifest-path ./coverage/Cargo.toml
 fi
 
 if task_enabled "check_frozen_images"; then
