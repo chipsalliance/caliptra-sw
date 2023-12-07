@@ -50,6 +50,7 @@ Test Scenario| Test Name | Runtime Error Code
 Tests some common ECDSA problems | **ecdsa_cmd_run_wycheproof** | N/A
 Tests some common HMAC problems | **hmac_cmd_run_wycheproof** | N/A
 Streams a test message to a hashing accelerator and calls the ecdsa_verify mailbox command to verify the test signature | **test_ecdsa_verify_cmd** | N/A
+Calls the hmac_verify mailbox command to verify a NIST HMAC-SHA384 test vector | **test_hmac_verify_cmd** | N/A
 Checks that the ecdsa_verify mailbox command fails if provided an invalid checksum | **test_ecdsa_verify_bad_chksum** | RUNTIME_INVALID_CHECKSUM
 
 <br><br>
@@ -133,7 +134,6 @@ Test DPE structure validation upon update reset | N/A | N/A
 Trigger warm reset and check that DPE structure is valid upon RT initialization | N/A | N/A
 Check that calling DeriveChild via InvokeDpe more than PL0_DPE_ACTIVE_CONTEXT_THRESHOLD times succeeds if the RETAINS_PARENT flag is not set | N/A | N/A
 Test PL context limits with InitializeContext with the SIMULATION flag set, via the InvokeDpe mailbox command | N/A | N/A
-Test HmacVerify with a NIST test vector similar to test_ecdsa_verify_cmd | N/A | N/A
 Verify the RT Journey PCR on a warm reset | N/A | N/A
 Check that the RT Journey PCR was updated correctly on update reset | N/A | N/A
 Check that attestation is disabled if mbox_busy during a warm reset | N/A | N/A
