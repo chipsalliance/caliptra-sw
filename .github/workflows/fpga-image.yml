@@ -2,9 +2,6 @@
 name: Build FPGA SD image
 
 on:
-  pull_request:
-    paths:
-      - "ci-tools/fpga-image/**"
 
   push:
     branches: ["main"]

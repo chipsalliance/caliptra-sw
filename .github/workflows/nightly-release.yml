@@ -2,7 +2,6 @@ name: Nightly Release
 
 on:
   workflow_dispatch:
-  pull_request:
   schedule:
   # 2:11 AM PST tuesday-saturday
   - cron: '11 10 * * 2-6'
