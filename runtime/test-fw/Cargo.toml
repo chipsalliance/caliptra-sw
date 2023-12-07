@@ -24,6 +24,11 @@ name = "boot"
 path = "src/boot_tests.rs"
 required-features = ["riscv"]
 
+[[bin]]
+name = "mbox"
+path = "src/mbox_responder.rs"
+required-features = ["riscv"]
+
 [build-dependencies]
 caliptra_common = { workspace = true, default-features = false }
 caliptra-gen-linker-scripts.workspace = true
