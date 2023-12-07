@@ -148,6 +148,8 @@ jobs:
     name: Create New Release
     needs:
       - find-latest-release
+      - fpga-full-suite-etrng-log
+      - fpga-full-suite-etrng-nolog
       - fpga-full-suite-itrng-log
       - fpga-full-suite-itrng-nolog
       - sw-emulator-full-suite-etrng-log
