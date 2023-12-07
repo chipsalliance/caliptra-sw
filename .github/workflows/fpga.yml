@@ -54,7 +54,7 @@ jobs:
           # root directory.
           echo "rtl_cache_key=$(git rev-parse HEAD:hw-latest/fpga/src)-$(git hash-object hw-latest/fpga/fpga_configuration.tcl)-$(cd hw-latest/caliptra-rtl && git rev-parse HEAD:)-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
 
-          echo "kmod_cache_key=fpga-kernel-modules-$(git rev-parse HEAD:hw-latest/fpga/io_module)-$(git rev-parse HEAD:hw-latest/fpga/rom_backdoor)-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
+          echo "kmod_cache_key=fpga-kernel-modules-$(git rev-parse HEAD:hw-latest/fpga/io_module)-$(git rev-parse HEAD:hw-latest/fpga/rom_backdoor)-${{ inputs.fpga-itrng }}-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
 
       - name: Restore FPGA bitstream from cache
         uses: actions/cache/restore@v3

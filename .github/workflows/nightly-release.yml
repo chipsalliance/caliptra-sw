@@ -69,7 +69,7 @@ jobs:
       artifact-suffix: -fpga-realtime-etrng-log
       extra-features: slow_tests
       rom-logging: true
-      fpga-itrng: FALSE
+      fpga-itrng: false
 
   fpga-full-suite-etrng-nolog:
     name: FPGA Suite (etrng, nolog)
@@ -80,7 +80,7 @@ jobs:
       artifact-suffix: -fpga-realtime-etrng-nolog
       extra-features: slow_tests
       rom-logging: false
-      fpga-itrng: FALSE
+      fpga-itrng: false
 
   fpga-full-suite-itrng-log:
     name: FPGA Suite (itrng, log)
@@ -91,7 +91,7 @@ jobs:
       artifact-suffix: -fpga-realtime-itrng-log
       extra-features: slow_tests,itrng
       rom-logging: true
-      fpga-itrng: TRUE
+      fpga-itrng: true
 
   fpga-full-suite-itrng-nolog:
     name: FPGA Suite (itrng, nolog)
@@ -102,7 +102,7 @@ jobs:
       artifact-suffix: -fpga-realtime-itrng-nolog
       extra-features: slow_tests,itrng
       rom-logging: false
-      fpga-itrng: TRUE
+      fpga-itrng: true
 
   sw-emulator-full-suite-etrng-log:
     name: sw-emulator Suite (etrng, log)
