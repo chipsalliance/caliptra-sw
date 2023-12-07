@@ -129,7 +129,8 @@ Test Scenario| Test Name | ROM Error Code
 ---|---|---
 Check for any RUST panics added to the code | **test_panic_missing** | N/A
 Checks that extended error info is populated correctly upon watchdog timer timeout | **test_rom_wdt_timeout** | ROM_GLOBAL_WDT_EXPIRED
-
+Triggers a CPU fault and checks that extended error info is populated correctly | **test_cpu_fault** | ROM_GLOBAL_EXCEPTION
+Ensure that boot ROM can load a 128k bundle into ICCM (assert ICCM contents in test) |**test_max_fw_image** | N/A
 
 # **Test Gaps**
 Test Scenario| Test Name | ROM Error Code
@@ -138,7 +139,6 @@ Expand `smoke_test` to perform a hitless update and confirm everything is mixed 
 Validate fix for #817: warm reset during hitless update | N/A | N/A
 Validate fix for #628: warm reset during cold reset | N/A | N/A
 Add test for CPU fault, and that extended error info is populated correctly | N/A | N/A
-Stress test: Boot caliptra 1000 times with a different UDS identity each time, and confirm generated certs are valid. This should expose x509 serialization bugs. | N/A | N/A
 Ensure that boot ROM can load a 128k bundle into ICCM (assert ICCM contents in test) | N/A | N/A
 Ensure that hitless update flow can update an entire 128k bundle with completely different ICCM contents than original boot | N/A | N/A
 Run all the tests against the prod ROM (no logging) | N/A | N/A

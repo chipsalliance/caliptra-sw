@@ -120,6 +120,7 @@ impl Sha512 {
     pub fn reset(&mut self, mode: Sha512Mode) {
         self.mode = mode;
         self.hash = Self::hash_iv(self.mode);
+        self.blocks_processed = 0;
     }
 
     /// Update the hash

@@ -8,7 +8,7 @@ Check for any RUST panics added to the code | **test_panic_missing** | N/A
 Test Scenario| Test Name | Runtime Error Code
 ---|---|---
 Boots Caliptra from ROM -> FMC -> Runtime | **test_standard** | N/A
-Update Caliptra with a new firmware image and test that runtime boots | **test_update** | N/A
+Updates Caliptra with a new firmware image and tests that runtime boots | **test_update** | N/A
 Boots runtime using the Caliptra runtime test binary | **test_boot** | N/A
 Boots Caliptra and validates the firmware version | **test_fw_version** | N/A
 
@@ -16,17 +16,92 @@ Boots Caliptra and validates the firmware version | **test_fw_version** | N/A
 # **Certificate Tests**
 Test Scenario| Test Name | Runtime Error Code
 ---|---|---
-Fully validates the LDevID, FMC, and RT X.509 certificates as well as the full certificate chain | **test_certs** | N/A
-Check if the owner and vendor cert validity dates are present in RT Alias cert | **test_rt_cert_with_custom_dates** | N/A
+Checks that the get_idev_cert mailbox command succeeds and verifies the size of the resulting certificate | **test_idev_id_cert** | N/A
+Checks that the get_idev_cert mailbox command fails if the tbs_size is greater than the maximum allowed size | **test_idev_id_cert_size_too_big** | RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE
+Validates the LDevId cert by checking that it is signed by the IDevId public key and verifies that it is a valid X.509 | **test_ldev_cert** | N/A
+Validates the FMC alias cert by checking that it is signed by the LDevId public key and verifies that it is a valid X.509 | **test_fmc_alias_cert** | N/A
+Validates the RT alias cert by checking that it is signed by the FMC alias public key and verifies that it is a valid X.509 | **test_rt_alias_cert** | N/A
+Validates the full certificate chain | **test_full_cert_chain** | N/A
+Checks if the owner and vendor cert validity dates are present in RT Alias cert | **test_rt_cert_with_custom_dates** | N/A
+
+<br><br>
+# **Disable Attestation Tests**
+Test Scenario| Test Name | Runtime Error Code
+---|---|---
+Checks that the disable_attestation mailbox command succeeds | **test_disable_attestation_cmd** | N/A
+
+<br><br>
+# **Stash Measurement Tests**
+Test Scenario| Test Name | Runtime Error Code
+---|---|---
+Checks that the stash_measurement mailbox command succeeds | **test_stash_measurement** | N/A
+
+<br><br>
+# **Mailbox Tests**
+Test Scenario| Test Name | Runtime Error Code
+---|---|---
+Check that the error register is cleared when a successful mailbox command runs after a failed mailbox command | **test_error_cleared** | RUNTIME_MAILBOX_INVALID_PARAMS
+Checks that the unimplemented mailbox command capabilities fails | **test_unimplemented_cmds** | RUNTIME_UNIMPLEMENTED_COMMAND
+
+<br><br>
+# **Cryptography Verification Tests**
+Test Scenario| Test Name | Runtime Error Code
+---|---|---
+Tests some common ECDSA problems | **ecdsa_cmd_run_wycheproof** | N/A
+Tests some common HMAC problems | **hmac_cmd_run_wycheproof** | N/A
+Streams a test message to a hashing accelerator and calls the ecdsa_verify mailbox command to verify the test signature | **test_ecdsa_verify_cmd** | N/A
+Calls the hmac_verify mailbox command to verify a NIST HMAC-SHA384 test vector | **test_hmac_verify_cmd** | N/A
+Checks that the ecdsa_verify mailbox command fails if provided an invalid checksum | **test_ecdsa_verify_bad_chksum** | RUNTIME_INVALID_CHECKSUM
+
+<br><br>
+# **Populate IDev Tests**
+Test Scenario| Test Name | Runtime Error Code
+---|---|---
+Calls the POPULATE_IDEV_CERT mailbox command and checks that the IDevId certificate is able to be parsed from the certificate chain | **test_populate_idev_cert_cmd** | N/A
+Checks that the populate_idev_cert mailbox command fails if the cert_size is greater than the maximum allowed size | **test_populate_idev_cert_size_too_big** | RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE
+
+<br><br>
+# **FIPS Tests**
+Test Scenario| Test Name | Runtime Error Code
+---|---|---
+Checks that the version mailbox command succeeds and validates the FIPS version response | **test_fips_version** | N/A
+Tests that the shutdown mailbox command succeeds and checks that executing mailbox commands after shutdown fails | **test_fips_shutdown** | RUNTIME_SHUTDOWN
+
+<br><br>
+# **Info Tests**
+Test Scenario| Test Name | Runtime Error Code
+---|---|---
+Checks that the fw_info mailbox command succeeds and validates the response | **test_fw_info** | N/A
+Checks that the get_idev_info mailbox command succeeds | **test_idev_id_info** | N/A
 
 <br><br>
 # **DPE Tests**
 Test Scenario| Test Name | Runtime Error Code
 ---|---|---
+Checks that the invoke_dpe mailbox command fails if the data_size is greater than the maximum allowed size | **test_invoke_dpe_size_too_big** | RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE
 Calls the DPE command get_profile via the invoke_dpe mailbox command and verifies the DPE profile | **test_invoke_dpe_get_profile_cmd** | N/A
 Calls the DPE command get_certificate_chain via the invoke_dpe mailbox command and verifies the size of the certificate chain |**test_invoke_dpe_get_certificate_chain_cmd** | N/A
-Checks the limit on the number of active DPE contexts belonging to a pauser privilege level |  **test_pauser_privilege_level_dpe_context_thresholds** | RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED
 Calls the DPE commands sign and certify_key via the invoke_dpe mailbox command and verifies the signature resulting from the sign command with the public key resulting from the certify_key command | **test_invoke_dpe_sign_and_certify_key_cmds** | N/A
+Calls the DPE command sign with the symmetric flag set via the invoke_dpe mailbox command and checks that the resulting HMAC value is non-zero | **test_invoke_dpe_symmetric_sign** | N/A
+Tests that failed DPE command populates mbox header with correct error code | **test_dpe_header_error_code** | N/A
+
+<br><br>
+# **PAUSER Privilege Level Tests**
+Test Scenario| Test Name | Runtime Error Code
+---|---|---
+Checks the limit on the number of active DPE contexts belonging to PL0 by calling derive_child via the invoke_dpe mailbox command with the RETAINS_PARENT flag set | **test_pl0_derive_child_dpe_context_thresholds** | RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED
+
+<br><br>
+# **Tagging Tests**
+Test Scenario| Test Name | Runtime Error Code
+---|---|---
+Checks that the dpe_tag_tci and dpe_get_tagged_tci mailbox commands succeed on a default context | **test_tagging_default_context** | N/A
+Attempts to tag an already tagged context and verifies that it fails | **test_tagging_a_tagged_context** | RUNTIME_CONTEXT_ALREADY_TAGGED
+Attempts to add a duplicate tag and verifies that it fails | **test_duplicate_tag** | RUNTIME_DUPLICATE_TAG
+Calls the dpe_get_tagged_tci mailbox command with a tag that does not exist and checks that it fails | **test_get_tagged_tci_on_non_existent_tag** | RUNTIME_TAGGING_FAILURE
+Attempts to tag an inactive context and verifies that it fails | **test_tagging_inactive_context** | RUNTIME_TAGGING_FAILURE
+Tags the default context, destroys the default context, and checks that the dpe_get_tagged_tci mailbox command fails on the default context | **test_tagging_destroyed_context** | RUNTIME_TAGGING_FAILURE
+Tags the default context, retires the default context, and checks that the dpe_get_tagged_tci mailbox command fails on the default context | **test_tagging_retired_context** | RUNTIME_TAGGING_FAILURE
 
 <br><br>
 # **DPE Verification Tests**
@@ -34,38 +109,22 @@ These tests are implemented in Go and test end-to-end DPE attestation behavior. 
 Test Scenario | Test Name | Go Error Code
 ---|---|---
 Calls and tests behavior of the DPE command InitializeContext | **TestInitializeContext** | N/A
-Calls and tests behavior of the DPE command InitializeContext with simulation contexts | **TestInitializeContextSimulation** | N/A
+Calls and tests behavior of the DPE command InitializeContext with simulation contexts | **TestInitializeSimulation** | N/A
 Calls the DPE command CertifyKey, verifies the structure of the resulting certificate by parsing and linting it, and checks that the desired extensions are present | **TestCertifyKey** | N/A
-Calls the DPE command CertifyKey with a simulation context handle, verifies the structure of the resulting certificate by parsing and linting it, and checks that the desired extensions are present | **TestCertifyKey_SimulationMode** | N/A
+Calls the DPE command CertifyKey with a simulation context handle, verifies the structure of the resulting certificate by parsing and linting it, and checks that the desired extensions are present | **TestCertifyKeySimulation** | N/A
 Calls the DPE command GetCertificateChain and verifies the structure of each certificate in the chain by parsing and linting them | **TestGetCertificateChain** | N/A
-Calls and tests behavior of the DPE command TagTci | **TestTagTCI** | N/A
+Calls the DPE command ExtendTci and verifies the resulting TCI | **TestExtendTCI** | N/A
+Calls the DPE command ExtendTci with a derived child context and verifies the resulting TCI | **TestExtendTciOnDerivedContexts** | N/A
 Calls the DPE command GetProfile and verifies the DPE profile | **TestGetProfile** | N/A
 Checks whether an error is reported when non-existent handle is passed as input to DPE commands | **TestInvalidHandle** | StatusInvalidHandle
 Checks whether an error is reported when caller from one locality issues DPE commands in another locality | **TestWrongLocality** | StatusInvalidLocality
 Checks whether an error is reported when using commands that are not supported in the DPE instance | **TestUnsupportedCommand** | StatusInvalidCommand
 Checks whether an error is reported when enabling command flags that are not supported in the DPE instance | **TestUnsupportedCommandFlag** | StatusArgumentNotSupported
-
-<br><br>
-# **Mailbox Command Tests**
-Test Scenario| Test Name | Runtime Error Code
----|---|---
-Checks that the fw_info mailbox command succeeds and validates the response | **test_fw_info** | N/A
-Checks that the stash_measurement mailbox command succeeds | **test_stash_measurement** | N/A
-Checks that the disable_attestation mailbox command succeeds | **test_disable_attestation_cmd** | N/A
-Streams a test message to a hashing accelerator and calls the ecdsa_verify mailbox command to verify the test signature | **test_ecdsa_verify_cmd** | N/A
-Checks that the unimplemented mailbox commands get_idev_csr and get_ldev_cert fail | **test_unimplemented_cmds** | RUNTIME_UNIMPLEMENTED_COMMAND
-Checks that the get_idev_info mailbox command succeeds | **test_idev_id_info** | N/A
-Checks that the get_idev_cert mailbox command succeeds and verifies the size of the resulting certificate | **test_idev_id_cert** | N/A
-Checks that the version mailbox command succeeds and validates the FIPS version response | **test_fips_cmd_api** | RUNTIME_SHUTDOWN
-Check that the error register is cleared when a successful mailbox command runs after a failed mailbox command | **test_error_cleared** | RUNTIME_MAILBOX_INVALID_PARAMS
-Calls the POPULATE_IDEV_CERT mailbox command and checks that the IDevId certificate is able to be parsed from the certificate chain | **test_populate_idev_cert_cmd** | N/A
-
-<br><br>
-# **Wycheproof Tests**
-Test Scenario| Test Name | Runtime Error Code
----|---|---
-Tests some common ECDSA problems | **ecdsa_cmd_run_wycheproof** | N/A
-Tests some common HMAC problems | **hmac_cmd_run_wycheproof** | N/A
+Calls and tests behavior of the DPE command RotateContext | **TestRotateContextHandle* | N/A
+Calls and tests behavior of the DPE command RotateContext with simulation contexts | **TestRotateContextHandleSimulation* | N/A
+Check whether the digital signature returned by Sign command can be verified using public key in signing key certificate returned by CertifyKey command | **TestAsymmetricSigning** | N/A
+Check that the Sign command fails on simulated contexts as simulation context do not allow signing | **TestSignSimulation** | StatusInvalidArgument
+Calls and tests behavior of the DPE command Sign with the Symmetric flag set | **TestSignSymmetric** | N/A
 
 <br><br>
 # **Stress Tests**
@@ -77,8 +136,23 @@ Run impactless update repeatedly for 500 times | **test_stress_update** | N/A
 # **Test Gaps**
 Test Scenario| Test Name | Runtime Error Code
 ---|---|---
-Check validation of DPE structure after a warm/update reset and ensure that validation fails if the DPE's SRAM bytes are maliciously edited | N/A | N/A
+Test DPE structure validation upon update reset | N/A | N/A
+Trigger warm reset and check that DPE structure is valid upon RT initialization | N/A | N/A
+Check that calling DeriveChild via InvokeDpe more than PL0_DPE_ACTIVE_CONTEXT_THRESHOLD times succeeds if the RETAINS_PARENT flag is not set | N/A | N/A
+Test PL context limits with InitializeContext with the SIMULATION flag set, via the InvokeDpe mailbox command | N/A | N/A
 Verify the RT Journey PCR on a warm reset | N/A | N/A
 Check that the RT Journey PCR was updated correctly on update reset | N/A | N/A
-Check if disable attestation was called when the mailbox is executing a command during a warm reset | N/A | N/A
-Check that measurements in the measurement log are added to DPE upon initializing drivers | N/A | N/A 
+Check that attestation is disabled if mbox_busy during a warm reset | N/A | N/A
+Check that measurements in the measurement log are added to DPE upon initializing drivers | N/A | N/A
+Check that PCR31 is updated in StashMeasurement | N/A | N/A
+Test GetIdevCert cmd fails if provided bad signature or tbs | N/A | N/A
+Add higher fidelity HMAC test that verifies correctness of HMAC tag based on UDS | N/A | N/A
+Check that PopulateIdevIdCert cannot be called from PL1 | N/A | N/A
+Check that InvokeDpe::DeriveChild cannot be called from PL1 if it attempts to change locality to P0 | N/A | N/A
+Check that InvokeDpe::CertifyKey cannot be called from PL1 if it requests X509 | N/A | N/A
+Test PL1 pauser active context limits | N/A | N/A
+Check that measurements are stored in DPE when StashMeasurement is called | N/A | N/A
+Verify that DPE attestation flow fails after DisableAttestation is called | N/A | N/A
+Check that mailbox valid pausers are measured into DPE upon RT startup | N/A | N/A
+Check that the RT alias key is different from the key signing DPE certs | N/A | N/A
+Test context tag validity upon warm/update reset | N/A | N/A

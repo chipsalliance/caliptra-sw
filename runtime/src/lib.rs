@@ -10,6 +10,7 @@ pub mod fips;
 pub mod handoff;
 pub mod info;
 mod invoke_dpe;
+mod populate_idev;
 mod stash_measurement;
 mod update;
 mod verify;
@@ -20,22 +21,24 @@ pub use drivers::Drivers;
 use mailbox::Mailbox;
 
 pub use caliptra_common::fips::FipsVersionCmd;
-#[cfg(feature = "test_only_commands")]
-pub use dice::{GetLdevCertCmd, TestGetFmcAliasCertCmd};
+pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
 use dpe_crypto::DpeCrypto;
 pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
 pub use fips::FipsShutdownCmd;
 #[cfg(feature = "fips_self_test")]
 pub use fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
+pub use populate_idev::PopulateIDevIdCertCmd;
 
-pub use info::{FwInfoCmd, IDevIdCertCmd, IDevIdInfoCmd, PopulateIDevIdCertCmd};
+pub use info::{FwInfoCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::EcdsaVerifyCmd;
 pub mod packet;
 use caliptra_common::mailbox_api::{CommandId, MailboxResp};
 use packet::Packet;
+pub mod tagging;
+use tagging::{GetTaggedTciCmd, TagTciCmd};
 
 use caliptra_common::cprintln;
 
@@ -48,6 +51,7 @@ use dpe::{
     DPE_PROFILE,
 };
 
+use crate::dice::GetRtAliasCertCmd;
 #[cfg(feature = "test_only_commands")]
 use crate::verify::HmacVerifyCmd;
 
@@ -129,19 +133,18 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     let mut resp = match CommandId::from(req_packet.cmd) {
         CommandId::FIRMWARE_LOAD => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_IDEV_CERT => IDevIdCertCmd::execute(cmd_bytes),
-        CommandId::GET_IDEV_CSR => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_IDEV_INFO => IDevIdInfoCmd::execute(drivers),
-        CommandId::GET_LDEV_CERT => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        CommandId::GET_LDEV_CERT => GetLdevCertCmd::execute(drivers),
         CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes),
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers, cmd_bytes),
         CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),
         CommandId::FW_INFO => FwInfoCmd::execute(drivers),
+        CommandId::DPE_TAG_TCI => TagTciCmd::execute(drivers, cmd_bytes),
+        CommandId::DPE_GET_TAGGED_TCI => GetTaggedTciCmd::execute(drivers, cmd_bytes),
         CommandId::POPULATE_IDEV_CERT => PopulateIDevIdCertCmd::execute(drivers, cmd_bytes),
-        #[cfg(feature = "test_only_commands")]
-        CommandId::TEST_ONLY_GET_LDEV_CERT => GetLdevCertCmd::execute(drivers),
-        #[cfg(feature = "test_only_commands")]
-        CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT => TestGetFmcAliasCertCmd::execute(drivers),
+        CommandId::GET_FMC_ALIAS_CERT => GetFmcAliasCertCmd::execute(drivers),
+        CommandId::GET_RT_ALIAS_CERT => GetRtAliasCertCmd::execute(drivers),
         #[cfg(feature = "test_only_commands")]
         CommandId::TEST_ONLY_HMAC384_VERIFY => HmacVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::VERSION => {

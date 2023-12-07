@@ -8,20 +8,20 @@ use zerocopy::{AsBytes, FromBytes, LayoutVerified};
 pub struct CommandId(pub u32);
 impl CommandId {
     pub const FIRMWARE_LOAD: Self = Self(0x46574C44); // "FWLD"
-    pub const GET_IDEV_CSR: Self = Self(0x49444556); // "IDEV"
-    pub const GET_IDEV_CERT: Self = Self(0x49444543); // IDEC
-    pub const GET_IDEV_INFO: Self = Self(0x49444549); // IDEI
-    pub const POPULATE_IDEV_CERT: Self = Self(0x49444550); // IDEP
+    pub const GET_IDEV_CERT: Self = Self(0x49444543); // "IDEC"
+    pub const GET_IDEV_INFO: Self = Self(0x49444549); // "IDEI"
+    pub const POPULATE_IDEV_CERT: Self = Self(0x49444550); // "IDEP"
     pub const GET_LDEV_CERT: Self = Self(0x4C444556); // "LDEV"
+    pub const GET_FMC_ALIAS_CERT: Self = Self(0x43455246); // "CERF"
+    pub const GET_RT_ALIAS_CERT: Self = Self(0x43455252); // "CERR"
     pub const ECDSA384_VERIFY: Self = Self(0x53494756); // "SIGV"
     pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
     pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
     pub const DISABLE_ATTESTATION: Self = Self(0x4453424C); // "DSBL"
     pub const FW_INFO: Self = Self(0x494E464F); // "INFO"
+    pub const DPE_TAG_TCI: Self = Self(0x54514754); // "TAGT"
+    pub const DPE_GET_TAGGED_TCI: Self = Self(0x47544744); // "GTGD"
 
-    // TODO: Remove this and merge with GET_LDEV_CERT once that is implemented
-    pub const TEST_ONLY_GET_LDEV_CERT: Self = Self(0x4345524c); // "CERL"
-    pub const TEST_ONLY_GET_FMC_ALIAS_CERT: Self = Self(0x43455246); // "CERF"
     pub const TEST_ONLY_HMAC384_VERIFY: Self = Self(0x484D4143); // "HMAC"
 
     /// FIPS module commands.
@@ -72,6 +72,45 @@ where
     }
 }
 
+#[repr(C)]
+#[derive(Debug, AsBytes, Default, FromBytes, PartialEq, Eq)]
+pub struct MailboxRespHeaderVarSize {
+    pub hdr: MailboxRespHeader,
+    pub data_len: u32,
+}
+pub trait ResponseVarSize: AsBytes + FromBytes {
+    fn data(&self) -> CaliptraResult<&[u8]> {
+        // Will panic if sizeof<Self>() is smaller than MailboxRespHeaderVarSize
+        // or Self doesn't have compatible alignment with
+        // MailboxRespHeaderVarSize (should be impossible if MailboxRespHeaderVarSize is the first field)
+        let (hdr, data) =
+            LayoutVerified::<_, MailboxRespHeaderVarSize>::new_from_prefix(self.as_bytes())
+                .ok_or(CaliptraError::RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE)?;
+        data.get(..hdr.data_len as usize)
+            .ok_or(CaliptraError::RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE)
+    }
+    fn partial_len(&self) -> CaliptraResult<usize> {
+        let (hdr, _) =
+            LayoutVerified::<_, MailboxRespHeaderVarSize>::new_from_prefix(self.as_bytes())
+                .ok_or(CaliptraError::RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE)?;
+        Ok(size_of::<MailboxRespHeaderVarSize>() + hdr.data_len as usize)
+    }
+    fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        self.as_bytes()
+            .get(..self.partial_len()?)
+            .ok_or(CaliptraError::RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE)
+    }
+    fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        let partial_len = self.partial_len()?;
+        self.as_bytes_mut()
+            .get_mut(..partial_len)
+            .ok_or(CaliptraError::RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE)
+    }
+}
+impl<T: ResponseVarSize> Response for T {
+    const MIN_SIZE: usize = size_of::<MailboxRespHeaderVarSize>();
+}
+
 fn populate_checksum(msg: &mut [u8]) {
     let (checksum_bytes, payload_bytes) = msg.split_at_mut(size_of::<u32>());
     let checksum = crate::checksum::calc_checksum(0, payload_bytes);
@@ -84,59 +123,70 @@ fn populate_checksum(msg: &mut [u8]) {
 pub enum MailboxResp {
     Header(MailboxRespHeader),
     GetIdevCert(GetIdevCertResp),
-    GetIdevCsr(GetIdevCsrResp),
     GetIdevInfo(GetIdevInfoResp),
     GetLdevCert(GetLdevCertResp),
     StashMeasurement(StashMeasurementResp),
     InvokeDpeCommand(InvokeDpeResp),
-    TestGetFmcAliasCert(TestGetFmcAliasCertResp),
+    GetFmcAliasCert(GetFmcAliasCertResp),
     FipsVersion(FipsVersionResp),
     FwInfo(FwInfoResp),
     Capabilities(CapabilitiesResp),
+    GetTaggedTci(GetTaggedTciResp),
+    GetRtAliasCert(GetRtAliasCertResp),
 }
 
 impl MailboxResp {
-    pub fn as_bytes(&self) -> &[u8] {
+    pub fn as_bytes(&self) -> CaliptraResult<&[u8]> {
         match self {
-            MailboxResp::Header(resp) => resp.as_bytes(),
-            MailboxResp::GetIdevCert(resp) => resp.as_bytes(),
-            MailboxResp::GetIdevCsr(resp) => resp.as_bytes(),
-            MailboxResp::GetIdevInfo(resp) => resp.as_bytes(),
-            MailboxResp::GetLdevCert(resp) => resp.as_bytes(),
-            MailboxResp::StashMeasurement(resp) => resp.as_bytes(),
+            MailboxResp::Header(resp) => Ok(resp.as_bytes()),
+            MailboxResp::GetIdevCert(resp) => resp.as_bytes_partial(),
+            MailboxResp::GetIdevInfo(resp) => Ok(resp.as_bytes()),
+            MailboxResp::GetLdevCert(resp) => resp.as_bytes_partial(),
+            MailboxResp::StashMeasurement(resp) => Ok(resp.as_bytes()),
             MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes_partial(),
-            MailboxResp::TestGetFmcAliasCert(resp) => resp.as_bytes(),
-            MailboxResp::FipsVersion(resp) => resp.as_bytes(),
-            MailboxResp::FwInfo(resp) => resp.as_bytes(),
-            MailboxResp::Capabilities(resp) => resp.as_bytes(),
+            MailboxResp::FipsVersion(resp) => Ok(resp.as_bytes()),
+            MailboxResp::FwInfo(resp) => Ok(resp.as_bytes()),
+            MailboxResp::Capabilities(resp) => Ok(resp.as_bytes()),
+            MailboxResp::GetTaggedTci(resp) => Ok(resp.as_bytes()),
+            MailboxResp::GetFmcAliasCert(resp) => resp.as_bytes_partial(),
+            MailboxResp::GetRtAliasCert(resp) => resp.as_bytes_partial(),
         }
     }
 
-    pub fn as_bytes_mut(&mut self) -> &mut [u8] {
+    pub fn as_bytes_mut(&mut self) -> CaliptraResult<&mut [u8]> {
         match self {
-            MailboxResp::Header(resp) => resp.as_bytes_mut(),
-            MailboxResp::GetIdevCert(resp) => resp.as_bytes_mut(),
-            MailboxResp::GetIdevCsr(resp) => resp.as_bytes_mut(),
-            MailboxResp::GetIdevInfo(resp) => resp.as_bytes_mut(),
-            MailboxResp::GetLdevCert(resp) => resp.as_bytes_mut(),
-            MailboxResp::StashMeasurement(resp) => resp.as_bytes_mut(),
+            MailboxResp::Header(resp) => Ok(resp.as_bytes_mut()),
+            MailboxResp::GetIdevCert(resp) => resp.as_bytes_partial_mut(),
+            MailboxResp::GetIdevInfo(resp) => Ok(resp.as_bytes_mut()),
+            MailboxResp::GetLdevCert(resp) => resp.as_bytes_partial_mut(),
+            MailboxResp::StashMeasurement(resp) => Ok(resp.as_bytes_mut()),
             MailboxResp::InvokeDpeCommand(resp) => resp.as_bytes_partial_mut(),
-            MailboxResp::TestGetFmcAliasCert(resp) => resp.as_bytes_mut(),
-            MailboxResp::FipsVersion(resp) => resp.as_bytes_mut(),
-            MailboxResp::FwInfo(resp) => resp.as_bytes_mut(),
-            MailboxResp::Capabilities(resp) => resp.as_bytes_mut(),
+            MailboxResp::FipsVersion(resp) => Ok(resp.as_bytes_mut()),
+            MailboxResp::FwInfo(resp) => Ok(resp.as_bytes_mut()),
+            MailboxResp::Capabilities(resp) => Ok(resp.as_bytes_mut()),
+            MailboxResp::GetTaggedTci(resp) => Ok(resp.as_bytes_mut()),
+            MailboxResp::GetFmcAliasCert(resp) => resp.as_bytes_partial_mut(),
+            MailboxResp::GetRtAliasCert(resp) => resp.as_bytes_partial_mut(),
         }
     }
 
     /// Calculate and set the checksum for a response payload
-    /// Takes into account the size override for variable-lenth payloads
+    /// Takes into account the size override for variable-length payloads
     pub fn populate_chksum(&mut self) -> CaliptraResult<()> {
         // Calc checksum, use the size override if provided
-        let checksum = crate::checksum::calc_checksum(0, &self.as_bytes()[size_of::<u32>()..]);
+        let resp_bytes = self.as_bytes()?;
+        if size_of::<u32>() >= resp_bytes.len() {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE);
+        }
+        let checksum = crate::checksum::calc_checksum(0, &resp_bytes[size_of::<u32>()..]);
 
+        let mut_resp_bytes = self.as_bytes_mut()?;
+        if size_of::<MailboxRespHeader>() > mut_resp_bytes.len() {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE);
+        }
         // cast as header struct
         let hdr: &mut MailboxRespHeader = LayoutVerified::<&mut [u8], MailboxRespHeader>::new(
-            &mut self.as_bytes_mut()[..size_of::<MailboxRespHeader>()],
+            &mut mut_resp_bytes[..size_of::<MailboxRespHeader>()],
         )
         .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?
         .into_mut();
@@ -158,68 +208,80 @@ impl Default for MailboxResp {
 #[allow(clippy::large_enum_variant)]
 pub enum MailboxReq {
     EcdsaVerify(EcdsaVerifyReq),
-    GetIdevCsr(MailboxReqHeader),
-    GetLdevCert(MailboxReqHeader),
+    GetLdevCert(GetLdevCertReq),
     StashMeasurement(StashMeasurementReq),
     InvokeDpeCommand(InvokeDpeReq),
     FipsVersion(MailboxReqHeader),
     FwInfo(MailboxReqHeader),
+    PopulateIdevCert(PopulateIdevCertReq),
+    GetIdevCert(GetIdevCertReq),
+    TagTci(TagTciReq),
+    GetTaggedTci(GetTaggedTciReq),
+    GetFmcAliasCert(GetFmcAliasCertReq),
+    GetRtAliasCert(GetRtAliasCertReq),
 
     #[cfg(feature = "test_only_commands")]
     TestHmacVerify(HmacVerifyReq),
-    #[cfg(feature = "test_only_commands")]
-    TestGetFmcAliasCert(MailboxReqHeader),
 }
 
 impl MailboxReq {
-    pub fn as_bytes(&self) -> &[u8] {
+    pub fn as_bytes(&self) -> CaliptraResult<&[u8]> {
         match self {
-            MailboxReq::EcdsaVerify(req) => req.as_bytes(),
-            MailboxReq::StashMeasurement(req) => req.as_bytes(),
-            MailboxReq::InvokeDpeCommand(req) => req.as_bytes(),
-            MailboxReq::FipsVersion(req) => req.as_bytes(),
-            MailboxReq::FwInfo(req) => req.as_bytes(),
-            MailboxReq::GetIdevCsr(req) => req.as_bytes(),
-            MailboxReq::GetLdevCert(req) => req.as_bytes(),
+            MailboxReq::EcdsaVerify(req) => Ok(req.as_bytes()),
+            MailboxReq::StashMeasurement(req) => Ok(req.as_bytes()),
+            MailboxReq::InvokeDpeCommand(req) => req.as_bytes_partial(),
+            MailboxReq::FipsVersion(req) => Ok(req.as_bytes()),
+            MailboxReq::FwInfo(req) => Ok(req.as_bytes()),
+            MailboxReq::GetLdevCert(req) => Ok(req.as_bytes()),
+            MailboxReq::PopulateIdevCert(req) => req.as_bytes_partial(),
+            MailboxReq::GetIdevCert(req) => req.as_bytes_partial(),
+            MailboxReq::TagTci(req) => Ok(req.as_bytes()),
+            MailboxReq::GetTaggedTci(req) => Ok(req.as_bytes()),
+            MailboxReq::GetFmcAliasCert(req) => Ok(req.as_bytes()),
+            MailboxReq::GetRtAliasCert(req) => Ok(req.as_bytes()),
 
             #[cfg(feature = "test_only_commands")]
-            MailboxReq::TestGetFmcAliasCert(req) => req.as_bytes(),
-            #[cfg(feature = "test_only_commands")]
-            MailboxReq::TestHmacVerify(req) => req.as_bytes(),
+            MailboxReq::TestHmacVerify(req) => Ok(req.as_bytes()),
         }
     }
 
-    pub fn as_bytes_mut(&mut self) -> &mut [u8] {
+    pub fn as_bytes_mut(&mut self) -> CaliptraResult<&mut [u8]> {
         match self {
-            MailboxReq::EcdsaVerify(req) => req.as_bytes_mut(),
-            MailboxReq::GetIdevCsr(req) => req.as_bytes_mut(),
-            MailboxReq::GetLdevCert(req) => req.as_bytes_mut(),
-            MailboxReq::StashMeasurement(req) => req.as_bytes_mut(),
-            MailboxReq::InvokeDpeCommand(req) => req.as_bytes_mut(),
-            MailboxReq::FipsVersion(req) => req.as_bytes_mut(),
-            MailboxReq::FwInfo(req) => req.as_bytes_mut(),
+            MailboxReq::EcdsaVerify(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::GetLdevCert(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::StashMeasurement(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::InvokeDpeCommand(req) => req.as_bytes_partial_mut(),
+            MailboxReq::FipsVersion(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::FwInfo(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::PopulateIdevCert(req) => req.as_bytes_partial_mut(),
+            MailboxReq::GetIdevCert(req) => req.as_bytes_partial_mut(),
+            MailboxReq::TagTci(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::GetTaggedTci(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::GetFmcAliasCert(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::GetRtAliasCert(req) => Ok(req.as_bytes_mut()),
 
             #[cfg(feature = "test_only_commands")]
-            MailboxReq::TestHmacVerify(req) => req.as_bytes_mut(),
-            #[cfg(feature = "test_only_commands")]
-            MailboxReq::TestGetFmcAliasCert(req) => req.as_bytes_mut(),
+            MailboxReq::TestHmacVerify(req) => Ok(req.as_bytes_mut()),
         }
     }
 
     pub fn cmd_code(&self) -> CommandId {
         match self {
             MailboxReq::EcdsaVerify(_) => CommandId::ECDSA384_VERIFY,
-            MailboxReq::GetIdevCsr(_) => CommandId::GET_IDEV_CSR,
             MailboxReq::GetLdevCert(_) => CommandId::GET_LDEV_CERT,
             MailboxReq::StashMeasurement(_) => CommandId::STASH_MEASUREMENT,
             MailboxReq::InvokeDpeCommand(_) => CommandId::INVOKE_DPE,
             MailboxReq::FipsVersion(_) => CommandId::VERSION,
             MailboxReq::FwInfo(_) => CommandId::FW_INFO,
+            MailboxReq::PopulateIdevCert(_) => CommandId::POPULATE_IDEV_CERT,
+            MailboxReq::GetIdevCert(_) => CommandId::GET_IDEV_CERT,
+            MailboxReq::TagTci(_) => CommandId::DPE_TAG_TCI,
+            MailboxReq::GetTaggedTci(_) => CommandId::DPE_GET_TAGGED_TCI,
+            MailboxReq::GetFmcAliasCert(_) => CommandId::GET_FMC_ALIAS_CERT,
+            MailboxReq::GetRtAliasCert(_) => CommandId::GET_RT_ALIAS_CERT,
 
             #[cfg(feature = "test_only_commands")]
             MailboxReq::TestHmacVerify(_) => CommandId::TEST_ONLY_HMAC384_VERIFY,
-            #[cfg(feature = "test_only_commands")]
-            MailboxReq::TestGetFmcAliasCert(_) => CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT,
         }
     }
 
@@ -228,12 +290,12 @@ impl MailboxReq {
         // Calc checksum, use the size override if provided
         let checksum = crate::checksum::calc_checksum(
             self.cmd_code().into(),
-            &self.as_bytes()[size_of::<i32>()..],
+            &self.as_bytes()?[size_of::<i32>()..],
         );
 
         // cast as header struct
         let hdr: &mut MailboxReqHeader = LayoutVerified::<&mut [u8], MailboxReqHeader>::new(
-            &mut self.as_bytes_mut()[..size_of::<MailboxReqHeader>()],
+            &mut self.as_bytes_mut()?[..size_of::<MailboxReqHeader>()],
         )
         .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?
         .into_mut();
@@ -273,19 +335,6 @@ impl Default for MailboxRespHeader {
     }
 }
 
-// GET_IDEV_CSR
-// No command-specific input args
-#[repr(C)]
-#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
-pub struct GetIdevCsrResp {
-    pub hdr: MailboxRespHeader,
-    pub data_size: u32,
-    pub data: [u8; GetIdevCsrResp::DATA_MAX_SIZE], // variable length
-}
-impl GetIdevCsrResp {
-    pub const DATA_MAX_SIZE: usize = 1024;
-}
-
 // GET_IDEV_CERT
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
@@ -298,6 +347,33 @@ pub struct GetIdevCertReq {
 }
 impl GetIdevCertReq {
     pub const DATA_MAX_SIZE: usize = 916; // Req max size = Resp max size - MAX_ECDSA384_SIG_LEN
+
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.tbs_size as usize > Self::DATA_MAX_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::DATA_MAX_SIZE - self.tbs_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.tbs_size as usize > Self::DATA_MAX_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::DATA_MAX_SIZE - self.tbs_size as usize;
+        Ok(&mut self.as_bytes_mut()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+impl Default for GetIdevCertReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            tbs_size: 0,
+            signature_r: [0u8; 48],
+            signature_s: [0u8; 48],
+            tbs: [0u8; GetIdevCertReq::DATA_MAX_SIZE],
+        }
+    }
 }
 
 #[repr(C)]
@@ -310,6 +386,17 @@ pub struct GetIdevCertResp {
 impl GetIdevCertResp {
     pub const DATA_MAX_SIZE: usize = 1024;
 }
+impl ResponseVarSize for GetIdevCertResp {}
+
+impl Default for GetIdevCertResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            cert_size: 0,
+            cert: [0u8; GetIdevCertResp::DATA_MAX_SIZE],
+        }
+    }
+}
 
 // GET_IDEV_INFO
 // No command-specific input args
@@ -321,18 +408,17 @@ pub struct GetIdevInfoResp {
     pub idev_pub_y: [u8; 48],
 }
 
+// GET_LDEV_CERT
 #[repr(C)]
 #[derive(Default, Debug, AsBytes, FromBytes, PartialEq, Eq)]
-pub struct TestOnlyGetLdevCertReq {
+pub struct GetLdevCertReq {
     header: MailboxReqHeader,
 }
-impl Request for TestOnlyGetLdevCertReq {
-    const ID: CommandId = CommandId::TEST_ONLY_GET_LDEV_CERT;
+impl Request for GetLdevCertReq {
+    const ID: CommandId = CommandId::GET_LDEV_CERT;
     type Resp = GetLdevCertResp;
 }
 
-// GET_LDEV_CERT
-// No command-specific input args
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct GetLdevCertResp {
@@ -342,13 +428,54 @@ pub struct GetLdevCertResp {
 }
 impl GetLdevCertResp {
     pub const DATA_MAX_SIZE: usize = 1024;
+}
+impl ResponseVarSize for GetLdevCertResp {}
+
+impl Default for GetLdevCertResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            data_size: 0,
+            data: [0u8; GetLdevCertResp::DATA_MAX_SIZE],
+        }
+    }
+}
+
+// GET_RT_ALIAS_CERT
+#[repr(C)]
+#[derive(Default, Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct GetRtAliasCertReq {
+    header: MailboxReqHeader,
+}
+impl Request for GetRtAliasCertReq {
+    const ID: CommandId = CommandId::GET_RT_ALIAS_CERT;
+    type Resp = GetRtAliasCertResp;
+}
+
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct GetRtAliasCertResp {
+    pub hdr: MailboxRespHeader,
+    pub data_size: u32,
+    pub data: [u8; GetRtAliasCertResp::DATA_MAX_SIZE], // variable length
+}
+impl GetRtAliasCertResp {
+    pub const DATA_MAX_SIZE: usize = 1024;
 
     pub fn data(&self) -> Option<&[u8]> {
         self.data.get(..self.data_size as usize)
     }
 }
-impl Response for GetLdevCertResp {
-    const MIN_SIZE: usize = size_of::<MailboxRespHeader>() + size_of::<u32>();
+impl ResponseVarSize for GetRtAliasCertResp {}
+
+impl Default for GetRtAliasCertResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            data_size: 0,
+            data: [0u8; GetRtAliasCertResp::DATA_MAX_SIZE],
+        }
+    }
 }
 
 // ECDSA384_SIGNATURE_VERIFY
@@ -410,7 +537,7 @@ impl Request for StashMeasurementReq {
 }
 
 #[repr(C)]
-#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+#[derive(Debug, Default, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct StashMeasurementResp {
     pub hdr: MailboxRespHeader,
     pub dpe_result: u32,
@@ -432,8 +559,23 @@ pub struct InvokeDpeReq {
 
 impl InvokeDpeReq {
     pub const DATA_MAX_SIZE: usize = 512;
-}
 
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.data_size as usize > Self::DATA_MAX_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::DATA_MAX_SIZE - self.data_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.data_size as usize > Self::DATA_MAX_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::DATA_MAX_SIZE - self.data_size as usize;
+        Ok(&mut self.as_bytes_mut()[..size_of::<Self>() - unused_byte_count])
+    }
+}
 impl Default for InvokeDpeReq {
     fn default() -> Self {
         Self {
@@ -455,23 +597,10 @@ pub struct InvokeDpeResp {
     pub data_size: u32,
     pub data: [u8; InvokeDpeResp::DATA_MAX_SIZE], // variable length
 }
-
 impl InvokeDpeResp {
     pub const DATA_MAX_SIZE: usize = 2200;
-
-    fn as_bytes_partial(&self) -> &[u8] {
-        let unused_byte_count = Self::DATA_MAX_SIZE.saturating_sub(self.data_size as usize);
-        &self.as_bytes()[..size_of::<Self>() - unused_byte_count]
-    }
-
-    fn as_bytes_partial_mut(&mut self) -> &mut [u8] {
-        let unused_byte_count = Self::DATA_MAX_SIZE.saturating_sub(self.data_size as usize);
-        &mut self.as_bytes_mut()[..size_of::<Self>() - unused_byte_count]
-    }
 }
-impl Response for InvokeDpeResp {
-    const MIN_SIZE: usize = size_of::<MailboxRespHeader>() + size_of::<u32>();
-}
+impl ResponseVarSize for InvokeDpeResp {}
 
 impl Default for InvokeDpeResp {
     fn default() -> Self {
@@ -483,30 +612,36 @@ impl Default for InvokeDpeResp {
     }
 }
 
+// GET_FMC_ALIAS_CERT
 #[repr(C)]
 #[derive(Debug, Default, AsBytes, FromBytes, PartialEq, Eq)]
-pub struct TestOnlyGetFmcAliasCertReq {
+pub struct GetFmcAliasCertReq {
     header: MailboxReqHeader,
 }
-impl Request for TestOnlyGetFmcAliasCertReq {
-    const ID: CommandId = CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT;
-    type Resp = GetLdevCertResp;
+impl Request for GetFmcAliasCertReq {
+    const ID: CommandId = CommandId::GET_FMC_ALIAS_CERT;
+    type Resp = GetFmcAliasCertResp;
 }
 
-// TEST_ONLY_GET_FMC_ALIAS_CERT
-// No command-specific input args
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
-pub struct TestGetFmcAliasCertResp {
+pub struct GetFmcAliasCertResp {
     pub hdr: MailboxRespHeader,
     pub data_size: u32,
-    pub data: [u8; TestGetFmcAliasCertResp::DATA_MAX_SIZE], // variable length
+    pub data: [u8; GetFmcAliasCertResp::DATA_MAX_SIZE], // variable length
 }
-impl TestGetFmcAliasCertResp {
+impl GetFmcAliasCertResp {
     pub const DATA_MAX_SIZE: usize = 1024;
+}
+impl ResponseVarSize for GetFmcAliasCertResp {}
 
-    pub fn data(&self) -> Option<&[u8]> {
-        self.data.get(..self.data_size as usize)
+impl Default for GetFmcAliasCertResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            data_size: 0,
+            data: [0u8; GetFmcAliasCertResp::DATA_MAX_SIZE],
+        }
     }
 }
 
@@ -562,6 +697,56 @@ pub struct PopulateIdevCertReq {
 }
 impl PopulateIdevCertReq {
     pub const MAX_CERT_SIZE: usize = 1024;
+
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.cert_size as usize > Self::MAX_CERT_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::MAX_CERT_SIZE - self.cert_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.cert_size as usize > Self::MAX_CERT_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::MAX_CERT_SIZE - self.cert_size as usize;
+        Ok(&mut self.as_bytes_mut()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+impl Default for PopulateIdevCertReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            cert_size: 0,
+            cert: [0u8; PopulateIdevCertReq::MAX_CERT_SIZE],
+        }
+    }
+}
+
+// DPE_TAG_TCI
+// No command-specific output args
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct TagTciReq {
+    pub hdr: MailboxReqHeader,
+    pub handle: [u8; 16],
+    pub tag: u32,
+}
+
+// DPE_GET_TAGGED_TCI
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct GetTaggedTciReq {
+    pub hdr: MailboxReqHeader,
+    pub tag: u32,
+}
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct GetTaggedTciResp {
+    pub hdr: MailboxRespHeader,
+    pub tci_cumulative: [u8; 48],
+    pub tci_current: [u8; 48],
 }
 
 #[cfg(test)]

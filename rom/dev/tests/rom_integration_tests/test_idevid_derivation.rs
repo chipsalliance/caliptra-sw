@@ -9,7 +9,6 @@ use openssl::pkey::{PKey, Public};
 use openssl::x509::X509;
 use openssl::{rand::rand_bytes, x509::X509Req};
 use zerocopy::AsBytes;
-use zerocopy::FromBytes;
 
 use crate::helpers;
 
@@ -109,14 +108,20 @@ fn test_generate_csr_stress() {
 
         let ldev_cert = verify_key(
             &mut hw,
-            u32::from(CommandId::TEST_ONLY_GET_LDEV_CERT),
+            u32::from(CommandId::GET_LDEV_CERT),
             &idevid_pubkey,
             &fuses.uds_seed,
         );
-        let _fmc_cert = verify_key(
+        let fmc_cert = verify_key(
             &mut hw,
-            u32::from(CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT),
+            u32::from(CommandId::GET_FMC_ALIAS_CERT),
             &ldev_cert.public_key().unwrap(),
+            &fuses.uds_seed,
+        );
+        let _rt_cert = verify_key(
+            &mut hw,
+            u32::from(CommandId::GET_RT_ALIAS_CERT),
+            &fmc_cert.public_key().unwrap(),
             &fuses.uds_seed,
         );
     }
@@ -133,12 +138,14 @@ fn verify_key(
     };
 
     // Execute the command
-    let cert_resp = hw
+    let resp = hw
         .mailbox_execute(cmd_id, payload.as_bytes())
         .unwrap()
         .unwrap();
 
-    let cert_resp = GetLdevCertResp::read_from(cert_resp.as_bytes()).unwrap();
+    assert!(resp.len() <= std::mem::size_of::<GetLdevCertResp>());
+    let mut cert_resp = GetLdevCertResp::default();
+    cert_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
 
     // Extract the certificate from the response
     let cert_der = &cert_resp.data[..(cert_resp.data_size as usize)];

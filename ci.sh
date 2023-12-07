@@ -43,6 +43,9 @@ EXTRA_CARGO_CONFIG="target.'cfg(all())'.rustflags = [\"-Dwarnings\"]"
 fw_dir="${WORK_DIR}/fw"
 mkdir -p "${fw_dir}"
 
+cov_dir="${WORK_DIR}/cov"
+mkdir -p "${cov_dir}"
+
 mkdir -p target-ci
 
 export CARGO_TARGET_DIR="${PWD}/target-ci"
@@ -97,10 +100,11 @@ fi
 if task_enabled "test"; then
   echo Run tests
   if cargo nextest help > /dev/null 2>/dev/null; then
-    CALIPTRA_PREBUILT_FW_DIR="${fw_dir}" cargo nextest run --config "${EXTRA_CARGO_CONFIG}" --locked
+    CPTRA_COVERAGE_PATH="${cov_dir}" CALIPTRA_PREBUILT_FW_DIR="${fw_dir}" cargo nextest run --config "${EXTRA_CARGO_CONFIG}" --locked
   else
-    CALIPTRA_PREBUILT_FW_DIR="${fw_dir}" cargo --config "${EXTRA_CARGO_CONFIG}" test --locked
+    CPTRA_COVERAGE_PATH="${cov_dir}" CALIPTRA_PREBUILT_FW_DIR="${fw_dir}" cargo --config "${EXTRA_CARGO_CONFIG}" test --locked
   fi
+  CALIPTRA_PREBUILT_FW_DIR="${fw_dir}" CPTRA_COVERAGE_PATH="${cov_dir}" cargo --config "${EXTRA_CARGO_CONFIG}" run --manifest-path ./coverage/Cargo.toml
 fi
 
 if task_enabled "check_frozen_images"; then

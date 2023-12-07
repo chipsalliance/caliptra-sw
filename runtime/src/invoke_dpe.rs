@@ -10,9 +10,9 @@ use dpe::{
     },
     context::{Context, ContextState},
     response::{Response, ResponseHdr},
-    DpeInstance,
+    DpeInstance, U8Bool, MAX_HANDLES,
 };
-use zerocopy::FromBytes;
+use zerocopy::{AsBytes, FromBytes};
 
 pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
@@ -20,7 +20,10 @@ impl InvokeDpeCmd {
     pub const PL1_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
 
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        if let Some(cmd) = InvokeDpeReq::read_from(cmd_args) {
+        if cmd_args.len() <= core::mem::size_of::<InvokeDpeReq>() {
+            let mut cmd = InvokeDpeReq::default();
+            cmd.as_bytes_mut()[..cmd_args.len()].copy_from_slice(cmd_args);
+
             // Validate data length
             if cmd.data_size as usize > cmd.data.len() {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
@@ -49,7 +52,10 @@ impl InvokeDpeCmd {
                 .map_err(|_| CaliptraError::RUNTIME_INVOKE_DPE_FAILED)?;
             let flags = pdata.manifest1.header.flags;
 
-            let mut dpe = &mut drivers.persistent_data.get_mut().dpe;
+            let pdata_mut = drivers.persistent_data.get_mut();
+            let mut dpe = &mut pdata_mut.dpe;
+            let mut context_has_tag = &mut pdata_mut.context_has_tag;
+            let mut context_tags = &mut pdata_mut.context_tags;
             let resp = match command {
                 Command::GetProfile => Ok(Response::GetProfile(
                     dpe.get_profile(&mut env.platform)
@@ -73,7 +79,10 @@ impl InvokeDpeCmd {
                     {
                         return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
                     }
-                    cmd.execute(dpe, &mut env, locality)
+                    let derive_child_resp = cmd.execute(dpe, &mut env, locality);
+                    // clear tags for retired contexts
+                    Self::clear_tags_for_non_active_contexts(dpe, context_has_tag, context_tags);
+                    derive_child_resp
                 }
                 Command::CertifyKey(cmd) => {
                     // PL1 cannot request X509
@@ -84,9 +93,14 @@ impl InvokeDpeCmd {
                     }
                     cmd.execute(dpe, &mut env, locality)
                 }
+                Command::DestroyCtx(cmd) => {
+                    let destroy_ctx_resp = cmd.execute(dpe, &mut env, locality);
+                    // clear tags for destroyed contexts
+                    Self::clear_tags_for_non_active_contexts(dpe, context_has_tag, context_tags);
+                    destroy_ctx_resp
+                }
                 Command::Sign(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::RotateCtx(cmd) => cmd.execute(dpe, &mut env, locality),
-                Command::DestroyCtx(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::ExtendTci(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::GetCertificateChain(cmd) => cmd.execute(dpe, &mut env, locality),
             };
@@ -151,5 +165,22 @@ impl InvokeDpeCmd {
 
     fn is_caller_pl1(pl0_pauser: u32, flags: u32, locality: u32) -> bool {
         flags & PL0_PAUSER_FLAG == 0 && locality != pl0_pauser
+    }
+
+    fn clear_tags_for_non_active_contexts(
+        dpe: &mut DpeInstance,
+        context_has_tag: &mut [U8Bool; MAX_HANDLES],
+        context_tags: &mut [u32; MAX_HANDLES],
+    ) {
+        (0..MAX_HANDLES).for_each(|i| {
+            if i < dpe.contexts.len()
+                && i < context_has_tag.len()
+                && i < context_tags.len()
+                && dpe.contexts[i].state != ContextState::Active
+            {
+                context_has_tag[i] = U8Bool::new(false);
+                context_tags[i] = 0;
+            }
+        });
     }
 }
