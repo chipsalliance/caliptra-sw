@@ -18,6 +18,7 @@ use uio::{UioDevice, UioError};
 use crate::EtrngResponse;
 use crate::HwModel;
 use crate::Output;
+use crate::TrngMode;
 
 // UIO mapping indices
 const FPGA_WRAPPER_MAPPING: usize = 0;
@@ -299,6 +300,14 @@ impl HwModel for ModelFpgaRealtime {
         writeln!(m.output().logger(), "ready_for_fuses is high")?;
 
         Ok(m)
+    }
+
+    fn type_name(&self) -> &'static str {
+        "ModelFpgaRealtime"
+    }
+
+    fn trng_mode(&self) -> TrngMode {
+        TrngMode::External
     }
 
     fn apb_bus(&mut self) -> Self::TBus<'_> {
