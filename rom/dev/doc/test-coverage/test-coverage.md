@@ -112,6 +112,7 @@ Check if boot statuses are correctly reported | **test_update_reset_boot_status*
 Tests update reset flow by providing a different vendor ECC public key index in the image  | **test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch** |IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_ECC_PUB_KEY_IDX_MISMATCH
 Tests update reset flow by providing a different vendor LMS public key index in the image | **test_update_reset_vendor_lms_pub_key_idx_dv_mismatch** | IMAGE_VERIFIER_ERR_UPDATE_RESET_VENDOR_LMS_PUB_KEY_IDX_MISMATCH
 Check value in WarmResetEntry4::RomUpdateResetStatus datavault register | **test_check_rom_update_reset_status_reg**   | N/A
+Ensure that hitless update flow can update an entire 128k bundle with completely different ICCM contents than original boot | **test_update_reset_max_fw_image** | N/A
 <br><br>
 
 # **Warm Reset Tests**
@@ -136,9 +137,5 @@ Ensure that boot ROM can load a 128k bundle into ICCM (assert ICCM contents in t
 Test Scenario| Test Name | ROM Error Code
 ---|---|---
 Expand `smoke_test` to perform a hitless update and confirm everything is mixed into the identity correctly. | N/A | N/A
-Validate fix for #817: warm reset during hitless update | N/A | N/A
-Validate fix for #628: warm reset during cold reset | N/A | N/A
-Add test for CPU fault, and that extended error info is populated correctly | N/A | N/A
-Ensure that boot ROM can load a 128k bundle into ICCM (assert ICCM contents in test) | N/A | N/A
 Ensure that hitless update flow can update an entire 128k bundle with completely different ICCM contents than original boot | N/A | N/A
 Run all the tests against the prod ROM (no logging) | N/A | N/A

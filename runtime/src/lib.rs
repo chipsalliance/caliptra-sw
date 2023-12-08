@@ -44,6 +44,7 @@ use caliptra_common::cprintln;
 
 use caliptra_drivers::{CaliptraError, CaliptraResult, ResetReason};
 use caliptra_registers::mbox::enums::MboxStatusE;
+pub use dpe::context::ContextState;
 use dpe::{
     commands::{CommandExecution, DeriveChildCmd, DeriveChildFlags},
     dpe_instance::{DpeEnv, DpeInstance, DpeTypes},
@@ -78,6 +79,8 @@ pub const DPE_SUPPORT: Support = Support::all();
 pub const MAX_CERT_CHAIN_SIZE: usize = 4096;
 
 pub const PL0_PAUSER_FLAG: u32 = 1;
+pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 8;
+pub const PL1_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
 
 pub struct CptraDpeTypes;
 

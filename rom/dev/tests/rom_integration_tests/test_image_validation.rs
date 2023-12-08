@@ -2379,5 +2379,7 @@ fn test_max_fw_image() {
     buf.append(&mut image_bundle.fmc.to_vec());
     buf.append(&mut image_bundle.runtime.to_vec());
 
-    hw.mailbox_execute(0x1000_000E, &buf).unwrap();
+    let iccm_cmp: Vec<u8> = hw.mailbox_execute(0x1000_000E, &buf).unwrap().unwrap();
+    assert_eq!(iccm_cmp.len(), 1);
+    assert_eq!(iccm_cmp[0], 0);
 }
