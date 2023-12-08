@@ -132,6 +132,8 @@ fn test_stress_update() {
         assert_eq!(fw_rev[0], 0xaaaaaaaa);
         assert_eq!(fw_rev[1], app_versions[image_select]);
     }
+}
+
 #[test]
 fn test_boot_tci_data() {
     let mut model = run_rt_test(Some(&firmware::runtime_tests::MBOX), None, None);
