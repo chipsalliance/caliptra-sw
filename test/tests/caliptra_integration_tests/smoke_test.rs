@@ -671,7 +671,7 @@ fn test_rt_wdt_timeout() {
     } else if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
         3_000_000
     } else {
-        2_800_000
+        2_850_000
     };
 
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
@@ -688,7 +688,24 @@ fn test_rt_wdt_timeout() {
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_fatal().read(),
         RUNTIME_GLOBAL_WDT_EPIRED
-    )
+    );
+
+    let mcause = hw.soc_ifc().cptra_fw_extended_error_info().at(0).read();
+    let mscause = hw.soc_ifc().cptra_fw_extended_error_info().at(1).read();
+    let mepc = hw.soc_ifc().cptra_fw_extended_error_info().at(2).read();
+    let ra = hw.soc_ifc().cptra_fw_extended_error_info().at(3).read();
+    let error_internal_intr_r = hw.soc_ifc().cptra_fw_extended_error_info().at(4).read();
+
+    // no mcause if wdt times out
+    assert_eq!(mcause, 0);
+    // no mscause if wdt times out
+    assert_eq!(mscause, 0);
+    // mepc is a memory address so won't be 0
+    assert_ne!(mepc, 0);
+    // return address won't be 0
+    assert_ne!(ra, 0);
+    // error_internal_intr_r must be 0b01000000 since the error_wdt_timer1_timeout_sts bit must be set
+    assert_eq!(error_internal_intr_r, 0b01000000);
 }
 
 #[test]
@@ -719,4 +736,21 @@ fn test_fmc_wdt_timeout() {
         hw.soc_ifc().cptra_fw_error_fatal().read(),
         FMC_GLOBAL_WDT_EPIRED
     );
+
+    let mcause = hw.soc_ifc().cptra_fw_extended_error_info().at(0).read();
+    let mscause = hw.soc_ifc().cptra_fw_extended_error_info().at(1).read();
+    let mepc = hw.soc_ifc().cptra_fw_extended_error_info().at(2).read();
+    let ra = hw.soc_ifc().cptra_fw_extended_error_info().at(3).read();
+    let error_internal_intr_r = hw.soc_ifc().cptra_fw_extended_error_info().at(4).read();
+
+    // no mcause if wdt times out
+    assert_eq!(mcause, 0);
+    // no mscause if wdt times out
+    assert_eq!(mscause, 0);
+    // mepc is a memory address so won't be 0
+    assert_ne!(mepc, 0);
+    // return address won't be 0
+    assert_ne!(ra, 0);
+    // error_internal_intr_r must be 0b01000000 since the error_wdt_timer1_timeout_sts bit must be set
+    assert_eq!(error_internal_intr_r, 0b01000000);
 }
