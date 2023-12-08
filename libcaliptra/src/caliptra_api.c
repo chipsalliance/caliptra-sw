@@ -707,27 +707,6 @@ int caliptra_upload_fw(struct caliptra_buffer *fw_buffer, bool async)
  * @return 0 for success, non-zero for failure (see enum libcaliptra_error)
  */
 
-// Get IDEV CSR
-int caliptra_get_idev_csr(struct caliptra_get_idev_csr_resp *resp, bool async)
-{
-    if (!resp)
-    {
-        return INVALID_PARAMS;
-    }
-
-    caliptra_checksum checksum = 0;
-
-    struct parcel p = {
-        .command   = OP_GET_IDEV_CSR,
-        .tx_buffer = (uint8_t*)&checksum,
-        .tx_bytes  = sizeof(checksum),
-        .rx_buffer = (uint8_t*)resp,
-        .rx_bytes  = sizeof(*resp),
-    };
-
-    return pack_and_execute_command(&p, async);
-}
-
 // Get IDEV cert
 int caliptra_get_idev_cert(struct caliptra_get_idev_cert_req *req, struct caliptra_get_idev_cert_resp *resp, bool async)
 {
@@ -768,6 +747,27 @@ int caliptra_get_idev_info(struct caliptra_get_idev_info_resp *resp, bool async)
     return pack_and_execute_command(&p, async);
 }
 
+// Populate IDEV cert
+int caliptra_populate_idev_cert(struct caliptra_populate_idev_cert_req *req, bool async)
+{
+    if (!req)
+    {
+        return INVALID_PARAMS;
+    }
+
+    struct caliptra_resp_header resp_hdr = {};
+
+    struct parcel p = {
+        .command   = OP_POPULATE_IDEV_CERT,
+        .tx_buffer = (uint8_t*)req,
+        .tx_bytes  = sizeof(*req),
+        .rx_buffer = (uint8_t*)&resp_hdr,
+        .rx_bytes  = sizeof(resp_hdr),
+    };
+
+    return pack_and_execute_command(&p, async);
+}
+
 // Get LDEV cert
 int caliptra_get_ldev_cert(struct caliptra_get_ldev_cert_resp *resp, bool async)
 {
@@ -780,6 +780,48 @@ int caliptra_get_ldev_cert(struct caliptra_get_ldev_cert_resp *resp, bool async)
 
     struct parcel p = {
         .command   = OP_GET_LDEV_CERT,
+        .tx_buffer = (uint8_t*)&checksum,
+        .tx_bytes  = sizeof(checksum),
+        .rx_buffer = (uint8_t*)resp,
+        .rx_bytes  = sizeof(*resp),
+    };
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Get FMC alias cert
+int caliptra_get_fmc_alias_cert(struct caliptra_get_fmc_alias_cert_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    caliptra_checksum checksum = 0;
+
+    struct parcel p = {
+        .command   = OP_GET_FMC_ALIAS_CERT,
+        .tx_buffer = (uint8_t*)&checksum,
+        .tx_bytes  = sizeof(checksum),
+        .rx_buffer = (uint8_t*)resp,
+        .rx_bytes  = sizeof(*resp),
+    };
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Get RT alias cert
+int caliptra_get_rt_alias_cert(struct caliptra_get_rt_alias_cert_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    caliptra_checksum checksum = 0;
+
+    struct parcel p = {
+        .command   = OP_GET_RT_ALIAS_CERT,
         .tx_buffer = (uint8_t*)&checksum,
         .tx_bytes  = sizeof(checksum),
         .rx_buffer = (uint8_t*)resp,
@@ -829,23 +871,6 @@ int caliptra_stash_measurement(struct caliptra_stash_measurement_req *req, struc
     return pack_and_execute_command(&p, async);
 }
 
-// Disable attestation
-int caliptra_disable_attestation(bool async)
-{
-    struct caliptra_resp_header resp_hdr = {};
-    caliptra_checksum checksum = 0;
-
-    struct parcel p = {
-        .command   = OP_DISABLE_ATTESTATION,
-        .tx_buffer = (uint8_t*)&checksum,
-        .tx_bytes  = sizeof(checksum),
-        .rx_buffer = (uint8_t*)&resp_hdr,
-        .rx_bytes  = sizeof(resp_hdr),
-    };
-
-    return pack_and_execute_command(&p, async);
-}
-
 // DPE command
 int caliptra_invoke_dpe_command(struct caliptra_invoke_dpe_req *req, struct caliptra_invoke_dpe_resp *resp, bool async)
 {
@@ -870,6 +895,23 @@ int caliptra_invoke_dpe_command(struct caliptra_invoke_dpe_req *req, struct cali
     return pack_and_execute_command(&p, async);
 }
 
+// Disable attestation
+int caliptra_disable_attestation(bool async)
+{
+    struct caliptra_resp_header resp_hdr = {};
+    caliptra_checksum checksum = 0;
+
+    struct parcel p = {
+        .command   = OP_DISABLE_ATTESTATION,
+        .tx_buffer = (uint8_t*)&checksum,
+        .tx_bytes  = sizeof(checksum),
+        .rx_buffer = (uint8_t*)&resp_hdr,
+        .rx_bytes  = sizeof(resp_hdr),
+    };
+
+    return pack_and_execute_command(&p, async);
+}
+
 // FW Info
 int caliptra_fw_info(struct caliptra_fw_info_resp *resp, bool async)
 {
@@ -884,6 +926,46 @@ int caliptra_fw_info(struct caliptra_fw_info_resp *resp, bool async)
         .command   = OP_FW_INFO,
         .tx_buffer = (uint8_t*)&checksum,
         .tx_bytes  = sizeof(checksum),
+        .rx_buffer = (uint8_t*)resp,
+        .rx_bytes  = sizeof(*resp),
+    };
+
+    return pack_and_execute_command(&p, async);
+}
+
+// DPE tag TCI
+int caliptra_dpe_tag_tci(struct caliptra_dpe_tag_tci_req *req, bool async)
+{
+    if (!req)
+    {
+        return INVALID_PARAMS;
+    }
+
+    struct caliptra_resp_header resp_hdr = {};
+
+    struct parcel p = {
+        .command   = OP_DPE_TAG_TCI,
+        .tx_buffer = (uint8_t*)req,
+        .tx_bytes  = sizeof(*req),
+        .rx_buffer = (uint8_t*)&resp_hdr,
+        .rx_bytes  = sizeof(resp_hdr),
+    };
+
+    return pack_and_execute_command(&p, async);
+}
+
+// DPE get tagged TCI
+int caliptra_dpe_get_tagged_tci(struct caliptra_get_tagged_tci_req *req, struct caliptra_get_tagged_tci_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    struct parcel p = {
+        .command   = OP_DPE_GET_TAGGED_TCI,
+        .tx_buffer = (uint8_t*)req,
+        .tx_bytes  = sizeof(*req),
         .rx_buffer = (uint8_t*)resp,
         .rx_bytes  = sizeof(*resp),
     };
@@ -930,21 +1012,17 @@ int caliptra_self_test_start(bool async)
 }
 
 // Self test get results
-int caliptra_self_test_get_results(struct caliptra_test_get_fmc_alias_cert_resp *resp, bool async)
+int caliptra_self_test_get_results(bool async)
 {
-    if (!resp)
-    {
-        return INVALID_PARAMS;
-    }
-
+    struct caliptra_resp_header resp_hdr = {};
     caliptra_checksum checksum = 0;
 
     struct parcel p = {
         .command   = OP_SELF_TEST_GET_RESULTS,
         .tx_buffer = (uint8_t*)&checksum,
         .tx_bytes  = sizeof(checksum),
-        .rx_buffer = (uint8_t*)resp,
-        .rx_bytes  = sizeof(*resp),
+        .rx_buffer = (uint8_t*)&resp_hdr,
+        .rx_bytes  = sizeof(resp_hdr),
     };
 
     return pack_and_execute_command(&p, async);
