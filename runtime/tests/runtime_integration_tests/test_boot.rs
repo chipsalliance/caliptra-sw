@@ -91,7 +91,7 @@ fn test_boot_tci_data() {
     let valid_pauser_hash: [u8; 48] = valid_pauser_hash_resp.as_bytes().try_into().unwrap();
 
     // hash expected DPE measurements in order
-    let measurements_to_be_hashed = [[0u8; 48], rt_journey_pcr, valid_pauser_hash].concat();
+    let measurements_to_be_hashed = [rt_journey_pcr, valid_pauser_hash].concat();
     let expected_measurement_hash = model
         .mailbox_execute(0x4000_0000, measurements_to_be_hashed.as_bytes())
         .unwrap()
@@ -151,8 +151,7 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
     let valid_pauser_hash: [u8; 48] = valid_pauser_hash_resp.as_bytes().try_into().unwrap();
 
     // hash expected DPE measurements in order
-    let measurements_to_be_hashed =
-        [[0u8; 48], rt_journey_pcr, valid_pauser_hash, measurement].concat();
+    let measurements_to_be_hashed = [rt_journey_pcr, valid_pauser_hash, measurement].concat();
     let expected_measurement_hash = model
         .mailbox_execute(0x4000_0000, measurements_to_be_hashed.as_bytes())
         .unwrap()
