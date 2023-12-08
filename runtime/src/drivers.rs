@@ -25,6 +25,7 @@ use caliptra_registers::{
 };
 use dpe::context::{Context, ContextState};
 use dpe::tci::TciMeasurement;
+use dpe::MAX_HANDLES;
 use dpe::{
     commands::{CommandExecution, DeriveChildCmd, DeriveChildFlags},
     context::ContextHandle,
@@ -32,7 +33,6 @@ use dpe::{
     support::Support,
     DPE_PROFILE,
 };
-use dpe::{U8Bool, MAX_HANDLES};
 
 use crypto::{AlgLen, Crypto, CryptoBuf, Hasher};
 use zerocopy::AsBytes;
@@ -240,7 +240,7 @@ impl Drivers {
         let dpe = &pdata.dpe;
 
         for i in (0..MAX_HANDLES) {
-            if dpe.contexts[i].state != ContextState::Active
+            if dpe.contexts[i].state == ContextState::Inactive
                 && (context_has_tag[i].get() || context_tags[i] != 0)
             {
                 return Err(CaliptraError::RUNTIME_CONTEXT_TAG_VALIDATION_FAILED);
@@ -295,24 +295,17 @@ impl Drivers {
                 &mut drivers.cert_chain,
             ),
         };
-        let mut dpe = DpeInstance::new(&mut env, DPE_SUPPORT)
-            .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
 
-        let data = <[u8; DPE_PROFILE.get_hash_size()]>::from(
+        // Initialize DPE with the RT journey PCR
+        let rt_journey_measurement = <[u8; DPE_PROFILE.get_hash_size()]>::from(
             &drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR),
         );
-        // Call DeriveChild to create root context.
-        DeriveChildCmd {
-            handle: ContextHandle::default(),
-            data,
-            flags: DeriveChildFlags::MAKE_DEFAULT
-                | DeriveChildFlags::CHANGE_LOCALITY
-                | DeriveChildFlags::INPUT_ALLOW_CA
-                | DeriveChildFlags::INPUT_ALLOW_X509,
-            tci_type: u32::from_be_bytes(*b"RTJM"),
-            target_locality: caliptra_locality,
-        }
-        .execute(&mut dpe, &mut env, caliptra_locality)
+        let mut dpe = DpeInstance::new_auto_init(
+            &mut env,
+            DPE_SUPPORT,
+            u32::from_be_bytes(*b"RTJM"),
+            rt_journey_measurement,
+        )
         .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
 
         // Call DeriveChild to create a measurement for the mailbox valid pausers and change locality to the pl0 pauser locality
@@ -459,22 +452,5 @@ impl Drivers {
 
     pub fn is_caller_pl1(pl0_pauser: u32, flags: u32, locality: u32) -> bool {
         flags & PL0_PAUSER_FLAG == 0 && locality != pl0_pauser
-    }
-
-    pub fn clear_tags_for_non_active_contexts(
-        dpe: &mut DpeInstance,
-        context_has_tag: &mut [U8Bool; MAX_HANDLES],
-        context_tags: &mut [u32; MAX_HANDLES],
-    ) {
-        (0..MAX_HANDLES).for_each(|i| {
-            if i < dpe.contexts.len()
-                && i < context_has_tag.len()
-                && i < context_tags.len()
-                && dpe.contexts[i].state != ContextState::Active
-            {
-                context_has_tag[i] = U8Bool::new(false);
-                context_tags[i] = 0;
-            }
-        });
     }
 }
