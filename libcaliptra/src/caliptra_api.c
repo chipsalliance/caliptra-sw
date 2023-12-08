@@ -26,6 +26,15 @@
 // Globals should be uninitialized to maximize environment compatibility
 static struct caliptra_buffer g_mbox_pending_rx_buffer CALIPTRA_API_GLOBAL_SECTION_ATTRIBUTE;
 
+#define CREATE_PARCEL(op, req, resp) \
+    struct parcel p = { \
+        .command   = op, \
+        .tx_buffer = (uint8_t*)req, \
+        .tx_bytes  = sizeof(*req), \
+        .rx_buffer = (uint8_t*)resp, \
+        .rx_bytes  = sizeof(*resp), \
+    };
+
 /**
  * caliptra_write_reg
  *
@@ -715,13 +724,7 @@ int caliptra_get_idev_cert(struct caliptra_get_idev_cert_req *req, struct calipt
         return INVALID_PARAMS;
     }
 
-    struct parcel p = {
-        .command   = OP_GET_IDEV_CERT,
-        .tx_buffer = (uint8_t*)req,
-        .tx_bytes  = sizeof(*req),
-        .rx_buffer = (uint8_t*)resp,
-        .rx_bytes  = sizeof(*resp),
-    };
+    CREATE_PARCEL(OP_GET_IDEV_CERT, req, resp);
 
     return pack_and_execute_command(&p, async);
 }
@@ -736,13 +739,7 @@ int caliptra_get_idev_info(struct caliptra_get_idev_info_resp *resp, bool async)
 
     caliptra_checksum checksum = 0;
 
-    struct parcel p = {
-        .command   = OP_GET_IDEV_INFO,
-        .tx_buffer = (uint8_t*)&checksum,
-        .tx_bytes  = sizeof(checksum),
-        .rx_buffer = (uint8_t*)resp,
-        .rx_bytes  = sizeof(*resp),
-    };
+    CREATE_PARCEL(OP_GET_IDEV_INFO, &checksum, resp);
 
     return pack_and_execute_command(&p, async);
 }
@@ -757,13 +754,7 @@ int caliptra_populate_idev_cert(struct caliptra_populate_idev_cert_req *req, boo
 
     struct caliptra_resp_header resp_hdr = {};
 
-    struct parcel p = {
-        .command   = OP_POPULATE_IDEV_CERT,
-        .tx_buffer = (uint8_t*)req,
-        .tx_bytes  = sizeof(*req),
-        .rx_buffer = (uint8_t*)&resp_hdr,
-        .rx_bytes  = sizeof(resp_hdr),
-    };
+    CREATE_PARCEL(OP_POPULATE_IDEV_CERT, req, &resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
@@ -778,13 +769,7 @@ int caliptra_get_ldev_cert(struct caliptra_get_ldev_cert_resp *resp, bool async)
 
     caliptra_checksum checksum = 0;
 
-    struct parcel p = {
-        .command   = OP_GET_LDEV_CERT,
-        .tx_buffer = (uint8_t*)&checksum,
-        .tx_bytes  = sizeof(checksum),
-        .rx_buffer = (uint8_t*)resp,
-        .rx_bytes  = sizeof(*resp),
-    };
+    CREATE_PARCEL(OP_GET_LDEV_CERT, &checksum, resp);
 
     return pack_and_execute_command(&p, async);
 }
@@ -799,13 +784,7 @@ int caliptra_get_fmc_alias_cert(struct caliptra_get_fmc_alias_cert_resp *resp, b
 
     caliptra_checksum checksum = 0;
 
-    struct parcel p = {
-        .command   = OP_GET_FMC_ALIAS_CERT,
-        .tx_buffer = (uint8_t*)&checksum,
-        .tx_bytes  = sizeof(checksum),
-        .rx_buffer = (uint8_t*)resp,
-        .rx_bytes  = sizeof(*resp),
-    };
+    CREATE_PARCEL(OP_GET_FMC_ALIAS_CERT, &checksum, resp);
 
     return pack_and_execute_command(&p, async);
 }
@@ -820,13 +799,7 @@ int caliptra_get_rt_alias_cert(struct caliptra_get_rt_alias_cert_resp *resp, boo
 
     caliptra_checksum checksum = 0;
 
-    struct parcel p = {
-        .command   = OP_GET_RT_ALIAS_CERT,
-        .tx_buffer = (uint8_t*)&checksum,
-        .tx_bytes  = sizeof(checksum),
-        .rx_buffer = (uint8_t*)resp,
-        .rx_bytes  = sizeof(*resp),
-    };
+    CREATE_PARCEL(OP_GET_RT_ALIAS_CERT, &checksum, resp);
 
     return pack_and_execute_command(&p, async);
 }
@@ -841,13 +814,7 @@ int caliptra_ecdsa384_verify(struct caliptra_ecdsa_verify_req *req, bool async)
 
     struct caliptra_resp_header resp_hdr = {};
 
-    struct parcel p = {
-        .command   = OP_ECDSA384_VERIFY,
-        .tx_buffer = (uint8_t*)req,
-        .tx_bytes  = sizeof(*req),
-        .rx_buffer = (uint8_t*)&resp_hdr,
-        .rx_bytes  = sizeof(resp_hdr),
-    };
+    CREATE_PARCEL(OP_ECDSA384_VERIFY, req, &resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
@@ -860,13 +827,7 @@ int caliptra_stash_measurement(struct caliptra_stash_measurement_req *req, struc
         return INVALID_PARAMS;
     }
 
-    struct parcel p = {
-        .command   = OP_STASH_MEASUREMENT,
-        .tx_buffer = (uint8_t*)req,
-        .tx_bytes  = sizeof(*req),
-        .rx_buffer = (uint8_t*)resp,
-        .rx_bytes  = sizeof(*resp),
-    };
+    CREATE_PARCEL(OP_STASH_MEASUREMENT, req, resp);
 
     return pack_and_execute_command(&p, async);
 }
@@ -901,13 +862,7 @@ int caliptra_disable_attestation(bool async)
     struct caliptra_resp_header resp_hdr = {};
     caliptra_checksum checksum = 0;
 
-    struct parcel p = {
-        .command   = OP_DISABLE_ATTESTATION,
-        .tx_buffer = (uint8_t*)&checksum,
-        .tx_bytes  = sizeof(checksum),
-        .rx_buffer = (uint8_t*)&resp_hdr,
-        .rx_bytes  = sizeof(resp_hdr),
-    };
+    CREATE_PARCEL(OP_DISABLE_ATTESTATION, &checksum, &resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
@@ -922,13 +877,7 @@ int caliptra_fw_info(struct caliptra_fw_info_resp *resp, bool async)
 
     caliptra_checksum checksum = 0;
 
-    struct parcel p = {
-        .command   = OP_FW_INFO,
-        .tx_buffer = (uint8_t*)&checksum,
-        .tx_bytes  = sizeof(checksum),
-        .rx_buffer = (uint8_t*)resp,
-        .rx_bytes  = sizeof(*resp),
-    };
+    CREATE_PARCEL(OP_FW_INFO, &checksum, resp);
 
     return pack_and_execute_command(&p, async);
 }
@@ -943,13 +892,7 @@ int caliptra_dpe_tag_tci(struct caliptra_dpe_tag_tci_req *req, bool async)
 
     struct caliptra_resp_header resp_hdr = {};
 
-    struct parcel p = {
-        .command   = OP_DPE_TAG_TCI,
-        .tx_buffer = (uint8_t*)req,
-        .tx_bytes  = sizeof(*req),
-        .rx_buffer = (uint8_t*)&resp_hdr,
-        .rx_bytes  = sizeof(resp_hdr),
-    };
+    CREATE_PARCEL(OP_DPE_TAG_TCI, req, &resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
@@ -962,13 +905,7 @@ int caliptra_dpe_get_tagged_tci(struct caliptra_get_tagged_tci_req *req, struct 
         return INVALID_PARAMS;
     }
 
-    struct parcel p = {
-        .command   = OP_DPE_GET_TAGGED_TCI,
-        .tx_buffer = (uint8_t*)req,
-        .tx_bytes  = sizeof(*req),
-        .rx_buffer = (uint8_t*)resp,
-        .rx_bytes  = sizeof(*resp),
-    };
+    CREATE_PARCEL(OP_DPE_GET_TAGGED_TCI, req, resp);
 
     return pack_and_execute_command(&p, async);
 }
@@ -983,13 +920,7 @@ int caliptra_fips_version(struct caliptra_fips_version_resp *resp, bool async)
 
     caliptra_checksum checksum = 0;
 
-    struct parcel p = {
-        .command   = OP_FIPS_VERSION,
-        .tx_buffer = (uint8_t*)&checksum,
-        .tx_bytes  = sizeof(checksum),
-        .rx_buffer = (uint8_t*)resp,
-        .rx_bytes  = sizeof(*resp),
-    };
+    CREATE_PARCEL(OP_FIPS_VERSION, &checksum, resp);
 
     return pack_and_execute_command(&p, async);
 }
@@ -1000,13 +931,7 @@ int caliptra_self_test_start(bool async)
     struct caliptra_resp_header resp_hdr = {};
     caliptra_checksum checksum = 0;
 
-    struct parcel p = {
-        .command   = OP_SELF_TEST_START,
-        .tx_buffer = (uint8_t*)&checksum,
-        .tx_bytes  = sizeof(checksum),
-        .rx_buffer = (uint8_t*)&resp_hdr,
-        .rx_bytes  = sizeof(resp_hdr),
-    };
+    CREATE_PARCEL(OP_SELF_TEST_START, &checksum, &resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
@@ -1017,13 +942,7 @@ int caliptra_self_test_get_results(bool async)
     struct caliptra_resp_header resp_hdr = {};
     caliptra_checksum checksum = 0;
 
-    struct parcel p = {
-        .command   = OP_SELF_TEST_GET_RESULTS,
-        .tx_buffer = (uint8_t*)&checksum,
-        .tx_bytes  = sizeof(checksum),
-        .rx_buffer = (uint8_t*)&resp_hdr,
-        .rx_bytes  = sizeof(resp_hdr),
-    };
+    CREATE_PARCEL(OP_SELF_TEST_GET_RESULTS, &checksum, &resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
@@ -1034,13 +953,7 @@ int caliptra_shutdown(bool async)
     struct caliptra_resp_header resp_hdr = {};
     caliptra_checksum checksum = 0;
 
-    struct parcel p = {
-        .command   = OP_SHUTDOWN,
-        .tx_buffer = (uint8_t*)&checksum,
-        .tx_bytes  = sizeof(checksum),
-        .rx_buffer = (uint8_t*)&resp_hdr,
-        .rx_bytes  = sizeof(resp_hdr),
-    };
+    CREATE_PARCEL(OP_SHUTDOWN, &checksum, &resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
@@ -1055,13 +968,7 @@ int caliptra_capabilities(struct caliptra_capabilities_resp *resp, bool async)
 
     caliptra_checksum checksum = 0;
 
-    struct parcel p = {
-        .command   = OP_CAPABILITIES,
-        .tx_buffer = (uint8_t*)&checksum,
-        .tx_bytes  = sizeof(checksum),
-        .rx_buffer = (uint8_t*)resp,
-        .rx_bytes  = sizeof(*resp),
-    };
+    CREATE_PARCEL(OP_CAPABILITIES, &checksum, resp);
 
     return pack_and_execute_command(&p, async);
 }
