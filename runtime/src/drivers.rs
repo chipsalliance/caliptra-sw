@@ -148,7 +148,7 @@ impl Drivers {
     // Inlined so the callsite optimizer knows that root_idx < dpe.contexts.len()
     // and won't insert possible call to panic.
     #[inline(always)]
-    fn get_dpe_root_context_idx(dpe: &DpeInstance) -> CaliptraResult<usize> {
+    pub fn get_dpe_root_context_idx(dpe: &DpeInstance) -> CaliptraResult<usize> {
         // Find root node by finding the non-inactive context with parent equal to ROOT_INDEX
         let root_idx = dpe
             .contexts

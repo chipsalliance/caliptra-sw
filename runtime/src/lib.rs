@@ -44,13 +44,13 @@ use caliptra_common::cprintln;
 
 use caliptra_drivers::{CaliptraError, CaliptraResult, ResetReason};
 use caliptra_registers::mbox::enums::MboxStatusE;
-pub use dpe::context::ContextState;
 use dpe::{
     commands::{CommandExecution, DeriveChildCmd, DeriveChildFlags},
-    dpe_instance::{DpeEnv, DpeInstance, DpeTypes},
+    dpe_instance::{DpeEnv, DpeTypes},
     support::Support,
     DPE_PROFILE,
 };
+pub use dpe::{context::ContextState, DpeInstance, U8Bool, MAX_HANDLES};
 
 use crate::dice::GetRtAliasCertCmd;
 #[cfg(feature = "test_only_commands")]
