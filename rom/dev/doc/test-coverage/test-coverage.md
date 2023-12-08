@@ -137,5 +137,4 @@ Ensure that boot ROM can load a 128k bundle into ICCM (assert ICCM contents in t
 Test Scenario| Test Name | ROM Error Code
 ---|---|---
 Expand `smoke_test` to perform a hitless update and confirm everything is mixed into the identity correctly. | N/A | N/A
-Ensure that hitless update flow can update an entire 128k bundle with completely different ICCM contents than original boot | N/A | N/A
 Run all the tests against the prod ROM (no logging) | N/A | N/A
