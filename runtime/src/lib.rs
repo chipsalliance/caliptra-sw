@@ -195,7 +195,12 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
         if reset_reason == ResetReason::WarmReset {
             let mut result = DisableAttestationCmd::execute(drivers);
             match result {
-                Ok(_) => cprintln!("Disabled attestation due to cmd busy during warm reset"),
+                Ok(_) => {
+                    cprintln!("Disabled attestation due to cmd busy during warm reset");
+                    caliptra_drivers::report_fw_error_non_fatal(
+                        CaliptraError::RUNTIME_CMD_BUSY_DURING_WARM_RESET.into(),
+                    );
+                }
                 Err(e) => {
                     cprintln!("{}", e.0);
                     return Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION);

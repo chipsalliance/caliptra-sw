@@ -369,10 +369,36 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E0027);
     pub const RUNTIME_LDEVID_CERT_HANDOFF_FAILED: CaliptraError =
         CaliptraError::new_const(0x000E0028);
-    pub const RUNTIME_CONTEXT_TAG_VALIDATION_FAILED: CaliptraError =
+    pub const RUNTIME_CONTEXT_TAGS_VALIDATION_FAILED: CaliptraError =
         CaliptraError::new_const(0x000E0029);
-    pub const RUNTIME_INCREMENT_PCR_RESET_MAX_REACHED: CaliptraError =
+    pub const RUNTIME_COULD_NOT_GET_DPE_PROFILE: CaliptraError =
         CaliptraError::new_const(0x000E002A);
+    pub const RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E002B);
+    pub const RUNTIME_GET_LDEVID_CERT_FAILED: CaliptraError = CaliptraError::new_const(0x000E002C);
+    pub const RUNTIME_GET_FMC_ALIAS_CERT_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E002D);
+    pub const RUNTIME_GET_RT_ALIAS_CERT_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E002E);
+    pub const RUNTIME_CMD_BUSY_DURING_WARM_RESET: CaliptraError =
+        CaliptraError::new_const(0x000E002F);
+    pub const RUNTIME_RT_SVN_HANDOFF_FAILED: CaliptraError = CaliptraError::new_const(0x000E0030);
+    pub const RUNTIME_RT_MIN_SVN_HANDOFF_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E0031);
+    pub const RUNTIME_FMC_SVN_HANDOFF_FAILED: CaliptraError = CaliptraError::new_const(0x000E0032);
+    pub const RUNTIME_CONTEXT_HAS_TAG_VALIDATION_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E0033);
+    pub const RUNTIME_LDEV_ID_CERT_TOO_BIG: CaliptraError = CaliptraError::new_const(0x000E0034);
+    pub const RUNTIME_FMC_ALIAS_CERT_TOO_BIG: CaliptraError = CaliptraError::new_const(0x000E0035);
+    pub const RUNTIME_RT_ALIAS_CERT_TOO_BIG: CaliptraError = CaliptraError::new_const(0x000E0036);
+    pub const RUNTIME_COMPUTE_RT_ALIAS_SN_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E0037);
+    pub const RUNTIME_RT_JOURNEY_PCR_VALIDATION_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E0038);
+    pub const RUNTIME_UNABLE_TO_FIND_DPE_ROOT_CONTEXT: CaliptraError =
+        CaliptraError::new_const(0x000E0039);
+    pub const RUNTIME_INCREMENT_PCR_RESET_MAX_REACHED: CaliptraError =
+        CaliptraError::new_const(0x000E003A);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
