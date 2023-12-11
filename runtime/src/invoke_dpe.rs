@@ -10,7 +10,7 @@ use dpe::{
     },
     context::{Context, ContextState},
     response::{Response, ResponseHdr},
-    DpeInstance, MAX_HANDLES,
+    DpeInstance, U8Bool, MAX_HANDLES,
 };
 use zerocopy::{AsBytes, FromBytes};
 
@@ -78,10 +78,7 @@ impl InvokeDpeCmd {
                     {
                         return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
                     }
-                    let derive_child_resp = cmd.execute(dpe, &mut env, locality);
-                    // clear tags for retired contexts
-                    Drivers::clear_tags_for_non_active_contexts(dpe, context_has_tag, context_tags);
-                    derive_child_resp
+                    cmd.execute(dpe, &mut env, locality)
                 }
                 Command::CertifyKey(cmd) => {
                     // PL1 cannot request X509
@@ -95,7 +92,7 @@ impl InvokeDpeCmd {
                 Command::DestroyCtx(cmd) => {
                     let destroy_ctx_resp = cmd.execute(dpe, &mut env, locality);
                     // clear tags for destroyed contexts
-                    Drivers::clear_tags_for_non_active_contexts(dpe, context_has_tag, context_tags);
+                    Self::clear_tags_for_inactive_contexts(dpe, context_has_tag, context_tags);
                     destroy_ctx_resp
                 }
                 Command::Sign(cmd) => cmd.execute(dpe, &mut env, locality),
@@ -130,5 +127,22 @@ impl InvokeDpeCmd {
         } else {
             Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)
         }
+    }
+
+    pub fn clear_tags_for_inactive_contexts(
+        dpe: &mut DpeInstance,
+        context_has_tag: &mut [U8Bool; MAX_HANDLES],
+        context_tags: &mut [u32; MAX_HANDLES],
+    ) {
+        (0..MAX_HANDLES).for_each(|i| {
+            if i < dpe.contexts.len()
+                && i < context_has_tag.len()
+                && i < context_tags.len()
+                && dpe.contexts[i].state == ContextState::Inactive
+            {
+                context_has_tag[i] = U8Bool::new(false);
+                context_tags[i] = 0;
+            }
+        });
     }
 }
