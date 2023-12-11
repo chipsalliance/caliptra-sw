@@ -112,11 +112,11 @@ fn test_pl1_derive_child_dpe_context_thresholds() {
     let mut handle = init_ctx_resp.handle;
 
     // Call DeriveChild with PL1 enough times to breach the threshold on the last iteration.
-    // Note that this loop runs exactly PL1_DPE_ACTIVE_CONTEXT_THRESHOLD - 2 times. When we initialize
-    // DPE, we measure the RT journey PCR and the mailbox valid pausers in Caliptra's locality: 0xFFFFFFFF,
-    // which counts as a PL1 locality. Then, we initialize a simulation context in locality 1. Thus, we can call derive child
-    // from PL1 exactly 16 - 3 = 13 times, and the last iteration of this loop, is expected to throw a threshold breached error.
-    let num_iterations = InvokeDpeCmd::PL1_DPE_ACTIVE_CONTEXT_THRESHOLD - 2;
+    // Note that this loop runs exactly PL1_DPE_ACTIVE_CONTEXT_THRESHOLD - 1 times. When we initialize
+    // DPE, we measure the RT journey PCR in Caliptra's locality: 0xFFFFFFFF, which counts as a PL1 locality.
+    // Then, we initialize a simulation context in locality 1. Thus, we can call derive child
+    // from PL1 exactly 16 - 2 = 14 times, and the last iteration of this loop, is expected to throw a threshold breached error.
+    let num_iterations = InvokeDpeCmd::PL1_DPE_ACTIVE_CONTEXT_THRESHOLD - 1;
     for i in 0..num_iterations {
         let derive_child_cmd = DeriveChildCmd {
             handle,
@@ -194,12 +194,13 @@ fn test_pl1_init_ctx_dpe_context_thresholds() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let num_iterations = InvokeDpeCmd::PL1_DPE_ACTIVE_CONTEXT_THRESHOLD - 1;
+    let num_iterations = InvokeDpeCmd::PL1_DPE_ACTIVE_CONTEXT_THRESHOLD;
     for i in 0..num_iterations {
         let init_ctx_cmd = InitCtxCmd::new_simulation();
 
-        // InitCtx should fail on the PL1_DPE_ACTIVE_CONTEXT_THRESHOLD - 2nd iteration since
-        // RT initialization creates two contexts in Caliptra's locality, which is PL1.
+        // InitCtx should fail on the PL1_DPE_ACTIVE_CONTEXT_THRESHOLD - 1st iteration since
+        // RT initialization creates the RT journey measurement context in Caliptra's locality,
+        // which is PL1.
         if i == num_iterations - 1 {
             let resp = execute_dpe_cmd(
                 &mut model,

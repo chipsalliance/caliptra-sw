@@ -59,12 +59,6 @@ impl StashMeasurementCmd {
                     target_locality: locality,
                 }
                 .execute(&mut pdata_mut.dpe, &mut env, locality);
-                // clear tags for retired contexts
-                Drivers::clear_tags_for_non_active_contexts(
-                    &mut pdata_mut.dpe,
-                    &mut pdata_mut.context_has_tag,
-                    &mut pdata_mut.context_tags,
-                );
 
                 match derive_child_resp {
                     Ok(_) => DpeErrorCode::NoError,
