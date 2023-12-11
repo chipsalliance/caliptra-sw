@@ -144,6 +144,15 @@ jobs:
           ./ci-tools/release/build_release.sh ${{ needs.find-latest-release.outputs.new_release_tag }}
           mv ./release/release.zip ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
 
+      - name: 'Download all artifacts'
+        uses: actions/download-artifact@v3
+        with:
+          path: /tmp/artifacts
+
+      - name: Package all test artifacts for release
+        run: |
+          (cd /tmp/artifacts && zip -r - .) > ./release/test_artifacts_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
+
       - name: Tag repo with new release number
         run: |
           git config --global user.name "GitHub CI"
@@ -154,7 +163,9 @@ jobs:
       - name: Upload release
         uses: softprops/action-gh-release@v1
         with:
-          files: ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
+          files: |
+            ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
+            ./release/test_artifacts_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
           tag_name: ${{ needs.find-latest-release.outputs.new_release_tag }}
 
       - name: Write artifact to workflow with release info
