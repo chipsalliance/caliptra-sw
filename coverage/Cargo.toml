@@ -16,3 +16,4 @@ rand.workspace = true
 bit-vec = { workspace = true, features = ["serde"] }
 caliptra-builder.workspace = true
 elf.workspace = true
+regex.workspace = true

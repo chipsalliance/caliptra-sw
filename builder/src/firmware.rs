@@ -45,6 +45,12 @@ pub const FMC_FAKE_WITH_UART: FwId = FwId {
     features: &["emu", "fake-fmc"],
 };
 
+pub const APP: FwId = FwId {
+    crate_name: "caliptra-runtime",
+    bin_name: "caliptra-runtime",
+    features: &["fips_self_test"],
+};
+
 pub const APP_WITH_UART: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
@@ -297,6 +303,12 @@ pub mod rom_tests {
         features: &["emu"],
     };
 
+    pub const TEST_RT_WITH_UART: FwId = FwId {
+        crate_name: "caliptra-rom-test-rt",
+        bin_name: "caliptra-rom-test-rt",
+        features: &["emu"],
+    };
+
     pub const FAKE_TEST_FMC_WITH_UART: FwId = FwId {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
@@ -344,6 +356,11 @@ pub mod runtime_tests {
         bin_name: "boot",
         ..RUNTIME_TEST_FWID_BASE
     };
+
+    pub const MBOX: FwId = FwId {
+        bin_name: "mbox",
+        ..RUNTIME_TEST_FWID_BASE
+    };
 }
 
 pub const REGISTERED_FW: &[&FwId] = &[
@@ -352,6 +369,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &ROM_FAKE_WITH_UART,
     &FMC_WITH_UART,
     &FMC_FAKE_WITH_UART,
+    &APP,
     &APP_WITH_UART,
     &caliptra_builder_tests::FWID,
     &hw_model_tests::MAILBOX_RESPONDER,
@@ -398,7 +416,9 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &rom_tests::FAKE_TEST_FMC_WITH_UART,
     &rom_tests::TEST_FMC_INTERACTIVE,
     &rom_tests::FAKE_TEST_FMC_INTERACTIVE,
+    &rom_tests::TEST_RT_WITH_UART,
     &fmc_tests::MOCK_RT_WITH_UART,
     &fmc_tests::MOCK_RT_INTERACTIVE,
     &runtime_tests::BOOT,
+    &runtime_tests::MBOX,
 ];

@@ -7,7 +7,8 @@ use caliptra_builder::{
 use caliptra_common::mailbox_api::{
     CommandId, InvokeDpeReq, InvokeDpeResp, MailboxReq, MailboxReqHeader,
 };
-use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
+use caliptra_error::CaliptraError;
+use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError};
 use dpe::{
     commands::{Command, CommandHdr},
     response::{
@@ -24,6 +25,15 @@ use openssl::{
     x509::{X509Name, X509NameBuilder},
 };
 use zerocopy::{AsBytes, FromBytes};
+
+pub const TEST_LABEL: [u8; 48] = [
+    48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25,
+    24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
+];
+pub const TEST_DIGEST: [u8; 48] = [
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+    27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
+];
 
 // Run a test which boots ROM -> FMC -> test_bin. If test_bin_name is None,
 // run the production runtime image.
@@ -138,7 +148,17 @@ fn parse_dpe_response(dpe_cmd: &mut Command, resp_bytes: &[u8]) -> Response {
     }
 }
 
-pub fn execute_dpe_cmd(model: &mut DefaultHwModel, dpe_cmd: &mut Command) -> Response {
+pub enum DpeResult {
+    Success,
+    DpeCmdFailure,
+    MboxCmdFailure(CaliptraError),
+}
+
+pub fn execute_dpe_cmd(
+    model: &mut DefaultHwModel,
+    dpe_cmd: &mut Command,
+    expected_result: DpeResult,
+) -> Option<Response> {
     let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
     let dpe_cmd_id = get_cmd_id(dpe_cmd);
     let cmd_hdr = CommandHdr::new_for_test(dpe_cmd_id);
@@ -153,13 +173,15 @@ pub fn execute_dpe_cmd(model: &mut DefaultHwModel, dpe_cmd: &mut Command) -> Res
     });
     mbox_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::INVOKE_DPE),
-            mbox_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
+    let resp = model.mailbox_execute(
+        u32::from(CommandId::INVOKE_DPE),
+        mbox_cmd.as_bytes().unwrap(),
+    );
+    if let DpeResult::MboxCmdFailure(expected_err) = expected_result {
+        assert_error(model, expected_err, resp.unwrap_err());
+        return None;
+    }
+    let resp = resp.unwrap().expect("We should have received a response");
 
     assert!(resp.len() <= std::mem::size_of::<InvokeDpeResp>());
     let mut resp_hdr = InvokeDpeResp::default();
@@ -171,5 +193,26 @@ pub fn execute_dpe_cmd(model: &mut DefaultHwModel, dpe_cmd: &mut Command) -> Res
         &resp[core::mem::size_of_val(&resp_hdr.hdr.chksum)..],
     ));
 
-    parse_dpe_response(dpe_cmd, &resp_hdr.data[..resp_hdr.data_size as usize])
+    let resp_bytes = &resp_hdr.data[..resp_hdr.data_size as usize];
+    Some(match expected_result {
+        DpeResult::Success => parse_dpe_response(dpe_cmd, resp_bytes),
+        DpeResult::DpeCmdFailure => Response::Error(ResponseHdr::read_from(resp_bytes).unwrap()),
+        DpeResult::MboxCmdFailure(_) => unreachable!("If MboxCmdFailure is the expected DPE result, the function would have returned None earlier."),
+    })
+}
+
+pub fn assert_error(
+    model: &mut DefaultHwModel,
+    expected_err: CaliptraError,
+    actual_err: ModelError,
+) {
+    assert_eq!(
+        model.soc_ifc().cptra_fw_error_non_fatal().read(),
+        u32::from(expected_err)
+    );
+    if let ModelError::MailboxCmdFailed(code) = actual_err {
+        assert_eq!(code, u32::from(expected_err));
+    } else {
+        panic!("Mailbox command should have failed with MailboxCmdFailed error, instead failed with {} error", actual_err)
+    }
 }

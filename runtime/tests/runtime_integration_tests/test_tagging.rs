@@ -1,14 +1,15 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{execute_dpe_cmd, run_rt_test};
+use crate::common::{assert_error, execute_dpe_cmd, run_rt_test, DpeResult};
 use caliptra_common::mailbox_api::{
     CommandId, GetTaggedTciReq, GetTaggedTciResp, MailboxReq, MailboxReqHeader, TagTciReq,
 };
-use caliptra_hw_model::{HwModel, ModelError};
+use caliptra_hw_model::HwModel;
 use dpe::{
-    commands::{Command, DestroyCtxCmd},
+    commands::{Command, DeriveChildCmd, DeriveChildFlags, DestroyCtxCmd},
     context::ContextHandle,
     response::Response,
+    DPE_PROFILE,
 };
 use zerocopy::FromBytes;
 
@@ -75,15 +76,10 @@ fn test_tagging_a_tagged_context() {
     let resp = model
         .mailbox_execute(u32::from(CommandId::DPE_TAG_TCI), cmd.as_bytes().unwrap())
         .unwrap_err();
-    if let ModelError::MailboxCmdFailed(code) = resp {
-        assert_eq!(
-            code,
-            u32::from(caliptra_drivers::CaliptraError::RUNTIME_CONTEXT_ALREADY_TAGGED)
-        );
-    }
-    assert_eq!(
-        model.soc_ifc().cptra_fw_error_non_fatal().read(),
-        u32::from(caliptra_drivers::CaliptraError::RUNTIME_CONTEXT_ALREADY_TAGGED)
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_CONTEXT_ALREADY_TAGGED,
+        resp,
     );
 }
 
@@ -113,15 +109,10 @@ fn test_duplicate_tag() {
     let resp = model
         .mailbox_execute(u32::from(CommandId::DPE_TAG_TCI), cmd.as_bytes().unwrap())
         .unwrap_err();
-    if let ModelError::MailboxCmdFailed(code) = resp {
-        assert_eq!(
-            code,
-            u32::from(caliptra_drivers::CaliptraError::RUNTIME_DUPLICATE_TAG)
-        );
-    }
-    assert_eq!(
-        model.soc_ifc().cptra_fw_error_non_fatal().read(),
-        u32::from(caliptra_drivers::CaliptraError::RUNTIME_DUPLICATE_TAG)
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_DUPLICATE_TAG,
+        resp,
     );
 }
 
@@ -141,15 +132,10 @@ fn test_get_tagged_tci_on_non_existent_tag() {
             cmd.as_bytes().unwrap(),
         )
         .unwrap_err();
-    if let ModelError::MailboxCmdFailed(code) = resp {
-        assert_eq!(
-            code,
-            u32::from(caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE)
-        );
-    }
-    assert_eq!(
-        model.soc_ifc().cptra_fw_error_non_fatal().read(),
-        u32::from(caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE)
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE,
+        resp,
     );
 }
 
@@ -167,15 +153,10 @@ fn test_tagging_inactive_context() {
     let resp = model
         .mailbox_execute(u32::from(CommandId::DPE_TAG_TCI), cmd.as_bytes().unwrap())
         .unwrap_err();
-    if let ModelError::MailboxCmdFailed(code) = resp {
-        assert_eq!(
-            code,
-            u32::from(caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE)
-        );
-    }
-    assert_eq!(
-        model.soc_ifc().cptra_fw_error_non_fatal().read(),
-        u32::from(caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE)
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE,
+        resp,
     );
 }
 
@@ -199,8 +180,12 @@ fn test_tagging_destroyed_context() {
     let destroy_ctx_cmd = DestroyCtxCmd {
         handle: ContextHandle::default(),
     };
-    let resp = execute_dpe_cmd(&mut model, &mut Command::DestroyCtx(destroy_ctx_cmd));
-    let Response::DestroyCtx(_) = resp else {
+    let resp = execute_dpe_cmd(
+        &mut model,
+        &mut Command::DestroyCtx(destroy_ctx_cmd),
+        DpeResult::Success,
+    );
+    let Some(Response::DestroyCtx(_)) = resp else {
         panic!("Wrong response type!");
     };
 
@@ -216,14 +201,92 @@ fn test_tagging_destroyed_context() {
             cmd.as_bytes().unwrap(),
         )
         .unwrap_err();
-    if let ModelError::MailboxCmdFailed(code) = resp {
-        assert_eq!(
-            code,
-            u32::from(caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE)
-        );
-    }
-    assert_eq!(
-        model.soc_ifc().cptra_fw_error_non_fatal().read(),
-        u32::from(caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE)
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE,
+        resp,
     );
+}
+
+#[test]
+fn test_tagging_retired_context() {
+    let mut model = run_rt_test(None, None, None);
+
+    // retire context via DeriveChild
+    let derive_child_cmd = DeriveChildCmd {
+        handle: ContextHandle::default(),
+        data: [0u8; DPE_PROFILE.get_hash_size()],
+        flags: DeriveChildFlags::empty(),
+        tci_type: 0,
+        target_locality: 0,
+    };
+    let resp = execute_dpe_cmd(
+        &mut model,
+        &mut Command::DeriveChild(derive_child_cmd),
+        DpeResult::Success,
+    );
+    let Some(Response::DeriveChild(derive_child_resp)) = resp else {
+        panic!("Wrong response type!");
+    };
+    let new_handle = derive_child_resp.handle;
+
+    // check that we cannot tag retired context
+    let mut cmd = MailboxReq::TagTci(TagTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        handle: DEFAULT_HANDLE,
+        tag: TAG,
+    });
+    cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::DPE_TAG_TCI), cmd.as_bytes().unwrap())
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE,
+        resp,
+    );
+
+    // tag new context
+    let mut cmd = MailboxReq::TagTci(TagTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        handle: new_handle.0,
+        tag: TAG,
+    });
+    cmd.populate_chksum().unwrap();
+    let _ = model
+        .mailbox_execute(u32::from(CommandId::DPE_TAG_TCI), cmd.as_bytes().unwrap())
+        .unwrap()
+        .expect("We expected a response");
+
+    // retire tagged context via derive child
+    let derive_child_cmd = DeriveChildCmd {
+        handle: new_handle,
+        data: [0u8; DPE_PROFILE.get_hash_size()],
+        flags: DeriveChildFlags::empty(),
+        tci_type: 0,
+        target_locality: 0,
+    };
+    let resp = execute_dpe_cmd(
+        &mut model,
+        &mut Command::DeriveChild(derive_child_cmd),
+        DpeResult::Success,
+    );
+    let Some(Response::DeriveChild(_)) = resp else {
+        panic!("Wrong response type!");
+    };
+
+    // check that we can get tagged tci for a retired context
+    let mut cmd = MailboxReq::GetTaggedTci(GetTaggedTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        tag: TAG,
+    });
+    cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::DPE_GET_TAGGED_TCI),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We expected a response");
+    let _ = GetTaggedTciResp::read_from(resp.as_slice()).unwrap();
 }

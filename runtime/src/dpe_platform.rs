@@ -9,7 +9,7 @@ use dpe::{
     x509::{CertWriter, DirectoryString, Name},
     DPE_PROFILE,
 };
-use platform::{Platform, PlatformError, MAX_CHUNK_SIZE};
+use platform::{Platform, PlatformError, MAX_CHUNK_SIZE, MAX_SN_SIZE};
 
 use crate::MAX_CERT_CHAIN_SIZE;
 
@@ -94,6 +94,24 @@ impl Platform for DpePlatform<'_> {
             .map_err(|e| PlatformError::IssuerNameError(e.get_error_detail().unwrap_or(0)))?;
 
         Ok(issuer_len)
+    }
+
+    fn get_issuer_sn(&mut self, out: &mut [u8; MAX_SN_SIZE]) -> Result<usize, PlatformError> {
+        let sn = self.hashed_rt_pub_key.bytes();
+        let size = min(MAX_SN_SIZE, sn.len());
+        // Prevents potential panic
+        if size > out.len() || size > sn.len() {
+            return Err(PlatformError::IssuerNameError(0));
+        }
+        out[..size].copy_from_slice(&sn[..size]);
+
+        // Ensure the encoded integer is positive, and that the first octet
+        // is non-zero (otherwise it will be considered padding, and the integer
+        // will fail to parse if the MSB of the second octet is zero).
+        out[0] &= !0x80;
+        out[0] |= 0x04;
+
+        Ok(size)
     }
 
     fn write_str(&mut self, str: &str) -> Result<(), PlatformError> {

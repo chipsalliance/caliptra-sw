@@ -1,11 +1,10 @@
 // Licensed under the Apache-2.0 license.
 
-use crate::common::run_rt_test;
+use crate::common::{assert_error, run_rt_test};
 use caliptra_common::mailbox_api::{
     CommandId, FipsVersionResp, MailboxReqHeader, MailboxRespHeader,
 };
-use caliptra_error::CaliptraError;
-use caliptra_hw_model::{HwModel, ModelError};
+use caliptra_hw_model::HwModel;
 use caliptra_runtime::FipsVersionCmd;
 use zerocopy::{AsBytes, FromBytes};
 
@@ -60,12 +59,15 @@ fn test_fips_shutdown() {
     assert!(resp.is_ok());
 
     // Check we are rejecting additional commands with the shutdown error code.
-    let expected_err = Err(ModelError::MailboxCmdFailed(u32::from(
-        CaliptraError::RUNTIME_SHUTDOWN,
-    )));
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::VERSION), &[]),
     };
-    let resp = model.mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes());
-    assert_eq!(resp, expected_err);
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes())
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_SHUTDOWN,
+        resp,
+    );
 }

@@ -39,8 +39,15 @@ impl StashMeasurementCmd {
                     ),
                 };
 
+                let pl0_pauser = pdata.manifest1.header.pl0_pauser;
+                let flags = pdata.manifest1.header.flags;
                 let locality = drivers.mbox.user();
-                // Call DeriveChild to add the measurement to DPE
+                // Check that adding this measurement to DPE doesn't cause
+                // the PL0 context threshold to be exceeded.
+                Drivers::is_dpe_context_threshold_exceeded(
+                    pl0_pauser, flags, locality, &pdata.dpe,
+                )?;
+                let pdata_mut = drivers.persistent_data.get_mut();
                 let derive_child_resp = DeriveChildCmd {
                     handle: ContextHandle::default(),
                     data: cmd.measurement,
@@ -51,11 +58,7 @@ impl StashMeasurementCmd {
                     tci_type: u32::from_be_bytes(cmd.metadata),
                     target_locality: locality,
                 }
-                .execute(
-                    &mut drivers.persistent_data.get_mut().dpe,
-                    &mut env,
-                    locality,
-                );
+                .execute(&mut pdata_mut.dpe, &mut env, locality);
 
                 match derive_child_resp {
                     Ok(_) => DpeErrorCode::NoError,

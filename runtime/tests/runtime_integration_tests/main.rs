@@ -15,3 +15,4 @@ mod test_pauser_privilege_levels;
 mod test_populate_idev;
 mod test_stash_measurement;
 mod test_tagging;
+mod test_update_reset;

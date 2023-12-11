@@ -50,6 +50,7 @@ Test Scenario| Test Name | Runtime Error Code
 Tests some common ECDSA problems | **ecdsa_cmd_run_wycheproof** | N/A
 Tests some common HMAC problems | **hmac_cmd_run_wycheproof** | N/A
 Streams a test message to a hashing accelerator and calls the ecdsa_verify mailbox command to verify the test signature | **test_ecdsa_verify_cmd** | N/A
+Calls the hmac_verify mailbox command to verify a NIST HMAC-SHA384 test vector | **test_hmac_verify_cmd** | N/A
 Checks that the ecdsa_verify mailbox command fails if provided an invalid checksum | **test_ecdsa_verify_bad_chksum** | RUNTIME_INVALID_CHECKSUM
 
 <br><br>
@@ -82,12 +83,21 @@ Calls the DPE command get_profile via the invoke_dpe mailbox command and verifie
 Calls the DPE command get_certificate_chain via the invoke_dpe mailbox command and verifies the size of the certificate chain |**test_invoke_dpe_get_certificate_chain_cmd** | N/A
 Calls the DPE commands sign and certify_key via the invoke_dpe mailbox command and verifies the signature resulting from the sign command with the public key resulting from the certify_key command | **test_invoke_dpe_sign_and_certify_key_cmds** | N/A
 Calls the DPE command sign with the symmetric flag set via the invoke_dpe mailbox command and checks that the resulting HMAC value is non-zero | **test_invoke_dpe_symmetric_sign** | N/A
+Tests that failed DPE command populates mbox header with correct error code | **test_dpe_header_error_code** | N/A
 
 <br><br>
 # **PAUSER Privilege Level Tests**
 Test Scenario| Test Name | Runtime Error Code
 ---|---|---
 Checks the limit on the number of active DPE contexts belonging to PL0 by calling derive_child via the invoke_dpe mailbox command with the RETAINS_PARENT flag set | **test_pl0_derive_child_dpe_context_thresholds** | RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED
+Checks the limit on the number of active DPE contexts belonging to PL1 by calling derive_child via the invoke_dpe mailbox command with the RETAINS_PARENT flag set | **test_pl1_derive_child_dpe_context_thresholds** | RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED
+Checks the limit on the number of active DPE contexts belonging to PL0 by calling initialize_context via the invoke_dpe mailbox command with the SIMULATION flag set | **test_pl0_init_ctx_dpe_context_thresholds** | RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED
+Checks the limit on the number of active DPE contexts belonging to PL1 by calling initialize_context via the invoke_dpe mailbox command with the SIMULATION flag set | **test_pl1_init_ctx_dpe_context_thresholds** | RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED
+Checks that PopulateIdevIdCert cannot be called from PL1 | **test_populate_idev_cannot_be_called_from_pl1** | RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL
+Checks that InvokeDpe::DeriveChild cannot be called from PL1 if it attempts to change locality to P0 | **test_derive_child_cannot_be_called_from_pl1_if_changes_locality_to_pl0** | RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL
+Checks that InvokeDpe::CertifyKey cannot be called from PL1 if it requests X509 | **test_certify_key_x509_cannot_be_called_from_pl1** | RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL
+Checks the limit on the number of active DPE contexts belonging to PL0 by calling the stash_measurement mailbox command | **test_stash_measurement_pl_context_thresholds** | RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED
+Checks the limit on the number of active DPE contexts belonging to PL0 by adding measurements to the measurement log | **test_measurement_log_pl_context_threshold** | RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED
 
 <br><br>
 # **Tagging Tests**
@@ -99,6 +109,7 @@ Attempts to add a duplicate tag and verifies that it fails | **test_duplicate_ta
 Calls the dpe_get_tagged_tci mailbox command with a tag that does not exist and checks that it fails | **test_get_tagged_tci_on_non_existent_tag** | RUNTIME_TAGGING_FAILURE
 Attempts to tag an inactive context and verifies that it fails | **test_tagging_inactive_context** | RUNTIME_TAGGING_FAILURE
 Tags the default context, destroys the default context, and checks that the dpe_get_tagged_tci mailbox command fails on the default context | **test_tagging_destroyed_context** | RUNTIME_TAGGING_FAILURE
+Tags the default context, retires the default context, and checks that the dpe_get_tagged_tci mailbox command fails on the default context | **test_tagging_retired_context** | RUNTIME_TAGGING_FAILURE
 
 <br><br>
 # **DPE Verification Tests**
@@ -129,9 +140,6 @@ Test Scenario| Test Name | Runtime Error Code
 ---|---|---
 Test DPE structure validation upon update reset | N/A | N/A
 Trigger warm reset and check that DPE structure is valid upon RT initialization | N/A | N/A
-Check that calling DeriveChild via InvokeDpe more than PL0_DPE_ACTIVE_CONTEXT_THRESHOLD times succeeds if the RETAINS_PARENT flag is not set | N/A | N/A
-Test PL context limits with InitializeContext with the SIMULATION flag set, via the InvokeDpe mailbox command | N/A | N/A
-Test HmacVerify with a NIST test vector similar to test_ecdsa_verify_cmd | N/A | N/A
 Verify the RT Journey PCR on a warm reset | N/A | N/A
 Check that the RT Journey PCR was updated correctly on update reset | N/A | N/A
 Check that attestation is disabled if mbox_busy during a warm reset | N/A | N/A
@@ -139,12 +147,8 @@ Check that measurements in the measurement log are added to DPE upon initializin
 Check that PCR31 is updated in StashMeasurement | N/A | N/A
 Test GetIdevCert cmd fails if provided bad signature or tbs | N/A | N/A
 Add higher fidelity HMAC test that verifies correctness of HMAC tag based on UDS | N/A | N/A
-Test failed DPE command populates mbox header with correct error code | N/A | N/A
-Check that PopulateIdevIdCert cannot be called from PL1 | N/A | N/A
-Check that InvokeDpe::DeriveChild cannot be called from PL1 if it attempts to change locality to P0 | N/A | N/A
-Check that InvokeDpe::CertifyKey cannot be called from PL1 if it requests X509 | N/A | N/A
-Test PL1 pauser active context limits | N/A | N/A
 Check that measurements are stored in DPE when StashMeasurement is called | N/A | N/A
 Verify that DPE attestation flow fails after DisableAttestation is called | N/A | N/A
 Check that mailbox valid pausers are measured into DPE upon RT startup | N/A | N/A
 Check that the RT alias key is different from the key signing DPE certs | N/A | N/A
+Test context tag validity upon warm/update reset | N/A | N/A

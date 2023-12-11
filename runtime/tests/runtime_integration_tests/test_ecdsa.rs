@@ -1,10 +1,10 @@
 // Licensed under the Apache-2.0 license.
 
-use crate::common::run_rt_test;
+use crate::common::{assert_error, run_rt_test};
 use caliptra_common::mailbox_api::{
     CommandId, EcdsaVerifyReq, MailboxReq, MailboxReqHeader, MailboxRespHeader,
 };
-use caliptra_hw_model::{HwModel, ModelError, ShaAccMode};
+use caliptra_hw_model::{HwModel, ShaAccMode};
 use caliptra_runtime::RtBootStatus;
 use zerocopy::{AsBytes, FromBytes, LayoutVerified};
 
@@ -242,14 +242,9 @@ fn test_ecdsa_verify_bad_chksum() {
             cmd.as_bytes().unwrap(),
         )
         .unwrap_err();
-    if let ModelError::MailboxCmdFailed(code) = resp {
-        assert_eq!(
-            code,
-            u32::from(caliptra_drivers::CaliptraError::RUNTIME_INVALID_CHECKSUM)
-        );
-    }
-    assert_eq!(
-        model.soc_ifc().cptra_fw_error_non_fatal().read(),
-        u32::from(caliptra_drivers::CaliptraError::RUNTIME_INVALID_CHECKSUM)
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_INVALID_CHECKSUM,
+        resp,
     );
 }

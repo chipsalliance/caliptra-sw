@@ -171,6 +171,7 @@ serial_test = "2.0.0"
 nix = "0.26.2"
 libc = "0.2"
 zeroize = { version = "1.6.0", default-features = false, features = ["zeroize_derive"] }
+regex = "1.10.2"
 
 [profile.firmware]
 inherits = "release"

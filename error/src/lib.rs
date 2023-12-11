@@ -369,6 +369,8 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E0027);
     pub const RUNTIME_LDEVID_CERT_HANDOFF_FAILED: CaliptraError =
         CaliptraError::new_const(0x000E0028);
+    pub const RUNTIME_CONTEXT_TAG_VALIDATION_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E0029);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
