@@ -80,8 +80,7 @@ fn test_update() {
     assert_eq!(fw_rev[1], 0xaabbccdd);
 }
 
-///This test will be enabled only on nightly runs depending on the presence of slow_tests feature
-#[cfg_attr(not(feature = "slow_tests"), ignore)]
+///This test will be run for 500 times if feature "slow_tests" is enabled and just once if the feature is absent
 #[test]
 fn test_stress_update() {
     let app_versions = [0xaaabbbbc, 0xaaabbbbd];
@@ -107,7 +106,7 @@ fn test_stress_update() {
 
     let mut model = run_rt_test(None, None, None);
 
-    let stress_num: u32 = 500;
+    let stress_num = if cfg!(feature = "slow_tests") { 500 } else { 1 };
     let mut image_select = 0;
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
