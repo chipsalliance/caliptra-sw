@@ -156,3 +156,16 @@ jobs:
         with:
           files: ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
           tag_name: ${{ needs.find-latest-release.outputs.new_release_tag }}
+
+      - name: Write artifact to workflow with release info
+        run: |
+          mkdir /tmp/release-info
+          echo "${{ needs.find-latest-release.outputs.new_release_tag }}" > /tmp/release-info/tag-name
+          echo "caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip" > /tmp/release-info/zip-file-name
+
+      - name: Write artifact with release info
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-info
+          path: /tmp/release-info
+
