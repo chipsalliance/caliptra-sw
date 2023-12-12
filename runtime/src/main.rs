@@ -39,7 +39,14 @@ pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
     let mut drivers = unsafe {
         Drivers::new_from_registers().unwrap_or_else(|e| {
-            caliptra_common::report_handoff_error_and_halt("Runtime can't load drivers", e.into())
+            // treat global exception as a fatal error
+            match e {
+                CaliptraError::RUNTIME_GLOBAL_EXCEPTION => handle_fatal_error(e.into()),
+                _ => caliptra_common::report_handoff_error_and_halt(
+                    "Runtime can't load drivers",
+                    e.into(),
+                ),
+            }
         })
     };
     caliptra_common::stop_wdt(&mut drivers.soc_ifc);

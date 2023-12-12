@@ -399,6 +399,10 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E0039);
     pub const RUNTIME_INCREMENT_PCR_RESET_MAX_REACHED: CaliptraError =
         CaliptraError::new_const(0x000E003A);
+    pub const RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED: CaliptraError =
+        CaliptraError::new_const(0x000E003B);
+    pub const RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED: CaliptraError =
+        CaliptraError::new_const(0x000E003C);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);

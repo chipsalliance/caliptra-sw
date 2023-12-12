@@ -45,7 +45,7 @@ impl StashMeasurementCmd {
                 // Check that adding this measurement to DPE doesn't cause
                 // the PL0 context threshold to be exceeded.
                 Drivers::is_dpe_context_threshold_exceeded(
-                    pl0_pauser, flags, locality, &pdata.dpe,
+                    pl0_pauser, flags, locality, &pdata.dpe, false,
                 )?;
                 let pdata_mut = drivers.persistent_data.get_mut();
                 let derive_child_resp = DeriveChildCmd {
@@ -62,7 +62,13 @@ impl StashMeasurementCmd {
 
                 match derive_child_resp {
                     Ok(_) => DpeErrorCode::NoError,
-                    Err(e) => e,
+                    Err(e) => {
+                        // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
+                        if let Some(ext_err) = e.get_error_detail() {
+                            drivers.soc_ifc.set_fw_extended_error(ext_err);
+                        }
+                        e
+                    }
                 }
             };
 
