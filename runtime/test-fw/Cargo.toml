@@ -29,6 +29,11 @@ name = "mbox"
 path = "src/mbox_responder.rs"
 required-features = ["riscv"]
 
+[[bin]]
+name = "persistent_rt"
+path = "src/persistent_tests.rs"
+required-features = ["riscv", "runtime"]
+
 [build-dependencies]
 caliptra_common = { workspace = true, default-features = false }
 caliptra-gen-linker-scripts.workspace = true
