@@ -770,6 +770,7 @@ dependencies = [
  "caliptra_common",
  "elf",
  "openssl",
+ "rand",
  "zerocopy",
 ]
 
