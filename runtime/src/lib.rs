@@ -10,6 +10,7 @@ pub mod fips;
 pub mod handoff;
 pub mod info;
 mod invoke_dpe;
+mod pcr;
 mod populate_idev;
 mod stash_measurement;
 mod update;
@@ -32,6 +33,7 @@ pub use populate_idev::PopulateIDevIdCertCmd;
 
 pub use info::{FwInfoCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
+pub use pcr::IncrementPcrResetCounterCmd;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::EcdsaVerifyCmd;
 pub mod packet;
@@ -52,9 +54,9 @@ use dpe::{
 };
 pub use dpe::{context::ContextState, DpeInstance, U8Bool, MAX_HANDLES};
 
-use crate::dice::GetRtAliasCertCmd;
 #[cfg(feature = "test_only_commands")]
 use crate::verify::HmacVerifyCmd;
+use crate::{dice::GetRtAliasCertCmd, pcr::GetPcrQuoteCmd};
 
 const RUNTIME_BOOT_STATUS_BASE: u32 = 0x600;
 
@@ -148,6 +150,10 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::POPULATE_IDEV_CERT => PopulateIDevIdCertCmd::execute(drivers, cmd_bytes),
         CommandId::GET_FMC_ALIAS_CERT => GetFmcAliasCertCmd::execute(drivers),
         CommandId::GET_RT_ALIAS_CERT => GetRtAliasCertCmd::execute(drivers),
+        CommandId::INCREMENT_PCR_RESET_COUNTER => {
+            IncrementPcrResetCounterCmd::execute(drivers, cmd_bytes)
+        }
+        CommandId::QUOTE_PCRS => GetPcrQuoteCmd::execute(drivers, cmd_bytes),
         #[cfg(feature = "test_only_commands")]
         CommandId::TEST_ONLY_HMAC384_VERIFY => HmacVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::VERSION => {
@@ -189,7 +195,12 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
         if reset_reason == ResetReason::WarmReset {
             let mut result = DisableAttestationCmd::execute(drivers);
             match result {
-                Ok(_) => cprintln!("Disabled attestation due to cmd busy during warm reset"),
+                Ok(_) => {
+                    cprintln!("Disabled attestation due to cmd busy during warm reset");
+                    caliptra_drivers::report_fw_error_non_fatal(
+                        CaliptraError::RUNTIME_CMD_BUSY_DURING_WARM_RESET.into(),
+                    );
+                }
                 Err(e) => {
                     cprintln!("{}", e.0);
                     return Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION);

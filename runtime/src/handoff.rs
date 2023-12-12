@@ -14,22 +14,25 @@ impl RtHandoff<'_> {
         match ds {
             DataVaultNonSticky4(dv_entry) => Ok(self.data_vault.read_warm_reset_entry4(dv_entry)),
             DataVaultSticky4(dv_entry) => Ok(self.data_vault.read_cold_reset_entry4(dv_entry)),
-            _ => Err(CaliptraError::RUNTIME_HANDOFF_INVALID_PARM),
+            _ => Err(CaliptraError::RUNTIME_INTERNAL),
         }
     }
 
     /// Retrieve runtime SVN.
     pub fn rt_svn(&self) -> CaliptraResult<u32> {
         self.read_from_ds(self.fht.rt_svn_dv_hdl.try_into()?)
+            .map_err(|_| CaliptraError::RUNTIME_RT_SVN_HANDOFF_FAILED)
     }
 
     /// Retrieve runtime minimum SVN.
     pub fn rt_min_svn(&self) -> CaliptraResult<u32> {
         self.read_from_ds(self.fht.rt_min_svn_dv_hdl.try_into()?)
+            .map_err(|_| CaliptraError::RUNTIME_RT_MIN_SVN_HANDOFF_FAILED)
     }
 
     /// Retrieve FMC SVN.
     pub fn fmc_svn(&self) -> CaliptraResult<u32> {
         self.read_from_ds(self.fht.fmc_svn_dv_hdl.try_into()?)
+            .map_err(|_| CaliptraError::RUNTIME_FMC_SVN_HANDOFF_FAILED)
     }
 }

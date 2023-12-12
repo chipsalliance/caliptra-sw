@@ -19,6 +19,7 @@ caliptra-image-types.workspace = true
 caliptra-runtime = { workspace = true, default-features = false }
 elf.workspace = true
 openssl.workspace = true
+rand.workspace = true
 zerocopy.workspace = true
 caliptra-hw-model.workspace = true
 

@@ -157,10 +157,10 @@ impl Drivers {
             .find(|&(idx, context)| {
                 context.state != ContextState::Inactive && context.parent_idx == Context::ROOT_INDEX
             })
-            .ok_or(CaliptraError::RUNTIME_DPE_VALIDATION_FAILED)?
+            .ok_or(CaliptraError::RUNTIME_UNABLE_TO_FIND_DPE_ROOT_CONTEXT)?
             .0;
         if root_idx >= dpe.contexts.len() {
-            return Err(CaliptraError::RUNTIME_DPE_VALIDATION_FAILED);
+            return Err(CaliptraError::RUNTIME_UNABLE_TO_FIND_DPE_ROOT_CONTEXT);
         }
         Ok(root_idx)
     }
@@ -173,7 +173,12 @@ impl Drivers {
             // If SRAM Dpe Instance validation fails, disable attestation
             let mut result = DisableAttestationCmd::execute(drivers);
             match result {
-                Ok(_) => cprintln!("Disabled attestation due to DPE validation failure"),
+                Ok(_) => {
+                    cprintln!("Disabled attestation due to DPE validation failure");
+                    caliptra_drivers::report_fw_error_non_fatal(
+                        CaliptraError::RUNTIME_DPE_VALIDATION_FAILED.into(),
+                    );
+                }
                 Err(e) => {
                     cprintln!("{}", e.0);
                     return Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION);
@@ -202,19 +207,19 @@ impl Drivers {
         let mut hasher = drivers
             .sha384
             .digest_init()
-            .map_err(|_| CaliptraError::RUNTIME_DPE_VALIDATION_FAILED)?;
+            .map_err(|_| CaliptraError::RUNTIME_RT_JOURNEY_PCR_VALIDATION_FAILED)?;
 
         hasher
             .update(&[0; AlgLen::Bit384.size()])
-            .map_err(|_| CaliptraError::RUNTIME_DPE_VALIDATION_FAILED)?;
+            .map_err(|_| CaliptraError::RUNTIME_RT_JOURNEY_PCR_VALIDATION_FAILED)?;
         hasher
             .update(&latest_tci.0)
-            .map_err(|_| CaliptraError::RUNTIME_DPE_VALIDATION_FAILED)?;
+            .map_err(|_| CaliptraError::RUNTIME_RT_JOURNEY_PCR_VALIDATION_FAILED)?;
 
         let mut digest = Array4x12::default();
         hasher
             .finalize(&mut digest)
-            .map_err(|_| CaliptraError::RUNTIME_DPE_VALIDATION_FAILED)?;
+            .map_err(|_| CaliptraError::RUNTIME_RT_JOURNEY_PCR_VALIDATION_FAILED)?;
 
         let latest_pcr = drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR);
         // Ensure SHA384_HASH(0x00..00, TCI from SRAM) == RT_FW_JOURNEY_PCR
@@ -222,7 +227,12 @@ impl Drivers {
             // If latest pcr validation fails, disable attestation
             let mut result = DisableAttestationCmd::execute(drivers);
             match result {
-                Ok(_) => cprintln!("Disabled attestation due to latest TCI of the node containing the runtime journey PCR not matching the runtime PCR"),
+                Ok(_) => {
+                    cprintln!("Disabled attestation due to latest TCI of the node containing the runtime journey PCR not matching the runtime PCR");
+                    caliptra_drivers::report_fw_error_non_fatal(
+                        CaliptraError::RUNTIME_RT_JOURNEY_PCR_VALIDATION_FAILED.into(),
+                    );
+                }
                 Err(e) => {
                     cprintln!("{}", e.0);
                     return Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION);
@@ -240,10 +250,12 @@ impl Drivers {
         let dpe = &pdata.dpe;
 
         for i in (0..MAX_HANDLES) {
-            if dpe.contexts[i].state == ContextState::Inactive
-                && (context_has_tag[i].get() || context_tags[i] != 0)
-            {
-                return Err(CaliptraError::RUNTIME_CONTEXT_TAG_VALIDATION_FAILED);
+            if dpe.contexts[i].state == ContextState::Inactive {
+                if context_tags[i] != 0 {
+                    return Err(CaliptraError::RUNTIME_CONTEXT_TAGS_VALIDATION_FAILED);
+                } else if context_has_tag[i].get() {
+                    return Err(CaliptraError::RUNTIME_CONTEXT_HAS_TAG_VALIDATION_FAILED);
+                }
             }
         }
         Ok(())
@@ -255,7 +267,7 @@ impl Drivers {
 
         let rt_digest = self.sha256.digest(&key)?;
         let token = CryptoBuf::new(&Into::<[u8; 32]>::into(rt_digest))
-            .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
+            .map_err(|_| CaliptraError::RUNTIME_COMPUTE_RT_ALIAS_SN_FAILED)?;
 
         Ok(token)
     }
@@ -369,10 +381,10 @@ impl Drivers {
         let mut cert = [0u8; MAX_CERT_CHAIN_SIZE];
 
         // Write ldev_id cert to cert chain.
-        let ldevid_cert_size = dice::copy_ldevid_cert(data_vault, persistent_data.get(), &mut cert)
-            .map_err(|_| CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?;
+        let ldevid_cert_size =
+            dice::copy_ldevid_cert(data_vault, persistent_data.get(), &mut cert)?;
         if ldevid_cert_size > cert.len() {
-            return Err(CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED);
+            return Err(CaliptraError::RUNTIME_LDEV_ID_CERT_TOO_BIG);
         }
 
         // Write fmc alias cert to cert chain.
@@ -380,21 +392,19 @@ impl Drivers {
             data_vault,
             persistent_data.get(),
             &mut cert[ldevid_cert_size..],
-        )
-        .map_err(|_| CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?;
+        )?;
         if ldevid_cert_size + fmcalias_cert_size > cert.len() {
-            return Err(CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED);
+            return Err(CaliptraError::RUNTIME_FMC_ALIAS_CERT_TOO_BIG);
         }
 
         // Write rt alias cert to cert chain.
         let rtalias_cert_size = dice::copy_rt_alias_cert(
             persistent_data.get(),
             &mut cert[ldevid_cert_size + fmcalias_cert_size..],
-        )
-        .map_err(|_| CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?;
+        )?;
         let cert_chain_size = ldevid_cert_size + fmcalias_cert_size + rtalias_cert_size;
         if cert_chain_size > cert.len() {
-            return Err(CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED);
+            return Err(CaliptraError::RUNTIME_RT_ALIAS_CERT_TOO_BIG);
         }
 
         // Copy cert chain to ArrayVec.

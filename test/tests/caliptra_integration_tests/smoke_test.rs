@@ -5,7 +5,7 @@ use caliptra_common::mailbox_api::{
     GetFmcAliasCertReq, GetLdevCertReq, GetRtAliasCertReq, ResponseVarSize,
 };
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
-use caliptra_hw_model_types::{DeviceLifecycle, Fuses};
+use caliptra_hw_model_types::{DeviceLifecycle, Fuses, RandomEtrngResponses, RandomNibbles};
 use caliptra_test::{derive, redact_cert, run_test, RedactOpts, UnwrapSingle};
 use caliptra_test::{
     derive::{DoeInput, DoeOutput, FmcAliasKey, IDevId, LDevId, Pcr0, Pcr0Input},
@@ -14,6 +14,8 @@ use caliptra_test::{
 };
 use openssl::nid::Nid;
 use openssl::sha::{sha384, Sha384};
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 use std::mem;
 use zerocopy::AsBytes;
 
@@ -679,6 +681,8 @@ fn test_rt_wdt_timeout() {
         rom: &rom,
         security_state,
         wdt_timeout_cycles: rt_wdt_timeout_cycles,
+        itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
+        etrng_responses: Box::new(RandomEtrngResponses(StdRng::seed_from_u64(0))),
         ..Default::default()
     };
 
@@ -716,7 +720,7 @@ fn test_fmc_wdt_timeout() {
     let fmc_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
         25_100_000
     } else {
-        2_720_000
+        2_820_000
     };
 
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
@@ -726,6 +730,8 @@ fn test_fmc_wdt_timeout() {
         rom: &rom,
         security_state,
         wdt_timeout_cycles: fmc_wdt_timeout_cycles,
+        itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
+        etrng_responses: Box::new(RandomEtrngResponses(StdRng::seed_from_u64(0))),
         ..Default::default()
     };
 
