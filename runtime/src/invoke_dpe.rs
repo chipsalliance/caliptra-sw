@@ -49,7 +49,7 @@ impl InvokeDpeCmd {
 
             let locality = drivers.mbox.user();
             let command = Command::deserialize(&cmd.data[..cmd.data_size as usize])
-                .map_err(|_| CaliptraError::RUNTIME_INVOKE_DPE_FAILED)?;
+                .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
             let flags = pdata.manifest1.header.flags;
 
             let pdata_mut = drivers.persistent_data.get_mut();
@@ -59,7 +59,7 @@ impl InvokeDpeCmd {
             let resp = match command {
                 Command::GetProfile => Ok(Response::GetProfile(
                     dpe.get_profile(&mut env.platform)
-                        .map_err(|_| CaliptraError::RUNTIME_INVOKE_DPE_FAILED)?,
+                        .map_err(|_| CaliptraError::RUNTIME_COULD_NOT_GET_DPE_PROFILE)?,
                 )),
                 Command::InitCtx(cmd) => {
                     // InitCtx can only create new contexts if they are simulation contexts.
