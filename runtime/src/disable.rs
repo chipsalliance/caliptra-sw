@@ -11,14 +11,8 @@ use caliptra_drivers::{
 pub struct DisableAttestationCmd;
 impl DisableAttestationCmd {
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
-        drivers
-            .key_vault
-            .erase_key(KEY_ID_RT_CDI)
-            .map_err(|_| CaliptraError::RUNTIME_DISABLE_ATTESTATION_FAILED)?;
-        drivers
-            .key_vault
-            .erase_key(KEY_ID_RT_PRIV_KEY)
-            .map_err(|_| CaliptraError::RUNTIME_DISABLE_ATTESTATION_FAILED)?;
+        drivers.key_vault.erase_key(KEY_ID_RT_CDI)?;
+        drivers.key_vault.erase_key(KEY_ID_RT_PRIV_KEY)?;
 
         Self::zero_rt_cdi(drivers)?;
         Self::generate_dice_key(drivers)?;

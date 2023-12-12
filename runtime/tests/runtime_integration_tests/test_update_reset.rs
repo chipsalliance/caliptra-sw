@@ -7,12 +7,19 @@ use caliptra_builder::{
     ImageOptions,
 };
 use caliptra_common::mailbox_api::{
-    CommandId, FwInfoResp, MailboxReq, MailboxReqHeader, TagTciReq,
+    CommandId, FwInfoResp, IncrementPcrResetCounterReq, MailboxReq, MailboxReqHeader, TagTciReq,
 };
+use caliptra_drivers::PcrResetCounter;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::HwModel;
-use caliptra_runtime::RtBootStatus;
-use dpe::{DpeInstance, U8Bool, MAX_HANDLES};
+use caliptra_runtime::{ContextState, RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD};
+use dpe::{
+    context::{Context, ContextHandle, ContextType},
+    response::DpeErrorCode,
+    tci::TciMeasurement,
+    validation::ValidationError,
+    DpeInstance, U8Bool, DPE_PROFILE, MAX_HANDLES,
+};
 use zerocopy::{AsBytes, FromBytes};
 
 use crate::common::run_rt_test;
@@ -172,14 +179,70 @@ fn test_context_has_tag_validation() {
 }
 
 #[test]
-fn test_dpe_validation() {
+fn test_dpe_validation_deformed_structure() {
     let mut model = run_rt_test(Some(&firmware::runtime_tests::MBOX), None, None);
 
     // read DPE after RT initialization
     let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
     let mut dpe = DpeInstance::read_from(dpe_resp.as_bytes()).unwrap();
 
-    // corrupt DPE structure by creating a cycle in the context tree
+    // corrupt DPE structure by creating multiple normal connected components
+    dpe.contexts[0].children = 0;
+    dpe.contexts[0].state = ContextState::Active;
+    dpe.contexts[1].parent_idx = Context::ROOT_INDEX;
+    let _ = model
+        .mailbox_execute(0xB000_0000, dpe.as_bytes())
+        .unwrap()
+        .unwrap();
+
+    // trigger update reset
+    let updated_fw_image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+    model
+        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
+        .unwrap();
+    model.step_until(|m| {
+        m.soc_ifc().cptra_fw_error_non_fatal().read()
+            == u32::from(CaliptraError::RUNTIME_DPE_VALIDATION_FAILED)
+    });
+    assert_eq!(
+        model
+            .soc_ifc()
+            .cptra_fw_extended_error_info()
+            .read()
+            .as_bytes()[..size_of::<u32>()],
+        DpeErrorCode::Validation(ValidationError::MultipleNormalConnectedComponents)
+            .get_error_code()
+            .to_le_bytes()
+    );
+
+    // check attestation disabled via FW_INFO
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::FW_INFO), &[]),
+    };
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::FW_INFO), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+    let info = FwInfoResp::read_from(resp.as_slice()).unwrap();
+    assert_eq!(info.attestation_disabled, 1);
+}
+
+#[test]
+fn test_dpe_validation_illegal_state() {
+    let mut model = run_rt_test(Some(&firmware::runtime_tests::MBOX), None, None);
+
+    // read DPE after RT initialization
+    let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
+    let mut dpe = DpeInstance::read_from(dpe_resp.as_bytes()).unwrap();
+
+    // corrupt DPE state by messing up parent-child links
     dpe.contexts[1].children = 0b1;
     let _ = model
         .mailbox_execute(0xB000_0000, dpe.as_bytes())
@@ -202,6 +265,16 @@ fn test_dpe_validation() {
         m.soc_ifc().cptra_fw_error_non_fatal().read()
             == u32::from(CaliptraError::RUNTIME_DPE_VALIDATION_FAILED)
     });
+    assert_eq!(
+        model
+            .soc_ifc()
+            .cptra_fw_extended_error_info()
+            .read()
+            .as_bytes()[..size_of::<u32>()],
+        DpeErrorCode::Validation(ValidationError::ParentChildLinksCorrupted)
+            .get_error_code()
+            .to_le_bytes()
+    );
 
     // check attestation disabled via FW_INFO
     let payload = MailboxReqHeader {
@@ -213,4 +286,126 @@ fn test_dpe_validation() {
         .unwrap();
     let info = FwInfoResp::read_from(resp.as_slice()).unwrap();
     assert_eq!(info.attestation_disabled, 1);
+}
+
+#[test]
+fn test_dpe_validation_used_context_threshold_exceeded() {
+    let mut model = run_rt_test(Some(&firmware::runtime_tests::MBOX), None, None);
+
+    // read DPE after RT initialization
+    let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
+    let mut dpe = DpeInstance::read_from(dpe_resp.as_bytes()).unwrap();
+
+    // corrupt DPE structure by creating PL0_DPE_ACTIVE_CONTEXT_THRESHOLD contexts
+    let pl0_pauser = ImageOptions::default().vendor_config.pl0_pauser.unwrap();
+    // make dpe.contexts[1].handle non-default in order to pass dpe state validation
+    dpe.contexts[1].handle = ContextHandle([1u8; ContextHandle::SIZE]);
+    // the mbox valid pausers measurement is already in PL0 so creating PL0_DPE_ACTIVE_CONTEXT_THRESHOLD suffices
+    for i in 0..PL0_DPE_ACTIVE_CONTEXT_THRESHOLD {
+        // skip first two contexts measured by RT
+        let idx = i + 2;
+        // create simulation contexts in PL0
+        dpe.contexts[idx].state = ContextState::Active;
+        dpe.contexts[idx].context_type = ContextType::Simulation;
+        dpe.contexts[idx].locality = pl0_pauser;
+        dpe.contexts[idx].tci.locality = pl0_pauser;
+        dpe.contexts[idx].tci.tci_current = TciMeasurement([idx as u8; DPE_PROFILE.get_tci_size()]);
+        dpe.contexts[idx].tci.tci_cumulative =
+            TciMeasurement([idx as u8; DPE_PROFILE.get_tci_size()]);
+        dpe.contexts[idx].handle = ContextHandle([idx as u8; ContextHandle::SIZE]);
+    }
+    let _ = model
+        .mailbox_execute(0xB000_0000, dpe.as_bytes())
+        .unwrap()
+        .unwrap();
+
+    // trigger update reset
+    let updated_fw_image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+    model
+        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
+        .unwrap();
+    model.step_until(|m| {
+        m.soc_ifc().cptra_fw_error_non_fatal().read()
+            == u32::from(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED)
+    });
+
+    // check attestation disabled via FW_INFO
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::FW_INFO), &[]),
+    };
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::FW_INFO), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+    let info = FwInfoResp::read_from(resp.as_slice()).unwrap();
+    assert_eq!(info.attestation_disabled, 1);
+}
+
+#[test]
+fn test_pcr_reset_counter_persistence() {
+    let mut model = run_rt_test(None, None, None);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // Increment counter for PCR0 in order to change the pcr reset counter in persistent data
+    let mut cmd = MailboxReq::IncrementPcrResetCounter(IncrementPcrResetCounterReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        index: 0,
+    });
+    cmd.populate_chksum().unwrap();
+    let _ = model
+        .mailbox_execute(
+            u32::from(CommandId::INCREMENT_PCR_RESET_COUNTER),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We expected a response");
+
+    // trigger update reset
+    let updated_fw_image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &firmware::runtime_tests::MBOX,
+        ImageOptions::default(),
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+    model
+        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
+        .unwrap();
+
+    let pcr_reset_counter_resp_1 = model.mailbox_execute(0xC000_0000, &[]).unwrap().unwrap();
+    let pcr_reset_counter_1: [u8; size_of::<PcrResetCounter>()] =
+        pcr_reset_counter_resp_1.as_bytes().try_into().unwrap();
+
+    // trigger another update reset with same fw
+    let updated_fw_image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &firmware::runtime_tests::MBOX,
+        ImageOptions::default(),
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+    model
+        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
+        .unwrap();
+
+    let pcr_reset_counter_resp_2 = model.mailbox_execute(0xC000_0000, &[]).unwrap().unwrap();
+    let pcr_reset_counter_2: [u8; size_of::<PcrResetCounter>()] =
+        pcr_reset_counter_resp_2.as_bytes().try_into().unwrap();
+
+    // check that the pcr reset counters are the same across update resets
+    assert_eq!(pcr_reset_counter_1, pcr_reset_counter_2);
+    // check that the pcr reset counters are not default
+    assert_ne!(pcr_reset_counter_1, [0u8; size_of::<PcrResetCounter>()]);
 }

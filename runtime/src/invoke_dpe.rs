@@ -16,9 +16,6 @@ use zerocopy::{AsBytes, FromBytes};
 
 pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
-    pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 8;
-    pub const PL1_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
-
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if cmd_args.len() <= core::mem::size_of::<InvokeDpeReq>() {
             let mut cmd = InvokeDpeReq::default();
@@ -65,13 +62,15 @@ impl InvokeDpeCmd {
                     // InitCtx can only create new contexts if they are simulation contexts.
                     if InitCtxCmd::flag_is_simulation(&cmd) {
                         Drivers::is_dpe_context_threshold_exceeded(
-                            pl0_pauser, flags, locality, dpe,
+                            pl0_pauser, flags, locality, dpe, false,
                         )?;
                     }
                     cmd.execute(dpe, &mut env, locality)
                 }
                 Command::DeriveChild(cmd) => {
-                    Drivers::is_dpe_context_threshold_exceeded(pl0_pauser, flags, locality, dpe)?;
+                    Drivers::is_dpe_context_threshold_exceeded(
+                        pl0_pauser, flags, locality, dpe, false,
+                    )?;
                     if DeriveChildCmd::changes_locality(&cmd)
                         && cmd.target_locality == pl0_pauser
                         && Drivers::is_caller_pl1(pl0_pauser, flags, locality)

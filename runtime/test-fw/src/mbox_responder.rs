@@ -127,6 +127,12 @@ fn mbox_responder() {
                 drivers.persistent_data.get_mut().dpe = corrupted_dpe;
                 mbox.set_status(MboxStatusE::DataReady);
             }
+            // Read PcrResetCounter
+            CommandId(0xC000_0000) => {
+                mbox.write_response(drivers.persistent_data.get().pcr_reset.as_bytes())
+                    .unwrap();
+                mbox.set_status(MboxStatusE::DataReady);
+            }
             CommandId(FW_LOAD_CMD_OPCODE) => {
                 unsafe { SocIfcReg::new() }
                     .regs_mut()
