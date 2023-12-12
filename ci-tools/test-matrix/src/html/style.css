@@ -52,7 +52,8 @@ table.caliptra-test-matrix td.na {
     background-color: #e0e0e0;
 }
 table.caliptra-test-matrix td.selected {
-    border: solid black 1px;
+    outline: 2px solid black;
+    outline-offset: -2px;
 }
 
 pre {
