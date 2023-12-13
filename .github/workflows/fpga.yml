@@ -295,7 +295,7 @@ jobs:
     runs-on: caliptra-fpga
     needs: [check_cache, build_bitstream, build_test_binaries, build_kernel_modules]
     if: |
-      always() &&
+      !cancelled() &&
       needs.check_cache.result == 'success' &&
       (needs.build_bitstream.result == 'success' || needs.build_bitstream.result == 'skipped') &&
       (needs.build_test_binaries.result == 'success' || needs.build_test_binaries.result == 'skipped') &&
