@@ -155,6 +155,7 @@ pub fn copy_ldevid_cert(
         .get(..persistent_data.fht.ldevid_tbs_size.into());
     let sig = ldevid_dice_sign(persistent_data, dv)?;
     cert_from_tbs_and_sig(tbs, &sig, cert)
+        .map_err(|_| CaliptraError::RUNTIME_GET_LDEVID_CERT_FAILED)
 }
 
 // Retrieve the r portion of the FMC cert signature
@@ -220,6 +221,7 @@ pub fn copy_fmc_alias_cert(
         .get(..persistent_data.fht.fmcalias_tbs_size.into());
     let sig = fmc_dice_sign(persistent_data, dv)?;
     cert_from_tbs_and_sig(tbs, &sig, cert)
+        .map_err(|_| CaliptraError::RUNTIME_GET_FMC_ALIAS_CERT_FAILED)
 }
 
 /// Copy RT Alias certificate produced by ROM to `cert` buffer
@@ -234,6 +236,7 @@ pub fn copy_rt_alias_cert(
         .rtalias_tbs
         .get(..persistent_data.fht.rtalias_tbs_size.into());
     cert_from_tbs_and_sig(tbs, &persistent_data.fht.rt_dice_sign, cert)
+        .map_err(|_| CaliptraError::RUNTIME_GET_RT_ALIAS_CERT_FAILED)
 }
 
 /// Create a certificate from a tbs and a signature and write the output to `cert`
@@ -243,7 +246,7 @@ fn cert_from_tbs_and_sig(
     cert: &mut [u8],
 ) -> CaliptraResult<usize> {
     let Some(tbs) = tbs else {
-        return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
+        return Err(CaliptraError::RUNTIME_INTERNAL);
     };
 
     // Convert from Ecc384Signature to Ecdsa384Signature
@@ -252,11 +255,11 @@ fn cert_from_tbs_and_sig(
         s: sig.s.into(),
     };
     let Some(builder) = Ecdsa384CertBuilder::new(tbs, &bldr_sig) else {
-        return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
+        return Err(CaliptraError::RUNTIME_INTERNAL);
     };
 
     let Some(size) = builder.build(cert) else {
-        return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
+        return Err(CaliptraError::RUNTIME_INTERNAL);
     };
 
     Ok(size)

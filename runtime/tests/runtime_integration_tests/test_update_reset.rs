@@ -135,7 +135,7 @@ fn test_context_tags_validation() {
 
     model.step_until(|m| {
         m.soc_ifc().cptra_fw_error_non_fatal().read()
-            == u32::from(CaliptraError::RUNTIME_CONTEXT_TAG_VALIDATION_FAILED)
+            == u32::from(CaliptraError::RUNTIME_CONTEXT_TAGS_VALIDATION_FAILED)
     });
 }
 
@@ -167,7 +167,7 @@ fn test_context_has_tag_validation() {
 
     model.step_until(|m| {
         m.soc_ifc().cptra_fw_error_non_fatal().read()
-            == u32::from(CaliptraError::RUNTIME_CONTEXT_TAG_VALIDATION_FAILED)
+            == u32::from(CaliptraError::RUNTIME_CONTEXT_HAS_TAG_VALIDATION_FAILED)
     });
 }
 
@@ -198,6 +198,10 @@ fn test_dpe_validation() {
     model
         .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
         .unwrap();
+    model.step_until(|m| {
+        m.soc_ifc().cptra_fw_error_non_fatal().read()
+            == u32::from(CaliptraError::RUNTIME_DPE_VALIDATION_FAILED)
+    });
 
     // check attestation disabled via FW_INFO
     let payload = MailboxReqHeader {
