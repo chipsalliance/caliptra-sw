@@ -34,6 +34,15 @@ fn test_boot() {
 }
 
 #[test]
+/// This test differs from the drivers' test_persistent() in that it is ran with the "runtime" flag so
+/// it allows us to test conditionally compiled runtime-only persistent data that ROM/FMC may have corrupted.
+fn test_persistent_data() {
+    let mut model = run_rt_test(Some(&firmware::runtime_tests::PERSISTENT_RT), None, None);
+
+    model.step_until_exit_success().unwrap();
+}
+
+#[test]
 fn test_fw_version() {
     let mut model = run_rt_test(None, None, None);
     model.step_until(|m| {
