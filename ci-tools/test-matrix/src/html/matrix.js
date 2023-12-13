@@ -27,7 +27,9 @@
                 }
                 selectedCell = e.target;
                 selectedCell.classList.add("selected"); 
-                var top = (selectedCell.offsetTop + selectedCell.offsetHeight);
+                var top = (selectedCell.getBoundingClientRect().top + 
+                           document.documentElement.scrollTop +
+                           selectedCell.offsetHeight);
                 log.style.display = "block";
                 log.style.position = "absolute";
                 log.style.top = "" + top + "px";
