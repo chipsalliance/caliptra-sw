@@ -9,13 +9,19 @@ rm -rf release
 mkdir -p $WORKSPACE_DIR
 
 # Generate ROM and Image Bundle Binary
-cargo run --manifest-path=builder/Cargo.toml --bin image -- --rom-with-log $WORKSPACE_DIR/caliptra-rom.bin --fw $WORKSPACE_DIR/image-bundle.bin
+cargo run --manifest-path=builder/Cargo.toml --bin image -- --rom-no-log $WORKSPACE_DIR/caliptra-rom.bin --fw $WORKSPACE_DIR/image-bundle.bin
 # Copy ROM ELF
 cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-rom $WORKSPACE_DIR/caliptra-rom.elf
 # Copy FMC ELF
 cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-fmc $WORKSPACE_DIR/caliptra-fmc.elf
 # Copy Runtime FW ELF
 cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-runtime $WORKSPACE_DIR/caliptra-runtime.elf
+
+# Generate rom-with-log
+cargo run --manifest-path=builder/Cargo.toml --bin image -- --rom-with-log $WORKSPACE_DIR/caliptra-rom-with-log.bin
+
+# Copy ROM-with-log ELF
+cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-rom $WORKSPACE_DIR/caliptra-rom-with-log.elf
 
 # Generate fake ROM and Image Bundle Binary
 cargo run --manifest-path=builder/Cargo.toml --bin image -- --fake-rom $WORKSPACE_DIR/fake-caliptra-rom.bin --fake-fw $WORKSPACE_DIR/fake-image-bundle.bin
