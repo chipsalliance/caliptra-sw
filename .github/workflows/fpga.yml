@@ -16,8 +16,19 @@ on:
       rom-logging:
         default: true
         type: boolean
+      fpga-itrng:
+        default: true
+        type: boolean
+      workflow_call:
+        description: 'Set true for workflow_call'
+        default: true
+        type: boolean
 
   workflow_dispatch:
+    inputs:
+      fpga-itrng:
+        default: true
+        type: boolean
 
 
 jobs:
@@ -45,7 +56,7 @@ jobs:
         run: |
           # Compute the key from the tree hash of the fpga directory and the caliptra-rtl
           # root directory.
-          echo "rtl_cache_key=$(git rev-parse HEAD:hw-latest/fpga/src)-$(git hash-object hw-latest/fpga/fpga_configuration.tcl)-$(cd hw-latest/caliptra-rtl && git rev-parse HEAD:)-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
+          echo "rtl_cache_key=$(git rev-parse HEAD:hw-latest/fpga/src)-$(git hash-object hw-latest/fpga/fpga_configuration.tcl)-$(cd hw-latest/caliptra-rtl && git rev-parse HEAD:)-${{ inputs.fpga-itrng }}-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
 
           echo "kmod_cache_key=fpga-kernel-modules-$(git rev-parse HEAD:hw-latest/fpga/io_module)-$(git rev-parse HEAD:hw-latest/fpga/rom_backdoor)-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
 
@@ -143,8 +154,14 @@ jobs:
         run: |
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$FARGO_SYSROOT"
+
+          if [ "${{ inputs.workflow_call }}" ]; then
+            FEATURES=fpga_realtime,${{ inputs.extra-features }}
+          else
+            FEATURES=fpga_realtime,itrng
+          fi
           cargo nextest archive \
-            --features=fpga_realtime,${{ inputs.extra-features }} \
+            --features=${FEATURES} \
             --release \
             --target=aarch64-unknown-linux-gnu \
             --archive-file=/tmp/caliptra-test-binaries.tar.zst
@@ -257,7 +274,12 @@ jobs:
         run: |
           cd hw-latest/fpga
           mkdir caliptra_build
-          /fpga-tools/Xilinx/Vivado/2022.2/bin/vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE
+          if [ "${{ inputs.fpga-itrng }}" == "false" ]; then
+            ITRNG=FALSE
+          else
+            ITRNG=TRUE
+          fi
+          /fpga-tools/Xilinx/Vivado/2022.2/bin/vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE ITRNG=${ITRNG}
           if [ ! -f caliptra_build/caliptra_fpga.bin ]; then
             echo "Output file was not found; failing script"
             exit 1

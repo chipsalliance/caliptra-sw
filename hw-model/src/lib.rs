@@ -186,7 +186,11 @@ impl<'a> Default for InitParams<'a> {
             cptra_obf_key: DEFAULT_CPTRA_OBF_KEY,
             itrng_nibbles,
             etrng_responses,
-            trng_mode: Default::default(),
+            trng_mode: Some(if cfg!(feature = "itrng") {
+                TrngMode::Internal
+            } else {
+                TrngMode::External
+            }),
             wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
             random_sram_puf: true,
             trace_path: None,

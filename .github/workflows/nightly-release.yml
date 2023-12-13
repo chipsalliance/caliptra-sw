@@ -69,6 +69,7 @@ jobs:
       artifact-suffix: -fpga-realtime-etrng-log
       extra-features: slow_tests
       rom-logging: true
+      fpga-itrng: false
 
   fpga-full-suite-etrng-nolog:
     name: FPGA Suite (etrng, nolog)
@@ -79,6 +80,29 @@ jobs:
       artifact-suffix: -fpga-realtime-etrng-nolog
       extra-features: slow_tests
       rom-logging: false
+      fpga-itrng: false
+
+  fpga-full-suite-itrng-log:
+    name: FPGA Suite (itrng, log)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-itrng-log
+      extra-features: slow_tests,itrng
+      rom-logging: true
+      fpga-itrng: true
+
+  fpga-full-suite-itrng-nolog:
+    name: FPGA Suite (itrng, nolog)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-itrng-nolog
+      extra-features: slow_tests,itrng
+      rom-logging: false
+      fpga-itrng: true
 
   sw-emulator-full-suite-etrng-log:
     name: sw-emulator Suite (etrng, log)
@@ -126,6 +150,8 @@ jobs:
       - find-latest-release
       - fpga-full-suite-etrng-log
       - fpga-full-suite-etrng-nolog
+      - fpga-full-suite-itrng-log
+      - fpga-full-suite-itrng-nolog
       - sw-emulator-full-suite-etrng-log
       - sw-emulator-full-suite-etrng-nolog
       - sw-emulator-full-suite-itrng-log
