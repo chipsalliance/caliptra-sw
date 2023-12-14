@@ -10,6 +10,7 @@ use caliptra_common::{
 };
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
 use caliptra_runtime::RtBootStatus;
+use sha2::{Digest, Sha384};
 use zerocopy::AsBytes;
 
 use crate::common::run_rt_test;
@@ -100,14 +101,13 @@ fn test_boot_tci_data() {
     let valid_pauser_hash: [u8; 48] = valid_pauser_hash_resp.as_bytes().try_into().unwrap();
 
     // hash expected DPE measurements in order
-    let measurements_to_be_hashed = [rt_journey_pcr, valid_pauser_hash].concat();
-    let expected_measurement_hash = model
-        .mailbox_execute(0x4000_0000, measurements_to_be_hashed.as_bytes())
-        .unwrap()
-        .unwrap();
+    let mut hasher = Sha384::new();
+    hasher.update(rt_journey_pcr);
+    hasher.update(valid_pauser_hash);
+    let expected_measurement_hash = hasher.finalize();
 
     let dpe_measurement_hash = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
-    assert_eq!(expected_measurement_hash, dpe_measurement_hash);
+    assert_eq!(expected_measurement_hash.as_bytes(), dpe_measurement_hash);
 }
 
 #[test]
@@ -160,12 +160,12 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
     let valid_pauser_hash: [u8; 48] = valid_pauser_hash_resp.as_bytes().try_into().unwrap();
 
     // hash expected DPE measurements in order
-    let measurements_to_be_hashed = [rt_journey_pcr, valid_pauser_hash, measurement].concat();
-    let expected_measurement_hash = model
-        .mailbox_execute(0x4000_0000, measurements_to_be_hashed.as_bytes())
-        .unwrap()
-        .unwrap();
+    let mut hasher = Sha384::new();
+    hasher.update(rt_journey_pcr);
+    hasher.update(valid_pauser_hash);
+    hasher.update(measurement);
+    let expected_measurement_hash = hasher.finalize();
 
     let dpe_measurement_hash = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
-    assert_eq!(expected_measurement_hash, dpe_measurement_hash);
+    assert_eq!(expected_measurement_hash.as_bytes(), dpe_measurement_hash);
 }

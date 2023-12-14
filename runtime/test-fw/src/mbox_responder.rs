@@ -6,7 +6,10 @@
 use core::mem::size_of;
 
 use caliptra_common::mailbox_api::CommandId;
-use caliptra_drivers::{pcr_log::RT_FW_JOURNEY_PCR, Array4x12};
+use caliptra_drivers::{
+    pcr_log::{PCR_ID_STASH_MEASUREMENT, RT_FW_JOURNEY_PCR},
+    Array4x12,
+};
 use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc::SocIfcReg};
 use caliptra_runtime::{ContextState, DpeInstance, Drivers, U8Bool, MAX_HANDLES};
 use caliptra_test_harness::{runtime_handlers, test_suite};
@@ -59,15 +62,15 @@ fn mbox_responder() {
                 }
                 let mut digest = Array4x12::default();
                 hasher.finalize(&mut digest).unwrap();
-                mbox.write_response(digest.as_bytes()).unwrap();
+                let out: [u8; 48] = digest.into();
+                mbox.write_response(&out).unwrap();
                 mbox.set_status(MboxStatusE::DataReady);
             }
-            // Hash input data
-            CommandId(0x4000_0000) => {
-                let size = mbox.dlen() as usize;
-                let input_bytes = &mbox.raw_mailbox_contents()[..size];
-                mbox.write_response(drivers.sha384.digest(input_bytes).unwrap().as_bytes())
-                    .unwrap();
+            // Read PCR_ID_STASH_MEASUREMENT
+            CommandId(0x5000_0000) => {
+                let pcr_id_stash_measurement: [u8; 48] =
+                    drivers.pcr_bank.read_pcr(PCR_ID_STASH_MEASUREMENT).into();
+                mbox.write_response(&pcr_id_stash_measurement).unwrap();
                 mbox.set_status(MboxStatusE::DataReady);
             }
             // Read DPE root context measurement

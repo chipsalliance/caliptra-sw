@@ -38,6 +38,7 @@ caliptra-image-openssl.workspace = true
 caliptra-image-serde.workspace = true
 caliptra-cfi-lib = { workspace = true, features = ["cfi-test"] }
 openssl.workspace = true
+sha2 = { version = "0.10.2", default-features = false, features = ["compress"] }
 wycheproof.workspace = true
 
 [features]

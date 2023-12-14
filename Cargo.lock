@@ -720,6 +720,7 @@ dependencies = [
  "dpe",
  "openssl",
  "platform",
+ "sha2",
  "ufmt",
  "wycheproof",
  "zerocopy",
