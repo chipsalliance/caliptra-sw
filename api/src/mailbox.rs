@@ -25,6 +25,7 @@ impl CommandId {
     pub const QUOTE_PCRS: Self = Self(0x50435251); // "PCRQ"
 
     pub const TEST_ONLY_HMAC384_VERIFY: Self = Self(0x484D4143); // "HMAC"
+    pub const TEST_ONLY_TRIGGER_CPU_FAULT: Self = Self(0x54504355); // "TCPU"
 
     /// FIPS module commands.
     /// The status command.

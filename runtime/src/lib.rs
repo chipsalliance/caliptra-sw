@@ -156,6 +156,15 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::QUOTE_PCRS => GetPcrQuoteCmd::execute(drivers, cmd_bytes),
         #[cfg(feature = "test_only_commands")]
         CommandId::TEST_ONLY_HMAC384_VERIFY => HmacVerifyCmd::execute(drivers, cmd_bytes),
+        #[cfg(feature = "test_only_commands")]
+        CommandId::TEST_ONLY_TRIGGER_CPU_FAULT => {
+            // the print is necessary to ensure the compiler doesn't optimize out the unsafe code below
+            cprintln!("Unsafe write to null mutable pointer");
+            unsafe { core::ptr::null_mut::<i32>().write(42) };
+
+            // this error code is unreached
+            Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND)
+        }
         CommandId::VERSION => {
             FipsVersionCmd::execute(&drivers.soc_ifc).map(MailboxResp::FipsVersion)
         }

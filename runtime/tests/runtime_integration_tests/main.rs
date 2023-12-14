@@ -3,6 +3,7 @@
 mod common;
 mod test_boot;
 mod test_certs;
+mod test_cpu_fault;
 mod test_disable;
 mod test_ecdsa;
 mod test_fips;
