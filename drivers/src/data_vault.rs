@@ -279,15 +279,6 @@ impl DataVault {
         }
     }
 
-    /// Set the fmc tcb component identifier.
-    ///
-    /// # Arguments
-    /// * `tci` - fmc tcb component identifier
-    ///
-    pub fn set_fmc_tci(&mut self, tci: &Array4x12) {
-        self.write_lock_cold_reset_entry48(ColdResetEntry48::FmcTci, tci);
-    }
-
     /// Get the fmc tcb component identifier.
     ///
     /// # Returns
@@ -295,16 +286,6 @@ impl DataVault {
     ///
     pub fn fmc_tci(&self) -> Array4x12 {
         self.read_cold_reset_entry48(ColdResetEntry48::FmcTci)
-    }
-
-    /// Set the owner public key hash.
-    ///
-    /// # Arguments
-    ///
-    /// * `hash` - Owner public key hash
-    ///
-    pub fn set_owner_pk_hash(&mut self, hash: &Array4x12) {
-        self.write_lock_cold_reset_entry48(ColdResetEntry48::OwnerPubKeyHash, hash);
     }
 
     /// Get the owner public key hash
@@ -317,15 +298,6 @@ impl DataVault {
         self.read_cold_reset_entry48(ColdResetEntry48::OwnerPubKeyHash)
     }
 
-    /// Set the fmc security version number.
-    ///
-    /// # Arguments
-    /// * `svn` - fmc security version number
-    ///
-    pub fn set_fmc_svn(&mut self, svn: u32) {
-        self.write_lock_cold_reset_entry4(ColdResetEntry4::FmcSvn, svn);
-    }
-
     /// Get the fmc security version number.
     ///
     /// # Returns
@@ -333,15 +305,6 @@ impl DataVault {
     ///
     pub fn fmc_svn(&self) -> u32 {
         self.read_cold_reset_entry4(ColdResetEntry4::FmcSvn)
-    }
-
-    /// Set the fmc entry point.
-    ///
-    /// # Arguments
-    ///
-    /// * `entry_point` - fmc entry point
-    pub fn set_fmc_entry_point(&mut self, entry_point: u32) {
-        self.write_lock_cold_reset_entry4(ColdResetEntry4::FmcEntryPoint, entry_point);
     }
 
     /// Get the fmc entry.
@@ -353,16 +316,6 @@ impl DataVault {
         self.read_cold_reset_entry4(ColdResetEntry4::FmcEntryPoint)
     }
 
-    /// Set the Ecc vendor public key index used for image verification
-    ///
-    /// # Arguments
-    ///
-    /// * `pk_index` - Vendor public key index
-    ///
-    pub fn set_ecc_vendor_pk_index(&mut self, pk_index: u32) {
-        self.write_lock_cold_reset_entry4(ColdResetEntry4::EccVendorPubKeyIndex, pk_index);
-    }
-
     /// Get the Ecc vendor public key index used for image verification.
     ///
     /// # Returns
@@ -370,16 +323,6 @@ impl DataVault {
     /// * `u32` - Vendor public key index
     pub fn ecc_vendor_pk_index(&self) -> u32 {
         self.read_cold_reset_entry4(ColdResetEntry4::EccVendorPubKeyIndex)
-    }
-
-    /// Set the Lms vendor public key index used for image verification
-    ///
-    /// # Arguments
-    ///
-    /// * `pk_index` - Vendor public key index
-    ///
-    pub fn set_lms_vendor_pk_index(&mut self, pk_index: u32) {
-        self.write_lock_cold_reset_entry4(ColdResetEntry4::LmsVendorPubKeyIndex, pk_index);
     }
 
     /// Get the Lms vendor public key index used for image verification.
@@ -409,15 +352,6 @@ impl DataVault {
         self.read_warm_reset_entry4(WarmResetEntry4::RomUpdateResetStatus)
     }
 
-    /// Set the rt tcb component identifier.
-    ///
-    /// # Arguments
-    /// * `tci` - rt tcb component identifier
-    ///
-    pub fn set_rt_tci(&mut self, tci: &Array4x12) {
-        self.write_lock_warm_reset_entry48(WarmResetEntry48::RtTci, tci);
-    }
-
     /// Get the rt tcb component identifier.
     ///
     /// # Returns
@@ -425,15 +359,6 @@ impl DataVault {
     ///
     pub fn rt_tci(&self) -> Array4x12 {
         self.read_warm_reset_entry48(WarmResetEntry48::RtTci)
-    }
-
-    /// Set the rt security version number.
-    ///
-    /// # Arguments
-    /// * `svn` - rt security version number
-    ///
-    pub fn set_rt_svn(&mut self, svn: u32) {
-        self.write_lock_warm_reset_entry4(WarmResetEntry4::RtSvn, svn);
     }
 
     /// Get the rt security version number.
@@ -445,15 +370,6 @@ impl DataVault {
         self.read_warm_reset_entry4(WarmResetEntry4::RtSvn)
     }
 
-    /// Set the rt security minimum SVN.
-    ///
-    /// # Arguments
-    /// * `min_svn` - min rt security version number
-    ///
-    pub fn set_rt_min_svn(&mut self, min_svn: u32) {
-        self.write_lock_warm_reset_entry4(WarmResetEntry4::RtMinSvn, min_svn);
-    }
-
     /// Get the rt minimum security version number.
     ///
     /// # Returns
@@ -463,15 +379,6 @@ impl DataVault {
         self.read_warm_reset_entry4(WarmResetEntry4::RtMinSvn)
     }
 
-    /// Set the rt entry point.
-    ///
-    /// # Arguments
-    ///
-    /// * `entry_point` - rt entry point
-    pub fn set_rt_entry_point(&mut self, entry_point: u32) {
-        self.write_lock_warm_reset_entry4(WarmResetEntry4::RtEntryPoint, entry_point);
-    }
-
     /// Get the rt entry.
     ///
     /// # Returns
@@ -479,15 +386,6 @@ impl DataVault {
     /// * rt entry point
     pub fn rt_entry_point(&self) -> u32 {
         self.read_warm_reset_entry4(WarmResetEntry4::RtEntryPoint)
-    }
-
-    /// Set the manifest address.
-    ///
-    /// # Arguments
-    ///
-    /// * `manifest_addr` - manifest address
-    pub fn set_manifest_addr(&mut self, manifest_addr: u32) {
-        self.write_lock_warm_reset_entry4(WarmResetEntry4::ManifestAddr, manifest_addr);
     }
 
     /// Get the manifest address.
@@ -557,17 +455,6 @@ impl DataVault {
     pub fn read_warm_reset_entry48(&self, entry: WarmResetEntry48) -> Array4x12 {
         let dv = self.dv.regs();
         Array4x12::read_from_reg(dv.data_vault_entry().at(entry.into()))
-    }
-
-    /// Write and lock the warm reset entry.
-    ///
-    /// # Arguments
-    /// * `entry` - warm reset entry
-    /// * `value` - warm reset entry value
-    ///
-    fn write_lock_warm_reset_entry48(&mut self, entry: WarmResetEntry48, value: &Array4x12) {
-        self.write_warm_reset_entry48(entry, value);
-        self.lock_warm_reset_entry48(entry);
     }
 
     /// Write the warm reset entry.
