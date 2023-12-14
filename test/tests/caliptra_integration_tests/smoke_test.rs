@@ -133,7 +133,6 @@ fn smoke_test() {
         &firmware::FMC_WITH_UART,
         &firmware::APP_WITH_UART,
         ImageOptions {
-            fmc_min_svn: 5,
             fmc_svn: 9,
             ..Default::default()
         },
@@ -520,7 +519,6 @@ fn smoke_test() {
         &firmware::APP,
         ImageOptions {
             fmc_version: 1,
-            fmc_min_svn: 5,
             fmc_svn: 10,
             app_version: 2,
             ..Default::default()

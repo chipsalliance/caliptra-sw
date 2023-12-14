@@ -30,7 +30,6 @@ fn warm_reset_basic() {
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions {
-            fmc_min_svn: 5,
             fmc_svn: 9,
             ..Default::default()
         },
@@ -88,7 +87,6 @@ fn warm_reset_during_fw_load() {
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions {
-            fmc_min_svn: 5,
             fmc_svn: 9,
             ..Default::default()
         },

@@ -408,10 +408,8 @@ pub fn elf_size(elf_bytes: &[u8]) -> io::Result<u64> {
 #[derive(Clone)]
 pub struct ImageOptions {
     pub fmc_version: u32,
-    pub fmc_min_svn: u32,
     pub fmc_svn: u32,
     pub app_version: u32,
-    pub app_min_svn: u32,
     pub app_svn: u32,
     pub vendor_config: ImageGeneratorVendorConfig,
     pub owner_config: Option<ImageGeneratorOwnerConfig>,
@@ -420,10 +418,8 @@ impl Default for ImageOptions {
     fn default() -> Self {
         Self {
             fmc_version: Default::default(),
-            fmc_min_svn: Default::default(),
             fmc_svn: Default::default(),
             app_version: Default::default(),
-            app_min_svn: Default::default(),
             app_svn: Default::default(),
             vendor_config: caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0,
             owner_config: Some(caliptra_image_fake_keys::OWNER_CONFIG),
@@ -440,20 +436,8 @@ pub fn build_and_sign_image(
     let app_elf = build_firmware_elf(app)?;
     let gen = ImageGenerator::new(OsslCrypto::default());
     let image = gen.generate(&ImageGeneratorConfig {
-        fmc: ElfExecutable::new(
-            &fmc_elf,
-            opts.fmc_version,
-            opts.fmc_svn,
-            opts.fmc_min_svn,
-            image_revision()?,
-        )?,
-        runtime: ElfExecutable::new(
-            &app_elf,
-            opts.app_version,
-            opts.app_svn,
-            opts.app_min_svn,
-            image_revision()?,
-        )?,
+        fmc: ElfExecutable::new(&fmc_elf, opts.fmc_version, opts.fmc_svn, image_revision()?)?,
+        runtime: ElfExecutable::new(&app_elf, opts.app_version, opts.app_svn, image_revision()?)?,
         vendor_config: opts.vendor_config,
         owner_config: opts.owner_config,
     })?;

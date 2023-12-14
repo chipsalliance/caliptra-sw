@@ -54,7 +54,6 @@ fn fake_boot_test() {
         &FMC_FAKE_WITH_UART,
         &APP_WITH_UART,
         ImageOptions {
-            fmc_min_svn: 5,
             fmc_svn: 9,
             ..Default::default()
         },

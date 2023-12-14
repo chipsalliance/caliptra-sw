@@ -33,7 +33,6 @@ fn test_warm_reset_success() {
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions {
-            fmc_min_svn: 5,
             fmc_svn: 9,
             ..Default::default()
         },
