@@ -253,7 +253,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             revision: *image.rev(),
             version: image.version(),
             svn: image.svn(),
-            min_svn: image.min_svn(),
+            reserved: 0,
             load_addr: image.load_addr(),
             entry_point: image.entry_point(),
             offset,

@@ -372,8 +372,8 @@ pub struct ImageTocEntry {
     /// Security Version Number
     pub svn: u32,
 
-    /// Minimum Security Version Number
-    pub min_svn: u32,
+    /// Reserved field
+    pub reserved: u32,
 
     /// Entry Point
     pub load_addr: u32,

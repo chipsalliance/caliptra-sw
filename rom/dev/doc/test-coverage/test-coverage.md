@@ -43,7 +43,6 @@ Check if the vendor LMS public key index validation is skipped when lms_verify f
  Check if FMC entry point is within ICCM range  	| **test_fmc_invalid_entry_point_after_iccm** | 	 IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID
  Check if FMC entry point is DWORD aligned 	| **test_fmc_entry_point_unaligned** | 	 IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_UNALIGNED
  Check if FMC SVN is greater than max (32) 	| **test_fmc_svn_greater_than_32** | 	 IMAGE_VERIFIER_ERR_FMC_SVN_GREATER_THAN_MAX_SUPPORTED
- Check if FMC SVN is less than toc_fmc.min_svn 	| **test_fmc_svn_less_than_min_svn** | 	 IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_MIN_SUPPORTED
  Check if FMC SVN is less than fuse svn 	| **test_fmc_svn_less_than_fuse_svn** | 	 IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_FUSE
  Check if RT size if 0 	| **test_toc_rt_size_zero** | 	 IMAGE_VERIFIER_ERR_RUNTIME_SIZE_ZERO
  Check if manifest.rt_toc.digest matches Runtime image digest 	| **test_runtime_digest_mismatch** | 	 IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH
@@ -55,7 +54,6 @@ Check if the vendor LMS public key index validation is skipped when lms_verify f
  Check if RT entry point is within ICCM range  	| **test_runtime_invalid_entry_point_after_iccm** | 	 IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID
  Check if RT entry point is DWORD aligned 	| **test_runtime_entry_point_unaligned** | 	 IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_UNALIGNED
  Check if RT SVN is greater than max (128) 	| **test_runtime_svn_greater_than_max** | 	 IMAGE_VERIFIER_ERR_RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED
- Check if RT SVN is less than toc_rt.min_svn 	| **test_runtime_svn_less_than_min_svn** | 	 IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_MIN_SUPPORTED
  Check if RT SVN is less than fuse svn 	| **test_runtime_svn_less_than_fuse_svn** | 	 IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE
  Generates the LDEVID and FMC Alias certificates |**cert_test** | 	 N/A
  Check if the owner and vendor cert validty dates are present in FMC Alias cert | **cert_test_with_custom_dates** | 	 N/A

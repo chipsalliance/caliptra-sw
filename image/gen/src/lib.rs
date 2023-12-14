@@ -26,9 +26,6 @@ pub trait ImageGenratorExecutable {
     /// Executable Security Version Number
     fn svn(&self) -> u32;
 
-    /// Executable Minimum Security Version Number
-    fn min_svn(&self) -> u32;
-
     /// Executable Revision
     fn rev(&self) -> &ImageRevision;
 

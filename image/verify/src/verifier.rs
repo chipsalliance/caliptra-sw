@@ -714,7 +714,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_GREATER_THAN_MAX_SUPPORTED)?;
             }
 
-            if verify_info.svn < verify_info.min_svn {
+            // TODO: remove this check.
+            if verify_info.svn < verify_info.reserved {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_MIN_SUPPORTED)?;
             }
 
@@ -749,7 +750,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         let log_info: ImageSvnLogInfo = ImageSvnLogInfo {
             manifest_svn: verify_info.svn,
-            manifest_min_svn: verify_info.min_svn,
+            reserved: verify_info.reserved,
             fuse_svn: self.env.fmc_fuse_svn(),
         };
 
@@ -802,7 +803,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED)?;
             }
 
-            if verify_info.svn < verify_info.min_svn {
+            // TODO: remove this check
+            if verify_info.svn < verify_info.reserved {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_MIN_SUPPORTED)?;
             }
 
@@ -827,7 +829,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         let log_info: ImageSvnLogInfo = ImageSvnLogInfo {
             manifest_svn: verify_info.svn,
-            manifest_min_svn: verify_info.min_svn,
+            reserved: verify_info.reserved,
             fuse_svn: self.env.runtime_fuse_svn(),
         };
 
