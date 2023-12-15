@@ -23,8 +23,9 @@ use caliptra_registers::{
     mbox::MboxCsr, pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr,
     soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
-use dpe::context::{Context, ContextState};
+use dpe::context::{Context, ContextState, ContextType};
 use dpe::tci::TciMeasurement;
+use dpe::validation::DpeValidator;
 use dpe::MAX_HANDLES;
 use dpe::{
     commands::{CommandExecution, DeriveChildCmd, DeriveChildFlags},
@@ -34,6 +35,7 @@ use dpe::{
     DPE_PROFILE,
 };
 
+use core::cmp::Ordering::{Equal, Greater};
 use crypto::{AlgLen, Crypto, CryptoBuf, Hasher};
 use zerocopy::AsBytes;
 
@@ -155,7 +157,9 @@ impl Drivers {
             .iter()
             .enumerate()
             .find(|&(idx, context)| {
-                context.state != ContextState::Inactive && context.parent_idx == Context::ROOT_INDEX
+                context.state != ContextState::Inactive
+                    && context.parent_idx == Context::ROOT_INDEX
+                    && context.context_type == ContextType::Normal
             })
             .ok_or(CaliptraError::RUNTIME_UNABLE_TO_FIND_DPE_ROOT_CONTEXT)?
             .0;
@@ -166,15 +170,17 @@ impl Drivers {
     }
 
     fn validate_dpe_structure(mut drivers: &mut Drivers) -> CaliptraResult<()> {
-        let dpe = &drivers.persistent_data.get().dpe;
-        let root_idx = Self::get_dpe_root_context_idx(dpe)?;
-        // Ensure context/TCI tree is well-formed (all nodes reachable from root and no cycles)
-        if !dpe.validate_context_tree(root_idx) {
+        let dpe = &mut drivers.persistent_data.get_mut().dpe;
+        let dpe_validator = DpeValidator { dpe };
+        let validation_result = dpe_validator.validate_dpe();
+        if let Err(e) = validation_result {
             // If SRAM Dpe Instance validation fails, disable attestation
             let mut result = DisableAttestationCmd::execute(drivers);
             match result {
                 Ok(_) => {
                     cprintln!("Disabled attestation due to DPE validation failure");
+                    // store specific validation error in CPTRA_FW_EXTENDED_ERROR_INFO
+                    drivers.soc_ifc.set_fw_extended_error(e.get_error_code());
                     caliptra_drivers::report_fw_error_non_fatal(
                         CaliptraError::RUNTIME_DPE_VALIDATION_FAILED.into(),
                     );
@@ -182,6 +188,32 @@ impl Drivers {
                 Err(e) => {
                     cprintln!("{}", e.0);
                     return Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION);
+                }
+            }
+        } else {
+            let pl0_pauser = drivers.persistent_data.get().manifest1.header.pl0_pauser;
+            let flags = drivers.persistent_data.get().manifest1.header.flags;
+            let locality = drivers.mbox.user();
+            // check that DPE used context limits are not exceeded
+            if let Err(e) = Self::is_dpe_context_threshold_exceeded(
+                pl0_pauser,
+                flags,
+                locality,
+                &drivers.persistent_data.get().dpe,
+                true,
+            ) {
+                let mut result = DisableAttestationCmd::execute(drivers);
+                match result {
+                    Ok(_) => {
+                        cprintln!(
+                            "Disabled attestation due to DPE used context limits being breached"
+                        );
+                        caliptra_drivers::report_fw_error_non_fatal(e.into());
+                    }
+                    Err(e) => {
+                        cprintln!("{}", e.0);
+                        return Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION);
+                    }
                 }
             }
         }
@@ -204,22 +236,13 @@ impl Drivers {
         let root_idx = Self::get_dpe_root_context_idx(dpe)?;
         let latest_tci = dpe.contexts[root_idx].tci.tci_current;
 
-        let mut hasher = drivers
-            .sha384
-            .digest_init()
-            .map_err(|_| CaliptraError::RUNTIME_RT_JOURNEY_PCR_VALIDATION_FAILED)?;
+        let mut hasher = drivers.sha384.digest_init()?;
 
-        hasher
-            .update(&[0; AlgLen::Bit384.size()])
-            .map_err(|_| CaliptraError::RUNTIME_RT_JOURNEY_PCR_VALIDATION_FAILED)?;
-        hasher
-            .update(&latest_tci.0)
-            .map_err(|_| CaliptraError::RUNTIME_RT_JOURNEY_PCR_VALIDATION_FAILED)?;
+        hasher.update(&[0; AlgLen::Bit384.size()])?;
+        hasher.update(&latest_tci.0)?;
 
         let mut digest = Array4x12::default();
-        hasher
-            .finalize(&mut digest)
-            .map_err(|_| CaliptraError::RUNTIME_RT_JOURNEY_PCR_VALIDATION_FAILED)?;
+        hasher.finalize(&mut digest)?;
 
         let latest_pcr = drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR);
         // Ensure SHA384_HASH(0x00..00, TCI from SRAM) == RT_FW_JOURNEY_PCR
@@ -321,7 +344,7 @@ impl Drivers {
         .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
 
         // Call DeriveChild to create a measurement for the mailbox valid pausers and change locality to the pl0 pauser locality
-        DeriveChildCmd {
+        let derive_child_resp = DeriveChildCmd {
             handle: ContextHandle::default(),
             data: valid_pauser_hash
                 .as_bytes()
@@ -334,8 +357,14 @@ impl Drivers {
             tci_type: u32::from_be_bytes(*b"MBVP"),
             target_locality: pl0_pauser_locality,
         }
-        .execute(&mut dpe, &mut env, caliptra_locality)
-        .map_err(|_| CaliptraError::RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED)?;
+        .execute(&mut dpe, &mut env, caliptra_locality);
+        if let Err(e) = derive_child_resp {
+            // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
+            if let Some(ext_err) = e.get_error_detail() {
+                drivers.soc_ifc.set_fw_extended_error(ext_err);
+            }
+            Err(CaliptraError::RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED)?
+        }
 
         // Call DeriveChild to create TCIs for each measurement added in ROM
         let num_measurements = drivers.persistent_data.get().fht.meas_log_index as usize;
@@ -350,11 +379,12 @@ impl Drivers {
                 flags,
                 pl0_pauser_locality,
                 &dpe,
+                false,
             )?;
 
             let measurement_data = measurement_log_entry.pcr_entry.measured_data();
             let tci_type = u32::from_be_bytes(measurement_log_entry.metadata);
-            DeriveChildCmd {
+            let derive_child_resp = DeriveChildCmd {
                 handle: ContextHandle::default(),
                 data: measurement_data
                     .try_into()
@@ -366,8 +396,14 @@ impl Drivers {
                 tci_type,
                 target_locality: pl0_pauser_locality,
             }
-            .execute(&mut dpe, &mut env, pl0_pauser_locality)
-            .map_err(|_| CaliptraError::RUNTIME_ADD_ROM_MEASUREMENTS_TO_DPE_FAILED)?;
+            .execute(&mut dpe, &mut env, pl0_pauser_locality);
+            if let Err(e) = derive_child_resp {
+                // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
+                if let Some(ext_err) = e.get_error_detail() {
+                    drivers.soc_ifc.set_fw_extended_error(ext_err);
+                }
+                Err(CaliptraError::RUNTIME_ADD_ROM_MEASUREMENTS_TO_DPE_FAILED)?
+            }
         }
 
         // Write DPE to persistent data.
@@ -424,17 +460,14 @@ impl Drivers {
     }
 
     /// Counts the number of non-inactive DPE contexts and returns an error
-    /// if this number is equal to the active context threshold corresponding
-    /// to the privilege level of the caller.
-    ///
-    /// This function should only ever be called right before attempting to
-    /// create a new context in DPE in order to prevent DPE from breaching
-    /// the active context limit.
+    /// if this number is greater than or equal to the active context threshold
+    /// corresponding to the privilege level of the caller.
     pub fn is_dpe_context_threshold_exceeded(
         pl0_pauser: u32,
         flags: u32,
         locality: u32,
         dpe: &DpeInstance,
+        check_already_exceeded: bool,
     ) -> CaliptraResult<()> {
         let used_pl0_dpe_context_count = dpe
             .count_contexts(|c: &Context| {
@@ -448,16 +481,22 @@ impl Drivers {
             .count_contexts(|c: &Context| c.state != ContextState::Inactive)
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?
             - used_pl0_dpe_context_count;
-        if Self::is_caller_pl1(pl0_pauser, flags, locality)
-            && used_pl1_dpe_context_count == PL1_DPE_ACTIVE_CONTEXT_THRESHOLD
-        {
-            return Err(CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED);
-        } else if !Self::is_caller_pl1(pl0_pauser, flags, locality)
-            && used_pl0_dpe_context_count == PL0_DPE_ACTIVE_CONTEXT_THRESHOLD
-        {
-            return Err(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED);
+
+        match (
+            Self::is_caller_pl1(pl0_pauser, flags, locality),
+            used_pl1_dpe_context_count.cmp(&PL1_DPE_ACTIVE_CONTEXT_THRESHOLD),
+            used_pl0_dpe_context_count.cmp(&PL0_DPE_ACTIVE_CONTEXT_THRESHOLD),
+        ) {
+            (true, Equal, _) => Err(CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED),
+            (true, Greater, _) => {
+                Err(CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED)
+            }
+            (false, _, Equal) => Err(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED),
+            (false, _, Greater) => {
+                Err(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED)
+            }
+            _ => Ok(()),
         }
-        Ok(())
     }
 
     pub fn is_caller_pl1(pl0_pauser: u32, flags: u32, locality: u32) -> bool {

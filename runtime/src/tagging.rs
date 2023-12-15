@@ -18,26 +18,6 @@ pub struct TagTciCmd;
 impl TagTciCmd {
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if let Some(cmd) = TagTciReq::read_from(cmd_args) {
-            let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
-            let pdata = drivers.persistent_data.get();
-            let rt_pub_key = pdata.fht.rt_dice_pub_key;
-            let mut crypto = DpeCrypto::new(
-                &mut drivers.sha384,
-                &mut drivers.trng,
-                &mut drivers.ecc384,
-                &mut drivers.hmac384,
-                &mut drivers.key_vault,
-                rt_pub_key,
-            );
-            let mut env = DpeEnv::<CptraDpeTypes> {
-                crypto,
-                platform: DpePlatform::new(
-                    pdata.manifest1.header.pl0_pauser,
-                    hashed_rt_pub_key,
-                    &mut drivers.cert_chain,
-                ),
-            };
-
             let pdata_mut = drivers.persistent_data.get_mut();
             let mut dpe = &mut pdata_mut.dpe;
             let mut context_has_tag = &mut pdata_mut.context_has_tag;

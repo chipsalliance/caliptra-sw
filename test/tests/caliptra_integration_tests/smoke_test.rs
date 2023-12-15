@@ -671,9 +671,9 @@ fn test_rt_wdt_timeout() {
     let rt_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
         27_100_000
     } else if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
-        3_000_000
+        3_100_000
     } else {
-        2_850_000
+        2_900_000
     };
 
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
