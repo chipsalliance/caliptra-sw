@@ -53,7 +53,7 @@ impl From<DeviceLifecycle> for u32 {
     }
 }
 
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Copy, Clone, Default, PartialEq, Eq)]
 pub struct SecurityState(u32);
 impl From<u32> for SecurityState {
     fn from(value: u32) -> Self {
@@ -85,6 +85,14 @@ impl SecurityState {
     pub fn set_device_lifecycle(&mut self, val: DeviceLifecycle) -> &mut Self {
         self.0 |= (val as u32) & 0x3;
         self
+    }
+}
+impl std::fmt::Debug for SecurityState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SecurityState")
+            .field("debug_locked", &self.debug_locked())
+            .field("device_lifecycle", &self.device_lifecycle())
+            .finish()
     }
 }
 
@@ -193,6 +201,60 @@ impl Default for Fuses {
         }
     }
 }
+impl std::fmt::Debug for Fuses {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Fuses")
+            .field("uds_seed", &HexSlice(&self.uds_seed))
+            .field("field_entropy", &HexSlice(&self.field_entropy))
+            .field(
+                "key_manifest_pk_hash",
+                &HexSlice(&self.key_manifest_pk_hash),
+            )
+            .field("key_manifest_pk_hash_mask", &self.key_manifest_pk_hash_mask)
+            .field("owner_pk_hash", &HexSlice(&self.owner_pk_hash))
+            .field("fmc_key_manifest_svn", &self.fmc_key_manifest_svn)
+            .field("runtime_svn", &HexSlice(&self.runtime_svn))
+            .field("anti_rollback_disable", &self.anti_rollback_disable)
+            .field("idevid_cert_attr", &HexSlice(&self.idevid_cert_attr))
+            .field("idevid_manuf_hsm_id", &HexSlice(&self.idevid_manuf_hsm_id))
+            .field("life_cycle", &self.life_cycle)
+            .field("lms_verify", &self.lms_verify)
+            .field("fuse_lms_revocation", &self.fuse_lms_revocation)
+            .finish()
+    }
+}
+
+pub struct HexSlice<'a, T: std::fmt::LowerHex + PartialEq>(pub &'a [T]);
+impl<'a, T: std::fmt::LowerHex + PartialEq> std::fmt::Debug for HexSlice<'a, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let width = std::mem::size_of::<T>() * 2 + 2;
+        if self.0.len() > 1 && self.0.iter().all(|item| item == &self.0[0]) {
+            write!(f, "[{:#0width$x}; {}]", self.0[0], self.0.len())?;
+            return Ok(());
+        }
+        write!(f, "[")?;
+        for (i, val) in self.0.iter().enumerate() {
+            if i != 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{:#0width$x}", val)?;
+        }
+        write!(f, "]")?;
+        Ok(())
+    }
+}
+
+pub struct HexBytes<'a>(pub &'a [u8]);
+impl<'a> std::fmt::Debug for HexBytes<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "\"")?;
+        for val in self.0.iter() {
+            write!(f, "{val:02x}")?;
+        }
+        write!(f, "\"")?;
+        Ok(())
+    }
+}
 
 pub struct RandomNibbles<R: RngCore>(pub R);
 
@@ -246,7 +308,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn test() {
+    fn test_security_state() {
         let mut ss = *SecurityState::default()
             .set_debug_locked(true)
             .set_device_lifecycle(DeviceLifecycle::Manufacturing);
@@ -255,5 +317,75 @@ mod test {
         assert_eq!(ss.device_lifecycle(), DeviceLifecycle::Manufacturing);
         ss.set_debug_locked(false);
         assert_eq!(0x1u32, ss.into());
+    }
+
+    #[test]
+    fn test_hex_bytes() {
+        assert_eq!("\"\"", format!("{:?}", HexBytes(&[])));
+        assert_eq!("\"ab1f\"", format!("{:?}", HexBytes(&[0xab, 0x1f])))
+    }
+
+    #[test]
+    fn test_hex_slice() {
+        assert_eq!("[]", format!("{:?}", HexSlice(&[0_u8; 0])));
+        assert_eq!("[]", format!("{:?}", HexSlice(&[0_u16; 0])));
+        assert_eq!("[]", format!("{:?}", HexSlice(&[0_u32; 0])));
+
+        assert_eq!("[0x84]", format!("{:?}", HexSlice(&[0x84_u8])));
+        assert_eq!("[0x7c63]", format!("{:?}", HexSlice(&[0x7c63_u16])));
+        assert_eq!("[0x47dbaa30]", format!("{:?}", HexSlice(&[0x47dbaa30_u32])));
+        assert_eq!(
+            "[0x97f48c6bf52f06bb]",
+            format!("{:?}", HexSlice(&[0x97f48c6bf52f06bb_u64]))
+        );
+
+        assert_eq!("[0x00; 32]", format!("{:?}", HexSlice(&[0x00_u8; 32])));
+        assert_eq!("[0x7c63; 32]", format!("{:?}", HexSlice(&[0x7c63_u16; 32])));
+        assert_eq!(
+            "[0x47dbaa30; 32]",
+            format!("{:?}", HexSlice(&[0x47dbaa30_u32; 32]))
+        );
+        assert_eq!(
+            "[0x97f48c6bf52f06bb; 32]",
+            format!("{:?}", HexSlice(&[0x97f48c6bf52f06bb_u64; 32]))
+        );
+
+        assert_eq!("[0xab, 0x1f]", format!("{:?}", HexSlice(&[0xab_u8, 0x1f])));
+        assert_eq!(
+            "[0x00ab, 0x001f]",
+            format!("{:?}", HexSlice(&[0xab_u16, 0x1f]))
+        );
+        assert_eq!(
+            "[0x000000ab, 0x0000001f]",
+            format!("{:?}", HexSlice(&[0xab_u32, 0x1f]))
+        );
+        assert_eq!(
+            "[0x00000000000000ab, 0x000000000000001f]",
+            format!("{:?}", HexSlice(&[0xab_u64, 0x1f]))
+        );
+
+        assert_eq!(
+            "[0x0b, 0x2a, 0x40]",
+            format!("{:?}", HexSlice(&[0x0b_u8, 0x2a, 0x40]))
+        );
+        assert_eq!(
+            "[0xad83, 0xa91f, 0x9c8b]",
+            format!("{:?}", HexSlice(&[0xad83_u16, 0xa91f, 0x9c8b]))
+        );
+        assert_eq!(
+            "[0xde85388f, 0xda448d4c, 0x329c1f58]",
+            format!("{:?}", HexSlice(&[0xde85388f_u32, 0xda448d4c, 0x329c1f58]))
+        );
+        assert_eq!(
+            "[0x8ab6401e7f681569, 0xc60f65a019714215, 0xbc24d103aeecad40]",
+            format!(
+                "{:?}",
+                HexSlice(&[
+                    0x8ab6401e7f681569_u64,
+                    0xc60f65a019714215,
+                    0xbc24d103aeecad40
+                ])
+            )
+        );
     }
 }

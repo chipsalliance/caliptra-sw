@@ -53,6 +53,9 @@ instances when 4 or more cores are needed, as they are cheaper.
 "e2-standard-8"
 "e2-standard-16"
 "e2-standard-32"
+"n2d-highcpu-64"
+"n2d-highcpu-80"
+"n2d-highcpu-96"
 ```
 
 # Architecture

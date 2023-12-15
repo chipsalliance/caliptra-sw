@@ -99,6 +99,8 @@ pub struct ModelFpgaRealtime {
 
     realtime_thread: Option<thread::JoinHandle<()>>,
     realtime_thread_exit_flag: Arc<AtomicBool>,
+
+    trng_mode: TrngMode,
 }
 
 impl ModelFpgaRealtime {
@@ -350,6 +352,8 @@ impl HwModel for ModelFpgaRealtime {
 
             realtime_thread,
             realtime_thread_exit_flag,
+
+            trng_mode: desired_trng_mode,
         };
 
         writeln!(m.output().logger(), "new_unbooted")?;
@@ -405,6 +409,14 @@ impl HwModel for ModelFpgaRealtime {
         }
 
         Ok(m)
+    }
+
+    fn type_name(&self) -> &'static str {
+        "ModelFpgaRealtime"
+    }
+
+    fn trng_mode(&self) -> TrngMode {
+        self.trng_mode
     }
 
     fn apb_bus(&mut self) -> Self::TBus<'_> {
