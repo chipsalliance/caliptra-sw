@@ -239,6 +239,14 @@ impl crate::HwModel for ModelVerilated {
         Ok(m)
     }
 
+    fn type_name(&self) -> &'static str {
+        "ModelVerilated"
+    }
+
+    fn trng_mode(&self) -> TrngMode {
+        self.trng_mode
+    }
+
     fn apb_bus(&mut self) -> Self::TBus<'_> {
         VerilatedApbBus { model: self }
     }
