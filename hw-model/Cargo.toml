@@ -25,6 +25,7 @@ caliptra-api.workspace = true
 caliptra-registers.workspace = true
 caliptra-verilated = { workspace = true, optional = true }
 rand.workspace = true
+sha2.workspace = true
 uio = { workspace = true, optional = true }
 ureg.workspace = true
 zerocopy.workspace = true

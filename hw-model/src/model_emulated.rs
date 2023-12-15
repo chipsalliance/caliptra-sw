@@ -57,6 +57,7 @@ pub struct ModelEmulated {
     trace_path: Option<PathBuf>,
 
     image_tag: u64,
+    trng_mode: TrngMode,
 }
 impl Drop for ModelEmulated {
     fn drop(&mut self) {
@@ -156,11 +157,20 @@ impl crate::HwModel for ModelEmulated {
             cpu_enabled,
             trace_path: trace_path_or_env(params.trace_path),
             image_tag,
+            trng_mode,
         };
         // Turn tracing on if the trace path was set
         m.tracing_hint(true);
 
         Ok(m)
+    }
+
+    fn type_name(&self) -> &'static str {
+        "ModelEmulated"
+    }
+
+    fn trng_mode(&self) -> TrngMode {
+        self.trng_mode
     }
 
     fn ready_for_fw(&self) -> bool {

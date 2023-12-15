@@ -32,7 +32,6 @@ limitations under the License.*_<BR>
    - Mode SW6[4:1]: OFF, OFF, OFF, ON
      ![](zynq_boot_switch.jpg)
 1. Install rustup using Unix directions: https://rustup.rs/#
-1. apt install libssl-dev
 
 #### Helpful Commands: ####
  - Disable CPU IDLE. Vivado HW Manager access during IDLE causes crashes.
@@ -70,26 +69,34 @@ Serial port settings for connection over USB.
 ### Processing System - Programmable Logic Interfaces ###
 #### AXI Memory Map ####
  - SOC adapter for driving caliptra-top signals
-   - 0x80000000 - SOC Adapter Out -> Caliptra
-     - `[0] -> cptra_rst_b`
-     - `[1] -> cptra_pwrgood`
-     - `[5:4] -> device_lifecycle`
-     - `[6] -> debug_locked`
-   - 0x80000008 - SOC Adapter In <- Caliptra
-     - `[26] <- cptra_error_fatal`
-     - `[27] <- cptra_error_non_fatal`
-     - `[28] <- ready_for_fw_push`
-     - `[29] <- ready_for_runtime`
-     - `[30] <- ready_for_fuses`
-   - 0x8000000C - PAUSER
+   - 0x80000000 - Generic Input Wires
+   - 0x80000008 - Generic Output Wires
+   - 0x80000010-0x8000002C - Deobfuscation key (256 bit)
+   - 0x80000030 - Control
+     - `[0] -> cptra_pwrgood`
+     - `[1] -> cptra_rst_b`
+     - `[3:2] -> device_lifecycle`
+     - `[4] -> debug_locked`
+   - 0x80000034 - Status
+     - `[0] <- cptra_error_fatal`
+     - `[1] <- cptra_error_non_fatal`
+     - `[2] <- ready_for_fuses`
+     - `[3] <- ready_for_fw`
+     - `[4] <- ready_for_runtime`
+   - 0x80000038 - PAUSER
      - `[31:0] -> PAUSER to Caliptra APB`
-   - 0x80000020-0x8000003C - Deobfuscation key (256 bit)
    - 0x80001000 - Log FIFO data. Reads pop data from FIFO.
      - `[7:0] -> Next log character`
      - `[8] -> Log character valid`
    - 0x80001004 - Log FIFO register
      - `[0] -> Log FIFO empty`
      - `[1] -> Log FIFO full (probably overrun)`
+   - 0x80001008 - ITRNG FIFO data. Write loads data to FIFO.
+     - `[31:0] -> 32 bits of random data to be fed to itrng_data 4 bits at a time`
+   - 0x8000100C - ITRNG FIFO status.
+     - `[0] -> ITRNG FIFO empty`
+     - `[1] -> ITRNG FIFO full`
+     - `[2] -> ITRNG FIFO reset`
  - ROM Backdoor - 32K
    - `0x82000000 - 0x82007FFF`
  - Caliptra soc register interface
