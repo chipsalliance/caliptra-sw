@@ -311,6 +311,16 @@ impl SocIfc {
         let ext_info = soc_ifc_regs.cptra_fw_extended_error_info();
         ext_info.at(0).write(|_| err);
     }
+
+    pub fn enable_mbox_notif_interrupts(&mut self) {
+        let soc_ifc_regs = self.soc_ifc.regs_mut();
+        let intr_block = soc_ifc_regs.intr_block_rf();
+
+        intr_block
+            .notif_intr_en_r()
+            .write(|w| w.notif_cmd_avail_en(true));
+        intr_block.global_intr_en_r().write(|w| w.notif_en(true));
+    }
 }
 
 bitflags::bitflags! {
