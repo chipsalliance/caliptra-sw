@@ -59,7 +59,8 @@ use tagging::{GetTaggedTciCmd, TagTciCmd};
 use caliptra_common::cprintln;
 
 use caliptra_drivers::{CaliptraError, CaliptraResult, ResetReason};
-use caliptra_registers::mbox::enums::MboxStatusE;
+use caliptra_registers::el2_pic_ctrl::El2PicCtrl;
+use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc};
 use dpe::{
     commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
     dpe_instance::{DpeEnv, DpeTypes},
@@ -118,14 +119,17 @@ fn enter_idle(drivers: &mut Drivers) {
                 Ok(_) => drivers.self_test_status = SelfTestStatus::Done,
                 Err(e) => caliptra_drivers::report_fw_error_non_fatal(e.into()),
             }
+        } else {
+            // Don't enter low power mode when in progress
+            return;
         }
     }
 
-    // TODO: Enable interrupts?
-    //#[cfg(feature = "riscv")]
-    //unsafe {
-    //core::arch::asm!("wfi");
-    //}
+    #[cfg(feature = "riscv")]
+    if cfg!(feature = "fpga_realtime") {
+        // TODO implement in emulator
+        caliptra_cpu::csr::mpmc_halt();
+    }
 }
 
 /// Handles the pending mailbox command and writes the repsonse back to the mailbox
@@ -205,6 +209,20 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     Ok(MboxStatusE::DataReady)
 }
 
+#[cfg(feature = "riscv")]
+// TODO implement in emulator
+fn setup_mailbox_wfi(drivers: &mut Drivers) {
+    use caliptra_drivers::IntSource;
+
+    caliptra_cpu::csr::mie_enable_external_interrupts();
+
+    // Set highest priority so that Int can wake CPU
+    drivers.pic.int_set_max_priority(IntSource::SocIfcNotif);
+    drivers.pic.int_enable(IntSource::SocIfcNotif);
+
+    drivers.soc_ifc.enable_mbox_notif_interrupts();
+}
+
 /// Handles mailbox commands when the command is ready
 pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
     // Indicator to SOC that RT firmware is ready
@@ -229,6 +247,11 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
             }
         }
     }
+    #[cfg(feature = "riscv")]
+    if cfg!(feature = "fpga_realtime") {
+        setup_mailbox_wfi(drivers);
+    }
+
     loop {
         enter_idle(drivers);
         if drivers.is_shutdown {
