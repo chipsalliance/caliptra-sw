@@ -23,7 +23,6 @@ zerocopy.workspace = true
 zeroize.workspace = true
 caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cfi", "cfi-counter" ] }
 caliptra-cfi-derive.workspace = true
-enum-map.workspace = true
 
 [features]
 emu = []

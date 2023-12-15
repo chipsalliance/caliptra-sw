@@ -89,7 +89,10 @@ bitfield = "0.14.0"
 bitflags = "2.4.0"
 bit-vec = "0.6.3"
 caliptra-api = { path = "api" }
-caliptra-cfi-lib = { path = "cfi/lib", default-features = false, features = ["cfi", "cfi-counter" ] }
+caliptra-cfi-lib = { path = "cfi/lib", default-features = false, features = [
+  "cfi",
+  "cfi-counter",
+] }
 caliptra-cfi-derive = { path = "cfi/derive" }
 caliptra_common = { path = "common", default-features = false }
 caliptra-coverage = { path = "coverage" }
@@ -104,7 +107,6 @@ caliptra-emu-derive = { path = "sw-emulator/lib/derive" }
 caliptra-emu-periph = { path = "sw-emulator/lib/periph" }
 caliptra-emu-types = { path = "sw-emulator/lib/types" }
 caliptra-error = { path = "error", default-features = false }
-caliptra-fpga-boss = { path = "ci-tools/fpga-boss" }
 caliptra-gen-linker-scripts = { path = "cpu/gen" }
 caliptra-hw-model = { path = "hw-model" }
 caliptra-hw-model-types = { path = "hw-model/types" }
@@ -123,7 +125,7 @@ caliptra-systemrdl = { path = "systemrdl" }
 caliptra-test = { path = "test" }
 caliptra-test-harness = { path = "test-harness" }
 caliptra-test-harness-types = { path = "test-harness/types" }
-caliptra-verilated = { path = "hw-latest/verilated",  features = ["verilator"] }
+caliptra-verilated = { path = "hw-latest/verilated", features = ["verilator"] }
 caliptra-x509 = { path = "x509", default-features = false }
 cbc = "0.1.2"
 cbindgen = { version = "0.24.0", default-features = false }
@@ -131,18 +133,17 @@ cfg-if = "1.0.0"
 chrono = "0.4.24"
 clap = { version = "3.2.14", default-features = false, features = ["std"] }
 convert_case = "0.6.0"
-dpe = { path = "dpe/dpe", default-features = false, features = ["dpe_profile_p384_sha384"] }
+dpe = { path = "dpe/dpe", default-features = false, features = [
+  "dpe_profile_p384_sha384",
+] }
 crypto = { path = "dpe/crypto", default-features = false }
 platform = { path = "dpe/platform", default-features = false }
 elf = "0.7.2"
-enum-map = "2.7.3"
 gdbstub = "0.6.3"
 gdbstub_arch = "0.2.4"
 getrandom = "0.2"
 hex = "0.4.3"
 lazy_static = "1.4.0"
-libftdi1-sys = { version = "1.1.2", features = ["libusb1-sys"] }
-libusb1-sys = "0.6.4"
 memoffset = "0.8.0"
 once_cell = "1.13"
 openssl = { version = "0.10", features = ["vendored"] }
@@ -151,7 +152,6 @@ proc-macro2 = "1.0.66"
 quote = "1.0"
 rand = "0.8"
 rfc6979 = "0.3.0"
-rusb = "0.9.3"
 serde = "1.0"
 serde_derive = "1.0.136"
 serde_json = "1.0"
@@ -160,9 +160,11 @@ sha3 = "0.10.8"
 smlang = "0.6.0"
 syn = "1.0.107"
 tinytemplate = "1.1"
-tock-registers = { git = "https://github.com/tock/tock.git"}
+tock-registers = { git = "https://github.com/tock/tock.git" }
 toml = "0.7.0"
-ufmt = { git = "https://github.com/korran/ufmt.git", rev = "1d0743c1ffffc68bc05ca8eeb81c166192863f33", features = ["inline"] }
+ufmt = { git = "https://github.com/korran/ufmt.git", rev = "1d0743c1ffffc68bc05ca8eeb81c166192863f33", features = [
+  "inline",
+] }
 uio = { version = "0.2.0" }
 ureg = { path = "ureg" }
 ureg-codegen = { path = "ureg/lib/codegen" }
@@ -174,7 +176,9 @@ zerocopy = "0.6.6"
 serial_test = "2.0.0"
 nix = "0.26.2"
 libc = "0.2"
-zeroize = { version = "1.6.0", default-features = false, features = ["zeroize_derive"] }
+zeroize = { version = "1.6.0", default-features = false, features = [
+  "zeroize_derive",
+] }
 regex = "1.10.2"
 
 [profile.firmware]

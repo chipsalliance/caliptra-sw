@@ -14,10 +14,9 @@ Abstract:
 
 use crate::{Array4x12, CaliptraError, CaliptraResult, Sha384};
 use caliptra_registers::pv::PvReg;
-use enum_map::Enum;
 
 /// PCR Identifier
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PcrId {
     PcrId0 = 0,
     PcrId1 = 1,

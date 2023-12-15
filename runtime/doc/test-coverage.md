@@ -135,32 +135,6 @@ Check that the Sign command fails on simulated contexts as simulation context do
 Calls and tests behavior of the DPE command Sign with the Symmetric flag set | **TestSignSymmetric** | N/A
 
 <br><br>
-# **Mailbox Command Tests**
-Test Scenario| Test Name | Runtime Error Code
----|---|---
-Checks that the fw_info mailbox command succeeds and validates the response | **test_fw_info** | N/A
-Checks that the stash_measurement mailbox command succeeds | **test_stash_measurement** | N/A
-Checks that the disable_attestation mailbox command succeeds | **test_disable_attestation_cmd** | N/A
-Streams a test message to a hashing accelerator and calls the ecdsa_verify mailbox command to verify the test signature | **test_ecdsa_verify_cmd** | N/A
-Checks that the unimplemented mailbox commands get_idev_csr and get_ldev_cert fail | **test_unimplemented_cmds** | RUNTIME_UNIMPLEMENTED_COMMAND
-Checks that the get_idev_info mailbox command succeeds | **test_idev_id_info** | N/A
-Checks that the get_idev_cert mailbox command succeeds and verifies the size of the resulting certificate | **test_idev_id_cert** | N/A
-Checks that the version mailbox command succeeds and validates the FIPS version response | **test_fips_cmd_api** | RUNTIME_SHUTDOWN
-Check that the error register is cleared when a successful mailbox command runs after a failed mailbox command | **test_error_cleared** | RUNTIME_MAILBOX_INVALID_PARAMS
-Calls the POPULATE_IDEV_CERT mailbox command and checks that the IDevId certificate is able to be parsed from the certificate chain | **test_populate_idev_cert_cmd** | N/A
-Validates the behavior of the dpe_tag_tci and dpe_get_tagged_tci mailbox commands and verifies the contents of the current and cumulative TCI responses | **test_tagging** | N/A
-Checks that the pcr extension for multiple data sets works as expected | test_extend_pcr_cmd_multiple_extensions | N/A
-Checks that accessing an invalid index is caught | test_extend_pcr_cmd_invalid_pcr_index | RUNTIME_PCR_INVALID_INDEX
-Checks that accessing reserved indices is caught | test_extend_pcr_cmd_reserved_range | RUNTIME_PCR_RESERVED
-
-<br><br>
-# **Wycheproof Tests**
-Test Scenario| Test Name | Runtime Error Code
----|---|---
-Tests some common ECDSA problems | **ecdsa_cmd_run_wycheproof** | N/A
-Tests some common HMAC problems | **hmac_cmd_run_wycheproof** | N/A
-
-<br><br>
 # **Test Gaps**
 Test Scenario| Test Name | Runtime Error Code
 ---|---|---
@@ -178,3 +152,6 @@ Verify that DPE attestation flow fails after DisableAttestation is called | N/A 
 Check that mailbox valid pausers are measured into DPE upon RT startup | N/A | N/A
 Check that the RT alias key is different from the key signing DPE certs | N/A | N/A
 Test context tag validity upon warm/update reset | N/A | N/A
+Check that the pcr extension for multiple data sets works as expected | test_extend_pcr_cmd_multiple_extensions | N/A
+Check that accessing an invalid index is caught | test_extend_pcr_cmd_invalid_pcr_index | RUNTIME_PCR_INVALID_INDEX
+Check that accessing reserved indices is caught | test_extend_pcr_cmd_reserved_range | RUNTIME_PCR_RESERVED

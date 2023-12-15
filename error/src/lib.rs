@@ -405,8 +405,8 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E003C);
 
     /// PCR Runtime Errors
-    pub const RUNTIME_PCR_RESERVED: CaliptraError = CaliptraError::new_const(0x000E0015);
-    pub const RUNTIME_PCR_INVALID_INDEX: CaliptraError = CaliptraError::new_const(0x000E0016);
+    pub const RUNTIME_PCR_RESERVED: CaliptraError = CaliptraError::new_const(0x000E003B);
+    pub const RUNTIME_PCR_INVALID_INDEX: CaliptraError = CaliptraError::new_const(0x000E003C);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
