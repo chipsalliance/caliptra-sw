@@ -79,21 +79,33 @@ extern "C" fn exception_handler(trap_record: &TrapRecord) {
     handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_GLOBAL_EXCEPTION.into());
 }
 
+const NON_DCCM_NMI: u32 = 0xF000_1002;
+
 #[no_mangle]
 #[inline(never)]
 #[allow(clippy::empty_loop)]
 extern "C" fn nmi_handler(trap_record: &TrapRecord) {
-    let soc_ifc = unsafe { SocIfcReg::new() };
+    let mut soc_ifc = unsafe { SocIfcReg::new() };
+
+    let soc_ifc_regs = soc_ifc.regs_mut();
+    let intr_block = soc_ifc_regs.intr_block_rf();
+
+    // TODO implement MMIO reg for emulator
+    if cfg!(feature = "fpga_realtime") {
+        let notif_interrupt_status = intr_block.notif_internal_intr_r();
+
+        // On wake from mailbox command, clear the interrupt status and mret to continue execution
+        if notif_interrupt_status.read().notif_cmd_avail_sts() && trap_record.mcause == NON_DCCM_NMI
+        // Machine Fast Interrupt non-DCCM region NMI
+        {
+            notif_interrupt_status.modify(|w| w.notif_cmd_avail_sts(true));
+            return;
+        }
+    }
 
     // If the NMI was fired by caliptra instead of the uC, this register
     // contains the reason(s)
-    let err_interrupt_status = u32::from(
-        soc_ifc
-            .regs()
-            .intr_block_rf()
-            .error_internal_intr_r()
-            .read(),
-    );
+    let err_interrupt_status = u32::from(intr_block.error_internal_intr_r().read());
     log_trap_record(trap_record, Some(err_interrupt_status));
     cprintln!(
         "RT NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X} ra=0x{:08X} error_internal_intr_r={:08X}",
@@ -104,7 +116,7 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
         err_interrupt_status,
     );
 
-    let wdt_status = soc_ifc.regs().cptra_wdt_status().read();
+    let wdt_status = soc_ifc_regs.cptra_wdt_status().read();
     let error = if wdt_status.t1_timeout() || wdt_status.t2_timeout() {
         cprintln!("[rt] WDT Expired");
         CaliptraError::RUNTIME_GLOBAL_WDT_EXPIRED

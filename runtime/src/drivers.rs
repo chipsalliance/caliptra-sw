@@ -27,12 +27,13 @@ use arrayvec::ArrayVec;
 use caliptra_drivers::KeyId;
 use caliptra_drivers::{
     cprint, cprintln, pcr_log::RT_FW_JOURNEY_PCR, Array4x12, CaliptraError, CaliptraResult,
-    DataVault, Ecc384, KeyVault, Lms, PersistentDataAccessor, ResetReason, Sha1, SocIfc,
+    DataVault, Ecc384, KeyVault, Lms, PersistentDataAccessor, Pic, ResetReason, Sha1, SocIfc,
 };
 use caliptra_drivers::{
     hand_off::DataStore, Ecc384PubKey, Hmac384, PcrBank, PcrId, Sha256, Sha256Alg, Sha384,
     Sha384Acc, Trng,
 };
+use caliptra_registers::el2_pic_ctrl::El2PicCtrl;
 use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_registers::{
     csrng::CsrngReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg,
@@ -85,6 +86,8 @@ pub struct Drivers {
     pub sha1: Sha1,
 
     pub pcr_bank: PcrBank,
+
+    pub pic: Pic,
 
     pub cert_chain: ArrayVec<u8, MAX_CERT_CHAIN_SIZE>,
 
@@ -157,6 +160,7 @@ impl Drivers {
             trng,
             persistent_data: PersistentDataAccessor::new(),
             pcr_bank: PcrBank::new(PvReg::new()),
+            pic: Pic::new(El2PicCtrl::new()),
             #[cfg(feature = "fips_self_test")]
             self_test_status: SelfTestStatus::Idle,
             cert_chain: ArrayVec::new(),
