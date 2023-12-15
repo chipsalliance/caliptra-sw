@@ -714,11 +714,6 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_GREATER_THAN_MAX_SUPPORTED)?;
             }
 
-            // TODO: remove this check.
-            if verify_info.svn < verify_info.reserved {
-                Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_MIN_SUPPORTED)?;
-            }
-
             if cfi_launder(verify_info.svn) < self.env.fmc_fuse_svn() {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_FUSE)?;
             } else {
@@ -803,13 +798,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED)?;
             }
 
-            // TODO: remove this check
-            if verify_info.svn < verify_info.reserved {
-                Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_MIN_SUPPORTED)?;
-            }
-
-            if verify_info.svn < self.env.runtime_fuse_svn() {
+            if cfi_launder(verify_info.svn) < self.env.runtime_fuse_svn() {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_FUSE)?;
+            } else {
+                cfi_assert_ge(verify_info.svn, self.env.runtime_fuse_svn());
             }
         }
 
