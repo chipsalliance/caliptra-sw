@@ -27,10 +27,6 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Pull dpe submodule
-        run: |
-          git submodule update --init dpe
-
       - name: Configure actions-cache environment variables
         uses: actions/github-script@v6
         with:

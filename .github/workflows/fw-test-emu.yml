@@ -45,10 +45,6 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Pull dpe submodule
-        run: |
-          git submodule update --init dpe
-
       - name: Build firmware
         run: |
           mkdir /tmp/caliptra-test-firmware

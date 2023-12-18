@@ -2,9 +2,7 @@ module dpe
 
 go 1.20
 
-replace github.com/chipsalliance/caliptra-dpe/verification => ../../dpe/verification
-
-require github.com/chipsalliance/caliptra-dpe/verification v0.0.0-20231002193428-bb19016edf87
+require github.com/chipsalliance/caliptra-dpe/verification v0.0.0-20231213032344-473b75685022
 
 require (
 	github.com/google/go-sev-guest v0.7.0 // indirect

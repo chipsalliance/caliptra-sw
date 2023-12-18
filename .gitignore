@@ -25,3 +25,5 @@ hw-latest/fpga/vivado*.log
 
 # libcaliptra build artifacts
 libcaliptra/libcaliptra.a
+
+test/dpe_verification/go.sum
