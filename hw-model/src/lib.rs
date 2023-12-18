@@ -581,8 +581,17 @@ pub trait HwModel {
 
     /// Toggle reset pins and wait for ready_for_fuses
     fn warm_reset(&mut self) {
-        // sw-emulator lacks support: https://github.com/chipsalliance/caliptra-sw/issues/540
-        panic!("warm_reset unimplemented");
+        //writing to generic_output_wires will trigger a callback at
+        //soc_ifc peripheral and that in turn will schedule timer action
+        //for warm reset
+        self.soc_ifc()
+            .cptra_generic_output_wires()
+            .at(1)
+            .write(|_| 0xff);
+
+        //read 0 to lock. A lock should exist to pass the KATs
+        self.soc_sha512_acc().lock().read().lock();
+        self.step_until(|em| em.soc_ifc().cptra_flow_status().read().ready_for_fuses());
     }
 
     /// Returns true if the microcontroller has signalled that it is ready for

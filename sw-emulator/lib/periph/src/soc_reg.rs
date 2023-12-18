@@ -805,11 +805,15 @@ impl SocRegistersImpl {
         if size != RvSize::Word {
             Err(BusError::StoreAccessFault)?
         }
+        self.bus_warm_reset();
 
-        // [TODO] Enable warm reset after design agreement.
-        // // Schedule warm reset timer action.
-        // self.op_reset_trigger_action =
-        //     Some(self.timer.schedule_reset_in(0, TimerActionType::WarmReset));
+        //Schedule the reset signal to CPU instantly
+        self.op_reset_trigger_action =
+            Some(self.timer.schedule_action_in(0, TimerAction::WarmReset));
+
+        //Schedule the ready_for_fuses signal change one cycle after
+        //the reset signal to CPU
+        self.op_reset_trigger_action = Some(self.timer.schedule_poll_in(1));
 
         Ok(())
     }
@@ -1111,6 +1115,20 @@ impl SocRegistersImpl {
                     mcause: NMI_CAUSE_WDT_TIMEOUT,
                 },
             );
+        }
+
+        if self.timer.fired(&mut self.op_reset_trigger_action) {
+            //will be set to false when cptra_fuse_done register gets written
+            self.fuses_can_be_written = true;
+
+            //will be cleared when cptra_fuse_done regsiter gets written
+            self.cptra_flow_status
+                .reg
+                .modify(FlowStatus::READY_FOR_FUSES::SET);
+
+            self.cptra_flow_status
+                .reg
+                .modify(FlowStatus::READY_FOR_RT::CLEAR);
         }
     }
 
