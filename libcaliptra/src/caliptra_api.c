@@ -326,7 +326,7 @@ uint32_t caliptra_read_fw_fatal_error()
 bool caliptra_ready_for_firmware(void)
 {
     uint32_t status;
-    bool ready;
+    bool ready = false;
 
     do
     {
