@@ -20,6 +20,8 @@
 
 // Implementation specifics
 
+struct caliptra_model *model = NULL;
+
 struct caliptra_model_init_params init_params;
 
 extern struct caliptra_buffer image_bundle;
@@ -60,12 +62,19 @@ static struct caliptra_buffer read_file_or_exit(const char* path)
     return buffer;
 }
 
+// ONLY for testing. Not part of actual libcaliptra interface
+void testbench_reinit(void)
+{
+    if (model) {
+        caliptra_model_destroy(model);
+        model = NULL;
+    }
+}
+
 struct caliptra_model* hwmod_get_or_init(void)
 {
     const char *rom_path = ROM_PATH;
     const char *fw_path = FW_PATH;
-
-    static struct caliptra_model *model = NULL;
 
     if (model == NULL)
     {
