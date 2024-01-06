@@ -28,6 +28,7 @@ const RT_ALIAS_SUBJ_ID_SN_GENERATION_COMPLETE: u32 = 0x403;
 const RT_ALIAS_SUBJ_KEY_ID_GENERATION_COMPLETE: u32 = 0x404;
 const RT_ALIAS_CERT_SIG_GENERATION_COMPLETE: u32 = 0x405;
 const RT_ALIAS_DERIVATION_COMPLETE: u32 = 0x406;
+const RT_HASH_CHAIN_COMPLETE: u32 = 0x407;
 
 const PCR_COUNT: usize = 32;
 const PCR_ENTRY_SIZE: usize = core::mem::size_of::<PcrLogEntry>();
@@ -62,6 +63,7 @@ fn test_boot_status_reporting() {
     hw.step_until_boot_status(RT_ALIAS_SUBJ_KEY_ID_GENERATION_COMPLETE, true);
     hw.step_until_boot_status(RT_ALIAS_CERT_SIG_GENERATION_COMPLETE, true);
     hw.step_until_boot_status(RT_ALIAS_DERIVATION_COMPLETE, true);
+    hw.step_until_boot_status(RT_HASH_CHAIN_COMPLETE, true);
 }
 
 #[test]

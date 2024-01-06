@@ -10,8 +10,8 @@ use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::{crypto::Ecc384KeyPair, keyids::KEY_ID_TMP};
 use caliptra_drivers::{
     hmac384_kdf, okref, Array4x12, Array4x5, Array4x8, CaliptraResult, Ecc384PrivKeyIn,
-    Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Signature, KeyId, KeyReadArgs, KeyUsage,
-    KeyWriteArgs, Sha256Alg,
+    Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Signature, Hmac384Data, KeyId, KeyReadArgs,
+    KeyUsage, KeyWriteArgs, Sha256Alg,
 };
 
 pub enum Crypto {}
@@ -87,6 +87,35 @@ impl Crypto {
             &mut env.trng,
             KeyWriteArgs::new(
                 output,
+                KeyUsage::default()
+                    .set_hmac_key_en()
+                    .set_ecc_key_gen_seed_en(),
+            )
+            .into(),
+        )
+    }
+
+    /// Calculate HMAC-348
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - ROM Environment
+    /// * `key` - HMAC384 key slot
+    /// * `data` - Input data to hash
+    /// * `tag` - Key slot to store the tag
+    #[inline(always)]
+    pub fn hmac384_mac(
+        env: &mut FmcEnv,
+        key: KeyId,
+        data: &Hmac384Data,
+        tag: KeyId,
+    ) -> CaliptraResult<()> {
+        env.hmac384.hmac(
+            &KeyReadArgs::new(key).into(),
+            data,
+            &mut env.trng,
+            KeyWriteArgs::new(
+                tag,
                 KeyUsage::default()
                     .set_hmac_key_en()
                     .set_ecc_key_gen_seed_en(),
