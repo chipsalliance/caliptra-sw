@@ -3,15 +3,15 @@
 use std::mem::size_of;
 
 use caliptra_builder::{
-    firmware::{self, APP_WITH_UART, FMC_WITH_UART},
-    ImageOptions,
+    firmware::{runtime_tests::MBOX, APP_WITH_UART, FMC_WITH_UART},
+    FwId, ImageOptions,
 };
 use caliptra_common::mailbox_api::{
     CommandId, FwInfoResp, IncrementPcrResetCounterReq, MailboxReq, MailboxReqHeader, TagTciReq,
 };
 use caliptra_drivers::PcrResetCounter;
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::HwModel;
+use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
 use caliptra_runtime::{ContextState, RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD};
 use dpe::{
     context::{Context, ContextHandle, ContextType},
@@ -24,6 +24,16 @@ use zerocopy::{AsBytes, FromBytes};
 
 use crate::common::run_rt_test;
 
+fn update_fw(model: &mut DefaultHwModel, rt_fw: &FwId<'static>, image_opts: ImageOptions) {
+    let image = caliptra_builder::build_and_sign_image(&FMC_WITH_UART, rt_fw, image_opts)
+        .unwrap()
+        .to_bytes()
+        .unwrap();
+    model
+        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &image)
+        .unwrap();
+}
+
 #[test]
 fn test_rt_journey_pcr_updated_in_dpe() {
     let mut model = run_rt_test(None, None, None);
@@ -33,17 +43,7 @@ fn test_rt_journey_pcr_updated_in_dpe() {
     });
 
     // trigger update reset
-    let updated_fw_image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &firmware::runtime_tests::MBOX,
-        ImageOptions::default(),
-    )
-    .unwrap()
-    .to_bytes()
-    .unwrap();
-    model
-        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
-        .unwrap();
+    update_fw(&mut model, &MBOX, ImageOptions::default());
 
     let rt_journey_pcr_resp = model.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
     let rt_journey_pcr: [u8; 48] = rt_journey_pcr_resp.as_bytes().try_into().unwrap();
@@ -75,17 +75,7 @@ fn test_tags_persistence() {
         .expect("We expected a response");
 
     // trigger update reset
-    let updated_fw_image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &firmware::runtime_tests::MBOX,
-        ImageOptions::default(),
-    )
-    .unwrap()
-    .to_bytes()
-    .unwrap();
-    model
-        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
-        .unwrap();
+    update_fw(&mut model, &MBOX, ImageOptions::default());
 
     const TAGS_INFO_SIZE: usize =
         size_of::<u32>() * MAX_HANDLES + size_of::<U8Bool>() * MAX_HANDLES;
@@ -93,17 +83,7 @@ fn test_tags_persistence() {
     let tags_1: [u8; TAGS_INFO_SIZE] = tags_resp_1.as_bytes().try_into().unwrap();
 
     // trigger another update reset with same fw
-    let updated_fw_image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &firmware::runtime_tests::MBOX,
-        ImageOptions::default(),
-    )
-    .unwrap()
-    .to_bytes()
-    .unwrap();
-    model
-        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
-        .unwrap();
+    update_fw(&mut model, &MBOX, ImageOptions::default());
 
     let tags_resp_2 = model.mailbox_execute(0x7000_0000, &[]).unwrap().unwrap();
     let tags_2: [u8; TAGS_INFO_SIZE] = tags_resp_2.as_bytes().try_into().unwrap();
@@ -116,7 +96,7 @@ fn test_tags_persistence() {
 
 #[test]
 fn test_context_tags_validation() {
-    let mut model = run_rt_test(Some(&firmware::runtime_tests::MBOX), None, None);
+    let mut model = run_rt_test(Some(&MBOX), None, None);
 
     // make context_tags validation fail by "tagging" an inactive context
     let mut context_tags = [0u32; MAX_HANDLES];
@@ -128,17 +108,7 @@ fn test_context_tags_validation() {
         .unwrap();
 
     // trigger update reset
-    let updated_fw_image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap()
-    .to_bytes()
-    .unwrap();
-    model
-        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
-        .unwrap();
+    update_fw(&mut model, &APP_WITH_UART, ImageOptions::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_fw_error_non_fatal().read()
@@ -148,7 +118,7 @@ fn test_context_tags_validation() {
 
 #[test]
 fn test_context_has_tag_validation() {
-    let mut model = run_rt_test(Some(&firmware::runtime_tests::MBOX), None, None);
+    let mut model = run_rt_test(Some(&MBOX), None, None);
 
     // make context_has_tag validation fail by "tagging" an inactive context
     let mut context_has_tag = [U8Bool::new(false); MAX_HANDLES];
@@ -160,17 +130,7 @@ fn test_context_has_tag_validation() {
         .unwrap();
 
     // trigger update reset
-    let updated_fw_image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap()
-    .to_bytes()
-    .unwrap();
-    model
-        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
-        .unwrap();
+    update_fw(&mut model, &APP_WITH_UART, ImageOptions::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_fw_error_non_fatal().read()
@@ -180,7 +140,7 @@ fn test_context_has_tag_validation() {
 
 #[test]
 fn test_dpe_validation_deformed_structure() {
-    let mut model = run_rt_test(Some(&firmware::runtime_tests::MBOX), None, None);
+    let mut model = run_rt_test(Some(&MBOX), None, None);
 
     // read DPE after RT initialization
     let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
@@ -196,17 +156,7 @@ fn test_dpe_validation_deformed_structure() {
         .unwrap();
 
     // trigger update reset
-    let updated_fw_image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap()
-    .to_bytes()
-    .unwrap();
-    model
-        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
-        .unwrap();
+    update_fw(&mut model, &APP_WITH_UART, ImageOptions::default());
     model.step_until(|m| {
         m.soc_ifc().cptra_fw_error_non_fatal().read()
             == u32::from(CaliptraError::RUNTIME_DPE_VALIDATION_FAILED)
@@ -236,7 +186,7 @@ fn test_dpe_validation_deformed_structure() {
 
 #[test]
 fn test_dpe_validation_illegal_state() {
-    let mut model = run_rt_test(Some(&firmware::runtime_tests::MBOX), None, None);
+    let mut model = run_rt_test(Some(&MBOX), None, None);
 
     // read DPE after RT initialization
     let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
@@ -250,17 +200,7 @@ fn test_dpe_validation_illegal_state() {
         .unwrap();
 
     // trigger update reset
-    let updated_fw_image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap()
-    .to_bytes()
-    .unwrap();
-    model
-        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
-        .unwrap();
+    update_fw(&mut model, &APP_WITH_UART, ImageOptions::default());
     model.step_until(|m| {
         m.soc_ifc().cptra_fw_error_non_fatal().read()
             == u32::from(CaliptraError::RUNTIME_DPE_VALIDATION_FAILED)
@@ -290,7 +230,7 @@ fn test_dpe_validation_illegal_state() {
 
 #[test]
 fn test_dpe_validation_used_context_threshold_exceeded() {
-    let mut model = run_rt_test(Some(&firmware::runtime_tests::MBOX), None, None);
+    let mut model = run_rt_test(Some(&MBOX), None, None);
 
     // read DPE after RT initialization
     let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
@@ -320,17 +260,7 @@ fn test_dpe_validation_used_context_threshold_exceeded() {
         .unwrap();
 
     // trigger update reset
-    let updated_fw_image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap()
-    .to_bytes()
-    .unwrap();
-    model
-        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
-        .unwrap();
+    update_fw(&mut model, &APP_WITH_UART, ImageOptions::default());
     model.step_until(|m| {
         m.soc_ifc().cptra_fw_error_non_fatal().read()
             == u32::from(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED)
@@ -371,34 +301,14 @@ fn test_pcr_reset_counter_persistence() {
         .expect("We expected a response");
 
     // trigger update reset
-    let updated_fw_image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &firmware::runtime_tests::MBOX,
-        ImageOptions::default(),
-    )
-    .unwrap()
-    .to_bytes()
-    .unwrap();
-    model
-        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
-        .unwrap();
+    update_fw(&mut model, &MBOX, ImageOptions::default());
 
     let pcr_reset_counter_resp_1 = model.mailbox_execute(0xC000_0000, &[]).unwrap().unwrap();
     let pcr_reset_counter_1: [u8; size_of::<PcrResetCounter>()] =
         pcr_reset_counter_resp_1.as_bytes().try_into().unwrap();
 
     // trigger another update reset with same fw
-    let updated_fw_image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &firmware::runtime_tests::MBOX,
-        ImageOptions::default(),
-    )
-    .unwrap()
-    .to_bytes()
-    .unwrap();
-    model
-        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
-        .unwrap();
+    update_fw(&mut model, &MBOX, ImageOptions::default());
 
     let pcr_reset_counter_resp_2 = model.mailbox_execute(0xC000_0000, &[]).unwrap().unwrap();
     let pcr_reset_counter_2: [u8; size_of::<PcrResetCounter>()] =
@@ -408,4 +318,108 @@ fn test_pcr_reset_counter_persistence() {
     assert_eq!(pcr_reset_counter_1, pcr_reset_counter_2);
     // check that the pcr reset counters are not default
     assert_ne!(pcr_reset_counter_1, [0u8; size_of::<PcrResetCounter>()]);
+}
+
+fn get_image_opts(svn: u32, epoch: &[u8; 2]) -> ImageOptions {
+    let mut options = ImageOptions {
+        app_svn: svn,
+        ..Default::default()
+    };
+
+    options.owner_config.as_mut().unwrap().epoch = *epoch;
+    options
+}
+
+fn get_chain_digest(model: &mut DefaultHwModel, num_hashes: u32) -> Vec<u8> {
+    let digest = model
+        .mailbox_execute(0xE000_0000, num_hashes.as_bytes())
+        .unwrap()
+        .unwrap();
+
+    assert!(!digest.is_empty());
+    digest
+}
+
+#[test]
+fn test_hash_chain() {
+    let epoch = [0x00, 0x01];
+
+    let update_to_svn = |model: &mut DefaultHwModel, svn: u32| {
+        update_fw(model, &MBOX, get_image_opts(svn, &epoch));
+    };
+
+    let mut model = run_rt_test(Some(&MBOX), Some(get_image_opts(0, &epoch)), None);
+
+    let chain_0 = get_chain_digest(&mut model, 0);
+
+    update_to_svn(&mut model, 1);
+
+    // FW should now have a different hash chain.
+    let chain_1 = get_chain_digest(&mut model, 0);
+
+    // Ask FW to hash the chain once before returning a digest.
+    let chain_1_hashed = get_chain_digest(&mut model, 1);
+
+    assert_ne!(chain_1_hashed, chain_1);
+    assert_eq!(chain_1_hashed, chain_0);
+
+    // Update to the max SVN supported by FMC.
+    update_to_svn(&mut model, 64);
+
+    let chain_64 = get_chain_digest(&mut model, 0);
+    let chain_64_hashed = get_chain_digest(&mut model, 63);
+
+    assert_ne!(chain_64_hashed, chain_64);
+    assert_eq!(chain_64_hashed, chain_1);
+
+    // Update past the max supported by FMC.
+    update_to_svn(&mut model, 65);
+
+    // TODO: figure out why cptra_fw_error_non_fatal() yields zero.
+    /*assert_eq!(
+        model.soc_ifc().cptra_fw_error_non_fatal().read(),
+        u32::from(CaliptraError::RT_SVN_EXCEEDS_MAX)
+    );*/
+
+    assert_eq!(
+        model
+            .mailbox_execute(0xE000_0000, 0_u32.as_bytes())
+            .unwrap_err(),
+        ModelError::MailboxCmdFailed(CaliptraError::RT_SVN_EXCEEDS_MAX.into())
+    );
+}
+
+#[test]
+fn test_hash_chain_different_epochs() {
+    // Same SVN, different epochs.
+    let options_0 = get_image_opts(0, &[0x00, 0x01]);
+    let options_1 = get_image_opts(0, &[0x00, 0x02]);
+
+    let mut model = run_rt_test(Some(&MBOX), Some(options_0), None);
+
+    let chain_0 = get_chain_digest(&mut model, 0);
+
+    update_fw(&mut model, &MBOX, options_1);
+
+    let chain_1 = get_chain_digest(&mut model, 0);
+
+    assert_ne!(chain_0, chain_1);
+}
+
+#[test]
+fn test_hash_chain_no_epoch() {
+    let mut model = run_rt_test(Some(&MBOX), Some(get_image_opts(0, &[0x00, 0x00])), None);
+
+    let digest = model.mailbox_execute(0xE000_0000, &[]).unwrap().unwrap();
+
+    assert!(digest.is_empty());
+}
+
+#[test]
+fn test_hash_chain_max_svn() {
+    let mut model = run_rt_test(Some(&MBOX), None, None);
+    let resp = model.mailbox_execute(0xD000_0000, &[]).unwrap().unwrap();
+
+    let max = u16::from_le_bytes(resp.try_into().unwrap());
+    assert_eq!(max, 64);
 }

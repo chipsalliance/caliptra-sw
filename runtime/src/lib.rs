@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 #![cfg_attr(not(feature = "fip-self-test"), allow(unused))]
 #![no_std]
+mod crypto;
 pub mod dice;
 mod disable;
 mod dpe_crypto;
@@ -21,6 +22,7 @@ pub mod mailbox;
 pub use drivers::Drivers;
 use mailbox::Mailbox;
 
+pub use crate::crypto::Crypto;
 pub use caliptra_common::fips::FipsVersionCmd;
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;

@@ -285,7 +285,10 @@ pub struct OwnerSignedData {
     /// Owner End Date [ASN1 Time Format] For FMC alias certificate: Takes Preference over vendor end date
     pub owner_not_after: [u8; 15],
 
-    reserved: [u8; 10],
+    /// Owner epoch, used to diversify stable SVN keys.
+    pub epoch: [u8; 2],
+
+    reserved: [u8; 8],
 }
 
 /// Caliptra Image header

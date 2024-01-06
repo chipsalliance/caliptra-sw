@@ -326,7 +326,19 @@ pub struct FirmwareHandoffTable {
     /// RtAlias TBS Size.
     pub rtalias_tbs_size: u16,
 
+    /// Maximum value RT FW SVN can take.
+    #[cfg(any(feature = "fmc", feature = "runtime"))]
+    pub rt_hash_chain_max_svn: u16,
+
+    /// Index of RT hash chain value in the Key Vault.
+    #[cfg(any(feature = "fmc", feature = "runtime"))]
+    pub rt_hash_chain_kv_hdl: HandOffDataHandle,
+
     /// Reserved for future use.
+    #[cfg(any(feature = "fmc", feature = "runtime"))]
+    pub reserved: [u8; 1636],
+
+    #[cfg(not(any(feature = "fmc", feature = "runtime")))]
     pub reserved: [u8; 1642],
 }
 
@@ -368,6 +380,15 @@ impl Default for FirmwareHandoffTable {
             idev_dice_pub_key: Ecc384PubKey::default(),
             rom_info_addr: RomAddr::new(FHT_INVALID_ADDRESS),
             rtalias_tbs_size: 0,
+
+            #[cfg(any(feature = "fmc", feature = "runtime"))]
+            rt_hash_chain_max_svn: 0,
+            #[cfg(any(feature = "fmc", feature = "runtime"))]
+            rt_hash_chain_kv_hdl: HandOffDataHandle(0),
+            #[cfg(any(feature = "fmc", feature = "runtime"))]
+            reserved: [0u8; 1636],
+
+            #[cfg(not(any(feature = "fmc", feature = "runtime")))]
             reserved: [0u8; 1642],
         }
     }

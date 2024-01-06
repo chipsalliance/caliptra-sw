@@ -14,11 +14,13 @@ Abstract:
 
 mod crypto;
 pub mod dice;
+mod hash_chain;
 mod pcr;
 mod rt_alias;
 mod tci;
 mod x509;
 
+use crate::flow::hash_chain::HashChain;
 use crate::flow::rt_alias::RtAliasLayer;
 
 use crate::fmc_env::FmcEnv;
@@ -30,5 +32,6 @@ use caliptra_drivers::CaliptraResult;
 ///
 /// * `env` - FMC Environment
 pub fn run(env: &mut FmcEnv) -> CaliptraResult<()> {
+    HashChain::derive(env)?;
     RtAliasLayer::run(env)
 }

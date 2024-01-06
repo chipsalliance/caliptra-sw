@@ -49,7 +49,7 @@ impl HandOff {
             .try_into()
             .unwrap_or_else(|_| {
                 caliptra_common::report_handoff_error_and_halt(
-                    "Invalid CDI DV handle",
+                    "Invalid CDI KV handle",
                     caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
                 )
             });
@@ -60,7 +60,7 @@ impl HandOff {
                 key_id
             }
             _ => caliptra_common::report_handoff_error_and_halt(
-                "Invalid KeySlot DV Entry",
+                "Invalid KeySlot KV Entry",
                 caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
             ),
         }
@@ -131,7 +131,7 @@ impl HandOff {
             .try_into()
             .unwrap_or_else(|_| {
                 caliptra_common::report_handoff_error_and_halt(
-                    "Invalid FMC ALias Private Key DV handle",
+                    "Invalid FMC ALias Private Key KV handle",
                     caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
                 )
             });
@@ -142,7 +142,7 @@ impl HandOff {
                 key_id
             }
             _ => caliptra_common::report_handoff_error_and_halt(
-                "Invalid KeySlot DV Entry",
+                "Invalid KeySlot KV Entry",
                 caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
             ),
         }
@@ -288,20 +288,24 @@ impl HandOff {
         }
     }
 
-    /// The FMC CDI is stored in a 32-bit DataVault sticky register.
-    fn rt_cdi_store(rt_cdi: KeyId) -> HandOffDataHandle {
-        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | rt_cdi as u32)
+    pub fn set_rt_hash_chain_max_svn(env: &mut FmcEnv, max_svn: u16) {
+        Self::fht_mut(env).rt_hash_chain_max_svn = max_svn;
     }
 
-    fn rt_priv_key_store(rt_priv_key: KeyId) -> HandOffDataHandle {
-        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | rt_priv_key as u32)
+    pub fn set_rt_hash_chain_kv_hdl(env: &mut FmcEnv, kv_slot: KeyId) {
+        Self::fht_mut(env).rt_hash_chain_kv_hdl = Self::key_id_to_handle(kv_slot)
+    }
+
+    /// The FMC CDI is stored in a 32-bit DataVault sticky register.
+    fn key_id_to_handle(key_id: KeyId) -> HandOffDataHandle {
+        HandOffDataHandle(((Vault::KeyVault as u32) << 12) | key_id as u32)
     }
 
     /// Update HandOff Table with RT Parameters
     pub fn update(env: &mut FmcEnv, out: DiceOutput) -> CaliptraResult<()> {
         // update fht.rt_cdi_kv_hdl
-        Self::fht_mut(env).rt_cdi_kv_hdl = Self::rt_cdi_store(out.cdi);
-        Self::fht_mut(env).rt_priv_key_kv_hdl = Self::rt_priv_key_store(out.subj_key_pair.priv_key);
+        Self::fht_mut(env).rt_cdi_kv_hdl = Self::key_id_to_handle(out.cdi);
+        Self::fht_mut(env).rt_priv_key_kv_hdl = Self::key_id_to_handle(out.subj_key_pair.priv_key);
         Self::fht_mut(env).rt_dice_pub_key = out.subj_key_pair.pub_key;
         Ok(())
     }
