@@ -1,5 +1,5 @@
 # JTAG adapter setup
-adapter speed 100
+adapter speed 1000
 
 set chain_length 5
 
@@ -74,8 +74,5 @@ if {[ info exists pulse_srst]} {
   sleep 1500
 }
 halt
-
-# Current FPGA only supports abstract access. June 19 RTL update may support system bus.
-riscv set_mem_access abstract
 
 echo "Ready for Remote Connections"

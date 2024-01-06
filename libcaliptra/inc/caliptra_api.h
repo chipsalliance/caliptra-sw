@@ -99,17 +99,23 @@ int caliptra_mailbox_execute(uint32_t cmd, struct caliptra_buffer *mbox_tx_buffe
 // Upload Caliptra Firmware
 int caliptra_upload_fw(struct caliptra_buffer *fw_buffer, bool async);
 
-// Get IDEV CSR
-int caliptra_get_idev_csr(struct caliptra_get_idev_csr_resp *resp, bool async);
-
 // Get IDEV cert
 int caliptra_get_idev_cert(struct caliptra_get_idev_cert_req *req, struct caliptra_get_idev_cert_resp *resp, bool async);
 
 // Get IDEV info
 int caliptra_get_idev_info(struct caliptra_get_idev_info_resp *resp, bool async);
 
+// Populate IDEV cert
+int caliptra_populate_idev_cert(struct caliptra_populate_idev_cert_req *req, bool async);
+
 // Get LDEV cert
 int caliptra_get_ldev_cert(struct caliptra_get_ldev_cert_resp *resp, bool async);
+
+// Get FMC Alias cert
+int caliptra_get_fmc_alias_cert(struct caliptra_get_fmc_alias_cert_resp *resp, bool async);
+
+// Get RT Alias cert
+int caliptra_get_rt_alias_cert(struct caliptra_get_rt_alias_cert_resp *resp, bool async);
 
 // ECDSA384 Verify
 int caliptra_ecdsa384_verify(struct caliptra_ecdsa_verify_req *req, bool async);
@@ -117,14 +123,20 @@ int caliptra_ecdsa384_verify(struct caliptra_ecdsa_verify_req *req, bool async);
 // Stash measurement
 int caliptra_stash_measurement(struct caliptra_stash_measurement_req *req, struct caliptra_stash_measurement_resp *resp, bool async);
 
-// Disable attestation
-int caliptra_disable_attestation(bool async);
-
 // DPE command
 int caliptra_invoke_dpe_command(struct caliptra_invoke_dpe_req *req, struct caliptra_invoke_dpe_resp *resp, bool async);
 
+// Disable attestation
+int caliptra_disable_attestation(bool async);
+
 // FW Info
 int caliptra_fw_info(struct caliptra_fw_info_resp *resp, bool async);
+
+// DPE tag TCI
+int caliptra_dpe_tag_tci(struct caliptra_dpe_tag_tci_req *req, bool async);
+
+// DPE get tagged TCI
+int caliptra_dpe_get_tagged_tci(struct caliptra_get_tagged_tci_req *req, struct caliptra_get_tagged_tci_resp *resp, bool async);
 
 // FIPS version
 int caliptra_fips_version(struct caliptra_fips_version_resp *resp, bool async);
@@ -133,7 +145,7 @@ int caliptra_fips_version(struct caliptra_fips_version_resp *resp, bool async);
 int caliptra_self_test_start(bool async);
 
 // Self test get results
-int caliptra_self_test_get_results(struct caliptra_test_get_fmc_alias_cert_resp *resp, bool async);
+int caliptra_self_test_get_results(bool async);
 
 // Shutdown
 int caliptra_shutdown(bool async);

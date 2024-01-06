@@ -16,7 +16,7 @@ set rtlDir $fpgaDir/../caliptra-rtl
 # Defaults:
 set BUILD FALSE
 set GUI   FALSE
-set JTAG  TRUE
+set JTAG  FALSE
 set ITRNG TRUE
 set CG_EN FALSE
 foreach arg $argv {
