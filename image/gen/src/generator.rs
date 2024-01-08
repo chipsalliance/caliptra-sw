@@ -204,6 +204,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         if let Some(owner_config) = &config.owner_config {
             header.owner_data.owner_not_before = owner_config.not_before;
             header.owner_data.owner_not_after = owner_config.not_after;
+            header.owner_data.epoch = owner_config.epoch;
         }
 
         Ok(header)
