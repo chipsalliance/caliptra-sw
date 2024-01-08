@@ -331,7 +331,7 @@ impl Default for FirmwareHandoffTable {
             idev_dice_pub_key: Ecc384PubKey::default(),
             rom_info_addr: RomAddr::new(FHT_INVALID_ADDRESS),
             rtalias_tbs_size: 0,
-            reserved: [0u8; 1642],
+            reserved: [0xFF_u8; 1642],
         }
     }
 }
