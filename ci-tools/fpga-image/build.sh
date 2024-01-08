@@ -43,6 +43,7 @@ if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   chroot out/rootfs bash -c 'echo nameserver 2001:4860:4860::6464 > /etc/resolv.conf'
   chroot out/rootfs bash -c 'echo nameserver 2001:4860:4860::64 >> /etc/resolv.conf'
   chroot out/rootfs bash -c 'echo kernel.softlockup_panic = 60 >> /etc/sysctl.conf'
+  chroot out/rootfs bash -c 'echo kernel.sysrq = 1 >> /etc/sysctl.conf'
 
   # Comment this line out if you don't trust folks with physical access to the
   # uart
