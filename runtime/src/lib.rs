@@ -8,6 +8,7 @@ mod dpe_platform;
 mod drivers;
 pub mod fips;
 pub mod handoff;
+mod hmac;
 pub mod info;
 mod invoke_dpe;
 mod pcr;
@@ -21,6 +22,7 @@ pub mod mailbox;
 pub use drivers::Drivers;
 use mailbox::Mailbox;
 
+pub use crate::hmac::Hmac;
 pub use caliptra_common::fips::FipsVersionCmd;
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
