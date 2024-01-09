@@ -3,8 +3,8 @@
 use crate::bounded_address::RomAddr;
 use crate::soc_ifc;
 use crate::{
-    memory_layout, report_fw_error_non_fatal, ColdResetEntry4, ColdResetEntry48, Ecc384PubKey,
-    Ecc384Signature, KeyId, ResetReason, WarmResetEntry4, WarmResetEntry48,
+    memory_layout, ColdResetEntry4, ColdResetEntry48, Ecc384PubKey, Ecc384Signature, KeyId,
+    ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
 use bitfield::{bitfield_bitrange, bitfield_fields};
 use caliptra_error::CaliptraError;
@@ -442,13 +442,6 @@ impl FirmwareHandoffTable {
 
         valid
     }
-}
-/// Report a non fatal firmware error and halt.
-#[allow(clippy::empty_loop)]
-pub fn report_handoff_error_and_halt(msg: &str, code: u32) -> ! {
-    crate::cprintln!("Handoff Error: {} 0x{:08X}", msg, code);
-    report_fw_error_non_fatal(code);
-    loop {}
 }
 
 #[cfg(all(test, target_family = "unix"))]
