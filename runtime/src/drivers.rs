@@ -235,18 +235,10 @@ impl Drivers {
         let dpe = &drivers.persistent_data.get().dpe;
         let root_idx = Self::get_dpe_root_context_idx(dpe)?;
         let latest_tci = dpe.contexts[root_idx].tci.tci_current;
-
-        let mut hasher = drivers.sha384.digest_init()?;
-
-        hasher.update(&[0; AlgLen::Bit384.size()])?;
-        hasher.update(&latest_tci.0)?;
-
-        let mut digest = Array4x12::default();
-        hasher.finalize(&mut digest)?;
-
         let latest_pcr = drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR);
-        // Ensure SHA384_HASH(0x00..00, TCI from SRAM) == RT_FW_JOURNEY_PCR
-        if latest_pcr != digest {
+
+        // Ensure TCI from SRAM == RT_FW_JOURNEY_PCR
+        if latest_pcr != Array4x12::from(&latest_tci.0) {
             // If latest pcr validation fails, disable attestation
             let mut result = DisableAttestationCmd::execute(drivers);
             match result {

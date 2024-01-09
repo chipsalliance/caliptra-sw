@@ -54,7 +54,7 @@ use dpe::{
     support::Support,
     DPE_PROFILE,
 };
-pub use dpe::{context::ContextState, DpeInstance, U8Bool, MAX_HANDLES};
+pub use dpe::{context::ContextState, tci::TciMeasurement, DpeInstance, U8Bool, MAX_HANDLES};
 
 #[cfg(feature = "test_only_commands")]
 use crate::verify::HmacVerifyCmd;
