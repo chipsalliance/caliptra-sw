@@ -3,10 +3,13 @@
 use caliptra_builder::{
     firmware::{
         self,
-        rom_tests::{TEST_FMC_INTERACTIVE, TEST_FMC_WITH_UART, TEST_RT_WITH_UART},
+        rom_tests::{
+            FAKE_TEST_FMC_INTERACTIVE, FAKE_TEST_FMC_WITH_UART, TEST_FMC_INTERACTIVE,
+            TEST_FMC_WITH_UART, TEST_RT_WITH_UART,
+        },
         APP_WITH_UART,
     },
-    ImageOptions,
+    FwId, ImageOptions,
 };
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::RomBootStatus::*;
@@ -449,6 +452,55 @@ fn test_check_rom_update_reset_status_reg() {
 }
 
 #[test]
+fn test_fmc_is_16k() {
+    struct Fmc<'a> {
+        name: &'a str,
+        fwid: &'a FwId<'static>,
+    }
+
+    let errs: String = [
+        Fmc {
+            name: "TEST_FMC_INTERACTIVE",
+            fwid: &TEST_FMC_INTERACTIVE,
+        },
+        Fmc {
+            name: "FAKE_TEST_FMC_WITH_UART",
+            fwid: &FAKE_TEST_FMC_WITH_UART,
+        },
+        Fmc {
+            name: "FAKE_TEST_FMC_INTERACTIVE",
+            fwid: &FAKE_TEST_FMC_INTERACTIVE,
+        },
+    ]
+    .map(|fmc| -> String {
+        let bundle = caliptra_builder::build_and_sign_image(
+            fmc.fwid,
+            &TEST_RT_WITH_UART,
+            ImageOptions::default(),
+        )
+        .unwrap();
+
+        let fmc_size = bundle.fmc.len();
+        let delta = 16 * 1024 - fmc_size as isize;
+        if delta != 0 {
+            format!(
+                "Adjust PAD_LEN in rom/dev/tools/test-fmc/src/main.rs by {} for {}",
+                delta, fmc.name
+            )
+        } else {
+            String::from("")
+        }
+    })
+    .into_iter()
+    .filter(|err| !err.is_empty())
+    .collect::<Vec<String>>()
+    .join("\n");
+
+    println!("{}", errs);
+    assert!(errs.is_empty());
+}
+
+#[test]
 fn test_update_reset_max_fw_image() {
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let image_bundle = caliptra_builder::build_and_sign_image(
@@ -477,11 +529,18 @@ fn test_update_reset_max_fw_image() {
         ImageOptions::default(),
     )
     .unwrap();
-    hw.start_mailbox_execute(
-        CommandId::FIRMWARE_LOAD.into(),
-        &updated_image_bundle.to_bytes().unwrap(),
-    )
-    .unwrap();
+
+    let image_bytes = updated_image_bundle.to_bytes().unwrap();
+
+    // Sanity-check that the image is 128k
+    assert_eq!(
+        128 * 1024 - image_bytes.len() as isize,
+        0,
+        "Try adjusting PAD_LEN in rom/dev/tools/test-fmc/src/main.rs"
+    );
+
+    hw.start_mailbox_execute(CommandId::FIRMWARE_LOAD.into(), &image_bytes)
+        .unwrap();
 
     if cfg!(not(feature = "fpga_realtime")) {
         hw.step_until_boot_status(KatStarted.into(), true);
