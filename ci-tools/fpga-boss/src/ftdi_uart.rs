@@ -1,6 +1,9 @@
 // Licensed under the Apache-2.0 license
 
-use std::io::{self, ErrorKind};
+use std::{
+    io::{self, ErrorKind},
+    time::Duration,
+};
 
 use libftdi1_sys::{ftdi_bits_type, ftdi_interface, ftdi_parity_type, ftdi_stopbits_type};
 use std::cell::RefCell;
@@ -21,6 +24,24 @@ pub struct FtdiUartReaderBlocking {
 
 pub struct FtdiUartWriter {
     ftdi: Rc<RefCell<FtdiCtx>>,
+}
+impl FtdiUartWriter {
+    pub fn send_break(&self) -> anyhow::Result<()> {
+        const BREAK_TIME: Duration = Duration::from_micros(100);
+
+        let mut ftdi = self.ftdi.borrow_mut();
+        ftdi.set_bitmode(0x01, BitMode::BitBang)?;
+        ftdi.write_all_data(&[0x00])?;
+        std::thread::sleep(BREAK_TIME);
+        ftdi.set_bitmode(0x01, BitMode::Reset)?;
+        ftdi.set_baudrate(115200)?;
+        ftdi.set_line_property(
+            ftdi_bits_type::BITS_8,
+            ftdi_stopbits_type::STOP_BIT_1,
+            ftdi_parity_type::NONE,
+        )?;
+        Ok(())
+    }
 }
 
 pub fn open(
