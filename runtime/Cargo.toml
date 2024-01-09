@@ -24,11 +24,13 @@ caliptra-image-verify = { workspace = true, default-features = false, features =
     "no-cfi",
 ] }
 zeroize.workspace = true
+sha2.workspace = true
 
 [build-dependencies]
 caliptra_common = { workspace = true, default-features = false }
 caliptra-gen-linker-scripts.workspace = true
 cfg-if.workspace = true
+sha2.workspace = true
 
 [dev-dependencies]
 caliptra-builder.workspace = true

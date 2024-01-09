@@ -111,6 +111,10 @@ pub fn get_model_pcrs(model: &mut DefaultHwModel) -> [[u8; 48]; 32] {
 
 #[test]
 fn test_extend_pcr_cmd_multiple_extensions() {
+    const TEST_EXTEND_PCR_4_1: &[u8; 48] = include_bytes!(env!("TEST_EXTEND_1"));
+    const TEST_EXTEND_PCR_4_2: &[u8; 48] = include_bytes!(env!("TEST_EXTEND_2"));
+    const TEST_EXTEND_PCR_4_3: &[u8; 48] = include_bytes!(env!("TEST_EXTEND_3"));
+
     // 0. Get fresh pcr state and verify
     let mut model = run_rt_test(None, None, None);
     assert_eq!(get_model_pcrs(&mut model)[4], [0u8; 48]);
@@ -124,14 +128,7 @@ fn test_extend_pcr_cmd_multiple_extensions() {
 
     // 1.1 Checking for PCR values using PCR_QUOTE
     let pcrs = get_model_pcrs(&mut model);
-    assert_eq!(
-        pcrs[4],
-        [
-            245, 123, 183, 237, 130, 198, 174, 74, 41, 230, 201, 135, 147, 56, 197, 146, 199, 212,
-            42, 57, 19, 85, 131, 232, 204, 190, 57, 64, 242, 52, 75, 14, 182, 235, 133, 3, 219, 15,
-            253, 106, 57, 221, 208, 12, 208, 125, 131, 23
-        ]
-    );
+    assert_eq!(pcrs[4], *TEST_EXTEND_PCR_4_1);
 
     // 1.2 Extending PCR[4] with another [0,..,0] payload
     let cmd = generate_mailbox_extend_pcr_req(4, extension_data);
@@ -140,14 +137,7 @@ fn test_extend_pcr_cmd_multiple_extensions() {
 
     // 1.3 Checking for PCR values using PCR_QUOTE
     let pcrs = get_model_pcrs(&mut model);
-    assert_eq!(
-        pcrs[4],
-        [
-            17, 20, 49, 33, 190, 179, 101, 230, 56, 38, 231, 222, 137, 249, 199, 106, 225, 16, 4,
-            17, 251, 150, 67, 209, 152, 231, 48, 183, 96, 58, 131, 164, 151, 124, 118, 238, 230,
-            221, 247, 79, 160, 180, 63, 191, 73, 137, 121, 120
-        ]
-    );
+    assert_eq!(pcrs[4], *TEST_EXTEND_PCR_4_2);
 
     // 2.0 Testing for extension data with high entropy
     let extension_data: [u8; 48] = [
@@ -162,14 +152,7 @@ fn test_extend_pcr_cmd_multiple_extensions() {
 
     // 2.1 Checking for PCR values using PCR_QUOTE
     let pcrs = get_model_pcrs(&mut model);
-    assert_eq!(
-        pcrs[4],
-        [
-            126, 22, 167, 237, 252, 6, 123, 255, 55, 116, 215, 208, 142, 112, 160, 65, 123, 224,
-            125, 35, 36, 250, 134, 225, 116, 230, 182, 189, 8, 74, 246, 183, 26, 10, 123, 58, 157,
-            205, 241, 120, 15, 53, 210, 93, 136, 5, 235, 55
-        ]
-    );
+    assert_eq!(pcrs[4], *TEST_EXTEND_PCR_4_3);
 }
 
 #[test]

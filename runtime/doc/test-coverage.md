@@ -52,6 +52,9 @@ Tests some common HMAC problems | **hmac_cmd_run_wycheproof** | N/A
 Streams a test message to a hashing accelerator and calls the ecdsa_verify mailbox command to verify the test signature | **test_ecdsa_verify_cmd** | N/A
 Calls the hmac_verify mailbox command to verify a NIST HMAC-SHA384 test vector | **test_hmac_verify_cmd** | N/A
 Checks that the ecdsa_verify mailbox command fails if provided an invalid checksum | **test_ecdsa_verify_bad_chksum** | RUNTIME_INVALID_CHECKSUM
+Checks that the pcr extension for multiple data sets works as expected | **test_extend_pcr_cmd_multiple_extensions** | N/A
+Checks that accessing an invalid index is caught | **test_extend_pcr_cmd_invalid_pcr_index** | RUNTIME_PCR_INVALID_INDEX
+Checks that accessing reserved indices is caught | **test_extend_pcr_cmd_reserved_range** | RUNTIME_PCR_RESERVED
 
 <br><br>
 # **Populate IDev Tests**
@@ -135,6 +138,12 @@ Check that the Sign command fails on simulated contexts as simulation context do
 Calls and tests behavior of the DPE command Sign with the Symmetric flag set | **TestSignSymmetric** | N/A
 
 <br><br>
+# **Stress Tests**
+Test Scenario| Test Name | Runtime Error Code
+---|---|---
+Run impactless update repeatedly for 500 times | **test_stress_update** | N/A
+
+<br><br>
 # **Test Gaps**
 Test Scenario| Test Name | Runtime Error Code
 ---|---|---
@@ -152,6 +161,3 @@ Verify that DPE attestation flow fails after DisableAttestation is called | N/A 
 Check that mailbox valid pausers are measured into DPE upon RT startup | N/A | N/A
 Check that the RT alias key is different from the key signing DPE certs | N/A | N/A
 Test context tag validity upon warm/update reset | N/A | N/A
-Check that the pcr extension for multiple data sets works as expected | test_extend_pcr_cmd_multiple_extensions | N/A
-Check that accessing an invalid index is caught | test_extend_pcr_cmd_invalid_pcr_index | RUNTIME_PCR_INVALID_INDEX
-Check that accessing reserved indices is caught | test_extend_pcr_cmd_reserved_range | RUNTIME_PCR_RESERVED
