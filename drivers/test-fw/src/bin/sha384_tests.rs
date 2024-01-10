@@ -75,6 +75,25 @@ fn test_digest3() {
     assert_eq!(digest, Array4x12::from(expected));
 }
 
+fn test_digest4() {
+    let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
+    let expected: [u8; 48] = [
+        0x38, 0xB0, 0x60, 0xA7, 0x51, 0xAC, 0x96, 0x38, 0x4C, 0xD9, 0x32, 0x7E, 0xB1, 0xB1, 0xE3,
+        0x6A, 0x21, 0xFD, 0xB7, 0x11, 0x14, 0xBE, 0x07, 0x43, 0x4C, 0x0C, 0xC7, 0xBF, 0x63, 0xF6,
+        0xE1, 0xDA, 0x27, 0x4E, 0xDE, 0xBF, 0xE7, 0x6F, 0x65, 0xFB, 0xD5, 0x1A, 0xD2, 0xF1, 0x48,
+        0x98, 0xB9, 0x5B,
+    ];
+
+    // Call gen_pcr_hash first to ensure that software workaround for
+    // https://github.com/chipsalliance/caliptra-rtl/issues/375 in SHA
+    // driver works as expected.
+    let _ = sha384.gen_pcr_hash([0; 32].into());
+
+    let data = &[];
+    let digest = sha384.digest(data).unwrap();
+    assert_eq!(digest, Array4x12::from(expected));
+}
+
 fn test_op0() {
     let mut sha384 = unsafe { Sha384::new(Sha512Reg::new()) };
     let expected: [u8; 48] = [
@@ -264,6 +283,11 @@ fn test_pcr_hash_extend_single_block() {
     ];
     pcr_bank.erase_all_pcrs();
 
+    // Call gen_pcr_hash first to ensure that software workaround for
+    // https://github.com/chipsalliance/caliptra-rtl/issues/375 in SHA
+    // driver works as expected.
+    let _ = sha384.gen_pcr_hash([0; 32].into());
+
     // Round 1: PCR is all zeros.
     let result = sha384.pcr_extend(PcrId::PcrId0, &data);
     assert!(result.is_ok());
@@ -392,6 +416,7 @@ test_suite! {
     test_digest1,
     test_digest2,
     test_digest3,
+    test_digest4,
     test_op0,
     test_op1,
     test_op2,
