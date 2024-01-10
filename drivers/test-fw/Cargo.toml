@@ -172,3 +172,123 @@ name = "trng_driver_responder"
 path = "src/bin/trng_driver_responder.rs"
 required-features = ["riscv"]
 
+[[bin]]
+name = "fw_test_lms_n24_w1_h5"
+path = "src/bin/fw_test_lms_n24_w1_h5.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n24_w2_h5"
+path = "src/bin/fw_test_lms_n24_w2_h5.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n24_w4_h5"
+path = "src/bin/fw_test_lms_n24_w4_h5.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n24_w8_h5"
+path = "src/bin/fw_test_lms_n24_w8_h5.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n24_w1_h10"
+path = "src/bin/fw_test_lms_n24_w1_h10.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n24_w2_h10"
+path = "src/bin/fw_test_lms_n24_w2_h10.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n24_w4_h10"
+path = "src/bin/fw_test_lms_n24_w4_h10.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n24_w8_h10"
+path = "src/bin/fw_test_lms_n24_w8_h10.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n24_w1_h15"
+path = "src/bin/fw_test_lms_n24_w1_h15.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n24_w2_h15"
+path = "src/bin/fw_test_lms_n24_w2_h15.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n24_w4_h15"
+path = "src/bin/fw_test_lms_n24_w4_h15.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n24_w8_h15"
+path = "src/bin/fw_test_lms_n24_w8_h15.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n32_w1_h5"
+path = "src/bin/fw_test_lms_n32_w1_h5.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n32_w2_h5"
+path = "src/bin/fw_test_lms_n32_w2_h5.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n32_w4_h5"
+path = "src/bin/fw_test_lms_n32_w4_h5.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n32_w8_h5"
+path = "src/bin/fw_test_lms_n32_w8_h5.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n32_w1_h10"
+path = "src/bin/fw_test_lms_n32_w1_h10.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n32_w2_h10"
+path = "src/bin/fw_test_lms_n32_w2_h10.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n32_w4_h10"
+path = "src/bin/fw_test_lms_n32_w4_h10.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n32_w8_h10"
+path = "src/bin/fw_test_lms_n32_w8_h10.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n32_w1_h15"
+path = "src/bin/fw_test_lms_n32_w1_h15.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n32_w2_h15"
+path = "src/bin/fw_test_lms_n32_w2_h15.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n32_w4_h15"
+path = "src/bin/fw_test_lms_n32_w4_h15.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "fw_test_lms_n32_w8_h15"
+path = "src/bin/fw_test_lms_n32_w8_h15.rs"
+required-features = ["riscv"]
+
