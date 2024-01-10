@@ -9,3 +9,6 @@
 	path = dpe
 	url = https://github.com/chipsalliance/caliptra-dpe.git
 	branch = main
+[submodule "lms_test_gen/create_lms_tests"]
+	path = lms_test_gen/create_lms_tests
+	url = https://github.com/ericeilertson/create_lms_tests
