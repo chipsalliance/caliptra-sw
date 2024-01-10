@@ -5,22 +5,84 @@
 
 use core::mem::size_of;
 
-use caliptra_common::mailbox_api::CommandId;
+use caliptra_common::{handle_fatal_error, mailbox_api::CommandId};
 use caliptra_drivers::{
+    cprintln,
     pcr_log::{PCR_ID_STASH_MEASUREMENT, RT_FW_JOURNEY_PCR},
-    Array4x12,
+    Array4x12, CaliptraError, CaliptraResult,
 };
 use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc::SocIfcReg};
-use caliptra_runtime::{ContextState, DpeInstance, Drivers, U8Bool, MAX_HANDLES};
+use caliptra_runtime::{ContextState, DpeInstance, Drivers, RtBootStatus, U8Bool, MAX_HANDLES};
 use caliptra_test_harness::{runtime_handlers, test_suite};
 use zerocopy::{AsBytes, FromBytes};
 
 const FW_LOAD_CMD_OPCODE: u32 = CommandId::FIRMWARE_LOAD.0;
 
-fn mbox_responder() {
-    let mut drivers = unsafe { Drivers::new_from_registers().unwrap() };
-    assert!(drivers.persistent_data.get().fht.is_valid());
-    let mut mbox = drivers.mbox;
+const BANNER: &str = r#"
+  ____      _ _       _               ____ _____
+ / ___|__ _| (_)_ __ | |_ _ __ __ _  |  _ \_   _|
+| |   / _` | | | '_ \| __| '__/ _` | | |_) || |
+| |__| (_| | | | |_) | |_| | | (_| | |  _ < | |
+ \____\__,_|_|_| .__/ \__|_|  \__,_| |_| \_\|_|
+               |_|
+"#;
+
+#[no_mangle]
+#[allow(clippy::empty_loop)]
+fn rt_entry() -> () {
+    cprintln!("{}", BANNER);
+    let mut drivers = unsafe {
+        Drivers::new_from_registers().unwrap_or_else(|e| {
+            // treat global exception as a fatal error
+            match e {
+                CaliptraError::RUNTIME_GLOBAL_EXCEPTION => handle_fatal_error(e.into()),
+                _ => caliptra_common::report_handoff_error_and_halt(
+                    "Runtime can't load drivers",
+                    e.into(),
+                ),
+            }
+        })
+    };
+
+    if !drivers.persistent_data.get().fht.is_valid() {
+        caliptra_common::report_handoff_error_and_halt(
+            "Runtime can't load FHT",
+            caliptra_drivers::CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into(),
+        );
+    }
+    cprintln!("Caliptra RT listening for mailbox commands...");
+    if let Err(e) = handle_mailbox_commands(&mut drivers) {
+        handle_fatal_error(e.into());
+    }
+    return;
+}
+
+pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
+    // Indicator to SOC that RT firmware is ready
+    drivers.soc_ifc.assert_ready_for_runtime();
+    caliptra_drivers::report_boot_status(RtBootStatus::RtReadyForCommands.into());
+    loop {
+        if drivers.is_shutdown {
+            return Err(CaliptraError::RUNTIME_SHUTDOWN);
+        }
+
+        if drivers.mbox.is_cmd_ready() {
+            caliptra_drivers::report_fw_error_non_fatal(0);
+            match handle_command(drivers) {
+                Ok(status) => {
+                    drivers.mbox.set_status(status);
+                }
+                Err(e) => {
+                    caliptra_drivers::report_fw_error_non_fatal(e.into());
+                    drivers.mbox.set_status(MboxStatusE::CmdFailure);
+                }
+            }
+        }
+    }
+}
+
+pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
+    let mbox = &mut drivers.mbox;
 
     loop {
         while !mbox.is_cmd_ready() {
@@ -150,5 +212,5 @@ fn mbox_responder() {
 }
 
 test_suite! {
-    mbox_responder,
+    rt_entry,
 }
