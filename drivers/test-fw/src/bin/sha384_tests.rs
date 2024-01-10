@@ -31,6 +31,9 @@ fn test_digest0() {
         0x98, 0xB9, 0x5B,
     ];
 
+    // Why does this break extending PCR on FPGA??
+    let _ = sha384.gen_pcr_hash([0; 32].into());
+
     let data = &[];
     let digest = sha384.digest(data).unwrap();
     assert_eq!(digest, Array4x12::from(expected));
