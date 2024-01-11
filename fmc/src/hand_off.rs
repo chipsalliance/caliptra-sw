@@ -78,9 +78,7 @@ impl HandOff {
         match ds {
             DataVaultNonSticky48(dv_entry) => env.data_vault.read_warm_reset_entry48(dv_entry),
             DataVaultSticky48(dv_entry) => env.data_vault.read_cold_reset_entry48(dv_entry),
-            _ => {
-                handle_fatal_error(caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into())
-            }
+            _ => handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into()),
         }
     }
 
@@ -98,7 +96,7 @@ impl HandOff {
             DataVaultNonSticky48(dv_entry) => env.data_vault.read_warm_reset_entry48(dv_entry),
             DataVaultSticky48(dv_entry) => env.data_vault.read_cold_reset_entry48(dv_entry),
             _ => {
-                handle_fatal_error(caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
+                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
             }
         }
     }
@@ -132,7 +130,7 @@ impl HandOff {
             }
             _ => {
                 cprintln!("Invalid KeySlot DV Entry");
-                handle_fatal_error(caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into())
+                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into())
             }
         }
     }
@@ -171,7 +169,7 @@ impl HandOff {
             DataVaultNonSticky48(dv_entry) => env.data_vault.read_warm_reset_entry48(dv_entry),
             DataVaultSticky48(dv_entry) => env.data_vault.read_cold_reset_entry48(dv_entry),
             _ => {
-                handle_fatal_error(caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
+                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
             }
         }
     }
@@ -192,7 +190,7 @@ impl HandOff {
             DataVaultNonSticky4(dv_entry) => env.data_vault.read_warm_reset_entry4(dv_entry),
             DataVaultSticky4(dv_entry) => env.data_vault.read_cold_reset_entry4(dv_entry),
             _ => {
-                handle_fatal_error(caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
+                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
             }
         }
     }
@@ -212,7 +210,7 @@ impl HandOff {
         match ds {
             DataVaultNonSticky4(dv_entry) => env.data_vault.read_warm_reset_entry4(dv_entry),
             _ => {
-                handle_fatal_error(caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
+                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
             }
         }
     }
@@ -235,7 +233,7 @@ impl HandOff {
                 Ok(())
             }
             _ => {
-                handle_fatal_error(caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
+                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
             }
         }
     }
@@ -263,7 +261,7 @@ impl HandOff {
             DataVaultNonSticky4(dv_entry) => env.data_vault.read_warm_reset_entry4(dv_entry),
             DataVaultSticky4(dv_entry) => env.data_vault.read_cold_reset_entry4(dv_entry),
             _ => {
-                handle_fatal_error(caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
+                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
             }
         }
     }

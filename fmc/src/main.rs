@@ -100,7 +100,7 @@ extern "C" fn exception_handler(trap_record: &TrapRecord) {
     );
     log_trap_record(trap_record, None);
 
-    handle_fatal_error(caliptra_error::CaliptraError::FMC_GLOBAL_EXCEPTION.into());
+    handle_fatal_error(CaliptraError::FMC_GLOBAL_EXCEPTION.into());
 }
 
 #[no_mangle]
@@ -151,7 +151,7 @@ extern "C" fn cfi_panic_handler(code: u32) -> ! {
 fn fmc_panic(_: &core::panic::PanicInfo) -> ! {
     cprintln!("FMC Panic!!");
     panic_is_possible();
-    handle_fatal_error(caliptra_error::CaliptraError::FMC_GLOBAL_PANIC.into());
+    handle_fatal_error(CaliptraError::FMC_GLOBAL_PANIC.into());
 }
 
 #[no_mangle]
