@@ -165,6 +165,13 @@ impl Sha384 {
         // Wait for the registers to be ready
         wait::until(|| status_reg.read().ready());
 
+        // Work around a hardware problem where using pcr hash breaks
+        // other usages of the SHA512 engine. This must be called after
+        // one is done using the PCR digest: for instance after pcr_sign_flow().
+        // https://github.com/chipsalliance/caliptra-rtl/issues/375
+        #[cfg(feature = "sha512_pcr_digest_workaround")]
+        reg.ctrl().write(|w| w.init(true));
+
         if status_reg.read().valid() {
             Ok(reg.gen_pcr_hash_digest().read().into())
         } else {

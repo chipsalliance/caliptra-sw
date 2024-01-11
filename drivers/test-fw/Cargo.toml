@@ -19,6 +19,7 @@ caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cf
 
 [features]
 emu = ["caliptra-test-harness/emu"]
+sha512_pcr_digest_workaround = ["caliptra-drivers/sha512_pcr_digest_workaround"]
 fpga_realtime = []
 
 # This feature is used to filter all these binary targets during normal builds

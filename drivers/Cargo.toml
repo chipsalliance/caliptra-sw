@@ -27,10 +27,11 @@ caliptra-cfi-derive.workspace = true
 [features]
 emu = []
 runtime = ["dep:dpe"]
-fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
+fpga_realtime = ["caliptra-hw-model/fpga_realtime", "caliptra-builder/sha512_pcr_digest_workaround"]
 itrng = ["caliptra-hw-model/itrng"]
-verilator = ["caliptra-hw-model/verilator"]
+verilator = ["caliptra-hw-model/verilator", "caliptra-builder/sha512_pcr_digest_workaround"]
 no-cfi = []
+sha512_pcr_digest_workaround = []
 
 [dev-dependencies]
 caliptra-builder.workspace = true

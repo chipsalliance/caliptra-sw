@@ -48,12 +48,23 @@ pub const FMC_FAKE_WITH_UART: FwId = FwId {
 pub const APP: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
+    #[cfg(feature = "sha512_pcr_digest_workaround")]
+    features: &["fips_self_test", "sha512_pcr_digest_workaround"],
+    #[cfg(not(feature = "sha512_pcr_digest_workaround"))]
     features: &["fips_self_test"],
 };
 
 pub const APP_WITH_UART: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
+    #[cfg(feature = "sha512_pcr_digest_workaround")]
+    features: &[
+        "emu",
+        "test_only_commands",
+        "fips_self_test",
+        "sha512_pcr_digest_workaround",
+    ],
+    #[cfg(not(feature = "sha512_pcr_digest_workaround"))]
     features: &["emu", "test_only_commands", "fips_self_test"],
 };
 
@@ -138,6 +149,9 @@ pub mod driver_tests {
     const BASE_FWID: FwId = FwId {
         crate_name: "caliptra-drivers-test-bin",
         bin_name: "",
+        #[cfg(feature = "sha512_pcr_digest_workaround")]
+        features: &["emu", "sha512_pcr_digest_workaround"],
+        #[cfg(not(feature = "sha512_pcr_digest_workaround"))]
         features: &["emu"],
     };
 
