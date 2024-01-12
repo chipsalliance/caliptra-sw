@@ -147,3 +147,14 @@ pub unsafe extern "C" fn caliptra_model_output_peek(model: *mut caliptra_model) 
         len: peek_str.len(),
     }
 }
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn caliptra_model_step_until_boot_status(
+    model: *mut caliptra_model,
+    boot_status: c_uint,
+) {
+    // Parameter check
+    assert!(!model.is_null());
+    (*{ model as *mut DefaultHwModel }).step_until_boot_status(boot_status, true);
+}
