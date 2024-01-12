@@ -37,6 +37,14 @@ const BANNER: &str = r#"
 Running Caliptra FMC ...
 "#;
 
+// Upon cold reset, fills the reserved field with 0xFFs. Any newly-allocated fields will
+// therefore be marked as implicitly invalid.
+fn fix_fht(env: &mut fmc_env::FmcEnv) {
+    if env.soc_ifc.reset_reason() == caliptra_drivers::ResetReason::ColdReset {
+        env.persistent_data.get_mut().fht.reserved.fill(0xFF);
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
@@ -52,6 +60,8 @@ pub extern "C" fn entry_point() -> ! {
     } else {
         cprintln!("[state] CFI Disabled");
     }
+
+    fix_fht(&mut env);
 
     if env.persistent_data.get().fht.is_valid() {
         // Jump straight to RT for val-FMC for now
