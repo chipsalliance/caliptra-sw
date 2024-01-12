@@ -163,7 +163,7 @@ fn smoke_test() {
     .unwrap();
 
     if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
-        hw.step_until_output_contains("Caliptra RT listening for mailbox commands...\n")
+        hw.step_until_output_contains("[rt] Runtime listening for mailbox commands...\n")
             .unwrap();
         let output = hw.output().take(usize::MAX);
         assert_output_contains(&output, "Running Caliptra ROM");
