@@ -123,6 +123,12 @@ struct caliptra_fw_info_resp {
     uint32_t min_runtime_svn;
     uint32_t fmc_manifest_svn;
     uint32_t attestation_disabled;
+    uint8_t rom_revision[20];
+    uint8_t fmc_revision[20];
+    uint8_t runtime_revision[20];
+    uint32_t rom_sha256_digest[8];
+    uint32_t fmc_sha384_digest[12];
+    uint32_t runtime_sha384_digest[12];
 };
 
 struct caliptra_dpe_tag_tci_req {

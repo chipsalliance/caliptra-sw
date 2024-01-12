@@ -489,6 +489,35 @@ Table: `DPE_GET_TAGGED_TCI` output arguments
 | tci_cumulative    | u8[48]         | Hash of all the input data provided to the context
 | tci_current       | u8[48]         | Most recent measurement made into the context
 
+### FW\_INFO
+
+Retrieves info on the current runtime FW, FMC, and ROM
+
+Command Code: `0x494E_464F` ("INFO")
+
+Table: `FW_INFO` input arguments
+
+| **Name**     | **Type**      | **Description**
+| --------     | --------      | ---------------
+| chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+
+Table: `FW_INFO` output arguments
+
+| **Name**               | **Type**       | **Description**
+| --------               | --------       | ---------------
+| chksum                 | u32            | Checksum over other input arguments, computed by the caller. Little endian.
+| pl0_pauser             | u32            | PAUSER with PL0 privileges (from image header)
+| runtime_svn            | u32            | Runtime SVN
+| min_runtime_svn        | u32            | Min Runtime SVN
+| fmc_manifest_svn       | u32            | FMC SVN
+| attestation_disabled   | u32            | State of attestation disable
+| rom_revision           | u8[20]         | Revision (git commit ID) of ROM build
+| fmc_revision           | u8[20]         | Revision (git commit ID) of FMC build
+| runtime_revision       | u8[20]         | Revision (git commit ID) of runtime build
+| rom_sha256_digest      | u32[8]         | Digest of ROM binary
+| fmc_sha384_digest      | u32[12]        | Digest of FMC binary
+| runtime_sha384_digest  | u32[12]        | Digest of runtime binary
+
 ## Checksum
 
 For every command, the request and response feature a checksum. This mitigates

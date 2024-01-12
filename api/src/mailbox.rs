@@ -706,6 +706,12 @@ pub struct FwInfoResp {
     pub min_runtime_svn: u32,
     pub fmc_manifest_svn: u32,
     pub attestation_disabled: u32,
+    pub fmc_revision: [u8; 20],
+    pub rom_revision: [u8; 20],
+    pub runtime_revision: [u8; 20],
+    pub rom_sha256_digest: [u32; 8],
+    pub fmc_sha384_digest: [u32; 12],
+    pub runtime_sha384_digest: [u32; 12],
     // TODO: Decide what other information to report for general firmware
     // status.
 }
