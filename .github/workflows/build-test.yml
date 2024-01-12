@@ -41,8 +41,7 @@ jobs:
 
       - name: Install required packages
         run: |
-          sudo apt-get update
-          sudo apt-get install libftdi1-dev libusb-1.0-0-dev golang-1.20-go
+          sudo apt-get update -qy && sudo apt-get install libftdi1-dev libusb-1.0-0-dev golang-1.20-go
 
       - name: Restore sccache binary
         uses: actions/cache/restore@v3
