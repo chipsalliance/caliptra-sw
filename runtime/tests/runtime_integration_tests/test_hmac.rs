@@ -8,13 +8,13 @@ use caliptra_hw_model::HwModel;
 use caliptra_runtime::RtBootStatus;
 use zerocopy::{AsBytes, FromBytes, LayoutVerified};
 
+const RT_READY_FOR_COMMANDS: u32 = 0x600;
+
 #[test]
 fn hmac_cmd_run_wycheproof() {
     let mut model = run_rt_test(None, None, None);
 
-    model
-        .step_until_output_contains("Caliptra RT listening for mailbox commands...")
-        .unwrap();
+    model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
 
     #[allow(dead_code)]
     #[derive(Debug)]

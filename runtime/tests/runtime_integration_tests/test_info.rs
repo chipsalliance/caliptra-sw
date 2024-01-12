@@ -11,6 +11,8 @@ use caliptra_common::mailbox_api::{
 use caliptra_hw_model::{DefaultHwModel, HwModel};
 use zerocopy::{AsBytes, FromBytes};
 
+const RT_READY_FOR_COMMANDS: u32 = 0x600;
+
 #[test]
 fn test_fw_info() {
     let mut image_opts = ImageOptions::default();
@@ -55,9 +57,7 @@ fn test_fw_info() {
             .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), image)
             .unwrap();
 
-        model
-            .step_until_output_contains("Caliptra RT listening for mailbox commands...")
-            .unwrap();
+        model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
     };
 
     let info = get_fwinfo(&mut model);
