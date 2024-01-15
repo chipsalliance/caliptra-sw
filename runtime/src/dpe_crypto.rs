@@ -2,9 +2,7 @@
 
 use core::cmp::min;
 
-use caliptra_common::keyids::{
-    KEY_ID_DPE_CDI, KEY_ID_DPE_PRIV_KEY, KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY, KEY_ID_TMP,
-};
+use caliptra_common::keyids::{KEY_ID_DPE_CDI, KEY_ID_DPE_PRIV_KEY, KEY_ID_TMP};
 use caliptra_drivers::{
     cprintln, hmac384_kdf, Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar,
     Ecc384Seed, Hmac384, Hmac384Data, Hmac384Key, Hmac384Tag, KeyId, KeyReadArgs, KeyUsage,
@@ -21,9 +19,12 @@ pub struct DpeCrypto<'a> {
     hmac384: &'a mut Hmac384,
     key_vault: &'a mut KeyVault,
     rt_pub_key: Ecc384PubKey,
+    key_id_rt_cdi: KeyId,
+    key_id_rt_priv_key: KeyId,
 }
 
 impl<'a> DpeCrypto<'a> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         sha384: &'a mut Sha384,
         trng: &'a mut Trng,
@@ -31,6 +32,8 @@ impl<'a> DpeCrypto<'a> {
         hmac384: &'a mut Hmac384,
         key_vault: &'a mut KeyVault,
         rt_pub_key: Ecc384PubKey,
+        key_id_rt_cdi: KeyId,
+        key_id_rt_priv_key: KeyId,
     ) -> Self {
         Self {
             sha384,
@@ -39,6 +42,8 @@ impl<'a> DpeCrypto<'a> {
             hmac384,
             key_vault,
             rt_pub_key,
+            key_id_rt_cdi,
+            key_id_rt_priv_key,
         }
     }
 }
@@ -126,7 +131,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
 
                 hmac384_kdf(
                     self.hmac384,
-                    KeyReadArgs::new(KEY_ID_RT_CDI).into(),
+                    KeyReadArgs::new(self.key_id_rt_cdi).into(),
                     b"derive_cdi",
                     Some(context.bytes()),
                     self.trng,
@@ -200,7 +205,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
             y: CryptoBuf::new(&<[u8; AlgLen::Bit384.size()]>::from(self.rt_pub_key.y))
                 .map_err(|_| CryptoError::Size)?,
         };
-        self.ecdsa_sign_with_derived(algs, digest, &KEY_ID_RT_PRIV_KEY, &pub_key)
+        self.ecdsa_sign_with_derived(algs, digest, &self.key_id_rt_priv_key.clone(), &pub_key)
     }
 
     fn ecdsa_sign_with_derived(

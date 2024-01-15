@@ -16,7 +16,9 @@ use caliptra_drivers::{
     cprint, cprintln, pcr_log::RT_FW_JOURNEY_PCR, Array4x12, CaliptraError, CaliptraResult,
     DataVault, Ecc384, KeyVault, Lms, PersistentDataAccessor, ResetReason, Sha1, SocIfc,
 };
-use caliptra_drivers::{Hmac384, PcrBank, PcrId, Sha256, Sha256Alg, Sha384, Sha384Acc, Trng};
+use caliptra_drivers::{
+    hand_off::DataStore, Hmac384, KeyId, PcrBank, PcrId, Sha256, Sha256Alg, Sha384, Sha384Acc, Trng,
+};
 use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_registers::{
     csrng::CsrngReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg,
@@ -313,6 +315,8 @@ impl Drivers {
         let mut valid_pauser_hash = Array4x12::default();
         digest_op.finalize(&mut valid_pauser_hash)?;
 
+        let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
+        let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
         let mut crypto = DpeCrypto::new(
             &mut drivers.sha384,
             &mut drivers.trng,
@@ -320,6 +324,8 @@ impl Drivers {
             &mut drivers.hmac384,
             &mut drivers.key_vault,
             drivers.persistent_data.get().fht.rt_dice_pub_key,
+            key_id_rt_cdi,
+            key_id_rt_priv_key,
         );
 
         let mut env = DpeEnv::<CptraDpeTypes> {
@@ -501,5 +507,35 @@ impl Drivers {
 
     pub fn is_caller_pl1(pl0_pauser: u32, flags: u32, locality: u32) -> bool {
         flags & PL0_PAUSER_FLAG == 0 && locality != pl0_pauser
+    }
+
+    pub fn get_key_id_rt_cdi(drivers: &mut Drivers) -> CaliptraResult<KeyId> {
+        let ds: DataStore = drivers
+            .persistent_data
+            .get()
+            .fht
+            .rt_cdi_kv_hdl
+            .try_into()
+            .map_err(|_| CaliptraError::RUNTIME_CDI_KV_HDL_HANDOFF_FAILED)?;
+
+        match ds {
+            DataStore::KeyVaultSlot(key_id) => Ok(key_id),
+            _ => Err(CaliptraError::RUNTIME_CDI_KV_HDL_HANDOFF_FAILED),
+        }
+    }
+
+    pub fn get_key_id_rt_priv_key(drivers: &mut Drivers) -> CaliptraResult<KeyId> {
+        let ds: DataStore = drivers
+            .persistent_data
+            .get()
+            .fht
+            .rt_priv_key_kv_hdl
+            .try_into()
+            .map_err(|_| CaliptraError::RUNTIME_PRIV_KEY_KV_HDL_HANDOFF_FAILED)?;
+
+        match ds {
+            DataStore::KeyVaultSlot(key_id) => Ok(key_id),
+            _ => Err(CaliptraError::RUNTIME_PRIV_KEY_KV_HDL_HANDOFF_FAILED),
+        }
     }
 }

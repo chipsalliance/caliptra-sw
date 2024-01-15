@@ -16,10 +16,16 @@ Abstract:
 use core::hint::black_box;
 
 use caliptra_cfi_lib::CfiCounter;
-use caliptra_common::{cprintln, handle_fatal_error};
+use caliptra_common::{
+    cprintln, handle_fatal_error,
+    keyids::{KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY},
+};
 use caliptra_cpu::{log_trap_record, TrapRecord};
 
-use caliptra_drivers::{report_fw_error_non_fatal, Mailbox};
+use caliptra_drivers::{
+    hand_off::{DataStore, HandOffDataHandle},
+    report_fw_error_non_fatal, Mailbox,
+};
 mod boot_status;
 mod flow;
 pub mod fmc_env;
@@ -64,8 +70,12 @@ pub extern "C" fn entry_point() -> ! {
     fix_fht(&mut env);
 
     if env.persistent_data.get().fht.is_valid() {
-        // Jump straight to RT for val-FMC for now
+        // Set FHT fields and jump to RT for val-FMC for now
         if cfg!(feature = "fake-fmc") {
+            env.persistent_data.get_mut().fht.rt_cdi_kv_hdl =
+                HandOffDataHandle::from(DataStore::KeyVaultSlot(KEY_ID_RT_CDI));
+            env.persistent_data.get_mut().fht.rt_priv_key_kv_hdl =
+                HandOffDataHandle::from(DataStore::KeyVaultSlot(KEY_ID_RT_PRIV_KEY));
             HandOff::to_rt(&env);
         }
         match flow::run(&mut env) {

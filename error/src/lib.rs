@@ -403,6 +403,10 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E003B);
     pub const RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED: CaliptraError =
         CaliptraError::new_const(0x000E003C);
+    pub const RUNTIME_CDI_KV_HDL_HANDOFF_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E003D);
+    pub const RUNTIME_PRIV_KEY_KV_HDL_HANDOFF_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E003E);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);

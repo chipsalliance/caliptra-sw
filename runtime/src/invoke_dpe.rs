@@ -27,16 +27,19 @@ impl InvokeDpeCmd {
             }
 
             let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
-            let pdata = drivers.persistent_data.get();
-            let rt_pub_key = pdata.fht.rt_dice_pub_key;
+            let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
+            let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
             let mut crypto = DpeCrypto::new(
                 &mut drivers.sha384,
                 &mut drivers.trng,
                 &mut drivers.ecc384,
                 &mut drivers.hmac384,
                 &mut drivers.key_vault,
-                rt_pub_key,
+                drivers.persistent_data.get().fht.rt_dice_pub_key,
+                key_id_rt_cdi,
+                key_id_rt_priv_key,
             );
+            let pdata = drivers.persistent_data.get();
             let image_header = &pdata.manifest1.header;
             let pl0_pauser = pdata.manifest1.header.pl0_pauser;
             let mut env = DpeEnv::<CptraDpeTypes> {
