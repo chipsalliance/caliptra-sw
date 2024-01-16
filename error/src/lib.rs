@@ -404,6 +404,10 @@ impl CaliptraError {
     pub const RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED: CaliptraError =
         CaliptraError::new_const(0x000E003C);
 
+    /// PCR Runtime Errors
+    pub const RUNTIME_PCR_RESERVED: CaliptraError = CaliptraError::new_const(0x000E003D);
+    pub const RUNTIME_PCR_INVALID_INDEX: CaliptraError = CaliptraError::new_const(0x000E003F);
+
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
     pub const FMC_GLOBAL_EXCEPTION: CaliptraError = CaliptraError::new_const(0x000F0002);
