@@ -12,12 +12,14 @@ use crate::{
 };
 
 use arrayvec::ArrayVec;
+use caliptra_drivers::KeyId;
 use caliptra_drivers::{
     cprint, cprintln, pcr_log::RT_FW_JOURNEY_PCR, Array4x12, CaliptraError, CaliptraResult,
     DataVault, Ecc384, KeyVault, Lms, PersistentDataAccessor, ResetReason, Sha1, SocIfc,
 };
 use caliptra_drivers::{
-    hand_off::DataStore, Hmac384, KeyId, PcrBank, PcrId, Sha256, Sha256Alg, Sha384, Sha384Acc, Trng,
+    hand_off::DataStore, Ecc384PubKey, Hmac384, PcrBank, PcrId, Sha256, Sha256Alg, Sha384,
+    Sha384Acc, Trng,
 };
 use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_registers::{
@@ -74,8 +76,6 @@ pub struct Drivers {
 
     pub cert_chain: ArrayVec<u8, MAX_CERT_CHAIN_SIZE>,
 
-    pub attestation_disabled: bool,
-
     #[cfg(feature = "fips_self_test")]
     pub self_test_status: SelfTestStatus,
 
@@ -92,6 +92,10 @@ impl Drivers {
         let mut drivers = Self::get_unsafe_registers()?;
 
         Self::create_cert_chain(&mut drivers)?;
+        if drivers.persistent_data.get().attestation_disabled.get() {
+            DisableAttestationCmd::execute(&mut drivers)
+                .map_err(|_| CaliptraError::RUNTIME_GLOBAL_EXCEPTION)?;
+        }
 
         let reset_reason = drivers.soc_ifc.reset_reason();
         match reset_reason {
@@ -144,7 +148,6 @@ impl Drivers {
             #[cfg(feature = "fips_self_test")]
             self_test_status: SelfTestStatus::Idle,
             cert_chain: ArrayVec::new(),
-            attestation_disabled: false,
             is_shutdown: false,
         })
     }
