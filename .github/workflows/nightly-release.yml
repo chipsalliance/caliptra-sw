@@ -5,9 +5,6 @@ on:
   schedule:
   # 2:11 AM PST tuesday-saturday
   - cron: '11 10 * * 2-6'
-permissions:
-  contents: write
-  pull-requests: write
 
 jobs:
   rtl-repo-sync:
@@ -22,6 +19,10 @@ jobs:
       create_release: ${{ steps.find.outputs.create_release }}
       new_release_tag: ${{ steps.find.outputs.new_release_tag }}
       release_ref: ${{ steps.find.outputs.release_ref }}
+
+    permissions:
+      contents: write
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v3
@@ -158,6 +159,10 @@ jobs:
       - sw-emulator-full-suite-itrng-nolog
 
     runs-on: ubuntu-22.04
+
+    permissions:
+      contents: write
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v3
