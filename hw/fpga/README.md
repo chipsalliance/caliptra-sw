@@ -14,13 +14,17 @@ See the License for the specific language governing permissions and<BR>
 limitations under the License.*_<BR>
 
 # **Caliptra FPGA Guide** #
+FPGA provides a fast environment for software development and testing that uses Caliptra RTL.
+The Zynq's Programmable Logic is programmed with the Caliptra RTL and FPGA specific SoC wrapper logic including a connection to the Processing System AXI bus.
+The Processing System ARM cores then act as the SoC Security Processor with memory mapped access to Caliptra's public register space.
+
+![](./images/fpga_module_diagram.svg)
 
 ### Requirements: ###
  - Vivado
-   - `Version v2022.2`
+   - Version v2022.2
  - FPGA
-   - `ZCU104 Development Board`
-   - https://www.xilinx.com/products/boards-and-kits/zcu104.html
+   - [ZCU104 Development Board](https://www.xilinx.com/products/boards-and-kits/zcu104.html)
 
 ### ZCU104 ###
 #### Processing system one time setup: ####
@@ -31,17 +35,6 @@ limitations under the License.*_<BR>
      ![](./images/zynq_boot_switch.jpg)
 1. Install rustup using Unix directions: https://rustup.rs/#
 
-#### Helpful commands: ####
- - Disable CPU IDLE. Vivado HW Manager access during IDLE causes crashes.
-   - `echo 1 > /sys/devices/system/cpu/cpu0/cpuidle/state1/disable`
-   - `echo 1 > /sys/devices/system/cpu/cpu1/cpuidle/state1/disable`
-   - `echo 1 > /sys/devices/system/cpu/cpu2/cpuidle/state1/disable`
-   - `echo 1 > /sys/devices/system/cpu/cpu3/cpuidle/state1/disable`
- - Reduce fan speed.
-   - https://support.xilinx.com/s/question/0D52E00006iHuopSAC/zcu104-fan-running-at-max-speed?language=en_US
-   - `echo 321 > /sys/class/gpio/export`
-   - `echo out > /sys/class/gpio/gpio321/direction`
-
 #### Serial port configuration: ####
 Serial port settings for connection over USB.
  - Speed: 115200
@@ -51,6 +44,17 @@ Serial port settings for connection over USB.
  - Flow control: None
 
 ### FPGA build steps: ###
+The FPGA build process uses Vivado's batch mode to procedurally create the Vivado project using fpga_configuration.tcl.
+This script provides a number of configuration options for features that can be enabled using "-tclargs OPTION=VALUE OPTION=VALUE"
+
+| Option | Purpose
+| ------ | -------
+| BUILD  | Automatically start building the FPGA.
+| GUI    | Open the Vivado GUI.
+| JTAG   | Assign JTAG signals to Zynq PS GPIO.
+| ITRNG  | Enable Caliptra's ITRNG.
+| CG_EN  | Removes FPGA optimizations and allows clock gating.
+
  - Build FPGA image without GUI
     - `vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE`
     - Above command creates a bitstream located at: caliptra_build/caliptra_fpga.bin
@@ -64,9 +68,24 @@ Serial port settings for connection over USB.
     - Run Implementation: `launch_runs impl_1`
     - Generate Bitstream: `write_bitstream -bin_file \tmp\caliptra_fpga`
 
+### Loading and execution Steps: ###
+[setup_fpga.sh](setup_fpga.sh) performs platform setup that is needed after each boot.
+ - Disables CPU IDLE. Vivado HW Manager access during IDLE causes crashes.
+ - Reduces fan speed by setting the GPIO pin connected to the fan controller FULLSPD pin to output.
+   - https://support.xilinx.com/s/question/0D52E00006iHuopSAC/zcu104-fan-running-at-max-speed?language=en_US
+ - Builds and installs the rom_backdoor and io_module kernel modules.
+ - Sets the clock for the FPGA logic.
+ - Installs the provided FPGA image.
+
+```shell
+sudo ./hw/fpga/setup_fpga.sh caliptra_fpga.bin
+
+CPTRA_UIO_NUM=4 cargo test --features=fpga_realtime,itrng -p caliptra-test smoke_test::smoke_test
+```
+
 ### Processing System - Programmable Logic interfaces ###
 #### AXI Memory Map ####
- - SOC adapter for driving caliptra-top signals
+ - SoC adapter for driving caliptra-top signals
    - 0x80000000 - Generic Input Wires
    - 0x80000008 - Generic Output Wires
    - 0x80000010-0x8000002C - Deobfuscation key (256 bit)
@@ -97,28 +116,10 @@ Serial port settings for connection over USB.
      - `[2] -> ITRNG FIFO reset`
  - ROM Backdoor - 32K
    - `0x82000000 - 0x82007FFF`
- - Caliptra soc register interface
+ - Caliptra SoC register interface
    - `0x90000000`
 #### Interrupts ####
  - 89 - Log FIFO half full.
-
-### Loading and execution Steps: ###
-1. Install FPGA image
-    - `sudo fpgautil -b caliptra_fpga_project_bd_wrapper.bin -f Full -n Full`
-1. Insert kernel modules for IO access
-    - As root:
-      - `cd hw/fpga/rom_backdoor`
-      - `make`
-      - `insmod rom_backdoor.ko`
-      - `cd hw/fpga/io_module`
-      - `make`
-      - `insmod io_module.ko`
-      - `chmod 666 /dev/uio4`
-1. Set FPGA PLL frequency
-    - As root:
-      - `echo 20000000 > /sys/bus/platform/drivers/xilinx_fclk/fclk0/set_rate`
-1. Execute test targeting fpga_realtime
-    - `CPTRA_UIO_NUM=4 cargo test -p caliptra-test --features=fpga_realtime smoke_test`
 
 ### JTAG debug
 Requirements:
