@@ -1,8 +1,8 @@
 // Licensed under the Apache-2.0 license
 
 use crate::common::{
-    execute_dpe_cmd, generate_test_x509_cert, get_fmc_alias_cert, run_rt_test, DpeResult,
-    TEST_LABEL,
+    execute_dpe_cmd, generate_test_x509_cert, get_fmc_alias_cert, get_rt_alias_cert, run_rt_test,
+    DpeResult, TEST_LABEL,
 };
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{
@@ -167,23 +167,6 @@ fn get_ldev_cert(model: &mut DefaultHwModel) -> GetLdevCertResp {
     let mut ldev_resp = GetLdevCertResp::default();
     ldev_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
     ldev_resp
-}
-
-fn get_rt_alias_cert(model: &mut DefaultHwModel) -> GetRtAliasCertResp {
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::GET_RT_ALIAS_CERT),
-            &[],
-        ),
-    };
-    let resp = model
-        .mailbox_execute(u32::from(CommandId::GET_RT_ALIAS_CERT), payload.as_bytes())
-        .unwrap()
-        .unwrap();
-    assert!(resp.len() <= std::mem::size_of::<GetRtAliasCertResp>());
-    let mut rt_resp = GetRtAliasCertResp::default();
-    rt_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
-    rt_resp
 }
 
 #[test]
