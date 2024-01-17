@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{
-    firmware::{self, APP_WITH_UART, FMC_WITH_UART},
+    firmware::{self, APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
     FwId, ImageOptions,
 };
 use caliptra_common::mailbox_api::{
@@ -43,7 +43,12 @@ pub fn run_rt_test(
     test_image_options: Option<ImageOptions>,
     init_params: Option<InitParams>,
 ) -> DefaultHwModel {
-    let runtime_fwid = test_fwid.unwrap_or(&APP_WITH_UART);
+    let default_rt_fwid = if cfg!(feature = "fpga_realtime") {
+        &APP_WITH_UART_FPGA
+    } else {
+        &APP_WITH_UART
+    };
+    let runtime_fwid = test_fwid.unwrap_or(default_rt_fwid);
 
     let image_options = test_image_options.unwrap_or_else(|| {
         let mut opts = ImageOptions::default();
