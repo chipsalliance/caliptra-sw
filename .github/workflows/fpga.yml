@@ -119,7 +119,7 @@ jobs:
       - name: Install sysroot pre-requisites
         if: "!steps.restore_sysroot_cache.outputs.cache-hit"
         run: |
-          sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools
+          sudo apt-get update -qy && sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools
 
       - name: build sysroot
         # Note: This is the sysroot for the tiny debian installation we run on the FPGA;
