@@ -6,7 +6,8 @@ Wants=network-online.target
 Conflicts=serial-getty@ttyPS0.service
 
 [Service]
-Type=oneshot
+Type=idle
+Restart=no
 StandardInput=tty-force
 StandardOutput=tty-force
 StandardError=tty-force
