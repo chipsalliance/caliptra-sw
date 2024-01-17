@@ -298,6 +298,7 @@ impl ClockImpl {
         self.recompute_next_action_time(&actions);
         new_action.into()
     }
+
     fn cancel(self: &Rc<Self>, action: ActionHandle) {
         let action = ActionHandleImpl::from(action);
         assert_eq!(
@@ -309,6 +310,7 @@ impl ClockImpl {
         future_actions.remove(&action);
         self.recompute_next_action_time(&future_actions)
     }
+
     fn next_action_id(self: &Rc<Self>) -> TimerActionId {
         let result = TimerActionId {
             timer_ptr: Rc::as_ptr(self),
@@ -318,13 +320,16 @@ impl ClockImpl {
             .set(self.next_action_id.get().wrapping_add(1));
         result
     }
+
     fn has_fired(&self, action_time: u64) -> bool {
         self.now().wrapping_sub(action_time) < (u64::MAX >> 1)
     }
+
     fn recompute_next_action_time(&self, future_actions: &BTreeSet<ActionHandleImpl>) {
         self.next_action_time
             .set(self.find_next_action(future_actions).map(|a| a.time));
     }
+
     fn find_next_action<'a>(
         &self,
         future_actions: &'a BTreeSet<ActionHandleImpl>,

@@ -357,6 +357,7 @@ impl<TBus: Bus> Cpu<TBus> {
         let fired_action_types = self
             .clock
             .increment_and_process_timer_actions(1, &mut self.bus);
+
         for action_type in fired_action_types.iter() {
             match action_type {
                 TimerAction::WarmReset => {
