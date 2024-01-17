@@ -12,7 +12,9 @@ use caliptra_drivers::{
     Array4x12, CaliptraError, CaliptraResult,
 };
 use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc::SocIfcReg};
-use caliptra_runtime::{ContextState, DpeInstance, Drivers, RtBootStatus, U8Bool, MAX_HANDLES};
+use caliptra_runtime::{
+    ContextState, DpeInstance, Drivers, RtBootStatus, TciMeasurement, U8Bool, MAX_HANDLES,
+};
 use caliptra_test_harness::{runtime_handlers, test_suite};
 use zerocopy::{AsBytes, FromBytes};
 
@@ -196,6 +198,18 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             CommandId(0xC000_0000) => {
                 mbox.write_response(drivers.persistent_data.get().pcr_reset.as_bytes())
                     .unwrap();
+                mbox.set_status(MboxStatusE::DataReady);
+            }
+            // Corrupt DPE Root Context TCI
+            CommandId(0xD000_0000) => {
+                let size = mbox.dlen() as usize;
+                let input_bytes = &mbox.raw_mailbox_contents()[..size];
+
+                let root_idx =
+                    Drivers::get_dpe_root_context_idx(&drivers.persistent_data.get().dpe).unwrap();
+                drivers.persistent_data.get_mut().dpe.contexts[root_idx]
+                    .tci
+                    .tci_current = TciMeasurement(input_bytes.try_into().unwrap());
                 mbox.set_status(MboxStatusE::DataReady);
             }
             CommandId(FW_LOAD_CMD_OPCODE) => {
