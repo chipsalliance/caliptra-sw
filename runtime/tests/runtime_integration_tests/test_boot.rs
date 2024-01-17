@@ -15,6 +15,8 @@ use zerocopy::AsBytes;
 
 use crate::common::run_rt_test;
 
+const RT_READY_FOR_COMMANDS: u32 = 0x600;
+
 #[test]
 fn test_standard() {
     // Test that the normal runtime firmware boots.
@@ -22,9 +24,7 @@ fn test_standard() {
     // via the mailbox.
     let mut model = run_rt_test(None, None, None);
 
-    model
-        .step_until_output_contains("Caliptra RT listening for mailbox commands...")
-        .unwrap();
+    model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
 }
 
 #[test]
@@ -81,9 +81,7 @@ fn test_update() {
         .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &image)
         .unwrap();
 
-    model
-        .step_until_output_contains("Caliptra RT listening for mailbox commands...")
-        .unwrap();
+    model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
 
     let fw_rev = model.soc_ifc().cptra_fw_rev_id().read();
     assert_eq!(fw_rev[0], 0xaaaaaaaa);
@@ -132,9 +130,7 @@ fn test_stress_update() {
             .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &image[image_select])
             .unwrap();
 
-        model
-            .step_until_output_contains("Caliptra RT listening for mailbox commands...")
-            .unwrap();
+        model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
 
         //Check if the new firmware is actually the one we built
         let fw_rev = model.soc_ifc().cptra_fw_rev_id().read();
