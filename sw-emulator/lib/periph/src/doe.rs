@@ -250,7 +250,7 @@ mod tests {
         let key_vault = KeyVault::new();
         let soc_reg = SocRegistersInternal::new(
             &clock,
-            MailboxInternal::new(MailboxRam::new()),
+            MailboxInternal::new(&clock, MailboxRam::new()),
             Iccm::new(&clock),
             CaliptraRootBusArgs {
                 security_state: *SecurityState::default().set_debug_locked(true),
@@ -311,7 +311,7 @@ mod tests {
         let key_vault = KeyVault::new();
         let soc_reg = SocRegistersInternal::new(
             &clock,
-            MailboxInternal::new(MailboxRam::new()),
+            MailboxInternal::new(&clock, MailboxRam::new()),
             Iccm::new(&clock),
             CaliptraRootBusArgs {
                 security_state: *SecurityState::default().set_debug_locked(true),
@@ -372,7 +372,7 @@ mod tests {
         let key_vault = KeyVault::new();
         let soc_reg = SocRegistersInternal::new(
             &clock,
-            MailboxInternal::new(MailboxRam::new()),
+            MailboxInternal::new(&clock, MailboxRam::new()),
             Iccm::new(&clock),
             CaliptraRootBusArgs {
                 security_state: *SecurityState::default().set_debug_locked(true),
