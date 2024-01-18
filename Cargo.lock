@@ -376,8 +376,10 @@ dependencies = [
  "bit-vec",
  "bitfield",
  "caliptra-emu-bus",
+ "caliptra-emu-derive",
  "caliptra-emu-types",
  "lazy_static",
+ "tock-registers",
 ]
 
 [[package]]
