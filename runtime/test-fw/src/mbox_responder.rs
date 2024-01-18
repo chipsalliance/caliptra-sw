@@ -38,17 +38,19 @@ fn rt_entry() -> () {
             // treat global exception as a fatal error
             match e {
                 CaliptraError::RUNTIME_GLOBAL_EXCEPTION => handle_fatal_error(e.into()),
-                _ => {
-                    cprintln!("Runtime can't load drivers");
-                    handle_fatal_error(e.into());
-                }
+                _ => caliptra_common::report_handoff_error_and_halt(
+                    "Runtime can't load drivers",
+                    e.into(),
+                ),
             }
         })
     };
 
     if !drivers.persistent_data.get().fht.is_valid() {
-        cprintln!("Runtime can't load FHT");
-        handle_fatal_error(CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into());
+        caliptra_common::report_handoff_error_and_halt(
+            "Runtime can't load FHT",
+            caliptra_drivers::CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into(),
+        );
     }
     cprintln!("Caliptra RT listening for mailbox commands...");
     if let Err(e) = handle_mailbox_commands(&mut drivers) {
