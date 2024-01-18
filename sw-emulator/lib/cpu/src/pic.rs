@@ -11,6 +11,37 @@ use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use tock_registers::interfaces::Readable;
 use tock_registers::register_bitfields;
 
+pub enum IntSource {
+    DoeErr = 1,
+    DoeNotif = 2,
+    EccErr = 3,
+    EccNotif = 4,
+    HmacErr = 5,
+    HmacNotif = 6,
+    KvErr = 7,
+    KvNotif = 8,
+    Sha512Err = 9,
+    Sha512Notif = 10,
+    Sha256Err = 11,
+    Sha256Notif = 12,
+    QspiErr = 13,
+    QspiNotif = 14,
+    UartErr = 15,
+    UartNotif = 16,
+    I3cErr = 17,
+    I3cNotif = 18,
+    SocIfcErr = 19,
+    SocIfcNotif = 20,
+    Sha512AccErr = 21,
+    Sha512AccNotif = 22,
+}
+
+impl From<IntSource> for u8 {
+    fn from(source: IntSource) -> Self {
+        source as Self
+    }
+}
+
 const MAX_PRIORITY: u8 = 15;
 
 #[derive(Clone)]

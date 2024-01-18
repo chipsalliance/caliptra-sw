@@ -214,6 +214,7 @@ mod tests {
     use super::*;
     use crate::{CaliptraRootBusArgs, Iccm, KeyUsage, MailboxInternal, MailboxRam};
     use caliptra_emu_bus::Bus;
+    use caliptra_emu_cpu::Pic;
     use caliptra_emu_crypto::EndianessTransform;
     use caliptra_emu_types::RvAddr;
     use caliptra_hw_model_types::SecurityState;
@@ -246,12 +247,14 @@ mod tests {
             0xFB, 0xE5, 0xEF, 0x52, 0x0A, 0x1A,
         ];
 
+        let pic = Pic::new();
         let clock = Clock::new();
         let key_vault = KeyVault::new();
         let soc_reg = SocRegistersInternal::new(
             &clock,
             MailboxInternal::new(&clock, MailboxRam::new()),
             Iccm::new(&clock),
+            &pic,
             CaliptraRootBusArgs {
                 security_state: *SecurityState::default().set_debug_locked(true),
                 ..CaliptraRootBusArgs::default()
@@ -307,12 +310,14 @@ mod tests {
             0xA0, 0x3E, 0xB1, 0xAD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
+        let pic = Pic::new();
         let clock = Clock::new();
         let key_vault = KeyVault::new();
         let soc_reg = SocRegistersInternal::new(
             &clock,
             MailboxInternal::new(&clock, MailboxRam::new()),
             Iccm::new(&clock),
+            &pic,
             CaliptraRootBusArgs {
                 security_state: *SecurityState::default().set_debug_locked(true),
                 ..CaliptraRootBusArgs::default()
@@ -368,12 +373,14 @@ mod tests {
         let expected_uds = [0u8; 48];
         let expected_doe_key = [0u8; 32];
         let expected_fe = [0u8; 32];
+        let pic = Pic::new();
         let clock = Clock::new();
         let key_vault = KeyVault::new();
         let soc_reg = SocRegistersInternal::new(
             &clock,
             MailboxInternal::new(&clock, MailboxRam::new()),
             Iccm::new(&clock),
+            &pic,
             CaliptraRootBusArgs {
                 security_state: *SecurityState::default().set_debug_locked(true),
                 ..CaliptraRootBusArgs::default()
