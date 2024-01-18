@@ -208,6 +208,48 @@ register_bitfields! [
         RSVD OFFSET(16) NUMBITS(16) [],
     ],
 
+    /// Per-Type Interrupt Enable Register
+    GlobalIntrEn [
+        ERROR_EN OFFSET(0) NUMBITS(1) [],
+        NOTIF_EN OFFSET(1) NUMBITS(1) [],
+    ],
+
+    /// Per-Event Interrupt Enable Register
+    ErrorIntrEn [
+        ERROR_INTERNAL_EN OFFSET(0) NUMBITS(1) [],
+        ERROR_INV_DEV_EN OFFSET(1) NUMBITS(1) [],
+        ERROR_CMD_FAIL_EN OFFSET(2) NUMBITS(1) [],
+        ERROR_BAD_FUSE_EN OFFSET(3) NUMBITS(1) [],
+        ERROR_ICCM_BLOCKED_EN OFFSET(4) NUMBITS(1) [],
+        ERROR_MBOX_ECC_UNC_EN OFFSET(5) NUMBITS(1) [],
+        ERROR_WDT_TIMER1_TIMEOUT_EN OFFSET(6) NUMBITS(1) [],
+        ERROR_WDT_TIMER2_TIMEOUT_EN OFFSET(7) NUMBITS(1) [],
+        RSVD OFFSET(8) NUMBITS(24) [],
+    ],
+
+    /// Per-Event Interrupt Enable Register
+    NotifIntrEn [
+        NOTIF_CMD_AVAIL_EN OFFSET(0) NUMBITS(1) [],
+        NOTIF_MBOX_ECC_COR_EN OFFSET(1) NUMBITS(1) [],
+        NOTIF_DEBUG_LOCKED_EN OFFSET(2) NUMBITS(1) [],
+        NOTIF_SCAN_MODE_EN OFFSET(3) NUMBITS(1) [],
+        NOTIF_SOC_REQ_LOCK_EN OFFSET(4) NUMBITS(1) [],
+        NOTIF_GEN_IN_TOGGLE_EN OFFSET(5) NUMBITS(1) [],
+        RSVD OFFSET(6) NUMBITS(26) [],
+    ],
+
+    /// Interrupt Status Aggregation Register
+    ErrorGlobalIntr [
+        AGG_STS OFFSET(0) NUMBITS(1) [],
+        RSVD OFFSET(1) NUMBITS(31) [],
+    ],
+
+    /// Interrupt Status Aggregation Register
+    NotifGlobalIntr [
+        AGG_STS OFFSET(0) NUMBITS(1) [],
+        RSVD OFFSET(1) NUMBITS(31) [],
+    ],
+
     /// ErrorIntrT
     ErrorIntrT [
         ERROR_INTERNAL_STS OFFSET(0) NUMBITS(1) [],
@@ -219,7 +261,42 @@ register_bitfields! [
         ERROR_WDT_TIMER1_TIMEOUT_STS OFFSET(6) NUMBITS(1) [],
         ERROR_WDT_TIMER2_TIMEOUT_STS OFFSET(7) NUMBITS(1) [],
         RSVD OFFSET(8) NUMBITS(24) [],
-    ]
+    ],
+
+    /// NotifIntrT
+    NotifIntrT [
+        NOTIF_CMD_AVAIL_STS OFFSET(0) NUMBITS(1) [],
+        NOTIF_MBOX_ECC_COR_STS OFFSET(1) NUMBITS(1) [],
+        NOTIF_DEBUG_LOCKED_STS OFFSET(2) NUMBITS(1) [],
+        NOTIF_SCAN_MODE_STS OFFSET(3) NUMBITS(1) [],
+        NOTIF_SOC_REQ_LOCK_STS OFFSET(4) NUMBITS(1) [],
+        NOTIF_GEN_IN_TOGGLE_STS OFFSET(5) NUMBITS(1) [],
+        RSVD OFFSET(6) NUMBITS(26) [],
+    ],
+
+    /// Interrupt Trigger Register
+    ErrIntrTrigT [
+        ERROR_INTERNAL_TRIG OFFSET(0) NUMBITS(1) [],
+        ERROR_INV_DEV_TRIG OFFSET(1) NUMBITS(1) [],
+        ERROR_CMD_FAIL_TRIG OFFSET(2) NUMBITS(1) [],
+        ERROR_BAD_FUSE_TRIG OFFSET(3) NUMBITS(1) [],
+        ERROR_ICCM_BLOCKED_TRIG OFFSET(4) NUMBITS(1) [],
+        ERROR_MBOX_ECC_UNC_TRIG OFFSET(5) NUMBITS(1) [],
+        ERROR_WDT_TIMER1_TIMEOUT_TRIG OFFSET(6) NUMBITS(1) [],
+        ERROR_WDT_TIMER2_TIMEOUT_TRIG OFFSET(7) NUMBITS(1) [],
+        RSVD OFFSET(8) NUMBITS(24) [],
+    ],
+
+    /// Interrupt Trigger Register
+    NotifIntrTrigT [
+        NOTIF_CMD_AVAIL_TRIG OFFSET(0) NUMBITS(1) [],
+        NOTIF_MBOX_ECC_COR_TRIG OFFSET(1) NUMBITS(1) [],
+        NOTIF_DEBUG_LOCKED_TRIG OFFSET(2) NUMBITS(1) [],
+        NOTIF_SCAN_MODE_TRIG OFFSET(3) NUMBITS(1) [],
+        NOTIF_SOC_REQ_LOCK_TRIG OFFSET(4) NUMBITS(1) [],
+        NOTIF_GEN_IN_TOGGLE_TRIG OFFSET(5) NUMBITS(1) [],
+        RSVD OFFSET(6) NUMBITS(26) [],
+    ],
 ];
 
 /// SOC Register peripheral
@@ -232,7 +309,7 @@ pub struct SocRegistersInternal {
 const CALIPTRA_REG_START_ADDR: u32 = 0x00;
 
 /// Caliptra Register End Address
-const CALIPTRA_REG_END_ADDR: u32 = 0x81c;
+const CALIPTRA_REG_END_ADDR: u32 = 0x820;
 
 /// Caliptra Fuse start address
 const FUSE_START_ADDR: u32 = 0x200;
@@ -328,6 +405,27 @@ impl Bus for SocRegistersInternal {
 
     fn poll(&mut self) {
         self.regs.borrow_mut().poll();
+
+        let mut regs = self.regs.borrow_mut();
+        if regs.mailbox.get_notif_irq() {
+            regs.notif_internal_intr_r
+                .reg
+                .modify(NotifIntrT::NOTIF_CMD_AVAIL_STS.val(1));
+            regs.notif_global_intr_r
+                .reg
+                .modify(NotifGlobalIntr::AGG_STS.val(1));
+        }
+
+        if regs.global_intr_en_r.reg.is_set(GlobalIntrEn::ERROR_EN)
+            && regs.error_intr_en_r.reg.get() & regs.error_internal_intr_r.reg.get() != 0
+        {
+            // TODO hook up IRQ
+        }
+        if regs.global_intr_en_r.reg.is_set(GlobalIntrEn::NOTIF_EN)
+            && regs.notif_intr_en_r.reg.get() & regs.notif_internal_intr_r.reg.get() != 0
+        {
+            // TODO hook up IRQ
+        }
     }
 
     fn warm_reset(&mut self) {
@@ -576,31 +674,39 @@ struct SocRegistersImpl {
 
     /// GLOBAL_INTR_EN_R Register
     #[register(offset = 0x0800)]
-    global_intr_en_r: ReadWriteRegister<u32>,
+    global_intr_en_r: ReadWriteRegister<u32, GlobalIntrEn::Register>,
 
     /// ERROR_INTR_EN_R Register
     #[register(offset = 0x0804)]
-    error_intr_en_r: ReadWriteRegister<u32>,
+    error_intr_en_r: ReadWriteRegister<u32, ErrorIntrEn::Register>,
 
     /// NOTIF_INTR_EN_R Register
     #[register(offset = 0x0808)]
-    notif_intr_en_r: ReadWriteRegister<u32>,
+    notif_intr_en_r: ReadWriteRegister<u32, NotifIntrEn::Register>,
 
     /// ERROR_GLOBAL_INTR_R Register
     #[register(offset = 0x080c)]
-    error_global_intr_r: ReadWriteRegister<u32>,
+    error_global_intr_r: ReadWriteRegister<u32, ErrorGlobalIntr::Register>,
 
     /// NOTIF_GLOBAL_INTR_R Register
     #[register(offset = 0x0810)]
-    notif_global_intr_r: ReadWriteRegister<u32>,
+    notif_global_intr_r: ReadWriteRegister<u32, NotifGlobalIntr::Register>,
 
     /// ERROR_INTERNAL_INTR_R Register
     #[register(offset = 0x0814)]
     error_internal_intr_r: ReadWriteRegister<u32, ErrorIntrT::Register>,
 
     /// NOTIF_INTERNAL_INTR_R Register
-    #[register(offset = 0x0818)]
-    notif_internal_intr_r: ReadWriteRegister<u32>,
+    #[register(offset = 0x818, write_fn = on_write_notif_internal_intr)]
+    notif_internal_intr_r: ReadWriteRegister<u32, NotifIntrT::Register>,
+
+    /// ERROR_INTR_TRIG Register
+    #[register(offset = 0x81c)]
+    error_intr_trig_r: ReadWriteRegister<u32, ErrIntrTrigT::Register>,
+
+    /// NOTIF_INTR_TRIG Register
+    #[register(offset = 0x820, write_fn = on_write_notif_intr_trig)]
+    notif_intr_trig_r: ReadWriteRegister<u32, NotifIntrTrigT::Register>,
 
     /// Mailbox
     mailbox: MailboxInternal,
@@ -728,6 +834,8 @@ impl SocRegistersImpl {
             notif_global_intr_r: ReadWriteRegister::new(0),
             error_internal_intr_r: ReadWriteRegister::new(0),
             notif_internal_intr_r: ReadWriteRegister::new(1),
+            error_intr_trig_r: ReadWriteRegister::new(0),
+            notif_intr_trig_r: ReadWriteRegister::new(0),
             mailbox,
             iccm,
             timer: Timer::new(clock),
@@ -1028,6 +1136,23 @@ impl SocRegistersImpl {
         } else {
             val.into()
         };
+        Ok(())
+    }
+
+    // Clear bits on writing 1
+    fn on_write_notif_internal_intr(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
+        let reg = self.notif_internal_intr_r.reg.get();
+        let clear_bits = reg & val;
+        self.notif_internal_intr_r.reg.set(reg ^ clear_bits);
+        Ok(())
+    }
+
+    fn on_write_notif_intr_trig(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
+        // Poll the bus to see if we need to trigger an interrupt
+        if val != 0 {
+            self.notif_internal_intr_r.reg.set(val);
+            self.timer.schedule_poll_in(2);
+        }
         Ok(())
     }
 
