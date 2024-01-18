@@ -49,17 +49,17 @@ impl HandOff {
                 .fmc_cdi_kv_hdl
                 .try_into()
                 .unwrap_or_else(|e: CaliptraError| {
-                    cprintln!("[fht] Invalid CDI KV handle");
+                    cprintln!("Invalid CDI KV handle");
                     handle_fatal_error(e.into())
                 });
 
         match ds {
             KeyVaultSlot(key_id) => {
-                cprintln!("[fht] Handoff : FMC CDI: {:?}", key_id as u8);
+                cprintln!("Handoff : FMC CDI: {:?}", key_id as u8);
                 key_id
             }
             _ => {
-                cprintln!("[fht] Invalid KeySlot KV Entry");
+                cprintln!("Invalid KeySlot KV Entry");
                 handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into())
             }
         }
@@ -70,7 +70,7 @@ impl HandOff {
             .fmc_pub_key_x_dv_hdl
             .try_into()
             .unwrap_or_else(|e: CaliptraError| {
-                cprintln!("[fht] Invalid FMC ALias Public Key X DV handle");
+                cprintln!("Invalid FMC ALias Public Key X DV handle");
                 handle_fatal_error(e.into());
             });
 
@@ -87,7 +87,7 @@ impl HandOff {
             .fmc_pub_key_y_dv_hdl
             .try_into()
             .unwrap_or_else(|e: CaliptraError| {
-                cprintln!("[fht] Invalid FMC ALias Public Key Y DV handle");
+                cprintln!("Invalid FMC ALias Public Key Y DV handle");
                 handle_fatal_error(e.into());
             });
 
@@ -119,17 +119,17 @@ impl HandOff {
             .fmc_priv_key_kv_hdl
             .try_into()
             .unwrap_or_else(|e: CaliptraError| {
-                cprintln!("[fht] Invalid FMC ALias Private Key KV handle");
+                cprintln!("Invalid FMC ALias Private Key KV handle");
                 handle_fatal_error(e.into())
             });
 
         match ds {
             KeyVaultSlot(key_id) => {
-                cprintln!("[fht] FMC Alias Private Key: {:?}", u32::from(key_id));
+                cprintln!("FMC Alias Private Key: {:?}", u32::from(key_id));
                 key_id
             }
             _ => {
-                cprintln!("[fht] Invalid KeySlot DV Entry");
+                cprintln!("Invalid KeySlot DV Entry");
                 handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into())
             }
         }
@@ -147,7 +147,7 @@ impl HandOff {
         match IccmAddr::<u32>::validate_addr(rt_entry_point) {
             Ok(_) => unsafe { transfer_control(rt_entry_point) },
             Err(e) => {
-                cprintln!("[fht] Invalid RT Entry Point");
+                cprintln!("Invalid RT Entry Point");
                 handle_fatal_error(e.into());
             }
         }
@@ -160,7 +160,7 @@ impl HandOff {
                 .rt_tci_dv_hdl
                 .try_into()
                 .unwrap_or_else(|e: CaliptraError| {
-                    cprintln!("[fht] Invalid TCI DV handle");
+                    cprintln!("Invalid TCI DV handle");
                     handle_fatal_error(e.into())
                 });
 
@@ -181,7 +181,7 @@ impl HandOff {
                 .rt_svn_dv_hdl
                 .try_into()
                 .unwrap_or_else(|e: CaliptraError| {
-                    cprintln!("[fht] Invalid RT SVN handle");
+                    cprintln!("Invalid RT SVN handle");
                     handle_fatal_error(e.into())
                 });
 
@@ -202,7 +202,7 @@ impl HandOff {
                 .rt_min_svn_dv_hdl
                 .try_into()
                 .unwrap_or_else(|e: CaliptraError| {
-                    cprintln!("[fht] Invalid RT Min SVN handle");
+                    cprintln!("Invalid RT Min SVN handle");
                     handle_fatal_error(e.into())
                 });
 
@@ -221,7 +221,7 @@ impl HandOff {
                 .rt_min_svn_dv_hdl
                 .try_into()
                 .unwrap_or_else(|e: CaliptraError| {
-                    cprintln!("[fht] Invalid RT Min SVN handle");
+                    cprintln!("Invalid RT Min SVN handle");
                     handle_fatal_error(e.into())
                 });
 
@@ -253,7 +253,7 @@ impl HandOff {
             .rt_fw_entry_point_hdl
             .try_into()
             .unwrap_or_else(|e: CaliptraError| {
-                cprintln!("[fht] Invalid runtime entry point DV handle");
+                cprintln!("Invalid runtime entry point DV handle");
                 handle_fatal_error(e.into());
             });
         // The data store is either a warm reset entry or a cold reset entry.
