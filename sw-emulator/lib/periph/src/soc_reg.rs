@@ -1260,7 +1260,7 @@ mod tests {
         ];
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mut mailbox = MailboxInternal::new(mailbox_ram);
+        let mut mailbox = MailboxInternal::new(&clock, mailbox_ram);
         let mut log_dir = PathBuf::new();
         log_dir.push("/tmp");
         let args = CaliptraRootBusArgs::default();
@@ -1322,7 +1322,7 @@ mod tests {
         ];
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mut mailbox = MailboxInternal::new(mailbox_ram);
+        let mut mailbox = MailboxInternal::new(&clock, mailbox_ram);
         let mut log_dir = PathBuf::new();
         log_dir.push("/tmp");
         let args = CaliptraRootBusArgs::default();
@@ -1382,7 +1382,7 @@ mod tests {
 
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mailbox = MailboxInternal::new(mailbox_ram);
+        let mailbox = MailboxInternal::new(&clock, mailbox_ram);
         let args = CaliptraRootBusArgs {
             tb_services_cb: TbServicesCb::new(move |ch| output2.borrow_mut().push(ch)),
             ..Default::default()
@@ -1405,7 +1405,7 @@ mod tests {
         let clock = Clock::new();
         let soc = SocRegistersInternal::new(
             &clock,
-            MailboxInternal::new(MailboxRam::new()),
+            MailboxInternal::new(&clock, MailboxRam::new()),
             Iccm::new(&clock),
             CaliptraRootBusArgs {
                 security_state: *SecurityState::default().set_debug_locked(false),
@@ -1424,7 +1424,7 @@ mod tests {
         let clock = Clock::new();
         let soc = SocRegistersInternal::new(
             &clock,
-            MailboxInternal::new(MailboxRam::new()),
+            MailboxInternal::new(&clock, MailboxRam::new()),
             Iccm::new(&clock),
             CaliptraRootBusArgs {
                 security_state: *SecurityState::default().set_debug_locked(true),
@@ -1450,7 +1450,7 @@ mod tests {
     fn test_wdt() {
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mailbox = MailboxInternal::new(mailbox_ram);
+        let mailbox = MailboxInternal::new(&clock, mailbox_ram);
 
         let mut soc_reg: SocRegistersInternal = SocRegistersInternal::new(
             &clock,

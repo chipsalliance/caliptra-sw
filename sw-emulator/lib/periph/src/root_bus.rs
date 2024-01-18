@@ -304,7 +304,7 @@ impl CaliptraRootBus {
     pub fn new(clock: &Clock, mut args: CaliptraRootBusArgs) -> Self {
         let mut key_vault = KeyVault::new();
         let mailbox_ram = MailboxRam::new();
-        let mailbox = MailboxInternal::new(mailbox_ram.clone());
+        let mailbox = MailboxInternal::new(clock, mailbox_ram.clone());
         let rom = Rom::new(std::mem::take(&mut args.rom));
         let iccm = Iccm::new(clock);
         let pic = Pic::new();
