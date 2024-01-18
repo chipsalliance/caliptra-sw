@@ -298,7 +298,7 @@ FMC locks its PCR registers before handing control to RT firmware so that they m
 
 ## FMC Boot Flow
 
-The following list of steps are to be performed by FMC on each boot when ROM jumps to its entry point. Any failures are considered fatal.
+The following list of steps are to be performed by FMC on each boot when ROM jumps to its entry point:
 
 1. FMC locates the Firmware Handoff Table (FHT) responsible for passing vital configuration and other data from one firmware layer to the next. This is found
    at well-known address CALIPTRA_FHT_ADDR.
