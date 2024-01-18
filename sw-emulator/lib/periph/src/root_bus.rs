@@ -309,7 +309,7 @@ impl CaliptraRootBus {
         let iccm = Iccm::new(clock);
         let pic = Pic::new();
         let itrng_nibbles = args.itrng_nibbles.take();
-        let soc_reg = SocRegistersInternal::new(clock, mailbox.clone(), iccm.clone(), args);
+        let soc_reg = SocRegistersInternal::new(clock, mailbox.clone(), iccm.clone(), &pic, args);
         if !soc_reg.is_debug_locked() {
             // When debug is possible, the key-vault is initialized with a debug value...
             // This is necessary to match the behavior of the RTL.

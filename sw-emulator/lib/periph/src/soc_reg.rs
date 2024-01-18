@@ -20,6 +20,7 @@ use caliptra_emu_bus::{
     ActionHandle, Bus, BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Register, Timer,
     TimerAction,
 };
+use caliptra_emu_cpu::{IntSource, Irq, Pic};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::EtrngResponse;
@@ -322,11 +323,12 @@ impl SocRegistersInternal {
         clock: &Clock,
         mailbox: MailboxInternal,
         iccm: Iccm,
+        pic: &Pic,
         args: CaliptraRootBusArgs,
     ) -> Self {
         Self {
             regs: Rc::new(RefCell::new(SocRegistersImpl::new(
-                clock, mailbox, iccm, args,
+                clock, mailbox, iccm, pic, args,
             ))),
         }
     }
@@ -419,12 +421,12 @@ impl Bus for SocRegistersInternal {
         if regs.global_intr_en_r.reg.is_set(GlobalIntrEn::ERROR_EN)
             && regs.error_intr_en_r.reg.get() & regs.error_internal_intr_r.reg.get() != 0
         {
-            // TODO hook up IRQ
+            regs.err_irq.set_level(true);
         }
         if regs.global_intr_en_r.reg.is_set(GlobalIntrEn::NOTIF_EN)
             && regs.notif_intr_en_r.reg.get() & regs.notif_internal_intr_r.reg.get() != 0
         {
-            // TODO hook up IRQ
+            regs.notif_irq.set_level(true);
         }
     }
 
@@ -717,6 +719,10 @@ struct SocRegistersImpl {
     /// Timer
     timer: Timer,
 
+    err_irq: Irq,
+
+    notif_irq: Irq,
+
     /// Firmware Write Complete action
     op_fw_write_complete_action: Option<ActionHandle>,
     #[allow(clippy::type_complexity)]
@@ -774,6 +780,7 @@ impl SocRegistersImpl {
         clock: &Clock,
         mailbox: MailboxInternal,
         iccm: Iccm,
+        pic: &Pic,
         mut args: CaliptraRootBusArgs,
     ) -> Self {
         let flow_status = InMemoryRegister::<u32, FlowStatus::Register>::new(0);
@@ -839,6 +846,8 @@ impl SocRegistersImpl {
             mailbox,
             iccm,
             timer: Timer::new(clock),
+            err_irq: pic.register_irq(IntSource::SocIfcErr.into()),
+            notif_irq: pic.register_irq(IntSource::SocIfcNotif.into()),
             op_fw_write_complete_action: None,
             op_fw_write_complete_cb: None,
             op_fw_read_complete_action: None,
@@ -1383,6 +1392,7 @@ mod tests {
             0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
             0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
         ];
+        let pic = Pic::new();
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
         let mut mailbox = MailboxInternal::new(&clock, mailbox_ram);
@@ -1391,7 +1401,7 @@ mod tests {
         let args = CaliptraRootBusArgs::default();
         let args = CaliptraRootBusArgs { log_dir, ..args };
         let mut soc_reg: SocRegistersInternal =
-            SocRegistersInternal::new(&clock, mailbox.clone(), Iccm::new(&clock), args);
+            SocRegistersInternal::new(&clock, mailbox.clone(), Iccm::new(&clock), &pic, args);
 
         soc_reg
             .write(RvSize::Word, CPTRA_DBG_MANUF_SERVICE_REG_START, 1)
@@ -1445,6 +1455,7 @@ mod tests {
             0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
             0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
         ];
+        let pic = Pic::new();
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
         let mut mailbox = MailboxInternal::new(&clock, mailbox_ram);
@@ -1453,7 +1464,7 @@ mod tests {
         let args = CaliptraRootBusArgs::default();
         let args = CaliptraRootBusArgs { log_dir, ..args };
         let mut soc_reg: SocRegistersInternal =
-            SocRegistersInternal::new(&clock, mailbox.clone(), Iccm::new(&clock), args);
+            SocRegistersInternal::new(&clock, mailbox.clone(), Iccm::new(&clock), &pic, args);
         soc_reg
             .write(RvSize::Word, CPTRA_DBG_MANUF_SERVICE_REG_START, 2)
             .unwrap();
@@ -1505,6 +1516,7 @@ mod tests {
         let output = Rc::new(RefCell::new(vec![]));
         let output2 = output.clone();
 
+        let pic = Pic::new();
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
         let mailbox = MailboxInternal::new(&clock, mailbox_ram);
@@ -1513,7 +1525,7 @@ mod tests {
             ..Default::default()
         };
         let mut soc_reg: SocRegistersInternal =
-            SocRegistersInternal::new(&clock, mailbox, Iccm::new(&clock), args);
+            SocRegistersInternal::new(&clock, mailbox, Iccm::new(&clock), &pic, args);
 
         let _ = soc_reg.write(RvSize::Word, CPTRA_GENERIC_OUTPUT_WIRES_START, b'h'.into());
 
@@ -1527,11 +1539,13 @@ mod tests {
     #[test]
     fn test_secrets_when_debug_not_locked() {
         use caliptra_hw_model_types::SecurityState;
+        let pic = Pic::new();
         let clock = Clock::new();
         let soc = SocRegistersInternal::new(
             &clock,
             MailboxInternal::new(&clock, MailboxRam::new()),
             Iccm::new(&clock),
+            &pic,
             CaliptraRootBusArgs {
                 security_state: *SecurityState::default().set_debug_locked(false),
                 ..CaliptraRootBusArgs::default()
@@ -1546,11 +1560,13 @@ mod tests {
     #[test]
     fn test_secrets_when_debug_locked() {
         use caliptra_hw_model_types::SecurityState;
+        let pic = Pic::new();
         let clock = Clock::new();
         let soc = SocRegistersInternal::new(
             &clock,
             MailboxInternal::new(&clock, MailboxRam::new()),
             Iccm::new(&clock),
+            &pic,
             CaliptraRootBusArgs {
                 security_state: *SecurityState::default().set_debug_locked(true),
                 ..CaliptraRootBusArgs::default()
@@ -1573,6 +1589,7 @@ mod tests {
 
     #[test]
     fn test_wdt() {
+        let pic = Pic::new();
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
         let mailbox = MailboxInternal::new(&clock, mailbox_ram);
@@ -1581,6 +1598,7 @@ mod tests {
             &clock,
             mailbox,
             Iccm::new(&clock),
+            &pic,
             CaliptraRootBusArgs::default(),
         );
         soc_reg
