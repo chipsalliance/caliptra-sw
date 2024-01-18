@@ -23,7 +23,7 @@ fi
 if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   (rm -rf out/rootfs || true)
   mkdir -p out/rootfs
-  debootstrap --include git,curl,ca-certificates,locales,libicu72,sudo,vmtouch,fping,rdnssd --arch arm64 --foreign bookworm out/rootfs
+  debootstrap --include git,curl,ca-certificates,locales,libicu72,sudo,vmtouch,fping,rdnssd,dbus,systemd-timesyncd --arch arm64 --foreign bookworm out/rootfs
   chroot out/rootfs /debootstrap/debootstrap --second-stage
   chroot out/rootfs useradd runner --shell /bin/bash --create-home
 
@@ -42,8 +42,10 @@ if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   chroot out/rootfs bash -c 'echo iface end0 inet6 auto >> /etc/network/interfaces'
   chroot out/rootfs bash -c 'echo nameserver 2001:4860:4860::6464 > /etc/resolv.conf'
   chroot out/rootfs bash -c 'echo nameserver 2001:4860:4860::64 >> /etc/resolv.conf'
-  chroot out/rootfs bash -c 'echo kernel.softlockup_panic = 60 >> /etc/sysctl.conf'
+  chroot out/rootfs bash -c 'echo kernel.softlockup_panic = 1 >> /etc/sysctl.conf'
   chroot out/rootfs bash -c 'echo kernel.sysrq = 1 >> /etc/sysctl.conf'
+  chroot out/rootfs bash -c 'echo "[Time]" > /etc/systemd/timesyncd.conf'
+  chroot out/rootfs bash -c 'echo "NTP=time.google.com" >> /etc/systemd/timesyncd.conf'
 
   # Comment this line out if you don't trust folks with physical access to the
   # uart
