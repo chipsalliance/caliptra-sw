@@ -85,6 +85,7 @@ struct caliptra_model* hwmod_get_or_init(void)
             .rom = read_file_or_exit(rom_path),
             .dccm = {.data = NULL, .len = 0},
             .iccm = {.data = NULL, .len = 0},
+            .security_state = CALIPTRA_SEC_STATE_DBG_LOCKED_MANUFACTURING,
         };
 
         int status = caliptra_model_init_default(init_params, &model);

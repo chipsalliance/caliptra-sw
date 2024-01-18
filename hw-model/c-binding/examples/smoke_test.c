@@ -81,6 +81,7 @@ int main(int argc, char *argv[])
       .rom = read_file_or_die(rom_path),
       .dccm = {.data = NULL, .len = 0},
       .iccm = {.data = NULL, .len = 0},
+      .security_state = CALIPTRA_SEC_STATE_DBG_UNLOCKED_UNPROVISIONED,
     };
 
     // Initialize Model
