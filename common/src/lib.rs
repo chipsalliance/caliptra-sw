@@ -19,8 +19,8 @@ pub mod wdt;
 
 ///merge imports
 pub use hand_off::{
-    DataStore, DataVaultRegister, FirmwareHandoffTable, HandOffDataHandle, Vault,
-    FHT_INVALID_HANDLE, FHT_MARKER,
+    report_handoff_error_and_halt, DataStore, DataVaultRegister, FirmwareHandoffTable,
+    HandOffDataHandle, Vault, FHT_INVALID_HANDLE, FHT_MARKER,
 };
 
 pub use boot_status::RomBootStatus;
