@@ -53,7 +53,7 @@ jobs:
       - name: Install sccache
         if: steps.sccache_bin_restore.outputs.cache-hit != 'true'
         run: |
-          cargo install sccache --version ${SCCACHE_VERSION} --no-default-features --features=gha
+          cargo install sccache --version ${SCCACHE_VERSION} --no-default-features --features=gha --locked
 
       # Save the sccache binary immediately so we can reuse it in future runs
       # even if the rest of the current run fails.

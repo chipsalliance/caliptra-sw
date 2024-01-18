@@ -359,7 +359,6 @@ jobs:
         run: |
           # We don't have enough DRAM on the FPGA board to extract a tarball
           # into the overlaid tmpfs, so use squashfs instead
-          find /tmp/ -exec ls -lh "{}" \;
           echo mkdir
           sudo mkdir /tmp/caliptra-test-binaries
           echo mount squashfs
@@ -369,7 +368,6 @@ jobs:
       - name: Load FPGA Bitstream
         run: |
           # sha256sum /tmp/caliptra-fpga/caliptra_fpga.bin
-          find /tmp/ -exec ls -lh "{}" \;
 
           sudo mkdir -p /lib/firmware
           sudo cp /tmp/caliptra-fpga-bitstream/caliptra_fpga.bin /lib/firmware/caliptra_fpga.bin
