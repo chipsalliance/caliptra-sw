@@ -10,6 +10,9 @@ jobs:
   rtl-repo-sync:
     name: RTL Repo Sync
     uses: ./.github/workflows/rtl-repo-sync.yml
+    permissions:
+      contents: write
+      pull-requests: write
 
   find-latest-release:
     name: Find Latest Release
