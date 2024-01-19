@@ -24,7 +24,7 @@ hw-latest/fpga/vivado*.jou
 hw-latest/fpga/vivado*.log
 
 # Files created during release process
-release/
+/release/
 
 # libcaliptra build artifacts
 libcaliptra/libcaliptra.a

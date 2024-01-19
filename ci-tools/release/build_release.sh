@@ -3,7 +3,15 @@
 
 set -euo pipefail
 
+# Check arg count
+if [ $# -ne 1 ]
+  then
+    echo "Usage: build_relesea.sh <release_name>"
+	exit -1
+fi
+
 WORKSPACE_DIR="release/workspace"
+release_scripts_path=$(dirname "$0")
 # Generate Release Folder
 rm -rf release
 mkdir -p $WORKSPACE_DIR
@@ -39,11 +47,26 @@ cp -rf libcaliptra $WORKSPACE_DIR/libcaliptra
 # Copy FPGA Model
 cp -rf hw-latest/fpga $WORKSPACE_DIR/fpga
 
+# Calculate RTL hash
+# Generate file list (excluding files integrators will modify)
+$release_scripts_path/tools/generate_rtl_file_list.sh $WORKSPACE_DIR/caliptra-rtl $WORKSPACE_DIR/rtl_hash_file_list.txt
+# Calculate hash
+if ! rtl_hash=$($release_scripts_path/tools/rtl_hash.sh $WORKSPACE_DIR/caliptra-rtl/src $WORKSPACE_DIR/rtl_hash_file_list.txt); then
+    echo "Failed to generate RTL hash"
+    # Dump output from the failure
+    echo "$rtl_hash"
+    exit -1
+fi
+echo "RTL hash is $rtl_hash"
+# Include hash tool with release
+cp $release_scripts_path/tools/rtl_hash.sh $WORKSPACE_DIR/
+
 # Generate Notes
 echo -e "Caliptra HW Release Note " > $WORKSPACE_DIR/release_notes.txt
 echo -e "Nightly $1" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "Caliptra-RTL Rev: $(git rev-parse HEAD:hw-latest/caliptra-rtl)" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "Caliptra-SW Rev: $(git rev-parse HEAD)" >> $WORKSPACE_DIR/release_notes.txt
+echo -e "RTL hash (see rtl_hash.sh): $rtl_hash" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "Content:" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tRTL: caliptra-rtl/" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tROM Bin: caliptra-rom.bin" >> $WORKSPACE_DIR/release_notes.txt
@@ -58,6 +81,8 @@ echo -e "\tFake FMC ELF: fake-caliptra-fmc.elf" >> $WORKSPACE_DIR/release_notes.
 echo -e "\tFake RTFW ELF: fake-caliptra-runtime.elf" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tLIBCaliptra: libcaliptra/" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "\tFPGA Model: fpga/" >> $WORKSPACE_DIR/release_notes.txt
+echo -e "\tRTL hash tool: rtl_hash.sh" >> $WORKSPACE_DIR/release_notes.txt
+echo -e "\tRTL hash file list: rtl_hash_file_list.txt" >> $WORKSPACE_DIR/release_notes.txt
 
 # Generate Zip
 cd ./release/workspace
