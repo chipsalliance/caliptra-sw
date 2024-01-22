@@ -1,45 +1,24 @@
-# JTAG adapter setup
+adapter driver sysfsgpio
 adapter speed 1000
 
+# Find the gpiochip labeled with "zynqmp_gpio" and get the number
+regexp {.*gpiochip(\d*)/.*} [exec grep zynqmp_gpio {*}[glob /sys/class/gpio/*/label]] trash gpionum
+
+# Define pin numbers for sysfsgpio
+# EMIO pins start at 78
+sysfsgpio tck_num [expr {$gpionum + 78}]
+sysfsgpio tdi_num [expr {$gpionum + 79}]
+sysfsgpio tms_num [expr {$gpionum + 80}]
+sysfsgpio trst_num [expr {$gpionum + 81}]
+sysfsgpio tdo_num [expr {$gpionum + 82}]
+
+transport select jtag
+
+reset_config srst_only
+reset_config srst_nogate
+reset_config connect_assert_srst
+
 set chain_length 5
-
-
-if { [ info exists protocol ] == 0 } {
-  # If not specified on the cmd line, default to jtag
-  set protocol jtag
-}
-
-if { [ info exists connection ] == 0 } {
-  # If not specified on the cmd line, default to probe
-  set connection probe
-}
-
-set debug_config "${protocol}_${connection}"
-# Bring in the correct configuration script for the specified debug config
-switch ${debug_config} {
-  jtag_probe {
-    echo "Using JTAG"
-    source [find interface/ftdi/olimex-arm-usb-tiny-h.cfg]
-    set chain_length 5
-  }
-  cjtag_probe {
-    echo "Using cJTAG"
-    source [find interface/ftdi/olimex-arm-jtag-cjtag.cfg]
-  }
-  jtag_tunnel {
-    echo "Using JTAG tunnel"
-    source [find interface/ftdi/arty-onboard-ftdi.cfg]
-    set chain_length 6
-  }
-  cjtag_tunnel {
-    error "Configuration not implemented in this release: ${debug_config}"
-  }
-  default {
-    error "Unknown configuration specified: ${debug_config}"
-  }
-}
-
-
 set _CHIPNAME riscv
 jtag newtap $_CHIPNAME cpu -irlen $chain_length
 
@@ -49,30 +28,16 @@ target create $_TARGETNAME_0 riscv -chain-position $_TARGETNAME_0
   
 $_TARGETNAME_0 configure -work-area-phys 0 -work-area-size 0x8000 -work-area-backup 1
 
-if { $chain_length == 6 } {
-  riscv use_bscan_tunnel 5
-}
+# Define custom VEER CSRs. This syntax is for OpenOCD 0.11.0
+# reg csrxxx
+$_TARGETNAME_0 riscv expose_csrs 1984,1986
+$_TARGETNAME_0 riscv expose_csrs 1992,1993,1994,1995
+$_TARGETNAME_0 riscv expose_csrs 2032
+$_TARGETNAME_0 riscv expose_csrs 2041
+$_TARGETNAME_0 riscv expose_csrs 2047
+$_TARGETNAME_0 riscv expose_csrs 4032
 
-# Custom VEER registers.
-# reg csr_xxx
-$_TARGETNAME_0 riscv expose_csrs 1984=mrac 1986=mcpc
-$_TARGETNAME_0 riscv expose_csrs 1992=dicawics 1993=dicad0 1994=dicad1 1995=dicago
-$_TARGETNAME_0 riscv expose_csrs 2032=micect
-$_TARGETNAME_0 riscv expose_csrs 2041=mfdc
-$_TARGETNAME_0 riscv expose_csrs 2047=mscause
-$_TARGETNAME_0 riscv expose_csrs 4032=mdseac
-
+gdb_report_data_abort enable
 
 init
-if { [info exists authkey] } {
-  riscv authdata_write $authkey
-}
-
-if {[ info exists pulse_srst]} {
-  ftdi_set_signal nSRST 0
-  ftdi_set_signal nSRST z
-  sleep 1500
-}
 halt
-
-echo "Ready for Remote Connections"

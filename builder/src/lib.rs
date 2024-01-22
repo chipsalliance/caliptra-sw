@@ -106,6 +106,22 @@ impl FwId<'_> {
     }
 }
 
+pub fn get_elf_path(id: &FwId) -> Option<PathBuf> {
+    const TARGET: &str = "riscv32imc-unknown-none-elf";
+    const PROFILE: &str = "firmware";
+
+    if let Some(prebuilt_dir) = std::env::var_os("CALIPTRA_PREBUILT_FW_DIR") {
+        Some(PathBuf::from(prebuilt_dir).join(id.elf_filename()))
+    } else {
+        let target_dir = if let Some(dir) = std::env::var_os("CARGO_TARGET_DIR") {
+            PathBuf::from(dir)
+        } else {
+            Path::new(THIS_WORKSPACE_DIR).join("target")
+        };
+        Some(target_dir.join(TARGET).join(PROFILE).join(id.bin_name))
+    }
+}
+
 /// Calls out to Cargo to build a firmware elf file. `workspace_dir` is the
 /// workspace dir to build from; defaults to this workspace. `id` is the id of
 /// the firmware to build. The result is the raw elf bytes.

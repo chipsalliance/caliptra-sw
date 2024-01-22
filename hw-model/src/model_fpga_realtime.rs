@@ -1,6 +1,8 @@
 // Licensed under the Apache-2.0 license
 
+use std::io::{BufRead, BufReader, Write};
 use std::marker::PhantomData;
+use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -11,7 +13,6 @@ use caliptra_emu_bus::{Bus, BusError, BusMmio};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use libc;
 use nix;
-use std::io::Write;
 use std::time::{self, Duration, Instant};
 use uio::{UioDevice, UioError};
 
@@ -101,6 +102,7 @@ pub struct ModelFpgaRealtime {
     realtime_thread_exit_flag: Arc<AtomicBool>,
 
     trng_mode: TrngMode,
+    openocd: Option<Child>,
 }
 
 impl ModelFpgaRealtime {
@@ -188,6 +190,7 @@ impl ModelFpgaRealtime {
             thread::sleep(Duration::from_millis(1));
         }
     }
+
     fn is_ready_for_fuses(&self) -> bool {
         unsafe {
             GpioInput(
@@ -357,6 +360,8 @@ impl HwModel for ModelFpgaRealtime {
             realtime_thread_exit_flag,
 
             trng_mode: desired_trng_mode,
+
+            openocd: None,
         };
 
         writeln!(m.output().logger(), "new_unbooted")?;
@@ -471,6 +476,33 @@ impl HwModel for ModelFpgaRealtime {
                 .write_volatile(pauser);
         }
     }
+
+    fn launch_openocd(&mut self) {
+        let mut openocd = Command::new("sudo")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .arg("openocd")
+            .arg("--command")
+            .arg(include_str!("../../hw-latest/fpga/openocd_caliptra.txt"))
+            .spawn()
+            .unwrap();
+
+        let mut child_err = BufReader::new(openocd.stderr.as_mut().unwrap());
+        let mut output = String::new();
+        loop {
+            if 0 == child_err.read_line(&mut output).unwrap() {
+                panic!("openocd log returned EOF. Log: {output}");
+            }
+            if output.contains("Listening on port 4444 for telnet connections") {
+                break;
+            }
+        }
+        if !output.contains("Open On-Chip Debugger 0.12.0") {
+            panic!("Requires openocd 0.12.0");
+        }
+
+        self.openocd = Some(openocd);
+    }
 }
 impl Drop for ModelFpgaRealtime {
     fn drop(&mut self) {
@@ -485,6 +517,12 @@ impl Drop for ModelFpgaRealtime {
         // Unmap UIO memory space so that the file lock is released
         self.unmap_mapping(self.wrapper, FPGA_WRAPPER_MAPPING);
         self.unmap_mapping(self.mmio, CALIPTRA_MAPPING);
+
+        // Close openocd
+        match &mut self.openocd {
+            Some(ref mut cmd) => cmd.kill().expect("Failed to close openocd"),
+            _ => (),
+        }
     }
 }
 
