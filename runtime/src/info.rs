@@ -3,6 +3,7 @@
 use crate::{handoff::RtHandoff, Drivers};
 use caliptra_common::mailbox_api::{FwInfoResp, GetIdevInfoResp, MailboxResp, MailboxRespHeader};
 use caliptra_drivers::CaliptraResult;
+use caliptra_image_types::RomInfo;
 
 pub struct FwInfoCmd;
 impl FwInfoCmd {
@@ -17,6 +18,7 @@ impl FwInfoCmd {
         let runtime_svn = handoff.rt_svn()?;
         let min_runtime_svn = handoff.rt_min_svn()?;
         let fmc_manifest_svn = handoff.fmc_svn()?;
+        let rom_info = handoff.fht.rom_info_addr.get()?;
 
         Ok(MailboxResp::FwInfo(FwInfoResp {
             hdr: MailboxRespHeader::default(),
@@ -25,6 +27,12 @@ impl FwInfoCmd {
             min_runtime_svn,
             fmc_manifest_svn,
             attestation_disabled: drivers.attestation_disabled.into(),
+            rom_revision: rom_info.revision,
+            fmc_revision: pdata.manifest1.fmc.revision,
+            runtime_revision: pdata.manifest1.runtime.revision,
+            rom_sha256_digest: rom_info.sha256_digest,
+            fmc_sha384_digest: pdata.manifest1.fmc.digest,
+            runtime_sha384_digest: pdata.manifest1.runtime.digest,
         }))
     }
 }
