@@ -24,7 +24,7 @@ set -euo pipefail
 # Check arg count
 if [ $# -ne 2 ]
   then
-    echo "Usage: rtl_hash.sh <path_to_rtl_src_dir> <rtl_file_list>"
+    echo "Usage: $(basename $0) <path_to_rtl_src_dir> <rtl_file_list>"
 	exit -1
 fi
 

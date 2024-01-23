@@ -6,7 +6,7 @@ set -euo pipefail
 # Check arg count
 if [ $# -ne 1 ]
   then
-    echo "Usage: build_relesea.sh <release_name>"
+    echo "Usage: $(basename $0) <release_name>"
 	exit -1
 fi
 

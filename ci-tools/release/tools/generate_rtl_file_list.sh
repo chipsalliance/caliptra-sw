@@ -1,9 +1,6 @@
 #!/bin/bash
 # Licensed under the Apache-2.0 license
 
-# Exit and report failure if anything fails
-set -euo pipefail
-
 # Constants
 modify_table_title="Caliptra integrator custom RTL file list"
 integration_spec_relative_path="docs/CaliptraIntegrationSpecification.md"
@@ -11,7 +8,7 @@ integration_spec_relative_path="docs/CaliptraIntegrationSpecification.md"
 # Check arg count
 if [ $# -ne 2 ]
   then
-    echo "Usage: generate_rtl_file_list.sh <path_to_rtl> <output_file_list>"
+    echo "Usage: $(basename $0) <path_to_rtl> <output_file_list>"
 	exit -1
 fi
 
@@ -30,6 +27,18 @@ echo "Generating RTL hash file list"
 modify_file_table=$(cat "$integration_spec" | sed -n "/$modify_table_title/,/^# /p" | grep "|")
 # Extract the file names from the table
 exclude_list=$(echo "$modify_file_table" | grep -o -P '(?<=\]\(../src/)[^ ]*(?=\) *\|)')
+
+# Make sure we were able to get a couple files from the integration spec table
+# (arbitrarily decided to make sure we have at least 2)
+exclude_list_count=$(echo -n "$exclude_list" | grep -c '^')
+if [ $exclude_list_count -lt 2 ]
+  then
+    echo "$(basename $0): Error parsing integration spec for modify file list. Expected at least 2 files. Found $exclude_list_count"
+	exit -1
+fi
+
+# From this point on, exit and report failure if anything fails
+set -euo pipefail
 
 # Get all files of the right types within the RTL src (only .sv, .svh, .rdl, .v, and .vh files)
 file_list=$(find "$rtl_src_path" -type f -name *.sv -o -iname *.svh -o -name *.rdl -o -iname *.v -o -iname *.vh | sort)
