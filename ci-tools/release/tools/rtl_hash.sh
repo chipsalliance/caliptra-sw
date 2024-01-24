@@ -30,30 +30,28 @@ fi
 
 # Get args
 rtl_path=$1
-expected_file_list=$2
 
-# Read expected file list
-expected_file_list=$(cat $expected_file_list)
-# Prepend rtl path
-expected_file_list=$(echo "$expected_file_list" | sed "s@^@"$rtl_path"/@")
+# Read expected file list, prepend rtl path, and store in array
+IFS=$'\n' expected_file_list=($(cat "$2" | sed "s@^@""$rtl_path""/@"))
 
 # Make sure all files exist
 missing_files=0
-while read line; do
+for file in "${expected_file_list[@]}"
+do
 	# Check if the file is missing
-	if ! test -f $line; then
+	if ! test -f "$file"; then
 		# Report any missing files (and keep count)
 		if [ "$missing_files" -eq 0 ]; then
 			echo "Missing expected files: "
 		fi
 		missing_files=$(($missing_files + 1))
-		echo "  $line"
+		echo "  $file"
 	fi
-done < <(echo "$expected_file_list")
+done
 
 # Calculate the hash (only if no files were missing)
 if [ "$missing_files" -eq 0 ]; then
-	hash=$(cat $expected_file_list | sha1sum | tr -d "\n *-")
+	hash=$(cat "${expected_file_list[@]}" | sha1sum | tr -d "\n *-")
 	echo "$hash"
 else
 	echo "Failed to generate RTL hash"
