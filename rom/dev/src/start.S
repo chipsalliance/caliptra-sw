@@ -118,6 +118,20 @@ _start:
     la a1, DCCM_SIZE        // len 
     call _zero_mem256
 
+    li t0, 0x30020000  // MBOX_LOCK
+    lw t1, 0(t0)
+    bne t1, x0, mbox_already_locked
+
+    // Zero MBOX
+    la a0, MBOX_ORG         // dest
+    la a1, MBOX_SIZE        // len
+    call _zero_mem256
+
+    // Force unlock mailbox
+    li t0, 0x30020020  // MBOX_UNLOCK
+    li t1, 1
+    sw t1, 0(t0)
+
 post_ecc_init:
 
     // Copy Data Section    
@@ -132,6 +146,14 @@ post_ecc_init:
     // call _zero_mem32
 
     tail rom_entry
+
+mbox_already_locked:
+    li t0, 0x30030008  // CPTRA_FW_ERROR_FATAL
+    li t1, 0x01040021  // ROM_MAILBOX_LOCKED_AT_COLD_RESET
+    sw t1, 0(t0)
+1:
+    j 1b
+    j mbox_already_locked
 
     .cfi_endproc 
 
