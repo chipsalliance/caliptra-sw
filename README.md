@@ -7,7 +7,7 @@ This repository contains firmware, libraries, and tools related to the
 ## [rom](/rom/dev)
 
 "Read Only Memory", the code that is first executed when the chip is powered on.
-Normally the ROM is part of the silicon. 
+Normally the ROM is part of the silicon.
 
 ## [fmc](/fmc/)
 
