@@ -26,7 +26,7 @@ impl FwInfoCmd {
             runtime_svn,
             min_runtime_svn,
             fmc_manifest_svn,
-            attestation_disabled: drivers.attestation_disabled.into(),
+            attestation_disabled: pdata.attestation_disabled.get().into(),
             rom_revision: rom_info.revision,
             fmc_revision: pdata.manifest1.fmc.revision,
             runtime_revision: pdata.manifest1.runtime.revision,

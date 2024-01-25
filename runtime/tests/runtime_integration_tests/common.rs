@@ -5,7 +5,8 @@ use caliptra_builder::{
     FwId, ImageOptions,
 };
 use caliptra_common::mailbox_api::{
-    CommandId, GetFmcAliasCertResp, InvokeDpeReq, InvokeDpeResp, MailboxReq, MailboxReqHeader,
+    CommandId, GetFmcAliasCertResp, GetRtAliasCertResp, InvokeDpeReq, InvokeDpeResp, MailboxReq,
+    MailboxReqHeader,
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError};
@@ -232,4 +233,21 @@ pub fn get_fmc_alias_cert(model: &mut DefaultHwModel) -> GetFmcAliasCertResp {
     let mut fmc_resp = GetFmcAliasCertResp::default();
     fmc_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
     fmc_resp
+}
+
+pub fn get_rt_alias_cert(model: &mut DefaultHwModel) -> GetRtAliasCertResp {
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_RT_ALIAS_CERT),
+            &[],
+        ),
+    };
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::GET_RT_ALIAS_CERT), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+    assert!(resp.len() <= std::mem::size_of::<GetRtAliasCertResp>());
+    let mut rt_resp = GetRtAliasCertResp::default();
+    rt_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
+    rt_resp
 }
