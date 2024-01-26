@@ -37,14 +37,14 @@ fn test_wdt_activation_and_stoppage() {
     if cfg!(feature = "fpga_realtime") {
         // timer1_restart is only high for a few cycles; the realtime model
         // timing is too imprecise that sort of check.
-        hw.step_until(|m| m.ready_for_fw());
+        hw.step_until(|m| m.ready_for_fw() && m.soc_ifc().cptra_wdt_timer1_en().read().timer1_en());
     } else {
         // Ensure we are starting to count from zero.
         hw.step_until(|m| m.soc_ifc().cptra_wdt_timer1_ctrl().read().timer1_restart());
-    }
 
-    // Make sure the wdt1 timer is enabled.
-    assert!(hw.soc_ifc().cptra_wdt_timer1_en().read().timer1_en());
+        // Make sure the wdt1 timer is enabled.
+        assert!(hw.soc_ifc().cptra_wdt_timer1_en().read().timer1_en());
+    }
 
     // Upload the FW once ROM is at the right point
     hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
