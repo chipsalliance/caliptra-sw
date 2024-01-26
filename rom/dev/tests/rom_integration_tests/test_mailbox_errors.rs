@@ -16,6 +16,7 @@ const MAX_WAIT_CYCLES: u32 = 30_000_000;
 fn test_unknown_command_is_fatal() {
     let (mut hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    hw.step_until(|hw| hw.soc_ifc().cptra_flow_status().read().ready_for_fw());
 
     // This command does not exist
     assert_eq!(
@@ -58,6 +59,7 @@ fn test_mailbox_command_aborted_after_handle_fatal_error() {
 fn test_mailbox_invalid_checksum() {
     let (mut hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    hw.step_until(|hw| hw.ready_for_fw());
 
     // Upload measurement.
     let payload = StashMeasurementReq {
@@ -94,6 +96,7 @@ fn test_mailbox_invalid_checksum() {
 fn test_mailbox_invalid_req_size_large() {
     let (mut hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    hw.step_until(|hw| hw.ready_for_fw());
 
     // Upload measurement.
     let payload = StashMeasurementReq {
@@ -117,6 +120,7 @@ fn test_mailbox_invalid_req_size_large() {
 fn test_mailbox_invalid_req_size_small() {
     let (mut hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    hw.step_until(|hw| hw.ready_for_fw());
 
     // Upload measurement.
     let payload = StashMeasurementReq {
@@ -143,6 +147,7 @@ fn test_mailbox_invalid_req_size_small() {
 fn test_mailbox_invalid_req_size_zero() {
     let (mut hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    hw.step_until(|hw| hw.ready_for_fw());
 
     assert_eq!(
         hw.mailbox_execute(CommandId::CAPABILITIES.into(), &[]),

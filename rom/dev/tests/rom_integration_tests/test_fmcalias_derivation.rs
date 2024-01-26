@@ -57,6 +57,7 @@ fn test_firmware_gt_max_size() {
 
     let (mut hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    hw.step_until(|hw| hw.ready_for_fw());
 
     // Manually put the oversize data in the mailbox because
     // HwModel::upload_firmware won't let us.
