@@ -32,7 +32,7 @@ use dpe::tci::TciMeasurement;
 use dpe::validation::DpeValidator;
 use dpe::MAX_HANDLES;
 use dpe::{
-    commands::{CommandExecution, DeriveChildCmd, DeriveChildFlags},
+    commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
     dpe_instance::{DpeEnv, DpeInstance, DpeTypes},
     support::Support,
@@ -344,22 +344,22 @@ impl Drivers {
         )
         .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
 
-        // Call DeriveChild to create a measurement for the mailbox valid pausers and change locality to the pl0 pauser locality
-        let derive_child_resp = DeriveChildCmd {
+        // Call DeriveContext to create a measurement for the mailbox valid pausers and change locality to the pl0 pauser locality
+        let derive_context_resp = DeriveContextCmd {
             handle: ContextHandle::default(),
             data: valid_pauser_hash
                 .as_bytes()
                 .try_into()
                 .map_err(|_| CaliptraError::RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED)?,
-            flags: DeriveChildFlags::MAKE_DEFAULT
-                | DeriveChildFlags::CHANGE_LOCALITY
-                | DeriveChildFlags::INPUT_ALLOW_CA
-                | DeriveChildFlags::INPUT_ALLOW_X509,
+            flags: DeriveContextFlags::MAKE_DEFAULT
+                | DeriveContextFlags::CHANGE_LOCALITY
+                | DeriveContextFlags::INPUT_ALLOW_CA
+                | DeriveContextFlags::INPUT_ALLOW_X509,
             tci_type: u32::from_be_bytes(*b"MBVP"),
             target_locality: pl0_pauser_locality,
         }
         .execute(&mut dpe, &mut env, caliptra_locality);
-        if let Err(e) = derive_child_resp {
+        if let Err(e) = derive_context_resp {
             // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
             if let Some(ext_err) = e.get_error_detail() {
                 drivers.soc_ifc.set_fw_extended_error(ext_err);
@@ -367,7 +367,7 @@ impl Drivers {
             Err(CaliptraError::RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED)?
         }
 
-        // Call DeriveChild to create TCIs for each measurement added in ROM
+        // Call DeriveContext to create TCIs for each measurement added in ROM
         let num_measurements = drivers.persistent_data.get().fht.meas_log_index as usize;
         let measurement_log = drivers.persistent_data.get().measurement_log;
         for measurement_log_entry in measurement_log.iter().take(num_measurements) {
@@ -385,20 +385,20 @@ impl Drivers {
 
             let measurement_data = measurement_log_entry.pcr_entry.measured_data();
             let tci_type = u32::from_be_bytes(measurement_log_entry.metadata);
-            let derive_child_resp = DeriveChildCmd {
+            let derive_context_resp = DeriveContextCmd {
                 handle: ContextHandle::default(),
                 data: measurement_data
                     .try_into()
                     .map_err(|_| CaliptraError::RUNTIME_ADD_ROM_MEASUREMENTS_TO_DPE_FAILED)?,
-                flags: DeriveChildFlags::MAKE_DEFAULT
-                    | DeriveChildFlags::CHANGE_LOCALITY
-                    | DeriveChildFlags::INPUT_ALLOW_CA
-                    | DeriveChildFlags::INPUT_ALLOW_X509,
+                flags: DeriveContextFlags::MAKE_DEFAULT
+                    | DeriveContextFlags::CHANGE_LOCALITY
+                    | DeriveContextFlags::INPUT_ALLOW_CA
+                    | DeriveContextFlags::INPUT_ALLOW_X509,
                 tci_type,
                 target_locality: pl0_pauser_locality,
             }
             .execute(&mut dpe, &mut env, pl0_pauser_locality);
-            if let Err(e) = derive_child_resp {
+            if let Err(e) = derive_context_resp {
                 // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
                 if let Some(ext_err) = e.get_error_detail() {
                     drivers.soc_ifc.set_fw_extended_error(ext_err);
