@@ -14,7 +14,7 @@ use caliptra_runtime::{
 };
 use dpe::{
     commands::{
-        CertifyKeyCmd, CertifyKeyFlags, Command, DeriveChildCmd, DeriveChildFlags, InitCtxCmd,
+        CertifyKeyCmd, CertifyKeyFlags, Command, DeriveContextCmd, DeriveContextFlags, InitCtxCmd,
         RotateCtxCmd, RotateCtxFlags,
     },
     context::ContextHandle,
@@ -28,7 +28,7 @@ use crate::common::{assert_error, execute_dpe_cmd, run_rt_test, DpeResult, TEST_
 const DATA: [u8; DPE_PROFILE.get_hash_size()] = [0u8; 48];
 
 #[test]
-fn test_pl0_derive_child_dpe_context_thresholds() {
+fn test_pl0_derive_context_dpe_context_thresholds() {
     let mut model = run_rt_test(None, None, None);
 
     model.step_until(|m| {
@@ -51,25 +51,25 @@ fn test_pl0_derive_child_dpe_context_thresholds() {
     };
     let mut handle = rotate_ctx_resp.handle;
 
-    // Call DeriveChild with PL0 enough times to breach the threshold on the last iteration.
+    // Call DeriveContext with PL0 enough times to breach the threshold on the last iteration.
     // Note that this loop runs exactly PL0_DPE_ACTIVE_CONTEXT_THRESHOLD times. When we initialize
     // DPE, we measure mailbox valid pausers in pl0_pauser's locality. Thus, we can call derive child
     // from PL0 exactly 7 times, and the last iteration of this loop, is expected to throw a threshold breached error.
     let num_iterations = PL0_DPE_ACTIVE_CONTEXT_THRESHOLD;
     for i in 0..num_iterations {
-        let derive_child_cmd = DeriveChildCmd {
+        let derive_context_cmd = DeriveContextCmd {
             handle,
             data: DATA,
-            flags: DeriveChildFlags::RETAIN_PARENT,
+            flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT,
             tci_type: 0,
             target_locality: 0,
         };
 
-        // If we are on the last call to DeriveChild, expect that we get a PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED error.
+        // If we are on the last call to DeriveContext, expect that we get a PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED error.
         if i == num_iterations - 1 {
             let resp = execute_dpe_cmd(
                 &mut model,
-                &mut Command::DeriveChild(derive_child_cmd),
+                &mut Command::DeriveContext(derive_context_cmd),
                 DpeResult::MboxCmdFailure(
                     caliptra_drivers::CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED,
                 ),
@@ -80,18 +80,18 @@ fn test_pl0_derive_child_dpe_context_thresholds() {
 
         let resp = execute_dpe_cmd(
             &mut model,
-            &mut Command::DeriveChild(derive_child_cmd),
+            &mut Command::DeriveContext(derive_context_cmd),
             DpeResult::Success,
         );
-        let Some(Response::DeriveChild(derive_child_resp)) = resp else {
+        let Some(Response::DeriveContext(derive_context_resp)) = resp else {
             panic!("Wrong response type!");
         };
-        handle = derive_child_resp.handle;
+        handle = derive_context_resp.handle;
     }
 }
 
 #[test]
-fn test_pl1_derive_child_dpe_context_thresholds() {
+fn test_pl1_derive_context_dpe_context_thresholds() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
 
@@ -103,7 +103,7 @@ fn test_pl1_derive_child_dpe_context_thresholds() {
 
     // First initialize a simulation context in locality 1
     // so that we get a non-default handle which we can use
-    // when calling DeriveChild with the RETAIN_PARENT flag
+    // when calling DeriveContext with the RETAIN_PARENT_CONTEXT flag
     let init_ctx_cmd = InitCtxCmd::new_simulation();
     let resp = execute_dpe_cmd(
         &mut model,
@@ -115,26 +115,26 @@ fn test_pl1_derive_child_dpe_context_thresholds() {
     };
     let mut handle = init_ctx_resp.handle;
 
-    // Call DeriveChild with PL1 enough times to breach the threshold on the last iteration.
+    // Call DeriveContext with PL1 enough times to breach the threshold on the last iteration.
     // Note that this loop runs exactly PL1_DPE_ACTIVE_CONTEXT_THRESHOLD - 1 times. When we initialize
     // DPE, we measure the RT journey PCR in Caliptra's locality: 0xFFFFFFFF, which counts as a PL1 locality.
     // Then, we initialize a simulation context in locality 1. Thus, we can call derive child
     // from PL1 exactly 16 - 2 = 14 times, and the last iteration of this loop, is expected to throw a threshold breached error.
     let num_iterations = PL1_DPE_ACTIVE_CONTEXT_THRESHOLD - 1;
     for i in 0..num_iterations {
-        let derive_child_cmd = DeriveChildCmd {
+        let derive_context_cmd = DeriveContextCmd {
             handle,
             data: DATA,
-            flags: DeriveChildFlags::RETAIN_PARENT,
+            flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT,
             tci_type: 0,
             target_locality: 0,
         };
 
-        // If we are on the last call to DeriveChild, expect that we get a PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED error.
+        // If we are on the last call to DeriveContext, expect that we get a PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED error.
         if i == num_iterations - 1 {
             let resp = execute_dpe_cmd(
                 &mut model,
-                &mut Command::DeriveChild(derive_child_cmd),
+                &mut Command::DeriveContext(derive_context_cmd),
                 DpeResult::MboxCmdFailure(
                     caliptra_drivers::CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED,
                 ),
@@ -145,13 +145,13 @@ fn test_pl1_derive_child_dpe_context_thresholds() {
 
         let resp = execute_dpe_cmd(
             &mut model,
-            &mut Command::DeriveChild(derive_child_cmd),
+            &mut Command::DeriveContext(derive_context_cmd),
             DpeResult::Success,
         );
-        let Some(Response::DeriveChild(derive_child_resp)) = resp else {
+        let Some(Response::DeriveContext(derive_context_resp)) = resp else {
             panic!("Wrong response type!");
         };
-        handle = derive_child_resp.handle;
+        handle = derive_context_resp.handle;
     }
 }
 
@@ -285,7 +285,7 @@ fn test_certify_key_x509_cannot_be_called_from_pl1() {
 }
 
 #[test]
-fn test_derive_child_cannot_be_called_from_pl1_if_changes_locality_to_pl0() {
+fn test_derive_context_cannot_be_called_from_pl1_if_changes_locality_to_pl0() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
 
@@ -306,16 +306,16 @@ fn test_derive_child_cannot_be_called_from_pl1_if_changes_locality_to_pl0() {
         panic!("Wrong response type!");
     };
 
-    let derive_child_cmd = DeriveChildCmd {
+    let derive_context_cmd = DeriveContextCmd {
         handle: init_ctx_resp.handle,
         data: DATA,
-        flags: DeriveChildFlags::RETAIN_PARENT | DeriveChildFlags::CHANGE_LOCALITY,
+        flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT | DeriveContextFlags::CHANGE_LOCALITY,
         tci_type: 0,
         target_locality: 0,
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::DeriveChild(derive_child_cmd),
+        &mut Command::DeriveContext(derive_context_cmd),
         DpeResult::MboxCmdFailure(
             caliptra_drivers::CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
         ),

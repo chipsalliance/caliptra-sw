@@ -13,7 +13,7 @@ use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelEr
 use dpe::{
     commands::{Command, CommandHdr},
     response::{
-        CertifyKeyResp, DeriveChildResp, GetCertificateChainResp, GetProfileResp, NewHandleResp,
+        CertifyKeyResp, DeriveContextResp, GetCertificateChainResp, GetProfileResp, NewHandleResp,
         Response, ResponseHdr, SignResp,
     },
 };
@@ -105,12 +105,11 @@ fn get_cmd_id(dpe_cmd: &mut Command) -> u32 {
     match dpe_cmd {
         Command::GetProfile => Command::GET_PROFILE,
         Command::InitCtx(_) => Command::INITIALIZE_CONTEXT,
-        Command::DeriveChild(_) => Command::DERIVE_CHILD,
+        Command::DeriveContext(_) => Command::DERIVE_CONTEXT,
         Command::CertifyKey(_) => Command::CERTIFY_KEY,
         Command::Sign(_) => Command::SIGN,
         Command::RotateCtx(_) => Command::ROTATE_CONTEXT_HANDLE,
         Command::DestroyCtx(_) => Command::DESTROY_CONTEXT,
-        Command::ExtendTci(_) => Command::EXTEND_TCI,
         Command::GetCertificateChain(_) => Command::GET_CERTIFICATE_CHAIN,
     }
 }
@@ -118,8 +117,7 @@ fn get_cmd_id(dpe_cmd: &mut Command) -> u32 {
 fn as_bytes(dpe_cmd: &mut Command) -> &[u8] {
     match dpe_cmd {
         Command::CertifyKey(cmd) => cmd.as_bytes(),
-        Command::DeriveChild(cmd) => cmd.as_bytes(),
-        Command::ExtendTci(cmd) => cmd.as_bytes(),
+        Command::DeriveContext(cmd) => cmd.as_bytes(),
         Command::GetCertificateChain(cmd) => cmd.as_bytes(),
         Command::DestroyCtx(cmd) => cmd.as_bytes(),
         Command::GetProfile => &[],
@@ -134,10 +132,9 @@ fn parse_dpe_response(dpe_cmd: &mut Command, resp_bytes: &[u8]) -> Response {
         Command::CertifyKey(_) => {
             Response::CertifyKey(CertifyKeyResp::read_from(resp_bytes).unwrap())
         }
-        Command::DeriveChild(_) => {
-            Response::DeriveChild(DeriveChildResp::read_from(resp_bytes).unwrap())
+        Command::DeriveContext(_) => {
+            Response::DeriveContext(DeriveContextResp::read_from(resp_bytes).unwrap())
         }
-        Command::ExtendTci(_) => Response::ExtendTci(NewHandleResp::read_from(resp_bytes).unwrap()),
         Command::GetCertificateChain(_) => {
             Response::GetCertificateChain(GetCertificateChainResp::read_from(resp_bytes).unwrap())
         }

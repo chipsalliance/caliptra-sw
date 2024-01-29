@@ -49,7 +49,7 @@ use caliptra_common::cprintln;
 use caliptra_drivers::{CaliptraError, CaliptraResult, ResetReason};
 use caliptra_registers::mbox::enums::MboxStatusE;
 use dpe::{
-    commands::{CommandExecution, DeriveChildCmd, DeriveChildFlags},
+    commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
     dpe_instance::{DpeEnv, DpeTypes},
     support::Support,
     DPE_PROFILE,
