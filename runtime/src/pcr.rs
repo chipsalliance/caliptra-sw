@@ -1,4 +1,16 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    pcr.rs
+
+Abstract:
+
+    File contains mailbox commands that deal with PCRs.
+
+--*/
 
 use crate::Drivers;
 use caliptra_common::mailbox_api::{

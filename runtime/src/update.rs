@@ -1,4 +1,16 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    update.rs
+
+Abstract:
+
+    File contains FirmwareLoad mailbox command.
+
+--*/
 
 use crate::Drivers;
 use caliptra_drivers::{CaliptraError, CaliptraResult};

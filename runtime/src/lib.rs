@@ -1,4 +1,16 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    lib.rs
+
+Abstract:
+
+    File contains exports for the Runtime library and mailbox command handling logic.
+
+--*/
 #![cfg_attr(not(feature = "fip-self-test"), allow(unused))]
 #![no_std]
 pub mod dice;
@@ -118,7 +130,9 @@ fn enter_idle(drivers: &mut Drivers) {
 
 /// Handles the pending mailbox command and writes the repsonse back to the mailbox
 ///
-/// Returns the mailbox status (DataReady when we send a response) or an error
+/// # Returns
+///
+/// * `MboxStatusE` - the mailbox status (DataReady when we send a response)
 fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     // For firmware update, don't read data from the mailbox
     if drivers.mbox.cmd() == CommandId::FIRMWARE_LOAD {
@@ -191,6 +205,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     Ok(MboxStatusE::DataReady)
 }
 
+/// Handles mailbox commands when the command is ready
 pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
     // Indicator to SOC that RT firmware is ready
     drivers.soc_ifc.assert_ready_for_runtime();

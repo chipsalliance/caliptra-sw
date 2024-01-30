@@ -1,4 +1,16 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    handoff.rs
+
+Abstract:
+
+    File contains helper functions that extract values from the FirmwareHandoffTable and DataVault.
+
+--*/
 
 use caliptra_common::DataStore::{DataVaultNonSticky4, DataVaultSticky4};
 use caliptra_drivers::{hand_off::DataStore, DataVault, FirmwareHandoffTable};
@@ -10,6 +22,15 @@ pub struct RtHandoff<'a> {
 }
 
 impl RtHandoff<'_> {
+    /// Retrieve the value from a DataStore
+    ///
+    /// # Arguments
+    ///
+    /// * `ds` - DataStore
+    ///
+    /// # Returns
+    ///
+    /// * `u32` - The value in `ds`
     fn read_from_ds(&self, ds: DataStore) -> CaliptraResult<u32> {
         match ds {
             DataVaultNonSticky4(dv_entry) => Ok(self.data_vault.read_warm_reset_entry4(dv_entry)),

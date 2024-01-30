@@ -1,4 +1,16 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    invoke_dpe.rs
+
+Abstract:
+
+    File contains InvokeDpe mailbox command.
+
+--*/
 
 use crate::{CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PL0_PAUSER_FLAG};
 use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp, MailboxRespHeader};
@@ -136,6 +148,13 @@ impl InvokeDpeCmd {
         }
     }
 
+    /// Remove context tags for all inactive DPE contexts
+    ///
+    /// # Arguments
+    ///
+    /// * `dpe` - DpeInstance
+    /// * `context_has_tag` - Bool slice indicating if a DPE context has a tag
+    /// * `context_tags` - Tags for each DPE context
     pub fn clear_tags_for_inactive_contexts(
         dpe: &mut DpeInstance,
         context_has_tag: &mut [U8Bool; MAX_HANDLES],
