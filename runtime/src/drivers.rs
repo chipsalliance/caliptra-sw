@@ -1,4 +1,16 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    drivers.rs
+
+Abstract:
+
+    File contains driver initializations.
+
+--*/
 
 #![cfg_attr(not(feature = "fip-self-test"), allow(unused))]
 
@@ -152,8 +164,16 @@ impl Drivers {
         })
     }
 
-    // Inlined so the callsite optimizer knows that root_idx < dpe.contexts.len()
-    // and won't insert possible call to panic.
+    /// Retrieves the root context index. Inlined so the callsite optimizer
+    /// knows that root_idx < dpe.contexts.len() and won't insert possible call to panic.
+    ///
+    /// # Arguments
+    ///
+    /// * `dpe` - DpeInstance
+    ///
+    /// # Returns
+    ///
+    /// * `usize` - Index containing the root DPE context
     #[inline(always)]
     pub fn get_dpe_root_context_idx(dpe: &DpeInstance) -> CaliptraResult<usize> {
         // Find root node by finding the non-inactive context with parent equal to ROOT_INDEX
@@ -174,6 +194,7 @@ impl Drivers {
         Ok(root_idx)
     }
 
+    /// Validate DPE and disable attestation if validation fails
     fn validate_dpe_structure(mut drivers: &mut Drivers) -> CaliptraResult<()> {
         let dpe = &mut drivers.persistent_data.get_mut().dpe;
         let dpe_validator = DpeValidator { dpe };
@@ -226,6 +247,7 @@ impl Drivers {
         Ok(())
     }
 
+    /// Update DPE root context's TCI measurement with RT_FW_JOURNEY_PCR
     fn update_dpe_rt_journey(drivers: &mut Drivers) -> CaliptraResult<()> {
         let dpe = &mut drivers.persistent_data.get_mut().dpe;
         let root_idx = Self::get_dpe_root_context_idx(dpe)?;
@@ -236,6 +258,7 @@ impl Drivers {
         Ok(())
     }
 
+    /// Check that RT_FW_JOURNEY_PCR == DPE Root Context's TCI measurement
     fn check_dpe_rt_journey_unchanged(mut drivers: &mut Drivers) -> CaliptraResult<()> {
         let dpe = &drivers.persistent_data.get().dpe;
         let root_idx = Self::get_dpe_root_context_idx(dpe)?;
@@ -263,6 +286,7 @@ impl Drivers {
         Ok(())
     }
 
+    /// Check that inactive DPE contexts do not have context tags set
     fn validate_context_tags(mut drivers: &mut Drivers) -> CaliptraResult<()> {
         let pdata = drivers.persistent_data.get();
         let context_has_tag = pdata.context_has_tag;
@@ -281,7 +305,7 @@ impl Drivers {
         Ok(())
     }
 
-    // Caliptra Name serialNumber fields are sha256 digests
+    /// Compute the Caliptra Name SerialNumber by Sha256 hashing the RT Alias public key
     pub fn compute_rt_alias_sn(&mut self) -> CaliptraResult<CryptoBuf> {
         let key = self.persistent_data.get().fht.rt_dice_pub_key.to_der();
 
@@ -292,6 +316,7 @@ impl Drivers {
         Ok(token)
     }
 
+    /// Initialize DPE with measurements and store in Drivers
     fn initialize_dpe(drivers: &mut Drivers) -> CaliptraResult<()> {
         let caliptra_locality = 0xFFFFFFFF;
         let pl0_pauser_locality = drivers.persistent_data.get().manifest1.header.pl0_pauser;
@@ -412,6 +437,7 @@ impl Drivers {
         Ok(())
     }
 
+    /// Create certificate chain and store in Drivers
     fn create_cert_chain(drivers: &mut Drivers) -> CaliptraResult<()> {
         let data_vault = &drivers.data_vault;
         let persistent_data = &drivers.persistent_data;
@@ -463,6 +489,14 @@ impl Drivers {
     /// Counts the number of non-inactive DPE contexts and returns an error
     /// if this number is greater than or equal to the active context threshold
     /// corresponding to the privilege level of the caller.
+    ///
+    /// # Arguments
+    ///
+    /// * `pl0_pauser` - Value of PL0 PAuser
+    /// * `flags` - Flags from manifest header
+    /// * `locality` - Caller's locality
+    /// * `dpe` - DpeInstance
+    /// * `check_already_exceeded` - If true, checks that the active context threshold is already exceeded.
     pub fn is_dpe_context_threshold_exceeded(
         pl0_pauser: u32,
         flags: u32,
@@ -500,10 +534,26 @@ impl Drivers {
         }
     }
 
+    /// Checks if the caller is privilege level 1
+    ///
+    /// # Arguments
+    ///
+    /// * `pl0_pauser` - Value of PL0 PAuser
+    /// * `flags` - Flags from manifest header
+    /// * `locality` - Caller's locality
     pub fn is_caller_pl1(pl0_pauser: u32, flags: u32, locality: u32) -> bool {
         flags & PL0_PAUSER_FLAG == 0 && locality != pl0_pauser
     }
 
+    /// Get the KeyId for the RT Alias CDI
+    ///
+    /// # Arguments
+    ///
+    /// * `drivers` - Drivers
+    ///
+    /// # Returns
+    ///
+    /// * `KeyId` - RT Alias CDI
     pub fn get_key_id_rt_cdi(drivers: &mut Drivers) -> CaliptraResult<KeyId> {
         let ds: DataStore = drivers
             .persistent_data
@@ -519,6 +569,15 @@ impl Drivers {
         }
     }
 
+    /// Get the KeyId for the RT Alias private key
+    ///
+    /// # Arguments
+    ///
+    /// * `drivers` - Drivers
+    ///
+    /// # Returns
+    ///
+    /// * `KeyId` - RT Alias private key
     pub fn get_key_id_rt_priv_key(drivers: &mut Drivers) -> CaliptraResult<KeyId> {
         let ds: DataStore = drivers
             .persistent_data

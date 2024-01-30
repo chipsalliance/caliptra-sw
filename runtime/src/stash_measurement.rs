@@ -1,4 +1,16 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    stash_measurement.rs
+
+Abstract:
+
+    File contains StashMeasurement mailbox command.
+
+--*/
 
 use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers};
 use caliptra_common::mailbox_api::{
