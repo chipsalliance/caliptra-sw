@@ -14,6 +14,7 @@ Abstract:
 
 use core::cmp::min;
 
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::keyids::{KEY_ID_DPE_CDI, KEY_ID_DPE_PRIV_KEY, KEY_ID_TMP};
 use caliptra_drivers::{
     cprintln, hmac384_kdf, Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar,
@@ -303,7 +304,13 @@ impl<'a> Crypto for DpeCrypto<'a> {
                 // note: the output point must be kept secret since it is derived from the private key,
                 // so as long as that output is kept secret and not released outside of Caliptra,
                 // it is safe to use it as key material.
-                let (_, hmac_seed) = Self::derive_key_pair(self, algs, cdi, label, info)?;
+                let key_pair = Self::derive_key_pair(self, algs, cdi, label, info);
+                if cfi_launder(key_pair.is_ok()) {
+                    cfi_assert!(key_pair.is_ok());
+                } else {
+                    cfi_assert!(key_pair.is_err());
+                }
+                let (_, hmac_seed) = key_pair?;
 
                 // create ikm to the hmac kdf by hashing the seed entropy from the pub key
                 // this is more secure than directly using the pub key components in the hmac

@@ -14,6 +14,7 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
 
+use caliptra_cfi_lib::CfiCounter;
 use caliptra_common::{cprintln, handle_fatal_error};
 use caliptra_cpu::{log_trap_record, TrapRecord};
 use caliptra_error::CaliptraError;
@@ -50,6 +51,16 @@ pub extern "C" fn entry_point() -> ! {
         })
     };
     caliptra_common::stop_wdt(&mut drivers.soc_ifc);
+
+    if !cfg!(feature = "no-cfi") {
+        cprintln!("[state] CFI Enabled");
+        let mut entropy_gen = || drivers.trng.generate().map(|a| a.0);
+        CfiCounter::reset(&mut entropy_gen);
+        CfiCounter::reset(&mut entropy_gen);
+        CfiCounter::reset(&mut entropy_gen);
+    } else {
+        cprintln!("[state] CFI Disabled");
+    }
 
     if !drivers.persistent_data.get().fht.is_valid() {
         cprintln!("[rt] Runtime can't load FHT");

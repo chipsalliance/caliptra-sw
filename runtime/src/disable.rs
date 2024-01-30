@@ -13,6 +13,7 @@ Abstract:
 --*/
 
 use crate::Drivers;
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::MailboxResp;
 use caliptra_drivers::{
     hmac384_kdf, Array4x12, CaliptraError, CaliptraResult, Ecc384Seed, Hmac384Key, KeyReadArgs,
@@ -22,16 +23,27 @@ use dpe::U8Bool;
 
 pub struct DisableAttestationCmd;
 impl DisableAttestationCmd {
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<MailboxResp> {
-        let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
-        let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
-        drivers.key_vault.erase_key(key_id_rt_cdi)?;
-        drivers.key_vault.erase_key(key_id_rt_priv_key)?;
-
+        Self::erase_keys(drivers)?;
         Self::zero_rt_cdi(drivers)?;
         Self::generate_dice_key(drivers)?;
         drivers.persistent_data.get_mut().attestation_disabled = U8Bool::new(true);
         Ok(MailboxResp::default())
+    }
+
+    /// Erase the RT CDI and RT Private Key from the key vault
+    ///
+    /// # Arguments
+    ///
+    /// * `drivers` - Drivers
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    fn erase_keys(drivers: &mut Drivers) -> CaliptraResult<()> {
+        let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
+        let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
+        drivers.key_vault.erase_key(key_id_rt_cdi)?;
+        drivers.key_vault.erase_key(key_id_rt_priv_key)
     }
 
     /// Set CDI key vault slot to a KDF of a buffer of 0s.
@@ -39,6 +51,7 @@ impl DisableAttestationCmd {
     /// # Arguments
     ///
     /// * `drivers` - Drivers
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn zero_rt_cdi(drivers: &mut Drivers) -> CaliptraResult<()> {
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
         hmac384_kdf(
@@ -66,6 +79,7 @@ impl DisableAttestationCmd {
     /// # Arguments
     ///
     /// * `drivers` - Drivers
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn generate_dice_key(drivers: &mut Drivers) -> CaliptraResult<()> {
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
         let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
