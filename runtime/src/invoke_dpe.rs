@@ -6,7 +6,7 @@ use caliptra_drivers::{CaliptraError, CaliptraResult};
 use crypto::{AlgLen, Crypto};
 use dpe::{
     commands::{
-        CertifyKeyCmd, Command, CommandExecution, DeriveChildCmd, DeriveChildFlags, InitCtxCmd,
+        CertifyKeyCmd, Command, CommandExecution, DeriveContextCmd, DeriveContextFlags, InitCtxCmd,
     },
     context::{Context, ContextState},
     response::{Response, ResponseHdr},
@@ -71,11 +71,16 @@ impl InvokeDpeCmd {
                     }
                     cmd.execute(dpe, &mut env, locality)
                 }
-                Command::DeriveChild(cmd) => {
-                    Drivers::is_dpe_context_threshold_exceeded(
-                        pl0_pauser, flags, locality, dpe, false,
-                    )?;
-                    if DeriveChildCmd::changes_locality(&cmd)
+                Command::DeriveContext(cmd) => {
+                    // If the recursive flag is not set, DeriveContext will generate a new context.
+                    // If recursive _is_ set, it will extend the existing one, which will not count
+                    // against the context threshold.
+                    if !DeriveContextCmd::is_recursive(&cmd) {
+                        Drivers::is_dpe_context_threshold_exceeded(
+                            pl0_pauser, flags, locality, dpe, false,
+                        )?;
+                    }
+                    if DeriveContextCmd::changes_locality(&cmd)
                         && cmd.target_locality == pl0_pauser
                         && Drivers::is_caller_pl1(pl0_pauser, flags, locality)
                     {
@@ -100,7 +105,6 @@ impl InvokeDpeCmd {
                 }
                 Command::Sign(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::RotateCtx(cmd) => cmd.execute(dpe, &mut env, locality),
-                Command::ExtendTci(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::GetCertificateChain(cmd) => cmd.execute(dpe, &mut env, locality),
             };
 

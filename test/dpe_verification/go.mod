@@ -2,11 +2,17 @@ module dpe
 
 go 1.20
 
-replace github.com/chipsalliance/caliptra-dpe/verification => ../../dpe/verification
+replace github.com/chipsalliance/caliptra-dpe/verification/testing => ../../dpe/verification/testing
 
-require github.com/chipsalliance/caliptra-dpe/verification v0.0.0-20231221233600-bdb03a7a2c89
+replace github.com/chipsalliance/caliptra-dpe/verification/client => ../../dpe/verification/client
 
 require (
+	github.com/chipsalliance/caliptra-dpe/verification/client v0.0.0-20240126223313-d61940a4bf01
+	github.com/chipsalliance/caliptra-dpe/verification/testing v0.0.0-20240126223313-d61940a4bf01
+)
+
+require (
+	github.com/github/smimesign v0.2.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/go-configfs-tsm v0.2.2 // indirect
 	github.com/google/go-sev-guest v0.10.1 // indirect
@@ -21,7 +27,6 @@ require (
 	github.com/weppos/publicsuffix-go v0.30.2-0.20230730094716-a20f9abcc222 // indirect
 	github.com/zmap/zcrypto v0.0.0-20231219022726-a1f61fb1661c // indirect
 	github.com/zmap/zlint/v3 v3.6.0 // indirect
-	go.mozilla.org/pkcs7 v0.0.0-20210826202110-33d05740a352 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.18.0 // indirect
 	golang.org/x/exp v0.0.0-20240119083558-1b970713d09a // indirect
