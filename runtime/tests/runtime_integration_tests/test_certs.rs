@@ -1,6 +1,9 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{generate_test_x509_cert, get_fmc_alias_cert, run_rt_test};
+use crate::common::{
+    execute_dpe_cmd, generate_test_x509_cert, get_fmc_alias_cert, get_rt_alias_cert, run_rt_test,
+    DpeResult, TEST_LABEL,
+};
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{
     CommandId, GetIdevCertReq, GetIdevCertResp, GetIdevInfoResp, GetLdevCertResp,
@@ -8,6 +11,11 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel};
+use dpe::{
+    commands::{CertifyKeyCmd, CertifyKeyFlags, Command},
+    context::ContextHandle,
+    response::Response,
+};
 use openssl::{
     asn1::Asn1Time,
     bn::BigNum,
@@ -161,23 +169,6 @@ fn get_ldev_cert(model: &mut DefaultHwModel) -> GetLdevCertResp {
     ldev_resp
 }
 
-fn get_rt_alias_cert(model: &mut DefaultHwModel) -> GetRtAliasCertResp {
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::GET_RT_ALIAS_CERT),
-            &[],
-        ),
-    };
-    let resp = model
-        .mailbox_execute(u32::from(CommandId::GET_RT_ALIAS_CERT), payload.as_bytes())
-        .unwrap()
-        .unwrap();
-    assert!(resp.len() <= std::mem::size_of::<GetRtAliasCertResp>());
-    let mut rt_resp = GetRtAliasCertResp::default();
-    rt_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
-    rt_resp
-}
-
 #[test]
 fn test_ldev_cert() {
     let mut model = run_rt_test(None, None, None);
@@ -243,6 +234,43 @@ fn test_rt_alias_cert() {
         rt_cert
             .issuer_name()
             .try_cmp(fmc_cert.subject_name())
+            .unwrap(),
+        core::cmp::Ordering::Equal
+    );
+}
+
+#[test]
+fn test_dpe_leaf_cert() {
+    let mut model = run_rt_test(None, None, None);
+
+    let rt_resp = get_rt_alias_cert(&mut model);
+    let rt_cert: X509 = X509::from_der(&rt_resp.data[..rt_resp.data_size as usize]).unwrap();
+
+    let certify_key_cmd = CertifyKeyCmd {
+        handle: ContextHandle::default(),
+        label: TEST_LABEL,
+        flags: CertifyKeyFlags::empty(),
+        format: CertifyKeyCmd::FORMAT_X509,
+    };
+    let resp = execute_dpe_cmd(
+        &mut model,
+        &mut Command::CertifyKey(certify_key_cmd),
+        DpeResult::Success,
+    );
+    let Some(Response::CertifyKey(certify_key_resp)) = resp else {
+        panic!("Wrong response type!");
+    };
+    let dpe_leaf_cert: X509 =
+        X509::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize]).unwrap();
+
+    // Check that DPE Leaf Cert is signed by RT alias pub key and that subject/issuer names match
+    assert!(dpe_leaf_cert
+        .verify(&rt_cert.public_key().unwrap())
+        .unwrap());
+    assert_eq!(
+        dpe_leaf_cert
+            .issuer_name()
+            .try_cmp(rt_cert.subject_name())
             .unwrap(),
         core::cmp::Ordering::Equal
     );

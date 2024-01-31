@@ -61,10 +61,13 @@ pub struct PersistentData {
     #[cfg(feature = "runtime")]
     pub context_has_tag: [U8Bool; MAX_HANDLES],
     #[cfg(feature = "runtime")]
+    pub attestation_disabled: U8Bool,
+    #[cfg(feature = "runtime")]
     reserved6: [u8; memory_layout::DPE_SIZE as usize
         - size_of::<DpeInstance>()
         - size_of::<u32>() * MAX_HANDLES
-        - size_of::<U8Bool>() * MAX_HANDLES],
+        - size_of::<U8Bool>() * MAX_HANDLES
+        - size_of::<U8Bool>()],
     #[cfg(not(feature = "runtime"))]
     dpe: [u8; memory_layout::DPE_SIZE as usize],
     #[cfg(feature = "runtime")]

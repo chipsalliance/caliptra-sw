@@ -8,6 +8,7 @@ mod dpe_platform;
 mod drivers;
 pub mod fips;
 pub mod handoff;
+mod hmac;
 pub mod info;
 mod invoke_dpe;
 mod pcr;
@@ -21,6 +22,7 @@ pub mod mailbox;
 pub use drivers::Drivers;
 use mailbox::Mailbox;
 
+pub use crate::hmac::Hmac;
 pub use caliptra_common::fips::FipsVersionCmd;
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
@@ -47,16 +49,19 @@ use caliptra_common::cprintln;
 use caliptra_drivers::{CaliptraError, CaliptraResult, ResetReason};
 use caliptra_registers::mbox::enums::MboxStatusE;
 use dpe::{
-    commands::{CommandExecution, DeriveChildCmd, DeriveChildFlags},
+    commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
     dpe_instance::{DpeEnv, DpeTypes},
     support::Support,
     DPE_PROFILE,
 };
-pub use dpe::{context::ContextState, DpeInstance, U8Bool, MAX_HANDLES};
+pub use dpe::{context::ContextState, tci::TciMeasurement, DpeInstance, U8Bool, MAX_HANDLES};
 
 #[cfg(feature = "test_only_commands")]
 use crate::verify::HmacVerifyCmd;
-use crate::{dice::GetRtAliasCertCmd, pcr::GetPcrQuoteCmd};
+use crate::{
+    dice::GetRtAliasCertCmd,
+    pcr::{ExtendPcrCmd, GetPcrQuoteCmd},
+};
 
 const RUNTIME_BOOT_STATUS_BASE: u32 = 0x600;
 
@@ -142,6 +147,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::GET_LDEV_CERT => GetLdevCertCmd::execute(drivers),
         CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes),
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
+        CommandId::EXTEND_PCR => ExtendPcrCmd::execute(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers, cmd_bytes),
         CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),
         CommandId::FW_INFO => FwInfoCmd::execute(drivers),

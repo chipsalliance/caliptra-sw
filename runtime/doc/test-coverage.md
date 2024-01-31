@@ -158,3 +158,6 @@ Verify that DPE attestation flow fails after DisableAttestation is called | N/A 
 Check that mailbox valid pausers are measured into DPE upon RT startup | N/A | N/A
 Check that the RT alias key is different from the key signing DPE certs | N/A | N/A
 Test context tag validity upon warm/update reset | N/A | N/A
+Check that the pcr extension for multiple data sets works as expected | test_extend_pcr_cmd_multiple_extensions | N/A
+Check that accessing an invalid index is caught | test_extend_pcr_cmd_invalid_pcr_index | RUNTIME_PCR_INVALID_INDEX
+Check that accessing reserved indices is caught | test_extend_pcr_cmd_reserved_range | RUNTIME_PCR_RESERVED

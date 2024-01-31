@@ -3,8 +3,8 @@
 use crate::bounded_address::RomAddr;
 use crate::soc_ifc;
 use crate::{
-    memory_layout, report_fw_error_non_fatal, ColdResetEntry4, ColdResetEntry48, Ecc384PubKey,
-    Ecc384Signature, KeyId, ResetReason, WarmResetEntry4, WarmResetEntry48,
+    memory_layout, ColdResetEntry4, ColdResetEntry48, Ecc384PubKey, Ecc384Signature, KeyId,
+    ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
 use bitfield::{bitfield_bitrange, bitfield_fields};
 use caliptra_error::CaliptraError;
@@ -90,70 +90,33 @@ pub enum DataVaultRegister {
 impl TryInto<DataStore> for HandOffDataHandle {
     type Error = CaliptraError;
     fn try_into(self) -> Result<DataStore, Self::Error> {
-        let vault = Vault::try_from(self.vault()).unwrap_or_else(|_| {
-            report_handoff_error_and_halt(
-                "Invalid Vault",
-                CaliptraError::DRIVER_HANDOFF_INVALID_VAULT.into(),
-            )
-        });
+        let vault = Vault::try_from(self.vault())
+            .map_err(|_| CaliptraError::DRIVER_HANDOFF_INVALID_VAULT)?;
         match vault {
             Vault::KeyVault => Ok(DataStore::KeyVaultSlot(
-                KeyId::try_from(self.reg_num() as u8).unwrap_or_else(|_| {
-                    report_handoff_error_and_halt(
-                        "Invalid KeyId",
-                        CaliptraError::DRIVER_HANDOFF_INVALID_KEY_ID.into(),
-                    )
-                }),
+                KeyId::try_from(self.reg_num() as u8)
+                    .map_err(|_| CaliptraError::DRIVER_HANDOFF_INVALID_KEY_ID)?,
             )),
             Vault::DataVault => match self.reg_type() {
-                1 => {
-                    let entry = DataStore::DataVaultSticky4(
-                        ColdResetEntry4::try_from(self.reg_num() as u8).unwrap_or_else(|_| {
-                            report_handoff_error_and_halt(
-                                "Invalid ColdResetEntry4",
-                                CaliptraError::DRIVER_HANDOFF_INVALID_COLD_RESET_ENTRY4.into(),
-                            )
-                        }),
-                    );
-                    Ok(entry)
-                }
+                1 => Ok(DataStore::DataVaultSticky4(
+                    ColdResetEntry4::try_from(self.reg_num() as u8)
+                        .map_err(|_| CaliptraError::DRIVER_HANDOFF_INVALID_COLD_RESET_ENTRY4)?,
+                )),
 
-                2 => {
-                    let entry = DataStore::DataVaultSticky48(
-                        ColdResetEntry48::try_from(self.reg_num() as u8).unwrap_or_else(|_| {
-                            report_handoff_error_and_halt(
-                                "Invalid ColdResetEntry48",
-                                CaliptraError::DRIVER_HANDOFF_INVALID_COLD_RESET_ENTRY48.into(),
-                            )
-                        }),
-                    );
-                    Ok(entry)
-                }
+                2 => Ok(DataStore::DataVaultSticky48(
+                    ColdResetEntry48::try_from(self.reg_num() as u8)
+                        .map_err(|_| CaliptraError::DRIVER_HANDOFF_INVALID_COLD_RESET_ENTRY48)?,
+                )),
 
-                3 => {
-                    let entry =
-                        WarmResetEntry4::try_from(self.reg_num() as u8).unwrap_or_else(|_| {
-                            report_handoff_error_and_halt(
-                                "Invalid WarmResetEntry4",
-                                CaliptraError::DRIVER_HANDOFF_INVALID_WARM_RESET_ENTRY4.into(),
-                            )
-                        });
+                3 => Ok(DataStore::DataVaultNonSticky4(
+                    WarmResetEntry4::try_from(self.reg_num() as u8)
+                        .map_err(|_| CaliptraError::DRIVER_HANDOFF_INVALID_WARM_RESET_ENTRY4)?,
+                )),
 
-                    let ds = DataStore::DataVaultNonSticky4(entry);
-                    Ok(ds)
-                }
-
-                4 => {
-                    let entry = DataStore::DataVaultNonSticky48(
-                        WarmResetEntry48::try_from(self.reg_num() as u8).unwrap_or_else(|_| {
-                            report_handoff_error_and_halt(
-                                "Invalid WarmResetEntry48",
-                                CaliptraError::DRIVER_HANDOFF_INVALID_WARM_RESET_ENTRY48.into(),
-                            )
-                        }),
-                    );
-                    Ok(entry)
-                }
+                4 => Ok(DataStore::DataVaultNonSticky48(
+                    WarmResetEntry48::try_from(self.reg_num() as u8)
+                        .map_err(|_| CaliptraError::DRIVER_HANDOFF_INVALID_WARM_RESET_ENTRY48)?,
+                )),
 
                 _ => Err(CaliptraError::DRIVER_BAD_DATASTORE_REG_TYPE),
             },
@@ -479,13 +442,6 @@ impl FirmwareHandoffTable {
 
         valid
     }
-}
-/// Report a non fatal firmware error and halt.
-#[allow(clippy::empty_loop)]
-pub fn report_handoff_error_and_halt(msg: &str, code: u32) -> ! {
-    crate::cprintln!("Handoff Error: {} 0x{:08X}", msg, code);
-    report_fw_error_non_fatal(code);
-    loop {}
 }
 
 #[cfg(all(test, target_family = "unix"))]

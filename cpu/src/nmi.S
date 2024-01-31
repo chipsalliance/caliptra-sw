@@ -81,13 +81,3 @@ _nmi_handler:
     lw sp,  0x4(sp)
 
     mret
-
-.section .init.text, "ax"
-.align 2
-.global exit_rom
-exit_rom:
-    .cfi_startproc
-    jr a0
-1:
-    j 1b
-    .cfi_endproc

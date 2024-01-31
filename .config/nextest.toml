@@ -3,6 +3,7 @@
 [profile.nightly]
 failure-output = "immediate-final"
 fail-fast = false
+slow-timeout = { period = "30s", terminate-after = 6 }
 
 [profile.nightly.junit]
 path = "/tmp/junit.xml"

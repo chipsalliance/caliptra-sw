@@ -22,19 +22,19 @@ impl Mailbox {
     }
 
     /// Check if there is a new command to be executed
-    pub fn is_cmd_ready(&mut self) -> bool {
+    pub fn is_cmd_ready(&self) -> bool {
         let mbox = self.mbox.regs();
         mbox.status().read().mbox_fsm_ps().mbox_execute_uc()
     }
 
     /// Check if we are currently executing a mailbox command
-    pub fn cmd_busy(&mut self) -> bool {
+    pub fn cmd_busy(&self) -> bool {
         let mbox = self.mbox.regs();
         mbox.status().read().status().cmd_busy()
     }
 
     /// Get the length of the current mailbox data in bytes
-    pub fn dlen(&mut self) -> u32 {
+    pub fn dlen(&self) -> u32 {
         let mbox = self.mbox.regs();
         mbox.dlen().read()
     }
@@ -46,7 +46,7 @@ impl Mailbox {
     }
 
     /// Get the length of the current mailbox data in words
-    pub fn dlen_words(&mut self) -> u32 {
+    pub fn dlen_words(&self) -> u32 {
         (self.dlen() + 3) / 4
     }
 

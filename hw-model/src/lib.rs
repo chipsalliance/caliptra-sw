@@ -540,6 +540,7 @@ pub trait HwModel {
                 }
             }
             writeln!(hw.output().logger(), "ready_for_fw is high")?;
+            hw.cover_fw_mage(fw_image);
             hw.upload_firmware(fw_image)?;
         }
 
@@ -841,6 +842,8 @@ pub trait HwModel {
             )
         }
     }
+
+    fn cover_fw_mage(&mut self, _image: &[u8]) {}
 
     fn tracing_hint(&mut self, enable: bool);
 

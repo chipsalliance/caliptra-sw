@@ -165,6 +165,10 @@ impl Sha384 {
         // Wait for the registers to be ready
         wait::until(|| status_reg.read().ready());
 
+        // Initialize SHA hardware to clear write lock
+        reg.ctrl().write(|w| w.init(true));
+        wait::until(|| status_reg.read().ready());
+
         if status_reg.read().valid() {
             Ok(reg.gen_pcr_hash_digest().read().into())
         } else {

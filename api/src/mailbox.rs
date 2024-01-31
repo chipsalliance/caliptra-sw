@@ -23,6 +23,7 @@ impl CommandId {
     pub const DPE_GET_TAGGED_TCI: Self = Self(0x47544744); // "GTGD"
     pub const INCREMENT_PCR_RESET_COUNTER: Self = Self(0x50435252); // "PCRR"
     pub const QUOTE_PCRS: Self = Self(0x50435251); // "PCRQ"
+    pub const EXTEND_PCR: Self = Self(0x50435245); // "PCRE"
 
     pub const TEST_ONLY_HMAC384_VERIFY: Self = Self(0x484D4143); // "HMAC"
 
@@ -226,6 +227,7 @@ pub enum MailboxReq {
     GetRtAliasCert(GetRtAliasCertReq),
     IncrementPcrResetCounter(IncrementPcrResetCounterReq),
     QuotePcrs(QuotePcrsReq),
+    ExtendPcr(ExtendPcrReq),
 
     #[cfg(feature = "test_only_commands")]
     TestHmacVerify(HmacVerifyReq),
@@ -248,6 +250,7 @@ impl MailboxReq {
             MailboxReq::GetRtAliasCert(req) => Ok(req.as_bytes()),
             MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_bytes()),
             MailboxReq::QuotePcrs(req) => Ok(req.as_bytes()),
+            MailboxReq::ExtendPcr(req) => Ok(req.as_bytes()),
 
             #[cfg(feature = "test_only_commands")]
             MailboxReq::TestHmacVerify(req) => Ok(req.as_bytes()),
@@ -270,6 +273,7 @@ impl MailboxReq {
             MailboxReq::GetRtAliasCert(req) => Ok(req.as_bytes_mut()),
             MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_bytes_mut()),
             MailboxReq::QuotePcrs(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::ExtendPcr(req) => Ok(req.as_bytes_mut()),
 
             #[cfg(feature = "test_only_commands")]
             MailboxReq::TestHmacVerify(req) => Ok(req.as_bytes_mut()),
@@ -292,6 +296,7 @@ impl MailboxReq {
             MailboxReq::GetRtAliasCert(_) => CommandId::GET_RT_ALIAS_CERT,
             MailboxReq::IncrementPcrResetCounter(_) => CommandId::INCREMENT_PCR_RESET_COUNTER,
             MailboxReq::QuotePcrs(_) => CommandId::QUOTE_PCRS,
+            MailboxReq::ExtendPcr(_) => CommandId::EXTEND_PCR,
 
             #[cfg(feature = "test_only_commands")]
             MailboxReq::TestHmacVerify(_) => CommandId::TEST_ONLY_HMAC384_VERIFY,
@@ -603,6 +608,22 @@ impl Request for InvokeDpeReq {
     type Resp = InvokeDpeResp;
 }
 
+// EXTEND_PCR
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct ExtendPcrReq {
+    pub hdr: MailboxReqHeader,
+    pub pcr_idx: u32,
+    pub data: [u8; 48],
+}
+
+impl Request for ExtendPcrReq {
+    const ID: CommandId = CommandId::EXTEND_PCR;
+    type Resp = MailboxRespHeader;
+}
+
+// No command-specific output args
+
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
 pub struct InvokeDpeResp {
@@ -685,6 +706,12 @@ pub struct FwInfoResp {
     pub min_runtime_svn: u32,
     pub fmc_manifest_svn: u32,
     pub attestation_disabled: u32,
+    pub fmc_revision: [u8; 20],
+    pub rom_revision: [u8; 20],
+    pub runtime_revision: [u8; 20],
+    pub rom_sha256_digest: [u32; 8],
+    pub fmc_sha384_digest: [u32; 12],
+    pub runtime_sha384_digest: [u32; 12],
     // TODO: Decide what other information to report for general firmware
     // status.
 }

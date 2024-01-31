@@ -7,7 +7,7 @@ use caliptra_common::mailbox_api::{
 use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
 use crypto::{AlgLen, Crypto};
 use dpe::{
-    commands::{CommandExecution, DeriveChildCmd, DeriveChildFlags},
+    commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
     dpe_instance::DpeEnv,
     response::DpeErrorCode,
@@ -20,16 +20,20 @@ impl StashMeasurementCmd {
         if let Some(cmd) = StashMeasurementReq::read_from(cmd_args) {
             let dpe_result = {
                 let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
+                let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
+                let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
                 let pdata = drivers.persistent_data.get();
-                let rt_pub_key = pdata.fht.rt_dice_pub_key;
                 let mut crypto = DpeCrypto::new(
                     &mut drivers.sha384,
                     &mut drivers.trng,
                     &mut drivers.ecc384,
                     &mut drivers.hmac384,
                     &mut drivers.key_vault,
-                    rt_pub_key,
+                    pdata.fht.rt_dice_pub_key,
+                    key_id_rt_cdi,
+                    key_id_rt_priv_key,
                 );
+                let pdata = drivers.persistent_data.get();
                 let mut env = DpeEnv::<CptraDpeTypes> {
                     crypto,
                     platform: DpePlatform::new(
@@ -48,19 +52,19 @@ impl StashMeasurementCmd {
                     pl0_pauser, flags, locality, &pdata.dpe, false,
                 )?;
                 let pdata_mut = drivers.persistent_data.get_mut();
-                let derive_child_resp = DeriveChildCmd {
+                let derive_context_resp = DeriveContextCmd {
                     handle: ContextHandle::default(),
                     data: cmd.measurement,
-                    flags: DeriveChildFlags::MAKE_DEFAULT
-                        | DeriveChildFlags::CHANGE_LOCALITY
-                        | DeriveChildFlags::INPUT_ALLOW_CA
-                        | DeriveChildFlags::INPUT_ALLOW_X509,
+                    flags: DeriveContextFlags::MAKE_DEFAULT
+                        | DeriveContextFlags::CHANGE_LOCALITY
+                        | DeriveContextFlags::INPUT_ALLOW_CA
+                        | DeriveContextFlags::INPUT_ALLOW_X509,
                     tci_type: u32::from_be_bytes(cmd.metadata),
                     target_locality: locality,
                 }
                 .execute(&mut pdata_mut.dpe, &mut env, locality);
 
-                match derive_child_resp {
+                match derive_context_resp {
                     Ok(_) => DpeErrorCode::NoError,
                     Err(e) => {
                         // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO

@@ -13,9 +13,9 @@ File Name:
 
 use crate::flow::dice::DiceOutput;
 use crate::fmc_env::FmcEnv;
-use caliptra_common::DataStore::*;
+use caliptra_common::{handle_fatal_error, DataStore::*};
 use caliptra_common::{DataStore, FirmwareHandoffTable, HandOffDataHandle, Vault};
-use caliptra_drivers::{memory_layout, Array4x12, Ecc384Signature, KeyId};
+use caliptra_drivers::{cprintln, memory_layout, Array4x12, Ecc384Signature, KeyId};
 use caliptra_drivers::{Ecc384PubKey, Ecc384Scalar};
 use caliptra_error::{CaliptraError, CaliptraResult};
 
@@ -44,25 +44,24 @@ impl HandOff {
 
     /// Retrieve FMC CDI
     pub fn fmc_cdi(env: &FmcEnv) -> KeyId {
-        let ds: DataStore = Self::fht(env)
-            .fmc_cdi_kv_hdl
-            .try_into()
-            .unwrap_or_else(|_| {
-                caliptra_common::report_handoff_error_and_halt(
-                    "Invalid CDI DV handle",
-                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-                )
-            });
+        let ds: DataStore =
+            Self::fht(env)
+                .fmc_cdi_kv_hdl
+                .try_into()
+                .unwrap_or_else(|e: CaliptraError| {
+                    cprintln!("[fht] Invalid CDI KV handle");
+                    handle_fatal_error(e.into())
+                });
 
         match ds {
             KeyVaultSlot(key_id) => {
-                caliptra_common::cprintln!("Handoff : FMC CDI: {:?}", key_id as u8);
+                cprintln!("[fht] Handoff : FMC CDI: {:?}", key_id as u8);
                 key_id
             }
-            _ => caliptra_common::report_handoff_error_and_halt(
-                "Invalid KeySlot DV Entry",
-                caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-            ),
+            _ => {
+                cprintln!("[fht] Invalid KeySlot KV Entry");
+                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into())
+            }
         }
     }
 
@@ -70,22 +69,16 @@ impl HandOff {
         let ds: DataStore = Self::fht(env)
             .fmc_pub_key_x_dv_hdl
             .try_into()
-            .unwrap_or_else(|_| {
-                caliptra_common::report_handoff_error_and_halt(
-                    "Invalid FMC ALias Public Key X DV handle",
-                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-                )
+            .unwrap_or_else(|e: CaliptraError| {
+                cprintln!("[fht] Invalid FMC ALias Public Key X DV handle");
+                handle_fatal_error(e.into());
             });
 
         // The data store is either a warm reset entry or a cold reset entry.
         match ds {
             DataVaultNonSticky48(dv_entry) => env.data_vault.read_warm_reset_entry48(dv_entry),
             DataVaultSticky48(dv_entry) => env.data_vault.read_cold_reset_entry48(dv_entry),
-            _ => {
-                crate::report_error(
-                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-                );
-            }
+            _ => handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into()),
         }
     }
 
@@ -93,11 +86,9 @@ impl HandOff {
         let ds: DataStore = Self::fht(env)
             .fmc_pub_key_y_dv_hdl
             .try_into()
-            .unwrap_or_else(|_| {
-                caliptra_common::report_handoff_error_and_halt(
-                    "Invalid FMC ALias Public Key Y DV handle",
-                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-                )
+            .unwrap_or_else(|e: CaliptraError| {
+                cprintln!("[fht] Invalid FMC ALias Public Key Y DV handle");
+                handle_fatal_error(e.into());
             });
 
         // The data store is either a warm reset entry or a cold reset entry.
@@ -105,9 +96,7 @@ impl HandOff {
             DataVaultNonSticky48(dv_entry) => env.data_vault.read_warm_reset_entry48(dv_entry),
             DataVaultSticky48(dv_entry) => env.data_vault.read_cold_reset_entry48(dv_entry),
             _ => {
-                crate::report_error(
-                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-                );
+                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
             }
         }
     }
@@ -129,22 +118,20 @@ impl HandOff {
         let ds: DataStore = Self::fht(env)
             .fmc_priv_key_kv_hdl
             .try_into()
-            .unwrap_or_else(|_| {
-                caliptra_common::report_handoff_error_and_halt(
-                    "Invalid FMC ALias Private Key DV handle",
-                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-                )
+            .unwrap_or_else(|e: CaliptraError| {
+                cprintln!("[fht] Invalid FMC ALias Private Key KV handle");
+                handle_fatal_error(e.into())
             });
 
         match ds {
             KeyVaultSlot(key_id) => {
-                caliptra_common::cprintln!("FMC Alias Private Key: {:?}", u32::from(key_id));
+                cprintln!("[fht] FMC Alias Private Key: {:?}", u32::from(key_id));
                 key_id
             }
-            _ => caliptra_common::report_handoff_error_and_halt(
-                "Invalid KeySlot DV Entry",
-                caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-            ),
+            _ => {
+                cprintln!("[fht] Invalid KeySlot DV Entry");
+                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into())
+            }
         }
     }
 
@@ -160,86 +147,83 @@ impl HandOff {
         match IccmAddr::<u32>::validate_addr(rt_entry_point) {
             Ok(_) => unsafe { transfer_control(rt_entry_point) },
             Err(e) => {
-                caliptra_common::report_handoff_error_and_halt("Invalid RT Entry Point", e.into())
+                cprintln!("[fht] Invalid RT Entry Point");
+                handle_fatal_error(e.into());
             }
         }
     }
 
     /// Retrieve runtime TCI (digest)
     pub fn rt_tci(env: &FmcEnv) -> Array4x12 {
-        let ds: DataStore = Self::fht(env).rt_tci_dv_hdl.try_into().unwrap_or_else(|_| {
-            caliptra_common::report_handoff_error_and_halt(
-                "Invalid TCI DV handle",
-                caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-            )
-        });
+        let ds: DataStore =
+            Self::fht(env)
+                .rt_tci_dv_hdl
+                .try_into()
+                .unwrap_or_else(|e: CaliptraError| {
+                    cprintln!("[fht] Invalid TCI DV handle");
+                    handle_fatal_error(e.into())
+                });
 
         // The data store is either a warm reset entry or a cold reset entry.
         match ds {
             DataVaultNonSticky48(dv_entry) => env.data_vault.read_warm_reset_entry48(dv_entry),
             DataVaultSticky48(dv_entry) => env.data_vault.read_cold_reset_entry48(dv_entry),
             _ => {
-                crate::report_error(
-                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-                );
+                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
             }
         }
     }
 
     /// Retrieve runtime SVN.
     pub fn rt_svn(env: &FmcEnv) -> u32 {
-        let ds: DataStore = Self::fht(env).rt_svn_dv_hdl.try_into().unwrap_or_else(|_| {
-            caliptra_common::report_handoff_error_and_halt(
-                "Invalid RT SVN handle",
-                caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-            )
-        });
+        let ds: DataStore =
+            Self::fht(env)
+                .rt_svn_dv_hdl
+                .try_into()
+                .unwrap_or_else(|e: CaliptraError| {
+                    cprintln!("[fht] Invalid RT SVN handle");
+                    handle_fatal_error(e.into())
+                });
 
         // The data store is either a warm reset entry or a cold reset entry.
         match ds {
             DataVaultNonSticky4(dv_entry) => env.data_vault.read_warm_reset_entry4(dv_entry),
             DataVaultSticky4(dv_entry) => env.data_vault.read_cold_reset_entry4(dv_entry),
             _ => {
-                crate::report_error(
-                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-                );
+                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
             }
         }
     }
 
     /// Retrieve runtime minimum SVN.
     pub fn rt_min_svn(env: &FmcEnv) -> u32 {
-        let ds: DataStore = Self::fht(env)
-            .rt_min_svn_dv_hdl
-            .try_into()
-            .unwrap_or_else(|_| {
-                caliptra_common::report_handoff_error_and_halt(
-                    "Invalid RT Min SVN handle",
-                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-                )
-            });
+        let ds: DataStore =
+            Self::fht(env)
+                .rt_min_svn_dv_hdl
+                .try_into()
+                .unwrap_or_else(|e: CaliptraError| {
+                    cprintln!("[fht] Invalid RT Min SVN handle");
+                    handle_fatal_error(e.into())
+                });
 
         // The data store must be a warm reset entry.
         match ds {
             DataVaultNonSticky4(dv_entry) => env.data_vault.read_warm_reset_entry4(dv_entry),
             _ => {
-                crate::report_error(
-                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-                );
+                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
             }
         }
     }
 
     pub fn set_and_lock_rt_min_svn(env: &mut FmcEnv, min_svn: u32) -> CaliptraResult<()> {
-        let ds: DataStore = Self::fht(env)
-            .rt_min_svn_dv_hdl
-            .try_into()
-            .unwrap_or_else(|_| {
-                caliptra_common::report_handoff_error_and_halt(
-                    "Invalid RT Min SVN handle",
-                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-                )
-            });
+        let ds: DataStore =
+            Self::fht(env)
+                .rt_min_svn_dv_hdl
+                .try_into()
+                .unwrap_or_else(|e: CaliptraError| {
+                    cprintln!("[fht] Invalid RT Min SVN handle");
+                    handle_fatal_error(e.into())
+                });
 
         // The data store must be a warm reset entry.
         match ds {
@@ -249,9 +233,7 @@ impl HandOff {
                 Ok(())
             }
             _ => {
-                crate::report_error(
-                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-                );
+                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
             }
         }
     }
@@ -270,20 +252,16 @@ impl HandOff {
         let ds: DataStore = Self::fht(env)
             .rt_fw_entry_point_hdl
             .try_into()
-            .unwrap_or_else(|_| {
-                caliptra_common::report_handoff_error_and_halt(
-                    "Invalid runtime entry point DV handle",
-                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-                )
+            .unwrap_or_else(|e: CaliptraError| {
+                cprintln!("[fht] Invalid runtime entry point DV handle");
+                handle_fatal_error(e.into());
             });
         // The data store is either a warm reset entry or a cold reset entry.
         match ds {
             DataVaultNonSticky4(dv_entry) => env.data_vault.read_warm_reset_entry4(dv_entry),
             DataVaultSticky4(dv_entry) => env.data_vault.read_cold_reset_entry4(dv_entry),
             _ => {
-                crate::report_error(
-                    caliptra_error::CaliptraError::FMC_HANDOFF_INVALID_PARAM.into(),
-                );
+                handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into());
             }
         }
     }

@@ -12,11 +12,15 @@ use crate::{
 };
 
 use arrayvec::ArrayVec;
+use caliptra_drivers::KeyId;
 use caliptra_drivers::{
     cprint, cprintln, pcr_log::RT_FW_JOURNEY_PCR, Array4x12, CaliptraError, CaliptraResult,
     DataVault, Ecc384, KeyVault, Lms, PersistentDataAccessor, ResetReason, Sha1, SocIfc,
 };
-use caliptra_drivers::{Hmac384, PcrBank, PcrId, Sha256, Sha256Alg, Sha384, Sha384Acc, Trng};
+use caliptra_drivers::{
+    hand_off::DataStore, Ecc384PubKey, Hmac384, PcrBank, PcrId, Sha256, Sha256Alg, Sha384,
+    Sha384Acc, Trng,
+};
 use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_registers::{
     csrng::CsrngReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg,
@@ -28,7 +32,7 @@ use dpe::tci::TciMeasurement;
 use dpe::validation::DpeValidator;
 use dpe::MAX_HANDLES;
 use dpe::{
-    commands::{CommandExecution, DeriveChildCmd, DeriveChildFlags},
+    commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
     dpe_instance::{DpeEnv, DpeInstance, DpeTypes},
     support::Support,
@@ -72,8 +76,6 @@ pub struct Drivers {
 
     pub cert_chain: ArrayVec<u8, MAX_CERT_CHAIN_SIZE>,
 
-    pub attestation_disabled: bool,
-
     #[cfg(feature = "fips_self_test")]
     pub self_test_status: SelfTestStatus,
 
@@ -90,6 +92,10 @@ impl Drivers {
         let mut drivers = Self::get_unsafe_registers()?;
 
         Self::create_cert_chain(&mut drivers)?;
+        if drivers.persistent_data.get().attestation_disabled.get() {
+            DisableAttestationCmd::execute(&mut drivers)
+                .map_err(|_| CaliptraError::RUNTIME_GLOBAL_EXCEPTION)?;
+        }
 
         let reset_reason = drivers.soc_ifc.reset_reason();
         match reset_reason {
@@ -142,7 +148,6 @@ impl Drivers {
             #[cfg(feature = "fips_self_test")]
             self_test_status: SelfTestStatus::Idle,
             cert_chain: ArrayVec::new(),
-            attestation_disabled: false,
             is_shutdown: false,
         })
     }
@@ -235,18 +240,10 @@ impl Drivers {
         let dpe = &drivers.persistent_data.get().dpe;
         let root_idx = Self::get_dpe_root_context_idx(dpe)?;
         let latest_tci = dpe.contexts[root_idx].tci.tci_current;
-
-        let mut hasher = drivers.sha384.digest_init()?;
-
-        hasher.update(&[0; AlgLen::Bit384.size()])?;
-        hasher.update(&latest_tci.0)?;
-
-        let mut digest = Array4x12::default();
-        hasher.finalize(&mut digest)?;
-
         let latest_pcr = drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR);
-        // Ensure SHA384_HASH(0x00..00, TCI from SRAM) == RT_FW_JOURNEY_PCR
-        if latest_pcr != digest {
+
+        // Ensure TCI from SRAM == RT_FW_JOURNEY_PCR
+        if latest_pcr != Array4x12::from(&latest_tci.0) {
             // If latest pcr validation fails, disable attestation
             let mut result = DisableAttestationCmd::execute(drivers);
             match result {
@@ -313,6 +310,8 @@ impl Drivers {
         let mut valid_pauser_hash = Array4x12::default();
         digest_op.finalize(&mut valid_pauser_hash)?;
 
+        let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
+        let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
         let mut crypto = DpeCrypto::new(
             &mut drivers.sha384,
             &mut drivers.trng,
@@ -320,6 +319,8 @@ impl Drivers {
             &mut drivers.hmac384,
             &mut drivers.key_vault,
             drivers.persistent_data.get().fht.rt_dice_pub_key,
+            key_id_rt_cdi,
+            key_id_rt_priv_key,
         );
 
         let mut env = DpeEnv::<CptraDpeTypes> {
@@ -343,22 +344,22 @@ impl Drivers {
         )
         .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
 
-        // Call DeriveChild to create a measurement for the mailbox valid pausers and change locality to the pl0 pauser locality
-        let derive_child_resp = DeriveChildCmd {
+        // Call DeriveContext to create a measurement for the mailbox valid pausers and change locality to the pl0 pauser locality
+        let derive_context_resp = DeriveContextCmd {
             handle: ContextHandle::default(),
             data: valid_pauser_hash
                 .as_bytes()
                 .try_into()
                 .map_err(|_| CaliptraError::RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED)?,
-            flags: DeriveChildFlags::MAKE_DEFAULT
-                | DeriveChildFlags::CHANGE_LOCALITY
-                | DeriveChildFlags::INPUT_ALLOW_CA
-                | DeriveChildFlags::INPUT_ALLOW_X509,
+            flags: DeriveContextFlags::MAKE_DEFAULT
+                | DeriveContextFlags::CHANGE_LOCALITY
+                | DeriveContextFlags::INPUT_ALLOW_CA
+                | DeriveContextFlags::INPUT_ALLOW_X509,
             tci_type: u32::from_be_bytes(*b"MBVP"),
             target_locality: pl0_pauser_locality,
         }
         .execute(&mut dpe, &mut env, caliptra_locality);
-        if let Err(e) = derive_child_resp {
+        if let Err(e) = derive_context_resp {
             // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
             if let Some(ext_err) = e.get_error_detail() {
                 drivers.soc_ifc.set_fw_extended_error(ext_err);
@@ -366,7 +367,7 @@ impl Drivers {
             Err(CaliptraError::RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED)?
         }
 
-        // Call DeriveChild to create TCIs for each measurement added in ROM
+        // Call DeriveContext to create TCIs for each measurement added in ROM
         let num_measurements = drivers.persistent_data.get().fht.meas_log_index as usize;
         let measurement_log = drivers.persistent_data.get().measurement_log;
         for measurement_log_entry in measurement_log.iter().take(num_measurements) {
@@ -384,20 +385,20 @@ impl Drivers {
 
             let measurement_data = measurement_log_entry.pcr_entry.measured_data();
             let tci_type = u32::from_be_bytes(measurement_log_entry.metadata);
-            let derive_child_resp = DeriveChildCmd {
+            let derive_context_resp = DeriveContextCmd {
                 handle: ContextHandle::default(),
                 data: measurement_data
                     .try_into()
                     .map_err(|_| CaliptraError::RUNTIME_ADD_ROM_MEASUREMENTS_TO_DPE_FAILED)?,
-                flags: DeriveChildFlags::MAKE_DEFAULT
-                    | DeriveChildFlags::CHANGE_LOCALITY
-                    | DeriveChildFlags::INPUT_ALLOW_CA
-                    | DeriveChildFlags::INPUT_ALLOW_X509,
+                flags: DeriveContextFlags::MAKE_DEFAULT
+                    | DeriveContextFlags::CHANGE_LOCALITY
+                    | DeriveContextFlags::INPUT_ALLOW_CA
+                    | DeriveContextFlags::INPUT_ALLOW_X509,
                 tci_type,
                 target_locality: pl0_pauser_locality,
             }
             .execute(&mut dpe, &mut env, pl0_pauser_locality);
-            if let Err(e) = derive_child_resp {
+            if let Err(e) = derive_context_resp {
                 // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
                 if let Some(ext_err) = e.get_error_detail() {
                     drivers.soc_ifc.set_fw_extended_error(ext_err);
@@ -501,5 +502,35 @@ impl Drivers {
 
     pub fn is_caller_pl1(pl0_pauser: u32, flags: u32, locality: u32) -> bool {
         flags & PL0_PAUSER_FLAG == 0 && locality != pl0_pauser
+    }
+
+    pub fn get_key_id_rt_cdi(drivers: &mut Drivers) -> CaliptraResult<KeyId> {
+        let ds: DataStore = drivers
+            .persistent_data
+            .get()
+            .fht
+            .rt_cdi_kv_hdl
+            .try_into()
+            .map_err(|_| CaliptraError::RUNTIME_CDI_KV_HDL_HANDOFF_FAILED)?;
+
+        match ds {
+            DataStore::KeyVaultSlot(key_id) => Ok(key_id),
+            _ => Err(CaliptraError::RUNTIME_CDI_KV_HDL_HANDOFF_FAILED),
+        }
+    }
+
+    pub fn get_key_id_rt_priv_key(drivers: &mut Drivers) -> CaliptraResult<KeyId> {
+        let ds: DataStore = drivers
+            .persistent_data
+            .get()
+            .fht
+            .rt_priv_key_kv_hdl
+            .try_into()
+            .map_err(|_| CaliptraError::RUNTIME_PRIV_KEY_KV_HDL_HANDOFF_FAILED)?;
+
+        match ds {
+            DataStore::KeyVaultSlot(key_id) => Ok(key_id),
+            _ => Err(CaliptraError::RUNTIME_PRIV_KEY_KV_HDL_HANDOFF_FAILED),
+        }
     }
 }
