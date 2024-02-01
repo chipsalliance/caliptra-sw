@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
   schedule:
     # cron format "minutes hours day-of-month month day-of-week"
-    # 5:30 PM Pacific monday-friday
-    - cron: '30 0 * * 2-6'
+    # 5:30 PM Pacific on tuesday and friday
+    - cron: '30 0 * * 3,6'
 
 jobs:
   smoke_test:
