@@ -1,4 +1,16 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    hmac.rs
+
+Abstract:
+
+    File contains cryptography helper functions related to HMAC.
+
+--*/
 
 use caliptra_common::{crypto::Ecc384KeyPair, keyids::KEY_ID_TMP};
 use caliptra_drivers::{
@@ -11,7 +23,18 @@ use zeroize::Zeroize;
 
 use crate::Drivers;
 
-// Generate an ECC keypair
+/// Generate an ECC key pair
+///
+/// # Arguments
+///
+/// * `drivers` - Drivers
+/// * `input` - KeyId containing the input data
+/// * `label` - Label for KDF
+/// * `priv_key` - KeyId which the private key should be written to
+///
+/// # Returns
+///
+/// * `Ecc384KeyPair` - Generated key pair
 fn ecc384_key_gen(
     drivers: &mut Drivers,
     input: KeyId,
@@ -53,9 +76,15 @@ fn ecc384_key_gen(
 pub enum Hmac {}
 
 impl Hmac {
-    // "Hash" the data in the provided KV slot by HMACing it with an empty slice.
-    // This mechanism is necessary because the hardware does not directly support
-    // hashing data in KV slots.
+    /// "Hash" the data in the provided KV slot by HMACing it with an empty slice.
+    /// This mechanism is necessary because the hardware does not directly support
+    /// hashing data in KV slots.
+    ///
+    /// # Arguments
+    ///
+    /// * `drivers` - Drivers
+    /// * `input` - KeyId containing the input data
+    /// * `output` - KeyId which the output hash should be written to
     pub fn hmac384_hash(drivers: &mut Drivers, input: KeyId, output: KeyId) -> CaliptraResult<()> {
         drivers.hmac384.hmac(
             &KeyReadArgs::new(input).into(),
@@ -71,14 +100,22 @@ impl Hmac {
         )
     }
 
-    // Perform an "HMAC" with a key from KV by first using it to derive an
-    // ECC keypair, then hashing the public key coordinates into an HMAC key.
-    // This roundabout mechanism is necessary because the hardware does not
-    // directly support exposing an HMAC computed with key material from KV.
-    // Note that the derived public key is considered secret.
-    //
-    // `label` is used to diversify the key material before it is used to
-    // compute an ECC keypair.
+    /// Perform an "HMAC" with a key from KV by first using it to derive an
+    /// ECC keypair, then hashing the public key coordinates into an HMAC key.
+    /// This roundabout mechanism is necessary because the hardware does not
+    /// directly support exposing an HMAC computed with key material from KV.
+    /// Note that the derived public key is considered secret.
+    ///
+    /// # Arguments
+    ///
+    /// * `drivers` - Drivers
+    /// * `input` - KeyId containing the input data
+    /// * `label` - Used to diversify the key material before it is used to compute an ECC keypair
+    /// * `data` - Data provided to HMAC
+    ///
+    /// # Returns
+    ///
+    /// * `Array4x12` - Computed HMAC result
     pub fn ecc384_hmac(
         drivers: &mut Drivers,
         input: KeyId,

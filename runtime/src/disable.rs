@@ -1,4 +1,16 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    disable.rs
+
+Abstract:
+
+    File contains DisableAttestation mailbox command.
+
+--*/
 
 use crate::Drivers;
 use caliptra_common::mailbox_api::MailboxResp;
@@ -22,7 +34,11 @@ impl DisableAttestationCmd {
         Ok(MailboxResp::default())
     }
 
-    // Set CDI key vault slot to a KDF of a buffer of 0s.
+    /// Set CDI key vault slot to a KDF of a buffer of 0s.
+    ///
+    /// # Arguments
+    ///
+    /// * `drivers` - Drivers
     fn zero_rt_cdi(drivers: &mut Drivers) -> CaliptraResult<()> {
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
         hmac384_kdf(
@@ -43,7 +59,13 @@ impl DisableAttestationCmd {
         Ok(())
     }
 
-    // Dice key is derived from an empty CDI slot so it will not match the key that was certified in the rt_alias cert.
+    /// Generate a new RT alias key from the zeroed-out RT CDI. Since this new
+    /// key is derived from an empty CDI slot it will not match the key that was
+    /// certified in the RT alias cert.
+    ///
+    /// # Arguments
+    ///
+    /// * `drivers` - Drivers
     fn generate_dice_key(drivers: &mut Drivers) -> CaliptraResult<()> {
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
         let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;

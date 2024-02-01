@@ -1,4 +1,16 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    dpe_crypto.rs
+
+Abstract:
+
+    File contains DpeCrypto implementation.
+
+--*/
 
 use core::cmp::min;
 
