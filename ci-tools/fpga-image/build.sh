@@ -23,7 +23,7 @@ fi
 if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   (rm -rf out/rootfs || true)
   mkdir -p out/rootfs
-  debootstrap --include git,curl,ca-certificates,locales,libicu72,sudo,vmtouch,fping,rdnssd,dbus,systemd-timesyncd --arch arm64 --foreign bookworm out/rootfs
+  debootstrap --include git,curl,ca-certificates,locales,libicu72,sudo,vmtouch,fping,rdnssd,dbus,systemd-timesyncd,libboost-regex1.74.0,openocd,gdb-multiarch --arch arm64 --foreign bookworm out/rootfs
   chroot out/rootfs /debootstrap/debootstrap --second-stage
   chroot out/rootfs useradd runner --shell /bin/bash --create-home
 
