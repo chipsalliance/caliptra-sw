@@ -9,6 +9,10 @@ slow-timeout = { period = "30s", terminate-after = 6 }
 filter = 'test(test_generate_csr_stress)'
 slow-timeout = { period = "30s", terminate-after = 140 }
 
+[[profile.nightly.overrides]]
+filter = 'test(test_stress_update)'
+slow-timeout = { period = "30s", terminate-after = 17 }
+
 [profile.nightly.junit]
 path = "/tmp/junit.xml"
 store-success-output = true
