@@ -51,7 +51,7 @@ done
 
 # Calculate the hash (only if no files were missing)
 if [ "$missing_files" -eq 0 ]; then
-	hash=$(cat "${expected_file_list[@]}" | sha1sum | tr -d "\n *-")
+	hash=$(cat "${expected_file_list[@]}" | sha384sum | tr -d "\n *-")
 	echo "$hash"
 else
 	echo "Failed to generate RTL hash"
