@@ -1,4 +1,16 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    dpe_platform.rs
+
+Abstract:
+
+    File contains DpePlatform implementation.
+
+--*/
 
 use core::cmp::min;
 

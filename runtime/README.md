@@ -116,7 +116,7 @@ Table: `CALIPTRA_FW_LOAD` output arguments
 | **Name**    | **Type** | **Description**
 | --------    | -------- | ---------------
 | chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips_status | u32      | Indicates if the command is FIPS approved or an error
+| fips\_status | u32      | Indicates if the command is FIPS approved or an error
 
 ### GET\_IDEV\_CERT
 
@@ -129,9 +129,9 @@ Table: `GET_IDEV_CERT` input arguments
 | **Name**    | **Type**      | **Description**
 | --------    | --------      | ---------------
 | chksum      | u32           | Checksum over other input arguments, computed by the caller. Little endian.
-| signature_r | u8[48]        | R portion of signature of the cert
-| signature_s | u8[48]        | S portion of signature of the cert
-| tbs_size    | u32           | Size of the TBS
+| signature\_r | u8[48]        | R portion of signature of the cert
+| signature\_s | u8[48]        | S portion of signature of the cert
+| tbs\_size    | u32           | Size of the TBS
 | tbs         | u8[916]       | TBS, with a maximum size of 916. Only bytes up to tbs_size are used.
 
 Table: `GET_IDEV_CERT` output arguments
@@ -139,14 +139,14 @@ Table: `GET_IDEV_CERT` output arguments
 | **Name**    | **Type**   | **Description**
 | --------    | --------   | ---------------
 | chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips_status | u32        | Indicates if the command is FIPS approved or an error
-| cert_size   | u32        | Length in bytes of the cert field in use for the IDevId certificate
+| fips\_status | u32        | Indicates if the command is FIPS approved or an error
+| cert\_size   | u32        | Length in bytes of the cert field in use for the IDevId certificate
 | cert        | u8[1024]   | DER-encoded IDevID CERT
 
 ### POPULATE\_IDEV\_CERT
 
 Exposes a command that allows the SoC to provide a DER-encoded
-IDevId certificate on every boot. The IDevId certificate is added 
+IDevId certificate on every boot. The IDevId certificate is added
 to the start of the certificate chain.
 
 Command Code: `0x4944_4550` ("IDEP")
@@ -156,7 +156,7 @@ Table: `POPULATE_IDEV_CERT` input arguments
 | **Name**    | **Type**      | **Description**
 | --------    | --------      | ---------------
 | chksum      | u32           | Checksum over other input arguments, computed by the caller. Little endian.
-| cert_size   | u32           | Size of the DER-encoded IDevId certificate
+| cert\_size   | u32           | Size of the DER-encoded IDevId certificate
 | cert        | u8[1024]      | DER-encoded IDevID CERT
 
 Table: `POPULATE_IDEV_CERT` output arguments
@@ -164,7 +164,7 @@ Table: `POPULATE_IDEV_CERT` output arguments
 | **Name**    | **Type** | **Description**
 | --------    | -------- | ---------------
 | chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips_status | u32      | Indicates if the command is FIPS approved or an error
+| fips\_status | u32      | Indicates if the command is FIPS approved or an error
 
 ### GET\_IDEV\_INFO
 
@@ -183,9 +183,9 @@ Table: `GET_IDEV_INFO` output arguments
 | **Name**    | **Type**   | **Description**
 | --------    | --------   | ---------------
 | chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips_status | u32        | Indicates if the command is FIPS approved or an error
-| idev_pub_x  | u8[48]     | X portion of ECDSA IDevId key
-| idev_pub_y  | u8[48]     | Y portion of ECDSA IDevId key
+| fips\_status | u32        | Indicates if the command is FIPS approved or an error
+| idev\_pub\_x  | u8[48]     | X portion of ECDSA IDevId key
+| idev\_pub\_y  | u8[48]     | Y portion of ECDSA IDevId key
 
 ### GET\_LDEV\_CERT
 
@@ -204,8 +204,8 @@ Table: `GET_LDEV_CERT` output arguments
 | **Name**    | **Type**   | **Description**
 | --------    | --------   | ---------------
 | chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips_status | u32        | Indicates if the command is FIPS approved or an error
-| data_size   | u32        | Length in bytes of the valid data in the data field
+| fips\_status | u32        | Indicates if the command is FIPS approved or an error
+| data\_size   | u32        | Length in bytes of the valid data in the data field
 | data        | u8[...]    | DER-encoded LDevID Certificate
 
 ### GET\_FMC\_ALIAS\_CERT
@@ -225,8 +225,8 @@ Table: `GET_FMC_ALIAS_CERT` output arguments
 | **Name**    | **Type**   | **Description**
 | --------    | --------   | ---------------
 | chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips_status | u32        | Indicates if the command is FIPS approved or an error
-| data_size   | u32        | Length in bytes of the valid data in the data field
+| fips\_status | u32        | Indicates if the command is FIPS approved or an error
+| data\_size   | u32        | Length in bytes of the valid data in the data field
 | data        | u8[...]    | DER-encoded FMC alias Certificate
 
 ### GET\_RT\_ALIAS\_CERT
@@ -246,8 +246,8 @@ Table: `GET_RT_ALIAS_CERT` output arguments
 | **Name**    | **Type**   | **Description**
 | --------    | --------   | ---------------
 | chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips_status | u32        | Indicates if the command is FIPS approved or an error
-| data_size   | u32        | Length in bytes of the valid data in the data field
+| fips\_status | u32        | Indicates if the command is FIPS approved or an error
+| data\_size   | u32        | Length in bytes of the valid data in the data field
 | data        | u8[...]    | DER-encoded Runtime alias Certificate
 
 ### ECDSA384\_SIGNATURE\_VERIFY
@@ -272,14 +272,14 @@ Table: `ECDSA384_SIGNATURE_VERIFY` output arguments
 | **Name**    | **Type** | **Description**
 | --------    | -------- | ---------------
 | chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips_status | u32      | Indicates if the command is FIPS approved or an error
+| fips\_status | u32      | Indicates if the command is FIPS approved or an error
 
 ### STASH\_MEASUREMENT
 
 Make a measurement into the DPE default context. This command is intendend for
 callers who update infrequently and cannot tolerate a changing DPE API surface.
 
-* Call the DPE DeriveChild command with the DefaultContext in the locality of
+* Call the DPE DeriveContext command with the DefaultContext in the locality of
   the PL0 PAUSER.
 * Extend the measurement into PCR31 (`PCR_ID_STASH_MEASUREMENT`).
 
@@ -301,8 +301,8 @@ Table: `STASH_MEASUREMENT` output arguments
 | **Name**    | **Type** | **Description**
 | --------    | -------- | ---------------
 | chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips_status | u32      | Indicates if the command is FIPS approved or an error
-| dpe\_result | u32      | Result code of DPE DeriveChild command. Little endian.
+| fips\_status | u32      | Indicates if the command is FIPS approved or an error
+| dpe\_result | u32      | Result code of DPE DeriveContext command. Little endian.
 
 ### DISABLE\_ATTESTATION
 
@@ -332,7 +332,7 @@ Table: `DISABLE_ATTESTATION` output arguments
 | **Name**    | **Type** | **Description**
 | --------    | -------- | ---------------
 | chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips_status | u32      | Indicates if the command is FIPS approved or an error
+| fips\_status | u32      | Indicates if the command is FIPS approved or an error
 
 ### INVOKE\_DPE\_COMMAND
 
@@ -345,7 +345,7 @@ Table: `INVOKE_DPE_COMMAND` input arguments
 | **Name**     | **Type**      | **Description**
 | --------     | --------      | ---------------
 | chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
-| data_size    | u32           | Length in bytes of the valid data in the data field
+| data\_size    | u32           | Length in bytes of the valid data in the data field
 | data         | u8[...]       | DPE command structure as defined in the DPE iRoT profile
 
 
@@ -354,8 +354,8 @@ Table: `INVOKE_DPE_COMMAND` output arguments
 | **Name**    | **Type**      | **Description**
 | --------    | --------      | ---------------
 | chksum      | u32           | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips_status | u32           | Indicates if the command is FIPS approved or an error
-| data_size   | u32           | Length in bytes of the valid data in the data field
+| fips\_status | u32           | Indicates if the command is FIPS approved or an error
+| data\_size   | u32           | Length in bytes of the valid data in the data field
 | data        | u8[...]       | DPE response structure as defined in the DPE iRoT profile.
 
 ### QUOTE\_PCRS
@@ -422,11 +422,11 @@ Table: `GET_PCR_LOG` output arguments
 | **Name**    | **Type**   | **Description**
 | --------    | --------   | ---------------
 | chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips_status | u32        | Indicates if the command is FIPS approved or an error
-| data_size   | u32        | Length in bytes of the valid data in the data field
+| fips\_status | u32        | Indicates if the command is FIPS approved or an error
+| data\_size   | u32        | Length in bytes of the valid data in the data field
 | data        | u8[...]    | Internal PCR event log
 
-See [pcr_log.rs](../drivers/src/pcr_log.rs) for the format of the log.
+See [pcr\_log.rs](../drivers/src/pcr_log.rs) for the format of the log.
 
 Note: the log contents reflect PCR extensions made autonomously by Caliptra during boot. The log contents
 are not preserved across cold or update resets. Callers who wish to verify PCRs that are autonomously
@@ -458,19 +458,19 @@ Table: `DPE_TAG_TCI` input arguments
 | **Name**     | **Type**      | **Description**
 | --------     | --------      | ---------------
 | chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
-| handle       | u8[16]        | DPE context handle 
-| tag          | u32           | A unique tag which the handle will be associated with 
+| handle       | u8[16]        | DPE context handle
+| tag          | u32           | A unique tag which the handle will be associated with
 
 Table: `DPE_TAG_TCI` output arguments
 
 | **Name**    | **Type** | **Description**
 | --------    | -------- | ---------------
 | chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips_status | u32      | Indicates if the command is FIPS approved or an error
+| fips\_status | u32      | Indicates if the command is FIPS approved or an error
 
 ### DPE\_GET\_TAGGED\_TCI
 
-Retrieves the TCI measurements corresponding to the tagged DPE context 
+Retrieves the TCI measurements corresponding to the tagged DPE context
 
 Command Code: `0x4754_4744` ("GTGD")
 
@@ -486,8 +486,8 @@ Table: `DPE_GET_TAGGED_TCI` output arguments
 | **Name**          | **Type**       | **Description**
 | --------          | --------       | ---------------
 | chksum            | u32            | Checksum over other input arguments, computed by the caller. Little endian.
-| tci_cumulative    | u8[48]         | Hash of all the input data provided to the context
-| tci_current       | u8[48]         | Most recent measurement made into the context
+| tci\_cumulative    | u8[48]         | Hash of all the input data provided to the context
+| tci\_current       | u8[48]         | Most recent measurement made into the context
 
 ### FW\_INFO
 
@@ -604,16 +604,16 @@ Caliptra models PAUSER callers to its mailbox as having 1 of 2 privilege levels:
 * PL0 - High Privilege. Only 1 PAUSER in the SoC may be at PL0. The PL0 PAUSER
   is denoted in the signed Caliptra firmware image. The PL0 PAUSER may call any
   supported DPE commands. Only PL0 can use the CertifyKey command. Success of the
-  CertifyKey command signifies to the caller that it is at PL0. Only PL0 can use 
-  the POPULATE_IDEV_CERT mailbox command. 
+  CertifyKey command signifies to the caller that it is at PL0. Only PL0 can use
+  the POPULATE\_IDEV\_CERT mailbox command.
 * PL1 - Restricted Privilege. All other PAUSERs in the SoC are PL1. Caliptra
-  SHALL fail any calls to the DPE CertifyKey command by PL1 callers.
-  PL1 callers should use the CertifyCsr command instead.
+  SHALL fail any calls to the DPE CertifyKey with format=X509 by PL1 callers.
+  PL1 callers should use the CSR format instead.
 
 #### PAUSER Privilege Level Active Context Limits
 
 Each active context in DPE is activated from either PL0 or PL1 through the
-InvokeDpe mailbox command calling the DeriveChild or InitializeContext DPE
+InvokeDpe mailbox command calling the DeriveContext or InitializeContext DPE
 commands. However, a caller could easily exhaust space in DPE's context array
 by repeatedly calling the aforementioned DPE commands with certain flags set.
 
@@ -627,8 +627,8 @@ If a DPE command were to activate a new context such that the total number of
 active contexts in a privilege level is above its active context limit, the
 InvokeDpe command should fail.
 
-Further, it is not allowed for PL1 to call DeriveChild with the intent of 
-changing locality to PL0's locality, since this would increase the number 
+Further, it is not allowed for PL1 to call DeriveContext with the intent of
+changing locality to PL0's locality, since this would increase the number
 of active contexts in PL0's locality, and hence allow PL1 to DOS PL0.
 
 ### DPE Profile Implementation
@@ -652,7 +652,7 @@ Caliptra DPE supports the following commands
 
 * GetProfile
 * InitializeContext
-* DeriveChild
+* DeriveContext
 * CertifyKey
   * Caliptra DPE supports two formats for CertifyKey: X.509 and PKCS#10 CSR.
     X.509 is only available to PL0 PAUSERs.
@@ -660,11 +660,6 @@ Caliptra DPE supports the following commands
 * RotateContextHandle
 * DestroyContext
 * GetCertificateChain
-
-In addition, Caliptra supports the following profile-defined command:
-
-* ExtendTci: Extend a TCI measurement made by DeriveChild to provide additional
-             measurement data.
 
 ### DPE State Atomicity
 
@@ -681,19 +676,22 @@ main DPE spec, which does not return a response payload on failure.
 Caliptra Runtime firmware is responsible for initializing DPE’s Default Context.
 
 * Runtime Firmware SHALL initialize the Default Context in “internal-cdi” mode.
-* Call DeriveChild to measure the Caliptra Journey PCR
-* INPUT\_DATA = PCRX (RT journey PCR)
-* TYPE = “RTJM”
-* CONTEXT\_HANDLE = Default context
-* Set flag in the TCI Node that this node was created by the DPE implementation.
-  This will be used to set the VENDOR\_INFO field in TcbInfo to “VNDR”.
-
-When initializing DPE, Runtime Firmware shall also add each of ROM's stashed 
-measurements to DPE. To do so, it should call DeriveChild for each measurement
-in the measurement log. 
-
-*Note: the Runtime CDI (from KeyVault) will be used as-needed and will not be
-accessed during initialization.*
+* Perform the following initial measurements:
+    * Call DeriveContext with Caliptra Journey PCR
+        * INPUT\_DATA = PCRX (RT journey PCR as defined in the FHT)
+        * TYPE = “RTJM”
+        * CONTEXT\_HANDLE = Default context
+        * TARGET\_LOCALITY = Caliptra locality (0xFFFFFFFF)
+    * Call DeriveContext with mailbox valid PAUSERS
+        * INPUT\_DATA = Hash of [CPTRA\_VALID\_PAUSER register](https://chipsalliance.github.io/caliptra-rtl/main/internal-regs/?p=clp.soc_ifc_reg.CPTRA_MBOX_VALID_PAUSER%5B0%5D).
+        * TYPE = “MBVP”
+        * CONTEXT\_HANDLE = Default context
+        * TARGET\_LOCALITY = PL0 PAUSER
+    * Call DeriveContext for each STASH\_MEASUREMENT call made during Caliptr ROM execution
+        * INPUT\_DATA = `measurement` parameter to STASH\_MEASUREMENT
+        * TYPE = `type` parameter to STASH\_MEASUREMENT
+        * CONTEXT\_HANDLE = Default context
+        * TARGET\_LOCALITY = PL0 PAUSER
 
 ### CDI Derivation
 
@@ -713,35 +711,25 @@ following inputs:
 * Label = LABEL parameter provided to Sign or CertifyKey
 * Context = `MEASUREMENT_DATA`
 
-The CDI shall be loaded into KeyVault slot 0.
+The CDI shall be loaded into KeyVault slot 8.
 
 ### Leaf Key Derivation
 
 To derive an asymmetric key for Sign and CertifyKey, RT will
 
-* Derive an ECC P384 keypair from KV slot 0 CDI into KV slot 1
+* Derive an ECC P384 keypair from KV slot 8 CDI into KV slot 9
 * For CertifyKey: Request the public key
 * For Sign: Sign passed data
-* Erase KeyVault slots 0 and 1
+* Erase KeyVault slots 8 and 9
 
 ### Internal Representation of TCI Nodes
-
-| Byte Offset | Bits  | Name           | Description
-| ----------- | ----- | ------------   | -------------
-| 0x02        | 15:0  | Parent Index   | Index of the TCI node that is the parent of this node. 0xFF if this node is the root.
-| 0x04        | 159:0 | Context Handle | DPE context handle referring to this node
-| 0x18        | 31    | Internal TCI   | This TCI was measured by Runtime Firmware itself
-|             | 30:0  | Reserved       | Reserved flag bits
-| 0x1C        | 383:0 | Latest TCI     | The latest `INPUT_DATA` extended into this TCI by ExtendTci or DeriveChild
-
-Table: `TCI_NODE_DATA` for `DPE_PROFILE_IROT_P384_SHA384`
 
 | **Byte Offset** | **Bits** | **Name**         | **Description**
 | -----           | ----     | ---------------- | -----------------------------------------------------
 | 0x00            | 383:0    | `TCI_CURRENT`    | "Current" TCI measurement value
 | 0x30            | 383:0    | `TCI_CUMULATIVE` | TCI measurement value
-| 0x60            | 31:0     | `TYPE`           | `TYPE` parameter to the DeriveChild call which created this node
-| 0x64            | 31:0     | `LOCALITY`       | `TARGET_LOCALITY` parameter to the DeriveChild call which created this node (PAUSER)
+| 0x60            | 31:0     | `TYPE`           | `TYPE` parameter to the DeriveContext call which created this node
+| 0x64            | 31:0     | `LOCALITY`       | `TARGET_LOCALITY` parameter to the DeriveContext call which created this node (PAUSER)
 
 ### Certificate Generation
 
@@ -749,7 +737,7 @@ The DPE Runtime Alias Key SHALL sign DPE leaf certificates and CSRs.
 
 The DPE `GET_CERTIFICATE_CHAIN` command shall return the following certificates:
 
-* IDevID (Optionally added by the SoC via POPULATE_IDEV_CERT)
+* IDevID (Optionally added by the SoC via POPULATE\_IDEV\_CERT)
 * LDevID
 * FMC Alias
 * Runtime Alias
@@ -775,22 +763,10 @@ The DPE `GET_CERTIFICATE_CHAIN` command shall return the following certificates:
 | KeyUsage                       | keyCertSign | 1
 | Basic Constraints              | CA          | False
 | Policy OIDs                    |             | id-tcg-kp-attestLoc
-| tcg-dice-MultiTcbInfo\*        | Vendor      | {Vendor-defined}
-|                                | Model       | Caliptra
-|                                | SVN         | 1
-|                                | FWIDs       | [0] "Journey" TCI Value
-|                                |             | [1] "Current" TCI Value. Latest `INPUT_DATA` made by DeriveChild or ExtendTci.
+| tcg-dice-MultiTcbInfo\*        | FWIDs       | [0] "Journey" TCI Value
+|                                |             | [1] "Current" TCI Value. Latest `INPUT_DATA` made by DeriveContext.
 |                                | Type        | 4-byte TYPE field of TCI node
 |                                | VendorInfo  | Locality of the caller (analog for PAUSER)
 
 \*MultiTcbInfo ontains one TcbInfo for each TCI Node in the path from the
 current TCI Node to the root. Max of 24.
-
-# Opens
-
-Needs clarification or more details:
-
-* Describe mailbox flow for commands which need to send data which exceeds the
-  mailbox size
-* This specification should fully enumerate how runtime firmware uses shared
-  hardware resources. See https://github.com/chipsalliance/caliptra-sw/issues/17
