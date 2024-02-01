@@ -14,6 +14,9 @@ pub enum FmcBootStatus {
     RtAliasSubjKeyIdGenerationComplete = RTALIAS_BOOT_STATUS_BASE + 4,
     RtAliasCertSigGenerationComplete = RTALIAS_BOOT_STATUS_BASE + 5,
     RtAliasDerivationComplete = RTALIAS_BOOT_STATUS_BASE + 6,
+
+    // Hash chain statuses
+    RtHashChainComplete = RTALIAS_BOOT_STATUS_BASE + 7,
 }
 
 impl From<FmcBootStatus> for u32 {

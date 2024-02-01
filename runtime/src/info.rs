@@ -1,4 +1,16 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    info.rs
+
+Abstract:
+
+    File contains mailbox commands to retrieve info about state of the Runtime firmware.
+
+--*/
 
 use crate::{handoff::RtHandoff, Drivers};
 use caliptra_common::mailbox_api::{FwInfoResp, GetIdevInfoResp, MailboxResp, MailboxRespHeader};

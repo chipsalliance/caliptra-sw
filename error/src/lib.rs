@@ -407,6 +407,8 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E003D);
     pub const RUNTIME_PRIV_KEY_KV_HDL_HANDOFF_FAILED: CaliptraError =
         CaliptraError::new_const(0x000E003E);
+    pub const RUNTIME_HASH_CHAIN_HANDOFF_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E003F);
 
     /// PCR Runtime Errors
     pub const RUNTIME_PCR_RESERVED: CaliptraError = CaliptraError::new_const(0x000E003D);

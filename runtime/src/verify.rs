@@ -1,4 +1,16 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    verify.rs
+
+Abstract:
+
+    File contains EcdsaVerify mailbox command and HmacVerify test-only mailbox command.
+
+--*/
 
 use crate::Drivers;
 #[cfg(feature = "test_only_commands")]
