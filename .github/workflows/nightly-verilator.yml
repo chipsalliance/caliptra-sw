@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
   schedule:
     # cron format "minutes hours day-of-month month day-of-week"
-    # 5:30 PM Pacific monday-friday
-    - cron: '30 0 * * 2-6'
+    # 5:30 PM Pacific on tuesday and friday
+    - cron: '30 0 * * 3,6'
 
 jobs:
   smoke_test:
     name: Smoke Test
-    runs-on: n2d-highcpu-64
+    runs-on: n2d-highcpu-96
     timeout-minutes: 2800
 
     env:
@@ -48,4 +48,27 @@ jobs:
 
       - name: Run all tests inside verilator (will take hours)
         run: |
-          cargo nextest run --no-fail-fast --features=verilator,itrng --release
+          COMMON_ARGS=(
+              --features=verilator,itrng
+              --release
+          )
+
+          # Workaround https://github.com/nextest-rs/nextest/issues/267
+          export LD_LIBRARY_PATH=$(rustc --print sysroot)/lib
+
+          cargo-nextest nextest list \
+              "${COMMON_ARGS[@]}" \
+              --message-format json > /tmp/nextest-list.json
+
+          cargo nextest run \
+              "${COMMON_ARGS[@]}" \
+              --profile=verilator
+
+      - name: 'Upload test results'
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          name: caliptra-test-results
+          path: |
+            /tmp/junit.xml
+            /tmp/nextest-list.json

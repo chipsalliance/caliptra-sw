@@ -96,6 +96,11 @@ impl ModelVerilated {
     pub fn stop_tracing(&mut self) {
         self.v.stop_tracing();
     }
+
+    /// Set all mailbox SRAM cells to value with double-bit ECC errors
+    pub fn corrupt_mailbox_ecc_double_bit(&mut self) {
+        self.v.corrupt_mailbox_ecc_double_bit();
+    }
 }
 
 fn ahb_txn_size(ty: AhbTxnType) -> RvSize {

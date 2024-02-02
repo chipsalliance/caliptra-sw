@@ -1,10 +1,17 @@
 // Licensed under the Apache-2.0 license.
 
-use crate::common::{execute_dpe_cmd, run_rt_test, DpeResult, TEST_DIGEST, TEST_LABEL};
+use crate::common::{
+    execute_dpe_cmd, get_rt_alias_cert, run_rt_test, DpeResult, TEST_DIGEST, TEST_LABEL,
+};
 use caliptra_common::mailbox_api::{InvokeDpeReq, MailboxReq, MailboxReqHeader};
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::HwModel;
 use caliptra_runtime::{RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
+use cms::{
+    cert::x509::der::{Decode, Encode},
+    content_info::{CmsVersion, ContentInfo},
+    signed_data::{SignedData, SignerIdentifier},
+};
 use dpe::{
     commands::{
         CertifyKeyCmd, CertifyKeyFlags, Command, GetCertificateChainCmd, InitCtxCmd, SignCmd,
@@ -19,7 +26,9 @@ use openssl::{
     ec::{EcGroup, EcKey},
     ecdsa::EcdsaSig,
     nid::Nid,
+    x509::X509,
 };
+use sha2::{Digest, Sha384};
 
 #[test]
 fn test_invoke_dpe_get_profile_cmd() {
@@ -170,4 +179,72 @@ fn test_dpe_header_error_code() {
         hdr.status,
         DpeErrorCode::ArgumentNotSupported.get_error_code()
     );
+}
+
+#[test]
+fn test_invoke_dpe_certify_key_csr() {
+    let mut model = run_rt_test(None, None, None);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let certify_key_cmd = CertifyKeyCmd {
+        handle: ContextHandle::default(),
+        label: TEST_LABEL,
+        flags: CertifyKeyFlags::empty(),
+        format: CertifyKeyCmd::FORMAT_CSR,
+    };
+    let resp = execute_dpe_cmd(
+        &mut model,
+        &mut Command::CertifyKey(certify_key_cmd),
+        DpeResult::Success,
+    );
+    let Some(Response::CertifyKey(certify_key_resp)) = resp else {
+        panic!("Wrong response type!");
+    };
+
+    let rt_resp = get_rt_alias_cert(&mut model);
+    let rt_cert: X509 = X509::from_der(&rt_resp.data[..rt_resp.data_size as usize]).unwrap();
+
+    // parse CMS ContentInfo
+    let content_info = ContentInfo::from_der(
+        &certify_key_resp.cert[..certify_key_resp.cert_size.try_into().unwrap()],
+    )
+    .unwrap();
+    // parse SignedData
+    let mut signed_data = SignedData::from_der(&content_info.content.to_der().unwrap()).unwrap();
+    assert_eq!(signed_data.version, CmsVersion::V3);
+
+    // validate signer infos
+    let signer_infos = signed_data.signer_infos.0;
+    // ensure there is only 1 signer info
+    assert_eq!(signer_infos.len(), 1);
+    let signer_info = signer_infos.get(0).unwrap();
+    assert_eq!(signer_info.version, CmsVersion::V3);
+
+    // validate signer identifier
+    let sid = &signer_info.sid;
+    match sid {
+        SignerIdentifier::SubjectKeyIdentifier(subject_key_identifier) => {
+            // skip first two bytes - first byte is 0x4 der encoding byte and second byte is size byte
+            let cert_ski = &subject_key_identifier.0.as_bytes()[2..];
+            let ski = rt_cert.subject_key_id().unwrap().as_slice();
+            assert_eq!(cert_ski, ski);
+        }
+        _ => panic!("Error: Signer Identifier is not SubjectKeyIdentifier!"),
+    };
+
+    // parse encapsulated content info
+    let econtent_info = &mut signed_data.encap_content_info;
+    // skip first 4 explicit encoding bytes
+    let econtent = &econtent_info.econtent.as_mut().unwrap().to_der().unwrap()[4..];
+
+    // validate csr signature with the alias key
+    let mut hasher = Sha384::new();
+    hasher.update(econtent);
+    let csr_digest = hasher.finalize();
+    let alias_key = rt_cert.public_key().unwrap().ec_key().unwrap();
+    let csr_sig = EcdsaSig::from_der(signer_info.signature.as_bytes()).unwrap();
+    assert!(csr_sig.verify(&csr_digest, &alias_key).unwrap());
 }
