@@ -1,4 +1,16 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    invoke_dpe.rs
+
+Abstract:
+
+    File contains InvokeDpe mailbox command.
+
+--*/
 
 use crate::{CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PL0_PAUSER_FLAG};
 use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp, MailboxRespHeader};
@@ -6,7 +18,7 @@ use caliptra_drivers::{CaliptraError, CaliptraResult};
 use crypto::{AlgLen, Crypto};
 use dpe::{
     commands::{
-        CertifyKeyCmd, Command, CommandExecution, DeriveChildCmd, DeriveChildFlags, InitCtxCmd,
+        CertifyKeyCmd, Command, CommandExecution, DeriveContextCmd, DeriveContextFlags, InitCtxCmd,
     },
     context::{Context, ContextState},
     response::{Response, ResponseHdr},
@@ -16,9 +28,6 @@ use zerocopy::{AsBytes, FromBytes};
 
 pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
-    pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 8;
-    pub const PL1_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
-
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if cmd_args.len() <= core::mem::size_of::<InvokeDpeReq>() {
             let mut cmd = InvokeDpeReq::default();
@@ -30,16 +39,20 @@ impl InvokeDpeCmd {
             }
 
             let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
+            let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
+            let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
             let pdata = drivers.persistent_data.get();
-            let rt_pub_key = pdata.fht.rt_dice_pub_key;
             let mut crypto = DpeCrypto::new(
                 &mut drivers.sha384,
                 &mut drivers.trng,
                 &mut drivers.ecc384,
                 &mut drivers.hmac384,
                 &mut drivers.key_vault,
-                rt_pub_key,
+                pdata.fht.rt_dice_pub_key,
+                key_id_rt_cdi,
+                key_id_rt_priv_key,
             );
+            let pdata = drivers.persistent_data.get();
             let image_header = &pdata.manifest1.header;
             let pl0_pauser = pdata.manifest1.header.pl0_pauser;
             let mut env = DpeEnv::<CptraDpeTypes> {
@@ -49,7 +62,7 @@ impl InvokeDpeCmd {
 
             let locality = drivers.mbox.user();
             let command = Command::deserialize(&cmd.data[..cmd.data_size as usize])
-                .map_err(|_| CaliptraError::RUNTIME_INVOKE_DPE_FAILED)?;
+                .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
             let flags = pdata.manifest1.header.flags;
 
             let pdata_mut = drivers.persistent_data.get_mut();
@@ -59,35 +72,38 @@ impl InvokeDpeCmd {
             let resp = match command {
                 Command::GetProfile => Ok(Response::GetProfile(
                     dpe.get_profile(&mut env.platform)
-                        .map_err(|_| CaliptraError::RUNTIME_INVOKE_DPE_FAILED)?,
+                        .map_err(|_| CaliptraError::RUNTIME_COULD_NOT_GET_DPE_PROFILE)?,
                 )),
                 Command::InitCtx(cmd) => {
                     // InitCtx can only create new contexts if they are simulation contexts.
                     if InitCtxCmd::flag_is_simulation(&cmd) {
-                        Self::pl_context_threshold_exceeded(pl0_pauser, flags, locality, dpe)?;
+                        Drivers::is_dpe_context_threshold_exceeded(
+                            pl0_pauser, flags, locality, dpe, false,
+                        )?;
                     }
                     cmd.execute(dpe, &mut env, locality)
                 }
-                Command::DeriveChild(cmd) => {
-                    // If retain parent is not set for the DeriveChildCmd, the change in number of contexts is 0.
-                    if DeriveChildCmd::retains_parent(&cmd) {
-                        Self::pl_context_threshold_exceeded(pl0_pauser, flags, locality, dpe)?;
+                Command::DeriveContext(cmd) => {
+                    // If the recursive flag is not set, DeriveContext will generate a new context.
+                    // If recursive _is_ set, it will extend the existing one, which will not count
+                    // against the context threshold.
+                    if !DeriveContextCmd::is_recursive(&cmd) {
+                        Drivers::is_dpe_context_threshold_exceeded(
+                            pl0_pauser, flags, locality, dpe, false,
+                        )?;
                     }
-                    if DeriveChildCmd::changes_locality(&cmd)
+                    if DeriveContextCmd::changes_locality(&cmd)
                         && cmd.target_locality == pl0_pauser
-                        && Self::is_caller_pl1(pl0_pauser, flags, locality)
+                        && Drivers::is_caller_pl1(pl0_pauser, flags, locality)
                     {
                         return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
                     }
-                    let derive_child_resp = cmd.execute(dpe, &mut env, locality);
-                    // clear tags for retired contexts
-                    Self::clear_tags_for_non_active_contexts(dpe, context_has_tag, context_tags);
-                    derive_child_resp
+                    cmd.execute(dpe, &mut env, locality)
                 }
                 Command::CertifyKey(cmd) => {
                     // PL1 cannot request X509
                     if cmd.format == CertifyKeyCmd::FORMAT_X509
-                        && Self::is_caller_pl1(pl0_pauser, flags, locality)
+                        && Drivers::is_caller_pl1(pl0_pauser, flags, locality)
                     {
                         return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
                     }
@@ -96,12 +112,11 @@ impl InvokeDpeCmd {
                 Command::DestroyCtx(cmd) => {
                     let destroy_ctx_resp = cmd.execute(dpe, &mut env, locality);
                     // clear tags for destroyed contexts
-                    Self::clear_tags_for_non_active_contexts(dpe, context_has_tag, context_tags);
+                    Self::clear_tags_for_inactive_contexts(dpe, context_has_tag, context_tags);
                     destroy_ctx_resp
                 }
                 Command::Sign(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::RotateCtx(cmd) => cmd.execute(dpe, &mut env, locality),
-                Command::ExtendTci(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::GetCertificateChain(cmd) => cmd.execute(dpe, &mut env, locality),
             };
 
@@ -133,41 +148,14 @@ impl InvokeDpeCmd {
         }
     }
 
-    fn pl_context_threshold_exceeded(
-        pl0_pauser: u32,
-        flags: u32,
-        locality: u32,
-        dpe: &DpeInstance,
-    ) -> CaliptraResult<()> {
-        let used_pl0_dpe_context_count = dpe
-            .count_contexts(|c: &Context| {
-                c.state != ContextState::Inactive && c.locality == pl0_pauser
-            })
-            .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
-        // the number of used pl1 dpe contexts is the total number of used contexts
-        // minus the number of used pl0 contexts, since a context can only be activated
-        // from pl0 or from pl1. Here, used means an active or retired context.
-        let used_pl1_dpe_context_count = dpe
-            .count_contexts(|c: &Context| c.state != ContextState::Inactive)
-            .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?
-            - used_pl0_dpe_context_count;
-        if Self::is_caller_pl1(pl0_pauser, flags, locality)
-            && used_pl1_dpe_context_count == Self::PL1_DPE_ACTIVE_CONTEXT_THRESHOLD
-        {
-            return Err(CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED);
-        } else if !Self::is_caller_pl1(pl0_pauser, flags, locality)
-            && used_pl0_dpe_context_count == Self::PL0_DPE_ACTIVE_CONTEXT_THRESHOLD
-        {
-            return Err(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED);
-        }
-        Ok(())
-    }
-
-    fn is_caller_pl1(pl0_pauser: u32, flags: u32, locality: u32) -> bool {
-        flags & PL0_PAUSER_FLAG == 0 && locality != pl0_pauser
-    }
-
-    fn clear_tags_for_non_active_contexts(
+    /// Remove context tags for all inactive DPE contexts
+    ///
+    /// # Arguments
+    ///
+    /// * `dpe` - DpeInstance
+    /// * `context_has_tag` - Bool slice indicating if a DPE context has a tag
+    /// * `context_tags` - Tags for each DPE context
+    pub fn clear_tags_for_inactive_contexts(
         dpe: &mut DpeInstance,
         context_has_tag: &mut [U8Bool; MAX_HANDLES],
         context_tags: &mut [u32; MAX_HANDLES],
@@ -176,7 +164,7 @@ impl InvokeDpeCmd {
             if i < dpe.contexts.len()
                 && i < context_has_tag.len()
                 && i < context_tags.len()
-                && dpe.contexts[i].state != ContextState::Active
+                && dpe.contexts[i].state == ContextState::Inactive
             {
                 context_has_tag[i] = U8Bool::new(false);
                 context_tags[i] = 0;

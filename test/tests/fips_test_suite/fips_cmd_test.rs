@@ -199,7 +199,6 @@ pub fn fips_cmd_test_rt() {
         &firmware::APP_WITH_UART,
         ImageOptions {
             fmc_version: FMC_VERSION,
-            fmc_min_svn: 5,
             fmc_svn: 9,
             app_version: APP_VERSION,
             ..Default::default()

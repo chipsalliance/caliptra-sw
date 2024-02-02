@@ -19,12 +19,14 @@ caliptra-image-types.workspace = true
 caliptra-runtime = { workspace = true, default-features = false }
 elf.workspace = true
 openssl.workspace = true
+rand.workspace = true
 zerocopy.workspace = true
 caliptra-hw-model.workspace = true
 
 [dev-dependencies]
 caliptra-builder.workspace = true
 openssl.workspace = true
+caliptra-emu-cpu.workspace = true
 
 [features]
 fpga_realtime = ["caliptra-hw-model/fpga_realtime"]

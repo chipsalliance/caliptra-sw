@@ -5,14 +5,15 @@ use caliptra_builder::{
     FwId, ImageOptions,
 };
 use caliptra_common::mailbox_api::{
-    CommandId, InvokeDpeReq, InvokeDpeResp, MailboxReq, MailboxReqHeader,
+    CommandId, GetFmcAliasCertResp, GetRtAliasCertResp, InvokeDpeReq, InvokeDpeResp, MailboxReq,
+    MailboxReqHeader,
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError};
 use dpe::{
     commands::{Command, CommandHdr},
     response::{
-        CertifyKeyResp, DeriveChildResp, GetCertificateChainResp, GetProfileResp, NewHandleResp,
+        CertifyKeyResp, DeriveContextResp, GetCertificateChainResp, GetProfileResp, NewHandleResp,
         Response, ResponseHdr, SignResp,
     },
 };
@@ -25,6 +26,15 @@ use openssl::{
     x509::{X509Name, X509NameBuilder},
 };
 use zerocopy::{AsBytes, FromBytes};
+
+pub const TEST_LABEL: [u8; 48] = [
+    48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25,
+    24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
+];
+pub const TEST_DIGEST: [u8; 48] = [
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+    27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
+];
 
 // Run a test which boots ROM -> FMC -> test_bin. If test_bin_name is None,
 // run the production runtime image.
@@ -95,12 +105,11 @@ fn get_cmd_id(dpe_cmd: &mut Command) -> u32 {
     match dpe_cmd {
         Command::GetProfile => Command::GET_PROFILE,
         Command::InitCtx(_) => Command::INITIALIZE_CONTEXT,
-        Command::DeriveChild(_) => Command::DERIVE_CHILD,
+        Command::DeriveContext(_) => Command::DERIVE_CONTEXT,
         Command::CertifyKey(_) => Command::CERTIFY_KEY,
         Command::Sign(_) => Command::SIGN,
         Command::RotateCtx(_) => Command::ROTATE_CONTEXT_HANDLE,
         Command::DestroyCtx(_) => Command::DESTROY_CONTEXT,
-        Command::ExtendTci(_) => Command::EXTEND_TCI,
         Command::GetCertificateChain(_) => Command::GET_CERTIFICATE_CHAIN,
     }
 }
@@ -108,8 +117,7 @@ fn get_cmd_id(dpe_cmd: &mut Command) -> u32 {
 fn as_bytes(dpe_cmd: &mut Command) -> &[u8] {
     match dpe_cmd {
         Command::CertifyKey(cmd) => cmd.as_bytes(),
-        Command::DeriveChild(cmd) => cmd.as_bytes(),
-        Command::ExtendTci(cmd) => cmd.as_bytes(),
+        Command::DeriveContext(cmd) => cmd.as_bytes(),
         Command::GetCertificateChain(cmd) => cmd.as_bytes(),
         Command::DestroyCtx(cmd) => cmd.as_bytes(),
         Command::GetProfile => &[],
@@ -124,10 +132,9 @@ fn parse_dpe_response(dpe_cmd: &mut Command, resp_bytes: &[u8]) -> Response {
         Command::CertifyKey(_) => {
             Response::CertifyKey(CertifyKeyResp::read_from(resp_bytes).unwrap())
         }
-        Command::DeriveChild(_) => {
-            Response::DeriveChild(DeriveChildResp::read_from(resp_bytes).unwrap())
+        Command::DeriveContext(_) => {
+            Response::DeriveContext(DeriveContextResp::read_from(resp_bytes).unwrap())
         }
-        Command::ExtendTci(_) => Response::ExtendTci(NewHandleResp::read_from(resp_bytes).unwrap()),
         Command::GetCertificateChain(_) => {
             Response::GetCertificateChain(GetCertificateChainResp::read_from(resp_bytes).unwrap())
         }
@@ -206,4 +213,38 @@ pub fn assert_error(
     } else {
         panic!("Mailbox command should have failed with MailboxCmdFailed error, instead failed with {} error", actual_err)
     }
+}
+
+pub fn get_fmc_alias_cert(model: &mut DefaultHwModel) -> GetFmcAliasCertResp {
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_FMC_ALIAS_CERT),
+            &[],
+        ),
+    };
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::GET_FMC_ALIAS_CERT), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+    assert!(resp.len() <= std::mem::size_of::<GetFmcAliasCertResp>());
+    let mut fmc_resp = GetFmcAliasCertResp::default();
+    fmc_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
+    fmc_resp
+}
+
+pub fn get_rt_alias_cert(model: &mut DefaultHwModel) -> GetRtAliasCertResp {
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_RT_ALIAS_CERT),
+            &[],
+        ),
+    };
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::GET_RT_ALIAS_CERT), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+    assert!(resp.len() <= std::mem::size_of::<GetRtAliasCertResp>());
+    let mut rt_resp = GetRtAliasCertResp::default();
+    rt_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
+    rt_resp
 }

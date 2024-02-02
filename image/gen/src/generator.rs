@@ -204,6 +204,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         if let Some(owner_config) = &config.owner_config {
             header.owner_data.owner_not_before = owner_config.not_before;
             header.owner_data.owner_not_after = owner_config.not_after;
+            header.owner_data.epoch = owner_config.epoch;
         }
 
         Ok(header)
@@ -253,7 +254,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             revision: *image.rev(),
             version: image.version(),
             svn: image.svn(),
-            min_svn: image.min_svn(),
+            reserved: 0,
             load_addr: image.load_addr(),
             entry_point: image.entry_point(),
             offset,

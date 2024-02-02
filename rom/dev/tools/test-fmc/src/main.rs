@@ -42,8 +42,17 @@ pub fn main() {}
 
 // Dummy RO data to max out FMC image size to 16K.
 // Note: Adjust this value to account for new changes in this FMC image.
-static PAD: [u32; 1163] = {
-    let mut result = [0xdeadbeef_u32; 1163];
+#[cfg(all(feature = "interactive_test_fmc", not(feature = "fake-fmc")))]
+const PAD_LEN: usize = 4988; // TEST_FMC_INTERACTIVE
+#[cfg(all(feature = "fake-fmc", not(feature = "interactive_test_fmc")))]
+const PAD_LEN: usize = 5224; // FAKE_TEST_FMC_WITH_UART
+#[cfg(all(feature = "interactive_test_fmc", feature = "fake-fmc"))]
+const PAD_LEN: usize = 5452; // FAKE_TEST_FMC_INTERACTIVE
+#[cfg(not(any(feature = "interactive_test_fmc", feature = "fake-fmc")))]
+const PAD_LEN: usize = 0;
+
+static PAD: [u32; PAD_LEN / 4] = {
+    let mut result = [0xdeadbeef_u32; PAD_LEN / 4];
     let mut i = 0;
     while i < result.len() {
         result[i] = result[i].wrapping_add(i as u32);
@@ -279,6 +288,7 @@ fn validate_fmc_rt_load_in_iccm(mbox: &caliptra_registers::mbox::RegisterBlock<R
         core::slice::from_raw_parts_mut(ptr, rt_size / 4)
     };
 
+    let mut mismatch = false;
     for (idx, _) in fmc_iccm.iter().enumerate().take(fmc_size / 4) {
         let temp = mbox.dataout().read();
         if temp != fmc_iccm[idx] {
@@ -288,7 +298,7 @@ fn validate_fmc_rt_load_in_iccm(mbox: &caliptra_registers::mbox::RegisterBlock<R
                 temp,
                 fmc_iccm[idx]
             );
-            assert!(temp == fmc_iccm[idx]);
+            mismatch = true;
             cprint!("PAD[{}] = 0x{:08X}", idx, PAD[idx]);
         }
     }
@@ -301,11 +311,17 @@ fn validate_fmc_rt_load_in_iccm(mbox: &caliptra_registers::mbox::RegisterBlock<R
                 temp,
                 rt_iccm[idx]
             );
-            assert!(temp == rt_iccm[idx]);
+            mismatch = true;
         }
     }
 
-    mbox.status().write(|w| w.status(|w| w.cmd_complete()));
+    if mismatch {
+        send_to_mailbox(mbox, &[1], false);
+    } else {
+        send_to_mailbox(mbox, &[0], false);
+    }
+    mbox.dlen().write(|_| 1.try_into().unwrap());
+    mbox.status().write(|w| w.status(|w| w.data_ready()));
 }
 
 fn read_pcr31(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {

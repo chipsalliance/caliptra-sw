@@ -27,7 +27,7 @@ pub const MAX_RUNTIME_SVN: u32 = 128;
 #[derive(Default, Debug)]
 pub struct ImageSvnLogInfo {
     pub manifest_svn: u32,
-    pub manifest_min_svn: u32,
+    pub reserved: u32,
     pub fuse_svn: u32,
 }
 

@@ -1,4 +1,16 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    lib.rs
+
+Abstract:
+
+    File contains exports for the Runtime library and mailbox command handling logic.
+
+--*/
 #![cfg_attr(not(feature = "fip-self-test"), allow(unused))]
 #![no_std]
 pub mod dice;
@@ -8,8 +20,10 @@ mod dpe_platform;
 mod drivers;
 pub mod fips;
 pub mod handoff;
+mod hmac;
 pub mod info;
 mod invoke_dpe;
+mod pcr;
 mod populate_idev;
 mod stash_measurement;
 mod update;
@@ -20,6 +34,7 @@ pub mod mailbox;
 pub use drivers::Drivers;
 use mailbox::Mailbox;
 
+pub use crate::hmac::Hmac;
 pub use caliptra_common::fips::FipsVersionCmd;
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
@@ -32,6 +47,7 @@ pub use populate_idev::PopulateIDevIdCertCmd;
 
 pub use info::{FwInfoCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
+pub use pcr::IncrementPcrResetCounterCmd;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::EcdsaVerifyCmd;
 pub mod packet;
@@ -45,15 +61,19 @@ use caliptra_common::cprintln;
 use caliptra_drivers::{CaliptraError, CaliptraResult, ResetReason};
 use caliptra_registers::mbox::enums::MboxStatusE;
 use dpe::{
-    commands::{CommandExecution, DeriveChildCmd, DeriveChildFlags},
-    dpe_instance::{DpeEnv, DpeInstance, DpeTypes},
+    commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
+    dpe_instance::{DpeEnv, DpeTypes},
     support::Support,
     DPE_PROFILE,
 };
+pub use dpe::{context::ContextState, tci::TciMeasurement, DpeInstance, U8Bool, MAX_HANDLES};
 
-use crate::dice::GetRtAliasCertCmd;
 #[cfg(feature = "test_only_commands")]
 use crate::verify::HmacVerifyCmd;
+use crate::{
+    dice::GetRtAliasCertCmd,
+    pcr::{ExtendPcrCmd, GetPcrQuoteCmd},
+};
 
 const RUNTIME_BOOT_STATUS_BASE: u32 = 0x600;
 
@@ -78,6 +98,8 @@ pub const DPE_SUPPORT: Support = Support::all();
 pub const MAX_CERT_CHAIN_SIZE: usize = 4096;
 
 pub const PL0_PAUSER_FLAG: u32 = 1;
+pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 8;
+pub const PL1_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
 
 pub struct CptraDpeTypes;
 
@@ -108,7 +130,9 @@ fn enter_idle(drivers: &mut Drivers) {
 
 /// Handles the pending mailbox command and writes the repsonse back to the mailbox
 ///
-/// Returns the mailbox status (DataReady when we send a response) or an error
+/// # Returns
+///
+/// * `MboxStatusE` - the mailbox status (DataReady when we send a response)
 fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     // For firmware update, don't read data from the mailbox
     if drivers.mbox.cmd() == CommandId::FIRMWARE_LOAD {
@@ -137,6 +161,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::GET_LDEV_CERT => GetLdevCertCmd::execute(drivers),
         CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes),
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
+        CommandId::EXTEND_PCR => ExtendPcrCmd::execute(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers, cmd_bytes),
         CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),
         CommandId::FW_INFO => FwInfoCmd::execute(drivers),
@@ -145,6 +170,10 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::POPULATE_IDEV_CERT => PopulateIDevIdCertCmd::execute(drivers, cmd_bytes),
         CommandId::GET_FMC_ALIAS_CERT => GetFmcAliasCertCmd::execute(drivers),
         CommandId::GET_RT_ALIAS_CERT => GetRtAliasCertCmd::execute(drivers),
+        CommandId::INCREMENT_PCR_RESET_COUNTER => {
+            IncrementPcrResetCounterCmd::execute(drivers, cmd_bytes)
+        }
+        CommandId::QUOTE_PCRS => GetPcrQuoteCmd::execute(drivers, cmd_bytes),
         #[cfg(feature = "test_only_commands")]
         CommandId::TEST_ONLY_HMAC384_VERIFY => HmacVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::VERSION => {
@@ -176,6 +205,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     Ok(MboxStatusE::DataReady)
 }
 
+/// Handles mailbox commands when the command is ready
 pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
     // Indicator to SOC that RT firmware is ready
     drivers.soc_ifc.assert_ready_for_runtime();
@@ -186,7 +216,12 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
         if reset_reason == ResetReason::WarmReset {
             let mut result = DisableAttestationCmd::execute(drivers);
             match result {
-                Ok(_) => cprintln!("Disabled attestation due to cmd busy during warm reset"),
+                Ok(_) => {
+                    cprintln!("Disabled attestation due to cmd busy during warm reset");
+                    caliptra_drivers::report_fw_error_non_fatal(
+                        CaliptraError::RUNTIME_CMD_BUSY_DURING_WARM_RESET.into(),
+                    );
+                }
                 Err(e) => {
                     cprintln!("{}", e.0);
                     return Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION);

@@ -51,12 +51,6 @@ struct caliptra_resp_header {
     uint32_t fips_status;
 };
 
-struct caliptra_get_idev_csr_resp {
-    struct caliptra_resp_header hdr;
-    uint32_t data_size;
-    uint8_t data[1024];
-};
-
 struct caliptra_get_idev_cert_req {
     struct caliptra_req_header hdr;
     uint32_t tbs_size;
@@ -77,7 +71,25 @@ struct caliptra_get_idev_info_resp {
     uint8_t idev_pub_y[48];
 };
 
+struct caliptra_populate_idev_cert_req {
+    struct caliptra_req_header hdr;
+    uint32_t cert_size;
+    uint8_t cert[1024];
+};
+
 struct caliptra_get_ldev_cert_resp {
+    struct caliptra_resp_header hdr;
+    uint32_t data_size;
+    uint8_t data[1024];
+};
+
+struct caliptra_get_fmc_alias_cert_resp {
+    struct caliptra_resp_header hdr;
+    uint32_t data_size;
+    uint8_t data[1024];
+};
+
+struct caliptra_get_rt_alias_cert_resp {
     struct caliptra_resp_header hdr;
     uint32_t data_size;
     uint8_t data[1024];
@@ -89,14 +101,6 @@ struct caliptra_ecdsa_verify_req {
     uint8_t pub_key_y[48];
     uint8_t signature_r[48];
     uint8_t signature_s[48];
-};
-
-struct caliptra_hmac_verify_req {
-    struct caliptra_req_header hdr;
-    uint8_t key[48];
-    uint8_t tag[48];
-    uint32_t len;
-    uint8_t msg[256];
 };
 
 struct caliptra_stash_measurement_req {
@@ -112,19 +116,6 @@ struct caliptra_stash_measurement_resp {
     uint32_t dpe_result;
 };
 
-struct caliptra_test_get_fmc_alias_cert_resp {
-    struct caliptra_resp_header hdr;
-    uint32_t data_size;
-    uint8_t data[1024];
-};
-
-struct caliptra_fips_version_resp {
-    struct caliptra_resp_header hdr;
-    uint32_t mode;
-    uint32_t fips_rev[3];
-    uint8_t name[12];
-};
-
 struct caliptra_fw_info_resp {
     struct caliptra_resp_header hdr;
     uint32_t pl0_pauser;
@@ -132,6 +123,36 @@ struct caliptra_fw_info_resp {
     uint32_t min_runtime_svn;
     uint32_t fmc_manifest_svn;
     uint32_t attestation_disabled;
+    uint8_t rom_revision[20];
+    uint8_t fmc_revision[20];
+    uint8_t runtime_revision[20];
+    uint32_t rom_sha256_digest[8];
+    uint32_t fmc_sha384_digest[12];
+    uint32_t runtime_sha384_digest[12];
+};
+
+struct caliptra_dpe_tag_tci_req {
+    struct caliptra_req_header hdr;
+    uint8_t handle[16];
+    uint32_t tag;
+};
+
+struct caliptra_get_tagged_tci_req {
+    struct caliptra_req_header hdr;
+    uint32_t tag;
+};
+
+struct caliptra_get_tagged_tci_resp {
+    struct caliptra_resp_header hdr;
+    uint8_t tci_cumulative[48];
+    uint8_t tci_current[48];
+};
+
+struct caliptra_fips_version_resp {
+    struct caliptra_resp_header hdr;
+    uint32_t mode;
+    uint32_t fips_rev[3];
+    uint8_t name[12];
 };
 
 struct caliptra_capabilities_resp {

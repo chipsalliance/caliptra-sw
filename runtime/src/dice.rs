@@ -92,7 +92,16 @@ impl GetRtAliasCertCmd {
     }
 }
 
-// Retrieve the r portion of the LDevId cert signature
+/// Retrieve the r portion of the LDevId cert signature
+///
+/// # Arguments
+///
+/// * `persistent_data` - PersistentData
+/// * `dv` - DataVault
+///
+/// # Returns
+///
+/// * `Ecc384Scalar` - The r portion of the LDevId cert signature
 fn ldevid_dice_sign_r(
     persistent_data: &PersistentData,
     dv: &DataVault,
@@ -111,7 +120,16 @@ fn ldevid_dice_sign_r(
     }
 }
 
-// Retrieve the s portion of the LDevId cert signature
+/// Retrieve the s portion of the LDevId cert signature
+///
+/// # Arguments
+///
+/// * `persistent_data` - PersistentData
+/// * `dv` - DataVault
+///
+/// # Returns
+///
+/// * `Ecc384Scalar` - The s portion of the LDevId cert signature
 fn ldevid_dice_sign_s(
     persistent_data: &PersistentData,
     dv: &DataVault,
@@ -130,7 +148,16 @@ fn ldevid_dice_sign_s(
     }
 }
 
-// Piece together the r and s portions of the LDevId cert signature
+/// Piece together the r and s portions of the LDevId cert signature
+///
+/// # Arguments
+///
+/// * `persistent_data` - PersistentData
+/// * `dv` - DataVault
+///
+/// # Returns
+///
+/// * `Ecc384Signature` - The formed signature
 pub fn ldevid_dice_sign(
     persistent_data: &PersistentData,
     dv: &DataVault,
@@ -143,7 +170,15 @@ pub fn ldevid_dice_sign(
 
 /// Copy LDevID certificate produced by ROM to `cert` buffer
 ///
-/// Returns the number of bytes written to `cert`
+/// # Arguments
+///
+/// * `dv` - DataVault
+/// * `persistent_data` - PersistentData
+/// * `cert` - Buffer to copy LDevID certificate to
+///
+/// # Returns
+///
+/// * `usize` - The number of bytes written to `cert`
 #[inline(never)]
 pub fn copy_ldevid_cert(
     dv: &DataVault,
@@ -155,9 +190,19 @@ pub fn copy_ldevid_cert(
         .get(..persistent_data.fht.ldevid_tbs_size.into());
     let sig = ldevid_dice_sign(persistent_data, dv)?;
     cert_from_tbs_and_sig(tbs, &sig, cert)
+        .map_err(|_| CaliptraError::RUNTIME_GET_LDEVID_CERT_FAILED)
 }
 
-// Retrieve the r portion of the FMC cert signature
+/// Retrieve the r portion of the FMC alias cert signature
+///
+/// # Arguments
+///
+/// * `persistent_data` - PersistentData
+/// * `dv` - DataVault
+///
+/// # Returns
+///
+/// * `Ecc384Scalar` - The r portion of the FMC alias cert signature
 fn fmc_dice_sign_r(
     persistent_data: &PersistentData,
     dv: &DataVault,
@@ -176,7 +221,16 @@ fn fmc_dice_sign_r(
     }
 }
 
-// Retrieve the s portion of the FMC cert signature
+/// Retrieve the s portion of the FMC alias cert signature
+///
+/// # Arguments
+///
+/// * `persistent_data` - PersistentData
+/// * `dv` - DataVault
+///
+/// # Returns
+///
+/// * `Ecc384Scalar` - The s portion of the FMC alias cert signature
 fn fmc_dice_sign_s(
     persistent_data: &PersistentData,
     dv: &DataVault,
@@ -195,7 +249,16 @@ fn fmc_dice_sign_s(
     }
 }
 
-// Piece together the r and s portions of the FMC cert signature
+/// Piece together the r and s portions of the FMC alias cert signature
+///
+/// # Arguments
+///
+/// * `persistent_data` - PersistentData
+/// * `dv` - DataVault
+///
+/// # Returns
+///
+/// * `Ecc384Signature` - The formed signature
 pub fn fmc_dice_sign(
     persistent_data: &PersistentData,
     dv: &DataVault,
@@ -206,9 +269,17 @@ pub fn fmc_dice_sign(
     })
 }
 
-/// Copy FMC Alias certificate produced by ROM to `cert` buffer
+/// Copy FMC alias certificate produced by ROM to `cert` buffer
 ///
-/// Returns the number of bytes written to `cert`
+/// # Arguments
+///
+/// * `dv` - DataVault
+/// * `persistent_data` - PersistentData
+/// * `cert` - Buffer to copy LDevID certificate to
+///
+/// # Returns
+///
+/// * `usize` - The number of bytes written to `cert`
 #[inline(never)]
 pub fn copy_fmc_alias_cert(
     dv: &DataVault,
@@ -220,11 +291,19 @@ pub fn copy_fmc_alias_cert(
         .get(..persistent_data.fht.fmcalias_tbs_size.into());
     let sig = fmc_dice_sign(persistent_data, dv)?;
     cert_from_tbs_and_sig(tbs, &sig, cert)
+        .map_err(|_| CaliptraError::RUNTIME_GET_FMC_ALIAS_CERT_FAILED)
 }
 
-/// Copy RT Alias certificate produced by ROM to `cert` buffer
+/// Copy RT Alias certificate produced by FMC to `cert` buffer
 ///
-/// Returns the number of bytes written to `cert`
+/// # Arguments
+///
+/// * `persistent_data` - PersistentData
+/// * `cert` - Buffer to copy LDevID certificate to
+///
+/// # Returns
+///
+/// * `usize` - The number of bytes written to `cert`
 #[inline(never)]
 pub fn copy_rt_alias_cert(
     persistent_data: &PersistentData,
@@ -234,16 +313,27 @@ pub fn copy_rt_alias_cert(
         .rtalias_tbs
         .get(..persistent_data.fht.rtalias_tbs_size.into());
     cert_from_tbs_and_sig(tbs, &persistent_data.fht.rt_dice_sign, cert)
+        .map_err(|_| CaliptraError::RUNTIME_GET_RT_ALIAS_CERT_FAILED)
 }
 
 /// Create a certificate from a tbs and a signature and write the output to `cert`
+///
+/// # Arguments
+///
+/// * `tbs` - ToBeSigned portion
+/// * `sig` - Ecc384Signature
+/// * `cert` - Buffer to copy LDevID certificate to
+///
+/// # Returns
+///
+/// * `usize` - The number of bytes written to `cert`
 fn cert_from_tbs_and_sig(
     tbs: Option<&[u8]>,
     sig: &Ecc384Signature,
     cert: &mut [u8],
 ) -> CaliptraResult<usize> {
     let Some(tbs) = tbs else {
-        return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
+        return Err(CaliptraError::RUNTIME_INTERNAL);
     };
 
     // Convert from Ecc384Signature to Ecdsa384Signature
@@ -252,11 +342,11 @@ fn cert_from_tbs_and_sig(
         s: sig.s.into(),
     };
     let Some(builder) = Ecdsa384CertBuilder::new(tbs, &bldr_sig) else {
-        return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
+        return Err(CaliptraError::RUNTIME_INTERNAL);
     };
 
     let Some(size) = builder.build(cert) else {
-        return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
+        return Err(CaliptraError::RUNTIME_INTERNAL);
     };
 
     Ok(size)

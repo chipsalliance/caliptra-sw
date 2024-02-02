@@ -388,11 +388,11 @@ impl FirmwareProcessor {
             log_info.fmc_log_info.manifest_svn.as_bytes(),
         )?;
 
-        // Log ManifestFmcMinSvn
+        // Log ManifestReserved0
         log_fuse_data(
             log,
-            FuseLogEntryId::ManifestFmcMinSvn,
-            log_info.fmc_log_info.manifest_min_svn.as_bytes(),
+            FuseLogEntryId::ManifestReserved0,
+            log_info.fmc_log_info.reserved.as_bytes(),
         )?;
 
         // Log FuseFmcSvn
@@ -409,11 +409,11 @@ impl FirmwareProcessor {
             log_info.rt_log_info.manifest_svn.as_bytes(),
         )?;
 
-        // Log ManifestRtMinSvn
+        // Log ManifestReserved1
         log_fuse_data(
             log,
-            FuseLogEntryId::ManifestRtMinSvn,
-            log_info.rt_log_info.manifest_min_svn.as_bytes(),
+            FuseLogEntryId::ManifestReserved1,
+            log_info.rt_log_info.reserved.as_bytes(),
         )?;
 
         // Log FuseRtSvn

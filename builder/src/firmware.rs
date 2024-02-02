@@ -356,6 +356,16 @@ pub mod runtime_tests {
         bin_name: "boot",
         ..RUNTIME_TEST_FWID_BASE
     };
+
+    pub const MBOX: FwId = FwId {
+        bin_name: "mbox",
+        ..RUNTIME_TEST_FWID_BASE
+    };
+
+    pub const PERSISTENT_RT: FwId = FwId {
+        bin_name: "persistent_rt",
+        ..RUNTIME_TEST_FWID_BASE
+    };
 }
 
 pub const REGISTERED_FW: &[&FwId] = &[
@@ -415,4 +425,6 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &fmc_tests::MOCK_RT_WITH_UART,
     &fmc_tests::MOCK_RT_INTERACTIVE,
     &runtime_tests::BOOT,
+    &runtime_tests::MBOX,
+    &runtime_tests::PERSISTENT_RT,
 ];

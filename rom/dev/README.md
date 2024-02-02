@@ -681,18 +681,7 @@ The following are the pre-conditions that should be satisfied:
 - Generate the hash of the entire TOC data.
 - Compare the hash of the TOC data with the hash in the header.
 - If the hash matches, the TOC data is valid.
-- Once the TOC contents are verified, the last part of TOC validation is the SVN validation.
-    - There are two SVN fields that are present in the table of contents.
-        - Fw.Svn    : The Current SVN of the image
-        - Fw.MinSvn : The Min target SVN for the image
-    - The MinSvn is also placed in the fuse.
-        - Fuse.svn  : This is the minimum required SVN that the image should have.
-    - The following checks are required to pass for SVN validation
-        - Fw.Svn >= Fw.MinSvn
-        - Fw.MinSvn >= Fuse.Svn
-    - In case the Fw.MinSvn is greater than the Fuse.Svn
-        - Update the fuse SVN to Fw.MinSvn. To do this there will be a fuse update list that will be maintained and passed to runtime. The runtime will
-          notify the SOC to update the fuse data using this list.
+- Ensure that Fw.Svn >= Fuse.Svn.
 
 <br> *(Note: The Same SVN Validation is going to be done for the FMC and RT as well)
 

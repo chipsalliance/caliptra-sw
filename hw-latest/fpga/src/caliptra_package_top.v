@@ -5,7 +5,7 @@
 //
 // Create Date: 03/21/2023 11:49:47 AM
 // Design Name:
-// Module Name: fpga_top
+// Module Name: caliptra_package_top
 // Project Name:
 // Target Devices:
 // Tool Versions:
@@ -15,7 +15,7 @@
 //
 // Revision:
 // Revision 0.01 - File Created
-// Additional Comments:
+// Additional Comments: Vivado does not support using a SystemVerilog as the top level file in an package.
 //
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -23,27 +23,11 @@
 
 `define CALIPTRA_APB_ADDR_WIDTH      32 // bit-width APB address
 `define CALIPTRA_APB_DATA_WIDTH      32 // bit-width APB data
-`define CALIPTRA_APB_USER_WIDTH      32 // bit-width APB PAUSER field
-
-`define CALIPTRA_IMEM_BYTE_SIZE   (48*1024)
-`define CALIPTRA_IMEM_DATA_WIDTH  64
-`define CALIPTRA_IMEM_DEPTH       `CALIPTRA_IMEM_BYTE_SIZE / (`CALIPTRA_IMEM_DATA_WIDTH/8)
-`define CALIPTRA_IMEM_BYTE_ADDR_W $clog2(`CALIPTRA_IMEM_BYTE_SIZE)
-`define CALIPTRA_IMEM_ADDR_WIDTH  $clog2(`CALIPTRA_IMEM_DEPTH)
-
-`define IMEM_BRAM_ADDR_WIDTH  $clog2(`CALIPTRA_IMEM_BYTE_SIZE)
 
 module caliptra_package_top (
     input wire core_clk,
 
-    input  wire [31:0] gpio_in,
-    output wire [31:0] gpio_out,
-    input wire [255:0] cptra_obf_key,
-
-    output wire [7:0] fifo_char,
-    output wire fifo_write_en,
-
-    //APB Interface
+    // Caliptra APB Interface
     input  wire [39:0]                s_apb_paddr,
     input  wire                       s_apb_penable,
     input  wire [2:0]                 s_apb_pprot,
@@ -55,42 +39,50 @@ module caliptra_package_top (
     input  wire [`CALIPTRA_APB_DATA_WIDTH-1:0] s_apb_pwdata,
     input  wire                       s_apb_pwrite,
 
-    input  wire [`CALIPTRA_APB_USER_WIDTH-1:0] pauser,
+    // ROM AXI Interface
+    input  wire                       axi_bram_clk,
+    input  wire                       axi_bram_en,
+    input  wire [3:0]                 axi_bram_we,
+    input  wire [15:0]                axi_bram_addr,
+    input  wire [31:0]                axi_bram_din,
+    output wire [31:0]                axi_bram_dout,
+    input  wire                       axi_bram_rst,
 
-    input  wire axi_bram_clk,
-    input  wire axi_bram_en,
-    input  wire [3:0] axi_bram_we,
-    input  wire [`CALIPTRA_IMEM_BYTE_SIZE-1:0] axi_bram_addr,
-    input  wire [31:0] axi_bram_din,
-    output wire [31:0] axi_bram_dout,
-    input  wire axi_bram_rst,
-
-
-    //JTAG Interface
+    // JTAG Interface
     input wire                        jtag_tck,    // JTAG clk
     input wire                        jtag_tms,    // JTAG tms
     input wire                        jtag_tdi,    // JTAG tdi
     input wire                        jtag_trst_n, // JTAG reset
-    output wire                       jtag_tdo     // JTAG tdo
+    output wire                       jtag_tdo,    // JTAG tdo
+
+    // FPGA Realtime register AXI Interface
+    input	wire                      S_AXI_ARESETN,
+    input	wire                      S_AXI_AWVALID,
+    output	wire                      S_AXI_AWREADY,
+    input	wire [31:0]               S_AXI_AWADDR,
+    input	wire [2:0]                S_AXI_AWPROT,
+    input	wire                      S_AXI_WVALID,
+    output	wire                      S_AXI_WREADY,
+    input	wire [31:0]               S_AXI_WDATA,
+    input	wire [3:0]                S_AXI_WSTRB,
+    output	wire                      S_AXI_BVALID,
+    input	wire                      S_AXI_BREADY,
+    output	wire [1:0]                S_AXI_BRESP,
+    input	wire                      S_AXI_ARVALID,
+    output	wire                      S_AXI_ARREADY,
+    input	wire [31:0]               S_AXI_ARADDR,
+    input	wire [2:0]                S_AXI_ARPROT,
+    output	wire                      S_AXI_RVALID,
+    input	wire                      S_AXI_RREADY,
+    output	wire [31:0]               S_AXI_RDATA,
+    output	wire [1:0]                S_AXI_RRESP
     );
-
-    // Unused bits of soc adapter register
-    assign gpio_out[31] = 1'b0;
-    assign gpio_out[25:0] = 26'h0;
-
-    wire [63:0] generic_output_wires;
-
-    // Hierarchical references to generic output wires register. Use as input to log FIFO.
-    assign fifo_write_en = cptra_wrapper.caliptra_top_dut.soc_ifc_top1.i_soc_ifc_reg.field_combo.CPTRA_GENERIC_OUTPUT_WIRES[0].generic_wires.load_next;
-    assign fifo_char[7:0] = cptra_wrapper.caliptra_top_dut.soc_ifc_top1.i_soc_ifc_reg.field_combo.CPTRA_GENERIC_OUTPUT_WIRES[0].generic_wires.next[7:0];
-
 
 caliptra_wrapper_top cptra_wrapper (
     .core_clk(core_clk),
 
     .PADDR(s_apb_paddr[`CALIPTRA_APB_ADDR_WIDTH-1:0]),
     .PPROT(s_apb_pprot),
-    .PAUSER(pauser),
     .PENABLE(s_apb_penable),
     .PRDATA(s_apb_prdata),
     .PREADY(s_apb_pready),
@@ -99,31 +91,11 @@ caliptra_wrapper_top cptra_wrapper (
     .PWDATA(s_apb_pwdata),
     .PWRITE(s_apb_pwrite),
 
-    .cptra_obf_key(cptra_obf_key),
-
-    // SOC signals connected to GPIO
-    .cptra_pwrgood              (gpio_in[1]),
-    .cptra_rst_b                (gpio_in[0]),
-    .ready_for_fuses            (gpio_out[30]),
-    .ready_for_runtime          (gpio_out[29]),
-    .ready_for_fw_push          (gpio_out[28]),
-
-    // Security state
-    .debug_locked(gpio_in[6]),
-    .device_lifecycle(gpio_in[5:4]),
-
-    // Error signals
-    .cptra_error_fatal(gpio_out[26]),
-    .cptra_error_non_fatal(gpio_out[27]),
-
-    .generic_input_wires(),
-    .generic_output_wires(generic_output_wires),
-
     // SOC access to program ROM
     .axi_bram_clk(axi_bram_clk),
     .axi_bram_en(axi_bram_en),
     .axi_bram_we(axi_bram_we),
-    .axi_bram_addr(axi_bram_addr[`CALIPTRA_IMEM_BYTE_SIZE-1:2]),
+    .axi_bram_addr(axi_bram_addr[15:2]),
     .axi_bram_wrdata(axi_bram_din),
     .axi_bram_rddata(axi_bram_dout),
     .axi_bram_rst(axi_bram_rst),
@@ -133,7 +105,29 @@ caliptra_wrapper_top cptra_wrapper (
     .jtag_tdi(jtag_tdi),
     .jtag_tms(jtag_tms),
     .jtag_trst_n(jtag_trst_n),
-    .jtag_tdo(jtag_tdo)
+    .jtag_tdo(jtag_tdo),
+
+    // FPGA Realtime register AXI Interface
+    .S_AXI_ARESETN(S_AXI_ARESETN),
+    .S_AXI_AWVALID(S_AXI_AWVALID),
+    .S_AXI_AWREADY(S_AXI_AWREADY),
+    .S_AXI_AWADDR(S_AXI_AWADDR),
+    .S_AXI_AWPROT(S_AXI_AWPROT),
+    .S_AXI_WVALID(S_AXI_WVALID),
+    .S_AXI_WREADY(S_AXI_WREADY),
+    .S_AXI_WDATA(S_AXI_WDATA),
+    .S_AXI_WSTRB(S_AXI_WSTRB),
+    .S_AXI_BVALID(S_AXI_BVALID),
+    .S_AXI_BREADY(S_AXI_BREADY),
+    .S_AXI_BRESP(S_AXI_BRESP),
+    .S_AXI_ARVALID(S_AXI_ARVALID),
+    .S_AXI_ARREADY(S_AXI_ARREADY),
+    .S_AXI_ARADDR(S_AXI_ARADDR),
+    .S_AXI_ARPROT(S_AXI_ARPROT),
+    .S_AXI_RVALID(S_AXI_RVALID),
+    .S_AXI_RREADY(S_AXI_RREADY),
+    .S_AXI_RDATA(S_AXI_RDATA),
+    .S_AXI_RRESP(S_AXI_RRESP)
 );
 
 endmodule

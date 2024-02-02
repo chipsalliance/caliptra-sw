@@ -24,7 +24,6 @@ use std::path::PathBuf;
 pub struct ElfExecutable {
     version: u32,
     svn: u32,
-    min_svn: u32,
     rev: ImageRevision,
     load_addr: u32,
     entry_point: u32,
@@ -54,18 +53,16 @@ impl ElfExecutable {
         path: &PathBuf,
         version: u32,
         svn: u32,
-        min_svn: u32,
         rev: ImageRevision,
     ) -> anyhow::Result<Self> {
         let file_data = std::fs::read(path).with_context(|| "Failed to read file")?;
-        ElfExecutable::new(&file_data, version, svn, min_svn, rev)
+        ElfExecutable::new(&file_data, version, svn, rev)
     }
     /// Create new instance of `ElfExecutable`.
     pub fn new(
         elf_bytes: &[u8],
         version: u32,
         svn: u32,
-        min_svn: u32,
         rev: ImageRevision,
     ) -> anyhow::Result<Self> {
         let mut content = vec![];
@@ -95,7 +92,6 @@ impl ElfExecutable {
         Ok(Self {
             version,
             svn,
-            min_svn,
             rev,
             load_addr,
             entry_point,
@@ -138,11 +134,6 @@ impl ImageGenratorExecutable for ElfExecutable {
     /// Executable Security Version Number
     fn svn(&self) -> u32 {
         self.svn
-    }
-
-    /// Executable Minimum Security Version Number
-    fn min_svn(&self) -> u32 {
-        self.min_svn
     }
 
     /// Executable Revision

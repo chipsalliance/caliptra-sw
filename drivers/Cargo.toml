@@ -27,6 +27,7 @@ caliptra-cfi-derive.workspace = true
 [features]
 emu = []
 runtime = ["dep:dpe"]
+fmc = []
 fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
 itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]

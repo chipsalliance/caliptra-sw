@@ -5,14 +5,14 @@ on:
   schedule:
   # 2:11 AM PST tuesday-saturday
   - cron: '11 10 * * 2-6'
-permissions:
-  contents: write
-  pull-requests: write
 
 jobs:
   rtl-repo-sync:
     name: RTL Repo Sync
     uses: ./.github/workflows/rtl-repo-sync.yml
+    permissions:
+      contents: write
+      pull-requests: write
 
   find-latest-release:
     name: Find Latest Release
@@ -22,6 +22,10 @@ jobs:
       create_release: ${{ steps.find.outputs.create_release }}
       new_release_tag: ${{ steps.find.outputs.new_release_tag }}
       release_ref: ${{ steps.find.outputs.release_ref }}
+
+    permissions:
+      contents: write
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v3
@@ -69,6 +73,7 @@ jobs:
       artifact-suffix: -fpga-realtime-etrng-log
       extra-features: slow_tests
       rom-logging: true
+      fpga-itrng: false
 
   fpga-full-suite-etrng-nolog:
     name: FPGA Suite (etrng, nolog)
@@ -79,6 +84,29 @@ jobs:
       artifact-suffix: -fpga-realtime-etrng-nolog
       extra-features: slow_tests
       rom-logging: false
+      fpga-itrng: false
+
+  fpga-full-suite-itrng-log:
+    name: FPGA Suite (itrng, log)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-itrng-log
+      extra-features: slow_tests,itrng
+      rom-logging: true
+      fpga-itrng: true
+
+  fpga-full-suite-itrng-nolog:
+    name: FPGA Suite (itrng, nolog)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-itrng-nolog
+      extra-features: slow_tests,itrng
+      rom-logging: false
+      fpga-itrng: true
 
   sw-emulator-full-suite-etrng-log:
     name: sw-emulator Suite (etrng, log)
@@ -126,12 +154,18 @@ jobs:
       - find-latest-release
       - fpga-full-suite-etrng-log
       - fpga-full-suite-etrng-nolog
+      - fpga-full-suite-itrng-log
+      - fpga-full-suite-itrng-nolog
       - sw-emulator-full-suite-etrng-log
       - sw-emulator-full-suite-etrng-nolog
       - sw-emulator-full-suite-itrng-log
       - sw-emulator-full-suite-itrng-nolog
 
     runs-on: ubuntu-22.04
+
+    permissions:
+      contents: write
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v3
@@ -144,6 +178,15 @@ jobs:
           ./ci-tools/release/build_release.sh ${{ needs.find-latest-release.outputs.new_release_tag }}
           mv ./release/release.zip ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
 
+      - name: 'Download all artifacts'
+        uses: actions/download-artifact@v3
+        with:
+          path: /tmp/artifacts
+
+      - name: Package all test artifacts for release
+        run: |
+          (cd /tmp/artifacts && zip -r - .) > ./release/test_artifacts_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
+
       - name: Tag repo with new release number
         run: |
           git config --global user.name "GitHub CI"
@@ -154,5 +197,28 @@ jobs:
       - name: Upload release
         uses: softprops/action-gh-release@v1
         with:
-          files: ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
+          files: |
+            ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
+            ./release/test_artifacts_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
           tag_name: ${{ needs.find-latest-release.outputs.new_release_tag }}
+
+      - name: Write artifact to workflow with release info
+        run: |
+          mkdir /tmp/release-info
+          echo "${{ needs.find-latest-release.outputs.new_release_tag }}" > /tmp/release-info/tag-name
+          echo "caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip" > /tmp/release-info/zip-file-name
+
+      - name: Write artifact with release info
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-info
+          path: /tmp/release-info
+
+  publish-website:
+    name: Publish https://caliptra-sw.github.io/
+    needs:
+      create-release
+    uses: ./.github/workflows/publish-website.yml
+    permissions:
+      pages: write
+      id-token: write

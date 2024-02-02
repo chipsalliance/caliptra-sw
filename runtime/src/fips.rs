@@ -1,5 +1,16 @@
-// Licensed under the Apache-2.0 license
+/*++
 
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    fips.rs
+
+Abstract:
+
+    File contains FIPS module and FIPS self test.
+
+--*/
 use caliptra_common::cprintln;
 use caliptra_common::mailbox_api::{MailboxResp, MailboxRespHeader};
 use caliptra_drivers::CaliptraError;

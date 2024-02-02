@@ -264,6 +264,11 @@ fn test_pcr_hash_extend_single_block() {
     ];
     pcr_bank.erase_all_pcrs();
 
+    // Call gen_pcr_hash first to ensure that software workaround for
+    // https://github.com/chipsalliance/caliptra-rtl/issues/375 in SHA
+    // driver works as expected.
+    let _ = sha384.gen_pcr_hash([0; 32].into());
+
     // Round 1: PCR is all zeros.
     let result = sha384.pcr_extend(PcrId::PcrId0, &data);
     assert!(result.is_ok());

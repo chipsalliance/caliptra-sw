@@ -1514,41 +1514,6 @@ fn test_fmc_svn_greater_than_32() {
 }
 
 #[test]
-fn test_fmc_svn_less_than_min_svn() {
-    let gen = ImageGenerator::new(OsslCrypto::default());
-    let image_bundle = helpers::build_image_bundle(ImageOptions::default());
-    let vendor_pubkey_digest = gen
-        .vendor_pubkey_digest(&image_bundle.manifest.preamble)
-        .unwrap();
-
-    let fuses = caliptra_hw_model::Fuses {
-        life_cycle: DeviceLifecycle::Manufacturing,
-        anti_rollback_disable: false,
-        key_manifest_pk_hash: vendor_pubkey_digest,
-        ..Default::default()
-    };
-
-    let image_options = ImageOptions {
-        fmc_min_svn: 3,
-        fmc_svn: 2,
-        ..Default::default()
-    };
-    let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
-    assert_eq!(
-        ModelError::MailboxCmdFailed(u32::from(
-            CaliptraError::IMAGE_VERIFIER_ERR_FMC_SVN_LESS_THAN_MIN_SUPPORTED
-        )),
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap_err()
-    );
-
-    assert_eq!(
-        hw.soc_ifc().cptra_boot_status().read(),
-        u32::from(FwProcessorManifestLoadComplete)
-    );
-}
-
-#[test]
 fn test_fmc_svn_less_than_fuse_svn() {
     let gen = ImageGenerator::new(OsslCrypto::default());
     let image_bundle = helpers::build_image_bundle(ImageOptions::default());
@@ -1785,42 +1750,6 @@ fn test_runtime_svn_greater_than_max() {
     assert_eq!(
         ModelError::MailboxCmdFailed(
             CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_GREATER_THAN_MAX_SUPPORTED.into()
-        ),
-        hw.upload_firmware(&image_bundle.to_bytes().unwrap())
-            .unwrap_err()
-    );
-
-    assert_eq!(
-        hw.soc_ifc().cptra_boot_status().read(),
-        u32::from(FwProcessorManifestLoadComplete)
-    );
-}
-
-#[test]
-fn test_runtime_svn_less_than_min_svn() {
-    let gen = ImageGenerator::new(OsslCrypto::default());
-    let image_bundle = helpers::build_image_bundle(ImageOptions::default());
-    let vendor_pubkey_digest = gen
-        .vendor_pubkey_digest(&image_bundle.manifest.preamble)
-        .unwrap();
-
-    let fuses = caliptra_hw_model::Fuses {
-        life_cycle: DeviceLifecycle::Manufacturing,
-        anti_rollback_disable: false,
-        key_manifest_pk_hash: vendor_pubkey_digest,
-        ..Default::default()
-    };
-    let image_options = ImageOptions {
-        app_min_svn: 3,
-        app_svn: 2,
-        ..Default::default()
-    };
-
-    let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
-
-    assert_eq!(
-        ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SVN_LESS_THAN_MIN_SUPPORTED.into()
         ),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
@@ -2379,5 +2308,7 @@ fn test_max_fw_image() {
     buf.append(&mut image_bundle.fmc.to_vec());
     buf.append(&mut image_bundle.runtime.to_vec());
 
-    hw.mailbox_execute(0x1000_000E, &buf).unwrap();
+    let iccm_cmp: Vec<u8> = hw.mailbox_execute(0x1000_000E, &buf).unwrap().unwrap();
+    assert_eq!(iccm_cmp.len(), 1);
+    assert_eq!(iccm_cmp[0], 0);
 }

@@ -5,7 +5,7 @@ use caliptra_common::mailbox_api::{
     GetFmcAliasCertReq, GetLdevCertReq, GetRtAliasCertReq, ResponseVarSize,
 };
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
-use caliptra_hw_model_types::{DeviceLifecycle, Fuses};
+use caliptra_hw_model_types::{DeviceLifecycle, Fuses, RandomEtrngResponses, RandomNibbles};
 use caliptra_test::{derive, redact_cert, run_test, RedactOpts, UnwrapSingle};
 use caliptra_test::{
     derive::{DoeInput, DoeOutput, FmcAliasKey, IDevId, LDevId, Pcr0, Pcr0Input},
@@ -14,6 +14,8 @@ use caliptra_test::{
 };
 use openssl::nid::Nid;
 use openssl::sha::{sha384, Sha384};
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 use std::mem;
 use zerocopy::AsBytes;
 
@@ -131,7 +133,6 @@ fn smoke_test() {
         &firmware::FMC_WITH_UART,
         &firmware::APP_WITH_UART,
         ImageOptions {
-            fmc_min_svn: 5,
             fmc_svn: 9,
             ..Default::default()
         },
@@ -162,7 +163,7 @@ fn smoke_test() {
     .unwrap();
 
     if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
-        hw.step_until_output_contains("Caliptra RT listening for mailbox commands...\n")
+        hw.step_until_output_contains("[rt] Runtime listening for mailbox commands...\n")
             .unwrap();
         let output = hw.output().take(usize::MAX);
         assert_output_contains(&output, "Running Caliptra ROM");
@@ -518,7 +519,6 @@ fn smoke_test() {
         &firmware::APP,
         ImageOptions {
             fmc_version: 1,
-            fmc_min_svn: 5,
             fmc_svn: 10,
             app_version: 2,
             ..Default::default()
@@ -669,9 +669,9 @@ fn test_rt_wdt_timeout() {
     let rt_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
         27_100_000
     } else if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
-        3_000_000
+        3_100_000
     } else {
-        2_800_000
+        2_900_000
     };
 
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
@@ -679,6 +679,8 @@ fn test_rt_wdt_timeout() {
         rom: &rom,
         security_state,
         wdt_timeout_cycles: rt_wdt_timeout_cycles,
+        itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
+        etrng_responses: Box::new(RandomEtrngResponses(StdRng::seed_from_u64(0))),
         ..Default::default()
     };
 
@@ -688,7 +690,24 @@ fn test_rt_wdt_timeout() {
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_fatal().read(),
         RUNTIME_GLOBAL_WDT_EPIRED
-    )
+    );
+
+    let mcause = hw.soc_ifc().cptra_fw_extended_error_info().at(0).read();
+    let mscause = hw.soc_ifc().cptra_fw_extended_error_info().at(1).read();
+    let mepc = hw.soc_ifc().cptra_fw_extended_error_info().at(2).read();
+    let ra = hw.soc_ifc().cptra_fw_extended_error_info().at(3).read();
+    let error_internal_intr_r = hw.soc_ifc().cptra_fw_extended_error_info().at(4).read();
+
+    // no mcause if wdt times out
+    assert_eq!(mcause, 0);
+    // no mscause if wdt times out
+    assert_eq!(mscause, 0);
+    // mepc is a memory address so won't be 0
+    assert_ne!(mepc, 0);
+    // return address won't be 0
+    assert_ne!(ra, 0);
+    // error_internal_intr_r must be 0b01000000 since the error_wdt_timer1_timeout_sts bit must be set
+    assert_eq!(error_internal_intr_r, 0b01000000);
 }
 
 #[test]
@@ -699,7 +718,7 @@ fn test_fmc_wdt_timeout() {
     let fmc_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
         25_100_000
     } else {
-        2_720_000
+        2_820_000
     };
 
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
@@ -709,6 +728,8 @@ fn test_fmc_wdt_timeout() {
         rom: &rom,
         security_state,
         wdt_timeout_cycles: fmc_wdt_timeout_cycles,
+        itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
+        etrng_responses: Box::new(RandomEtrngResponses(StdRng::seed_from_u64(0))),
         ..Default::default()
     };
 
@@ -719,4 +740,21 @@ fn test_fmc_wdt_timeout() {
         hw.soc_ifc().cptra_fw_error_fatal().read(),
         FMC_GLOBAL_WDT_EPIRED
     );
+
+    let mcause = hw.soc_ifc().cptra_fw_extended_error_info().at(0).read();
+    let mscause = hw.soc_ifc().cptra_fw_extended_error_info().at(1).read();
+    let mepc = hw.soc_ifc().cptra_fw_extended_error_info().at(2).read();
+    let ra = hw.soc_ifc().cptra_fw_extended_error_info().at(3).read();
+    let error_internal_intr_r = hw.soc_ifc().cptra_fw_extended_error_info().at(4).read();
+
+    // no mcause if wdt times out
+    assert_eq!(mcause, 0);
+    // no mscause if wdt times out
+    assert_eq!(mscause, 0);
+    // mepc is a memory address so won't be 0
+    assert_ne!(mepc, 0);
+    // return address won't be 0
+    assert_ne!(ra, 0);
+    // error_internal_intr_r must be 0b01000000 since the error_wdt_timer1_timeout_sts bit must be set
+    assert_eq!(error_internal_intr_r, 0b01000000);
 }

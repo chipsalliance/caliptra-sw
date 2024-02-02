@@ -1,6 +1,17 @@
-// Licensed under the Apache-2.0 license
+/*++
 
-// License by Apache-2.0
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    packet.rs
+
+Abstract:
+
+    File contains an API that reads commands and writes responses to the mailbox.
+
+--*/
+
 use caliptra_drivers::CaliptraResult;
 
 use caliptra_common::mailbox_api::{MailboxReqHeader, MailboxResp};
@@ -27,6 +38,7 @@ impl Default for Packet {
 }
 
 impl Packet {
+    /// Retrieves the data in the mailbox and converts it into a Packet
     pub fn copy_from_mbox(drivers: &mut crate::Drivers) -> CaliptraResult<Self> {
         let mbox = &mut drivers.mbox;
         let cmd = mbox.cmd();
@@ -74,6 +86,12 @@ impl Packet {
         Ok(packet)
     }
 
+    /// Writes `resp` to the mailbox
+    ///
+    /// # Arguments
+    ///
+    /// * `drivers` - Drivers
+    /// * `resp` - Response from a mailbox command that is to be copied to mailbox
     pub fn copy_to_mbox(
         drivers: &mut crate::Drivers,
         resp: &mut MailboxResp,
@@ -87,6 +105,7 @@ impl Packet {
         mbox.write_response(resp.as_bytes()?)
     }
 
+    /// Retrieves the byte representation of the packet's payload
     pub fn as_bytes(&self) -> CaliptraResult<&[u8]> {
         self.payload
             .as_bytes()

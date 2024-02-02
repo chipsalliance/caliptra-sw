@@ -10,8 +10,8 @@ on:
 jobs:
   smoke_test:
     name: Smoke Test
-    runs-on: e2-highcpu-32
-    timeout-minutes: 2000
+    runs-on: n2d-highcpu-64
+    timeout-minutes: 2800
 
     env:
       VERILATOR_VERSION: v5.006
@@ -29,13 +29,13 @@ jobs:
             # The GCP runners already have verilator installed
             exit
           fi
-          sudo apt-get install flex bison libfl2 libfl-dev help2man
+          sudo apt-get update -qy && sudo apt-get install flex bison libfl2 libfl-dev help2man
           cd /tmp/
           git clone -b "${VERILATOR_VERSION}" https://github.com/verilator/verilator
           cd verilator
           autoconf
           ./configure --prefix=/opt/verilator
-          make -j32
+          make -j64
           sudo make install
 
       - name: Install nextest

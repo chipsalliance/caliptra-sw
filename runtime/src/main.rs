@@ -39,18 +39,23 @@ pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
     let mut drivers = unsafe {
         Drivers::new_from_registers().unwrap_or_else(|e| {
-            caliptra_common::report_handoff_error_and_halt("Runtime can't load drivers", e.into())
+            // treat global exception as a fatal error
+            match e {
+                CaliptraError::RUNTIME_GLOBAL_EXCEPTION => handle_fatal_error(e.into()),
+                _ => {
+                    cprintln!("[rt] Runtime can't load drivers");
+                    handle_fatal_error(e.into());
+                }
+            }
         })
     };
     caliptra_common::stop_wdt(&mut drivers.soc_ifc);
 
     if !drivers.persistent_data.get().fht.is_valid() {
-        caliptra_common::report_handoff_error_and_halt(
-            "Runtime can't load FHT",
-            caliptra_drivers::CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into(),
-        );
+        cprintln!("[rt] Runtime can't load FHT");
+        handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into());
     }
-    cprintln!("Caliptra RT listening for mailbox commands...");
+    cprintln!("[rt] Runtime listening for mailbox commands...");
     if let Err(e) = caliptra_runtime::handle_mailbox_commands(&mut drivers) {
         handle_fatal_error(e.into());
     }
@@ -101,7 +106,7 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
 
     let wdt_status = soc_ifc.regs().cptra_wdt_status().read();
     let error = if wdt_status.t1_timeout() || wdt_status.t2_timeout() {
-        cprintln!("WDT Expired");
+        cprintln!("[rt] WDT Expired");
         CaliptraError::RUNTIME_GLOBAL_WDT_EXPIRED
     } else {
         CaliptraError::RUNTIME_GLOBAL_NMI

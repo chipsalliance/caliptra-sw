@@ -16,7 +16,7 @@ use core::usize;
 
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::PcrId;
-use crate::{array::Array4x32, wait, Array4x12};
+use crate::{array::Array4x32, wait, Array4x12, Array4x8};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_error::{CaliptraError, CaliptraResult};
@@ -138,6 +138,42 @@ impl Sha384 {
         // command; the result register may not be valid yet
         wait::until(|| sha.status().read().valid());
         Array4x12::read_from_reg(sha.digest().truncate::<12>())
+    }
+
+    /// Generate digest over PCRs + nonce
+    ///
+    /// # Arguments
+    ///
+    /// * `nonce`- Nonce buffer
+    ///
+    /// # Returns
+    ///
+    /// * `buf` - Digest buffer
+    pub fn gen_pcr_hash(&mut self, nonce: Array4x8) -> CaliptraResult<Array4x12> {
+        let reg = self.sha512.regs_mut();
+        let status_reg = reg.gen_pcr_hash_status();
+
+        // Wait for the registers to be ready
+        wait::until(|| status_reg.read().ready());
+
+        // Write the nonce into the register
+        reg.gen_pcr_hash_nonce().write(&nonce.into());
+
+        // Use the start command to start the digesting process
+        reg.gen_pcr_hash_ctrl().write(|ctrl| ctrl.start(true));
+
+        // Wait for the registers to be ready
+        wait::until(|| status_reg.read().ready());
+
+        // Initialize SHA hardware to clear write lock
+        reg.ctrl().write(|w| w.init(true));
+        wait::until(|| status_reg.read().ready());
+
+        if status_reg.read().valid() {
+            Ok(reg.gen_pcr_hash_digest().read().into())
+        } else {
+            Err(CaliptraError::DRIVER_SHA384_INVALID_STATE_ERR)
+        }
     }
 
     pub fn pcr_extend(&mut self, id: PcrId, data: &[u8]) -> CaliptraResult<()> {

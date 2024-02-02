@@ -6,7 +6,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-caliptra_common = { workspace = true, default-features = false }
+caliptra_common = { workspace = true, default-features = false, features = ["runtime"] }
 caliptra-cpu.workspace = true
 caliptra-drivers = { workspace = true, features = ["runtime", "no-cfi"] }
 caliptra-error = { workspace = true, default-features = false }
@@ -38,6 +38,8 @@ caliptra-image-openssl.workspace = true
 caliptra-image-serde.workspace = true
 caliptra-cfi-lib = { workspace = true, features = ["cfi-test"] }
 openssl.workspace = true
+sha2 = { version = "0.10.2", default-features = false, features = ["compress"] }
+cms.workspace = true
 wycheproof.workspace = true
 
 [features]
