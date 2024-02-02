@@ -38,6 +38,9 @@ struct caliptra_fuses {
     uint32_t idevid_cert_attr[24];
     uint32_t idevid_manuf_hsm_id[4];
     enum device_lifecycle life_cycle;
+    bool lms_verify;
+    uint32_t lms_revocation;
+    uint16_t soc_stepping_id;
 };
 
 //    Request/Response fields

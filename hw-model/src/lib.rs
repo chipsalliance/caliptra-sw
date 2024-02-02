@@ -643,6 +643,9 @@ pub trait HwModel {
         self.soc_ifc()
             .fuse_lms_revocation()
             .write(|_| fuses.fuse_lms_revocation);
+        self.soc_ifc()
+            .fuse_soc_stepping_id()
+            .write(|w| w.soc_stepping_id(fuses.soc_stepping_id.into()));
 
         self.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
         assert!(self.soc_ifc().cptra_fuse_wr_done().read().done());
