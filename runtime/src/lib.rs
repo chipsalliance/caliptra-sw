@@ -266,10 +266,11 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
     }
 
     loop {
+        enter_idle(drivers);
+
         // Random delay for CFI glitch protection.
         CfiCounter::delay();
 
-        enter_idle(drivers);
         if drivers.is_shutdown {
             return Err(CaliptraError::RUNTIME_SHUTDOWN);
         }
