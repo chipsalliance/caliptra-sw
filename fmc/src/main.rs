@@ -15,14 +15,17 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_main)]
 use core::hint::black_box;
 
-use caliptra_cfi_lib::CfiCounter;
+use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
 use caliptra_common::{
     cprintln, handle_fatal_error,
     keyids::{KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY},
 };
 use caliptra_cpu::{log_trap_record, TrapRecord};
 
-use caliptra_drivers::hand_off::{DataStore, HandOffDataHandle};
+use caliptra_drivers::{
+    hand_off::{DataStore, HandOffDataHandle},
+    ResetReason,
+};
 
 mod boot_status;
 mod flow;
@@ -45,6 +48,7 @@ Running Caliptra FMC ...
 // therefore be marked as implicitly invalid.
 fn fix_fht(env: &mut fmc_env::FmcEnv) {
     if env.soc_ifc.reset_reason() == caliptra_drivers::ResetReason::ColdReset {
+        cfi_assert_eq(env.soc_ifc.reset_reason(), ResetReason::ColdReset);
         env.persistent_data.get_mut().fht.reserved.fill(0xFF);
     }
 }
@@ -60,6 +64,8 @@ pub extern "C" fn entry_point() -> ! {
     if !cfg!(feature = "no-cfi") {
         cprintln!("[state] CFI Enabled");
         let mut entropy_gen = || env.trng.generate().map(|a| a.0);
+        CfiCounter::reset(&mut entropy_gen);
+        CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);
     } else {
         cprintln!("[state] CFI Disabled");

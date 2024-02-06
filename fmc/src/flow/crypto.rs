@@ -6,6 +6,7 @@ Abstract:
     Crypto helper routines
 --*/
 use crate::fmc_env::FmcEnv;
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::{crypto::Ecc384KeyPair, keyids::KEY_ID_TMP};
 use caliptra_drivers::{
     hmac384_kdf, okref, Array4x12, Array4x5, Array4x8, CaliptraResult, Ecc384PrivKeyIn,
@@ -40,6 +41,7 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Array4x8` - Digest
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(always)]
     pub fn sha256_digest(env: &mut FmcEnv, data: &[u8]) -> CaliptraResult<Array4x8> {
         env.sha256.digest(data)
@@ -55,6 +57,7 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Array4x12` - Digest
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn sha384_digest(env: &mut FmcEnv, data: &[u8]) -> CaliptraResult<Array4x12> {
         env.sha384.digest(data)
     }
@@ -68,6 +71,7 @@ impl Crypto {
     /// * `label` - Input label
     /// * `context` - Input context
     /// * `output` - Key slot to store the output
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn hmac384_kdf(
         env: &mut FmcEnv,
         key: KeyId,
@@ -103,6 +107,7 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Ecc384KeyPair` - Private Key slot id and public key pairs
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn ecc384_key_gen(
         env: &mut FmcEnv,
         cdi: KeyId,
@@ -143,6 +148,7 @@ impl Crypto {
     /// # Returns
     ///
     /// * `Ecc384Signature` - Signature
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn ecdsa384_sign(
         env: &mut FmcEnv,
         priv_key: KeyId,
@@ -170,6 +176,7 @@ impl Crypto {
     /// # Returns
     ///
     /// * `bool` - True on success, false otherwise
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn ecdsa384_verify(
         env: &mut FmcEnv,
         pub_key: &Ecc384PubKey,
