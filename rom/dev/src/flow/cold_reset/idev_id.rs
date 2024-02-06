@@ -55,12 +55,6 @@ impl InitDevIdLayer {
         cprintln!("[idev] SUBJECT.KEYID = {}", KEY_ID_IDEVID_PRIV_KEY as u8);
         cprintln!("[idev] UDS.KEYID = {}", KEY_ID_UDS as u8);
 
-        // If CSR is not requested, indicate to the SOC that it can start
-        // uploading the firmware image to the mailbox.
-        if !env.soc_ifc.mfg_flag_gen_idev_id_csr() {
-            env.soc_ifc.flow_status_set_ready_for_firmware();
-        }
-
         // Decrypt the UDS
         Self::decrypt_uds(env, KEY_ID_UDS)?;
 

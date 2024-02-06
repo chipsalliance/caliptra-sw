@@ -1,9 +1,9 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::ImageOptions;
+use caliptra_builder::{firmware, ImageOptions};
 use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, StashMeasurementReq};
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{Fuses, HwModel, ModelError};
+use caliptra_hw_model::{Fuses, HwModel, InitParams, ModelError};
 use zerocopy::AsBytes;
 
 use crate::helpers;
@@ -16,6 +16,7 @@ const MAX_WAIT_CYCLES: u32 = 30_000_000;
 fn test_unknown_command_is_fatal() {
     let (mut hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    hw.step_until(|hw| hw.soc_ifc().cptra_flow_status().read().ready_for_fw());
 
     // This command does not exist
     assert_eq!(
@@ -58,6 +59,7 @@ fn test_mailbox_command_aborted_after_handle_fatal_error() {
 fn test_mailbox_invalid_checksum() {
     let (mut hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    hw.step_until(|hw| hw.ready_for_fw());
 
     // Upload measurement.
     let payload = StashMeasurementReq {
@@ -94,6 +96,7 @@ fn test_mailbox_invalid_checksum() {
 fn test_mailbox_invalid_req_size_large() {
     let (mut hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    hw.step_until(|hw| hw.ready_for_fw());
 
     // Upload measurement.
     let payload = StashMeasurementReq {
@@ -117,6 +120,7 @@ fn test_mailbox_invalid_req_size_large() {
 fn test_mailbox_invalid_req_size_small() {
     let (mut hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    hw.step_until(|hw| hw.ready_for_fw());
 
     // Upload measurement.
     let payload = StashMeasurementReq {
@@ -143,11 +147,40 @@ fn test_mailbox_invalid_req_size_small() {
 fn test_mailbox_invalid_req_size_zero() {
     let (mut hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    hw.step_until(|hw| hw.ready_for_fw());
 
     assert_eq!(
         hw.mailbox_execute(CommandId::CAPABILITIES.into(), &[]),
         Err(ModelError::MailboxCmdFailed(
             CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH.into()
         ))
+    );
+}
+
+#[test]
+fn test_mailbox_locked_at_cold_reset() {
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let mut hw = caliptra_hw_model::new_unbooted(InitParams {
+        rom: &rom,
+        ..Default::default()
+    })
+    .unwrap();
+    hw.init_fuses(&Fuses::default());
+
+    hw.soc_ifc().cptra_mbox_valid_pauser().at(0).write(|_| 1);
+    hw.soc_ifc()
+        .cptra_mbox_pauser_lock()
+        .at(0)
+        .write(|w| w.lock(true));
+
+    // Lock the mailbox
+    assert!(!hw.soc_mbox().lock().read().lock());
+    // Verify the mailbox was locked
+    assert!(hw.soc_mbox().lock().read().lock());
+
+    hw.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+    hw.step_until_fatal_error(
+        CaliptraError::ROM_MAILBOX_LOCKED_AT_COLD_RESET.into(),
+        1_000_000,
     );
 }

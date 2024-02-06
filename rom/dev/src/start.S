@@ -108,6 +108,33 @@ _start:
     // Cold Boot
     //
 
+    li t0, 0x30020000  // MBOX_LOCK
+    lw t1, 0(t0)
+    bne t1, x0, mbox_already_locked
+
+    // Zero MBOX
+    la a0, MBOX_ORG         // dest
+    la a1, MBOX_SIZE        // len
+    call _zero_mem256
+
+    // Force unlock mailbox
+    li t0, 0x30020020  // MBOX_UNLOCK
+    li t1, 1
+    sw t1, 0(t0)
+
+    // Tell the SoC it can use the mailbox, as long as we're not doing CSR
+    // generation
+    li t0, 0x300300bc  // CPTRA_DBG_MANUF_SERVICE_REG
+    lw t1, 0(t0)
+
+    andi t1, t1, 0x1   // MFG_FLAG_GEN_IDEV_CSR
+    bne t1, x0, 1f
+
+    li t0, 0x3003003c  // CPTRA_FLOW_STATUS
+    li t1, 0x10000000  // MAILBOX_FLOW_DONE
+    sw t1, 0(t0)
+
+1:
     // Zero ICCM
     la a0, ICCM_ORG         // dest
     la a1, ICCM_SIZE        // len 
@@ -132,6 +159,14 @@ post_ecc_init:
     // call _zero_mem32
 
     tail rom_entry
+
+mbox_already_locked:
+    li t0, 0x30030008  // CPTRA_FW_ERROR_FATAL
+    li t1, 0x01040021  // ROM_MAILBOX_LOCKED_AT_COLD_RESET
+    sw t1, 0(t0)
+1:
+    j 1b
+    j mbox_already_locked
 
     .cfi_endproc 
 

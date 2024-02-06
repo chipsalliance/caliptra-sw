@@ -1058,6 +1058,7 @@ pub trait HwModel {
 
     /// Upload firmware to the mailbox.
     fn upload_firmware(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
+        self.step_until(|hw| hw.ready_for_fw());
         let response = self.mailbox_execute(FW_LOAD_CMD_OPCODE, firmware)?;
         if response.is_some() {
             return Err(ModelError::UploadFirmwareUnexpectedResponse);
@@ -1101,6 +1102,7 @@ pub trait HwModel {
 
     /// Upload measurement to the mailbox.
     fn upload_measurement(&mut self, measurement: &[u8]) -> Result<(), ModelError> {
+        self.step_until(|hw| hw.ready_for_fw());
         let response = self.mailbox_execute(STASH_MEASUREMENT_CMD_OPCODE, measurement)?;
 
         // We expect a response

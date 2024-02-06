@@ -14,6 +14,7 @@ use crate::helpers;
 fn test_capabilities() {
     let (mut hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    hw.step_until(|hw| hw.ready_for_fw());
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::CAPABILITIES), &[]),

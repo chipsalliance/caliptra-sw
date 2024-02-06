@@ -489,6 +489,10 @@ impl CaliptraError {
     /// Unknown Reset Error
     pub const ROM_UNKNOWN_RESET_FLOW: CaliptraError = CaliptraError::new_const(0x01040020);
 
+    /// Used by start.S if it can't lock the mailbox
+    pub const ROM_MAILBOX_LOCKED_AT_COLD_RESET: CaliptraError =
+        CaliptraError::new_const(0x01040021);
+
     /// ROM CFI Errors
     pub const ROM_CFI_PANIC_UNKNOWN: CaliptraError = CaliptraError::new_const(0x1040050);
     pub const ROM_CFI_PANIC_COUNTER_CORRUPT: CaliptraError = CaliptraError::new_const(0x1040051);

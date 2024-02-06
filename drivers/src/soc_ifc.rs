@@ -285,7 +285,7 @@ impl SocIfc {
         self.soc_ifc
             .regs_mut()
             .cptra_flow_status()
-            .write(|w| w.ready_for_runtime(true));
+            .modify(|w| w.ready_for_runtime(true));
     }
 
     pub fn set_fmc_fw_rev_id(&mut self, fmc_version: u32) {

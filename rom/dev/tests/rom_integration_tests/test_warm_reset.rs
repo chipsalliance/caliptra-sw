@@ -114,6 +114,7 @@ fn test_warm_reset_during_cold_boot_during_image_validation() {
 
     let (mut hw, image_bundle) =
         helpers::build_hw_model_and_image_bundle(fuses, ImageOptions::default());
+    hw.step_until(|hw| hw.ready_for_fw());
 
     hw.start_mailbox_execute(
         CommandId::FIRMWARE_LOAD.into(),

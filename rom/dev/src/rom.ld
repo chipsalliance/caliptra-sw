@@ -17,6 +17,7 @@ OUTPUT_FORMAT("elf32-littleriscv", "elf32-littleriscv", "elf32-littleriscv")
 ENTRY(_start)
 
 ROM_ORG          = 0x00000000;
+MBOX_ORG         = 0x30000000;
 ICCM_ORG         = 0x40000000;
 DCCM_ORG         = 0x50000000;
 DATA_ORG         = 0x50000000;
@@ -33,6 +34,7 @@ CFI_STATE_ORG      = 0x500003E4;
  */
 ROM_RELAXATION_PADDING = 8k;
 ROM_SIZE          = 48K;
+MBOX_SIZE         = 128K;
 ICCM_SIZE         = 128K;
 DCCM_SIZE         = 128K;
 DATA_SIZE         = 996;

@@ -4,6 +4,7 @@ use caliptra_builder::{
     firmware::{self, rom_tests::TEST_FMC_WITH_UART, APP_WITH_UART},
     ImageOptions,
 };
+use caliptra_common::RomBootStatus;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, HwModel, InitParams};
 use caliptra_image_types::RomInfo;
@@ -38,9 +39,16 @@ fn test_rom_integrity_failure() {
     })
     .unwrap();
 
+    let pre_integrity_check_boot_statuses = [
+        0_u32,
+        RomBootStatus::CfiInitialized.into(),
+        RomBootStatus::KatStarted.into(),
+    ];
     loop {
         hw.step();
-        if hw.ready_for_fw() {
+        if hw.ready_for_fw()
+            && !pre_integrity_check_boot_statuses.contains(&hw.soc_ifc().cptra_boot_status().read())
+        {
             panic!("ROM should have had a failure")
         }
 
