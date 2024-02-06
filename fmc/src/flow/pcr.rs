@@ -23,13 +23,13 @@ Note:
 use crate::flow::tci::Tci;
 use crate::fmc_env::FmcEnv;
 use crate::HandOff;
+use caliptra_cfi_derive::cfi_mod_fn;
+use caliptra_common::{RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR};
 use caliptra_drivers::{
     okref,
     pcr_log::{PcrLogEntry, PcrLogEntryId},
     CaliptraResult, PersistentData,
 };
-
-use caliptra_common::{RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR};
 use caliptra_error::CaliptraError;
 use zerocopy::AsBytes;
 
@@ -39,8 +39,7 @@ use zerocopy::AsBytes;
 ///
 /// * `env` - FMC Environment
 /// * `pcr_id` - PCR slot to extend the data into
-///
-/// TODO: Add CFI instrumentation
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 pub fn extend_pcr_common(env: &mut FmcEnv) -> CaliptraResult<()> {
     // Calculate RT TCI (Hash over runtime code)
     let rt_tci: [u8; 48] = HandOff::rt_tci(env).into();
@@ -59,7 +58,7 @@ pub fn extend_pcr_common(env: &mut FmcEnv) -> CaliptraResult<()> {
 }
 
 /// Extend `data` into both the current and journey PCRs, and updates the PCR log.
-/// TODO: Add CFI instrumentation
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 fn extend_and_log(env: &mut FmcEnv, entry_id: PcrLogEntryId, data: &[u8]) -> CaliptraResult<()> {
     env.pcr_bank
         .extend_pcr(RT_FW_CURRENT_PCR, &mut env.sha384, data)?;
@@ -74,7 +73,7 @@ fn extend_and_log(env: &mut FmcEnv, entry_id: PcrLogEntryId, data: &[u8]) -> Cal
     )
 }
 
-// TODO: Add CFI instrumentation
+#[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
 fn log_pcr(
     persistent_data: &mut PersistentData,
     pcr_entry_id: PcrLogEntryId,
