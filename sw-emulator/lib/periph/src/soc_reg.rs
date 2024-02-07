@@ -589,6 +589,10 @@ struct SocRegistersImpl {
     #[register(offset = 0x0814)]
     error_internal_intr_r: ReadWriteRegister<u32, ErrorIntrT::Register>,
 
+    /// NOTIF_INTERNAL_INTR_R Register
+    #[register(offset = 0x0818)]
+    notif_internal_intr_r: ReadWriteRegister<u32>,
+
     /// Mailbox
     mailbox: MailboxInternal,
 
@@ -713,6 +717,7 @@ impl SocRegistersImpl {
             error_global_intr_r: ReadWriteRegister::new(0),
             notif_global_intr_r: ReadWriteRegister::new(0),
             error_internal_intr_r: ReadWriteRegister::new(0),
+            notif_internal_intr_r: ReadWriteRegister::new(1),
             mailbox,
             iccm,
             timer: Timer::new(clock),
