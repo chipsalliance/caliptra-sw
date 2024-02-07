@@ -8,4 +8,4 @@ if [[ ! -f "../hw-latest/caliptra-rtl/.git" ]]; then
     exit 1
 fi
 
-cargo run --manifest-path bin/generator/Cargo.toml -- ../hw-latest/caliptra-rtl src/
+cargo run --manifest-path bin/generator/Cargo.toml -- ../hw-latest/caliptra-rtl bin/extra-rdl/ src/

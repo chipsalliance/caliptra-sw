@@ -708,6 +708,7 @@ version = "0.1.0"
 dependencies = [
  "arrayvec",
  "caliptra-builder",
+ "caliptra-cfi-derive",
  "caliptra-cfi-lib",
  "caliptra-cpu",
  "caliptra-drivers",

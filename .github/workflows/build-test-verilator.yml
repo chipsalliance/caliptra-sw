@@ -99,7 +99,7 @@ jobs:
 
       - name: Check that generated register code matches caliptra-rtl submodule
         run: |
-          cargo run --locked -p caliptra_registers_generator -- --check hw-latest/caliptra-rtl registers/src
+          cargo run --locked -p caliptra_registers_generator -- --check hw-latest/caliptra-rtl registers/bin/extra-rdl  registers/src
 
       - name: Build
         run: |

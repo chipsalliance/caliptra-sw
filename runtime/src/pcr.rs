@@ -13,6 +13,7 @@ Abstract:
 --*/
 
 use crate::Drivers;
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
     ExtendPcrReq, IncrementPcrResetCounterReq, MailboxResp, MailboxRespHeader, QuotePcrsReq,
     QuotePcrsResp,
@@ -22,6 +23,7 @@ use zerocopy::FromBytes;
 
 pub struct IncrementPcrResetCounterCmd;
 impl IncrementPcrResetCounterCmd {
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         let cmd = IncrementPcrResetCounterReq::read_from(cmd_args)
             .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
@@ -42,6 +44,7 @@ impl IncrementPcrResetCounterCmd {
 
 pub struct GetPcrQuoteCmd;
 impl GetPcrQuoteCmd {
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<MailboxResp> {
         let args: QuotePcrsReq = QuotePcrsReq::read_from(cmd_bytes)
             .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
@@ -75,6 +78,7 @@ impl GetPcrQuoteCmd {
 
 pub struct ExtendPcrCmd;
 impl ExtendPcrCmd {
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         let cmd =
             ExtendPcrReq::read_from(cmd_args).ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
