@@ -15,11 +15,18 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_main)]
 use core::hint::black_box;
 
-use caliptra_cfi_lib::CfiCounter;
-use caliptra_common::{cprintln, handle_fatal_error};
+use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
+use caliptra_common::{
+    cprintln, handle_fatal_error,
+    keyids::{KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY},
+};
 use caliptra_cpu::{log_trap_record, TrapRecord};
 
-use caliptra_drivers::{report_fw_error_non_fatal, Mailbox};
+use caliptra_drivers::{
+    hand_off::{DataStore, HandOffDataHandle},
+    ResetReason,
+};
+
 mod boot_status;
 mod flow;
 pub mod fmc_env;
@@ -37,33 +44,50 @@ const BANNER: &str = r#"
 Running Caliptra FMC ...
 "#;
 
+// Upon cold reset, fills the reserved field with 0xFFs. Any newly-allocated fields will
+// therefore be marked as implicitly invalid.
+fn fix_fht(env: &mut fmc_env::FmcEnv) {
+    if env.soc_ifc.reset_reason() == caliptra_drivers::ResetReason::ColdReset {
+        cfi_assert_eq(env.soc_ifc.reset_reason(), ResetReason::ColdReset);
+        env.persistent_data.get_mut().fht.reserved.fill(0xFF);
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
     let mut env = match unsafe { fmc_env::FmcEnv::new_from_registers() } {
         Ok(env) => env,
-        Err(e) => report_error(e.into()),
+        Err(e) => handle_fatal_error(e.into()),
     };
 
     if !cfg!(feature = "no-cfi") {
         cprintln!("[state] CFI Enabled");
         let mut entropy_gen = || env.trng.generate().map(|a| a.0);
         CfiCounter::reset(&mut entropy_gen);
+        CfiCounter::reset(&mut entropy_gen);
+        CfiCounter::reset(&mut entropy_gen);
     } else {
         cprintln!("[state] CFI Disabled");
     }
 
+    fix_fht(&mut env);
+
     if env.persistent_data.get().fht.is_valid() {
-        // Jump straight to RT for val-FMC for now
+        // Set FHT fields and jump to RT for val-FMC for now
         if cfg!(feature = "fake-fmc") {
+            env.persistent_data.get_mut().fht.rt_cdi_kv_hdl =
+                HandOffDataHandle::from(DataStore::KeyVaultSlot(KEY_ID_RT_CDI));
+            env.persistent_data.get_mut().fht.rt_priv_key_kv_hdl =
+                HandOffDataHandle::from(DataStore::KeyVaultSlot(KEY_ID_RT_PRIV_KEY));
             HandOff::to_rt(&env);
         }
         match flow::run(&mut env) {
             Ok(_) => match HandOff::is_ready_for_rt(&env) {
                 Ok(()) => HandOff::to_rt(&env),
-                Err(e) => report_error(e.into()),
+                Err(e) => handle_fatal_error(e.into()),
             },
-            Err(e) => report_error(e.into()),
+            Err(e) => handle_fatal_error(e.into()),
         }
     }
 
@@ -82,7 +106,7 @@ extern "C" fn exception_handler(trap_record: &TrapRecord) {
     );
     log_trap_record(trap_record, None);
 
-    handle_fatal_error(caliptra_error::CaliptraError::FMC_GLOBAL_EXCEPTION.into());
+    handle_fatal_error(CaliptraError::FMC_GLOBAL_EXCEPTION.into());
 }
 
 #[no_mangle]
@@ -133,22 +157,7 @@ extern "C" fn cfi_panic_handler(code: u32) -> ! {
 fn fmc_panic(_: &core::panic::PanicInfo) -> ! {
     cprintln!("FMC Panic!!");
     panic_is_possible();
-
-    // TODO: Signal non-fatal error to SOC
-    report_error(caliptra_error::CaliptraError::FMC_GLOBAL_PANIC.into());
-}
-
-#[allow(clippy::empty_loop)]
-fn report_error(code: u32) -> ! {
-    cprintln!("FMC Error: 0x{:08X}", code);
-    report_fw_error_non_fatal(code);
-
-    loop {
-        // SoC firmware might be stuck waiting for Caliptra to finish
-        // executing this pending mailbox transaction. Notify them that
-        // we've failed.
-        unsafe { Mailbox::abort_pending_soc_to_uc_transactions() };
-    }
+    handle_fatal_error(CaliptraError::FMC_GLOBAL_PANIC.into());
 }
 
 #[no_mangle]

@@ -76,7 +76,7 @@ jobs:
 
       - name: 'Upload FPGA bitstream artifact'
         if: steps.restore_rtl_cache.outputs.cache-hit
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: caliptra-fpga-bitstream${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-fpga-bitstream/caliptra_fpga.bin
@@ -84,7 +84,7 @@ jobs:
 
       - name: 'Upload kernel module artifacts'
         if: steps.restore_kmod_cache.outputs.cache-hit
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: caliptra-fpga-kmod${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-fpga-kmod/
@@ -119,7 +119,7 @@ jobs:
       - name: Install sysroot pre-requisites
         if: "!steps.restore_sysroot_cache.outputs.cache-hit"
         run: |
-          sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools
+          sudo apt-get update -qy && sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools
 
       - name: build sysroot
         # Note: This is the sysroot for the tiny debian installation we run on the FPGA;
@@ -147,7 +147,7 @@ jobs:
 
       - name: Install cross compiler
         run: |
-          sudo apt-get install -y gcc-aarch64-linux-gnu squashfs-tools
+          sudo apt-get update -qy && sudo apt-get install -y gcc-aarch64-linux-gnu squashfs-tools
           rustup target add aarch64-unknown-linux-gnu
 
       - name: Build test binaries
@@ -171,7 +171,7 @@ jobs:
           mksquashfs /tmp/caliptra-test-binaries /tmp/caliptra-test-binaries.sqsh -comp zstd
 
       - name: 'Upload test binaries artifact'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: caliptra-test-binaries${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-binaries.sqsh
@@ -183,7 +183,7 @@ jobs:
           cargo run --release -p caliptra-builder -- --all_elfs /tmp/caliptra-test-firmware
 
       - name: 'Upload test firmware artifact'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: caliptra-test-firmware${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-firmware
@@ -246,7 +246,7 @@ jobs:
           key: ${{ needs.check_cache.outputs.kmod_cache_key }}
 
       - name: 'Upload kernel module artifacts'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: caliptra-fpga-kmod${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-fpga-kmod/
@@ -286,7 +286,7 @@ jobs:
           fi
 
       - name: 'Upload FPGA bitstream artifact'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: caliptra-fpga-bitstream${{ inputs.artifact-suffix }}
           path: hw-latest/fpga/caliptra_build/caliptra_fpga.bin
@@ -302,7 +302,7 @@ jobs:
 
     steps:
       - name: 'Download FPGA Bitstream Artifact'
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: caliptra-fpga-bitstream${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-fpga-bitstream
@@ -332,25 +332,25 @@ jobs:
           git submodule update --init dpe
 
       - name: 'Download FPGA Bitstream Artifact'
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: caliptra-fpga-bitstream${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-fpga-bitstream
 
       - name: 'Download kernel driver artifacts'
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: caliptra-fpga-kmod${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-fpga-kmod/
 
       - name: 'Download Test Binaries Artifact'
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: caliptra-test-binaries${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-binaries.sqsh
 
       - name: 'Download Test Firmware Artifact'
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: caliptra-test-firmware${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-firmware
@@ -359,7 +359,6 @@ jobs:
         run: |
           # We don't have enough DRAM on the FPGA board to extract a tarball
           # into the overlaid tmpfs, so use squashfs instead
-          find /tmp/ -exec ls -lh "{}" \;
           echo mkdir
           sudo mkdir /tmp/caliptra-test-binaries
           echo mount squashfs
@@ -369,7 +368,6 @@ jobs:
       - name: Load FPGA Bitstream
         run: |
           # sha256sum /tmp/caliptra-fpga/caliptra_fpga.bin
-          find /tmp/ -exec ls -lh "{}" \;
 
           sudo mkdir -p /lib/firmware
           sudo cp /tmp/caliptra-fpga-bitstream/caliptra_fpga.bin /lib/firmware/caliptra_fpga.bin
@@ -435,7 +433,7 @@ jobs:
               --profile=nightly
 
       - name: 'Upload test results'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: success() || failure()
         with:
           name: caliptra-test-results${{ inputs.artifact-suffix }}

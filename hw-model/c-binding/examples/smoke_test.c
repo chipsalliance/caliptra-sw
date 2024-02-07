@@ -7,6 +7,8 @@
 #include <unistd.h>
 #include "api/caliptra_api.h"
 
+static const uint32_t RT_READY_FOR_COMMANDS = 0x600;
+
 static struct caliptra_buffer read_file_or_die(const char* path)
 {
     // Open File in Read Only Mode
@@ -79,6 +81,7 @@ int main(int argc, char *argv[])
       .rom = read_file_or_die(rom_path),
       .dccm = {.data = NULL, .len = 0},
       .iccm = {.data = NULL, .len = 0},
+      .security_state = CALIPTRA_SEC_STATE_DBG_UNLOCKED_UNPROVISIONED,
     };
 
     // Initialize Model
@@ -103,12 +106,8 @@ int main(int argc, char *argv[])
     caliptra_upload_fw(model, &image_bundle);
 
     // Run Until RT is ready to receive commands
-    while(1) {
-        caliptra_model_step(model);
-        struct caliptra_buffer buffer = caliptra_model_output_peek(model);
-        if (strstr(buffer.data, "Caliptra RT listening for mailbox commands..."))
-            break;
-    }
+    caliptra_model_step_until_boot_status(model, RT_READY_FOR_COMMANDS);
+
     printf("Caliptra C Smoke Test Passed \n");
     return 0;
 }

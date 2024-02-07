@@ -1,4 +1,16 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    drivers.rs
+
+Abstract:
+
+    File contains driver initializations.
+
+--*/
 
 #![cfg_attr(not(feature = "fip-self-test"), allow(unused))]
 
@@ -12,11 +24,18 @@ use crate::{
 };
 
 use arrayvec::ArrayVec;
+use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder};
+use caliptra_drivers::KeyId;
 use caliptra_drivers::{
     cprint, cprintln, pcr_log::RT_FW_JOURNEY_PCR, Array4x12, CaliptraError, CaliptraResult,
-    DataVault, Ecc384, KeyVault, Lms, PersistentDataAccessor, ResetReason, Sha1, SocIfc,
+    DataVault, Ecc384, KeyVault, Lms, PersistentDataAccessor, Pic, ResetReason, Sha1, SocIfc,
 };
-use caliptra_drivers::{Hmac384, PcrBank, PcrId, Sha256, Sha256Alg, Sha384, Sha384Acc, Trng};
+use caliptra_drivers::{
+    hand_off::DataStore, Ecc384PubKey, Hmac384, PcrBank, PcrId, Sha256, Sha256Alg, Sha384,
+    Sha384Acc, Trng,
+};
+use caliptra_registers::el2_pic_ctrl::El2PicCtrl;
 use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_registers::{
     csrng::CsrngReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg, kv::KvReg,
@@ -28,7 +47,7 @@ use dpe::tci::TciMeasurement;
 use dpe::validation::DpeValidator;
 use dpe::MAX_HANDLES;
 use dpe::{
-    commands::{CommandExecution, DeriveChildCmd, DeriveChildFlags},
+    commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
     dpe_instance::{DpeEnv, DpeInstance, DpeTypes},
     support::Support,
@@ -70,9 +89,9 @@ pub struct Drivers {
 
     pub pcr_bank: PcrBank,
 
-    pub cert_chain: ArrayVec<u8, MAX_CERT_CHAIN_SIZE>,
+    pub pic: Pic,
 
-    pub attestation_disabled: bool,
+    pub cert_chain: ArrayVec<u8, MAX_CERT_CHAIN_SIZE>,
 
     #[cfg(feature = "fips_self_test")]
     pub self_test_status: SelfTestStatus,
@@ -90,23 +109,31 @@ impl Drivers {
         let mut drivers = Self::get_unsafe_registers()?;
 
         Self::create_cert_chain(&mut drivers)?;
+        if drivers.persistent_data.get().attestation_disabled.get() {
+            DisableAttestationCmd::execute(&mut drivers)
+                .map_err(|_| CaliptraError::RUNTIME_GLOBAL_EXCEPTION)?;
+        }
 
         let reset_reason = drivers.soc_ifc.reset_reason();
         match reset_reason {
             ResetReason::ColdReset => {
+                cfi_assert_eq(drivers.soc_ifc.reset_reason(), ResetReason::ColdReset);
                 Self::initialize_dpe(&mut drivers)?;
             }
             ResetReason::UpdateReset => {
+                cfi_assert_eq(drivers.soc_ifc.reset_reason(), ResetReason::UpdateReset);
                 Self::validate_dpe_structure(&mut drivers)?;
                 Self::validate_context_tags(&mut drivers)?;
                 Self::update_dpe_rt_journey(&mut drivers)?;
             }
             ResetReason::WarmReset => {
+                cfi_assert_eq(drivers.soc_ifc.reset_reason(), ResetReason::WarmReset);
                 Self::validate_dpe_structure(&mut drivers)?;
                 Self::validate_context_tags(&mut drivers)?;
                 Self::check_dpe_rt_journey_unchanged(&mut drivers)?;
             }
             ResetReason::Unknown => {
+                cfi_assert_eq(drivers.soc_ifc.reset_reason(), ResetReason::Unknown);
                 return Err(CaliptraError::RUNTIME_UNKNOWN_RESET_FLOW);
             }
         }
@@ -139,16 +166,24 @@ impl Drivers {
             trng,
             persistent_data: PersistentDataAccessor::new(),
             pcr_bank: PcrBank::new(PvReg::new()),
+            pic: Pic::new(El2PicCtrl::new()),
             #[cfg(feature = "fips_self_test")]
             self_test_status: SelfTestStatus::Idle,
             cert_chain: ArrayVec::new(),
-            attestation_disabled: false,
             is_shutdown: false,
         })
     }
 
-    // Inlined so the callsite optimizer knows that root_idx < dpe.contexts.len()
-    // and won't insert possible call to panic.
+    /// Retrieves the root context index. Inlined so the callsite optimizer
+    /// knows that root_idx < dpe.contexts.len() and won't insert possible call to panic.
+    ///
+    /// # Arguments
+    ///
+    /// * `dpe` - DpeInstance
+    ///
+    /// # Returns
+    ///
+    /// * `usize` - Index containing the root DPE context
     #[inline(always)]
     pub fn get_dpe_root_context_idx(dpe: &DpeInstance) -> CaliptraResult<usize> {
         // Find root node by finding the non-inactive context with parent equal to ROOT_INDEX
@@ -169,6 +204,7 @@ impl Drivers {
         Ok(root_idx)
     }
 
+    /// Validate DPE and disable attestation if validation fails
     fn validate_dpe_structure(mut drivers: &mut Drivers) -> CaliptraResult<()> {
         let dpe = &mut drivers.persistent_data.get_mut().dpe;
         let dpe_validator = DpeValidator { dpe };
@@ -176,6 +212,11 @@ impl Drivers {
         if let Err(e) = validation_result {
             // If SRAM Dpe Instance validation fails, disable attestation
             let mut result = DisableAttestationCmd::execute(drivers);
+            if cfi_launder(result.is_ok()) {
+                cfi_assert!(result.is_ok());
+            } else {
+                cfi_assert!(result.is_err());
+            }
             match result {
                 Ok(_) => {
                     cprintln!("Disabled attestation due to DPE validation failure");
@@ -195,14 +236,25 @@ impl Drivers {
             let flags = drivers.persistent_data.get().manifest1.header.flags;
             let locality = drivers.mbox.user();
             // check that DPE used context limits are not exceeded
-            if let Err(e) = Self::is_dpe_context_threshold_exceeded(
+            let dpe_context_threshold_exceeded = Self::is_dpe_context_threshold_exceeded(
                 pl0_pauser,
                 flags,
                 locality,
                 &drivers.persistent_data.get().dpe,
                 true,
-            ) {
+            );
+            if cfi_launder(dpe_context_threshold_exceeded.is_ok()) {
+                cfi_assert!(dpe_context_threshold_exceeded.is_ok());
+            } else {
+                cfi_assert!(dpe_context_threshold_exceeded.is_err());
+            }
+            if let Err(e) = dpe_context_threshold_exceeded {
                 let mut result = DisableAttestationCmd::execute(drivers);
+                if cfi_launder(result.is_ok()) {
+                    cfi_assert!(result.is_ok());
+                } else {
+                    cfi_assert!(result.is_err());
+                }
                 match result {
                     Ok(_) => {
                         cprintln!(
@@ -221,6 +273,8 @@ impl Drivers {
         Ok(())
     }
 
+    /// Update DPE root context's TCI measurement with RT_FW_JOURNEY_PCR
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn update_dpe_rt_journey(drivers: &mut Drivers) -> CaliptraResult<()> {
         let dpe = &mut drivers.persistent_data.get_mut().dpe;
         let root_idx = Self::get_dpe_root_context_idx(dpe)?;
@@ -231,24 +285,22 @@ impl Drivers {
         Ok(())
     }
 
+    /// Check that RT_FW_JOURNEY_PCR == DPE Root Context's TCI measurement
     fn check_dpe_rt_journey_unchanged(mut drivers: &mut Drivers) -> CaliptraResult<()> {
         let dpe = &drivers.persistent_data.get().dpe;
         let root_idx = Self::get_dpe_root_context_idx(dpe)?;
-        let latest_tci = dpe.contexts[root_idx].tci.tci_current;
-
-        let mut hasher = drivers.sha384.digest_init()?;
-
-        hasher.update(&[0; AlgLen::Bit384.size()])?;
-        hasher.update(&latest_tci.0)?;
-
-        let mut digest = Array4x12::default();
-        hasher.finalize(&mut digest)?;
-
+        let latest_tci = Array4x12::from(&dpe.contexts[root_idx].tci.tci_current.0);
         let latest_pcr = drivers.pcr_bank.read_pcr(RT_FW_JOURNEY_PCR);
-        // Ensure SHA384_HASH(0x00..00, TCI from SRAM) == RT_FW_JOURNEY_PCR
-        if latest_pcr != digest {
+
+        // Ensure TCI from SRAM == RT_FW_JOURNEY_PCR
+        if latest_pcr != latest_tci {
             // If latest pcr validation fails, disable attestation
             let mut result = DisableAttestationCmd::execute(drivers);
+            if cfi_launder(result.is_ok()) {
+                cfi_assert!(result.is_ok());
+            } else {
+                cfi_assert!(result.is_err());
+            }
             match result {
                 Ok(_) => {
                     cprintln!("Disabled attestation due to latest TCI of the node containing the runtime journey PCR not matching the runtime PCR");
@@ -261,11 +313,17 @@ impl Drivers {
                     return Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION);
                 }
             }
+        } else {
+            cfi_assert_eq_12_words(
+                &<[u32; 12]>::from(latest_tci),
+                &<[u32; 12]>::from(latest_pcr),
+            )
         }
 
         Ok(())
     }
 
+    /// Check that inactive DPE contexts do not have context tags set
     fn validate_context_tags(mut drivers: &mut Drivers) -> CaliptraResult<()> {
         let pdata = drivers.persistent_data.get();
         let context_has_tag = pdata.context_has_tag;
@@ -284,7 +342,8 @@ impl Drivers {
         Ok(())
     }
 
-    // Caliptra Name serialNumber fields are sha256 digests
+    /// Compute the Caliptra Name SerialNumber by Sha256 hashing the RT Alias public key
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn compute_rt_alias_sn(&mut self) -> CaliptraResult<CryptoBuf> {
         let key = self.persistent_data.get().fht.rt_dice_pub_key.to_der();
 
@@ -295,6 +354,8 @@ impl Drivers {
         Ok(token)
     }
 
+    /// Initialize DPE with measurements and store in Drivers
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn initialize_dpe(drivers: &mut Drivers) -> CaliptraResult<()> {
         let caliptra_locality = 0xFFFFFFFF;
         let pl0_pauser_locality = drivers.persistent_data.get().manifest1.header.pl0_pauser;
@@ -313,6 +374,8 @@ impl Drivers {
         let mut valid_pauser_hash = Array4x12::default();
         digest_op.finalize(&mut valid_pauser_hash)?;
 
+        let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
+        let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
         let mut crypto = DpeCrypto::new(
             &mut drivers.sha384,
             &mut drivers.trng,
@@ -320,6 +383,8 @@ impl Drivers {
             &mut drivers.hmac384,
             &mut drivers.key_vault,
             drivers.persistent_data.get().fht.rt_dice_pub_key,
+            key_id_rt_cdi,
+            key_id_rt_priv_key,
         );
 
         let mut env = DpeEnv::<CptraDpeTypes> {
@@ -343,22 +408,22 @@ impl Drivers {
         )
         .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
 
-        // Call DeriveChild to create a measurement for the mailbox valid pausers and change locality to the pl0 pauser locality
-        let derive_child_resp = DeriveChildCmd {
+        // Call DeriveContext to create a measurement for the mailbox valid pausers and change locality to the pl0 pauser locality
+        let derive_context_resp = DeriveContextCmd {
             handle: ContextHandle::default(),
             data: valid_pauser_hash
                 .as_bytes()
                 .try_into()
                 .map_err(|_| CaliptraError::RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED)?,
-            flags: DeriveChildFlags::MAKE_DEFAULT
-                | DeriveChildFlags::CHANGE_LOCALITY
-                | DeriveChildFlags::INPUT_ALLOW_CA
-                | DeriveChildFlags::INPUT_ALLOW_X509,
+            flags: DeriveContextFlags::MAKE_DEFAULT
+                | DeriveContextFlags::CHANGE_LOCALITY
+                | DeriveContextFlags::INPUT_ALLOW_CA
+                | DeriveContextFlags::INPUT_ALLOW_X509,
             tci_type: u32::from_be_bytes(*b"MBVP"),
             target_locality: pl0_pauser_locality,
         }
         .execute(&mut dpe, &mut env, caliptra_locality);
-        if let Err(e) = derive_child_resp {
+        if let Err(e) = derive_context_resp {
             // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
             if let Some(ext_err) = e.get_error_detail() {
                 drivers.soc_ifc.set_fw_extended_error(ext_err);
@@ -366,7 +431,7 @@ impl Drivers {
             Err(CaliptraError::RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED)?
         }
 
-        // Call DeriveChild to create TCIs for each measurement added in ROM
+        // Call DeriveContext to create TCIs for each measurement added in ROM
         let num_measurements = drivers.persistent_data.get().fht.meas_log_index as usize;
         let measurement_log = drivers.persistent_data.get().measurement_log;
         for measurement_log_entry in measurement_log.iter().take(num_measurements) {
@@ -384,20 +449,20 @@ impl Drivers {
 
             let measurement_data = measurement_log_entry.pcr_entry.measured_data();
             let tci_type = u32::from_be_bytes(measurement_log_entry.metadata);
-            let derive_child_resp = DeriveChildCmd {
+            let derive_context_resp = DeriveContextCmd {
                 handle: ContextHandle::default(),
                 data: measurement_data
                     .try_into()
                     .map_err(|_| CaliptraError::RUNTIME_ADD_ROM_MEASUREMENTS_TO_DPE_FAILED)?,
-                flags: DeriveChildFlags::MAKE_DEFAULT
-                    | DeriveChildFlags::CHANGE_LOCALITY
-                    | DeriveChildFlags::INPUT_ALLOW_CA
-                    | DeriveChildFlags::INPUT_ALLOW_X509,
+                flags: DeriveContextFlags::MAKE_DEFAULT
+                    | DeriveContextFlags::CHANGE_LOCALITY
+                    | DeriveContextFlags::INPUT_ALLOW_CA
+                    | DeriveContextFlags::INPUT_ALLOW_X509,
                 tci_type,
                 target_locality: pl0_pauser_locality,
             }
             .execute(&mut dpe, &mut env, pl0_pauser_locality);
-            if let Err(e) = derive_child_resp {
+            if let Err(e) = derive_context_resp {
                 // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
                 if let Some(ext_err) = e.get_error_detail() {
                     drivers.soc_ifc.set_fw_extended_error(ext_err);
@@ -411,6 +476,8 @@ impl Drivers {
         Ok(())
     }
 
+    /// Create certificate chain and store in Drivers
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn create_cert_chain(drivers: &mut Drivers) -> CaliptraResult<()> {
         let data_vault = &drivers.data_vault;
         let persistent_data = &drivers.persistent_data;
@@ -462,6 +529,14 @@ impl Drivers {
     /// Counts the number of non-inactive DPE contexts and returns an error
     /// if this number is greater than or equal to the active context threshold
     /// corresponding to the privilege level of the caller.
+    ///
+    /// # Arguments
+    ///
+    /// * `pl0_pauser` - Value of PL0 PAuser
+    /// * `flags` - Flags from manifest header
+    /// * `locality` - Caller's locality
+    /// * `dpe` - DpeInstance
+    /// * `check_already_exceeded` - If true, checks that the active context threshold is already exceeded.
     pub fn is_dpe_context_threshold_exceeded(
         pl0_pauser: u32,
         flags: u32,
@@ -499,7 +574,62 @@ impl Drivers {
         }
     }
 
+    /// Checks if the caller is privilege level 1
+    ///
+    /// # Arguments
+    ///
+    /// * `pl0_pauser` - Value of PL0 PAuser
+    /// * `flags` - Flags from manifest header
+    /// * `locality` - Caller's locality
     pub fn is_caller_pl1(pl0_pauser: u32, flags: u32, locality: u32) -> bool {
         flags & PL0_PAUSER_FLAG == 0 && locality != pl0_pauser
+    }
+
+    /// Get the KeyId for the RT Alias CDI
+    ///
+    /// # Arguments
+    ///
+    /// * `drivers` - Drivers
+    ///
+    /// # Returns
+    ///
+    /// * `KeyId` - RT Alias CDI
+    pub fn get_key_id_rt_cdi(drivers: &mut Drivers) -> CaliptraResult<KeyId> {
+        let ds: DataStore = drivers
+            .persistent_data
+            .get()
+            .fht
+            .rt_cdi_kv_hdl
+            .try_into()
+            .map_err(|_| CaliptraError::RUNTIME_CDI_KV_HDL_HANDOFF_FAILED)?;
+
+        match ds {
+            DataStore::KeyVaultSlot(key_id) => Ok(key_id),
+            _ => Err(CaliptraError::RUNTIME_CDI_KV_HDL_HANDOFF_FAILED),
+        }
+    }
+
+    /// Get the KeyId for the RT Alias private key
+    ///
+    /// # Arguments
+    ///
+    /// * `drivers` - Drivers
+    ///
+    /// # Returns
+    ///
+    /// * `KeyId` - RT Alias private key
+    pub fn get_key_id_rt_priv_key(drivers: &mut Drivers) -> CaliptraResult<KeyId> {
+        let ds: DataStore = drivers
+            .persistent_data
+            .get()
+            .fht
+            .rt_priv_key_kv_hdl
+            .try_into()
+            .map_err(|_| CaliptraError::RUNTIME_PRIV_KEY_KV_HDL_HANDOFF_FAILED)?;
+
+        match ds {
+            DataStore::KeyVaultSlot(key_id) => Ok(key_id),
+            _ => Err(CaliptraError::RUNTIME_PRIV_KEY_KV_HDL_HANDOFF_FAILED),
+        }
     }
 }

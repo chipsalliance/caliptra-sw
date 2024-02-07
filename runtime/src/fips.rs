@@ -1,5 +1,17 @@
-// Licensed under the Apache-2.0 license
+/*++
 
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    fips.rs
+
+Abstract:
+
+    File contains FIPS module and FIPS self test.
+
+--*/
+use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_common::cprintln;
 use caliptra_common::mailbox_api::{MailboxResp, MailboxRespHeader};
 use caliptra_drivers::CaliptraError;
@@ -20,6 +32,8 @@ pub struct FipsModule;
 /// Fips command handler.
 impl FipsModule {
     /// Clear data structures in DCCM.
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
     fn zeroize(env: &mut Drivers) {
         unsafe {
             // Zeroize the crypto blocks.
@@ -43,6 +57,7 @@ impl FipsModule {
 pub mod fips_self_test_cmd {
     use super::*;
     use crate::RtBootStatus::{RtFipSelfTestComplete, RtFipSelfTestStarted};
+    use caliptra_cfi_lib::cfi_assert_eq_8_words;
     use caliptra_common::HexBytes;
     use caliptra_common::{
         verifier::FirmwareImageVerificationEnv, FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
@@ -63,6 +78,7 @@ pub mod fips_self_test_cmd {
         Done,
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
     fn copy_and_verify_image(env: &mut Drivers) -> CaliptraResult<()> {
         env.mbox.write_cmd(0)?;
         env.mbox.set_dlen(
@@ -110,6 +126,7 @@ pub mod fips_self_test_cmd {
         Ok(())
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
     pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<()> {
         caliptra_drivers::report_boot_status(RtFipSelfTestStarted.into());
         cprintln!("[rt] FIPS self test");
@@ -155,6 +172,7 @@ pub mod fips_self_test_cmd {
         Ok(())
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_mod_fn)]
     fn rom_integrity_test(env: &mut Drivers) -> CaliptraResult<()> {
         // Extract the expected has from the fht.
         let rom_info = env.persistent_data.get().fht.rom_info_addr.get()?;
@@ -174,6 +192,8 @@ pub mod fips_self_test_cmd {
         if digest.0 != rom_info.sha256_digest {
             cprintln!("ROM integrity test failed");
             return Err(CaliptraError::ROM_INTEGRITY_FAILURE);
+        } else {
+            cfi_assert_eq_8_words(&digest.0, &rom_info.sha256_digest);
         }
 
         // Run digest function and compare with expected hash.
@@ -182,6 +202,7 @@ pub mod fips_self_test_cmd {
 }
 pub struct FipsShutdownCmd;
 impl FipsShutdownCmd {
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<MailboxResp> {
         FipsModule::zeroize(env);
         env.mbox.set_status(MboxStatusE::CmdComplete);

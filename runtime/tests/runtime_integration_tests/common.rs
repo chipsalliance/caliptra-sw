@@ -1,18 +1,19 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{
-    firmware::{self, APP_WITH_UART, FMC_WITH_UART},
+    firmware::{self, APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
     FwId, ImageOptions,
 };
 use caliptra_common::mailbox_api::{
-    CommandId, GetFmcAliasCertResp, InvokeDpeReq, InvokeDpeResp, MailboxReq, MailboxReqHeader,
+    CommandId, GetFmcAliasCertResp, GetRtAliasCertResp, InvokeDpeReq, InvokeDpeResp, MailboxReq,
+    MailboxReqHeader,
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams, ModelError};
 use dpe::{
     commands::{Command, CommandHdr},
     response::{
-        CertifyKeyResp, DeriveChildResp, GetCertificateChainResp, GetProfileResp, NewHandleResp,
+        CertifyKeyResp, DeriveContextResp, GetCertificateChainResp, GetProfileResp, NewHandleResp,
         Response, ResponseHdr, SignResp,
     },
 };
@@ -42,7 +43,12 @@ pub fn run_rt_test(
     test_image_options: Option<ImageOptions>,
     init_params: Option<InitParams>,
 ) -> DefaultHwModel {
-    let runtime_fwid = test_fwid.unwrap_or(&APP_WITH_UART);
+    let default_rt_fwid = if cfg!(feature = "fpga_realtime") {
+        &APP_WITH_UART_FPGA
+    } else {
+        &APP_WITH_UART
+    };
+    let runtime_fwid = test_fwid.unwrap_or(default_rt_fwid);
 
     let image_options = test_image_options.unwrap_or_else(|| {
         let mut opts = ImageOptions::default();
@@ -104,12 +110,11 @@ fn get_cmd_id(dpe_cmd: &mut Command) -> u32 {
     match dpe_cmd {
         Command::GetProfile => Command::GET_PROFILE,
         Command::InitCtx(_) => Command::INITIALIZE_CONTEXT,
-        Command::DeriveChild(_) => Command::DERIVE_CHILD,
+        Command::DeriveContext(_) => Command::DERIVE_CONTEXT,
         Command::CertifyKey(_) => Command::CERTIFY_KEY,
         Command::Sign(_) => Command::SIGN,
         Command::RotateCtx(_) => Command::ROTATE_CONTEXT_HANDLE,
         Command::DestroyCtx(_) => Command::DESTROY_CONTEXT,
-        Command::ExtendTci(_) => Command::EXTEND_TCI,
         Command::GetCertificateChain(_) => Command::GET_CERTIFICATE_CHAIN,
     }
 }
@@ -117,8 +122,7 @@ fn get_cmd_id(dpe_cmd: &mut Command) -> u32 {
 fn as_bytes(dpe_cmd: &mut Command) -> &[u8] {
     match dpe_cmd {
         Command::CertifyKey(cmd) => cmd.as_bytes(),
-        Command::DeriveChild(cmd) => cmd.as_bytes(),
-        Command::ExtendTci(cmd) => cmd.as_bytes(),
+        Command::DeriveContext(cmd) => cmd.as_bytes(),
         Command::GetCertificateChain(cmd) => cmd.as_bytes(),
         Command::DestroyCtx(cmd) => cmd.as_bytes(),
         Command::GetProfile => &[],
@@ -133,10 +137,9 @@ fn parse_dpe_response(dpe_cmd: &mut Command, resp_bytes: &[u8]) -> Response {
         Command::CertifyKey(_) => {
             Response::CertifyKey(CertifyKeyResp::read_from(resp_bytes).unwrap())
         }
-        Command::DeriveChild(_) => {
-            Response::DeriveChild(DeriveChildResp::read_from(resp_bytes).unwrap())
+        Command::DeriveContext(_) => {
+            Response::DeriveContext(DeriveContextResp::read_from(resp_bytes).unwrap())
         }
-        Command::ExtendTci(_) => Response::ExtendTci(NewHandleResp::read_from(resp_bytes).unwrap()),
         Command::GetCertificateChain(_) => {
             Response::GetCertificateChain(GetCertificateChainResp::read_from(resp_bytes).unwrap())
         }
@@ -232,4 +235,21 @@ pub fn get_fmc_alias_cert(model: &mut DefaultHwModel) -> GetFmcAliasCertResp {
     let mut fmc_resp = GetFmcAliasCertResp::default();
     fmc_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
     fmc_resp
+}
+
+pub fn get_rt_alias_cert(model: &mut DefaultHwModel) -> GetRtAliasCertResp {
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::GET_RT_ALIAS_CERT),
+            &[],
+        ),
+    };
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::GET_RT_ALIAS_CERT), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+    assert!(resp.len() <= std::mem::size_of::<GetRtAliasCertResp>());
+    let mut rt_resp = GetRtAliasCertResp::default();
+    rt_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
+    rt_resp
 }

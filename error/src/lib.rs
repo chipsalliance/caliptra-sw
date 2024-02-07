@@ -403,6 +403,16 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E003B);
     pub const RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED: CaliptraError =
         CaliptraError::new_const(0x000E003C);
+    pub const RUNTIME_CDI_KV_HDL_HANDOFF_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E003D);
+    pub const RUNTIME_PRIV_KEY_KV_HDL_HANDOFF_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E003E);
+    pub const RUNTIME_HASH_CHAIN_HANDOFF_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E003F);
+
+    /// PCR Runtime Errors
+    pub const RUNTIME_PCR_RESERVED: CaliptraError = CaliptraError::new_const(0x000E003D);
+    pub const RUNTIME_PCR_INVALID_INDEX: CaliptraError = CaliptraError::new_const(0x000E003F);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
@@ -418,6 +428,7 @@ impl CaliptraError {
     pub const ADDRESS_NOT_IN_ICCM: CaliptraError = CaliptraError::new_const(0x000F000B);
     pub const FMC_HANDOFF_NOT_READY_FOR_RT: CaliptraError = CaliptraError::new_const(0x000F000C);
     pub const FMC_GLOBAL_WDT_EXPIRED: CaliptraError = CaliptraError::new_const(0x000F000D);
+    pub const FMC_UNKNOWN_RESET: CaliptraError = CaliptraError::new_const(0x000F000E);
 
     /// TRNG_EXT Errors
     pub const DRIVER_TRNG_EXT_TIMEOUT: CaliptraError = CaliptraError::new_const(0x00100001);

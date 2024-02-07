@@ -98,6 +98,7 @@ impl RtAliasLayer {
         slot == KEY_ID_RT_CDI || slot == KEY_ID_RT_PRIV_KEY || slot == KEY_ID_TMP
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     #[inline(never)]
     pub fn run(env: &mut FmcEnv) -> CaliptraResult<()> {
         cprintln!("[alias rt] Extend RT PCRs");
@@ -161,11 +162,24 @@ impl RtAliasLayer {
     /// * `env` - FMC Environment
     /// * `hand_off` - HandOff
     pub fn extend_pcrs(env: &mut FmcEnv) -> CaliptraResult<()> {
-        match env.soc_ifc.reset_reason() {
-            ResetReason::ColdReset | ResetReason::UpdateReset => extend_pcr_common(env),
-            _ => {
+        let reset_reason = env.soc_ifc.reset_reason();
+        match reset_reason {
+            ResetReason::ColdReset => {
+                cfi_assert_eq(reset_reason, ResetReason::ColdReset);
+                extend_pcr_common(env)
+            }
+            ResetReason::UpdateReset => {
+                cfi_assert_eq(reset_reason, ResetReason::UpdateReset);
+                extend_pcr_common(env)
+            }
+            ResetReason::WarmReset => {
+                cfi_assert_eq(reset_reason, ResetReason::WarmReset);
                 cprintln!("[alias rt : skip pcr extension");
                 Ok(())
+            }
+            ResetReason::Unknown => {
+                cfi_assert_eq(reset_reason, ResetReason::Unknown);
+                Err(CaliptraError::FMC_UNKNOWN_RESET)
             }
         }
     }
@@ -176,11 +190,13 @@ impl RtAliasLayer {
     ///
     /// * `env` - FMC Environment
     /// * `hand_off` - HandOff
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn populate_dv(env: &mut FmcEnv) -> CaliptraResult<()> {
         let rt_svn = HandOff::rt_svn(env);
         let reset_reason = env.soc_ifc.reset_reason();
 
         let rt_min_svn = if reset_reason == ResetReason::ColdReset {
+            cfi_assert_eq(reset_reason, ResetReason::ColdReset);
             rt_svn
         } else {
             core::cmp::min(rt_svn, HandOff::rt_min_svn(env))
@@ -275,6 +291,7 @@ impl RtAliasLayer {
     /// * `env`    - FMC Environment
     /// * `input`  - DICE Input
     /// * `output` - DICE Output
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn generate_cert_sig(
         env: &mut FmcEnv,
         input: &DiceInput,
@@ -358,6 +375,7 @@ impl RtAliasLayer {
         Ok(())
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn copy_tbs(tbs: &[u8], persistent_data: &mut PersistentData) -> CaliptraResult<()> {
         let Some(dest) = persistent_data.rtalias_tbs.get_mut(..tbs.len()) else {
             return Err(CaliptraError::FMC_RT_ALIAS_TBS_SIZE_EXCEEDED);

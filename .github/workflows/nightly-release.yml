@@ -5,14 +5,14 @@ on:
   schedule:
   # 2:11 AM PST tuesday-saturday
   - cron: '11 10 * * 2-6'
-permissions:
-  contents: write
-  pull-requests: write
 
 jobs:
   rtl-repo-sync:
     name: RTL Repo Sync
     uses: ./.github/workflows/rtl-repo-sync.yml
+    permissions:
+      contents: write
+      pull-requests: write
 
   find-latest-release:
     name: Find Latest Release
@@ -22,6 +22,10 @@ jobs:
       create_release: ${{ steps.find.outputs.create_release }}
       new_release_tag: ${{ steps.find.outputs.new_release_tag }}
       release_ref: ${{ steps.find.outputs.release_ref }}
+
+    permissions:
+      contents: write
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v3
@@ -159,6 +163,10 @@ jobs:
 
     runs-on: ubuntu-22.04
 
+    permissions:
+      contents: write
+      pull-requests: write
+
     steps:
       - uses: actions/checkout@v3
         with:
@@ -171,7 +179,7 @@ jobs:
           mv ./release/release.zip ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
 
       - name: 'Download all artifacts'
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: /tmp/artifacts
 
@@ -201,7 +209,7 @@ jobs:
           echo "caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip" > /tmp/release-info/zip-file-name
 
       - name: Write artifact with release info
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: release-info
           path: /tmp/release-info

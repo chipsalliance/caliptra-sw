@@ -1,6 +1,19 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    verify.rs
+
+Abstract:
+
+    File contains EcdsaVerify mailbox command and HmacVerify test-only mailbox command.
+
+--*/
 
 use crate::Drivers;
+use caliptra_cfi_derive::cfi_impl_fn;
 #[cfg(feature = "test_only_commands")]
 use caliptra_common::mailbox_api::HmacVerifyReq;
 use caliptra_common::mailbox_api::{EcdsaVerifyReq, MailboxResp};
@@ -19,6 +32,7 @@ use zerocopy::FromBytes;
 
 pub struct EcdsaVerifyCmd;
 impl EcdsaVerifyCmd {
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if let Some(cmd) = EcdsaVerifyReq::read_from(cmd_args) {
             // Won't panic, full_digest is always larger than digest

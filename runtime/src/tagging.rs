@@ -1,5 +1,18 @@
-// Licensed under the Apache-2.0 license
+/*++
 
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    tagging.rs
+
+Abstract:
+
+    File contains mailbox commands dealing with tagging.
+
+--*/
+
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
     GetTaggedTciReq, GetTaggedTciResp, MailboxResp, MailboxRespHeader, TagTciReq,
 };
@@ -16,6 +29,7 @@ use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers};
 
 pub struct TagTciCmd;
 impl TagTciCmd {
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if let Some(cmd) = TagTciReq::read_from(cmd_args) {
             let pdata_mut = drivers.persistent_data.get_mut();
@@ -55,6 +69,8 @@ impl TagTciCmd {
 
 pub struct GetTaggedTciCmd;
 impl GetTaggedTciCmd {
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
     pub(crate) fn execute(drivers: &Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if let Some(cmd) = GetTaggedTciReq::read_from(cmd_args) {
             let persistent_data = drivers.persistent_data.get();

@@ -1,15 +1,32 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    dpe_platform.rs
+
+Abstract:
+
+    File contains DpePlatform implementation.
+
+--*/
 
 use core::cmp::min;
 
 use arrayvec::ArrayVec;
 use caliptra_drivers::cprintln;
+use caliptra_x509::{NOT_AFTER, NOT_BEFORE};
 use crypto::Digest;
 use dpe::{
     x509::{CertWriter, DirectoryString, Name},
     DPE_PROFILE,
 };
-use platform::{Platform, PlatformError, MAX_CHUNK_SIZE, MAX_SN_SIZE};
+use platform::{
+    CertValidity, Platform, PlatformError, SignerIdentifier, MAX_CHUNK_SIZE, MAX_ISSUER_NAME_SIZE,
+    MAX_SKI_SIZE, MAX_SN_SIZE,
+};
+use zerocopy::AsBytes;
 
 use crate::MAX_CERT_CHAIN_SIZE;
 
@@ -76,7 +93,10 @@ impl Platform for DpePlatform<'_> {
         Ok(self.auto_init_locality)
     }
 
-    fn get_issuer_name(&mut self, out: &mut [u8; MAX_CHUNK_SIZE]) -> Result<usize, PlatformError> {
+    fn get_issuer_name(
+        &mut self,
+        out: &mut [u8; MAX_ISSUER_NAME_SIZE],
+    ) -> Result<usize, PlatformError> {
         const CALIPTRA_CN: &[u8] = b"Caliptra 1.0 Rt Alias";
         let mut issuer_writer = CertWriter::new(out, true);
 
@@ -96,26 +116,31 @@ impl Platform for DpePlatform<'_> {
         Ok(issuer_len)
     }
 
-    fn get_issuer_sn(&mut self, out: &mut [u8; MAX_SN_SIZE]) -> Result<usize, PlatformError> {
-        let sn = self.hashed_rt_pub_key.bytes();
-        let size = min(MAX_SN_SIZE, sn.len());
-        // Prevents potential panic
-        if size > out.len() || size > sn.len() {
-            return Err(PlatformError::IssuerNameError(0));
+    /// See X509::subj_key_id in fmc/src/flow/x509.rs for code that generates the
+    /// SubjectKeyIdentifier extension in the RT alias certificate.
+    fn get_signer_identifier(&mut self) -> Result<SignerIdentifier, PlatformError> {
+        let mut ski = [0u8; MAX_SKI_SIZE];
+        let hashed_rt_pub_key = self.hashed_rt_pub_key.bytes();
+        if hashed_rt_pub_key.len() < MAX_SKI_SIZE {
+            return Err(PlatformError::SubjectKeyIdentifierError(0));
         }
-        out[..size].copy_from_slice(&sn[..size]);
-
-        // Ensure the encoded integer is positive, and that the first octet
-        // is non-zero (otherwise it will be considered padding, and the integer
-        // will fail to parse if the MSB of the second octet is zero).
-        out[0] &= !0x80;
-        out[0] |= 0x04;
-
-        Ok(size)
+        ski.copy_from_slice(&hashed_rt_pub_key[..MAX_SKI_SIZE]);
+        let mut ski_vec = ArrayVec::new();
+        ski_vec
+            .try_extend_from_slice(&ski)
+            .map_err(|_| PlatformError::SubjectKeyIdentifierError(0))?;
+        Ok(SignerIdentifier::SubjectKeyIdentifier(ski_vec))
     }
 
     fn write_str(&mut self, str: &str) -> Result<(), PlatformError> {
         cprintln!("{}", str);
         Ok(())
+    }
+
+    fn get_cert_validity<'a>(&mut self) -> Result<CertValidity<'a>, PlatformError> {
+        Ok(CertValidity {
+            not_before: NOT_BEFORE,
+            not_after: NOT_AFTER,
+        })
     }
 }

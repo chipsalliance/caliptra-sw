@@ -47,10 +47,10 @@ static int set_fuses()
 
     for (int x = 0; x < SHA384_DIGEST_WORD_SIZE; x++)
     {
+        // Pub key hash fuses are stored as big-endian
         fuses.owner_pk_hash[x] = __builtin_bswap32(((uint32_t*)opk_hash)[x]);
+        fuses.key_manifest_pk_hash[x] = __builtin_bswap32(((uint32_t*)vpk_hash)[x]);
     }
-
-    memcpy(&fuses.key_manifest_pk_hash, &vpk_hash, SHA384_DIGEST_BYTE_SIZE);
 
     if ((status = caliptra_init_fuses(&fuses)) != 0)
     {
@@ -549,9 +549,9 @@ int main(int argc, char *argv[])
     run_test(rt_test_all_commands, "Test all Runtime commmands");
 
     if (global_test_result) {
-        printf("libcaliptra test failures reported");
+        printf("\t\tlibcaliptra test failures reported\n");
     } else {
-        printf("All libcaliptra tests passed");
+        printf("\t\tAll libcaliptra tests passed\n");
     }
 
     return global_test_result;

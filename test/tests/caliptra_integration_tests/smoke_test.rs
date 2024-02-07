@@ -163,7 +163,7 @@ fn smoke_test() {
     .unwrap();
 
     if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
-        hw.step_until_output_contains("Caliptra RT listening for mailbox commands...\n")
+        hw.step_until_output_contains("[rt] Runtime listening for mailbox commands...\n")
             .unwrap();
         let output = hw.output().take(usize::MAX);
         assert_output_contains(&output, "Running Caliptra ROM");
@@ -667,11 +667,11 @@ fn test_rt_wdt_timeout() {
 
     // TODO: Don't hard-code these; maybe measure from a previous boot?
     let rt_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
-        27_100_000
+        27_200_000
     } else if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
-        3_100_000
+        3_200_000
     } else {
-        2_900_000
+        3_000_000
     };
 
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
@@ -716,9 +716,9 @@ fn test_fmc_wdt_timeout() {
 
     // TODO: Don't hard-code these; maybe measure from a previous boot?
     let fmc_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
-        25_100_000
+        25_200_000
     } else {
-        2_820_000
+        2_920_000
     };
 
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();

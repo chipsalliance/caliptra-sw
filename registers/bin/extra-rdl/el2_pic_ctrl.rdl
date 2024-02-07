@@ -1,0 +1,92 @@
+addrmap el2_pic_ctrl {
+    reg {
+        name = "External Interrupt Priority Level register type definition";
+        desc = "There are 255 priority level registers, one for each external
+               interrupt source. Implementing individual priority level
+               registers allows a debugger to autonomously discover how many
+               priority level bits are supported for this interrupt source.
+               Firmware must initialize the priority level for each used
+               interrupt source. Firmware may also read the priority level.";
+               field {
+                   sw = rw;
+                   desc = "External interrupt priority level";
+               } PRIORITY[3:0];
+    } meipl[256] @0x00000000;
+
+    reg {
+        name = "External Interrupt Pending type definition";
+        desc = "Eight external interrupt pending registers are needed to
+                report the current status of up to 255 independent external
+                interrupt sources. Each bit of these registers corresponds
+                to an interrupt pending indication of a single external
+                interrupt source. These registers only provide the status
+                of pending interrupts and cannot be written.";
+               field {
+                   sw = r;
+                   desc = "External interrupt pending";
+               } INTPEND = 1'b0;
+    } meip[256] @0x00001000;
+
+    reg {
+        name = "External Interrupt Enable register type definition";
+        desc = "Each of the up to 255 independently controlled external
+                interrupt sources has a dedicated interrupt enable register.
+                Separate registers per interrupt source were chosen for
+                ease-of-use and compatibility with existing controllers.";
+               field {
+                   sw = rw;
+                   desc = "External interrupt enable";
+               } INTEN = 1'b0;
+    } meie[256] @0x00002000;
+
+  reg {
+        name = "PIC Configuration register type definition";
+        desc = "The PIC configuration register is used to select the operational
+                parameters of the PIC.";
+               field {
+                   sw = rw;
+                   desc = "Interrupt priority order
+                   0b0: RISC-V standard compliant priority order (0=lowest to 15=highest)
+                   0b1: Reverse priority order (15=lowest to 0=highest)
+                   ";
+               } PRIORD = 1'b0;
+    } mpiccfg @0x00003000;
+
+    reg {
+        name = "External Interrupt Gateway Configuration register type definition";
+        desc = "Each configurable gateway has a dedicated configuration register
+                to control the interrupt type (i.e., edge- vs. level-triggered)
+                as well as the interrupt signal polarity (i.e., low-to-high vs.
+                high-to-low transition for edge-triggered interrupts, active-high
+                vs. -low for level-triggered interrupts).";
+               field {
+                   sw = rw;
+                   desc = "External interrupt polarity
+                   0b0: Active-high interrupt
+                   0b1: Active-low interrupt";
+               } POLARITY = 1'b0;
+               field {
+                   sw = rw;
+                   desc = "External interrupt type
+                   0b0: Level-triggered interrupt
+                   0b1: Edge-triggered interrupt";
+               } INTTYPE = 1'b0;
+    } meigwctrl[256] @0x00004000;
+
+    reg {
+        name = "External Interrupt Gateway Clear register type definition";
+        desc = "Each configurable gateway has a dedicated clear register
+                to reset its interrupt pending (IP) bit. For edge-triggered
+                interrupts, firmware must clear the gateway’s IP bit while
+                servicing the external interrupt of source ID S by writing to
+                the meigwclrS register.";
+                field {
+                    sw = rw;
+                    desc = "Reserved";
+                } RESERVED[31:0];
+    } meigwclr[256] @0x00005000;
+};
+
+addrmap clp2 {
+    el2_pic_ctrl el2_pic_ctrl @ 0x6000_0000;
+};

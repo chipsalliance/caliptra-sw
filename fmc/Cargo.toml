@@ -6,9 +6,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-caliptra_common = { workspace = true, default-features = false }
+caliptra_common = { workspace = true, default-features = false, features = ["fmc"] }
 caliptra-cpu.workspace = true
-caliptra-drivers.workspace = true
+caliptra-drivers = { workspace = true, features = ["fmc"] }
 caliptra-error = { workspace = true, default-features = false }
 caliptra-image-types = { workspace = true, default-features = false  }
 caliptra-registers.workspace = true

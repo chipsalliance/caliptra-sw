@@ -285,6 +285,15 @@ This field provides the address of the RomInfo structure.
 
 This field provides the size of the *To Be Signed* portion of the Runtime Alias certificate.
 
+### rt_hash_chain_max_svn
+
+This field informs firmware of the maximum RT SVN, which value was used
+to determine the length of RT FW's hash chain.
+
+### rt_hash_chain_kv_hdl
+
+This field provides the Handle into the Key Vault where RT's hash chain is stored.
+
 ### reserved
 
 This area is reserved for definition of additional fields that may be added during Minor version updates of the FHT.
@@ -298,7 +307,7 @@ FMC locks its PCR registers before handing control to RT firmware so that they m
 
 ## FMC Boot Flow
 
-The following list of steps are to be performed by FMC on each boot when ROM jumps to its entry point:
+The following list of steps are to be performed by FMC on each boot when ROM jumps to its entry point. Any failures are considered fatal.
 
 1. FMC locates the Firmware Handoff Table (FHT) responsible for passing vital configuration and other data from one firmware layer to the next. This is found
    at well-known address CALIPTRA_FHT_ADDR.

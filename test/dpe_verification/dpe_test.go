@@ -3,13 +3,15 @@
 package dpe
 
 import (
-	"github.com/chipsalliance/caliptra-dpe/verification"
 	"os"
 	"testing"
+
+	"github.com/chipsalliance/caliptra-dpe/verification/client"
+	dpetesting "github.com/chipsalliance/caliptra-dpe/verification/testing"
 )
 
 func TestRunAll(t *testing.T) {
-	var d verification.TestDPEInstance = &CptraModel{}
+	var d client.TestDPEInstance = &CptraModel{}
 
 	// Power on Caliptra
 	err := d.PowerOn()
@@ -18,18 +20,18 @@ func TestRunAll(t *testing.T) {
 	}
 	defer d.PowerOff()
 
-	for _, test := range verification.AllTestCases {
+	for _, test := range dpetesting.AllTestCases {
 		t.Run(test.Name, func(t *testing.T) {
-			if !verification.HasSupportNeeded(d, test.SupportNeeded) {
+			if !client.HasSupportNeeded(d, test.SupportNeeded) {
 				t.Skipf("Warning: Target does not have required support, skipping test.")
 			}
 
-			profile, err := verification.GetTransportProfile(d)
+			profile, err := client.GetTransportProfile(d)
 			if err != nil {
 				t.Fatalf("Could not get profile: %v", err)
 			}
 
-			c, err := verification.NewClient(d, profile)
+			c, err := client.NewClient(d, profile)
 			if err != nil {
 				t.Fatalf("Could not initialize client: %v", err)
 			}

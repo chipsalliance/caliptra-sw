@@ -38,7 +38,7 @@ jobs:
         run: |
           rustup toolchain install nightly-2023-04-15
           cargo +nightly-2023-04-15 install cargo-afl
-          sudo apt-get install gnuplot
+          sudo apt-get update -qy && sudo apt-get install gnuplot
           echo core | sudo tee /proc/sys/kernel/core_pattern
 
       - name: Restore corpus dir
@@ -152,13 +152,13 @@ jobs:
           key: ${{ inputs.name }}-${{ env.CACHE_BUSTER }}
 
       - name: Archive test cases dir
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: test_cases
           path: ${{ inputs.fuzz_target_path }}/test_cases/
 
       - name: Archive fuzzing coverage
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: plot
           path: ${{ inputs.fuzz_target_path }}/plot/

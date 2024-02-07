@@ -44,7 +44,7 @@ jobs:
       - name: Install sccache
         if: steps.sccache_bin_restore.outputs.cache-hit != 'true'
         run: |
-          cargo install sccache --version ${SCCACHE_VERSION} --no-default-features --features=gha
+          cargo install sccache --version ${SCCACHE_VERSION} --no-default-features --features=gha --locked
 
       - name: Save sccache binary
         uses: actions/cache/save@v3
@@ -70,7 +70,7 @@ jobs:
       - name: Install verilator
         if: steps.verilator_restore.outputs.cache-hit != 'true'
         run: |
-          sudo apt-get install flex bison libfl2 libfl-dev help2man
+          sudo apt-get update -qy && sudo apt-get install flex bison libfl2 libfl-dev help2man
           cd /tmp/
           git clone -b "${VERILATOR_VERSION}" https://github.com/verilator/verilator
           cd verilator
@@ -99,7 +99,7 @@ jobs:
 
       - name: Check that generated register code matches caliptra-rtl submodule
         run: |
-          cargo run --locked -p caliptra_registers_generator -- --check hw-latest/caliptra-rtl registers/src
+          cargo run --locked -p caliptra_registers_generator -- --check hw-latest/caliptra-rtl registers/bin/extra-rdl  registers/src
 
       - name: Build
         run: |

@@ -1,4 +1,16 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    lib.rs
+
+Abstract:
+
+    File contains exports for the Runtime library and mailbox command handling logic.
+
+--*/
 #![cfg_attr(not(feature = "fip-self-test"), allow(unused))]
 #![no_std]
 pub mod dice;
@@ -8,6 +20,7 @@ mod dpe_platform;
 mod drivers;
 pub mod fips;
 pub mod handoff;
+mod hmac;
 pub mod info;
 mod invoke_dpe;
 mod pcr;
@@ -18,9 +31,11 @@ mod verify;
 
 // Used by runtime tests
 pub mod mailbox;
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
 pub use drivers::Drivers;
 use mailbox::Mailbox;
 
+pub use crate::hmac::Hmac;
 pub use caliptra_common::fips::FipsVersionCmd;
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
@@ -45,18 +60,22 @@ use tagging::{GetTaggedTciCmd, TagTciCmd};
 use caliptra_common::cprintln;
 
 use caliptra_drivers::{CaliptraError, CaliptraResult, ResetReason};
-use caliptra_registers::mbox::enums::MboxStatusE;
+use caliptra_registers::el2_pic_ctrl::El2PicCtrl;
+use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc};
 use dpe::{
-    commands::{CommandExecution, DeriveChildCmd, DeriveChildFlags},
+    commands::{CommandExecution, DeriveContextCmd, DeriveContextFlags},
     dpe_instance::{DpeEnv, DpeTypes},
     support::Support,
     DPE_PROFILE,
 };
-pub use dpe::{context::ContextState, DpeInstance, U8Bool, MAX_HANDLES};
+pub use dpe::{context::ContextState, tci::TciMeasurement, DpeInstance, U8Bool, MAX_HANDLES};
 
 #[cfg(feature = "test_only_commands")]
 use crate::verify::HmacVerifyCmd;
-use crate::{dice::GetRtAliasCertCmd, pcr::GetPcrQuoteCmd};
+use crate::{
+    dice::GetRtAliasCertCmd,
+    pcr::{ExtendPcrCmd, GetPcrQuoteCmd},
+};
 
 const RUNTIME_BOOT_STATUS_BASE: u32 = 0x600;
 
@@ -101,19 +120,25 @@ fn enter_idle(drivers: &mut Drivers) {
                 Ok(_) => drivers.self_test_status = SelfTestStatus::Done,
                 Err(e) => caliptra_drivers::report_fw_error_non_fatal(e.into()),
             }
+        } else {
+            cfi_assert!(drivers.mbox.lock());
+            // Don't enter low power mode when in progress
+            return;
         }
     }
 
-    // TODO: Enable interrupts?
-    //#[cfg(feature = "riscv")]
-    //unsafe {
-    //core::arch::asm!("wfi");
-    //}
+    #[cfg(feature = "riscv")]
+    if cfg!(feature = "fpga_realtime") {
+        // TODO implement in emulator
+        caliptra_cpu::csr::mpmc_halt();
+    }
 }
 
 /// Handles the pending mailbox command and writes the repsonse back to the mailbox
 ///
-/// Returns the mailbox status (DataReady when we send a response) or an error
+/// # Returns
+///
+/// * `MboxStatusE` - the mailbox status (DataReady when we send a response)
 fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     // For firmware update, don't read data from the mailbox
     if drivers.mbox.cmd() == CommandId::FIRMWARE_LOAD {
@@ -122,6 +147,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         // If the handler succeeds but does not invoke reset that is
         // unexpected. Denote that the update failed.
         return Err(CaliptraError::RUNTIME_UNEXPECTED_UPDATE_RETURN);
+    } else {
+        cfi_assert_ne(drivers.mbox.cmd(), CommandId::FIRMWARE_LOAD);
     }
 
     // Get the command bytes
@@ -142,6 +169,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::GET_LDEV_CERT => GetLdevCertCmd::execute(drivers),
         CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes),
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
+        CommandId::EXTEND_PCR => ExtendPcrCmd::execute(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers, cmd_bytes),
         CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),
         CommandId::FW_INFO => FwInfoCmd::execute(drivers),
@@ -185,15 +213,37 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     Ok(MboxStatusE::DataReady)
 }
 
+#[cfg(feature = "riscv")]
+// TODO implement in emulator
+fn setup_mailbox_wfi(drivers: &mut Drivers) {
+    use caliptra_drivers::IntSource;
+
+    caliptra_cpu::csr::mie_enable_external_interrupts();
+
+    // Set highest priority so that Int can wake CPU
+    drivers.pic.int_set_max_priority(IntSource::SocIfcNotif);
+    drivers.pic.int_enable(IntSource::SocIfcNotif);
+
+    drivers.soc_ifc.enable_mbox_notif_interrupts();
+}
+
+/// Handles mailbox commands when the command is ready
 pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
     // Indicator to SOC that RT firmware is ready
     drivers.soc_ifc.assert_ready_for_runtime();
     caliptra_drivers::report_boot_status(RtBootStatus::RtReadyForCommands.into());
     // Disable attestation if in the middle of executing an mbox cmd during warm reset
-    if drivers.mbox.cmd_busy() {
+    let cmd_busy = drivers.mbox.cmd_busy();
+    if cmd_busy {
         let reset_reason = drivers.soc_ifc.reset_reason();
         if reset_reason == ResetReason::WarmReset {
+            cfi_assert_eq(drivers.soc_ifc.reset_reason(), ResetReason::WarmReset);
             let mut result = DisableAttestationCmd::execute(drivers);
+            if cfi_launder(result.is_ok()) {
+                cfi_assert!(result.is_ok());
+            } else {
+                cfi_assert!(result.is_err());
+            }
             match result {
                 Ok(_) => {
                     cprintln!("Disabled attestation due to cmd busy during warm reset");
@@ -207,21 +257,39 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
                 }
             }
         }
+    } else {
+        cfi_assert!(!cmd_busy);
     }
+    #[cfg(feature = "riscv")]
+    if cfg!(feature = "fpga_realtime") {
+        setup_mailbox_wfi(drivers);
+    }
+
     loop {
         enter_idle(drivers);
+
+        // Random delay for CFI glitch protection.
+        CfiCounter::delay();
+
         if drivers.is_shutdown {
             return Err(CaliptraError::RUNTIME_SHUTDOWN);
         }
 
-        if drivers.mbox.is_cmd_ready() {
+        let cmd_ready = drivers.mbox.is_cmd_ready();
+        if cmd_ready {
             // TODO : Move start/stop WDT to wait_for_cmd when NMI is implemented.
             caliptra_common::wdt::start_wdt(
                 &mut drivers.soc_ifc,
                 caliptra_common::WdtTimeout::default(),
             );
             caliptra_drivers::report_fw_error_non_fatal(0);
-            match handle_command(drivers) {
+            let commmand_result = handle_command(drivers);
+            if cfi_launder(commmand_result.is_ok()) {
+                cfi_assert!(commmand_result.is_ok());
+            } else {
+                cfi_assert!(commmand_result.is_err());
+            }
+            match commmand_result {
                 Ok(status) => {
                     drivers.mbox.set_status(status);
                 }
@@ -231,6 +299,8 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
                 }
             }
             caliptra_common::wdt::stop_wdt(&mut drivers.soc_ifc);
+        } else {
+            cfi_assert!(!cmd_ready);
         }
     }
     Ok(())

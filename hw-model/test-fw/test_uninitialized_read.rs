@@ -19,8 +19,15 @@ extern "C" fn main() {
     let mut mbox = unsafe { MboxCsr::new() };
     let mut soc_ifc = unsafe { SocIfcReg::new() };
 
+    // To prevent a race condition, wait until the SoC has written a value to
+    // this register.
+    let size = loop {
+        let size = soc_ifc.regs_mut().cptra_rsvd_reg().at(1).read() as usize;
+        if size > 0 {
+            break size;
+        }
+    };
     let ptr = soc_ifc.regs_mut().cptra_rsvd_reg().at(0).read() as *const u32;
-    let size = soc_ifc.regs_mut().cptra_rsvd_reg().at(1).read() as usize;
 
     // Lock the mailbox so we can access the mailbox SRAM if necessary
     mbox.regs_mut().lock().read();
