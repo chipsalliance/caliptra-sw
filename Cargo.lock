@@ -446,6 +446,7 @@ dependencies = [
  "caliptra-builder",
  "caliptra-cpu",
  "caliptra-drivers",
+ "caliptra-gen-linker-scripts",
  "caliptra-registers",
  "caliptra_common",
  "cfg-if 1.0.0",
