@@ -57,6 +57,17 @@ pub const APP_WITH_UART: FwId = FwId {
     features: &["emu", "test_only_commands", "fips_self_test"],
 };
 
+pub const APP_WITH_UART_FPGA: FwId = FwId {
+    crate_name: "caliptra-runtime",
+    bin_name: "caliptra-runtime",
+    features: &[
+        "emu",
+        "test_only_commands",
+        "fips_self_test",
+        "fpga_realtime",
+    ],
+};
+
 pub mod caliptra_builder_tests {
     use super::*;
 
@@ -376,6 +387,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &FMC_FAKE_WITH_UART,
     &APP,
     &APP_WITH_UART,
+    &APP_WITH_UART_FPGA,
     &caliptra_builder_tests::FWID,
     &hw_model_tests::MAILBOX_RESPONDER,
     &hw_model_tests::MAILBOX_SENDER,

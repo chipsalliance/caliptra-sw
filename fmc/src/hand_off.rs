@@ -13,6 +13,7 @@ File Name:
 
 use crate::flow::dice::DiceOutput;
 use crate::fmc_env::FmcEnv;
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::{handle_fatal_error, DataStore::*};
 use caliptra_common::{DataStore, FirmwareHandoffTable, HandOffDataHandle, Vault};
 use caliptra_drivers::{cprintln, memory_layout, Array4x12, Ecc384Signature, KeyId};
@@ -215,6 +216,7 @@ impl HandOff {
         }
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn set_and_lock_rt_min_svn(env: &mut FmcEnv, min_svn: u32) -> CaliptraResult<()> {
         let ds: DataStore =
             Self::fht(env)
@@ -239,10 +241,12 @@ impl HandOff {
     }
 
     /// Store runtime Dice Signature
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn set_rt_dice_signature(env: &mut FmcEnv, sig: &Ecc384Signature) {
         Self::fht_mut(env).rt_dice_sign = *sig;
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn set_rtalias_tbs_size(env: &mut FmcEnv, rtalias_tbs_size: usize) {
         Self::fht_mut(env).rtalias_tbs_size = rtalias_tbs_size as u16;
     }
@@ -267,11 +271,13 @@ impl HandOff {
     }
 
     #[allow(dead_code)]
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn set_rt_hash_chain_max_svn(env: &mut FmcEnv, max_svn: u16) {
         Self::fht_mut(env).rt_hash_chain_max_svn = max_svn;
     }
 
     #[allow(dead_code)]
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn set_rt_hash_chain_kv_hdl(env: &mut FmcEnv, kv_slot: KeyId) {
         Self::fht_mut(env).rt_hash_chain_kv_hdl = Self::key_id_to_handle(kv_slot)
     }
@@ -282,6 +288,7 @@ impl HandOff {
     }
 
     /// Update HandOff Table with RT Parameters
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn update(env: &mut FmcEnv, out: DiceOutput) -> CaliptraResult<()> {
         // update fht.rt_cdi_kv_hdl
         Self::fht_mut(env).rt_cdi_kv_hdl = Self::key_id_to_handle(out.cdi);

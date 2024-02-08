@@ -12,7 +12,7 @@ use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use libc;
 use nix;
 use std::io::Write;
-use std::time::{self, Duration};
+use std::time::{self, Duration, Instant};
 use uio::{UioDevice, UioError};
 
 use crate::EtrngResponse;
@@ -153,7 +153,10 @@ impl ModelFpgaRealtime {
                 }
             }
             // 1 second * (20 MHz / (2^13 throttling counter)) / 8 nibbles per DW: 305 DW of data consumed in 1 second.
-            thread::sleep(Duration::from_millis(1000));
+            let end_time = Instant::now() + Duration::from_millis(1000);
+            while !exit.load(Ordering::Relaxed) && Instant::now() < end_time {
+                thread::sleep(Duration::from_millis(1));
+            }
         }
     }
 

@@ -40,6 +40,7 @@ mod pcr_bank;
 pub mod pcr_log;
 pub mod pcr_reset;
 mod persistent;
+pub mod pic;
 pub mod printer;
 mod sha1;
 mod sha256;
@@ -85,6 +86,7 @@ pub use persistent::{
     FuseLogArray, PcrLogArray, PersistentData, PersistentDataAccessor, StashMeasurementArray,
     FUSE_LOG_MAX_COUNT, MEASUREMENT_MAX_COUNT, PCR_LOG_MAX_COUNT,
 };
+pub use pic::{IntSource, Pic};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
 pub use sha256::{Sha256, Sha256Alg, Sha256DigestOp};
 pub use sha384::{Sha384, Sha384Digest, Sha384DigestOp};

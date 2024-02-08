@@ -859,6 +859,7 @@ pub mod csrng;
 pub mod doe;
 pub mod dv;
 pub mod ecc;
+pub mod el2_pic_ctrl;
 pub mod entropy_src;
 pub mod hmac;
 pub mod kv;
