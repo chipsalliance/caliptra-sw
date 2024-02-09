@@ -30,6 +30,7 @@ use caliptra_error::CaliptraResult;
 use caliptra_image_types::RomInfo;
 use caliptra_kat::KatsEnv;
 use rom_env::RomEnv;
+use zeroize::Zeroize;
 
 #[cfg(not(feature = "std"))]
 core::arch::global_asm!(include_str!(concat!(
@@ -198,12 +199,14 @@ fn rom_integrity_test(env: &mut KatsEnv, expected_digest: &[u32; 8]) -> Caliptra
     let rom_start = 0 as *const [u32; 16];
 
     let n_blocks = unsafe { &CALIPTRA_ROM_INFO as *const RomInfo as usize / 64 };
-    let digest = unsafe { env.sha256.digest_blocks_raw(rom_start, n_blocks)? };
+    let mut digest = unsafe { env.sha256.digest_blocks_raw(rom_start, n_blocks)? };
     cprintln!("ROM Digest: {}", HexBytes(&<[u8; 32]>::from(digest)));
     if digest.0 != *expected_digest {
+        digest.zeroize();
         cprintln!("ROM integrity test failed");
         return Err(CaliptraError::ROM_INTEGRITY_FAILURE);
     }
+    digest.zeroize();
     Ok(())
 }
 
