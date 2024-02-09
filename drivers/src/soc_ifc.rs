@@ -321,6 +321,23 @@ impl SocIfc {
             .write(|w| w.notif_cmd_avail_en(true));
         intr_block.global_intr_en_r().write(|w| w.notif_en(true));
     }
+
+    pub fn has_mbox_notif_status(&self) -> bool {
+        let soc_ifc = self.soc_ifc.regs();
+        soc_ifc
+            .intr_block_rf()
+            .notif_internal_intr_r()
+            .read()
+            .notif_cmd_avail_sts()
+    }
+
+    pub fn clear_mbox_notif_status(&mut self) {
+        let soc_ifc = self.soc_ifc.regs_mut();
+        soc_ifc
+            .intr_block_rf()
+            .notif_internal_intr_r()
+            .write(|w| w.notif_cmd_avail_sts(true));
+    }
 }
 
 bitflags::bitflags! {
