@@ -367,7 +367,7 @@ fn gen_nmi_tokens(struct_name: &Ident, access_type: AccessType) -> TokenStream {
         }
     };
 
-    _ret_tokens.into()
+    _ret_tokens
 }
 
 /// Serialize `mask_matches` into a stream of Rust tokens. `access_type`
