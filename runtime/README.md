@@ -15,9 +15,7 @@ The Runtime Firmware main function SHALL perform the following on cold boot rese
 
 For behavior during other types of reset, see [Runtime firmware updates](#runtime-firmware-updates).
 
-If `mailbox_flow_done` is not set during a warm update boot, it is assumed that Caliptra
-was reset while Runtime Firmware was executing an operation. If Runtime Firmware detects
-this case, it calls `DISABLE_ATTESTATION` because the internal state of Caliptra may
+If Runtime Firmware detects that Caliptra was reset during the execution of an operation, Runtime Firmware calls `DISABLE_ATTESTATION` because the internal state of Caliptra may
 be corrupted.
 
 ### Main loop
@@ -25,21 +23,14 @@ be corrupted.
 After booting, Caliptra Runtime Firmware is responsible for the following.
 
 * Wait for mailbox interrupts. On mailbox interrupt, Runtime Firmware:
-    * Unsets `mailbox_flow_done`
-    * Writes lock mailbox and set busy register
     * Reads command from mailbox
     * Executes command
-    * Writes response to mailbox and set necessary status registers
-    * Sets `mailbox_flow_done`
+    * Writes response to mailbox and sets necessary status registers
     * Sleeps until next interrupt
 * On panic, Runtime Firmware:
     * Saves diagnostic information
 
 Callers must wait until Caliptra is no longer busy to call a mailbox command.
-Upon completion, Runtime Firmware signals `mailbox_data_avail` to notify the
-caller. After the mailbox data is read and the lock is released,
-`mailbox_flow_done` is signaled to notify callers that the mailbox is ready
-for use.
 
 ### Fault handling
 
@@ -49,7 +40,7 @@ A mailbox command can fail to complete in the following ways:
 * Unrecoverable panic
 
 In both of these cases, the panic handler writes diagnostic panic information
-to registers that are readable by the SoC. Firmware then undergoes an impactless reset, and `mailbox_data_avail` is asserted.
+to registers that are readable by the SoC. Firmware then undergoes an impactless reset.
 
 The caller is expected to check status registers upon reading responses from the
 mailbox.
