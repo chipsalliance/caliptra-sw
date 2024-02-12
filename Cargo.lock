@@ -520,6 +520,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "caliptra-hw-model-heavy-test-fw"
+version = "0.1.0"
+dependencies = [
+ "caliptra-cpu",
+ "caliptra-drivers",
+ "caliptra-gen-linker-scripts",
+ "caliptra-registers",
+ "caliptra-runtime",
+ "caliptra-test-harness",
+ "caliptra_common",
+ "cfg-if 1.0.0",
+ "ufmt",
+]
+
+[[package]]
 name = "caliptra-hw-model-test-fw"
 version = "0.1.0"
 dependencies = [

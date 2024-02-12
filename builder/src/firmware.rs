@@ -143,6 +143,16 @@ pub mod hw_model_tests {
     };
 }
 
+pub mod hw_model_tests_heavy {
+    use super::*;
+
+    pub const PIC: FwId = FwId {
+        crate_name: "caliptra-hw-model-heavy-test-fw",
+        bin_name: "pic",
+        features: &["emu", "riscv", "runtime"],
+    };
+}
+
 pub mod driver_tests {
     use super::*;
 
@@ -400,6 +410,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &hw_model_tests::TEST_DCCM_DOUBLE_BIT_ECC,
     &hw_model_tests::TEST_UNITIALIZED_READ,
     &hw_model_tests::TEST_PCR_EXTEND,
+    &hw_model_tests_heavy::PIC,
     &driver_tests::DOE,
     &driver_tests::ECC384,
     &driver_tests::ECC384_SIGN_VALIDATION_FAILURE,

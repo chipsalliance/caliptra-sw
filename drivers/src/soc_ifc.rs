@@ -352,6 +352,14 @@ impl SocIfc {
             .notif_internal_intr_r()
             .write(|w| w.notif_cmd_avail_sts(true));
     }
+
+    pub fn soft_trigger_mbox_notif(&mut self) {
+        let soc_ifc = self.soc_ifc.regs_mut();
+        soc_ifc
+            .intr_block_rf()
+            .notif_intr_trig_r()
+            .write(|w| w.notif_cmd_avail_trig(true));
+    }
 }
 
 bitflags::bitflags! {
