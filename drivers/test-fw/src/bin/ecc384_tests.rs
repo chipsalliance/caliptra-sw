@@ -352,7 +352,6 @@ fn test_kv_seed_from_kv_msg_from_input() {
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
         usage: KeyUsage::default()
-            .set_ecc_key_gen_seed_en()
             .set_ecc_private_key_en(),
     };
     let result = ecc.key_pair(
@@ -468,7 +467,7 @@ fn test_no_private_key_usage() {
     let key_out_1 = KeyWriteArgs {
         id: KeyId::KeyId0,
         // The caller needs to use set_ecc_private_key_en() here to prevent the error
-        usage: KeyUsage::default().set_ecc_key_gen_seed_en(),
+        usage: KeyUsage::default(),
     };
     let result = ecc.key_pair(
         &Ecc384Seed::from(&Ecc384Scalar::from(seed)),

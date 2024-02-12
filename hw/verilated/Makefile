@@ -17,7 +17,7 @@ VERILATOR = verilator
 VERILATED_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 CALIPTRA_RTL_DIR := $(realpath $(VERILATED_DIR)../1.0/rtl)
 
-CFLAGS := -std=c++11 -fno-exceptions -fPIC
+CFLAGS := -fno-exceptions -fPIC
 VERILATOR_MAKE_FLAGS = OPT_FAST="-Os"
 
 VERILATOR_CFLAGS = $(shell pkg-config --cflags verilator)
@@ -49,6 +49,11 @@ out/Vcaliptra_verilated.h: ${VERILATED_DIR}/caliptra_verilated.sv out
 	$(VERILATOR)  --cc -CFLAGS "${CFLAGS}" \
 	  --trace \
 	  +libext+.v+.sv +define+RV_OPENSOURCE \
+	  -Dsx \
+	  -Dcomputational \
+	  -Drvsteel \
+	  -DEXTIF \
+	  -DCORE_ARCH_S32_64 \
 	  --timescale 1ns/1ps \
 	  --trace-structs \
 	  $(includes) \

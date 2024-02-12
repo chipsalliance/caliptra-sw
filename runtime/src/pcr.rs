@@ -52,7 +52,8 @@ impl GetPcrQuoteCmd {
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
         let pcr_hash = drivers.sha384.gen_pcr_hash(args.nonce.into())?;
-        let signature = drivers.ecc384.pcr_sign_flow(&mut drivers.trng)?;
+        // let signature = drivers.ecc384.pcr_sign_flow(&mut drivers.trng)?;
+        let signature = drivers.ecc384.pcr_sign_flow(&mut drivers.trng, &pcr_hash)?;
         let raw_pcrs = drivers.pcr_bank.read_all_pcrs();
 
         let mut pcrs = [[0u8; 48]; 32];

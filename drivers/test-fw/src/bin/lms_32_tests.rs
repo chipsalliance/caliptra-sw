@@ -20,12 +20,11 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{HashValue, Lms, LmsResult, Sha256};
+use caliptra_drivers::{HashValue, Lms, LmsResult, Sha256, FortimacRegSteal, Sha256Reg};
 use caliptra_lms_types::{
     bytes_to_words_8, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsPublicKey,
     LmsSignature,
 };
-use caliptra_registers::sha256::Sha256Reg;
 use caliptra_test_harness::test_suite;
 use zerocopy::{BigEndian, LittleEndian, U32};
 

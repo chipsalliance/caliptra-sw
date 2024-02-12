@@ -18,6 +18,7 @@ mod array;
 mod array_concat;
 mod wait;
 
+mod aes;
 mod bounded_address;
 mod csrng;
 mod data_vault;
@@ -52,6 +53,7 @@ mod soc_ifc;
 mod trng;
 mod trng_ext;
 
+pub use aes::{Aes128, Aes192, Aes256, AesMode, AesOp, AesPeriph, AesReg, AesSteal};
 pub use array::{Array4x12, Array4x16, Array4x4, Array4x5, Array4x8, Array4xN};
 pub use array_concat::array_concat3;
 pub use bounded_address::{BoundedAddr, MemBounds, RomAddr};
@@ -73,7 +75,7 @@ pub use fuse_bank::{
     FuseBank, IdevidCertAttr, RomVerifyConfig, VendorPubKeyRevocation, X509KeyIdAlgo,
 };
 pub use hand_off::FirmwareHandoffTable;
-pub use hmac384::{Hmac384, Hmac384Data, Hmac384Key, Hmac384Op, Hmac384Tag};
+pub use hmac384::{Hmac384, Hmac384Data, Hmac384Key, Hmac384Op, Hmac384Tag, HmacPeriph, HmacReg};
 pub use hmac384_kdf::hmac384_kdf;
 pub use key_vault::{KeyId, KeyUsage, KeyVault};
 pub use kv_access::{KeyReadArgs, KeyWriteArgs};
@@ -97,9 +99,11 @@ pub use persistent::{
 };
 pub use pic::{IntSource, Pic};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
-pub use sha256::{Sha256, Sha256Alg, Sha256DigestOp};
+
 pub use sha2_512_384acc::{Sha2_512_384Acc, Sha2_512_384AccOp, ShaAccLockState};
-pub use sha384::{Sha384, Sha384Digest, Sha384DigestOp};
+pub use sha256::{Sha256, Sha256Alg, Sha256DigestOp, Sha256Periph, Sha256Reg};
+pub use sha384::{Sha384, Sha384Digest, Sha384DigestOp, Sha384Periph, Sha384Reg};
+
 pub use soc_ifc::{report_boot_status, Lifecycle, MfgFlags, ResetReason, SocIfc};
 pub use trng::Trng;
 
@@ -121,5 +125,22 @@ cfg_if::cfg_if! {
         mod uart;
 
         pub use uart::Uart;
+    }
+}
+
+use fortimac_hal::{FortimacReg, FortimacRegsExt};
+const FORTIMAC_OFFSET: usize = 0x10040000;
+
+pub trait FortimacRegSteal {
+    unsafe fn steal() -> Self;
+    unsafe fn new() -> Self;
+}
+
+impl FortimacRegSteal for FortimacReg {
+    unsafe fn steal() -> Self {
+        FortimacRegsExt::new_fortimac(FORTIMAC_OFFSET)
+    }
+    unsafe fn new() -> Self {
+        Self::steal()
     }
 }

@@ -35,21 +35,15 @@ impl CaliptraError {
 
     pub const DRIVER_SHA256_INVALID_STATE: CaliptraError = CaliptraError::new_const(0x00020001);
     pub const DRIVER_SHA256_MAX_DATA: CaliptraError = CaliptraError::new_const(0x00020002);
-    pub const DRIVER_SHA256_INVALID_SLICE: CaliptraError = CaliptraError::new_const(0x00020003);
-    pub const DRIVER_SHA256_INDEX_OUT_OF_BOUNDS: CaliptraError =
-        CaliptraError::new_const(0x00020004);
+    pub const DRIVER_SHA256_DATA_PROC: CaliptraError = CaliptraError::new_const(0x00020003);
+    pub const DRIVER_SHA256_FAULT_INJ: CaliptraError = CaliptraError::new_const(0x00020004);
 
     /// Driver Error: SHA384
-    pub const DRIVER_SHA384_READ_DATA_KV_READ: CaliptraError = CaliptraError::new_const(0x00030001);
-    pub const DRIVER_SHA384_READ_DATA_KV_WRITE: CaliptraError =
-        CaliptraError::new_const(0x00030002);
-    pub const DRIVER_SHA384_READ_DATA_KV_UNKNOWN: CaliptraError =
-        CaliptraError::new_const(0x00030003);
     pub const DRIVER_SHA384_INVALID_STATE_ERR: CaliptraError = CaliptraError::new_const(0x00030007);
     pub const DRIVER_SHA384_MAX_DATA_ERR: CaliptraError = CaliptraError::new_const(0x00030008);
     pub const DRIVER_SHA384_INVALID_KEY_SIZE: CaliptraError = CaliptraError::new_const(0x00030009);
-    pub const DRIVER_SHA384_INVALID_SLICE: CaliptraError = CaliptraError::new_const(0x0003000A);
-    pub const DRIVER_SHA384_INDEX_OUT_OF_BOUNDS: CaliptraError =
+    pub const DRIVER_SHA384_DATA_PROC: CaliptraError = CaliptraError::new_const(0x0003000A);
+    pub const DRIVER_SHA384_FAULT_INJ: CaliptraError =
         CaliptraError::new_const(0x0003000B);
 
     /// Driver Error: SHA2_512_384ACC
@@ -57,27 +51,10 @@ impl CaliptraError {
         CaliptraError::new_const(0x00038000);
 
     /// Driver Error: HMAC384
-    pub const DRIVER_HMAC384_READ_KEY_KV_READ: CaliptraError = CaliptraError::new_const(0x00040001);
-    pub const DRIVER_HMAC384_READ_KEY_KV_WRITE: CaliptraError =
-        CaliptraError::new_const(0x00040002);
-    pub const DRIVER_HMAC384_READ_KEY_KV_UNKNOWN: CaliptraError =
-        CaliptraError::new_const(0x00040003);
-    pub const DRIVER_HMAC384_READ_DATA_KV_READ: CaliptraError =
-        CaliptraError::new_const(0x00040004);
-    pub const DRIVER_HMAC384_READ_DATA_KV_WRITE: CaliptraError =
-        CaliptraError::new_const(0x00040005);
-    pub const DRIVER_HMAC384_READ_DATA_KV_UNKNOWN: CaliptraError =
-        CaliptraError::new_const(0x00040006);
-    pub const DRIVER_HMAC384_WRITE_TAG_KV_READ: CaliptraError =
-        CaliptraError::new_const(0x00040007);
-    pub const DRIVER_HMAC384_WRITE_TAG_KV_WRITE: CaliptraError =
-        CaliptraError::new_const(0x00040008);
-    pub const DRIVER_HMAC384_WRITE_TAG_KV_UNKNOWN: CaliptraError =
-        CaliptraError::new_const(0x00040009);
     pub const DRIVER_HMAC384_INVALID_STATE: CaliptraError = CaliptraError::new_const(0x0004000b);
     pub const DRIVER_HMAC384_MAX_DATA: CaliptraError = CaliptraError::new_const(0x0004000c);
-    pub const DRIVER_HMAC384_INVALID_SLICE: CaliptraError = CaliptraError::new_const(0x0004000d);
-    pub const DRIVER_HMAC384_INDEX_OUT_OF_BOUNDS: CaliptraError =
+    pub const DRIVER_HMAC384_DATA_PROC: CaliptraError = CaliptraError::new_const(0x0004000d);
+    pub const DRIVER_HMAC384_FAULT_INJ: CaliptraError =
         CaliptraError::new_const(0x0004000e);
 
     /// Driver Error: ECC384
@@ -114,6 +91,10 @@ impl CaliptraError {
         CaliptraError::new_const(0x0005000f);
     pub const DRIVER_ECC384_KEYGEN_BAD_USAGE: CaliptraError = CaliptraError::new_const(0x00050010);
     pub const DRIVER_ECC384_HW_ERROR: CaliptraError = CaliptraError::new_const(0x00050011);
+
+    pub const DRIVER_ECC384_PKA_READ: CaliptraError = CaliptraError::new_const(0x00050012);
+    pub const DRIVER_ECC384_PKA_WRITE: CaliptraError = CaliptraError::new_const(0x00050013);
+    pub const DRIVER_ECC384_PKA_EXECUTE: CaliptraError = CaliptraError::new_const(0x00050014);
 
     pub const DRIVER_KV_ERASE_USE_LOCK_SET_FAILURE: CaliptraError =
         CaliptraError::new_const(0x00060001);
@@ -503,6 +484,20 @@ impl CaliptraError {
     /// Bounded address Errors
     pub const ADDRESS_MISALIGNED: CaliptraError = CaliptraError::new_const(0x00110000);
     pub const ADDRESS_NOT_IN_ROM: CaliptraError = CaliptraError::new_const(0x00110001);
+
+    /// Driver Error: AES
+    pub const DRIVER_AES_EXTRA_AAD: CaliptraError = CaliptraError::new_const(0x00120000);
+    pub const DRIVER_AES_EXTRA_IV_NONCE: CaliptraError = CaliptraError::new_const(0x00120001);
+    pub const DRIVER_AES_EMPTY_INPUT: CaliptraError = CaliptraError::new_const(0x00120002);
+    pub const DRIVER_AES_NON_EMPTY_CMAC_OUTPUT: CaliptraError =
+        CaliptraError::new_const(0x00120003);
+    pub const DRIVER_AES_INVALID_KEY_SIZE: CaliptraError = CaliptraError::new_const(0x00120004);
+    pub const DRIVER_AES_INVALID_CMAC_OP: CaliptraError = CaliptraError::new_const(0x00120005);
+    pub const DRIVER_AES_INVALID_XTS_AES: CaliptraError = CaliptraError::new_const(0x00120006);
+    pub const DRIVER_AES_MISSING_AAD: CaliptraError = CaliptraError::new_const(0x00120007);
+    pub const DRIVER_AES_MISSING_IV_NONCE: CaliptraError = CaliptraError::new_const(0x00120008);
+    pub const DRIVER_AES_UNPADDED_INPUT: CaliptraError = CaliptraError::new_const(0x00120009);
+    pub const DRIVER_AES_UNEQUAL_IN_OUT_SIZES: CaliptraError = CaliptraError::new_const(0x0012000a);
 
     /// Initial Device ID Errors
     pub const ROM_IDEVID_CSR_BUILDER_INIT_FAILURE: CaliptraError =

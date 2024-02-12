@@ -9,5 +9,7 @@ edition = "2021"
 
 [dependencies]
 caliptra-registers-latest = { workspace = true }
+caliptra-registers-1_0 = { workspace = true }
 
 [features]
+"hw-1.0" = []

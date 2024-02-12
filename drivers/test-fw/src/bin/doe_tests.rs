@@ -17,7 +17,7 @@ Abstract:
 
 use caliptra_drivers::{
     Array4x12, Array4x4, DeobfuscationEngine, Ecc384, Ecc384PubKey, Hmac384, Hmac384Data,
-    Hmac384Key, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Mailbox, Trng,
+    Hmac384Key, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Mailbox, Trng, FortimacRegSteal, HmacReg,
 };
 use caliptra_drivers_test_bin::{DoeTestResults, DOE_TEST_HMAC_KEY, DOE_TEST_IV};
 
@@ -26,7 +26,7 @@ use caliptra_registers::ecc::EccReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
 use caliptra_registers::{
-    csrng::CsrngReg, doe::DoeReg, entropy_src::EntropySrcReg, hmac::HmacReg, mbox::MboxCsr,
+    csrng::CsrngReg, doe::DoeReg, entropy_src::EntropySrcReg, mbox::MboxCsr,
 };
 use caliptra_test_harness::test_suite;
 use zerocopy::IntoBytes;
@@ -45,7 +45,7 @@ fn test_decrypt() {
     let mut test_results = DoeTestResults::default();
 
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
-    let mut hmac384 = Hmac384::new(unsafe { HmacReg::new() });
+    let mut hmac384 = Hmac384::new(unsafe { HmacReg::steal() });
     let mut doe = unsafe { DeobfuscationEngine::new(DoeReg::new()) };
     let mut trng = unsafe {
         Trng::new(
@@ -68,7 +68,7 @@ fn test_decrypt() {
     );
 
     let key_out_id = KeyId::KeyId2;
-    let key_out = KeyWriteArgs::new(key_out_id, KeyUsage::default().set_ecc_key_gen_seed_en());
+    let key_out = KeyWriteArgs::new(key_out_id, KeyUsage::default().set_ecc_private_key_en());
 
     // Make sure the UDS can be used as a HMAC key
     hmac384

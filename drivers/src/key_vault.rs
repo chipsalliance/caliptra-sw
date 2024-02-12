@@ -168,10 +168,7 @@ impl KeyUsage {
         self.set_ecc_private_key(true);
         *self
     }
-    pub fn set_ecc_key_gen_seed_en(&mut self) -> KeyUsage {
-        self.set_ecc_key_gen_seed(true);
-        *self
-    }
+    // key_gen_seed property is disabled in hardware due to changes for PKA
     pub fn set_ecc_data_en(&mut self) -> KeyUsage {
         self.set_ecc_data(true);
         *self

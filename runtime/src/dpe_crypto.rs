@@ -94,7 +94,7 @@ impl<'a> DpeCrypto<'a> {
                         key_id,
                         KeyUsage::default()
                             .set_hmac_key_en()
-                            .set_ecc_key_gen_seed_en(),
+                            .set_ecc_private_key_en(),
                     )
                     .into(),
                 )
@@ -121,7 +121,7 @@ impl<'a> DpeCrypto<'a> {
                     label,
                     Some(info),
                     self.trng,
-                    KeyWriteArgs::new(KEY_ID_TMP, KeyUsage::default().set_ecc_key_gen_seed_en())
+                    KeyWriteArgs::new(KEY_ID_TMP, KeyUsage::default().set_ecc_private_key_en())
                         .into(),
                 )
                 .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
@@ -285,7 +285,33 @@ impl<'a> Crypto for DpeCrypto<'a> {
         measurement: &Digest,
         info: &[u8],
     ) -> Result<Self::Cdi, CryptoError> {
-        self.derive_cdi_inner(algs, measurement, info, KEY_ID_DPE_CDI)
+        // self.derive_cdi_inner(algs, measurement, info, KEY_ID_DPE_CDI)
+        match algs {
+            AlgLen::Bit256 => Err(CryptoError::Size),
+            AlgLen::Bit384 => {
+                let mut hasher = self.hash_initialize(algs)?;
+                hasher.update(measurement.bytes())?;
+                hasher.update(info)?;
+                let context = hasher.finish()?;
+
+                hmac384_kdf(
+                    self.hmac384,
+                    KeyReadArgs::new(self.key_id_rt_cdi).into(),
+                    b"derive_cdi",
+                    Some(context.bytes()),
+                    self.trng,
+                    KeyWriteArgs::new(
+                        KEY_ID_DPE_CDI,
+                        KeyUsage::default()
+                            .set_hmac_key_en()
+                            .set_ecc_private_key_en(),
+                    )
+                    .into(),
+                )
+                .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
+                Ok(KEY_ID_DPE_CDI)
+            }
+        }
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
@@ -297,6 +323,21 @@ impl<'a> Crypto for DpeCrypto<'a> {
         info: &[u8],
     ) -> Result<(Self::PrivKey, EcdsaPub), CryptoError> {
         self.derive_key_pair_inner(algs, cdi, label, info, KEY_ID_DPE_PRIV_KEY)
+        // match algs {
+        //     AlgLen::Bit256 => Err(CryptoError::Size),
+        //     AlgLen::Bit384 => {
+        //         hmac384_kdf(
+        //             self.hmac384,
+        //             KeyReadArgs::new(*cdi).into(),
+        //             label,
+        //             Some(info),
+        //             self.trng,
+        //             KeyWriteArgs::new(KEY_ID_TMP, KeyUsage::default().set_ecc_private_key_en())
+        //                 .into(),
+        //         )
+        //         .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
+        //     }
+        // }
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]

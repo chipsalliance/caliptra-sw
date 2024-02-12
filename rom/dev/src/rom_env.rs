@@ -18,12 +18,12 @@ Abstract:
 use crate::fht::FhtDataStore;
 use caliptra_drivers::{
     DataVault, DeobfuscationEngine, Ecc384, Hmac384, KeyVault, Lms, Mailbox, PcrBank,
-    PersistentDataAccessor, Sha1, Sha256, Sha2_512_384Acc, Sha384, SocIfc, Trng,
+    PersistentDataAccessor, Sha1, Sha256, Sha384, Sha2_512_384Acc, SocIfc, Trng, Sha256Reg, Sha384Reg, HmacReg, FortimacRegSteal
 };
 use caliptra_error::CaliptraResult;
 use caliptra_registers::{
     csrng::CsrngReg, doe::DoeReg, dv::DvReg, ecc::EccReg, entropy_src::EntropySrcReg,
-    hmac::HmacReg, kv::KvReg, mbox::MboxCsr, pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg,
+    kv::KvReg, mbox::MboxCsr, pv::PvReg,
     sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 
@@ -90,10 +90,10 @@ impl RomEnv {
         Ok(Self {
             doe: DeobfuscationEngine::new(DoeReg::new()),
             sha1: Sha1::default(),
-            sha256: Sha256::new(Sha256Reg::new()),
-            sha384: Sha384::new(Sha512Reg::new()),
+            sha256: Sha256::new(Sha256Reg::steal()),
+            sha384: Sha384::new(Sha384Reg::steal()),
             sha2_512_384_acc: Sha2_512_384Acc::new(Sha512AccCsr::new()),
-            hmac384: Hmac384::new(HmacReg::new()),
+            hmac384: Hmac384::new(HmacReg::steal()),
             ecc384: Ecc384::new(EccReg::new()),
             lms: Lms::default(),
             key_vault: KeyVault::new(KvReg::new()),

@@ -15,13 +15,12 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{get_lms_parameters, HashValue, Lms, LmsResult, Sha256};
+use caliptra_drivers::{get_lms_parameters, HashValue, Lms, LmsResult, Sha256, FortimacRegSteal, Sha256Reg};
 use caliptra_error::CaliptraError;
 use caliptra_lms_types::{
     bytes_to_words_6, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsIdentifier,
     LmsPublicKey, LmsSignature,
 };
-use caliptra_registers::sha256::Sha256Reg;
 use caliptra_test_harness::test_suite;
 use zerocopy::{BigEndian, LittleEndian, U32};
 

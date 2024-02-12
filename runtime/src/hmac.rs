@@ -54,7 +54,7 @@ fn ecc384_key_gen(
             KEY_ID_TMP,
             KeyUsage::default()
                 .set_hmac_key_en()
-                .set_ecc_key_gen_seed_en(),
+                .set_ecc_private_key_en(),
         )
         .into(),
     )?;
@@ -100,7 +100,7 @@ impl Hmac {
                 output,
                 KeyUsage::default()
                     .set_hmac_key_en()
-                    .set_ecc_key_gen_seed_en(),
+                    .set_ecc_private_key_en(),
             )
             .into(),
         )

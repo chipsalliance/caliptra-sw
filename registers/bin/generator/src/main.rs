@@ -27,7 +27,7 @@ static CALIPTRA_RDL_FILES: &[&str] = &[
     "src/keyvault/rtl/kv_def.rdl",
     "src/keyvault/rtl/kv_reg.rdl",
     "src/doe/rtl/doe_reg.rdl",
-    "src/ecc/rtl/ecc_reg.rdl",
+    "src/pka_rtl/rtl/pka_ecc_reg.rdl",
     "src/hmac/rtl/hmac_reg.rdl",
     "src/csrng/data/csrng.rdl",
     "src/entropy_src/data/entropy_src.rdl",

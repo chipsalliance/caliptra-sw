@@ -159,7 +159,7 @@ impl ImageBundle {
 
 /// Calipatra Image Manifest
 #[repr(C)]
-#[derive(IntoBytes, Immutable, KnownLayout, FromBytes, Clone, Copy, Debug, Zeroize)]
+#[derive(IntoBytes, Immutable, FromBytes, Clone, Copy, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageManifest {
     /// Marker
@@ -389,7 +389,7 @@ impl From<ImageTocEntryId> for u32 {
 
 /// Caliptra Table of contents entry
 #[repr(C)]
-#[derive(IntoBytes, Clone, Copy, FromBytes, Immutable, KnownLayout, Default, Debug, Zeroize)]
+#[derive(IntoBytes, Clone, Copy, FromBytes, Immutable, Default, Debug, Zeroize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ImageTocEntry {
     /// ID

@@ -26,6 +26,9 @@ caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cf
 caliptra-cfi-derive.workspace = true
 caliptra-cfi-lib-git = { workspace = true, default-features = false, features = ["cfi", "cfi-counter" ], optional = true }
 caliptra-cfi-derive-git = { workspace = true, optional = true }
+forticrypt_hal = { workspace = true }
+fortimac_hal = { workspace = true }
+pka_hal = { workspace = true }
 
 [features]
 emu = []

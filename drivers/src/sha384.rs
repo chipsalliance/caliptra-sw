@@ -12,18 +12,20 @@ Abstract:
 
 --*/
 
+use core::marker::PhantomData;
 use core::usize;
 
-use crate::kv_access::{KvAccess, KvAccessErr};
-use crate::PcrId;
-use crate::{array::Array4x32, wait, Array4x12, Array4x8};
+use crate::{pcr_bank::PcrBank, Array4x12, Array4x8, FortimacRegSteal, PcrId};
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_error::{CaliptraError, CaliptraResult};
-use caliptra_registers::sha512::Sha512Reg;
+use caliptra_registers::pv::PvReg;
+use fortimac_hal::{Fortimac384, FortimacErr};
+pub use fortimac_hal::{FortimacPeriph as Sha384Periph, FortimacReg as Sha384Reg};
 
+// TODO: Fortimac requires seed, consider replacing with prng
+const SEED: u32 = 0;
 const SHA384_BLOCK_BYTE_SIZE: usize = 128;
-const SHA384_BLOCK_LEN_OFFSET: usize = 112;
 const SHA384_MAX_DATA_SIZE: usize = 1024 * 1024;
 pub const SHA384_HASH_SIZE: usize = 48;
 
@@ -31,24 +33,23 @@ pub const SHA384_HASH_SIZE: usize = 48;
 pub type Sha384Digest<'a> = &'a mut Array4x12;
 
 pub struct Sha384 {
-    sha512: Sha512Reg,
+    sha384: Sha384Reg,
 }
 
 impl Sha384 {
-    pub fn new(sha512: Sha512Reg) -> Self {
-        Self { sha512 }
+    pub fn new(sha384: Sha384Reg) -> Self {
+        Self { sha384 }
     }
     /// Initialize multi step digest operation
     ///
     /// # Returns
     ///
     /// * `Sha384Digest` - Object representing the digest operation
-    pub fn digest_init(&mut self) -> CaliptraResult<Sha384DigestOp<'_>> {
+    pub fn digest_init<'a>(&'a mut self) -> CaliptraResult<Sha384DigestOp<'a>> {
+        let engine = Fortimac384::new_sha(unsafe { Sha384Reg::steal() }, SEED);
         let op = Sha384DigestOp {
-            sha: self,
-            state: Sha384DigestState::Init,
-            buf: [0u8; SHA384_BLOCK_BYTE_SIZE],
-            buf_idx: 0,
+            _marker: PhantomData,
+            sha: engine,
             data_size: 0,
         };
 
@@ -73,39 +74,11 @@ impl Sha384 {
             return Err(CaliptraError::DRIVER_SHA384_MAX_DATA_ERR);
         }
 
-        let mut first = true;
-        let mut bytes_remaining = buf.len();
+        let sha = Fortimac384::new_sha(unsafe { Sha384Reg::steal() }, SEED);
 
-        loop {
-            let offset = buf.len() - bytes_remaining;
-            match bytes_remaining {
-                0..=127 => {
-                    // PANIC-FREE: Use buf.get() instead if buf[] as the compiler
-                    // cannot reason about `offset` parameter to optimize out
-                    // the panic.
-                    if let Some(slice) = buf.get(offset..) {
-                        self.digest_partial_block(slice, first, buf.len())?;
-                        break;
-                    } else {
-                        return Err(CaliptraError::DRIVER_SHA384_INVALID_SLICE);
-                    }
-                }
-                _ => {
-                    // PANIC-FREE: Use buf.get() instead if buf[] as the compiler
-                    // cannot reason about `offset` parameter to optimize out
-                    // the panic call.
-                    if let Some(slice) = buf.get(offset..offset + SHA384_BLOCK_BYTE_SIZE) {
-                        let block = <&[u8; SHA384_BLOCK_BYTE_SIZE]>::try_from(slice).unwrap();
-                        self.digest_block(block, first, false)?;
-                        bytes_remaining -= SHA384_BLOCK_BYTE_SIZE;
-                        first = false;
-                    } else {
-                        return Err(CaliptraError::DRIVER_SHA384_INVALID_SLICE);
-                    }
-                }
-            }
-        }
-        let digest = self.read_digest();
+        let mut digest = [0; 48];
+        sha.digest(buf, &mut digest)
+            .map_err(|err| err.into_caliptra_err())?;
 
         #[cfg(feature = "fips-test-hooks")]
         let digest = unsafe {
@@ -117,12 +90,12 @@ impl Sha384 {
 
         self.zeroize_internal();
 
-        Ok(digest)
+        Ok(Array4x12::from(digest))
     }
 
     /// Zeroize the hardware registers.
     fn zeroize_internal(&mut self) {
-        self.sha512.regs_mut().ctrl().write(|w| w.zeroize(true));
+        unsafe { self.sha384.cfg().write_with_zero(|w| w.srst().set_bit()) };
     }
 
     /// Zeroize the hardware registers.
@@ -136,21 +109,8 @@ impl Sha384 {
     ///
     /// This function is safe to call from a trap handler.
     pub unsafe fn zeroize() {
-        let mut sha384 = Sha512Reg::new();
-        sha384.regs_mut().ctrl().write(|w| w.zeroize(true));
-    }
-
-    /// Copy digest to buffer
-    ///
-    /// # Arguments
-    ///
-    /// * `buf` - Digest buffer
-    fn read_digest(&mut self) -> Array4x12 {
-        let sha = self.sha512.regs();
-        // digest_block() only waits until the peripheral is ready for the next
-        // command; the result register may not be valid yet
-        wait::until(|| sha.status().read().valid());
-        Array4x12::read_from_reg(sha.digest().truncate::<12>())
+        let sha384 = Sha384Reg::steal();
+        sha384.cfg().write_with_zero(|w| w.srst().set_bit());
     }
 
     /// Generate digest over PCRs + nonce
@@ -163,30 +123,31 @@ impl Sha384 {
     ///
     /// * `buf` - Digest buffer
     pub fn gen_pcr_hash(&mut self, nonce: Array4x8) -> CaliptraResult<Array4x12> {
-        let reg = self.sha512.regs_mut();
-        let status_reg = reg.gen_pcr_hash_status();
+        let pv = unsafe { PvReg::new() };
 
-        // Wait for the registers to be ready
-        wait::until(|| status_reg.read().ready());
+        // Read pcr vault as array of bytes
+        let mut pcr_data = PcrBank::ALL_PCR_IDS
+            .into_iter()
+            .map(|pcr_id| {
+                let entry = pv.regs().pcr_entry().at(pcr_id.into()).read();
+                Self::words_to_bytes_48(entry)
+            })
+            .enumerate()
+            .fold(
+                [0; PcrBank::ALL_PCR_IDS.len() * 48 + 32], // bytes for all pcr entries + nonce
+                |mut acc, (index, next)| {
+                    acc[index * 48..(index + 1) * 48].copy_from_slice(&next);
 
-        // Write the nonce into the register
-        reg.gen_pcr_hash_nonce().write(&nonce.into());
+                    acc
+                },
+            );
 
-        // Use the start command to start the digesting process
-        reg.gen_pcr_hash_ctrl().write(|ctrl| ctrl.start(true));
+        // Fill nonce bytes
+        let len = pcr_data.len();
+        let nonce = Self::words_to_bytes_32(nonce.0);
+        pcr_data[len - 32..].copy_from_slice(&nonce);
 
-        // Wait for the registers to be ready
-        wait::until(|| status_reg.read().ready());
-
-        // Initialize SHA hardware to clear write lock
-        reg.ctrl().write(|w| w.init(true));
-        wait::until(|| status_reg.read().ready());
-
-        if status_reg.read().valid() {
-            Ok(reg.gen_pcr_hash_digest().read().into())
-        } else {
-            Err(CaliptraError::DRIVER_SHA384_INVALID_STATE_ERR)
-        }
+        self.digest(&pcr_data)
     }
 
     pub fn pcr_extend(&mut self, id: PcrId, data: &[u8]) -> CaliptraResult<()> {
@@ -196,7 +157,8 @@ impl Sha384 {
         }
 
         // Wait on the PCR to be retrieved from the PCR vault.
-        self.retrieve_pcr(id)?;
+        let pcr = self.retrieve_pcr(id)?;
+        let pcr = Self::words_to_bytes_48(pcr);
 
         // Prepare the data block; first SHA384_HASH_SIZE bytes are not filled
         // to account for the PCR retrieved. The retrieved PCR is unaffected as
@@ -208,10 +170,18 @@ impl Sha384 {
         if SHA384_HASH_SIZE > total_bytes || total_bytes > block.len() {
             return Err(CaliptraError::DRIVER_SHA384_MAX_DATA_ERR);
         }
+        block[..SHA384_HASH_SIZE].copy_from_slice(&pcr);
         block[SHA384_HASH_SIZE..total_bytes].copy_from_slice(data);
 
         if let Some(slice) = block.get(..total_bytes) {
-            self.digest_partial_block(slice, true, total_bytes)?;
+            let sha = Fortimac384::new_sha(unsafe { Sha384Reg::steal() }, SEED);
+            let mut digest = [0; 48];
+            sha.digest(slice, &mut digest)
+                .map_err(|err| err.into_caliptra_err())?;
+            // write back to `id`-th slot in pcr vault
+            let mut pv = unsafe { PvReg::new() };
+            let digest = Array4x12::from(digest);
+            pv.regs_mut().pcr_entry().at(id.into()).write(&digest.0);
         } else {
             return Err(CaliptraError::DRIVER_SHA384_MAX_DATA_ERR);
         }
@@ -225,225 +195,88 @@ impl Sha384 {
     /// # Arguments
     ///
     /// * `pcr_id` - PCR to hash extend
-    fn retrieve_pcr(&mut self, pcr_id: PcrId) -> CaliptraResult<()> {
-        let sha = self.sha512.regs_mut();
+    fn retrieve_pcr(&mut self, pcr_id: PcrId) -> CaliptraResult<[u32; 12]> {
+        let pv = unsafe { PvReg::new() }; // or use bank like in tests
+        let pcr = pv.regs().pcr_entry().at(pcr_id.into()).read();
 
-        KvAccess::extend_from_pv(pcr_id, sha.vault_rd_status(), sha.vault_rd_ctrl())
-            .map_err(|err| err.into_read_data_err())?;
-
-        Ok(())
+        Ok(pcr)
     }
 
-    /// Calculate the digest of the last block
-    ///
-    /// # Arguments
-    ///
-    /// * `slice` - Slice of buffer to digest
-    /// * `first` - Flag indicating if this is the first buffer
-    /// * `buf_size` - Total buffer size
-    fn digest_partial_block(
-        &mut self,
-        slice: &[u8],
-        first: bool,
-        buf_size: usize,
-    ) -> CaliptraResult<()> {
-        /// Set block length
-        fn set_block_len(buf_size: usize, block: &mut [u8; SHA384_BLOCK_BYTE_SIZE]) {
-            let bit_len = (buf_size as u128) << 3;
-            block[SHA384_BLOCK_LEN_OFFSET..].copy_from_slice(&bit_len.to_be_bytes());
+    /// Converts word array to byte array
+    fn words_to_bytes_32(words: [u32; 8]) -> [u8; 32] {
+        let mut bytes = [0; 32];
+        for (chunk, word) in bytes.chunks_mut(4).zip(words) {
+            chunk.copy_from_slice(&word.to_be_bytes());
         }
 
-        // Construct the block
-        let mut block = [0u8; SHA384_BLOCK_BYTE_SIZE];
-        let mut last = false;
-
-        // PANIC-FREE: Following check optimizes the out of bounds
-        // panic in copy_from_slice
-        if slice.len() > block.len() - 1 {
-            return Err(CaliptraError::DRIVER_SHA384_INDEX_OUT_OF_BOUNDS);
-        }
-        block[..slice.len()].copy_from_slice(slice);
-        block[slice.len()] = 0b1000_0000;
-        if slice.len() < SHA384_BLOCK_LEN_OFFSET {
-            set_block_len(buf_size, &mut block);
-            last = true;
-        }
-
-        // Calculate the digest of the op
-        self.digest_block(&block, first, last)?;
-
-        // Add a padding block if one is needed
-        if slice.len() >= SHA384_BLOCK_LEN_OFFSET {
-            block.fill(0);
-            set_block_len(buf_size, &mut block);
-            self.digest_block(&block, false, true)?;
-        }
-
-        Ok(())
+        bytes
     }
 
-    /// Calculate digest of the full block
-    ///
-    /// # Arguments
-    ///
-    /// * `block`: Block to calculate the digest
-    /// * `first` - Flag indicating if this is the first block
-    /// * `last` - Flag indicating if this is the last block
-    fn digest_block(
-        &mut self,
-        block: &[u8; SHA384_BLOCK_BYTE_SIZE],
-        first: bool,
-        last: bool,
-    ) -> CaliptraResult<()> {
-        let sha512 = self.sha512.regs_mut();
-        Array4x32::from(block).write_to_reg(sha512.block());
-        self.digest_op(first, last)
+    /// Converts word array to byte array
+    fn words_to_bytes_48(words: [u32; 12]) -> [u8; 48] {
+        let mut bytes = [0; 48];
+        for (chunk, word) in bytes.chunks_mut(4).zip(words) {
+            chunk.copy_from_slice(&word.to_be_bytes());
+        }
+
+        bytes
     }
-
-    // Perform the digest operation in the hardware
-    //
-    // # Arguments
-    //
-    /// * `first` - Flag indicating if this is the first block
-    /// * `last` - Flag indicating if this is the last block
-    fn digest_op(&mut self, first: bool, last: bool) -> CaliptraResult<()> {
-        const MODE_SHA384: u32 = 0b10;
-
-        let sha = self.sha512.regs_mut();
-
-        // Wait for the hardware to be ready
-        wait::until(|| sha.status().read().ready());
-
-        // Submit the first/next block for hashing.
-        sha.ctrl()
-            .write(|w| w.mode(MODE_SHA384).init(first).next(!first).last(last));
-
-        // Wait for the digest operation to finish
-        wait::until(|| sha.status().read().ready());
-
-        Ok(())
-    }
-}
-
-/// SHA-384 Digest state
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-enum Sha384DigestState {
-    /// Initial state
-    Init,
-
-    /// Pending state
-    Pending,
-
-    /// Final state
-    Final,
 }
 
 /// Multi step SHA-384 digest operation
 pub struct Sha384DigestOp<'a> {
+    /// Keep the original behaviour
+    _marker: PhantomData<&'a ()>,
+
     /// SHA-384 Engine
-    sha: &'a mut Sha384,
-
-    /// State
-    state: Sha384DigestState,
-
-    /// Staging buffer
-    buf: [u8; SHA384_BLOCK_BYTE_SIZE],
-
-    /// Current staging buffer index
-    buf_idx: usize,
+    sha: Fortimac384,
 
     /// Data size
     data_size: usize,
 }
 
-impl<'a> Sha384DigestOp<'a> {
+impl Sha384DigestOp<'_> {
     /// Update the digest with data
     ///
     /// # Arguments
     ///
     /// * `data` - Data to used to update the digest
     pub fn update(&mut self, data: &[u8]) -> CaliptraResult<()> {
-        if self.state == Sha384DigestState::Final {
-            return Err(CaliptraError::DRIVER_SHA384_INVALID_STATE_ERR);
-        }
-
         if self.data_size + data.len() > SHA384_MAX_DATA_SIZE {
             return Err(CaliptraError::DRIVER_SHA384_MAX_DATA_ERR);
         }
 
-        for byte in data {
-            self.data_size += 1;
-
-            // PANIC-FREE: Following check optimizes the out of bounds
-            // panic in indexing the `buf`
-            if self.buf_idx >= self.buf.len() {
-                return Err(CaliptraError::DRIVER_SHA384_INDEX_OUT_OF_BOUNDS);
-            }
-
-            // Copy the data to the buffer
-            self.buf[self.buf_idx] = *byte;
-            self.buf_idx += 1;
-
-            // If the buffer is full calculate the digest of accumulated data
-            if self.buf_idx == self.buf.len() {
-                self.sha.digest_block(&self.buf, self.is_first(), false)?;
-                self.reset_buf_state();
-            }
-        }
+        self.sha
+            .update(data)
+            .map_err(|err| err.into_caliptra_err())?;
 
         Ok(())
     }
 
     /// Finalize the digest operations
-    pub fn finalize(mut self, digest: &mut Array4x12) -> CaliptraResult<()> {
-        if self.state == Sha384DigestState::Final {
-            return Err(CaliptraError::DRIVER_SHA384_INVALID_STATE_ERR);
-        }
-
-        if self.buf_idx > self.buf.len() {
-            return Err(CaliptraError::DRIVER_SHA384_INVALID_SLICE);
-        }
-
-        // Calculate the digest of the final block
-        let buf = &self.buf[..self.buf_idx];
+    pub fn finalize(self, digest: &mut Array4x12) -> CaliptraResult<()> {
+        let mut digest_bytes = [0; 48];
         self.sha
-            .digest_partial_block(buf, self.is_first(), self.data_size)?;
-
-        // Set the state of the operation to final
-        self.state = Sha384DigestState::Final;
-
-        // Copy digest
-        *digest = self.sha.read_digest();
+            .finalize(&mut digest_bytes)
+            .map_err(|err| err.into_caliptra_err())?;
+        *digest = Array4x12::from(digest_bytes);
 
         Ok(())
     }
-
-    /// Check if this the first digest operation
-    fn is_first(&self) -> bool {
-        self.state == Sha384DigestState::Init
-    }
-
-    /// Reset internal buffer state
-    fn reset_buf_state(&mut self) {
-        self.buf.fill(0);
-        self.buf_idx = 0;
-        self.state = Sha384DigestState::Pending;
-    }
 }
 
-/// SHA-384 key access error trait
-trait Sha384KeyAccessErr {
-    /// Convert to read data operation error
-    fn into_read_data_err(self) -> CaliptraError;
+/// SHA-384 Fortimac error trait
+trait Sha384FortimacErr {
+    fn into_caliptra_err(self) -> CaliptraError;
 }
 
-impl Sha384KeyAccessErr for KvAccessErr {
-    /// Convert to read data operation error
-    fn into_read_data_err(self) -> CaliptraError {
+impl Sha384FortimacErr for FortimacErr {
+    /// Convert Fortimac errors to Caliptra during processing
+    fn into_caliptra_err(self) -> CaliptraError {
         match self {
-            KvAccessErr::KeyRead => CaliptraError::DRIVER_SHA384_READ_DATA_KV_READ,
-            KvAccessErr::KeyWrite => CaliptraError::DRIVER_SHA384_READ_DATA_KV_WRITE,
-            KvAccessErr::Generic => CaliptraError::DRIVER_SHA384_READ_DATA_KV_UNKNOWN,
+            FortimacErr::InvalidState => CaliptraError::DRIVER_SHA384_INVALID_STATE_ERR,
+            FortimacErr::DataProc => CaliptraError::DRIVER_SHA384_DATA_PROC,
+            FortimacErr::FaultInj => CaliptraError::DRIVER_SHA384_FAULT_INJ,
         }
     }
 }

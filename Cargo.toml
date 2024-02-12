@@ -150,6 +150,9 @@ crypto = { path = "dpe/crypto", default-features = false }
 platform = { path = "dpe/platform", default-features = false }
 elf = "0.7.2"
 fips204 = "0.2.1"
+forticrypt_hal = { path = "drivers/fortify-iq/forticrypt_hal" }
+fortimac_hal = { path = "drivers/fortify-iq/fortimac_hal", features = ["arch32_64"] }
+pka_hal = { path = "drivers/fortify-iq/pka_hal" }
 gdbstub = "0.6.3"
 gdbstub_arch = "0.2.4"
 getrandom = "0.2"

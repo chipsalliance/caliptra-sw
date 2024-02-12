@@ -118,7 +118,7 @@ impl Crypto {
                 tag,
                 KeyUsage::default()
                     .set_hmac_key_en()
-                    .set_ecc_key_gen_seed_en(),
+                    .set_ecc_private_key_en(),
             )
             .into(),
         )
@@ -151,7 +151,7 @@ impl Crypto {
                 output,
                 KeyUsage::default()
                     .set_hmac_key_en()
-                    .set_ecc_key_gen_seed_en(),
+                    .set_ecc_private_key_en(),
             )
             .into(),
         )

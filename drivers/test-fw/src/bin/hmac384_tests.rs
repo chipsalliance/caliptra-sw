@@ -17,21 +17,20 @@ Abstract:
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
-    hmac384_kdf, Array4x12, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, Hmac384, KeyId,
-    KeyReadArgs, KeyUsage, KeyWriteArgs, Trng,
+    hmac384_kdf, Array4x12, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, Hmac384, HmacReg,
+    KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Trng, FortimacRegSteal,
 };
 use caliptra_kat::Hmac384KdfKat;
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::ecc::EccReg;
 use caliptra_registers::entropy_src::EntropySrcReg;
-use caliptra_registers::hmac::HmacReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
 
 use caliptra_test_harness::test_suite;
 
 fn test_hmac0() {
-    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::steal()) };
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
@@ -71,7 +70,7 @@ fn test_hmac0() {
 }
 
 fn test_hmac1() {
-    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::steal()) };
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
@@ -113,7 +112,7 @@ fn test_hmac1() {
 }
 
 fn test_kv_hmac(seed: &[u8; 48], data: &[u8], out_pub_x: &[u8; 48], out_pub_y: &[u8; 48]) {
-    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::steal()) };
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
     let mut trng = unsafe {
         Trng::new(
@@ -149,7 +148,7 @@ fn test_kv_hmac(seed: &[u8; 48], data: &[u8], out_pub_x: &[u8; 48], out_pub_y: &
             &KeyReadArgs::new(KeyId::KeyId0).into(),
             &data.into(),
             &mut trng,
-            KeyWriteArgs::new(KeyId::KeyId1, KeyUsage::default().set_ecc_key_gen_seed_en()).into(),
+            KeyWriteArgs::new(KeyId::KeyId1, KeyUsage::default().set_ecc_private_key_en()).into(),
         )
         .unwrap();
 
@@ -305,7 +304,7 @@ fn test_hmac_kv_multiblock() {
 ///
 ///
 fn test_hmac5() {
-    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::steal()) };
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
     let mut trng = unsafe {
         Trng::new(
@@ -402,7 +401,7 @@ fn test_kdf(
     out_pub_x: &[u8; 48],
     out_pub_y: &[u8; 48],
 ) {
-    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::steal()) };
     let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
     let mut trng = unsafe {
         Trng::new(
@@ -430,7 +429,7 @@ fn test_kdf(
         )
         .unwrap();
 
-    let kdf_out = KeyWriteArgs::new(KeyId::KeyId1, KeyUsage::default().set_ecc_key_gen_seed_en());
+    let kdf_out = KeyWriteArgs::new(KeyId::KeyId1, KeyUsage::default().set_ecc_private_key_en());
 
     hmac384_kdf(
         &mut hmac384,
@@ -534,7 +533,7 @@ fn test_kdf1() {
 
 // Test using a NIST vector.
 fn test_kdf2() {
-    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::steal()) };
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
@@ -579,7 +578,7 @@ fn test_kdf2() {
 }
 
 fn test_hmac_multi_block() {
-    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::steal()) };
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
@@ -628,7 +627,7 @@ fn test_hmac_multi_block() {
 }
 
 fn test_hmac_exact_single_block() {
-    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::steal()) };
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
@@ -677,7 +676,7 @@ fn test_hmac_exact_single_block() {
 }
 
 fn test_hmac_multi_block_two_step() {
-    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::steal()) };
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
@@ -728,7 +727,7 @@ fn test_hmac_multi_block_two_step() {
 }
 
 fn test_kat() {
-    let mut hmac384 = unsafe { Hmac384::new(HmacReg::new()) };
+    let mut hmac384 = unsafe { Hmac384::new(HmacReg::steal()) };
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
