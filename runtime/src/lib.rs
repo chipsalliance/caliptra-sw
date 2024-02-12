@@ -32,7 +32,7 @@ mod verify;
 
 // Used by runtime tests
 pub mod mailbox;
-use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
+use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
 use caliptra_registers::soc_ifc::SocIfcReg;
 pub use drivers::Drivers;
 use mailbox::Mailbox;

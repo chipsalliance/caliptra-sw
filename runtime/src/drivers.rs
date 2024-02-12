@@ -24,8 +24,8 @@ use crate::{
 };
 
 use arrayvec::ArrayVec;
-use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
-use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder};
+use caliptra_cfi_derive_git::{cfi_impl_fn, cfi_mod_fn};
+use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder};
 use caliptra_drivers::KeyId;
 use caliptra_drivers::{
     cprint, cprintln, pcr_log::RT_FW_JOURNEY_PCR, Array4x12, CaliptraError, CaliptraResult,
