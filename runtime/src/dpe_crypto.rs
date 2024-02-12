@@ -14,6 +14,7 @@ Abstract:
 
 use core::cmp::min;
 
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::keyids::{KEY_ID_DPE_CDI, KEY_ID_DPE_PRIV_KEY, KEY_ID_TMP};
 use caliptra_drivers::{
@@ -80,12 +81,14 @@ impl<'a> DpeHasher<'a> {
 }
 
 impl<'a> Hasher for DpeHasher<'a> {
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn update(&mut self, bytes: &[u8]) -> Result<(), CryptoError> {
         self.op
             .update(bytes)
             .map_err(|e| CryptoError::HashError(u32::from(e)))
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn finish(self) -> Result<Digest, CryptoError> {
         let mut digest = Array4x12::default();
         self.op
@@ -115,6 +118,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
         Ok(())
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn hash_initialize(&mut self, algs: AlgLen) -> Result<Self::Hasher<'_>, CryptoError> {
         match algs {
             AlgLen::Bit256 => Err(CryptoError::Size),
@@ -128,6 +132,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
         }
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_cdi(
         &mut self,
         algs: AlgLen,
@@ -162,6 +167,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
         }
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_key_pair(
         &mut self,
         algs: AlgLen,
@@ -207,6 +213,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
         }
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn ecdsa_sign_with_alias(
         &mut self,
         algs: AlgLen,
@@ -221,6 +228,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
         self.ecdsa_sign_with_derived(algs, digest, &self.key_id_rt_priv_key.clone(), &pub_key)
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn ecdsa_sign_with_derived(
         &mut self,
         algs: AlgLen,
@@ -289,6 +297,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
         }
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn hmac_sign_with_derived(
         &mut self,
         algs: AlgLen,

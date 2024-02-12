@@ -247,15 +247,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "caliptra-cfi-derive"
+version = "0.1.0"
+source = "git+https://github.com/chipsalliance/caliptra-cfi.git#f1c74dd22d8d65d30c626764ee78f62bb118b421"
+dependencies = [
+ "paste",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "caliptra-cfi-lib"
 version = "0.1.0"
 dependencies = [
- "caliptra-cfi-derive",
+ "caliptra-cfi-derive 0.1.0",
  "caliptra-error",
  "caliptra-registers",
  "serial_test",
  "ufmt",
 ]
+
+[[package]]
+name = "caliptra-cfi-lib"
+version = "0.1.0"
+source = "git+https://github.com/chipsalliance/caliptra-cfi.git#f1c74dd22d8d65d30c626764ee78f62bb118b421"
 
 [[package]]
 name = "caliptra-coverage"
@@ -290,8 +306,8 @@ dependencies = [
  "bitfield",
  "bitflags 2.4.0",
  "caliptra-builder",
- "caliptra-cfi-derive",
- "caliptra-cfi-lib",
+ "caliptra-cfi-derive 0.1.0",
+ "caliptra-cfi-lib 0.1.0",
  "caliptra-drivers-test-bin",
  "caliptra-error",
  "caliptra-hw-model",
@@ -313,7 +329,7 @@ dependencies = [
 name = "caliptra-drivers-test-bin"
 version = "0.1.0"
 dependencies = [
- "caliptra-cfi-lib",
+ "caliptra-cfi-lib 0.1.0",
  "caliptra-drivers",
  "caliptra-error",
  "caliptra-kat",
@@ -421,8 +437,8 @@ name = "caliptra-fmc"
 version = "0.1.0"
 dependencies = [
  "caliptra-builder",
- "caliptra-cfi-derive",
- "caliptra-cfi-lib",
+ "caliptra-cfi-derive 0.1.0",
+ "caliptra-cfi-lib 0.1.0",
  "caliptra-cpu",
  "caliptra-drivers",
  "caliptra-error",
@@ -502,7 +518,7 @@ dependencies = [
 name = "caliptra-hw-model-test-fw"
 version = "0.1.0"
 dependencies = [
- "caliptra-cfi-lib",
+ "caliptra-cfi-lib 0.1.0",
  "caliptra-drivers",
  "caliptra-registers",
  "caliptra-test-harness",
@@ -608,8 +624,8 @@ name = "caliptra-image-verify"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.4.0",
- "caliptra-cfi-derive",
- "caliptra-cfi-lib",
+ "caliptra-cfi-derive 0.1.0",
+ "caliptra-cfi-lib 0.1.0",
  "caliptra-drivers",
  "caliptra-image-types",
  "caliptra_common",
@@ -648,8 +664,8 @@ name = "caliptra-rom"
 version = "0.1.0"
 dependencies = [
  "caliptra-builder",
- "caliptra-cfi-derive",
- "caliptra-cfi-lib",
+ "caliptra-cfi-derive 0.1.0",
+ "caliptra-cfi-lib 0.1.0",
  "caliptra-drivers",
  "caliptra-emu-cpu",
  "caliptra-error",
@@ -708,8 +724,8 @@ version = "0.1.0"
 dependencies = [
  "arrayvec",
  "caliptra-builder",
- "caliptra-cfi-derive",
- "caliptra-cfi-lib",
+ "caliptra-cfi-derive 0.1.0",
+ "caliptra-cfi-lib 0.1.0",
  "caliptra-cpu",
  "caliptra-drivers",
  "caliptra-error",
@@ -1019,6 +1035,8 @@ name = "crypto"
 version = "0.1.0"
 dependencies = [
  "arrayvec",
+ "caliptra-cfi-derive 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git)",
+ "caliptra-cfi-lib 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git)",
  "zeroize",
 ]
 
@@ -1200,6 +1218,9 @@ name = "dpe"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.4.0",
+ "caliptra-cfi-derive 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git)",
+ "caliptra-cfi-lib 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git)",
+ "cfg-if 1.0.0",
  "constant_time_eq",
  "crypto",
  "platform",
@@ -1880,6 +1901,8 @@ name = "platform"
 version = "0.1.0"
 dependencies = [
  "arrayvec",
+ "caliptra-cfi-derive 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git)",
+ "caliptra-cfi-lib 0.1.0 (git+https://github.com/chipsalliance/caliptra-cfi.git)",
  "cfg-if 1.0.0",
  "ufmt",
 ]

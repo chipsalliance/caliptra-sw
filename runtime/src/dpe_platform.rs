@@ -15,6 +15,7 @@ Abstract:
 use core::cmp::min;
 
 use arrayvec::ArrayVec;
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_drivers::cprintln;
 use caliptra_x509::{NOT_AFTER, NOT_BEFORE};
 use crypto::Digest;
@@ -54,6 +55,7 @@ impl<'a> DpePlatform<'a> {
 }
 
 impl Platform for DpePlatform<'_> {
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn get_certificate_chain(
         &mut self,
         offset: u32,
