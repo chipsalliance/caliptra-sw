@@ -181,6 +181,7 @@ pub struct Fuses {
     pub life_cycle: DeviceLifecycle,
     pub lms_verify: bool,
     pub fuse_lms_revocation: u32,
+    pub soc_stepping_id: u16,
 }
 impl Default for Fuses {
     fn default() -> Self {
@@ -198,6 +199,7 @@ impl Default for Fuses {
             life_cycle: Default::default(),
             lms_verify: Default::default(),
             fuse_lms_revocation: Default::default(),
+            soc_stepping_id: Default::default(),
         }
     }
 }
@@ -220,6 +222,7 @@ impl std::fmt::Debug for Fuses {
             .field("life_cycle", &self.life_cycle)
             .field("lms_verify", &self.lms_verify)
             .field("fuse_lms_revocation", &self.fuse_lms_revocation)
+            .field("soc_stepping_id", &self.soc_stepping_id)
             .finish()
     }
 }

@@ -202,6 +202,12 @@ register_bitfields! [
         RSVD OFFSET(1) NUMBITS(31) [],
     ],
 
+    /// SoC Stepping ID
+    SocSteppingId [
+        SOC_STEPPING_ID OFFSET(0) NUMBITS(16) [],
+        RSVD OFFSET(16) NUMBITS(16) [],
+    ],
+
     /// ErrorIntrT
     ErrorIntrT [
         ERROR_INTERNAL_STS OFFSET(0) NUMBITS(1) [],
@@ -546,6 +552,9 @@ struct SocRegistersImpl {
     #[register(offset = 0x344)]
     fuse_lms_revocation: u32,
 
+    #[register(offset = 0x348)]
+    fuse_soc_stepping_id: ReadWriteRegister<u32, SocSteppingId::Register>,
+
     /// INTERNAL_OBF_KEY Register
     internal_obf_key: [u32; 8],
 
@@ -706,6 +715,7 @@ impl SocRegistersImpl {
             fuse_life_cycle: Default::default(),
             fuse_lms_verify: ReadWriteRegister::new(0),
             fuse_lms_revocation: Default::default(),
+            fuse_soc_stepping_id: ReadWriteRegister::new(0),
             internal_obf_key: args.cptra_obf_key,
             internal_iccm_lock: ReadWriteRegister::new(0),
             internal_fw_update_reset: ReadWriteRegister::new(0),
