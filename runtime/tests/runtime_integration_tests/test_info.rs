@@ -5,8 +5,12 @@ use caliptra_builder::{
     firmware::{self, APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
 };
-use caliptra_common::mailbox_api::{
-    CommandId, FwInfoResp, GetIdevInfoResp, MailboxReqHeader, MailboxRespHeader,
+use caliptra_common::{
+    capabilities::Capabilities,
+    mailbox_api::{
+        CapabilitiesResp, CommandId, FwInfoResp, GetIdevInfoResp, MailboxReqHeader,
+        MailboxRespHeader,
+    },
 };
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
 use caliptra_image_types::RomInfo;
@@ -162,4 +166,19 @@ fn test_idev_id_info() {
         .unwrap()
         .unwrap();
     GetIdevInfoResp::read_from(resp.as_slice()).unwrap();
+}
+
+#[test]
+fn test_capabilities() {
+    let mut model = run_rt_test(None, None, None);
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::CAPABILITIES), &[]),
+    };
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::CAPABILITIES), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+    let capabilities_resp = CapabilitiesResp::read_from(resp.as_slice()).unwrap();
+    let capabilities = Capabilities::try_from(capabilities_resp.capabilities.as_bytes()).unwrap();
+    assert!(capabilities.contains(Capabilities::RT_BASE));
 }
