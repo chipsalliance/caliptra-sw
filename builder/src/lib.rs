@@ -24,6 +24,7 @@ use zerocopy::AsBytes;
 mod elf_symbols;
 pub mod firmware;
 mod sha256;
+pub mod version;
 
 pub use elf_symbols::{elf_symbols, Symbol, SymbolBind, SymbolType, SymbolVisibility};
 use once_cell::sync::Lazy;
@@ -374,6 +375,8 @@ pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
             sha256_digest: sha256::sha256_word_reversed(&result[0..rom_info_start]),
             revision: image_revision()?,
             flags: 0,
+            version: version::get_rom_version(),
+            rsvd: Default::default(),
         };
         let rom_info_dest = result
             .get_mut(rom_info_start..rom_info_start + size_of::<RomInfo>())
@@ -407,7 +410,7 @@ pub fn elf_size(elf_bytes: &[u8]) -> io::Result<u64> {
 
 #[derive(Clone)]
 pub struct ImageOptions {
-    pub fmc_version: u32,
+    pub fmc_version: u16,
     pub fmc_svn: u32,
     pub app_version: u32,
     pub app_svn: u32,
@@ -436,7 +439,12 @@ pub fn build_and_sign_image(
     let app_elf = build_firmware_elf(app)?;
     let gen = ImageGenerator::new(OsslCrypto::default());
     let image = gen.generate(&ImageGeneratorConfig {
-        fmc: ElfExecutable::new(&fmc_elf, opts.fmc_version, opts.fmc_svn, image_revision()?)?,
+        fmc: ElfExecutable::new(
+            &fmc_elf,
+            opts.fmc_version as u32,
+            opts.fmc_svn,
+            image_revision()?,
+        )?,
         runtime: ElfExecutable::new(&app_elf, opts.app_version, opts.app_svn, image_revision()?)?,
         vendor_config: opts.vendor_config,
         owner_config: opts.owner_config,

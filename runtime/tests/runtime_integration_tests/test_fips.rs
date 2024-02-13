@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license.
 
-use crate::common::{assert_error, run_rt_test};
+use crate::common::{assert_error, run_rt_test, DEFAULT_APP_VERSION, DEFAULT_FMC_VERSION};
+use caliptra_builder::version;
 use caliptra_common::mailbox_api::{
     CommandId, FipsVersionResp, MailboxReqHeader, MailboxRespHeader,
 };
@@ -39,7 +40,13 @@ fn test_fips_version() {
         MailboxRespHeader::FIPS_STATUS_APPROVED
     );
     assert_eq!(fips_version.mode, FipsVersionCmd::MODE);
-    assert_eq!(fips_version.fips_rev, [0x01, 0xaaaaaaaa, 0xbbbbbbbb]);
+    // fw_rev[0] is FMC version at 31:16 and ROM version at 15:0
+    let fw_version_0_expected =
+        ((DEFAULT_FMC_VERSION as u32) << 16) | (version::get_rom_version() as u32);
+    assert_eq!(
+        fips_version.fips_rev,
+        [0x01, fw_version_0_expected, DEFAULT_APP_VERSION]
+    );
     let name = &fips_version.name[..];
     assert_eq!(name, FipsVersionCmd::NAME.as_bytes());
 }

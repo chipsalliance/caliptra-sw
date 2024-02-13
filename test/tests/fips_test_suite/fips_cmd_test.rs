@@ -2,7 +2,7 @@
 use crate::common;
 
 use caliptra_builder::firmware::ROM_FAKE_WITH_UART;
-use caliptra_builder::{firmware, ImageOptions};
+use caliptra_builder::{firmware, version, ImageOptions};
 use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::{
     CommandId, FipsVersionResp, MailboxReqHeader, MailboxRespHeader,
@@ -23,7 +23,7 @@ fn bytes_to_be_words_48(buf: &[u8; 48]) -> [u32; 12] {
     result
 }
 
-fn test_fips_cmds<T: HwModel>(hw: &mut T, fmc_version: u32, app_version: u32) {
+fn test_fips_cmds<T: HwModel>(hw: &mut T, fmc_version: u16, app_version: u32) {
     // VERSION
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::VERSION), &[]),
@@ -49,7 +49,12 @@ fn test_fips_cmds<T: HwModel>(hw: &mut T, fmc_version: u32, app_version: u32) {
         MailboxRespHeader::FIPS_STATUS_APPROVED
     );
     assert_eq!(fips_version.mode, FipsVersionCmd::MODE);
-    assert_eq!(fips_version.fips_rev, [HW_REV_ID, fmc_version, app_version]);
+    // fw_rev[0] is FMC version at 31:16 and ROM version at 15:0
+    let fw_version_0_expected = ((fmc_version as u32) << 16) | (version::get_rom_version() as u32);
+    assert_eq!(
+        fips_version.fips_rev,
+        [HW_REV_ID, fw_version_0_expected, app_version]
+    );
     let name = &fips_version.name[..];
     assert_eq!(name, FipsVersionCmd::NAME.as_bytes());
 
@@ -191,7 +196,7 @@ pub fn fips_cmd_test_fake_rom() {
 
 #[test]
 pub fn fips_cmd_test_rt() {
-    const FMC_VERSION: u32 = 0xFEFEFEFE;
+    const FMC_VERSION: u16 = 0xFEFE;
     const APP_VERSION: u32 = 0xCECECECE;
 
     let security_state = *SecurityState::default()

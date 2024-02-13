@@ -127,7 +127,8 @@ impl FirmwareProcessor {
         report_boot_status(FwProcessorFirmwareDownloadTxComplete.into());
 
         // Update FW version registers
-        env.soc_ifc.set_fmc_fw_rev_id(manifest.fmc.version);
+        // Truncate FMC version to 16 bits (no error for 31:16 != 0)
+        env.soc_ifc.set_fmc_fw_rev_id(manifest.fmc.version as u16);
         env.soc_ifc.set_rt_fw_rev_id(manifest.runtime.version);
 
         // Get the certificate validity info

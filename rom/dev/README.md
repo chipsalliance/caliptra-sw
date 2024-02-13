@@ -423,11 +423,11 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 ### 9.6 Handling commands from Mailbox
 ROM supports the following set of commands before handling the FW_DOWNLOAD command (described in section 9.6). Once the FW_DOWNLOAD is issued, ROM stops processing any additional mailbox commands.
 1. **STASH_MEASUREMENT**: Up to eight measurements can be sent to the ROM for recording. Format of a measurement is documented at https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#stash_measurement
-2. **VERSION**: [TODO] Add links to data structure formats once available.
-3. **SELF_TEST_START**: This command is used to invoke the FIPS Known-Answer-Tests (aka KAT) on demand.  [TODO] Add links to data structure formats once available.
-4. **SELF_TEST_GET_RESULTS**: This command is used to check if a SELF_TEST command is in progress. [TODO] Add links to data structure formats once available.
-5. **SHUTDOWN**: This command is used clear the hardware crypto blocks including the keyvault. [TODO] Add links to data structure formats once available.
-6. **CAPABILITIES**: This command is used to query the ROM capabilities. Capabilities is a 128-bit value with individual bits indicating a specific capability. Currently, the only capability supported is ROM_BASE (bit 0). [TODO] Add links to data structure formats once available.
+2. **VERSION**: Get version info about the module. https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#version
+3. **SELF_TEST_START**: This command is used to invoke the FIPS Known-Answer-Tests (aka KAT) on demand. https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#self_test_start
+4. **SELF_TEST_GET_RESULTS**: This command is used to check if a SELF_TEST command is in progress. https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#self_test_get_results
+5. **SHUTDOWN**: This command is used clear the hardware crypto blocks including the keyvault. https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#shutdown
+6. **CAPABILITIES**: This command is used to query the ROM capabilities. Capabilities is a 128-bit value with individual bits indicating a specific capability. Currently, the only capability supported is ROM_BASE (bit 0). https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#capabilities
 
 ### 9.7 Downloading images from Mailbox
 
