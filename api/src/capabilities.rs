@@ -17,6 +17,8 @@ bitflags::bitflags! {
     pub struct Capabilities : u128 {
         // Represents base capabilities present in Caliptra ROM v1.0
         const ROM_BASE = 0b0001;
+        // Represents base capabilities present in Caliptra Runtime v1.0
+        const RT_BASE = 0b0001;
     }
 }
 

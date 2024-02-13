@@ -41,7 +41,7 @@ Checks that the stash_measurement mailbox command succeeds | **test_stash_measur
 Test Scenario| Test Name | Runtime Error Code
 ---|---|---
 Check that the error register is cleared when a successful mailbox command runs after a failed mailbox command | **test_error_cleared** | RUNTIME_MAILBOX_INVALID_PARAMS
-Checks that the unimplemented mailbox command capabilities fails | **test_unimplemented_cmds** | RUNTIME_UNIMPLEMENTED_COMMAND
+Checks that executing unimplemented mailbox commands fails | **test_unimplemented_cmds** | RUNTIME_UNIMPLEMENTED_COMMAND
 
 <br><br>
 # **Cryptography Verification Tests**
@@ -73,6 +73,7 @@ Test Scenario| Test Name | Runtime Error Code
 ---|---|---
 Checks that the fw_info mailbox command succeeds and validates the response | **test_fw_info** | N/A
 Checks that the get_idev_info mailbox command succeeds | **test_idev_id_info** | N/A
+Checks that the capabilities mailbox command succeeds | **test_capabilities** | N/A
 
 <br><br>
 # **DPE Tests**
