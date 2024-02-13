@@ -57,14 +57,8 @@ pub extern "C" fn entry_point() -> ! {
 
     let mut drivers = unsafe {
         Drivers::new_from_registers().unwrap_or_else(|e| {
-            // treat global exception as a fatal error
-            match e {
-                CaliptraError::RUNTIME_GLOBAL_EXCEPTION => handle_fatal_error(e.into()),
-                _ => {
-                    cprintln!("[rt] Runtime can't load drivers");
-                    handle_fatal_error(e.into());
-                }
-            }
+            cprintln!("[rt] Runtime can't load drivers");
+            handle_fatal_error(e.into());
         })
     };
     caliptra_common::stop_wdt(&mut drivers.soc_ifc);

@@ -13,12 +13,13 @@ Abstract:
 --*/
 
 bitflags::bitflags! {
+    /// First 64 bits are reserved for RT, next 32 bits are reserved for FMC, and final 32 bits are reserved for ROM
     #[derive(Default, Copy, Clone, Debug)]
     pub struct Capabilities : u128 {
         // Represents base capabilities present in Caliptra ROM v1.0
-        const ROM_BASE = 0b0001;
+        const ROM_BASE = 0b1;
         // Represents base capabilities present in Caliptra Runtime v1.0
-        const RT_BASE = 0b0001;
+        const RT_BASE = 0b1 << 64;
     }
 }
 
