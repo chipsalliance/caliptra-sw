@@ -12,6 +12,8 @@ Abstract:
 
 --*/
 
+use crate::types::{RvMIE, RvMStatus};
+use caliptra_emu_bus::{Clock, Timer, TimerAction};
 use caliptra_emu_types::{RvAddr, RvData, RvException};
 
 /// Configuration & Status Register
@@ -76,6 +78,12 @@ impl Csr {
     /// Instruction Retired High Counter CSR
     pub const MINSTRETH: RvAddr = 0xB82;
 
+    /// External Interrupt Vector Table CSR
+    pub const MEIVT: RvAddr = 0xBC8;
+
+    /// External Interrupt Handler Address Pointer CSR
+    pub const MEIHAP: RvAddr = 0xFC8;
+
     /// Create a new Configurations and Status register
     ///
     /// # Arguments
@@ -92,6 +100,8 @@ impl Csr {
 pub struct CsrFile {
     /// CSRS
     csrs: [Csr; CsrFile::CSR_COUNT],
+    /// Timer
+    timer: Timer,
 }
 
 impl CsrFile {
@@ -99,9 +109,10 @@ impl CsrFile {
     const CSR_COUNT: usize = 4096;
 
     /// Create a new Configuration and status register file
-    pub fn new() -> Self {
+    pub fn new(clock: &Clock) -> Self {
         let mut csrs = Self {
             csrs: [Csr::new(0, 0); CsrFile::CSR_COUNT],
+            timer: Timer::new(clock),
         };
 
         csrs.reset();
@@ -128,6 +139,8 @@ impl CsrFile {
         self.csrs[Csr::MCYCLEH as usize] = Csr::new(0x0000_0000, 0xFFFF_FFFF);
         self.csrs[Csr::MINSTRET as usize] = Csr::new(0x0000_0000, 0xFFFF_FFFF);
         self.csrs[Csr::MINSTRETH as usize] = Csr::new(0x0000_0000, 0xFFFF_FFFF);
+        self.csrs[Csr::MEIVT as usize] = Csr::new(0x0000_0000, 0xFFFF_FC00);
+        self.csrs[Csr::MEIHAP as usize] = Csr::new(0x0000_0000, 0xFFFF_FFFC);
     }
 
     /// Read the specified configuration status register
@@ -169,6 +182,33 @@ impl CsrFile {
             0..=CSR_MAX => {
                 let csr = &mut self.csrs[addr];
                 csr.val = (csr.val & !csr.mask) | (val & csr.mask);
+
+                if addr == Csr::MEIVT as usize {
+                    self.timer
+                        .schedule_action_in(0, TimerAction::SetExtIntVec { addr: csr.val });
+                }
+                if addr == Csr::MSTATUS as usize {
+                    let mstatus = RvMStatus(csr.val);
+                    self.timer.schedule_action_in(
+                        0,
+                        TimerAction::SetGlobalIntEn {
+                            en: mstatus.mie() == 1,
+                        },
+                    );
+                    // Let's see if the soc wants to interrupt
+                    self.timer.schedule_poll_in(2);
+                }
+                if addr == Csr::MIE as usize {
+                    let mie = RvMIE(csr.val);
+                    self.timer.schedule_action_in(
+                        0,
+                        TimerAction::SetExtIntEn {
+                            en: mie.meie() == 1,
+                        },
+                    );
+                    // Let's see if the soc wants to interrupt
+                    self.timer.schedule_poll_in(2);
+                }
                 Ok(())
             }
             _ => Err(RvException::illegal_register()),
@@ -183,7 +223,9 @@ mod tests {
 
     #[test]
     fn test_read_only_csr() {
-        let mut csrs = CsrFile::new();
+        let clock = Clock::new();
+        let mut csrs = CsrFile::new(&clock);
+
         assert_eq!(csrs.read(Csr::MISA).ok(), Some(0x4000_1104));
         assert_eq!(csrs.write(Csr::MISA, u32::MAX).ok(), Some(()));
         assert_eq!(csrs.read(Csr::MISA).ok(), Some(0x4000_1104));
@@ -191,7 +233,8 @@ mod tests {
 
     #[test]
     fn test_read_write_csr() {
-        let mut csrs = CsrFile::new();
+        let clock = Clock::new();
+        let mut csrs = CsrFile::new(&clock);
         assert_eq!(csrs.read(Csr::MEPC).ok(), Some(0));
         assert_eq!(csrs.write(Csr::MEPC, u32::MAX).ok(), Some(()));
         assert_eq!(csrs.read(Csr::MEPC).ok(), Some(u32::MAX));
@@ -199,7 +242,8 @@ mod tests {
 
     #[test]
     fn test_read_write_masked_csr() {
-        let mut csrs = CsrFile::new();
+        let clock = Clock::new();
+        let mut csrs = CsrFile::new(&clock);
 
         assert_eq!(csrs.read(Csr::MSTATUS).ok(), Some(0x1800_0000));
         assert_eq!(csrs.write(Csr::MSTATUS, u32::MAX).ok(), Some(()));
