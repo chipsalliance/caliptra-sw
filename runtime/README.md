@@ -531,6 +531,85 @@ Command Code: `0x494E_464F` ("INFO")
 | fmc_sha384_digest      | u32[12]        | Digest of FMC binary.
 | runtime_sha384_digest  | u32[12]        | Digest of runtime binary.
 
+### VERSION
+
+FIPS command to get version info for the module
+
+Command Code: `0x4650_5652` ("FPVR")
+
+Table: `VERSION` input arguments
+
+| **Name**     | **Type**  | **Description**
+| --------     | --------  | ---------------
+| chksum       | u32       | Checksum over other input arguments, computed by the caller. Little endian.
+
+Table: `VERSION` output arguments
+
+| **Name**     | **Type**  | **Description**
+| --------     | --------  | ---------------
+| chksum       | u32       | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status  | u32       | Indicates if the command is FIPS approved or an error
+| mode         | u32       | Mode identifier
+| fips_rev     | u32[3]    | [31:0] HW rev ID, [47:32] ROM version, [63:48] FMC version, [95:64] FW version
+| name         | u8[12]    | 12 character module name "Caliptra RTM"
+
+### SELF\_TEST\_START
+
+FIPS command to start the self tests
+
+Command Code: `0x4650_4C54`
+
+Table: `SELF_TEST_START` input arguments
+
+| **Name**     | **Type**  | **Description**
+| --------     | --------  | ---------------
+| chksum       | u32       | Checksum over other input arguments, computed by the caller. Little endian.
+
+Table: `SELF_TEST_START` output arguments
+
+| **Name**     | **Type**  | **Description**
+| --------     | --------  | ---------------
+| chksum       | u32       | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status  | u32       | Indicates if the command is FIPS approved or an error
+
+### SELF\_TEST\_GET\_RESULTS
+
+FIPS command to get the results of the self tests. Mailbox command will return a failure if still active.
+
+Command Code: `0x4650_4C67`
+
+Table: `SELF_TEST_GET_RESULTS` input arguments
+
+| **Name**     | **Type**  | **Description**
+| --------     | --------  | ---------------
+| chksum       | u32       | Checksum over other input arguments, computed by the caller. Little endian.
+
+Table: `SELF_TEST_GET_RESULTS` output arguments
+
+| **Name**     | **Type**  | **Description**
+| --------     | --------  | ---------------
+| chksum       | u32       | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status  | u32       | Indicates if the command is FIPS approved or an error
+
+### SHUTDOWN
+
+FIPS command to zeroize and shut down the module
+
+Command Code: `0x4650_5344` ("FPSD")
+
+Table: `SHUTDOWN` input arguments
+
+| **Name**     | **Type**  | **Description**
+| --------     | --------  | ---------------
+| chksum       | u32       | Checksum over other input arguments, computed by the caller. Little endian.
+
+Table: `SHUTDOWN` output arguments
+
+| **Name**     | **Type**  | **Description**
+| --------     | --------  | ---------------
+| chksum       | u32       | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status  | u32       | Indicates if the command is FIPS approved or an error
+
 ## Checksum
 
 For every command, the request and response feature a checksum. This mitigates
