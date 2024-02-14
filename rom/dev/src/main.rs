@@ -185,7 +185,6 @@ pub extern "C" fn rom_entry() -> ! {
 }
 
 fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<()> {
-    cprintln!("[kat] ++");
     report_boot_status(KatStarted.into());
 
     cprintln!("[kat] SHA2-256");
@@ -198,7 +197,6 @@ fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<()> {
     caliptra_kat::execute_kat(env)?;
 
     report_boot_status(KatComplete.into());
-    cprintln!("[kat] --");
 
     Ok(())
 }
