@@ -33,10 +33,10 @@ const EXPECTED_OUT: [u8; 40] = [
 ];
 
 #[derive(Default, Debug)]
-pub struct Hmac384Kat {}
+pub struct Hmac384KdfKat {}
 
-impl Hmac384Kat {
-    /// This function executes the Known Answer Tests (aka KAT) for HMAC384.
+impl Hmac384KdfKat {
+    /// This function executes the Known Answer Tests (aka KAT) for HMAC384Kdf.
     ///
     /// Test vector source:
     /// https://csrc.nist.gov/Projects/Cryptographic-Algorithm-Validation-Program/Key-Derivation

@@ -18,6 +18,8 @@ Abstract:
 use crate::{lock::lock_registers, print::HexBytes};
 use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
 use caliptra_common::RomBootStatus;
+use caliptra_common::RomBootStatus::{KatComplete, KatStarted};
+use caliptra_kat::*;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use core::hint::black_box;
 
@@ -41,7 +43,6 @@ mod exception;
 mod fht;
 mod flow;
 mod fuse;
-mod kat;
 mod lock;
 mod pcr;
 mod rom_env;
@@ -184,9 +185,20 @@ pub extern "C" fn rom_entry() -> ! {
 }
 
 fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<()> {
+    report_boot_status(KatStarted.into());
+
+    cprintln!("[kat] SHA2-256");
+    Sha256Kat::default().execute(env.sha256)?;
+
+    // ROM integrity check needs SHA2-256 KAT to be executed first per FIPS requirement AS10.20.
     let rom_info = unsafe { &CALIPTRA_ROM_INFO };
     rom_integrity_test(env, &rom_info.sha256_digest)?;
-    kat::execute_kat(env)
+
+    caliptra_kat::execute_kat(env)?;
+
+    report_boot_status(KatComplete.into());
+
+    Ok(())
 }
 
 fn rom_integrity_test(env: &mut KatsEnv, expected_digest: &[u32; 8]) -> CaliptraResult<()> {
