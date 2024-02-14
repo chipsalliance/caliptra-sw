@@ -18,7 +18,7 @@ set BUILD FALSE
 set GUI   FALSE
 set JTAG  FALSE
 set ITRNG TRUE
-set CG_EN FALSE
+set CG_EN TRUE
 foreach arg $argv {
     regexp {(.*)=(.*)} $arg fullmatch option value
     set $option "$value"
@@ -136,6 +136,16 @@ remove_files [ glob $rtlDir/src/spi_host/rtl/*.sv ]
 remove_files [ glob $rtlDir/src/ecc/rtl/ecc_ram_tdp_file.sv ]
 # Key Vault is very large. Replacing KV with a version with the minimum number of entries.
 remove_files [ glob $rtlDir/src/keyvault/rtl/kv_reg.sv ]
+# Apply clock gating workaround
+if {$CG_EN} {
+	# Make a copy of el2_dec_tlu_ctl.sv in the build directory to modify.
+	remove_files [ glob $rtlDir/src/riscv_core/veer_el2/rtl/dec/el2_dec_tlu_ctl.sv ]
+	file copy [ glob $rtlDir/src/riscv_core/veer_el2/rtl/dec/el2_dec_tlu_ctl.sv ] $outputDir/el2_dec_tlu_ctl.sv
+	add_files [ glob $outputDir/el2_dec_tlu_ctl.sv ]
+	package require fileutil
+	# Change flush_lower_ff to use free_l2clk as the input clock.
+	::fileutil::updateInPlace [ glob $outputDir/el2_dec_tlu_ctl.sv ] {string map {"flush_lower_ff (" "flush_lower_ff (.clk(free_l2clk), "}}
+}
 
 # Add FPGA specific sources
 add_files [ glob $fpgaDir/src/*.sv]
@@ -195,7 +205,7 @@ create_bd_design "caliptra_fpga_project_bd"
 create_bd_cell -type ip -vlnv design:user:caliptra_package_top:1.0 caliptra_package_top_0
 
 # Add Zynq PS
-create_bd_cell -type ip -vlnv xilinx.com:ip:zynq_ultra_ps_e:3.4 zynq_ultra_ps_e_0
+create_bd_cell -type ip -vlnv xilinx.com:ip:zynq_ultra_ps_e zynq_ultra_ps_e_0
 set_property CONFIG.PSU__CRL_APB__PL0_REF_CTRL__FREQMHZ {20} [get_bd_cells zynq_ultra_ps_e_0]
 set_property CONFIG.PSU__USE__IRQ0 {1} [get_bd_cells zynq_ultra_ps_e_0]
 
