@@ -40,20 +40,6 @@ fn test_unimplemented_cmds() {
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
-    // CAPABILITIES
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::CAPABILITIES), &[]),
-    };
-
-    let resp = model
-        .mailbox_execute(u32::from(CommandId::CAPABILITIES), payload.as_bytes())
-        .unwrap_err();
-    assert_error(
-        &mut model,
-        caliptra_drivers::CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND,
-        resp,
-    );
-
     // Send something that is not a valid RT command.
     const INVALID_CMD: u32 = 0xAABBCCDD;
     let payload = MailboxReqHeader {

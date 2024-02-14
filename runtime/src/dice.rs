@@ -1,4 +1,16 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    dice.rs
+
+Abstract:
+
+    File contains mailbox commands related to DICE certificates.
+
+--*/
 
 use caliptra_common::mailbox_api::{
     GetFmcAliasCertResp, GetIdevCertReq, GetIdevCertResp, GetLdevCertResp, GetRtAliasCertResp,
