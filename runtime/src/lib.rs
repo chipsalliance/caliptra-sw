@@ -13,6 +13,7 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "fip-self-test"), allow(unused))]
 #![no_std]
+mod capabilities;
 pub mod dice;
 mod disable;
 mod dpe_crypto;
@@ -31,11 +32,12 @@ mod verify;
 
 // Used by runtime tests
 pub mod mailbox;
-use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
+use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
 use caliptra_registers::soc_ifc::SocIfcReg;
 pub use drivers::Drivers;
 use mailbox::Mailbox;
 
+use crate::capabilities::CapabilitiesCmd;
 pub use crate::hmac::Hmac;
 pub use caliptra_common::fips::FipsVersionCmd;
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
@@ -188,6 +190,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::VERSION => {
             FipsVersionCmd::execute(&drivers.soc_ifc).map(MailboxResp::FipsVersion)
         }
+        CommandId::CAPABILITIES => CapabilitiesCmd::execute(),
         #[cfg(feature = "fips_self_test")]
         CommandId::SELF_TEST_START => match drivers.self_test_status {
             SelfTestStatus::Idle => {

@@ -17,7 +17,7 @@ Abstract:
 #[cfg(target_arch = "riscv32")]
 core::arch::global_asm!(include_str!("ext_intr.S"));
 
-use caliptra_cfi_lib::CfiCounter;
+use caliptra_cfi_lib_git::CfiCounter;
 use caliptra_common::{cprintln, handle_fatal_error};
 use caliptra_cpu::{log_trap_record, TrapRecord};
 use caliptra_error::CaliptraError;
@@ -57,21 +57,21 @@ pub extern "C" fn entry_point() -> ! {
 
     let mut drivers = unsafe {
         Drivers::new_from_registers().unwrap_or_else(|e| {
-            // treat global exception as a fatal error
-            match e {
-                CaliptraError::RUNTIME_GLOBAL_EXCEPTION => handle_fatal_error(e.into()),
-                _ => {
-                    cprintln!("[rt] Runtime can't load drivers");
-                    handle_fatal_error(e.into());
-                }
-            }
+            cprintln!("[rt] Runtime can't load drivers");
+            handle_fatal_error(e.into());
         })
     };
     caliptra_common::stop_wdt(&mut drivers.soc_ifc);
 
     if !cfg!(feature = "no-cfi") {
         cprintln!("[state] CFI Enabled");
-        let mut entropy_gen = || drivers.trng.generate().map(|a| a.0);
+        let mut entropy_gen = || {
+            drivers
+                .trng
+                .generate()
+                .map(|a| a.0)
+                .map_err(|_| caliptra_cfi_lib_git::CfiPanicInfo::TrngError)
+        };
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);

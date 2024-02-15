@@ -111,6 +111,26 @@ Command Code: `0x4657_4C44` ("FWLD")
 | chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips\_status | u32      | Indicates if the command is FIPS approved or an error.
 
+### CAPABILITIES
+
+Exposes a command to retrieve firmware capabilities
+
+Command Code: `0x4341_5053` ("CAPS")
+
+*Table: `CAPABILITIES` input arguments*
+
+| **Name**  | **Type**      | **Description**
+| --------  | --------      | ---------------
+| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+
+*Table: `CAPABILITIES` output arguments*
+
+| **Name**    | **Type**   | **Description**
+| --------    | --------   | ---------------
+| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status | u32        | Indicates if the command is FIPS approved or an error.
+| capabilities   | u8[16]        | Firmware capabilities
+
 ### GET\_IDEV\_CERT
 
 Exposes a command to reconstruct the IDEVID CERT.
