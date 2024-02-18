@@ -59,18 +59,16 @@ pub mod fips_self_test_cmd {
     use crate::RtBootStatus::{RtFipSelfTestComplete, RtFipSelfTestStarted};
     use caliptra_cfi_lib_git::cfi_assert_eq_8_words;
     use caliptra_common::HexBytes;
-    use caliptra_common::{
-        verifier::FirmwareImageVerificationEnv, FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
-    };
+    use caliptra_common::{verifier::FirmwareImageVerificationEnv, FMC_SIZE, RUNTIME_SIZE};
     use caliptra_drivers::{ResetReason, ShaAccLockState};
-    use caliptra_image_types::RomInfo;
+    use caliptra_image_types::{ImageTocEntry, RomInfo};
     use caliptra_image_verify::ImageVerifier;
     use zerocopy::AsBytes;
 
     // Helper function to create a slice from a memory region
-    unsafe fn create_slice(org: u32, size: usize) -> &'static [u8] {
-        let ptr = org as *mut u8;
-        core::slice::from_raw_parts(ptr, size)
+    unsafe fn create_slice(toc: &ImageTocEntry) -> &'static [u8] {
+        let ptr = toc.load_addr as *mut u8;
+        core::slice::from_raw_parts(ptr, toc.size as usize)
     }
     pub enum SelfTestStatus {
         Idle,
@@ -89,18 +87,20 @@ pub mod fips_self_test_cmd {
         env.mbox
             .copy_bytes_to_mbox(env.persistent_data.get().manifest1.as_bytes())?;
 
-        let fmc_size = env.persistent_data.get().manifest1.fmc.size;
-        if fmc_size > FMC_SIZE {
+        let fmc_toc = &env.persistent_data.get().manifest1.fmc;
+        let rt_toc = &env.persistent_data.get().manifest1.runtime;
+
+        if fmc_toc.size > FMC_SIZE {
             return Err(CaliptraError::RUNTIME_INVALID_FMC_SIZE);
         }
-        let fmc = unsafe { create_slice(FMC_ORG, fmc_size as usize) };
-        env.mbox.copy_bytes_to_mbox(fmc.as_bytes())?;
-
-        let runtime_size = env.persistent_data.get().manifest1.runtime.size;
-        if runtime_size > RUNTIME_SIZE {
+        if rt_toc.size > RUNTIME_SIZE {
             return Err(CaliptraError::RUNTIME_INVALID_RUNTIME_SIZE);
         }
-        let rt = unsafe { create_slice(RUNTIME_ORG, runtime_size as usize) };
+
+        let fmc = unsafe { create_slice(&fmc_toc) };
+        let rt = unsafe { create_slice(&rt_toc) };
+
+        env.mbox.copy_bytes_to_mbox(fmc.as_bytes())?;
         env.mbox.copy_bytes_to_mbox(rt.as_bytes())?;
 
         let mut venv = FirmwareImageVerificationEnv {
