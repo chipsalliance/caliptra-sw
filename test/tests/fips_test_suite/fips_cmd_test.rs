@@ -106,13 +106,17 @@ fn test_fips_cmds<T: HwModel>(hw: &mut T, fmc_version: u32, app_version: u32) {
                     break;
                 }
             }
-            _ => {
+            Ok(None)
+            | Err(ModelError::MailboxCmdFailed(0xE0015))  // RUNTIME_SELF_TEST_IN_PROGRESS
+            | Err(ModelError::MailboxCmdFailed(0xE0016))  // RUNTIME_SELF_TEST_NOT_STARTED
+            | Err(ModelError::UnableToLockMailbox) => {
                 // Give FW time to run
-                let mut cycle_count = 10000;
-                hw.step_until(|_| -> bool {
-                    cycle_count -= 1;
-                    cycle_count == 0
-                });
+                for _ in 0..10000 {
+                    hw.step();
+                }
+            }
+            Err(e) => {
+                assert_eq!(e, ModelError::MailboxCmdFailed(0));
             }
         }
     }
