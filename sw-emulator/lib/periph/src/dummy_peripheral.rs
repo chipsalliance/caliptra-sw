@@ -31,24 +31,24 @@ impl DummyPeripheral {
 
     pub fn nmi_invalid_read(&mut self) {
         let nmi_invalid_read_delay: u64 = 0x0;
-        const NMI_INVALID_READ: u32 = 0x0000_00f1;
+        const NMI_CAUSE_DBUS_NON_BLOCKING_LOAD_ERROR: u32 = 0xf000_0001;
 
         self.timer.schedule_action_in(
             nmi_invalid_read_delay,
             TimerAction::Nmi {
-                mcause: NMI_INVALID_READ,
+                mcause: NMI_CAUSE_DBUS_NON_BLOCKING_LOAD_ERROR,
             },
         );
     }
 
     pub fn nmi_invalid_write(&mut self) {
         let nmi_invalid_write_delay: u64 = 0x0;
-        const NMI_INVALID_WRITE: u32 = 0x0000_00f2;
+        const NMI_CAUSE_DBUS_STORE_ERROR: u32 = 0xf000_0000;
 
         self.timer.schedule_action_in(
             nmi_invalid_write_delay,
             TimerAction::Nmi {
-                mcause: NMI_INVALID_WRITE,
+                mcause: NMI_CAUSE_DBUS_STORE_ERROR,
             },
         );
     }
