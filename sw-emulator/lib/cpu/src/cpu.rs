@@ -144,6 +144,9 @@ pub struct Cpu<TBus: Bus> {
     /// Machine External interrupt enabled
     ext_int_en: bool,
 
+    /// Halted state
+    halted: bool,
+
     // The bus the CPU uses to talk to memory and peripherals.
     pub bus: TBus,
 
@@ -190,6 +193,7 @@ impl<TBus: Bus> Cpu<TBus> {
             ext_int_vec: 0,
             global_int_en: false,
             ext_int_en: false,
+            halted: false,
             // TODO: Pass in code_coverage from the outside (as caliptra-emu-cpu
             // isn't supposed to know anything about the caliptra memory map)
             code_coverage: CodeCoverage::new(ROM_SIZE, ICCM_SIZE),
@@ -408,25 +412,38 @@ impl<TBus: Bus> Cpu<TBus> {
         for action_type in fired_action_types.iter() {
             match action_type {
                 TimerAction::WarmReset => {
+                    self.halted = false;
                     self.reset_pc();
                     break;
                 }
                 TimerAction::UpdateReset => {
+                    self.halted = false;
                     self.reset_pc();
                     break;
                 }
-                TimerAction::Nmi { mcause } => return self.handle_nmi(*mcause, 0),
+                TimerAction::Nmi { mcause } => {
+                    self.halted = false;
+                    return self.handle_nmi(*mcause, 0);
+                }
                 TimerAction::SetNmiVec { addr } => self.nmivec = *addr,
-                TimerAction::ExtInt { irq } => {
-                    if self.global_int_en && self.ext_int_en {
+                TimerAction::ExtInt { irq, can_wake } => {
+                    if self.global_int_en && self.ext_int_en && (!self.halted || *can_wake) {
+                        self.halted = false;
                         return self.handle_external_int(*irq);
                     }
                 }
                 TimerAction::SetExtIntVec { addr } => self.ext_int_vec = *addr,
                 TimerAction::SetGlobalIntEn { en } => self.global_int_en = *en,
                 TimerAction::SetExtIntEn { en } => self.ext_int_en = *en,
+                TimerAction::Halt => self.halted = true,
                 _ => {}
             }
+        }
+
+        // We are in a halted state. Don't continue executing but poll the bus for interrupts
+        if self.halted {
+            self.set_next_pc(self.pc);
+            return StepAction::Continue;
         }
 
         match self.exec_instr(instr_tracer) {
