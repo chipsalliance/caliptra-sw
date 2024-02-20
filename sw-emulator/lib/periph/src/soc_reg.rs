@@ -1136,6 +1136,11 @@ impl SocRegistersImpl {
             .reg
             .write(ResetReason::WARM_RESET::SET);
 
+        self.fuses_can_be_written = true;
+        self.cptra_flow_status
+            .reg
+            .write(FlowStatus::READY_FOR_FUSES::SET);
+
         self.reset_common();
     }
 
