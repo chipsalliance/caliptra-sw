@@ -13,6 +13,7 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "fip-self-test"), allow(unused))]
 #![no_std]
+mod capabilities;
 pub mod dice;
 mod disable;
 mod dpe_crypto;
@@ -31,10 +32,12 @@ mod verify;
 
 // Used by runtime tests
 pub mod mailbox;
-use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
+use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
+use caliptra_registers::soc_ifc::SocIfcReg;
 pub use drivers::Drivers;
 use mailbox::Mailbox;
 
+use crate::capabilities::CapabilitiesCmd;
 pub use crate::hmac::Hmac;
 pub use caliptra_common::fips::FipsVersionCmd;
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
@@ -130,7 +133,7 @@ fn enter_idle(drivers: &mut Drivers) {
     #[cfg(feature = "riscv")]
     if cfg!(feature = "fpga_realtime") {
         // TODO implement in emulator
-        caliptra_cpu::csr::mpmc_halt();
+        caliptra_cpu::csr::mpmc_halt_and_enable_interrupts();
     }
 }
 
@@ -187,6 +190,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::VERSION => {
             FipsVersionCmd::execute(&drivers.soc_ifc).map(MailboxResp::FipsVersion)
         }
+        CommandId::CAPABILITIES => CapabilitiesCmd::execute(),
         #[cfg(feature = "fips_self_test")]
         CommandId::SELF_TEST_START => match drivers.self_test_status {
             SelfTestStatus::Idle => {
@@ -275,8 +279,24 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
             return Err(CaliptraError::RUNTIME_SHUTDOWN);
         }
 
-        let cmd_ready = drivers.mbox.is_cmd_ready();
+        // The hardware will set this interrupt high when the mbox_fsm_ps
+        // transitions to state MBOX_EXECUTE_UC (same state as mbox.is_cmd_ready()),
+        // but once cleared will not set it high again until the state
+        // transitions away from MBOX_EXECUTE_UC and back.
+        let cmd_ready = drivers.soc_ifc.has_mbox_notif_status();
         if cmd_ready {
+            // Acknowledge the interrupt so we go back to sleep after
+            // processing the mailbox. After this point, if the mailbox is
+            // still in the MBOX_EXECUTE_UC state before going back to
+            // sleep, we will hang.
+            drivers.soc_ifc.clear_mbox_notif_status();
+
+            if !drivers.mbox.is_cmd_ready() {
+                // This is expected after boot, as the ROM did not clear the
+                // interrupt status when processing FIRMWARE_LOAD
+                continue;
+            }
+
             // TODO : Move start/stop WDT to wait_for_cmd when NMI is implemented.
             caliptra_common::wdt::start_wdt(
                 &mut drivers.soc_ifc,

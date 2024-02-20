@@ -247,6 +247,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "caliptra-cfi-derive-git"
+version = "0.1.0"
+source = "git+https://github.com/chipsalliance/caliptra-cfi.git?rev=9f315fcf11fe006e95e62149f54f98620e5244e7#9f315fcf11fe006e95e62149f54f98620e5244e7"
+dependencies = [
+ "paste",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "caliptra-cfi-lib"
 version = "0.1.0"
 dependencies = [
@@ -256,6 +267,11 @@ dependencies = [
  "serial_test",
  "ufmt",
 ]
+
+[[package]]
+name = "caliptra-cfi-lib-git"
+version = "0.1.0"
+source = "git+https://github.com/chipsalliance/caliptra-cfi.git?rev=9f315fcf11fe006e95e62149f54f98620e5244e7#9f315fcf11fe006e95e62149f54f98620e5244e7"
 
 [[package]]
 name = "caliptra-coverage"
@@ -291,7 +307,9 @@ dependencies = [
  "bitflags 2.4.0",
  "caliptra-builder",
  "caliptra-cfi-derive",
+ "caliptra-cfi-derive-git",
  "caliptra-cfi-lib",
+ "caliptra-cfi-lib-git",
  "caliptra-drivers-test-bin",
  "caliptra-error",
  "caliptra-hw-model",
@@ -446,6 +464,7 @@ dependencies = [
  "caliptra-builder",
  "caliptra-cpu",
  "caliptra-drivers",
+ "caliptra-gen-linker-scripts",
  "caliptra-registers",
  "caliptra_common",
  "cfg-if 1.0.0",
@@ -708,8 +727,8 @@ version = "0.1.0"
 dependencies = [
  "arrayvec",
  "caliptra-builder",
- "caliptra-cfi-derive",
- "caliptra-cfi-lib",
+ "caliptra-cfi-derive-git",
+ "caliptra-cfi-lib-git",
  "caliptra-cpu",
  "caliptra-drivers",
  "caliptra-error",
@@ -1019,6 +1038,8 @@ name = "crypto"
 version = "0.1.0"
 dependencies = [
  "arrayvec",
+ "caliptra-cfi-derive-git",
+ "caliptra-cfi-lib-git",
  "zeroize",
 ]
 
@@ -1200,6 +1221,9 @@ name = "dpe"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.4.0",
+ "caliptra-cfi-derive-git",
+ "caliptra-cfi-lib-git",
+ "cfg-if 1.0.0",
  "constant_time_eq",
  "crypto",
  "platform",
