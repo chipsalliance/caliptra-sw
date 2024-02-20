@@ -12,7 +12,8 @@ Abstract:
 
 --*/
 
-use caliptra_cfi_derive::cfi_impl_fn;
+use crate::CfiCounter;
+use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
     GetTaggedTciReq, GetTaggedTciResp, MailboxResp, MailboxRespHeader, TagTciReq,
 };
