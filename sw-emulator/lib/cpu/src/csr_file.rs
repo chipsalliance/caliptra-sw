@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::types::{RvMIE, RvMStatus};
+use crate::types::{RvMIE, RvMPMC, RvMStatus};
 use caliptra_emu_bus::{Clock, Timer, TimerAction};
 use caliptra_emu_types::{RvAddr, RvData, RvException};
 
@@ -65,6 +65,9 @@ impl Csr {
 
     /// Interrupt Pending CSR
     pub const MIP: RvAddr = 0x344;
+
+    /// Power management const CSR
+    pub const MPMC: RvAddr = 0x7C6;
 
     /// Cycle Low Counter CSR
     pub const MCYCLE: RvAddr = 0xB00;
@@ -135,6 +138,7 @@ impl CsrFile {
         self.csrs[Csr::MCAUSE as usize] = Csr::new(0x0000_0000, 0xFFFF_FFFF);
         self.csrs[Csr::MTVAL as usize] = Csr::new(0x0000_0000, 0xFFFF_FFFF);
         self.csrs[Csr::MIP as usize] = Csr::new(0x0000_0000, 0xFFFF_FFFF);
+        self.csrs[Csr::MPMC as usize] = Csr::new(0x0000_0002, 0x0000_0002);
         self.csrs[Csr::MCYCLE as usize] = Csr::new(0x0000_0000, 0xFFFF_FFFF);
         self.csrs[Csr::MCYCLEH as usize] = Csr::new(0x0000_0000, 0xFFFF_FFFF);
         self.csrs[Csr::MINSTRET as usize] = Csr::new(0x0000_0000, 0xFFFF_FFFF);
@@ -208,6 +212,18 @@ impl CsrFile {
                     );
                     // Let's see if the soc wants to interrupt
                     self.timer.schedule_poll_in(2);
+                }
+                if addr == Csr::MPMC as usize {
+                    let mpmc_write = RvMPMC(val);
+                    if mpmc_write.halt() == 1 {
+                        let mpcm = RvMPMC(csr.val);
+                        if mpcm.haltie() == 1 {
+                            let mut mstatus = RvMStatus(self.read(Csr::MSTATUS)?);
+                            mstatus.set_mie(1);
+                            self.write(Csr::MSTATUS, mstatus.0)?;
+                        }
+                        self.timer.schedule_action_in(0, TimerAction::Halt);
+                    }
                 }
                 Ok(())
             }

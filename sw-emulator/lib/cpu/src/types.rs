@@ -650,3 +650,15 @@ bitfield! {
     /// External interrupt source ID of highest-priority pending interrupt
     pub u32, claimid, set_claimid: 9, 2;
 }
+
+bitfield! {
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+    /// Power management control Register
+    pub struct RvMPMC(u32);
+
+    /// Initiate core halt
+    pub u32, halt, _: 0, 0;
+
+    /// Control interrupt enable
+    pub u32, haltie, _: 1, 1;
+}
