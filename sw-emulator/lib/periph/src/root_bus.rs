@@ -20,6 +20,7 @@ use crate::{
     MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
 };
 use caliptra_emu_bus::{Clock, Ram, Rom};
+use caliptra_emu_cpu::{Pic, PicMmioRegisters};
 use caliptra_emu_derive::Bus;
 use caliptra_hw_model_types::{EtrngResponse, RandomEtrngResponses, RandomNibbles, SecurityState};
 use std::path::PathBuf;
@@ -290,6 +291,9 @@ pub struct CaliptraRootBus {
 
     #[peripheral(offset = 0x5000_0000, mask = 0x0fff_ffff)]
     pub dccm: Ram,
+
+    #[peripheral(offset = 0x6000_0000, mask = 0x0000_ffff)]
+    pub pic_regs: PicMmioRegisters,
 }
 
 impl CaliptraRootBus {
@@ -303,6 +307,7 @@ impl CaliptraRootBus {
         let mailbox = MailboxInternal::new(mailbox_ram.clone());
         let rom = Rom::new(std::mem::take(&mut args.rom));
         let iccm = Iccm::new(clock);
+        let pic = Pic::new();
         let itrng_nibbles = args.itrng_nibbles.take();
         let soc_reg = SocRegistersInternal::new(clock, mailbox.clone(), iccm.clone(), args);
         if !soc_reg.is_debug_locked() {
@@ -330,6 +335,7 @@ impl CaliptraRootBus {
             mailbox,
             sha512_acc: Sha512Accelerator::new(clock, mailbox_ram),
             csrng: Csrng::new(itrng_nibbles.unwrap()),
+            pic_regs: pic.mmio_regs(clock),
         }
     }
 
