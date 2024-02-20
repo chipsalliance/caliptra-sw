@@ -486,7 +486,9 @@ impl Sha512AcceleratorRegs {
 
     /// Called by Bus::warm_reset() to indicate a warm reset
     fn warm_reset(&mut self) {
-        // TODO: Reset registers
+        self.state_machine
+            .process_event(Events::RdLock(Owner(0)))
+            .unwrap();
     }
 
     /// Called by Bus::update_reset() to indicate an update reset
@@ -559,6 +561,14 @@ impl Bus for Sha512Accelerator {
 
     fn poll(&mut self) {
         self.regs.borrow_mut().poll();
+    }
+
+    fn warm_reset(&mut self) {
+        self.regs.borrow_mut().warm_reset();
+    }
+
+    fn update_reset(&mut self) {
+        self.regs.borrow_mut().update_reset();
     }
 }
 

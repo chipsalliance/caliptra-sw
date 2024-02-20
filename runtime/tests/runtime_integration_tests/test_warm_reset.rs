@@ -1,7 +1,5 @@
 // Licensed under the Apache-2.0 license
 
-#![cfg(any(feature = "verilator", feature = "fpga_realtime"))]
-
 use caliptra_builder::{
     firmware::{self, APP_WITH_UART, FMC_WITH_UART, ROM_WITH_UART},
     ImageOptions,

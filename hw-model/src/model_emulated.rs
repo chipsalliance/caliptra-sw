@@ -257,4 +257,9 @@ impl crate::HwModel for ModelEmulated {
     fn set_apb_pauser(&mut self, _pauser: u32) {
         unimplemented!();
     }
+
+    fn warm_reset(&mut self) {
+        self.cpu.warm_reset();
+        self.step();
+    }
 }

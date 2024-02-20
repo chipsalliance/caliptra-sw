@@ -382,6 +382,12 @@ impl<TBus: Bus> Cpu<TBus> {
         }
     }
 
+    pub fn warm_reset(&mut self) {
+        self.clock
+            .timer()
+            .schedule_action_in(0, TimerAction::WarmReset);
+    }
+
     /// Step a single instruction
     pub fn step(&mut self, instr_tracer: Option<&mut InstrTracer>) -> StepAction {
         let fired_action_types = self
