@@ -131,10 +131,7 @@ fn enter_idle(drivers: &mut Drivers) {
     }
 
     #[cfg(feature = "riscv")]
-    if cfg!(feature = "fpga_realtime") {
-        // TODO implement in emulator
-        caliptra_cpu::csr::mpmc_halt_and_enable_interrupts();
-    }
+    caliptra_cpu::csr::mpmc_halt_and_enable_interrupts();
 }
 
 /// Handles the pending mailbox command and writes the repsonse back to the mailbox
@@ -265,9 +262,7 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
         cfi_assert!(!cmd_busy);
     }
     #[cfg(feature = "riscv")]
-    if cfg!(feature = "fpga_realtime") {
-        setup_mailbox_wfi(drivers);
-    }
+    setup_mailbox_wfi(drivers);
 
     loop {
         enter_idle(drivers);
