@@ -101,15 +101,9 @@ Command Code: `0x4657_4C44` ("FWLD")
 
 | **Name**  | **Type**      | **Description**
 | --------  | --------      | ---------------
-| chksum    | u32           | Checksum over other input arguments, computed by the caller. Little endian.
 | data      | u8[...]       | Firmware image to load.
 
-*Table: `CALIPTRA_FW_LOAD` output arguments*
-
-| **Name**    | **Type** | **Description**
-| --------    | -------- | ---------------
-| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips\_status | u32      | Indicates if the command is FIPS approved or an error.
+`CALIPTRA_FW_LOAD` returns no output arguments.
 
 ### CAPABILITIES
 
@@ -612,8 +606,8 @@ Table: `SHUTDOWN` output arguments
 
 ## Checksum
 
-For every command, the request and response feature a checksum. This mitigates
-glitches between clients and Caliptra.
+For every command except for FW_LOAD, the request and response feature a checksum. This
+mitigates glitches between clients and Caliptra.
 
 The checksum is a little-endian 32-bit value, defined as:
 
