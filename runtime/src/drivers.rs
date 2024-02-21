@@ -35,6 +35,7 @@ use caliptra_drivers::{
     hand_off::DataStore, Ecc384PubKey, Hmac384, PcrBank, PcrId, Sha256, Sha256Alg, Sha384,
     Sha384Acc, Trng,
 };
+use caliptra_image_types::ImageManifest;
 use caliptra_registers::el2_pic_ctrl::El2PicCtrl;
 use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_registers::{
@@ -42,6 +43,7 @@ use caliptra_registers::{
     mbox::MboxCsr, pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr,
     soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
+use caliptra_x509::{NotAfter, NotBefore};
 use dpe::context::{Context, ContextState, ContextType};
 use dpe::tci::TciMeasurement;
 use dpe::validation::DpeValidator;
@@ -387,12 +389,15 @@ impl Drivers {
             key_id_rt_priv_key,
         );
 
+        let (nb, nf) = Self::get_cert_validity_info(&drivers.persistent_data.get().manifest1);
         let mut env = DpeEnv::<CptraDpeTypes> {
             crypto,
             platform: DpePlatform::new(
                 caliptra_locality,
                 hashed_rt_pub_key,
                 &mut drivers.cert_chain,
+                &nb,
+                &nf,
             ),
         };
 
@@ -631,5 +636,39 @@ impl Drivers {
             DataStore::KeyVaultSlot(key_id) => Ok(key_id),
             _ => Err(CaliptraError::RUNTIME_PRIV_KEY_KV_HDL_HANDOFF_FAILED),
         }
+    }
+
+    /// Process the certificate validity info
+    ///
+    /// # Arguments
+    /// * `manifest` - Manifest
+    ///
+    /// # Returns
+    /// * `NotBefore` - Valid Not Before Time
+    /// * `NotAfter`  - Valid Not After Time
+    ///
+    pub fn get_cert_validity_info(manifest: &ImageManifest) -> (NotBefore, NotAfter) {
+        // If there is a valid value in the manifest for the not_before and not_after times,
+        // use those. Otherwise use the default values.
+        let mut nb = NotBefore::default();
+        let mut nf = NotAfter::default();
+        let null_time = [0u8; 15];
+
+        if manifest.header.vendor_data.vendor_not_after != null_time
+            && manifest.header.vendor_data.vendor_not_before != null_time
+        {
+            nf.value = manifest.header.vendor_data.vendor_not_after;
+            nb.value = manifest.header.vendor_data.vendor_not_before;
+        }
+
+        // Owner values take preference.
+        if manifest.header.owner_data.owner_not_after != null_time
+            && manifest.header.owner_data.owner_not_before != null_time
+        {
+            nf.value = manifest.header.owner_data.owner_not_after;
+            nb.value = manifest.header.owner_data.owner_not_before;
+        }
+
+        (nb, nf)
     }
 }

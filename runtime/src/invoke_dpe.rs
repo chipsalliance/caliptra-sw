@@ -57,9 +57,16 @@ impl InvokeDpeCmd {
             let pdata = drivers.persistent_data.get();
             let image_header = &pdata.manifest1.header;
             let pl0_pauser = pdata.manifest1.header.pl0_pauser;
+            let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
             let mut env = DpeEnv::<CptraDpeTypes> {
                 crypto,
-                platform: DpePlatform::new(pl0_pauser, hashed_rt_pub_key, &mut drivers.cert_chain),
+                platform: DpePlatform::new(
+                    pl0_pauser,
+                    hashed_rt_pub_key,
+                    &mut drivers.cert_chain,
+                    &nb,
+                    &nf,
+                ),
             };
 
             let locality = drivers.mbox.user();
