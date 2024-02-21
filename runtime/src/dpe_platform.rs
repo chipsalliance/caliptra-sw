@@ -16,7 +16,8 @@ use core::cmp::min;
 
 use arrayvec::ArrayVec;
 use caliptra_drivers::cprintln;
-use caliptra_x509::{NOT_AFTER, NOT_BEFORE};
+use caliptra_image_types::{ImageHeader, ImageManifest};
+use caliptra_x509::{NotAfter, NotBefore};
 use crypto::Digest;
 use dpe::{
     x509::{CertWriter, DirectoryString, Name},
@@ -34,6 +35,8 @@ pub struct DpePlatform<'a> {
     auto_init_locality: u32,
     hashed_rt_pub_key: Digest,
     cert_chain: &'a mut ArrayVec<u8, MAX_CERT_CHAIN_SIZE>,
+    not_before: &'a NotBefore,
+    not_after: &'a NotAfter,
 }
 
 pub const VENDOR_ID: u32 = u32::from_be_bytes(*b"CTRA");
@@ -44,11 +47,15 @@ impl<'a> DpePlatform<'a> {
         auto_init_locality: u32,
         hashed_rt_pub_key: Digest,
         cert_chain: &'a mut ArrayVec<u8, 4096>,
+        not_before: &'a NotBefore,
+        not_after: &'a NotAfter,
     ) -> Self {
         Self {
             auto_init_locality,
             hashed_rt_pub_key,
             cert_chain,
+            not_before,
+            not_after,
         }
     }
 }
@@ -137,10 +144,18 @@ impl Platform for DpePlatform<'_> {
         Ok(())
     }
 
-    fn get_cert_validity<'a>(&mut self) -> Result<CertValidity<'a>, PlatformError> {
+    fn get_cert_validity(&mut self) -> Result<CertValidity, PlatformError> {
+        let mut not_before = ArrayVec::new();
+        not_before
+            .try_extend_from_slice(&self.not_before.value)
+            .map_err(|_| PlatformError::CertValidityError(0))?;
+        let mut not_after = ArrayVec::new();
+        not_after
+            .try_extend_from_slice(&self.not_after.value)
+            .map_err(|_| PlatformError::CertValidityError(0))?;
         Ok(CertValidity {
-            not_before: NOT_BEFORE,
-            not_after: NOT_AFTER,
+            not_before,
+            not_after,
         })
     }
 }

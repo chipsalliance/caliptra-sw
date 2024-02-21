@@ -49,12 +49,15 @@ impl StashMeasurementCmd {
                     key_id_rt_priv_key,
                 );
                 let pdata = drivers.persistent_data.get();
+                let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
                 let mut env = DpeEnv::<CptraDpeTypes> {
                     crypto,
                     platform: DpePlatform::new(
                         pdata.manifest1.header.pl0_pauser,
                         hashed_rt_pub_key,
                         &mut drivers.cert_chain,
+                        &nb,
+                        &nf,
                     ),
                 };
 
