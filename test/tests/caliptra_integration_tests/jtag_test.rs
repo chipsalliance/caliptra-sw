@@ -122,6 +122,7 @@ fn gdb_test() {
     hw.step_until_output_contains("[rt] Runtime listening for mailbox commands...\n")
         .unwrap();
 
+    #[cfg(feature = "fpga_realtime")]
     hw.launch_openocd();
 
     let elf_path = get_elf_path(&firmware::APP_WITH_UART).unwrap();

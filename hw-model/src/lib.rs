@@ -1128,8 +1128,6 @@ pub trait HwModel {
 
         Ok(())
     }
-
-    fn launch_openocd(&mut self) {}
 }
 
 #[cfg(test)]

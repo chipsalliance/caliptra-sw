@@ -476,8 +476,9 @@ impl HwModel for ModelFpgaRealtime {
                 .write_volatile(pauser);
         }
     }
-
-    fn launch_openocd(&mut self) {
+}
+impl ModelFpgaRealtime {
+    pub fn launch_openocd(&mut self) {
         let mut openocd = Command::new("sudo")
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
