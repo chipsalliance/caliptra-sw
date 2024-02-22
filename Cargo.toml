@@ -39,7 +39,7 @@ members = [
   "drivers/test-fw/scripts/vector_gen",
   "fmc",
   "fmc/test-fw/test-rt",
-  "hw-latest/verilated",
+  "hw/verilated",
   "hw-model",
   "hw-model/test-fw",
   "hw-model/types",
@@ -125,7 +125,7 @@ caliptra-systemrdl = { path = "systemrdl" }
 caliptra-test = { path = "test" }
 caliptra-test-harness = { path = "test-harness" }
 caliptra-test-harness-types = { path = "test-harness/types" }
-caliptra-verilated = { path = "hw-latest/verilated",  features = ["verilator"] }
+caliptra-verilated = { path = "hw/verilated",  features = ["verilator"] }
 caliptra-x509 = { path = "x509", default-features = false }
 cbc = "0.1.2"
 cbindgen = { version = "0.24.0", default-features = false }
