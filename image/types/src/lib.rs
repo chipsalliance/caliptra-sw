@@ -420,6 +420,8 @@ pub struct RomInfo {
     pub sha256_digest: [u32; 8],
     pub revision: ImageRevision,
     pub flags: u32,
+    pub version: u16,
+    pub rsvd: u16, // maintain DWORD alignment
 }
 
 #[cfg(all(test, target_family = "unix"))]

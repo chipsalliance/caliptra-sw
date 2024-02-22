@@ -2,7 +2,7 @@
 
 use caliptra_builder::{
     firmware::{self, APP_WITH_UART, FMC_WITH_UART},
-    ImageOptions,
+    version, ImageOptions,
 };
 use caliptra_common::{
     mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, StashMeasurementReq},
@@ -13,7 +13,7 @@ use caliptra_runtime::RtBootStatus;
 use sha2::{Digest, Sha384};
 use zerocopy::AsBytes;
 
-use crate::common::run_rt_test;
+use crate::common::{run_rt_test, DEFAULT_APP_VERSION, DEFAULT_FMC_VERSION};
 
 const RT_READY_FOR_COMMANDS: u32 = 0x600;
 
@@ -51,8 +51,12 @@ fn test_fw_version() {
     });
 
     let fw_rev = model.soc_ifc().cptra_fw_rev_id().read();
-    assert_eq!(fw_rev[0], 0xaaaaaaaa);
-    assert_eq!(fw_rev[1], 0xbbbbbbbb);
+    // fw_rev[0] is FMC version at 31:16 and ROM version at 15:0
+    assert_eq!(
+        fw_rev[0],
+        ((DEFAULT_FMC_VERSION as u32) << 16) | (version::get_rom_version() as u32)
+    );
+    assert_eq!(fw_rev[1], DEFAULT_APP_VERSION);
 }
 
 #[test]
@@ -84,7 +88,7 @@ fn test_update() {
     model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
 
     let fw_rev = model.soc_ifc().cptra_fw_rev_id().read();
-    assert_eq!(fw_rev[0], 0xaaaaaaaa);
+    assert_eq!((fw_rev[0] >> 16) as u16, DEFAULT_FMC_VERSION);
     assert_eq!(fw_rev[1], 0xaabbccdd);
 }
 
@@ -134,7 +138,7 @@ fn test_stress_update() {
 
         //Check if the new firmware is actually the one we built
         let fw_rev = model.soc_ifc().cptra_fw_rev_id().read();
-        assert_eq!(fw_rev[0], 0xaaaaaaaa);
+        assert_eq!((fw_rev[0] >> 16) as u16, DEFAULT_FMC_VERSION);
         assert_eq!(fw_rev[1], app_versions[image_select]);
     }
 }

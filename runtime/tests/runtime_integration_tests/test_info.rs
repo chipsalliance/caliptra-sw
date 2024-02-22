@@ -41,7 +41,7 @@ fn find_rom_info(rom: Vec<u8>) -> Option<RomInfo> {
 fn test_fw_info() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = Some(0x1);
-    image_opts.fmc_version = 0xaaaaaaaa;
+    image_opts.fmc_version = 0xaaaa;
     image_opts.app_version = 0xbbbbbbbb;
     image_opts.fmc_svn = 5;
 

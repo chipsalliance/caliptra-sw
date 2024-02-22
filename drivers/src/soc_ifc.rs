@@ -288,9 +288,23 @@ impl SocIfc {
             .write(|w| w.ready_for_runtime(true));
     }
 
-    pub fn set_fmc_fw_rev_id(&mut self, fmc_version: u32) {
+    pub fn set_rom_fw_rev_id(&mut self, rom_version: u16) {
+        // ROM version is [15:0] of CPTRA_FW_REV_ID[0]
+        const ROM_VERSION_MASK: u32 = 0xFFFF;
         let soc_ifc_regs = self.soc_ifc.regs_mut();
-        soc_ifc_regs.cptra_fw_rev_id().at(0).write(|_| fmc_version);
+        let version = (soc_ifc_regs.cptra_fw_rev_id().at(0).read() & !(ROM_VERSION_MASK))
+            | (rom_version as u32);
+        soc_ifc_regs.cptra_fw_rev_id().at(0).write(|_| version);
+    }
+
+    pub fn set_fmc_fw_rev_id(&mut self, fmc_version: u16) {
+        // FMC version is [31:16] of CPTRA_FW_REV_ID[0]
+        const FMC_VERSION_MASK: u32 = 0xFFFF0000;
+        const FMC_VERSION_OFFSET: u32 = 16;
+        let soc_ifc_regs = self.soc_ifc.regs_mut();
+        let version = (soc_ifc_regs.cptra_fw_rev_id().at(0).read() & !(FMC_VERSION_MASK))
+            | ((fmc_version as u32) << FMC_VERSION_OFFSET);
+        soc_ifc_regs.cptra_fw_rev_id().at(0).write(|_| version);
     }
 
     pub fn set_rt_fw_rev_id(&mut self, rt_version: u32) {

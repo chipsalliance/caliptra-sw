@@ -36,6 +36,9 @@ pub const TEST_DIGEST: [u8; 48] = [
     27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
 ];
 
+pub const DEFAULT_FMC_VERSION: u16 = 0xaaaa;
+pub const DEFAULT_APP_VERSION: u32 = 0xbbbbbbbb;
+
 // Run a test which boots ROM -> FMC -> test_bin. If test_bin_name is None,
 // run the production runtime image.
 pub fn run_rt_test(
@@ -53,8 +56,8 @@ pub fn run_rt_test(
     let image_options = test_image_options.unwrap_or_else(|| {
         let mut opts = ImageOptions::default();
         opts.vendor_config.pl0_pauser = Some(0x1);
-        opts.fmc_version = 0xaaaaaaaa;
-        opts.app_version = 0xbbbbbbbb;
+        opts.fmc_version = DEFAULT_FMC_VERSION;
+        opts.app_version = DEFAULT_APP_VERSION;
         opts
     });
 
