@@ -44,7 +44,7 @@ jobs:
           while git tag | grep ${TAG_BASE}${INDEX}; do
               ((INDEX+=1))
           done
-          git submodule update --remote hw-latest/caliptra-rtl
+          git submodule update --remote hw/latest/rtl
           CHECK_RELEASE_SYNC=$(git status --porcelain | head -1)
           MOST_RECENT_RELEASE=None
           if git tag | grep ${TAG_PREFIX} > /dev/null; then
