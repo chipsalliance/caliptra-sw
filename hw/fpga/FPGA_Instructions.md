@@ -107,10 +107,10 @@ Serial port settings for connection over USB.
     - `sudo fpgautil -b caliptra_fpga_project_bd_wrapper.bin -f Full -n Full`
 1. Insert kernel modules for IO access
     - As root:
-      - `cd hw-latest/fpga/rom_backdoor`
+      - `cd hw/fpga/rom_backdoor`
       - `make`
       - `insmod rom_backdoor.ko`
-      - `cd hw-latest/fpga/io_module`
+      - `cd hw/fpga/io_module`
       - `make`
       - `insmod io_module.ko`
       - `chmod 666 /dev/uio4`

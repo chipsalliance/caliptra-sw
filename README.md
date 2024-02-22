@@ -90,7 +90,7 @@ high-fidelity simulation based on
 this environment can reveal bugs in the firmware, hardware, and the integration
 between the two.
 
-If you don't have verilator 5.004 or later installed, follow [these directions](/hw-latest/verilated).
+If you don't have verilator 5.004 or later installed, follow [these directions](/hw/verilated).
 
 To run all the tests in verilator (this will take several hours):
 

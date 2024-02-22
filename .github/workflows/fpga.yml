@@ -36,8 +36,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     env:
-      # Change this to a new random value if you suspect the cache is corrupted
-      CACHE_BUSTER: 9ff0db888988
+      CACHE_BUSTER: 79cee50b6134
 
     outputs:
       rtl_cache_key: ${{ steps.cache_key.outputs.rtl_cache_key }}
@@ -54,11 +53,11 @@ jobs:
       - name: Compute cache-keys
         id: cache_key
         run: |
-          # Compute the key from the tree hash of the fpga directory and the caliptra-rtl
+          # Compute the key from the tree hash of the fpga directory and the rtl
           # root directory.
-          echo "rtl_cache_key=$(git rev-parse HEAD:hw-latest/fpga/src)-$(git hash-object hw-latest/fpga/fpga_configuration.tcl)-$(cd hw-latest/caliptra-rtl && git rev-parse HEAD:)-${{ inputs.fpga-itrng }}-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
+          echo "rtl_cache_key=$(git rev-parse HEAD:hw/fpga/src)-$(git hash-object hw/fpga/fpga_configuration.tcl)-$(cd hw/latest/rtl && git rev-parse HEAD:)-${{ inputs.fpga-itrng }}-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
 
-          echo "kmod_cache_key=fpga-kernel-modules-$(git rev-parse HEAD:hw-latest/fpga/io_module)-$(git rev-parse HEAD:hw-latest/fpga/rom_backdoor)-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
+          echo "kmod_cache_key=fpga-kernel-modules-$(git rev-parse HEAD:hw/fpga/io_module)-$(git rev-parse HEAD:hw/fpga/rom_backdoor)-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
 
       - name: Restore FPGA bitstream from cache
         uses: actions/cache/restore@v3
@@ -230,14 +229,14 @@ jobs:
         run: |
           SYSROOT="${GITHUB_WORKSPACE}/sysroot"
           KERNEL=5.15.0-1015-xilinx-zynqmp
-          sudo chroot "${SYSROOT}" bash -c "cd /home/${USER}/caliptra-sw/hw-latest/fpga/rom_backdoor && make KERNEL=${KERNEL}"
-          sudo chroot "${SYSROOT}" bash -c "cd /home/${USER}/caliptra-sw/hw-latest/fpga/io_module && make KERNEL=${KERNEL}"
-          sudo ls -l "${SYSROOT}/home/${USER}/caliptra-sw/hw-latest/fpga/io_module"
-          sudo ls -l "${SYSROOT}/home/${USER}/caliptra-sw/hw-latest/fpga/rom_backdoor"
+          sudo chroot "${SYSROOT}" bash -c "cd /home/${USER}/caliptra-sw/hw/fpga/rom_backdoor && make KERNEL=${KERNEL}"
+          sudo chroot "${SYSROOT}" bash -c "cd /home/${USER}/caliptra-sw/hw/fpga/io_module && make KERNEL=${KERNEL}"
+          sudo ls -l "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/io_module"
+          sudo ls -l "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/rom_backdoor"
 
           mkdir /tmp/caliptra-fpga-kmod
-          cp "${SYSROOT}/home/${USER}/caliptra-sw/hw-latest/fpga/io_module/io_module.ko" /tmp/caliptra-fpga-kmod/
-          cp "${SYSROOT}/home/${USER}/caliptra-sw/hw-latest/fpga/rom_backdoor/rom_backdoor.ko" /tmp/caliptra-fpga-kmod/
+          cp "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/io_module/io_module.ko" /tmp/caliptra-fpga-kmod/
+          cp "${SYSROOT}/home/${USER}/caliptra-sw/hw/fpga/rom_backdoor/rom_backdoor.ko" /tmp/caliptra-fpga-kmod/
 
       - name: Save kernel modules to cache
         uses: actions/cache/save@v3
@@ -272,7 +271,7 @@ jobs:
   
       - name: Build FPGA bitstream
         run: |
-          cd hw-latest/fpga
+          cd hw/fpga
           mkdir caliptra_build
           if [ "${{ inputs.fpga-itrng }}" == "false" ]; then
             ITRNG=FALSE
@@ -289,7 +288,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: caliptra-fpga-bitstream${{ inputs.artifact-suffix }}
-          path: hw-latest/fpga/caliptra_build/caliptra_fpga.bin
+          path: hw/fpga/caliptra_build/caliptra_fpga.bin
 
   cache_fpga_bitstream_artifact:
     runs-on: ubuntu-22.04

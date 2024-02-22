@@ -28,7 +28,7 @@ jobs:
       - name: Update the Caliptra RTL submodule and rebuild registers
         run: |
           echo "RTL-REPO-SYNC: release_ref=$(git rev-parse HEAD)"
-          git submodule update --remote hw-latest/caliptra-rtl
+          git submodule update --remote hw/latest/rtl
           ./registers/update.sh
 
       - name: Find available branch name

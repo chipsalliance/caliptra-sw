@@ -22,7 +22,7 @@ sudo make install
 
 ```shell
 git submodule update --init"  # Needed the first time
-(cd hw-latest/verilated && cargo test --features verilator)
+(cd hw/verilated && cargo test --features verilator)
 (cd hw-model && cargo test --features verilator)
 ```
 
