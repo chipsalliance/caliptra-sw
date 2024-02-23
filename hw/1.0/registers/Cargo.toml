@@ -1,15 +1,11 @@
 # Licensed under the Apache-2.0 license.
 
 [package]
-name = "caliptra-registers"
+name = "caliptra-registers-1_0"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-caliptra-registers-1_0 = { workspace = true }
-caliptra-registers-latest = { workspace = true, optional = true}
-
-[features]
-hw-latest = ["dep:caliptra-registers-latest"]
+ureg.workspace = true

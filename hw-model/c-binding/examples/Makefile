@@ -16,7 +16,7 @@
 EXTRA_CARGO_CONFIG = target.'cfg(all())'.rustflags = [\"-Dwarnings\"]
 OUT = out
 TARGET = $(OUT)/smoke_test
-RTL_SOC_IFC_INCLUDE_PATH = ../../../hw/latest/rtl/src/soc_ifc/rtl
+RTL_SOC_IFC_INCLUDE_PATH = ../../../hw/1.0/rtl/src/soc_ifc/rtl
 BUILDER_PATH = ../../../builder
 CALIPTRA_MODEL_PATH = ../out
 CFLAGS += -I$(RTL_SOC_IFC_INCLUDE_PATH) -I$(CALIPTRA_MODEL_PATH)
