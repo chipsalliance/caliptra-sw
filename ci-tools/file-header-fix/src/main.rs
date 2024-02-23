@@ -15,6 +15,7 @@ const IGNORED_PATHS: &[&str] = &[
     "./runtime/dpe",
     "./hw-latest/fpga/caliptra_build",
     "./hw/fpga/caliptra_build",
+    "./hw/1.0/rtl",
     "./hw/latest/rtl",
     "./ci-tools/fpga-boss/image/mnt",
     "./ci-tools/fpga-image/out",

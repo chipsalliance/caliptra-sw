@@ -11,7 +11,7 @@ LIBCALIPTRA_INC  = $(LIBCALIPTRA_ROOT)/inc
 OBJS := $(patsubst %.c,%.o, $(filter %.c,$(SOURCE)))
 
 # SOC REFERENCE
-RTL_SOC_IFC_INCLUDE_PATH = ../../../hw/latest/rtl/src/soc_ifc/rtl
+RTL_SOC_IFC_INCLUDE_PATH = ../../../hw/1.0/rtl/src/soc_ifc/rtl
 
 # INCLUDES
 INCLUDES += -I$(RTL_SOC_IFC_INCLUDE_PATH) -I$(LIBCALIPTRA_INC)

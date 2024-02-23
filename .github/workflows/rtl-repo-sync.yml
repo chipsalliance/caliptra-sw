@@ -29,6 +29,7 @@ jobs:
         run: |
           echo "RTL-REPO-SYNC: release_ref=$(git rev-parse HEAD)"
           git submodule update --remote hw/latest/rtl
+          git submodule update --remote hw/1.0/rtl
           ./registers/update.sh
 
       - name: Find available branch name

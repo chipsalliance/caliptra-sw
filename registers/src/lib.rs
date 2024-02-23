@@ -2,5 +2,8 @@
 //
 #![no_std]
 
-// TODO: Select which register crate to use based on features
+#[cfg(feature = "hw-latest")]
 pub use caliptra_registers_latest::*;
+
+#[cfg(not(feature = "hw-latest"))]
+pub use caliptra_registers_1_0::*;

@@ -41,7 +41,7 @@ cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-fmc $WORKSPACE_DIR/fa
 cp -a target/riscv32imc-unknown-none-elf/firmware/caliptra-runtime $WORKSPACE_DIR/fake-caliptra-runtime.elf
 
 # Copy RTL
-cp -rf hw/latest/rtl $WORKSPACE_DIR/caliptra-rtl
+cp -rf hw/1.0/rtl $WORKSPACE_DIR/caliptra-rtl
 # Copy libcaliptra
 cp -rf libcaliptra $WORKSPACE_DIR/libcaliptra
 # Copy FPGA Model
@@ -64,7 +64,7 @@ cp $release_scripts_path/tools/rtl_hash.sh $WORKSPACE_DIR/
 # Generate Notes
 echo -e "Caliptra HW Release Note " > $WORKSPACE_DIR/release_notes.txt
 echo -e "Nightly $1" >> $WORKSPACE_DIR/release_notes.txt
-echo -e "Caliptra-RTL Rev: $(git rev-parse HEAD:hw/latest/rtl)" >> $WORKSPACE_DIR/release_notes.txt
+echo -e "Caliptra-RTL Rev: $(git rev-parse HEAD:hw/1.0/rtl)" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "Caliptra-SW Rev: $(git rev-parse HEAD)" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "RTL hash (see rtl_hash.sh): $rtl_hash" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "Content:" >> $WORKSPACE_DIR/release_notes.txt
