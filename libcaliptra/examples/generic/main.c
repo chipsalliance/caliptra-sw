@@ -402,7 +402,7 @@ int rt_test_all_commands()
     // Not testing for full success
     // Instead, just want to see it give the right DPE-specific error
     // This still proves the FW recognizes the message and request data and got to the right DPE code
-    uint32_t RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED = 0xe002b;
+    uint32_t RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED = 0xe0027;
     non_fatal_error = caliptra_read_fw_non_fatal_error();
     if (status != MBX_STATUS_FAILED || non_fatal_error != RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED) {
         printf("DPE Command unexpected result/failure: 0x%x\n", status);

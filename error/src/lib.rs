@@ -245,7 +245,6 @@ impl CaliptraError {
         CaliptraError::new_const(0x000b0036);
     pub const IMAGE_VERIFIER_ERR_OWNER_LMS_SIGNATURE_INVALID: CaliptraError =
         CaliptraError::new_const(0x000b0038);
-    pub const RUNTIME_HANDOFF_FHT_NOT_LOADED: CaliptraError = CaliptraError::new_const(0x000b0039);
     pub const IMAGE_VERIFIER_ERR_VENDOR_LMS_PUB_KEY_REVOKED: CaliptraError =
         CaliptraError::new_const(0x000b0003a);
     pub const IMAGE_VERIFIER_ERR_FMC_SIZE_ZERO: CaliptraError =
@@ -322,96 +321,91 @@ impl CaliptraError {
     pub const RUNTIME_INSUFFICIENT_MEMORY: CaliptraError = CaliptraError::new_const(0x000E0003);
     pub const RUNTIME_ECDSA_VERIFY_FAILED: CaliptraError = CaliptraError::new_const(0x000E0004);
     pub const RUNTIME_INVALID_CHECKSUM: CaliptraError = CaliptraError::new_const(0x000E0005);
-    pub const RUNTIME_FIPS_UNIMPLEMENTED: CaliptraError = CaliptraError::new_const(0x000E0006);
+    pub const RUNTIME_HANDOFF_FHT_NOT_LOADED: CaliptraError = CaliptraError::new_const(0x000E0006);
     pub const RUNTIME_UNEXPECTED_UPDATE_RETURN: CaliptraError =
         CaliptraError::new_const(0x000E0007);
     pub const RUNTIME_SHUTDOWN: CaliptraError = CaliptraError::new_const(0x000E0008);
-    pub const RUNTIME_NO_MANIFEST: CaliptraError = CaliptraError::new_const(0x000E0009);
-    pub const RUNTIME_MAILBOX_INVALID_PARAMS: CaliptraError = CaliptraError::new_const(0x000E000A);
-    pub const RUNTIME_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000E000B);
-    pub const RUNTIME_GLOBAL_EXCEPTION: CaliptraError = CaliptraError::new_const(0x000E000C);
-    pub const RUNTIME_GLOBAL_PANIC: CaliptraError = CaliptraError::new_const(0x000E000D);
-    pub const RUNTIME_HMAC_VERIFY_FAILED: CaliptraError = CaliptraError::new_const(0x000E000E);
-    pub const RUNTIME_INVOKE_DPE_FAILED: CaliptraError = CaliptraError::new_const(0x000E000F);
-    pub const RUNTIME_INITIALIZE_DPE_FAILED: CaliptraError = CaliptraError::new_const(0x000E0010);
-    pub const RUNTIME_DISABLE_ATTESTATION_FAILED: CaliptraError =
-        CaliptraError::new_const(0x000E0011);
-    pub const RUNTIME_HANDOFF_INVALID_PARM: CaliptraError = CaliptraError::new_const(0x000E0012);
-    pub const RUNTIME_GET_IDEVID_CERT_FAILED: CaliptraError = CaliptraError::new_const(0x000E0013);
+    pub const RUNTIME_MAILBOX_INVALID_PARAMS: CaliptraError = CaliptraError::new_const(0x000E0009);
+    pub const RUNTIME_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000E000A);
+    pub const RUNTIME_GLOBAL_EXCEPTION: CaliptraError = CaliptraError::new_const(0x000E000B);
+    pub const RUNTIME_GLOBAL_PANIC: CaliptraError = CaliptraError::new_const(0x000E000C);
+    pub const RUNTIME_HMAC_VERIFY_FAILED: CaliptraError = CaliptraError::new_const(0x000E000D);
+    pub const RUNTIME_INITIALIZE_DPE_FAILED: CaliptraError = CaliptraError::new_const(0x000E000E);
+    pub const RUNTIME_GET_IDEVID_CERT_FAILED: CaliptraError = CaliptraError::new_const(0x000E000F);
     pub const RUNTIME_CERT_CHAIN_CREATION_FAILED: CaliptraError =
-        CaliptraError::new_const(0x000E0014);
-    pub const RUNTIME_SELF_TEST_IN_PROGRESS: CaliptraError = CaliptraError::new_const(0x000E0015);
-    pub const RUNTIME_SELF_TEST_NOT_STARTED: CaliptraError = CaliptraError::new_const(0x000E0016);
-    pub const RUNTIME_INVALID_FMC_SIZE: CaliptraError = CaliptraError::new_const(0x000E0017);
-    pub const RUNTIME_INVALID_RUNTIME_SIZE: CaliptraError = CaliptraError::new_const(0x000E0018);
-    pub const RUNTIME_FMC_CERT_HANDOFF_FAILED: CaliptraError = CaliptraError::new_const(0x000E0019);
+        CaliptraError::new_const(0x000E0010);
+    pub const RUNTIME_SELF_TEST_IN_PROGRESS: CaliptraError = CaliptraError::new_const(0x000E0011);
+    pub const RUNTIME_SELF_TEST_NOT_STARTED: CaliptraError = CaliptraError::new_const(0x000E0012);
+    pub const RUNTIME_INVALID_FMC_SIZE: CaliptraError = CaliptraError::new_const(0x000E0013);
+    pub const RUNTIME_INVALID_RUNTIME_SIZE: CaliptraError = CaliptraError::new_const(0x000E0014);
+    pub const RUNTIME_FMC_CERT_HANDOFF_FAILED: CaliptraError = CaliptraError::new_const(0x000E0015);
     pub const RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL: CaliptraError =
-        CaliptraError::new_const(0x000E001A);
-    pub const RUNTIME_DPE_VALIDATION_FAILED: CaliptraError = CaliptraError::new_const(0x000E001B);
-    pub const RUNTIME_UNKNOWN_RESET_FLOW: CaliptraError = CaliptraError::new_const(0x000E001C);
+        CaliptraError::new_const(0x000E0016);
+    pub const RUNTIME_DPE_VALIDATION_FAILED: CaliptraError = CaliptraError::new_const(0x000E0017);
+    pub const RUNTIME_UNKNOWN_RESET_FLOW: CaliptraError = CaliptraError::new_const(0x000E0018);
     pub const RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED: CaliptraError =
-        CaliptraError::new_const(0x000E001D);
+        CaliptraError::new_const(0x000E0019);
     pub const RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED: CaliptraError =
-        CaliptraError::new_const(0x000E001E);
-    pub const RUNTIME_GLOBAL_WDT_EXPIRED: CaliptraError = CaliptraError::new_const(0x000E001F);
+        CaliptraError::new_const(0x000E001A);
+    pub const RUNTIME_GLOBAL_WDT_EXPIRED: CaliptraError = CaliptraError::new_const(0x000E001B);
     pub const RUNTIME_IDEV_CERT_POPULATION_FAILED: CaliptraError =
-        CaliptraError::new_const(0x000E0021);
+        CaliptraError::new_const(0x000E001C);
     pub const RUNTIME_ADD_ROM_MEASUREMENTS_TO_DPE_FAILED: CaliptraError =
-        CaliptraError::new_const(0x000E0022);
-    pub const RUNTIME_TAGGING_FAILURE: CaliptraError = CaliptraError::new_const(0x000E0022);
-    pub const RUNTIME_DUPLICATE_TAG: CaliptraError = CaliptraError::new_const(0x000E0023);
-    pub const RUNTIME_CONTEXT_ALREADY_TAGGED: CaliptraError = CaliptraError::new_const(0x000E0024);
+        CaliptraError::new_const(0x000E001D);
+    pub const RUNTIME_TAGGING_FAILURE: CaliptraError = CaliptraError::new_const(0x000E001E);
+    pub const RUNTIME_DUPLICATE_TAG: CaliptraError = CaliptraError::new_const(0x000E001F);
+    pub const RUNTIME_CONTEXT_ALREADY_TAGGED: CaliptraError = CaliptraError::new_const(0x000E0020);
     pub const RUNTIME_ADD_VALID_PAUSER_MEASUREMENT_TO_DPE_FAILED: CaliptraError =
-        CaliptraError::new_const(0x000E0025);
+        CaliptraError::new_const(0x000E0021);
     pub const RUNTIME_MAILBOX_API_RESPONSE_DATA_LEN_TOO_LARGE: CaliptraError =
-        CaliptraError::new_const(0x000E0026);
+        CaliptraError::new_const(0x000E0022);
     pub const RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE: CaliptraError =
-        CaliptraError::new_const(0x000E0027);
+        CaliptraError::new_const(0x000E0023);
     pub const RUNTIME_LDEVID_CERT_HANDOFF_FAILED: CaliptraError =
-        CaliptraError::new_const(0x000E0028);
+        CaliptraError::new_const(0x000E0024);
     pub const RUNTIME_CONTEXT_TAGS_VALIDATION_FAILED: CaliptraError =
-        CaliptraError::new_const(0x000E0029);
+        CaliptraError::new_const(0x000E0025);
     pub const RUNTIME_COULD_NOT_GET_DPE_PROFILE: CaliptraError =
-        CaliptraError::new_const(0x000E002A);
+        CaliptraError::new_const(0x000E0026);
     pub const RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED: CaliptraError =
-        CaliptraError::new_const(0x000E002B);
-    pub const RUNTIME_GET_LDEVID_CERT_FAILED: CaliptraError = CaliptraError::new_const(0x000E002C);
+        CaliptraError::new_const(0x000E0027);
+    pub const RUNTIME_GET_LDEVID_CERT_FAILED: CaliptraError = CaliptraError::new_const(0x000E0028);
     pub const RUNTIME_GET_FMC_ALIAS_CERT_FAILED: CaliptraError =
-        CaliptraError::new_const(0x000E002D);
+        CaliptraError::new_const(0x000E0029);
     pub const RUNTIME_GET_RT_ALIAS_CERT_FAILED: CaliptraError =
-        CaliptraError::new_const(0x000E002E);
+        CaliptraError::new_const(0x000E002A);
     pub const RUNTIME_CMD_BUSY_DURING_WARM_RESET: CaliptraError =
-        CaliptraError::new_const(0x000E002F);
-    pub const RUNTIME_RT_SVN_HANDOFF_FAILED: CaliptraError = CaliptraError::new_const(0x000E0030);
+        CaliptraError::new_const(0x000E002B);
+    pub const RUNTIME_RT_SVN_HANDOFF_FAILED: CaliptraError = CaliptraError::new_const(0x000E002C);
     pub const RUNTIME_RT_MIN_SVN_HANDOFF_FAILED: CaliptraError =
-        CaliptraError::new_const(0x000E0031);
-    pub const RUNTIME_FMC_SVN_HANDOFF_FAILED: CaliptraError = CaliptraError::new_const(0x000E0032);
+        CaliptraError::new_const(0x000E002D);
+    pub const RUNTIME_FMC_SVN_HANDOFF_FAILED: CaliptraError = CaliptraError::new_const(0x000E002E);
     pub const RUNTIME_CONTEXT_HAS_TAG_VALIDATION_FAILED: CaliptraError =
-        CaliptraError::new_const(0x000E0033);
-    pub const RUNTIME_LDEV_ID_CERT_TOO_BIG: CaliptraError = CaliptraError::new_const(0x000E0034);
-    pub const RUNTIME_FMC_ALIAS_CERT_TOO_BIG: CaliptraError = CaliptraError::new_const(0x000E0035);
-    pub const RUNTIME_RT_ALIAS_CERT_TOO_BIG: CaliptraError = CaliptraError::new_const(0x000E0036);
+        CaliptraError::new_const(0x000E002F);
+    pub const RUNTIME_LDEV_ID_CERT_TOO_BIG: CaliptraError = CaliptraError::new_const(0x000E0030);
+    pub const RUNTIME_FMC_ALIAS_CERT_TOO_BIG: CaliptraError = CaliptraError::new_const(0x000E0031);
+    pub const RUNTIME_RT_ALIAS_CERT_TOO_BIG: CaliptraError = CaliptraError::new_const(0x000E0032);
     pub const RUNTIME_COMPUTE_RT_ALIAS_SN_FAILED: CaliptraError =
-        CaliptraError::new_const(0x000E0037);
+        CaliptraError::new_const(0x000E0033);
     pub const RUNTIME_RT_JOURNEY_PCR_VALIDATION_FAILED: CaliptraError =
-        CaliptraError::new_const(0x000E0038);
+        CaliptraError::new_const(0x000E0034);
     pub const RUNTIME_UNABLE_TO_FIND_DPE_ROOT_CONTEXT: CaliptraError =
-        CaliptraError::new_const(0x000E0039);
+        CaliptraError::new_const(0x000E0035);
     pub const RUNTIME_INCREMENT_PCR_RESET_MAX_REACHED: CaliptraError =
-        CaliptraError::new_const(0x000E003A);
+        CaliptraError::new_const(0x000E0036);
     pub const RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED: CaliptraError =
-        CaliptraError::new_const(0x000E003B);
+        CaliptraError::new_const(0x000E0037);
     pub const RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED: CaliptraError =
-        CaliptraError::new_const(0x000E003C);
+        CaliptraError::new_const(0x000E0038);
     pub const RUNTIME_CDI_KV_HDL_HANDOFF_FAILED: CaliptraError =
-        CaliptraError::new_const(0x000E003D);
+        CaliptraError::new_const(0x000E0039);
     pub const RUNTIME_PRIV_KEY_KV_HDL_HANDOFF_FAILED: CaliptraError =
-        CaliptraError::new_const(0x000E003E);
+        CaliptraError::new_const(0x000E003A);
     pub const RUNTIME_HASH_CHAIN_HANDOFF_FAILED: CaliptraError =
-        CaliptraError::new_const(0x000E003F);
+        CaliptraError::new_const(0x000E003B);
     /// PCR Runtime Errors
-    pub const RUNTIME_PCR_RESERVED: CaliptraError = CaliptraError::new_const(0x000E0040);
-    pub const RUNTIME_PCR_INVALID_INDEX: CaliptraError = CaliptraError::new_const(0x000E0041);
+    pub const RUNTIME_PCR_RESERVED: CaliptraError = CaliptraError::new_const(0x000E003C);
+    pub const RUNTIME_PCR_INVALID_INDEX: CaliptraError = CaliptraError::new_const(0x000E003D);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
