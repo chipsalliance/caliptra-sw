@@ -1,7 +1,5 @@
 // Licensed under the Apache-2.0 license
 
-#![cfg(any(feature = "verilator", feature = "fpga_realtime"))]
-
 use caliptra_builder::{
     firmware::{self, APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
@@ -126,7 +124,7 @@ fn warm_reset_during_fw_load() {
         .cmd()
         .write(|_| CommandId::FIRMWARE_LOAD.into());
     let buf = &image.to_bytes().unwrap();
-    assert!(!mbox_write_fifo(&hw.soc_mbox(), buf).is_err());
+    assert!(mbox_write_fifo(&hw.soc_mbox(), buf).is_ok());
     // Ask the microcontroller to execute this command
     hw.soc_mbox().execute().write(|w| w.execute(true));
 

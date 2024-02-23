@@ -4,6 +4,7 @@ use caliptra_builder::{firmware, ImageOptions};
 use caliptra_common::mailbox_api::{
     GetFmcAliasCertReq, GetLdevCertReq, GetRtAliasCertReq, ResponseVarSize,
 };
+use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
 use caliptra_hw_model_types::{DeviceLifecycle, Fuses, RandomEtrngResponses, RandomNibbles};
 use caliptra_test::{derive, redact_cert, run_test, RedactOpts, UnwrapSingle};
@@ -662,7 +663,6 @@ fn test_rt_wdt_timeout() {
     // watchdog as part of the runtime event loop.
     #![cfg_attr(feature = "fpga_realtime", ignore)]
 
-    const RUNTIME_GLOBAL_WDT_EPIRED: u32 = 0x000E001F;
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
 
     // TODO: Don't hard-code these; maybe measure from a previous boot?
@@ -689,7 +689,7 @@ fn test_rt_wdt_timeout() {
     hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_fatal().read(),
-        RUNTIME_GLOBAL_WDT_EPIRED
+        u32::from(CaliptraError::RUNTIME_GLOBAL_WDT_EXPIRED)
     );
 
     let mcause = hw.soc_ifc().cptra_fw_extended_error_info().at(0).read();
@@ -712,8 +712,6 @@ fn test_rt_wdt_timeout() {
 
 #[test]
 fn test_fmc_wdt_timeout() {
-    const FMC_GLOBAL_WDT_EPIRED: u32 = 0x000F000D;
-
     // TODO: Don't hard-code these; maybe measure from a previous boot?
     let fmc_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
         25_300_000
@@ -738,7 +736,7 @@ fn test_fmc_wdt_timeout() {
     hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
     assert_eq!(
         hw.soc_ifc().cptra_fw_error_fatal().read(),
-        FMC_GLOBAL_WDT_EPIRED
+        u32::from(CaliptraError::FMC_GLOBAL_WDT_EXPIRED),
     );
 
     let mcause = hw.soc_ifc().cptra_fw_extended_error_info().at(0).read();
