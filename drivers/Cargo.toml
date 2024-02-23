@@ -36,6 +36,8 @@ verilator = ["caliptra-hw-model/verilator"]
 no-cfi = []
 hw-latest = ["caliptra-builder/hw-latest", "caliptra-registers/hw-latest"]
 
+
+
 [dev-dependencies]
 caliptra-builder.workspace = true
 caliptra-drivers-test-bin.workspace = true

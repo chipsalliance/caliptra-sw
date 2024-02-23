@@ -301,6 +301,68 @@ impl Lms {
         Ok(HashValue::from(digest))
     }
 
+    #[cfg(feature = "hw-latest")]
+    pub fn hash_chain<const N: usize>(
+        &self,
+        sha256_driver: &mut impl Sha256Alg,
+        wnt_prefix: &mut [u8; 55],
+        coeff: u8,
+        params: &LmotsParameter,
+        tmp: &mut HashValue<N>,
+    ) -> CaliptraResult<HashValue<N>> {
+        const WNTZ_MODE_SHA256: u8 = 32;
+
+        let iteration_count = ((1u16 << params.w) - 1) as u8;
+
+        if coeff < iteration_count {
+            let mut digest = Array4x8::default();
+            let mut hasher = sha256_driver.digest_init()?;
+            wnt_prefix[22] = coeff;
+            let mut i = 23;
+            for val in tmp.0.iter().take(N) {
+                wnt_prefix[i..i + 4].clone_from_slice(&val.to_be_bytes());
+                i += 4;
+            }
+            //set n_mode: 1 for n=32, and 0 for n=24
+            let mut n_mode: bool = false;
+            if params.n == WNTZ_MODE_SHA256 {
+                n_mode = true;
+            }
+            hasher.update_wntz(&wnt_prefix[0..23 + N * 4], params.w, n_mode)?;
+            hasher.finalize_wntz(&mut digest, params.w, n_mode)?;
+            *tmp = HashValue::<N>::from(digest);
+        }
+        Ok(*tmp)
+    }
+
+    // This operation is accelerated in hardware by RTL1.1.
+    #[cfg(not(feature = "hw-latest"))]
+    pub fn hash_chain<const N: usize>(
+        &self,
+        sha256_driver: &mut impl Sha256Alg,
+        wnt_prefix: &mut [u8; 55],
+        coeff: u8,
+        params: &LmotsParameter,
+        tmp: &mut HashValue<N>,
+    ) -> CaliptraResult<HashValue<N>> {
+        let iteration_count = ((1u16 << params.w) - 1) as u8;
+
+        for j in coeff..iteration_count {
+            let mut digest = Array4x8::default();
+            let mut hasher = sha256_driver.digest_init()?;
+            wnt_prefix[22] = j;
+            let mut i = 23;
+            for val in tmp.0.iter().take(N) {
+                wnt_prefix[i..i + 4].clone_from_slice(&val.to_be_bytes());
+                i += 4;
+            }
+            hasher.update(&wnt_prefix[0..23 + N * 4])?;
+            hasher.finalize(&mut digest)?;
+            *tmp = HashValue::<N>::from(digest);
+        }
+        Ok(*tmp)
+    }
+
     pub fn candidate_ots_signature<const N: usize, const P: usize>(
         &self,
         sha256_driver: &mut impl Sha256Alg,
@@ -311,9 +373,9 @@ impl Lms {
         message_digest: &HashValue<N>,
     ) -> CaliptraResult<HashValue<N>> {
         // wntz_mode: 1 for SHA256 with n=32, and 0 for SHA192 with n=24
-        const WNTZ_MODE_SHA256: u8 = 32;
 
-        let params = get_lmots_parameters(algo_type)?;
+        let params: &LmotsParameter = get_lmots_parameters(algo_type)?;
+
         if params.p as usize != P {
             return Err(CaliptraError::DRIVER_LMS_INVALID_PVALUE);
         }
@@ -344,32 +406,14 @@ impl Lms {
         let mut hash_block = [0u8; 55];
         hash_block[0..16].clone_from_slice(lms_identifier);
         hash_block[16..20].clone_from_slice(q);
+
         for (i, val) in z.iter_mut().enumerate() {
             let a = self.coefficient(&message_hash_with_checksum, i, params.w as usize)?;
             let mut tmp = HashValue::<N>::from(y[i]);
-            let t_upper: u16 = (1 << params.w) - 1; // subtract with overflow?
-            let upper = t_upper as u8;
-            if a < upper {
-                hash_block[20..22].clone_from_slice(&(i as u16).to_be_bytes());
-                // for j in a..upper {
-                let mut digest = Array4x8::default();
-                let mut hasher = sha256_driver.digest_init()?;
-                hash_block[22] = a; //j;
-                let mut i = 23;
-                for val in tmp.0.iter().take(N) {
-                    hash_block[i..i + 4].clone_from_slice(&val.to_be_bytes());
-                    i += 4;
-                }
-                //set n_mode: 1 for n=32, and 0 for n=24
-                let mut n_mode: bool = false;
-                if params.n == WNTZ_MODE_SHA256 {
-                    n_mode = true;
-                }
-                hasher.update_wntz(&hash_block[0..23 + N * 4], params.w, n_mode)?;
-                hasher.finalize_wntz(&mut digest, params.w, n_mode)?;
-                tmp = HashValue::<N>::from(digest);
-            }
-            *val = tmp;
+
+            hash_block[20..22].clone_from_slice(&(i as u16).to_be_bytes());
+
+            *val = self.hash_chain(sha256_driver, &mut hash_block, a, params, &mut tmp)?;
         }
         let mut digest = Array4x8::default();
         let mut hasher = sha256_driver.digest_init()?;
