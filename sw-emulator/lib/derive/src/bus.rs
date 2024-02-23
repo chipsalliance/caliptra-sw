@@ -48,6 +48,10 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
     } else {
         quote! {}
     };
+
+    let nmi_read_tokens = gen_nmi_tokens(&struct_name, AccessType::Read);
+    let nmi_write_tokens = gen_nmi_tokens(&struct_name, AccessType::Write);
+
     let read_reg_match_tokens = gen_register_match_tokens(&register_fields, AccessType::Read);
     let write_reg_match_tokens = gen_register_match_tokens(&register_fields, AccessType::Write);
     let self_poll_tokens = if let Some(poll_fn) = &poll_fn {
@@ -79,11 +83,13 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
             fn read(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
                 #read_reg_match_tokens
                 #read_bus_match_tokens
+                #nmi_read_tokens
                 Err(caliptra_emu_bus::BusError::LoadAccessFault)
             }
             fn write(&mut self, size: caliptra_emu_types::RvSize, addr: caliptra_emu_types::RvAddr, val: caliptra_emu_types::RvData) -> Result<(), caliptra_emu_bus::BusError> {
                 #write_reg_match_tokens
                 #write_bus_match_tokens
+                #nmi_write_tokens
                 Err(caliptra_emu_bus::BusError::StoreAccessFault)
             }
             fn poll(&mut self) {
@@ -335,6 +341,33 @@ enum AccessType {
 
 fn lsbs_contiguous(mask: u32) -> bool {
     mask != 0 && (u64::from(mask) + 1).is_power_of_two()
+}
+
+fn gen_nmi_tokens(struct_name: &Ident, access_type: AccessType) -> TokenStream {
+    let name = struct_name.to_string();
+    let mut _ret_tokens = quote! {};
+
+    match access_type {
+        AccessType::Read => {
+            _ret_tokens = if name == "CaliptraRootBus" {
+                quote! {
+                self.dummy_peripheral.nmi_invalid_read();}
+            } else {
+                quote! {}
+            };
+        }
+
+        AccessType::Write => {
+            _ret_tokens = if name == "CaliptraRootBus" {
+                quote! {
+                self.dummy_peripheral.nmi_invalid_write();}
+            } else {
+                quote! {}
+            };
+        }
+    };
+
+    _ret_tokens
 }
 
 /// Serialize `mask_matches` into a stream of Rust tokens. `access_type`

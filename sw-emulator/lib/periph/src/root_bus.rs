@@ -16,8 +16,8 @@ use crate::{
     helpers::words_from_bytes_be,
     iccm::Iccm,
     soc_reg::{DebugManufService, SocRegistersExternal},
-    AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha512, HmacSha384, KeyVault, MailboxExternal,
-    MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
+    AsymEcc384, Csrng, Doe, DummyPeripheral, EmuCtrl, HashSha256, HashSha512, HmacSha384, KeyVault,
+    MailboxExternal, MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
 };
 use caliptra_emu_bus::{Clock, Ram, Rom};
 use caliptra_emu_derive::Bus;
@@ -290,6 +290,9 @@ pub struct CaliptraRootBus {
 
     #[peripheral(offset = 0x5000_0000, mask = 0x0fff_ffff)]
     pub dccm: Ram,
+
+    #[peripheral(offset = 0xffff_ffff, mask = 0x0000_0001)]
+    pub dummy_peripheral: DummyPeripheral,
 }
 
 impl CaliptraRootBus {
@@ -330,6 +333,7 @@ impl CaliptraRootBus {
             mailbox,
             sha512_acc: Sha512Accelerator::new(clock, mailbox_ram),
             csrng: Csrng::new(itrng_nibbles.unwrap()),
+            dummy_peripheral: DummyPeripheral::new(clock),
         }
     }
 
@@ -356,6 +360,10 @@ pub struct SocToCaliptraBus {
 
 #[cfg(test)]
 mod tests {
+    use caliptra_emu_bus::Bus;
+    use caliptra_emu_bus::TimerAction;
+    use caliptra_emu_types::RvSize;
+
     use crate::KeyUsage;
 
     use super::*;
@@ -419,6 +427,66 @@ mod tests {
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
             ]
+        );
+    }
+
+    fn next_action(clock: &Clock) -> Option<TimerAction> {
+        let mut actions = clock.increment(4);
+        match actions.len() {
+            0 => None,
+            1 => actions.drain().next(),
+            _ => panic!("More than one action scheduled; unexpected"),
+        }
+    }
+
+    #[test]
+    fn test_rootbus_nmi() {
+        let clock = Clock::new();
+        let mut root_bus = CaliptraRootBus::new(&clock, Default::default());
+        //expected behavior: generate nmi for non-peripheral addr
+        let addr_non_periph: u32 = 0x6000_0000;
+        let addr_periph: u32 = 0x3003_0000;
+
+        //--- reading from a peripheral and non-peripheral address---
+        let _r1 = root_bus.read(RvSize::Word, addr_periph);
+        assert_eq!(next_action(&clock), None);
+
+        let r2 = root_bus.read(RvSize::Word, addr_non_periph);
+        assert_eq!(
+            next_action(&clock),
+            Some(TimerAction::Nmi {
+                mcause: 0x0000_00f1
+            })
+        );
+        //Keeping the error reporting intact.
+        //So inaddition to NMI, should also throw BusError. This can be modified later.
+        assert_eq!(r2, Err(caliptra_emu_bus::BusError::LoadAccessFault));
+
+        //--- writing to a peripheral and non-peripheral address ---
+        let _w1 = root_bus.write(RvSize::Word, addr_periph, 0x1);
+        assert_eq!(next_action(&clock), None);
+
+        let w2 = root_bus.write(RvSize::Word, addr_non_periph, 0x1);
+        assert_eq!(
+            next_action(&clock),
+            Some(TimerAction::Nmi {
+                mcause: 0x0000_00f2
+            })
+        );
+        assert_eq!(w2, Err(caliptra_emu_bus::BusError::StoreAccessFault));
+    }
+
+    #[test]
+    fn test_dummy_peripheral_nmi() {
+        let clock = Clock::new();
+        let mut dp = DummyPeripheral::new(&clock);
+
+        dp.nmi_invalid_read();
+        assert_eq!(
+            next_action(&clock),
+            Some(TimerAction::Nmi {
+                mcause: 0x0000_00f1
+            })
         );
     }
 }
