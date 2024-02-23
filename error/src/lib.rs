@@ -409,10 +409,9 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E003E);
     pub const RUNTIME_HASH_CHAIN_HANDOFF_FAILED: CaliptraError =
         CaliptraError::new_const(0x000E003F);
-
     /// PCR Runtime Errors
-    pub const RUNTIME_PCR_RESERVED: CaliptraError = CaliptraError::new_const(0x000E003D);
-    pub const RUNTIME_PCR_INVALID_INDEX: CaliptraError = CaliptraError::new_const(0x000E003F);
+    pub const RUNTIME_PCR_RESERVED: CaliptraError = CaliptraError::new_const(0x000E0040);
+    pub const RUNTIME_PCR_INVALID_INDEX: CaliptraError = CaliptraError::new_const(0x000E0041);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
