@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::firmware;
+use caliptra_builder::version;
 use caliptra_builder::ImageOptions;
 use clap::{arg, value_parser, Command};
 use std::collections::HashSet;
@@ -45,7 +46,10 @@ fn main() {
         let image = caliptra_builder::build_and_sign_image(
             &firmware::FMC_WITH_UART,
             &firmware::APP_WITH_UART,
-            ImageOptions::default(),
+            ImageOptions {
+                app_version: version::get_runtime_version(),
+                ..Default::default()
+            },
         )
         .unwrap();
         std::fs::write(path, image.to_bytes().unwrap()).unwrap();
@@ -56,7 +60,10 @@ fn main() {
         let image = caliptra_builder::build_and_sign_image(
             &firmware::FMC_FAKE_WITH_UART,
             &firmware::APP_WITH_UART,
-            ImageOptions::default(),
+            ImageOptions {
+                app_version: version::get_runtime_version(),
+                ..Default::default()
+            },
         )
         .unwrap();
         std::fs::write(path, image.to_bytes().unwrap()).unwrap();
