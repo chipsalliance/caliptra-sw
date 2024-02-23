@@ -15,7 +15,7 @@
 
 VERILATOR = verilator
 VERILATED_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
-CALIPTRA_RTL_DIR := $(realpath $(VERILATED_DIR)../latest/rtl)
+CALIPTRA_RTL_DIR := $(realpath $(VERILATED_DIR)../1.0/rtl)
 
 CFLAGS := -std=c++11 -fno-exceptions -fPIC
 VERILATOR_MAKE_FLAGS = OPT_FAST="-Os"
@@ -26,7 +26,7 @@ VERILATOR_OBJS = out/verilated_threads.o out/verilated.o out/verilated_vcd_c.o
 
 LIB_OBJS = out/caliptra_verilated.o
 
-export CALIPTRA_ROOT = $(realpath ../latest/rtl)
+export CALIPTRA_ROOT = $(realpath ../1.0/rtl)
 
 suppress = -Wno-WIDTH -Wno-UNOPTFLAT -Wno-LITENDIAN -Wno-CMPCONST -Wno-MULTIDRIVEN -Wno-UNPACKED
 

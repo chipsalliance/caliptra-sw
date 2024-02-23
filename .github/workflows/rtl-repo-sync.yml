@@ -22,13 +22,21 @@ jobs:
 
       - uses: actions/checkout@v3
         with:
-          submodules: 'true'
           ref: 'main'
 
       - name: Update the Caliptra RTL submodule and rebuild registers
         run: |
           echo "RTL-REPO-SYNC: release_ref=$(git rev-parse HEAD)"
+
+          # Submodules need to be initialized here rather than actions/checkout
+          # so that git can find the main_1.0 branch when updating the
+          # hw/1.0/rtl submodule below. Otherwise, it hides the non-main
+          # branches.
+          git submodule update --init
+
           git submodule update --remote hw/latest/rtl
+          git submodule update --remote hw/1.0/rtl
+
           ./registers/update.sh
 
       - name: Find available branch name

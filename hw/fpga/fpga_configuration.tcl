@@ -10,7 +10,7 @@ file mkdir $packageDir
 file mkdir $adapterDir
 
 # Path to rtl
-set rtlDir $fpgaDir/../latest/rtl
+set rtlDir $fpgaDir/../1.0/rtl
 
 # Simplistic processing of command line arguments to enable different features
 # Defaults:

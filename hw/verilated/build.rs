@@ -46,7 +46,7 @@ fn add_filename(filename: &Path) -> impl FnOnce(std::io::Error) -> std::io::Erro
 
 fn sv_files(manifest_dir: &Path) -> Result<Vec<String>, std::io::Error> {
     let mut result = vec![];
-    let filename = manifest_dir.join("../latest/rtl/src/integration/config/caliptra_top_tb.vf");
+    let filename = manifest_dir.join("../1.0/rtl/src/integration/config/caliptra_top_tb.vf");
     for line in BufReader::new(File::open(&filename).map_err(add_filename(&filename))?).lines() {
         let line = line?;
         if line.starts_with('+') {
