@@ -1,7 +1,7 @@
 # Licensed under the Apache-2.0 license.
 
 [package]
-name = "caliptra-registers"
+name = "caliptra-registers-latest"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,4 +9,3 @@ edition = "2021"
 
 [dependencies]
 ureg.workspace = true
-caliptra-registers-latest.workspace = true

@@ -661,6 +661,14 @@ dependencies = [
 name = "caliptra-registers"
 version = "0.1.0"
 dependencies = [
+ "caliptra-registers-latest",
+ "ureg",
+]
+
+[[package]]
+name = "caliptra-registers-latest"
+version = "0.1.0"
+dependencies = [
  "ureg",
 ]
 
