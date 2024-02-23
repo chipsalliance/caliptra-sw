@@ -100,7 +100,10 @@ fn main() -> std::io::Result<()> {
         let image = caliptra_builder::build_and_sign_image(
             &FMC_WITH_UART,
             &APP_WITH_UART,
-            caliptra_builder::ImageOptions::default(),
+            caliptra_builder::ImageOptions {
+                app_version: caliptra_builder::version::get_runtime_version(),
+                ..Default::default()
+            },
         )
         .unwrap();
 
