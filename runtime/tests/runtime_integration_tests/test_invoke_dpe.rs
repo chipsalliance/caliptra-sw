@@ -14,8 +14,8 @@ use cms::{
 };
 use dpe::{
     commands::{
-        CertifyKeyCmd, CertifyKeyFlags, Command, GetCertificateChainCmd, InitCtxCmd, SignCmd,
-        SignFlags,
+        CertifyKeyCmd, CertifyKeyFlags, Command, GetCertificateChainCmd, InitCtxCmd, RotateCtxCmd,
+        RotateCtxFlags, SignCmd, SignFlags,
     },
     context::ContextHandle,
     response::{DpeErrorCode, Response},
@@ -247,4 +247,45 @@ fn test_invoke_dpe_certify_key_csr() {
     let alias_key = rt_cert.public_key().unwrap().ec_key().unwrap();
     let csr_sig = EcdsaSig::from_der(signer_info.signature.as_bytes()).unwrap();
     assert!(csr_sig.verify(&csr_digest, &alias_key).unwrap());
+}
+
+#[test]
+fn test_invoke_dpe_rotate_context() {
+    let mut model = run_rt_test(None, None, None);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let rotate_ctx_cmd = RotateCtxCmd {
+        handle: ContextHandle::default(),
+        flags: RotateCtxFlags::empty(),
+    };
+
+    let resp = execute_dpe_cmd(
+        &mut model,
+        &mut Command::RotateCtx(rotate_ctx_cmd),
+        DpeResult::Success,
+    );
+    let Some(Response::RotateCtx(rotate_ctx_resp)) = resp else {
+        panic!("Wrong response type!");
+    };
+
+    assert!(!rotate_ctx_resp.handle.is_default());
+
+    let rotate_ctx_cmd = RotateCtxCmd {
+        handle: rotate_ctx_resp.handle,
+        flags: RotateCtxFlags::TARGET_IS_DEFAULT,
+    };
+
+    let resp = execute_dpe_cmd(
+        &mut model,
+        &mut Command::RotateCtx(rotate_ctx_cmd),
+        DpeResult::Success,
+    );
+    let Some(Response::RotateCtx(rotate_ctx_resp)) = resp else {
+        panic!("Wrong response type!");
+    };
+
+    assert!(rotate_ctx_resp.handle.is_default());
 }
