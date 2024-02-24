@@ -92,6 +92,7 @@ Calls the DPE commands sign and certify_key via the invoke_dpe mailbox command a
 Calls the DPE command sign with the symmetric flag set via the invoke_dpe mailbox command and checks that the resulting HMAC value is non-zero | **test_invoke_dpe_symmetric_sign** | N/A
 Tests that failed DPE command populates mbox header with correct error code | **test_dpe_header_error_code** | N/A
 Calls the DPE command certify_key with the CSR format via the invoke_dpe mailbox command and validates the fields of the CSR | **test_invoke_dpe_certify_key_csr** | N/A
+Calls the DPE command rotate_context via the invoke_dpe mailbox command and verifies the rotated context handle | **test_invoke_dpe_rotate_context** | N/A
 
 <br><br>
 # **PAUSER Privilege Level Tests**
