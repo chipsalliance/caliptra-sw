@@ -379,7 +379,7 @@ impl Sha256 {
             // Submit the first block
             sha256.ctrl().write(|w| {
                 w.wntz_n_mode(n_mode)
-                    .wntz_w(w_value)
+                    .wntz_w(w_value.into())
                     .wntz_mode(true)
                     .mode(true)
                     .init(true)
@@ -389,7 +389,7 @@ impl Sha256 {
             // Submit next block in existing hashing chain
             sha256.ctrl().write(|w| {
                 w.wntz_n_mode(n_mode)
-                    .wntz_w(w_value)
+                    .wntz_w(w_value.into())
                     .wntz_mode(false)
                     .mode(true)
                     .init(false)
