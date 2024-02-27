@@ -16,12 +16,13 @@ use caliptra_emu_bus::{
     ActionHandle, BusError, Clock, ReadOnlyMemory, ReadOnlyRegister, ReadWriteMemory,
     ReadWriteRegister, Timer,
 };
-use caliptra_emu_crypto::{Sha256, Sha256Mode};
+use caliptra_emu_crypto::{EndianessTransform, Sha256, Sha256Mode};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 
+// Register bitfields for the SHA256 peripheral
 register_bitfields! [
     u32,
 
@@ -34,13 +35,16 @@ register_bitfields! [
             SHA256 = 0b01,
         ],
         ZEROIZE OFFSET(3) NUMBITS(1) [],
-        RSVD OFFSET(4) NUMBITS(28) [],
-    ],
+        WNTZ_MODE OFFSET(4) NUMBITS(1) [],
+        WNTZ_W OFFSET(5)NUMBITS(4) [],
+        WNTZ_N_MODE OFFSET(9) NUMBITS(1) [],
+            ],
 
     /// Status Register Fields
     Status[
         READY OFFSET(0) NUMBITS(1) [],
         VALID OFFSET(1) NUMBITS(1) [],
+        WNTZ_BUSY OFFSET(2) NUMBITS(1) [],
     ],
 ];
 
@@ -99,6 +103,18 @@ pub struct HashSha256 {
 
     op_complete_action: Option<ActionHandle>,
 }
+#[derive(Debug)]
+pub struct WntzParams {
+    wntz_mode: bool,
+    wntz_w: u32,
+    wntz_n_mode: bool,
+    init: bool,
+}
+#[derive(Debug, Eq, PartialEq)]
+pub enum WntzError {
+    WntzDisabled,
+    WntzParamInvalid,
+}
 
 impl HashSha256 {
     /// NAME0 Register Value
@@ -130,25 +146,7 @@ impl HashSha256 {
         }
     }
 
-    /// On Write callback for `control` register
-    ///
-    /// # Arguments
-    ///
-    /// * `size` - Size of the write
-    /// * `val` - Data to write
-    ///
-    /// # Error
-    ///
-    /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
-    pub fn on_write_control(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
-        // Writes have to be Word aligned
-        if size != RvSize::Word {
-            Err(BusError::StoreAccessFault)?
-        }
-
-        // Set the control register
-        self.control.reg.set(val);
-
+    pub fn hash_block(&mut self, block: &[u8; 64]) -> Result<(), BusError> {
         if self.control.reg.is_set(Control::INIT) || self.control.reg.is_set(Control::NEXT) {
             // Reset the Ready and Valid status bits
             self.status
@@ -173,7 +171,7 @@ impl HashSha256 {
                 self.sha256.reset(mode);
 
                 // Update the SHA256 engine with a new block
-                self.sha256.update(self.block.data());
+                self.sha256.update(block);
 
                 // Schedule a future call to poll() complete the operation.
                 self.op_complete_action = Some(self.timer.schedule_poll_in(INIT_TICKS));
@@ -184,6 +182,103 @@ impl HashSha256 {
                 // Schedule a future call to poll() complete the operation.
                 self.op_complete_action = Some(self.timer.schedule_poll_in(UPDATE_TICKS));
             }
+        }
+        Ok(())
+    }
+
+    pub fn is_wntz_enabled(&self) -> Result<WntzParams, WntzError> {
+        let params = WntzParams {
+            wntz_mode: self.control.reg.is_set(Control::WNTZ_MODE),
+            wntz_w: self.control.reg.read(Control::WNTZ_W),
+            wntz_n_mode: self.control.reg.is_set(Control::WNTZ_N_MODE),
+            init: self.control.reg.is_set(Control::INIT),
+        };
+        if params.wntz_mode && params.init {
+            match params.wntz_w {
+                1 | 2 | 4 | 8 => (),
+                _ => return Err(WntzError::WntzParamInvalid),
+            }
+            return Ok(params);
+        }
+
+        Err(WntzError::WntzDisabled)
+    }
+
+    /// On Write callback for `control` register
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - Size of the write
+    /// * `val` - Data to write
+    ///
+    /// # Error
+    ///
+    /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
+    pub fn on_write_control(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
+        // Writes have to be Word aligned
+        if size != RvSize::Word {
+            Err(BusError::StoreAccessFault)?
+        }
+
+        // Set the control register
+        self.control.reg.set(val);
+
+        // If WNTZ_MODE is set and first is set, then enable winternitz
+        if let Ok(params) = self.is_wntz_enabled() {
+            // Initialize winternitz iteration count
+            let iter_count = (1 << params.wntz_w) - 1;
+
+            let mut block = [0u8; 64];
+            block.clone_from(self.block.data());
+            block.to_big_endian();
+            let coeff = block[22] as u16;
+
+            let mut mode = Sha256Mode::Sha256;
+            let modebits = self.control.reg.read(Control::MODE);
+
+            match modebits {
+                0 => {
+                    mode = Sha256Mode::Sha224;
+                }
+                1 => {
+                    mode = Sha256Mode::Sha256;
+                }
+                _ => Err(BusError::StoreAccessFault)?,
+            }
+
+            for j in coeff..iter_count {
+                // Update the SHA256 engine with a new block
+                if j == coeff {
+                    // Reset the Ready and Valid status bits
+                    self.status
+                        .reg
+                        .modify(Status::READY::CLEAR + Status::VALID::CLEAR);
+                    self.sha256.reset(mode);
+                    self.sha256.update(self.block.data());
+                } else {
+                    block[22] = j as u8;
+
+                    let hash_len = if params.wntz_n_mode { 32 } else { 24 };
+
+                    let mut digest = [0u8; SHA256_HASH_SIZE];
+                    self.sha256.hash(&mut digest);
+                    digest.to_big_endian();
+
+                    block[23..23 + hash_len].copy_from_slice(&digest[..hash_len]);
+
+                    block.to_little_endian();
+                    self.sha256.reset(mode);
+                    self.sha256.update(&block);
+                    block.to_big_endian();
+                }
+
+                // Schedule a future call to poll() complete the operation.
+                self.op_complete_action = Some(self.timer.schedule_poll_in(INIT_TICKS));
+            }
+        } else {
+            let mut block = [0; 64];
+            block.clone_from(self.block.data());
+            self.hash_block(&block)?;
         }
 
         if self.control.reg.is_set(Control::ZEROIZE) {
@@ -390,7 +485,15 @@ mod tests {
 
     #[rustfmt::skip]
     const SHA_256_TEST_BLOCK: [u8; 3] = [
-        0x61, 0x62, 0x63, 
+        0x61, 0x62, 0x63 
+    ];
+    #[rustfmt::skip]
+    const SHA_256_ACC_TEST_BLOCK: [u8; 64] = [
+        0xF6, 0x4F, 0xF1, 0xD2, 0x64, 0xF9, 0x6A, 0x34, 0x6C, 0x7D, 0x9F, 0x56, 0xB6, 0xA1, 0x80,
+        0xB8, 0x0A, 0x00, 0x00, 0x00, 0x95, 0xC5, 0x00, 0x00, 0x89, 0x5B, 0xE0, 0xCA, 0xFD, 0xDF,
+        0x35, 0x9E, 0x70, 0x54, 0x70, 0x71, 0x8E, 0x98, 0x09, 0x62, 0x37, 0x6E, 0xDF, 0xBF, 0xC3,
+        0xB5, 0x0B, 0x96, 0xE8, 0x57, 0x76, 0x8D, 0x80, 0xEF, 0xFE, 0xBF, 0x00, 0x00, 0x00, 0x00,
+        0xB8, 0x01, 0x00, 0x00,
     ];
 
     #[test]
@@ -437,5 +540,118 @@ mod tests {
         ];
 
         test_sha(&SHA_256_TEST_MULTI_BLOCK, &expected, Sha256Mode::Sha256);
+    }
+
+    #[test]
+    fn test_wntz_params() {
+        fn make_word(idx: usize, arr: &[u8]) -> RvData {
+            let mut res: RvData = 0;
+            for i in 0..4 {
+                res |= (arr[idx + i] as RvData) << (i * 8);
+            }
+            res
+        }
+        let clock = Clock::new();
+
+        let mut sha256 = HashSha256::new(&clock);
+        for i in (0..SHA256_BLOCK_SIZE).step_by(4) {
+            assert_eq!(
+                sha256
+                    .write(
+                        RvSize::Word,
+                        OFFSET_BLOCK + i as RvAddr,
+                        make_word(i, &SHA_256_ACC_TEST_BLOCK)
+                    )
+                    .ok(),
+                Some(())
+            );
+        }
+        let control: ReadWriteRegister<u32, Control::Register> = ReadWriteRegister::new(0);
+        control.reg.modify(Control::INIT::SET);
+        control.reg.modify(Control::WNTZ_MODE::SET);
+        control.reg.modify(Control::WNTZ_W.val(8));
+        control.reg.modify(Control::WNTZ_N_MODE::SET);
+        control.reg.modify(Control::MODE.val(1));
+
+        sha256
+            .write(RvSize::Word, OFFSET_CONTROL, control.reg.get())
+            .unwrap();
+
+        loop {
+            let status = InMemoryRegister::<u32, Status::Register>::new(
+                sha256.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+            );
+
+            if status.is_set(Status::VALID) && status.is_set(Status::READY) {
+                break;
+            }
+            clock.increment_and_process_timer_actions(1, &mut sha256);
+        }
+
+        let mut hash_be: [u8; 32] = [0; 32];
+        hash_be[..sha256.hash().len()].clone_from_slice(sha256.hash());
+
+        const EXPECTED: [u8; 32] = [
+            0xDA, 0xC8, 0x0B, 0x84, 0x56, 0x3A, 0x75, 0x0B, 0x46, 0x14, 0x11, 0x7A, 0xAD, 0xCC,
+            0xB3, 0x47, 0x72, 0x0C, 0x0D, 0xB1, 0x1B, 0xA1, 0xE2, 0x39, 0xF9, 0x17, 0x93, 0x52,
+            0x90, 0x20, 0xF6, 0xF8,
+        ];
+
+        assert_eq!(&hash_be[0..sha256.hash().len()], EXPECTED);
+    }
+
+    #[test]
+    fn test_wntz_mode_disabled_by_default() {
+        let sha256 = HashSha256::new(&Clock::new());
+        let err = sha256.is_wntz_enabled().unwrap_err();
+        assert_eq!(err, WntzError::WntzDisabled);
+    }
+    #[test]
+    fn test_wntz_mode_disabled_if_init_not_set() {
+        let mut sha256 = HashSha256::new(&Clock::new());
+        let control: ReadWriteRegister<u32, Control::Register> = ReadWriteRegister::new(0);
+        control.reg.modify(Control::WNTZ_MODE::SET);
+        control.reg.modify(Control::WNTZ_W.val(8));
+        control.reg.modify(Control::WNTZ_N_MODE::SET);
+        control.reg.modify(Control::MODE.val(1));
+        sha256
+            .write(RvSize::Word, OFFSET_CONTROL, control.reg.get())
+            .unwrap();
+
+        let err = sha256.is_wntz_enabled().unwrap_err();
+        assert_eq!(err, WntzError::WntzDisabled);
+    }
+
+    #[test]
+    fn test_wntz_error_if_w_is_not_valid() {
+        let mut sha256 = HashSha256::new(&Clock::new());
+        let control: ReadWriteRegister<u32, Control::Register> = ReadWriteRegister::new(0);
+        control.reg.modify(Control::INIT::SET);
+        control.reg.modify(Control::WNTZ_MODE::SET);
+        control.reg.modify(Control::WNTZ_W.val(7));
+        control.reg.modify(Control::WNTZ_N_MODE::SET);
+        control.reg.modify(Control::MODE.val(1));
+        sha256
+            .write(RvSize::Word, OFFSET_CONTROL, control.reg.get())
+            .unwrap();
+
+        let err = sha256.is_wntz_enabled().unwrap_err();
+        assert_eq!(err, WntzError::WntzParamInvalid);
+    }
+
+    #[test]
+    fn test_wntz_is_enabled() {
+        let mut sha256 = HashSha256::new(&Clock::new());
+        let control: ReadWriteRegister<u32, Control::Register> = ReadWriteRegister::new(0);
+        control.reg.modify(Control::INIT::SET);
+        control.reg.modify(Control::WNTZ_MODE::SET);
+        control.reg.modify(Control::WNTZ_W.val(8));
+        control.reg.modify(Control::WNTZ_N_MODE::SET);
+        control.reg.modify(Control::MODE.val(1));
+        sha256
+            .write(RvSize::Word, OFFSET_CONTROL, control.reg.get())
+            .unwrap();
+
+        assert!(sha256.is_wntz_enabled().is_ok());
     }
 }
