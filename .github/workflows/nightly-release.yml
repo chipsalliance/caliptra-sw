@@ -202,6 +202,7 @@ jobs:
             ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
             ./release/test_artifacts_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
           tag_name: ${{ needs.find-latest-release.outputs.new_release_tag }}
+          prerelease: true
 
       - name: Write artifact to workflow with release info
         run: |
