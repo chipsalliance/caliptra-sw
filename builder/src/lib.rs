@@ -452,7 +452,7 @@ pub fn build_and_sign_image(
     Ok(image)
 }
 
-fn image_revision() -> io::Result<ImageRevision> {
+pub fn image_revision() -> io::Result<ImageRevision> {
     if std::env::var_os("CALIPTRA_IMAGE_NO_GIT_REVISION").is_some() {
         // Sometimes needed to build a consistent ROM image from different
         // commits.

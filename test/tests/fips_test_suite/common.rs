@@ -237,11 +237,11 @@ pub fn mbx_send_and_check_resp_hdr<T: HwModel, U: FromBytes + AsBytes>(
     //Ok(U::read_from(resp_bytes.as_bytes()).unwrap())
 }
 
-// Returns true if not all bytes are the same
+// Returns true if not all elements in array are the same
 // (Mainly want to make sure data is not all 0s or all Fs)
-pub fn contains_some_data(data: &[u8]) -> bool {
-    for byte in data {
-        if *byte != data[0] {
+pub fn contains_some_data<T: std::cmp::PartialEq>(data: &[T]) -> bool {
+    for chunk in data {
+        if *chunk != data[0] {
             return true;
         }
     }
