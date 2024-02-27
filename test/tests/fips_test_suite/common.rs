@@ -45,6 +45,11 @@ pub struct RtExpVals {
     pub fw_version: u32,
 }
 
+const RT_EXP_1_0_0: RtExpVals = RtExpVals {
+    fmc_version: 0x0,
+    fw_version: 0x0100_0000,
+};
+
 const RT_EXP_CURRENT: RtExpVals = RtExpVals {
     fmc_version: 0x0,
     fw_version: 0x0,
@@ -89,11 +94,14 @@ impl RomExpVals {
 impl RtExpVals {
     pub fn get() -> RtExpVals {
         if let Ok(version) = std::env::var("FIPS_TEST_RT_EXP_VERSION") {
-            // Add more versions here
-            panic!(
-                "FIPS Test: Unknown version for expected Runtime values ({})",
-                version
-            );
+            match version.as_str() {
+                // Add more versions here
+                "1_0_0" => RT_EXP_1_0_0,
+                _ => panic!(
+                    "FIPS Test: Unknown version for expected Runtime values ({})",
+                    version
+                ),
+            }
         } else {
             RT_EXP_CURRENT
         }
@@ -181,22 +189,7 @@ pub fn fips_test_init_to_rt(boot_params: Option<BootParams>) -> DefaultHwModel {
 
     if build_fw {
         // If FW was not provided, build it or get it from the specified path
-        let fw_image = match std::env::var("FIPS_TEST_FW_BIN") {
-            // Build default FW if not provided and no path is specified
-            Err(_) => caliptra_builder::build_and_sign_image(
-                &FMC_WITH_UART,
-                &APP_WITH_UART,
-                ImageOptions::default(),
-            )
-            .unwrap()
-            .to_bytes()
-            .unwrap(),
-            // Read in the ROM file if a path was provided
-            Ok(fw_path) => match std::fs::read(&fw_path) {
-                Err(why) => panic!("couldn't open {}: {}", fw_path, why),
-                Ok(fw_image) => fw_image,
-            },
-        };
+        let fw_image = fips_fw_image();
 
         fips_test_init_base(boot_params, Some(&fw_image))
     } else {
@@ -237,11 +230,30 @@ pub fn mbx_send_and_check_resp_hdr<T: HwModel, U: FromBytes + AsBytes>(
     //Ok(U::read_from(resp_bytes.as_bytes()).unwrap())
 }
 
-// Returns true if not all bytes are the same
+pub fn fips_fw_image() -> Vec<u8> {
+    match std::env::var("FIPS_TEST_FW_BIN") {
+        // Build default FW if not provided and no path is specified
+        Err(_) => caliptra_builder::build_and_sign_image(
+            &FMC_WITH_UART,
+            &APP_WITH_UART,
+            ImageOptions::default(),
+        )
+        .unwrap()
+        .to_bytes()
+        .unwrap(),
+        // Read in the ROM file if a path was provided
+        Ok(fw_path) => match std::fs::read(&fw_path) {
+            Err(why) => panic!("couldn't open {}: {}", fw_path, why),
+            Ok(fw_image) => fw_image,
+        },
+    }
+}
+
+// Returns true if not all elements in array are the same
 // (Mainly want to make sure data is not all 0s or all Fs)
-pub fn contains_some_data(data: &[u8]) -> bool {
-    for byte in data {
-        if *byte != data[0] {
+pub fn contains_some_data<T: std::cmp::PartialEq>(data: &[T]) -> bool {
+    for element in data {
+        if *element != data[0] {
             return true;
         }
     }
