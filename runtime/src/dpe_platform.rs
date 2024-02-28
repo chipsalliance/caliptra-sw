@@ -25,7 +25,7 @@ use dpe::{
 };
 use platform::{
     CertValidity, Platform, PlatformError, SignerIdentifier, MAX_CHUNK_SIZE, MAX_ISSUER_NAME_SIZE,
-    MAX_SKI_SIZE, MAX_SN_SIZE,
+    MAX_KEY_IDENTIFIER_SIZE, MAX_SN_SIZE,
 };
 use zerocopy::AsBytes;
 
@@ -126,17 +126,29 @@ impl Platform for DpePlatform<'_> {
     /// See X509::subj_key_id in fmc/src/flow/x509.rs for code that generates the
     /// SubjectKeyIdentifier extension in the RT alias certificate.
     fn get_signer_identifier(&mut self) -> Result<SignerIdentifier, PlatformError> {
-        let mut ski = [0u8; MAX_SKI_SIZE];
+        let mut ski = [0u8; MAX_KEY_IDENTIFIER_SIZE];
         let hashed_rt_pub_key = self.hashed_rt_pub_key.bytes();
-        if hashed_rt_pub_key.len() < MAX_SKI_SIZE {
+        if hashed_rt_pub_key.len() < MAX_KEY_IDENTIFIER_SIZE {
             return Err(PlatformError::SubjectKeyIdentifierError(0));
         }
-        ski.copy_from_slice(&hashed_rt_pub_key[..MAX_SKI_SIZE]);
+        ski.copy_from_slice(&hashed_rt_pub_key[..MAX_KEY_IDENTIFIER_SIZE]);
         let mut ski_vec = ArrayVec::new();
         ski_vec
             .try_extend_from_slice(&ski)
             .map_err(|_| PlatformError::SubjectKeyIdentifierError(0))?;
         Ok(SignerIdentifier::SubjectKeyIdentifier(ski_vec))
+    }
+
+    fn get_issuer_key_identifier(
+        &mut self,
+        out: &mut [u8; MAX_KEY_IDENTIFIER_SIZE],
+    ) -> Result<(), PlatformError> {
+        let hashed_rt_pub_key = self.hashed_rt_pub_key.bytes();
+        if hashed_rt_pub_key.len() < MAX_KEY_IDENTIFIER_SIZE {
+            return Err(PlatformError::IssuerKeyIdentifierError(0));
+        }
+        out.copy_from_slice(&hashed_rt_pub_key[..MAX_KEY_IDENTIFIER_SIZE]);
+        Ok(())
     }
 
     fn write_str(&mut self, str: &str) -> Result<(), PlatformError> {
