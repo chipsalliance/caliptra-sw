@@ -1,0 +1,43 @@
+define mem_access_test
+    printf "0x%x %i byte access\n", $arg0, $arg1
+    if $arg1 == 1
+        set $ptr = (unsigned char*)$arg0
+    end
+    if $arg1 == 2
+        set $ptr = (unsigned short*)$arg0
+    end
+    if $arg1 == 4
+        set $ptr = (unsigned int*)$arg0
+    end
+    if $arg1 == 8
+        set $ptr = (unsigned long long*)$arg0
+    end
+
+    # Perform Read
+    set $original = *$ptr
+    echo Read Accepted\n
+
+    # Perform Write
+    set *$ptr = 0
+    # Restore original value
+    set *$ptr = $original
+
+    echo Write Accepted\n
+    echo Done\n
+end
+
+define recover
+    # Write to DCCM to clear out cached errors in the openocd gdb server
+    set $ptr = (unsigned int*)0x50000000
+
+    set $original = *$ptr
+    set *$ptr = $original
+    echo Recovered\n
+end
+
+target extended-remote localhost:3333
+
+set logging file /dev/stderr
+set logging enabled on
+
+echo GDB Launched\n

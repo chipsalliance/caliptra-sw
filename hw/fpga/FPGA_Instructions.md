@@ -124,17 +124,16 @@ Serial port settings for connection over USB.
 Requirements:
 - Security state must have either debug_locked == false or lifecycle == manuf.
 - Set "debug = true" in firmware profile to provide line information to GDB.
-- Olimex ARM-USB-TINY-H with SiFive-Arty Adapter
-
-#### PMOD pin assignment ####
-![](./images/Caliptra_FPGA_PMOD_JTAG.svg)
+- openocd 0.12.0 (must be configured with --enable-sysfsgpio)
+- gdb-multiarch
 
 #### Debugger launch procedure ####
+Caliptra's JTAG pins are directly connected to EMIO GPIO pins bridging the PS and PL. OpenOCD is run on the ARM core and uses SysFs to interface with the GPIO pins.
 1. Invoke OpenOCD server
-    - `openocd.exe -f ~/openocd_caliptra.txt`
+    - `sudo openocd --file caliptra-sw/hw/fpga/openocd_caliptra.txt`
 1. Connect client(s) for debug
-    - GDB: Port 3333
-    - Telnet: Port 4444
+    - GDB: `gdb-multiarch [bin] -ex 'target remote localhost:3333'`
+    - Telnet: `telnet localhost 4444`
 
 #### Caliptra SoC interface registers ####
 Over Telnet connection to OpenOCD: `riscv.cpu riscv dmi_read [addr]`
