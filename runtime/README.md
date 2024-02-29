@@ -818,7 +818,7 @@ To derive an asymmetric key for Sign and CertifyKey, Runtime Firmware does the f
 
 ### Certificate generation
 
-The DPE Runtime Alias Key SHALL sign DPE leaf certificates and CSRs.
+The DPE Runtime Alias Key SHALL sign DPE leaf certificates.
 
 The DPE `GET_CERTIFICATE_CHAIN` command shall return the following certificates:
 
