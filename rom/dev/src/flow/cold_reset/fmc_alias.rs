@@ -194,7 +194,7 @@ impl FmcAliasLayer {
         // Generate the `To Be Signed` portion of the CSR
         let tbs = FmcAliasCertTbs::new(&params);
 
-        // Sign the the `To Be Signed` portion
+        // Sign the `To Be Signed` portion
         cprintln!(
             "[afmc] Signing Cert with AUTHORITY.KEYID = {}",
             auth_priv_key as u8
