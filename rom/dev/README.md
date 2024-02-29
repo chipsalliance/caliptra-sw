@@ -57,36 +57,7 @@ following topics:
 | SVN                 | Security Version Number                                                   |
 | X509                | Digital Certificate Standard                                              |
 
-## 5. DICE Layers
-
-![DICE](doc/svg/rom-dice.svg)
-
-### 5.1 Initial Device ID (IDEVID) DICE Layer
-
-This layer represents the manufacturer/silicon vendor device identity. This layer's CDI is constructed
-using a deobfuscated UDS. A self signed CSR is generated (if requested) during  cold reset.
-CSR is provided to the manufacturer/silicon vendor CA for issuing a Manufacturer Device Certificate. Please refer to https://github.com/chipsalliance/Caliptra/blob/main/doc/Caliptra.md#provisioning-idevid-during-manufacturing for additional details on CSR generation request.
-
-### 5.2 Local Device ID DICE (LDEVID) Layer
-
-This layer represents the owner identity. This layer's CDI is constructed by mixing some entropy
-once the owner acquires the devices. The primary purpose of this layer is to mitigate supply
-chain attacks via owner providing some entropy via fuses which is further randomized via the
-deobfuscation engine. ROM generates a certificate signature for this layer using the IDEVID private key.
-
-### 5.2 Alias FMC DICE Layer
-
-In traditional DICE architectures, the Alias layer is controlled by the FMC. However, there are no standard
-mechanisms available to tie the Alias Certificate back to the manufacturer. The only standard way currently 
-available is for LDEVID private key to sign the Alias FMC Certificate. However, LDEVID private key is a critical key
-with very limited in-field renewability. Hence LDEVID private key must never leave ROM and must
-be cleared prior to ROM exit. This implies we need to do part of the Alias FMC derivations in ROM,
-generating the Alias FMC certificate signature using LDEVID private key.
-
-The CDI for this layer comprises of the security state of the device and TCI (digest/measurement)
-of the FMC firmware
-
-## 6. FUSE & Architectural Registers
+## 5. FUSE & Architectural Registers
 
 Following are the main FUSE & Architectural Registers used by the Caliptra ROM for DICE Derivations:
 
@@ -106,21 +77,7 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR  <br> **Word 0**: X509 Key Id Algorithm (2 bits) 1: SHA1, 2: SHA256, 2: SHA384, 3: Fuse <br> **Word 1,2,3,4,5**: Subject Key Id <br> **Words 7,8**: Unique Endpoint ID  |
 | CPTRA_DBG_MANUF_SERVICE_REG     | 16           | Manufacturing Services: <br> **Bit 0**: IDEVID CSR upload  <br> **Bit 1**: Random Number Generator Unavailable <br> **Bit 31**: Fake ROM image verify enable           |
 
-## 7. Vaults
-
-Caliptra Hardware has the following vaults for storing various cryptographic material:
-
-1.	**Key Vault**: Used to store sensitive keys (Private Keys & CDI). Firmware cannot read or write the Key Vault content directly. Key Vault has 32 slots. Firmware can refer to the keys in the Key Vault via Slot numbers during cryptographic operations.
-2.	**PCR Bank**: Used to store measurements. PCR Bank has 32 PCRs. PCRs can be read or hash extended by the firmware. Direct write to PCR is not possible.
-3.	**Data Vault**: Data Vault contains a set of sticky (lock till next cold reset), non-sticky (lock till next Warm/Update reset) and scratch registers.
-    *	10 Sticky 48-byte registers
-    *	8 Sticky 4-byte registers
-    *	10 Non-Sticky 48-byte registers
-    *	10 Non-Sticky 4-byte registers
-    *	8 Scratch Registers
-
-
-## 8. Firmware Image Bundle
+## 6. Firmware Image Bundle
 
 The Caliptra Firmware image has two main components:
 
@@ -129,11 +86,11 @@ The Caliptra Firmware image has two main components:
 
 ![Firmware Image Bundle](doc/svg/fw-img-bundle.svg)
 
-### 8.1 Firmware Manifest
+### 6.1 Firmware Manifest
 
 Firmware manifest consists of preamble, header and table of contents.
 
-#### 8.1.1 Preamble
+#### 6.1.1 Preamble
 
 It is the unsigned portion of the manifest. Preamble contains the signing public keys and signatures. ROM is responsible for parsing the preamble. ROM performs the following steps:
 *	Loads the preamble from the mailbox.
@@ -164,7 +121,7 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 | Reserved | 8 | Reserved 8 bytes |
 <br>
 
-#### 8.1.2 Header
+#### 6.1.2 Header
 
 The header contains the security version and SHA2-384 hash of the table of contents. Header is the only signed component in the image. Signing the header is enough as the table of contents contains the hashes of the individual firmware images. This technique reduces the number of signature verifications required to be performed during boot.
 
@@ -181,7 +138,7 @@ The header contains the security version and SHA2-384 hash of the table of conte
 | Owner Data | 40 | Owner Data. <br> **Not Before:** Owner Start Date [ASN1 Time Format] For LDEV-Id certificate. Takes preference over vendor start date (15 bytes) <br> **Not After:** Owner End Date [ASN1 Time Format] For LDEV-Id certificate. Takes preference over vendor end date (15 bytes) <br> **Reserved:** (10 bytes) |
 
 
-#### 8.1.3 Table of Contents
+#### 6.1.3 Table of Contents
 It contains the image information and SHA-384 hash of individual firmware images.
 | Field | Size (bytes) | Description|
 |-------|--------|------------|
@@ -197,14 +154,14 @@ It contains the image information and SHA-384 hash of individual firmware images
 | Image Size | 4 | Image Size |
 | Image Hash | 48 | SHA2-384 hash of image |
 
-### 8.2 Image
+### 6.2 Image
 
 | Field | Size (bytes) | Description   |
 |-------|--------------|---------------|
 | Data  | N            | Image content |
 
 
-## 9. Cryptographic Primitives
+## 7. Cryptographic Primitives
 
 The following sections define the various cryptographic primitives used by Caliptra ROM:
 | Group | Operation |Description |
@@ -230,7 +187,7 @@ The following sections define the various cryptographic primitives used by Calip
 | X509 | `gen_tbs(type, pub_key) -> tbs` | Generate X509 Certificate or CSR `To Be Signed` portion<br>**Input**:<br>***type*** - Can be IDEVID_CSR, LDEVID_CERT or ALIAS_FMC_CERT<br>pub-key -public key<br>**Output**:<br>***tbs*** - DER encoded `To Be Signed` portion |
 <br>
 
-## 7. Well Known Cryptographic Constants
+## 8. Well Known Cryptographic Constants
 
 | Constant | Size (bytes) | Description |
 |----------|--------------|-------------|
