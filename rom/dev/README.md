@@ -17,10 +17,8 @@
 
 ## 2. Spec Opens
 
-- Update the spec with adding certificate expiration times for vendor and owner
 - Update the firmware image format to include the runtime configuration section
 - Ability to run production signed firmware that can only run in debug mode
-- Add certificate section
 
 ## 3. Scope
 
@@ -37,7 +35,6 @@ following topics:
    - Update Reset Flow
    - Unknown/Spurious Reset Flow
 5. Cryptographic Derivations
-6. Certificate Formats
 
 ## 4. Glossary
 
