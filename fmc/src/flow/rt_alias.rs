@@ -328,7 +328,7 @@ impl RtAliasLayer {
         // Generate the `To Be Signed` portion of the CSR
         let tbs = RtAliasCertTbs::new(&params);
 
-        // Sign the the `To Be Signed` portion
+        // Sign the `To Be Signed` portion
         cprintln!(
             "[alias rt] Signing Cert with AUTHO
             RITY.KEYID = {}",

@@ -316,7 +316,7 @@ The following list of steps are to be performed by FMC on each boot when ROM jum
    utilizes the ROM-based FIPS Crypto Module or its own internal FIPS Crypto services in implementations without a discrete FW-based FIPS Crypto Module.
 1. FMC locates the Manifest at fht.manifest_load_addr.
 1. FMC reads the measurement of the Runtime FW Module, TCI<sub>RT</sub>, from the Data Vault that has previously been validated by ROM.
-1. FMC reads the manifest address of the Image Bundle from the the HandOff Table, and calculates the SHA-384 TCI<sub>MAN</sub>
+1. FMC reads the manifest address of the Image Bundle from the HandOff Table, and calculates the SHA-384 TCI<sub>MAN</sub>
 1. FMC clears Current PCR
 1. FMC extends Current and Journey PCR registers with TCI<sub>RT</sub>.
 1. FMC extends Current and Journey PCR registers with TCI<sub>MAN</sub>.
