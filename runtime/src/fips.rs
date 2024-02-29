@@ -130,8 +130,8 @@ pub mod fips_self_test_cmd {
     pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<()> {
         caliptra_drivers::report_boot_status(RtFipSelfTestStarted.into());
         cprintln!("[rt] FIPS self test");
-        rom_integrity_test(env)?;
         execute_kats(env)?;
+        rom_integrity_test(env)?;
         copy_and_verify_image(env)?;
         caliptra_drivers::report_boot_status(RtFipSelfTestComplete.into());
         Ok(())
