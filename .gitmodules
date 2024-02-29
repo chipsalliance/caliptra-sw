@@ -1,10 +1,14 @@
 # Typical firmware development will not need this submodule. Future
 # commits should only use it when running verilated test cases or updating
 # the caliptra-registers crate.
-[submodule "hw-latest/caliptra-rtl"]
-	path = hw-latest/caliptra-rtl
+[submodule "hw/latest/rtl"]
+	path = hw/latest/rtl
 	url = https://github.com/chipsalliance/caliptra-rtl
 	branch = main
+[submodule "hw/1.0/rtl"]
+	path = hw/1.0/rtl
+	url = https://github.com/chipsalliance/caliptra-rtl
+	branch = main_1.0
 [submodule "dpe"]
 	path = dpe
 	url = https://github.com/chipsalliance/caliptra-dpe.git

@@ -10,13 +10,13 @@ file mkdir $packageDir
 file mkdir $adapterDir
 
 # Path to rtl
-set rtlDir $fpgaDir/../caliptra-rtl
+set rtlDir $fpgaDir/../1.0/rtl
 
 # Simplistic processing of command line arguments to enable different features
 # Defaults:
 set BUILD FALSE
 set GUI   FALSE
-set JTAG  FALSE
+set JTAG  TRUE
 set ITRNG TRUE
 set CG_EN FALSE
 foreach arg $argv {
@@ -93,8 +93,9 @@ set_property -dict [list \
 create_ip -name fifo_generator -vendor xilinx.com -library ip -version 13.2 -module_name log_fifo -dir $outputDir
 set_property -dict [list \
   CONFIG.Input_Data_Width {8} \
+  CONFIG.Input_Depth {8192} \
   CONFIG.Performance_Options {First_Word_Fall_Through} \
-  CONFIG.Full_Threshold_Assert_Value {512} \
+  CONFIG.Full_Threshold_Assert_Value {7168} \
   CONFIG.Programmable_Full_Type {Single_Programmable_Full_Threshold_Constant} \
 ] [get_ips log_fifo]
 
@@ -196,8 +197,12 @@ create_bd_cell -type ip -vlnv design:user:caliptra_package_top:1.0 caliptra_pack
 
 # Add Zynq PS
 create_bd_cell -type ip -vlnv xilinx.com:ip:zynq_ultra_ps_e:3.4 zynq_ultra_ps_e_0
-set_property CONFIG.PSU__CRL_APB__PL0_REF_CTRL__FREQMHZ {20} [get_bd_cells zynq_ultra_ps_e_0]
-set_property CONFIG.PSU__USE__IRQ0 {1} [get_bd_cells zynq_ultra_ps_e_0]
+set_property -dict [list \
+  CONFIG.PSU__CRL_APB__PL0_REF_CTRL__FREQMHZ {20} \
+  CONFIG.PSU__USE__IRQ0 {1} \
+  CONFIG.PSU__GPIO_EMIO__PERIPHERAL__ENABLE {1} \
+  CONFIG.PSU__GPIO_EMIO__PERIPHERAL__IO {5} \
+] [get_bd_cells zynq_ultra_ps_e_0]
 
 # Add AXI Interconnect
 create_bd_cell -type ip -vlnv xilinx.com:ip:axi_interconnect:2.1 axi_interconnect_0
@@ -250,8 +255,9 @@ assign_bd_address -offset 0x82000000 -range 0x00010000 -target_address_space [ge
 assign_bd_address -offset 0x90000000 -range 0x00100000 -target_address_space [get_bd_addr_spaces zynq_ultra_ps_e_0/Data] [get_bd_addr_segs caliptra_package_top_0/s_apb/Reg] -force
 
 if {$JTAG} {
-  # Make the JTAG pins be external
-  make_bd_pins_external  [get_bd_pins caliptra_package_top_0/jtag_tck] [get_bd_pins caliptra_package_top_0/jtag_tms] [get_bd_pins caliptra_package_top_0/jtag_tdo] [get_bd_pins caliptra_package_top_0/jtag_tdi] [get_bd_pins caliptra_package_top_0/jtag_trst_n]
+  # Connect JTAG signals to PS GPIO pins
+  connect_bd_net [get_bd_pins caliptra_package_top_0/jtag_out] [get_bd_pins zynq_ultra_ps_e_0/emio_gpio_i]
+  connect_bd_net [get_bd_pins caliptra_package_top_0/jtag_in]  [get_bd_pins zynq_ultra_ps_e_0/emio_gpio_o]
 
   # Add constraints for JTAG signals
   add_files -fileset constrs_1 $fpgaDir/src/jtag_constraints.xdc

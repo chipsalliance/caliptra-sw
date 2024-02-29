@@ -131,8 +131,19 @@ fn test_fips_cmds<T: HwModel>(hw: &mut T, fmc_version: u16, app_version: u32) {
         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::SHUTDOWN), &[]),
     };
 
-    let resp = hw.mailbox_execute(u32::from(CommandId::SHUTDOWN), payload.as_bytes());
-    assert!(resp.is_ok());
+    let resp = hw
+        .mailbox_execute(u32::from(CommandId::SHUTDOWN), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+
+    let resp = MailboxRespHeader::read_from(resp.as_slice()).unwrap();
+    // Verify checksum and FIPS status
+    assert!(caliptra_common::checksum::verify_checksum(
+        resp.chksum,
+        0x0,
+        &resp.as_bytes()[core::mem::size_of_val(&resp.chksum)..],
+    ));
+    assert_eq!(resp.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
 
     assert_eq!(
         hw.mailbox_execute(

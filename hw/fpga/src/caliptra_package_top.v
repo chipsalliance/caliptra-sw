@@ -49,11 +49,8 @@ module caliptra_package_top (
     input  wire                       axi_bram_rst,
 
     // JTAG Interface
-    input wire                        jtag_tck,    // JTAG clk
-    input wire                        jtag_tms,    // JTAG tms
-    input wire                        jtag_tdi,    // JTAG tdi
-    input wire                        jtag_trst_n, // JTAG reset
-    output wire                       jtag_tdo,    // JTAG tdo
+    input wire [4:0]                  jtag_in,     // JTAG input signals concatenated
+    output wire [4:0]                 jtag_out,    // JTAG tdo
 
     // FPGA Realtime register AXI Interface
     input	wire                      S_AXI_ARESETN,
@@ -101,11 +98,11 @@ caliptra_wrapper_top cptra_wrapper (
     .axi_bram_rst(axi_bram_rst),
 
     // EL2 JTAG interface
-    .jtag_tck(jtag_tck),
-    .jtag_tdi(jtag_tdi),
-    .jtag_tms(jtag_tms),
-    .jtag_trst_n(jtag_trst_n),
-    .jtag_tdo(jtag_tdo),
+    .jtag_tck(jtag_in[0]),
+    .jtag_tdi(jtag_in[1]),
+    .jtag_tms(jtag_in[2]),
+    .jtag_trst_n(jtag_in[3]),
+    .jtag_tdo(jtag_out[4]),
 
     // FPGA Realtime register AXI Interface
     .S_AXI_ARESETN(S_AXI_ARESETN),

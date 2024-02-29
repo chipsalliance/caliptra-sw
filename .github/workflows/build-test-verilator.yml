@@ -99,7 +99,8 @@ jobs:
 
       - name: Check that generated register code matches caliptra-rtl submodule
         run: |
-          cargo run --locked -p caliptra_registers_generator -- --check hw-latest/caliptra-rtl registers/bin/extra-rdl  registers/src
+          cargo run --locked -p caliptra_registers_generator -- --check hw/latest/rtl registers/bin/extra-rdl  hw/latest/registers/src
+          cargo run --locked -p caliptra_registers_generator -- --check hw/1.0/rtl registers/bin/extra-rdl  hw/1.0/registers/src
 
       - name: Build
         run: |
@@ -117,7 +118,7 @@ jobs:
           export RUSTC_WRAPPER=~/.cargo/bin/sccache
           export CXX="sccache g++"
           (cd hw-model && cargo --config "$EXTRA_CARGO_CONFIG" test --locked --release --features verilator)
-          (cd hw-latest/verilated && cargo --config "$EXTRA_CARGO_CONFIG" test --locked --release --features verilator)
+          (cd hw/verilated && cargo --config "$EXTRA_CARGO_CONFIG" test --locked --release --features verilator)
 
       - name: Check source-code formatting (run "cargo fmt" if this fails)
         run: |

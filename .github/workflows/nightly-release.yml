@@ -44,7 +44,8 @@ jobs:
           while git tag | grep ${TAG_BASE}${INDEX}; do
               ((INDEX+=1))
           done
-          git submodule update --remote hw-latest/caliptra-rtl
+          git submodule update --remote hw/1.0/rtl
+          git submodule update --remote hw/latest/rtl
           CHECK_RELEASE_SYNC=$(git status --porcelain | head -1)
           MOST_RECENT_RELEASE=None
           if git tag | grep ${TAG_PREFIX} > /dev/null; then
@@ -201,6 +202,7 @@ jobs:
             ./release/caliptra_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
             ./release/test_artifacts_${{ needs.find-latest-release.outputs.new_release_tag }}.zip
           tag_name: ${{ needs.find-latest-release.outputs.new_release_tag }}
+          prerelease: true
 
       - name: Write artifact to workflow with release info
         run: |

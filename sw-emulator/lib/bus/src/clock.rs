@@ -180,8 +180,13 @@ impl Clock {
                     bus.update_reset();
                     break;
                 }
-                TimerAction::Nmi { .. } => {}
-                TimerAction::SetNmiVec { .. } => {}
+                TimerAction::Nmi { .. }
+                | TimerAction::SetNmiVec { .. }
+                | TimerAction::ExtInt { .. }
+                | TimerAction::SetExtIntVec { .. }
+                | TimerAction::SetGlobalIntEn { .. }
+                | TimerAction::SetExtIntEn { .. }
+                | TimerAction::Halt => {}
             }
         }
         fired_actions
@@ -241,6 +246,11 @@ pub enum TimerAction {
     UpdateReset,
     Nmi { mcause: u32 },
     SetNmiVec { addr: u32 },
+    ExtInt { irq: u8, can_wake: bool },
+    SetExtIntVec { addr: u32 },
+    SetGlobalIntEn { en: bool },
+    SetExtIntEn { en: bool },
+    Halt,
 }
 
 struct ClockImpl {
