@@ -181,14 +181,7 @@ fn smoke_test() {
         assert_output_contains(&output, "[kat] LMS");
         assert_output_contains(&output, "[kat] --");
         assert_output_contains(&output, "Running Caliptra FMC");
-        assert_output_contains(
-            &output,
-            r#"
- / ___|__ _| (_)_ __ | |_ _ __ __ _  |  _ \_   _|
-| |   / _` | | | '_ \| __| '__/ _` | | |_) || |
-| |__| (_| | | | |_) | |_| | | (_| | |  _ < | |
- \____\__,_|_|_| .__/ \__|_|  \__,_| |_| \_\|_|"#,
-        );
+        assert_output_contains(&output, r#"Caliptra-RT"#);
     }
 
     let ldev_cert_resp = hw.mailbox_execute_req(GetLdevCertReq::default()).unwrap();
