@@ -14,13 +14,7 @@
 | 04/27/2023 | 0.5.2   | Added Runtime SVN bit clarification                                      |
 | 08/15/2023 | 0.9     | Added LMS keys and signatures to image format                            |
 
-
-## 2. Spec Opens
-
-- Update the firmware image format to include the runtime configuration section
-- Ability to run production signed firmware that can only run in debug mode
-
-## 3. Scope
+## 2. Scope
 
 Caliptra is an open-source Hardware Root of Trust for Measurement (RTM). This document is the architecture specification
 for Caliptra Read Only Memory Code (ROM). As an architecture specification for ROM, this document describes the
@@ -36,7 +30,7 @@ following topics:
    - Unknown/Spurious Reset Flow
 5. Cryptographic Derivations
 
-## 4. Glossary
+## 3. Glossary
 
 | Term                | Description                                                               |
 | :------------------ | :------------------------------------------------------------------------ |
@@ -57,7 +51,7 @@ following topics:
 | SVN                 | Security Version Number                                                   |
 | X509                | Digital Certificate Standard                                              |
 
-## 5. FUSE & Architectural Registers
+## 4. FUSE & Architectural Registers
 
 Following are the main FUSE & Architectural Registers used by the Caliptra ROM for DICE Derivations:
 
@@ -77,7 +71,7 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR  <br> **Word 0**: X509 Key Id Algorithm (2 bits) 1: SHA1, 2: SHA256, 2: SHA384, 3: Fuse <br> **Word 1,2,3,4,5**: Subject Key Id <br> **Words 7,8**: Unique Endpoint ID  |
 | CPTRA_DBG_MANUF_SERVICE_REG     | 16           | Manufacturing Services: <br> **Bit 0**: IDEVID CSR upload  <br> **Bit 1**: Random Number Generator Unavailable <br> **Bit 31**: Fake ROM image verify enable           |
 
-## 6. Firmware Image Bundle
+## 5. Firmware Image Bundle
 
 The Caliptra Firmware image has two main components:
 
@@ -86,11 +80,11 @@ The Caliptra Firmware image has two main components:
 
 ![Firmware Image Bundle](doc/svg/fw-img-bundle.svg)
 
-### 6.1 Firmware Manifest
+### 5.1 Firmware Manifest
 
 Firmware manifest consists of preamble, header and table of contents.
 
-#### 6.1.1 Preamble
+#### 5.1.1 Preamble
 
 It is the unsigned portion of the manifest. Preamble contains the signing public keys and signatures. ROM is responsible for parsing the preamble. ROM performs the following steps:
 *	Loads the preamble from the mailbox.
@@ -121,7 +115,7 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 | Reserved | 8 | Reserved 8 bytes |
 <br>
 
-#### 6.1.2 Header
+#### 5.1.2 Header
 
 The header contains the security version and SHA2-384 hash of the table of contents. Header is the only signed component in the image. Signing the header is enough as the table of contents contains the hashes of the individual firmware images. This technique reduces the number of signature verifications required to be performed during boot.
 
@@ -138,7 +132,7 @@ The header contains the security version and SHA2-384 hash of the table of conte
 | Owner Data | 40 | Owner Data. <br> **Not Before:** Owner Start Date [ASN1 Time Format] For LDEV-Id certificate. Takes preference over vendor start date (15 bytes) <br> **Not After:** Owner End Date [ASN1 Time Format] For LDEV-Id certificate. Takes preference over vendor end date (15 bytes) <br> **Reserved:** (10 bytes) |
 
 
-#### 6.1.3 Table of Contents
+#### 5.1.3 Table of Contents
 It contains the image information and SHA-384 hash of individual firmware images.
 | Field | Size (bytes) | Description|
 |-------|--------|------------|
@@ -154,14 +148,14 @@ It contains the image information and SHA-384 hash of individual firmware images
 | Image Size | 4 | Image Size |
 | Image Hash | 48 | SHA2-384 hash of image |
 
-### 6.2 Image
+### 5.2 Image
 
 | Field | Size (bytes) | Description   |
 |-------|--------------|---------------|
 | Data  | N            | Image content |
 
 
-## 7. Cryptographic Primitives
+## 6. Cryptographic Primitives
 
 The following sections define the various cryptographic primitives used by Caliptra ROM:
 | Group | Operation |Description |
@@ -187,14 +181,14 @@ The following sections define the various cryptographic primitives used by Calip
 | X509 | `gen_tbs(type, pub_key) -> tbs` | Generate X509 Certificate or CSR `To Be Signed` portion<br>**Input**:<br>***type*** - Can be IDEVID_CSR, LDEVID_CERT or ALIAS_FMC_CERT<br>pub-key -public key<br>**Output**:<br>***tbs*** - DER encoded `To Be Signed` portion |
 <br>
 
-## 8. Well Known Cryptographic Constants
+## 7. Well Known Cryptographic Constants
 
 | Constant | Size (bytes) | Description |
 |----------|--------------|-------------|
 | DOE_IV | 16 | Initialization vector specified by the ROM for deobfuscating the UDS and Field Entropy. |
 <br>
 
-## 9. Cold Reset Flow
+## 8. Cold Reset Flow
 
 ![COLD RESET](doc/svg/cold-reset.svg)
 
@@ -202,7 +196,7 @@ ROM performs all the necessary crypto derivations on cold reset. No crypto deriv
 
 Note that KvSlot3 is generally used as a temporary location for derived keying material during ECC keygen.
 
-### 9.1 Initialization
+### 8.1 Initialization
 
 The initialization step involves a traditional startup script for microcontroller. The initialization script performs following:
 - Resets instruction counter
@@ -214,7 +208,7 @@ The initialization step involves a traditional startup script for microcontrolle
 - Zeros ICCM & DCCM memories (to initialize ECC)
 - Jumps to Rust entry point
 
-### 9.2 Decrypt Secrets
+### 8.2 Decrypt Secrets
 DICE Unique Device Secret (UDS) is stored in an SOC backed fuse (or derived from PUF). The raw UDS is not directly used. UDS is deobfuscated using Deobfuscation Engine. UDS is provisioned by the Silicon Vendor.
 
 Field Entropy is used to mitigate certain classes of supply chain attacks.  Field Entropy is programmed by the owner of the device in a secure environment in the owner’s facility. Field Entropy programmed in fuses is not directly used. Field Entropy is put through the deobfuscation engine to randomize it.
@@ -252,7 +246,7 @@ Both UDS and Field Entropy are available only during cold reset of Caliptra.
 | 0 | UDS (48 bytes)|
 | 1 |Field Entropy (32 bytes) |
 
-### 9.3 Initial Device ID DICE Layer
+### 8.3 Initial Device ID DICE Layer
 
 Initial Device ID Layer is used to generate Manufacturer CDI & Private Key.  This layer represents the manufacturer or silicon vendor DICE Identity. During manufacturing,  ROM can be requested to create Certificate Signing Request (CSR) via JTAG.
 
@@ -302,7 +296,7 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Key.  Thi
 | 6 |IDevID CDI (48 bytes) |
 | 7 |IDevID Private Key (48 bytes) |
 
-### 9.4 Local Device ID DICE Layer
+### 8.4 Local Device ID DICE Layer
 
 Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents the owner DICE Identity as it is mixed with the Field Entropy programmed by the Owner.
 
@@ -374,7 +368,7 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
 | 5 | LDevID Private Key (48 bytes) |
 | 6 | LDevID CDI (48 bytes) |
 
-### 9.6 Handling commands from Mailbox
+### 8.5 Handling commands from Mailbox
 ROM supports the following set of commands before handling the FW_DOWNLOAD command (described in section 9.6). Once the FW_DOWNLOAD is issued, ROM stops processing any additional mailbox commands.
 1. **STASH_MEASUREMENT**: Up to eight measurements can be sent to the ROM for recording. Format of a measurement is documented at https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#stash_measurement
 2. **VERSION**: Get version info about the module. https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#version
@@ -383,7 +377,7 @@ ROM supports the following set of commands before handling the FW_DOWNLOAD comma
 5. **SHUTDOWN**: This command is used clear the hardware crypto blocks including the keyvault. https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#shutdown
 6. **CAPABILITIES**: This command is used to query the ROM capabilities. Capabilities is a 128-bit value with individual bits indicating a specific capability. Currently, the only capability supported is ROM_BASE (bit 0). https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#capabilities
 
-### 9.7 Downloading images from Mailbox
+### 8.6 Downloading images from Mailbox
 
 The following is the sequence of the steps that are required to download the parts of firmware image from mailbox.
 
@@ -398,11 +392,11 @@ The following is the sequence of the steps that are required to download the par
 
 ![DATA FROM MBOX FLOW](doc/svg/data-from-mbox.svg)
 
-### 9.8 Image Validation
+### 8.7 Image Validation
 
 *Refer to Firmware Image Validation Process*
 
-### 9.9 Alias FMC DICE Layer & PCR extension
+### 8.8 Alias FMC DICE Layer & PCR extension
 
 Alias FMC Layer includes the measurement of the FMC and other security states. This layer is used to assert a composite identity which includes the security state, FMC measurement along with the previous layer identities.
 
@@ -522,20 +516,20 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 | 8    |                                  | 🔒FMC Digest                 |
 | 9    |                                  | 🔒Owner PK Hash              |
 
-## 10. Warm Reset Flow
+## 9. Warm Reset Flow
 
 ![WARM RESET](doc/svg/warm-reset.svg)
 
-## 11. Update Reset Flow
+## 10. Update Reset Flow
 
 ![UPDATE RESET](doc/svg/update-reset.svg)
 <br> *(Note: Please note that Image validation for the update reset flow has some differences as compared to the cold boot flow. Please refer to the Image Validation Section for further details.)
 
-## 12. Unknown/Spurious Reset Flow
+## 11. Unknown/Spurious Reset Flow
 
 ![UNKNOWN RESET](doc/svg/unknown-reset.svg)
 
-## 13. Firmware Image Validation Process
+## 12. Firmware Image Validation Process
 
 The basic flow for validating the firmware involves the following:
 
@@ -559,7 +553,7 @@ The basic flow for validating the firmware involves the following:
 - On failure, a non-zero status code will be reported in the `CPTRA_FW_ERROR_FATAL` register
 
 
-### 13.1 **Overall Validation Flow**
+### 12.1 **Overall Validation Flow**
 ![Overall Validation Flow](doc/svg/overall-validation-flow.svg)
 
 
@@ -581,7 +575,7 @@ The following are the pre-conditions that should be satisfied:
 - The SOC has set the execute bit in the mailbox execute register.
 <br> *( NOTE: At this time the interrupts are not enabled. Writing a execute bit will not generate an interrupt. The validation and update flow will need to be invoked externally.)*
 
-## 13.2 Preamble Validation: Validate The Manufacturing Keys
+## 12.2 Preamble Validation: Validate The Manufacturing Keys
 
 - Load the preamble bytes from the mailbox.
 - There are four ECC and thirty-two LMS manufacturing keys in the preamble.
@@ -590,7 +584,7 @@ The following are the pre-conditions that should be satisfied:
 - If the hash does not match, fail the image validation.
 - If the hash matches, all the ECC and LMS keys are validated.
 
-### 13.2.1 Preamble Validation: Manufacturing Key Selection
+### 12.2.1 Preamble Validation: Manufacturing Key Selection
 
 - Since there are four ECC key slots in the preamble, we will need to select one key out of four.
 - fuse_key_manifest_pk_hash_mask is the mask which revokes an ECC key.
@@ -603,7 +597,7 @@ The following are the pre-conditions that should be satisfied:
 - Repeat the above procedure for LMS keys using the fuse_lms_revocation for key revocation.
 - At this time, we have validated all the four ECC and thirty-two LMS keys and selected the ECC and LMS key that will be used for validation of the header against the manufacturer header signature field.
 
-### 13.2.2 Preamble Validation: Validate The Owner Key
+### 12.2.2 Preamble Validation: Validate The Owner Key
 
 - There is one slot each for the owner ECC and LMS keys in the image preamble.
 - fuse_owner_pk_hash contains the hash of the owner public keys.
@@ -614,7 +608,7 @@ The following are the pre-conditions that should be satisfied:
 ## Preamble Validation Steps
 ![Preamble Validation Flow](doc/svg/preamble-validation.svg)
 
-## 13.3 Header Validation
+## 12.3 Header Validation
 
 - Load the header portion of the firmware image from the mailbox.
 - Header is the only signed component. There are two signatures generated for the header.
@@ -627,7 +621,7 @@ The following are the pre-conditions that should be satisfied:
 ## Header Validation Steps
 ![Header Validation Flow](doc/svg/header-validation.svg)
 
-## 13.4 Table Of Contents Validation
+## 12.4 Table Of Contents Validation
 
 - At this point all the previous steps of validation are complete.
 - The Preamble and the header are validated.
@@ -637,14 +631,14 @@ The following are the pre-conditions that should be satisfied:
 - If the hash matches, the TOC data is valid.
 - Ensure that Fw.Svn >= Fuse.Svn.
 
-<br> *(Note: The Same SVN Validation is going to be done for the FMC and RT as well)
+<br> *(Note: Same SVN Validation is done for the FMC and RT)
 
 <br>
 
 ## Table Of Contents Validation Steps
 ![Toc Validation Flow](doc/svg/toc-validation.svg)
 
-## 13.5 Validating Image Sections
+## 12.5 Validating Image Sections
 
 - Once the TOC is validated, the image section associated with each TOC needs validation.
 - The hash for each image section is stored in the TOC data.
@@ -660,7 +654,7 @@ The following are the pre-conditions that should be satisfied:
 ## Image Section Validation Steps
 ![Image Section Validation Flow](doc/svg/image-section-validation.svg)
 
-## 13.6 Differences In Operating Mode Of The Validation Code
+## 12.6 Differences In Operating Mode Of The Validation Code
 
 - The validation code operates in three modes.
     - Cold Boot Mode
@@ -700,7 +694,7 @@ The following are the pre-conditions that should be satisfied:
       the mailbox. ROM will boot the existing FMC/Runtime images. Validation
       errors will be reported via the CPTRA_FW_ERROR_NON_FATAL register.
 
-## 14. Fake ROM
+## 13. Fake ROM
 
 Fake ROM is a variation of the ROM intended to be used in the verification/enabling stages of development. The purpose is to greatly reduce the boot time for pre-Si environments by eliminating certain steps from the boot flow. Outside of these omissions, the behavior is intended to be the same as normal ROM.
 
