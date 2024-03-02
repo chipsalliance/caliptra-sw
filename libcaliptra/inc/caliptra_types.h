@@ -151,6 +151,32 @@ struct caliptra_get_tagged_tci_resp {
     uint8_t tci_current[48];
 };
 
+struct caliptra_increment_pcr_reset_counter_req {
+    struct caliptra_req_header hdr;
+    uint32_t index;
+};
+
+struct caliptra_quote_pcrs_req {
+    struct caliptra_req_header hdr;
+    uint8_t nonce[32];
+};
+
+struct caliptra_quote_pcrs_resp {
+    struct caliptra_resp_header hdr;
+    uint8_t pcrs[32][48];
+    uint8_t nonce[32];
+    uint8_t digest[48];
+    uint32_t reset_ctrs[32];
+    uint8_t signature_r[48];
+    uint8_t signature_s[48];
+};
+
+struct caliptra_extend_pcr_req {
+    struct caliptra_req_header hdr;
+    uint32_t pcr_idx;
+    uint8_t data[48];
+};
+
 struct caliptra_fips_version_resp {
     struct caliptra_resp_header hdr;
     uint32_t mode;
