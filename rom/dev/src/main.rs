@@ -95,9 +95,10 @@ pub extern "C" fn rom_entry() -> ! {
     cprintln!("[state] LifecycleState = {}", _lifecyle);
 
     if cfg!(feature = "fake-rom")
-        && env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production
+        && (env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production)
+        && !(env.soc_ifc.prod_en_in_fake_mode())
     {
-        cprintln!("Fake ROM in Production lifecycle prohibited");
+        cprintln!("Fake ROM in Production lifecycle not enabled");
         handle_fatal_error(CaliptraError::ROM_GLOBAL_FAKE_ROM_IN_PRODUCTION.into());
     }
 
@@ -112,7 +113,11 @@ pub extern "C" fn rom_entry() -> ! {
 
     // Set the ROM version
     let rom_info = unsafe { &CALIPTRA_ROM_INFO };
-    env.soc_ifc.set_rom_fw_rev_id(rom_info.version);
+    if !cfg!(feature = "fake-rom") {
+        env.soc_ifc.set_rom_fw_rev_id(rom_info.version);
+    } else {
+        env.soc_ifc.set_rom_fw_rev_id(0xFFFF);
+    }
 
     // Start the watchdog timer
     wdt::start_wdt(&mut env.soc_ifc);
