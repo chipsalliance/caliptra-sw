@@ -14,11 +14,15 @@ Normally the ROM is part of the silicon.
 "First Mutable Code", the code that the boot ROM measures and jumps to after
 validation succeeds.
 
+## [hw](/hw/)
+
+Caliptra RTL submodule location and implementations of RTL based test environments for [verilator](/hw/verilated/README.md) and [fpga](/hw/fpga/README.md).
+
 ## [hw-model](/hw-model/)
 
 A high-level testing library for instantiating and manipulating models of the
 hardware. Intended to target multiple backends, including sw-emulator,
-verilator, and (hopefully) a future FPGA implementation.
+verilator, and FPGA.
 
 ## [sw-emulator](/sw-emulator/)
 
@@ -115,3 +119,19 @@ CPTRA_TRACE_PATH=/tmp/trace.vcd cargo test --features=verilator -p caliptra-driv
 
 You can open the vcd file with a tool like
 [GTKWave](https://gtkwave.sourceforge.net/) to debug the hardware/firmware.
+
+## Testing against FPGA
+
+FPGA provides a fast environment for development with Caliptra RTL.
+FPGA build directions and further details are available in
+[this README](/hw/fpga/README.md)
+
+Download caliptra-fpga-bitstream from the
+[latest fpga builds of main](https://github.com/chipsalliance/caliptra-sw/actions/workflows/fpga.yml?query=branch%3Amain)
+
+Load the FPGA image and run a test:
+```shell
+sudo ./hw/fpga/setup_fpga.sh caliptra_fpga.bin
+
+CPTRA_UIO_NUM=4 cargo test --features=fpga_realtime,itrng -p caliptra-test smoke_test::smoke_test
+```
