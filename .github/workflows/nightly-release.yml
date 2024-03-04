@@ -65,47 +65,91 @@ jobs:
           echo "release_ref=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "Current ref $(git rev-parse HEAD) will receive tag ${TAG_BASE}${INDEX} after tests"
 
-  fpga-full-suite-etrng-log:
-    name: FPGA Suite (etrng, log)
+  fpga-1p0-full-suite-etrng-log:
+    name: FPGA Suite (1.0, etrng, log)
     needs: find-latest-release
     if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fpga.yml
     with:
-      artifact-suffix: -fpga-realtime-etrng-log
+      artifact-suffix: -fpga-realtime-1p0-etrng-log
       extra-features: slow_tests
       rom-logging: true
       fpga-itrng: false
 
-  fpga-full-suite-etrng-nolog:
-    name: FPGA Suite (etrng, nolog)
+  fpga-1p0-full-suite-etrng-nolog:
+    name: FPGA Suite (1.0, etrng, nolog)
     needs: find-latest-release
     if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fpga.yml
     with:
-      artifact-suffix: -fpga-realtime-etrng-nolog
+      artifact-suffix: -fpga-realtime-1p0-etrng-nolog
       extra-features: slow_tests
       rom-logging: false
       fpga-itrng: false
 
-  fpga-full-suite-itrng-log:
-    name: FPGA Suite (itrng, log)
+  fpga-1p0-full-suite-itrng-log:
+    name: FPGA Suite (1.0, itrng, log)
     needs: find-latest-release
     if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fpga.yml
     with:
-      artifact-suffix: -fpga-realtime-itrng-log
+      artifact-suffix: -fpga-realtime-1p0-itrng-log
       extra-features: slow_tests,itrng
       rom-logging: true
       fpga-itrng: true
 
-  fpga-full-suite-itrng-nolog:
-    name: FPGA Suite (itrng, nolog)
+  fpga-1p0-full-suite-itrng-nolog:
+    name: FPGA Suite (1.0, itrng, nolog)
     needs: find-latest-release
     if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fpga.yml
     with:
-      artifact-suffix: -fpga-realtime-itrng-nolog
+      artifact-suffix: -fpga-realtime-1p0-itrng-nolog
       extra-features: slow_tests,itrng
+      rom-logging: false
+      fpga-itrng: true
+
+  fpga-latest-full-suite-etrng-log:
+    name: FPGA Suite (hw-latest, etrng, log)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-latest-etrng-log
+      extra-features: slow_tests,hw-latest
+      rom-logging: true
+      fpga-itrng: false
+
+  fpga-latest-full-suite-etrng-nolog:
+    name: FPGA Suite (hw-latest, etrng, nolog)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-latest-etrng-nolog
+      extra-features: slow_tests,hw-latest
+      rom-logging: false
+      fpga-itrng: false
+
+  fpga-latest-full-suite-itrng-log:
+    name: FPGA Suite (hw-latest, itrng, log)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-latest-itrng-log
+      extra-features: slow_tests,itrng,hw-latest
+      rom-logging: true
+      fpga-itrng: true
+
+  fpga-latest-full-suite-itrng-nolog:
+    name: FPGA Suite (hw-latest, itrng, nolog)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-latest-itrng-nolog
+      extra-features: slow_tests,itrng,hw-latest
       rom-logging: false
       fpga-itrng: true
 
@@ -153,10 +197,14 @@ jobs:
     name: Create New Release
     needs:
       - find-latest-release
-      - fpga-full-suite-etrng-log
-      - fpga-full-suite-etrng-nolog
-      - fpga-full-suite-itrng-log
-      - fpga-full-suite-itrng-nolog
+      - fpga-1p0-full-suite-etrng-log
+      - fpga-1p0-full-suite-etrng-nolog
+      - fpga-1p0-full-suite-itrng-log
+      - fpga-1p0-full-suite-itrng-nolog
+      - fpga-latest-full-suite-etrng-log
+      - fpga-latest-full-suite-etrng-nolog
+      - fpga-latest-full-suite-itrng-log
+      - fpga-latest-full-suite-itrng-nolog
       - sw-emulator-full-suite-etrng-log
       - sw-emulator-full-suite-etrng-nolog
       - sw-emulator-full-suite-itrng-log

@@ -47,13 +47,14 @@ Serial port settings for connection over USB.
 The FPGA build process uses Vivado's batch mode to procedurally create the Vivado project using fpga_configuration.tcl.
 This script provides a number of configuration options for features that can be enabled using "-tclargs OPTION=VALUE OPTION=VALUE"
 
-| Option | Purpose
-| ------ | -------
-| BUILD  | Automatically start building the FPGA.
-| GUI    | Open the Vivado GUI.
-| JTAG   | Assign JTAG signals to Zynq PS GPIO.
-| ITRNG  | Enable Caliptra's ITRNG.
-| CG_EN  | Removes FPGA optimizations and allows clock gating.
+| Option    | Purpose
+| ------    | -------
+| BUILD     | Automatically start building the FPGA.
+| GUI       | Open the Vivado GUI.
+| JTAG      | Assign JTAG signals to Zynq PS GPIO.
+| ITRNG     | Enable Caliptra's ITRNG.
+| CG_EN     | Removes FPGA optimizations and allows clock gating.
+| HW_LATEST | Use hw/latest instead of hw/1.0.
 
  - Build FPGA image without GUI
     - `vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE`
