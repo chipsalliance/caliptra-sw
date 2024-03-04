@@ -913,6 +913,49 @@ int caliptra_dpe_get_tagged_tci(struct caliptra_get_tagged_tci_req *req, struct 
     return pack_and_execute_command(&p, async);
 }
 
+// Increment PCR Reset Counter
+int caliptra_increment_pcr_reset_counter(struct caliptra_increment_pcr_reset_counter_req *req, bool async)
+{
+    if (!req)
+    {
+        return INVALID_PARAMS;
+    }
+
+    struct caliptra_resp_header resp_hdr = {};
+
+    CREATE_PARCEL(p, OP_INCREMENT_PCR_RESET_COUNTER, req, &resp_hdr);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Quote PCRs
+int caliptra_quote_pcrs(struct caliptra_quote_pcrs_req *req, struct caliptra_quote_pcrs_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    CREATE_PARCEL(p, OP_QUOTE_PCRS, req, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Extend PCR
+int caliptra_extend_pcr(struct caliptra_extend_pcr_req *req, bool async)
+{
+    if (!req)
+    {
+        return INVALID_PARAMS;
+    }
+
+    struct caliptra_resp_header resp_hdr = {};
+
+    CREATE_PARCEL(p, OP_EXTEND_PCR, req, &resp_hdr);
+
+    return pack_and_execute_command(&p, async);
+}
+
 // FIPS version
 int caliptra_fips_version(struct caliptra_fips_version_resp *resp, bool async)
 {
