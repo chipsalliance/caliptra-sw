@@ -453,6 +453,47 @@ int rt_test_all_commands()
         printf("DPE Get Tagged TCI: OK\n");
     }
 
+    // Increment PCR Reset Counter
+    struct caliptra_increment_pcr_reset_counter_req inc_pcr_rst_cntr_req = {};
+
+    status = caliptra_increment_pcr_reset_counter(&inc_pcr_rst_cntr_req, false);
+
+    if (status) {
+        printf("Increment PCR Reset Counter failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Increment PCR Reset Counter: OK\n");
+    }
+
+    // Quote PCRs
+    struct caliptra_quote_pcrs_req quote_pcrs_req = {};
+    struct caliptra_quote_pcrs_resp quote_pcrs_resp = {};
+
+    status = caliptra_quote_pcrs(&quote_pcrs_req, &quote_pcrs_resp, false);
+
+    if (status) {
+        printf("Quote PCRs failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Quote PCRs: OK\n");
+    }
+
+    // Extend PCR
+    struct caliptra_extend_pcr_req extend_pcr_req = {};
+    extend_pcr_req.pcr_idx = 0x4; // First non-reserved index
+
+    status = caliptra_extend_pcr(&extend_pcr_req, false);
+
+    if (status) {
+        printf("Extend PCR failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Extend PCR: OK\n");
+    }
+
     // FIPS_VERSION
     struct caliptra_fips_version_resp version_resp = {};
 
