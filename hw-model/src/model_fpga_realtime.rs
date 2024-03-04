@@ -20,6 +20,13 @@ use crate::EtrngResponse;
 use crate::Output;
 use crate::{HwModel, SecurityState, TrngMode};
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum OpenOcdError {
+    Closed,
+    NotAccessible,
+    WrongVersion,
+}
+
 // UIO mapping indices
 const FPGA_WRAPPER_MAPPING: usize = 0;
 const CALIPTRA_MAPPING: usize = 1;
@@ -477,8 +484,16 @@ impl HwModel for ModelFpgaRealtime {
         }
     }
 }
+
 impl ModelFpgaRealtime {
-    pub fn launch_openocd(&mut self) {
+    pub fn launch_openocd(&mut self) -> Result<(), OpenOcdError> {
+        let _ = Command::new("sudo")
+            .arg("pkill")
+            .arg("openocd")
+            .spawn()
+            .unwrap()
+            .wait();
+
         let mut openocd = Command::new("sudo")
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -492,17 +507,22 @@ impl ModelFpgaRealtime {
         let mut output = String::new();
         loop {
             if 0 == child_err.read_line(&mut output).unwrap() {
-                panic!("openocd log returned EOF. Log: {output}");
+                println!("openocd log returned EOF. Log: {output}");
+                return Err(OpenOcdError::Closed);
+            }
+            if output.contains("Debug Module did not become active") {
+                return Err(OpenOcdError::NotAccessible);
             }
             if output.contains("Listening on port 4444 for telnet connections") {
                 break;
             }
         }
         if !output.contains("Open On-Chip Debugger 0.12.0") {
-            panic!("Requires openocd 0.12.0");
+            return Err(OpenOcdError::WrongVersion);
         }
 
         self.openocd = Some(openocd);
+        Ok(())
     }
 }
 impl Drop for ModelFpgaRealtime {
