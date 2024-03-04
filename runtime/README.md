@@ -1,4 +1,4 @@
-# Caliptra Runtime Firmware
+# Caliptra Runtime Firmware v1.0
 
 This specification describes the Caliptra Runtime Firmware. 
 
