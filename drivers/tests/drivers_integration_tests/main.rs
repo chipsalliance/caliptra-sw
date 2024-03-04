@@ -345,6 +345,12 @@ fn test_hmac384() {
 }
 
 #[test]
+#[cfg_attr(all(any(feature = "verilator", feature = "fpga_realtime"),), ignore)]
+fn test_hmac384_hw_latest() {
+    run_driver_test(&firmware::driver_tests::HMAC384_HW_LATEST);
+}
+
+#[test]
 fn test_keyvault() {
     run_driver_test(if cfg!(feature = "fpga_realtime") {
         &firmware::driver_tests::KEYVAULT_FPGA
