@@ -9,9 +9,6 @@ file mkdir $outputDir
 file mkdir $packageDir
 file mkdir $adapterDir
 
-# Path to rtl
-set rtlDir $fpgaDir/../1.0/rtl
-
 # Simplistic processing of command line arguments to enable different features
 # Defaults:
 set BUILD FALSE
@@ -19,6 +16,7 @@ set GUI   FALSE
 set JTAG  TRUE
 set ITRNG TRUE
 set CG_EN FALSE
+set HW_LATEST TRUE
 foreach arg $argv {
     regexp {(.*)=(.*)} $arg fullmatch option value
     set $option "$value"
@@ -27,6 +25,13 @@ foreach arg $argv {
 # This assumes it is run from within caliptra-sw. If building from outside caliptra-sw call with "VERSION=[hex number]"
 if {[info exists VERSION] == 0} {
   set VERSION [exec git rev-parse --short HEAD]
+}
+
+# Path to rtl
+if {$HW_LATEST} {
+  set rtlDir $fpgaDir/../latest/rtl
+} else {
+  set rtlDir $fpgaDir/../1.0/rtl
 }
 
 # Set Verilog defines for:
@@ -196,7 +201,7 @@ create_bd_design "caliptra_fpga_project_bd"
 create_bd_cell -type ip -vlnv design:user:caliptra_package_top:1.0 caliptra_package_top_0
 
 # Add Zynq PS
-create_bd_cell -type ip -vlnv xilinx.com:ip:zynq_ultra_ps_e:3.4 zynq_ultra_ps_e_0
+create_bd_cell -type ip -vlnv xilinx.com:ip:zynq_ultra_ps_e zynq_ultra_ps_e_0
 set_property -dict [list \
   CONFIG.PSU__CRL_APB__PL0_REF_CTRL__FREQMHZ {20} \
   CONFIG.PSU__USE__IRQ0 {1} \

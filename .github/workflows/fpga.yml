@@ -55,7 +55,16 @@ jobs:
         run: |
           # Compute the key from the tree hash of the fpga directory and the rtl
           # root directory.
-          echo "rtl_cache_key=$(git rev-parse HEAD:hw/fpga/src)-$(git hash-object hw/fpga/fpga_configuration.tcl)-$(cd hw/1.0/rtl && git rev-parse HEAD:)-${{ inputs.fpga-itrng }}-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
+          if [ "${{ inputs.workflow_call }}" ]; then
+            if [[ "${{ inputs.extra-features }}" == *"hw-latest"* ]]; then
+              HW_DIR="latest"
+            else
+              HW_DIR="1.0"
+            fi
+          else
+            HW_DIR="latest"
+          fi
+          echo "rtl_cache_key=$(git rev-parse HEAD:hw/fpga/src)-$(git hash-object hw/fpga/fpga_configuration.tcl)-$(cd hw/${HW_DIR}/rtl && git rev-parse HEAD:)-${{ inputs.fpga-itrng }}-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
 
           echo "kmod_cache_key=fpga-kernel-modules-$(git rev-parse HEAD:hw/fpga/io_module)-$(git rev-parse HEAD:hw/fpga/rom_backdoor)-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
 
@@ -157,7 +166,7 @@ jobs:
           if [ "${{ inputs.workflow_call }}" ]; then
             FEATURES=fpga_realtime,${{ inputs.extra-features }}
           else
-            FEATURES=fpga_realtime,itrng
+            FEATURES=fpga_realtime,itrng,hw-latest
           fi
           cargo nextest archive \
             --features=${FEATURES} \
@@ -278,7 +287,16 @@ jobs:
           else
             ITRNG=TRUE
           fi
-          /fpga-tools/Xilinx/Vivado/2022.2/bin/vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE ITRNG=${ITRNG}
+          if [ "${{ inputs.workflow_call }}" ]; then
+            if [[ "${{ inputs.extra-features }}" == *"hw-latest"* ]]; then
+              HW_LATEST=TRUE
+            else
+              HW_LATEST=FALSE
+            fi
+          else
+            HW_LATEST=TRUE
+          fi
+          /fpga-tools/Xilinx/Vivado/2022.2/bin/vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE ITRNG=${ITRNG} HW_LATEST=${HW_LATEST}
           if [ ! -f caliptra_build/caliptra_fpga.bin ]; then
             echo "Output file was not found; failing script"
             exit 1
