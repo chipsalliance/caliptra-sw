@@ -13,6 +13,7 @@
 | 03/01/2023 | 0.5.1   | Added Crypto Derivations                                                 |
 | 04/27/2023 | 0.5.2   | Added Runtime SVN bit clarification                                      |
 | 08/15/2023 | 0.9     | Added LMS keys and signatures to image format                            |
+| 03/04/2024 | 1.0     | Final editorial fixes for specification completion                       |
 
 ## 2. Scope
 
@@ -75,8 +76,13 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 
 The Caliptra Firmware image has two main components:
 
-*	### **Firmware Manifest**: The firmware manifest is a combination of preamble and a signed header. It has public keys, signatures and table of contents which refer to the various firmware images contained in the bundle.
-*	### **Firmware Images**: One or more binary images.
+*	### **Firmware Manifest**
+
+*	### **Firmware Images**
+
+The firmware manifest is a combination of preamble and a signed header. It has
+public keys, signatures and table of contents which refer to the various
+firmware images contained in the bundle.
 
 ![Firmware Image Bundle](doc/svg/fw-img-bundle.svg)
 
