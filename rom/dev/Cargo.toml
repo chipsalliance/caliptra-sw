@@ -61,6 +61,7 @@ no-fmc = []
 fake-rom = []
 no-cfi = ["caliptra-image-verify/no-cfi", "caliptra-drivers/no-cfi"]
 slow_tests = []
+hw-latest = ["caliptra-registers/hw-latest", "caliptra-drivers/hw-latest"]
 
 [[bin]]
 name = "asm_tests"

@@ -34,6 +34,7 @@ fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
 itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
 no-cfi = []
+hw-latest = ["caliptra-registers/hw-latest"]
 
 [dev-dependencies]
 caliptra-builder.workspace = true
