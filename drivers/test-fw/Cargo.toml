@@ -20,7 +20,11 @@ caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cf
 [features]
 emu = ["caliptra-test-harness/emu"]
 fpga_realtime = []
+
 hw-latest = ["caliptra-drivers/hw-latest", "caliptra-registers/hw-latest"]
+
+
+
 
 
 # This feature is used to filter all these binary targets during normal builds
@@ -136,14 +140,32 @@ path = "src/bin/lms_24_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "test_lms_24_hw_latest"
+path = "src/bin/lms_24_tests.rs"
+required-features = ["riscv"]
+
+
+[[bin]]
 name = "test_lms_32"
 path = "src/bin/lms_32_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "test_lms_32_hw_latest"
+path = "src/bin/lms_32_tests.rs"
+required-features = ["riscv"]
+
+
+[[bin]]
 name = "test_negative_lms"
 path = "src/bin/negative_tests_lms.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "test_negative_lms_hw_latest"
+path = "src/bin/negative_tests_lms.rs"
+required-features = ["riscv"]
+
 
 [[bin]]
 name = "csrng"

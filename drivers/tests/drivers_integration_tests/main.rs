@@ -755,13 +755,31 @@ fn test_lms_24() {
 }
 
 #[test]
+#[cfg_attr(all(any(feature = "verilator", feature = "fpga_realtime"),), ignore)]
+fn test_lms_24_hw_latest() {
+    run_driver_test(&firmware::driver_tests::TEST_LMS_24_HW_LATEST);
+}
+
+#[test]
 fn test_lms_32() {
     run_driver_test(&firmware::driver_tests::TEST_LMS_32);
 }
 
 #[test]
+#[cfg_attr(all(any(feature = "verilator", feature = "fpga_realtime"),), ignore)]
+fn test_lms_32_hw_latest() {
+    run_driver_test(&firmware::driver_tests::TEST_LMS_32_HW_LATEST);
+}
+
+#[test]
 fn test_negative_lms() {
     run_driver_test(&firmware::driver_tests::TEST_NEGATIVE_LMS);
+}
+
+#[test]
+#[cfg_attr(all(any(feature = "verilator", feature = "fpga_realtime"),), ignore)]
+fn test_negative_lms_hw_latest() {
+    run_driver_test(&firmware::driver_tests::TEST_NEGATIVE_LMS_HW_LATEST);
 }
 
 // Return a series of nibbles that won't fail health tests.

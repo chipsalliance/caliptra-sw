@@ -152,6 +152,12 @@ pub mod driver_tests {
         features: &["emu"],
     };
 
+    const HW_LATEST_FWID: FwId = FwId {
+        crate_name: "caliptra-drivers-test-bin",
+        bin_name: "",
+        features: &["emu", "hw-latest"],
+    };
+
     pub const DOE: FwId = FwId {
         bin_name: "doe",
         ..BASE_FWID
@@ -243,13 +249,28 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const TEST_LMS_24_HW_LATEST: FwId = FwId {
+        bin_name: "test_lms_24_hw_latest",
+        ..HW_LATEST_FWID
+    };
+
     pub const TEST_LMS_32: FwId = FwId {
         bin_name: "test_lms_32",
         ..BASE_FWID
     };
 
+    pub const TEST_LMS_32_HW_LATEST: FwId = FwId {
+        bin_name: "test_lms_32_hw_latest",
+        ..HW_LATEST_FWID
+    };
+
     pub const TEST_NEGATIVE_LMS: FwId = FwId {
         bin_name: "test_negative_lms",
+        ..BASE_FWID
+    };
+
+    pub const TEST_NEGATIVE_LMS_HW_LATEST: FwId = FwId {
+        bin_name: "test_negative_lms_hw_latest",
         ..BASE_FWID
     };
 
@@ -408,8 +429,11 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::SHA384ACC,
     &driver_tests::STATUS_REPORTER,
     &driver_tests::TEST_LMS_24,
+    &driver_tests::TEST_LMS_24_HW_LATEST,
     &driver_tests::TEST_LMS_32,
+    &driver_tests::TEST_LMS_32_HW_LATEST,
     &driver_tests::TEST_NEGATIVE_LMS,
+    &driver_tests::TEST_NEGATIVE_LMS_HW_LATEST,
     &driver_tests::TEST_UART,
     &driver_tests::CSRNG,
     &driver_tests::CSRNG2,
