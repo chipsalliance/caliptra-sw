@@ -1,4 +1,4 @@
-# Caliptra - FMC Specification v0.5
+# Caliptra - FMC Specification v1.0
 
 ## Version History
 
@@ -15,6 +15,7 @@
 | 06/27/2023 | 0.7     | Add state of data and key vaults before/after FMC execution                        |
 | 06/30/2023 | 0.7.1   | Simplify reset/update/recovery sections                                            |
 |            |         | Add more PCR handling details                                                      |
+| 03/04/2024 | 1.0     | Finalize as version 1.0 specification                                              |
 
 ## Scope
 
