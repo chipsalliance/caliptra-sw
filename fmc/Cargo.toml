@@ -40,4 +40,5 @@ fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
 itrng = ["caliptra-hw-model/itrng"]
 verilator = ["caliptra-hw-model/verilator"]
 fake-fmc = []
-hw-latest = ["caliptra-registers/hw-latest", "caliptra-drivers/hw-latest"]
+hw-latest = ["caliptra-builder/hw-latest", "caliptra-cpu/hw-latest", "caliptra-drivers/hw-latest", 
+"caliptra-registers/hw-latest"]
