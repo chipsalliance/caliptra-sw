@@ -163,7 +163,8 @@ func (s *CptraModel) SendCmd(buf []byte) ([]byte, error) {
 	var resp C.struct_caliptra_invoke_dpe_resp
 
 	// Caliptra expects all DPE commands to fill the whole data buffer
-	C.memcpy(unsafe.Pointer(&req.data), unsafe.Pointer(&buf[0]), C.size_t(len(buf)))
+	// Note: Go replaces the anonymous union of command types with an array "anon0"
+	C.memcpy(unsafe.Pointer(&req.anon0), unsafe.Pointer(&buf[0]), C.size_t(len(buf)))
 	req.data_size = C.uint32_t(512)
 
 	cptraStatus := C.caliptra_invoke_dpe_command(&req, &resp, false)
