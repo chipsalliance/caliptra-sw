@@ -15,48 +15,118 @@ pub fn rom_from_env() -> &'static FwId<'static> {
     }
 }
 
+#[cfg(feature = "hw-latest")]
+pub const ROM: FwId = FwId {
+    crate_name: "caliptra-rom",
+    bin_name: "caliptra-rom",
+    features: &["hw-latest"],
+};
+
+#[cfg(not(feature = "hw-latest"))]
 pub const ROM: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
     features: &[],
 };
 
+#[cfg(feature = "hw-latest")]
+pub const ROM_WITH_UART: FwId = FwId {
+    crate_name: "caliptra-rom",
+    bin_name: "caliptra-rom",
+    features: &["emu", "hw-latest"],
+};
+
+#[cfg(not(feature = "hw-latest"))]
 pub const ROM_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
     features: &["emu"],
 };
 
+#[cfg(feature = "hw-latest")]
+pub const ROM_FAKE_WITH_UART: FwId = FwId {
+    crate_name: "caliptra-rom",
+    bin_name: "caliptra-rom",
+    features: &["emu", "fake-rom", "hw-latest"],
+};
+
+#[cfg(not(feature = "hw-latest"))]
 pub const ROM_FAKE_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
     features: &["emu", "fake-rom"],
 };
 
+#[cfg(feature = "hw-latest")]
+pub const FMC_WITH_UART: FwId = FwId {
+    crate_name: "caliptra-fmc",
+    bin_name: "caliptra-fmc",
+    features: &["emu", "hw-latest"],
+};
+
+#[cfg(not(feature = "hw-latest"))]
 pub const FMC_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
     features: &["emu"],
 };
 
+#[cfg(feature = "hw-latest")]
+pub const FMC_FAKE_WITH_UART: FwId = FwId {
+    crate_name: "caliptra-fmc",
+    bin_name: "caliptra-fmc",
+    features: &["emu", "fake-fmc", "hw-latest"],
+};
+
+#[cfg(not(feature = "hw-latest"))]
 pub const FMC_FAKE_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
     features: &["emu", "fake-fmc"],
 };
 
+#[cfg(feature = "hw-latest")]
+pub const APP: FwId = FwId {
+    crate_name: "caliptra-runtime",
+    bin_name: "caliptra-runtime",
+    features: &["fips_self_test", "hw-latest"],
+};
+
+#[cfg(not(feature = "hw-latest"))]
 pub const APP: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
     features: &["fips_self_test"],
 };
 
+#[cfg(feature = "hw-latest")]
+pub const APP_WITH_UART: FwId = FwId {
+    crate_name: "caliptra-runtime",
+    bin_name: "caliptra-runtime",
+    features: &["emu", "test_only_commands", "fips_self_test", "hw-latest"],
+};
+
+#[cfg(not(feature = "hw-latest"))]
 pub const APP_WITH_UART: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
     features: &["emu", "test_only_commands", "fips_self_test"],
 };
 
+#[cfg(feature = "hw-latest")]
+pub const APP_WITH_UART_FPGA: FwId = FwId {
+    crate_name: "caliptra-runtime",
+    bin_name: "caliptra-runtime",
+    features: &[
+        "emu",
+        "test_only_commands",
+        "fips_self_test",
+        "fpga_realtime",
+        "hw-latest",
+    ],
+};
+
+#[cfg(not(feature = "hw-latest"))]
 pub const APP_WITH_UART_FPGA: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
@@ -81,10 +151,18 @@ pub mod caliptra_builder_tests {
 pub mod hw_model_tests {
     use super::*;
 
+    #[cfg(not(feature = "hw-latest"))]
     const BASE_FWID: FwId = FwId {
         crate_name: "caliptra-hw-model-test-fw",
         bin_name: "",
         features: &["emu"],
+    };
+
+    #[cfg(feature = "hw-latest")]
+    const BASE_FWID: FwId = FwId {
+        crate_name: "caliptra-hw-model-test-fw",
+        bin_name: "",
+        features: &["emu", "hw-latest"],
     };
 
     pub const MAILBOX_RESPONDER: FwId = FwId {
