@@ -183,6 +183,14 @@ pub fn build_firmware_elfs_uncached<'a>(
             cmd.arg("--config")
                 .arg("target.'cfg(all())'.rustflags = [\"-Dwarnings\"]");
         }
+
+        if cfg!(feature = "hw-latest") {
+            if !features_csv.is_empty() {
+                features_csv.push(',');
+            }
+            features_csv.push_str("hw-latest");
+        }
+
         cmd.arg("build")
             .arg("--quiet")
             .arg("--locked")
