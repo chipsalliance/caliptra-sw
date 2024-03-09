@@ -460,22 +460,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "caliptra-fmc-mock-rt"
-version = "0.1.0"
-dependencies = [
- "caliptra-builder",
- "caliptra-cpu",
- "caliptra-drivers",
- "caliptra-gen-linker-scripts",
- "caliptra-registers",
- "caliptra_common",
- "cfg-if 1.0.0",
- "ufmt",
- "ureg",
- "zerocopy",
-]
-
-[[package]]
 name = "caliptra-gen-linker-scripts"
 version = "0.1.0"
 dependencies = [

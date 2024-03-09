@@ -34,6 +34,12 @@ name = "persistent_rt"
 path = "src/persistent_tests.rs"
 required-features = ["riscv", "runtime"]
 
+[[bin]]
+name = "mock_rt_interact"
+path = "src/mock_rt_test_interactive.rs"
+required-features = ["riscv", "runtime"]
+
+
 [build-dependencies]
 caliptra_common = { workspace = true, default-features = false }
 caliptra-gen-linker-scripts.workspace = true

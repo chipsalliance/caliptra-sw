@@ -8,7 +8,7 @@ fn test_hand_off() {
 
     let image = caliptra_builder::build_and_sign_image(
         &firmware::FMC_WITH_UART,
-        &firmware::fmc_tests::MOCK_RT_WITH_UART,
+        &firmware::runtime_tests::BOOT,
         ImageOptions::default(),
     )
     .unwrap();
