@@ -669,7 +669,7 @@ fn test_rt_wdt_timeout() {
     let rt_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
         27_600_000
     } else if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
-        3_600_000
+        3_689_000
     } else {
         3_400_000
     };
@@ -716,7 +716,7 @@ fn test_fmc_wdt_timeout() {
     let fmc_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
         25_300_000
     } else {
-        3_020_000
+        3_110_150
     };
 
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
