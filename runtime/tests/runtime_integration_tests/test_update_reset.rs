@@ -11,7 +11,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_drivers::PcrResetCounter;
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{DefaultHwModel, HwModel};
+use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
 use caliptra_runtime::{ContextState, RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD};
 use dpe::{
     context::{Context, ContextHandle, ContextType},
@@ -318,4 +318,104 @@ fn test_pcr_reset_counter_persistence() {
     assert_eq!(pcr_reset_counter_1, pcr_reset_counter_2);
     // check that the pcr reset counters are not default
     assert_ne!(pcr_reset_counter_1, [0u8; size_of::<PcrResetCounter>()]);
+}
+
+fn get_image_opts(svn: u32, epoch: &[u8; 2]) -> ImageOptions {
+    let mut options = ImageOptions {
+        app_svn: svn,
+        ..Default::default()
+    };
+
+    options.owner_config.as_mut().unwrap().epoch = *epoch;
+    options
+}
+
+fn get_chain_digest(model: &mut DefaultHwModel, num_hashes: u32) -> Vec<u8> {
+    let digest = model
+        .mailbox_execute(0xF000_0000, num_hashes.as_bytes())
+        .unwrap()
+        .unwrap();
+
+    assert!(!digest.is_empty());
+    digest
+}
+
+const MAX_SVN: u32 = 128;
+
+#[test]
+fn test_hash_chain() {
+    let epoch = [0x00, 0x01];
+
+    let update_to_svn = |model: &mut DefaultHwModel, svn: u32| {
+        update_fw(model, &MBOX, get_image_opts(svn, &epoch));
+    };
+
+    let mut model = run_rt_test(Some(&MBOX), Some(get_image_opts(0, &epoch)), None);
+
+    let chain_0 = get_chain_digest(&mut model, 0);
+
+    update_to_svn(&mut model, 1);
+
+    // FW should now have a different hash chain.
+    let chain_1 = get_chain_digest(&mut model, 0);
+
+    // Ask FW to hash the chain once before returning a digest.
+    let chain_1_hashed = get_chain_digest(&mut model, 1);
+
+    assert_ne!(chain_1_hashed, chain_1);
+    assert_eq!(chain_1_hashed, chain_0);
+
+    // Update to the max SVN supported by FMC.
+    update_to_svn(&mut model, MAX_SVN);
+
+    let chain_max = get_chain_digest(&mut model, 0);
+
+    // Ask FW to hash the chain enough times to get back to 1.
+    let chain_max_hashed = get_chain_digest(&mut model, MAX_SVN - 1);
+
+    assert_ne!(chain_max_hashed, chain_max);
+    assert_eq!(chain_max_hashed, chain_1);
+
+    // Update past the max supported by FMC.
+    update_to_svn(&mut model, MAX_SVN + 1);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_fw_error_non_fatal().read()
+            == u32::from(CaliptraError::RT_SVN_EXCEEDS_MAX)
+            && m.soc_ifc().cptra_fw_error_fatal().read()
+                == u32::from(CaliptraError::RT_SVN_EXCEEDS_MAX)
+    });
+
+    assert_eq!(
+        model
+            .mailbox_execute(0xF000_0000, 0_u32.as_bytes())
+            .unwrap_err(),
+        ModelError::MailboxCmdFailed(CaliptraError::RT_SVN_EXCEEDS_MAX.into())
+    );
+}
+
+#[test]
+fn test_hash_chain_different_epochs() {
+    // Same SVN, different epochs.
+    let options_0 = get_image_opts(0, &[0x00, 0x00]);
+    let options_1 = get_image_opts(0, &[0x00, 0x01]);
+
+    let mut model = run_rt_test(Some(&MBOX), Some(options_0), None);
+
+    let chain_0 = get_chain_digest(&mut model, 0);
+
+    update_fw(&mut model, &MBOX, options_1);
+
+    let chain_1 = get_chain_digest(&mut model, 0);
+
+    assert_ne!(chain_0, chain_1);
+}
+
+#[test]
+fn test_hash_chain_max_svn() {
+    let mut model = run_rt_test(Some(&MBOX), None, None);
+    let resp = model.mailbox_execute(0xE000_0000, &[]).unwrap().unwrap();
+
+    let max = u16::from_le_bytes(resp.try_into().unwrap());
+    assert_eq!(max as u32, MAX_SVN);
 }
