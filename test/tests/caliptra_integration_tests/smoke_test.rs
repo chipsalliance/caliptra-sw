@@ -671,7 +671,7 @@ fn test_rt_wdt_timeout() {
     } else if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
         3_300_000
     } else {
-        3_100_000
+        3_200_000
     };
 
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
