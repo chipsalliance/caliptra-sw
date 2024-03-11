@@ -38,6 +38,7 @@ register_bitfields! [
         WNTZ_MODE OFFSET(4) NUMBITS(1) [],
         WNTZ_W OFFSET(5)NUMBITS(4) [],
         WNTZ_N_MODE OFFSET(9) NUMBITS(1) [],
+        RSVD OFFSET(10) NUMBITS(22) [],
             ],
 
     /// Status Register Fields
@@ -105,8 +106,11 @@ pub struct HashSha256 {
 }
 #[derive(Debug)]
 pub struct WntzParams {
+    /// Enable/disable winterniz accel mode.
     wntz_mode: bool,
+    /// Winterniz w value.
     wntz_w: u32,
+    /// Winternitz n value(SHA192/SHA256 --> n = 24/32)      
     wntz_n_mode: bool,
     init: bool,
 }
@@ -128,6 +132,8 @@ impl HashSha256 {
 
     /// VERSION1 Register Value
     const VERSION1_VAL: RvData = 0x00000000;
+
+    const WNTZ_ACCEL_COEFF_OFFSET: usize = 22;
 
     /// Create a new instance of SHA-512 Engine
     pub fn new(clock: &Clock) -> Self {
@@ -231,7 +237,7 @@ impl HashSha256 {
             let mut block = [0u8; 64];
             block.clone_from(self.block.data());
             block.to_big_endian();
-            let coeff = block[22] as u16;
+            let coeff = block[Self::WNTZ_ACCEL_COEFF_OFFSET] as u16;
 
             let mut mode = Sha256Mode::Sha256;
             let modebits = self.control.reg.read(Control::MODE);
@@ -256,7 +262,7 @@ impl HashSha256 {
                     self.sha256.reset(mode);
                     self.sha256.update(self.block.data());
                 } else {
-                    block[22] = j as u8;
+                    block[Self::WNTZ_ACCEL_COEFF_OFFSET] = j as u8;
 
                     let hash_len = if params.wntz_n_mode { 32 } else { 24 };
 

@@ -25,8 +25,16 @@ pub trait Sha256DigestOp<'a> {
     fn update(&mut self, data: &[u8]) -> CaliptraResult<()>;
     #[cfg(feature = "hw-latest")]
     fn update_wntz(&mut self, data: &[u8], w_value: u8, n_mode: bool) -> CaliptraResult<()>;
+    /// # Arguments
+    ///
+    /// * `digest`  - result of the sha256 digest operation
     fn finalize(self, digest: &mut Array4x8) -> CaliptraResult<()>;
     #[cfg(feature = "hw-latest")]
+    /// # Arguments
+    ///
+    /// * `digest`  - result of the sha256 digest operation
+    /// * `w_value` - Winternitz W value.
+    /// * `n_mode`  - Winternitz n value(SHA192/SHA256 --> n = 24/32)
     fn finalize_wntz(self, digest: &mut Array4x8, w_value: u8, n_mode: bool) -> CaliptraResult<()>;
 }
 
@@ -230,6 +238,8 @@ impl Sha256 {
     /// * `slice` - Slice of buffer to digest
     /// * `first` - Flag indicating if this is the first buffer
     /// * `buf_size` - Total buffer size
+    /// * `w_value` - Winternitz W value.
+    /// * `n_mode`  - Winternitz n value(SHA192/SHA256 --> n = 24/32)
     #[cfg(feature = "hw-latest")]
     fn digest_wntz_partial_block(
         &mut self,
@@ -294,6 +304,8 @@ impl Sha256 {
     ///
     /// * `block`: Block to calculate the digest
     /// * `first` - Flag indicating if this is the first block
+    /// * `w_value` - Winternitz W value.
+    /// * `n_mode`  - Winternitz n value(SHA192/SHA256 --> n = 24/32)
     #[cfg(feature = "hw-latest")]
     fn digest_wntz_block(
         &mut self,
@@ -319,17 +331,12 @@ impl Sha256 {
         // Wait for the hardware to be ready
         wait::until(|| sha256.status().read().ready());
 
-        if first {
-            // Submit the first block
-            sha256
-                .ctrl()
-                .write(|w| w.wntz_mode(false).mode(true).init(true).next(false));
-        } else {
-            // Submit next block in existing hashing chain
-            sha256
-                .ctrl()
-                .write(|w| w.wntz_mode(false).mode(true).init(false).next(true));
-        }
+        let init = first;
+        let next = !init;
+
+        sha256
+            .ctrl()
+            .write(|w| w.wntz_mode(false).mode(true).init(init).next(next));
 
         // Wait for the digest operation to finish
         wait::until(|| sha256.status().read().valid());
@@ -349,13 +356,10 @@ impl Sha256 {
         // Wait for the hardware to be ready
         wait::until(|| sha256.status().read().ready());
 
-        if first {
-            // Submit the first block
-            sha256.ctrl().write(|w| w.mode(true).init(true).next(false));
-        } else {
-            // Submit next block in existing hashing chain
-            sha256.ctrl().write(|w| w.mode(true).init(false).next(true));
-        }
+        let init = first;
+        let next = !init;
+
+        sha256.ctrl().write(|w| w.mode(true).init(init).next(next));
 
         // Wait for the digest operation to finish
         wait::until(|| sha256.status().read().valid());
@@ -368,34 +372,27 @@ impl Sha256 {
     //
     // # Arguments
     //
-    /// * `first` - Flag indicating if this is the first block
+    /// * `first`   - Flag indicating if this is the first block
+    /// * `w_value` - Winternitz W value.
+    /// * `n_mode`  - Winternitz n value(SHA192/SHA256 --> n = 24/32)
     fn digest_wntz_op(&mut self, first: bool, w_value: u8, n_mode: bool) -> CaliptraResult<()> {
         let sha256 = self.sha256.regs_mut();
 
         // Wait for the hardware to be ready
         wait::until(|| sha256.status().read().ready());
 
-        if first {
-            // Submit the first block
-            sha256.ctrl().write(|w| {
-                w.wntz_n_mode(n_mode)
-                    .wntz_w(w_value.into())
-                    .wntz_mode(true)
-                    .mode(true)
-                    .init(true)
-                    .next(false)
-            });
-        } else {
-            // Submit next block in existing hashing chain
-            sha256.ctrl().write(|w| {
-                w.wntz_n_mode(n_mode)
-                    .wntz_w(w_value.into())
-                    .wntz_mode(false)
-                    .mode(true)
-                    .init(false)
-                    .next(true)
-            });
-        }
+        let init = first;
+        let next = !first;
+
+        // Submit the first block
+        sha256.ctrl().write(|w| {
+            w.wntz_n_mode(n_mode)
+                .wntz_w(w_value.into())
+                .wntz_mode(true)
+                .mode(true)
+                .init(init)
+                .next(next)
+        });
 
         // Wait for the digest operation to finish
         wait::until(|| sha256.status().read().valid());
@@ -479,6 +476,8 @@ impl<'a> Sha256DigestOp<'a> for Sha256DigestOpHw<'a> {
     /// # Arguments
     ///
     /// * `data` - Data to used to update the digest
+    /// * `w_value` - Winternitz W value.
+    /// * `n_mode`  - Winternitz n value(SHA192/SHA256 --> n = 24/32)
     fn update_wntz(&mut self, data: &[u8], w_value: u8, n_mode: bool) -> CaliptraResult<()> {
         if self.state == Sha256DigestState::Final {
             return Err(CaliptraError::DRIVER_SHA256_INVALID_STATE);

@@ -276,7 +276,7 @@ pub mod driver_tests {
 
     pub const TEST_NEGATIVE_LMS_HW_LATEST: FwId = FwId {
         bin_name: "test_negative_lms_hw_latest",
-        ..BASE_FWID
+        ..HW_LATEST_FWID
     };
 
     pub const TEST_UART: FwId = FwId {

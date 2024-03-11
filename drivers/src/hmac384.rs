@@ -158,17 +158,7 @@ impl Hmac384 {
         }
 
         // Generate an LFSR seed.
-        let rand_data = trng.generate()?;
-        cfg_if::cfg_if! {
-            if #[cfg(feature="hw-latest")] {
-                let iv: [u32; 12] = rand_data.0[..12].try_into().unwrap();
-                KvAccess::copy_from_arr(&Array4x12::from(iv), hmac.lfsr_seed())?;
-            }
-            else {
-                let iv: [u32; 5] = rand_data.0[..5].try_into().unwrap();
-                KvAccess::copy_from_arr(&Array4x5::from(iv), hmac.lfsr_seed())?;
-            }
-        }
+        self.gen_lfsr_seed(trng)?;
 
         let op = Hmac384Op {
             hmac_engine: self,
@@ -180,6 +170,28 @@ impl Hmac384 {
         };
 
         Ok(op)
+    }
+
+    /// Generate an LFSR seed.
+    ///
+    /// # Arguments
+    ///
+    /// * `trng` - TRNG driver instance
+    fn gen_lfsr_seed(&mut self, trng: &mut Trng) -> CaliptraResult<()> {
+        let hmac = self.hmac.regs_mut();
+
+        let rand_data = trng.generate()?;
+        cfg_if::cfg_if! {
+            if #[cfg(feature="hw-latest")] {
+                let iv: [u32; 12] = rand_data.0[..12].try_into().unwrap();
+                KvAccess::copy_from_arr(&Array4x12::from(iv), hmac.lfsr_seed())?;
+            }
+            else {
+                let iv: [u32; 5] = rand_data.0[..5].try_into().unwrap();
+                KvAccess::copy_from_arr(&Array4x5::from(iv), hmac.lfsr_seed())?;
+            }
+        }
+        Ok(())
     }
 
     /// Calculate the hmac for specified data
@@ -222,18 +234,7 @@ impl Hmac384 {
             }
         }
 
-        // Generate an LFSR seed.
-        let rand_data = trng.generate()?;
-        cfg_if::cfg_if! {
-            if #[cfg(feature="hw-latest")] {
-                let iv: [u32; 12] = rand_data.0[..12].try_into().unwrap();
-                KvAccess::copy_from_arr(&Array4x12::from(iv), hmac.lfsr_seed())?;
-            }
-            else {
-                let iv: [u32; 5] = rand_data.0[..5].try_into().unwrap();
-                KvAccess::copy_from_arr(&Array4x5::from(iv), hmac.lfsr_seed())?;
-            }
-        }
+        self.gen_lfsr_seed(trng)?;
 
         // Calculate the hmac
         match data {
