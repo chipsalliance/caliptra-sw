@@ -26,8 +26,8 @@ impl TrngExt {
                 return Err(CaliptraError::DRIVER_TRNG_EXT_TIMEOUT);
             }
         }
-        let result = Array4x12::read_from_reg(regs.cptra_trng_data());
+        let result = Ok(Array4x12::read_from_reg(regs.cptra_trng_data()));
         regs.cptra_trng_status().write(|w| w.data_req(false));
-        Ok(result)
+        result
     }
 }
