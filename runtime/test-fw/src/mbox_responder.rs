@@ -3,6 +3,7 @@
 #![no_main]
 #![no_std]
 
+use caliptra_cfi_lib::CfiPanicInfo;
 use core::mem::size_of;
 
 use caliptra_common::{handle_fatal_error, mailbox_api::CommandId};

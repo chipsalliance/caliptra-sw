@@ -20,7 +20,8 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{HashValue, Lms, LmsResult, Sha256};
+use caliptra_cfi_lib::CfiPanicInfo;
+use caliptra_drivers::{CaliptraError, HashValue, Lms, LmsResult, Sha256};
 use caliptra_lms_types::{
     bytes_to_words_8, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsPublicKey,
     LmsSignature,

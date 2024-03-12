@@ -16,7 +16,8 @@ Abstract:
 #![no_main]
 
 use caliptra_cfi_lib::CfiCounter;
-use caliptra_drivers::{Array4x8, Sha256, Sha256Alg, Sha256DigestOp};
+use caliptra_cfi_lib::CfiPanicInfo;
+use caliptra_drivers::{Array4x8, CaliptraError, Sha256, Sha256Alg, Sha256DigestOp};
 use caliptra_kat::Sha256Kat;
 use caliptra_registers::sha256::Sha256Reg;
 

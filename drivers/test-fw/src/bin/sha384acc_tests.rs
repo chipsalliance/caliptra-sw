@@ -15,7 +15,10 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{memory_layout, Array4x12, Mailbox, Sha384Acc, ShaAccLockState};
+use caliptra_cfi_lib::CfiPanicInfo;
+use caliptra_drivers::{
+    memory_layout, Array4x12, CaliptraError, Mailbox, Sha384Acc, ShaAccLockState,
+};
 use caliptra_kat::Sha384AccKat;
 use caliptra_registers::mbox::MboxCsr;
 use caliptra_registers::sha512_acc::Sha512AccCsr;

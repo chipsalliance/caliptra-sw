@@ -3,8 +3,10 @@
 #![no_std]
 #![no_main]
 
-use caliptra_cfi_lib::CfiCounter;
-use caliptra_drivers::{Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar, Trng};
+use caliptra_cfi_lib::{CfiCounter, CfiPanicInfo};
+use caliptra_drivers::{
+    Array4x12, CaliptraError, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar, Trng,
+};
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::ecc::EccReg;
 use caliptra_registers::entropy_src::EntropySrcReg;
@@ -45,7 +47,11 @@ fn test_sign_validation_failure() {
     };
 
     // Init CFI
-    let mut entropy_gen = || trng.generate().map(|a| a.0);
+    let mut entropy_gen = || {
+        trng.generate()
+            .map(|a| a.0)
+            .map_err(|_| caliptra_cfi_lib::CfiPanicInfo::TrngError)
+    };
     CfiCounter::reset(&mut entropy_gen);
 
     let digest = Array4x12::new([0u32; 12]);

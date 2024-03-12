@@ -15,10 +15,10 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_cfi_lib::CfiCounter;
+use caliptra_cfi_lib::{CfiCounter, CfiPanicInfo};
 use caliptra_drivers::{
-    hmac384_kdf, Array4x12, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, Hmac384, KeyId,
-    KeyReadArgs, KeyUsage, KeyWriteArgs, Trng,
+    hmac384_kdf, Array4x12, CaliptraError, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed,
+    Hmac384, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Trng,
 };
 use caliptra_kat::Hmac384KdfKat;
 use caliptra_registers::csrng::CsrngReg;
@@ -695,7 +695,11 @@ fn test_kat() {
     };
 
     // Init CFI
-    let mut entropy_gen = || trng.generate().map(|a| a.0);
+    let mut entropy_gen = || {
+        trng.generate()
+            .map(|a| a.0)
+            .map_err(|_| caliptra_cfi_lib::CfiPanicInfo::TrngError)
+    };
     CfiCounter::reset(&mut entropy_gen);
 
     assert_eq!(

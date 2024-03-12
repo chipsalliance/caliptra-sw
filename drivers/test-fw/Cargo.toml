@@ -8,7 +8,7 @@ edition = "2021"
 
 [dependencies]
 caliptra-drivers = { workspace = true, features=["emu"] }
-caliptra-error = { workspace = true, default-features = false }
+caliptra-error = { workspace = true, default-features = false, features = ["cfi"] }
 caliptra-kat = { workspace = true }
 caliptra-lms-types = { workspace = true }
 caliptra-registers = { workspace = true }

@@ -94,19 +94,6 @@ pub use sha384acc::{Sha384Acc, Sha384AccOp, ShaAccLockState};
 pub use soc_ifc::{report_boot_status, Lifecycle, MfgFlags, ResetReason, SocIfc};
 pub use trng::Trng;
 
-#[allow(unused_imports)]
-#[cfg(not(feature = "runtime"))]
-use caliptra_cfi_derive;
-#[allow(unused_imports)]
-#[cfg(feature = "runtime")]
-use caliptra_cfi_derive_git as caliptra_cfi_derive;
-#[allow(unused_imports)]
-#[cfg(not(feature = "runtime"))]
-use caliptra_cfi_lib;
-#[allow(unused_imports)]
-#[cfg(feature = "runtime")]
-use caliptra_cfi_lib_git as caliptra_cfi_lib;
-
 cfg_if::cfg_if! {
     if #[cfg(feature = "emu")] {
         mod uart;

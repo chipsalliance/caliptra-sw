@@ -3,7 +3,8 @@
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::Csrng;
+use caliptra_cfi_lib::CfiPanicInfo;
+use caliptra_drivers::{CaliptraError, Csrng};
 use caliptra_registers::{csrng::CsrngReg, entropy_src::EntropySrcReg, soc_ifc::SocIfcReg};
 use caliptra_test_harness::test_suite;
 

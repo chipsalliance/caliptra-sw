@@ -15,7 +15,8 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{report_boot_status, SocIfc};
+use caliptra_cfi_lib::CfiPanicInfo;
+use caliptra_drivers::{report_boot_status, CaliptraError, SocIfc};
 use caliptra_registers::soc_ifc::SocIfcReg;
 
 use caliptra_test_harness::test_suite;

@@ -15,7 +15,7 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_main)]
 use core::hint::black_box;
 
-use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
+use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter, CfiPanicInfo};
 use caliptra_common::{
     cprintln, handle_fatal_error,
     keyids::{KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY},
@@ -63,7 +63,12 @@ pub extern "C" fn entry_point() -> ! {
 
     if !cfg!(feature = "no-cfi") {
         cprintln!("[state] CFI Enabled");
-        let mut entropy_gen = || env.trng.generate().map(|a| a.0);
+        let mut entropy_gen = || {
+            env.trng
+                .generate()
+                .map(|a| a.0)
+                .map_err(|_| caliptra_cfi_lib::CfiPanicInfo::TrngError)
+        };
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);
@@ -144,10 +149,12 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
 }
 
 #[no_mangle]
-extern "C" fn cfi_panic_handler(code: u32) -> ! {
-    cprintln!("[FMC] CFI Panic code=0x{:08X}", code);
+extern "C" fn cfi_panic_handler(info: CfiPanicInfo) -> ! {
+    let caliptra_error: CaliptraError = info.into();
+    let error_code = caliptra_error.0.get();
+    cprintln!("[FMC] CFI Panic code=0x{:08X}", error_code);
 
-    handle_fatal_error(code);
+    handle_fatal_error(error_code);
 }
 
 #[panic_handler]

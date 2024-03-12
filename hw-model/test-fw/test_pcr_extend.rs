@@ -5,8 +5,8 @@
 #![no_main]
 #![no_std]
 
-use caliptra_cfi_lib::CfiCounter;
-use caliptra_drivers::{Array4x12, PcrBank, PcrId, Sha384};
+use caliptra_cfi_lib::{CfiCounter, CfiPanicInfo};
+use caliptra_drivers::{Array4x12, CaliptraError, PcrBank, PcrId, Sha384};
 use caliptra_registers::{pv::PvReg, sha512::Sha512Reg};
 #[allow(unused)]
 use caliptra_test_harness::println;
@@ -17,9 +17,12 @@ pub fn panic(_info: &core::panic::PanicInfo) -> ! {
 }
 
 #[no_mangle]
-extern "C" fn cfi_panic_handler(code: u32) -> ! {
-    println!("[test_pcr_extend] CFI Panic code=0x{:08X}", code);
-    caliptra_drivers::report_fw_error_fatal(0xdead2);
+extern "C" fn cfi_panic_handler(info: CfiPanicInfo) -> ! {
+    let caliptra_error: CaliptraError = info.into();
+    let error_code = caliptra_error.0.get();
+
+    println!("[test_pcr_extend] CFI Panic code=0x{:08X}", error_code);
+    caliptra_drivers::report_fw_error_fatal(error_code);
     caliptra_drivers::ExitCtrl::exit(u32::MAX)
 }
 

@@ -6,6 +6,7 @@
 use caliptra_common::{handle_fatal_error, mailbox_api::CommandId};
 use caliptra_drivers::pcr_log::{PcrLogEntry, PcrLogEntryId};
 
+use caliptra_cfi_lib::CfiPanicInfo;
 use caliptra_drivers::{cprintln, CaliptraError, CaliptraResult};
 use caliptra_drivers::{PcrBank, PcrId, PersistentDataAccessor};
 use caliptra_registers::pv::PvReg;

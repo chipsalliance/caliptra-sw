@@ -16,7 +16,7 @@ Abstract:
 #![cfg_attr(feature = "fake-rom", allow(unused_imports))]
 
 use crate::{lock::lock_registers, print::HexBytes};
-use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
+use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter, CfiPanicInfo};
 use caliptra_common::RomBootStatus;
 use caliptra_common::RomBootStatus::{KatComplete, KatStarted};
 use caliptra_kat::*;
@@ -73,7 +73,12 @@ pub extern "C" fn rom_entry() -> ! {
 
     if !cfg!(feature = "no-cfi") {
         cprintln!("[state] CFI Enabled");
-        let mut entropy_gen = || env.trng.generate().map(|a| a.0);
+        let mut entropy_gen = || {
+            env.trng
+                .generate()
+                .map(|a| a.0)
+                .map_err(|_| caliptra_cfi_lib::CfiPanicInfo::TrngError)
+        };
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);
@@ -327,10 +332,12 @@ fn handle_non_fatal_error(code: u32) {
 }
 
 #[no_mangle]
-extern "C" fn cfi_panic_handler(code: u32) -> ! {
-    cprintln!("[ROM] CFI Panic code=0x{:08X}", code);
+extern "C" fn cfi_panic_handler(info: CfiPanicInfo) -> ! {
+    let caliptra_error: CaliptraError = info.into();
+    let error_code = caliptra_error.0.get();
+    cprintln!("[ROM] CFI Panic code=0x{:08X}", error_code);
 
-    handle_fatal_error(code);
+    handle_fatal_error(error_code);
 }
 
 #[allow(clippy::empty_loop)]

@@ -15,6 +15,7 @@ File contains test cases for LMS signature verification using SHA256/192.
 #![no_std]
 #![no_main]
 
+use caliptra_cfi_lib::CfiPanicInfo;
 use caliptra_drivers::{CaliptraError, Lms, LmsResult, Sha256};
 use caliptra_lms_types::{
     bytes_to_words_6, LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsIdentifier,

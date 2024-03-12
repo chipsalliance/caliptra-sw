@@ -15,7 +15,8 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{PcrBank, PcrId};
+use caliptra_cfi_lib::CfiPanicInfo;
+use caliptra_drivers::{CaliptraError, PcrBank, PcrId};
 use caliptra_registers::pv::PvReg;
 
 use caliptra_test_harness::test_suite;
