@@ -150,7 +150,7 @@ pub unsafe extern "C" fn caliptra_model_output_peek(model: *mut caliptra_model) 
     assert!(!model.is_null());
     let peek_str = (*{ model as *mut DefaultHwModel }).output().peek();
     caliptra_buffer {
-        data: peek_str.as_ptr() as *const u8,
+        data: peek_str.as_ptr(),
         len: peek_str.len(),
     }
 }
