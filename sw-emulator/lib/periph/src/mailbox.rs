@@ -17,6 +17,7 @@ use caliptra_emu_bus::{Bus, BusMmio, Clock, Ram, Timer};
 use caliptra_emu_bus::{BusError, ReadOnlyRegister, ReadWriteRegister, WriteOnlyRegister};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
+use std::cmp::min;
 use std::{cell::RefCell, rc::Rc};
 use tock_registers::interfaces::Writeable;
 use tock_registers::{register_bitfields, LocalRegisterCopy};
@@ -393,6 +394,7 @@ impl MailboxRegs {
         let mut result = self.state_machine.context.status;
         result.modify(match self.state_machine.state {
             States::ExecUc => Status::MBOX_FSM_PS::MBOX_EXECUTE_UC,
+            States::ExecUcResponse => Status::MBOX_FSM_PS::MBOX_EXECUTE_UC,
             States::ExecSoc => Status::MBOX_FSM_PS::MBOX_EXECUTE_SOC,
             States::Idle => Status::MBOX_FSM_PS::MBOX_IDLE,
             States::RdyForCmd => Status::MBOX_FSM_PS::MBOX_RDY_FOR_CMD,
@@ -454,12 +456,17 @@ statemachine! {
         RdyForData + UcExecSet = ExecSoc,
 
         ExecUc + DataRead / dequeue = ExecUc,
-        ExecUc + DlenWrite(DataLength) / init_dlen = ExecUc,
-        ExecUc + DataWrite(DataIn) / enqueue = ExecUc,
-        ExecUc + SocExecClear [is_locked] / unlock = Idle,
-        ExecUc + UcExecClear [is_locked] / unlock = Idle,
-        ExecUc + SetStatus = ExecSoc,
-        ExecUc + WrUnlock  / unlock_and_reset = Idle,
+        ExecUc + DlenWrite(DataLength) / init_dlen = ExecUcResponse,
+        ExecUc + DataWrite(DataIn) / reset_fifo_and_enqueue = ExecUcResponse,
+        ExecUc + SetStatus / reset_fifo = ExecSoc,
+
+        ExecUc | ExecUcResponse + SocExecClear [is_locked] / unlock = Idle,
+        ExecUc | ExecUcResponse + UcExecClear [is_locked] / unlock = Idle,
+        ExecUcResponse + SetStatus = ExecSoc,
+        ExecUc | ExecUcResponse + WrUnlock  / unlock_and_reset = Idle,
+
+        ExecUcResponse + DlenWrite(DataLength) / update_dlen = ExecUcResponse,
+        ExecUcResponse + DataWrite(DataIn) / enqueue = ExecUcResponse,
 
         ExecSoc + DataRead / dequeue = ExecSoc,
         ExecSoc + DlenWrite(DataLength) / init_dlen = ExecSoc,
@@ -551,6 +558,16 @@ impl StateMachineContext for Context {
         self.fifo.latch_dlen(self.dlen as usize);
     }
 
+    fn reset_fifo_and_enqueue(&mut self, data_in: &DataIn) {
+        self.fifo.reset();
+        self.fifo.enqueue(data_in.0);
+    }
+
+    fn update_dlen(&mut self, data_len: &DataLength) {
+        self.dlen = data_len.0;
+        self.fifo.latch_dlen(self.dlen as usize);
+    }
+
     fn set_cmd(&mut self, cmd: &Cmd) {
         self.cmd = cmd.0;
     }
@@ -559,6 +576,9 @@ impl StateMachineContext for Context {
         self.fifo.reset();
         self.locked = 1;
         self.user = *user;
+    }
+    fn reset_fifo(&mut self) {
+        self.fifo.reset();
     }
     fn unlock(&mut self) {
         self.locked = 0;
@@ -613,7 +633,7 @@ impl Fifo {
         }
     }
     pub fn dequeue(&mut self) -> Result<u32, ()> {
-        if self.read_index >= self.latched_dlen as usize {
+        if self.read_index >= min(self.latched_dlen as usize, self.write_index) {
             return Err(());
         }
 
