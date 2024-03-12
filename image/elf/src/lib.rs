@@ -75,7 +75,12 @@ impl ElfExecutable {
             bail!("ELF file has no segments");
         };
 
-        let Some(load_addr) = segments.iter().filter(|s| s.p_type == PT_LOAD).map(|s| s.p_paddr as u32).min() else {
+        let Some(load_addr) = segments
+            .iter()
+            .filter(|s| s.p_type == PT_LOAD)
+            .map(|s| s.p_paddr as u32)
+            .min()
+        else {
             bail!("ELF file has no LOAD segments");
         };
 

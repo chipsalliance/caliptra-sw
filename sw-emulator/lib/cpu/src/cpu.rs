@@ -528,7 +528,9 @@ impl<TBus: Bus> Cpu<TBus> {
             Ok(_) => (),
             Err(_) => return StepAction::Fatal,
         };
-        let Ok(next_pc) = self.read_bus(RvSize::Word, next_pc_ptr) else { return StepAction::Fatal; };
+        let Ok(next_pc) = self.read_bus(RvSize::Word, next_pc_ptr) else {
+            return StepAction::Fatal;
+        };
         const MACHINE_EXTERNAL_INT: u32 = 0x8000_000B;
         let ret = self.handle_trap(self.read_pc(), MACHINE_EXTERNAL_INT, 0, next_pc);
         match ret {

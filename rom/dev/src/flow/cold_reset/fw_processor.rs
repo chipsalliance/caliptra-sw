@@ -677,7 +677,10 @@ impl FirmwareProcessor {
         stash_measurement: &StashMeasurementReq,
     ) -> CaliptraResult<()> {
         let fht = &mut persistent_data.fht;
-        let Some(dst) = persistent_data.measurement_log.get_mut(fht.meas_log_index as usize) else {
+        let Some(dst) = persistent_data
+            .measurement_log
+            .get_mut(fht.meas_log_index as usize)
+        else {
             return Err(CaliptraError::ROM_GLOBAL_MEASUREMENT_LOG_EXHAUSTED);
         };
 

@@ -233,7 +233,9 @@ impl ValidatedRegisterBlock {
                 // Keep this register in self.registers
                 return true;
             }
-            let Ok(index) = reg.name[reg_name.len()..].parse::<usize>() else { return true; };
+            let Ok(index) = reg.name[reg_name.len()..].parse::<usize>() else {
+                return true;
+            };
 
             let reg_name = reg_name.trim_start_matches(block_name);
             instances_by_name
