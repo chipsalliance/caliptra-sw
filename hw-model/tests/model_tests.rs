@@ -271,3 +271,133 @@ fn test_pcr_extend() {
 
     model.step_until_exit_success().unwrap();
 }
+
+#[test]
+fn test_mbox_uc_response_dlen_after_data() {
+    let mut model = run_fw_elf(
+        &caliptra_builder::build_firmware_elf(&firmware::hw_model_tests::MAILBOX_RESPONDER)
+            .unwrap(),
+    );
+    let mbox = model.soc_mbox();
+    // Lock mailbox
+    assert!(!mbox.lock().read().lock());
+    assert!(mbox.lock().read().lock());
+
+    // This command writes 3 words to datain but doesn't update dlen immediately
+    mbox.cmd().write(|_| 0x1000_3000);
+
+    // Write some arbitrary data to the mailbox to ensure that the peripheral
+    // doesn't include it in the reponse.
+    mbox.dlen().write(|_| 4);
+    mbox.datain().write(|_| 0x3a48_735b);
+
+    mbox.execute().write(|w| w.execute(true));
+
+    while model.soc_mbox().status().read().status().cmd_busy() {
+        model.step();
+    }
+    let mbox = model.soc_mbox();
+    assert_eq!(12, mbox.dlen().read());
+    assert_eq!(0xdf06_065d, mbox.dataout().read());
+    assert_eq!(0x2926_a95d, mbox.dataout().read());
+    assert_eq!(0x55ca_5482, mbox.dataout().read());
+}
+
+#[test]
+fn test_mbox_uc_response_dlen_never_written() {
+    let mut model = run_fw_elf(
+        &caliptra_builder::build_firmware_elf(&firmware::hw_model_tests::MAILBOX_RESPONDER)
+            .unwrap(),
+    );
+    let mbox = model.soc_mbox();
+    // Lock mailbox
+    assert!(!mbox.lock().read().lock());
+    assert!(mbox.lock().read().lock());
+
+    // This command writes two words to datain but doesn't set dlen
+    mbox.cmd().write(|_| 0x1000_3001);
+
+    // Write some arbitrary data to the mailbox to ensure that the peripheral
+    // doesn't include it in the reponse.
+    mbox.dlen().write(|_| 12);
+    mbox.datain().write(|_| 0x508b_7a98);
+    mbox.datain().write(|_| 0x9dbe_d0ec);
+    mbox.datain().write(|_| 0x3ef7_9f17);
+
+    mbox.execute().write(|w| w.execute(true));
+
+    while model.soc_mbox().status().read().status().cmd_busy() {
+        model.step();
+    }
+    let mbox = model.soc_mbox();
+    assert_eq!(12, mbox.dlen().read());
+    assert_eq!(0xe3a0_8937, mbox.dataout().read());
+    assert_eq!(0x0b36_c2de, mbox.dataout().read());
+    assert_eq!(0, mbox.dataout().read());
+}
+
+#[test]
+fn test_mbox_uc_response_no_dlen_or_din() {
+    let mut model = run_fw_elf(
+        &caliptra_builder::build_firmware_elf(&firmware::hw_model_tests::MAILBOX_RESPONDER)
+            .unwrap(),
+    );
+    let mbox = model.soc_mbox();
+    // Lock mailbox
+    assert!(!mbox.lock().read().lock());
+    assert!(mbox.lock().read().lock());
+
+    // This command doens't write to datain or dlen, but sets data_ready
+    mbox.cmd().write(|_| 0x1000_3002);
+
+    // Write some arbitrary data to the mailbox to ensure that the peripheral
+    // doesn't include it in the reponse.
+    mbox.dlen().write(|_| 12);
+    mbox.datain().write(|_| 0x2176_9776);
+    mbox.datain().write(|_| 0xdccf_ba78);
+    mbox.datain().write(|_| 0x0a3b_a633);
+
+    mbox.execute().write(|w| w.execute(true));
+
+    while model.soc_mbox().status().read().status().cmd_busy() {
+        model.step();
+    }
+    let mbox = model.soc_mbox();
+    assert_eq!(12, mbox.dlen().read());
+    assert_eq!(0, mbox.dataout().read());
+    assert_eq!(0, mbox.dataout().read());
+    assert_eq!(0, mbox.dataout().read());
+}
+
+#[test]
+fn test_mbox_uc_response_din_never_written() {
+    let mut model = run_fw_elf(
+        &caliptra_builder::build_firmware_elf(&firmware::hw_model_tests::MAILBOX_RESPONDER)
+            .unwrap(),
+    );
+    let mbox = model.soc_mbox();
+    // Lock mailbox
+    assert!(!mbox.lock().read().lock());
+    assert!(mbox.lock().read().lock());
+
+    // This command writes 4 to dlen but doesn't write to datain and sets data_ready
+    mbox.cmd().write(|_| 0x1000_3003);
+
+    // Write some arbitrary data to the mailbox to ensure that the peripheral
+    // doesn't include it in the reponse.
+    mbox.dlen().write(|_| 12);
+    mbox.datain().write(|_| 0x5863_0f1e);
+    mbox.datain().write(|_| 0x41a9_fed7);
+    mbox.datain().write(|_| 0xe996_bf7b);
+
+    mbox.execute().write(|w| w.execute(true));
+
+    while model.soc_mbox().status().read().status().cmd_busy() {
+        model.step();
+    }
+    let mbox = model.soc_mbox();
+    assert_eq!(4, mbox.dlen().read());
+    assert_eq!(0, mbox.dataout().read());
+    assert_eq!(0, mbox.dataout().read());
+    assert_eq!(0, mbox.dataout().read());
+}
