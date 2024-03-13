@@ -33,8 +33,8 @@ use crate::MAX_CERT_CHAIN_SIZE;
 
 pub struct DpePlatform<'a> {
     auto_init_locality: u32,
-    hashed_rt_pub_key: Digest,
-    cert_chain: &'a mut ArrayVec<u8, MAX_CERT_CHAIN_SIZE>,
+    hashed_rt_pub_key: &'a Digest,
+    cert_chain: &'a ArrayVec<u8, MAX_CERT_CHAIN_SIZE>,
     not_before: &'a NotBefore,
     not_after: &'a NotAfter,
 }
@@ -45,8 +45,8 @@ pub const VENDOR_SKU: u32 = u32::from_be_bytes(*b"CTRA");
 impl<'a> DpePlatform<'a> {
     pub fn new(
         auto_init_locality: u32,
-        hashed_rt_pub_key: Digest,
-        cert_chain: &'a mut ArrayVec<u8, 4096>,
+        hashed_rt_pub_key: &'a Digest,
+        cert_chain: &'a ArrayVec<u8, 4096>,
         not_before: &'a NotBefore,
         not_after: &'a NotAfter,
     ) -> Self {
@@ -109,7 +109,7 @@ impl Platform for DpePlatform<'_> {
 
         // Caliptra RDN SerialNumber field is always a Sha256 hash
         let mut serial = [0u8; 64];
-        Digest::write_hex_str(&self.hashed_rt_pub_key, &mut serial)
+        Digest::write_hex_str(self.hashed_rt_pub_key, &mut serial)
             .map_err(|e| PlatformError::IssuerNameError(e.get_error_detail().unwrap_or(0)))?;
 
         let name = Name {
