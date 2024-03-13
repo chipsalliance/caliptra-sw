@@ -32,7 +32,7 @@ pub struct DpeCrypto<'a> {
     ecc384: &'a mut Ecc384,
     hmac384: &'a mut Hmac384,
     key_vault: &'a mut KeyVault,
-    rt_pub_key: Ecc384PubKey,
+    rt_pub_key: &'a mut Ecc384PubKey,
     key_id_rt_cdi: KeyId,
     key_id_rt_priv_key: KeyId,
 }
@@ -45,7 +45,7 @@ impl<'a> DpeCrypto<'a> {
         ecc384: &'a mut Ecc384,
         hmac384: &'a mut Hmac384,
         key_vault: &'a mut KeyVault,
-        rt_pub_key: Ecc384PubKey,
+        rt_pub_key: &'a mut Ecc384PubKey,
         key_id_rt_cdi: KeyId,
         key_id_rt_priv_key: KeyId,
     ) -> Self {

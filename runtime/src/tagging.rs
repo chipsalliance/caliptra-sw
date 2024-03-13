@@ -75,12 +75,14 @@ impl GetTaggedTciCmd {
     pub(crate) fn execute(drivers: &Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if let Some(cmd) = GetTaggedTciReq::read_from(cmd_args) {
             let persistent_data = drivers.persistent_data.get();
+            let context_has_tag = &persistent_data.context_has_tag;
+            let context_tags = &persistent_data.context_tags;
             let idx = (0..MAX_HANDLES)
                 .find(|i| {
-                    *i < persistent_data.context_has_tag.len()
-                        && *i < persistent_data.context_tags.len()
-                        && persistent_data.context_has_tag[*i].get()
-                        && persistent_data.context_tags[*i] == cmd.tag
+                    *i < context_has_tag.len()
+                        && *i < context_tags.len()
+                        && context_has_tag[*i].get()
+                        && context_tags[*i] == cmd.tag
                 })
                 .ok_or(CaliptraError::RUNTIME_TAGGING_FAILURE)?;
             if idx >= persistent_data.dpe.contexts.len() {

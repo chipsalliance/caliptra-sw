@@ -145,7 +145,7 @@ impl Drivers {
 
     /// Isolates unsafe behavior in new_from_registers
     unsafe fn get_unsafe_registers() -> CaliptraResult<Self> {
-        let mut trng = Trng::new(
+        let trng = Trng::new(
             CsrngReg::new(),
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
@@ -251,7 +251,7 @@ impl Drivers {
                 cfi_assert!(dpe_context_threshold_exceeded.is_err());
             }
             if let Err(e) = dpe_context_threshold_exceeded {
-                let mut result = DisableAttestationCmd::execute(drivers);
+                let result = DisableAttestationCmd::execute(drivers);
                 if cfi_launder(result.is_ok()) {
                     cfi_assert!(result.is_ok());
                 } else {
@@ -297,7 +297,7 @@ impl Drivers {
         // Ensure TCI from SRAM == RT_FW_JOURNEY_PCR
         if latest_pcr != latest_tci {
             // If latest pcr validation fails, disable attestation
-            let mut result = DisableAttestationCmd::execute(drivers);
+            let result = DisableAttestationCmd::execute(drivers);
             if cfi_launder(result.is_ok()) {
                 cfi_assert!(result.is_ok());
             } else {
@@ -328,8 +328,8 @@ impl Drivers {
     /// Check that inactive DPE contexts do not have context tags set
     fn validate_context_tags(mut drivers: &mut Drivers) -> CaliptraResult<()> {
         let pdata = drivers.persistent_data.get();
-        let context_has_tag = pdata.context_has_tag;
-        let context_tags = pdata.context_tags;
+        let context_has_tag = &pdata.context_has_tag;
+        let context_tags = &pdata.context_tags;
         let dpe = &pdata.dpe;
 
         for i in (0..MAX_HANDLES) {
@@ -378,24 +378,25 @@ impl Drivers {
 
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
         let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
+        let pdata = drivers.persistent_data.get_mut();
         let mut crypto = DpeCrypto::new(
             &mut drivers.sha384,
             &mut drivers.trng,
             &mut drivers.ecc384,
             &mut drivers.hmac384,
             &mut drivers.key_vault,
-            drivers.persistent_data.get().fht.rt_dice_pub_key,
+            &mut pdata.fht.rt_dice_pub_key,
             key_id_rt_cdi,
             key_id_rt_priv_key,
         );
 
-        let (nb, nf) = Self::get_cert_validity_info(&drivers.persistent_data.get().manifest1);
+        let (nb, nf) = Self::get_cert_validity_info(&pdata.manifest1);
         let mut env = DpeEnv::<CptraDpeTypes> {
             crypto,
             platform: DpePlatform::new(
                 caliptra_locality,
-                hashed_rt_pub_key,
-                &mut drivers.cert_chain,
+                &hashed_rt_pub_key,
+                &drivers.cert_chain,
                 &nb,
                 &nf,
             ),
@@ -437,13 +438,13 @@ impl Drivers {
         }
 
         // Call DeriveContext to create TCIs for each measurement added in ROM
-        let num_measurements = drivers.persistent_data.get().fht.meas_log_index as usize;
-        let measurement_log = drivers.persistent_data.get().measurement_log;
+        let num_measurements = pdata.fht.meas_log_index as usize;
+        let measurement_log = pdata.measurement_log;
         for measurement_log_entry in measurement_log.iter().take(num_measurements) {
             // Check that adding this measurement to DPE doesn't cause
             // the PL0 context threshold to be exceeded.
-            let pl0_pauser = drivers.persistent_data.get().manifest1.header.pl0_pauser;
-            let flags = drivers.persistent_data.get().manifest1.header.flags;
+            let pl0_pauser = pdata.manifest1.header.pl0_pauser;
+            let flags = pdata.manifest1.header.flags;
             Self::is_dpe_context_threshold_exceeded(
                 pl0_pauser_locality,
                 flags,
@@ -477,7 +478,7 @@ impl Drivers {
         }
 
         // Write DPE to persistent data.
-        drivers.persistent_data.get_mut().dpe = dpe;
+        pdata.dpe = dpe;
         Ok(())
     }
 
@@ -599,7 +600,7 @@ impl Drivers {
     /// # Returns
     ///
     /// * `KeyId` - RT Alias CDI
-    pub fn get_key_id_rt_cdi(drivers: &mut Drivers) -> CaliptraResult<KeyId> {
+    pub fn get_key_id_rt_cdi(drivers: &Drivers) -> CaliptraResult<KeyId> {
         let ds: DataStore = drivers
             .persistent_data
             .get()
@@ -623,7 +624,7 @@ impl Drivers {
     /// # Returns
     ///
     /// * `KeyId` - RT Alias private key
-    pub fn get_key_id_rt_priv_key(drivers: &mut Drivers) -> CaliptraResult<KeyId> {
+    pub fn get_key_id_rt_priv_key(drivers: &Drivers) -> CaliptraResult<KeyId> {
         let ds: DataStore = drivers
             .persistent_data
             .get()
