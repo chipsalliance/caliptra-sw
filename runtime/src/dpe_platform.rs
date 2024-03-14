@@ -15,9 +15,9 @@ Abstract:
 use core::cmp::min;
 
 use arrayvec::ArrayVec;
+use caliptra_common::x509::{NotAfter, NotBefore};
 use caliptra_drivers::cprintln;
 use caliptra_image_types::{ImageHeader, ImageManifest};
-use caliptra_x509::{NotAfter, NotBefore};
 use crypto::Digest;
 use dpe::{
     x509::{CertWriter, DirectoryString, Name},

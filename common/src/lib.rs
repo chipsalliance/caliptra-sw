@@ -16,6 +16,7 @@ pub mod fips;
 pub mod keyids;
 pub mod verifier;
 pub mod wdt;
+pub mod x509;
 
 ///merge imports
 pub use hand_off::{

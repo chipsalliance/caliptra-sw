@@ -13,19 +13,20 @@ Abstract:
 
 --*/
 
-use super::crypto::{Crypto, Ecc384KeyPair};
+use super::crypto::Crypto;
 use super::dice::{DiceInput, DiceOutput};
 use super::fw_processor::FwProcInfo;
-use super::x509::X509;
 use crate::cprintln;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
+use caliptra_common::crypto::Ecc384KeyPair;
 use caliptra_common::dice;
 use caliptra_common::keyids::{KEY_ID_FMC_PRIV_KEY, KEY_ID_ROM_FMC_CDI};
 use caliptra_common::pcr::PCR_ID_FMC_CURRENT;
+use caliptra_common::x509::X509;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::{okmutref, report_boot_status, Array4x12, CaliptraResult, KeyId, Lifecycle};
 use caliptra_x509::{FmcAliasCertTbs, FmcAliasCertTbsParams};
@@ -65,10 +66,10 @@ impl FmcAliasLayer {
         //
         // This information will be used by next DICE Layer while generating
         // certificates
-        let subj_sn = X509::subj_sn(env, &key_pair.pub_key)?;
+        let subj_sn = X509::subj_sn(&mut env.sha256, &key_pair.pub_key)?;
         report_boot_status(FmcAliasSubjIdSnGenerationComplete.into());
 
-        let subj_key_id = X509::subj_key_id(env, &key_pair.pub_key)?;
+        let subj_key_id = X509::subj_key_id(&mut env.sha256, &key_pair.pub_key)?;
         report_boot_status(FmcAliasSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
@@ -100,7 +101,14 @@ impl FmcAliasLayer {
     fn derive_cdi(env: &mut RomEnv, measurements: &Array4x12, cdi: KeyId) -> CaliptraResult<()> {
         let mut measurements: [u8; 48] = measurements.into();
 
-        let result = Crypto::hmac384_kdf(env, cdi, b"fmc_alias_cdi", Some(&measurements), cdi);
+        let result = caliptra_common::crypto::Crypto::hmac384_kdf(
+            &mut env.hmac384,
+            &mut env.trng,
+            cdi,
+            b"fmc_alias_cdi",
+            Some(&measurements),
+            cdi,
+        );
         measurements.zeroize();
         result?;
         report_boot_status(FmcAliasDeriveCdiComplete.into());
@@ -124,7 +132,15 @@ impl FmcAliasLayer {
         cdi: KeyId,
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
-        let result = Crypto::ecc384_key_gen(env, cdi, b"fmc_alias_keygen", priv_key);
+        let result = caliptra_common::crypto::Crypto::ecc384_key_gen(
+            &mut env.hmac384,
+            &mut env.ecc384,
+            &mut env.trng,
+            &mut env.key_vault,
+            cdi,
+            b"fmc_alias_keygen",
+            priv_key,
+        );
         if cfi_launder(result.is_ok()) {
             cfi_assert!(result.is_ok());
             report_boot_status(FmcAliasKeyPairDerivationComplete.into());
@@ -175,12 +191,12 @@ impl FmcAliasLayer {
 
         // Certificate `To Be Signed` Parameters
         let params = FmcAliasCertTbsParams {
-            ueid: &X509::ueid(env)?,
+            ueid: &X509::ueid(&env.soc_ifc)?,
             subject_sn: &output.subj_sn,
             subject_key_id: &output.subj_key_id,
             issuer_sn: input.auth_sn,
             authority_key_id: input.auth_key_id,
-            serial_number: &X509::cert_sn(env, pub_key)?,
+            serial_number: &X509::cert_sn(&mut env.sha256, pub_key)?,
             public_key: &pub_key.to_der(),
             tcb_info_fmc_tci: &(&env.data_vault.fmc_tci()).into(),
             tcb_info_device_info_hash: &fuse_info_digest.into(),

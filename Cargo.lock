@@ -842,7 +842,6 @@ dependencies = [
  "quote",
  "syn 1.0.109",
  "x509-parser",
- "zeroize",
 ]
 
 [[package]]
@@ -859,6 +858,7 @@ dependencies = [
  "caliptra-registers",
  "ufmt",
  "zerocopy",
+ "zeroize",
 ]
 
 [[package]]

@@ -13,8 +13,6 @@ Abstract:
 --*/
 
 use crate::rom_env::RomEnv;
-use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_common::keyids::KEY_ID_TMP;
 use caliptra_drivers::*;
 use caliptra_x509::Ecdsa384Signature;
 use zeroize::Zeroize;
@@ -36,17 +34,6 @@ impl Ecdsa384SignatureAdapter for Ecc384Signature {
     }
 }
 
-/// DICE  Layer Key Pair
-#[derive(Debug, Zeroize)]
-pub struct Ecc384KeyPair {
-    /// Private Key
-    #[zeroize(skip)]
-    pub priv_key: KeyId,
-
-    /// Public Key
-    pub pub_key: Ecc384PubKey,
-}
-
 pub enum Crypto {}
 
 impl Crypto {
@@ -63,137 +50,6 @@ impl Crypto {
     #[inline(always)]
     pub fn sha1_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x5> {
         env.sha1.digest(data)
-    }
-
-    /// Calculate SHA2-256 Digest
-    ///
-    /// # Arguments
-    ///
-    /// * `env`   - ROM Environment
-    /// * `data` - Input data to hash
-    ///
-    /// # Returns
-    ///
-    /// * `Array4x8` - Digest
-    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
-    pub fn sha256_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x8> {
-        env.sha256.digest(data)
-    }
-
-    /// Calculate SHA2-384 Digest
-    ///
-    /// # Arguments
-    ///
-    /// * `env`   - ROM Environment
-    /// * `data` - Input data to hash
-    ///
-    /// # Returns
-    ///
-    /// * `Array4x12` - Digest
-    #[inline(always)]
-    pub fn sha384_digest(env: &mut RomEnv, data: &[u8]) -> CaliptraResult<Array4x12> {
-        env.sha384.digest(data)
-    }
-
-    /// Calculate HMAC-348
-    ///
-    /// # Arguments
-    ///
-    /// * `env` - ROM Environment
-    /// * `key` - HMAC384 key slot
-    /// * `data` - Input data to hash
-    /// * `tag` - Key slot to store the tag
-    #[inline(always)]
-    pub fn hmac384_mac(
-        env: &mut RomEnv,
-        key: KeyId,
-        data: &Hmac384Data,
-        tag: KeyId,
-    ) -> CaliptraResult<()> {
-        env.hmac384.hmac(
-            &KeyReadArgs::new(key).into(),
-            data,
-            &mut env.trng,
-            KeyWriteArgs::new(
-                tag,
-                KeyUsage::default()
-                    .set_hmac_key_en()
-                    .set_ecc_key_gen_seed_en(),
-            )
-            .into(),
-        )
-    }
-
-    /// Calculate HMAC-348 KDF
-    ///
-    /// # Arguments
-    ///
-    /// * `env` - ROM Environment
-    /// * `key` - HMAC384 key slot
-    /// * `label` - Input label
-    /// * `context` - Input context
-    /// * `output` - Key slot to store the output
-    #[inline(always)]
-    pub fn hmac384_kdf(
-        env: &mut RomEnv,
-        key: KeyId,
-        label: &[u8],
-        context: Option<&[u8]>,
-        output: KeyId,
-    ) -> CaliptraResult<()> {
-        hmac384_kdf(
-            &mut env.hmac384,
-            KeyReadArgs::new(key).into(),
-            label,
-            context,
-            &mut env.trng,
-            KeyWriteArgs::new(
-                output,
-                KeyUsage::default()
-                    .set_hmac_key_en()
-                    .set_ecc_key_gen_seed_en(),
-            )
-            .into(),
-        )
-    }
-
-    /// Generate ECC Key Pair
-    ///
-    /// # Arguments
-    ///
-    /// * `env` - ROM Environment
-    /// * `cdi` - Key slot to retrieve the CDI from
-    /// * `priv_key` - Key slot to store the private key
-    ///
-    /// # Returns
-    ///
-    /// * `Ecc384KeyPair` - Private Key slot id and public key pairs
-    #[inline(always)]
-    pub fn ecc384_key_gen(
-        env: &mut RomEnv,
-        cdi: KeyId,
-        label: &[u8],
-        priv_key: KeyId,
-    ) -> CaliptraResult<Ecc384KeyPair> {
-        Crypto::hmac384_kdf(env, cdi, label, None, KEY_ID_TMP)?;
-
-        let key_out = Ecc384PrivKeyOut::Key(KeyWriteArgs::new(
-            priv_key,
-            KeyUsage::default().set_ecc_private_key_en(),
-        ));
-
-        let pub_key = env.ecc384.key_pair(
-            &KeyReadArgs::new(KEY_ID_TMP).into(),
-            &Array4x12::default(),
-            &mut env.trng,
-            key_out,
-        );
-        env.key_vault.erase_key(KEY_ID_TMP)?;
-
-        Ok(Ecc384KeyPair {
-            priv_key,
-            pub_key: pub_key?,
-        })
     }
 
     /// Sign the data using ECC Private Key.
@@ -218,7 +74,7 @@ impl Crypto {
         pub_key: &Ecc384PubKey,
         data: &[u8],
     ) -> CaliptraResult<Ecc384Signature> {
-        let mut digest = Self::sha384_digest(env, data);
+        let mut digest = caliptra_common::crypto::Crypto::sha384_digest(&mut env.sha384, data);
         let digest = okmutref(&mut digest)?;
         let priv_key_args = KeyReadArgs::new(priv_key);
         let priv_key = Ecc384PrivKeyIn::Key(priv_key_args);

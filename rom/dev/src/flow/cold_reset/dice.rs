@@ -13,7 +13,7 @@ Abstract:
 
 --*/
 
-use super::crypto::Ecc384KeyPair;
+use caliptra_common::crypto::Ecc384KeyPair;
 use zeroize::Zeroize;
 
 /// DICE Layer Input

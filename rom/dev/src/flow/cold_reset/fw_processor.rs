@@ -27,6 +27,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_common::pcr::PCR_ID_STASH_MEASUREMENT;
 use caliptra_common::verifier::FirmwareImageVerificationEnv;
+use caliptra_common::x509::{NotAfter, NotBefore};
 use caliptra_common::PcrLogEntry;
 use caliptra_common::PcrLogEntryId;
 use caliptra_common::{FuseLogEntryId, RomBootStatus::*};
@@ -35,7 +36,6 @@ use caliptra_drivers::*;
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier};
 use caliptra_kat::KatsEnv;
-use caliptra_x509::{NotAfter, NotBefore};
 use core::mem::ManuallyDrop;
 use zerocopy::{AsBytes, LayoutVerified};
 use zeroize::Zeroize;
@@ -132,7 +132,7 @@ impl FirmwareProcessor {
         env.soc_ifc.set_rt_fw_rev_id(manifest.runtime.version);
 
         // Get the certificate validity info
-        let (nb, nf) = Self::get_cert_validity_info(manifest);
+        let (nb, nf) = caliptra_common::x509::X509::get_cert_validity_info(manifest);
 
         report_boot_status(FwProcessorComplete.into());
         Ok(FwProcInfo {
@@ -534,40 +534,6 @@ impl FirmwareProcessor {
             &persistent_data.get().manifest1 as *const _ as u32,
         );
         report_boot_status(FwProcessorPopulateDataVaultComplete.into());
-    }
-
-    /// Process the certificate validity info
-    ///
-    /// # Arguments
-    /// * `manifest` - Manifest
-    ///
-    /// # Returns
-    /// * `NotBefore` - Valid Not Before Time
-    /// * `NotAfter`  - Valid Not After Time
-    ///
-    fn get_cert_validity_info(manifest: &ImageManifest) -> (NotBefore, NotAfter) {
-        // If there is a valid value in the manifest for the not_before and not_after times,
-        // use those. Otherwise use the default values.
-        let mut nb = NotBefore::default();
-        let mut nf = NotAfter::default();
-        let null_time = [0u8; 15];
-
-        if manifest.header.vendor_data.vendor_not_after != null_time
-            && manifest.header.vendor_data.vendor_not_before != null_time
-        {
-            nf.value = manifest.header.vendor_data.vendor_not_after;
-            nb.value = manifest.header.vendor_data.vendor_not_before;
-        }
-
-        // Owner values take preference.
-        if manifest.header.owner_data.owner_not_after != null_time
-            && manifest.header.owner_data.owner_not_before != null_time
-        {
-            nf.value = manifest.header.owner_data.owner_not_after;
-            nb.value = manifest.header.owner_data.owner_not_before;
-        }
-
-        (nb, nf)
     }
 
     /// Read request from mailbox and verify the checksum

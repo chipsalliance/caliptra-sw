@@ -14,8 +14,9 @@ Abstract:
 
 use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers};
 use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_common::mailbox_api::{
-    MailboxResp, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
+use caliptra_common::{
+    mailbox_api::{MailboxResp, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp},
+    x509::X509,
 };
 use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
 use crypto::{AlgLen, Crypto};
@@ -48,7 +49,7 @@ impl StashMeasurementCmd {
                     key_id_rt_cdi,
                     key_id_rt_priv_key,
                 );
-                let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
+                let (nb, nf) = X509::get_cert_validity_info(&pdata.manifest1);
                 let mut env = DpeEnv::<CptraDpeTypes> {
                     crypto,
                     platform: DpePlatform::new(

@@ -14,7 +14,10 @@ Abstract:
 
 use crate::{CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PL0_PAUSER_FLAG};
 use caliptra_cfi_derive_git::cfi_impl_fn;
-use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp, MailboxRespHeader};
+use caliptra_common::{
+    mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp, MailboxRespHeader},
+    x509::X509,
+};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use crypto::{AlgLen, Crypto};
 use dpe::{
@@ -55,7 +58,7 @@ impl InvokeDpeCmd {
                 key_id_rt_priv_key,
             );
             let pl0_pauser = pdata.manifest1.header.pl0_pauser;
-            let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
+            let (nb, nf) = X509::get_cert_validity_info(&pdata.manifest1);
             let mut env = DpeEnv::<CptraDpeTypes> {
                 crypto,
                 platform: DpePlatform::new(

@@ -15,14 +15,16 @@ Abstract:
 
 use super::crypto::*;
 use super::dice::*;
-use super::x509::*;
 use crate::cprintln;
 use crate::flow::cold_reset::{copy_tbs, TbsType};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
+use caliptra_common::crypto::Ecc384KeyPair;
 use caliptra_common::keyids::{KEY_ID_FE, KEY_ID_LDEVID_PRIV_KEY, KEY_ID_ROM_FMC_CDI};
+use caliptra_common::x509::X509;
+use caliptra_common::x509::{NotAfter, NotBefore};
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
 use caliptra_x509::*;
@@ -67,10 +69,10 @@ impl LocalDevIdLayer {
         //
         // This information will be used by the next DICE Layer while generating
         // certificates
-        let subj_sn = X509::subj_sn(env, &key_pair.pub_key)?;
+        let subj_sn = X509::subj_sn(&mut env.sha256, &key_pair.pub_key)?;
         report_boot_status(LDevIdSubjIdSnGenerationComplete.into());
 
-        let subj_key_id = X509::subj_key_id(env, &key_pair.pub_key)?;
+        let subj_key_id = X509::subj_key_id(&mut env.sha256, &key_pair.pub_key)?;
         report_boot_status(LDevIdSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
@@ -98,8 +100,20 @@ impl LocalDevIdLayer {
     /// * `cdi` - Key Slot to store the generated CDI
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_cdi(env: &mut RomEnv, fe: KeyId, cdi: KeyId) -> CaliptraResult<()> {
-        Crypto::hmac384_mac(env, cdi, &b"ldevid_cdi".into(), cdi)?;
-        Crypto::hmac384_mac(env, cdi, &KeyReadArgs::new(fe).into(), cdi)?;
+        caliptra_common::crypto::Crypto::hmac384_mac(
+            &mut env.hmac384,
+            &mut env.trng,
+            cdi,
+            &b"ldevid_cdi".into(),
+            cdi,
+        )?;
+        caliptra_common::crypto::Crypto::hmac384_mac(
+            &mut env.hmac384,
+            &mut env.trng,
+            cdi,
+            &KeyReadArgs::new(fe).into(),
+            cdi,
+        )?;
 
         cprintln!("[ldev] Erasing FE.KEYID = {}", fe as u8);
         env.key_vault.erase_key(fe)?;
@@ -124,7 +138,15 @@ impl LocalDevIdLayer {
         cdi: KeyId,
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
-        let result = Crypto::ecc384_key_gen(env, cdi, b"ldevid_keygen", priv_key);
+        let result = caliptra_common::crypto::Crypto::ecc384_key_gen(
+            &mut env.hmac384,
+            &mut env.ecc384,
+            &mut env.trng,
+            &mut env.key_vault,
+            cdi,
+            b"ldevid_keygen",
+            priv_key,
+        );
         if cfi_launder(result.is_ok()) {
             cfi_assert!(result.is_ok());
             report_boot_status(LDevIdKeyPairDerivationComplete.into());
@@ -150,12 +172,12 @@ impl LocalDevIdLayer {
         let auth_pub_key = &input.auth_key_pair.pub_key;
         let pub_key = &output.subj_key_pair.pub_key;
 
-        let serial_number = X509::cert_sn(env, pub_key);
+        let serial_number = X509::cert_sn(&mut env.sha256, pub_key);
         let serial_number = okref(&serial_number)?;
 
         // CSR `To Be Signed` Parameters
         let params = LocalDevIdCertTbsParams {
-            ueid: &X509::ueid(env)?,
+            ueid: &X509::ueid(&env.soc_ifc)?,
             subject_sn: &output.subj_sn,
             subject_key_id: &output.subj_key_id,
             issuer_sn: input.auth_sn,

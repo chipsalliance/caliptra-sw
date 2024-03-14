@@ -14,24 +14,23 @@ Abstract:
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::cfi_assert_eq;
 use caliptra_cfi_lib::{cfi_assert, cfi_launder};
+use caliptra_common::x509::X509;
 
-use crate::flow::crypto::Crypto;
 use crate::flow::dice::{DiceInput, DiceOutput};
 use crate::flow::pcr::extend_pcr_common;
 use crate::flow::tci::Tci;
-use crate::flow::x509::X509;
 use crate::fmc_env::FmcEnv;
 use crate::FmcBootStatus;
 use crate::HandOff;
 use caliptra_common::cprintln;
-use caliptra_common::crypto::Ecc384KeyPair;
+use caliptra_common::crypto::{Crypto, Ecc384KeyPair};
 use caliptra_common::keyids::{KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY, KEY_ID_TMP};
 use caliptra_common::HexBytes;
 use caliptra_drivers::{
     okref, report_boot_status, CaliptraError, CaliptraResult, Ecc384Result, KeyId, PersistentData,
     ResetReason,
 };
-use caliptra_x509::{NotAfter, NotBefore, RtAliasCertTbs, RtAliasCertTbsParams};
+use caliptra_x509::{RtAliasCertTbs, RtAliasCertTbsParams};
 
 const SHA384_HASH_SIZE: usize = 48;
 
@@ -71,10 +70,10 @@ impl RtAliasLayer {
         //
         // This information will be used by next DICE Layer while generating
         // certificates
-        let subj_sn = X509::subj_sn(env, &key_pair.pub_key)?;
+        let subj_sn = X509::subj_sn(&mut env.sha256, &key_pair.pub_key)?;
         report_boot_status(FmcBootStatus::RtAliasSubjIdSnGenerationComplete.into());
 
-        let subj_key_id = X509::subj_key_id(env, &key_pair.pub_key)?;
+        let subj_key_id = X509::subj_key_id(&mut env.sha256, &key_pair.pub_key)?;
         report_boot_status(FmcBootStatus::RtAliasSubjKeyIdGenerationComplete.into());
 
         // Generate the output for next layer
@@ -87,7 +86,7 @@ impl RtAliasLayer {
 
         let manifest = &env.persistent_data.get().manifest1;
 
-        let (nb, nf) = Self::get_cert_validity_info(manifest);
+        let (nb, nf) = X509::get_cert_validity_info(manifest);
 
         // Generate Rt Alias Certificate
         Self::generate_cert_sig(env, input, &output, &nb.value, &nf.value)?;
@@ -139,8 +138,8 @@ impl RtAliasLayer {
     /// * `DiceInput` - DICE Layer Input
     fn dice_input_from_hand_off(env: &mut FmcEnv) -> CaliptraResult<DiceInput> {
         let auth_pub = HandOff::fmc_pub_key(env);
-        let auth_serial_number = X509::subj_sn(env, &auth_pub)?;
-        let auth_key_id = X509::subj_key_id(env, &auth_pub)?;
+        let auth_serial_number = X509::subj_sn(&mut env.sha256, &auth_pub)?;
+        let auth_key_id = X509::subj_key_id(&mut env.sha256, &auth_pub)?;
         // Create initial output
         let input = DiceInput {
             cdi: HandOff::fmc_cdi(env),
@@ -205,33 +204,6 @@ impl RtAliasLayer {
         HandOff::set_and_lock_rt_min_svn(env, rt_min_svn)
     }
 
-    fn get_cert_validity_info(
-        manifest: &caliptra_image_types::ImageManifest,
-    ) -> (NotBefore, NotAfter) {
-        // If there is a valid value in the manifest for the not_before and not_after times,
-        // use those. Otherwise use the default values.
-        let mut nb = NotBefore::default();
-        let mut nf = NotAfter::default();
-        let null_time = [0u8; 15];
-
-        if manifest.header.vendor_data.vendor_not_after != null_time
-            && manifest.header.vendor_data.vendor_not_before != null_time
-        {
-            nf.value = manifest.header.vendor_data.vendor_not_after;
-            nb.value = manifest.header.vendor_data.vendor_not_before;
-        }
-
-        // Owner values take preference.
-        if manifest.header.owner_data.owner_not_after != null_time
-            && manifest.header.owner_data.owner_not_before != null_time
-        {
-            nf.value = manifest.header.owner_data.owner_not_after;
-            nb.value = manifest.header.owner_data.owner_not_before;
-        }
-
-        (nb, nf)
-    }
-
     /// Permute Composite Device Identity (CDI) using Rt TCI and Image Manifest Digest
     /// The RT Alias CDI will overwrite the FMC Alias CDI in the KeyVault Slot
     ///
@@ -252,7 +224,14 @@ impl RtAliasLayer {
         tci[SHA384_HASH_SIZE..2 * SHA384_HASH_SIZE].copy_from_slice(&image_manifest_digest);
 
         // Permute CDI from FMC TCI
-        Crypto::hmac384_kdf(env, fmc_cdi, b"rt_alias_cdi", Some(&tci), rt_cdi)?;
+        Crypto::hmac384_kdf(
+            &mut env.hmac384,
+            &mut env.trng,
+            fmc_cdi,
+            b"rt_alias_cdi",
+            Some(&tci),
+            rt_cdi,
+        )?;
         report_boot_status(FmcBootStatus::RtAliasDeriveCdiComplete as u32);
         Ok(())
     }
@@ -274,7 +253,15 @@ impl RtAliasLayer {
         cdi: KeyId,
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
-        let result = Crypto::ecc384_key_gen(env, cdi, b"rt_alias_keygen", priv_key);
+        let result = Crypto::ecc384_key_gen(
+            &mut env.hmac384,
+            &mut env.ecc384,
+            &mut env.trng,
+            &mut env.key_vault,
+            cdi,
+            b"rt_alias_keygen",
+            priv_key,
+        );
         if cfi_launder(result.is_ok()) {
             cfi_assert!(result.is_ok());
         } else {
@@ -303,7 +290,7 @@ impl RtAliasLayer {
         let auth_pub_key = &input.auth_key_pair.pub_key;
         let pub_key = &output.subj_key_pair.pub_key;
 
-        let serial_number = &X509::cert_sn(env, pub_key)?;
+        let serial_number = &X509::cert_sn(&mut env.sha256, pub_key)?;
 
         let rt_tci: [u8; 48] = HandOff::rt_tci(env).into();
         let rt_svn = HandOff::rt_svn(env) as u8;
@@ -311,7 +298,7 @@ impl RtAliasLayer {
         // Certificate `To Be Signed` Parameters
         let params = RtAliasCertTbsParams {
             // Do we need the UEID here?
-            ueid: &X509::ueid(env)?,
+            ueid: &X509::ueid(&env.soc_ifc)?,
             subject_sn: &output.subj_sn,
             subject_key_id: &output.subj_key_id,
             issuer_sn: &input.auth_sn,
@@ -338,7 +325,14 @@ impl RtAliasLayer {
         // Sign the AliasRt To Be Signed DER Blob with AliasFMC Private Key in Key Vault Slot 7
         // AliasRtTbsDigest = sha384_digest(AliasRtTbs) AliaRtTbsCertSig = ecc384_sign(KvSlot5, AliasFmcTbsDigest)
 
-        let sig = Crypto::ecdsa384_sign(env, auth_priv_key, auth_pub_key, tbs.tbs());
+        let sig = Crypto::ecdsa384_sign(
+            &mut env.sha384,
+            &mut env.ecc384,
+            &mut env.trng,
+            auth_priv_key,
+            auth_pub_key,
+            tbs.tbs(),
+        );
         let sig = okref(&sig)?;
         // Clear the authority private key
         cprintln!(
@@ -360,7 +354,14 @@ impl RtAliasLayer {
         cprintln!("[alias rt] SIG.S = {}", HexBytes(&_sig_s));
 
         // Verify the signature of the `To Be Signed` portion
-        if Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)? != Ecc384Result::Success {
+        if Crypto::ecdsa384_verify(
+            &mut env.sha384,
+            &mut env.ecc384,
+            auth_pub_key,
+            tbs.tbs(),
+            sig,
+        )? != Ecc384Result::Success
+        {
             return Err(CaliptraError::FMC_RT_ALIAS_CERT_VERIFY);
         }
 
