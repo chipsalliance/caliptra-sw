@@ -262,6 +262,9 @@ Command Code: `0x4345_5252` ("CERR")
 Verifies an ECDSA P-384 signature. The hash to be verified is taken from
 Caliptra's SHA384 accelerator peripheral.
 
+In the event of an invalid signature, the mailbox command will report CMD_FAILURE
+and the cause will be logged as a non-fatal error.
+
 Command Code: `0x5349_4756` ("SIGV")
 
 *Table: `ECDSA384_SIGNATURE_VERIFY` input arguments*
@@ -280,6 +283,47 @@ Command Code: `0x5349_4756` ("SIGV")
 | --------      | -------- | ---------------
 | chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
+
+### LMS\_SIGNATURE\_VERIFY
+
+Verifies an LMS signature. The hash to be verified is taken from
+Caliptra's SHA384 accelerator peripheral.
+
+In the event of an invalid signature, the mailbox command will report CMD_FAILURE
+and the cause will be logged as a non-fatal error.
+
+The supported parameter set is limited to those used for the caliptra image signature:
+*Table: LMS parameters*
+| **Param Name**        | **Value** | **Description**
+| --------------        | --------- | ---------------
+| LMS algorithm type    | 12        | 12 = LmsSha256N24H15
+| LM-OTS algorithm type | 7         | 7 = LmotsSha256N24W4
+| n                     | 24        | Bytes of output from sha256/192 hash function
+| w                     | 4         | Width (in bits) of the Winternitz coefficient
+| h                     | 15        | Height of the tree
+
+Command Code: `0x4C4D_5356` ("LMSV")
+
+*Table: `LMS_SIGNATURE_VERIFY` input arguments*
+
+| **Name**              | **Type** | **Description**
+| --------              | -------- | ---------------
+| chksum                | u32      | Checksum over other input arguments, computed by the caller. Little endian.
+| pub\_key\_tree\_type  | u8[4]    | LMS public key algorithm type. Must equal 12.
+| pub\_key\_ots\_type   | u8[4]    | LM-OTS algorithm type. Must equal 7.
+| pub\_key\_id          | u8[16]   | "I" Private key identifier
+| pub\_key\_digest      | u8[24]   | "T[1]" Public key hash value
+| signature\_q          | u8[4]    | Leaf of the Merkle tree where the OTS public key appears
+| signature\_ots        | u8[1252] | LM-OTS signature
+| signature\_tree\_type | u8[4]    | LMS signature Algorithm type. Must equal 12.
+| signature\_tree\_path | u8[360]  | Path through the tree from the leaf associated with the LM-OTS signature to the root
+
+*Table: `LMS_SIGNATURE_VERIFY` output arguments*
+
+| **Name**    | **Type** | **Description**
+| --------    | -------- | ---------------
+| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status | u32      | Indicates if the command is FIPS approved or an error.
 
 ### STASH\_MEASUREMENT
 
