@@ -21,14 +21,14 @@ use elf::ElfBytes;
 use std::path::PathBuf;
 
 /// ELF Executable
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct ElfExecutable {
-    version: u32,
-    svn: u32,
-    rev: ImageRevision,
-    load_addr: u32,
-    entry_point: u32,
-    content: Vec<u8>,
+    pub version: u32,
+    pub svn: u32,
+    pub rev: ImageRevision,
+    pub load_addr: u32,
+    pub entry_point: u32,
+    pub content: Vec<u8>,
 }
 
 fn load_into_image(

@@ -40,27 +40,6 @@ const FW_LOAD_CMD_OPCODE: u32 = mailbox_api::CommandId::FIRMWARE_LOAD.0;
 #[cfg(feature = "std")]
 pub fn main() {}
 
-// Dummy RO data to max out FMC image size to 16K.
-// Note: Adjust this value to account for new changes in this FMC image.
-#[cfg(all(feature = "interactive_test_fmc", not(feature = "fake-fmc")))]
-const PAD_LEN: usize = 4968; // TEST_FMC_INTERACTIVE
-#[cfg(all(feature = "fake-fmc", not(feature = "interactive_test_fmc")))]
-const PAD_LEN: usize = 5208; // FAKE_TEST_FMC_WITH_UART
-#[cfg(all(feature = "interactive_test_fmc", feature = "fake-fmc"))]
-const PAD_LEN: usize = 5428; // FAKE_TEST_FMC_INTERACTIVE
-#[cfg(not(any(feature = "interactive_test_fmc", feature = "fake-fmc")))]
-const PAD_LEN: usize = 0;
-
-static PAD: [u32; PAD_LEN / 4] = {
-    let mut result = [0xdeadbeef_u32; PAD_LEN / 4];
-    let mut i = 0;
-    while i < result.len() {
-        result[i] = result[i].wrapping_add(i as u32);
-        i += 1;
-    }
-    result
-};
-
 const BANNER: &str = r#"
 Running Caliptra FMC ...
 "#;
@@ -299,7 +278,6 @@ fn validate_fmc_rt_load_in_iccm(mbox: &caliptra_registers::mbox::RegisterBlock<R
                 fmc_iccm[idx]
             );
             mismatch = true;
-            cprint!("PAD[{}] = 0x{:08X}", idx, PAD[idx]);
         }
     }
     for (idx, _) in rt_iccm.iter().enumerate().take((rt_size + 3) / 4) {

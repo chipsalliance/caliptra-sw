@@ -14,6 +14,7 @@ use std::sync::{Arc, Mutex};
 use caliptra_image_elf::ElfExecutable;
 use caliptra_image_gen::{
     ImageGenerator, ImageGeneratorConfig, ImageGeneratorOwnerConfig, ImageGeneratorVendorConfig,
+    ImageGenratorExecutable,
 };
 use caliptra_image_openssl::OsslCrypto;
 use caliptra_image_types::{ImageBundle, ImageRevision, RomInfo};
@@ -457,17 +458,40 @@ pub fn build_and_sign_image(
     app: &FwId<'static>,
     opts: ImageOptions,
 ) -> anyhow::Result<ImageBundle> {
-    let fmc_elf = build_firmware_elf(fmc)?;
-    let app_elf = build_firmware_elf(app)?;
-    let gen = ImageGenerator::new(OsslCrypto::default());
-    let image = gen.generate(&ImageGeneratorConfig {
-        fmc: ElfExecutable::new(
-            &fmc_elf,
+    let (fmc, app) = build_firmware_for_image(fmc, app, &opts)?;
+    sign_bundle(fmc, app, opts)
+}
+
+pub fn build_firmware_for_image(
+    fmc: &FwId<'static>,
+    app: &FwId<'static>,
+    opts: &ImageOptions,
+) -> anyhow::Result<(ElfExecutable, ElfExecutable)> {
+    Ok((
+        ElfExecutable::new(
+            &build_firmware_elf(fmc)?,
             opts.fmc_version as u32,
             opts.fmc_svn,
             image_revision()?,
         )?,
-        runtime: ElfExecutable::new(&app_elf, opts.app_version, opts.app_svn, image_revision()?)?,
+        ElfExecutable::new(
+            &build_firmware_elf(app)?,
+            opts.app_version,
+            opts.app_svn,
+            image_revision()?,
+        )?,
+    ))
+}
+
+pub fn sign_bundle<E: ImageGenratorExecutable>(
+    fmc: E,
+    runtime: E,
+    opts: ImageOptions,
+) -> anyhow::Result<ImageBundle> {
+    let gen = ImageGenerator::new(OsslCrypto::default());
+    let image = gen.generate(&ImageGeneratorConfig {
+        fmc,
+        runtime,
         vendor_config: opts.vendor_config,
         owner_config: opts.owner_config,
     })?;
