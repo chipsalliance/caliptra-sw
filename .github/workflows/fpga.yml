@@ -90,7 +90,7 @@ jobs:
           retention-days: 1
 
   build_test_binaries:
-    runs-on: [e2-standard-16]
+    runs-on: [e2-standard-16, "id-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.event.id }}"]
     timeout-minutes: 60
 
     env:
