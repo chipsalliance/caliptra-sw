@@ -1,7 +1,7 @@
 # Caliptra GitHub GCP Runner Infrastructure
 
 Infrastructure that launches self-hosted GitHub Actions runners inside ephemeral Google
-Compute Engine vms.
+Compute Engine VMs.
 
 ## Why should I use this?
 
