@@ -98,7 +98,7 @@ It is the unsigned portion of the manifest. Preamble contains the signing public
 | Manufacturer ECC Public Key 4 | 96 | ECC P-384 public key used to verify the Firmware Manifest Header Signature. <br> **X-Coordinate:** Public Key X-Coordinate (48 bytes) <br> **Y-Coordinate:** Public Key Y-Coordinate (48 bytes) |
 | Manufacturer LMS Public Key 1 | 48 | LMS public key used to verify the Firmware Manifest Header Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes) <br> **otstype:** LMS Ots Algorithm Type (4 bytes) <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) |
 | Manufacturer LMS Public Key 2 | 48 | LMS public key used to verify the Firmware Manifest Header Signature. <br> **tree_type:** LMS Algorithm Type (4 bytes) <br> **otstype:** LMS Ots Algorithm Type (4 bytes) <br> **id:**  (16 bytes) <br> **digest:**  (24 bytes) |
-|...<Manufacturer LMS Public Key 32>|
+|...<Manufacturer LMS Public Key 32> | | |
 | ECC Public Key Index Hint | 4 | The hint to ROM to indicate which ECC public key it should first use.  |
 | LMS Public Key Index Hint | 4 | The hint to ROM to indicate which LMS public key it should first use.  |
 | Manufacturer ECC Signature | 96 | Manufacturer ECDSA P-384 signature of the Firmware Manifest header hashed using SHA2-384. <br> **R-Coordinate:** Random Point (48 bytes) <br> **S-Coordinate:** Proof (48 bytes) |
@@ -242,8 +242,8 @@ Both UDS and Field Entropy are available only during cold reset of Caliptra.
 
 | Slot | Key Vault | PCR Bank | Data Vault 48 Byte (Sticky) | Data Vault 4 Byte (Sticky) |
 |------|-----------|----------|-----------------------------|----------------------------|
-| 0 | UDS (48 bytes)|
-| 1 |Field Entropy (32 bytes) |
+| 0 | UDS (48 bytes) | | | |
+| 1 | Field Entropy (32 bytes) | | | |
 
 ### Initial Device ID DICE layer
 
@@ -326,7 +326,7 @@ Local Device ID Layer derives the Owner CDI & ECC Keys. This layer represents th
     `LDevIdPubKey = ecc384_keygen(KvSlot3, KvSlot5)`
     `kv_clear(KvSlot3)`
 
-4. Store and lock (for write) the LDevID Public Key in Data Vault (48 bytes) Slot 2 & Slot 3
+4. Store and lock (for write) the LDevID Public Key in Data Vault (48 bytes) Slot 2 and Slot 3
 
     `dv48_store(LDevIdPubKey.X, Dv48Slot2)`
     `dv48_lock_wr(Dv48Slot2)`
@@ -439,7 +439,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
     pcr_lock_clear(Pcr0 && Pcr1)
     ```
 
-2. CDI for Alias is derived from PCR0. For the Alias FMC CDI Derivation,  LDevID CDI in Key Vault Slot6 is used as HMAC Key and contents of PCR0 are used as data. The resultant mac is stored back in Slot 6
+2. CDI for Alias is derived from PCR0. For the Alias FMC CDI Derivation, LDevID CDI in Key Vault Slot6 is used as HMAC Key and contents of PCR0 are used as data. The resultant mac is stored back in Slot 6.
 
     `Pcr0Measurement = pcr_read(Pcr0)`
     `hmac384_kdf(KvSlot6, b"fmc_alias_cdi", Pcr0Measurement, KvSlot6)`
@@ -475,7 +475,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
     `AliasFmcTbsDigest = sha384_digest(AliasFmcTbs)`
     `Result = ecc384_verify(AliasFmcPubKey, AliasFmcDigest , AliasFmcTbsCertSig)`
 
-9. Store and lock (for write) the LDevID Certificate Signature in the sticky Data Vault (48 bytes) Slot 4 & Slot 5
+9. Store and lock (for write) the LDevID Certificate Signature in the sticky Data Vault (48 bytes) Slot 4 and Slot 5
 
     `dv48_store(FmcTbsCertSig.R, Dv48Slot4)`
     `dv48_lock_wr(Dv48Slot4)`
@@ -621,7 +621,7 @@ The following are the pre-conditions that should be satisfied:
 - Header is the only signed component. There are two signatures generated for the header.
 - First signature is generated using one of the manufacturing keys.
 - Second signature is generated using the owner public key.
-- To validate the header, hash and verify the ECC manufacturer signature in the preamble is for the hash.
+- To validate the header, hash and then verify that the ECC manufacturer signature in the preamble is for the hash.
 - If the manufacturer signature matches, proceed with the owner signature validation. If the signature does not match, fail the validation. Repeat the same procedure with LMS manufacturer key if LMS verification is enabled.
 - The hash is already generated. Verify the signature for the above hash using the ECC owner public key. Repeat the same procedure with LMS owner key if LMS verification is enabled.
 

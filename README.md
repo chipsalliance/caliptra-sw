@@ -49,7 +49,7 @@ DICE Protection Environment submodule (reference to its own repository).
 ### [drivers](/drivers)
 
 A rust library containing drivers for the Caliptra hardware, intended to be
-used by firmware running on Caliptra's RISC-V cpu.
+used by firmware running on Caliptra's RISC-V CPU.
 
 ### [error](/error)
 
@@ -89,7 +89,7 @@ Type definitions for the Leighton-Micali Hash-Based Signatures algorithm.
 ### [registers](/registers)
 
 Register definitions for the caliptra hardware peripherals, generated from the RDL
-files in the rtl-caliptra repo.
+files in the `caliptra-rtl` repo.
 
 ### [rom](/rom/dev)
 
@@ -147,7 +147,7 @@ cargo build
 
 ### Testing in a hurry
 
-To run all unit tests on the host cpu, and run all integration tests against the
+To run all unit tests on the host CPU, and run all integration tests against the
 sw-emulator:
 
 ```shell

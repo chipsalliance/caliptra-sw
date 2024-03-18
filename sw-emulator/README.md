@@ -2,15 +2,15 @@
 
 This repository contains code for creating an emulator for the Caliptra hardware.
 
-## Peripheral Emulation
+## Peripheral emulation
 
 ### Mailbox
 
-#### Class Diagram
+#### Class diagram
 
 ![alternative text](http://www.plantuml.com/plantuml/proxy?cache=no&src=https://raw.githubusercontent.com/attzonko/plantuml_test/main/test.puml)
 
-#### State Diagram
+#### State diagram
 
 The UML state diagram depicted below represents the behavior of the mailbox state machine. The notation follows the UML conventions:
 
