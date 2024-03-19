@@ -14,6 +14,7 @@ use std::sync::{Arc, Mutex};
 use caliptra_image_elf::ElfExecutable;
 use caliptra_image_gen::{
     ImageGenerator, ImageGeneratorConfig, ImageGeneratorOwnerConfig, ImageGeneratorVendorConfig,
+    ImageGenratorExecutable,
 };
 use caliptra_image_openssl::OsslCrypto;
 use caliptra_image_types::{ImageBundle, ImageRevision, RomInfo};
@@ -360,7 +361,7 @@ pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
     let elf = elf::ElfBytes::<LittleEndian>::minimal_parse(elf_bytes).map_err(other_err)?;
 
     let Some(segments) = elf.segments() else {
-        return Err(other_err("ELF file has no segments"))
+        return Err(other_err("ELF file has no segments"));
     };
     for segment in segments {
         if segment.p_type != elf::abi::PT_LOAD {
@@ -370,15 +371,21 @@ pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
         let mem_offset = segment.p_paddr as usize;
         let len = segment.p_filesz as usize;
         let Some(src_bytes) = elf_bytes.get(file_offset..file_offset + len) else {
-            return Err(other_err(format!("segment at 0x{:x} out of file bounds", segment.p_offset)));
+            return Err(other_err(format!(
+                "segment at 0x{:x} out of file bounds",
+                segment.p_offset
+            )));
         };
         if len == 0 {
             continue;
         }
         let Some(dest_bytes) = result.get_mut(mem_offset..mem_offset + len) else {
-          return Err(other_err(format!(
+            return Err(other_err(format!(
                 "segment at 0x{mem_offset:04x}..0x{:04x} exceeds the ROM region \
-                 of 0x0000..0x{:04x}", mem_offset + len, result.len())));
+                 of 0x0000..0x{:04x}",
+                mem_offset + len,
+                result.len()
+            )));
         };
         dest_bytes.copy_from_slice(src_bytes);
     }
@@ -406,7 +413,7 @@ pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
 pub fn elf_size(elf_bytes: &[u8]) -> io::Result<u64> {
     let elf = elf::ElfBytes::<LittleEndian>::minimal_parse(elf_bytes).map_err(other_err)?;
     let Some(segments) = elf.segments() else {
-        return Err(other_err("ELF file has no segments"))
+        return Err(other_err("ELF file has no segments"));
     };
     let mut min_addr = u64::MAX;
     let mut max_addr = u64::MIN;
@@ -451,17 +458,40 @@ pub fn build_and_sign_image(
     app: &FwId<'static>,
     opts: ImageOptions,
 ) -> anyhow::Result<ImageBundle> {
-    let fmc_elf = build_firmware_elf(fmc)?;
-    let app_elf = build_firmware_elf(app)?;
-    let gen = ImageGenerator::new(OsslCrypto::default());
-    let image = gen.generate(&ImageGeneratorConfig {
-        fmc: ElfExecutable::new(
-            &fmc_elf,
+    let (fmc, app) = build_firmware_for_image(fmc, app, &opts)?;
+    sign_bundle(fmc, app, opts)
+}
+
+pub fn build_firmware_for_image(
+    fmc: &FwId<'static>,
+    app: &FwId<'static>,
+    opts: &ImageOptions,
+) -> anyhow::Result<(ElfExecutable, ElfExecutable)> {
+    Ok((
+        ElfExecutable::new(
+            &build_firmware_elf(fmc)?,
             opts.fmc_version as u32,
             opts.fmc_svn,
             image_revision()?,
         )?,
-        runtime: ElfExecutable::new(&app_elf, opts.app_version, opts.app_svn, image_revision()?)?,
+        ElfExecutable::new(
+            &build_firmware_elf(app)?,
+            opts.app_version,
+            opts.app_svn,
+            image_revision()?,
+        )?,
+    ))
+}
+
+pub fn sign_bundle<E: ImageGenratorExecutable>(
+    fmc: E,
+    runtime: E,
+    opts: ImageOptions,
+) -> anyhow::Result<ImageBundle> {
+    let gen = ImageGenerator::new(OsslCrypto::default());
+    let image = gen.generate(&ImageGeneratorConfig {
+        fmc,
+        runtime,
         vendor_config: opts.vendor_config,
         owner_config: opts.owner_config,
     })?;

@@ -233,7 +233,9 @@ impl ValidatedRegisterBlock {
                 // Keep this register in self.registers
                 return true;
             }
-            let Ok(index) = reg.name[reg_name.len()..].parse::<usize>() else { return true; };
+            let Ok(index) = reg.name[reg_name.len()..].parse::<usize>() else {
+                return true;
+            };
 
             let reg_name = reg_name.trim_start_matches(block_name);
             instances_by_name
@@ -484,36 +486,6 @@ fn compute_common_name<'a>(reg_names: &'a [&'a str]) -> Option<String> {
         .and_then(|s| if s.is_empty() { None } else { Some(s) })
 }
 
-#[cfg(test)]
-mod compute_reg_type_name_tests {
-    use super::*;
-
-    #[test]
-    fn test() {
-        assert_eq!(
-            compute_common_name(&["UART0", "UART1", "UART10"]),
-            Some("UART".into())
-        );
-        assert_eq!(compute_common_name(&["UART0"]), Some("UART0".into()));
-        assert_eq!(
-            compute_common_name(&["DIEPTCTL", "DOEPTCTL"]),
-            Some("DXEPTCTL".into())
-        );
-        assert_eq!(
-            compute_common_name(&["dieptctl", "doeptctl"]),
-            Some("dxeptctl".into())
-        );
-        assert_eq!(
-            compute_common_name(&["DIEPTCTL0", "DIEPTCTL1", "DOEPTCTL0", "DOEPTCTL1"]),
-            Some("DXEPTCTL".into())
-        );
-        assert_eq!(
-            compute_common_name(&["PROG_LB0_POST_OVRD", "LB0_POST_OVRD"]),
-            Some("LB0_POST_OVRD".into())
-        );
-    }
-}
-
 fn hash_u64(v: &impl Hash) -> u64 {
     let mut h = DefaultHasher::new();
     v.hash(&mut h);
@@ -749,5 +721,35 @@ impl RegisterBlock {
             register_types,
             enum_types,
         })
+    }
+}
+
+#[cfg(test)]
+mod compute_reg_type_name_tests {
+    use super::*;
+
+    #[test]
+    fn test() {
+        assert_eq!(
+            compute_common_name(&["UART0", "UART1", "UART10"]),
+            Some("UART".into())
+        );
+        assert_eq!(compute_common_name(&["UART0"]), Some("UART0".into()));
+        assert_eq!(
+            compute_common_name(&["DIEPTCTL", "DOEPTCTL"]),
+            Some("DXEPTCTL".into())
+        );
+        assert_eq!(
+            compute_common_name(&["dieptctl", "doeptctl"]),
+            Some("dxeptctl".into())
+        );
+        assert_eq!(
+            compute_common_name(&["DIEPTCTL0", "DIEPTCTL1", "DOEPTCTL0", "DOEPTCTL1"]),
+            Some("DXEPTCTL".into())
+        );
+        assert_eq!(
+            compute_common_name(&["PROG_LB0_POST_OVRD", "LB0_POST_OVRD"]),
+            Some("LB0_POST_OVRD".into())
+        );
     }
 }

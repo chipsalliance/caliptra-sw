@@ -69,6 +69,35 @@ extern "C" fn main() {
                 mbox.dlen().write(|_| 0);
                 mbox.status().write(|w| w.status(|w| w.data_ready()));
             }
+
+            // Doesn't update dlen immediately
+            0x1000_3000 => {
+                mbox.datain().write(|_| 0xdf06_065d);
+                mbox.datain().write(|_| 0x2926_a95d);
+                mbox.dlen().write(|_| 8);
+                mbox.datain().write(|_| 0x55ca_5482);
+                mbox.dlen().write(|_| 12);
+                mbox.status().write(|w| w.status(|w| w.data_ready()));
+            }
+
+            // Doesn't write dlen but writes din
+            0x1000_3001 => {
+                mbox.datain().write(|_| 0xe3a0_8937);
+                mbox.datain().write(|_| 0x0b36_c2de);
+                mbox.status().write(|w| w.status(|w| w.data_ready()));
+            }
+
+            // Doesn't write dlen or din
+            0x1000_3002 => {
+                mbox.status().write(|w| w.status(|w| w.data_ready()));
+            }
+
+            // Write dlen but not din
+            0x1000_3003 => {
+                mbox.dlen().write(|_| 4);
+                mbox.status().write(|w| w.status(|w| w.data_ready()));
+            }
+
             // Returns a success response; doesn't consume input.
             0x2000_0000 => {
                 mbox.status().write(|w| w.status(|w| w.cmd_complete()));

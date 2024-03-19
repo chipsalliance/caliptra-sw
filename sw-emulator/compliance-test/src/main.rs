@@ -171,10 +171,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
         if !is_test_complete(&mut cpu.bus) {
-            return Err(std::io::Error::new(
-                ErrorKind::Other,
-                "test did not complete",
-            ))?;
+            return Err(std::io::Error::new(ErrorKind::Other, "test did not complete").into());
         }
         check_reference_data(&reference_txt, &mut cpu.bus)?;
         println!("PASSED");

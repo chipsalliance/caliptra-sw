@@ -71,16 +71,16 @@ impl FirmwareProcessor {
             // Hmac384 Engine
             hmac384: &mut env.hmac384,
 
-            /// Cryptographically Secure Random Number Generator
+            // Cryptographically Secure Random Number Generator
             trng: &mut env.trng,
 
             // LMS Engine
             lms: &mut env.lms,
 
-            /// Ecc384 Engine
+            // Ecc384 Engine
             ecc384: &mut env.ecc384,
 
-            /// SHA Acc lock state
+            // SHA Acc lock state
             sha_acc_lock_state: ShaAccLockState::NotAcquired,
         };
         // Process mailbox commands.
@@ -677,7 +677,10 @@ impl FirmwareProcessor {
         stash_measurement: &StashMeasurementReq,
     ) -> CaliptraResult<()> {
         let fht = &mut persistent_data.fht;
-        let Some(dst) = persistent_data.measurement_log.get_mut(fht.meas_log_index as usize) else {
+        let Some(dst) = persistent_data
+            .measurement_log
+            .get_mut(fht.meas_log_index as usize)
+        else {
             return Err(CaliptraError::ROM_GLOBAL_MEASUREMENT_LOG_EXHAUSTED);
         };
 

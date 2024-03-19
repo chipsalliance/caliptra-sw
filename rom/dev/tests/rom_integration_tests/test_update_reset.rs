@@ -1,23 +1,24 @@
 // Licensed under the Apache-2.0 license
 
+use std::mem;
+
 use caliptra_builder::{
     firmware::{
         self,
-        rom_tests::{
-            FAKE_TEST_FMC_INTERACTIVE, FAKE_TEST_FMC_WITH_UART, TEST_FMC_INTERACTIVE,
-            TEST_FMC_WITH_UART, TEST_RT_WITH_UART,
-        },
+        rom_tests::{TEST_FMC_INTERACTIVE, TEST_FMC_WITH_UART, TEST_RT_WITH_UART},
         APP_WITH_UART,
     },
-    FwId, ImageOptions,
+    ImageOptions,
 };
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::RomBootStatus::*;
-use caliptra_drivers::WarmResetEntry4;
+use caliptra_drivers::{memory_layout, WarmResetEntry4};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, HwModel, InitParams};
+use caliptra_image_elf::ElfExecutable;
 use caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0;
 use caliptra_image_gen::ImageGeneratorVendorConfig;
+use caliptra_image_types::ImageManifest;
 use zerocopy::{AsBytes, FromBytes};
 
 const TEST_FMC_CMD_RESET_FOR_UPDATE: u32 = 0x1000_0004;
@@ -452,63 +453,29 @@ fn test_check_rom_update_reset_status_reg() {
 }
 
 #[test]
-fn test_fmc_is_16k() {
-    struct Fmc<'a> {
-        name: &'a str,
-        fwid: &'a FwId<'static>,
-    }
+fn test_update_reset_max_fw_image() {
+    const MBOX_SIZE: usize = memory_layout::MBOX_SIZE as usize;
+    const FMC_SIZE: usize = 16 * 1024;
+    const UPDATE_APP_SIZE: usize = MBOX_SIZE - FMC_SIZE - mem::size_of::<ImageManifest>();
 
-    let errs: String = [
-        Fmc {
-            name: "TEST_FMC_INTERACTIVE",
-            fwid: &TEST_FMC_INTERACTIVE,
-        },
-        Fmc {
-            name: "FAKE_TEST_FMC_WITH_UART",
-            fwid: &FAKE_TEST_FMC_WITH_UART,
-        },
-        Fmc {
-            name: "FAKE_TEST_FMC_INTERACTIVE",
-            fwid: &FAKE_TEST_FMC_INTERACTIVE,
-        },
-    ]
-    .map(|fmc| -> String {
-        let bundle = caliptra_builder::build_and_sign_image(
-            fmc.fwid,
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let image_opts = ImageOptions::default();
+    // Trigger an update reset with new firmware
+    let (mut fmc, app): (ElfExecutable, ElfExecutable) =
+        caliptra_builder::build_firmware_for_image(
+            &TEST_FMC_INTERACTIVE,
             &TEST_RT_WITH_UART,
-            ImageOptions::default(),
+            &image_opts,
         )
         .unwrap();
 
-        let fmc_size = bundle.fmc.len();
-        let delta = 16 * 1024 - fmc_size as isize;
-        if delta != 0 {
-            format!(
-                "Adjust PAD_LEN in rom/dev/tools/test-fmc/src/main.rs by {} for {}",
-                delta, fmc.name
-            )
-        } else {
-            String::from("")
-        }
-    })
-    .into_iter()
-    .filter(|err| !err.is_empty())
-    .collect::<Vec<String>>()
-    .join("\n");
+    assert!(fmc.content.len() <= FMC_SIZE);
+    fmc.content.resize(FMC_SIZE, 0xd5);
 
-    println!("{}", errs);
-    assert!(errs.is_empty());
-}
+    let update_fmc = fmc.clone();
+    let mut update_app = app.clone();
 
-#[test]
-fn test_update_reset_max_fw_image() {
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    let image_bundle = caliptra_builder::build_and_sign_image(
-        &TEST_FMC_INTERACTIVE,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap();
+    let image_bundle = caliptra_builder::sign_bundle(fmc, app, image_opts).unwrap();
 
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
@@ -522,22 +489,16 @@ fn test_update_reset_max_fw_image() {
 
     hw.step_until_boot_status(ColdResetComplete.into(), true);
 
-    // Trigger an update reset with new firmware
-    let updated_image_bundle = caliptra_builder::build_and_sign_image(
-        &TEST_FMC_INTERACTIVE,
-        &TEST_RT_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap();
+    assert!(update_app.content.len() < UPDATE_APP_SIZE);
+    update_app.content.resize(UPDATE_APP_SIZE, 0xa9);
+
+    let updated_image_bundle =
+        caliptra_builder::sign_bundle(update_fmc, update_app, ImageOptions::default()).unwrap();
 
     let image_bytes = updated_image_bundle.to_bytes().unwrap();
 
-    // Sanity-check that the image is 128k
-    assert_eq!(
-        128 * 1024 - image_bytes.len() as isize,
-        0,
-        "Try adjusting PAD_LEN in rom/dev/tools/test-fmc/src/main.rs"
-    );
+    // Sanity-check that the image is the exact size of the mailbox
+    assert_eq!(MBOX_SIZE, image_bytes.len());
 
     hw.start_mailbox_execute(CommandId::FIRMWARE_LOAD.into(), &image_bytes)
         .unwrap();

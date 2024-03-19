@@ -26,8 +26,8 @@ mod print;
 pub fn main() {}
 
 // Dummy RO data to max out FW image size.
-static PAD: [u32; 26778] = {
-    let mut result = [0xba5eba11_u32; 26778];
+static PAD: [u32; 26754] = {
+    let mut result = [0xba5eba11_u32; 26754];
     let mut i = 0;
     while i < result.len() {
         result[i] = result[i].wrapping_add(i as u32);

@@ -68,8 +68,10 @@ impl uDisplay for HexBytes<'_> {
     where
         W: uWrite + ?Sized,
     {
+        const CHARS: &[u8; 16] = b"0123456789ABCDEF";
         for byte in self.0.iter() {
-            ufmt::uwrite!(f, "{:02X}", *byte)?;
+            f.write_char(char::from(CHARS[usize::from((*byte & 0xf0) >> 4)]))?;
+            f.write_char(char::from(CHARS[usize::from(*byte & 0x0f)]))?;
         }
         Ok(())
     }
