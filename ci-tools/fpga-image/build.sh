@@ -44,6 +44,7 @@ if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   chroot out/rootfs bash -c 'echo nameserver 2001:4860:4860::64 >> /etc/resolv.conf'
   chroot out/rootfs bash -c 'echo kernel.softlockup_panic = 1 >> /etc/sysctl.conf'
   chroot out/rootfs bash -c 'echo kernel.softlockup_all_cpu_backtrace = 1 >> /etc/sysctl.conf'
+  chroot out/rootfs bash -c 'echo kernel.panic_print = 127 >> /etc/sysctl.conf'
   chroot out/rootfs bash -c 'echo kernel.sysrq = 1 >> /etc/sysctl.conf'
   chroot out/rootfs bash -c 'echo "[Time]" > /etc/systemd/timesyncd.conf'
   chroot out/rootfs bash -c 'echo "NTP=time.google.com" >> /etc/systemd/timesyncd.conf'
