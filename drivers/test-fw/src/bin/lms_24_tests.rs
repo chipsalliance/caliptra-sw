@@ -15,6 +15,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
+use caliptra_cfi_lib::CfiPanicInfo;
 use caliptra_drivers::{get_lms_parameters, HashValue, Lms, LmsResult, Sha256};
 use caliptra_error::CaliptraError;
 use caliptra_lms_types::{

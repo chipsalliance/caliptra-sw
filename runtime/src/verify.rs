@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::Drivers;
-use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_cfi_derive::cfi_impl_fn;
 #[cfg(feature = "test_only_commands")]
 use caliptra_common::mailbox_api::HmacVerifyReq;
 use caliptra_common::mailbox_api::{EcdsaVerifyReq, MailboxResp};

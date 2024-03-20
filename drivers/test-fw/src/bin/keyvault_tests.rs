@@ -15,7 +15,8 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{KeyId, KeyUsage, KeyVault};
+use caliptra_cfi_lib::CfiPanicInfo;
+use caliptra_drivers::{CaliptraError, KeyId, KeyUsage, KeyVault};
 use caliptra_registers::kv::KvReg;
 use caliptra_test_harness::test_suite;
 

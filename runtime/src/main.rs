@@ -17,7 +17,7 @@ Abstract:
 #[cfg(target_arch = "riscv32")]
 core::arch::global_asm!(include_str!("ext_intr.S"));
 
-use caliptra_cfi_lib_git::CfiCounter;
+use caliptra_cfi_lib::{CfiCounter, CfiPanicInfo};
 use caliptra_common::{cprintln, handle_fatal_error};
 use caliptra_cpu::{log_trap_record, TrapRecord};
 use caliptra_error::CaliptraError;
@@ -70,7 +70,7 @@ pub extern "C" fn entry_point() -> ! {
                 .trng
                 .generate()
                 .map(|a| a.0)
-                .map_err(|_| caliptra_cfi_lib_git::CfiPanicInfo::TrngError)
+                .map_err(|_| caliptra_cfi_lib::CfiPanicInfo::TrngError)
         };
         CfiCounter::reset(&mut entropy_gen);
         CfiCounter::reset(&mut entropy_gen);
@@ -156,10 +156,12 @@ fn runtime_panic(_: &core::panic::PanicInfo) -> ! {
 }
 
 #[no_mangle]
-extern "C" fn cfi_panic_handler(code: u32) -> ! {
-    cprintln!("RT CFI Panic code=0x{:08X}", code);
+extern "C" fn cfi_panic_handler(info: CfiPanicInfo) -> ! {
+    let caliptra_error: CaliptraError = info.into();
+    let error_code = caliptra_error.0.get();
+    cprintln!("[RT] CFI Panic code=0x{:08X}", error_code);
 
-    handle_fatal_error(code);
+    handle_fatal_error(error_code);
 }
 
 #[no_mangle]

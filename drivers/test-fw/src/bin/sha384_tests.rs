@@ -16,7 +16,8 @@ Abstract:
 #![no_main]
 
 use caliptra_cfi_lib::CfiCounter;
-use caliptra_drivers::{Array4x12, PcrBank, PcrId, Sha384};
+use caliptra_cfi_lib::CfiPanicInfo;
+use caliptra_drivers::{Array4x12, CaliptraError, PcrBank, PcrId, Sha384};
 use caliptra_kat::Sha384Kat;
 use caliptra_registers::{pv::PvReg, sha512::Sha512Reg};
 

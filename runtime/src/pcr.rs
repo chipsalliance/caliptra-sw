@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::Drivers;
-use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
     ExtendPcrReq, IncrementPcrResetCounterReq, MailboxResp, MailboxRespHeader, QuotePcrsReq,
     QuotePcrsResp,

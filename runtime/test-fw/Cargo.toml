@@ -55,3 +55,4 @@ caliptra-test-harness.workspace = true
 cfg-if.workspace = true
 ufmt.workspace = true
 zerocopy.workspace = true
+caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cfi", "cfi-counter" ] }

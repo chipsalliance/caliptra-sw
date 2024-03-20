@@ -416,7 +416,6 @@ jobs:
               --workspace-remap=.
               -E 'not (package(/caliptra-emu-.*/) |
                        package(caliptra-builder) |
-                       package(caliptra-cfi-derive) |
                        package(caliptra-file-header-fix) |
                        package(compliance-test))'
           )

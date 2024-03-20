@@ -11,7 +11,7 @@ doctest = false
 [dependencies]
 bitfield.workspace = true
 bitflags.workspace = true
-caliptra-error = { workspace = true, default-features = false }
+caliptra-error = { workspace = true, default-features = false, features = ["cfi"] }
 caliptra-image-types.workspace = true
 caliptra-lms-types.workspace = true
 caliptra-registers.workspace = true
@@ -23,12 +23,10 @@ zerocopy.workspace = true
 zeroize.workspace = true
 caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cfi", "cfi-counter" ] }
 caliptra-cfi-derive.workspace = true
-caliptra-cfi-lib-git = { workspace = true, default-features = false, features = ["cfi", "cfi-counter" ], optional = true }
-caliptra-cfi-derive-git = { workspace = true, optional = true }
 
 [features]
 emu = []
-runtime = ["dep:dpe", "dep:caliptra-cfi-lib-git", "dep:caliptra-cfi-derive-git"]
+runtime = ["dep:dpe"]
 fmc = []
 fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
 itrng = ["caliptra-hw-model/itrng"]

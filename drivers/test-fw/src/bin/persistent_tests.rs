@@ -3,7 +3,8 @@
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{PersistentData, PersistentDataAccessor};
+use caliptra_cfi_lib::CfiPanicInfo;
+use caliptra_drivers::{CaliptraError, PersistentData, PersistentDataAccessor};
 use caliptra_test_harness::test_suite;
 
 fn test_persistent_data_layout() {

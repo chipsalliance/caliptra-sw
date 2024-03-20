@@ -483,24 +483,6 @@ impl CaliptraError {
     /// Unknown Reset Error
     pub const ROM_UNKNOWN_RESET_FLOW: CaliptraError = CaliptraError::new_const(0x01040020);
 
-    /// ROM CFI Errors
-    pub const ROM_CFI_PANIC_UNKNOWN: CaliptraError = CaliptraError::new_const(0x1040050);
-    pub const ROM_CFI_PANIC_COUNTER_CORRUPT: CaliptraError = CaliptraError::new_const(0x1040051);
-    pub const ROM_CFI_PANIC_COUNTER_OVERFLOW: CaliptraError = CaliptraError::new_const(0x1040052);
-    pub const ROM_CFI_PANIC_COUNTER_UNDERFLOW: CaliptraError = CaliptraError::new_const(0x1040053);
-    pub const ROM_CFI_PANIC_COUNTER_MISMATCH: CaliptraError = CaliptraError::new_const(0x1040054);
-    pub const ROM_CFI_PANIC_ASSERT_EQ_FAILURE: CaliptraError = CaliptraError::new_const(0x1040055);
-    pub const ROM_CFI_PANIC_ASSERT_NE_FAILURE: CaliptraError = CaliptraError::new_const(0x1040056);
-    pub const ROM_CFI_PANIC_ASSERT_GT_FAILURE: CaliptraError = CaliptraError::new_const(0x1040057);
-    pub const ROM_CFI_PANIC_ASSERT_LT_FAILURE: CaliptraError = CaliptraError::new_const(0x1040058);
-    pub const ROM_CFI_PANIC_ASSERT_GE_FAILURE: CaliptraError = CaliptraError::new_const(0x1040059);
-    pub const ROM_CFI_PANIC_ASSERT_LE_FAILURE: CaliptraError = CaliptraError::new_const(0x104005A);
-    pub const ROM_CFI_PANIC_TRNG_FAILURE: CaliptraError = CaliptraError::new_const(0x104005B);
-    pub const ROM_CFI_PANIC_UNEXPECTED_MATCH_BRANCH: CaliptraError =
-        CaliptraError::new_const(0x104005C);
-    pub const ROM_CFI_PANIC_FAKE_TRNG_USED_WITH_DEBUG_LOCK: CaliptraError =
-        CaliptraError::new_const(0x104005D);
-
     /// ROM Global Errors
     pub const ROM_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x01050001);
     pub const ROM_GLOBAL_EXCEPTION: CaliptraError = CaliptraError::new_const(0x01050002);
@@ -560,6 +542,34 @@ impl CaliptraError {
     pub const ROM_KAT_LMS_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90070002);
 
     pub const ROM_INTEGRITY_FAILURE: CaliptraError = CaliptraError::new_const(0x90080001);
+
+    /// CFI Errors
+    pub const CFI_PANIC_UNKNOWN: CaliptraError = CaliptraError::new_const(0xA0000001);
+    pub const CFI_PANIC_COUNTER_CORRUPT: CaliptraError = CaliptraError::new_const(0xA0000002);
+    pub const CFI_PANIC_COUNTER_OVERFLOW: CaliptraError = CaliptraError::new_const(0xA0000003);
+    pub const CFI_PANIC_COUNTER_UNDERFLOW: CaliptraError = CaliptraError::new_const(0xA0000004);
+    pub const CFI_PANIC_COUNTER_MISMATCH: CaliptraError = CaliptraError::new_const(0xA0000005);
+    pub const CFI_PANIC_ASSERT_EQ_FAILURE: CaliptraError = CaliptraError::new_const(0xA0000006);
+    pub const CFI_PANIC_ASSERT_NE_FAILURE: CaliptraError = CaliptraError::new_const(0xA0000007);
+    pub const CFI_PANIC_ASSERT_GT_FAILURE: CaliptraError = CaliptraError::new_const(0xA0000008);
+    pub const CFI_PANIC_ASSERT_LT_FAILURE: CaliptraError = CaliptraError::new_const(0xA0000009);
+    pub const CFI_PANIC_ASSERT_GE_FAILURE: CaliptraError = CaliptraError::new_const(0xA000000A);
+    pub const CFI_PANIC_ASSERT_LE_FAILURE: CaliptraError = CaliptraError::new_const(0xA000000B);
+    pub const CFI_PANIC_TRNG_FAILURE: CaliptraError = CaliptraError::new_const(0xA000000C);
+    pub const CFI_PANIC_UNEXPECTED_MATCH_BRANCH: CaliptraError =
+        CaliptraError::new_const(0xA000000D);
+    pub const CFI_PANIC_FAKE_TRNG_USED_WITH_DEBUG_LOCK: CaliptraError =
+        CaliptraError::new_const(0xA000000E);
+}
+
+#[cfg(feature = "cfi")]
+impl From<caliptra_cfi_lib::CfiPanicInfo> for crate::CaliptraError {
+    fn from(val: caliptra_cfi_lib::CfiPanicInfo) -> Self {
+        let cfi_err_base = crate::CaliptraError::CFI_PANIC_UNKNOWN.0.get();
+        let cfi_err_offset = val as u32;
+        crate::CaliptraError::try_from(cfi_err_base + cfi_err_offset)
+            .unwrap_or(crate::CaliptraError::CFI_PANIC_UNKNOWN)
+    }
 }
 
 impl From<core::num::NonZeroU32> for crate::CaliptraError {

@@ -73,14 +73,14 @@ impl Trng {
                     let soc_ifc = SocIfcReg::new();
                     if soc_ifc.regs().cptra_security_state().read().debug_locked() {
                         cfi_panic_handler(
-                            CaliptraError::ROM_CFI_PANIC_FAKE_TRNG_USED_WITH_DEBUG_LOCK.into(),
+                            CaliptraError::CFI_PANIC_FAKE_TRNG_USED_WITH_DEBUG_LOCK.into(),
                         )
                     }
                 }
                 Ok(array::from_fn(|_| 0xdeadbeef_u32).into())
             }
             _ => unsafe {
-                cfi_panic_handler(CaliptraError::ROM_CFI_PANIC_UNEXPECTED_MATCH_BRANCH.into())
+                cfi_panic_handler(CaliptraError::CFI_PANIC_UNEXPECTED_MATCH_BRANCH.into())
             },
         }
     }

@@ -17,6 +17,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
+use caliptra_cfi_lib::CfiPanicInfo;
 use caliptra_drivers::Csrng;
 use caliptra_error::CaliptraError;
 use caliptra_registers::{csrng::CsrngReg, entropy_src::EntropySrcReg, soc_ifc::SocIfcReg};

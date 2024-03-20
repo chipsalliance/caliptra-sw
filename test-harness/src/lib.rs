@@ -137,10 +137,12 @@ macro_rules! test_suite {
         }
 
         #[no_mangle]
-        extern "C" fn cfi_panic_handler(code: u32) -> ! {
-            println!("[test] CFI Panic code=0x{:08X}", code);
+        extern "C" fn cfi_panic_handler(info: CfiPanicInfo) -> ! {
+            let caliptra_error: CaliptraError = info.into();
+            let error_code = caliptra_error.0.get();
+            println!("[test] CFI Panic code=0x{:08X}", error_code);
 
-            caliptra_drivers::report_fw_error_fatal(0xdead2);
+            caliptra_drivers::report_fw_error_fatal(error_code);
 
             caliptra_drivers::ExitCtrl::exit(u32::MAX)
         }

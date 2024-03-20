@@ -15,6 +15,8 @@ Abstract:
 #![no_std]
 #![no_main]
 
+use caliptra_cfi_lib::CfiPanicInfo;
+use caliptra_drivers::CaliptraError;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_test_harness::{runtime_handlers, test_suite};
 

@@ -16,12 +16,12 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{
-    Array4x12, Array4x4, DeobfuscationEngine, Ecc384, Ecc384PubKey, Hmac384, Hmac384Data,
-    Hmac384Key, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Mailbox, Trng,
+    Array4x12, Array4x4, CaliptraError, DeobfuscationEngine, Ecc384, Ecc384PubKey, Hmac384,
+    Hmac384Data, Hmac384Key, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Mailbox, Trng,
 };
 use caliptra_drivers_test_bin::{DoeTestResults, DOE_TEST_HMAC_KEY, DOE_TEST_IV};
 
-use caliptra_cfi_lib::CfiCounter;
+use caliptra_cfi_lib::{CfiCounter, CfiPanicInfo};
 use caliptra_registers::ecc::EccReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
@@ -58,7 +58,11 @@ fn test_decrypt() {
     };
 
     // Init CFI
-    let mut entropy_gen = || trng.generate().map(|a| a.0);
+    let mut entropy_gen = || {
+        trng.generate()
+            .map(|a| a.0)
+            .map_err(|_| caliptra_cfi_lib::CfiPanicInfo::TrngError)
+    };
     CfiCounter::reset(&mut entropy_gen);
 
     assert_eq!(

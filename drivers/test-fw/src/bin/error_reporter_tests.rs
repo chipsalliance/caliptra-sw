@@ -15,9 +15,9 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{report_fw_error_fatal, report_fw_error_non_fatal};
+use caliptra_cfi_lib::CfiPanicInfo;
+use caliptra_drivers::{report_fw_error_fatal, report_fw_error_non_fatal, CaliptraError};
 use caliptra_registers::soc_ifc::SocIfcReg;
-
 use caliptra_test_harness::test_suite;
 
 fn test_report_fw_error() {
