@@ -1,4 +1,4 @@
-# Caliptra Runtime Firmware v1.0
+# Caliptra Runtime Firmware v1.1
 
 This specification describes the Caliptra Runtime Firmware.
 
@@ -119,11 +119,11 @@ Command Code: `0x4341_5053` ("CAPS")
 
 *Table: `CAPABILITIES` output arguments*
 
-| **Name**    | **Type**   | **Description**
-| --------    | --------   | ---------------
-| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips\_status | u32        | Indicates if the command is FIPS approved or an error.
-| capabilities   | u8[16]        | Firmware capabilities
+| **Name**      | **Type**   | **Description**
+| --------      | --------   | ---------------
+| chksum        | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32        | Indicates if the command is FIPS approved or an error.
+| capabilities  | u8[16]     | Firmware capabilities
 
 ### GET\_IDEV\_CERT
 
@@ -133,22 +133,22 @@ Command Code: `0x4944_4543` ("IDEC")
 
 *Table: `GET_IDEV_CERT` input arguments*
 
-| **Name**    | **Type**      | **Description**
-| --------    | --------      | ---------------
-| chksum      | u32           | Checksum over other input arguments, computed by the caller. Little endian.
-| signature\_r | u8[48]        | R portion of signature of the cert.
-| signature\_s | u8[48]        | S portion of signature of the cert.
-| tbs\_size    | u32           | Size of the TBS.
-| tbs         | u8[916]       | TBS, with a maximum size of 916. Only bytes up to tbs_size are used.
+| **Name**      | **Type**      | **Description**
+| --------      | --------      | ---------------
+| chksum        | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| signature\_r  | u8[48]        | R portion of signature of the cert.
+| signature\_s  | u8[48]        | S portion of signature of the cert.
+| tbs\_size     | u32           | Size of the TBS.
+| tbs           | u8[916]       | TBS, with a maximum size of 916. Only bytes up to tbs_size are used.
 
 *Table: `GET_IDEV_CERT` output arguments*
 
-| **Name**    | **Type**   | **Description**
-| --------    | --------   | ---------------
-| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips\_status | u32        | Indicates if the command is FIPS approved or an error.
-| cert\_size   | u32        | Length in bytes of the cert field in use for the IDevId certificate.
-| cert        | u8[1024]   | DER-encoded IDevID CERT.
+| **Name**      | **Type**   | **Description**
+| --------      | --------   | ---------------
+| chksum        | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32        | Indicates if the command is FIPS approved or an error.
+| cert\_size    | u32        | Length in bytes of the cert field in use for the IDevId certificate.
+| cert          | u8[1024]   | DER-encoded IDevID CERT.
 
 ### POPULATE\_IDEV\_CERT
 
@@ -160,18 +160,18 @@ Command Code: `0x4944_4550` ("IDEP")
 
 *Table: `POPULATE_IDEV_CERT` input arguments*
 
-| **Name**    | **Type**      | **Description**
-| --------    | --------      | ---------------
-| chksum      | u32           | Checksum over other input arguments, computed by the caller. Little endian.
+| **Name**     | **Type**      | **Description**
+| --------     | --------      | ---------------
+| chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
 | cert\_size   | u32           | Size of the DER-encoded IDevId certificate.
-| cert        | u8[1024]      | DER-encoded IDevID CERT.
+| cert         | u8[1024]      | DER-encoded IDevID CERT.
 
 *Table: `POPULATE_IDEV_CERT` output arguments*
 
-| **Name**    | **Type** | **Description**
-| --------    | -------- | ---------------
-| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips\_status | u32      | Indicates if the command is FIPS approved or an error.
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
 
 ### GET\_IDEV\_INFO
 
@@ -187,10 +187,10 @@ Command Code: `0x4944_4549` ("IDEI")
 
 *Table: `GET_IDEV_INFO` output arguments*
 
-| **Name**    | **Type**   | **Description**
-| --------    | --------   | ---------------
-| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips\_status | u32        | Indicates if the command is FIPS approved or an error.
+| **Name**      | **Type**   | **Description**
+| --------      | --------   | ---------------
+| chksum        | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32        | Indicates if the command is FIPS approved or an error.
 | idev\_pub\_x  | u8[48]     | X portion of ECDSA IDevId key.
 | idev\_pub\_y  | u8[48]     | Y portion of ECDSA IDevId key.
 
@@ -208,12 +208,12 @@ Command Code: `0x4C44_4556` ("LDEV")
 
 *Table: `GET_LDEV_CERT` output arguments*
 
-| **Name**    | **Type**   | **Description**
-| --------    | --------   | ---------------
-| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips\_status | u32        | Indicates if the command is FIPS approved or an error.
-| data\_size   | u32        | Length in bytes of the valid data in the data field.
-| data        | u8[...]    | DER-encoded LDevID certificate.
+| **Name**      | **Type**   | **Description**
+| --------      | --------   | ---------------
+| chksum        | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32        | Indicates if the command is FIPS approved or an error.
+| data\_size    | u32        | Length in bytes of the valid data in the data field.
+| data          | u8[...]    | DER-encoded LDevID certificate.
 
 ### GET\_FMC\_ALIAS\_CERT
 
@@ -229,12 +229,12 @@ Command Code: `0x4345_5246` ("CERF")
 
 *Table: `GET_FMC_ALIAS_CERT` output arguments*
 
-| **Name**    | **Type**   | **Description**
-| --------    | --------   | ---------------
-| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips\_status | u32        | Indicates if the command is FIPS approved or an error.
-| data\_size   | u32        | Length in bytes of the valid data in the data field.
-| data        | u8[...]    | DER-encoded FMC alias certificate.
+| **Name**      | **Type**   | **Description**
+| --------      | --------   | ---------------
+| chksum        | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32        | Indicates if the command is FIPS approved or an error.
+| data\_size    | u32        | Length in bytes of the valid data in the data field.
+| data          | u8[...]    | DER-encoded FMC alias certificate.
 
 ### GET\_RT\_ALIAS\_CERT
 
@@ -250,12 +250,12 @@ Command Code: `0x4345_5252` ("CERR")
 
 *Table: `GET_RT_ALIAS_CERT` output arguments*
 
-| **Name**    | **Type**   | **Description**
-| --------    | --------   | ---------------
-| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips\_status | u32        | Indicates if the command is FIPS approved or an error.
-| data\_size   | u32        | Length in bytes of the valid data in the data field.
-| data        | u8[...]    | DER-encoded Runtime alias certificate.
+| **Name**      | **Type**   | **Description**
+| --------      | --------   | ---------------
+| chksum        | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32        | Indicates if the command is FIPS approved or an error.
+| data\_size    | u32        | Length in bytes of the valid data in the data field.
+| data          | u8[...]    | DER-encoded Runtime alias certificate.
 
 ### ECDSA384\_SIGNATURE\_VERIFY
 
@@ -276,10 +276,10 @@ Command Code: `0x5349_4756` ("SIGV")
 
 *Table: `ECDSA384_SIGNATURE_VERIFY` output arguments*
 
-| **Name**    | **Type** | **Description**
-| --------    | -------- | ---------------
-| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips\_status | u32      | Indicates if the command is FIPS approved or an error.
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
 
 ### STASH\_MEASUREMENT
 
@@ -304,11 +304,11 @@ Command Code: `0x4D45_4153` ("MEAS")
 
 *Table: `STASH_MEASUREMENT` output arguments*
 
-| **Name**    | **Type** | **Description**
-| --------    | -------- | ---------------
-| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips\_status | u32      | Indicates if the command is FIPS approved or an error.
-| dpe\_result | u32      | Result code of DPE DeriveContext command. Little endian.
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
+| dpe\_result   | u32      | Result code of DPE DeriveContext command. Little endian.
 
 ### DISABLE\_ATTESTATION
 
@@ -335,10 +335,10 @@ Command Code: `0x4453_424C` ("DSBL")
 
 *Table: `DISABLE_ATTESTATION` output arguments*
 
-| **Name**    | **Type** | **Description**
-| --------    | -------- | ---------------
-| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips\_status | u32      | Indicates if the command is FIPS approved or an error.
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
 
 ### INVOKE\_DPE\_COMMAND
 
@@ -351,17 +351,17 @@ Command Code: `0x4450_4543` ("DPEC")
 | **Name**     | **Type**      | **Description**
 | --------     | --------      | ---------------
 | chksum       | u32           | Checksum over other input arguments, computed by the caller. Little endian.
-| data\_size    | u32           | Length in bytes of the valid data in the data field.
+| data\_size   | u32           | Length in bytes of the valid data in the data field.
 | data         | u8[...]       | DPE command structure as defined in the DPE iRoT profile.
 
 *Table: `INVOKE_DPE_COMMAND` output arguments*
 
-| **Name**    | **Type**      | **Description**
-| --------    | --------      | ---------------
-| chksum      | u32           | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips\_status | u32           | Indicates if the command is FIPS approved or an error.
-| data\_size   | u32           | Length in bytes of the valid data in the data field.
-| data        | u8[...]       | DPE response structure as defined in the DPE iRoT profile.
+| **Name**      | **Type**      | **Description**
+| --------      | --------      | ---------------
+| chksum        | u32           | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32           | Indicates if the command is FIPS approved or an error.
+| data\_size    | u32           | Length in bytes of the valid data in the data field.
+| data          | u8[...]       | DPE response structure as defined in the DPE iRoT profile.
 
 ### QUOTE\_PCRS
 
@@ -423,12 +423,12 @@ Command Code: `0x504C_4F47` ("PLOG")
 
 *Table: `GET_PCR_LOG` output arguments*
 
-| **Name**    | **Type**   | **Description**
-| --------    | --------   | ---------------
-| chksum      | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips\_status | u32        | Indicates if the command is FIPS approved or an error.
-| data\_size   | u32        | Length in bytes of the valid data in the data field.
-| data        | u8[...]    | Internal PCR event log.
+| **Name**      | **Type**   | **Description**
+| --------      | --------   | ---------------
+| chksum        | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32        | Indicates if the command is FIPS approved or an error.
+| data\_size    | u32        | Length in bytes of the valid data in the data field.
+| data          | u8[...]    | Internal PCR event log.
 
 See [pcr\_log.rs](../drivers/src/pcr_log.rs) for the format of the log.
 
@@ -467,10 +467,10 @@ Command Code: `0x5451_4754` ("TAGT")
 
 *Table: `DPE_TAG_TCI` output arguments*
 
-| **Name**    | **Type** | **Description**
-| --------    | -------- | ---------------
-| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
-| fips\_status | u32      | Indicates if the command is FIPS approved or an error.
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
 
 ### DPE\_GET\_TAGGED\_TCI
 
@@ -487,11 +487,11 @@ Command Code: `0x4754_4744` ("GTGD")
 
 *Table: `DPE_GET_TAGGED_TCI` output arguments*
 
-| **Name**          | **Type**       | **Description**
-| --------          | --------       | ---------------
-| chksum            | u32            | Checksum over other input arguments, computed by the caller. Little endian.
-| tci\_cumulative    | u8[48]         | Hash of all of the input data provided to the context.
-| tci\_current       | u8[48]         | Most recent measurement made into the context.
+| **Name**         | **Type**  | **Description**
+| --------         | --------  | ---------------
+| chksum           | u32       | Checksum over other input arguments, computed by the caller. Little endian.
+| tci\_cumulative  | u8[48]    | Hash of all of the input data provided to the context.
+| tci\_current     | u8[48]    | Most recent measurement made into the context.
 
 ### FW\_INFO
 
@@ -600,6 +600,59 @@ Table: `SHUTDOWN` output arguments
 | --------     | --------  | ---------------
 | chksum       | u32       | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips_status  | u32       | Indicates if the command is FIPS approved or an error
+
+### ADD\_SUBJECT\_ALT\_NAME
+
+Provides a subject alternative name otherName. Whenever CERTIFY_KEY_EXTENDED is called with the 
+DMTF_OTHER_NAME flag after ADD_SUBJECT_ALT_NAME is called, the resulting DPE CSR or leaf certificate 
+will contain a subject alternative name extension containing the provided otherName, which must be a 
+DMTF device info. All such certificates produced by CERTIFY_KEY_EXTENDED will continue to have the 
+DMTF otherName subject alternative name extension until reset.
+
+Command Code: `0x414C_544E` ("ALTN")
+
+*Table: `ADD_SUBJECT_ALT_NAME` input arguments*
+
+| **Name**                  | **Type** | **Description**
+| --------                  | -------- | ---------------
+| chksum                    | u32      | Checksum over other input arguments, computed by the caller. Little endian.
+| dmtf\_device\_info\_size  | u32      | The size of the DMTF Device Info UTF8String.
+| dmtf\_device\_info        | u8[128]  | The DMTF Device Info UTF8String.
+
+*Table: `ADD_SUBJECT_ALT_NAME` output arguments*
+
+| **Name**     | **Type** | **Description**
+| --------     | -------- | ---------------
+| chksum       | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status | u32      | Indicates if the command is FIPS approved or an error.
+
+### CERTIFY\_KEY\_EXTENDED
+
+Produces a DPE leaf certificate or CSR containing custom extensions provided by the SoC.
+
+Command Code: `0x434B_4558` ("CKEX")
+
+*Table: `CERTIFY_KEY_EXTENDED` input arguments*
+
+| **Name**           | **Type** | **Description**
+| --------           | -------- | ---------------
+| chksum             | u32      | Checksum over other input arguments, computed by the caller. Little endian.
+| certify\_key\_req  | u8[72]   | Certify Key Request.
+| flags              | u32      | Flags determining which custom extensions to include in the certificate.
+
+*Table: `CERTIFY_KEY_EXTENDED` input flags*
+
+| **Name**              | **Offset** 
+| --------              | ----------
+| DMTF_OTHER_NAME       | 1 << 31      
+
+*Table: `CERTIFY_KEY_EXTENDED` output arguments*
+
+| **Name**            | **Type**  | **Description**
+| --------            | --------  | ---------------
+| chksum              | u32       | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status        | u32       | Indicates if the command is FIPS approved or an error.
+| certify\_key\_resp  | u8[2176]  | Certify Key Response.
 
 ## Checksum
 

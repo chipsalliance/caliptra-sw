@@ -2,6 +2,7 @@
 
 mod common;
 mod test_boot;
+mod test_certify_key_extended;
 mod test_certs;
 mod test_disable;
 mod test_ecdsa;

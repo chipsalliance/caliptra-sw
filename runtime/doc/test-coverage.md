@@ -80,6 +80,14 @@ Checks that the get_idev_info mailbox command succeeds | **test_idev_id_info** |
 Checks that the capabilities mailbox command succeeds | **test_capabilities** | N/A
 
 <br><br>
+# **Certify Key Extended Tests**
+Test Scenario| Test Name | Runtime Error Code
+---|---|---
+Checks that validation of the DMTF otherName fails if it is badly formed | **test_dmtf_other_name_validation_fail** | RUNTIME_DMTF_DEVICE_INFO_VALIDATION_FAILED
+Provides the DMTF otherName via the add_subject_alt_name mailbox command and verifies that the otherName is present in the DPE leaf cert | **test_dmtf_other_name_extension_present** | N/A
+Checks that the DMTF otherName is not present in the DPE leaf cert if it is not provided by add_subject_alt_name or if it is not requested in the input flags | **test_dmtf_other_name_extension_not_present** | N/A
+
+<br><br>
 # **DPE Tests**
 Test Scenario| Test Name | Runtime Error Code
 ---|---|---
@@ -101,6 +109,7 @@ Checks the limit on the number of active DPE contexts belonging to PL1 by callin
 Checks the limit on the number of active DPE contexts belonging to PL0 by calling initialize_context via the invoke_dpe mailbox command with the SIMULATION flag set | **test_pl0_init_ctx_dpe_context_thresholds** | RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED
 Checks the limit on the number of active DPE contexts belonging to PL1 by calling initialize_context via the invoke_dpe mailbox command with the SIMULATION flag set | **test_pl1_init_ctx_dpe_context_thresholds** | RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED
 Checks that PopulateIdevIdCert cannot be called from PL1 | **test_populate_idev_cannot_be_called_from_pl1** | RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL
+Checks that CertifyKeyExtended cannot be called from PL1 | **test_certify_key_extended_cannot_be_called_from_pl1** | RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL
 Checks that InvokeDpe::DeriveContext cannot be called from PL1 if it attempts to change locality to P0 | **test_derive_context_cannot_be_called_from_pl1_if_changes_locality_to_pl0** | RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL
 Checks that InvokeDpe::CertifyKey cannot be called from PL1 if it requests X509 | **test_certify_key_x509_cannot_be_called_from_pl1** | RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL
 Checks the limit on the number of active DPE contexts belonging to PL0 by calling the stash_measurement mailbox command | **test_stash_measurement_pl_context_thresholds** | RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED

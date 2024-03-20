@@ -24,6 +24,7 @@ zerocopy.workspace = true
 arrayvec.workspace = true
 caliptra-image-verify = { workspace = true, default-features = false }
 zeroize.workspace = true
+bitflags.workspace = true
 
 [build-dependencies]
 caliptra_common = { workspace = true, default-features = false }
@@ -43,6 +44,7 @@ openssl.workspace = true
 sha2 = { version = "0.10.2", default-features = false, features = ["compress"] }
 cms.workspace = true
 wycheproof.workspace = true
+x509-parser.workspace = true
 
 [features]
 default = ["std"]

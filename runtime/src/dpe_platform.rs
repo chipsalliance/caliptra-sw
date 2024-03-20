@@ -24,12 +24,13 @@ use dpe::{
     DPE_PROFILE,
 };
 use platform::{
-    CertValidity, Platform, PlatformError, SignerIdentifier, MAX_CHUNK_SIZE, MAX_ISSUER_NAME_SIZE,
-    MAX_KEY_IDENTIFIER_SIZE, MAX_SN_SIZE,
+    CertValidity, OtherName, Platform, PlatformError, SignerIdentifier, SubjectAltName,
+    MAX_CHUNK_SIZE, MAX_ISSUER_NAME_SIZE, MAX_KEY_IDENTIFIER_SIZE, MAX_OTHER_NAME_SIZE,
+    MAX_SN_SIZE,
 };
 use zerocopy::AsBytes;
 
-use crate::MAX_CERT_CHAIN_SIZE;
+use crate::{subject_alt_name::AddSubjectAltNameCmd, MAX_CERT_CHAIN_SIZE};
 
 pub struct DpePlatform<'a> {
     auto_init_locality: u32,
@@ -37,6 +38,7 @@ pub struct DpePlatform<'a> {
     cert_chain: &'a ArrayVec<u8, MAX_CERT_CHAIN_SIZE>,
     not_before: &'a NotBefore,
     not_after: &'a NotAfter,
+    dmtf_device_info: Option<&'a [u8]>,
 }
 
 pub const VENDOR_ID: u32 = u32::from_be_bytes(*b"CTRA");
@@ -49,6 +51,7 @@ impl<'a> DpePlatform<'a> {
         cert_chain: &'a ArrayVec<u8, 4096>,
         not_before: &'a NotBefore,
         not_after: &'a NotAfter,
+        dmtf_device_info: Option<&'a [u8]>,
     ) -> Self {
         Self {
             auto_init_locality,
@@ -56,6 +59,7 @@ impl<'a> DpePlatform<'a> {
             cert_chain,
             not_before,
             not_after,
+            dmtf_device_info,
         }
     }
 }
@@ -169,5 +173,22 @@ impl Platform for DpePlatform<'_> {
             not_before,
             not_after,
         })
+    }
+
+    fn get_subject_alternative_name(&mut self) -> Result<SubjectAltName, PlatformError> {
+        match &self.dmtf_device_info {
+            None => Err(PlatformError::NotImplemented),
+            Some(dmtf_device_info) => {
+                let mut other_name = ArrayVec::new();
+                other_name
+                    .try_extend_from_slice(dmtf_device_info)
+                    .map_err(|_| PlatformError::SubjectAlternativeNameError(0))?;
+
+                Ok(SubjectAltName::OtherName(OtherName {
+                    oid: AddSubjectAltNameCmd::DMTF_OID,
+                    other_name,
+                }))
+            }
+        }
     }
 }
