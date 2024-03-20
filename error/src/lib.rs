@@ -414,6 +414,11 @@ impl CaliptraError {
         CaliptraError::new_const(0x000E0040);
     pub const RUNTIME_DPE_RESPONSE_SERIALIZATION_FAILED: CaliptraError =
         CaliptraError::new_const(0x000E0041);
+    pub const RUNTIME_LMS_VERIFY_FAILED: CaliptraError = CaliptraError::new_const(0x000E0042);
+    pub const RUNTIME_LMS_VERIFY_INVALID_LMS_ALGORITHM: CaliptraError =
+        CaliptraError::new_const(0x000E0043);
+    pub const RUNTIME_LMS_VERIFY_INVALID_LMOTS_ALGORITHM: CaliptraError =
+        CaliptraError::new_const(0x000E0044);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);

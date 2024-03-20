@@ -56,6 +56,13 @@ Test Scenario| Test Name | Runtime Error Code
 Tests some common ECDSA problems | **ecdsa_cmd_run_wycheproof** | N/A
 Streams a test message to a hashing accelerator and calls the ecdsa_verify mailbox command to verify the test signature | **test_ecdsa_verify_cmd** | N/A
 Checks that the ecdsa_verify mailbox command fails if provided an invalid checksum | **test_ecdsa_verify_bad_chksum** | RUNTIME_INVALID_CHECKSUM
+Streams 2 different test messages to the SHA accelerator and calls the lms_signature_verify mailbox command to verify several test signatures for each message | **test_lms_verify_cmd** | N/A
+Checks that the lms_signature_verify mailbox command correctly returns an error for an invalid LMS signature | **test_lms_verify_failure** | RUNTIME_LMS_VERIFY_FAILED
+Checks that the correct error is returned when an unsupported LMS algorithm type is provided in the signature to the lms_signature_verify mailbox command | **test_lms_verify_invalid_sig_lms_type** | RUNTIME_LMS_VERIFY_INVALID_LMS_ALGORITHM
+Checks that the correct error is returned when an unsupported LMS algorithm type is provided in the public key to the lms_signature_verify mailbox command | **test_lms_verify_invalid_key_lms_type** | RUNTIME_LMS_VERIFY_INVALID_LMS_ALGORITHM
+Checks that the correct error is returned when an unsupported LMS OTS algorithm type is provided to the lms_signature_verify mailbox command | **test_lms_verify_invalid_lmots_type** | RUNTIME_LMS_VERIFY_INVALID_LMOTS_ALGORITHM
+
+
 
 <br><br>
 # **Populate IDev Tests**

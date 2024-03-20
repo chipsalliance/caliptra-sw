@@ -57,7 +57,7 @@ pub use info::{FwInfoCmd, IDevIdInfoCmd};
 pub use invoke_dpe::InvokeDpeCmd;
 pub use pcr::IncrementPcrResetCounterCmd;
 pub use stash_measurement::StashMeasurementCmd;
-pub use verify::EcdsaVerifyCmd;
+pub use verify::{EcdsaVerifyCmd, LmsVerifyCmd};
 pub mod packet;
 use caliptra_common::mailbox_api::{CommandId, MailboxResp};
 use packet::Packet;
@@ -172,6 +172,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::GET_LDEV_CERT => GetLdevCertCmd::execute(drivers),
         CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers, cmd_bytes),
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers, cmd_bytes),
+        CommandId::LMS_VERIFY => LmsVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::EXTEND_PCR => ExtendPcrCmd::execute(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers, cmd_bytes),
         CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),
