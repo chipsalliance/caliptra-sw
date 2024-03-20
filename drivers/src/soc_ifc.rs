@@ -163,10 +163,20 @@ impl SocIfc {
 
     /// Check if verification is turned on for fake-rom
     pub fn verify_in_fake_mode(&self) -> bool {
+        // Bit 31 indicates to perform verification flow in fake ROM
+        const FAKE_ROM_VERIFY_EN_BIT: u32 = 31;
         let soc_ifc_regs = self.soc_ifc.regs();
         let val = soc_ifc_regs.cptra_dbg_manuf_service_reg().read();
-        // Bit 31 indicates to perform verification flow in fake ROM
-        ((val >> 31) & 1) != 0
+        ((val >> FAKE_ROM_VERIFY_EN_BIT) & 1) != 0
+    }
+
+    /// Check if production mode is enabled for fake-rom
+    pub fn prod_en_in_fake_mode(&self) -> bool {
+        // Bit 30 indicates production mode is allowed in fake ROM
+        const FAKE_ROM_PROD_EN_BIT: u32 = 30;
+        let soc_ifc_regs = self.soc_ifc.regs();
+        let val = soc_ifc_regs.cptra_dbg_manuf_service_reg().read();
+        ((val >> FAKE_ROM_PROD_EN_BIT) & 1) != 0
     }
 
     #[inline(always)]
