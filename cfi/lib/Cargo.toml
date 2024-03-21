@@ -22,4 +22,5 @@ default = ["cfi", "cfi-counter", "cfi-test"]
 cfi = []
 cfi-counter = []
 cfi-test = []
+hw-latest = ["caliptra-registers/hw-latest"]
 

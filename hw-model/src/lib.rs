@@ -59,6 +59,8 @@ pub enum ShaAccMode {
 
 #[cfg(feature = "fpga_realtime")]
 pub use model_fpga_realtime::ModelFpgaRealtime;
+#[cfg(feature = "fpga_realtime")]
+pub use model_fpga_realtime::OpenOcdError;
 
 /// Ideally, general-purpose functions would return `impl HwModel` instead of
 /// `DefaultHwModel` to prevent users from calling functions that aren't

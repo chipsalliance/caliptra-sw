@@ -63,8 +63,10 @@ pub fn run(env: &mut RomEnv) -> CaliptraResult<()> {
     } else {
         let _result: CaliptraResult<()> = Err(CaliptraError::ROM_GLOBAL_PANIC);
 
-        if env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production {
-            cprintln!("Fake ROM in Production lifecycle prohibited");
+        if (env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production)
+            && !(env.soc_ifc.prod_en_in_fake_mode())
+        {
+            cprintln!("Fake ROM in Production lifecycle not enabled");
             handle_fatal_error(CaliptraError::ROM_GLOBAL_FAKE_ROM_IN_PRODUCTION.into());
         }
 
