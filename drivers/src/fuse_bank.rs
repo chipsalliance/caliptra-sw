@@ -326,5 +326,35 @@ mod tests {
 
             svn = (svn << 1) | 1;
         }
+
+        // Expected usage...
+        assert_eq!(first_set_msbit(&[0x0000_0000, 0, 0, 0]), 0);
+        assert_eq!(first_set_msbit(&[0x0000_0001, 0, 0, 0]), 1);
+        assert_eq!(first_set_msbit(&[0x0000_0003, 0, 0, 0]), 2);
+        assert_eq!(first_set_msbit(&[0x0000_0007, 0, 0, 0]), 3);
+        assert_eq!(first_set_msbit(&[0x0000_000f, 0, 0, 0]), 4);
+        assert_eq!(first_set_msbit(&[0xffff_ffff, 0, 0, 0]), 32);
+        assert_eq!(first_set_msbit(&[0xffff_ffff, 0x0000_0001, 0, 0]), 33);
+        assert_eq!(first_set_msbit(&[0xffff_ffff, 0xffff_ffff, 0, 0]), 64);
+        assert_eq!(
+            first_set_msbit(&[0xffff_ffff, 0xffff_ffff, 0xffff_ffff, 0]),
+            96
+        );
+        assert_eq!(
+            first_set_msbit(&[0xffff_ffff, 0xffff_ffff, 0xffff_ffff, 0x0000_0001]),
+            97
+        );
+        assert_eq!(
+            first_set_msbit(&[0xffff_ffff, 0xffff_ffff, 0xffff_ffff, 0x0000_ffff]),
+            112
+        );
+        assert_eq!(
+            first_set_msbit(&[0xffff_ffff, 0xffff_ffff, 0xffff_ffff, 0xffff_ffff]),
+            128
+        );
+
+        // Some weird cases....
+        assert_eq!(first_set_msbit(&[0x0000_0008, 0, 0, 0]), 4);
+        assert_eq!(first_set_msbit(&[0, 0, 0, 0x8000_0000]), 128);
     }
 }
