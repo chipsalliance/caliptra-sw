@@ -120,7 +120,7 @@ A library for building self-contained test firmware binaries. This sets up minim
 
 ### [ureg](/ureg)
 
-Register abstraction and code generator to create register libraries. The `registers` directory has a binary that creates the register code including ureg.
+Register abstraction and code generator to create register libraries. The `registers` directory has a binary that creates the register code that includes ureg.
 
 ### [x509](/x509)
 
