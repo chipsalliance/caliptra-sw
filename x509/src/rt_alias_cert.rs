@@ -23,7 +23,7 @@ mod tests {
 
     use super::*;
     use crate::test_util::tests::*;
-    use crate::{NotAfter, NotBefore};
+    use caliptra_common::x509::{NotAfter, NotBefore};
 
     #[test]
     fn test_cert_signing() {

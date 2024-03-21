@@ -29,7 +29,7 @@ mod tests {
 
     use super::*;
     use crate::test_util::tests::*;
-    use crate::{NotAfter, NotBefore};
+    use caliptra_common::x509::{NotAfter, NotBefore};
 
     const TEST_UEID: &[u8] = &[0xAB; LocalDevIdCertTbsParams::UEID_LEN];
 

@@ -21,6 +21,7 @@ use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
+use caliptra_common::crypto::Ecc384KeyPair;
 use caliptra_common::keyids::{KEY_ID_FE, KEY_ID_IDEVID_PRIV_KEY, KEY_ID_ROM_FMC_CDI, KEY_ID_UDS};
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::*;
@@ -79,7 +80,7 @@ impl InitDevIdLayer {
         // Generate the Subject Serial Number and Subject Key Identifier.
         // This information will be used by next DICE Layer while generating
         // certificates
-        let subj_sn = X509::subj_sn(env, &key_pair.pub_key)?;
+        let subj_sn = caliptra_common::x509::X509::subj_sn(&mut env.sha256, &key_pair.pub_key)?;
         report_boot_status(IDevIdSubjIdSnGenerationComplete.into());
 
         let subj_key_id = X509::idev_subj_key_id(env, &key_pair.pub_key)?;
@@ -161,7 +162,14 @@ impl InitDevIdLayer {
     /// * `cdi` - Key Slot to store the generated CDI
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_cdi(env: &mut RomEnv, uds: KeyId, cdi: KeyId) -> CaliptraResult<()> {
-        Crypto::hmac384_kdf(env, uds, b"idevid_cdi", None, cdi)?;
+        caliptra_common::crypto::Crypto::hmac384_kdf(
+            &mut env.hmac384,
+            &mut env.trng,
+            uds,
+            b"idevid_cdi",
+            None,
+            cdi,
+        )?;
 
         cprintln!("[idev] Erasing UDS.KEYID = {}", uds as u8);
         env.key_vault.erase_key(uds)?;
@@ -186,7 +194,15 @@ impl InitDevIdLayer {
         cdi: KeyId,
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
-        let result = Crypto::ecc384_key_gen(env, cdi, b"idevid_keygen", priv_key);
+        let result = caliptra_common::crypto::Crypto::ecc384_key_gen(
+            &mut env.hmac384,
+            &mut env.ecc384,
+            &mut env.trng,
+            &mut env.key_vault,
+            cdi,
+            b"idevid_keygen",
+            priv_key,
+        );
         if cfi_launder(result.is_ok()) {
             cfi_assert!(result.is_ok());
             report_boot_status(IDevIdKeyPairDerivationComplete.into());
@@ -231,7 +247,7 @@ impl InitDevIdLayer {
         // CSR `To Be Signed` Parameters
         let params = InitDevIdCsrTbsParams {
             // Unique Endpoint Identifier
-            ueid: &X509::ueid(env)?,
+            ueid: &caliptra_common::x509::X509::ueid(&env.soc_ifc)?,
 
             // Subject Name
             subject_sn: &output.subj_sn,

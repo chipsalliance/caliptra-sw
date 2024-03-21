@@ -19,7 +19,8 @@ include!(concat!(env!("OUT_DIR"), "/fmc_alias_cert_tbs.rs"));
 mod tests {
     use super::*;
     use crate::test_util::tests::*;
-    use crate::{Ecdsa384CertBuilder, Ecdsa384Signature, NotAfter, NotBefore};
+    use crate::{Ecdsa384CertBuilder, Ecdsa384Signature};
+    use caliptra_common::x509::{NotAfter, NotBefore};
 
     use openssl::ecdsa::EcdsaSig;
     use openssl::sha::Sha384;
