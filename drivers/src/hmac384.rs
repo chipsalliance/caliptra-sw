@@ -157,7 +157,7 @@ impl Hmac384 {
             }
         }
 
-        // Generate an LFSR seed.
+        // Generate an LFSR seed and copy to key vault.
         self.gen_lfsr_seed(trng)?;
 
         let op = Hmac384Op {
@@ -172,7 +172,7 @@ impl Hmac384 {
         Ok(op)
     }
 
-    /// Generate an LFSR seed.
+    /// Generate an LFSR seed and copy to keyvault.
     ///
     /// # Arguments
     ///
@@ -233,7 +233,7 @@ impl Hmac384 {
                     .map_err(|err| err.into_read_key_err())?
             }
         }
-
+        // Generate an LFSR seed and copy to key vault.
         self.gen_lfsr_seed(trng)?;
 
         // Calculate the hmac

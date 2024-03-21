@@ -28,7 +28,14 @@ use core::hint::black_box;
 #[cfg(feature = "std")]
 pub fn main() {}
 
-const BANNER: &str = r#"Caliptra-RT"#;
+const BANNER: &str = r#"
+  ____      _ _       _               ____ _____
+ / ___|__ _| (_)_ __ | |_ _ __ __ _  |  _ \_   _|
+| |   / _` | | | '_ \| __| '__/ _` | | |_) || |
+| |__| (_| | | | |_) | |_| | | (_| | |  _ < | |
+ \____\__,_|_|_| .__/ \__|_|  \__,_| |_| \_\|_|
+               |_|
+"#;
 
 #[no_mangle]
 #[allow(clippy::empty_loop)]

@@ -236,6 +236,7 @@ pub fn get_lms_parameters(algo_type: LmsAlgorithmType) -> CaliptraResult<(u8, u8
 impl Lms {
     pub const WNTZ_MODE_SHA256: u8 = 32;
     pub const ITER_COUNTER_OFFSET: usize = 22;
+    pub const WNT_PREFIX_SIZE: usize = 55;
     // See  https://datatracker.ietf.org/doc/html/rfc8554
     // tmp = H(I || u32str(q) || u16str(i) || u8str(j) || tmp)
     pub const TMP_OFFSET: usize = 23;
@@ -306,11 +307,12 @@ impl Lms {
         Ok(HashValue::from(digest))
     }
 
+    // This operation is accelerated in hardware by RTL1.1.
     #[cfg(feature = "hw-latest")]
     fn hash_chain<const N: usize>(
         &self,
         sha256_driver: &mut impl Sha256Alg,
-        wnt_prefix: &mut [u8; 55],
+        wnt_prefix: &mut [u8; Self::WNT_PREFIX_SIZE],
         coeff: u8,
         params: &LmotsParameter,
         tmp: &mut HashValue<N>,
@@ -338,12 +340,11 @@ impl Lms {
         Ok(*tmp)
     }
 
-    // This operation is accelerated in hardware by RTL1.1.
     #[cfg(not(feature = "hw-latest"))]
     fn hash_chain<const N: usize>(
         &self,
         sha256_driver: &mut impl Sha256Alg,
-        wnt_prefix: &mut [u8; 55],
+        wnt_prefix: &mut [u8; Self::WNT_PREFIX_SIZE],
         coeff: u8,
         params: &LmotsParameter,
         tmp: &mut HashValue<N>,

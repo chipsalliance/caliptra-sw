@@ -331,12 +331,9 @@ impl Sha256 {
         // Wait for the hardware to be ready
         wait::until(|| sha256.status().read().ready());
 
-        let init = first;
-        let next = !init;
-
         sha256
             .ctrl()
-            .write(|w| w.wntz_mode(false).mode(true).init(init).next(next));
+            .write(|w| w.wntz_mode(false).mode(true).init(first).next(!first));
 
         // Wait for the digest operation to finish
         wait::until(|| sha256.status().read().valid());
@@ -356,10 +353,9 @@ impl Sha256 {
         // Wait for the hardware to be ready
         wait::until(|| sha256.status().read().ready());
 
-        let init = first;
-        let next = !init;
-
-        sha256.ctrl().write(|w| w.mode(true).init(init).next(next));
+        sha256
+            .ctrl()
+            .write(|w| w.mode(true).init(first).next(!first));
 
         // Wait for the digest operation to finish
         wait::until(|| sha256.status().read().valid());
@@ -381,17 +377,14 @@ impl Sha256 {
         // Wait for the hardware to be ready
         wait::until(|| sha256.status().read().ready());
 
-        let init = first;
-        let next = !first;
-
         // Submit the first block
         sha256.ctrl().write(|w| {
             w.wntz_n_mode(n_mode)
                 .wntz_w(w_value.into())
                 .wntz_mode(true)
                 .mode(true)
-                .init(init)
-                .next(next)
+                .init(first)
+                .next(!first)
         });
 
         // Wait for the digest operation to finish

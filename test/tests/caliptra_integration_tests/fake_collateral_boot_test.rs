@@ -91,7 +91,14 @@ fn fake_boot_test() {
     assert_output_contains(&output, "Running Caliptra ROM");
     assert_output_contains(&output, "[fake-rom-cold-reset]");
     assert_output_contains(&output, "Running Caliptra FMC");
-    assert_output_contains(&output, r#"Caliptra-RT"#);
+    assert_output_contains(
+        &output,
+        r#"
+ / ___|__ _| (_)_ __ | |_ _ __ __ _  |  _ \_   _|
+| |   / _` | | | '_ \| __| '__/ _` | | |_) || |
+| |__| (_| | | | |_) | |_| | | (_| | |  _ < | |
+ \____\__,_|_|_| .__/ \__|_|  \__,_| |_| \_\|_|"#,
+    );
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_LDEV_CERT), &[]),
