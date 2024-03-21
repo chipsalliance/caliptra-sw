@@ -10,8 +10,7 @@ fn run_fw_elf(elf: &[u8]) -> DefaultHwModel {
     let model = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
-            random_sram_puf: false,
-            ..Default::default()
+            ..InitParams::default_for_test_harness()
         },
         ..Default::default()
     })
@@ -24,6 +23,7 @@ fn run_fw_elf_with_rand_puf(elf: &[u8]) -> DefaultHwModel {
     let model = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
+            random_sram_puf: true,
             ..Default::default()
         },
         ..Default::default()
@@ -235,7 +235,7 @@ fn test_uninitialized_iccm_read() {
 fn test_uninitialized_mbox_read() {
     #![cfg_attr(not(feature = "verilator"), ignore)]
 
-    let mut model = run_fw_elf_with_rand_puf(
+    let mut model = run_fw_elf(
         &caliptra_builder::build_firmware_elf(&firmware::hw_model_tests::TEST_UNITIALIZED_READ)
             .unwrap(),
     );
