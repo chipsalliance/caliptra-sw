@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license.
 
-use crate::common::{assert_error, run_rt_test, DEFAULT_APP_VERSION, DEFAULT_FMC_VERSION};
-use caliptra_builder::version;
+use crate::common::{assert_error, run_rt_test};
+use caliptra_builder::{version, ImageOptions};
 use caliptra_common::mailbox_api::{
     CommandId, FipsVersionResp, MailboxReqHeader, MailboxRespHeader,
 };
@@ -11,7 +11,15 @@ use zerocopy::{AsBytes, FromBytes};
 
 #[test]
 fn test_fips_version() {
-    let mut model = run_rt_test(None, None, None);
+    let mut model = run_rt_test(
+        None,
+        Some(ImageOptions {
+            fmc_version: version::get_fmc_version(),
+            app_version: version::get_runtime_version(),
+            ..Default::default()
+        }),
+        None,
+    );
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
@@ -42,10 +50,10 @@ fn test_fips_version() {
     assert_eq!(fips_version.mode, FipsVersionCmd::MODE);
     // fw_rev[0] is FMC version at 31:16 and ROM version at 15:0
     let fw_version_0_expected =
-        ((DEFAULT_FMC_VERSION as u32) << 16) | (version::get_rom_version() as u32);
+        ((version::get_fmc_version() as u32) << 16) | (version::get_rom_version() as u32);
     assert_eq!(
         fips_version.fips_rev,
-        [0x01, fw_version_0_expected, DEFAULT_APP_VERSION]
+        [0x01, fw_version_0_expected, version::get_runtime_version()]
     );
     let name = &fips_version.name[..];
     assert_eq!(name, FipsVersionCmd::NAME.as_bytes());
