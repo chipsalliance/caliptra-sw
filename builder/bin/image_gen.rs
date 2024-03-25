@@ -47,6 +47,7 @@ fn main() {
             &firmware::FMC_WITH_UART,
             &firmware::APP_WITH_UART,
             ImageOptions {
+                fmc_version: version::get_fmc_version(),
                 app_version: version::get_runtime_version(),
                 ..Default::default()
             },
@@ -61,6 +62,7 @@ fn main() {
             &firmware::FMC_FAKE_WITH_UART,
             &firmware::APP_WITH_UART,
             ImageOptions {
+                fmc_version: version::get_fmc_version(),
                 app_version: version::get_runtime_version(),
                 ..Default::default()
             },
