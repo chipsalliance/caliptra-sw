@@ -629,3 +629,36 @@ bitfield! {
     /// Machine Mode Previous Interrupt Enable
     pub u32, mpie, set_mpie: 7, 7;
 }
+
+bitfield! {
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+    /// RISCV Machine Mde Interrupt Enable
+    pub struct RvMIE(u32);
+
+    /// Machine External Interrupt Enable
+    pub u32, meie, set_meie: 11, 11;
+}
+
+bitfield! {
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+    /// External Interrupt Handler Address Pointer Register
+    pub struct RvMEIHAP(u32);
+
+    /// Machine External Interrupt Enable
+    pub u32, base, set_base: 31, 10;
+
+    /// External interrupt source ID of highest-priority pending interrupt
+    pub u32, claimid, set_claimid: 9, 2;
+}
+
+bitfield! {
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+    /// Power management control Register
+    pub struct RvMPMC(u32);
+
+    /// Initiate core halt
+    pub u32, halt, _: 0, 0;
+
+    /// Control interrupt enable
+    pub u32, haltie, _: 1, 1;
+}

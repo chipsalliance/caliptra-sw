@@ -69,7 +69,7 @@ struct AbsoluteEtrngResponse {
 }
 
 pub struct ModelVerilated {
-    v: CaliptraVerilated,
+    pub v: CaliptraVerilated,
 
     output: Output,
     trace_enabled: bool,
@@ -95,6 +95,11 @@ impl ModelVerilated {
     }
     pub fn stop_tracing(&mut self) {
         self.v.stop_tracing();
+    }
+
+    /// Set all mailbox SRAM cells to value with double-bit ECC errors
+    pub fn corrupt_mailbox_ecc_double_bit(&mut self) {
+        self.v.corrupt_mailbox_ecc_double_bit();
     }
 }
 
@@ -237,6 +242,14 @@ impl crate::HwModel for ModelVerilated {
         }
         writeln!(m.output().logger(), "ready_for_fuses is high")?;
         Ok(m)
+    }
+
+    fn type_name(&self) -> &'static str {
+        "ModelVerilated"
+    }
+
+    fn trng_mode(&self) -> TrngMode {
+        self.trng_mode
     }
 
     fn apb_bus(&mut self) -> Self::TBus<'_> {

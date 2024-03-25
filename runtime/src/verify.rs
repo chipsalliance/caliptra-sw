@@ -1,6 +1,19 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    verify.rs
+
+Abstract:
+
+    File contains EcdsaVerify mailbox command and HmacVerify test-only mailbox command.
+
+--*/
 
 use crate::Drivers;
+use caliptra_cfi_derive_git::cfi_impl_fn;
 #[cfg(feature = "test_only_commands")]
 use caliptra_common::mailbox_api::HmacVerifyReq;
 use caliptra_common::mailbox_api::{EcdsaVerifyReq, MailboxResp};
@@ -19,6 +32,7 @@ use zerocopy::FromBytes;
 
 pub struct EcdsaVerifyCmd;
 impl EcdsaVerifyCmd {
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if let Some(cmd) = EcdsaVerifyReq::read_from(cmd_args) {
             // Won't panic, full_digest is always larger than digest
@@ -61,25 +75,15 @@ impl HmacVerifyCmd {
             let key = Array4x12::from(cmd.key);
             let key = Hmac384Key::from(&key);
             let mut out_tag = Array4x12::default();
-            let Ok(len) = usize::try_from(cmd.len) else {
-                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
-            };
+            let len = cmd.len as usize;
             if len > cmd.msg.len() {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
             let data = Hmac384Data::from(&cmd.msg[0..len]);
-            let mut trng = unsafe {
-                Trng::new(
-                    CsrngReg::new(),
-                    EntropySrcReg::new(),
-                    SocIfcTrngReg::new(),
-                    &SocIfcReg::new(),
-                )
-            }?;
 
             drivers
                 .hmac384
-                .hmac(&key, &data, &mut trng, (&mut out_tag).into())?;
+                .hmac(&key, &data, &mut drivers.trng, (&mut out_tag).into())?;
 
             if out_tag != Array4x12::from(cmd.tag) {
                 return Err(CaliptraError::RUNTIME_HMAC_VERIFY_FAILED);

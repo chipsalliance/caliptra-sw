@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 use caliptra_builder::{
-    firmware::{self, fmc_tests::MOCK_RT_INTERACTIVE, FMC_WITH_UART},
+    firmware::{self, runtime_tests::MOCK_RT_INTERACTIVE, FMC_WITH_UART},
     ImageOptions,
 };
 use caliptra_common::RomBootStatus::*;
@@ -40,7 +40,7 @@ fn test_boot_status_reporting() {
 
     let image = caliptra_builder::build_and_sign_image(
         &firmware::FMC_WITH_UART,
-        &firmware::fmc_tests::MOCK_RT_WITH_UART,
+        &firmware::runtime_tests::BOOT,
         ImageOptions::default(),
     )
     .unwrap();

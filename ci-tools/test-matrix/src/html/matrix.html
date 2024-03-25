@@ -1,0 +1,36 @@
+<table class="caliptra-test-matrix">
+    <tr class="header">
+        <th></th>
+        {{ for col in columns }}
+        <th>{col}</th>
+        {{ endfor }}
+    </tr>
+    {{ for suite in rows }}
+    <tr class="suite">
+        <td>{suite.name}</td>
+        {{ for col in columns }}
+        <td></td>
+        {{ endfor }}
+    </tr>
+    {{ for test_case in suite.rows }}
+    <tr class="test-case">
+        <td>{test_case.name}</td>
+        {{ for cell in test_case.cells }}
+        <td class="{cell | testcase_cell_style}"  data-log-id="log-{suite.name}-{test_case.name}-{@index}">{cell | testcase_cell_text}</td>
+        {{ endfor }}
+    </tr>
+    {{ endfor }}
+    {{ endfor }}
+</table>
+
+{{ for suite in rows }}
+{{ for test_case in suite.rows }}
+{{ for cell in test_case.cells }}
+{{ if cell }}
+<pre style="display: none" id="log-{suite.name}-{test_case.name}-{@index}">
+{cell.output}
+</pre>
+{{ endif }}
+{{ endfor }}
+{{ endfor }}
+{{ endfor }}

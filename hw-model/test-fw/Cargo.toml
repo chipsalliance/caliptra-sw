@@ -9,6 +9,7 @@ edition = "2021"
 default = []
 riscv = ["caliptra-test-harness/riscv"]
 emu = ["caliptra-test-harness/emu"]
+hw-latest = ["caliptra-drivers/hw-latest", "caliptra-registers/hw-latest"]
 
 [dependencies]
 caliptra-drivers.workspace = true

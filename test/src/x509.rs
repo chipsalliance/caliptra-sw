@@ -1,6 +1,11 @@
 // Licensed under the Apache-2.0 license
 
-use asn1::{ObjectIdentifier, Utf8String};
+use std::error::Error;
+
+use asn1::{ObjectIdentifier, ParseError, Utf8String};
+
+pub const DICE_TCB_INFO_OID: ObjectIdentifier = asn1::oid!(2, 23, 133, 5, 4, 1);
+pub const DICE_MULTI_TCB_INFO_OID: ObjectIdentifier = asn1::oid!(2, 23, 133, 5, 4, 5);
 
 #[derive(Eq, PartialEq)]
 pub struct DiceFwid {
@@ -74,6 +79,9 @@ impl DiceTcbInfo {
         d.read_optional_implicit_element::<u32>(10).unwrap();
         Ok(result)
     }
+    fn parse_single(d: &mut asn1::Parser) -> Result<Self, asn1::ParseError> {
+        d.read_element::<asn1::Sequence>()?.parse(Self::parse)
+    }
     fn parse_multiple(d: &mut asn1::Parser) -> Result<Vec<Self>, asn1::ParseError> {
         d.read_element::<asn1::Sequence>()?.parse(|d| {
             let mut result = vec![];
@@ -85,12 +93,16 @@ impl DiceTcbInfo {
     }
 
     pub fn find_multiple_in_cert(cert_der: &[u8]) -> Result<Vec<Self>, asn1::ParseError> {
-        const DICE_TCB_INFO_OID: ObjectIdentifier = asn1::oid!(2, 23, 133, 5, 4, 5);
-
-        let Some(ext_der) = get_cert_extension(cert_der, &DICE_TCB_INFO_OID)? else {
+        let Some(ext_der) = get_cert_extension(cert_der, &DICE_MULTI_TCB_INFO_OID)? else {
             return Ok(vec![]);
         };
         asn1::parse(ext_der, Self::parse_multiple)
+    }
+    pub fn find_single_in_cert(cert_der: &[u8]) -> Result<Option<Self>, asn1::ParseError> {
+        let Some(ext_der) = get_cert_extension(cert_der, &DICE_TCB_INFO_OID)? else {
+            return Ok(None)
+        };
+        asn1::parse(ext_der, Self::parse_single).map(Some)
     }
 }
 
@@ -167,7 +179,7 @@ fn test_tcb_info_find_multiple_in_cert_when_no_tcb_info() {
 
 /// Extracts the DER bytes of an extension from x509 certificate bytes
 /// (`cert_der`) with the provided `oid`.
-fn get_cert_extension<'a>(
+pub(crate) fn get_cert_extension<'a>(
     cert_der: &'a [u8],
     oid: &asn1::ObjectIdentifier,
 ) -> Result<Option<&'a [u8]>, asn1::ParseError> {
@@ -224,4 +236,37 @@ fn test_get_cert_extension() {
         get_cert_extension(cert, &asn1::oid!(2, 5, 29, 15)),
         Ok(Some([0x03, 0x02, 0x02, 0x04].as_slice()))
     );
+}
+
+pub(crate) fn replace_sig<'a>(
+    cert_der: &'a [u8],
+    new_sig: &[u8],
+) -> Result<Vec<u8>, Box<dyn Error + 'static>> {
+    let (tbs, sig_algorithm) = asn1::parse(cert_der, |d| {
+        d.read_element::<asn1::Sequence>()?
+            .parse(|d| -> Result<_, ParseError> {
+                let tbs = d.read_element::<asn1::Sequence>()?;
+                let sig_algorithm = d.read_element::<asn1::Sequence>()?;
+                let _sig_value = d.read_element::<asn1::BitString>()?;
+                Ok((tbs, sig_algorithm))
+            })
+    })?;
+    Ok(asn1::write(|w| {
+        w.write_element(&asn1::SequenceWriter::new(&|w| {
+            w.write_element(&tbs)?;
+            w.write_element(&sig_algorithm)?;
+            w.write_element(&asn1::BitString::new(new_sig, 0))
+        }))
+    })
+    .map_err(|e| format!("{:?}", e))?)
+}
+
+#[test]
+fn test_replace_sig() {
+    const REPLACED_KEY: &[u8] = &[0x01, 0x2, 0x3, 0x4];
+    let cert_der =
+        include_bytes!("../tests/caliptra_integration_tests/smoke_testdata/ldevid_cert.der");
+    let cert_der_replaced = replace_sig(cert_der, REPLACED_KEY).unwrap();
+    let cert = openssl::x509::X509::from_der(&cert_der_replaced).unwrap();
+    assert_eq!(cert.signature().as_slice(), REPLACED_KEY);
 }

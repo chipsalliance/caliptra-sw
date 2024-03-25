@@ -1,0 +1,102 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+property rd_swacc {
+    component = field;
+    type = boolean;
+};
+
+property wr_swacc {
+    component = field;
+    type = boolean;
+};
+
+regfile interface_regs {
+
+    reg {
+        field { sw=rw; hw=r; } value[32] = 32'b0;
+    } generic_input_wires[2];
+
+    reg {
+        field { sw=r; hw=rw; } value[32] = 32'b0;
+    } generic_output_wires[2];
+
+    reg {
+        default sw=rw;
+        default hw=r;
+
+        field {} value[32] = 32'b0;
+    } cptra_obf_key[8];
+
+    reg {
+        field { sw=rw; hw=r; } cptra_pwrgood = 1'b0;
+        field { sw=rw; hw=r; } cptra_rst_b = 1'b0;
+
+        field { sw=rw; hw=r; } ss_debug_locked = 1'b0;
+        field { sw=rw; hw=r; } ss_device_lifecycle[2] = 2'b0;
+        field { sw=rw; hw=r; } scan_mode = 1'b0;
+
+        field { sw=rw; hw=r; } bootfsm_brkpoint = 1'b0;
+    } control;
+
+    reg {
+        field { sw=r; hw=rw; } cptra_error_fatal = 1'b0;
+        field { sw=r; hw=rw; } cptra_error_non_fatal = 1'b0;
+
+        field { sw=r; hw=rw; } ready_for_fuses = 1'b0;
+        field { sw=r; hw=rw; } ready_for_fw_push = 1'b0;
+        field { sw=r; hw=rw; } ready_for_runtime = 1'b0;
+
+        field { sw=r; hw=rw; } mailbox_data_avail = 1'b0;
+        field { sw=r; hw=rw; } mailbox_flow_done = 1'b0;
+    } status;
+
+    reg {
+        default sw=rw;
+        default hw=r;
+
+        field {} pauser[32] = 32'b0;
+    } pauser;
+};
+
+regfile fifo_regs {
+    reg {
+        field { sw=r; hw=rw; rd_swacc=true; } next_char[8] = 8'b0;
+        field { sw=r; hw=rw; } char_valid = 1'b0;
+    } log_fifo_data;
+
+    reg {
+        field { sw=r; hw=rw; } log_fifo_empty = 1'b0;
+        field { sw=r; hw=rw; } log_fifo_full = 1'b0;
+    } log_fifo_status;
+
+    reg {
+        field { sw=rw; hw=r; wr_swacc=true; } itrng_data[32] = 32'b0;
+    } itrng_fifo_data;
+    
+    reg {
+        field { sw=r; hw=rw; } itrng_fifo_empty = 1'b0;
+        field { sw=r; hw=rw; } itrng_fifo_full = 1'b0;
+        field { sw=rw; hw=r; } itrng_fifo_reset = 1'b0;
+    } itrng_fifo_status;
+};
+
+addrmap caliptra_fpga_realtime_regs {
+    default regwidth = 32;
+    default accesswidth = 32;
+
+    interface_regs interface_regs @ 0x0000;
+    fifo_regs fifo_regs @ 0x1000;
+};

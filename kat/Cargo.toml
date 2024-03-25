@@ -14,3 +14,6 @@ caliptra-drivers.workspace = true
 caliptra-lms-types.workspace = true
 zerocopy.workspace = true
 ufmt.workspace = true
+
+[features]
+hw-latest = ["caliptra-drivers/hw-latest"]

@@ -15,7 +15,7 @@ Abstract:
 #![no_std]
 
 mod ecc384_kat;
-mod hmac384_kat;
+mod hmac384kdf_kat;
 mod kats_env;
 mod lms_kat;
 mod sha1_kat;
@@ -25,7 +25,7 @@ mod sha384acc_kat;
 
 pub use caliptra_drivers::{CaliptraError, CaliptraResult};
 pub use ecc384_kat::Ecc384Kat;
-pub use hmac384_kat::Hmac384Kat;
+pub use hmac384kdf_kat::Hmac384KdfKat;
 pub use kats_env::KatsEnv;
 pub use lms_kat::LmsKat;
 pub use sha1_kat::Sha1Kat;
@@ -58,8 +58,8 @@ pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<()> {
     cprintln!("[kat] ECC-384");
     Ecc384Kat::default().execute(env.ecc384, env.trng)?;
 
-    cprintln!("[kat] HMAC-384");
-    Hmac384Kat::default().execute(env.hmac384, env.trng)?;
+    cprintln!("[kat] HMAC-384Kdf");
+    Hmac384KdfKat::default().execute(env.hmac384, env.trng)?;
 
     cprintln!("[kat] LMS");
     LmsKat::default().execute(env.sha256, env.lms)?;

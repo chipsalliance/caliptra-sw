@@ -74,6 +74,23 @@ impl SocIfc {
         soc_ifc_regs.cptra_security_state().read().debug_locked()
     }
 
+    pub fn mbox_valid_pauser(&self) -> [u32; 5] {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        soc_ifc_regs.cptra_mbox_valid_pauser().read()
+    }
+
+    pub fn mbox_pauser_lock(&self) -> [bool; 5] {
+        let soc_ifc_regs = self.soc_ifc.regs();
+        let pauser_lock = soc_ifc_regs.cptra_mbox_pauser_lock();
+        [
+            pauser_lock.at(0).read().lock(),
+            pauser_lock.at(1).read().lock(),
+            pauser_lock.at(2).read().lock(),
+            pauser_lock.at(3).read().lock(),
+            pauser_lock.at(4).read().lock(),
+        ]
+    }
+
     /// Locks or unlocks the ICCM.
     ///
     /// # Arguments
@@ -146,10 +163,20 @@ impl SocIfc {
 
     /// Check if verification is turned on for fake-rom
     pub fn verify_in_fake_mode(&self) -> bool {
+        // Bit 31 indicates to perform verification flow in fake ROM
+        const FAKE_ROM_VERIFY_EN_BIT: u32 = 31;
         let soc_ifc_regs = self.soc_ifc.regs();
         let val = soc_ifc_regs.cptra_dbg_manuf_service_reg().read();
-        // Bit 31 indicates to perform verification flow in fake ROM
-        ((val >> 31) & 1) != 0
+        ((val >> FAKE_ROM_VERIFY_EN_BIT) & 1) != 0
+    }
+
+    /// Check if production mode is enabled for fake-rom
+    pub fn prod_en_in_fake_mode(&self) -> bool {
+        // Bit 30 indicates production mode is allowed in fake ROM
+        const FAKE_ROM_PROD_EN_BIT: u32 = 30;
+        let soc_ifc_regs = self.soc_ifc.regs();
+        let val = soc_ifc_regs.cptra_dbg_manuf_service_reg().read();
+        ((val >> FAKE_ROM_PROD_EN_BIT) & 1) != 0
     }
 
     #[inline(always)]
@@ -271,9 +298,23 @@ impl SocIfc {
             .write(|w| w.ready_for_runtime(true));
     }
 
-    pub fn set_fmc_fw_rev_id(&mut self, fmc_version: u32) {
+    pub fn set_rom_fw_rev_id(&mut self, rom_version: u16) {
+        // ROM version is [15:0] of CPTRA_FW_REV_ID[0]
+        const ROM_VERSION_MASK: u32 = 0xFFFF;
         let soc_ifc_regs = self.soc_ifc.regs_mut();
-        soc_ifc_regs.cptra_fw_rev_id().at(0).write(|_| fmc_version);
+        let version = (soc_ifc_regs.cptra_fw_rev_id().at(0).read() & !(ROM_VERSION_MASK))
+            | (rom_version as u32);
+        soc_ifc_regs.cptra_fw_rev_id().at(0).write(|_| version);
+    }
+
+    pub fn set_fmc_fw_rev_id(&mut self, fmc_version: u16) {
+        // FMC version is [31:16] of CPTRA_FW_REV_ID[0]
+        const FMC_VERSION_MASK: u32 = 0xFFFF0000;
+        const FMC_VERSION_OFFSET: u32 = 16;
+        let soc_ifc_regs = self.soc_ifc.regs_mut();
+        let version = (soc_ifc_regs.cptra_fw_rev_id().at(0).read() & !(FMC_VERSION_MASK))
+            | ((fmc_version as u32) << FMC_VERSION_OFFSET);
+        soc_ifc_regs.cptra_fw_rev_id().at(0).write(|_| version);
     }
 
     pub fn set_rt_fw_rev_id(&mut self, rt_version: u32) {
@@ -293,6 +334,33 @@ impl SocIfc {
         let soc_ifc_regs = self.soc_ifc.regs_mut();
         let ext_info = soc_ifc_regs.cptra_fw_extended_error_info();
         ext_info.at(0).write(|_| err);
+    }
+
+    pub fn enable_mbox_notif_interrupts(&mut self) {
+        let soc_ifc_regs = self.soc_ifc.regs_mut();
+        let intr_block = soc_ifc_regs.intr_block_rf();
+
+        intr_block
+            .notif_intr_en_r()
+            .write(|w| w.notif_cmd_avail_en(true));
+        intr_block.global_intr_en_r().write(|w| w.notif_en(true));
+    }
+
+    pub fn has_mbox_notif_status(&self) -> bool {
+        let soc_ifc = self.soc_ifc.regs();
+        soc_ifc
+            .intr_block_rf()
+            .notif_internal_intr_r()
+            .read()
+            .notif_cmd_avail_sts()
+    }
+
+    pub fn clear_mbox_notif_status(&mut self) {
+        let soc_ifc = self.soc_ifc.regs_mut();
+        soc_ifc
+            .intr_block_rf()
+            .notif_internal_intr_r()
+            .write(|w| w.notif_cmd_avail_sts(true));
     }
 }
 

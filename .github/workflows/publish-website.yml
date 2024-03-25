@@ -1,0 +1,45 @@
+name: Publish website
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+  
+      - name: Generate HTML
+        run: |
+          cd ci-tools/test-matrix
+          mkdir /tmp/www
+          CPTRA_WWW_OUT=/tmp/www cargo run --release 
+
+      - name: Generate GitHub Pages artifacts
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: /tmp/www
+
+  deploy:
+    runs-on: ubuntu-22.04
+
+    needs: build
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+      
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v1

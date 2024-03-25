@@ -103,7 +103,7 @@ const UPDATE_TICKS: u64 = 1000;
 const KEY_RW_TICKS: u64 = 100;
 
 /// LSFR Seed Size.
-const HMAC_LFSR_SEED_SIZE: usize = 20;
+const HMAC_LFSR_SEED_SIZE: usize = 48;
 
 /// HMAC-SHA-384 Peripheral
 #[derive(Bus)]

@@ -24,6 +24,7 @@ use zerocopy::AsBytes;
 mod elf_symbols;
 pub mod firmware;
 mod sha256;
+pub mod version;
 
 pub use elf_symbols::{elf_symbols, Symbol, SymbolBind, SymbolType, SymbolVisibility};
 use once_cell::sync::Lazy;
@@ -51,7 +52,7 @@ fn run_cmd(cmd: &mut Command) -> io::Result<()> {
     }
 }
 
-fn run_cmd_stdout(cmd: &mut Command, input: Option<&[u8]>) -> io::Result<String> {
+pub fn run_cmd_stdout(cmd: &mut Command, input: Option<&[u8]>) -> io::Result<String> {
     cmd.stdin(Stdio::piped());
     cmd.stdout(Stdio::piped());
 
@@ -103,6 +104,22 @@ impl FwId<'_> {
         }
         write!(&mut result, ".elf").unwrap();
         result
+    }
+}
+
+pub fn get_elf_path(id: &FwId) -> Option<PathBuf> {
+    const TARGET: &str = "riscv32imc-unknown-none-elf";
+    const PROFILE: &str = "firmware";
+
+    if let Some(prebuilt_dir) = std::env::var_os("CALIPTRA_PREBUILT_FW_DIR") {
+        Some(PathBuf::from(prebuilt_dir).join(id.elf_filename()))
+    } else {
+        let target_dir = if let Some(dir) = std::env::var_os("CARGO_TARGET_DIR") {
+            PathBuf::from(dir)
+        } else {
+            Path::new(THIS_WORKSPACE_DIR).join("target")
+        };
+        Some(target_dir.join(TARGET).join(PROFILE).join(id.bin_name))
     }
 }
 
@@ -166,6 +183,14 @@ pub fn build_firmware_elfs_uncached<'a>(
             cmd.arg("--config")
                 .arg("target.'cfg(all())'.rustflags = [\"-Dwarnings\"]");
         }
+
+        if cfg!(feature = "hw-latest") {
+            if !features_csv.is_empty() {
+                features_csv.push(',');
+            }
+            features_csv.push_str("hw-latest");
+        }
+
         cmd.arg("build")
             .arg("--quiet")
             .arg("--locked")
@@ -374,6 +399,8 @@ pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
             sha256_digest: sha256::sha256_word_reversed(&result[0..rom_info_start]),
             revision: image_revision()?,
             flags: 0,
+            version: version::get_rom_version(),
+            rsvd: Default::default(),
         };
         let rom_info_dest = result
             .get_mut(rom_info_start..rom_info_start + size_of::<RomInfo>())
@@ -407,11 +434,9 @@ pub fn elf_size(elf_bytes: &[u8]) -> io::Result<u64> {
 
 #[derive(Clone)]
 pub struct ImageOptions {
-    pub fmc_version: u32,
-    pub fmc_min_svn: u32,
+    pub fmc_version: u16,
     pub fmc_svn: u32,
     pub app_version: u32,
-    pub app_min_svn: u32,
     pub app_svn: u32,
     pub vendor_config: ImageGeneratorVendorConfig,
     pub owner_config: Option<ImageGeneratorOwnerConfig>,
@@ -420,10 +445,8 @@ impl Default for ImageOptions {
     fn default() -> Self {
         Self {
             fmc_version: Default::default(),
-            fmc_min_svn: Default::default(),
             fmc_svn: Default::default(),
             app_version: Default::default(),
-            app_min_svn: Default::default(),
             app_svn: Default::default(),
             vendor_config: caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0,
             owner_config: Some(caliptra_image_fake_keys::OWNER_CONFIG),
@@ -442,18 +465,11 @@ pub fn build_and_sign_image(
     let image = gen.generate(&ImageGeneratorConfig {
         fmc: ElfExecutable::new(
             &fmc_elf,
-            opts.fmc_version,
+            opts.fmc_version as u32,
             opts.fmc_svn,
-            opts.fmc_min_svn,
             image_revision()?,
         )?,
-        runtime: ElfExecutable::new(
-            &app_elf,
-            opts.app_version,
-            opts.app_svn,
-            opts.app_min_svn,
-            image_revision()?,
-        )?,
+        runtime: ElfExecutable::new(&app_elf, opts.app_version, opts.app_svn, image_revision()?)?,
         vendor_config: opts.vendor_config,
         owner_config: opts.owner_config,
     })?;

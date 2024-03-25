@@ -72,6 +72,28 @@ fn test_fake_rom_production_error() {
 }
 
 #[test]
+fn test_fake_rom_production_enabled() {
+    const DBG_MANUF_FAKE_ROM_PROD_EN: u32 = 0x1 << 30; // BIT 30 enables production mode
+    let security_state =
+        *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production);
+
+    let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            security_state,
+            ..Default::default()
+        },
+        initial_dbg_manuf_service_reg: DBG_MANUF_FAKE_ROM_PROD_EN,
+        ..Default::default()
+    })
+    .unwrap();
+
+    // Wait for ready for FW
+    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+}
+
+#[test]
 fn test_fake_rom_fw_load() {
     let fuses = Fuses::default();
     let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
@@ -203,5 +225,28 @@ fn test_image_verify() {
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
         u32::from(FwProcessorManifestLoadComplete)
+    );
+}
+
+#[test]
+fn test_fake_rom_version() {
+    const FAKE_ROM_VERSION: u16 = 0xFFFF;
+
+    let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params: InitParams {
+            rom: &rom,
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+    .unwrap();
+
+    // Wait for ready for FW
+    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_rev_id().at(0).read() as u16,
+        FAKE_ROM_VERSION
     );
 }

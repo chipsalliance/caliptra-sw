@@ -13,7 +13,7 @@ Abstract:
 --*/
 use smlang::statemachine;
 
-use caliptra_emu_bus::{Bus, BusMmio, Ram};
+use caliptra_emu_bus::{Bus, BusMmio, Clock, Ram, Timer};
 use caliptra_emu_bus::{BusError, ReadOnlyRegister, ReadWriteRegister, WriteOnlyRegister};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
@@ -131,9 +131,9 @@ pub struct MailboxInternal {
 /// Mailbox Peripheral
 
 impl MailboxInternal {
-    pub fn new(ram: MailboxRam) -> Self {
+    pub fn new(clock: &Clock, ram: MailboxRam) -> Self {
         Self {
-            regs: Rc::new(RefCell::new(MailboxRegs::new(ram))),
+            regs: Rc::new(RefCell::new(MailboxRegs::new(clock, ram))),
         }
     }
 
@@ -150,6 +150,15 @@ impl MailboxInternal {
         MailboxExternal {
             regs: self.regs.clone(),
         }
+    }
+
+    pub fn get_notif_irq(&mut self) -> bool {
+        let mut regs = self.regs.borrow_mut();
+        if regs.irq {
+            regs.irq = false;
+            return true;
+        }
+        false
     }
 }
 
@@ -229,6 +238,12 @@ pub struct MailboxRegs {
     state_machine: StateMachine<Context>,
 
     pub requester: MailboxRequester,
+
+    /// Trigger interrupt
+    irq: bool,
+
+    ///
+    timer: Timer,
 }
 
 impl MailboxRegs {
@@ -244,7 +259,7 @@ impl MailboxRegs {
     const UNLOCK_VAL: RvData = 0x0;
 
     /// Create a new instance of Mailbox registers
-    pub fn new(ram: MailboxRam) -> Self {
+    pub fn new(clock: &Clock, ram: MailboxRam) -> Self {
         Self {
             lock: ReadOnlyRegister::new(Self::LOCK_VAL),
             user: ReadOnlyRegister::new(Self::USER_VAL),
@@ -257,6 +272,8 @@ impl MailboxRegs {
             _unlock: ReadWriteRegister::new(Self::UNLOCK_VAL),
             state_machine: StateMachine::new(Context::new(ram)),
             requester: MailboxRequester::Caliptra,
+            irq: false,
+            timer: Timer::new(clock),
         }
     }
     pub fn set_request(&mut self, requester: MailboxRequester) {
@@ -348,6 +365,10 @@ impl MailboxRegs {
                 }
             }
         };
+
+        // Notify soc_reg
+        self.irq = true;
+        self.timer.schedule_poll_in(1);
 
         let _ = self.state_machine.process_event(event);
         self.execute.reg.set(val);
@@ -617,7 +638,7 @@ mod tests {
 
     pub fn get_mailbox() -> MailboxInternal {
         // Acquire lock
-        MailboxInternal::new(MailboxRam::new())
+        MailboxInternal::new(&Clock::new(), MailboxRam::new())
     }
 
     #[test]
@@ -684,7 +705,7 @@ mod tests {
 
     #[test]
     fn test_soc_to_caliptra_lock() {
-        let mut caliptra = MailboxInternal::new(MailboxRam::new());
+        let mut caliptra = MailboxInternal::new(&Clock::new(), MailboxRam::new());
         let mut soc = caliptra.as_external();
         let soc_regs = soc.regs();
 
@@ -701,7 +722,7 @@ mod tests {
     fn test_send_receive() {
         let request_to_send: [u32; 4] = [0x1111_1111, 0x2222_2222, 0x3333_3333, 0x4444_4444];
 
-        let mut caliptra = MailboxInternal::new(MailboxRam::new());
+        let mut caliptra = MailboxInternal::new(&Clock::new(), MailboxRam::new());
         let mut soc = caliptra.as_external();
         let soc_regs = soc.regs();
         let uc_regs = caliptra.regs();

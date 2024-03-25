@@ -14,6 +14,10 @@ Abstract:
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
 
+#[cfg(target_arch = "riscv32")]
+core::arch::global_asm!(include_str!("ext_intr.S"));
+
+use caliptra_cfi_lib_git::CfiCounter;
 use caliptra_common::{cprintln, handle_fatal_error};
 use caliptra_cpu::{log_trap_record, TrapRecord};
 use caliptra_error::CaliptraError;
@@ -37,20 +41,49 @@ const BANNER: &str = r#"
 #[allow(clippy::empty_loop)]
 pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
+
+    #[cfg(target_arch = "riscv32")]
+    unsafe {
+        // Write meivt (External Interrupt Vector Table Register)
+        // VeeR has been instantiated with RV_FAST_INTERRUPT_REDIRECT,
+        // so external interrupts always bypass the standard risc-v dispatch logic
+        // and instead load the destination address from this table in DCCM.
+        core::arch::asm!(
+            "la {tmp}, _ext_intr_vector",
+            "csrw 0xbc8, {tmp}",
+            tmp = out(reg) _,
+        );
+    }
+
     let mut drivers = unsafe {
         Drivers::new_from_registers().unwrap_or_else(|e| {
-            caliptra_common::report_handoff_error_and_halt("Runtime can't load drivers", e.into())
+            cprintln!("[rt] Runtime can't load drivers");
+            handle_fatal_error(e.into());
         })
     };
     caliptra_common::stop_wdt(&mut drivers.soc_ifc);
 
-    if !drivers.persistent_data.get().fht.is_valid() {
-        caliptra_common::report_handoff_error_and_halt(
-            "Runtime can't load FHT",
-            caliptra_drivers::CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into(),
-        );
+    if !cfg!(feature = "no-cfi") {
+        cprintln!("[state] CFI Enabled");
+        let mut entropy_gen = || {
+            drivers
+                .trng
+                .generate()
+                .map(|a| a.0)
+                .map_err(|_| caliptra_cfi_lib_git::CfiPanicInfo::TrngError)
+        };
+        CfiCounter::reset(&mut entropy_gen);
+        CfiCounter::reset(&mut entropy_gen);
+        CfiCounter::reset(&mut entropy_gen);
+    } else {
+        cprintln!("[state] CFI Disabled");
     }
-    cprintln!("Caliptra RT listening for mailbox commands...");
+
+    if !drivers.persistent_data.get().fht.is_valid() {
+        cprintln!("[rt] Runtime can't load FHT");
+        handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into());
+    }
+    cprintln!("[rt] Runtime listening for mailbox commands...");
     if let Err(e) = caliptra_runtime::handle_mailbox_commands(&mut drivers) {
         handle_fatal_error(e.into());
     }
@@ -101,7 +134,7 @@ extern "C" fn nmi_handler(trap_record: &TrapRecord) {
 
     let wdt_status = soc_ifc.regs().cptra_wdt_status().read();
     let error = if wdt_status.t1_timeout() || wdt_status.t2_timeout() {
-        cprintln!("WDT Expired");
+        cprintln!("[rt] WDT Expired");
         CaliptraError::RUNTIME_GLOBAL_WDT_EXPIRED
     } else {
         CaliptraError::RUNTIME_GLOBAL_NMI

@@ -19,6 +19,9 @@ exclude = [
   # fpga-boss depends on crates with annoying system deps like libusb and
   # libftdi, so keep it in its own workspace
   "ci-tools/fpga-boss",
+
+  # test-matrix depends on octocrab (github API), which is very heavyweight.
+  "ci-tools/test-matrix",
 ]
 
 members = [
@@ -35,8 +38,9 @@ members = [
   "drivers/test-fw",
   "drivers/test-fw/scripts/vector_gen",
   "fmc",
-  "fmc/test-fw/test-rt",
-  "hw-latest/verilated",
+  "hw/1.0/registers",
+  "hw/latest/registers",
+  "hw/verilated",
   "hw-model",
   "hw-model/test-fw",
   "hw-model/types",
@@ -88,6 +92,8 @@ bit-vec = "0.6.3"
 caliptra-api = { path = "api" }
 caliptra-cfi-lib = { path = "cfi/lib", default-features = false, features = ["cfi", "cfi-counter" ] }
 caliptra-cfi-derive = { path = "cfi/derive" }
+caliptra-cfi-lib-git = { git = "https://github.com/chipsalliance/caliptra-cfi.git", package = "caliptra-cfi-lib-git", rev = "a98e499d279e81ae85881991b1e9eee354151189", default-features = false, features = ["cfi", "cfi-counter" ] }
+caliptra-cfi-derive-git = { git = "https://github.com/chipsalliance/caliptra-cfi.git", package = "caliptra-cfi-derive-git", rev = "a98e499d279e81ae85881991b1e9eee354151189"}
 caliptra_common = { path = "common", default-features = false }
 caliptra-coverage = { path = "coverage" }
 caliptra-builder = { path = "builder" }
@@ -115,18 +121,21 @@ caliptra-image-verify = { path = "image/verify", default-features = false }
 caliptra-kat = { path = "kat" }
 caliptra-lms-types = { path = "lms-types" }
 caliptra-registers = { path = "registers" }
+caliptra-registers-1_0 = { path = "hw/1.0/registers" }
+caliptra-registers-latest = { path = "hw/latest/registers" }
 caliptra-runtime = { path = "runtime", default-features = false }
 caliptra-systemrdl = { path = "systemrdl" }
 caliptra-test = { path = "test" }
 caliptra-test-harness = { path = "test-harness" }
 caliptra-test-harness-types = { path = "test-harness/types" }
-caliptra-verilated = { path = "hw-latest/verilated",  features = ["verilator"] }
+caliptra-verilated = { path = "hw/verilated",  features = ["verilator"] }
 caliptra-x509 = { path = "x509", default-features = false }
 cbc = "0.1.2"
 cbindgen = { version = "0.24.0", default-features = false }
 cfg-if = "1.0.0"
-chrono = "0.4.24"
+chrono = "0.4"
 clap = { version = "3.2.14", default-features = false, features = ["std"] }
+cms = "0.2.2"
 convert_case = "0.6.0"
 dpe = { path = "dpe/dpe", default-features = false, features = ["dpe_profile_p384_sha384"] }
 crypto = { path = "dpe/crypto", default-features = false }
@@ -166,11 +175,12 @@ ureg-schema = { path = "ureg/lib/schema" }
 ureg-systemrdl = { path = "ureg/lib/systemrdl" }
 wycheproof = "0.5.1"
 x509-parser = "0.15.0"
-zerocopy = "0.6.1"
+zerocopy = "0.6.6"
 serial_test = "2.0.0"
 nix = "0.26.2"
 libc = "0.2"
 zeroize = { version = "1.6.0", default-features = false, features = ["zeroize_derive"] }
+regex = "1.10.2"
 
 [profile.firmware]
 inherits = "release"

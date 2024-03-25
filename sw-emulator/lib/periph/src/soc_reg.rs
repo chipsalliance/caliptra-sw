@@ -20,6 +20,7 @@ use caliptra_emu_bus::{
     ActionHandle, Bus, BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Register, Timer,
     TimerAction,
 };
+use caliptra_emu_cpu::{IntSource, Irq, Pic};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::EtrngResponse;
@@ -202,6 +203,54 @@ register_bitfields! [
         RSVD OFFSET(1) NUMBITS(31) [],
     ],
 
+    /// SoC Stepping ID
+    SocSteppingId [
+        SOC_STEPPING_ID OFFSET(0) NUMBITS(16) [],
+        RSVD OFFSET(16) NUMBITS(16) [],
+    ],
+
+    /// Per-Type Interrupt Enable Register
+    GlobalIntrEn [
+        ERROR_EN OFFSET(0) NUMBITS(1) [],
+        NOTIF_EN OFFSET(1) NUMBITS(1) [],
+    ],
+
+    /// Per-Event Interrupt Enable Register
+    ErrorIntrEn [
+        ERROR_INTERNAL_EN OFFSET(0) NUMBITS(1) [],
+        ERROR_INV_DEV_EN OFFSET(1) NUMBITS(1) [],
+        ERROR_CMD_FAIL_EN OFFSET(2) NUMBITS(1) [],
+        ERROR_BAD_FUSE_EN OFFSET(3) NUMBITS(1) [],
+        ERROR_ICCM_BLOCKED_EN OFFSET(4) NUMBITS(1) [],
+        ERROR_MBOX_ECC_UNC_EN OFFSET(5) NUMBITS(1) [],
+        ERROR_WDT_TIMER1_TIMEOUT_EN OFFSET(6) NUMBITS(1) [],
+        ERROR_WDT_TIMER2_TIMEOUT_EN OFFSET(7) NUMBITS(1) [],
+        RSVD OFFSET(8) NUMBITS(24) [],
+    ],
+
+    /// Per-Event Interrupt Enable Register
+    NotifIntrEn [
+        NOTIF_CMD_AVAIL_EN OFFSET(0) NUMBITS(1) [],
+        NOTIF_MBOX_ECC_COR_EN OFFSET(1) NUMBITS(1) [],
+        NOTIF_DEBUG_LOCKED_EN OFFSET(2) NUMBITS(1) [],
+        NOTIF_SCAN_MODE_EN OFFSET(3) NUMBITS(1) [],
+        NOTIF_SOC_REQ_LOCK_EN OFFSET(4) NUMBITS(1) [],
+        NOTIF_GEN_IN_TOGGLE_EN OFFSET(5) NUMBITS(1) [],
+        RSVD OFFSET(6) NUMBITS(26) [],
+    ],
+
+    /// Interrupt Status Aggregation Register
+    ErrorGlobalIntr [
+        AGG_STS OFFSET(0) NUMBITS(1) [],
+        RSVD OFFSET(1) NUMBITS(31) [],
+    ],
+
+    /// Interrupt Status Aggregation Register
+    NotifGlobalIntr [
+        AGG_STS OFFSET(0) NUMBITS(1) [],
+        RSVD OFFSET(1) NUMBITS(31) [],
+    ],
+
     /// ErrorIntrT
     ErrorIntrT [
         ERROR_INTERNAL_STS OFFSET(0) NUMBITS(1) [],
@@ -213,7 +262,42 @@ register_bitfields! [
         ERROR_WDT_TIMER1_TIMEOUT_STS OFFSET(6) NUMBITS(1) [],
         ERROR_WDT_TIMER2_TIMEOUT_STS OFFSET(7) NUMBITS(1) [],
         RSVD OFFSET(8) NUMBITS(24) [],
-    ]
+    ],
+
+    /// NotifIntrT
+    NotifIntrT [
+        NOTIF_CMD_AVAIL_STS OFFSET(0) NUMBITS(1) [],
+        NOTIF_MBOX_ECC_COR_STS OFFSET(1) NUMBITS(1) [],
+        NOTIF_DEBUG_LOCKED_STS OFFSET(2) NUMBITS(1) [],
+        NOTIF_SCAN_MODE_STS OFFSET(3) NUMBITS(1) [],
+        NOTIF_SOC_REQ_LOCK_STS OFFSET(4) NUMBITS(1) [],
+        NOTIF_GEN_IN_TOGGLE_STS OFFSET(5) NUMBITS(1) [],
+        RSVD OFFSET(6) NUMBITS(26) [],
+    ],
+
+    /// Interrupt Trigger Register
+    ErrIntrTrigT [
+        ERROR_INTERNAL_TRIG OFFSET(0) NUMBITS(1) [],
+        ERROR_INV_DEV_TRIG OFFSET(1) NUMBITS(1) [],
+        ERROR_CMD_FAIL_TRIG OFFSET(2) NUMBITS(1) [],
+        ERROR_BAD_FUSE_TRIG OFFSET(3) NUMBITS(1) [],
+        ERROR_ICCM_BLOCKED_TRIG OFFSET(4) NUMBITS(1) [],
+        ERROR_MBOX_ECC_UNC_TRIG OFFSET(5) NUMBITS(1) [],
+        ERROR_WDT_TIMER1_TIMEOUT_TRIG OFFSET(6) NUMBITS(1) [],
+        ERROR_WDT_TIMER2_TIMEOUT_TRIG OFFSET(7) NUMBITS(1) [],
+        RSVD OFFSET(8) NUMBITS(24) [],
+    ],
+
+    /// Interrupt Trigger Register
+    NotifIntrTrigT [
+        NOTIF_CMD_AVAIL_TRIG OFFSET(0) NUMBITS(1) [],
+        NOTIF_MBOX_ECC_COR_TRIG OFFSET(1) NUMBITS(1) [],
+        NOTIF_DEBUG_LOCKED_TRIG OFFSET(2) NUMBITS(1) [],
+        NOTIF_SCAN_MODE_TRIG OFFSET(3) NUMBITS(1) [],
+        NOTIF_SOC_REQ_LOCK_TRIG OFFSET(4) NUMBITS(1) [],
+        NOTIF_GEN_IN_TOGGLE_TRIG OFFSET(5) NUMBITS(1) [],
+        RSVD OFFSET(6) NUMBITS(26) [],
+    ],
 ];
 
 /// SOC Register peripheral
@@ -226,7 +310,7 @@ pub struct SocRegistersInternal {
 const CALIPTRA_REG_START_ADDR: u32 = 0x00;
 
 /// Caliptra Register End Address
-const CALIPTRA_REG_END_ADDR: u32 = 0x81c;
+const CALIPTRA_REG_END_ADDR: u32 = 0x820;
 
 /// Caliptra Fuse start address
 const FUSE_START_ADDR: u32 = 0x200;
@@ -239,11 +323,12 @@ impl SocRegistersInternal {
         clock: &Clock,
         mailbox: MailboxInternal,
         iccm: Iccm,
+        pic: &Pic,
         args: CaliptraRootBusArgs,
     ) -> Self {
         Self {
             regs: Rc::new(RefCell::new(SocRegistersImpl::new(
-                clock, mailbox, iccm, args,
+                clock, mailbox, iccm, pic, args,
             ))),
         }
     }
@@ -322,6 +407,27 @@ impl Bus for SocRegistersInternal {
 
     fn poll(&mut self) {
         self.regs.borrow_mut().poll();
+
+        let mut regs = self.regs.borrow_mut();
+        if regs.mailbox.get_notif_irq() {
+            regs.notif_internal_intr_r
+                .reg
+                .modify(NotifIntrT::NOTIF_CMD_AVAIL_STS.val(1));
+            regs.notif_global_intr_r
+                .reg
+                .modify(NotifGlobalIntr::AGG_STS.val(1));
+        }
+
+        if regs.global_intr_en_r.reg.is_set(GlobalIntrEn::ERROR_EN)
+            && regs.error_intr_en_r.reg.get() & regs.error_internal_intr_r.reg.get() != 0
+        {
+            regs.err_irq.set_level(true);
+        }
+        if regs.global_intr_en_r.reg.is_set(GlobalIntrEn::NOTIF_EN)
+            && regs.notif_intr_en_r.reg.get() & regs.notif_internal_intr_r.reg.get() != 0
+        {
+            regs.notif_irq.set_level(true);
+        }
     }
 
     fn warm_reset(&mut self) {
@@ -546,6 +652,9 @@ struct SocRegistersImpl {
     #[register(offset = 0x344)]
     fuse_lms_revocation: u32,
 
+    #[register(offset = 0x348)]
+    fuse_soc_stepping_id: ReadWriteRegister<u32, SocSteppingId::Register>,
+
     /// INTERNAL_OBF_KEY Register
     internal_obf_key: [u32; 8],
 
@@ -567,27 +676,39 @@ struct SocRegistersImpl {
 
     /// GLOBAL_INTR_EN_R Register
     #[register(offset = 0x0800)]
-    global_intr_en_r: ReadWriteRegister<u32>,
+    global_intr_en_r: ReadWriteRegister<u32, GlobalIntrEn::Register>,
 
     /// ERROR_INTR_EN_R Register
     #[register(offset = 0x0804)]
-    error_intr_en_r: ReadWriteRegister<u32>,
+    error_intr_en_r: ReadWriteRegister<u32, ErrorIntrEn::Register>,
 
     /// NOTIF_INTR_EN_R Register
     #[register(offset = 0x0808)]
-    notif_intr_en_r: ReadWriteRegister<u32>,
+    notif_intr_en_r: ReadWriteRegister<u32, NotifIntrEn::Register>,
 
     /// ERROR_GLOBAL_INTR_R Register
     #[register(offset = 0x080c)]
-    error_global_intr_r: ReadWriteRegister<u32>,
+    error_global_intr_r: ReadWriteRegister<u32, ErrorGlobalIntr::Register>,
 
     /// NOTIF_GLOBAL_INTR_R Register
     #[register(offset = 0x0810)]
-    notif_global_intr_r: ReadWriteRegister<u32>,
+    notif_global_intr_r: ReadWriteRegister<u32, NotifGlobalIntr::Register>,
 
     /// ERROR_INTERNAL_INTR_R Register
     #[register(offset = 0x0814)]
     error_internal_intr_r: ReadWriteRegister<u32, ErrorIntrT::Register>,
+
+    /// NOTIF_INTERNAL_INTR_R Register
+    #[register(offset = 0x818, write_fn = on_write_notif_internal_intr)]
+    notif_internal_intr_r: ReadWriteRegister<u32, NotifIntrT::Register>,
+
+    /// ERROR_INTR_TRIG Register
+    #[register(offset = 0x81c)]
+    error_intr_trig_r: ReadWriteRegister<u32, ErrIntrTrigT::Register>,
+
+    /// NOTIF_INTR_TRIG Register
+    #[register(offset = 0x820, write_fn = on_write_notif_intr_trig)]
+    notif_intr_trig_r: ReadWriteRegister<u32, NotifIntrTrigT::Register>,
 
     /// Mailbox
     mailbox: MailboxInternal,
@@ -597,6 +718,10 @@ struct SocRegistersImpl {
 
     /// Timer
     timer: Timer,
+
+    err_irq: Irq,
+
+    notif_irq: Irq,
 
     /// Firmware Write Complete action
     op_fw_write_complete_action: Option<ActionHandle>,
@@ -655,6 +780,7 @@ impl SocRegistersImpl {
         clock: &Clock,
         mailbox: MailboxInternal,
         iccm: Iccm,
+        pic: &Pic,
         mut args: CaliptraRootBusArgs,
     ) -> Self {
         let flow_status = InMemoryRegister::<u32, FlowStatus::Register>::new(0);
@@ -702,6 +828,7 @@ impl SocRegistersImpl {
             fuse_life_cycle: Default::default(),
             fuse_lms_verify: ReadWriteRegister::new(0),
             fuse_lms_revocation: Default::default(),
+            fuse_soc_stepping_id: ReadWriteRegister::new(0),
             internal_obf_key: args.cptra_obf_key,
             internal_iccm_lock: ReadWriteRegister::new(0),
             internal_fw_update_reset: ReadWriteRegister::new(0),
@@ -713,9 +840,14 @@ impl SocRegistersImpl {
             error_global_intr_r: ReadWriteRegister::new(0),
             notif_global_intr_r: ReadWriteRegister::new(0),
             error_internal_intr_r: ReadWriteRegister::new(0),
+            notif_internal_intr_r: ReadWriteRegister::new(1),
+            error_intr_trig_r: ReadWriteRegister::new(0),
+            notif_intr_trig_r: ReadWriteRegister::new(0),
             mailbox,
             iccm,
             timer: Timer::new(clock),
+            err_irq: pic.register_irq(IntSource::SocIfcErr.into()),
+            notif_irq: pic.register_irq(IntSource::SocIfcNotif.into()),
             op_fw_write_complete_action: None,
             op_fw_write_complete_cb: None,
             op_fw_read_complete_action: None,
@@ -1016,6 +1148,23 @@ impl SocRegistersImpl {
         Ok(())
     }
 
+    // Clear bits on writing 1
+    fn on_write_notif_internal_intr(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
+        let reg = self.notif_internal_intr_r.reg.get();
+        let clear_bits = reg & val;
+        self.notif_internal_intr_r.reg.set(reg ^ clear_bits);
+        Ok(())
+    }
+
+    fn on_write_notif_intr_trig(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
+        // Poll the bus to see if we need to trigger an interrupt
+        if val != 0 {
+            self.notif_internal_intr_r.reg.set(val);
+            self.timer.schedule_poll_in(2);
+        }
+        Ok(())
+    }
+
     fn reset_common(&mut self) {
         // Unlock the ICCM.
         self.iccm.unlock();
@@ -1120,6 +1269,11 @@ impl SocRegistersImpl {
         self.cptra_reset_reason
             .reg
             .write(ResetReason::WARM_RESET::SET);
+
+        self.fuses_can_be_written = true;
+        self.cptra_flow_status
+            .reg
+            .write(FlowStatus::READY_FOR_FUSES::SET);
 
         self.reset_common();
     }
@@ -1238,15 +1392,16 @@ mod tests {
             0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
             0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
         ];
+        let pic = Pic::new();
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mut mailbox = MailboxInternal::new(mailbox_ram);
+        let mut mailbox = MailboxInternal::new(&clock, mailbox_ram);
         let mut log_dir = PathBuf::new();
         log_dir.push("/tmp");
         let args = CaliptraRootBusArgs::default();
         let args = CaliptraRootBusArgs { log_dir, ..args };
         let mut soc_reg: SocRegistersInternal =
-            SocRegistersInternal::new(&clock, mailbox.clone(), Iccm::new(&clock), args);
+            SocRegistersInternal::new(&clock, mailbox.clone(), Iccm::new(&clock), &pic, args);
 
         soc_reg
             .write(RvSize::Word, CPTRA_DBG_MANUF_SERVICE_REG_START, 1)
@@ -1300,15 +1455,16 @@ mod tests {
             0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65, 0x66, 0x65, 0x4a, 0x65,
             0x66, 0x65, 0x4a, 0x65, 0x66, 0x65,
         ];
+        let pic = Pic::new();
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mut mailbox = MailboxInternal::new(mailbox_ram);
+        let mut mailbox = MailboxInternal::new(&clock, mailbox_ram);
         let mut log_dir = PathBuf::new();
         log_dir.push("/tmp");
         let args = CaliptraRootBusArgs::default();
         let args = CaliptraRootBusArgs { log_dir, ..args };
         let mut soc_reg: SocRegistersInternal =
-            SocRegistersInternal::new(&clock, mailbox.clone(), Iccm::new(&clock), args);
+            SocRegistersInternal::new(&clock, mailbox.clone(), Iccm::new(&clock), &pic, args);
         soc_reg
             .write(RvSize::Word, CPTRA_DBG_MANUF_SERVICE_REG_START, 2)
             .unwrap();
@@ -1360,15 +1516,16 @@ mod tests {
         let output = Rc::new(RefCell::new(vec![]));
         let output2 = output.clone();
 
+        let pic = Pic::new();
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mailbox = MailboxInternal::new(mailbox_ram);
+        let mailbox = MailboxInternal::new(&clock, mailbox_ram);
         let args = CaliptraRootBusArgs {
             tb_services_cb: TbServicesCb::new(move |ch| output2.borrow_mut().push(ch)),
             ..Default::default()
         };
         let mut soc_reg: SocRegistersInternal =
-            SocRegistersInternal::new(&clock, mailbox, Iccm::new(&clock), args);
+            SocRegistersInternal::new(&clock, mailbox, Iccm::new(&clock), &pic, args);
 
         let _ = soc_reg.write(RvSize::Word, CPTRA_GENERIC_OUTPUT_WIRES_START, b'h'.into());
 
@@ -1382,11 +1539,13 @@ mod tests {
     #[test]
     fn test_secrets_when_debug_not_locked() {
         use caliptra_hw_model_types::SecurityState;
+        let pic = Pic::new();
         let clock = Clock::new();
         let soc = SocRegistersInternal::new(
             &clock,
-            MailboxInternal::new(MailboxRam::new()),
+            MailboxInternal::new(&clock, MailboxRam::new()),
             Iccm::new(&clock),
+            &pic,
             CaliptraRootBusArgs {
                 security_state: *SecurityState::default().set_debug_locked(false),
                 ..CaliptraRootBusArgs::default()
@@ -1401,11 +1560,13 @@ mod tests {
     #[test]
     fn test_secrets_when_debug_locked() {
         use caliptra_hw_model_types::SecurityState;
+        let pic = Pic::new();
         let clock = Clock::new();
         let soc = SocRegistersInternal::new(
             &clock,
-            MailboxInternal::new(MailboxRam::new()),
+            MailboxInternal::new(&clock, MailboxRam::new()),
             Iccm::new(&clock),
+            &pic,
             CaliptraRootBusArgs {
                 security_state: *SecurityState::default().set_debug_locked(true),
                 ..CaliptraRootBusArgs::default()
@@ -1428,14 +1589,16 @@ mod tests {
 
     #[test]
     fn test_wdt() {
+        let pic = Pic::new();
         let clock = Clock::new();
         let mailbox_ram = MailboxRam::new();
-        let mailbox = MailboxInternal::new(mailbox_ram);
+        let mailbox = MailboxInternal::new(&clock, mailbox_ram);
 
         let mut soc_reg: SocRegistersInternal = SocRegistersInternal::new(
             &clock,
             mailbox,
             Iccm::new(&clock),
+            &pic,
             CaliptraRootBusArgs::default(),
         );
         soc_reg

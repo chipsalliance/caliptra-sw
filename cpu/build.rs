@@ -114,7 +114,6 @@ fn main() {
     _data_len = SIZEOF(.data);
     
     ASSERT(SIZEOF(.got) == 0, ".got section detected");
-    ASSERT(SIZEOF(.data) == 0, ".data section detected");
     ASSERT(SIZEOF(.bss) == 0, ".bss section detected");
     ASSERT(SIZEOF(.stack) == STACK_SIZE, ".stack section overflow");
     ASSERT(SIZEOF(.estack) == ESTACK_SIZE, ".estack section overflow");

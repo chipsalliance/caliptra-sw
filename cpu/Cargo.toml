@@ -12,6 +12,7 @@ edition = "2021"
 #     --profile=firmware \
 #     --features riscv
 riscv = []
+hw-latest = ["caliptra-drivers/hw-latest", "caliptra-registers/hw-latest"]
 
 [lib]
 test = false

@@ -5,9 +5,9 @@ use caliptra_builder::{
     ImageOptions,
 };
 use caliptra_common::mailbox_api::{
-    CommandId, GetLdevCertResp, MailboxReqHeader, MailboxRespHeader, TestGetFmcAliasCertResp,
+    CommandId, GetFmcAliasCertResp, GetLdevCertResp, MailboxReqHeader, MailboxRespHeader,
 };
-use caliptra_hw_model::{BootParams, HwModel, InitParams, SecurityState};
+use caliptra_hw_model::{BootParams, HwModel, InitParams};
 use caliptra_hw_model_types::Fuses;
 use caliptra_test::{
     derive::{DoeInput, DoeOutput, LDevId},
@@ -16,7 +16,9 @@ use caliptra_test::{
 };
 use openssl::sha::sha384;
 use std::io::Write;
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::AsBytes;
+
+const RT_READY_FOR_COMMANDS: u32 = 0x600;
 
 // Need hardcoded HASH for the canned FMC alias cert
 const FMC_CANNED_DIGEST: [u32; 12] = [
@@ -46,7 +48,6 @@ fn bytes_to_be_words_48(buf: &[u8; 48]) -> [u32; 12] {
 
 #[test]
 fn fake_boot_test() {
-    let security_state = *SecurityState::default().set_debug_locked(true);
     let idevid_pubkey = get_idevid_pubkey();
 
     let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
@@ -54,7 +55,6 @@ fn fake_boot_test() {
         &FMC_FAKE_WITH_UART,
         &APP_WITH_UART,
         ImageOptions {
-            fmc_min_svn: 5,
             fmc_svn: 9,
             ..Default::default()
         },
@@ -68,7 +68,6 @@ fn fake_boot_test() {
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
-            security_state,
             ..Default::default()
         },
         fuses: Fuses {
@@ -83,8 +82,7 @@ fn fake_boot_test() {
     .unwrap();
     let mut output = vec![];
 
-    hw.step_until_output_contains("Caliptra RT listening for mailbox commands...\n")
-        .unwrap();
+    hw.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
     output
         .write_all(hw.output().take(usize::MAX).as_bytes())
         .unwrap();
@@ -103,22 +101,18 @@ fn fake_boot_test() {
     );
 
     let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::TEST_ONLY_GET_LDEV_CERT),
-            &[],
-        ),
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_LDEV_CERT), &[]),
     };
 
     // Execute the command
-    let ldev_cert_resp = hw
-        .mailbox_execute(
-            u32::from(CommandId::TEST_ONLY_GET_LDEV_CERT),
-            payload.as_bytes(),
-        )
+    let resp = hw
+        .mailbox_execute(u32::from(CommandId::GET_LDEV_CERT), payload.as_bytes())
         .unwrap()
         .unwrap();
 
-    let ldev_cert_resp = GetLdevCertResp::read_from(ldev_cert_resp.as_bytes()).unwrap();
+    assert!(resp.len() <= std::mem::size_of::<GetLdevCertResp>());
+    let mut ldev_cert_resp = GetLdevCertResp::default();
+    ldev_cert_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
 
     // Verify checksum and FIPS approval
     assert!(caliptra_common::checksum::verify_checksum(
@@ -171,22 +165,20 @@ fn fake_boot_test() {
 
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT),
+            u32::from(CommandId::GET_FMC_ALIAS_CERT),
             &[],
         ),
     };
 
     // Execute command
-    let fmc_alias_cert_resp = hw
-        .mailbox_execute(
-            u32::from(CommandId::TEST_ONLY_GET_FMC_ALIAS_CERT),
-            payload.as_bytes(),
-        )
+    let resp = hw
+        .mailbox_execute(u32::from(CommandId::GET_FMC_ALIAS_CERT), payload.as_bytes())
         .unwrap()
         .unwrap();
 
-    let fmc_alias_cert_resp =
-        TestGetFmcAliasCertResp::read_from(fmc_alias_cert_resp.as_bytes()).unwrap();
+    assert!(resp.len() <= std::mem::size_of::<GetFmcAliasCertResp>());
+    let mut fmc_alias_cert_resp = GetFmcAliasCertResp::default();
+    fmc_alias_cert_resp.as_bytes_mut()[..resp.len()].copy_from_slice(&resp);
 
     // Verify checksum and FIPS approval
     assert!(caliptra_common::checksum::verify_checksum(

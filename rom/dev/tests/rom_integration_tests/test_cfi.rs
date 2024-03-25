@@ -6,6 +6,7 @@ use caliptra_builder::{
     Symbol,
 };
 use caliptra_common::RomBootStatus;
+use caliptra_emu_cpu::CoverageBitmaps;
 use caliptra_hw_model::{BootParams, HwModel, InitParams};
 
 fn find_symbol<'a>(symbols: &'a [Symbol<'a>], name: &str) -> &'a Symbol<'a> {
@@ -30,8 +31,9 @@ fn find_symbol_containing<'a>(symbols: &'a [Symbol<'a>], search: &str) -> &'a Sy
 }
 
 fn assert_symbol_not_called(hw: &caliptra_hw_model::ModelEmulated, symbol: &Symbol) {
+    let CoverageBitmaps { rom, iccm: _iccm } = hw.code_coverage_bitmap();
     assert!(
-        !hw.code_coverage_bitmap()[symbol.value as usize],
+        !rom[symbol.value as usize],
         "{}() was called before the boot status changed to KatStarted. This is a CFI risk, as glitching a function like that could lead to an out-of-bounds write", symbol.name);
 }
 

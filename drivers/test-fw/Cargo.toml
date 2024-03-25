@@ -20,6 +20,8 @@ caliptra-cfi-lib = { workspace = true, default-features = false, features = ["cf
 [features]
 emu = ["caliptra-test-harness/emu"]
 fpga_realtime = []
+hw-latest = ["caliptra-drivers/hw-latest", "caliptra-registers/hw-latest"]
+
 
 # This feature is used to filter all these binary targets during normal builds
 # (targets must be built with cargo arguments:

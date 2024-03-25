@@ -88,10 +88,6 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         .get_one::<u32>("fmc-svn")
         .with_context(|| "fmc-svn arg not specified")?;
 
-    let fmc_min_svn: &u32 = args
-        .get_one::<u32>("fmc-min-svn")
-        .with_context(|| "fmc-min-svn arg not specified")?;
-
     let fmc_rev: &String = args
         .get_one::<String>("fmc-rev")
         .with_context(|| "fmc-rev arg not specified")?;
@@ -107,10 +103,6 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
     let runtime_svn: &u32 = args
         .get_one::<u32>("rt-svn")
         .with_context(|| "rt-svn arg not specified")?;
-
-    let runtime_min_svn: &u32 = args
-        .get_one::<u32>("rt-min-svn")
-        .with_context(|| "rt-min-svn arg not specified")?;
 
     let runtime_rev: &String = args
         .get_one::<String>("rt-rev")
@@ -161,7 +153,6 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         fmc_path,
         *fmc_version,
         *fmc_svn,
-        *fmc_min_svn,
         fmc_rev[..IMAGE_REVISION_BYTE_SIZE].try_into()?,
     )?;
 
@@ -170,7 +161,6 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         runtime_path,
         *runtime_version,
         *runtime_svn,
-        *runtime_min_svn,
         runtime_rev[..IMAGE_REVISION_BYTE_SIZE].try_into()?,
     )?;
 

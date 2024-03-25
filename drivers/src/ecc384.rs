@@ -273,6 +273,42 @@ impl Ecc384 {
         Ok(pub_key)
     }
 
+    /// Sign the PCR digest with PCR signing private key.
+    ///
+    /// # Arguments
+    ///
+    /// * `trng` - TRNG driver instance
+    ///
+    /// # Returns
+    ///
+    /// * `Ecc384Signature` - Generate signature
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn pcr_sign_flow(&mut self, trng: &mut Trng) -> CaliptraResult<Ecc384Signature> {
+        let ecc = self.ecc.regs_mut();
+
+        // Wait for hardware ready
+        wait::until(|| ecc.status().read().ready());
+
+        // Generate an IV.
+        let iv = trng.generate()?;
+        KvAccess::copy_from_arr(&iv, ecc.iv())?;
+
+        ecc.ctrl().write(|w| w.pcr_sign(true).ctrl(|w| w.signing()));
+
+        // Wait for command to complete
+        wait::until(|| ecc.status().read().valid());
+
+        // Copy signature
+        let signature = Ecc384Signature {
+            r: Array4x12::read_from_reg(ecc.sign_r()),
+            s: Array4x12::read_from_reg(ecc.sign_s()),
+        };
+
+        self.zeroize_internal();
+
+        Ok(signature)
+    }
+
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn sign_internal(
         &mut self,

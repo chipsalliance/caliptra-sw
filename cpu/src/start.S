@@ -67,7 +67,6 @@ _start:
     li t1, 0x3003062c
     // Store address of NMI handler in MMIO NMI vector register
     sw t0, 0x0(t1)    
-
     
     // Copy Data Section    
     la a0, _sdata        // dest

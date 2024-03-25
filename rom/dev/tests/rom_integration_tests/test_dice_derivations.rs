@@ -36,8 +36,13 @@ fn test_cold_reset_status_reporting() {
     hw.step_until_boot_status(LDevIdKeyPairDerivationComplete.into(), false);
     hw.step_until_boot_status(LDevIdSubjIdSnGenerationComplete.into(), false);
     hw.step_until_boot_status(LDevIdSubjKeyIdGenerationComplete.into(), false);
-    hw.step_until_boot_status(LDevIdCertSigGenerationComplete.into(), false);
-    hw.step_until_boot_status(LDevIdDerivationComplete.into(), false);
+    if cfg!(feature = "fpga_realtime") {
+        // Skip check for LDevIdCertSigGenerationComplete because it is set for too short of a time in nolog mode
+        hw.step_until_boot_status(LDevIdDerivationComplete.into(), true);
+    } else {
+        hw.step_until_boot_status(LDevIdCertSigGenerationComplete.into(), false);
+        hw.step_until_boot_status(LDevIdDerivationComplete.into(), false);
+    }
 
     // Wait for uploading firmware.
     hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());

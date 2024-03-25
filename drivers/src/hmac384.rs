@@ -13,10 +13,13 @@ Abstract:
 --*/
 
 use crate::kv_access::{KvAccess, KvAccessErr};
+#[cfg(not(feature = "hw-latest"))]
+use crate::Array4x5;
 use crate::{
-    array::Array4x32, wait, Array4x12, Array4x5, CaliptraError, CaliptraResult, KeyReadArgs,
-    KeyWriteArgs, Trng,
+    array::Array4x32, wait, Array4x12, CaliptraError, CaliptraResult, KeyReadArgs, KeyWriteArgs,
+    Trng,
 };
+
 #[cfg(not(feature = "no-cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_registers::hmac::HmacReg;
@@ -156,8 +159,16 @@ impl Hmac384 {
 
         // Generate an LFSR seed.
         let rand_data = trng.generate()?;
-        let iv: [u32; 5] = rand_data.0[..5].try_into().unwrap();
-        KvAccess::copy_from_arr(&Array4x5::from(iv), hmac.lfsr_seed())?;
+        cfg_if::cfg_if! {
+            if #[cfg(feature="hw-latest")] {
+                let iv: [u32; 12] = rand_data.0[..12].try_into().unwrap();
+                KvAccess::copy_from_arr(&Array4x12::from(iv), hmac.lfsr_seed())?;
+            }
+            else {
+                let iv: [u32; 5] = rand_data.0[..5].try_into().unwrap();
+                KvAccess::copy_from_arr(&Array4x5::from(iv), hmac.lfsr_seed())?;
+            }
+        }
 
         let op = Hmac384Op {
             hmac_engine: self,
@@ -213,8 +224,16 @@ impl Hmac384 {
 
         // Generate an LFSR seed.
         let rand_data = trng.generate()?;
-        let iv: [u32; 5] = rand_data.0[..5].try_into().unwrap();
-        KvAccess::copy_from_arr(&Array4x5::from(iv), hmac.lfsr_seed())?;
+        cfg_if::cfg_if! {
+            if #[cfg(feature="hw-latest")] {
+                let iv: [u32; 12] = rand_data.0[..12].try_into().unwrap();
+                KvAccess::copy_from_arr(&Array4x12::from(iv), hmac.lfsr_seed())?;
+            }
+            else {
+                let iv: [u32; 5] = rand_data.0[..5].try_into().unwrap();
+                KvAccess::copy_from_arr(&Array4x5::from(iv), hmac.lfsr_seed())?;
+            }
+        }
 
         // Calculate the hmac
         match data {

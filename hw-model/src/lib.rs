@@ -10,11 +10,12 @@ use std::{
 };
 
 use api::calc_checksum;
-use api::mailbox::{MailboxReqHeader, MailboxRespHeader};
+use api::mailbox::{MailboxReqHeader, MailboxRespHeader, Response};
 use caliptra_api as api;
 use caliptra_emu_bus::Bus;
 use caliptra_hw_model_types::{
-    ErrorInjectionMode, EtrngResponse, RandomEtrngResponses, RandomNibbles, DEFAULT_CPTRA_OBF_KEY,
+    ErrorInjectionMode, EtrngResponse, HexBytes, HexSlice, RandomEtrngResponses, RandomNibbles,
+    DEFAULT_CPTRA_OBF_KEY,
 };
 use zerocopy::{AsBytes, FromBytes, LayoutVerified, Unalign};
 
@@ -25,6 +26,7 @@ use caliptra_registers::soc_ifc::regs::{
 };
 
 use rand::{rngs::StdRng, SeedableRng};
+use sha2::Digest;
 
 pub mod mmio;
 mod model_emulated;
@@ -57,6 +59,8 @@ pub enum ShaAccMode {
 
 #[cfg(feature = "fpga_realtime")]
 pub use model_fpga_realtime::ModelFpgaRealtime;
+#[cfg(feature = "fpga_realtime")]
+pub use model_fpga_realtime::OpenOcdError;
 
 /// Ideally, general-purpose functions would return `impl HwModel` instead of
 /// `DefaultHwModel` to prevent users from calling functions that aren't
@@ -81,7 +85,16 @@ pub type DefaultHwModel = ModelFpgaRealtime;
 /// is not yet ready to execute code in the microcontroller. Most test cases
 /// should use [`new`] instead.
 pub fn new_unbooted(params: InitParams) -> Result<DefaultHwModel, Box<dyn Error>> {
-    DefaultHwModel::new_unbooted(params)
+    let summary = params.summary();
+    DefaultHwModel::new_unbooted(params).map(|hw| {
+        println!(
+            "Using hardware-model {} trng={:?}",
+            hw.type_name(),
+            hw.trng_mode()
+        );
+        println!("{summary:#?}");
+        hw
+    })
 }
 
 /// Constructs an HwModel based on the cargo features and environment variables,
@@ -94,7 +107,7 @@ pub fn new(params: BootParams) -> Result<DefaultHwModel, Box<dyn Error>> {
     DefaultHwModel::new(params)
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TrngMode {
     // soc_ifc_reg.CPTRA_HW_CONFIG.iTRNG_en will be true.
     // When running with the verlated hw-model, the itrng compile-time feature
@@ -159,7 +172,6 @@ pub struct InitParams<'a> {
     // will be used
     pub trace_path: Option<PathBuf>,
 }
-
 impl<'a> Default for InitParams<'a> {
     fn default() -> Self {
         let seed = std::env::var("CPTRA_TRNG_SEED")
@@ -186,11 +198,40 @@ impl<'a> Default for InitParams<'a> {
             cptra_obf_key: DEFAULT_CPTRA_OBF_KEY,
             itrng_nibbles,
             etrng_responses,
-            trng_mode: Default::default(),
+            trng_mode: Some(if cfg!(feature = "itrng") {
+                TrngMode::Internal
+            } else {
+                TrngMode::External
+            }),
             wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
             random_sram_puf: true,
             trace_path: None,
         }
+    }
+}
+
+impl<'a> InitParams<'a> {
+    fn summary(&self) -> InitParamsSummary {
+        InitParamsSummary {
+            rom_sha384: sha2::Sha384::digest(self.rom).into(),
+            obf_key: self.cptra_obf_key,
+            security_state: self.security_state,
+        }
+    }
+}
+
+pub struct InitParamsSummary {
+    rom_sha384: [u8; 48],
+    obf_key: [u32; 8],
+    security_state: SecurityState,
+}
+impl std::fmt::Debug for InitParamsSummary {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InitParamsSummary")
+            .field("rom_sha384", &HexBytes(&self.rom_sha384))
+            .field("obf_key", &HexSlice(&self.obf_key))
+            .field("security_state", &self.security_state)
+            .finish()
     }
 }
 
@@ -233,18 +274,30 @@ pub enum ModelError {
     UploadFirmwareUnexpectedResponse,
     UnknownCommandStatus(u32),
     NotReadyForFwErr,
-    ReadyForFirmwareTimeout { cycles: u32 },
+    ReadyForFirmwareTimeout {
+        cycles: u32,
+    },
     ProvidedIccmTooLarge,
     ProvidedDccmTooLarge,
-    UnexpectedMailboxFsmStatus { expected: u32, actual: u32 },
+    UnexpectedMailboxFsmStatus {
+        expected: u32,
+        actual: u32,
+    },
     UnableToLockSha512Acc,
     UploadMeasurementResponseError,
     UnableToReadMailbox,
     MailboxNoResponseData,
     MailboxReqTypeTooSmall,
     MailboxRespTypeTooSmall,
-    MailboxUnexpectedResponseLen { expected: u32, actual: u32 },
-    MailboxRespInvalidChecksum { expected: u32, actual: u32 },
+    MailboxUnexpectedResponseLen {
+        expected_min: u32,
+        expected_max: u32,
+        actual: u32,
+    },
+    MailboxRespInvalidChecksum {
+        expected: u32,
+        actual: u32,
+    },
     MailboxRespInvalidFipsStatus(u32),
 }
 impl Error for ModelError {}
@@ -286,10 +339,14 @@ impl Display for ModelError {
             ModelError::MailboxRespTypeTooSmall => {
                 write!(f, "Mailbox response type too small to contain header")
             }
-            ModelError::MailboxUnexpectedResponseLen { expected, actual } => {
+            ModelError::MailboxUnexpectedResponseLen {
+                expected_min,
+                expected_max,
+                actual,
+            } => {
                 write!(
                     f,
-                    "Expected mailbox response lenth of {expected}, was {actual}"
+                    "Expected mailbox response lenth min={expected_min} max={expected_max}, was {actual}"
                 )
             }
             ModelError::MailboxRespInvalidChecksum { expected, actual } => {
@@ -424,7 +481,16 @@ pub trait HwModel {
         Self: Sized,
     {
         let wdt_timeout_cycles = run_params.init_params.wdt_timeout_cycles;
+
+        let init_params_summary = run_params.init_params.summary();
+
         let mut hw: Self = HwModel::new_unbooted(run_params.init_params)?;
+        println!(
+            "Using hardware-model {} trng={:?}",
+            hw.type_name(),
+            hw.trng_mode()
+        );
+        println!("{init_params_summary:#?}");
 
         hw.init_fuses(&run_params.fuses);
 
@@ -476,11 +542,18 @@ pub trait HwModel {
                 }
             }
             writeln!(hw.output().logger(), "ready_for_fw is high")?;
+            hw.cover_fw_mage(fw_image);
             hw.upload_firmware(fw_image)?;
         }
 
         Ok(hw)
     }
+
+    /// The type name of this model
+    fn type_name(&self) -> &'static str;
+
+    /// The TRNG mode used by this model.
+    fn trng_mode(&self) -> TrngMode;
 
     /// Trigger a warm reset and advance the boot
     fn warm_reset_flow(&mut self, fuses: &Fuses) {
@@ -535,6 +608,7 @@ pub trait HwModel {
                 "Fuses are already locked in place (according to cptra_fuse_wr_done)"
             );
         }
+        println!("Initializing fuses: {:#x?}", fuses);
 
         self.soc_ifc().fuse_uds_seed().write(&fuses.uds_seed);
         self.soc_ifc()
@@ -571,6 +645,9 @@ pub trait HwModel {
         self.soc_ifc()
             .fuse_lms_revocation()
             .write(|_| fuses.fuse_lms_revocation);
+        self.soc_ifc()
+            .fuse_soc_stepping_id()
+            .write(|w| w.soc_stepping_id(fuses.soc_stepping_id.into()));
 
         self.soc_ifc().cptra_fuse_wr_done().write(|w| w.done(true));
         assert!(self.soc_ifc().cptra_fuse_wr_done().read().done());
@@ -762,6 +839,8 @@ pub trait HwModel {
         }
     }
 
+    fn cover_fw_mage(&mut self, _image: &[u8]) {}
+
     fn tracing_hint(&mut self, enable: bool);
 
     fn ecc_error_injection(&mut self, _mode: ErrorInjectionMode) {}
@@ -781,6 +860,9 @@ pub trait HwModel {
         if mem::size_of::<R::Resp>() < mem::size_of::<MailboxRespHeader>() {
             return Err(ModelError::MailboxRespTypeTooSmall);
         }
+        if R::Resp::MIN_SIZE < mem::size_of::<MailboxRespHeader>() {
+            return Err(ModelError::MailboxRespTypeTooSmall);
+        }
         let (header_bytes, payload_bytes) = req
             .as_bytes_mut()
             .split_at_mut(mem::size_of::<MailboxReqHeader>());
@@ -792,15 +874,19 @@ pub trait HwModel {
         let Some(response_bytes) = self.mailbox_execute(R::ID.into(), req.as_bytes())? else {
             return Err(ModelError::MailboxNoResponseData);
         };
-        let response = match R::Resp::read_from(response_bytes.as_slice()) {
-            Some(response) => response,
-            None => {
-                return Err(ModelError::MailboxUnexpectedResponseLen {
-                    expected: mem::size_of::<R::Resp>() as u32,
-                    actual: response_bytes.len() as u32,
-                })
-            }
-        };
+        if response_bytes.len() < R::Resp::MIN_SIZE
+            || response_bytes.len() > mem::size_of::<R::Resp>()
+        {
+            return Err(ModelError::MailboxUnexpectedResponseLen {
+                expected_min: R::Resp::MIN_SIZE as u32,
+                expected_max: mem::size_of::<R::Resp>() as u32,
+                actual: response_bytes.len() as u32,
+            });
+        }
+
+        let mut response = R::Resp::new_zeroed();
+        response.as_bytes_mut()[..response_bytes.len()].copy_from_slice(&response_bytes);
+
         let response_header =
             MailboxRespHeader::read_from_prefix(response_bytes.as_slice()).unwrap();
         let actual_checksum = calc_checksum(0, &response_bytes[4..]);
@@ -1490,6 +1576,7 @@ mod tests {
             hdr: MailboxRespHeader,
             data: [u8; 4],
         }
+        impl mailbox::Response for TestResp {}
 
         #[repr(C)]
         #[derive(AsBytes, FromBytes, Default)]
@@ -1559,7 +1646,8 @@ mod tests {
         assert_eq!(
             resp,
             Err(ModelError::MailboxUnexpectedResponseLen {
-                expected: 12,
+                expected_min: 12,
+                expected_max: 12,
                 actual: 11
             })
         );

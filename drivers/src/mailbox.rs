@@ -320,6 +320,7 @@ mod fifo {
     }
 
     /// Writes buf.len() bytes to the mailbox datain reg as dwords
+    #[inline(never)]
     pub fn enqueue(mbox: &mut MboxCsr, buf: &[u8]) -> CaliptraResult<()> {
         if mbox.regs().dlen().read() as usize != buf.len() {
             return Err(CaliptraError::DRIVER_MAILBOX_ENQUEUE_ERR);

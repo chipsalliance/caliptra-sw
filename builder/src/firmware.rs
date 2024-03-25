@@ -45,10 +45,27 @@ pub const FMC_FAKE_WITH_UART: FwId = FwId {
     features: &["emu", "fake-fmc"],
 };
 
+pub const APP: FwId = FwId {
+    crate_name: "caliptra-runtime",
+    bin_name: "caliptra-runtime",
+    features: &["fips_self_test"],
+};
+
 pub const APP_WITH_UART: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
     features: &["emu", "test_only_commands", "fips_self_test"],
+};
+
+pub const APP_WITH_UART_FPGA: FwId = FwId {
+    crate_name: "caliptra-runtime",
+    bin_name: "caliptra-runtime",
+    features: &[
+        "emu",
+        "test_only_commands",
+        "fips_self_test",
+        "fpga_realtime",
+    ],
 };
 
 pub mod caliptra_builder_tests {
@@ -297,6 +314,12 @@ pub mod rom_tests {
         features: &["emu"],
     };
 
+    pub const TEST_RT_WITH_UART: FwId = FwId {
+        crate_name: "caliptra-rom-test-rt",
+        bin_name: "caliptra-rom-test-rt",
+        features: &["emu"],
+    };
+
     pub const FAKE_TEST_FMC_WITH_UART: FwId = FwId {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
@@ -316,21 +339,6 @@ pub mod rom_tests {
     };
 }
 
-pub mod fmc_tests {
-    use super::*;
-
-    pub const MOCK_RT_WITH_UART: FwId = FwId {
-        crate_name: "caliptra-fmc-mock-rt",
-        bin_name: "caliptra-fmc-mock-rt",
-        features: &["emu"],
-    };
-    pub const MOCK_RT_INTERACTIVE: FwId = FwId {
-        crate_name: "caliptra-fmc-mock-rt",
-        bin_name: "caliptra-fmc-mock-rt",
-        features: &["emu", "interactive_test"],
-    };
-}
-
 pub mod runtime_tests {
     use super::*;
 
@@ -345,8 +353,18 @@ pub mod runtime_tests {
         ..RUNTIME_TEST_FWID_BASE
     };
 
-    pub const CERT: FwId = FwId {
-        bin_name: "cert",
+    pub const MBOX: FwId = FwId {
+        bin_name: "mbox",
+        ..RUNTIME_TEST_FWID_BASE
+    };
+
+    pub const PERSISTENT_RT: FwId = FwId {
+        bin_name: "persistent_rt",
+        ..RUNTIME_TEST_FWID_BASE
+    };
+
+    pub const MOCK_RT_INTERACTIVE: FwId = FwId {
+        bin_name: "mock_rt_interact",
         ..RUNTIME_TEST_FWID_BASE
     };
 }
@@ -357,7 +375,9 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &ROM_FAKE_WITH_UART,
     &FMC_WITH_UART,
     &FMC_FAKE_WITH_UART,
+    &APP,
     &APP_WITH_UART,
+    &APP_WITH_UART_FPGA,
     &caliptra_builder_tests::FWID,
     &hw_model_tests::MAILBOX_RESPONDER,
     &hw_model_tests::MAILBOX_SENDER,
@@ -403,8 +423,9 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &rom_tests::FAKE_TEST_FMC_WITH_UART,
     &rom_tests::TEST_FMC_INTERACTIVE,
     &rom_tests::FAKE_TEST_FMC_INTERACTIVE,
-    &fmc_tests::MOCK_RT_WITH_UART,
-    &fmc_tests::MOCK_RT_INTERACTIVE,
+    &rom_tests::TEST_RT_WITH_UART,
     &runtime_tests::BOOT,
-    &runtime_tests::CERT,
+    &runtime_tests::MBOX,
+    &runtime_tests::PERSISTENT_RT,
+    &runtime_tests::MOCK_RT_INTERACTIVE,
 ];

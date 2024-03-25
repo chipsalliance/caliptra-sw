@@ -14,7 +14,7 @@ Abstract:
 
 use crate::csr_file::{Csr, CsrFile};
 use crate::instr::Instr;
-use crate::types::{RvInstr, RvMStatus};
+use crate::types::{RvInstr, RvMEIHAP, RvMStatus};
 use crate::xreg_file::{XReg, XRegFile};
 use bit_vec::BitVec;
 use caliptra_emu_bus::{Bus, BusError, Clock, TimerAction};
@@ -24,35 +24,65 @@ pub type InstrTracer<'a> = dyn FnMut(u32, RvInstr) + 'a;
 
 #[derive(Clone)]
 pub struct CodeCoverage {
-    bit_vec: BitVec,
+    rom_bit_vec: BitVec,
+    iccm_bit_vec: BitVec,
 }
 
+pub struct CoverageBitmaps<'a> {
+    pub rom: &'a bit_vec::BitVec,
+    pub iccm: &'a bit_vec::BitVec,
+}
+
+const ICCM_SIZE: usize = 128 * 1024;
+const ICCM_ORG: usize = 0x40000000;
+const ICCM_UPPER: usize = ICCM_ORG + ICCM_SIZE - 1;
+
+const ROM_SIZE: usize = 48 * 1024;
+const ROM_ORG: usize = 0x00000000;
+const ROM_UPPER: usize = ROM_ORG + ROM_SIZE - 1;
+
 impl CodeCoverage {
-    pub fn new(capacity_in_bytes: usize) -> Self {
+    pub fn new(rom_capacity_in_bytes: usize, iccm_capacity_in_bytes: usize) -> Self {
         Self {
-            bit_vec: BitVec::from_elem(capacity_in_bytes, false),
+            rom_bit_vec: BitVec::from_elem(rom_capacity_in_bytes, false),
+            iccm_bit_vec: BitVec::from_elem(iccm_capacity_in_bytes, false),
         }
     }
 
     pub fn log_execution(&mut self, pc: RvData, instr: &Instr) {
-        if (pc as usize) < self.bit_vec.len() {
-            let num_bytes = match instr {
-                Instr::Compressed(_) => 2,
-                Instr::General(_) => 4,
-            };
+        let num_bytes = match instr {
+            Instr::Compressed(_) => 2,
+            Instr::General(_) => 4,
+        };
 
-            // Mark the bytes corresponding to the executed instruction as true.
-            for i in 0..num_bytes {
-                let byte_index = (pc as usize) + i;
-                if byte_index < self.bit_vec.len() {
-                    self.bit_vec.set(byte_index, true);
+        match pc as usize {
+            ROM_ORG..=ROM_UPPER => {
+                // Mark the bytes corresponding to the executed instruction as true.
+                for i in 0..num_bytes {
+                    let byte_index = (pc as usize - ROM_ORG) + i;
+                    if byte_index < self.rom_bit_vec.len() {
+                        self.rom_bit_vec.set(byte_index, true);
+                    }
                 }
             }
+            ICCM_ORG..=ICCM_UPPER => {
+                // Mark the bytes corresponding to the executed instruction as true.
+                for i in 0..num_bytes {
+                    let byte_index = (pc as usize - ICCM_ORG) + i;
+                    if byte_index < self.iccm_bit_vec.len() {
+                        self.iccm_bit_vec.set(byte_index, true);
+                    }
+                }
+            }
+            _ => (),
         }
     }
 
-    pub fn code_coverage_bitmap(&self) -> &BitVec {
-        &self.bit_vec
+    pub fn code_coverage_bitmap(&self) -> CoverageBitmaps {
+        CoverageBitmaps {
+            rom: &self.rom_bit_vec,
+            iccm: &self.iccm_bit_vec,
+        }
     }
 }
 
@@ -105,6 +135,18 @@ pub struct Cpu<TBus: Bus> {
     /// The NMI vector. In the real CPU, this is hardwired from the outside.
     nmivec: u32,
 
+    /// The External interrupt vector table.
+    ext_int_vec: u32,
+
+    /// Global interrupt enabled
+    global_int_en: bool,
+
+    /// Machine External interrupt enabled
+    ext_int_en: bool,
+
+    /// Halted state
+    halted: bool,
+
     // The bus the CPU uses to talk to memory and peripherals.
     pub bus: TBus,
 
@@ -140,7 +182,7 @@ impl<TBus: Bus> Cpu<TBus> {
     pub fn new(bus: TBus, clock: Clock) -> Self {
         Self {
             xregs: XRegFile::new(),
-            csrs: CsrFile::new(),
+            csrs: CsrFile::new(&clock),
             pc: Self::PC_RESET_VAL,
             next_pc: Self::PC_RESET_VAL,
             bus,
@@ -148,9 +190,13 @@ impl<TBus: Bus> Cpu<TBus> {
             is_execute_instr: false,
             watch_ptr_cfg: WatchPtrCfg::new(),
             nmivec: 0,
+            ext_int_vec: 0,
+            global_int_en: false,
+            ext_int_en: false,
+            halted: false,
             // TODO: Pass in code_coverage from the outside (as caliptra-emu-cpu
             // isn't supposed to know anything about the caliptra memory map)
-            code_coverage: CodeCoverage::new(48 * 1024),
+            code_coverage: CodeCoverage::new(ROM_SIZE, ICCM_SIZE),
         }
     }
 
@@ -352,6 +398,12 @@ impl<TBus: Bus> Cpu<TBus> {
         }
     }
 
+    pub fn warm_reset(&mut self) {
+        self.clock
+            .timer()
+            .schedule_action_in(0, TimerAction::WarmReset);
+    }
+
     /// Step a single instruction
     pub fn step(&mut self, instr_tracer: Option<&mut InstrTracer>) -> StepAction {
         let fired_action_types = self
@@ -360,17 +412,38 @@ impl<TBus: Bus> Cpu<TBus> {
         for action_type in fired_action_types.iter() {
             match action_type {
                 TimerAction::WarmReset => {
+                    self.halted = false;
                     self.reset_pc();
                     break;
                 }
                 TimerAction::UpdateReset => {
+                    self.halted = false;
                     self.reset_pc();
                     break;
                 }
-                TimerAction::Nmi { mcause } => return self.handle_nmi(*mcause, 0),
+                TimerAction::Nmi { mcause } => {
+                    self.halted = false;
+                    return self.handle_nmi(*mcause, 0);
+                }
                 TimerAction::SetNmiVec { addr } => self.nmivec = *addr,
+                TimerAction::ExtInt { irq, can_wake } => {
+                    if self.global_int_en && self.ext_int_en && (!self.halted || *can_wake) {
+                        self.halted = false;
+                        return self.handle_external_int(*irq);
+                    }
+                }
+                TimerAction::SetExtIntVec { addr } => self.ext_int_vec = *addr,
+                TimerAction::SetGlobalIntEn { en } => self.global_int_en = *en,
+                TimerAction::SetExtIntEn { en } => self.ext_int_en = *en,
+                TimerAction::Halt => self.halted = true,
                 _ => {}
             }
+        }
+
+        // We are in a halted state. Don't continue executing but poll the bus for interrupts
+        if self.halted {
+            self.set_next_pc(self.pc);
+            return StepAction::Continue;
         }
 
         match self.exec_instr(instr_tracer) {
@@ -382,7 +455,6 @@ impl<TBus: Bus> Cpu<TBus> {
     /// Handle synchronous exception
     fn handle_exception(&mut self, exception: RvException) -> StepAction {
         let ret = self.handle_trap(
-            false,
             self.read_pc(),
             exception.cause().into(),
             exception.info(),
@@ -397,7 +469,7 @@ impl<TBus: Bus> Cpu<TBus> {
 
     /// Handle non-maskable interrupt (VeeR-specific)
     fn handle_nmi(&mut self, cause: u32, info: u32) -> StepAction {
-        let ret = self.handle_trap(false, self.read_pc(), cause, info, self.nmivec);
+        let ret = self.handle_trap(self.read_pc(), cause, info, self.nmivec);
         match ret {
             Ok(_) => StepAction::Continue,
             Err(_) => StepAction::Fatal,
@@ -411,17 +483,11 @@ impl<TBus: Bus> Cpu<TBus> {
     /// * `RvException` - Exception
     fn handle_trap(
         &mut self,
-        _intr: bool,
         pc: RvAddr,
         cause: u32,
         info: u32,
         next_pc: u32,
     ) -> Result<(), RvException> {
-        // TODO: Implement Interrupt Handling
-        // 1. Support for vectored asynchronous interrupts
-        // 2. Veer fast external interrupt support
-        assert!(!_intr);
-
         self.write_csr(Csr::MEPC, pc)?;
         self.write_csr(Csr::MCAUSE, cause)?;
         self.write_csr(Csr::MTVAL, info)?;
@@ -430,6 +496,9 @@ impl<TBus: Bus> Cpu<TBus> {
         status.set_mpie(status.mie());
         status.set_mie(0);
         self.write_csr(Csr::MSTATUS, status.0)?;
+        // Don't rely on write_csr to disable global interrupts as the scheduled action could be
+        // after a next interrupt
+        self.global_int_en = false;
 
         self.write_pc(next_pc);
         println!(
@@ -437,6 +506,35 @@ impl<TBus: Bus> Cpu<TBus> {
             cause, info, next_pc
         );
         Ok(())
+    }
+
+    //// Handle external interrupts
+    fn handle_external_int(&mut self, irq: u8) -> StepAction {
+        const REDIRECT_ENTRY_SIZE: u32 = 4;
+        const MAX_IRQ: u32 = 32;
+        const DCCM_ORG: u32 = 0x5000_0000;
+        const DCCM_SIZE: u32 = 128 * 1024;
+
+        let vec_table = self.ext_int_vec;
+        if vec_table < DCCM_ORG || vec_table + MAX_IRQ * REDIRECT_ENTRY_SIZE > DCCM_ORG + DCCM_SIZE
+        {
+            const NON_DCCM_NMI: u32 = 0xF000_1002;
+            return self.handle_nmi(NON_DCCM_NMI, 0);
+        }
+        let next_pc_ptr = vec_table + REDIRECT_ENTRY_SIZE * u32::from(irq);
+        let mut meihap = RvMEIHAP(vec_table);
+        meihap.set_claimid(irq.into());
+        match self.write_csr(Csr::MEIHAP, meihap.0) {
+            Ok(_) => (),
+            Err(_) => return StepAction::Fatal,
+        };
+        let Ok(next_pc) = self.read_bus(RvSize::Word, next_pc_ptr) else { return StepAction::Fatal; };
+        const MACHINE_EXTERNAL_INT: u32 = 0x8000_000B;
+        let ret = self.handle_trap(self.read_pc(), MACHINE_EXTERNAL_INT, 0, next_pc);
+        match ret {
+            Ok(_) => StepAction::Continue,
+            Err(_) => StepAction::Fatal,
+        }
     }
 
     //// Append WatchPointer
@@ -530,7 +628,11 @@ mod tests {
     }
 
     pub fn count_executed(coverage: &CodeCoverage) -> usize {
-        coverage.bit_vec.iter().filter(|&executed| executed).count()
+        coverage
+            .rom_bit_vec
+            .iter()
+            .filter(|&executed| executed)
+            .count()
     }
 
     #[test]
@@ -543,7 +645,7 @@ mod tests {
         ];
 
         // Instantiate coverage with a capacity for the mix of instructions above
-        let mut coverage = CodeCoverage::new(8);
+        let mut coverage = CodeCoverage::new(8, 0);
 
         // Log execution of the instructions above
         coverage.log_execution(0, &instructions[0]);

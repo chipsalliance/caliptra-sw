@@ -9,6 +9,7 @@ core::arch::global_asm!(include_str!("nmi.S"));
 #[cfg(feature = "riscv")]
 core::arch::global_asm!(include_str!("trap.S"));
 
+pub mod csr;
 pub mod trap;
 
 use caliptra_registers::soc_ifc::SocIfcReg;

@@ -240,6 +240,9 @@ fn test_uninitialized_mbox_read() {
             .unwrap(),
     );
 
+    #[cfg(feature = "verilator")]
+    model.corrupt_mailbox_ecc_double_bit();
+
     const MBOX_ADDR: u32 = 0x3000_0000;
 
     model.soc_ifc().cptra_rsvd_reg().at(0).write(|_| MBOX_ADDR);
