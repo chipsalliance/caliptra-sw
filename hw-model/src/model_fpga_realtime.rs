@@ -24,6 +24,7 @@ use crate::{HwModel, SecurityState, TrngMode};
 const FPGA_WRAPPER_MAPPING: usize = 0;
 const CALIPTRA_MAPPING: usize = 1;
 
+const FPGA_CLOCK_MHZ: u128 = 20;
 const DEFAULT_APB_PAUSER: u32 = 0x1;
 
 fn fmt_uio_error(err: UioError) -> String {
@@ -318,7 +319,6 @@ impl HwModel for ModelFpgaRealtime {
             .map_mapping(FPGA_WRAPPER_MAPPING)
             .map_err(fmt_uio_error)? as *mut u32;
         let mmio = dev.map_mapping(CALIPTRA_MAPPING).map_err(fmt_uio_error)? as *mut u32;
-        let start_time = time::Instant::now();
 
         let realtime_thread_exit_flag = Arc::new(AtomicBool::new(false));
         let realtime_thread_exit_flag2 = realtime_thread_exit_flag.clone();
@@ -354,7 +354,7 @@ impl HwModel for ModelFpgaRealtime {
             wrapper,
             mmio,
             output,
-            start_time,
+            start_time: time::Instant::now(),
 
             realtime_thread,
             realtime_thread_exit_flag,
@@ -394,6 +394,9 @@ impl HwModel for ModelFpgaRealtime {
 
         // Sometimes there's garbage in here; clean it out
         m.clear_log_fifo();
+
+        // Update time as close to boot as possible
+        m.start_time = time::Instant::now();
 
         // Bring Caliptra out of reset and wait for ready_for_fuses
         m.set_cptra_pwrgood(true);
@@ -439,9 +442,11 @@ impl HwModel for ModelFpgaRealtime {
     }
 
     fn output(&mut self) -> &mut crate::Output {
-        self.output
-            .sink()
-            .set_now(self.start_time.elapsed().as_millis().try_into().unwrap());
+        self.output.sink().set_now(
+            (self.start_time.elapsed().as_nanos() * FPGA_CLOCK_MHZ / 1000)
+                .try_into()
+                .unwrap(),
+        );
         &mut self.output
     }
 
