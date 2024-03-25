@@ -79,6 +79,9 @@ impl OutputSink {
     pub fn set_now(&self, now: u64) {
         self.0.now.set(now);
     }
+    pub fn now(&self) -> u64 {
+        self.0.now.get()
+    }
     pub fn push_uart_char(&self, ch: u8) {
         const UART_LOG_PREFIX: &[u8] = b"UART: ";
 
