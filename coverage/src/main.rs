@@ -101,6 +101,7 @@ fn main() -> std::io::Result<()> {
             &FMC_WITH_UART,
             &APP_WITH_UART,
             caliptra_builder::ImageOptions {
+                fmc_version: caliptra_builder::version::get_fmc_version(),
                 app_version: caliptra_builder::version::get_runtime_version(),
                 ..Default::default()
             },
