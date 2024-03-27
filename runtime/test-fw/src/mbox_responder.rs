@@ -58,16 +58,14 @@ fn rt_entry() -> () {
     cprintln!("{}", BANNER);
     let mut drivers = unsafe {
         Drivers::new_from_registers().unwrap_or_else(|e| {
-            // treat global exception as a fatal error
-            match e {
-                CaliptraError::RUNTIME_GLOBAL_EXCEPTION => handle_fatal_error(e.into()),
-                _ => {
-                    cprintln!("Runtime can't load drivers");
-                    handle_fatal_error(e.into());
-                }
-            }
+            cprintln!("[rt] Runtime can't load drivers");
+            handle_fatal_error(e.into());
         })
     };
+    drivers.run_reset_flow().unwrap_or_else(|e| {
+        cprintln!("[rt] Runtime failed reset flow");
+        handle_fatal_error(e.into());
+    });
 
     if !drivers.persistent_data.get().fht.is_valid() {
         cprintln!("Runtime can't load FHT");
