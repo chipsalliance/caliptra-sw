@@ -61,7 +61,6 @@ pub extern "C" fn entry_point() -> ! {
             handle_fatal_error(e.into());
         })
     };
-    caliptra_common::stop_wdt(&mut drivers.soc_ifc);
 
     if !cfg!(feature = "no-cfi") {
         cprintln!("[state] CFI Enabled");
@@ -78,6 +77,11 @@ pub extern "C" fn entry_point() -> ! {
     } else {
         cprintln!("[state] CFI Disabled");
     }
+
+    drivers.run_reset_flow().unwrap_or_else(|e| {
+        cprintln!("[rt] Runtime failed reset flow");
+        handle_fatal_error(e.into());
+    });
 
     if !drivers.persistent_data.get().fht.is_valid() {
         cprintln!("[rt] Runtime can't load FHT");
