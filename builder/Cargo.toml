@@ -24,7 +24,7 @@ zerocopy.workspace = true
 
 [features]
 slow_tests = []
-hw-latest = []
+"hw-1.0" = []
 
 [[bin]]
 name = "image"

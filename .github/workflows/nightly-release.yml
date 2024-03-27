@@ -65,47 +65,47 @@ jobs:
           echo "release_ref=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "Current ref $(git rev-parse HEAD) will receive tag ${TAG_BASE}${INDEX} after tests"
 
-  fpga-1p0-full-suite-etrng-log:
+  fpga-1_0-full-suite-etrng-log:
     name: FPGA Suite (1.0, etrng, log)
     needs: find-latest-release
     if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fpga.yml
     with:
-      artifact-suffix: -fpga-realtime-1p0-etrng-log
-      extra-features: slow_tests
+      artifact-suffix: -fpga-realtime-hw-1.0-etrng-log
+      extra-features: slow_tests,hw-1.0
       rom-logging: true
       fpga-itrng: false
 
-  fpga-1p0-full-suite-etrng-nolog:
+  fpga-1_0-full-suite-etrng-nolog:
     name: FPGA Suite (1.0, etrng, nolog)
     needs: find-latest-release
     if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fpga.yml
     with:
-      artifact-suffix: -fpga-realtime-1p0-etrng-nolog
-      extra-features: slow_tests
+      artifact-suffix: -fpga-realtime-hw-1.0-etrng-nolog
+      extra-features: slow_tests,hw-1.0
       rom-logging: false
       fpga-itrng: false
 
-  fpga-1p0-full-suite-itrng-log:
+  fpga-1_0-full-suite-itrng-log:
     name: FPGA Suite (1.0, itrng, log)
     needs: find-latest-release
     if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fpga.yml
     with:
-      artifact-suffix: -fpga-realtime-1p0-itrng-log
-      extra-features: slow_tests,itrng
+      artifact-suffix: -fpga-realtime-hw-1.0-itrng-log
+      extra-features: slow_tests,itrng,hw-1.0
       rom-logging: true
       fpga-itrng: true
 
-  fpga-1p0-full-suite-itrng-nolog:
+  fpga-1_0-full-suite-itrng-nolog:
     name: FPGA Suite (1.0, itrng, nolog)
     needs: find-latest-release
     if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fpga.yml
     with:
-      artifact-suffix: -fpga-realtime-1p0-itrng-nolog
-      extra-features: slow_tests,itrng
+      artifact-suffix: -fpga-realtime-hw-1.0-itrng-nolog
+      extra-features: slow_tests,itrng,hw-1.0
       rom-logging: false
       fpga-itrng: true
 
@@ -116,7 +116,7 @@ jobs:
     uses: ./.github/workflows/fpga.yml
     with:
       artifact-suffix: -fpga-realtime-latest-etrng-log
-      extra-features: slow_tests,hw-latest
+      extra-features: slow_tests
       rom-logging: true
       fpga-itrng: false
 
@@ -127,7 +127,7 @@ jobs:
     uses: ./.github/workflows/fpga.yml
     with:
       artifact-suffix: -fpga-realtime-latest-etrng-nolog
-      extra-features: slow_tests,hw-latest
+      extra-features: slow_tests
       rom-logging: false
       fpga-itrng: false
 
@@ -138,7 +138,7 @@ jobs:
     uses: ./.github/workflows/fpga.yml
     with:
       artifact-suffix: -fpga-realtime-latest-itrng-log
-      extra-features: slow_tests,itrng,hw-latest
+      extra-features: slow_tests,itrng
       rom-logging: true
       fpga-itrng: true
 
@@ -149,7 +149,7 @@ jobs:
     uses: ./.github/workflows/fpga.yml
     with:
       artifact-suffix: -fpga-realtime-latest-itrng-nolog
-      extra-features: slow_tests,itrng,hw-latest
+      extra-features: slow_tests,itrng
       rom-logging: false
       fpga-itrng: true
 
@@ -197,10 +197,10 @@ jobs:
     name: Create New Release
     needs:
       - find-latest-release
-      - fpga-1p0-full-suite-etrng-log
-      - fpga-1p0-full-suite-etrng-nolog
-      - fpga-1p0-full-suite-itrng-log
-      - fpga-1p0-full-suite-itrng-nolog
+      - fpga-1_0-full-suite-etrng-log
+      - fpga-1_0-full-suite-etrng-nolog
+      - fpga-1_0-full-suite-itrng-log
+      - fpga-1_0-full-suite-itrng-nolog
       - fpga-latest-full-suite-etrng-log
       - fpga-latest-full-suite-etrng-nolog
       - fpga-latest-full-suite-itrng-log

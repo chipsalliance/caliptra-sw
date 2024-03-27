@@ -307,8 +307,8 @@ impl Lms {
         Ok(HashValue::from(digest))
     }
 
-    // This operation is accelerated in hardware by RTL1.1.
-    #[cfg(feature = "hw-latest")]
+    // This operation is accelerated in hardware by RTL1.1 and later.
+    #[cfg(not(feature = "hw-1.0"))]
     fn hash_chain<const N: usize>(
         &self,
         sha256_driver: &mut impl Sha256Alg,
@@ -340,7 +340,7 @@ impl Lms {
         Ok(*tmp)
     }
 
-    #[cfg(not(feature = "hw-latest"))]
+    #[cfg(feature = "hw-1.0")]
     fn hash_chain<const N: usize>(
         &self,
         sha256_driver: &mut impl Sha256Alg,
