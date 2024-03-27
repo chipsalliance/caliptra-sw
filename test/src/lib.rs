@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{
-    firmware::{self, APP_WITH_UART, FMC_WITH_UART},
+    firmware::{APP_WITH_UART, FMC_WITH_UART},
     FwId, ImageOptions,
 };
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
@@ -44,7 +44,7 @@ pub fn run_test(
         opts
     });
 
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
     let init_params = match init_params {
         Some(init_params) => init_params,
         None => InitParams {

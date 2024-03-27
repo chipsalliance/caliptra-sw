@@ -33,7 +33,7 @@ fn assert_output_contains(haystack: &str, needle: &str) {
 #[test]
 fn retrieve_csr_test() {
     const GENERATE_IDEVID_CSR: u32 = 1;
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -131,7 +131,7 @@ fn smoke_test() {
         .set_device_lifecycle(DeviceLifecycle::Production);
     let idevid_pubkey = get_idevid_pubkey();
 
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
     let image = caliptra_builder::build_and_sign_image(
         &firmware::FMC_WITH_UART,
         &firmware::APP_WITH_UART,
@@ -667,7 +667,7 @@ fn test_rt_wdt_timeout() {
 
     const RUNTIME_BOOT_STATUS_READY: u32 = 0x600;
 
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
 
     // Boot in debug mode to capture timestamps by boot status.
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(false);
@@ -744,7 +744,7 @@ fn test_rt_wdt_timeout() {
 fn test_fmc_wdt_timeout() {
     const RTALIAS_BOOT_STATUS_BASE: u32 = 0x400;
 
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
 
     // Boot in debug mode to capture timestamps by boot status.
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(false);
