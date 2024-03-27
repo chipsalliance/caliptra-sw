@@ -2,7 +2,7 @@
 
 use crate::common::run_rt_test;
 use caliptra_builder::{
-    firmware::{self, APP_WITH_UART, FMC_WITH_UART},
+    firmware::{APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
 };
 use caliptra_common::{
@@ -19,7 +19,7 @@ use zerocopy::{AsBytes, FromBytes};
 
 const RT_READY_FOR_COMMANDS: u32 = 0x600;
 
-fn find_rom_info(rom: Vec<u8>) -> Option<RomInfo> {
+fn find_rom_info(rom: &[u8]) -> Option<RomInfo> {
     // RomInfo is 64-byte aligned and the last data in the ROM bin
     // Iterate backwards by 64-byte increments (assumes rom size will always be 64 byte aligned)
     for i in (0..rom.len() - 63).rev().step_by(64) {
@@ -49,7 +49,7 @@ fn test_fw_info() {
     image_opts10.app_svn = 10;
 
     // Cannot use run_rt_test since we need the rom and image to verify info
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
     let init_params = InitParams {
         rom: &rom,
         ..Default::default()
@@ -66,7 +66,7 @@ fn test_fw_info() {
     })
     .unwrap();
 
-    let rom_info = find_rom_info(rom).unwrap();
+    let rom_info = find_rom_info(&rom).unwrap();
 
     let get_fwinfo = |model: &mut DefaultHwModel| {
         let payload = MailboxReqHeader {

@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use std::borrow::Cow;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::env;
@@ -356,6 +357,29 @@ pub fn build_firmware_elf(id: &FwId<'static>) -> io::Result<Arc<Vec<u8>>> {
     let result = Arc::new(build_firmware_elf_uncached(None, id)?);
     *result_mutex_guard = result.clone();
     Ok(result)
+}
+
+/// Returns the most appropriate ROM for use when testing non-ROM code against
+/// a particular hardware version. DO NOT USE this for ROM-only tests.
+pub fn rom_for_fw_integration_tests() -> io::Result<Cow<'static, [u8]>> {
+    let rom_from_env = firmware::rom_from_env();
+    if cfg!(feature = "hw-latest") {
+        Ok(build_firmware_rom(rom_from_env)?.into())
+    } else if rom_from_env == &firmware::ROM {
+        Ok(
+            include_bytes!("../../hw/1.0/caliptra-rom-1.0.1-9342687.bin")
+                .as_slice()
+                .into(),
+        )
+    } else if rom_from_env == &firmware::ROM_WITH_UART {
+        Ok(
+            include_bytes!("../../hw/1.0/caliptra-rom-with-log-1.0.1-9342687.bin")
+                .as_slice()
+                .into(),
+        )
+    } else {
+        Err(other_err(format!("Unexpected ROM fwid {rom_from_env:?}")))
+    }
 }
 
 pub fn build_firmware_rom(id: &FwId<'static>) -> io::Result<Vec<u8>> {

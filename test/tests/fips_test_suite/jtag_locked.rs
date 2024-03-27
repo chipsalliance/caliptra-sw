@@ -1,12 +1,11 @@
 // Licensed under the Apache-2.0 license
 
 use crate::common::fips_test_init_to_rom;
-use caliptra_builder::firmware;
 use caliptra_hw_model::{BootParams, InitParams, SecurityState};
 use caliptra_hw_model_types::DeviceLifecycle;
 
 fn check_jtag_accessible(
-    rom: &Vec<u8>,
+    rom: &[u8],
     debug_locked: bool,
     device_lifecycle: DeviceLifecycle,
     _expect_pass: bool,
@@ -42,7 +41,7 @@ fn check_jtag_accessible(
 fn jtag_locked() {
     #![cfg_attr(not(feature = "fpga_realtime"), ignore)]
 
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
     // When debug is locked JTAG is only accesisble in Manufacturing mode.
     check_jtag_accessible(&rom, true, DeviceLifecycle::Unprovisioned, false);
     check_jtag_accessible(&rom, true, DeviceLifecycle::Manufacturing, true);
