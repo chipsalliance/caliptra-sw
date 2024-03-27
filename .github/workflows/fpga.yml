@@ -56,10 +56,10 @@ jobs:
           # Compute the key from the tree hash of the fpga directory and the rtl
           # root directory.
           if [ "${{ inputs.workflow_call }}" ]; then
-            if [[ "${{ inputs.extra-features }}" == *"hw-latest"* ]]; then
-              HW_DIR="latest"
-            else
+            if [[ "${{ inputs.extra-features }}" == *"hw-1.0"* ]]; then
               HW_DIR="1.0"
+            else
+              HW_DIR="latest"
             fi
           else
             HW_DIR="latest"
@@ -166,7 +166,7 @@ jobs:
           if [ "${{ inputs.workflow_call }}" ]; then
             FEATURES=fpga_realtime,${{ inputs.extra-features }}
           else
-            FEATURES=fpga_realtime,itrng,hw-latest
+            FEATURES=fpga_realtime,itrng
           fi
           cargo nextest archive \
             --features=${FEATURES} \
@@ -288,15 +288,15 @@ jobs:
             ITRNG=TRUE
           fi
           if [ "${{ inputs.workflow_call }}" ]; then
-            if [[ "${{ inputs.extra-features }}" == *"hw-latest"* ]]; then
-              HW_LATEST=TRUE
+            if [[ "${{ inputs.extra-features }}" == *"hw-1.0"* ]]; then
+              RTL_VERSION=1.0
             else
-              HW_LATEST=FALSE
+              RTL_VERSION=latest
             fi
           else
-            HW_LATEST=TRUE
+            RTL_VERSION=latest
           fi
-          /fpga-tools/Xilinx/Vivado/2022.2/bin/vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE ITRNG=${ITRNG} HW_LATEST=${HW_LATEST}
+          /fpga-tools/Xilinx/Vivado/2022.2/bin/vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE ITRNG=${ITRNG} RTL_VERSION=${RTL_VERSION}
           if [ ! -f caliptra_build/caliptra_fpga.bin ]; then
             echo "Output file was not found; failing script"
             exit 1

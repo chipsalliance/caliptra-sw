@@ -185,11 +185,11 @@ pub fn build_firmware_elfs_uncached<'a>(
                 .arg("target.'cfg(all())'.rustflags = [\"-Dwarnings\"]");
         }
 
-        if cfg!(feature = "hw-latest") {
+        if cfg!(feature = "hw-1.0") {
             if !features_csv.is_empty() {
                 features_csv.push(',');
             }
-            features_csv.push_str("hw-latest");
+            features_csv.push_str("hw-1.0");
         }
 
         cmd.arg("build")
@@ -363,22 +363,24 @@ pub fn build_firmware_elf(id: &FwId<'static>) -> io::Result<Arc<Vec<u8>>> {
 /// a particular hardware version. DO NOT USE this for ROM-only tests.
 pub fn rom_for_fw_integration_tests() -> io::Result<Cow<'static, [u8]>> {
     let rom_from_env = firmware::rom_from_env();
-    if cfg!(feature = "hw-latest") {
-        Ok(build_firmware_rom(rom_from_env)?.into())
-    } else if rom_from_env == &firmware::ROM {
-        Ok(
-            include_bytes!("../../hw/1.0/caliptra-rom-1.0.1-9342687.bin")
-                .as_slice()
-                .into(),
-        )
-    } else if rom_from_env == &firmware::ROM_WITH_UART {
-        Ok(
-            include_bytes!("../../hw/1.0/caliptra-rom-with-log-1.0.1-9342687.bin")
-                .as_slice()
-                .into(),
-        )
+    if cfg!(feature = "hw-1.0") {
+        if rom_from_env == &firmware::ROM {
+            Ok(
+                include_bytes!("../../hw/1.0/caliptra-rom-1.0.1-9342687.bin")
+                    .as_slice()
+                    .into(),
+            )
+        } else if rom_from_env == &firmware::ROM_WITH_UART {
+            Ok(
+                include_bytes!("../../hw/1.0/caliptra-rom-with-log-1.0.1-9342687.bin")
+                    .as_slice()
+                    .into(),
+            )
+        } else {
+            Err(other_err(format!("Unexpected ROM fwid {rom_from_env:?}")))
+        }
     } else {
-        Err(other_err(format!("Unexpected ROM fwid {rom_from_env:?}")))
+        Ok(build_firmware_rom(rom_from_env)?.into())
     }
 }
 

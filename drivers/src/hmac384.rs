@@ -13,8 +13,6 @@ Abstract:
 --*/
 
 use crate::kv_access::{KvAccess, KvAccessErr};
-#[cfg(not(feature = "hw-latest"))]
-use crate::Array4x5;
 use crate::{
     array::Array4x32, wait, Array4x12, CaliptraError, CaliptraResult, KeyReadArgs, KeyWriteArgs,
     Trng,
@@ -182,13 +180,13 @@ impl Hmac384 {
 
         let rand_data = trng.generate()?;
         cfg_if::cfg_if! {
-            if #[cfg(feature="hw-latest")] {
-                let iv: [u32; 12] = rand_data.0[..12].try_into().unwrap();
-                KvAccess::copy_from_arr(&Array4x12::from(iv), hmac.lfsr_seed())?;
-            }
-            else {
+            if #[cfg(feature="hw-1.0")] {
+                use crate::Array4x5;
                 let iv: [u32; 5] = rand_data.0[..5].try_into().unwrap();
                 KvAccess::copy_from_arr(&Array4x5::from(iv), hmac.lfsr_seed())?;
+            } else {
+                let iv: [u32; 12] = rand_data.0[..12].try_into().unwrap();
+                KvAccess::copy_from_arr(&Array4x12::from(iv), hmac.lfsr_seed())?;
             }
         }
         Ok(())
