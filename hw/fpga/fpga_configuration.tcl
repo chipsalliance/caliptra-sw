@@ -29,6 +29,11 @@ if {[info exists VERSION] == 0} {
 
 # Path to rtl
 set rtlDir $fpgaDir/../$RTL_VERSION/rtl
+puts "JTAG: $JTAG"
+puts "ITRNG: $ITRNG"
+puts "CG_EN: $CG_EN"
+puts "RTL_VERSION: $RTL_VERSION"
+puts "Using RTL directory $rtlDir"
 
 # Set Verilog defines for:
 #     Caliptra clock gating module
