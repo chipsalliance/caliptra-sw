@@ -50,24 +50,18 @@ impl GetPcrQuoteCmd {
             .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
         let pcr_hash = drivers.sha384.gen_pcr_hash(args.nonce.into())?;
-
         let signature = drivers.ecc384.pcr_sign_flow(&mut drivers.trng)?;
-
         let raw_pcrs = drivers.pcr_bank.read_all_pcrs();
 
-        let pcrs_as_bytes = raw_pcrs
-            .into_iter()
-            .map(|raw_pcr_value| raw_pcr_value.into())
-            .enumerate()
-            .fold([[0; 48]; 32], |mut acc, (idx, pcr_value)| {
-                acc[idx] = pcr_value;
-                acc
-            });
+        let mut pcrs = [[0u8; 48]; 32];
+        for (i, p) in raw_pcrs.iter().enumerate() {
+            pcrs[i] = p.into()
+        }
 
         Ok(MailboxResp::QuotePcrs(QuotePcrsResp {
             hdr: MailboxRespHeader::default(),
             nonce: args.nonce,
-            pcrs: pcrs_as_bytes,
+            pcrs,
             reset_ctrs: drivers.persistent_data.get().pcr_reset.all_counters(),
             digest: pcr_hash.into(),
             signature_r: signature.r.into(),
