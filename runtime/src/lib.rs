@@ -142,6 +142,7 @@ fn enter_idle(drivers: &mut Drivers) {
 fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     // For firmware update, don't read data from the mailbox
     if drivers.mbox.cmd() == CommandId::FIRMWARE_LOAD {
+        cfi_assert_eq(drivers.mbox.cmd(), CommandId::FIRMWARE_LOAD);
         update::handle_impactless_update(drivers)?;
 
         // If the handler succeeds but does not invoke reset that is
@@ -263,7 +264,7 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
     }
     #[cfg(feature = "riscv")]
     setup_mailbox_wfi(drivers);
-
+    caliptra_common::wdt::stop_wdt(&mut drivers.soc_ifc);
     loop {
         enter_idle(drivers);
 

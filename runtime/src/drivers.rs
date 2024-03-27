@@ -108,44 +108,7 @@ impl Drivers {
     /// any concurrent access to these register blocks does not conflict with
     /// these drivers.
     pub unsafe fn new_from_registers() -> CaliptraResult<Self> {
-        let mut drivers = Self::get_unsafe_registers()?;
-
-        Self::create_cert_chain(&mut drivers)?;
-        if drivers.persistent_data.get().attestation_disabled.get() {
-            DisableAttestationCmd::execute(&mut drivers)
-                .map_err(|_| CaliptraError::RUNTIME_GLOBAL_EXCEPTION)?;
-        }
-
-        let reset_reason = drivers.soc_ifc.reset_reason();
-        match reset_reason {
-            ResetReason::ColdReset => {
-                cfi_assert_eq(drivers.soc_ifc.reset_reason(), ResetReason::ColdReset);
-                Self::initialize_dpe(&mut drivers)?;
-            }
-            ResetReason::UpdateReset => {
-                cfi_assert_eq(drivers.soc_ifc.reset_reason(), ResetReason::UpdateReset);
-                Self::validate_dpe_structure(&mut drivers)?;
-                Self::validate_context_tags(&mut drivers)?;
-                Self::update_dpe_rt_journey(&mut drivers)?;
-            }
-            ResetReason::WarmReset => {
-                cfi_assert_eq(drivers.soc_ifc.reset_reason(), ResetReason::WarmReset);
-                Self::validate_dpe_structure(&mut drivers)?;
-                Self::validate_context_tags(&mut drivers)?;
-                Self::check_dpe_rt_journey_unchanged(&mut drivers)?;
-            }
-            ResetReason::Unknown => {
-                cfi_assert_eq(drivers.soc_ifc.reset_reason(), ResetReason::Unknown);
-                return Err(CaliptraError::RUNTIME_UNKNOWN_RESET_FLOW);
-            }
-        }
-
-        Ok(drivers)
-    }
-
-    /// Isolates unsafe behavior in new_from_registers
-    unsafe fn get_unsafe_registers() -> CaliptraResult<Self> {
-        let mut trng = Trng::new(
+        let trng = Trng::new(
             CsrngReg::new(),
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
@@ -174,6 +137,41 @@ impl Drivers {
             cert_chain: ArrayVec::new(),
             is_shutdown: false,
         })
+    }
+
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn run_reset_flow(&mut self) -> CaliptraResult<()> {
+        Self::create_cert_chain(self)?;
+        if self.persistent_data.get().attestation_disabled.get() {
+            DisableAttestationCmd::execute(self)
+                .map_err(|_| CaliptraError::RUNTIME_GLOBAL_EXCEPTION)?;
+        }
+
+        let reset_reason = self.soc_ifc.reset_reason();
+        match reset_reason {
+            ResetReason::ColdReset => {
+                cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::ColdReset);
+                Self::initialize_dpe(self)?;
+            }
+            ResetReason::UpdateReset => {
+                cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::UpdateReset);
+                Self::validate_dpe_structure(self)?;
+                Self::validate_context_tags(self)?;
+                Self::update_dpe_rt_journey(self)?;
+            }
+            ResetReason::WarmReset => {
+                cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::WarmReset);
+                Self::validate_dpe_structure(self)?;
+                Self::validate_context_tags(self)?;
+                Self::check_dpe_rt_journey_unchanged(self)?;
+            }
+            ResetReason::Unknown => {
+                cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::Unknown);
+                return Err(CaliptraError::RUNTIME_UNKNOWN_RESET_FLOW);
+            }
+        }
+
+        Ok(())
     }
 
     /// Retrieves the root context index. Inlined so the callsite optimizer
@@ -442,7 +440,6 @@ impl Drivers {
         for measurement_log_entry in measurement_log.iter().take(num_measurements) {
             // Check that adding this measurement to DPE doesn't cause
             // the PL0 context threshold to be exceeded.
-            let pl0_pauser = drivers.persistent_data.get().manifest1.header.pl0_pauser;
             let flags = drivers.persistent_data.get().manifest1.header.flags;
             Self::is_dpe_context_threshold_exceeded(
                 pl0_pauser_locality,
