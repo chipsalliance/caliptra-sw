@@ -161,44 +161,84 @@ jobs:
       rom-logging: false
       fpga-itrng: true
 
-  sw-emulator-full-suite-etrng-log:
+  sw-emulator-hw-latest-full-suite-etrng-log:
     name: sw-emulator Suite (etrng, log)
     needs: find-latest-release
     if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fw-test-emu.yml
     with:
-      artifact-suffix: -sw-emulator-realtime-etrng-log
+      artifact-suffix: -sw-emulator-hw-latest-etrng-log
       extra-features: slow_tests
       rom-logging: true
 
-  sw-emulator-full-suite-etrng-nolog:
+  sw-emulator-hw-latest-full-suite-etrng-nolog:
     name: sw-emulator Suite (etrng, nolog)
     needs: find-latest-release
     if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fw-test-emu.yml
     with:
-      artifact-suffix: -sw-emulator-realtime-etrng-nolog
+      artifact-suffix: -sw-emulator-hw-latest-etrng-nolog
       extra-features: slow_tests
       rom-logging: false
 
-  sw-emulator-full-suite-itrng-log:
+  sw-emulator-hw-latest-full-suite-itrng-log:
     name: sw-emulator Suite (itrng, log)
     needs: find-latest-release
     if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fw-test-emu.yml
     with:
-      artifact-suffix: -sw-emulator-realtime-itrng-log
+      artifact-suffix: -sw-emulator-hw-latest-itrng-log
       extra-features: slow_tests,itrng
       rom-logging: true
 
-  sw-emulator-full-suite-itrng-nolog:
+  sw-emulator-hw-latest-full-suite-itrng-nolog:
     name: sw-emulator Suite (itrng, nolog)
     needs: find-latest-release
     if: needs.find-latest-release.outputs.create_release
     uses: ./.github/workflows/fw-test-emu.yml
     with:
-      artifact-suffix: -sw-emulator-realtime-itrng-nolog
+      artifact-suffix: -sw-emulator-hw-latest-itrng-nolog
       extra-features: slow_tests,itrng
+      rom-logging: false
+
+  sw-emulator-hw-1_0-full-suite-etrng-log:
+    name: sw-emulator Suite (etrng, log)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fw-test-emu.yml
+    with:
+      artifact-suffix: -sw-emulator-hw-1.0-etrng-log
+      extra-features: hw-1.0,slow_tests
+      rom-logging: true
+
+  sw-emulator-hw-1_0-full-suite-etrng-nolog:
+    name: sw-emulator Suite (etrng, nolog)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fw-test-emu.yml
+    with:
+      artifact-suffix: -sw-emulator-hw-1.0-etrng-nolog
+      extra-features: hw-1.0,slow_tests
+      rom-logging: false
+
+  sw-emulator-hw-1_0-full-suite-itrng-log:
+    name: sw-emulator Suite (itrng, log)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fw-test-emu.yml
+    with:
+      artifact-suffix: -sw-emulator-hw-1.0-itrng-log
+      extra-features: hw-1.0,slow_tests,itrng
+      rom-logging: true
+
+  sw-emulator-hw-1_0-full-suite-itrng-nolog:
+    name: sw-emulator Suite (itrng, nolog)
+    needs: find-latest-release
+    if: needs.find-latest-release.outputs.create_release
+    uses: ./.github/workflows/fw-test-emu.yml
+    with:
+      artifact-suffix: -sw-emulator-hw-1.0-itrng-nolog
+      extra-features: hw-1.0,slow_tests,itrng
       rom-logging: false
 
   create-release:
@@ -213,10 +253,14 @@ jobs:
       - fpga-latest-full-suite-etrng-nolog
       - fpga-latest-full-suite-itrng-log
       - fpga-latest-full-suite-itrng-nolog
-      - sw-emulator-full-suite-etrng-log
-      - sw-emulator-full-suite-etrng-nolog
-      - sw-emulator-full-suite-itrng-log
-      - sw-emulator-full-suite-itrng-nolog
+      - sw-emulator-hw-latest-full-suite-etrng-log
+      - sw-emulator-hw-latest-full-suite-etrng-nolog
+      - sw-emulator-hw-latest-full-suite-itrng-log
+      - sw-emulator-hw-latest-full-suite-itrng-nolog
+      - sw-emulator-hw-1_0-full-suite-etrng-log
+      - sw-emulator-hw-1_0-full-suite-etrng-nolog
+      - sw-emulator-hw-1_0-full-suite-itrng-log
+      - sw-emulator-hw-1_0-full-suite-itrng-nolog
 
     runs-on: ubuntu-22.04
 
