@@ -52,10 +52,12 @@ export CARGO_TARGET_DIR="${PWD}/target-ci"
 
 function build_rom_images() {
     rm -rf "${CARGO_TARGET_DIR}/riscv32imc-unknown-none-elf"
-    CALIPTRA_IMAGE_NO_GIT_REVISION=1 cargo --config "${EXTRA_CARGO_CONFIG}" run -p caliptra-builder -- \
+    CALIPTRA_IMAGE_NO_GIT_REVISION=1 cargo --config "${EXTRA_CARGO_CONFIG}" run -p caliptra-builder \
+        --features=hw-latest -- \
         --rom-with-log "${WORK_DIR}/caliptra-rom-with-log.bin"
     rm -rf "${CARGO_TARGET_DIR}/riscv32imc-unknown-none-elf"
-    CALIPTRA_IMAGE_NO_GIT_REVISION=1 cargo --config "${EXTRA_CARGO_CONFIG}" run -p caliptra-builder -- \
+    CALIPTRA_IMAGE_NO_GIT_REVISION=1 cargo --config "${EXTRA_CARGO_CONFIG}" run -p caliptra-builder \
+        --features=hw-latest -- \
         --rom-no-log "${WORK_DIR}/caliptra-rom-no-log.bin"
 }
 
