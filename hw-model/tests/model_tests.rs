@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::firmware;
+use caliptra_builder::{firmware, ImageOptions};
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
 use caliptra_hw_model_types::ErrorInjectionMode;
 use caliptra_test_harness_types as harness;
@@ -268,6 +268,42 @@ fn test_pcr_extend() {
         caliptra_builder::build_firmware_elf(&firmware::hw_model_tests::TEST_PCR_EXTEND).unwrap();
 
     let mut model = run_fw_elf(&elf);
+
+    model.step_until_exit_success().unwrap();
+}
+
+#[test]
+fn test_pic() {
+    // This test is too slow to run as part of the verilator nightly.
+    #![cfg_attr(all(not(feature = "slow_tests"), feature = "verilator"), ignore)]
+
+    let image_options = {
+        let mut opts = ImageOptions::default();
+        opts.vendor_config.pl0_pauser = Some(0x1);
+        opts.fmc_version = 0xaaaa;
+        opts.app_version = 0xbbbbbbbb;
+        opts
+    };
+
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        ..Default::default()
+    };
+
+    let image = caliptra_builder::build_and_sign_image(
+        &firmware::FMC_WITH_UART,
+        &firmware::hw_model_tests_heavy::PIC,
+        image_options,
+    )
+    .unwrap();
+
+    let mut model = caliptra_hw_model::new(BootParams {
+        init_params,
+        fw_image: Some(&image.to_bytes().unwrap()),
+        ..Default::default()
+    })
+    .unwrap();
 
     model.step_until_exit_success().unwrap();
 }
