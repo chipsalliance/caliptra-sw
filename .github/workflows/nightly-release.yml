@@ -72,7 +72,8 @@ jobs:
     uses: ./.github/workflows/fpga.yml
     with:
       artifact-suffix: -fpga-realtime-hw-1.0-etrng-log
-      extra-features: slow_tests,hw-1.0
+      extra-features: slow_tests
+      hw-version: "1.0"
       rom-logging: true
       fpga-itrng: false
 
@@ -83,7 +84,8 @@ jobs:
     uses: ./.github/workflows/fpga.yml
     with:
       artifact-suffix: -fpga-realtime-hw-1.0-etrng-nolog
-      extra-features: slow_tests,hw-1.0
+      extra-features: slow_tests
+      hw-version: "1.0"
       rom-logging: false
       fpga-itrng: false
 
@@ -94,7 +96,8 @@ jobs:
     uses: ./.github/workflows/fpga.yml
     with:
       artifact-suffix: -fpga-realtime-hw-1.0-itrng-log
-      extra-features: slow_tests,itrng,hw-1.0
+      extra-features: slow_tests,itrng
+      hw-version: "1.0"
       rom-logging: true
       fpga-itrng: true
 
@@ -105,7 +108,8 @@ jobs:
     uses: ./.github/workflows/fpga.yml
     with:
       artifact-suffix: -fpga-realtime-hw-1.0-itrng-nolog
-      extra-features: slow_tests,itrng,hw-1.0
+      extra-features: slow_tests,itrng
+      hw-version: "1.0"
       rom-logging: false
       fpga-itrng: true
 
@@ -117,6 +121,7 @@ jobs:
     with:
       artifact-suffix: -fpga-realtime-latest-etrng-log
       extra-features: slow_tests
+      hw-version: "latest"
       rom-logging: true
       fpga-itrng: false
 
@@ -128,6 +133,7 @@ jobs:
     with:
       artifact-suffix: -fpga-realtime-latest-etrng-nolog
       extra-features: slow_tests
+      hw-version: "latest"
       rom-logging: false
       fpga-itrng: false
 
@@ -139,6 +145,7 @@ jobs:
     with:
       artifact-suffix: -fpga-realtime-latest-itrng-log
       extra-features: slow_tests,itrng
+      hw-version: "latest"
       rom-logging: true
       fpga-itrng: true
 
@@ -150,6 +157,7 @@ jobs:
     with:
       artifact-suffix: -fpga-realtime-latest-itrng-nolog
       extra-features: slow_tests,itrng
+      hw-version: latest
       rom-logging: false
       fpga-itrng: true
 
