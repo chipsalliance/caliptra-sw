@@ -6,7 +6,6 @@ mod test_certs;
 mod test_disable;
 mod test_ecdsa;
 mod test_fips;
-mod test_hmac;
 mod test_info;
 mod test_invoke_dpe;
 mod test_mailbox;
