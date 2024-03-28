@@ -103,8 +103,11 @@ pub fn new_unbooted(params: InitParams) -> Result<DefaultHwModel, Box<dyn Error>
 /// (optionally) uploading firmware. Most test cases that need to construct a
 /// HwModel should use this function over [`HwModel::new()`] and
 /// [`crate::new_unbooted`].
-pub fn new(params: BootParams) -> Result<DefaultHwModel, Box<dyn Error>> {
-    DefaultHwModel::new(params)
+pub fn new(
+    init_params: InitParams,
+    boot_params: BootParams,
+) -> Result<DefaultHwModel, Box<dyn Error>> {
+    DefaultHwModel::new(init_params, boot_params)
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -161,8 +164,6 @@ pub struct InitParams<'a> {
     // When None, use the itrng compile-time feature to decide which mode to use.
     pub trng_mode: Option<TrngMode>,
 
-    pub wdt_timeout_cycles: u64,
-
     // If true (and the HwModel supports it), initialize the SRAM with random
     // data. This will likely result in a ECC double-bit error if the CPU
     // attempts to read uninitialized memory.
@@ -203,7 +204,6 @@ impl<'a> Default for InitParams<'a> {
             } else {
                 TrngMode::External
             }),
-            wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
             random_sram_puf: true,
             trace_path: None,
         }
@@ -250,6 +250,7 @@ pub struct BootParams<'a> {
     pub initial_repcnt_thresh_reg: Option<CptraItrngEntropyConfig1WriteVal>,
     pub initial_adaptp_thresh_reg: Option<CptraItrngEntropyConfig0WriteVal>,
     pub valid_pauser: u32,
+    pub wdt_timeout_cycles: u64,
 }
 
 impl<'a> Default for BootParams<'a> {
@@ -262,6 +263,7 @@ impl<'a> Default for BootParams<'a> {
             initial_repcnt_thresh_reg: Default::default(),
             initial_adaptp_thresh_reg: Default::default(),
             valid_pauser: 0x1,
+            wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
         }
     }
 }
@@ -476,15 +478,13 @@ pub trait HwModel {
     /// Create a model, and boot it to the point where CPU execution can
     /// occur. This includes programming the fuses, initializing the
     /// boot_fsm state machine, and (optionally) uploading firmware.
-    fn new(run_params: BootParams) -> Result<Self, Box<dyn Error>>
+    fn new(init_params: InitParams, boot_params: BootParams) -> Result<Self, Box<dyn Error>>
     where
         Self: Sized,
     {
-        let wdt_timeout_cycles = run_params.init_params.wdt_timeout_cycles;
+        let init_params_summary = init_params.summary();
 
-        let init_params_summary = run_params.init_params.summary();
-
-        let mut hw: Self = HwModel::new_unbooted(run_params.init_params)?;
+        let mut hw: Self = HwModel::new_unbooted(init_params)?;
         let hw_rev_id = hw.soc_ifc().cptra_hw_rev_id().read();
         println!(
             "Using hardware-model {} trng={:?} hw_rev_id={{cptra_generation=0x{:04x}, soc_stepping_id={:04x}}}",
@@ -492,61 +492,74 @@ pub trait HwModel {
         );
         println!("{init_params_summary:#?}");
 
-        hw.init_fuses(&run_params.fuses);
+        hw.boot(boot_params)?;
 
-        hw.soc_ifc()
+        Ok(hw)
+    }
+
+    fn boot(&mut self, boot_params: BootParams) -> Result<(), Box<dyn Error>>
+    where
+        Self: Sized,
+    {
+        self.init_fuses(&boot_params.fuses);
+
+        self.soc_ifc()
             .cptra_dbg_manuf_service_reg()
-            .write(|_| run_params.initial_dbg_manuf_service_reg);
+            .write(|_| boot_params.initial_dbg_manuf_service_reg);
 
-        hw.soc_ifc()
+        self.soc_ifc()
             .cptra_wdt_cfg()
             .at(0)
-            .write(|_| wdt_timeout_cycles as u32);
+            .write(|_| boot_params.wdt_timeout_cycles as u32);
 
-        hw.soc_ifc()
+        self.soc_ifc()
             .cptra_wdt_cfg()
             .at(1)
-            .write(|_| (wdt_timeout_cycles >> 32) as u32);
+            .write(|_| (boot_params.wdt_timeout_cycles >> 32) as u32);
 
-        if let Some(reg) = run_params.initial_repcnt_thresh_reg {
-            hw.soc_ifc().cptra_i_trng_entropy_config_1().write(|_| reg);
+        if let Some(reg) = boot_params.initial_repcnt_thresh_reg {
+            self.soc_ifc()
+                .cptra_i_trng_entropy_config_1()
+                .write(|_| reg);
         }
 
-        if let Some(reg) = run_params.initial_adaptp_thresh_reg {
-            hw.soc_ifc().cptra_i_trng_entropy_config_0().write(|_| reg);
+        if let Some(reg) = boot_params.initial_adaptp_thresh_reg {
+            self.soc_ifc()
+                .cptra_i_trng_entropy_config_0()
+                .write(|_| reg);
         }
 
         // Set up the PAUSER as valid for the mailbox (using index 0)
-        hw.soc_ifc()
+        self.soc_ifc()
             .cptra_mbox_valid_pauser()
             .at(0)
-            .write(|_| run_params.valid_pauser);
-        hw.soc_ifc()
+            .write(|_| boot_params.valid_pauser);
+        self.soc_ifc()
             .cptra_mbox_pauser_lock()
             .at(0)
             .write(|w| w.lock(true));
 
-        writeln!(hw.output().logger(), "writing to cptra_bootfsm_go")?;
-        hw.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
+        writeln!(self.output().logger(), "writing to cptra_bootfsm_go")?;
+        self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));
 
-        hw.step();
+        self.step();
 
-        if let Some(fw_image) = run_params.fw_image {
+        if let Some(fw_image) = boot_params.fw_image {
             const MAX_WAIT_CYCLES: u32 = 20_000_000;
             let mut cycles = 0;
-            while !hw.ready_for_fw() {
-                hw.step();
+            while !self.ready_for_fw() {
+                self.step();
                 cycles += 1;
                 if cycles > MAX_WAIT_CYCLES {
                     return Err(ModelError::ReadyForFirmwareTimeout { cycles }.into());
                 }
             }
-            writeln!(hw.output().logger(), "ready_for_fw is high")?;
-            hw.cover_fw_mage(fw_image);
-            hw.upload_firmware(fw_image)?;
+            writeln!(self.output().logger(), "ready_for_fw is high")?;
+            self.cover_fw_mage(fw_image);
+            self.upload_firmware(fw_image)?;
         }
 
-        Ok(hw)
+        Ok(())
     }
 
     /// The type name of this model
@@ -1330,26 +1343,26 @@ mod tests {
 
     #[test]
     fn test_execution() {
-        let mut model = caliptra_hw_model::new(BootParams {
-            init_params: InitParams {
+        let mut model = caliptra_hw_model::new(
+            InitParams {
                 rom: &gen_image_hi(),
                 ..Default::default()
             },
-            ..Default::default()
-        })
+            BootParams::default(),
+        )
         .unwrap();
         model.step_until_output("hii").unwrap();
     }
 
     #[test]
     fn test_output_failure() {
-        let mut model = caliptra_hw_model::new(BootParams {
-            init_params: InitParams {
+        let mut model = caliptra_hw_model::new(
+            InitParams {
                 rom: &gen_image_hi(),
                 ..Default::default()
             },
-            ..Default::default()
-        })
+            BootParams::default(),
+        )
         .unwrap();
 
         if cfg!(feature = "fpga_realtime") {
@@ -1375,13 +1388,13 @@ mod tests {
             caliptra_builder::build_firmware_rom(&firmware::hw_model_tests::MAILBOX_RESPONDER)
                 .unwrap();
 
-        let mut model = caliptra_hw_model::new(BootParams {
-            init_params: InitParams {
+        let mut model = caliptra_hw_model::new(
+            InitParams {
                 rom: &rom,
                 ..Default::default()
             },
-            ..Default::default()
-        })
+            BootParams::default(),
+        )
         .unwrap();
 
         // Send command that echoes the command and input message
@@ -1430,13 +1443,13 @@ mod tests {
         let rom = caliptra_builder::build_firmware_rom(&firmware::hw_model_tests::MAILBOX_SENDER)
             .unwrap();
 
-        let mut model = caliptra_hw_model::new(BootParams {
-            init_params: InitParams {
+        let mut model = caliptra_hw_model::new(
+            InitParams {
                 rom: &rom,
                 ..Default::default()
             },
-            ..Default::default()
-        })
+            BootParams::default(),
+        )
         .unwrap();
 
         // Test 8-byte request, respond-with-success
@@ -1481,13 +1494,13 @@ mod tests {
             caliptra_builder::build_firmware_rom(&firmware::hw_model_tests::MAILBOX_RESPONDER)
                 .unwrap();
 
-        let mut model = caliptra_hw_model::new(BootParams {
-            init_params: InitParams {
+        let mut model = caliptra_hw_model::new(
+            InitParams {
                 rom: &rom,
                 ..Default::default()
             },
-            ..Default::default()
-        })
+            BootParams::default(),
+        )
         .unwrap();
 
         assert_eq!(
@@ -1596,13 +1609,13 @@ mod tests {
         let rom =
             caliptra_builder::build_firmware_rom(&firmware::hw_model_tests::MAILBOX_RESPONDER)
                 .unwrap();
-        let mut model = caliptra_hw_model::new(BootParams {
-            init_params: InitParams {
+        let mut model = caliptra_hw_model::new(
+            InitParams {
                 rom: &rom,
                 ..Default::default()
             },
-            ..Default::default()
-        })
+            BootParams::default(),
+        )
         .unwrap();
 
         // Success
