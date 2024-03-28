@@ -2,7 +2,7 @@
 
 use crate::common::fips_test_init_to_rom;
 use caliptra_hw_model::OpenOcdError;
-use caliptra_hw_model::{BootParams, InitParams, SecurityState};
+use caliptra_hw_model::{InitParams, SecurityState};
 use caliptra_hw_model_types::DeviceLifecycle;
 
 fn check_jtag_accessible(
@@ -15,14 +15,14 @@ fn check_jtag_accessible(
         .set_debug_locked(debug_locked)
         .set_device_lifecycle(device_lifecycle);
 
-    let mut hw = fips_test_init_to_rom(Some(BootParams {
-        init_params: InitParams {
+    let mut hw = fips_test_init_to_rom(
+        Some(InitParams {
             rom,
             security_state,
             ..Default::default()
-        },
-        ..Default::default()
-    }));
+        }),
+        None,
+    );
 
     #[cfg(feature = "fpga_realtime")]
     assert_eq!(

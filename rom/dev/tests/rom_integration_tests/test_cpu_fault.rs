@@ -27,13 +27,13 @@ fn test_cpu_fault() {
     rom[rom_entry_offset..rom_entry_offset + illegal_instruction.len()]
         .copy_from_slice(&illegal_instruction);
 
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             ..Default::default()
         },
-        ..Default::default()
-    })
+        BootParams::default(),
+    )
     .unwrap();
 
     hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() == GLOBAL_EXCEPTION);
