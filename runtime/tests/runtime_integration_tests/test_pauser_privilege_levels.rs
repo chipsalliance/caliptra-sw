@@ -5,7 +5,8 @@ use caliptra_builder::{
     ImageOptions,
 };
 use caliptra_common::mailbox_api::{
-    CommandId, MailboxReq, MailboxReqHeader, PopulateIdevCertReq, StashMeasurementReq,
+    CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CommandId, MailboxReq, MailboxReqHeader,
+    PopulateIdevCertReq, StashMeasurementReq,
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
@@ -282,6 +283,37 @@ fn test_certify_key_x509_cannot_be_called_from_pl1() {
         DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL),
     );
     assert!(resp.is_none());
+}
+
+#[test]
+fn test_certify_key_extended_cannot_be_called_from_pl1() {
+    let mut image_opts = ImageOptions::default();
+    image_opts.vendor_config.pl0_pauser = None;
+
+    let mut model = run_rt_test(None, Some(image_opts), None);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut certify_key_extended_cmd = MailboxReq::CertifyKeyExtended(CertifyKeyExtendedReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        certify_key_req: [0u8; CertifyKeyExtendedReq::CERTIFY_KEY_REQ_SIZE],
+        flags: CertifyKeyExtendedFlags::empty(),
+    });
+    certify_key_extended_cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::CERTIFY_KEY_EXTENDED),
+            certify_key_extended_cmd.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+        resp,
+    );
 }
 
 #[test]

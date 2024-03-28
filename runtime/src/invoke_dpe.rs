@@ -64,6 +64,7 @@ impl InvokeDpeCmd {
                     &drivers.cert_chain,
                     &nb,
                     &nf,
+                    None,
                 ),
             };
 

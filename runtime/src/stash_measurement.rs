@@ -57,6 +57,7 @@ impl StashMeasurementCmd {
                         &drivers.cert_chain,
                         &nb,
                         &nf,
+                        None,
                     ),
                 };
 

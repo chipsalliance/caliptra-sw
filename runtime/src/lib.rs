@@ -14,6 +14,7 @@ Abstract:
 #![cfg_attr(not(feature = "fip-self-test"), allow(unused))]
 #![no_std]
 mod capabilities;
+mod certify_key_extended;
 pub mod dice;
 mod disable;
 mod dpe_crypto;
@@ -27,6 +28,7 @@ mod invoke_dpe;
 mod pcr;
 mod populate_idev;
 mod stash_measurement;
+mod subject_alt_name;
 mod update;
 mod verify;
 
@@ -38,7 +40,9 @@ pub use drivers::Drivers;
 use mailbox::Mailbox;
 
 use crate::capabilities::CapabilitiesCmd;
+pub use crate::certify_key_extended::CertifyKeyExtendedCmd;
 pub use crate::hmac::Hmac;
+pub use crate::subject_alt_name::AddSubjectAltNameCmd;
 pub use caliptra_common::fips::FipsVersionCmd;
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
@@ -177,6 +181,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::POPULATE_IDEV_CERT => PopulateIDevIdCertCmd::execute(drivers, cmd_bytes),
         CommandId::GET_FMC_ALIAS_CERT => GetFmcAliasCertCmd::execute(drivers),
         CommandId::GET_RT_ALIAS_CERT => GetRtAliasCertCmd::execute(drivers),
+        CommandId::ADD_SUBJECT_ALT_NAME => AddSubjectAltNameCmd::execute(drivers, cmd_bytes),
+        CommandId::CERTIFY_KEY_EXTENDED => CertifyKeyExtendedCmd::execute(drivers, cmd_bytes),
         CommandId::INCREMENT_PCR_RESET_COUNTER => {
             IncrementPcrResetCounterCmd::execute(drivers, cmd_bytes)
         }
