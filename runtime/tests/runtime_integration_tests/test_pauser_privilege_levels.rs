@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_builder::{
-    firmware::{self, APP_WITH_UART, FMC_WITH_UART},
+    firmware::{APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
 };
 use caliptra_common::mailbox_api::{
@@ -371,7 +371,7 @@ fn test_stash_measurement_pl_context_thresholds() {
 #[test]
 fn test_measurement_log_pl_context_threshold() {
     let fuses = Fuses::default();
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
     let mut model = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,

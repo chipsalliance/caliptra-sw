@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_builder::firmware::{self, APP_WITH_UART, FMC_WITH_UART};
+use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::*;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, ModelError};
@@ -123,12 +123,12 @@ fn fips_test_init_base(
     // If rom was not provided, build it or get it from the specified path
     let rom = match std::env::var("FIPS_TEST_ROM_BIN") {
         // Build default rom if not provided and no path is specified
-        Err(_) => caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap(),
+        Err(_) => caliptra_builder::rom_for_fw_integration_tests().unwrap(),
         Ok(rom_path) => {
             // Read in the ROM file if a path was provided
             match std::fs::read(&rom_path) {
                 Err(why) => panic!("couldn't open {}: {}", rom_path, why),
-                Ok(rom) => rom,
+                Ok(rom) => rom.into(),
             }
         }
     };

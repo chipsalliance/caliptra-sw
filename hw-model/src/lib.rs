@@ -485,10 +485,10 @@ pub trait HwModel {
         let init_params_summary = run_params.init_params.summary();
 
         let mut hw: Self = HwModel::new_unbooted(run_params.init_params)?;
+        let hw_rev_id = hw.soc_ifc().cptra_hw_rev_id().read();
         println!(
-            "Using hardware-model {} trng={:?}",
-            hw.type_name(),
-            hw.trng_mode()
+            "Using hardware-model {} trng={:?} hw_rev_id={{cptra_generation=0x{:04x}, soc_stepping_id={:04x}}}",
+            hw.type_name(), hw.trng_mode(),  hw_rev_id.cptra_generation(), hw_rev_id.soc_stepping_id()
         );
         println!("{init_params_summary:#?}");
 

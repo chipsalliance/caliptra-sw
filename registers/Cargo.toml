@@ -8,8 +8,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-caliptra-registers-1_0 = { workspace = true }
-caliptra-registers-latest = { workspace = true, optional = true}
+caliptra-registers-1_0 = { workspace = true, optional = true }
+caliptra-registers-latest = { workspace = true }
 
 [features]
-hw-latest = ["dep:caliptra-registers-latest"]
+"hw-1.0" = ["dep:caliptra-registers-1_0"]

@@ -33,7 +33,7 @@ fn assert_output_contains(haystack: &str, needle: &str) {
 #[test]
 fn retrieve_csr_test() {
     const GENERATE_IDEVID_CSR: u32 = 1;
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -131,7 +131,7 @@ fn smoke_test() {
         .set_device_lifecycle(DeviceLifecycle::Production);
     let idevid_pubkey = get_idevid_pubkey();
 
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
     let image = caliptra_builder::build_and_sign_image(
         &firmware::FMC_WITH_UART,
         &firmware::APP_WITH_UART,
@@ -665,16 +665,44 @@ fn test_rt_wdt_timeout() {
     // watchdog as part of the runtime event loop.
     #![cfg_attr(feature = "fpga_realtime", ignore)]
 
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    const RUNTIME_BOOT_STATUS_READY: u32 = 0x600;
 
-    // TODO: Don't hard-code these; maybe measure from a previous boot?
-    let rt_wdt_timeout_cycles = if cfg!(any(feature = "verilator", feature = "fpga_realtime")) {
-        27_300_000
-    } else if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
-        3_300_000
-    } else {
-        3_200_000
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+
+    // Boot in debug mode to capture timestamps by boot status.
+    let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(false);
+    let init_params = caliptra_hw_model::InitParams {
+        rom: &rom,
+        security_state,
+        itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
+        etrng_responses: Box::new(RandomEtrngResponses(StdRng::seed_from_u64(0))),
+        ..Default::default()
     };
+
+    let image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
+
+    let mut hw = caliptra_hw_model::new(BootParams {
+        init_params,
+        ..Default::default()
+    })
+    .unwrap();
+
+    // WDT started shortly before KATs are started.
+    hw.step_until_boot_status(u32::from(RomBootStatus::KatStarted), true);
+    let wdt_start = hw.output().sink().now();
+
+    hw.upload_firmware(&image.to_bytes().unwrap()).unwrap();
+
+    hw.step_until_boot_status(RUNTIME_BOOT_STATUS_READY, true);
+    let fmc_target = hw.output().sink().now();
+
+    let rt_wdt_timeout_cycles = fmc_target - wdt_start - 5_000;
+    drop(hw);
 
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(true);
     let init_params = caliptra_hw_model::InitParams {
@@ -716,7 +744,7 @@ fn test_rt_wdt_timeout() {
 fn test_fmc_wdt_timeout() {
     const RTALIAS_BOOT_STATUS_BASE: u32 = 0x400;
 
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
 
     // Boot in debug mode to capture timestamps by boot status.
     let security_state = *caliptra_hw_model::SecurityState::default().set_debug_locked(false);

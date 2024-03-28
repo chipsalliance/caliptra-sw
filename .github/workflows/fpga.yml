@@ -19,6 +19,9 @@ on:
       fpga-itrng:
         default: true
         type: boolean
+      hw-version:
+        default: "latest"
+        type: string
       workflow_call:
         description: 'Set true for workflow_call'
         default: true
@@ -56,15 +59,11 @@ jobs:
           # Compute the key from the tree hash of the fpga directory and the rtl
           # root directory.
           if [ "${{ inputs.workflow_call }}" ]; then
-            if [[ "${{ inputs.extra-features }}" == *"hw-latest"* ]]; then
-              HW_DIR="latest"
-            else
-              HW_DIR="1.0"
-            fi
+            RTL_VERSION="${{ inputs.hw-version }}"
           else
-            HW_DIR="latest"
+            RTL_VERSION="latest"
           fi
-          echo "rtl_cache_key=$(git rev-parse HEAD:hw/fpga/src)-$(git hash-object hw/fpga/fpga_configuration.tcl)-$(cd hw/${HW_DIR}/rtl && git rev-parse HEAD:)-${{ inputs.fpga-itrng }}-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
+          echo "rtl_cache_key=$(git rev-parse HEAD:hw/fpga/src)-$(git hash-object hw/fpga/fpga_configuration.tcl)-$(cd hw/${RTL_VERSION}/rtl && git rev-parse HEAD:)-${{ inputs.fpga-itrng }}-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
 
           echo "kmod_cache_key=fpga-kernel-modules-$(git rev-parse HEAD:hw/fpga/io_module)-$(git rev-parse HEAD:hw/fpga/rom_backdoor)-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
 
@@ -166,7 +165,10 @@ jobs:
           if [ "${{ inputs.workflow_call }}" ]; then
             FEATURES=fpga_realtime,${{ inputs.extra-features }}
           else
-            FEATURES=fpga_realtime,itrng,hw-latest
+            FEATURES=fpga_realtime,itrng
+          fi
+          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
+            FEATURES=$FEATURES,hw-${{ inputs.hw-version }}
           fi
           cargo nextest archive \
             --features=${FEATURES} \
@@ -188,7 +190,12 @@ jobs:
       - name: Build test firmware
         run: |
           mkdir /tmp/caliptra-test-firmware
-          cargo run --release -p caliptra-builder -- --all_elfs /tmp/caliptra-test-firmware
+
+          FEATURES=""
+          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
+            FEATURES=hw-${{ inputs.hw-version }}
+          fi
+          cargo run --release -p caliptra-builder --features=${FEATURES} -- --all_elfs /tmp/caliptra-test-firmware
 
       - name: 'Upload test firmware artifact'
         uses: actions/upload-artifact@v4
@@ -288,15 +295,11 @@ jobs:
             ITRNG=TRUE
           fi
           if [ "${{ inputs.workflow_call }}" ]; then
-            if [[ "${{ inputs.extra-features }}" == *"hw-latest"* ]]; then
-              HW_LATEST=TRUE
-            else
-              HW_LATEST=FALSE
-            fi
+            RTL_VERSION="${{ inputs.hw-version }}"
           else
-            HW_LATEST=TRUE
+            RTL_VERSION="latest"
           fi
-          /fpga-tools/Xilinx/Vivado/2022.2/bin/vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE ITRNG=${ITRNG} HW_LATEST=${HW_LATEST}
+          /fpga-tools/Xilinx/Vivado/2022.2/bin/vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE ITRNG=${ITRNG} RTL_VERSION=${RTL_VERSION}
           if [ ! -f caliptra_build/caliptra_fpga.bin ]; then
             echo "Output file was not found; failing script"
             exit 1

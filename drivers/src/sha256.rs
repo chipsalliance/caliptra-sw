@@ -23,13 +23,13 @@ const SHA256_MAX_DATA_SIZE: usize = 1024 * 1024;
 
 pub trait Sha256DigestOp<'a> {
     fn update(&mut self, data: &[u8]) -> CaliptraResult<()>;
-    #[cfg(feature = "hw-latest")]
+    #[cfg(not(feature = "hw-1.0"))]
     fn update_wntz(&mut self, data: &[u8], w_value: u8, n_mode: bool) -> CaliptraResult<()>;
     /// # Arguments
     ///
     /// * `digest`  - result of the sha256 digest operation
     fn finalize(self, digest: &mut Array4x8) -> CaliptraResult<()>;
-    #[cfg(feature = "hw-latest")]
+    #[cfg(not(feature = "hw-1.0"))]
     /// # Arguments
     ///
     /// * `digest`  - result of the sha256 digest operation
@@ -240,7 +240,7 @@ impl Sha256 {
     /// * `buf_size` - Total buffer size
     /// * `w_value` - Winternitz W value.
     /// * `n_mode`  - Winternitz n value(SHA192/SHA256 --> n = 24/32)
-    #[cfg(feature = "hw-latest")]
+    #[cfg(not(feature = "hw-1.0"))]
     fn digest_wntz_partial_block(
         &mut self,
         slice: &[u8],
@@ -306,7 +306,7 @@ impl Sha256 {
     /// * `first` - Flag indicating if this is the first block
     /// * `w_value` - Winternitz W value.
     /// * `n_mode`  - Winternitz n value(SHA192/SHA256 --> n = 24/32)
-    #[cfg(feature = "hw-latest")]
+    #[cfg(not(feature = "hw-1.0"))]
     fn digest_wntz_block(
         &mut self,
         block: &[u8; SHA256_BLOCK_BYTE_SIZE],
@@ -324,7 +324,7 @@ impl Sha256 {
     // # Arguments
     //
     /// * `first` - Flag indicating if this is the first block
-    #[cfg(feature = "hw-latest")]
+    #[cfg(not(feature = "hw-1.0"))]
     fn digest_op(&mut self, first: bool) -> CaliptraResult<()> {
         let sha256 = self.sha256.regs_mut();
 
@@ -346,7 +346,7 @@ impl Sha256 {
     // # Arguments
     //
     /// * `first` - Flag indicating if this is the first block
-    #[cfg(not(feature = "hw-latest"))]
+    #[cfg(feature = "hw-1.0")]
     fn digest_op(&mut self, first: bool) -> CaliptraResult<()> {
         let sha256 = self.sha256.regs_mut();
 
@@ -363,7 +363,7 @@ impl Sha256 {
         Ok(())
     }
 
-    #[cfg(feature = "hw-latest")]
+    #[cfg(not(feature = "hw-1.0"))]
     // Perform the digest operation in the hardware
     //
     // # Arguments
@@ -463,7 +463,7 @@ impl<'a> Sha256DigestOp<'a> for Sha256DigestOpHw<'a> {
         Ok(())
     }
 
-    #[cfg(feature = "hw-latest")]
+    #[cfg(not(feature = "hw-1.0"))]
     /// Update the digest with data
     ///
     /// # Arguments
@@ -529,7 +529,7 @@ impl<'a> Sha256DigestOp<'a> for Sha256DigestOpHw<'a> {
     }
 
     /// Finalize the digest operations
-    #[cfg(feature = "hw-latest")]
+    #[cfg(not(feature = "hw-1.0"))]
     fn finalize_wntz(
         mut self,
         digest: &mut Array4x8,

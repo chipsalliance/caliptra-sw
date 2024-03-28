@@ -4,7 +4,7 @@ use caliptra_hw_model::{BootParams, HwModel, InitParams};
 
 #[test]
 fn test_hand_off() {
-    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
 
     let image = caliptra_builder::build_and_sign_image(
         &firmware::FMC_WITH_UART,

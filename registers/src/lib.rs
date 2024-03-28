@@ -2,8 +2,8 @@
 //
 #![no_std]
 
-#[cfg(feature = "hw-latest")]
+#[cfg(not(feature = "hw-1.0"))]
 pub use caliptra_registers_latest::*;
 
-#[cfg(not(feature = "hw-latest"))]
+#[cfg(feature = "hw-1.0")]
 pub use caliptra_registers_1_0::*;
