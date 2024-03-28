@@ -73,8 +73,6 @@ use dpe::{
 };
 pub use dpe::{context::ContextState, tci::TciMeasurement, DpeInstance, U8Bool, MAX_HANDLES};
 
-#[cfg(feature = "test_only_commands")]
-use crate::verify::HmacVerifyCmd;
 use crate::{
     dice::GetRtAliasCertCmd,
     pcr::{ExtendPcrCmd, GetPcrQuoteCmd},
@@ -182,8 +180,6 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             IncrementPcrResetCounterCmd::execute(drivers, cmd_bytes)
         }
         CommandId::QUOTE_PCRS => GetPcrQuoteCmd::execute(drivers, cmd_bytes),
-        #[cfg(feature = "test_only_commands")]
-        CommandId::TEST_ONLY_HMAC384_VERIFY => HmacVerifyCmd::execute(drivers, cmd_bytes),
         CommandId::VERSION => {
             FipsVersionCmd::execute(&drivers.soc_ifc).map(MailboxResp::FipsVersion)
         }

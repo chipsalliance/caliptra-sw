@@ -54,9 +54,7 @@ Checks that executing unimplemented mailbox commands fails | **test_unimplemente
 Test Scenario| Test Name | Runtime Error Code
 ---|---|---
 Tests some common ECDSA problems | **ecdsa_cmd_run_wycheproof** | N/A
-Tests some common HMAC problems | **hmac_cmd_run_wycheproof** | N/A
 Streams a test message to a hashing accelerator and calls the ecdsa_verify mailbox command to verify the test signature | **test_ecdsa_verify_cmd** | N/A
-Calls the hmac_verify mailbox command to verify a NIST HMAC-SHA384 test vector | **test_hmac_verify_cmd** | N/A
 Checks that the ecdsa_verify mailbox command fails if provided an invalid checksum | **test_ecdsa_verify_bad_chksum** | RUNTIME_INVALID_CHECKSUM
 
 <br><br>

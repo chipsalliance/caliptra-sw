@@ -14,20 +14,12 @@ Abstract:
 
 use crate::Drivers;
 use caliptra_cfi_derive_git::cfi_impl_fn;
-#[cfg(feature = "test_only_commands")]
-use caliptra_common::mailbox_api::HmacVerifyReq;
 use caliptra_common::mailbox_api::{EcdsaVerifyReq, MailboxResp};
 use caliptra_drivers::{
     Array4x12, CaliptraError, CaliptraResult, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
     Ecc384Signature,
 };
 
-#[cfg(feature = "test_only_commands")]
-use caliptra_drivers::{Hmac384Data, Hmac384Key, Trng};
-#[cfg(feature = "test_only_commands")]
-use caliptra_registers::{
-    csrng::CsrngReg, entropy_src::EntropySrcReg, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
-};
 use zerocopy::FromBytes;
 
 pub struct EcdsaVerifyCmd;
@@ -55,38 +47,6 @@ impl EcdsaVerifyCmd {
             let success = drivers.ecc384.verify(&pubkey, &digest, &sig)?;
             if success != Ecc384Result::Success {
                 return Err(CaliptraError::RUNTIME_ECDSA_VERIFY_FAILED);
-            }
-        } else {
-            return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
-        };
-
-        Ok(MailboxResp::default())
-    }
-}
-
-/// Handle the `TEST_ONLY_HMAC_SHA384_VERIFY` mailbox command
-#[cfg(feature = "test_only_commands")]
-pub struct HmacVerifyCmd;
-#[cfg(feature = "test_only_commands")]
-impl HmacVerifyCmd {
-    #[cfg(feature = "test_only_commands")]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        if let Some(cmd) = HmacVerifyReq::read_from(cmd_args) {
-            let key = Array4x12::from(cmd.key);
-            let key = Hmac384Key::from(&key);
-            let mut out_tag = Array4x12::default();
-            let len = cmd.len as usize;
-            if len > cmd.msg.len() {
-                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
-            }
-            let data = Hmac384Data::from(&cmd.msg[0..len]);
-
-            drivers
-                .hmac384
-                .hmac(&key, &data, &mut drivers.trng, (&mut out_tag).into())?;
-
-            if out_tag != Array4x12::from(cmd.tag) {
-                return Err(CaliptraError::RUNTIME_HMAC_VERIFY_FAILED);
             }
         } else {
             return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);

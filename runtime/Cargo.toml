@@ -45,12 +45,11 @@ cms.workspace = true
 wycheproof.workspace = true
 
 [features]
-default = ["std", "test_only_commands"]
+default = ["std"]
 emu = ["caliptra_common/emu", "caliptra-drivers/emu"]
 itrng = ["caliptra-hw-model/itrng"]
 riscv = ["caliptra-cpu/riscv"]
 std = ["ufmt/std", "caliptra_common/std"]
-test_only_commands = ["caliptra_common/test_only_commands"]
 slow_tests = []
 verilator = ["caliptra-hw-model/verilator"]
 fips_self_test=[]

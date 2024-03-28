@@ -54,18 +54,13 @@ pub const APP: FwId = FwId {
 pub const APP_WITH_UART: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["emu", "test_only_commands", "fips_self_test"],
+    features: &["emu", "fips_self_test"],
 };
 
 pub const APP_WITH_UART_FPGA: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &[
-        "emu",
-        "test_only_commands",
-        "fips_self_test",
-        "fpga_realtime",
-    ],
+    features: &["emu", "fips_self_test", "fpga_realtime"],
 };
 
 pub mod caliptra_builder_tests {
