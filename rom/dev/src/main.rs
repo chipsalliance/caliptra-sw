@@ -200,6 +200,9 @@ fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<()> {
     cprintln!("[kat] SHA2-256");
     Sha256Kat::default().execute(env.sha256)?;
 
+    #[cfg(feature = "fips-test-hooks")]
+    caliptra_drivers::FipsTestHook::halt(caliptra_drivers::FipsTestHook::HALT_SELF_TESTS);
+
     // ROM integrity check needs SHA2-256 KAT to be executed first per FIPS requirement AS10.20.
     let rom_info = unsafe { &CALIPTRA_ROM_INFO };
     rom_integrity_test(env, &rom_info.sha256_digest)?;

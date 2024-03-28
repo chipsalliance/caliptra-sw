@@ -102,6 +102,9 @@ impl Sha384 {
         }
         let digest = self.read_digest();
 
+        #[cfg(feature = "fips-test-hooks")]
+        let digest = crate::FipsTestHook::corrupt_data(crate::FipsTestHook::SHA384_ERROR, &digest);
+
         self.zeroize_internal();
 
         Ok(digest)

@@ -3,8 +3,12 @@
 use caliptra_builder::firmware::{self, APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::*;
-use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, ModelError};
+use caliptra_drivers::FipsTestHook;
+use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, ModelError, ShaAccMode};
 use zerocopy::{AsBytes, FromBytes};
+
+pub const HOOK_CODE_MASK: u32 = 0x00FF0000;
+pub const HOOK_CODE_OFFSET: u32 = 16;
 
 // =================================
 //       EXPECTED CONSTANTS
@@ -46,6 +50,7 @@ pub struct RtExpVals {
 }
 
 const RT_EXP_CURRENT: RtExpVals = RtExpVals {
+    // Update expected versions
     fmc_version: 0x0,
     fw_version: 0x0,
 };
@@ -150,6 +155,19 @@ fn fips_test_init_base(
     caliptra_hw_model::new(boot_params).unwrap()
 }
 
+// Initializes Caliptra
+// Builds and uses default ROM if not provided
+pub fn fips_test_init_to_boot_start(boot_params: Option<BootParams>) -> DefaultHwModel {
+    // Check that no fw_image is in boot params
+    if let Some(ref params) = boot_params {
+        if params.fw_image.is_some() {
+            panic!("No FW image should be provided when calling fips_test_init_to_boot_start")
+        }
+    }
+
+    fips_test_init_base(boot_params, None)
+}
+
 // Initializes caliptra to "ready_for_fw"
 // Builds and uses default ROM if not provided
 pub fn fips_test_init_to_rom(boot_params: Option<BootParams>) -> DefaultHwModel {
@@ -247,4 +265,46 @@ pub fn contains_some_data(data: &[u8]) -> bool {
     }
 
     false
+}
+
+pub fn verify_output_inhibited<T: HwModel>(hw: &mut T) {
+    // Check mailbox output is inhibited
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::VERSION), &[]),
+    };
+    match hw.mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes()) {
+        Ok(_) => panic!("Mailbox output is not inhibited"),
+        Err(ModelError::MailboxTimeout) => (),
+        Err(ModelError::UnableToLockMailbox) => (),
+        Err(_) => panic!("Unexpected error from mailbox_execute"),
+    }
+
+    // Check sha engine output is inhibited (ensure sha engine is locked)
+    let message: &[u8] = &[0x0, 0x1, 0x2, 0x3];
+    match hw.compute_sha512_acc_digest(message, ShaAccMode::Sha384Stream) {
+        Ok(_) => panic!("SHA engine is not locked, output is not inhibited"),
+        Err(ModelError::UnableToLockSha512Acc) => (),
+        Err(_) => panic!("Unexpected error from compute_sha512_acc_digest"),
+    }
+}
+
+pub fn hook_code_read<T: HwModel>(hw: &mut T) -> u8 {
+    ((hw.soc_ifc().cptra_dbg_manuf_service_reg().read() & HOOK_CODE_MASK) >> HOOK_CODE_OFFSET) as u8
+}
+
+pub fn hook_code_write<T: HwModel>(hw: &mut T, code: u8) {
+    let val = (hw.soc_ifc().cptra_dbg_manuf_service_reg().read() & !(HOOK_CODE_MASK))
+        | ((code as u32) << HOOK_CODE_OFFSET);
+    hw.soc_ifc().cptra_dbg_manuf_service_reg().write(|_| val);
+}
+
+pub fn hook_wait_for_complete<T: HwModel>(hw: &mut T) {
+    while hook_code_read(hw) != FipsTestHook::COMPLETE {
+        // Give FW time to run
+        let mut cycle_count = 1000;
+        hw.step_until(|_| -> bool {
+            cycle_count -= 1;
+            cycle_count == 0
+        });
+    }
 }
