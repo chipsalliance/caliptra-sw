@@ -7,8 +7,22 @@ on:
   - cron: '11 10 * * 2-6'
 
 jobs:
+  slow-tests:
+    name: Slow Tests
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+      - uses: dtolnay/rust-toolchain@stable
+          
+      - name: Execute slow tests
+        run: cargo test --features=slow_tests
+        
   rtl-repo-sync:
     name: RTL Repo Sync
+    needs: slow-tests
     uses: ./.github/workflows/rtl-repo-sync.yml
     permissions:
       contents: write
