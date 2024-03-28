@@ -7,27 +7,27 @@ use caliptra_test_harness_types as harness;
 
 fn run_fw_elf(elf: &[u8]) -> DefaultHwModel {
     let rom = caliptra_builder::elf2rom(elf).unwrap();
-    let model = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let model = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             random_sram_puf: false,
             ..Default::default()
         },
-        ..Default::default()
-    })
+        BootParams::default(),
+    )
     .unwrap();
     model
 }
 
 fn run_fw_elf_with_rand_puf(elf: &[u8]) -> DefaultHwModel {
     let rom = caliptra_builder::elf2rom(elf).unwrap();
-    let model = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let model = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             ..Default::default()
         },
-        ..Default::default()
-    })
+        BootParams::default(),
+    )
     .unwrap();
     model
 }

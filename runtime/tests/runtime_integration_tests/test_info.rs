@@ -59,11 +59,13 @@ fn test_fw_info() {
         caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts10)
             .unwrap();
 
-    let mut model = caliptra_hw_model::new(BootParams {
+    let mut model = caliptra_hw_model::new(
         init_params,
-        fw_image: Some(&image.to_bytes().unwrap()),
-        ..Default::default()
-    })
+        BootParams {
+            fw_image: Some(&image.to_bytes().unwrap()),
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     let rom_info = find_rom_info(rom).unwrap();

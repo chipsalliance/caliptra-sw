@@ -2,28 +2,30 @@
 
 use caliptra_builder::firmware::{self, APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::ImageOptions;
-use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel};
+use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
 
 // Generic helper to boot to ROM or runtime
 // Builds ROM, if not provided
 // HW Model will boot to runtime if image is provided
 fn fips_test_init_base(
+    init_params: Option<InitParams>,
     boot_params: Option<BootParams>,
     fw_image_override: Option<&[u8]>,
 ) -> DefaultHwModel {
     // Create params if not provided
     let mut boot_params = boot_params.unwrap_or(BootParams::default());
+    let mut init_params = init_params.unwrap_or(InitParams::default());
 
     // Check that ROM was not provided if the immutable_rom feature is set
     #[cfg(feature = "test_env_immutable_rom")]
-    if boot_params.init_params.rom != <&[u8]>::default() {
+    if init_params.rom != <&[u8]>::default() {
         panic!("FIPS_TEST_SUITE ERROR: ROM cannot be provided/changed when immutable_ROM feature is set")
     }
 
     // Build default rom if not provided
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    if boot_params.init_params.rom == <&[u8]>::default() {
-        boot_params.init_params.rom = &rom;
+    if init_params.rom == <&[u8]>::default() {
+        init_params.rom = &rom;
     }
 
     // Add fw image override to boot params if provided
@@ -36,20 +38,23 @@ fn fips_test_init_base(
     }
 
     // Create the model
-    caliptra_hw_model::new(boot_params).unwrap()
+    caliptra_hw_model::new(init_params, boot_params).unwrap()
 }
 
 // Initializes caliptra to "ready_for_fw"
 // Builds and uses default ROM if not provided
-pub fn fips_test_init_to_rom(boot_params: Option<BootParams>) -> DefaultHwModel {
+pub fn fips_test_init_to_rom(
+    init_params: Option<InitParams>,
+    boot_params: Option<BootParams>,
+) -> DefaultHwModel {
     // Check that no fw_image is in boot params
-    if let Some(ref params) = boot_params {
-        if params.fw_image.is_some() {
+    if let Some(ref boot_params) = boot_params {
+        if boot_params.fw_image.is_some() {
             panic!("No FW image should be provided when calling fips_test_init_to_rom")
         }
     }
 
-    let mut model = fips_test_init_base(boot_params, None);
+    let mut model = fips_test_init_base(init_params, boot_params, None);
 
     // Step to ready for FW in ROM
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
@@ -59,11 +64,14 @@ pub fn fips_test_init_to_rom(boot_params: Option<BootParams>) -> DefaultHwModel 
 
 // Initializes Caliptra to runtime
 // Builds and uses default ROM and FW if not provided
-pub fn fips_test_init_to_rt(boot_params: Option<BootParams>) -> DefaultHwModel {
+pub fn fips_test_init_to_rt(
+    init_params: Option<InitParams>,
+    boot_params: Option<BootParams>,
+) -> DefaultHwModel {
     let mut build_fw = true;
 
-    if let Some(ref params) = boot_params {
-        if params.fw_image.is_some() {
+    if let Some(ref boot_params) = boot_params {
+        if boot_params.fw_image.is_some() {
             build_fw = false;
         }
     }
@@ -76,9 +84,13 @@ pub fn fips_test_init_to_rt(boot_params: Option<BootParams>) -> DefaultHwModel {
             ImageOptions::default(),
         )
         .unwrap();
-        fips_test_init_base(boot_params, Some(&fw_image.to_bytes().unwrap()))
+        fips_test_init_base(
+            init_params,
+            boot_params,
+            Some(&fw_image.to_bytes().unwrap()),
+        )
     } else {
-        fips_test_init_base(boot_params, None)
+        fips_test_init_base(init_params, boot_params, None)
     }
 
     // HW model will complete FW upload cmd, nothing to wait for

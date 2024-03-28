@@ -170,11 +170,12 @@ pub fn fips_cmd_test_rom() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
+    let init_params = InitParams {
+        security_state,
+        ..Default::default()
+    };
+
     let boot_params = BootParams {
-        init_params: InitParams {
-            security_state,
-            ..Default::default()
-        },
         fuses: Fuses {
             fmc_key_manifest_svn: 0b1111111,
             ..Default::default()
@@ -182,7 +183,7 @@ pub fn fips_cmd_test_rom() {
         ..Default::default()
     };
 
-    let mut hw = fips_test_init_to_rom(Some(boot_params));
+    let mut hw = fips_test_init_to_rom(Some(init_params), Some(boot_params));
 
     test_fips_cmds(&mut hw, 0, 0);
 }
@@ -192,15 +193,12 @@ pub fn fips_cmd_test_rom() {
 pub fn fips_cmd_test_fake_rom() {
     let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
 
-    let boot_params = BootParams {
-        init_params: InitParams {
-            rom: &rom,
-            ..Default::default()
-        },
+    let init_params = InitParams {
+        rom: &rom,
         ..Default::default()
     };
 
-    let mut hw = fips_test_init_to_rom(Some(boot_params));
+    let mut hw = fips_test_init_to_rom(Some(init_params), None);
 
     test_fips_cmds(&mut hw, 0, 0);
 }
@@ -230,20 +228,22 @@ pub fn fips_cmd_test_rt() {
     let owner_pk_hash =
         bytes_to_be_words_48(&sha384(image.manifest.preamble.owner_pub_keys.as_bytes()));
 
-    let mut hw = fips_test_init_to_rt(Some(BootParams {
-        init_params: InitParams {
+    let mut hw = fips_test_init_to_rt(
+        Some(InitParams {
             security_state,
             ..Default::default()
-        },
-        fuses: Fuses {
-            key_manifest_pk_hash: vendor_pk_hash,
-            owner_pk_hash,
-            fmc_key_manifest_svn: 0b1111111,
+        }),
+        Some(BootParams {
+            fuses: Fuses {
+                key_manifest_pk_hash: vendor_pk_hash,
+                owner_pk_hash,
+                fmc_key_manifest_svn: 0b1111111,
+                ..Default::default()
+            },
+            fw_image: Some(&image.to_bytes().unwrap()),
             ..Default::default()
-        },
-        fw_image: Some(&image.to_bytes().unwrap()),
-        ..Default::default()
-    }));
+        }),
+    );
 
     while !hw.soc_ifc().cptra_flow_status().read().ready_for_runtime() {
         hw.step();
@@ -254,7 +254,7 @@ pub fn fips_cmd_test_rt() {
 
 #[test]
 pub fn fips_cmd_bad_params_rom() {
-    let mut hw = fips_test_init_to_rom(None);
+    let mut hw = fips_test_init_to_rom(None, None);
 
     // Send invalid (incorrect size) command payload to cause a failure
     let resp = hw.mailbox_execute(u32::from(CommandId::VERSION), &[]);
@@ -268,7 +268,7 @@ pub fn fips_cmd_bad_params_rom() {
 
 #[test]
 pub fn fips_cmd_bad_params_rt() {
-    let mut hw = fips_test_init_to_rt(None);
+    let mut hw = fips_test_init_to_rt(None, None);
 
     // Send invalid (incorrect size) command payload to cause a failure
     let resp = hw.mailbox_execute(u32::from(CommandId::VERSION), &[]);

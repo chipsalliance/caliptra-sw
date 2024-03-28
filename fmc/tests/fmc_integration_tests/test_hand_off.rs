@@ -13,14 +13,16 @@ fn test_hand_off() {
     )
     .unwrap();
 
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             ..Default::default()
         },
-        fw_image: Some(&image.to_bytes().unwrap()),
-        ..Default::default()
-    })
+        BootParams {
+            fw_image: Some(&image.to_bytes().unwrap()),
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     let mut output = vec![];

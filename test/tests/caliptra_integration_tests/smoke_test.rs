@@ -34,15 +34,17 @@ fn assert_output_contains(haystack: &str, needle: &str) {
 fn retrieve_csr_test() {
     const GENERATE_IDEVID_CSR: u32 = 1;
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             security_state: *SecurityState::default().set_debug_locked(true),
             ..Default::default()
         },
-        initial_dbg_manuf_service_reg: GENERATE_IDEVID_CSR,
-        ..Default::default()
-    })
+        BootParams {
+            initial_dbg_manuf_service_reg: GENERATE_IDEVID_CSR,
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     let mut txn = hw.wait_for_mailbox_receive().unwrap();
@@ -153,16 +155,18 @@ fn smoke_test() {
         lms_verify: true,
         ..Default::default()
     };
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             security_state,
             ..Default::default()
         },
-        fuses,
-        fw_image: Some(&image.to_bytes().unwrap()),
-        ..Default::default()
-    })
+        BootParams {
+            fuses,
+            fw_image: Some(&image.to_bytes().unwrap()),
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
@@ -686,11 +690,7 @@ fn test_rt_wdt_timeout() {
     )
     .unwrap();
 
-    let mut hw = caliptra_hw_model::new(BootParams {
-        init_params,
-        ..Default::default()
-    })
-    .unwrap();
+    let mut hw = caliptra_hw_model::new(init_params, BootParams::default()).unwrap();
 
     // WDT started shortly before KATs are started.
     hw.step_until_boot_status(u32::from(RomBootStatus::KatStarted), true);
@@ -708,13 +708,17 @@ fn test_rt_wdt_timeout() {
     let init_params = caliptra_hw_model::InitParams {
         rom: &rom,
         security_state,
-        wdt_timeout_cycles: rt_wdt_timeout_cycles,
         itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
         etrng_responses: Box::new(RandomEtrngResponses(StdRng::seed_from_u64(0))),
         ..Default::default()
     };
 
-    let mut hw = run_test(None, None, Some(init_params));
+    let boot_params = caliptra_hw_model::BootParams {
+        wdt_timeout_cycles: rt_wdt_timeout_cycles,
+        ..Default::default()
+    };
+
+    let mut hw = run_test(None, None, Some(init_params), Some(boot_params));
 
     hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
     assert_eq!(
@@ -763,10 +767,12 @@ fn test_fmc_wdt_timeout() {
     )
     .unwrap();
 
-    let mut hw = caliptra_hw_model::new(BootParams {
+    let mut hw = caliptra_hw_model::new(
         init_params,
-        ..Default::default()
-    })
+        BootParams {
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     // WDT started shortly before KATs are started.
@@ -785,13 +791,17 @@ fn test_fmc_wdt_timeout() {
     let init_params = caliptra_hw_model::InitParams {
         rom: &rom,
         security_state,
-        wdt_timeout_cycles: fmc_wdt_timeout_cycles,
         itrng_nibbles: Box::new(RandomNibbles(StdRng::seed_from_u64(0))),
         etrng_responses: Box::new(RandomEtrngResponses(StdRng::seed_from_u64(0))),
         ..Default::default()
     };
 
-    let mut hw = caliptra_test::run_test(None, None, Some(init_params));
+    let boot_params = caliptra_hw_model::BootParams {
+        wdt_timeout_cycles: fmc_wdt_timeout_cycles,
+        ..Default::default()
+    };
+
+    let mut hw = caliptra_test::run_test(None, None, Some(init_params), Some(boot_params));
 
     hw.step_until(|m| m.soc_ifc().cptra_fw_error_fatal().read() != 0);
     assert_eq!(

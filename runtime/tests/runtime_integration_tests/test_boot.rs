@@ -167,15 +167,17 @@ fn test_boot_tci_data() {
 fn test_measurement_in_measurement_log_added_to_dpe() {
     let fuses = Fuses::default();
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    let mut model = caliptra_hw_model::new(BootParams {
-        init_params: InitParams {
+    let mut model = caliptra_hw_model::new(
+        InitParams {
             rom: &rom,
             security_state: SecurityState::from(fuses.life_cycle as u32),
             ..Default::default()
         },
-        fuses,
-        ..Default::default()
-    })
+        BootParams {
+            fuses,
+            ..Default::default()
+        },
+    )
     .unwrap();
 
     let image_bundle = caliptra_builder::build_and_sign_image(
