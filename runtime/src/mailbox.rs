@@ -53,9 +53,14 @@ impl Mailbox {
     }
 
     /// Set the length of the current mailbox data in bytes
-    pub fn set_dlen(&mut self, len: u32) {
+    pub fn set_dlen(&mut self, len: u32) -> CaliptraResult<()> {
+        if len > memory_layout::MBOX_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+        }
+
         let mbox = self.mbox.regs_mut();
         mbox.dlen().write(|_| len);
+        Ok(())
     }
 
     /// Get the length of the current mailbox data in words
@@ -141,7 +146,7 @@ impl Mailbox {
 
     /// Write a word-aligned `buf` to the mailbox
     pub fn write_response(&mut self, buf: &[u8]) -> CaliptraResult<()> {
-        self.set_dlen(buf.len() as u32);
+        self.set_dlen(buf.len() as u32)?;
         self.copy_bytes_to_mbox(buf);
         Ok(())
     }
