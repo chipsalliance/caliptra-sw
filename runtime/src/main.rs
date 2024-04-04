@@ -91,7 +91,7 @@ pub extern "C" fn entry_point() -> ! {
     if let Err(e) = caliptra_runtime::handle_mailbox_commands(&mut drivers) {
         handle_fatal_error(e.into());
     }
-    loop {}
+    caliptra_drivers::ExitCtrl::exit(0xff);
 }
 
 #[no_mangle]

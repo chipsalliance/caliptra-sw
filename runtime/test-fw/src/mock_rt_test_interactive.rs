@@ -116,7 +116,8 @@ fn read_pcr_log(persistent_data: &PersistentDataAccessor, mbox: &mut Mailbox) {
         (core::mem::size_of::<PcrLogEntry>() * pcr_entry_count)
             .try_into()
             .unwrap(),
-    );
+    )
+    .unwrap();
     mbox.set_status(MboxStatusE::DataReady);
 }
 
@@ -136,7 +137,7 @@ fn read_pcrs(mbox: &mut Mailbox) {
         swap_word_bytes_inplace(&mut pcr_bytes);
         mbox.copy_bytes_to_mbox(pcr.as_bytes()).unwrap();
     }
-    mbox.set_dlen((48 * PCR_COUNT).try_into().unwrap());
+    mbox.set_dlen((48 * PCR_COUNT).try_into().unwrap()).unwrap();
     mbox.set_status(MboxStatusE::DataReady);
 }
 
