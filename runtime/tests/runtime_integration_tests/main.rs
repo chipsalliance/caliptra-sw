@@ -9,6 +9,7 @@ mod test_ecdsa;
 mod test_fips;
 mod test_info;
 mod test_invoke_dpe;
+mod test_lms;
 mod test_mailbox;
 mod test_panic_missing;
 mod test_pauser_privilege_levels;

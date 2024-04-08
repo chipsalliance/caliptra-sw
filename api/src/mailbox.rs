@@ -16,6 +16,7 @@ impl CommandId {
     pub const GET_FMC_ALIAS_CERT: Self = Self(0x43455246); // "CERF"
     pub const GET_RT_ALIAS_CERT: Self = Self(0x43455252); // "CERR"
     pub const ECDSA384_VERIFY: Self = Self(0x53494756); // "SIGV"
+    pub const LMS_VERIFY: Self = Self(0x4C4D5356); // "LMSV"
     pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
     pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
     pub const DISABLE_ATTESTATION: Self = Self(0x4453424C); // "DSBL"
@@ -218,6 +219,7 @@ impl Default for MailboxResp {
 #[allow(clippy::large_enum_variant)]
 pub enum MailboxReq {
     EcdsaVerify(EcdsaVerifyReq),
+    LmsVerify(LmsVerifyReq),
     GetLdevCert(GetLdevCertReq),
     StashMeasurement(StashMeasurementReq),
     InvokeDpeCommand(InvokeDpeReq),
@@ -240,6 +242,7 @@ impl MailboxReq {
     pub fn as_bytes(&self) -> CaliptraResult<&[u8]> {
         match self {
             MailboxReq::EcdsaVerify(req) => Ok(req.as_bytes()),
+            MailboxReq::LmsVerify(req) => Ok(req.as_bytes()),
             MailboxReq::StashMeasurement(req) => Ok(req.as_bytes()),
             MailboxReq::InvokeDpeCommand(req) => req.as_bytes_partial(),
             MailboxReq::FipsVersion(req) => Ok(req.as_bytes()),
@@ -262,6 +265,7 @@ impl MailboxReq {
     pub fn as_bytes_mut(&mut self) -> CaliptraResult<&mut [u8]> {
         match self {
             MailboxReq::EcdsaVerify(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::LmsVerify(req) => Ok(req.as_bytes_mut()),
             MailboxReq::GetLdevCert(req) => Ok(req.as_bytes_mut()),
             MailboxReq::StashMeasurement(req) => Ok(req.as_bytes_mut()),
             MailboxReq::InvokeDpeCommand(req) => req.as_bytes_partial_mut(),
@@ -284,6 +288,7 @@ impl MailboxReq {
     pub fn cmd_code(&self) -> CommandId {
         match self {
             MailboxReq::EcdsaVerify(_) => CommandId::ECDSA384_VERIFY,
+            MailboxReq::LmsVerify(_) => CommandId::LMS_VERIFY,
             MailboxReq::GetLdevCert(_) => CommandId::GET_LDEV_CERT,
             MailboxReq::StashMeasurement(_) => CommandId::STASH_MEASUREMENT,
             MailboxReq::InvokeDpeCommand(_) => CommandId::INVOKE_DPE,
@@ -508,6 +513,26 @@ pub struct EcdsaVerifyReq {
 }
 impl Request for EcdsaVerifyReq {
     const ID: CommandId = CommandId::ECDSA384_VERIFY;
+    type Resp = MailboxRespHeader;
+}
+// No command-specific output args
+
+// LMS_SIGNATURE_VERIFY
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct LmsVerifyReq {
+    pub hdr: MailboxReqHeader,
+    pub pub_key_tree_type: u32,
+    pub pub_key_ots_type: u32,
+    pub pub_key_id: [u8; 16],
+    pub pub_key_digest: [u8; 24],
+    pub signature_q: u32,
+    pub signature_ots: [u8; 1252],
+    pub signature_tree_type: u32,
+    pub signature_tree_path: [u8; 360],
+}
+impl Request for LmsVerifyReq {
+    const ID: CommandId = CommandId::LMS_VERIFY;
     type Resp = MailboxRespHeader;
 }
 // No command-specific output args
