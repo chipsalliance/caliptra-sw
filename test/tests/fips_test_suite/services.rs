@@ -6,6 +6,7 @@ use caliptra_common::mailbox_api::*;
 use caliptra_hw_model::{BootParams, HwModel, ShaAccMode};
 use caliptra_image_types::ImageManifest;
 use common::*;
+use dpe::{commands::*, context::ContextHandle, response::Response, DPE_PROFILE};
 use zerocopy::{AsBytes, FromBytes};
 
 pub fn exec_cmd_version<T: HwModel>(hw: &mut T, fmc_version: u16, app_version: u32) {
@@ -412,6 +413,129 @@ pub fn exec_cmd_extend_pcr<T: HwModel>(hw: &mut T) {
     .unwrap();
 }
 
+pub fn exec_dpe_get_profile<T: HwModel>(hw: &mut T) {
+    let resp = execute_dpe_cmd(hw, &mut Command::GetProfile);
+
+    let Response::GetProfile(get_profile_resp) = resp else {
+        panic!("Wrong response type!");
+    };
+
+    assert_eq!(get_profile_resp.resp_hdr.profile, DPE_PROFILE as u32);
+}
+
+pub fn exec_dpe_init_ctx<T: HwModel>(hw: &mut T) {
+    let resp = execute_dpe_cmd(hw, &mut Command::InitCtx(InitCtxCmd::new_simulation()));
+
+    let Response::InitCtx(init_ctx_resp) = resp else {
+        panic!("Wrong response type!");
+    };
+    assert!(contains_some_data(&init_ctx_resp.handle.0));
+}
+
+pub fn exec_dpe_derive_ctx<T: HwModel>(hw: &mut T) {
+    let derive_context_cmd = DeriveContextCmd {
+        handle: ContextHandle::default(),
+        data: [0u8; 48],
+        flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT | DeriveContextFlags::CHANGE_LOCALITY,
+        tci_type: 0,
+        target_locality: 0,
+    };
+    let resp = execute_dpe_cmd(hw, &mut Command::DeriveContext(derive_context_cmd));
+    let Response::DeriveContext(derive_ctx_resp) = resp else {
+        panic!("Wrong response type!");
+    };
+
+    assert!(contains_some_data(&derive_ctx_resp.handle.0));
+}
+
+pub fn exec_dpe_certify_key<T: HwModel>(hw: &mut T) {
+    pub const TEST_LABEL: [u8; 48] = [
+        48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26,
+        25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
+    ];
+
+    let certify_key_cmd = CertifyKeyCmd {
+        handle: ContextHandle::default(),
+        label: TEST_LABEL,
+        flags: CertifyKeyFlags::empty(),
+        format: CertifyKeyCmd::FORMAT_CSR,
+    };
+    let resp = execute_dpe_cmd(hw, &mut Command::CertifyKey(certify_key_cmd));
+
+    let Response::CertifyKey(certify_key_resp) = resp else {
+        panic!("Wrong response type!");
+    };
+
+    assert_eq!(
+        certify_key_resp.new_context_handle.0,
+        [0u8; ContextHandle::SIZE]
+    );
+    assert!(contains_some_data(&certify_key_resp.derived_pubkey_x));
+    assert!(contains_some_data(&certify_key_resp.derived_pubkey_y));
+    assert_ne!(0, certify_key_resp.cert_size);
+    assert!(contains_some_data(&certify_key_resp.cert));
+}
+
+pub fn exec_dpe_sign<T: HwModel>(hw: &mut T) {
+    pub const TEST_LABEL: [u8; 48] = [
+        48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26,
+        25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
+    ];
+    pub const TEST_DIGEST: [u8; 48] = [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+        26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
+    ];
+    let sign_cmd = SignCmd {
+        handle: ContextHandle::default(),
+        label: TEST_LABEL,
+        flags: SignFlags::empty(),
+        digest: TEST_DIGEST,
+    };
+
+    let resp = execute_dpe_cmd(hw, &mut Command::Sign(sign_cmd));
+
+    let Response::Sign(sign_resp) = resp else {
+        panic!("Wrong response type!");
+    };
+
+    assert!(contains_some_data(&sign_resp.sig_r_or_hmac));
+    assert!(contains_some_data(&sign_resp.sig_s));
+}
+
+pub fn exec_rotate_ctx<T: HwModel>(hw: &mut T) {
+    let rotate_ctx_cmd = RotateCtxCmd {
+        handle: ContextHandle::default(),
+        flags: RotateCtxFlags::empty(),
+    };
+    let resp = execute_dpe_cmd(hw, &mut Command::RotateCtx(rotate_ctx_cmd));
+
+    let Response::RotateCtx(rotate_ctx_resp) = resp else {
+        panic!("Wrong response type!");
+    };
+    assert!(contains_some_data(&rotate_ctx_resp.handle.0));
+}
+
+pub fn exec_get_cert_chain<T: HwModel>(hw: &mut T) {
+    let get_cert_chain_cmd = GetCertificateChainCmd {
+        offset: 0,
+        size: 2048,
+    };
+    let resp = execute_dpe_cmd(hw, &mut Command::GetCertificateChain(get_cert_chain_cmd));
+
+    let Response::GetCertificateChain(get_cert_chain_resp) = resp else {
+        panic!("Wrong response type!");
+    };
+    assert_ne!(0, get_cert_chain_resp.certificate_size);
+    assert!(contains_some_data(&get_cert_chain_resp.certificate_chain));
+}
+
+pub fn exec_destroy_ctx<T: HwModel>(hw: &mut T) {
+    let destroy_ctx_cmd = DestroyCtxCmd {
+        handle: ContextHandle::default(),
+    };
+    execute_dpe_cmd(hw, &mut Command::DestroyCtx(destroy_ctx_cmd));
+}
+
 pub fn exec_cmd_disable_attestation<T: HwModel>(hw: &mut T) {
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(
@@ -554,7 +678,14 @@ pub fn execute_all_services_rt() {
     exec_cmd_extend_pcr(&mut hw);
 
     // INVOKE_DPE
-    // TODO: Invoke all supported DPE commands
+    exec_dpe_get_profile(&mut hw);
+    exec_dpe_init_ctx(&mut hw);
+    exec_dpe_derive_ctx(&mut hw);
+    exec_dpe_certify_key(&mut hw);
+    exec_dpe_sign(&mut hw);
+    exec_rotate_ctx(&mut hw);
+    exec_get_cert_chain(&mut hw);
+    exec_destroy_ctx(&mut hw);
 
     // (Do these last)
     // DISABLE_ATTESTATION

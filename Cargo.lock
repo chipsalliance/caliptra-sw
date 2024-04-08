@@ -807,6 +807,7 @@ dependencies = [
  "caliptra-image-types",
  "caliptra-runtime",
  "caliptra_common",
+ "dpe",
  "elf",
  "openssl",
  "rand",

@@ -22,6 +22,7 @@ openssl.workspace = true
 rand.workspace = true
 zerocopy.workspace = true
 caliptra-hw-model.workspace = true
+dpe.workspace = true
 
 [dev-dependencies]
 caliptra-builder.workspace = true
