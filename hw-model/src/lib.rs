@@ -241,7 +241,6 @@ fn trace_path_or_env(trace_path: Option<PathBuf>) -> Option<PathBuf> {
 }
 
 pub struct BootParams<'a> {
-    pub init_params: InitParams<'a>,
     pub fuses: Fuses,
     pub fw_image: Option<&'a [u8]>,
     pub initial_dbg_manuf_service_reg: u32,
@@ -254,7 +253,6 @@ pub struct BootParams<'a> {
 impl<'a> Default for BootParams<'a> {
     fn default() -> Self {
         Self {
-            init_params: Default::default(),
             fuses: Default::default(),
             fw_image: Default::default(),
             initial_dbg_manuf_service_reg: Default::default(),
@@ -595,8 +593,14 @@ pub trait HwModel {
 
     /// Toggle reset pins and wait for ready_for_fuses
     fn warm_reset(&mut self) {
-        // sw-emulator lacks support: https://github.com/chipsalliance/caliptra-sw/issues/540
+        // To be overridden by HwModel implementations that support this
         panic!("warm_reset unimplemented");
+    }
+
+    /// Toggle reset/pwrgood pins and wait for ready_for_fuses
+    fn cold_reset(&mut self) {
+        // To be overridden by HwModel implementations that support this
+        panic!("cold_reset unimplemented");
     }
 
     /// Returns true if the microcontroller has signalled that it is ready for
@@ -1701,5 +1705,25 @@ mod tests {
             ..Default::default()
         });
         assert_eq!(resp, Err(ModelError::MailboxNoResponseData));
+    }
+
+    #[test]
+    #[cfg(any(feature = "verilator", feature = "fpga_realtime"))]
+    pub fn test_cold_reset() {
+        let mut model = caliptra_hw_model::new(
+            InitParams {
+                rom: &gen_image_hi(),
+                ..Default::default()
+            },
+            BootParams::default(),
+        )
+        .unwrap();
+        model.step_until_output("hii").unwrap();
+
+        model.cold_reset();
+
+        model.boot(BootParams::default()).unwrap();
+
+        model.step_until_output("hii").unwrap();
     }
 }
