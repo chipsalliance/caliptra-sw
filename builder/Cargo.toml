@@ -12,7 +12,7 @@ anyhow.workspace = true
 caliptra-image-elf.workspace= true
 caliptra-image-fake-keys.workspace = true
 caliptra-image-gen.workspace = true
-caliptra-image-openssl.workspace = true
+caliptra-image-crypto.workspace = true
 caliptra-image-types.workspace = true
 clap.workspace = true
 elf.workspace = true
@@ -22,8 +22,11 @@ once_cell.workspace = true
 zerocopy.workspace = true
 
 [features]
+default = ["openssl"]
 slow_tests = []
 "hw-1.0" = []
+openssl = ["caliptra-image-crypto/openssl"]
+rustcrypto = ["caliptra-image-crypto/rustcrypto"]
 
 [[bin]]
 name = "image"
