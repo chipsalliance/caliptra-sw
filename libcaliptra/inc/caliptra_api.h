@@ -120,6 +120,9 @@ int caliptra_get_rt_alias_cert(struct caliptra_get_rt_alias_cert_resp *resp, boo
 // ECDSA384 Verify
 int caliptra_ecdsa384_verify(struct caliptra_ecdsa_verify_req *req, bool async);
 
+// LMS Verify
+int caliptra_lms_verify(struct caliptra_lms_verify_req *req, bool async);
+
 // Stash measurement
 int caliptra_stash_measurement(struct caliptra_stash_measurement_req *req, struct caliptra_stash_measurement_resp *resp, bool async);
 
@@ -146,6 +149,12 @@ int caliptra_quote_pcrs(struct caliptra_quote_pcrs_req *req, struct caliptra_quo
 
 // Extend PCR
 int caliptra_extend_pcr(struct caliptra_extend_pcr_req *req, bool async);
+
+// Add subject alt name
+int caliptra_add_subject_alt_name(struct caliptra_add_subject_alt_name_req *req, bool async);
+
+// Certify key extended
+int caliptra_certify_key_extended(struct caliptra_certify_key_extended_req *req, struct caliptra_certify_key_extended_resp *resp, bool async);
 
 // FIPS version
 int caliptra_fips_version(struct caliptra_fips_version_resp *resp, bool async);

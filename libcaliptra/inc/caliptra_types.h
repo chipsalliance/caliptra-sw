@@ -106,6 +106,18 @@ struct caliptra_ecdsa_verify_req {
     uint8_t signature_s[48];
 };
 
+struct caliptra_lms_verify_req {
+    struct caliptra_req_header hdr;
+    uint32_t pub_key_tree_type;
+    uint32_t pub_key_ots_type;
+    uint8_t pub_key_id[16];
+    uint8_t pub_key_digest[24];
+    uint32_t signature_q;
+    uint8_t signature_ots[1252];
+    uint32_t signature_tree_type;
+    uint8_t signature_tree_path[360];
+};
+
 struct caliptra_stash_measurement_req {
     struct caliptra_req_header hdr;
     uint8_t metadata[4];
@@ -175,6 +187,23 @@ struct caliptra_extend_pcr_req {
     struct caliptra_req_header hdr;
     uint32_t pcr_idx;
     uint8_t data[48];
+};
+
+struct caliptra_add_subject_alt_name_req {
+    struct caliptra_req_header hdr;
+    uint32_t dmtf_device_info_size;
+    uint8_t dmtf_device_info[128];
+};
+
+struct caliptra_certify_key_extended_req {
+    struct caliptra_req_header hdr;
+    uint32_t flags;
+    uint8_t certify_key_req[72];
+};
+
+struct caliptra_certify_key_extended_resp {
+    struct caliptra_resp_header hdr;
+    uint8_t certify_key_resp[2176];
 };
 
 struct caliptra_fips_version_resp {
