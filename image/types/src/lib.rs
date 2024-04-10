@@ -34,6 +34,7 @@ pub const ECC384_SCALAR_WORD_SIZE: usize = 12;
 pub const ECC384_SCALAR_BYTE_SIZE: usize = 48;
 pub const SHA192_DIGEST_BYTE_SIZE: usize = 24;
 pub const SHA192_DIGEST_WORD_SIZE: usize = 6;
+pub const SHA256_DIGEST_WORD_SIZE: usize = 8;
 pub const SHA384_DIGEST_WORD_SIZE: usize = 12;
 pub const SHA384_DIGEST_BYTE_SIZE: usize = 48;
 pub const IMAGE_LMS_OTS_P_PARAM: usize = 51;
