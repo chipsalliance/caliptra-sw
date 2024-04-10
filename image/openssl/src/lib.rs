@@ -45,6 +45,12 @@ const D_LEAF: u16 = 0x8282;
 const D_INTR: u16 = 0x8383;
 
 impl ImageGeneratorCrypto for OsslCrypto {
+    fn sha256_digest(&self, data: &[u8]) -> anyhow::Result<[u32; SHA256_DIGEST_WORD_SIZE]> {
+        let mut engine = Sha256::new();
+        engine.update(data);
+        Ok(to_hw_format(&engine.finish()))
+    }
+
     /// Calculate SHA-384 Digest
     fn sha384_digest(&self, data: &[u8]) -> anyhow::Result<ImageDigest> {
         let mut engine = Sha384::new();
@@ -157,11 +163,10 @@ pub fn lms_priv_key_from_pem(path: &PathBuf) -> anyhow::Result<ImageLmsPrivKey> 
 }
 
 /// Convert the slice to hardware format
-fn to_hw_format(value: &[u8]) -> [u32; ECC384_SCALAR_WORD_SIZE] {
-    let arr = TryInto::<[u8; ECC384_SCALAR_BYTE_SIZE]>::try_into(value).unwrap();
-    let mut result = [0u32; ECC384_SCALAR_WORD_SIZE];
+fn to_hw_format<const NUM_WORDS: usize>(value: &[u8]) -> [u32; NUM_WORDS] {
+    let mut result = [0u32; NUM_WORDS];
     for i in 0..result.len() {
-        result[i] = u32::from_be_bytes(arr[i * 4..][..4].try_into().unwrap())
+        result[i] = u32::from_be_bytes(value[i * 4..][..4].try_into().unwrap())
     }
     result
 }

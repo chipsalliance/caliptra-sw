@@ -232,7 +232,6 @@ dependencies = [
  "hex",
  "nix 0.26.2",
  "once_cell",
- "sha2",
  "zerocopy",
 ]
 
