@@ -7,7 +7,28 @@ use caliptra_hw_model::{BootParams, HwModel, ShaAccMode};
 use caliptra_image_types::ImageManifest;
 use common::*;
 use dpe::{commands::*, context::ContextHandle, response::Response, DPE_PROFILE};
+use openssl::sha::{sha384, sha512};
 use zerocopy::{AsBytes, FromBytes};
+
+pub fn exec_cmd_sha_acc<T: HwModel>(hw: &mut T) {
+    let msg: &[u8] = &[0u8; 4];
+
+    let mut hash = hw
+        .compute_sha512_acc_digest(msg, ShaAccMode::Sha384Stream)
+        .unwrap();
+    for n in (0..48).step_by(4) {
+        hash[n..n + 4].reverse();
+    }
+    assert_eq!(hash[0..48], sha384(msg));
+
+    let mut hash = hw
+        .compute_sha512_acc_digest(msg, ShaAccMode::Sha512Stream)
+        .unwrap();
+    for n in (0..64).step_by(4) {
+        hash[n..n + 4].reverse();
+    }
+    assert_eq!(hash, sha512(msg));
+}
 
 pub fn exec_cmd_version<T: HwModel>(hw: &mut T, fmc_version: u16, app_version: u32) {
     let payload = MailboxReqHeader {
@@ -588,7 +609,8 @@ pub fn check_version_rt() {
 pub fn execute_all_services_rom() {
     let mut hw = fips_test_init_to_rom(None);
 
-    // TODO: SHA accelerator engine
+    // SHA accelerator engine
+    exec_cmd_sha_acc(&mut hw);
 
     // VERSION
     // FMC and FW version should both be 0 before loading
@@ -619,7 +641,8 @@ pub fn execute_all_services_rt() {
         ..Default::default()
     }));
 
-    // TODO: SHA accelerator engine
+    // SHA accelerator engine
+    exec_cmd_sha_acc(&mut hw);
 
     // VERSION
     // FMC and FW version should both be 0 before loading
