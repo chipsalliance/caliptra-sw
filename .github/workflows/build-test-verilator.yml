@@ -102,6 +102,10 @@ jobs:
           cargo run --locked -p caliptra_registers_generator -- --check hw/latest/rtl registers/bin/extra-rdl  hw/latest/registers/src
           cargo run --locked -p caliptra_registers_generator -- --check hw/1.0/rtl registers/bin/extra-rdl  hw/1.0/registers/src
 
+      - name: Check that generated X.509 templates match default templates
+        run: |
+          cargo test -p caliptra-x509 --features=generate_templates
+
       - name: Build
         run: |
           export RUSTC_WRAPPER=~/.cargo/bin/sccache
