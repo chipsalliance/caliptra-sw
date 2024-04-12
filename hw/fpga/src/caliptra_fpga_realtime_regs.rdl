@@ -69,6 +69,20 @@ regfile interface_regs {
 
         field {} pauser[32] = 32'b0;
     } pauser;
+
+    reg {
+        default sw=rw;
+        default hw=r;
+
+        field {} itrng_divisor[32] = 32'b0;
+    } itrng_divisor;
+
+    reg {
+        default sw=r;
+        default hw=rw;
+
+        field {} cycle_count[32] = 32'b0;
+    } cycle_count;
 };
 
 regfile fifo_regs {

@@ -13,7 +13,7 @@ use caliptra_emu_bus::{Bus, BusError, BusMmio};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use libc;
 use nix;
-use std::time::{self, Duration, Instant};
+use std::time::{Duration, Instant};
 use uio::{UioDevice, UioError};
 
 use crate::EtrngResponse;
@@ -31,7 +31,8 @@ pub enum OpenOcdError {
 const FPGA_WRAPPER_MAPPING: usize = 0;
 const CALIPTRA_MAPPING: usize = 1;
 
-const FPGA_CLOCK_MHZ: u128 = 20;
+// Set to core_clk cycles per ITRNG sample.
+const ITRNG_DIVISOR: u32 = 400;
 const DEFAULT_APB_PAUSER: u32 = 0x1;
 
 fn fmt_uio_error(err: UioError) -> String {
@@ -48,6 +49,8 @@ const FPGA_WRAPPER_DEOBF_KEY_OFFSET: isize = 0x0010 / 4;
 const FPGA_WRAPPER_CONTROL_OFFSET: isize = 0x0030 / 4;
 const FPGA_WRAPPER_STATUS_OFFSET: isize = 0x0034 / 4;
 const FPGA_WRAPPER_PAUSER_OFFSET: isize = 0x0038 / 4;
+const FPGA_WRAPPER_ITRNG_DIV_OFFSET: isize = 0x003C / 4;
+const FPGA_WRAPPER_CYCLE_COUNT_OFFSET: isize = 0x0040 / 4;
 const FPGA_WRAPPER_LOG_FIFO_DATA_OFFSET: isize = 0x1000 / 4;
 const FPGA_WRAPPER_LOG_FIFO_STATUS_OFFSET: isize = 0x1004 / 4;
 const FPGA_WRAPPER_ITRNG_FIFO_DATA_OFFSET: isize = 0x1008 / 4;
@@ -104,7 +107,6 @@ pub struct ModelFpgaRealtime {
     wrapper: *mut u32,
     mmio: *mut u32,
     output: Output,
-    start_time: time::Instant,
 
     realtime_thread: Option<thread::JoinHandle<()>>,
     realtime_thread_exit_flag: Arc<AtomicBool>,
@@ -305,6 +307,14 @@ impl ModelFpgaRealtime {
             nix::sys::mman::munmap(addr as *mut libc::c_void, map_size.into()).unwrap();
         }
     }
+
+    fn set_itrng_divider(&mut self, divider: u32) {
+        unsafe {
+            self.wrapper
+                .offset(FPGA_WRAPPER_ITRNG_DIV_OFFSET)
+                .write_volatile(divider - 1);
+        }
+    }
 }
 
 // Hack to pass *mut u32 between threads
@@ -361,7 +371,6 @@ impl HwModel for ModelFpgaRealtime {
             wrapper,
             mmio,
             output,
-            start_time: time::Instant::now(),
 
             realtime_thread,
             realtime_thread_exit_flag,
@@ -371,16 +380,20 @@ impl HwModel for ModelFpgaRealtime {
             openocd: None,
         };
 
-        writeln!(m.output().logger(), "new_unbooted")?;
         // Set pwrgood and rst_b to 0 to boot from scratch
         m.set_cptra_pwrgood(false);
         m.set_cptra_rst_b(false);
+
+        writeln!(m.output().logger(), "new_unbooted")?;
 
         // Set Security State signal wires
         m.set_security_state(params.security_state);
 
         // Set initial PAUSER
         m.set_apb_pauser(DEFAULT_APB_PAUSER);
+
+        // Set divisor for ITRNG throttling
+        m.set_itrng_divider(ITRNG_DIVISOR);
 
         // Set deobfuscation key
         for i in 0..8 {
@@ -401,9 +414,6 @@ impl HwModel for ModelFpgaRealtime {
 
         // Sometimes there's garbage in here; clean it out
         m.clear_log_fifo();
-
-        // Update time as close to boot as possible
-        m.start_time = time::Instant::now();
 
         // Bring Caliptra out of reset and wait for ready_for_fuses
         m.set_cptra_pwrgood(true);
@@ -449,11 +459,12 @@ impl HwModel for ModelFpgaRealtime {
     }
 
     fn output(&mut self) -> &mut crate::Output {
-        self.output.sink().set_now(
-            (self.start_time.elapsed().as_nanos() * FPGA_CLOCK_MHZ / 1000)
-                .try_into()
-                .unwrap(),
-        );
+        let cycle = unsafe {
+            self.wrapper
+                .offset(FPGA_WRAPPER_CYCLE_COUNT_OFFSET)
+                .read_volatile()
+        };
+        self.output.sink().set_now(u64::from(cycle));
         &mut self.output
     }
 

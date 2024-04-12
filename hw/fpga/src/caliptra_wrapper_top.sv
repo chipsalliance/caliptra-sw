@@ -306,20 +306,31 @@ fpga_imem imem_inst1(
         .valid (itrng_valid)
     );
 
-    // For a 400Mhz core_clk itrng_valid is expected at about 50Khz, or 1/8000 of core_clock.
-    // Throttle etrng_req to 1/(2^13) = 1/8192 of core_clock.
-    reg [12:0] counter;
+    // Throttle etrng_req.
+    reg [31:0] counter;
     always@(posedge core_clk) begin
-        counter <= counter + 1;
         if (counter == 0) begin
             throttled_etrng_req <= etrng_req;
+            counter <= hwif_out.interface_regs.itrng_divisor.itrng_divisor.value;
         end else begin
             throttled_etrng_req <= 0;
+            counter <= counter - 1;
         end
     end
 `else
     assign itrng_data  = 4'b0;
     assign itrng_valid = 1'b0;
 `endif
+
+    reg [31:0] cycle_count;
+    always@(posedge core_clk or negedge hwif_out.interface_regs.control.cptra_rst_b.value) begin
+        if (~hwif_out.interface_regs.control.cptra_rst_b.value) begin
+            cycle_count <= 0;
+        end
+        else begin
+            cycle_count <= cycle_count + 1;
+        end
+    end
+    assign hwif_in.interface_regs.cycle_count.cycle_count.next = cycle_count;
 
 endmodule

@@ -53,8 +53,17 @@ package caliptra_fpga_realtime_regs_pkg;
     } interface_regs__status__in_t;
 
     typedef struct {
+        logic [31:0] next;
+    } interface_regs__cycle_count__cycle_count__in_t;
+
+    typedef struct {
+        interface_regs__cycle_count__cycle_count__in_t cycle_count;
+    } interface_regs__cycle_count__in_t;
+
+    typedef struct {
         interface_regs__generic_output_wires__in_t generic_output_wires[2];
         interface_regs__status__in_t status;
+        interface_regs__cycle_count__in_t cycle_count;
     } interface_regs__in_t;
 
     typedef struct {
@@ -92,13 +101,8 @@ package caliptra_fpga_realtime_regs_pkg;
     } fifo_regs__itrng_fifo_status__itrng_fifo_full__in_t;
 
     typedef struct {
-        logic [9:0] next;
-    } fifo_regs__itrng_fifo_status__data_count__in_t;
-
-    typedef struct {
         fifo_regs__itrng_fifo_status__itrng_fifo_empty__in_t itrng_fifo_empty;
         fifo_regs__itrng_fifo_status__itrng_fifo_full__in_t itrng_fifo_full;
-        fifo_regs__itrng_fifo_status__data_count__in_t data_count;
     } fifo_regs__itrng_fifo_status__in_t;
 
     typedef struct {
@@ -216,12 +220,30 @@ package caliptra_fpga_realtime_regs_pkg;
     } interface_regs__pauser__out_t;
 
     typedef struct {
+        logic [31:0] value;
+    } interface_regs__itrng_divisor__itrng_divisor__out_t;
+
+    typedef struct {
+        interface_regs__itrng_divisor__itrng_divisor__out_t itrng_divisor;
+    } interface_regs__itrng_divisor__out_t;
+
+    typedef struct {
+        logic [31:0] value;
+    } interface_regs__cycle_count__cycle_count__out_t;
+
+    typedef struct {
+        interface_regs__cycle_count__cycle_count__out_t cycle_count;
+    } interface_regs__cycle_count__out_t;
+
+    typedef struct {
         interface_regs__generic_input_wires__out_t generic_input_wires[2];
         interface_regs__generic_output_wires__out_t generic_output_wires[2];
         interface_regs__cptra_obf_key__out_t cptra_obf_key[8];
         interface_regs__control__out_t control;
         interface_regs__status__out_t status;
         interface_regs__pauser__out_t pauser;
+        interface_regs__itrng_divisor__out_t itrng_divisor;
+        interface_regs__cycle_count__out_t cycle_count;
     } interface_regs__out_t;
 
     typedef struct {
@@ -273,14 +295,9 @@ package caliptra_fpga_realtime_regs_pkg;
     } fifo_regs__itrng_fifo_status__itrng_fifo_reset__out_t;
 
     typedef struct {
-        logic [9:0] value;
-    } fifo_regs__itrng_fifo_status__data_count__out_t;
-
-    typedef struct {
         fifo_regs__itrng_fifo_status__itrng_fifo_empty__out_t itrng_fifo_empty;
         fifo_regs__itrng_fifo_status__itrng_fifo_full__out_t itrng_fifo_full;
         fifo_regs__itrng_fifo_status__itrng_fifo_reset__out_t itrng_fifo_reset;
-        fifo_regs__itrng_fifo_status__data_count__out_t data_count;
     } fifo_regs__itrng_fifo_status__out_t;
 
     typedef struct {
