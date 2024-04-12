@@ -42,10 +42,26 @@ pub trait ImageGenratorExecutable {
     fn size(&self) -> u32;
 }
 
+pub trait ImageGeneratorHasher {
+    type Output: Copy;
+
+    fn update(&mut self, data: &[u8]);
+
+    fn finish(self) -> Self::Output;
+}
+
 /// Image Gnerator Crypto Trait
 pub trait ImageGeneratorCrypto {
+    type Sha256Hasher: ImageGeneratorHasher<Output = [u32; SHA256_DIGEST_WORD_SIZE]>;
+
+    fn sha256_start(&self) -> Self::Sha256Hasher;
+
     /// Calculate SHA-256 digest
-    fn sha256_digest(&self, data: &[u8]) -> anyhow::Result<[u32; SHA256_DIGEST_WORD_SIZE]>;
+    fn sha256_digest(&self, data: &[u8]) -> anyhow::Result<[u32; SHA256_DIGEST_WORD_SIZE]> {
+        let mut hasher = self.sha256_start();
+        hasher.update(data);
+        Ok(hasher.finish())
+    }
 
     /// Calculate SHA-384 digest
     fn sha384_digest(&self, data: &[u8]) -> anyhow::Result<ImageDigest>;
