@@ -422,7 +422,7 @@ pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
         let rom_info_start = rom_info_sym.value as usize;
 
         let rom_info = RomInfo {
-            sha256_digest: sha256::sha256_word_reversed(&result[0..rom_info_start])?,
+            sha256_digest: sha256::sha256_word_reversed(&result[0..rom_info_start]),
             revision: image_revision()?,
             flags: 0,
             version: version::get_rom_version(),
