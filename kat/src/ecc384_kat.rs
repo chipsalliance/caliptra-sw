@@ -77,7 +77,7 @@ impl Ecc384Kat {
             .map_err(|_| CaliptraError::ROM_KAT_ECC384_SIGNATURE_GENERATE_FAILURE)?;
 
         if signature != SIGNATURE {
-            Err(CaliptraError::ROM_KAT_ECC384_SIGNATURE_GENERATE_FAILURE)?;
+            Err(CaliptraError::ROM_KAT_ECC384_SIGNATURE_VERIFY_FAILURE)?;
         }
         Ok(())
     }
