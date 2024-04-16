@@ -715,6 +715,5 @@ pub fn execute_all_services_rt() {
     exec_cmd_disable_attestation(&mut hw);
 
     // SHUTDOWN
-    // TODO: Uncomment once runtime shutdown fix is merged
-    //exec_cmd_shutdown(&mut hw);
+    exec_cmd_shutdown(&mut hw);
 }
