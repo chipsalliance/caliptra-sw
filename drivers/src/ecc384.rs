@@ -265,7 +265,10 @@ impl Ecc384 {
         let digest = Array4x12::new([0u32; 12]);
         match self.sign(&priv_key.into(), &pub_key, &digest, trng) {
             Ok(mut sig) => sig.zeroize(),
-            Err(err) => return Err(err),
+            Err(_) => {
+                // Remap error to a pairwise consistency check failure
+                return Err(CaliptraError::DRIVER_ECC384_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE);
+            }
         }
 
         self.zeroize_internal();
@@ -379,9 +382,14 @@ impl Ecc384 {
         let mut sig_result = self.sign_internal(priv_key, data, trng);
         let sig = okmutref(&mut sig_result)?;
 
+        // Verify the signature just created
         let r = self.verify_r(pub_key, data, sig)?;
-        caliptra_cfi_lib::cfi_assert_eq_12_words(&r.0, &sig.r.0);
-        sig_result
+        if r == sig.r {
+            caliptra_cfi_lib::cfi_assert_eq_12_words(&r.0, &sig.r.0);
+            sig_result
+        } else {
+            Err(CaliptraError::DRIVER_ECC384_SIGN_VALIDATION_FAILED)
+        }
     }
 
     /// Verify signature with specified public key and digest
