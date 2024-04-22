@@ -822,6 +822,21 @@ int caliptra_ecdsa384_verify(struct caliptra_ecdsa_verify_req *req, bool async)
     return pack_and_execute_command(&p, async);
 }
 
+// LMS Verify
+int caliptra_lms_verify(struct caliptra_lms_verify_req *req, bool async)
+{
+    if (!req)
+    {
+        return INVALID_PARAMS;
+    }
+
+    struct caliptra_resp_header resp_hdr = {};
+
+    CREATE_PARCEL(p, OP_LMS_VERIFY, req, &resp_hdr);
+
+    return pack_and_execute_command(&p, async);
+}
+
 // Stash measurement
 int caliptra_stash_measurement(struct caliptra_stash_measurement_req *req, struct caliptra_stash_measurement_resp *resp, bool async)
 {
@@ -952,6 +967,34 @@ int caliptra_extend_pcr(struct caliptra_extend_pcr_req *req, bool async)
     struct caliptra_resp_header resp_hdr = {};
 
     CREATE_PARCEL(p, OP_EXTEND_PCR, req, &resp_hdr);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Add subject alt name
+int caliptra_add_subject_alt_name(struct caliptra_add_subject_alt_name_req *req, bool async)
+{
+    if (!req)
+    {
+        return INVALID_PARAMS;
+    }
+
+    struct caliptra_resp_header resp_hdr = {};
+
+    CREATE_PARCEL(p, OP_ADD_SUBJECT_ALT_NAME, req, &resp_hdr);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Certify key extended
+int caliptra_certify_key_extended(struct caliptra_certify_key_extended_req *req, struct caliptra_certify_key_extended_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    CREATE_PARCEL(p, OP_CERTIFY_KEY_EXTENDED, req, resp);
 
     return pack_and_execute_command(&p, async);
 }

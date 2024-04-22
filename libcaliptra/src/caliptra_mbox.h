@@ -28,6 +28,7 @@ enum mailbox_command {
     OP_GET_FMC_ALIAS_CERT          = 0x43455246, // "CERF"
     OP_GET_RT_ALIAS_CERT           = 0x43455252, // "CERR"
     OP_ECDSA384_VERIFY             = 0x53494756, // "SIGV"
+    OP_LMS_VERIFY                  = 0x4C4D5356, // "LMSV"
     OP_STASH_MEASUREMENT           = 0x4D454153, // "MEAS"
     OP_INVOKE_DPE_COMMAND          = 0x44504543, // "DPEC"
     OP_DISABLE_ATTESTATION         = 0x4453424C, // "DSBL"
@@ -37,7 +38,8 @@ enum mailbox_command {
     OP_INCREMENT_PCR_RESET_COUNTER = 0x50435252, // "PCRR"
     OP_QUOTE_PCRS                  = 0x50435251, // "PCRQ"
     OP_EXTEND_PCR                  = 0x50435245, // "PCRE"
-
+    OP_ADD_SUBJECT_ALT_NAME        = 0x414C544E, // "ALTN"
+    OP_CERTIFY_KEY_EXTENDED        = 0x434B4558, // "CKEX"
     OP_FIPS_VERSION                = 0x46505652, // "FPVR"
     OP_SELF_TEST_START             = 0x46504C54, // "FPST"
     OP_SELF_TEST_GET_RESULTS       = 0x46504C67, // "FPGR"

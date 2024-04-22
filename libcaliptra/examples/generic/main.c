@@ -241,7 +241,7 @@ int rom_test_all_commands()
     } else {
         printf("FIPS Self Test Get Results: OK\n");
     }
-    
+
     // SHUTDOWN
     status = caliptra_shutdown(false);
 
@@ -379,6 +379,24 @@ int rt_test_all_commands()
         printf("ECDSA384 Verify: OK\n");
     }
 
+    // LMS_VERIFY
+    struct caliptra_lms_verify_req lms_req = {};
+
+    status = caliptra_lms_verify(&lms_req, false);
+
+    // Not testing for full success
+    // Instead, just want to see it give the right LMS-specific error
+    // This still proves the FW recognizes the message and request data and got to the right LMS code
+    uint32_t RUNTIME_LMS_VERIFY_INVALID_LMS_ALGORITHM = 0xE0043;
+    non_fatal_error = caliptra_read_fw_non_fatal_error();
+    if (status != MBX_STATUS_FAILED || non_fatal_error != RUNTIME_LMS_VERIFY_INVALID_LMS_ALGORITHM) {
+        printf("LMS Verify unexpected result/failure: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("LMS Verify: OK\n");
+    }
+
     // STASH_MEASUREMENT
     struct caliptra_stash_measurement_req stash_req = {};
     struct caliptra_stash_measurement_resp stash_resp = {};
@@ -494,6 +512,37 @@ int rt_test_all_commands()
         printf("Extend PCR: OK\n");
     }
 
+    // Add subject alt name
+    struct caliptra_add_subject_alt_name_req add_subject_alt_name_req = {};
+    strcpy((char *)add_subject_alt_name_req.dmtf_device_info, "ChipsAlliance:Caliptra:0123456789");
+    add_subject_alt_name_req.dmtf_device_info_size = strlen((char *)add_subject_alt_name_req.dmtf_device_info);
+
+    status = caliptra_add_subject_alt_name(&add_subject_alt_name_req, false);
+
+    if (status) {
+        printf("Add Subject Alt Name failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Add Subject Alt Name: OK\n");
+    }
+
+    // Certify key extended
+    int caliptra_certify_key_extended(struct caliptra_certify_key_extended_req *req, struct caliptra_certify_key_extended_resp *resp, bool async);
+    struct caliptra_certify_key_extended_req certify_key_extended_req = {};
+    struct caliptra_certify_key_extended_resp certify_key_extended_resp = {};
+
+    status = caliptra_certify_key_extended(&certify_key_extended_req, &certify_key_extended_resp, false);
+
+    if (status) {
+        printf("Certify Key Extended failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        failure = 1;
+    } else {
+        printf("Certify Key Extended: OK\n");
+    }
+
+
     // FIPS_VERSION
     struct caliptra_fips_version_resp version_resp = {};
 
@@ -533,7 +582,7 @@ int rt_test_all_commands()
     } else {
         printf("FIPS Self Test Get Results: OK\n");
     }
-    
+
     // These commands are last since they cause lasting affects on the runtime
     // DISABLE_ATTESTATION
     status = caliptra_disable_attestation(false);
