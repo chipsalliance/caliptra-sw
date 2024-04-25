@@ -5,6 +5,7 @@
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar, Trng};
+use caliptra_error::CaliptraError;
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::ecc::EccReg;
 use caliptra_registers::entropy_src::EntropySrcReg;
@@ -50,13 +51,17 @@ fn test_sign_validation_failure() {
 
     let digest = Array4x12::new([0u32; 12]);
 
-    // This line will jump to cfi_panic_handler
-    let _ = ecc.sign(
+    let result = ecc.sign(
         &Ecc384PrivKeyIn::from(&Array4x12::from(PRIV_KEY)),
         &wrong_pub_key,
         &digest,
         &mut trng,
     );
+
+    assert_eq!(
+        result,
+        Err(CaliptraError::DRIVER_ECC384_SIGN_VALIDATION_FAILED)
+    )
 }
 
 test_suite! {
