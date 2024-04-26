@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use bitflags::bitflags;
 use caliptra_error::{CaliptraError, CaliptraResult};
 use core::mem::size_of;
 use zerocopy::{AsBytes, FromBytes, LayoutVerified};
@@ -15,14 +16,18 @@ impl CommandId {
     pub const GET_FMC_ALIAS_CERT: Self = Self(0x43455246); // "CERF"
     pub const GET_RT_ALIAS_CERT: Self = Self(0x43455252); // "CERR"
     pub const ECDSA384_VERIFY: Self = Self(0x53494756); // "SIGV"
+    pub const LMS_VERIFY: Self = Self(0x4C4D5356); // "LMSV"
     pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
     pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
     pub const DISABLE_ATTESTATION: Self = Self(0x4453424C); // "DSBL"
     pub const FW_INFO: Self = Self(0x494E464F); // "INFO"
     pub const DPE_TAG_TCI: Self = Self(0x54514754); // "TAGT"
     pub const DPE_GET_TAGGED_TCI: Self = Self(0x47544744); // "GTGD"
-
-    pub const TEST_ONLY_HMAC384_VERIFY: Self = Self(0x484D4143); // "HMAC"
+    pub const INCREMENT_PCR_RESET_COUNTER: Self = Self(0x50435252); // "PCRR"
+    pub const QUOTE_PCRS: Self = Self(0x50435251); // "PCRQ"
+    pub const EXTEND_PCR: Self = Self(0x50435245); // "PCRE"
+    pub const ADD_SUBJECT_ALT_NAME: Self = Self(0x414C544E); // "ALTN"
+    pub const CERTIFY_KEY_EXTENDED: Self = Self(0x434B4558); // "CKEX"
 
     /// FIPS module commands.
     /// The status command.
@@ -133,6 +138,8 @@ pub enum MailboxResp {
     Capabilities(CapabilitiesResp),
     GetTaggedTci(GetTaggedTciResp),
     GetRtAliasCert(GetRtAliasCertResp),
+    QuotePcrs(QuotePcrsResp),
+    CertifyKeyExtended(CertifyKeyExtendedResp),
 }
 
 impl MailboxResp {
@@ -150,6 +157,8 @@ impl MailboxResp {
             MailboxResp::GetTaggedTci(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetFmcAliasCert(resp) => resp.as_bytes_partial(),
             MailboxResp::GetRtAliasCert(resp) => resp.as_bytes_partial(),
+            MailboxResp::QuotePcrs(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_bytes()),
         }
     }
 
@@ -167,6 +176,8 @@ impl MailboxResp {
             MailboxResp::GetTaggedTci(resp) => Ok(resp.as_bytes_mut()),
             MailboxResp::GetFmcAliasCert(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::GetRtAliasCert(resp) => resp.as_bytes_partial_mut(),
+            MailboxResp::QuotePcrs(resp) => Ok(resp.as_bytes_mut()),
+            MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_bytes_mut()),
         }
     }
 
@@ -208,6 +219,7 @@ impl Default for MailboxResp {
 #[allow(clippy::large_enum_variant)]
 pub enum MailboxReq {
     EcdsaVerify(EcdsaVerifyReq),
+    LmsVerify(LmsVerifyReq),
     GetLdevCert(GetLdevCertReq),
     StashMeasurement(StashMeasurementReq),
     InvokeDpeCommand(InvokeDpeReq),
@@ -219,15 +231,18 @@ pub enum MailboxReq {
     GetTaggedTci(GetTaggedTciReq),
     GetFmcAliasCert(GetFmcAliasCertReq),
     GetRtAliasCert(GetRtAliasCertReq),
-
-    #[cfg(feature = "test_only_commands")]
-    TestHmacVerify(HmacVerifyReq),
+    IncrementPcrResetCounter(IncrementPcrResetCounterReq),
+    QuotePcrs(QuotePcrsReq),
+    ExtendPcr(ExtendPcrReq),
+    AddSubjectAltName(AddSubjectAltNameReq),
+    CertifyKeyExtended(CertifyKeyExtendedReq),
 }
 
 impl MailboxReq {
     pub fn as_bytes(&self) -> CaliptraResult<&[u8]> {
         match self {
             MailboxReq::EcdsaVerify(req) => Ok(req.as_bytes()),
+            MailboxReq::LmsVerify(req) => Ok(req.as_bytes()),
             MailboxReq::StashMeasurement(req) => Ok(req.as_bytes()),
             MailboxReq::InvokeDpeCommand(req) => req.as_bytes_partial(),
             MailboxReq::FipsVersion(req) => Ok(req.as_bytes()),
@@ -239,15 +254,18 @@ impl MailboxReq {
             MailboxReq::GetTaggedTci(req) => Ok(req.as_bytes()),
             MailboxReq::GetFmcAliasCert(req) => Ok(req.as_bytes()),
             MailboxReq::GetRtAliasCert(req) => Ok(req.as_bytes()),
-
-            #[cfg(feature = "test_only_commands")]
-            MailboxReq::TestHmacVerify(req) => Ok(req.as_bytes()),
+            MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_bytes()),
+            MailboxReq::QuotePcrs(req) => Ok(req.as_bytes()),
+            MailboxReq::ExtendPcr(req) => Ok(req.as_bytes()),
+            MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial(),
+            MailboxReq::CertifyKeyExtended(req) => Ok(req.as_bytes()),
         }
     }
 
     pub fn as_bytes_mut(&mut self) -> CaliptraResult<&mut [u8]> {
         match self {
             MailboxReq::EcdsaVerify(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::LmsVerify(req) => Ok(req.as_bytes_mut()),
             MailboxReq::GetLdevCert(req) => Ok(req.as_bytes_mut()),
             MailboxReq::StashMeasurement(req) => Ok(req.as_bytes_mut()),
             MailboxReq::InvokeDpeCommand(req) => req.as_bytes_partial_mut(),
@@ -259,15 +277,18 @@ impl MailboxReq {
             MailboxReq::GetTaggedTci(req) => Ok(req.as_bytes_mut()),
             MailboxReq::GetFmcAliasCert(req) => Ok(req.as_bytes_mut()),
             MailboxReq::GetRtAliasCert(req) => Ok(req.as_bytes_mut()),
-
-            #[cfg(feature = "test_only_commands")]
-            MailboxReq::TestHmacVerify(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::QuotePcrs(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::ExtendPcr(req) => Ok(req.as_bytes_mut()),
+            MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial_mut(),
+            MailboxReq::CertifyKeyExtended(req) => Ok(req.as_bytes_mut()),
         }
     }
 
     pub fn cmd_code(&self) -> CommandId {
         match self {
             MailboxReq::EcdsaVerify(_) => CommandId::ECDSA384_VERIFY,
+            MailboxReq::LmsVerify(_) => CommandId::LMS_VERIFY,
             MailboxReq::GetLdevCert(_) => CommandId::GET_LDEV_CERT,
             MailboxReq::StashMeasurement(_) => CommandId::STASH_MEASUREMENT,
             MailboxReq::InvokeDpeCommand(_) => CommandId::INVOKE_DPE,
@@ -279,9 +300,11 @@ impl MailboxReq {
             MailboxReq::GetTaggedTci(_) => CommandId::DPE_GET_TAGGED_TCI,
             MailboxReq::GetFmcAliasCert(_) => CommandId::GET_FMC_ALIAS_CERT,
             MailboxReq::GetRtAliasCert(_) => CommandId::GET_RT_ALIAS_CERT,
-
-            #[cfg(feature = "test_only_commands")]
-            MailboxReq::TestHmacVerify(_) => CommandId::TEST_ONLY_HMAC384_VERIFY,
+            MailboxReq::IncrementPcrResetCounter(_) => CommandId::INCREMENT_PCR_RESET_COUNTER,
+            MailboxReq::QuotePcrs(_) => CommandId::QUOTE_PCRS,
+            MailboxReq::ExtendPcr(_) => CommandId::EXTEND_PCR,
+            MailboxReq::AddSubjectAltName(_) => CommandId::ADD_SUBJECT_ALT_NAME,
+            MailboxReq::CertifyKeyExtended(_) => CommandId::CERTIFY_KEY_EXTENDED,
         }
     }
 
@@ -494,18 +517,22 @@ impl Request for EcdsaVerifyReq {
 }
 // No command-specific output args
 
-// TEST_ONLY_HMAC384_SIGNATURE_VERIFY
+// LMS_SIGNATURE_VERIFY
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
-pub struct HmacVerifyReq {
+pub struct LmsVerifyReq {
     pub hdr: MailboxReqHeader,
-    pub key: [u8; 48],
-    pub tag: [u8; 48],
-    pub len: u32,
-    pub msg: [u8; 256],
+    pub pub_key_tree_type: u32,
+    pub pub_key_ots_type: u32,
+    pub pub_key_id: [u8; 16],
+    pub pub_key_digest: [u8; 24],
+    pub signature_q: u32,
+    pub signature_ots: [u8; 1252],
+    pub signature_tree_type: u32,
+    pub signature_tree_path: [u8; 360],
 }
-impl Request for HmacVerifyReq {
-    const ID: CommandId = CommandId::TEST_ONLY_HMAC384_VERIFY;
+impl Request for LmsVerifyReq {
+    const ID: CommandId = CommandId::LMS_VERIFY;
     type Resp = MailboxRespHeader;
 }
 // No command-specific output args
@@ -548,6 +575,43 @@ impl Response for StashMeasurementResp {}
 // No command-specific input args
 // No command-specific output args
 
+// CERTIFY_KEY_EXTENDED
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct CertifyKeyExtendedReq {
+    pub hdr: MailboxReqHeader,
+    pub flags: CertifyKeyExtendedFlags,
+    pub certify_key_req: [u8; CertifyKeyExtendedReq::CERTIFY_KEY_REQ_SIZE],
+}
+impl CertifyKeyExtendedReq {
+    pub const CERTIFY_KEY_REQ_SIZE: usize = 72;
+}
+impl Request for CertifyKeyExtendedReq {
+    const ID: CommandId = CommandId::CERTIFY_KEY_EXTENDED;
+    type Resp = CertifyKeyExtendedResp;
+}
+
+#[repr(C)]
+#[derive(Debug, PartialEq, Eq, FromBytes, AsBytes)]
+pub struct CertifyKeyExtendedFlags(pub u32);
+
+bitflags! {
+    impl CertifyKeyExtendedFlags: u32 {
+        const DMTF_OTHER_NAME = 1u32 << 31;
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct CertifyKeyExtendedResp {
+    pub hdr: MailboxRespHeader,
+    pub certify_key_resp: [u8; CertifyKeyExtendedResp::CERTIFY_KEY_RESP_SIZE],
+}
+impl CertifyKeyExtendedResp {
+    pub const CERTIFY_KEY_RESP_SIZE: usize = 2176;
+}
+impl Response for CertifyKeyExtendedResp {}
+
 // INVOKE_DPE_COMMAND
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
@@ -589,6 +653,22 @@ impl Request for InvokeDpeReq {
     const ID: CommandId = CommandId::INVOKE_DPE;
     type Resp = InvokeDpeResp;
 }
+
+// EXTEND_PCR
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct ExtendPcrReq {
+    pub hdr: MailboxReqHeader,
+    pub pcr_idx: u32,
+    pub data: [u8; 48],
+}
+
+impl Request for ExtendPcrReq {
+    const ID: CommandId = CommandId::EXTEND_PCR;
+    type Resp = MailboxRespHeader;
+}
+
+// No command-specific output args
 
 #[repr(C)]
 #[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
@@ -672,6 +752,12 @@ pub struct FwInfoResp {
     pub min_runtime_svn: u32,
     pub fmc_manifest_svn: u32,
     pub attestation_disabled: u32,
+    pub rom_revision: [u8; 20],
+    pub fmc_revision: [u8; 20],
+    pub runtime_revision: [u8; 20],
+    pub rom_sha256_digest: [u32; 8],
+    pub fmc_sha384_digest: [u32; 12],
+    pub runtime_sha384_digest: [u32; 12],
     // TODO: Decide what other information to report for general firmware
     // status.
 }
@@ -685,6 +771,44 @@ pub struct CapabilitiesResp {
     pub capabilities: [u8; crate::capabilities::Capabilities::SIZE_IN_BYTES],
 }
 impl Response for CapabilitiesResp {}
+
+// ADD_SUBJECT_ALT_NAME
+// No command-specific output args
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct AddSubjectAltNameReq {
+    pub hdr: MailboxReqHeader,
+    pub dmtf_device_info_size: u32,
+    pub dmtf_device_info: [u8; AddSubjectAltNameReq::MAX_DEVICE_INFO_LEN], // variable length
+}
+impl AddSubjectAltNameReq {
+    pub const MAX_DEVICE_INFO_LEN: usize = 128;
+
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.dmtf_device_info_size as usize > Self::MAX_DEVICE_INFO_LEN {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::MAX_DEVICE_INFO_LEN - self.dmtf_device_info_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.dmtf_device_info_size as usize > Self::MAX_DEVICE_INFO_LEN {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::MAX_DEVICE_INFO_LEN - self.dmtf_device_info_size as usize;
+        Ok(&mut self.as_bytes_mut()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+impl Default for AddSubjectAltNameReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            dmtf_device_info_size: 0,
+            dmtf_device_info: [0u8; AddSubjectAltNameReq::MAX_DEVICE_INFO_LEN],
+        }
+    }
+}
 
 // POPULATE_IDEV_CERT
 // No command-specific output args
@@ -747,6 +871,51 @@ pub struct GetTaggedTciResp {
     pub hdr: MailboxRespHeader,
     pub tci_cumulative: [u8; 48],
     pub tci_current: [u8; 48],
+}
+
+// INCREMENT_PCR_RESET_COUNTER request
+// No command specific output
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct IncrementPcrResetCounterReq {
+    pub hdr: MailboxReqHeader,
+    pub index: u32,
+}
+
+impl Request for IncrementPcrResetCounterReq {
+    const ID: CommandId = CommandId::INCREMENT_PCR_RESET_COUNTER;
+    type Resp = MailboxRespHeader;
+}
+
+/// QUOTE_PCRS input arguments
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct QuotePcrsReq {
+    pub hdr: MailboxReqHeader,
+    pub nonce: [u8; 32],
+}
+
+pub type PcrValue = [u8; 48];
+
+/// QUOTE_PCRS output
+#[repr(C)]
+#[derive(Debug, AsBytes, FromBytes, PartialEq, Eq)]
+pub struct QuotePcrsResp {
+    pub hdr: MailboxRespHeader,
+    /// The PCR values
+    pub pcrs: [PcrValue; 32],
+    pub nonce: [u8; 32],
+    pub digest: [u8; 48],
+    pub reset_ctrs: [u32; 32],
+    pub signature_r: [u8; 48],
+    pub signature_s: [u8; 48],
+}
+
+impl Response for QuotePcrsResp {}
+
+impl Request for QuotePcrsReq {
+    const ID: CommandId = CommandId::QUOTE_PCRS;
+    type Resp = QuotePcrsResp;
 }
 
 #[cfg(test)]

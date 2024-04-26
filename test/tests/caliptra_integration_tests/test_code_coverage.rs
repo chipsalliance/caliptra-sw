@@ -7,6 +7,7 @@ fn test_emu_coverage() {
 
     use caliptra_builder::firmware;
     use caliptra_coverage::{calculator, collect_instr_pcs};
+    use caliptra_emu_cpu::CoverageBitmaps;
     use caliptra_hw_model::HwModel;
     use caliptra_hw_model::{BootParams, InitParams};
 
@@ -27,7 +28,8 @@ fn test_emu_coverage() {
         .unwrap();
         // Upload FW
         hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
-        calculator::coverage_from_bitmap(hw.code_coverage_bitmap(), &instr_pcs)
+        let CoverageBitmaps { rom, iccm: _iccm } = hw.code_coverage_bitmap();
+        calculator::coverage_from_bitmap(0, rom, &instr_pcs)
     };
 
     println!(

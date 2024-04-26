@@ -52,18 +52,22 @@ pub fn _print(args: fmt::Arguments) {
 #[macro_export]
 macro_rules! runtime_handlers {
     () => {
-        use caliptra_cpu::TrapRecord;
+        use caliptra_cpu::{log_trap_record, TrapRecord};
 
         #[no_mangle]
         #[inline(never)]
         extern "C" fn exception_handler(trap_record: &TrapRecord) {
             println!(
-                "TEST EXCEPTION mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
-                trap_record.mcause, trap_record.mscause, trap_record.mepc
+                "TEST EXCEPTION mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X} ra=0x{:08X}",
+                trap_record.mcause,
+                trap_record.mscause,
+                trap_record.mepc,
+                trap_record.ra,
             );
+            log_trap_record(trap_record, None);
 
             // Signal non-fatal error to SOC
-            caliptra_drivers::report_fw_error_non_fatal(0xdead0);
+            caliptra_drivers::report_fw_error_fatal(caliptra_drivers::CaliptraError::RUNTIME_GLOBAL_EXCEPTION.into());
 
             assert!(false);
         }
@@ -71,13 +75,37 @@ macro_rules! runtime_handlers {
         #[no_mangle]
         #[inline(never)]
         extern "C" fn nmi_handler(trap_record: &TrapRecord) {
+            let soc_ifc = unsafe { SocIfcReg::new() };
+
+            // If the NMI was fired by caliptra instead of the uC, this register
+            // contains the reason(s)
+            let err_interrupt_status = u32::from(
+                soc_ifc
+                    .regs()
+                    .intr_block_rf()
+                    .error_internal_intr_r()
+                    .read(),
+            );
+            log_trap_record(trap_record, Some(err_interrupt_status));
             println!(
-                "TEST NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X}",
-                trap_record.mcause, trap_record.mscause, trap_record.mepc
+                "TEST NMI mcause=0x{:08X} mscause=0x{:08X} mepc=0x{:08X} ra=0x{:08X} error_internal_intr_r={:08X}",
+                trap_record.mcause,
+                trap_record.mscause,
+                trap_record.mepc,
+                trap_record.ra,
+                err_interrupt_status,
             );
 
+            let wdt_status = soc_ifc.regs().cptra_wdt_status().read();
+            let error = if wdt_status.t1_timeout() || wdt_status.t2_timeout() {
+                println!("WDT Expired");
+                caliptra_drivers::CaliptraError::RUNTIME_GLOBAL_WDT_EXPIRED
+            } else {
+                caliptra_drivers::CaliptraError::RUNTIME_GLOBAL_NMI
+            };
+
             // Signal non-fatal error to SOC
-            caliptra_drivers::report_fw_error_fatal(0xdead1);
+            caliptra_drivers::report_fw_error_fatal(error.into());
 
             assert!(false);
         }

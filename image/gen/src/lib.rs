@@ -26,9 +26,6 @@ pub trait ImageGenratorExecutable {
     /// Executable Security Version Number
     fn svn(&self) -> u32;
 
-    /// Executable Minimum Security Version Number
-    fn min_svn(&self) -> u32;
-
     /// Executable Revision
     fn rev(&self) -> &ImageRevision;
 
@@ -45,8 +42,27 @@ pub trait ImageGenratorExecutable {
     fn size(&self) -> u32;
 }
 
+pub trait ImageGeneratorHasher {
+    type Output: Copy;
+
+    fn update(&mut self, data: &[u8]);
+
+    fn finish(self) -> Self::Output;
+}
+
 /// Image Gnerator Crypto Trait
 pub trait ImageGeneratorCrypto {
+    type Sha256Hasher: ImageGeneratorHasher<Output = [u32; SHA256_DIGEST_WORD_SIZE]>;
+
+    fn sha256_start(&self) -> Self::Sha256Hasher;
+
+    /// Calculate SHA-256 digest
+    fn sha256_digest(&self, data: &[u8]) -> anyhow::Result<[u32; SHA256_DIGEST_WORD_SIZE]> {
+        let mut hasher = self.sha256_start();
+        hasher.update(data);
+        Ok(hasher.finish())
+    }
+
     /// Calculate SHA-384 digest
     fn sha384_digest(&self, data: &[u8]) -> anyhow::Result<ImageDigest>;
 
@@ -94,6 +110,8 @@ pub struct ImageGeneratorOwnerConfig {
     pub not_before: [u8; 15],
 
     pub not_after: [u8; 15],
+
+    pub epoch: [u8; 2],
 }
 
 /// Image Generator Configuration

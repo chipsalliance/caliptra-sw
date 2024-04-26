@@ -14,7 +14,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const maxVmDuration = 36 * time.Hour
+const maxVmDuration = 61 * time.Hour
 
 func cleanupInstances(ctx context.Context) error {
 	instanceSvc, err := compute.NewInstancesRESTClient(ctx)

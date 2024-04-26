@@ -1,5 +1,19 @@
-// Licensed under the Apache-2.0 license
+/*++
 
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    tagging.rs
+
+Abstract:
+
+    File contains mailbox commands dealing with tagging.
+
+--*/
+
+use crate::CfiCounter;
+use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
     GetTaggedTciReq, GetTaggedTciResp, MailboxResp, MailboxRespHeader, TagTciReq,
 };
@@ -16,28 +30,9 @@ use crate::{dpe_crypto::DpeCrypto, CptraDpeTypes, DpePlatform, Drivers};
 
 pub struct TagTciCmd;
 impl TagTciCmd {
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if let Some(cmd) = TagTciReq::read_from(cmd_args) {
-            let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
-            let pdata = drivers.persistent_data.get();
-            let rt_pub_key = pdata.fht.rt_dice_pub_key;
-            let mut crypto = DpeCrypto::new(
-                &mut drivers.sha384,
-                &mut drivers.trng,
-                &mut drivers.ecc384,
-                &mut drivers.hmac384,
-                &mut drivers.key_vault,
-                rt_pub_key,
-            );
-            let mut env = DpeEnv::<CptraDpeTypes> {
-                crypto,
-                platform: DpePlatform::new(
-                    pdata.manifest1.header.pl0_pauser,
-                    hashed_rt_pub_key,
-                    &mut drivers.cert_chain,
-                ),
-            };
-
             let pdata_mut = drivers.persistent_data.get_mut();
             let mut dpe = &mut pdata_mut.dpe;
             let mut context_has_tag = &mut pdata_mut.context_has_tag;
@@ -75,15 +70,19 @@ impl TagTciCmd {
 
 pub struct GetTaggedTciCmd;
 impl GetTaggedTciCmd {
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    #[inline(never)]
     pub(crate) fn execute(drivers: &Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if let Some(cmd) = GetTaggedTciReq::read_from(cmd_args) {
             let persistent_data = drivers.persistent_data.get();
+            let context_has_tag = &persistent_data.context_has_tag;
+            let context_tags = &persistent_data.context_tags;
             let idx = (0..MAX_HANDLES)
                 .find(|i| {
-                    *i < persistent_data.context_has_tag.len()
-                        && *i < persistent_data.context_tags.len()
-                        && persistent_data.context_has_tag[*i].get()
-                        && persistent_data.context_tags[*i] == cmd.tag
+                    *i < context_has_tag.len()
+                        && *i < context_tags.len()
+                        && context_has_tag[*i].get()
+                        && context_tags[*i] == cmd.tag
                 })
                 .ok_or(CaliptraError::RUNTIME_TAGGING_FAILURE)?;
             if idx >= persistent_data.dpe.contexts.len() {

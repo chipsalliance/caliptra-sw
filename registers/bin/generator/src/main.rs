@@ -41,6 +41,8 @@ static CALIPTRA_RDL_FILES: &[&str] = &[
     "src/integration/rtl/caliptra_reg.rdl",
 ];
 
+static CALIPTRA_EXTRA_RDL_FILES: &[&str] = &["el2_pic_ctrl.rdl"];
+
 fn run_cmd_stdout(cmd: &mut Command, input: Option<&[u8]>) -> Result<String, Box<dyn Error>> {
     cmd.stdin(Stdio::piped());
     cmd.stdout(Stdio::piped());
@@ -112,16 +114,24 @@ fn real_main() -> Result<(), Box<dyn Error>> {
         write_file
     };
 
-    if args.len() < 3 {
-        Err("Usage: codegen [--check] <caliptra_rtl_dir> <dest_dir>")?;
+    if args.len() < 4 {
+        Err("Usage: codegen [--check] <caliptra_rtl_dir> <extra_rdl_dir> <dest_dir>")?;
     }
 
     let rtl_dir = Path::new(&args[1]);
-    let rdl_files: Vec<PathBuf> = CALIPTRA_RDL_FILES
+    let mut rdl_files: Vec<PathBuf> = CALIPTRA_RDL_FILES
         .iter()
         .map(|p| rtl_dir.join(p))
         .filter(|p| p.exists())
         .collect();
+
+    let extra_rdl_dir = Path::new(&args[2]);
+    let mut extra_rdl_files: Vec<PathBuf> = CALIPTRA_EXTRA_RDL_FILES
+        .iter()
+        .map(|p| extra_rdl_dir.join(p))
+        .filter(|p| p.exists())
+        .collect();
+    rdl_files.append(&mut extra_rdl_files);
 
     let rtl_commit_id = run_cmd_stdout(
         Command::new("git")
@@ -158,6 +168,7 @@ fn real_main() -> Result<(), Box<dyn Error>> {
     let scope = scope.as_parent();
 
     let addrmap = scope.lookup_typedef("clp").unwrap();
+    let addrmap2 = scope.lookup_typedef("clp2").unwrap();
 
     // These are types like kv_read_ctrl_reg that are used by multiple crates
     let root_block = RegisterBlock {
@@ -169,7 +180,9 @@ fn real_main() -> Result<(), Box<dyn Error>> {
     let mut extern_types = HashMap::new();
     ureg_codegen::build_extern_types(&root_block, quote! { crate }, &mut extern_types);
 
-    let blocks = ureg_systemrdl::translate_addrmap(addrmap)?;
+    let mut blocks = ureg_systemrdl::translate_addrmap(addrmap)?;
+    let mut blocks2 = ureg_systemrdl::translate_addrmap(addrmap2)?;
+    blocks.append(&mut blocks2);
 
     let mut validated_blocks = vec![];
     for mut block in blocks {

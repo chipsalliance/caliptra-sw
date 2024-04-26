@@ -251,6 +251,9 @@ fn main_impl() -> anyhow::Result<()> {
                 let mut stdin_len = tty::read_stdin_nonblock(&mut stdin_buf)?;
                 escaper.process(&mut stdin_buf, &mut stdin_len, |ch| match ch {
                     b'q' | b'Q' => alive = false,
+                    b'b' | b'B' => {
+                        uart_tx.send_break().unwrap();
+                    }
                     ch => println!(
                         "Unknown escape sequence: Ctrl-T + {:?}",
                         char::from_u32(ch.into()).unwrap_or('?')

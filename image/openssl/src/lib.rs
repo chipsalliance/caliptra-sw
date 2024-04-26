@@ -16,7 +16,7 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Context};
 
-use caliptra_image_gen::ImageGeneratorCrypto;
+use caliptra_image_gen::{ImageGeneratorCrypto, ImageGeneratorHasher};
 use caliptra_image_types::*;
 use caliptra_lms_types::{LmotsAlgorithmType, LmsAlgorithmType};
 use openssl::bn::{BigNum, BigNumContext};
@@ -44,7 +44,27 @@ const D_MESG: u16 = 0x8181;
 const D_LEAF: u16 = 0x8282;
 const D_INTR: u16 = 0x8383;
 
+pub struct OsslSha256Hasher(Sha256);
+
+impl ImageGeneratorHasher for OsslSha256Hasher {
+    type Output = [u32; SHA256_DIGEST_WORD_SIZE];
+
+    fn update(&mut self, data: &[u8]) {
+        self.0.update(data)
+    }
+
+    fn finish(self) -> Self::Output {
+        to_hw_format(&self.0.finish())
+    }
+}
+
 impl ImageGeneratorCrypto for OsslCrypto {
+    type Sha256Hasher = OsslSha256Hasher;
+
+    fn sha256_start(&self) -> Self::Sha256Hasher {
+        OsslSha256Hasher(Sha256::default())
+    }
+
     /// Calculate SHA-384 Digest
     fn sha384_digest(&self, data: &[u8]) -> anyhow::Result<ImageDigest> {
         let mut engine = Sha384::new();
@@ -157,11 +177,10 @@ pub fn lms_priv_key_from_pem(path: &PathBuf) -> anyhow::Result<ImageLmsPrivKey> 
 }
 
 /// Convert the slice to hardware format
-fn to_hw_format(value: &[u8]) -> [u32; ECC384_SCALAR_WORD_SIZE] {
-    let arr = TryInto::<[u8; ECC384_SCALAR_BYTE_SIZE]>::try_into(value).unwrap();
-    let mut result = [0u32; ECC384_SCALAR_WORD_SIZE];
+fn to_hw_format<const NUM_WORDS: usize>(value: &[u8]) -> [u32; NUM_WORDS] {
+    let mut result = [0u32; NUM_WORDS];
     for i in 0..result.len() {
-        result[i] = u32::from_be_bytes(arr[i * 4..][..4].try_into().unwrap())
+        result[i] = u32::from_be_bytes(value[i * 4..][..4].try_into().unwrap())
     }
     result
 }

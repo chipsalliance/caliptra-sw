@@ -12,6 +12,8 @@ use zerocopy::AsBytes;
 
 use crate::helpers;
 
+const RT_READY_FOR_COMMANDS: u32 = 0x600;
+
 fn generate_csr(hw: &mut DefaultHwModel, image_bundle: &ImageBundle) -> Vec<u8> {
     // Set gen_idev_id_csr to generate CSR.
     let flags = MfgFlags::GENERATE_IDEVID_CSR;
@@ -27,8 +29,7 @@ fn generate_csr(hw: &mut DefaultHwModel, image_bundle: &ImageBundle) -> Vec<u8> 
     hw.upload_firmware(&image_bundle.to_bytes().unwrap())
         .unwrap();
 
-    hw.step_until_output_contains("Caliptra RT listening for mailbox commands...")
-        .unwrap();
+    hw.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
 
     let output = hw.output().take(usize::MAX);
     if firmware::rom_from_env() == &firmware::ROM_WITH_UART {
@@ -57,8 +58,7 @@ fn test_idev_subj_key_id_algo() {
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap();
 
-        hw.step_until_output_contains("Caliptra RT listening for mailbox commands...")
-            .unwrap();
+        hw.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
     }
 }
 

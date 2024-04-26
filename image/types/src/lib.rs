@@ -34,6 +34,7 @@ pub const ECC384_SCALAR_WORD_SIZE: usize = 12;
 pub const ECC384_SCALAR_BYTE_SIZE: usize = 48;
 pub const SHA192_DIGEST_BYTE_SIZE: usize = 24;
 pub const SHA192_DIGEST_WORD_SIZE: usize = 6;
+pub const SHA256_DIGEST_WORD_SIZE: usize = 8;
 pub const SHA384_DIGEST_WORD_SIZE: usize = 12;
 pub const SHA384_DIGEST_BYTE_SIZE: usize = 48;
 pub const IMAGE_LMS_OTS_P_PARAM: usize = 51;
@@ -285,7 +286,10 @@ pub struct OwnerSignedData {
     /// Owner End Date [ASN1 Time Format] For FMC alias certificate: Takes Preference over vendor end date
     pub owner_not_after: [u8; 15],
 
-    reserved: [u8; 10],
+    /// Owner epoch, used to diversify stable SVN keys.
+    pub epoch: [u8; 2],
+
+    reserved: [u8; 8],
 }
 
 /// Caliptra Image header
@@ -372,8 +376,8 @@ pub struct ImageTocEntry {
     /// Security Version Number
     pub svn: u32,
 
-    /// Minimum Security Version Number
-    pub min_svn: u32,
+    /// Reserved field
+    pub reserved: u32,
 
     /// Entry Point
     pub load_addr: u32,
@@ -417,6 +421,8 @@ pub struct RomInfo {
     pub sha256_digest: [u32; 8],
     pub revision: ImageRevision,
     pub flags: u32,
+    pub version: u16,
+    pub rsvd: u16, // maintain DWORD alignment
 }
 
 #[cfg(all(test, target_family = "unix"))]

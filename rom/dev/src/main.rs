@@ -18,6 +18,8 @@ Abstract:
 use crate::{lock::lock_registers, print::HexBytes};
 use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
 use caliptra_common::RomBootStatus;
+use caliptra_common::RomBootStatus::{KatComplete, KatStarted};
+use caliptra_kat::*;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use core::hint::black_box;
 
@@ -30,6 +32,7 @@ use caliptra_error::CaliptraResult;
 use caliptra_image_types::RomInfo;
 use caliptra_kat::KatsEnv;
 use rom_env::RomEnv;
+use zeroize::Zeroize;
 
 #[cfg(not(feature = "std"))]
 core::arch::global_asm!(include_str!(concat!(
@@ -41,7 +44,6 @@ mod exception;
 mod fht;
 mod flow;
 mod fuse;
-mod kat;
 mod lock;
 mod pcr;
 mod rom_env;
@@ -93,9 +95,10 @@ pub extern "C" fn rom_entry() -> ! {
     cprintln!("[state] LifecycleState = {}", _lifecyle);
 
     if cfg!(feature = "fake-rom")
-        && env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production
+        && (env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production)
+        && !(env.soc_ifc.prod_en_in_fake_mode())
     {
-        cprintln!("Fake ROM in Production lifecycle prohibited");
+        cprintln!("Fake ROM in Production lifecycle not enabled");
         handle_fatal_error(CaliptraError::ROM_GLOBAL_FAKE_ROM_IN_PRODUCTION.into());
     }
 
@@ -107,6 +110,14 @@ pub extern "C" fn rom_entry() -> ! {
             "No"
         }
     );
+
+    // Set the ROM version
+    let rom_info = unsafe { &CALIPTRA_ROM_INFO };
+    if !cfg!(feature = "fake-rom") {
+        env.soc_ifc.set_rom_fw_rev_id(rom_info.version);
+    } else {
+        env.soc_ifc.set_rom_fw_rev_id(0xFFFF);
+    }
 
     // Start the watchdog timer
     wdt::start_wdt(&mut env.soc_ifc);
@@ -184,9 +195,20 @@ pub extern "C" fn rom_entry() -> ! {
 }
 
 fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<()> {
+    report_boot_status(KatStarted.into());
+
+    cprintln!("[kat] SHA2-256");
+    Sha256Kat::default().execute(env.sha256)?;
+
+    // ROM integrity check needs SHA2-256 KAT to be executed first per FIPS requirement AS10.20.
     let rom_info = unsafe { &CALIPTRA_ROM_INFO };
     rom_integrity_test(env, &rom_info.sha256_digest)?;
-    kat::execute_kat(env)
+
+    caliptra_kat::execute_kat(env)?;
+
+    report_boot_status(KatComplete.into());
+
+    Ok(())
 }
 
 fn rom_integrity_test(env: &mut KatsEnv, expected_digest: &[u32; 8]) -> CaliptraResult<()> {
@@ -198,12 +220,14 @@ fn rom_integrity_test(env: &mut KatsEnv, expected_digest: &[u32; 8]) -> Caliptra
     let rom_start = 0 as *const [u32; 16];
 
     let n_blocks = unsafe { &CALIPTRA_ROM_INFO as *const RomInfo as usize / 64 };
-    let digest = unsafe { env.sha256.digest_blocks_raw(rom_start, n_blocks)? };
+    let mut digest = unsafe { env.sha256.digest_blocks_raw(rom_start, n_blocks)? };
     cprintln!("ROM Digest: {}", HexBytes(&<[u8; 32]>::from(digest)));
     if digest.0 != *expected_digest {
+        digest.zeroize();
         cprintln!("ROM integrity test failed");
         return Err(CaliptraError::ROM_INTEGRITY_FAILURE);
     }
+    digest.zeroize();
     Ok(())
 }
 

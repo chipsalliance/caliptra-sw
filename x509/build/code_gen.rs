@@ -90,6 +90,16 @@ impl CodeGen {
         let tbs = template.tbs();
 
         quote!(
+            #[doc = "++
+
+Licensed under the Apache-2.0 license.
+
+Abstract:
+
+    Regenerate the template by building caliptra-x509-build with the generate-templates flag.
+
+--"]
+
             pub struct #param_name<'a> {
                 #(pub #param_vars)*
             }

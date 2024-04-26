@@ -1,10 +1,22 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    dpe_crypto.rs
+
+Abstract:
+
+    File contains DpeCrypto implementation.
+
+--*/
 
 use core::cmp::min;
 
-use caliptra_common::keyids::{
-    KEY_ID_DPE_CDI, KEY_ID_DPE_PRIV_KEY, KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY, KEY_ID_TMP,
-};
+use caliptra_cfi_derive_git::cfi_impl_fn;
+use caliptra_cfi_lib_git::{cfi_assert, cfi_assert_eq, cfi_launder};
+use caliptra_common::keyids::{KEY_ID_DPE_CDI, KEY_ID_DPE_PRIV_KEY, KEY_ID_TMP};
 use caliptra_drivers::{
     cprintln, hmac384_kdf, Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar,
     Ecc384Seed, Hmac384, Hmac384Data, Hmac384Key, Hmac384Tag, KeyId, KeyReadArgs, KeyUsage,
@@ -20,17 +32,22 @@ pub struct DpeCrypto<'a> {
     ecc384: &'a mut Ecc384,
     hmac384: &'a mut Hmac384,
     key_vault: &'a mut KeyVault,
-    rt_pub_key: Ecc384PubKey,
+    rt_pub_key: &'a mut Ecc384PubKey,
+    key_id_rt_cdi: KeyId,
+    key_id_rt_priv_key: KeyId,
 }
 
 impl<'a> DpeCrypto<'a> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         sha384: &'a mut Sha384,
         trng: &'a mut Trng,
         ecc384: &'a mut Ecc384,
         hmac384: &'a mut Hmac384,
         key_vault: &'a mut KeyVault,
-        rt_pub_key: Ecc384PubKey,
+        rt_pub_key: &'a mut Ecc384PubKey,
+        key_id_rt_cdi: KeyId,
+        key_id_rt_priv_key: KeyId,
     ) -> Self {
         Self {
             sha384,
@@ -39,6 +56,8 @@ impl<'a> DpeCrypto<'a> {
             hmac384,
             key_vault,
             rt_pub_key,
+            key_id_rt_cdi,
+            key_id_rt_priv_key,
         }
     }
 }
@@ -110,6 +129,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
         }
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_cdi(
         &mut self,
         algs: AlgLen,
@@ -126,7 +146,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
 
                 hmac384_kdf(
                     self.hmac384,
-                    KeyReadArgs::new(KEY_ID_RT_CDI).into(),
+                    KeyReadArgs::new(self.key_id_rt_cdi).into(),
                     b"derive_cdi",
                     Some(context.bytes()),
                     self.trng,
@@ -144,6 +164,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
         }
     }
 
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     fn derive_key_pair(
         &mut self,
         algs: AlgLen,
@@ -200,7 +221,7 @@ impl<'a> Crypto for DpeCrypto<'a> {
             y: CryptoBuf::new(&<[u8; AlgLen::Bit384.size()]>::from(self.rt_pub_key.y))
                 .map_err(|_| CryptoError::Size)?,
         };
-        self.ecdsa_sign_with_derived(algs, digest, &KEY_ID_RT_PRIV_KEY, &pub_key)
+        self.ecdsa_sign_with_derived(algs, digest, &self.key_id_rt_priv_key.clone(), &pub_key)
     }
 
     fn ecdsa_sign_with_derived(
@@ -286,7 +307,13 @@ impl<'a> Crypto for DpeCrypto<'a> {
                 // note: the output point must be kept secret since it is derived from the private key,
                 // so as long as that output is kept secret and not released outside of Caliptra,
                 // it is safe to use it as key material.
-                let (_, hmac_seed) = Self::derive_key_pair(self, algs, cdi, label, info)?;
+                let key_pair = Self::derive_key_pair(self, algs, cdi, label, info);
+                if cfi_launder(key_pair.is_ok()) {
+                    cfi_assert!(key_pair.is_ok());
+                } else {
+                    cfi_assert!(key_pair.is_err());
+                }
+                let (_, hmac_seed) = key_pair?;
 
                 // create ikm to the hmac kdf by hashing the seed entropy from the pub key
                 // this is more secure than directly using the pub key components in the hmac

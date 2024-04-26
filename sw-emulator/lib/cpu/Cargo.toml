@@ -11,5 +11,7 @@ edition = "2021"
 bitfield.workspace = true
 bit-vec.workspace = true
 caliptra-emu-bus.workspace = true
+caliptra-emu-derive.workspace = true
 caliptra-emu-types.workspace = true
 lazy_static.workspace = true
+tock-registers.workspace = true

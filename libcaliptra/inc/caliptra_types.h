@@ -38,6 +38,9 @@ struct caliptra_fuses {
     uint32_t idevid_cert_attr[24];
     uint32_t idevid_manuf_hsm_id[4];
     enum device_lifecycle life_cycle;
+    bool lms_verify;
+    uint32_t lms_revocation;
+    uint16_t soc_stepping_id;
 };
 
 //    Request/Response fields
@@ -49,12 +52,6 @@ struct caliptra_req_header {
 struct caliptra_resp_header {
     caliptra_checksum chksum;
     uint32_t fips_status;
-};
-
-struct caliptra_get_idev_csr_resp {
-    struct caliptra_resp_header hdr;
-    uint32_t data_size;
-    uint8_t data[1024];
 };
 
 struct caliptra_get_idev_cert_req {
@@ -77,7 +74,25 @@ struct caliptra_get_idev_info_resp {
     uint8_t idev_pub_y[48];
 };
 
+struct caliptra_populate_idev_cert_req {
+    struct caliptra_req_header hdr;
+    uint32_t cert_size;
+    uint8_t cert[1024];
+};
+
 struct caliptra_get_ldev_cert_resp {
+    struct caliptra_resp_header hdr;
+    uint32_t data_size;
+    uint8_t data[1024];
+};
+
+struct caliptra_get_fmc_alias_cert_resp {
+    struct caliptra_resp_header hdr;
+    uint32_t data_size;
+    uint8_t data[1024];
+};
+
+struct caliptra_get_rt_alias_cert_resp {
     struct caliptra_resp_header hdr;
     uint32_t data_size;
     uint8_t data[1024];
@@ -91,12 +106,16 @@ struct caliptra_ecdsa_verify_req {
     uint8_t signature_s[48];
 };
 
-struct caliptra_hmac_verify_req {
+struct caliptra_lms_verify_req {
     struct caliptra_req_header hdr;
-    uint8_t key[48];
-    uint8_t tag[48];
-    uint32_t len;
-    uint8_t msg[256];
+    uint32_t pub_key_tree_type;
+    uint32_t pub_key_ots_type;
+    uint8_t pub_key_id[16];
+    uint8_t pub_key_digest[24];
+    uint32_t signature_q;
+    uint8_t signature_ots[1252];
+    uint32_t signature_tree_type;
+    uint8_t signature_tree_path[360];
 };
 
 struct caliptra_stash_measurement_req {
@@ -112,19 +131,6 @@ struct caliptra_stash_measurement_resp {
     uint32_t dpe_result;
 };
 
-struct caliptra_test_get_fmc_alias_cert_resp {
-    struct caliptra_resp_header hdr;
-    uint32_t data_size;
-    uint8_t data[1024];
-};
-
-struct caliptra_fips_version_resp {
-    struct caliptra_resp_header hdr;
-    uint32_t mode;
-    uint32_t fips_rev[3];
-    uint8_t name[12];
-};
-
 struct caliptra_fw_info_resp {
     struct caliptra_resp_header hdr;
     uint32_t pl0_pauser;
@@ -132,6 +138,79 @@ struct caliptra_fw_info_resp {
     uint32_t min_runtime_svn;
     uint32_t fmc_manifest_svn;
     uint32_t attestation_disabled;
+    uint8_t rom_revision[20];
+    uint8_t fmc_revision[20];
+    uint8_t runtime_revision[20];
+    uint32_t rom_sha256_digest[8];
+    uint32_t fmc_sha384_digest[12];
+    uint32_t runtime_sha384_digest[12];
+};
+
+struct caliptra_dpe_tag_tci_req {
+    struct caliptra_req_header hdr;
+    uint8_t handle[16];
+    uint32_t tag;
+};
+
+struct caliptra_get_tagged_tci_req {
+    struct caliptra_req_header hdr;
+    uint32_t tag;
+};
+
+struct caliptra_get_tagged_tci_resp {
+    struct caliptra_resp_header hdr;
+    uint8_t tci_cumulative[48];
+    uint8_t tci_current[48];
+};
+
+struct caliptra_increment_pcr_reset_counter_req {
+    struct caliptra_req_header hdr;
+    uint32_t index;
+};
+
+struct caliptra_quote_pcrs_req {
+    struct caliptra_req_header hdr;
+    uint8_t nonce[32];
+};
+
+struct caliptra_quote_pcrs_resp {
+    struct caliptra_resp_header hdr;
+    uint8_t pcrs[32][48];
+    uint8_t nonce[32];
+    uint8_t digest[48];
+    uint32_t reset_ctrs[32];
+    uint8_t signature_r[48];
+    uint8_t signature_s[48];
+};
+
+struct caliptra_extend_pcr_req {
+    struct caliptra_req_header hdr;
+    uint32_t pcr_idx;
+    uint8_t data[48];
+};
+
+struct caliptra_add_subject_alt_name_req {
+    struct caliptra_req_header hdr;
+    uint32_t dmtf_device_info_size;
+    uint8_t dmtf_device_info[128];
+};
+
+struct caliptra_certify_key_extended_req {
+    struct caliptra_req_header hdr;
+    uint32_t flags;
+    uint8_t certify_key_req[72];
+};
+
+struct caliptra_certify_key_extended_resp {
+    struct caliptra_resp_header hdr;
+    uint8_t certify_key_resp[2176];
+};
+
+struct caliptra_fips_version_resp {
+    struct caliptra_resp_header hdr;
+    uint32_t mode;
+    uint32_t fips_rev[3];
+    uint8_t name[12];
 };
 
 struct caliptra_capabilities_resp {
@@ -174,73 +253,141 @@ struct dpe_resp_hdr {
 #define DPE_ECC_SIZE 48
 #endif
 
+// GET_PROFILE
 struct dpe_get_profile_response {
     struct dpe_resp_hdr resp_hdr;
-    uint16_t major_version;
-    uint16_t minor_version;
-    uint32_t vendor_id;
-    uint32_t vendor_sku;
+    uint16_t profile_major_version;
+    uint16_t profile_minor_version;
+    uint32_t vndr;
+    uint32_t vndr_sku;
     uint32_t max_tci_nodes;
     uint32_t flags;
 };
 
-struct dpe_new_handle_response {
-    struct dpe_resp_hdr resp_hdr;
-    uint8_t             handle[DPE_HANDLE_SIZE];
+// INITIALIZE_CONTEXT
+struct dpe_initialize_context_cmd {
+    struct dpe_cmd_hdr cmd_hdr;
+    uint32_t flags;
 };
 
-struct dpe_derive_child_response {
+struct dpe_initialize_context_response {
     struct dpe_resp_hdr resp_hdr;
-    uint8_t             handle[DPE_HANDLE_SIZE];
-    uint8_t             parent_handle[DPE_HANDLE_SIZE];
+    uint8_t new_context_handle[DPE_HANDLE_SIZE];
+};
+
+// DERIVE_CONTEXT
+struct dpe_derive_context_cmd {
+    struct dpe_cmd_hdr cmd_hdr;
+    uint8_t context_handle[DPE_HANDLE_SIZE];
+    uint8_t input_data[DPE_ECC_SIZE];
+    uint32_t flags;
+    uint8_t input_type[4];
+    uint32_t target_locality;
+};
+
+struct dpe_derive_context_response {
+    struct dpe_resp_hdr resp_hdr;
+    uint8_t new_context_handle[DPE_HANDLE_SIZE];
+    uint8_t parent_context_handle[DPE_HANDLE_SIZE];
+};
+
+// CERTIFY_KEY
+struct dpe_certify_key_cmd {
+    struct dpe_cmd_hdr cmd_hdr;
+    uint8_t context_handle[DPE_HANDLE_SIZE];
+    uint32_t flags;
+    uint32_t add_format;
+    uint8_t label[DPE_ECC_SIZE];
 };
 
 struct dpe_certify_key_response {
     struct dpe_resp_hdr resp_hdr;
-    uint8_t             new_context_handle[DPE_HANDLE_SIZE];
-    uint8_t             derived_pubkey_x[DPE_ECC_SIZE];
-    uint8_t             derived_pubkey_y[DPE_ECC_SIZE];
-    uint32_t            cert_size;
-    uint8_t             cert[DPE_CERT_SIZE];
+    uint8_t new_context_handle[DPE_HANDLE_SIZE];
+    uint8_t derived_pub_key_x[DPE_ECC_SIZE];
+    uint8_t derived_pub_key_y[DPE_ECC_SIZE];
+    uint32_t certificate_size;
+    uint8_t certificate[DPE_CERT_SIZE];
+};
+
+// SIGN
+struct dpe_sign_cmd {
+    struct dpe_cmd_hdr cmd_hdr;
+    uint8_t context_handle[DPE_HANDLE_SIZE];
+    uint8_t label[DPE_ECC_SIZE];
+    uint32_t flags;
+    uint8_t to_be_signed[DPE_ECC_SIZE];
 };
 
 struct dpe_sign_response {
     struct dpe_resp_hdr resp_hdr;
-    uint8_t             new_context_handle[DPE_HANDLE_SIZE];
-    uint8_t             sig_r_or_hmac[DPE_ECC_SIZE];
-    uint8_t             sig_s[DPE_ECC_SIZE];
+    uint8_t new_context_handle[DPE_HANDLE_SIZE];
+    union {
+        uint8_t signature_r[DPE_ECC_SIZE];
+        uint8_t hmac[DPE_ECC_SIZE];
+    };
+    uint8_t signature_s[DPE_ECC_SIZE];
 };
 
-struct dpe_get_tagged_tci_response {
+// ROTATE_CONTEXT_HANDLE
+struct dpe_rotate_context_handle_cmd {
+    struct dpe_cmd_hdr cmd_hdr;
+    uint8_t context_handle[DPE_HANDLE_SIZE];
+    uint32_t flags;
+};
+
+struct dpe_rotate_context_handle_response {
     struct dpe_resp_hdr resp_hdr;
-    uint8_t             tci_cumulative[DPE_ECC_SIZE];
-    uint8_t             tci_current[DPE_ECC_SIZE];
+    uint8_t new_context_handle[DPE_HANDLE_SIZE];
+};
+
+// DESTROY_CONTEXT
+struct dpe_destroy_context_cmd {
+    struct dpe_cmd_hdr cmd_hdr;
+    uint8_t context_handle[DPE_HANDLE_SIZE];
+    uint32_t flags;
+};
+
+// GET_CERTIFICATE_CHAIN
+struct dpe_get_certificate_chain_cmd {
+    struct dpe_cmd_hdr cmd_hdr;
+    uint32_t offset;
+    uint32_t size;
 };
 
 struct dpe_get_certificate_chain_response {
     struct dpe_resp_hdr resp_hdr;
-    uint32_t            certificate_size;
-    uint8_t             certificate_chain[DPE_CERT_SIZE];
+    uint32_t certificate_size;
+    uint8_t certificate_chain[DPE_CERT_SIZE];
 };
 
+// Caliptra DPE mailbox command
 struct caliptra_invoke_dpe_req {
-    caliptra_checksum checksum;
-    uint32_t          data_size;
-    uint8_t           data[DPE_DATA_MAX];
+    struct caliptra_req_header hdr;
+    uint32_t data_size;
+    union {
+        struct dpe_initialize_context_cmd       initialize_context_cmd;
+        struct dpe_derive_context_cmd           derive_context_cmd;
+        struct dpe_certify_key_cmd              certify_key_cmd;
+        struct dpe_sign_cmd                     sign_cmd;
+        struct dpe_rotate_context_handle_cmd    rotate_context_handle_cmd;
+        struct dpe_destroy_context_cmd          destroy_context_cmd;
+        struct dpe_get_certificate_chain_cmd    get_certificate_chain_cmd;
+        uint8_t                                 data[DPE_DATA_MAX];
+    };
 };
 
 struct caliptra_invoke_dpe_resp {
     struct caliptra_resp_header cpl;
-    uint32_t                    data_size;
+    uint32_t data_size;
     union {
-        struct dpe_get_profile_response           get_profile;
-        struct dpe_new_handle_response            new_handle;
-        struct dpe_derive_child_response          derive_child;
-        struct dpe_certify_key_response           certify_key;
-        struct dpe_sign_response                  sign;
-        struct dpe_get_tagged_tci_response        get_tagged_tci;
-        struct dpe_get_certificate_chain_response get_certified_chain;
-        uint8_t                                   data[sizeof(struct dpe_certify_key_response)];
+        struct dpe_get_profile_response             get_profile_resp;
+        struct dpe_initialize_context_response      initialize_context_resp;
+        struct dpe_derive_context_response          derive_context_resp;
+        struct dpe_certify_key_response             certify_key_resp;
+        struct dpe_sign_response                    sign_resp;
+        struct dpe_rotate_context_handle_response   rotate_context_handle_resp;
+        struct dpe_get_certificate_chain_response   get_certificate_chain_resp;
+        uint8_t                                     data[sizeof(struct dpe_certify_key_response)];
     };
 };
 

@@ -6,7 +6,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_hw_model::HwModel;
 use dpe::{
-    commands::{Command, DeriveChildCmd, DeriveChildFlags, DestroyCtxCmd},
+    commands::{Command, DeriveContextCmd, DeriveContextFlags, DestroyCtxCmd},
     context::ContextHandle,
     response::Response,
     DPE_PROFILE,
@@ -212,23 +212,23 @@ fn test_tagging_destroyed_context() {
 fn test_tagging_retired_context() {
     let mut model = run_rt_test(None, None, None);
 
-    // retire context via DeriveChild
-    let derive_child_cmd = DeriveChildCmd {
+    // retire context via DeriveContext
+    let derive_context_cmd = DeriveContextCmd {
         handle: ContextHandle::default(),
         data: [0u8; DPE_PROFILE.get_hash_size()],
-        flags: DeriveChildFlags::empty(),
+        flags: DeriveContextFlags::empty(),
         tci_type: 0,
         target_locality: 0,
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::DeriveChild(derive_child_cmd),
+        &mut Command::DeriveContext(derive_context_cmd),
         DpeResult::Success,
     );
-    let Some(Response::DeriveChild(derive_child_resp)) = resp else {
+    let Some(Response::DeriveContext(derive_context_resp)) = resp else {
         panic!("Wrong response type!");
     };
-    let new_handle = derive_child_resp.handle;
+    let new_handle = derive_context_resp.handle;
 
     // check that we cannot tag retired context
     let mut cmd = MailboxReq::TagTci(TagTciReq {
@@ -259,19 +259,19 @@ fn test_tagging_retired_context() {
         .expect("We expected a response");
 
     // retire tagged context via derive child
-    let derive_child_cmd = DeriveChildCmd {
+    let derive_context_cmd = DeriveContextCmd {
         handle: new_handle,
         data: [0u8; DPE_PROFILE.get_hash_size()],
-        flags: DeriveChildFlags::empty(),
+        flags: DeriveContextFlags::empty(),
         tci_type: 0,
         target_locality: 0,
     };
     let resp = execute_dpe_cmd(
         &mut model,
-        &mut Command::DeriveChild(derive_child_cmd),
+        &mut Command::DeriveContext(derive_context_cmd),
         DpeResult::Success,
     );
-    let Some(Response::DeriveChild(_)) = resp else {
+    let Some(Response::DeriveContext(_)) = resp else {
         panic!("Wrong response type!");
     };
 

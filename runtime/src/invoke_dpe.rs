@@ -1,12 +1,25 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    invoke_dpe.rs
+
+Abstract:
+
+    File contains InvokeDpe mailbox command.
+
+--*/
 
 use crate::{CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers, PL0_PAUSER_FLAG};
+use caliptra_cfi_derive_git::cfi_impl_fn;
 use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp, MailboxRespHeader};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use crypto::{AlgLen, Crypto};
 use dpe::{
     commands::{
-        CertifyKeyCmd, Command, CommandExecution, DeriveChildCmd, DeriveChildFlags, InitCtxCmd,
+        CertifyKeyCmd, Command, CommandExecution, DeriveContextCmd, DeriveContextFlags, InitCtxCmd,
     },
     context::{Context, ContextState},
     response::{Response, ResponseHdr},
@@ -16,9 +29,7 @@ use zerocopy::{AsBytes, FromBytes};
 
 pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
-    pub const PL0_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 8;
-    pub const PL1_DPE_ACTIVE_CONTEXT_THRESHOLD: usize = 16;
-
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         if cmd_args.len() <= core::mem::size_of::<InvokeDpeReq>() {
             let mut cmd = InvokeDpeReq::default();
@@ -30,49 +41,65 @@ impl InvokeDpeCmd {
             }
 
             let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
-            let pdata = drivers.persistent_data.get();
-            let rt_pub_key = pdata.fht.rt_dice_pub_key;
-            let mut crypto = DpeCrypto::new(
+            let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
+            let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
+            let pdata = drivers.persistent_data.get_mut();
+            let crypto = DpeCrypto::new(
                 &mut drivers.sha384,
                 &mut drivers.trng,
                 &mut drivers.ecc384,
                 &mut drivers.hmac384,
                 &mut drivers.key_vault,
-                rt_pub_key,
+                &mut pdata.fht.rt_dice_pub_key,
+                key_id_rt_cdi,
+                key_id_rt_priv_key,
             );
-            let image_header = &pdata.manifest1.header;
             let pl0_pauser = pdata.manifest1.header.pl0_pauser;
+            let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
             let mut env = DpeEnv::<CptraDpeTypes> {
                 crypto,
-                platform: DpePlatform::new(pl0_pauser, hashed_rt_pub_key, &mut drivers.cert_chain),
+                platform: DpePlatform::new(
+                    pl0_pauser,
+                    &hashed_rt_pub_key,
+                    &drivers.cert_chain,
+                    &nb,
+                    &nf,
+                    None,
+                ),
             };
 
             let locality = drivers.mbox.user();
             let command = Command::deserialize(&cmd.data[..cmd.data_size as usize])
-                .map_err(|_| CaliptraError::RUNTIME_INVOKE_DPE_FAILED)?;
+                .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
             let flags = pdata.manifest1.header.flags;
 
-            let pdata_mut = drivers.persistent_data.get_mut();
-            let mut dpe = &mut pdata_mut.dpe;
-            let mut context_has_tag = &mut pdata_mut.context_has_tag;
-            let mut context_tags = &mut pdata_mut.context_tags;
+            let mut dpe = &mut pdata.dpe;
+            let mut context_has_tag = &mut pdata.context_has_tag;
+            let mut context_tags = &mut pdata.context_tags;
             let resp = match command {
                 Command::GetProfile => Ok(Response::GetProfile(
                     dpe.get_profile(&mut env.platform)
-                        .map_err(|_| CaliptraError::RUNTIME_INVOKE_DPE_FAILED)?,
+                        .map_err(|_| CaliptraError::RUNTIME_COULD_NOT_GET_DPE_PROFILE)?,
                 )),
                 Command::InitCtx(cmd) => {
                     // InitCtx can only create new contexts if they are simulation contexts.
                     if InitCtxCmd::flag_is_simulation(&cmd) {
                         Drivers::is_dpe_context_threshold_exceeded(
-                            pl0_pauser, flags, locality, dpe,
+                            pl0_pauser, flags, locality, dpe, false,
                         )?;
                     }
                     cmd.execute(dpe, &mut env, locality)
                 }
-                Command::DeriveChild(cmd) => {
-                    Drivers::is_dpe_context_threshold_exceeded(pl0_pauser, flags, locality, dpe)?;
-                    if DeriveChildCmd::changes_locality(&cmd)
+                Command::DeriveContext(cmd) => {
+                    // If the recursive flag is not set, DeriveContext will generate a new context.
+                    // If recursive _is_ set, it will extend the existing one, which will not count
+                    // against the context threshold.
+                    if !DeriveContextCmd::is_recursive(&cmd) {
+                        Drivers::is_dpe_context_threshold_exceeded(
+                            pl0_pauser, flags, locality, dpe, false,
+                        )?;
+                    }
+                    if DeriveContextCmd::changes_locality(&cmd)
                         && cmd.target_locality == pl0_pauser
                         && Drivers::is_caller_pl1(pl0_pauser, flags, locality)
                     {
@@ -97,7 +124,6 @@ impl InvokeDpeCmd {
                 }
                 Command::Sign(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::RotateCtx(cmd) => cmd.execute(dpe, &mut env, locality),
-                Command::ExtendTci(cmd) => cmd.execute(dpe, &mut env, locality),
                 Command::GetCertificateChain(cmd) => cmd.execute(dpe, &mut env, locality),
             };
 
@@ -129,6 +155,14 @@ impl InvokeDpeCmd {
         }
     }
 
+    /// Remove context tags for all inactive DPE contexts
+    ///
+    /// # Arguments
+    ///
+    /// * `dpe` - DpeInstance
+    /// * `context_has_tag` - Bool slice indicating if a DPE context has a tag
+    /// * `context_tags` - Tags for each DPE context
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
     pub fn clear_tags_for_inactive_contexts(
         dpe: &mut DpeInstance,
         context_has_tag: &mut [U8Bool; MAX_HANDLES],

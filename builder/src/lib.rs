@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use std::borrow::Cow;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::env;
@@ -24,6 +25,7 @@ use zerocopy::AsBytes;
 mod elf_symbols;
 pub mod firmware;
 mod sha256;
+pub mod version;
 
 pub use elf_symbols::{elf_symbols, Symbol, SymbolBind, SymbolType, SymbolVisibility};
 use once_cell::sync::Lazy;
@@ -106,6 +108,22 @@ impl FwId<'_> {
     }
 }
 
+pub fn get_elf_path(id: &FwId) -> Option<PathBuf> {
+    const TARGET: &str = "riscv32imc-unknown-none-elf";
+    const PROFILE: &str = "firmware";
+
+    if let Some(prebuilt_dir) = std::env::var_os("CALIPTRA_PREBUILT_FW_DIR") {
+        Some(PathBuf::from(prebuilt_dir).join(id.elf_filename()))
+    } else {
+        let target_dir = if let Some(dir) = std::env::var_os("CARGO_TARGET_DIR") {
+            PathBuf::from(dir)
+        } else {
+            Path::new(THIS_WORKSPACE_DIR).join("target")
+        };
+        Some(target_dir.join(TARGET).join(PROFILE).join(id.bin_name))
+    }
+}
+
 /// Calls out to Cargo to build a firmware elf file. `workspace_dir` is the
 /// workspace dir to build from; defaults to this workspace. `id` is the id of
 /// the firmware to build. The result is the raw elf bytes.
@@ -166,6 +184,14 @@ pub fn build_firmware_elfs_uncached<'a>(
             cmd.arg("--config")
                 .arg("target.'cfg(all())'.rustflags = [\"-Dwarnings\"]");
         }
+
+        if cfg!(feature = "hw-1.0") {
+            if !features_csv.is_empty() {
+                features_csv.push(',');
+            }
+            features_csv.push_str("hw-1.0");
+        }
+
         cmd.arg("build")
             .arg("--quiet")
             .arg("--locked")
@@ -333,6 +359,31 @@ pub fn build_firmware_elf(id: &FwId<'static>) -> io::Result<Arc<Vec<u8>>> {
     Ok(result)
 }
 
+/// Returns the most appropriate ROM for use when testing non-ROM code against
+/// a particular hardware version. DO NOT USE this for ROM-only tests.
+pub fn rom_for_fw_integration_tests() -> io::Result<Cow<'static, [u8]>> {
+    let rom_from_env = firmware::rom_from_env();
+    if cfg!(feature = "hw-1.0") {
+        if rom_from_env == &firmware::ROM {
+            Ok(
+                include_bytes!("../../hw/1.0/caliptra-rom-1.0.1-9342687.bin")
+                    .as_slice()
+                    .into(),
+            )
+        } else if rom_from_env == &firmware::ROM_WITH_UART {
+            Ok(
+                include_bytes!("../../hw/1.0/caliptra-rom-with-log-1.0.1-9342687.bin")
+                    .as_slice()
+                    .into(),
+            )
+        } else {
+            Err(other_err(format!("Unexpected ROM fwid {rom_from_env:?}")))
+        }
+    } else {
+        Ok(build_firmware_rom(rom_from_env)?.into())
+    }
+}
+
 pub fn build_firmware_rom(id: &FwId<'static>) -> io::Result<Vec<u8>> {
     let elf_bytes = build_firmware_elf(id)?;
     elf2rom(&elf_bytes)
@@ -374,6 +425,8 @@ pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
             sha256_digest: sha256::sha256_word_reversed(&result[0..rom_info_start]),
             revision: image_revision()?,
             flags: 0,
+            version: version::get_rom_version(),
+            rsvd: Default::default(),
         };
         let rom_info_dest = result
             .get_mut(rom_info_start..rom_info_start + size_of::<RomInfo>())
@@ -407,11 +460,9 @@ pub fn elf_size(elf_bytes: &[u8]) -> io::Result<u64> {
 
 #[derive(Clone)]
 pub struct ImageOptions {
-    pub fmc_version: u32,
-    pub fmc_min_svn: u32,
+    pub fmc_version: u16,
     pub fmc_svn: u32,
     pub app_version: u32,
-    pub app_min_svn: u32,
     pub app_svn: u32,
     pub vendor_config: ImageGeneratorVendorConfig,
     pub owner_config: Option<ImageGeneratorOwnerConfig>,
@@ -420,10 +471,8 @@ impl Default for ImageOptions {
     fn default() -> Self {
         Self {
             fmc_version: Default::default(),
-            fmc_min_svn: Default::default(),
             fmc_svn: Default::default(),
             app_version: Default::default(),
-            app_min_svn: Default::default(),
             app_svn: Default::default(),
             vendor_config: caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0,
             owner_config: Some(caliptra_image_fake_keys::OWNER_CONFIG),
@@ -442,18 +491,11 @@ pub fn build_and_sign_image(
     let image = gen.generate(&ImageGeneratorConfig {
         fmc: ElfExecutable::new(
             &fmc_elf,
-            opts.fmc_version,
+            opts.fmc_version as u32,
             opts.fmc_svn,
-            opts.fmc_min_svn,
             image_revision()?,
         )?,
-        runtime: ElfExecutable::new(
-            &app_elf,
-            opts.app_version,
-            opts.app_svn,
-            opts.app_min_svn,
-            image_revision()?,
-        )?,
+        runtime: ElfExecutable::new(&app_elf, opts.app_version, opts.app_svn, image_revision()?)?,
         vendor_config: opts.vendor_config,
         owner_config: opts.owner_config,
     })?;

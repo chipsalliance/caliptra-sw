@@ -13,14 +13,14 @@ doctest = false
 zeroize.workspace = true
 
 [build-dependencies]
-asn1.workspace = true
-bitfield.workspace = true
-caliptra_common.workspace = true
-convert_case.workspace = true
-hex.workspace = true
-openssl.workspace = true
-quote.workspace = true
-syn.workspace = true
+asn1 = { workspace = true, optional = true }
+bitfield = { workspace = true, optional = true }
+caliptra_common = { workspace = true, optional = true }
+convert_case = { workspace = true, optional = true }
+hex = { workspace = true, optional = true }
+openssl = { workspace = true, optional = true }
+quote = { workspace = true, optional = true }
+syn = { workspace = true, optional = true }
 
 [dev-dependencies]
 hex.workspace = true
@@ -30,3 +30,4 @@ x509-parser.workspace = true
 [features]
 default = ["std"]
 std = []
+generate_templates = ["dep:asn1", "dep:bitfield", "dep:caliptra_common", "dep:convert_case", "dep:hex", "dep:openssl", "dep:quote", "dep:syn"]

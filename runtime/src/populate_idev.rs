@@ -1,4 +1,16 @@
-// Licensed under the Apache-2.0 license
+/*++
+
+Licensed under the Apache-2.0 license.
+
+File Name:
+
+    populate_idev.rs
+
+Abstract:
+
+    File contains PopulateIdev mailbox command.
+
+--*/
 
 use arrayvec::ArrayVec;
 use caliptra_common::mailbox_api::{MailboxResp, PopulateIdevCertReq};

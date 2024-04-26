@@ -54,12 +54,12 @@ import (
 	"os"
 	"unsafe"
 
-	"github.com/chipsalliance/caliptra-dpe/verification"
+	"github.com/chipsalliance/caliptra-dpe/verification/client"
 )
 
 type CptraModel struct {
 	currentLocality uint32
-	verification.Transport
+	client.Transport
 }
 
 // The libcaliptra API requires this to be global since the register read/write
@@ -163,7 +163,8 @@ func (s *CptraModel) SendCmd(buf []byte) ([]byte, error) {
 	var resp C.struct_caliptra_invoke_dpe_resp
 
 	// Caliptra expects all DPE commands to fill the whole data buffer
-	C.memcpy(unsafe.Pointer(&req.data), unsafe.Pointer(&buf[0]), C.size_t(len(buf)))
+	// Note: Go replaces the anonymous union of command types with an array "anon0"
+	C.memcpy(unsafe.Pointer(&req.anon0), unsafe.Pointer(&buf[0]), C.size_t(len(buf)))
 	req.data_size = C.uint32_t(512)
 
 	cptraStatus := C.caliptra_invoke_dpe_command(&req, &resp, false)
@@ -187,19 +188,20 @@ func (s *CptraModel) SendCmd(buf []byte) ([]byte, error) {
 	return selectedBytes, nil
 }
 
-func (s *CptraModel) GetSupport() *verification.Support {
+func (s *CptraModel) GetSupport() *client.Support {
 	// Expected support vector
-	return &verification.Support{
-		Simulation:    true,
-		ExtendTci:     true,
-		AutoInit:      true,
-		RotateContext: true,
-		X509:          true,
-		Csr:           true,
-		IsSymmetric:   true,
-		InternalInfo:  true,
-		InternalDice:  true,
-		IsCA:          true,
+	return &client.Support{
+		Simulation:          true,
+		Recursive:           true,
+		AutoInit:            true,
+		RotateContext:       true,
+		X509:                true,
+		Csr:                 true,
+		IsSymmetric:         true,
+		InternalInfo:        true,
+		InternalDice:        true,
+		IsCA:                true,
+		RetainParentContext: true,
 	}
 }
 
@@ -231,10 +233,10 @@ func (s *CptraModel) GetProfileMajorVersion() uint16 {
 }
 
 func (s *CptraModel) GetProfileMinorVersion() uint16 {
-	return 8
+	return 10
 }
 
-func (s *CptraModel) GetProfileVendorId() uint32 {
+func (s *CptraModel) GetProfileVendorID() uint32 {
 	return binary.BigEndian.Uint32([]byte{'C', 'T', 'R', 'A'})
 }
 

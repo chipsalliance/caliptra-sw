@@ -27,6 +27,10 @@ set -x
         binutils-riscv64-unknown-elf pkg-config libssl-dev jq libtinfo5 \
         gcc-aarch64-linux-gnu squashfs-tools
 
+    # Disable unattended upgrades, as these can interfere with jobs. This image
+    # is regenerated once a week so the security risk is minimal.
+    apt-get -y remove unattended-upgrades
+
     echo Retrieving latest GHA runner version
     RUNNER_VERSION="$(curl https://api.github.com/repos/actions/runner/releases/latest | jq -r '.tag_name[1:]')"
     echo Using runner version ${RUNNER_VERSION}

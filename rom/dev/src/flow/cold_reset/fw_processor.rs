@@ -127,7 +127,8 @@ impl FirmwareProcessor {
         report_boot_status(FwProcessorFirmwareDownloadTxComplete.into());
 
         // Update FW version registers
-        env.soc_ifc.set_fmc_fw_rev_id(manifest.fmc.version);
+        // Truncate FMC version to 16 bits (no error for 31:16 != 0)
+        env.soc_ifc.set_fmc_fw_rev_id(manifest.fmc.version as u16);
         env.soc_ifc.set_rt_fw_rev_id(manifest.runtime.version);
 
         // Get the certificate validity info
@@ -388,11 +389,11 @@ impl FirmwareProcessor {
             log_info.fmc_log_info.manifest_svn.as_bytes(),
         )?;
 
-        // Log ManifestFmcMinSvn
+        // Log ManifestReserved0
         log_fuse_data(
             log,
-            FuseLogEntryId::ManifestFmcMinSvn,
-            log_info.fmc_log_info.manifest_min_svn.as_bytes(),
+            FuseLogEntryId::ManifestReserved0,
+            log_info.fmc_log_info.reserved.as_bytes(),
         )?;
 
         // Log FuseFmcSvn
@@ -409,11 +410,11 @@ impl FirmwareProcessor {
             log_info.rt_log_info.manifest_svn.as_bytes(),
         )?;
 
-        // Log ManifestRtMinSvn
+        // Log ManifestReserved1
         log_fuse_data(
             log,
-            FuseLogEntryId::ManifestRtMinSvn,
-            log_info.rt_log_info.manifest_min_svn.as_bytes(),
+            FuseLogEntryId::ManifestReserved1,
+            log_info.rt_log_info.reserved.as_bytes(),
         )?;
 
         // Log FuseRtSvn

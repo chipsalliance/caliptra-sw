@@ -20,7 +20,7 @@ use caliptra_drivers::{
     hmac384_kdf, Array4x12, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, Hmac384, KeyId,
     KeyReadArgs, KeyUsage, KeyWriteArgs, Trng,
 };
-use caliptra_kat::Hmac384Kat;
+use caliptra_kat::Hmac384KdfKat;
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::ecc::EccReg;
 use caliptra_registers::entropy_src::EntropySrcReg;
@@ -699,7 +699,7 @@ fn test_kat() {
     CfiCounter::reset(&mut entropy_gen);
 
     assert_eq!(
-        Hmac384Kat::default()
+        Hmac384KdfKat::default()
             .execute(&mut hmac384, &mut trng)
             .is_ok(),
         true

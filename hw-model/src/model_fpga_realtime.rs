@@ -1,6 +1,8 @@
 // Licensed under the Apache-2.0 license
 
+use std::io::{BufRead, BufReader, Write};
 use std::marker::PhantomData;
+use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -11,50 +13,68 @@ use caliptra_emu_bus::{Bus, BusError, BusMmio};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use libc;
 use nix;
-use std::io::Write;
-use std::time::{self, Duration};
+use std::time::{Duration, Instant};
 use uio::{UioDevice, UioError};
 
 use crate::EtrngResponse;
-use crate::HwModel;
 use crate::Output;
+use crate::{HwModel, SecurityState, TrngMode};
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum OpenOcdError {
+    Closed,
+    NotAccessible,
+    WrongVersion,
+}
 
 // UIO mapping indices
 const FPGA_WRAPPER_MAPPING: usize = 0;
 const CALIPTRA_MAPPING: usize = 1;
 
+// Set to core_clk cycles per ITRNG sample.
+const ITRNG_DIVISOR: u32 = 400;
 const DEFAULT_APB_PAUSER: u32 = 0x1;
 
 fn fmt_uio_error(err: UioError) -> String {
     format!("{err:?}")
 }
 
+// ITRNG FIFO stores 1024 DW and outputs 4 bits at a time to Caliptra.
+const FPGA_ITRNG_FIFO_SIZE: usize = 1024;
+
 // FPGA wrapper register offsets
-const FPGA_WRAPPER_OUTPUT_OFFSET: isize = 0x0000 / 4;
-const FPGA_WRAPPER_INPUT_OFFSET: isize = 0x0008 / 4;
-const FPGA_WRAPPER_PAUSER_OFFSET: isize = 0x000C / 4;
-const FPGA_WRAPPER_DEOBF_KEY_OFFSET: isize = 0x0020 / 4;
+const _FPGA_WRAPPER_GENERIC_INPUT_OFFSET: isize = 0x0000 / 4;
+const _FPGA_WRAPPER_GENERIC_OUTPUT_OFFSET: isize = 0x0008 / 4;
+const FPGA_WRAPPER_DEOBF_KEY_OFFSET: isize = 0x0010 / 4;
+const FPGA_WRAPPER_CONTROL_OFFSET: isize = 0x0030 / 4;
+const FPGA_WRAPPER_STATUS_OFFSET: isize = 0x0034 / 4;
+const FPGA_WRAPPER_PAUSER_OFFSET: isize = 0x0038 / 4;
+const FPGA_WRAPPER_ITRNG_DIV_OFFSET: isize = 0x003C / 4;
+const FPGA_WRAPPER_CYCLE_COUNT_OFFSET: isize = 0x0040 / 4;
 const FPGA_WRAPPER_LOG_FIFO_DATA_OFFSET: isize = 0x1000 / 4;
 const FPGA_WRAPPER_LOG_FIFO_STATUS_OFFSET: isize = 0x1004 / 4;
+const FPGA_WRAPPER_ITRNG_FIFO_DATA_OFFSET: isize = 0x1008 / 4;
+const FPGA_WRAPPER_ITRNG_FIFO_STATUS_OFFSET: isize = 0x100C / 4;
 
 bitfield! {
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     /// Wrapper wires -> Caliptra
     pub struct GpioOutput(u32);
-    cptra_rst_b, set_cptra_rst_b: 0, 0;
-    cptra_pwrgood, set_cptra_pwrgood: 1, 1;
-    security_state, set_security_state: 6, 4;
+    cptra_pwrgood, set_cptra_pwrgood: 0, 0;
+    cptra_rst_b, set_cptra_rst_b: 1, 1;
+    debug_locked, set_debug_locked: 2, 2;
+    device_lifecycle, set_device_lifecycle: 4, 3;
 }
 
 bitfield! {
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     /// Wrapper wires <- Caliptra
     pub struct GpioInput(u32);
-    cptra_error_fatal, _: 26, 26;
-    cptra_error_non_fatal, _: 27, 27;
-    ready_for_fw, _: 28, 28;
-    ready_for_runtime, _: 29, 29;
-    ready_for_fuses, _: 30, 30;
+    cptra_error_fatal, _: 0, 0;
+    cptra_error_non_fatal, _: 1, 1;
+    ready_for_fuses, _: 2, 2;
+    ready_for_fw, _: 3, 3;
+    ready_for_runtime, _: 4, 4;
 }
 
 bitfield! {
@@ -73,19 +93,86 @@ bitfield! {
     log_fifo_full, _: 1, 1;
 }
 
+bitfield! {
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+    /// ITRNG FIFO status
+    pub struct TrngFifoStatus(u32);
+    trng_fifo_empty, _: 0, 0;
+    trng_fifo_full, _: 1, 1;
+    trng_fifo_reset, set_trng_fifo_reset: 2, 2;
+}
+
 pub struct ModelFpgaRealtime {
     dev: UioDevice,
     wrapper: *mut u32,
     mmio: *mut u32,
     output: Output,
-    start_time: time::Instant,
 
     realtime_thread: Option<thread::JoinHandle<()>>,
     realtime_thread_exit_flag: Arc<AtomicBool>,
+
+    trng_mode: TrngMode,
+    openocd: Option<Child>,
 }
 
 impl ModelFpgaRealtime {
-    fn realtime_thread_fn(
+    fn realtime_thread_itrng_fn(
+        wrapper: *mut u32,
+        exit: Arc<AtomicBool>,
+        mut itrng_nibbles: Box<dyn Iterator<Item = u8> + Send>,
+    ) {
+        // Reset ITRNG FIFO to clear out old data
+        unsafe {
+            let mut trngfifosts = TrngFifoStatus(0);
+            trngfifosts.set_trng_fifo_reset(1);
+            wrapper
+                .offset(FPGA_WRAPPER_ITRNG_FIFO_STATUS_OFFSET)
+                .write_volatile(trngfifosts.0);
+            trngfifosts.set_trng_fifo_reset(0);
+            wrapper
+                .offset(FPGA_WRAPPER_ITRNG_FIFO_STATUS_OFFSET)
+                .write_volatile(trngfifosts.0);
+        };
+        // Small delay to allow reset to complete
+        thread::sleep(Duration::from_millis(1));
+
+        while !exit.load(Ordering::Relaxed) {
+            // Once TRNG data is requested the FIFO will continously empty. Load at max one FIFO load at a time.
+            // FPGA ITRNG FIFO is 1024 DW deep.
+            for _i in 0..FPGA_ITRNG_FIFO_SIZE {
+                let trngfifosts = unsafe {
+                    TrngFifoStatus(
+                        wrapper
+                            .offset(FPGA_WRAPPER_ITRNG_FIFO_STATUS_OFFSET)
+                            .read_volatile(),
+                    )
+                };
+                if trngfifosts.trng_fifo_full() == 0 {
+                    let mut itrng_dw = 0;
+                    for i in (0..8).rev() {
+                        match itrng_nibbles.next() {
+                            Some(nibble) => itrng_dw += u32::from(nibble) << (4 * i),
+                            None => return,
+                        }
+                    }
+                    unsafe {
+                        wrapper
+                            .offset(FPGA_WRAPPER_ITRNG_FIFO_DATA_OFFSET)
+                            .write_volatile(itrng_dw);
+                    }
+                } else {
+                    break;
+                }
+            }
+            // 1 second * (20 MHz / (2^13 throttling counter)) / 8 nibbles per DW: 305 DW of data consumed in 1 second.
+            let end_time = Instant::now() + Duration::from_millis(1000);
+            while !exit.load(Ordering::Relaxed) && Instant::now() < end_time {
+                thread::sleep(Duration::from_millis(1));
+            }
+        }
+    }
+
+    fn realtime_thread_etrng_fn(
         mmio: *mut u32,
         exit: Arc<AtomicBool>,
         mut etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
@@ -113,11 +200,12 @@ impl ModelFpgaRealtime {
             thread::sleep(Duration::from_millis(1));
         }
     }
+
     fn is_ready_for_fuses(&self) -> bool {
         unsafe {
             GpioInput(
                 self.wrapper
-                    .offset(FPGA_WRAPPER_INPUT_OFFSET)
+                    .offset(FPGA_WRAPPER_STATUS_OFFSET)
                     .read_volatile(),
             )
             .ready_for_fuses()
@@ -128,12 +216,12 @@ impl ModelFpgaRealtime {
         unsafe {
             let mut val = GpioOutput(
                 self.wrapper
-                    .offset(FPGA_WRAPPER_OUTPUT_OFFSET)
+                    .offset(FPGA_WRAPPER_CONTROL_OFFSET)
                     .read_volatile(),
             );
             val.set_cptra_pwrgood(value as u32);
             self.wrapper
-                .offset(FPGA_WRAPPER_OUTPUT_OFFSET)
+                .offset(FPGA_WRAPPER_CONTROL_OFFSET)
                 .write_volatile(val.0);
         }
     }
@@ -141,25 +229,26 @@ impl ModelFpgaRealtime {
         unsafe {
             let mut val = GpioOutput(
                 self.wrapper
-                    .offset(FPGA_WRAPPER_OUTPUT_OFFSET)
+                    .offset(FPGA_WRAPPER_CONTROL_OFFSET)
                     .read_volatile(),
             );
             val.set_cptra_rst_b(value as u32);
             self.wrapper
-                .offset(FPGA_WRAPPER_OUTPUT_OFFSET)
+                .offset(FPGA_WRAPPER_CONTROL_OFFSET)
                 .write_volatile(val.0);
         }
     }
-    fn set_security_state(&mut self, value: u32) {
+    fn set_security_state(&mut self, value: SecurityState) {
         unsafe {
             let mut val = GpioOutput(
                 self.wrapper
-                    .offset(FPGA_WRAPPER_OUTPUT_OFFSET)
+                    .offset(FPGA_WRAPPER_CONTROL_OFFSET)
                     .read_volatile(),
             );
-            val.set_security_state(value);
+            val.set_debug_locked(u32::from(value.debug_locked()));
+            val.set_device_lifecycle(u32::from(value.device_lifecycle()));
             self.wrapper
-                .offset(FPGA_WRAPPER_OUTPUT_OFFSET)
+                .offset(FPGA_WRAPPER_CONTROL_OFFSET)
                 .write_volatile(val.0);
         }
     }
@@ -218,6 +307,14 @@ impl ModelFpgaRealtime {
             nix::sys::mman::munmap(addr as *mut libc::c_void, map_size.into()).unwrap();
         }
     }
+
+    fn set_itrng_divider(&mut self, divider: u32) {
+        unsafe {
+            self.wrapper
+                .offset(FPGA_WRAPPER_ITRNG_DIV_OFFSET)
+                .write_volatile(divider - 1);
+        }
+    }
 }
 
 // Hack to pass *mut u32 between threads
@@ -239,38 +336,64 @@ impl HwModel for ModelFpgaRealtime {
             .map_mapping(FPGA_WRAPPER_MAPPING)
             .map_err(fmt_uio_error)? as *mut u32;
         let mmio = dev.map_mapping(CALIPTRA_MAPPING).map_err(fmt_uio_error)? as *mut u32;
-        let start_time = time::Instant::now();
 
         let realtime_thread_exit_flag = Arc::new(AtomicBool::new(false));
         let realtime_thread_exit_flag2 = realtime_thread_exit_flag.clone();
 
-        let realtime_thread_mmio = SendPtr(mmio);
-        let realtime_thread = Some(thread::spawn(move || {
-            let mmio = realtime_thread_mmio;
-            Self::realtime_thread_fn(mmio.0, realtime_thread_exit_flag2, params.etrng_responses)
-        }));
+        let desired_trng_mode = TrngMode::resolve(params.trng_mode);
+        let realtime_thread = match desired_trng_mode {
+            TrngMode::Internal => {
+                let realtime_thread_wrapper = SendPtr(wrapper);
+                Some(thread::spawn(move || {
+                    let wrapper = realtime_thread_wrapper;
+                    Self::realtime_thread_itrng_fn(
+                        wrapper.0,
+                        realtime_thread_exit_flag2,
+                        params.itrng_nibbles,
+                    )
+                }))
+            }
+            TrngMode::External => {
+                let realtime_thread_mmio = SendPtr(mmio);
+                Some(thread::spawn(move || {
+                    let mmio = realtime_thread_mmio;
+                    Self::realtime_thread_etrng_fn(
+                        mmio.0,
+                        realtime_thread_exit_flag2,
+                        params.etrng_responses,
+                    )
+                }))
+            }
+        };
 
         let mut m = Self {
             dev,
             wrapper,
             mmio,
             output,
-            start_time,
 
             realtime_thread,
             realtime_thread_exit_flag,
+
+            trng_mode: desired_trng_mode,
+
+            openocd: None,
         };
 
-        writeln!(m.output().logger(), "new_unbooted")?;
         // Set pwrgood and rst_b to 0 to boot from scratch
         m.set_cptra_pwrgood(false);
         m.set_cptra_rst_b(false);
 
+        writeln!(m.output().logger(), "new_unbooted")?;
+
         // Set Security State signal wires
-        m.set_security_state(u32::from(params.security_state));
+        m.set_security_state(params.security_state);
 
         // Set initial PAUSER
         m.set_apb_pauser(DEFAULT_APB_PAUSER);
+
+        // Set divisor for ITRNG throttling
+        m.set_itrng_divider(ITRNG_DIVISOR);
 
         // Set deobfuscation key
         for i in 0..8 {
@@ -298,7 +421,30 @@ impl HwModel for ModelFpgaRealtime {
         while !m.is_ready_for_fuses() {}
         writeln!(m.output().logger(), "ready_for_fuses is high")?;
 
+        // Checking the FPGA model needs to happen after Caliptra's registers are available.
+        let fpga_trng_mode = if m.soc_ifc().cptra_hw_config().read().i_trng_en() {
+            TrngMode::Internal
+        } else {
+            TrngMode::External
+        };
+        if desired_trng_mode != fpga_trng_mode {
+            return Err(format!(
+                "HwModel InitParams asked for trng_mode={desired_trng_mode:?}, \
+                    but the FPGA was compiled with trng_mode={fpga_trng_mode:?}; \
+                    try matching the test and the FPGA image."
+            )
+            .into());
+        }
+
         Ok(m)
+    }
+
+    fn type_name(&self) -> &'static str {
+        "ModelFpgaRealtime"
+    }
+
+    fn trng_mode(&self) -> TrngMode {
+        self.trng_mode
     }
 
     fn apb_bus(&mut self) -> Self::TBus<'_> {
@@ -313,9 +459,12 @@ impl HwModel for ModelFpgaRealtime {
     }
 
     fn output(&mut self) -> &mut crate::Output {
-        self.output
-            .sink()
-            .set_now(self.start_time.elapsed().as_millis().try_into().unwrap());
+        let cycle = unsafe {
+            self.wrapper
+                .offset(FPGA_WRAPPER_CYCLE_COUNT_OFFSET)
+                .read_volatile()
+        };
+        self.output.sink().set_now(u64::from(cycle));
         &mut self.output
     }
 
@@ -331,7 +480,7 @@ impl HwModel for ModelFpgaRealtime {
         unsafe {
             GpioInput(
                 self.wrapper
-                    .offset(FPGA_WRAPPER_INPUT_OFFSET)
+                    .offset(FPGA_WRAPPER_STATUS_OFFSET)
                     .read_volatile(),
             )
             .ready_for_fw()
@@ -351,6 +500,47 @@ impl HwModel for ModelFpgaRealtime {
         }
     }
 }
+
+impl ModelFpgaRealtime {
+    pub fn launch_openocd(&mut self) -> Result<(), OpenOcdError> {
+        let _ = Command::new("sudo")
+            .arg("pkill")
+            .arg("openocd")
+            .spawn()
+            .unwrap()
+            .wait();
+
+        let mut openocd = Command::new("sudo")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .arg("openocd")
+            .arg("--command")
+            .arg(include_str!("../../hw/fpga/openocd_caliptra.txt"))
+            .spawn()
+            .unwrap();
+
+        let mut child_err = BufReader::new(openocd.stderr.as_mut().unwrap());
+        let mut output = String::new();
+        loop {
+            if 0 == child_err.read_line(&mut output).unwrap() {
+                println!("openocd log returned EOF. Log: {output}");
+                return Err(OpenOcdError::Closed);
+            }
+            if output.contains("Debug Module did not become active") {
+                return Err(OpenOcdError::NotAccessible);
+            }
+            if output.contains("Listening on port 4444 for telnet connections") {
+                break;
+            }
+        }
+        if !output.contains("Open On-Chip Debugger 0.12.0") {
+            return Err(OpenOcdError::WrongVersion);
+        }
+
+        self.openocd = Some(openocd);
+        Ok(())
+    }
+}
 impl Drop for ModelFpgaRealtime {
     fn drop(&mut self) {
         // Ask the realtime thread to exit and wait for it to finish
@@ -364,6 +554,12 @@ impl Drop for ModelFpgaRealtime {
         // Unmap UIO memory space so that the file lock is released
         self.unmap_mapping(self.wrapper, FPGA_WRAPPER_MAPPING);
         self.unmap_mapping(self.mmio, CALIPTRA_MAPPING);
+
+        // Close openocd
+        match &mut self.openocd {
+            Some(ref mut cmd) => cmd.kill().expect("Failed to close openocd"),
+            _ => (),
+        }
     }
 }
 

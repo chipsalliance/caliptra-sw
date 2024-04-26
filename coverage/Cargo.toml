@@ -17,3 +17,5 @@ bit-vec = { workspace = true, features = ["serde"] }
 caliptra-builder.workspace = true
 elf.workspace = true
 regex.workspace = true
+caliptra-image-types.workspace = true
+caliptra-drivers.workspace=true

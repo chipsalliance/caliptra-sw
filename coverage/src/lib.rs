@@ -77,7 +77,11 @@ pub fn dump_emu_coverage_to_file(
     writer.flush()?;
     Ok(())
 }
-pub fn uncovered_functions<'a>(elf_bytes: &'a [u8], bitmap: &'a BitVec) -> std::io::Result<()> {
+pub fn uncovered_functions<'a>(
+    base_addr: usize,
+    elf_bytes: &'a [u8],
+    bitmap: &'a BitVec,
+) -> std::io::Result<()> {
     let symbols = caliptra_builder::elf_symbols(elf_bytes)?;
 
     let filter = symbols
@@ -85,7 +89,7 @@ pub fn uncovered_functions<'a>(elf_bytes: &'a [u8], bitmap: &'a BitVec) -> std::
         .filter(|sym| sym.ty == SymbolType::Func)
         .filter(|function| {
             let mut pc_range = function.value..function.value + function.size;
-            !pc_range.any(|pc| bitmap.get(pc as usize).unwrap_or(false))
+            !pc_range.any(|pc| bitmap.get((pc as usize) - base_addr).unwrap_or(false))
         });
 
     for f in filter {
@@ -232,10 +236,10 @@ pub mod calculator {
 
     use super::*;
 
-    pub fn coverage_from_bitmap(coverage: &BitVec, instr_pcs: &[u32]) -> i32 {
+    pub fn coverage_from_bitmap(base_addr: usize, coverage: &BitVec, instr_pcs: &[u32]) -> i32 {
         let mut hit = 0;
         for pc in instr_pcs {
-            if coverage[*pc as usize] {
+            if coverage[*pc as usize - base_addr] {
                 hit += 1;
             }
         }

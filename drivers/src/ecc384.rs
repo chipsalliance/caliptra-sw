@@ -265,12 +265,51 @@ impl Ecc384 {
         let digest = Array4x12::new([0u32; 12]);
         match self.sign(&priv_key.into(), &pub_key, &digest, trng) {
             Ok(mut sig) => sig.zeroize(),
-            Err(err) => return Err(err),
+            Err(_) => {
+                // Remap error to a pairwise consistency check failure
+                return Err(CaliptraError::DRIVER_ECC384_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE);
+            }
         }
 
         self.zeroize_internal();
 
         Ok(pub_key)
+    }
+
+    /// Sign the PCR digest with PCR signing private key.
+    ///
+    /// # Arguments
+    ///
+    /// * `trng` - TRNG driver instance
+    ///
+    /// # Returns
+    ///
+    /// * `Ecc384Signature` - Generate signature
+    #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
+    pub fn pcr_sign_flow(&mut self, trng: &mut Trng) -> CaliptraResult<Ecc384Signature> {
+        let ecc = self.ecc.regs_mut();
+
+        // Wait for hardware ready
+        wait::until(|| ecc.status().read().ready());
+
+        // Generate an IV.
+        let iv = trng.generate()?;
+        KvAccess::copy_from_arr(&iv, ecc.iv())?;
+
+        ecc.ctrl().write(|w| w.pcr_sign(true).ctrl(|w| w.signing()));
+
+        // Wait for command to complete
+        wait::until(|| ecc.status().read().valid());
+
+        // Copy signature
+        let signature = Ecc384Signature {
+            r: Array4x12::read_from_reg(ecc.sign_r()),
+            s: Array4x12::read_from_reg(ecc.sign_s()),
+        };
+
+        self.zeroize_internal();
+
+        Ok(signature)
     }
 
     #[cfg_attr(not(feature = "no-cfi"), cfi_impl_fn)]
@@ -343,9 +382,14 @@ impl Ecc384 {
         let mut sig_result = self.sign_internal(priv_key, data, trng);
         let sig = okmutref(&mut sig_result)?;
 
+        // Verify the signature just created
         let r = self.verify_r(pub_key, data, sig)?;
-        caliptra_cfi_lib::cfi_assert_eq_12_words(&r.0, &sig.r.0);
-        sig_result
+        if r == sig.r {
+            caliptra_cfi_lib::cfi_assert_eq_12_words(&r.0, &sig.r.0);
+            sig_result
+        } else {
+            Err(CaliptraError::DRIVER_ECC384_SIGN_VALIDATION_FAILED)
+        }
     }
 
     /// Verify signature with specified public key and digest

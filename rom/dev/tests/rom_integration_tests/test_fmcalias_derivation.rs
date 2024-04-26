@@ -565,7 +565,6 @@ fn test_pcr_log_across_update_reset() {
 #[test]
 fn test_fuse_log() {
     const FMC_SVN: u32 = 4;
-    const FMC_MIN_SVN: u32 = 2;
 
     let fuses = Fuses {
         anti_rollback_disable: true,
@@ -591,10 +590,8 @@ fn test_fuse_log() {
         vendor_config: VENDOR_CONFIG_KEY_1,
         owner_config: Some(OWNER_CONFIG),
         fmc_svn: FMC_SVN,
-        fmc_min_svn: FMC_MIN_SVN,
         fmc_version: 0,
         app_svn: FMC_SVN,
-        app_min_svn: FMC_MIN_SVN,
         app_version: 0,
     };
     let image_bundle =
@@ -641,15 +638,15 @@ fn test_fuse_log() {
     );
     assert_eq!(fuse_log_entry.log_data[0], FMC_SVN);
 
-    // Validate the ManifestFmcMinSvn
+    // Validate the ManifestReserved0
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
     let fuse_log_entry =
         FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(
         fuse_log_entry.entry_id,
-        FuseLogEntryId::ManifestFmcMinSvn as u32
+        FuseLogEntryId::ManifestReserved0 as u32
     );
-    assert_eq!(fuse_log_entry.log_data[0], FMC_MIN_SVN);
+    assert_eq!(fuse_log_entry.log_data[0], 0);
 
     // Validate the FuseFmcSvn
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
@@ -668,15 +665,15 @@ fn test_fuse_log() {
     );
     assert_eq!(fuse_log_entry.log_data[0], FMC_SVN);
 
-    // Validate the ManifestRtMinSvn
+    // Validate the ManifestReserved1
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();
     let fuse_log_entry =
         FuseLogEntry::read_from_prefix(fuse_entry_arr[fuse_log_entry_offset..].as_bytes()).unwrap();
     assert_eq!(
         fuse_log_entry.entry_id,
-        FuseLogEntryId::ManifestRtMinSvn as u32
+        FuseLogEntryId::ManifestReserved1 as u32
     );
-    assert_eq!(fuse_log_entry.log_data[0], FMC_MIN_SVN);
+    assert_eq!(fuse_log_entry.log_data[0], 0);
 
     // Validate the FuseRtSvn
     fuse_log_entry_offset += core::mem::size_of::<FuseLogEntry>();

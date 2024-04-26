@@ -42,8 +42,17 @@ pub fn main() {}
 
 // Dummy RO data to max out FMC image size to 16K.
 // Note: Adjust this value to account for new changes in this FMC image.
-static PAD: [u32; 1119] = {
-    let mut result = [0xdeadbeef_u32; 1119];
+#[cfg(all(feature = "interactive_test_fmc", not(feature = "fake-fmc")))]
+const PAD_LEN: usize = 4988; // TEST_FMC_INTERACTIVE
+#[cfg(all(feature = "fake-fmc", not(feature = "interactive_test_fmc")))]
+const PAD_LEN: usize = 5224; // FAKE_TEST_FMC_WITH_UART
+#[cfg(all(feature = "interactive_test_fmc", feature = "fake-fmc"))]
+const PAD_LEN: usize = 5452; // FAKE_TEST_FMC_INTERACTIVE
+#[cfg(not(any(feature = "interactive_test_fmc", feature = "fake-fmc")))]
+const PAD_LEN: usize = 0;
+
+static PAD: [u32; PAD_LEN / 4] = {
+    let mut result = [0xdeadbeef_u32; PAD_LEN / 4];
     let mut i = 0;
     while i < result.len() {
         result[i] = result[i].wrapping_add(i as u32);

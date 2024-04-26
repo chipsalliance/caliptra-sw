@@ -370,6 +370,7 @@ pub const OWNER_CONFIG: ImageGeneratorOwnerConfig = ImageGeneratorOwnerConfig {
     }),
     not_before: [0u8; 15],
     not_after: [0u8; 15],
+    epoch: [0u8; 2],
 };
 
 #[test]
