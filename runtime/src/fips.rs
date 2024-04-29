@@ -121,7 +121,6 @@ pub mod fips_self_test_cmd {
                 + env.persistent_data.get().manifest1.runtime.size,
             ResetReason::UpdateReset,
         )?;
-        env.mbox.unlock();
         cprintln!("[rt] Verify complete");
         Ok(())
     }
