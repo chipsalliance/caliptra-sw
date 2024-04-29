@@ -529,35 +529,32 @@ impl CaliptraError {
     pub const ROM_GLOBAL_MEASUREMENT_LOG_EXHAUSTED: CaliptraError =
         CaliptraError::new_const(0x0105000D);
 
-    /// ROM KAT Errors
-    pub const ROM_KAT_SHA256_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90010001);
-    pub const ROM_KAT_SHA256_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90010002);
+    /// KAT Errors
+    pub const KAT_SHA256_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90010001);
+    pub const KAT_SHA256_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90010002);
 
-    pub const ROM_KAT_SHA384_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90020001);
-    pub const ROM_KAT_SHA384_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90020002);
+    pub const KAT_SHA384_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90020001);
+    pub const KAT_SHA384_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90020002);
 
-    pub const ROM_KAT_HMAC384_FAILURE: CaliptraError = CaliptraError::new_const(0x90030001);
-    pub const ROM_KAT_HMAC384_TAG_MISMATCH: CaliptraError = CaliptraError::new_const(0x90030002);
+    pub const KAT_HMAC384_FAILURE: CaliptraError = CaliptraError::new_const(0x90030001);
+    pub const KAT_HMAC384_TAG_MISMATCH: CaliptraError = CaliptraError::new_const(0x90030002);
 
-    pub const ROM_KAT_ECC384_SIGNATURE_GENERATE_FAILURE: CaliptraError =
+    pub const KAT_ECC384_SIGNATURE_GENERATE_FAILURE: CaliptraError =
         CaliptraError::new_const(0x90040001);
-    pub const ROM_KAT_ECC384_SIGNATURE_VERIFY_FAILURE: CaliptraError =
+    pub const KAT_ECC384_SIGNATURE_VERIFY_FAILURE: CaliptraError =
         CaliptraError::new_const(0x90040002);
-    pub const ROM_KAT_ECC384_SIGNATURE_MISMATCH: CaliptraError =
-        CaliptraError::new_const(0x90040003);
+    pub const KAT_ECC384_SIGNATURE_MISMATCH: CaliptraError = CaliptraError::new_const(0x90040003);
 
-    pub const ROM_KAT_SHA384_ACC_DIGEST_START_OP_FAILURE: CaliptraError =
+    pub const KAT_SHA384_ACC_DIGEST_START_OP_FAILURE: CaliptraError =
         CaliptraError::new_const(0x90050001);
-    pub const ROM_KAT_SHA384_ACC_DIGEST_FAILURE: CaliptraError =
-        CaliptraError::new_const(0x90050002);
-    pub const ROM_KAT_SHA384_ACC_DIGEST_MISMATCH: CaliptraError =
-        CaliptraError::new_const(0x90050003);
+    pub const KAT_SHA384_ACC_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90050002);
+    pub const KAT_SHA384_ACC_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90050003);
 
-    pub const ROM_KAT_SHA1_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90060001);
-    pub const ROM_KAT_SHA1_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90060002);
+    pub const KAT_SHA1_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90060001);
+    pub const KAT_SHA1_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90060002);
 
-    pub const ROM_KAT_LMS_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90070001);
-    pub const ROM_KAT_LMS_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90070002);
+    pub const KAT_LMS_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90070001);
+    pub const KAT_LMS_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90070002);
 
     pub const ROM_INTEGRITY_FAILURE: CaliptraError = CaliptraError::new_const(0x90080001);
 }
