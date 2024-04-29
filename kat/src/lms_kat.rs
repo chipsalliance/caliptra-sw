@@ -333,7 +333,7 @@ impl LmsKat {
         let success =
             lms.verify_lms_signature(sha256_driver, &MESSAGE, &LMS_PUBLIC_KEY, &LMS_SIG)?;
         if success != LmsResult::Success {
-            Err(CaliptraError::ROM_KAT_LMS_DIGEST_MISMATCH)?;
+            Err(CaliptraError::KAT_LMS_DIGEST_MISMATCH)?;
         }
 
         Ok(())
