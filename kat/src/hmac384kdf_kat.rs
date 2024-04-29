@@ -68,10 +68,10 @@ impl Hmac384KdfKat {
         let mut out = Array4x12::default();
 
         hmac384_kdf(hmac, (&KEY).into(), &LABEL, None, trng, (&mut out).into())
-            .map_err(|_| CaliptraError::ROM_KAT_HMAC384_FAILURE)?;
+            .map_err(|_| CaliptraError::KAT_HMAC384_FAILURE)?;
 
         if EXPECTED_OUT != <[u8; 48]>::from(out)[..EXPECTED_OUT.len()] {
-            Err(CaliptraError::ROM_KAT_HMAC384_TAG_MISMATCH)?;
+            Err(CaliptraError::KAT_HMAC384_TAG_MISMATCH)?;
         }
 
         Ok(())

@@ -43,10 +43,10 @@ impl Sha256Kat {
 
         let digest = sha
             .digest(&data)
-            .map_err(|_| CaliptraError::ROM_KAT_SHA256_DIGEST_FAILURE)?;
+            .map_err(|_| CaliptraError::KAT_SHA256_DIGEST_FAILURE)?;
 
         if digest != EXPECTED_DIGEST {
-            return Err(CaliptraError::ROM_KAT_SHA256_DIGEST_MISMATCH);
+            return Err(CaliptraError::KAT_SHA256_DIGEST_MISMATCH);
         }
 
         Ok(())
