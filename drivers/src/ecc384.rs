@@ -384,12 +384,10 @@ impl Ecc384 {
 
         // Verify the signature just created
         let r = self.verify_r(pub_key, data, sig)?;
-        if r == sig.r {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(&r.0, &sig.r.0);
-            sig_result
-        } else {
-            Err(CaliptraError::DRIVER_ECC384_SIGN_VALIDATION_FAILED)
-        }
+        // Not using standard error flow here for increased CFI safety
+        // An error here will end up reporting the CFI assert failure
+        caliptra_cfi_lib::cfi_assert_eq_12_words(&r.0, &sig.r.0);
+        sig_result
     }
 
     /// Verify signature with specified public key and digest

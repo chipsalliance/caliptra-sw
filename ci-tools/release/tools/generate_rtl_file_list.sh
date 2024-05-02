@@ -57,8 +57,18 @@ while read line; do
 	file_list=$(echo "$file_list" | grep -v $line)
 done < <(echo "$exclude_list")
 
-# Remove all UVMF files (these are only for testing and may be removed during integration)
+# Filter out files exclusive to testing
+# Remove all UVMF files
+echo "Filtering out uvmf files"
 file_list=$(echo "$file_list" | grep -v -i "uvmf")
+
+# Remove test bench files
+echo "Filtering out tb directories"
+file_list=$(echo "$file_list" | grep -v -i "/tb/")
+
+# Remove asserts
+echo "Filtering out asserts directories"
+file_list=$(echo "$file_list" | grep -v -i "/asserts/")
 
 # Save file
 echo "$file_list" > "$output_file_name"
