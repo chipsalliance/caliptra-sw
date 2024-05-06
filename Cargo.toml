@@ -137,7 +137,7 @@ chrono = "0.4"
 clap = { version = "3.2.14", default-features = false, features = ["std"] }
 cms = "0.2.2"
 convert_case = "0.6.0"
-dpe = { path = "dpe/dpe", default-features = false, features = ["dpe_profile_p384_sha384"] }
+dpe = { path = "dpe/dpe", default-features = false, features = ["dpe_profile_p384_sha384", "disable_csr","disable_recursive","disable_is_symmetric","disable_is_ca","disable_internal_info","disable_internal_dice"] }
 crypto = { path = "dpe/crypto", default-features = false }
 platform = { path = "dpe/platform", default-features = false }
 elf = "0.7.2"
