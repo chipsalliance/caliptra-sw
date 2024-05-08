@@ -42,5 +42,35 @@ pub const FMC_SIZE: u32 = 20 * 1024;
 pub const RUNTIME_ORG: u32 = FMC_ORG + FMC_SIZE;
 pub const RUNTIME_SIZE: u32 = 94 * 1024;
 
+pub struct RomVersion {
+    pub major: u16,
+    pub minor: u16,
+    pub patch: u16,
+}
+
+// ROM Version - 16 bits
+// Major - 5 bits [15:11]
+// Minor - 5 bits [10:6]
+// Patch - 6 bits [5:0]
+impl From<u16> for RomVersion {
+    fn from(val: u16) -> RomVersion {
+        RomVersion {
+            major: ((val >> 11) & 0x1f),
+            minor: ((val >> 6) & 0x1f),
+            patch: (val & 0x3f),
+        }
+    }
+}
+
+impl core::fmt::Debug for RomVersion {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("RomVersion")
+            .field("major", &self.major)
+            .field("minor", &self.minor)
+            .field("patch", &self.patch)
+            .finish()
+    }
+}
+
 pub use memory_layout::{DATA_ORG, FHT_ORG, FHT_SIZE, MAN1_ORG};
 pub use wdt::{restart_wdt, start_wdt, stop_wdt, WdtTimeout};

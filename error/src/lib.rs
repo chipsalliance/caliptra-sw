@@ -435,6 +435,7 @@ impl CaliptraError {
     pub const FMC_HANDOFF_NOT_READY_FOR_RT: CaliptraError = CaliptraError::new_const(0x000F000C);
     pub const FMC_GLOBAL_WDT_EXPIRED: CaliptraError = CaliptraError::new_const(0x000F000D);
     pub const FMC_UNKNOWN_RESET: CaliptraError = CaliptraError::new_const(0x000F000E);
+    pub const FMC_COMPAT_CHECK_FAILED: CaliptraError = CaliptraError::new_const(0x000F000F);
 
     /// TRNG_EXT Errors
     pub const DRIVER_TRNG_EXT_TIMEOUT: CaliptraError = CaliptraError::new_const(0x00100001);

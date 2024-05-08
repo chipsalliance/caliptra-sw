@@ -19,6 +19,7 @@ use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
 use caliptra_common::{
     cprintln, handle_fatal_error,
     keyids::{KEY_ID_RT_CDI, KEY_ID_RT_PRIV_KEY},
+    RomVersion,
 };
 use caliptra_cpu::{log_trap_record, TrapRecord};
 
@@ -60,6 +61,19 @@ pub extern "C" fn entry_point() -> ! {
         Ok(env) => env,
         Err(e) => handle_fatal_error(e.into()),
     };
+    if !cfg!(feature = "fake-fmc") {
+        let rom_version = RomVersion::from(env.soc_ifc.get_rom_fw_rev_id());
+        // FMC to be removed in Caliptra 2.0
+        if rom_version.major != 1 {
+            cprintln!(
+                "ROM Version  {}, {}, {}",
+                rom_version.major,
+                rom_version.minor,
+                rom_version.patch
+            );
+            handle_fatal_error(CaliptraError::FMC_COMPAT_CHECK_FAILED.into());
+        }
+    }
 
     if !cfg!(feature = "no-cfi") {
         cprintln!("[state] CFI Enabled");
