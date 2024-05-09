@@ -12,5 +12,16 @@ anyhow.workspace = true
 caliptra-image-gen.workspace = true
 caliptra-image-types.workspace = true
 caliptra-lms-types.workspace = true
-openssl.workspace = true
+openssl = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+rand = { workspace = true, optional = true }
+p384 = { workspace = true, optional = true }
+ecdsa = { workspace = true, optional = true }
+sec1 = { workspace = true, optional = true }
 zerocopy.workspace = true
+cfg-if.workspace = true
+
+[features]
+default = ["openssl"]
+openssl = ["dep:openssl"]
+rustcrypto = ["dep:p384", "dep:rand", "dep:sha2", "dep:ecdsa", "dep:sec1"]

@@ -21,3 +21,8 @@ serde_derive.workspace = true
 serde.workspace = true
 toml.workspace = true
 zerocopy.workspace = true
+
+[features]
+default = ["openssl"]
+openssl = ["caliptra-image-crypto/openssl"]
+rustcrypto = ["caliptra-image-crypto/rustcrypto"]

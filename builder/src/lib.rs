@@ -16,7 +16,10 @@ use caliptra_image_elf::ElfExecutable;
 use caliptra_image_gen::{
     ImageGenerator, ImageGeneratorConfig, ImageGeneratorOwnerConfig, ImageGeneratorVendorConfig,
 };
-use caliptra_image_crypto::OsslCrypto;
+#[cfg(feature = "openssl")]
+use caliptra_image_crypto::OsslCrypto as Crypto;
+#[cfg(feature = "rustcrypto")]
+use caliptra_image_crypto::RustCrypto as Crypto;
 use caliptra_image_types::{ImageBundle, ImageRevision, RomInfo};
 use elf::endian::LittleEndian;
 use nix::fcntl::FlockArg;
@@ -487,7 +490,7 @@ pub fn build_and_sign_image(
 ) -> anyhow::Result<ImageBundle> {
     let fmc_elf = build_firmware_elf(fmc)?;
     let app_elf = build_firmware_elf(app)?;
-    let gen = ImageGenerator::new(OsslCrypto::default());
+    let gen = ImageGenerator::new(Crypto::default());
     let image = gen.generate(&ImageGeneratorConfig {
         fmc: ElfExecutable::new(
             &fmc_elf,

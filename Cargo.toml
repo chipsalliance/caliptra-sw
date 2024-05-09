@@ -181,6 +181,8 @@ nix = "0.26.2"
 libc = "0.2"
 zeroize = { version = "1.6.0", default-features = false, features = ["zeroize_derive"] }
 regex = "1.10.2"
+ecdsa = { version = "0.16.9", features = ["pem"]}
+sec1 = { version = "0.7.3" }
 
 [profile.firmware]
 inherits = "release"
