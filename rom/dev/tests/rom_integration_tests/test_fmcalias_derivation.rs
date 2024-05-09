@@ -20,7 +20,7 @@ use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, SecurityState};
 use caliptra_image_fake_keys::{OWNER_CONFIG, VENDOR_CONFIG_KEY_1};
 use caliptra_image_gen::ImageGenerator;
-use caliptra_image_openssl::OsslCrypto;
+use caliptra_image_crypto::OsslCrypto;
 use caliptra_image_types::IMAGE_BYTE_SIZE;
 use caliptra_test::swap_word_bytes;
 use openssl::hash::{Hasher, MessageDigest};

@@ -17,10 +17,10 @@ mod config;
 use anyhow::anyhow;
 use anyhow::Context;
 use caliptra_image_gen::*;
-use caliptra_image_openssl::ecc_priv_key_from_pem;
-use caliptra_image_openssl::ecc_pub_key_from_pem;
-use caliptra_image_openssl::lms_priv_key_from_pem;
-use caliptra_image_openssl::lms_pub_key_from_pem;
+use caliptra_image_crypto::ecc_priv_key_from_pem;
+use caliptra_image_crypto::ecc_pub_key_from_pem;
+use caliptra_image_crypto::lms_priv_key_from_pem;
+use caliptra_image_crypto::lms_pub_key_from_pem;
 use caliptra_image_serde::ImageBundleWriter;
 use caliptra_image_types::*;
 use clap::ArgMatches;
@@ -182,7 +182,7 @@ pub(crate) fn run_cmd(args: &ArgMatches) -> anyhow::Result<()> {
         runtime,
     };
 
-    let gen = ImageGenerator::new(caliptra_image_openssl::OsslCrypto::default());
+    let gen = ImageGenerator::new(caliptra_image_crypto::OsslCrypto::default());
     let image = gen.generate(&gen_config).unwrap();
 
     let out_file = std::fs::OpenOptions::new()

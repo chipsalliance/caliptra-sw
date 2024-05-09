@@ -222,10 +222,10 @@ name = "caliptra-builder"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "caliptra-image-crypto",
  "caliptra-image-elf",
  "caliptra-image-fake-keys",
  "caliptra-image-gen",
- "caliptra-image-openssl",
  "caliptra-image-types",
  "clap",
  "elf",
@@ -526,9 +526,9 @@ version = "0.5.0"
 dependencies = [
  "anyhow",
  "caliptra-drivers",
+ "caliptra-image-crypto",
  "caliptra-image-elf",
  "caliptra-image-gen",
- "caliptra-image-openssl",
  "caliptra-image-serde",
  "caliptra-image-types",
  "chrono",
@@ -538,6 +538,18 @@ dependencies = [
  "serde",
  "serde_derive",
  "toml 0.7.3",
+ "zerocopy",
+]
+
+[[package]]
+name = "caliptra-image-crypto"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "caliptra-image-gen",
+ "caliptra-image-types",
+ "caliptra-lms-types",
+ "openssl",
  "zerocopy",
 ]
 
@@ -555,8 +567,8 @@ dependencies = [
 name = "caliptra-image-fake-keys"
 version = "0.1.0"
 dependencies = [
+ "caliptra-image-crypto",
  "caliptra-image-gen",
- "caliptra-image-openssl",
  "caliptra-image-types",
  "caliptra-lms-types",
  "zerocopy",
@@ -571,18 +583,6 @@ dependencies = [
  "caliptra-image-types",
  "caliptra-lms-types",
  "memoffset 0.8.0",
- "zerocopy",
-]
-
-[[package]]
-name = "caliptra-image-openssl"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "caliptra-image-gen",
- "caliptra-image-types",
- "caliptra-lms-types",
- "openssl",
  "zerocopy",
 ]
 
@@ -673,10 +673,10 @@ dependencies = [
  "caliptra-emu-cpu",
  "caliptra-error",
  "caliptra-hw-model",
+ "caliptra-image-crypto",
  "caliptra-image-elf",
  "caliptra-image-fake-keys",
  "caliptra-image-gen",
- "caliptra-image-openssl",
  "caliptra-image-types",
  "caliptra-image-verify",
  "caliptra-kat",
@@ -738,7 +738,6 @@ dependencies = [
  "caliptra-image-elf",
  "caliptra-image-fake-keys",
  "caliptra-image-gen",
- "caliptra-image-openssl",
  "caliptra-image-serde",
  "caliptra-image-types",
  "caliptra-image-verify",

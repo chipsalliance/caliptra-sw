@@ -16,7 +16,7 @@ use caliptra_image_elf::ElfExecutable;
 use caliptra_image_gen::{
     ImageGenerator, ImageGeneratorConfig, ImageGeneratorOwnerConfig, ImageGeneratorVendorConfig,
 };
-use caliptra_image_openssl::OsslCrypto;
+use caliptra_image_crypto::OsslCrypto;
 use caliptra_image_types::{ImageBundle, ImageRevision, RomInfo};
 use elf::endian::LittleEndian;
 use nix::fcntl::FlockArg;

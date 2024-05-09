@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 use caliptra_image_gen::ImageGeneratorCrypto;
 use caliptra_image_gen::ImageGeneratorHasher;
-use caliptra_image_openssl::OsslCrypto;
+use caliptra_image_crypto::OsslCrypto;
 
 pub fn sha256_word_reversed(bytes: &[u8]) -> [u32; 8] {
     let mut sha = OsslCrypto::default().sha256_start();

@@ -10,7 +10,7 @@ anyhow.workspace = true
 caliptra-drivers.workspace = true
 caliptra-image-elf.workspace = true
 caliptra-image-gen.workspace = true
-caliptra-image-openssl.workspace = true
+caliptra-image-crypto.workspace = true
 caliptra-image-serde.workspace = true
 caliptra-image-types = { workspace = true, features = ["std"] }
 chrono.workspace = true

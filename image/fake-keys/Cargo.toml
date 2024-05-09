@@ -14,4 +14,4 @@ caliptra-lms-types.workspace = true
 zerocopy.workspace = true
 
 [dev-dependencies]
-caliptra-image-openssl.workspace = true
+caliptra-image-crypto.workspace = true

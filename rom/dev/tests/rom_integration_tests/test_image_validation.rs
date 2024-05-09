@@ -21,7 +21,7 @@ use caliptra_image_fake_keys::{
     VENDOR_CONFIG_KEY_0, VENDOR_CONFIG_KEY_1, VENDOR_CONFIG_KEY_2, VENDOR_CONFIG_KEY_3,
 };
 use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig, ImageGeneratorVendorConfig};
-use caliptra_image_openssl::OsslCrypto;
+use caliptra_image_crypto::OsslCrypto;
 use caliptra_image_types::{
     ImageBundle, ImageManifest, VENDOR_ECC_KEY_COUNT, VENDOR_LMS_KEY_COUNT,
 };

@@ -18,15 +18,15 @@ use zerocopy::AsBytes;
 /// Generated with
 ///
 /// ```no_run
-/// use caliptra_image_openssl;
+/// use caliptra_image_crypto;
 /// use std::path::PathBuf;
 ///
 /// fn print_public_key(name: &str, path: &str) {
-///     let key = caliptra_image_openssl::ecc_pub_key_from_pem(&PathBuf::from(path)).unwrap();
+///     let key = caliptra_image_crypto::ecc_pub_key_from_pem(&PathBuf::from(path)).unwrap();
 ///     println!("pub const {name}_PUBLIC: ImageEccPubKey = {key:#010x?};");
 /// }
 /// fn print_private_key(name: &str, path: &str) {
-///     let key = caliptra_image_openssl::ecc_priv_key_from_pem(&PathBuf::from(path)).unwrap();
+///     let key = caliptra_image_crypto::ecc_priv_key_from_pem(&PathBuf::from(path)).unwrap();
 ///     println!("pub const {name}_PRIVATE: ImageEccPrivKey = {key:#010x?};");
 /// }
 ///

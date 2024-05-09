@@ -67,7 +67,7 @@ members = [
   "image/serde",
   "image/verify",
   "image/app",
-  "image/openssl",
+  "image/crypto",
   "image/elf",
   "image/fake-keys",
   "lms-types",
@@ -114,7 +114,7 @@ caliptra-hw-model-types = { path = "hw-model/types" }
 caliptra-image-elf = { path = "image/elf" }
 caliptra-image-fake-keys = { path = "image/fake-keys" }
 caliptra-image-gen = { path = "image/gen" }
-caliptra-image-openssl = { path = "image/openssl" }
+caliptra-image-crypto = { path = "image/crypto" }
 caliptra-image-serde = { path = "image/serde" }
 caliptra-image-types = { path = "image/types", default-features = false }
 caliptra-image-verify = { path = "image/verify", default-features = false }
