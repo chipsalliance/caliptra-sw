@@ -10,7 +10,7 @@ pub const FMC_VERSION_PATCH: u16 = 0;
 
 pub const RUNTIME_VERSION_MAJOR: u32 = 1;
 pub const RUNTIME_VERSION_MINOR: u32 = 0;
-pub const RUNTIME_VERSION_PATCH: u32 = 0;
+pub const RUNTIME_VERSION_PATCH: u32 = 1;
 
 // ROM Version - 16 bits
 // Major - 5 bits [15:11]
